@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 import { adminUrl, authStoragePath, tableBodyRows } from './helpers.ts';
 
 /**
@@ -8,11 +8,22 @@ import { adminUrl, authStoragePath, tableBodyRows } from './helpers.ts';
  */
 test.use({ storageState: authStoragePath() });
 
+/**
+ * The API is keyset-cursor only: no numbered pages, no total counts, no
+ * next/previous page controls. Call once the list has rendered its rows.
+ */
+async function expectNoPageJumpControls(page: Page): Promise<void> {
+  await expect(page.getByText(/Page \d+ of \d+/)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Next page$/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Previous page$/ })).toHaveCount(0);
+}
+
 test.describe('invocations list', () => {
   test('Load more fetches the second page (25 → 30 rows)', async ({ page }) => {
     await page.goto(await adminUrl('/invocations'));
     const rows = tableBodyRows(page);
     await expect(rows).toHaveCount(25);
+    await expectNoPageJumpControls(page);
     await expect(page.getByRole('button', { name: 'Load more' })).toBeVisible();
     await page.getByRole('button', { name: 'Load more' }).click();
     await expect(rows).toHaveCount(30);
@@ -40,6 +51,7 @@ test.describe('messages list', () => {
     await page.goto(await adminUrl('/messages'));
     const rows = tableBodyRows(page);
     await expect(rows).toHaveCount(25);
+    await expectNoPageJumpControls(page);
     await page.getByRole('button', { name: 'Load more' }).click();
     await expect(rows).toHaveCount(30);
   });
@@ -65,6 +77,7 @@ test.describe('contexts list', () => {
     await page.goto(await adminUrl('/contexts'));
     const rows = tableBodyRows(page);
     await expect(rows).toHaveCount(25);
+    await expectNoPageJumpControls(page);
     await page.getByRole('button', { name: 'Load more' }).click();
     await expect(rows).toHaveCount(27);
   });
@@ -83,6 +96,7 @@ test.describe('alarms list', () => {
     await page.getByRole('textbox', { name: 'Target user ID' }).fill('42');
     await page.getByRole('textbox', { name: 'Target user ID' }).press('Enter');
     await expect(tableBodyRows(page).first()).toBeVisible();
+    await expectNoPageJumpControls(page);
     await page.getByRole('textbox', { name: 'Target user ID' }).fill('999999');
     await page.getByRole('textbox', { name: 'Target user ID' }).press('Enter');
     await expect(page.getByText('No alarms match these filters.')).toBeVisible();
@@ -102,6 +116,7 @@ test.describe('memories list', () => {
     await page.goto(await adminUrl('/memories'));
     const rows = tableBodyRows(page);
     await expect(rows).toHaveCount(25);
+    await expectNoPageJumpControls(page);
     await page.getByRole('button', { name: 'Load more' }).click();
     await expect(rows).toHaveCount(30);
   });
@@ -131,6 +146,7 @@ test.describe('stickers list', () => {
     await page.goto(await adminUrl('/stickers'));
     const rows = stickerRows(page);
     await expect(rows).toHaveCount(25);
+    await expectNoPageJumpControls(page);
     await page.getByRole('button', { name: 'Load more' }).click();
     await expect(rows).toHaveCount(30);
   });
@@ -161,18 +177,4 @@ test.describe('stickers list', () => {
     await page.getByRole('button', { name: 'Load more' }).click();
     await expect(stickerRows(page)).toHaveCount(28);
   });
-});
-
-test.describe('no page-jump controls anywhere', () => {
-  for (const route of ['/invocations', '/contexts', '/messages', '/alarms', '/memories', '/stickers']) {
-    test(`${route} has no pagination page controls`, async ({ page }) => {
-      await page.goto(await adminUrl(route));
-      await page.waitForLoadState('networkidle');
-      // The API is keyset-cursor only: no numbered pages, no total counts,
-      // no next/previous page controls.
-      await expect(page.getByText(/Page \d+ of \d+/)).toHaveCount(0);
-      await expect(page.getByRole('button', { name: /^Next page$/ })).toHaveCount(0);
-      await expect(page.getByRole('button', { name: /^Previous page$/ })).toHaveCount(0);
-    });
-  }
 });

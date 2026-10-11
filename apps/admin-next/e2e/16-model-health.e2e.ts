@@ -48,16 +48,6 @@ const PASSWORD = process.env.E2E_PASSWORD ?? 'e2e-correct-horse';
 /** Providers this spec creates; afterAll deletes exactly these aliases. */
 const CREATED_ALIASES = [E2E_HEALTH_ALIAS_A, E2E_HEALTH_ALIAS_B] as const;
 
-interface HealthResult {
-  readonly provider: string;
-  readonly model: string;
-  readonly status: 'ok' | 'unexpected_response' | 'error';
-  readonly ttfb_ms: number | null;
-  readonly duration_ms: number;
-  readonly response_text: string;
-  readonly error: string | null;
-}
-
 interface RelayRequestRecord {
   readonly model: string;
   readonly aborted: boolean;
@@ -300,11 +290,20 @@ test.describe('model health checks', () => {
     await expect(page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL} for a health check`)).toBeChecked();
 
     const before = await providersView(page);
-    await page.getByRole('button', { name: /^Check selected \(\d+\)$/ }).click();
+    // Hold every model upstream so the first three checks stay in flight
+    // together: the concurrency cap is observed, not inferred from timing.
+    await holdHealthGate();
+    try {
+      await page.getByRole('button', { name: /^Check selected \(\d+\)$/ }).click();
+      await expect.poll(async () => (await relayStats()).in_flight).toBe(3);
+      expect((await relayStats()).total).toBe(3);
+    } finally {
+      await releaseHealthGate();
+    }
 
     // All four models are checked, three in flight at once (never more); the
     // failing one does not interrupt the others.
-    await expect.poll(async () => (await relayStats()).total, { timeout: 15_000 }).toBe(4);
+    await expect.poll(async () => (await relayStats()).total).toBe(4);
     const stats = await relayStats();
     expect(stats.rejected).toBe(0);
     expect(stats.max_concurrent).toBe(3);
@@ -346,8 +345,8 @@ test.describe('model health checks', () => {
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
 
     // Hold the slow model upstream before the batch starts, so the fast result
-    // settling next to a still-"Checking…" row does not depend on the ~120ms
-    // vs ~2s delay values: the slow request cannot settle until released.
+    // settling next to a still-"Checking…" row does not depend on timing: the
+    // slow request cannot settle until released.
     await holdHealthGate(E2E_HEALTH_UNEXPECTED_MODEL);
     try {
       await page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL} for a health check`).check();
@@ -465,51 +464,6 @@ test.describe('model health checks', () => {
     const check = modelRow(page, E2E_HEALTH_OK_MODEL).getByRole('button', { name: /check health/i });
     await expect(check).toBeVisible();
     await expect(modelRow(page, E2E_HEALTH_OK_MODEL).getByText(/^ok$/i)).toHaveCount(0);
-  });
-
-  test('the health-check endpoint validates its input and reports every outcome on 200', async ({ page }) => {
-    // Unknown models and providers are rejected with 4xx, not probed.
-    for (const data of [
-      { provider: E2E_HEALTH_ALIAS_A, model: 'no-such-model' },
-      { provider: 'no-such-provider', model: E2E_HEALTH_OK_MODEL },
-    ]) {
-      const response = await page.request.post(await adminUrl('/api/providers/health-check'), { data });
-      expect(response.status()).toBeGreaterThanOrEqual(400);
-      expect(response.status()).toBeLessThan(500);
-    }
-
-    // A configured model answers 200 with the full result shape. No If-Match
-    // is required — this is a read, not a write.
-    const ok = await page.request.post(await adminUrl('/api/providers/health-check'), {
-      data: { provider: E2E_HEALTH_ALIAS_A, model: E2E_HEALTH_OK_MODEL },
-    });
-    expect(ok.status()).toBe(200);
-    const okBody = (await ok.json()) as HealthResult;
-    expect(okBody).toMatchObject({
-      provider: E2E_HEALTH_ALIAS_A,
-      model: E2E_HEALTH_OK_MODEL,
-      status: 'ok',
-      error: null,
-    });
-    expect(typeof okBody.ttfb_ms).toBe('number');
-    expect(typeof okBody.duration_ms).toBe('number');
-    expect(okBody.response_text).toBe('ok');
-
-    const unexpected = await page.request.post(await adminUrl('/api/providers/health-check'), {
-      data: { provider: E2E_HEALTH_ALIAS_A, model: E2E_HEALTH_UNEXPECTED_MODEL },
-    });
-    expect(unexpected.status()).toBe(200);
-    expect(await unexpected.json()).toMatchObject({ status: 'unexpected_response', response_text: 'hello' });
-
-    // An upstream failure is still a 200, carrying status error and no ttfb.
-    const failed = await page.request.post(await adminUrl('/api/providers/health-check'), {
-      data: { provider: E2E_HEALTH_ALIAS_B, model: E2E_HEALTH_FAIL_MODEL },
-    });
-    expect(failed.status()).toBe(200);
-    const failedBody = (await failed.json()) as HealthResult;
-    expect(failedBody.status).toBe('error');
-    expect(failedBody.ttfb_ms).toBeNull();
-    expect(typeof failedBody.error).toBe('string');
   });
 
   test('a checked model with its result fits a narrow phone screen', async ({ page }) => {

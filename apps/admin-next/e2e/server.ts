@@ -106,23 +106,12 @@ const relayChatStats = {
 };
 
 /**
- * Per-model upstream latency. `health-ok` settles in ~120ms while the other
- * three models hold their stream open for ~2s. Ordering assertions no longer
- * depend on these values: the hold gate parks a model upstream until a spec
- * explicitly releases it, so "fast settled while slow still checking" and
- * "cancelled while still held" are deterministic by construction. The delays
- * only bound how long a released response takes to arrive.
+ * Upstream latency for every model. It is short on purpose: no assertion may
+ * depend on wall-clock timing. Specs that need a request to stay in flight
+ * (ordering, concurrency, cancellation) park it with the hold gate below; the
+ * delay only keeps a single check observable as in flight for a moment.
  */
-const HEALTH_DELAY_MS: Readonly<Record<string, number>> = {
-  [E2E_HEALTH_OK_MODEL]: 120,
-  [E2E_HEALTH_OK_2_MODEL]: 2000,
-  [E2E_HEALTH_UNEXPECTED_MODEL]: 2000,
-  [E2E_HEALTH_FAIL_MODEL]: 2000,
-};
-
-function healthDelayMs(model: string): number {
-  return HEALTH_DELAY_MS[model] ?? 600;
-}
+const HEALTH_DELAY_MS = 120;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -329,7 +318,7 @@ async function handleHealthCompletions(request: Request): Promise<Response> {
       await waitForRelease(model, request.signal);
     }
     if (behavior === 'http-error') {
-      await sleep(healthDelayMs(model));
+      await sleep(HEALTH_DELAY_MS);
       finish();
       return Response.json({ error: { message: 'fixture upstream failure' } }, { status: 500 });
     }
@@ -337,7 +326,7 @@ async function handleHealthCompletions(request: Request): Promise<Response> {
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         try {
-          await sleep(healthDelayMs(model));
+          await sleep(HEALTH_DELAY_MS);
           const encoder = new TextEncoder();
           for (const chunk of healthSseChunks(model, content)) {
             controller.enqueue(encoder.encode(chunk));

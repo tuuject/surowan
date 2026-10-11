@@ -254,10 +254,10 @@ Remove-Item Env:E2E_PASSKEYS
      连接卡片的旧草稿不能删掉期间新增的 header、header 名可逐键输入不丢焦点）。
      `16-model-health.e2e.ts` 通过本地 SSE 上游验证单项和跨 Provider 批量健康检查、检查中禁用重复操作、三项并发上限、先完成项与在途项同时可见、SPA 离页取消在途与排队检查、刷新清空页内结果、配置和当前模型不变、密钥不进页面及窄屏布局。
      Developer 页默认关闭、开关持久化、应用失败与恢复、取消/确认清除、清除前后其它审计不变，以及移动端暗色布局。
-  6. 只读保证：浏览全部审计页面时记录网络请求，断言没有任何 POST/PUT/DELETE 打到
+  6. 只读保证：`01-routes.e2e.ts` 访问每条路由时记录网络请求，断言没有任何 POST/PUT/DELETE 打到
      `/api/**`。
   7. 安全：生产静态托管（非 dev server）下断言 CSP 头（`default-src 'none'` /
-     `script-src 'self'` / `connect-src 'self'`）、无 console error / pageerror /
+     `script-src 'self'` / `connect-src 'self'`）；`01-routes.e2e.ts` 的每条路由无 console error / pageerror /
      CSP violation，且全部请求同源（有外部请求即失败）。
   8. 信任边界（直接发 API 请求）：无 Session 访问受保护路由返回 401
      `unauthenticated`；对只读审计路由发 POST/PUT 返回 405 `method_not_allowed`；

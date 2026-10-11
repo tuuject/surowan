@@ -1,9 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { adminUrl, authStoragePath, watchPageIssues } from './helpers.ts';
+import { adminUrl, authStoragePath, type PageIssues, watchPageIssues } from './helpers.ts';
 
 /**
  * The business routes and their deep links render real content (not the
- * error boundary, not a blank page) with an authenticated session.
+ * error boundary, not a blank page) with an authenticated session. While each
+ * route renders, the page must also stay read-only and same-origin: no write
+ * method to `/api/**`, no request to another origin (the production CSP would
+ * block it), no console error and no uncaught page error.
  */
 test.use({ storageState: authStoragePath() });
 
@@ -12,6 +15,22 @@ const CONVERSATION_ID = '2001';
 const MESSAGE_A = '6001';
 
 test.describe('routes and deep links', () => {
+  let finishWatching: () => PageIssues = () => {
+    throw new Error('page issues are not being watched');
+  };
+
+  test.beforeEach(({ page }) => {
+    finishWatching = watchPageIssues(page);
+  });
+
+  test.afterEach(() => {
+    const issues = finishWatching();
+    expect(issues.writeApiCalls, JSON.stringify(issues.writeApiCalls)).toEqual([]);
+    expect(issues.externalRequests, JSON.stringify(issues.externalRequests)).toEqual([]);
+    expect(issues.consoleErrors, JSON.stringify(issues.consoleErrors)).toEqual([]);
+    expect(issues.pageErrors, JSON.stringify(issues.pageErrors)).toEqual([]);
+  });
+
   test('/ overview renders the real stats and bot status', async ({ page }) => {
     await page.goto(await adminUrl('/'));
     await expect(page.getByText('Stored messages')).toBeVisible();
@@ -162,35 +181,4 @@ test.describe('routes and deep links', () => {
     }
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
-});
-
-test.describe('no page errors while deep-linking', () => {
-  const routes = [
-    '/',
-    '/invocations',
-    `/invocations/${INVOCATION_A}`,
-    '/contexts',
-    `/contexts/${CONVERSATION_ID}`,
-    '/messages',
-    `/messages/${MESSAGE_A}`,
-    '/alarms',
-    '/memories',
-    '/admins',
-    '/chats',
-    '/models',
-    '/stickers',
-    '/settings',
-    '/developer',
-    '/api-keys',
-  ];
-  for (const route of routes) {
-    test(`browsing ${route} raises no pageerror`, async ({ page }) => {
-      const finish = watchPageIssues(page);
-      await page.goto(await adminUrl(route));
-      await page.waitForLoadState('networkidle');
-      const issues = finish();
-      expect(issues.pageErrors, JSON.stringify(issues.pageErrors)).toEqual([]);
-      expect(issues.consoleErrors, JSON.stringify(issues.consoleErrors)).toEqual([]);
-    });
-  }
 });
