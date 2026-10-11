@@ -186,6 +186,11 @@ test('keeps per-model description notes while typing, persists them on save, and
   await expect(gpt).toHaveValue('Stylized illustrations; bold colors');
 
   // Extend the seeded note of the first model, still without losing focus.
+  // Focus it with a real click (same path as the added model above): the
+  // auto-growing textarea (`field-sizing-content`) places the caret
+  // asynchronously after a programmatic focus, so a synthetic
+  // focus-then-key burst can land the first keystroke at position 0.
+  await banana.click();
   await banana.press('End');
   await banana.pressSequentially('; keep as default');
   await expect(banana).toBeFocused();
