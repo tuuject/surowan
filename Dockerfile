@@ -8,8 +8,12 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# pnpm 是包管理器；Node.js 24 是运行时
-RUN npm install --global pnpm@12.4.2
+# pnpm is the package manager; Node.js 24 is the runtime. Take the version from
+# package.json's packageManager field so the image cannot drift from CI, and
+# drop any "+sha512-..." suffix packageManager may carry.
+COPY package.json ./
+RUN PNPM_VERSION="$(node -p 'require("./package.json").packageManager.split("+")[0]')" \
+    && npm install --global "$PNPM_VERSION"
 
 # Cache layer: install deps before copying source
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
