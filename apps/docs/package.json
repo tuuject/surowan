@@ -11,11 +11,11 @@
   },
   "devDependencies": {
     "@rspress/core": "2.0.22",
-    "@types/node": "^24.13.5",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.0.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "typescript": "5.9.3"
   }
 }

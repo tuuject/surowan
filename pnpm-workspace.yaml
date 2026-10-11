@@ -10,5 +10,8 @@ allowBuilds:
   esbuild: true
   protobufjs: true
 
+minimumReleaseAgeExclude:
+  - react-hook-form@7.90.0
+
 patchedDependencies:
   '@rspress/core@2.0.22': patches/@rspress__core@2.0.22.patch
