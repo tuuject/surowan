@@ -1,8 +1,8 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
 import type { ImageConfigView } from '../src/lib/api.ts';
-import { adminUrl, authStoragePath } from './helpers.ts';
+import { adminUrl, test } from './helpers.ts';
 
-test.use({ storageState: authStoragePath() });
+test.use({ signedIn: true });
 
 const capabilities = {
   imageInput: true,

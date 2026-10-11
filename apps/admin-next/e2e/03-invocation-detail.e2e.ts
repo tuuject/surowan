@@ -1,12 +1,12 @@
-import { expect, test } from '@playwright/test';
-import { adminUrl, authStoragePath } from './helpers.ts';
+import { expect } from '@playwright/test';
+import { adminUrl, test } from './helpers.ts';
 
 /**
  * Invocation detail contract: the six tabs render their real fields, failed
  * calls expose a stable error code with expandable redacted details, and
  * assistant text carries the "Private reasoning" marker.
  */
-test.use({ storageState: authStoragePath() });
+test.use({ signedIn: true });
 
 test.describe('completed invocation (4001)', () => {
   test.beforeEach(async ({ page }) => {

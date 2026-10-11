@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import { adminUrl, authStoragePath, type PageIssues, watchPageIssues } from './helpers.ts';
+import { expect } from '@playwright/test';
+import { adminUrl, type PageIssues, test, watchPageIssues } from './helpers.ts';
 
 /**
  * The business routes and their deep links render real content (not the
@@ -8,7 +8,7 @@ import { adminUrl, authStoragePath, type PageIssues, watchPageIssues } from './h
  * method to `/api/**`, no request to another origin (the production CSP would
  * block it), no console error and no uncaught page error.
  */
-test.use({ storageState: authStoragePath() });
+test.use({ signedIn: true });
 
 const INVOCATION_A = '4001';
 const CONVERSATION_ID = '2001';

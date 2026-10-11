@@ -1,5 +1,13 @@
-import { type BrowserContext, test as base, type CDPSession, expect, type Page } from '@playwright/test';
-import { adminBase, adminUrl, authStoragePath, e2eFetch, watchPageIssues } from './helpers.ts';
+import { type BrowserContext, type CDPSession, expect, type Page } from '@playwright/test';
+import {
+  adminBase,
+  adminUrl,
+  authStoragePath,
+  test as base,
+  E2E_USERNAME,
+  e2eFetch,
+  watchPageIssues,
+} from './helpers.ts';
 
 /**
  * Real-browser passkey E2E against the real AdminServer + real WebAuthn stack.
@@ -31,9 +39,7 @@ import { adminBase, adminUrl, authStoragePath, e2eFetch, watchPageIssues } from 
  * authenticators, so a second real ceremony for the same user would fail with
  * InvalidStateError; the local credential store is cleared between the two
  * registrations (both server-side credentials are still genuine products of
- * the real ceremony + verification stack). The suite is serial, and the last
- * test restores a password account with a live session (storageState) for
- * later suites.
+ * the real ceremony + verification stack). The suite is serial.
  */
 const PASSKEYS_ENABLED = process.env.E2E_PASSKEYS === '1';
 
@@ -51,7 +57,7 @@ interface PasskeyFixtures {
 const test = base.extend<{}, PasskeyFixtures>({
   sharedContext: [
     async ({ browser }, use) => {
-      const context = await browser.newContext({ storageState: authStoragePath(), locale: 'en-US' });
+      const context = await browser.newContext({ storageState: await authStoragePath(), locale: 'en-US' });
       await use(context);
       await context.close();
     },
@@ -104,7 +110,7 @@ const test = base.extend<{}, PasskeyFixtures>({
 // ---------------------------------------------------------------------------
 
 if (!PASSKEYS_ENABLED) {
-  base.use({ storageState: authStoragePath() });
+  base.use({ signedIn: true });
 
   test.describe('passkeys disabled without admin.public_url', () => {
     test('login page offers no passkey entry', async ({ page }) => {
@@ -326,11 +332,11 @@ if (PASSKEYS_ENABLED) {
       expect(guard.error).toBe('password_required');
     });
 
-    test('restores a password, then allows deleting the last passkey', async ({ sharedPage, sharedContext }) => {
+    test('restores a password, then allows deleting the last passkey', async ({ sharedPage }) => {
       await sharedPage.goto(await adminUrl('/settings'));
 
       // Real recovery path: set a new password from the Admin credentials card.
-      await sharedPage.getByLabel('New username').fill(process.env.E2E_USERNAME ?? 'e2e-admin');
+      await sharedPage.getByLabel('New username').fill(E2E_USERNAME);
       await sharedPage.getByLabel('New password').fill(RESTORED_PASSWORD);
       await sharedPage.getByRole('button', { name: 'Update credentials' }).click();
       await expect(sharedPage.getByText('Credentials updated; all other sessions were signed out.')).toBeVisible();
@@ -344,14 +350,10 @@ if (PASSKEYS_ENABLED) {
       await expect(sharedPage.locator('[data-sonner-toast]').filter({ hasText: 'Passkey deleted' })).toBeVisible();
       await expect(sharedPage.getByText('No passkeys registered yet.')).toBeVisible();
       await expect(sharedPage.getByText('set', { exact: true })).toBeVisible();
-
-      // The account is password-only again with a live session for later suites.
-      await sharedContext.storageState({ path: authStoragePath() });
     });
 
     test('shows the cancel message for a failed or dismissed ceremony', async ({
       sharedPage,
-      sharedContext,
       cdpSession,
       authenticatorId,
     }) => {
@@ -383,12 +385,11 @@ if (PASSKEYS_ENABLED) {
       await sharedPage.getByRole('button', { name: 'Sign in with a passkey' }).click();
       await expect(sharedPage.getByText('Passkey request cancelled')).toBeVisible();
 
-      // Restore a live password session for any suite that runs afterwards.
-      await sharedPage.getByLabel('Username').fill(process.env.E2E_USERNAME ?? 'e2e-admin');
+      // The restored password signs in again.
+      await sharedPage.getByLabel('Username').fill(E2E_USERNAME);
       await sharedPage.getByLabel('Password').fill(RESTORED_PASSWORD);
       await sharedPage.getByRole('button', { name: 'Sign in', exact: true }).click();
       await expect(sharedPage.getByText('Stored messages')).toBeVisible();
-      await sharedContext.storageState({ path: authStoragePath() });
     });
   });
 }

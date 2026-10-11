@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import { adminUrl, authStoragePath } from './helpers.ts';
+import { expect } from '@playwright/test';
+import { adminUrl, test } from './helpers.ts';
 
 /**
  * Backend trust boundary, asserted with raw API requests against the real
@@ -28,7 +28,7 @@ test('GET a protected list route without a session cookie → 401 unauthenticate
 });
 
 test.describe('with a valid session cookie', () => {
-  test.use({ storageState: authStoragePath() });
+  test.use({ signedIn: true });
 
   test('POST to the audit read-only invocations route → 405 method_not_allowed', async ({ request }) => {
     const response = await request.post(await adminUrl('/api/invocations'));

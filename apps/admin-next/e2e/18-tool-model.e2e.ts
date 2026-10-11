@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import { adminUrl, authStoragePath, watchPageIssues } from './helpers.ts';
+import { expect } from '@playwright/test';
+import { adminUrl, test, watchPageIssues } from './helpers.ts';
 import { E2E_MERGE_ALIAS, E2E_MERGE_MODEL } from './models-fixture.ts';
 
 /**
@@ -9,7 +9,7 @@ import { E2E_MERGE_ALIAS, E2E_MERGE_MODEL } from './models-fixture.ts';
  * fallback. The Dictionary merge flow that consumes it lives in
  * `17-dictionary.e2e.ts`.
  */
-test.use({ storageState: authStoragePath() });
+test.use({ signedIn: true });
 
 interface ToolModelView {
   readonly provider: string;

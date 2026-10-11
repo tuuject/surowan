@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import { adminUrl, appliedToast, authStoragePath } from './helpers.ts';
+import { expect } from '@playwright/test';
+import { adminUrl, appliedToast, test } from './helpers.ts';
 import {
   E2E_BUILTIN_ALIAS,
   E2E_RELAY_ALIAS,
@@ -16,7 +16,7 @@ import {
  * global restart banner. Every write goes through the UI and is verified
  * against the API afterwards.
  */
-test.use({ storageState: authStoragePath() });
+test.use({ signedIn: true });
 
 test.describe('models page', () => {
   test('renders the provider list, the model table and the write-only key field', async ({ page }) => {
@@ -76,7 +76,7 @@ test.describe('models page', () => {
     const view = await (await page.request.get(await adminUrl('/api/providers'))).json();
     expect(view.supervised).toBe(true);
     // No provider field waits for a restart. (Settings-side restart-only fields
-    // such as `admin.port` may still be pending from earlier specs.)
+    // such as `admin.port` may still be pending from earlier tests.)
     expect(view.restart_required.filter((path: string) => path.startsWith('providers.'))).toEqual([]);
     expect(JSON.stringify(view)).not.toContain('e2e-rotated-builtin-key');
 

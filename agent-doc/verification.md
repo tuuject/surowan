@@ -202,14 +202,14 @@ node src/cli.ts serve --config dev-data/config.jsonc
 pnpm run admin:build        # 前置：E2E 驱动已构建的 dist（真实静态托管）
 pnpm --filter plasticwan-admin-next exec playwright install chromium   # 首次运行前安装 Chromium（Linux CI 用 --with-deps）
 pnpm run admin:test:e2e     # Playwright 套件（apps/admin-next/e2e/**/*.e2e.ts）
-pnpm run admin:test:e2e 00-auth 08-models 16-model-health  # 模型管理与健康检查回归
-pnpm run admin:test:e2e 00-auth 17-dictionary 18-tool-model  # 辞典页与 Tool Model 回归
+pnpm run admin:test:e2e 08-models 16-model-health  # 模型管理与健康检查回归
+pnpm run admin:test:e2e 17-dictionary 18-tool-model  # 辞典页与 Tool Model 回归
 ```
 
 Passkey 启用模式（PowerShell）：
 
 ```powershell
-$env:E2E_PASSKEYS='1'; pnpm run admin:test:e2e 00-auth 01-routes 16-passkeys
+$env:E2E_PASSKEYS='1'; pnpm run admin:test:e2e 16-passkeys
 Remove-Item Env:E2E_PASSKEYS
 ```
 
@@ -219,21 +219,25 @@ Remove-Item Env:E2E_PASSKEYS
 会话轮换、无用户名登录、最后可用凭据保护、恢复密码和取消提示。旧 RP 场景仅由测试钩子
 改变临时库的 RP 标记，不 mock WebAuthn 验签；此套件不代表真实手机或平台认证器兼容性验收。
 
-- **真实后端夹具**：`globalSetup` 派生一个 Node 子进程运行 `apps/admin-next/e2e/server.ts`，
+- **真实后端夹具**：每个 spec 文件由 `apps/admin-next/e2e/helpers.ts` 按需派生一个独立的 Node 子进程运行 `apps/admin-next/e2e/server.ts`，
   它创建临时目录 + 临时 SQLite，加载 `test/fixtures/admin-seed.ts`（基础行 +
   `seedAdminBulkRows` 的批量分页数据），构造 `SqliteStore` / `AgentModelSwitcher` /
   `ConfigReloader` / `AdminServer`，在回环地址随机端口启动，并同端口暴露仅测试使用的
   `/__e2e/**` 状态与控制钩子（含单次 apply 失败注入，验证先保存后应用失败的真实路径）；
-  `globalTeardown` 优雅关闭并清理临时目录。**不读 `dev-data/`、不启动 `serve`、
+  同一 worker 切换到下一个文件时关闭上一台，worker 退出（含被强杀导致 stdin 关闭）时
+  夹具自行优雅关闭并清理临时目录。**不读 `dev-data/`、不启动 `serve`、
   不触碰 8787 或任何用户进程。**
-- 每轮运行是全新数据库：认证从真实 `setup_required` 首次创建管理员开始，后续用例
-  复用同一 session（storageState），会话撤销用例直接删除 `admin_sessions` 行后断言
-  401 回落登录页并重新登录。
+- 每个 spec 文件都是全新数据库，文件之间不共享任何状态，与执行顺序无关；`globalSetup`
+  只检查 `dist` 已构建。`00-auth` 从真实 `setup_required` 首次创建管理员开始走 UI；其余套件以
+  `test.use({ signedIn: true })` 让 helper 通过真实认证 API 建号/登录并生成本文件的 storageState。
+  会话撤销用例直接删除 `admin_sessions` 行后断言 401 回落登录页并重新登录。
 - 用例文件名以 `.e2e.ts` 结尾、目录独立，Playwright `testMatch` 单独声明，**不会**被
-  vitest 与 `pnpm test` 发现；`workers: 1` 串行执行，端口随机，不与固定端口冲突。
+  vitest 与 `pnpm test` 发现；`workers` 取 `availableParallelism()`，文件间并行、文件内串行，
+  端口随机，不与固定端口冲突。依赖 CPU 时序的断言在满核负载下会暴露竞态：在途状态用
+  `/__e2e/health-gate` 等显式钩子控制，toast 断言用 `toast()` 限定在 Sonner 容器内。
 - `01-routes.e2e.ts` 与多个套件按路由断言可见文案（英文 locale）：修改面板文案或
-  locale 键值时必须同步这些断言，并运行受影响套件（如 `pnpm run admin:test:e2e 00-auth 01-routes`）——
-  `pnpm test` 与 `pnpm run check` 都不覆盖浏览器层。筛选依赖共享 Session 的套件时必须同时包含 `00-auth`：每轮夹具都是全新数据库，跳过建号与登录会停在首次设置页；旧 storageState 不能复用。
+  locale 键值时必须同步这些断言，并运行受影响套件（如 `pnpm run admin:test:e2e 01-routes`，任一套件都可单独运行）——
+  `pnpm test` 与 `pnpm run check` 都不覆盖浏览器层。
 - 覆盖契约（全部断言真实 UI 状态，非仅文案）：
   1. 认证：setup → shell；错误密码表单内显示 `invalid_credentials` 且 URL 不变；
      登出回登录页；会话撤销后受保护请求 401 → 登录页且无错误屏。
@@ -265,7 +269,7 @@ Remove-Item Env:E2E_PASSKEYS
   9. Chats：字符串 ID 安全整数边界、新增 Chat 热应用、删除与 Topic 范围的保存/运行态分离、模型/thinking 热切与恢复继承、
      后台 refetch 不升级编辑和删除确认的原始 revision、保存后应用失败的双视图刷新与 Settings 恢复、移动端暗色布局。
   10. API key（`14-api-keys.e2e.ts` 的 API 用例，API-only、自带登录，可单独运行）：Session 创建只返回一次明文与 `prefix`，列表不回显明文；Bearer 覆盖 invocation list/详情与 active/file 的 config view、global/group prompts，其它审计与管理路由（即使同时带 Cookie）403；撤销立即 401 且列表保留 `revoked_at`；`Authorization` 存在时不回退 Cookie；未接线的 replay 返回 503 `replay_unavailable`。
-  11. API keys 页面：`01-routes.e2e.ts`（共享 Session，筛选运行时需同时包含 `00-auth`）断言 `/api-keys` 深链接渲染标题、`Create API key` 与 Name/Prefix/Created/Last used/Status/Actions 列头；`14-api-keys.e2e.ts` 的 `API key management UI`（注入上方 API 登录的 Session Cookie，可单独运行）断言：侧栏 Manage → API keys 进入页面；创建弹窗 Name `maxlength=80`，成功后一次性 **Save your API key** 弹窗显示可复制的明文，`Copy API key` 的复制值正确（拦截 clipboard，不写系统剪贴板），Web Storage 无 `pwk_` 明文；Done/Escape、刷新、历史导航与会话过期后 DOM 和表单 value 均无明文，刷新后行内只保留元数据（前缀、Active、Never used）；Revoke 确认框取消不发 DELETE、确认后同一 key 立即 401 且状态 Revoked、按钮消失；列表失败显示错误与 Retry 且不伪造行，空白名称不发请求，创建失败在弹窗内联显示并禁止进行中重复提交，撤销失败留在确认框（Working… 禁用两端按钮）；窄屏暗色无整页横向溢出。该套件关闭 trace、截图、视频与失败时的 ARIA 页面快照，所有密钥值断言只输出布尔结果，避免失败产物泄漏明文。
+  11. API keys 页面：`01-routes.e2e.ts` 断言 `/api-keys` 深链接渲染标题、`Create API key` 与 Name/Prefix/Created/Last used/Status/Actions 列头；`14-api-keys.e2e.ts` 的 `API key management UI`（注入上方 API 登录的 Session Cookie）断言：侧栏 Manage → API keys 进入页面；创建弹窗 Name `maxlength=80`，成功后一次性 **Save your API key** 弹窗显示可复制的明文，`Copy API key` 的复制值正确（拦截 clipboard，不写系统剪贴板），Web Storage 无 `pwk_` 明文；Done/Escape、刷新、历史导航与会话过期后 DOM 和表单 value 均无明文，刷新后行内只保留元数据（前缀、Active、Never used）；Revoke 确认框取消不发 DELETE、确认后同一 key 立即 401 且状态 Revoked、按钮消失；列表失败显示错误与 Retry 且不伪造行，空白名称不发请求，创建失败在弹窗内联显示并禁止进行中重复提交，撤销失败留在确认框（Working… 禁用两端按钮）；窄屏暗色无整页横向溢出。该套件关闭 trace、截图、视频与失败时的 ARIA 页面快照，所有密钥值断言只输出布尔结果，避免失败产物泄漏明文。
 
 - 首次运行 E2E 前需要 `pnpm --filter plasticwan-admin-next exec playwright install chromium`；浏览器安装失败时套件无法
   执行，属于环境前置问题而非代码缺陷。
@@ -421,6 +425,6 @@ pnpm test
 - 哪些外部场景因 Token、Chat、Provider 或 MCP 不可用而未执行。
 - 观察到的审计状态，而不是推测状态。
 
-图片设置浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 00-auth 11-image-settings`，覆盖搜索与下拉选型、自动能力、保存与回显、空密钥沿用、旧配置凭据复用与重复项合并、缺项提示但按钮可点击且不发送非法写入、目录/供应商失败重试和窄屏无横向溢出；模型目录使用固定响应，真实 OpenRouter 目录需另行只读验收。
+图片设置浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 11-image-settings`，覆盖搜索与下拉选型、自动能力、保存与回显、空密钥沿用、旧配置凭据复用与重复项合并、缺项提示但按钮可点击且不发送非法写入、目录/供应商失败重试和窄屏无横向溢出；模型目录使用固定响应，真实 OpenRouter 目录需另行只读验收。
 
-生图审计详情浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 00-auth 12-image-generations`，使用固定生成记录验证详情深链接、刷新、列表进入与返回；断言生成状态、Attempt 错误、上游请求编号、用量、最终 Prompt、参考图快照顺序与原图链接、无参考图及原图加载失败状态，并保证浏览过程不发起写请求或真实生图。
+生图审计详情浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 12-image-generations`，使用固定生成记录验证详情深链接、刷新、列表进入与返回；断言生成状态、Attempt 错误、上游请求编号、用量、最终 Prompt、参考图快照顺序与原图链接、无参考图及原图加载失败状态，并保证浏览过程不发起写请求或真实生图。

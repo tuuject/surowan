@@ -1,11 +1,11 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import type { ChatsView, ChatSettings } from '../src/lib/api.ts';
-import { adminUrl, authStoragePath, e2eFetch, watchPageIssues } from './helpers.ts';
+import { adminUrl, e2eFetch, test, watchPageIssues } from './helpers.ts';
 
 const ACTIVE_CHAT = '123456789';
 const inherited: ChatSettings = { topic_ids: null, provider: null, model: null, thinking_level: null };
 
-test.use({ storageState: authStoragePath() });
+test.use({ signedIn: true });
 
 async function viewOf(page: Page): Promise<ChatsView> {
   const response = await page.request.get(await adminUrl('/api/chats'));

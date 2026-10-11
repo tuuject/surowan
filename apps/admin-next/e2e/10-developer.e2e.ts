@@ -1,7 +1,7 @@
-import { expect, test } from '@playwright/test';
-import { adminUrl, authStoragePath, e2eFetch } from './helpers.ts';
+import { expect } from '@playwright/test';
+import { adminUrl, e2eFetch, test } from './helpers.ts';
 
-test.use({ storageState: authStoragePath() });
+test.use({ signedIn: true });
 
 test('Developer persists recording preferences and confirms payload-only cleanup', async ({ page }, testInfo) => {
   await page.goto(await adminUrl('/settings'));

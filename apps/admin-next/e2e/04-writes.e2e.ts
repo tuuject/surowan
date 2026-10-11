@@ -1,12 +1,12 @@
-import { expect, test } from '@playwright/test';
-import { adminUrl, appliedToast, authStoragePath, e2eFetch } from './helpers.ts';
+import { expect } from '@playwright/test';
+import { adminUrl, appliedToast, E2E_USERNAME, e2eFetch, test, toast } from './helpers.ts';
 
 /**
  * Controlled admin operations against the real backend. Every write goes
  * through the UI with its confirmation flow; success/conflict are verified
  * both in the UI and against server state (API responses / database hooks).
  */
-test.use({ storageState: authStoragePath() });
+test.use({ signedIn: true });
 
 test.describe('memories CRUD', () => {
   test('delete the expired seed memory via the confirmation flow', async ({ page }) => {
@@ -15,7 +15,7 @@ test.describe('memories CRUD', () => {
     await expect(row).toBeVisible();
     await row.getByRole('button', { name: 'Delete' }).click();
     await page.getByRole('button', { name: 'Delete memory' }).click();
-    await expect(page.getByText('Memory deleted')).toBeVisible();
+    await expect(toast(page, 'Memory deleted')).toBeVisible();
     await expect(row).toHaveCount(0);
   });
 
@@ -27,7 +27,7 @@ test.describe('memories CRUD', () => {
     await page.getByLabel('Content').fill('E2E memory created by test');
     await page.getByLabel('TTL in days').fill('7');
     await page.getByRole('button', { name: 'Create', exact: true }).click();
-    await expect(page.getByText('Memory created')).toBeVisible();
+    await expect(toast(page, 'Memory created')).toBeVisible();
 
     // server state: the row exists in the API
     const listResponse = await page.request.get(await adminUrl('/api/memories?limit=100'));
@@ -44,7 +44,7 @@ test.describe('memories CRUD', () => {
     await expect(createdRow).toBeVisible();
     await createdRow.getByRole('button', { name: 'Delete' }).click();
     await page.getByRole('button', { name: 'Delete memory' }).click();
-    await expect(page.getByText('Memory deleted')).toBeVisible();
+    await expect(toast(page, 'Memory deleted')).toBeVisible();
     await expect(createdRow).toHaveCount(0);
 
     const afterResponse = await page.request.get(await adminUrl('/api/memories?limit=100'));
@@ -145,11 +145,11 @@ test.describe('alarm cancel + conflict path', () => {
     await expect(row).toBeVisible();
     await row.getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.getByRole('button', { name: 'Cancel alarm' }).click();
-    await expect(page.getByText('Alarm cancelled')).toBeVisible();
+    await expect(toast(page, 'Alarm cancelled')).toBeVisible();
 
     const state = await e2eFetch<{ state: string; cancelled_by: string | null }>('/alarm-state?id=10001');
     expect(state.state).toBe('cancelled');
-    expect(state.cancelled_by).toBe(process.env.E2E_USERNAME ?? 'e2e-admin');
+    expect(state.cancelled_by).toBe(E2E_USERNAME);
 
     // UI reflects the new state through the state filter
     await page.getByRole('combobox', { name: 'State' }).click();

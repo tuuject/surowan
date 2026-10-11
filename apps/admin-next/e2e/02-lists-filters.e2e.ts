@@ -1,12 +1,12 @@
-import { expect, type Page, test } from '@playwright/test';
-import { adminUrl, authStoragePath, tableBodyRows } from './helpers.ts';
+import { expect, type Page } from '@playwright/test';
+import { adminUrl, tableBodyRows, test } from './helpers.ts';
 
 /**
  * List pages against the real backend: filters really change the result set
  * and "Load more" appears + fetches the next page under keyset cursoring
  * (no page-jump controls anywhere).
  */
-test.use({ storageState: authStoragePath() });
+test.use({ signedIn: true });
 
 /**
  * The API is keyset-cursor only: no numbered pages, no total counts, no

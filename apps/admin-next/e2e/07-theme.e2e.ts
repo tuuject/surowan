@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import { adminUrl, authStoragePath } from './helpers.ts';
+import { expect } from '@playwright/test';
+import { adminUrl, test } from './helpers.ts';
 
 /**
  * Regression: while the mode is "system", an OS scheme change must update the
@@ -7,7 +7,7 @@ import { adminUrl, authStoragePath } from './helpers.ts';
  * palette from `resolved`, so before the fix its inline theme variables kept the
  * previous scheme until the provider re-rendered for some other reason.
  */
-test.use({ storageState: authStoragePath() });
+test.use({ signedIn: true });
 
 test('system color scheme change updates the theme context value', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light' });

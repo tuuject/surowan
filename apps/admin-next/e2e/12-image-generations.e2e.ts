@@ -1,9 +1,9 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
 import sharp from 'sharp';
 import type { ImageGenerationRecord } from '../src/lib/api.ts';
-import { adminUrl, authStoragePath, watchPageIssues } from './helpers.ts';
+import { adminUrl, test, watchPageIssues } from './helpers.ts';
 
-test.use({ storageState: authStoragePath() });
+test.use({ signedIn: true });
 
 const generation: ImageGenerationRecord = {
   id: 'aaaaaaaa-1111-4111-8111-111111111111',

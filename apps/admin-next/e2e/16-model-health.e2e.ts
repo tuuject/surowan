@@ -1,5 +1,5 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
-import { adminUrl, authStoragePath, e2eFetch } from './helpers.ts';
+import { expect, type Locator, type Page } from '@playwright/test';
+import { adminUrl, E2E_PASSWORD, E2E_USERNAME, e2eFetch, test } from './helpers.ts';
 import {
   E2E_HEALTH_ALIAS_A,
   E2E_HEALTH_ALIAS_B,
@@ -40,10 +40,10 @@ import {
  * - response text and error text render in the expandable row details
  *   (toggled by the table's "Toggle row details" button).
  */
-test.use({ storageState: authStoragePath() });
+test.use({ signedIn: true });
 
-const USERNAME = process.env.E2E_USERNAME ?? 'e2e-admin';
-const PASSWORD = process.env.E2E_PASSWORD ?? 'e2e-correct-horse';
+const USERNAME = E2E_USERNAME;
+const PASSWORD = E2E_PASSWORD;
 
 /** Providers this spec creates; afterAll deletes exactly these aliases. */
 const CREATED_ALIASES = [E2E_HEALTH_ALIAS_A, E2E_HEALTH_ALIAS_B] as const;

@@ -1,5 +1,5 @@
 import { type APIRequestContext, expect, type Page, test } from '@playwright/test';
-import { adminBase, adminUrl } from './helpers.ts';
+import { adminBase, adminUrl, E2E_PASSWORD, E2E_USERNAME } from './helpers.ts';
 
 /**
  * Programmatic API keys against the real AdminServer: session-only management,
@@ -22,8 +22,8 @@ import { adminBase, adminUrl } from './helpers.ts';
 process.env.PLAYWRIGHT_NO_COPY_PROMPT = '1';
 test.use({ storageState: { cookies: [], origins: [] }, trace: 'off', screenshot: 'off', video: 'off' });
 
-const USERNAME = process.env.E2E_USERNAME ?? 'e2e-admin';
-const PASSWORD = process.env.E2E_PASSWORD ?? 'e2e-correct-horse';
+const USERNAME = E2E_USERNAME;
+const PASSWORD = E2E_PASSWORD;
 
 let cookie = '';
 let sessionToken = '';

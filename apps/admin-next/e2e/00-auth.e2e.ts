@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
-import { adminBase, authStoragePath, e2eFetch } from './helpers.ts';
+import { adminBase, E2E_PASSWORD, E2E_USERNAME, e2eFetch } from './helpers.ts';
 
 /**
  * Auth state machine against the real AdminServer: first-run setup, logout,
@@ -21,32 +21,26 @@ async function login(page: Page, base: string, username: string, password: strin
   await expect(page.getByText('Stored messages')).toBeVisible();
 }
 
-test('first-run setup creates the administrator and enters the shell', async ({ page, context }) => {
+test('first-run setup creates the administrator and enters the shell', async ({ page }) => {
   const base = await adminBase();
   await page.goto(base);
 
   // setup_required gate renders the real setup form
   await expect(page.getByText('Create the administrator account')).toBeVisible();
-  await fillCredentials(page, process.env.E2E_USERNAME ?? 'e2e-admin', process.env.E2E_PASSWORD ?? 'e2e-correct-horse');
+  await fillCredentials(page, E2E_USERNAME, E2E_PASSWORD);
   await page.getByRole('button', { name: 'Create account' }).click();
 
   // shell with the real Overview payload
   await expect(page.getByText('Stored messages')).toBeVisible();
   await expect(page.getByText('Cached media analyses')).toBeVisible();
   await expect(page.getByText('Bot status')).toBeVisible();
-  await expect(page.getByText(process.env.E2E_USERNAME ?? 'e2e-admin')).toBeVisible();
+  await expect(page.getByText(E2E_USERNAME)).toBeVisible();
   await expect(page.getByText('Something went wrong')).toHaveCount(0);
-
-  // share this session with the rest of the suite
-  await context.storageState({ path: authStoragePath() });
 });
 
-test('logout returns to the login form; bad password shows invalid_credentials and keeps the URL', async ({
-  page,
-  context,
-}) => {
+test('logout returns to the login form; bad password shows invalid_credentials and keeps the URL', async ({ page }) => {
   const base = await adminBase();
-  await login(page, base, process.env.E2E_USERNAME ?? 'e2e-admin', process.env.E2E_PASSWORD ?? 'e2e-correct-horse');
+  await login(page, base, E2E_USERNAME, E2E_PASSWORD);
 
   // Sign out from the shell footer → login form (not an error screen)
   await page.getByText('Sign out').click();
@@ -55,20 +49,19 @@ test('logout returns to the login form; bad password shows invalid_credentials a
 
   // wrong password: inline error with the stable code, URL unchanged
   const before = page.url();
-  await fillCredentials(page, process.env.E2E_USERNAME ?? 'e2e-admin', 'definitely-wrong-password');
+  await fillCredentials(page, E2E_USERNAME, 'definitely-wrong-password');
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByText('invalid_credentials', { exact: false })).toBeVisible();
   await expect(page).toHaveURL(before);
   await expect(page.getByText('Plastic Wan admin sign-in')).toBeVisible();
 
-  // correct login restores the shell and refreshes the shared session
-  await login(page, base, process.env.E2E_USERNAME ?? 'e2e-admin', process.env.E2E_PASSWORD ?? 'e2e-correct-horse');
-  await context.storageState({ path: authStoragePath() });
+  // correct login restores the shell
+  await login(page, base, E2E_USERNAME, E2E_PASSWORD);
 });
 
-test('a revoked session is bounced to the login form without an error screen', async ({ page, context }) => {
+test('a revoked session is bounced to the login form without an error screen', async ({ page }) => {
   const base = await adminBase();
-  await login(page, base, process.env.E2E_USERNAME ?? 'e2e-admin', process.env.E2E_PASSWORD ?? 'e2e-correct-horse');
+  await login(page, base, E2E_USERNAME, E2E_PASSWORD);
 
   // Revoke every admin session straight from the database.
   const revoked = await e2eFetch<{ deleted: number }>('/revoke-sessions', { method: 'POST' });
@@ -79,15 +72,14 @@ test('a revoked session is bounced to the login form without an error screen', a
   await expect(page.getByText('Plastic Wan admin sign-in')).toBeVisible();
   await expect(page.getByText('Something went wrong')).toHaveCount(0);
 
-  // Re-authenticate so later specs keep a live session. The gate preserves the
-  // current route (/invocations), so assert the shell, then the overview.
-  await fillCredentials(page, process.env.E2E_USERNAME ?? 'e2e-admin', process.env.E2E_PASSWORD ?? 'e2e-correct-horse');
+  // Signing in again works. The gate preserves the current route
+  // (/invocations), so assert the shell, then the overview.
+  await fillCredentials(page, E2E_USERNAME, E2E_PASSWORD);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByText('Plastic Wan', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Something went wrong')).toHaveCount(0);
   await page.goto(await baseURLPath('/'));
   await expect(page.getByText('Stored messages')).toBeVisible();
-  await context.storageState({ path: authStoragePath() });
 });
 
 async function baseURLPath(path: string): Promise<string> {

@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import { adminUrl, authStoragePath, watchPageIssues } from './helpers.ts';
+import { expect } from '@playwright/test';
+import { adminUrl, test, watchPageIssues } from './helpers.ts';
 
 /**
  * The Prompts page drives the versioned prompt API against the real config
@@ -7,7 +7,7 @@ import { adminUrl, authStoragePath, watchPageIssues } from './helpers.ts';
  * seeded config starts with the helper defaults: global prompt
  * "Participate safely." and chat 123456789 instructions "private".
  */
-test.use({ storageState: authStoragePath() });
+test.use({ signedIn: true });
 
 const GLOBAL_START = 'Participate safely.';
 const SAVED_MESSAGE =

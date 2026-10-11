@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import type {
   DictionaryDraft,
   DictionaryEntry,
@@ -6,7 +6,7 @@ import type {
   DictionarySettings,
   DictionaryView,
 } from '../src/lib/api.ts';
-import { adminUrl, authStoragePath, watchPageIssues } from './helpers.ts';
+import { adminUrl, test, toast, watchPageIssues } from './helpers.ts';
 import { E2E_MERGE_ALIAS, E2E_MERGE_MODEL, E2E_MERGE_SUGGESTION } from './models-fixture.ts';
 
 /**
@@ -19,7 +19,7 @@ import { E2E_MERGE_ALIAS, E2E_MERGE_MODEL, E2E_MERGE_SUGGESTION } from './models
  * The suite shares one server, so every test works on terms unique to itself
  * and cleans up through the API afterwards.
  */
-test.use({ storageState: authStoragePath() });
+test.use({ signedIn: true });
 
 /** Reset between tests: the fixture's dictionary starts empty and stays that way. */
 async function clearEntries(page: Page, scope: DictionaryScope, chat: string | null): Promise<void> {
@@ -117,7 +117,7 @@ function draft(term: string, overrides: Partial<DictionaryDraft> = {}): Dictiona
 
 test.describe('dictionary page', () => {
   test.beforeEach(async ({ page }) => {
-    // The shared fixture server accumulates whatever earlier specs left behind;
+    // The spec's server keeps whatever earlier tests in this file left behind;
     // every test here starts from an empty dictionary in both scopes.
     await clearEntries(page, 'global', null);
     await clearEntries(page, 'group', CHAT_ID);
@@ -154,7 +154,7 @@ test.describe('dictionary page', () => {
     const aliases = dialog.getByLabel('Aliases', { exact: true });
     await aliases.fill('e2e-alias');
     await dialog.getByRole('button', { name: 'Create entry' }).click();
-    await expect(page.getByText('Entry created')).toBeVisible();
+    await expect(toast(page, 'Entry created')).toBeVisible();
 
     const row = page.locator('table tbody tr', { hasText: term });
     await expect(row).toBeVisible();
@@ -170,7 +170,7 @@ test.describe('dictionary page', () => {
     await dialog.getByLabel('Definition', { exact: true }).fill('Edited by the E2E suite');
     await dialog.getByLabel('Aliases', { exact: true }).fill('');
     await dialog.getByRole('button', { name: 'Save entry' }).click();
-    await expect(page.getByText('Entry updated')).toBeVisible();
+    await expect(toast(page, 'Entry updated')).toBeVisible();
     await expect(page.locator('table tbody tr', { hasText: term })).toContainText('Edited by the E2E suite');
     expect((await findEntry(page, term))?.aliases).toEqual([]);
 
@@ -186,7 +186,7 @@ test.describe('dictionary page', () => {
       .getByRole('button', { name: `Delete ${term}` })
       .click();
     await page.getByRole('button', { name: 'Delete entry' }).click();
-    await expect(page.getByText('Entry deleted')).toBeVisible();
+    await expect(toast(page, 'Entry deleted')).toBeVisible();
     await expect(page.locator('table tbody tr', { hasText: term })).toHaveCount(0);
     expect(await findEntry(page, term)).toBeNull();
   });
@@ -207,7 +207,7 @@ test.describe('dictionary page', () => {
     await aliases.fill('AB 钙');
     await expect(dialog.getByRole('button', { name: 'Add alias' })).toHaveCount(0);
     await dialog.getByRole('button', { name: 'Create entry' }).click();
-    await expect(page.getByText('Entry created')).toBeVisible();
+    await expect(toast(page, 'Entry created')).toBeVisible();
 
     // Reload proves the write went through the API, not just the dialog state.
     await page.reload();
@@ -220,7 +220,7 @@ test.describe('dictionary page', () => {
     await row.getByRole('button', { name: `Edit ${term}` }).click();
     await dialog.getByLabel('Aliases', { exact: true }).fill('AB 钙\n带,逗号\n带|竖线');
     await dialog.getByRole('button', { name: 'Save entry' }).click();
-    await expect(page.getByText('Entry updated')).toBeVisible();
+    await expect(toast(page, 'Entry updated')).toBeVisible();
     await page.reload();
     await expect(page.locator('table tbody tr', { hasText: term })).toContainText('带,逗号');
     expect((await findEntry(page, term))?.aliases).toEqual(['AB 钙', '带,逗号', '带|竖线']);
@@ -255,7 +255,7 @@ test.describe('dictionary page', () => {
     // Saving still normalizes to the two non-empty aliases (the blank line and
     // any duplicate are dropped), independently of the raw display text.
     await dialog.getByRole('button', { name: 'Create entry' }).click();
-    await expect(page.getByText('Entry created')).toBeVisible();
+    await expect(toast(page, 'Entry created')).toBeVisible();
     expect((await findEntry(page, term))?.aliases).toEqual(['one', 'two']);
 
     const cleanup = await findEntry(page, term);
@@ -351,7 +351,7 @@ test.describe('dictionary page', () => {
     await dialog.getByRole('combobox', { name: 'Chat' }).click();
     await page.getByRole('option', { name: /Plastic Wan Test Group/ }).click();
     await dialog.getByRole('button', { name: 'Create entry' }).click();
-    await expect(page.getByText('Entry created')).toBeVisible();
+    await expect(toast(page, 'Entry created')).toBeVisible();
 
     const groupView = await listView(page, { scope: 'group', chat: CHAT_ID });
     const scoped = groupView.items.find((entry) => entry.term === term);

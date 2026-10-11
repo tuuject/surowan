@@ -1,7 +1,7 @@
-import { expect, test } from '@playwright/test';
-import { adminBase, adminUrl, authStoragePath, watchPageIssues } from './helpers.ts';
+import { expect } from '@playwright/test';
+import { adminBase, adminUrl, test, watchPageIssues } from './helpers.ts';
 
-test.use({ storageState: authStoragePath() });
+test.use({ signedIn: true });
 
 test.beforeEach(async ({ context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: await adminBase() });

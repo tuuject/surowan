@@ -61,9 +61,10 @@ pnpm run admin:test:e2e                    # 或在本目录 pnpm --filter plast
 ```
 
 Playwright 套件位于 `e2e/**/*.e2e.ts`（文件名不以 `.test.ts` 结尾，vitest
-不会发现它们）。`globalSetup` 派生 Node 子进程 `e2e/server.ts`：临时目录 + 临时
-SQLite + `test/fixtures/admin-seed.ts` 合成数据 + 真实 `AdminServer`
-（`static_dir` 指向本包 `dist`），回环随机端口；`globalTeardown` 关闭并清理。
+不会发现它们）。每个 spec 文件由 `e2e/helpers.ts` 派生自己的 Node 子进程
+`e2e/server.ts`：临时目录 + 临时 SQLite + `test/fixtures/admin-seed.ts` 合成数据 +
+真实 `AdminServer`（`static_dir` 指向本包 `dist`），回环随机端口，用完即关并清理；
+文件间互不共享状态，按全部 CPU 核心并行，任一套件都可单独运行。
 用例覆盖认证状态机、路由深链接、列表过滤与 Load more 游标分页、Invocation
 六 Tab、记忆/管理员/模型/Chats/Developer/告警/Overview 写操作与冲突路径、只读保证与 CSP 同源
 安全断言。真实命令与契约清单见

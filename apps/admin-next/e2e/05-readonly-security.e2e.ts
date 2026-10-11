@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import { adminUrl, authStoragePath } from './helpers.ts';
+import { expect } from '@playwright/test';
+import { adminUrl, test } from './helpers.ts';
 
 /**
  * The production security posture, exercised against the real static hosting
@@ -7,7 +7,7 @@ import { adminUrl, authStoragePath } from './helpers.ts';
  * catalog must expose only usable metadata. The read-only, same-origin and
  * error-free browsing guarantees are asserted on every route in 01-routes.
  */
-test.use({ storageState: authStoragePath() });
+test.use({ signedIn: true });
 
 test('the active replay model catalog exposes only usable model metadata to the authenticated session', async ({
   request,
