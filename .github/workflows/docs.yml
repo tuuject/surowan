@@ -26,13 +26,11 @@ jobs:
       DOCS_SITE_ORIGIN: https://docs.example.com
       DOCS_BASE_PATH: ${{ matrix.base }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 12.4.2
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -44,7 +42,7 @@ jobs:
       - run: pnpm run docs:verify
       - name: Ensure generated files stay ignored
         run: test -z "$(git status --porcelain)"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: docs-${{ matrix.name }}-${{ github.sha }}
           path: apps/docs/dist/
@@ -55,7 +53,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build the unchanged Bot image with the shared lockfile
         run: docker build -t plasticwan:docs-check .
       - name: Ensure docs are not shipped in the Bot image
