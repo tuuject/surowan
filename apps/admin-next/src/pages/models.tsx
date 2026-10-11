@@ -19,6 +19,7 @@ import { ModelPickerDialog, type ModelPickerMode } from '@/components/models/mod
 import { ProviderConnectionCard } from '@/components/models/provider-connection-card';
 import { ProviderWizard } from '@/components/models/provider-wizard';
 import { RestartBanner } from '@/components/models/restart-banner';
+import { ToolModelPanel } from '@/components/models/tool-model-panel';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -521,6 +522,8 @@ export default function ModelsPage(): React.ReactElement {
       />
 
       <InUsePanel view={view} revision={revision} />
+
+      <ToolModelPanel key={`${view.tool_model.provider}/${view.tool_model.model}`} view={view} revision={revision} />
 
       {/* `grid-cols-1` on a phone: an implicit `auto` track grows to the model
           table's min-content and scrolls the whole page sideways. */}

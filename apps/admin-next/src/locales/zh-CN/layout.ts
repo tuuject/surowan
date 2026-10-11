@@ -15,6 +15,7 @@ export const layout: typeof layoutEn = {
     imageGenerations: '生图记录',
     alarms: '告警',
     memories: '记忆',
+    dictionary: '辞典',
     botAdmins: 'Bot 管理员',
     apiKeys: 'API 密钥',
     models: '模型',

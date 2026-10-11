@@ -48,6 +48,26 @@ async function loadBoth(
   };
 }
 
+test('edits inside existing dictionary and tool model sections are hot', async () => {
+  const { active, file } = await loadBoth(
+    (config) => {
+      config.dictionary = { injection_mode: 'on_demand' };
+      config.tool_model = { provider: 'agent', model: 'agent-model', thinking_level: 'off' };
+    },
+    (config) => {
+      config.dictionary = { injection_mode: 'aggressive' };
+      config.providers.agent!.models.push(spareModel());
+      config.tool_model = { provider: 'agent', model: 'spare', thinking_level: 'off' };
+    },
+  );
+  const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
+  expect(paths(diff.changes, 'restart')).toEqual([]);
+  expect(paths(diff.changes, 'hot')).toContain('dictionary.injection_mode');
+  expect(paths(diff.changes, 'hot')).toContain('tool_model.model');
+  expect(diff.candidate.raw.dictionary?.injection_mode).toBe('aggressive');
+  expect(diff.candidate.raw.tool_model?.model).toBe('spare');
+});
+
 function paths(changes: readonly ConfigChange[], kind: ConfigChange['kind']): string[] {
   return changes.filter((change) => change.kind === kind).map((change) => change.path);
 }

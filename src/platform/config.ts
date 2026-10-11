@@ -173,6 +173,29 @@ const ParticipationSchema = Type.Object(
   },
   Strict,
 );
+export const DictionaryInjectionModeSchema = Type.Union([
+  Type.Literal('off'),
+  Type.Literal('on_demand'),
+  Type.Literal('aggressive'),
+]);
+export type DictionaryInjectionMode = Static<typeof DictionaryInjectionModeSchema>;
+
+/**
+ * The system-wide auxiliary model for dictionary merge and future helper tasks.
+ * Absent means "inherit the global agent settings"; each Chat override is
+ * deliberately not consulted, so one group's chat model cannot change a
+ * system-wide helper call.
+ */
+const ToolModelSchema = Type.Object(
+  {
+    provider: Type.String({ minLength: 1 }),
+    model: Type.String({ minLength: 1 }),
+    thinking_level: ThinkingLevelSchema,
+  },
+  Strict,
+);
+
+const DictionarySectionSchema = Type.Object({ injection_mode: Type.Optional(DictionaryInjectionModeSchema) }, Strict);
 const ChatSchema = Type.Object(
   {
     id: Type.Integer(),
@@ -181,6 +204,7 @@ const ChatSchema = Type.Object(
     timezone: Type.Optional(Type.String({ minLength: 1 })),
     instructions_file: Type.Optional(Type.String({ minLength: 1 })),
     participation: Type.Optional(ParticipationSchema),
+    dictionary_injection_mode: Type.Optional(DictionaryInjectionModeSchema),
     provider: Type.Optional(Type.String({ minLength: 1 })),
     model: Type.Optional(Type.String({ minLength: 1 })),
     thinking_level: Type.Optional(ThinkingLevelSchema),
@@ -357,6 +381,8 @@ export const ConfigSchema = Type.Object(
       Strict,
     ),
     image: Type.Optional(ImageSectionSchema),
+    dictionary: Type.Optional(DictionarySectionSchema),
+    tool_model: Type.Optional(ToolModelSchema),
     retention: Type.Object({ online_days: PositiveInteger, backup_copies: PositiveInteger }, Strict),
     paths: Type.Object(
       {
@@ -411,6 +437,22 @@ export function resolveAgentSettings(
     thinking_level: chat?.thinking_level ?? config.agent.thinking_level,
   };
 }
+/**
+ * Resolves the dictionary injection mode for one chat: the per-chat override
+ * wins, otherwise the global `dictionary.injection_mode`, otherwise
+ * `on_demand` (the product default).
+ */
+export function resolveDictionaryInjectionMode(
+  config: {
+    readonly dictionary?: { readonly injection_mode?: DictionaryInjectionMode };
+    readonly telegram: { readonly chats: readonly Pick<FileChat, 'id' | 'dictionary_injection_mode'>[] };
+  },
+  chatId: bigint,
+): DictionaryInjectionMode {
+  const chat = config.telegram.chats.find((candidate) => BigInt(candidate.id) === chatId);
+  return chat?.dictionary_injection_mode ?? config.dictionary?.injection_mode ?? 'on_demand';
+}
+
 export type ParticipationConfig = Static<typeof ParticipationSchema>;
 export type ParticipationWindowConfig = Static<typeof ParticipationWindowSchema>;
 export type RawConfig = Omit<FileConfig, 'agent' | 'telegram' | 'developer'> & {
@@ -421,6 +463,8 @@ export type RawConfig = Omit<FileConfig, 'agent' | 'telegram' | 'developer'> & {
   };
 };
 export type ImageConfig = RawConfig['image'];
+export type DictionaryConfig = RawConfig['dictionary'];
+export type ToolModelConfig = RawConfig['tool_model'];
 export type ProviderConfig = RawConfig['providers'][string];
 export type McpServerConfig = NonNullable<RawConfig['mcp']>['servers'][number];
 
@@ -752,6 +796,11 @@ export function validateSemantics(config: FileConfig): void {
     }
   }
   validateAgentThinkingLevel(config, config.agent, 'agent');
+  const toolModel = config.tool_model;
+  if (toolModel !== undefined) {
+    validateModelReference(config, toolModel.provider, toolModel.model, 'tool_model', ['text']);
+    validateAgentThinkingLevel(config, toolModel, 'tool_model');
+  }
   const servers = config.mcp?.servers ?? [];
   assertUnique(servers, (server) => server.alias, 'MCP server alias');
   for (const server of servers) {

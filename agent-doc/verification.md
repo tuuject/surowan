@@ -38,6 +38,7 @@ pnpm test test/admin.test.ts test/admin-passkeys.test.ts test/admin-recovery.tes
 pnpm test test/bot-commands.test.ts
 pnpm test test/config-diff.test.ts test/config-reload.test.ts test/chat-model-runtime.test.ts
 pnpm test test/memory.test.ts
+pnpm test test/dictionary.test.ts
 pnpm test test/long-tasks.test.ts test/long-tasks-migration.test.ts test/task-delivery.test.ts test/task-runtime.test.ts test/task-context.test.ts test/task-hot-injection.test.ts
 pnpm test test/alarm.test.ts test/alarm-context.test.ts
 pnpm test test/prompt-template.test.ts test/prompt-markdown.test.ts test/tui-configure.test.ts
@@ -202,6 +203,7 @@ pnpm run admin:build        # 前置：E2E 驱动已构建的 dist（真实静�
 pnpm --filter plasticwan-admin-next exec playwright install chromium   # 首次运行前安装 Chromium（Linux CI 用 --with-deps）
 pnpm run admin:test:e2e     # Playwright 套件（apps/admin-next/e2e/**/*.e2e.ts）
 pnpm run admin:test:e2e 00-auth 08-models 16-model-health  # 模型管理与健康检查回归
+pnpm run admin:test:e2e 00-auth 17-dictionary 18-tool-model  # 辞典页与 Tool Model 回归
 ```
 
 Passkey 启用模式（PowerShell）：

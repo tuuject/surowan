@@ -1,9 +1,11 @@
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 import {
+  type DictionaryScope,
   getChats,
   getConfigStatus,
   getConversationContext,
   getDeveloperSettings,
+  getDictionarySettings,
   getInvocation,
   getMessage,
   getOverview,
@@ -19,6 +21,8 @@ import {
   listApiKeys,
   listBotAdmins,
   listConversationContexts,
+  listDictionary,
+  listDictionaryChats,
   listInvocations,
   listMemories,
   listMemoryChats,
@@ -182,6 +186,42 @@ export function invocationQuery(id: string) {
     queryFn: () => getInvocation(id),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Dictionary
+// ---------------------------------------------------------------------------
+
+/** `global` scope has no chat; a group scope always names its Telegram chat ID. */
+export interface DictionaryQueryScope {
+  readonly scope: DictionaryScope;
+  readonly chat: string | null;
+}
+
+/**
+ * The dictionary list is a whole-scope read (entries + conflicts), not a
+ * keyset-cursor page: conflicts are computed over the entire effective
+ * dictionary, so pagination would make them meaningless.
+ */
+export function dictionaryQuery(target: DictionaryQueryScope, search: string) {
+  return queryOptions({
+    queryKey: ['dictionary', target.scope, target.chat, search],
+    queryFn: () => listDictionary({ scope: target.scope, chat: target.chat, search }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function dictionarySettingsQuery(chat: string | null) {
+  return queryOptions({
+    queryKey: ['dictionary-settings', chat],
+    queryFn: () => getDictionarySettings(chat),
+    staleTime: 0,
+  });
+}
+
+export const dictionaryChatsQuery = queryOptions({
+  queryKey: ['dictionary-chats'],
+  queryFn: listDictionaryChats,
+});
 
 export function messageQuery(id: string) {
   return queryOptions({

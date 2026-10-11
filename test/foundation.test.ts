@@ -804,7 +804,7 @@ describe('database', () => {
     const store = await SqliteStore.open(config);
     try {
       const prepared = store.orm.select().from(schemaMigrations).prepare();
-      expect(prepared.all()).toHaveLength(33);
+      expect(prepared.all()).toHaveLength(34);
       store.close();
       expect(() => prepared.all()).toThrow();
       await unlink(config.paths.database);
@@ -822,7 +822,7 @@ describe('database', () => {
       const version = store.db
         .prepare<[], { version: bigint }>('SELECT MAX(version) AS version FROM schema_migrations')
         .get();
-      expect(version?.version).toBe(33n);
+      expect(version?.version).toBe(34n);
     } finally {
       store.close();
     }

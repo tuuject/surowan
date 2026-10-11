@@ -59,6 +59,8 @@ const HOT_PATHS: ReadonlySet<string> = new Set([
   'vision.model',
   'vision.max_output_tokens',
   'image',
+  'dictionary',
+  'tool_model',
   'telegram.admins',
 ]);
 
@@ -70,7 +72,7 @@ const HOT_PATHS: ReadonlySet<string> = new Set([
  * hot as a whole for the same reason: a reload re-resolves its SecretRefs and
  * republishes the image snapshot atomically.
  */
-const HOT_PREFIXES: readonly string[] = ['agent.rate_limits.', 'providers.', 'image.'];
+const HOT_PREFIXES: readonly string[] = ['agent.rate_limits.', 'providers.', 'image.', 'dictionary.', 'tool_model.'];
 
 /**
  * `serve` reads these only through `backup` and the pre-migration backup, so
@@ -264,7 +266,13 @@ function mergeChat(
       }
       continue;
     }
-    if (key === 'provider' || key === 'model' || key === 'thinking_level' || key === 'ignored_user_ids') {
+    if (
+      key === 'provider' ||
+      key === 'model' ||
+      key === 'thinking_level' ||
+      key === 'ignored_user_ids' ||
+      key === 'dictionary_injection_mode'
+    ) {
       const path = `telegram.chats[${active.id}].${key}`;
       const hasFile = Object.hasOwn(fileRecord, key);
       const hasActive = Object.hasOwn(activeRecord, key);

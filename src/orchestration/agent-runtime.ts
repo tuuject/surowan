@@ -16,6 +16,7 @@ import type { MentionTyping } from '../capabilities/mention-typing.ts';
 import { createSendTools, SEND_TOOL_NAMES, type TelegramSendApi } from '../capabilities/send-tool.ts';
 import { createTyping } from '../capabilities/typing.ts';
 import { ContextBuilder, type ContextIdentity, type Injection, type StablePrompt } from '../context/context-builder.ts';
+import { collectRetainedDictionary } from '../context/dictionary-injection.ts';
 import { encodeContextMessage, estimateMessageTokens } from '../context/context-codec.ts';
 import { type ContextGcPlan, isRenderable, planContextGc } from '../context/context-gc.ts';
 import { ContextRefStore, createCapabilityResolver } from '../context/context-refs.ts';
@@ -26,6 +27,7 @@ import {
   configuredToolSchemaKeywords,
   type RawConfig,
   resolveAgentSettings,
+  resolveDictionaryInjectionMode,
 } from '../platform/config.ts';
 import {
   type CapabilityRefResolver,
@@ -522,6 +524,12 @@ export class AgentRuntime {
     const cached: CachedConversationAgent = entry;
     let carriedStickerCatalog: string | null = null;
     /**
+     * The dictionary id→revision tags the retained transcript still carries.
+     * Rebuilt with the visible-sender state: a GC that drops a batch also drops
+     * its dictionary tags, which is what allows re-injection.
+     */
+    let carriedDictionary: ReadonlyMap<string, string> = new Map<string, string>();
+    /**
      * The visible sender set follows the retained transcript: senders from
      * batches that were collected away must not stay alarm targets.
      */
@@ -555,6 +563,7 @@ export class AgentRuntime {
       // A GC can evict the batch that carried the catalog; the next batch must then
       // render it again.
       carriedStickerCatalog = lastStickerCatalog(retained);
+      carriedDictionary = collectRetainedDictionary(retained);
     };
     rebuildVisibleState(cached.agent.state.messages);
     const agent = cached.agent;
@@ -588,10 +597,17 @@ export class AgentRuntime {
         transcriptCharacters: estimateTranscriptCharacters(cached),
         agentModel: { provider: model.provider, model: model.id },
         carriedStickerCatalog,
+        carriedDictionary,
+        dictionaryMode: resolveDictionaryInjectionMode(config, identity.chatId),
       });
       contextState.applyInjection(injection);
       if (injection.stickerCatalog.length > 0) {
         carriedStickerCatalog = injection.stickerCatalog;
+      }
+      if (injection.dictionarySignatures.size > 0) {
+        // Accumulating is correct: older batches still in the retained window keep
+        // their tags until a GC rebuilds this map from the transcript.
+        carriedDictionary = new Map([...carriedDictionary, ...injection.dictionarySignatures]);
       }
       runtime.beginRound(conversationId);
       const images = supportsImages ? ((await this.#directImageLoader?.(contextState, signal)) ?? []) : [];
@@ -1340,6 +1356,7 @@ export class AgentRuntime {
         message_count: injection.messageCount,
         history_count: injection.historyCount,
         omitted_new_messages: injection.omittedNewMessages,
+        dictionary_count: injection.dictionaryCount,
         characters: injection.text.length,
         at: new Date().toISOString(),
       }),

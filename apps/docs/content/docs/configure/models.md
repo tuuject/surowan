@@ -18,6 +18,12 @@ Plastic Wan 只使用配置 `providers.<alias>.models` 中显式列出的模型�
 
 推理模型可声明 `reasoning: true` 和可接受的 `thinking_levels`；否则选择 `off`。模型的 `max_tokens` 不能大于 `context_window`，视觉的 `max_output_tokens` 不能超过所选模型上限。
 
+## 为辅助任务选择 Tool Model
+
+Admin **Models** 页的 Tool Model 用于辞典融合等辅助任务。未单独配置时，继承全局 Agent 的 Provider、模型和 thinking 级别；按群模型覆盖不会改变这个默认值。可以选择其他已配置且支持文本输入的模型，并设置该模型接受的 thinking 级别；恢复继承会删除单独的选择。
+
+保存后热应用，之后开始的辅助任务使用新配置。辞典融合会真实调用模型并可能计费，但生成结果只是建议，必须审阅并确认后才保存词条。模型调用失败不影响普通辞典管理。操作步骤见[辞典指南](../guides/dictionary.md)。
+
 ## 选择原则
 
 - 主 Agent：需要可靠的文本、工具调用与足够上下文；若要直接理解普通图片，也需 image 输入。

@@ -1,6 +1,7 @@
 import { Link, useLocation } from '@tanstack/react-router';
 import {
   Bell,
+  BookText,
   Brain,
   Bug,
   Cpu,
@@ -71,6 +72,7 @@ export default function AppSidebar({
       items: [
         { title: t('layout.nav.alarms'), url: '/alarms', icon: Bell },
         { title: t('layout.nav.memories'), url: '/memories', icon: Brain },
+        { title: t('layout.nav.dictionary'), url: '/dictionary', icon: BookText },
         { title: t('layout.nav.botAdmins'), url: '/admins', icon: Shield },
         { title: t('layout.nav.apiKeys'), url: '/api-keys', icon: KeyRound },
         { title: t('layout.nav.models'), url: '/models', icon: Cpu },

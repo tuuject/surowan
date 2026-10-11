@@ -53,6 +53,9 @@ import {
   E2E_HEALTH_OK_MODEL,
   E2E_HEALTH_PROMPT,
   E2E_HEALTH_UNEXPECTED_MODEL,
+  E2E_MERGE_ALIAS,
+  E2E_MERGE_MODEL,
+  E2E_MERGE_SUGGESTION,
   E2E_MODELS_DEV_CATALOG,
   E2E_RELAY_ALIAS,
   E2E_RELAY_DISCOVERED_MODELS,
@@ -130,9 +133,12 @@ function sleep(ms: number): Promise<void> {
  * expected reply, `health-unexpected` streams a different one, `health-fail`
  * answers HTTP 500, and everything else is unknown.
  */
-function healthBehavior(model: string): 'ok' | 'unexpected' | 'http-error' | 'unknown' {
+function healthBehavior(model: string): 'ok' | 'merge' | 'unexpected' | 'http-error' | 'unknown' {
   if (model === E2E_HEALTH_OK_MODEL || model === E2E_HEALTH_OK_2_MODEL) {
     return 'ok';
+  }
+  if (model === E2E_MERGE_MODEL) {
+    return 'merge';
   }
   if (model === E2E_HEALTH_UNEXPECTED_MODEL) {
     return 'unexpected';
@@ -205,11 +211,18 @@ function releaseHealthGate(model?: string): void {
  * exact fixed prompt, no system role, no tools, streaming, output capped at
  * 128. A violation answers 400 so the check surfaces as an upstream error and
  * the spec fails with a message naming the broken field.
+ *
+ * The dictionary merge asks the same upstream for a different job (a JSON
+ * suggestion with no fixed prompt), so only the health prompt pays this
+ * contract; the merge model's request is recorded verbatim instead.
  */
 function validateHealthRequest(body: Record<string, unknown>): string | null {
   const model = body.model;
   if (typeof model !== 'string' || model.length === 0) {
     return 'fixture: health request must carry a model id';
+  }
+  if (model === E2E_MERGE_MODEL) {
+    return null;
   }
   if (body.stream !== true) {
     return 'fixture: health request must stream';
@@ -320,7 +333,7 @@ async function handleHealthCompletions(request: Request): Promise<Response> {
       finish();
       return Response.json({ error: { message: 'fixture upstream failure' } }, { status: 500 });
     }
-    const content = behavior === 'ok' ? 'ok' : 'hello';
+    const content = behavior === 'ok' ? 'ok' : behavior === 'merge' ? JSON.stringify(E2E_MERGE_SUGGESTION) : 'hello';
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         try {
@@ -583,8 +596,12 @@ async function main(): Promise<void> {
         data: E2E_RELAY_DISCOVERED_MODELS.map((id) => ({ id, name: id, object: 'model' })),
       });
     }
-    // Health checks reach this path with the same loopback upstream.
+    // Health checks and the dictionary merge share this loopback upstream:
+    // each caller's request is identified by the model id it asks for.
     if (url.pathname === '/v1/chat/completions' && incoming.method === 'POST') {
+      if (incoming.headers.get('authorization') === null) {
+        return Response.json({ error: { message: 'missing key' } }, { status: 401 });
+      }
       return handleHealthCompletions(incoming);
     }
     return Response.json({ error: { message: 'not found' } }, { status: 404 });
@@ -637,14 +654,34 @@ async function main(): Promise<void> {
           },
         ],
       };
+      // The dictionary merge's Tool Model. Reasoning with two declared levels
+      // so the Tool Model picker has a real choice to make; the same loopback
+      // upstream answers its completions with a canned JSON suggestion.
+      config.providers[E2E_MERGE_ALIAS] = {
+        kind: 'custom',
+        base_url: `http://127.0.0.1:${String(relay.port)}/v1`,
+        api: 'openai-completions',
+        api_key: { jar: 'e2e-relay' },
+        models: [
+          {
+            id: E2E_MERGE_MODEL,
+            name: 'Merge Tool Model',
+            reasoning: true,
+            thinking_levels: ['low', 'medium', 'high'],
+            input: ['text'],
+            context_window: 64_000,
+            max_tokens: 4_096,
+            cost: { input: 0.1, output: 0.2, cache_read: 0, cache_write: 0 },
+          },
+        ],
+      };
     }),
   );
   await writeTestKeyJar(directory, {
     'e2e-builtin': E2E_SECRETS.builtin,
     'e2e-relay': E2E_SECRETS.relay,
     'e2e-relay-header': E2E_SECRETS.relayHeader,
-  });
-  // `discover` and `lookup-metadata` resolve metadata against the models.dev
+  }); // `discover` and `lookup-metadata` resolve metadata against the models.dev
   // catalog. Priming it with a fixture (the module's own test seam) keeps the
   // E2E server offline.
   await loadModelsDevCatalog({

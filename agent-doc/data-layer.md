@@ -113,15 +113,27 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 
 `conversation_attention` 每个 Conversation 至多一行，记录 `expires_at`、命中的 `trigger_kind`（`mention`/`reply_to_bot`/`keyword`）与触发消息的 Telegram message ID。它只回答「这个会话现在算不算活跃」：行过期即无意义，读路径只比较 `expires_at > now` 且从不惰性删除，清理交给 `purgeExpiredData`。窗口要跨进程重启保持，因此放在 SQLite 而不是内存。
 
+### dictionary_entries（迁移 034）
+
+辞典词条表。作用域为 `global`（所有会话可读）或 `group`（归属一个 Telegram Chat，同群 Forum Topic 共用）：
+
+- `id` 是 `dic_` 前缀的独立主键；词条不依赖 `term`，因此同名/同别名可以共存，冲突检测是一次查询而不是约束。
+- `chat_id` 存的是 **Telegram chat ID**，不是 `chats.id`：一个群词条可以在 Bot 收到该群第一条消息之前就存在（例如刚加入 allowlist 的群）。`CHECK` 保证 `global` 无 `chat_id`、`group` 有 `chat_id`。
+- `aliases_json` 是去重后的字符串数组（`json_valid` 兜底）；`term` / `definition` 的长度有 `CHECK`，Tool Schema 与 Admin API 先校验。
+- `enabled` 为 0 的词条不参与查询与自动注入，但保留历史；`revision` 是词条自己的乐观锁 token，每次写入递增，Admin 的 `If-Match` 与 Agent 工具的读-改-写都用它。
+- 索引 `dictionary_entries_scope_idx`（scope, chat_id, id）与 `dictionary_entries_term_idx`（scope, chat_id, term）支撑按作用域列举与 term 过滤。
+
+`purgeExpiredData` 不清理词条：辞典是人工维护的数据，不随在线保留窗口过期；删除只能经 Admin 或当前群的 Agent 写入。
+
 ### 工具可见性审计
 
 `invocations.tool_registry_hash` 之外还有 `tool_registry_json`：本次 Invocation 实际展示给模型的完整工具快照（`name`/`label`/`description`）；hash 覆盖名称、描述和参数 Schema，Tool 使用策略变化也会产生新 hash。`model_calls.tools_json` 记录该次请求真正附带的工具名数组——Agent 循环在 context 接近上限时会把工具裁剪到 `send`、`send_reply` 和当时可用的 `zzz`，因此同一 Invocation 内不同请求的工具列表可能不同；这两列共同回答“模型当时能看到哪些工具”。
 
 仅在 `developer.record_model_payloads = true` 时保存模型调用的原始报文快照，缺省关闭。`model_calls.request_json` 不复制 `data:image/*;base64,...` 图片正文；对应字符串替换为包含 MIME、Base64 字符数、解码字节数与 SHA-256 的结构化摘要，真实 Provider 请求不受影响。现有 `response_json` 捕获的是 HTTP status 快照，并非完整流式响应体。关闭仅跳过这些调试快照，正常模型调用、工具、usage、费用、状态与错误审计照常记录；旧快照不自动删除。
 
-Invocation 重放不录制或读取模型请求副本：它从 `invocation_messages` 的开场 Bucket 冻结快照与可证明在当时已入库的公开历史重建场景，使用当前配置的 prompt、模型与工具定义；不读取 `context_messages` 的私有推理或工具历史，也不复制跨 Invocation 的完整 Context。具体边界见 [admin-panel.md](admin-panel.md#invocation-重放) 与 [`scene-context.ts`](../src/context/scene-context.ts)。因此关闭调试录制或清除报文不影响场景重建，在线留存清理仍会使来源或媒体不可用。
+`model_calls.role` 区分调用来源：`agent`、`vision_chat`、`vision_sticker`、`doctor`，以及迁移 `034` 新增的 `tool`（Tool Model 辅助调用，如辞典融合）。`tool` 行不挂 `invocation_id`，也不写入 `daily_usage`：辅助任务不计入 Chat 的每日 Token 预算，但仍保留 provider/model/usage/费用/终态错误审计。
 
-迁移 `030` 删除迁移 `029` 引入的旧 `model_calls.replay_input_json` 列及其历史内容，不转换为新快照；其余调用审计、工具/发送记录、用量与公开消息快照保留。沿用现有迁移前备份与事务，不启用新的常驻数据录制。Developer 清除端点只分批把 `model_calls.request_json` / `response_json` 置为 `NULL`，不删除行、不改变关联或 retention，也不触碰 `telegram_sends` 的同名字段；不执行 `VACUUM`，不修改旧备份。
+Invocation 重放不录制或读取模型请求副本：它从 `invocation_messages` 的开场 Bucket 冻结快照与可证明在当时已入库的公开历史重建场景，使用当前配置的 prompt、模型与工具定义；不读取 `context_messages` 的私有推理或工具历史，也不复制跨 Invocation 的完整 Context。具体边界见 [admin-panel.md](admin-panel.md#invocation-重放) 与 [`scene-context.ts`](../src/context/scene-context.ts)。因此关闭调试录制或清除报文不影响场景重建，在线留存清理仍会使来源或媒体不可用。迁移 `030` 删除迁移 `029` 引入的旧 `model_calls.replay_input_json` 列及其历史内容，不转换为新快照；其余调用审计、工具/发送记录、用量与公开消息快照保留。沿用现有迁移前备份与事务，不启用新的常驻数据录制。Developer 清除端点只分批把 `model_calls.request_json` / `response_json` 置为 `NULL`，不删除行、不改变关联或 retention，也不触碰 `telegram_sends` 的同名字段；不执行 `VACUUM`，不修改旧备份。
 
 `side_effect_started` 和 `outcome_unknown` 用于阻止不可逆 Tool 的盲目重试。审计记录应保留稳定错误码；不要依赖解析自由文本错误。图片交付去重直接读这份发送台账：同一 Conversation 与 generation 下，只有 `success` 且带 `telegram_message_id` 的 `request_json.asset_ids` 算已交付；`pending`、`outcome_unknown` 按未决处理，已成功的旧发送若带 `asset_ids_unknown` 也不能证明具体交付集合，不能当作可重发。
 

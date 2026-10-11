@@ -13,6 +13,8 @@ import { imageDeliveryState } from '../store/image-delivery.ts';
 import { LongTaskService } from '../store/long-tasks.ts';
 import type { ContextRefStore } from './context-refs.ts';
 import type { ContextHeader } from './context-store.ts';
+import { type DictionaryInjectionMode, DictionaryStore, matchingEntries } from './dictionary.ts';
+import { notYetInjected, renderDictionaryInjection } from './dictionary-injection.ts';
 import { MemoryStore } from './memory.ts';
 
 const Strict = { additionalProperties: false } as const;
@@ -151,6 +153,14 @@ export interface InjectionInput {
    * a long-lived run used to accumulate one copy per injection.
    */
   readonly carriedStickerCatalog: string | null;
+  /**
+   * The dictionary id→revision tags the retained transcript already carries.
+   * An entry whose exact tag is present is not injected again; a GC that drops
+   * the batch, or an updated entry with a new revision, makes it injectable.
+   */
+  readonly carriedDictionary: ReadonlyMap<string, string>;
+  /** `off` skips injection entirely; the mode is resolved from config per chat. */
+  readonly dictionaryMode: DictionaryInjectionMode;
   readonly agentModel: PromptTemplateModel;
   readonly now?: Date;
 }
@@ -168,6 +178,9 @@ export interface Injection {
   readonly historyCount: number;
   /** The current catalog, whether or not this batch had to render it. */
   readonly stickerCatalog: string;
+  /** Dictionary id→revision tags this batch carried, empty when none was injected. */
+  readonly dictionarySignatures: ReadonlyMap<string, string>;
+  readonly dictionaryCount: number;
 }
 
 export class ContextBuilder {
@@ -360,6 +373,11 @@ export class ContextBuilder {
       usedCharacters += size;
     }
     const omittedNewMessages = current.length - selectedCurrent.length;
+    const selected = [...selectedHistory, ...selectedCurrent];
+    const dictionary = this.#dictionaryInjection(config, identity, selected, input, {
+      maximumCharacters,
+      usedCharacters,
+    });
     // A reply to a message rendered in this same batch needs no quoted copy of it.
     const inlineReplies = new Set([...selectedHistory, ...selectedCurrent].map((entry) => entry.snapshot.message_id));
     // Attachments belong to the newest batch only: the model receives them once,
@@ -425,6 +443,7 @@ export class ContextBuilder {
             '</untrusted_task_receipt>',
           ]),
       ...(!renderStickerCatalog ? [] : ['<untrusted_sticker_catalog>', stickerCatalog, '</untrusted_sticker_catalog>']),
+      ...(dictionary.text.length === 0 ? [] : [dictionary.text]),
       ...(historyText.length === 0
         ? []
         : ['<untrusted_telegram_history>', historyText, '</untrusted_telegram_history>']),
@@ -432,7 +451,6 @@ export class ContextBuilder {
       `${omission}${currentText}`,
       '</untrusted_new_messages>',
     ].join('\n');
-    const selected = [...selectedHistory, ...selectedCurrent];
     const visibleSenders = new Map<string, VisibleSender>();
     for (const entry of selected) {
       const sender = senderByMessage.get(entry.messageId.toString());
@@ -465,6 +483,8 @@ export class ContextBuilder {
       messageCount: selected.length,
       historyCount: selectedHistory.length,
       stickerCatalog,
+      dictionarySignatures: dictionary.signatures,
+      dictionaryCount: dictionary.count,
     };
   }
 
@@ -546,6 +566,65 @@ export class ContextBuilder {
     })
       .replaceAll('<', '\\u003c')
       .replaceAll('>', '\\u003e');
+  }
+
+  /**
+   * Dictionary entries to inject into this batch.
+   *
+   * `off` injects nothing. `on_demand` matches the exact term/alias strings of
+   * the messages this batch carries; `aggressive` preloads the whole effective
+   * dictionary. Either way the batch is trimmed to the remaining context budget
+   * after the messages were selected — new messages always win over a preload.
+   * Entries already carried by the retained transcript are skipped, which is
+   * why dedupe follows the canonical Context rather than a stored flag.
+   */
+  #dictionaryInjection(
+    config: RawConfig,
+    identity: ContextIdentity,
+    selected: readonly { readonly snapshot: PreparedSnapshot }[],
+    input: InjectionInput,
+    budget: { readonly maximumCharacters: number; readonly usedCharacters: number },
+  ): { readonly text: string; readonly signatures: ReadonlyMap<string, string>; readonly count: number } {
+    const empty = { text: '', signatures: new Map<string, string>(), count: 0 };
+    if (input.dictionaryMode === 'off') {
+      return empty;
+    }
+    const chatConfig = resolveChatConfig(config, this.#store.orm, identity.chatId);
+    if (chatConfig === undefined) {
+      return empty;
+    }
+    const store = new DictionaryStore(this.#store.orm);
+    const privateChat = identity.chatType === 'private';
+    // A private chat can only read the global dictionary; a group sees global
+    // plus its own chat's entries, never another group's.
+    const effective = privateChat ? store.globalEntries() : store.effective(identity.chatId);
+    const carried = input.carriedDictionary;
+    const candidates =
+      input.dictionaryMode === 'aggressive'
+        ? notYetInjected(effective, carried)
+        : notYetInjected(matchingEntries(effective, this.#dictionaryTexts(selected)), carried);
+    if (candidates.length === 0) {
+      return empty;
+    }
+    // `renderDictionaryInjection` never reveals how much budget is left, so pass
+    // the headroom and let it drop whatever does not fit.
+    const remaining = Math.max(0, budget.maximumCharacters - budget.usedCharacters);
+    const rendered = renderDictionaryInjection(candidates, remaining);
+    return { text: rendered.text, signatures: rendered.signatures, count: rendered.count };
+  }
+
+  /** The exact strings one batch's messages carry, for on-demand matching. */
+  #dictionaryTexts(selected: readonly { readonly snapshot: PreparedSnapshot }[]): readonly string[] {
+    const texts: string[] = [];
+    for (const entry of selected) {
+      const snapshot = entry.snapshot;
+      for (const content of [snapshot.text, snapshot.caption]) {
+        if (content !== null && content.length > 0) {
+          texts.push(content);
+        }
+      }
+    }
+    return texts;
   }
 
   #stickerCatalog(): string {

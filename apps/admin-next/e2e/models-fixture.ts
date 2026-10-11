@@ -35,6 +35,21 @@ export const E2E_RELAY_INCOMPLETE_MODEL = 'relay-model-b';
 export const E2E_RELAY_MANUAL_MODEL = 'relay-manual-model';
 
 /**
+ * Dictionary-merge fixture. The merge flow resolves its Tool Model through the
+ * real Provider registry, so the E2E config carries a dedicated provider whose
+ * single model id the loopback upstream recognizes and answers with a canned
+ * JSON suggestion.
+ */
+export const E2E_MERGE_ALIAS = 'merge';
+export const E2E_MERGE_MODEL = 'e2e-merge-model';
+/** The suggestion the fixture upstream returns for the merge model. */
+export const E2E_MERGE_SUGGESTION = {
+  term: 'merged-term',
+  definition: 'merged definition from the tool model',
+  aliases: ['merged-alias'],
+} as const;
+
+/**
  * Health-check fixture: providers 16-model-health creates through the API and
  * the model ids whose upstream behavior is canned by id — `health-ok` and
  * `health-ok-2` stream the expected reply, `health-unexpected` streams a

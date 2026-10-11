@@ -1,4 +1,5 @@
 import { common } from './en/common.ts';
+import { dictionary } from './en/dictionary.ts';
 import { image } from './en/image.ts';
 import { invocations } from './en/invocations.ts';
 import { layout } from './en/layout.ts';
@@ -6,6 +7,7 @@ import { models } from './en/models.ts';
 import { pages } from './en/pages.ts';
 
 import { common as commonZh } from './zh-CN/common.ts';
+import { dictionary as dictionaryZh } from './zh-CN/dictionary.ts';
 import { image as imageZh } from './zh-CN/image.ts';
 import { invocations as invocationsZh } from './zh-CN/invocations.ts';
 import { layout as layoutZh } from './zh-CN/layout.ts';
@@ -24,6 +26,7 @@ const en = {
   models,
   pages,
   image,
+  dictionary,
 };
 
 const zhCN: typeof en = {
@@ -33,6 +36,7 @@ const zhCN: typeof en = {
   models: modelsZh,
   pages: pagesZh,
   image: imageZh,
+  dictionary: dictionaryZh,
 };
 
 export { en, zhCN };

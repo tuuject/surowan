@@ -16,6 +16,7 @@ import { Route as ApiKeysRouteImport } from './routes/api-keys'
 import { Route as ChatsRouteImport } from './routes/chats'
 import { Route as ContextsRouteImport } from './routes/contexts'
 import { Route as DeveloperRouteImport } from './routes/developer'
+import { Route as DictionaryRouteImport } from './routes/dictionary'
 import { Route as ImageGenerateRouteImport } from './routes/image-generate'
 import { Route as ImageGenerationsRouteImport } from './routes/image-generations'
 import { Route as ImageSettingsRouteImport } from './routes/image-settings'
@@ -64,6 +65,11 @@ const ContextsRoute = ContextsRouteImport.update({
 const DeveloperRoute = DeveloperRouteImport.update({
   id: '/developer',
   path: '/developer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DictionaryRoute = DictionaryRouteImport.update({
+  id: '/dictionary',
+  path: '/dictionary',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImageGenerateRoute = ImageGenerateRouteImport.update({
@@ -146,6 +152,7 @@ export interface FileRoutesByFullPath {
   '/chats': typeof ChatsRoute
   '/contexts': typeof ContextsRoute
   '/developer': typeof DeveloperRoute
+  '/dictionary': typeof DictionaryRoute
   '/image-generate': typeof ImageGenerateRoute
   '/image-generations': typeof ImageGenerationsRoute
   '/image-settings': typeof ImageSettingsRoute
@@ -169,6 +176,7 @@ export interface FileRoutesByTo {
   '/chats': typeof ChatsRoute
   '/contexts': typeof ContextsRoute
   '/developer': typeof DeveloperRoute
+  '/dictionary': typeof DictionaryRoute
   '/image-generate': typeof ImageGenerateRoute
   '/image-generations': typeof ImageGenerationsRoute
   '/image-settings': typeof ImageSettingsRoute
@@ -193,6 +201,7 @@ export interface FileRoutesById {
   '/chats': typeof ChatsRoute
   '/contexts': typeof ContextsRoute
   '/developer': typeof DeveloperRoute
+  '/dictionary': typeof DictionaryRoute
   '/image-generate': typeof ImageGenerateRoute
   '/image-generations': typeof ImageGenerationsRoute
   '/image-settings': typeof ImageSettingsRoute
@@ -218,6 +227,7 @@ export interface FileRouteTypes {
     | '/chats'
     | '/contexts'
     | '/developer'
+    | '/dictionary'
     | '/image-generate'
     | '/image-generations'
     | '/image-settings'
@@ -241,6 +251,7 @@ export interface FileRouteTypes {
     | '/chats'
     | '/contexts'
     | '/developer'
+    | '/dictionary'
     | '/image-generate'
     | '/image-generations'
     | '/image-settings'
@@ -264,6 +275,7 @@ export interface FileRouteTypes {
     | '/chats'
     | '/contexts'
     | '/developer'
+    | '/dictionary'
     | '/image-generate'
     | '/image-generations'
     | '/image-settings'
@@ -288,6 +300,7 @@ export interface RootRouteChildren {
   ChatsRoute: typeof ChatsRoute
   ContextsRoute: typeof ContextsRoute
   DeveloperRoute: typeof DeveloperRoute
+  DictionaryRoute: typeof DictionaryRoute
   ImageGenerateRoute: typeof ImageGenerateRoute
   ImageGenerationsRoute: typeof ImageGenerationsRoute
   ImageSettingsRoute: typeof ImageSettingsRoute
@@ -353,6 +366,13 @@ declare module '@tanstack/react-router' {
       path: '/developer'
       fullPath: '/developer'
       preLoaderRoute: typeof DeveloperRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dictionary': {
+      id: '/dictionary'
+      path: '/dictionary'
+      fullPath: '/dictionary'
+      preLoaderRoute: typeof DictionaryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/image-generate': {
@@ -464,6 +484,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChatsRoute: ChatsRoute,
   ContextsRoute: ContextsRoute,
   DeveloperRoute: DeveloperRoute,
+  DictionaryRoute: DictionaryRoute,
   ImageGenerateRoute: ImageGenerateRoute,
   ImageGenerationsRoute: ImageGenerationsRoute,
   ImageSettingsRoute: ImageSettingsRoute,

@@ -18,6 +18,7 @@ export const layout = {
     imageGenerations: 'Image generations',
     alarms: 'Alarms',
     memories: 'Memories',
+    dictionary: 'Dictionary',
     botAdmins: 'Bot admins',
     apiKeys: 'API keys',
     models: 'Models',

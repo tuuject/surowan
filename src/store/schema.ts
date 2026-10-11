@@ -342,7 +342,7 @@ export const modelCalls = sqliteTable(
   },
   (t) => [
     index('model_calls_invocation_idx').on(t.invocationId),
-    check('model_calls_role_check', sql`role IN ('agent', 'vision_chat', 'vision_sticker', 'doctor')`),
+    check('model_calls_role_check', sql`role IN ('agent', 'vision_chat', 'vision_sticker', 'doctor', 'tool')`),
     check(
       'model_calls_state_check',
       sql`state IN ('pending', 'success', 'error', 'outcome_unknown', 'blocked_budget')`,
@@ -599,6 +599,40 @@ export const memories = sqliteTable(
     check('memories_expiry_check', sql`expires_at > created_at`),
     index('memories_conversation_created_idx').on(t.conversationId, t.createdAt),
     index('memories_expiry_idx').on(t.expiresAt),
+  ],
+);
+
+/**
+ * Dictionary entries. `chat_id` is the Telegram chat ID (not `chats.id`), so a
+ * group entry can exist for a configured chat before its first stored message.
+ * Duplicate terms and aliases are legal; the conflict report is a query.
+ */
+export const dictionaryEntries = sqliteTable(
+  'dictionary_entries',
+  {
+    id: text('id').primaryKey(),
+    scope: text('scope').notNull(),
+    chatId: sqliteBigInt('chat_id'),
+    term: text('term').notNull(),
+    definition: text('definition').notNull(),
+    aliasesJson: text('aliases_json').notNull().default('[]'),
+    enabled: integer('enabled', { mode: 'boolean' }).notNull(),
+    revision: sqliteBigInt('revision').notNull().default(1n),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    check('dictionary_entries_scope_check', sql`scope IN ('global', 'group')`),
+    check('dictionary_entries_term_length_check', sql`length(term) BETWEEN 1 AND 200`),
+    check('dictionary_entries_definition_length_check', sql`length(definition) BETWEEN 1 AND 4000`),
+    check('dictionary_entries_aliases_json_check', sql`json_valid(aliases_json)`),
+    check('dictionary_entries_enabled_check', sql`enabled IN (0, 1)`),
+    check(
+      'dictionary_entries_scope_chat_check',
+      sql`(scope = 'global' AND chat_id IS NULL) OR (scope = 'group' AND chat_id IS NOT NULL)`,
+    ),
+    index('dictionary_entries_scope_idx').on(t.scope, t.chatId, t.id),
+    index('dictionary_entries_term_idx').on(t.scope, t.chatId, t.term),
   ],
 );
 

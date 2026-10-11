@@ -124,6 +124,16 @@ export interface ProvidersView {
   readonly supervised: boolean;
   readonly agent: { readonly provider: string; readonly model: string; readonly thinking_level: ThinkingLevelConfig };
   readonly vision: { readonly provider: string; readonly model: string };
+  /**
+   * The system-wide auxiliary model. `inherited` means no dedicated config
+   * exists and the three fields describe the global agent settings it follows.
+   */
+  readonly tool_model: {
+    readonly provider: string;
+    readonly model: string;
+    readonly thinking_level: ThinkingLevelConfig;
+    readonly inherited: boolean;
+  };
   readonly restart_required: readonly string[];
   readonly providers: readonly ProviderView[];
 }
@@ -182,17 +192,27 @@ export function supervisedRestartEnabled(): boolean {
 }
 
 export function listProviders(
-  file: Pick<FileConfig, 'providers' | 'vision'> & {
+  file: Pick<FileConfig, 'providers' | 'vision' | 'tool_model'> & {
     agent: Pick<FileConfig['agent'], 'provider' | 'model' | 'thinking_level'>;
   },
   revision: string,
   restartRequired: readonly string[],
 ): ProvidersView {
+  const configuredToolModel = file.tool_model;
   return {
     revision,
     supervised: supervisedRestartEnabled(),
     agent: { provider: file.agent.provider, model: file.agent.model, thinking_level: file.agent.thinking_level },
     vision: { provider: file.vision.provider, model: file.vision.model },
+    tool_model:
+      configuredToolModel === undefined
+        ? {
+            provider: file.agent.provider,
+            model: file.agent.model,
+            thinking_level: file.agent.thinking_level,
+            inherited: true,
+          }
+        : { ...configuredToolModel, inherited: false },
     restart_required: [...restartRequired],
     providers: Object.entries(file.providers).map(([alias, provider]) => {
       if (provider.kind === 'custom') {

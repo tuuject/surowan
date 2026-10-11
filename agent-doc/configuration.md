@@ -37,14 +37,17 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 | `telegram.chats[<id>].instructions_file` | 仅限两边都存在的 Chat；路径或内容变化都算；可在面板编辑并保留版本历史（Chat 尚无该字段时由面板创建） |
 | `telegram.chats[<id>].provider` / `.model` / `.thinking_level` | 仅限两边都存在的 Chat 的按群模型覆盖（语义与校验见「Telegram Chat 与 Topic」）；删除 Chat 仍是 restart |
 | `telegram.chats[<id>].ignored_user_ids` | 增删字段、替换或清空列表都热应用；下一条实时/启动追赶 Update 使用新名单，不追溯删除已有 Message 或 Context。成员可用 `/ignoreme`、`/unignoreme` 写入或移除自己的 ID |
+| `telegram.chats[<id>].dictionary_injection_mode` | 该 Chat 的辞典注入模式覆盖；增删字段都热应用，下一次 Invocation 生效。缺省继承全局 `dictionary.injection_mode` |
 | `telegram.admins` | Bot 管理员白名单（`/pause`、`/resume`、`/model`、`/cut_topic`、`/allowlist` 的唯一事实源）；运行期判定直接读运行中的配置，下一次命令执行就用新列表 |
+| `dictionary`（整段，含 `injection_mode`） | 全局辞典注入模式；下一次 Invocation 生效 |
+| `tool_model` | 系统级辅助模型（辞典融合等）。下一次辅助调用使用新选择；运行中的调用继续用它开始时从快照取出的模型。删除该段表示继承全局 Agent 设置 |
 | `providers.<alias>`（新增、删除、改 kind）与 `providers.<alias>.*`（连接字段、模型列表） | Provider 的每个字段都热更新：reload 按新定义重建注册表。模型列表变化只替换该 Provider 的模型；连接字段变化会重新解析它的 SecretRef |
 | `vision.provider`、`vision.model`、`vision.max_output_tokens` | 下一次 vision 分析使用新模型；`max_output_tokens` 在构建注册表时与新模型的上限一起校验，并和模型一起在分析开始时从同一份快照取出，等待中发布的新值只影响之后的分析 |
 | `image`（整段：存在性、`credentials`、`models` 及所有子字段） | 图片功能启停与配置都热应用：reload 重新解析 image SecretRef 并原子发布新的图片快照，下一次提交生效；进行中的生成继续用它开始时的凭据快照。段被剥离（结构不合法）或删除都等于禁用，Agent 与 Admin 同步失去图片工具与页面能力，不需要重启 |
 
 `outside_serve` 字段（`serve` 从不读取，下一次 `backup` 生效，既不算已应用也不算待重启）：`paths.backups`、`retention.online_days`、`retention.backup_copies`。
 
-其它所有路径都是 restart：改动会写进文件，但要重启才生效，包括 `telegram.token`、`data_dir`、`paths.database`、`admin.*`、`mcp.servers`、`telegram.sticker_sets`、Chat allowlist 的删除与已有 Chat 的修改（新增 Chat 是热变更），以及 `instructions_file`、`provider`、`model`、`thinking_level`、`ignored_user_ids` 以外的 Chat 字段，以及 `vision` 的 `max_concurrency`、`background_sticker_concurrency`、`prompt_version`、`daily_budget`。
+其它所有路径都是 restart：改动会写进文件，但要重启才生效，包括 `telegram.token`、`data_dir`、`paths.database`、`admin.*`、`mcp.servers`、`telegram.sticker_sets`、Chat allowlist 的删除与已有 Chat 的修改（新增 Chat 是热变更），以及 `instructions_file`、`provider`、`model`、`thinking_level`、`ignored_user_ids`、`dictionary_injection_mode` 以外的 Chat 字段，以及 `vision` 的 `max_concurrency`、`background_sticker_concurrency`、`prompt_version`、`daily_budget`。
 
 应用流程与语义：
 
@@ -117,6 +120,8 @@ command SecretRef：
 | `providers` | 内置或自定义 Provider 别名 |
 | `agent` | 对话模型、Prompt、并发与限流、上下文保留策略、全局 Token 预算 |
 | `vision` | Sticker 视觉模型、并发、Prompt 版本和预算 |
+| `dictionary` | 可选的辞典自动注入模式（`injection_mode`） |
+| `tool_model` | 可选的系统级辅助模型（辞典融合等）；缺省继承全局 Agent 设置 |
 | `mcp` | 可选的 stdio/Streamable HTTP Server |
 | `admin` | 可选的 Admin Panel（审计只读 + 受控管理写端点） |
 | `developer` | 可选的开发者调试配置；`record_model_payloads` 缺省为 `false` |
@@ -423,6 +428,24 @@ Agent 不再配置 `max_output_tokens`：每次请求的输出上限直接使用
 - 数据保留遵循 `retention.online_days`：图片生成记录与资产行随在线数据一起清理，原图文件随目录清理。
 
 Agent 侧使用（`image_generate` 工具、图片技能、发送与审计链路）见 [telegram-agent-flow.md](telegram-agent-flow.md#image-生成)；Admin 三页与启用开关的端点语义见 [admin-panel.md](admin-panel.md#api)。
+
+## Dictionary 与 Tool Model
+
+```jsonc
+{
+  "dictionary": { "injection_mode": "on_demand" },
+  "tool_model": { "provider": "google", "model": "gemini-3.7-flash", "thinking_level": "low" },
+  "telegram": {
+    "chats": [{ "id": -1001234567890, "dictionary_injection_mode": "off" }],
+  },
+}
+```
+
+- `dictionary.injection_mode` 是全局辞典自动注入策略，取 `off`、`on_demand`（缺省）或 `aggressive`。`off` 不自动注入（Agent 仍可主动查询）；`on_demand` 只注入与本批消息精确命中的词条；`aggressive` 预加载全局加本群的全部启用词条。无论哪种模式都受现有上下文窗口限制，新消息优先，装不下的词条会被丢弃而不是突破窗口。
+- `telegram.chats[].dictionary_injection_mode` 按 Chat 覆盖全局模式（同群 Forum Topic 共用）；缺省继承全局。私聊只读全局词条，不受群覆盖影响。
+- 去重基于实际保留的 canonical Context，而不是永久标记：同一 id+revision 仍在保留段时不重复注入，被 Context GC 淘汰后可以重新注入，词条更新（新 revision）会刷新。见 [telegram-agent-flow.md](telegram-agent-flow.md#context-生命周期)。
+- 词条本身不在配置文件里：它们是 `dictionary_entries` 表的数据，由 Admin 或当前群的 Agent 工具维护，见 [dictionary.md](dictionary.md) 与 [data-layer.md](data-layer.md#dictionary_entries迁移-034)。
+- `tool_model` 是系统级辅助模型选择（首个用途是辞典融合），复用同一套 Provider 注册表、凭据与 thinking 支持列表；三个字段都必须写出。缺省时继承**全局** `agent` 的 provider/model/thinking_level，不继承任何按 Chat 覆盖——一个群的对话模型不该改变系统级辅助调用。取值在 `check-config` 与每次配置应用时校验（模型存在、支持 text、接受该 thinking 级别），写入经 Admin 的 `PUT /tool-model` 热应用。辅助调用失败或未配置不影响辞典的其它功能。
 
 ## Conversation Context
 

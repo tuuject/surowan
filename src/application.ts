@@ -8,6 +8,7 @@ import { StickerService } from './capabilities/stickers.ts';
 import { MentionTyping } from './capabilities/mention-typing.ts';
 import { grammySendApi } from './capabilities/telegram-send-api.ts';
 import { createMemoryTools, MemoryStore } from './context/memory.ts';
+import { createDictionaryTools, DictionaryStore } from './context/dictionary.ts';
 import { createImageBridge, type ImageBridge } from './image/bridge.ts';
 import { createImageService, type ImageService } from './image/service.ts';
 import { AdminQueryError } from './ingress/admin/audit.ts';
@@ -187,6 +188,7 @@ export async function serve(configPath: string, takeover = false): Promise<void>
     const mcpManager = new McpManager(store, loaded.config, secrets);
     mcp = mcpManager;
     const memoryStore = new MemoryStore(store.orm);
+    const dictionaryStore = new DictionaryStore(store.orm);
     const tasks = new LongTaskService(store.orm, () => scheduler?.wake());
     const bridge = createImageBridge({
       service: imageService,
@@ -209,6 +211,13 @@ export async function serve(configPath: string, takeover = false): Promise<void>
       capability(media.createReadImageTool(context, capabilities, deadline), false),
       capability(stickerService.createSearchTool(context, capabilities), false),
       ...createMemoryTools(memoryStore, context).map((tool) => capability(tool, true)),
+      ...createDictionaryTools({
+        store: dictionaryStore,
+        orm: openedStore.orm,
+        invocationId: context.invocationId,
+        chatId: context.chatId,
+        privateChat: context.chatId > 0n,
+      }).map((tool) => capability(tool, true)),
       ...plugins.capabilities(
         openedStore,
         configStore.current().config,

@@ -56,6 +56,10 @@ export interface TestContextOptions {
   readonly injectedMessageIds?: ReadonlySet<string>;
   /** The sticker catalog the retained transcript already carries. */
   readonly carriedStickerCatalog?: string | null;
+  /** Dictionary id→revision tags the retained transcript already carries. */
+  readonly carriedDictionary?: ReadonlyMap<string, string>;
+  /** Dictionary injection mode to render this batch with. */
+  readonly dictionaryMode?: 'off' | 'on_demand' | 'aggressive';
   readonly skills?: SystemResources;
 }
 
@@ -116,6 +120,8 @@ export function renderInvocationContext(
     maxOutputTokens: options.maxOutputTokens ?? 32_768,
     transcriptCharacters: 0,
     carriedStickerCatalog: options.carriedStickerCatalog ?? null,
+    carriedDictionary: options.carriedDictionary ?? new Map<string, string>(),
+    dictionaryMode: options.dictionaryMode ?? 'on_demand',
     agentModel: options.agentModel ?? { provider: config.agent.provider, model: config.agent.model },
   });
   const replyTargets = new Map(
