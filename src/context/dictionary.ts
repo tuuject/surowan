@@ -84,6 +84,96 @@ export function normalizeAliases(aliases: readonly string[]): readonly string[] 
   return normalized;
 }
 
+/**
+ * Horizontal whitespace folded at a Han/ASCII boundary: a normal space, a tab,
+ * or the full-width space. Line breaks are deliberately absent — a newline
+ * between a Latin word and a Han character is a real separator, not pangu
+ * spacing, so it must never match. Zero-width joiners and other punctuation are
+ * left untouched.
+ */
+const BOUNDARY_SPACE_PATTERN = /[\t\u0020\u3000]/;
+
+/** Han script: CJK Unified Ideographs plus the compatibility-ideograph block. */
+const HAN_PATTERN = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
+
+/** The ASCII half of a Han/ASCII boundary: an ASCII letter or digit. */
+const ASCII_ALNUM_PATTERN = /[0-9A-Za-z]/;
+
+/**
+ * Folds the Han/ASCII spacing convention known as pangu ("盘古之白"): a run of
+ * horizontal whitespace that sits *between a Han character and an ASCII letter
+ * or digit* is dropped, in both directions and across consecutive boundaries.
+ *
+ * Only that boundary is touched. Case, spaces between two ASCII words, spaces
+ * between two Han characters, and every other character survive verbatim, so a
+ * term and its aliases keep their original spelling and the match is never
+ * broadened past the one convention it targets. No NFKC or other Unicode
+ * folding happens here.
+ */
+export function normalizeDictionaryMatch(value: string): string {
+  let result = '';
+  let index = 0;
+  while (index < value.length) {
+    const character = value[index] ?? '';
+    if (!BOUNDARY_SPACE_PATTERN.test(character)) {
+      result += character;
+      index += 1;
+      continue;
+    }
+    let end = index;
+    while (end < value.length && BOUNDARY_SPACE_PATTERN.test(value[end] ?? '')) {
+      end += 1;
+    }
+    const left = index === 0 ? undefined : value[index - 1];
+    const right = value[end];
+    const crossed =
+      left !== undefined &&
+      right !== undefined &&
+      ((isHan(left) && isAsciiAlnum(right)) || (isHan(right) && isAsciiAlnum(left)));
+    if (!crossed) {
+      result += value.slice(index, end);
+    }
+    index = end;
+  }
+  return result;
+}
+
+function isHan(character: string): boolean {
+  return HAN_PATTERN.test(character);
+}
+
+function isAsciiAlnum(character: string): boolean {
+  return ASCII_ALNUM_PATTERN.test(character);
+}
+
+/**
+ * True when `text` contains `needle`, tolerating pangu spacing at a Han/ASCII
+ * boundary. The literal substring test runs first so an exact hit never depends
+ * on normalization; otherwise both sides are normalized and compared, which
+ * covers `AB 钙` in the text against an `AB钙` needle and the reverse.
+ */
+export function dictionaryTextMatches(text: string, needle: string): boolean {
+  if (needle.length === 0) {
+    return false;
+  }
+  if (text.includes(needle)) {
+    return true;
+  }
+  return normalizeDictionaryMatch(text).includes(normalizeDictionaryMatch(needle));
+}
+
+/**
+ * True when a stored term/alias equals a lookup input under the same spacing
+ * rule. The input keeps the trimming the lookup tool always applied.
+ */
+export function dictionaryValueMatches(value: string, input: string): boolean {
+  const wanted = input.trim();
+  if (wanted.length === 0) {
+    return false;
+  }
+  return wanted === value || normalizeDictionaryMatch(wanted) === normalizeDictionaryMatch(value);
+}
+
 /** Validates and normalizes one draft; every field is required to be meaningful. */
 export function normalizeDraft(draft: DictionaryDraft): DictionaryDraft {
   const term = draft.term.trim();
@@ -232,7 +322,16 @@ export class DictionaryStore {
     return row === undefined ? undefined : toRecord(row);
   }
 
-  /** Entries of one scope, newest first, optionally filtered by term or alias. */
+  /**
+   * Entries of one scope, oldest ID first, optionally filtered by term or alias.
+   *
+   * The scope narrowing (and the migrated-chat resolution) runs in SQL; the
+   * search term is applied in JS through `dictionaryTextMatches` so the Admin
+   * search accepts the same pangu spacing the runtime matching does. `LIKE`
+   * would fold ASCII case, and `instr` cannot express the boundary rule, so the
+   * exact, case-sensitive comparison lives in one place. This loads the selected
+   * scope before filtering; the cost scales with that scope's entry count.
+   */
   list(filter: DictionaryListFilter): DictionaryEntryRecord[] {
     const conditions = [eq(dictionaryEntries.scope, filter.scope)];
     if (filter.scope === 'group') {
@@ -240,22 +339,20 @@ export class DictionaryStore {
       // resolved scope keeps them visible without ever leaking another group's.
       conditions.push(inArray(dictionaryEntries.chatId, dictionaryChatIdScope(this.orm, filter.chatId ?? 0n)));
     }
-    if (filter.search !== undefined && filter.search.length > 0) {
-      // `instr` is byte-precise and case-sensitive, matching the entry-matching
-      // rule; LIKE would fold ASCII case.
-      conditions.push(
-        sql`(instr(${dictionaryEntries.term}, ${filter.search}) > 0
-             OR EXISTS (SELECT 1 FROM json_each(${dictionaryEntries.aliasesJson}) AS alias
-                        WHERE instr(alias.value, ${filter.search}) > 0))`,
-      );
-    }
+    const search = filter.search;
     return this.orm
       .select(ENTRY_COLUMNS)
       .from(dictionaryEntries)
       .where(and(...conditions))
       .orderBy(dictionaryEntries.id)
       .all()
-      .map(toRecord);
+      .map(toRecord)
+      .filter(
+        (entry) =>
+          search === undefined ||
+          search.length === 0 ||
+          [entry.term, ...entry.aliases].some((value) => dictionaryTextMatches(value, search)),
+      );
   }
 
   /**
@@ -399,8 +496,11 @@ export class DictionaryStore {
 }
 
 /**
- * Exact string matching over terms and aliases. Case-sensitive and literal by
- * design: no tokenization, no stemming and no semantic expansion.
+ * String matching over terms and aliases. Case-sensitive and literal by design:
+ * no tokenization, no stemming and no semantic expansion. The only relaxation is
+ * pangu spacing at a Han/ASCII boundary (`AB 钙` matches `AB钙`), applied by
+ * `dictionaryTextMatches`; every other character, including the case of an ASCII
+ * value and whitespace between two ASCII words, must match verbatim.
  */
 export function matchingEntries(
   entries: readonly DictionaryEntryRecord[],
@@ -411,25 +511,45 @@ export function matchingEntries(
   }
   return entries.filter((entry) => {
     const needles = [entry.term, ...entry.aliases].filter((value) => value.length > 0);
-    return needles.some((needle) => texts.some((text) => text.includes(needle)));
+    return needles.some((needle) => texts.some((text) => dictionaryTextMatches(text, needle)));
   });
 }
 
 /**
- * Entries that share an exact term or alias string with a different entry. The
- * result is grouped by the shared value, sorted, and every group has at least two
- * distinct entry IDs.
+ * Entries that share a term or alias with a different entry. Two values that are
+ * equal after the pangu-boundary normalization (`AB 钙` and `AB钙`) are the same
+ * conflicting value, so the group's `value` is the normalized key — the same
+ * equivalence matching uses. The result is sorted and every group has at least
+ * two distinct entry IDs. Case and ASCII-internal spacing stay significant, so
+ * `AB` and `ab` — or `A B` and `AB` — are still different values.
  */
 export function conflictGroups(entries: readonly DictionaryEntryRecord[]): DictionaryConflict[] {
+  return conflictGroupsFromValues(entries);
+}
+
+/** The term/alias/identity shape the conflict report needs; records satisfy it. */
+export interface ConflictValueEntry {
+  readonly id: string;
+  readonly term: string;
+  readonly aliases: readonly string[];
+}
+
+/**
+ * The conflict grouping core, shared by stored records and import-preview rows
+ * (which carry synthetic `import:N` ids). Same normalization and ordering as
+ * `conflictGroups`.
+ */
+export function conflictGroupsFromValues(entries: readonly ConflictValueEntry[]): DictionaryConflict[] {
   const byValue = new Map<string, Set<string>>();
   for (const entry of entries) {
     for (const value of [entry.term, ...entry.aliases]) {
       if (value.length === 0) {
         continue;
       }
-      const ids = byValue.get(value) ?? new Set<string>();
+      const key = normalizeDictionaryMatch(value);
+      const ids = byValue.get(key) ?? new Set<string>();
       ids.add(entry.id);
-      byValue.set(value, ids);
+      byValue.set(key, ids);
     }
   }
   return [...byValue.entries()]
@@ -599,8 +719,11 @@ function createLookupTool(
       );
       try {
         const entries = scope.privateChat ? scope.store.globalEntries() : scope.store.effective(scope.chatId);
-        const wanted = new Set(input.terms.map((term) => term.trim()));
-        const matches = entries.filter((entry) => [entry.term, ...entry.aliases].some((value) => wanted.has(value)));
+        const matches = entries.filter((entry) =>
+          [entry.term, ...entry.aliases].some((value) =>
+            input.terms.some((term) => dictionaryValueMatches(value, term)),
+          ),
+        );
         const offset = input.offset ?? 0;
         if (matches.length === 0) {
           const empty = JSON.stringify({ entries: [], total: 0, offset: 0, next_offset: null, more: false });

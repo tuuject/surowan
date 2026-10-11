@@ -262,7 +262,7 @@ test('prompt save applies the next invocation, records versions, diffs and resto
 
     // Restoring version 1 appends a rollback version instead of deleting history.
     const restored = await readJson(
-      await server.handle(post('/api/prompts/versions/' + v1 + '/restore', {}, cookie, savedView.content_hash)),
+      await server.handle(post(`/api/prompts/versions/${v1}/restore`, {}, cookie, savedView.content_hash)),
     );
     expect(restored).toMatchObject({ status: 'saved' });
     expect(restored.version).toMatchObject({ seq: '3', source: 'rollback', note: 'Restored from version 1' });
@@ -275,7 +275,7 @@ test('prompt save applies the next invocation, records versions, diffs and resto
     expect(versions.current).toMatchObject({ seq: '3', source: 'rollback' });
 
     const detail = await readJson(
-      await server.handle(request('/api/prompts/versions/' + versions.items[1].id, { headers: { cookie } })),
+      await server.handle(request(`/api/prompts/versions/${versions.items[1].id}`, { headers: { cookie } })),
     );
     expect(detail).toMatchObject({ seq: '2', content: 'New persona.' });
 
@@ -409,7 +409,7 @@ test('group prompt creation writes a conventional file, references it and refuse
     expect(saved).toMatchObject({ status: 'saved' });
     expect(saved.applied).toContain('telegram.chats[123456789].instructions_file');
     expect(await readFile(join(promptDir, 'chat-123456789.md'), 'utf8')).toBe('fresh');
-    expect(await readFile(directory + '/config.jsonc', 'utf8')).toContain('"prompts/chat-123456789.md"');
+    expect(await readFile(`${directory}/config.jsonc`, 'utf8')).toContain('"prompts/chat-123456789.md"');
     const active = await readJson(
       await server.handle(request('/api/prompts/group?chat=123456789&source=active', { headers: { cookie } })),
     );

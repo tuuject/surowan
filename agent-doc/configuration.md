@@ -441,7 +441,7 @@ Agent 侧使用（`image_generate` 工具、图片技能、发送与审计链路
 }
 ```
 
-- `dictionary.injection_mode` 是全局辞典自动注入策略，取 `off`、`on_demand`（缺省）或 `aggressive`。`off` 不自动注入（Agent 仍可主动查询）；`on_demand` 只注入与本批消息精确命中的词条；`aggressive` 预加载全局加本群的全部启用词条。无论哪种模式都受现有上下文窗口限制，新消息优先，装不下的词条会被丢弃而不是突破窗口。
+- `dictionary.injection_mode` 是全局辞典自动注入策略，取 `off`、`on_demand`（缺省）或 `aggressive`。`off` 不自动注入（Agent 仍可主动查询）；`on_demand` 只注入与本批消息命中的词条（匹配忽略汉字与 ASCII 字母／数字边界的水平空白，其他字符和大小写保留）；`aggressive` 预加载全局加本群的全部启用词条。无论哪种模式都受现有上下文窗口限制，新消息优先，装不下的词条会被丢弃而不是突破窗口。
 - `telegram.chats[].dictionary_injection_mode` 按 Chat 覆盖全局模式（同群 Forum Topic 共用）；缺省继承全局。私聊只读全局词条，不受群覆盖影响。
 - 去重基于实际保留的 canonical Context，而不是永久标记：同一 id+revision 仍在保留段时不重复注入，被 Context GC 淘汰后可以重新注入，词条更新（新 revision）会刷新。见 [telegram-agent-flow.md](telegram-agent-flow.md#context-生命周期)。
 - 词条本身不在配置文件里：它们是 `dictionary_entries` 表的数据，由 Admin 或当前群的 Agent 工具维护，见 [dictionary.md](dictionary.md) 与 [data-layer.md](data-layer.md#dictionary_entries迁移-034)。

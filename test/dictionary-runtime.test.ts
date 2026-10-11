@@ -325,4 +325,53 @@ describe('dictionary runtime lifecycle', () => {
       vi.restoreAllMocks();
     }
   }, 30_000);
+
+  test('on_demand injection matches an unspaced term against a pangu-spaced message, both directions', async () => {
+    const f = await fixture((config) => {
+      config.dictionary = { injection_mode: 'on_demand' };
+    });
+    const faux = fauxAgent();
+    faux.setResponses([fauxAssistantMessage('first'), fauxAssistantMessage('second'), fauxAssistantMessage('third')]);
+    const runtime = await f.runtimeWith(faux);
+    try {
+      const dictionary = new DictionaryStore(f.store.orm);
+      // Stored unspaced; the message carries a pangu space.
+      const entry = dictionary.create({
+        term: 'AB钙',
+        definition: '带希腊字母钙',
+        aliases: [],
+        scope: 'global',
+        chatId: null,
+        enabled: true,
+      });
+
+      await runBatch(f, runtime, f.configStore.beginInvocation(), 1, 10, '今天AB 钙怎么讲？');
+      const carrying = rowsCarryingDictionary(f.store);
+      expect(carrying).toHaveLength(1);
+      expect(carrying[0]?.payload_json).toContain(`- [${entry.id} r1]`);
+      expect(injectedDictionaryCounts(f).at(-1)).toBe(1);
+
+      // The reverse direction: an entry stored with the pangu space matches an
+      // unspaced message. A new entry is used so dedupe does not mask the hit.
+      const spaced = dictionary.create({
+        term: 'CD 片',
+        definition: '带空格的片',
+        aliases: [],
+        scope: 'global',
+        chatId: null,
+        enabled: true,
+      });
+      await runBatch(f, runtime, f.configStore.beginInvocation(), 2, 11, '那CD片呢');
+      const carryingSpaced = rowsCarryingDictionary(f.store);
+      expect(carryingSpaced.some((row) => row.payload_json.includes(`- [${spaced.id} r1]`))).toBe(true);
+      expect(injectedDictionaryCounts(f).at(-1)).toBe(1);
+
+      // A case-only difference is not a match: nothing is injected.
+      await runBatch(f, runtime, f.configStore.beginInvocation(), 3, 12, '另外ab钙呢');
+      expect(injectedDictionaryCounts(f).at(-1)).toBe(0);
+    } finally {
+      f.store.close();
+      vi.restoreAllMocks();
+    }
+  }, 30_000);
 });

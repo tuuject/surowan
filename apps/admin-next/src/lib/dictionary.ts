@@ -13,12 +13,29 @@ import i18n from './i18n.ts';
  * backslash), so the upload UI never grows a second, drifting implementation.
  */
 
-/** Splits pasted text into aliases: newlines, commas and `|` all separate. */
-export function parseAliasList(text: string): readonly string[] {
-  return text
-    .split(/[\n,|]/)
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
+/**
+ * Splits the alias textarea into aliases: one per line, trimmed and
+ * deduplicated. Only a newline separates aliases — a comma or a `|` stays a
+ * literal part of its alias (unlike the CSV import grammar, which still
+ * splits on `|` server-side).
+ */
+export function parseAliasLines(text: string): readonly string[] {
+  return normalizeAliases(text.split(/\r?\n/));
+}
+
+/**
+ * Renders aliases back into the textarea's one-per-line form. Pairing it with
+ * `parseAliasLines` is what keeps the caret and any blank line the user is
+ * still typing intact: the textarea owns its raw text and only adopts an
+ * external alias list when that list stops being the echo of its own parse.
+ */
+export function formatAliasLines(aliases: readonly string[]): string {
+  return aliases.join('\n');
+}
+
+/** Whether two alias lists are the same values in the same order. */
+export function aliasesEqual(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 /** Drops empty and duplicate aliases, keeping the first spelling. */

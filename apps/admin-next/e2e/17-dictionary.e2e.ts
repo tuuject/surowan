@@ -151,8 +151,8 @@ test.describe('dictionary page', () => {
     await page.getByRole('button', { name: 'New entry' }).click();
     await dialog.getByLabel('Term', { exact: true }).fill(term);
     await dialog.getByLabel('Definition', { exact: true }).fill('Created by the E2E suite');
-    await dialog.getByLabel('Add an alias', { exact: true }).fill('e2e-alias');
-    await dialog.getByRole('button', { name: 'Add alias' }).click();
+    const aliases = dialog.getByLabel('Aliases', { exact: true });
+    await aliases.fill('e2e-alias');
     await dialog.getByRole('button', { name: 'Create entry' }).click();
     await expect(page.getByText('Entry created')).toBeVisible();
 
@@ -165,12 +165,14 @@ test.describe('dictionary page', () => {
     expect(created).not.toBeNull();
     expect(created?.aliases).toEqual(['e2e-alias']);
 
-    // edit
+    // edit: clearing the textarea removes every alias in one save
     await row.getByRole('button', { name: `Edit ${term}` }).click();
     await dialog.getByLabel('Definition', { exact: true }).fill('Edited by the E2E suite');
+    await dialog.getByLabel('Aliases', { exact: true }).fill('');
     await dialog.getByRole('button', { name: 'Save entry' }).click();
     await expect(page.getByText('Entry updated')).toBeVisible();
     await expect(page.locator('table tbody tr', { hasText: term })).toContainText('Edited by the E2E suite');
+    expect((await findEntry(page, term))?.aliases).toEqual([]);
 
     // disable - a plain toggle write, still revision-checked
     await page.locator('table tbody tr', { hasText: term }).getByRole('button', { name: 'Enabled' }).click();
@@ -187,6 +189,79 @@ test.describe('dictionary page', () => {
     await expect(page.getByText('Entry deleted')).toBeVisible();
     await expect(page.locator('table tbody tr', { hasText: term })).toHaveCount(0);
     expect(await findEntry(page, term)).toBeNull();
+  });
+
+  test('an alias typed and saved directly is persisted, one per line, with commas and pipes kept literal', async ({
+    page,
+  }) => {
+    const term = `e2e-alias-direct-${Date.now()}`;
+    await page.goto(await adminUrl('/dictionary'));
+    const dialog = page.getByRole('dialog');
+    await page.getByRole('button', { name: 'New entry' }).click();
+    await dialog.getByLabel('Term', { exact: true }).fill(term);
+    await dialog.getByLabel('Definition', { exact: true }).fill('Typed aliases, saved without an Add button');
+
+    // This is the reported bug: the alias text is typed, then Save is pressed
+    // straight away. There is no Add button to forget any more.
+    const aliases = dialog.getByLabel('Aliases', { exact: true });
+    await aliases.fill('AB 钙');
+    await expect(dialog.getByRole('button', { name: 'Add alias' })).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'Create entry' }).click();
+    await expect(page.getByText('Entry created')).toBeVisible();
+
+    // Reload proves the write went through the API, not just the dialog state.
+    await page.reload();
+    const row = page.locator('table tbody tr', { hasText: term });
+    await expect(row).toBeVisible();
+    await expect(row).toContainText('AB 钙');
+    expect((await findEntry(page, term))?.aliases).toEqual(['AB 钙']);
+
+    // Edit: three lines, a comma and a pipe stay inside their alias.
+    await row.getByRole('button', { name: `Edit ${term}` }).click();
+    await dialog.getByLabel('Aliases', { exact: true }).fill('AB 钙\n带,逗号\n带|竖线');
+    await dialog.getByRole('button', { name: 'Save entry' }).click();
+    await expect(page.getByText('Entry updated')).toBeVisible();
+    await page.reload();
+    await expect(page.locator('table tbody tr', { hasText: term })).toContainText('带,逗号');
+    expect((await findEntry(page, term))?.aliases).toEqual(['AB 钙', '带,逗号', '带|竖线']);
+
+    const cleanup = await findEntry(page, term);
+    if (cleanup !== null) {
+      await removeEntry(page, cleanup);
+    }
+  });
+
+  test('the alias textarea keeps the caret and blank lines while typing', async ({ page }) => {
+    const term = `e2e-alias-caret-${Date.now()}`;
+    await page.goto(await adminUrl('/dictionary'));
+    const dialog = page.getByRole('dialog');
+    await page.getByRole('button', { name: 'New entry' }).click();
+    await dialog.getByLabel('Term', { exact: true }).fill(term);
+    await dialog.getByLabel('Definition', { exact: true }).fill('Caret stability');
+    const aliases = dialog.getByLabel('Aliases', { exact: true });
+    await aliases.click();
+
+    // Pressing Enter after the first alias starts a new line at the caret and
+    // the raw text keeps the trailing newline instead of being re-joined away.
+    await aliases.type('one');
+    await aliases.press('Enter');
+    await aliases.type('two');
+    await expect(aliases).toHaveValue('one\ntwo');
+
+    // A blank line in the middle is preserved verbatim while editing.
+    await aliases.fill('one\n\ntwo');
+    await expect(aliases).toHaveValue('one\n\ntwo');
+
+    // Saving still normalizes to the two non-empty aliases (the blank line and
+    // any duplicate are dropped), independently of the raw display text.
+    await dialog.getByRole('button', { name: 'Create entry' }).click();
+    await expect(page.getByText('Entry created')).toBeVisible();
+    expect((await findEntry(page, term))?.aliases).toEqual(['one', 'two']);
+
+    const cleanup = await findEntry(page, term);
+    if (cleanup !== null) {
+      await removeEntry(page, cleanup);
+    }
   });
 
   test('search narrows by term and alias without hiding other entries', async ({ page }) => {

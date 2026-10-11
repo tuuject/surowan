@@ -80,15 +80,8 @@ export const dictionary = {
     definitionPlaceholder: 'What this term means in this group',
     definitionRequired: 'A definition is required.',
     aliasesLabel: 'Aliases',
-    aliasesHint:
-      'Aliases match exactly like the term. Duplicates are dropped; a term and an alias may collide with another entry.',
-    aliasPlaceholder: 'Add an alias',
-    aliasAdd: 'Add alias',
-    aliasRemoveAria: 'Remove alias {{alias}}',
-    aliasBulkLabel: 'Paste several aliases',
-    aliasBulkHint:
-      'Separate them with a newline, a comma, or | — a literal | is written \\| and a backslash as \\\\ in CSV exports.',
-    aliasBulkAdd: 'Add pasted aliases',
+    aliasesHint: 'One alias per line; a term and an alias may collide with another entry.',
+    aliasPlaceholder: 'One alias per line',
     scopeLabel: 'Scope',
     scopeGlobal: 'Global',
     scopeGroup: 'Group',
@@ -117,7 +110,7 @@ export const dictionary = {
   conflicts: {
     title: 'Conflicts',
     description:
-      'Two entries use the exact same term or alias in the effective dictionary (global + this group). Conflicts do not block saving, lookup or injection.',
+      'Two entries use matching terms or aliases in the effective dictionary (global + this group), including spacing variants such as AB钙 and AB 钙. Conflicts do not block saving, lookup or injection.',
     none: 'No conflicts in this dictionary.',
     entries: '{{count}} entries',
     value: 'Shared value',
@@ -174,8 +167,6 @@ export const dictionary = {
     termLabel: 'Term',
     definitionLabel: 'Definition',
     aliasesLabel: 'Aliases',
-    aliasPlaceholder: 'Add an alias',
-    aliasRemoveAria: 'Remove alias {{alias}}',
     targetScopeLabel: 'Save the result to',
     targetRequired: 'Choose a target scope for the merged entry.',
     deleteSources: 'Delete the source entries',

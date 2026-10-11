@@ -1,4 +1,3 @@
-import { X } from 'lucide-react';
 import type React from 'react';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -8,13 +7,22 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import type { DictionaryChatOption, DictionaryDraft, DictionaryScope } from '@/lib/api.ts';
-import { normalizeAliases, parseAliasList } from '@/lib/dictionary.ts';
+import { aliasesEqual, formatAliasLines, parseAliasLines } from '@/lib/dictionary.ts';
 import { cn } from '@/lib/utils';
 
 /**
- * The alias editor: a row per alias plus a paste box. Adding a pasted list
- * splits on newline, comma or `|` (the same separators the CSV export uses for
- * its alias cell) and deduplicates.
+ * The alias editor: exactly one textarea, one alias per line. Every keystroke
+ * is a synchronous save — the textarea owns its raw text and reports the
+ * parsed list on each change, so there is no Add button to forget and no
+ * second paste path. Only a newline separates aliases: a comma and a `|` stay
+ * literal parts of their alias.
+ *
+ * Keeping the raw text in local state (rather than `aliases.join('\n')`) is
+ * what makes Enter, a trailing newline and IME composition safe: re-parsing
+ * the prop and joining it back would delete the empty line the admin is still
+ * typing on and move the caret. The raw text is adopted from the prop only
+ * when the prop stops being the echo of the current parse — e.g. a merge
+ * suggestion arriving or a different entry being opened.
  */
 export function AliasEditor({
   aliases,
@@ -28,91 +36,34 @@ export function AliasEditor({
   readonly idPrefix: string;
 }): React.ReactElement {
   const { t } = useTranslation();
-  const [draft, setDraft] = useState('');
-  const [bulk, setBulk] = useState('');
-  const bulkId = `${idPrefix}-bulk`;
+  const textareaId = `${idPrefix}-aliases`;
+  const [raw, setRaw] = useState<string>(() => formatAliasLines(aliases));
+  // The list `raw` last produced; when the incoming prop differs from it, the
+  // aliases changed elsewhere and the textarea adopts the new value.
+  const [echoed, setEchoed] = useState<readonly string[]>(aliases);
 
-  const add = (values: readonly string[]): void => {
-    onChange(normalizeAliases([...aliases, ...values]));
-  };
+  if (!aliasesEqual(aliases, echoed)) {
+    setEchoed(aliases);
+    setRaw(formatAliasLines(aliases));
+  }
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-1">
-        {aliases.length === 0 ? <span className="text-muted-foreground text-sm">—</span> : null}
-        {aliases.map((alias) => (
-          <span
-            key={alias}
-            className="bg-muted inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-sm"
-            data-testid={`alias-${alias}`}
-          >
-            {alias}
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-destructive"
-              aria-label={t('dictionary.entry.aliasRemoveAria', { alias })}
-              disabled={disabled}
-              onClick={() => onChange(aliases.filter((value) => value !== alias))}
-            >
-              <X className="size-3" />
-            </button>
-          </span>
-        ))}
-      </div>
-      <div className="flex items-center gap-1">
-        <Input
-          value={draft}
-          disabled={disabled}
-          placeholder={t('dictionary.entry.aliasPlaceholder')}
-          aria-label={t('dictionary.entry.aliasPlaceholder')}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              add([draft]);
-              setDraft('');
-            }
-          }}
-        />
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={disabled || draft.trim().length === 0}
-          onClick={() => {
-            add([draft]);
-            setDraft('');
-          }}
-        >
-          {t('dictionary.entry.aliasAdd')}
-        </Button>
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor={bulkId}>{t('dictionary.entry.aliasBulkLabel')}</Label>
-        <Textarea
-          id={bulkId}
-          rows={2}
-          value={bulk}
-          disabled={disabled}
-          onChange={(event) => setBulk(event.target.value)}
-        />
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-muted-foreground text-xs">{t('dictionary.entry.aliasBulkHint')}</p>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={disabled || parseAliasList(bulk).length === 0}
-            onClick={() => {
-              add(parseAliasList(bulk));
-              setBulk('');
-            }}
-          >
-            {t('dictionary.entry.aliasBulkAdd')}
-          </Button>
-        </div>
-      </div>
-    </div>
+    <Textarea
+      id={textareaId}
+      rows={4}
+      value={raw}
+      disabled={disabled}
+      className="font-mono"
+      placeholder={t('dictionary.entry.aliasPlaceholder')}
+      aria-label={t('dictionary.entry.aliasesLabel')}
+      onChange={(event) => {
+        const next = event.target.value;
+        const parsed = parseAliasLines(next);
+        setRaw(next);
+        setEchoed(parsed);
+        onChange(parsed);
+      }}
+    />
   );
 }
 

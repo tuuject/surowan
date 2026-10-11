@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
 import {
+  conflictGroupsFromValues,
   conflictsForScope,
   DICTIONARY_ALIAS_MAX_LENGTH,
   DICTIONARY_DEFINITION_MAX_LENGTH,
@@ -317,7 +318,9 @@ export function previewDictionaryImport(
     enabled: draft.enabled,
   }));
   // Conflicts are computed against the target dictionary with the incoming
-  // entries folded in: two rows of the same file collide with each other too.
+  // entries folded in: two rows of the same file collide with each other too,
+  // and a pangu-spaced pair (`AB 钙` vs `AB钙`) collides the same way the runtime
+  // matching and `conflictGroups` treat it.
   const existing = store.list({
     scope: body.scope,
     ...(chatId === null ? {} : { chatId }),
@@ -327,22 +330,8 @@ export function previewDictionaryImport(
     term: entry.term,
     aliases: entry.aliases,
   }));
-  const groups = new Map<string, Set<string>>();
-  for (const entry of [...existing, ...incoming]) {
-    for (const value of [entry.term, ...entry.aliases]) {
-      if (value.length === 0) {
-        continue;
-      }
-      const ids = groups.get(value) ?? new Set<string>();
-      ids.add(entry.id);
-      groups.set(value, ids);
-    }
-  }
-  const conflicts = [...groups.entries()]
-    .filter(([, ids]) => ids.size > 1)
-    .map(([value, ids]) => ({ value, entry_ids: [...ids].sort() }))
-    .sort((left, right) => (left.value < right.value ? -1 : left.value > right.value ? 1 : 0));
-  return { entries, conflicts };
+  const conflicts = conflictGroupsFromValues([...existing, ...incoming]);
+  return { entries, conflicts: serializeConflicts(conflicts) };
 }
 
 /** Writes a batch of already-previewed drafts in one transaction. */
