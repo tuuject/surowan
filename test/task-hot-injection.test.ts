@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
+import { getCurrentTools, fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
 import type { Update } from 'grammy/types';
 import Type from 'typebox';
 import { afterEach, expect, test } from 'vitest';
@@ -440,7 +440,7 @@ test.each(['ordinary', 'receipt'] as const)(
     const inspect = fauxAssistantMessage(fauxToolCall('inspect_scope', {}), { stopReason: 'toolUse' });
     f.faux.setResponses([
       (context) => {
-        toolSets.push(context.tools?.map((tool) => tool.name) ?? []);
+        toolSets.push(getCurrentTools(context.messages).map((tool) => tool.name));
         return inspect;
       },
       () => {
@@ -449,7 +449,7 @@ test.each(['ordinary', 'receipt'] as const)(
         return fauxAssistantMessage('ordinary done');
       },
       (context) => {
-        toolSets.push(context.tools?.map((tool) => tool.name) ?? []);
+        toolSets.push(getCurrentTools(context.messages).map((tool) => tool.name));
         if (next === 'receipt') {
           complete(f, 'Bob', false);
           f.scheduler.processTasksDue();
@@ -466,7 +466,7 @@ test.each(['ordinary', 'receipt'] as const)(
         return fauxAssistantMessage('receipt done');
       },
       (context) => {
-        toolSets.push(context.tools?.map((tool) => tool.name) ?? []);
+        toolSets.push(getCurrentTools(context.messages).map((tool) => tool.name));
         return inspect;
       },
       fauxAssistantMessage('next round done'),

@@ -7,6 +7,8 @@ import {
   fauxAssistantMessage,
   fauxProvider,
   fauxToolCall,
+  getCurrentSystemPrompt,
+  getCurrentTools,
   type Message,
   type ToolResultMessage,
 } from '@earendil-works/pi-ai';
@@ -185,13 +187,18 @@ test('the skill index reaches the system prompt and primitives stay directly cal
   const { store } = setup;
   agentFaux.setResponses([
     (context) => {
-      expect(context.systemPrompt).toContain('System skills:');
-      expect(context.systemPrompt).toContain('system:///skills/sticker-search/SKILL.md');
-      expect(context.systemPrompt).toContain('This index is the complete list');
-      expect(context.systemPrompt).toContain('read_image capability (called via execute)');
-      expect(context.systemPrompt).toContain('add_memory capability (called via execute)');
-      expect(context.systemPrompt).not.toContain('# Web fetch');
-      expect(context.tools?.map((tool) => tool.name)).toEqual(['read', 'send', 'send_reply', 'execute']);
+      expect(getCurrentSystemPrompt(context.messages)).toContain('System skills:');
+      expect(getCurrentSystemPrompt(context.messages)).toContain('system:///skills/sticker-search/SKILL.md');
+      expect(getCurrentSystemPrompt(context.messages)).toContain('This index is the complete list');
+      expect(getCurrentSystemPrompt(context.messages)).toContain('read_image capability (called via execute)');
+      expect(getCurrentSystemPrompt(context.messages)).toContain('add_memory capability (called via execute)');
+      expect(getCurrentSystemPrompt(context.messages)).not.toContain('# Web fetch');
+      expect(getCurrentTools(context.messages).map((tool) => tool.name)).toEqual([
+        'read',
+        'send',
+        'send_reply',
+        'execute',
+      ]);
       return fauxAssistantMessage(fauxToolCall('execute', { action: 'help', tool: 'web_fetch' }), {
         stopReason: 'toolUse',
       });
@@ -269,7 +276,7 @@ test('search_stickers runs through execute and its refs authorize a sticker send
   const { stickers, stickerId } = await indexOneSticker(setup, visionFaux);
   agentFaux.setResponses([
     (context) => {
-      expect(context.systemPrompt ?? '').toContain('search_stickers capability via execute');
+      expect(getCurrentSystemPrompt(context.messages)).toContain('search_stickers capability via execute');
       expect(context.messages.some((message) => message.role === 'user')).toBe(true);
       return fauxAssistantMessage(
         fauxToolCall('execute', {

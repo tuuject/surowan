@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
+import { getCurrentTools, fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
 import { GrammyError, HttpError } from 'grammy';
 import type { Update } from 'grammy/types';
 import { afterEach, expect, test } from 'vitest';
@@ -376,7 +376,7 @@ test.each([false, true])('daily budget bypass=%s is frozen in task policy, not r
   const tools: string[][] = [];
   f.faux.setResponses([
     (context) => {
-      tools.push(context.tools?.map((tool) => tool.name) ?? []);
+      tools.push(getCurrentTools(context.messages).map((tool) => tool.name));
       return fauxAssistantMessage(fauxToolCall('send', { kind: 'text', text: 'budgeted result' }), {
         stopReason: 'toolUse',
       });
@@ -444,7 +444,7 @@ test('bypass receipts still enter a single send-only closing turn at the context
   f.faux.setResponses([
     fauxAssistantMessage(fauxToolCall('read', { path: 'system:///missing.md' }), { stopReason: 'toolUse' }),
     (context) => {
-      tools.push(context.tools?.map((tool) => tool.name) ?? []);
+      tools.push(getCurrentTools(context.messages).map((tool) => tool.name));
       return fauxAssistantMessage(fauxToolCall('send', { kind: 'text', text: 'closing result' }), {
         stopReason: 'toolUse',
       });

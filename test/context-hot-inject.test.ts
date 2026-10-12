@@ -2,7 +2,13 @@ import { afterAll, describe, expect, test } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fauxAssistantMessage, fauxProvider, fauxToolCall, type MutableModels } from '@earendil-works/pi-ai';
+import {
+  getCurrentTools,
+  fauxAssistantMessage,
+  fauxProvider,
+  fauxToolCall,
+  type MutableModels,
+} from '@earendil-works/pi-ai';
 import type { Update } from 'grammy/types';
 import { loadConfig, type FileConfig, type RawConfig } from '../src/platform/config.ts';
 import type { RuntimeConfigurationStore, InvocationConfigSnapshot } from '../src/platform/runtime-config.ts';
@@ -903,13 +909,13 @@ describe('long-lived invocation', () => {
   });
 
   test('closing mode grants one send-only turn before the run ends', async () => {
-    // Regression: Pi calls `prepareNextTurnWithContext` and then `shouldStopAfterTurn`
-    // at the same turn boundary. The first set `contextClosing` and the second stopped
-    // on it immediately, so the send-only turn closing mode promises never ran: a run
-    // that crossed `context_stop_ratio` ended without a chance to publish its answer.
-    // The faux provider reports its own prompt-size estimate as usage, so the threshold
-    // is lowered instead: the tool registry alone crosses 2 % of the window, which
-    // puts the very first turn boundary into closing mode.
+    // Regression: closing mode must let the send-only turn it schedules actually run.
+    // With pi 1.x, `prepareNextTurnWithContext` sets `contextClosing` before that turn
+    // streams and `finishTurn` (which runs before `turn_end`) stops at the flag's first
+    // sight — after the send-only turn has published. The faux provider reports its own
+    // prompt-size estimate as usage, so the threshold is lowered instead: the tool
+    // registry alone crosses 2 % of the window, which puts the very first turn boundary
+    // into closing mode.
     const fixtureSetup = await fixture((config) => {
       config.agent.context_stop_ratio = 0.02;
       config.agent.context.hard_token_ratio = 0.02;
@@ -922,7 +928,7 @@ describe('long-lived invocation', () => {
     faux.setResponses([
       () => fauxAssistantMessage(fauxToolCall('read', { path: 'system:///missing.md' }), { stopReason: 'toolUse' }),
       (context) => {
-        closingTools.push(context.tools?.map((tool) => tool.name) ?? []);
+        closingTools.push(getCurrentTools(context.messages).map((tool) => tool.name));
         return fauxAssistantMessage(fauxToolCall('send', { kind: 'text', text: 'last words' }), {
           stopReason: 'toolUse',
         });
@@ -2020,7 +2026,8 @@ describe('conversation continuity', () => {
       // The window had no turn boundary to cut forward to, so it was dropped: the
       // request carries the new batch alone and no orphaned tool result.
       const carried = JSON.parse(requests[0] ?? '[]') as { role: string }[];
-      expect(carried.map((message) => message.role)).toEqual(['user']);
+      // pi 1.x requests lead with the runtime-owned system message.
+      expect(carried.filter((message) => message.role !== 'system').map((message) => message.role)).toEqual(['user']);
       const head = fixtureSetup.store.db
         .prepare<[], { head_seq: bigint; next_seq: bigint }>('SELECT head_seq, next_seq FROM conversation_contexts')
         .get();
@@ -2115,7 +2122,7 @@ describe('conversation continuity', () => {
           ?.head_seq,
       ).toBe(boundarySeq);
       const carried = JSON.parse(requests[0] ?? '[]') as { role: string }[];
-      expect(carried.map((message) => message.role)).toEqual(['user', 'user']);
+      expect(carried.filter((message) => message.role !== 'system').map((message) => message.role)).toEqual(['user', 'user']);
       expect(requests[0]).toContain('a later batch');
     } finally {
       await scheduler.stop();

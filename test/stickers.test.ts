@@ -2,7 +2,7 @@ import { afterAll, expect, test } from 'vitest';
 import { copyFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
+import { getCurrentTools, fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
 import type { Update } from 'grammy/types';
 import sharp from 'sharp';
 import { KeyedSemaphore } from '../src/platform/concurrency.ts';
@@ -53,7 +53,7 @@ test('sync, representative-frame indexing, search, and sticker send share scoped
     .toFile(fixturePath);
   faux.setResponses([
     (context) => {
-      expect(context.tools?.map((tool) => tool.name)).toEqual(['report_sticker_analysis']);
+      expect(getCurrentTools(context.messages).map((tool) => tool.name)).toEqual(['report_sticker_analysis']);
       return fauxAssistantMessage(
         fauxToolCall('report_sticker_analysis', {
           description_zh: '一只委屈猫正在哭泣',

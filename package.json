@@ -28,31 +28,31 @@
     "lint:fix": "biome lint --write --unsafe . && biome format --write ."
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "0.84.2",
-    "@earendil-works/pi-ai": "0.84.2",
+    "@earendil-works/pi-agent-core": "1.1.0",
+    "@earendil-works/pi-ai": "1.1.0",
     "@hono/node-server": "^2.1.4",
     "@inquirer/prompts": "^8.7.3",
-    "@modelcontextprotocol/sdk": "1.30.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "@node-rs/argon2": "^2.2.2",
     "@plasticwan/image-service": "workspace:^",
     "@simplewebauthn/server": "14.0.3",
     "better-sqlite3": "^13.0.3",
-    "defuddle": "0.19.4",
+    "defuddle": "0.19.5",
     "dotenv": "^18.0.7",
     "drizzle-orm": "^0.45.4",
-    "grammy": "1.45.1",
+    "grammy": "1.46.0",
     "hono": "^4.13.13",
     "jsonc-parser": "^3.3.1",
-    "sharp": "0.35.3",
-    "typebox": "1.3.14"
+    "sharp": "0.35.5",
+    "typebox": "1.3.36"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
     "@types/better-sqlite3": "^9.6.0",
-    "@types/node": "^24.19.2",
+    "@types/node": "^26.6.5",
     "typescript": "5.9.3",
     "vitest": "^5.0.3",
-    "zod": "4.4.3"
+    "zod": "4.6.5"
   },
   "workspaces": [
     "apps/*",

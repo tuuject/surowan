@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createModels, fauxAssistantMessage, fauxProvider } from '@earendil-works/pi-ai';
+import { createModels, fauxAssistantMessage, fauxProvider, getCurrentSystemPrompt } from '@earendil-works/pi-ai';
 import type { Update } from 'grammy/types';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
@@ -596,11 +596,11 @@ describe('chat model routing', () => {
     const prompts: string[] = [];
     faux.setResponses([
       (context) => {
-        prompts.push(context.systemPrompt ?? '');
+        prompts.push(getCurrentSystemPrompt(context.messages));
         return fauxAssistantMessage('vision');
       },
       (context) => {
-        prompts.push(context.systemPrompt ?? '');
+        prompts.push(getCurrentSystemPrompt(context.messages));
         return fauxAssistantMessage('text');
       },
     ]);

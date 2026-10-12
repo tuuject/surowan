@@ -8,6 +8,7 @@ import {
 } from '../../platform/builtin-providers.ts';
 import {
   assertModelConfig,
+  resolveBuiltinModelApi,
   type FileChat,
   type FileConfig,
   ModelConfigSchema,
@@ -226,13 +227,13 @@ export function listProviders(
         };
       }
       const source = findBuiltinProvider(provider.provider);
-      const api = source === undefined ? null : supportedBuiltinApi(source);
+      const api = source === undefined ? null : configuredBuiltinApi(alias, provider);
       if (source === undefined || api === null || source.baseUrl === undefined) {
         // `loadConfig` rejects this, so the panel only sees it if the file was
         // edited between the load and this response.
         throw new AdminQueryError(
           'provider_unsupported',
-          `Built-in provider ${provider.provider} has no single supported API adapter`,
+          `Built-in provider ${provider.provider} has no supported API adapter`,
           422,
         );
       }
@@ -325,21 +326,60 @@ function providerOf(file: FileConfig, alias: string): FileConfig['providers'][st
   return provider;
 }
 
-/** The API a provider's configured models speak, for compat applicability checks. */
-function providerApi(provider: FileConfig['providers'][string]): ProviderApi {
+/**
+ * The API one configured model speaks, for compat applicability checks.
+ * Custom providers state it; builtin ones resolve it per model from Pi's
+ * catalog (pi 1.x catalogs mix chat adapters inside one provider).
+ */
+function modelApi(alias: string, provider: FileConfig['providers'][string], modelId: string): ProviderApi {
+  if (provider.kind === 'custom') {
+    return provider.api;
+  }
+  return resolveBuiltinModelApi(alias, provider, modelId);
+}
+
+/**
+ * The listing API for discovery against a configured alias. A uniform catalog
+ * keeps its api; a mixed-catalog provider (pi 1.x OpenRouter, …) lists models
+ * through its OpenAI-shaped directory, not through any single chat adapter.
+ */
+function discoveryApi(provider: FileConfig['providers'][string]): ProviderApi {
   if (provider.kind === 'custom') {
     return provider.api;
   }
   const source = findBuiltinProvider(provider.provider);
-  const api = source === undefined ? null : supportedBuiltinApi(source);
-  if (api === null) {
-    throw new AdminQueryError(
-      'provider_unsupported',
-      `Built-in provider ${provider.provider} has no single supported API adapter`,
-      422,
-    );
+  const uniform = source === undefined ? null : supportedBuiltinApi(source);
+  if (uniform !== null) {
+    return uniform;
   }
-  return api;
+  if (source === undefined) {
+    throw new AdminQueryError('unknown_builtin_provider', `Unknown built-in provider: ${provider.provider}`, 422);
+  }
+  return 'openai-completions';
+}
+
+/**
+ * The api shown for a configured builtin alias: the uniform catalog api, or —
+ * on a mixed-catalog provider — the first configured model's catalog api.
+ */
+function configuredBuiltinApi(
+  alias: string,
+  provider: FileConfig['providers'][string] & { kind: 'builtin' },
+): ProviderApi | null {
+  const source = findBuiltinProvider(provider.provider);
+  const uniform = source === undefined ? null : supportedBuiltinApi(source);
+  if (uniform !== null) {
+    return uniform;
+  }
+  const first = provider.models[0];
+  if (first === undefined) {
+    return null;
+  }
+  try {
+    return resolveBuiltinModelApi(alias, provider, first.id);
+  } catch {
+    return null;
+  }
 }
 
 function checkModel(api: ProviderApi, model: ModelFileConfig, label: string): void {
@@ -546,14 +586,13 @@ export async function appendModels(
   models: readonly ModelFileConfig[],
 ): Promise<ConfigEdit[]> {
   const provider = providerOf(context.file, alias);
-  const api = providerApi(provider);
   const existing = new Set(provider.models.map((model) => model.id));
   for (const model of models) {
     if (existing.has(model.id)) {
       throw new AdminQueryError('model_exists', `Model ${model.id} is already configured on ${alias}`, 409);
     }
     existing.add(model.id);
-    checkModel(api, model, `model ${model.id}`);
+    checkModel(modelApi(alias, provider, model.id), model, `model ${model.id}`);
   }
   const offset = provider.models.length;
   return models.map((model, index) => ({
@@ -576,7 +615,7 @@ export function replaceModel(
   if (index < 0) {
     throw new AdminQueryError('model_not_found', `Model ${modelId} is not configured on ${alias}`, 404);
   }
-  checkModel(providerApi(provider), model, `model ${model.id}`);
+  checkModel(modelApi(alias, provider, model.id), model, `model ${model.id}`);
   return [{ path: ['providers', alias, 'models', index], value: model }];
 }
 
@@ -728,7 +767,7 @@ async function discoveryRequest(context: ProviderWriteContext, body: DiscoverBod
     if (apiKey === undefined) {
       throw new AdminQueryError('credentials_unavailable', `Provider ${body.alias} has no resolved API key`, 409);
     }
-    const api = providerApi(configured);
+    const api = discoveryApi(configured);
     const baseUrl = registered.baseUrl;
     if (baseUrl === undefined) {
       throw new AdminQueryError('invalid_base_url', `Provider ${body.alias} has no base URL`);

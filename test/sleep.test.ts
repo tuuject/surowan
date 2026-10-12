@@ -10,6 +10,7 @@ import {
   fauxAssistantMessage,
   fauxProvider,
   fauxToolCall,
+  getCurrentSystemPrompt,
   type Provider,
   type Usage,
 } from '@earendil-works/pi-ai';
@@ -291,7 +292,7 @@ test('adds zzz at the next turn boundary when a running session crosses the thre
   });
   faux.setResponses([
     (context) => {
-      systemPrompts.push(context.systemPrompt ?? '');
+      systemPrompts.push(getCurrentSystemPrompt(context.messages));
       return {
         ...first,
         usage: {
@@ -305,7 +306,7 @@ test('adds zzz at the next turn boundary when a running session crosses the thre
       };
     },
     (context) => {
-      systemPrompts.push(context.systemPrompt ?? '');
+      systemPrompts.push(getCurrentSystemPrompt(context.messages));
       return fauxAssistantMessage(fauxToolCall('zzz', {}), { stopReason: 'toolUse' });
     },
   ]);
@@ -330,7 +331,7 @@ test('states the sleep state only while zzz is exposed', async () => {
   const awakePrompts: string[] = [];
   awake.faux.setResponses([
     (context) => {
-      awakePrompts.push(context.systemPrompt ?? '');
+      awakePrompts.push(getCurrentSystemPrompt(context.messages));
       return fauxAssistantMessage('   ');
     },
   ]);
@@ -350,7 +351,7 @@ test('states the sleep state only while zzz is exposed', async () => {
   const sleepyPrompts: string[] = [];
   sleepy.faux.setResponses([
     (context) => {
-      sleepyPrompts.push(context.systemPrompt ?? '');
+      sleepyPrompts.push(getCurrentSystemPrompt(context.messages));
       return fauxAssistantMessage('   ');
     },
   ]);

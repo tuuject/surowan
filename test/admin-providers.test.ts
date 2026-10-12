@@ -266,18 +266,16 @@ test('offers the builtin presets the configuration may reference', async () => {
   try {
     const view = await readJson(await call(fixture, '/api/provider-presets'));
     const ids = view.presets.map((preset: any) => preset.id);
-    expect(ids).toContain('openrouter');
     expect(ids).toContain('google');
-    // Rejected by the preset predicate: mixed APIs, an unsupported adapter, or
-    // no concrete base URL.
-    expect(ids).not.toContain('xai');
+    // Rejected by the preset predicate: a mixed catalog (pi 1.x ships OpenRouter
+    // with openai-completions and anthropic-messages chat models, so it stays
+    // configurable through an existing alias but is not offered as a preset), an
+    // unsupported adapter, or no concrete base URL. xai now ships one uniform
+    // supported adapter, so it qualifies.
+    expect(ids).toContain('xai');
+    expect(ids).not.toContain('openrouter');
     expect(ids).not.toContain('mistral');
     expect(ids).not.toContain('google-vertex');
-    const openrouter = view.presets.find((preset: any) => preset.id === 'openrouter');
-    expect(openrouter).toMatchObject({
-      api: 'openai-completions',
-      base_url: 'https://openrouter.ai/api/v1',
-    });
   } finally {
     fixture.store.close();
   }

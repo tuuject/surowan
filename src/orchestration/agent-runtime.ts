@@ -5,6 +5,7 @@ import {
   type AssistantMessage,
   type AssistantMessageEventStream,
   createAssistantMessageEventStream,
+  getCurrentTools,
   type ImageContent,
   type Model,
   type Usage,
@@ -140,8 +141,6 @@ interface RunState {
   sleepRequested: boolean;
   modelBudgetBlocked: boolean;
   contextClosing: boolean;
-  /** The one send-only turn closing mode promises has been handed out. */
-  closingTurnGranted: boolean;
   /**
    * The send barrier already held one send back this round. Once per round, so
    * a chat that never goes quiet still gets its reply out; reset when the agent
@@ -399,7 +398,6 @@ export class AgentRuntime {
       sleepRequested: false,
       modelBudgetBlocked: false,
       contextClosing: false,
-      closingTurnGranted: false,
       barrierSpent: false,
       stopReason: 'completed',
     };
@@ -568,8 +566,9 @@ export class AgentRuntime {
     rebuildVisibleState(cached.agent.state.messages);
     const agent = cached.agent;
     // Hooks close over this run's state, so a cached agent is re-bound on every
-    // invocation instead of being rebuilt from the canonical history.
-    agent.state.systemPrompt = stable.systemPrompt;
+    // invocation instead of being rebuilt from the canonical history. The prompt
+    // is not re-bound: pi 1.x replays it from the transcript's leading system
+    // message, and a changed prompt hash evicted the cache entry above.
     agent.state.model = model;
     // The cached agent keeps the thinking level of the run that built it, so a
     // reused entry has to be re-bound here like the prompt and the model.
@@ -641,8 +640,10 @@ export class AgentRuntime {
         // un-injected and `releaseUninjectedBuckets` re-queues the batch.
         agent.steer(await injectBatch(bucketId));
       }
-      // Pi prepares tools before shouldStopAfterTurn. An injection after that
-      // boundary (including an idle wake) must refresh this same loop snapshot.
+      // pi 1.x announces tool-set changes itself by diffing the executable set
+      // against the transcript's declarations, so an injection queued after the
+      // prepare boundary (including an idle wake) only has to refresh the
+      // executable snapshot before the next request.
       refreshZzz(turnContext);
       return true;
     };
@@ -659,13 +660,13 @@ export class AgentRuntime {
       state.barrierSpent = false;
       this.#deferCollectingBucket(config, conversationId, Date.now());
     };
-    const stop = (reason: StopReason): true => {
+    const stop = (reason: StopReason): { action: 'end' } => {
       // A run that ends frees the agent just like the end of a round does.
       freeAgent();
       state.stopReason = reason;
       state.contextClosing = true;
       runtime.beginClosing(conversationId);
-      return true;
+      return { action: 'end' };
     };
 
     agent.streamFunction = async (streamModel, modelContext, options) => {
@@ -681,10 +682,11 @@ export class AgentRuntime {
       const release = await this.#modelGate.acquire(identity.chatId.toString(), signal);
       // Per-request visibility audit: the exact tool names this llmContext
       // carried (the loop can trim tools to send-only near the context limit).
+      // pi 1.x carries the declarations in the transcript's system messages.
       const callId = this.#startModelCall(
         invocationId,
         streamModel,
-        modelContext.tools?.map((tool) => tool.name) ?? [],
+        getCurrentTools(modelContext.messages).map((tool) => tool.name),
       );
       const recordPayloads = this.#configStore.current().config.developer.record_model_payloads;
       try {
@@ -798,7 +800,15 @@ export class AgentRuntime {
         state.estimatedInputTokens,
         rebuildVisibleState,
       );
-      const messages = collected === undefined ? undefined : turn.context.messages.slice(collected.retainedIndex);
+      // The retained segment keeps the runtime-owned leading system message that
+      // pi 1.x replays the prompt from; the planner's `retainedIndex` is always
+      // past it, so the cut would otherwise drop the prompt from the loop context.
+      const loopHead = turn.context.messages[0];
+      const leadingSystem = loopHead !== undefined && loopHead.role === 'system' ? [loopHead] : [];
+      const messages =
+        collected === undefined
+          ? undefined
+          : [...leadingSystem, ...turn.context.messages.slice(collected.retainedIndex)];
       if (collected !== undefined) {
         // The estimate is a high-water mark that model usage only ever raises, so
         // after a collection it still describes the history just dropped and
@@ -834,7 +844,16 @@ export class AgentRuntime {
         },
       };
     };
-    agent.shouldStopAfterTurn = async (turn) => {
+    // pi 1.x replacement for the removed `shouldStopAfterTurn`. It runs before
+    // `turn_end` (and before the next `prepareNextTurnWithContext`), so turn-end
+    // bookkeeping that this hook reads lags one turn: `turnsSinceInjection` is
+    // compensated below, and a closing send-only turn has already streamed by the
+    // time `contextClosing` is first seen.
+    agent.finishTurn = async (turn) => {
+      if (turn.message.stopReason === 'error' || turn.message.stopReason === 'aborted') {
+        // Error and aborted responses are hard exits; pi ignores the decision.
+        return undefined;
+      }
       if (!bypassDailyBudget() && (state.sleepRequested || activeSleepUntil(this.#store.orm) !== null)) {
         return stop('sleep');
       }
@@ -847,19 +866,14 @@ export class AgentRuntime {
         return stop('budget');
       }
       if (state.contextClosing) {
-        // Pi runs `prepareNextTurnWithContext` and then this hook at the same turn
-        // boundary. Stopping on the flag the first time it is seen ended the run at
-        // the very boundary that entered closing mode, so the send-only turn the
-        // mode exists for never ran and a run near its window could not finish its
-        // answer. Grant exactly one closing turn, then stop.
-        if (state.closingTurnGranted) {
-          return stop(state.stopReason);
-        }
-        state.closingTurnGranted = true;
-        runtime.beginClosing(conversationId);
-        return false;
+        // `prepareNextTurnWithContext` entered closing mode before the send-only
+        // turn it schedules; that turn has streamed by the time this hook sees the
+        // flag, so the promised answer is out and the run stops now.
+        return stop(state.stopReason);
       }
-      if (state.turnsSinceInjection >= config.agent.rate_limits.turns_per_injection) {
+      // `turn_end` now emits after this hook, so the turn that just completed is
+      // not counted yet.
+      if (state.turnsSinceInjection + 1 >= config.agent.rate_limits.turns_per_injection) {
         return stop('turn_budget');
       }
       // Safety net first, before anything that can extend the run: a newer batch
@@ -878,7 +892,7 @@ export class AgentRuntime {
           pendingUserTags.push({ tag: 'harness', bucketId: null });
           agent.steer({ role: 'user', content: [{ type: 'text', text: SEND_NUDGE_TEXT }], timestamp: Date.now() });
           this.recordAgentMessage(invocationId, 'harness_nudge', SEND_NUDGE_TEXT);
-          return false;
+          return undefined;
         }
       }
       if (!hasToolCalls && contextState.completion !== null) {
@@ -903,7 +917,7 @@ export class AgentRuntime {
         typing.stop();
       }
       if (await injectPending(!hasToolCalls, turn.context)) {
-        return false;
+        return undefined;
       }
       const idleGraceMilliseconds = config.agent.context.idle_grace_seconds * 1_000;
       // The grace belongs to the end of a round, not to every turn. A turn that
@@ -925,10 +939,10 @@ export class AgentRuntime {
           signal,
         );
         if (waited === 'pending' && (await injectPending(true, turn.context))) {
-          return false;
+          return undefined;
         }
         if (waited === 'aborted') {
-          return false;
+          return undefined;
         }
       }
       if (Date.now() >= deadline) {
@@ -944,7 +958,7 @@ export class AgentRuntime {
       }
       // Nothing to force: the loop ends on its own once the model stops calling
       // tools. Forcing a stop here would cut the answer short.
-      return false;
+      return undefined;
     };
     const unsubscribe = agent.subscribe((event) => {
       if (event.type === 'turn_end') {
@@ -1141,7 +1155,10 @@ export class AgentRuntime {
       conversationId: identity.conversationId,
       agent,
       header,
-      transcriptSeqs: retained.map((row) => row.seq),
+      // pi 1.x seeds the prompt as a leading system message in front of the
+      // retained history; it is runtime-owned and never persisted, so it gets
+      // the `null` sequence entry here.
+      transcriptSeqs: [null, ...retained.map((row) => row.seq)],
       systemPromptHash: stable.systemPromptHash,
       lastUsedAt: Date.now(),
     };
@@ -1241,8 +1258,16 @@ export class AgentRuntime {
     // that says how much this collection dropped.
     const previousHeadSeq = header.headSeq;
     this.#contexts.advanceHead(header, plan.targetSeq);
-    const retained = loopMessages.slice(plan.retainedIndex);
-    entry.transcriptSeqs = entry.transcriptSeqs.slice(plan.retainedIndex);
+    // The leading system message is runtime-owned (pi 1.x replays the prompt from
+    // it) and sits in front of the collected window, so a cut that starts past
+    // index 0 must re-attach it to the retained segment.
+    const head = loopMessages[0];
+    const leadingSystem = head !== undefined && head.role === 'system' ? [head] : [];
+    const retained = [...leadingSystem, ...loopMessages.slice(plan.retainedIndex)];
+    entry.transcriptSeqs = [
+      ...(leadingSystem.length > 0 ? [null] : []),
+      ...entry.transcriptSeqs.slice(plan.retainedIndex),
+    ];
     entry.agent.state.messages = [...retained];
     onRetained(retained);
     this.#logContextGc(invocationId, header, previousHeadSeq, plan);

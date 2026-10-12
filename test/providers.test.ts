@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type Api, type Context, getSupportedThinkingLevels, type Model } from '@earendil-works/pi-ai';
+import { normalizeContext, type Api, getSupportedThinkingLevels, type Model } from '@earendil-works/pi-ai';
 import { afterEach, describe, expect, test } from 'vitest';
 import { findBuiltinProvider } from '../src/platform/builtin-providers.ts';
 import { type FileConfig, type LoadedConfig, loadConfig, type RawConfig } from '../src/platform/config.ts';
@@ -141,7 +141,7 @@ describe('model registry', () => {
       },
     });
     try {
-      expect(() => provider.streamSimple(model, {} as Context)).toThrow('stream-stop');
+      expect(() => provider.streamSimple(model, normalizeContext({ messages: [] }))).toThrow('stream-stop');
     } finally {
       Object.assign(source, { streamSimple: original });
     }

@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
+import { getCurrentTools, fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
 import { GrammyError, HttpError } from 'grammy';
 import type { Update } from 'grammy/types';
 import { eq } from 'drizzle-orm';
@@ -349,7 +349,9 @@ describe('reply deduplication', () => {
       const first = processOne(fixture.scheduler, new Date(t0.getTime() + 15_000));
       faux.setResponses([
         (context) => {
-          expect(context.tools?.find((tool) => tool.name === 'send')?.description).toContain('at most one reply');
+          expect(getCurrentTools(context.messages).find((tool) => tool.name === 'send')?.description).toContain(
+            'at most one reply',
+          );
           const current = fixture.configStore.current();
           fixture.configStore.publish({
             ...current,
@@ -376,7 +378,7 @@ describe('reply deduplication', () => {
       const second = processOne(fixture.scheduler, new Date(t1.getTime() + 15_000));
       faux.setResponses([
         (context) => {
-          expect(context.tools?.find((tool) => tool.name === 'send')?.description).toContain(
+          expect(getCurrentTools(context.messages).find((tool) => tool.name === 'send')?.description).toContain(
             'permits multiple replies',
           );
           return fauxAssistantMessage(fauxToolCall('send', { text: 'follow up', reply_to_message_id: '10' }), {

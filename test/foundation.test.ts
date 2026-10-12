@@ -470,7 +470,7 @@ describe('configuration', () => {
         };
       }),
     );
-    await expect(loadConfig(configPath)).rejects.toThrow('does not expose a single supported API');
+    await expect(loadConfig(configPath)).rejects.toThrow('cannot be driven from a configured API key');
   });
 
   test('rejects an agent model a builtin provider does not list', async () => {

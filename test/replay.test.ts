@@ -8,6 +8,8 @@ import {
   fauxAssistantMessage,
   fauxProvider,
   fauxToolCall,
+  getCurrentSystemPrompt,
+  getCurrentTools,
   type ImageContent,
   type ModelThinkingLevel,
 } from '@earendil-works/pi-ai';
@@ -391,7 +393,7 @@ test('a scene replay runs the historical public chat under the current config wi
 
   f.faux.setResponses([
     (context, options) => {
-      expect(context.systemPrompt).toBe(stable.systemPrompt);
+      expect(getCurrentSystemPrompt(context.messages)).toBe(stable.systemPrompt);
       // The scene carries the public chat: the bot's own earlier message, the
       // opening batch, a text-only media marker, and nothing past the cutoff or
       // from the internal agent history.
@@ -482,7 +484,7 @@ test.each([undefined, false, true])(
     });
     f.faux.setResponses([
       (context) => {
-        const send = context.tools?.find((tool) => tool.name === 'send');
+        const send = getCurrentTools(context.messages).find((tool) => tool.name === 'send');
         expect(send?.description.includes('at most one reply')).toBe(allow !== true);
         return fauxAssistantMessage(fauxToolCall('send', { text: 'first', reply_to_message_id: '901' }), {
           stopReason: 'toolUse',
@@ -610,11 +612,11 @@ test('the scene prompt is the current config and an override replaces only its o
   );
   f.faux.setResponses([
     (context) => {
-      expect(context.systemPrompt).toBe(globalOverride);
+      expect(getCurrentSystemPrompt(context.messages)).toBe(globalOverride);
       // Fixed runtime layers survive an override byte for byte.
-      expect(context.systemPrompt).toContain(CORE_AGENT_PROTOCOL);
-      expect(context.systemPrompt).toContain('Conversation mode: group chat.');
-      expect(context.systemPrompt?.endsWith('\n\nprivate')).toBe(true);
+      expect(getCurrentSystemPrompt(context.messages)).toContain(CORE_AGENT_PROTOCOL);
+      expect(getCurrentSystemPrompt(context.messages)).toContain('Conversation mode: group chat.');
+      expect(getCurrentSystemPrompt(context.messages).endsWith('\n\nprivate')).toBe(true);
       // A prompt override never touches the scene input.
       expect(messageText(context)).toContain(HISTORY_CAPTION);
       return fauxAssistantMessage('global override');
@@ -631,8 +633,8 @@ test('the scene prompt is the current config and an override replaces only its o
   );
   f.faux.setResponses([
     (context) => {
-      expect(context.systemPrompt).toBe(groupOverride);
-      expect(context.systemPrompt).toContain('Participate safely.');
+      expect(getCurrentSystemPrompt(context.messages)).toBe(groupOverride);
+      expect(getCurrentSystemPrompt(context.messages)).toContain('Participate safely.');
       return fauxAssistantMessage('group override');
     },
   ]);
@@ -660,9 +662,9 @@ test('the scene prompt is the current config and an override replaces only its o
   const published = stablePrompt(f.store, f.configStore.current().config, f.seed.invocationA);
   f.faux.setResponses([
     (context) => {
-      expect(context.systemPrompt).toBe(published.systemPrompt);
-      expect(context.systemPrompt).toContain('A different current global layer.');
-      expect(context.systemPrompt?.endsWith('\n\na different current group layer')).toBe(true);
+      expect(getCurrentSystemPrompt(context.messages)).toBe(published.systemPrompt);
+      expect(getCurrentSystemPrompt(context.messages)).toContain('A different current global layer.');
+      expect(getCurrentSystemPrompt(context.messages).endsWith('\n\na different current group layer')).toBe(true);
       return fauxAssistantMessage('current config');
     },
   ]);
@@ -695,7 +697,7 @@ test('prompt overrides reject unknown templates, NUL, BOM, oversize and emptied 
   // Comments are stripped before the override becomes a template.
   f.faux.setResponses([
     (context) => {
-      expect(context.systemPrompt).toBe(
+      expect(getCurrentSystemPrompt(context.messages)).toBe(
         composeAgentPrompt({ ...stable.promptLayers, global: 'Replacement' }, stable.templateValues),
       );
       return fauxAssistantMessage('stripped');
@@ -725,7 +727,7 @@ test('a scene replays with recording off, without any model call, after develope
 
   f.faux.setResponses([
     (context) => {
-      expect(context.systemPrompt).toContain('Participate safely.');
+      expect(getCurrentSystemPrompt(context.messages)).toContain('Participate safely.');
       expect(messageText(context)).toContain(OPENING_TEXT);
       return fauxAssistantMessage(fauxToolCall('send', { text: 'still replayable' }), { stopReason: 'toolUse' });
     },
@@ -748,7 +750,11 @@ test('the default registry is the current read, send, send_reply, and execute de
     (context) => {
       // No toolDefinitions hook: read/send/execute are the basic current set,
       // and no capability is registered.
-      expect(context.tools?.map((tool) => tool.name).sort()).toEqual(['execute', 'read', 'send', 'send_reply']);
+      expect(
+        getCurrentTools(context.messages)
+          .map((tool) => tool.name)
+          .sort(),
+      ).toEqual(['execute', 'read', 'send', 'send_reply']);
       return fauxAssistantMessage(
         [
           fauxToolCall('read', { uri: skill.uri }),
@@ -1199,7 +1205,7 @@ test('an explicit cross-provider model pair drives prompt, image, budget, cost a
   alt.setResponses([
     (context, options, _state, model) => {
       // Prompt variables render the selected model, not the Chat settings.
-      expect(context.systemPrompt).toContain('Current model alt/alt-model.');
+      expect(getCurrentSystemPrompt(context.messages)).toContain('Current model alt/alt-model.');
       // The selected model's image capability turns the scene media into refs.
       expect(messageText(context)).toMatch(/img_[a-f0-9]+/);
       // The scene budget is the target's maxTokens and the target's provider

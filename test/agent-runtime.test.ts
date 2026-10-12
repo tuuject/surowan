@@ -4,7 +4,14 @@ import { copyFile, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
-import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
+import {
+  createModels,
+  fauxAssistantMessage,
+  fauxProvider,
+  fauxToolCall,
+  getCurrentTools,
+  withoutInitialSystemMessage,
+} from '@earendil-works/pi-ai';
 import Type from 'typebox';
 import type { Update } from 'grammy/types';
 import sharp from 'sharp';
@@ -86,7 +93,7 @@ test.each([undefined, false, true])(
         // OpenAI-compatible endpoints reject a tool whose `parameters` is not a root
         // object schema; the top-level union `execute` used to carry failed every
         // gpt-4o invocation with 400 invalid_function_parameters.
-        const tools = context.tools ?? [];
+        const tools = getCurrentTools(context.messages);
         expect(tools.map((tool) => tool.name)).toEqual(['read', 'send', 'send_reply', 'execute']);
         for (const tool of tools) {
           expect(tool.parameters).toMatchObject({ type: 'object' });
@@ -462,7 +469,7 @@ test('passes Telegram photos directly to the multimodal agent and keeps stickers
       };
       options?.onPayload?.(providerPayload, faux.getModel());
       expect(providerPayload.messages[0]?.content[0]?.image_url.url).toBe(inlineImageDataUrl);
-      const user = context.messages[0];
+      const user = withoutInitialSystemMessage(context.messages)[0];
       expect(user?.role).toBe('user');
       if (user?.role !== 'user' || typeof user.content === 'string') {
         throw new Error('Expected multimodal user content');
@@ -641,7 +648,7 @@ test('keeps history photos as img_ refs for the multimodal agent while attaching
   let historyRef: string | undefined;
   agentFaux.setResponses([
     (context) => {
-      const user = context.messages[0];
+      const user = withoutInitialSystemMessage(context.messages)[0];
       expect(user?.role).toBe('user');
       if (user?.role !== 'user' || typeof user.content === 'string') {
         throw new Error('Expected multimodal user content');
@@ -771,7 +778,7 @@ test('lets a text-only agent read a Telegram photo through read_image', async ()
   let photoRef: string | undefined;
   agentFaux.setResponses([
     (context) => {
-      const content = context.messages[0]?.content;
+      const content = withoutInitialSystemMessage(context.messages)[0]?.content;
       if (typeof content !== 'string') {
         const text = content?.find((entry) => entry.type === 'text')?.text ?? '';
         const match = /\[photo (\S+)/.exec(text);
@@ -1033,9 +1040,12 @@ test('a model that declares minimal tool-schema keywords is sent reduced tool de
     (context, options) => {
       // The faux provider never touches the network, so the snapshot hooks are
       // triggered manually to mirror what real adapters do.
-      options?.onPayload?.({ model: 'agent-model', messages: context.messages, tools: context.tools }, faux.getModel());
+      options?.onPayload?.(
+        { model: 'agent-model', messages: context.messages, tools: getCurrentTools(context.messages) },
+        faux.getModel(),
+      );
       void options?.onResponse?.({ status: 200, headers: {} }, faux.getModel());
-      presented = (context.tools ?? []).map((tool) => ({ name: tool.name, parameters: tool.parameters }));
+      presented = getCurrentTools(context.messages).map((tool) => ({ name: tool.name, parameters: tool.parameters }));
       return fauxAssistantMessage(fauxToolCall('send', { kind: 'text', text: 'published' }), { stopReason: 'toolUse' });
     },
     fauxAssistantMessage('private assistant text'),

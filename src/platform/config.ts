@@ -7,7 +7,7 @@ import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
 import type { TLocalizedValidationError } from 'typebox/error';
 import {
-  builtinProviderApi,
+  builtinModelApi,
   findBuiltinProvider,
   isSupportedBuiltinPreset,
   SUPPORTED_PROVIDER_APIS,
@@ -786,13 +786,22 @@ export function validateSemantics(config: FileConfig): void {
         `Provider alias ${JSON.stringify(alias)} must match ${PROVIDER_ALIAS_PATTERN.source}: the alias is a URL path segment and part of restart path strings`,
       );
     }
-    const api = resolveProviderApi(alias, provider);
     assertUnique(provider.models, (model) => model.id, `provider ${alias} model ID`);
-    for (const model of provider.models) {
-      assertModelConfig(api, model, `Provider ${alias} model ${model.id}`);
-    }
     if (provider.kind === 'custom') {
       validateEndpoint(provider.base_url, `provider ${alias} base_url`);
+      for (const model of provider.models) {
+        assertModelConfig(provider.api, model, `Provider ${alias} model ${model.id}`);
+      }
+    } else {
+      // pi 1.x builtin catalogs mix chat adapters inside one provider, so each
+      // configured model is validated against the api of its own catalog entry.
+      for (const model of provider.models) {
+        assertModelConfig(
+          resolveBuiltinModelApi(alias, provider, model.id),
+          model,
+          `Provider ${alias} model ${model.id}`,
+        );
+      }
     }
   }
   validateAgentThinkingLevel(config, config.agent, 'agent');
@@ -851,26 +860,29 @@ function validateModelReference(
 }
 
 /**
- * The API a provider's models speak. A custom provider states it; a builtin one
- * inherits it from Pi's catalog, which is also what decides whether the provider
- * may be configured at all.
+ * The API one configured model of a builtin alias speaks: its entry in Pi's
+ * catalog, or — for ids the catalog does not list — the provider's uniform
+ * catalog api. The uniform fallback keeps single-adapter providers accepting
+ * catalog-external model ids; on a mixed-catalog provider there is nothing to
+ * inherit, so such an id is a configuration error.
  */
-function resolveProviderApi(alias: string, provider: ProviderConfig): ProviderApi {
-  if (provider.kind === 'custom') {
-    return provider.api;
-  }
+export function resolveBuiltinModelApi(
+  alias: string,
+  provider: ProviderConfig & { kind: 'builtin' },
+  modelId: string,
+): ProviderApi {
   const source = findBuiltinProvider(provider.provider);
   if (source === undefined) {
     throw new Error(`Provider ${alias} references unknown built-in provider ${provider.provider}`);
   }
-  const api = builtinProviderApi(source);
-  if (api === null || !SUPPORTED_PROVIDER_APIS.includes(api)) {
-    throw new Error(
-      `Provider ${alias} built-in ${provider.provider} does not expose a single supported API (${SUPPORTED_PROVIDER_APIS.join(', ')})`,
-    );
-  }
   if (!isSupportedBuiltinPreset(source)) {
     throw new Error(`Provider ${alias} built-in ${provider.provider} cannot be driven from a configured API key`);
+  }
+  const api = builtinModelApi(source, modelId);
+  if (api === null || !SUPPORTED_PROVIDER_APIS.includes(api)) {
+    throw new Error(
+      `Provider ${alias} model ${modelId} has no supported API (${SUPPORTED_PROVIDER_APIS.join(', ')}) in Pi's ${provider.provider} catalog`,
+    );
   }
   return api as ProviderApi;
 }

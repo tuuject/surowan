@@ -3,7 +3,13 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
-import { fauxAssistantMessage, fauxProvider, fauxToolCall, type ToolResultMessage } from '@earendil-works/pi-ai';
+import {
+  type JsonObject,
+  fauxAssistantMessage,
+  fauxProvider,
+  fauxToolCall,
+  type ToolResultMessage,
+} from '@earendil-works/pi-ai';
 import type { Update } from 'grammy/types';
 import alarmPlugin from '../src/plugins/alarm/index.ts';
 import type { ListAlarmToolDetails } from '../src/plugins/alarm/alarm.ts';
@@ -64,16 +70,20 @@ function retainedMessages(store: SqliteStore): AgentMessage[] {
 }
 
 function executeResults(messages: readonly AgentMessage[], tool: string): ToolResultMessage[] {
-  return messages.filter(
-    (message): message is ToolResultMessage =>
-      message.role === 'toolResult' &&
-      message.toolName === 'execute' &&
-      !message.isError &&
-      typeof message.details === 'object' &&
-      message.details !== null &&
-      'tool' in message.details &&
-      message.details.tool === tool,
-  );
+  return messages
+    .filter(
+      (message): message is ToolResultMessage =>
+        message.role === 'toolResult' &&
+        message.toolName === 'execute' &&
+        !message.isError &&
+        typeof message.details === 'object' &&
+        message.details !== null &&
+        'tool' in message.details &&
+        message.details.tool === tool,
+    )
+    // pi 1.x attaches run-scoped metadata (`durationMs`, `usage`) to live
+    // transcript results; the canonical history does not persist them.
+    .map(({ durationMs: _durationMs, usage: _usage, ...result }) => result);
 }
 
 function resultText(message: ToolResultMessage): string {
@@ -91,7 +101,7 @@ function listItems(messages: readonly AgentMessage[]): ListAlarmToolDetails['ite
   return (JSON.parse(JSON.parse(resultText(result)).text) as ListAlarmToolDetails).items;
 }
 
-function call(tool: string, input: Record<string, unknown> = {}) {
+function call(tool: string, input: JsonObject = {}) {
   return fauxAssistantMessage(fauxToolCall('execute', { action: 'call', tool, input }), { stopReason: 'toolUse' });
 }
 
@@ -297,7 +307,7 @@ describe('alarm canonical context', () => {
           derivedId = listItems(context.messages)[1]?.id;
           expect(derivedId).toBeDefined();
           options?.onPayload?.({ messages: context.messages }, f.faux.getModel());
-          return call('delete_alarm', { id: derivedId });
+          return call('delete_alarm', { ...(derivedId === undefined ? {} : { id: derivedId }) });
         },
         (context) => {
           expect(executeResults(context.messages, 'delete_alarm')).toHaveLength(1);
@@ -415,7 +425,7 @@ describe('alarm canonical context', () => {
       f.faux.setResponses([
         (context) => {
           derivedId = listItems(context.messages)[0]?.id;
-          return call('delete_alarm', { id: derivedId });
+          return call('delete_alarm', { ...(derivedId === undefined ? {} : { id: derivedId }) });
         },
         (context) => {
           const result = context.messages.at(-1);

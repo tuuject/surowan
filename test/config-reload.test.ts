@@ -2,7 +2,13 @@ import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { chmod, lstat, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fauxAssistantMessage, fauxProvider, fauxToolCall, type MutableModels } from '@earendil-works/pi-ai';
+import {
+  getCurrentSystemPrompt,
+  fauxAssistantMessage,
+  fauxProvider,
+  fauxToolCall,
+  type MutableModels,
+} from '@earendil-works/pi-ai';
 import type { Update } from 'grammy/types';
 import { AdminServer } from '../src/ingress/admin/server.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
@@ -696,7 +702,7 @@ test('a reload during a run does not reach that run', async () => {
     const prompts: string[] = [];
     faux.setResponses([
       async (context) => {
-        prompts.push(context.systemPrompt ?? '');
+        prompts.push(getCurrentSystemPrompt(context.messages));
         await writeFile(join(fixture.directory, 'agent-system-prompt.md'), 'A prompt for later runs.');
         await fixture.patch((config) => {
           config.agent.send_max_text_length = 1_000;
@@ -708,7 +714,7 @@ test('a reload during a run does not reach that run', async () => {
         });
       },
       (context) => {
-        prompts.push(context.systemPrompt ?? '');
+        prompts.push(getCurrentSystemPrompt(context.messages));
         return fauxAssistantMessage('done');
       },
     ]);
@@ -805,13 +811,13 @@ test('a bucket attached to a long-lived invocation keeps its snapshot', async ()
   });
   faux.setResponses([
     async (context, options) => {
-      prompts.push(context.systemPrompt ?? '');
+      prompts.push(getCurrentSystemPrompt(context.messages));
       levels.push(options?.reasoning);
       await gate;
       return fauxAssistantMessage('first answer');
     },
     (context, options) => {
-      prompts.push(context.systemPrompt ?? '');
+      prompts.push(getCurrentSystemPrompt(context.messages));
       levels.push(options?.reasoning);
       return fauxAssistantMessage('');
     },

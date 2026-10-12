@@ -379,9 +379,11 @@ export class ReplayRunner {
       toolExecution: 'sequential',
       streamFn: async (streamModel, context, options) => {
         signal.throwIfAborted();
+        // pi 1.x carries tool declarations in the transcript's system messages, so
+        // the estimate reads the seeded registry directly instead of `context.tools`.
         const inputTokens =
           context.messages.reduce((sum, message) => sum + estimateMessageTokens(message), 0) +
-          Math.ceil((systemPrompt.length + JSON.stringify(context.tools ?? []).length) / 4);
+          Math.ceil((systemPrompt.length + JSON.stringify(tools).length) / 4);
         if (inputTokens + streamModel.maxTokens >= streamModel.contextWindow * config.agent.context_stop_ratio) {
           fail('context_limit', 'Replay input exceeds the current model context budget');
           throw new Error('Replay context limit');
@@ -417,19 +419,25 @@ export class ReplayRunner {
         }
         return undefined;
       },
-      shouldStopAfterTurn: (turn) => {
+      // pi 1.x: `finishTurn` replaces `shouldStopAfterTurn` and runs before
+      // `turn_end`; `{ action: 'end' }` stops the run after the completed turn.
+      finishTurn: (turn) => {
+        if (turn.message.stopReason === 'error' || turn.message.stopReason === 'aborted') {
+          // Hard exits; pi ignores the decision on these turns.
+          return undefined;
+        }
         if (error !== null || signal.aborted) {
-          return true;
+          return { action: 'end' };
         }
         if (turn.toolResults.some((result) => result.toolName === 'zzz' && !result.isError)) {
           completionReason = 'sleep';
-          return true;
+          return { action: 'end' };
         }
         if (turn.message.content.some((block) => block.type === 'toolCall') && turns >= maxTurns) {
           fail('turn_budget', 'Replay turn budget exhausted');
-          return true;
+          return { action: 'end' };
         }
-        return false;
+        return undefined;
       },
     });
     agent.subscribe((event) => {

@@ -3,7 +3,13 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
+import {
+  fauxAssistantMessage,
+  fauxProvider,
+  fauxToolCall,
+  getCurrentSystemPrompt,
+  withoutInitialSystemMessage,
+} from '@earendil-works/pi-ai';
 import { eq } from 'drizzle-orm';
 import Type from 'typebox';
 import { afterEach, expect, test } from 'vitest';
@@ -410,10 +416,10 @@ test('CLI replay over real HTTP runs ReplayRunner with synthetic side effects an
   f.faux.setResponses([
     (context, options) => {
       // Only the current global template is replaced; runtime and group remain.
-      expect(context.systemPrompt).toBe(
+      expect(getCurrentSystemPrompt(context.messages)).toBe(
         composeAgentPrompt({ ...f.stable.promptLayers, global: OVERRIDE_PROMPT }, f.stable.templateValues),
       );
-      expect(context.messages).toHaveLength(1);
+      expect(withoutInitialSystemMessage(context.messages)).toHaveLength(1);
       expect(JSON.stringify(context.messages)).toContain('plain text message with a reply');
       expect(JSON.stringify(context.messages)).not.toContain('long payload fixture');
       expect(options).toMatchObject({ maxRetries: 0, maxTokens: 128 });
@@ -562,7 +568,7 @@ test('bot-sliced CLI replay injects its window immediately and validates selecti
   expect(f.faux.state.callCount).toBe(0);
   f.faux.setResponses([
     (context) => {
-      expect(context.messages).toHaveLength(1);
+      expect(withoutInitialSystemMessage(context.messages)).toHaveLength(1);
       const text = JSON.stringify(context.messages);
       expect(text).toContain('plain text message with a reply');
       for (const excluded of [

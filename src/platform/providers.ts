@@ -14,7 +14,7 @@ import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messag
 import { googleGenerativeAIApi } from '@earendil-works/pi-ai/api/google-generative-ai.lazy';
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy';
-import { builtinProviderApi, findBuiltinProvider } from './builtin-providers.ts';
+import { builtinModelApi, findBuiltinProvider } from './builtin-providers.ts';
 import {
   type FileConfig,
   type ModelCompatConfig,
@@ -81,16 +81,10 @@ export async function buildModelRegistry(
       if (source === undefined) {
         throw new Error(`Unknown built-in provider: ${configured.provider}`);
       }
-      const api = builtinProviderApi(source);
-      if (api === null) {
-        throw new Error(`Built-in provider ${configured.provider} does not expose a single API adapter`);
-      }
       if (source.baseUrl === undefined) {
         throw new Error(`Built-in provider ${configured.provider} has no base URL`);
       }
-      models.setProvider(
-        aliasBuiltinProvider(alias, source, fixedAuth(alias, apiKey), api, source.baseUrl, configured.models),
-      );
+      models.setProvider(aliasBuiltinProvider(alias, source, fixedAuth(alias, apiKey), source.baseUrl, configured.models));
       continue;
     }
     const headers: Record<string, string> = {};
@@ -110,7 +104,7 @@ export async function buildModelRegistry(
         headers,
         auth: fixedAuth(alias, apiKey),
         api: adapter(),
-        models: providerModels(alias, configured.api, baseUrl, configured.models, headers),
+        models: providerModels(alias, () => configured.api, baseUrl, configured.models, headers),
       }),
     );
   }
@@ -186,27 +180,56 @@ function providerModelsFor(alias: string, configured: ProviderFileConfig, existi
   if (configured.kind === 'custom') {
     return providerModels(
       alias,
-      configured.api,
+      () => configured.api,
       existing.baseUrl ?? configured.base_url.replace(/\/+$/, ''),
       configured.models,
       existing.headers,
     );
   }
   const source = findBuiltinProvider(configured.provider);
-  const api = source === undefined ? null : builtinProviderApi(source);
-  if (api === null) {
-    throw new Error(`Built-in provider ${configured.provider} does not expose a single API adapter`);
+  if (source === undefined) {
+    throw new Error(`Unknown built-in provider: ${configured.provider}`);
   }
-  const baseUrl = existing.baseUrl ?? source?.baseUrl;
+  const baseUrl = existing.baseUrl ?? source.baseUrl;
   if (baseUrl === undefined) {
     throw new Error(`Built-in provider ${configured.provider} has no base URL`);
   }
-  return providerModels(alias, api, baseUrl, configured.models, existing.headers);
+  return builtinConfiguredModels(alias, source, baseUrl, configured.models, existing.headers);
+}
+
+/**
+ * The configured model list of one builtin alias. pi 1.x catalogs mix chat
+ * adapters inside one provider, so each model carries the api of its own
+ * catalog entry (unknown ids inherit the uniform catalog api); the forwarded
+ * builtin provider dispatches on it.
+ */
+function builtinConfiguredModels(
+  alias: string,
+  source: Provider,
+  baseUrl: string,
+  models: readonly ModelFileConfig[],
+  headers?: ProviderHeaders,
+): Model<Api>[] {
+  return providerModels(
+    alias,
+    (model) => {
+      const api = builtinModelApi(source, model.id);
+      if (api === null) {
+        throw new Error(
+          `Provider ${alias} model ${model.id} has no API adapter in Pi's ${source.id} catalog and the catalog mixes adapters`,
+        );
+      }
+      return api;
+    },
+    baseUrl,
+    models,
+    headers,
+  );
 }
 
 /**
  * The configured model list of one provider. Builtin and custom providers share
- * this mapping: the only difference is where `api` comes from.
+ * this mapping: the only difference is where each model's `api` comes from.
  *
  * Pi's completion path reads connection headers from the model rather than the
  * provider, so every model must carry them. Model headers accept strings only;
@@ -214,7 +237,7 @@ function providerModelsFor(alias: string, configured: ProviderFileConfig, existi
  */
 function providerModels(
   alias: string,
-  api: Api,
+  apiFor: (model: ModelFileConfig) => Api,
   baseUrl: string,
   models: readonly ModelFileConfig[],
   headers?: ProviderHeaders,
@@ -232,7 +255,7 @@ function providerModels(
     const built: Model<Api> = {
       id: model.id,
       name: model.name ?? model.id,
-      api,
+      api: apiFor(model),
       provider: alias,
       baseUrl,
       ...(modelHeaders !== undefined && Object.keys(modelHeaders).length > 0 ? { headers: modelHeaders } : {}),
@@ -282,18 +305,17 @@ export function mapCompat(compat: ModelCompatConfig): NonNullable<Model<Api>['co
  *
  * Requests must keep Pi's own provider id: automatic compat detection keys off
  * it (OpenRouter's cache-control format, DeepSeek's reasoning replay), so the
- * alias is only ever the registry key. `api` is the catalog's single adapter,
- * which is what the configured models are built with.
+ * alias is only ever the registry key. Each configured model carries the api of
+ * its Pi catalog entry, and the builtin source dispatches on `model.api`.
  */
 function aliasBuiltinProvider(
   alias: string,
   source: Provider,
   auth: ProviderAuth,
-  api: Api,
   baseUrl: string,
   configuredModels: readonly ModelFileConfig[],
 ): Provider {
-  const aliasedModels = providerModels(alias, api, baseUrl, configuredModels, source.headers);
+  const aliasedModels = builtinConfiguredModels(alias, source, baseUrl, configuredModels, source.headers);
   const fetchDeferred = source.fetchDeferred?.bind(source);
   const cancelDeferred = source.cancelDeferred?.bind(source);
   return {

@@ -207,7 +207,7 @@ participation 放行 = 未配置 participation || 处于活跃时段 || 更新�
 
 `list_alarm` 的 `items` JSON 经 `execute.call` 的 `text` 封套作为普通工具结果，由既有的 canonical `context_messages` 保存，跨 Invocation、Agent 缓存与进程重启复用，随 checkpoint GC 或话题清空自然遗忘。列表同样受通用结果长度限制，不保证超长列表完整。若历史缺失或不能唯一解析目标，模型应重新调用 `list_alarm`；仍无法确定时应澄清，不能猜 ID。`delete_alarm` 仍按 live caller、plugin、Conversation 与 pending 状态鉴权，不依赖任何旁路存储。
 
-Context 受模型窗口限制：为系统提示、完整 Tool 定义（名称、描述与参数 Schema）、历史、新消息和输出保留空间。Tool description 不只是能力清单，还应说明何时使用、何时不用、必要调用顺序和成功判定。估算输入达到 `context_window × context_stop_ratio` 后进入收尾模式：下一次模型调用只带 `send`、`send_reply` 和当时可用的 `zzz`，模型用这一轮把话说完，这一轮结束后运行以 `context_limit` 结束。Pi 在同一个 turn 边界先调 `prepareNextTurnWithContext` 再调 `shouldStopAfterTurn`，所以「进入收尾」和「停止」必须隔开一轮，否则收尾轮根本不会发生。
+Context 受模型窗口限制：为系统提示、完整 Tool 定义（名称、描述与参数 Schema）、历史、新消息和输出保留空间。Tool description 不只是能力清单，还应说明何时使用、何时不用、必要调用顺序和成功判定。估算输入达到 `context_window × context_stop_ratio` 后进入收尾模式：下一次模型调用只带 `send`、`send_reply` 和当时可用的 `zzz`，模型用这一轮把话说完，这一轮结束后运行以 `context_limit` 结束。Pi 1.x 在 turn 边界先调 `finishTurn`（`turn_end` 之前）再在下一段循环开头调 `prepareNextTurnWithContext`，因此 `contextClosing` 第一次被 `finishTurn` 看到时收尾轮已经跑完，运行随之停止——「进入收尾」和「停止」各占一个 turn 边界，收尾轮恰好一轮。
 
 ## Agent 循环
 

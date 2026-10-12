@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fauxAssistantMessage, fauxProvider, fauxToolCall, type Tool } from '@earendil-works/pi-ai';
+import { fauxAssistantMessage, fauxProvider, fauxToolCall, getCurrentTools, type Tool } from '@earendil-works/pi-ai';
 import { getJsonSchemaToolParameters } from '@earendil-works/pi-ai/api/constrained-sampling';
 import { GrammyError } from 'grammy';
 import type { Update } from 'grammy/types';
@@ -401,7 +401,7 @@ describe('alarm tool', () => {
       (context, options) => {
         // Mirror what real adapters do: capture the provider payload for audit.
         options?.onPayload?.(
-          { model: 'agent-model', messages: context.messages, tools: context.tools },
+          { model: 'agent-model', messages: context.messages, tools: getCurrentTools(context.messages) },
           faux.getModel(),
         );
         void options?.onResponse?.({ status: 200, headers: {} }, faux.getModel());
