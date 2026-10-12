@@ -70,20 +70,22 @@ function retainedMessages(store: SqliteStore): AgentMessage[] {
 }
 
 function executeResults(messages: readonly AgentMessage[], tool: string): ToolResultMessage[] {
-  return messages
-    .filter(
-      (message): message is ToolResultMessage =>
-        message.role === 'toolResult' &&
-        message.toolName === 'execute' &&
-        !message.isError &&
-        typeof message.details === 'object' &&
-        message.details !== null &&
-        'tool' in message.details &&
-        message.details.tool === tool,
-    )
-    // pi 1.x attaches run-scoped metadata (`durationMs`, `usage`) to live
-    // transcript results; the canonical history does not persist them.
-    .map(({ durationMs: _durationMs, usage: _usage, ...result }) => result);
+  return (
+    messages
+      .filter(
+        (message): message is ToolResultMessage =>
+          message.role === 'toolResult' &&
+          message.toolName === 'execute' &&
+          !message.isError &&
+          typeof message.details === 'object' &&
+          message.details !== null &&
+          'tool' in message.details &&
+          message.details.tool === tool,
+      )
+      // pi 1.x attaches run-scoped metadata (`durationMs`, `usage`) to live
+      // transcript results; the canonical history does not persist them.
+      .map(({ durationMs: _durationMs, usage: _usage, ...result }) => result)
+  );
 }
 
 function resultText(message: ToolResultMessage): string {

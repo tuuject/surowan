@@ -84,7 +84,9 @@ export async function buildModelRegistry(
       if (source.baseUrl === undefined) {
         throw new Error(`Built-in provider ${configured.provider} has no base URL`);
       }
-      models.setProvider(aliasBuiltinProvider(alias, source, fixedAuth(alias, apiKey), source.baseUrl, configured.models));
+      models.setProvider(
+        aliasBuiltinProvider(alias, source, fixedAuth(alias, apiKey), source.baseUrl, configured.models),
+      );
       continue;
     }
     const headers: Record<string, string> = {};

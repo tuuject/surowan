@@ -2122,7 +2122,10 @@ describe('conversation continuity', () => {
           ?.head_seq,
       ).toBe(boundarySeq);
       const carried = JSON.parse(requests[0] ?? '[]') as { role: string }[];
-      expect(carried.filter((message) => message.role !== 'system').map((message) => message.role)).toEqual(['user', 'user']);
+      expect(carried.filter((message) => message.role !== 'system').map((message) => message.role)).toEqual([
+        'user',
+        'user',
+      ]);
       expect(requests[0]).toContain('a later batch');
     } finally {
       await scheduler.stop();
