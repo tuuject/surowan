@@ -3,10 +3,10 @@ import { getSupportedThinkingLevels } from '@earendil-works/pi-ai';
 import { eq } from 'drizzle-orm';
 import Type from 'typebox';
 import Compile from 'typebox/compile';
-import type { ToolModelSelection } from '../platform/tool-model.ts';
-import type { SecretStore } from '../platform/secrets.ts';
-import type { Orm } from '../store/database.ts';
-import { modelCalls } from '../store/schema.ts';
+import type { ToolModelSelection } from '../../platform/tool-model.ts';
+import type { SecretStore } from '../../platform/secrets.ts';
+import type { Orm } from '../../store/database.ts';
+import { modelCalls } from '../../store/schema.ts';
 import {
   DICTIONARY_ALIAS_MAX_LENGTH,
   DICTIONARY_DEFINITION_MAX_LENGTH,

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
@@ -15,25 +15,28 @@ import {
   matchingEntries,
   normalizeAliases,
   normalizeDictionaryMatch,
-} from '../src/context/dictionary.ts';
+} from '../src/plugins/dictionary/dictionary.ts';
 import {
   decodeAliasCell,
   encodeAliasCell,
   parseDictionaryCsv,
   parseDictionaryImport,
-} from '../src/context/dictionary-format.ts';
+} from '../src/plugins/dictionary/format.ts';
 import {
   collectInjectedDictionary,
   collectRetainedDictionary,
   renderDictionaryInjection,
-} from '../src/context/dictionary-injection.ts';
+  resolveDictionaryInjectionMode,
+} from '../src/plugins/dictionary/injection.ts';
 import { resolveToolModel } from '../src/platform/tool-model.ts';
-import { mergeDictionaryEntries, mergePreview } from '../src/ingress/admin/dictionary-admin.ts';
+import { mergeDictionaryEntries, mergePreview } from '../src/plugins/dictionary/admin.ts';
+import dictionaryPlugin from '../src/plugins/dictionary/index.ts';
 import { AdminServer } from '../src/ingress/admin/server.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import { type LoadedConfig, loadConfig, resolveDictionaryInjectionMode } from '../src/platform/config.ts';
+import { type LoadedConfig, loadConfig } from '../src/platform/config.ts';
 import { ConfigReloader } from '../src/platform/config-reload.ts';
+import type { InvocationContext } from '../src/platform/invocation-context.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
@@ -530,6 +533,11 @@ test('untrusted Telegram text cannot forge a dictionary tag or block envelope', 
 
 test('automatic injection follows the mode, dedupes against the retained context and refreshes on update', async () => {
   const { store, loaded, invocationId } = await fixture();
+  const withMode = (mode: 'off' | 'on_demand' | 'aggressive') => ({
+    ...loaded.config,
+    dictionary: { injection_mode: mode },
+  });
+  const injectors = dictionaryPlugin.contextInjectors ?? [];
   try {
     const dictionary = new DictionaryStore(store.orm);
     const entry = dictionary.create({
@@ -541,10 +549,10 @@ test('automatic injection follows the mode, dedupes against the retained context
       enabled: true,
     });
 
-    const off = renderInvocationContext(store, loaded.config, invocationId, { dictionaryMode: 'off' });
+    const off = renderInvocationContext(store, withMode('off'), invocationId, { injectors });
     expect(off.userPrompt).not.toContain('<untrusted_dictionary>');
 
-    const onDemand = renderInvocationContext(store, loaded.config, invocationId, { dictionaryMode: 'on_demand' });
+    const onDemand = renderInvocationContext(store, withMode('on_demand'), invocationId, { injectors });
     expect(onDemand.userPrompt).toContain(`[${entry.id} r1]`);
 
     const unrelated = dictionary.create({
@@ -555,17 +563,15 @@ test('automatic injection follows the mode, dedupes against the retained context
       chatId: null,
       enabled: true,
     });
-    const onDemandUnrelated = renderInvocationContext(store, loaded.config, invocationId, {
-      dictionaryMode: 'on_demand',
-    });
+    const onDemandUnrelated = renderInvocationContext(store, withMode('on_demand'), invocationId, { injectors });
     expect(onDemandUnrelated.userPrompt).not.toContain(unrelated.id);
-    const aggressive = renderInvocationContext(store, loaded.config, invocationId, { dictionaryMode: 'aggressive' });
+    const aggressive = renderInvocationContext(store, withMode('aggressive'), invocationId, { injectors });
     expect(aggressive.userPrompt).toContain(unrelated.id);
 
     // Dedupe: the retained context already carries r1, so it is not injected again.
-    const deduped = renderInvocationContext(store, loaded.config, invocationId, {
-      dictionaryMode: 'on_demand',
-      carriedDictionary: new Map([[entry.id, '1']]),
+    const deduped = renderInvocationContext(store, withMode('on_demand'), invocationId, {
+      injectors,
+      carriedInjections: new Map([['dictionary', new Set([`${entry.id} r1`])]]),
     });
     expect(deduped.userPrompt).not.toContain(`[${entry.id} r1]`);
 
@@ -575,9 +581,9 @@ test('automatic injection follows the mode, dedupes against the retained context
       { term: '碗', definition: '新的解释', aliases: [], scope: 'global', chatId: null, enabled: true },
       entry.revision,
     );
-    const refreshed = renderInvocationContext(store, loaded.config, invocationId, {
-      dictionaryMode: 'on_demand',
-      carriedDictionary: new Map([[entry.id, '1']]),
+    const refreshed = renderInvocationContext(store, withMode('on_demand'), invocationId, {
+      injectors,
+      carriedInjections: new Map([['dictionary', new Set([`${entry.id} r1`])]]),
     });
     expect(refreshed.userPrompt).toContain(`[${entry.id} r2]`);
     expect(refreshed.userPrompt).toContain('新的解释');
@@ -588,8 +594,98 @@ test('automatic injection follows the mode, dedupes against the retained context
       { term: '碗', definition: '新的解释', aliases: [], scope: 'global', chatId: null, enabled: false },
       '2',
     );
-    const disabled = renderInvocationContext(store, loaded.config, invocationId, { dictionaryMode: 'aggressive' });
+    const disabled = renderInvocationContext(store, withMode('aggressive'), invocationId, { injectors });
     expect(disabled.userPrompt).not.toContain(entry.id);
+  } finally {
+    store.close();
+  }
+});
+
+test('the rendered dictionary block is byte-identical to the pre-pluginization snapshot', async () => {
+  const { store, loaded, invocationId } = await fixture();
+  try {
+    // Fixed ids and contents pin the rendered bytes; global entries render ordered by id.
+    const insert = store.db.prepare(
+      "INSERT INTO dictionary_entries (id, scope, chat_id, term, definition, aliases_json, enabled, revision, created_at, updated_at) VALUES (?, 'global', NULL, ?, ?, ?, 1, 1, '2026-08-15T00:00:00.000Z', '2026-08-15T00:00:00.000Z')",
+    );
+    insert.run('dic_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01', '碗', '群内对 Bot 的昵称，来自塑料碗的旧称呼。', '[]');
+    insert.run(
+      'dic_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa02',
+      '塑料碗',
+      'Bot 自己也认这个词；\n定义里的换行必须被折叠成空格。',
+      '["塑料"]',
+    );
+    insert.run('dic_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb03', '无关词', '不在本批消息里，只验证预加载与排序。', '[]');
+    const context = renderInvocationContext(
+      store,
+      { ...loaded.config, dictionary: { injection_mode: 'aggressive' } },
+      invocationId,
+      { injectors: dictionaryPlugin.contextInjectors },
+    );
+    const block = /<untrusted_dictionary>\n[\s\S]*?\n<\/untrusted_dictionary>/.exec(context.userPrompt);
+    if (block === null) {
+      throw new Error('Expected a dictionary block in the rendered prompt');
+    }
+    const snapshot = await readFile(join(import.meta.dirname, 'fixtures', 'dictionary-injection-snapshot.txt'), 'utf8');
+    expect(`${block[0]}\n`).toBe(snapshot);
+  } finally {
+    store.close();
+  }
+});
+
+test('the plugin contributes its capabilities with the pre-migration side-effect flags', async () => {
+  const { store, loaded } = await fixture();
+  try {
+    const context: InvocationContext = {
+      invocationId: 0n,
+      conversationId: 0n,
+      chatId: 123456789n,
+      threadId: 0n,
+      systemPrompt: '',
+      userPrompt: '',
+      directImages: [],
+      visibleSenders: new Map(),
+      callerUserId: null,
+      completion: null,
+      omittedNewMessages: 0,
+    };
+    const capabilities = dictionaryPlugin.capabilities?.({
+      config: loaded.config,
+      context,
+      deadline: Number.MAX_SAFE_INTEGER,
+      audit: createToolAudit(store, 0n),
+      orm: store.orm,
+      tasks: {
+        create: () => {
+          throw new Error('not used');
+        },
+        get: () => {
+          throw new Error('not used');
+        },
+        list: () => {
+          throw new Error('not used');
+        },
+        complete: () => {
+          throw new Error('not used');
+        },
+        fail: () => {
+          throw new Error('not used');
+        },
+        cancel: () => {
+          throw new Error('not used');
+        },
+      },
+    });
+    if (capabilities === undefined) {
+      throw new Error('Expected the dictionary plugin to contribute capabilities');
+    }
+    expect(capabilities.map((entry) => entry.tool.name).sort()).toEqual([
+      'add_dictionary_entry',
+      'lookup_dictionary',
+      'update_dictionary_entry',
+    ]);
+    expect(capabilities.map((entry) => entry.sideEffect)).toEqual([true, true, true]);
+    expect(dictionaryPlugin.contextInjectors?.map((injector) => injector.name)).toEqual(['dictionary']);
   } finally {
     store.close();
   }

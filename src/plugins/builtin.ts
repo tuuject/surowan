@@ -1,4 +1,5 @@
 import alarm from './alarm/index.ts';
+import dictionary from './dictionary/index.ts';
 import image from './image/index.ts';
 import type { AgentPlugin } from './plugin.ts';
 import webFetch from './web-fetch/index.ts';
@@ -9,4 +10,4 @@ import webFetch from './web-fetch/index.ts';
  * generation is enabled, so runtimes without image configuration are
  * unaffected.
  */
-export const BUILTIN_PLUGINS: readonly AgentPlugin[] = [webFetch, image, alarm];
+export const BUILTIN_PLUGINS: readonly AgentPlugin[] = [webFetch, image, alarm, dictionary];

@@ -41,7 +41,7 @@ test('loads the bundled skill tree and renders the progressive disclosure index'
   const resources = await bundledSystemResources();
   const names = resources.skills.map((skill) => skill.name);
   expect(names).toEqual([...names].sort());
-  for (const expected of ['alarms', 'image-inspection', 'memory', 'sticker-search', 'web-fetch']) {
+  for (const expected of ['alarms', 'dictionary', 'image-inspection', 'memory', 'sticker-search', 'web-fetch']) {
     expect(names).toContain(expected);
   }
   const prompt = renderSkillIndexPrompt(resources.skills);

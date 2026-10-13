@@ -9,7 +9,7 @@ import { KEY_JAR_FILE, keyJarPath } from '../src/platform/key-jar.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { BUNDLED_SYSTEM_RESOURCES_DIR, SystemResources } from '../src/platform/system-resources.ts';
 import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
-import { loadPlugins } from '../src/plugins/plugin.ts';
+import { loadPlugins, type ContextInjector } from '../src/plugins/plugin.ts';
 import type {
   DirectImage,
   InvocationContext,
@@ -56,10 +56,10 @@ export interface TestContextOptions {
   readonly injectedMessageIds?: ReadonlySet<string>;
   /** The sticker catalog the retained transcript already carries. */
   readonly carriedStickerCatalog?: string | null;
-  /** Dictionary id→revision tags the retained transcript already carries. */
-  readonly carriedDictionary?: ReadonlyMap<string, string>;
-  /** Dictionary injection mode to render this batch with. */
-  readonly dictionaryMode?: 'off' | 'on_demand' | 'aggressive';
+  /** Context injectors to render this batch with. */
+  readonly injectors?: readonly ContextInjector[];
+  /** Per-injector signatures the retained transcript already carries. */
+  readonly carriedInjections?: ReadonlyMap<string, ReadonlySet<string>>;
   readonly skills?: SystemResources;
 }
 
@@ -86,7 +86,7 @@ export function renderInvocationContext(
   options: TestContextOptions = {},
 ): TestInvocationContext {
   const refs = new ContextRefStore(store, { ttlHours: config.agent.context.ref_ttl_hours });
-  const builder = new ContextBuilder(store, refs, options.skills?.skills ?? []);
+  const builder = new ContextBuilder(store, refs, options.skills?.skills ?? [], options.injectors ?? []);
   const identity = builder.identity(config, invocationId);
   const supportsImages = options.supportsImages ?? false;
   const stable = builder.buildSystemPrompt(
@@ -120,8 +120,7 @@ export function renderInvocationContext(
     maxOutputTokens: options.maxOutputTokens ?? 32_768,
     transcriptCharacters: 0,
     carriedStickerCatalog: options.carriedStickerCatalog ?? null,
-    carriedDictionary: options.carriedDictionary ?? new Map<string, string>(),
-    dictionaryMode: options.dictionaryMode ?? 'on_demand',
+    carriedInjections: options.carriedInjections ?? new Map<string, ReadonlySet<string>>(),
     agentModel: options.agentModel ?? { provider: config.agent.provider, model: config.agent.model },
   });
   const replyTargets = new Map(

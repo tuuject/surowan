@@ -1,5 +1,8 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
-import type { DictionaryEntryRecord } from './dictionary.ts';
+import type { DictionaryInjectionMode, FileChat } from '../../platform/config.ts';
+import { resolveChatConfig } from '../../store/database.ts';
+import type { ContextInjector } from '../plugin.ts';
+import { type DictionaryEntryRecord, DictionaryStore, matchingEntries } from './dictionary.ts';
 
 /**
  * Rendering and de-duplication for automatic dictionary injection.
@@ -135,10 +138,80 @@ export function collectRetainedDictionary(messages: readonly AgentMessage[]): Ma
   return signatures;
 }
 
-/** Entries whose exact id+revision is not already carried by the retained context. */
+/**
+ * The dedupe signature one entry carries: the same id with a new revision is a
+ * new signature, so an updated entry is injected again.
+ */
+export function dictionaryEntrySignature(entry: Pick<DictionaryEntryRecord, 'id' | 'revision'>): string {
+  return `${entry.id} r${entry.revision}`;
+}
+
+/** Entries whose exact id+revision signature is not already carried by the retained context. */
 export function notYetInjected(
   entries: readonly DictionaryEntryRecord[],
-  carried: ReadonlyMap<string, string>,
+  carried: ReadonlySet<string>,
 ): DictionaryEntryRecord[] {
-  return entries.filter((entry) => carried.get(entry.id) !== entry.revision);
+  return entries.filter((entry) => !carried.has(dictionaryEntrySignature(entry)));
+}
+
+/** The injection policy of one chat: the Chat override, then the global mode, then the product default. */
+export function resolveDictionaryInjectionMode(
+  config: {
+    readonly dictionary?: { readonly injection_mode?: DictionaryInjectionMode };
+    readonly telegram: { readonly chats: readonly Pick<FileChat, 'id' | 'dictionary_injection_mode'>[] };
+  },
+  chatId: bigint,
+): DictionaryInjectionMode {
+  const chat = config.telegram.chats.find((candidate) => BigInt(candidate.id) === chatId);
+  return chat?.dictionary_injection_mode ?? config.dictionary?.injection_mode ?? 'on_demand';
+}
+
+/**
+ * The dictionary's context injector: an untrusted block of dictionary entries
+ * placed between the sticker catalog and the Telegram history. `off` injects
+ * nothing. `on_demand` matches the exact term/alias strings of the messages
+ * this batch carries; `aggressive` preloads the whole effective dictionary.
+ * Either way the block is trimmed to the remaining context budget after the
+ * messages were selected — new messages always win over a preload. Entries
+ * already carried by the retained transcript are skipped, which is why dedupe
+ * follows the canonical Context rather than a stored flag.
+ */
+export function createDictionaryInjector(): ContextInjector {
+  return {
+    name: 'dictionary',
+    *collect(text: string): Generator<string> {
+      for (const [id, revision] of collectInjectedDictionary(text)) {
+        yield `${id} r${revision}`;
+      }
+    },
+    render(input) {
+      const empty = { text: '', signatures: [] as readonly string[], count: 0 };
+      const mode = resolveDictionaryInjectionMode(input.config, input.chatId);
+      if (mode === 'off') {
+        return empty;
+      }
+      if (resolveChatConfig(input.config, input.orm, input.chatId) === undefined) {
+        return empty;
+      }
+      const store = new DictionaryStore(input.orm);
+      // A private chat can only read the global dictionary; a group sees global
+      // plus its own chat's entries, never another group's.
+      const effective = input.chatType === 'private' ? store.globalEntries() : store.effective(input.chatId);
+      const candidates =
+        mode === 'aggressive'
+          ? notYetInjected(effective, input.carried)
+          : notYetInjected(matchingEntries(effective, input.messageTexts), input.carried);
+      if (candidates.length === 0) {
+        return empty;
+      }
+      // `renderDictionaryInjection` never reveals how much budget is left, so pass
+      // the headroom and let it drop whatever does not fit.
+      const rendered = renderDictionaryInjection(candidates, input.remainingCharacters);
+      return {
+        text: rendered.text,
+        signatures: [...rendered.signatures].map(([id, revision]) => `${id} r${revision}`),
+        count: rendered.count,
+      };
+    },
+  };
 }

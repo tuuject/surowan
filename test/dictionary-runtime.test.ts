@@ -7,7 +7,7 @@ import { afterAll, describe, expect, test, vi } from 'vitest';
 import { MentionTyping } from '../src/capabilities/mention-typing.ts';
 import type { TelegramSendApi } from '../src/capabilities/send-tool.ts';
 import { ConversationContextStore } from '../src/context/context-store.ts';
-import { DictionaryStore } from '../src/context/dictionary.ts';
+import { DictionaryStore } from '../src/plugins/dictionary/dictionary.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
@@ -16,6 +16,8 @@ import { type FileConfig, loadConfig, type RawConfig } from '../src/platform/con
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { SystemResources } from '../src/platform/system-resources.ts';
+import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
+import { loadPlugins } from '../src/plugins/plugin.ts';
 import { SqliteStore } from '../src/store/database.ts';
 import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 
@@ -110,6 +112,9 @@ async function fixture(transform?: (config: FileConfig) => void): Promise<Fixtur
       mentionTyping: new MentionTyping(sendApi),
       bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
       systemResources: SystemResources.empty(),
+      // The same injectors the composition root hands the runtime, so the
+      // dictionary plugin's injection runs in these faux-provider invocations.
+      contextInjectors: loadPlugins(BUILTIN_PLUGINS).contextInjectors,
       conversationRuntime,
     });
   };
@@ -173,13 +178,15 @@ function injectedDictionaryCounts(f: Fixture): number[] {
   return f.logs
     .map((line) => {
       try {
-        return JSON.parse(line) as { event?: string; dictionary_count?: number };
+        return JSON.parse(line) as { event?: string; injections?: Record<string, number> };
       } catch {
         return undefined;
       }
     })
-    .filter((entry): entry is { event: string; dictionary_count: number } => entry?.event === 'context_injected')
-    .map((entry) => entry.dictionary_count);
+    .filter(
+      (entry): entry is { event: string; injections: Record<string, number> } => entry?.event === 'context_injected',
+    )
+    .map((entry) => entry.injections.dictionary ?? 0);
 }
 
 describe('dictionary runtime lifecycle', () => {
@@ -281,8 +288,8 @@ describe('dictionary runtime lifecycle', () => {
       // The audit rows for the runs that injected are inspectable, and the
       // durable transcript carries the injected block the model actually saw.
       const injectedAudit = f.logs
-        .map((line) => JSON.parse(line) as { event?: string; dictionary_count?: number })
-        .filter((entry) => entry.event === 'context_injected' && entry.dictionary_count === 1);
+        .map((line) => JSON.parse(line) as { event?: string; injections?: Record<string, number> })
+        .filter((entry) => entry.event === 'context_injected' && (entry.injections?.dictionary ?? 0) === 1);
       expect(injectedAudit.length).toBeGreaterThanOrEqual(2);
     } finally {
       f.store.close();

@@ -17,7 +17,6 @@ import type { MentionTyping } from '../capabilities/mention-typing.ts';
 import { createSendTools, SEND_TOOL_NAMES, type TelegramSendApi } from '../capabilities/send-tool.ts';
 import { createTyping } from '../capabilities/typing.ts';
 import { ContextBuilder, type ContextIdentity, type Injection, type StablePrompt } from '../context/context-builder.ts';
-import { collectRetainedDictionary } from '../context/dictionary-injection.ts';
 import { encodeContextMessage, estimateMessageTokens } from '../context/context-codec.ts';
 import { type ContextGcPlan, isRenderable, planContextGc } from '../context/context-gc.ts';
 import { ContextRefStore, createCapabilityResolver } from '../context/context-refs.ts';
@@ -28,7 +27,6 @@ import {
   configuredToolSchemaKeywords,
   type RawConfig,
   resolveAgentSettings,
-  resolveDictionaryInjectionMode,
 } from '../platform/config.ts';
 import {
   type CapabilityRefResolver,
@@ -41,6 +39,7 @@ import { serializeModelRequestForAudit } from '../platform/model-request-audit.t
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import type { SecretStore } from '../platform/secrets.ts';
 import type { SystemResources, SystemSkill } from '../platform/system-resources.ts';
+import type { ContextInjector } from '../plugins/plugin.ts';
 import { applyToolSchemaKeywords } from '../platform/tool-schema.ts';
 import { resolveChatConfig, type SqliteStore } from '../store/database.ts';
 import { createToolAudit } from '../store/tool-audit.ts';
@@ -92,6 +91,8 @@ export interface AgentRuntimeOptions {
   readonly bot: { readonly id: bigint; readonly displayName: string; readonly username: string | null };
   /** The bundled system:/// resource tree: read primitive backend plus skill index. */
   readonly systemResources: SystemResources;
+  /** Per-batch context injectors from the loaded plugins; names key the carried-signature state. */
+  readonly contextInjectors?: readonly ContextInjector[];
   /** Runtime-internal capabilities dispatched through the execute primitive. */
   readonly capabilityTools?: CapabilityToolFactory;
   /** Per-invocation skill visibility rule; hides skills of disabled capabilities. */
@@ -177,6 +178,7 @@ export class AgentRuntime {
       }
     | undefined;
   readonly #conversationRuntime: ConversationRuntime;
+  readonly #contextInjectors: readonly ContextInjector[];
 
   constructor(options: AgentRuntimeOptions) {
     this.#store = options.store;
@@ -190,6 +192,7 @@ export class AgentRuntime {
     this.#skillVisibility = options.skillVisibility;
     this.#additionalTools = options.additionalTools;
     this.#directImageLoader = options.directImageLoader;
+    this.#contextInjectors = options.contextInjectors ?? [];
     this.#modelGate = options.modelGate ?? new KeyedSemaphore();
     const config = options.configStore.current().config;
     this.#contexts = new ConversationContextStore(options.store);
@@ -197,7 +200,12 @@ export class AgentRuntime {
     this.#imageGeneration = options.imageGeneration;
     this.#conversationRuntime =
       options.conversationRuntime ?? new ConversationRuntime({ agentCacheSize: config.agent.context.agent_cache_size });
-    this.#contextBuilder = new ContextBuilder(options.store, this.#refs, options.systemResources.skills);
+    this.#contextBuilder = new ContextBuilder(
+      options.store,
+      this.#refs,
+      options.systemResources.skills,
+      options.contextInjectors ?? [],
+    );
   }
 
   get conversationRuntime(): ConversationRuntime {
@@ -522,11 +530,13 @@ export class AgentRuntime {
     const cached: CachedConversationAgent = entry;
     let carriedStickerCatalog: string | null = null;
     /**
-     * The dictionary id→revision tags the retained transcript still carries.
+     * Per-injector dedupe signatures the retained transcript still carries.
      * Rebuilt with the visible-sender state: a GC that drops a batch also drops
-     * its dictionary tags, which is what allows re-injection.
+     * its signatures, which is what allows re-injection.
      */
-    let carriedDictionary: ReadonlyMap<string, string> = new Map<string, string>();
+    const carriedInjections = new Map<string, Set<string>>(
+      (this.#contextInjectors ?? []).map((injector) => [injector.name, new Set<string>()]),
+    );
     /**
      * The visible sender set follows the retained transcript: senders from
      * batches that were collected away must not stay alarm targets.
@@ -534,6 +544,9 @@ export class AgentRuntime {
     const rebuildVisibleState = (retained: readonly AgentMessage[]): void => {
       const senders = new Map<string, VisibleSender>();
       let callerUserId: bigint | null = null;
+      for (const set of carriedInjections.values()) {
+        set.clear();
+      }
       for (const message of retained) {
         if (message.role !== 'user') {
           continue;
@@ -552,6 +565,11 @@ export class AgentRuntime {
         for (const sender of collected) {
           senders.set(sender.userId.toString(), sender);
         }
+        for (const injector of this.#contextInjectors ?? []) {
+          for (const signature of injector.collect(text)) {
+            carriedInjections.get(injector.name)?.add(signature);
+          }
+        }
       }
       contextState.retainVisibleSenders([...senders.values()]);
       // Retained history is not a fresh authorization for a receipt-only round.
@@ -561,7 +579,6 @@ export class AgentRuntime {
       // A GC can evict the batch that carried the catalog; the next batch must then
       // render it again.
       carriedStickerCatalog = lastStickerCatalog(retained);
-      carriedDictionary = collectRetainedDictionary(retained);
     };
     rebuildVisibleState(cached.agent.state.messages);
     const agent = cached.agent;
@@ -596,17 +613,24 @@ export class AgentRuntime {
         transcriptCharacters: estimateTranscriptCharacters(cached),
         agentModel: { provider: model.provider, model: model.id },
         carriedStickerCatalog,
-        carriedDictionary,
-        dictionaryMode: resolveDictionaryInjectionMode(config, identity.chatId),
+        carriedInjections,
       });
       contextState.applyInjection(injection);
       if (injection.stickerCatalog.length > 0) {
         carriedStickerCatalog = injection.stickerCatalog;
       }
-      if (injection.dictionarySignatures.size > 0) {
+      for (const contribution of injection.injections) {
+        if (contribution.signatures.length === 0) {
+          continue;
+        }
         // Accumulating is correct: older batches still in the retained window keep
-        // their tags until a GC rebuilds this map from the transcript.
-        carriedDictionary = new Map([...carriedDictionary, ...injection.dictionarySignatures]);
+        // their signatures until a GC rebuilds these sets from the transcript.
+        const carried = carriedInjections.get(contribution.name);
+        if (carried !== undefined) {
+          for (const signature of contribution.signatures) {
+            carried.add(signature);
+          }
+        }
       }
       runtime.beginRound(conversationId);
       const images = supportsImages ? ((await this.#directImageLoader?.(contextState, signal)) ?? []) : [];
@@ -1381,7 +1405,7 @@ export class AgentRuntime {
         message_count: injection.messageCount,
         history_count: injection.historyCount,
         omitted_new_messages: injection.omittedNewMessages,
-        dictionary_count: injection.dictionaryCount,
+        injections: Object.fromEntries(injection.injections.map((entry) => [entry.name, entry.count])),
         characters: injection.text.length,
         at: new Date().toISOString(),
       }),

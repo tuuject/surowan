@@ -60,7 +60,7 @@ import {
   inspectionQuery,
   redactInspection,
 } from './config-inspection.ts';
-import { DictionaryStore } from '../../context/dictionary.ts';
+import { DictionaryStore } from '../../plugins/dictionary/dictionary.ts';
 import { resolveToolModel } from '../../platform/tool-model.ts';
 import { clearModelPayloads, parseDeveloperSettings } from './developer-admin.ts';
 import {
@@ -84,7 +84,7 @@ import {
   previewDictionaryImport,
   toolModelView,
   updateDictionaryEntry,
-} from './dictionary-admin.ts';
+} from '../../plugins/dictionary/admin.ts';
 import { createImageAdminHandler, type ImageAdminResponse, reusableImageCredentials } from './image-admin.ts';
 import { createInvocationMediaReader, listInvocationMedia } from './invocation-media.ts';
 import {

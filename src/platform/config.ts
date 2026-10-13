@@ -437,21 +437,6 @@ export function resolveAgentSettings(
     thinking_level: chat?.thinking_level ?? config.agent.thinking_level,
   };
 }
-/**
- * Resolves the dictionary injection mode for one chat: the per-chat override
- * wins, otherwise the global `dictionary.injection_mode`, otherwise
- * `on_demand` (the product default).
- */
-export function resolveDictionaryInjectionMode(
-  config: {
-    readonly dictionary?: { readonly injection_mode?: DictionaryInjectionMode };
-    readonly telegram: { readonly chats: readonly Pick<FileChat, 'id' | 'dictionary_injection_mode'>[] };
-  },
-  chatId: bigint,
-): DictionaryInjectionMode {
-  const chat = config.telegram.chats.find((candidate) => BigInt(candidate.id) === chatId);
-  return chat?.dictionary_injection_mode ?? config.dictionary?.injection_mode ?? 'on_demand';
-}
 
 export type ParticipationConfig = Static<typeof ParticipationSchema>;
 export type ParticipationWindowConfig = Static<typeof ParticipationWindowSchema>;

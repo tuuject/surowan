@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import Type from 'typebox';
-import { asRunResult, finishToolCall, type Orm, startToolCall } from '../store/database.ts';
-import { chatMigrations, dictionaryEntries } from '../store/schema.ts';
+import { asRunResult, finishToolCall, type Orm, startToolCall } from '../../store/database.ts';
+import { chatMigrations, dictionaryEntries } from '../../store/schema.ts';
 
 /**
  * Dictionary persistence and matching.
@@ -16,9 +16,6 @@ import { chatMigrations, dictionaryEntries } from '../store/schema.ts';
  */
 
 export type DictionaryScope = 'global' | 'group';
-
-/** Dictionary injection policy; the product default is `on_demand`. */
-export type DictionaryInjectionMode = 'off' | 'on_demand' | 'aggressive';
 
 export const DICTIONARY_ID_PATTERN = '^dic_[a-f0-9]{32}$';
 export const DICTIONARY_TERM_MAX_LENGTH = 200;

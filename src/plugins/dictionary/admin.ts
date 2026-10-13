@@ -15,20 +15,16 @@ import {
   DictionaryError,
   type DictionaryScope,
   DictionaryStore,
-} from '../../context/dictionary.ts';
-import {
-  type DictionaryFormat,
-  encodeDictionaryExport,
-  exportFileName,
-  parseDictionaryImport,
-} from '../../context/dictionary-format.ts';
-import { suggestMerge } from '../../context/dictionary-merge.ts';
-import { type DictionaryInjectionMode, resolveDictionaryInjectionMode } from '../../platform/config.ts';
+} from './dictionary.ts';
+import { type DictionaryFormat, encodeDictionaryExport, exportFileName, parseDictionaryImport } from './format.ts';
+import { suggestMerge } from './merge.ts';
+import { resolveDictionaryInjectionMode } from './injection.ts';
+import type { DictionaryInjectionMode } from '../../platform/config.ts';
 import { resolveToolModel } from '../../platform/tool-model.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import { asRunResult, type Orm } from '../../store/database.ts';
 import { chats, dictionaryEntries } from '../../store/schema.ts';
-import { AdminQueryError } from './audit.ts';
+import { AdminQueryError } from '../../ingress/admin/audit.ts';
 
 /**
  * Admin-facing dictionary operations: CRUD with per-entry optimistic locking,
