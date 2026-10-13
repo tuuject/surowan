@@ -8,6 +8,11 @@ import { keyJarPath, readKeyJar, referencedJarNames, updateKeyJar } from '../pla
 import { supportedThinkingLevels } from '../platform/thinking-levels.ts';
 import { runProviderWizard } from './provider-wizard.ts';
 
+const TELEMETRY_DESCRIPTION =
+  'Sent to PostHog at startup and once a day: version, OS, CPU arch, Docker or not, and size ranges ' +
+  '(chat, MCP server and 24h invocation counts as buckets like "2-5"). Never any Telegram ID, message, ' +
+  'prompt, model or Provider name, URL or secret. Opt out any time, or set DO_NOT_TRACK=1.';
+
 export async function runConfigure(configPath: string): Promise<void> {
   if (!process.stdin.isTTY) {
     console.error(JSON.stringify({ status: 'error', error: 'configure requires an interactive terminal' }));
@@ -30,7 +35,7 @@ export async function runConfigure(configPath: string): Promise<void> {
     return;
   }
 
-  type MainAction = 'providers' | 'thinking' | 'save' | 'discard';
+  type MainAction = 'providers' | 'thinking' | 'telemetry' | 'save' | 'discard';
   try {
     let exit = false;
     while (!exit) {
@@ -39,6 +44,7 @@ export async function runConfigure(configPath: string): Promise<void> {
         choices: [
           { value: 'providers', name: 'Configure providers' },
           { value: 'thinking', name: `Configure agent thinking level (${config.agent.thinking_level})` },
+          { value: 'telemetry', name: `Configure anonymous telemetry (${config.telemetry?.consent ?? 'not decided'})` },
           { value: 'save', name: 'Save and exit' },
           { value: 'discard', name: 'Exit without saving' },
         ],
@@ -53,6 +59,25 @@ export async function runConfigure(configPath: string): Promise<void> {
             choices: agentThinkingLevels(config).map((value) => ({ value, name: value })),
           });
           config = { ...config, agent: { ...config.agent, thinking_level: level } };
+          break;
+        }
+        case 'telemetry': {
+          const consent = await select<'granted' | 'denied'>({
+            message: 'Share anonymous usage statistics?',
+            choices: [
+              {
+                value: 'denied',
+                name: 'No, send nothing',
+                description: 'Nothing leaves this machine and the local install ID is deleted',
+              },
+              {
+                value: 'granted',
+                name: 'Yes, share coarse statistics',
+                description: TELEMETRY_DESCRIPTION,
+              },
+            ],
+          });
+          config = { ...config, telemetry: { consent } };
           break;
         }
         case 'save': {

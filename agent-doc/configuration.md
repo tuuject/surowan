@@ -125,6 +125,7 @@ command SecretRef：
 | `mcp` | 可选的 stdio/Streamable HTTP Server |
 | `admin` | 可选的 Admin Panel（审计只读 + 受控管理写端点） |
 | `developer` | 可选的开发者调试配置；`record_model_payloads` 缺省为 `false` |
+| `telemetry` | 可选的匿名统计同意；缺省即「未决定」，不发送任何数据，见 [telemetry](#telemetry) |
 | `retention` | 在线保留天数与备份份数 |
 | `paths` | SQLite、媒体缓存和备份目录 |
 
@@ -541,6 +542,21 @@ Streamable HTTP 使用 `url` 与可选 SecretRef `headers`，且 `follow_redirec
 - 只有在 fake-ip 代理后运行（Clash、Surge 等把所有域名都解析到该网段）的部署才设为 `true`，否则 `web_fetch` 取不到任何网页。即使开启，模型直接提交该网段的 IP 仍会被拒绝。
 - `dangerously_allow_all_ip_addresses` 默认 `false`。设为 `true` 后跳过全部目标地址校验：环回、私网、链路本地（含云厂商 `169.254.169.254` 元数据端点）、IP 字面量与跳转到这些地址的目标都会放行，此时 `allow_proxy_synthetic_addresses` 不再起作用。URL 规则不变：仍只允许 HTTP(S) 默认端口、禁止 URL 凭据与 fragment、最多 3 次跳转、不发 Cookie。群聊里任何人都能让模型访问内网，只应在信任所有可触发 bot 的人、且确实需要读取自有内网服务的部署中开启。开启后 Tool 描述会告知模型可以访问私网地址。
 - `accept_markdown` 默认 `true`：请求的 `Accept` 以 `text/markdown` 优先（HTML 降为 `q=0.9`）。支持内容协商的站点（如开启 Cloudflare「Markdown for Agents」的站点）会直接返回自己的 Markdown，原样交给模型，不再经过本地 HTML 抽取。设为 `false` 时 `Accept` 恢复为不含 Markdown 的旧值；站点返回的 Markdown 质量不如本地抽取时可以关闭。模型传 `raw: true` 时无论开关如何都不声明 Markdown。
+- 修改后需要重启（不在热更新白名单内）。
+
+## telemetry
+
+```jsonc
+{
+  "telemetry": { "consent": "granted" },
+}
+```
+
+- 整个 section 可省略；省略等于「未决定」，**不发送任何数据**。只有 `consent: "granted"` 才会开启，`"denied"` 明确关闭。`node src/cli.ts configure` 的「Configure anonymous telemetry」菜单写入该字段。
+- 环境变量优先于配置：`DO_NOT_TRACK`（非空且不为 `0`/`false`）或 `PLASTICWAN_TELEMETRY=0` 强制关闭。`src/telemetry.ts` 的 `POSTHOG_PROJECT_KEY` 为空时同样不发送（`telemetry_disabled` 日志的 `reason` 为 `no_project_key`）。
+- `serve` 启动后发送一次 `instance_started`，之后每 24 小时发送一次 `instance_heartbeat`，POST 到 PostHog `/capture/`；5 秒超时、不重试，失败只记 `telemetry_send_failed` 日志，不影响运行。
+- 属性只有：`version`、`node_major`、`platform`、`arch`、`docker`、`chats`/`mcp_servers`/`invocations_24h`（区间桶，如 `2-5`、`21-100`）、`has_group_chats`、`admin_enabled`、`image_enabled`。**不含** Telegram ID、用户名、消息或媒体内容、Prompt、模型或 Provider 名、URL、主机名与任何 Secret。事件带 `$process_person_profile: false`、`$geoip_disable: true`，PostHog 项目侧也应开启「Discard client IP data」。
+- 唯一标识是随机 UUID（`app_state.telemetry_install_id`，存于本地数据库）：不由 bot token、Chat 或主机派生；未同意（含撤回）时每次启动都会删除它。每次发送的完整属性会以 `telemetry_sent` 日志输出，便于审计。
 - 修改后需要重启（不在热更新白名单内）。
 
 ## Admin Panel

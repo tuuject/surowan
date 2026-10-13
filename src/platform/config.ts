@@ -397,6 +397,11 @@ export const ConfigSchema = Type.Object(
     developer: Type.Optional(
       Type.Object({ record_model_payloads: Type.Optional(Type.Boolean({ default: false })) }, Strict),
     ),
+    // Anonymous usage statistics. Absent means "not decided yet" and sends
+    // nothing; only an explicit "granted" turns reporting on.
+    telemetry: Type.Optional(
+      Type.Object({ consent: Type.Union([Type.Literal('granted'), Type.Literal('denied')]) }, Strict),
+    ),
     web_fetch: Type.Optional(
       Type.Object(
         {
