@@ -123,7 +123,7 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 - `enabled` 为 0 的词条不参与查询与自动注入，但保留历史；`revision` 是词条自己的乐观锁 token，每次写入递增，Admin 的 `If-Match` 与 Agent 工具的读-改-写都用它。
 - 索引 `dictionary_entries_scope_idx`（scope, chat_id, id）与 `dictionary_entries_term_idx`（scope, chat_id, term）支撑按作用域列举与 term 过滤。
 
-`purgeExpiredData` 不清理词条：辞典是人工维护的数据，不随在线保留窗口过期；删除只能经 Admin 或当前群的 Agent 写入。
+`purgeExpiredData` 不清理词条：辞典是人工维护的数据，不随在线保留窗口过期；删除只能经 Admin 或当前群的 Agent 写入。表由核心 schema 持有（`store/schema.ts` + 迁移 034），使用它的 `dictionary` 插件（[src/plugins/dictionary/](../src/plugins/dictionary/)）不自带表定义；把表迁进插件需要单独设计迁移排序、备份与保留。
 
 ### 工具可见性审计
 

@@ -384,6 +384,11 @@ export class ContextBuilder {
     // and each receives what the previous ones left of the budget. Non-empty
     // blocks land at the dictionary's historic position: after the sticker
     // catalog, before the Telegram history.
+    const messageTexts = selected.flatMap((entry) =>
+      [entry.snapshot.text, entry.snapshot.caption].filter(
+        (content): content is string => content !== null && content.length > 0,
+      ),
+    );
     const injections: ContextInjectionContribution[] = [];
     let injectionBudget = Math.max(0, maximumCharacters - usedCharacters);
     for (const injector of this.#injectors) {
@@ -392,11 +397,7 @@ export class ContextBuilder {
         orm: this.#store.orm,
         chatId: identity.chatId,
         chatType: identity.chatType,
-        messageTexts: selected.flatMap((entry) =>
-          [entry.snapshot.text, entry.snapshot.caption].filter(
-            (content): content is string => content !== null && content.length > 0,
-          ),
-        ),
+        messageTexts,
         remainingCharacters: injectionBudget,
         carried: input.carriedInjections.get(injector.name) ?? new Set<string>(),
       });
