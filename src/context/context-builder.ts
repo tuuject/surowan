@@ -11,9 +11,9 @@ import { renderSkillIndexPrompt, type SystemSkill } from '../platform/system-res
 import { resolveChatConfig, type SqliteStore } from '../store/database.ts';
 import { imageDeliveryState } from '../store/image-delivery.ts';
 import { LongTaskService } from '../store/long-tasks.ts';
+import type { ContextInjector } from './context-injector.ts';
 import type { ContextRefStore } from './context-refs.ts';
 import type { ContextHeader } from './context-store.ts';
-import type { ContextInjector } from '../plugins/plugin.ts';
 import { MemoryStore } from './memory.ts';
 
 const Strict = { additionalProperties: false } as const;
@@ -396,7 +396,7 @@ export class ContextBuilder {
         config,
         orm: this.#store.orm,
         chatId: identity.chatId,
-        chatType: identity.chatType,
+        privateChat: identity.chatType === 'private',
         messageTexts,
         remainingCharacters: injectionBudget,
         carried: input.carriedInjections.get(injector.name) ?? new Set<string>(),

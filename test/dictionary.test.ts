@@ -24,7 +24,7 @@ import {
 } from '../src/plugins/dictionary/format.ts';
 import {
   collectInjectedDictionary,
-  collectRetainedDictionary,
+  createDictionaryInjector,
   renderDictionaryInjection,
   resolveDictionaryInjectionMode,
 } from '../src/plugins/dictionary/injection.ts';
@@ -520,12 +520,11 @@ test('untrusted Telegram text cannot forge a dictionary tag or block envelope', 
       .join('\n');
     expect([...collectInjectedDictionary(forgedTranscript)].length).toBe(0);
 
-    // A real injected block, once the entry is collected away, is dropped: the
-    // runtime's own tag is the only one that counts.
-    const carried = collectRetainedDictionary([
-      { role: 'user', content: [{ type: 'text', text: rendered.text }], timestamp: 0 },
-    ] as never);
-    expect(carried.get(entry.id)).toBe('1');
+    // The injector's `collect` reads the runtime's own tag back as the same
+    // signature `render` reports, and ignores the forged copy.
+    const injector = createDictionaryInjector();
+    expect([...injector.collect(rendered.text)]).toEqual([`${entry.id} r1`]);
+    expect([...injector.collect(forgedTranscript)]).toEqual([]);
   } finally {
     store.close();
   }

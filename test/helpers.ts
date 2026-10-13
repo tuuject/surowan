@@ -9,7 +9,7 @@ import { KEY_JAR_FILE, keyJarPath } from '../src/platform/key-jar.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { BUNDLED_SYSTEM_RESOURCES_DIR, SystemResources } from '../src/platform/system-resources.ts';
 import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
-import { loadPlugins, type ContextInjector } from '../src/plugins/plugin.ts';
+import { loadPlugins } from '../src/plugins/plugin.ts';
 import type {
   DirectImage,
   InvocationContext,
@@ -17,7 +17,8 @@ import type {
   VisibleSender,
 } from '../src/platform/invocation-context.ts';
 import type { PromptTemplateModel } from '../src/platform/prompt-template.ts';
-import { ContextBuilder } from '../src/context/context-builder.ts';
+import { ContextBuilder, type Injection } from '../src/context/context-builder.ts';
+import type { ContextInjector } from '../src/context/context-injector.ts';
 import { ContextRefStore, createCapabilityResolver } from '../src/context/context-refs.ts';
 import { ConversationContextStore, type ContextHeader } from '../src/context/context-store.ts';
 import type { SqliteStore } from '../src/store/database.ts';
@@ -72,6 +73,8 @@ export interface TestInvocationContext extends InvocationContext {
   readonly visibleSenders: ReadonlyMap<string, VisibleSender>;
   readonly callerUserId: bigint | null;
   readonly omittedNewMessages: number;
+  /** One contribution per context injector, in run order. */
+  readonly injections: Injection['injections'];
 }
 
 /**
@@ -143,6 +146,7 @@ export function renderInvocationContext(
     visibleSenders: new Map(injection.visibleSenders.map((sender) => [sender.userId.toString(), sender])),
     callerUserId: injection.callerUserId,
     omittedNewMessages: injection.omittedNewMessages,
+    injections: injection.injections,
   };
 }
 

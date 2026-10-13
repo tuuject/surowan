@@ -17,6 +17,7 @@ import type { MentionTyping } from '../capabilities/mention-typing.ts';
 import { createSendTools, SEND_TOOL_NAMES, type TelegramSendApi } from '../capabilities/send-tool.ts';
 import { createTyping } from '../capabilities/typing.ts';
 import { ContextBuilder, type ContextIdentity, type Injection, type StablePrompt } from '../context/context-builder.ts';
+import type { ContextInjector } from '../context/context-injector.ts';
 import { encodeContextMessage, estimateMessageTokens } from '../context/context-codec.ts';
 import { type ContextGcPlan, isRenderable, planContextGc } from '../context/context-gc.ts';
 import { ContextRefStore, createCapabilityResolver } from '../context/context-refs.ts';
@@ -39,7 +40,6 @@ import { serializeModelRequestForAudit } from '../platform/model-request-audit.t
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import type { SecretStore } from '../platform/secrets.ts';
 import type { SystemResources, SystemSkill } from '../platform/system-resources.ts';
-import type { ContextInjector } from '../plugins/plugin.ts';
 import { applyToolSchemaKeywords } from '../platform/tool-schema.ts';
 import { resolveChatConfig, type SqliteStore } from '../store/database.ts';
 import { createToolAudit } from '../store/tool-audit.ts';
@@ -204,7 +204,7 @@ export class AgentRuntime {
       options.store,
       this.#refs,
       options.systemResources.skills,
-      options.contextInjectors ?? [],
+      this.#contextInjectors,
     );
   }
 
@@ -535,7 +535,7 @@ export class AgentRuntime {
      * its signatures, which is what allows re-injection.
      */
     const carriedInjections = new Map<string, Set<string>>(
-      (this.#contextInjectors ?? []).map((injector) => [injector.name, new Set<string>()]),
+      this.#contextInjectors.map((injector) => [injector.name, new Set<string>()]),
     );
     /**
      * The visible sender set follows the retained transcript: senders from
@@ -565,7 +565,7 @@ export class AgentRuntime {
         for (const sender of collected) {
           senders.set(sender.userId.toString(), sender);
         }
-        for (const injector of this.#contextInjectors ?? []) {
+        for (const injector of this.#contextInjectors) {
           for (const signature of injector.collect(text)) {
             carriedInjections.get(injector.name)?.add(signature);
           }

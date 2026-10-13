@@ -31,9 +31,9 @@ plasticwan/
 │   ├── tui/                # 交互式配置向导
 │   ├── ingress/            # telegram-ingestion 与 admin/（Panel 认证、审计查询、HTTP 边界）
 │   ├── orchestration/      # scheduler、invocation-queue、agent-runtime、conversation-runtime、bot-commands
-│   ├── plugins/            # 内置 Agent 插件：plugin（definePlugin/loadPlugins）、builtin 清单、alarm/、web-fetch/
+│   ├── plugins/            # 内置 Agent 插件：plugin（definePlugin/loadPlugins）、builtin 清单、web-fetch/、image/、alarm/、dictionary/
 │   ├── capabilities/       # send-tool、read-tool、execute-tool、mcp、stickers、media/
-│   ├── context/            # context-builder、context-store、context-refs、context-gc、context-codec、memory
+│   ├── context/            # context-builder、context-store、context-refs、context-gc、context-codec、context-injector、memory
 │   ├── store/              # database、schema、migrations/、long-tasks、invocation-snapshot、sleep、participation、admins
 │   ├── platform/           # config、secrets、providers、system-resources 等无业务依赖模块
 │   └── system-resources/   # 随 runtime 发布的 system:/// 只读资源树（System Skills）

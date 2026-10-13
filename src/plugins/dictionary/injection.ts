@@ -1,7 +1,6 @@
-import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import type { DictionaryInjectionMode, FileChat } from '../../platform/config.ts';
 import { resolveChatConfig } from '../../store/database.ts';
-import type { ContextInjector } from '../plugin.ts';
+import type { ContextInjector } from '../../context/context-injector.ts';
 import { type DictionaryEntryRecord, DictionaryStore, matchingEntries } from './dictionary.ts';
 
 /**
@@ -114,31 +113,6 @@ export function collectInjectedDictionary(text: string): ReadonlyMap<string, str
 }
 
 /**
- * The dictionary tags a retained transcript still carries. Only `user` messages
- * count: they are the ones the runtime injected, and the block envelope is
- * written with literal newlines that Telegram text cannot reproduce.
- */
-export function collectRetainedDictionary(messages: readonly AgentMessage[]): Map<string, string> {
-  const signatures = new Map<string, string>();
-  for (const message of messages) {
-    if (message.role !== 'user') {
-      continue;
-    }
-    const text =
-      typeof message.content === 'string'
-        ? message.content
-        : message.content
-            .filter((block) => block.type === 'text')
-            .map((block) => block.text)
-            .join('\n');
-    for (const [id, revision] of collectInjectedDictionary(text)) {
-      signatures.set(id, revision);
-    }
-  }
-  return signatures;
-}
-
-/**
  * The dedupe signature one entry carries: the same id with a new revision is a
  * new signature, so an updated entry is injected again.
  */
@@ -181,7 +155,7 @@ export function createDictionaryInjector(): ContextInjector {
     name: 'dictionary',
     *collect(text: string): Generator<string> {
       for (const [id, revision] of collectInjectedDictionary(text)) {
-        yield `${id} r${revision}`;
+        yield dictionaryEntrySignature({ id, revision });
       }
     },
     render(input) {
@@ -196,7 +170,7 @@ export function createDictionaryInjector(): ContextInjector {
       const store = new DictionaryStore(input.orm);
       // A private chat can only read the global dictionary; a group sees global
       // plus its own chat's entries, never another group's.
-      const effective = input.chatType === 'private' ? store.globalEntries() : store.effective(input.chatId);
+      const effective = input.privateChat ? store.globalEntries() : store.effective(input.chatId);
       const candidates =
         mode === 'aggressive'
           ? notYetInjected(effective, input.carried)
@@ -209,7 +183,7 @@ export function createDictionaryInjector(): ContextInjector {
       const rendered = renderDictionaryInjection(candidates, input.remainingCharacters);
       return {
         text: rendered.text,
-        signatures: [...rendered.signatures].map(([id, revision]) => `${id} r${revision}`),
+        signatures: [...rendered.signatures].map(([id, revision]) => dictionaryEntrySignature({ id, revision })),
         count: rendered.count,
       };
     },
