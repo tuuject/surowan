@@ -43,6 +43,7 @@ import { LongTaskService } from './store/long-tasks.ts';
 import { activeSleepUntil } from './store/sleep.ts';
 import { recordPromptVersionsFromConfig } from './store/prompt-versions.ts';
 import { appState } from './store/schema.ts';
+import { startTelemetry, type TelemetryHandle } from './telemetry.ts';
 
 const ALLOWED_UPDATES = ['message', 'edited_message', 'my_chat_member'] as const;
 
@@ -68,6 +69,7 @@ export async function serve(configPath: string, takeover = false): Promise<void>
   let mcp: McpManager | undefined;
   let mentionTyping: MentionTyping | undefined;
   let admin: AdminServer | undefined;
+  let telemetry: TelemetryHandle | undefined;
   let startupCatchUpController: AbortController | undefined;
   const replayShutdown = new AbortController();
   let shuttingDown = false;
@@ -414,6 +416,7 @@ export async function serve(configPath: string, takeover = false): Promise<void>
       startedScheduler.wake();
     });
     logEvent('serve_started', { bot_id: String(me.id), config_hash: loaded.hash });
+    telemetry = startTelemetry({ store, config: loaded.config, log: logEvent });
     await bot.start({ allowed_updates: [...ALLOWED_UPDATES] });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -423,6 +426,7 @@ export async function serve(configPath: string, takeover = false): Promise<void>
     process.off('SIGTERM', shutdown);
     process.off('SIGINT', shutdown);
     stopWatcher?.();
+    telemetry?.stop();
     await admin?.stop();
     await scheduler?.stop(30_000);
     mentionTyping?.stopAll();

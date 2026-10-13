@@ -98,6 +98,8 @@
   "retention": { "online_days": 30, "backup_copies": 7 },
   // 可省略；仅在排查模型调用时开启，历史报文在 Developer 页面手动清除。
   "developer": { "record_model_payloads": false },
+  // 可省略；省略即「未决定」，不发送任何数据。"granted" 才会发送匿名统计（见「匿名统计」）。
+  "telemetry": { "consent": "denied" },
   "paths": {
     "database": "/data/plasticwan.sqlite",
     "media_cache": "/data/media-cache",
