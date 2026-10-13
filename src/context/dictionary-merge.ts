@@ -3,7 +3,7 @@ import { getSupportedThinkingLevels } from '@earendil-works/pi-ai';
 import { eq } from 'drizzle-orm';
 import Type from 'typebox';
 import Compile from 'typebox/compile';
-import type { RawConfig } from '../platform/config.ts';
+import type { ToolModelSelection } from '../platform/tool-model.ts';
 import type { SecretStore } from '../platform/secrets.ts';
 import type { Orm } from '../store/database.ts';
 import { modelCalls } from '../store/schema.ts';
@@ -18,42 +18,9 @@ import {
 } from './dictionary.ts';
 
 /**
- * The system-wide auxiliary ("tool") model, and the dictionary-merge suggestion
- * built on it.
- *
- * The tool model is a system capability, not dictionary configuration: it
- * reuses the provider registry, credentials and thinking-level support exactly
- * like the agent, and an unset value inherits the global agent settings — never
- * a per-chat override, because one group's chat model must not change a
- * system-wide helper call.
+ * The dictionary-merge suggestion, built on the system-wide auxiliary ("tool")
+ * model resolved by `src/platform/tool-model.ts`.
  */
-
-export interface ToolModelSelection {
-  readonly provider: string;
-  readonly model: string;
-  readonly thinkingLevel: ModelThinkingLevel;
-  /** True when nothing is configured and the global agent settings are in use. */
-  readonly inherited: boolean;
-}
-
-/** Resolves the configured tool model, or the global agent defaults. */
-export function resolveToolModel(config: RawConfig): ToolModelSelection {
-  const configured = config.tool_model;
-  if (configured !== undefined) {
-    return {
-      provider: configured.provider,
-      model: configured.model,
-      thinkingLevel: configured.thinking_level,
-      inherited: false,
-    };
-  }
-  return {
-    provider: config.agent.provider,
-    model: config.agent.model,
-    thinkingLevel: config.agent.thinking_level,
-    inherited: true,
-  };
-}
 
 export interface MergeSuggestion {
   readonly term: string;

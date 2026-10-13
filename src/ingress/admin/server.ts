@@ -61,7 +61,7 @@ import {
   redactInspection,
 } from './config-inspection.ts';
 import { DictionaryStore } from '../../context/dictionary.ts';
-import { resolveToolModel } from '../../context/dictionary-merge.ts';
+import { resolveToolModel } from '../../platform/tool-model.ts';
 import { clearModelPayloads, parseDeveloperSettings } from './developer-admin.ts';
 import {
   createDictionaryEntry,

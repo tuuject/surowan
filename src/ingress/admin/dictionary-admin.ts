@@ -22,8 +22,9 @@ import {
   exportFileName,
   parseDictionaryImport,
 } from '../../context/dictionary-format.ts';
-import { resolveToolModel, suggestMerge } from '../../context/dictionary-merge.ts';
+import { suggestMerge } from '../../context/dictionary-merge.ts';
 import { type DictionaryInjectionMode, resolveDictionaryInjectionMode } from '../../platform/config.ts';
+import { resolveToolModel } from '../../platform/tool-model.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import { asRunResult, type Orm } from '../../store/database.ts';
 import { chats, dictionaryEntries } from '../../store/schema.ts';

@@ -27,7 +27,7 @@ import {
   collectRetainedDictionary,
   renderDictionaryInjection,
 } from '../src/context/dictionary-injection.ts';
-import { resolveToolModel } from '../src/context/dictionary-merge.ts';
+import { resolveToolModel } from '../src/platform/tool-model.ts';
 import { mergeDictionaryEntries, mergePreview } from '../src/ingress/admin/dictionary-admin.ts';
 import { AdminServer } from '../src/ingress/admin/server.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
