@@ -4,8 +4,8 @@ import { dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
 import { getTableConfig, SQLiteSyncDialect } from 'drizzle-orm/sqlite-core';
 import { afterEach, describe, expect, test } from 'vitest';
-import { loadConfig } from '../src/platform/config.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { longTasks, taskReceipts } from '../src/store/schema.ts';
 import { writeTestConfig } from './helpers.ts';
 

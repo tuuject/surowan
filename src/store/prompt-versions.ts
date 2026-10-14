@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { RawConfig } from '../platform/config.ts';
-import type { Orm } from './database.ts';
+import type { Orm } from './store.ts';
 import { promptVersions } from './schema.ts';
 
 /** How many versions each scope keeps; older rows are pruned by `seq`. */

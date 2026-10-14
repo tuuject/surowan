@@ -10,11 +10,11 @@ import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { InvocationQueueService } from '../src/orchestration/invocation-queue.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import { loadConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { previewContext } from '../src/platform/invocation-context.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { SystemResources } from '../src/platform/system-resources.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { emptySystemResources } from '../src/platform/system-resources.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
 import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 
@@ -83,7 +83,7 @@ async function setup(sendResponse = true): Promise<{
     secrets: new SecretStore(),
     telegramApi,
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-    systemResources: SystemResources.empty(),
+    systemResources: emptySystemResources(),
   });
   const tasks = new LongTaskService(store.orm);
   const scheduler = new BucketScheduler(

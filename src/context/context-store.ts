@@ -1,6 +1,6 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import { and, desc, eq, gte, isNull, lt, type SQL, sql } from 'drizzle-orm';
-import type { SqliteStore } from '../store/database.ts';
+import type { BusinessStore } from '../store/store.ts';
 import { contextMessages, contextRefs, conversationContexts, invocations } from '../store/schema.ts';
 import { type ContextMessageRole, decodeContextMessage } from './context-codec.ts';
 
@@ -62,9 +62,9 @@ export interface ContextStats {
 }
 
 export class ConversationContextStore {
-  readonly #store: SqliteStore;
+  readonly #store: BusinessStore;
 
-  constructor(store: SqliteStore) {
+  constructor(store: BusinessStore) {
     this.#store = store;
   }
 
@@ -271,14 +271,14 @@ export class ConversationContextStore {
   }
 
   stats(header: ContextHeader): ContextStats {
-    const row = this.#store.db
-      .prepare<[bigint, bigint], { count: bigint; sends: bigint; tokens: bigint | null }>(
-        `SELECT COUNT(*) AS count,
+    const row = this.#store.orm
+      .all<{ count: bigint; sends: bigint; tokens: bigint | null }>(
+        sql`SELECT COUNT(*) AS count,
                 COALESCE(SUM(CASE WHEN send_seq IS NOT NULL THEN 1 ELSE 0 END), 0) AS sends,
                 SUM(est_tokens) AS tokens
-         FROM context_messages WHERE context_id = ? AND seq >= ? AND evicted_at IS NULL`,
+         FROM context_messages WHERE context_id = ${header.id} AND seq >= ${header.headSeq} AND evicted_at IS NULL`,
       )
-      .get(header.id, header.headSeq);
+      .at(0);
     return {
       headSeq: header.headSeq,
       nextSeq: header.nextSeq,
@@ -343,7 +343,7 @@ interface ConversationContextSummaryRow {
 
 /** Read-only projection used by `/status` and the Admin Panel. */
 export function listConversationContexts(
-  store: SqliteStore,
+  store: BusinessStore,
   filter: { readonly conversationId?: bigint; readonly telegramChatId?: bigint; readonly limit?: number } = {},
 ): ConversationContextSummary[] {
   const conditions: SQL[] = [];
@@ -385,7 +385,7 @@ export function listConversationContexts(
  * The running invocation of a Conversation, if any. The attach path injects a
  * due bucket into it; at most one can exist (one_running_invocation_per_conversation).
  */
-export function runningInvocationForConversation(store: SqliteStore, conversationId: bigint): bigint | undefined {
+export function runningInvocationForConversation(store: BusinessStore, conversationId: bigint): bigint | undefined {
   const row = store.orm
     .select({ id: invocations.id })
     .from(invocations)

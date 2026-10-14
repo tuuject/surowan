@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseCli } from '../src/cli-options.ts';
-import { loadConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { renderDoctorAgentPrompt } from '../src/doctor.ts';
 import {
   extractInputCapabilities,

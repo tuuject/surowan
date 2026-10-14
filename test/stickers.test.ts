@@ -6,8 +6,8 @@ import { getCurrentTools, fauxAssistantMessage, fauxProvider, fauxToolCall } fro
 import type { Update } from 'grammy/types';
 import sharp from 'sharp';
 import { KeyedSemaphore } from '../src/platform/concurrency.ts';
-import { loadConfig } from '../src/platform/config.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import type { MediaDownloader } from '../src/capabilities/media/media-download.ts';
 import { MediaService } from '../src/capabilities/media/media.ts';
 import { SecretStore } from '../src/platform/secrets.ts';

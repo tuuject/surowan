@@ -3,7 +3,8 @@ import type { Message, Update } from 'grammy/types';
 import { conversationThreadId, type ParsedCommand, parseBotCommand } from '../orchestration/bot-commands.ts';
 import { mentionsBot } from '../platform/participation.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
-import { asRunResult, isChatPaused, resolveChatConfig, type SqliteStore } from '../store/database.ts';
+import type { BusinessStore } from '../store/store.ts';
+import { asRunResult, isChatPaused, resolveChatConfig } from '../store/store.ts';
 import { evaluateParticipation, ParticipationRegistry } from '../store/participation.ts';
 import {
   bucketMessages,
@@ -69,7 +70,7 @@ export interface IngestResult {
 }
 
 export class TelegramIngestion {
-  readonly #store: SqliteStore;
+  readonly #store: BusinessStore;
   readonly #configStore: RuntimeConfigurationStore;
   readonly #participation: ParticipationRegistry;
   #allowedChats = new Map<string, ReadonlySet<bigint> | undefined>();
@@ -78,7 +79,7 @@ export class TelegramIngestion {
   readonly #botUsername: string | null;
 
   constructor(
-    store: SqliteStore,
+    store: BusinessStore,
     configStore: RuntimeConfigurationStore,
     bot: { readonly id: number; readonly username?: string | null },
   ) {

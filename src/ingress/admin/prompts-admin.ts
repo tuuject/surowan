@@ -6,10 +6,11 @@ import Type, { type Static } from 'typebox';
 import { Compile } from 'typebox/compile';
 import type { BucketScheduler } from '../../orchestration/scheduler.ts';
 import { PromptOverrideError, preparePromptOverride } from '../../platform/agent-prompt.ts';
-import { type LoadedConfig, loadConfig } from '../../platform/config.ts';
-import { readConfigRevision } from '../../platform/config-file.ts';
-import type { ConfigApplyResult, ConfigErrorCode, ConfigReloader } from '../../platform/config-reload.ts';
-import { asRunResult, type Orm, resolveChatConfig } from '../../store/database.ts';
+import { type LoadedConfig, loadConfig } from '../../adapters/local-monolith/config.ts';
+import { readConfigRevision } from '../../adapters/local-monolith/config-file.ts';
+import type { ConfigApplyResult, ConfigReloader } from '../../adapters/local-monolith/config-reload.ts';
+import type { ConfigErrorCode } from '../../platform/config-write.ts';
+import { asRunResult, type Orm, resolveChatConfig } from '../../store/store.ts';
 import {
   getPromptVersion,
   hashPromptContent,

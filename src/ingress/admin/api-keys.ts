@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import Type from 'typebox';
 import { Compile } from 'typebox/compile';
-import { asRunResult, type Orm } from '../../store/database.ts';
+import { asRunResult, type Orm } from '../../store/store.ts';
 import { adminApiKeys } from '../../store/schema.ts';
 import { AdminQueryError } from './audit.ts';
 import { hashToken } from './auth.ts';

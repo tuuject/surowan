@@ -1,7 +1,8 @@
 import { and, eq, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
 import { AGENT_PROMPT_VERSION } from '../platform/agent-protocol.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
-import { asRunResult, isChatPaused, resolveChatConfig, type SqliteStore } from '../store/database.ts';
+import type { BusinessStore } from '../store/store.ts';
+import { asRunResult, isChatPaused, resolveChatConfig } from '../store/store.ts';
 import { snapshotInvocation } from '../store/invocation-snapshot.ts';
 import { LongTaskService } from '../store/long-tasks.ts';
 import { isConversationActive, ParticipationRegistry } from '../store/participation.ts';
@@ -69,7 +70,7 @@ interface ReceiptRow {
  * by the due-bucket attach below and the send barrier in `AgentRuntime`.
  */
 export function attachBucketToInvocation(
-  store: SqliteStore,
+  store: BusinessStore,
   historyMessages: number,
   invocationId: bigint,
   bucketId: bigint,
@@ -92,14 +93,14 @@ export function attachBucketToInvocation(
  * the scheduler drives these methods from its event loop.
  */
 export class InvocationQueueService {
-  readonly #store: SqliteStore;
+  readonly #store: BusinessStore;
   readonly #configStore: RuntimeConfigurationStore;
   readonly #participation: ParticipationRegistry;
   readonly #attachment: BucketAttachmentTarget | undefined;
   readonly #tasks: LongTaskService;
 
   constructor(
-    store: SqliteStore,
+    store: BusinessStore,
     configStore: RuntimeConfigurationStore,
     attachment?: BucketAttachmentTarget,
     tasks = new LongTaskService(store.orm),

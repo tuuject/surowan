@@ -23,7 +23,7 @@ import { grammySendApi } from './capabilities/telegram-send-api.ts';
 import { AgentRuntime } from './orchestration/agent-runtime.ts';
 import { KeyedSemaphore } from './platform/concurrency.ts';
 import type { McpServerConfig, ProviderConfig, RawConfig, SecretRef } from './platform/config.ts';
-import { assertConfigPermissions, loadConfig } from './platform/config.ts';
+import { assertConfigPermissions, loadConfig } from './adapters/local-monolith/config.ts';
 import { previewContext } from './platform/invocation-context.ts';
 import { keyJarPath } from './platform/key-jar.ts';
 import { type PromptTemplateValues, renderPromptTemplate } from './platform/prompt-template.ts';
@@ -31,10 +31,10 @@ import { buildModelRegistry, configuredAgentModels } from './platform/providers.
 import { RuntimeConfigurationStore } from './platform/runtime-config.ts';
 import { SecretStore } from './platform/secrets.ts';
 import { pickEnv, spawnProcess } from './platform/subprocess.ts';
-import { BUNDLED_SYSTEM_RESOURCES_DIR, SystemResources } from './platform/system-resources.ts';
+import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from './adapters/local-monolith/system-resources.ts';
 import { BUILTIN_PLUGINS } from './plugins/builtin.ts';
 import { loadPlugins } from './plugins/plugin.ts';
-import { SqliteStore } from './store/database.ts';
+import { SqliteStore } from './adapters/local-monolith/database.ts';
 
 export async function runDoctor(configPath: string, outputAgentPrompt = false): Promise<void> {
   const loaded = await loadConfig(configPath);
@@ -186,7 +186,7 @@ async function runDoctorChecks(
         username: me.username ?? null,
       },
       modelGate,
-      systemResources: await SystemResources.load(
+      systemResources: await FileSystemResources.load(
         BUNDLED_SYSTEM_RESOURCES_DIR,
         loadPlugins(BUILTIN_PLUGINS).skillDirectories,
       ),

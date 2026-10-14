@@ -1,6 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../platform/runtime-config.ts';
-import type { SqliteStore } from '../store/database.ts';
+import type { BusinessStore } from '../store/store.ts';
 import { LongTaskService } from '../store/long-tasks.ts';
 import { buckets, conversations, invocations, taskReceipts } from '../store/schema.ts';
 import { activeSleepUntil } from '../store/sleep.ts';
@@ -44,7 +44,7 @@ export { STARTUP_CATCH_UP_STATE_KEY } from './invocation-queue.ts';
  * InvocationHandler, then persists terminal outcomes.
  */
 export class BucketScheduler {
-  readonly #store: SqliteStore;
+  readonly #store: BusinessStore;
   readonly #configStore: RuntimeConfigurationStore;
   readonly #queue: InvocationQueueService;
   readonly #tasks: LongTaskService;
@@ -56,7 +56,7 @@ export class BucketScheduler {
   #lastForcedGcAt = 0;
 
   constructor(
-    store: SqliteStore,
+    store: BusinessStore,
     configStore: RuntimeConfigurationStore,
     handler: InvocationHandler,
     attachment?: BucketAttachmentTarget,

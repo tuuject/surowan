@@ -5,9 +5,9 @@ import { afterEach, expect, type Mock, test, vi } from 'vitest';
 import { credentialsPath } from '../packages/cli/src/credentials.ts';
 import { runCli } from '../packages/cli/src/run.ts';
 import { AdminServer } from '../src/ingress/admin/server.ts';
-import { loadConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { seedAdminFixture } from './fixtures/admin-seed.ts';
 import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 

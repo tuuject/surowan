@@ -1,5 +1,5 @@
 import type { RawConfig } from '../platform/config.ts';
-import type { Orm } from '../store/database.ts';
+import type { Orm } from '../store/store.ts';
 
 /**
  * One per-batch context injection: an untrusted block the runtime appends to

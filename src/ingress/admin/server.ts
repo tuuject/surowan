@@ -9,9 +9,11 @@ import { DEFAULT_MEMORY_TTL_WARNING_DAYS } from '../../context/memory.ts';
 import type { ImageBridge } from '../../image/bridge.ts';
 import type { ImageService } from '../../image/service.ts';
 import type { BucketScheduler } from '../../orchestration/scheduler.ts';
-import { assertConfigPermissions, loadConfig, type RawConfig, ThinkingLevelSchema } from '../../platform/config.ts';
-import { type ConfigEdit, readConfigRevision } from '../../platform/config-file.ts';
-import type { ConfigErrorCode, ConfigReloader } from '../../platform/config-reload.ts';
+import { type RawConfig, ThinkingLevelSchema } from '../../platform/config.ts';
+import { assertConfigPermissions, loadConfig } from '../../adapters/local-monolith/config.ts';
+import { type ConfigEdit, readConfigRevision } from '../../adapters/local-monolith/config-file.ts';
+import type { ConfigReloader } from '../../adapters/local-monolith/config-reload.ts';
+import type { ConfigErrorCode } from '../../platform/config-write.ts';
 import {
   listOpenRouterImageEndpoints,
   listOpenRouterImageModels,
@@ -22,8 +24,8 @@ import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts
 import type { SecretStore } from '../../platform/secrets.ts';
 import { isThinkingLevel } from '../../platform/thinking-levels.ts';
 import { cancelAlarm, listAlarms, parseAlarmId } from '../../plugins/alarm/admin.ts';
-import type { SqliteStore } from '../../store/database.ts';
-import { resolveChatConfig } from '../../store/database.ts';
+import type { BusinessStore } from '../../store/store.ts';
+import { resolveChatConfig } from '../../store/store.ts';
 import { LongTaskService } from '../../store/long-tasks.ts';
 import { getPromptVersion } from '../../store/prompt-versions.ts';
 import { wakeFromSleep } from '../../store/sleep.ts';
@@ -207,7 +209,7 @@ export type ReplayPreflightSelection = Pick<
 >;
 
 export interface AdminServerOptions {
-  readonly store: SqliteStore;
+  readonly store: BusinessStore;
   readonly configStore: RuntimeConfigurationStore;
   readonly scheduler?: BucketScheduler;
   readonly tasks?: LongTaskService;
@@ -251,7 +253,7 @@ const CONFIG_WRITE_STATUS: Partial<Record<ConfigErrorCode, number>> = {
 };
 
 export class AdminServer {
-  readonly #store: SqliteStore;
+  readonly #store: BusinessStore;
   readonly #configStore: RuntimeConfigurationStore;
   readonly #admin: AdminConfig;
   readonly #auth: AdminAuth;

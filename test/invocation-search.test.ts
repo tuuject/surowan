@@ -3,8 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { AdminQueryError, type ListQuery, listInvocations } from '../src/ingress/admin/audit.ts';
-import { loadConfig, type RawConfig } from '../src/platform/config.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import type { RawConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { testConfigJsonc, writeTestConfig } from './helpers.ts';
 
 /**

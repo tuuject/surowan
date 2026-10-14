@@ -14,7 +14,7 @@ import {
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import type { RawConfig } from '../platform/config.ts';
 import type { SecretStore } from '../platform/secrets.ts';
-import type { SqliteStore } from '../store/database.ts';
+import type { SqliteStore } from '../adapters/local-monolith/database.ts';
 
 /**
  * Process-level assembly of the image generation core.

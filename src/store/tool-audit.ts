@@ -1,4 +1,5 @@
-import { finishToolCall, rejectToolCall, type SqliteStore, startToolCall } from './database.ts';
+import type { BusinessStore } from './store.ts';
+import { finishToolCall, rejectToolCall, startToolCall } from './store.ts';
 
 /**
  * Invocation-bound audit for a capability that records its own `tool_calls`
@@ -15,7 +16,7 @@ export interface ToolAuditRecord {
   fail(errorCode: string): void;
 }
 
-export function createToolAudit(store: SqliteStore, invocationId: bigint): ToolAudit {
+export function createToolAudit(store: BusinessStore, invocationId: bigint): ToolAudit {
   return {
     start(toolCallId, toolName, argumentsJson, sideEffect) {
       const startedAt = performance.now();

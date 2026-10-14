@@ -8,9 +8,10 @@ import { buildSceneContext, type SceneContextOptions } from '../src/context/scen
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { attachBucketToInvocation } from '../src/orchestration/invocation-queue.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import { type FileConfig, loadConfig, type RawConfig } from '../src/platform/config.ts';
+import type { FileConfig, RawConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import {
   appState,
   conversationContextCutoffs,

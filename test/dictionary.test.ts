@@ -34,14 +34,14 @@ import dictionaryPlugin from '../src/plugins/dictionary/index.ts';
 import { AdminServer } from '../src/ingress/admin/server.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import { type LoadedConfig, loadConfig } from '../src/platform/config.ts';
-import { ConfigReloader } from '../src/platform/config-reload.ts';
+import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
 import type { InvocationContext } from '../src/platform/invocation-context.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { createToolAudit } from '../src/store/tool-audit.ts';
 import { renderInvocationContext, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 

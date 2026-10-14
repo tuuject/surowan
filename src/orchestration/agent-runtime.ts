@@ -41,7 +41,8 @@ import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../pla
 import type { SecretStore } from '../platform/secrets.ts';
 import type { SystemResources, SystemSkill } from '../platform/system-resources.ts';
 import { applyToolSchemaKeywords } from '../platform/tool-schema.ts';
-import { resolveChatConfig, type SqliteStore } from '../store/database.ts';
+import type { BusinessStore } from '../store/store.ts';
+import { resolveChatConfig } from '../store/store.ts';
 import { createToolAudit } from '../store/tool-audit.ts';
 import {
   agentMessages,
@@ -82,7 +83,7 @@ export type CapabilityToolFactory = (
 export type DirectImageLoader = (context: InvocationContext, signal: AbortSignal) => Promise<readonly ImageContent[]>;
 
 export interface AgentRuntimeOptions {
-  readonly store: SqliteStore;
+  readonly store: BusinessStore;
   readonly configStore: RuntimeConfigurationStore;
   readonly secrets: SecretStore;
   readonly telegramApi: TelegramSendApi;
@@ -152,7 +153,7 @@ interface RunState {
 }
 
 export class AgentRuntime {
-  readonly #store: SqliteStore;
+  readonly #store: BusinessStore;
   readonly #configStore: RuntimeConfigurationStore;
   readonly #secrets: SecretStore;
   readonly #telegramApi: TelegramSendApi;

@@ -1,5 +1,5 @@
 import { eq, sql } from 'drizzle-orm';
-import type { SqliteStore } from './database.ts';
+import type { BusinessStore } from './store.ts';
 import { invocationMessages, media } from './schema.ts';
 
 export interface MessageSnapshotRow {
@@ -34,7 +34,7 @@ export interface MessageSnapshotRow {
  * while `sequence_no` stays monotonic per invocation.
  */
 export function snapshotInvocation(
-  store: SqliteStore,
+  store: BusinessStore,
   historyMessages: number,
   invocationId: bigint,
   bucketId: bigint,
@@ -90,7 +90,7 @@ export function snapshotInvocation(
   }
 }
 
-function nextSequence(store: SqliteStore, invocationId: bigint): bigint {
+function nextSequence(store: BusinessStore, invocationId: bigint): bigint {
   return (
     store.orm
       .all<{ value: bigint }>(
@@ -101,7 +101,7 @@ function nextSequence(store: SqliteStore, invocationId: bigint): bigint {
 }
 
 function insertSnapshot(
-  store: SqliteStore,
+  store: BusinessStore,
   invocationId: bigint,
   message: MessageSnapshotRow,
   section: 'history' | 'new',

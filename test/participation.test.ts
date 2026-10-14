@@ -9,7 +9,8 @@ import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { ConversationContextStore } from '../src/context/context-store.ts';
 import { ContextRefStore } from '../src/context/context-refs.ts';
 import { ContextBuilder } from '../src/context/context-builder.ts';
-import { type FileConfig, type RawConfig, loadConfig } from '../src/platform/config.ts';
+import type { FileConfig, RawConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import {
   type ParticipationRule,
@@ -19,7 +20,8 @@ import {
   mentionsBot,
 } from '../src/platform/participation.ts';
 import { type StartupCatchUpApi, runStartupCatchUp } from '../src/startup-catch-up.ts';
-import { SqliteStore, purgeExpiredData } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
+import { purgeExpiredData } from '../src/store/store.ts';
 import { renderInvocationContext, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];

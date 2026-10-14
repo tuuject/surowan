@@ -5,15 +5,16 @@ import { join } from 'node:path';
 import type { AssistantMessage } from '@earendil-works/pi-ai';
 import { afterEach, beforeAll, expect, test, vi } from 'vitest';
 import { AdminServer } from '../src/ingress/admin/server.ts';
-import { type FileConfig, type LoadedConfig, loadConfig, type ModelFileConfig } from '../src/platform/config.ts';
-import { ConfigReloader } from '../src/platform/config-reload.ts';
+import type { FileConfig, ModelFileConfig } from '../src/platform/config.ts';
+import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
 import { loadModelsDevCatalog, resetModelsDevCatalogCache } from '../src/platform/models-dev.ts';
 import { buildModelRegistry } from '../src/platform/providers.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { modelCalls } from '../src/store/schema.ts';
 import {
   startFixtureServer,

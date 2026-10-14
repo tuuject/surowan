@@ -1,8 +1,5 @@
-import { createHash } from 'node:crypto';
-import { readFile, stat } from 'node:fs/promises';
 import { isIP } from 'node:net';
-import { dirname, resolve } from 'node:path';
-import { type JSONPath, type ParseError, parse as parseJsonc, printParseErrorCode } from 'jsonc-parser';
+import type { JSONPath } from 'jsonc-parser';
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
 import type { TLocalizedValidationError } from 'typebox/error';
@@ -12,9 +9,6 @@ import {
   isSupportedBuiltinPreset,
   SUPPORTED_PROVIDER_APIS,
 } from './builtin-providers.ts';
-import { KEY_JAR_FILE } from './key-jar.ts';
-import { stripHtmlComments } from './prompt-markdown.ts';
-import { validatePromptTemplate } from './prompt-template.ts';
 import { supportedThinkingLevels } from './thinking-levels.ts';
 
 const Strict = { additionalProperties: false } as const;
@@ -268,7 +262,7 @@ const AdminSchema = Type.Object(
 );
 
 /**
- * The image section is soft-validated: `loadConfig` strips an invalid section
+ * The image section is soft-validated: `validateFileConfig` strips an invalid section
  * (recording a warning) instead of rejecting the whole configuration, so a
  * broken image block degrades to "image generation disabled" and can never
  * keep the bot from starting. The section's absence is simply "disabled".
@@ -453,61 +447,17 @@ export type ToolModelConfig = RawConfig['tool_model'];
 export type ProviderConfig = RawConfig['providers'][string];
 export type McpServerConfig = NonNullable<RawConfig['mcp']>['servers'][number];
 
-export interface LoadedConfig {
-  readonly config: RawConfig;
-  readonly fileConfig: FileConfig;
-  readonly configPath: string;
-  readonly hash: string;
-  /**
-   * Soft-failure notices. Today only the image section degrades: a structurally
-   * invalid block is stripped (so the process starts with image generation
-   * disabled) and its schema errors are reported here instead of thrown.
-   */
-  readonly warnings: readonly string[];
-}
-
-const validator = Compile(ConfigSchema);
-const imageValidator = Compile(ImageSectionSchema);
-
-function describeOffset(source: string, offset: number): string {
-  let line = 0;
-  let lineStart = 0;
-  for (let index = 0; index < offset && index < source.length; index += 1) {
-    if (source.charCodeAt(index) === 0x0a) {
-      line += 1;
-      lineStart = index + 1;
-    }
-  }
-  return `line ${line + 1}, column ${offset - lineStart + 1}`;
-}
-
-export async function loadConfig(path: string): Promise<LoadedConfig> {
-  const configPath = resolve(path);
-  const text = await readFile(configPath, 'utf8');
-  // jsonc-parser records a UTF-8 BOM as an invalid symbol, so strip it before
-  // parsing. The hash below still covers the raw text.
-  const source = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-  const parseErrors: ParseError[] = [];
-  const parsed = parseJsonc(source, parseErrors, { allowTrailingComma: true }) as unknown;
-  if (parsed === undefined || parseErrors.length > 0) {
-    const details = parseErrors
-      .slice(0, 10)
-      .map((error) => `${printParseErrorCode(error.error)} at ${describeOffset(source, error.offset)}`)
-      .join('; ');
-    throw new Error(`Invalid JSONC: ${details || 'empty document'}`);
-  }
+/** Validate a parsed configuration independently of its source or location. */
+export function validateFileConfig(parsed: unknown): { fileConfig: FileConfig; warnings: readonly string[] } {
   const plaintext = plaintextSecrets(parsed);
   if (plaintext.length > 0) {
     // The schema would only report a failed union at each of these paths.
     throw new Error(
-      `Invalid config: plaintext secrets are not accepted; move them into ${KEY_JAR_FILE} and reference them as { "jar": "<name>" }: ${plaintext.map((secret) => secret.path.join('.')).join(', ')}`,
+      `Invalid config: plaintext secrets are not accepted; move them into key.json and reference them as { "jar": "<name>" }: ${plaintext.map((secret) => secret.path.join('.')).join(', ')}`,
     );
   }
-  // The image section degrades instead of failing the load: a structurally
-  // invalid block is stripped so the process starts with image generation
-  // disabled, and the schema errors surface as warnings (`check-config`,
-  // serve logs). A structurally valid section that the package contract
-  // rejects is handled later, at snapshot-prepare time.
+  // Invalid image configuration is intentionally disabled with a warning,
+  // while all other sections fail validation.
   const warnings: string[] = [];
   const root = asRecord(parsed);
   if (root.image !== undefined && !imageValidator.Check(root.image)) {
@@ -530,14 +480,11 @@ export async function loadConfig(path: string): Promise<LoadedConfig> {
     throw new Error(`Invalid config: ${details}`);
   }
   validateSemantics(parsed);
-  const { config, promptFiles } = await resolvePrompts(parsed, dirname(configPath));
-  const hash = createHash('sha256');
-  hash.update(text);
-  for (const file of promptFiles) {
-    hash.update(`\u0000${file.content}`);
-  }
-  return { config, fileConfig: parsed, configPath, hash: hash.digest('hex'), warnings };
+  return { fileConfig: parsed, warnings };
 }
+
+const validator = Compile(ConfigSchema);
+const imageValidator = Compile(ImageSectionSchema);
 
 /**
  * The SecretRef fields of a parsed configuration that still hold a plain
@@ -586,42 +533,6 @@ function formatValidationError(error: TLocalizedValidationError): string {
   return error.message;
 }
 
-interface PromptFile {
-  readonly content: string;
-}
-
-async function resolvePrompts(
-  fileConfig: FileConfig,
-  directory: string,
-): Promise<{ config: RawConfig; promptFiles: PromptFile[] }> {
-  const promptFiles: PromptFile[] = [];
-  const systemPrompt = await readPromptFile(
-    resolve(directory, fileConfig.agent.system_prompt_file),
-    'agent.system_prompt_file',
-    promptFiles,
-  );
-  if (systemPrompt.length === 0) {
-    throw new Error(
-      `agent.system_prompt_file is empty or contains only HTML comments: ${fileConfig.agent.system_prompt_file}`,
-    );
-  }
-  validatePromptTemplate(systemPrompt, 'agent.system_prompt_file');
-  const instructionsByChatId = new Map<number, string>();
-  for (const chat of fileConfig.telegram.chats) {
-    const instructions =
-      chat.instructions_file === undefined
-        ? ''
-        : await readPromptFile(
-            resolve(directory, chat.instructions_file),
-            `chat ${chat.id} instructions_file`,
-            promptFiles,
-          );
-    validatePromptTemplate(instructions, `chat ${chat.id} instructions_file`);
-    instructionsByChatId.set(chat.id, instructions);
-  }
-  return { promptFiles, config: assembleRawConfig(fileConfig, systemPrompt, instructionsByChatId) };
-}
-
 /**
  * Combines a validated `FileConfig` with already-read prompt texts.
  *
@@ -647,41 +558,6 @@ export function assembleRawConfig(
     agent: { ...agent, system_prompt: systemPrompt },
     telegram: { ...fileConfig.telegram, chats },
   };
-}
-
-async function readPromptFile(path: string, label: string, sink: PromptFile[]): Promise<string> {
-  let raw: string;
-  try {
-    raw = await readFile(path, 'utf8');
-  } catch (error) {
-    throw new Error(`Cannot read ${label} file ${path}: ${error instanceof Error ? error.message : String(error)}`);
-  }
-  // A UTF-8 BOM must not reach the prompt text; the hash still covers the raw
-  // bytes.
-  if (raw.charCodeAt(0) === 0xfeff) {
-    raw = raw.slice(1);
-  }
-  if (raw.includes('\u0000')) {
-    throw new Error(`${label} file ${path} contains a NUL character`);
-  }
-  // The hash keeps covering the raw file, so a comment-only edit still changes
-  // config_hash; the prompt itself sees only the text outside HTML comments.
-  sink.push({ content: raw });
-  return stripHtmlComments(raw);
-}
-
-export async function assertConfigPermissions(configPath: string): Promise<void> {
-  if (process.platform === 'win32') {
-    return;
-  }
-  const file = await stat(configPath);
-  const parent = await stat(resolve(configPath, '..'));
-  if ((file.mode & 0o777) !== 0o600) {
-    throw new Error(`Config must have mode 0600: ${configPath}`);
-  }
-  if ((parent.mode & 0o777) !== 0o700) {
-    throw new Error(`Config parent must have mode 0700: ${resolve(configPath, '..')}`);
-  }
 }
 
 export function adminPublicOrigin(value: string): string {

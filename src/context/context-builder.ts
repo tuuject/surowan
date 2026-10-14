@@ -8,7 +8,8 @@ import type { RawConfig } from '../platform/config.ts';
 import type { CompletionContext, DirectImage, VisibleSender } from '../platform/invocation-context.ts';
 import type { PromptTemplateModel, PromptTemplateValues } from '../platform/prompt-template.ts';
 import { renderSkillIndexPrompt, type SystemSkill } from '../platform/system-resources.ts';
-import { resolveChatConfig, type SqliteStore } from '../store/database.ts';
+import type { BusinessStore } from '../store/store.ts';
+import { resolveChatConfig } from '../store/store.ts';
 import { imageDeliveryState } from '../store/image-delivery.ts';
 import { LongTaskService } from '../store/long-tasks.ts';
 import type { ContextInjector } from './context-injector.ts';
@@ -183,14 +184,14 @@ export interface ContextInjectionContribution {
 }
 
 export class ContextBuilder {
-  readonly #store: SqliteStore;
+  readonly #store: BusinessStore;
   readonly #memory: MemoryStore;
   readonly #skills: readonly SystemSkill[];
   readonly #refs: ContextRefStore;
   readonly #injectors: readonly ContextInjector[];
 
   constructor(
-    store: SqliteStore,
+    store: BusinessStore,
     refs: ContextRefStore,
     skills: readonly SystemSkill[] = [],
     injectors: readonly ContextInjector[] = [],
@@ -303,26 +304,22 @@ export class ContextBuilder {
   renderInjection(config: RawConfig, input: InjectionInput): Injection {
     const { identity } = input;
     const now = input.now ?? new Date();
-    const rows = this.#store.db
-      .prepare<[bigint, bigint], InvocationMessageRow>(
-        `SELECT im.section, im.sequence_no, im.message_id, im.revision_id, im.snapshot_json,
+    const rows = this.#store.orm.all<InvocationMessageRow>(
+      sql`SELECT im.section, im.sequence_no, im.message_id, im.revision_id, im.snapshot_json,
                 m.conversation_id, v.message_thread_id
          FROM invocation_messages im
          JOIN messages m ON m.id = im.message_id
          JOIN conversations v ON v.id = m.conversation_id
-         WHERE im.invocation_id = ? AND (im.source_bucket_id = ? OR im.section = 'history')
+         WHERE im.invocation_id = ${identity.invocationId} AND (im.source_bucket_id = ${input.bucketId} OR im.section = 'history')
          ORDER BY im.sequence_no`,
-      )
-      .all(identity.invocationId, input.bucketId);
-    const senderRows = this.#store.db
-      .prepare<[bigint], SenderIdentityRow>(
-        `SELECT im.message_id, s.telegram_id, s.display_name, s.username
+    );
+    const senderRows = this.#store.orm.all<SenderIdentityRow>(
+      sql`SELECT im.message_id, s.telegram_id, s.display_name, s.username
          FROM invocation_messages im
          JOIN message_revisions r ON r.id = im.revision_id
          JOIN senders s ON s.id = r.sender_id
-         WHERE im.invocation_id = ? AND s.telegram_type = 'user'`,
-      )
-      .all(identity.invocationId);
+         WHERE im.invocation_id = ${identity.invocationId} AND s.telegram_type = 'user'`,
+    );
     const senderByMessage = new Map<string, VisibleSender>();
     for (const sender of senderRows) {
       senderByMessage.set(sender.message_id.toString(), {
@@ -597,15 +594,12 @@ export class ContextBuilder {
   }
 
   #stickerCatalog(): string {
-    return this.#store.db
-      .prepare<[], StickerCatalogRow>(
-        `SELECT s.id, s.emoji
+    return this.#store.orm
+      .all<StickerCatalogRow>(sql`SELECT s.id, s.emoji
          FROM stickers s
          JOIN sticker_sets ss ON ss.id = s.sticker_set_id
          WHERE s.active = 1 AND s.index_state = 'success' AND ss.configured = 1
-         ORDER BY s.id`,
-      )
-      .all()
+         ORDER BY s.id`)
       .map((sticker) => `${sticker.id}:${sticker.emoji ?? '∅'}`)
       .join(' ');
   }

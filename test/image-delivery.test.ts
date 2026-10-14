@@ -8,9 +8,10 @@ import { createSendTool, type TelegramSendApi } from '../src/capabilities/send-t
 import { ContextRefStore } from '../src/context/context-refs.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import { loadConfig, type RawConfig } from '../src/platform/config.ts';
+import type { RawConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { CapabilityRefResolver, CompletionContext } from '../src/platform/invocation-context.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import {
   invocationCapabilities,
   renderInvocationContext,

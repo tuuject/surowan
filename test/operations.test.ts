@@ -8,15 +8,15 @@ import type { Update } from 'grammy/types';
 import { afterAll, expect, test } from 'vitest';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import { loadConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import {
   backupDatabase,
-  purgeExpiredData,
   ServeLock,
   SqliteStore,
   stopRunningInstance,
   watchStopRequests,
-} from '../src/store/database.ts';
+} from '../src/adapters/local-monolith/database.ts';
+import { purgeExpiredData } from '../src/store/store.ts';
 import { pathExists, sleep, testConfigStore, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];

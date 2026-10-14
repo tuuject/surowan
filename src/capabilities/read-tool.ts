@@ -2,7 +2,8 @@ import type { AgentTool } from '@earendil-works/pi-agent-core';
 import Type from 'typebox';
 import type { InvocationContext } from '../platform/invocation-context.ts';
 import { SystemResourceError, type SystemResources } from '../platform/system-resources.ts';
-import { finishToolCall, type SqliteStore, startToolCall } from '../store/database.ts';
+import type { BusinessStore } from '../store/store.ts';
+import { finishToolCall, startToolCall } from '../store/store.ts';
 
 const ReadInputSchema = Type.Object(
   {
@@ -13,7 +14,7 @@ const ReadInputSchema = Type.Object(
 );
 
 export interface ReadToolOptions {
-  readonly store: SqliteStore;
+  readonly store: BusinessStore;
   readonly context: InvocationContext;
   readonly resources: SystemResources;
 }

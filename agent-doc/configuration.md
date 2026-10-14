@@ -6,6 +6,8 @@ Plastic Wan 使用严格 JSONC 配置。Schema 位于 `src/platform/config.ts`�
 
 ## 加载语义
 
+文件加载入口为 `src/adapters/local-monolith/config.ts` 的 `loadConfig`；JSONC 写回与重载协调器也属于该 adapter。`platform/config.ts` 的纯校验与 `platform/runtime-config.ts` 的快照管理不读取本地文件，其他宿主可以直接提供已准备好的配置与 Prompt 文本。
+
 - CLI 必须显式传入 `--config <path>`。
 - 配置在 `serve` 启动时读取一次；只有[运行时配置热更新](#运行时配置热更新)列出的白名单字段可以在运行中应用，其余字段修改后必须重启。
 - 配置哈希是原始 JSONC 文本与所有 Prompt 文件内容的 SHA-256，写入 Invocation 并打印在 `serve_started` 日志中。

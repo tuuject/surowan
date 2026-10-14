@@ -4,7 +4,8 @@ import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
 import type { RawConfig } from '../platform/config.ts';
 import type { CapabilityRefResolver, InvocationContext } from '../platform/invocation-context.ts';
-import { finishToolCall, type SqliteStore, startToolCall } from '../store/database.ts';
+import type { BusinessStore } from '../store/store.ts';
+import { finishToolCall, startToolCall } from '../store/store.ts';
 import { mediaAnalyses, stickerSets, stickers } from '../store/schema.ts';
 import type { MediaService, StickerIndexAnalysis } from './media/media.ts';
 
@@ -64,14 +65,14 @@ interface SearchRow {
 }
 
 export interface StickerServiceOptions {
-  readonly store: SqliteStore;
+  readonly store: BusinessStore;
   readonly config: RawConfig;
   readonly api: StickerApi;
   readonly media: MediaService;
 }
 
 export class StickerService {
-  readonly #store: SqliteStore;
+  readonly #store: BusinessStore;
   readonly #config: RawConfig;
   readonly #api: StickerApi;
   readonly #media: MediaService;

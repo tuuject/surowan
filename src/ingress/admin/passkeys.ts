@@ -9,7 +9,7 @@ import { and, eq } from 'drizzle-orm';
 import Type from 'typebox';
 import { Compile } from 'typebox/compile';
 import { adminPublicOrigin } from '../../platform/config.ts';
-import { asRunResult, type Orm } from '../../store/database.ts';
+import { asRunResult, type Orm } from '../../store/store.ts';
 import { adminPasskeys, adminUsers } from '../../store/schema.ts';
 import { type AdminAuth, AdminAuthError, hashToken } from './auth.ts';
 

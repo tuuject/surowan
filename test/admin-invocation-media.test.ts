@@ -12,8 +12,9 @@ import {
   type InvocationMediaVariant,
   listInvocationMedia,
 } from '../src/ingress/admin/invocation-media.ts';
-import { loadConfig } from '../src/platform/config.ts';
-import { type Orm, SqliteStore } from '../src/store/database.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
+import type { Orm } from '../src/store/store.ts';
 import {
   buckets,
   chats,

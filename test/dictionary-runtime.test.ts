@@ -12,13 +12,14 @@ import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import { type FileConfig, loadConfig, type RawConfig } from '../src/platform/config.ts';
+import type { FileConfig, RawConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { SystemResources } from '../src/platform/system-resources.ts';
+import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
 import { loadPlugins } from '../src/plugins/plugin.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 
 /**
@@ -111,7 +112,7 @@ async function fixture(transform?: (config: FileConfig) => void): Promise<Fixtur
       telegramApi: sendApi,
       mentionTyping: new MentionTyping(sendApi),
       bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-      systemResources: SystemResources.empty(),
+      systemResources: emptySystemResources(),
       // The same injectors the composition root hands the runtime, so the
       // dictionary plugin's injection runs in these faux-provider invocations.
       contextInjectors: loadPlugins(BUILTIN_PLUGINS).contextInjectors,

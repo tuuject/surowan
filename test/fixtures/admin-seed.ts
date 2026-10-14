@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
-import type { Orm, SqliteStore } from '../../src/store/database.ts';
+import type { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
+import type { Orm } from '../../src/store/store.ts';
 import {
   agentMessages,
   buckets,

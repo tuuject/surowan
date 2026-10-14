@@ -1,6 +1,6 @@
 import { password } from '@inquirer/prompts';
-import { assertConfigPermissions, loadConfig } from '../../platform/config.ts';
-import { ServeLock, SqliteStore } from '../../store/database.ts';
+import { assertConfigPermissions, loadConfig } from '../../adapters/local-monolith/config.ts';
+import { ServeLock, SqliteStore } from '../../adapters/local-monolith/database.ts';
 import { AdminAuth } from './auth.ts';
 
 /**

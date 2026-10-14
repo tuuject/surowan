@@ -5,7 +5,8 @@ import { GrammyError, HttpError } from 'grammy';
 import type { MessageEntity } from 'grammy/types';
 import Type, { type Static } from 'typebox';
 import type { CapabilityRefResolver, InvocationContext } from '../platform/invocation-context.ts';
-import { finishToolCall, rejectToolCall, type SqliteStore, startToolCall } from '../store/database.ts';
+import type { BusinessStore } from '../store/store.ts';
+import { finishToolCall, rejectToolCall, startToolCall } from '../store/store.ts';
 import { imageDeliveryState } from '../store/image-delivery.ts';
 import {
   chats,
@@ -182,7 +183,7 @@ export interface TelegramSendApi {
 }
 
 export interface SendToolEnvironment {
-  readonly store: SqliteStore;
+  readonly store: BusinessStore;
   readonly api: TelegramSendApi;
   readonly context: InvocationContext;
   readonly capabilities: CapabilityRefResolver;
@@ -842,16 +843,16 @@ function createSendReplyTool(
  */
 function recentSendCount(environment: SendToolEnvironment, now: Date): number {
   const since = new Date(now.getTime() - environment.sendRateLimit.windowSeconds * 1_000).toISOString();
-  const row = environment.store.db
-    .prepare<[bigint, string], { count: bigint }>(
-      `SELECT COUNT(*) AS count
+  const row = environment.store.orm
+    .all<{ count: bigint }>(
+      sql`SELECT COUNT(*) AS count
        FROM telegram_sends ts
        JOIN conversations v ON v.id = ts.conversation_id
        JOIN chats c ON c.id = v.chat_id
-       WHERE c.telegram_chat_id = ?
-         AND ts.created_at >= ?`,
+       WHERE c.telegram_chat_id = ${environment.context.chatId}
+         AND ts.created_at >= ${since}`,
     )
-    .get(environment.context.chatId, since);
+    .at(0);
   return Number(row?.count ?? 0n);
 }
 

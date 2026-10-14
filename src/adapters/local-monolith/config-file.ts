@@ -3,7 +3,7 @@ import { lstat, open, readFile, rename, unlink } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import { applyEdits, type JSONPath, modify, parse } from 'jsonc-parser';
 import { assertConfigPermissions, type LoadedConfig, loadConfig } from './config.ts';
-import { type KeyJar, keyJarPath, newKeyJarName, referencedJarNames, updateKeyJar } from './key-jar.ts';
+import { type KeyJar, keyJarPath, newKeyJarName, referencedJarNames, updateKeyJar } from '../../platform/key-jar.ts';
 
 export type ConfigWriteErrorCode =
   | 'config_symlink'

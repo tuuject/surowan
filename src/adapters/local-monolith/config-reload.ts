@@ -1,20 +1,14 @@
 import { createHash } from 'node:crypto';
 import { type Api, getSupportedThinkingLevels, type Model } from '@earendil-works/pi-ai';
-import {
-  type AgentSettings,
-  assertConfigPermissions,
-  type FileConfig,
-  type LoadedConfig,
-  loadConfig,
-  type RawConfig,
-  validateSemantics,
-} from './config.ts';
-import { type ConfigChange, type ConfigSource, diffConfig } from './config-diff.ts';
+import { type AgentSettings, type FileConfig, type RawConfig, validateSemantics } from '../../platform/config.ts';
+import { assertConfigPermissions, type LoadedConfig, loadConfig } from './config.ts';
+import { type ConfigChange, type ConfigSource, diffConfig } from '../../platform/config-diff.ts';
+import type { BotCommandConfigWriter, ConfigErrorCode } from '../../platform/config-write.ts';
 import { type ConfigEdit, ConfigWriteError, readConfigRevision, writeConfigEdits } from './config-file.ts';
-import { type AgentModelSwitcher, ModelSwitchError } from './model-switch.ts';
-import { buildModelRegistry, configuredAgentModels } from './providers.ts';
-import type { ConfigurationModels, RuntimeConfigurationStore } from './runtime-config.ts';
-import { SecretResolutionError, type SecretStore } from './secrets.ts';
+import { type AgentModelSwitcher, ModelSwitchError } from '../../platform/model-switch.ts';
+import { buildModelRegistry, configuredAgentModels } from '../../platform/providers.ts';
+import type { ConfigurationModels, RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
+import { SecretResolutionError, type SecretStore } from '../../platform/secrets.ts';
 
 /**
  * The image configuration gateway. The reloader prepares a candidate snapshot
@@ -26,19 +20,6 @@ export interface ImageConfigGateway {
   prepare: (candidate: RawConfig) => Promise<unknown>;
   publish: (snapshot: unknown) => void;
 }
-
-export type ConfigErrorCode =
-  | 'config_permissions'
-  | 'config_invalid'
-  | 'config_conflict'
-  | 'candidate_invalid'
-  | 'model_unusable'
-  | 'secret_unresolved'
-  | 'unknown_provider'
-  | 'unknown_model'
-  | 'not_text_capable'
-  | 'config_symlink'
-  | 'config_write_failed';
 
 export interface ConfigErrorDetail {
   readonly code: ConfigErrorCode;
@@ -96,7 +77,7 @@ export interface ConfigReloaderOptions {
  * before anything is published: the file itself, so the next startup will work,
  * and the candidate, so the running process will.
  */
-export class ConfigReloader {
+export class ConfigReloader implements BotCommandConfigWriter {
   readonly #configPath: string;
   readonly #store: RuntimeConfigurationStore;
   readonly #modelSwitcher: AgentModelSwitcher;

@@ -7,15 +7,16 @@ import type { Update } from 'grammy/types';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
-import { loadConfig, type AgentSettings, type FileConfig, type RawConfig } from '../src/platform/config.ts';
+import type { AgentSettings, FileConfig, RawConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { eq } from 'drizzle-orm';
 import { buckets, chatMigrations, invocations } from '../src/store/schema.ts';
 import { buildModelRegistry } from '../src/platform/providers.ts';
 import { RuntimeConfigurationStore, type InvocationConfigSnapshot } from '../src/platform/runtime-config.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { SystemResources } from '../src/platform/system-resources.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { emptySystemResources } from '../src/platform/system-resources.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import type { TelegramSendApi } from '../src/capabilities/send-tool.ts';
 import { type TestRegistry, sleep, testConfigJsonc, writeTestConfig } from './helpers.ts';
@@ -222,7 +223,7 @@ async function setup(): Promise<Fixture> {
           secrets: new SecretStore(),
           telegramApi: sendApi,
           bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-          systemResources: SystemResources.empty(),
+          systemResources: emptySystemResources(),
           conversationRuntime,
         }),
         registry: fauxModels,

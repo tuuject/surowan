@@ -1,9 +1,9 @@
 import type { RawConfig } from '../../platform/config.ts';
-import { assertConfigPermissions, loadConfig } from '../../platform/config.ts';
-import type { ConfigReloader } from '../../platform/config-reload.ts';
+import { assertConfigPermissions, loadConfig } from '../../adapters/local-monolith/config.ts';
+import type { ConfigReloader } from '../../adapters/local-monolith/config-reload.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
-import { type Orm, resolveChatConfig } from '../../store/database.ts';
+import { type Orm, resolveChatConfig } from '../../store/store.ts';
 import { hashPromptContent } from '../../store/prompt-versions.ts';
 import { AdminQueryError } from './audit.ts';
 import { listProviders } from './providers-admin.ts';

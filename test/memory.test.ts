@@ -5,9 +5,10 @@ import { join } from 'node:path';
 import type { Update } from 'grammy/types';
 import Compile from 'typebox/compile';
 import { AdminServer } from '../src/ingress/admin/server.ts';
-import { type LoadedConfig, loadConfig } from '../src/platform/config.ts';
+import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
-import { purgeExpiredData, SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
+import { purgeExpiredData } from '../src/store/store.ts';
 import {
   AddMemoryInputSchema,
   createMemoryTools,

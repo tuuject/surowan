@@ -6,7 +6,7 @@ import {
   parseMessageTimeInstant,
   parseMessageTimeWindow,
 } from '../../platform/message-time.ts';
-import { type Orm, resolveChatConfig } from '../../store/database.ts';
+import { type Orm, resolveChatConfig } from '../../store/store.ts';
 import {
   agentMessages,
   chats,

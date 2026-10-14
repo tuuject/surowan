@@ -1,47 +1,48 @@
+/** Local process composition root: owns transport, files, locks and lifecycle. */
 import { eq } from 'drizzle-orm';
 import { Bot, type Context } from 'grammy';
-import { capability } from './capabilities/execute-tool.ts';
-import { McpManager } from './capabilities/mcp.ts';
-import { MediaService } from './capabilities/media/media.ts';
-import { TelegramMediaClient } from './capabilities/media/media-download.ts';
-import { StickerService } from './capabilities/stickers.ts';
-import { MentionTyping } from './capabilities/mention-typing.ts';
-import { grammySendApi } from './capabilities/telegram-send-api.ts';
-import { createMemoryTools, MemoryStore } from './context/memory.ts';
-import { createImageBridge, type ImageBridge } from './image/bridge.ts';
-import { createImageService, type ImageService } from './image/service.ts';
-import { AdminQueryError } from './ingress/admin/audit.ts';
-import { AdminServer } from './ingress/admin/server.ts';
-import { TelegramIngestion } from './ingress/telegram-ingestion.ts';
-import { AgentRuntime, type CapabilityToolFactory, type ToolFactory } from './orchestration/agent-runtime.ts';
+import { capability } from '../../capabilities/execute-tool.ts';
+import { McpManager } from '../../capabilities/mcp.ts';
+import { MediaService } from '../../capabilities/media/media.ts';
+import { TelegramMediaClient } from '../../capabilities/media/media-download.ts';
+import { StickerService } from '../../capabilities/stickers.ts';
+import { MentionTyping } from '../../capabilities/mention-typing.ts';
+import { grammySendApi } from '../../capabilities/telegram-send-api.ts';
+import { createMemoryTools, MemoryStore } from '../../context/memory.ts';
+import { createImageBridge, type ImageBridge } from '../../image/bridge.ts';
+import { createImageService, type ImageService } from '../../image/service.ts';
+import { AdminQueryError } from '../../ingress/admin/audit.ts';
+import { AdminServer } from '../../ingress/admin/server.ts';
+import { TelegramIngestion } from '../../ingress/telegram-ingestion.ts';
+import type { CapabilityToolFactory, ToolFactory } from '../../orchestration/agent-runtime.ts';
+import { createCoreRuntime } from '../../orchestration/runtime.ts';
 import {
   BOT_COMMANDS,
   BotCommandService,
   commandSender,
   type ParsedCommand,
   registerBotCommands,
-} from './orchestration/bot-commands.ts';
-import { ConversationRuntime } from './orchestration/conversation-runtime.ts';
-import { ReplayError, ReplayRunner } from './orchestration/replay.ts';
-import { BucketScheduler } from './orchestration/scheduler.ts';
-import { KeyedSemaphore } from './platform/concurrency.ts';
-import { assertConfigPermissions, loadConfig } from './platform/config.ts';
-import { ConfigReloader } from './platform/config-reload.ts';
-import { previewContext, unavailableCapabilities } from './platform/invocation-context.ts';
-import { keyJarPath } from './platform/key-jar.ts';
-import { AgentModelSwitcher } from './platform/model-switch.ts';
-import { buildModelRegistry, configuredAgentModels } from './platform/providers.ts';
-import { RuntimeConfigurationStore } from './platform/runtime-config.ts';
-import { SecretStore } from './platform/secrets.ts';
-import { BUNDLED_SYSTEM_RESOURCES_DIR, SystemResources } from './platform/system-resources.ts';
-import { BUILTIN_PLUGINS } from './plugins/builtin.ts';
-import { loadPlugins } from './plugins/plugin.ts';
-import { runStartupCatchUp } from './startup-catch-up.ts';
-import { ServeLock, SqliteStore, stopRunningInstance, watchStopRequests } from './store/database.ts';
-import { LongTaskService } from './store/long-tasks.ts';
-import { activeSleepUntil } from './store/sleep.ts';
-import { recordPromptVersionsFromConfig } from './store/prompt-versions.ts';
-import { appState } from './store/schema.ts';
+} from '../../orchestration/bot-commands.ts';
+import { ReplayError, ReplayRunner } from '../../orchestration/replay.ts';
+import type { BucketScheduler } from '../../orchestration/scheduler.ts';
+import { KeyedSemaphore } from '../../platform/concurrency.ts';
+import { assertConfigPermissions, loadConfig } from './config.ts';
+import { ConfigReloader } from './config-reload.ts';
+import { previewContext, unavailableCapabilities } from '../../platform/invocation-context.ts';
+import { keyJarPath } from '../../platform/key-jar.ts';
+import { AgentModelSwitcher } from '../../platform/model-switch.ts';
+import { buildModelRegistry, configuredAgentModels } from '../../platform/providers.ts';
+import { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
+import { SecretStore } from '../../platform/secrets.ts';
+import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from './system-resources.ts';
+import { BUILTIN_PLUGINS } from '../../plugins/builtin.ts';
+import { loadPlugins } from '../../plugins/plugin.ts';
+import { runStartupCatchUp } from '../../startup-catch-up.ts';
+import { ServeLock, SqliteStore, stopRunningInstance, watchStopRequests } from './database.ts';
+import { LongTaskService } from '../../store/long-tasks.ts';
+import { activeSleepUntil } from '../../store/sleep.ts';
+import { recordPromptVersionsFromConfig } from '../../store/prompt-versions.ts';
+import { appState } from '../../store/schema.ts';
 
 const ALLOWED_UPDATES = ['message', 'edited_message', 'my_chat_member'] as const;
 
@@ -199,11 +200,8 @@ export async function serve(configPath: string, takeover = false): Promise<void>
     const plugins = loadPlugins(BUILTIN_PLUGINS, {
       image: imageBridge,
     });
-    const systemResources = await SystemResources.load(BUNDLED_SYSTEM_RESOURCES_DIR, plugins.skillDirectories);
+    const systemResources = await FileSystemResources.load(BUNDLED_SYSTEM_RESOURCES_DIR, plugins.skillDirectories);
     logEvent('system_skills_loaded', { skills: systemResources.skills.map((skill) => skill.name).join(',') });
-    const conversationRuntime = new ConversationRuntime({
-      agentCacheSize: loaded.config.agent.context.agent_cache_size,
-    });
     // Runtime-internal capabilities: dispatched through the execute primitive.
     const capabilityTools: CapabilityToolFactory = (context, deadline, capabilities) => [
       capability(media.createReadImageTool(context, capabilities, deadline), false),
@@ -225,7 +223,11 @@ export async function serve(configPath: string, takeover = false): Promise<void>
     const sendApi = grammySendApi(bot.api);
     const mentionStatus = new MentionTyping(sendApi);
     mentionTyping = mentionStatus;
-    const runtime = new AgentRuntime({
+    const {
+      runtime,
+      scheduler: startedScheduler,
+      conversationRuntime,
+    } = createCoreRuntime({
       store,
       configStore,
       secrets,
@@ -262,16 +264,9 @@ export async function serve(configPath: string, takeover = false): Promise<void>
       directImageLoader: (context, signal) => media.loadDirectImages(context.directImages, signal),
       capabilityTools,
       additionalTools,
-      conversationRuntime,
+      tasks,
       skillVisibility: (skill) => skill.name !== 'image-generation' || (imageBridge?.enabled() ?? false),
     });
-    const startedScheduler = new BucketScheduler(
-      store,
-      configStore,
-      (invocationId, snapshot, signal) => runtime.run(invocationId, snapshot, signal),
-      conversationRuntime,
-      tasks,
-    );
     scheduler = startedScheduler;
     const preview = previewContext();
     const configReloader = new ConfigReloader({

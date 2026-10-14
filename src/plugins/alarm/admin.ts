@@ -1,6 +1,6 @@
 import { and, eq, type SQL, sql } from 'drizzle-orm';
 import { AdminQueryError, type ListQuery, type Page, parseId, parseLimit } from '../../ingress/admin/audit.ts';
-import type { Orm } from '../../store/database.ts';
+import type { Orm } from '../../store/store.ts';
 import type { LongTaskService } from '../../store/long-tasks.ts';
 import { longTasks } from '../../store/schema.ts';
 

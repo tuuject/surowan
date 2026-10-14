@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import type { Orm } from './database.ts';
+import type { Orm } from './store.ts';
 import { telegramSends } from './schema.ts';
 
 /** Telegram audit is the delivery ledger, including attempts interrupted by a restart. */

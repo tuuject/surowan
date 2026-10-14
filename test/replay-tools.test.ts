@@ -12,7 +12,8 @@ import {
   type ReplayToolRegistry,
   type ReplayTools,
 } from '../src/orchestration/replay-tools.ts';
-import { BUNDLED_SYSTEM_RESOURCES_DIR, SystemResources } from '../src/platform/system-resources.ts';
+import { emptySystemResources } from '../src/platform/system-resources.ts';
+import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from '../src/adapters/local-monolith/system-resources.ts';
 import { AlarmInputSchema, DeleteAlarmInputSchema, ListAlarmInputSchema } from '../src/plugins/alarm/alarm.ts';
 import { ImageGenerateInputSchema, ListImageModelsInputSchema } from '../src/plugins/image/image.ts';
 
@@ -87,7 +88,7 @@ function imageModel(overrides: Partial<PublicModel> = {}): PublicModel {
 test('send synthesizes text, image, and sticker messages and preserves arguments', async () => {
   const replay = createReplayTools(
     replayInput({ tools: [definition('send', SendInputSchema)] }),
-    SystemResources.empty(),
+    emptySystemResources(),
   );
   const send = toolOf(replay.tools, 'send');
   const textResult = await send.execute('send-1', { kind: 'text', text: 'hello', reply_to_message_id: '42' });
@@ -139,7 +140,7 @@ test('send synthesizes text, image, and sticker messages and preserves arguments
 
 test('send rejects repeated reply targets within the scene without recording another output', async () => {
   const registry = replayInput({ tools: [definition('send', SendInputSchema)] });
-  const replay = createReplayTools(registry, SystemResources.empty(), { replyMessageIds: new Set(['42', '43']) });
+  const replay = createReplayTools(registry, emptySystemResources(), { replyMessageIds: new Set(['42', '43']) });
   const send = toolOf(replay.tools, 'send');
   await send.execute('first', { text: 'first answer', reply_to_message_id: '42' });
   await expect(send.execute('duplicate-text', { text: 'different answer', reply_to_message_id: '42' })).rejects.toThrow(
@@ -153,7 +154,7 @@ test('send rejects repeated reply targets within the scene without recording ano
   expect(replay.outputs.map((output) => output.reply_to_message_id)).toEqual(['42', '43', null]);
   expect(replay.dispatches).toHaveLength(5);
   // A replay is an isolated experiment, not a new read of production delivery state.
-  const separate = createReplayTools(registry, SystemResources.empty());
+  const separate = createReplayTools(registry, emptySystemResources());
   await toolOf(separate.tools, 'send').execute('fresh', { text: 'new scene', reply_to_message_id: '42' });
   expect(separate.outputs).toHaveLength(1);
 });
@@ -161,7 +162,7 @@ test('send rejects repeated reply targets within the scene without recording ano
 test('send allows repeated reply targets when configured without bypassing scene visibility', async () => {
   const replay = createReplayTools(
     replayInput({ tools: [definition('send', SendInputSchema)] }),
-    SystemResources.empty(),
+    emptySystemResources(),
     { allowReplyMessageMultipleTimes: true, replyMessageIds: new Set(['42']) },
   );
   const send = toolOf(replay.tools, 'send');
@@ -177,7 +178,7 @@ test('send allows repeated reply targets when configured without bypassing scene
 test('send_reply synthesizes one send output per part and replies with the first part only', async () => {
   const replay = createReplayTools(
     replayInput({ tools: [definition('send', SendInputSchema), definition('send_reply', SendReplyInputSchema)] }),
-    SystemResources.empty(),
+    emptySystemResources(),
     { replyMessageIds: new Set(['42']), maxTextLength: 20 },
   );
   const sendReply = toolOf(replay.tools, 'send_reply');
@@ -221,7 +222,7 @@ test('memory capabilities use an in-memory map without a store', async () => {
         definition('delete_memory', DeleteMemoryInputSchema),
       ],
     }),
-    SystemResources.empty(),
+    emptySystemResources(),
   );
   const added = envelopeOf(await callCapability(replay, 'exec-1', 'add_memory', { content: 'owner likes cats' }));
   const id = /^Saved memory (mem_[a-f0-9]{32}); it expires at /.exec(added.text)?.[1];
@@ -255,7 +256,7 @@ test('alarm capabilities schedule, list, and delete in memory and start unseeded
         definition('delete_alarm', DeleteAlarmInputSchema),
       ],
     }),
-    SystemResources.empty(),
+    emptySystemResources(),
   );
   const unseeded = envelopeOf(await callCapability(replay, 'alarm-list-1', 'list_alarm', {}));
   expect(JSON.parse(unseeded.text)).toEqual({ items: [] });
@@ -285,7 +286,7 @@ test('image_generate synthesizes distinct generation ids without the image bridg
       tools: [definition('execute')],
       capabilities: [definition('image_generate', ImageGenerateInputSchema)],
     }),
-    SystemResources.empty(),
+    emptySystemResources(),
   );
   const first = envelopeOf(await callCapability(replay, 'image-1', 'image_generate', { prompt: 'a cat' }));
   expect(first.text).toMatch(
@@ -316,7 +317,7 @@ test('list_image_models pages the configured directory with descriptions and no 
       tools: [definition('execute')],
       capabilities: [definition('list_image_models', ListImageModelsInputSchema)],
     }),
-    SystemResources.empty(),
+    emptySystemResources(),
     { imageModels: models },
   );
   const first = envelopeOf(await callCapability(replay, 'models-1', 'list_image_models', {}));
@@ -348,7 +349,7 @@ test('list_image_models without a catalog is an explicit empty page and stays bl
       tools: [definition('execute')],
       capabilities: [definition('list_image_models', ListImageModelsInputSchema)],
     }),
-    SystemResources.empty(),
+    emptySystemResources(),
   );
   const empty = envelopeOf(await callCapability(replay, 'models-1', 'list_image_models', {}));
   expect(JSON.parse(empty.text)).toEqual({ models: [], total: 0, next_offset: null });
@@ -359,7 +360,7 @@ test('list_image_models without a catalog is an explicit empty page and stays bl
   // registry is the only source of truth for what a scene may call.
   const without = createReplayTools(
     replayInput({ tools: [definition('execute')], capabilities: [] }),
-    SystemResources.empty(),
+    emptySystemResources(),
   );
   await expect(callCapability(without, 'models-2', 'list_image_models', {})).rejects.toThrow(
     'execute has no capability named list_image_models',
@@ -370,7 +371,7 @@ test('list_image_models without a catalog is an explicit empty page and stays bl
 });
 
 test('zzz reports a synthetic sleep transition without writing global state', async () => {
-  const replay = createReplayTools(replayInput({ tools: [definition('zzz')] }), SystemResources.empty());
+  const replay = createReplayTools(replayInput({ tools: [definition('zzz')] }), emptySystemResources());
   const result = await toolOf(replay.tools, 'zzz').execute('zzz-1', {});
   const details = result.details as { sleep_until: string; entered: boolean };
   expect(details.entered).toBe(true);
@@ -380,7 +381,7 @@ test('zzz reports a synthetic sleep transition without writing global state', as
 });
 
 test('read serves bundled system resources and refuses paths outside the tree', async () => {
-  const resources = await SystemResources.load(BUNDLED_SYSTEM_RESOURCES_DIR);
+  const resources = await FileSystemResources.load(BUNDLED_SYSTEM_RESOURCES_DIR);
   const skill = resources.skills[0];
   if (skill === undefined) {
     throw new Error('Bundled system skills are missing');
@@ -408,7 +409,7 @@ test('read serves bundled system resources and refuses paths outside the tree', 
 test('unknown top-level tools and MCP tools are blocked', async () => {
   const replay = createReplayTools(
     replayInput({ tools: [definition('send_file'), definition('mcp__demo__search')] }),
-    SystemResources.empty(),
+    emptySystemResources(),
   );
   await expect(toolOf(replay.tools, 'send_file').execute('call-1', { path: 'x' })).rejects.toThrow(
     'scene test blocks tool send_file',
@@ -429,7 +430,7 @@ test('execute denies primitives, unknown names, and side-effect-free production 
       tools: [definition('execute')],
       capabilities: [definition('web_fetch', Type.Object({ url: Type.String() })), definition('search_stickers')],
     }),
-    SystemResources.empty(),
+    emptySystemResources(),
   );
   await expect(callCapability(replay, 'exec-1', 'web_fetch', { url: 'https://example.com' })).rejects.toThrow(
     'execute.call web_fetch failed: replay blocks capability web_fetch',
@@ -466,7 +467,7 @@ test('execute search and help stay inside the current registry', async () => {
         definition('add_memory', AddMemoryInputSchema),
       ],
     }),
-    SystemResources.empty(),
+    emptySystemResources(),
   );
   const execute = toolOf(replay.tools, 'execute');
   const search = await execute.execute('exec-5', { action: 'search', query: 'fetch a web page' });
@@ -485,7 +486,7 @@ test('an aborted signal stops every replay tool before dispatch', async () => {
       tools: [definition('send', SendInputSchema), definition('read', ReadParameters), definition('execute')],
       capabilities: [definition('add_memory', AddMemoryInputSchema)],
     }),
-    SystemResources.empty(),
+    emptySystemResources(),
   );
   const controller = new AbortController();
   controller.abort();

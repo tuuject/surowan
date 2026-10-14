@@ -37,7 +37,8 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Static } from 'typebox';
 import Compile from 'typebox/compile';
 import type { RawConfig } from '../platform/config.ts';
-import { resolveChatConfig, type SqliteStore } from '../store/database.ts';
+import type { BusinessStore } from '../store/store.ts';
+import { resolveChatConfig } from '../store/store.ts';
 import { media } from '../store/schema.ts';
 import { formatSnapshot, MessageSnapshotSchema, type PreparedSnapshot } from './context-builder.ts';
 
@@ -147,7 +148,7 @@ interface HistoryMediaRow {
 }
 
 export function buildSceneContext(
-  store: SqliteStore,
+  store: BusinessStore,
   config: RawConfig,
   invocationId: bigint,
   options: SceneContextOptions,
@@ -327,7 +328,7 @@ export function buildSceneContext(
   };
 }
 
-function loadSource(store: SqliteStore, invocationId: bigint): SceneSource {
+function loadSource(store: BusinessStore, invocationId: bigint): SceneSource {
   const source = store.orm
     .all<{
       bucket_id: bigint;
@@ -365,7 +366,7 @@ function loadSource(store: SqliteStore, invocationId: bigint): SceneSource {
  * never attached another bucket, so a legacy NULL batch can be used while a
  * modern attach can never leak through.
  */
-function loadOpeningBatch(store: SqliteStore, invocationId: bigint, source: SceneSource): SceneMessage[] {
+function loadOpeningBatch(store: BusinessStore, invocationId: bigint, source: SceneSource): SceneMessage[] {
   const rows = store.orm.all<OpeningRow>(
     sql`SELECT im.snapshot_json, r.id AS revision_id, m.telegram_message_id, m.telegram_date
         FROM invocation_messages im
@@ -447,7 +448,7 @@ function loadOpeningBatch(store: SqliteStore, invocationId: bigint, source: Scen
  * and all opening/attached messages are excluded from this history window.
  */
 function loadHistoryWindow(
-  store: SqliteStore,
+  store: BusinessStore,
   invocationId: bigint,
   source: SceneSource,
   config: RawConfig,
@@ -489,7 +490,7 @@ function loadHistoryWindow(
 }
 
 function renderHistoryRows(
-  store: SqliteStore,
+  store: BusinessStore,
   rows: readonly HistoryRow[],
   source: SceneSource,
   limit = rows.length,
@@ -610,7 +611,7 @@ interface BotSlice {
   readonly cutoffAt: string;
 }
 
-function loadBotSlice(store: SqliteStore, invocationId: bigint, source: SceneSource, sendId: bigint): BotSlice {
+function loadBotSlice(store: BusinessStore, invocationId: bigint, source: SceneSource, sendId: bigint): BotSlice {
   const target = store.orm
     .all<{ message_id: bigint; cutoff_at: string }>(
       sql`SELECT ts.telegram_message_id AS message_id, ts.created_at AS cutoff_at
@@ -649,7 +650,7 @@ function loadBotSlice(store: SqliteStore, invocationId: bigint, source: SceneSou
 
 /** Only frozen public inputs known before the selected send; all batches enter immediately. */
 function loadSliceBatch(
-  store: SqliteStore,
+  store: BusinessStore,
   invocationId: bigint,
   source: SceneSource,
   slice: BotSlice,
@@ -706,7 +707,7 @@ function compareMessages(
   return left === right ? 0 : left < right ? -1 : 1;
 }
 
-function missingMediaIds(store: SqliteStore, ids: readonly bigint[], revisionId: bigint): ReadonlySet<bigint> {
+function missingMediaIds(store: BusinessStore, ids: readonly bigint[], revisionId: bigint): ReadonlySet<bigint> {
   if (ids.length === 0) {
     return new Set();
   }

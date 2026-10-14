@@ -4,13 +4,13 @@ import { join } from 'node:path';
 import { createOpenRouterAdapter, generationCreateSchema, type ImageConfigSnapshot } from '@plasticwan/image-service';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { createImageService, type ImageService } from '../src/image/service.ts';
-import { loadConfig } from '../src/platform/config.ts';
-import { type ConfigEdit, readConfigRevision, writeConfigEdits } from '../src/platform/config-file.ts';
-import { ConfigReloader } from '../src/platform/config-reload.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { type ConfigEdit, readConfigRevision, writeConfigEdits } from '../src/adapters/local-monolith/config-file.ts';
+import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from './helpers.ts';
 
 // ---------------------------------------------------------------------------

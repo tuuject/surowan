@@ -20,8 +20,9 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import sharp from 'sharp';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { createImageService } from '../src/image/service.ts';
-import { loadConfig, type RawConfig } from '../src/platform/config.ts';
-import { backupDatabase, SqliteStore } from '../src/store/database.ts';
+import type { RawConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { backupDatabase, SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { writeTestConfig } from './helpers.ts';
 
 // ---------------------------------------------------------------------------

@@ -5,7 +5,7 @@ import {
   type ImageAsset,
 } from '@plasticwan/image-service';
 import { and, eq } from 'drizzle-orm';
-import type { SqliteStore } from '../store/database.ts';
+import type { BusinessStore } from '../store/store.ts';
 import type { LongTaskService } from '../store/long-tasks.ts';
 import { longTasks } from '../store/schema.ts';
 import type { ImageService } from './service.ts';
@@ -68,7 +68,7 @@ export interface GenerationDelivery {
 
 export interface ImageBridgeOptions {
   readonly service: ImageService;
-  readonly store: SqliteStore;
+  readonly store: BusinessStore;
   readonly tasks: LongTaskService;
   /** Prepares a stored media row (conversation media) as generation input. */
   readonly prepareInputImage: (

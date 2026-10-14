@@ -6,8 +6,8 @@ import { createModels, fauxAssistantMessage, fauxProvider } from '@earendil-work
 import type { Update } from 'grammy/types';
 import sharp from 'sharp';
 import { KeyedSemaphore } from '../src/platform/concurrency.ts';
-import { loadConfig } from '../src/platform/config.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import {
   MediaTooLargeError,
   TelegramMediaClient,

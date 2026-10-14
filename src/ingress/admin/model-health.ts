@@ -5,7 +5,7 @@ import Compile from 'typebox/compile';
 import { PROVIDER_ALIAS_PATTERN } from '../../platform/config.ts';
 import { deepEqual } from '../../platform/config-diff.ts';
 import { sameConnection } from '../../platform/providers.ts';
-import type { SqliteStore } from '../../store/database.ts';
+import type { BusinessStore } from '../../store/store.ts';
 import { modelCalls } from '../../store/schema.ts';
 import { AdminQueryError } from './audit.ts';
 import type { ProviderWriteContext } from './providers-admin.ts';
@@ -43,7 +43,7 @@ export function parseHealthCheckBody(body: unknown): HealthCheckBody {
 }
 
 export async function checkModelHealth(
-  store: SqliteStore,
+  store: BusinessStore,
   context: ProviderWriteContext,
   body: HealthCheckBody,
   requestSignal: AbortSignal,

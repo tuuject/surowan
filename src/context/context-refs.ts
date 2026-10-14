@@ -1,6 +1,6 @@
 import { and, eq, gt, sql } from 'drizzle-orm';
 import type { CapabilityRefResolver } from '../platform/invocation-context.ts';
-import type { SqliteStore } from '../store/database.ts';
+import type { BusinessStore } from '../store/store.ts';
 import { contextRefs } from '../store/schema.ts';
 import type { ContextHeader } from './context-store.ts';
 
@@ -33,10 +33,10 @@ export interface ContextRefOptions {
 }
 
 export class ContextRefStore {
-  readonly #store: SqliteStore;
+  readonly #store: BusinessStore;
   readonly #ttlHours: number;
 
-  constructor(store: SqliteStore, options: ContextRefOptions) {
+  constructor(store: BusinessStore, options: ContextRefOptions) {
     this.#store = store;
     this.#ttlHours = options.ttlHours;
   }

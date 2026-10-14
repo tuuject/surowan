@@ -7,9 +7,10 @@ import { createSendTool, type TelegramSendApi } from '../src/capabilities/send-t
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { BotCommandService, type CommandSender } from '../src/orchestration/bot-commands.ts';
 import { BucketScheduler, STARTUP_CATCH_UP_STATE_KEY } from '../src/orchestration/scheduler.ts';
-import { type FileConfig, loadConfig } from '../src/platform/config.ts';
+import type { FileConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { runStartupCatchUp, type StartupCatchUpApi } from '../src/startup-catch-up.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import {
   invocationCapabilities,
   renderInvocationContext,

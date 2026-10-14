@@ -2,7 +2,7 @@ import { loadPlugins } from '../src/plugins/plugin.ts';
 import alarmPlugin from '../src/plugins/alarm/index.ts';
 import type { RawConfig } from '../src/platform/config.ts';
 import type { InvocationContext } from '../src/platform/invocation-context.ts';
-import type { SqliteStore } from '../src/store/database.ts';
+import type { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
 
 export function alarmTools(store: SqliteStore, config: RawConfig, context: InvocationContext) {

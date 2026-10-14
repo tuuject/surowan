@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AssistantMessage } from '@earendil-works/pi-ai';
-import { loadConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { buildModelRegistry } from '../src/platform/providers.ts';
 import { SecretStore } from '../src/platform/secrets.ts';

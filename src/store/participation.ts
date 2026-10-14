@@ -10,7 +10,7 @@ import {
   type TriggerKind,
 } from '../platform/participation.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
-import { isChatPaused, type Orm, resolveChatConfig } from './database.ts';
+import { isChatPaused, type Orm, resolveChatConfig } from './store.ts';
 import { conversationAttention } from './schema.ts';
 
 export interface ParticipationDecision {

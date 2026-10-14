@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { serve } from '../src/application.ts';
+import { serve } from '../src/adapters/local-monolith/runtime-host.ts';
 import * as imageService from '../src/image/service.ts';
 import { testConfigJsonc, writeTestConfig, writeTestKeyJar } from './helpers.ts';
 

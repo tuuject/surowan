@@ -9,8 +9,9 @@ import {
   type SceneContextOptions,
   SceneSliceError,
 } from '../src/context/scene-context.ts';
-import { loadConfig, type RawConfig } from '../src/platform/config.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import type { RawConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import {
   buckets,
   contextRefs,
