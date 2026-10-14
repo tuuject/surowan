@@ -39,6 +39,9 @@ export const ThinkingLevelSchema = Type.Union([
   Type.Literal('xhigh'),
   Type.Literal('max'),
 ]);
+/** File name of the key jar; kept here so validation messages name it without file I/O imports. */
+export const KEY_JAR_FILE = 'key.json';
+
 /**
  * A plaintext secret has no form here: it lives in the key jar next to the file
  * (`key-jar.ts`), and the configuration only names its entry.
@@ -453,7 +456,7 @@ export function validateFileConfig(parsed: unknown): { fileConfig: FileConfig; w
   if (plaintext.length > 0) {
     // The schema would only report a failed union at each of these paths.
     throw new Error(
-      `Invalid config: plaintext secrets are not accepted; move them into key.json and reference them as { "jar": "<name>" }: ${plaintext.map((secret) => secret.path.join('.')).join(', ')}`,
+      `Invalid config: plaintext secrets are not accepted; move them into ${KEY_JAR_FILE} and reference them as { "jar": "<name>" }: ${plaintext.map((secret) => secret.path.join('.')).join(', ')}`,
     );
   }
   // Invalid image configuration is intentionally disabled with a warning,

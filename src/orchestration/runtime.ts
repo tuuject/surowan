@@ -18,7 +18,9 @@ export function createCoreRuntime(options: CoreRuntimeOptions) {
   });
   let scheduler: BucketScheduler | undefined;
   const tasks = options.tasks ?? new LongTaskService(options.store.orm, () => scheduler?.wake());
-  const runtime = new AgentRuntime({ ...options, conversationRuntime });
+  // `tasks` belongs to the scheduler; AgentRuntime has no such option.
+  const { tasks: _tasks, ...agentOptions } = options;
+  const runtime = new AgentRuntime({ ...agentOptions, conversationRuntime });
   scheduler = new BucketScheduler(
     options.store,
     options.configStore,
