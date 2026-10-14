@@ -11,10 +11,10 @@ import {
   imageSchema,
   modelDefinitionSchema,
 } from '@plasticwan/image-service';
+import type Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import type { RawConfig } from '../platform/config.ts';
 import type { SecretStore } from '../platform/secrets.ts';
-import type { SqliteStore } from '../adapters/local-monolith/database.ts';
 
 /**
  * Process-level assembly of the image generation core.
@@ -53,8 +53,11 @@ export type ImageServiceOptions = {
   logger?: { warn: (message: string) => void };
 };
 
+/** The host's SQLite handle the image core borrows; the host keeps its lifecycle. */
+export type BorrowedConnection = { readonly db: Database.Database };
+
 export function createImageService(
-  store: SqliteStore,
+  store: BorrowedConnection,
   config: RawConfig,
   options: ImageServiceOptions = {},
 ): ImageService {

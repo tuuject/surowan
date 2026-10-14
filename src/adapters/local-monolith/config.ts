@@ -3,14 +3,12 @@ import { readFile, stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { type ParseError, parse as parseJsonc, printParseErrorCode } from 'jsonc-parser';
 import { type FileConfig, type RawConfig, assembleRawConfig, validateFileConfig } from '../../platform/config.ts';
+import type { PersistedConfig } from '../../platform/config-write.ts';
 import { stripHtmlComments } from '../../platform/prompt-markdown.ts';
 import { validatePromptTemplate } from '../../platform/prompt-template.ts';
 
-export interface LoadedConfig {
-  readonly config: RawConfig;
-  readonly fileConfig: FileConfig;
+export interface LoadedConfig extends PersistedConfig {
   readonly configPath: string;
-  readonly hash: string;
   /**
    * Soft-failure notices. Today only the image section degrades: a structurally
    * invalid block is stripped (so the process starts with image generation

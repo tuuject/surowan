@@ -1,9 +1,10 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { lstat, open, readFile, rename, unlink } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
-import { applyEdits, type JSONPath, modify, parse } from 'jsonc-parser';
+import { applyEdits, modify, parse } from 'jsonc-parser';
 import { assertConfigPermissions, type LoadedConfig, loadConfig } from './config.ts';
-import { type KeyJar, keyJarPath, newKeyJarName, referencedJarNames, updateKeyJar } from '../../platform/key-jar.ts';
+import type { ConfigEdit } from '../../platform/config-write.ts';
+import { keyJarPath, referencedJarNames, updateKeyJar } from '../../platform/key-jar.ts';
 
 export type ConfigWriteErrorCode =
   | 'config_symlink'
@@ -21,19 +22,6 @@ export class ConfigWriteError extends Error {
     this.name = 'ConfigWriteError';
     this.code = code;
   }
-}
-
-export interface ConfigEdit {
-  readonly path: JSONPath;
-  readonly value: unknown;
-  /** Key jar entries that `value` references by name; they are stored with the edit. */
-  readonly keys?: KeyJar;
-}
-
-/** Sets `path` to a secret: the plaintext goes into the key jar, the file only names it. */
-export function secretEdit(path: JSONPath, plaintext: string): ConfigEdit {
-  const name = newKeyJarName();
-  return { path, value: { jar: name }, keys: { [name]: plaintext } };
 }
 
 /**

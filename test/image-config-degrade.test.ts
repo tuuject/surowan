@@ -5,7 +5,8 @@ import { createOpenRouterAdapter, generationCreateSchema, type ImageConfigSnapsh
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { createImageService, type ImageService } from '../src/image/service.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
-import { type ConfigEdit, readConfigRevision, writeConfigEdits } from '../src/adapters/local-monolith/config-file.ts';
+import { readConfigRevision, writeConfigEdits } from '../src/adapters/local-monolith/config-file.ts';
+import type { ConfigEdit } from '../src/platform/config-write.ts';
 import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';

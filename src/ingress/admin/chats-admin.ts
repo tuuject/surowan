@@ -9,7 +9,7 @@ import {
   resolveAgentSettings,
   ThinkingLevelSchema,
 } from '../../platform/config.ts';
-import type { ConfigEdit } from '../../adapters/local-monolith/config-file.ts';
+import type { ConfigEdit } from '../../platform/config-write.ts';
 import { supportedThinkingLevels } from '../../platform/thinking-levels.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { chatMigrations, chats } from '../../store/schema.ts';
