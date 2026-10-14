@@ -259,21 +259,21 @@ export function resolveCli(
 ): ResolvedCli {
   const command = parsed.command;
   if (command === undefined) {
-    throw usageError('missing_command', 'usage: plasticwan-utils login|doctor|models|config|prompt|invocation');
+    throw usageError('missing_command', 'usage: surowan-utils login|doctor|models|config|prompt|invocation');
   }
-  const endpointRaw = parsed.endpointRaw ?? env.PLASTICWAN_ENDPOINT ?? saved?.endpoint;
+  const endpointRaw = parsed.endpointRaw ?? env.SUROWAN_ENDPOINT ?? saved?.endpoint;
   if (endpointRaw === undefined || endpointRaw.trim().length === 0) {
-    throw usageError('missing_endpoint', 'run plasticwan-utils login or set --endpoint / PLASTICWAN_ENDPOINT');
+    throw usageError('missing_endpoint', 'run surowan-utils login or set --endpoint / SUROWAN_ENDPOINT');
   }
   const endpoint = parseEndpoint(endpointRaw);
-  const explicitKey = parsed.apiKeyRaw ?? env.PLASTICWAN_API_KEY;
+  const explicitKey = parsed.apiKeyRaw ?? env.SUROWAN_API_KEY;
   // A saved key belongs to its saved endpoint. An endpoint override alone must
   // never send that key to another service, even if both URLs use HTTPS.
   const savedKey =
     saved !== undefined && parseEndpoint(saved.endpoint).href === endpoint.href ? saved.apiKey : undefined;
   const apiKey = explicitKey ?? savedKey;
   if (apiKey === undefined || apiKey.length === 0) {
-    throw usageError('missing_api_key', 'run plasticwan-utils login or supply an API key for this endpoint');
+    throw usageError('missing_api_key', 'run surowan-utils login or supply an API key for this endpoint');
   }
   return {
     command,
@@ -283,9 +283,8 @@ export function resolveCli(
     timeoutMs: parseTimeout(parsed.timeoutRaw, command.kind === 'replay'),
     credentialSources: {
       endpoint:
-        parsed.endpointRaw !== undefined ? 'argument' : env.PLASTICWAN_ENDPOINT !== undefined ? 'environment' : 'file',
-      api_key:
-        parsed.apiKeyRaw !== undefined ? 'argument' : env.PLASTICWAN_API_KEY !== undefined ? 'environment' : 'file',
+        parsed.endpointRaw !== undefined ? 'argument' : env.SUROWAN_ENDPOINT !== undefined ? 'environment' : 'file',
+      api_key: parsed.apiKeyRaw !== undefined ? 'argument' : env.SUROWAN_API_KEY !== undefined ? 'environment' : 'file',
     },
   };
 }
@@ -326,7 +325,7 @@ function sanitizeArgumentMessage(error: unknown): string {
 function parseCommand(positionals: readonly string[], flags: StringFlags): Command {
   const [group, subcommand, ...rest] = positionals;
   if (group === undefined) {
-    throw usageError('missing_command', 'usage: plasticwan-utils login|doctor|models|config|prompt|invocation');
+    throw usageError('missing_command', 'usage: surowan-utils login|doctor|models|config|prompt|invocation');
   }
   if (group === 'login' || group === 'doctor') {
     if (positionals.length !== 1) {
@@ -343,7 +342,7 @@ function parseCommand(positionals: readonly string[], flags: StringFlags): Comma
   switch (group) {
     case 'models':
       if (subcommand === undefined) {
-        throw usageError('missing_subcommand', 'usage: plasticwan-utils models list');
+        throw usageError('missing_subcommand', 'usage: surowan-utils models list');
       }
       if (subcommand !== 'list') {
         throw usageError('unknown_subcommand', 'models subcommand must be list');
@@ -370,7 +369,7 @@ function parseConfigShow(
   flags: StringFlags,
 ): ConfigShowCommand {
   if (subcommand === undefined) {
-    throw usageError('missing_subcommand', 'usage: plasticwan-utils config show');
+    throw usageError('missing_subcommand', 'usage: surowan-utils config show');
   }
   if (subcommand !== 'show') {
     throw usageError('unknown_subcommand', 'config subcommand must be show');
@@ -395,7 +394,7 @@ function parseConfigShow(
 
 function parsePromptGet(subcommand: string | undefined, rest: readonly string[], flags: StringFlags): PromptGetCommand {
   if (subcommand === undefined) {
-    throw usageError('missing_subcommand', 'usage: plasticwan-utils prompt get global|group');
+    throw usageError('missing_subcommand', 'usage: surowan-utils prompt get global|group');
   }
   if (subcommand !== 'get') {
     throw usageError('unknown_subcommand', 'prompt subcommand must be get');
@@ -450,10 +449,7 @@ function parseInvocation(
     case 'replay':
       return parseReplay(rest, flags);
     case undefined:
-      throw usageError(
-        'missing_subcommand',
-        'usage: plasticwan-utils invocation list|get|prompts|preflight|media|replay',
-      );
+      throw usageError('missing_subcommand', 'usage: surowan-utils invocation list|get|prompts|preflight|media|replay');
     default:
       throw usageError(
         'unknown_subcommand',

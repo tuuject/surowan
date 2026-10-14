@@ -74,7 +74,7 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 
 ### 恢复（忘记密码或遗失 Passkey）
 
-Passkey 遗失，或因更换域名、关闭 Passkey 功能而无法登录时，使用**服务端内置 CLI** 本地重置——不是 `plasticwan-utils`（它只通过 Admin API 做只读检查与 Invocation 重放，不能恢复凭据）：
+Passkey 遗失，或因更换域名、关闭 Passkey 功能而无法登录时，使用**服务端内置 CLI** 本地重置——不是 `surowan-utils`（它只通过 Admin API 做只读检查与 Invocation 重放，不能恢复凭据）：
 
 1. **先停止 Bot**。重置命令通过 `ServeLock` 拒绝在运行中的实例上执行，不会强抢；同一 `data_dir` 的 Bot 停止后才能运行。
 2. 交互式重置（终端会隐藏输入新密码并要求重复确认）：
@@ -140,25 +140,25 @@ SQLite 释放的页可供后续写入复用，但数据库文件不一定立即�
 
 ```bash
 # 免费预检：能否重放、能否覆盖 prompt；不调用模型
-plasticwan-utils invocation preflight 12345 --json
+surowan-utils invocation preflight 12345 --json
 # 查看该场景使用的当前两层 prompt（source: active，不是历史记录）
-plasticwan-utils invocation prompts 12345 --json
+surowan-utils invocation prompts 12345 --json
 # 列出当前 active 配置中可接受文本输入的已配置模型（免费、不探测 Provider；列表不是授权）
-plasticwan-utils models list --json
+surowan-utils models list --json
 
-plasticwan-utils invocation replay 12345 --json
+surowan-utils invocation replay 12345 --json
 # 临时替换 global / group 层（每层最多 64Ki 字符；不写回配置）
-plasticwan-utils invocation replay 12345 --global-prompt prompt.txt --json
-plasticwan-utils invocation replay 12345 --group-prompt group.txt --json
-printf '%s' '临时替换的 global prompt' | plasticwan-utils invocation replay 12345 --global-prompt - --json
+surowan-utils invocation replay 12345 --global-prompt prompt.txt --json
+surowan-utils invocation replay 12345 --group-prompt group.txt --json
+printf '%s' '临时替换的 global prompt' | surowan-utils invocation replay 12345 --global-prompt - --json
 
 # 临时模型/thinking 覆盖：--provider 与 --model 必须成对，预检与重放必须使用同一选择
-plasticwan-utils invocation preflight 12345 --provider openrouter --model deepseek/deepseek-v4-flash-0731 --thinking-level high --json
-plasticwan-utils invocation replay 12345 --provider openrouter --model deepseek/deepseek-v4-flash-0731 --thinking-level high --json
+surowan-utils invocation preflight 12345 --provider openrouter --model deepseek/deepseek-v4-flash-0731 --thinking-level high --json
+surowan-utils invocation replay 12345 --provider openrouter --model deepseek/deepseek-v4-flash-0731 --thinking-level high --json
 
 # 切片重放：只重放某次成功 Bot 发言之前的一小段公开输入，需确认计费
-plasticwan-utils invocation preflight 12345 --before-send 678 --json
-plasticwan-utils invocation replay 12345 --before-send 678 --confirm-paid --json
+surowan-utils invocation preflight 12345 --before-send 678 --json
+surowan-utils invocation replay 12345 --before-send 678 --confirm-paid --json
 ```
 
 ### 临时模型/thinking 覆盖
@@ -178,7 +178,7 @@ plasticwan-utils invocation replay 12345 --before-send 678 --confirm-paid --json
 - 只包含冻结且已注入的公开消息：目标发言之前已注入的批次会被拍平后一次性灌入，不按 Bucket 或历史节奏等待（模型并发与网络延迟仍可能造成等待）；附加批次的注入时间必须严格早于发送请求开始，同毫秒无法证明先后时保守省略。没有更早历史，也不读取历史的 reasoning、工具结果或 system prompt。
 - 原 Bot 回答不进入模型，只保留在审计里作为对照；回复引用不能跨出该窗口。返回的 `scene.slice` 为 `{ before_send_id, before_message_id, after_bot_message_id }`，`history_count` 为 0，`cutoff_at` 取该次发送请求的开始时间（不是交付完成时间）。
 - 窗口内没有新的公开消息返回 `replay_slice_empty`，目标不是本 Invocation 的成功发送返回 `replay_slice_target_invalid`。切片重放同样真实调用模型并计费，需要显式 `--confirm-paid`；缺失时 CLI 以 `confirm_paid_required`、退出码 2 拒绝，不读取 prompt 或 stdin，也不发预检或 POST。免费预检不接受该确认参数；预检与重放必须使用同一个 `--before-send`。
-- 目标发言 ID 可以先搜索：`plasticwan-utils invocation list --search '关键词' --at '2026-09-10 07:59' --json`，命中项里的 bot 条目带 `telegram_send_id`，可作为 `--before-send` 候选，再用同一 ID 预检。搜索也保留该 Invocation 向其他 Conversation 的真实发送；这类发送不能作为该 Invocation 的切片目标。
+- 目标发言 ID 可以先搜索：`surowan-utils invocation list --search '关键词' --at '2026-09-10 07:59' --json`，命中项里的 bot 条目带 `telegram_send_id`，可作为 `--before-send` 候选，再用同一 ID 预检。搜索也保留该 Invocation 向其他 Conversation 的真实发送；这类发送不能作为该 Invocation 的切片目标。
 
 限制与取舍：
 

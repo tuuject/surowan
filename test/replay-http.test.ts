@@ -348,8 +348,8 @@ interface CliResult {
 /** The real CLI bin as a child process; the API key travels by environment only. */
 function runCli(args: readonly string[], env: Record<string, string>): Promise<CliResult> {
   const childEnv: Record<string, string | undefined> = { ...process.env };
-  delete childEnv.PLASTICWAN_ENDPOINT;
-  delete childEnv.PLASTICWAN_API_KEY;
+  delete childEnv.SUROWAN_ENDPOINT;
+  delete childEnv.SUROWAN_API_KEY;
   Object.assign(childEnv, env);
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [BIN, ...args], { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -440,7 +440,7 @@ test('CLI replay over real HTTP runs ReplayRunner with synthetic side effects an
     fauxAssistantMessage('private completion'),
   ]);
 
-  const env = { PLASTICWAN_ENDPOINT: f.baseUrl, PLASTICWAN_API_KEY: admin.key };
+  const env = { SUROWAN_ENDPOINT: f.baseUrl, SUROWAN_API_KEY: admin.key };
   // Baseline before any key-authenticated CLI request: only the key's
   // last_used_at may move from here on.
   const before = f.rows();
@@ -532,7 +532,7 @@ test('CLI replay over real HTTP runs ReplayRunner with synthetic side effects an
 test('bot-sliced CLI replay injects its window immediately and validates selection before model work', async () => {
   const f = await fixture();
   const admin = await setupAdminSession(f.baseUrl);
-  const env = { PLASTICWAN_ENDPOINT: f.baseUrl, PLASTICWAN_API_KEY: admin.key };
+  const env = { SUROWAN_ENDPOINT: f.baseUrl, SUROWAN_API_KEY: admin.key };
   const send = f.store.orm.select().from(telegramSends).get()!;
   f.store.orm.update(messages).set({ sentByBot: true }).where(eq(messages.id, f.seed.messageIds[0]!)).run();
   const frozen = f.store.orm
@@ -651,7 +651,7 @@ test('bot-sliced CLI replay injects its window immediately and validates selecti
 test('a sliced replay without --confirm-paid is refused before any request', async () => {
   const f = await fixture();
   const admin = await setupAdminSession(f.baseUrl);
-  const env = { PLASTICWAN_ENDPOINT: f.baseUrl, PLASTICWAN_API_KEY: admin.key };
+  const env = { SUROWAN_ENDPOINT: f.baseUrl, SUROWAN_API_KEY: admin.key };
   const send = f.store.orm.select().from(telegramSends).get()!;
   const before = f.rows();
   const refused = await runCli(['invocation', 'replay', '4001', '--before-send', send.id.toString(), '--json'], env);
@@ -671,7 +671,7 @@ test('a sliced replay without --confirm-paid is refused before any request', asy
 test('keyword and precise public-message time search work through key and session HTTP without model work', async () => {
   const f = await fixture();
   const admin = await setupAdminSession(f.baseUrl);
-  const env = { PLASTICWAN_ENDPOINT: f.baseUrl, PLASTICWAN_API_KEY: admin.key };
+  const env = { SUROWAN_ENDPOINT: f.baseUrl, SUROWAN_API_KEY: admin.key };
   const before = productionTables(f.rows());
   const incoming = await runCli(
     ['invocation', 'list', '--search', 'plain text', '--at', '2026-09-10 07:59', '--json'],
@@ -724,7 +724,7 @@ test('missing opening scene fails the CLI and a revoked key fails unauthenticate
   const f = await fixture();
   const admin = await setupAdminSession(f.baseUrl);
   f.clearScene();
-  const env = { PLASTICWAN_ENDPOINT: f.baseUrl, PLASTICWAN_API_KEY: admin.key };
+  const env = { SUROWAN_ENDPOINT: f.baseUrl, SUROWAN_API_KEY: admin.key };
 
   // The CLI preflights first and reports the engine's stable reason verbatim.
   const cleared = await runCli(['invocation', 'replay', '4001', '--json'], env);

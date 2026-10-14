@@ -80,8 +80,8 @@ async function child(
   overrides: Record<string, string> = {},
 ) {
   const env: Record<string, string | undefined> = { ...process.env, HOME: homeDir, USERPROFILE: homeDir };
-  delete env.PLASTICWAN_API_KEY;
-  delete env.PLASTICWAN_ENDPOINT;
+  delete env.SUROWAN_API_KEY;
+  delete env.SUROWAN_ENDPOINT;
   Object.assign(env, overrides);
   return await new Promise<{ code: number; stdout: string; stderr: string }>((resolve, reject) => {
     const process = spawn(globalThis.process.execPath, [BIN, ...args], {
@@ -134,7 +134,7 @@ function terminal() {
   return { input, rawModes, stderr: () => stderr };
 }
 
-describe('plasticwan-utils login and doctor', () => {
+describe('surowan-utils login and doctor', () => {
   it('saves a complete pair without networking, then doctor and list use the saved login', async () => {
     const homeDir = await home();
     const http = await server((response) =>
@@ -143,7 +143,7 @@ describe('plasticwan-utils login and doctor', () => {
         next_cursor: null,
       }),
     );
-    const login = await cli(['login', '--endpoint', http.endpoint, '--json'], homeDir, { PLASTICWAN_API_KEY: KEY });
+    const login = await cli(['login', '--endpoint', http.endpoint, '--json'], homeDir, { SUROWAN_API_KEY: KEY });
     expect(login.code).toBe(0);
     expect(login.stderr).toBe('');
     expect(JSON.parse(login.stdout)).toEqual({
@@ -182,15 +182,15 @@ describe('plasticwan-utils login and doctor', () => {
     const http = await server((response) => json(response, 200, { items: [], next_cursor: null }));
     await writeCredentials(credentialsPath(homeDir), { endpoint: http.endpoint, apiKey: KEY });
     const before = await readFile(credentialsPath(homeDir), 'utf8');
-    const fromEnv = await cli(['doctor', '--json'], homeDir, { PLASTICWAN_API_KEY: 'synthetic-environment-key' });
+    const fromEnv = await cli(['doctor', '--json'], homeDir, { SUROWAN_API_KEY: 'synthetic-environment-key' });
     expect(fromEnv.code).toBe(0);
     expect(JSON.parse(fromEnv.stdout).credential_sources).toEqual({ endpoint: 'file', api_key: 'environment' });
     const fromArgs = await cli(
       ['doctor', '--endpoint', http.endpoint, '--api-key', 'synthetic-argument-key', '--json'],
       homeDir,
       {
-        PLASTICWAN_ENDPOINT: 'https://unused.example.com',
-        PLASTICWAN_API_KEY: 'synthetic-environment-key',
+        SUROWAN_ENDPOINT: 'https://unused.example.com',
+        SUROWAN_API_KEY: 'synthetic-environment-key',
       },
     );
     expect(fromArgs.code).toBe(0);
@@ -213,8 +213,8 @@ describe('plasticwan-utils login and doctor', () => {
     expect(explicit.code).toBe(0);
     expect(http.requests).toHaveLength(1);
     const fromEnvironment = await cli(['doctor', '--json'], homeDir, {
-      PLASTICWAN_ENDPOINT: http.endpoint,
-      PLASTICWAN_API_KEY: KEY,
+      SUROWAN_ENDPOINT: http.endpoint,
+      SUROWAN_API_KEY: KEY,
     });
     expect(fromEnvironment.code).toBe(0);
     expect(http.requests).toHaveLength(2);
@@ -226,7 +226,7 @@ describe('plasticwan-utils login and doctor', () => {
     expect(await readFile(path, 'utf8')).toBe(corrupted);
 
     const repaired = await cli(['login', '--endpoint', http.endpoint, '--json'], homeDir, {
-      PLASTICWAN_API_KEY: KEY,
+      SUROWAN_API_KEY: KEY,
     });
     expect(repaired.code).toBe(0);
     expect(repaired.stderr).toBe('');
@@ -241,7 +241,7 @@ describe('plasticwan-utils login and doctor', () => {
     const homeDir = await home();
     const http = await server((response) => json(response, 200, { items: [], next_cursor: null }));
     await writeCredentials(credentialsPath(homeDir), { endpoint: http.endpoint, apiKey: KEY });
-    for (const env of [{ PLASTICWAN_API_KEY: '' }, { PLASTICWAN_ENDPOINT: '' }]) {
+    for (const env of [{ SUROWAN_API_KEY: '' }, { SUROWAN_ENDPOINT: '' }]) {
       const result = await cli(['doctor', '--json'], homeDir, env);
       expect(result.code).toBe(2);
       expect(result.stdout).toBe('');
@@ -309,7 +309,7 @@ describe('plasticwan-utils login and doctor', () => {
     await writeCredentials(credentialsPath(homeDir), { endpoint: first.endpoint, apiKey: KEY });
     for (const options of [
       { args: ['doctor', '--endpoint', other.endpoint, '--json'], env: {} },
-      { args: ['doctor', '--json'], env: { PLASTICWAN_ENDPOINT: other.endpoint } },
+      { args: ['doctor', '--json'], env: { SUROWAN_ENDPOINT: other.endpoint } },
     ]) {
       const result = await cli(options.args, homeDir, options.env);
       expect(result.code).toBe(2);
@@ -419,7 +419,7 @@ describe('plasticwan-utils login and doctor', () => {
       KEY,
       false,
       {
-        PLASTICWAN_API_KEY: KEY,
+        SUROWAN_API_KEY: KEY,
       },
     );
     expect(conflict.code).toBe(2);

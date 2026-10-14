@@ -8,19 +8,19 @@ for (const newline of ['\n', '\r\n']) {
       '',
       '```bash',
       '# Top-level command comment',
-      'plasticwan-utils --help',
+      'surowan-utils --help',
       '```',
       '',
       '1. Save credentials:',
       '',
       '   ```bash',
-      '   plasticwan-utils login',
+      '   surowan-utils login',
       '   ```',
       '',
       '```bash',
       '# Credential input comment',
       '# Another command comment',
-      'plasticwan-utils doctor --json',
+      'surowan-utils doctor --json',
       '```',
       '',
       '2. Copy the Skill:',
@@ -34,9 +34,9 @@ for (const newline of ['\n', '\r\n']) {
     expect([...markdown.replace(CODE_BLOCK_PATTERN, '').matchAll(/^# .+$/gm)]).toHaveLength(1);
     const code = [...markdown.matchAll(CODE_BLOCK_PATTERN)].map((match) => match[2]?.replaceAll('\r\n', '\n'));
     expect(code).toEqual([
-      '# Top-level command comment\nplasticwan-utils --help',
-      '   plasticwan-utils login',
-      '# Credential input comment\n# Another command comment\nplasticwan-utils doctor --json',
+      '# Top-level command comment\nsurowan-utils --help',
+      '   surowan-utils login',
+      '# Credential input comment\n# Another command comment\nsurowan-utils doctor --json',
       '   Copy-Item -LiteralPath $source -Destination $target -Recurse',
     ]);
   });

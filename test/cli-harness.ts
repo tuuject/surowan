@@ -92,8 +92,8 @@ export interface RunCliOptions {
 
 export async function runCli(args: readonly string[], options: RunCliOptions = {}): Promise<CliResult> {
   const env: Record<string, string | undefined> = { ...process.env };
-  delete env.PLASTICWAN_ENDPOINT;
-  delete env.PLASTICWAN_API_KEY;
+  delete env.SUROWAN_ENDPOINT;
+  delete env.SUROWAN_API_KEY;
   // File fallback must never consult the operator's real saved credentials.
   env.HOME = options.home ?? (await cliHome());
   env.USERPROFILE = env.HOME;

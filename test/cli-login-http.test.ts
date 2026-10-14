@@ -12,7 +12,7 @@ import { seedAdminFixture } from './fixtures/admin-seed.ts';
 import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 
 /**
- * End-to-end `plasticwan-utils login` / `doctor` against a real loopback
+ * End-to-end `surowan-utils login` / `doctor` against a real loopback
  * AdminServer — no mocked client and no fake fetch:
  *
  * - `login` writes the synthetic panel key into a temp HOME and contacts

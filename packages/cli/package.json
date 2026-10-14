@@ -1,5 +1,5 @@
 {
-  "name": "@tuuject/plasticwan-utils",
+  "name": "@tuuject/surowan-utils",
   "version": "0.0.1",
   "description": "Plastic Wan Admin API 工具客户端",
   "type": "module",
@@ -17,7 +17,7 @@
     "node": ">=24.0.0"
   },
   "bin": {
-    "plasticwan-utils": "./dist/bin.js"
+    "surowan-utils": "./dist/bin.js"
   },
   "files": [
     "dist",

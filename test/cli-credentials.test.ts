@@ -113,8 +113,8 @@ const isPosix = process.platform !== 'win32';
 describe('credentialsPath', () => {
   it('is fixed under the home directory on every platform', () => {
     const home = join(tmpdir(), 'plasticwan-home-fixture');
-    expect(credentialsPath(home)).toBe(join(home, '.config', 'plasticwan-utils', 'credentials.json'));
-    expect(credentialsPath()).toBe(join(homedir(), '.config', 'plasticwan-utils', 'credentials.json'));
+    expect(credentialsPath(home)).toBe(join(home, '.config', 'surowan-utils', 'credentials.json'));
+    expect(credentialsPath()).toBe(join(homedir(), '.config', 'surowan-utils', 'credentials.json'));
   });
 
   it('ignores XDG overrides', () => {
@@ -122,7 +122,7 @@ describe('credentialsPath', () => {
     const previous = process.env.XDG_CONFIG_HOME;
     process.env.XDG_CONFIG_HOME = join(tmpdir(), 'plasticwan-xdg-fixture');
     try {
-      expect(credentialsPath(home)).toBe(join(home, '.config', 'plasticwan-utils', 'credentials.json'));
+      expect(credentialsPath(home)).toBe(join(home, '.config', 'surowan-utils', 'credentials.json'));
       expect(credentialsPath(home)).not.toContain('plasticwan-xdg-fixture');
     } finally {
       if (previous === undefined) {

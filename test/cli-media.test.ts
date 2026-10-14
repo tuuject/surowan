@@ -15,7 +15,7 @@ import {
 } from './cli-harness.ts';
 
 const API_KEY = 'test-api-key-media';
-const ENV = (baseUrl: string) => ({ PLASTICWAN_ENDPOINT: baseUrl, PLASTICWAN_API_KEY: API_KEY });
+const ENV = (baseUrl: string) => ({ SUROWAN_ENDPOINT: baseUrl, SUROWAN_API_KEY: API_KEY });
 const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]);
 const PDF_BYTES = Buffer.from('%PDF-1.4 test document');
 
@@ -94,7 +94,7 @@ async function cleanup(manifest: MediaManifest | undefined): Promise<void> {
   }
 }
 
-describe('plasticwan-utils invocation media', () => {
+describe('surowan-utils invocation media', () => {
   it('downloads every item sequentially into a fresh directory with a hashed manifest', async () => {
     const items = [
       mediaItem('5'),

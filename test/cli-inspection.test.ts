@@ -11,7 +11,7 @@ import {
 } from './cli-harness.ts';
 
 const API_KEY = 'test-api-key-inspect';
-const ENV = (baseUrl: string) => ({ PLASTICWAN_ENDPOINT: baseUrl, PLASTICWAN_API_KEY: API_KEY });
+const ENV = (baseUrl: string) => ({ SUROWAN_ENDPOINT: baseUrl, SUROWAN_API_KEY: API_KEY });
 
 const CONFIG_VIEW = {
   source: 'active',
@@ -121,7 +121,7 @@ const MODELS = {
   ],
 };
 
-describe('plasticwan-utils inspection commands', () => {
+describe('surowan-utils inspection commands', () => {
   it.each([[[]], [['--json']]])(
     'lists active text models without probing providers (%j)',
     async (flags) => {
@@ -863,15 +863,15 @@ describe('plasticwan-utils inspection commands', () => {
     const result = await runCli(['--help']);
     expect(result.code).toBe(0);
     for (const fragment of [
-      'plasticwan-utils models list',
+      'surowan-utils models list',
       '--provider',
       '--model',
       '--thinking-level',
-      'plasticwan-utils config show',
-      'plasticwan-utils prompt get group',
-      'plasticwan-utils invocation prompts',
-      'plasticwan-utils invocation preflight',
-      'plasticwan-utils invocation media',
+      'surowan-utils config show',
+      'surowan-utils prompt get group',
+      'surowan-utils invocation prompts',
+      'surowan-utils invocation preflight',
+      'surowan-utils invocation media',
       '--global-prompt',
       '--group-prompt',
       '--search',

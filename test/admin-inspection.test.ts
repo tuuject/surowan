@@ -385,8 +385,8 @@ test('CLI media export accepts the real authenticated Admin media projection and
   try {
     const result = await runCli(['invocation', 'media', f.seeded.invocationA.toString(), '--json'], {
       env: {
-        PLASTICWAN_ENDPOINT: `http://127.0.0.1:${listening.port}`,
-        PLASTICWAN_API_KEY: f.key,
+        SUROWAN_ENDPOINT: `http://127.0.0.1:${listening.port}`,
+        SUROWAN_API_KEY: f.key,
       },
       home: f.directory,
     });

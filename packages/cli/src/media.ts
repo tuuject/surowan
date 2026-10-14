@@ -98,7 +98,7 @@ export async function runMedia(command: MediaCommand, context: CommandContext, c
       `media list declares ${declaredBytes} bytes; the total limit is ${MAX_MEDIA_TOTAL_BYTES}`,
     );
   }
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-media-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-media-'));
   const records: ManifestItem[] = [];
   let totalBytes = 0;
   for (const item of items) {

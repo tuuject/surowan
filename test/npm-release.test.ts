@@ -87,7 +87,7 @@ describe('npm release selection', () => {
 
   it('publishes only the standalone CLI package without bundling a Skill', () => {
     const manifest = JSON.parse(readFileSync(packagePath, 'utf8'));
-    expect(manifest.name).toBe('@tuuject/plasticwan-utils');
+    expect(manifest.name).toBe('@tuuject/surowan-utils');
     expect(manifest.private).not.toBe(true);
     expect(manifest.publishConfig).toEqual({ access: 'public', registry: 'https://registry.npmjs.org/' });
     expect(manifest.repository).toEqual({
@@ -95,7 +95,7 @@ describe('npm release selection', () => {
       url: 'git+https://github.com/tuuject/surowan.git',
       directory: 'packages/cli',
     });
-    expect(manifest.bin).toEqual({ 'plasticwan-utils': './dist/bin.js' });
+    expect(manifest.bin).toEqual({ 'surowan-utils': './dist/bin.js' });
     expect(manifest.files).toEqual(['dist', 'README.md']);
     expect(manifest.dependencies).toBeUndefined();
     expect(existsSync(new URL('../packages/cli/skills/', import.meta.url))).toBe(false);
@@ -107,14 +107,14 @@ describe('npm release selection', () => {
   });
 
   it('keeps the project-root Skill entry small and links to separate Invocation guides', () => {
-    const skill = new URL('../.agents/skills/plasticwan-utils/', import.meta.url);
+    const skill = new URL('../.agents/skills/surowan-utils/', import.meta.url);
     const entry = readFileSync(new URL('SKILL.md', skill), 'utf8');
-    expect(entry).toContain('name: plasticwan-utils');
+    expect(entry).toContain('name: surowan-utils');
     expect(entry).toContain('(references/invocations.md)');
     expect(entry).toContain('(references/replay.md)');
     expect(entry).not.toContain('fidelity.');
-    expect(entry).not.toContain('plasticwan-utils invocation replay');
-    expect(entry).toContain('plasticwan-utils doctor --json');
+    expect(entry).not.toContain('surowan-utils invocation replay');
+    expect(entry).toContain('surowan-utils doctor --json');
     expect(entry).toContain('退出码为 `0`');
     expect(entry).toContain('stdout 的 `status` 为 `ok`');
     expect(entry).toContain('未通过时立即停止');
@@ -125,12 +125,12 @@ describe('npm release selection', () => {
     expect(entry).toContain('不是授权清单');
     expect(entry).toContain('严禁自动尝试');
     const audit = readFileSync(new URL('references/invocations.md', skill), 'utf8');
-    expect(audit).toContain('plasticwan-utils invocation get');
+    expect(audit).toContain('surowan-utils invocation get');
     expect(audit).toContain('telegram_sends[]');
-    expect(audit).toContain('plasticwan-utils models list');
+    expect(audit).toContain('surowan-utils models list');
     expect(audit).toContain('不是授权清单');
     const replay = readFileSync(new URL('references/replay.md', skill), 'utf8');
-    expect(replay).toContain('plasticwan-utils invocation replay');
+    expect(replay).toContain('surowan-utils invocation replay');
     expect(replay).toContain('明确授权');
     expect(replay).toContain('fidelity.omitted_images');
     // Temporary model/thinking overrides keep their own contract in the replay guide.
@@ -141,6 +141,6 @@ describe('npm release selection', () => {
     expect(replay).toContain('fidelity.model_selection');
     expect(replay).toContain('temporary_override');
     const metadata = readFileSync(new URL('agents/openai.yaml', skill), 'utf8');
-    expect(metadata).toContain('$plasticwan-utils');
+    expect(metadata).toContain('$surowan-utils');
   });
 });

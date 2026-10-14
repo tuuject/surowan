@@ -9,7 +9,7 @@ import { CliError, usageError } from './errors.ts';
 
 /**
  * Credentials for the Admin API, stored as one 0600 file under
- * `~/.config/plasticwan-utils/`. Reading and writing share the same posture:
+ * `~/.config/surowan-utils/`. Reading and writing share the same posture:
  * the file must be a regular file that group/other cannot read or write, its
  * bytes never reach an error message, and a replacement is renamed into place
  * so a failure cannot damage the previous pair.
@@ -29,12 +29,12 @@ const FORBIDDEN_API_KEY_CHARACTERS = /[\p{White_Space}\p{Cc}]/u;
 const INVALID_CREDENTIALS = 'invalid_credentials';
 
 /**
- * `~/.config/plasticwan-utils/credentials.json` on every platform, Windows
+ * `~/.config/surowan-utils/credentials.json` on every platform, Windows
  * included: one documented location beats an XDG/AppData guess that would hide
  * the file from users who followed the guide.
  */
 export function credentialsPath(homeDir: string = homedir()): string {
-  return join(homeDir, '.config', 'plasticwan-utils', 'credentials.json');
+  return join(homeDir, '.config', 'surowan-utils', 'credentials.json');
 }
 
 /**

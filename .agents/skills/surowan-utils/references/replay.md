@@ -2,7 +2,7 @@
 
 ## 仅在明确授权后执行
 
-入口的 `doctor` 门槛同样适用：`plasticwan-utils doctor --json` 必须以退出码 `0` 返回 `status: "ok"`（恰好一次 `GET /api/invocations?limit=1`，无 replay 或模型/Provider 调用），否则停止并报告，不进入重放，也不代为 `login`、不重试；doctor 通过也只证明连通与鉴权，不构成重放授权。
+入口的 `doctor` 门槛同样适用：`surowan-utils doctor --json` 必须以退出码 `0` 返回 `status: "ok"`（恰好一次 `GET /api/invocations?limit=1`，无 replay 或模型/Provider 调用），否则停止并报告，不进入重放，也不代为 `login`、不重试；doctor 通过也只证明连通与鉴权，不构成重放授权。
 
 先说明 replay 会真实调用所选模型（默认当前 Chat 配置，可显式临时覆盖）并产生费用，但不发送 Telegram 消息、不修改生产会话和业务数据（鉴权仍会更新 key 使用时间）。取得用户对目标 ID、次数、可选 prompt 覆盖和可选模型/thinking 覆盖的明确授权；用户仅说“看看为什么没回复”不构成重放授权。临时模型/thinking 覆盖（`--provider`/`--model`/`--thinking-level`）只影响这一次重放：不写回配置、不修改生产 Context/审计/预算，但会改变 prompt 变量、图片能力、context budget、Schema、Provider 连接与真实费用。已有明确授权时按范围执行，不扩大到批量或自动重试，不尝试用 Session Cookie 重放。切片重放还需 `--confirm-paid` 显式确认计费。
 
@@ -10,26 +10,26 @@
 
 ```bash
 # 免费只读预检与当前场景 prompt
-plasticwan-utils invocation preflight 12345 --json
-plasticwan-utils invocation prompts 12345 --json
+surowan-utils invocation preflight 12345 --json
+surowan-utils invocation prompts 12345 --json
 
 # 当前配置基线：仅在本次重放已获授权后执行
-plasticwan-utils invocation replay 12345 --json
+surowan-utils invocation replay 12345 --json
 
 # 分层替换：仅在该覆盖已获授权后执行
-plasticwan-utils invocation replay 12345 --global-prompt prompt.txt --json
-plasticwan-utils invocation replay 12345 --group-prompt group.txt --json
-printf '%s' '临时替换的 global prompt' | plasticwan-utils invocation replay 12345 --global-prompt - --json
+surowan-utils invocation replay 12345 --global-prompt prompt.txt --json
+surowan-utils invocation replay 12345 --group-prompt group.txt --json
+printf '%s' '临时替换的 global prompt' | surowan-utils invocation replay 12345 --global-prompt - --json
 
 # 临时模型/thinking 覆盖：--provider 与 --model 必须成对；--thinking-level 可单独使用；
 # 预检与重放必须传同一选择，可与切片（--before-send）和 prompt 覆盖组合
-plasticwan-utils invocation preflight 12345 --provider openrouter --model deepseek/deepseek-v4-flash-0731 --thinking-level high --json
-plasticwan-utils invocation replay 12345 --provider openrouter --model deepseek/deepseek-v4-flash-0731 --thinking-level high --json
-plasticwan-utils invocation replay 12345 --thinking-level low --json
+surowan-utils invocation preflight 12345 --provider openrouter --model deepseek/deepseek-v4-flash-0731 --thinking-level high --json
+surowan-utils invocation replay 12345 --provider openrouter --model deepseek/deepseek-v4-flash-0731 --thinking-level high --json
+surowan-utils invocation replay 12345 --thinking-level low --json
 
 # 切片重放：收窄到某次成功 Bot 发言之前的窗口，需显式确认计费
-plasticwan-utils invocation preflight 12345 --before-send 678 --json
-plasticwan-utils invocation replay 12345 --before-send 678 --confirm-paid --json
+surowan-utils invocation preflight 12345 --before-send 678 --json
+surowan-utils invocation replay 12345 --before-send 678 --confirm-paid --json
 ```
 
 - 切片 replay 缺少 `--confirm-paid` 时，在参数解析阶段以退出码 `2` 和 `confirm_paid_required` 拒绝，不读取 prompt 文件或 stdin，也不发预检或 POST。未切片 replay 不要求该 flag；免费 `preflight` 不接受该 flag。
@@ -49,7 +49,7 @@ plasticwan-utils invocation replay 12345 --before-send 678 --confirm-paid --json
 - 目标必须是本 Invocation 的成功 `telegram_sends`：失败的、别的 Conversation 的或不存在的目标返回 `replay_slice_target_invalid`；窗口内没有新的公开消息返回 `replay_slice_empty`。两者都在任何模型请求之前拒绝。
 - 输入只包含冻结且已注入的公开消息：目标发言之前已注入的批次会被拍平后一次性灌入，不按 Bucket 或历史节奏等待（模型并发与网络延迟仍可能造成等待）。附加批次的注入时间必须严格早于发送请求开始；同毫秒无法证明先后时保守省略。原 Bot 回答不进入模型，只留在审计里作为对照；不读取历史的 reasoning、工具结果或 system prompt。
 - `scene.slice` 为 `{ before_send_id, before_message_id, after_bot_message_id }`，`history_count` 为 0，`cutoff_at` 取该次发送请求的开始时间（不是交付完成时间）；回复引用不能跨出该窗口。比较原回答与切片结果时分别引用审计里的 `telegram_sends` 与 replay `outputs`，说明它们不是同条件复现。
-- 目标 ID 可以先搜索：`plasticwan-utils invocation list --search '关键词' --at '2026-09-10 07:59' --json`，命中项里 bot 条目的 `telegram_send_id` 是 `--before-send` 候选，仍须用同一 ID 预检。Invocation 可能向另一 Conversation 回复；搜索保留这些真实发送，但跨 Conversation 的发送不能用作该 Invocation 的切片目标。
+- 目标 ID 可以先搜索：`surowan-utils invocation list --search '关键词' --at '2026-09-10 07:59' --json`，命中项里 bot 条目的 `telegram_send_id` 是 `--before-send` 候选，仍须用同一 ID 预检。Invocation 可能向另一 Conversation 回复；搜索保留这些真实发送，但跨 Conversation 的发送不能用作该 Invocation 的切片目标。
 
 ## 披露保真限制
 

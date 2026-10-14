@@ -44,26 +44,26 @@ docker compose run --rm plasticwan backup --config /config/config.jsonc
 
 这些一次性命令不启动 `serve`，可与正在运行的服务共存；不要用 `docker compose run` 再启动一个 `serve`。
 
-## Admin API 工具客户端（plasticwan-utils）
+## Admin API 工具客户端（surowan-utils）
 
-`packages/cli` 提供 Admin API 工具客户端 `plasticwan-utils`（npm 包 `@tuuject/plasticwan-utils`），用于只读检查当前配置与 prompt、查询/导出/重放 Invocation。子命令为 `invocation list` / `get` / `prompts` / `preflight` / `media` / `replay`、`models list`、`config show` 与 `prompt get global|group`，另有 `login`（把 endpoint 与 API key 成对保存到本机）与 `doctor`（一次只读请求验证连通与鉴权）；群聊管理等其它能力尚未实现，也不包含 SDK 或 Eval 能力，`login` 也不提供服务端密钥管理（密钥的创建与撤销仍只在面板进行）。
+`packages/cli` 提供 Admin API 工具客户端 `surowan-utils`（npm 包 `@tuuject/surowan-utils`），用于只读检查当前配置与 prompt、查询/导出/重放 Invocation。子命令为 `invocation list` / `get` / `prompts` / `preflight` / `media` / `replay`、`models list`、`config show` 与 `prompt get global|group`，另有 `login`（把 endpoint 与 API key 成对保存到本机）与 `doctor`（一次只读请求验证连通与鉴权）；群聊管理等其它能力尚未实现，也不包含 SDK 或 Eval 能力，`login` 也不提供服务端密钥管理（密钥的创建与撤销仍只在面板进行）。
 
 它与服务端入口 `plasticwan`（`node src/cli.ts`）不同：本客户端直接访问 Admin API，不包含 `serve`、`check-config`、`backup`、`configure` 等服务命令；客户端自己的 `doctor` 也不执行服务端 Doctor 的 SQLite、媒体、Telegram、Provider 与 MCP 探针，只检查 Admin API 连通与鉴权。
 
-从 npm 全局安装（Node.js ≥ 24，无额外运行时依赖；命令名为 `plasticwan-utils`）：
+从 npm 全局安装（Node.js ≥ 24，无额外运行时依赖；命令名为 `surowan-utils`）：
 
 ```bash
-npm install -g @tuuject/plasticwan-utils           # 稳定版，dist-tag latest
-npm install -g @tuuject/plasticwan-utils@canary    # main 分支的 canary 构建
-plasticwan-utils --help
+npm install -g @tuuject/surowan-utils           # 稳定版，dist-tag latest
+npm install -g @tuuject/surowan-utils@canary    # main 分支的 canary 构建
+surowan-utils --help
 ```
 
 自动发布中，`latest` 来自维护者推送的稳定 tag，`canary` 随 `main` 的成功发布更新且不移动 `latest`；试用版须显式指定 `@canary`。registry 上还没有该包（安装返回 404）时，先在源码仓库安装依赖，再打包后本地安装：
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm --filter @tuuject/plasticwan-utils pack --pack-destination "$PWD/dist/npm"
-npm install -g ./dist/npm/tuuject-plasticwan-utils-0.1.0.tgz   # 文件名以实际打包输出为准
+pnpm --filter @tuuject/surowan-utils pack --pack-destination "$PWD/dist/npm"
+npm install -g ./dist/npm/tuuject-surowan-utils-0.1.0.tgz   # 文件名以实际打包输出为准
 ```
 
 不想全局安装时，也可以直接运行构建产物：`node packages/cli/dist/bin.js …`。维护者的自动化发布、首次发布 bootstrap 与 trusted publisher 配置见仓库的 [packages/cli/README.md](https://github.com/tuuject/surowan/blob/main/packages/cli/README.md)。
@@ -73,43 +73,43 @@ npm install -g ./dist/npm/tuuject-plasticwan-utils-0.1.0.tgz   # 文件名以实
 ### 首次使用
 
 1. 在面板创建密钥并立即保存明文。
-2. 由操作员在本机运行 `plasticwan-utils login`，逐项输入 Admin Panel 基地址与 API key（key 隐藏输入、不回显）：
+2. 由操作员在本机运行 `surowan-utils login`，逐项输入 Admin Panel 基地址与 API key（key 隐藏输入、不回显）：
 
    ```bash
-   plasticwan-utils login
+   surowan-utils login
    ```
 
-   endpoint 与 key 成对保存在固定路径 `~/.config/plasticwan-utils/credentials.json`（所有平台一致；与 Bot 的 `config.jsonc`、`key.json` 无关，同一时间只保留最近一次 `login` 的一对凭据）。文件**未加密**，请当密码对待；POSIX 上目录 `0700`、文件 `0600`（更窄的权限同样接受）；Windows 不做 POSIX mode 检查，权限由用户目录 ACL 继承，工具不承诺 `chmod` 级别的保护。既有文件是符号链接、不是普通文件或权限不安全时，读写都拒绝且不自动修复或替换，需人工处理。`login` 不访问服务器，保存成功不代表鉴权已通过；序列化后超过 16384 字节会被拒绝，且写入失败（含拒绝）不会覆盖旧凭据。
+   endpoint 与 key 成对保存在固定路径 `~/.config/surowan-utils/credentials.json`（所有平台一致；与 Bot 的 `config.jsonc`、`key.json` 无关，同一时间只保留最近一次 `login` 的一对凭据）。文件**未加密**，请当密码对待；POSIX 上目录 `0700`、文件 `0600`（更窄的权限同样接受）；Windows 不做 POSIX mode 检查，权限由用户目录 ACL 继承，工具不承诺 `chmod` 级别的保护。既有文件是符号链接、不是普通文件或权限不安全时，读写都拒绝且不自动修复或替换，需人工处理。`login` 不访问服务器，保存成功不代表鉴权已通过；序列化后超过 16384 字节会被拒绝，且写入失败（含拒绝）不会覆盖旧凭据。
 3. 验证连通与鉴权；只有退出码 0 才继续：
 
    ```bash
-   plasticwan-utils doctor --json
+   surowan-utils doctor --json
    ```
 
    `doctor` 恰好发起一次 `GET /api/invocations?limit=1`，没有 replay、没有模型/Provider 调用，也不发送 Telegram 消息；成功时 stdout 为 `{"status":"ok","endpoint":…,"credential_sources":{"endpoint":"argument|environment|file","api_key":…}}`，不输出 Invocation 正文，失败不自动重试；鉴权会在服务端更新密钥的 `last_used_at`。失败时 stderr 为 `{"error","message"}`：参数/环境变量给出的凭据缺失或不合法（`missing_endpoint`、`missing_api_key`、`invalid_api_key` 等）退出码 `2`，保存文件无效（`invalid_credentials`）或请求失败退出码 `1`。
 4. 只读检查与查询 Invocation：
 
    ```bash
-   plasticwan-utils config show --json
-   plasticwan-utils prompt get global --json
-   plasticwan-utils models list --json
-   plasticwan-utils invocation prompts 12345 --json
-   plasticwan-utils invocation preflight 12345 --json
-   plasticwan-utils invocation list --limit 20 --state completed --chat -1001234567890 --json
-   plasticwan-utils invocation list --search '关键词' --at '2026-09-10 07:59' --json
-   plasticwan-utils invocation get 12345 --json
+   surowan-utils config show --json
+   surowan-utils prompt get global --json
+   surowan-utils models list --json
+   surowan-utils invocation prompts 12345 --json
+   surowan-utils invocation preflight 12345 --json
+   surowan-utils invocation list --limit 20 --state completed --chat -1001234567890 --json
+   surowan-utils invocation list --search '关键词' --at '2026-09-10 07:59' --json
+   surowan-utils invocation get 12345 --json
    ```
 
 无人值守环境用非交互方式；示例中的变量都由安全渠道注入，不含明文 key：
 
 ```bash
 # endpoint 与 key 已注入环境变量；login 读取它们并保存，不回显
-plasticwan-utils login --json
+surowan-utils login --json
 
 # 或让 key 只经标准输入进入：读到 EOF（不是读到第一行就停），累计不超过 4098 字节，
 # 读取结束后只去掉一个尾部 LF/CRLF，其余换行/空白/控制字符非法（受 --timeout-ms 约束；不是 --api-key -）
 # SECRET_KEY 由安全渠道注入；它不是 CLI 读取的环境变量，CLI 只从 stdin 收下这段内容
-printf '%s' "$SECRET_KEY" | plasticwan-utils login --endpoint "$PLASTICWAN_ENDPOINT" --api-key-stdin --json
+printf '%s' "$SECRET_KEY" | surowan-utils login --endpoint "$SUROWAN_ENDPOINT" --api-key-stdin --json
 ```
 
 凭据解析顺序为命令行参数 > 环境变量 > 保存文件。参数或环境变量显式给出的空串按缺失/非法处理，不会回退到下一来源或改为提示（`missing_endpoint`/`missing_api_key`/`invalid_api_key`）。endpoint 与 key 都由参数或环境变量明确给出时完全不读取凭据文件（文件损坏、是符号链接或权限不安全也不影响）；只给其一才读文件，文件问题以 `invalid_credentials` 失败（退出码 1）。保存的 key 只属于其保存时的规范化 endpoint：当前 endpoint 与文件 endpoint 经 `parseEndpoint` 规范化后不一致就不会使用该 key（缺少显式 key 报 `missing_api_key`，退出码 2），规范化后一致则仍可使用。参数与环境变量不会被写回文件（只有 `login` 写文件）。`login --json` 输出 `{"status":"saved","endpoint":…,"credentials_file":…}`，不含 key。
@@ -117,28 +117,28 @@ printf '%s' "$SECRET_KEY" | plasticwan-utils login --endpoint "$PLASTICWAN_ENDPO
 查询、导出与重放示例：
 
 ```bash
-plasticwan-utils invocation list --cursor 12345 --json
-plasticwan-utils invocation list --search '关键词' --at '2026-09-10 07:59' --json
-plasticwan-utils invocation list --search '关键词' --from '2026-09-10 07:00' --to '2026-09-10 08:00' --json
-plasticwan-utils invocation media 12345 --json
-plasticwan-utils invocation media 12345 --variant preview --json
-plasticwan-utils invocation replay 12345 --json
-plasticwan-utils invocation replay 12345 --global-prompt prompt.txt --json
-printf '%s' '临时替换的 global prompt' | plasticwan-utils invocation replay 12345 --global-prompt - --json
-plasticwan-utils invocation replay 12345 --group-prompt group.txt --json
+surowan-utils invocation list --cursor 12345 --json
+surowan-utils invocation list --search '关键词' --at '2026-09-10 07:59' --json
+surowan-utils invocation list --search '关键词' --from '2026-09-10 07:00' --to '2026-09-10 08:00' --json
+surowan-utils invocation media 12345 --json
+surowan-utils invocation media 12345 --variant preview --json
+surowan-utils invocation replay 12345 --json
+surowan-utils invocation replay 12345 --global-prompt prompt.txt --json
+printf '%s' '临时替换的 global prompt' | surowan-utils invocation replay 12345 --global-prompt - --json
+surowan-utils invocation replay 12345 --group-prompt group.txt --json
 # 切片重放：以某次成功 Bot 发言（telegram_sends 内部 ID）为边界重建输入窗口，需显式确认计费
-plasticwan-utils invocation preflight 12345 --before-send 678 --json
-plasticwan-utils invocation replay 12345 --before-send 678 --confirm-paid --json
+surowan-utils invocation preflight 12345 --before-send 678 --json
+surowan-utils invocation replay 12345 --before-send 678 --confirm-paid --json
 # 临时模型/thinking 覆盖：--provider 与 --model 必须成对，预检与重放必须使用同一选择
-plasticwan-utils invocation preflight 12345 --provider openrouter --model deepseek/deepseek-v4-flash-0731 --thinking-level high --json
-plasticwan-utils invocation replay 12345 --provider openrouter --model deepseek/deepseek-v4-flash-0731 --thinking-level high --json
+surowan-utils invocation preflight 12345 --provider openrouter --model deepseek/deepseek-v4-flash-0731 --thinking-level high --json
+surowan-utils invocation replay 12345 --provider openrouter --model deepseek/deepseek-v4-flash-0731 --thinking-level high --json
 ```
 
 | 选项 | 说明 |
 | --- | --- |
-| `--endpoint <url>` / `PLASTICWAN_ENDPOINT` | Admin Panel 基地址；解析顺序为参数 > 环境变量 > `login` 保存的凭据文件，三处都没有或显式空串/纯空白时按缺失报错（`missing_endpoint`，不回退）。明文 `http` 只允许 loopback（`127.0.0.0/8`、`::1`、`localhost`），远端必须 `https`；URL 不能带凭据、query 或 fragment；保存与比较都用 `parseEndpoint` 规范化后的 URL（trim、补尾斜杠、去默认端口） |
-| `--api-key <key>` / `PLASTICWAN_API_KEY` | API key：1–4096 字符，不得含空白或控制字符（参数/环境变量报 `invalid_api_key`，保存文件内的非法值报 `invalid_credentials`）；与 endpoint 同一解析顺序，命令行参数优先于环境变量，显式空串不回退。仅当解析出的 endpoint 与文件 endpoint 规范化后相同才使用文件中的 key，否则缺少显式 key 报 `missing_api_key` |
-| `--api-key-stdin` | 仅 `login`：把标准输入读到 EOF（不是读完一行就停），累计不超过 4098 字节，读取结束后只去掉一个尾部 LF/CRLF，剩余换行、空白或控制字符整体非法（`invalid_api_key`，退出码 2）；TTY 上拒绝；整次读取受 `--timeout-ms` 约束，超时 `timeout`（退出码 1）且不保存；不能与 `--api-key` 或 `PLASTICWAN_API_KEY` 同时给出；不是 `--api-key -`，其它命令不从标准输入读取 key |
+| `--endpoint <url>` / `SUROWAN_ENDPOINT` | Admin Panel 基地址；解析顺序为参数 > 环境变量 > `login` 保存的凭据文件，三处都没有或显式空串/纯空白时按缺失报错（`missing_endpoint`，不回退）。明文 `http` 只允许 loopback（`127.0.0.0/8`、`::1`、`localhost`），远端必须 `https`；URL 不能带凭据、query 或 fragment；保存与比较都用 `parseEndpoint` 规范化后的 URL（trim、补尾斜杠、去默认端口） |
+| `--api-key <key>` / `SUROWAN_API_KEY` | API key：1–4096 字符，不得含空白或控制字符（参数/环境变量报 `invalid_api_key`，保存文件内的非法值报 `invalid_credentials`）；与 endpoint 同一解析顺序，命令行参数优先于环境变量，显式空串不回退。仅当解析出的 endpoint 与文件 endpoint 规范化后相同才使用文件中的 key，否则缺少显式 key 报 `missing_api_key` |
+| `--api-key-stdin` | 仅 `login`：把标准输入读到 EOF（不是读完一行就停），累计不超过 4098 字节，读取结束后只去掉一个尾部 LF/CRLF，剩余换行、空白或控制字符整体非法（`invalid_api_key`，退出码 2）；TTY 上拒绝；整次读取受 `--timeout-ms` 约束，超时 `timeout`（退出码 1）且不保存；不能与 `--api-key` 或 `SUROWAN_API_KEY` 同时给出；不是 `--api-key -`，其它命令不从标准输入读取 key |
 | `--source <active\|file>` | 仅 `config show` 与 `prompt get`：`active`（默认）读运行中快照，`file` 读磁盘配置；两者不会互相替代 |
 | `--variant <original\|preview>` | 仅 `invocation media`：下载原始文件（默认）或服务端规范化预览；preview 只对 photo/sticker 可用 |
 | `--timeout-ms <ms>` | 请求/输入超时；默认除 replay（300 秒）外都是 30 秒。stdin 读取单独使用同一上限，超时返回 `timeout`（退出码 1）且不发请求；HTTP 超时中止请求，均不自动重试 |
@@ -165,18 +165,18 @@ plasticwan-utils invocation replay 12345 --provider openrouter --model deepseek/
 
 ### 让外部 Agent 使用配套 Skill
 
-源码仓库根目录内置 `agents/skills/plasticwan-utils/`，指导外部 Agent 先运行 `doctor` 验证凭据与连通，再定位 Invocation（可按关键词与公开消息时间用 `invocation list --search/--at/--from/--to` 搜索）、核对模型调用/工具/真实发送记录；只读核对可用 `config show`、`prompt get`、`models list`、`invocation prompts` 与 `invocation preflight`，并在明确授权后重放（含用 `--before-send` 限定窗口的切片重放、`--provider`/`--model`/`--thinking-level` 临时模型覆盖）或分层比较 global/group prompt。它不是 Bot 的只读 System Skill，无需放入服务器的 `system:///` 资源树。Skill 以 `SKILL.md` 为轻量入口，主题细节按当前任务加载子文档：审计流程见 `references/invocations.md`，重放的保真限制、授权要求与错误处理见 `references/replay.md`，不要一次加载全部内容。
+源码仓库根目录内置 `agents/skills/surowan-utils/`，指导外部 Agent 先运行 `doctor` 验证凭据与连通，再定位 Invocation（可按关键词与公开消息时间用 `invocation list --search/--at/--from/--to` 搜索）、核对模型调用/工具/真实发送记录；只读核对可用 `config show`、`prompt get`、`models list`、`invocation prompts` 与 `invocation preflight`，并在明确授权后重放（含用 `--before-send` 限定窗口的切片重放、`--provider`/`--model`/`--thinking-level` 临时模型覆盖）或分层比较 global/group prompt。它不是 Bot 的只读 System Skill，无需放入服务器的 `system:///` 资源树。Skill 以 `SKILL.md` 为轻量入口，主题细节按当前任务加载子文档：审计流程见 `references/invocations.md`，重放的保真限制、授权要求与错误处理见 `references/replay.md`，不要一次加载全部内容。
 
 **npm 包不内置 Skill，安装 CLI 也不会自动启用 Skill。** 以下以 [Codex 的项目级目录](https://developers.openai.com/codex/build-skills)为例；其他宿主请使用其自己的 Skill 导入功能，不假定自动兼容。
 
-1. 先按上文全局安装 CLI，运行 `plasticwan-utils --help` 确认命令可用。
-2. 在准备用 Agent 排障的项目根目录，从源码仓库复制整个 Skill 目录（仓库根的 `agents/skills/plasticwan-utils/`，`SKILL.md`、`references/` 与 `agents/openai.yaml` 都要保留）。若目标已存在，先比较内容再决定更新，不直接覆盖。未克隆仓库时，可从 GitHub 下载该目录；最终文件应位于 `.agents/skills/plasticwan-utils/SKILL.md`，不要多嵌套一层。
+1. 先按上文全局安装 CLI，运行 `surowan-utils --help` 确认命令可用。
+2. 在准备用 Agent 排障的项目根目录，从源码仓库复制整个 Skill 目录（仓库根的 `agents/skills/surowan-utils/`，`SKILL.md`、`references/` 与 `agents/openai.yaml` 都要保留）。若目标已存在，先比较内容再决定更新，不直接覆盖。未克隆仓库时，可从 GitHub 下载该目录；最终文件应位于 `.agents/skills/surowan-utils/SKILL.md`，不要多嵌套一层。
 
    克隆仓库后：
 
    ```powershell
-   $source = '<仓库检出路径>\.agents\skills\plasticwan-utils'
-   $target = '.agents/skills/plasticwan-utils'
+   $source = '<仓库检出路径>\.agents\skills\surowan-utils'
+   $target = '.agents/skills/surowan-utils'
    if (Test-Path $target) { throw 'Skill already exists; review it before updating.' }
    New-Item -ItemType Directory -Path '.agents/skills' -Force | Out-Null
    Copy-Item -LiteralPath $source -Destination $target -Recurse
@@ -185,17 +185,17 @@ plasticwan-utils invocation replay 12345 --provider openrouter --model deepseek/
    Bash / Zsh：
 
    ```bash
-   test ! -e .agents/skills/plasticwan-utils &&
+   test ! -e .agents/skills/surowan-utils &&
      mkdir -p .agents/skills &&
-     cp -R /path/to/surowan/.agents/skills/plasticwan-utils .agents/skills/
+     cp -R /path/to/surowan/.agents/skills/surowan-utils .agents/skills/
    ```
-3. 由操作员准备凭据：向 Agent 的命令执行环境安全注入 `PLASTICWAN_ENDPOINT` 与 `PLASTICWAN_API_KEY`，或由操作员在本机运行 `plasticwan-utils login` 保存到凭据文件。不要让 Agent 索取聊天中的明文 key，也不要让它读取或修改凭据。
-4. 在 Agent 的 Skill 列表中确认 `plasticwan-utils`；未发现时重新打开会话。然后发出只读任务：
+3. 由操作员准备凭据：向 Agent 的命令执行环境安全注入 `SUROWAN_ENDPOINT` 与 `SUROWAN_API_KEY`，或由操作员在本机运行 `surowan-utils login` 保存到凭据文件。不要让 Agent 索取聊天中的明文 key，也不要让它读取或修改凭据。
+4. 在 Agent 的 Skill 列表中确认 `surowan-utils`；未发现时重新打开会话。然后发出只读任务：
 
-   > 使用 $plasticwan-utils 审计 Invocation 12345，说明为什么没有回复；先只查询，不执行重放。
+   > 使用 $surowan-utils 审计 Invocation 12345，说明为什么没有回复；先只查询，不执行重放。
 
-Skill 要求 Agent 每次任务先运行 `plasticwan-utils doctor --json`，使用同一凭据与 endpoint；只有退出码 `0` 且 `status` 为 `ok` 才继续读取对应指南并执行查询或重放。`doctor` 失败时 Agent 停止并报告错误，提醒操作员在本机用 `login` 修复，不循环重试、不自动登录或改动凭据，也不从聊天或存储直接读取 key；`--help` 只用于客户端缺失或命令不匹配时的诊断。
+Skill 要求 Agent 每次任务先运行 `surowan-utils doctor --json`，使用同一凭据与 endpoint；只有退出码 `0` 且 `status` 为 `ok` 才继续读取对应指南并执行查询或重放。`doctor` 失败时 Agent 停止并报告错误，提醒操作员在本机用 `login` 修复，不循环重试、不自动登录或改动凭据，也不从聊天或存储直接读取 key；`--help` 只用于客户端缺失或命令不匹配时的诊断。
 
 Skill 默认先报告审计证据；重放需要明确确认目标、次数和可选的 global/group prompt 覆盖，且不会自动重试。重放从源开场批次的冻结公开消息与当时可证明存在的历史重建场景，使用当前 Chat 的 prompt、模型与工具定义，不依赖 Developer 报文录制；global/group 两层可临时覆盖，固定协议不可覆盖。切片重放（`--before-send`）把输入收窄到某次成功 Bot 发言之前的窗口，需 `--confirm-paid` 显式确认计费。它不恢复私有推理；默认重放不加入后续热注入，切片模式只拍平可证明在目标发送前已注入的批次。合成发送成功不等于生产发送成功。查询结果（含搜索命中的 `matched_messages` 摘要）也可能包含私密消息和 prompt，不要直接公开完整输出。
 
-Skill 是复制到宿主项目的本地副本，不随 CLI 升级自动更新；它随源码仓库更新，同步仓库时一并更新副本（升级 CLI 命令如 `npm install -g @tuuject/plasticwan-utils@latest`）。宿主仍须允许命令执行和访问相应 endpoint，安装 Skill 本身不会授予权限。
+Skill 是复制到宿主项目的本地副本，不随 CLI 升级自动更新；它随源码仓库更新，同步仓库时一并更新副本（升级 CLI 命令如 `npm install -g @tuuject/surowan-utils@latest`）。宿主仍须允许命令执行和访问相应 endpoint，安装 Skill 本身不会授予权限。

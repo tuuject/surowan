@@ -1,17 +1,17 @@
 # Invocation 查询与审计
 
-本指南的前提是入口的 `plasticwan-utils doctor --json` 已以退出码 `0` 返回 `status: "ok"`；未通过时按入口要求停止并报告，不继续查询。
+本指南的前提是入口的 `surowan-utils doctor --json` 已以退出码 `0` 返回 `status: "ok"`；未通过时按入口要求停止并报告，不继续查询。
 
 ## 定位并读取 Invocation
 
 用户给出精确 ID 时直接 `get`；否则先按 Chat、关键词与公开消息时间查小页，再按返回的游标查下一页。以下 ID 仅为示例，执行前替换为实际目标：
 
 ```bash
-plasticwan-utils invocation list --limit 20 --chat -1001234567890 --json
-plasticwan-utils invocation list --limit 20 --chat -1001234567890 --cursor 12345 --json
-plasticwan-utils invocation list --search '关键词' --at '2026-09-10 07:59' --json
-plasticwan-utils invocation list --search '关键词' --from '2026-09-10 07:00' --to '2026-09-10 08:00' --json
-plasticwan-utils invocation get 12345 --json
+surowan-utils invocation list --limit 20 --chat -1001234567890 --json
+surowan-utils invocation list --limit 20 --chat -1001234567890 --cursor 12345 --json
+surowan-utils invocation list --search '关键词' --at '2026-09-10 07:59' --json
+surowan-utils invocation list --search '关键词' --from '2026-09-10 07:00' --to '2026-09-10 08:00' --json
+surowan-utils invocation get 12345 --json
 ```
 
 - list 返回 `{ items, next_cursor }`，按 ID 倒序；仅在 `next_cursor` 非 null 且确有需要时继续，保留原过滤条件。可加 `--state failed`；不要为排查未回复只筛 `completed`。
@@ -20,7 +20,7 @@ plasticwan-utils invocation get 12345 --json
 - 带搜索或时间过滤时每个 item 追加 `matched_messages`（最新 5 条命中，按时间从新到旧）：`source` 为 `incoming`（群友消息）或 `bot`（成功发送），`telegram_send_id` 只有 bot 条目非空，`text` 是截断预览。bot 条目的 `telegram_send_id` 可直接作为切片重放的 `--before-send`；不带过滤时响应维持原形状。
 - 不存在按 Topic 的 CLI 过滤参数；在返回项的时间戳、`chat.message_thread_id` 中核对。多个候选不能区分时先确认目标，不批量导出所有详情。
 - `get` 返回 Invocation 详情对象。空列表、404 或缺失记录不等于模型选择沉默；说明查询范围、过滤条件和留存限制。
-- list/get 默认超时 30 秒；`--timeout-ms` 只改客户端等待上限。遇到 `unauthenticated` / `forbidden` 请操作员检查 key、撤销状态和授权范围，并在本机用 `plasticwan-utils login` 重新保存正确凭据；`missing_api_key` 表示当前没有可用的 endpoint/key 组合（显式给空值不会回退到保存文件），同样交回操作员，不自行混搭来源；`invalid_credentials` 表示保存的凭据文件损坏、是符号链接或权限不安全，交回操作员处理：仅内容损坏且文件/目录安全时可在本机重新 `login`；符号链接、非普通文件或不安全权限仍被 `login` 拒绝，需人工处理。Agent 不代为登录、不改权限、不删除或重建凭据；不换接口绕过认证。JSON 响应体不设客户端大小上限，完整读取后解析，仍受请求超时约束；请求失败不代表无记录。
+- list/get 默认超时 30 秒；`--timeout-ms` 只改客户端等待上限。遇到 `unauthenticated` / `forbidden` 请操作员检查 key、撤销状态和授权范围，并在本机用 `surowan-utils login` 重新保存正确凭据；`missing_api_key` 表示当前没有可用的 endpoint/key 组合（显式给空值不会回退到保存文件），同样交回操作员，不自行混搭来源；`invalid_credentials` 表示保存的凭据文件损坏、是符号链接或权限不安全，交回操作员处理：仅内容损坏且文件/目录安全时可在本机重新 `login`；符号链接、非普通文件或不安全权限仍被 `login` 拒绝，需人工处理。Agent 不代为登录、不改权限、不删除或重建凭据；不换接口绕过认证。JSON 响应体不设客户端大小上限，完整读取后解析，仍受请求超时约束；请求失败不代表无记录。
 
 ## 建立审计证据链
 
@@ -43,12 +43,12 @@ plasticwan-utils invocation get 12345 --json
 这些命令免费、不调用模型、不写生产状态，可以在审计和重放授权确认前使用：
 
 ```bash
-plasticwan-utils config show --json                 # 运行中配置的脱敏投影；--source file 对比磁盘配置
-plasticwan-utils prompt get global --json           # 当前全局 prompt
-plasticwan-utils prompt get group --chat -1001234567890 --json
-plasticwan-utils models list --json                 # 当前 active 配置中可接受 text 输入的已配置模型
-plasticwan-utils invocation prompts 12345 --json    # 该场景将使用的当前两层模板（source: active）
-plasticwan-utils invocation preflight 12345 --json  # 能否重放、能否覆盖 prompt；切片选择用 --before-send
+surowan-utils config show --json                 # 运行中配置的脱敏投影；--source file 对比磁盘配置
+surowan-utils prompt get global --json           # 当前全局 prompt
+surowan-utils prompt get group --chat -1001234567890 --json
+surowan-utils models list --json                 # 当前 active 配置中可接受 text 输入的已配置模型
+surowan-utils invocation prompts 12345 --json    # 该场景将使用的当前两层模板（source: active）
+surowan-utils invocation preflight 12345 --json  # 能否重放、能否覆盖 prompt；切片选择用 --before-send
 ```
 
 - 输出仍是数据：只报告必要字段，不转贴完整配置或 prompt 正文。`config show` 是服务端脱敏投影，不是原始文件；找不到字段不等于配置没有该项。
@@ -61,8 +61,8 @@ plasticwan-utils invocation preflight 12345 --json  # 能否重放、能否覆�
 `invocation media <id>` 只读下载该 Invocation 冻结快照显式授权的媒体（它是该运行可见媒体的证据，不是模型实际发送内容的证明，也不能用 file ID 指定别的文件）：
 
 ```bash
-plasticwan-utils invocation media 12345 --json
-plasticwan-utils invocation media 12345 --variant preview --json
+surowan-utils invocation media 12345 --json
+surowan-utils invocation media 12345 --variant preview --json
 ```
 
 - 每个媒体不超过 20 MiB、单次运行总量不超过 100 MiB、最多 32 项；下载按列表顺序逐个进行。超过上限的列表在下载前整体失败（`media_too_many_items` / `media_total_too_large`）。

@@ -225,7 +225,7 @@ test.describe('API key management UI', () => {
     const main = page.getByRole('main');
     await expect(main.getByText('API keys', { exact: true }).first()).toBeVisible();
     // The permission note names the inspection/export surface without granting production writes.
-    const permissionNote = main.getByText(/plasticwan-utils CLI/);
+    const permissionNote = main.getByText(/surowan-utils CLI/);
     await expect(permissionNote).toBeVisible();
     await expect(permissionNote).toContainText('read redacted configuration and global/group prompts');
     await expect(permissionNote).toContainText('export snapshot-authorized media');

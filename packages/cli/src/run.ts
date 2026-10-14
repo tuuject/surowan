@@ -6,25 +6,25 @@ import { credentialsPath, readCredentials, writeCredentials } from './credential
 import { CliError, usageError } from './errors.ts';
 import { promptLoginField, readLoginKey } from './login.ts';
 
-export const USAGE = `plasticwan-utils - Plastic Wan Admin API 工具客户端
+export const USAGE = `surowan-utils - Plastic Wan Admin API 工具客户端
 
 用法:
-  plasticwan-utils login [--endpoint <url>] [--api-key-stdin] [--json]
-  plasticwan-utils doctor [--json]
-  plasticwan-utils models list [--json]
-  plasticwan-utils config show [--source active|file] [--json]
-  plasticwan-utils prompt get global [--source active|file] [--json]
-  plasticwan-utils prompt get group --chat <id> [--source active|file] [--json]
-  plasticwan-utils invocation list [--limit N] [--cursor ID] [--state STATE] [--chat ID] [--search <keyword>] [--at <time>] [--from <time>] [--to <time>] [--json]
-  plasticwan-utils invocation get <id> [--json]
-  plasticwan-utils invocation prompts <id> [--json]
-  plasticwan-utils invocation preflight <id> [--before-send <send-id>] [--provider <alias> --model <id>] [--thinking-level <level>] [--json]
-  plasticwan-utils invocation media <id> [--variant original|preview] [--json]
-  plasticwan-utils invocation replay <id> [--before-send <send-id> --confirm-paid] [--provider <alias> --model <id>] [--thinking-level <level>] [--global-prompt <file|->] [--group-prompt <file|->] [--json]
+  surowan-utils login [--endpoint <url>] [--api-key-stdin] [--json]
+  surowan-utils doctor [--json]
+  surowan-utils models list [--json]
+  surowan-utils config show [--source active|file] [--json]
+  surowan-utils prompt get global [--source active|file] [--json]
+  surowan-utils prompt get group --chat <id> [--source active|file] [--json]
+  surowan-utils invocation list [--limit N] [--cursor ID] [--state STATE] [--chat ID] [--search <keyword>] [--at <time>] [--from <time>] [--to <time>] [--json]
+  surowan-utils invocation get <id> [--json]
+  surowan-utils invocation prompts <id> [--json]
+  surowan-utils invocation preflight <id> [--before-send <send-id>] [--provider <alias> --model <id>] [--thinking-level <level>] [--json]
+  surowan-utils invocation media <id> [--variant original|preview] [--json]
+  surowan-utils invocation replay <id> [--before-send <send-id> --confirm-paid] [--provider <alias> --model <id>] [--thinking-level <level>] [--global-prompt <file|->] [--group-prompt <file|->] [--json]
 
 全局选项:
   --endpoint <url>    Admin Panel 基地址（覆盖环境变量与登录文件）；明文 http 仅允许 loopback
-  --api-key <key>     API key（覆盖 PLASTICWAN_API_KEY 与登录文件；建议隐藏输入、stdin 或安全环境注入）
+  --api-key <key>     API key（覆盖 SUROWAN_API_KEY 与登录文件；建议隐藏输入、stdin 或安全环境注入）
   --api-key-stdin     仅 login：读取标准输入至 EOF，接受单行 API key，不回显
   --source <active|file>  config show / prompt get：读取运行时生效配置或配置文件（默认 active）
   --variant <original|preview>  仅 invocation media：下载原始文件或预览（默认 original）
@@ -42,7 +42,7 @@ export const USAGE = `plasticwan-utils - Plastic Wan Admin API 工具客户端
   -h, --help          显示本帮助
 
 时间格式: YYYY-MM-DD[ |T]HH:mm[:ss[.1-3位]][Z|±HH:mm]；日期必须有效。不带 Z/offset 时由服务端按 --chat 对应群或全局时区解释。
-登录文件: ~/.config/plasticwan-utils/credentials.json（未加密，包含 API key）。
+登录文件: ~/.config/surowan-utils/credentials.json（未加密，包含 API key）。
 login 只保存凭据；doctor 用只读请求验证连接与鉴权，不调用模型。
 config show 与 prompt get 只读取脱敏后的配置与 prompt，不修改服务端状态。
 models list 只列当前生效、已注册且接受文本的模型及支持的 thinking_levels，不探测上游或调用模型。
@@ -61,7 +61,7 @@ export interface RunOptions {
 export async function runCli(argv: readonly string[], options: RunOptions = {}): Promise<number> {
   const env = options.env ?? process.env;
   const io = options.io ?? defaultIo();
-  const secrets: Array<string | undefined> = [env.PLASTICWAN_API_KEY, ...argumentKeys(argv)];
+  const secrets: Array<string | undefined> = [env.SUROWAN_API_KEY, ...argumentKeys(argv)];
   try {
     const parsed = parseCli(argv);
     if (parsed.help) {
@@ -72,8 +72,8 @@ export async function runCli(argv: readonly string[], options: RunOptions = {}):
     if (parsed.command?.kind === 'login') {
       return await login(parsed, env, io, path, secrets);
     }
-    const explicitEndpoint = parsed.endpointRaw ?? env.PLASTICWAN_ENDPOINT;
-    const explicitKey = parsed.apiKeyRaw ?? env.PLASTICWAN_API_KEY;
+    const explicitEndpoint = parsed.endpointRaw ?? env.SUROWAN_ENDPOINT;
+    const explicitKey = parsed.apiKeyRaw ?? env.SUROWAN_API_KEY;
     const saved = explicitEndpoint !== undefined && explicitKey !== undefined ? undefined : await readCredentials(path);
     secrets.push(saved?.apiKey);
     const resolved = resolveCli(parsed, env, saved);
@@ -132,13 +132,10 @@ async function login(
     throw usageError('invalid_command', 'expected login');
   }
   const timeoutMs = parseTimeout(parsed.timeoutRaw, false);
-  let endpointRaw = parsed.endpointRaw ?? env.PLASTICWAN_ENDPOINT;
-  let apiKey = parsed.apiKeyRaw ?? env.PLASTICWAN_API_KEY;
+  let endpointRaw = parsed.endpointRaw ?? env.SUROWAN_ENDPOINT;
+  let apiKey = parsed.apiKeyRaw ?? env.SUROWAN_API_KEY;
   if (parsed.command.apiKeyStdin && apiKey !== undefined) {
-    throw usageError(
-      'conflicting_key_input',
-      '--api-key-stdin cannot be combined with --api-key or PLASTICWAN_API_KEY',
-    );
+    throw usageError('conflicting_key_input', '--api-key-stdin cannot be combined with --api-key or SUROWAN_API_KEY');
   }
   if (endpointRaw === undefined) {
     endpointRaw = await promptLoginField('Admin API endpoint: ', false, timeoutMs);
@@ -155,7 +152,7 @@ async function login(
   output.stdout(
     parsed.json
       ? `${JSON.stringify({ status: 'saved', endpoint, credentials_file: path })}\n`
-      : 'Login credentials saved. Run plasticwan-utils doctor to verify connection and authentication.\n',
+      : 'Login credentials saved. Run surowan-utils doctor to verify connection and authentication.\n',
   );
   return 0;
 }

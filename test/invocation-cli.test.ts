@@ -122,8 +122,8 @@ function runCli(
   } = {},
 ): Promise<CliResult> {
   const env: Record<string, string | undefined> = { ...process.env };
-  delete env.PLASTICWAN_ENDPOINT;
-  delete env.PLASTICWAN_API_KEY;
+  delete env.SUROWAN_ENDPOINT;
+  delete env.SUROWAN_API_KEY;
   // File fallback must never consult the operator's real saved credentials.
   env.HOME = workDir;
   env.USERPROFILE = workDir;
@@ -198,7 +198,7 @@ afterAll(async () => {
   await rm(workDir, { recursive: true, force: true });
 });
 
-describe('plasticwan-utils invocation CLI', () => {
+describe('surowan-utils invocation CLI', () => {
   it('list sends filters and auth, and prints one stable JSON document', async () => {
     const server = await startServer((_request, response) => {
       jsonResponse(response, 200, { items: [ITEM], next_cursor: '7' });
@@ -206,7 +206,7 @@ describe('plasticwan-utils invocation CLI', () => {
     try {
       const result = await runCli(
         ['invocation', 'list', '--limit', '5', '--cursor', '9', '--state', 'completed', '--chat', '-100123', '--json'],
-        { env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY } },
+        { env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY } },
       );
       expect(result.code).toBe(0);
       expect(result.stderr).toBe('');
@@ -235,7 +235,7 @@ describe('plasticwan-utils invocation CLI', () => {
     });
     try {
       const result = await runCli(['invocation', 'list'], {
-        env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY },
+        env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
       });
       expect(result.code).toBe(0);
       expect(result.stderr).toBe('');
@@ -251,13 +251,13 @@ describe('plasticwan-utils invocation CLI', () => {
     }
   }, 20_000);
 
-  it('--api-key overrides PLASTICWAN_API_KEY', async () => {
+  it('--api-key overrides SUROWAN_API_KEY', async () => {
     const server = await startServer((_request, response) => {
       jsonResponse(response, 200, { items: [], next_cursor: null });
     });
     try {
       const result = await runCli(['invocation', 'list', '--json', '--api-key', 'flag-key'], {
-        env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: 'env-key' },
+        env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: 'env-key' },
       });
       expect(result.code).toBe(0);
       expect(onlyRequest(server).headers.authorization).toBe('Bearer flag-key');
@@ -273,7 +273,7 @@ describe('plasticwan-utils invocation CLI', () => {
     });
     try {
       const result = await runCli(['invocation', 'get', '42', '--json'], {
-        env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY },
+        env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
       });
       expect(result.code).toBe(0);
       expect(JSON.parse(result.stdout)).toEqual(detail);
@@ -293,7 +293,7 @@ describe('plasticwan-utils invocation CLI', () => {
     );
     try {
       const result = await runCli(['invocation', 'replay', '42', '--json'], {
-        env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY },
+        env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
       });
       expect(result.code).toBe(0);
       expect(result.stderr).toBe('');
@@ -318,7 +318,7 @@ describe('plasticwan-utils invocation CLI', () => {
       }),
     );
     try {
-      const env = { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY };
+      const env = { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY };
       const fromFile = await runCli(['invocation', 'replay', '42', '--global-prompt', promptFile, '--json'], { env });
       expect(fromFile.code).toBe(0);
       expect(JSON.parse(server.requests[1]?.body ?? '')).toEqual({ global_prompt: 'from the prompt file' });
@@ -363,7 +363,7 @@ describe('plasticwan-utils invocation CLI', () => {
       );
       try {
         const result = await runCli(['invocation', 'replay', '42', '--json'], {
-          env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY },
+          env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
         });
         expect(result.code).toBe(1);
         expect(JSON.parse(result.stdout)).toEqual(failure);
@@ -385,7 +385,7 @@ describe('plasticwan-utils invocation CLI', () => {
     });
     try {
       const result = await runCli(['invocation', 'list', '--json'], {
-        env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY },
+        env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
       });
       expect(result.code).toBe(1);
       expect(result.stdout).toBe('');
@@ -402,7 +402,7 @@ describe('plasticwan-utils invocation CLI', () => {
     });
     try {
       const result = await runCli(['invocation', 'list', '--json'], {
-        env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY },
+        env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
       });
       expect(result.code).toBe(1);
       expect(result.stdout).toBe('');
@@ -419,7 +419,7 @@ describe('plasticwan-utils invocation CLI', () => {
     });
     try {
       const result = await runCli(['invocation', 'list', '--json'], {
-        env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY },
+        env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
       });
       expect(result.code).toBe(1);
       expect(errorDocument(result).error).toBe('redirect_not_allowed');
@@ -439,7 +439,7 @@ describe('plasticwan-utils invocation CLI', () => {
         const result = await runCli(
           ['invocation', 'replay', '42', '--global-prompt', '-', '--timeout-ms', '250', '--json'],
           {
-            env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY },
+            env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
             stdin,
             keepStdinOpen: true,
           },
@@ -469,7 +469,7 @@ describe('plasticwan-utils invocation CLI', () => {
       const result = await runCli(
         ['invocation', 'replay', '42', '--before-send', '5', '--global-prompt', '-', '--timeout-ms', '250', '--json'],
         {
-          env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY },
+          env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
           stdin: 'override',
           // stdin is never closed: only an early refusal can finish this run
           // before the read timeout would report `timeout` instead.
@@ -496,7 +496,7 @@ describe('plasticwan-utils invocation CLI', () => {
     });
     try {
       const result = await runCli(['invocation', 'list', '--timeout-ms', '500', '--json'], {
-        env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY },
+        env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
       });
       expect(result.code).toBe(1);
       expect(errorDocument(result).error).toBe('timeout');
@@ -514,7 +514,7 @@ describe('plasticwan-utils invocation CLI', () => {
     });
     try {
       const result = await runCli(['invocation', 'list', '--timeout-ms', '500', '--json'], {
-        env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY },
+        env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
       });
       expect(result.code).toBe(1);
       expect(result.stdout).toBe('');
@@ -548,7 +548,7 @@ describe('plasticwan-utils invocation CLI', () => {
       );
       try {
         const result = await runCli(['invocation', command, '42', '--json'], {
-          env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY },
+          env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
         });
         expect(result.code).toBe(0);
         expect(result.stderr).toBe('');
@@ -573,7 +573,7 @@ describe('plasticwan-utils invocation CLI', () => {
     });
     try {
       const result = await runCli(['invocation', 'list', '--json'], {
-        env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY },
+        env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
       });
       expect(result.code).toBe(1);
       expect(result.stdout).toBe('');
@@ -591,7 +591,7 @@ describe('plasticwan-utils invocation CLI', () => {
     });
     try {
       const result = await runCli(['invocation', 'list', '--json'], {
-        env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY },
+        env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
       });
       expect(result.code).toBe(1);
       expect(result.stdout).toBe('');
@@ -638,7 +638,7 @@ describe('plasticwan-utils invocation CLI', () => {
       }),
     );
     try {
-      const env = { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY };
+      const env = { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY };
       const runs: readonly (readonly [readonly string[], string])[] = [
         [['invocation', 'list', '--json'], 'next_cursor'],
         [['invocation', 'get', '42', '--json'], 'echo'],
@@ -677,7 +677,7 @@ describe('plasticwan-utils invocation CLI', () => {
     );
     try {
       const result = await runCli(['invocation', 'replay', '42', '--json'], {
-        env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY },
+        env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
       });
       expect(result.code).toBe(1);
       expect(result.stdout).not.toContain(API_KEY);
@@ -700,7 +700,7 @@ describe('plasticwan-utils invocation CLI', () => {
     });
     try {
       const result = await runCli(['invocation', 'get', '42', '--json'], {
-        env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY },
+        env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
       });
       expect(result.code).toBe(1);
       expect(result.stdout).toBe('');
@@ -721,7 +721,7 @@ describe('plasticwan-utils invocation CLI', () => {
     });
     try {
       const result = await runCli(['invocation', 'get', '42', '--json'], {
-        env: { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: escapedKey },
+        env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: escapedKey },
       });
       expect(result.code).toBe(0);
       expect(result.stderr).toBe('');
@@ -738,7 +738,7 @@ describe('plasticwan-utils invocation CLI', () => {
       jsonResponse(response, 200, { items: [], next_cursor: null });
     });
     try {
-      const env = { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY };
+      const env = { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY };
       const unknownOption = await runCli(['invocation', 'list', '--bogus', '--json'], { env });
       expect(unknownOption.code).toBe(2);
       expect(errorDocument(unknownOption).error).toBe('invalid_arguments');
@@ -799,7 +799,7 @@ describe('plasticwan-utils invocation CLI', () => {
       jsonResponse(response, 200, { items: [], next_cursor: null });
     });
     try {
-      const env = { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY };
+      const env = { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY };
       const cases: readonly (readonly [readonly string[], string])[] = [
         [['invocation', 'get', '12abc', '--json'], 'invalid_id'],
         [['invocation', 'get', '99999999999999999999', '--json'], 'invalid_id'],
@@ -888,7 +888,7 @@ describe('plasticwan-utils invocation CLI', () => {
       }),
     );
     try {
-      const env = { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY };
+      const env = { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY };
       expect((await runCli(['invocation', 'get', '0042', '--json'], { env })).code).toBe(0);
       expect(
         (await runCli(['invocation', 'list', '--cursor', '007', '--chat', '-00100', '--json'], { env })).code,
@@ -917,26 +917,26 @@ describe('plasticwan-utils invocation CLI', () => {
     expect(errorDocument(missingEndpoint).error).toBe('missing_endpoint');
 
     const missingKey = await runCli(['invocation', 'list', '--json'], {
-      env: { PLASTICWAN_ENDPOINT: 'http://127.0.0.1:8787' },
+      env: { SUROWAN_ENDPOINT: 'http://127.0.0.1:8787' },
     });
     expect(missingKey.code).toBe(2);
     expect(errorDocument(missingKey).error).toBe('missing_api_key');
 
     const remotePlaintext = await runCli(['invocation', 'list', '--endpoint', 'http://10.255.255.1:9', '--json'], {
-      env: { PLASTICWAN_API_KEY: API_KEY },
+      env: { SUROWAN_API_KEY: API_KEY },
     });
     expect(remotePlaintext.code).toBe(2);
     expect(errorDocument(remotePlaintext).error).toBe('insecure_endpoint');
 
     const credentialUrl = await runCli(
       ['invocation', 'list', '--endpoint', 'http://user:pass@127.0.0.1:8787', '--json'],
-      { env: { PLASTICWAN_API_KEY: API_KEY } },
+      { env: { SUROWAN_API_KEY: API_KEY } },
     );
     expect(credentialUrl.code).toBe(2);
     expect(errorDocument(credentialUrl).error).toBe('invalid_endpoint');
 
     const nonHttp = await runCli(['invocation', 'list', '--endpoint', 'ftp://127.0.0.1:8787', '--json'], {
-      env: { PLASTICWAN_API_KEY: API_KEY },
+      env: { SUROWAN_API_KEY: API_KEY },
     });
     expect(nonHttp.code).toBe(2);
     expect(errorDocument(nonHttp).error).toBe('invalid_endpoint');
@@ -949,7 +949,7 @@ describe('plasticwan-utils invocation CLI', () => {
       }),
     );
     try {
-      const env = { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY };
+      const env = { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY };
       const tooLarge = await runCli(['invocation', 'replay', '5', '--global-prompt', '-', '--json'], {
         env,
         stdin: 'a'.repeat(MAX_PROMPT_CHARS + 1),
@@ -991,7 +991,7 @@ describe('plasticwan-utils invocation CLI', () => {
       }),
     );
     try {
-      const env = { PLASTICWAN_ENDPOINT: server.baseUrl, PLASTICWAN_API_KEY: API_KEY };
+      const env = { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY };
       // /dev/null is a character device; on Windows the temp directory stands
       // in for the same "stat() succeeds but this is not a regular file" case.
       const notARegularFile = process.platform === 'win32' ? workDir : '/dev/null';
@@ -1013,8 +1013,8 @@ describe('plasticwan-utils invocation CLI', () => {
   it('prints usage for --help without requiring an endpoint', async () => {
     const result = await runCli(['--help']);
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain('plasticwan-utils - Plastic Wan Admin API 工具客户端');
-    expect(result.stdout).toContain('plasticwan-utils invocation replay');
+    expect(result.stdout).toContain('surowan-utils - Plastic Wan Admin API 工具客户端');
+    expect(result.stdout).toContain('surowan-utils invocation replay');
     expect(result.stdout).toContain('--before-send');
     expect(result.stdout).toContain('--confirm-paid');
     expect(result.stdout).not.toContain('plasticwan-debug');
