@@ -3,7 +3,7 @@ import type { ExecutableCapability } from '../capabilities/execute-tool.ts';
 import type { ContextInjector } from '../context/context-injector.ts';
 import type { RawConfig } from '../platform/config.ts';
 import type { InvocationContext } from '../platform/invocation-context.ts';
-import type { Orm, SqliteStore } from '../store/database.ts';
+import type { BusinessStore, Orm } from '../store/store.ts';
 import { LongTaskService, type PluginTaskScope } from '../store/long-tasks.ts';
 import { createToolAudit, type ToolAudit } from '../store/tool-audit.ts';
 
@@ -88,12 +88,12 @@ export interface LoadPluginsOptions {
 }
 
 export interface LoadedPlugins {
-  /** Mounted under system:///skills/ next to the bundled tree, see `SystemResources.load`. */
+  /** Mounted under system:///skills/ next to the bundled tree, see `FileSystemResources.load`. */
   readonly skillDirectories: readonly string[];
   /** All plugins' context injectors, in plugin load order. */
   readonly contextInjectors: readonly ContextInjector[];
   capabilities(
-    store: SqliteStore,
+    store: BusinessStore,
     config: RawConfig,
     context: InvocationContext,
     deadline: number,

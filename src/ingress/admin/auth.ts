@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { hash, verify } from '@node-rs/argon2';
 import { and, eq, sql } from 'drizzle-orm';
-import { asRunResult, type Orm } from '../../store/database.ts';
+import { asRunResult, type Orm } from '../../store/store.ts';
 import { adminPasskeys, adminSessions, adminUsers } from '../../store/schema.ts';
 
 const SESSION_TOKEN_BYTES = 32;

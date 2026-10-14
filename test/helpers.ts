@@ -2,12 +2,13 @@ import { access, chmod, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { type Api, createModels, type FauxProviderHandle, type Model, type Models } from '@earendil-works/pi-ai';
 import { serve, type ServerType } from '@hono/node-server';
-import type { FileConfig, RawConfig } from '../src/platform/config.ts';
+import { type FileConfig, KEY_JAR_FILE, type RawConfig } from '../src/platform/config.ts';
 import { buildModelRegistry } from '../src/platform/providers.ts';
 import { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
-import { KEY_JAR_FILE, keyJarPath } from '../src/platform/key-jar.ts';
+import { keyJarPath } from '../src/platform/key-jar.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { BUNDLED_SYSTEM_RESOURCES_DIR, SystemResources } from '../src/platform/system-resources.ts';
+import type { SystemResources } from '../src/platform/system-resources.ts';
+import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from '../src/adapters/local-monolith/system-resources.ts';
 import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
 import { loadPlugins } from '../src/plugins/plugin.ts';
 import type {
@@ -21,7 +22,7 @@ import { ContextBuilder, type Injection } from '../src/context/context-builder.t
 import type { ContextInjector } from '../src/context/context-injector.ts';
 import { ContextRefStore, createCapabilityResolver } from '../src/context/context-refs.ts';
 import { ConversationContextStore, type ContextHeader } from '../src/context/context-store.ts';
-import type { SqliteStore } from '../src/store/database.ts';
+import type { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { invocations } from '../src/store/schema.ts';
 import { eq } from 'drizzle-orm';
 
@@ -41,7 +42,7 @@ export function invocationCapabilities(
 
 /** Loads the real system:/// resource tree, plugin skills included, for integration-style tests. */
 export function bundledSystemResources(): Promise<SystemResources> {
-  return SystemResources.load(BUNDLED_SYSTEM_RESOURCES_DIR, loadPlugins(BUILTIN_PLUGINS).skillDirectories);
+  return FileSystemResources.load(BUNDLED_SYSTEM_RESOURCES_DIR, loadPlugins(BUILTIN_PLUGINS).skillDirectories);
 }
 
 export interface TestContextOptions {

@@ -6,10 +6,13 @@ import Type, { type Static } from 'typebox';
 import { Compile } from 'typebox/compile';
 import type { BucketScheduler } from '../../orchestration/scheduler.ts';
 import { PromptOverrideError, preparePromptOverride } from '../../platform/agent-prompt.ts';
-import { type LoadedConfig, loadConfig } from '../../platform/config.ts';
-import { readConfigRevision } from '../../platform/config-file.ts';
-import type { ConfigApplyResult, ConfigErrorCode, ConfigReloader } from '../../platform/config-reload.ts';
-import { asRunResult, type Orm, resolveChatConfig } from '../../store/database.ts';
+import type {
+  ConfigApplyResult,
+  ConfigController,
+  ConfigErrorCode,
+  PersistedConfig,
+} from '../../platform/config-write.ts';
+import { asRunResult, type Orm, resolveChatConfig } from '../../store/store.ts';
 import {
   getPromptVersion,
   hashPromptContent,
@@ -214,14 +217,14 @@ export type PromptSaveResult =
  */
 export async function savePromptVersion(
   orm: Orm,
-  reloader: ConfigReloader,
+  reloader: ConfigController,
   input: PromptSaveInput,
   now = new Date(),
 ): Promise<PromptSaveResult> {
   const template = validatePromptContent(input.content, input.scope);
-  let loaded: LoadedConfig;
+  let loaded: PersistedConfig;
   try {
-    loaded = await loadConfig(reloader.configPath);
+    loaded = await reloader.readPersisted();
   } catch {
     // Config errors can quote command SecretRefs or arbitrary edited file text.
     throw new AdminQueryError('config_invalid', 'The configuration file cannot be loaded safely', 422);
@@ -308,7 +311,7 @@ export async function savePromptVersion(
       ? await reloader.reloadFromFile()
       : await reloader.writeAndApply(
           [{ path: ['telegram', 'chats', chatIndex, 'instructions_file'], value: creationRelative }],
-          await readConfigRevision(reloader.configPath),
+          await reloader.revision(),
         );
   if (!apply.ok) {
     return { kind: 'apply_failed', version, code: apply.code, message: apply.message };
@@ -320,7 +323,7 @@ export async function savePromptVersion(
 /** Restores one recorded version by writing its content back as a new version. */
 export async function restorePromptVersion(
   orm: Orm,
-  reloader: ConfigReloader,
+  reloader: ConfigController,
   versionId: bigint,
   input: { readonly expectedHash: string; readonly note: string | undefined; readonly username: string },
   now = new Date(),

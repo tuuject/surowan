@@ -21,7 +21,8 @@ import type { McpServerConfig, RawConfig, SecretRef } from '../platform/config.t
 import { type InvocationContext, previewContext } from '../platform/invocation-context.ts';
 import type { SecretStore } from '../platform/secrets.ts';
 import { safeJson, truncateUtf8 } from '../platform/truncate.ts';
-import { finishToolCall, rejectToolCall, type SqliteStore, startToolCall } from '../store/database.ts';
+import type { BusinessStore } from '../store/store.ts';
+import { finishToolCall, rejectToolCall, startToolCall } from '../store/store.ts';
 import { mcpServerState } from '../store/schema.ts';
 
 const ARGUMENT_MAX_BYTES = 32_768;
@@ -61,13 +62,13 @@ type RegistryValidator = (tools: readonly AgentTool[]) => void;
 type McpCallResult = CallToolResult | CompatibilityCallToolResult;
 
 export class McpManager {
-  readonly #store: SqliteStore;
+  readonly #store: BusinessStore;
   readonly #secrets: SecretStore;
   readonly #servers = new Map<string, ManagedServer>();
   #registryValidator: RegistryValidator | undefined;
   #stopping = false;
 
-  constructor(store: SqliteStore, config: RawConfig, secrets: SecretStore) {
+  constructor(store: BusinessStore, config: RawConfig, secrets: SecretStore) {
     this.#store = store;
     this.#secrets = secrets;
     for (const serverConfig of config.mcp?.servers ?? []) {

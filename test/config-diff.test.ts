@@ -2,7 +2,8 @@ import { afterAll, expect, test } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type FileConfig, loadConfig } from '../src/platform/config.ts';
+import type { FileConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { diffConfig, type ConfigChange } from '../src/platform/config-diff.ts';
 import { testConfigJsonc, writeTestConfig } from './helpers.ts';
 

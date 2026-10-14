@@ -1,9 +1,8 @@
 import type { RawConfig } from '../../platform/config.ts';
-import { assertConfigPermissions, loadConfig } from '../../platform/config.ts';
-import type { ConfigReloader } from '../../platform/config-reload.ts';
+import type { ConfigController } from '../../platform/config-write.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
-import { type Orm, resolveChatConfig } from '../../store/database.ts';
+import { type Orm, resolveChatConfig } from '../../store/store.ts';
 import { hashPromptContent } from '../../store/prompt-versions.ts';
 import { AdminQueryError } from './audit.ts';
 import { listProviders } from './providers-admin.ts';
@@ -38,7 +37,7 @@ export function inspectionQuery(url: URL, groupPrompt = false): { source: Config
 
 export async function inspectConfiguration(
   store: RuntimeConfigurationStore,
-  reloader: ConfigReloader | undefined,
+  reloader: ConfigController | undefined,
   source: ConfigurationSource,
 ) {
   const current = store.current();
@@ -57,8 +56,7 @@ export async function inspectConfiguration(
     throw new AdminQueryError('config_read_unavailable', 'The configuration file is not wired', 503);
   }
   try {
-    await assertConfigPermissions(reloader.configPath);
-    const loaded = await loadConfig(reloader.configPath);
+    const loaded = await reloader.readPersisted({ checkPermissions: true });
     return {
       config: loaded.config,
       source,

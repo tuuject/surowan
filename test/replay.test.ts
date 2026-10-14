@@ -25,13 +25,15 @@ import { type ReplayPromptOverrides, ReplayRunner } from '../src/orchestration/r
 import { composeAgentPrompt } from '../src/platform/agent-prompt.ts';
 import { CORE_AGENT_PROTOCOL } from '../src/platform/agent-protocol.ts';
 import { KeyedSemaphore } from '../src/platform/concurrency.ts';
-import { type FileConfig, loadConfig, type RawConfig } from '../src/platform/config.ts';
+import type { FileConfig, RawConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { InvocationContext } from '../src/platform/invocation-context.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { BUNDLED_SYSTEM_RESOURCES_DIR, SystemResources } from '../src/platform/system-resources.ts';
+import { emptySystemResources, type SystemResources } from '../src/platform/system-resources.ts';
+import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from '../src/adapters/local-monolith/system-resources.ts';
 import { AlarmInputSchema, ListAlarmInputSchema } from '../src/plugins/alarm/alarm.ts';
 import { ListImageModelsInputSchema } from '../src/plugins/image/image.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { invocationMessages, invocations, media, messageRevisions, messages, modelCalls } from '../src/store/schema.ts';
 import { seedAdminFixture } from './fixtures/admin-seed.ts';
 import { fauxRegistry, type TestRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
@@ -286,7 +288,7 @@ async function fixture(options: FixtureOptions = {}) {
     store,
     configStore,
     secrets,
-    systemResources: options.resources ?? SystemResources.empty(),
+    systemResources: options.resources ?? emptySystemResources(),
     modelGate: gate,
     shutdownSignal: shutdown.signal,
     ...(options.imageLoader === undefined ? {} : { imageLoader: options.imageLoader }),
@@ -739,7 +741,7 @@ test('a scene replays with recording off, without any model call, after develope
 });
 
 test('the default registry is the current read, send, send_reply, and execute definitions', async () => {
-  const resources = await SystemResources.load(BUNDLED_SYSTEM_RESOURCES_DIR);
+  const resources = await FileSystemResources.load(BUNDLED_SYSTEM_RESOURCES_DIR);
   const skill = resources.skills[0];
   if (skill === undefined) {
     throw new Error('Bundled system skills are missing');

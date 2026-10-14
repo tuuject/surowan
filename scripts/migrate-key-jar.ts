@@ -2,7 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { type ParseError, parse } from 'jsonc-parser';
 import { plaintextSecrets } from '../src/platform/config.ts';
-import { secretEdit, writeConfigEdits } from '../src/platform/config-file.ts';
+import { writeConfigEdits } from '../src/adapters/local-monolith/config-file.ts';
+import { secretEdit } from '../src/platform/config-write.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 
 /**

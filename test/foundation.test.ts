@@ -2,12 +2,14 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { chmod, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { configuredToolSchemaKeywords, loadConfig } from '../src/platform/config.ts';
-import { secretEdit, writeConfigEdits } from '../src/platform/config-file.ts';
+import { configuredToolSchemaKeywords } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { writeConfigEdits } from '../src/adapters/local-monolith/config-file.ts';
+import { secretEdit } from '../src/platform/config-write.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { buildModelRegistry, requireModel } from '../src/platform/providers.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { backupDatabase, SqliteStore } from '../src/store/database.ts';
+import { backupDatabase, SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { schemaMigrations } from '../src/store/schema.ts';
 import { pathExists, testConfigJsonc, writeTestConfig, writeTestKeyJar } from './helpers.ts';
 

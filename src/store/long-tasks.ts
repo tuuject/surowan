@@ -7,7 +7,7 @@ import type {
   InvocationContext,
   JsonValue,
 } from '../platform/invocation-context.ts';
-import type { Orm } from './database.ts';
+import type { Orm } from './store.ts';
 import { longTasks, taskReceipts } from './schema.ts';
 
 const JsonValueSchema = Type.Union(

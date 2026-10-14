@@ -15,16 +15,17 @@ import { alarmTools, getAlarmTask } from './alarm-fixtures.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
 import { BotCommandService } from '../src/orchestration/bot-commands.ts';
 import { KeyedSemaphore } from '../src/platform/concurrency.ts';
-import { loadConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
-import { purgeExpiredData, SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
+import { purgeExpiredData } from '../src/store/store.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { createSendTool, type TelegramSendApi } from '../src/capabilities/send-tool.ts';
 import { enterSleep } from '../src/store/sleep.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { capability } from '../src/capabilities/execute-tool.ts';
-import { SystemResources } from '../src/platform/system-resources.ts';
+import { emptySystemResources } from '../src/platform/system-resources.ts';
 import {
   fauxRegistry,
   invocationCapabilities,
@@ -445,7 +446,7 @@ describe('alarm tool', () => {
       },
       bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
       modelGate: new KeyedSemaphore(),
-      systemResources: SystemResources.empty(),
+      systemResources: emptySystemResources(),
       capabilityTools: (context) => [capability(alarmTools(store, config, context).list_alarm, false)],
     });
     expect(await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal)).toEqual({
@@ -620,7 +621,7 @@ describe('alarm runtime budget bypass', () => {
       },
       bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
       modelGate: new KeyedSemaphore(),
-      systemResources: SystemResources.empty(),
+      systemResources: emptySystemResources(),
     });
     expect(await runtime.run(alarmInvocation, configStore.beginInvocation(), new AbortController().signal)).toEqual({
       state: 'completed',

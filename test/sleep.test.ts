@@ -16,17 +16,17 @@ import {
 } from '@earendil-works/pi-ai';
 import type { Update } from 'grammy/types';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
-import { type LoadedConfig, loadConfig } from '../src/platform/config.ts';
+import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { previewContext } from '../src/platform/invocation-context.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import type { TelegramSendApi } from '../src/capabilities/send-tool.ts';
 import { activeSleepUntil, enterSleep, SLEEP_STATE_KEY } from '../src/store/sleep.ts';
 import { SLEEP_STATE_PROMPT } from '../src/context/context-builder.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
-import { SystemResources } from '../src/platform/system-resources.ts';
+import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { fauxRegistry, testConfigStore, writeTestConfig, type TestRegistry } from './helpers.ts';
 
 const directories: string[] = [];
@@ -141,7 +141,7 @@ async function runtimeSetup(
     secrets: new SecretStore(),
     telegramApi: api,
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-    systemResources: SystemResources.empty(),
+    systemResources: emptySystemResources(),
   });
   return { store, configStore, runtime, invocationId, faux };
 }

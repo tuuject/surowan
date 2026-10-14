@@ -10,16 +10,17 @@ import {
   type MutableModels,
 } from '@earendil-works/pi-ai';
 import type { Update } from 'grammy/types';
-import { loadConfig, type FileConfig, type RawConfig } from '../src/platform/config.ts';
+import type { FileConfig, RawConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { RuntimeConfigurationStore, InvocationConfigSnapshot } from '../src/platform/runtime-config.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import { ConversationContextStore } from '../src/context/context-store.ts';
 import { InvocationQueueService } from '../src/orchestration/invocation-queue.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { SystemResources } from '../src/platform/system-resources.ts';
+import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { MentionTyping } from '../src/capabilities/mention-typing.ts';
 import { SEND_BARRIER_TEXT, type TelegramSendApi } from '../src/capabilities/send-tool.ts';
@@ -112,7 +113,7 @@ async function fixture(transform?: (config: FileConfig) => void): Promise<Fixtur
       telegramApi: sendApi,
       mentionTyping,
       bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-      systemResources: SystemResources.empty(),
+      systemResources: emptySystemResources(),
       conversationRuntime,
     });
     return { runtime, snapshot: runtimeConfigStore.beginInvocation() };

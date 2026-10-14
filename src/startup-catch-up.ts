@@ -3,7 +3,7 @@ import type { Update } from 'grammy/types';
 import type { TelegramIngestion } from './ingress/telegram-ingestion.ts';
 import { type BotCommandService, commandSender } from './orchestration/bot-commands.ts';
 import { type BucketScheduler, STARTUP_CATCH_UP_STATE_KEY } from './orchestration/scheduler.ts';
-import type { SqliteStore } from './store/database.ts';
+import type { BusinessStore } from './store/store.ts';
 import { appState } from './store/schema.ts';
 
 interface GetUpdatesOptions {
@@ -19,7 +19,7 @@ export interface StartupCatchUpApi {
 
 export interface StartupCatchUpOptions {
   readonly api: StartupCatchUpApi;
-  readonly store: SqliteStore;
+  readonly store: BusinessStore;
   readonly ingestion: TelegramIngestion;
   readonly scheduler: BucketScheduler;
   /**

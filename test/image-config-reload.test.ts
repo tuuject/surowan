@@ -12,12 +12,13 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import sharp from 'sharp';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { createImageService, type ImageService } from '../src/image/service.ts';
-import { type FileConfig, loadConfig } from '../src/platform/config.ts';
-import { ConfigReloader } from '../src/platform/config-reload.ts';
+import type { FileConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 
 // ---------------------------------------------------------------------------
@@ -134,7 +135,7 @@ async function rewriteImageSection(
   configPath: string,
   image: { credentials: Record<string, unknown>; models: ConfigImageModel[] } | undefined,
 ): Promise<void> {
-  const { readConfigRevision, writeConfigEdits } = await import('../src/platform/config-file.ts');
+  const { readConfigRevision, writeConfigEdits } = await import('../src/adapters/local-monolith/config-file.ts');
   const revision = await readConfigRevision(configPath);
   const edits =
     image === undefined

@@ -9,9 +9,9 @@ import {
   resolveAgentSettings,
   ThinkingLevelSchema,
 } from '../../platform/config.ts';
-import type { ConfigEdit } from '../../platform/config-file.ts';
+import type { ConfigEdit } from '../../platform/config-write.ts';
 import { supportedThinkingLevels } from '../../platform/thinking-levels.ts';
-import type { SqliteStore } from '../../store/database.ts';
+import type { BusinessStore } from '../../store/store.ts';
 import { chatMigrations, chats } from '../../store/schema.ts';
 import { AdminQueryError } from './audit.ts';
 import { supervisedRestartEnabled } from './providers-admin.ts';
@@ -137,7 +137,7 @@ function chatSettings(config: { agent: AgentSettings }, chat: FileChat | undefin
 export function listChats(
   file: FileConfig,
   active: RawConfig,
-  store: SqliteStore,
+  store: BusinessStore,
   revision: string,
   restartRequired: readonly string[],
 ) {

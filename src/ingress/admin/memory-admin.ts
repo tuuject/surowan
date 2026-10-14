@@ -7,7 +7,7 @@ import {
   MEMORY_TTL_MIN_SECONDS,
   newMemoryId,
 } from '../../context/memory.ts';
-import { asRunResult, type Orm } from '../../store/database.ts';
+import { asRunResult, type Orm } from '../../store/store.ts';
 import { chats, conversations, memories } from '../../store/schema.ts';
 import { AdminQueryError, type ListQuery, type Page, page, parseId, parseLimit } from './audit.ts';
 

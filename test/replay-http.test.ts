@@ -23,11 +23,11 @@ import { AdminServer } from '../src/ingress/admin/server.ts';
 import { ReplayError, ReplayRunner } from '../src/orchestration/replay.ts';
 import { composeAgentPrompt } from '../src/platform/agent-prompt.ts';
 import { KeyedSemaphore } from '../src/platform/concurrency.ts';
-import { loadConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { SystemResources } from '../src/platform/system-resources.ts';
+import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { AlarmInputSchema, ListAlarmInputSchema } from '../src/plugins/alarm/alarm.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { snapshotInvocation } from '../src/store/invocation-snapshot.ts';
 import { bucketMessages, invocationMessages, messageRevisions, messages, telegramSends } from '../src/store/schema.ts';
 import { seedAdminFixture } from './fixtures/admin-seed.ts';
@@ -169,7 +169,7 @@ async function fixture() {
     store,
     configStore,
     secrets,
-    systemResources: SystemResources.empty(),
+    systemResources: emptySystemResources(),
     modelGate: gate,
     shutdownSignal: shutdown.signal,
     toolDefinitions: () => sceneRegistry(),

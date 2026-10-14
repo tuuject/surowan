@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { access, mkdir } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
-import { ServeLock } from '../src/store/database.ts';
+import { ServeLock } from '../src/adapters/local-monolith/database.ts';
 
 // One-off repair for dev databases that ran the retired migration 018, which
 // rebuilt `model_tokens` / `vision_tokens` as input + output only. The rollup is

@@ -11,7 +11,8 @@ import type { CapabilityRefResolver, DirectImage, InvocationContext } from '../.
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import { applyToolSchemaKeywords } from '../../platform/tool-schema.ts';
-import { finishToolCall, rejectToolCall, type SqliteStore, startToolCall } from '../../store/database.ts';
+import type { BusinessStore } from '../../store/store.ts';
+import { finishToolCall, rejectToolCall, startToolCall } from '../../store/store.ts';
 import { dailyUsage, mediaAnalyses, media as mediaTable, modelCalls, stickers } from '../../store/schema.ts';
 import { isDailyTokenBudgetReached, meteredTokens, readDailyTokenBudget } from '../../store/sleep.ts';
 import type { MediaDownloader } from './media-download.ts';
@@ -44,7 +45,7 @@ export interface StickerIndexAnalysis {
 }
 
 export interface MediaServiceOptions {
-  readonly store: SqliteStore;
+  readonly store: BusinessStore;
   readonly configStore: RuntimeConfigurationStore;
   readonly secrets: SecretStore;
   readonly mediaClient: MediaDownloader;
@@ -68,7 +69,7 @@ interface VisionRun {
 }
 
 export class MediaService {
-  readonly #store: SqliteStore;
+  readonly #store: BusinessStore;
   readonly #configStore: RuntimeConfigurationStore;
   readonly #secrets: SecretStore;
   readonly #mediaClient: MediaDownloader;

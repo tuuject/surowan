@@ -6,10 +6,10 @@ import { expect, test } from 'vitest';
 import type { ContextInjectionInput, ContextInjector } from '../src/context/context-injector.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import { loadConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
 import { definePlugin, loadPlugins } from '../src/plugins/plugin.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { renderInvocationContext, testConfigStore, writeTestConfig } from './helpers.ts';
 
 test('loadPlugins rejects invalid and duplicate plugin ids', () => {

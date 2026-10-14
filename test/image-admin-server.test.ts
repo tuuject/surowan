@@ -6,12 +6,13 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { createImageBridge } from '../src/image/bridge.ts';
 import { createImageService } from '../src/image/service.ts';
 import { AdminServer } from '../src/ingress/admin/server.ts';
-import { type FileConfig, loadConfig } from '../src/platform/config.ts';
-import { ConfigReloader } from '../src/platform/config-reload.ts';
+import type { FileConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
 import { testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from './helpers.ts';
 

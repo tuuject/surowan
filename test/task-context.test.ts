@@ -12,10 +12,11 @@ import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import { loadConfig, type FileConfig } from '../src/platform/config.ts';
+import type { FileConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { SystemResources } from '../src/platform/system-resources.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { emptySystemResources } from '../src/platform/system-resources.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
 import {
   fauxRegistry,
@@ -86,7 +87,7 @@ async function fixture(transform?: (config: FileConfig) => void) {
     secrets: new SecretStore(),
     telegramApi: api,
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-    systemResources: SystemResources.empty(),
+    systemResources: emptySystemResources(),
     conversationRuntime,
   });
   const tasks = new LongTaskService(store.orm);

@@ -4,8 +4,9 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { expect, test } from 'vitest';
 import { buildSceneContext } from '../src/context/scene-context.ts';
-import { loadConfig } from '../src/platform/config.ts';
-import { purgeExpiredData, SqliteStore } from '../src/store/database.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
+import { purgeExpiredData } from '../src/store/store.ts';
 import { seedAdminFixture } from './fixtures/admin-seed.ts';
 import { writeTestConfig } from './helpers.ts';
 

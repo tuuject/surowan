@@ -4,7 +4,7 @@ Plastic Wan 使用单个 SQLite 数据库保存消息、调度状态、能力索
 
 ## 打开与迁移
 
-`SqliteStore.open` 使用 better-sqlite3，并启用：
+`src/adapters/local-monolith/database.ts` 的 `SqliteStore.open` 使用 better-sqlite3，并启用：
 
 - `defaultSafeIntegers(true)`：整数列读成 `bigint`
 - WAL journal
@@ -30,14 +30,14 @@ Plastic Wan 使用单个 SQLite 数据库保存消息、调度状态、能力索
 
 ## 查询层（Drizzle）
 
-业务查询统一走 `SqliteStore.orm`（Drizzle `better-sqlite3` 驱动的同步 API；依赖版本见 [package.json](../package.json) 与 [pnpm-lock.yaml](../pnpm-lock.yaml)）；`store.db` 仅供连接层自身（迁移、备份、`VACUUM INTO`）、`doctor.ts` 探针与测试验证断言使用。表定义在 [src/store/schema.ts](../src/store/schema.ts)，是迁移终态的类型化映射——新增迁移必须同步更新它。
+业务查询依赖 `src/store/store.ts` 的 `BusinessStore` 契约，通过 `store.orm` 访问 Drizzle（仍为 `better-sqlite3` 驱动的同步 API；依赖版本见 [package.json](../package.json) 与 [pnpm-lock.yaml](../pnpm-lock.yaml)）。该契约不暴露裸连接、文件路径或关闭方法；本地 `SqliteStore` 实现它。`SqliteStore.db` 仅供连接层自身、doctor 探针、图片宿主连接桥接与测试验证断言使用。表定义在 [src/store/schema.ts](../src/store/schema.ts)，是迁移终态的类型化映射——新增迁移必须同步更新它。
 
 约定：
 
 - 只用同步方法 `.all()/.get()/.run()/.values()`；禁止 `await orm...`（better-sqlite3 事务回调是同步的）。
-- 事务：模块持有 `SqliteStore` 时用 `store.transaction(fn)`（IMMEDIATE）；仅持有 `Orm` 时用 `orm.transaction(fn, { behavior: 'immediate' })`。
+- 事务：模块持有 `BusinessStore` 时用 `store.transaction(fn)`（IMMEDIATE）；仅持有 `Orm` 时用 `orm.transaction(fn, { behavior: 'immediate' })`。
 - SQLite dialect 没有 bigint 列模式：ID/计数值列用 `sqliteBigInt`（customType，读写 `bigint`），自增主键用 `sqliteBigIntId`（insert 可省略 id，新 id 用 `.returning({ id }).get()`）；0/1 标志列用 `integer(..., { mode: 'boolean' })`。
-- `.run()` 的类型就是 better-sqlite3 的 `RunResult`，可以直接读 `changes`/`lastInsertRowid`。`database.ts` 里的 `asRunResult` 是旧驱动留下的类型转换，现有调用仍然有效，新代码不需要它。
+- `.run()` 的类型就是 better-sqlite3 的 `RunResult`，可以直接读 `changes`/`lastInsertRowid`。`store.ts` 里的 `asRunResult` 是旧驱动留下的类型转换，现有调用仍然有效，新代码不需要它。
 - 复杂 SQL（多表 JOIN、子查询、`NOT EXISTS`、`COALESCE`、FTS5 `MATCH`/`bm25()`、动态拼列）保留 `sql` 模板：`orm.all<Row>(sql\`...\`)`；`${}` 一律是绑定参数（禁止拼 SQL 字符串；受控常量片段用 `sql.raw`）。FTS5 虚拟表 `sticker_search` 不进 schema，只能走 `sql` 模板。
 - 单行裸 SQL 的仓库惯例是 `.all<Row>(sql\`...\`).at(0)` 再判 `undefined`；在该驱动下 `orm.get(sql\`...\`)` 同样返回行对象或 `undefined`。
 - `SqliteStore.close()` 先执行 `PRAGMA wal_checkpoint(TRUNCATE)`，再调用 `close()`；初始化失败与备份连接直接 `close()`。关闭后不得继续使用已创建的 ORM 查询。

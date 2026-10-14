@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { access, copyFile, mkdir, stat } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
-import { ServeLock } from '../src/store/database.ts';
+import { ServeLock } from '../src/adapters/local-monolith/database.ts';
 import { scrubModelRequestAuditJson } from '../src/platform/model-request-audit.ts';
 
 interface RequestRow {

@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { verify } from '@node-rs/argon2';
 import { parseCli } from '../src/cli-options.ts';
 import { AdminAuth } from '../src/ingress/admin/auth.ts';
-import { loadConfig } from '../src/platform/config.ts';
-import { ServeLock, SqliteStore } from '../src/store/database.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { ServeLock, SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { writeTestConfig } from './helpers.ts';
 
 const BIN = fileURLToPath(new URL('../src/cli.ts', import.meta.url));

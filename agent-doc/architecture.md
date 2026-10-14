@@ -2,7 +2,7 @@
 
 ## 进程组成
 
-Plastic Wan 是单进程 Node.js 服务。`src/application.ts` 负责装配以下组件：
+Plastic Wan 当前由 Local Monolith Adapter 运行成单进程 Node.js 服务。`src/adapters/local-monolith/runtime-host.ts` 负责装配以下组件：
 
 ```text
 Config + SecretStore
@@ -24,6 +24,16 @@ Config + SecretStore
 ```
 
 启动顺序有语义：先加载并校验配置与权限，再取得单实例锁、迁移数据库、连接 Telegram、同步 Sticker Set；随后排空 Telegram pending updates，按 Conversation 创建 startup catch-up Invocation；最后启动 MCP、Scheduler、Admin Panel 和常规 long polling。启动时加载的配置是 active 配置的起点：运行期只有白名单字段可以被 `ConfigReloader` 应用到当前进程，其余字段仍要重启，见 [配置：运行时配置热更新](configuration.md#运行时配置热更新)。关闭时停止 Bot，先停 Admin Panel 再等待 Scheduler（最多 30 秒），随后停止 Image worker（在数据库连接关闭之前落地中断标记），停止 Sticker/MCP 服务，关闭数据库并释放锁。
+
+## Runtime 与宿主边界
+
+`src/orchestration/runtime.ts` 的 `createCoreRuntime` 接收已经准备好的业务 Store、运行时配置、模型与工具工厂、SecretStore 和只读 SystemResources，统一创建 ConversationRuntime、AgentRuntime、LongTaskService 与 BucketScheduler。装配本身不读取配置或资源目录，不启动 Scheduler，也不取得进程锁；初始化、启动、停止和释放依赖由宿主负责。它复用原有调度和执行实现，不引入第二套 Bucket/Invocation 状态机。
+
+- `src/store/store.ts` 的 `BusinessStore` 只暴露 ORM 与 IMMEDIATE transaction；业务查询与审计 helper 留在共享层。SQLite 打开、PRAGMA、迁移、备份、checkpoint/close 与 ServeLock 位于 `adapters/local-monolith/database.ts`。
+- `platform/config.ts` 保留配置类型和纯校验；`platform/runtime-config.ts` 管理源无关的快照发布。JSONC、权限、相对路径、Prompt 文件读取和配置写回/热重载归 `adapters/local-monolith/config*.ts`。Bot 命令与 Admin Panel 只依赖 `platform/config-write.ts` 的契约（`BotCommandConfigWriter`、`ConfigController`、`ConfigEdit`/`secretEdit`），由 adapter 的 `ConfigReloader` 实现并在装配时注入；业务模块不导入 `adapters/local-monolith`，例外仅限宿主侧入口（`cli.ts`、`doctor.ts`、`tui/`、离线 `admin-reset` 的 `ingress/admin/recover.ts`）。
+- `platform/system-resources.ts` 定义只读资源契约和 URI 解析；目录扫描、Skill frontmatter 校验和文件读取由 `adapters/local-monolith/system-resources.ts` 的 FileSystemResources 承担。AgentRuntime 和 ReplayRunner 必须显式接收资源，不再隐式扫描目录。
+
+本阶段只建立 M1/M2 的宿主解耦基础；Admin/CLI 仍是本地文件型入口，ORM 仍使用同步 SQLite，媒体、SecretStore、MCP 与图片执行尚未全面替换成远端端口。不提供多实例协调、远端 gateway 或租户隔离。
 
 ## 主数据流
 

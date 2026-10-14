@@ -13,11 +13,12 @@ import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import { attachBucketToInvocation, InvocationQueueService } from '../src/orchestration/invocation-queue.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import { loadConfig, type RawConfig } from '../src/platform/config.ts';
+import type { RawConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { SystemResources } from '../src/platform/system-resources.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { emptySystemResources } from '../src/platform/system-resources.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { buckets, invocationBuckets, invocations, telegramSends, toolCalls } from '../src/store/schema.ts';
 import {
   fauxRegistry,
@@ -342,7 +343,7 @@ describe('reply deduplication', () => {
         secrets: new SecretStore(),
         telegramApi: api,
         bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-        systemResources: SystemResources.empty(),
+        systemResources: emptySystemResources(),
       });
       const t0 = new Date('2026-08-15T00:00:00.000Z');
       fixture.ingestion.ingest(update(1, 10, 'hello'), t0);

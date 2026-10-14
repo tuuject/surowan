@@ -11,11 +11,12 @@ import {
   parseBotCommand,
   registerBotCommands,
 } from '../src/orchestration/bot-commands.ts';
-import { type FileConfig, type LoadedConfig, loadConfig } from '../src/platform/config.ts';
-import { ConfigReloader } from '../src/platform/config-reload.ts';
+import type { FileConfig } from '../src/platform/config.ts';
+import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
 import { chatMigrations } from '../src/store/schema.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
 import { BucketScheduler, STARTUP_CATCH_UP_STATE_KEY } from '../src/orchestration/scheduler.ts';
 import { SecretStore } from '../src/platform/secrets.ts';

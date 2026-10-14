@@ -30,7 +30,8 @@ import type { SecretStore } from '../platform/secrets.ts';
 import type { SystemResources, SystemSkill } from '../platform/system-resources.ts';
 import { isThinkingLevel } from '../platform/thinking-levels.ts';
 import { applyToolSchemaKeywords } from '../platform/tool-schema.ts';
-import { resolveChatConfig, type SqliteStore } from '../store/database.ts';
+import type { BusinessStore } from '../store/store.ts';
+import { resolveChatConfig } from '../store/store.ts';
 import { chats, conversations, invocations } from '../store/schema.ts';
 import { createReplayTools, type ReplayToolRegistry, toolDefinition } from './replay-tools.ts';
 
@@ -51,7 +52,7 @@ export class ReplayError extends Error {
 }
 
 interface ReplayOptions {
-  readonly store: SqliteStore;
+  readonly store: BusinessStore;
   readonly configStore: RuntimeConfigurationStore;
   readonly secrets: SecretStore;
   readonly systemResources: SystemResources;

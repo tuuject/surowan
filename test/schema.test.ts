@@ -5,8 +5,9 @@ import { join } from 'node:path';
 import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { listInvocations } from '../src/ingress/admin/audit.ts';
-import { type LoadedConfig, loadConfig, type FileConfig, resolveAgentSettings } from '../src/platform/config.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { type FileConfig, resolveAgentSettings } from '../src/platform/config.ts';
+import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { imageDeliveryState } from '../src/store/image-delivery.ts';
 import {
   adminPasskeys,

@@ -22,7 +22,7 @@ import { resolveDictionaryInjectionMode } from './injection.ts';
 import type { DictionaryInjectionMode } from '../../platform/config.ts';
 import { resolveToolModel } from '../../platform/tool-model.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
-import { asRunResult, type Orm } from '../../store/database.ts';
+import { asRunResult, type Orm } from '../../store/store.ts';
 import { chats, dictionaryEntries } from '../../store/schema.ts';
 import { AdminQueryError } from '../../ingress/admin/audit.ts';
 

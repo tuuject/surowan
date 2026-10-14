@@ -9,9 +9,8 @@ import { DEFAULT_MEMORY_TTL_WARNING_DAYS } from '../../context/memory.ts';
 import type { ImageBridge } from '../../image/bridge.ts';
 import type { ImageService } from '../../image/service.ts';
 import type { BucketScheduler } from '../../orchestration/scheduler.ts';
-import { assertConfigPermissions, loadConfig, type RawConfig, ThinkingLevelSchema } from '../../platform/config.ts';
-import { type ConfigEdit, readConfigRevision } from '../../platform/config-file.ts';
-import type { ConfigErrorCode, ConfigReloader } from '../../platform/config-reload.ts';
+import { type RawConfig, ThinkingLevelSchema } from '../../platform/config.ts';
+import type { ConfigController, ConfigEdit, ConfigErrorCode, PersistedConfig } from '../../platform/config-write.ts';
 import {
   listOpenRouterImageEndpoints,
   listOpenRouterImageModels,
@@ -22,8 +21,8 @@ import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts
 import type { SecretStore } from '../../platform/secrets.ts';
 import { isThinkingLevel } from '../../platform/thinking-levels.ts';
 import { cancelAlarm, listAlarms, parseAlarmId } from '../../plugins/alarm/admin.ts';
-import type { SqliteStore } from '../../store/database.ts';
-import { resolveChatConfig } from '../../store/database.ts';
+import type { BusinessStore } from '../../store/store.ts';
+import { resolveChatConfig } from '../../store/store.ts';
 import { LongTaskService } from '../../store/long-tasks.ts';
 import { getPromptVersion } from '../../store/prompt-versions.ts';
 import { wakeFromSleep } from '../../store/sleep.ts';
@@ -207,12 +206,12 @@ export type ReplayPreflightSelection = Pick<
 >;
 
 export interface AdminServerOptions {
-  readonly store: SqliteStore;
+  readonly store: BusinessStore;
   readonly configStore: RuntimeConfigurationStore;
   readonly scheduler?: BucketScheduler;
   readonly tasks?: LongTaskService;
   readonly modelSwitcher?: AgentModelSwitcher;
-  readonly configReloader?: ConfigReloader;
+  readonly configReloader?: ConfigController;
   /** Registers panel-supplied plaintext secrets before they are written or sent. */
   readonly secrets?: SecretStore;
   /** Image generation service; absent when the host runs without one. */
@@ -251,7 +250,7 @@ const CONFIG_WRITE_STATUS: Partial<Record<ConfigErrorCode, number>> = {
 };
 
 export class AdminServer {
-  readonly #store: SqliteStore;
+  readonly #store: BusinessStore;
   readonly #configStore: RuntimeConfigurationStore;
   readonly #admin: AdminConfig;
   readonly #auth: AdminAuth;
@@ -261,7 +260,7 @@ export class AdminServer {
   readonly #image: ReturnType<typeof createImageAdminHandler> | undefined;
   readonly #imageBridge: ImageBridge | undefined;
   readonly #modelSwitcher: AgentModelSwitcher | undefined;
-  readonly #configReloader: ConfigReloader | undefined;
+  readonly #configReloader: ConfigController | undefined;
   readonly #secrets: SecretStore | undefined;
   readonly #requestRestart: (() => void) | undefined;
   readonly #replayInvocation:
@@ -1556,13 +1555,13 @@ export class AdminServer {
     );
   }
 
-  async #configFile(reloader: ConfigReloader) {
+  async #configFile(reloader: ConfigController) {
     try {
       // A revision must describe the very file used to build the view and edit paths,
       // never a newer file read after an intervening write.
-      const revision = await readConfigRevision(reloader.configPath);
-      const loaded = await loadConfig(reloader.configPath);
-      if (revision !== (await readConfigRevision(reloader.configPath))) {
+      const revision = await reloader.revision();
+      const loaded = await reloader.readPersisted();
+      if (revision !== (await reloader.revision())) {
         throw new AdminQueryError(
           'config_conflict',
           'The configuration file changed while being read; reload and try again',
@@ -1654,7 +1653,7 @@ export class AdminServer {
     return parsed;
   }
 
-  async #chatsView(reloader: ConfigReloader) {
+  async #chatsView(reloader: ConfigController) {
     const { loaded, revision } = await this.#configFile(reloader);
     return listChats(
       loaded.fileConfig,
@@ -1697,7 +1696,7 @@ export class AdminServer {
     });
   }
 
-  async #developerView(reloader: ConfigReloader) {
+  async #developerView(reloader: ConfigController) {
     const { loaded, revision } = await this.#configFile(reloader);
     return {
       revision,
@@ -1730,12 +1729,12 @@ export class AdminServer {
     }
   }
 
-  async #providerContext(reloader: ConfigReloader): Promise<ProviderWriteContext> {
+  async #providerContext(reloader: ConfigController): Promise<ProviderWriteContext> {
     const secrets = this.#secrets;
     if (secrets === undefined) {
       throw new Error('Provider management is not wired');
     }
-    const loaded = await loadConfig(reloader.configPath);
+    const loaded = await reloader.readPersisted();
     return { file: loaded.fileConfig, secrets, snapshot: this.#configStore.current() };
   }
 
@@ -1743,14 +1742,14 @@ export class AdminServer {
    * The panel reads the file, not the active configuration: a pending restart
    * must be visible as what is on disk, and the revision is the file's own.
    */
-  async #providersView(reloader: ConfigReloader): Promise<ReturnType<typeof listProviders>> {
-    let loaded: Awaited<ReturnType<typeof loadConfig>>;
+  async #providersView(reloader: ConfigController): Promise<ReturnType<typeof listProviders>> {
+    let loaded: PersistedConfig;
     try {
-      loaded = await loadConfig(reloader.configPath);
+      loaded = await reloader.readPersisted();
     } catch (error) {
       throw new AdminQueryError('config_invalid', this.#redact(error), 422);
     }
-    const revision = await readConfigRevision(reloader.configPath);
+    const revision = await reloader.revision();
     return listProviders(loaded.fileConfig, revision, reloader.status().restartRequired);
   }
 
@@ -1759,9 +1758,9 @@ export class AdminServer {
     if (reloader === undefined) {
       return json({ error: 'config_reload_unavailable', message: 'Configuration reloading is not wired' }, 503);
     }
-    const revision = await readConfigRevision(reloader.configPath);
-    const loaded = await loadConfig(reloader.configPath);
-    if (revision !== (await readConfigRevision(reloader.configPath))) {
+    const revision = await reloader.revision();
+    const loaded = await reloader.readPersisted();
+    if (revision !== (await reloader.revision())) {
       return json({ error: 'config_conflict', message: '配置已变化，请重新加载' }, 409);
     }
     return json({
@@ -1793,7 +1792,7 @@ export class AdminServer {
     if (typeof enabled !== 'boolean') {
       return { kind: 'json', status: 400, body: { error: 'invalid_body', message: 'enabled must be a boolean' } };
     }
-    if (revision !== (await readConfigRevision(reloader.configPath))) {
+    if (revision !== (await reloader.revision())) {
       return { kind: 'json', status: 409, body: { error: 'config_conflict', message: '配置已变化，请重新加载后保存' } };
     }
     let edits: readonly ConfigEdit[];
@@ -1815,7 +1814,7 @@ export class AdminServer {
           body: { error: 'invalid_body', message: 'enabling requires credentials (name -> secret) and a models array' },
         };
       }
-      const loaded = await loadConfig(reloader.configPath);
+      const loaded = await reloader.readPersisted();
       const credentialNames: Record<string, string> = {};
       const secretRefs = { ...loaded.fileConfig.image?.credentials };
       const sources = body.credential_sources ?? {};
@@ -1915,8 +1914,7 @@ export class AdminServer {
       return json({ error: 'restart_unavailable', message: 'Restarting is not wired' }, 503);
     }
     try {
-      await assertConfigPermissions(reloader.configPath);
-      await loadConfig(reloader.configPath);
+      await reloader.readPersisted({ checkPermissions: true });
     } catch (error) {
       return json({ error: 'config_invalid', message: this.#redact(error) }, 422);
     }

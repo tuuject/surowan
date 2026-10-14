@@ -10,8 +10,9 @@ import { createApiKey } from '../src/ingress/admin/api-keys.ts';
 import { AdminAuth } from '../src/ingress/admin/auth.ts';
 import { AdminPasskeys } from '../src/ingress/admin/passkeys.ts';
 import { AdminServer } from '../src/ingress/admin/server.ts';
-import { adminPublicOrigin, loadConfig } from '../src/platform/config.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { adminPublicOrigin } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { adminPasskeys, adminUsers } from '../src/store/schema.ts';
 import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 

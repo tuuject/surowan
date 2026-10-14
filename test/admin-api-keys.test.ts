@@ -5,10 +5,10 @@ import { join } from 'node:path';
 import { afterAll, expect, test, vi } from 'vitest';
 import { AdminQueryError } from '../src/ingress/admin/audit.ts';
 import { AdminServer, type ReplayInvocationInput } from '../src/ingress/admin/server.ts';
-import { type LoadedConfig, loadConfig } from '../src/platform/config.ts';
+import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 
 const PASSWORD = 'correct-horse-battery';

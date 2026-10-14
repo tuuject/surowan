@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parse, type ParseError } from 'jsonc-parser';
 import { deploymentSettings, docsRoot, renderConfigFields } from '../scripts/docs-prepare.ts';
-import { loadConfig, plaintextSecrets } from '../src/platform/config.ts';
+import { plaintextSecrets } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 
 const directories: string[] = [];
 afterAll(async () => {

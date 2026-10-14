@@ -1,34 +1,9 @@
-import type { Dirent } from 'node:fs';
-import { readdir, readFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
-import Type from 'typebox';
-import Compile from 'typebox/compile';
-import { truncateUtf8 } from './truncate.ts';
-
-/**
- * System resources: the readonly `system:///` virtual resource tree shipped
- * with the runtime. Phase 1 exposes System Skills (markdown documentation
- * packages) under system:///skills/<name>/SKILL.md, from the bundled tree and
- * from built-in plugin skill directories mounted beside it. The tree is a
- * runtime release artifact: the model can read it, never write it, and its
- * origin is not a trust grant for anything the documents say.
- */
+/** Readonly System Skills resources; implementation and document source belong to the host. */
 export const SYSTEM_URI_PREFIX = 'system:///';
 export const SYSTEM_RESOURCE_MAX_BYTES = 32_768;
-/** Content root shipped inside the repository; Docker copies src/ verbatim. */
-export const BUNDLED_SYSTEM_RESOURCES_DIR = join(import.meta.dirname, '..', 'system-resources');
 
-const SKILL_NAME_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
 const SEGMENT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const URI_MAX_LENGTH = 512;
-const SkillFrontmatterSchema = Type.Object(
-  {
-    name: Type.String({ pattern: SKILL_NAME_PATTERN.source }),
-    description: Type.String({ minLength: 1, maxLength: 500 }),
-  },
-  { additionalProperties: false },
-);
-const frontmatterValidator = Compile(SkillFrontmatterSchema);
 
 export interface SystemSkill {
   readonly name: string;
@@ -51,212 +26,83 @@ export class SystemResourceError extends Error {
   }
 }
 
-export class SystemResources {
-  readonly #root: string | null;
-  readonly #skills: readonly SystemSkill[];
-  /** Skill name → directory on disk; serves every path under system:///skills/<name>/. */
-  readonly #skillDirectories: ReadonlyMap<string, string>;
-
-  private constructor(
-    root: string | null,
-    skills: readonly SystemSkill[],
-    skillDirectories: ReadonlyMap<string, string>,
-  ) {
-    this.#root = root;
-    this.#skills = skills;
-    this.#skillDirectories = skillDirectories;
-  }
-
-  /** The empty resource tree: no skills, no readable documents. */
-  static empty(): SystemResources {
-    return new SystemResources(null, [], new Map());
-  }
-
-  /**
-   * Loads and validates the bundled resource tree. Invalid skill manifests are
-   * startup failures: the skill index is the capability discovery layer, so a
-   * half-parsed tree must never reach the model. `skillDirectories` are plugin
-   * skills: each basename is the skill name, and it may not shadow another.
-   */
-  static async load(root: string, skillDirectories: readonly string[] = []): Promise<SystemResources> {
-    const skillsDirectory = join(root, 'skills');
-    let entries: Dirent[] = [];
-    try {
-      entries = await readdir(skillsDirectory, { withFileTypes: true });
-    } catch (error) {
-      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) {
-        throw error;
-      }
-    }
-    const candidates: string[] = [];
-    for (const entry of entries) {
-      if (!entry.isDirectory()) {
-        throw new Error(`System skills directory contains a non-directory entry: ${entry.name}`);
-      }
-      candidates.push(join(skillsDirectory, entry.name));
-    }
-    candidates.push(...skillDirectories);
-    const skills: SystemSkill[] = [];
-    const directories = new Map<string, string>();
-    for (const directory of candidates) {
-      const name = basename(directory);
-      if (!SKILL_NAME_PATTERN.test(name)) {
-        throw new Error(`System skill directory name is invalid: ${name}`);
-      }
-      if (directories.has(name)) {
-        throw new Error(`Duplicate system skill name: ${name}`);
-      }
-      let content: string;
-      try {
-        content = await readFile(join(directory, 'SKILL.md'), 'utf8');
-      } catch {
-        throw new Error(`System skill ${name} is missing SKILL.md`);
-      }
-      const frontmatter = parseFrontmatter(content, `system:///skills/${name}/SKILL.md`);
-      if (frontmatter.name !== name) {
-        throw new Error(`System skill ${name} declares name ${frontmatter.name}`);
-      }
-      directories.set(name, directory);
-      skills.push({
-        name: frontmatter.name,
-        description: frontmatter.description,
-        uri: `${SYSTEM_URI_PREFIX}skills/${name}/SKILL.md`,
-      });
-    }
-    skills.sort((left, right) => (left.name < right.name ? -1 : 1));
-    return new SystemResources(root, skills, directories);
-  }
-
-  get skills(): readonly SystemSkill[] {
-    return this.#skills;
-  }
-
-  /**
-   * Resolves an absolute system:/// URI, or a relative reference against the
-   * base URI of the document that contains it. Returns the canonical URI and
-   * its path segments; every segment is validated so the result can never
-   * escape the resource root.
-   */
-  resolve(reference: string, base?: string): { uri: string; segments: readonly string[] } {
-    if (reference.length > URI_MAX_LENGTH || (base !== undefined && base.length > URI_MAX_LENGTH)) {
-      throw new SystemResourceError('invalid_uri', 'Resource URI exceeds the length limit');
-    }
-    if (reference.startsWith(SYSTEM_URI_PREFIX)) {
-      if (base !== undefined) {
-        throw new SystemResourceError('invalid_uri', 'base is only valid together with a relative reference');
-      }
-      const path = reference.slice(SYSTEM_URI_PREFIX.length);
-      if (path.length === 0) {
-        throw new SystemResourceError('invalid_uri', 'Resource URI has an empty path');
-      }
-      const segments = path.split('/');
-      for (const segment of segments) {
-        if (!SEGMENT_PATTERN.test(segment)) {
-          throw new SystemResourceError('invalid_uri', 'Resource URI contains an invalid path segment');
-        }
-      }
-      return { uri: `${SYSTEM_URI_PREFIX}${segments.join('/')}`, segments };
-    }
-    if (base === undefined) {
-      throw new SystemResourceError('invalid_uri', 'Relative references require the base URI of their document');
-    }
-    if (!base.startsWith(SYSTEM_URI_PREFIX)) {
-      throw new SystemResourceError('invalid_uri', 'Only system:/// resources exist');
-    }
-    const basePath = base.slice(SYSTEM_URI_PREFIX.length);
-    if (basePath.length === 0) {
-      throw new SystemResourceError('invalid_uri', 'Base URI has an empty path');
-    }
-    const baseSegments = basePath.split('/');
-    for (const segment of baseSegments) {
-      if (!SEGMENT_PATTERN.test(segment)) {
-        throw new SystemResourceError('invalid_uri', 'Base URI contains an invalid path segment');
-      }
-    }
-    const stack = baseSegments.slice(0, -1);
-    for (const segment of reference.split('/')) {
-      if (segment.length === 0) {
-        throw new SystemResourceError('invalid_uri', 'Relative reference contains an empty path segment');
-      }
-      if (segment === '.') {
-        continue;
-      }
-      if (segment === '..') {
-        if (stack.pop() === undefined) {
-          throw new SystemResourceError('invalid_uri', 'Relative reference escapes the system resource root');
-        }
-        continue;
-      }
-      if (!SEGMENT_PATTERN.test(segment)) {
-        throw new SystemResourceError('invalid_uri', 'Relative reference contains an invalid path segment');
-      }
-      stack.push(segment);
-    }
-    if (stack.length === 0) {
-      throw new SystemResourceError('invalid_uri', 'Resolved resource path is empty');
-    }
-    return { uri: `${SYSTEM_URI_PREFIX}${stack.join('/')}`, segments: stack };
-  }
-
-  async readText(reference: string, base?: string): Promise<SystemResourceText> {
-    if (this.#root === null) {
-      throw new SystemResourceError('resource_not_found', 'No system resources are available');
-    }
-    const resolved = this.resolve(reference, base);
-    const filename = resolved.segments[resolved.segments.length - 1];
-    if (filename === undefined || !filename.endsWith('.md')) {
-      throw new SystemResourceError('unsupported_resource', 'Only markdown documents are readable');
-    }
-    const [top, skillName, ...rest] = resolved.segments;
-    const skillDirectory =
-      top === 'skills' && skillName !== undefined && rest.length > 0
-        ? this.#skillDirectories.get(skillName)
-        : undefined;
-    let raw: string;
-    try {
-      raw = await readFile(
-        skillDirectory === undefined ? join(this.#root, ...resolved.segments) : join(skillDirectory, ...rest),
-        'utf8',
-      );
-    } catch {
-      throw new SystemResourceError('resource_not_found', 'Resource does not exist');
-    }
-    const text = truncateUtf8(raw, SYSTEM_RESOURCE_MAX_BYTES);
-    return { uri: resolved.uri, text, truncated: text !== raw };
-  }
+export interface SystemResources {
+  readonly skills: readonly SystemSkill[];
+  resolve(reference: string, base?: string): { uri: string; segments: readonly string[] };
+  readText(reference: string, base?: string): Promise<SystemResourceText>;
 }
 
-function parseFrontmatter(content: string, label: string): { name: string; description: string } {
-  const lines = content.split('\n');
-  if ((lines[0] ?? '').trim() !== '---') {
-    throw new Error(`${label} is missing frontmatter`);
+/** A source-independent URI resolver shared by all resource implementations. */
+export function resolveSystemResource(reference: string, base?: string): { uri: string; segments: readonly string[] } {
+  if (reference.length > URI_MAX_LENGTH || (base !== undefined && base.length > URI_MAX_LENGTH)) {
+    throw new SystemResourceError('invalid_uri', 'Resource URI exceeds the length limit');
   }
-  const closing = lines.findIndex((line, index) => index > 0 && line.trim() === '---');
-  if (closing === -1) {
-    throw new Error(`${label} has unterminated frontmatter`);
-  }
-  const fields: Record<string, string> = {};
-  for (const line of lines.slice(1, closing)) {
-    const separator = line.indexOf(':');
-    if (separator <= 0) {
-      throw new Error(`${label} has an invalid frontmatter line: ${line}`);
+  if (reference.startsWith(SYSTEM_URI_PREFIX)) {
+    if (base !== undefined) {
+      throw new SystemResourceError('invalid_uri', 'base is only valid together with a relative reference');
     }
-    const key = line.slice(0, separator).trim();
-    const value = line.slice(separator + 1).trim();
-    if (key in fields) {
-      throw new Error(`${label} has duplicate frontmatter key: ${key}`);
+    const path = reference.slice(SYSTEM_URI_PREFIX.length);
+    if (path.length === 0) {
+      throw new SystemResourceError('invalid_uri', 'Resource URI has an empty path');
     }
-    fields[key] = value;
+    const segments = path.split('/');
+    for (const segment of segments) {
+      if (!SEGMENT_PATTERN.test(segment)) {
+        throw new SystemResourceError('invalid_uri', 'Resource URI contains an invalid path segment');
+      }
+    }
+    return { uri: `${SYSTEM_URI_PREFIX}${segments.join('/')}`, segments };
   }
-  if (!frontmatterValidator.Check(fields)) {
-    const details = frontmatterValidator
-      .Errors(fields)
-      .slice(0, 3)
-      .map((error) => error.message)
-      .join('; ');
-    throw new Error(`${label} has invalid frontmatter: ${details}`);
+  if (base === undefined) {
+    throw new SystemResourceError('invalid_uri', 'Relative references require the base URI of their document');
   }
-  return fields;
+  if (!base.startsWith(SYSTEM_URI_PREFIX)) {
+    throw new SystemResourceError('invalid_uri', 'Only system:/// resources exist');
+  }
+  const basePath = base.slice(SYSTEM_URI_PREFIX.length);
+  if (basePath.length === 0) {
+    throw new SystemResourceError('invalid_uri', 'Base URI has an empty path');
+  }
+  const baseSegments = basePath.split('/');
+  for (const segment of baseSegments) {
+    if (!SEGMENT_PATTERN.test(segment)) {
+      throw new SystemResourceError('invalid_uri', 'Base URI contains an invalid path segment');
+    }
+  }
+  const stack = baseSegments.slice(0, -1);
+  for (const segment of reference.split('/')) {
+    if (segment.length === 0) {
+      throw new SystemResourceError('invalid_uri', 'Relative reference contains an empty path segment');
+    }
+    if (segment === '.') {
+      continue;
+    }
+    if (segment === '..') {
+      if (stack.pop() === undefined) {
+        throw new SystemResourceError('invalid_uri', 'Relative reference escapes the system resource root');
+      }
+      continue;
+    }
+    if (!SEGMENT_PATTERN.test(segment)) {
+      throw new SystemResourceError('invalid_uri', 'Relative reference contains an invalid path segment');
+    }
+    stack.push(segment);
+  }
+  if (stack.length === 0) {
+    throw new SystemResourceError('invalid_uri', 'Resolved resource path is empty');
+  }
+  return { uri: `${SYSTEM_URI_PREFIX}${stack.join('/')}`, segments: stack };
+}
+
+/** No resources are available; preserve the empty tree's missing-resource behavior. */
+export function emptySystemResources(): SystemResources {
+  return {
+    skills: [],
+    resolve: resolveSystemResource,
+    async readText(_reference: string, _base?: string): Promise<SystemResourceText> {
+      throw new SystemResourceError('resource_not_found', 'No system resources are available');
+    },
+  };
 }
 
 /**

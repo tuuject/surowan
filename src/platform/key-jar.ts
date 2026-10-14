@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { lstat, open, readFile, rename, stat, unlink } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
+import { KEY_JAR_FILE } from './config.ts';
 
 /**
  * The key jar holds every plaintext secret the configuration uses, keyed by the
@@ -8,8 +9,6 @@ import { basename, dirname, join, resolve } from 'node:path';
  * serves, so `config.jsonc` itself never carries a secret and can be read,
  * diffed and shared without exposing one.
  */
-export const KEY_JAR_FILE = 'key.json';
-
 export type KeyJar = Readonly<Record<string, string>>;
 
 export function keyJarPath(configPath: string): string {

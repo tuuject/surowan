@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import Type from 'typebox';
-import { asRunResult, finishToolCall, type Orm, startToolCall } from '../../store/database.ts';
+import { asRunResult, finishToolCall, type Orm, startToolCall } from '../../store/store.ts';
 import { chatMigrations, dictionaryEntries } from '../../store/schema.ts';
 
 /**

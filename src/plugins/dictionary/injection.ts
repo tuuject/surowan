@@ -1,5 +1,5 @@
 import type { DictionaryInjectionMode, FileChat } from '../../platform/config.ts';
-import { resolveChatConfig } from '../../store/database.ts';
+import { resolveChatConfig } from '../../store/store.ts';
 import type { ContextInjector } from '../../context/context-injector.ts';
 import { type DictionaryEntryRecord, DictionaryStore, matchingEntries } from './dictionary.ts';
 

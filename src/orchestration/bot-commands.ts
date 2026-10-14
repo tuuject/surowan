@@ -2,11 +2,12 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { Message } from 'grammy/types';
 import { ConversationContextStore, listConversationContexts } from '../context/context-store.ts';
 import { type AgentSettings, type RawConfig, resolveAgentSettings } from '../platform/config.ts';
-import type { ConfigReloader } from '../platform/config-reload.ts';
+import type { BotCommandConfigWriter } from '../platform/config-write.ts';
 import type { AgentModelOption, AgentModelSwitcher } from '../platform/model-switch.ts';
 import { isWithinActiveWindows } from '../platform/participation.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
-import { isChatPaused, resolveChatConfig, type SqliteStore } from '../store/database.ts';
+import type { BusinessStore } from '../store/store.ts';
+import { isChatPaused, resolveChatConfig } from '../store/store.ts';
 import { chatAttentionUntil, ParticipationRegistry } from '../store/participation.ts';
 import { chatPause, chats, conversationContextCutoffs, conversations, dailyUsage } from '../store/schema.ts';
 import { readDailyTokenBudget } from '../store/sleep.ts';
@@ -169,22 +170,22 @@ export function parseBotCommand(message: Message, botUsername: string | null): P
 // Chat-scoped control commands. State changes and replies are deterministic
 // bot responses, not model output, so they bypass the agent send tool.
 export class BotCommandService {
-  readonly #store: SqliteStore;
+  readonly #store: BusinessStore;
   readonly #configStore: RuntimeConfigurationStore;
   readonly #scheduler: BucketScheduler;
   readonly #modelSwitcher: AgentModelSwitcher | undefined;
-  readonly #configReloader: ConfigReloader | undefined;
+  readonly #configReloader: BotCommandConfigWriter | undefined;
   readonly #participation: ParticipationRegistry;
   readonly #contexts: ConversationContextStore;
   readonly #conversationRuntime: ConversationRuntime | undefined;
 
   constructor(
-    store: SqliteStore,
+    store: BusinessStore,
     configStore: RuntimeConfigurationStore,
     scheduler: BucketScheduler,
     modelSwitcher?: AgentModelSwitcher,
     conversationRuntime?: ConversationRuntime,
-    configReloader?: ConfigReloader,
+    configReloader?: BotCommandConfigWriter,
   ) {
     this.#store = store;
     this.#configStore = configStore;

@@ -18,7 +18,7 @@ import {
   type ThinkingLevelConfig,
   ThinkingLevelSchema,
 } from '../../platform/config.ts';
-import { type ConfigEdit, secretEdit } from '../../platform/config-file.ts';
+import { type ConfigEdit, secretEdit } from '../../platform/config-write.ts';
 import { newKeyJarName } from '../../platform/key-jar.ts';
 import { type ModelMetadataDraft, resolveModelDrafts } from '../../platform/model-metadata.ts';
 import { loadModelsDevCatalog, type ModelsDevCatalog } from '../../platform/models-dev.ts';

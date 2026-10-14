@@ -17,8 +17,8 @@ import type { Update } from 'grammy/types';
 import sharp from 'sharp';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { KeyedSemaphore } from '../src/platform/concurrency.ts';
-import { loadConfig } from '../src/platform/config.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { modelCalls } from '../src/store/schema.ts';
 import { previewContext } from '../src/platform/invocation-context.ts';
 import type { MediaDownloader } from '../src/capabilities/media/media-download.ts';
@@ -30,7 +30,7 @@ import type { TelegramSendApi } from '../src/capabilities/send-tool.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { capability } from '../src/capabilities/execute-tool.ts';
 import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
-import { SystemResources } from '../src/platform/system-resources.ts';
+import { emptySystemResources } from '../src/platform/system-resources.ts';
 
 const directories: string[] = [];
 
@@ -124,7 +124,7 @@ test.each([undefined, false, true])(
       secrets: new SecretStore(),
       telegramApi: api,
       bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-      systemResources: SystemResources.empty(),
+      systemResources: emptySystemResources(),
     });
     const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
     expect(outcome).toEqual({ state: 'completed', reason: 'completed' });
@@ -280,7 +280,7 @@ test('an invocation keeps running past the removed per-invocation tool-call cap 
       sendSticker: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
     },
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-    systemResources: SystemResources.empty(),
+    systemResources: emptySystemResources(),
     additionalTools: () => [noop],
   });
   const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
@@ -315,7 +315,7 @@ test('counts tool descriptions in registry limits', async () => {
       sendSticker: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
     },
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-    systemResources: SystemResources.empty(),
+    systemResources: emptySystemResources(),
   });
   const oversizedDescriptionTool: AgentTool = {
     name: 'large_description',
@@ -380,7 +380,7 @@ test('audits complete redacted model error details', async () => {
       sendSticker: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
     },
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-    systemResources: SystemResources.empty(),
+    systemResources: emptySystemResources(),
   });
 
   expect(await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal)).toEqual({
@@ -508,7 +508,7 @@ test('passes Telegram photos directly to the multimodal agent and keeps stickers
     secrets: new SecretStore(),
     telegramApi: api,
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-    systemResources: SystemResources.empty(),
+    systemResources: emptySystemResources(),
     directImageLoader: (context, signal) => media.loadDirectImages(context.directImages, signal),
   });
   const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
@@ -694,7 +694,7 @@ test('keeps history photos as img_ refs for the multimodal agent while attaching
       sendSticker: async () => ({ message_id: 602, date: 1_700_000_100, chat: { id: 123456789 } }),
     },
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-    systemResources: SystemResources.empty(),
+    systemResources: emptySystemResources(),
     capabilityTools: (context, deadline, capabilities) => [
       capability(media.createReadImageTool(context, capabilities, deadline), false),
     ],
@@ -819,7 +819,7 @@ test('lets a text-only agent read a Telegram photo through read_image', async ()
       sendSticker: async () => ({ message_id: 602, date: 1_700_000_100, chat: { id: 123456789 } }),
     },
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-    systemResources: SystemResources.empty(),
+    systemResources: emptySystemResources(),
     capabilityTools: (context, deadline, capabilities) => [
       capability(media.createReadImageTool(context, capabilities, deadline), false),
     ],
@@ -913,7 +913,7 @@ test('nudges the model once to use send when it drafts a private reply and never
     secrets: new SecretStore(),
     telegramApi: api,
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-    systemResources: SystemResources.empty(),
+    systemResources: emptySystemResources(),
   });
   const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
   expect(outcome).toEqual({ state: 'completed', reason: 'completed' });
@@ -973,7 +973,7 @@ test('does not nudge when the model ends without any draft text', async () => {
       sendSticker: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
     },
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-    systemResources: SystemResources.empty(),
+    systemResources: emptySystemResources(),
   });
   const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
   expect(outcome).toEqual({ state: 'completed', reason: 'completed' });
@@ -1059,7 +1059,7 @@ test('a model that declares minimal tool-schema keywords is sent reduced tool de
       sendSticker: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
     },
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-    systemResources: SystemResources.empty(),
+    systemResources: emptySystemResources(),
   });
   const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
   expect(outcome).toEqual({ state: 'completed', reason: 'completed' });
@@ -1164,7 +1164,7 @@ test.each([true, false])(
         sendSticker: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
       },
       bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-      systemResources: SystemResources.empty(),
+      systemResources: emptySystemResources(),
     });
     const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
     expect(outcome).toEqual({ state: 'completed', reason: 'completed' });
@@ -1250,7 +1250,7 @@ test('send_reply publishes its parts in order and counts as one send in the cano
     secrets: new SecretStore(),
     telegramApi: api,
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-    systemResources: SystemResources.empty(),
+    systemResources: emptySystemResources(),
   });
   try {
     expect(await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal)).toEqual({

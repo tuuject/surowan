@@ -1,20 +1,22 @@
 import { createHash } from 'node:crypto';
 import { type Api, getSupportedThinkingLevels, type Model } from '@earendil-works/pi-ai';
-import {
-  type AgentSettings,
-  assertConfigPermissions,
-  type FileConfig,
-  type LoadedConfig,
-  loadConfig,
-  type RawConfig,
-  validateSemantics,
-} from './config.ts';
-import { type ConfigChange, type ConfigSource, diffConfig } from './config-diff.ts';
-import { type ConfigEdit, ConfigWriteError, readConfigRevision, writeConfigEdits } from './config-file.ts';
-import { type AgentModelSwitcher, ModelSwitchError } from './model-switch.ts';
-import { buildModelRegistry, configuredAgentModels } from './providers.ts';
-import type { ConfigurationModels, RuntimeConfigurationStore } from './runtime-config.ts';
-import { SecretResolutionError, type SecretStore } from './secrets.ts';
+import { type AgentSettings, type FileConfig, type RawConfig, validateSemantics } from '../../platform/config.ts';
+import { assertConfigPermissions, type LoadedConfig, loadConfig } from './config.ts';
+import { type ConfigChange, type ConfigSource, diffConfig } from '../../platform/config-diff.ts';
+import type {
+  BotCommandConfigWriter,
+  ConfigApplyResult,
+  ConfigController,
+  ConfigEdit,
+  ConfigErrorCode,
+  ConfigErrorDetail,
+  ConfigStatus,
+} from '../../platform/config-write.ts';
+import { ConfigWriteError, readConfigRevision, writeConfigEdits } from './config-file.ts';
+import { type AgentModelSwitcher, ModelSwitchError } from '../../platform/model-switch.ts';
+import { buildModelRegistry, configuredAgentModels } from '../../platform/providers.ts';
+import type { ConfigurationModels, RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
+import { SecretResolutionError, type SecretStore } from '../../platform/secrets.ts';
 
 /**
  * The image configuration gateway. The reloader prepares a candidate snapshot
@@ -26,52 +28,6 @@ export interface ImageConfigGateway {
   prepare: (candidate: RawConfig) => Promise<unknown>;
   publish: (snapshot: unknown) => void;
 }
-
-export type ConfigErrorCode =
-  | 'config_permissions'
-  | 'config_invalid'
-  | 'config_conflict'
-  | 'candidate_invalid'
-  | 'model_unusable'
-  | 'secret_unresolved'
-  | 'unknown_provider'
-  | 'unknown_model'
-  | 'not_text_capable'
-  | 'config_symlink'
-  | 'config_write_failed';
-
-export interface ConfigErrorDetail {
-  readonly code: ConfigErrorCode;
-  readonly message: string;
-  readonly at: string;
-}
-
-export interface ConfigStatus {
-  readonly generation: number;
-  /** Identity of the configuration the process is running. */
-  readonly activeHash: string;
-  /** Identity of the file as of the last successful load. */
-  readonly fileHash: string;
-  readonly restartRequired: readonly string[];
-  readonly lastError: ConfigErrorDetail | null;
-}
-
-export type ConfigApplyResult =
-  | {
-      readonly ok: true;
-      readonly applied: readonly string[];
-      readonly restartRequired: readonly string[];
-      readonly outsideServe: readonly string[];
-      readonly status: ConfigStatus;
-    }
-  | {
-      readonly ok: false;
-      readonly code: ConfigErrorCode;
-      readonly message: string;
-      /** A failed apply after the requested edits already rewrote the file. */
-      readonly fileWritten: boolean;
-      readonly status: ConfigStatus;
-    };
 
 export interface ConfigReloaderOptions {
   /** The startup load result: the base for the first diff. */
@@ -96,7 +52,7 @@ export interface ConfigReloaderOptions {
  * before anything is published: the file itself, so the next startup will work,
  * and the candidate, so the running process will.
  */
-export class ConfigReloader {
+export class ConfigReloader implements BotCommandConfigWriter, ConfigController {
   readonly #configPath: string;
   readonly #store: RuntimeConfigurationStore;
   readonly #modelSwitcher: AgentModelSwitcher;
@@ -159,6 +115,14 @@ export class ConfigReloader {
   /** Revision of the file on disk, for the panel's optimistic concurrency. */
   revision(): Promise<string> {
     return readConfigRevision(this.#configPath);
+  }
+
+  /** Loads the file on disk without applying it; `checkPermissions` enforces the 0600/0700 rule first. */
+  async readPersisted(options: { readonly checkPermissions?: boolean } = {}): Promise<LoadedConfig> {
+    if (options.checkPermissions === true) {
+      await assertConfigPermissions(this.#configPath);
+    }
+    return await loadConfig(this.#configPath);
   }
 
   /**

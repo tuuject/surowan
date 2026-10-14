@@ -16,17 +16,18 @@ import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { BotCommandService, type CommandSender } from '../src/orchestration/bot-commands.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import { BucketScheduler, type InvocationOutcome } from '../src/orchestration/scheduler.ts';
-import { type FileConfig, type LoadedConfig, loadConfig, resolveAgentSettings } from '../src/platform/config.ts';
-import { readConfigRevision } from '../src/platform/config-file.ts';
-import { ConfigReloader } from '../src/platform/config-reload.ts';
+import { type FileConfig, resolveAgentSettings } from '../src/platform/config.ts';
+import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { readConfigRevision } from '../src/adapters/local-monolith/config-file.ts';
+import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
 import { previewContext } from '../src/platform/invocation-context.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
 import { buildModelRegistry } from '../src/platform/providers.ts';
 import { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { SystemResources } from '../src/platform/system-resources.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { emptySystemResources } from '../src/platform/system-resources.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import type { TelegramSendApi } from '../src/capabilities/send-tool.ts';
 import {
   sleep,
@@ -316,7 +317,7 @@ async function setup(
         secrets,
         telegramApi: sendApi,
         bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-        systemResources: SystemResources.empty(),
+        systemResources: emptySystemResources(),
         conversationRuntime,
       });
       return runtime;

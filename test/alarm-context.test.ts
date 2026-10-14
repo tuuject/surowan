@@ -20,10 +20,11 @@ import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { BotCommandService } from '../src/orchestration/bot-commands.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import { loadConfig, type FileConfig } from '../src/platform/config.ts';
+import type { FileConfig } from '../src/platform/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { SystemResources } from '../src/platform/system-resources.ts';
-import { SqliteStore } from '../src/store/database.ts';
+import { emptySystemResources } from '../src/platform/system-resources.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
 import { fauxRegistry, renderInvocationContext, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 import { alarmTools, completeAlarmTask, getAlarmTask, insertAlarmTask } from './alarm-fixtures.ts';
@@ -175,7 +176,7 @@ async function runtimeFixture(transform?: (config: FileConfig) => void, existing
       sendSticker: async () => ({ message_id: 800, date: 1_700_000_000, chat: { id: CHAT_ID } }),
     },
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
-    systemResources: SystemResources.empty(),
+    systemResources: emptySystemResources(),
     conversationRuntime,
     capabilityTools: (context, deadline) => plugins.capabilities(store, loaded.config, context, deadline, tasks),
   });

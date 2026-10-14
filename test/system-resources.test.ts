@@ -5,9 +5,10 @@ import { join } from 'node:path';
 import {
   SYSTEM_RESOURCE_MAX_BYTES,
   SystemResourceError,
-  SystemResources,
+  emptySystemResources,
   renderSkillIndexPrompt,
 } from '../src/platform/system-resources.ts';
+import { FileSystemResources } from '../src/adapters/local-monolith/system-resources.ts';
 import { bundledSystemResources } from './helpers.ts';
 
 const directories: string[] = [];
@@ -54,36 +55,41 @@ test('loads the bundled skill tree and renders the progressive disclosure index'
 });
 
 test('an empty resource tree has no skills and no readable documents', async () => {
-  const empty = SystemResources.empty();
+  const empty = emptySystemResources();
   expect(empty.skills).toEqual([]);
   expect(renderSkillIndexPrompt(empty.skills)).toBe('');
-  await expect(empty.readText('system:///skills/web-fetch/SKILL.md')).rejects.toThrow(SystemResourceError);
+  await expect(empty.readText('system:///skills/web-fetch/SKILL.md')).rejects.toMatchObject({
+    code: 'resource_not_found',
+  });
+  // Preserve the old empty tree's precedence: it reports unavailable before URI validation.
+  await expect(empty.readText('file:///etc/passwd')).rejects.toMatchObject({ code: 'resource_not_found' });
+  expect(() => empty.resolve('file:///etc/passwd')).toThrow(SystemResourceError);
 });
 
 test('rejects invalid skill manifests at load time', async () => {
   const mismatch = await tempRoot();
   await writeSkill(mismatch, 'alpha', '---\nname: beta\ndescription: mismatched\n---');
-  await expect(SystemResources.load(mismatch)).rejects.toThrow('declares name beta');
+  await expect(FileSystemResources.load(mismatch)).rejects.toThrow('declares name beta');
 
   const missingFrontmatter = await tempRoot();
   await writeSkill(missingFrontmatter, 'alpha', 'No frontmatter here.');
-  await expect(SystemResources.load(missingFrontmatter)).rejects.toThrow('missing frontmatter');
+  await expect(FileSystemResources.load(missingFrontmatter)).rejects.toThrow('missing frontmatter');
 
   const badDescription = await tempRoot();
   await writeSkill(badDescription, 'alpha', '---\nname: alpha\ndescription: \n---');
-  await expect(SystemResources.load(badDescription)).rejects.toThrow('invalid frontmatter');
+  await expect(FileSystemResources.load(badDescription)).rejects.toThrow('invalid frontmatter');
 
   const unknownKey = await tempRoot();
   await writeSkill(unknownKey, 'alpha', '---\nname: alpha\ndescription: ok\nextra: nope\n---');
-  await expect(SystemResources.load(unknownKey)).rejects.toThrow('invalid frontmatter');
+  await expect(FileSystemResources.load(unknownKey)).rejects.toThrow('invalid frontmatter');
 
   const missingDocument = await tempRoot();
   await mkdir(join(missingDocument, 'skills', 'alpha'), { recursive: true });
-  await expect(SystemResources.load(missingDocument)).rejects.toThrow('missing SKILL.md');
+  await expect(FileSystemResources.load(missingDocument)).rejects.toThrow('missing SKILL.md');
 
   const invalidName = await tempRoot();
   await writeSkill(invalidName, 'Alpha_Caps', '---\nname: alpha\n---');
-  await expect(SystemResources.load(invalidName)).rejects.toThrow('directory name is invalid');
+  await expect(FileSystemResources.load(invalidName)).rejects.toThrow('directory name is invalid');
 });
 
 test('mounts plugin skill directories beside the bundled tree and rejects name conflicts', async () => {
@@ -93,7 +99,7 @@ test('mounts plugin skill directories beside the bundled tree and rejects name c
   await writeSkill(plugin, 'beta', '---\nname: beta\ndescription: from a plugin\n---\n# Beta\n', {
     'guide.md': 'Plugin guide.\n',
   });
-  const resources = await SystemResources.load(root, [join(plugin, 'skills', 'beta')]);
+  const resources = await FileSystemResources.load(root, [join(plugin, 'skills', 'beta')]);
   expect(resources.skills).toEqual([
     { name: 'alpha', description: 'bundled', uri: 'system:///skills/alpha/SKILL.md' },
     { name: 'beta', description: 'from a plugin', uri: 'system:///skills/beta/SKILL.md' },
@@ -111,18 +117,18 @@ test('mounts plugin skill directories beside the bundled tree and rejects name c
   });
 
   // A root without a skills directory still serves plugin skills.
-  const bare = await SystemResources.load(await tempRoot(), [join(plugin, 'skills', 'beta')]);
+  const bare = await FileSystemResources.load(await tempRoot(), [join(plugin, 'skills', 'beta')]);
   expect(bare.skills.map((skill) => skill.name)).toEqual(['beta']);
 
   const shadowing = await tempRoot('plasticwan-plugin-skills-');
   await writeSkill(shadowing, 'alpha', '---\nname: alpha\ndescription: shadows the bundled skill\n---');
-  await expect(SystemResources.load(root, [join(shadowing, 'skills', 'alpha')])).rejects.toThrow(
+  await expect(FileSystemResources.load(root, [join(shadowing, 'skills', 'alpha')])).rejects.toThrow(
     'Duplicate system skill name: alpha',
   );
   await expect(
-    SystemResources.load(await tempRoot(), [join(plugin, 'skills', 'beta'), join(plugin, 'skills', 'beta')]),
+    FileSystemResources.load(await tempRoot(), [join(plugin, 'skills', 'beta'), join(plugin, 'skills', 'beta')]),
   ).rejects.toThrow('Duplicate system skill name: beta');
-  await expect(SystemResources.load(root, [join(plugin, 'skills', 'missing')])).rejects.toThrow('missing SKILL.md');
+  await expect(FileSystemResources.load(root, [join(plugin, 'skills', 'missing')])).rejects.toThrow('missing SKILL.md');
 });
 
 test('resolves a large multi-document skill through progressive disclosure', async () => {
@@ -134,7 +140,7 @@ test('resolves a large multi-document skill through progressive disclosure', asy
     '---\nname: big-persona\ndescription: A large persona skill used to validate on-demand loading\n---\n# Persona\nRead references/soul.md for the core personality.\nRead ./references/appearance.md for looks.\n',
     { 'soul.md': oversized, 'appearance.md': 'Looks fine.\n' },
   );
-  const resources = await SystemResources.load(root);
+  const resources = await FileSystemResources.load(root);
   expect(resources.skills.map((skill) => skill.name)).toEqual(['big-persona']);
 
   const index = await resources.readText('system:///skills/big-persona/SKILL.md');
@@ -160,7 +166,7 @@ test('resolves a large multi-document skill through progressive disclosure', asy
 test('rejects out-of-tree, non-markdown, and malformed URIs', async () => {
   const root = await tempRoot();
   await writeSkill(root, 'alpha', '---\nname: alpha\ndescription: ok\n---', { 'deep.md': 'content\n' });
-  const resources = await SystemResources.load(root);
+  const resources = await FileSystemResources.load(root);
 
   const rejects = async (reference: string, base?: string, code?: SystemResourceError['code']): Promise<void> => {
     const promise = resources.readText(reference, base);

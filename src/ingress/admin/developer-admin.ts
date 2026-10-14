@@ -2,7 +2,7 @@ import { setImmediate } from 'node:timers/promises';
 import { and, asc, desc, gt, isNotNull, lte, or } from 'drizzle-orm';
 import Type from 'typebox';
 import Compile from 'typebox/compile';
-import type { Orm } from '../../store/database.ts';
+import type { Orm } from '../../store/store.ts';
 import { modelCalls } from '../../store/schema.ts';
 import { AdminQueryError } from './audit.ts';
 
