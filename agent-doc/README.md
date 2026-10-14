@@ -57,6 +57,7 @@
 | [20260928 Core 与 Telegram Adapter 分离 Epic](design/20260928%20Plaswan%20Core%20与%20Telegram%20Adapter%20分离%20Epic.md) | 保持 Telegram Bot 定位，分离 Harness 与 Host 的工具、输入、授权、调度、存储及 Admin 后端边界；前端保持 Telegram 一体化 | 规划完成，未实施；3 个交付里程碑、11 个任务，第一刀为注入 Telegram 输出工具；不实施其他 IM Adapter |
 | [20261001 sos_pro 专家求助设计计划](design/20261001%20sos_pro%20专家求助设计计划.md) | 便宜模型经直接暴露的 `sos_pro` 工具向强模型求助：插件形态与插件依赖、长程任务与回执、只管专家的每日金额预算、自动 @ 提问者 | Phase 1 范围与决定已确认，未实施；超时、Token 与金额上限等为暂定值，上线后调整；「仅在用户明确要求时」一态留待以后 |
 | [20261002 生图核心迁移与系统插件 Phase 1 设计计划](design/20261002%20生图核心迁移与系统插件%20Phase%201%20设计计划.md) | 提取独立生图核心为内置插件；Admin 工作台、生图审计、资产管理沿用原交互并适配宿主组件；供应商配置热加载与图片交付 | Phase 1 实施中：M1 核心包提取、M2 主库/装配/备份与 Provider 有损意图抽象已落地；M3 热加载、M4 插件交付、M5 Admin 三页、M6 集成交付待做 |
+| [20261014 宿主解耦与 Local Monolith Adapter 设计](design/20261014%20宿主解耦与%20Local%20Monolith%20Adapter%20设计.md) | 先分离共享业务与部署宿主，落地保持现有单机行为的 Local Monolith Adapter；以进程内 WebAssembly 取代 FFmpeg/python-lottie/Sharp；记录后续 Workers/DO/Containers/Media Worker 分工、全局媒体状态归属与验收边界 | 设计记录，未实施；先拆耦合并交付本地单体适配，媒体去原生化可并行但须先完成 Lottie/VP9 wasm spike，Cloudflare 原型与分布式恢复机制后续验证 |
 
 ## 文档边界
 
