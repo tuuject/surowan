@@ -1,5 +1,17 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
+import {
+  Activity,
+  AlarmClock,
+  BookOpen,
+  Brain,
+  ExternalLink,
+  MessageSquareText,
+  Pencil,
+  Plus,
+  Speech,
+  Trash2,
+} from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -10,6 +22,12 @@ import {
   TableShell,
   ToneBadge,
 } from '@/components/business';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Panel } from '@/components/layout/panel';
 import { RestartBanner } from '@/components/models/restart-banner';
 import { Button } from '@/components/ui/button';
@@ -398,6 +416,57 @@ export default function ChatsPage(): React.ReactElement {
       render: (row) =>
         row.saved === null ? null : (
           <div className="flex items-center justify-end gap-1">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label={t('pages.chats.quickLinks')}
+                  title={t('pages.chats.quickLinks')}
+                >
+                  <ExternalLink />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link to="/prompts" search={{ chat: row.id }}>
+                    <Speech />
+                    {t('layout.nav.prompts')}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/dictionary" search={{ chat: row.runtime_chat_id }}>
+                    <BookOpen />
+                    {t('layout.nav.dictionary')}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/memories" search={{ chat: row.runtime_chat_id }}>
+                    <Brain />
+                    {t('layout.nav.memories')}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/messages" search={{ chat: row.runtime_chat_id }}>
+                    <MessageSquareText />
+                    {t('layout.nav.messages')}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/invocations" search={{ chat: row.runtime_chat_id }}>
+                    <Activity />
+                    {t('layout.nav.toolSessions')}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/alarms" search={{ chat: row.runtime_chat_id }}>
+                    <AlarmClock />
+                    {t('layout.nav.alarms')}
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               type="button"
               size="icon-sm"

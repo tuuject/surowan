@@ -301,11 +301,13 @@ pnpm run admin:test:e2e  # Playwright 浏览器 E2E（真实 AdminServer + 临�
 | `src/lib/errors.ts` | `errorMessage()`：统一错误文本（`ApiError.code: message`） |
 | `src/lib/memory-ttl.ts` | 记忆 TTL 边界纯函数 |
 | `src/lib/timeline.ts` | Invocation 时间线纯模型（同时间排序、send 参数解析） |
+| `src/lib/search-params.ts` | 列表页共享的 `chat` 查询参数：`validateSearch` 校验器、读写 hook 与结构化 navigate 类型 |
 | `src/components/business/**` | 共享业务组件（CursorList / FilterToolbar / StateBadge / TableShell / JsonViewer / KvList / ConfirmDialog / ChartCard / PrivateReasoning / DetailState 等），契约见 `apps/admin-next/README.md` |
 | `src/pages/*.tsx` | 各页面组件，一文件一页（路由挂载见 `src/routes/**`）；页面清单以目录为准，各页语义见本文对应小节 |
 
 前端约定：
 
+- Prompts、Dictionary、Memories、Messages、Invocations、Alarms 六个页面通过 URL `chat` 查询参数管理 Chat 范围：路由的 `validateSearch`（`chatSearch`）校验十进制 chat ID，非法值退回「无筛选」；页面内的 Chat 筛选改动会以 `replace` 写回 URL，可直接收藏或分享深链（如 `/messages?chat=123456789`）。Chats 页每行的「打开相关页面」菜单按目标语义携带 Chat ID：Prompts 用配置 ID（`/prompts?chat=<配置 ID>`），其余五个页面用运行时 Chat ID（`runtime_chat_id`），二者仅在 Chat 迁移后不同。Router 在 `src/main.tsx` 覆盖 `parseSearch`/`stringifySearch` 为纯字符串查询串（默认 JSON 序列化会把纯数字值解析成 number 并把字符串重写成 `%22…%22`），面板所有查询参数都是扁平字符串。
 - 替换列表内容的详情页使用非嵌套路由文件（如 `image-generations_.$generationId.tsx`），与列表并列挂到根布局；URL 仍是 `/image-generations/:generationId`。只有需要在父页 `Outlet` 中显示的内容才使用嵌套文件，避免详情匹配成功却只渲染列表。
 - 业务页面一律 `useQuery` / `useInfiniteQuery` 并显式渲染 loading / error / data
   三态，**禁止 `useSuspenseQuery`**（401 会在渲染期抛出并落进路由错误边界，

@@ -1,3 +1,4 @@
+import { useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Info } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -47,6 +48,7 @@ import {
   TTL_MIN_DAYS,
 } from '@/lib/memory-ttl';
 import { memoriesQuery, memoryChatsQuery } from '@/lib/queries';
+import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
@@ -117,7 +119,9 @@ export default function MemoriesPage(): React.ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [state, setState] = useState<string | undefined>(undefined);
-  const [chat, setChat] = useState<string | undefined>(undefined);
+  const chat = useChatScope();
+  const navigate = useNavigate({ from: '/memories' });
+  const setChat = useChatScopeSetter(navigate);
   const filters = useMemo(() => ({ state, chat }), [state, chat]);
 
   const [createOpen, setCreateOpen] = useState(false);

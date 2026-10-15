@@ -15,10 +15,38 @@ import '@/styles/globals.css';
 
 const queryClient = getQueryClient();
 
+/**
+ * Plain query-string semantics for search params: every value round-trips as
+ * a string. The default TanStack serialization JSON-encodes/decodes values,
+ * which turns a deep link like `?chat=123456789` into a number and re-writes
+ * filtered URLs as `?chat=%22123456789%22`. All panel search params are flat
+ * strings, so keep them readable.
+ */
+const parseSearch = (searchStr: string): Record<string, string> => {
+  const search: Record<string, string> = {};
+  for (const [key, value] of new URLSearchParams(searchStr)) {
+    search[key] = value;
+  }
+  return search;
+};
+
+const stringifySearch = (search: Record<string, unknown>): string => {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(search)) {
+    if (value !== undefined && value !== null) {
+      params.set(key, String(value));
+    }
+  }
+  const encoded = params.toString();
+  return encoded.length > 0 ? `?${encoded}` : '';
+};
+
 const router = createRouter({
   routeTree,
   context: { queryClient },
   defaultPreload: 'intent',
+  parseSearch,
+  stringifySearch,
 });
 
 declare module '@tanstack/react-router' {

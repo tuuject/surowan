@@ -80,6 +80,7 @@ export const pages: typeof pagesEn = {
   },
   chats: {
     allTopics: '所有话题',
+    quickLinks: '打开相关页面',
     defaultModel: '默认模型',
     chatOverride: '会话覆盖',
     thinkingShort: '思考 {{level}}',

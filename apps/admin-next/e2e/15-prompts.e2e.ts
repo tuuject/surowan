@@ -102,4 +102,13 @@ test.describe('prompts page', () => {
     await expect(page.locator('#prompt-text')).toHaveValue(GLOBAL_START);
     await expect(page.locator('table tbody tr')).toHaveCount(3);
   });
+
+  test('the chat search param opens the group scope directly', async ({ page }) => {
+    await page.goto(await adminUrl('/prompts?chat=123456789'));
+    await expect(page.getByRole('combobox', { name: 'Scope' })).toContainText('123456789');
+    await page.getByRole('combobox', { name: 'Scope' }).click();
+    await page.getByRole('option', { name: 'Global prompt' }).click();
+    await expect(page).toHaveURL(/\/prompts$/);
+    await expect(page.getByRole('combobox', { name: 'Scope' })).toContainText('Global prompt');
+  });
 });
