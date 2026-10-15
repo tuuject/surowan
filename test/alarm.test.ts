@@ -292,7 +292,8 @@ describe('alarm tool', () => {
     const invocationId = processDue(scheduler, new Date(received.getTime() + 15_000));
     const context = build(invocationId, { contextWindow: 200_000, maxOutputTokens: 32768 });
     const tool = alarmTools(store, config, context).alarm;
-
+    // A real Telegram id that is not a visible sender is rejected as
+    // unauthorized, not guessed onto some visible user.
     await expect(
       tool.execute('unauthorized', { target_user_id: '999', summary: 'x', datetime: futureIso(3600_000) }),
     ).rejects.toThrow('not visible');
@@ -459,7 +460,7 @@ describe('alarm tool', () => {
         "SELECT tools_json FROM model_calls WHERE role = 'agent' ORDER BY id LIMIT 1",
       )
       .get();
-    expect(presented?.tools_json).toBe(JSON.stringify(['read', 'send', 'send_reply', 'execute']));
+    expect(presented?.tools_json).toBe(JSON.stringify(['read', 'resolve_user_id', 'send', 'send_reply', 'execute']));
     const auditPayload = store.db
       .prepare<[], { request_json: string | null }>(
         "SELECT request_json FROM model_calls WHERE role = 'agent' AND request_json IS NOT NULL ORDER BY id LIMIT 1",
@@ -468,7 +469,13 @@ describe('alarm tool', () => {
     const payload = JSON.parse(auditPayload?.request_json ?? 'null') as { tools?: Array<Record<string, unknown>> };
     // The model-facing registry carries only the runtime primitives; the
     // list_alarm schema was served by the execute help action above.
-    expect(payload.tools?.map((entry) => entry.name)).toEqual(['read', 'send', 'send_reply', 'execute']);
+    expect(payload.tools?.map((entry) => entry.name)).toEqual([
+      'read',
+      'resolve_user_id',
+      'send',
+      'send_reply',
+      'execute',
+    ]);
     // The faux tool call id is generated; match by tool name instead.
     const listAudit = store.db
       .prepare<[], { arguments_json: string; state: string }>(

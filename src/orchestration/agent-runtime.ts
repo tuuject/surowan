@@ -13,6 +13,7 @@ import {
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { capability, createExecuteTool, type ExecutableCapability } from '../capabilities/execute-tool.ts';
 import { createReadTool } from '../capabilities/read-tool.ts';
+import { createResolveUserIdTool } from '../capabilities/resolve-user-id-tool.ts';
 import type { MentionTyping } from '../capabilities/mention-typing.ts';
 import { createSendTools, SEND_TOOL_NAMES, type TelegramSendApi } from '../capabilities/send-tool.ts';
 import { createTyping } from '../capabilities/typing.ts';
@@ -33,6 +34,7 @@ import {
   type CapabilityRefResolver,
   type InvocationContext,
   InvocationContextState,
+  shortenContextUserIds,
   unavailableCapabilities,
   type VisibleSender,
 } from '../platform/invocation-context.ts';
@@ -307,6 +309,7 @@ export class AgentRuntime {
     });
     return [
       createReadTool({ store: this.#store, context: target, resources: this.#systemResources }),
+      createResolveUserIdTool({ store: this.#store, context: target }),
       send,
       sendReply,
       createExecuteTool({
@@ -695,6 +698,11 @@ export class AgentRuntime {
     };
 
     agent.streamFunction = async (streamModel, modelContext, options) => {
+      // LLM request boundary: compact the real Telegram user ids in this request
+      // to invocation-local short ids. Only this request's converted message copy
+      // is rewritten — the transcript and canonical history keep real ids, and the
+      // map accumulates on the invocation context so tools can resolve short ids.
+      modelContext.messages = shortenContextUserIds(modelContext.messages, contextState.userIdMap);
       if (
         !bypassDailyBudget() &&
         isDailyTokenBudgetReached(

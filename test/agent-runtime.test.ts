@@ -94,7 +94,7 @@ test.each([undefined, false, true])(
         // object schema; the top-level union `execute` used to carry failed every
         // gpt-4o invocation with 400 invalid_function_parameters.
         const tools = getCurrentTools(context.messages);
-        expect(tools.map((tool) => tool.name)).toEqual(['read', 'send', 'send_reply', 'execute']);
+        expect(tools.map((tool) => tool.name)).toEqual(['read', 'resolve_user_id', 'send', 'send_reply', 'execute']);
         for (const tool of tools) {
           expect(tool.parameters).toMatchObject({ type: 'object' });
         }
@@ -151,7 +151,7 @@ test.each([undefined, false, true])(
         "SELECT tools_json FROM model_calls WHERE role = 'agent' ORDER BY id LIMIT 1",
       )
       .get();
-    expect(presented?.tools_json).toBe(JSON.stringify(['read', 'send', 'send_reply', 'execute']));
+    expect(presented?.tools_json).toBe(JSON.stringify(['read', 'resolve_user_id', 'send', 'send_reply', 'execute']));
     const snapshot = store.db
       .prepare<[], { request_json: string | null; response_json: string | null }>(
         "SELECT request_json, response_json FROM model_calls WHERE role = 'agent' ORDER BY id LIMIT 1",
@@ -848,7 +848,13 @@ test('lets a text-only agent read a Telegram photo through read_image', async ()
     )
     .get();
   const toolsJson = presented?.tools_json ?? null;
-  expect(toolsJson === null ? null : JSON.parse(toolsJson)).toEqual(['read', 'send', 'send_reply', 'execute']);
+  expect(toolsJson === null ? null : JSON.parse(toolsJson)).toEqual([
+    'read',
+    'resolve_user_id',
+    'send',
+    'send_reply',
+    'execute',
+  ]);
   store.close();
 });
 
@@ -1066,7 +1072,7 @@ test('a model that declares minimal tool-schema keywords is sent reduced tool de
 
   // What the provider was handed: the shape of every call survives, the
   // validation-only annotations a grammar endpoint rejects are gone.
-  expect(presented.map((tool) => tool.name)).toEqual(['read', 'send', 'send_reply', 'execute']);
+  expect(presented.map((tool) => tool.name)).toEqual(['read', 'resolve_user_id', 'send', 'send_reply', 'execute']);
   expect(JSON.stringify(presented)).not.toContain('minLength');
   expect(JSON.stringify(presented)).not.toContain('maxLength');
   expect(JSON.stringify(presented)).not.toContain('patternProperties');

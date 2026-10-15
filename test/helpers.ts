@@ -11,11 +11,14 @@ import type { SystemResources } from '../src/platform/system-resources.ts';
 import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from '../src/adapters/local-monolith/system-resources.ts';
 import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
 import { loadPlugins } from '../src/plugins/plugin.ts';
-import type {
-  DirectImage,
-  InvocationContext,
-  CapabilityRefResolver,
-  VisibleSender,
+import {
+  parseShortUserId,
+  shortenUserIdsInText,
+  UserIdMap,
+  type DirectImage,
+  type InvocationContext,
+  type CapabilityRefResolver,
+  type VisibleSender,
 } from '../src/platform/invocation-context.ts';
 import type { PromptTemplateModel } from '../src/platform/prompt-template.ts';
 import { ContextBuilder, type Injection } from '../src/context/context-builder.ts';
@@ -74,6 +77,8 @@ export interface TestInvocationContext extends InvocationContext {
   readonly visibleSenders: ReadonlyMap<string, VisibleSender>;
   readonly callerUserId: bigint | null;
   readonly omittedNewMessages: number;
+  /** The invocation-local real↔short user-id map, as the LLM request boundary builds it. */
+  readonly userIdMap: UserIdMap;
   /** One contribution per context injector, in run order. */
   readonly injections: Injection['injections'];
 }
@@ -132,6 +137,11 @@ export function renderInvocationContext(
       (entry) => [entry.messageId, { conversationId: entry.conversationId, threadId: entry.threadId }] as const,
     ),
   );
+  // Build the invocation-local short-id map exactly as the LLM request boundary
+  // does, so alarm-style tools can resolve a model-supplied short id to the real
+  // Telegram user in tests.
+  const userIdMap = new UserIdMap();
+  shortenUserIdsInText(injection.text, userIdMap);
   return {
     invocationId,
     chatId: identity.chatId,
@@ -148,6 +158,11 @@ export function renderInvocationContext(
     callerUserId: injection.callerUserId,
     omittedNewMessages: injection.omittedNewMessages,
     injections: injection.injections,
+    userIdMap,
+    resolveModelUserId: (shortId: string): bigint | null => {
+      const parsed = parseShortUserId(shortId);
+      return parsed === null ? null : (userIdMap.resolve(parsed) ?? null);
+    },
   };
 }
 

@@ -75,6 +75,13 @@ export const SLEEP_STATE_PROMPT = `Sleep state: you are very sleepy now, and tod
 const MEMORY_GUIDANCE =
   'Memory: short-term notes you deliberately saved for this conversation with the add_memory capability (called via execute). Keep each note under 100 characters; the hard limit is 150. Notes expire after their TTL (1 day by default). Delete wrong or obsolete notes with the delete_memory capability. Setting a long TTL nominates stable knowledge for human review; durable rules live in agents.md and are curated by humans.';
 
+/**
+ * The compact uid:N ids in message headers are invocation-local. Stated once in
+ * the stable prompt — never a per-message explanation, never the mapping table.
+ */
+export const USER_ID_GUIDANCE =
+  'User ids: the numbers after uid: in message headers are compact ids valid only in this invocation, not real Telegram user ids. When a tool needs a real Telegram user id, first call resolve_user_id with the compact id; never guess, compute, or pass a compact id as a real one.';
+
 type MessageSnapshot = Static<typeof MessageSnapshotSchema>;
 
 interface InvocationMessageRow {
@@ -282,7 +289,7 @@ export class ContextBuilder {
         .filter((part) => part.length > 0)
         .join('\n\n'),
       global: config.agent.system_prompt,
-      middle: [conversationMode, MEMORY_GUIDANCE].filter((part) => part.length > 0).join('\n\n'),
+      middle: [conversationMode, MEMORY_GUIDANCE, USER_ID_GUIDANCE].filter((part) => part.length > 0).join('\n\n'),
       group: chatConfig.instructions,
     };
     const systemPrompt = composeAgentPrompt(promptLayers, templateValues);

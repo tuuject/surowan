@@ -1,8 +1,10 @@
 /**
  * Shared invocation-context value types. This is a leaf module: it must not
  * import any other src module, because context-builder, memory, and every tool
- * boundary depend on these types.
+ * boundary depend on these types. (Type-only pi-ai imports are erased and do not
+ * create a src dependency.)
  */
+import type { Message, TextContent } from '@earendil-works/pi-ai';
 
 // ── JSON value types (leaf, shared by store and plugins) ───────────
 
@@ -48,6 +50,106 @@ export interface VisibleSender {
 }
 
 /**
+ * Model-visible Telegram user IDs are compacted to dense integers (1, 2, 3, …)
+ * for the duration of one invocation, so a request is not padded with repeated
+ * 10-digit ids. The map is invocation-local and never persisted: the stored
+ * transcript and every Telegram/DB id stay the real value; only the text handed
+ * to the model is rewritten at the LLM request boundary.
+ *
+ * Real ids are handled as decimal strings end to end (never `Number`), because a
+ * Telegram user id can exceed `Number.MAX_SAFE_INTEGER`. Short ids are ordinary
+ * small integers and are safe as numbers.
+ */
+export class UserIdMap {
+  #realToShort = new Map<string, number>();
+  #shortToReal = new Map<number, bigint>();
+  #next = 1;
+
+  /** Returns the dense short id for a real Telegram user id, assigning on first use. */
+  shorten(realId: string): number {
+    const existing = this.#realToShort.get(realId);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const short = this.#next++;
+    this.#realToShort.set(realId, short);
+    this.#shortToReal.set(short, BigInt(realId));
+    return short;
+  }
+
+  /** Resolves a short id back to the real Telegram user id, or `undefined` when unknown. */
+  resolve(shortId: number): bigint | undefined {
+    return this.#shortToReal.get(shortId);
+  }
+}
+
+/**
+ * Parses a model-supplied short user id. Rejects anything that is not a plain
+ * positive decimal integer within the safe-integer range, so a real (possibly
+ * huge) Telegram id or a malformed value can never resolve to some other user.
+ */
+export function parseShortUserId(value: string): number | null {
+  if (!/^[1-9][0-9]*$/.test(value)) {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+/**
+ * Rewrites the runtime-controlled user-id tokens in one rendered message batch:
+ * `uid:<real>` in a message header and `"target_user_id":"<real>"` in a task
+ * receipt. Both are assigned a short id (populating `map`) so the same user keeps
+ * one id across headers and receipts.
+ *
+ * Only lines the runtime owns are touched. `formatSnapshot` indents every
+ * Telegram-authored body line with two spaces, so those (and any `uid:` a user
+ * typed into their message) are left verbatim. Message ids, `re:` reply ids and
+ * `topic:` ids use different token prefixes and are never matched.
+ */
+export function shortenUserIdsInText(text: string, map: UserIdMap): string {
+  const marker = '</runtime_state>';
+  const cut = text.lastIndexOf(marker);
+  const prefix = cut === -1 ? '' : text.slice(0, cut + marker.length);
+  const body = cut === -1 ? text : text.slice(cut + marker.length);
+  const rewritten = body
+    .split('\n')
+    .map((line) => (line.startsWith('  ') ? line : shortenRuntimeLine(line, map)))
+    .join('\n');
+  return prefix + rewritten;
+}
+
+function shortenRuntimeLine(line: string, map: UserIdMap): string {
+  return line
+    .replace(/uid:([0-9]+)/g, (_match, id: string) => `uid:${map.shorten(id)}`)
+    .replace(/"target_user_id":"([0-9]+)"/g, (_match, id: string) => `"target_user_id":"${map.shorten(id)}"`);
+}
+
+/**
+ * Compacts the model-visible Telegram user ids in one LLM request at the request
+ * boundary. Only user messages are rewritten: they carry the runtime-rendered
+ * `uid:` headers and task receipts. Assistant messages keep the model's own
+ * short ids in their tool-call arguments untouched, and system messages carry no
+ * user ids. The transcript and the canonical history are never mutated — the
+ * rewritten copy is handed to the provider for this request only, so the same
+ * invocation-local map keeps every reference consistent.
+ */
+export function shortenContextUserIds(messages: readonly Message[], map: UserIdMap): Message[] {
+  return messages.map((message) => {
+    if (message.role !== 'user') {
+      return message;
+    }
+    if (typeof message.content === 'string') {
+      return { ...message, content: shortenUserIdsInText(message.content, map) };
+    }
+    const content = message.content.map((block) =>
+      block.type === 'text' ? ({ ...block, text: shortenUserIdsInText(block.text, map) } satisfies TextContent) : block,
+    );
+    return { ...message, content };
+  });
+}
+
+/**
  * Resolves capability references (`img_`, `stk_`, `reply:<message id>`) for the
  * Conversation Context currently running. References live in the context with a
  * TTL, so a ref quoted in retained history keeps working across invocations and
@@ -86,6 +188,13 @@ export interface InvocationContext {
   readonly callerUserId: bigint | null;
   readonly completion: CompletionContext | null;
   readonly omittedNewMessages: number;
+  /**
+   * Resolves a model-supplied short user id back to the real Telegram user id.
+   * Absent only outside a live invocation (registry previews); callers must treat
+   * an absent resolver or an unresolvable short id as an error, never fall back to
+   * guessing a user.
+   */
+  readonly resolveModelUserId?: (shortId: string) => bigint | null;
 }
 
 /**
@@ -108,6 +217,7 @@ export class InvocationContextState implements InvocationContext {
   #callerUserId: bigint | null = null;
   #completion: CompletionContext | null = null;
   #omittedNewMessages = 0;
+  #userIdMap = new UserIdMap();
 
   constructor(identity: {
     readonly invocationId: bigint;
@@ -143,6 +253,20 @@ export class InvocationContextState implements InvocationContext {
   }
   get omittedNewMessages(): number {
     return this.#omittedNewMessages;
+  }
+
+  /**
+   * The invocation-local real↔short user id map. The LLM request boundary fills
+   * it while shortening the model-visible text; tools read it to resolve a short
+   * id back to the real Telegram user.
+   */
+  get userIdMap(): UserIdMap {
+    return this.#userIdMap;
+  }
+
+  resolveModelUserId(shortId: string): bigint | null {
+    const parsed = parseShortUserId(shortId);
+    return parsed === null ? null : (this.#userIdMap.resolve(parsed) ?? null);
   }
 
   setSystemPrompt(systemPrompt: string): void {

@@ -24,7 +24,12 @@ import {
   type RawConfig,
   resolveAgentSettings,
 } from '../platform/config.ts';
-import { type InvocationContext, unavailableCapabilities } from '../platform/invocation-context.ts';
+import {
+  type InvocationContext,
+  shortenContextUserIds,
+  unavailableCapabilities,
+  UserIdMap,
+} from '../platform/invocation-context.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import type { SecretStore } from '../platform/secrets.ts';
 import type { SystemResources, SystemSkill } from '../platform/system-resources.ts';
@@ -368,6 +373,10 @@ export class ReplayRunner {
           return entry;
         }),
       );
+    // Replay shows the model exactly what the live run did, so real Telegram user
+    // ids are compacted to short ids at this request boundary too. The map is
+    // replay-local and accumulates across turns like the live invocation's.
+    const replayUserIds = new UserIdMap();
     const agent = new Agent({
       initialState: {
         systemPrompt,
@@ -380,6 +389,7 @@ export class ReplayRunner {
       toolExecution: 'sequential',
       streamFn: async (streamModel, context, options) => {
         signal.throwIfAborted();
+        context.messages = shortenContextUserIds(context.messages, replayUserIds);
         // pi 1.x carries tool declarations in the transcript's system messages, so
         // the estimate reads the seeded registry directly instead of `context.tools`.
         const inputTokens =

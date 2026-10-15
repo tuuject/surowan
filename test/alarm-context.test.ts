@@ -616,7 +616,11 @@ describe('alarm authorization', () => {
     expect(context.callerUserId).toBeNull();
     const tools = alarmTools(store, config, context);
     await expect(
-      tools.alarm.execute('create', { target_user_id: '42', summary: 'x', datetime: futureIso() }),
+      tools.alarm.execute('create', {
+        target_user_id: '42',
+        summary: 'x',
+        datetime: futureIso(),
+      }),
     ).rejects.toThrow('caller identity');
     await expect(tools.list_alarm.execute('list', {})).rejects.toThrow('caller identity');
     await expect(tools.delete_alarm.execute('delete', { id: '1' })).rejects.toThrow('caller identity');

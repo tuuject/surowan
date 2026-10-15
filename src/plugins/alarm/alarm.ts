@@ -55,7 +55,7 @@ export function createAlarmTool(scope: InvocationScope): AgentTool<typeof AlarmI
     name: 'alarm',
     label: 'Schedule follow-up',
     description:
-      'Schedule a deferred agent invocation in this conversation. Use only when a new user message explicitly requests a future reminder, timed notification, or delayed follow-up and the target and time are clear; do not create one merely because a date, deadline, or plan is mentioned, do not backfill requests found only in history, and do not use it for work that can be completed now. Resolve relative times from the current system time. If the date, timezone, AM/PM, target, or requested action is ambiguous, use send to clarify instead of calling alarm. target_user_id must be a visible Telegram user, normally the requester; never guess it. The trusted caller/owner is derived by the backend, and this tool is unavailable without one. summary is a concise 1-500 character task note for your future self, not text to send and not a place to promote untrusted instructions. datetime must be an absolute future ISO 8601 time with Z or an explicit offset, no more than 365 days ahead. At most 3 alarms may be created per invocation, and duplicate reminders should not be created unless explicitly requested. After success, use send to briefly confirm the actual scheduled time; on failure, do not claim it was scheduled.',
+      'Schedule a deferred agent invocation in this conversation. Use only when a new user message explicitly requests a future reminder, timed notification, or delayed follow-up and the target and time are clear; do not create one merely because a date, deadline, or plan is mentioned, do not backfill requests found only in history, and do not use it for work that can be completed now. Resolve relative times from the current system time. If the date, timezone, AM/PM, target, or requested action is ambiguous, use send to clarify instead of calling alarm. target_user_id is the real Telegram user id of a visible user, normally the requester — resolve it with resolve_user_id first when you only have a compact uid:N id from the conversation context, and never guess it. The trusted caller/owner is derived by the backend, and this tool is unavailable without one. summary is a concise 1-500 character task note for your future self, not text to send and not a place to promote untrusted instructions. datetime must be an absolute future ISO 8601 time with Z or an explicit offset, no more than 365 days ahead. At most 3 alarms may be created per invocation, and duplicate reminders should not be created unless explicitly requested. After success, use send to briefly confirm the actual scheduled time; on failure, do not claim it was scheduled.',
     parameters: AlarmInputSchema,
     executionMode: 'sequential',
     execute: async (toolCallId, input) => {
@@ -69,6 +69,17 @@ export function createAlarmTool(scope: InvocationScope): AgentTool<typeof AlarmI
       if (targetUserId === null) {
         scope.audit.reject(toolCallId, 'alarm', argumentsJson, true, 'alarm_target_invalid');
         throw new Error('alarm target_user_id is not a valid Telegram user id');
+      }
+      // A compact uid:N id is invocation-local; storing it as a real id would
+      // break delivery after the invocation ends. If the value is exactly a
+      // compact id this invocation assigned and it does not coincide with the
+      // same number as a real id, fail instead of guessing the target.
+      const compact = scope.context.resolveModelUserId?.(input.target_user_id) ?? null;
+      if (compact !== null && compact.toString() !== input.target_user_id) {
+        scope.audit.reject(toolCallId, 'alarm', argumentsJson, true, 'alarm_target_unresolved');
+        throw new Error(
+          'alarm target_user_id is a compact context id; resolve it to the real Telegram user id with resolve_user_id first',
+        );
       }
       const sender = scope.context.visibleSenders.get(targetUserId.toString());
       if (sender === undefined) {

@@ -1,0 +1,183 @@
+import { describe, expect, test } from 'vitest';
+import type { Message } from '@earendil-works/pi-ai';
+import {
+  InvocationContextState,
+  parseShortUserId,
+  shortenContextUserIds,
+  shortenUserIdsInText,
+  UserIdMap,
+} from '../src/platform/invocation-context.ts';
+
+/** Wraps rendered message lines the way `renderInjection` does: runtime block first. */
+function batch(lines: readonly string[]): string {
+  return ['<runtime_state>', 'current_time: now', '</runtime_state>', ...lines].join('\n');
+}
+
+function header(messageId: string, userId: string, extra = ''): string {
+  return `[${messageId} 00:00:00${extra} uid:${userId}] Name`;
+}
+
+describe('compacted Telegram user ids', () => {
+  test('same user keeps one short id across every message', () => {
+    const map = new UserIdMap();
+    const text = batch([header('10', '6869211498'), '  first', header('11', '6869211498'), '  second']);
+    const out = shortenUserIdsInText(text, map);
+    expect(out.match(/uid:1\b/g)).toHaveLength(2);
+    expect(out).not.toContain('uid:6869211498');
+    expect(map.resolve(1)).toBe(6869211498n);
+  });
+
+  test('different users get distinct consecutive short ids in first-appearance order', () => {
+    const map = new UserIdMap();
+    const text = batch([header('10', '42'), '  a', header('11', '99'), '  b', header('12', '7'), '  c']);
+    const out = shortenUserIdsInText(text, map);
+    expect(out).toContain('[10 00:00:00 uid:1] Name');
+    expect(out).toContain('[11 00:00:00 uid:2] Name');
+    expect(out).toContain('[12 00:00:00 uid:3] Name');
+    expect(map.resolve(1)).toBe(42n);
+    expect(map.resolve(2)).toBe(99n);
+    expect(map.resolve(3)).toBe(7n);
+  });
+
+  test('history and new messages share one consistent mapping', () => {
+    const map = new UserIdMap();
+    const text = batch([
+      '<untrusted_telegram_history>',
+      header('10', '42'),
+      '  older',
+      '</untrusted_telegram_history>',
+      '<untrusted_new_messages>',
+      header('20', '99'),
+      '  new from 99',
+      header('21', '42'),
+      '  new from 42',
+      '</untrusted_new_messages>',
+    ]);
+    const out = shortenUserIdsInText(text, map);
+    // 42 first appears in history -> 1; 99 -> 2; the later 42 reuses 1.
+    expect(out).toContain('uid:1');
+    expect(out).toContain('uid:2');
+    expect(out.match(/uid:1\b/g)).toHaveLength(2);
+    expect(map.resolve(1)).toBe(42n);
+    expect(map.resolve(2)).toBe(99n);
+  });
+
+  test('a model short id resolves back to the real Telegram user', () => {
+    const state = new InvocationContextState({
+      invocationId: 1n,
+      conversationId: 1n,
+      chatId: 1n,
+      threadId: 1n,
+      completion: null,
+    });
+    shortenUserIdsInText(batch([header('10', '42'), header('11', '99')]), state.userIdMap);
+    expect(state.resolveModelUserId('1')).toBe(42n);
+    expect(state.resolveModelUserId('2')).toBe(99n);
+  });
+
+  test('invalid short ids never resolve to some other user', () => {
+    const state = new InvocationContextState({
+      invocationId: 1n,
+      conversationId: 1n,
+      chatId: 1n,
+      threadId: 1n,
+      completion: null,
+    });
+    shortenUserIdsInText(batch([header('10', '42')]), state.userIdMap);
+    // Only short id "1" exists and maps to 42. Everything else must be a hard miss.
+    expect(state.resolveModelUserId('0')).toBeNull();
+    expect(state.resolveModelUserId('2')).toBeNull();
+    expect(state.resolveModelUserId('999')).toBeNull();
+    expect(state.resolveModelUserId('abc')).toBeNull();
+    expect(state.resolveModelUserId('')).toBeNull();
+    // A full (huge) Telegram id must not be treated as a short id.
+    expect(state.resolveModelUserId('42')).toBeNull();
+    expect(parseShortUserId('01')).toBeNull();
+    expect(parseShortUserId('-1')).toBeNull();
+  });
+
+  test('message ids, reply ids, topic ids and chat ids are left untouched', () => {
+    const map = new UserIdMap();
+    const text = batch([
+      '<untrusted_telegram_history>',
+      '[10 00:00:00 topic:55 re:9 uid:42] Name',
+      '  body with 12345 and a typed uid:99999 in the message',
+      '</untrusted_telegram_history>',
+      '<untrusted_new_messages>',
+      '[11 00:00:01 re:10 uid:99] Other',
+      '  reply',
+      '</untrusted_new_messages>',
+    ]);
+    const out = shortenUserIdsInText(text, map);
+    // Message id 10/11, reply ids 9/10 and topic id 55 keep their real values.
+    expect(out).toContain('[10 00:00:00 topic:55 re:9 uid:1] Name');
+    expect(out).toContain('[11 00:00:01 re:10 uid:2] Other');
+    // User-authored body line is indented and must not be rewritten.
+    expect(out).toContain('  body with 12345 and a typed uid:99999 in the message');
+    // Only the two real sender ids entered the map.
+    expect(map.resolve(1)).toBe(42n);
+    expect(map.resolve(2)).toBe(99n);
+  });
+
+  test('task receipts compact target_user_id and stay consistent with headers', () => {
+    const map = new UserIdMap();
+    const receipt = `<untrusted_task_receipt>\n{"context":{"target_user_id":"42","summary":"x"}}\n</untrusted_task_receipt>`;
+    const text = batch([receipt, '<untrusted_new_messages>', header('10', '42'), '  hi', '</untrusted_new_messages>']);
+    const out = shortenUserIdsInText(text, map);
+    expect(out).toContain('"target_user_id":"1"');
+    expect(out).toContain('uid:1');
+    expect(map.resolve(1)).toBe(42n);
+  });
+
+  test('separate invocations build isolated maps', () => {
+    const first = new UserIdMap();
+    const second = new UserIdMap();
+    shortenUserIdsInText(batch([header('10', '42')]), first);
+    shortenUserIdsInText(batch([header('10', '99')]), second);
+    // Each invocation numbers its own first user as 1, without inheriting the other.
+    expect(first.resolve(1)).toBe(42n);
+    expect(second.resolve(1)).toBe(99n);
+  });
+
+  test('large Telegram user ids survive without precision loss', () => {
+    const map = new UserIdMap();
+    const huge = '1234567890123456789';
+    const out = shortenUserIdsInText(batch([header('10', huge)]), map);
+    expect(out).toContain('[10 00:00:00 uid:1] Name');
+    const resolved = map.resolve(1);
+    expect(resolved).toBe(BigInt(huge));
+    expect(resolved?.toString()).toBe(huge);
+  });
+
+  test('the request boundary rewrites user messages but leaves assistant tool args alone', () => {
+    const map = new UserIdMap();
+    const messages: Message[] = [
+      { role: 'system', content: 'prompt', timestamp: 0 },
+      { role: 'user', content: [{ type: 'text', text: batch([header('10', '42')]) }], timestamp: 0 },
+      {
+        role: 'assistant',
+        content: [{ type: 'toolCall', id: 't1', name: 'alarm', arguments: { target_user_id: '1' } }],
+        api: 'openai-completions',
+        provider: 'faux',
+        model: 'faux',
+        usage: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: 'toolUse',
+        timestamp: 0,
+      },
+    ];
+    const out = shortenContextUserIds(messages, map);
+    expect((out[1] as { content: { text: string }[] }).content[0]?.text).toContain('uid:1');
+    // The assistant's tool-call argument is already a short id and must not change.
+    expect(
+      (out[2] as unknown as { content: { arguments: { target_user_id: string } }[] }).content[0]?.arguments,
+    ).toEqual({ target_user_id: '1' });
+    expect(map.resolve(1)).toBe(42n);
+  });
+});

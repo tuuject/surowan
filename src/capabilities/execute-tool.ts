@@ -38,7 +38,14 @@ type ExecuteRequest =
   | { readonly action: 'call'; readonly tool: string; readonly input: Record<string, unknown> };
 
 /** Runtime primitives are registered by the runtime itself and never callable through execute. */
-export const EXECUTE_PRIMITIVES: ReadonlySet<string> = new Set(['read', 'send', 'send_reply', 'execute', 'zzz']);
+export const EXECUTE_PRIMITIVES: ReadonlySet<string> = new Set([
+  'read',
+  'send',
+  'send_reply',
+  'execute',
+  'zzz',
+  'resolve_user_id',
+]);
 const SIDE_EFFECTING_PRIMITIVES: ReadonlySet<string> = new Set(['send', 'send_reply', 'zzz']);
 
 export interface CapabilityToolDetails {
