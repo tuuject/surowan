@@ -166,7 +166,7 @@ Admin 侧的 `admin_users`/`admin_sessions` 语义见 [admin-panel.md](admin-pan
 
 ## 图片生成域（迁移 024）
 
-迁移 `024` 建立图片生成域的五张表（`image_prompts`、`image_assets`、`image_generations`、`image_generation_attempts`、`image_idempotency_keys`），Drizzle 定义在私有包 [packages/image-service](../packages/image-service) 内并由 [src/store/schema.ts](../src/store/schema.ts) 聚合 re-export；该包同时拥有图片域的查询服务与 worker，宿主借出 SQLite 连接（同一句柄上的第二个 Drizzle 视图）而不移交所有权。与宿主表不同的语义：
+迁移 `024` 建立图片生成域的 `image_*` 表（清单以迁移文件为准），Drizzle 定义在私有包 [packages/image-service](../packages/image-service) 内并由 [src/store/schema.ts](../src/store/schema.ts) 聚合 re-export；该包同时拥有图片域的查询服务与 worker，宿主借出 SQLite 连接（同一句柄上的第二个 Drizzle 视图）而不移交所有权。与宿主表不同的语义：
 
 - 图片域主键是应用生成的 text UUID，不是 `sqliteBigInt` 行 ID；计数与尺寸列使用包内 `safeInteger` 列（`fromDriver` 强制 `number`），保证宿主 `defaultSafeIntegers(true)` 连接下这些值可安全 JSON 序列化。
 - 素材删除是软删除（`deleted_at`），原始图片文件按内容寻址存放于 `<data_dir>/images`，删除素材不删文件；文件不在 SQLite 内，`backup` 以旁路 `.images/` 快照携带（见[备份](#备份)）。

@@ -117,7 +117,7 @@ node src/cli.ts serve --config dev-data/config.jsonc
 node src/cli.ts doctor --config dev-data/config.jsonc
 ```
 
-Doctor 是对已配置运行环境执行的真实依赖检查，不是静态 lint；完整检查范围与何时可判定通过见[验证：Doctor](verification.md#doctor)。它会产生 `role = 'doctor'` 的模型调用审计并消耗少量 Provider Token。每个配置了 text 模型的 Provider 先各做一次连通探针；严格 Tool Call 探针再按全局默认与每个 Chat 实际选用的 provider/model/thinking 组合**去重后**逐一执行：同一组合只探测一次，新增 Chat 覆盖会引入新的探针并消耗相应 Token。
+Doctor 是对已配置运行环境执行的真实依赖检查，不是静态 lint；完整检查范围与何时可判定通过见[验证：Doctor](verification.md#doctor)。它会产生 `role = 'doctor'` 的模型调用审计并消耗少量 Provider Token；Tool Call 探针按实际选用的模型组合去重，因此新增 Chat 模型覆盖会引入新的探针并消耗相应 Token。
 
 如需查看配置中 Agent 系统 Prompt 的模板渲染结果：
 

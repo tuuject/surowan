@@ -69,7 +69,7 @@
 - 工具调用契约集中在 [telegram-agent-flow.md](telegram-agent-flow.md#skills-与受控能力调用)，架构页只解释分层与信任边界；逐文件清单只在 `AGENTS.md` 的 Project Structure 维护。
 - Bucket 节拍、system prompt 稳定段/注入段拆分等跨模块行为只在 [telegram-agent-flow.md](telegram-agent-flow.md) 维护；[configuration.md](configuration.md) 只写字段语义、覆盖关系与 `check-config` 校验，行为细节用小节链接指过去。
 - Admin 写端点白名单只在 [admin-panel.md](admin-panel.md#api) 维护，`AGENTS.md` 的相关约束链接到该表而不复述清单。
-- [operations.md](operations.md) 负责运行步骤、前置条件与排障；[verification.md](verification.md) 负责验证范围和通过标准。必要命令可以就地保留，其余重复内容用小节链接连接。
+- [operations.md](operations.md) 负责运行步骤、前置条件与排障；[verification.md](verification.md) 负责验证范围和通过标准。必要命令可以就地保留，其余重复内容用小节链接连接。Doctor 探针清单只在 [verification.md](verification.md#doctor) 维护；测试索引（按改动范围的命令与契约表）也归 verification.md，新增测试文件时同步补充。
 - `design/`：历史资料，统一遵循上面的读取规则；不在各篇维护现状免责声明。
 - `devlogs/`：逐次改动的冻结记录，读取规则同上节；新日志按 write-devlog 流程追加，不回改旧日志。
 - 测试：可执行行为契约；文档与测试冲突时，先核对源码和最近迁移，再修正文档或实现。

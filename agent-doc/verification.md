@@ -17,11 +17,12 @@ npm 发布 workflow 可另用 `actionlint .github/workflows/npm.yml` 静态检�
 pnpm test test/telegram-ingestion.test.ts test/startup-catch-up.test.ts test/participation.test.ts
 pnpm test test/scheduler.test.ts test/sleep.test.ts
 pnpm test test/context-store.test.ts test/context-gc.test.ts test/context-hot-inject.test.ts
-pnpm test test/context-send.test.ts test/reply-dedup.test.ts test/cut-topic.test.ts
+pnpm test test/context-send.test.ts test/send-reply.test.ts test/reply-dedup.test.ts test/cut-topic.test.ts
 pnpm test test/image-agent.test.ts test/image-delivery.test.ts test/image-delivery-runtime.test.ts
 pnpm test test/image-config-reload.test.ts test/image-config-degrade.test.ts
-pnpm test test/agent-runtime.test.ts test/model-request-audit.test.ts
-pnpm test test/typing.test.ts test/context-hot-inject.test.ts
+pnpm test test/agent-runtime.test.ts test/model-request-audit.test.ts test/runtime-config-snapshot.test.ts
+pnpm test test/providers.test.ts test/model-metadata.test.ts test/tool-schema.test.ts test/token-usage.test.ts test/reconcile-daily-token-usage.test.ts
+pnpm test test/typing.test.ts
 pnpm test test/admin-developer.test.ts
 pnpm test test/admin-api-keys.test.ts test/admin-inspection.test.ts test/admin-invocation-media.test.ts
 pnpm test test/invocation-cli.test.ts test/cli-inspection.test.ts test/invocation-search.test.ts test/cli-media.test.ts
@@ -33,12 +34,13 @@ pnpm test test/skills.test.ts test/system-resources.test.ts test/plugins.test.ts
 pnpm test test/media.test.ts test/stickers.test.ts
 pnpm test test/mcp.test.ts test/web-fetch.test.ts
 pnpm test test/operations.test.ts test/foundation.test.ts test/schema.test.ts test/load-env.test.ts
-pnpm test packages/image-service/test test/image-service-store.test.ts test/image-models.test.ts test/image-admin-server.test.ts
-pnpm test test/admin.test.ts test/admin-passkeys.test.ts test/admin-recovery.test.ts test/admin-providers.test.ts test/admin-chats.test.ts test/model-switch.test.ts
+pnpm test packages/image-service/test test/image-service-store.test.ts test/image-models.test.ts test/image-admin.test.ts test/image-admin-server.test.ts
+pnpm test test/admin.test.ts test/admin-passkeys.test.ts test/admin-recovery.test.ts test/admin-providers.test.ts test/admin-chats.test.ts test/prompts-admin.test.ts test/model-switch.test.ts
 pnpm test test/bot-commands.test.ts
 pnpm test test/config-diff.test.ts test/config-reload.test.ts test/chat-model-runtime.test.ts
+pnpm test test/runtime-host.test.ts test/config-boundary.test.ts test/store-boundary.test.ts
 pnpm test test/memory.test.ts
-pnpm test test/dictionary.test.ts
+pnpm test test/dictionary.test.ts test/dictionary-runtime.test.ts
 pnpm test test/long-tasks.test.ts test/long-tasks-migration.test.ts test/task-delivery.test.ts test/task-runtime.test.ts test/task-context.test.ts test/task-hot-injection.test.ts
 pnpm test test/alarm.test.ts test/alarm-context.test.ts
 pnpm test test/prompt-template.test.ts test/prompt-markdown.test.ts test/tui-configure.test.ts
@@ -52,6 +54,7 @@ pnpm test test/prompt-template.test.ts test/prompt-markdown.test.ts test/tui-con
 | `foundation.test.ts` | 严格配置（含 `agent.context` 与 `agent.rate_limits`）、`allow_reply_message_multiple_times` 可选且仅接受 boolean、Secret 脱敏（含前缀与重叠值）、迁移与备份 |
 | `packages/image-service/test/*.test.ts` | 图片域核心（包内测试自带连接）：意图档位/能力校验、引用展开与去重、幂等重放/冲突、retry 全轮、透明像素校验由 adapter 决定、部分成功与未知上游结果不自动重试、崩溃恢复、关停缺项、并发上限、单 Worker 串行化 |
 | `test/image-models.test.ts` / `test/image-admin-server.test.ts` | 图片模型目录鉴权、禁用时发现、真实路由标签、能力映射、非法/超大/错误响应、自动配置到 adapter 的参数契约、配置回显与凭据保留、模型备注的文件往返及非法备注拒绝不落盘、复用 OpenRouter SecretRef 修复旧空凭据、重复模型/未知凭据/错误来源在写入前拒绝、修订冲突拒绝及 Origin 边界 |
+| `test/image-admin.test.ts` | 图片管理处理器：写入段前状态为禁用、禁用时移除配置段并回收 key jar 条目、资产 CRUD 与二进制往返、Admin 提交以 admin actor 运行并进入审计列表 |
 | `test/image-config-reload.test.ts` / `test/image-config-degrade.test.ts` | 图片配置热更新与同名密钥轮换、在途轮次固定快照、候选校验与并发应用；仅改备注发布新版本且不调用上游；空/1000 字符边界通过、非法备注仅禁用图片段、修复后恢复 |
 | `test/image-service-store.test.ts` | 宿主借入连接下的图片域：safe-integer 列返回 number 且 JSON 无 BigInt、迁移 024 在有数据的既有库重放、宿主事务回滚核心写入、启动对账（claimed→interrupted、queued→恢复）、优雅关停中断落盘、备份图片快照成对轮换与恢复字节一致 |
 | `test/image-startup.test.ts` | 真实 `serve` 本地启动流程在首次 Telegram 调用前发布已保存图片配置，第二次启动自动恢复；缺失/结构错误/无法解析凭据仅禁用图片能力，启动日志与实际快照一致且不泄露凭据。Telegram 边界使用 mock，无外部连接 |
@@ -67,6 +70,7 @@ pnpm test test/prompt-template.test.ts test/prompt-markdown.test.ts test/tui-con
 | `context-gc.test.ts` | 丢弃式 GC 计划：send 数未超上限且无 token 压力时不动、滑到仍保留 `retained_sends_target` 次 send 的最新 checkpoint、没有可用 checkpoint 时不裁剪、Tool 多 send 少时退回 token 判据、token 压力下按 send 数选出的候选超预算时改用 token 判据、保留段会以 `toolResult` 开头时放弃 |
 | `context-hot-inject.test.ts` | 空闲等待期间到期的 Bucket 注入同一 Invocation（`invocation_buckets` 两行、一次运行两次模型调用）、`/pause` 立即打断空闲等待、`idle_grace_seconds = 0` 退回一 Bucket 一 Invocation 但 transcript 仍连续、同 Chat 另一个 Topic 不 attach、attach 未注入的 Bucket 重新排队（且不会被下一次运行重复注入）、已 closing 的运行不再接收 attach、睡眠期间到期的 Bucket 跳过而不 attach、GC 缓解 token 压力后不进入收尾、steer 的批次落库失败时重新排队、抛异常的运行驱逐 Agent 缓存、输入估算不随模型调用次数增长、复用缓存的运行里每一批注入各自锚定自己的行（`context_injected.seq` 递增，`context_refs.source_seq` 等于承载该批的 user 行）、保留窗口首行不是 `user` 时播种前先对齐到 turn 边界或整段丢弃 |
 | `context-send.test.ts` | Context 可见性、Reply capability、滑动窗口内的 `send` 速率限制与 `send_rate_limited` 审计、未知网络结果不重试、abort/过期不发送、429 等待后命中屏障不重试但允许稍后重新回复、已接受的发送在落库失败时仍为成功 |
+| `send-reply.test.ts` | `send_reply` 按序发布每一条且只有第一条带 Reply、整组超出 send 限流时预先拒绝、send 屏障只拦第一条、后续某条失败时保留已发部分并停止、reply-once 策略下第一条消耗 Reply 目标 |
 | `reply-dedup.test.ts` | 省略/关闭 `allow_reply_message_multiple_times` 时，同 Conversation/原消息 ID 跨文字、贴纸、图片只回复一次；开启后可多次回复但不绕过可见性/屏障/限流/图片交付去重及未知保护；运行中固定配置快照、下次 Invocation 切换工具描述与行为；默认并发 pending/未知结果拦截、崩溃遗留 pending 经重启恢复仍拦截、明确失败可重试、跨 Invocation/Context 重建/重启持久化、不同消息和 Conversation 隔离、拒绝不占发送额度或触发屏障、屏障审计失败不回滚已排队的 Bucket 挂载、未引用发送不受影响 |
 | `image-delivery.test.ts` / `image-delivery-runtime.test.ts` | 图片按 Conversation/generation/asset 去重、跨 Invocation/重启有效、已送成功 no-op 的审计/限流/屏障与 canonical send 计数、后续新增输出、显式重发与完成轮限制、并发 pending/未知结果保护、回执 `image_delivery` 三类互斥且未知优先、无法证明集合的旧发送整代保守拒绝、权限与过期引用；工具链先发送后注入回执的真实 Faux 回归及普通回执不受影响 |
 | `cut-topic.test.ts` | `/cut_topic` 切点排除命令消息及更早历史、切点只前移、按 Chat 与 Forum Topic 隔离、非管理员拒绝、重建服务后仍生效、同时清空该 Conversation 的 Conversation Context、中断仍持有切点前 transcript 的运行 |
@@ -74,8 +78,13 @@ pnpm test test/prompt-template.test.ts test/prompt-markdown.test.ts test/tui-con
 | `chat-model-runtime.test.ts` | 按 Chat 解析模型覆盖（覆盖生效、缺省逐项继承全局、仅 `thinking_level` 覆盖时重绑缓存 Agent）、Topic 共用 Chat 设置、群迁移解析迁移前 Chat 配置且直接配置的新 ID 优先、跨 Provider 切换保留未变的 Context 与模型审计、queued→running 用当前快照而下一次 Invocation 才用新值、Chat 选用的 Agent 模型具备 image 能力时启用对应图片提示 |
 | `skills.test.ts` | Skill 索引注入 system prompt、原语不经 execute、`execute` search/help/call、`{text, refs}` 封套驱动 `search_stickers → send` 贴纸链路、记忆经 execute 写入、原语/未知能力拒绝的审计、已 abort 的运行不 dispatch 能力 |
 | `system-resources.test.ts` | Skill manifest 校验与启动失败、插件 Skill 目录挂载与重名拒绝、`system:///` 绝对/相对 URI 解析、越界与非 Markdown 拒绝、32 KiB 截断、progressive disclosure fixture |
-| `plugins.test.ts` | 插件 id 校验与重名拒绝、内置插件清单装配 |
+| `plugins.test.ts` | 插件 id 校验与重名拒绝、内置插件清单装配；`contextInjectors` 名称校验与重名拒绝，ContextBuilder 按加载顺序在递减预算内运行注入器并放置注入块 |
 | `model-request-audit.test.ts` | `request_json` 中 inline base64 图片被结构化摘要替换、其余请求数据保留、重复清洗幂等 |
+| `runtime-config-snapshot.test.ts` | 每次运行使用自己的配置快照：缓存 Agent 重绑 thinking、send 上限按快照、system prompt 变化重建 Context、Scheduler 在 `queued → running` 交出当时的配置 |
+| `providers.test.ts` | 模型注册表：选中模型与 thinking 组合去重枚举、builtin 只注册配置列出的模型、连接未变的 Provider 复用且不重解析 Secret、连接变化重建、compat 字段映射 |
+| `model-metadata.test.ts` | Provider `/models` 列举：按 API 规划端点、分页、过滤非语言模型、超 1 MiB 列表 |
+| `tool-schema.test.ts` | `tool_schema_keywords = minimal` 的 Schema 精简：保留调用形状、覆盖所有子 Schema、联合类型收敛、不修改入参且仍接受原参数 |
+| `token-usage.test.ts` / `reconcile-daily-token-usage.test.ts` | 日预算 Token 计入缓存读写的口径与 Provider usage 归一化；对账脚本 dry run 不写库、apply 幂等重建含缓存的总量 |
 | `admin-developer.test.ts` | 旧配置缺省关闭、显式开关与 JSONC 持久化/热应用、权限/Origin/revision/类型校验、应用失败后文件与运行态分离、分批清除只置空调试报文且保留公开场景/审计/关联/统计、重复清除与并发写入 |
 | `admin-api-keys.test.ts` | 一次性 `pwk_` 明文与 SHA-256 存储、Session-only 管理边界（TypeBox、Bearer 不能管理密钥）、撤销立即生效且保留元数据、Bearer 只覆盖 inspection 读取（config view、models、global/group prompts、invocation prompts/replay-preflight/media）与 invocation list/get/replay（其它审计、写端点与未知路由 403）、Authorization 存在时不回退 Cookie、replay 端点接受 `global_prompt`/`group_prompt`、切片 `before_send_id` 与临时 `provider`/`model`/`thinking_level`（每层 prompt 65536 字符上限、`global_prompt` 不能为空、`system_prompt` 拒绝、body 上限 1 MiB）、engine 错误映射与失败脱敏、malformed Origin 返回 400 而非 500 且 Origin 只守写 |
 | `admin-inspection.test.ts` | 配置与 prompt 检查视图是显式脱敏投影（key 与 Session 共用、不改配置、不调用模型）：config view 只回 Provider header 名称与 Chat 的 `group_prompt_configured`，Secret、路径与 prompt 正文不出现在响应；`allow_reply_message_multiple_times` 完整回显（省略时不出现、写入后原样返回）；`prompts/global\|group` 回 `scope`、`prompt` 与 `core_read_only`，`source=active\|file` 互不代替；Chat 迁移后 `chat_id` 与 `configured_chat_id` 可分辨；非法 source、重复参数、path 参数与越界或重复 chat/id 返回 400，未配置 chat 404，未鉴权 401，未知路由与写请求 403；invocation prompts 与 replay-preflight 经密钥脱敏且不发模型请求；媒体内容在鉴权后按 `variant` 读取，未知媒体 404、越界 id 400，original 字节保真并以 attachment + nosniff 提供 |
@@ -106,10 +115,16 @@ pnpm test test/prompt-template.test.ts test/prompt-markdown.test.ts test/tui-con
 | `admin-recovery.test.ts` | 内置 `admin-reset` 参数边界、非 TTY 拒绝、stdin 字节/超时/不泄露、运行中锁拒绝、未知用户不改写、无密码账号恢复/清 key/撤 Session、保留 API key、不重开 setup、锁释放；真实 CLI 子进程与临时数据库 |
 | `admin-providers.test.ts` | Provider/模型管理、SecretRef 只写不读、修订冲突、全局模型端点保留 Chat 覆盖、阻止删除 Chat 引用（含待重启移除的运行中 Chat）的 Provider/模型且不落盘；模型健康检查的固定最小请求、真实本地 SSE、TTFB 与总耗时分离、无 hook 返回 null、响应分类与脱敏、权限/Origin/未应用配置拒绝、零重试、超时/取消/并发上限和诊断审计、不切换当前模型 |
 | `admin-chats.test.ts` | Chat 管理鉴权与 Origin、字符串 ID 与安全整数边界、Topic/模型严格校验、模型覆盖必须显式带 thinking、revision 先于 body 解析与并发写入保护、JSONC 注释及未管理字段保留、新增 Chat 热应用而删除/Topic 待重启与历史保留、模型热应用/恢复继承、迁移 ID、保存后应用失败的状态与脱敏审计 |
+| `prompts-admin.test.ts` | Prompt 版本按内容去重并裁剪到保留数、保存后下一次 Invocation 生效、diff 与恢复、手改文件在下次应用时成为新版本而只改注释不算、群 Prompt 的作用域校验与新建文件不覆盖已有文件 |
 | `model-switch.test.ts` | 可切换模型仅列 text 能力、当前模型取配置值、`option()` 只校验不应用（未知 provider/model 与 image-only 拒绝）、`current()` 跟随 `store.publish` 变化 |
 | `bot-commands.test.ts` | 命令解析与 mention 匹配、`setMyCommands` 注册一致性、`/pause` 中止与阻断、`/resume` 恢复、`/status` 用量与 Context 行口径、`/model` 分页与切换（写配置文件并 reload）、管理员鉴权与匿名拒绝、`/whoami` 回显发送者 ID 且不限管理员、`/allowlist` 仅管理员且在未允许 Chat 由 ingestion 放行并热应用、`/ignoreme` 与 `/unignoreme` 解析/身份校验且不越过 Chat/Topic 白名单、命令只审计不入库 |
+| `runtime-host.test.ts` | `createCoreRuntime` 只用注入的资源装配，不读取宿主文件、不启动生命周期 |
+| `config-boundary.test.ts` | 无文件来源的配置校验与本地文件加载结果一致；Schema 与 Secret 检查不需要文件访问；非法可选 `image` 段在读取 Prompt 文件前被剥离 |
+| `store-boundary.test.ts` | `BusinessStore` 事务原子回滚，bigint ID 跨 SQLite 重开保持精确 |
 | `config-diff.test.ts` | 热更新白名单分类（hot/restart/outside_serve）、`allow_reply_message_multiple_times` 热应用（省略→值、值→省略）、candidate 构造、Provider 的增删/改 kind/连接字段/模型定义全部取文件值、custom Provider `models[]` 对齐、新增 Chat 热应用与删除仍 restart、Prompt 内容比较 |
 | `config-reload.test.ts` | `ConfigReloader` 外部契约：generation 与两个 hash、`config_reloaded`/`config_reload_failed`/`model_switch_failed` 日志、待重启字段撤销与只改注释后 active hash 跟上文件 hash、两遍校验与 `candidate_invalid`、`secret_unresolved` 的整次拒绝、待重启列表、运行中 Invocation 钉住模型与 Provider 连接（两个本地端点验证换地址后的下一轮仍走旧地址）、`/model` 写入文件（保留注释、`0600`、符号链接拒绝）、`invocations.config_hash` 在 `queued → running` 写入、Admin `POST /config/apply` 与 `PUT /model` 的响应体；Chat 覆盖切换按文件 ID 定位（reorder 后仍解析正确、保留其它 Chat 与全局默认、文件里缺该 Chat 时拒绝写入不落盘）、并发 Chat 切换互不覆盖、发布前对全局与每个选中 Chat 模型逐一校验（删除在用 Chat 模型被拒、全局换模型拒绝继承不兼容的 thinking）；自助忽略持久化/恢复、重复与并发增删、跨 Chat 隔离、迁移 Forum Chat、实时/追赶名单热应用、失败后的文件/运行态与重试审计 |
+| `dictionary.test.ts` | 辞典词条与别名归一化、pangu 空格折叠匹配、revision 乐观锁且不改作用域、Agent 工具只写当前群、私聊只读全局、CSV 导入导出转义 |
+| `dictionary-runtime.test.ts` | 辞典注入生命周期：命中持久化、下一批去重、缓存遗忘后从数据库重新播种、GC 后刷新；禁用词条不注入；`on_demand` 双向 pangu 空格匹配 |
 | `memory.test.ts` | 记忆持久化与 TTL、Conversation 隔离、Tool 审计、注入批次内 `<memory_list>` 的顺序与作用域、Admin 记忆 CRUD |
 | `long-tasks.test.ts` | 任务/receipt 的 JSON 边界、终态 CAS 与唯一 receipt、plugin/Conversation/caller scope、quota（含取消记录）及外部 completion handle |
 | `long-tasks-migration.test.ts` | 使用历史迁移建立 019/020 测试库再升级至 022：ID、owner、取消后 Invocation 关联、四态迁移、NULL 创建者、丢弃旧旁路观察（含非法 payload）、canonical history/refs/正常审计与任务回执整行保留，并验证 022 为每个 receipt 建立唯一 `bucket_id`、重复打开及新库无旧表、Drizzle CHECK/partial index 与 SQLite 一致性 |
@@ -150,7 +165,8 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 
 - SQLite/FTS/磁盘。
 - Sharp、FFmpeg、FFprobe、python-lottie。
-- Agent Provider 文本与严格 Tool Call（按全局默认与每个 Chat 实际选用的模型/思考组合去重探测，同一组合只探一次）。
+- 每个配置了 text 模型的 Provider 各一次连通探针。
+- Agent 严格 Tool Call（按全局默认与每个 Chat 实际选用的模型/思考组合去重探测，同一组合只探一次）。
 - Vision 图片请求。
 - Telegram Bot Token。
 - required MCP。
@@ -241,7 +257,7 @@ Remove-Item Env:E2E_PASSKEYS
 - 覆盖契约（全部断言真实 UI 状态，非仅文案）：
   1. 认证：setup → shell；错误密码表单内显示 `invalid_credentials` 且 URL 不变；
      登出回登录页；会话撤销后受保护请求 401 → 登录页且无错误屏。
-  2. `src/routes/**` 声明的全部路由与深链接直接访问渲染真实内容（非错误边界、非空白）。
+  2. `apps/admin-next/src/routes/**` 声明的全部路由与深链接直接访问渲染真实内容（非错误边界、非空白）。
   3. 列表过滤与游标分页：Invocations、Messages、Contexts、Alarms、Memories、Stickers
      的过滤器真正改变结果集（各页可用过滤器以页面与 `02-lists-filters.e2e.ts` 为准）；
      `seedAdminBulkRows`（`test/fixtures/admin-seed.ts`）让每张列表的种子行数都超过
