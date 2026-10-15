@@ -1,6 +1,6 @@
 # 辞典与辅助模型
 
-辞典用于解释群聊词语，不替代记忆或人格 Prompt。产品原始需求见 [辞典系统 PRD](design/20261010%20辞典系统.md)；当前行为以源码与测试为准。
+辞典用于解释群聊词语，不替代记忆或人格 Prompt。产品原始需求见 [辞典系统 PRD](design/archived/20261010%20辞典系统.md)；当前行为以源码与测试为准。
 
 实现位置：辞典插件整体在 [src/plugins/dictionary/](../src/plugins/dictionary/)——存储与工具在 [dictionary.ts](../src/plugins/dictionary/dictionary.ts)，CSV/JSONL 核心在 [format.ts](../src/plugins/dictionary/format.ts)，注入渲染、去重与注入模式解析在 [injection.ts](../src/plugins/dictionary/injection.ts)（`ContextInjector` 契约见 [src/context/context-injector.ts](../src/context/context-injector.ts)），融合建议在 [merge.ts](../src/plugins/dictionary/merge.ts)，Tool Model 选择在 [src/platform/tool-model.ts](../src/platform/tool-model.ts)，Admin 端点在 [admin.ts](../src/plugins/dictionary/admin.ts)（由 [server.ts](../src/ingress/admin/server.ts) 引入），表定义在迁移 [034_dictionary.sql](../src/store/migrations/034_dictionary.sql)（表仍由核心 schema 持有）。行为测试见 [test/dictionary.test.ts](../test/dictionary.test.ts)。
 

@@ -6,14 +6,16 @@
 
 1. 先读 [`../AGENTS.md`](../AGENTS.md) 的项目约束与「Where to Look」。
 2. 根据任务只读取相关主题文档。
-3. 以当前源码、迁移和配置 Schema 为最终事实；默认排除 `design/` 与 `devlogs/`，读取条件见下节。
+3. 以当前源码、迁移和配置 Schema 为最终事实；默认排除 `design/archived/` 与 `devlogs/`，读取条件见下节。
 4. 行为或运维契约改变时，同步更新对应主题文档和本索引。
 
 ## 历史归档读取规则
 
-`design/` 下的文档全部作为历史资料归档，包括需求原文、设计记录和未落地计划。默认不读取、不检索，也不作为当前行为、约束或待办的依据。
+`design/archived/` 收纳不活跃的设计文档，包括需求原文、设计记录、交付报告与未落地计划，仅供参考。默认不读取、不检索，也不作为当前行为、约束或待办的依据。
 
 仅当用户明确指定参考其中某篇设计、按该设计实施，或要求追溯历史决策时，才按需读取。用户仅提出功能需求，不视为要求参考历史设计。文中的「请实现」「完成后」等执行指令不自动生效；实施前必须核对当前源码。该规则统一在父级入口维护，不在各篇历史文档重复声明。
+
+`design/` 顶层（当前为空）留给进行中的设计文档：参与对应实现任务时可以读取，但仍以当前源码为最终事实；落地或不活跃后移入 `archived/` 并更新下方索引。
 
 `devlogs/` 是逐次改动的开发日志（背景、变更、验证与提交 hash），内容冻结在写作时的提交，其中的路径、行号和行为描述不随源码更新。它同样默认不读取、不检索，也不作为当前行为依据；仅在追溯某次改动的动机、验证证据或对应提交时按需读取。不要为了跟上现状去改写旧日志。
 
@@ -43,23 +45,26 @@
 
 | 文档 | 内容 | 状态 |
 | --- | --- | --- |
-| [20260815 设计方案](design/20260815%20塑料碗%20Telegram%20Bot%20设计方案.md) | Phase 1 产品范围与验收 | 已实现 |
-| [20260815 技术设计](design/20260815%20塑料碗%20Telegram%20Bot%20技术设计.md) | 原始技术设计、安全边界与状态机 | 已实现，见 [architecture.md](architecture.md) |
-| [20260819 记忆系统](design/20260819%20记忆系统.md) | Conversation 级短期记忆与 TTL | 已实现，见 [data-layer.md](data-layer.md) |
-| [20260823 睡眠系统](design/20260823%20睡眠系统.md) | 预算耗尽后的 `zzz` 与全局睡眠 | 已实现，见 [telegram-agent-flow.md](telegram-agent-flow.md) |
-| [20260828 闹钟系统](design/20260828%20闹钟系统.md) | Alarm / Deferred Invocation | 已实现，见 [telegram-agent-flow.md](telegram-agent-flow.md) |
-| [20260901 Bun 到 Node 迁移 Epic](design/20260901%20Bun%20到%20Node%20迁移%20Epic.md) | 运行时迁移分阶段计划与决策记录 | 已完成（2026-09-18 全阶段收尾）；运行时与命令事实见 [operations.md](operations.md) |
-| [20260903 Skills 机制设计计划](design/20260903%20塑料碗%20Skills%20机制设计计划.md) | Skills 机制 | **Phase 1 已实现**（System Skills、`read`/`execute` 原语、内部能力迁入 execute），见 [telegram-agent-flow.md](telegram-agent-flow.md)；Phase 2（Admin Skills、容器脚本）未开始 |
-| [20260911 定时活跃模式设计计划](design/20260911%20定时活跃模式设计计划.md) | 活跃时段、触发关键词与注意力窗口 | 已实现，见 [configuration.md](configuration.md)、[telegram-agent-flow.md](telegram-agent-flow.md) |
-| [20260913 连续 Context 与长活 Invocation 设计计划](design/20260913%20连续%20Context%20与长活%20Invocation%20设计计划.md) | Conversation Context、checkpoint 丢弃式 GC、Invocation 内消息热注入 | 已实现，见 [telegram-agent-flow.md](telegram-agent-flow.md#context-生命周期)、[configuration.md](configuration.md)、[data-layer.md](data-layer.md) |
-| [20260918 内置 Agent 插件化计划与结论](design/20260918%20内置能力插件化计划与结论.md) | 区分 IM 接入与 Agent 两条插件渠道；仅计划 Agent 插件的 ESM / definePlugin、三个 Epic、存储与固定前端边界 | 部分已实现：Epic 1（`web_fetch`）与 Epic 3（alarm）已落地，之后 `image` 与 `dictionary` 也以内置插件落地并引入 `contextInjectors` 注入钩子，见 [telegram-agent-flow.md](telegram-agent-flow.md#skills-与受控能力调用)；Epic 2（memory）未开始；`setup(host)` 实例形态与功能开关未引入。IM 接入插件仅为远期方向，暂不做用户插件平台、独立 migration 或前端插件机制 |
-| [20260920 Admin 模型管理器设计计划](design/20260920%20Admin%20模型管理器设计计划.md) | Admin「模型服务」页：屏蔽 Pi 模型目录改由配置 `models[]` 启用、元数据来源、compat 高级设置、SecretRef 只写不读 | 已实现（见 [交付报告](design/20260920%20Admin%20模型管理器交付报告.md)、[admin-panel.md](admin-panel.md)）；「改完要重启」部分由下一行取代 |
-| [20260921 Models 页全量热切换设计计划](design/20260921%20Models%20页全量热切换设计计划.md) | Models 页全部操作热切换：模型注册表进入配置快照、每个 Invocation 钉住模型与 Provider 连接 | 已实现（2026-09-21），见 [交付报告](design/20260921%20Models%20页全量热切换交付报告.md)、[configuration.md](configuration.md#运行时配置热更新)、[admin-panel.md](admin-panel.md) |
-| [20260927 动图分析设计](design/20260927%20动图分析设计.md) | GIF / Telegram MP4 animation、每张最多 12 帧 storyboard、按时间补帧、观察缓存与现有媒体链路接入 | 初步认可方向，未实施；补帧总量、轮数、资源预算和时间/缓存策略待定 |
-| [20260928 Core 与 Telegram Adapter 分离 Epic](design/20260928%20Plaswan%20Core%20与%20Telegram%20Adapter%20分离%20Epic.md) | 保持 Telegram Bot 定位，分离 Harness 与 Host 的工具、输入、授权、调度、存储及 Admin 后端边界；前端保持 Telegram 一体化 | 规划完成，未实施；3 个交付里程碑、11 个任务，第一刀为注入 Telegram 输出工具；不实施其他 IM Adapter |
-| [20261001 sos_pro 专家求助设计计划](design/20261001%20sos_pro%20专家求助设计计划.md) | 便宜模型经直接暴露的 `sos_pro` 工具向强模型求助：插件形态与插件依赖、长程任务与回执、只管专家的每日金额预算、自动 @ 提问者 | Phase 1 范围与决定已确认，未实施；超时、Token 与金额上限等为暂定值，上线后调整；「仅在用户明确要求时」一态留待以后 |
-| [20261002 生图核心迁移与系统插件 Phase 1 设计计划](design/20261002%20生图核心迁移与系统插件%20Phase%201%20设计计划.md) | 提取独立生图核心为内置插件；Admin 工作台、生图审计、资产管理沿用原交互并适配宿主组件；供应商配置热加载与图片交付 | Phase 1 已实现：M1–M6（核心包、主库与装配、热加载、插件交付、Admin 三页、集成交付）均已落地，见 [configuration.md](configuration.md#image-生成)、[telegram-agent-flow.md](telegram-agent-flow.md)、[admin-panel.md](admin-panel.md) |
-| [20261014 宿主解耦与 Local Monolith Adapter 设计](design/20261014%20宿主解耦与%20Local%20Monolith%20Adapter%20设计.md) | 先分离共享业务与部署宿主，落地保持现有单机行为的 Local Monolith Adapter；以进程内 WebAssembly 取代 FFmpeg/python-lottie/Sharp；记录后续 Workers/DO/Containers/Media Worker 分工、全局媒体状态归属与验收边界 | 部分已实现：M1/M2 宿主解耦与 Local Monolith Adapter 已落地，见 [architecture.md](architecture.md#runtime-与宿主边界)；媒体去原生化（须先完成 Lottie/VP9 wasm spike）、Cloudflare 原型与分布式恢复机制未实施 |
+| [20260815 设计方案](design/archived/20260815%20塑料碗%20Telegram%20Bot%20设计方案.md) | Phase 1 产品范围与验收 | 已实现 |
+| [20260815 技术设计](design/archived/20260815%20塑料碗%20Telegram%20Bot%20技术设计.md) | 原始技术设计、安全边界与状态机 | 已实现，见 [architecture.md](architecture.md) |
+| [20260819 记忆系统](design/archived/20260819%20记忆系统.md) | Conversation 级短期记忆与 TTL | 已实现，见 [data-layer.md](data-layer.md) |
+| [20260823 睡眠系统](design/archived/20260823%20睡眠系统.md) | 预算耗尽后的 `zzz` 与全局睡眠 | 已实现，见 [telegram-agent-flow.md](telegram-agent-flow.md) |
+| [20260828 闹钟系统](design/archived/20260828%20闹钟系统.md) | Alarm / Deferred Invocation | 已实现，见 [telegram-agent-flow.md](telegram-agent-flow.md) |
+| [20260901 Bun 到 Node 迁移 Epic](design/archived/20260901%20Bun%20到%20Node%20迁移%20Epic.md) | 运行时迁移分阶段计划与决策记录 | 已完成（2026-09-18 全阶段收尾）；运行时与命令事实见 [operations.md](operations.md) |
+| [20260903 Skills 机制设计计划](design/archived/20260903%20塑料碗%20Skills%20机制设计计划.md) | Skills 机制 | **Phase 1 已实现**（System Skills、`read`/`execute` 原语、内部能力迁入 execute），见 [telegram-agent-flow.md](telegram-agent-flow.md)；Phase 2（Admin Skills、容器脚本）未开始 |
+| [20260911 定时活跃模式设计计划](design/archived/20260911%20定时活跃模式设计计划.md) | 活跃时段、触发关键词与注意力窗口 | 已实现，见 [configuration.md](configuration.md)、[telegram-agent-flow.md](telegram-agent-flow.md) |
+| [20260913 连续 Context 与长活 Invocation 设计计划](design/archived/20260913%20连续%20Context%20与长活%20Invocation%20设计计划.md) | Conversation Context、checkpoint 丢弃式 GC、Invocation 内消息热注入 | 已实现，见 [telegram-agent-flow.md](telegram-agent-flow.md#context-生命周期)、[configuration.md](configuration.md)、[data-layer.md](data-layer.md) |
+| [20260918 内置 Agent 插件化计划与结论](design/archived/20260918%20内置能力插件化计划与结论.md) | 区分 IM 接入与 Agent 两条插件渠道；仅计划 Agent 插件的 ESM / definePlugin、三个 Epic、存储与固定前端边界 | 部分已实现：Epic 1（`web_fetch`）与 Epic 3（alarm）已落地，之后 `image` 与 `dictionary` 也以内置插件落地并引入 `contextInjectors` 注入钩子，见 [telegram-agent-flow.md](telegram-agent-flow.md#skills-与受控能力调用)；Epic 2（memory）未开始；`setup(host)` 实例形态与功能开关未引入。IM 接入插件仅为远期方向，暂不做用户插件平台、独立 migration 或前端插件机制 |
+| [20260918 运行时配置热更新调研与设计方案](design/archived/20260918%20运行时配置热更新调研与设计方案.md) | 热更新目标语义、invocation 快照边界、热更新白名单与 Phase 0/1 划分 | 已实现，见 [configuration.md](configuration.md#运行时配置热更新)；过程文档见 [Phase 0 交付报告](design/archived/20260919%20配置热更新%20Phase%200%20交付报告.md)、[Phase 0 交接说明](design/archived/20260919%20配置热更新%20Phase%200%20交接说明.md)、[Phase 1 交付报告](design/archived/20260919%20配置热更新%20Phase%201%20交付报告.md)、[Phase 1 交接说明](design/archived/20260919%20配置热更新%20Phase%201%20交接说明.md) |
+| [20260920 Admin 模型管理器设计计划](design/archived/20260920%20Admin%20模型管理器设计计划.md) | Admin「模型服务」页：屏蔽 Pi 模型目录改由配置 `models[]` 启用、元数据来源、compat 高级设置、SecretRef 只写不读 | 已实现（见 [交付报告](design/archived/20260920%20Admin%20模型管理器交付报告.md)、[admin-panel.md](admin-panel.md)）；「改完要重启」部分由下一行取代 |
+| [20260921 Models 页全量热切换设计计划](design/archived/20260921%20Models%20页全量热切换设计计划.md) | Models 页全部操作热切换：模型注册表进入配置快照、每个 Invocation 钉住模型与 Provider 连接 | 已实现（2026-09-21），见 [交付报告](design/archived/20260921%20Models%20页全量热切换交付报告.md)、[configuration.md](configuration.md#运行时配置热更新)、[admin-panel.md](admin-panel.md) |
+| [20260927 动图分析设计](design/archived/20260927%20动图分析设计.md) | GIF / Telegram MP4 animation、每张最多 12 帧 storyboard、按时间补帧、观察缓存与现有媒体链路接入 | 初步认可方向，未实施；补帧总量、轮数、资源预算和时间/缓存策略待定 |
+| [20260928 Core 与 Telegram Adapter 分离 Epic](design/archived/20260928%20Plaswan%20Core%20与%20Telegram%20Adapter%20分离%20Epic.md) | 保持 Telegram Bot 定位，分离 Harness 与 Host 的工具、输入、授权、调度、存储及 Admin 后端边界；前端保持 Telegram 一体化 | 规划完成，未实施；3 个交付里程碑、11 个任务，第一刀为注入 Telegram 输出工具；不实施其他 IM Adapter |
+| [20261001 sos_pro 专家求助设计计划](design/archived/20261001%20sos_pro%20专家求助设计计划.md) | 便宜模型经直接暴露的 `sos_pro` 工具向强模型求助：插件形态与插件依赖、长程任务与回执、只管专家的每日金额预算、自动 @ 提问者 | Phase 1 范围与决定已确认，未实施；超时、Token 与金额上限等为暂定值，上线后调整；「仅在用户明确要求时」一态留待以后 |
+| [20261002 生图核心迁移与系统插件 Phase 1 设计计划](design/archived/20261002%20生图核心迁移与系统插件%20Phase%201%20设计计划.md) | 提取独立生图核心为内置插件；Admin 工作台、生图审计、资产管理沿用原交互并适配宿主组件；供应商配置热加载与图片交付 | Phase 1 已实现：M1–M6（核心包、主库与装配、热加载、插件交付、Admin 三页、集成交付）均已落地，见 [configuration.md](configuration.md#image-生成)、[telegram-agent-flow.md](telegram-agent-flow.md)、[admin-panel.md](admin-panel.md) |
+| [20261010 辞典系统](design/archived/20261010%20辞典系统.md) | 辞典产品需求（PRD）：全局/群组词条、精确匹配与自动注入、冲突检测与 AI 辅助融合、导入导出、Tool Model | 已实现，见 [dictionary.md](dictionary.md) |
+| [20261014 宿主解耦与 Local Monolith Adapter 设计](design/archived/20261014%20宿主解耦与%20Local%20Monolith%20Adapter%20设计.md) | 先分离共享业务与部署宿主，落地保持现有单机行为的 Local Monolith Adapter；以进程内 WebAssembly 取代 FFmpeg/python-lottie/Sharp；记录后续 Workers/DO/Containers/Media Worker 分工、全局媒体状态归属与验收边界 | 部分已实现：M1/M2 宿主解耦与 Local Monolith Adapter 已落地，见 [architecture.md](architecture.md#runtime-与宿主边界)；媒体去原生化（须先完成 Lottie/VP9 wasm spike）、Cloudflare 原型与分布式恢复机制未实施 |
+| [20261014 辞典插件化设计计划](design/archived/20261014%20辞典插件化设计计划.md) | 辞典迁入内置插件，新增通用按批 Context 注入钩子；对模型、Admin API、配置与数据库的外部可见行为不变 | 已实现，见 [dictionary.md](dictionary.md) |
 
 ## 文档边界
 
@@ -70,6 +75,6 @@
 - Bucket 节拍、system prompt 稳定段/注入段拆分等跨模块行为只在 [telegram-agent-flow.md](telegram-agent-flow.md) 维护；[configuration.md](configuration.md) 只写字段语义、覆盖关系与 `check-config` 校验，行为细节用小节链接指过去。
 - Admin 写端点白名单只在 [admin-panel.md](admin-panel.md#api) 维护，`AGENTS.md` 的相关约束链接到该表而不复述清单。
 - [operations.md](operations.md) 负责运行步骤、前置条件与排障；[verification.md](verification.md) 负责验证范围和通过标准。必要命令可以就地保留，其余重复内容用小节链接连接。Doctor 探针清单只在 [verification.md](verification.md#doctor) 维护；测试索引（按改动范围的命令与契约表）也归 verification.md，新增测试文件时同步补充。
-- `design/`：历史资料，统一遵循上面的读取规则；不在各篇维护现状免责声明。
+- `design/archived/`：不活跃设计资料，统一遵循上面的读取规则；不在各篇维护现状免责声明。
 - `devlogs/`：逐次改动的冻结记录，读取规则同上节；新日志按 write-devlog 流程追加，不回改旧日志。
 - 测试：可执行行为契约；文档与测试冲突时，先核对源码和最近迁移，再修正文档或实现。
