@@ -122,15 +122,16 @@ export function shortenUserIdsInText(text: string, map: UserIdMap): string {
     lines[runtimeEnd + 1] === '<untrusted_task_receipt>'
       ? lines.indexOf('</untrusted_task_receipt>', runtimeEnd + 1)
       : -1;
-  let inMemoryList = false;
+  // Notes may span lines and quote the list tags, so the list is bounded by its
+  // structural tags: the first opening one and the last closing one in the block.
+  const memoryStart = lines.indexOf('<memory_list>');
+  const memoryEnd = lines.lastIndexOf('</memory_list>', runtimeEnd);
   return lines
     .map((line, index) => {
       if (index < runtimeEnd) {
-        if (line === '<memory_list>' || line === '</memory_list>') {
-          inMemoryList = line === '<memory_list>';
-          return line;
-        }
-        return inMemoryList ? line.replace(UID_TOKEN, (_match, id: string) => `uid:${map.shorten(id)}`) : line;
+        return memoryStart !== -1 && index > memoryStart && index < memoryEnd
+          ? line.replace(UID_TOKEN, (_match, id: string) => `uid:${map.shorten(id)}`)
+          : line;
       }
       if (index <= receiptEnd) {
         return line.replace(

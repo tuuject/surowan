@@ -255,6 +255,28 @@ describe('compacted Telegram user ids', () => {
     expect(map.resolve(2)).toBe(42n);
   });
 
+  test('a multiline note quoting </memory_list> cannot end the memory list early', () => {
+    const map = new UserIdMap();
+    const text = [
+      '<runtime_state>',
+      '<memory_list>',
+      '- m1: quoted tag:',
+      '</memory_list>',
+      'uid:99 likes cats',
+      '- m2: uid:42 likes dogs',
+      '</memory_list>',
+      '</runtime_state>',
+      header('10', '42'),
+      header('11', '99'),
+    ].join('\n');
+    const out = shortenUserIdsInText(text, map);
+    expect(out).toContain('\nuid:1 likes cats\n- m2: uid:2 likes dogs\n');
+    expect(out).toContain('[10 00:00:00 uid:2] Name');
+    expect(out).toContain('[11 00:00:00 uid:1] Name');
+    expect(out).not.toContain('uid:99');
+    expect(out).not.toContain('uid:42');
+  });
+
   test('persistent model text stores assigned compact ids as real ids', () => {
     const context = state();
     shortenUserIdsInText(batch([header('10', '6869211498'), header('11', '42')]), context.userIdMap);
