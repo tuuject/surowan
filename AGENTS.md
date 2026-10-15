@@ -160,6 +160,7 @@ pnpm run docs:preview
 - Context 改动至少断言 canonical history 的落盘状态（`context_messages` / `head_seq` / `context_refs`）与审计事件，不能只断言返回文本。
 - Admin Panel 前端、admin API 端点或面板可见文案（含 locale 键值）改动，提交前运行 `pnpm run admin:test:e2e`，至少覆盖受影响套件（如 `pnpm run admin:test:e2e 01-routes`）：e2e 断言各路由真实渲染与页面可见文案（英文 locale），`pnpm test` 与 `pnpm run check` 不包含这一层，漏跑只会在 CI 上暴露。
 - 最终验证至少运行受影响测试与 `pnpm run check`；跨模块改动运行完整 `pnpm test`。
+- E2E 与 fixture 的时间只取一种基准：要么全部从当前时钟推导（`Date.now()` ± 偏移），要么全部是无关运行时刻的固定值（如永远成立的「已过期」行）。写死的绝对时间不得承担「未来/仍然有效」语义——它会在某天穿过真实时钟，变成到点即失败的「时间炸弹」。
 
 ## Commit & Pull Request Guidelines
 

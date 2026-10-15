@@ -254,6 +254,7 @@ Remove-Item Env:E2E_PASSKEYS
 - `01-routes.e2e.ts` 与多个套件按路由断言可见文案（英文 locale）：修改面板文案或
   locale 键值时必须同步这些断言，并运行受影响套件（如 `pnpm run admin:test:e2e 01-routes`，任一套件都可单独运行）——
   `pnpm test` 与 `pnpm run check` 都不覆盖浏览器层。
+- **种子时间基准**：`test/fixtures/admin-seed.ts` 的时间要么全部从当前时钟推导，要么全部是无关运行时刻的固定值。承担「仍然有效/未过期」语义的字段必须用运行时的 `Date.now() ± 偏移`（如批量 memory 的 `expiresAt`）；固定时间戳只用于「已过期/历史」这类永远成立的行。写死的未来时间会随时间穿过真实时钟：到那天整批种子变成 expired，`state=expired` 过滤断言就会拿到默认分页的 25 行而不是 1 行。
 - 覆盖契约（全部断言真实 UI 状态，非仅文案）：
   1. 认证：setup → shell；错误密码表单内显示 `invalid_credentials` 且 URL 不变；
      登出回登录页；会话撤销后受保护请求 401 → 登录页且无错误屏。
