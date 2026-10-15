@@ -80,7 +80,7 @@ const MEMORY_GUIDANCE =
  * the stable prompt — never a per-message explanation, never the mapping table.
  */
 export const USER_ID_GUIDANCE =
-  'User ids: the numbers after uid: in message headers are compact ids valid only in this invocation, not real Telegram user ids. When a tool needs a real Telegram user id, first call resolve_user_id with the compact id; never guess, compute, or pass a compact id as a real one.';
+  "User ids: the numbers after uid: in message headers and memory notes are compact ids valid only in this invocation, not real Telegram user ids. A compact id quoted in an earlier invocation's tool calls, tool results, or your own messages may now belong to someone else; take ids only from the current headers and resolve again. When a tool needs a real Telegram user id, first call resolve_user_id with the compact id; never guess, compute, or pass a compact id as a real one. In a memory note or alarm summary, refer to a user as uid:N with the current compact id; it is stored as the real id.";
 
 type MessageSnapshot = Static<typeof MessageSnapshotSchema>;
 

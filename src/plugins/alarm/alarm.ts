@@ -1,7 +1,7 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import Type, { type Static } from 'typebox';
 import { Compile } from 'typebox/compile';
-import type { JsonValue } from '../../platform/invocation-context.ts';
+import { expandModelUserIds, type JsonValue } from '../../platform/invocation-context.ts';
 import type { InvocationScope } from '../plugin.ts';
 
 const ALARM_SUMMARY_MAX_LENGTH = 500;
@@ -95,9 +95,17 @@ export function createAlarmTool(scope: InvocationScope): AgentTool<typeof AlarmI
         scope.audit.reject(toolCallId, 'alarm', argumentsJson, true, parsed.code);
         throw new Error('alarm datetime is invalid');
       }
+      // Compact uid:N ids die with the invocation; the summary is read at delivery.
+      const summary = expandModelUserIds(input.summary, scope.context);
+      if (summary.length > ALARM_SUMMARY_MAX_LENGTH) {
+        scope.audit.reject(toolCallId, 'alarm', argumentsJson, true, 'alarm_summary_too_long');
+        throw new Error(
+          `alarm summary exceeds ${ALARM_SUMMARY_MAX_LENGTH} characters once its uid:N ids are stored as real Telegram ids; shorten it`,
+        );
+      }
       const audit = scope.audit.start(toolCallId, 'alarm', argumentsJson, true);
       try {
-        const payload = alarmPayload(targetUserId, sender.displayName, input.summary);
+        const payload = alarmPayload(targetUserId, sender.displayName, summary);
         const created = scope.tasks.create(
           {
             payload,

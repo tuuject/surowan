@@ -96,33 +96,73 @@ export function parseShortUserId(value: string): number | null {
   return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
+const UID_TOKEN = /\buid:([1-9][0-9]*)\b/g;
+const HEADER_LINE = /^\[([1-9][0-9]* [^\]\n]*)\]( .*)$/;
+
 /**
- * Rewrites the runtime-controlled user-id tokens in one rendered message batch:
- * `uid:<real>` in a message header and `"target_user_id":"<real>"` in a task
- * receipt. Both are assigned a short id (populating `map`) so the same user keeps
- * one id across headers and receipts.
+ * Rewrites the user-id tokens in one rendered message batch, assigning short ids
+ * (populating `map`) so the same user keeps one id everywhere:
  *
- * Only lines the runtime owns are touched. `formatSnapshot` indents every
- * Telegram-authored body line with two spaces, so those (and any `uid:` a user
- * typed into their message) are left verbatim. Message ids, `re:` reply ids and
- * `topic:` ids use different token prefixes and are never matched.
+ * - `uid:<real>` tokens inside a message header's bracket;
+ * - `"target_user_id":"<real>"` keys in a task receipt;
+ * - `uid:<real>` in the memory notes of the runtime block — the add_memory
+ *   boundary stores them as real ids (see `expandModelUserIds`).
+ *
+ * The display name after a header bracket and every indented Telegram-authored
+ * body line are user-controlled and left verbatim, as is the rest of the
+ * receipt (its summaries and display names). The runtime block ends at the last
+ * standalone `</runtime_state>` line, the same boundary `parseSnapshotLines`
+ * reads: a body that quotes the tag is indented and cannot move it.
  */
 export function shortenUserIdsInText(text: string, map: UserIdMap): string {
-  const marker = '</runtime_state>';
-  const cut = text.lastIndexOf(marker);
-  const prefix = cut === -1 ? '' : text.slice(0, cut + marker.length);
-  const body = cut === -1 ? text : text.slice(cut + marker.length);
-  const rewritten = body
-    .split('\n')
-    .map((line) => (line.startsWith('  ') ? line : shortenRuntimeLine(line, map)))
+  const lines = text.split('\n');
+  const runtimeEnd = lines.lastIndexOf('</runtime_state>');
+  // The receipt, when present, is the block right after the runtime block.
+  const receiptEnd =
+    lines[runtimeEnd + 1] === '<untrusted_task_receipt>'
+      ? lines.indexOf('</untrusted_task_receipt>', runtimeEnd + 1)
+      : -1;
+  let inMemoryList = false;
+  return lines
+    .map((line, index) => {
+      if (index < runtimeEnd) {
+        if (line === '<memory_list>' || line === '</memory_list>') {
+          inMemoryList = line === '<memory_list>';
+          return line;
+        }
+        return inMemoryList ? line.replace(UID_TOKEN, (_match, id: string) => `uid:${map.shorten(id)}`) : line;
+      }
+      if (index <= receiptEnd) {
+        return line.replace(
+          /"target_user_id":"([0-9]+)"/g,
+          (_match, id: string) => `"target_user_id":"${map.shorten(id)}"`,
+        );
+      }
+      const header = HEADER_LINE.exec(line);
+      if (header === null) {
+        return line;
+      }
+      const [, bracket = '', name = ''] = header;
+      const tokens = bracket
+        .split(' ')
+        .map((token) => (/^uid:[0-9]+$/.test(token) ? `uid:${map.shorten(token.slice(4))}` : token));
+      return `[${tokens.join(' ')}]${name}`;
+    })
     .join('\n');
-  return prefix + rewritten;
 }
 
-function shortenRuntimeLine(line: string, map: UserIdMap): string {
-  return line
-    .replace(/uid:([0-9]+)/g, (_match, id: string) => `uid:${map.shorten(id)}`)
-    .replace(/"target_user_id":"([0-9]+)"/g, (_match, id: string) => `"target_user_id":"${map.shorten(id)}"`);
+/**
+ * Rewrites the compact `uid:N` ids this invocation assigned back to real ids in
+ * model-authored text that outlives the invocation (memory notes, alarm
+ * summaries). A compact id is only meaningful inside its own invocation, so a
+ * note saved as `uid:3` would name a different user in the next one. Tokens
+ * that are not an assigned compact id stay as written.
+ */
+export function expandModelUserIds(text: string, context: InvocationContext): string {
+  return text.replace(UID_TOKEN, (match, id: string) => {
+    const real = context.resolveModelUserId?.(id) ?? null;
+    return real === null ? match : `uid:${real.toString()}`;
+  });
 }
 
 /**

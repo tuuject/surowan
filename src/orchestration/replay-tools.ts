@@ -5,6 +5,7 @@ import type { PublicModel } from '@plasticwan/image-service';
 import Type, { type TSchema } from 'typebox';
 import Compile from 'typebox/compile';
 import { capability, createExecuteTool, type ExecutableCapability } from '../capabilities/execute-tool.ts';
+import { ResolveUserIdInputSchema } from '../capabilities/resolve-user-id-tool.ts';
 import { SEND_REPLY_MAX_PARTS, SendInputSchema, SendReplyInputSchema } from '../capabilities/send-tool.ts';
 import {
   AddMemoryInputSchema,
@@ -12,6 +13,7 @@ import {
   DeleteMemoryInputSchema,
   newMemoryId,
 } from '../context/memory.ts';
+import { parseShortUserId, type UserIdMap } from '../platform/invocation-context.ts';
 import { SystemResourceError, type SystemResources } from '../platform/system-resources.ts';
 import { AlarmInputSchema, DeleteAlarmInputSchema, ListAlarmInputSchema } from '../plugins/alarm/alarm.ts';
 import { ImageGenerateInputSchema, imageModelPage, ListImageModelsInputSchema } from '../plugins/image/image.ts';
@@ -49,6 +51,8 @@ export interface ReplayToolOptions {
   readonly disallowBlankLines?: boolean;
   readonly allowReplyMessageMultipleTimes?: boolean;
   readonly replyMessageIds?: ReadonlySet<string>;
+  /** The replay-local compact user-id map its request boundary fills; absent resolves nothing. */
+  readonly userIds?: UserIdMap;
 }
 
 /** One successfully synthesized `send`; `arguments` are the call's own input fields. */
@@ -112,6 +116,7 @@ const DeleteAlarmInputValidator = Compile(DeleteAlarmInputSchema);
 const ImageGenerateInputValidator = Compile(ImageGenerateInputSchema);
 const ListImageModelsInputValidator = Compile(ListImageModelsInputSchema);
 const ZzzInputValidator = Compile(Type.Object({}, { additionalProperties: false }));
+const ResolveUserIdInputValidator = Compile(ResolveUserIdInputSchema);
 /**
  * Mirrors the current ReadInputSchema, which is module-private in
  * `capabilities/read-tool.ts`; the real path check is `SystemResources.resolve`.
@@ -202,6 +207,9 @@ function replayTool(
   }
   if (definition.name === 'zzz') {
     return replayZzzTool(definition, state.dispatches);
+  }
+  if (definition.name === 'resolve_user_id') {
+    return replayResolveUserIdTool(definition, state);
   }
   return replayBlockedTool(definition, state.dispatches);
 }
@@ -363,6 +371,28 @@ function replayZzzTool(definition: ReplayToolDefinition, dispatches: ReplayDispa
       return {
         content: [{ type: 'text' as const, text: `Sleeping until ${sleepUntil}` }],
         details: { sleep_until: sleepUntil, entered: true },
+      };
+    },
+  };
+}
+
+/** Resolves against the replay-local map, exactly as the live primitive resolves against its invocation's. */
+function replayResolveUserIdTool(definition: ReplayToolDefinition, state: ReplayState): AgentTool {
+  return {
+    ...replayToolBase(definition),
+    execute: async (toolCallId, params, signal) => {
+      signal?.throwIfAborted();
+      const input = checkedInput(ResolveUserIdInputValidator, params, 'resolve_user_id');
+      state.dispatches.push({ tool_call_id: toolCallId, tool_name: 'resolve_user_id', mode: 'synthetic' });
+      const shortId = parseShortUserId(input.user_id);
+      const realId = shortId === null ? undefined : state.options.userIds?.resolve(shortId);
+      if (realId === undefined) {
+        throw new Error('resolve_user_id failed: resolve_user_id_unknown');
+      }
+      const text = realId.toString();
+      return {
+        content: [{ type: 'text' as const, text }],
+        details: { user_id: input.user_id, telegram_user_id: text },
       };
     },
   };

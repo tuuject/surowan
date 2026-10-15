@@ -12,6 +12,8 @@ import {
   type ReplayToolRegistry,
   type ReplayTools,
 } from '../src/orchestration/replay-tools.ts';
+import { ResolveUserIdInputSchema } from '../src/capabilities/resolve-user-id-tool.ts';
+import { shortenUserIdsInText, UserIdMap } from '../src/platform/invocation-context.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from '../src/adapters/local-monolith/system-resources.ts';
 import { AlarmInputSchema, DeleteAlarmInputSchema, ListAlarmInputSchema } from '../src/plugins/alarm/alarm.ts';
@@ -378,6 +380,26 @@ test('zzz reports a synthetic sleep transition without writing global state', as
   expect(Date.parse(details.sleep_until)).toBeGreaterThan(Date.now());
   expect(textOf(result)).toBe(`Sleeping until ${details.sleep_until}`);
   expect(replay.dispatches).toEqual([{ tool_call_id: 'zzz-1', tool_name: 'zzz', mode: 'synthetic' }]);
+});
+
+test('resolve_user_id resolves against the replay-local map instead of being blocked', async () => {
+  const userIds = new UserIdMap();
+  shortenUserIdsInText('[10 00:00:00 uid:6869211498] Alice', userIds);
+  const replay = createReplayTools(
+    replayInput({ tools: [definition('resolve_user_id', ResolveUserIdInputSchema)] }),
+    emptySystemResources(),
+    { userIds },
+  );
+  const resolve = toolOf(replay.tools, 'resolve_user_id');
+  const result = await resolve.execute('resolve-1', { user_id: '1' });
+  expect(textOf(result)).toBe('6869211498');
+  expect(result.details).toEqual({ user_id: '1', telegram_user_id: '6869211498' });
+  await expect(resolve.execute('resolve-2', { user_id: '2' })).rejects.toThrow('resolve_user_id_unknown');
+  await expect(resolve.execute('resolve-3', { user_id: '01' })).rejects.toThrow('does not match the tool schema');
+  expect(replay.dispatches).toEqual([
+    { tool_call_id: 'resolve-1', tool_name: 'resolve_user_id', mode: 'synthetic' },
+    { tool_call_id: 'resolve-2', tool_name: 'resolve_user_id', mode: 'synthetic' },
+  ]);
 });
 
 test('read serves bundled system resources and refuses paths outside the tree', async () => {

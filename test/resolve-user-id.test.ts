@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { Compile } from 'typebox/compile';
 import { ResolveUserIdInputSchema, createResolveUserIdTool } from '../src/capabilities/resolve-user-id-tool.ts';
 import { USER_ID_GUIDANCE } from '../src/context/context-builder.ts';
+import { createMemoryTools, MemoryStore } from '../src/context/memory.ts';
 import { alarmTools } from './alarm-fixtures.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
@@ -228,6 +229,45 @@ describe('resolve_user_id primitive', () => {
       )
       .get();
     expect(delivery).toEqual({ payload_user_id: '42', delivery_user_id: '42' });
+    store.close();
+  });
+
+  test('memory notes and alarm summaries persist compact ids as real ids', async () => {
+    const { store, config, ingestion, scheduler, build } = await setup();
+    const received = new Date('2026-08-15T00:00:00.000Z');
+    ingestion.ingest(update(1, 10, 'remember me', 42), received);
+    const context = build(processDue(scheduler, new Date(received.getTime() + 15_000)));
+    const [addMemory] = createMemoryTools(new MemoryStore(store.orm), context);
+    if (addMemory === undefined) {
+      throw new Error('add_memory is missing');
+    }
+    await addMemory.execute('m1', { content: 'uid:1 likes cats' });
+    // A note that only fits as compact text is refused rather than truncated.
+    await expect(addMemory.execute('m2', { content: `uid:1 ${'x'.repeat(144)}` })).rejects.toThrow(
+      'exceeds 150 characters',
+    );
+    expect(store.db.prepare<[], { content: string }>('SELECT content FROM memories ORDER BY created_at').all()).toEqual(
+      [{ content: 'uid:42 likes cats' }],
+    );
+    expect(
+      store.db
+        .prepare<[string], { error_code: string | null }>('SELECT error_code FROM tool_calls WHERE tool_call_id = ?')
+        .get('m2'),
+    ).toEqual({ error_code: 'memory_content_too_long' });
+
+    const { alarm } = alarmTools(store, config, context);
+    const future = new Date(Date.now() + 3_600_000).toISOString();
+    await alarm.execute('a1', { target_user_id: '42', summary: 'remind uid:1 to feed the cat', datetime: future });
+    expect(
+      store.db
+        .prepare<[], { summary: string }>(
+          "SELECT json_extract(payload_json, '$.summary') AS summary FROM long_tasks WHERE plugin_id = 'alarm'",
+        )
+        .get(),
+    ).toEqual({ summary: 'remind uid:42 to feed the cat' });
+    await expect(
+      alarm.execute('a2', { target_user_id: '42', summary: `uid:1 ${'x'.repeat(494)}`, datetime: future }),
+    ).rejects.toThrow('exceeds 500 characters');
     store.close();
   });
 

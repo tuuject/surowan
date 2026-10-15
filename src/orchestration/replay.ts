@@ -320,7 +320,13 @@ export class ReplayRunner {
     const { secrets, systemResources, modelGate, shutdownSignal } = this.#options;
     const config = snapshot.config;
     const imageLoader = this.#options.imageLoader;
+    // Replay shows the model exactly what the live run did, so real Telegram user
+    // ids are compacted to short ids at this request boundary too. The map is
+    // replay-local, accumulates across turns like the live invocation's, and
+    // backs the replay resolve_user_id tool.
+    const replayUserIds = new UserIdMap();
     const capture = createReplayTools(registry, systemResources, {
+      userIds: replayUserIds,
       imageModels: publicImageModels(config),
       ...(config.agent.send_max_text_length === undefined ? {} : { maxTextLength: config.agent.send_max_text_length }),
       disallowBlankLines: config.agent.send_disallow_blank_lines === true,
@@ -373,10 +379,6 @@ export class ReplayRunner {
           return entry;
         }),
       );
-    // Replay shows the model exactly what the live run did, so real Telegram user
-    // ids are compacted to short ids at this request boundary too. The map is
-    // replay-local and accumulates across turns like the live invocation's.
-    const replayUserIds = new UserIdMap();
     const agent = new Agent({
       initialState: {
         systemPrompt,

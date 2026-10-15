@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { and, eq, gt, sql } from 'drizzle-orm';
 import Type from 'typebox';
-import type { InvocationContext } from '../platform/invocation-context.ts';
+import { expandModelUserIds, type InvocationContext } from '../platform/invocation-context.ts';
 import { asRunResult, finishToolCall, type Orm, startToolCall } from '../store/store.ts';
 import { memories } from '../store/schema.ts';
 
@@ -147,13 +147,16 @@ function createAddMemoryTool(
         true,
         now,
       );
-      try {
-        const record = store.add(
-          context.conversationId,
-          input.content,
-          input.ttl_seconds ?? DEFAULT_MEMORY_TTL_SECONDS,
-          now,
+      // Compact uid:N ids die with the invocation; the note outlives it.
+      const content = expandModelUserIds(input.content, context);
+      if (content.length > MEMORY_MAX_CONTENT_LENGTH) {
+        finishToolCall(store.orm, toolId, 'error', null, 'memory_content_too_long', { now });
+        throw new Error(
+          `add_memory content exceeds ${MEMORY_MAX_CONTENT_LENGTH} characters once its uid:N ids are stored as real Telegram ids; shorten the note`,
         );
+      }
+      try {
+        const record = store.add(context.conversationId, content, input.ttl_seconds ?? DEFAULT_MEMORY_TTL_SECONDS, now);
         finishToolCall(store.orm, toolId, 'success', `memory_id=${record.id} expires_at=${record.expiresAt}`, null, {
           now,
         });
