@@ -1189,6 +1189,10 @@ export function seedAdminBulkRows(store: SqliteStore): AdminBulkSeedIds {
 
   // --- 28 active memories with pattern-valid ids (`mem_` + 32 hex) ---
   const memoryFirstId = `mem_${'0'.repeat(31)}1`;
+  // Must stay active regardless of when the fixture runs, for the same reason
+  // as `memoryActiveId` above: a fixed date silently aged into "expired" and
+  // broke the state=expired filter E2E.
+  const bulkMemoryExpiresAt = new Date(Date.now() + 30 * 86_400_000).toISOString();
   for (let index = 0; index < EXTRA_MEMORIES; index += 1) {
     const id = `mem_${String(index + 1).padStart(32, '0')}`;
     orm
@@ -1198,7 +1202,7 @@ export function seedAdminBulkRows(store: SqliteStore): AdminBulkSeedIds {
         conversationId: T.conversation,
         content: `e2e memory ${index + 1}`,
         createdAt: iso(index),
-        expiresAt: '2026-10-15T08:00:00.000Z',
+        expiresAt: bulkMemoryExpiresAt,
         updatedAt: iso(index),
       })
       .run();
