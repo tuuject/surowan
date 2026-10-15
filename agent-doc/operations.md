@@ -39,6 +39,11 @@ pnpm install
 
 # 本地 Secret 写进仓库根目录的 .env.local（已 gitignore；CLI 启动时自动加载
 # .env.local 与 .env，真实环境变量优先、.env.local 压过 .env），或在 shell 里 export。
+# 一键生成 dev-data/config.jsonc 与起步 agent-prompt.md（DeepSeek deepseek-flash 同时做 agent 与 vision）：
+# 必需 PLASTICWAN_DEV_CHAT_IDS（逗号分隔）、TELEGRAM_BOT_TOKEN、DEEPSEEK_API_KEY，缺失时打印配置说明并退出；
+# 后两者只以 env SecretRef 写入。可选 PLASTICWAN_DEV_ADMIN_IDS；设置了 BRAVE_API_KEY 才加入 Brave MCP。
+# 已有 config.jsonc 时需加 --force 覆盖；已有 prompt 文件始终保留。
+pnpm run dev:seed            # 或 pnpm run dev:seed -- --dir <目录> --force
 node src/cli.ts check-config --config dev-data/config.jsonc
 node src/cli.ts doctor --config dev-data/config.jsonc
 ```

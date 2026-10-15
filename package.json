@@ -16,6 +16,7 @@
     "cli:build": "tsc -p packages/cli/tsconfig.json",
     "test": "vitest run",
     "start": "node src/cli.ts serve",
+    "dev:seed": "node scripts/seed-dev-data.ts",
     "admin:dev": "pnpm --filter plasticwan-admin-next run dev",
     "admin:build": "pnpm --filter plasticwan-admin-next run build",
     "admin:test:e2e": "pnpm --filter plasticwan-admin-next run test:e2e",
