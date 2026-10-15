@@ -90,7 +90,7 @@ deadline 不看「前一次运行是否仍在 queued/running」，但**运行中
 
 `typing` 是 `execute` 注册表中的可选能力（`execute.call`，`tool: "typing"`，`input: {}`）。模型只有在决定接话且接下来需要耗时处理时才调用；快速回复直接 `send`，静默不调用。runtime 每 4 秒刷新，Telegram 适配器按 Chat + Topic 节流且不重叠请求，单次平台请求最多等 3.5 秒。重复调用不重置本轮上限，55 秒后停止刷新并取消在途请求，为 Telegram 最多 5 秒的状态尾部留余量；`freeAgent` 与运行清理停止状态，空闲后下一轮可以再次调用。typing 仅为临时状态，不发布 assistant 文本，不计入 send 配额，也不把 Telegram 状态请求失败传给模型。
 
-被 @ 时 runtime 会自动显示 typing，不经过模型：`TelegramIngestion.ingest()` 在实时（非 catch-up）、非编辑、真人（`eligibleHuman`）消息以 `mention` 或 `text_mention` 指向本 Bot（文本与 caption 均算）、且该消息已进入 Bucket（因此未暂停且通过 participation 闸门）时，在 `IngestResult.mention` 返回 Chat 与 Topic。`application.ts` 据此调用 `MentionTyping.start`（`src/capabilities/mention-typing.ts`），休眠期间不启动。它复用与模型 `typing` 相同的 `startTypingLoop`（4 秒刷新、55 秒上限）和同一个 `grammySendApi` 实例的节流，所以两者同时存在不会重复请求。每个 Chat + Topic 至多一个循环，重复 @ 不重置上限。循环在以下任一时刻停止：Agent 向该 Chat + Topic 成功发送文本、Sticker 或生成图片（发送失败不停止）；`freeAgent` 与运行清理；进程关闭；55 秒上限。仅回复 Bot 或命中关键词不触发。`telegram.mention_typing_enabled` 设为 `false` 可关闭；模型随后选择沉默时，状态会持续到本轮结束。
+被 @ 时 runtime 会自动显示 typing，不经过模型：`TelegramIngestion.ingest()` 在实时（非 catch-up）、非编辑、真人（`eligibleHuman`）消息以 `mention` 或 `text_mention` 指向本 Bot（文本与 caption 均算）、且该消息已进入 Bucket（因此未暂停且通过 participation 闸门）时，在 `IngestResult.mention` 返回 Chat 与 Topic。`src/adapters/local-monolith/runtime-host.ts` 据此调用 `MentionTyping.start`（`src/capabilities/mention-typing.ts`），休眠期间不启动。它复用与模型 `typing` 相同的 `startTypingLoop`（4 秒刷新、55 秒上限）和同一个 `grammySendApi` 实例的节流，所以两者同时存在不会重复请求。每个 Chat + Topic 至多一个循环，重复 @ 不重置上限。循环在以下任一时刻停止：Agent 向该 Chat + Topic 成功发送文本、Sticker 或生成图片（发送失败不停止）；`freeAgent` 与运行清理；进程关闭；55 秒上限。仅回复 Bot 或命中关键词不触发。`telegram.mention_typing_enabled` 设为 `false` 可关闭；模型随后选择沉默时，状态会持续到本轮结束。
 
 `agent.context.idle_grace_seconds` 大于 0 时，Invocation 变成一个运行窗口：它可以跨多个 Bucket，在运行期间接收新注入的消息。
 
@@ -149,7 +149,7 @@ system prompt 拆分（文档中只在此处维护；`ContextBuilder.buildSystem
 
 - **稳定段**只包含不随 Invocation 变化的内容：Core Agent Protocol、System Skill 索引、图片/Sticker 说明、人格 Prompt、私聊/群聊模式、Chat instructions、记忆的使用说明。Core Protocol 规定消息分区、Tool 选择原则与副作用成功判定；人格 Prompt 只负责身份和表达风格；稳定段不写「什么时候该参与」——是否发言由模型按当前批次判断；群聊的消息准入由运行期 participation 闸门决定（配置了才生效）。它对一个 Conversation Context 保持逐字节稳定，这样每次请求的前缀能被 provider prefix cache 命中。Sticker 目录（`sticker_id:emoji`）是**不可信数据**，因此随批次注入，不进入稳定段；它只在与保留 transcript 里最新一份不同时才重新附带（被 GC 淘汰后也会重新附带），不是每批都带一份。
 - **注入段**是一条 `user` 消息，依次为：可信的 `<runtime_state>`（当前时间、睡眠状态、完成事件说明、Startup catch-up 说明、`<memory_list>`）、可选的 `<untrusted_task_receipt>`、可选的 `<untrusted_sticker_catalog>`、可选的 `<untrusted_dictionary>`（辞典注入，见下）、可选的 `<untrusted_telegram_history>`（见下一条）、`<untrusted_new_messages>`（本批 Telegram 快照）。完成回执的结构化内容与其它 `<untrusted_*>` 一样只是数据，不是指令或待发送消息。
-- 消息不以 `invocation_messages` 的快照 JSON 发给模型，而由 `formatSnapshot` 渲染成省 Token 的紧凑文本：一行 `[message_id 本地时间 topic:N you re:N uid:N @username] 显示名` 头部，下面是两格缩进的正文（转发来源、回复引用、text/caption 各行、`[kind ref WxH]` 媒体行）；空字段、`revision`、`media_group_id`、mime 等不渲染，日期只在与本批 `current_time` 不同时显示，回复目标就在同一批时省略引用。头部方括号内只有 runtime 生成的 token，所有 Telegram 可控内容都在缩进行上，因此无法伪造头部或区块标签；`collectVisibleSenders`/`collectInjectedMessageIds` 只回读最后一个 `</runtime_state>` 之后的头部行。改动这个格式要同步改 `CORE_AGENT_PROTOCOL` 中的格式说明（system prompt 哈希变化会让所有 Context 重建）。
+- 消息不以 `invocation_messages` 的快照 JSON 发给模型，而由 `formatSnapshot` 渲染成省 Token 的紧凑文本：一行 `[message_id 本地时间 topic:N you re:N uid:N @username] 显示名` 头部（`topic:N` 只在 startup catch-up 批次渲染），下面是两格缩进的正文（转发来源、回复引用、text/caption 各行、`[kind ref WxH]` 媒体行）；空字段、`revision`、`media_group_id`、mime 等不渲染，日期只在与本批 `current_time` 不同时显示，回复目标就在同一批时省略引用。头部方括号内只有 runtime 生成的 token，所有 Telegram 可控内容都在缩进行上，因此无法伪造头部或区块标签；`collectVisibleSenders`/`collectInjectedMessageIds` 只回读最后一个 `</runtime_state>` 之后的头部行。改动这个格式要同步改 `CORE_AGENT_PROTOCOL` 中的格式说明（system prompt 哈希变化会让所有 Context 重建）。
 - 历史不再被重新渲染成 `<untrusted_telegram_history>`；它由 transcript 本身承载。只有两种情况例外：该 Conversation Context 尚无历史（冷启动），以及历史区段里那些**从未进入 transcript 的消息**（例如被 participation 闸门拦下的消息）——它们仍然必须渲染，否则模型永远看不到。
 - 随 Invocation 变化的内容（当前时间、记忆、睡眠状态、完成回执）都必须待在注入段：放进 system prompt 会让每次请求的前缀都不同，既失去前缀缓存，又违反「Context 可以稳定保留」的前提。每个 receipt 只在自己的回执轮次注入一次：新 Invocation 通过 opening Bucket，附加到运行中的 Invocation 则在该回合的热注入中单独消费；后续批次不重新附带该 receipt，canonical history 已保存这次事件，其它 receipt 仍各自独立注入。
 - system prompt 变化（`system_prompt_hash` 不同）意味着 Context 重建：丢弃全部 canonical history 重新开始。Prompt 与 Chat `instructions_file` 属于配置热更新白名单：改完文件并在 Admin「Apply config file」或 `/model` 应用之后，该 Conversation 下一次运行就按新哈希重建；运行时切换模型若改变了模板渲染结果或图片说明，同样会重建。清单见 [configuration.md](configuration.md#运行时配置热更新)。
@@ -196,11 +196,11 @@ participation 放行 = 未配置 participation || 处于活跃时段 || 更新�
 
 ## Context
 
-一次 Invocation 的模型输入由 `ContextBuilder` 的两半拼成：稳定的 `systemPrompt` 与一批注入消息，两者各含什么见 [Context 生命周期：system prompt 拆分](#context-生命周期)。项目里不再有「每次重新渲染全部历史」的 `userPrompt`——历史由 Conversation Context 的 transcript 承载。本节只记录拆分之外的组装产物与规则：
+一次 Invocation 的模型输入由 `ContextBuilder` 的两半拼成：稳定的 `systemPrompt` 与一批注入消息，两者各含什么见 [Context 生命周期：system prompt 拆分](#context-生命周期)。`InvocationContext.userPrompt` 只保存最新一批注入文本，不再「每次重新渲染全部历史」——历史由 Conversation Context 的 transcript 承载。本节只记录拆分之外的组装产物与规则：
 
 - `directImages`：当 `agent` 模型支持 image 时，**本批**消息里的 Photo/图片 Document 经标准化后成为同一 User Message 的多模态内容，并按 `figure_N` 与消息媒体行中的引用对应。媒体行同时带稳定的 `img_` 引用（`[photo figure_1 img_xxx WxH]`）：codec 落盘时丢弃内联图片块，重启或缓存丢弃后 replay 的 transcript 只剩文本，模型要靠这个 `img_` 用 `read_image` 再看；`read_image` 不接受 `figure_N`。
 - `visibleSenders`：本批及保留历史中可见的 Telegram user sender，供 Alarm 插件校验目标。
-- `imageCapabilities`：Sticker 始终可用；Photo/图片 Document 在 `agent` 模型不支持 image 时全部可用，支持 image 时历史图片通过 `img_` 引用可用，供 `read_image` 使用。
+- `mediaRefs`：本次快照中**所有**可见媒体（Sticker、Photo、图片 Document，不分新消息/历史区段，也不看模型是否支持 image）的 `img_` 引用到 Media ID 的映射，供 `read_image` 解析。
 - `omittedNewMessages`：因 Context 上限省略的新消息数量。
 
 当前 Conversation 全部有效记忆按创建时间升序出现在注入块的 `<memory_list>` 内。新增记忆等价于列表末尾 append，不重排已有项；TTL 到期与 `delete_memory` 只破坏删除位置之后的缓存前缀。
@@ -228,15 +228,15 @@ Invocation 结束时 Agent 实例可以留在 `ConversationRuntime` 缓存里供
 
 ## Skills 与受控能力调用
 
-工具面分三层：runtime 原语直接暴露、内部能力经 `execute`、MCP Tool 直接暴露。内部能力按需发现，避免每轮请求携带全部定义；这不是放宽授权，Schema、引用和预算仍由 Tool 边界校验。修改能力时先查 [组合根的 `capabilityTools`](../src/application.ts)（按符号名检索）与 [原语装配](../src/orchestration/agent-runtime.ts)，行为验证见 [验证索引](verification.md#静态与单元验证)。
+工具面分三层：runtime 原语直接暴露、内部能力经 `execute`、MCP Tool 直接暴露。内部能力按需发现，避免每轮请求携带全部定义；这不是放宽授权，Schema、引用和预算仍由 Tool 边界校验。修改能力时先查 [组合根的 `capabilityTools`](../src/adapters/local-monolith/runtime-host.ts)（按符号名检索）与 [原语装配](../src/orchestration/agent-runtime.ts)，行为验证见 [验证索引](verification.md#静态与单元验证)。
 
 - **原语**：`read`、`send`、`send_reply`、`execute`、`zzz`（条件暴露）。它们的定义、Schema 与约束完全由 runtime 提供，不依赖任何 Skill；未读取任何 Skill 也能直接调用。
-- **内部能力注册表**：由 [application.ts](../src/application.ts) 的 `capabilityTools` 装配，完整清单以此为准，不在文档维护副本。其中内置 Agent 插件（[plugins/builtin.ts](../src/plugins/builtin.ts)，当前为 `web-fetch`、`image`、`alarm` 与 `dictionary`）经 `loadPlugins` 校验 id 后按 Invocation 贡献能力；插件只拿到 `InvocationScope`（活的 Invocation 上下文、deadline、绑定本 Invocation 的 `ToolAudit`、宿主 `orm` 与自身 plugin/Conversation 的 task scope），不持有 Store 或 Runtime。插件能力与其他内部能力走同一条 `execute` 注册、校验、分发与审计路径。模型经 `execute` 的 search/help/call 按需发现与调用；调用前按目标能力的参数 Schema 校验，input 超 32 KiB 拒绝。插件还可以声明 `contextInjectors`（契约见 [context/context-injector.ts](../src/context/context-injector.ts)；按插件加载顺序、在消息选定后逐个渲染本批的 `<untrusted_…>` 注入块，签名去重状态由 AgentRuntime 按注入器名维护，审计写 `context_injected.injections`）；辞典是它的第一个使用者。
+- **内部能力注册表**：由 [runtime-host.ts](../src/adapters/local-monolith/runtime-host.ts) 的 `capabilityTools` 装配，完整清单以此为准，不在文档维护副本。其中内置 Agent 插件（[plugins/builtin.ts](../src/plugins/builtin.ts)，当前为 `web-fetch`、`image`、`alarm` 与 `dictionary`）经 `loadPlugins` 校验 id 后按 Invocation 贡献能力；插件只拿到 `InvocationScope`（当前配置快照、活的 Invocation 上下文、deadline、绑定本 Invocation 的 `ToolAudit`、宿主 `orm`、自身 plugin/Conversation 的 task scope，以及宿主接线时才有的 `resolveMedia` 引用解析与 `image` 生图桥；字段以 [plugins/plugin.ts](../src/plugins/plugin.ts) 为准），不持有 Store 或 Runtime。插件能力与其他内部能力走同一条 `execute` 注册、校验、分发与审计路径。模型经 `execute` 的 search/help/call 按需发现与调用；调用前按目标能力的参数 Schema 校验，input 超 32 KiB 拒绝。插件还可以声明 `contextInjectors`（契约见 [context/context-injector.ts](../src/context/context-injector.ts)；按插件加载顺序、在消息选定后逐个渲染本批的 `<untrusted_…>` 注入块，签名去重状态由 AgentRuntime 按注入器名维护，审计写 `context_injected.injections`）；辞典是它的第一个使用者。
 - **MCP Tool**：按配置 allowlist 直接暴露，不进入 `execute` 注册表。
 
 `execute.call` 的结果是 `{text, refs}` 封套：内层 `text` 上限 30 KiB，序列化后的整体上限 32 KiB，超限截断带 `[content truncated]` 标记；`refs` 是本次调用产生的 Conversation Context 级引用 token（目前只有 `search_stickers` 的 `sticker_ref`，带 TTL），只能交给对应消费 Tool 在边界校验后使用。`execute` 拒绝原语（`execute_primitive_rejected`）与未知能力（`unknown_capability`），也不会递归调用自己。运行已被 abort 时 `execute.call` 不再 dispatch：内部能力不一定理会 signal（例如 `alarm`），所以在调用之前检查，外层 `tool_calls` 记为 `error`/`aborted`，不产生内层记录。
 
-System Skills 是随 runtime 发布的只读文档包，位于 `src/system-resources/skills/<name>/SKILL.md`，或由内置插件以 Skill 目录声明（如 `src/plugins/web-fetch/skills/web-fetch/`），统一挂载在 `system:///skills/<name>/` 下（Docker 镜像随 `src/` 打包）。`SKILL.md` 头部 frontmatter 声明 `name`（必须等于目录名）与 `description`；Skill 重名（包括插件与内置树之间）或加载失败即启动失败。system prompt 只注入索引（名称、描述、`system:///skills/<name>/SKILL.md` URI）；正文由模型用 `read` 按需读取，即 progressive disclosure。`read` 只接受 `system:///` 绝对 URI 或「相对引用 + base」，路径段校验拒绝 `..`、反斜杠、百分号转义，只允许 `.md`，结果 32 KiB 截断。Skill 是文档不是授权：不能覆盖 Tool 约束、协议或预算。
+System Skills 是随 runtime 发布的只读文档包，位于 `src/system-resources/skills/<name>/SKILL.md`，或由内置插件以 Skill 目录声明（如 `src/plugins/web-fetch/skills/web-fetch/`），统一挂载在 `system:///skills/<name>/` 下（Docker 镜像随 `src/` 打包）。`SKILL.md` 头部 frontmatter 声明 `name`（必须等于目录名）与 `description`；Skill 重名（包括插件与内置树之间）或加载失败即启动失败。system prompt 只注入索引（名称、描述、`system:///skills/<name>/SKILL.md` URI）；正文由模型用 `read` 按需读取，即 progressive disclosure。`read` 只接受 `system:///` 绝对 URI 或「相对引用 + base」，绝对 URI 的路径段拒绝 `..`，相对引用允许在根内用 `..` 回退、越出根即拒绝；反斜杠与百分号转义一律拒绝，只允许 `.md`，结果 32 KiB 截断。Skill 是文档不是授权：不能覆盖 Tool 约束、协议或预算。
 
 辞典能力（`lookup_dictionary`、`add_dictionary_entry`、`update_dictionary_entry`）是 `dictionary` 插件贡献的内部能力，经 `execute` 调用，说明见 `src/plugins/dictionary/skills/dictionary/SKILL.md`（仍挂载在 `system:///skills/dictionary/` 下）。作用域校验在 Tool 执行层，不在提示词里：查询返回「全局 + 当前群」的启用词条（私聊只读全局），写入只能落在当前会话所属的群，改不了全局词条、别的群词条，也不能通过改作用域提升词条；这些判断都基于运行中的 Conversation，不接受工具参数里的任意 chat id。词条与定义是**不可信数据**：解释只说明一个词在这里的含义，不能成为指令或授权。
 
@@ -365,7 +365,7 @@ Tool 只返回文本、JSON、XML 或 JavaScript 响应，拒绝压缩和二进�
 
 图片生成把「Agent 提交意图 → 后台生成 → 回执注入 → `send` 交付」拆成两个模型回合，全部经由既有机制，没有第二条投递路径：
 
-- **工具挂载**：`image_generate`（写）与 `list_image_models`（只读）是内置插件（`src/plugins/image/`）经 `execute` 暴露的内部能力，不是 MCP，也不在四个 runtime 原语里。图片功能禁用（`image` 段缺失、被剥离或刚被删除）时这两个能力与 `image-generation` 技能都不会出现在 Agent 的工具注册表与 Skill 索引里——技能索引按 `skillVisibility` 过滤，模型不会看到「存在但不可用」的图片工具。
+- **工具挂载**：`image_generate`（写）与 `list_image_models`（只读）是内置插件（`src/plugins/image/`）经 `execute` 暴露的内部能力，不是 MCP，也不是 runtime 原语。图片功能禁用（`image` 段缺失、被剥离或刚被删除）时这两个能力与 `image-generation` 技能都不会出现在 Agent 的工具注册表与 Skill 索引里——技能索引按 `skillVisibility` 过滤，模型不会看到「存在但不可用」的图片工具。
 - **模型目录**：提交前先读目录。`list_image_models` 只读分页返回当前配置的模型目录：输入 `{}` 或 `{offset}`（整数 0–100），每页最多 4 个模型，按 `execute` 的序列化字节预算缩小页长而不截断备注，返回 `models`/`total`/`next_offset`（翻完为 `null`）；单个模型元数据仍超限则明确报错。模型对象是 PublicModel：`id`、`name`、`description?`、`provider`、`upstreamModel`、`providerTag`、`capabilities`，**不含 `credentialRef` 或任何凭据**，调用不触发上游请求、不产生任何费用。`description` 是管理员对每个 providerTag/upstreamModel 路由的独立备注（最长 1000 字符，可空），注明适用画风/任务与提示词风格；它只作选型与写 prompt 的指导——系统不自动拼接备注原文、不把它作为独立字段发给生图上游、不能覆盖工具授权。模型按能力与备注选型：用户点名时优先遵循（能力兼容前提下），否则由模型自主选择，不按画风硬编码路由。只配置一个模型时 `image_generate.model_id` 可省略；多个模型必须显式传 `model_id`。目录变化、模型被拒或删除后重新读取目录，不静默 fallback 到别的模型。
 - **输入授权**：`input_image_refs` 只接受本 Conversation Context 授权的 `img_` 引用（经 `resolveMedia` 解析为真实 Media ID），任意 file ID、URL 或其它会话的引用在提交前就被拒绝并审计（`image_input_ref_unauthorized`）。
 - **提交与幂等**：bridge 以 actor `agent:<conversationId>` 向 image core 提交生成意图（idempotency key 绑定 Conversation），同一 Conversation 内同内容重复提交返回既有 generation（`replayed: true`），不重复计费；每个 Invocation 最多 3 次提交。工具立即返回 `generation_id`，图片此时还不存在。
@@ -378,7 +378,7 @@ Tool 只返回文本、JSON、XML 或 JavaScript 响应，拒绝压缩和二进�
 
 ## `read_image`
 
-`read_image` 是经 `execute.call` 调用的内部能力。模型只能使用 Context 中展示的不透明 `image_ref`。多模态 Agent 获得 Sticker 与历史区段 Photo/图片 Document 的引用；新消息中的普通图片直传主模型，不再保留对应 `read_image` 引用。text-only Agent 获得所有可见区段中 Sticker、Photo 与图片 Document 的引用。Tool 不接受原始 Telegram file ID、任意 URL 或任意 Media ID。
+`read_image` 是经 `execute.call` 调用的内部能力。模型只能使用 Context 中展示的不透明 `image_ref`。所有可见区段中的 Sticker、Photo 与图片 Document 都会生成 `img_` 引用，`read_image` 按当前 Conversation Context 授权解析，不按区段或模型能力设闸；多模态 Agent 的新消息图片另外直传主模型，Prompt 只是引导它优先看直传内容（重启或缓存丢弃后仍要靠 `img_` 再看）。Tool 不接受原始 Telegram file ID、任意 URL 或任意 Media ID。
 
 处理流程：
 

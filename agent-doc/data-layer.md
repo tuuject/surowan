@@ -69,7 +69,7 @@ Plastic Wan 使用单个 SQLite 数据库保存消息、调度状态、能力索
 - `evicted_at` 是软删除标记：GC 不立即物理删除行，只打标记；行保留到在线窗口之后才由 `purgeExpiredData` 真正删除（见「保留清理」）。
 - `invocation_id` 记录写入该行的 Invocation，Invocation 被清理时置 `NULL`，历史行本身不随之删除。
 
-写路径只有一处：`advanceHead` 把 `head_seq` 前移时，在同一事务里软标记被丢弃的行、删除这些行携带的 `context_refs`、更新 `head_seq` 与 `last_gc_at`。GC 是**纯丢弃，从不做摘要**：`planContextGc` 决定新起点（默认跳到「仍保留至少 `retained_sends_target` 次发送」的最新 checkpoint，发送稀疏但 Token 压力大的历史退回 Token 预算判定），保留段还必须通过 `isRenderable` 结构检查（不得以 `toolResult` 开头，每个 tool result 都要有对应的 assistant tool call），否则这一轮不裁剪。
+写路径只有一处：`advanceHead` 把 `head_seq` 前移时，在同一事务里软标记被丢弃的行、删除这些行携带的 `context_refs`、更新 `head_seq` 与 `last_gc_at`。GC 是**纯丢弃，从不做摘要**：`planContextGc` 决定新起点（默认跳到「仍保留至少 `retained_sends_target` 次发送」的最新 checkpoint，发送稀疏但 Token 压力大的历史退回 Token 预算判定），保留段还必须通过 `isRenderable` 结构检查（必须以 user 消息开头，每个 tool result 都要有对应的 assistant tool call），否则这一轮不裁剪。
 
 `context_refs` 是**按 Conversation Context 记账的能力引用**，取代了原来按 Invocation 记账的引用：
 
@@ -107,7 +107,7 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 - 每条记忆归属一个 `conversations` 行（Chat + Forum Topic 隔离，互不可见）。
 - `content` 硬限制 150 字符（SQLite `CHECK` 兜底；Tool Schema 与 Admin API 先校验）。
 - `expires_at` 由 `created_at + ttl_seconds` 决定，默认 TTL 1 天；过期行在每次写操作机会性清除，`purgeExpiredData` 也会清除。
-- 系统不禁止长 TTL；剩余寿命超过 `agent.memory_ttl_warning_days`（默认 30 天）的记忆在 Admin Panel 显示 warning，由管理员决定保留、删除或提升进 `agents.md`。
+- `ttl_seconds` 只受 `src/context/memory.ts` 的 `MEMORY_TTL_MIN_SECONDS`/`MEMORY_TTL_MAX_SECONDS`（60 秒至约 5 年）约束，Tool Schema 与 Admin API 共用这对边界，此外不禁止长 TTL；剩余寿命超过 `agent.memory_ttl_warning_days`（默认 30 天）的记忆在 Admin Panel 显示 warning，由管理员决定保留、删除或提升进 `agents.md`。
 
 ### 注意力窗口
 
@@ -121,7 +121,7 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 - `chat_id` 存的是 **Telegram chat ID**，不是 `chats.id`：一个群词条可以在 Bot 收到该群第一条消息之前就存在（例如刚加入 allowlist 的群）。`CHECK` 保证 `global` 无 `chat_id`、`group` 有 `chat_id`。
 - `aliases_json` 是去重后的字符串数组（`json_valid` 兜底）；`term` / `definition` 的长度有 `CHECK`，Tool Schema 与 Admin API 先校验。
 - `enabled` 为 0 的词条不参与查询与自动注入，但保留历史；`revision` 是词条自己的乐观锁 token，每次写入递增，Admin 的 `If-Match` 与 Agent 工具的读-改-写都用它。
-- 索引 `dictionary_entries_scope_idx`（scope, chat_id, id）与 `dictionary_entries_term_idx`（scope, chat_id, term）支撑按作用域列举与 term 过滤。
+- 索引 `dictionary_entries_scope_idx`（scope, chat_id, id）与 `dictionary_entries_term_idx`（scope, chat_id, term）前者支撑按作用域列举；term/alias 匹配需要词边界规则，当前在 JS 中完成（`src/plugins/dictionary/dictionary.ts` 的 `dictionaryTextMatches`），不走 term 索引。
 
 `purgeExpiredData` 不清理词条：辞典是人工维护的数据，不随在线保留窗口过期；删除只能经 Admin 或当前群的 Agent 写入。表由核心 schema 持有（`store/schema.ts` + 迁移 034），使用它的 `dictionary` 插件（[src/plugins/dictionary/](../src/plugins/dictionary/)）不自带表定义；把表迁进插件需要单独设计迁移排序、备份与保留。
 
@@ -131,7 +131,7 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 
 仅在 `developer.record_model_payloads = true` 时保存模型调用的原始报文快照，缺省关闭。`model_calls.request_json` 不复制 `data:image/*;base64,...` 图片正文；对应字符串替换为包含 MIME、Base64 字符数、解码字节数与 SHA-256 的结构化摘要，真实 Provider 请求不受影响。现有 `response_json` 捕获的是 HTTP status 快照，并非完整流式响应体。关闭仅跳过这些调试快照，正常模型调用、工具、usage、费用、状态与错误审计照常记录；旧快照不自动删除。
 
-`model_calls.role` 区分调用来源：`agent`、`vision_chat`、`vision_sticker`、`doctor`，以及迁移 `034` 新增的 `tool`（Tool Model 辅助调用，如辞典融合）。`tool` 行不挂 `invocation_id`，也不写入 `daily_usage`：辅助任务不计入 Chat 的每日 Token 预算，但仍保留 provider/model/usage/费用/终态错误审计。
+`model_calls.role` 区分调用来源：`agent`、`vision_chat`、`vision_sticker`、`doctor`，以及迁移 `034` 新增的 `tool`（Tool Model 辅助调用，如辞典融合）。`tool` 行不挂 `invocation_id`，也不写入 `daily_usage`：辅助任务不计入 Chat 的每日 Token 预算，但仍记录 provider/model/usage/费用/终态错误审计；这些无 `invocation_id` 的行与 Doctor 调用一样在 `retention.online_days` 后被清理。
 
 Invocation 重放不录制或读取模型请求副本：它从 `invocation_messages` 的开场 Bucket 冻结快照与可证明在当时已入库的公开历史重建场景，使用当前配置的 prompt、模型与工具定义；不读取 `context_messages` 的私有推理或工具历史，也不复制跨 Invocation 的完整 Context。具体边界见 [admin-panel.md](admin-panel.md#invocation-重放) 与 [`scene-context.ts`](../src/context/scene-context.ts)。因此关闭调试录制或清除报文不影响场景重建，在线留存清理仍会使来源或媒体不可用。迁移 `030` 删除迁移 `029` 引入的旧 `model_calls.replay_input_json` 列及其历史内容，不转换为新快照；其余调用审计、工具/发送记录、用量与公开消息快照保留。沿用现有迁移前备份与事务，不启用新的常驻数据录制。Developer 清除端点只分批把 `model_calls.request_json` / `response_json` 置为 `NULL`，不删除行、不改变关联或 retention，也不触碰 `telegram_sends` 的同名字段；不执行 `VACUUM`，不修改旧备份。
 
@@ -181,7 +181,7 @@ Admin 侧的 `admin_users`/`admin_sessions` 语义见 [admin-panel.md](admin-pan
 - 过期 Telegram Update 与终态 Invocation/Send/Bucket。
 - 不再被 Invocation/Bucket 引用的旧 Message。
 - 仍被快照引用的旧 Message 保留身份，但匿名化 Revision 文本、Sender、Reply/Forward 和 Service 内容。
-- 删除无引用 Sender、过期普通图片分析、独立 Doctor 模型调用与旧 `daily_usage` 日期。
+- 删除无引用 Sender、过期普通图片分析、无 `invocation_id` 的非 pending 模型调用（Doctor 与 Tool Model）与旧 `daily_usage` 日期。
 - Sticker 长期视觉索引不按普通图片策略删除。
 - `long_tasks` 的 waiting 行及 pending/claimed `task_receipts` 永不因 online cutoff 删除；任务终态且 receipt 已 handled/suppressed 后才随在线窗口一起清理。
 - `context_refs` 中 `expires_at <= now` 的行（TTL 到期即删，与在线保留窗口无关）。

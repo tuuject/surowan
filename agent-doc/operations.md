@@ -68,9 +68,11 @@ node src/cli.ts serve --config dev-data/config.jsonc
 1. 停止 Telegram long polling。
 2. 停止 Admin Panel HTTP server。
 3. 最多等待 Scheduler 30 秒。
-4. 停止 Sticker worker 与 MCP。
-5. 关闭 SQLite。
-6. 释放 `serve.lock`。
+4. 停止 @ 触发的 typing 循环。
+5. 停止 Image worker 与图片服务（它借用 SQLite 连接，必须在关库前落地中断标记）。
+6. 停止 Sticker worker 与 MCP。
+7. 关闭 SQLite。
+8. 释放 `serve.lock`。
 
 不要启动第二份实例。同一 `data_dir` 的 `serve.lock` 会拒绝双实例；绕过锁会造成 Telegram long polling 竞争和未知副作用。需要替换运行中的实例时用下面的 `--takeover`。
 
@@ -115,7 +117,7 @@ node src/cli.ts serve --config dev-data/config.jsonc
 node src/cli.ts doctor --config dev-data/config.jsonc
 ```
 
-Doctor 是对已配置运行环境执行的真实依赖检查，不是静态 lint；完整检查范围与何时可判定通过见[验证：Doctor](verification.md#doctor)。它会产生 `role = 'doctor'` 的模型调用审计并消耗少量 Provider Token。探针按全局默认与每个 Chat 实际选用的 provider/model/thinking 组合**去重后**逐一执行：同一组合只探测一次，新增 Chat 覆盖会引入新的探针并消耗相应 Token。
+Doctor 是对已配置运行环境执行的真实依赖检查，不是静态 lint；完整检查范围与何时可判定通过见[验证：Doctor](verification.md#doctor)。它会产生 `role = 'doctor'` 的模型调用审计并消耗少量 Provider Token。每个配置了 text 模型的 Provider 先各做一次连通探针；严格 Tool Call 探针再按全局默认与每个 Chat 实际选用的 provider/model/thinking 组合**去重后**逐一执行：同一组合只探测一次，新增 Chat 覆盖会引入新的探针并消耗相应 Token。
 
 如需查看配置中 Agent 系统 Prompt 的模板渲染结果：
 
@@ -140,7 +142,7 @@ npm install -g @tuuject/surowan-utils@canary    # main 每次 push 的 canary
 pnpm cli:build                         # 等价 pnpm --filter @tuuject/surowan-utils build，输出 packages/cli/dist
 pnpm cli:check                         # 对 packages/cli 做 TypeScript 检查（不产出 JS）
 pnpm --filter @tuuject/surowan-utils pack --pack-destination "$PWD/dist/npm"   # prepack 先构建，tarball 含 dist 与 README
-npm install -g ./dist/npm/tuuject-surowan-utils-0.1.0.tgz                      # 文件名以实际输出为准
+npm install -g ./dist/npm/tuuject-surowan-utils-<version>.tgz                      # 文件名以实际输出为准
 ```
 
 ```bash
@@ -259,9 +261,9 @@ node src/cli.ts backup --config dev-data/config.jsonc
 
 镜像结构（`Dockerfile`，builder 与 runtime 均为 `node:24-bookworm-slim` 两阶段）：
 
-- builder 阶段 `pnpm install --frozen-lockfile` → `pnpm run admin:build` → 再以 `pnpm install --prod --frozen-lockfile` 剪掉 devDependencies。
+- builder 阶段 `pnpm install --frozen-lockfile` → `pnpm run admin:build` 与 `pnpm --filter @plasticwan/image-service build` → 再以 `pnpm install --prod --frozen-lockfile --ignore-scripts` 剪掉 devDependencies（`--ignore-scripts` 跳过 image-service 依赖 tsc 的 prepare，所以它的 `dist/` 必须先单独构建）。
 - runtime 阶段用 apt 装 `ffmpeg`（含 `ffprobe`）、`python3` 与 `gosu`，再 pip 装 `lottie`；因此**不需要**在宿主机准备任何媒体依赖。
-- 只复制 `src/`、`node_modules/`、`apps/admin-next/dist/`、`apps/admin-next/LICENSE`、`apps/admin-next/NOTICE` 和 `package.json`。`test/`、`agent-doc/`、`dev-data/` 被 `.dockerignore` 排除，镜像里没有这些目录。
+- 只复制 `src/`、`node_modules/`、`packages/image-service/` 的 `package.json`、`dist/` 与 `node_modules/`（经 workspace 符号链接解析）、`apps/admin-next/dist/`、`apps/admin-next/LICENSE`、`apps/admin-next/NOTICE` 和 `package.json`。`test/`、`agent-doc/`、`dev-data/` 被 `.dockerignore` 排除，镜像里没有这些目录。
 - Admin 前端已经构建进 `/app/apps/admin-next/dist`，与 `static_dir` 默认值一致，无需额外配置。前端模板许可（MIT，© Kiranism）随 `LICENSE` 保留，字体（@fontsource，SIL OFL 1.1）说明在 `NOTICE`。
 - CI（`.github/workflows/docker.yml`）在构建镜像前先跑 `verify` job：`pnpm install --frozen-lockfile` → `pnpm run lint` → `pnpm run check` → `pnpm test` → `pnpm run admin:build` → `pnpm --filter plasticwan-admin-next exec playwright install --with-deps chromium` → `pnpm run admin:test:e2e`，通过后 `build` job 才推送 `linux/amd64` 与 `linux/arm64`。
 
@@ -301,7 +303,7 @@ docker compose logs -f          # 确认 serve_started 与 config_hash
 `docker-entrypoint.sh` 以 root 启动，做三件事后才降权：
 
 1. 按 `PUID`/`PGID`（默认 `1000`）重映射容器内 `plasticwan` 用户，避免 bind mount 的属主冲突。
-2. `chown -R` 挂载卷，并把 `/config`、`/data` 设为 `0700`、`/config/config.jsonc` 与 `/config/key.json` 设为 `0600` —— 这是为了满足 `assertConfigPermissions` 与 key jar 的权限检查，宿主机上不必手动 chmod。
+2. `chown -R` 挂载卷，并把 `/config`、`/data` 设为 `0700`、`/config/config.jsonc` 与 `/config/key.json` 设为 `0600` —— 这是为了满足 `assertConfigPermissions`（配置文件与其父目录）、key jar（`key.json`）与 `doctor` 对 `data_dir` 的权限检查，宿主机上不必手动 chmod。
 3. `exec gosu plasticwan node /app/src/cli.ts "$@"`。
 
 因为最后一步把参数原样传给 CLI，其它子命令都能用同一镜像跑：

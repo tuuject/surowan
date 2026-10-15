@@ -34,7 +34,7 @@ plasticwan/
 │   ├── plugins/            # 内置 Agent 插件：plugin（definePlugin/loadPlugins）、builtin 清单、web-fetch/、image/、alarm/、dictionary/
 │   ├── capabilities/       # send-tool、read-tool、execute-tool、mcp、stickers、media/
 │   ├── context/            # context-builder、context-store、context-refs、context-gc、context-codec、context-injector、memory
-│   ├── store/              # database、schema、migrations/、long-tasks、invocation-snapshot、sleep、participation、admins
+│   ├── store/              # BusinessStore 契约、schema、migrations/、long-tasks、invocation-snapshot、sleep、participation
 │   ├── platform/           # config、secrets、providers、system-resources 等无业务依赖模块
 │   └── system-resources/   # 随 runtime 发布的 system:/// 只读资源树（System Skills）
 ├── test/                   # vitest 行为测试与 MCP fixture
@@ -139,7 +139,7 @@ pnpm run docs:preview
 - TypeScript ESM，运行时为 Node.js ≥24（type stripping 直接执行 `.ts`）；本地源码导入保留 `.ts` 后缀。
 - 源码必须是 Node type stripping 可擦除语法：禁 `enum`、`namespace`、构造器参数属性（`constructor(private x: T)`）与 `import x = require()`。`tsconfig.json` 的 `erasableSyntaxOnly` + `module: "nodenext"` 让 `pnpm check` 在评审时强制这条；Node type stripping 本身不读 tsconfig，只认可擦除语法。
 - 只用 Node.js 运行时 API；目录定位用 `import.meta.dirname`。
-- 2 空格缩进、分号、双引号、尾随逗号；沿用现有文件格式。
+- 2 空格缩进、分号、单引号、尾随逗号（`biome.json` 的 formatter 配置为准）；沿用现有文件格式。
 - `strict`、`noUncheckedIndexedAccess`、`exactOptionalPropertyTypes`、`noImplicitReturns` 必须保持通过。
 - `pnpm run lint` 需要保持通过，如果存在问题需要先使用 `pnpm run lint:fix` 进行自动修复，如果无法自动修复需要尝试进行手动修改。
 - 配置和外部响应在边界处使用 TypeBox 校验；不要把未经校验的 `unknown` 转成业务类型。

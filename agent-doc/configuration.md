@@ -15,7 +15,7 @@ Plastic Wan 使用严格 JSONC 配置。Schema 位于 `src/platform/config.ts`�
 - 相对 `data_dir`/`paths` 按服务当前工作目录解释；Docker 镜像的工作目录是 `/app`。
 - Prompt 文件路径（`system_prompt_file`、`instructions_file`）相对于配置文件所在目录解释；修改文件内容同样会改变 `config_hash`。
 - Prompt 文件按原始字节参与哈希：剔除 HTML 注释只影响进入模型上下文的文本，纯注释改动仍然改变 `config_hash`。
-- 非 Windows 系统要求配置文件 `0600`、父目录 `0700`。
+- 非 Windows 系统上 `serve`、`doctor`、`admin-reset` 与所有配置写入都要求配置文件 `0600`、父目录 `0700`；`check-config` 只做 Schema、语义与引用校验，不检查权限。
 
 验证命令：
 
@@ -34,7 +34,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 | `agent.provider`、`agent.model` | 永远热更新：目标 Provider 可以是同一次修改里新增的，reload 会重建模型注册表并随配置一起发布 |
 | `agent.system_prompt_file` | 路径或文件内容变化都算；内容变化会重建每个 Conversation 的 Context；可在面板编辑并保留版本历史 |
 | `developer`、`developer.record_model_payloads` | 可选节/字段的增删都热应用，缺省为 `false`；每次模型调用读取当前开关，关闭时后续快照回调停止写入 |
-| 其余 agent 字段：`thinking_level`、`context_stop_ratio`、`send_max_text_length`、`send_disallow_blank_lines`、`send_nudge_enabled`、`send_barrier_enabled`、`allow_reply_message_multiple_times`、`daily_budget.max_tokens`、`max_concurrency`、`history_messages`、`context.max_wall_clock_seconds`、`context.idle_grace_seconds`、`rate_limits.*` | 下一次 Invocation 使用新值；运行中的 Invocation 继续用它启动时的快照。唯一例外是 `daily_budget.max_tokens`：日预算在运行期实时读取，调低后下一次模型调用立即被拦截 |
+| 以下 agent 字段（未列出的 agent 字段，如 `memory_ttl_warning_days` 与其余 `agent.context.*`，需要重启）：`thinking_level`、`context_stop_ratio`、`send_max_text_length`、`send_disallow_blank_lines`、`send_nudge_enabled`、`send_barrier_enabled`、`allow_reply_message_multiple_times`、`daily_budget.max_tokens`、`max_concurrency`、`history_messages`、`context.max_wall_clock_seconds`、`context.idle_grace_seconds`、`rate_limits.*` | 下一次 Invocation 使用新值；运行中的 Invocation 继续用它启动时的快照。唯一例外是 `daily_budget.max_tokens`：日预算在运行期实时读取，调低后下一次模型调用立即被拦截 |
 | `telegram.chats`（**新增** Chat，整项 `{ id, … }`） | 立即生效：ingestion 白名单、参与策略注册表与 `resolveChatConfig` 都读发布后的配置并按代数重建/直读，无需重启。删除 Chat、已有 Chat 的其它字段修改与 Topic 范围仍是 restart |
 | `telegram.chats[<id>].instructions_file` | 仅限两边都存在的 Chat；路径或内容变化都算；可在面板编辑并保留版本历史（Chat 尚无该字段时由面板创建） |
 | `telegram.chats[<id>].provider` / `.model` / `.thinking_level` | 仅限两边都存在的 Chat 的按群模型覆盖（语义与校验见「Telegram Chat 与 Topic」）；删除 Chat 仍是 restart |
@@ -64,9 +64,9 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 - 两层 Prompt（`agent.system_prompt_file` 与 `instructions_file`）可在 Admin Panel 的 Prompts 端点编辑：保存写 Prompt 文件（去 HTML 注释后的正文）、记录一个版本，再走上述同一套热应用，**下一次**开始的 Invocation 使用新内容；运行中的 Invocation 继续用启动时的快照，要立刻停掉仍按旧 Prompt 运行的那些需在面板显式取消（见 [admin-panel.md](admin-panel.md#prompts-页端点)）。手改 Prompt 文件不会立即产生版本：启动加载与每一次成功应用会把文件当时的内容记成 `external` 版本（去 HTML 注释后与上一条版本相同则不记录），因此改完必须显式应用才进历史。Prompt 写端点的 `If-Match` 是去 HTML 注释后内容的 SHA-256（即 Prompt 视图的 `content_hash`），不是 `config.jsonc` revision——config revision 按设计不含 Prompt 文件。
 - 每次成功应用输出 `config_reloaded` 日志事件，带 `generation`、`active_hash`、`file_hash`、`applied`、`restart_required`、`outside_serve`；失败输出 `config_reload_failed`（`code` 与脱敏后的 `error`）。失败时 active 配置与注册表都不变，错误记录在 `ConfigReloader.status().lastError`；`code` 为 `config_invalid`、`candidate_invalid`、`model_unusable`（注册模型缺失或不可用，含 vision 输出上限越界、MCP/Tool 注册表容量不足）或 `secret_unresolved`（新增或连接字段变化的 Provider 无法解析 SecretRef）。全局默认与每个 Chat 的生效组合都须通过校验；删除仍被引用的模型会在文件或 candidate 校验阶段被拒绝，任一失败都不会部分发布。
 - `/model` 在写入文件之前就被拒绝时（模型不存在、不可用，或文件无法写入），没有发生 reload：只输出 `model_switch_failed` 日志并把错误返回给调用方，不改变 `lastError`。写入之后应用失败才按上一条处理。
-- 没有任何待重启字段时 `active_hash` 等于文件哈希，可以直接与 `check-config` 的输出比对。只改注释或格式、或者把待重启字段改回原值后应用，都会发布一次内容相同的配置，让 `active_hash` 跟上新的文件哈希。有待重启字段时，`active_hash` 是 candidate RawConfig 的 JSON 序列化的 SHA-256；只有 restart 字段变化时它保持不变。
+- 没有任何待重启字段时 `active_hash` 等于文件哈希，可以直接与 `check-config` 的输出比对。只改注释或格式、或者把待重启字段改回原值后应用，都会发布一次内容相同的配置，让 `active_hash` 跟上新的文件哈希。有待重启字段时，`active_hash` 是 candidate RawConfig 的 JSON 序列化的 SHA-256；若本次应用没有任何热字段变化（只改注释、只有 restart 字段变化），它保持不变，不会跟上文件哈希。
 - 写入配置文件（如 `/model`、`/ignoreme`、`/unignoreme`）由 `src/adapters/local-monolith/config-file.ts` 的 `writeConfigEdits` 完成：只替换 JSONC 的值，保留注释与格式；先写同目录临时文件并完整校验，再 rename 覆盖，因此读者只会看到旧文件或完整合法的新文件。配置文件是符号链接时拒绝写入（`config_symlink`）。带 Secret 的写入（`src/platform/config-write.ts` 的 `secretEdit`）把明文写进 key jar，文件里只留条目名，见 [SecretRef](#secretref)。
-- Admin「Chats」管理 Chat/Topic 白名单与按 Chat 的模型覆盖：列表分别显示磁盘 Saved settings 与进程 Running settings。新增/删除 Chat 和 Topic 范围修改保存后等待重启，已有 active Chat 的模型/thinking 覆盖热应用；删除不会清除消息、Context 或审计历史，最后一个配置 Chat 不允许删除。编辑只更新这四项管理字段，不覆盖 `instructions_file`、参与策略等其它设置。
+- Admin「Chats」管理 Chat/Topic 白名单与按 Chat 的模型覆盖：列表分别显示磁盘 Saved settings 与进程 Running settings。新增 Chat 保存后立即热应用；删除 Chat 和 Topic 范围修改保存后等待重启，已有 active Chat 的模型/thinking 覆盖热应用；删除不会清除消息、Context 或审计历史，最后一个配置 Chat 不允许删除。编辑只更新这四项管理字段，不覆盖 `instructions_file`、参与策略等其它设置。
 - 端点、状态码与响应体见 [admin-panel.md](admin-panel.md#api)。
 
 ## SecretRef
@@ -104,7 +104,7 @@ command SecretRef：
 
 `.env` / `.env.local` 加载：
 
-- 所有 CLI 子命令（`serve`/`check-config`/`doctor`/`backup`/`configure`）启动时用 dotenv 加载当前工作目录下的 `.env.local` 与 `.env`；文件缺失时静默跳过。
+- 所有 CLI 子命令（`serve`/`check-config`/`doctor`/`backup`/`configure`/`admin-reset`）启动时用 dotenv 加载当前工作目录下的 `.env.local` 与 `.env`；文件缺失时静默跳过。
 - 只按 CWD 解析，不向上递归查找目录。
 - 优先级：真实环境变量 > `.env.local` > `.env`；compose `environment:`/`env_file:` 等方式注入的值不会被覆盖。
 - 两份文件均已被 `.gitignore` 排除，用于本地开发便利；生产部署仍应使用环境注入。
@@ -127,6 +127,8 @@ command SecretRef：
 | `mcp` | 可选的 stdio/Streamable HTTP Server |
 | `admin` | 可选的 Admin Panel（审计只读 + 受控管理写端点） |
 | `developer` | 可选的开发者调试配置；`record_model_payloads` 缺省为 `false` |
+| `image` | 可选的图片生成，见 [Image 生成](#image-生成) |
+| `web_fetch` | 可选的 `web_fetch` 设置，见 [web_fetch](#web_fetch) |
 | `retention` | 在线保留天数与备份份数 |
 | `paths` | SQLite、媒体缓存和备份目录 |
 
@@ -268,7 +270,7 @@ participation 放行 = 未配置 participation || 处于活跃时段 || 更新�
 }
 ```
 
-`provider` 是 Pi 的供应商 id，必须同时满足：目录非空、目录内 API 唯一且属于受支持的四类、`baseUrl` 有具体取值、带 `auth.apiKey`。不满足时 `check-config` 直接拒绝（`mistral`、`xai`、`google-vertex`、`cloudflare-workers-ai` 等都不满足）。builtin 的 `api` 由 Pi 目录推导，`base_url` 取自 Pi，两者都不写进配置。
+`provider` 是 Pi 的供应商 id，必须同时满足：目录非空、目录内至少有一个模型的 API 属于受支持的四类（混合目录可用）、`baseUrl` 有具体取值、带 `auth.apiKey`。不满足时 `check-config` 直接拒绝（`mistral`、`google-vertex`、`cloudflare-workers-ai` 等都不满足）。builtin 的 `api` 由 Pi 目录推导，`base_url` 取自 Pi，两者都不写进配置。
 
 自定义 Provider 必须显式声明 API 兼容层和模型元数据：
 
@@ -565,7 +567,7 @@ Developer 页使用可选的 `developer.record_model_payloads`（boolean，缺�
 - `enabled = false` 或省略整个 section 时 `serve` 不监听任何 HTTP 端口。
 - `host` 是任意非空字符串，不做回环限制；绑定非回环地址（如 `0.0.0.0`）会把面板暴露给所在网络，TLS 与访问控制由运维负责。推荐保持回环并经反向代理对外。
 - `session_ttl_hours` 同时决定 Session 过期与 Cookie `Max-Age`。
-- `static_dir` 可选，默认 `apps/admin-next/dist`（相对仓库根解释）；目录缺失时审计 API 仍可用，静态路由返回 503 `admin_bundle_missing`。
+- `static_dir` 可选，缺省时按源码位置推导为仓库内的 `apps/admin-next/dist`；显式写相对路径时按进程当前工作目录解释；目录缺失时审计 API 仍可用，静态路由返回 503 `admin_bundle_missing`。
 - `public_url` 可选，**显式配置才启用 Passkey**：未配置时 `/api/auth/passkeys/*` 与 `DELETE /api/auth/password` 返回 404 `passkeys_disabled`，登录页与 Settings 页不显示 Passkey 入口。值必须是**规范 HTTPS origin**：无用户名/密码、路径（仅 `/`）与查询/fragment，可带一个尾部 `/`；仅开发场景允许 `http://localhost`；IPv4/IPv6 字面量不能作为 WebAuthn RP，HTTP 与 HTTPS 下均拒绝（校验在 `adminPublicOrigin`，`src/platform/config.ts`）。属于 `admin.*`，改动需重启。启用后：WebAuthn 只认配置的精确 origin，RP 是 origin 的 hostname（换域名后旧 key 失效）；Admin **全部写端点**的 Origin 校验从「与 Host 匹配」收紧为「与 public origin 全等」。语义与端点见 [admin-panel.md](admin-panel.md#passkey-登录与凭据)。
 
 详细认证、API 与前端约定见 [admin-panel.md](admin-panel.md)。

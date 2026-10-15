@@ -1,6 +1,6 @@
 # Admin Panel
 
-Admin Panel 是随 `serve` 启动的本地审计与管理界面，覆盖 Tool Session（Invocation）、收到的 Telegram 消息、媒体视觉分析、已配置 Sticker Set 的可搜索索引、Agent 短期记忆（`memories`）、Alarm（通用长程任务的闹钟投影）以及两层可编辑 Prompt 的版本历史（`prompt_versions`）。后端在 `src/ingress/admin/`，前端在 `apps/admin-next/`（Rsbuild + React + Tailwind 4 + shadcn/Base UI + TanStack Query + TanStack Router），构建产物是**纯静态 SPA**，由 `AdminServer` 同源托管，不依赖任何 Node/Nitro 运行时。
+Admin Panel 是随 `serve` 启动的本地审计与管理界面，覆盖 Tool Session（Invocation）、收到的 Telegram 消息、媒体视觉分析、已配置 Sticker Set 的可搜索索引、Agent 短期记忆（`memories`）、Alarm（通用长程任务的闹钟投影）以及两层可编辑 Prompt 的版本历史（`prompt_versions`）。后端路由分发在 `src/ingress/admin/server.ts`，各页处理器在 `src/ingress/admin/`，插件自有页面（辞典、Alarm）的处理器在 `src/plugins/*/admin.ts`；前端在 `apps/admin-next/`（Rsbuild + React + Tailwind 4 + shadcn/Base UI + TanStack Query + TanStack Router），构建产物是**纯静态 SPA**，由 `AdminServer` 同源托管，不依赖任何 Node/Nitro 运行时。
 
 审计查询只读；Developer 调试配置与历史报文清除、记忆管理、Bot 管理员列表管理、Chat/Topic 白名单与按群模型管理（Chats 页）、模型与 Provider 管理（Models 页）、两层可编辑 Prompt 的编辑与版本管理（全局人格与按群指令：版本历史、恢复，以及只取消仍按旧 Prompt 运行的 Invocation）、配置文件应用、立即重启、解除睡眠、取消挂起会话与取消 pending Alarm 是受控的控制端点。管理员可以增删改查记忆、按群聊过滤，并对长 TTL 记忆做人工判断（保留 / 删除 / 提升进 `agents.md`），也可以指派/移除能执行 `/pause`、`/resume`、`/cut_topic` 等 Bot 管理员命令的 Telegram 用户（写回 `telegram.admins` 并热应用），在 Models 页维护 Provider 与模型列表（写回 `config.jsonc` 并重新加载）、切换全局 agent 与 vision 模型并设置全局 thinking 级别（Models 页端点仍是全局语义）；在 Chats 页增删 Chat、编辑 Topic 白名单与 Chat 范围的模型/thinking 覆盖（同群所有 Topic 共用，支持恢复继承全局），唤醒/取消挂起会话，取消尚未触发的 Alarm，把配置文件中的热更新白名单字段应用到运行中的进程，或在有待重启字段时直接重启 `serve`。写入只发生在 [API](#api) 白名单里的端点。配置修改经 `writeConfigEdits` 校验并原子写入后，再由 `ConfigReloader` 尝试应用；应用失败时文件保留已写入内容，运行中的配置不变。
 
@@ -8,7 +8,7 @@ Admin Panel 是随 `serve` 启动的本地审计与管理界面，覆盖 Tool Se
 
 ## 生命周期
 
-`src/application.ts` 在 Scheduler 启动后、Telegram long polling 之前创建 `AdminServer`，日志输出：
+`src/adapters/local-monolith/runtime-host.ts` 在 Scheduler 启动后、Telegram long polling 之前创建 `AdminServer`，日志输出：
 
 ```json
 {"event":"admin_started","host":"127.0.0.1","port":8787,"at":"..."}
@@ -114,13 +114,14 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 | `POST /cancel-ongoing-sessions` | 中断所有 running Invocation（经 Scheduler abort），同时 abort queued Invocation、过期 `collecting`/`queued` Bucket 与已 attach 未注入的 Bucket，被中断的运行不会把批次重新排队；已发出的 Telegram 消息不撤回 |
 | `POST` / `PUT` / `DELETE /memories[/:id]` | 创建时若 `(chat_id, message_thread_id)` 的 Conversation 不存在会自动建；`PUT` 至少要提供 `content` 或 `ttl_seconds` 之一 |
 | `POST` / `DELETE /admins[/:id]` | 增删 `telegram.admins` 白名单并热应用；`:id` 是 Telegram 用户 ID 不是行 ID；添加幂等，删除不存在的 ID 返回 404 `not_found`；If-Match revision 规则同其它配置写端点 |
-| `PUT /model` | 切换全局 agent 模型：把 `agent.provider` / `agent.model` 写入 `config.jsonc`，同时把 `agent.thinking_level` 重置为新模型接受的最弱级别，然后重新加载，重启后仍然生效，只影响后续 Invocation。该端点仍是**全局**语义：只写 `agent.*`，不改动任何 `telegram.chats[]` 的按群覆盖（每群覆盖通过 Chats 页、配置文件或 Telegram `/model` 维护）。响应的 `current.thinking_level` 是重置后的级别。必须带 `If-Match`（revision 来自 `GET /providers`），缺失返回 400 `revision_required`，过期返回 409 `config_conflict`。未知 provider/model、模型无 text 能力或模型不可用返回 400（`unknown_provider`/`unknown_model`/`not_text_capable`/`model_unusable`），新增或连接字段变化的 Provider 无法解析 SecretRef 返回 422 `secret_unresolved`，其它失败（配置权限、文件校验、candidate 校验等）返回 409；body 为 `{ error, message }`，文件已写入但应用失败时 message 以 `config.jsonc was updated but not applied: ` 开头。`GET /model` 与 `DELETE /model` 已删除，落到 405 `method_not_allowed` |
+| `PUT /model` | 切换全局 agent 模型：把 `agent.provider` / `agent.model` 写入 `config.jsonc`，同时把 `agent.thinking_level` 重置为新模型接受的最弱级别，然后重新加载，重启后仍然生效，只影响后续 Invocation。该端点仍是**全局**语义：只写 `agent.*`，不改动任何 `telegram.chats[]` 的按群覆盖（每群覆盖通过 Chats 页、配置文件或 Telegram `/model` 维护）。响应的 `current.thinking_level` 是重置后的级别。必须带 `If-Match`（revision 来自 `GET /providers`），缺失返回 400 `revision_required`，过期返回 409 `config_conflict`。未知 provider/model、模型无 text 能力或模型不可用返回 400（`unknown_provider`/`unknown_model`/`not_text_capable`/`model_unusable`），新增或连接字段变化的 Provider 无法解析 SecretRef 返回 422 `secret_unresolved`，其它失败（配置权限、文件校验、candidate 校验等）返回 409；body 为 `{ error, message }`，文件已写入但应用失败时 message 以 `config.jsonc was updated but not applied: ` 开头。`GET /model` 与 `DELETE /model` 已删除：`GET` 落到审计分支返回 404 `not_found`，`DELETE` 返回 405 `method_not_allowed` |
 | `POST /chats` / `PUT /chats/:id` / `DELETE /chats/:id` | Chat/Topic 白名单与按 Chat 的模型/thinking 覆盖，见「Chats 页端点」；新增 Chat 热应用，删除与 Topic 范围等待重启，已有 active Chat 的模型覆盖热应用，删除不清除历史 |
 | `POST` / `PUT` / `DELETE /providers[...]` | Provider 与模型管理及 `POST /providers/health-check` 模型诊断，见「Models 页写端点」 |
 | `PUT /thinking-level` | body `{ thinking_level }`，设置全局 `agent.thinking_level`，热应用，响应同「Models 页写端点」。只写全局默认并保留 Chat 覆盖：有 `thinking_level` 覆盖的 Chat 保持自己的值；没有覆盖的 Chat 继承新值，若与文件中该 Chat 选用的模型不兼容则在写入前返回 422 `config_invalid`。覆盖可经 Chats 页或配置文件调整，也可用 Telegram `/model default` 连同模型覆盖一起清除。取值不是 Pi 级别返回 400 `invalid_body`；文件里的 agent 模型不接受该级别返回 422 `unsupported_thinking_level`，message 列出可选级别（规则见 [configuration.md](configuration.md#模型-thinking-级别)）；`If-Match` 规则同其它写端点 |
 | `PUT /vision` | 切换 vision 模型。写入前预检：模型在文件的该 Provider 下存在、支持 image 输入、且 `vision.max_output_tokens ≤ 该模型的 max_tokens`，不满足返回 400（`unknown_provider`/`unknown_model`/`not_image_capable`/`max_output_tokens_exceeded`）。`vision.provider`、`vision.model` 与 `vision.max_output_tokens` 热应用：下一次 vision 分析就用新模型，旧模型写的 `media_analyses` 行不会被命中；`vision` 的其它字段仍是 restart 字段 |
 | `POST /image/prompts` / `PUT` / `DELETE /image/prompts/:id` | 生图 Prompt 素材管理（创建/更新/归档）；归档的素材读取返回 404 |
 | `POST /image/images` / `PUT` / `DELETE /image/images/:id` | 参考图上传（base64，≤20 MB 原始体积）/ 元数据编辑 / 归档；`GET /image/images/:id/content` 返回二进制（带认证） |
+| `POST /image/generations/resolve` | 只读：按当前图片配置把生成请求 body 解析成快照返回（预检），不创建任何记录、不提交生成 |
 | `POST /image/generations` / `POST /image/generations/:id/retry` | 以 `admin:<username>` actor 提交生成（body 含 `idempotency_key`，同键同内容重放不重新计费，同键不同内容 409）或重试已有 generation |
 | `PUT /image/config` | 图片功能启停与模型/凭据配置，`If-Match` revision 规则同其它配置写端点。`enabled: true` 时 body 必须带 `credentials`（名称 → 新明文；空对象保留已有 SecretRef，明文写入 key jar，`config.jsonc` 只保留 `{jar}` 引用）与 `models` 数组；可带 `credential_sources`（图片凭据名称 → 已配置的内置 OpenRouter Provider alias，服务端复用其 SecretRef，不返回密钥）。重复模型 ID 或缺失凭据引用在写入前拒绝（结构按 image 段 schema 校验，不合法返回 400 `invalid_body`）；`enabled: false` 删除整个 `image` 段并回收不再被引用的 jar 条目。写入经 reloader 原子应用，无需重启；响应 `{ enabled, apply }` |
 | `POST /restart` | 界面上的 “Restart now”。部署方未声明 `PLASTICWAN_SUPERVISED=1` 时返回 409 `restart_unsupported`；磁盘配置权限或内容校验失败时返回 422 `config_invalid` 且不退出；成功返回 202 `{ status: 'restarting' }`，随后走优雅关闭并以退出码 75（`EX_TEMPFAIL`）退出，由外部监督重新拉起 |
@@ -274,7 +275,7 @@ Manage → Developer 独立管理调试选项。`GET /developer` 返回 `revisio
 - 路径解析后必须仍在 `static_dir` 内，否则 404，避免穿越。
 - 命中文件按扩展名设置 Content-Type，非 HTML 资源 `max-age=3600`。
 - 未命中时回退 `index.html`，支持前端路由深链接。
-- 所有响应带 `X-Content-Type-Options`、`Referrer-Policy`、`X-Frame-Options: DENY`；HTML 额外带 CSP（`default-src 'none'`，脚本仅 `'self'`）。
+- 所有响应带 `X-Content-Type-Options`、`Referrer-Policy`、`X-Frame-Options: DENY`；静态资源响应（含 HTML、JS、CSS）额外带 CSP（`default-src 'none'`，脚本仅 `'self'`），API JSON 响应不带 CSP。
 
 ## 前端
 
@@ -343,7 +344,7 @@ Messages 列表与消息详情的 Revision 在发送者姓名旁显示可复制�
 
 Bot 管理员白名单不再是数据库表：迁移 `src/store/migrations/026_drop_bot_admins.sql` 删除了旧表 `bot_admins`（迁移 `008` 引入），唯一事实源是配置文件里的 `telegram.admins`，旧表内容用 `scripts/migrate-admins.ts` 搬迁。Admin Panel「Bot admins」页面经配置写端点增删该列表并热应用。Bot 管理员决定谁能执行 `/pause`、`/resume`、`/model` 与 `/cut_topic`，与面板登录账号无关。
 
-迁移 `src/store/migrations/034_dictionary.sql` 建立 `dictionary_entries`（辞典词条）并把 `model_calls` 的 `role` 约束扩展为包含 `tool`（Tool Model 辅助调用）。表结构、索引与作用域约束见 [data-layer.md](data-layer.md#dictionary_entries)；注入与工具边界见 [dictionary.md](dictionary.md)。
+迁移 `src/store/migrations/034_dictionary.sql` 建立 `dictionary_entries`（辞典词条）并把 `model_calls` 的 `role` 约束扩展为包含 `tool`（Tool Model 辅助调用）。表结构、索引与作用域约束见 [data-layer.md](data-layer.md#dictionary_entries迁移-034)；注入与工具边界见 [dictionary.md](dictionary.md)。
 
 ## 验证
 

@@ -82,30 +82,31 @@ Admin 的 Invocation 重放是新的内存 Agent 循环，不是生产 Conversat
 
 ## 模块职责
 
-代码按层组织，依赖只允许自上而下：`ingress/` → `orchestration/` → `capabilities/` → `context/` → `store/` → `platform/`；`plugins/` 只被组合根引用，可依赖 `capabilities/` 及以下各层；组合根（`application.ts`、`cli.ts`、`doctor.ts`、`startup-catch-up.ts`、`tui/`）位于 `src` 根，可以引用所有层。
+代码按层组织，依赖只允许自上而下：`ingress/` → `orchestration/` → `capabilities/` → `context/` → `store/` → `platform/`；`plugins/` 只被组合根引用，可依赖 `capabilities/` 及以下各层；宿主适配层 `adapters/local-monolith/`（`runtime-host.ts` 是 `serve` 的组合根）与 `src` 根的宿主入口（`cli.ts`、`doctor.ts`、`startup-catch-up.ts`、`tui/`）可以引用所有层；业务层不反向导入 adapter，例外见上方 [Runtime 与宿主边界](#runtime-与宿主边界)。
 
 | 层 | 职责 |
 | --- | --- |
-| 组合根（`src/` 根文件与 `tui/`） | 进程装配、CLI、诊断、启动追赶、配置向导 |
+| `adapters/local-monolith/` | 本地单体宿主：`runtime-host.ts` 进程装配、配置文件 I/O 与热重载、SQLite 连接/迁移/备份/ServeLock、`system:///` 目录加载 |
+| 宿主入口（`src/` 根文件与 `tui/`） | CLI、诊断、启动追赶、配置向导 |
 | `ingress/` | 外部输入边界：Telegram Update 入库、Admin Panel HTTP、认证与审计查询 |
 | `orchestration/` | Bucket → Invocation 状态转换、调度与并发、Agent 运行循环、Bot 命令 |
 | `plugins/` | 内置 Agent 插件：`definePlugin` 定义、`loadPlugins` 校验与装配、`builtin.ts` 清单；包含 `web-fetch`、`image`、`alarm` 与 `dictionary`。插件只获得 invocation scope、审计、宿主 `orm` 和绑定任务服务，不直接持有 Store 或 Runtime；还可声明 `contextInjectors` 为每批注入渲染 `<untrusted_…>` 块（首个使用者是辞典） |
 | `capabilities/` | 模型可调用的 Tool 与外部能力（原语、媒体、Sticker、MCP） |
 | `context/` | Conversation Context：canonical history 存储、GC、引用、编解码、模型输入组装、记忆与完成回执注入 |
-| `store/` | SQLite 连接、schema 与迁移、通用 `long-tasks` 服务及跨层共享的持久化状态 |
+| `store/` | `BusinessStore` 契约（ORM + IMMEDIATE transaction）、schema 与迁移 SQL、通用 `long-tasks` 服务及跨层共享的持久化状态；连接生命周期在 adapter |
 | `image/` | 图片生成核心的进程级装配：借出宿主 SQLite 连接、`<data_dir>/images` 文件存储与优雅停止；领域实现与领域测试在私有包 `packages/image-service`（provider adapter 边界见包内 `provider.ts`） |
 | `platform/` | 无业务依赖的基础模块：配置、Secret、Provider、并发、子进程、Prompt 模板等 |
 | `system-resources/` | 随 runtime 发布的 `system:///` 只读资源树（System Skills） |
 
 逐文件导航见 [AGENTS.md 的 Project Structure](../AGENTS.md#project-structure--module-organization)，本页不维护文件清单副本；模块职责基本能从层级和文件名推出，源码是唯一事实源。只有几处放置位置和名字不直观，需要单独记住：
 
-- `application.ts` 装配的 AgentRuntime 与 Scheduler 共享一个 `ConversationRuntime`；`orchestration/conversation-runtime.ts` 拥有 Agent 实例 LRU 缓存与「已 attach 待注入的 Bucket」队列，是 runtime 与调度之间的唯一握手点。
+- `orchestration/runtime.ts` 的 `createCoreRuntime` 装配的 AgentRuntime 与 Scheduler 共享一个 `ConversationRuntime`；`orchestration/conversation-runtime.ts` 拥有 Agent 实例 LRU 缓存与「已 attach 待注入的 Bucket」队列，是 runtime 与调度之间的唯一握手点。
 - `platform/agent-protocol.ts` 是代码固化的 **Core Agent Protocol**——消息分区、Tool 选择原则与副作用成功判定都在这里，不在人格 Prompt 文件里。它属于稳定段：改动它等于重建所有 Conversation Context。稳定段不写参与时机：是否发言由模型按当前批次自行判断；群聊的消息准入由运行期 participation 闸门决定（配置了才生效）。
-- [platform/system-resources.ts](../src/platform/system-resources.ts) 加载只读 **System Skills**；索引注入、按需读取和调用契约统一见 [Skills 与受控能力调用](telegram-agent-flow.md#skills-与受控能力调用)。Skill 提供操作知识而不授予权限，能力是否注册仍由组合根决定。
+- 只读 **System Skills** 的契约与 URI 解析在 [platform/system-resources.ts](../src/platform/system-resources.ts)，目录扫描与读取由 [adapters/local-monolith/system-resources.ts](../src/adapters/local-monolith/system-resources.ts) 的 `FileSystemResources` 承担；索引注入、按需读取和调用契约统一见 [Skills 与受控能力调用](telegram-agent-flow.md#skills-与受控能力调用)。Skill 提供操作知识而不授予权限，能力是否注册仍由组合根决定。
 - 不是所有 Agent Tool 都在 `capabilities/`：`zzz` 定义在 `store/sleep.ts`，`add_memory`/`delete_memory` 定义在 `context/memory.ts`，`web_fetch` 在 `plugins/web-fetch/`，Alarm 在 `plugins/alarm/`，辞典三件套在 `plugins/dictionary/`，各自与所属状态放在一起。找某个 Tool 的实现时按名字 grep，别只翻 `capabilities/`。
 - `store/long-tasks.ts` 持久化 plugin/Conversation 绑定的任务及唯一完成回执；timer 任务和外部 `complete`/`fail` 都写入同一套终态/receipt，未实现通用后台 executor、running/progress 或 retry。`store/invocation-snapshot.ts` 是 Invocation 消息快照的冻结边界；`orchestration/invocation-queue.ts` 负责 Bucket/receipt → Invocation 的同步状态转换、attach、恢复与 Startup Catch-up。这两个名字容易和 `scheduler.ts` 混淆——Scheduler 是唯一的 timer、回执投递、事件循环与并发驱动。
 - `platform/invocation-context.ts` 是无依赖的叶子类型模块，存在的唯一目的是打断 import 环，不要往里加逻辑；它同时定义 `CapabilityRefResolver`（引用解析边界）与 `InvocationContextState`（一次运行中可被新批次刷新的可变上下文）。
-- `platform/config-reload.ts` 的 `ConfigReloader` 是配置热更新的唯一入口：`reloadFromFile()`、`setAgentModel()`（全局默认）与 `setChatModel()`/`resetChatModel()`（单个 Chat 的模型覆盖写入与清除）把 `config.jsonc` 中白名单字段的变化发布到 `RuntimeConfigurationStore`（generation + 1），其余字段只报告为待重启。每次发布都带着这一代的模型注册表（`platform/providers.ts` 的 `buildModelRegistry`）：连接字段没变的 Provider 沿用进程里已有的对象，新增或连接变化的 Provider 重新解析 SecretRef，所以一次 reload 会重建注册表并把注册表与配置一起发布。白名单只定义在 `platform/config-diff.ts`；写配置文件走 `platform/config-file.ts`（保留注释，先写同目录临时文件并校验再 rename；带 Secret 的写入把明文放进同目录的 key jar `key.json`，见 `platform/key-jar.ts`）。语义见 [配置：运行时配置热更新](configuration.md#运行时配置热更新)。
+- `adapters/local-monolith/config-reload.ts` 的 `ConfigReloader` 是配置热更新的唯一入口：`reloadFromFile()`、`setAgentModel()`（全局默认）与 `setChatModel()`/`resetChatModel()`（单个 Chat 的模型覆盖写入与清除）把 `config.jsonc` 中白名单字段的变化发布到 `RuntimeConfigurationStore`（generation + 1），其余字段只报告为待重启。每次发布都带着这一代的模型注册表（`platform/providers.ts` 的 `buildModelRegistry`）：连接字段没变的 Provider 沿用进程里已有的对象，新增或连接变化的 Provider 重新解析 SecretRef，所以一次 reload 会重建注册表并把注册表与配置一起发布。白名单只定义在 `platform/config-diff.ts`；写配置文件走 `adapters/local-monolith/config-file.ts`（保留注释，先写同目录临时文件并校验再 rename；带 Secret 的写入把明文放进同目录的 key jar `key.json`，见 `platform/key-jar.ts`）。语义见 [配置：运行时配置热更新](configuration.md#运行时配置热更新)。
 
 ## 并发模型
 
