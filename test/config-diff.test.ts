@@ -552,3 +552,27 @@ test('chat override persists after an unrelated chat is removed (ID-based merge)
     -987654321, 123456789,
   ]);
 });
+
+test('participation schedules at both levels are hot, including their sub-fields', async () => {
+  const { active, file } = await loadBoth(
+    (config) => {
+      config.telegram.chats.push({ id: -100100, instructions_file: 'chat-instructions.md' });
+      config.telegram.participation = { active_windows: [{ start: '09:00', end: '18:00' }] };
+    },
+    (config) => {
+      config.telegram.participation = {
+        active_windows: [{ start: '10:00', end: '19:00', days: [1, 2, 3, 4, 5] }],
+        trigger_keywords: ['ping'],
+      };
+      config.telegram.chats[1]!.participation = { active_windows: [] };
+    },
+  );
+  const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
+  expect(paths(diff.changes, 'hot')).toEqual([
+    'telegram.chats[-100100].participation',
+    'telegram.participation.active_windows',
+    'telegram.participation.trigger_keywords',
+  ]);
+  expect(paths(diff.changes, 'restart')).toEqual([]);
+  expect(diff.candidate.file.telegram.chats[1]?.participation).toEqual({ active_windows: [] });
+});

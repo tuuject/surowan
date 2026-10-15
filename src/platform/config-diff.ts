@@ -85,11 +85,21 @@ const OUTSIDE_SERVE_PATHS: ReadonlySet<string> = new Set([
   'retention.backup_copies',
 ]);
 
+/** Chat IDs appear verbatim in change paths, including negative supergroup IDs. */
+const HOT_PARTICIPATION_PATHS = [/^telegram\.participation(\.|$)/, /^telegram\.chats\[-?\d+\]\.participation(\.|$)/];
+
 function classify(path: string): ConfigChangeKind {
   if (OUTSIDE_SERVE_PATHS.has(path)) {
     return 'outside_serve';
   }
   if (HOT_PATHS.has(path) || HOT_PREFIXES.some((prefix) => path.startsWith(prefix))) {
+    return 'hot';
+  }
+  // Participation schedules compile on demand from the published configuration
+  // (`ParticipationRegistry.ruleFor`), so a changed schedule takes effect with
+  // the next reload like a hot-added Chat. The object merges field by field,
+  // so every path inside either level counts.
+  if (HOT_PARTICIPATION_PATHS.some((pattern) => pattern.test(path))) {
     return 'hot';
   }
   return 'restart';

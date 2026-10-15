@@ -32,7 +32,7 @@ description: 让群聊只在指定时段或被 @、回复、关键词触发后�
 
 ## 为单个群覆盖
 
-将同名字段放入 `telegram.chats[]` 的 Chat 项（仍是局部片段）：
+将同名字段放入 `telegram.chats[]` 的 Chat 项（仍是局部片段），或在 Admin Panel 的 **Chats** 页用每行的时钟按钮编辑活跃时段（面板支持多个时间段与按星期生效，保存后立即应用）：
 
 ```jsonc
 {
@@ -62,7 +62,7 @@ Chat 的 `active_windows` 存在时整体替换全局时段；空数组表示没
 ## 让修改生效和验证
 
 1. 运行 `node src/cli.ts check-config --config <config.jsonc>`。
-2. participation 修改需要重启；它不在热更新白名单中。
+2. 通过 Admin Panel 保存或「Apply config file」应用修改——participation 属于热更新白名单，立即生效；时段按该 Chat 的 `timezone`（缺省全局时区）计算。
 3. 在群外时段发送普通消息，确认没有新 Invocation；随后 @ Bot、回复 Bot 或发送关键词，确认产生 Bucket。
 4. 在 Admin Panel 的 Tool sessions / Messages 查看 Invocation 和消息；命中时日志包含 `agent_attention_triggered` 及 `trigger_kind`。
 
