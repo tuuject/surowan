@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -14,6 +14,7 @@ import {
 import type { InvocationListItem } from '@/lib/api';
 import { formatCost, formatNumber, formatTime } from '@/lib/format';
 import { invocationsQuery } from '@/lib/queries';
+import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
 
 const INVOCATION_STATES = [
   'queued',
@@ -28,7 +29,9 @@ const INVOCATION_STATES = [
 export default function InvocationsPage(): React.ReactElement {
   const { t } = useTranslation();
   const [state, setState] = useState<string | undefined>(undefined);
-  const [chat, setChat] = useState<string | undefined>(undefined);
+  const chat = useChatScope();
+  const navigate = useNavigate({ from: '/invocations' });
+  const setChat = useChatScopeSetter(navigate);
   const filters = useMemo(() => ({ state, chat }), [state, chat]);
 
   const COLUMNS: readonly ColumnSpec<InvocationListItem>[] = [

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
 import type { TFunction } from 'i18next';
 import { AlertTriangle, Download, Info, Merge, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -50,6 +51,7 @@ import {
 } from '@/lib/dictionary.ts';
 import { formatTime } from '@/lib/format';
 import { dictionaryChatsQuery, dictionaryQuery } from '@/lib/queries.ts';
+import { useChatScope, useChatScopeSetter } from '@/lib/search-params.ts';
 
 const EMPTY_DRAFT: DictionaryDraft = {
   term: '',
@@ -77,8 +79,11 @@ export default function DictionaryPage(): React.ReactElement {
   const queryClient = useQueryClient();
   const chats = useQuery(dictionaryChatsQuery);
 
-  const [scope, setScope] = useState<DictionaryScope>('global');
-  const [chatId, setChatId] = useState<string | null>(null);
+  const chat = useChatScope();
+  const navigate = useNavigate({ from: '/dictionary' });
+  const setChat = useChatScopeSetter(navigate);
+  const scope: DictionaryScope = chat === undefined ? 'global' : 'group';
+  const chatId: string | null = chat ?? null;
   const [search, setSearch] = useState<string | undefined>(undefined);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 
@@ -94,7 +99,7 @@ export default function DictionaryPage(): React.ReactElement {
   const [exportOpen, setExportOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
 
-  const target = { scope, chat: scope === 'group' ? chatId : null };
+  const target = { scope, chat: chatId };
   const list = useQuery(dictionaryQuery(target, search ?? ''));
 
   const chatOptions = chats.data?.items ?? [];
@@ -299,15 +304,9 @@ export default function DictionaryPage(): React.ReactElement {
         <Panel title={t('dictionary.scope.label')} className="self-start">
           <div className="space-y-3">
             <Select
-              value={scope === 'global' ? '__global__' : (chatId ?? '__global__')}
+              value={chatId ?? '__global__'}
               onValueChange={(value) => {
-                if (value === '__global__') {
-                  setScope('global');
-                  setChatId(null);
-                } else {
-                  setScope('group');
-                  setChatId(value);
-                }
+                setChat(value === '__global__' ? undefined : value);
                 setSelected(new Set());
               }}
             >
@@ -328,13 +327,10 @@ export default function DictionaryPage(): React.ReactElement {
             {chats.isError ? (
               <p className="text-destructive text-sm break-words">{dictionaryErrorMessage(chats.error)}</p>
             ) : null}
-            {scope === 'group' && chatId === null ? (
-              <p className="text-muted-foreground text-sm">{t('dictionary.scope.selectChat')}</p>
-            ) : null}
           </div>
         </Panel>
 
-        <InjectionPanel chatId={scope === 'group' ? chatId : null} />
+        <InjectionPanel chatId={chatId} />
       </div>
 
       <FilterToolbar>
@@ -345,12 +341,7 @@ export default function DictionaryPage(): React.ReactElement {
           <Upload />
           {t('dictionary.page.import')}
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={scope === 'group' && chatId === null}
-          onClick={() => setExportOpen(true)}
-        >
+        <Button type="button" variant="outline" onClick={() => setExportOpen(true)}>
           <Download />
           {t('dictionary.page.export')}
         </Button>
@@ -574,18 +565,13 @@ export default function DictionaryPage(): React.ReactElement {
           onOpenChange={setImportOpen}
           chats={chatOptions}
           defaultScope={scope}
-          defaultChatId={scope === 'group' ? chatId : null}
+          defaultChatId={chatId}
           onImported={invalidate}
         />
       ) : null}
 
       {exportOpen ? (
-        <ExportDialog
-          open={exportOpen}
-          onOpenChange={setExportOpen}
-          scope={scope}
-          chatId={scope === 'group' ? chatId : null}
-        />
+        <ExportDialog open={exportOpen} onOpenChange={setExportOpen} scope={scope} chatId={chatId} />
       ) : null}
 
       {mergeOpen ? (
@@ -595,7 +581,7 @@ export default function DictionaryPage(): React.ReactElement {
           entries={selectedEntries}
           chats={chatOptions}
           defaultScope={scope}
-          defaultChatId={scope === 'group' ? chatId : null}
+          defaultChatId={chatId}
           onMerged={() => setSelected(new Set())}
         />
       ) : null}

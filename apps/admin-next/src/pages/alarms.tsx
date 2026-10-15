@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -21,6 +21,7 @@ import { type AlarmListItem, cancelAlarm } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { alarmsQuery } from '@/lib/queries';
+import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
 import { useTranslation } from 'react-i18next';
 
 const ALARM_STATES = ['pending', 'firing', 'fired', 'cancelled'] as const;
@@ -100,7 +101,9 @@ export default function AlarmsPage(): React.ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [state, setState] = useState<string | undefined>(undefined);
-  const [chat, setChat] = useState<string | undefined>(undefined);
+  const chat = useChatScope();
+  const navigate = useNavigate({ from: '/alarms' });
+  const setChat = useChatScopeSetter(navigate);
   const [target, setTarget] = useState<string | undefined>(undefined);
   const [cancelling, setCancelling] = useState<AlarmListItem | null>(null);
   const filters = useMemo(() => ({ state, chat, target }), [state, chat, target]);

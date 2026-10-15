@@ -286,3 +286,16 @@ test('mobile dark layout keeps the form and actions usable without page overflow
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
 });
+
+test('quick links open chat-scoped pages', async ({ page }) => {
+  await page.goto(await adminUrl('/chats'));
+  await chatRow(page).getByRole('button', { name: 'Open related pages' }).click();
+  await page.getByRole('menuitem', { name: 'Tool sessions' }).click();
+  await expect(page).toHaveURL(/\/invocations\?chat=123456789$/);
+  await expect(page.getByRole('combobox', { name: 'State' })).toBeVisible();
+  await page.goto(await adminUrl('/chats'));
+  await chatRow(page).getByRole('button', { name: 'Open related pages' }).click();
+  await page.getByRole('menuitem', { name: 'Prompts' }).click();
+  await expect(page).toHaveURL(/\/prompts\?chat=123456789$/);
+  await expect(page.getByRole('combobox', { name: 'Scope' })).toContainText('123456789');
+});

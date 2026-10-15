@@ -576,3 +576,14 @@ test.describe('dictionary merge', () => {
     }
   });
 });
+
+test.describe('dictionary chat deep link', () => {
+  test('the chat search param opens the group scope directly', async ({ page }) => {
+    await page.goto(await adminUrl(`/dictionary?chat=${CHAT_ID}`));
+    await expect(page.getByRole('combobox', { name: 'Dictionary scope' })).toContainText('Plastic Wan Test Group');
+    await page.getByRole('combobox', { name: 'Dictionary scope' }).click();
+    await page.getByRole('option', { name: 'Global dictionary' }).click();
+    await expect(page).toHaveURL(/\/dictionary$/);
+    await expect(page.getByRole('combobox', { name: 'Dictionary scope' })).toContainText('Global dictionary');
+  });
+});

@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -16,6 +16,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/u
 import type { MessageListItem } from '@/lib/api';
 import { formatNumber, formatTime } from '@/lib/format';
 import { messagesQuery } from '@/lib/queries';
+import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
 
 const ID_LINK =
   'decoration-border hover:decoration-foreground font-medium tabular-nums underline underline-offset-4 transition-colors';
@@ -38,7 +39,9 @@ function MessageCell({ row }: { readonly row: MessageListItem }): React.ReactEle
 export default function MessagesPage(): React.ReactElement {
   const { t } = useTranslation();
   const [search, setSearch] = useState<string | undefined>(undefined);
-  const [chat, setChat] = useState<string | undefined>(undefined);
+  const chat = useChatScope();
+  const navigate = useNavigate({ from: '/messages' });
+  const setChat = useChatScopeSetter(navigate);
   const filters = useMemo(() => ({ search, chat }), [search, chat]);
 
   const COLUMNS: readonly ColumnSpec<MessageListItem>[] = [

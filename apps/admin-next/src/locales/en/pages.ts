@@ -84,6 +84,7 @@ export const pages = {
   },
   chats: {
     allTopics: 'All topics',
+    quickLinks: 'Open related pages',
     defaultModel: 'Default model',
     chatOverride: 'Chat override',
     thinkingShort: 'thinking {{level}}',

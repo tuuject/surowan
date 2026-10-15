@@ -1,3 +1,4 @@
+import { useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Fragment, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -37,6 +38,7 @@ import {
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { chatsQuery, promptDiffQuery, promptDocumentQuery, promptVersionsQuery } from '@/lib/queries';
+import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
 import { cn } from '@/lib/utils';
 
 /** The same limit the API enforces on a version note. */
@@ -269,7 +271,10 @@ export default function PromptsPage(): React.ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const chats = useQuery(chatsQuery);
-  const [scopeValue, setScopeValue] = useState(GLOBAL_SCOPE_VALUE);
+  const chat = useChatScope();
+  const navigate = useNavigate({ from: '/prompts' });
+  const setChat = useChatScopeSetter(navigate);
+  const scopeValue = chat === undefined ? GLOBAL_SCOPE_VALUE : `${CHAT_SCOPE_PREFIX}${chat}`;
   const scope = scopeOfValue(scopeValue);
   const fileQuery = useQuery(promptDocumentQuery(scope));
   const versions = useQuery(promptVersionsQuery(scope));
@@ -358,7 +363,7 @@ export default function PromptsPage(): React.ReactElement {
     },
   });
   const changeScope = (value: string): void => {
-    setScopeValue(value);
+    setChat(value === GLOBAL_SCOPE_VALUE ? undefined : value.slice(CHAT_SCOPE_PREFIX.length));
     setNotice(null);
     setCancelTarget(null);
     setRestoreTarget(null);

@@ -178,3 +178,29 @@ test.describe('stickers list', () => {
     await expect(stickerRows(page)).toHaveCount(28);
   });
 });
+
+test.describe('chat scope deep links', () => {
+  test('chat search param filters the invocations list', async ({ page }) => {
+    await page.goto(await adminUrl('/invocations?chat=123456789'));
+    await expect(tableBodyRows(page).first()).toBeVisible();
+    await page.goto(await adminUrl('/invocations?chat=999999999'));
+    await expect(page.getByText('No records match the current filters.')).toBeVisible();
+  });
+
+  test('chat search param filters the messages list', async ({ page }) => {
+    await page.goto(await adminUrl('/messages?chat=999999999'));
+    await expect(page.getByText('No messages match the current filters.')).toBeVisible();
+  });
+
+  test('applying the chat filter writes the URL param and clearing removes it', async ({ page }) => {
+    await page.goto(await adminUrl('/invocations'));
+    const chatBox = page.getByRole('combobox', { name: 'Chat', exact: true });
+    await chatBox.fill('123456789');
+    await chatBox.press('Enter');
+    await expect(page).toHaveURL(/\?chat=123456789$/);
+    await expect(tableBodyRows(page).first()).toBeVisible();
+    await page.getByRole('button', { name: 'Clear chat filter' }).click();
+    await expect(page).toHaveURL(/\/invocations$/);
+    await expect(tableBodyRows(page).first()).toBeVisible();
+  });
+});
