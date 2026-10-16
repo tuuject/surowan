@@ -408,7 +408,11 @@ export function testTelegramHost(
  */
 export function testTelegramRuntime(
   transport: TelegramTransport,
-  options: { readonly scope?: ConversationScope; readonly sendRate?: ImSendRatePolicy; readonly now?: () => number } = {},
+  options: {
+    readonly scope?: ConversationScope;
+    readonly sendRate?: ImSendRatePolicy;
+    readonly now?: () => number;
+  } = {},
 ): { readonly host: TelegramHost; readonly conversation: AgentRuntimeOptions['conversation'] } {
   const scope = options.scope ?? 'private';
   return {
@@ -421,7 +425,11 @@ export function testTelegramRuntime(
 export function testSendToolEnv(
   transport: TelegramTransport,
   context: { readonly chatId: bigint; readonly threadId: bigint; readonly conversationId: bigint },
-  options: { readonly scope?: ConversationScope; readonly sendRate?: ImSendRatePolicy; readonly now?: () => number } = {},
+  options: {
+    readonly scope?: ConversationScope;
+    readonly sendRate?: ImSendRatePolicy;
+    readonly now?: () => number;
+  } = {},
 ): { readonly host: TelegramHost; readonly conversation: ImConversationRef } {
   const scope = options.scope ?? 'private';
   return {

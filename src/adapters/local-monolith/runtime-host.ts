@@ -25,11 +25,7 @@ import {
 import { ReplayError, ReplayRunner } from '../../orchestration/replay.ts';
 import type { BucketScheduler } from '../../orchestration/scheduler.ts';
 import { KeyedSemaphore } from '../../platform/concurrency.ts';
-import {
-  toChatId,
-  toConversationId,
-  type ImConversationRef,
-} from '../../platform/im-host.ts';
+import { toChatId, toConversationId, type ImConversationRef } from '../../platform/im-host.ts';
 import { assertConfigPermissions, loadConfig } from './config.ts';
 import { ConfigReloader } from './config-reload.ts';
 import { previewContext, unavailableCapabilities } from '../../platform/invocation-context.ts';

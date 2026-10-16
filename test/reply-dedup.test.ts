@@ -21,7 +21,18 @@ import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { buckets, invocationBuckets, invocations, hostSends, toolCalls } from '../src/store/schema.ts';
-import { fauxRegistry, invocationCapabilities, renderInvocationContext, testConfigJsonc, testConfigStore, testSendToolEnv, testTelegramRuntime, type TestContextOptions, type TestInvocationContext, writeTestConfig } from './helpers.ts';
+import {
+  fauxRegistry,
+  invocationCapabilities,
+  renderInvocationContext,
+  testConfigJsonc,
+  testConfigStore,
+  testSendToolEnv,
+  testTelegramRuntime,
+  type TestContextOptions,
+  type TestInvocationContext,
+  writeTestConfig,
+} from './helpers.ts';
 
 /**
  * Regression contract for default reply deduplication: one conversation may
@@ -135,7 +146,10 @@ interface CountingApi extends TelegramTransport {
 
 function countingApi(gate?: Promise<void>): CountingApi {
   let calls = 0;
-  const respond = async (base: number, photo = false): Promise<Awaited<ReturnType<TelegramTransport['sendMessage']>>> => {
+  const respond = async (
+    base: number,
+    photo = false,
+  ): Promise<Awaited<ReturnType<TelegramTransport['sendMessage']>>> => {
     calls += 1;
     const sequence = calls;
     if (gate !== undefined) {
@@ -674,9 +688,7 @@ describe('reply deduplication', () => {
     expect(errorCodeOf(store2, 'inv-3')).toBe('reply_already_sent');
     expect(api3.calls).toBe(0);
     expect(sendsUsed(store2, invocationId3)).toBe(0n);
-    expect(store2.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(
-      1n,
-    );
+    expect(store2.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(1n);
     store2.close();
   });
 

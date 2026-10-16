@@ -462,7 +462,7 @@ export function createTelegramHost(options: TelegramHostOptions): TelegramHost {
       }
       case 'sticker':
         return await transport.sendSticker(chatId, part.stickerRef, base);
-    case 'photo': {
+      case 'photo': {
         if (transport.sendGeneratedPhoto === undefined) {
           throw new MissingTransportCapability('generated photos');
         }

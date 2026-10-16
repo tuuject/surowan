@@ -115,10 +115,7 @@ export interface ImConversationRef {
 
 export function sameConversation(left: ImConversationRef, right: ImConversationRef): boolean {
   return (
-    left.host === right.host &&
-    left.id === right.id &&
-    left.chatId === right.chatId &&
-    left.topicId === right.topicId
+    left.host === right.host && left.id === right.id && left.chatId === right.chatId && left.topicId === right.topicId
   );
 }
 

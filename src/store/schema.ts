@@ -471,9 +471,7 @@ export const hostSends = sqliteTable(
     index('host_sends_image_delivery_idx')
       .on(table.conversationId, sql`json_extract(${table.requestJson}, '$.generation_id')`)
       .where(sql`${table.kind} = 'image'`),
-    index('host_sends_message_idx')
-      .on(table.messageId)
-      .where(sql`${table.messageId} IS NOT NULL`),
+    index('host_sends_message_idx').on(table.messageId).where(sql`${table.messageId} IS NOT NULL`),
     check('host_sends_kind_check', sql`kind IN ('text', 'sticker', 'image')`),
     check('host_sends_state_check', sql`state IN ('pending', 'success', 'error', 'outcome_unknown')`),
   ],

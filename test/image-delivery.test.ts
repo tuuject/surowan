@@ -13,7 +13,15 @@ import type { RawConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { CapabilityRefResolver, CompletionContext } from '../src/platform/invocation-context.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { invocationCapabilities, renderInvocationContext, testConfigJsonc, testConfigStore, testSendToolEnv, type TestInvocationContext, writeTestConfig } from './helpers.ts';
+import {
+  invocationCapabilities,
+  renderInvocationContext,
+  testConfigJsonc,
+  testConfigStore,
+  testSendToolEnv,
+  type TestInvocationContext,
+  writeTestConfig,
+} from './helpers.ts';
 
 /**
  * `send kind:image` delivery-ledger boundary.

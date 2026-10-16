@@ -14,7 +14,16 @@ import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { createSendTool, SEND_BARRIER_TEXT } from '../src/capabilities/send-tool.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { ContextBuilder } from '../src/context/context-builder.ts';
-import { invocationCapabilities, renderInvocationContext, testConfigJsonc, testConfigStore, testSendToolEnv, type TestContextOptions, type TestInvocationContext, writeTestConfig } from './helpers.ts';
+import {
+  invocationCapabilities,
+  renderInvocationContext,
+  testConfigJsonc,
+  testConfigStore,
+  testSendToolEnv,
+  type TestContextOptions,
+  type TestInvocationContext,
+  writeTestConfig,
+} from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -268,9 +277,7 @@ describe('send tool', () => {
       .prepare<[], { state: string; error_code: string }>('SELECT state, error_code FROM tool_calls')
       .get();
     expect(row).toEqual({ state: 'error', error_code: 'reply_not_visible' });
-    expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(
-      0n,
-    );
+    expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(0n);
     store.close();
   });
   test('limits sends to the sliding window and does not retry an unknown network outcome', async () => {
@@ -304,9 +311,7 @@ describe('send tool', () => {
     // Failed attempts still count. Before, the window only counted success, pending
     // and unknown outcomes, so a loop whose every send Telegram rejected had no brake.
     store.db
-      .prepare(
-        "UPDATE host_sends SET state = 'error' WHERE id IN (SELECT id FROM host_sends ORDER BY id LIMIT 3)",
-      )
+      .prepare("UPDATE host_sends SET state = 'error' WHERE id IN (SELECT id FROM host_sends ORDER BY id LIMIT 3)")
       .run();
     await expect(quotaTool.execute('quota-6', { kind: 'text', text: 'seventh' })).rejects.toThrow('send rate limit');
     expect(successfulCalls).toBe(6);
@@ -352,9 +357,7 @@ describe('send tool', () => {
     expect(unknownCalls).toBe(1);
     expect(
       store.db
-        .prepare<[], { state: string }>(
-          'SELECT state FROM host_sends WHERE id = (SELECT MAX(id) FROM host_sends)',
-        )
+        .prepare<[], { state: string }>('SELECT state FROM host_sends WHERE id = (SELECT MAX(id) FROM host_sends)')
         .get()?.state,
     ).toBe('outcome_unknown');
     store.close();
@@ -531,9 +534,7 @@ describe('send tool', () => {
     expect(row?.state).toBe('error');
     expect(row?.error_code).toBe('send_text_too_long');
     expect(JSON.parse(row?.arguments_json ?? '{}')).toEqual({ kind: 'text', text: 'too long' });
-    expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(
-      0n,
-    );
+    expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(0n);
     // A rejected send never reaches Telegram, so it costs nothing in the window.
     await tool.execute('call-2', { kind: 'text', text: 'ok' });
     expect(sendMessageCalls).toBe(1);
