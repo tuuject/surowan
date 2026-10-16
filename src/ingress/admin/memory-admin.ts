@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, lt, lte, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, lt, lte, type SQL } from 'drizzle-orm';
 import {
   DEFAULT_MEMORY_TTL_SECONDS,
   MEMORY_ID_PATTERN,
@@ -187,6 +187,20 @@ export function createMemory(orm: Orm, body: CreateMemoryBody, warningDays: numb
   return getItem(orm, id, timestamp, warningDays, now);
 }
 
+/**
+ * Selects one memory only when it belongs to a Telegram chat. This surface
+ * lists Telegram chats alone, so a virtual room's memory id must read as
+ * missing for a write too, not be changed and then fail to load.
+ */
+function telegramMemory(orm: Orm, id: string): SQL {
+  const telegramConversations = orm
+    .select({ id: conversations.id })
+    .from(conversations)
+    .innerJoin(chats, eq(chats.id, conversations.chatId))
+    .where(telegramHostScope());
+  return and(eq(memories.id, id), inArray(memories.conversationId, telegramConversations)) as SQL;
+}
+
 export function updateMemory(
   orm: Orm,
   id: string,
@@ -202,7 +216,7 @@ export function updateMemory(
       ? { expiresAt: new Date(now.getTime() + body.ttlSeconds * 1_000).toISOString() }
       : {}),
   };
-  const updated = asRunResult(orm.update(memories).set(set).where(eq(memories.id, id)).run());
+  const updated = asRunResult(orm.update(memories).set(set).where(telegramMemory(orm, id)).run());
   if (updated.changes === 0) {
     throw new AdminQueryError('not_found', 'Memory does not exist', 404);
   }
@@ -210,7 +224,7 @@ export function updateMemory(
 }
 
 export function deleteMemory(orm: Orm, id: string): void {
-  const result = asRunResult(orm.delete(memories).where(eq(memories.id, id)).run());
+  const result = asRunResult(orm.delete(memories).where(telegramMemory(orm, id)).run());
   if (result.changes === 0) {
     throw new AdminQueryError('not_found', 'Memory does not exist', 404);
   }
