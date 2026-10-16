@@ -97,7 +97,9 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
       WHERE message_id IN (SELECT id FROM messages WHERE received_at < ${cutoff})
     `);
       orm.run(
-        sql`DELETE FROM senders WHERE NOT EXISTS (SELECT 1 FROM message_revisions r WHERE r.sender_id = senders.id)`,
+        sql`DELETE FROM senders
+            WHERE NOT EXISTS (SELECT 1 FROM message_revisions r WHERE r.sender_id = senders.id)
+              AND NOT EXISTS (SELECT 1 FROM room_participants p WHERE p.sender_id = senders.id)`,
       );
       orm.run(sql`DELETE FROM media_analyses WHERE kind = 'image' AND updated_at < ${cutoff}`);
       orm.run(

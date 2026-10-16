@@ -10,6 +10,12 @@ interface Migration {
   readonly version: number;
   readonly name: string;
   readonly sql: string;
+  /**
+   * Set by the `-- @rebuild-tables` directive. Such a migration rewrites
+   * existing tables (create/copy/drop/rename) and therefore needs foreign key
+   * enforcement suspended for the DDL window; see applyRebuildMigration.
+   */
+  readonly rebuildsTables: boolean;
 }
 
 /** PID file: names the holder for humans and `--takeover`; carries no authority. */
@@ -279,12 +285,55 @@ export class SqliteStore implements BusinessStore {
       );
     }
     for (const migration of pending) {
+      if (migration.rebuildsTables) {
+        this.applyRebuildMigration(migration);
+        continue;
+      }
       this.transaction(() => {
         this.db.exec(migration.sql);
-        this.db
-          .prepare('INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)')
-          .run(BigInt(migration.version), new Date().toISOString());
+        this.recordMigration(migration);
       });
+    }
+  }
+
+  private recordMigration(migration: Migration): void {
+    this.db
+      .prepare('INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)')
+      .run(BigInt(migration.version), new Date().toISOString());
+  }
+
+  /**
+   * Applies a table-rebuild migration.
+   *
+   * SQLite cannot relax a NOT NULL constraint with ALTER TABLE, so a rebuild is
+   * unavoidable when an unconditional Telegram column becomes conditional.
+   * Rebuilding with foreign keys enforced is not an option: `chats` is a
+   * cascade parent of the whole message tree, so dropping it would delete every
+   * conversation, while `messages` is referenced by NO ACTION tables, so the
+   * same drop would fail outright. SQLite's documented procedure therefore
+   * turns enforcement off for the DDL window; we do the same but keep it
+   * bounded and verified: the whole migration stays in one transaction, and it
+   * is rolled back unless `PRAGMA foreign_key_check` reports the rebuilt schema
+   * is intact. Enforcement is restored unconditionally before returning.
+   */
+  private applyRebuildMigration(migration: Migration): void {
+    if (Number(this.db.pragma('foreign_keys', { simple: true })) !== 1) {
+      throw new Error(`Migration ${migration.name} expects foreign keys to be enabled before the rebuild`);
+    }
+    this.db.exec('PRAGMA foreign_keys = OFF');
+    try {
+      this.transaction(() => {
+        this.db.exec(migration.sql);
+        this.recordMigration(migration);
+        const violations = this.db.pragma('foreign_key_check') as unknown[];
+        if (violations.length > 0) {
+          throw new Error(
+            `Migration ${migration.name} left ${violations.length} foreign key violation(s): ${JSON.stringify(violations.slice(0, 5))}`,
+          );
+        }
+      });
+    } finally {
+      this.db.exec('PRAGMA foreign_keys = ON');
     }
   }
 
@@ -373,13 +422,21 @@ async function rotateBackups(backupDir: string, keep: number): Promise<void> {
   );
 }
 
+/**
+ * Opt-in marker for migrations that rebuild existing tables. It must appear on
+ * its own line; see applyRebuildMigration for why such a migration cannot run
+ * with foreign key enforcement on.
+ */
+const REBUILD_DIRECTIVE = /^--[ \t]*@rebuild-tables[ \t]*$/m;
+
 async function loadMigrations(): Promise<Migration[]> {
   const directory = join(import.meta.dirname, '../../store/migrations');
   const names = (await readdir(directory)).filter((name) => /^\d{3}_[a-z0-9_]+\.sql$/.test(name)).sort();
   const migrations: Migration[] = [];
   for (const name of names) {
     const version = Number.parseInt(name.slice(0, 3), 10);
-    migrations.push({ version, name, sql: await readFile(join(directory, name), 'utf8') });
+    const sql = await readFile(join(directory, name), 'utf8');
+    migrations.push({ version, name, sql, rebuildsTables: REBUILD_DIRECTIVE.test(sql) });
   }
   for (let index = 1; index < migrations.length; index += 1) {
     const previous = migrations[index - 1];

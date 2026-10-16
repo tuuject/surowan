@@ -20,6 +20,12 @@ Plastic Wan 使用单个 SQLite 数据库保存消息、调度状态、能力索
 
 迁移 `027` 为图片发送去重添加发送审计查询索引，并给旧 `telegram_sends.request_json` 回填发送当时已存在的 `asset_ids`（标记 `asset_ids_inferred`）。数量与旧 `pictures` 不一致时标记 `asset_ids_unknown`，阻止把不确定的旧投递当成可重发；后续生成的资产不会回填成旧发送的输出。发送审计本身就是交付台账，不引入第二套 outbox，去重范围也受在线保留窗口约束。
 
+迁移 `036` 把共享 Message/Context 存储改成宿主中立：`chats`、`senders`、`messages` 新增 `host_kind`，Telegram 身份列（`telegram_chat_id`、`canonical_chat_id`、`telegram_type`、`telegram_id`、`telegram_message_id`）从无条件 `NOT NULL` 变成随 `host_kind` 取值的条件约束，并新增 `rooms`、`room_participants` 和 `invocation_messages.snapshot_format`。旧库升级只补 `host_kind = 'telegram'` 与快照的 format 标识，行 ID、消息树、revision、Context 与 Telegram DTO 一律不变；同一数据库因此可以同时容纳没有任何 Telegram ID 的虚拟房间与身份。
+
+SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是整棵消息树的级联父表（外键强制下 `DROP TABLE` 会级联删掉全部 Conversation 与 Message），`messages` 又被 NO ACTION 子表引用（同样条件下直接报错），所以重建只能在关闭外键强制的窗口里做。需要在重建表的迁移在文件里单独一行写 `-- @rebuild-tables` 显式声明：runner 只对带该指令的迁移临时关闭 `foreign_keys`，整个迁移仍在单个 IMMEDIATE transaction 内执行，提交前跑 `PRAGMA foreign_key_check`，发现违例就回滚，并在 `finally` 中恢复强制；不带该指令的迁移路径完全不变。这不是「关掉约束蒙混升级」——约束只在 DDL 窗口内让位，且提交前必须通过校验。
+
+`host_kind` 取 `telegram` 或 `playground`。任何读取 Telegram 身份列的地方都要显式表态：要么用 [src/store/host-scope.ts](../src/store/host-scope.ts) 的 `telegramHostScope()` 把查询限定在 Telegram 行上，要么把该身份列当可空处理并说明虚拟行意味着什么。禁止用 ID 符号判断群类型或宿主。
+
 新增迁移时：
 
 1. 创建下一个连续编号文件。
@@ -27,6 +33,7 @@ Plastic Wan 使用单个 SQLite 数据库保存消息、调度状态、能力索
 3. 不修改已发布迁移。
 4. 更新依赖新字段的查询与测试。
 5. 验证从空数据库和旧版本数据库升级。
+6. 需要重建表的迁移按上文 `@rebuild-tables` 约定声明，不要自行开关 `foreign_keys`。
 
 ## 查询层（Drizzle）
 
@@ -46,6 +53,10 @@ Plastic Wan 使用单个 SQLite 数据库保存消息、调度状态、能力索
 ## 表组
 
 表与列定义见 [src/store/schema.ts](../src/store/schema.ts) 和 [迁移目录](../src/store/migrations/)，不在文档维护表数量或字段类型副本；类型、可空性与 CHECK 约束以 schema、迁移与源码为准。下面只记录 schema 读不出来的语义。
+
+### 虚拟房间（`rooms` / `room_participants`）
+
+虚拟房间就是 `host_kind = 'playground'` 的 `chats` 行：没有 Telegram ID，`type` 用 `virtual`，群类型只能读这一列，不能从 ID 符号推断。`rooms` 每行保存该房间的 `revision`（房间设置的乐观并发令牌）与 `next_seq`（本地消息序号高水位，只前进不回退，保证保留期清理掉旧行之后已释放批次仍可排序）；`room_participants` 记录身份归属，也是「没有 Telegram ID 的虚拟身份」唯一的存在形式。两者都随 `chats` 级联删除。身份修剪（`store.ts` 的 `prune`）保留仍属于某个房间的 sender，不能只按 `message_revisions` 引用判断。
 
 ### 冻结与重放边界
 

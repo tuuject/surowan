@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import type { HostKind } from '../platform/im-host.ts';
 import {
   type AnySQLiteColumn,
   check,
@@ -92,15 +93,33 @@ export const telegramUpdates = sqliteTable(
   ],
 );
 
-export const chats = sqliteTable('chats', {
-  id: sqliteBigIntId('id').primaryKey(),
-  telegramChatId: sqliteBigInt('telegram_chat_id').notNull().unique(),
-  canonicalChatId: sqliteBigInt('canonical_chat_id').notNull(),
-  type: text('type').notNull(),
-  title: text('title'),
-  username: text('username'),
-  updatedAt: text('updated_at').notNull(),
-});
+export const chats = sqliteTable(
+  'chats',
+  {
+    id: sqliteBigIntId('id').primaryKey(),
+    /**
+     * Which host owns this row. Telegram rows carry Telegram identity columns;
+     * playground rows are virtual rooms with no transport identifier at all.
+     * Nothing may infer the kind from the sign of an id.
+     */
+    hostKind: text('host_kind').$type<HostKind>().notNull().default('telegram'),
+    telegramChatId: sqliteBigInt('telegram_chat_id'),
+    canonicalChatId: sqliteBigInt('canonical_chat_id'),
+    type: text('type').notNull(),
+    title: text('title'),
+    username: text('username'),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    check(
+      'chats_host_identity_check',
+      sql`(host_kind = 'telegram' AND telegram_chat_id IS NOT NULL AND canonical_chat_id IS NOT NULL) OR (host_kind = 'playground' AND telegram_chat_id IS NULL AND canonical_chat_id IS NULL)`,
+    ),
+    // Plain UNIQUE, not partial: NULLs stay distinct so virtual rooms never
+    // collide, and the constraint remains a usable ON CONFLICT target.
+    uniqueIndex('chats_telegram_chat_id_key').on(t.telegramChatId),
+  ],
+);
 
 export const chatMigrations = sqliteTable('chat_migrations', {
   oldChatId: sqliteBigIntId('old_chat_id').primaryKey(),
@@ -126,8 +145,9 @@ export const senders = sqliteTable(
   'senders',
   {
     id: sqliteBigIntId('id').primaryKey(),
-    telegramType: text('telegram_type').notNull(),
-    telegramId: sqliteBigInt('telegram_id').notNull(),
+    hostKind: text('host_kind').$type<HostKind>().notNull().default('telegram'),
+    telegramType: text('telegram_type'),
+    telegramId: sqliteBigInt('telegram_id'),
     displayName: text('display_name').notNull(),
     username: text('username'),
     isBot: integer('is_bot', { mode: 'boolean' }).notNull().default(false),
@@ -135,7 +155,11 @@ export const senders = sqliteTable(
   },
   (t) => [
     check('senders_telegram_type_check', sql`telegram_type IN ('user', 'sender_chat')`),
-    uniqueIndex('senders_telegram_type_id_unique').on(t.telegramType, t.telegramId),
+    check(
+      'senders_host_identity_check',
+      sql`(host_kind = 'telegram' AND telegram_type IS NOT NULL AND telegram_id IS NOT NULL) OR (host_kind = 'playground' AND telegram_type IS NULL AND telegram_id IS NULL)`,
+    ),
+    uniqueIndex('senders_telegram_identity_key').on(t.telegramType, t.telegramId),
   ],
 );
 
@@ -149,14 +173,32 @@ export const messages = sqliteTable(
     chatId: sqliteBigInt('chat_id')
       .notNull()
       .references(() => chats.id, { onDelete: 'cascade' }),
-    telegramMessageId: sqliteBigInt('telegram_message_id').notNull(),
+    hostKind: text('host_kind').$type<HostKind>().notNull().default('telegram'),
+    telegramMessageId: sqliteBigInt('telegram_message_id'),
     currentRevisionId: sqliteBigInt('current_revision_id').references((): AnySQLiteColumn => messageRevisions.id),
     visible: integer('visible', { mode: 'boolean' }).notNull().default(true),
     sentByBot: integer('sent_by_bot', { mode: 'boolean' }).notNull().default(false),
     telegramDate: text('telegram_date').notNull(),
     receivedAt: text('received_at').notNull(),
+    /**
+     * Local (non-Telegram) reply target and arrival order. Telegram traffic
+     * leaves both NULL and keeps using telegram_message_id / telegram_date.
+     */
+    localReplyToMessageId: sqliteBigInt('local_reply_to_message_id').references((): AnySQLiteColumn => messages.id, {
+      onDelete: 'set null',
+    }),
+    localSequenceNo: sqliteBigInt('local_sequence_no'),
   },
-  (t) => [uniqueIndex('messages_chat_telegram_unique').on(t.chatId, t.telegramMessageId)],
+  (t) => [
+    check(
+      'messages_host_identity_check',
+      sql`(host_kind = 'telegram' AND telegram_message_id IS NOT NULL) OR (host_kind = 'playground' AND telegram_message_id IS NULL)`,
+    ),
+    uniqueIndex('messages_chat_telegram_message_id_key').on(t.chatId, t.telegramMessageId),
+    index('messages_local_sequence_key')
+      .on(t.conversationId, t.localSequenceNo)
+      .where(sql`local_sequence_no IS NOT NULL`),
+  ],
 );
 
 export const messageRevisions = sqliteTable(
@@ -305,6 +347,12 @@ export const invocationMessages = sqliteTable(
     sourceBucketId: sqliteBigInt('source_bucket_id'),
     omittedBefore: sqliteBigInt('omitted_before').notNull().default(0n),
     snapshotJson: text('snapshot_json').notNull(),
+    /**
+     * Format identifier for the frozen snapshot payload. Rows written before
+     * the column existed carry the legacy value through the column default;
+     * their JSON payload is never rewritten.
+     */
+    snapshotFormat: text('snapshot_format').notNull().default('plasticwan.invocation-snapshot.v1'),
   },
   (t) => [
     primaryKey({ columns: [t.invocationId, t.sequenceNo] }),
@@ -889,6 +937,49 @@ export const promptVersions = sqliteTable(
     ),
     check('prompt_versions_source_check', sql`source IN ('panel', 'external', 'rollback')`),
     uniqueIndex('prompt_versions_scope_seq_unique').on(t.scope, t.chatId, t.seq),
+  ],
+);
+
+/**
+ * Per-room state for virtual (playground) rooms. `revision` is the optimistic
+ * concurrency token for room settings; `next_seq` is the high-water mark for
+ * local message sequence numbers and is never rewound, so a released batch can
+ * always be ordered even after retention drops older rows. T02 reserves the
+ * shape only — the write API arrives with the playground store.
+ */
+export const rooms = sqliteTable('rooms', {
+  chatId: sqliteBigIntId('chat_id')
+    .primaryKey()
+    .references(() => chats.id, { onDelete: 'cascade' }),
+  revision: sqliteBigInt('revision').notNull().default(0n),
+  nextSeq: sqliteBigInt('next_seq').notNull().default(1n),
+  hold: integer('hold', { mode: 'boolean' }).notNull().default(true),
+  imageEnabled: integer('image_enabled', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+/**
+ * Membership of a sender in a room. A playground identity only exists as a
+ * participant of exactly the rooms it was admitted to, which is what makes an
+ * identity table without a Telegram id meaningful.
+ */
+export const roomParticipants = sqliteTable(
+  'room_participants',
+  {
+    chatId: sqliteBigInt('chat_id')
+      .notNull()
+      .references(() => chats.id, { onDelete: 'cascade' }),
+    senderId: sqliteBigInt('sender_id')
+      .notNull()
+      .references(() => senders.id, { onDelete: 'cascade' }),
+    role: text('role').notNull().default('member'),
+    joinedAt: text('joined_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.chatId, t.senderId] }),
+    check('room_participants_role_check', sql`role IN ('member', 'admin')`),
+    index('room_participants_sender_key').on(t.senderId),
   ],
 );
 
