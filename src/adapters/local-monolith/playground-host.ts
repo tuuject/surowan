@@ -49,11 +49,10 @@ export interface PlaygroundHostOptions {
   readonly now?: () => Date;
 }
 
-/** The room a delivery targets, with the counters it must advance. */
+/** The room a delivery targets, with the counter it must advance. */
 interface ResolvedRoom {
   readonly chatId: bigint;
   readonly hostKind: string;
-  readonly revision: bigint;
   readonly nextSeq: bigint;
 }
 
@@ -134,7 +133,6 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
       .select({
         chatId: conversations.chatId,
         hostKind: chats.hostKind,
-        revision: rooms.revision,
         nextSeq: rooms.nextSeq,
       })
       .from(conversations)
@@ -149,7 +147,6 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
     return {
       chatId: row.chatId,
       hostKind: row.hostKind,
-      revision: row.revision ?? 0n,
       nextSeq: row.nextSeq ?? 1n,
     };
   };
@@ -194,9 +191,11 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
       };
     }
 
-    // Read the counters inside the caller's transaction: they are a
-    // read-modify-write pair, so resolving them beforehand could lose an
-    // update from a send that committed in between.
+    // Read the sequence counter inside the caller's transaction: it is a
+    // read-modify-write pair, so resolving it beforehand could lose an update
+    // from a send that committed in between. The room revision is left alone:
+    // it guards inputs and settings, and bot output must not invalidate a
+    // Release a client prepared meanwhile.
     const room = resolveRoom(request.target.conversation.id);
     if (room === null) {
       throw new Error('the target conversation disappeared');
@@ -204,7 +203,6 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
     const stamp = now().toISOString();
     const replyToMessageId = request.replyToMessageId ?? null;
     const sequenceNo = room.nextSeq;
-    const revisionNo = room.revision + 1n;
 
     const createdMessage = orm
       .insert(messages)
@@ -229,7 +227,8 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
       .insert(messageRevisions)
       .values({
         messageId: createdMessage.id,
-        revisionNo,
+        // A published message starts its own revision history.
+        revisionNo: 1n,
         senderId: resolveSelfSender(),
         kind: 'text',
         text: body,
@@ -245,7 +244,7 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
     orm.update(messages).set({ currentRevisionId: revision.id }).where(eq(messages.id, createdMessage.id)).run();
     orm
       .update(rooms)
-      .set({ revision: revisionNo, nextSeq: sequenceNo + 1n, updatedAt: stamp })
+      .set({ nextSeq: sequenceNo + 1n, updatedAt: stamp })
       .where(eq(rooms.chatId, room.chatId))
       .run();
     orm
