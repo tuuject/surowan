@@ -236,6 +236,8 @@ test('retryability is a property of the failure reason, not of a transport error
   ];
   for (const [reason, retryable] of reasons) {
     expect(isRetryableFailure({ reason, code: reason, outcomeUnknown: false, description: reason })).toBe(retryable);
+    // A message that may already be out is never safe to send again.
+    expect(isRetryableFailure({ reason, code: reason, outcomeUnknown: true, description: reason })).toBe(false);
   }
 });
 
