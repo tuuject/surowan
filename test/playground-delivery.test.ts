@@ -453,6 +453,42 @@ describe('Bot Playground virtual delivery', () => {
     expect(authorOf(second.messages[0]!.messageId)).toBe(later.selfSenderId);
   });
 
+  test('refuses a multi-part delivery before publishing any of it', async () => {
+    const room = createRoom({ chatId: 46n, title: 'parts', selfDisplayName: '碗' });
+    const host = hostFor('碗');
+    const conversation = identityConversation(
+      { chatId: room.chatId, threadId: 0n, conversationId: room.conversationId },
+      'playground',
+      'private',
+    );
+    for (const parts of [
+      [
+        { kind: 'text', text: 'one' },
+        { kind: 'text', text: 'two' },
+      ],
+      [
+        { kind: 'text', text: 'caption' },
+        { kind: 'sticker', stickerRef: 'stk_1' },
+      ],
+    ] as const) {
+      const sendId = reserveSend(room.conversationId, room.invocationId, {
+        id: `parts-${parts.length}-${parts[1].kind}`,
+      });
+      const outcome = await host.delivery.deliver({
+        target: { conversation, policy: host.policy(conversation) },
+        parts,
+        sendId,
+        signal: undefined,
+      });
+      expect(outcome.kind).toBe('rejected');
+      if (outcome.kind === 'rejected') {
+        expect(outcome.failure.code).toBe('multipart_unsupported');
+      }
+      expect(ledgerRow(sendId)?.state).toBe('pending');
+    }
+    expect(roomMessages(room.conversationId)).toHaveLength(0);
+  });
+
   test('refuses a conversation that is not a room', async () => {
     const room = createRoom({ chatId: 50n, title: 'not a room', selfDisplayName: '碗' });
     // A Telegram chat the room host must not publish into.
