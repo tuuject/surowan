@@ -23,7 +23,7 @@ import {
   stickerSets,
   stickers,
   taskReceipts,
-  telegramSends,
+  hostSends,
   toolCalls,
 } from '../../src/store/schema.ts';
 
@@ -33,7 +33,7 @@ import {
  * SqliteStore so every list and detail page has representative rows:
  *
  * - two invocations: one completed (with a `send` tool call + linked
- *   telegram_sends row, retained/new context messages, an oversized request
+ *   host_sends row, retained/new context messages, an oversized request
  *   payload) and one failed (with a failed model call carrying a redacted
  *   error detail);
  * - messages with revisions and media, sticker sets/analyses, a pending
@@ -566,7 +566,7 @@ export function seedAdminFixture(store: SqliteStore): AdminSeedResult {
     })
     .run();
   orm
-    .insert(telegramSends)
+    .insert(hostSends)
     .values({
       id: T.sendA,
       toolCallId: T.toolSendA,

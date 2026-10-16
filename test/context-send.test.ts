@@ -230,7 +230,7 @@ describe('send tool', () => {
     ]);
     const audits = store.db
       .prepare<[], { tool_state: string; send_state: string; sent_by_bot: bigint; text: string }>(
-        'SELECT tc.state AS tool_state, ts.state AS send_state, m.sent_by_bot, r.text FROM tool_calls tc JOIN telegram_sends ts ON ts.tool_call_id = tc.id JOIN messages m ON m.telegram_message_id = ts.telegram_message_id JOIN message_revisions r ON r.id = m.current_revision_id ORDER BY tc.id',
+        'SELECT tc.state AS tool_state, ts.state AS send_state, m.sent_by_bot, r.text FROM tool_calls tc JOIN host_sends ts ON ts.tool_call_id = tc.id JOIN messages m ON m.telegram_message_id = ts.telegram_message_id JOIN message_revisions r ON r.id = m.current_revision_id ORDER BY tc.id',
       )
       .all();
     expect(audits).toEqual([
@@ -268,7 +268,7 @@ describe('send tool', () => {
       .prepare<[], { state: string; error_code: string }>('SELECT state, error_code FROM tool_calls')
       .get();
     expect(row).toEqual({ state: 'error', error_code: 'reply_not_visible' });
-    expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM telegram_sends').get()?.count).toBe(
+    expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(
       0n,
     );
     store.close();
@@ -305,7 +305,7 @@ describe('send tool', () => {
     // and unknown outcomes, so a loop whose every send Telegram rejected had no brake.
     store.db
       .prepare(
-        "UPDATE telegram_sends SET state = 'error' WHERE id IN (SELECT id FROM telegram_sends ORDER BY id LIMIT 3)",
+        "UPDATE host_sends SET state = 'error' WHERE id IN (SELECT id FROM host_sends ORDER BY id LIMIT 3)",
       )
       .run();
     await expect(quotaTool.execute('quota-6', { kind: 'text', text: 'seventh' })).rejects.toThrow('send rate limit');
@@ -353,7 +353,7 @@ describe('send tool', () => {
     expect(
       store.db
         .prepare<[], { state: string }>(
-          'SELECT state FROM telegram_sends WHERE id = (SELECT MAX(id) FROM telegram_sends)',
+          'SELECT state FROM host_sends WHERE id = (SELECT MAX(id) FROM host_sends)',
         )
         .get()?.state,
     ).toBe('outcome_unknown');
@@ -390,7 +390,7 @@ describe('send tool', () => {
         .all(),
       sends: fixture.store.db
         .prepare<[], { state: string; error_code: string | null; telegram_message_id: bigint | null }>(
-          'SELECT state, error_code, telegram_message_id FROM telegram_sends ORDER BY id',
+          'SELECT state, error_code, telegram_message_id FROM host_sends ORDER BY id',
         )
         .all(),
     });
@@ -531,7 +531,7 @@ describe('send tool', () => {
     expect(row?.state).toBe('error');
     expect(row?.error_code).toBe('send_text_too_long');
     expect(JSON.parse(row?.arguments_json ?? '{}')).toEqual({ kind: 'text', text: 'too long' });
-    expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM telegram_sends').get()?.count).toBe(
+    expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(
       0n,
     );
     // A rejected send never reaches Telegram, so it costs nothing in the window.

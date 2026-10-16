@@ -133,14 +133,38 @@ function seedCanonicalData(db: Database.Database): void {
   `).run();
 }
 
+/**
+ * The ledger keeps its rows across 037 and only changes name, so a snapshot
+ * taken before it and one taken after it are comparable when they read the
+ * same columns from whichever name is present.
+ */
+function ledgerTable(db: Database.Database): string {
+  const row = db
+    .prepare<[], { name: string }>(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('host_sends', 'telegram_sends')",
+    )
+    .get();
+  if (row === undefined) {
+    throw new Error('neither host_sends nor telegram_sends exists');
+  }
+  return row.name;
+}
+
 function canonicalSnapshot(db: Database.Database) {
+  const ledger = ledgerTable(db);
   return {
     headers: db.prepare('SELECT * FROM conversation_contexts ORDER BY id').all(),
     messages: db.prepare('SELECT * FROM context_messages ORDER BY context_id, seq').all(),
     refs: db.prepare('SELECT * FROM context_refs ORDER BY context_id, ref').all(),
     agentMessages: db.prepare('SELECT * FROM agent_messages ORDER BY id').all(),
     toolCalls: db.prepare('SELECT * FROM tool_calls ORDER BY id').all(),
-    sends: db.prepare('SELECT * FROM telegram_sends ORDER BY id').all(),
+    sends: db
+      .prepare(
+        `SELECT id, tool_call_id, conversation_id, kind, request_json, state, telegram_message_id,
+                response_json, error_code, created_at, finished_at
+           FROM ${ledger} ORDER BY id`,
+      )
+      .all(),
   };
 }
 
@@ -557,7 +581,7 @@ describe('migration 021', () => {
         expect(actualReceipts).toEqual(receipts);
         expect(store.db.prepare("SELECT name FROM sqlite_master WHERE name = 'internal_contexts'").all()).toEqual([]);
         expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({
-          version: 36n,
+          version: 37n,
         });
         expect(store.db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
       } finally {
@@ -576,7 +600,7 @@ describe('migration 021', () => {
       const store = await SqliteStore.open(config);
       try {
         expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({
-          version: 36n,
+          version: 37n,
         });
         expect(store.db.prepare("SELECT name FROM sqlite_master WHERE name = 'internal_contexts'").all()).toEqual([]);
       } finally {

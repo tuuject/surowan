@@ -373,7 +373,7 @@ test('recovery closes every claimed receipt shape once and aborts queued receipt
           .run(invocationId, '2026-01-02T00:00:00.000Z');
         store.db
           .prepare(
-            "INSERT INTO telegram_sends(tool_call_id, conversation_id, kind, request_json, state, created_at) VALUES (1, ?, 'text', '{}', 'pending', ?)",
+            "INSERT INTO host_sends(tool_call_id, conversation_id, kind, request_json, state, created_at) VALUES (1, ?, 'text', '{}', 'pending', ?)",
           )
           .run(conversationId, '2026-01-02T00:00:00.000Z');
       }
@@ -422,7 +422,7 @@ test('recovery closes every claimed receipt shape once and aborts queued receipt
   ]);
   expect(store.db.prepare('SELECT state FROM invocations WHERE id = 101').get()).toEqual({ state: 'aborted' });
   expect(store.db.prepare('SELECT state FROM invocations WHERE id = 102').get()).toEqual({ state: 'outcome_unknown' });
-  expect(store.db.prepare('SELECT state FROM telegram_sends WHERE tool_call_id = 1').get()).toEqual({
+  expect(store.db.prepare('SELECT state FROM host_sends WHERE tool_call_id = 1').get()).toEqual({
     state: 'pending',
   });
   expect(store.db.prepare('SELECT state FROM invocations WHERE id = 103').get()).toEqual({ state: 'completed' });

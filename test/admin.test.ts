@@ -399,7 +399,7 @@ test('audit routes expose tool sessions, messages and sticker cache', async () =
     }
     store.db
       .prepare(
-        "INSERT INTO telegram_sends(tool_call_id, conversation_id, kind, request_json, state, telegram_message_id, created_at, finished_at) VALUES (?, (SELECT conversation_id FROM invocations WHERE id = ?), 'text', '{\"text\":\"hi\"}', 'success', 555, ?, ?)",
+        "INSERT INTO host_sends(tool_call_id, conversation_id, kind, request_json, state, telegram_message_id, created_at, finished_at) VALUES (?, (SELECT conversation_id FROM invocations WHERE id = ?), 'text', '{\"text\":\"hi\"}', 'success', 555, ?, ?)",
       )
       .run(toolRow.id, invocationId, iso, iso);
     store.db

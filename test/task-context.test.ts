@@ -349,7 +349,7 @@ test('only successful text consumes the frozen mention, not stickers, rejection,
   ]);
   expect(
     f.store.db
-      .prepare<[], { state: string }>('SELECT state FROM telegram_sends ORDER BY id')
+      .prepare<[], { state: string }>('SELECT state FROM host_sends ORDER BY id')
       .all()
       .map((row) => row.state),
   ).toEqual(['success', 'error', 'outcome_unknown', 'success', 'success']);

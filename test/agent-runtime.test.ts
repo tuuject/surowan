@@ -212,7 +212,7 @@ test.each([undefined, false, true])(
     expect(outcome).toEqual({ state: 'completed', reason: 'completed' });
     expect(
       store.db
-        .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM telegram_sends WHERE state = 'success'")
+        .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM host_sends WHERE state = 'success'")
         .get()?.count,
     ).toBe(1n);
     expect(
@@ -1119,7 +1119,7 @@ test('nudges the model once to use send when it drafts a private reply and never
       .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM agent_messages WHERE role = 'harness_nudge'")
       .get()?.count,
   ).toBe(1n);
-  expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM telegram_sends').get()?.count).toBe(0n);
+  expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(0n);
   expect(faux.state.callCount).toBe(2);
   store.close();
 });

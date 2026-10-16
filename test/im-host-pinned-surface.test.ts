@@ -132,7 +132,7 @@ test('the Telegram send request and audit rows are pinned', async () => {
 
   const send = store.db
     .prepare(
-      'SELECT kind, state, telegram_message_id, request_json, response_json, error_code FROM telegram_sends ORDER BY id',
+      'SELECT kind, state, telegram_message_id, request_json, response_json, error_code FROM host_sends ORDER BY id',
     )
     .all() as Record<string, unknown>[];
   expect(send).toEqual([

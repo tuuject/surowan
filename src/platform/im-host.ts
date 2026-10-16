@@ -214,6 +214,12 @@ export const TELEGRAM_ACTIVITY_REFRESH_MS = 4_000;
 export const TELEGRAM_ACTIVITY_CAP_MS = 55_000;
 export const TELEGRAM_MAX_TEXT_LENGTH = 4_096;
 export const TELEGRAM_MAX_CAPTION_LENGTH = 1_024;
+/**
+ * A virtual room has no wire to refresh, so its working indicator is only
+ * local state. It expires on its own rather than being retried, long enough
+ * for a normal run and short enough that a wedged one does not hang around.
+ */
+export const PLAYGROUND_ACTIVITY_CAP_MS = 600_000;
 
 export interface ConversationPolicyInput {
   readonly host: HostKind;
@@ -257,9 +263,12 @@ export function resolveConversationPolicy(input: ConversationPolicyInput): ImCon
           albums: true,
         },
         activity: {
-          kind: 'typing',
-          refreshMs: TELEGRAM_ACTIVITY_REFRESH_MS,
-          capMs: TELEGRAM_ACTIVITY_CAP_MS,
+          // Nothing leaves the machine, so there is no chat action to refresh
+          // from: the room UI reads the working state off the invocation. A
+          // local entry only needs to stop by itself if the run never does.
+          kind: 'none',
+          refreshMs: null,
+          capMs: PLAYGROUND_ACTIVITY_CAP_MS,
         },
         sendRate: input.sendRate,
         senderRef: input.scope === 'group' ? 'opaque' : 'uid',
@@ -317,6 +326,15 @@ export interface ImDeliveryRequest {
   readonly target: ImDeliveryTarget;
   readonly parts: readonly ImOutgoingPart[];
   /**
+   * The send-ledger row this delivery is recorded against, already reserved by
+   * the caller before the request was built.
+   *
+   * A host that publishes messages of its own keys delivery on it, so a repeat
+   * of the same row publishes nothing new; a host that only talks to a wire
+   * ignores it and lets the caller finalize the ledger.
+   */
+  readonly sendId: bigint;
+  /**
    * Host-native message the first part replies to, already resolved by the
    * server. Never a model-supplied string.
    */
@@ -373,7 +391,20 @@ export interface ImDeliveredPhoto {
 }
 
 export type ImDeliveryOutcome =
-  | { readonly kind: 'delivered'; readonly messages: readonly ImDeliveredMessage[] }
+  | {
+      readonly kind: 'delivered';
+      readonly messages: readonly ImDeliveredMessage[];
+      /**
+       * True when the host published these messages *and* recorded the delivery
+       * itself, in one transaction, so the caller must not write it again.
+       *
+       * A host with a wire can only report what it accepted; the caller then
+       * mirrors the accepted messages and finalizes the ledger. A virtual host
+       * has nothing to report from - it owns both writes - so it sets this and
+       * the caller only updates its own tool-call record.
+       */
+      readonly recordedByHost: boolean;
+    }
   | { readonly kind: 'rejected'; readonly failure: ImDeliveryFailure };
 
 /** A rejected delivery that a caller may legitimately retry. */
@@ -397,6 +428,14 @@ export interface ImDelivery {
    * undo them.
    */
   deliver(request: ImDeliveryRequest): Promise<ImDeliveryOutcome>;
+  /**
+   * Whether `deliver` may publish into a conversation other than the one its
+   * caller belongs to. Telegram allows a reply into another topic, which is a
+   * different conversation row; a virtual room is bound to exactly one
+   * conversation, so a target from a neighbouring room must be rejected rather
+   * than trusted.
+   */
+  readonly crossConversationTargets: boolean;
 }
 
 export interface ImComposedPart {
@@ -447,6 +486,8 @@ export function unwiredImHost(host: HostKind, reason: string): ImHost {
     host,
     policy,
     delivery: {
+      // It never delivers anywhere, so no target is ever in scope.
+      crossConversationTargets: false,
       // There is no wire to shape for, so the part is previewed as it stands.
       compose: (part) =>
         part.kind === 'text'

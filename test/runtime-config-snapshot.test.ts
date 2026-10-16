@@ -276,7 +276,7 @@ describe('configuration snapshots', () => {
           .map((row) => row.error_code),
       ).toEqual(['send_text_too_long']);
       expect(
-        fixture.store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM telegram_sends').get()?.count,
+        fixture.store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count,
       ).toBe(0n);
 
       faux.setResponses([sendCall, () => fauxAssistantMessage('done')]);

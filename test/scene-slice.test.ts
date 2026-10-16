@@ -23,7 +23,7 @@ import {
   messageRevisions,
   messages,
   senders,
-  telegramSends,
+  hostSends,
   toolCalls,
 } from '../src/store/schema.ts';
 import { seedAdminFixture } from './fixtures/admin-seed.ts';
@@ -130,9 +130,9 @@ async function fixture(): Promise<Fixture> {
     .run();
   // The selected send's request start is the slice cutoff; delivery finished later.
   store.orm
-    .update(telegramSends)
+    .update(hostSends)
     .set({ finishedAt: at(65) })
-    .where(eq(telegramSends.id, SEND))
+    .where(eq(hostSends.id, SEND))
     .run();
   // Production records the answered message too; it must never enter its own slice.
   insertMessage(store, {
@@ -342,7 +342,7 @@ interface SendInput {
   readonly state?: string;
 }
 
-/** Inserts a `send` tool call and its telegram_sends row. */
+/** Inserts a `send` tool call and its host_sends row. */
 function insertSend(store: SqliteStore, input: SendInput): void {
   store.orm
     .insert(toolCalls)
@@ -362,7 +362,7 @@ function insertSend(store: SqliteStore, input: SendInput): void {
     })
     .run();
   store.orm
-    .insert(telegramSends)
+    .insert(hostSends)
     .values({
       id: input.id,
       toolCallId: input.toolCallId,

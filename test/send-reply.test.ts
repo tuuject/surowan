@@ -151,7 +151,7 @@ function toolAudit(store: SqliteStore): ToolCallRow[] {
 function sendAudit(store: SqliteStore): { state: string; kind: string; request_json: string }[] {
   return store.db
     .prepare<[], { state: string; kind: string; request_json: string }>(
-      'SELECT state, kind, request_json FROM telegram_sends ORDER BY id',
+      'SELECT state, kind, request_json FROM host_sends ORDER BY id',
     )
     .all();
 }

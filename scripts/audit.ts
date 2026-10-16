@@ -326,7 +326,7 @@ function loadSends(database: Database.Database, id: number): SendRow[] {
     .prepare<[number], SendRow>(
       `SELECT s.id, s.kind, s.state, s.telegram_message_id, s.error_code, s.created_at,
               substr(s.request_json, 1, 300) AS request_json
-       FROM telegram_sends s JOIN tool_calls t ON t.id = s.tool_call_id
+       FROM host_sends s JOIN tool_calls t ON t.id = s.tool_call_id
        WHERE t.invocation_id = ? ORDER BY s.id`,
     )
     .all(id);
@@ -543,7 +543,7 @@ function renderConversation(database: Database.Database, id: number, limit: numb
   const sends = database
     .prepare<[number, number], ConversationSendRow>(
       `SELECT id, kind, state, telegram_message_id, created_at, substr(request_json, 1, 160) AS request_json
-       FROM telegram_sends WHERE conversation_id = ? ORDER BY id DESC LIMIT ?`,
+       FROM host_sends WHERE conversation_id = ? ORDER BY id DESC LIMIT ?`,
     )
     .all(id, limit);
   const privateTexts = database

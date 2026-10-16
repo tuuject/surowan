@@ -385,7 +385,7 @@ test('zzz enters sleeping and ends without another model turn', async () => {
       )
       .get()?.count,
   ).toBe(1n);
-  expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM telegram_sends').get()?.count).toBe(0n);
+  expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(0n);
   store.close();
 });
 
