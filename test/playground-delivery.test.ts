@@ -552,6 +552,36 @@ describe('Bot Playground virtual delivery', () => {
     expect(telegramTransport).not.toHaveBeenCalled();
   });
 
+  test('refuses a reply to a message outside the room', async () => {
+    const home = createRoom({ chatId: 61n, title: 'home', selfDisplayName: '碗' });
+    const other = createRoom({ chatId: 62n, title: 'other', selfDisplayName: '碗' });
+    const host = hostFor('碗');
+    const elsewhere = await deliver(
+      host,
+      { ...other, title: 'other' },
+      reserveSend(other.conversationId, other.invocationId, { id: 'o1' }),
+      'there',
+    );
+    if (elsewhere.kind !== 'delivered') {
+      throw new Error('setup delivery failed');
+    }
+    const foreign = elsewhere.messages[0]!.messageId;
+
+    for (const target of [foreign, 999_999n]) {
+      const sendId = reserveSend(home.conversationId, home.invocationId, { id: `r-${target}` });
+      const outcome = await deliver(host, { ...home, title: 'home' }, sendId, 'answer', target);
+      expect(outcome.kind).toBe('rejected');
+      if (outcome.kind === 'rejected') {
+        expect(outcome.failure.code).toBe('reply_target_other_room');
+        expect(outcome.failure.outcomeUnknown).toBe(false);
+      }
+      expect(ledgerRow(sendId)?.state).toBe('pending');
+    }
+    expect(roomMessages(home.conversationId)).toHaveLength(0);
+    // The refused sends left the sequence untouched.
+    expect(store.orm.select().from(rooms).where(eq(rooms.chatId, home.chatId)).get()?.nextSeq).toBe(1n);
+  });
+
   test('local activity expires on its own without polling', () => {
     const host = hostFor('碗');
     const conversation = identityConversation(

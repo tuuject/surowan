@@ -219,6 +219,28 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
     }
     const stamp = now().toISOString();
     const replyToMessageId = request.replyToMessageId ?? null;
+    // A reply target is an internal message id. It must be a message of this
+    // very room; the foreign key alone would accept any row, Telegram included.
+    if (replyToMessageId !== null) {
+      const replied = orm
+        .select({ id: messages.id })
+        .from(messages)
+        .where(
+          and(
+            eq(messages.id, replyToMessageId),
+            eq(messages.chatId, room.chatId),
+            eq(messages.conversationId, request.target.conversation.id),
+            eq(messages.hostKind, 'playground'),
+          ),
+        )
+        .limit(1)
+        .get();
+      if (replied === undefined) {
+        throw new DeliveryRefused(
+          rejected('permanent', 'reply_target_other_room', `message ${replyToMessageId} is not in this room`),
+        );
+      }
+    }
     const sequenceNo = room.nextSeq;
 
     const createdMessage = orm
