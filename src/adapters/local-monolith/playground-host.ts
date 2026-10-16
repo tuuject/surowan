@@ -78,18 +78,14 @@ class DeliveryRefused extends Error {
 
 /**
  * A mention is plain text in a room, and there is no markup dialect to render
- * into, so composing a part only bounds it.
+ * into, so a part composes to its own text. It is never shortened here: the
+ * send pipeline validates what compose returns, and a cut would let an
+ * oversized message pass that check and lose its tail.
  */
-const composePlaygroundPart = (part: ImOutgoingPart, policy: ImDeliveryPolicy): ImComposedPart => {
-  if (part.kind !== 'text') {
-    return { text: null, markup: null };
-  }
-  const limit = policy.maxTextLength ?? TELEGRAM_MAX_TEXT_LENGTH;
-  return {
-    text: part.text.length > limit ? part.text.slice(0, limit) : part.text,
-    markup: null,
-  };
-};
+const composePlaygroundPart = (part: ImOutgoingPart): ImComposedPart =>
+  part.kind === 'text' ? { text: part.text, markup: null } : { text: null, markup: null };
+
+const textLimit = (policy: ImDeliveryPolicy): number => policy.maxTextLength ?? TELEGRAM_MAX_TEXT_LENGTH;
 
 export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
   const { store, self } = options;
@@ -285,10 +281,13 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
           `conversation host is "${targetRoom.hostKind}", not "playground"`,
         );
       }
-      const composed = composePlaygroundPart(part, request.target.policy.delivery);
-      const body = composed.text ?? '';
+      const body = composePlaygroundPart(part).text ?? '';
       if (body.length === 0) {
         return rejected('permanent', 'empty_text', 'a text delivery has no text to publish');
+      }
+      const limit = textLimit(request.target.policy.delivery);
+      if (body.length > limit) {
+        return rejected('permanent', 'text_too_long', `text length ${body.length} exceeds the room limit of ${limit}`);
       }
       try {
         const published = store.transaction(() => publish(request, body));

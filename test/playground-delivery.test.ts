@@ -365,6 +365,30 @@ describe('Bot Playground virtual delivery', () => {
     expect(roomMessages(room.conversationId)).toHaveLength(0);
   });
 
+  test('refuses text above the room limit instead of cutting it', async () => {
+    const room = createRoom({ chatId: 45n, title: 'long', selfDisplayName: '碗' });
+    const host = hostFor('碗');
+    const conversation = identityConversation(
+      { chatId: room.chatId, threadId: 0n, conversationId: room.conversationId },
+      'playground',
+      'private',
+    );
+    const limit = host.policy(conversation).delivery.maxTextLength ?? 4096;
+    const text = 'x'.repeat(limit + 1);
+    // Compose keeps the whole text, so the pipeline's length check sees it.
+    expect(host.delivery.compose({ kind: 'text', text }, host.policy(conversation).delivery).text).toBe(text);
+
+    const sendId = reserveSend(room.conversationId, room.invocationId, { id: 'long', text });
+    const outcome = await deliver(host, { ...room, title: 'long' }, sendId, text);
+    expect(outcome.kind).toBe('rejected');
+    if (outcome.kind === 'rejected') {
+      expect(outcome.failure.code).toBe('text_too_long');
+      expect(outcome.failure.outcomeUnknown).toBe(false);
+    }
+    expect(roomMessages(room.conversationId)).toHaveLength(0);
+    expect(ledgerRow(sendId)?.state).toBe('pending');
+  });
+
   test('refuses a conversation that is not a room', async () => {
     const room = createRoom({ chatId: 50n, title: 'not a room', selfDisplayName: '碗' });
     // A Telegram chat the room host must not publish into.
