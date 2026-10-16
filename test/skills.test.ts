@@ -336,7 +336,7 @@ test('search_stickers runs through execute and its refs authorize a sticker send
   ]);
   expect(
     store.db
-      .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM telegram_sends WHERE state = 'success'")
+      .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM host_sends WHERE state = 'success'")
       .get()?.count,
   ).toBe(1n);
   store.close();

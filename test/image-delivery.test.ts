@@ -19,7 +19,7 @@ import { invocationCapabilities, renderInvocationContext, testConfigJsonc, testC
  * `send kind:image` delivery-ledger boundary.
  *
  * Deduplication is per target conversation + generation id + asset id against
- * `telegram_sends.request_json` (`generation_id` / `asset_ids`): successful
+ * `host_sends.request_json` (`generation_id` / `asset_ids`): successful
  * deliveries are filtered out, a fully delivered generation replays as a
  * successful no-op that reaches no Telegram API and spends no rate window, and
  * pending / unknown attempts block every retry, resend or not. Authorization
@@ -245,7 +245,7 @@ interface SendRow {
 function sendRows(store: SqliteStore): SendRow[] {
   return store.db
     .prepare<[], SendRow>(
-      'SELECT id, state, error_code, telegram_message_id, request_json, conversation_id FROM telegram_sends ORDER BY id',
+      'SELECT id, state, error_code, telegram_message_id, request_json, conversation_id FROM host_sends ORDER BY id',
     )
     .all();
 }

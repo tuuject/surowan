@@ -34,7 +34,7 @@ import {
   media,
   messages,
   taskReceipts,
-  telegramSends,
+  hostSends,
   toolCalls,
 } from '../src/store/schema.ts';
 import { createToolAudit } from '../src/store/tool-audit.ts';
@@ -375,7 +375,7 @@ test('send kind:image delivers finished outputs of a generation owned by this co
   // Delivery is audited: kind image, the owning conversation, and a bot photo
   // media row so later rounds can reference the delivered picture.
   const db2 = drizzle(fixtureRef.store.db, { schema: imageSchema });
-  const sendRow = db2.select().from(telegramSends).where(eq(telegramSends.kind, 'image')).get();
+  const sendRow = db2.select().from(hostSends).where(eq(hostSends.kind, 'image')).get();
   expect(sendRow?.state).toBe('success');
   const messageRow = fixtureRef.store.orm.select().from(messages).where(eq(messages.sentByBot, true)).get();
   expect(messageRow).toBeDefined();
@@ -408,7 +408,7 @@ test('send kind:image delivers finished outputs of a generation owned by this co
     'image_generation_unavailable',
   );
   expect(sent).toHaveLength(1);
-  expect(fixtureRef.store.orm.select().from(telegramSends).all()).toHaveLength(1);
+  expect(fixtureRef.store.orm.select().from(hostSends).all()).toHaveLength(1);
   expect(
     fixtureRef.store.orm.select().from(toolCalls).where(eq(toolCalls.toolCallId, 'call-send-missing')).get(),
   ).toMatchObject({

@@ -377,6 +377,9 @@ export function createTelegramHost(options: TelegramHostOptions): TelegramHost {
 
   const delivery: ImDelivery = {
     compose: composeTelegramPart,
+    // A reply may address another topic of the same chat, which is a different
+    // conversation row.
+    crossConversationTargets: true,
     deliver: async (request: ImDeliveryRequest): Promise<ImDeliveryOutcome> => {
       const messages: ImDeliveredMessage[] = [];
       const { signal } = request;
@@ -385,7 +388,7 @@ export function createTelegramHost(options: TelegramHostOptions): TelegramHost {
         if (aborted()) {
           return messages.length === 0
             ? { kind: 'rejected', failure: abortedTelegramDelivery() }
-            : { kind: 'delivered', messages };
+            : { kind: 'delivered', messages, recordedByHost: false };
         }
         try {
           const response = await sendPart(part, request);
@@ -422,7 +425,7 @@ export function createTelegramHost(options: TelegramHostOptions): TelegramHost {
             if (messages.length === 0) {
               return { kind: 'rejected', failure: abortedTelegramDelivery() };
             }
-            return { kind: 'delivered', messages };
+            return { kind: 'delivered', messages, recordedByHost: false };
           }
           // A published part already cleared the chat action; keep it that way.
           if (messages.length > 0) {
@@ -433,7 +436,7 @@ export function createTelegramHost(options: TelegramHostOptions): TelegramHost {
       }
       // Telegram keeps showing the action for a moment after the message lands.
       stopRound(conversationKey(request.target.conversation));
-      return { kind: 'delivered', messages };
+      return { kind: 'delivered', messages, recordedByHost: false };
     },
   };
 

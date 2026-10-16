@@ -21,10 +21,12 @@ test('migration 030 drops only legacy replay payloads; retention cascades public
     const migrationDirectory = join(import.meta.dirname, '../src/store/migrations');
     for (const file of (await readdir(migrationDirectory)).filter((name) => /^\d{3}_.*\.sql$/.test(name)).sort()) {
       const version = Number(file.slice(0, 3));
-      // Build a database where the migrations under test (030..034) are still
-      // pending. Everything else, including 035 and 036, is applied here: the
-      // seed helper below writes the current schema, which 036 shapes.
-      if (version >= 30 && version < 35) {
+      // Build a database where the migrations under test (030, 031, 032, 034)
+      // are still pending. Everything else - including 033 and 035..037 - is
+      // applied here, in version order: the seed helper below writes the
+      // current schema, which 036 and 037 shape, and 037 drops the index that
+      // 033 created, so 033 cannot be left pending either.
+      if (version >= 30 && version < 35 && version !== 33) {
         continue;
       }
       const text = await readFile(join(migrationDirectory, file), 'utf8');
@@ -46,17 +48,17 @@ test('migration 030 drops only legacy replay payloads; retention cascades public
           return rest;
         }),
       tools: store!.db.prepare('SELECT * FROM tool_calls ORDER BY id').all(),
-      sends: store!.db.prepare('SELECT * FROM telegram_sends ORDER BY id').all(),
+      sends: store!.db.prepare('SELECT * FROM host_sends ORDER BY id').all(),
       usage: store!.db.prepare('SELECT * FROM daily_usage ORDER BY utc_date, scope, resource, metric').all(),
       snapshots: store!.db.prepare('SELECT * FROM invocation_messages ORDER BY invocation_id, sequence_no').all(),
     });
     const before = preserved();
-    expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 36n });
+    expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 37n });
     store.close();
     store = undefined;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       store = await SqliteStore.open(config);
-      expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 36n });
+      expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 37n });
       expect(store.db.prepare('PRAGMA table_info(model_calls)').all()).not.toEqual(
         expect.arrayContaining([expect.objectContaining({ name: 'replay_input_json' })]),
       );
@@ -69,7 +71,7 @@ test('migration 030 drops only legacy replay payloads; retention cascades public
         try {
           backup.defaultSafeIntegers(true);
           expect(backup.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({
-            version: 36n,
+            version: 37n,
           });
           expect(backup.prepare('SELECT replay_input_json FROM model_calls LIMIT 1').get()).toEqual({
             replay_input_json: '{"version":2,"obsolete":true}',
@@ -89,7 +91,7 @@ test('migration 030 drops only legacy replay payloads; retention cascades public
       'invocation_buckets',
       'model_calls',
       'tool_calls',
-      'telegram_sends',
+      'host_sends',
       'media',
       'message_revisions',
       'messages',

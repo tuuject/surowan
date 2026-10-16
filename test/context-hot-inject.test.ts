@@ -987,7 +987,7 @@ describe('long-lived invocation', () => {
       expect(closingTools).toEqual([['send', 'send_reply']]);
       expect(
         fixtureSetup.store.db
-          .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM telegram_sends WHERE state = 'success'")
+          .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM host_sends WHERE state = 'success'")
           .get()?.count,
       ).toBe(1n);
       expect(
@@ -1416,7 +1416,7 @@ describe('send barrier', () => {
         { state: 'success', error_code: null },
       ]);
       expect(botTexts(store)).toEqual(['combined answer']);
-      expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM telegram_sends').get()?.count).toBe(
+      expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(
         1n,
       );
       // The follow-up joined the running invocation as its own injected batch.

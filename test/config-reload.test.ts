@@ -735,7 +735,7 @@ test('a reload during a run does not reach that run', async () => {
         .map((row) => row.error_code),
     ).toEqual(['send_text_too_long']);
     expect(
-      fixture.store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM telegram_sends').get()?.count,
+      fixture.store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count,
     ).toBe(0n);
     // The reload did happen: the next run gets the new prompt and limit.
     expect(fixture.configStore.current().config.agent!.send_max_text_length).toBe(1_000);

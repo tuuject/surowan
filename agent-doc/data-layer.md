@@ -22,6 +22,8 @@ Plastic Wan 使用单个 SQLite 数据库保存消息、调度状态、能力索
 
 迁移 `036` 把共享 Message/Context 存储改成宿主中立：`chats`、`senders`、`messages` 新增 `host_kind`，Telegram 身份列（`telegram_chat_id`、`canonical_chat_id`、`telegram_type`、`telegram_id`、`telegram_message_id`）从无条件 `NOT NULL` 变成随 `host_kind` 取值的条件约束，并新增 `rooms`、`room_participants` 和 `invocation_messages.snapshot_format`。旧库升级只补 `host_kind = 'telegram'` 与快照的 format 标识，行 ID、消息树、revision、Context 与 Telegram DTO 一律不变；同一数据库因此可以同时容纳没有任何 Telegram ID 的虚拟房间与身份。
 
+迁移 `037` 把发送台账切成宿主中立：`telegram_sends` 改名为 `host_sends`，主键、外键、`state` 取值与 Telegram 响应元数据原样保留，去重索引改名为 `host_sends_reply_delivery_idx` / `host_sends_image_delivery_idx`，并新增可空的 `message_id` 指向虚拟宿主为该次发送落下的消息（`ON DELETE SET NULL`，保留期删掉消息时审计行仍在）。改名在开启外键约束的情况下直接 ALTER 完成，不需要重建表。
+
 SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是整棵消息树的级联父表（外键强制下 `DROP TABLE` 会级联删掉全部 Conversation 与 Message），`messages` 又被 NO ACTION 子表引用（同样条件下直接报错），所以重建只能在关闭外键强制的窗口里做。需要在重建表的迁移在文件里单独一行写 `-- @rebuild-tables` 显式声明：runner 只对带该指令的迁移临时关闭 `foreign_keys`，整个迁移仍在单个 IMMEDIATE transaction 内执行，提交前跑 `PRAGMA foreign_key_check`，发现违例就回滚，并在 `finally` 中恢复强制；不带该指令的迁移路径完全不变。这不是「关掉约束蒙混升级」——约束只在 DDL 窗口内让位，且提交前必须通过校验。
 
 `host_kind` 取 `telegram` 或 `playground`。任何读取 Telegram 身份列的地方都要显式表态：要么用 [src/store/host-scope.ts](../src/store/host-scope.ts) 的 `telegramHostScope()` 把查询限定在 Telegram 行上，要么把该身份列当可空处理并说明虚拟行意味着什么。禁止用 ID 符号判断群类型或宿主。
@@ -60,7 +62,7 @@ SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是
 
 ### 冻结与重放边界
 
-`invocation_messages` 是可重放边界，保存 `history`/`new` 两个区段的 Message Revision 快照；长生命周期 Invocation 的多个批次按 `source_bucket_id` 追加进同一个 Invocation（`sequence_no` 在 Invocation 内保持单调）。消息在 Invocation 创建后被编辑只影响未来 Context，不改写已经冻结的快照。`buckets` 区分 `realtime`（配置长度窗口）与 `startup_catch_up`（启动追赶）两种来源，状态机相同。`agent_messages` 是**按 Invocation 展开的扁平审计轨迹**（人类可读的 `assistant`/`tool_result`/`harness_nudge` 文本行；assistant 行的 `text` 是本轮 response 的普通文本，模型的 thinking（CoT）单独放在 `thinking_text` 供 Admin 展示，且仅在 `developer.record_agent_thinking = true` 时记录，缺省关闭，不直接进 Telegram），完整可重放的 transcript 属于 Conversation，见下一节——**Assistant 文本不等于 Telegram 发送**，真正发出去的只有 `telegram_sends` 里的行。
+`invocation_messages` 是可重放边界，保存 `history`/`new` 两个区段的 Message Revision 快照；长生命周期 Invocation 的多个批次按 `source_bucket_id` 追加进同一个 Invocation（`sequence_no` 在 Invocation 内保持单调）。消息在 Invocation 创建后被编辑只影响未来 Context，不改写已经冻结的快照。`buckets` 区分 `realtime`（配置长度窗口）与 `startup_catch_up`（启动追赶）两种来源，状态机相同。`agent_messages` 是**按 Invocation 展开的扁平审计轨迹**（人类可读的 `assistant`/`tool_result`/`harness_nudge` 文本行；assistant 行的 `text` 是本轮 response 的普通文本，模型的 thinking（CoT）单独放在 `thinking_text` 供 Admin 展示，且仅在 `developer.record_agent_thinking = true` 时记录，缺省关闭，不直接进 Telegram），完整可重放的 transcript 属于 Conversation，见下一节——**Assistant 文本不等于对外发送**，真正发出去的只有 `host_sends` 里的行（迁移 `037` 之前叫 `telegram_sends`）。
 
 ### Conversation Context（长期会话 transcript）
 
@@ -148,11 +150,11 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 
 `model_calls.role` 区分调用来源：`agent`、`vision_chat`、`vision_sticker`、`doctor`，以及迁移 `034` 新增的 `tool`（Tool Model 辅助调用，如辞典融合）。`tool` 行不挂 `invocation_id`，也不写入 `daily_usage`：辅助任务不计入 Chat 的每日 Token 预算，但仍记录 provider/model/usage/费用/终态错误审计；这些无 `invocation_id` 的行与 Doctor 调用一样在 `retention.online_days` 后被清理。
 
-Invocation 重放不录制或读取模型请求副本：它从 `invocation_messages` 的开场 Bucket 冻结快照与可证明在当时已入库的公开历史重建场景，使用当前配置的 prompt、模型与工具定义；不读取 `context_messages` 的私有推理或工具历史，也不复制跨 Invocation 的完整 Context。具体边界见 [admin-panel.md](admin-panel.md#invocation-重放) 与 [`scene-context.ts`](../src/context/scene-context.ts)。因此关闭调试录制或清除报文不影响场景重建，在线留存清理仍会使来源或媒体不可用。迁移 `030` 删除迁移 `029` 引入的旧 `model_calls.replay_input_json` 列及其历史内容，不转换为新快照；其余调用审计、工具/发送记录、用量与公开消息快照保留。沿用现有迁移前备份与事务，不启用新的常驻数据录制。Developer 清除端点只分批把 `model_calls.request_json` / `response_json` 置为 `NULL`，不删除行、不改变关联或 retention，也不触碰 `telegram_sends` 的同名字段；不执行 `VACUUM`，不修改旧备份。
+Invocation 重放不录制或读取模型请求副本：它从 `invocation_messages` 的开场 Bucket 冻结快照与可证明在当时已入库的公开历史重建场景，使用当前配置的 prompt、模型与工具定义；不读取 `context_messages` 的私有推理或工具历史，也不复制跨 Invocation 的完整 Context。具体边界见 [admin-panel.md](admin-panel.md#invocation-重放) 与 [`scene-context.ts`](../src/context/scene-context.ts)。因此关闭调试录制或清除报文不影响场景重建，在线留存清理仍会使来源或媒体不可用。迁移 `030` 删除迁移 `029` 引入的旧 `model_calls.replay_input_json` 列及其历史内容，不转换为新快照；其余调用审计、工具/发送记录、用量与公开消息快照保留。沿用现有迁移前备份与事务，不启用新的常驻数据录制。Developer 清除端点只分批把 `model_calls.request_json` / `response_json` 置为 `NULL`，不删除行、不改变关联或 retention，也不触碰 `host_sends` 的同名字段；不执行 `VACUUM`，不修改旧备份。
 
 `side_effect_started` 和 `outcome_unknown` 用于阻止不可逆 Tool 的盲目重试。审计记录应保留稳定错误码；不要依赖解析自由文本错误。图片交付去重直接读这份发送台账：同一 Conversation 与 generation 下，只有 `success` 且带 `telegram_message_id` 的 `request_json.asset_ids` 算已交付；`pending`、`outcome_unknown` 按未决处理，已成功的旧发送若带 `asset_ids_unknown` 也不能证明具体交付集合，不能当作可重发。
 
-Reply 去重也复用 `telegram_sends`：以 `conversation_id` + `request_json.reply_to_message_id` 为键，`success`、`pending`、`outcome_unknown` 均阻止新的 Reply，明确 `error` 可再尝试。迁移 `033` 只为这三种状态建立非唯一表达式索引，不删除或改写既有重复发送；查重与 pending 占位在同一 IMMEDIATE 事务内完成，不新增独立台账。去重随发送审计的在线保留窗口清理，不受 Context GC/重建影响。`agent.allow_reply_message_multiple_times: true` 时整体跳过这一查重（不做查询、不拒绝，也不新增独立记录）；它只放开按消息的 Reply 去重，图片 generation/asset 交付去重与结果未知保护仍以 `request_json.asset_ids` / `asset_ids_unknown` 在 `telegram_sends` 上照常执行。
+Reply 去重也复用 `host_sends`：以 `conversation_id` + `request_json.reply_to_message_id` 为键，`success`、`pending`、`outcome_unknown` 均阻止新的 Reply，明确 `error` 可再尝试。迁移 `033` 只为这三种状态建立非唯一表达式索引，不删除或改写既有重复发送；查重与 pending 占位在同一 IMMEDIATE 事务内完成，不新增独立台账。去重随发送审计的在线保留窗口清理，不受 Context GC/重建影响。`agent.allow_reply_message_multiple_times: true` 时整体跳过这一查重（不做查询、不拒绝，也不新增独立记录）；它只放开按消息的 Reply 去重，图片 generation/asset 交付去重与结果未知保护仍以 `request_json.asset_ids` / `asset_ids_unknown` 在 `host_sends` 上照常执行。
 
 ### 媒体与 Sticker 缓存
 

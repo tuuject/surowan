@@ -20,7 +20,7 @@ import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.t
 import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { buckets, invocationBuckets, invocations, telegramSends, toolCalls } from '../src/store/schema.ts';
+import { buckets, invocationBuckets, invocations, hostSends, toolCalls } from '../src/store/schema.ts';
 import { fauxRegistry, invocationCapabilities, renderInvocationContext, testConfigJsonc, testConfigStore, testSendToolEnv, testTelegramRuntime, type TestContextOptions, type TestInvocationContext, writeTestConfig } from './helpers.ts';
 
 /**
@@ -28,12 +28,12 @@ import { fauxRegistry, invocationCapabilities, renderInvocationContext, testConf
  * `send` at most one reply to one Telegram message id unless explicitly allowed,
  * regardless of content changes or switching to a sticker or generated picture.
  *
- * The dedup key is the retained audit (telegram_sends.conversation_id +
+ * The dedup key is the retained audit (host_sends.conversation_id +
  * request_json.reply_to_message_id), so it holds across invocations, freshly
  * built tools, rebuilt contexts and SQLite close/open. A prior `success`
  * rejects with `reply_already_sent`; a prior `pending` / `outcome_unknown`
  * rejects with `reply_delivery_unknown`; an explicit `error` still allows a
- * retry. A rejection must add no telegram_sends row, call no API, and consume
+ * retry. A rejection must add no host_sends row, call no API, and consume
  * no sends_used / rate-limit budget / send barrier.
  */
 
@@ -213,7 +213,7 @@ function toolAudit(store: SqliteStore): ToolCallRow[] {
 }
 
 function sendAudit(store: SqliteStore): SendRow[] {
-  return store.db.prepare<[], SendRow>('SELECT state, error_code, request_json FROM telegram_sends ORDER BY id').all();
+  return store.db.prepare<[], SendRow>('SELECT state, error_code, request_json FROM host_sends ORDER BY id').all();
 }
 
 function errorCodeOf(store: SqliteStore, callId: string): string | null {
@@ -436,7 +436,7 @@ describe('reply deduplication', () => {
       await tool.execute('first', input);
       const replay = await tool.execute('again', input);
       expect(replay.details.replayed).toBe(true);
-      fixture.store.orm.update(telegramSends).set({ state: 'outcome_unknown' }).run();
+      fixture.store.orm.update(hostSends).set({ state: 'outcome_unknown' }).run();
       await expect(tool.execute('unknown', { ...input, resend: true })).rejects.toThrow('unknown outcome');
       expect(errorCodeOf(fixture.store, 'unknown')).toBe('image_delivery_unknown');
       expect(api.calls).toBe(1);
@@ -513,7 +513,7 @@ describe('reply deduplication', () => {
         .returning({ id: toolCalls.id })
         .get()!;
       fixture.store.orm
-        .insert(telegramSends)
+        .insert(hostSends)
         .values({
           toolCallId: call.id,
           conversationId: context.conversationId,
@@ -674,7 +674,7 @@ describe('reply deduplication', () => {
     expect(errorCodeOf(store2, 'inv-3')).toBe('reply_already_sent');
     expect(api3.calls).toBe(0);
     expect(sendsUsed(store2, invocationId3)).toBe(0n);
-    expect(store2.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM telegram_sends').get()?.count).toBe(
+    expect(store2.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(
       1n,
     );
     store2.close();

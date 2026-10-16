@@ -1,8 +1,8 @@
 import { sql } from 'drizzle-orm';
 import type { Orm } from './store.ts';
-import { telegramSends } from './schema.ts';
+import { hostSends } from './schema.ts';
 
-/** Telegram audit is the delivery ledger, including attempts interrupted by a restart. */
+/** The delivery ledger is the audit, including attempts interrupted by a restart. */
 export function imageDeliveryState(orm: Orm, conversationId: bigint, generationId: string) {
   const rows = orm.all<{
     asset_id: string | null;
@@ -12,7 +12,7 @@ export function imageDeliveryState(orm: Orm, conversationId: bigint, generationI
   }>(sql`
     SELECT asset.value AS asset_id, s.state, s.telegram_message_id,
       COALESCE(json_extract(s.request_json, '$.asset_ids_unknown'), 0) AS unknown_assets
-    FROM ${telegramSends} s
+    FROM ${hostSends} s
     LEFT JOIN json_each(s.request_json, '$.asset_ids') asset ON asset.type = 'text'
     WHERE s.conversation_id = ${conversationId} AND s.kind = 'image'
       AND json_extract(s.request_json, '$.generation_id') = ${generationId}

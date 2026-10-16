@@ -211,6 +211,7 @@ test('publishing into the chat and topic ends its activity, other topics keep th
   const outcome = await f.host.delivery.deliver({
     target,
     parts: [{ kind: 'text', text: 'hi' }],
+    sendId: 1n,
     signal: undefined,
   });
   expect(outcome.kind).toBe('delivered');
@@ -232,6 +233,7 @@ test('a failed send keeps the status, and platform failures stay cosmetic', asyn
   const outcome = await f.host.delivery.deliver({
     target: targetOf(f.host, GROUP, 0n),
     parts: [{ kind: 'text', text: 'hi' }],
+    sendId: 1n,
     signal: undefined,
   });
   expect(outcome).toMatchObject({ kind: 'rejected' });
@@ -252,6 +254,7 @@ test('hosts without chat actions get no round and deliver anyway', async () => {
   const outcome = await host.delivery.deliver({
     target: targetOf(host, GROUP, 0n),
     parts: [{ kind: 'text', text: 'hi' }],
+    sendId: 1n,
     signal: undefined,
   });
   expect(outcome.kind).toBe('delivered');

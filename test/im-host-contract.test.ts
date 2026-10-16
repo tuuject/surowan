@@ -66,6 +66,7 @@ function createFakeHost(host: HostKind): {
         sendRate: PINNED_SEND_RATE,
       }),
     delivery: {
+      crossConversationTargets: host === 'telegram',
       compose: (part) =>
         part.kind === 'text'
           ? { text: part.text, markup: part.markup ?? null }
@@ -74,6 +75,7 @@ function createFakeHost(host: HostKind): {
         delivered.push(request);
         return {
           kind: 'delivered',
+          recordedByHost: false,
           messages: request.parts.map((_part, partIndex) => ({
             partIndex,
             messageId: BigInt(partIndex + 1),
@@ -99,6 +101,7 @@ async function deliverOne(host: ImHost, conversation: ImConversationRef, parts: 
   return host.delivery.deliver({
     target: boundTarget(conversation, host),
     parts,
+    sendId: 1n,
     signal: new AbortController().signal,
   });
 }
@@ -203,6 +206,7 @@ test('an unsupported delivery is reported as an outcome, not thrown', async () =
   const stub: ImHost = {
     ...host,
     delivery: {
+      crossConversationTargets: false,
       compose: host.delivery.compose,
       deliver: () =>
         Promise.resolve<ImDeliveryOutcome>({
@@ -240,10 +244,12 @@ test('a partial delivery reports the parts that did go out', async () => {
   const host: ImHost = {
     ...base,
     delivery: {
+      crossConversationTargets: true,
       compose: base.delivery.compose,
       deliver: () =>
         Promise.resolve<ImDeliveryOutcome>({
           kind: 'delivered',
+          recordedByHost: false,
           messages: [{ partIndex: 0, messageId: 900n, sentAtSeconds: 1_700_000_000 }],
         }),
     },

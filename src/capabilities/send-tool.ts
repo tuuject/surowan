@@ -3,6 +3,7 @@ import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import Type, { type Static } from 'typebox';
 import {
+  sameConversation,
   toConversationId,
   toSenderId,
   type ImConversationRef,
@@ -25,7 +26,7 @@ import {
   messages,
   senders,
   stickers,
-  telegramSends,
+  hostSends,
   toolCalls,
 } from '../store/schema.ts';
 
@@ -219,8 +220,45 @@ function completionMention(completion: InvocationContext['completion']): ImMenti
   };
 }
 
-type SendDetails = { telegramMessageId: string; replayed?: boolean };
-type SendReplyDetails = { telegramMessageIds: string[] };
+type SendDetails = {
+  /** The wire id, under the key Telegram consumers have always read. */
+  telegramMessageId?: string;
+  /** The id of the message a host published itself, e.g. a room. */
+  messageId?: string;
+  replayed?: boolean;
+};
+type SendReplyDetails = {
+  telegramMessageIds?: string[];
+  /** The same ids under a neutral key, for a host that has no wire. */
+  messageIds?: string[];
+};
+
+/** Whether this host reports ids from a wire, rather than publishing them. */
+const reportsWireIds = (host: ImHost): boolean => host.host === 'telegram';
+
+/**
+ * How a send result names what it published. Telegram keeps the wire id under
+ * the key and wording it has always used, so nothing that reads a send result
+ * has to know which host ran it; a room reports the message it recorded.
+ */
+const sentMessageResult = (host: ImHost, messageId: bigint): string =>
+  reportsWireIds(host) ? `telegram_message_id=${messageId}` : `message_id=${messageId}`;
+
+const sentMessagesResult = (host: ImHost, ids: readonly string[]): string =>
+  reportsWireIds(host) ? `telegram_message_ids=${ids.join(',')}` : `message_ids=${ids.join(',')}`;
+
+const sentDetails = (host: ImHost, messageId: string, replayed?: boolean): SendDetails =>
+  reportsWireIds(host)
+    ? { telegramMessageId: messageId, ...(replayed === undefined ? {} : { replayed }) }
+    : { messageId, ...(replayed === undefined ? {} : { replayed }) };
+
+const sentReplyDetails = (host: ImHost, ids: readonly string[]): SendReplyDetails =>
+  reportsWireIds(host) ? { telegramMessageIds: [...ids] } : { messageIds: [...ids] };
+
+const sentCountText = (host: ImHost, count: number, ids: readonly string[]): string =>
+  reportsWireIds(host)
+    ? `Sent ${count} Telegram messages in order: ${ids.join(', ')}`
+    : `Sent ${count} messages in order: ${ids.join(', ')}`;
 
 /** A delivery the host refused, carrying the host's own classification. */
 class DeliveryRejected extends Error {
@@ -335,6 +373,23 @@ export function createSendTools(environment: SendToolEnvironment): {
       id: toConversationId(targetConversationId),
       topicId: targetThreadId === 0n ? null : Number(targetThreadId),
     };
+    // The host has to be the one this conversation belongs to. A missing or
+    // mismatched pair means no host was built for it, and guessing one would
+    // publish into a place nobody asked for.
+    if (environment.host.host !== environment.conversation.host) {
+      recordRejectedSend(environment, toolCallId, input, 'host_not_supported');
+      throw new Error(`no "${environment.conversation.host}" host is bound to this conversation`);
+    }
+    // A reply may address another conversation only where the host allows it:
+    // Telegram replies into another topic, a room publishes into itself alone.
+    if (
+      targetConversationId !== environment.context.conversationId &&
+      !sameConversation(targetConversation, environment.conversation) &&
+      !environment.host.delivery.crossConversationTargets
+    ) {
+      recordRejectedSend(environment, toolCallId, input, 'reply_target_other_room');
+      throw new Error('reply_to_message_id belongs to another conversation this host cannot reach');
+    }
     const target: ImDeliveryTarget = {
       conversation: targetConversation,
       policy: environment.host.policy(targetConversation),
@@ -451,7 +506,7 @@ export function createSendTools(environment: SendToolEnvironment): {
             .run();
           return {
             content: [{ type: 'text', text }],
-            details: { telegramMessageId: firstMessageId, replayed: true },
+            details: sentDetails(environment.host, firstMessageId, true),
           };
         }
       }
@@ -479,17 +534,17 @@ export function createSendTools(environment: SendToolEnvironment): {
     const rejectDuplicateReply = (): { error: string } | undefined => {
       if (environment.allowReplyMessageMultipleTimes !== true && send.reply_to_message_id !== undefined) {
         const previous = environment.store.orm
-          .select({ state: telegramSends.state })
-          .from(telegramSends)
+          .select({ state: hostSends.state })
+          .from(hostSends)
           .where(
             and(
-              eq(telegramSends.conversationId, targetConversationId),
-              sql`json_extract(${telegramSends.requestJson}, '$.reply_to_message_id') = ${send.reply_to_message_id}`,
-              sql`${telegramSends.state} IN ('success', 'pending', 'outcome_unknown')`,
+              eq(hostSends.conversationId, targetConversationId),
+              sql`json_extract(${hostSends.requestJson}, '$.reply_to_message_id') = ${send.reply_to_message_id}`,
+              sql`${hostSends.state} IN ('success', 'pending', 'outcome_unknown')`,
             ),
           )
           // A success does not resolve another pending or uncertain attempt.
-          .orderBy(sql`${telegramSends.state} = 'success'`)
+          .orderBy(sql`${hostSends.state} = 'success'`)
           .limit(1)
           .get();
         if (previous !== undefined) {
@@ -560,7 +615,7 @@ export function createSendTools(environment: SendToolEnvironment): {
         .where(eq(invocations.id, environment.context.invocationId))
         .run();
       const createdSend = environment.store.orm
-        .insert(telegramSends)
+        .insert(hostSends)
         .values({
           toolCallId: toolId,
           conversationId: targetConversationId,
@@ -580,10 +635,10 @@ export function createSendTools(environment: SendToolEnvironment): {
           state: 'pending',
           createdAt: now,
         })
-        .returning({ id: telegramSends.id })
+        .returning({ id: hostSends.id })
         .get();
       if (createdSend === undefined) {
-        throw new Error('telegram_sends insert returned no row');
+        throw new Error('host_sends insert returned no row');
       }
       return { toolId, sendId: createdSend.id };
     });
@@ -596,11 +651,13 @@ export function createSendTools(environment: SendToolEnvironment): {
       send.reply_to_message_id === undefined ? undefined : BigInt(send.reply_to_message_id);
     const startedAt = performance.now();
     let delivered: ImDeliveredMessage;
+    let recordedByHost = false;
     try {
       while (true) {
         const outcome = await environment.host.delivery.deliver({
           target,
           parts: [outgoingPart],
+          sendId,
           ...(replyToMessageId === undefined ? {} : { replyToMessageId }),
           signal,
         });
@@ -610,6 +667,7 @@ export function createSendTools(environment: SendToolEnvironment): {
             throw new Error('the host reported a delivery without a message');
           }
           delivered = first;
+          recordedByHost = outcome.recordedByHost;
           break;
         }
         const retryAfter = outcome.failure.retryAfterSeconds;
@@ -664,9 +722,9 @@ export function createSendTools(environment: SendToolEnvironment): {
           .where(eq(toolCalls.id, pending.toolId))
           .run();
         environment.store.orm
-          .update(telegramSends)
+          .update(hostSends)
           .set({ state, errorCode, finishedAt: now })
-          .where(eq(telegramSends.id, sendId))
+          .where(eq(hostSends.id, sendId))
           .run();
       });
       throw new Error(reason);
@@ -674,7 +732,7 @@ export function createSendTools(environment: SendToolEnvironment): {
     if (mention !== null && completion !== null) {
       mentionedTasks.add(completion.taskId);
     }
-    // Telegram has accepted the message from here on. A failure to record it
+    // The host has accepted the message from here on. A failure to record it
     // must not read as a failed send, or the model would send it again.
     const now = new Date().toISOString();
     const markAccepted = (): void => {
@@ -682,26 +740,37 @@ export function createSendTools(environment: SendToolEnvironment): {
         .update(toolCalls)
         .set({
           state: 'success',
-          resultText: `telegram_message_id=${delivered.messageId}`,
+          resultText: sentMessageResult(environment.host, delivered.messageId),
           durationMs: BigInt(Math.round(performance.now() - startedAt)),
           finishedAt: now,
         })
         .where(eq(toolCalls.id, pending.toolId))
         .run();
+      // A virtual host wrote this row in the same transaction that published
+      // the message; overwriting it here would drop the link it recorded and
+      // could not add the Telegram metadata a room never had.
+      if (recordedByHost) {
+        return;
+      }
       environment.store.orm
-        .update(telegramSends)
+        .update(hostSends)
         .set({
           state: 'success',
           telegramMessageId: delivered.messageId,
           responseJson: JSON.stringify({ message_id: Number(delivered.messageId) }),
           finishedAt: now,
         })
-        .where(eq(telegramSends.id, sendId))
+        .where(eq(hostSends.id, sendId))
         .run();
     };
     try {
       environment.store.transaction(() => {
         markAccepted();
+        if (recordedByHost) {
+          // The host already published the message it reported; mirroring it
+          // again would leave a second, contradicting copy in the store.
+          return;
+        }
         recordOutgoingMessage(
           environment,
           delivered,
@@ -729,8 +798,15 @@ export function createSendTools(environment: SendToolEnvironment): {
       } catch {}
     }
     return {
-      content: [{ type: 'text', text: `Sent Telegram message ${delivered.messageId}` }],
-      details: { telegramMessageId: String(delivered.messageId) },
+      content: [
+        {
+          type: 'text',
+          text: reportsWireIds(environment.host)
+            ? `Sent Telegram message ${delivered.messageId}`
+            : `Sent message ${delivered.messageId}`,
+        },
+      ],
+      details: sentDetails(environment.host, String(delivered.messageId)),
     };
   };
   const send: AgentTool<typeof SendInputSchema, SendDetails> = {
@@ -896,7 +972,12 @@ function createSendReplyTool(
             signal,
             { barrier: first },
           );
-          sent.push(result.details.telegramMessageId);
+          const detail = result.details;
+          const published = detail.telegramMessageId ?? detail.messageId;
+          if (published === undefined) {
+            throw new Error('the host reported a delivery without a message id');
+          }
+          sent.push(published);
         } catch (error) {
           const failed = environment.store.orm
             .select({ errorCode: toolCalls.errorCode })
@@ -907,7 +988,7 @@ function createSendReplyTool(
             environment.store.orm,
             auditId,
             'error',
-            sent.length === 0 ? null : `telegram_message_ids=${sent.join(',')}`,
+            sent.length === 0 ? null : sentMessagesResult(environment.host, sent),
             failed?.errorCode ?? 'send_error',
             { startedAt },
           );
@@ -921,32 +1002,34 @@ function createSendReplyTool(
           );
         }
       }
-      finishToolCall(environment.store.orm, auditId, 'success', `telegram_message_ids=${sent.join(',')}`, null, {
+      finishToolCall(environment.store.orm, auditId, 'success', sentMessagesResult(environment.host, sent), null, {
         startedAt,
       });
       return {
-        content: [{ type: 'text', text: `Sent ${sent.length} Telegram messages in order: ${sent.join(', ')}` }],
-        details: { telegramMessageIds: sent },
+        content: [{ type: 'text', text: sentCountText(environment.host, sent.length, sent) }],
+        details: sentReplyDetails(environment.host, sent),
       };
     },
   };
 }
 
 /**
- * Send attempts that reached Telegram in this chat inside the rate-limit window.
- * Every state counts, including pending, unknown and error: those are exactly
- * what a runaway loop piles up during a Telegram hiccup or when every attempt is
- * rejected (a MarkdownV2 escape the model keeps getting wrong, for example).
+ * Send attempts recorded in this chat inside the rate-limit window. Every state
+ * counts, including pending, unknown and error: those are exactly what a
+ * runaway loop piles up when the host hiccups or when every attempt is rejected
+ * (a MarkdownV2 escape the model keeps getting wrong, for example).
+ *
+ * The scope is the internal chat that owns this conversation, not a Telegram
+ * chat id, so a host without a wire is limited by exactly the same rule.
  */
 function recentSendCount(environment: SendToolEnvironment, now: Date): number {
   const since = new Date(now.getTime() - environment.sendRateLimit.windowSeconds * 1_000).toISOString();
   const row = environment.store.orm
     .all<{ count: bigint }>(
       sql`SELECT COUNT(*) AS count
-       FROM telegram_sends ts
+       FROM host_sends ts
        JOIN conversations v ON v.id = ts.conversation_id
-       JOIN chats c ON c.id = v.chat_id
-       WHERE c.telegram_chat_id = ${environment.context.chatId}
+       WHERE v.chat_id = (SELECT owner.chat_id FROM conversations owner WHERE owner.id = ${environment.context.conversationId})
          AND ts.created_at >= ${since}`,
     )
     .at(0);

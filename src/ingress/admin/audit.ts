@@ -22,7 +22,7 @@ import {
   messages,
   modelCalls,
   senders,
-  telegramSends,
+  hostSends,
   toolCalls,
 } from '../../store/schema.ts';
 import { meteredTokens, storedSleepUntil } from '../../store/sleep.ts';
@@ -387,7 +387,7 @@ type InvocationScope = (column: SQL) => SQL;
 interface MatchedMessageRow {
   readonly invocation_id: bigint;
   readonly source: string;
-  /** TEXT for frozen snapshots, INTEGER for telegram_sends; both stringified in the API. */
+  /** TEXT for frozen snapshots, INTEGER for host_sends; both stringified in the API. */
   readonly telegram_message_id: bigint | string | null;
   readonly telegram_send_id: bigint | null;
   readonly at: string;
@@ -404,7 +404,7 @@ const SEND_INVOCATION = sql`tc.invocation_id`;
 // is gone falls back to the send arguments that Telegram accepted.
 const SEND_TEXT = sql`COALESCE(r.text, r.caption, json_extract(tc.arguments_json, '$.text'))`;
 const SEND_DATE = sql`COALESCE(m.telegram_date, ts.finished_at)`;
-const SEND_SOURCE = sql`FROM telegram_sends ts
+const SEND_SOURCE = sql`FROM host_sends ts
        JOIN tool_calls tc ON tc.id = ts.tool_call_id
        LEFT JOIN messages m ON m.conversation_id = ts.conversation_id
          AND m.telegram_message_id = ts.telegram_message_id AND m.sent_by_bot = 1
@@ -555,7 +555,7 @@ function matchedMessagesSelect(filter: InvocationMessageFilter, scope: Invocatio
 /**
  * Total order inside one invocation: newest public time first, then the
  * Telegram message ID compared as an integer (`json_extract` returns the
- * snapshots' frozen TEXT ids while `telegram_sends` stores integers), then the
+ * snapshots' frozen TEXT ids while `host_sends` stores integers), then the
  * send row ID and source so same-second matches still have one deterministic
  * order.
  */
@@ -766,20 +766,20 @@ export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | n
     .all();
   const sendRows = orm
     .select({
-      id: telegramSends.id,
+      id: hostSends.id,
       toolCallId: toolCalls.toolCallId,
-      kind: telegramSends.kind,
-      requestJson: telegramSends.requestJson,
-      state: telegramSends.state,
-      telegramMessageId: telegramSends.telegramMessageId,
-      errorCode: telegramSends.errorCode,
-      createdAt: telegramSends.createdAt,
-      finishedAt: telegramSends.finishedAt,
+      kind: hostSends.kind,
+      requestJson: hostSends.requestJson,
+      state: hostSends.state,
+      telegramMessageId: hostSends.telegramMessageId,
+      errorCode: hostSends.errorCode,
+      createdAt: hostSends.createdAt,
+      finishedAt: hostSends.finishedAt,
     })
-    .from(telegramSends)
-    .innerJoin(toolCalls, eq(telegramSends.toolCallId, toolCalls.id))
+    .from(hostSends)
+    .innerJoin(toolCalls, eq(hostSends.toolCallId, toolCalls.id))
     .where(eq(toolCalls.invocationId, id))
-    .orderBy(telegramSends.id)
+    .orderBy(hostSends.id)
     .all();
   const contextMessageRows = orm
     .select({

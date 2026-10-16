@@ -441,8 +441,8 @@ export const toolCalls = sqliteTable(
   ],
 );
 
-export const telegramSends = sqliteTable(
-  'telegram_sends',
+export const hostSends = sqliteTable(
+  'host_sends',
   {
     id: sqliteBigIntId('id').primaryKey(),
     toolCallId: sqliteBigInt('tool_call_id')
@@ -455,20 +455,27 @@ export const telegramSends = sqliteTable(
     requestJson: text('request_json').notNull(),
     state: text('state').notNull(),
     telegramMessageId: sqliteBigInt('telegram_message_id'),
+    // The message a virtual host published for this send, if it publishes one.
+    messageId: sqliteBigInt('message_id').references(() => messages.id, {
+      onDelete: 'set null',
+    }),
     responseJson: text('response_json'),
     errorCode: text('error_code'),
     createdAt: text('created_at').notNull(),
     finishedAt: text('finished_at'),
   },
   (table) => [
-    index('telegram_sends_reply_delivery_idx')
+    index('host_sends_reply_delivery_idx')
       .on(table.conversationId, sql`json_extract(${table.requestJson}, '$.reply_to_message_id')`)
       .where(sql`${table.state} IN ('success', 'pending', 'outcome_unknown')`),
-    index('telegram_sends_image_delivery_idx')
+    index('host_sends_image_delivery_idx')
       .on(table.conversationId, sql`json_extract(${table.requestJson}, '$.generation_id')`)
       .where(sql`${table.kind} = 'image'`),
-    check('telegram_sends_kind_check', sql`kind IN ('text', 'sticker', 'image')`),
-    check('telegram_sends_state_check', sql`state IN ('pending', 'success', 'error', 'outcome_unknown')`),
+    index('host_sends_message_idx')
+      .on(table.messageId)
+      .where(sql`${table.messageId} IS NOT NULL`),
+    check('host_sends_kind_check', sql`kind IN ('text', 'sticker', 'image')`),
+    check('host_sends_state_check', sql`state IN ('pending', 'success', 'error', 'outcome_unknown')`),
   ],
 );
 

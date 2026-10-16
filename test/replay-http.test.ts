@@ -29,7 +29,7 @@ import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { AlarmInputSchema, ListAlarmInputSchema } from '../src/plugins/alarm/alarm.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { snapshotInvocation } from '../src/store/invocation-snapshot.ts';
-import { bucketMessages, invocationMessages, messageRevisions, messages, telegramSends } from '../src/store/schema.ts';
+import { bucketMessages, invocationMessages, messageRevisions, messages, hostSends } from '../src/store/schema.ts';
 import { seedAdminFixture } from './fixtures/admin-seed.ts';
 import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 
@@ -517,9 +517,9 @@ test('CLI replay over real HTTP runs ReplayRunner with synthetic side effects an
   // Production state is untouched apart from the auth layer's last_used_at.
   const after = f.rows();
   expect(productionTables(after)).toEqual(productionTables(before));
-  expect(after.telegram_sends).toEqual(before.telegram_sends);
-  expect(before.telegram_sends).toHaveLength(1);
-  expect(stringifyRows(after.telegram_sends)).not.toContain('synthetic CLI send');
+  expect(after.host_sends).toEqual(before.host_sends);
+  expect(before.host_sends).toHaveLength(1);
+  expect(stringifyRows(after.host_sends)).not.toContain('synthetic CLI send');
   expect(after.model_calls).toEqual(before.model_calls);
   expect(after.context_messages).toEqual(before.context_messages);
   expect(after.long_tasks).toEqual(before.long_tasks);
@@ -533,7 +533,7 @@ test('bot-sliced CLI replay injects its window immediately and validates selecti
   const f = await fixture();
   const admin = await setupAdminSession(f.baseUrl);
   const env = { SUROWAN_ENDPOINT: f.baseUrl, SUROWAN_API_KEY: admin.key };
-  const send = f.store.orm.select().from(telegramSends).get()!;
+  const send = f.store.orm.select().from(hostSends).get()!;
   f.store.orm.update(messages).set({ sentByBot: true }).where(eq(messages.id, f.seed.messageIds[0]!)).run();
   const frozen = f.store.orm
     .select()
@@ -652,7 +652,7 @@ test('a sliced replay without --confirm-paid is refused before any request', asy
   const f = await fixture();
   const admin = await setupAdminSession(f.baseUrl);
   const env = { SUROWAN_ENDPOINT: f.baseUrl, SUROWAN_API_KEY: admin.key };
-  const send = f.store.orm.select().from(telegramSends).get()!;
+  const send = f.store.orm.select().from(hostSends).get()!;
   const before = f.rows();
   const refused = await runCli(['invocation', 'replay', '4001', '--before-send', send.id.toString(), '--json'], env);
   expect(refused.code).toBe(2);

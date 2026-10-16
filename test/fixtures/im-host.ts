@@ -82,7 +82,9 @@ export const PINNED_PLAYGROUND_ROOM_POLICY: ImConversationPolicy = {
     maxCaptionLength: 1024,
     albums: true,
   },
-  activity: { kind: 'typing', refreshMs: 4000, capMs: 55000 },
+  // A room shows no chat action: its working state is local and only needs to
+  // expire on its own.
+  activity: { kind: 'none', refreshMs: null, capMs: 600_000 },
   sendRate: PINNED_SEND_RATE,
   senderRef: 'opaque',
 };

@@ -38,13 +38,36 @@ import {
   schemaMigrations,
   senders,
   stickerSets,
-  telegramSends,
+  hostSends,
   telegramUpdates,
   toolCalls,
 } from '../src/store/schema.ts';
 import { testConfigJsonc, writeTestConfig } from './helpers.ts';
 import * as schema from '../src/store/schema.ts';
 import { seedAdminFixture } from './fixtures/admin-seed.ts';
+
+/**
+ * Undoes migration 037 exactly - the ledger back under its Telegram name without
+ * the virtual-message link, the pre-037 indexes back under their old names -
+ * so a test can put a live database one migration below where it started and
+ * let the real chain run it again.
+ */
+function rollbackHostSendsRename(db: Database.Database): void {
+  db.exec(`
+    DROP INDEX host_sends_reply_delivery_idx;
+    DROP INDEX host_sends_image_delivery_idx;
+    DROP INDEX host_sends_message_idx;
+    ALTER TABLE host_sends DROP COLUMN message_id;
+    ALTER TABLE host_sends RENAME TO telegram_sends;
+    CREATE INDEX telegram_sends_reply_delivery_idx
+      ON telegram_sends(conversation_id, json_extract(request_json, '$.reply_to_message_id'))
+      WHERE state IN ('success', 'pending', 'outcome_unknown');
+    CREATE INDEX telegram_sends_image_delivery_idx
+      ON telegram_sends(conversation_id, json_extract(request_json, '$.generation_id'))
+      WHERE kind = 'image';
+    DELETE FROM schema_migrations WHERE version = 37;
+  `);
+}
 
 const directories: string[] = [];
 
@@ -170,7 +193,7 @@ test.each(['fresh', 'upgraded'])(
           .returning({ id: toolCalls.id })
           .get()!;
         store.orm
-          .insert(telegramSends)
+          .insert(hostSends)
           .values({
             toolCallId: tool.id,
             conversationId: seed.conversationId,
@@ -181,7 +204,7 @@ test.each(['fresh', 'upgraded'])(
           })
           .run();
       }
-      const before = store.orm.select().from(telegramSends).all();
+      const before = store.orm.select().from(hostSends).all();
       if (mode === 'upgraded') {
         // 032 (admin passkeys) is already applied on this database with real
         // rows; rolling back only the reply index records must re-apply 033
@@ -228,10 +251,9 @@ test.each(['fresh', 'upgraded'])(
           sessions: store.orm.select().from(adminSessions).all(),
           passkeys: store.orm.select().from(adminPasskeys).all(),
         };
-        store.db.exec(`
-        DROP INDEX telegram_sends_reply_delivery_idx;
-        DELETE FROM schema_migrations WHERE version = 33;
-      `);
+        // The reply index belongs to 037 now, so that is the migration this
+        // replay puts back on top of a live database.
+        rollbackHostSendsRename(store.db);
         store.close();
         store = await SqliteStore.open(fixture.loaded.config);
         store.close();
@@ -239,12 +261,12 @@ test.each(['fresh', 'upgraded'])(
         expect(store.orm.select().from(adminUsers).all()).toEqual(adminBefore.users);
         expect(store.orm.select().from(adminSessions).all()).toEqual(adminBefore.sessions);
         expect(store.orm.select().from(adminPasskeys).all()).toEqual(adminBefore.passkeys);
-        // The already-applied 032 row survives, and the rebased 033 records
+        // The already-applied 033 row survives, and the rebased 037 records
         // exactly one row each for both versions.
-        expect(store.db.prepare('SELECT count(*) AS n FROM schema_migrations WHERE version = 32').get()).toEqual({
+        expect(store.db.prepare('SELECT count(*) AS n FROM schema_migrations WHERE version = 33').get()).toEqual({
           n: 1n,
         });
-        expect(store.db.prepare('SELECT count(*) AS n FROM schema_migrations WHERE version = 33').get()).toEqual({
+        expect(store.db.prepare('SELECT count(*) AS n FROM schema_migrations WHERE version = 37').get()).toEqual({
           n: 1n,
         });
       }
@@ -263,17 +285,17 @@ test.each(['fresh', 'upgraded'])(
         },
       });
       const previous = orm
-        .select({ state: telegramSends.state })
-        .from(telegramSends)
-        .where(sql`${telegramSends.conversationId} = ${seed.conversationId}
-        AND json_extract(${telegramSends.requestJson}, '$.reply_to_message_id') = ${'900'}
-        AND ${telegramSends.state} IN ('success', 'pending', 'outcome_unknown')`)
-        .orderBy(sql`${telegramSends.state} = 'success'`)
+        .select({ state: hostSends.state })
+        .from(hostSends)
+        .where(sql`${hostSends.conversationId} = ${seed.conversationId}
+        AND json_extract(${hostSends.requestJson}, '$.reply_to_message_id') = ${'900'}
+        AND ${hostSends.state} IN ('success', 'pending', 'outcome_unknown')`)
+        .orderBy(sql`${hostSends.state} = 'success'`)
         .limit(1)
         .get();
       expect(previous?.state).toBe('pending');
-      expect(plans.some((detail) => detail.includes('USING INDEX telegram_sends_reply_delivery_idx'))).toBe(true);
-      expect(store.orm.select().from(telegramSends).all()).toEqual(before);
+      expect(plans.some((detail) => detail.includes('USING INDEX host_sends_reply_delivery_idx'))).toBe(true);
+      expect(store.orm.select().from(hostSends).all()).toEqual(before);
       expect(store.db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
     } finally {
       store.close();
@@ -483,7 +505,7 @@ test('migration 027 infers image delivery asset ids only when the count proves t
         })
         .run();
       store.orm
-        .insert(telegramSends)
+        .insert(hostSends)
         .values({
           id: 201n + BigInt(item.index),
           toolCallId,
@@ -534,7 +556,7 @@ test('migration 027 infers image delivery asset ids only when the count proves t
       })
       .run();
     store.orm
-      .insert(telegramSends)
+      .insert(hostSends)
       .values({
         id: 201n + BigInt(textIndex),
         toolCallId: 101n + BigInt(textIndex),
@@ -548,7 +570,10 @@ test('migration 027 infers image delivery asset ids only when the count proves t
       })
       .run();
 
-    // Roll the database back to its pre-027 shape before reopening it.
+    // Roll the database back to its pre-027 shape before reopening it: first
+    // the ledger goes back to its Telegram name (so 027 still has a table to
+    // index) and then its image index goes away.
+    rollbackHostSendsRename(store.db);
     store.db.exec(`
       DROP INDEX telegram_sends_image_delivery_idx;
       DELETE FROM schema_migrations WHERE version = 27;
@@ -556,7 +581,7 @@ test('migration 027 infers image delivery asset ids only when the count proves t
     expect(
       store.db
         .prepare(
-          "SELECT count(*) AS n FROM sqlite_master WHERE type = 'index' AND name = 'telegram_sends_image_delivery_idx'",
+          "SELECT count(*) AS n FROM sqlite_master WHERE type = 'index' AND name = 'host_sends_image_delivery_idx'",
         )
         .get(),
     ).toEqual({ n: 0n });
@@ -565,19 +590,19 @@ test('migration 027 infers image delivery asset ids only when the count proves t
     // Reopen once applies 027; reopening again proves the upgrade is a no-op.
     store = await SqliteStore.open(fixture.loaded.config);
     const afterFirstOpen = store.db
-      .prepare<[], { id: bigint; request_json: string }>('SELECT id, request_json FROM telegram_sends ORDER BY id')
+      .prepare<[], { id: bigint; request_json: string }>('SELECT id, request_json FROM host_sends ORDER BY id')
       .all();
     store.close();
     store = await SqliteStore.open(fixture.loaded.config);
     const rows = store.db
-      .prepare<[], { id: bigint; request_json: string }>('SELECT id, request_json FROM telegram_sends ORDER BY id')
+      .prepare<[], { id: bigint; request_json: string }>('SELECT id, request_json FROM host_sends ORDER BY id')
       .all();
     expect(rows).toEqual(afterFirstOpen);
 
     expect(store.db.prepare('SELECT count(*) AS n FROM schema_migrations WHERE version = 27').get()).toEqual({ n: 1n });
     const indexRow = store.db
       .prepare<[], { sql: string }>(
-        "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'telegram_sends_image_delivery_idx'",
+        "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'host_sends_image_delivery_idx'",
       )
       .get();
     expect(indexRow?.sql).toContain("json_extract(request_json, '$.generation_id')");
@@ -622,7 +647,7 @@ test('migration 027 infers image delivery asset ids only when the count proves t
       expect(delivery.unknownAssets).toBe(item.scenario.unknownAssets);
     }
     expect(
-      plans.some((detail) => detail.includes('SEARCH s USING') && detail.includes('telegram_sends_image_delivery_idx')),
+      plans.some((detail) => detail.includes('SEARCH s USING') && detail.includes('host_sends_image_delivery_idx')),
     ).toBe(true);
     expect(plans.some((detail) => /^SCAN s\b/.test(detail))).toBe(false);
     expect(store.db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
