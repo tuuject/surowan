@@ -9,6 +9,10 @@ import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/co
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { purgeExpiredData } from '../src/store/store.ts';
+import { chats, conversations, memories } from '../src/store/schema.ts';
+import { deleteMemory, updateMemory } from '../src/ingress/admin/memory-admin.ts';
+import { AdminQueryError } from '../src/ingress/admin/audit.ts';
+import { eq } from 'drizzle-orm';
 import {
   AddMemoryInputSchema,
   createMemoryTools,
@@ -446,3 +450,43 @@ function sessionCookie(response: Response): string {
   }
   return header.slice(0, header.indexOf(';'));
 }
+
+test('the Telegram memory admin cannot change or delete a virtual room memory', async () => {
+  const { store, conversationId } = await fixture();
+  try {
+    const now = new Date('2026-08-15T12:00:00.000Z');
+    const memory = new MemoryStore(store.orm);
+    store.orm
+      .insert(chats)
+      .values({ id: 900n, hostKind: 'playground', type: 'virtual', title: 'room', updatedAt: now.toISOString() })
+      .run();
+    const room = store.orm
+      .insert(conversations)
+      .values({ chatId: 900n, messageThreadId: 0n, createdAt: now.toISOString(), updatedAt: now.toISOString() })
+      .returning({ id: conversations.id })
+      .get()!;
+    const virtual = memory.add(room.id, 'room only', 86_400, now);
+    const telegram = memory.add(conversationId, 'telegram', 86_400, now);
+
+    const notFound = (run: () => unknown) => {
+      try {
+        run();
+      } catch (error) {
+        return error instanceof AdminQueryError && error.status === 404;
+      }
+      return false;
+    };
+    expect(notFound(() => updateMemory(store.orm, virtual.id, { content: 'changed' }, 7, now))).toBe(true);
+    expect(notFound(() => deleteMemory(store.orm, virtual.id))).toBe(true);
+    const kept = store.orm.select().from(memories).where(eq(memories.id, virtual.id)).get();
+    expect(kept?.content).toBe('room only');
+    expect(kept?.updatedAt).toBe(now.toISOString());
+
+    // Telegram memories are still managed as before.
+    expect(updateMemory(store.orm, telegram.id, { content: 'edited' }, 7, now).content).toBe('edited');
+    deleteMemory(store.orm, telegram.id);
+    expect(store.orm.select().from(memories).where(eq(memories.id, telegram.id)).get()).toBeUndefined();
+  } finally {
+    store.close();
+  }
+});
