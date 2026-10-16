@@ -5,23 +5,16 @@ import { join } from 'node:path';
 import { GrammyError, HttpError } from 'grammy';
 import type { Update } from 'grammy/types';
 import { Compile } from 'typebox/compile';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import type { RawConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { MemoryStore } from '../src/context/memory.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import { createSendTool, SEND_BARRIER_TEXT, type TelegramSendApi } from '../src/capabilities/send-tool.ts';
+import { createSendTool, SEND_BARRIER_TEXT } from '../src/capabilities/send-tool.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { ContextBuilder } from '../src/context/context-builder.ts';
-import {
-  invocationCapabilities,
-  renderInvocationContext,
-  testConfigJsonc,
-  testConfigStore,
-  writeTestConfig,
-  type TestContextOptions,
-  type TestInvocationContext,
-} from './helpers.ts';
+import { invocationCapabilities, renderInvocationContext, testConfigJsonc, testConfigStore, testSendToolEnv, type TestContextOptions, type TestInvocationContext, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -198,8 +191,8 @@ describe('send tool', () => {
     ingestion.ingest(update(1, 10, 'hello'), received);
     const invocationId = processOne(scheduler, new Date(received.getTime() + 15_000));
     const context = build(invocationId, { contextWindow: 200_000, maxOutputTokens: 32768 });
-    const requests: Array<{ text: string; options: Parameters<TelegramSendApi['sendMessage']>[2] }> = [];
-    const api: TelegramSendApi = {
+    const requests: Array<{ text: string; options: Parameters<TelegramTransport['sendMessage']>[2] }> = [];
+    const api: TelegramTransport = {
       sendMessage: async (_chatId, text, options) => {
         requests.push({ text, options });
         return { message_id: 500 + requests.length, date: 1_700_000_100, chat: { id: 123456789 } };
@@ -208,7 +201,7 @@ describe('send tool', () => {
     };
     const tool = createSendTool({
       store,
-      api,
+      ...testSendToolEnv(api, context),
       context,
       capabilities: invocationCapabilities(store, config, context.header),
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },
@@ -253,13 +246,13 @@ describe('send tool', () => {
     ingestion.ingest(update(1, 10, 'hello'), received);
     const invocationId = processOne(scheduler, new Date(received.getTime() + 15_000));
     const context = build(invocationId, { contextWindow: 200_000, maxOutputTokens: 32768 });
-    const api: TelegramSendApi = {
+    const api: TelegramTransport = {
       sendMessage: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 502, date: 1_700_000_101, chat: { id: 123456789 } }),
     };
     const tool = createSendTool({
       store,
-      api,
+      ...testSendToolEnv(api, context),
       context,
       capabilities: invocationCapabilities(store, config, context.header),
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },
@@ -287,7 +280,7 @@ describe('send tool', () => {
     const invocationId = processOne(scheduler, new Date(received.getTime() + 15_000));
     const context = build(invocationId, { contextWindow: 200_000, maxOutputTokens: 32768 });
     let successfulCalls = 0;
-    const successApi: TelegramSendApi = {
+    const successApi: TelegramTransport = {
       sendMessage: async () => {
         successfulCalls += 1;
         return { message_id: 500 + successfulCalls, date: 1_700_000_100 + successfulCalls, chat: { id: 123456789 } };
@@ -296,7 +289,7 @@ describe('send tool', () => {
     };
     const quotaTool = createSendTool({
       store,
-      api: successApi,
+      ...testSendToolEnv(successApi, context),
       context,
       capabilities: invocationCapabilities(store, config, context.header),
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },
@@ -335,7 +328,7 @@ describe('send tool', () => {
     const invocationId = processOne(scheduler, new Date(received.getTime() + 15_000));
     const context = build(invocationId, { contextWindow: 200_000, maxOutputTokens: 32768 });
     let unknownCalls = 0;
-    const unknownApi: TelegramSendApi = {
+    const unknownApi: TelegramTransport = {
       sendMessage: async () => {
         unknownCalls += 1;
         throw new HttpError('network failed', new Error('socket closed'));
@@ -344,7 +337,7 @@ describe('send tool', () => {
     };
     const unknownTool = createSendTool({
       store,
-      api: unknownApi,
+      ...testSendToolEnv(unknownApi, context),
       context,
       capabilities: invocationCapabilities(store, config, context.header),
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },
@@ -368,7 +361,7 @@ describe('send tool', () => {
   });
 
   async function sendFixture(overrides: {
-    readonly api: TelegramSendApi;
+    readonly api: TelegramTransport;
     readonly deadline?: number;
     readonly holdForNewMessages?: () => boolean;
   }) {
@@ -379,7 +372,7 @@ describe('send tool', () => {
     const context = fixture.build(invocationId, { contextWindow: 200_000, maxOutputTokens: 32768 });
     const tool = createSendTool({
       store: fixture.store,
-      api: overrides.api,
+      ...testSendToolEnv(overrides.api, context),
       context,
       capabilities: invocationCapabilities(fixture.store, fixture.config, context.header),
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },
@@ -404,7 +397,7 @@ describe('send tool', () => {
     return { ...fixture, tool, audit };
   }
 
-  function countingApi(onSend: () => Promise<{ message_id: number }>): TelegramSendApi & { calls: number } {
+  function countingApi(onSend: () => Promise<{ message_id: number }>): TelegramTransport & { calls: number } {
     const api = {
       calls: 0,
       sendMessage: async () => {
@@ -507,7 +500,7 @@ describe('send tool', () => {
     const invocationId = processOne(scheduler, new Date(received.getTime() + 15_000));
     const context = build(invocationId, { contextWindow: 200_000, maxOutputTokens: 32768 });
     let sendMessageCalls = 0;
-    const api: TelegramSendApi = {
+    const api: TelegramTransport = {
       sendMessage: async () => {
         sendMessageCalls += 1;
         return { message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } };
@@ -516,7 +509,7 @@ describe('send tool', () => {
     };
     const tool = createSendTool({
       store,
-      api,
+      ...testSendToolEnv(api, context),
       context,
       capabilities: invocationCapabilities(store, config, context.header),
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },
@@ -554,7 +547,7 @@ describe('send tool', () => {
     const invocationId = processOne(scheduler, new Date(received.getTime() + 15_000));
     const context = build(invocationId, { contextWindow: 200_000, maxOutputTokens: 32768 });
     const requests: string[] = [];
-    const api: TelegramSendApi = {
+    const api: TelegramTransport = {
       sendMessage: async (_chatId, text) => {
         requests.push(text);
         return { message_id: 500 + requests.length, date: 1_700_000_100, chat: { id: 123456789 } };
@@ -563,7 +556,7 @@ describe('send tool', () => {
     };
     const base = {
       store,
-      api,
+      ...testSendToolEnv(api, context),
       context,
       capabilities: invocationCapabilities(store, config, context.header),
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },

@@ -12,6 +12,7 @@ import { eq } from 'drizzle-orm';
 import { createExecuteTool } from '../capabilities/execute-tool.ts';
 import { createReadTool } from '../capabilities/read-tool.ts';
 import { createSendTools } from '../capabilities/send-tool.ts';
+import { identityConversation, unwiredImHost } from '../platform/im-host.ts';
 import { ContextBuilder, type StablePrompt } from '../context/context-builder.ts';
 import { estimateMessageTokens } from '../context/context-codec.ts';
 import { ContextRefStore } from '../context/context-refs.ts';
@@ -664,13 +665,13 @@ export class ReplayRunner {
   }
 
   #defaultRegistry(context: InvocationContext, config: RawConfig): ReplayToolRegistry {
-    const blocked = async (): Promise<never> => {
-      throw new Error('No production executor is wired');
-    };
     const { send, sendReply } = createSendTools({
       store: this.#options.store,
       context,
-      api: { sendMessage: blocked, sendSticker: blocked },
+      host: unwiredImHost('telegram', 'No production executor is wired'),
+      // Unused: the host above refuses every delivery, so this only has to be
+      // well-formed enough to validate tool arguments.
+      conversation: identityConversation(context, 'telegram', 'private'),
       capabilities: unavailableCapabilities(),
       sendRateLimit: { sendsPerWindow: 1, windowSeconds: 1 },
       maxTextLength: config.agent.send_max_text_length,

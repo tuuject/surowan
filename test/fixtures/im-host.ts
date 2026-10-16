@@ -69,7 +69,7 @@ export const PINNED_TELEGRAM_PRIVATE_POLICY: ImConversationPolicy = {
     maxCaptionLength: 1024,
     albums: true,
   },
-  activity: { kind: 'none', refreshMs: null, capMs: null },
+  activity: { kind: 'typing', refreshMs: 4000, capMs: 55000 },
   sendRate: PINNED_SEND_RATE,
   senderRef: 'uid',
 };

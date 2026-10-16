@@ -4,19 +4,19 @@ import { join } from 'node:path';
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
 import type { Update } from 'grammy/types';
 import { afterEach, describe, expect, test } from 'vitest';
-import type { TelegramSendApi } from '../src/capabilities/send-tool.ts';
 import { cancelOngoingSessions } from '../src/ingress/admin/operations.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { InvocationQueueService } from '../src/orchestration/invocation-queue.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import { previewContext } from '../src/platform/invocation-context.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
-import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { fauxRegistry, testConfigJsonc, testConfigStore, testTelegramRuntime, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
 const stores: SqliteStore[] = [];
@@ -70,7 +70,7 @@ async function setup(sendResponse = true): Promise<{
   const store = await SqliteStore.open(loaded.config);
   stores.push(store);
   const sends: string[] = [];
-  const telegramApi: TelegramSendApi = {
+  const telegramApi: TelegramTransport = {
     sendMessage: async (_chatId, text) => {
       sends.push(text);
       return { message_id: 700 + sends.length, date: 1_700_000_000, chat: { id: CHAT_ID } };
@@ -81,7 +81,7 @@ async function setup(sendResponse = true): Promise<{
     store,
     configStore,
     secrets: new SecretStore(),
-    telegramApi,
+    ...testTelegramRuntime(telegramApi),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });

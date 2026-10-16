@@ -19,11 +19,13 @@ import { McpManager } from './capabilities/mcp.ts';
 import { MediaService } from './capabilities/media/media.ts';
 import { TelegramMediaClient } from './capabilities/media/media-download.ts';
 import { createLottieCommand } from './capabilities/media/media-image.ts';
-import { grammySendApi } from './capabilities/telegram-send-api.ts';
+
 import { AgentRuntime } from './orchestration/agent-runtime.ts';
 import { KeyedSemaphore } from './platform/concurrency.ts';
 import type { McpServerConfig, ProviderConfig, RawConfig, SecretRef } from './platform/config.ts';
 import { assertConfigPermissions, loadConfig } from './adapters/local-monolith/config.ts';
+import { resolveConversation } from './adapters/local-monolith/runtime-host.ts';
+import { createTelegramHost, grammyTelegramTransport } from './adapters/local-monolith/telegram-host.ts';
 import { previewContext } from './platform/invocation-context.ts';
 import { keyJarPath } from './platform/key-jar.ts';
 import { type PromptTemplateValues, renderPromptTemplate } from './platform/prompt-template.ts';
@@ -179,7 +181,14 @@ async function runDoctorChecks(
       store,
       configStore,
       secrets,
-      telegramApi: grammySendApi(bot.api),
+      host: createTelegramHost({
+        transport: grammyTelegramTransport(bot.api),
+        sendRate: () => ({
+          sendsPerWindow: requiredConfig.agent.rate_limits.sends_per_window,
+          windowSeconds: requiredConfig.agent.rate_limits.window_seconds,
+        }),
+      }),
+      conversation: (target) => resolveConversation(store, target),
       bot: {
         id: BigInt(me.id),
         displayName: [me.first_name, me.last_name].filter((part) => part !== undefined).join(' '),

@@ -19,10 +19,10 @@ import Type from 'typebox';
 import { afterAll, expect, test } from 'vitest';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import { capability } from '../src/capabilities/execute-tool.ts';
 import { MediaService } from '../src/capabilities/media/media.ts';
 import type { MediaDownloader } from '../src/capabilities/media/media-download.ts';
-import type { TelegramSendApi } from '../src/capabilities/send-tool.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
@@ -32,7 +32,7 @@ import { keyJarPath } from '../src/platform/key-jar.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { modelCalls } from '../src/store/schema.ts';
-import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { fauxRegistry, testConfigJsonc, testConfigStore, testTelegramRuntime, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -91,7 +91,7 @@ test('a fresh Agent drops assistant thinking when CoT recording is off', async (
     },
   ]);
   let messageId = 500;
-  const api: TelegramSendApi = {
+  const api: TelegramTransport = {
     sendMessage: async () => ({ message_id: ++messageId, date: 1_700_000_100, chat: { id: 123456789 } }),
     sendSticker: async () => ({ message_id: ++messageId, date: 1_700_000_100, chat: { id: 123456789 } }),
   };
@@ -99,7 +99,7 @@ test('a fresh Agent drops assistant thinking when CoT recording is off', async (
     store,
     configStore,
     secrets: new SecretStore(),
-    telegramApi: api,
+    ...testTelegramRuntime(api),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });
@@ -196,7 +196,7 @@ test.each([undefined, false, true])(
       },
     ]);
     let messageId = 500;
-    const api: TelegramSendApi = {
+    const api: TelegramTransport = {
       sendMessage: async () => ({ message_id: ++messageId, date: 1_700_000_100, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: ++messageId, date: 1_700_000_100, chat: { id: 123456789 } }),
     };
@@ -204,7 +204,7 @@ test.each([undefined, false, true])(
       store,
       configStore,
       secrets: new SecretStore(),
-      telegramApi: api,
+      ...testTelegramRuntime(api),
       bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
       systemResources: emptySystemResources(),
     });
@@ -371,10 +371,10 @@ test('an invocation keeps running past the removed per-invocation tool-call cap 
     store,
     configStore,
     secrets: new SecretStore(),
-    telegramApi: {
+    ...testTelegramRuntime({
       sendMessage: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
-    },
+    }),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
     additionalTools: () => [noop],
@@ -449,13 +449,13 @@ test('a placeholder-filled send goes out, and a send repeated unchanged after fa
     store,
     configStore,
     secrets: new SecretStore(),
-    telegramApi: {
+    ...testTelegramRuntime({
       sendMessage: async (_chatId, text) => {
         sentTexts.push(text);
         return { message_id: 1, date: 1, chat: { id: 123456789 } };
       },
       sendSticker: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
-    },
+    }),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });
@@ -506,10 +506,10 @@ test('counts tool descriptions in registry limits', async () => {
     store,
     configStore,
     secrets: new SecretStore(),
-    telegramApi: {
+    ...testTelegramRuntime({
       sendMessage: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
-    },
+    }),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });
@@ -571,10 +571,10 @@ test('audits complete redacted model error details', async () => {
     store,
     configStore,
     secrets,
-    telegramApi: {
+    ...testTelegramRuntime({
       sendMessage: async () => ({ message_id: 500, date: 1_700_000_100, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
-    },
+    }),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });
@@ -694,7 +694,7 @@ test('passes Telegram photos directly to the multimodal agent and keeps stickers
     mediaClient: downloader,
     modelGate: new KeyedSemaphore(),
   });
-  const api: TelegramSendApi = {
+  const api: TelegramTransport = {
     sendMessage: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
     sendSticker: async () => ({ message_id: 502, date: 1_700_000_100, chat: { id: 123456789 } }),
   };
@@ -702,7 +702,7 @@ test('passes Telegram photos directly to the multimodal agent and keeps stickers
     store,
     configStore,
     secrets: new SecretStore(),
-    telegramApi: api,
+    ...testTelegramRuntime(api),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
     directImageLoader: (context, signal) => media.loadDirectImages(context.directImages, signal),
@@ -885,10 +885,10 @@ test('keeps history photos as img_ refs for the multimodal agent while attaching
     store,
     configStore,
     secrets: new SecretStore(),
-    telegramApi: {
+    ...testTelegramRuntime({
       sendMessage: async () => ({ message_id: 601, date: 1_700_000_100, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 602, date: 1_700_000_100, chat: { id: 123456789 } }),
-    },
+    }),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
     capabilityTools: (context, deadline, capabilities) => [
@@ -1010,10 +1010,10 @@ test('lets a text-only agent read a Telegram photo through read_image', async ()
     store,
     configStore,
     secrets: new SecretStore(),
-    telegramApi: {
+    ...testTelegramRuntime({
       sendMessage: async () => ({ message_id: 601, date: 1_700_000_100, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 602, date: 1_700_000_100, chat: { id: 123456789 } }),
-    },
+    }),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
     capabilityTools: (context, deadline, capabilities) => [
@@ -1099,7 +1099,7 @@ test('nudges the model once to use send when it drafts a private reply and never
       return fauxAssistantMessage('still no send');
     },
   ]);
-  const api: TelegramSendApi = {
+  const api: TelegramTransport = {
     sendMessage: async () => ({ message_id: 500, date: 1_700_000_100, chat: { id: 123456789 } }),
     sendSticker: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
   };
@@ -1107,7 +1107,7 @@ test('nudges the model once to use send when it drafts a private reply and never
     store,
     configStore,
     secrets: new SecretStore(),
-    telegramApi: api,
+    ...testTelegramRuntime(api),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });
@@ -1164,10 +1164,10 @@ test('does not nudge when the model ends without any draft text', async () => {
     store,
     configStore,
     secrets: new SecretStore(),
-    telegramApi: {
+    ...testTelegramRuntime({
       sendMessage: async () => ({ message_id: 500, date: 1_700_000_100, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
-    },
+    }),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });
@@ -1250,10 +1250,10 @@ test('a model that declares minimal tool-schema keywords is sent reduced tool de
     store,
     configStore,
     secrets: new SecretStore(),
-    telegramApi: {
+    ...testTelegramRuntime({
       sendMessage: async () => ({ message_id: 500, date: 1_700_000_100, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
-    },
+    }),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });
@@ -1355,10 +1355,10 @@ test.each([true, false])(
       store,
       configStore,
       secrets: new SecretStore(),
-      telegramApi: {
+      ...testTelegramRuntime({
         sendMessage: async () => ({ message_id: 500, date: 1_700_000_100, chat: { id: 123456789 } }),
         sendSticker: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
-      },
+      }),
       bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
       systemResources: emptySystemResources(),
     });
@@ -1433,7 +1433,7 @@ test('send_reply publishes its parts in order and counts as one send in the cano
     fauxAssistantMessage('done'),
   ]);
   const sent: { text: string; replyTo: number | undefined }[] = [];
-  const api: TelegramSendApi = {
+  const api: TelegramTransport = {
     sendMessage: async (_chatId, text, options) => {
       sent.push({ text, replyTo: options.reply_parameters?.message_id });
       return { message_id: 500 + sent.length, date: 1_700_000_100, chat: { id: 123456789 } };
@@ -1444,7 +1444,7 @@ test('send_reply publishes its parts in order and counts as one send in the cano
     store,
     configStore,
     secrets: new SecretStore(),
-    telegramApi: api,
+    ...testTelegramRuntime(api),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });

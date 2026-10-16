@@ -27,7 +27,6 @@ import {
   type ImDeliveryOutcome,
   type ImDeliveryRequest,
   type ImDeliveryTarget,
-  type ImDeliveredMessage,
   type ImHost,
   type ImOutgoingPart,
 } from '../src/platform/im-host.ts';
@@ -67,11 +66,19 @@ function createFakeHost(host: HostKind): {
         sendRate: PINNED_SEND_RATE,
       }),
     delivery: {
+      compose: (part) =>
+        part.kind === 'text'
+          ? { text: part.text, markup: part.markup ?? null }
+          : { text: part.kind === 'sticker' ? null : (part.caption ?? null), markup: null },
       deliver: async (request) => {
         delivered.push(request);
         return {
           kind: 'delivered',
-          messages: request.parts.map((_part, partIndex) => ({ partIndex, messageId: BigInt(partIndex + 1) })),
+          messages: request.parts.map((_part, partIndex) => ({
+            partIndex,
+            messageId: BigInt(partIndex + 1),
+            sentAtSeconds: 1_700_000_000,
+          })),
         };
       },
     },
@@ -112,7 +119,7 @@ for (const host of ['telegram', 'playground'] as const) {
 
     const outcome = await deliverOne(instance, group, [
       { kind: 'text', text: 'hello' },
-      { kind: 'sticker', stickerSet: 'pack', stickerRef: 'file' },
+      { kind: 'sticker', stickerRef: 'file' },
     ]);
     expect(outcome.kind).toBe('delivered');
     expect(delivered).toHaveLength(1);
@@ -153,9 +160,9 @@ test('policy resolution is pure and does not depend on the conversation identity
   expect(a).not.toBe(b);
 });
 
-test('only Telegram groups show an activity indicator', () => {
+test('a Telegram conversation always shows an activity indicator', () => {
   expect(PINNED_TELEGRAM_GROUP_POLICY.activity).toEqual({ kind: 'typing', refreshMs: 4000, capMs: 55000 });
-  expect(PINNED_TELEGRAM_PRIVATE_POLICY.activity).toEqual({ kind: 'none', refreshMs: null, capMs: null });
+  expect(PINNED_TELEGRAM_PRIVATE_POLICY.activity).toEqual({ kind: 'typing', refreshMs: 4000, capMs: 55000 });
 });
 
 /* -------------------------------------------------------------------------- */
@@ -196,10 +203,16 @@ test('an unsupported delivery is reported as an outcome, not thrown', async () =
   const stub: ImHost = {
     ...host,
     delivery: {
+      compose: host.delivery.compose,
       deliver: () =>
         Promise.resolve<ImDeliveryOutcome>({
           kind: 'rejected',
-          failure: { reason: 'unsupported', description: 'this host has no transport' },
+          failure: {
+            reason: 'unsupported',
+            code: 'send_unsupported',
+            outcomeUnknown: false,
+            description: 'this host has no transport',
+          },
         }),
     },
   };
@@ -218,20 +231,21 @@ test('retryability is a property of the failure reason, not of a transport error
     ['unsupported', false],
   ];
   for (const [reason, retryable] of reasons) {
-    expect(isRetryableFailure({ reason, description: reason })).toBe(retryable);
+    expect(isRetryableFailure({ reason, code: reason, outcomeUnknown: false, description: reason })).toBe(retryable);
   }
 });
 
 test('a partial delivery reports the parts that did go out', async () => {
-  const parts = new Map<number, ImDeliveredMessage>([
-    [0, { partIndex: 0, messageId: 900n }],
-  ]);
+  const base = createFakeHost('telegram').host;
   const host: ImHost = {
-    ...createFakeHost('telegram').host,
+    ...base,
     delivery: {
-      deliver: () => {
-        return Promise.resolve({ kind: 'delivered', messages: [...parts.values()] });
-      },
+      compose: base.delivery.compose,
+      deliver: () =>
+        Promise.resolve<ImDeliveryOutcome>({
+          kind: 'delivered',
+          messages: [{ partIndex: 0, messageId: 900n, sentAtSeconds: 1_700_000_000 }],
+        }),
     },
   };
   const outcome = await deliverOne(host, PINNED_TELEGRAM_GROUP, [

@@ -1,208 +1,259 @@
+/**
+ * Chat action behaviour, now split across the seam it lives on.
+ *
+ * The host owns when an action is requested, how often it is refreshed, when it
+ * is given up on, and that publishing into a conversation ends it. The platform
+ * only decides that a model asked for one. These tests drive both layers
+ * through their public entry points, never through a Telegram client.
+ */
+
 import { afterEach, expect, test, vi } from 'vitest';
-import { Api } from 'grammy';
-import { MentionTyping } from '../src/capabilities/mention-typing.ts';
-import type { TelegramSendApi } from '../src/capabilities/send-tool.ts';
-import { createTyping } from '../src/capabilities/typing.ts';
-import { grammySendApi } from '../src/capabilities/telegram-send-api.ts';
+
+import { createTyping } from '../src/capabilities/typing-tool.ts';
+import { identityConversation, type ImDeliveryTarget } from '../src/platform/im-host.ts';
+import { grammyTelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
+import { testTelegramHost, type TelegramHost, type TelegramTransport } from './helpers.ts';
 
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
-function fixture() {
-  vi.useFakeTimers();
-  const api = new Api('test-token');
-  const action = vi.spyOn(api, 'sendChatAction').mockResolvedValue(true);
-  const abort = new AbortController();
-  const transport = grammySendApi(api);
-  const typing = createTyping(transport, '-100123', 42n, abort.signal);
-  const start = () => typing.tool.execute('typing-call', {});
-  return { action, abort, transport, typing, start };
+const GROUP = '-100123';
+
+function transportFixture() {
+  const typing: { chatId: string; threadId: bigint }[] = [];
+  const sendTyping = vi.fn(async (chatId: string, threadId: bigint, _signal: AbortSignal) => {
+    typing.push({ chatId, threadId });
+  });
+  const sendMessage = vi.fn(
+    async (chatId: string, _text: string, _options: { readonly message_thread_id?: number }) => ({
+      message_id: 1,
+      date: 1_700_000_000,
+      chat: { id: Number(chatId) },
+    }),
+  );
+  const transport: TelegramTransport = { sendTyping, sendMessage, sendSticker: sendMessage };
+  return { transport, sendTyping, sendMessage, typing };
 }
 
+function targetOf(host: TelegramHost, chatId: string, threadId: bigint): ImDeliveryTarget {
+  const conversation = identityConversation(
+    { chatId: BigInt(chatId), threadId, conversationId: 1n },
+    'telegram',
+    'group',
+  );
+  return { conversation, policy: host.policy(conversation) };
+}
+
+function toolFixture() {
+  vi.useFakeTimers();
+  const f = transportFixture();
+  const host = testTelegramHost(f.transport);
+  const abort = new AbortController();
+  const target = targetOf(host, GROUP, 42n);
+  const typing = createTyping(host.activity, target, abort.signal);
+  const start = () => typing.tool.execute('typing-call', {});
+  return { ...f, host, target, abort, typing, start, stop: typing.stop };
+}
+
+function activityFixture() {
+  vi.useFakeTimers();
+  const f = transportFixture();
+  const host = testTelegramHost(f.transport);
+  return { ...f, host };
+}
+
+/* -------------------------------------------------------------------------- */
+/* The platform tool                                                          */
+/* -------------------------------------------------------------------------- */
+
 test('typing is opt-in and repeated calls neither duplicate refreshes nor reset the cap', async () => {
-  const f = fixture();
+  const f = toolFixture();
   await vi.advanceTimersByTimeAsync(4_000);
-  expect(f.action).not.toHaveBeenCalled();
+  expect(f.sendTyping).not.toHaveBeenCalled();
   await f.start();
-  expect(f.action).toHaveBeenCalledTimes(1);
-  expect(f.action).toHaveBeenCalledWith('-100123', 'typing', { message_thread_id: 42 }, expect.any(AbortSignal));
+  expect(f.sendTyping).toHaveBeenCalledTimes(1);
+  expect(f.sendTyping).toHaveBeenCalledWith(GROUP, 42n, expect.any(AbortSignal));
   await vi.advanceTimersByTimeAsync(40_000);
   await f.start();
   await vi.advanceTimersByTimeAsync(20_000);
-  expect(f.action).toHaveBeenCalledTimes(14);
+  expect(f.sendTyping).toHaveBeenCalledTimes(14);
   await f.start();
   await vi.advanceTimersByTimeAsync(8_000);
-  expect(f.action).toHaveBeenCalledTimes(14);
-  f.typing.stop();
+  expect(f.sendTyping).toHaveBeenCalledTimes(14);
+  f.stop();
 });
 
 test('idle cleanup stops refreshes and a later round can start again', async () => {
-  const f = fixture();
+  const f = toolFixture();
   await f.start();
-  f.typing.stop();
+  await vi.advanceTimersByTimeAsync(0);
+  f.stop();
   await vi.advanceTimersByTimeAsync(8_000);
-  expect(f.action).toHaveBeenCalledTimes(1);
+  expect(f.sendTyping).toHaveBeenCalledTimes(1);
   await f.start();
-  expect(f.action).toHaveBeenCalledTimes(2);
-  f.typing.stop();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(f.sendTyping).toHaveBeenCalledTimes(2);
+  f.stop();
 });
 
-test('abort cancels the in-flight action and a queued ping cannot run after stop', async () => {
-  const f = fixture();
-  f.action.mockImplementation(
-    (_chat, _action, _options, signal) =>
-      new Promise<true>((_resolve, reject) => {
-        signal!.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+test('abort ends the round and a cancelled call reports it', async () => {
+  const f = toolFixture();
+  f.sendTyping.mockImplementationOnce(
+    (_chatId: string, _threadId: bigint, signal: AbortSignal) =>
+      new Promise<void>((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
       }),
   );
   await f.start();
-  const requestSignal = f.action.mock.calls[0]![3]!;
+  await vi.advanceTimersByTimeAsync(0);
+  const requestSignal = f.sendTyping.mock.calls[0]![2] as AbortSignal;
   f.abort.abort();
   expect(requestSignal.aborted).toBe(true);
   await vi.advanceTimersByTimeAsync(8_000);
-  expect(f.action).toHaveBeenCalledTimes(1);
+  expect(f.sendTyping).toHaveBeenCalledTimes(1);
   await expect(f.start()).rejects.toThrow('Typing cancelled');
 
-  const other = createTyping(f.transport, '-100123', 99n, new AbortController().signal);
+  // A run that ended before the request went out must not leave one behind.
+  const other = createTyping(f.host.activity, targetOf(f.host, GROUP, 99n), new AbortController().signal);
   const queued = other.tool.execute('queued', {});
   other.stop();
   await queued;
-  expect(f.action).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(8_000);
+  expect(f.sendTyping).toHaveBeenCalledTimes(1);
 });
 
-test('the transport skips overlapping requests and throttles each chat and topic separately', async () => {
-  const f = fixture();
-  let finish!: (result: true) => void;
-  f.action.mockImplementationOnce(
+/* -------------------------------------------------------------------------- */
+/* The host transport                                                         */
+/* -------------------------------------------------------------------------- */
+
+test('the grammY transport skips overlapping requests and throttles each chat and topic separately', async () => {
+  vi.useFakeTimers();
+  const sendChatAction = vi.fn(async (_chatId: string, _action: string, _options: Record<string, unknown>) => true);
+  let finish!: () => void;
+  sendChatAction.mockImplementationOnce(
     () =>
-      new Promise<true>((resolve) => {
-        finish = resolve;
+      new Promise<boolean>((resolve) => {
+        finish = () => resolve(true);
       }),
   );
-  const first = f.transport.sendTyping!('-100123', 42n, f.abort.signal);
+  const transport = grammyTelegramTransport({ sendChatAction } as never);
+  const signal = new AbortController().signal;
+  const first = transport.sendTyping!(GROUP, 42n, signal);
   await vi.advanceTimersByTimeAsync(8_000);
-  await f.transport.sendTyping!('-100123', 42n, f.abort.signal);
-  expect(f.action).toHaveBeenCalledTimes(1);
-  await f.transport.sendTyping!('-100123', 0n, f.abort.signal);
-  expect(f.action.mock.calls[1]![2]).toEqual({});
-  await f.transport.sendTyping!('-100456', 42n, f.abort.signal);
-  finish(true);
+  await transport.sendTyping!(GROUP, 42n, signal);
+  expect(sendChatAction).toHaveBeenCalledTimes(1);
+  await transport.sendTyping!(GROUP, 0n, signal);
+  expect(sendChatAction.mock.calls[1]![2]).toEqual({});
+  await transport.sendTyping!('-100456', 42n, signal);
+  finish();
   await first;
   await vi.advanceTimersByTimeAsync(0);
-  await f.transport.sendTyping!('-100123', 42n, f.abort.signal);
-  await f.transport.sendTyping!('-100123', 42n, f.abort.signal);
-  expect(f.action).toHaveBeenCalledTimes(4);
+  await transport.sendTyping!(GROUP, 42n, signal);
+  await transport.sendTyping!(GROUP, 42n, signal);
+  expect(sendChatAction).toHaveBeenCalledTimes(4);
 });
 
-test('platform failures stay cosmetic and later refreshes still run', async () => {
-  const f = fixture();
-  f.action.mockRejectedValue(new Error('Telegram unavailable'));
-  await expect(f.start()).resolves.toBeDefined();
-  await vi.advanceTimersByTimeAsync(8_000);
-  expect(f.action).toHaveBeenCalledTimes(3);
-  f.typing.stop();
-});
+/* -------------------------------------------------------------------------- */
+/* The host activity                                                          */
+/* -------------------------------------------------------------------------- */
 
-function mentionFixture() {
-  vi.useFakeTimers();
-  const api = new Api('test-token');
-  const action = vi.spyOn(api, 'sendChatAction').mockResolvedValue(true);
-  const sendMessage = vi.spyOn(api, 'sendMessage').mockResolvedValue({
-    message_id: 1,
-    date: 1,
-    chat: { id: -100123, type: 'supergroup', title: 'Group' },
-    text: 'hi',
-  });
-  const transport = grammySendApi(api);
-  const mention = new MentionTyping(transport);
-  return { action, sendMessage, transport, mention, wrapped: mention.wrap(transport) };
-}
-
-test('a mention shows typing immediately, refreshes, and a repeat neither duplicates nor resets the cap', async () => {
-  const f = mentionFixture();
-  f.mention.start('-100123', 42n);
+test('an activity round shows typing immediately, refreshes, and a repeat neither duplicates nor resets the cap', async () => {
+  const f = activityFixture();
+  f.host.activity.start(targetOf(f.host, GROUP, 42n));
   await vi.advanceTimersByTimeAsync(0);
-  expect(f.action).toHaveBeenCalledTimes(1);
-  expect(f.action).toHaveBeenCalledWith('-100123', 'typing', { message_thread_id: 42 }, expect.any(AbortSignal));
+  expect(f.sendTyping).toHaveBeenCalledTimes(1);
+  expect(f.sendTyping).toHaveBeenCalledWith(GROUP, 42n, expect.any(AbortSignal));
   await vi.advanceTimersByTimeAsync(40_000);
-  f.mention.start('-100123', 42n);
+  f.host.activity.start(targetOf(f.host, GROUP, 42n));
   await vi.advanceTimersByTimeAsync(20_000);
   // One request at t=0 and one every 4s until the 55s cap: 14 in total, none from the repeat.
-  expect(f.action).toHaveBeenCalledTimes(14);
-  f.mention.stopAll();
+  expect(f.sendTyping).toHaveBeenCalledTimes(14);
+  f.host.activity.stopAll();
 });
 
-test('a mention after the previous loop hit its cap starts a fresh one', async () => {
-  const f = mentionFixture();
-  f.mention.start('-100123', 0n);
+test('an activity round after the previous one hit its cap starts a fresh round', async () => {
+  const f = activityFixture();
+  f.host.activity.start(targetOf(f.host, GROUP, 0n));
   await vi.advanceTimersByTimeAsync(60_000);
-  const before = f.action.mock.calls.length;
-  f.mention.start('-100123', 0n);
+  const before = f.sendTyping.mock.calls.length;
+  f.host.activity.start(targetOf(f.host, GROUP, 0n));
   await vi.advanceTimersByTimeAsync(0);
-  expect(f.action).toHaveBeenCalledTimes(before + 1);
-  expect(f.action.mock.calls.at(-1)![2]).toEqual({});
-  f.mention.stopAll();
+  expect(f.sendTyping).toHaveBeenCalledTimes(before + 1);
+  expect(f.sendTyping.mock.calls.at(-1)![1]).toBe(0n);
+  f.host.activity.stopAll();
 });
 
-test('stop ends the loop and chats and topics are independent', async () => {
-  const f = mentionFixture();
-  f.mention.start('-100123', 42n);
-  f.mention.start('-100123', 43n);
+test('stop ends one round and chats and topics are independent', async () => {
+  const f = activityFixture();
+  f.host.activity.start(targetOf(f.host, GROUP, 42n));
+  f.host.activity.start(targetOf(f.host, GROUP, 43n));
   await vi.advanceTimersByTimeAsync(0);
-  expect(f.action).toHaveBeenCalledTimes(2);
-  f.mention.stop('-100123', 42n);
+  expect(f.sendTyping).toHaveBeenCalledTimes(2);
+  f.host.activity.stop(targetOf(f.host, GROUP, 42n).conversation);
   await vi.advanceTimersByTimeAsync(8_000);
   // Only the 43 topic keeps refreshing.
-  expect(
-    f.action.mock.calls.filter((call) => (call[2] as { message_thread_id?: number }).message_thread_id === 42),
-  ).toHaveLength(1);
-  expect(
-    f.action.mock.calls.filter((call) => (call[2] as { message_thread_id?: number }).message_thread_id === 43).length,
-  ).toBeGreaterThan(1);
-  f.mention.stopAll();
-  const settled = f.action.mock.calls.length;
+  expect(f.typing.filter((call) => call.threadId === 42n)).toHaveLength(1);
+  expect(f.typing.filter((call) => call.threadId === 43n).length).toBeGreaterThan(1);
+  f.host.activity.stopAll();
+  const settled = f.sendTyping.mock.calls.length;
   await vi.advanceTimersByTimeAsync(8_000);
-  expect(f.action).toHaveBeenCalledTimes(settled);
+  expect(f.sendTyping).toHaveBeenCalledTimes(settled);
 });
 
-test('publishing into the chat and topic ends its mention status, other topics keep theirs', async () => {
-  const f = mentionFixture();
-  f.mention.start('-100123', 42n);
-  f.mention.start('-100123', 43n);
+test('publishing into the chat and topic ends its activity, other topics keep theirs', async () => {
+  const f = activityFixture();
+  f.host.activity.start(targetOf(f.host, GROUP, 42n));
+  f.host.activity.start(targetOf(f.host, GROUP, 43n));
   await vi.advanceTimersByTimeAsync(0);
-  await f.wrapped.sendMessage('-100123', 'hi', { message_thread_id: 42 });
+  const target = targetOf(f.host, GROUP, 42n);
+  const outcome = await f.host.delivery.deliver({
+    target,
+    parts: [{ kind: 'text', text: 'hi' }],
+    signal: undefined,
+  });
+  expect(outcome.kind).toBe('delivered');
   expect(f.sendMessage).toHaveBeenCalledTimes(1);
-  const afterSend = f.action.mock.calls.length;
+  const afterSend = f.sendTyping.mock.calls.length;
   await vi.advanceTimersByTimeAsync(8_000);
-  const later = f.action.mock.calls.slice(afterSend);
+  const later = f.typing.slice(afterSend);
   expect(later.length).toBeGreaterThan(0);
-  expect(later.every((call) => (call[2] as { message_thread_id?: number }).message_thread_id === 43)).toBe(true);
-  f.mention.stopAll();
+  expect(later.every((call) => call.threadId === 43n)).toBe(true);
+  f.host.activity.stopAll();
 });
 
 test('a failed send keeps the status, and platform failures stay cosmetic', async () => {
-  const f = mentionFixture();
-  f.action.mockRejectedValue(new Error('Telegram unavailable'));
+  const f = activityFixture();
+  f.sendTyping.mockRejectedValue(new Error('Telegram unavailable'));
   f.sendMessage.mockRejectedValueOnce(new Error('send failed'));
-  f.mention.start('-100123', 0n);
+  f.host.activity.start(targetOf(f.host, GROUP, 0n));
   await vi.advanceTimersByTimeAsync(8_000);
-  await expect(f.wrapped.sendMessage('-100123', 'hi', {})).rejects.toThrow('send failed');
-  const before = f.action.mock.calls.length;
+  const outcome = await f.host.delivery.deliver({
+    target: targetOf(f.host, GROUP, 0n),
+    parts: [{ kind: 'text', text: 'hi' }],
+    signal: undefined,
+  });
+  expect(outcome).toMatchObject({ kind: 'rejected' });
+  const before = f.sendTyping.mock.calls.length;
   await vi.advanceTimersByTimeAsync(4_000);
-  expect(f.action.mock.calls.length).toBeGreaterThan(before);
-  f.mention.stopAll();
+  expect(f.sendTyping.mock.calls.length).toBeGreaterThan(before);
+  f.host.activity.stopAll();
 });
 
-test('hosts without chat actions get no loop and the wrapper keeps optional methods absent', async () => {
+test('hosts without chat actions get no round and deliver anyway', async () => {
   vi.useFakeTimers();
-  const send = vi.fn();
-  const bare = { sendMessage: send, sendSticker: send } as unknown as TelegramSendApi;
-  const mention = new MentionTyping(bare);
-  mention.start('-100123', 0n);
+  const send = vi.fn(async () => ({ message_id: 1, date: 1_700_000_000, chat: { id: 1 } }));
+  const bare: TelegramTransport = { sendMessage: send, sendSticker: send };
+  const host = testTelegramHost(bare);
+  host.activity.start(targetOf(host, GROUP, 0n));
   await vi.advanceTimersByTimeAsync(8_000);
-  const wrapped = mention.wrap(bare);
-  expect(wrapped.sendGeneratedPhoto).toBeUndefined();
-  expect(wrapped.sendGeneratedPhotoGroup).toBeUndefined();
+  expect(send).not.toHaveBeenCalled();
+  const outcome = await host.delivery.deliver({
+    target: targetOf(host, GROUP, 0n),
+    parts: [{ kind: 'text', text: 'hi' }],
+    signal: undefined,
+  });
+  expect(outcome.kind).toBe('delivered');
+  expect(send).toHaveBeenCalledTimes(1);
 });
