@@ -286,6 +286,16 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
       if (part === undefined) {
         return rejected('permanent', 'no_parts', 'a delivery needs at least one part');
       }
+      // The ledger row links exactly one published message, so a room takes one
+      // part per delivery. Reporting the first as delivered and dropping the rest
+      // would be a silent loss.
+      if (request.parts.length > 1) {
+        return rejected(
+          'permanent',
+          'multipart_unsupported',
+          `a Bot Playground room publishes one part per delivery, not ${request.parts.length}`,
+        );
+      }
       if (part.kind !== 'text') {
         // A room has nowhere to put wire media yet, and a message that claims
         // to have carried an attachment would be worse than a clear refusal.
