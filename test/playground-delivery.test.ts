@@ -246,6 +246,7 @@ describe('Bot Playground virtual delivery', () => {
 
     const revision = store.orm.select().from(messageRevisions).where(eq(messageRevisions.messageId, message.id)).get();
     expect(revision?.text).toBe('hello room');
+    expect(revision?.revisionNo).toBe(1n);
     expect(revision?.senderId).toBe(room.selfSenderId);
     expect(message.currentRevisionId).toBe(revision?.id);
 
@@ -256,10 +257,11 @@ describe('Bot Playground virtual delivery', () => {
     // A room never claims a Telegram response.
     expect(ledger?.telegramMessageId).toBeNull();
 
-    // The room counters advanced exactly once.
+    // The sequence advanced exactly once; bot output never moves the room
+    // revision that guards inputs and Release.
     const roomRow = store.orm.select().from(rooms).where(eq(rooms.chatId, room.chatId)).get();
     expect(roomRow?.nextSeq).toBe(2n);
-    expect(roomRow?.revision).toBe(1n);
+    expect(roomRow?.revision).toBe(0n);
   });
 
   test('repeating one delivery key publishes nothing a second time', async () => {
