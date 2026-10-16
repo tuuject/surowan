@@ -480,6 +480,25 @@ describe('send tool', () => {
     fixture.store.close();
   });
 
+  test('a 429 without retry_after stops after one attempt instead of retrying', async () => {
+    const api = countingApi(async () => {
+      throw new GrammyError(
+        'Too Many Requests',
+        { ok: false, error_code: 429, description: 'Too Many Requests', parameters: {} },
+        'sendMessage',
+        {},
+      );
+    });
+    const fixture = await sendFixture({ api });
+    await expect(fixture.tool.execute('no-delay-1', { kind: 'text', text: 'hello' })).rejects.toThrow('telegram_429');
+    expect(api.calls).toBe(1);
+    expect(fixture.audit()).toEqual({
+      toolCalls: [{ state: 'error', error_code: 'telegram_429' }],
+      sends: [{ state: 'error', error_code: 'telegram_429', telegram_message_id: null }],
+    });
+    fixture.store.close();
+  });
+
   test('a message Telegram accepted stays a success when recording the outgoing copy fails', async () => {
     const api = countingApi(async () => ({ message_id: 501 }));
     const fixture = await sendFixture({ api });
