@@ -85,6 +85,16 @@ function modelKey(provider: string, model: string): string {
   return JSON.stringify([provider, model]);
 }
 
+/** Stable identity of a window for React keys: content only, days flattened. */
+function windowKey(window: ParticipationWindow): string {
+  return `${window.start}-${window.end}-${window.days === undefined ? 'daily' : window.days.join('')}`;
+}
+
+interface ActiveHoursLine {
+  readonly key: string;
+  readonly text: string;
+}
+
 function validId(value: string, positive = false): boolean {
   return (
     (positive ? /^[1-9][0-9]{0,15}$/ : /^-?[1-9][0-9]{0,15}$/).test(value) &&
@@ -352,25 +362,44 @@ export default function ChatsPage(): React.ReactElement {
       dailyLabel: t('pages.chats.daily'),
     });
   // One line per period keeps the allowlist table narrow with many windows.
-  const activeHoursLines = (settings: ChatSettingsView): readonly string[] => {
+  // Keys pair the window content with a duplicate tally: identical windows are
+  // valid config, and the tally keeps keys unique and stable under reorders.
+  const activeHoursLines = (settings: ChatSettingsView): readonly ActiveHoursLine[] => {
+    const lines: ActiveHoursLine[] = [];
+    const seen = new Map<string, number>();
+    const push = (text: string, key = text): void => {
+      const occurrence = seen.get(key) ?? 0;
+      seen.set(key, occurrence + 1);
+      lines.push({ key: occurrence === 0 ? key : `${key}#${occurrence}`, text });
+    };
     if (settings.participation === null) {
       const globalWindows = view.global_participation?.active_windows;
       if (globalWindows === undefined || globalWindows.length === 0) {
-        return [t('pages.chats.activeHoursUnrestricted')];
+        push(t('pages.chats.activeHoursUnrestricted'));
+      } else {
+        push(t('pages.chats.activeHoursFollowsGlobal'));
+        for (const window of globalWindows) {
+          push(windowSummary(window), windowKey(window));
+        }
       }
-      return [t('pages.chats.activeHoursFollowsGlobal'), ...globalWindows.map(windowSummary)];
+      return lines;
     }
     const explicit = settings.participation.active_windows;
     if (explicit === undefined) {
-      return [
-        t('pages.chats.activeHoursFollowsGlobal'),
-        ...effectiveWindows(settings.participation, view.global_participation).map(windowSummary),
-      ];
+      push(t('pages.chats.activeHoursFollowsGlobal'));
+      for (const window of effectiveWindows(settings.participation, view.global_participation)) {
+        push(windowSummary(window), windowKey(window));
+      }
+      return lines;
     }
     if (explicit.length === 0) {
-      return [t('pages.chats.activeHoursTriggerOnly')];
+      push(t('pages.chats.activeHoursTriggerOnly'));
+      return lines;
     }
-    return explicit.map(windowSummary);
+    for (const window of explicit) {
+      push(windowSummary(window), windowKey(window));
+    }
+    return lines;
   };
   const columns: readonly ColumnSpec<ChatEntry>[] = [
     {
@@ -434,12 +463,18 @@ export default function ChatsPage(): React.ReactElement {
         const settings = shown(row);
         return settings === null || !row.id.startsWith('-') ? null : (
           <div className="space-y-1">
-            {activeHoursLines(settings).map((line, index) => (
-              <p key={`${index}-${line}`} className="text-sm">
-                {line}
+            {activeHoursLines(settings).map((line) => (
+              <p key={line.key} className="text-sm">
+                {line.text}
               </p>
             ))}
-            <RunningNote value={runningDiff(row, (item) => activeHoursLines(item).join(' · '))} />
+            <RunningNote
+              value={runningDiff(row, (item) =>
+                activeHoursLines(item)
+                  .map((line) => line.text)
+                  .join(' · '),
+              )}
+            />
           </div>
         );
       },
