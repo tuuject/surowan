@@ -34,7 +34,7 @@ export function createTyping(
         throw new Error('Typing cancelled');
       }
       if (!started) {
-        activity.start(target);
+        activity.start(target, 'until_stop');
         started = true;
       }
       return { content: [{ type: 'text', text: 'Typing requested; use send to publish the reply.' }], details: {} };

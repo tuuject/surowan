@@ -594,7 +594,7 @@ describe('Bot Playground virtual delivery', () => {
     expect(host.policy(conversation).activity.refreshMs).toBeNull();
     expect(host.policy(conversation).activity.capMs).toBe(PLAYGROUND_ACTIVITY_CAP_MS);
 
-    host.activity.start({ conversation, policy: host.policy(conversation) });
+    host.activity.start({ conversation, policy: host.policy(conversation) }, 'until_stop');
     host.activity.stop(conversation);
     expect(() => host.activity.stopAll()).not.toThrow();
   });

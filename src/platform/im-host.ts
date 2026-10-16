@@ -444,13 +444,23 @@ export interface ImComposedPart {
 /* Activity                                                                   */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * How long an activity round lives besides its cap. A status the runtime shows
+ * on its own (a mention) ends once the bot publishes into the conversation,
+ * because the published message answers it. A status the model asked for keeps
+ * refreshing through its sends until it is stopped, since the work it covers
+ * may continue after a message went out.
+ */
+export type ActivityLifetime = 'until_delivery' | 'until_stop';
+
 export interface ImActivity {
   /**
    * Shows the "working" indicator for one conversation and keeps it fresh.
-   * Idempotent per conversation while a round is live; cosmetic failures are
-   * swallowed by the host.
+   * Idempotent per conversation while a round is live, except that an
+   * `until_stop` request takes over an `until_delivery` round; cosmetic
+   * failures are swallowed by the host.
    */
-  start(target: ImDeliveryTarget): void;
+  start(target: ImDeliveryTarget, lifetime: ActivityLifetime): void;
   /** Clears the indicator for one conversation. Safe when nothing is running. */
   stop(conversation: ImConversationRef): void;
   /** Clears every indicator this instance owns. */

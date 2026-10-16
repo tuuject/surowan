@@ -128,7 +128,7 @@ for (const host of ['telegram', 'playground'] as const) {
     expect(delivered).toHaveLength(1);
     expect(delivered[0]?.parts.map((part) => part.kind)).toEqual(['text', 'sticker']);
 
-    instance.activity.start(boundTarget(group, instance));
+    instance.activity.start(boundTarget(group, instance), 'until_stop');
     instance.activity.stop(group);
     instance.activity.stopAll();
   });
