@@ -240,7 +240,8 @@ export function classifyTelegramDeliveryError(error: unknown): ImDeliveryFailure
         reason: 'rate_limited',
         code: 'telegram_429',
         outcomeUnknown: false,
-        retryAfterSeconds: error.parameters.retry_after ?? 1,
+        // Without a delay from Telegram the caller stops instead of guessing one.
+        ...(error.parameters.retry_after === undefined ? {} : { retryAfterSeconds: error.parameters.retry_after }),
         description: error.description,
       };
     }
