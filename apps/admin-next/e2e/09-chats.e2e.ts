@@ -335,18 +335,30 @@ test('active-hours editing sets custom periods, an empty schedule and back to un
   let dialog = await openDialog();
   await expect(dialog.getByRole('radio', { name: /No schedule restriction/ })).toBeChecked();
 
-  // Custom periods: 09:00–18:00 on weekdays.
+  // Custom periods: 09:00–18:00 on weekdays plus a daily evening period.
   await dialog.getByRole('radio', { name: /Custom periods/ }).click();
   await expect(dialog.getByText('Add at least one period, or pick another mode.')).toBeVisible();
   await dialog.getByRole('button', { name: 'Add period', exact: true }).click();
   await expect(dialog.getByText(/Times shown in/)).toContainText('UTC');
   await dialog.getByRole('button', { name: 'Sat', exact: true }).click();
   await dialog.getByRole('button', { name: 'Sun', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Add period', exact: true }).click();
+  await dialog.getByLabel('Start 2').fill('20:00');
+  await dialog.getByLabel('End 2').fill('23:30');
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   const saved = (await viewOf(page)).items.find((chat) => chat.id === GROUP)?.saved;
-  expect(saved?.participation).toEqual({ active_windows: [{ start: '09:00', end: '18:00', days: [1, 2, 3, 4, 5] }] });
-  await expect(groupRow().getByRole('cell').nth(3)).toContainText('Mon–Fri 09:00–18:00');
+  expect(saved?.participation).toEqual({
+    active_windows: [
+      { start: '09:00', end: '18:00', days: [1, 2, 3, 4, 5] },
+      { start: '20:00', end: '23:30' },
+    ],
+  });
+  // Each period renders as its own line instead of stretching the table.
+  const hoursCell = groupRow().getByRole('cell').nth(3);
+  await expect(hoursCell).toContainText('Mon–Fri 09:00–18:00');
+  await expect(hoursCell).toContainText('Daily 20:00–23:30');
+  await expect(hoursCell.locator('p')).toHaveCount(2);
 
   // The explicit empty array is a distinct state: trigger-only.
   dialog = await openDialog();

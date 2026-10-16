@@ -139,7 +139,7 @@ export const pages: typeof pagesEn = {
       '时段之外，群聊只有直接 @、回复 Bot 或命中触发关键词的消息才会开启会话。时段按该群的时区计算。',
     activeHoursUnrestricted: '不限制',
     activeHoursTriggerOnly: '仅触发可唤醒',
-    activeHoursFollowsGlobal: '跟随全局：{{windows}}',
+    activeHoursFollowsGlobal: '跟随全局时段',
     activeHoursTimezoneNote: '按 {{timezone}} 显示 · 现在 {{time}}',
     modeUnrestricted: '不限制活跃时间',
     modeUnrestrictedHint: '移除本群的时段设置。未配置全局时段时，Bot 全天保持活跃。',

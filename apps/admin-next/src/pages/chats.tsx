@@ -346,29 +346,31 @@ export default function ChatsPage(): React.ReactElement {
     `${settings.provider === null ? t('pages.chats.defaultModel') : t('pages.chats.chatOverride')} · ${t('pages.chats.thinkingShort', { level: settings.effective.thinking_level })}${
       settings.thinking_level === null ? t('pages.chats.inheritedSuffix') : ''
     }`;
-  const windowsSummary = (windows: readonly ParticipationWindow[]): string =>
-    summarizeWindows(windows, {
+  const windowSummary = (window: ParticipationWindow): string =>
+    summarizeWindows([window], {
       dayLabels: t('pages.chats.weekdaysShort').split(','),
       dailyLabel: t('pages.chats.daily'),
     });
-  const activeHoursText = (settings: ChatSettingsView): string => {
+  // One line per period keeps the allowlist table narrow with many windows.
+  const activeHoursLines = (settings: ChatSettingsView): readonly string[] => {
     if (settings.participation === null) {
       const globalWindows = view.global_participation?.active_windows;
       if (globalWindows === undefined || globalWindows.length === 0) {
-        return t('pages.chats.activeHoursUnrestricted');
+        return [t('pages.chats.activeHoursUnrestricted')];
       }
-      return t('pages.chats.activeHoursFollowsGlobal', { windows: windowsSummary(globalWindows) });
+      return [t('pages.chats.activeHoursFollowsGlobal'), ...globalWindows.map(windowSummary)];
     }
     const explicit = settings.participation.active_windows;
     if (explicit === undefined) {
-      return t('pages.chats.activeHoursFollowsGlobal', {
-        windows: windowsSummary(effectiveWindows(settings.participation, view.global_participation)),
-      });
+      return [
+        t('pages.chats.activeHoursFollowsGlobal'),
+        ...effectiveWindows(settings.participation, view.global_participation).map(windowSummary),
+      ];
     }
     if (explicit.length === 0) {
-      return t('pages.chats.activeHoursTriggerOnly');
+      return [t('pages.chats.activeHoursTriggerOnly')];
     }
-    return windowsSummary(explicit);
+    return explicit.map(windowSummary);
   };
   const columns: readonly ColumnSpec<ChatEntry>[] = [
     {
@@ -432,8 +434,12 @@ export default function ChatsPage(): React.ReactElement {
         const settings = shown(row);
         return settings === null || !row.id.startsWith('-') ? null : (
           <div className="space-y-1">
-            <p className="text-sm">{activeHoursText(settings)}</p>
-            <RunningNote value={runningDiff(row, activeHoursText)} />
+            {activeHoursLines(settings).map((line, index) => (
+              <p key={`${index}-${line}`} className="text-sm">
+                {line}
+              </p>
+            ))}
+            <RunningNote value={runningDiff(row, (item) => activeHoursLines(item).join(' · '))} />
           </div>
         );
       },

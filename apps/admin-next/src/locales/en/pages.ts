@@ -144,7 +144,7 @@ export const pages = {
       'Outside the active periods a Chat only opens a session for direct @mentions, replies to the bot or trigger keyword hits. Periods are evaluated in the Chat timezone.',
     activeHoursUnrestricted: 'Unrestricted',
     activeHoursTriggerOnly: 'Trigger only',
-    activeHoursFollowsGlobal: 'Global: {{windows}}',
+    activeHoursFollowsGlobal: 'Global schedule',
     activeHoursTimezoneNote: 'Times shown in {{timezone}} · now {{time}}',
     modeUnrestricted: 'No schedule restriction',
     modeUnrestrictedHint:
