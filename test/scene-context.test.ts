@@ -455,6 +455,49 @@ describe('scene context', () => {
     store.close();
   });
 
+  test('renders spoiler markup like production in the opening batch, fallback history and reply quotes', async () => {
+    const fixture = await setup();
+    const { store, ingestion } = fixture;
+    const spoilerUpdate = (updateId: number, messageId: number, text: string, seconds: number, extra = {}): Update =>
+      ({
+        update_id: updateId,
+        message: {
+          ...telegramMessage(GROUP_CHAT, messageId, seconds, ALICE),
+          text,
+          entities: [{ type: 'spoiler', offset: 2, length: 2 }],
+          ...extra,
+        },
+      }) as unknown as Update;
+    ingestion.ingest(spoilerUpdate(1, 10, '历史剧透内容', 0), at(0));
+    flush(fixture, 20);
+    ingestion.ingest(
+      spoilerUpdate(2, 11, '新的剧透消息', 30, {
+        reply_to_message: {
+          ...telegramMessage(GROUP_CHAT, 999, 5, BOB),
+          text: '引用剧透原文',
+          entities: [{ type: 'spoiler', offset: 2, length: 2 }],
+        },
+      }),
+      at(30),
+    );
+    flush(fixture, 50);
+    const conversationId = conversationIdOf(store, GROUP_CHAT, 0n);
+    const invocationId = latestInvocation(store, conversationId);
+    // Without a frozen history snapshot the scene rebuilds history from the
+    // revision row, which must recover the spans from its raw fragment too.
+    store.db
+      .prepare("DELETE FROM invocation_messages WHERE invocation_id = ? AND section = 'history'")
+      .run(invocationId);
+
+    const scene = buildSceneContext(store, fixture.loaded.config, invocationId, DEFAULT_OPTIONS);
+
+    expect(scene.text).toContain('[10 00:00:00 uid:42 @alice] Alice\n  历史<tg-spoiler>剧透</tg-spoiler>内容');
+    expect(scene.text).toContain(
+      '  > Bob: 引用<tg-spoiler>剧透</tg-spoiler>原文\n  新的<tg-spoiler>剧透</tg-spoiler>消息',
+    );
+    store.close();
+  });
+
   test('renders the revision that existed at the cutoff, not later edits', async () => {
     const fixture = await setup();
     const { store, ingestion } = fixture;

@@ -8,6 +8,7 @@ import type { RawConfig } from '../platform/config.ts';
 import type { CompletionContext, DirectImage, VisibleSender } from '../platform/invocation-context.ts';
 import type { PromptTemplateModel, PromptTemplateValues } from '../platform/prompt-template.ts';
 import { renderSkillIndexPrompt, type SystemSkill } from '../platform/system-resources.ts';
+import { renderSpoilers, type SpoilerRange } from '../platform/spoilers.ts';
 import type { BusinessStore } from '../store/store.ts';
 import { resolveChatConfig } from '../store/store.ts';
 import { imageDeliveryState } from '../store/image-delivery.ts';
@@ -18,6 +19,15 @@ import type { ContextHeader } from './context-store.ts';
 import { MemoryStore } from './memory.ts';
 
 const Strict = { additionalProperties: false } as const;
+const SpoilerRangeArraySchema = Type.Array(
+  Type.Object(
+    {
+      start: Type.Integer(),
+      end: Type.Integer(),
+    },
+    Strict,
+  ),
+);
 const MediaSnapshotSchema = Type.Object(
   {
     id: Type.String(),
@@ -47,6 +57,16 @@ export const MessageSnapshotSchema = Type.Object(
     kind: Type.String(),
     text: Type.Union([Type.String(), Type.Null()]),
     caption: Type.Union([Type.String(), Type.Null()]),
+    spoilers: Type.Optional(
+      Type.Object(
+        {
+          text: Type.Optional(SpoilerRangeArraySchema),
+          caption: Type.Optional(SpoilerRangeArraySchema),
+          reply: Type.Optional(SpoilerRangeArraySchema),
+        },
+        Strict,
+      ),
+    ),
     reply_to_message_id: Type.Union([Type.String(), Type.Null()]),
     reply_snapshot: Type.Unknown(),
     forward_origin: Type.Unknown(),
@@ -653,6 +673,7 @@ export class ContextBuilder {
       kind: parsed.kind,
       text: parsed.text,
       caption: parsed.caption,
+      ...(parsed.spoilers === undefined ? {} : { spoilers: parsed.spoilers }),
       reply_to_message_id: parsed.reply_to_message_id,
       reply_snapshot: parsed.reply_snapshot,
       forward_origin: parsed.forward_origin,
@@ -725,11 +746,18 @@ export function formatSnapshot(snapshot: PreparedSnapshot, options: FormatOption
     snapshot.reply_to_message_id !== null &&
     !options.inlineReplies.has(snapshot.reply_to_message_id)
   ) {
-    body.push(`> ${singleLine(reply.sender)}: ${singleLine(reply.content)}`);
+    body.push(`> ${singleLine(reply.sender)}: ${singleLine(renderSpoilers(reply.content, snapshot.spoilers?.reply))}`);
   }
-  for (const content of [snapshot.text, snapshot.caption]) {
+  // The body stays exactly what the sender wrote; a spoiler only adds the tag
+  // that says a human folded this span, so the model can weigh what it reads
+  // without ever losing the text itself.
+  const bodies: readonly (readonly [string | null, readonly SpoilerRange[] | undefined])[] = [
+    [snapshot.text, snapshot.spoilers?.text],
+    [snapshot.caption, snapshot.spoilers?.caption],
+  ];
+  for (const [content, spoilers] of bodies) {
     if (content !== null) {
-      body.push(...content.split('\n'));
+      body.push(...renderSpoilers(content, spoilers).split('\n'));
     }
   }
   for (const media of snapshot.media) {

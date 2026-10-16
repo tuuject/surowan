@@ -1,4 +1,5 @@
 import { eq, sql } from 'drizzle-orm';
+import { spoilersFromFragment } from '../platform/spoilers.ts';
 import type { BusinessStore } from './store.ts';
 import { invocationMessages, media } from './schema.ts';
 
@@ -14,6 +15,7 @@ export interface MessageSnapshotRow {
   readonly kind: string;
   readonly text: string | null;
   readonly caption: string | null;
+  readonly raw_fragment_json: string | null;
   readonly reply_to_message_id: bigint | null;
   readonly reply_snapshot_json: string | null;
   readonly forward_origin_json: string | null;
@@ -50,7 +52,7 @@ export function snapshotInvocation(
         .all<MessageSnapshotRow>(
           sql`SELECT m.id AS message_id, m.conversation_id, v.message_thread_id,
                 r.id AS revision_id, m.telegram_message_id, m.telegram_date, m.sent_by_bot,
-                r.revision_no, r.kind, r.text, r.caption, r.reply_to_message_id, r.reply_snapshot_json,
+                r.revision_no, r.kind, r.text, r.caption, r.raw_fragment_json, r.reply_to_message_id, r.reply_snapshot_json,
                 r.forward_origin_json, r.media_group_id, s.telegram_id AS sender_telegram_id,
                 s.display_name AS sender_display_name, s.username AS sender_username, NULL AS source_bucket_id
          FROM messages m
@@ -69,7 +71,7 @@ export function snapshotInvocation(
   const current = store.orm.all<MessageSnapshotRow>(
     sql`SELECT m.id AS message_id, m.conversation_id, v.message_thread_id,
             r.id AS revision_id, m.telegram_message_id, m.telegram_date, m.sent_by_bot,
-            r.revision_no, r.kind, r.text, r.caption, r.reply_to_message_id, r.reply_snapshot_json,
+            r.revision_no, r.kind, r.text, r.caption, r.raw_fragment_json, r.reply_to_message_id, r.reply_snapshot_json,
             r.forward_origin_json, r.media_group_id, s.telegram_id AS sender_telegram_id,
             s.display_name AS sender_display_name, s.username AS sender_username, bm.source_bucket_id
        FROM bucket_messages bm
@@ -128,6 +130,16 @@ function insertSnapshot(
       width: entry.width?.toString() ?? null,
       height: entry.height?.toString() ?? null,
     }));
+  // Spoiler spans are recovered from the raw fragment the revision already
+  // keeps, because the adapter stores only the body text. They ride along only
+  // when the message has one, so a message without spoilers keeps producing the
+  // same snapshot as before.
+  const replySnapshot: unknown = message.reply_snapshot_json === null ? null : JSON.parse(message.reply_snapshot_json);
+  const spoilers = spoilersFromFragment(message.raw_fragment_json, {
+    text: message.text,
+    caption: message.caption,
+    reply_snapshot: replySnapshot,
+  });
   const snapshot = JSON.stringify({
     message_id: message.telegram_message_id.toString(),
     message_thread_id: message.message_thread_id.toString(),
@@ -142,8 +154,9 @@ function insertSnapshot(
     kind: message.kind,
     text: message.text,
     caption: message.caption,
+    ...(spoilers === undefined ? {} : { spoilers }),
     reply_to_message_id: message.reply_to_message_id?.toString() ?? null,
-    reply_snapshot: message.reply_snapshot_json === null ? null : JSON.parse(message.reply_snapshot_json),
+    reply_snapshot: replySnapshot,
     forward_origin: message.forward_origin_json === null ? null : JSON.parse(message.forward_origin_json),
     media_group_id: message.media_group_id,
     media: mediaRows,

@@ -14,7 +14,7 @@ npm 发布 workflow 可另用 `actionlint .github/workflows/npm.yml` 静态检�
 按改动范围可先运行目标测试：
 
 ```bash
-pnpm test test/telegram-ingestion.test.ts test/startup-catch-up.test.ts test/participation.test.ts
+pnpm test test/telegram-ingestion.test.ts test/telegram-spoiler.test.ts test/startup-catch-up.test.ts test/participation.test.ts
 pnpm test test/scheduler.test.ts test/sleep.test.ts
 pnpm test test/context-store.test.ts test/context-gc.test.ts test/context-hot-inject.test.ts
 pnpm test test/context-send.test.ts test/send-reply.test.ts test/reply-dedup.test.ts test/cut-topic.test.ts
@@ -62,6 +62,7 @@ pnpm test test/prompt-template.test.ts test/prompt-markdown.test.ts test/tui-con
 | `load-env.test.ts` | CLI `.env.local`/`.env` 加载语义：缺失跳过、dotenv 解析（含 BOM）、真实环境变量 > `.env.local` > `.env` 优先级 |
 | `schema.test.ts` | Drizzle 层 bigint/boolean 往返、STRICT 与 CHECK 约束、better-sqlite3 IMMEDIATE 事务回滚、`sql` 模板绑定与 FTS5 查询；Invocation 审计索引的新建/升级、分页统计与查询计划；图片交付台账旧库升级、已知/未知资产回填与查询索引；Reply 查重索引新建/升级及既有重复审计保留 |
 | `telegram-ingestion.test.ts` | allowlist、Revision、Bot/Service、Topic 隔离、先到的 `migrate_from_chat_id` 授权新 Supergroup、匿名管理员（占位 Bot + `sender_chat`）按真人处理 |
+| `telegram-spoiler.test.ts` | Telegram spoiler 到 Agent 可见上下文：无 spoiler 的普通消息提示不变、整条/部分/多条 spoiler、UTF-16 偏移在 emoji 与中文后仍对齐、媒体 caption、回复引用行（含截断与前缀校验）、与其他 entity 并存、正文与 `raw_fragment_json` 保持原样、保留历史中的标签，以及无 spoiler 时快照不新增字段 |
 | `participation.test.ts` | 全局/每 Chat 规则合并、私聊配置拒绝、跨午夜时段、触发与注意力窗口、暂停/编辑边界、启动追赶与清理 |
 | `startup-catch-up.test.ts` | 每 Conversation 一个追赶 Invocation（同群不同 Topic 分开）、`history_messages` 上限、`ignored_user_ids` 与 `sticker_trigger_enabled` 生效、排空后切换实时 Bucket、各 Topic 发送落回自己的 Topic；积压 `/pause`/`/resume` 顺序执行与鉴权、其他命令只审计不入上下文、重复 Update 不重放；慢排空或崩溃续跑后刚排队的追赶不被启动恢复判为过期，真正排队超过 recovery 年龄的仍以 `recovery_age` 过期 |
 | `scheduler.test.ts` | 配置 deadline、冻结快照、恢复和并发串行 |
@@ -98,7 +99,7 @@ pnpm test test/prompt-template.test.ts test/prompt-markdown.test.ts test/tui-con
 | `cli-login-http.test.ts` | 凭据文件驱动的 doctor 真实 HTTP 链路：`GET /api/invocations?limit=1` 验证连通与鉴权、成功输出 `{status:"ok",endpoint,credential_sources}` 与退出码 0、凭据值缺失或不合法退出码 2、文件校验或请求失败退出码 1、不输出 Invocation 正文、不调用模型/不发送 Telegram/不重试、鉴权仍更新 key 的 `last_used_at` |
 | `npm-release.test.ts` | main canary 版本含 run/attempt/SHA、仅精确稳定 tag 进入 latest、拒绝非 push/其它仓库与非法 ref、GitHub 输出不改源码 manifest、仅独立 CLI 包公开、Skill 分发清单与入口/子文档/元数据结构（含 `models list` 新命令、模型列表非授权与严禁自动尝试的隔离说明、`--provider`/`--thinking-level` 等模型覆盖契约断言） |
 | `docs-examples.test.ts` / `docs-search.test.ts` / `docs-markdown.test.ts` | 公开配置示例的离线语义校验、生成字段与部署 URL、已安装搜索组件的键盘回归；Markdown 检查正确区分缩进代码块与真实 H1，LF/CRLF 下不漏提取代码块 |
-| `scene-context.test.ts` | 开场冻结快照优先、当时可证明的公开历史、后续 attach/编辑/迟到消息排除、切点/Topic/字符预算、损坏身份拒绝、缺修订与媒体降级、scene-local media/reply 引用、构建全表无写入 |
+| `scene-context.test.ts` | 开场冻结快照优先、当时可证明的公开历史、spoiler 标记与线上一致（开场、回退历史、回复引用）、后续 attach/编辑/迟到消息排除、切点/Topic/字符预算、损坏身份拒绝、缺修订与媒体降级、scene-local media/reply 引用、构建全表无写入 |
 | `scene-slice.test.ts` | 切片构建：两条 Bot 消息之间的冻结输入、上一条 Bot 可来自另一次 Invocation 或不带 send 行的消息、同一秒内边界仍精确、切点继续生效、只并入注入时间严格早于发送开始的 attach 批次（同毫秒保守省略）、同一消息重复冻结取最新合格快照、渲染冻结快照而非后续编辑、reply 引用只保留切片内消息、只授权冻结 revision 且已渲染的媒体、拒绝非本 Invocation/失败/跨 Conversation 的目标发送、连续两次发送之间为空、字符预算从新到旧裁剪、构建不写库 |
 | `scene-retention.test.ts` | 真实 029→030 有数据迁移仅移除旧 replay payload，调用/工具/发送/用量/冻结快照整行保留，迁移前备份含完整旧列且 integrity check 通过，重复打开、外键检查与 retention 级联后来源不可用 |
 | `replay-tools.test.ts` | 当前定义下合成 send（同一重放场景内 Reply 去重、各场景独立；配置开启 `allow_reply_message_multiple_times` 时同目标可多次回复但仍校验场景可见性）与内存记忆/Alarm、`list_image_models` 内存分页（带 description、无凭据、offset 越界拒绝）、生图假回执、zzz 不写状态、当前只读 system 资源、MCP/未知能力阻断、execute search/help/call 共用校验、abort 不 dispatch、无生产执行器 |
