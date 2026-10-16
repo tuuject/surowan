@@ -31,7 +31,16 @@ import {
   type ImOutgoingPart,
   type ImSendRatePolicy,
 } from '../../platform/im-host.ts';
-import { chats, conversations, hostSends, messageRevisions, messages, rooms, senders } from '../../store/schema.ts';
+import {
+  chats,
+  conversations,
+  hostSends,
+  messageRevisions,
+  messages,
+  roomParticipants,
+  rooms,
+  senders,
+} from '../../store/schema.ts';
 import type { BusinessStore } from '../../store/store.ts';
 
 /** Who a room shows as the author of the messages the bot publishes. */
@@ -92,22 +101,31 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
   const now = options.now ?? ((): Date => new Date());
   const { orm } = store;
 
-  /** The identity row a room shows for the bot, created once and reused. */
-  let selfSenderId: bigint | null = null;
-
-  const resolveSelfSender = (): bigint | null => {
-    if (selfSenderId !== null) {
-      return selfSenderId;
-    }
+  /**
+   * The identity a room shows for the bot: a bot sender that belongs to this
+   * room. It is resolved inside the publishing transaction on every send, not
+   * cached, so a rollback or a retention prune can never leave a stale id
+   * behind. Membership is what keeps a virtual identity alive through
+   * retention, and `is_bot` keeps a participant who shares the bot's display
+   * name from being taken for it.
+   */
+  const resolveSelfSender = (chatId: bigint, stamp: string): bigint => {
     const existing = orm
       .select({ id: senders.id })
       .from(senders)
-      .where(and(eq(senders.hostKind, 'playground'), eq(senders.displayName, self.displayName)))
+      .innerJoin(roomParticipants, eq(roomParticipants.senderId, senders.id))
+      .where(
+        and(
+          eq(roomParticipants.chatId, chatId),
+          eq(senders.hostKind, 'playground'),
+          eq(senders.isBot, true),
+          eq(senders.displayName, self.displayName),
+        ),
+      )
       .limit(1)
       .get();
     if (existing !== undefined) {
-      selfSenderId = existing.id;
-      return selfSenderId;
+      return existing.id;
     }
     const created = orm
       .insert(senders)
@@ -116,12 +134,15 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
         displayName: self.displayName,
         username: self.username ?? null,
         isBot: true,
-        updatedAt: now().toISOString(),
+        updatedAt: stamp,
       })
       .returning({ id: senders.id })
       .get();
-    selfSenderId = created?.id ?? null;
-    return selfSenderId;
+    if (created === undefined) {
+      throw new Error('senders insert returned no row');
+    }
+    orm.insert(roomParticipants).values({ chatId, senderId: created.id, joinedAt: stamp }).run();
+    return created.id;
   };
 
   const resolveRoom = (conversationId: bigint): ResolvedRoom | null => {
@@ -225,7 +246,7 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
         messageId: createdMessage.id,
         // A published message starts its own revision history.
         revisionNo: 1n,
-        senderId: resolveSelfSender(),
+        senderId: resolveSelfSender(room.chatId, stamp),
         kind: 'text',
         text: body,
         replyToMessageId,
