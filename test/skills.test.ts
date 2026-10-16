@@ -31,7 +31,15 @@ import { SecretStore } from '../src/platform/secrets.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { StickerService } from '../src/capabilities/stickers.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
-import { bundledSystemResources, fauxRegistry, testConfigJsonc, testConfigStore, testTelegramRuntime, type TestRegistry, writeTestConfig } from './helpers.ts';
+import {
+  bundledSystemResources,
+  fauxRegistry,
+  testConfigJsonc,
+  testConfigStore,
+  testTelegramRuntime,
+  type TestRegistry,
+  writeTestConfig,
+} from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -335,9 +343,8 @@ test('search_stickers runs through execute and its refs authorize a sticker send
     { tool_name: 'send', state: 'success', error_code: null },
   ]);
   expect(
-    store.db
-      .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM host_sends WHERE state = 'success'")
-      .get()?.count,
+    store.db.prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM host_sends WHERE state = 'success'").get()
+      ?.count,
   ).toBe(1n);
   store.close();
 });

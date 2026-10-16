@@ -212,9 +212,8 @@ test.each([undefined, false, true])(
     const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
     expect(outcome).toEqual({ state: 'completed', reason: 'completed' });
     expect(
-      store.db
-        .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM host_sends WHERE state = 'success'")
-        .get()?.count,
+      store.db.prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM host_sends WHERE state = 'success'").get()
+        ?.count,
     ).toBe(1n);
     expect(
       store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM messages WHERE sent_by_bot = 1').get()

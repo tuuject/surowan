@@ -1073,15 +1073,93 @@ test('migration 036 upgrades a live Telegram database without disturbing it', as
 
     // A virtual room, identity and message fit in the same tables, with no
     // Telegram id anywhere, and never leak into a Telegram-scoped reader.
-    orm.insert(chats).values({ id: 50n, hostKind: 'playground', type: 'virtual', title: 'Playground', updatedAt: '2026-01-02T00:00:00.000Z' }).run();
-    orm.insert(senders).values({ id: 60n, hostKind: 'playground', displayName: 'Echo', isBot: true, updatedAt: '2026-01-02T00:00:00.000Z' }).run();
-    orm.insert(conversations).values({ id: 150n, chatId: 50n, messageThreadId: 0n, createdAt: '2026-01-02T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z' }).run();
-    orm.insert(rooms).values({ chatId: 50n, createdAt: '2026-01-02T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z' }).run();
+    orm
+      .insert(chats)
+      .values({
+        id: 50n,
+        hostKind: 'playground',
+        type: 'virtual',
+        title: 'Playground',
+        updatedAt: '2026-01-02T00:00:00.000Z',
+      })
+      .run();
+    orm
+      .insert(senders)
+      .values({
+        id: 60n,
+        hostKind: 'playground',
+        displayName: 'Echo',
+        isBot: true,
+        updatedAt: '2026-01-02T00:00:00.000Z',
+      })
+      .run();
+    orm
+      .insert(conversations)
+      .values({
+        id: 150n,
+        chatId: 50n,
+        messageThreadId: 0n,
+        createdAt: '2026-01-02T00:00:00.000Z',
+        updatedAt: '2026-01-02T00:00:00.000Z',
+      })
+      .run();
+    orm
+      .insert(rooms)
+      .values({ chatId: 50n, createdAt: '2026-01-02T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z' })
+      .run();
     orm.insert(roomParticipants).values({ chatId: 50n, senderId: 60n, joinedAt: '2026-01-02T00:00:00.000Z' }).run();
-    orm.insert(messages).values({ id: 7000n, conversationId: 150n, chatId: 50n, hostKind: 'playground', visible: true, sentByBot: false, telegramDate: '2026-01-02T00:00:00.000Z', receivedAt: '2026-01-02T00:00:00.000Z', localReplyToMessageId: 1002n, localSequenceNo: 1n }).run();
-    orm.insert(messageRevisions).values({ id: 8000n, messageId: 7000n, revisionNo: 1n, senderId: 60n, kind: 'text', text: 'local', createdAt: '2026-01-02T00:00:00.000Z', rawFragmentJson: '{}' }).run();
-    orm.insert(buckets).values({ id: 4000n, conversationId: 150n, state: 'completed', firstReceivedAt: '2026-01-02T00:00:00.000Z', deadlineAt: '2026-01-02T00:00:00.000Z', createdAt: '2026-01-02T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z' }).run();
-    orm.insert(invocations).values({ id: 6000n, bucketId: 4000n, conversationId: 150n, state: 'completed', configHash: 'hash', promptVersion: 1n, createdAt: '2026-01-02T00:00:00.000Z' }).run();
+    orm
+      .insert(messages)
+      .values({
+        id: 7000n,
+        conversationId: 150n,
+        chatId: 50n,
+        hostKind: 'playground',
+        visible: true,
+        sentByBot: false,
+        telegramDate: '2026-01-02T00:00:00.000Z',
+        receivedAt: '2026-01-02T00:00:00.000Z',
+        localReplyToMessageId: 1002n,
+        localSequenceNo: 1n,
+      })
+      .run();
+    orm
+      .insert(messageRevisions)
+      .values({
+        id: 8000n,
+        messageId: 7000n,
+        revisionNo: 1n,
+        senderId: 60n,
+        kind: 'text',
+        text: 'local',
+        createdAt: '2026-01-02T00:00:00.000Z',
+        rawFragmentJson: '{}',
+      })
+      .run();
+    orm
+      .insert(buckets)
+      .values({
+        id: 4000n,
+        conversationId: 150n,
+        state: 'completed',
+        firstReceivedAt: '2026-01-02T00:00:00.000Z',
+        deadlineAt: '2026-01-02T00:00:00.000Z',
+        createdAt: '2026-01-02T00:00:00.000Z',
+        updatedAt: '2026-01-02T00:00:00.000Z',
+      })
+      .run();
+    orm
+      .insert(invocations)
+      .values({
+        id: 6000n,
+        bucketId: 4000n,
+        conversationId: 150n,
+        state: 'completed',
+        configHash: 'hash',
+        promptVersion: 1n,
+        createdAt: '2026-01-02T00:00:00.000Z',
+      })
+      .run();
     expect(orm.get(sql`SELECT host_kind FROM chats WHERE id = 50`)).toEqual({ host_kind: 'playground' });
 
     // Read-only surfaces tolerate the mix instead of throwing on a NULL
@@ -1100,12 +1178,22 @@ test('migration 036 upgrades a live Telegram database without disturbing it', as
 
     // The conditional identity constraints still bite in both directions.
     expect(() =>
-      orm.insert(chats).values({ id: 51n, hostKind: 'telegram', canonicalChatId: -1n, type: 'group', updatedAt: 'x' }).run(),
+      orm
+        .insert(chats)
+        .values({ id: 51n, hostKind: 'telegram', canonicalChatId: -1n, type: 'group', updatedAt: 'x' })
+        .run(),
     ).toThrow(/CHECK constraint failed|chats_host_identity_check/);
     expect(() =>
       orm
         .insert(chats)
-        .values({ id: 52n, hostKind: 'playground', telegramChatId: -1n, canonicalChatId: -1n, type: 'virtual', updatedAt: 'x' })
+        .values({
+          id: 52n,
+          hostKind: 'playground',
+          telegramChatId: -1n,
+          canonicalChatId: -1n,
+          type: 'virtual',
+          updatedAt: 'x',
+        })
         .run(),
     ).toThrow();
     expect(() =>
@@ -1117,7 +1205,15 @@ test('migration 036 upgrades a live Telegram database without disturbing it', as
     expect(() =>
       orm
         .insert(messages)
-        .values({ id: 7001n, conversationId: 100n, chatId: 1n, visible: true, sentByBot: false, telegramDate: 'x', receivedAt: 'x' })
+        .values({
+          id: 7001n,
+          conversationId: 100n,
+          chatId: 1n,
+          visible: true,
+          sentByBot: false,
+          telegramDate: 'x',
+          receivedAt: 'x',
+        })
         .run(),
     ).toThrow();
   } finally {

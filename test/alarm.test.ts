@@ -27,7 +27,18 @@ import { enterSleep } from '../src/store/sleep.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { capability } from '../src/capabilities/execute-tool.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
-import { fauxRegistry, invocationCapabilities, renderInvocationContext, testConfigJsonc, testConfigStore, testSendToolEnv, testTelegramRuntime, type TestContextOptions, type TestRegistry, writeTestConfig } from './helpers.ts';
+import {
+  fauxRegistry,
+  invocationCapabilities,
+  renderInvocationContext,
+  testConfigJsonc,
+  testConfigStore,
+  testSendToolEnv,
+  testTelegramRuntime,
+  type TestContextOptions,
+  type TestRegistry,
+  writeTestConfig,
+} from './helpers.ts';
 
 const directories: string[] = [];
 

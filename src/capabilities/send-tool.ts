@@ -278,9 +278,7 @@ class DeliveryRejected extends Error {
 function resolveOutgoingPart(input: {
   readonly textPart: ImOutgoingPart | undefined;
   readonly stickerFileId: string | undefined;
-  readonly generationPictures:
-    | readonly { readonly bytes: Uint8Array; readonly fileName: string }[]
-    | undefined;
+  readonly generationPictures: readonly { readonly bytes: Uint8Array; readonly fileName: string }[] | undefined;
   readonly send: Static<typeof SendInputSchema>;
 }): ImOutgoingPart {
   if (input.textPart !== undefined) {
@@ -293,8 +291,7 @@ function resolveOutgoingPart(input: {
   if (pictures === undefined) {
     throw new Error('sticker_ref is not authorized in this conversation context');
   }
-  const caption =
-    input.send.kind === 'image' && input.send.text !== undefined ? { caption: input.send.text } : {};
+  const caption = input.send.kind === 'image' && input.send.text !== undefined ? { caption: input.send.text } : {};
   if (pictures.length === 1) {
     const [only] = pictures;
     return {
@@ -647,8 +644,7 @@ export function createSendTools(environment: SendToolEnvironment): {
     }
     const sendId = pending.sendId;
     const outgoingPart = resolveOutgoingPart({ textPart, stickerFileId, generationPictures, send });
-    const replyToMessageId =
-      send.reply_to_message_id === undefined ? undefined : BigInt(send.reply_to_message_id);
+    const replyToMessageId = send.reply_to_message_id === undefined ? undefined : BigInt(send.reply_to_message_id);
     const startedAt = performance.now();
     let delivered: ImDeliveredMessage;
     let recordedByHost = false;

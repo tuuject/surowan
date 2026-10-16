@@ -139,18 +139,18 @@ for (const host of ['telegram', 'playground'] as const) {
 /* -------------------------------------------------------------------------- */
 
 test('the Telegram policy table is pinned', () => {
-  expect(
-    resolveConversationPolicy({ host: 'telegram', scope: 'group', sendRate: PINNED_SEND_RATE }),
-  ).toEqual(PINNED_TELEGRAM_GROUP_POLICY);
-  expect(
-    resolveConversationPolicy({ host: 'telegram', scope: 'private', sendRate: PINNED_SEND_RATE }),
-  ).toEqual(PINNED_TELEGRAM_PRIVATE_POLICY);
+  expect(resolveConversationPolicy({ host: 'telegram', scope: 'group', sendRate: PINNED_SEND_RATE })).toEqual(
+    PINNED_TELEGRAM_GROUP_POLICY,
+  );
+  expect(resolveConversationPolicy({ host: 'telegram', scope: 'private', sendRate: PINNED_SEND_RATE })).toEqual(
+    PINNED_TELEGRAM_PRIVATE_POLICY,
+  );
 });
 
 test('the playground policy table is pinned', () => {
-  expect(
-    resolveConversationPolicy({ host: 'playground', scope: 'group', sendRate: PINNED_SEND_RATE }),
-  ).toEqual(PINNED_PLAYGROUND_ROOM_POLICY);
+  expect(resolveConversationPolicy({ host: 'playground', scope: 'group', sendRate: PINNED_SEND_RATE })).toEqual(
+    PINNED_PLAYGROUND_ROOM_POLICY,
+  );
   expect(resolveConversationPolicy({ host: 'playground', scope: 'group', sendRate: PINNED_SEND_RATE }).senderRef).toBe(
     'opaque',
   );
@@ -279,11 +279,7 @@ test('the contract module is a leaf: no imports, no transport library', () => {
 });
 
 test('the contract can name Telegram and virtual targets without a transport type', () => {
-  const refs: readonly ImConversationRef[] = [
-    PINNED_TELEGRAM_GROUP,
-    PINNED_TELEGRAM_PRIVATE,
-    PINNED_PLAYGROUND_ROOM,
-  ];
+  const refs: readonly ImConversationRef[] = [PINNED_TELEGRAM_GROUP, PINNED_TELEGRAM_PRIVATE, PINNED_PLAYGROUND_ROOM];
   expect(refs.map((ref) => ref.host)).toEqual(['telegram', 'telegram', 'playground']);
   expect(refs.map((ref) => sameConversation(ref, { ...ref }))).toEqual([true, true, true]);
 });

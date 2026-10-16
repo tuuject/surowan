@@ -16,7 +16,15 @@ import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { createSendTool } from '../src/capabilities/send-tool.ts';
 import { StickerService } from '../src/capabilities/stickers.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
-import { fauxRegistry, invocationCapabilities, renderInvocationContext, testConfigJsonc, testConfigStore, testSendToolEnv, writeTestConfig } from './helpers.ts';
+import {
+  fauxRegistry,
+  invocationCapabilities,
+  renderInvocationContext,
+  testConfigJsonc,
+  testConfigStore,
+  testSendToolEnv,
+  writeTestConfig,
+} from './helpers.ts';
 
 const directories: string[] = [];
 

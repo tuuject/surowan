@@ -31,15 +31,7 @@ import {
   type ImOutgoingPart,
   type ImSendRatePolicy,
 } from '../../platform/im-host.ts';
-import {
-  chats,
-  conversations,
-  hostSends,
-  messageRevisions,
-  messages,
-  rooms,
-  senders,
-} from '../../store/schema.ts';
+import { chats, conversations, hostSends, messageRevisions, messages, rooms, senders } from '../../store/schema.ts';
 import type { BusinessStore } from '../../store/store.ts';
 
 /** Who a room shows as the author of the messages the bot publishes. */
@@ -229,11 +221,7 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
     if (revision === undefined) {
       throw new Error('message_revisions insert returned no row');
     }
-    orm
-      .update(messages)
-      .set({ currentRevisionId: revision.id })
-      .where(eq(messages.id, createdMessage.id))
-      .run();
+    orm.update(messages).set({ currentRevisionId: revision.id }).where(eq(messages.id, createdMessage.id)).run();
     orm
       .update(rooms)
       .set({ revision: revisionNo, nextSeq: sequenceNo + 1n, updatedAt: stamp })
@@ -264,11 +252,7 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
       if (part.kind !== 'text') {
         // A room has nowhere to put wire media yet, and a message that claims
         // to have carried an attachment would be worse than a clear refusal.
-        return rejected(
-          'permanent',
-          'unsupported_media',
-          `a Bot Playground room cannot show a ${part.kind} message`,
-        );
+        return rejected('permanent', 'unsupported_media', `a Bot Playground room cannot show a ${part.kind} message`);
       }
       const targetRoom = resolveRoom(request.target.conversation.id);
       if (targetRoom === null) {

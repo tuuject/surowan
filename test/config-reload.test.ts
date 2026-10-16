@@ -29,7 +29,15 @@ import { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { sleep, startFixtureServer, stopFixtureServer, testConfigJsonc, testTelegramRuntime, writeTestConfig, writeTestKeyJar } from './helpers.ts';
+import {
+  sleep,
+  startFixtureServer,
+  stopFixtureServer,
+  testConfigJsonc,
+  testTelegramRuntime,
+  writeTestConfig,
+  writeTestKeyJar,
+} from './helpers.ts';
 
 const directories: string[] = [];
 const CHAT_ID = 123456789;

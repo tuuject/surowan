@@ -176,9 +176,8 @@ describe('generic task receipt delivery', () => {
 
     expect(sends).toEqual(['@Alice task delivered']);
     expect(
-      store.db
-        .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM host_sends WHERE state = 'success'")
-        .get()?.count,
+      store.db.prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM host_sends WHERE state = 'success'").get()
+        ?.count,
     ).toBe(1n);
     expect(
       store.db
@@ -253,9 +252,7 @@ describe('generic task receipt delivery', () => {
       error_json: JSON.stringify({ code: 'upstream_failed', retryable: false }),
       invocation_outcome: 'completed',
     });
-    expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(
-      0n,
-    );
+    expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(0n);
     expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM tool_calls').get()?.count).toBe(0n);
     expect(
       store.db.prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM model_calls WHERE state = 'success'").get()

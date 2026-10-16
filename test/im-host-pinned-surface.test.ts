@@ -78,23 +78,26 @@ async function fixture() {
   const sendContext = context;
   const tool = createSendTool({
     store,
-    ...testSendToolEnv({
-      sendMessage: async (...args: unknown[]) => {
-        requests.push(args.slice(0, 3));
-        return { message_id: 77, date: 1_700_000_100, chat: { id: CHAT_ID } };
+    ...testSendToolEnv(
+      {
+        sendMessage: async (...args: unknown[]) => {
+          requests.push(args.slice(0, 3));
+          return { message_id: 77, date: 1_700_000_100, chat: { id: CHAT_ID } };
+        },
+        sendSticker: async (...args: unknown[]) => {
+          requests.push(args.slice(0, 3));
+          return { message_id: 78, date: 1_700_000_101, chat: { id: CHAT_ID } };
+        },
+        sendTyping: async () => undefined,
+        sendGeneratedPhoto: async () => {
+          throw new Error('not used');
+        },
+        sendGeneratedPhotoGroup: async () => {
+          throw new Error('not used');
+        },
       },
-      sendSticker: async (...args: unknown[]) => {
-        requests.push(args.slice(0, 3));
-        return { message_id: 78, date: 1_700_000_101, chat: { id: CHAT_ID } };
-      },
-      sendTyping: async () => undefined,
-      sendGeneratedPhoto: async () => {
-        throw new Error('not used');
-      },
-      sendGeneratedPhotoGroup: async () => {
-        throw new Error('not used');
-      },
-    }, sendContext),
+      sendContext,
+    ),
     context,
     capabilities,
     sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },
@@ -110,7 +113,7 @@ async function fixture() {
 test('the model-visible envelope for a fixed update is pinned', async () => {
   const { store, context } = await fixture();
   expect(context.userPrompt).toContain(PINNED_ENVELOPE);
-  expect(context.systemPrompt).toContain('re:N marks a reply to message N, uid:N is the sender\'s user ID');
+  expect(context.systemPrompt).toContain("re:N marks a reply to message N, uid:N is the sender's user ID");
   store.close();
 });
 

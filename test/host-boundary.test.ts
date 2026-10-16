@@ -55,7 +55,11 @@ test('the orchestrator imports the host contract, not a transport client', () =>
 });
 
 test('only the Telegram host owns the grammY client, the local monolith and its CLI excepted', () => {
-  const files = [...sourceFiles('src/platform'), ...sourceFiles('src/capabilities'), ...sourceFiles('src/orchestration')];
+  const files = [
+    ...sourceFiles('src/platform'),
+    ...sourceFiles('src/capabilities'),
+    ...sourceFiles('src/orchestration'),
+  ];
   expect(offenders(files, /from 'grammy'/)).toEqual([]);
 });
 

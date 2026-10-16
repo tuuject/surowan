@@ -225,11 +225,7 @@ describe('long-lived invocation', () => {
           'private',
         ),
         policy: f.host.policy(
-          identityConversation(
-            { chatId: BigInt(CHAT_ID), threadId: 0n, conversationId: 1n },
-            'telegram',
-            'private',
-          ),
+          identityConversation({ chatId: BigInt(CHAT_ID), threadId: 0n, conversationId: 1n }, 'telegram', 'private'),
         ),
       });
       await until(() => f.typingSignals.length === 1, 'mention status shown at ingestion');
@@ -1416,9 +1412,7 @@ describe('send barrier', () => {
         { state: 'success', error_code: null },
       ]);
       expect(botTexts(store)).toEqual(['combined answer']);
-      expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(
-        1n,
-      );
+      expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(1n);
       // The follow-up joined the running invocation as its own injected batch.
       expect(
         store.db

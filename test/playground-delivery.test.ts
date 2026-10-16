@@ -83,10 +83,7 @@ describe('Bot Playground virtual delivery', () => {
         updatedAt: stamp,
       })
       .run();
-    store.orm
-      .insert(rooms)
-      .values({ chatId: input.chatId, createdAt: stamp, updatedAt: stamp })
-      .run();
+    store.orm.insert(rooms).values({ chatId: input.chatId, createdAt: stamp, updatedAt: stamp }).run();
     const self = store.orm
       .insert(senders)
       .values({
@@ -160,11 +157,7 @@ describe('Bot Playground virtual delivery', () => {
     });
 
   /** Reserves the ledger row the way the pipeline does before delivering. */
-  const reserveSend = (
-    conversationId: bigint,
-    invocationId: bigint,
-    request: Record<string, unknown>,
-  ): bigint => {
+  const reserveSend = (conversationId: bigint, invocationId: bigint, request: Record<string, unknown>): bigint => {
     const stamp = NOW.toISOString();
     const toolCall = store.orm
       .insert(toolCalls)
@@ -221,15 +214,10 @@ describe('Bot Playground virtual delivery', () => {
     });
   };
 
-  const ledgerRow = (sendId: bigint) =>
-    store.orm.select().from(hostSends).where(eq(hostSends.id, sendId)).get();
+  const ledgerRow = (sendId: bigint) => store.orm.select().from(hostSends).where(eq(hostSends.id, sendId)).get();
 
   const roomMessages = (conversationId: bigint) =>
-    store.orm
-      .select()
-      .from(messages)
-      .where(eq(messages.conversationId, conversationId))
-      .all();
+    store.orm.select().from(messages).where(eq(messages.conversationId, conversationId)).all();
 
   test('publishes a virtual message and records it in the same row as the send', async () => {
     const room = createRoom({ chatId: 10n, title: 'Sprint room', selfDisplayName: '碗' });
@@ -256,11 +244,7 @@ describe('Bot Playground virtual delivery', () => {
     expect(message.sentByBot).toBe(true);
     expect(message.localSequenceNo).toBe(1n);
 
-    const revision = store.orm
-      .select()
-      .from(messageRevisions)
-      .where(eq(messageRevisions.messageId, message.id))
-      .get();
+    const revision = store.orm.select().from(messageRevisions).where(eq(messageRevisions.messageId, message.id)).get();
     expect(revision?.text).toBe('hello room');
     expect(revision?.senderId).toBe(room.selfSenderId);
     expect(message.currentRevisionId).toBe(revision?.id);
@@ -392,7 +376,12 @@ describe('Bot Playground virtual delivery', () => {
 
     const host = hostFor('碗');
     const sendId = reserveSend(conversation.id, room.invocationId, { id: 'tg', text: 'nope' });
-    const outcome = await deliver(host, { conversationId: conversation.id, chatId: 51n, title: 'telegram' }, sendId, 'nope');
+    const outcome = await deliver(
+      host,
+      { conversationId: conversation.id, chatId: 51n, title: 'telegram' },
+      sendId,
+      'nope',
+    );
     expect(outcome.kind).toBe('rejected');
     if (outcome.kind === 'rejected') {
       expect(outcome.failure.code).toBe('host_mismatch');
@@ -417,11 +406,7 @@ describe('Bot Playground virtual delivery', () => {
       return;
     }
 
-    const reply = store.orm
-      .select()
-      .from(messages)
-      .where(eq(messages.id, secondOutcome.messages[0]!.messageId))
-      .get();
+    const reply = store.orm.select().from(messages).where(eq(messages.id, secondOutcome.messages[0]!.messageId)).get();
     expect(reply?.localReplyToMessageId).toBe(target);
     expect(reply?.telegramMessageId).toBeNull();
     expect(telegramTransport).not.toHaveBeenCalled();
