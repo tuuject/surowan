@@ -425,7 +425,7 @@ export async function serve(configPath: string, takeover = false): Promise<void>
       // A sleeping bot skips queued invocations, so a status would promise a reply that never comes.
       if (result.mention !== undefined && activeSleepUntil(openedStore.orm) === null) {
         const target = resolveConversation(openedStore, result.mention);
-        telegramHost.activity.start({ conversation: target, policy: telegramHost.policy(target) });
+        telegramHost.activity.start({ conversation: target, policy: telegramHost.policy(target) }, 'until_delivery');
       }
       if (result.command !== undefined) {
         await replyToCommand(context, commands, result.command);

@@ -218,16 +218,19 @@ describe('long-lived invocation', () => {
     const service = new InvocationQueueService(f.store, f.configStore, f.conversationRuntime);
     try {
       f.ingestion.ingest(update(1, 10, 'hello'), new Date());
-      f.host.activity.start({
-        conversation: identityConversation(
-          { chatId: BigInt(CHAT_ID), threadId: 0n, conversationId: 1n },
-          'telegram',
-          'private',
-        ),
-        policy: f.host.policy(
-          identityConversation({ chatId: BigInt(CHAT_ID), threadId: 0n, conversationId: 1n }, 'telegram', 'private'),
-        ),
-      });
+      f.host.activity.start(
+        {
+          conversation: identityConversation(
+            { chatId: BigInt(CHAT_ID), threadId: 0n, conversationId: 1n },
+            'telegram',
+            'private',
+          ),
+          policy: f.host.policy(
+            identityConversation({ chatId: BigInt(CHAT_ID), threadId: 0n, conversationId: 1n }, 'telegram', 'private'),
+          ),
+        },
+        'until_delivery',
+      );
       await until(() => f.typingSignals.length === 1, 'mention status shown at ingestion');
       expect(f.typingSignals[0]!.aborted).toBe(false);
       const [id] = service.processDue(new Date());

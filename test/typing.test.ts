@@ -161,12 +161,12 @@ test('the grammY transport skips overlapping requests and throttles each chat an
 
 test('an activity round shows typing immediately, refreshes, and a repeat neither duplicates nor resets the cap', async () => {
   const f = activityFixture();
-  f.host.activity.start(targetOf(f.host, GROUP, 42n));
+  f.host.activity.start(targetOf(f.host, GROUP, 42n), 'until_delivery');
   await vi.advanceTimersByTimeAsync(0);
   expect(f.sendTyping).toHaveBeenCalledTimes(1);
   expect(f.sendTyping).toHaveBeenCalledWith(GROUP, 42n, expect.any(AbortSignal));
   await vi.advanceTimersByTimeAsync(40_000);
-  f.host.activity.start(targetOf(f.host, GROUP, 42n));
+  f.host.activity.start(targetOf(f.host, GROUP, 42n), 'until_delivery');
   await vi.advanceTimersByTimeAsync(20_000);
   // One request at t=0 and one every 4s until the 55s cap: 14 in total, none from the repeat.
   expect(f.sendTyping).toHaveBeenCalledTimes(14);
@@ -175,10 +175,10 @@ test('an activity round shows typing immediately, refreshes, and a repeat neithe
 
 test('an activity round after the previous one hit its cap starts a fresh round', async () => {
   const f = activityFixture();
-  f.host.activity.start(targetOf(f.host, GROUP, 0n));
+  f.host.activity.start(targetOf(f.host, GROUP, 0n), 'until_delivery');
   await vi.advanceTimersByTimeAsync(60_000);
   const before = f.sendTyping.mock.calls.length;
-  f.host.activity.start(targetOf(f.host, GROUP, 0n));
+  f.host.activity.start(targetOf(f.host, GROUP, 0n), 'until_delivery');
   await vi.advanceTimersByTimeAsync(0);
   expect(f.sendTyping).toHaveBeenCalledTimes(before + 1);
   expect(f.sendTyping.mock.calls.at(-1)![1]).toBe(0n);
@@ -187,8 +187,8 @@ test('an activity round after the previous one hit its cap starts a fresh round'
 
 test('stop ends one round and chats and topics are independent', async () => {
   const f = activityFixture();
-  f.host.activity.start(targetOf(f.host, GROUP, 42n));
-  f.host.activity.start(targetOf(f.host, GROUP, 43n));
+  f.host.activity.start(targetOf(f.host, GROUP, 42n), 'until_delivery');
+  f.host.activity.start(targetOf(f.host, GROUP, 43n), 'until_delivery');
   await vi.advanceTimersByTimeAsync(0);
   expect(f.sendTyping).toHaveBeenCalledTimes(2);
   f.host.activity.stop(targetOf(f.host, GROUP, 42n).conversation);
@@ -204,8 +204,8 @@ test('stop ends one round and chats and topics are independent', async () => {
 
 test('publishing into the chat and topic ends its activity, other topics keep theirs', async () => {
   const f = activityFixture();
-  f.host.activity.start(targetOf(f.host, GROUP, 42n));
-  f.host.activity.start(targetOf(f.host, GROUP, 43n));
+  f.host.activity.start(targetOf(f.host, GROUP, 42n), 'until_delivery');
+  f.host.activity.start(targetOf(f.host, GROUP, 43n), 'until_delivery');
   await vi.advanceTimersByTimeAsync(0);
   const target = targetOf(f.host, GROUP, 42n);
   const outcome = await f.host.delivery.deliver({
@@ -224,11 +224,65 @@ test('publishing into the chat and topic ends its activity, other topics keep th
   f.host.activity.stopAll();
 });
 
+test('typing the model asked for keeps refreshing after a send, and a later call is not lost', async () => {
+  const f = toolFixture();
+  await f.start();
+  await vi.advanceTimersByTimeAsync(0);
+  const outcome = await f.host.delivery.deliver({
+    target: f.target,
+    parts: [{ kind: 'text', text: 'first part of the answer' }],
+    sendId: 1n,
+    signal: undefined,
+  });
+  expect(outcome.kind).toBe('delivered');
+  const afterSend = f.sendTyping.mock.calls.length;
+  // The slow work continues after the message, so the status comes back.
+  await vi.advanceTimersByTimeAsync(4_000);
+  expect(f.sendTyping.mock.calls.length).toBeGreaterThan(afterSend);
+  await f.start();
+  await vi.advanceTimersByTimeAsync(4_000);
+  expect(f.sendTyping.mock.calls.length).toBeGreaterThan(afterSend + 1);
+  f.stop();
+});
+
+test('a model request takes over a mention round, which then outlives the send', async () => {
+  const f = toolFixture();
+  f.host.activity.start(f.target, 'until_delivery');
+  await vi.advanceTimersByTimeAsync(0);
+  expect(f.sendTyping).toHaveBeenCalledTimes(1);
+  await f.start();
+  await vi.advanceTimersByTimeAsync(0);
+  await f.host.delivery.deliver({
+    target: f.target,
+    parts: [{ kind: 'text', text: 'hi' }],
+    sendId: 1n,
+    signal: undefined,
+  });
+  const afterSend = f.sendTyping.mock.calls.length;
+  await vi.advanceTimersByTimeAsync(4_000);
+  expect(f.sendTyping.mock.calls.length).toBeGreaterThan(afterSend);
+  // A later mention neither duplicates nor shortens the model's round.
+  f.host.activity.start(f.target, 'until_delivery');
+  await f.host.delivery.deliver({
+    target: f.target,
+    parts: [{ kind: 'text', text: 'again' }],
+    sendId: 2n,
+    signal: undefined,
+  });
+  const afterSecond = f.sendTyping.mock.calls.length;
+  await vi.advanceTimersByTimeAsync(4_000);
+  expect(f.sendTyping.mock.calls.length).toBeGreaterThan(afterSecond);
+  f.stop();
+  const settled = f.sendTyping.mock.calls.length;
+  await vi.advanceTimersByTimeAsync(8_000);
+  expect(f.sendTyping).toHaveBeenCalledTimes(settled);
+});
+
 test('a failed send keeps the status, and platform failures stay cosmetic', async () => {
   const f = activityFixture();
   f.sendTyping.mockRejectedValue(new Error('Telegram unavailable'));
   f.sendMessage.mockRejectedValueOnce(new Error('send failed'));
-  f.host.activity.start(targetOf(f.host, GROUP, 0n));
+  f.host.activity.start(targetOf(f.host, GROUP, 0n), 'until_delivery');
   await vi.advanceTimersByTimeAsync(8_000);
   const outcome = await f.host.delivery.deliver({
     target: targetOf(f.host, GROUP, 0n),
@@ -248,7 +302,7 @@ test('hosts without chat actions get no round and deliver anyway', async () => {
   const send = vi.fn(async () => ({ message_id: 1, date: 1_700_000_000, chat: { id: 1 } }));
   const bare: TelegramTransport = { sendMessage: send, sendSticker: send };
   const host = testTelegramHost(bare);
-  host.activity.start(targetOf(host, GROUP, 0n));
+  host.activity.start(targetOf(host, GROUP, 0n), 'until_delivery');
   await vi.advanceTimersByTimeAsync(8_000);
   expect(send).not.toHaveBeenCalled();
   const outcome = await host.delivery.deliver({

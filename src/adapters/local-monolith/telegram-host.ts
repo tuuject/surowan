@@ -13,6 +13,7 @@ import type { MessageEntity } from 'grammy/types';
 import {
   conversationKey,
   resolveConversationPolicy,
+  type ActivityLifetime,
   type ImActivity,
   type ImComposedPart,
   type ImConversationPolicy,
@@ -319,13 +320,22 @@ export function createTelegramHost(options: TelegramHostOptions): TelegramHost {
   };
 
   /** One chat action round per conversation; repeats refresh the same round. */
-  const activityRounds = new Map<string, { readonly controller: AbortController; readonly stop: () => void }>();
+  const activityRounds = new Map<
+    string,
+    { readonly controller: AbortController; readonly lifetime: ActivityLifetime; readonly stop: () => void }
+  >();
 
   const activity: ImActivity = {
-    start: (target: ImDeliveryTarget) => {
+    start: (target: ImDeliveryTarget, lifetime: ActivityLifetime) => {
       const key = conversationKey(target.conversation);
-      if (activityRounds.has(key)) {
-        return;
+      const existing = activityRounds.get(key);
+      if (existing !== undefined) {
+        // A model-requested status outlives sends, so it replaces a mention
+        // round with a fresh one of its own, as the separate loops used to.
+        if (existing.lifetime !== 'until_delivery' || lifetime !== 'until_stop') {
+          return;
+        }
+        stopRound(key);
       }
       if (transport.sendTyping === undefined || target.policy.activity.kind === 'none') {
         return;
@@ -352,6 +362,7 @@ export function createTelegramHost(options: TelegramHostOptions): TelegramHost {
       cap.unref?.();
       activityRounds.set(key, {
         controller,
+        lifetime,
         stop: () => {
           clearInterval(refresh);
           clearTimeout(cap);
@@ -366,6 +377,13 @@ export function createTelegramHost(options: TelegramHostOptions): TelegramHost {
       }
     },
   };
+
+  /** Publishing clears Telegram's status, so only a round that ends there stops. */
+  function endDeliveryRound(key: string): void {
+    if (activityRounds.get(key)?.lifetime === 'until_delivery') {
+      stopRound(key);
+    }
+  }
 
   function stopRound(key: string): void {
     const round = activityRounds.get(key);
@@ -430,13 +448,13 @@ export function createTelegramHost(options: TelegramHostOptions): TelegramHost {
           }
           // A published part already cleared the chat action; keep it that way.
           if (messages.length > 0) {
-            stopRound(conversationKey(request.target.conversation));
+            endDeliveryRound(conversationKey(request.target.conversation));
           }
           return { kind: 'rejected', failure: classifyTelegramDeliveryError(error) };
         }
       }
       // Telegram keeps showing the action for a moment after the message lands.
-      stopRound(conversationKey(request.target.conversation));
+      endDeliveryRound(conversationKey(request.target.conversation));
       return { kind: 'delivered', messages, recordedByHost: false };
     },
   };
