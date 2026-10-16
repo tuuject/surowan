@@ -98,7 +98,7 @@ describe('bucket scheduler', () => {
     expect(snapshot === undefined ? null : JSON.parse(snapshot.snapshot_json).text).toBe('after');
     expect(
       store.db.prepare<[], { prompt_version: bigint }>('SELECT prompt_version FROM invocations').get()?.prompt_version,
-    ).toBe(8n);
+    ).toBe(9n);
     store.close();
   });
 
