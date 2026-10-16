@@ -28,7 +28,7 @@ import {
   senders,
   toolCalls,
 } from '../src/store/schema.ts';
-import type { BusinessStore } from '../src/store/store.ts';
+import { type BusinessStore, purgeExpiredData } from '../src/store/store.ts';
 
 /** Nothing in a room may reach Telegram, so every delivery is watched here. */
 const telegramTransport = vi.fn();
@@ -387,6 +387,70 @@ describe('Bot Playground virtual delivery', () => {
     }
     expect(roomMessages(room.conversationId)).toHaveLength(0);
     expect(ledgerRow(sendId)?.state).toBe('pending');
+  });
+
+  test('the bot identity belongs to the room and survives a namesake and retention', async () => {
+    const room = createRoom({ chatId: 47n, title: 'namesake', selfDisplayName: '碗' });
+    // Start from a room the bot has not spoken in yet, with a human participant
+    // who happens to share the bot's display name.
+    store.orm.delete(roomParticipants).where(eq(roomParticipants.senderId, room.selfSenderId)).run();
+    store.orm.delete(senders).where(eq(senders.id, room.selfSenderId)).run();
+    const human = store.orm
+      .insert(senders)
+      .values({ hostKind: 'playground', displayName: '碗', isBot: false, updatedAt: NOW.toISOString() })
+      .returning({ id: senders.id })
+      .get()!;
+    store.orm
+      .insert(roomParticipants)
+      .values({ chatId: room.chatId, senderId: human.id, joinedAt: NOW.toISOString() })
+      .run();
+    const host = hostFor('碗');
+    const authorOf = (messageId: bigint) =>
+      store.orm.select().from(messageRevisions).where(eq(messageRevisions.messageId, messageId)).get()?.senderId;
+
+    const first = await deliver(
+      host,
+      { ...room, title: 'namesake' },
+      reserveSend(room.conversationId, room.invocationId, { id: 'n1' }),
+      'one',
+    );
+    expect(first.kind).toBe('delivered');
+    if (first.kind !== 'delivered') {
+      return;
+    }
+    const botId = authorOf(first.messages[0]!.messageId);
+    expect(botId).toBeDefined();
+    expect(botId).not.toBe(human.id);
+    const bot = store.orm.select().from(senders).where(eq(senders.id, botId!)).get();
+    expect(bot?.isBot).toBe(true);
+    expect(store.orm.select().from(roomParticipants).where(eq(roomParticipants.senderId, botId!)).get()?.chatId).toBe(
+      room.chatId,
+    );
+
+    // Retention drops the bot's old message; membership keeps its identity, so
+    // the next send reuses a row that still exists.
+    store.orm
+      .update(invocations)
+      .set({ state: 'completed', finishedAt: NOW.toISOString() })
+      .where(eq(invocations.id, room.invocationId))
+      .run();
+    purgeExpiredData(store.orm, { retention: { online_days: 30 } } as never, new Date('2027-06-01T00:00:00.000Z'));
+    expect(roomMessages(room.conversationId)).toHaveLength(0);
+    expect(store.orm.select().from(senders).where(eq(senders.id, botId!)).get()).toBeDefined();
+
+    const later = createRoom({ chatId: 48n, title: 'later', selfDisplayName: '碗' });
+    const second = await deliver(
+      host,
+      { ...later, title: 'later' },
+      reserveSend(later.conversationId, later.invocationId, { id: 'n2' }),
+      'two',
+    );
+    expect(second.kind).toBe('delivered');
+    if (second.kind !== 'delivered') {
+      return;
+    }
+    // Each room shows its own bot identity.
+    expect(authorOf(second.messages[0]!.messageId)).toBe(later.selfSenderId);
   });
 
   test('refuses a conversation that is not a room', async () => {
