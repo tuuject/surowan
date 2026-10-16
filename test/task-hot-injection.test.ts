@@ -18,7 +18,7 @@ import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
-import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { fauxRegistry, testConfigJsonc, testConfigStore, testTelegramRuntime, writeTestConfig } from './helpers.ts';
 
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
@@ -65,13 +65,13 @@ async function fixture(transform?: (config: FileConfig) => void, additionalTools
     conversationRuntime,
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
-    telegramApi: {
+    ...testTelegramRuntime({
       sendMessage: async (_chatId, text) => {
         sends.push(text);
         return { message_id: 900 + sends.length, date: 1_700_000_000, chat: { id: 123456789 } };
       },
       sendSticker: async () => ({ message_id: 800, date: 1_700_000_000, chat: { id: 123456789 } }),
-    },
+    }),
     ...(additionalTools === undefined ? {} : { additionalTools }),
   });
   const scheduler = new BucketScheduler(

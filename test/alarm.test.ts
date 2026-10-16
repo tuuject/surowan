@@ -14,6 +14,7 @@ import { AlarmInputSchema } from '../src/plugins/alarm/alarm.ts';
 import { alarmTools, getAlarmTask } from './alarm-fixtures.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
 import { BotCommandService } from '../src/orchestration/bot-commands.ts';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import { KeyedSemaphore } from '../src/platform/concurrency.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
@@ -21,21 +22,12 @@ import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { purgeExpiredData } from '../src/store/store.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { createSendTool, type TelegramSendApi } from '../src/capabilities/send-tool.ts';
+import { createSendTool } from '../src/capabilities/send-tool.ts';
 import { enterSleep } from '../src/store/sleep.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { capability } from '../src/capabilities/execute-tool.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
-import {
-  fauxRegistry,
-  invocationCapabilities,
-  renderInvocationContext,
-  testConfigJsonc,
-  testConfigStore,
-  writeTestConfig,
-  type TestContextOptions,
-  type TestRegistry,
-} from './helpers.ts';
+import { fauxRegistry, invocationCapabilities, renderInvocationContext, testConfigJsonc, testConfigStore, testSendToolEnv, testTelegramRuntime, type TestContextOptions, type TestRegistry, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -440,10 +432,10 @@ describe('alarm tool', () => {
       store,
       configStore,
       secrets: new SecretStore(),
-      telegramApi: {
+      ...testTelegramRuntime({
         sendMessage: async () => ({ message_id: 500, date: 1_700_000_100, chat: { id: 123456789 } }),
         sendSticker: async () => ({ message_id: 501, date: 1_700_000_101, chat: { id: 123456789 } }),
-      },
+      }),
       bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
       modelGate: new KeyedSemaphore(),
       systemResources: emptySystemResources(),
@@ -615,10 +607,10 @@ describe('alarm runtime budget bypass', () => {
       store,
       configStore,
       secrets: new SecretStore(),
-      telegramApi: {
+      ...testTelegramRuntime({
         sendMessage: async () => ({ message_id: 500, date: 1_700_000_100, chat: { id: 123456789 } }),
         sendSticker: async () => ({ message_id: 501, date: 1_700_000_101, chat: { id: 123456789 } }),
-      },
+      }),
       bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
       modelGate: new KeyedSemaphore(),
       systemResources: emptySystemResources(),
@@ -671,8 +663,8 @@ describe('alarm send mention', () => {
     const context = build(alarmInvocation, { contextWindow: 200_000, maxOutputTokens: 32768 });
     expect(context.completion).not.toBe(null);
 
-    const requests: Array<{ text: string; options: Parameters<TelegramSendApi['sendMessage']>[2] }> = [];
-    const api: TelegramSendApi = {
+    const requests: Array<{ text: string; options: Parameters<TelegramTransport['sendMessage']>[2] }> = [];
+    const api: TelegramTransport = {
       sendMessage: async (_chatId, text, options) => {
         requests.push({ text, options });
         return { message_id: 500 + requests.length, date: 1_700_000_100, chat: { id: 123456789 } };
@@ -682,7 +674,7 @@ describe('alarm send mention', () => {
     const capabilities = invocationCapabilities(store, config, context.header);
     const tool = createSendTool({
       store,
-      api,
+      ...testSendToolEnv(api, context),
       context,
       capabilities,
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },
@@ -1028,9 +1020,9 @@ describe('alarm send mention', () => {
     }
     const context = build(alarmInvocation, { contextWindow: 200_000, maxOutputTokens: 32768 });
 
-    const requests: Array<{ text: string; options: Parameters<TelegramSendApi['sendMessage']>[2] }> = [];
+    const requests: Array<{ text: string; options: Parameters<TelegramTransport['sendMessage']>[2] }> = [];
     let calls = 0;
-    const api: TelegramSendApi = {
+    const api: TelegramTransport = {
       sendMessage: async (_chatId, text, options) => {
         calls += 1;
         if (calls === 1) {
@@ -1049,7 +1041,7 @@ describe('alarm send mention', () => {
     const capabilities = invocationCapabilities(store, config, context.header);
     const tool = createSendTool({
       store,
-      api,
+      ...testSendToolEnv(api, context),
       context,
       capabilities,
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },
@@ -1092,8 +1084,8 @@ describe('alarm send mention', () => {
     }
     const context = build(alarmInvocation, { contextWindow: 200_000, maxOutputTokens: 32768 });
 
-    const requests: Array<{ text: string; options: Parameters<TelegramSendApi['sendMessage']>[2] }> = [];
-    const api: TelegramSendApi = {
+    const requests: Array<{ text: string; options: Parameters<TelegramTransport['sendMessage']>[2] }> = [];
+    const api: TelegramTransport = {
       sendMessage: async (_chatId, text, options) => {
         requests.push({ text, options });
         return { message_id: 500 + requests.length, date: 1_700_000_100 + requests.length, chat: { id: 123456789 } };
@@ -1103,7 +1095,7 @@ describe('alarm send mention', () => {
     const capabilities = invocationCapabilities(store, config, context.header);
     const tool = createSendTool({
       store,
-      api,
+      ...testSendToolEnv(api, context),
       context,
       capabilities,
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },
@@ -1135,7 +1127,7 @@ describe('alarm send mention', () => {
     const context = build(alarmInvocation, { contextWindow: 200_000, maxOutputTokens: 32768 });
 
     let sendCalls = 0;
-    const api: TelegramSendApi = {
+    const api: TelegramTransport = {
       sendMessage: async () => {
         sendCalls += 1;
         return { message_id: 500 + sendCalls, date: 1_700_000_100 + sendCalls, chat: { id: 123456789 } };
@@ -1145,7 +1137,7 @@ describe('alarm send mention', () => {
     const capabilities = invocationCapabilities(store, config, context.header);
     const tool = createSendTool({
       store,
-      api,
+      ...testSendToolEnv(api, context),
       context,
       capabilities,
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },

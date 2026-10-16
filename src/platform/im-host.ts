@@ -131,6 +131,29 @@ export function conversationKey(conversation: ImConversationRef): string {
   return `${conversation.host}:${conversation.chatId}:${conversation.topicId ?? '0'}`;
 }
 
+/**
+ * A conversation assembled from invocation identity alone.
+ *
+ * Only for call paths that never reach a transport - replaying a retained
+ * scene, or validating tools from the doctor - where a well-formed ref is all
+ * that is needed. A real delivery must use a ref the server resolved from
+ * storage, so that a group and a private chat with the same id cannot be
+ * confused.
+ */
+export function identityConversation(
+  target: { readonly chatId: bigint; readonly threadId: bigint; readonly conversationId: bigint },
+  host: HostKind,
+  scope: ConversationScope,
+): ImConversationRef {
+  return {
+    host,
+    id: toConversationId(target.conversationId),
+    chatId: toChatId(target.chatId.toString()),
+    topicId: target.threadId === 0n ? null : Number(target.threadId),
+    scope,
+  };
+}
+
 /* -------------------------------------------------------------------------- */
 /* Conversation policy                                                        */
 /* -------------------------------------------------------------------------- */
@@ -215,9 +238,11 @@ export function resolveConversationPolicy(input: ConversationPolicyInput): ImCon
           albums: true,
         },
         activity: {
-          kind: input.scope === 'group' ? 'typing' : 'none',
-          refreshMs: input.scope === 'group' ? TELEGRAM_ACTIVITY_REFRESH_MS : null,
-          capMs: input.scope === 'group' ? TELEGRAM_ACTIVITY_CAP_MS : null,
+          // Telegram shows a chat action in private chats too, and the model's
+          // own `typing` call has always been available there.
+          kind: 'typing',
+          refreshMs: TELEGRAM_ACTIVITY_REFRESH_MS,
+          capMs: TELEGRAM_ACTIVITY_CAP_MS,
         },
         sendRate: input.sendRate,
         senderRef: 'uid',
@@ -250,15 +275,26 @@ export interface ImTextPart {
   readonly kind: 'text';
   readonly text: string;
   /**
-   * Sender to resolve as a clickable mention in this text. The host, not the
-   * caller, decides what that means on the wire.
+   * Markup the model asked for. Neutral on purpose: the platform knows that
+   * `markdown_v2` exists, the host knows what it means on the wire.
    */
-  readonly mention?: SenderId;
+  readonly markup?: 'markdown_v2';
+  /**
+   * Sender to resolve as a clickable mention at the head of this text. The
+   * host, not the caller, decides how that reaches the wire, and it is the host
+   * that knows how long the rendered prefix turned out to be.
+   */
+  readonly mention?: ImMentionRequest;
+}
+
+export interface ImMentionRequest {
+  readonly senderId: SenderId;
+  readonly displayName: string;
 }
 
 export interface ImStickerPart {
   readonly kind: 'sticker';
-  readonly stickerSet: string;
+  /** Host sticker reference the server already authorized. */
   readonly stickerRef: string;
 }
 
@@ -285,7 +321,7 @@ export interface ImDeliveryRequest {
    * server. Never a model-supplied string.
    */
   readonly replyToMessageId?: bigint;
-  readonly signal: AbortSignal;
+  readonly signal: AbortSignal | undefined;
 }
 
 /**
@@ -302,9 +338,17 @@ export type ImDeliveryFailureReason =
 
 export interface ImDeliveryFailure {
   readonly reason: ImDeliveryFailureReason;
+  /** Stable operator-facing code for the audit trail, e.g. `telegram_429`. */
+  readonly code: string;
+  /**
+   * True when the request may have reached the host before failing, so the
+   * caller must treat the outcome as unknown rather than as "not sent".
+   * Retrying an unknown outcome is a user decision, not a retry policy.
+   */
+  readonly outcomeUnknown: boolean;
   /** Present for `rate_limited` when the host states a delay. */
   readonly retryAfterSeconds?: number;
-  /** Host-supplied description, for logs. Never shown to the model verbatim. */
+  /** Host-supplied description. Host-reported rejections show it to the model so it can correct the send. */
   readonly description: string;
 }
 
@@ -313,6 +357,19 @@ export interface ImDeliveredMessage {
   readonly partIndex: number;
   /** Internal. Never rendered into a prompt; the model sees a message ref. */
   readonly messageId: bigint;
+  /** When the host accepted the message, in Unix seconds. */
+  readonly sentAtSeconds: number;
+  /** Largest picture of this message, when it carried one. */
+  readonly photo?: ImDeliveredPhoto;
+}
+
+export interface ImDeliveredPhoto {
+  /** Host file reference, for redelivering or editing the picture later. */
+  readonly fileRef: string;
+  /** Host file identity, stable across references. */
+  readonly fileUniqueRef: string;
+  readonly width: number;
+  readonly height: number;
 }
 
 export type ImDeliveryOutcome =
@@ -326,11 +383,25 @@ export function isRetryableFailure(failure: ImDeliveryFailure): boolean {
 
 export interface ImDelivery {
   /**
+   * Pure preview of what one part will carry once the host has shaped it,
+   * including any mention prefix. The platform validates against this rather
+   * than against the model's raw text, so a host that renders a long mention
+   * cannot smuggle an oversized message past the size limits.
+   *
+   * `text` is `null` for parts that carry no text or caption.
+   */
+  compose(part: ImOutgoingPart, policy: ImDeliveryPolicy): ImComposedPart;
+  /**
    * Publishes every part in order. A rejection reports the first part that did
    * not go out; already-published parts stay published, and the host must not
    * undo them.
    */
   deliver(request: ImDeliveryRequest): Promise<ImDeliveryOutcome>;
+}
+
+export interface ImComposedPart {
+  readonly text: string | null;
+  readonly markup: 'markdown_v2' | null;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -360,4 +431,40 @@ export interface ImHost {
   policy(conversation: ImConversationRef): ImConversationPolicy;
   readonly delivery: ImDelivery;
   readonly activity: ImActivity;
+}
+
+/**
+ * A host that carries nothing. Used where the platform must be able to build
+ * its tools but must never reach a transport, such as replaying a retained
+ * scene. It refuses every delivery and ignores every activity, rather than
+ * throwing, so a stray call fails at the send audit - where it is visible -
+ * instead of in the middle of message rendering.
+ */
+export function unwiredImHost(host: HostKind, reason: string): ImHost {
+  const policy = (conversation: ImConversationRef): ImConversationPolicy =>
+    resolveConversationPolicy({ host, scope: conversation.scope, sendRate: { sendsPerWindow: 1, windowSeconds: 1 } });
+  return {
+    host,
+    policy,
+    delivery: {
+      // There is no wire to shape for, so the part is previewed as it stands.
+      compose: (part) =>
+        part.kind === 'text'
+          ? { text: part.text, markup: part.markup ?? null }
+          : {
+              text: part.kind === 'sticker' ? null : (part.caption ?? null),
+              markup: null,
+            },
+      deliver: () =>
+        Promise.resolve<ImDeliveryOutcome>({
+          kind: 'rejected',
+          failure: { reason: 'unsupported', code: 'send_unsupported', outcomeUnknown: false, description: reason },
+        }),
+    },
+    activity: {
+      start: () => undefined,
+      stop: () => undefined,
+      stopAll: () => undefined,
+    },
+  };
 }

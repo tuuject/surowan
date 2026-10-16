@@ -3,25 +3,17 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Update } from 'grammy/types';
-import { createSendTool, type TelegramSendApi } from '../src/capabilities/send-tool.ts';
+import { createSendTool } from '../src/capabilities/send-tool.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { BotCommandService, type CommandSender } from '../src/orchestration/bot-commands.ts';
 import { BucketScheduler, STARTUP_CATCH_UP_STATE_KEY } from '../src/orchestration/scheduler.ts';
 import type { ProactiveReplyGateOptions } from '../src/orchestration/proactive-reply.ts';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import type { FileConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { runStartupCatchUp, type StartupCatchUpApi } from '../src/startup-catch-up.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import {
-  invocationCapabilities,
-  renderInvocationContext,
-  sleep,
-  testConfigJsonc,
-  testConfigStore,
-  writeTestConfig,
-  type TestContextOptions,
-  type TestInvocationContext,
-} from './helpers.ts';
+import { invocationCapabilities, renderInvocationContext, sleep, testConfigJsonc, testConfigStore, testSendToolEnv, type TestContextOptions, type TestInvocationContext, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -342,7 +334,7 @@ describe('startup catch-up', () => {
     });
     expect(result.invocationIds).toHaveLength(2);
     const sentThreads: Array<number | undefined> = [];
-    const api: TelegramSendApi = {
+    const api: TelegramTransport = {
       sendMessage: async (_chatId, _text, options) => {
         sentThreads.push(options.message_thread_id);
         return { message_id: 500 + sentThreads.length, date: 1_700_000_100, chat: { id: FIRST_CHAT_ID } };
@@ -355,7 +347,7 @@ describe('startup catch-up', () => {
       prompts.push(context.userPrompt);
       const tool = createSendTool({
         store,
-        api,
+        ...testSendToolEnv(api, context),
         context,
         capabilities: invocationCapabilities(store, loaded.config, context.header),
         sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },

@@ -5,27 +5,21 @@ import { getCurrentTools, fauxAssistantMessage, fauxProvider, fauxToolCall } fro
 import { GrammyError, HttpError } from 'grammy';
 import type { Update } from 'grammy/types';
 import { afterEach, expect, test } from 'vitest';
-import { createSendTool, type TelegramSendApi } from '../src/capabilities/send-tool.ts';
+import { createSendTool } from '../src/capabilities/send-tool.ts';
 import { ContextRefStore } from '../src/context/context-refs.ts';
 import { ConversationContextStore } from '../src/context/context-store.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import type { FileConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
-import {
-  fauxRegistry,
-  invocationCapabilities,
-  renderInvocationContext,
-  testConfigJsonc,
-  testConfigStore,
-  writeTestConfig,
-} from './helpers.ts';
+import { fauxRegistry, invocationCapabilities, renderInvocationContext, testConfigJsonc, testConfigStore, testSendToolEnv, testTelegramRuntime, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
 const stores: SqliteStore[] = [];
@@ -73,7 +67,7 @@ async function fixture(transform?: (config: FileConfig) => void) {
     .prepare('INSERT INTO conversations(id, chat_id, message_thread_id, created_at, updated_at) VALUES (1, 1, 0, ?, ?)')
     .run(at, at);
   const sends: string[] = [];
-  const api: TelegramSendApi = {
+  const api: TelegramTransport = {
     sendMessage: async (_chatId, text) => {
       sends.push(text);
       return { message_id: 900 + sends.length, date: 1_700_000_000, chat: { id: CHAT_ID } };
@@ -85,7 +79,7 @@ async function fixture(transform?: (config: FileConfig) => void) {
     store,
     configStore,
     secrets: new SecretStore(),
-    telegramApi: api,
+    ...testTelegramRuntime(api),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
     conversationRuntime,
@@ -296,7 +290,7 @@ test('only successful text consumes the frozen mention, not stickers, rejection,
     context.header.nextSeq,
   );
   const texts: string[] = [];
-  const api: TelegramSendApi = {
+  const api: TelegramTransport = {
     ...f.api,
     sendMessage: async (_chatId, text) => {
       texts.push(text);
@@ -317,7 +311,7 @@ test('only successful text consumes the frozen mention, not stickers, rejection,
   let hold = false;
   const tool = createSendTool({
     store: f.store,
-    api,
+    ...testSendToolEnv(api, context),
     context,
     capabilities: invocationCapabilities(f.store, f.config, context.header),
     sendRateLimit: { sendsPerWindow: 10, windowSeconds: 300 },

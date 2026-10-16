@@ -13,16 +13,14 @@ import {
 } from '@earendil-works/pi-ai';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { capability, createExecuteTool, type ExecutableCapability } from '../capabilities/execute-tool.ts';
-import type { MentionTyping } from '../capabilities/mention-typing.ts';
 import { createReadTool } from '../capabilities/read-tool.ts';
 import {
   createSendTools,
   DUPLICATE_SEND_REJECTION_LIMIT,
   duplicateSendGuard,
   SEND_TOOL_NAMES,
-  type TelegramSendApi,
 } from '../capabilities/send-tool.ts';
-import { createTyping } from '../capabilities/typing.ts';
+import { createTyping } from '../capabilities/typing-tool.ts';
 import { ContextBuilder, type ContextIdentity, type Injection, type StablePrompt } from '../context/context-builder.ts';
 import { encodeContextMessage, estimateMessageTokens } from '../context/context-codec.ts';
 import { type ContextGcPlan, isRenderable, planContextGc } from '../context/context-gc.ts';
@@ -37,6 +35,7 @@ import {
   type RawConfig,
   resolveAgentSettings,
 } from '../platform/config.ts';
+import type { ImConversationRef, ImHost } from '../platform/im-host.ts';
 import {
   type CapabilityRefResolver,
   type InvocationContext,
@@ -95,9 +94,17 @@ export interface AgentRuntimeOptions {
   readonly store: BusinessStore;
   readonly configStore: RuntimeConfigurationStore;
   readonly secrets: SecretStore;
-  readonly telegramApi: TelegramSendApi;
-  /** Status started at ingestion for @-mentions; the runtime ends it when a round ends. */
-  readonly mentionTyping?: MentionTyping;
+  /** The host that carries every delivery and chat action for this runtime. */
+  readonly host: ImHost;
+  /**
+   * Resolves the conversation a delivery targets, from server state. The runtime
+   * never builds a chat route itself.
+   */
+  readonly conversation: (target: {
+    readonly chatId: bigint;
+    readonly threadId: bigint;
+    readonly conversationId: bigint;
+  }) => ImConversationRef;
   readonly bot: { readonly id: bigint; readonly displayName: string; readonly username: string | null };
   /** The bundled system:/// resource tree: read primitive backend plus skill index. */
   readonly systemResources: SystemResources;
@@ -175,8 +182,8 @@ export class AgentRuntime {
   readonly #store: BusinessStore;
   readonly #configStore: RuntimeConfigurationStore;
   readonly #secrets: SecretStore;
-  readonly #telegramApi: TelegramSendApi;
-  readonly #mentionTyping: MentionTyping | undefined;
+  readonly #host: ImHost;
+  readonly #conversation: AgentRuntimeOptions['conversation'];
   readonly #bot: AgentRuntimeOptions['bot'];
   readonly #systemResources: SystemResources;
   readonly #capabilityTools: CapabilityToolFactory | undefined;
@@ -204,8 +211,8 @@ export class AgentRuntime {
     this.#store = options.store;
     this.#secrets = options.secrets;
     this.#configStore = options.configStore;
-    this.#telegramApi = options.telegramApi;
-    this.#mentionTyping = options.mentionTyping;
+    this.#host = options.host;
+    this.#conversation = options.conversation;
     this.#bot = options.bot;
     this.#systemResources = options.systemResources;
     this.#capabilityTools = options.capabilityTools;
@@ -242,7 +249,8 @@ export class AgentRuntime {
     const config = this.#configStore.current().config;
     const { send, sendReply } = createSendTools({
       store: this.#store,
-      api: this.#telegramApi,
+      host: this.#host,
+      conversation: this.#conversation(context),
       context,
       capabilities: this.#staticCapabilities,
       sendRateLimit: this.#sendRateLimit(config),
@@ -277,7 +285,11 @@ export class AgentRuntime {
     const deadline = Number.MAX_SAFE_INTEGER;
     const capabilities = [
       capability(
-        createTyping(this.#telegramApi, context.chatId.toString(), context.threadId, new AbortController().signal).tool,
+        createTyping(
+          this.#host.activity,
+          { conversation: this.#conversation(context), policy: this.#host.policy(this.#conversation(context)) },
+          new AbortController().signal,
+        ).tool,
         false,
       ),
       ...(this.#capabilityTools?.(context, deadline, resolver) ?? []),
@@ -314,7 +326,8 @@ export class AgentRuntime {
   ): readonly AgentTool[] {
     const { send, sendReply } = createSendTools({
       store: this.#store,
-      api: this.#telegramApi,
+      host: this.#host,
+      conversation: this.#conversation(target),
       context: target,
       capabilities,
       sendRateLimit: this.#sendRateLimit(config),
@@ -518,7 +531,16 @@ export class AgentRuntime {
       );
       return true;
     };
-    const typing = createTyping(this.#telegramApi, identity.chatId.toString(), identity.threadId, signal);
+    const typingConversation = this.#conversation({
+      chatId: identity.chatId,
+      threadId: identity.threadId,
+      conversationId: identity.conversationId,
+    });
+    const typing = createTyping(
+      this.#host.activity,
+      { conversation: typingConversation, policy: this.#host.policy(typingConversation) },
+      signal,
+    );
     const executableCapabilities = [
       capability(typing.tool, false),
       ...(this.#capabilityTools?.(contextState, deadline, capabilities) ?? []),
@@ -716,7 +738,7 @@ export class AgentRuntime {
      */
     const freeAgent = (): void => {
       typing.stop();
-      this.#mentionTyping?.stop(identity.chatId.toString(), identity.threadId);
+      this.#host.activity.stop(this.#conversation(identity));
       runtime.endRound(conversationId);
       state.barrierSpent = false;
       this.#deferCollectingBucket(config, conversationId, Date.now());
@@ -1100,7 +1122,7 @@ export class AgentRuntime {
       }
     } finally {
       typing.stop();
-      this.#mentionTyping?.stop(identity.chatId.toString(), identity.threadId);
+      this.#host.activity.stop(this.#conversation(identity));
       signal.removeEventListener('abort', abortAgent);
       unsubscribe();
       // The cached agent keeps its transcript on purpose: the next invocation

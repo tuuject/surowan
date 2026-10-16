@@ -4,14 +4,13 @@ import { join } from 'node:path';
 import { fauxAssistantMessage, fauxProvider, type MutableModels } from '@earendil-works/pi-ai';
 import type { Update } from 'grammy/types';
 import { afterAll, describe, expect, test, vi } from 'vitest';
-import { MentionTyping } from '../src/capabilities/mention-typing.ts';
-import type { TelegramSendApi } from '../src/capabilities/send-tool.ts';
 import { ConversationContextStore } from '../src/context/context-store.ts';
 import { DictionaryStore } from '../src/plugins/dictionary/dictionary.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import type { FileConfig, RawConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
@@ -20,7 +19,7 @@ import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
 import { loadPlugins } from '../src/plugins/plugin.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { fauxRegistry, testConfigJsonc, testConfigStore, testTelegramRuntime, writeTestConfig } from './helpers.ts';
 
 /**
  * Real invocation lifecycle for dictionary injection.
@@ -98,7 +97,7 @@ async function fixture(transform?: (config: FileConfig) => void): Promise<Fixtur
   const log = vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
     logs.push(String(line));
   });
-  const sendApi: TelegramSendApi = {
+  const sendApi: TelegramTransport = {
     sendTyping: async () => undefined,
     sendMessage: async () => ({ message_id: 900, date: 1_700_000_100, chat: { id: CHAT_ID } }),
     sendSticker: async () => ({ message_id: 901, date: 1_700_000_100, chat: { id: CHAT_ID } }),
@@ -109,8 +108,7 @@ async function fixture(transform?: (config: FileConfig) => void): Promise<Fixtur
       store,
       configStore,
       secrets: new SecretStore(),
-      telegramApi: sendApi,
-      mentionTyping: new MentionTyping(sendApi),
+      ...testTelegramRuntime(sendApi),
       bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
       systemResources: emptySystemResources(),
       // The same injectors the composition root hands the runtime, so the

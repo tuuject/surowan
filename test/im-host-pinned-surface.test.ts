@@ -28,6 +28,7 @@ import {
   renderInvocationContext,
   testConfigJsonc,
   testConfigStore,
+  testSendToolEnv,
   writeTestConfig,
 } from './helpers.ts';
 
@@ -74,9 +75,10 @@ async function fixture() {
   });
   const capabilities = invocationCapabilities(store, loaded.config, context.header);
   const requests: unknown[] = [];
+  const sendContext = context;
   const tool = createSendTool({
     store,
-    api: {
+    ...testSendToolEnv({
       sendMessage: async (...args: unknown[]) => {
         requests.push(args.slice(0, 3));
         return { message_id: 77, date: 1_700_000_100, chat: { id: CHAT_ID } };
@@ -92,7 +94,7 @@ async function fixture() {
       sendGeneratedPhotoGroup: async () => {
         throw new Error('not used');
       },
-    },
+    }, sendContext),
     context,
     capabilities,
     sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },

@@ -6,18 +6,18 @@ import { HttpError } from 'grammy';
 import type { Update } from 'grammy/types';
 import Type from 'typebox';
 import { afterEach, expect, test } from 'vitest';
-import type { TelegramSendApi } from '../src/capabilities/send-tool.ts';
 import { ConversationContextStore } from '../src/context/context-store.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { AgentRuntime, type ToolFactory } from '../src/orchestration/agent-runtime.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
-import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { fauxRegistry, testConfigJsonc, testConfigStore, testTelegramRuntime, writeTestConfig } from './helpers.ts';
 
 /**
  * Runtime regression for repeated picture delivery (audit 3486).
@@ -97,7 +97,7 @@ async function fixture(options: { readonly unsentOutputs?: readonly string[] } =
   const photoMessageIds: number[] = [];
   let nextMessageId = FIRST_PHOTO_MESSAGE_ID;
   let photoFailures = 0;
-  const telegramApi: TelegramSendApi = {
+  const telegramApi: TelegramTransport = {
     sendMessage: async () => ({ message_id: nextMessageId++, date: 1_700_000_000, chat: { id: 123456789 } }),
     sendSticker: async () => ({ message_id: nextMessageId++, date: 1_700_000_000, chat: { id: 123456789 } }),
     sendGeneratedPhoto: async () => {
@@ -192,7 +192,7 @@ async function fixture(options: { readonly unsentOutputs?: readonly string[] } =
     conversationRuntime,
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
-    telegramApi,
+    ...testTelegramRuntime(telegramApi),
     additionalTools,
     imageGeneration,
   });

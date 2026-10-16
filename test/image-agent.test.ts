@@ -12,11 +12,12 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import sharp from 'sharp';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { createExecuteTool } from '../src/capabilities/execute-tool.ts';
-import { createSendTool, type TelegramSendApi } from '../src/capabilities/send-tool.ts';
+import { createSendTool } from '../src/capabilities/send-tool.ts';
 import { agentActor, createImageBridge } from '../src/image/bridge.ts';
 import { createImageService } from '../src/image/service.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
@@ -37,7 +38,7 @@ import {
   toolCalls,
 } from '../src/store/schema.ts';
 import { createToolAudit } from '../src/store/tool-audit.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from './helpers.ts';
+import { testConfigJsonc, testConfigStore, testSendToolEnv, writeTestConfig, writeTestKeyJar } from './helpers.ts';
 
 // ---------------------------------------------------------------------------
 // M4: the agent tool surface. image_generate submits through the bridge; when a
@@ -299,7 +300,7 @@ test('send kind:image delivers finished outputs of a generation owned by this co
   expect(fixtureRef.bridge.assetContent(outputs?.[0]?.asset_id ?? '')?.mime).toBe('image/png');
 
   const sent: { chatId: string; fileName: string }[] = [];
-  const api: TelegramSendApi = {
+  const api: TelegramTransport = {
     sendMessage: async () => ({ message_id: 1, date: 0, chat: { id: 100 } }),
     sendSticker: async () => ({ message_id: 2, date: 0, chat: { id: 100 } }),
     sendGeneratedPhoto: async (chatId, _bytes, fileName) => {
@@ -325,22 +326,23 @@ test('send kind:image delivers finished outputs of a generation owned by this co
       ];
     },
   };
+  const sendContext = {
+    invocationId: 7n,
+    conversationId: 42n,
+    chatId: 100n,
+    threadId: 0n,
+    systemPrompt: '',
+    userPrompt: '',
+    directImages: [],
+    visibleSenders: new Map(),
+    callerUserId: 1n,
+    completion: null,
+    omittedNewMessages: 0,
+  } as Parameters<typeof createSendTool>[0]['context'];
   const send = createSendTool({
     store: fixtureRef.store,
-    api,
-    context: {
-      invocationId: 7n,
-      conversationId: 42n,
-      chatId: 100n,
-      threadId: 0n,
-      systemPrompt: '',
-      userPrompt: '',
-      directImages: [],
-      visibleSenders: new Map(),
-      callerUserId: 1n,
-      completion: null,
-      omittedNewMessages: 0,
-    } as Parameters<typeof createSendTool>[0]['context'],
+    ...testSendToolEnv(api, sendContext),
+    context: sendContext,
     capabilities: {
       resolveMedia: () => undefined,
       resolveStickerRef: () => undefined,

@@ -25,6 +25,7 @@ import {
   type RawConfig,
   resolveAgentSettings,
 } from '../platform/config.ts';
+import { identityConversation, unwiredImHost } from '../platform/im-host.ts';
 import { type InvocationContext, unavailableCapabilities } from '../platform/invocation-context.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import type { SecretStore } from '../platform/secrets.ts';
@@ -673,13 +674,13 @@ export class ReplayRunner {
   }
 
   #defaultRegistry(context: InvocationContext, config: RawConfig): ReplayToolRegistry {
-    const blocked = async (): Promise<never> => {
-      throw new Error('No production executor is wired');
-    };
     const { send, sendReply } = createSendTools({
       store: this.#options.store,
       context,
-      api: { sendMessage: blocked, sendSticker: blocked },
+      host: unwiredImHost('telegram', 'No production executor is wired'),
+      // Unused: the host above refuses every delivery, so this only has to be
+      // well-formed enough to validate tool arguments.
+      conversation: identityConversation(context, 'telegram', 'private'),
       capabilities: unavailableCapabilities(),
       sendRateLimit: { sendsPerWindow: 1, windowSeconds: 1 },
       maxTextLength: config.agent.send_max_text_length,

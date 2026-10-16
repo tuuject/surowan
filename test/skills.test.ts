@@ -31,14 +31,7 @@ import { SecretStore } from '../src/platform/secrets.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { StickerService } from '../src/capabilities/stickers.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
-import {
-  bundledSystemResources,
-  fauxRegistry,
-  testConfigJsonc,
-  testConfigStore,
-  writeTestConfig,
-  type TestRegistry,
-} from './helpers.ts';
+import { bundledSystemResources, fauxRegistry, testConfigJsonc, testConfigStore, testTelegramRuntime, type TestRegistry, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -227,10 +220,10 @@ test('the skill index reaches the system prompt and primitives stay directly cal
     store,
     configStore: setup.configStore,
     secrets: new SecretStore(),
-    telegramApi: {
+    ...testTelegramRuntime({
       sendMessage: async () => ({ message_id: 500, date: 1, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 501, date: 1, chat: { id: 123456789 } }),
-    },
+    }),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: await bundledSystemResources(),
     capabilityTools: (context, deadline) => [
@@ -311,13 +304,13 @@ test('search_stickers runs through execute and its refs authorize a sticker send
     store,
     configStore: setup.configStore,
     secrets: new SecretStore(),
-    telegramApi: {
+    ...testTelegramRuntime({
       sendMessage: async () => ({ message_id: 501, date: 1, chat: { id: 123456789 } }),
       sendSticker: async (_chatId, sticker) => {
         sentSticker = sticker;
         return { message_id: 502, date: 1, chat: { id: 123456789 } };
       },
-    },
+    }),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: await bundledSystemResources(),
     capabilityTools: (context, _deadline, capabilities) => [
@@ -392,10 +385,10 @@ test('execute refuses primitives and unknown capabilities while memory calls sti
     store,
     configStore: setup.configStore,
     secrets: new SecretStore(),
-    telegramApi: {
+    ...testTelegramRuntime({
       sendMessage: async () => ({ message_id: 500, date: 1, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 501, date: 1, chat: { id: 123456789 } }),
-    },
+    }),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: await bundledSystemResources(),
     capabilityTools: (context) => [...createMemoryTools(memoryStore, context).map((tool) => capability(tool, true))],
@@ -466,10 +459,10 @@ test('execute rejects a half-filled action before dispatch and audits the reject
     store,
     configStore: setup.configStore,
     secrets: new SecretStore(),
-    telegramApi: {
+    ...testTelegramRuntime({
       sendMessage: async () => ({ message_id: 500, date: 1, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 501, date: 1, chat: { id: 123456789 } }),
-    },
+    }),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: await bundledSystemResources(),
     capabilityTools: (context) => [...createMemoryTools(memoryStore, context).map((tool) => capability(tool, true))],

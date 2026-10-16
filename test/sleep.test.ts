@@ -17,17 +17,17 @@ import {
 import type { Update } from 'grammy/types';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config.ts';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import { previewContext } from '../src/platform/invocation-context.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import type { TelegramSendApi } from '../src/capabilities/send-tool.ts';
 import { activeSleepUntil, enterSleep, SLEEP_STATE_KEY } from '../src/store/sleep.ts';
 import { SLEEP_STATE_PROMPT } from '../src/context/context-builder.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
-import { fauxRegistry, testConfigStore, writeTestConfig, type TestRegistry } from './helpers.ts';
+import { fauxRegistry, testConfigStore, testTelegramRuntime, type TestRegistry, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -131,7 +131,7 @@ async function runtimeSetup(
     .run(now.slice(0, 10), usageResource, usedTokens, now);
 
   let messageId = 500;
-  const api: TelegramSendApi = {
+  const api: TelegramTransport = {
     sendMessage: async () => ({ message_id: ++messageId, date: 1_700_000_100, chat: { id: 123456789 } }),
     sendSticker: async () => ({ message_id: ++messageId, date: 1_700_000_100, chat: { id: 123456789 } }),
   };
@@ -139,7 +139,7 @@ async function runtimeSetup(
     store,
     configStore,
     secrets: new SecretStore(),
-    telegramApi: api,
+    ...testTelegramRuntime(api),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });

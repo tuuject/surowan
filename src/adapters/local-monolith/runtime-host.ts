@@ -1,5 +1,5 @@
 /** Local process composition root: owns transport, files, locks and lifecycle. */
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { Bot, type Context } from 'grammy';
 import { capability } from '../../capabilities/execute-tool.ts';
 import { createDocumentTools } from '../../capabilities/document-tools.ts';
@@ -7,8 +7,7 @@ import { McpManager } from '../../capabilities/mcp.ts';
 import { MediaService } from '../../capabilities/media/media.ts';
 import { TelegramMediaClient } from '../../capabilities/media/media-download.ts';
 import { StickerService } from '../../capabilities/stickers.ts';
-import { MentionTyping } from '../../capabilities/mention-typing.ts';
-import { grammySendApi } from '../../capabilities/telegram-send-api.ts';
+import { createTelegramHost, grammyTelegramTransport, type TelegramHost } from './telegram-host.ts';
 import { createMemoryTools, MemoryStore } from '../../context/memory.ts';
 import { createImageBridge, type ImageBridge } from '../../image/bridge.ts';
 import { createImageService, type ImageService } from '../../image/service.ts';
@@ -27,6 +26,11 @@ import {
 import { ReplayError, ReplayRunner } from '../../orchestration/replay.ts';
 import type { BucketScheduler } from '../../orchestration/scheduler.ts';
 import { KeyedSemaphore } from '../../platform/concurrency.ts';
+import {
+  toChatId,
+  toConversationId,
+  type ImConversationRef,
+} from '../../platform/im-host.ts';
 import { assertConfigPermissions, loadConfig } from './config.ts';
 import { ConfigReloader } from './config-reload.ts';
 import { previewContext, unavailableCapabilities } from '../../platform/invocation-context.ts';
@@ -44,7 +48,8 @@ import { ServeLock, SqliteStore, stopRunningInstance, watchStopRequests } from '
 import { LongTaskService } from '../../store/long-tasks.ts';
 import { activeSleepUntil } from '../../store/sleep.ts';
 import { recordPromptVersionsFromConfig } from '../../store/prompt-versions.ts';
-import { appState } from '../../store/schema.ts';
+import type { BusinessStore } from '../../store/store.ts';
+import { appState, chats, conversations } from '../../store/schema.ts';
 
 const ALLOWED_UPDATES = ['message', 'edited_message', 'my_chat_member'] as const;
 
@@ -68,7 +73,7 @@ export async function serve(configPath: string, takeover = false): Promise<void>
   let scheduler: BucketScheduler | undefined;
   let stickers: StickerService | undefined;
   let mcp: McpManager | undefined;
-  let mentionTyping: MentionTyping | undefined;
+  let host: TelegramHost | undefined;
   let admin: AdminServer | undefined;
   let startupCatchUpController: AbortController | undefined;
   const replayShutdown = new AbortController();
@@ -242,11 +247,17 @@ export async function serve(configPath: string, takeover = false): Promise<void>
     ];
     // Directly exposed non-primitive tools: allowlisted MCP tools only.
     const additionalTools: ToolFactory = (context, deadline) => [...mcpManager.createTools(context, deadline)];
-    // One transport for both: its per-chat throttle is what keeps the mention
-    // status and the model's own `typing` call from doubling up requests.
-    const sendApi = grammySendApi(bot.api);
-    const mentionStatus = new MentionTyping(sendApi);
-    mentionTyping = mentionStatus;
+    // One host for both delivery and chat action: its per-conversation activity
+    // bookkeeping is what keeps the ingestion status and the model's own
+    // `typing` call from doubling up requests.
+    const telegramHost = createTelegramHost({
+      transport: grammyTelegramTransport(bot.api),
+      sendRate: () => ({
+        sendsPerWindow: configStore.current().config.agent.rate_limits.sends_per_window,
+        windowSeconds: configStore.current().config.agent.rate_limits.window_seconds,
+      }),
+    });
+    host = telegramHost;
     const {
       runtime,
       scheduler: startedScheduler,
@@ -255,8 +266,8 @@ export async function serve(configPath: string, takeover = false): Promise<void>
       store,
       configStore,
       secrets,
-      telegramApi: mentionStatus.wrap(sendApi),
-      mentionTyping: mentionStatus,
+      host: telegramHost,
+      conversation: (target) => resolveConversation(openedStore, target),
       ...(imageBridge === undefined
         ? {}
         : {
@@ -417,7 +428,8 @@ export async function serve(configPath: string, takeover = false): Promise<void>
       const result = ingestion.ingest(context.update);
       // A sleeping bot skips queued invocations, so a status would promise a reply that never comes.
       if (result.mention !== undefined && activeSleepUntil(openedStore.orm) === null) {
-        mentionStatus.start(result.mention.chatId.toString(), result.mention.threadId);
+        const target = resolveConversation(openedStore, result.mention);
+        telegramHost.activity.start({ conversation: target, policy: telegramHost.policy(target) });
       }
       if (result.command !== undefined) {
         await replyToCommand(context, commands, result.command);
@@ -439,7 +451,7 @@ export async function serve(configPath: string, takeover = false): Promise<void>
       stopWatcher?.();
       await admin?.stop();
       await scheduler?.stop(30_000);
-      mentionTyping?.stopAll();
+      host?.activity.stopAll();
       // The image worker borrows the SQLite connection; it must settle (marking
       // late results interrupted if the shutdown budget expires) before the
       // store closes underneath it.
@@ -493,6 +505,41 @@ export function watchStopSignals(shutdown: () => void, forceExit: (signal: NodeJ
   return () => {
     process.off('SIGINT', onSignal);
     process.off('SIGTERM', onSignal);
+  };
+}
+
+/**
+ * Resolves the conversation a delivery or activity call targets.
+ *
+ * The runtime never invents a chat route: the chat kind that decides the
+ * conversation policy and the conversation row itself both come from storage,
+ * so a group and a private chat with the same id cannot be confused, and a
+ * delivery always lands on a conversation the server already knows about.
+ */
+export function resolveConversation(
+  store: BusinessStore,
+  target: { readonly chatId: bigint; readonly threadId: bigint },
+): ImConversationRef {
+  const orm = store.orm;
+  const chat = orm
+    .select({ id: chats.id, type: chats.type })
+    .from(chats)
+    .where(eq(chats.telegramChatId, target.chatId))
+    .get();
+  const conversation =
+    chat === undefined
+      ? undefined
+      : orm
+          .select({ id: conversations.id })
+          .from(conversations)
+          .where(and(eq(conversations.chatId, chat.id), eq(conversations.messageThreadId, target.threadId)))
+          .get();
+  return {
+    host: 'telegram',
+    id: toConversationId(conversation?.id ?? 0n),
+    chatId: toChatId(target.chatId.toString()),
+    topicId: target.threadId === 0n ? null : Number(target.threadId),
+    scope: chat?.type === 'private' ? 'private' : 'group',
   };
 }
 

@@ -13,7 +13,7 @@ import { SecretStore } from '../src/platform/secrets.ts';
 import { resolveSystemResource, type SystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import * as schema from '../src/store/schema.ts';
-import { fauxRegistry, testConfigJsonc } from './helpers.ts';
+import { fauxRegistry, testConfigJsonc, testTelegramRuntime } from './helpers.ts';
 
 const directories: string[] = [];
 afterAll(async () => {
@@ -53,13 +53,13 @@ test('core assembly uses injected resources without loading host files or starti
       store,
       configStore,
       secrets: new SecretStore(),
-      telegramApi: {
+      ...testTelegramRuntime({
         sendMessage: async (_chatId, text) => {
           sends.push(String(text));
           return { message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } };
         },
         sendSticker: async () => ({ message_id: 502, date: 1_700_000_100, chat: { id: 123456789 } }),
-      },
+      }),
       bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
       systemResources: resources,
     });

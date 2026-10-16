@@ -24,6 +24,20 @@ import type {
   VisibleSender,
 } from '../src/platform/invocation-context.ts';
 import type { PromptTemplateModel } from '../src/platform/prompt-template.ts';
+import {
+  identityConversation,
+  type ConversationScope,
+  type ImConversationRef,
+  type ImSendRatePolicy,
+} from '../src/platform/im-host.ts';
+import {
+  createTelegramHost,
+  type TelegramHost,
+  type TelegramTransport,
+} from '../src/adapters/local-monolith/telegram-host.ts';
+
+export type { TelegramHost, TelegramTransport };
+import type { AgentRuntimeOptions } from '../src/orchestration/agent-runtime.ts';
 import { ContextBuilder, type Injection } from '../src/context/context-builder.ts';
 import type { ContextInjector } from '../src/context/context-injector.ts';
 import { ContextRefStore, createCapabilityResolver } from '../src/context/context-refs.ts';
@@ -407,4 +421,51 @@ export async function writeTestKeyJar(
   const path = join(directory, KEY_JAR_FILE);
   await writeFile(path, `${JSON.stringify({ ...TEST_KEY_JAR, ...entries }, null, 2)}\n`, { mode: 0o600 });
   await chmod(path, 0o600);
+}
+
+/**
+ * A real Telegram host over a fake transport.
+ *
+ * The platform must not know what Telegram looks like, so tests that used to
+ * stub a `TelegramSendApi` now stub the transport underneath a real host. They
+ * keep asserting on the exact wire calls, which is the point: the extraction
+ * moved code, not behaviour.
+ */
+export function testTelegramHost(
+  transport: TelegramTransport,
+  options: { readonly sendRate?: ImSendRatePolicy; readonly now?: () => number } = {},
+): TelegramHost {
+  return createTelegramHost({
+    transport,
+    sendRate: () => options.sendRate ?? { sendsPerWindow: 6, windowSeconds: 300 },
+    ...(options.now === undefined ? {} : { now: options.now }),
+  });
+}
+
+/**
+ * The host plus the conversation resolver the runtime now asks for, as a
+ * spreadable pair for `AgentRuntimeOptions`.
+ */
+export function testTelegramRuntime(
+  transport: TelegramTransport,
+  options: { readonly scope?: ConversationScope; readonly sendRate?: ImSendRatePolicy; readonly now?: () => number } = {},
+): { readonly host: TelegramHost; readonly conversation: AgentRuntimeOptions['conversation'] } {
+  const scope = options.scope ?? 'private';
+  return {
+    host: testTelegramHost(transport, options),
+    conversation: (target) => identityConversation(target, 'telegram', scope),
+  };
+}
+
+/** The host plus the conversation ref the send tool environment now asks for. */
+export function testSendToolEnv(
+  transport: TelegramTransport,
+  context: { readonly chatId: bigint; readonly threadId: bigint; readonly conversationId: bigint },
+  options: { readonly scope?: ConversationScope; readonly sendRate?: ImSendRatePolicy; readonly now?: () => number } = {},
+): { readonly host: TelegramHost; readonly conversation: ImConversationRef } {
+  const scope = options.scope ?? 'private';
+  return {
+    host: testTelegramHost(transport, options),
+    conversation: identityConversation(context, 'telegram', scope),
+  };
 }
