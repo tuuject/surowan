@@ -68,6 +68,15 @@ const rejected = (
   failure: { reason, code, description, outcomeUnknown },
 });
 
+/** A delivery the room refuses from inside its transaction; nothing is written. */
+class DeliveryRefused extends Error {
+  readonly outcome: ImDeliveryOutcome;
+  constructor(outcome: ImDeliveryOutcome) {
+    super('delivery refused');
+    this.outcome = outcome;
+  }
+}
+
 /**
  * A mention is plain text in a room, and there is no markup dialect to render
  * into, so composing a part only bounds it.
@@ -149,13 +158,25 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
 
   const publish = (request: ImDeliveryRequest, body: string): ImDeliveredMessage => {
     const ledger = orm
-      .select({ messageId: hostSends.messageId, state: hostSends.state })
+      .select({
+        conversationId: hostSends.conversationId,
+        messageId: hostSends.messageId,
+        state: hostSends.state,
+      })
       .from(hostSends)
       .where(eq(hostSends.id, request.sendId))
       .limit(1)
       .get();
     if (ledger === undefined) {
       throw new Error(`send ${request.sendId} is not reserved`);
+    }
+    // The ledger row was reserved for one conversation. Publishing it anywhere
+    // else would mark that conversation's send successful with a message it
+    // never got.
+    if (ledger.conversationId !== request.target.conversation.id) {
+      throw new DeliveryRefused(
+        rejected('permanent', 'send_target_mismatch', `send ${request.sendId} was reserved for another conversation`),
+      );
     }
     // The ledger row is the delivery key. A repeat of a send that already
     // published a message returns that message instead of a second one.
@@ -274,6 +295,9 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
         const published = store.transaction(() => publish(request, body));
         return { kind: 'delivered', messages: [published], recordedByHost: true };
       } catch (error) {
+        if (error instanceof DeliveryRefused) {
+          return error.outcome;
+        }
         const message = error instanceof Error ? error.message : String(error);
         return rejected('transient', 'room_write_failed', `the room could not record the message: ${message}`);
       }

@@ -305,13 +305,27 @@ describe('Bot Playground virtual delivery', () => {
     // The flag is what the pipeline reads before building a target at all.
     expect(host.delivery.crossConversationTargets).toBe(false);
 
+    // A send reserved for one room cannot be published into another.
     const sendId = reserveSend(home.conversationId, home.invocationId, { id: 'x', text: 'stray' });
     const outcome = await deliver(host, { ...other, title: 'other' }, sendId, 'stray');
-    expect(outcome.kind).toBe('delivered');
-
-    // It landed in the room it named and nowhere else.
-    expect(roomMessages(other.conversationId)).toHaveLength(1);
+    expect(outcome.kind).toBe('rejected');
+    if (outcome.kind === 'rejected') {
+      expect(outcome.failure.code).toBe('send_target_mismatch');
+      expect(outcome.failure.outcomeUnknown).toBe(false);
+    }
+    expect(roomMessages(other.conversationId)).toHaveLength(0);
     expect(roomMessages(home.conversationId)).toHaveLength(0);
+    expect(ledgerRow(sendId)?.state).toBe('pending');
+    expect(ledgerRow(sendId)?.messageId).toBeNull();
+
+    // Once the home room published it, replaying the key elsewhere still refuses
+    // instead of reporting the home room's message as delivered there.
+    const home1 = await deliver(host, { ...home, title: 'home' }, sendId, 'stray');
+    expect(home1.kind).toBe('delivered');
+    const replay = await deliver(host, { ...other, title: 'other' }, sendId, 'stray');
+    expect(replay.kind).toBe('rejected');
+    expect(roomMessages(other.conversationId)).toHaveLength(0);
+    expect(roomMessages(home.conversationId)).toHaveLength(1);
   });
 
   test('refuses media a room cannot show, with a reason and no message', async () => {
