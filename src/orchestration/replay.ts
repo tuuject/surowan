@@ -711,6 +711,7 @@ export class ReplayRunner {
       .select({
         state: invocations.state,
         finishedAt: invocations.finishedAt,
+        hostKind: chats.hostKind,
         chatId: chats.telegramChatId,
         conversationId: conversations.id,
         threadId: conversations.messageThreadId,
@@ -728,6 +729,16 @@ export class ReplayRunner {
         ok: false,
         code: 'replay_source_unfinished',
         message: 'Replay requires a finished invocation',
+      };
+    }
+    // Replay resolves the Telegram chat configuration, so it can only reproduce
+    // Telegram-hosted invocations. Say so explicitly instead of reading a
+    // Telegram id that a virtual row does not have.
+    if (source.hostKind !== 'telegram' || source.chatId === null) {
+      return {
+        ok: false,
+        code: 'replay_host_unsupported',
+        message: 'Replay currently supports Telegram-hosted invocations only',
       };
     }
     return {
