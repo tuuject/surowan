@@ -37,6 +37,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Static } from 'typebox';
 import Compile from 'typebox/compile';
 import type { RawConfig } from '../platform/config.ts';
+import { spoilersFromFragment } from '../platform/spoilers.ts';
 import type { BusinessStore } from '../store/store.ts';
 import { resolveChatConfig } from '../store/store.ts';
 import { media } from '../store/schema.ts';
@@ -129,6 +130,7 @@ interface HistoryRow {
   readonly kind: string | null;
   readonly text: string | null;
   readonly caption: string | null;
+  readonly raw_fragment_json: string | null;
   readonly reply_to_message_id: bigint | null;
   readonly reply_snapshot_json: string | null;
   readonly forward_origin_json: string | null;
@@ -421,6 +423,7 @@ function loadOpeningBatch(store: BusinessStore, invocationId: bigint, source: Sc
         kind: snapshot.kind,
         text: snapshot.text,
         caption: snapshot.caption,
+        ...(snapshot.spoilers === undefined ? {} : { spoilers: snapshot.spoilers }),
         reply_to_message_id: snapshot.reply_to_message_id,
         reply_snapshot: snapshot.reply_snapshot,
         forward_origin: snapshot.forward_origin,
@@ -457,7 +460,7 @@ function loadHistoryWindow(
   const rows = store.orm.all<HistoryRow>(
     sql`SELECT m.id AS message_id, im.snapshot_json, frozen.id AS frozen_revision_id,
                m.telegram_message_id, m.telegram_date, m.sent_by_bot,
-               r.id AS revision_id, r.kind, r.text, r.caption, r.reply_to_message_id,
+               r.id AS revision_id, r.kind, r.text, r.caption, r.raw_fragment_json, r.reply_to_message_id,
                r.reply_snapshot_json, r.forward_origin_json, r.media_group_id,
                s.telegram_id AS sender_telegram_id, s.display_name AS sender_display_name, s.username AS sender_username
         FROM messages m
@@ -567,6 +570,12 @@ function renderHistoryRows(
       continue;
     }
     const mediaRows = mediaByRevision.get(row.revision_id) ?? [];
+    const replySnapshot = parseStoredJson(row.reply_snapshot_json);
+    const spoilers = spoilersFromFragment(row.raw_fragment_json, {
+      text: row.text,
+      caption: row.caption,
+      reply_snapshot: replySnapshot,
+    });
     newestFirst.push({
       snapshot: {
         message_id: row.telegram_message_id.toString(),
@@ -581,8 +590,9 @@ function renderHistoryRows(
         kind: row.kind ?? 'unknown',
         text: row.text,
         caption: row.caption,
+        ...(spoilers === undefined ? {} : { spoilers }),
         reply_to_message_id: row.reply_to_message_id?.toString() ?? null,
-        reply_snapshot: parseStoredJson(row.reply_snapshot_json),
+        reply_snapshot: replySnapshot,
         forward_origin: parseStoredJson(row.forward_origin_json),
         media_group_id: row.media_group_id,
         media: mediaRows.map((entry) => ({
@@ -673,7 +683,7 @@ function loadSliceBatch(
         )
         SELECT m.id AS message_id, im.snapshot_json, r.id AS frozen_revision_id,
                m.telegram_message_id, m.telegram_date, m.sent_by_bot,
-               r.id AS revision_id, r.kind, r.text, r.caption, r.reply_to_message_id,
+               r.id AS revision_id, r.kind, r.text, r.caption, r.raw_fragment_json, r.reply_to_message_id,
                r.reply_snapshot_json, r.forward_origin_json, r.media_group_id,
                s.telegram_id AS sender_telegram_id, s.display_name AS sender_display_name, s.username AS sender_username
         FROM eligible im JOIN messages m ON m.id = im.message_id

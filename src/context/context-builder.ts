@@ -62,6 +62,7 @@ export const MessageSnapshotSchema = Type.Object(
         {
           text: Type.Optional(SpoilerRangeArraySchema),
           caption: Type.Optional(SpoilerRangeArraySchema),
+          reply: Type.Optional(SpoilerRangeArraySchema),
         },
         Strict,
       ),
@@ -745,7 +746,7 @@ export function formatSnapshot(snapshot: PreparedSnapshot, options: FormatOption
     snapshot.reply_to_message_id !== null &&
     !options.inlineReplies.has(snapshot.reply_to_message_id)
   ) {
-    body.push(`> ${singleLine(reply.sender)}: ${singleLine(reply.content)}`);
+    body.push(`> ${singleLine(reply.sender)}: ${singleLine(renderSpoilers(reply.content, snapshot.spoilers?.reply))}`);
   }
   // The body stays exactly what the sender wrote; a spoiler only adds the tag
   // that says a human folded this span, so the model can weigh what it reads

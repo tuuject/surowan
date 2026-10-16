@@ -134,7 +134,12 @@ function insertSnapshot(
   // keeps, because the adapter stores only the body text. They ride along only
   // when the message has one, so a message without spoilers keeps producing the
   // same snapshot as before.
-  const spoilers = spoilersFromFragment(message.raw_fragment_json, message);
+  const replySnapshot: unknown = message.reply_snapshot_json === null ? null : JSON.parse(message.reply_snapshot_json);
+  const spoilers = spoilersFromFragment(message.raw_fragment_json, {
+    text: message.text,
+    caption: message.caption,
+    reply_snapshot: replySnapshot,
+  });
   const snapshot = JSON.stringify({
     message_id: message.telegram_message_id.toString(),
     message_thread_id: message.message_thread_id.toString(),
@@ -151,7 +156,7 @@ function insertSnapshot(
     caption: message.caption,
     ...(spoilers === undefined ? {} : { spoilers }),
     reply_to_message_id: message.reply_to_message_id?.toString() ?? null,
-    reply_snapshot: message.reply_snapshot_json === null ? null : JSON.parse(message.reply_snapshot_json),
+    reply_snapshot: replySnapshot,
     forward_origin: message.forward_origin_json === null ? null : JSON.parse(message.forward_origin_json),
     media_group_id: message.media_group_id,
     media: mediaRows,

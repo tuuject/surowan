@@ -28,12 +28,15 @@ export interface SpoilerRange {
 
 /**
  * Spoiler ranges keyed by the body field they belong to. A Telegram message
- * carries a text or a caption, never both, so at most one field is present, and
- * a field is omitted entirely when it has no spoiler.
+ * carries a text or a caption, never both, so at most one of them is present,
+ * and a field is omitted entirely when it has no spoiler. `reply` covers the
+ * stored reply preview (`reply_snapshot.content`), which quotes the replied-to
+ * body and would otherwise show its folded text unmarked.
  */
 export interface MessageSpoilers {
-  readonly text?: readonly SpoilerRange[];
-  readonly caption?: readonly SpoilerRange[];
+  readonly text?: SpoilerRange[];
+  readonly caption?: SpoilerRange[];
+  readonly reply?: SpoilerRange[];
 }
 
 /** The part of a Telegram message entity that spoiler extraction cares about. */
@@ -57,7 +60,7 @@ export const SPOILER_TAG_CLOSE = '</tg-spoiler>';
  */
 export function spoilersFromFragment(
   rawFragmentJson: string | null | undefined,
-  body: { readonly text: string | null; readonly caption: string | null },
+  body: { readonly text: string | null; readonly caption: string | null; readonly reply_snapshot?: unknown },
 ): MessageSpoilers | undefined {
   const fragment = parseFragment(rawFragmentJson);
   if (fragment === undefined) {
@@ -71,13 +74,38 @@ export function spoilersFromFragment(
     body.caption !== null && fragment.caption === body.caption
       ? spoilerRanges(readEntities(fragment.caption_entities), body.caption.length)
       : [];
-  if (text.length === 0 && caption.length === 0) {
+  const reply = replySpoilers(fragment.reply_to_message, body.reply_snapshot);
+  if (text.length === 0 && caption.length === 0 && reply.length === 0) {
     return undefined;
   }
   return {
     ...(text.length === 0 ? {} : { text }),
     ...(caption.length === 0 ? {} : { caption }),
+    ...(reply.length === 0 ? {} : { reply }),
   };
+}
+
+/**
+ * The reply preview is the replied-to body (text, else caption) cut to a
+ * prefix by the adapter, so its spans are the replied-to message's own spoiler
+ * entities clamped to that prefix. Only a preview that is still a prefix of the
+ * fragment's body is trusted.
+ */
+function replySpoilers(replyFragment: unknown, replySnapshot: unknown): SpoilerRange[] {
+  if (typeof replyFragment !== 'object' || replyFragment === null) {
+    return [];
+  }
+  if (typeof replySnapshot !== 'object' || replySnapshot === null) {
+    return [];
+  }
+  const { content } = replySnapshot as { content?: unknown };
+  const { text, entities, caption, caption_entities } = replyFragment as Record<string, unknown>;
+  const [source, sourceEntities] =
+    typeof text === 'string' ? [text, entities] : typeof caption === 'string' ? [caption, caption_entities] : [];
+  if (typeof content !== 'string' || source === undefined || !source.startsWith(content)) {
+    return [];
+  }
+  return spoilerRanges(readEntities(sourceEntities), content.length);
 }
 
 /**

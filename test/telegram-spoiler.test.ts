@@ -110,6 +110,37 @@ describe('spoiler spans from the stored fragment', () => {
     expect(spoilersFromFragment(fragment, { text: null, caption })).toEqual({ caption: [{ start: 4, end: 6 }] });
   });
 
+  test('reads the replied-to entities for the stored reply preview', () => {
+    const replied = '结局是男主其实早就死了';
+    const fragment = JSON.stringify({
+      text: '真的假的',
+      reply_to_message: { text: replied, entities: [{ type: 'spoiler', offset: 2, length: 9 }] },
+    });
+    expect(
+      spoilersFromFragment(fragment, { text: '真的假的', caption: null, reply_snapshot: { content: replied } }),
+    ).toEqual({ reply: [{ start: 2, end: 11 }] });
+    // The adapter truncates the preview, so spans are clamped to that prefix.
+    expect(
+      spoilersFromFragment(fragment, { text: '真的假的', caption: null, reply_snapshot: { content: '结局是男主' } }),
+    ).toEqual({ reply: [{ start: 2, end: 5 }] });
+    // A caption-only replied-to message contributes its caption entities.
+    expect(
+      spoilersFromFragment(
+        JSON.stringify({
+          text: '真的假的',
+          reply_to_message: { caption: '配文剧透', caption_entities: [{ type: 'spoiler', offset: 2, length: 2 }] },
+        }),
+        { text: '真的假的', caption: null, reply_snapshot: { content: '配文剧透' } },
+      ),
+    ).toEqual({ reply: [{ start: 2, end: 4 }] });
+    // A preview that is no longer a prefix of the replied-to body is not trusted.
+    expect(
+      spoilersFromFragment(fragment, { text: '真的假的', caption: null, reply_snapshot: { content: '别的内容' } }),
+    ).toBeUndefined();
+    // No stored preview (for example an ignored replied-to user) means no span.
+    expect(spoilersFromFragment(fragment, { text: '真的假的', caption: null, reply_snapshot: null })).toBeUndefined();
+  });
+
   test('reports nothing for plain messages, mismatched bodies, and unreadable fragments', () => {
     expect(
       spoilersFromFragment(JSON.stringify({ text: '普通消息' }), { text: '普通消息', caption: null }),
@@ -343,6 +374,45 @@ describe('telegram spoiler context', () => {
     );
     const context = build(processOne(scheduler, new Date(received.getTime() + 15_000)));
     expect(context.userPrompt).toContain(`  这家店的甜品还行，不过${OPEN}价格有点离谱${CLOSE}。`);
+    store.close();
+  });
+
+  test('marks a spoiler inside the quoted preview of an outside reply target', async () => {
+    const { store, ingestion, scheduler, build } = await setup();
+    const received = new Date('2026-08-15T00:00:00.000Z');
+    const replied = '结局是男主其实早就死了';
+    ingestion.ingest(
+      {
+        update_id: 1,
+        message: {
+          ...baseMessage(2),
+          text: '真的假的',
+          reply_to_message: {
+            ...baseMessage(1),
+            text: replied,
+            entities: [{ type: 'spoiler', offset: 2, length: replied.length - 2 }],
+          },
+        },
+      } as unknown as Update,
+      received,
+    );
+    const context = build(processOne(scheduler, new Date(received.getTime() + 15_000)));
+    expect(newMessages(context)).toBe(
+      [
+        header(2, ' re:1'),
+        `  > Alice: 结局${OPEN}是男主其实早就死了${CLOSE}`,
+        '  真的假的',
+        '</untrusted_new_messages>',
+      ].join('\n'),
+    );
+    const snapshot = store.db
+      .prepare<[], { snapshot_json: string }>('SELECT snapshot_json FROM invocation_messages LIMIT 1')
+      .get();
+    // The stored preview itself stays verbatim; only the spans ride along.
+    expect(JSON.parse(snapshot?.snapshot_json ?? '{}')).toMatchObject({
+      reply_snapshot: { content: replied },
+      spoilers: { reply: [{ start: 2, end: replied.length }] },
+    });
     store.close();
   });
 
