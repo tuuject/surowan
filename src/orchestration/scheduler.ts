@@ -408,10 +408,10 @@ export class BucketScheduler {
         if (chat === undefined) {
           throw new Error(`Invocation ${invocation.id} has no chat`);
         }
-        // The window is part of the chat's fixed policy, not a live config
-        // read: a room collects nothing, and a Telegram chat keeps the window
-        // it had when the run started. Resolving it from the host kind does
-        // not require the chat entry to still exist.
+        // The window follows the host: a room collects nothing. A Telegram
+        // chat reads the live window, as ingestion does for the buckets it is
+        // pushing back, so a reloaded window applies to both alike. Resolving
+        // it from the host kind does not require the chat entry to still exist.
         const windowSeconds = resolveBucketWindowSeconds(this.#configStore.current().config, chat.hostKind as HostKind);
         const nextDeadline = new Date(
           Math.max(finishedAt.getTime(), Date.parse(started.started_at) + windowSeconds * 1_000),

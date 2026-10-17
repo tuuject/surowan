@@ -145,6 +145,9 @@ export class PlaygroundAssetStore {
     if (sniffed !== declared) {
       throw new LocalAssetRejected('type_mismatch', 'Declared image type does not match the content');
     }
+    if (sniffed === 'image/png' && isAnimatedPng(input.bytes)) {
+      throw new LocalAssetRejected('animated', 'Animated images are not supported');
+    }
     const { width, height } = await this.#inspect(input.bytes, sniffed);
 
     const sha256 = createHash('sha256').update(input.bytes).digest('hex');
@@ -161,7 +164,10 @@ export class PlaygroundAssetStore {
     await writeFile(temporary, input.bytes, { flag: 'wx' });
     await rename(temporary, absolute);
 
-    this.#orm
+    // A concurrent upload of the same bytes may have won between the lookup
+    // above and here. The content index decides: the loser drops its file and
+    // returns the winner, so both submissions see one asset.
+    const inserted = this.#orm
       .insert(playgroundAssets)
       .values({
         id,
@@ -175,7 +181,17 @@ export class PlaygroundAssetStore {
         state: 'staged',
         createdAt: this.#now().toISOString(),
       })
-      .run();
+      .onConflictDoNothing({ target: [playgroundAssets.chatId, playgroundAssets.sha256] })
+      .returning({ id: playgroundAssets.id })
+      .get();
+    if (inserted === undefined) {
+      await rm(absolute, { force: true });
+      const winner = this.#byContent(chatId, sha256);
+      if (winner === undefined) {
+        throw new Error('Concurrent image upload left no asset row');
+      }
+      return winner;
+    }
 
     return {
       id,
@@ -256,8 +272,24 @@ export class PlaygroundAssetStore {
 
     let staged = 0;
     for (const asset of stale) {
+      // The selection is stale once an await has run: a submission may have
+      // attached the asset since. The row is claimed by deleting it under the
+      // same condition, and only a claimed asset loses its file.
+      const claimed = this.#orm
+        .delete(playgroundAssets)
+        .where(
+          and(
+            eq(playgroundAssets.id, asset.id),
+            notExists(
+              this.#orm.select({ id: media.id }).from(media).where(eq(media.localAssetId, playgroundAssets.id)),
+            ),
+          ),
+        )
+        .run();
+      if (claimed.changes !== 1) {
+        continue;
+      }
       await rm(this.#absolute(asset.path), { force: true });
-      this.#orm.delete(playgroundAssets).where(eq(playgroundAssets.id, asset.id)).run();
       staged += 1;
     }
 
@@ -268,7 +300,11 @@ export class PlaygroundAssetStore {
   async #inspect(bytes: Uint8Array, mime: LocalImageMime): Promise<{ width: number; height: number }> {
     let metadata: Metadata;
     try {
-      metadata = await sharp(bytes, { failOn: 'error', limitInputPixels: this.#maxPixels }).metadata();
+      const image = sharp(bytes, { failOn: 'error', limitInputPixels: this.#maxPixels });
+      metadata = await image.metadata();
+      // `metadata()` reads only the header. Decoding every pixel here refuses
+      // a truncated or corrupt payload before it becomes a room message.
+      await image.stats();
     } catch {
       throw new LocalAssetRejected('corrupt', 'Image could not be decoded');
     }
@@ -369,4 +405,28 @@ export class PlaygroundAssetStore {
 
 export function isLocalImageMime(value: string): value is LocalImageMime {
   return value === 'image/jpeg' || value === 'image/png' || value === 'image/webp';
+}
+
+/**
+ * Whether a PNG carries an APNG animation control chunk.
+ *
+ * libvips decodes an APNG as its default frame and reports one page, so the
+ * page count cannot tell. The `acTL` chunk must precede the first `IDAT`, so
+ * only the chunks before it are walked.
+ */
+export function isAnimatedPng(bytes: Uint8Array): boolean {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = 8;
+  while (offset + 8 <= bytes.byteLength) {
+    const length = view.getUint32(offset);
+    const type = String.fromCharCode(...bytes.subarray(offset + 4, offset + 8));
+    if (type === 'acTL') {
+      return true;
+    }
+    if (type === 'IDAT' || type === 'IEND') {
+      return false;
+    }
+    offset += 12 + length;
+  }
+  return false;
 }

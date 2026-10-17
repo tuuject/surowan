@@ -7,12 +7,20 @@ import sharp from 'sharp';
 import { KeyedSemaphore } from '../src/platform/concurrency.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { LocalAssetRejected, PlaygroundAssetStore, sniffImageMime } from '../src/capabilities/media/local-assets.ts';
+import {
+  isAnimatedPng,
+  LocalAssetRejected,
+  PlaygroundAssetStore,
+  sniffImageMime,
+} from '../src/capabilities/media/local-assets.ts';
 import { MediaService } from '../src/capabilities/media/media.ts';
 import { PlaygroundIngress } from '../src/ingress/playground.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { PlaygroundStore } from '../src/store/playground.ts';
-import { media } from '../src/store/schema.ts';
+import { media, playgroundAssets } from '../src/store/schema.ts';
+import { crc32 } from 'node:zlib';
+import { randomBytes } from 'node:crypto';
+import { readdir } from 'node:fs/promises';
 import { testConfigStore, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
@@ -252,4 +260,84 @@ test('an asset shared by two messages survives losing one of them', async () => 
   const swept = await assets.sweep({ staleAfterMs: -1 });
   expect(swept.staged).toBe(1);
   expect(assets.resolve(assetId)).toBeNull();
+});
+
+/** Insert an APNG animation control chunk right after IHDR. */
+function withAnimationControl(png: Uint8Array): Uint8Array {
+  const ihdrEnd = 8 + 12 + new DataView(png.buffer, png.byteOffset).getUint32(8);
+  const body = new Uint8Array(8);
+  new DataView(body.buffer).setUint32(0, 2);
+  const type = new TextEncoder().encode('acTL');
+  const chunk = new Uint8Array(12 + body.length);
+  const view = new DataView(chunk.buffer);
+  view.setUint32(0, body.length);
+  chunk.set(type, 4);
+  chunk.set(body, 8);
+  view.setUint32(8 + body.length, crc32(Buffer.concat([type, body])));
+  return Buffer.concat([png.subarray(0, ihdrEnd), chunk, png.subarray(ihdrEnd)]);
+}
+
+test('an animated PNG is refused even though it decodes as one frame', async () => {
+  const { assets, room } = await setup();
+  const still = await png();
+  const animated = withAnimationControl(still);
+  expect(isAnimatedPng(still)).toBe(false);
+  expect(isAnimatedPng(animated)).toBe(true);
+
+  await expect(assets.ingest(room.chatId, { bytes: animated, declaredMime: 'image/png' })).rejects.toMatchObject({
+    reason: 'animated',
+  });
+});
+
+test('an image with a valid header but a truncated payload is refused', async () => {
+  const { assets, room } = await setup();
+  const bytes = new Uint8Array(
+    await sharp(randomBytes(256 * 256 * 3), { raw: { width: 256, height: 256, channels: 3 } })
+      .png()
+      .toBuffer(),
+  );
+  const truncated = bytes.subarray(0, Math.floor(bytes.length / 2));
+
+  await expect(assets.ingest(room.chatId, { bytes: truncated, declaredMime: 'image/png' })).rejects.toMatchObject({
+    reason: 'corrupt',
+  });
+  expect(assets.ids(room.chatId)).toEqual([]);
+});
+
+test('concurrent uploads of the same bytes resolve to one asset and one file', async () => {
+  const { assets, room } = await setup();
+  const bytes = await png();
+
+  const [first, second] = await Promise.all([
+    assets.ingest(room.chatId, { bytes, declaredMime: 'image/png' }),
+    assets.ingest(room.chatId, { bytes, declaredMime: 'image/png' }),
+  ]);
+
+  expect(second.id).toBe(first.id);
+  expect(assets.ids(room.chatId)).toEqual([first.id]);
+  const files = (await readdir(join(first.path, '..'))).filter((name) => !name.endsWith('.part'));
+  expect(files).toHaveLength(1);
+});
+
+test('a sweep never deletes an asset attached while it was running', async () => {
+  const { store, assets, room } = await setup();
+  const one = await assets.ingest(room.chatId, { bytes: await png(8, 8), declaredMime: 'image/png' });
+  const two = await assets.ingest(room.chatId, { bytes: await png(9, 9), declaredMime: 'image/png' });
+  const playground = new PlaygroundStore(store.orm);
+
+  // Both are stale when the sweep selects them. The sweep yields while it
+  // removes the first file; a submission attaches the second in that window.
+  const sweeping = assets.sweep({ staleAfterMs: -1 });
+  playground.submit(room.chatId, {
+    requestKey: 'req-late',
+    senderId: room.members[0]!.senderId,
+    text: '',
+    media: [{ assetId: two.id, sha256: two.sha256, mime: two.mime, byteSize: two.byteSize, width: 9, height: 9 }],
+  });
+  await sweeping;
+
+  expect(assets.resolve(one.id)).toBeNull();
+  expect(assets.resolve(two.id)).not.toBeNull();
+  await expect(access(two.path)).resolves.toBeUndefined();
+  expect(store.orm.select({ id: playgroundAssets.id }).from(playgroundAssets).all()).toEqual([{ id: two.id }]);
 });

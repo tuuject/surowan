@@ -131,7 +131,14 @@ export function loadPlugins(plugins: readonly AgentPlugin[], options: LoadPlugin
     ids.add(plugin.id);
   }
   const injectorNames = new Set<string>();
-  const contextInjectors: readonly ContextInjector[] = plugins.flatMap((plugin) => plugin.contextInjectors ?? []);
+  // An injector runs only where its plugin runs: it inherits the plugin's
+  // hosts, narrowed further by its own list. Without this an injector of a
+  // Telegram-only plugin would still render for a room and read its internal
+  // chat id as a Telegram one.
+  const contextInjectors: readonly ContextInjector[] = plugins.flatMap((plugin) => {
+    const hosts = pluginHosts(plugin);
+    return (plugin.contextInjectors ?? []).map((injector) => withHosts(injector, hosts));
+  });
   for (const injector of contextInjectors) {
     if (!PLUGIN_ID_PATTERN.test(injector.name)) {
       throw new Error(`Context injector name is invalid: ${injector.name}`);
@@ -170,6 +177,16 @@ export function loadPlugins(plugins: readonly AgentPlugin[], options: LoadPlugin
         return plugin.capabilities?.(scope) ?? [];
       });
     },
+  };
+}
+
+function withHosts(injector: ContextInjector, pluginHosts: readonly HostKind[]): ContextInjector {
+  const hosts = pluginHosts.filter((host) => injector.hosts === undefined || injector.hosts.includes(host));
+  return {
+    name: injector.name,
+    hosts,
+    collect: (text) => injector.collect(text),
+    render: (input) => injector.render(input),
   };
 }
 

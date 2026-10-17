@@ -6,6 +6,8 @@ import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import type { ExecutableCapability } from '../src/capabilities/execute-tool.ts';
 import { PLAYGROUND_PROFILE, TELEGRAM_PROFILE, hostExecutionProfile } from '../src/platform/host-profile.ts';
+import type { ContextInjector } from '../src/context/context-injector.ts';
+import type { HostKind } from '../src/platform/im-host.ts';
 import type { InvocationContext } from '../src/platform/invocation-context.ts';
 import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
 import { loadPlugins, pluginHosts, type AgentPlugin } from '../src/plugins/plugin.ts';
@@ -149,5 +151,26 @@ describe('host execution profile', () => {
     expect(readDailyTokenBudget(store.orm, 1000, { scope: 'chat', now: day }).usedTokens).toBe(100n);
     expect(readDailyTokenBudget(store.orm, 1000, { scope: 'playground', now: day }).usedTokens).toBe(7n);
     expect(readDailyTokenBudget(store.orm, 1000, { now: day }).usedTokens).toBe(100n);
+  });
+
+  test('a context injector runs only on the hosts its plugin runs on', () => {
+    const injector = (name: string, hosts?: readonly HostKind[]): ContextInjector => {
+      const base = { name, collect: () => [], render: () => ({ text: '', signatures: [], count: 0 }) };
+      return hosts === undefined ? base : { ...base, hosts };
+    };
+    const loaded = loadPlugins([
+      { id: 'telegram-only', contextInjectors: [injector('telegram-only')] },
+      { id: 'both', hosts: ['telegram', 'playground'], contextInjectors: [injector('both')] },
+      { id: 'narrowed', hosts: ['telegram', 'playground'], contextInjectors: [injector('narrowed', ['telegram'])] },
+      // An injector cannot widen past its plugin.
+      { id: 'widened', contextInjectors: [injector('widened', ['telegram', 'playground'])] },
+    ]);
+
+    expect(Object.fromEntries(loaded.contextInjectors.map((entry) => [entry.name, entry.hosts]))).toEqual({
+      'telegram-only': ['telegram'],
+      both: ['telegram', 'playground'],
+      narrowed: ['telegram'],
+      widened: ['telegram'],
+    });
   });
 });

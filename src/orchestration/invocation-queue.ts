@@ -15,6 +15,7 @@ import {
   conversations,
   invocationBuckets,
   invocations,
+  rooms,
   taskReceipts,
 } from '../store/schema.ts';
 import { activeSleepUntil } from '../store/sleep.ts';
@@ -68,7 +69,8 @@ interface ReceiptRow {
   readonly task_id: bigint;
   readonly conversation_id: bigint;
   readonly chat_id: bigint;
-  readonly telegram_chat_id: bigint;
+  /** Null for a Playground room, which has no Telegram identity. */
+  readonly telegram_chat_id: bigint | null;
   readonly message_thread_id: bigint;
   readonly bypass_daily_budget: bigint;
   readonly host_kind: string;
@@ -621,7 +623,8 @@ export class InvocationQueueService {
     this.#store.transaction(() => {
       const rows = this.#store.orm.all<ReceiptRow & { invocation_id: bigint }>(
         sql`SELECT r.task_id, r.invocation_id, t.conversation_id, v.chat_id, c.telegram_chat_id,
-                   v.message_thread_id, json_extract(t.delivery_json, '$.bypassDailyBudget') AS bypass_daily_budget
+                   v.message_thread_id, c.host_kind AS host_kind,
+                   json_extract(t.delivery_json, '$.bypassDailyBudget') AS bypass_daily_budget
             FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id
             JOIN invocations i ON i.id = r.invocation_id
             JOIN conversations v ON v.id = t.conversation_id JOIN chats c ON c.id = v.chat_id
@@ -720,6 +723,19 @@ export class InvocationQueueService {
   }
 
   #receiptCancelReason(receipt: ReceiptRow): string | undefined {
+    // A room has no Telegram chat entry, pause or topic list; it is a valid
+    // destination for as long as the room itself exists.
+    if (receipt.host_kind === 'playground') {
+      const room = this.#store.orm
+        .select({ chatId: rooms.chatId })
+        .from(rooms)
+        .where(eq(rooms.chatId, receipt.chat_id))
+        .get();
+      return room === undefined ? 'chat_removed' : undefined;
+    }
+    if (receipt.telegram_chat_id === null) {
+      return 'chat_removed';
+    }
     const chatConfig = resolveChatConfig(this.#configStore.current().config, this.#store.orm, receipt.telegram_chat_id);
     if (chatConfig === undefined) {
       return 'chat_removed';

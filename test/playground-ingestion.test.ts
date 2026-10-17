@@ -387,6 +387,38 @@ describe('playground ingestion', () => {
     expect(release?.invocationErrorCode).toBe('queued_expired');
   });
 
+  test('a released snapshot keeps the time each input was admitted', async () => {
+    const { store, room } = await fixture();
+    let now = new Date('2026-10-17T10:00:00.000Z');
+    const playground = new PlaygroundStore(store.orm, () => now);
+    const alice = room.members[0]!.senderId;
+    playground.submit(room.chatId, { requestKey: 'req-1', senderId: alice, text: 'early' });
+    now = new Date('2026-10-17T11:30:00.000Z');
+    playground.submit(room.chatId, { requestKey: 'req-2', senderId: alice, text: 'later' });
+    now = new Date('2026-10-17T14:00:00.000Z');
+    playground.release(room.chatId, { releaseKey: 'rel-1', revision: playground.room(room.chatId).revision });
+
+    const sentAt = store.orm
+      .select()
+      .from(invocationMessages)
+      .all()
+      .map((row) => JSON.parse(row.snapshotJson).sent_at);
+    expect(sentAt).toEqual(['2026-10-17T10:00:00.000Z', '2026-10-17T11:30:00.000Z']);
+  });
+
+  test('the ingress refuses ids SQLite cannot bind or a number already rounded', async () => {
+    const { store, room } = await fixture();
+    const ingress = new PlaygroundIngress(store.orm);
+    for (const senderId of ['9223372036854775808', '99999999999999999999', 2 ** 53 + 2, -1, 1.5]) {
+      await expect(
+        ingress.submit(room.chatId, { requestKey: `req-${senderId}`, senderId, text: 'hi' }),
+      ).rejects.toMatchObject({ code: 'input_conflict' });
+    }
+    await expect(
+      ingress.submit(room.chatId, { requestKey: 'req-max', senderId: '9223372036854775807', text: 'hi' }),
+    ).rejects.toMatchObject({ code: 'unknown_sender' });
+  });
+
   test('the ingress validates keys and decimal ids before writing', async () => {
     const { store, room } = await fixture();
     const ingress = new PlaygroundIngress(store.orm);

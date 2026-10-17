@@ -529,7 +529,7 @@ export class PlaygroundStore {
         promptVersion: 1n,
         createdAt: now,
       });
-      this.#writeSnapshot(chatId, bucket.id, invocationId, held, now);
+      this.#writeSnapshot(chatId, bucket.id, invocationId, held);
       for (const entry of held) {
         this.#orm
           .update(playgroundInputs)
@@ -865,7 +865,6 @@ export class PlaygroundStore {
     bucketId: bigint,
     invocationId: bigint,
     held: readonly { readonly seq: bigint; readonly messageId: bigint; readonly revisionId: bigint }[],
-    now: string,
   ): void {
     let index = 0n;
     if (RELEASE_HISTORY_MESSAGES > 0) {
@@ -880,6 +879,7 @@ export class PlaygroundStore {
           senderId: messageRevisions.senderId,
           senderName: senders.displayName,
           role: roomParticipants.role,
+          receivedAt: messages.receivedAt,
           replyToSeq: sql<
             bigint | null
           >`(SELECT m2.local_sequence_no FROM messages m2 WHERE m2.id = ${messages.localReplyToMessageId})`,
@@ -922,7 +922,9 @@ export class PlaygroundStore {
           snapshotJson: JSON.stringify({
             host: 'playground',
             message_id: entry.seq.toString(),
-            sent_at: now,
+            // When the member said it, not when the hold was released: a
+            // batch held for hours must not read as one burst.
+            sent_at: row.receivedAt,
             sent_by_bot: false,
             revision: '1',
             sender: {
