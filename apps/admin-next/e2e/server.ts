@@ -686,8 +686,14 @@ async function main(): Promise<void> {
   adminConfig.port = 0;
 
   store = await SqliteStore.open(loaded.config);
-  seedAdminFixture(store);
+  const seed = seedAdminFixture(store);
   seedAdminBulkRows(store);
+  // E2E-only fixture tweak: the shared seed keeps `thinking_text = ''` because
+  // some historical-replay tests build pre-030 tables; the panel meanwhile
+  // gets one assistant row with CoT text to assert the separated display.
+  store.db
+    .prepare('UPDATE agent_messages SET thinking_text = ? WHERE invocation_id = ? AND role = ? AND sequence_no = ?')
+    .run('cot that never reached an answer', seed.invocationB, 'assistant', 1n)
   // Production records the starting prompt versions at startup; mirror that so
   // the Prompts page has history to show.
   recordPromptVersionsFromConfig(store.orm, loaded.config);

@@ -104,6 +104,7 @@ export const invocations: typeof invocationsEn = {
     },
     agent: {
       noText: '无文本内容',
+      thinkingLabel: '思考过程（CoT）',
       viewToolResult: '查看传给 Agent 的工具结果',
     },
     modelCall: {

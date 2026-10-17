@@ -8,6 +8,8 @@ import {
   createModels,
   fauxAssistantMessage,
   fauxProvider,
+  fauxText,
+  fauxThinking,
   fauxToolCall,
   getCurrentTools,
   withoutInitialSystemMessage,
@@ -110,7 +112,7 @@ test.each([undefined, false, true])(
       (context, options) => {
         options?.onPayload?.({ model: 'agent-model', messages: context.messages }, faux.getModel());
         void options?.onResponse?.({ status: 200, headers: {} }, faux.getModel());
-        return fauxAssistantMessage('private assistant text');
+        return fauxAssistantMessage([fauxThinking('cot before the answer'), fauxText('private assistant text')]);
       },
     ]);
     let messageId = 500;
@@ -142,6 +144,20 @@ test.each([undefined, false, true])(
       .all()
       .map((row) => row.text);
     expect(assistantTexts).toContain('private assistant text');
+    expect(
+      store.db
+        .prepare<[], { text: string; thinking_text: string }>(
+          "SELECT text, thinking_text FROM agent_messages WHERE role = 'assistant' AND thinking_text != ''",
+        )
+        .all(),
+    ).toEqual([{ text: 'private assistant text', thinking_text: 'cot before the answer' }]);
+    expect(
+      store.db
+        .prepare<[], { count: bigint }>(
+          "SELECT COUNT(*) AS count FROM agent_messages WHERE role != 'assistant' AND thinking_text != ''",
+        )
+        .get()?.count,
+    ).toBe(0n);
     expect(
       store.db.prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM model_calls WHERE state = 'success'").get()
         ?.count,

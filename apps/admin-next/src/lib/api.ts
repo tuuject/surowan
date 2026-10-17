@@ -129,6 +129,7 @@ export interface AgentMessageEntry {
   readonly sequence_no: number;
   readonly role: string;
   readonly text: string;
+  readonly thinking_text: string;
   readonly created_at: string;
 }
 

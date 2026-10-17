@@ -49,7 +49,7 @@ Plastic Wan 使用单个 SQLite 数据库保存消息、调度状态、能力索
 
 ### 冻结与重放边界
 
-`invocation_messages` 是可重放边界，保存 `history`/`new` 两个区段的 Message Revision 快照；长生命周期 Invocation 的多个批次按 `source_bucket_id` 追加进同一个 Invocation（`sequence_no` 在 Invocation 内保持单调）。消息在 Invocation 创建后被编辑只影响未来 Context，不改写已经冻结的快照。`buckets` 区分 `realtime`（配置长度窗口）与 `startup_catch_up`（启动追赶）两种来源，状态机相同。`agent_messages` 是**按 Invocation 展开的扁平审计轨迹**（人类可读的 `assistant`/`tool_result`/`harness_nudge` 文本行），完整可重放的 transcript 属于 Conversation，见下一节——**Assistant 文本不等于 Telegram 发送**，真正发出去的只有 `telegram_sends` 里的行。
+`invocation_messages` 是可重放边界，保存 `history`/`new` 两个区段的 Message Revision 快照；长生命周期 Invocation 的多个批次按 `source_bucket_id` 追加进同一个 Invocation（`sequence_no` 在 Invocation 内保持单调）。消息在 Invocation 创建后被编辑只影响未来 Context，不改写已经冻结的快照。`buckets` 区分 `realtime`（配置长度窗口）与 `startup_catch_up`（启动追赶）两种来源，状态机相同。`agent_messages` 是**按 Invocation 展开的扁平审计轨迹**（人类可读的 `assistant`/`tool_result`/`harness_nudge` 文本行；assistant 行的 `text` 是本轮 response 的普通文本，模型的 thinking（CoT）单独放在 `thinking_text`，不直接进 Telegram），完整可重放的 transcript 属于 Conversation，见下一节——**Assistant 文本不等于 Telegram 发送**，真正发出去的只有 `telegram_sends` 里的行。
 
 ### Conversation Context（长期会话 transcript）
 
@@ -62,7 +62,7 @@ Plastic Wan 使用单个 SQLite 数据库保存消息、调度状态、能力索
 - `active_invocation_id` 指向当前拥有该 context 的 running Invocation，运行结束时清空；Invocation 行本身被清理时置 `NULL`。
 - `last_active_at` 在每次追加行与 `touch`（Invocation 开始/结束）时刷新，是保留清理判定「空闲 Conversation」的依据；`last_gc_at` 记录最近一次 GC 时间。
 - `context_messages.payload_json` 保存**完整 AgentMessage JSON**（含 thinking 与 tool call 结构），可以直接解码重放，而不是从文本反推；`role` 只有 `user`/`assistant`/`toolResult`。
-- `agent_messages` 与 `context_messages` 的分工：前者是审计轨迹（每 Invocation 扁平展开、人可读、把 harness 提醒单独标成 `harness_nudge`），后者是生产 Agent 跨 Invocation 续跑的来源（完整结构与 thinking、按 Conversation 保留），不是 Admin 场景重放输入；两者都由 `agent-runtime` 写入，互不替代。
+- `agent_messages` 与 `context_messages` 的分工：前者是审计轨迹（每 Invocation 扁平展开、人可读、把 harness 提醒单独标成 `harness_nudge`，assistant 行也带单独的 `thinking_text` CoT 展示），后者是生产 Agent 跨 Invocation 续跑的来源（完整结构与 thinking、按 Conversation 保留），不是 Admin 场景重放输入；两者都由 `agent-runtime` 写入，互不替代。
 - `is_checkpoint` 标记一条注入批次的首条 user 消息；GC 只会把 `head_seq` 推到 checkpoint 行上。
 - `send_seq` 只在「成功实发 `send` 或 `send_reply` 的 toolResult」行上非空（排除图片去重返回），值等于写入时的 `send_count_total + 1`；GC 用它统计保留窗内还剩几次发送。
 - `est_tokens` 是逐行 Token 估算，供 GC 与收尾判定使用，不是精确计数。

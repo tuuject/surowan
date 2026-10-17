@@ -98,6 +98,7 @@ function agentMessage(overrides: Partial<AgentMessageEntry> = {}): AgentMessageE
     sequence_no: 1,
     role: 'assistant',
     text: 'thinking privately',
+    thinking_text: '',
     created_at: AT,
     ...overrides,
   };

@@ -108,6 +108,7 @@ export const invocations = {
     },
     agent: {
       noText: 'No text content',
+      thinkingLabel: 'Thinking (CoT)',
       viewToolResult: 'View tool result passed to the agent',
     },
     modelCall: {

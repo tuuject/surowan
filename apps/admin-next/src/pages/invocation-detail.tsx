@@ -356,7 +356,22 @@ function AgentMessageCard({ message }: { readonly message: AgentMessageEntry }):
       }
       extra={formatTime(message.created_at)}
     >
-      {message.text.length === 0 ? (
+      {message.role === 'assistant' && message.thinking_text.length > 0 ? (
+        <div className="space-y-2">
+          <LazyDetails
+            summary={t('invocations.invocationDetail.agent.thinkingLabel')}
+            summaryClassName="text-muted-foreground cursor-pointer text-xs"
+            contentClassName="mt-1 text-sm break-words whitespace-pre-wrap"
+          >
+            {message.thinking_text}
+          </LazyDetails>
+          {message.text.length === 0 ? (
+            <p className="text-muted-foreground text-sm">{t('invocations.invocationDetail.agent.noText')}</p>
+          ) : (
+            <p className="text-sm break-words whitespace-pre-wrap">{message.text}</p>
+          )}
+        </div>
+      ) : message.text.length === 0 ? (
         <p className="text-muted-foreground text-sm">{t('invocations.invocationDetail.agent.noText')}</p>
       ) : message.role === 'tool_result' ? (
         <LazyDetails
@@ -800,7 +815,24 @@ function AgentTranscriptTab({ invocation }: { readonly invocation: InvocationDet
       key: 'text',
       title: t('invocations.invocationDetail.agentColumns.text'),
       className: 'min-w-64 max-w-2xl whitespace-normal',
-      render: (row) => <p className="text-sm break-words whitespace-pre-wrap">{row.text}</p>,
+      render: (row) => (
+        <div className="space-y-1">
+          {row.thinking_text.length > 0 && row.role === 'assistant' ? (
+            <LazyDetails
+              summary={t('invocations.invocationDetail.agent.thinkingLabel')}
+              summaryClassName="text-muted-foreground cursor-pointer text-xs"
+              contentClassName="text-sm break-words whitespace-pre-wrap"
+            >
+              {row.thinking_text}
+            </LazyDetails>
+          ) : null}
+          {row.text.length === 0 ? (
+            <p className="text-muted-foreground text-sm">{t('invocations.invocationDetail.agent.noText')}</p>
+          ) : (
+            <p className="text-sm break-words whitespace-pre-wrap">{row.text}</p>
+          )}
+        </div>
+      ),
     },
     {
       key: 'created',

@@ -366,7 +366,6 @@ export const agentMessages = sqliteTable(
   (t) => [
     check('agent_messages_role_check', sql`role IN ('assistant', 'tool_result', 'harness_nudge')`),
     uniqueIndex('agent_messages_invocation_sequence_unique').on(t.invocationId, t.sequenceNo),
-    check('agent_messages_thinking_empty_check', sql`thinking_text = ''`),
   ],
 );
 

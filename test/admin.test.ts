@@ -409,7 +409,7 @@ test('audit routes expose tool sessions, messages and sticker cache', async () =
       .run(invocationId, JSON.stringify(['send', 'add_memory']), iso, iso);
     store.db
       .prepare(
-        "INSERT INTO agent_messages(invocation_id, sequence_no, role, text, created_at) VALUES (?, 1, 'assistant', 'private reasoning', ?)",
+        "INSERT INTO agent_messages(invocation_id, sequence_no, role, text, thinking_text, created_at) VALUES (?, 1, 'assistant', 'private reasoning', 'cot before the answer', ?)",
       )
       .run(invocationId, iso);
     store.db
@@ -474,7 +474,11 @@ test('audit routes expose tool sessions, messages and sticker cache', async () =
       error_detail: 'status=500\nbody={"error":"upstream exploded"}',
     });
     expect(detail.model_calls[0].tools).toEqual(['send', 'add_memory']);
-    expect(detail.agent_messages[0]).toMatchObject({ role: 'assistant', text: 'private reasoning' });
+    expect(detail.agent_messages[0]).toMatchObject({
+      role: 'assistant',
+      text: 'private reasoning',
+      thinking_text: 'cot before the answer',
+    });
     expect(detail.telegram_sends[0]).toMatchObject({ kind: 'text', state: 'success', telegram_message_id: '555' });
     expect(detail.context_messages.some((entry: { section: string }) => entry.section === 'new')).toBe(true);
 

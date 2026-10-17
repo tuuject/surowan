@@ -8,18 +8,19 @@ import {
   getCurrentTools,
   type ImageContent,
   type Model,
+  type ThinkingContent,
   type Usage,
 } from '@earendil-works/pi-ai';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { capability, createExecuteTool, type ExecutableCapability } from '../capabilities/execute-tool.ts';
-import { createReadTool } from '../capabilities/read-tool.ts';
 import type { MentionTyping } from '../capabilities/mention-typing.ts';
+import { createReadTool } from '../capabilities/read-tool.ts';
 import { createSendTools, SEND_TOOL_NAMES, type TelegramSendApi } from '../capabilities/send-tool.ts';
 import { createTyping } from '../capabilities/typing.ts';
 import { ContextBuilder, type ContextIdentity, type Injection, type StablePrompt } from '../context/context-builder.ts';
-import type { ContextInjector } from '../context/context-injector.ts';
 import { encodeContextMessage, estimateMessageTokens } from '../context/context-codec.ts';
 import { type ContextGcPlan, isRenderable, planContextGc } from '../context/context-gc.ts';
+import type { ContextInjector } from '../context/context-injector.ts';
 import { ContextRefStore, createCapabilityResolver } from '../context/context-refs.ts';
 import { type ContextHeader, ConversationContextStore, type RetainedContextMessage } from '../context/context-store.ts';
 import { KeyedSemaphore } from '../platform/concurrency.ts';
@@ -41,9 +42,6 @@ import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../pla
 import type { SecretStore } from '../platform/secrets.ts';
 import type { SystemResources, SystemSkill } from '../platform/system-resources.ts';
 import { applyToolSchemaKeywords } from '../platform/tool-schema.ts';
-import type { BusinessStore } from '../store/store.ts';
-import { resolveChatConfig } from '../store/store.ts';
-import { createToolAudit } from '../store/tool-audit.ts';
 import {
   agentMessages,
   buckets,
@@ -61,6 +59,9 @@ import {
   meteredTokens,
   readDailyTokenBudget,
 } from '../store/sleep.ts';
+import type { BusinessStore } from '../store/store.ts';
+import { resolveChatConfig } from '../store/store.ts';
+import { createToolAudit } from '../store/tool-audit.ts';
 import { type CachedConversationAgent, ConversationRuntime } from './conversation-runtime.ts';
 import { attachBucketToInvocation } from './invocation-queue.ts';
 import type { InvocationOutcome } from './scheduler.ts';
@@ -1011,7 +1012,11 @@ export class AgentRuntime {
           .filter((entry) => entry.type === 'text')
           .map((entry) => entry.text)
           .join('');
-        this.recordAgentMessage(invocationId, 'assistant', text);
+        const thinking = event.message.content
+          .filter((entry): entry is ThinkingContent => entry.type === 'thinking' && entry.thinking.trim().length > 0)
+          .map((entry) => entry.thinking)
+          .join('\n\n');
+        this.recordAgentMessage(invocationId, 'assistant', text, thinking);
       } else if (event.message.role === 'toolResult') {
         const text = event.message.content
           .filter((entry) => entry.type === 'text')
@@ -1532,7 +1537,12 @@ export class AgentRuntime {
       .run();
   }
 
-  recordAgentMessage(invocationId: bigint, role: 'assistant' | 'tool_result' | 'harness_nudge', text: string): bigint {
+  recordAgentMessage(
+    invocationId: bigint,
+    role: 'assistant' | 'tool_result' | 'harness_nudge',
+    text: string,
+    thinking = '',
+  ): bigint {
     const sequence =
       this.#store.orm
         .all<{ value: bigint }>(
@@ -1546,7 +1556,7 @@ export class AgentRuntime {
         sequenceNo: sequence,
         role,
         text,
-        thinkingText: '',
+        thinkingText: thinking,
         createdAt: new Date().toISOString(),
       })
       .returning({ id: agentMessages.id })

@@ -746,6 +746,7 @@ export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | n
       sequenceNo: agentMessages.sequenceNo,
       role: agentMessages.role,
       text: agentMessages.text,
+      thinkingText: agentMessages.thinkingText,
       createdAt: agentMessages.createdAt,
     })
     .from(agentMessages)
@@ -851,6 +852,7 @@ export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | n
       sequence_no: Number(row.sequenceNo),
       role: row.role,
       text: row.text,
+      thinking_text: row.thinkingText,
       created_at: row.createdAt,
     })),
     telegram_sends: sendRows.map((row) => ({

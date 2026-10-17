@@ -116,5 +116,11 @@ test.describe('failed invocation (4002)', () => {
     await page.getByRole('tab', { name: /Agent transcript/ }).click();
     await expect(page.getByText('Private reasoning', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('trying to answer but the model call failed')).toBeVisible();
+    // The thinking (CoT) text is listed separately from the response text.
+    const summary = page.getByText('Thinking (CoT)', { exact: true }).first();
+    await expect(summary).toBeVisible();
+    await expect(page.getByText('cot that never reached an answer')).toHaveCount(0);
+    await summary.click();
+    await expect(page.getByText('cot that never reached an answer')).toBeVisible();
   });
 });
