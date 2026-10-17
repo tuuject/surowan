@@ -1210,7 +1210,10 @@ export interface DeveloperSettings {
   readonly active_record_agent_thinking: boolean;
 }
 
-export type DeveloperUpdate = { readonly record_model_payloads: boolean } | { readonly record_agent_thinking: boolean };
+export interface DeveloperUpdate {
+  readonly record_model_payloads?: boolean;
+  readonly record_agent_thinking?: boolean;
+}
 
 export function getDeveloperSettings(): Promise<DeveloperSettings> {
   return call<DeveloperSettings>('/developer');
