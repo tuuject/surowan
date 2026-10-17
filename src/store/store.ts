@@ -72,6 +72,14 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
         WHERE m.received_at < ${cutoff}
       )
     `);
+      // A held room input past retention expires visibly; its ledger row then
+      // outlives the message as the request key's tombstone.
+      orm.run(sql`
+      UPDATE playground_inputs
+      SET state = 'expired'
+      WHERE state = 'held'
+        AND message_id IN (SELECT id FROM messages WHERE received_at < ${cutoff})
+    `);
       orm.run(sql`
       UPDATE messages
       SET current_revision_id = NULL

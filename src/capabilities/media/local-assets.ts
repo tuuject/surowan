@@ -2,8 +2,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import sharp, { type Metadata } from 'sharp';
-import { and, eq, isNull, lt, or } from 'drizzle-orm';
-import { playgroundAssets } from '../../store/schema.ts';
+import { and, eq, lt, notExists } from 'drizzle-orm';
+import { media, playgroundAssets } from '../../store/schema.ts';
 import type { Orm } from '../../store/store.ts';
 
 /** The only formats a room may hold. Everything else is refused by content. */
@@ -239,16 +239,17 @@ export class PlaygroundAssetStore {
   async sweep(options: { readonly staleAfterMs?: number } = {}): Promise<{ staged: number; orphans: number }> {
     const staleAfterMs = options.staleAfterMs ?? 60 * 60 * 1000;
     const cutoff = new Date(this.#now().getTime() - staleAfterMs).toISOString();
-    // A staged upload never became a message. An attached one whose media row
-    // was removed (a rewound release deletes revisions) is just as orphaned:
-    // `media_id` is nulled by the foreign key when that happens.
+    // An asset is disposable once no media row points at it: a staged upload
+    // that never became a message, or one whose every message was pruned.
+    // One asset can back several messages (uploads dedupe by content), so
+    // `media_id`, which names only the latest attachment, is not the test.
     const stale = this.#orm
       .select({ id: playgroundAssets.id, path: playgroundAssets.storagePath })
       .from(playgroundAssets)
       .where(
         and(
           lt(playgroundAssets.createdAt, cutoff),
-          or(eq(playgroundAssets.state, 'staged'), isNull(playgroundAssets.mediaId)),
+          notExists(this.#orm.select({ id: media.id }).from(media).where(eq(media.localAssetId, playgroundAssets.id))),
         ),
       )
       .all();

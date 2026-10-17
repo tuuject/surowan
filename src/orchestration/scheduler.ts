@@ -251,11 +251,15 @@ export class BucketScheduler {
       deadlines.push(Date.parse(receipt.created_at));
     }
     // A queued invocation that can actually launch must not wait for the next
-    // full poll. One blocked behind a running invocation in the same chat is
-    // excluded, otherwise its past deadline would busy-loop the scheduler.
-    const queued = this.#store.orm
-      .all<{ deadline_at: string }>(
-        sql`SELECT b.deadline_at FROM invocations i
+    // full poll. One blocked behind a running invocation in the same chat, or
+    // behind a full concurrency limit, is excluded: its past deadline would
+    // busy-loop the scheduler, and a finishing run wakes it anyway.
+    const slotsFull = this.#active.size >= this.#configStore.current().config.agent.max_concurrency;
+    const queued = slotsFull
+      ? undefined
+      : this.#store.orm
+          .all<{ deadline_at: string }>(
+            sql`SELECT b.deadline_at FROM invocations i
          JOIN buckets b ON b.id = i.bucket_id
          JOIN conversations v ON v.id = i.conversation_id
          WHERE i.state = 'queued'
@@ -264,8 +268,8 @@ export class BucketScheduler {
              WHERE v2.chat_id = v.chat_id AND r.state = 'running'
            )
          ORDER BY b.deadline_at LIMIT 1`,
-      )
-      .at(0);
+          )
+          .at(0);
     if (queued !== undefined) {
       deadlines.push(Date.parse(queued.deadline_at));
     }

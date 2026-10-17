@@ -7,7 +7,19 @@ import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { PlaygroundIngress } from '../src/ingress/playground.ts';
 import { PlaygroundError, PlaygroundStore } from '../src/store/playground.ts';
-import { buckets, invocationMessages, invocations } from '../src/store/schema.ts';
+import {
+  buckets,
+  invocationMessages,
+  invocations,
+  media,
+  playgroundAssets,
+  playgroundInputs,
+  playgroundRetries,
+  roomParticipants,
+  senders,
+} from '../src/store/schema.ts';
+import { purgeExpiredData } from '../src/store/store.ts';
+import type { RawConfig } from '../src/platform/config.ts';
 import { writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
@@ -20,6 +32,7 @@ afterAll(async () => {
 
 async function fixture(): Promise<{
   store: SqliteStore;
+  config: RawConfig;
   room: { chatId: bigint; conversationId: bigint; members: readonly { senderId: bigint; name: string }[] };
 }> {
   const directory = await mkdtemp(join(tmpdir(), 'plasticwan-playground-ingest-'));
@@ -33,7 +46,7 @@ async function fixture(): Promise<{
     title: 'Test Room',
     members: [{ name: 'Alice', role: 'admin' }, { name: 'Bob' }],
   });
-  return { store, room };
+  return { store, room, config: loaded.config };
 }
 
 function expectCode(run: () => unknown, code: string): void {
@@ -217,13 +230,145 @@ describe('playground ingestion', () => {
     expect(replay.replayed).toBe(true);
     expect(replay.invocationId).toBe(retry.invocationId);
 
-    // A retried invocation with a side effect is refused.
-    store.orm.update(invocations).set({ sendsUsed: 1n }).where(eq(invocations.id, invocationId)).run();
-    store.orm.update(invocations).set({ state: 'failed' }).where(eq(invocations.id, retry.invocationId)).run();
+    // A latest attempt with a side effect is refused.
+    store.orm
+      .update(invocations)
+      .set({ state: 'failed', sendsUsed: 1n })
+      .where(eq(invocations.id, retry.invocationId))
+      .run();
     expectCode(
       () => playground.retry(room.chatId, { releaseId: release.releaseId, attemptKey: 'try-2' }),
       'retry_refused',
     );
+  });
+
+  test('a second attempt key cannot queue a release that is already being retried', async () => {
+    const { store, room } = await fixture();
+    const playground = new PlaygroundStore(store.orm);
+    playground.submit(room.chatId, {
+      requestKey: 'req-1',
+      senderId: room.members[0]!.senderId,
+      text: 'hello',
+    });
+    const release = playground.release(room.chatId, {
+      releaseKey: 'rel-1',
+      revision: playground.room(room.chatId).revision,
+    });
+    store.orm
+      .update(invocations)
+      .set({ state: 'failed', errorCode: 'crashed', finishedAt: '2026-10-17T10:01:00.000Z' })
+      .where(eq(invocations.id, release.invocationId!))
+      .run();
+    const first = playground.retry(room.chatId, { releaseId: release.releaseId, attemptKey: 'try-1' });
+
+    // The first attempt is still queued: the original stays failed and clean,
+    // but it is no longer the attempt that decides.
+    expectCode(
+      () => playground.retry(room.chatId, { releaseId: release.releaseId, attemptKey: 'try-2' }),
+      'retry_refused',
+    );
+    // Once that attempt failed cleanly, the next one retries it, not the original.
+    store.orm.update(invocations).set({ state: 'failed' }).where(eq(invocations.id, first.invocationId)).run();
+    const second = playground.retry(room.chatId, { releaseId: release.releaseId, attemptKey: 'try-2' });
+    const recorded = store.orm
+      .select({ retryOf: playgroundRetries.retryOfInvocationId })
+      .from(playgroundRetries)
+      .where(eq(playgroundRetries.invocationId, second.invocationId))
+      .get();
+    expect(recorded?.retryOf).toBe(first.invocationId);
+    expect(store.orm.select().from(invocations).all()).toHaveLength(3);
+  });
+
+  test('only a human member of the room may submit', async () => {
+    const { store, room } = await fixture();
+    const playground = new PlaygroundStore(store.orm);
+    const other = playground.createRoom({ title: 'Other Room', members: [{ name: 'Mallory' }] });
+    const bot = store.orm
+      .insert(senders)
+      .values({ hostKind: 'playground', displayName: 'Bot', isBot: true, updatedAt: '2026-10-17T10:00:00.000Z' })
+      .returning({ id: senders.id })
+      .get()!;
+    store.orm
+      .insert(roomParticipants)
+      .values({ chatId: room.chatId, senderId: bot.id, role: 'admin', joinedAt: '2026-10-17T10:00:00.000Z' })
+      .run();
+
+    for (const senderId of [other.members[0]!.senderId, bot.id, 999_999n]) {
+      expectCode(
+        () => playground.submit(room.chatId, { requestKey: `req-${senderId}`, senderId, text: 'hi' }),
+        'unknown_sender',
+      );
+    }
+    expect(playground.status(room.chatId).held).toHaveLength(0);
+    expect(playground.room(room.chatId).nextSeq).toBe(1n);
+  });
+
+  test('a message cannot carry an asset of another room', async () => {
+    const { store, room } = await fixture();
+    const playground = new PlaygroundStore(store.orm);
+    const other = playground.createRoom({ title: 'Other Room', members: [{ name: 'Mallory' }] });
+    const sha256 = 'a'.repeat(64);
+    store.orm
+      .insert(playgroundAssets)
+      .values({
+        id: 'b'.repeat(32),
+        chatId: other.chatId,
+        sha256,
+        mime: 'image/png',
+        byteSize: 10n,
+        width: 1n,
+        height: 1n,
+        storagePath: `${other.chatId}/${'b'.repeat(32)}.png`,
+        state: 'staged',
+        createdAt: '2026-10-17T10:00:00.000Z',
+      })
+      .run();
+    const asset = { assetId: 'b'.repeat(32), sha256, mime: 'image/png', byteSize: 10, width: 1, height: 1 };
+
+    for (const item of [asset, { ...asset, assetId: 'c'.repeat(32) }]) {
+      expectCode(
+        () =>
+          playground.submit(room.chatId, {
+            requestKey: `req-${item.assetId}`,
+            senderId: room.members[0]!.senderId,
+            text: '',
+            media: [item],
+          }),
+        'unknown_asset',
+      );
+    }
+    expect(store.orm.select().from(media).all()).toHaveLength(0);
+    expect(store.orm.select().from(playgroundAssets).get()?.state).toBe('staged');
+  });
+
+  test('retention expires a held input visibly and keeps its request key', async () => {
+    const { store, room, config } = await fixture();
+    const playground = new PlaygroundStore(store.orm);
+    const alice = room.members[0]!.senderId;
+    playground.submit(room.chatId, { requestKey: 'req-old', senderId: alice, text: 'long held' });
+
+    purgeExpiredData(store.orm, config, new Date(Date.now() + (config.retention.online_days + 1) * 86_400_000));
+
+    const status = playground.status(room.chatId);
+    expect(status.held).toHaveLength(0);
+    expect(status.expiredInputs).toBe(1);
+    const tombstone = store.orm.select().from(playgroundInputs).all();
+    expect(tombstone).toMatchObject([{ requestKey: 'req-old', state: 'expired', messageId: null }]);
+    // The key still names the first admission: neither its replay nor a new
+    // body under it admits a second message.
+    expect(playground.submit(room.chatId, { requestKey: 'req-old', senderId: alice, text: 'long held' })).toMatchObject(
+      { admitted: false, seq: 1n },
+    );
+    expectCode(
+      () => playground.submit(room.chatId, { requestKey: 'req-old', senderId: alice, text: 'other' }),
+      'input_conflict',
+    );
+    // An expired input is never sealed by a later release.
+    const release = playground.release(room.chatId, {
+      releaseKey: 'rel-1',
+      revision: playground.room(room.chatId).revision,
+    });
+    expect(release.invocationId).toBeNull();
   });
 
   test('queued work expires visibly instead of re-releasing', async () => {

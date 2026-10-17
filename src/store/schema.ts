@@ -1008,12 +1008,9 @@ export const playgroundInputs = sqliteTable(
     seq: sqliteBigInt('seq').notNull(),
     requestKey: text('request_key').notNull(),
     fingerprint: text('fingerprint').notNull(),
-    messageId: sqliteBigInt('message_id')
-      .notNull()
-      .references(() => messages.id, { onDelete: 'cascade' }),
-    revisionId: sqliteBigInt('revision_id')
-      .notNull()
-      .references(() => messageRevisions.id, { onDelete: 'cascade' }),
+    // Nulled by retention: the row stays as the request key's tombstone.
+    messageId: sqliteBigInt('message_id').references(() => messages.id, { onDelete: 'set null' }),
+    revisionId: sqliteBigInt('revision_id').references(() => messageRevisions.id, { onDelete: 'set null' }),
     state: text('state').notNull().default('held'),
     releaseId: sqliteBigInt('release_id'),
     createdAt: text('created_at').notNull(),
@@ -1021,6 +1018,10 @@ export const playgroundInputs = sqliteTable(
   },
   (t) => [
     check('playground_inputs_state_check', sql`state IN ('held', 'released', 'expired')`),
+    check(
+      'playground_inputs_held_message_check',
+      sql`state <> 'held' OR (message_id IS NOT NULL AND revision_id IS NOT NULL)`,
+    ),
     uniqueIndex('playground_inputs_room_seq_idx').on(t.chatId, t.seq),
     uniqueIndex('playground_inputs_request_idx').on(t.chatId, t.requestKey),
     index('playground_inputs_held_idx').on(t.chatId, t.state, t.seq),

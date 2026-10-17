@@ -11,7 +11,7 @@
  *   cannot both seal the same batch.
  */
 import { createHash } from 'node:crypto';
-import { and, asc, eq, gt, lt, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, lt, sql } from 'drizzle-orm';
 import { ROOM_SNAPSHOT_FORMAT } from '../context/context-builder.ts';
 import { enqueueInvocation } from './invocation-enqueue.ts';
 import type { Orm } from './store.ts';
@@ -44,8 +44,10 @@ export type PlaygroundErrorCode =
   | 'input_conflict'
   | 'release_conflict'
   | 'retry_refused'
+  | 'unknown_asset'
   | 'unknown_input'
-  | 'unknown_release';
+  | 'unknown_release'
+  | 'unknown_sender';
 
 export class PlaygroundError extends Error {
   override readonly name = 'PlaygroundError';
@@ -142,6 +144,8 @@ export interface ReleaseStatus {
 
 export interface RoomStatus extends RoomState {
   readonly held: readonly HeldInput[];
+  /** Held inputs that retention expired before any release sealed them. */
+  readonly expiredInputs: number;
   readonly releases: readonly ReleaseStatus[];
 }
 
@@ -276,6 +280,41 @@ export class PlaygroundStore {
           revision: existing.revision,
           admitted: false,
         };
+      }
+      // Only a human member of this room may speak in it. The sender id comes
+      // from the caller, so a foreign key alone would accept another room's
+      // member, a Telegram sender or the bot itself.
+      const member = this.#orm
+        .select({ senderId: roomParticipants.senderId })
+        .from(roomParticipants)
+        .innerJoin(senders, eq(senders.id, roomParticipants.senderId))
+        .where(
+          and(
+            eq(roomParticipants.chatId, chatId),
+            eq(roomParticipants.senderId, input.senderId),
+            eq(senders.hostKind, 'playground'),
+            eq(senders.isBot, false),
+          ),
+        )
+        .get();
+      if (member === undefined) {
+        throw new PlaygroundError('unknown_sender', `sender ${input.senderId} is not a member of room ${chatId}`);
+      }
+      for (const item of input.media ?? []) {
+        const asset = this.#orm
+          .select({ id: playgroundAssets.id })
+          .from(playgroundAssets)
+          .where(
+            and(
+              eq(playgroundAssets.id, item.assetId),
+              eq(playgroundAssets.chatId, chatId),
+              eq(playgroundAssets.sha256, item.sha256),
+            ),
+          )
+          .get();
+        if (asset === undefined) {
+          throw new PlaygroundError('unknown_asset', `asset ${item.assetId} does not belong to room ${chatId}`);
+        }
       }
       const seq = room.nextSeq;
       const replyMessageId =
@@ -438,7 +477,15 @@ export class PlaygroundStore {
         .from(playgroundInputs)
         .where(and(eq(playgroundInputs.chatId, chatId), eq(playgroundInputs.state, 'held')))
         .orderBy(asc(playgroundInputs.seq))
-        .all();
+        .all()
+        .map((row) => {
+          // The table refuses a held row without its message; this only
+          // narrows the type for the snapshot below.
+          if (row.messageId === null || row.revisionId === null) {
+            throw new Error(`held room input ${row.seq} lost its message`);
+          }
+          return { id: row.id, seq: row.seq, messageId: row.messageId, revisionId: row.revisionId };
+        });
       const throughSeq = held.at(-1)?.seq ?? 0n;
       const release = this.#orm
         .insert(playgroundReleases)
@@ -567,9 +614,19 @@ export class PlaygroundStore {
       if (later !== undefined) {
         throw new PlaygroundError('retry_refused', 'a later release exists in this room');
       }
-      const original = this.#orm.select().from(invocations).where(eq(invocations.id, release.invocationId)).get();
+      // Every guard below judges the release's latest attempt. The first
+      // invocation stays failed after it was retried, so checking it again
+      // would let a second attempt key queue the same batch twice.
+      const latestRetry = this.#orm
+        .select({ invocationId: playgroundRetries.invocationId })
+        .from(playgroundRetries)
+        .where(eq(playgroundRetries.releaseId, release.id))
+        .orderBy(desc(playgroundRetries.id))
+        .get();
+      const attemptInvocationId = latestRetry?.invocationId ?? release.invocationId;
+      const original = this.#orm.select().from(invocations).where(eq(invocations.id, attemptInvocationId)).get();
       if (original === undefined) {
-        throw new PlaygroundError('unknown_release', `invocation ${release.invocationId} does not exist`);
+        throw new PlaygroundError('unknown_release', `invocation ${attemptInvocationId} does not exist`);
       }
       // Only a known, terminated attempt may be retried. `outcome_unknown`
       // is exactly the case we must not double-run.
@@ -675,7 +732,7 @@ export class PlaygroundStore {
       .select({
         inputId: playgroundInputs.id,
         seq: playgroundInputs.seq,
-        messageId: playgroundInputs.messageId,
+        messageId: messageRevisions.messageId,
         senderId: messageRevisions.senderId,
         text: messageRevisions.text,
         createdAt: playgroundInputs.createdAt,
@@ -720,7 +777,13 @@ export class PlaygroundStore {
           invocationErrorCode: invocation?.errorCode ?? null,
         };
       });
-    return { ...room, held, releases };
+    const expiredInputs =
+      this.#orm
+        .select({ count: count() })
+        .from(playgroundInputs)
+        .where(and(eq(playgroundInputs.chatId, chatId), eq(playgroundInputs.state, 'expired')))
+        .get()?.count ?? 0;
+    return { ...room, held, expiredInputs, releases };
   }
 
   /**
