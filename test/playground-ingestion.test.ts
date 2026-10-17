@@ -150,10 +150,7 @@ describe('playground ingestion', () => {
     });
     const revision = playground.room(room.chatId).revision;
     playground.release(room.chatId, { releaseKey: 'rel-a', revision });
-    expectCode(
-      () => playground.release(room.chatId, { releaseKey: 'rel-b', revision }),
-      'release_conflict',
-    );
+    expectCode(() => playground.release(room.chatId, { releaseKey: 'rel-b', revision }), 'release_conflict');
     expect(store.orm.select().from(invocations).all()).toHaveLength(1);
   });
 

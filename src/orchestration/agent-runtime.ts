@@ -25,11 +25,7 @@ import type { ContextInjector } from '../context/context-injector.ts';
 import { ContextRefStore, createCapabilityResolver } from '../context/context-refs.ts';
 import { type ContextHeader, ConversationContextStore, type RetainedContextMessage } from '../context/context-store.ts';
 import { KeyedSemaphore } from '../platform/concurrency.ts';
-import {
-  type AgentSettings,
-  configuredToolSchemaKeywords,
-  type RawConfig,
-} from '../platform/config.ts';
+import { type AgentSettings, configuredToolSchemaKeywords, type RawConfig } from '../platform/config.ts';
 import {
   type CapabilityRefResolver,
   type InvocationContext,
@@ -291,11 +287,11 @@ export class AgentRuntime {
         resolver,
         capabilities,
         hostExecutionProfile(context.hostKind).sleep &&
-        isLowDailyTokenBudget(
-          readDailyTokenBudget(this.#store.orm, config.agent.daily_budget.max_tokens, {
-            scope: hostExecutionProfile(context.hostKind).budgetScope,
-          }),
-        )
+          isLowDailyTokenBudget(
+            readDailyTokenBudget(this.#store.orm, config.agent.daily_budget.max_tokens, {
+              scope: hostExecutionProfile(context.hostKind).budgetScope,
+            }),
+          )
           ? createZzzTool({
               orm: this.#store.orm,
               invocationId: context.invocationId,
@@ -739,10 +735,7 @@ export class AgentRuntime {
     };
 
     agent.streamFunction = async (streamModel, modelContext, options) => {
-      if (
-        !bypassDailyBudget() &&
-        isDailyTokenBudgetReached(dailyBudget())
-      ) {
+      if (!bypassDailyBudget() && isDailyTokenBudgetReached(dailyBudget())) {
         state.modelBudgetBlocked = true;
         return errorStream(streamModel, 'daily_token_budget');
       }
@@ -811,11 +804,7 @@ export class AgentRuntime {
       ) {
         return { block: true, reason: 'The bot is sleeping', terminate: true };
       }
-      if (
-        toolCall.name === 'zzz' &&
-        (bypassDailyBudget() ||
-          !isLowDailyTokenBudget(dailyBudget()))
-      ) {
+      if (toolCall.name === 'zzz' && (bypassDailyBudget() || !isLowDailyTokenBudget(dailyBudget()))) {
         return { block: true, reason: 'You are no longer sleepy' };
       }
       // Audit-only counter: there is no per-invocation tool-call cap. Runaway
@@ -919,10 +908,7 @@ export class AgentRuntime {
       if (!bypassDailyBudget() && (state.sleepRequested || activeSleepUntil(this.#store.orm) !== null)) {
         return stop('sleep');
       }
-      if (
-        !bypassDailyBudget() &&
-        isDailyTokenBudgetReached(dailyBudget())
-      ) {
+      if (!bypassDailyBudget() && isDailyTokenBudgetReached(dailyBudget())) {
         return stop('budget');
       }
       if (state.contextClosing) {
@@ -1522,12 +1508,7 @@ export class AgentRuntime {
     }
   }
 
-  #finishModelCall(
-    callId: bigint,
-    chatId: bigint,
-    message: AssistantMessage,
-    scope: 'chat' | 'playground',
-  ): void {
+  #finishModelCall(callId: bigint, chatId: bigint, message: AssistantMessage, scope: 'chat' | 'playground'): void {
     this.#store.transaction(() => {
       const usage = message.usage;
       const now = new Date().toISOString();

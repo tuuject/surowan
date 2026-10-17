@@ -397,10 +397,7 @@ export class ReplayRunner {
           fail('turn_budget', 'Replay turn budget exhausted');
           throw new Error('Replay turn budget');
         }
-        const release = await modelGate.acquire(
-          invocationGateKey('telegram', source.chatId),
-          signal,
-        );
+        const release = await modelGate.acquire(invocationGateKey('telegram', source.chatId), signal);
         try {
           signal.throwIfAborted();
           turns += 1;

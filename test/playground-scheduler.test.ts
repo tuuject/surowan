@@ -59,8 +59,7 @@ describe('playground scheduling', () => {
     const playground = new PlaygroundStore(store.orm);
     const member = playground.status(room.chatId);
     expect(member.held).toHaveLength(0);
-    const senderId = store.orm
-      .all<{ id: bigint }>('SELECT id FROM senders LIMIT 1')[0]!.id;
+    const senderId = store.orm.all<{ id: bigint }>('SELECT id FROM senders LIMIT 1')[0]!.id;
     const ingress = new PlaygroundIngress(store.orm);
     await ingress.submit(room.chatId, { requestKey: 'req-1', senderId, text: 'hello' });
     const release = ingress.release(room.chatId, {
@@ -94,8 +93,7 @@ describe('playground scheduling', () => {
   test('a queued release survives a restart and runs once on startup', async () => {
     const { store, configStore, room } = await fixture();
     const playground = new PlaygroundStore(store.orm);
-    const senderId = store.orm
-      .all<{ id: bigint }>('SELECT id FROM senders LIMIT 1')[0]!.id;
+    const senderId = store.orm.all<{ id: bigint }>('SELECT id FROM senders LIMIT 1')[0]!.id;
     playground.submit(room.chatId, { requestKey: 'req-1', senderId, text: 'hello' });
     const release = playground.release(room.chatId, {
       releaseKey: 'rel-1',

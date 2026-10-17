@@ -12,10 +12,7 @@
  * the only place that decides how a host maps to those pieces, so callers do
  * not have to know whether they are looking at a Telegram chat or a room.
  */
-import {
-  resolveAgentSettings,
-  type RawConfig,
-} from './config.ts';
+import { resolveAgentSettings, type RawConfig } from './config.ts';
 import type { HostKind } from './im-host.ts';
 import { resolveChatConfig, type Orm } from '../store/store.ts';
 
@@ -67,10 +64,7 @@ export function invocationGateKey(hostKind: HostKind, chatId: bigint): string {
  * Telegram keeps the configured window; a room is sealed when its input is
  * released, so it collects nothing.
  */
-export function resolveBucketWindowSeconds(
-  config: RawConfig,
-  hostKind: HostKind,
-): number {
+export function resolveBucketWindowSeconds(config: RawConfig, hostKind: HostKind): number {
   return hostKind === 'telegram' ? config.telegram.bucket_window_seconds : 0;
 }
 
@@ -94,11 +88,7 @@ export function invocationChatEntry(
  * chat entry, so it uses the configured agent defaults, the global timezone,
  * and no debounce window.
  */
-export function resolveInvocationPolicy(
-  config: RawConfig,
-  orm: Orm,
-  scope: InvocationScope,
-): InvocationPolicy {
+export function resolveInvocationPolicy(config: RawConfig, orm: Orm, scope: InvocationScope): InvocationPolicy {
   const chat = invocationChatEntry(config, orm, scope);
   if (scope.hostKind === 'telegram' && chat === undefined) {
     throw new Error(`Invocation chat ${scope.chatId} is no longer configured`);

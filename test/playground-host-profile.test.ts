@@ -79,9 +79,9 @@ describe('host execution profile', () => {
 
   test('builtin plugins declare the hosts they serve', () => {
     const hosts = Object.fromEntries(BUILTIN_PLUGINS.map((plugin) => [plugin.id, pluginHosts(plugin)]));
-    expect(hosts['alarm']).toEqual(['telegram']);
-    expect(hosts['dictionary']).toEqual(['telegram']);
-    expect(hosts['image']).toEqual(['telegram']);
+    expect(hosts.alarm).toEqual(['telegram']);
+    expect(hosts.dictionary).toEqual(['telegram']);
+    expect(hosts.image).toEqual(['telegram']);
     expect(hosts['web-fetch']).toEqual(['telegram', 'playground']);
   });
 
@@ -135,7 +135,14 @@ describe('host execution profile', () => {
       .insert(dailyUsage)
       .values([
         { utcDate, scope: 'chat', resource: '1', metric: 'model_tokens', amount: 100n, updatedAt: day.toISOString() },
-        { utcDate, scope: 'playground', resource: '2', metric: 'model_tokens', amount: 7n, updatedAt: day.toISOString() },
+        {
+          utcDate,
+          scope: 'playground',
+          resource: '2',
+          metric: 'model_tokens',
+          amount: 7n,
+          updatedAt: day.toISOString(),
+        },
       ])
       .run();
 

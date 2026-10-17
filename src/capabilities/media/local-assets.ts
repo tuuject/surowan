@@ -210,7 +210,12 @@ export class PlaygroundAssetStore {
     if (!isLocalImageMime(row.mime)) {
       return null;
     }
-    return { path: this.#absolute(row.storagePath), mime: row.mime, width: Number(row.width), height: Number(row.height) };
+    return {
+      path: this.#absolute(row.storagePath),
+      mime: row.mime,
+      width: Number(row.width),
+      height: Number(row.height),
+    };
   }
 
   async read(assetId: string): Promise<Uint8Array | null> {
@@ -345,9 +350,7 @@ export class PlaygroundAssetStore {
           }
           await rm(path, { force: true });
           removed += 1;
-        } catch {
-          continue;
-        }
+        } catch {}
       }
     }
     return removed;

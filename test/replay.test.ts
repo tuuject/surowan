@@ -897,10 +897,7 @@ test('failed scene image loading degrades to a redacted tool error without produ
 
 test('scene replay shares the live model gate, rejects concurrent runs and releases its lock on cancellation', async () => {
   const f = await fixture();
-  const release = await f.gate.acquire(
-    invocationGateKey('telegram', 123456789n),
-    new AbortController().signal,
-  );
+  const release = await f.gate.acquire(invocationGateKey('telegram', 123456789n), new AbortController().signal);
   const request = new AbortController();
   const pending = f.run({}, request.signal);
   await expect(f.run()).rejects.toMatchObject({ code: 'replay_busy', status: 429 });
@@ -945,10 +942,7 @@ test('shutdown cancels an in-flight model request without writes and model error
 
 test('configured wall-clock limit covers waiting for a model slot', async () => {
   const f = await fixture({ change: (config) => (config.agent.context!.max_wall_clock_seconds = 1) });
-  const release = await f.gate.acquire(
-    invocationGateKey('telegram', 123456789n),
-    new AbortController().signal,
-  );
+  const release = await f.gate.acquire(invocationGateKey('telegram', 123456789n), new AbortController().signal);
   try {
     expect(await f.run()).toMatchObject({ error: { code: 'timeout' }, usage: { model_calls: 0 } });
   } finally {

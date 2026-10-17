@@ -408,15 +408,9 @@ export class BucketScheduler {
         // read: a room collects nothing, and a Telegram chat keeps the window
         // it had when the run started. Resolving it from the host kind does
         // not require the chat entry to still exist.
-        const windowSeconds = resolveBucketWindowSeconds(
-          this.#configStore.current().config,
-          chat.hostKind as HostKind,
-        );
+        const windowSeconds = resolveBucketWindowSeconds(this.#configStore.current().config, chat.hostKind as HostKind);
         const nextDeadline = new Date(
-          Math.max(
-            finishedAt.getTime(),
-            Date.parse(started.started_at) + windowSeconds * 1_000,
-          ),
+          Math.max(finishedAt.getTime(), Date.parse(started.started_at) + windowSeconds * 1_000),
         ).toISOString();
         this.#store.orm.run(
           sql`UPDATE buckets SET deadline_at = ${nextDeadline}, updated_at = ${nowIso}
