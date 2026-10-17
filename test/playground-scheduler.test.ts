@@ -62,7 +62,7 @@ describe('playground scheduling', () => {
     const senderId = store.orm
       .all<{ id: bigint }>('SELECT id FROM senders LIMIT 1')[0]!.id;
     const ingress = new PlaygroundIngress(store.orm);
-    ingress.submit(room.chatId, { requestKey: 'req-1', senderId, text: 'hello' });
+    await ingress.submit(room.chatId, { requestKey: 'req-1', senderId, text: 'hello' });
     const release = ingress.release(room.chatId, {
       releaseKey: 'rel-1',
       revision: playground.room(room.chatId).revision,

@@ -239,6 +239,8 @@ export const media = sqliteTable(
     width: sqliteBigInt('width'),
     height: sqliteBigInt('height'),
     telegramJson: text('telegram_json').notNull(),
+    hostKind: text('host_kind').notNull().default('telegram'),
+    localAssetId: text('local_asset_id'),
   },
   (t) => [
     check('media_kind_check', sql`kind IN ('photo', 'document', 'sticker')`),
@@ -1022,6 +1024,38 @@ export const playgroundInputs = sqliteTable(
     uniqueIndex('playground_inputs_room_seq_idx').on(t.chatId, t.seq),
     uniqueIndex('playground_inputs_request_idx').on(t.chatId, t.requestKey),
     index('playground_inputs_held_idx').on(t.chatId, t.state, t.seq),
+  ],
+);
+
+/**
+ * A local static image that belongs to one room.
+ *
+ * The bytes live under the media cache; the row keeps the real format, the
+ * content hash used for dedupe and cache identity, and the lifecycle state so
+ * a staged upload that never became a message can be swept.
+ */
+export const playgroundAssets = sqliteTable(
+  'playground_assets',
+  {
+    id: text('id').primaryKey(),
+    chatId: sqliteBigInt('chat_id')
+      .notNull()
+      .references(() => chats.id, { onDelete: 'cascade' }),
+    sha256: text('sha256').notNull(),
+    mime: text('mime').notNull(),
+    byteSize: sqliteBigInt('byte_size').notNull(),
+    width: sqliteBigInt('width').notNull(),
+    height: sqliteBigInt('height').notNull(),
+    storagePath: text('storage_path').notNull(),
+    state: text('state').notNull().default('staged'),
+    mediaId: sqliteBigInt('media_id').references(() => media.id, { onDelete: 'set null' }),
+    createdAt: text('created_at').notNull(),
+    attachedAt: text('attached_at'),
+  },
+  (t) => [
+    check('playground_assets_state_check', sql`state IN ('staged', 'attached')`),
+    uniqueIndex('playground_assets_content_idx').on(t.chatId, t.sha256),
+    index('playground_assets_state_idx').on(t.state, t.createdAt),
   ],
 );
 

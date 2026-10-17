@@ -1,7 +1,9 @@
 /** Local process composition root: owns transport, files, locks and lifecycle. */
+import { join } from 'node:path';
 import { and, eq } from 'drizzle-orm';
 import { Bot, type Context } from 'grammy';
 import { capability, type ExecutableCapability } from '../../capabilities/execute-tool.ts';
+import { PlaygroundAssetStore } from '../../capabilities/media/local-assets.ts';
 import { McpManager } from '../../capabilities/mcp.ts';
 import { MediaService } from '../../capabilities/media/media.ts';
 import { TelegramMediaClient } from '../../capabilities/media/media-download.ts';
@@ -189,12 +191,17 @@ export async function serve(configPath: string, takeover = false): Promise<void>
     const ingestion = new TelegramIngestion(store, configStore, me);
     const modelGate = new KeyedSemaphore();
     const mediaClient = new TelegramMediaClient(bot.api, token);
+    const playgroundAssets = new PlaygroundAssetStore({
+      orm: store.orm,
+      root: join(configStore.current().config.data_dir, 'images', 'playground'),
+    });
     const media = new MediaService({
       store,
       configStore,
       secrets,
       mediaClient,
       modelGate,
+      localAssets: playgroundAssets,
     });
     const stickerService = new StickerService({ store, config: loaded.config, api: bot.api, media });
     stickers = stickerService;

@@ -248,11 +248,10 @@ describe('playground ingestion', () => {
   test('the ingress validates keys and decimal ids before writing', async () => {
     const { store, room } = await fixture();
     const ingress = new PlaygroundIngress(store.orm);
-    expectCode(
-      () => ingress.submit(room.chatId, { requestKey: 'req-1', senderId: 'nope', text: 'hi' }),
-      'input_conflict',
-    );
-    const submitted = ingress.submit(room.chatId, {
+    await expect(
+      ingress.submit(room.chatId, { requestKey: 'req-1', senderId: 'nope', text: 'hi' }),
+    ).rejects.toMatchObject({ code: 'input_conflict' });
+    const submitted = await ingress.submit(room.chatId, {
       requestKey: 'req-1',
       senderId: room.members[0]!.senderId,
       text: 'hi',
