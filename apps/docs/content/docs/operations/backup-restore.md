@@ -30,7 +30,7 @@ node src/cli.ts backup --config /path/to/config.jsonc
 1. 停止正在使用目标数据目录的服务，避免两个进程写同一 SQLite 数据库。
 2. 保留原始目录的只读副本；不要直接覆盖唯一副本。
 3. 准备**新建且为空的隔离目录**和复制的 `config/`、Prompt。编辑复制的配置，将 `data_dir`、`paths.database`、`paths.media_cache`、`paths.backups` 全部改到隔离目录内；Prompt 的相对路径仍以配置目录为准。密钥仍通过安全环境或 key jar 提供，绝不放进工单或公开存储。
-4. 项目没有 `restore` 命令。只将候选备份文件复制到新配置的 `paths.database`；不要覆盖原数据库，也不要复制旧目录中的 `-wal`、`-shm` 或 `serve.lock`。先在不运行 Bot 的条件下检查数据库完整性。
+4. 项目没有 `restore` 命令。只将候选备份文件复制到新配置的 `paths.database`；不要覆盖原数据库，也不要复制旧目录中的 `-wal`、`-shm`、`serve.lock` 或 `serve.lock.sqlite`。先在不运行 Bot 的条件下检查数据库完整性。
 5. 用复制的配置运行 `check-config`，人工核对全部路径；校验成功**不证明数据目录隔离或备份完整**。只有得到许可后才启动隔离服务，验证审计与一条受控消息。同一个 Telegram Token 只能有一个轮询实例；数据目录不同也不能与原 Bot 同时轮询。
 
 ### Linux/macOS 上的离线复制示例

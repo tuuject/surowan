@@ -1,6 +1,4 @@
-import { spawn } from 'node:child_process';
-import { once } from 'node:events';
-import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -141,18 +139,6 @@ test('takeover stops the instance holding the lock and leaves no stop request be
   // Nothing to stop.
   expect(await stopRunningInstance(dataDir, 1_000)).toBeNull();
 
-  // A lock whose process is gone is not an instance: `ServeLock.acquire` unlinks
-  // it, and a stop request written for it would wait for nobody.
-  const exited = spawn(process.execPath, ['-e', ''], { stdio: 'ignore' });
-  await once(exited, 'exit');
-  if (exited.pid === undefined) {
-    throw new Error('helper process did not start');
-  }
-  await mkdir(dataDir, { recursive: true });
-  await writeFile(lockPath, `${exited.pid}\n`);
-  expect(await stopRunningInstance(dataDir, 1_000)).toBeNull();
-  expect(await pathExists(stopPath)).toBe(false);
-
   // A live holder: the lock disappears only because the watcher saw the request.
   const lock = await ServeLock.acquire(dataDir);
   let requested = false;
@@ -165,6 +151,40 @@ test('takeover stops the instance holding the lock and leaves no stop request be
   expect(await pathExists(lockPath)).toBe(false);
   expect(await pathExists(stopPath)).toBe(false);
   stopWatching();
+});
+
+test('a PID file left behind by a dead instance does not block the next one', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-takeover-'));
+  directories.push(directory);
+  const dataDir = join(directory, 'data');
+  const lockPath = join(dataDir, 'serve.lock');
+  const stopPath = join(dataDir, 'serve.stop');
+  await mkdir(dataDir, { recursive: true });
+
+  // PID 1 is alive in every fresh container, which is why liveness is decided by
+  // the mutex and not by the recorded PID: a restarted container always finds
+  // its own PID 1 in the file of the instance it just replaced.
+  await writeFile(lockPath, '1\n');
+  expect(await stopRunningInstance(dataDir, 1_000)).toBeNull();
+  expect(await pathExists(stopPath)).toBe(false);
+  expect(await pathExists(lockPath)).toBe(false);
+
+  const lock = await ServeLock.acquire(dataDir);
+  expect(await readFile(lockPath, 'utf8')).toBe(`${process.pid}\n`);
+  await lock.release();
+});
+
+test('the lock refuses a second instance until it is released', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-takeover-'));
+  directories.push(directory);
+  const dataDir = join(directory, 'data');
+  const lock = await ServeLock.acquire(dataDir);
+  await expect(ServeLock.acquire(dataDir)).rejects.toThrow(
+    new RegExp(`Another serve process holds .*serve\\.lock with PID ${process.pid}`),
+  );
+  await lock.release();
+  const second = await ServeLock.acquire(dataDir);
+  await second.release();
 });
 
 test('takeover gives up on an instance that ignores the request', async () => {

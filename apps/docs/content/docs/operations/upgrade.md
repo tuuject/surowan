@@ -41,7 +41,7 @@ docker image inspect ghcr.io/tuuject/surowan:latest \
    docker compose run --rm plasticwan check-config --config /config/config.jsonc
    ```
 
-4. 替换正在运行的服务。Compose 可执行 `docker compose up -d`；确保不会并发启动第二个相同 `/data` 的 `serve`。
+4. 替换正在运行的服务。Compose 可执行 `docker compose up -d`；确保不会并发启动第二个相同 `/data` 的 `serve`。替换时旧容器要先收尾进行中的 Invocation，别把关闭超时压到 30 秒以下，见[生效与停止](../start/installation.md)。
 5. 跟踪日志，确认数据库迁移、`startup_catch_up_completed` 与 `serve_started`。检查新的配置哈希。
 6. 向允许的 Chat 发一条受控测试消息，并在 Admin 审计中确认 Invocation 状态。
 

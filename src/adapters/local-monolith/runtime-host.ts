@@ -103,8 +103,20 @@ export async function serve(configPath: string, takeover = false): Promise<void>
     logEvent('restart_requested');
     shutdown();
   };
-  process.once('SIGTERM', shutdown);
-  process.once('SIGINT', shutdown);
+  const stopSignals = watchStopSignals(shutdown, (signal) => {
+    // 130/143 = 128 + the signal number: the shell's convention for a process
+    // that died of a signal, which is what an interrupted drain is.
+    const code = signal === 'SIGTERM' ? 143 : 130;
+    logEvent('shutdown_forced', { signal });
+    // Under a supervisor stdout is a pipe and its writes are asynchronous, so
+    // leave from the flush callback; a write that never lands is still bounded
+    // by the timer.
+    const timer = setTimeout(() => process.exit(code), 250);
+    process.stdout.write('', () => {
+      clearTimeout(timer);
+      process.exit(code);
+    });
+  });
   try {
     const token = await secrets.resolve(loaded.config.telegram.token);
     if (takeover) {
@@ -407,8 +419,7 @@ export async function serve(configPath: string, takeover = false): Promise<void>
     throw new Error(secrets.redact(message));
   } finally {
     replayShutdown.abort(new Error('shutdown'));
-    process.off('SIGTERM', shutdown);
-    process.off('SIGINT', shutdown);
+    stopSignals();
     stopWatcher?.();
     await admin?.stop();
     await scheduler?.stop(30_000);
@@ -435,6 +446,35 @@ export async function serve(configPath: string, takeover = false): Promise<void>
 
 export function logEvent(event: string, fields: Readonly<Record<string, string | number | boolean | null>> = {}): void {
   console.log(JSON.stringify({ event, ...fields, at: new Date().toISOString() }));
+}
+
+/**
+ * Two-stage stop for SIGINT and SIGTERM: the first signal starts the graceful
+ * shutdown, a second one calls `forceExit` instead of waiting for the drain.
+ *
+ * The escape hatch exists because the drain budget is a wait the operator may
+ * not want: an Invocation that refuses to settle keeps the process alive until
+ * its own abort lands. Forcing leaves the same state as a supervisor's SIGKILL
+ * — the interrupted Invocation is recovered as `process_restart` on the next
+ * start — and a signal that arrives after an internal shutdown (takeover,
+ * panel restart) still needs its own first press.
+ */
+export function watchStopSignals(shutdown: () => void, forceExit: (signal: NodeJS.Signals) => void): () => void {
+  let stopping = false;
+  const onSignal = (signal: NodeJS.Signals): void => {
+    if (stopping) {
+      forceExit(signal);
+      return;
+    }
+    stopping = true;
+    shutdown();
+  };
+  process.on('SIGINT', onSignal);
+  process.on('SIGTERM', onSignal);
+  return () => {
+    process.off('SIGINT', onSignal);
+    process.off('SIGTERM', onSignal);
+  };
 }
 
 async function replyToCommand(context: Context, commands: BotCommandService, command: ParsedCommand): Promise<void> {

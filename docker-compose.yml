@@ -24,6 +24,13 @@ services:
     # pinned `0.0.0-next-<timestamp>` tag from the GitHub pre-releases.
     image: ghcr.io/tuuject/surowan:latest
     restart: unless-stopped
+    # Graceful shutdown gives a running Invocation up to 30s to finish, then
+    # aborts what is left, stops the image/MCP workers and closes SQLite.
+    # Docker's default is 10s: it would SIGKILL the process mid-drain, and the
+    # next start would have to recover the invocation as `process_restart`
+    # instead of a clean abort. Keep this above that 30s budget, and pass
+    # `-t <seconds>` when a single `docker compose down` should wait longer.
+    stop_grace_period: 45s
     environment:
       # Declares that something restarts the process, which is what the restart
       # policy above does. It is what enables the Admin Panel's "restart now";

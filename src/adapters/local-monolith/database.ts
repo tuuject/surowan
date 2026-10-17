@@ -1,18 +1,4 @@
-import {
-  access,
-  chmod,
-  cp,
-  type FileHandle,
-  mkdir,
-  open,
-  readdir,
-  readFile,
-  rename,
-  rm,
-  stat,
-  unlink,
-  writeFile,
-} from 'node:fs/promises';
+import { access, chmod, cp, mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
@@ -26,46 +12,96 @@ interface Migration {
   readonly sql: string;
 }
 
-export class ServeLock {
-  readonly #path: string;
-  readonly #handle: FileHandle;
+/** PID file: names the holder for humans and `--takeover`; carries no authority. */
+const PID_FILE = 'serve.lock';
 
-  private constructor(path: string, handle: FileHandle) {
-    this.#path = path;
-    this.#handle = handle;
+/**
+ * Mutex file: the single-instance guard itself. The lock is an EXCLUSIVE SQLite
+ * transaction held for the lifetime of the process, so the kernel releases it
+ * when the process dies — a crash, a `SIGKILL` or a replaced container can
+ * never leave a lock behind. A PID in a file cannot do that: inside a container
+ * the recorded PID is 1, and PID 1 exists again in every new container, which
+ * made every restart look like a running instance.
+ *
+ * The table only makes the file self-describing; no row is ever written.
+ */
+const MUTEX_FILE = 'serve.lock.sqlite';
+const MUTEX_TABLE = 'serve_lock';
+
+export class ServeLock {
+  readonly #pidPath: string;
+  readonly #mutex: Database.Database;
+  readonly #pidContent: string;
+
+  private constructor(pidPath: string, mutex: Database.Database, pidContent: string) {
+    this.#pidPath = pidPath;
+    this.#mutex = mutex;
+    this.#pidContent = pidContent;
   }
 
   static async acquire(dataDir: string): Promise<ServeLock> {
     await mkdir(dataDir, { recursive: true, mode: 0o700 });
-    const path = join(dataDir, 'serve.lock');
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        const handle = await open(path, 'wx', 0o600);
-        await handle.writeFile(`${process.pid}\n`, { encoding: 'utf8' });
-        return new ServeLock(path, handle);
-      } catch (error) {
-        const code = error instanceof Error && 'code' in error ? error.code : undefined;
-        if (code !== 'EEXIST' || attempt > 0) {
-          throw new Error(`Another serve process holds ${path}`);
-        }
-        const pid = Number.parseInt(await readFile(path, 'utf8'), 10);
-        if (Number.isInteger(pid) && isProcessAlive(pid)) {
-          throw new Error(`Another serve process holds ${path} with PID ${pid}`);
-        }
-        await unlink(path);
+    const pidPath = join(dataDir, PID_FILE);
+    const mutexPath = join(dataDir, MUTEX_FILE);
+    const mutex = new Database(mutexPath);
+    try {
+      mutex.pragma('busy_timeout = 0');
+      mutex.exec(`CREATE TABLE IF NOT EXISTS ${MUTEX_TABLE} (id INTEGER PRIMARY KEY)`);
+      mutex.exec('BEGIN EXCLUSIVE');
+      // `BEGIN EXCLUSIVE` alone can leave the OS lock unclaimed until the
+      // connection touches the database; this read claims it before returning.
+      mutex.prepare(`SELECT count(*) AS held FROM ${MUTEX_TABLE}`).get();
+    } catch (error) {
+      mutex.close();
+      if (!(error instanceof Database.SqliteError && error.code === 'SQLITE_BUSY')) {
+        throw new Error(`Unable to acquire serve lock ${mutexPath}`, { cause: error });
       }
+      const pid = Number.parseInt(await readFile(pidPath, 'utf8').catch(() => ''), 10);
+      throw new Error(
+        Number.isInteger(pid)
+          ? `Another serve process holds ${pidPath} with PID ${pid}`
+          : `Another serve process holds ${pidPath}`,
+      );
     }
-    throw new Error(`Unable to acquire serve lock: ${path}`);
+    const pidContent = `${process.pid}\n`;
+    await writeFile(pidPath, pidContent, { encoding: 'utf8', mode: 0o600 });
+    return new ServeLock(pidPath, mutex, pidContent);
   }
 
   async release(): Promise<void> {
-    await this.#handle.close();
-    await unlink(this.#path).catch((error: unknown) => {
+    // Closing rolls back the transaction and drops the kernel lock, which is
+    // what a waiting takeover polls for; the PID file goes afterwards so that
+    // its absence cannot be seen before the mutex is actually free.
+    this.#mutex.close();
+    const current = await readFile(this.#pidPath, 'utf8').catch(() => undefined);
+    if (current !== this.#pidContent) {
+      return; // A successor already replaced the PID file; leave its copy alone.
+    }
+    await unlink(this.#pidPath).catch((error: unknown) => {
       const code = error instanceof Error && 'code' in error ? error.code : undefined;
       if (code !== 'ENOENT') {
         throw error;
       }
     });
+  }
+}
+
+/**
+ * True while another connection holds `mutex`'s EXCLUSIVE transaction. The
+ * probe only reads: SQLite answers SQLITE_BUSY for any access while the lock is
+ * held, and it leaves no trace when the mutex is free. `schema_version` rather
+ * than the lock table so that a mutex file which never finished initializing
+ * still answers instead of failing on a missing table.
+ */
+function mutexHeld(mutex: Database.Database): boolean {
+  try {
+    mutex.prepare('PRAGMA schema_version').get();
+    return false;
+  } catch (error) {
+    if (error instanceof Database.SqliteError && error.code === 'SQLITE_BUSY') {
+      return true;
+    }
+    throw error;
   }
 }
 
@@ -76,34 +112,55 @@ const STOP_REQUEST_FILE = 'serve.stop';
 const STOP_REQUEST_POLL_MS = 200;
 
 /**
- * Gracefully stops the `serve` process that holds `dataDir`'s lock and returns
- * its PID, or null when no live process holds it — a stale lock is left to
- * `ServeLock.acquire`, which unlinks it.
+ * Gracefully stops the `serve` process that holds `dataDir`'s mutex and returns
+ * its PID, or null when no live process holds it — a leftover PID file is
+ * removed, never trusted.
+ *
+ * Liveness is decided by the mutex, not by the PID: the kernel drops the lock
+ * when its holder dies, so a restart in a fresh container (where the recorded
+ * PID 1 is alive again) cannot be mistaken for a running instance.
  *
  * A stop request is a file, not a signal: Windows has no graceful `SIGTERM`,
  * and only the target can run its own shutdown path. The target releases the
- * lock as the last step of that path, so waiting for the lock to disappear also
- * waits for its SQLite handle to be closed. A PID that is not a serve process
- * (recycled PID) simply never reacts: this times out instead of killing it.
+ * mutex as the last step of that path, so waiting for the mutex to free also
+ * waits for its SQLite handle to be closed. A process that cannot react — a
+ * wedged or suspended serve — times out instead of being killed.
  */
 export async function stopRunningInstance(dataDir: string, timeoutMs = 60_000): Promise<number | null> {
-  const lockPath = join(dataDir, 'serve.lock');
-  const pid = Number.parseInt(await readFile(lockPath, 'utf8').catch(() => ''), 10);
-  if (!Number.isInteger(pid) || !isProcessAlive(pid)) {
+  const pidPath = join(dataDir, PID_FILE);
+  const mutexPath = join(dataDir, MUTEX_FILE);
+  if (!(await fileExists(mutexPath))) {
+    await unlink(pidPath).catch(() => undefined);
     return null;
   }
-  const stopPath = join(dataDir, STOP_REQUEST_FILE);
-  await writeFile(stopPath, `${process.pid}\n`, { encoding: 'utf8', mode: 0o600 });
-  const deadline = Date.now() + timeoutMs;
-  while (await fileExists(lockPath)) {
-    if (Date.now() >= deadline) {
-      await unlink(stopPath).catch(() => undefined);
-      throw new Error(`PID ${pid} still holds ${lockPath} after ${timeoutMs}ms`);
+  const mutex = new Database(mutexPath);
+  try {
+    mutex.pragma('busy_timeout = 0');
+    if (!mutexHeld(mutex)) {
+      await unlink(pidPath).catch(() => undefined);
+      return null;
     }
-    await delay(STOP_REQUEST_POLL_MS);
+    const pid = Number.parseInt(await readFile(pidPath, 'utf8').catch(() => ''), 10);
+    if (!Number.isInteger(pid)) {
+      throw new Error(`A serve process holds ${mutexPath} but ${pidPath} is missing`);
+    }
+    const stopPath = join(dataDir, STOP_REQUEST_FILE);
+    await writeFile(stopPath, `${process.pid}\n`, { encoding: 'utf8', mode: 0o600 });
+    try {
+      const deadline = Date.now() + timeoutMs;
+      while (mutexHeld(mutex)) {
+        if (Date.now() >= deadline) {
+          throw new Error(`PID ${pid} still holds ${pidPath} after ${timeoutMs}ms`);
+        }
+        await delay(STOP_REQUEST_POLL_MS);
+      }
+    } finally {
+      await unlink(stopPath).catch(() => undefined);
+    }
+    return pid;
+  } finally {
+    mutex.close();
   }
-  await unlink(stopPath).catch(() => undefined);
-  return pid;
 }
 
 /**
@@ -321,16 +378,6 @@ async function loadMigrations(): Promise<Migration[]> {
 
 function timestampForFile(): string {
   return new Date().toISOString().replaceAll(':', '-');
-}
-
-function isProcessAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    const code = error instanceof Error && 'code' in error ? error.code : undefined;
-    return code === 'EPERM';
-  }
 }
 
 async function fileExists(path: string): Promise<boolean> {

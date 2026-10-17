@@ -60,6 +60,8 @@ node src/cli.ts serve --config config/config.jsonc
 
 ## 生效与停止
 
-启动完成以日志 `serve_started` 为准。前台运行时使用 `Ctrl+C` 正常停止；替换同一数据目录上的本地实例时使用 `serve --takeover`，不要手删 `serve.lock` 或强杀未知进程。
+启动完成以日志 `serve_started` 为准。前台运行时使用 `Ctrl+C` 正常停止；不想等关闭收尾时再按一次 `Ctrl+C` 立即退出（日志 `shutdown_forced`，退出码 130/143，进行中的 Invocation 由下次启动恢复）。替换同一数据目录上的本地实例时使用 `serve --takeover`，不要手删 `serve.lock` 或强杀未知进程。
+
+容器部署用 `docker compose stop` 或 `docker compose down` 停止。关闭时服务会先给进行中的 Invocation 最多 30 秒收尾，再中止剩余工作并关闭数据库，所以运行时必须允许进程活过这段时间：`docker-compose.yml` 模板已设置 `stop_grace_period: 45s`。Docker 默认只等 10 秒，会在收尾途中杀掉进程——审计仍然完整（下次启动把该 Invocation 记为 `process_restart`），但那次回复不会发出。只想给单个命令改超时可以用 `docker compose down -t 60`。
 
 下一步：完成 [配置文件](../configure/config-file.md)，或查看 [升级](../operations/upgrade.md) 的安全流程。

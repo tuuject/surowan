@@ -12,7 +12,7 @@ description: 按症状检查无法启动、Bot 不回复、模型或管理面板
 1. 运行 `check-config`，先修复 Schema、模型引用或路径错误。
 2. 确认容器/服务能读取配置、Prompt 与环境变量；不要打印它们的值。
 3. 检查 Node/媒体依赖，或用有授权凭据的 `doctor` 做真实探针。
-4. 同一 `data_dir` 已在运行时，不要启动第二个 `serve`。本地替换实例才使用 `--takeover`。
+4. 同一 `data_dir` 已在运行时，不要启动第二个 `serve`。本地替换实例才使用 `--takeover`。单实例锁由进程在 `serve.lock.sqlite` 上持有，进程退出（含容器重建）时由内核释放；`serve.lock` 只是记录 PID 的说明文件，残留的 `serve.lock` 不会阻止下次启动，不需要手工删除。
 
 ## Bot 没有回复
 
