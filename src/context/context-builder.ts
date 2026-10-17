@@ -347,12 +347,14 @@ export class ContextBuilder {
     };
     const conversationMode =
       identity.chatType === 'private' ? 'Conversation mode: private chat.' : 'Conversation mode: group chat.';
+    const onDemandImageHandling =
+      identity.hostKind === 'telegram'
+        ? 'Telegram images and Stickers are available through the read_image capability (called via execute). Call it when visual details are needed.'
+        : 'Images posted in the room are available through the read_image capability (called via execute). Call it when visual details are needed.';
     const imageHandling =
       supportsImages && options?.imageInput !== 'on_demand'
         ? 'Photos and supported image Documents from the newest injected messages are attached directly to the multimodal Agent input, in the same order as the [kind figure_N img_ref] media lines inside the messages. Treat each attached image as the media of the message that lists the matching figure_N. Attachments are not kept: older images, including earlier figure_N images, are inspected on demand with the read_image capability (called via execute) using their img_ refs. read_image never accepts figure_N refs.'
-        : identity.hostKind === 'telegram'
-          ? 'Telegram images and Stickers are available through the read_image capability (called via execute). Call it when visual details are needed.'
-          : 'Images posted in the room are available through the read_image capability (called via execute). Call it when visual details are needed.';
+        : onDemandImageHandling;
     const stickerCatalog = this.#stickerCatalog(identity.hostKind);
     const stickerCatalogHandling =
       stickerCatalog.length === 0
@@ -590,6 +592,7 @@ export class ContextBuilder {
     ]
       .filter((part) => part.length > 0)
       .join('\n');
+    const historyTag = identity.hostKind === 'telegram' ? 'untrusted_telegram_history' : 'untrusted_room_history';
     const text = [
       '<runtime_state>',
       runtimeState,
@@ -603,11 +606,7 @@ export class ContextBuilder {
           ]),
       ...(!renderStickerCatalog ? [] : ['<untrusted_sticker_catalog>', stickerCatalog, '</untrusted_sticker_catalog>']),
       ...injections.filter((injection) => injection.text.length > 0).map((injection) => injection.text),
-      ...(historyText.length === 0
-        ? []
-        : identity.hostKind === 'telegram'
-          ? ['<untrusted_telegram_history>', historyText, '</untrusted_telegram_history>']
-          : ['<untrusted_room_history>', historyText, '</untrusted_room_history>']),
+      ...(historyText.length === 0 ? [] : [`<${historyTag}>`, historyText, `</${historyTag}>`]),
       '<untrusted_new_messages>',
       `${omission}${currentText}`,
       '</untrusted_new_messages>',
