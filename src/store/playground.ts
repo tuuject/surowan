@@ -397,9 +397,7 @@ export class PlaygroundStore {
       const existing = this.#orm
         .select()
         .from(playgroundReleases)
-        .where(
-          and(eq(playgroundReleases.chatId, chatId), eq(playgroundReleases.releaseKey, input.releaseKey)),
-        )
+        .where(and(eq(playgroundReleases.chatId, chatId), eq(playgroundReleases.releaseKey, input.releaseKey)))
         .get();
       if (existing !== undefined) {
         return {
@@ -425,10 +423,7 @@ export class PlaygroundStore {
         .where(and(eq(playgroundReleases.chatId, chatId), eq(playgroundReleases.revision, room.revision)))
         .get();
       if (revisionTaken !== undefined) {
-        throw new PlaygroundError(
-          'release_conflict',
-          `room ${chatId} revision ${room.revision} was already released`,
-        );
+        throw new PlaygroundError('release_conflict', `room ${chatId} revision ${room.revision} was already released`);
       }
       if (!room.hold) {
         throw new PlaygroundError('room_not_held', `room ${chatId} has no open hold`);
@@ -572,11 +567,7 @@ export class PlaygroundStore {
       if (later !== undefined) {
         throw new PlaygroundError('retry_refused', 'a later release exists in this room');
       }
-      const original = this.#orm
-        .select()
-        .from(invocations)
-        .where(eq(invocations.id, release.invocationId))
-        .get();
+      const original = this.#orm.select().from(invocations).where(eq(invocations.id, release.invocationId)).get();
       if (original === undefined) {
         throw new PlaygroundError('unknown_release', `invocation ${release.invocationId} does not exist`);
       }
@@ -747,13 +738,7 @@ export class PlaygroundStore {
       .innerJoin(buckets, eq(buckets.id, invocations.bucketId))
       .innerJoin(conversations, eq(conversations.id, invocations.conversationId))
       .innerJoin(chats, eq(chats.id, conversations.chatId))
-      .where(
-        and(
-          eq(chats.hostKind, 'playground'),
-          eq(invocations.state, 'queued'),
-          lt(invocations.createdAt, cutoff),
-        ),
-      )
+      .where(and(eq(chats.hostKind, 'playground'), eq(invocations.state, 'queued'), lt(invocations.createdAt, cutoff)))
       .all();
     for (const row of rows) {
       this.#orm
@@ -763,7 +748,12 @@ export class PlaygroundStore {
         .run();
       this.#orm
         .update(buckets)
-        .set({ state: 'expired', errorCode: 'queued_expired', finishedAt: now.toISOString(), updatedAt: now.toISOString() })
+        .set({
+          state: 'expired',
+          errorCode: 'queued_expired',
+          finishedAt: now.toISOString(),
+          updatedAt: now.toISOString(),
+        })
         .where(eq(buckets.id, row.bucketId))
         .run();
     }
@@ -827,7 +817,9 @@ export class PlaygroundStore {
           senderId: messageRevisions.senderId,
           senderName: senders.displayName,
           role: roomParticipants.role,
-          replyToSeq: sql<bigint | null>`(SELECT m2.local_sequence_no FROM messages m2 WHERE m2.id = ${messages.localReplyToMessageId})`,
+          replyToSeq: sql<
+            bigint | null
+          >`(SELECT m2.local_sequence_no FROM messages m2 WHERE m2.id = ${messages.localReplyToMessageId})`,
         })
         .from(messageRevisions)
         .innerJoin(messages, eq(messages.id, messageRevisions.messageId))

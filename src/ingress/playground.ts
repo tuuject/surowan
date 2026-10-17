@@ -10,7 +10,11 @@
  * and request keys; a malformed value is refused before it reaches the store.
  */
 import type { Orm } from '../store/store.ts';
-import { LocalAssetRejected, type LocalAssetInput, type PlaygroundAssetStore } from '../capabilities/media/local-assets.ts';
+import {
+  LocalAssetRejected,
+  type LocalAssetInput,
+  type PlaygroundAssetStore,
+} from '../capabilities/media/local-assets.ts';
 import {
   PlaygroundError,
   PlaygroundStore,
@@ -63,9 +67,7 @@ export class PlaygroundIngress {
     }
     const senderId = requireDecimal(body.senderId, 'senderId');
     const replyToSeq =
-      body.replyToSeq === null || body.replyToSeq === undefined
-        ? null
-        : requireDecimal(body.replyToSeq, 'replyToSeq');
+      body.replyToSeq === null || body.replyToSeq === undefined ? null : requireDecimal(body.replyToSeq, 'replyToSeq');
     const media = await this.#ingest(chatId, attachments);
     const result = this.#store.submit(chatId, { requestKey, senderId, text, replyToSeq, media });
     if (result.admitted) {
@@ -74,10 +76,7 @@ export class PlaygroundIngress {
     return result;
   }
 
-  release(
-    chatId: bigint,
-    body: { readonly releaseKey?: unknown; readonly revision?: unknown },
-  ): ReleaseResult {
+  release(chatId: bigint, body: { readonly releaseKey?: unknown; readonly revision?: unknown }): ReleaseResult {
     const releaseKey = requireKey(body.releaseKey, 'releaseKey');
     const revision = requireDecimal(body.revision, 'revision');
     const result = this.#store.release(chatId, { releaseKey, revision });
@@ -87,10 +86,7 @@ export class PlaygroundIngress {
     return result;
   }
 
-  retry(
-    chatId: bigint,
-    body: { readonly releaseId?: unknown; readonly attemptKey?: unknown },
-  ): RetryResult {
+  retry(chatId: bigint, body: { readonly releaseId?: unknown; readonly attemptKey?: unknown }): RetryResult {
     const releaseId = requireDecimal(body.releaseId, 'releaseId');
     const attemptKey = requireKey(body.attemptKey, 'attemptKey');
     const result = this.#store.retry(chatId, { releaseId, attemptKey });

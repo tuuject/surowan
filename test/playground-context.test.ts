@@ -100,16 +100,12 @@ describe('playground context projection', () => {
 
     // The refusal left no reply ref and no injected marker behind.
     const contextRow = store.db
-      .prepare<[bigint], { id: bigint }>(
-        'SELECT id FROM conversation_contexts WHERE conversation_id = ?',
-      )
+      .prepare<[bigint], { id: bigint }>('SELECT id FROM conversation_contexts WHERE conversation_id = ?')
       .get(room.conversationId);
     expect(contextRow).toBeDefined();
     const contextId = contextRow?.id ?? 0n;
     const appended = store.db
-      .prepare<[bigint], { count: bigint }>(
-        'SELECT COUNT(*) AS count FROM context_messages WHERE context_id = ?',
-      )
+      .prepare<[bigint], { count: bigint }>('SELECT COUNT(*) AS count FROM context_messages WHERE context_id = ?')
       .get(contextId);
     expect(Number(appended?.count ?? 0)).toBe(0);
     const refs = store.db

@@ -163,10 +163,7 @@ export function loadPlugins(plugins: readonly AgentPlugin[], options: LoadPlugin
           deadline,
           audit,
           orm: store.orm,
-          tasks:
-            context.invocationId === 0n
-              ? unavailableTasks()
-              : service.invocationScope(plugin.id, context, hosts),
+          tasks: context.invocationId === 0n ? unavailableTasks() : service.invocationScope(plugin.id, context, hosts),
           ...(resolveMedia === undefined ? {} : { resolveMedia }),
           ...(options.image === undefined ? {} : { image: options.image }),
         };

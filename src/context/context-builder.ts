@@ -7,10 +7,7 @@ import { type AgentPromptLayers, composeAgentPrompt } from '../platform/agent-pr
 import { activeVisionModel, type RawConfig } from '../platform/config.ts';
 import type { HostKind } from '../platform/im-host.ts';
 import type { CompletionContext, DirectImage, VisibleSender } from '../platform/invocation-context.ts';
-import {
-  resolveInvocationPolicy,
-  type InvocationPolicy,
-} from '../platform/invocation-policy.ts';
+import { resolveInvocationPolicy, type InvocationPolicy } from '../platform/invocation-policy.ts';
 import type { PromptTemplateModel, PromptTemplateValues } from '../platform/prompt-template.ts';
 import { PRODUCT_KNOWLEDGE_INDEX } from '../platform/product-knowledge.ts';
 import { renderSkillIndexPrompt, type SystemSkill } from '../platform/system-resources.ts';
@@ -305,8 +302,7 @@ export class ContextBuilder {
     const hostKind: HostKind = identity.host_kind;
     // A Telegram chat is addressed by its platform id; a room by its internal
     // chat id. Neither is ever used as the other host's id.
-    const chatId =
-      hostKind === 'telegram' ? (identity.telegram_chat_id ?? 0n) : identity.chat_id;
+    const chatId = hostKind === 'telegram' ? (identity.telegram_chat_id ?? 0n) : identity.chat_id;
     const policy = resolveInvocationPolicy(config, this.#store.orm, {
       hostKind,
       chatId,
@@ -559,13 +555,7 @@ export class ContextBuilder {
       if (entry.section !== 'new') {
         return format(entry.snapshot, inlineReplies);
       }
-      this.#refs.replyRef(
-        input.header,
-        entry.snapshot.message_id,
-        entry.target,
-        input.seq,
-        now,
-      );
+      this.#refs.replyRef(input.header, entry.snapshot.message_id, entry.target, input.seq, now);
       const snapshot = entry.snapshot;
       if (!input.supportsImages || snapshot.media.length === 0) {
         return format(snapshot, inlineReplies);
@@ -787,9 +777,7 @@ export class ContextBuilder {
     // (or the reverse) even if a row is copied between hosts.
     const expectedFormat = hostKind === 'telegram' ? TELEGRAM_SNAPSHOT_FORMAT : ROOM_SNAPSHOT_FORMAT;
     if (format !== expectedFormat) {
-      throw new Error(
-        `Stored invocation message has format ${format}, expected ${expectedFormat}`,
-      );
+      throw new Error(`Stored invocation message has format ${format}, expected ${expectedFormat}`);
     }
     const validator = hostKind === 'telegram' ? snapshotValidator : roomSnapshotValidator;
     if (!validator.Check(parsed)) {
@@ -944,10 +932,7 @@ export function formatSnapshot(snapshot: PreparedSnapshot, options: FormatOption
  * tokens never appear, because a room's member id is not a Telegram user id.
  */
 export function formatRoomSnapshot(snapshot: PreparedSnapshot, options: FormatOptions): string {
-  const tokens = [
-    snapshot.message_id,
-    formatTime(snapshot.telegram_date, options.timezone, options.now),
-  ];
+  const tokens = [snapshot.message_id, formatTime(snapshot.telegram_date, options.timezone, options.now)];
   if (options.showTopic && snapshot.message_thread_id !== undefined) {
     tokens.push(`topic:${snapshot.message_thread_id}`);
   }

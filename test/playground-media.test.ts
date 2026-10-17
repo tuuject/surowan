@@ -7,11 +7,7 @@ import sharp from 'sharp';
 import { KeyedSemaphore } from '../src/platform/concurrency.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import {
-  LocalAssetRejected,
-  PlaygroundAssetStore,
-  sniffImageMime,
-} from '../src/capabilities/media/local-assets.ts';
+import { LocalAssetRejected, PlaygroundAssetStore, sniffImageMime } from '../src/capabilities/media/local-assets.ts';
 import { MediaService } from '../src/capabilities/media/media.ts';
 import { PlaygroundIngress } from '../src/ingress/playground.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
@@ -65,23 +61,25 @@ test('an upload is validated by its real bytes, not by its name or MIME claim', 
   const { store, assets, room } = await setup();
   const bytes = await png();
 
-  await expect(assets.ingest(room.chatId, { bytes: new Uint8Array(), declaredMime: 'image/png' })).rejects.toMatchObject({
+  await expect(
+    assets.ingest(room.chatId, { bytes: new Uint8Array(), declaredMime: 'image/png' }),
+  ).rejects.toMatchObject({
     reason: 'empty',
   });
-  await expect(
-    assets.ingest(room.chatId, { bytes, declaredMime: 'image/svg+xml' }),
-  ).rejects.toBeInstanceOf(LocalAssetRejected);
-  await expect(
-    assets.ingest(room.chatId, { bytes, declaredMime: 'image/jpeg' }),
-  ).rejects.toMatchObject({ reason: 'type_mismatch' });
+  await expect(assets.ingest(room.chatId, { bytes, declaredMime: 'image/svg+xml' })).rejects.toBeInstanceOf(
+    LocalAssetRejected,
+  );
+  await expect(assets.ingest(room.chatId, { bytes, declaredMime: 'image/jpeg' })).rejects.toMatchObject({
+    reason: 'type_mismatch',
+  });
   await expect(
     assets.ingest(room.chatId, { bytes: Buffer.from('<svg/>'), declaredMime: 'image/png' }),
   ).rejects.toMatchObject({ reason: 'unsupported_type' });
 
   const fakePng = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
-  await expect(
-    assets.ingest(room.chatId, { bytes: fakePng, declaredMime: 'image/png' }),
-  ).rejects.toMatchObject({ reason: 'corrupt' });
+  await expect(assets.ingest(room.chatId, { bytes: fakePng, declaredMime: 'image/png' })).rejects.toMatchObject({
+    reason: 'corrupt',
+  });
 
   const huge = await png(32, 16);
   const limited = new PlaygroundAssetStore({
@@ -182,7 +180,10 @@ test('a room image is read locally and never falls back to Telegram', async () =
     attachments: [{ bytes, mime: 'image/png' }],
   });
   const mediaRows = store.orm.select().from(media).all();
-  const images = await service.loadDirectImages([{ mediaId: mediaRows[0]!.id, imageRef: 'img_1' }], new AbortController().signal);
+  const images = await service.loadDirectImages(
+    [{ mediaId: mediaRows[0]!.id, imageRef: 'img_1' }],
+    new AbortController().signal,
+  );
   expect(images).toHaveLength(1);
   expect(images[0]!.mimeType).toBe('image/jpeg');
   expect(images[0]!.data.length).toBeGreaterThan(0);
@@ -206,9 +207,7 @@ test('a room image is read locally and never falls back to Telegram', async () =
   const orphan = store.orm.select().from(media).all().at(-1)!;
   await expect(
     service.loadDirectImages([{ mediaId: orphan.id, imageRef: 'img_2' }], new AbortController().signal),
-  ).rejects.toThrow(
-    /Room media is unavailable/,
-  );
+  ).rejects.toThrow(/Room media is unavailable/);
   expect(download).not.toHaveBeenCalled();
   expect(assets.resolve(asset.id)?.path).toBe(asset.path);
 });
