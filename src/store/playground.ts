@@ -26,6 +26,8 @@ import {
   messages,
   messageRevisions,
   modelCalls,
+  media,
+  playgroundAssets,
   playgroundInputs,
   playgroundReleases,
   playgroundRetries,
@@ -69,11 +71,22 @@ export interface RoomMember {
   readonly role: 'member' | 'admin';
 }
 
+export interface SubmitMedia {
+  /** Local asset id allocated by the asset store. */
+  readonly assetId: string;
+  readonly sha256: string;
+  readonly mime: string;
+  readonly byteSize: number;
+  readonly width: number;
+  readonly height: number;
+}
+
 export interface SubmitInput {
   readonly requestKey: string;
   readonly senderId: bigint;
   readonly text: string;
   readonly replyToSeq?: bigint | null;
+  readonly media?: readonly SubmitMedia[];
 }
 
 export interface SubmitResult {
@@ -305,6 +318,33 @@ export class PlaygroundStore {
         .get();
       if (revision === undefined) {
         throw new Error('failed to admit room revision');
+      }
+      for (const item of input.media ?? []) {
+        const mediaRow = this.#orm
+          .insert(media)
+          .values({
+            revisionId: revision.id,
+            kind: 'photo',
+            fileId: `local:${item.assetId}`,
+            fileUniqueId: `local:${chatId.toString()}:${item.sha256}`,
+            mimeType: item.mime,
+            fileSize: BigInt(item.byteSize),
+            width: BigInt(item.width),
+            height: BigInt(item.height),
+            telegramJson: '{}',
+            hostKind: 'playground',
+            localAssetId: item.assetId,
+          })
+          .returning({ id: media.id })
+          .get();
+        if (mediaRow === undefined) {
+          throw new Error('failed to link room media');
+        }
+        this.#orm
+          .update(playgroundAssets)
+          .set({ state: 'attached', mediaId: mediaRow.id, attachedAt: now })
+          .where(eq(playgroundAssets.id, item.assetId))
+          .run();
       }
       const inputRow = this.#orm
         .insert(playgroundInputs)
@@ -801,6 +841,19 @@ export class PlaygroundStore {
       if (row === undefined) {
         throw new Error(`room input ${entry.seq} lost its revision`);
       }
+      const mediaRows = this.#orm
+        .select({
+          id: media.id,
+          kind: media.kind,
+          fileUniqueId: media.fileUniqueId,
+          mimeType: media.mimeType,
+          width: media.width,
+          height: media.height,
+        })
+        .from(media)
+        .where(eq(media.revisionId, entry.revisionId))
+        .orderBy(asc(media.id))
+        .all();
       index += 1n;
       this.#orm
         .insert(invocationMessages)
@@ -827,7 +880,14 @@ export class PlaygroundStore {
             caption: row.caption,
             reply_to_message_id: row.replyToSeq === null ? null : row.replyToSeq.toString(),
             reply_snapshot: null,
-            media: [],
+            media: mediaRows.map((item) => ({
+              id: item.id.toString(),
+              kind: item.kind,
+              file_unique_id: item.fileUniqueId,
+              mime_type: item.mimeType,
+              width: item.width === null ? null : item.width.toString(),
+              height: item.height === null ? null : item.height.toString(),
+            })),
           }),
           snapshotFormat: ROOM_SNAPSHOT_FORMAT,
         })
@@ -843,6 +903,7 @@ function fingerprintOf(input: SubmitInput): string {
         senderId: input.senderId.toString(),
         text: input.text,
         replyToSeq: input.replyToSeq?.toString() ?? null,
+        media: (input.media ?? []).map((item) => item.sha256),
       }),
     )
     .digest('hex');

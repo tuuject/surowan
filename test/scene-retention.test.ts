@@ -53,12 +53,12 @@ test('migration 030 drops only legacy replay payloads; retention cascades public
       snapshots: store!.db.prepare('SELECT * FROM invocation_messages ORDER BY invocation_id, sequence_no').all(),
     });
     const before = preserved();
-    expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 38n });
+    expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 39n });
     store.close();
     store = undefined;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       store = await SqliteStore.open(config);
-      expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 38n });
+      expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 39n });
       expect(store.db.prepare('PRAGMA table_info(model_calls)').all()).not.toEqual(
         expect.arrayContaining([expect.objectContaining({ name: 'replay_input_json' })]),
       );
@@ -71,7 +71,7 @@ test('migration 030 drops only legacy replay payloads; retention cascades public
         try {
           backup.defaultSafeIntegers(true);
           expect(backup.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({
-            version: 38n,
+            version: 39n,
           });
           expect(backup.prepare('SELECT replay_input_json FROM model_calls LIMIT 1').get()).toEqual({
             replay_input_json: '{"version":2,"obsolete":true}',

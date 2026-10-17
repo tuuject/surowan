@@ -10,6 +10,7 @@
  * and request keys; a malformed value is refused before it reaches the store.
  */
 import type { Orm } from '../store/store.ts';
+import { LocalAssetRejected, type LocalAssetInput, type PlaygroundAssetStore } from '../capabilities/media/local-assets.ts';
 import {
   PlaygroundError,
   PlaygroundStore,
@@ -17,35 +18,44 @@ import {
   type RetryResult,
   type RoomState,
   type RoomStatus,
+  type SubmitMedia,
   type SubmitResult,
 } from '../store/playground.ts';
 
 export interface PlaygroundIngressOptions {
   /** Called after a release commit; the scheduler uses it to wake up. */
   readonly onQueued?: (chatId: bigint, invocationId: bigint) => void;
+  /** Local image assets of rooms; without it a room message cannot carry images. */
+  readonly assets?: PlaygroundAssetStore;
 }
 
 export class PlaygroundIngress {
   readonly #store: PlaygroundStore;
   readonly #options: PlaygroundIngressOptions;
+  #lastSweep = 0;
 
   constructor(orm: Orm, options: PlaygroundIngressOptions = {}) {
     this.#store = new PlaygroundStore(orm);
     this.#options = options;
   }
 
-  submit(
+  async submit(
     chatId: bigint,
     body: {
       readonly requestKey?: unknown;
       readonly senderId?: unknown;
       readonly text?: unknown;
       readonly replyToSeq?: unknown;
+      readonly attachments?: unknown;
     },
-  ): SubmitResult {
+  ): Promise<SubmitResult> {
     const requestKey = requireKey(body.requestKey, 'requestKey');
+    const attachments = requireAttachments(body.attachments);
     const text = body.text;
-    if (typeof text !== 'string' || text.trim().length === 0) {
+    if (typeof text !== 'string') {
+      throw new PlaygroundError('input_conflict', 'text must be a string');
+    }
+    if (text.trim().length === 0 && attachments.length === 0) {
       throw new PlaygroundError('input_conflict', 'text must be a non-empty string');
     }
     if (text.length > 16_384) {
@@ -56,7 +66,12 @@ export class PlaygroundIngress {
       body.replyToSeq === null || body.replyToSeq === undefined
         ? null
         : requireDecimal(body.replyToSeq, 'replyToSeq');
-    return this.#store.submit(chatId, { requestKey, senderId, text, replyToSeq });
+    const media = await this.#ingest(chatId, attachments);
+    const result = this.#store.submit(chatId, { requestKey, senderId, text, replyToSeq, media });
+    if (result.admitted) {
+      this.#scheduleSweep();
+    }
+    return result;
   }
 
   release(
@@ -92,6 +107,72 @@ export class PlaygroundIngress {
   status(chatId: bigint): RoomStatus {
     return this.#store.status(chatId);
   }
+
+  /**
+   * Staged uploads that never became a message are disposable. Sweep on a slow
+   * cadence from the write path so no extra timer is needed.
+   */
+  #scheduleSweep(): void {
+    const assets = this.#options.assets;
+    if (assets === undefined) {
+      return;
+    }
+    const now = Date.now();
+    if (now - this.#lastSweep < 60 * 60 * 1000) {
+      return;
+    }
+    this.#lastSweep = now;
+    void assets.sweep().catch(() => {});
+  }
+
+  async #ingest(chatId: bigint, attachments: readonly LocalAssetInput[]): Promise<SubmitMedia[]> {
+    if (attachments.length === 0) {
+      return [];
+    }
+    const assets = this.#options.assets;
+    if (assets === undefined) {
+      throw new PlaygroundError('input_conflict', 'this room cannot accept images');
+    }
+    const media: SubmitMedia[] = [];
+    for (const attachment of attachments) {
+      try {
+        const asset = await assets.ingest(chatId, attachment);
+        media.push({
+          assetId: asset.id,
+          sha256: asset.sha256,
+          mime: asset.mime,
+          byteSize: asset.byteSize,
+          width: asset.width,
+          height: asset.height,
+        });
+      } catch (error) {
+        if (error instanceof LocalAssetRejected) {
+          throw new PlaygroundError('input_conflict', error.message);
+        }
+        throw error;
+      }
+    }
+    return media;
+  }
+}
+
+function requireAttachments(value: unknown): LocalAssetInput[] {
+  if (value === null || value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value) || value.length > 4) {
+    throw new PlaygroundError('input_conflict', 'attachments must be at most four images');
+  }
+  return value.map((item, index) => {
+    if (typeof item !== 'object' || item === null) {
+      throw new PlaygroundError('input_conflict', `attachments[${index}] is not an image`);
+    }
+    const { bytes, mime, name } = item as { bytes?: unknown; mime?: unknown; name?: unknown };
+    if (!(bytes instanceof Uint8Array) || typeof mime !== 'string') {
+      throw new PlaygroundError('input_conflict', `attachments[${index}] needs image bytes and a MIME type`);
+    }
+    return { bytes, declaredMime: mime, ...(typeof name === 'string' ? { name } : {}) };
+  });
 }
 
 function requireKey(value: unknown, field: string): string {
