@@ -520,7 +520,7 @@ export class BotCommandService {
     const dailyBudget = readDailyTokenBudget(
       this.#store.orm,
       this.#configStore.current().config.agent.daily_budget.max_tokens,
-      now,
+      { now },
     );
     const dailyBudgetBasisPoints =
       (dailyBudget.usedTokens * 10_000n + dailyBudget.maxTokens / 2n) / dailyBudget.maxTokens;

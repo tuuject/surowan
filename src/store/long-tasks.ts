@@ -7,8 +7,9 @@ import type {
   InvocationContext,
   JsonValue,
 } from '../platform/invocation-context.ts';
+import type { HostKind } from '../platform/im-host.ts';
 import type { Orm } from './store.ts';
-import { longTasks, taskReceipts } from './schema.ts';
+import { chats, conversations, longTasks, taskReceipts } from './schema.ts';
 
 const JsonValueSchema = Type.Union(
   [
@@ -269,6 +270,7 @@ function listed(row: {
 export class LongTaskService {
   readonly #orm: Orm;
   readonly #wake: (() => void) | undefined;
+  readonly #conversationHosts = new Map<string, HostKind>();
 
   constructor(orm: Orm, wake?: () => void) {
     this.#orm = orm;
@@ -300,7 +302,19 @@ export class LongTaskService {
     );
   }
 
-  invocationScope(pluginId: string, liveContext: InvocationContext): PluginTaskScope {
+  /**
+   * Scope for a plugin acting inside a live invocation.
+   *
+   * The plugin must be registered for the host that owns the conversation.
+   * Without this check a tool that is not mounted on a host could still create
+   * work for it through the generic task service and bypass the tool layer.
+   */
+  invocationScope(
+    pluginId: string,
+    liveContext: InvocationContext,
+    hosts: readonly HostKind[] = ['telegram'],
+  ): PluginTaskScope {
+    this.#assertPluginHost(pluginId, liveContext.conversationId, hosts);
     return this.#scope(
       pluginId,
       liveContext.conversationId,
@@ -308,6 +322,24 @@ export class LongTaskService {
       () => liveContext.callerUserId,
       true,
     );
+  }
+
+  #assertPluginHost(pluginId: string, conversationId: bigint, hosts: readonly HostKind[]): void {
+    const key = conversationId.toString();
+    let hostKind = this.#conversationHosts.get(key);
+    if (hostKind === undefined) {
+      const [row] = this.#orm
+        .select({ hostKind: chats.hostKind })
+        .from(conversations)
+        .innerJoin(chats, eq(conversations.chatId, chats.id))
+        .where(eq(conversations.id, conversationId))
+        .all();
+      hostKind = row?.hostKind === 'playground' ? 'playground' : 'telegram';
+      this.#conversationHosts.set(key, hostKind);
+    }
+    if (!hosts.includes(hostKind)) {
+      throw new Error(`Plugin ${pluginId} is not enabled on the ${hostKind} host`);
+    }
   }
 
   #scope(

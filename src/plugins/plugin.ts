@@ -1,13 +1,17 @@
 import type { PublicModel } from '@plasticwan/image-service';
+import { basename } from 'node:path';
 import type { ExecutableCapability } from '../capabilities/execute-tool.ts';
 import type { ContextInjector } from '../context/context-injector.ts';
 import type { RawConfig } from '../platform/config.ts';
+import type { HostKind } from '../platform/im-host.ts';
 import type { InvocationContext } from '../platform/invocation-context.ts';
 import type { BusinessStore, Orm } from '../store/store.ts';
 import { LongTaskService, type PluginTaskScope } from '../store/long-tasks.ts';
 import { createToolAudit, type ToolAudit } from '../store/tool-audit.ts';
 
 const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
+
+const HOST_KINDS: readonly HostKind[] = ['playground', 'telegram'];
 
 /**
  * What the host hands a plugin when it assembles tools for one invocation.
@@ -67,6 +71,11 @@ export interface InvocationScope {
  */
 export interface AgentPlugin {
   readonly id: string;
+  /**
+   * Hosts this plugin may run on. Omitted means Telegram only: a new plugin
+   * never drifts into the Playground just because it exists.
+   */
+  readonly hosts?: readonly HostKind[];
   /** Absolute skill directories; each basename is the skill name and holds SKILL.md. */
   readonly skills?: readonly string[];
   /** Runtime-internal capabilities, dispatched and audited through `execute`. */
@@ -90,6 +99,8 @@ export interface LoadPluginsOptions {
 export interface LoadedPlugins {
   /** Mounted under system:///skills/ next to the bundled tree, see `FileSystemResources.load`. */
   readonly skillDirectories: readonly string[];
+  /** Skill name to the hosts that mount it. Unlisted skills are host-neutral. */
+  readonly skillHosts: ReadonlyMap<string, readonly HostKind[]>;
   /** All plugins' context injectors, in plugin load order. */
   readonly contextInjectors: readonly ContextInjector[];
   capabilities(
@@ -116,6 +127,7 @@ export function loadPlugins(plugins: readonly AgentPlugin[], options: LoadPlugin
     if (ids.has(plugin.id)) {
       throw new Error(`Duplicate plugin id: ${plugin.id}`);
     }
+    pluginHosts(plugin);
     ids.add(plugin.id);
   }
   const injectorNames = new Set<string>();
@@ -131,18 +143,30 @@ export function loadPlugins(plugins: readonly AgentPlugin[], options: LoadPlugin
   }
   return {
     skillDirectories: plugins.flatMap((plugin) => plugin.skills ?? []),
+    skillHosts: new Map(
+      plugins.flatMap((plugin) =>
+        (plugin.skills ?? []).map((directory) => [basename(directory), pluginHosts(plugin)] as const),
+      ),
+    ),
     contextInjectors,
     capabilities: (store, config, context, deadline, suppliedTasks, resolveMedia) => {
       const audit = createToolAudit(store, context.invocationId);
       const service = suppliedTasks ?? new LongTaskService(store.orm);
       return plugins.flatMap((plugin) => {
+        const hosts = pluginHosts(plugin);
+        if (!hosts.includes(context.hostKind)) {
+          return [];
+        }
         const scope: InvocationScope = {
           config,
           context,
           deadline,
           audit,
           orm: store.orm,
-          tasks: context.invocationId === 0n ? unavailableTasks() : service.invocationScope(plugin.id, context),
+          tasks:
+            context.invocationId === 0n
+              ? unavailableTasks()
+              : service.invocationScope(plugin.id, context, hosts),
           ...(resolveMedia === undefined ? {} : { resolveMedia }),
           ...(options.image === undefined ? {} : { image: options.image }),
         };
@@ -150,6 +174,17 @@ export function loadPlugins(plugins: readonly AgentPlugin[], options: LoadPlugin
       });
     },
   };
+}
+
+/** The hosts a plugin was declared for. Omitted or empty means Telegram only. */
+export function pluginHosts(plugin: AgentPlugin): readonly HostKind[] {
+  const hosts = plugin.hosts === undefined || plugin.hosts.length === 0 ? (['telegram'] as const) : plugin.hosts;
+  for (const host of hosts) {
+    if (!HOST_KINDS.includes(host)) {
+      throw new Error(`Plugin ${plugin.id} declares an unknown host: ${String(host)}`);
+    }
+  }
+  return hosts;
 }
 
 function unavailableTasks(): PluginTaskScope {

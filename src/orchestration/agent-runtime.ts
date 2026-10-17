@@ -16,7 +16,8 @@ import { capability, createExecuteTool, type ExecutableCapability } from '../cap
 import { createReadTool } from '../capabilities/read-tool.ts';
 import { createSendTools, SEND_TOOL_NAMES } from '../capabilities/send-tool.ts';
 import { createTyping } from '../capabilities/typing-tool.ts';
-import type { ImConversationRef, ImHost } from '../platform/im-host.ts';
+import type { HostKind, ImConversationRef, ImHost } from '../platform/im-host.ts';
+import { hostExecutionProfile } from '../platform/host-profile.ts';
 import { ContextBuilder, type ContextIdentity, type Injection, type StablePrompt } from '../context/context-builder.ts';
 import { encodeContextMessage, estimateMessageTokens } from '../context/context-codec.ts';
 import { type ContextGcPlan, isRenderable, planContextGc } from '../context/context-gc.ts';
@@ -105,7 +106,7 @@ export interface AgentRuntimeOptions {
   /** Runtime-internal capabilities dispatched through the execute primitive. */
   readonly capabilityTools?: CapabilityToolFactory;
   /** Per-invocation skill visibility rule; hides skills of disabled capabilities. */
-  readonly skillVisibility?: (skill: SystemSkill) => boolean;
+  readonly skillVisibility?: (skill: SystemSkill, hostKind: HostKind) => boolean;
   /** Resolves generated pictures for the send tool; absent without image generation. */
   readonly imageGeneration?: {
     readonly resolve: (
@@ -177,7 +178,7 @@ export class AgentRuntime {
   readonly #systemResources: SystemResources;
   readonly #capabilityTools: CapabilityToolFactory | undefined;
   /** Per-invocation skill visibility; used to hide disabled capability skills. */
-  readonly #skillVisibility: ((skill: SystemSkill) => boolean) | undefined;
+  readonly #skillVisibility: ((skill: SystemSkill, hostKind: HostKind) => boolean) | undefined;
   readonly #additionalTools: ToolFactory | undefined;
   readonly #directImageLoader: DirectImageLoader | undefined;
   readonly #modelGate: KeyedSemaphore;
@@ -289,7 +290,12 @@ export class AgentRuntime {
         deadline,
         resolver,
         capabilities,
-        isLowDailyTokenBudget(readDailyTokenBudget(this.#store.orm, config.agent.daily_budget.max_tokens))
+        hostExecutionProfile(context.hostKind).sleep &&
+        isLowDailyTokenBudget(
+          readDailyTokenBudget(this.#store.orm, config.agent.daily_budget.max_tokens, {
+            scope: hostExecutionProfile(context.hostKind).budgetScope,
+          }),
+        )
           ? createZzzTool({
               orm: this.#store.orm,
               invocationId: context.invocationId,
@@ -392,7 +398,9 @@ export class AgentRuntime {
         provider: model.provider,
         model: model.id,
       },
-      this.#skillVisibility === undefined ? undefined : { skillFilter: this.#skillVisibility },
+      this.#skillVisibility === undefined
+        ? undefined
+        : { skillFilter: (skill: SystemSkill) => this.#skillVisibility?.(skill, identity.hostKind) ?? true },
     );
     const opened = this.#contexts.open(identity.conversationId, stable.systemPromptHash);
     const header = opened.header;
@@ -414,7 +422,15 @@ export class AgentRuntime {
       threadId: identity.threadId,
       completion: identity.completion,
     });
-    const bypassDailyBudget = (): boolean => contextState.completion?.delivery.bypassDailyBudget === true;
+    // The host profile decides what this identity may reach. Nothing below
+    // falls back to the Telegram defaults when the host is the Playground.
+    const profile = hostExecutionProfile(identity.hostKind);
+    const bypassDailyBudget = (): boolean =>
+      profile.budgetBypass && contextState.completion?.delivery.bypassDailyBudget === true;
+    const dailyBudget = (): DailyTokenBudget =>
+      readDailyTokenBudget(this.#store.orm, this.#configStore.current().config.agent.daily_budget.max_tokens, {
+        scope: profile.budgetScope,
+      });
     contextState.setSystemPrompt(stable.systemPrompt);
     const capabilities = this.#capabilitiesFor(header);
     const state: RunState = {
@@ -431,19 +447,18 @@ export class AgentRuntime {
       stopReason: 'completed',
     };
     const repeatedFailure = new RepeatedToolFailure();
-    const zzz = createZzzTool({
-      orm: this.#store.orm,
-      invocationId,
-      chatId: identity.chatId,
-      onSleep: () => {
-        state.sleepRequested = true;
-      },
-    });
-    const initialBudget = readDailyTokenBudget(
-      this.#store.orm,
-      this.#configStore.current().config.agent.daily_budget.max_tokens,
-    );
-    let zzzExposed = !bypassDailyBudget() && isLowDailyTokenBudget(initialBudget);
+    const zzz = profile.sleep
+      ? createZzzTool({
+          orm: this.#store.orm,
+          invocationId,
+          chatId: identity.chatId,
+          onSleep: () => {
+            state.sleepRequested = true;
+          },
+        })
+      : undefined;
+    const initialBudget = dailyBudget();
+    let zzzExposed = zzz !== undefined && !bypassDailyBudget() && isLowDailyTokenBudget(initialBudget);
     if (zzzExposed) {
       this.#logZzzExposure(invocationId, identity.chatId, initialBudget);
     }
@@ -634,9 +649,7 @@ export class AgentRuntime {
         bucketId,
         seq: header.nextSeq,
         injectedMessageIds: collectTranscriptMessageIds(agent.state.messages),
-        sleepy: isLowDailyTokenBudget(
-          readDailyTokenBudget(this.#store.orm, this.#configStore.current().config.agent.daily_budget.max_tokens),
-        ),
+        sleepy: profile.sleep && isLowDailyTokenBudget(dailyBudget()),
         supportsImages,
         contextWindow: model.contextWindow,
         toolDefinitionCharacters,
@@ -728,9 +741,7 @@ export class AgentRuntime {
     agent.streamFunction = async (streamModel, modelContext, options) => {
       if (
         !bypassDailyBudget() &&
-        isDailyTokenBudgetReached(
-          readDailyTokenBudget(this.#store.orm, this.#configStore.current().config.agent.daily_budget.max_tokens),
-        )
+        isDailyTokenBudgetReached(dailyBudget())
       ) {
         state.modelBudgetBlocked = true;
         return errorStream(streamModel, 'daily_token_budget');
@@ -779,7 +790,7 @@ export class AgentRuntime {
               // that crossed `hard_token_ratio` on turn count alone, so GC threw
               // away live history and the run then ended as `context_limit`.
               state.estimatedInputTokens = Math.max(state.estimatedInputTokens, message.usage.input);
-              this.#finishModelCall(callId, identity.chatId, message);
+              this.#finishModelCall(callId, identity.chatId, message, profile.budgetScope);
             },
             (error) => this.#failModelCall(callId, 'stream_rejected', error),
           )
@@ -803,9 +814,7 @@ export class AgentRuntime {
       if (
         toolCall.name === 'zzz' &&
         (bypassDailyBudget() ||
-          !isLowDailyTokenBudget(
-            readDailyTokenBudget(this.#store.orm, this.#configStore.current().config.agent.daily_budget.max_tokens),
-          ))
+          !isLowDailyTokenBudget(dailyBudget()))
       ) {
         return { block: true, reason: 'You are no longer sleepy' };
       }
@@ -821,17 +830,14 @@ export class AgentRuntime {
       return undefined;
     };
     const refreshZzz = (turnContext: AgentContext): boolean => {
-      const budget = readDailyTokenBudget(
-        this.#store.orm,
-        this.#configStore.current().config.agent.daily_budget.max_tokens,
-      );
+      const budget = dailyBudget();
       const shouldExposeZzz = !bypassDailyBudget() && isLowDailyTokenBudget(budget);
       if (shouldExposeZzz === zzzExposed) {
         return false;
       }
       zzzExposed = shouldExposeZzz;
       const nextTools = (turnContext.tools ?? tools).filter((tool) => tool.name !== 'zzz');
-      if (shouldExposeZzz) {
+      if (shouldExposeZzz && zzz !== undefined) {
         nextTools.push(zzz);
         this.#logZzzExposure(invocationId, identity.chatId, budget);
         state.estimatedInputTokens += Math.ceil(estimateToolDefinitionCharacters(zzz) / 4);
@@ -915,9 +921,7 @@ export class AgentRuntime {
       }
       if (
         !bypassDailyBudget() &&
-        isDailyTokenBudgetReached(
-          readDailyTokenBudget(this.#store.orm, this.#configStore.current().config.agent.daily_budget.max_tokens),
-        )
+        isDailyTokenBudgetReached(dailyBudget())
       ) {
         return stop('budget');
       }
@@ -960,11 +964,8 @@ export class AgentRuntime {
         contextState.finishCompletion();
         refreshZzz(turn.context);
         if (
-          state.sleepRequested ||
-          activeSleepUntil(this.#store.orm) !== null ||
-          isDailyTokenBudgetReached(
-            readDailyTokenBudget(this.#store.orm, this.#configStore.current().config.agent.daily_budget.max_tokens),
-          )
+          (profile.sleep && (state.sleepRequested || activeSleepUntil(this.#store.orm) !== null)) ||
+          isDailyTokenBudgetReached(dailyBudget())
         ) {
           return stop('completed');
         }
@@ -1521,7 +1522,12 @@ export class AgentRuntime {
     }
   }
 
-  #finishModelCall(callId: bigint, chatId: bigint, message: AssistantMessage): void {
+  #finishModelCall(
+    callId: bigint,
+    chatId: bigint,
+    message: AssistantMessage,
+    scope: 'chat' | 'playground',
+  ): void {
     this.#store.transaction(() => {
       const usage = message.usage;
       const now = new Date().toISOString();
@@ -1546,7 +1552,7 @@ export class AgentRuntime {
         .insert(dailyUsage)
         .values({
           utcDate: now.slice(0, 10),
-          scope: 'chat',
+          scope,
           resource: chatId.toString(),
           metric: 'model_tokens',
           amount: meteredTokens(usage),

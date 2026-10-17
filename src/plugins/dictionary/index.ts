@@ -11,6 +11,7 @@ import { createDictionaryInjector } from './injection.ts';
  */
 export default definePlugin({
   id: 'dictionary',
+  hosts: ['telegram'],
   skills: [join(import.meta.dirname, 'skills', 'dictionary')],
   capabilities: (scope) =>
     // Dictionary scopes are Telegram chats. A room's chat id is internal and

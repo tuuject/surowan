@@ -1,7 +1,7 @@
 /** Local process composition root: owns transport, files, locks and lifecycle. */
 import { and, eq } from 'drizzle-orm';
 import { Bot, type Context } from 'grammy';
-import { capability } from '../../capabilities/execute-tool.ts';
+import { capability, type ExecutableCapability } from '../../capabilities/execute-tool.ts';
 import { McpManager } from '../../capabilities/mcp.ts';
 import { MediaService } from '../../capabilities/media/media.ts';
 import { TelegramMediaClient } from '../../capabilities/media/media-download.ts';
@@ -25,7 +25,9 @@ import {
 import { ReplayError, ReplayRunner } from '../../orchestration/replay.ts';
 import type { BucketScheduler } from '../../orchestration/scheduler.ts';
 import { KeyedSemaphore } from '../../platform/concurrency.ts';
-import { toChatId, toConversationId, type ImConversationRef } from '../../platform/im-host.ts';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import { toChatId, toConversationId, type HostKind, type ImConversationRef } from '../../platform/im-host.ts';
+import type { SystemSkill } from '../../platform/system-resources.ts';
 import { assertConfigPermissions, loadConfig } from './config.ts';
 import { ConfigReloader } from './config-reload.ts';
 import { previewContext, unavailableCapabilities } from '../../platform/invocation-context.ts';
@@ -215,22 +217,46 @@ export async function serve(configPath: string, takeover = false): Promise<void>
     });
     const systemResources = await FileSystemResources.load(BUNDLED_SYSTEM_RESOURCES_DIR, plugins.skillDirectories);
     logEvent('system_skills_loaded', { skills: systemResources.skills.map((skill) => skill.name).join(',') });
+    // Skills follow the plugin that ships them: a skill whose plugin is not
+    // mounted on a host never appears in that host's index.
+    const skillVisibleForHost = (skill: SystemSkill, hostKind: HostKind): boolean => {
+      if (hostExecutionProfile(hostKind).hiddenSkills.includes(skill.name)) {
+        return false;
+      }
+      const hosts = plugins.skillHosts.get(skill.name);
+      if (hosts !== undefined && !hosts.includes(hostKind)) {
+        return false;
+      }
+      return skill.name !== 'image-generation' || (imageBridge?.enabled() ?? false);
+    };
     // Runtime-internal capabilities: dispatched through the execute primitive.
-    const capabilityTools: CapabilityToolFactory = (context, deadline, capabilities) => [
-      capability(media.createReadImageTool(context, capabilities, deadline), false),
-      capability(stickerService.createSearchTool(context, capabilities), false),
-      ...createMemoryTools(memoryStore, context).map((tool) => capability(tool, true)),
-      ...plugins.capabilities(
-        openedStore,
-        configStore.current().config,
-        context,
-        deadline,
-        tasks,
-        capabilities.resolveMedia,
-      ),
-    ];
+    // The host profile decides which of them exist at all, so a Playground
+    // room never inherits Telegram-only tools just because they are configured.
+    const capabilityTools: CapabilityToolFactory = (context, deadline, capabilities) => {
+      const profile = hostExecutionProfile(context.hostKind);
+      const tools: ExecutableCapability[] = [];
+      if (profile.mediaRead) {
+        tools.push(capability(media.createReadImageTool(context, capabilities, deadline), false));
+      }
+      if (profile.stickers) {
+        tools.push(capability(stickerService.createSearchTool(context, capabilities), false));
+      }
+      tools.push(...createMemoryTools(memoryStore, context).map((tool) => capability(tool, true)));
+      tools.push(
+        ...plugins.capabilities(
+          openedStore,
+          configStore.current().config,
+          context,
+          deadline,
+          tasks,
+          capabilities.resolveMedia,
+        ),
+      );
+      return tools;
+    };
     // Directly exposed non-primitive tools: allowlisted MCP tools only.
-    const additionalTools: ToolFactory = (context, deadline) => [...mcpManager.createTools(context, deadline)];
+    const additionalTools: ToolFactory = (context, deadline) =>
+      hostExecutionProfile(context.hostKind).mcp ? [...mcpManager.createTools(context, deadline)] : [];
     // One host for both delivery and chat action: its per-conversation activity
     // bookkeeping is what keeps the ingestion status and the model's own
     // `typing` call from doubling up requests.
@@ -284,7 +310,7 @@ export async function serve(configPath: string, takeover = false): Promise<void>
       capabilityTools,
       additionalTools,
       tasks,
-      skillVisibility: (skill) => skill.name !== 'image-generation' || (imageBridge?.enabled() ?? false),
+      skillVisibility: skillVisibleForHost,
     });
     scheduler = startedScheduler;
     const preview = previewContext();
@@ -354,7 +380,7 @@ export async function serve(configPath: string, takeover = false): Promise<void>
         modelGate,
         shutdownSignal: replayShutdown.signal,
         toolDefinitions: (context, config) => runtime.sceneToolDefinitions(context, config),
-        skillVisibility: (skill) => skill.name !== 'image-generation' || (imageBridge?.enabled() ?? false),
+        skillVisibility: (skill) => skillVisibleForHost(skill, 'telegram'),
         imageLoader: async (mediaId, signal) => {
           const image = await media.prepareSceneImage(mediaId, signal);
           return { type: 'image', data: image.base64, mimeType: image.mime };

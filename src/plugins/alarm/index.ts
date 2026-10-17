@@ -8,6 +8,7 @@ export { createAlarmTool, createDeleteAlarmTool, createListAlarmTool } from './a
 
 export default definePlugin({
   id: 'alarm',
+  hosts: ['telegram'],
   skills: [join(import.meta.dirname, 'skills', 'alarms')],
   capabilities: (scope) => [
     capability(createAlarmTool(scope), true),

@@ -5,6 +5,8 @@ import { createWebFetchTool } from './web-fetch.ts';
 
 export default definePlugin({
   id: 'web-fetch',
+  // Read-only network access is part of the Playground's fixed capability set.
+  hosts: ['telegram', 'playground'],
   skills: [join(import.meta.dirname, 'skills', 'web-fetch')],
   capabilities: ({ audit, config, deadline }) => [
     capability(
