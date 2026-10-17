@@ -7,6 +7,8 @@ import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
 import { AsyncSemaphore, type KeyedSemaphore } from '../../platform/concurrency.ts';
 import { configuredToolSchemaKeywords, type ToolSchemaKeywords } from '../../platform/config.ts';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import type { HostKind } from '../../platform/im-host.ts';
 import type { CapabilityRefResolver, DirectImage, InvocationContext } from '../../platform/invocation-context.ts';
 import { invocationGateKey } from '../../platform/invocation-policy.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
@@ -36,7 +38,12 @@ type StickerAnalysis = Static<typeof StickerAnalysisSchema>;
 const IMAGE_CACHE_DAYS = 30;
 
 type AnalysisScope =
-  | { readonly kind: 'chat'; readonly chatId: bigint; readonly invocationId: bigint }
+  | {
+      readonly kind: 'chat';
+      readonly chatId: bigint;
+      readonly invocationId: bigint;
+      readonly hostKind: HostKind;
+    }
   | { readonly kind: 'sticker_index' };
 
 export interface StickerIndexAnalysis {
@@ -336,7 +343,12 @@ export class MediaService {
             description = await this.#analyzeDeduplicated(
               media,
               run,
-              { kind: 'chat', chatId: context.chatId, invocationId: context.invocationId },
+              {
+                kind: 'chat',
+                chatId: context.chatId,
+                invocationId: context.invocationId,
+                hostKind: context.hostKind,
+              },
               combinedSignal,
             );
             cacheHit = false;
@@ -463,7 +475,9 @@ export class MediaService {
     if (
       scope.kind === 'chat' &&
       isDailyTokenBudgetReached(
-        readDailyTokenBudget(this.#store.orm, this.#configStore.current().config.agent.daily_budget.max_tokens),
+        readDailyTokenBudget(this.#store.orm, this.#configStore.current().config.agent.daily_budget.max_tokens, {
+          scope: hostExecutionProfile(scope.hostKind).budgetScope,
+        }),
       )
     ) {
       throw new Error('Daily token budget reached');
@@ -515,7 +529,7 @@ export class MediaService {
       const releaseChat =
         scope.kind === 'chat'
           ? await this.#modelGate.acquire(
-              invocationGateKey('telegram', scope.chatId),
+              invocationGateKey(scope.hostKind, scope.chatId),
               signal,
             )
           : undefined;
@@ -677,7 +691,7 @@ export class MediaService {
           .insert(dailyUsage)
           .values({
             utcDate: now.slice(0, 10),
-            scope: 'chat',
+            scope: hostExecutionProfile(scope.hostKind).budgetScope,
             resource: scope.chatId.toString(),
             metric: 'model_tokens',
             amount: meteredTokens(usage),

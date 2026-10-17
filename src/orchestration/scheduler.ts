@@ -239,8 +239,9 @@ export class BucketScheduler {
       .all<{ created_at: string }>(
         sql`SELECT r.created_at FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id
          JOIN conversations v ON v.id = t.conversation_id
+         JOIN chats c ON c.id = v.chat_id
          WHERE r.state = 'pending'
-           AND (${sleepUntil} IS NULL OR json_extract(t.delivery_json, '$.bypassDailyBudget') = 1)
+           AND (c.host_kind = 'playground' OR ${sleepUntil} IS NULL OR json_extract(t.delivery_json, '$.bypassDailyBudget') = 1)
            AND NOT EXISTS (
              SELECT 1 FROM invocations i JOIN conversations v2 ON v2.id = i.conversation_id
              WHERE v2.chat_id = v.chat_id AND i.state = 'running'

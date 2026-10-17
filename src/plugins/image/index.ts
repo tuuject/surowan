@@ -11,6 +11,9 @@ import { createImageGenerateTool, createListImageModelsTool } from './image.ts';
  */
 export default definePlugin({
   id: 'image',
+  // Image generation stays a Telegram capability until the Playground grants
+  // it explicitly; see T08 in the Bot Playground epic.
+  hosts: ['telegram'],
   skills: [join(import.meta.dirname, 'skills', 'image-generation')],
   capabilities: (scope) => {
     if (scope.image === undefined || !scope.image.enabled()) {

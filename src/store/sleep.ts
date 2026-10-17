@@ -42,10 +42,22 @@ export function meteredTokens(usage: {
   return BigInt(usage.input) + BigInt(usage.output) + BigInt(usage.cacheRead) + BigInt(usage.cacheWrite);
 }
 
-export function readDailyTokenBudget(orm: Orm, maxTokens: number, now = new Date()): DailyTokenBudget {
+/**
+ * Tokens already spent today by one accounting scope.
+ *
+ * Telegram chats and Playground rooms accumulate separately: a room never
+ * observes or exhausts the chat budget, and vice versa.
+ */
+export function readDailyTokenBudget(
+  orm: Orm,
+  maxTokens: number,
+  options: { readonly scope?: 'chat' | 'playground'; readonly now?: Date } = {},
+): DailyTokenBudget {
+  const scope = options.scope ?? 'chat';
+  const now = options.now ?? new Date();
   const row = orm
     .all<{ amount: bigint }>(
-      sql`SELECT COALESCE(SUM(amount), 0) AS amount FROM daily_usage WHERE utc_date = ${now.toISOString().slice(0, 10)} AND scope = 'chat' AND metric = 'model_tokens'`,
+      sql`SELECT COALESCE(SUM(amount), 0) AS amount FROM daily_usage WHERE utc_date = ${now.toISOString().slice(0, 10)} AND scope = ${scope} AND metric = 'model_tokens'`,
     )
     .at(0);
   return { usedTokens: row?.amount ?? 0n, maxTokens: BigInt(maxTokens) };

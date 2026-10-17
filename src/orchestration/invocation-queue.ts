@@ -73,6 +73,7 @@ interface ReceiptRow {
   readonly telegram_chat_id: bigint;
   readonly message_thread_id: bigint;
   readonly bypass_daily_budget: bigint;
+  readonly host_kind: string;
 }
 
 /**
@@ -608,6 +609,7 @@ export class InvocationQueueService {
     return this.#store.transaction(() => {
       const pending = this.#store.orm.all<ReceiptRow>(
         sql`SELECT r.task_id, t.conversation_id, v.chat_id, c.telegram_chat_id, v.message_thread_id,
+                   c.host_kind AS host_kind,
                    json_extract(t.delivery_json, '$.bypassDailyBudget') AS bypass_daily_budget
          FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id
          JOIN conversations v ON v.id = t.conversation_id
@@ -632,7 +634,9 @@ export class InvocationQueueService {
             .run();
           continue;
         }
-        if (sleepUntil !== null && receipt.bypass_daily_budget !== 1n) {
+        // Only the Telegram host has a global sleep window; a Playground room
+        // never waits out a chat sleep, and never inherits its bypass either.
+        if (receipt.host_kind === 'telegram' && sleepUntil !== null && receipt.bypass_daily_budget !== 1n) {
           continue;
         }
         const running = this.#runningInvocation(receipt.conversation_id);
@@ -712,6 +716,7 @@ export class InvocationQueueService {
          JOIN conversations v ON v.id = i.conversation_id
          JOIN chats c ON c.id = v.chat_id
          WHERE i.state = 'queued'
+           AND c.host_kind = 'telegram'
            AND NOT EXISTS (
              SELECT 1 FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id
              WHERE r.invocation_id = i.id AND r.state = 'claimed'
