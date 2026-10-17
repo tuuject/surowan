@@ -492,7 +492,7 @@ describe('capability references', () => {
     const refs = new ContextRefStore(store, { ttlHours: () => loaded.config.agent.context.ref_ttl_hours });
     const conversation = conversationId(store);
     const { header } = contexts.open(conversation, 'hash-a');
-    const ref = refs.replyRef(header, 555n, { conversationId: conversation, threadId: 7n }, 1n);
+    const ref = refs.replyRef(header, '555', { conversationId: conversation, threadId: 7n }, 1n);
     expect(ref).toBe('reply:555');
     expect(refs.resolve(header, ref, 'reply')?.targetThreadId).toBe(7n);
     expect(refs.resolve(header, 'reply:556', 'reply')).toBeUndefined();

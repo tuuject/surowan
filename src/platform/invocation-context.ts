@@ -57,7 +57,11 @@ export interface VisibleSender {
 export interface CapabilityRefResolver {
   resolveMedia(ref: string): bigint | undefined;
   resolveStickerRef(ref: string): string | undefined;
-  resolveReplyTarget(messageId: string): ReplyTarget | undefined;
+  /**
+   * Resolve a model-visible reply ref. The ref is opaque: its shape is the
+   * host's, and authorization is the target recorded when it was registered.
+   */
+  resolveReplyTarget(ref: string): ReplyTarget | undefined;
   /** Authorizes one sticker file for the rest of the context's reference TTL. */
   registerStickerRef(stickerFileId: string): string;
 }
@@ -77,6 +81,11 @@ export function unavailableCapabilities(): CapabilityRefResolver {
 export interface InvocationContext {
   readonly invocationId: bigint;
   readonly conversationId: bigint;
+  /**
+   * The host this invocation runs for. A Telegram-only capability must check
+   * it before reading `chatId` as a Telegram chat id.
+   */
+  readonly hostKind: 'telegram' | 'playground';
   readonly chatId: bigint;
   readonly threadId: bigint;
   readonly systemPrompt: string;
@@ -99,6 +108,7 @@ export interface InvocationContext {
 export class InvocationContextState implements InvocationContext {
   readonly invocationId: bigint;
   readonly conversationId: bigint;
+  readonly hostKind: 'telegram' | 'playground';
   readonly chatId: bigint;
   readonly threadId: bigint;
   #systemPrompt = '';
@@ -112,12 +122,14 @@ export class InvocationContextState implements InvocationContext {
   constructor(identity: {
     readonly invocationId: bigint;
     readonly conversationId: bigint;
+    readonly hostKind: 'telegram' | 'playground';
     readonly chatId: bigint;
     readonly threadId: bigint;
     readonly completion: CompletionContext | null;
   }) {
     this.invocationId = identity.invocationId;
     this.conversationId = identity.conversationId;
+    this.hostKind = identity.hostKind;
     this.chatId = identity.chatId;
     this.threadId = identity.threadId;
     this.#completion = identity.completion;
@@ -192,6 +204,7 @@ export function previewContext(): InvocationContext {
   return {
     invocationId: 0n,
     conversationId: 0n,
+    hostKind: 'telegram',
     chatId: 0n,
     threadId: 0n,
     systemPrompt: '',

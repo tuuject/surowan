@@ -26,6 +26,7 @@ import {
   resolveAgentSettings,
 } from '../platform/config.ts';
 import { type InvocationContext, unavailableCapabilities } from '../platform/invocation-context.ts';
+import { invocationGateKey } from '../platform/invocation-policy.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import type { SecretStore } from '../platform/secrets.ts';
 import type { SystemResources, SystemSkill } from '../platform/system-resources.ts';
@@ -396,7 +397,10 @@ export class ReplayRunner {
           fail('turn_budget', 'Replay turn budget exhausted');
           throw new Error('Replay turn budget');
         }
-        const release = await modelGate.acquire(source.chatId.toString(), signal);
+        const release = await modelGate.acquire(
+          invocationGateKey('telegram', source.chatId),
+          signal,
+        );
         try {
           signal.throwIfAborted();
           turns += 1;
@@ -632,6 +636,7 @@ export class ReplayRunner {
     );
     const context: InvocationContext = {
       invocationId: id,
+      hostKind: 'telegram',
       ...check.source,
       systemPrompt: stable.systemPrompt,
       userPrompt: '',

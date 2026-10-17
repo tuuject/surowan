@@ -148,6 +148,7 @@ export function renderInvocationContext(
   );
   return {
     invocationId,
+    hostKind: identity.hostKind,
     chatId: identity.chatId,
     threadId: identity.threadId,
     completion: identity.completion,

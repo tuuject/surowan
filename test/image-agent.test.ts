@@ -329,6 +329,7 @@ test('send kind:image delivers finished outputs of a generation owned by this co
   const sendContext = {
     invocationId: 7n,
     conversationId: 42n,
+    hostKind: 'telegram' as const,
     chatId: 100n,
     threadId: 0n,
     systemPrompt: '',

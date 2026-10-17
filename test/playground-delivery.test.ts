@@ -610,6 +610,7 @@ describe('Bot Playground virtual delivery', () => {
     const context = new InvocationContextState({
       invocationId: room.invocationId,
       conversationId: room.conversationId,
+      hostKind: 'playground',
       chatId: room.chatId,
       threadId: 0n,
       completion: null,
