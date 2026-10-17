@@ -40,6 +40,7 @@ type RawChat = RawConfig['telegram']['chats'][number];
 const HOT_PATHS: ReadonlySet<string> = new Set([
   'developer',
   'developer.record_model_payloads',
+  'developer.record_agent_thinking',
   'agent.provider',
   'agent.model',
   'agent.system_prompt_file',

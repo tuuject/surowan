@@ -1,11 +1,11 @@
-import { afterAll, expect, test } from 'vitest';
-import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { parse, type ParseError } from 'jsonc-parser';
+import { type ParseError, parse } from 'jsonc-parser';
+import { afterAll, expect, test } from 'vitest';
 import { deploymentSettings, docsRoot, renderConfigFields } from '../scripts/docs-prepare.ts';
-import { plaintextSecrets } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { plaintextSecrets } from '../src/platform/config.ts';
 
 const directories: string[] = [];
 afterAll(async () => {
@@ -89,6 +89,7 @@ test('schema reference covers nested arrays, union policies and required/optiona
     'retention.online_days',
     'web_fetch',
     'developer.record_model_payloads',
+    'developer.record_agent_thinking',
   ]) {
     expect(fields).toContain(name);
   }

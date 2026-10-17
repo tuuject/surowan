@@ -1,4 +1,3 @@
-import { afterAll, expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
 import { copyFile, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -14,25 +13,26 @@ import {
   getCurrentTools,
   withoutInitialSystemMessage,
 } from '@earendil-works/pi-ai';
-import Type from 'typebox';
 import type { Update } from 'grammy/types';
 import sharp from 'sharp';
-import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
-import { KeyedSemaphore } from '../src/platform/concurrency.ts';
+import Type from 'typebox';
+import { afterAll, expect, test } from 'vitest';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { modelCalls } from '../src/store/schema.ts';
-import { previewContext } from '../src/platform/invocation-context.ts';
-import type { MediaDownloader } from '../src/capabilities/media/media-download.ts';
+import { capability } from '../src/capabilities/execute-tool.ts';
 import { MediaService } from '../src/capabilities/media/media.ts';
-import { keyJarPath } from '../src/platform/key-jar.ts';
-import { SecretStore } from '../src/platform/secrets.ts';
-import { BucketScheduler } from '../src/orchestration/scheduler.ts';
+import type { MediaDownloader } from '../src/capabilities/media/media-download.ts';
 import type { TelegramSendApi } from '../src/capabilities/send-tool.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
-import { capability } from '../src/capabilities/execute-tool.ts';
-import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
+import { BucketScheduler } from '../src/orchestration/scheduler.ts';
+import { KeyedSemaphore } from '../src/platform/concurrency.ts';
+import { previewContext } from '../src/platform/invocation-context.ts';
+import { keyJarPath } from '../src/platform/key-jar.ts';
+import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
+import { modelCalls } from '../src/store/schema.ts';
+import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -40,6 +40,82 @@ afterAll(async () => {
   await Promise.all(
     directories.map((directory) => rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })),
   );
+});
+
+test('a fresh Agent drops assistant thinking when CoT recording is off', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-agent-'));
+  directories.push(directory);
+  const configPath = join(directory, 'config.jsonc');
+  await writeTestConfig(directory, configPath, testConfigJsonc(directory));
+  const loaded = await loadConfig(configPath);
+  const faux = fauxProvider({
+    provider: 'agent',
+    models: [{ id: 'agent-model', input: ['text', 'image'], contextWindow: 200_000, maxTokens: 32_768 }],
+  });
+  const configStore = await testConfigStore(loaded, fauxRegistry(faux));
+  const store = await SqliteStore.open(loaded.config);
+  const ingestion = new TelegramIngestion(store, configStore, { id: 999 });
+  const update: Update = {
+    update_id: 1,
+    message: {
+      message_id: 10,
+      date: 1_700_000_000,
+      chat: { id: 123456789, type: 'private', first_name: 'Owner' },
+      from: { id: 42, is_bot: false, first_name: 'Alice' },
+      text: 'hello',
+    },
+  };
+  const received = new Date('2026-08-15T00:00:00.000Z');
+  ingestion.ingest(update, received);
+  const scheduler = new BucketScheduler(store, configStore, async () => ({
+    state: 'completed',
+    reason: 'done',
+  }));
+  const [invocationId] = scheduler.processDue(new Date(received.getTime() + 15_000));
+  if (invocationId === undefined) {
+    throw new Error('Expected a due invocation');
+  }
+  faux.setResponses([
+    (context, options) => {
+      options?.onPayload?.({ model: 'agent-model', messages: context.messages }, faux.getModel());
+      void options?.onResponse?.({ status: 200, headers: {} }, faux.getModel());
+      return fauxAssistantMessage(fauxToolCall('send', { kind: 'text', text: 'published' }), {
+        stopReason: 'toolUse',
+      });
+    },
+    (context, options) => {
+      options?.onPayload?.({ model: 'agent-model', messages: context.messages }, faux.getModel());
+      void options?.onResponse?.({ status: 200, headers: {} }, faux.getModel());
+      // The model emits thinking regardless; the developer switch decides whether it persists.
+      return fauxAssistantMessage([fauxThinking('should not persist'), fauxText('private assistant text')]);
+    },
+  ]);
+  let messageId = 500;
+  const api: TelegramSendApi = {
+    sendMessage: async () => ({ message_id: ++messageId, date: 1_700_000_100, chat: { id: 123456789 } }),
+    sendSticker: async () => ({ message_id: ++messageId, date: 1_700_000_100, chat: { id: 123456789 } }),
+  };
+  const runtime = new AgentRuntime({
+    store,
+    configStore,
+    secrets: new SecretStore(),
+    telegramApi: api,
+    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    systemResources: emptySystemResources(),
+  });
+  const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
+  expect(outcome).toEqual({ state: 'completed', reason: 'completed' });
+  expect(
+    store.db
+      .prepare<[], { text: string; thinking_text: string }>(
+        "SELECT text, thinking_text FROM agent_messages WHERE role = 'assistant' ORDER BY sequence_no",
+      )
+      .all(),
+  ).toEqual([
+    { text: '', thinking_text: '' },
+    { text: 'private assistant text', thinking_text: '' },
+  ]);
+  store.close();
 });
 
 test.each([undefined, false, true])(
@@ -52,9 +128,10 @@ test.each([undefined, false, true])(
       directory,
       configPath,
       testConfigJsonc(directory, (config) => {
-        if (recordPayloads !== undefined) {
-          config.developer = { record_model_payloads: recordPayloads };
-        }
+        config.developer =
+          recordPayloads === undefined
+            ? { record_agent_thinking: true }
+            : { record_model_payloads: recordPayloads, record_agent_thinking: true };
       }),
     );
     const loaded = await loadConfig(configPath);
@@ -103,7 +180,10 @@ test.each([undefined, false, true])(
         const current = configStore.current();
         configStore.publish({
           ...current,
-          config: { ...current.config, developer: { record_model_payloads: !recordPayloads } },
+          config: {
+            ...current.config,
+            developer: { record_model_payloads: !recordPayloads, record_agent_thinking: true },
+          },
         });
         return fauxAssistantMessage(fauxToolCall('send', { kind: 'text', text: 'published' }), {
           stopReason: 'toolUse',

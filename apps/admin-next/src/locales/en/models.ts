@@ -295,6 +295,10 @@ export const models = {
     recordDescription:
       'When enabled, saves raw request and response snapshots of model calls for the Invocation detail, plus a best-effort text-only input from the first request for replay. May significantly increase database usage.',
     recordHint: 'Off by default. Changes apply to new model calls; turning it off does not clear existing payloads.',
+    thinkingLabel: 'Record agent thinking (CoT)',
+    thinkingDescription:
+      'When enabled, saves the assistant thinking text separately from the response text in the Agent transcript and the timeline. May increase database usage.',
+    thinkingHint: 'Off by default. Changes apply to new assistant messages; earlier invocations keep empty thinking.',
     stateMismatch:
       'The file setting differs from the running state. Current running state: {{status}}. Apply the configuration file in Settings.',
     historyTitle: 'Payload history',

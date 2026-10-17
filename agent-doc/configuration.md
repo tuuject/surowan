@@ -33,7 +33,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 | --- | --- |
 | `agent.provider`、`agent.model` | 永远热更新：目标 Provider 可以是同一次修改里新增的，reload 会重建模型注册表并随配置一起发布 |
 | `agent.system_prompt_file` | 路径或文件内容变化都算；内容变化会重建每个 Conversation 的 Context；可在面板编辑并保留版本历史 |
-| `developer`、`developer.record_model_payloads` | 可选节/字段的增删都热应用，缺省为 `false`；每次模型调用读取当前开关，关闭时后续快照回调停止写入 |
+| `developer`、`developer.record_model_payloads`、`developer.record_agent_thinking` | 可选节/字段的增删都热应用，缺省为 `false`；每次模型调用读取当前开关，关闭时后续快照回调停止写入 |
 | 以下 agent 字段（未列出的 agent 字段，如 `memory_ttl_warning_days` 与其余 `agent.context.*`，需要重启）：`thinking_level`、`context_stop_ratio`、`send_max_text_length`、`send_disallow_blank_lines`、`send_nudge_enabled`、`send_barrier_enabled`、`allow_reply_message_multiple_times`、`daily_budget.max_tokens`、`max_concurrency`、`history_messages`、`context.max_wall_clock_seconds`、`context.idle_grace_seconds`、`rate_limits.*` | 下一次 Invocation 使用新值；运行中的 Invocation 继续用它启动时的快照。唯一例外是 `daily_budget.max_tokens`：日预算在运行期实时读取，调低后下一次模型调用立即被拦截 |
 | `telegram.chats`（**新增** Chat，整项 `{ id, … }`） | 立即生效：ingestion 白名单、参与策略注册表与 `resolveChatConfig` 都读发布后的配置并按代数重建/直读，无需重启。删除 Chat、已有 Chat 的其它字段修改与 Topic 范围仍是 restart |
 | `telegram.chats[<id>].instructions_file` | 仅限两边都存在的 Chat；路径或内容变化都算；可在面板编辑并保留版本历史（Chat 尚无该字段时由面板创建） |
@@ -126,7 +126,7 @@ command SecretRef：
 | `tool_model` | 可选的系统级辅助模型（辞典融合等）；缺省继承全局 Agent 设置 |
 | `mcp` | 可选的 stdio/Streamable HTTP Server |
 | `admin` | 可选的 Admin Panel（审计只读 + 受控管理写端点） |
-| `developer` | 可选的开发者调试配置；`record_model_payloads` 缺省为 `false` |
+| `developer` | 可选的开发者调试配置；`record_model_payloads` 与 `record_agent_thinking` 均缺省为 `false` |
 | `image` | 可选的图片生成，见 [Image 生成](#image-生成) |
 | `web_fetch` | 可选的 `web_fetch` 设置，见 [web_fetch](#web_fetch) |
 | `retention` | 在线保留天数与备份份数 |
@@ -549,7 +549,7 @@ Streamable HTTP 使用 `url` 与可选 SecretRef `headers`，且 `follow_redirec
 
 ## Admin Panel
 
-Developer 页使用可选的 `developer.record_model_payloads`（boolean，缺省 `false`）；整个 `developer` 节也可省略。文件层保留缺省状态，`assembleRawConfig` 将运行时值归一为 boolean。该设置可热应用，每个模型调用开始时读取当前值；关闭期间已在途调用的后续快照回调也停止写入。开启不会补录关闭时启动的调用。正常审计、错误与历史快照不受开关影响，历史报文必须通过 Developer 清除操作主动删除。
+Developer 页使用可选的 `developer.record_model_payloads` 与 `developer.record_agent_thinking`（均为 boolean，缺省 `false`）；整个 `developer` 节也可省略。文件层保留缺省状态，`assembleRawConfig` 将运行时值归一为 boolean。两者都可热应用：`record_model_payloads` 在每个模型调用开始时读取当前值，关闭期间已在途调用的后续快照回调也停止写入；`record_agent_thinking` 在每条 assistant 消息落库时读取当前值；开启前的消息不补录 CoT，关闭期间模型输出的 thinking 同样不留存。开启不会补录关闭时启动的调用。正常审计、错误与历史快照不受开关影响，历史报文必须通过 Developer 清除操作主动删除。Agent transcript 的 CoT 展示列在开关关闭时保持为空（[agent-doc/data-layer.md](data-layer.md#冻结与重放边界)）。
 
 ```jsonc
 {

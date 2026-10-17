@@ -392,7 +392,13 @@ export const ConfigSchema = Type.Object(
     mcp: Type.Optional(Type.Object({ servers: Type.Array(Type.Union([StdioMcpSchema, HttpMcpSchema])) }, Strict)),
     admin: Type.Optional(AdminSchema),
     developer: Type.Optional(
-      Type.Object({ record_model_payloads: Type.Optional(Type.Boolean({ default: false })) }, Strict),
+      Type.Object(
+        {
+          record_model_payloads: Type.Optional(Type.Boolean({ default: false })),
+          record_agent_thinking: Type.Optional(Type.Boolean({ default: false })),
+        },
+        Strict,
+      ),
     ),
     web_fetch: Type.Optional(
       Type.Object(
@@ -438,7 +444,7 @@ export function resolveAgentSettings(
 export type ParticipationConfig = Static<typeof ParticipationSchema>;
 export type ParticipationWindowConfig = Static<typeof ParticipationWindowSchema>;
 export type RawConfig = Omit<FileConfig, 'agent' | 'telegram' | 'developer'> & {
-  developer: { record_model_payloads: boolean };
+  developer: { record_model_payloads: boolean; record_agent_thinking: boolean };
   agent: Omit<FileConfig['agent'], 'system_prompt_file'> & { system_prompt: string };
   telegram: Omit<FileConfig['telegram'], 'chats'> & {
     chats: Array<Omit<FileChat, 'instructions_file'> & { instructions: string }>;
@@ -557,7 +563,10 @@ export function assembleRawConfig(
   });
   return {
     ...fileConfig,
-    developer: { record_model_payloads: fileConfig.developer?.record_model_payloads ?? false },
+    developer: {
+      record_model_payloads: fileConfig.developer?.record_model_payloads ?? false,
+      record_agent_thinking: fileConfig.developer?.record_agent_thinking ?? false,
+    },
     agent: { ...agent, system_prompt: systemPrompt },
     telegram: { ...fileConfig.telegram, chats },
   };

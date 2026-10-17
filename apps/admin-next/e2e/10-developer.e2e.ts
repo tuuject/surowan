@@ -67,6 +67,21 @@ test('Developer reports saved-but-not-applied settings and recovers through Sett
   await expect(recording).not.toBeChecked();
 });
 
+test('Developer records agent thinking separately from payload recording', async ({ page }) => {
+  await page.goto(await adminUrl('/developer'));
+  const thinking = page.getByRole('switch', { name: 'Record agent thinking (CoT)' });
+  await expect(thinking).not.toBeChecked();
+  await thinking.click();
+  await expect(thinking).toBeChecked();
+  // Payload recording stays untouched by a CoT-only update.
+  await expect(page.getByRole('switch', { name: 'Record raw request payloads for debugging' })).not.toBeChecked();
+  await page.reload();
+  await expect(thinking).toBeChecked();
+  await thinking.click();
+  await expect(thinking).not.toBeChecked();
+  await expect(thinking).toBeEnabled();
+});
+
 test('Developer actions and confirmation fit a mobile dark viewport', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(await adminUrl('/developer'));

@@ -20,12 +20,36 @@ import { type AgentModelOption, type AgentModelSwitcher, listActiveTextModels } 
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import { isThinkingLevel } from '../../platform/thinking-levels.ts';
+import { resolveToolModel } from '../../platform/tool-model.ts';
 import { cancelAlarm, listAlarms, parseAlarmId } from '../../plugins/alarm/admin.ts';
-import type { BusinessStore } from '../../store/store.ts';
-import { resolveChatConfig } from '../../store/store.ts';
+import {
+  createDictionaryEntry,
+  deleteDictionaryEntry,
+  dictionaryExport,
+  dictionarySettingsView,
+  dictionaryView,
+  importDictionaryEntries,
+  listDictionaryChatOptions,
+  mergeDictionaryEntries,
+  mergePreview,
+  parseDictionaryDraft,
+  parseDictionaryImportBody,
+  parseDictionaryImportPreview,
+  parseDictionaryQuery,
+  parseDictionarySettingsBody,
+  parseExportFormat,
+  parseMergeConfirm,
+  parseMergePreview,
+  previewDictionaryImport,
+  toolModelView,
+  updateDictionaryEntry,
+} from '../../plugins/dictionary/admin.ts';
+import { DictionaryStore } from '../../plugins/dictionary/dictionary.ts';
 import { LongTaskService } from '../../store/long-tasks.ts';
 import { getPromptVersion } from '../../store/prompt-versions.ts';
 import { wakeFromSleep } from '../../store/sleep.ts';
+import type { BusinessStore } from '../../store/store.ts';
+import { resolveChatConfig } from '../../store/store.ts';
 import { authenticateApiKey, createApiKey, listApiKeys, parseCreateApiKeyBody, revokeApiKey } from './api-keys.ts';
 import {
   AdminQueryError,
@@ -59,31 +83,7 @@ import {
   inspectionQuery,
   redactInspection,
 } from './config-inspection.ts';
-import { DictionaryStore } from '../../plugins/dictionary/dictionary.ts';
-import { resolveToolModel } from '../../platform/tool-model.ts';
 import { clearModelPayloads, parseDeveloperSettings } from './developer-admin.ts';
-import {
-  createDictionaryEntry,
-  deleteDictionaryEntry,
-  dictionaryExport,
-  dictionarySettingsView,
-  dictionaryView,
-  importDictionaryEntries,
-  listDictionaryChatOptions,
-  mergeDictionaryEntries,
-  mergePreview,
-  parseDictionaryDraft,
-  parseDictionaryImportBody,
-  parseDictionaryImportPreview,
-  parseDictionaryQuery,
-  parseDictionarySettingsBody,
-  parseExportFormat,
-  parseMergeConfirm,
-  parseMergePreview,
-  previewDictionaryImport,
-  toolModelView,
-  updateDictionaryEntry,
-} from '../../plugins/dictionary/admin.ts';
 import { createImageAdminHandler, type ImageAdminResponse, reusableImageCredentials } from './image-admin.ts';
 import { createInvocationMediaReader, listInvocationMedia } from './invocation-media.ts';
 import {
@@ -1680,10 +1680,17 @@ export class AdminServer {
       return revisionRequired();
     }
     const body = parseDeveloperSettings(await readJsonObject(request));
-    const result = await reloader.writeAndApply(
-      [{ path: ['developer', 'record_model_payloads'], value: body.record_model_payloads }],
-      revision,
-    );
+    // Only the fields the request carries are written, so a single-field PUT
+    // preserves the file value of the other switch.
+    const edits = [
+      ...(body.record_model_payloads === undefined
+        ? []
+        : [{ path: ['developer', 'record_model_payloads'], value: body.record_model_payloads }]),
+      ...(body.record_agent_thinking === undefined
+        ? []
+        : [{ path: ['developer', 'record_agent_thinking'], value: body.record_agent_thinking }]),
+    ];
+    const result = await reloader.writeAndApply(edits, revision);
     if (!result.ok) {
       const message = result.fileWritten
         ? `config.jsonc was updated but not applied: ${result.message}`
@@ -1702,6 +1709,8 @@ export class AdminServer {
       revision,
       record_model_payloads: loaded.config.developer.record_model_payloads,
       active_record_model_payloads: this.#configStore.current().config.developer.record_model_payloads,
+      record_agent_thinking: loaded.config.developer.record_agent_thinking,
+      active_record_agent_thinking: this.#configStore.current().config.developer.record_agent_thinking,
     };
   }
 

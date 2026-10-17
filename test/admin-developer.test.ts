@@ -1,21 +1,21 @@
-import { afterEach, expect, test, vi } from 'vitest';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { AdminServer } from '../src/ingress/admin/server.ts';
-import { getInvocation, listInvocations } from '../src/ingress/admin/audit.ts';
-import type { FileConfig } from '../src/platform/config.ts';
+import { afterEach, expect, test, vi } from 'vitest';
+import type { DeveloperSettings } from '../apps/admin-next/src/lib/api.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
-import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
 import { writeConfigEdits } from '../src/adapters/local-monolith/config-file.ts';
+import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
+import { getInvocation, listInvocations } from '../src/ingress/admin/audit.ts';
+import { AdminServer } from '../src/ingress/admin/server.ts';
+import type { FileConfig } from '../src/platform/config.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { modelCalls } from '../src/store/schema.ts';
 import { seedAdminFixture } from './fixtures/admin-seed.ts';
 import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
-import type { DeveloperSettings } from '../apps/admin-next/src/lib/api.ts';
 
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -109,6 +109,62 @@ test('removing developer configuration hot-applies false without deleting histor
   expect(await f.reloader.reloadFromFile()).toMatchObject({ ok: true, restartRequired: [] });
   expect(await f.view()).toMatchObject({ record_model_payloads: false, active_record_model_payloads: false });
   expect(f.store.db.prepare('SELECT * FROM model_calls ORDER BY id').all()).toEqual(before);
+});
+
+test('record_agent_thinking defaults to off and updates independently of payloads', async () => {
+  const f = await fixture();
+  const initial = await f.view();
+  expect(initial.record_agent_thinking).toBe(false);
+  expect(initial.active_record_agent_thinking).toBe(false);
+  // The omit check is on the raw file: the section does not exist yet.
+  expect(JSON.parse(await readFile(f.path, 'utf8')).developer).toBeUndefined();
+
+  // At least one field must be provided so an empty PUT cannot no-op.
+  const empty = await f.call('/developer', {
+    method: 'PUT',
+    headers: { 'if-match': initial.revision },
+    body: JSON.stringify({}),
+  });
+  expect(empty.status).toBe(400);
+  expect(await empty.json()).toMatchObject({ error: 'invalid_body' });
+
+  // Enabling CoT alone leaves payload recording untouched in the file.
+  const enabled = await f.call('/developer', {
+    method: 'PUT',
+    headers: { 'if-match': initial.revision },
+    body: JSON.stringify({ record_agent_thinking: true }),
+  });
+  expect(enabled.status).toBe(200);
+  expect(await enabled.json()).toMatchObject({
+    record_model_payloads: false,
+    active_record_model_payloads: false,
+    record_agent_thinking: true,
+    active_record_agent_thinking: true,
+  });
+  expect(JSON.parse(await readFile(f.path, 'utf8')).developer).toEqual({ record_agent_thinking: true });
+
+  // A single-field PUT preserves the other field, then both read back as false.
+  const cleared = await f.call('/developer', {
+    method: 'PUT',
+    headers: { 'if-match': (await f.view()).revision },
+    body: JSON.stringify({ record_agent_thinking: false }),
+  });
+  expect(cleared.status).toBe(200);
+  expect(await loadConfig(f.path)).toMatchObject({
+    config: { developer: { record_model_payloads: false, record_agent_thinking: false } },
+  });
+  expect((await f.view()).active_record_agent_thinking).toBe(false);
+  expect(f.reloader.status().restartRequired).toEqual([]);
+});
+
+test('removing the developer section hot-applies record_agent_thinking to false', async () => {
+  const f = await fixture({ record_model_payloads: false, record_agent_thinking: true });
+  seedAdminFixture(f.store);
+  const before = f.store.db.prepare('SELECT * FROM agent_messages ORDER BY id').all();
+  await writeConfigEdits(f.path, [{ path: ['developer'], value: undefined }]);
+  expect(await f.reloader.reloadFromFile()).toMatchObject({ ok: true, restartRequired: [] });
+  expect(await f.view()).toMatchObject({ record_agent_thinking: false, active_record_agent_thinking: false });
+  expect(f.store.db.prepare('SELECT * FROM agent_messages ORDER BY id').all()).toEqual(before);
 });
 
 test('Developer writes enforce authentication, origin, revision and boolean validation', async () => {

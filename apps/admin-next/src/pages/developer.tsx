@@ -6,10 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import type { DeveloperUpdate } from '@/lib/api';
 import { clearModelPayloads, updateDeveloperSettings } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { developerQuery } from '@/lib/queries';
 import { useProviderWrite } from '@/lib/use-provider-write';
+
+type DeveloperSwitch = Exclude<keyof DeveloperUpdate, never>;
 
 export default function DeveloperPage(): React.ReactElement {
   const { t } = useTranslation();
@@ -18,8 +21,11 @@ export default function DeveloperPage(): React.ReactElement {
   const write = useProviderWrite();
   const [confirmClear, setConfirmClear] = useState(false);
   const update = useMutation({
-    mutationFn: ({ enabled, revision }: { enabled: boolean; revision: string }) =>
-      updateDeveloperSettings(enabled, revision),
+    mutationFn: ({ field, enabled, revision }: { field: DeveloperSwitch; enabled: boolean; revision: string }) =>
+      updateDeveloperSettings(
+        field === 'record_model_payloads' ? { record_model_payloads: enabled } : { record_agent_thinking: enabled },
+        revision,
+      ),
     onSuccess: (result) => {
       queryClient.setQueryData(developerQuery.queryKey, result);
       write.succeeded(result.apply);
@@ -66,7 +72,9 @@ export default function DeveloperPage(): React.ReactElement {
                   aria-describedby="payload-description"
                   checked={current.record_model_payloads}
                   disabled={update.isPending}
-                  onCheckedChange={(enabled) => update.mutate({ enabled, revision: current.revision })}
+                  onCheckedChange={(enabled) =>
+                    update.mutate({ field: 'record_model_payloads', enabled, revision: current.revision })
+                  }
                 />
               </div>
               <p className="text-muted-foreground text-xs">{t('models.developer.recordHint')}</p>
@@ -74,6 +82,31 @@ export default function DeveloperPage(): React.ReactElement {
                 <p role="status" className="text-warning text-sm">
                   {t('models.developer.stateMismatch', {
                     status: current.active_record_model_payloads ? t('common.on') : t('common.off'),
+                  })}
+                </p>
+              ) : null}
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="record-agent-thinking">{t('models.developer.thinkingLabel')}</Label>
+                  <p id="thinking-description" className="text-muted-foreground text-sm">
+                    {t('models.developer.thinkingDescription')}
+                  </p>
+                </div>
+                <Switch
+                  id="record-agent-thinking"
+                  aria-describedby="thinking-description"
+                  checked={current.record_agent_thinking}
+                  disabled={update.isPending}
+                  onCheckedChange={(enabled) =>
+                    update.mutate({ field: 'record_agent_thinking', enabled, revision: current.revision })
+                  }
+                />
+              </div>
+              <p className="text-muted-foreground text-xs">{t('models.developer.thinkingHint')}</p>
+              {current.record_agent_thinking !== current.active_record_agent_thinking ? (
+                <p role="status" className="text-warning text-sm">
+                  {t('models.developer.stateMismatch', {
+                    status: current.active_record_agent_thinking ? t('common.on') : t('common.off'),
                   })}
                 </p>
               ) : null}

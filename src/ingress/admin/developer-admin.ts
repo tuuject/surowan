@@ -2,17 +2,31 @@ import { setImmediate } from 'node:timers/promises';
 import { and, asc, desc, gt, isNotNull, lte, or } from 'drizzle-orm';
 import Type from 'typebox';
 import Compile from 'typebox/compile';
-import type { Orm } from '../../store/store.ts';
 import { modelCalls } from '../../store/schema.ts';
+import type { Orm } from '../../store/store.ts';
 import { AdminQueryError } from './audit.ts';
 
 const settingsValidator = Compile(
-  Type.Object({ record_model_payloads: Type.Boolean() }, { additionalProperties: false }),
+  Type.Object(
+    {
+      record_model_payloads: Type.Optional(Type.Boolean()),
+      record_agent_thinking: Type.Optional(Type.Boolean()),
+    },
+    { additionalProperties: false },
+  ),
 );
 
-export function parseDeveloperSettings(value: unknown): { record_model_payloads: boolean } {
+export interface DeveloperBody {
+  readonly record_model_payloads?: boolean;
+  readonly record_agent_thinking?: boolean;
+}
+
+export function parseDeveloperSettings(value: unknown): DeveloperBody {
   if (!settingsValidator.Check(value)) {
-    throw new AdminQueryError('invalid_body', 'record_model_payloads must be a boolean');
+    throw new AdminQueryError('invalid_body', 'record_model_payloads and record_agent_thinking must be booleans');
+  }
+  if (value.record_model_payloads === undefined && value.record_agent_thinking === undefined) {
+    throw new AdminQueryError('invalid_body', 'Provide record_model_payloads or record_agent_thinking');
   }
   return value;
 }

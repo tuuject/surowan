@@ -1206,20 +1206,24 @@ export interface DeveloperSettings {
   readonly revision: string;
   readonly record_model_payloads: boolean;
   readonly active_record_model_payloads: boolean;
+  readonly record_agent_thinking: boolean;
+  readonly active_record_agent_thinking: boolean;
 }
+
+export type DeveloperUpdate = { readonly record_model_payloads: boolean } | { readonly record_agent_thinking: boolean };
 
 export function getDeveloperSettings(): Promise<DeveloperSettings> {
   return call<DeveloperSettings>('/developer');
 }
 
 export function updateDeveloperSettings(
-  enabled: boolean,
+  body: DeveloperUpdate,
   revision: string,
 ): Promise<DeveloperSettings & { readonly apply: ModelApplySummary }> {
   return call('/developer', {
     method: 'PUT',
     headers: writeHeaders(revision),
-    body: JSON.stringify({ record_model_payloads: enabled }),
+    body: JSON.stringify(body),
   });
 }
 

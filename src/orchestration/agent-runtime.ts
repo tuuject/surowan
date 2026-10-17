@@ -1012,10 +1012,16 @@ export class AgentRuntime {
           .filter((entry) => entry.type === 'text')
           .map((entry) => entry.text)
           .join('');
-        const thinking = event.message.content
-          .filter((entry): entry is ThinkingContent => entry.type === 'thinking' && entry.thinking.trim().length > 0)
-          .map((entry) => entry.thinking)
-          .join('\n\n');
+        // CoT is recorded only when the developer switch is on; read the live
+        // value so a hot-applied toggle affects the next assistant message.
+        const thinking = this.#configStore.current().config.developer.record_agent_thinking
+          ? event.message.content
+              .filter(
+                (entry): entry is ThinkingContent => entry.type === 'thinking' && entry.thinking.trim().length > 0,
+              )
+              .map((entry) => entry.thinking)
+              .join('\n\n')
+          : '';
         this.recordAgentMessage(invocationId, 'assistant', text, thinking);
       } else if (event.message.role === 'toolResult') {
         const text = event.message.content

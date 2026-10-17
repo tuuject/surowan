@@ -107,7 +107,7 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 | `POST /auth/passkeys/register/options` / `POST /auth/passkeys/register/verify` | 面板 Session 注册新 key；options 排除同一 `rpId` 已有 credential，verify 校验后写 `admin_passkeys`，重复注册 409 `passkey_exists` |
 | `DELETE /auth/passkeys/:id` | 面板 Session 删除单个 key；删除最后一个可用 key 且无密码时 409 `password_required`，key 不存在 404 `not_found` |
 | `DELETE /auth/password` | 面板 Session 删除密码（转为仅 Passkey 登录）；当前 `rpId` 下无 key 时 409 `passkey_required`，成功后撤销该用户**全部** Session 并签发新 Cookie |
-| `PUT /developer` | 保存并热应用 `developer.record_model_payloads`，沿用配置 revision、校验与原子写入机制，见「Developer 页」 |
+| `PUT /developer` | 保存并热应用 `record_model_payloads` / `record_agent_thinking`（二选一或都要），沿用配置 revision、校验与原子写入机制，见「Developer 页」 |
 | `DELETE /developer/model-payloads` | 分批置空历史 `model_calls.request_json` / `response_json`，保留所有审计行与关联；不执行 `VACUUM`，见「Developer 页」 |
 | `POST /api-keys` / `DELETE /api-keys/:id` | 仅面板 Session 可创建或撤销程序化密钥，见「程序化 API 密钥」 |
 | `POST /wake` | 删除持久化睡眠状态并唤醒 Scheduler；幂等，重复调用保持 `awake` |
@@ -232,9 +232,11 @@ SQLite `bigint` ID 在 JSON 中字符串化，Token/计数等小整数转 `numbe
 
 ## Developer 页
 
-Manage → Developer 独立管理调试选项。`GET /developer` 返回 `revision`、文件值 `record_model_payloads` 和运行值 `active_record_model_payloads`；缺少整个 `developer` 节或其中的字段都等价于 `false`。读取与修改配置需要 `ConfigReloader`，不可用时返回 503 `developer_unavailable`。
+Manage → Developer 独立管理调试选项。`GET /developer` 返回 `revision`、文件值 `record_model_payloads` / `record_agent_thinking` 和运行值 `active_record_model_payloads` / `active_record_agent_thinking`；缺少整个 `developer` 节或其中的字段都等价于 `false`。读取与修改配置需要 `ConfigReloader`，不可用时返回 503 `developer_unavailable`。
 
-`PUT /developer` 接受严格的 `{ record_model_payloads: boolean }`，必须带上述 revision 的 `If-Match`。通过 `ConfigReloader.writeAndApply` 保留 JSONC 注释、校验并原子写入，再热应用；revision、失败后文件/运行态分离等契约与其它配置端点一致。成功返回更新后的视图与 `apply`。页面立即保存开关，成功或失败后都刷新配置相关视图；应用失败时展示当前运行状态。
+`PUT /developer` 接受严格的 `{ record_model_payloads?: boolean; record_agent_thinking?: boolean }`，至少提供一个字段，只写请求里携带的字段（单项更新保留另一项的文件值）；必须带上述 revision 的 `If-Match`。通过 `ConfigReloader.writeAndApply` 保留 JSONC 注释、校验并原子写入，再热应用；revision、失败后文件/运行态分离等契约与其它配置端点一致。成功返回更新后的视图与 `apply`。页面立即保存开关，成功或失败后都刷新配置相关视图；应用失败时展示当前运行状态。
+
+Developer 页为两个开关（原始报文、Agent 思考文本 CoT）各展示一组文件值/运行值与不符提示；Agent 思考文本开关只影响 `agent_messages.thinking_text` 的落库（见 [data-layer.md](data-layer.md#冻结与重放边界)），不触碰模型调用报文快照与消息正文的记录。
 
 `DELETE /developer/model-payloads` 需要登录和与其它写端点相同的 Origin 校验，但不依赖配置文件有效。页面必须先通过 `ConfirmDialog` 确认。后端固定清理开始时最大的 model call ID，按主键范围每批最多 100 行做集合更新，批次之间释放写锁并让出事件循环；不会把报文加载进 JS。仅将两列（`request_json` 与 `response_json`）置为 `NULL`，不删除 Invocation、model/tool call、Telegram 发送、关联、Token/cache usage、费用、状态或错误。成功返回 `{ cleared_model_calls }`，没有报文时为 0；同一进程已有清除操作时返回 409 `clear_in_progress`。中途失败时已完成的批次保留，可安全重试。
 

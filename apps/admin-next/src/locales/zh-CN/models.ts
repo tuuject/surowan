@@ -283,6 +283,10 @@ export const models: typeof modelsEn = {
     recordDescription:
       '开启后保存模型调用的原始请求与响应快照，以便在 Invocation 详情中排查问题，并尽力保存首次请求的纯文本输入供重放。可能显著增加数据库占用。',
     recordHint: '默认关闭。修改后对新的模型调用生效；关闭不会清除历史报文。',
+    thinkingLabel: '记录 Agent 思考过程（CoT）',
+    thinkingDescription:
+      '开启后把 Assistant 消息的思考文本与 response 正文分开保存，在 Agent transcript 与时间线中可单独展开。可能增加数据库占用。',
+    thinkingHint: '默认关闭。修改后对新的 Assistant 消息生效；更早的 Invocation 仍保持空的思考内容。',
     stateMismatch: '文件设置与运行状态不同。当前运行状态：{{status}}。 请在 Settings 中应用配置文件。',
     historyTitle: '历史报文',
     historyDescription:
