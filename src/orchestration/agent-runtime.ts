@@ -196,12 +196,12 @@ export class AgentRuntime {
     this.#directImageLoader = options.directImageLoader;
     this.#contextInjectors = options.contextInjectors ?? [];
     this.#modelGate = options.modelGate ?? new KeyedSemaphore();
-    const config = options.configStore.current().config;
+    const context = () => options.configStore.current().config.agent.context;
     this.#contexts = new ConversationContextStore(options.store);
-    this.#refs = new ContextRefStore(options.store, { ttlHours: config.agent.context.ref_ttl_hours });
+    this.#refs = new ContextRefStore(options.store, { ttlHours: () => context().ref_ttl_hours });
     this.#imageGeneration = options.imageGeneration;
     this.#conversationRuntime =
-      options.conversationRuntime ?? new ConversationRuntime({ agentCacheSize: config.agent.context.agent_cache_size });
+      options.conversationRuntime ?? new ConversationRuntime({ agentCacheSize: () => context().agent_cache_size });
     this.#contextBuilder = new ContextBuilder(
       options.store,
       this.#refs,

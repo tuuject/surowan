@@ -1262,6 +1262,32 @@ export function updateDeveloperSettings(
   });
 }
 
+/** Harness field values keyed by their dotted path below `agent`; `null` is an unset optional field. */
+export type HarnessValues = Readonly<Record<string, number | boolean | null>>;
+
+export interface HarnessSettings {
+  readonly revision: string;
+  /** The file on disk, with absent optional fields resolved to what the runtime uses. */
+  readonly saved: HarnessValues;
+  /** The configuration the running process uses. */
+  readonly active: HarnessValues;
+}
+
+export function getHarnessSettings(): Promise<HarnessSettings> {
+  return call<HarnessSettings>('/harness');
+}
+
+export function updateHarnessSettings(
+  values: HarnessValues,
+  revision: string,
+): Promise<HarnessSettings & { readonly apply: ModelApplySummary }> {
+  return call('/harness', {
+    method: 'PUT',
+    headers: writeHeaders(revision),
+    body: JSON.stringify({ values }),
+  });
+}
+
 export function clearModelPayloads(): Promise<{ readonly cleared_model_calls: number }> {
   return call('/developer/model-payloads', { method: 'DELETE' });
 }

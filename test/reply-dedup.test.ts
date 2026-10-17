@@ -794,7 +794,7 @@ describe('reply deduplication', () => {
         .from(buckets)
         .where(eq(buckets.state, 'collecting'))
         .get()!;
-      const runtime = new ConversationRuntime({ agentCacheSize: 1 });
+      const runtime = new ConversationRuntime({ agentCacheSize: () => 1 });
       const api = countingApi();
       const { tool } = makeTool(fixture.store, fixture.config, context, {
         api,

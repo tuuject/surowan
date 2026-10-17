@@ -17,6 +17,7 @@ import { Route as ChatsRouteImport } from './routes/chats'
 import { Route as ContextsRouteImport } from './routes/contexts'
 import { Route as DeveloperRouteImport } from './routes/developer'
 import { Route as DictionaryRouteImport } from './routes/dictionary'
+import { Route as HarnessRouteImport } from './routes/harness'
 import { Route as ImageGenerateRouteImport } from './routes/image-generate'
 import { Route as ImageGenerationsRouteImport } from './routes/image-generations'
 import { Route as ImageSettingsRouteImport } from './routes/image-settings'
@@ -70,6 +71,11 @@ const DeveloperRoute = DeveloperRouteImport.update({
 const DictionaryRoute = DictionaryRouteImport.update({
   id: '/dictionary',
   path: '/dictionary',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HarnessRoute = HarnessRouteImport.update({
+  id: '/harness',
+  path: '/harness',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImageGenerateRoute = ImageGenerateRouteImport.update({
@@ -153,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/contexts': typeof ContextsRoute
   '/developer': typeof DeveloperRoute
   '/dictionary': typeof DictionaryRoute
+  '/harness': typeof HarnessRoute
   '/image-generate': typeof ImageGenerateRoute
   '/image-generations': typeof ImageGenerationsRoute
   '/image-settings': typeof ImageSettingsRoute
@@ -177,6 +184,7 @@ export interface FileRoutesByTo {
   '/contexts': typeof ContextsRoute
   '/developer': typeof DeveloperRoute
   '/dictionary': typeof DictionaryRoute
+  '/harness': typeof HarnessRoute
   '/image-generate': typeof ImageGenerateRoute
   '/image-generations': typeof ImageGenerationsRoute
   '/image-settings': typeof ImageSettingsRoute
@@ -202,6 +210,7 @@ export interface FileRoutesById {
   '/contexts': typeof ContextsRoute
   '/developer': typeof DeveloperRoute
   '/dictionary': typeof DictionaryRoute
+  '/harness': typeof HarnessRoute
   '/image-generate': typeof ImageGenerateRoute
   '/image-generations': typeof ImageGenerationsRoute
   '/image-settings': typeof ImageSettingsRoute
@@ -228,6 +237,7 @@ export interface FileRouteTypes {
     | '/contexts'
     | '/developer'
     | '/dictionary'
+    | '/harness'
     | '/image-generate'
     | '/image-generations'
     | '/image-settings'
@@ -252,6 +262,7 @@ export interface FileRouteTypes {
     | '/contexts'
     | '/developer'
     | '/dictionary'
+    | '/harness'
     | '/image-generate'
     | '/image-generations'
     | '/image-settings'
@@ -276,6 +287,7 @@ export interface FileRouteTypes {
     | '/contexts'
     | '/developer'
     | '/dictionary'
+    | '/harness'
     | '/image-generate'
     | '/image-generations'
     | '/image-settings'
@@ -301,6 +313,7 @@ export interface RootRouteChildren {
   ContextsRoute: typeof ContextsRoute
   DeveloperRoute: typeof DeveloperRoute
   DictionaryRoute: typeof DictionaryRoute
+  HarnessRoute: typeof HarnessRoute
   ImageGenerateRoute: typeof ImageGenerateRoute
   ImageGenerationsRoute: typeof ImageGenerationsRoute
   ImageSettingsRoute: typeof ImageSettingsRoute
@@ -373,6 +386,13 @@ declare module '@tanstack/react-router' {
       path: '/dictionary'
       fullPath: '/dictionary'
       preLoaderRoute: typeof DictionaryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/harness': {
+      id: '/harness'
+      path: '/harness'
+      fullPath: '/harness'
+      preLoaderRoute: typeof HarnessRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/image-generate': {
@@ -485,6 +505,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContextsRoute: ContextsRoute,
   DeveloperRoute: DeveloperRoute,
   DictionaryRoute: DictionaryRoute,
+  HarnessRoute: HarnessRoute,
   ImageGenerateRoute: ImageGenerateRoute,
   ImageGenerationsRoute: ImageGenerationsRoute,
   ImageSettingsRoute: ImageSettingsRoute,

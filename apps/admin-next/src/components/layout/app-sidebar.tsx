@@ -15,6 +15,7 @@ import {
   ScrollText,
   Settings,
   Shield,
+  SlidersHorizontal,
   Sticker,
   Zap,
 } from 'lucide-react';
@@ -79,6 +80,7 @@ export default function AppSidebar({
         { title: t('layout.nav.imageSettings'), url: '/image-settings', icon: Settings },
         { title: t('layout.nav.chats'), url: '/chats', icon: MessagesSquare },
         { title: t('layout.nav.prompts'), url: '/prompts', icon: ScrollText },
+        { title: t('layout.nav.harness'), url: '/harness', icon: SlidersHorizontal },
         { title: t('layout.nav.developer'), url: '/developer', icon: Bug },
       ],
     },

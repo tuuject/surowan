@@ -163,7 +163,9 @@ async function runtimeFixture(transform?: (config: FileConfig) => void, existing
   const sends: string[] = [];
   const tasks = new LongTaskService(store.orm);
   const plugins = loadPlugins([alarmPlugin]);
-  const conversationRuntime = new ConversationRuntime({ agentCacheSize: loaded.config.agent.context.agent_cache_size });
+  const conversationRuntime = new ConversationRuntime({
+    agentCacheSize: () => loaded.config.agent.context.agent_cache_size,
+  });
   const runtime = new AgentRuntime({
     store,
     configStore,

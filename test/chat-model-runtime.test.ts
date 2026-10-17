@@ -201,7 +201,7 @@ async function setup(): Promise<Fixture> {
     sendSticker: async () => ({ message_id: ++messageId, date: 1_700_000_100, chat: { id: CHAT_A } }),
   };
   const conversationRuntime = new ConversationRuntime({
-    agentCacheSize: loaded.config.agent.context.agent_cache_size,
+    agentCacheSize: () => loaded.config.agent.context.agent_cache_size,
   });
   return {
     store,

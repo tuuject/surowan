@@ -108,6 +108,7 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 | `DELETE /auth/passkeys/:id` | 面板 Session 删除单个 key；删除最后一个可用 key 且无密码时 409 `password_required`，key 不存在 404 `not_found` |
 | `DELETE /auth/password` | 面板 Session 删除密码（转为仅 Passkey 登录）；当前 `rpId` 下无 key 时 409 `passkey_required`，成功后撤销该用户**全部** Session 并签发新 Cookie |
 | `PUT /developer` | 保存并热应用 `record_model_payloads` / `record_agent_thinking`（二选一或都要），沿用配置 revision、校验与原子写入机制，见「Developer 页」 |
+| `PUT /harness` | 保存并热应用 `agent` 段除模型选择与 Prompt 外的字段，只写与文件不同的字段，沿用配置 revision、校验与原子写入机制，见「Harness tuning 页」 |
 | `DELETE /developer/model-payloads` | 分批置空历史 `model_calls.request_json` / `response_json`，保留所有审计行与关联；不执行 `VACUUM`，见「Developer 页」 |
 | `POST /api-keys` / `DELETE /api-keys/:id` | 仅面板 Session 可创建或撤销程序化密钥，见「程序化 API 密钥」 |
 | `POST /wake` | 删除持久化睡眠状态并唤醒 Scheduler；幂等，重复调用保持 `awake` |
@@ -243,6 +244,16 @@ Developer 页为两个开关（原始报文、Agent 思考文本 CoT）各展示
 `DELETE /developer/model-payloads` 需要登录和与其它写端点相同的 Origin 校验，但不依赖配置文件有效。页面必须先通过 `ConfirmDialog` 确认。后端固定清理开始时最大的 model call ID，按主键范围每批最多 100 行做集合更新，批次之间释放写锁并让出事件循环；不会把报文加载进 JS。仅将两列（`request_json` 与 `response_json`）置为 `NULL`，不删除 Invocation、model/tool call、Telegram 发送、关联、Token/cache usage、费用、状态或错误。成功返回 `{ cleared_model_calls }`，没有报文时为 0；同一进程已有清除操作时返回 409 `clear_in_progress`。中途失败时已完成的批次保留，可安全重试。
 
 开关不删除历史报文，清除也不关闭记录：开启记录时，新调试报文仍可继续写入。清除不影响基于公开消息的场景重建，详情对空报文显示未记录或已清除。旧重放输入列由迁移 `030` 删除；清除端点本身不需要新增迁移，不自动清理历史，原有 retention 不变。清理只影响在线数据库，不修改既有备份；SQLite 释放的页可供复用，文件未必立即变小，端点不执行 `VACUUM`。
+
+## Harness tuning 页
+
+Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_level`（Models 页）与 `system_prompt_file`（Prompts 页）以外的全部字段；字段表、键名与边界校验在 `src/ingress/admin/harness-admin.ts`，每个字段复用 `ConfigSchema` 里对应的 schema。键是 `agent` 下的点分路径（如 `context.ref_ttl_hours`、`rate_limits.window_seconds`）。
+
+`GET /harness` 返回 `{ revision, saved, active }`：`saved` 是磁盘文件值，`active` 是运行中配置的值；可选字段缺省时报告运行时实际使用的值（三个布尔开关为 `false`，`memory_ttl_warning_days` 为 30，`send_max_text_length` 为 `null` 即不限制）。读取与修改需要 `ConfigReloader`，不可用时返回 503 `harness_unavailable`。
+
+`PUT /harness` 接受严格的 `{ values: { <key>: value } }`，至少一项；未知键返回 400 `invalid_body`，类型或单字段范围不符返回 400 `invalid_harness_value`，`null` 只允许用于可选字段并表示从文件删除该字段。必须带 revision 的 `If-Match`，不符返回 409 `config_conflict`。端点只把值与文件不同的字段写成编辑（可选字段缺省时，等于缺省值的写入也跳过，保持文件干净）；没有任何编辑时不写文件，返回当前视图与空的 `apply`。跨字段规则（`retained_sends_target < retained_sends_max`、`hard_token_ratio <= context_stop_ratio`、`idle_grace_seconds` 与 Bucket 窗口、`max_wall_clock_seconds > idle_grace_seconds`）由整文件 `loadConfig` 校验，失败时 422 `config_invalid` 且文件不变。写入与热应用经 `ConfigReloader.writeAndApply`，失败后文件/运行态分离等契约与其它配置端点一致；成功返回更新后的视图与 `apply`。
+
+页面把字段分为预算与并发、发送行为、限流、Conversation Context、记忆审核五组，草稿在本地按同一边界预校验，「Save and apply」一次提交全部改动；文件值与运行值不同时在字段下显示运行值。保存 mutation 挂在表单之上：写入成功但应用失败会改变 revision 并重建表单，错误提示仍需保留。
 
 ## Inspection 只读视图
 

@@ -86,6 +86,7 @@ import {
   redactInspection,
 } from './config-inspection.ts';
 import { clearModelPayloads, parseDeveloperSettings } from './developer-admin.ts';
+import { harnessEdits, harnessView, parseHarnessBody } from './harness-admin.ts';
 import { createImageAdminHandler, type ImageAdminResponse, reusableImageCredentials } from './image-admin.ts';
 import { createInvocationMediaReader, listInvocationMedia } from './invocation-media.ts';
 import {
@@ -272,7 +273,6 @@ export class AdminServer {
   readonly #invocationPrompts: ((id: bigint) => unknown) | undefined;
   readonly #readInvocationMedia: ReturnType<typeof createInvocationMediaReader> | undefined;
   readonly #staticDir: string;
-  readonly #memoryWarningDays: number;
   readonly #healthAbort = new AbortController();
   readonly #healthSignal: AbortSignal;
   readonly #healthChecks = new Set<Promise<unknown>>();
@@ -323,7 +323,11 @@ export class AdminServer {
     this.#staticDir = resolve(
       admin.static_dir ?? join(import.meta.dirname, '..', '..', '..', 'apps', 'admin-next', 'dist'),
     );
-    this.#memoryWarningDays = config.agent.memory_ttl_warning_days ?? DEFAULT_MEMORY_TTL_WARNING_DAYS;
+  }
+
+  /** Read per request: the warning window is a hot agent field. */
+  #memoryWarningDays(): number {
+    return this.#configStore.current().config.agent.memory_ttl_warning_days ?? DEFAULT_MEMORY_TTL_WARNING_DAYS;
   }
 
   async start(): Promise<{ readonly hostname: string; readonly port: number }> {
@@ -570,6 +574,9 @@ export class AdminServer {
     if (route === 'developer') {
       return await this.#developer(request);
     }
+    if (route === 'harness') {
+      return await this.#harness(request);
+    }
     const query = listQuery(url);
     if (segments[0] === 'dictionary') {
       return await this.#dictionary(request, url, segments);
@@ -578,11 +585,11 @@ export class AdminServer {
       return await this.#writeToolModel(request);
     }
     if (route === 'memories' && request.method === 'GET') {
-      return json(listMemories(this.#store.orm, query, this.#memoryWarningDays));
+      return json(listMemories(this.#store.orm, query, this.#memoryWarningDays()));
     }
     if (route === 'memories' && request.method === 'POST') {
       const body = parseCreateMemoryBody(await readJsonObject(request));
-      return json(createMemory(this.#store.orm, body, this.#memoryWarningDays));
+      return json(createMemory(this.#store.orm, body, this.#memoryWarningDays()));
     }
     if (route === 'memories/chats' && request.method === 'GET') {
       return json({ items: listMemoryChats(this.#store.orm) });
@@ -594,7 +601,7 @@ export class AdminServer {
       const id = parseMemoryId(segments[1] ?? '');
       if (request.method === 'PUT') {
         const body = parseUpdateMemoryBody(await readJsonObject(request));
-        return json(updateMemory(this.#store.orm, id, body, this.#memoryWarningDays));
+        return json(updateMemory(this.#store.orm, id, body, this.#memoryWarningDays()));
       }
       if (request.method === 'DELETE') {
         deleteMemory(this.#store.orm, id);
@@ -1717,6 +1724,57 @@ export class AdminServer {
       record_agent_thinking: loaded.config.developer.record_agent_thinking,
       active_record_agent_thinking: this.#configStore.current().config.developer.record_agent_thinking,
     };
+  }
+
+  /**
+   * Harness tuning: every `agent` field outside the model selection and the
+   * prompt. A PUT writes only the fields whose file value changes and applies
+   * the file like every other configuration write; the next invocation runs
+   * with the new values.
+   */
+  async #harness(request: Request): Promise<Response> {
+    if (request.method !== 'GET' && request.method !== 'PUT') {
+      return json({ error: 'method_not_allowed', message: 'Unsupported Harness operation' }, 405);
+    }
+    const reloader = this.#configReloader;
+    if (reloader === undefined) {
+      return json({ error: 'harness_unavailable', message: 'Configuration reloading is not wired' }, 503);
+    }
+    if (request.method === 'GET') {
+      return json(await this.#harnessView(reloader));
+    }
+    const revision = requiredRevision(request);
+    if (revision === null) {
+      return revisionRequired();
+    }
+    const values = parseHarnessBody(await readJsonObject(request));
+    const { loaded, revision: currentRevision } = await this.#configFile(reloader);
+    if (revision !== currentRevision) {
+      return json({ error: 'config_conflict', message: 'The configuration file changed; reload before editing' }, 409);
+    }
+    const edits = harnessEdits(loaded.config.agent, values);
+    if (edits.length === 0) {
+      return json({
+        ...(await this.#harnessView(reloader)),
+        apply: { applied: [], restart_required: [], outside_serve: [] },
+      });
+    }
+    const result = await reloader.writeAndApply(edits, revision);
+    if (!result.ok) {
+      const message = result.fileWritten
+        ? `config.jsonc was updated but not applied: ${result.message}`
+        : result.message;
+      return json({ error: result.code, message }, CONFIG_WRITE_STATUS[result.code] ?? 409);
+    }
+    return json({
+      ...(await this.#harnessView(reloader)),
+      apply: { applied: result.applied, restart_required: result.restartRequired, outside_serve: result.outsideServe },
+    });
+  }
+
+  async #harnessView(reloader: ConfigController) {
+    const { loaded, revision } = await this.#configFile(reloader);
+    return harnessView(loaded.config.agent, this.#configStore.current().config.agent, revision);
   }
 
   /** A read-shaped POST: provider discovery and metadata lookup write nothing. */

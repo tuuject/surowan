@@ -61,7 +61,11 @@ interface Fixture {
   runtimeWith(
     faux: ReturnType<typeof fauxProvider>,
     config?: RawConfig,
-  ): { readonly runtime: AgentRuntime; readonly registry: TestRegistry };
+  ): {
+    readonly runtime: AgentRuntime;
+    readonly registry: TestRegistry;
+    readonly runtimeStore: RuntimeConfigurationStore;
+  };
 }
 
 async function setup(): Promise<Fixture> {
@@ -90,7 +94,7 @@ async function setup(): Promise<Fixture> {
     sendSticker: async () => ({ message_id: ++messageId, date: 1_700_000_100, chat: { id: CHAT_ID } }),
   };
   const conversationRuntime = new ConversationRuntime({
-    agentCacheSize: loaded.config.agent.context.agent_cache_size,
+    agentCacheSize: () => loaded.config.agent.context.agent_cache_size,
   });
   return {
     store,
@@ -116,6 +120,7 @@ async function setup(): Promise<Fixture> {
           conversationRuntime,
         }),
         registry: fauxModels,
+        runtimeStore,
       };
     },
   };
@@ -292,6 +297,37 @@ describe('configuration snapshots', () => {
           .map((row) => row.state),
       ).toEqual(['success']);
       expect(fixture.sends).toEqual([text]);
+    } finally {
+      fixture.store.close();
+    }
+  }, 30_000);
+
+  test('a reloaded reference TTL reaches the references issued after the publish', async () => {
+    const fixture = await setup();
+    const faux = fauxAgent();
+    faux.setResponses([() => fauxAssistantMessage('first answer')]);
+    const { runtime, registry, runtimeStore } = fixture.runtimeWith(faux);
+    const refTtlHours = (): Record<string, number> =>
+      Object.fromEntries(
+        fixture.store.db
+          .prepare<[], { ref: string; hours: number }>(
+            "SELECT ref, ROUND((julianday(expires_at) - julianday(created_at)) * 24) AS hours FROM context_refs WHERE kind = 'reply'",
+          )
+          .all()
+          .map((row) => [row.ref, row.hours]),
+      );
+    try {
+      await runOnce(fixture, runtime, runtimeStore.beginInvocation(), 1, 10, 'first');
+      expect(refTtlHours()).toEqual({ 'reply:10': fixture.config.agent.context.ref_ttl_hours });
+      const config = {
+        ...fixture.config,
+        agent: { ...fixture.config.agent, context: { ...fixture.config.agent.context, ref_ttl_hours: 1 } },
+      };
+      runtimeStore.publish({ config, hash: 'reloaded', ...registry });
+      faux.setResponses([() => fauxAssistantMessage('second answer')]);
+      await runOnce(fixture, runtime, runtimeStore.beginInvocation(), 2, 11, 'second');
+      // The earlier reference keeps the expiry it was issued with.
+      expect(refTtlHours()).toEqual({ 'reply:10': fixture.config.agent.context.ref_ttl_hours, 'reply:11': 1 });
     } finally {
       fixture.store.close();
     }

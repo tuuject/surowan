@@ -1,5 +1,6 @@
 import { common } from './en/common.ts';
 import { dictionary } from './en/dictionary.ts';
+import { harness } from './en/harness.ts';
 import { image } from './en/image.ts';
 import { invocations } from './en/invocations.ts';
 import { layout } from './en/layout.ts';
@@ -8,6 +9,7 @@ import { pages } from './en/pages.ts';
 
 import { common as commonZh } from './zh-CN/common.ts';
 import { dictionary as dictionaryZh } from './zh-CN/dictionary.ts';
+import { harness as harnessZh } from './zh-CN/harness.ts';
 import { image as imageZh } from './zh-CN/image.ts';
 import { invocations as invocationsZh } from './zh-CN/invocations.ts';
 import { layout as layoutZh } from './zh-CN/layout.ts';
@@ -27,6 +29,7 @@ const en = {
   pages,
   image,
   dictionary,
+  harness,
 };
 
 const zhCN: typeof en = {
@@ -37,6 +40,7 @@ const zhCN: typeof en = {
   pages: pagesZh,
   image: imageZh,
   dictionary: dictionaryZh,
+  harness: harnessZh,
 };
 
 export { en, zhCN };

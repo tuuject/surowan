@@ -610,7 +610,7 @@ export class ReplayRunner {
     const config = runtime.snapshot.config;
     const builder = new ContextBuilder(
       this.#options.store,
-      new ContextRefStore(this.#options.store, { ttlHours: config.agent.context.ref_ttl_hours }),
+      new ContextRefStore(this.#options.store, { ttlHours: () => config.agent.context.ref_ttl_hours }),
       this.#options.systemResources.skills,
     );
     const stable = builder.buildSystemPrompt(

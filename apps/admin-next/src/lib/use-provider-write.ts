@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { ModelApplySummary } from './api.ts';
 import { applyFeedback } from './model-manager.ts';
-import { chatsQuery, configStatusQuery, developerQuery, providersQuery } from './queries.ts';
+import { chatsQuery, configStatusQuery, developerQuery, harnessQuery, providersQuery } from './queries.ts';
 
 export interface ProviderWriteFeedback {
   /** Config-backed views share one revision and must be invalidated together. */
@@ -23,6 +23,7 @@ export function useProviderWrite(): ProviderWriteFeedback {
     void queryClient.invalidateQueries({ queryKey: chatsQuery.queryKey });
     void queryClient.invalidateQueries({ queryKey: configStatusQuery.queryKey });
     void queryClient.invalidateQueries({ queryKey: developerQuery.queryKey });
+    void queryClient.invalidateQueries({ queryKey: harnessQuery.queryKey });
   };
   return {
     refresh,

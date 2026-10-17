@@ -252,7 +252,7 @@ async function setup(
   const configStore = new RuntimeConfigurationStore({ config: loaded.config, hash: loaded.hash, ...registry });
   const modelSwitcher = new AgentModelSwitcher(configStore);
   const conversationRuntime = new ConversationRuntime({
-    agentCacheSize: loaded.config.agent.context.agent_cache_size,
+    agentCacheSize: () => loaded.config.agent.context.agent_cache_size,
   });
   const sends: string[] = [];
   let messageId = 900;

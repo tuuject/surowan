@@ -5,6 +5,7 @@ import {
   getConfigStatus,
   getConversationContext,
   getDeveloperSettings,
+  getHarnessSettings,
   getDictionarySettings,
   getInvocation,
   getMessage,
@@ -148,6 +149,12 @@ export const configStatusQuery = queryOptions({
 export const developerQuery = queryOptions({
   queryKey: ['developer'],
   queryFn: getDeveloperSettings,
+  staleTime: 0,
+});
+
+export const harnessQuery = queryOptions({
+  queryKey: ['harness'],
+  queryFn: getHarnessSettings,
   staleTime: 0,
 });
 

@@ -25,6 +25,7 @@ export const layout = {
     imageSettings: 'Image settings',
     chats: 'Chats',
     prompts: 'Prompts',
+    harness: 'Harness tuning',
     developer: 'Developer',
     settings: 'Settings',
   },

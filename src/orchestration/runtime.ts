@@ -14,7 +14,7 @@ export interface CoreRuntimeOptions extends Omit<AgentRuntimeOptions, 'conversat
  */
 export function createCoreRuntime(options: CoreRuntimeOptions) {
   const conversationRuntime = new ConversationRuntime({
-    agentCacheSize: options.configStore.current().config.agent.context.agent_cache_size,
+    agentCacheSize: () => options.configStore.current().config.agent.context.agent_cache_size,
   });
   let scheduler: BucketScheduler | undefined;
   const tasks = options.tasks ?? new LongTaskService(options.store.orm, () => scheduler?.wake());
