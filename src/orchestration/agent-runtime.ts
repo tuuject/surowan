@@ -827,6 +827,7 @@ export class AgentRuntime {
     agent.beforeToolCall = async ({ toolCall }) => {
       if (
         toolCall.name !== 'zzz' &&
+        profile.sleep &&
         !bypassDailyBudget() &&
         (state.sleepRequested || activeSleepUntil(this.#store.orm) !== null)
       ) {
@@ -933,7 +934,11 @@ export class AgentRuntime {
         // Error and aborted responses are hard exits; pi ignores the decision.
         return undefined;
       }
-      if (!bypassDailyBudget() && (state.sleepRequested || activeSleepUntil(this.#store.orm) !== null)) {
+      if (
+        profile.sleep &&
+        !bypassDailyBudget() &&
+        (state.sleepRequested || activeSleepUntil(this.#store.orm) !== null)
+      ) {
         return stop('sleep');
       }
       if (!bypassDailyBudget() && isDailyTokenBudgetReached(dailyBudget())) {

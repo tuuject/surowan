@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from 'vitest';
+import { afterAll, describe, expect, test, vi } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -13,7 +13,7 @@ import { PlaygroundIngress } from '../src/ingress/playground.ts';
 import { PlaygroundStore } from '../src/store/playground.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { buckets, invocations } from '../src/store/schema.ts';
-import { writeTestConfig } from './helpers.ts';
+import { testConfigJsonc, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -23,7 +23,7 @@ afterAll(async () => {
   );
 });
 
-async function fixture(): Promise<{
+async function fixture(maxConcurrency?: number): Promise<{
   store: SqliteStore;
   configStore: RuntimeConfigurationStore;
   room: { chatId: bigint };
@@ -31,7 +31,15 @@ async function fixture(): Promise<{
   const directory = await mkdtemp(join(tmpdir(), 'plasticwan-playground-scheduler-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
-  await writeTestConfig(directory, configPath);
+  await writeTestConfig(
+    directory,
+    configPath,
+    testConfigJsonc(directory, (config) => {
+      if (maxConcurrency !== undefined) {
+        config.agent.max_concurrency = maxConcurrency;
+      }
+    }),
+  );
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
   const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keyJarPath(configPath)));
@@ -114,6 +122,53 @@ describe('playground scheduling', () => {
       const bucket = store.orm.select().from(buckets).all()[0];
       expect(bucket?.state).not.toBe('expired');
     } finally {
+      await scheduler.stop(1_000);
+    }
+  });
+
+  test('a queued room behind a full concurrency limit does not spin the scheduler', async () => {
+    const { store, configStore, room } = await fixture(1);
+    const playground = new PlaygroundStore(store.orm);
+    const other = playground.createRoom({ title: 'Second Room', members: [{ name: 'Bob' }] });
+    const releaseRoom = (chatId: bigint, senderId: bigint): bigint => {
+      playground.submit(chatId, { requestKey: `req-${chatId}`, senderId, text: 'hello' });
+      const release = playground.release(chatId, {
+        releaseKey: `rel-${chatId}`,
+        revision: playground.room(chatId).revision,
+      });
+      return release.invocationId!;
+    };
+    const firstSender = store.orm.all<{ id: bigint }>('SELECT id FROM senders LIMIT 1')[0]!.id;
+    const first = releaseRoom(room.chatId, firstSender);
+    const second = releaseRoom(other.chatId, other.members[0]!.senderId);
+
+    let open!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    const launched: bigint[] = [];
+    const scheduler = new BucketScheduler(store, configStore, async (invocationId) => {
+      launched.push(invocationId);
+      if (invocationId === first) {
+        await gate;
+      }
+      return { state: 'completed', reason: 'test' };
+    });
+    scheduler.start();
+    try {
+      await until(() => launched.length === 1);
+      // The only slot is taken and the second room is overdue. Its deadline
+      // must not drive a zero-delay loop while the first run holds the slot.
+      const queries = vi.spyOn(store.orm, 'all');
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(queries.mock.calls.length).toBeLessThan(20);
+      queries.mockRestore();
+      open();
+      // The finishing run wakes the scheduler, which then launches the second.
+      await until(() => launched.length === 2);
+      expect(launched).toEqual([first, second]);
+    } finally {
+      open();
       await scheduler.stop(1_000);
     }
   });

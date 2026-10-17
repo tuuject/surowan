@@ -222,3 +222,34 @@ test('a staged upload that never became a message is swept', async () => {
   await expect(access(asset.path)).rejects.toThrow();
   expect(assets.resolve(asset.id)).toBeNull();
 });
+
+test('an asset shared by two messages survives losing one of them', async () => {
+  const { store, assets, room } = await setup();
+  const ingress = new PlaygroundIngress(store.orm, { assets });
+  const bytes = await png();
+  for (const requestKey of ['req-first', 'req-second']) {
+    await ingress.submit(room.chatId, {
+      requestKey,
+      senderId: room.members[0]!.senderId,
+      text: requestKey,
+      attachments: [{ bytes, mime: 'image/png' }],
+    });
+  }
+  const rows = store.orm.select().from(media).all();
+  expect(rows).toHaveLength(2);
+  expect(new Set(rows.map((row) => row.localAssetId)).size).toBe(1);
+  const assetId = rows[0]!.localAssetId!;
+
+  // The asset row names only the latest attachment; dropping it nulls that
+  // link while the first message still shows the image.
+  store.orm.run(sql`DELETE FROM media WHERE id = ${rows[1]!.id}`);
+  await assets.sweep({ staleAfterMs: -1 });
+  expect(assets.resolve(assetId)).not.toBeNull();
+  await expect(access(assets.resolve(assetId)!.path)).resolves.toBeUndefined();
+
+  // With no message left, the asset is disposable.
+  store.orm.run(sql`DELETE FROM media WHERE id = ${rows[0]!.id}`);
+  const swept = await assets.sweep({ staleAfterMs: -1 });
+  expect(swept.staged).toBe(1);
+  expect(assets.resolve(assetId)).toBeNull();
+});
