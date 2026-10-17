@@ -2,12 +2,7 @@ import { Languages } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { setLanguage, type AppLanguage } from '@/lib/i18n';
-
-const LABEL: Record<AppLanguage, string> = {
-  en: 'English',
-  'zh-CN': '中文',
-};
+import { type AppLanguage, LANGUAGE_LABELS, setLanguage } from '@/lib/i18n';
 
 const NEXT: Record<AppLanguage, AppLanguage> = {
   en: 'zh-CN',
@@ -26,7 +21,7 @@ export function LanguageToggle() {
           <span className="sr-only">{t('layout.switchLanguage')}</span>
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{LABEL[current] ?? 'English'}</TooltipContent>
+      <TooltipContent>{LANGUAGE_LABELS[current] ?? 'English'}</TooltipContent>
     </Tooltip>
   );
 }

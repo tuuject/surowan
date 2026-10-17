@@ -17,6 +17,7 @@ import {
   type HarnessField,
   parseDraft,
 } from '@/lib/harness';
+import { useShowConfigKeys } from '@/lib/panel-preferences';
 import { harnessQuery } from '@/lib/queries';
 import { useProviderWrite } from '@/lib/use-provider-write';
 
@@ -193,7 +194,10 @@ function HarnessFieldRow({
     );
   const label = t(`harness.fields.${field.key}.label` as 'harness.fields.max_concurrency.label');
   const description = t(`harness.fields.${field.key}.description` as 'harness.fields.max_concurrency.description');
-  const configPath = <code className="text-muted-foreground font-mono text-xs">agent.{field.key}</code>;
+  const showConfigKeys = useShowConfigKeys();
+  const configPath = showConfigKeys ? (
+    <code className="text-muted-foreground block font-mono text-xs">agent.{field.key}</code>
+  ) : null;
 
   if (field.kind === 'boolean') {
     return (

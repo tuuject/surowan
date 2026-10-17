@@ -8,6 +8,12 @@ export type AppLanguage = 'en' | 'zh-CN';
 
 export const LANGUAGES: readonly AppLanguage[] = ['en', 'zh-CN'];
 
+/** Each language named in itself, so it stays recognisable whatever the current language. */
+export const LANGUAGE_LABELS: Record<AppLanguage, string> = {
+  en: 'English',
+  'zh-CN': '中文',
+};
+
 /**
  * Stored preference wins (same pattern as the theme), then the browser
  * language, then English.

@@ -188,6 +188,12 @@ test.describe('routes and deep links', () => {
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 
+  test('/preferences renders the browser-local display options', async ({ page }) => {
+    await page.goto(await adminUrl('/preferences'));
+    await expect(page.getByRole('switch', { name: 'Show config.jsonc key names' })).not.toBeChecked();
+    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+  });
+
   test('/api-keys renders the key table and the create action', async ({ page }) => {
     await page.goto(await adminUrl('/api-keys'));
     await expect(page.getByRole('main').getByText('API keys', { exact: true }).first()).toBeVisible();

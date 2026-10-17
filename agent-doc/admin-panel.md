@@ -253,7 +253,7 @@ Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_
 
 `PUT /harness` 接受严格的 `{ values: { <key>: value } }`，至少一项；未知键返回 400 `invalid_body`，类型或单字段范围不符返回 400 `invalid_harness_value`，`null` 只允许用于可选字段并表示从文件删除该字段。必须带 revision 的 `If-Match`，不符返回 409 `config_conflict`。端点只把值与文件不同的字段写成编辑（可选字段缺省时，等于缺省值的写入也跳过，保持文件干净）；没有任何编辑时不写文件，返回当前视图与空的 `apply`。跨字段规则（`retained_sends_target < retained_sends_max`、`hard_token_ratio <= context_stop_ratio`、`idle_grace_seconds` 与 Bucket 窗口、`max_wall_clock_seconds > idle_grace_seconds`）由整文件 `loadConfig` 校验，失败时 422 `config_invalid` 且文件不变。写入与热应用经 `ConfigReloader.writeAndApply`，失败后文件/运行态分离等契约与其它配置端点一致；成功返回更新后的视图与 `apply`。
 
-页面把字段分为预算与并发、发送行为、限流、Conversation Context、记忆审核五组，草稿在本地按同一边界预校验，「Save and apply」一次提交全部改动；文件值与运行值不同时在字段下显示运行值。保存 mutation 挂在表单之上：写入成功但应用失败会改变 revision 并重建表单，错误提示仍需保留。
+页面把字段分为预算与并发、发送行为、限流、Conversation Context、记忆审核五组，每个字段的配置路径（`agent.<key>`）只在 Panel preferences 打开「显示 config.jsonc 键名」时显示；草稿在本地按同一边界预校验，「Save and apply」一次提交全部改动；文件值与运行值不同时在字段下显示运行值。保存 mutation 挂在表单之上：写入成功但应用失败会改变 revision 并重建表单，错误提示仍需保留。
 
 ## Inspection 只读视图
 
@@ -316,6 +316,7 @@ pnpm run admin:test:e2e  # Playwright 浏览器 E2E（真实 AdminServer + 临�
 | `src/lib/errors.ts` | `errorMessage()`：统一错误文本（`ApiError.code: message`） |
 | `src/lib/memory-ttl.ts` | 记忆 TTL 边界纯函数 |
 | `src/lib/timeline.ts` | Invocation 时间线纯模型（同时间排序、send 参数解析） |
+| `src/lib/panel-preferences.ts` | 只属于当前浏览器的显示偏好（localStorage，不经服务端、不写 `config.jsonc`）；「显示 config.jsonc 键名」，键 `admin-show-config-keys`，缺省关闭；同页其它组件经 `useSyncExternalStore` 同步，跨标签页靠 `storage` 事件。Account → Panel preferences 页（`/preferences`）集中编辑它与主题（`admin-theme`，`ThemeProvider`）、界面语言（`admin-language`，`src/lib/i18n.ts`）；主题与语言同时保留在右上角的切换按钮上，两处读写同一状态 |
 | `src/lib/search-params.ts` | 列表页共享的 `chat` 查询参数：`validateSearch` 校验器、读写 hook 与结构化 navigate 类型 |
 | `src/components/business/**` | 共享业务组件（CursorList / FilterToolbar / StateBadge / TableShell / JsonViewer / KvList / ConfirmDialog / ChartCard / PrivateReasoning / DetailState 等），契约见 `apps/admin-next/README.md` |
 | `src/pages/*.tsx` | 各页面组件，一文件一页（路由挂载见 `src/routes/**`）；页面清单以目录为准，各页语义见本文对应小节 |

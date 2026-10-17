@@ -28,6 +28,7 @@ export const layout = {
     harness: 'Harness tuning',
     developer: 'Developer',
     settings: 'Settings',
+    preferences: 'Panel preferences',
   },
   theme: {
     toggleTheme: 'Toggle theme: {{mode}}',

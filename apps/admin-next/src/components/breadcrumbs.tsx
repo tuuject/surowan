@@ -37,6 +37,7 @@ const SEGMENT_TO_NAV: Partial<Record<string, NavKey>> = {
   harness: 'harness',
   developer: 'developer',
   settings: 'settings',
+  preferences: 'preferences',
 };
 
 interface Crumb {

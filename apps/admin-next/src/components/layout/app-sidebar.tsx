@@ -13,6 +13,7 @@ import {
   MessageSquare,
   MessagesSquare,
   ScrollText,
+  SlidersVertical,
   Settings,
   Shield,
   SlidersHorizontal,
@@ -86,7 +87,10 @@ export default function AppSidebar({
     },
     {
       label: t('layout.nav.account'),
-      items: [{ title: t('layout.nav.settings'), url: '/settings', icon: Settings }],
+      items: [
+        { title: t('layout.nav.settings'), url: '/settings', icon: Settings },
+        { title: t('layout.nav.preferences'), url: '/preferences', icon: SlidersVertical },
+      ],
     },
   ];
 
