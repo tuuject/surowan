@@ -178,9 +178,17 @@ function requireKey(value: unknown, field: string): string {
   return value;
 }
 
+/** SQLite INTEGER is a signed 64-bit value; a larger id cannot be bound. */
+const MAX_ID = 9_223_372_036_854_775_807n;
+
 function requireDecimal(value: unknown, field: string): bigint {
+  // A number past 2^53 was already rounded before it got here, so it can no
+  // longer name the id the caller meant.
+  if (typeof value === 'number' && !Number.isSafeInteger(value)) {
+    throw new PlaygroundError('input_conflict', `${field} must be a decimal id`);
+  }
   const text = typeof value === 'bigint' ? value.toString() : typeof value === 'number' ? String(value) : value;
-  if (typeof text !== 'string' || !/^\d+$/.test(text) || text.length > 20) {
+  if (typeof text !== 'string' || !/^\d+$/.test(text) || text.length > 19 || BigInt(text) > MAX_ID) {
     throw new PlaygroundError('input_conflict', `${field} must be a decimal id`);
   }
   return BigInt(text);

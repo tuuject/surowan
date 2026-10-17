@@ -24,8 +24,8 @@ export interface ContextInjector {
   /** Injector name; also the audit key. `loadPlugins` requires a plugin-id-shaped name, unique across plugins. */
   readonly name: string;
   /**
-   * Hosts this injector may read. Omitted means every host; a Telegram-only
-   * injector must say so, because a room's chat id is not a Telegram chat id.
+   * Hosts this injector may read, within its plugin's hosts (`loadPlugins`
+   * narrows it to them). Omitted means every host the plugin runs on.
    */
   readonly hosts?: readonly HostKind[];
   /**

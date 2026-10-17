@@ -12,7 +12,8 @@ import { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { PlaygroundIngress } from '../src/ingress/playground.ts';
 import { PlaygroundStore } from '../src/store/playground.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import { buckets, invocations } from '../src/store/schema.ts';
+import { LongTaskService } from '../src/store/long-tasks.ts';
+import { buckets, invocations, taskReceipts } from '../src/store/schema.ts';
 import { testConfigJsonc, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
@@ -171,5 +172,21 @@ describe('playground scheduling', () => {
       open();
       await scheduler.stop(1_000);
     }
+  });
+
+  test('a task completion for a room is delivered, not suppressed as a removed chat', async () => {
+    const { store, configStore, room } = await fixture();
+    const conversationId = new PlaygroundStore(store.orm).room(room.chatId).conversationId;
+    const tasks = new LongTaskService(store.orm);
+    const scope = tasks.scoped('test-plugin', conversationId);
+    const created = scope.create({ payload: { operation: 'export' } });
+    expect(scope.complete(created.taskId, { ok: true })).toBe(true);
+
+    const scheduler = new BucketScheduler(store, configStore, async () => ({ state: 'completed', reason: 'test' }));
+    const queued = scheduler.processTasksDue();
+
+    expect(queued).toHaveLength(1);
+    const receipt = store.orm.select().from(taskReceipts).get();
+    expect(receipt).toMatchObject({ state: 'claimed', invocationId: queued[0] });
   });
 });

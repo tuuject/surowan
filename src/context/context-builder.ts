@@ -5,6 +5,7 @@ import Compile from 'typebox/compile';
 import { CORE_AGENT_PROTOCOL } from '../platform/agent-protocol.ts';
 import { type AgentPromptLayers, composeAgentPrompt } from '../platform/agent-prompt.ts';
 import { activeVisionModel, type RawConfig } from '../platform/config.ts';
+import { hostExecutionProfile } from '../platform/host-profile.ts';
 import type { HostKind } from '../platform/im-host.ts';
 import type { CompletionContext, DirectImage, VisibleSender } from '../platform/invocation-context.ts';
 import { resolveInvocationPolicy, type InvocationPolicy } from '../platform/invocation-policy.ts';
@@ -361,7 +362,7 @@ export class ContextBuilder {
           : identity.hostKind === 'telegram'
             ? 'Telegram images and Stickers are available through the read_image capability (called via execute). Call it when visual details are needed.'
             : 'Images posted in the room are available through the read_image capability (called via execute). Call it when visual details are needed.';
-    const stickerCatalog = this.#stickerCatalog();
+    const stickerCatalog = this.#stickerCatalog(identity.hostKind);
     const stickerCatalogHandling =
       stickerCatalog.length === 0
         ? ''
@@ -404,6 +405,12 @@ export class ContextBuilder {
    * model can still see them.
    */
   renderInjection(config: RawConfig, input: InjectionInput): Injection {
+    // Rendering registers refs as it goes. A refused batch must leave none of
+    // them behind, so the whole render commits or rolls back as one unit.
+    return this.#store.transaction(() => this.#renderInjection(config, input));
+  }
+
+  #renderInjection(config: RawConfig, input: InjectionInput): Injection {
     const { identity } = input;
     const now = input.now ?? new Date();
     const rows = this.#store.orm.all<InvocationMessageRow>(
@@ -457,7 +464,7 @@ export class ContextBuilder {
       ),
       target: { conversationId: row.conversation_id, threadId: row.message_thread_id },
     }));
-    const stickerCatalog = this.#stickerCatalog();
+    const stickerCatalog = this.#stickerCatalog(identity.hostKind);
     const renderStickerCatalog = stickerCatalog.length > 0 && stickerCatalog !== input.carriedStickerCatalog;
     const maximumCharacters = Math.max(
       1_024,
@@ -502,9 +509,11 @@ export class ContextBuilder {
     const omittedNewMessages = current.length - selectedCurrent.length;
     // A room injection is all-or-nothing: dropping the front of the batch
     // would answer a later message while pretending the earlier ones never
-    // arrived. Refuse before any ref is registered or a checkpoint is written,
-    // so the room can retry the same batch unchanged.
-    if (identity.hostKind === 'playground' && omittedNewMessages > 0) {
+    // arrived. The selection always keeps the newest message, so a single
+    // oversized one shows up as overflow rather than as an omission. Refuse
+    // before a reply ref or a checkpoint is written; the media refs prepared
+    // above roll back with the render.
+    if (identity.hostKind === 'playground' && (omittedNewMessages > 0 || usedCharacters > maximumCharacters)) {
       throw new InjectionTooLargeError(
         `new messages for invocation ${identity.invocationId} do not fit the context budget`,
       );
@@ -734,7 +743,11 @@ export class ContextBuilder {
       .replaceAll('>', '\\u003e');
   }
 
-  #stickerCatalog(): string {
+  /** Empty for a host without stickers, so neither prompt nor batch offers them. */
+  #stickerCatalog(hostKind: HostKind): string {
+    if (!hostExecutionProfile(hostKind).stickers) {
+      return '';
+    }
     return this.#store.orm
       .all<StickerCatalogRow>(sql`SELECT s.id, s.emoji
          FROM stickers s
