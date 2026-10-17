@@ -610,7 +610,7 @@ describe('send image delivery ledger', () => {
     const refs = new ContextRefStore(fixture.store, { ttlHours: () => fixture.config.agent!.context!.ref_ttl_hours });
     refs.replyRef(
       context.header,
-      77n,
+      '77',
       { conversationId: context.conversationId, threadId: context.threadId },
       context.header.nextSeq,
       new Date(Date.now() - 100 * 3_600_000),

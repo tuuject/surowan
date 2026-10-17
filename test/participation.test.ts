@@ -9,6 +9,7 @@ import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { ConversationContextStore } from '../src/context/context-store.ts';
 import { ContextRefStore } from '../src/context/context-refs.ts';
 import { ContextBuilder } from '../src/context/context-builder.ts';
+import { resolveInvocationPolicy } from '../src/platform/invocation-policy.ts';
 import type { FileConfig, RawConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
@@ -532,11 +533,17 @@ describe('participation gate', () => {
         invocationId: first,
         conversationId,
         chatId: BigInt(GROUP_CHAT_ID),
+        hostKind: 'telegram',
         threadId: 0n,
         chatType: 'supergroup',
         bucketKind: 'realtime',
         completion: null,
         timezone: config.timezone,
+        policy: resolveInvocationPolicy(config, store.orm, {
+          hostKind: 'telegram',
+          chatId: BigInt(GROUP_CHAT_ID),
+          chatType: 'supergroup',
+        }),
       },
       false,
       { provider: config.agent!.provider!, model: config.agent!.model! },

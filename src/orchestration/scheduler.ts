@@ -1,8 +1,10 @@
 import { and, eq, sql } from 'drizzle-orm';
+import type { HostKind } from '../platform/im-host.ts';
+import { resolveBucketWindowSeconds } from '../platform/invocation-policy.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import type { BusinessStore } from '../store/store.ts';
 import { LongTaskService } from '../store/long-tasks.ts';
-import { buckets, conversations, invocations, taskReceipts } from '../store/schema.ts';
+import { buckets, chats, conversations, invocations, taskReceipts } from '../store/schema.ts';
 import { activeSleepUntil } from '../store/sleep.ts';
 import { type BucketAttachmentTarget, InvocationQueueService } from './invocation-queue.ts';
 import type { ProactiveReplyGateOptions } from './proactive-reply.ts';
@@ -367,20 +369,32 @@ export class BucketScheduler {
         // This only ever moves a deadline later; a batch still inside its own
         // window keeps that window, which is what makes every batch collect a
         // full `bucket_window_seconds` (see the ingestion comments).
-        const nextDeadline = new Date(
-          Math.max(
-            finishedAt.getTime(),
-            Date.parse(started.started_at) + this.#configStore.current().config.telegram.bucket_window_seconds * 1_000,
-          ),
-        ).toISOString();
         const chat = this.#store.orm
-          .select({ chatId: conversations.chatId })
+          .select({
+            hostKind: chats.hostKind,
+            chatId: conversations.chatId,
+          })
           .from(conversations)
+          .innerJoin(chats, eq(chats.id, conversations.chatId))
           .where(eq(conversations.id, invocation.conversation_id))
           .get();
         if (chat === undefined) {
           throw new Error(`Invocation ${invocation.id} has no chat`);
         }
+        // The window is part of the chat's fixed policy, not a live config
+        // read: a room collects nothing, and a Telegram chat keeps the window
+        // it had when the run started. Resolving it from the host kind does
+        // not require the chat entry to still exist.
+        const windowSeconds = resolveBucketWindowSeconds(
+          this.#configStore.current().config,
+          chat.hostKind as HostKind,
+        );
+        const nextDeadline = new Date(
+          Math.max(
+            finishedAt.getTime(),
+            Date.parse(started.started_at) + windowSeconds * 1_000,
+          ),
+        ).toISOString();
         this.#store.orm.run(
           sql`UPDATE buckets SET deadline_at = ${nextDeadline}, updated_at = ${nowIso}
              WHERE conversation_id IN (SELECT id FROM conversations WHERE chat_id = ${chat.chatId})

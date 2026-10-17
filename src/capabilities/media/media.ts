@@ -8,6 +8,7 @@ import Compile from 'typebox/compile';
 import { AsyncSemaphore, type KeyedSemaphore } from '../../platform/concurrency.ts';
 import { configuredToolSchemaKeywords, type ToolSchemaKeywords } from '../../platform/config.ts';
 import type { CapabilityRefResolver, DirectImage, InvocationContext } from '../../platform/invocation-context.ts';
+import { invocationGateKey } from '../../platform/invocation-policy.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import { applyToolSchemaKeywords } from '../../platform/tool-schema.ts';
@@ -512,7 +513,12 @@ export class MediaService {
       const normalized = await prepareMediaImage(media, inputPath, temporaryDirectory, this.#mediaClient, signal);
       const releaseVision = await this.#visionSemaphore.acquire(signal, scope.kind === 'sticker_index' ? 1 : 0);
       const releaseChat =
-        scope.kind === 'chat' ? await this.#modelGate.acquire(scope.chatId.toString(), signal) : undefined;
+        scope.kind === 'chat'
+          ? await this.#modelGate.acquire(
+              invocationGateKey('telegram', scope.chatId),
+              signal,
+            )
+          : undefined;
       try {
         const callId = this.#startVisionCall(scope, analysisId, run);
         let response: AssistantMessage;

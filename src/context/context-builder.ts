@@ -5,13 +5,17 @@ import Compile from 'typebox/compile';
 import { CORE_AGENT_PROTOCOL } from '../platform/agent-protocol.ts';
 import { type AgentPromptLayers, composeAgentPrompt } from '../platform/agent-prompt.ts';
 import { activeVisionModel, type RawConfig } from '../platform/config.ts';
+import type { HostKind } from '../platform/im-host.ts';
 import type { CompletionContext, DirectImage, VisibleSender } from '../platform/invocation-context.ts';
+import {
+  resolveInvocationPolicy,
+  type InvocationPolicy,
+} from '../platform/invocation-policy.ts';
 import type { PromptTemplateModel, PromptTemplateValues } from '../platform/prompt-template.ts';
 import { PRODUCT_KNOWLEDGE_INDEX } from '../platform/product-knowledge.ts';
 import { renderSkillIndexPrompt, type SystemSkill } from '../platform/system-resources.ts';
 import { renderSpoilers, type SpoilerRange } from '../platform/spoilers.ts';
 import type { BusinessStore } from '../store/store.ts';
-import { resolveChatConfig } from '../store/store.ts';
 import { imageDeliveryState } from '../store/image-delivery.ts';
 import { LongTaskService } from '../store/long-tasks.ts';
 import type { ContextInjector } from './context-injector.ts';
@@ -76,7 +80,58 @@ export const MessageSnapshotSchema = Type.Object(
   },
   Strict,
 );
+
+/** The frozen format a Telegram invocation writes. */
+export const TELEGRAM_SNAPSHOT_FORMAT = 'plasticwan.invocation-snapshot.v1';
+
+/** The frozen format a Playground invocation writes. */
+export const ROOM_SNAPSHOT_FORMAT = 'plasticwan.invocation-snapshot.playground.v1';
+
+/**
+ * A room message as it was frozen for one invocation.
+ *
+ * A room has no Telegram message id, so `message_id` is the room's own
+ * monotonic sequence — the same token the model sees and may reply to. Sender
+ * identity is a room-scoped member ref; it is deliberately not a Telegram user
+ * id, and core never treats it as one.
+ */
+export const RoomMessageSnapshotSchema = Type.Object(
+  {
+    host: Type.Literal('playground'),
+    message_id: Type.String(),
+    sent_at: Type.String(),
+    sent_by_bot: Type.Boolean(),
+    revision: Type.String(),
+    sender: Type.Object(
+      {
+        ref: Type.String(),
+        name: Type.String(),
+        role: Type.Optional(Type.String()),
+      },
+      Strict,
+    ),
+    kind: Type.String(),
+    text: Type.Union([Type.String(), Type.Null()]),
+    caption: Type.Union([Type.String(), Type.Null()]),
+    reply_to_message_id: Type.Union([Type.String(), Type.Null()]),
+    reply_snapshot: Type.Unknown(),
+    media: Type.Array(MediaSnapshotSchema),
+  },
+  Strict,
+);
 const snapshotValidator = Compile(MessageSnapshotSchema);
+const roomSnapshotValidator = Compile(RoomMessageSnapshotSchema);
+
+/**
+ * The batch of new room messages does not fit the remaining context budget.
+ *
+ * Thrown before any reply ref is registered or a checkpoint is written: the
+ * injection left no trace, so the same batch can be retried once the window
+ * grows or the transcript shrinks.
+ */
+export class InjectionTooLargeError extends Error {
+  override readonly name = 'InjectionTooLargeError';
+}
 const imageReceiptValidator = Compile(
   Type.Object({
     generation_id: Type.String(),
@@ -106,11 +161,14 @@ interface InvocationMessageRow {
   readonly message_id: bigint;
   readonly revision_id: bigint;
   readonly snapshot_json: string;
+  readonly snapshot_format: string;
 }
 
 interface InvocationIdentityRow {
   readonly conversation_id: bigint;
-  readonly telegram_chat_id: bigint;
+  readonly chat_id: bigint;
+  readonly host_kind: HostKind;
+  readonly telegram_chat_id: bigint | null;
   readonly message_thread_id: bigint;
   readonly chat_type: string;
   readonly bucket_kind: 'realtime' | 'startup_catch_up';
@@ -123,7 +181,7 @@ interface StickerCatalogRow {
 
 interface SenderIdentityRow {
   readonly message_id: bigint;
-  readonly telegram_id: bigint;
+  readonly telegram_id: bigint | null;
   readonly display_name: string;
   readonly username: string | null;
 }
@@ -131,12 +189,16 @@ interface SenderIdentityRow {
 export interface ContextIdentity {
   readonly invocationId: bigint;
   readonly conversationId: bigint;
+  /** The host's chat id: Telegram chat id, or the internal chat id of a room. */
   readonly chatId: bigint;
+  readonly hostKind: HostKind;
   readonly threadId: bigint;
   readonly chatType: string;
   readonly bucketKind: 'realtime' | 'startup_catch_up';
   readonly completion: CompletionContext | null;
   readonly timezone: string;
+  /** Everything the run needs from the host, resolved once. */
+  readonly policy: InvocationPolicy;
 }
 
 export interface StablePrompt {
@@ -227,7 +289,8 @@ export class ContextBuilder {
   identity(config: RawConfig, invocationId: bigint): ContextIdentity {
     const identity = this.#store.orm
       .all<InvocationIdentityRow>(
-        sql`SELECT i.conversation_id, c.telegram_chat_id, v.message_thread_id, c.type AS chat_type,
+        sql`SELECT i.conversation_id, c.id AS chat_id, c.host_kind, c.telegram_chat_id,
+                v.message_thread_id, c.type AS chat_type,
                 b.kind AS bucket_kind, b.id AS bucket_id
          FROM invocations i
          JOIN buckets b ON b.id = i.bucket_id
@@ -239,19 +302,27 @@ export class ContextBuilder {
     if (identity === undefined) {
       throw new Error(`Invocation ${invocationId} does not exist`);
     }
-    const chatConfig = resolveChatConfig(config, this.#store.orm, identity.telegram_chat_id);
-    if (chatConfig === undefined) {
-      throw new Error(`Invocation chat ${identity.telegram_chat_id} is no longer configured`);
-    }
+    const hostKind: HostKind = identity.host_kind;
+    // A Telegram chat is addressed by its platform id; a room by its internal
+    // chat id. Neither is ever used as the other host's id.
+    const chatId =
+      hostKind === 'telegram' ? (identity.telegram_chat_id ?? 0n) : identity.chat_id;
+    const policy = resolveInvocationPolicy(config, this.#store.orm, {
+      hostKind,
+      chatId,
+      chatType: identity.chat_type,
+    });
     return {
       invocationId,
       conversationId: identity.conversation_id,
-      chatId: identity.telegram_chat_id,
+      chatId: policy.chatId,
+      hostKind,
       threadId: identity.message_thread_id,
       chatType: identity.chat_type,
       bucketKind: identity.bucket_kind,
       completion: new LongTaskService(this.#store.orm).getCompletion(invocationId, identity.bucket_id) ?? null,
-      timezone: chatConfig.timezone ?? config.timezone,
+      timezone: policy.timezone,
+      policy,
     };
   }
 
@@ -273,10 +344,6 @@ export class ContextBuilder {
       readonly imageInput?: 'direct' | 'on_demand';
     },
   ): StablePrompt {
-    const chatConfig = resolveChatConfig(config, this.#store.orm, identity.chatId);
-    if (chatConfig === undefined) {
-      throw new Error(`Invocation chat ${identity.chatId} is no longer configured`);
-    }
     const vision = activeVisionModel(config.vision);
     const templateValues: PromptTemplateValues = {
       agent: agentModel,
@@ -290,10 +357,14 @@ export class ContextBuilder {
       vision === undefined
         ? directImages
           ? 'Photos and supported image Documents from the newest injected messages are attached directly to the multimodal Agent input, in the same order as the [kind figure_N img_ref] media lines inside the messages. Treat each attached image as the media of the message that lists the matching figure_N. Attachments are not kept, and no vision model is configured: older images, earlier figure_N images and Stickers cannot be inspected, and the read_image capability is unavailable. Do not claim visual details you cannot see.'
-          : 'No vision model is configured: Telegram images and Stickers cannot be inspected, and the read_image capability is unavailable. Do not claim visual details you cannot see.'
+          : identity.hostKind === 'telegram'
+            ? 'No vision model is configured: Telegram images and Stickers cannot be inspected, and the read_image capability is unavailable. Do not claim visual details you cannot see.'
+            : 'No vision model is configured: images posted in the room cannot be inspected, and the read_image capability is unavailable. Do not claim visual details you cannot see.'
         : directImages
           ? 'Photos and supported image Documents from the newest injected messages are attached directly to the multimodal Agent input, in the same order as the [kind figure_N img_ref] media lines inside the messages. Treat each attached image as the media of the message that lists the matching figure_N. Attachments are not kept: older images, including earlier figure_N images, are inspected on demand with the read_image capability (called via execute) using their img_ refs. read_image never accepts figure_N refs.'
-          : 'Telegram images and Stickers are available through the read_image capability (called via execute). Call it when visual details are needed.';
+          : identity.hostKind === 'telegram'
+            ? 'Telegram images and Stickers are available through the read_image capability (called via execute). Call it when visual details are needed.'
+            : 'Images posted in the room are available through the read_image capability (called via execute). Call it when visual details are needed.';
     const stickerCatalog = this.#stickerCatalog();
     const stickerCatalogHandling =
       stickerCatalog.length === 0
@@ -316,7 +387,9 @@ export class ContextBuilder {
         .join('\n\n'),
       global: config.agent.system_prompt,
       middle: [conversationMode, MEMORY_GUIDANCE].filter((part) => part.length > 0).join('\n\n'),
-      group: chatConfig.instructions,
+      // The chat entry contributes its instructions to the group layer. A room
+      // has no chat entry, so the layer is empty and stable.
+      group: identity.policy.instructions,
     };
     const systemPrompt = composeAgentPrompt(promptLayers, templateValues);
     return {
@@ -339,6 +412,7 @@ export class ContextBuilder {
     const now = input.now ?? new Date();
     const rows = this.#store.orm.all<InvocationMessageRow>(
       sql`SELECT im.section, im.sequence_no, im.message_id, im.revision_id, im.snapshot_json,
+                im.snapshot_format,
                 m.conversation_id, v.message_thread_id
          FROM invocation_messages im
          JOIN messages m ON m.id = im.message_id
@@ -346,15 +420,26 @@ export class ContextBuilder {
          WHERE im.invocation_id = ${identity.invocationId} AND (im.source_bucket_id = ${input.bucketId} OR im.section = 'history')
          ORDER BY im.sequence_no`,
     );
+    // Telegram exposes numeric user ids as `uid:`; a room must not, because its
+    // member ids are internal. Each host keeps its own sender projection.
     const senderRows = this.#store.orm.all<SenderIdentityRow>(
-      sql`SELECT im.message_id, s.telegram_id, s.display_name, s.username
-         FROM invocation_messages im
-         JOIN message_revisions r ON r.id = im.revision_id
-         JOIN senders s ON s.id = r.sender_id
-         WHERE im.invocation_id = ${identity.invocationId} AND s.telegram_type = 'user'`,
+      identity.hostKind === 'telegram'
+        ? sql`SELECT im.message_id, s.telegram_id, s.display_name, s.username
+           FROM invocation_messages im
+           JOIN message_revisions r ON r.id = im.revision_id
+           JOIN senders s ON s.id = r.sender_id
+           WHERE im.invocation_id = ${identity.invocationId} AND s.telegram_type = 'user'`
+        : sql`SELECT im.message_id, NULL AS telegram_id, s.display_name, NULL AS username
+           FROM invocation_messages im
+           JOIN message_revisions r ON r.id = im.revision_id
+           JOIN senders s ON s.id = r.sender_id
+           WHERE im.invocation_id = ${identity.invocationId} AND s.host_kind = 'playground'`,
     );
     const senderByMessage = new Map<string, VisibleSender>();
     for (const sender of senderRows) {
+      if (sender.telegram_id === null) {
+        continue;
+      }
       senderByMessage.set(sender.message_id.toString(), {
         userId: sender.telegram_id,
         displayName: sender.display_name,
@@ -365,7 +450,15 @@ export class ContextBuilder {
     const prepared = rows.map((row) => ({
       section: row.section,
       messageId: row.message_id,
-      snapshot: this.#prepareSnapshot(row.snapshot_json, input.header, input.seq, mediaIds, now),
+      snapshot: this.#prepareSnapshot(
+        row.snapshot_json,
+        row.snapshot_format,
+        identity.hostKind,
+        input.header,
+        input.seq,
+        mediaIds,
+        now,
+      ),
       target: { conversationId: row.conversation_id, threadId: row.message_thread_id },
     }));
     const stickerCatalog = this.#stickerCatalog();
@@ -383,13 +476,15 @@ export class ContextBuilder {
     );
     const selectedCurrent: typeof current = [];
     let usedCharacters = 0;
+    const formatSnapshotOptions = {
+      timezone: identity.timezone,
+      now,
+      showTopic: identity.bucketKind === 'startup_catch_up',
+    };
     const format = (snapshot: PreparedSnapshot, inlineReplies: ReadonlySet<string>): string =>
-      formatSnapshot(snapshot, {
-        timezone: identity.timezone,
-        now,
-        showTopic: identity.bucketKind === 'startup_catch_up',
-        inlineReplies,
-      });
+      identity.hostKind === 'telegram'
+        ? formatSnapshot(snapshot, { ...formatSnapshotOptions, inlineReplies })
+        : formatRoomSnapshot(snapshot, { ...formatSnapshotOptions, inlineReplies });
     const noInlineReplies = new Set<string>();
     for (const entry of current.toReversed()) {
       const size = format(entry.snapshot, noInlineReplies).length + 1;
@@ -409,6 +504,15 @@ export class ContextBuilder {
       usedCharacters += size;
     }
     const omittedNewMessages = current.length - selectedCurrent.length;
+    // A room injection is all-or-nothing: dropping the front of the batch
+    // would answer a later message while pretending the earlier ones never
+    // arrived. Refuse before any ref is registered or a checkpoint is written,
+    // so the room can retry the same batch unchanged.
+    if (identity.hostKind === 'playground' && omittedNewMessages > 0) {
+      throw new InjectionTooLargeError(
+        `new messages for invocation ${identity.invocationId} do not fit the context budget`,
+      );
+    }
     const selected = [...selectedHistory, ...selectedCurrent];
     // Injectors run after the messages were selected, in registration order,
     // and each receives what the previous ones left of the budget. Non-empty
@@ -422,6 +526,12 @@ export class ContextBuilder {
     const injections: ContextInjectionContribution[] = [];
     let injectionBudget = Math.max(0, maximumCharacters - usedCharacters);
     for (const injector of this.#injectors) {
+      // A Telegram-only injector must never see a room's internal chat id, or
+      // it would read the wrong chat. Runtime filtering keeps that at the
+      // boundary instead of trusting each injector to check.
+      if (injector.hosts !== undefined && !injector.hosts.includes(identity.hostKind)) {
+        continue;
+      }
       const rendered = injector.render({
         config,
         orm: this.#store.orm,
@@ -449,7 +559,13 @@ export class ContextBuilder {
       if (entry.section !== 'new') {
         return format(entry.snapshot, inlineReplies);
       }
-      this.#refs.replyRef(input.header, BigInt(entry.snapshot.message_id), entry.target, input.seq, now);
+      this.#refs.replyRef(
+        input.header,
+        entry.snapshot.message_id,
+        entry.target,
+        input.seq,
+        now,
+      );
       const snapshot = entry.snapshot;
       if (!input.supportsImages || snapshot.media.length === 0) {
         return format(snapshot, inlineReplies);
@@ -505,7 +621,9 @@ export class ContextBuilder {
       ...injections.filter((injection) => injection.text.length > 0).map((injection) => injection.text),
       ...(historyText.length === 0
         ? []
-        : ['<untrusted_telegram_history>', historyText, '</untrusted_telegram_history>']),
+        : identity.hostKind === 'telegram'
+          ? ['<untrusted_telegram_history>', historyText, '</untrusted_telegram_history>']
+          : ['<untrusted_room_history>', historyText, '</untrusted_room_history>']),
       '<untrusted_new_messages>',
       `${omission}${currentText}`,
       '</untrusted_new_messages>',
@@ -651,6 +769,8 @@ export class ContextBuilder {
    */
   #prepareSnapshot(
     json: string,
+    format: string,
+    hostKind: HostKind,
     header: ContextHeader,
     sourceSeq: bigint,
     mediaIds: Map<string, bigint>,
@@ -662,10 +782,43 @@ export class ContextBuilder {
     } catch {
       throw new Error('Stored invocation message contains invalid JSON');
     }
-    if (!snapshotValidator.Check(parsed)) {
+    // The frozen row names its format; it must agree with the invocation's
+    // host. That keeps a Telegram payload from being read as a room payload
+    // (or the reverse) even if a row is copied between hosts.
+    const expectedFormat = hostKind === 'telegram' ? TELEGRAM_SNAPSHOT_FORMAT : ROOM_SNAPSHOT_FORMAT;
+    if (format !== expectedFormat) {
+      throw new Error(
+        `Stored invocation message has format ${format}, expected ${expectedFormat}`,
+      );
+    }
+    const validator = hostKind === 'telegram' ? snapshotValidator : roomSnapshotValidator;
+    if (!validator.Check(parsed)) {
       throw new Error('Stored invocation message does not match its schema');
     }
-    const media = parsed.media.map((entry) => {
+    const payload = parsed as unknown as {
+      message_id: string;
+      message_thread_id?: string;
+      telegram_date: string;
+      sent_at: string;
+      sent_by_bot: boolean;
+      sender: { id: string | null; name: string | null; username: string | null };
+      kind: string;
+      text: string | null;
+      caption: string | null;
+      spoilers?: MessageSnapshot['spoilers'];
+      reply_to_message_id: string | null;
+      reply_snapshot: unknown;
+      forward_origin: unknown;
+      media_group_id: string | null;
+      media: Array<{
+        id: string;
+        kind: string;
+        mime_type: string | null;
+        width: string | null;
+        height: string | null;
+      }>;
+    };
+    const media = payload.media.map((entry) => {
       const mediaId = BigInt(entry.id);
       const reference = this.#refs.mediaRef(header, mediaId, sourceSeq, now);
       mediaIds.set(reference, mediaId);
@@ -677,26 +830,57 @@ export class ContextBuilder {
         height: entry.height,
       };
     });
+    if (hostKind === 'playground') {
+      const room = payload as unknown as {
+        message_id: string;
+        sent_at: string;
+        sent_by_bot: boolean;
+        sender: { ref: string; name: string };
+        kind: string;
+        text: string | null;
+        caption: string | null;
+        reply_to_message_id: string | null;
+        reply_snapshot: unknown;
+      };
+      return {
+        message_id: room.message_id,
+        telegram_date: room.sent_at,
+        sent_by_bot: room.sent_by_bot,
+        sender: { id: null, name: room.sender.name, username: null },
+        senderRef: room.sender.ref,
+        kind: room.kind,
+        text: room.text,
+        caption: room.caption,
+        reply_to_message_id: room.reply_to_message_id,
+        reply_snapshot: room.reply_snapshot,
+        forward_origin: null,
+        media_group_id: null,
+        media,
+      };
+    }
     return {
-      message_id: parsed.message_id,
-      ...(parsed.message_thread_id === undefined ? {} : { message_thread_id: parsed.message_thread_id }),
-      telegram_date: parsed.telegram_date,
-      sent_by_bot: parsed.sent_by_bot,
-      sender: parsed.sender,
-      kind: parsed.kind,
-      text: parsed.text,
-      caption: parsed.caption,
-      ...(parsed.spoilers === undefined ? {} : { spoilers: parsed.spoilers }),
-      reply_to_message_id: parsed.reply_to_message_id,
-      reply_snapshot: parsed.reply_snapshot,
-      forward_origin: parsed.forward_origin,
-      media_group_id: parsed.media_group_id,
+      message_id: payload.message_id,
+      ...(payload.message_thread_id === undefined ? {} : { message_thread_id: payload.message_thread_id }),
+      telegram_date: payload.telegram_date,
+      sent_by_bot: payload.sent_by_bot,
+      sender: payload.sender,
+      senderRef: null,
+      kind: payload.kind,
+      text: payload.text,
+      caption: payload.caption,
+      ...(payload.spoilers === undefined ? {} : { spoilers: payload.spoilers }),
+      reply_to_message_id: payload.reply_to_message_id,
+      reply_snapshot: payload.reply_snapshot,
+      forward_origin: payload.forward_origin,
+      media_group_id: payload.media_group_id,
       media,
     };
   }
 }
 
 export interface PreparedSnapshot extends Omit<MessageSnapshot, 'revision' | 'media'> {
+  /** Room-scoped member ref; null for a Telegram message. */
+  readonly senderRef?: string | null;
   readonly media: readonly {
     readonly image_ref: string;
     readonly figure?: string;
@@ -748,6 +932,37 @@ export function formatSnapshot(snapshot: PreparedSnapshot, options: FormatOption
   if (snapshot.sender.username !== null && USERNAME.test(snapshot.sender.username)) {
     tokens.push(`@${snapshot.sender.username}`);
   }
+  const name = singleLine(snapshot.sender.name ?? 'unknown');
+  return [`[${tokens.join(' ')}] ${name}`, ...snapshotBody(snapshot, options).map((line) => `  ${line}`)].join('\n');
+}
+
+/**
+ * A room message, in the room's own wording.
+ *
+ * The header keeps only room tokens: the room sequence the model may reply to,
+ * a room-scoped `member:` ref, and the reply edge. Telegram's `uid:` and `@`
+ * tokens never appear, because a room's member id is not a Telegram user id.
+ */
+export function formatRoomSnapshot(snapshot: PreparedSnapshot, options: FormatOptions): string {
+  const tokens = [
+    snapshot.message_id,
+    formatTime(snapshot.telegram_date, options.timezone, options.now),
+  ];
+  if (options.showTopic && snapshot.message_thread_id !== undefined) {
+    tokens.push(`topic:${snapshot.message_thread_id}`);
+  }
+  if (snapshot.sent_by_bot) {
+    tokens.push('you');
+  }
+  if (snapshot.reply_to_message_id !== null) {
+    tokens.push(`re:${snapshot.reply_to_message_id}`);
+  }
+  tokens.push(`member:${snapshot.senderRef ?? 'unknown'}`);
+  const name = singleLine(snapshot.sender.name ?? 'unknown');
+  return [`[${tokens.join(' ')}] ${name}`, ...snapshotBody(snapshot, options).map((line) => `  ${line}`)].join('\n');
+}
+
+function snapshotBody(snapshot: PreparedSnapshot, options: FormatOptions): string[] {
   const body: string[] = [];
   const forwardedFrom = forwardOriginName(snapshot.forward_origin);
   if (forwardedFrom !== null) {
@@ -781,8 +996,7 @@ export function formatSnapshot(snapshot: PreparedSnapshot, options: FormatOption
   if (body.length === 0) {
     body.push(`[${snapshot.kind}]`);
   }
-  const name = singleLine(snapshot.sender.name ?? 'unknown');
-  return [`[${tokens.join(' ')}] ${name}`, ...body.map((line) => `  ${line}`)].join('\n');
+  return body;
 }
 
 const USERNAME = /^[A-Za-z0-9_]+$/;

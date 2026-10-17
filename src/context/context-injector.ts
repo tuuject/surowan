@@ -1,4 +1,5 @@
 import type { RawConfig } from '../platform/config.ts';
+import type { HostKind } from '../platform/im-host.ts';
 import type { Orm } from '../store/store.ts';
 
 /**
@@ -22,6 +23,11 @@ import type { Orm } from '../store/store.ts';
 export interface ContextInjector {
   /** Injector name; also the audit key. `loadPlugins` requires a plugin-id-shaped name, unique across plugins. */
   readonly name: string;
+  /**
+   * Hosts this injector may read. Omitted means every host; a Telegram-only
+   * injector must say so, because a room's chat id is not a Telegram chat id.
+   */
+  readonly hosts?: readonly HostKind[];
   /**
    * Reads this injector's signatures out of one retained user message's text.
    * The runtime calls it for every retained message when rebuilding state

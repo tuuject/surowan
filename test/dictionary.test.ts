@@ -638,6 +638,7 @@ test('the plugin contributes its capabilities with the pre-migration side-effect
     const context: InvocationContext = {
       invocationId: 0n,
       conversationId: 0n,
+      hostKind: 'telegram',
       chatId: 123456789n,
       threadId: 0n,
       systemPrompt: '',

@@ -33,7 +33,6 @@ import {
   completeAgentSettings,
   configuredToolSchemaKeywords,
   type RawConfig,
-  resolveAgentSettings,
 } from '../platform/config.ts';
 import type { ImConversationRef, ImHost } from '../platform/im-host.ts';
 import {
@@ -66,7 +65,6 @@ import {
   readDailyTokenBudget,
 } from '../store/sleep.ts';
 import type { BusinessStore } from '../store/store.ts';
-import { resolveChatConfig } from '../store/store.ts';
 import { createToolAudit } from '../store/tool-audit.ts';
 import { type CachedConversationAgent, ConversationRuntime } from './conversation-runtime.ts';
 import { attachBucketToInvocation } from './invocation-queue.ts';
@@ -386,13 +384,11 @@ export class AgentRuntime {
     // instead of silently falling back.
     const config = snapshot.config;
     const identity = this.#contextBuilder.identity(config, invocationId);
-    const chat = resolveChatConfig(config, this.#store.orm, identity.chatId);
-    if (chat === undefined) {
-      throw new Error(`Invocation chat ${identity.chatId} is no longer configured`);
-    }
-    // The queue gates on the same check, but a reload may have dropped the
-    // identity triple between queuing and launch; abort instead of erroring.
-    const settings = completeAgentSettings(resolveAgentSettings(config, chat));
+    // The host resolved this policy once, when the run started. Reading it back
+    // here keeps a Telegram chat entry and a room on the same code path. The
+    // queue gates on the same check, but a reload may have dropped the identity
+    // triple between queuing and launch; abort instead of erroring.
+    const settings = completeAgentSettings(identity.policy.agent);
     if (settings === undefined) {
       return { state: 'aborted', reason: 'agent_unconfigured' };
     }
@@ -430,6 +426,7 @@ export class AgentRuntime {
     const contextState = new InvocationContextState({
       invocationId,
       conversationId: identity.conversationId,
+      hostKind: identity.hostKind,
       chatId: identity.chatId,
       threadId: identity.threadId,
       completion: identity.completion,
@@ -762,7 +759,7 @@ export class AgentRuntime {
         state.modelBudgetBlocked = true;
         return errorStream(streamModel, 'daily_token_budget');
       }
-      const release = await this.#modelGate.acquire(identity.chatId.toString(), signal);
+      const release = await this.#modelGate.acquire(identity.policy.gateKey, signal);
       // Per-request visibility audit: the exact tool names this llmContext
       // carried (the loop can trim tools to send-only near the context limit).
       // pi 1.x carries the declarations in the transcript's system messages.
