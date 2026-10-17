@@ -1008,6 +1008,104 @@ export const roomParticipants = sqliteTable(
   ],
 );
 
+/**
+ * Inputs admitted into a room, held until a release seals them.
+ *
+ * A held input is a canonical message plus its ledger row: it is visible to
+ * nobody, creates no bucket and never appears in a snapshot. `seq` is allocated
+ * from `rooms.next_seq` inside the same transaction and is never reused, so a
+ * released batch keeps its order even after retention.
+ */
+export const playgroundInputs = sqliteTable(
+  'playground_inputs',
+  {
+    id: sqliteBigIntId('id').primaryKey(),
+    chatId: sqliteBigInt('chat_id')
+      .notNull()
+      .references(() => chats.id, { onDelete: 'cascade' }),
+    seq: sqliteBigInt('seq').notNull(),
+    requestKey: text('request_key').notNull(),
+    fingerprint: text('fingerprint').notNull(),
+    messageId: sqliteBigInt('message_id')
+      .notNull()
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    revisionId: sqliteBigInt('revision_id')
+      .notNull()
+      .references(() => messageRevisions.id, { onDelete: 'cascade' }),
+    state: text('state').notNull().default('held'),
+    releaseId: sqliteBigInt('release_id'),
+    createdAt: text('created_at').notNull(),
+    releasedAt: text('released_at'),
+  },
+  (t) => [
+    check('playground_inputs_state_check', sql`state IN ('held', 'released', 'expired')`),
+    uniqueIndex('playground_inputs_room_seq_idx').on(t.chatId, t.seq),
+    uniqueIndex('playground_inputs_request_idx').on(t.chatId, t.requestKey),
+    index('playground_inputs_held_idx').on(t.chatId, t.state, t.seq),
+  ],
+);
+
+/**
+ * One sealed release of a room's held inputs.
+ *
+ * The release points at the bucket and invocation it created. A release with
+ * no held inputs just closes the hold and leaves both null.
+ */
+export const playgroundReleases = sqliteTable(
+  'playground_releases',
+  {
+    id: sqliteBigIntId('id').primaryKey(),
+    chatId: sqliteBigInt('chat_id')
+      .notNull()
+      .references(() => chats.id, { onDelete: 'cascade' }),
+    releaseKey: text('release_key').notNull(),
+    revision: sqliteBigInt('revision').notNull(),
+    throughSeq: sqliteBigInt('through_seq').notNull(),
+    bucketId: sqliteBigInt('bucket_id').references(() => buckets.id, { onDelete: 'set null' }),
+    invocationId: sqliteBigInt('invocation_id').references(() => invocations.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('playground_releases_key_idx').on(t.chatId, t.releaseKey),
+    uniqueIndex('playground_releases_revision_idx').on(t.chatId, t.revision),
+    uniqueIndex('playground_releases_invocation_idx').on(t.invocationId),
+  ],
+);
+
+/**
+ * A conservative retry of a terminated, side-effect-free release attempt.
+ *
+ * The retry never mutates the original invocation: it creates a new one from
+ * the original frozen snapshot and records both, plus the caller's unique
+ * attempt key, so the same retry cannot be applied twice.
+ */
+export const playgroundRetries = sqliteTable(
+  'playground_retries',
+  {
+    id: sqliteBigIntId('id').primaryKey(),
+    chatId: sqliteBigInt('chat_id')
+      .notNull()
+      .references(() => chats.id, { onDelete: 'cascade' }),
+    releaseId: sqliteBigInt('release_id')
+      .notNull()
+      .references(() => playgroundReleases.id, { onDelete: 'cascade' }),
+    invocationId: sqliteBigInt('invocation_id')
+      .notNull()
+      .references(() => invocations.id, { onDelete: 'cascade' }),
+    retryOfInvocationId: sqliteBigInt('retry_of_invocation_id')
+      .notNull()
+      .references(() => invocations.id, { onDelete: 'cascade' }),
+    attemptKey: text('attempt_key').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('playground_retries_key_idx').on(t.chatId, t.attemptKey),
+    uniqueIndex('playground_retries_invocation_idx').on(t.invocationId),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Image generation domain (from @plasticwan/image-service)
 //
