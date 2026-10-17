@@ -22,8 +22,10 @@ export const layout: typeof layoutEn = {
     imageSettings: '图片设置',
     chats: '会话',
     prompts: 'Prompt',
+    harness: 'Harness 微调',
     developer: '开发者',
     settings: '设置',
+    preferences: '面板偏好',
   },
   theme: {
     toggleTheme: '切换主题：{{mode}}',

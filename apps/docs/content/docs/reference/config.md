@@ -16,7 +16,7 @@ description: 按配置节理解 Plastic Wan 的必填项、覆盖关系与运行
 | `timezone` | 默认 IANA 时区；Chat 可单独覆盖。 |
 | `telegram` | Token 引用、Bucket、allowlist、Topic、管理员与参与策略。 |
 | `providers` | 已启用 Provider 与模型定义；凭据使用 SecretRef。 |
-| `agent` | 主模型、Prompt、全局 Token 预算、并发、Context 和发送限流。 |
+| `agent` | 主模型、Prompt、全局 Token 预算、并发、Context 和发送限流；全部字段可热应用，模型与 Prompt 之外的字段可在 [Harness tuning](../configure/admin.md#harness-tuning) 页编辑。 |
 | `vision` | 图片/Sticker 模型、并发、独立 Token 与图片日预算。 |
 | `admin` | 本地管理面板；修改后重启。 |
 | `developer` | 可选调试设置；`record_model_payloads` 与 `record_agent_thinking` 均可省略，默认 `false`，可热应用。详见[Developer 页面](../configure/admin.md#developer-调试开关)。 |
@@ -37,4 +37,4 @@ Conversation、短期记忆和注意力窗口按 Chat + Topic 隔离；预算硬
 
 ## 生效规则
 
-配置只在显式启动或应用时读取。Provider、模型、Prompt、`ignored_user_ids`、新增 Chat 与部分 Agent 字段可热应用；删除 allowlist Chat、MCP、Admin、路径和大多数结构变化要重启。详细操作见 [配置文件与密钥](../configure/config-file.md)，逐字段请下载 Schema。
+配置只在显式启动或应用时读取。Provider、模型、Prompt、`ignored_user_ids`、新增 Chat 与全部 Agent 字段可热应用；删除 allowlist Chat、MCP、Admin、路径和大多数结构变化要重启。详细操作见 [配置文件与密钥](../configure/config-file.md)，逐字段请下载 Schema。

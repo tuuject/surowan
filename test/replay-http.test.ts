@@ -156,7 +156,7 @@ async function fixture() {
   snapshotInvocation(store, 0, seed.invocationA, seed.bucketA, seed.conversationId, false);
   const builder = new ContextBuilder(
     store,
-    new ContextRefStore(store, { ttlHours: loaded.config.agent.context.ref_ttl_hours }),
+    new ContextRefStore(store, { ttlHours: () => loaded.config.agent.context.ref_ttl_hours }),
   );
   const stable = builder.buildSystemPrompt(loaded.config, builder.identity(loaded.config, seed.invocationA), false, {
     provider: 'agent',

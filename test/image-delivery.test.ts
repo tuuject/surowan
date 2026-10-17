@@ -605,7 +605,7 @@ describe('send image delivery ledger', () => {
   test('rejects an expired reply reference before resolving the generation', async () => {
     const fixture = await setup();
     const context = openConversation(fixture, 1, START);
-    const refs = new ContextRefStore(fixture.store, { ttlHours: fixture.config.agent.context.ref_ttl_hours });
+    const refs = new ContextRefStore(fixture.store, { ttlHours: () => fixture.config.agent.context.ref_ttl_hours });
     refs.replyRef(
       context.header,
       77n,

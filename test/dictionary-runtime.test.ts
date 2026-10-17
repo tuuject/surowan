@@ -92,7 +92,7 @@ async function fixture(transform?: (config: FileConfig) => void): Promise<Fixtur
   const configStore = await testConfigStore(loaded, registry);
   const store = await SqliteStore.open(loaded.config);
   const conversationRuntime = new ConversationRuntime({
-    agentCacheSize: loaded.config.agent.context.agent_cache_size,
+    agentCacheSize: () => loaded.config.agent.context.agent_cache_size,
   });
   const logs: string[] = [];
   const log = vi.spyOn(console, 'log').mockImplementation((line: unknown) => {

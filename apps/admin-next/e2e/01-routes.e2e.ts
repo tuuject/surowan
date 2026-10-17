@@ -172,6 +172,28 @@ test.describe('routes and deep links', () => {
     ).toBeVisible();
   });
 
+  test('/harness renders the grouped agent settings', async ({ page }) => {
+    await page.goto(await adminUrl('/harness'));
+    for (const title of [
+      'Budget and concurrency',
+      'Send behavior',
+      'Rate limits',
+      'Conversation Context',
+      'Memory review',
+    ]) {
+      await expect(page.getByText(title, { exact: true })).toBeVisible();
+    }
+    await expect(page.getByLabel('Daily token budget')).toHaveValue('300000');
+    await expect(page.getByRole('button', { name: 'Save and apply' })).toBeDisabled();
+    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+  });
+
+  test('/preferences renders the browser-local display options', async ({ page }) => {
+    await page.goto(await adminUrl('/preferences'));
+    await expect(page.getByRole('switch', { name: 'Show config.jsonc key names' })).not.toBeChecked();
+    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+  });
+
   test('/api-keys renders the key table and the create action', async ({ page }) => {
     await page.goto(await adminUrl('/api-keys'));
     await expect(page.getByRole('main').getByText('API keys', { exact: true }).first()).toBeVisible();

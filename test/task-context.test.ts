@@ -80,7 +80,7 @@ async function fixture(transform?: (config: FileConfig) => void) {
     },
     sendSticker: async () => ({ message_id: 800, date: 1_700_000_000, chat: { id: CHAT_ID } }),
   };
-  const conversationRuntime = new ConversationRuntime({ agentCacheSize: 8 });
+  const conversationRuntime = new ConversationRuntime({ agentCacheSize: () => 8 });
   const runtime = new AgentRuntime({
     store,
     configStore,
@@ -290,7 +290,7 @@ test('only successful text consumes the frozen mention, not stickers, rejection,
     throw new Error('Expected receipt invocation');
   }
   const context = renderInvocationContext(f.store, f.config, id);
-  const sticker = new ContextRefStore(f.store, { ttlHours: 72 }).stickerRef(
+  const sticker = new ContextRefStore(f.store, { ttlHours: () => 72 }).stickerRef(
     context.header,
     'test-sticker',
     context.header.nextSeq,

@@ -17,6 +17,7 @@ import { Route as ChatsRouteImport } from './routes/chats'
 import { Route as ContextsRouteImport } from './routes/contexts'
 import { Route as DeveloperRouteImport } from './routes/developer'
 import { Route as DictionaryRouteImport } from './routes/dictionary'
+import { Route as HarnessRouteImport } from './routes/harness'
 import { Route as ImageGenerateRouteImport } from './routes/image-generate'
 import { Route as ImageGenerationsRouteImport } from './routes/image-generations'
 import { Route as ImageSettingsRouteImport } from './routes/image-settings'
@@ -24,6 +25,7 @@ import { Route as InvocationsRouteImport } from './routes/invocations'
 import { Route as MemoriesRouteImport } from './routes/memories'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as ModelsRouteImport } from './routes/models'
+import { Route as PreferencesRouteImport } from './routes/preferences'
 import { Route as PromptsRouteImport } from './routes/prompts'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StickersRouteImport } from './routes/stickers'
@@ -72,6 +74,11 @@ const DictionaryRoute = DictionaryRouteImport.update({
   path: '/dictionary',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HarnessRoute = HarnessRouteImport.update({
+  id: '/harness',
+  path: '/harness',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ImageGenerateRoute = ImageGenerateRouteImport.update({
   id: '/image-generate',
   path: '/image-generate',
@@ -105,6 +112,11 @@ const MessagesRoute = MessagesRouteImport.update({
 const ModelsRoute = ModelsRouteImport.update({
   id: '/models',
   path: '/models',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PreferencesRoute = PreferencesRouteImport.update({
+  id: '/preferences',
+  path: '/preferences',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PromptsRoute = PromptsRouteImport.update({
@@ -153,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/contexts': typeof ContextsRoute
   '/developer': typeof DeveloperRoute
   '/dictionary': typeof DictionaryRoute
+  '/harness': typeof HarnessRoute
   '/image-generate': typeof ImageGenerateRoute
   '/image-generations': typeof ImageGenerationsRoute
   '/image-settings': typeof ImageSettingsRoute
@@ -160,6 +173,7 @@ export interface FileRoutesByFullPath {
   '/memories': typeof MemoriesRoute
   '/messages': typeof MessagesRoute
   '/models': typeof ModelsRoute
+  '/preferences': typeof PreferencesRoute
   '/prompts': typeof PromptsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
@@ -177,6 +191,7 @@ export interface FileRoutesByTo {
   '/contexts': typeof ContextsRoute
   '/developer': typeof DeveloperRoute
   '/dictionary': typeof DictionaryRoute
+  '/harness': typeof HarnessRoute
   '/image-generate': typeof ImageGenerateRoute
   '/image-generations': typeof ImageGenerationsRoute
   '/image-settings': typeof ImageSettingsRoute
@@ -184,6 +199,7 @@ export interface FileRoutesByTo {
   '/memories': typeof MemoriesRoute
   '/messages': typeof MessagesRoute
   '/models': typeof ModelsRoute
+  '/preferences': typeof PreferencesRoute
   '/prompts': typeof PromptsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
@@ -202,6 +218,7 @@ export interface FileRoutesById {
   '/contexts': typeof ContextsRoute
   '/developer': typeof DeveloperRoute
   '/dictionary': typeof DictionaryRoute
+  '/harness': typeof HarnessRoute
   '/image-generate': typeof ImageGenerateRoute
   '/image-generations': typeof ImageGenerationsRoute
   '/image-settings': typeof ImageSettingsRoute
@@ -209,6 +226,7 @@ export interface FileRoutesById {
   '/memories': typeof MemoriesRoute
   '/messages': typeof MessagesRoute
   '/models': typeof ModelsRoute
+  '/preferences': typeof PreferencesRoute
   '/prompts': typeof PromptsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
@@ -228,6 +246,7 @@ export interface FileRouteTypes {
     | '/contexts'
     | '/developer'
     | '/dictionary'
+    | '/harness'
     | '/image-generate'
     | '/image-generations'
     | '/image-settings'
@@ -235,6 +254,7 @@ export interface FileRouteTypes {
     | '/memories'
     | '/messages'
     | '/models'
+    | '/preferences'
     | '/prompts'
     | '/settings'
     | '/stickers'
@@ -252,6 +272,7 @@ export interface FileRouteTypes {
     | '/contexts'
     | '/developer'
     | '/dictionary'
+    | '/harness'
     | '/image-generate'
     | '/image-generations'
     | '/image-settings'
@@ -259,6 +280,7 @@ export interface FileRouteTypes {
     | '/memories'
     | '/messages'
     | '/models'
+    | '/preferences'
     | '/prompts'
     | '/settings'
     | '/stickers'
@@ -276,6 +298,7 @@ export interface FileRouteTypes {
     | '/contexts'
     | '/developer'
     | '/dictionary'
+    | '/harness'
     | '/image-generate'
     | '/image-generations'
     | '/image-settings'
@@ -283,6 +306,7 @@ export interface FileRouteTypes {
     | '/memories'
     | '/messages'
     | '/models'
+    | '/preferences'
     | '/prompts'
     | '/settings'
     | '/stickers'
@@ -301,6 +325,7 @@ export interface RootRouteChildren {
   ContextsRoute: typeof ContextsRoute
   DeveloperRoute: typeof DeveloperRoute
   DictionaryRoute: typeof DictionaryRoute
+  HarnessRoute: typeof HarnessRoute
   ImageGenerateRoute: typeof ImageGenerateRoute
   ImageGenerationsRoute: typeof ImageGenerationsRoute
   ImageSettingsRoute: typeof ImageSettingsRoute
@@ -308,6 +333,7 @@ export interface RootRouteChildren {
   MemoriesRoute: typeof MemoriesRoute
   MessagesRoute: typeof MessagesRoute
   ModelsRoute: typeof ModelsRoute
+  PreferencesRoute: typeof PreferencesRoute
   PromptsRoute: typeof PromptsRoute
   SettingsRoute: typeof SettingsRoute
   StickersRoute: typeof StickersRoute
@@ -375,6 +401,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DictionaryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/harness': {
+      id: '/harness'
+      path: '/harness'
+      fullPath: '/harness'
+      preLoaderRoute: typeof HarnessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/image-generate': {
       id: '/image-generate'
       path: '/image-generate'
@@ -422,6 +455,13 @@ declare module '@tanstack/react-router' {
       path: '/models'
       fullPath: '/models'
       preLoaderRoute: typeof ModelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/preferences': {
+      id: '/preferences'
+      path: '/preferences'
+      fullPath: '/preferences'
+      preLoaderRoute: typeof PreferencesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/prompts': {
@@ -485,6 +525,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContextsRoute: ContextsRoute,
   DeveloperRoute: DeveloperRoute,
   DictionaryRoute: DictionaryRoute,
+  HarnessRoute: HarnessRoute,
   ImageGenerateRoute: ImageGenerateRoute,
   ImageGenerationsRoute: ImageGenerationsRoute,
   ImageSettingsRoute: ImageSettingsRoute,
@@ -492,6 +533,7 @@ const rootRouteChildren: RootRouteChildren = {
   MemoriesRoute: MemoriesRoute,
   MessagesRoute: MessagesRoute,
   ModelsRoute: ModelsRoute,
+  PreferencesRoute: PreferencesRoute,
   PromptsRoute: PromptsRoute,
   SettingsRoute: SettingsRoute,
   StickersRoute: StickersRoute,

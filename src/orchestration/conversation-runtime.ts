@@ -33,12 +33,13 @@ interface ConversationState {
 }
 
 export interface ConversationRuntimeOptions {
-  readonly agentCacheSize: number;
+  /** Read on every eviction pass, so a reloaded bound applies to the next cached agent. */
+  readonly agentCacheSize: () => number;
 }
 
 export class ConversationRuntime {
   readonly #states = new Map<string, ConversationState>();
-  readonly #cacheSize: number;
+  readonly #cacheSize: () => number;
   #evicted = 0;
 
   constructor(options: ConversationRuntimeOptions) {
@@ -209,7 +210,7 @@ export class ConversationRuntime {
   }
 
   #evictOverflow(protectedConversationId: bigint): void {
-    while (this.cachedAgentCount > this.#cacheSize) {
+    while (this.cachedAgentCount > this.#cacheSize()) {
       let victim: CachedConversationAgent | undefined;
       for (const state of this.#states.values()) {
         const agent = state.agent;

@@ -56,7 +56,7 @@ async function fixture(transform?: (config: FileConfig) => void, additionalTools
   const ingestion = new TelegramIngestion(store, configStore, { id: 999 });
   ingestion.ingest(update(1, 'ordinary Alice request'));
   const tasks = new LongTaskService(store.orm);
-  const conversationRuntime = new ConversationRuntime({ agentCacheSize: 8 });
+  const conversationRuntime = new ConversationRuntime({ agentCacheSize: () => 8 });
   const sends: string[] = [];
   const runtime = new AgentRuntime({
     store,

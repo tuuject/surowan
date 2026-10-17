@@ -29,12 +29,13 @@ export interface ResolvedContextRef {
 }
 
 export interface ContextRefOptions {
-  readonly ttlHours: number;
+  /** Read on every issue or renewal, so a reloaded TTL reaches the next reference. */
+  readonly ttlHours: () => number;
 }
 
 export class ContextRefStore {
   readonly #store: BusinessStore;
-  readonly #ttlHours: number;
+  readonly #ttlHours: () => number;
 
   constructor(store: BusinessStore, options: ContextRefOptions) {
     this.#store = store;
@@ -212,7 +213,7 @@ export class ContextRefStore {
   }
 
   #expiry(now: Date): string {
-    return new Date(now.getTime() + this.#ttlHours * 3_600_000).toISOString();
+    return new Date(now.getTime() + this.#ttlHours() * 3_600_000).toISOString();
   }
 }
 

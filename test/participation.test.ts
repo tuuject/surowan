@@ -525,7 +525,7 @@ describe('participation gate', () => {
     const contexts = new ConversationContextStore(store);
     const stable = new ContextBuilder(
       store,
-      new ContextRefStore(store, { ttlHours: config.agent.context.ref_ttl_hours }),
+      new ContextRefStore(store, { ttlHours: () => config.agent.context.ref_ttl_hours }),
     ).buildSystemPrompt(
       config,
       {

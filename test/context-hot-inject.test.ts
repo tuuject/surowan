@@ -93,7 +93,7 @@ async function fixture(transform?: (config: FileConfig) => void): Promise<Fixtur
   };
   const mentionTyping = new MentionTyping(sendApi);
   const conversationRuntime = new ConversationRuntime({
-    agentCacheSize: loaded.config.agent.context.agent_cache_size,
+    agentCacheSize: () => loaded.config.agent.context.agent_cache_size,
   });
   const build = async (
     faux: ReturnType<typeof fauxProvider>,

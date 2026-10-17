@@ -329,7 +329,7 @@ function stateRows(store: SqliteStore): Record<string, unknown[]> {
 function stablePrompt(store: SqliteStore, config: RawConfig, invocationId: bigint): StablePrompt {
   const builder = new ContextBuilder(
     store,
-    new ContextRefStore(store, { ttlHours: config.agent.context.ref_ttl_hours }),
+    new ContextRefStore(store, { ttlHours: () => config.agent.context.ref_ttl_hours }),
   );
   return builder.buildSystemPrompt(config, builder.identity(config, invocationId), false, {
     provider: config.agent.provider,

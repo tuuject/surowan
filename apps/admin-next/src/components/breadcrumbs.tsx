@@ -34,8 +34,10 @@ const SEGMENT_TO_NAV: Partial<Record<string, NavKey>> = {
   'image-settings': 'imageSettings',
   chats: 'chats',
   prompts: 'prompts',
+  harness: 'harness',
   developer: 'developer',
   settings: 'settings',
+  preferences: 'preferences',
 };
 
 interface Crumb {

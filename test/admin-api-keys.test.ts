@@ -283,6 +283,8 @@ test('Bearer keys reach only the invocation read/replay surface', async () => {
       ['GET', '/api/memories'],
       ['GET', '/api/admins'],
       ['GET', '/api/developer'],
+      ['GET', '/api/harness'],
+      ['PUT', '/api/harness'],
       ['GET', '/api/config/status'],
       ['GET', '/api/api-keys'],
       ['POST', '/api/api-keys'],

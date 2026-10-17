@@ -36,7 +36,7 @@ export function invocationCapabilities(
   config: RawConfig,
   header: ContextHeader,
 ): CapabilityRefResolver {
-  const refs = new ContextRefStore(store, { ttlHours: config.agent.context.ref_ttl_hours });
+  const refs = new ContextRefStore(store, { ttlHours: () => config.agent.context.ref_ttl_hours });
   return createCapabilityResolver(refs, header);
 }
 
@@ -89,7 +89,7 @@ export function renderInvocationContext(
   invocationId: bigint,
   options: TestContextOptions = {},
 ): TestInvocationContext {
-  const refs = new ContextRefStore(store, { ttlHours: config.agent.context.ref_ttl_hours });
+  const refs = new ContextRefStore(store, { ttlHours: () => config.agent.context.ref_ttl_hours });
   const builder = new ContextBuilder(store, refs, options.skills?.skills ?? [], options.injectors ?? []);
   const identity = builder.identity(config, invocationId);
   const supportsImages = options.supportsImages ?? false;

@@ -39,6 +39,8 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 - **图片生成 / 生图记录 / 图片资产**：图片生成工作台（提交、解析预览、实时查看输出）、全部生成的审计与重试、提示词素材与参考图库管理，见[图片生成](../guides/images.md)。
 - **图片设置**：图片功能的启用开关、生图凭据与模型配置。保存后立即应用，不需要重启；禁用会删除整个 `image` 段并清理不再引用的 key jar 条目。
 - **Settings**：对手改配置使用 **Apply config file**，并查看 Saved 与 Running 状态及 `restart_required`。
+- **Panel preferences**（Account 组）：只对当前浏览器生效的显示选项：主题、界面语言（右上角按钮也能切换），以及是否在设置项下显示 `config.jsonc` 键名（默认关闭）。选项保存在浏览器本地，不写入配置文件，其他浏览器与管理员互不影响。
+- **Harness tuning**：调整 Agent 的运行上限与发送行为（预算、并发、发送规则、限流、Context 保留与记忆审核），保存后由下一次 Invocation 生效，见下文。
 - **Developer**：按需记录模型调用的调试报文，或在确认后清除已有报文。
 - **API keys**（Manage 组）：创建、查看与撤销供 CLI 与评估工具使用的密钥，明文只在创建弹窗中出现一次，见下文。
 - **Invocation 重放**：仍只有携带 API 密钥的 CLI/API 入口，没有页面入口；只读的配置/prompt 检查、可用模型列表、场景 prompt、Invocation 搜索、重放预检与媒体导出同样在 CLI/API 层提供，见下文。
@@ -53,7 +55,7 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 
 ## 界面语言
 
-界面支持英文与简体中文。顶栏右侧的语言切换按钮在两种语言间切换，立即生效并写入浏览器 `localStorage`（`admin-language`）；未手动选择时跟随浏览器语言（`zh` 开头解析为中文，否则英文）。技术名词（Invocation、Context、Prompt、Token 等）在中文界面中保留英文原文；后端返回的错误消息始终按服务端原文显示（错误码 + 消息）。
+界面支持英文与简体中文。顶栏右侧的语言切换按钮在两种语言间切换，也可以在 **Panel preferences** 页直接选择，立即生效并写入浏览器 `localStorage`（`admin-language`）；未手动选择时跟随浏览器语言（`zh` 开头解析为中文，否则英文）。技术名词（Invocation、Context、Prompt、Token 等）在中文界面中保留英文原文；后端返回的错误消息始终按服务端原文显示（错误码 + 消息）。
 
 ## Passkey 登录与恢复
 
@@ -92,6 +94,16 @@ Passkey 遗失，或因更换域名、关闭 Passkey 功能而无法登录时，
    ```
 
 重置会替换该账号的密码、删除其**全部** Passkey 与登录 Session；API 密钥不受影响，首次设置流程不会重新打开。恢复或设置好密码后，再删除或更换 `public_url`/域名——改动之前请先确认至少保留一个可用登录方式。
+
+## Harness tuning
+
+Harness tuning 页集中编辑 `config.jsonc` 中 `agent` 段的运行参数：每日 Token 预算、并发、历史条数、Context 收尾比例、`send` 的文本规则与开关、发送限流、Conversation Context 的保留/裁剪/等待参数，以及记忆的长 TTL 警告天数。Agent 模型与 thinking 档位仍在 **Models** 页，系统提示在 **Prompts** 页。
+
+- 想对照 `config.jsonc` 时，在 **Panel preferences** 打开「显示 config.jsonc 键名」，每个字段下方会标出对应的配置路径（如 `agent.context.ref_ttl_hours`），可以对照[配置参考](../reference/config.md)。
+- 可以一次改多项，点 **Save and apply** 一起写回 `config.jsonc` 并立即应用；**Discard changes** 恢复为文件里的值。只有真正改动的字段会写入文件，注释与格式保持不变。
+- 超出范围的值在页面上直接标红；需要结合多个字段判断的规则（例如保留发送目标必须小于上限）由服务端校验，失败时文件保持不变并显示原因。
+- **生效时机**：之后开始的 Invocation 使用新值，正在运行的 Invocation 继续用启动时的值。每日 Token 预算实时读取；引用有效期只影响之后签发或续期的引用；Agent 缓存数在下一次缓存时按新上限逐出，不会丢历史。
+- 文件已写入但应用失败时，字段下会显示「Running: …」的运行值；修复后在 Settings 点击 **Apply config file**。
 
 ## Developer 调试开关
 

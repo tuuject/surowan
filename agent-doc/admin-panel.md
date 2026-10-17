@@ -108,6 +108,7 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 | `DELETE /auth/passkeys/:id` | 面板 Session 删除单个 key；删除最后一个可用 key 且无密码时 409 `password_required`，key 不存在 404 `not_found` |
 | `DELETE /auth/password` | 面板 Session 删除密码（转为仅 Passkey 登录）；当前 `rpId` 下无 key 时 409 `passkey_required`，成功后撤销该用户**全部** Session 并签发新 Cookie |
 | `PUT /developer` | 保存并热应用 `record_model_payloads` / `record_agent_thinking`（二选一或都要），沿用配置 revision、校验与原子写入机制，见「Developer 页」 |
+| `PUT /harness` | 保存并热应用 `agent` 段除模型选择与 Prompt 外的字段，只写与文件不同的字段，沿用配置 revision、校验与原子写入机制，见「Harness tuning 页」 |
 | `DELETE /developer/model-payloads` | 分批置空历史 `model_calls.request_json` / `response_json`，保留所有审计行与关联；不执行 `VACUUM`，见「Developer 页」 |
 | `POST /api-keys` / `DELETE /api-keys/:id` | 仅面板 Session 可创建或撤销程序化密钥，见「程序化 API 密钥」 |
 | `POST /wake` | 删除持久化睡眠状态并唤醒 Scheduler；幂等，重复调用保持 `awake` |
@@ -244,6 +245,16 @@ Developer 页为两个开关（原始报文、Agent 思考文本 CoT）各展示
 
 开关不删除历史报文，清除也不关闭记录：开启记录时，新调试报文仍可继续写入。清除不影响基于公开消息的场景重建，详情对空报文显示未记录或已清除。旧重放输入列由迁移 `030` 删除；清除端点本身不需要新增迁移，不自动清理历史，原有 retention 不变。清理只影响在线数据库，不修改既有备份；SQLite 释放的页可供复用，文件未必立即变小，端点不执行 `VACUUM`。
 
+## Harness tuning 页
+
+Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_level`（Models 页）与 `system_prompt_file`（Prompts 页）以外的全部字段；字段表、键名与边界校验在 `src/ingress/admin/harness-admin.ts`，每个字段复用 `ConfigSchema` 里对应的 schema。键是 `agent` 下的点分路径（如 `context.ref_ttl_hours`、`rate_limits.window_seconds`）。
+
+`GET /harness` 返回 `{ revision, saved, active }`：`saved` 是磁盘文件值，`active` 是运行中配置的值；可选字段缺省时报告运行时实际使用的值（三个布尔开关为 `false`，`memory_ttl_warning_days` 为 30，`send_max_text_length` 为 `null` 即不限制）。读取与修改需要 `ConfigReloader`，不可用时返回 503 `harness_unavailable`。
+
+`PUT /harness` 接受严格的 `{ values: { <key>: value } }`，至少一项；未知键返回 400 `invalid_body`，类型或单字段范围不符返回 400 `invalid_harness_value`，`null` 只允许用于可选字段并表示从文件删除该字段。必须带 revision 的 `If-Match`，不符返回 409 `config_conflict`。端点只把值与文件不同的字段写成编辑（可选字段缺省时，等于缺省值的写入也跳过，保持文件干净）；没有任何编辑时不写文件，返回当前视图与空的 `apply`。跨字段规则（`retained_sends_target < retained_sends_max`、`hard_token_ratio <= context_stop_ratio`、`idle_grace_seconds` 与 Bucket 窗口、`max_wall_clock_seconds > idle_grace_seconds`）由整文件 `loadConfig` 校验，失败时 422 `config_invalid` 且文件不变。写入与热应用经 `ConfigReloader.writeAndApply`，失败后文件/运行态分离等契约与其它配置端点一致；成功返回更新后的视图与 `apply`。
+
+页面把字段分为预算与并发、发送行为、限流、Conversation Context、记忆审核五组，每个字段的配置路径（`agent.<key>`）只在 Panel preferences 打开「显示 config.jsonc 键名」时显示；草稿在本地按同一边界预校验，「Save and apply」一次提交全部改动；文件值与运行值不同时在字段下显示运行值。保存 mutation 挂在表单之上：写入成功但应用失败会改变 revision 并重建表单，错误提示仍需保留。
+
 ## Inspection 只读视图
 
 `GET /api/config/view`、`GET /api/models`、`GET /api/prompts/global`、`GET /api/prompts/group` 与 `/api/invocations/:id/{prompts,replay-preflight,media}`（含 `media/:media_id/content`）是 Session 与 Bearer API key 共用的只读检查路由：不调用模型、不写审计与配置、不发送 Telegram 消息（密钥鉴权仍刷新自身 `last_used_at`；媒体内容读取会经 Bot 的 Telegram 客户端下载被授权的文件字节）。面板前端目前没有对应页面，接口供 CLI 与评估工具使用。配置与 prompt 路由只允许 `source`（`active` 或 `file`，默认 `active`）以及 `prompts/group` 必需的 `chat`：未知或重复参数返回 400 `invalid_query`，非法 source 返回 400 `invalid_source`，缺少或非法 chat 返回 400 `invalid_chat`（有符号 64 位十进制），chat 未配置返回 404 `chat_unconfigured`；`models` 不接受查询参数；`invocations/:id/prompts` 与媒体列表不接受查询参数，`replay-preflight` 只接受一个 `before_send_id`（正整数十进制字符串；0 或溢出返回 400 `invalid_before_send_id`，重复或未知参数返回 400 `invalid_query`）与可选的临时模型选择 `provider`/`model`/`thinking_level`（`provider` 与 `model` 必须成对，各为 1–256 字符、不可全为空白或含控制字符；`thinking_level` 必须取七档之一；不成对、值非法或重复参数返回 400 `invalid_query`），媒体内容只接受一个 `variant`。JSON 响应经 `SecretStore` 与调用方密钥脱敏并带 `cache-control: no-store`；媒体二进制保留响应原字节，不做文本脱敏。
@@ -305,6 +316,7 @@ pnpm run admin:test:e2e  # Playwright 浏览器 E2E（真实 AdminServer + 临�
 | `src/lib/errors.ts` | `errorMessage()`：统一错误文本（`ApiError.code: message`） |
 | `src/lib/memory-ttl.ts` | 记忆 TTL 边界纯函数 |
 | `src/lib/timeline.ts` | Invocation 时间线纯模型（同时间排序、send 参数解析） |
+| `src/lib/panel-preferences.ts` | 只属于当前浏览器的显示偏好（localStorage，不经服务端、不写 `config.jsonc`）；「显示 config.jsonc 键名」，键 `admin-show-config-keys`，缺省关闭；同页其它组件经 `useSyncExternalStore` 同步，跨标签页靠 `storage` 事件。Account → Panel preferences 页（`/preferences`）集中编辑它与主题（`admin-theme`，`ThemeProvider`）、界面语言（`admin-language`，`src/lib/i18n.ts`）；主题与语言同时保留在右上角的切换按钮上，两处读写同一状态 |
 | `src/lib/search-params.ts` | 列表页共享的 `chat` 查询参数：`validateSearch` 校验器、读写 hook 与结构化 navigate 类型 |
 | `src/components/business/**` | 共享业务组件（CursorList / FilterToolbar / StateBadge / TableShell / JsonViewer / KvList / ConfirmDialog / ChartCard / PrivateReasoning / DetailState 等），契约见 `apps/admin-next/README.md` |
 | `src/pages/*.tsx` | 各页面组件，一文件一页（路由挂载见 `src/routes/**`）；页面清单以目录为准，各页语义见本文对应小节 |

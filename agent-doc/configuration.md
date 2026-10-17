@@ -11,7 +11,7 @@ Plastic Wan 使用严格 JSONC 配置。Schema 位于 `src/platform/config.ts`�
 - CLI 必须显式传入 `--config <path>`。
 - 配置在 `serve` 启动时读取一次；只有[运行时配置热更新](#运行时配置热更新)列出的白名单字段可以在运行中应用，其余字段修改后必须重启。
 - 配置哈希是原始 JSONC 文本与所有 Prompt 文件内容的 SHA-256，写入 Invocation 并打印在 `serve_started` 日志中。
-- 修改 Bucket 窗口、Sticker Set 或 MCP 后必须重启；Prompt、Provider（含连接字段与模型列表）、agent 模型与 vision 模型、已有 Chat 的 `provider`/`model`/`thinking_level` 覆盖、**新增 Chat** 等白名单字段可用 Admin「Apply config file」或 `/model` 热应用；删除 Chat 与修改 Topic 范围仍需重启。
+- 修改 Bucket 窗口、Sticker Set 或 MCP 后必须重启；Prompt、Provider（含连接字段与模型列表）、agent 模型与 vision 模型、`agent` 段的全部字段、已有 Chat 的 `provider`/`model`/`thinking_level` 覆盖、**新增 Chat** 等白名单字段可用 Admin「Apply config file」或 `/model` 热应用；删除 Chat 与修改 Topic 范围仍需重启。
 - 相对 `data_dir`/`paths` 按服务当前工作目录解释；Docker 镜像的工作目录是 `/app`。
 - Prompt 文件路径（`system_prompt_file`、`instructions_file`）相对于配置文件所在目录解释；修改文件内容同样会改变 `config_hash`。
 - Prompt 文件按原始字节参与哈希：剔除 HTML 注释只影响进入模型上下文的文本，纯注释改动仍然改变 `config_hash`。
@@ -25,7 +25,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 
 ## 运行时配置热更新
 
-`serve` 启动时读取一次配置，但白名单字段可以在运行中应用：Admin Panel 的「Apply config file」按钮（`POST /api/config/apply`）、Models / Chats 页保存，以及 Telegram `/model`、`/ignoreme`、`/unignoreme` 都会重新读取 `config.jsonc` 并把白名单字段的变化发布到当前进程。没有文件系统 watcher——手改文件后必须显式应用才生效。
+`serve` 启动时读取一次配置，但白名单字段可以在运行中应用：Admin Panel 的「Apply config file」按钮（`POST /api/config/apply`）、Models / Chats / Harness tuning 页保存，以及 Telegram `/model`、`/ignoreme`、`/unignoreme` 都会重新读取 `config.jsonc` 并把白名单字段的变化发布到当前进程。没有文件系统 watcher——手改文件后必须显式应用才生效。
 
 热更新白名单（`src/platform/config-diff.ts` 是唯一定义处，未列出的字段一律按 restart 处理；新增字段默认 restart）：
 
@@ -34,7 +34,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 | `agent.provider`、`agent.model` | 永远热更新：目标 Provider 可以是同一次修改里新增的，reload 会重建模型注册表并随配置一起发布 |
 | `agent.system_prompt_file` | 路径或文件内容变化都算；内容变化会重建每个 Conversation 的 Context；可在面板编辑并保留版本历史 |
 | `developer`、`developer.record_model_payloads`、`developer.record_agent_thinking` | 可选节/字段的增删都热应用，缺省为 `false`；每次模型调用读取当前开关，关闭时后续快照回调停止写入 |
-| 以下 agent 字段（未列出的 agent 字段，如 `memory_ttl_warning_days` 与其余 `agent.context.*`，需要重启）：`thinking_level`、`context_stop_ratio`、`send_max_text_length`、`send_disallow_blank_lines`、`send_nudge_enabled`、`send_barrier_enabled`、`allow_reply_message_multiple_times`、`daily_budget.max_tokens`、`max_concurrency`、`history_messages`、`context.max_wall_clock_seconds`、`context.idle_grace_seconds`、`rate_limits.*` | 下一次 Invocation 使用新值；运行中的 Invocation 继续用它启动时的快照。唯一例外是 `daily_budget.max_tokens`：日预算在运行期实时读取，调低后下一次模型调用立即被拦截 |
+| 其余全部 agent 字段（逐项列在 `HOT_PATHS`，`agent.context.*` 与 `agent.rate_limits.*` 按前缀）：`thinking_level`、`context_stop_ratio`、`send_max_text_length`、`send_disallow_blank_lines`、`send_nudge_enabled`、`send_barrier_enabled`、`allow_reply_message_multiple_times`、`daily_budget.max_tokens`、`max_concurrency`、`history_messages`、`memory_ttl_warning_days`、`context.*`、`rate_limits.*`。除模型选择与 Prompt 外都可在 Admin「Harness tuning」页编辑 | 下一次 Invocation 使用新值；运行中的 Invocation 继续用它启动时的快照。例外都在运行期读取当前发布的配置：`daily_budget.max_tokens`（调低后下一次模型调用立即被拦截）；`context.ref_ttl_hours`（发布之后签发或续期的引用使用新 TTL，已签发引用保留原到期时间）；`context.agent_cache_size`（下一次缓存 agent 时按新上限逐出，调小不丢历史）；`memory_ttl_warning_days`（只影响 Admin 记忆列表的 `long_ttl` 判定，下一次请求生效） |
 | `telegram.chats`（**新增** Chat，整项 `{ id, … }`） | 立即生效：ingestion 白名单、参与策略注册表与 `resolveChatConfig` 都读发布后的配置并按代数重建/直读，无需重启。删除 Chat、已有 Chat 的其它字段修改与 Topic 范围仍是 restart |
 | `telegram.chats[<id>].instructions_file` | 仅限两边都存在的 Chat；路径或内容变化都算；可在面板编辑并保留版本历史（Chat 尚无该字段时由面板创建） |
 | `telegram.chats[<id>].provider` / `.model` / `.thinking_level` | 仅限两边都存在的 Chat 的按群模型覆盖（语义与校验见「Telegram Chat 与 Topic」）；删除 Chat 仍是 restart |

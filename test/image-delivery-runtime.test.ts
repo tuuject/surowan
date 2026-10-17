@@ -93,7 +93,7 @@ async function fixture(options: { readonly unsentOutputs?: readonly string[] } =
   });
   const ingestion = new TelegramIngestion(store, configStore, { id: 999 });
   const tasks = new LongTaskService(store.orm);
-  const conversationRuntime = new ConversationRuntime({ agentCacheSize: 8 });
+  const conversationRuntime = new ConversationRuntime({ agentCacheSize: () => 8 });
   const photoMessageIds: number[] = [];
   let nextMessageId = FIRST_PHOTO_MESSAGE_ID;
   let photoFailures = 0;

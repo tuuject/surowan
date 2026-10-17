@@ -54,8 +54,7 @@ const HOT_PATHS: ReadonlySet<string> = new Set([
   'agent.daily_budget.max_tokens',
   'agent.max_concurrency',
   'agent.history_messages',
-  'agent.context.max_wall_clock_seconds',
-  'agent.context.idle_grace_seconds',
+  'agent.memory_ttl_warning_days',
   'vision.provider',
   'vision.model',
   'vision.max_output_tokens',
@@ -66,14 +65,21 @@ const HOT_PATHS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * `agent.rate_limits` is hot as a whole; its three fields are listed for the
- * report. Every provider field is hot — connection fields, the model list and
+ * `agent.context` and `agent.rate_limits` are hot as a whole; their fields are
+ * listed for the report. Every provider field is hot — connection fields, the model list and
  * per-model paths, which are built dynamically — because a reload rebuilds the
  * model registry and publishes it with the configuration. The image section is
  * hot as a whole for the same reason: a reload re-resolves its SecretRefs and
  * republishes the image snapshot atomically.
  */
-const HOT_PREFIXES: readonly string[] = ['agent.rate_limits.', 'providers.', 'image.', 'dictionary.', 'tool_model.'];
+const HOT_PREFIXES: readonly string[] = [
+  'agent.context.',
+  'agent.rate_limits.',
+  'providers.',
+  'image.',
+  'dictionary.',
+  'tool_model.',
+];
 
 /**
  * `serve` reads these only through `backup` and the pre-migration backup, so

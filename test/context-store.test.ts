@@ -348,7 +348,7 @@ describe('conversation context store', () => {
   test('advanceHead soft-evicts rows and revokes their references', async () => {
     const { store, loaded } = await fixture();
     const contexts = new ConversationContextStore(store);
-    const refs = new ContextRefStore(store, { ttlHours: loaded.config.agent.context.ref_ttl_hours });
+    const refs = new ContextRefStore(store, { ttlHours: () => loaded.config.agent.context.ref_ttl_hours });
     const conversation = conversationId(store);
     const { header } = contexts.open(conversation, 'hash-a');
     for (let index = 0; index < 4; index += 1) {
@@ -467,7 +467,7 @@ describe('capability references', () => {
       )
       .run();
     const contexts = new ConversationContextStore(store);
-    const refs = new ContextRefStore(store, { ttlHours: loaded.config.agent.context.ref_ttl_hours });
+    const refs = new ContextRefStore(store, { ttlHours: () => loaded.config.agent.context.ref_ttl_hours });
     const conversations = store.db.prepare<[], { id: bigint }>('SELECT id FROM conversations ORDER BY id').all();
     const first = contexts.open(conversations[0]?.id ?? 0n, 'hash-a');
     const second = contexts.open(conversations[1]?.id ?? 0n, 'hash-a');
@@ -489,7 +489,7 @@ describe('capability references', () => {
   test('derives reply refs from the Telegram message id and honours the TTL', async () => {
     const { store, loaded } = await fixture();
     const contexts = new ConversationContextStore(store);
-    const refs = new ContextRefStore(store, { ttlHours: loaded.config.agent.context.ref_ttl_hours });
+    const refs = new ContextRefStore(store, { ttlHours: () => loaded.config.agent.context.ref_ttl_hours });
     const conversation = conversationId(store);
     const { header } = contexts.open(conversation, 'hash-a');
     const ref = refs.replyRef(header, 555n, { conversationId: conversation, threadId: 7n }, 1n);
