@@ -1,0 +1,4 @@
+interface:
+  display_name: "Surowan Dev: Create Feature"
+  short_description: "开工前先 fetch origin/develop，再建 feature worktree"
+  default_prompt: "用 $surowan-dev-create-feature 为本次改动建好工作树：先拉取 origin/develop 最新代码，在 ../<仓库文件夹名>.worktrees/feature/<feature 分支名> 建 worktree 并切过去，然后在该 worktree 内继续开发。"
