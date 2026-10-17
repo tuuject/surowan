@@ -31,12 +31,10 @@ const MUTEX_TABLE = 'serve_lock';
 export class ServeLock {
   readonly #pidPath: string;
   readonly #mutex: Database.Database;
-  readonly #pidContent: string;
 
-  private constructor(pidPath: string, mutex: Database.Database, pidContent: string) {
+  private constructor(pidPath: string, mutex: Database.Database) {
     this.#pidPath = pidPath;
     this.#mutex = mutex;
-    this.#pidContent = pidContent;
   }
 
   static async acquire(dataDir: string): Promise<ServeLock> {
@@ -56,34 +54,45 @@ export class ServeLock {
       if (!(error instanceof Database.SqliteError && error.code === 'SQLITE_BUSY')) {
         throw new Error(`Unable to acquire serve lock ${mutexPath}`, { cause: error });
       }
-      const pid = Number.parseInt(await readFile(pidPath, 'utf8').catch(() => ''), 10);
+      const pid = await readPidFile(pidPath);
       throw new Error(
-        Number.isInteger(pid)
-          ? `Another serve process holds ${pidPath} with PID ${pid}`
-          : `Another serve process holds ${pidPath}`,
+        pid === null
+          ? `Another serve process holds ${pidPath}`
+          : `Another serve process holds ${pidPath} with PID ${pid}`,
       );
     }
-    const pidContent = `${process.pid}\n`;
-    await writeFile(pidPath, pidContent, { encoding: 'utf8', mode: 0o600 });
-    return new ServeLock(pidPath, mutex, pidContent);
+    try {
+      await writeFile(pidPath, `${process.pid}\n`, { encoding: 'utf8', mode: 0o600 });
+    } catch (error) {
+      // No ServeLock reaches the caller, so nothing else could ever release it.
+      mutex.close();
+      throw error;
+    }
+    return new ServeLock(pidPath, mutex);
   }
 
   async release(): Promise<void> {
-    // Closing rolls back the transaction and drops the kernel lock, which is
-    // what a waiting takeover polls for; the PID file goes afterwards so that
-    // its absence cannot be seen before the mutex is actually free.
-    this.#mutex.close();
-    const current = await readFile(this.#pidPath, 'utf8').catch(() => undefined);
-    if (current !== this.#pidContent) {
-      return; // A successor already replaced the PID file; leave its copy alone.
+    // The PID file is only ever written or removed under the mutex. Removing it
+    // after closing would race a successor that acquires in between — and in
+    // containers both PIDs are 1, so no content check can tell the files apart.
+    try {
+      await unlink(this.#pidPath).catch((error: unknown) => {
+        const code = error instanceof Error && 'code' in error ? error.code : undefined;
+        if (code !== 'ENOENT') {
+          throw error;
+        }
+      });
+    } finally {
+      // Closing rolls back the transaction and drops the kernel lock, which is
+      // what a waiting takeover polls for.
+      this.#mutex.close();
     }
-    await unlink(this.#pidPath).catch((error: unknown) => {
-      const code = error instanceof Error && 'code' in error ? error.code : undefined;
-      if (code !== 'ENOENT') {
-        throw error;
-      }
-    });
   }
+}
+
+async function readPidFile(pidPath: string): Promise<number | null> {
+  const pid = Number.parseInt(await readFile(pidPath, 'utf8').catch(() => ''), 10);
+  return Number.isInteger(pid) ? pid : null;
 }
 
 /**
@@ -112,13 +121,17 @@ const STOP_REQUEST_FILE = 'serve.stop';
 const STOP_REQUEST_POLL_MS = 200;
 
 /**
- * Gracefully stops the `serve` process that holds `dataDir`'s mutex and returns
- * its PID, or null when no live process holds it — a leftover PID file is
- * removed, never trusted.
+ * Gracefully stops the `serve` process that holds `dataDir`'s mutex, or returns
+ * null when no live process holds it. The stopped holder's `pid` is null when
+ * it never published one: it was between taking the mutex and writing the PID
+ * file, or already past removing it on the way out.
  *
  * Liveness is decided by the mutex, not by the PID: the kernel drops the lock
  * when its holder dies, so a restart in a fresh container (where the recorded
- * PID 1 is alive again) cannot be mistaken for a running instance.
+ * PID 1 is alive again) cannot be mistaken for a running instance. A leftover
+ * PID file is neither trusted nor removed here: deleting it outside the mutex
+ * could delete the file of an instance that acquires in the meantime, and the
+ * next acquisition overwrites it anyway.
  *
  * A stop request is a file, not a signal: Windows has no graceful `SIGTERM`,
  * and only the target can run its own shutdown path. The target releases the
@@ -126,38 +139,42 @@ const STOP_REQUEST_POLL_MS = 200;
  * waits for its SQLite handle to be closed. A process that cannot react — a
  * wedged or suspended serve — times out instead of being killed.
  */
-export async function stopRunningInstance(dataDir: string, timeoutMs = 60_000): Promise<number | null> {
+export async function stopRunningInstance(
+  dataDir: string,
+  timeoutMs = 60_000,
+): Promise<{ readonly pid: number | null } | null> {
   const pidPath = join(dataDir, PID_FILE);
   const mutexPath = join(dataDir, MUTEX_FILE);
   if (!(await fileExists(mutexPath))) {
-    await unlink(pidPath).catch(() => undefined);
     return null;
   }
   const mutex = new Database(mutexPath);
   try {
     mutex.pragma('busy_timeout = 0');
     if (!mutexHeld(mutex)) {
-      await unlink(pidPath).catch(() => undefined);
       return null;
     }
-    const pid = Number.parseInt(await readFile(pidPath, 'utf8').catch(() => ''), 10);
-    if (!Number.isInteger(pid)) {
-      throw new Error(`A serve process holds ${mutexPath} but ${pidPath} is missing`);
-    }
     const stopPath = join(dataDir, STOP_REQUEST_FILE);
-    await writeFile(stopPath, `${process.pid}\n`, { encoding: 'utf8', mode: 0o600 });
+    let pid: number | null = null;
     try {
       const deadline = Date.now() + timeoutMs;
       while (mutexHeld(mutex)) {
         if (Date.now() >= deadline) {
-          throw new Error(`PID ${pid} still holds ${pidPath} after ${timeoutMs}ms`);
+          const holder = pid === null ? 'A serve process' : `PID ${pid}`;
+          throw new Error(`${holder} still holds ${mutexPath} after ${timeoutMs}ms`);
+        }
+        pid ??= await readPidFile(pidPath);
+        // A holder that is still starting drops leftover requests when its
+        // watcher begins, which can sweep this one away too: publish it again.
+        if (!(await fileExists(stopPath))) {
+          await writeFile(stopPath, `${process.pid}\n`, { encoding: 'utf8', mode: 0o600 });
         }
         await delay(STOP_REQUEST_POLL_MS);
       }
     } finally {
       await unlink(stopPath).catch(() => undefined);
     }
-    return pid;
+    return { pid };
   } finally {
     mutex.close();
   }
@@ -169,7 +186,8 @@ export async function stopRunningInstance(dataDir: string, timeoutMs = 60_000): 
  * request has to be seen on every platform; the timer is unref'd so it never
  * keeps the process alive on its own. A stop file that is already there when
  * watching starts is stale — a takeover removes its own request before
- * returning, so a leftover can only be a crash — and is dropped, not honored.
+ * returning, so a leftover can only be a crash — and is dropped, not honored;
+ * a takeover still waiting on this process publishes its request again.
  */
 export function watchStopRequests(dataDir: string, onRequest: () => void): () => void {
   const stopPath = join(dataDir, STOP_REQUEST_FILE);

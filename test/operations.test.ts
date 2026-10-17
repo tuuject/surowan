@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, unlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -146,9 +146,36 @@ test('takeover stops the instance holding the lock and leaves no stop request be
     requested = true;
     void lock.release();
   });
-  expect(await stopRunningInstance(dataDir, 5_000)).toBe(process.pid);
+  expect(await stopRunningInstance(dataDir, 5_000)).toEqual({ pid: process.pid });
   expect(requested).toBe(true);
   expect(await pathExists(lockPath)).toBe(false);
+  expect(await pathExists(stopPath)).toBe(false);
+  stopWatching();
+});
+
+test('takeover stops a holder that has no PID file and is still starting its watcher', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-takeover-'));
+  directories.push(directory);
+  const dataDir = join(directory, 'data');
+  const stopPath = join(dataDir, 'serve.stop');
+
+  // A holder caught between taking the mutex and publishing its PID: the
+  // takeover waits on the mutex instead of refusing.
+  const lock = await ServeLock.acquire(dataDir);
+  await unlink(join(dataDir, 'serve.lock'));
+  const stopping = stopRunningInstance(dataDir, 5_000);
+  await sleep(500);
+  expect(await pathExists(stopPath)).toBe(true);
+
+  // The holder's watcher starts late and sweeps the request away as stale; the
+  // takeover publishes it again and the holder still stops.
+  let requested = false;
+  const stopWatching = watchStopRequests(dataDir, () => {
+    requested = true;
+    void lock.release();
+  });
+  expect(await stopping).toEqual({ pid: null });
+  expect(requested).toBe(true);
   expect(await pathExists(stopPath)).toBe(false);
   stopWatching();
 });
@@ -167,10 +194,28 @@ test('a PID file left behind by a dead instance does not block the next one', as
   await writeFile(lockPath, '1\n');
   expect(await stopRunningInstance(dataDir, 1_000)).toBeNull();
   expect(await pathExists(stopPath)).toBe(false);
-  expect(await pathExists(lockPath)).toBe(false);
+  // Left alone outside the mutex: the next acquisition overwrites it.
+  expect(await readFile(lockPath, 'utf8')).toBe('1\n');
 
   const lock = await ServeLock.acquire(dataDir);
   expect(await readFile(lockPath, 'utf8')).toBe(`${process.pid}\n`);
+  await lock.release();
+  expect(await pathExists(lockPath)).toBe(false);
+});
+
+test('a failed PID file write does not keep the mutex held', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-takeover-'));
+  directories.push(directory);
+  const dataDir = join(directory, 'data');
+  const lockPath = join(dataDir, 'serve.lock');
+  // A directory where the PID file belongs makes the write fail after the
+  // mutex is taken.
+  await mkdir(lockPath, { recursive: true });
+  await expect(ServeLock.acquire(dataDir)).rejects.toMatchObject({ code: 'EISDIR' });
+  expect(await stopRunningInstance(dataDir, 1_000)).toBeNull();
+
+  await rm(lockPath, { recursive: true });
+  const lock = await ServeLock.acquire(dataDir);
   await lock.release();
 });
 

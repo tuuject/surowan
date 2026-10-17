@@ -72,11 +72,11 @@ node src/cli.ts serve --config dev-data/config.jsonc
 5. 停止 Image worker 与图片服务（它借用 SQLite 连接，必须在关库前落地中断标记）。
 6. 停止 Sticker worker 与 MCP。
 7. 关闭 SQLite。
-8. 回滚 `serve.lock.sqlite` 上的独占事务（内核随即释放互斥锁）并删除 `serve.lock`。
+8. 删除 `serve.lock`，再回滚 `serve.lock.sqlite` 上的独占事务（内核随即释放互斥锁）。
 
 关闭流程是有预算的：第 3 步最多等 30 秒让进行中的 Invocation 自己收尾，到点后用 `shutdown` 中止剩下的工作并等它们落地，再走后面的关闭步骤。前台 `Ctrl+C` 会等满这段时间；容器部署必须让运行时也等得起——`docker-compose.yml` 模板用 `stop_grace_period: 45s`，而 Docker 默认的 10 秒会在排空途中 `SIGKILL`，那次 Invocation 只能在下一次启动被 `recover()` 记成 `process_restart`（`side_effect_started` 时是 `outcome_unknown`）。单个命令可以用 `docker compose down -t 60` 覆盖超时。
 
-不想等这份预算时，前台再按一次 `Ctrl+C`（或对进程再发一次 `SIGTERM`）会立即退出并跳过剩余收尾，日志 `shutdown_forced` 带信号名，退出码 130（`SIGINT`）/143（`SIGTERM`）；被跳过的 Invocation 同样留给下次启动的 `recover()` 按 `process_restart` 恢复。
+不想等这份预算时，前台再按一次 `Ctrl+C`（或对进程再发一次 `SIGTERM`）会立即退出并跳过剩余收尾（信号监听一直保留到上面第 8 步结束，排空期间同样有效），日志 `shutdown_forced` 带信号名，退出码 130（`SIGINT`）/143（`SIGTERM`）；被跳过的 Invocation 同样留给下次启动的 `recover()` 按 `process_restart` 恢复。
 
 不要启动第二份实例。单实例由 `ServeLock` 在 `data_dir` 的 `serve.lock.sqlite` 上持有的 SQLite `EXCLUSIVE` 事务保证：进程退出时内核自动释放它，崩溃、`SIGKILL`、容器重建都一样，所以不存在需要手工删除的陈旧锁。`serve.lock` 只记录持有者的 PID，供人和 `--takeover` 识别，进程不靠它判断实例是否存活。绕过锁会造成 Telegram long polling 竞争和未知副作用。需要替换运行中的实例时用下面的 `--takeover`。
 
@@ -86,7 +86,7 @@ node src/cli.ts serve --config dev-data/config.jsonc
 node src/cli.ts serve --config dev-data/config.jsonc --takeover
 ```
 
-`--takeover` 用于本地调试时替换同一个 `data_dir` 上的实例。它先完成启动流程中不需要锁的那部分校验（配置权限、完整 `loadConfig`、Telegram token 解析），通过后向 `data_dir` 写一个 `serve.stop` 请求文件，再等待对方释放互斥锁，日志 `takeover_completed` 带被停实例的 PID。被接管的实例在轮询中看到请求后先记录 `takeover_requested`，然后走上面同一套优雅关闭流程（随后出现 `shutdown_requested`）。互斥锁空闲时（含容器重建后留下 `serve.lock` 的情况）接管方直接清掉残留的 PID 文件并返回，不会写请求也不会空等。
+`--takeover` 用于本地调试时替换同一个 `data_dir` 上的实例。它先完成启动流程中不需要锁的那部分校验（配置权限、完整 `loadConfig`、Telegram token 解析），通过后向 `data_dir` 写一个 `serve.stop` 请求文件，再等待对方释放互斥锁，日志 `takeover_completed` 的 `stopped` 表示是否停掉了实例，`stopped_pid` 是被停实例的 PID（对方恰好处在拿锁后、写 PID 文件前，或已删 PID 文件、尚未放锁时为 `null`）。被接管的实例在轮询中看到请求后先记录 `takeover_requested`，然后走上面同一套优雅关闭流程（随后出现 `shutdown_requested`）。持有者刚启动时它的 watcher 会把已存在的请求当残留删掉，接管方等待期间发现请求文件消失会重新写入。互斥锁空闲时（含容器重建后留下 `serve.lock` 的情况）接管方直接返回，不会写请求也不会空等；残留的 PID 文件不在这里删（锁外删除可能误删刚拿到锁的新实例的文件），由下一次拿锁覆写。PID 文件只在持锁期间写入或删除：`ServeLock.release` 先删 PID 文件再放锁。
 
 请求是文件而不是信号：Windows 没有可捕获的 `SIGTERM`，只有目标进程自己能跑关闭流程。对方 60 秒内没有释放锁（进程卡住或被暂停）时接管方报错退出，不会强杀；这一步也不会误伤其它进程——写下的请求文件只有持有该 `data_dir` 锁的进程会读，接管方在返回前把它清掉，下次启动时残留的请求文件会被丢弃而不是照做。
 

@@ -122,8 +122,8 @@ export async function serve(configPath: string, takeover = false): Promise<void>
     if (takeover) {
       // Stop the incumbent only once this process knows it can start at all:
       // the config, its permissions and the bot token are checked by now.
-      const stoppedPid = await stopRunningInstance(loaded.config.data_dir);
-      logEvent('takeover_completed', { stopped_pid: stoppedPid });
+      const stopped = await stopRunningInstance(loaded.config.data_dir);
+      logEvent('takeover_completed', { stopped: stopped !== null, stopped_pid: stopped?.pid ?? null });
     }
     lock = await ServeLock.acquire(loaded.config.data_dir);
     stopWatcher = watchStopRequests(loaded.config.data_dir, () => {
@@ -418,21 +418,28 @@ export async function serve(configPath: string, takeover = false): Promise<void>
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(secrets.redact(message));
   } finally {
-    replayShutdown.abort(new Error('shutdown'));
-    stopSignals();
-    stopWatcher?.();
-    await admin?.stop();
-    await scheduler?.stop(30_000);
-    mentionTyping?.stopAll();
-    // The image worker borrows the SQLite connection; it must settle (marking
-    // late results interrupted if the shutdown budget expires) before the
-    // store closes underneath it.
-    imageBridge?.stop();
-    await imageService?.stop();
-    await stickers?.stop();
-    await mcp?.stop();
-    store?.close();
-    await lock?.release();
+    // The signal handlers outlive the drain below: that wait is what a second
+    // signal exists to cut short. Without a handler Node falls back to the
+    // default action, which skips `shutdown_forced` and, for a container's
+    // PID 1, ignores the signal altogether.
+    try {
+      replayShutdown.abort(new Error('shutdown'));
+      stopWatcher?.();
+      await admin?.stop();
+      await scheduler?.stop(30_000);
+      mentionTyping?.stopAll();
+      // The image worker borrows the SQLite connection; it must settle (marking
+      // late results interrupted if the shutdown budget expires) before the
+      // store closes underneath it.
+      imageBridge?.stop();
+      await imageService?.stop();
+      await stickers?.stop();
+      await mcp?.stop();
+      store?.close();
+      await lock?.release();
+    } finally {
+      stopSignals();
+    }
   }
   if (restartRequested) {
     logEvent('restart_exit', { code: RESTART_EXIT_CODE });
