@@ -545,6 +545,20 @@ export interface ProvidersView {
   readonly providers: readonly ProviderView[];
 }
 
+export interface ParticipationWindow {
+  readonly start: string;
+  readonly end: string;
+  /** ISO weekdays 1 (Monday) through 7 (Sunday); omitted means every day. */
+  readonly days?: readonly number[];
+}
+
+/** The chat-level `participation` section; `null` when the chat configures none. */
+export interface ParticipationView {
+  readonly active_windows?: readonly ParticipationWindow[];
+  readonly trigger_keywords?: readonly string[];
+  readonly attention_window_seconds?: number;
+}
+
 export interface ChatSettings {
   readonly topic_ids: readonly string[] | null;
   readonly provider: string | null;
@@ -553,6 +567,8 @@ export interface ChatSettings {
 }
 
 export interface ChatSettingsView extends ChatSettings {
+  readonly participation: ParticipationView | null;
+  readonly timezone: string | null;
   readonly effective: AgentModelReference;
 }
 
@@ -569,6 +585,9 @@ export interface ChatsView {
   readonly revision: string;
   readonly supervised: boolean;
   readonly restart_required: readonly string[];
+  /** Global default timezone; per-chat overrides ride on each item. */
+  readonly timezone: string;
+  readonly global_participation: ParticipationView | null;
   readonly defaults: AgentModelReference;
   readonly models: readonly (ProviderModelReference & {
     readonly name: string;
@@ -1051,6 +1070,19 @@ export function createChat(body: ChatSettings & { readonly id: string }, revisio
 
 export function updateChat(id: string, body: ChatSettings, revision: string): Promise<ChatWriteResponse> {
   return call<ChatWriteResponse>(`/chats/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: writeHeaders(revision),
+    body: JSON.stringify(body),
+  });
+}
+
+/** `active_windows: null` removes the chat's windows; an empty array keeps the gate with no schedule. */
+export function updateChatParticipation(
+  id: string,
+  body: { readonly active_windows: readonly ParticipationWindow[] | null },
+  revision: string,
+): Promise<ChatWriteResponse> {
+  return call<ChatWriteResponse>(`/chats/${encodeURIComponent(id)}/participation`, {
     method: 'PUT',
     headers: writeHeaders(revision),
     body: JSON.stringify(body),

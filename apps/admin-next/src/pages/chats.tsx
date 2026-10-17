@@ -5,6 +5,7 @@ import {
   AlarmClock,
   BookOpen,
   Brain,
+  Clock,
   ExternalLink,
   MessageSquareText,
   Pencil,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { ParticipationDialog } from '@/components/chats/participation-dialog';
 import {
   type ColumnSpec,
   ConfirmDialog,
@@ -48,6 +50,7 @@ import {
   type ChatSettings,
   type ChatSettingsView,
   type ChatsView,
+  type ParticipationWindow,
   createChat,
   deleteChat,
   restartServer,
@@ -56,6 +59,7 @@ import {
 } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { isConfigConflict, isThinkingLevel } from '@/lib/model-manager';
+import { effectiveWindows, summarizeWindows } from '@/lib/participation';
 import { chatsQuery } from '@/lib/queries';
 import { waitForAdminServer } from '@/lib/restart';
 import { useProviderWrite } from '@/lib/use-provider-write';
@@ -79,6 +83,16 @@ function runningDiff(row: ChatEntry, text: (settings: ChatSettingsView) => strin
 
 function modelKey(provider: string, model: string): string {
   return JSON.stringify([provider, model]);
+}
+
+/** Stable identity of a window for React keys: content only, days flattened. */
+function windowKey(window: ParticipationWindow): string {
+  return `${window.start}-${window.end}-${window.days === undefined ? 'daily' : window.days.join('')}`;
+}
+
+interface ActiveHoursLine {
+  readonly key: string;
+  readonly text: string;
 }
 
 function validId(value: string, positive = false): boolean {
@@ -285,6 +299,7 @@ export default function ChatsPage(): React.ReactElement {
   const query = useQuery(chatsQuery);
   const write = useProviderWrite();
   const [editing, setEditing] = useState<{ readonly view: ChatsView; readonly chat: ChatEntry | null } | null>(null);
+  const [scheduling, setScheduling] = useState<{ readonly view: ChatsView; readonly chat: ChatEntry } | null>(null);
   const [removing, setRemoving] = useState<{ readonly chat: ChatEntry; readonly revision: string } | null>(null);
   const remove = useMutation({
     mutationFn: (target: { readonly chat: ChatEntry; readonly revision: string }) =>
@@ -341,6 +356,51 @@ export default function ChatsPage(): React.ReactElement {
     `${settings.provider === null ? t('pages.chats.defaultModel') : t('pages.chats.chatOverride')} · ${t('pages.chats.thinkingShort', { level: settings.effective.thinking_level })}${
       settings.thinking_level === null ? t('pages.chats.inheritedSuffix') : ''
     }`;
+  const windowSummary = (window: ParticipationWindow): string =>
+    summarizeWindows([window], {
+      dayLabels: t('pages.chats.weekdaysShort').split(','),
+      dailyLabel: t('pages.chats.daily'),
+    });
+  // One line per period keeps the allowlist table narrow with many windows.
+  // Keys pair the window content with a duplicate tally: identical windows are
+  // valid config, and the tally keeps keys unique and stable under reorders.
+  const activeHoursLines = (settings: ChatSettingsView): readonly ActiveHoursLine[] => {
+    const lines: ActiveHoursLine[] = [];
+    const seen = new Map<string, number>();
+    const push = (text: string, key = text): void => {
+      const occurrence = seen.get(key) ?? 0;
+      seen.set(key, occurrence + 1);
+      lines.push({ key: occurrence === 0 ? key : `${key}#${occurrence}`, text });
+    };
+    if (settings.participation === null) {
+      const globalWindows = view.global_participation?.active_windows;
+      if (globalWindows === undefined || globalWindows.length === 0) {
+        push(t('pages.chats.activeHoursUnrestricted'));
+      } else {
+        push(t('pages.chats.activeHoursFollowsGlobal'));
+        for (const window of globalWindows) {
+          push(windowSummary(window), windowKey(window));
+        }
+      }
+      return lines;
+    }
+    const explicit = settings.participation.active_windows;
+    if (explicit === undefined) {
+      push(t('pages.chats.activeHoursFollowsGlobal'));
+      for (const window of effectiveWindows(settings.participation, view.global_participation)) {
+        push(windowSummary(window), windowKey(window));
+      }
+      return lines;
+    }
+    if (explicit.length === 0) {
+      push(t('pages.chats.activeHoursTriggerOnly'));
+      return lines;
+    }
+    for (const window of explicit) {
+      push(windowSummary(window), windowKey(window));
+    }
+    return lines;
+  };
   const columns: readonly ColumnSpec<ChatEntry>[] = [
     {
       key: 'chat',
@@ -389,6 +449,30 @@ export default function ChatsPage(): React.ReactElement {
                 row,
                 (item) =>
                   `${modelText(item)} · ${t('pages.chats.thinkingShort', { level: item.effective.thinking_level })}`,
+              )}
+            />
+          </div>
+        );
+      },
+    },
+    {
+      key: 'activeHours',
+      title: t('pages.chats.colActiveHours'),
+      // Private chats never gate, so they have no schedule to show or edit.
+      render: (row) => {
+        const settings = shown(row);
+        return settings === null || !row.id.startsWith('-') ? null : (
+          <div className="space-y-1">
+            {activeHoursLines(settings).map((line) => (
+              <p key={line.key} className="text-sm">
+                {line.text}
+              </p>
+            ))}
+            <RunningNote
+              value={runningDiff(row, (item) =>
+                activeHoursLines(item)
+                  .map((line) => line.text)
+                  .join(' · '),
               )}
             />
           </div>
@@ -467,6 +551,18 @@ export default function ChatsPage(): React.ReactElement {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            {row.id.startsWith('-') ? (
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                aria-label={t('pages.chats.editActiveHours')}
+                title={t('pages.chats.editActiveHours')}
+                onClick={() => setScheduling({ view, chat: row })}
+              >
+                <Clock />
+              </Button>
+            ) : null}
             <Button
               type="button"
               size="icon-sm"
@@ -522,6 +618,9 @@ export default function ChatsPage(): React.ReactElement {
       </Panel>
       {editing !== null ? (
         <ChatDialog view={editing.view} chat={editing.chat} onClose={() => setEditing(null)} />
+      ) : null}
+      {scheduling !== null ? (
+        <ParticipationDialog view={scheduling.view} chat={scheduling.chat} onClose={() => setScheduling(null)} />
       ) : null}
       <ConfirmDialog
         open={removing !== null}
