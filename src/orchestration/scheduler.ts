@@ -1,6 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import type { HostKind } from '../platform/im-host.ts';
 import { resolveBucketWindowSeconds } from '../platform/invocation-policy.ts';
+import { PlaygroundStore } from '../store/playground.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import type { BusinessStore } from '../store/store.ts';
 import { LongTaskService } from '../store/long-tasks.ts';
@@ -25,7 +26,8 @@ interface ActiveInvocation {
 }
 
 interface InvocationDiagnosticRow {
-  readonly telegram_chat_id: bigint;
+  readonly host_kind: string;
+  readonly telegram_chat_id: bigint | null;
   readonly bucket_message_count: bigint;
   readonly pending_bucket_count: bigint;
   readonly chat_pending_bucket_count: bigint;
@@ -247,6 +249,25 @@ export class BucketScheduler {
     if (receipt !== undefined) {
       deadlines.push(Date.parse(receipt.created_at));
     }
+    // A queued invocation that can actually launch must not wait for the next
+    // full poll. One blocked behind a running invocation in the same chat is
+    // excluded, otherwise its past deadline would busy-loop the scheduler.
+    const queued = this.#store.orm
+      .all<{ deadline_at: string }>(
+        sql`SELECT b.deadline_at FROM invocations i
+         JOIN buckets b ON b.id = i.bucket_id
+         JOIN conversations v ON v.id = i.conversation_id
+         WHERE i.state = 'queued'
+           AND NOT EXISTS (
+             SELECT 1 FROM invocations r JOIN conversations v2 ON v2.id = r.conversation_id
+             WHERE v2.chat_id = v.chat_id AND r.state = 'running'
+           )
+         ORDER BY b.deadline_at LIMIT 1`,
+      )
+      .at(0);
+    if (queued !== undefined) {
+      deadlines.push(Date.parse(queued.deadline_at));
+    }
     if (deadlines.length === 0) {
       return 60_000;
     }
@@ -255,6 +276,9 @@ export class BucketScheduler {
   }
 
   #launchQueued(): void {
+    // Room invocations that queued too long are expired visibly; Telegram
+    // collecting/debounce buckets keep their own lifecycle.
+    new PlaygroundStore(this.#store.orm).expireQueued();
     while (this.#running) {
       const now = new Date();
       this.#queue.suppressInvalidQueuedReceipts(now);
@@ -441,7 +465,7 @@ export class BucketScheduler {
       const now = new Date();
       const row = this.#store.orm
         .all<InvocationDiagnosticRow>(
-          sql`SELECT c.telegram_chat_id,
+          sql`SELECT c.host_kind, c.telegram_chat_id,
                   (SELECT COUNT(*) FROM bucket_messages bm WHERE bm.bucket_id = ${invocation.bucket_id}) AS bucket_message_count,
                   (SELECT COUNT(*) FROM buckets pb WHERE pb.state IN ('collecting', 'queued')) AS pending_bucket_count,
                   (SELECT COUNT(*) FROM buckets pb
@@ -484,7 +508,8 @@ export class BucketScheduler {
           event,
           invocation_id: invocation.id.toString(),
           session_id: invocation.id.toString(),
-          chat_id: row.telegram_chat_id.toString(),
+          host_kind: row.host_kind,
+          chat_id: row.telegram_chat_id?.toString() ?? null,
           bucket_message_count: Number(row.bucket_message_count),
           pending_bucket_count: Number(row.pending_bucket_count),
           chat_pending_bucket_count: Number(row.chat_pending_bucket_count),

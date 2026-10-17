@@ -4,9 +4,19 @@ import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import type { BusinessStore } from '../store/store.ts';
 import { asRunResult, isChatPaused, resolveChatConfig } from '../store/store.ts';
 import { snapshotInvocation } from '../store/invocation-snapshot.ts';
+import { enqueueInvocation } from '../store/invocation-enqueue.ts';
 import { LongTaskService } from '../store/long-tasks.ts';
 import { isConversationActive, ParticipationRegistry } from '../store/participation.ts';
-import { appState, bucketMessages, buckets, invocationBuckets, invocations, taskReceipts } from '../store/schema.ts';
+import {
+  appState,
+  bucketMessages,
+  buckets,
+  chats,
+  conversations,
+  invocationBuckets,
+  invocations,
+  taskReceipts,
+} from '../store/schema.ts';
 import { activeSleepUntil } from '../store/sleep.ts';
 
 export const RECOVERY_MAX_AGE_MS = 5 * 60_000;
@@ -157,12 +167,19 @@ export class InvocationQueueService {
         .where(eq(taskReceipts.state, 'claimed'))
         .run();
       const expiring = this.#store.orm
-        .select({ id: buckets.id })
+        .select({ id: buckets.id, hostKind: chats.hostKind })
         .from(buckets)
+        .innerJoin(conversations, eq(conversations.id, buckets.conversationId))
+        .innerJoin(chats, eq(chats.id, conversations.chatId))
         .where(and(inArray(buckets.state, ['collecting', 'queued']), lt(buckets.firstReceivedAt, staleBefore)))
         .orderBy(buckets.id)
         .all();
       for (const bucket of expiring) {
+        // A room's queue is not a Telegram collecting bucket: its expiry is
+        // reported by the room store, not swept up by restart recovery.
+        if (bucket.hostKind !== 'telegram') {
+          continue;
+        }
         this.#store.orm
           .update(buckets)
           .set({ state: 'expired', errorCode: 'recovery_age', finishedAt: nowIso, updatedAt: nowIso })
@@ -201,6 +218,9 @@ export class InvocationQueueService {
            LEFT JOIN senders s ON s.id = r.sender_id
            JOIN chats c ON c.id = m.chat_id
            WHERE m.received_at >= ${startedAt.toISOString()} AND m.visible = 1 AND m.sent_by_bot = 0
+             -- Only Telegram catch-up: a room's inputs are released explicitly,
+             -- never swept up by a startup pass.
+             AND c.host_kind = 'telegram'
          ),
          ranked AS (
            SELECT *, ROW_NUMBER() OVER (
@@ -801,25 +821,13 @@ export class InvocationQueueService {
 
   #insertInvocation(bucketId: bigint, conversationId: bigint, now: Date, includeHistory: boolean): bigint {
     const current = this.#configStore.current();
-    const created = this.#store.orm
-      .insert(invocations)
-      .values({
-        bucketId,
-        conversationId,
-        state: 'queued',
-        configHash: current.hash,
-        promptVersion: AGENT_PROMPT_VERSION,
-        createdAt: now.toISOString(),
-      })
-      .returning({ id: invocations.id })
-      .get();
-    if (created === undefined) {
-      throw new Error('invocations insert returned no row');
-    }
-    const invocationId = created.id;
-    // The opening bucket is joined like every attached one, so terminal state
-    // transitions and un-injected releases can be uniform.
-    this.#store.orm.insert(invocationBuckets).values({ invocationId, bucketId, attachedAt: now.toISOString() }).run();
+    const invocationId = enqueueInvocation(this.#store.orm, {
+      bucketId,
+      conversationId,
+      configHash: current.hash,
+      promptVersion: AGENT_PROMPT_VERSION,
+      createdAt: now.toISOString(),
+    });
     snapshotInvocation(
       this.#store,
       current.config.agent.history_messages,
