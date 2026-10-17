@@ -240,7 +240,7 @@ describe('send_reply', () => {
       name: 'a part whose fields do not match its kind',
       parts: [{ text: 'fine' }, { kind: 'image' as const }],
       errorCode: 'send_input_invalid',
-      message: 'Nothing was sent: part 2 fields do not match its kind',
+      message: 'Nothing was sent: part 2 does not match its kind: kind:image needs image_generation_id',
     },
     {
       name: 'a generated image that is not available here',

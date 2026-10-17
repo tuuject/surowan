@@ -79,43 +79,53 @@ export type SendToolInput =
       readonly reply_to_message_id?: string;
     };
 
-function narrowSendInput(input: Static<typeof SendInputSchema>): SendToolInput | undefined {
+/**
+ * Resolves the kind of one message and keeps only the fields that apply to it.
+ * Fields of another kind are ignored, since some models fill every optional
+ * field with placeholders; what is rejected is a field that asks for something
+ * the runtime would silently not do (a sticker caption, a non-image resend).
+ * `problem` tells the model what to change, so it does not retry blindly.
+ */
+export function narrowSendInput(
+  input: Static<typeof SendInputSchema>,
+): { readonly send: SendToolInput } | { readonly problem: string } {
   const kind =
-    input.kind ??
-    (input.text !== undefined && input.sticker_ref === undefined && input.image_generation_id === undefined
-      ? 'text'
-      : undefined);
-  if (
-    kind === undefined ||
-    (kind === 'sticker' && input.parse_mode !== undefined) ||
-    (kind !== 'image' && input.resend !== undefined)
-  ) {
-    return undefined;
+    input.kind ?? (input.sticker_ref === undefined && input.image_generation_id === undefined ? 'text' : undefined);
+  if (kind === undefined) {
+    return { problem: 'kind is required when sticker_ref or image_generation_id is set' };
+  }
+  if (kind !== 'image' && input.resend === true) {
+    return { problem: `resend applies only to kind:image; omit it for kind:${kind}` };
   }
   const reply = input.reply_to_message_id === undefined ? {} : { reply_to_message_id: input.reply_to_message_id };
   if (kind === 'text') {
     if (input.text === undefined) {
-      return undefined;
+      return { problem: 'kind:text needs text' };
     }
     const parseMode = input.parse_mode !== undefined ? { parse_mode: input.parse_mode } : {};
-    return { kind, text: input.text, ...parseMode, ...reply };
+    return { send: { kind, text: input.text, ...parseMode, ...reply } };
   }
   if (kind === 'sticker') {
     if (input.sticker_ref === undefined) {
-      return undefined;
+      return { problem: 'kind:sticker needs sticker_ref' };
     }
-    return { kind, sticker_ref: input.sticker_ref, ...reply };
+    if (input.text !== undefined) {
+      return { problem: 'a sticker cannot carry text; send the text as its own message, or use send_reply' };
+    }
+    return { send: { kind, sticker_ref: input.sticker_ref, ...reply } };
   }
   if (input.image_generation_id === undefined) {
-    return undefined;
+    return { problem: 'kind:image needs image_generation_id' };
   }
   const caption = input.text === undefined ? {} : { text: input.text };
   return {
-    kind: 'image',
-    image_generation_id: input.image_generation_id,
-    ...(input.resend === undefined ? {} : { resend: input.resend }),
-    ...caption,
-    ...reply,
+    send: {
+      kind: 'image',
+      image_generation_id: input.image_generation_id,
+      ...(input.resend === undefined ? {} : { resend: input.resend }),
+      ...caption,
+      ...reply,
+    },
   };
 }
 
@@ -279,11 +289,12 @@ export function createSendTools(environment: SendToolEnvironment): {
     .filter((part) => part.length > 0)
     .join(' ');
   const deliver: Deliver = async (toolCallId, input, signal, { barrier }) => {
-    const send = narrowSendInput(input);
-    if (send === undefined) {
+    const narrowed = narrowSendInput(input);
+    if ('problem' in narrowed) {
       recordRejectedSend(environment, toolCallId, input, 'send_input_invalid');
-      throw new Error('send input fields do not match its kind');
+      throw new Error(`send input does not match its kind: ${narrowed.problem}`);
     }
+    const { send } = narrowed;
     const replyTarget =
       send.reply_to_message_id === undefined
         ? undefined
@@ -728,10 +739,11 @@ function createSendReplyTool(
       }
       for (const [index, part] of input.parts.entries()) {
         const label = `part ${index + 1}`;
-        const send = narrowSendInput(part);
-        if (send === undefined) {
-          return reject('send_input_invalid', `${label} fields do not match its kind`);
+        const narrowed = narrowSendInput(part);
+        if ('problem' in narrowed) {
+          return reject('send_input_invalid', `${label} does not match its kind: ${narrowed.problem}`);
         }
+        const { send } = narrowed;
         if (send.kind === 'text') {
           if (environment.maxTextLength !== undefined && send.text.length > environment.maxTextLength) {
             reject(

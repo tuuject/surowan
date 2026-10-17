@@ -388,6 +388,106 @@ test('an invocation keeps running past the removed per-invocation tool-call cap 
   store.close();
 });
 
+test('a placeholder-filled send goes out, and a send repeated unchanged after failing stops the run', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-agent-repeated-failure-'));
+  directories.push(directory);
+  const configPath = join(directory, 'config.jsonc');
+  await writeTestConfig(directory, configPath);
+  const loaded = await loadConfig(configPath);
+  const faux = fauxProvider({
+    provider: 'agent',
+    models: [{ id: 'agent-model', input: ['text'], contextWindow: 200_000, maxTokens: 32_768 }],
+  });
+  const configStore = await testConfigStore(loaded, fauxRegistry(faux));
+  const store = await SqliteStore.open(loaded.config);
+  const ingestion = new TelegramIngestion(store, configStore, { id: 999 });
+  const received = new Date('2026-08-15T00:00:00.000Z');
+  ingestion.ingest(
+    {
+      update_id: 3,
+      message: {
+        message_id: 12,
+        date: 1_700_000_000,
+        chat: { id: 123456789, type: 'private', first_name: 'Owner' },
+        from: { id: 42, is_bot: false, first_name: 'Alice' },
+        text: 'hello',
+      },
+    },
+    received,
+  );
+  const scheduler = new BucketScheduler(store, configStore, async () => ({ state: 'completed', reason: 'done' }));
+  const [invocationId] = scheduler.processDue(new Date(received.getTime() + 15_000));
+  if (invocationId === undefined) {
+    throw new Error('Expected a due invocation');
+  }
+  // Some models fill every optional field with placeholders. Fields of another
+  // kind are ignored, an inert resend:false included; resend:true on text is
+  // still rejected, and retrying it unchanged ends the run on the third turn
+  // instead of exhausting turns_per_injection.
+  faux.setResponses([
+    fauxAssistantMessage(
+      [
+        fauxToolCall('send', {
+          kind: 'text',
+          resend: false,
+          text: 'hi',
+          sticker_ref: 'unused',
+          image_generation_id: '00000000-0000-0000-0000-000000000000',
+        }),
+      ],
+      { stopReason: 'toolUse' },
+    ),
+    ...Array.from({ length: 5 }, () =>
+      fauxAssistantMessage([fauxToolCall('send', { kind: 'text', text: 'again', resend: true })], {
+        stopReason: 'toolUse',
+      }),
+    ),
+    fauxAssistantMessage(''),
+  ]);
+  const sentTexts: string[] = [];
+  const runtime = new AgentRuntime({
+    store,
+    configStore,
+    secrets: new SecretStore(),
+    telegramApi: {
+      sendMessage: async (_chatId, text) => {
+        sentTexts.push(text);
+        return { message_id: 1, date: 1, chat: { id: 123456789 } };
+      },
+      sendSticker: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
+    },
+    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    systemResources: emptySystemResources(),
+  });
+  const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
+  expect(outcome).toEqual({ state: 'completed', reason: 'repeated_tool_failure' });
+  expect(sentTexts).toEqual(['hi']);
+  expect(
+    store.db
+      .prepare<[bigint], { state: string; error_code: string | null }>(
+        'SELECT state, error_code FROM tool_calls WHERE invocation_id = ? ORDER BY id',
+      )
+      .all(invocationId),
+  ).toEqual([
+    { state: 'success', error_code: null },
+    ...Array.from({ length: 3 }, () => ({ state: 'error', error_code: 'send_input_invalid' })),
+  ]);
+  expect(
+    store.db
+      .prepare<[bigint], { turns_used: bigint }>('SELECT turns_used FROM invocations WHERE id = ?')
+      .get(invocationId)?.turns_used,
+  ).toBe(4n);
+  const toolResults = store.db
+    .prepare<[bigint], { text: string }>(
+      "SELECT text FROM agent_messages WHERE invocation_id = ? AND role = 'tool_result' ORDER BY sequence_no",
+    )
+    .all(invocationId);
+  expect(toolResults.at(-1)?.text).toBe(
+    'send input does not match its kind: resend applies only to kind:image; omit it for kind:text',
+  );
+  store.close();
+});
+
 test('counts tool descriptions in registry limits', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'plasticwan-agent-tool-budget-'));
   directories.push(directory);

@@ -987,10 +987,13 @@ describe('long-lived invocation', () => {
       provider: 'agent',
       models: [{ id: 'agent-model', input: ['text'], contextWindow: 40_000, maxTokens: 1_000 }],
     });
+    // Distinct paths, so the repeated-failure breaker does not end the loop first.
     const responses = Array.from(
       { length: 30 },
-      () => () =>
-        fauxAssistantMessage(fauxToolCall('read', { path: 'system:///missing.md' }), { stopReason: 'toolUse' }),
+      (_, index) => () =>
+        fauxAssistantMessage(fauxToolCall('read', { path: `system:///missing-${index}.md` }), {
+          stopReason: 'toolUse',
+        }),
     );
     faux.setResponses([...responses, () => fauxAssistantMessage('done')]);
     const runtime = await fixtureSetup.runtimeWith(faux);

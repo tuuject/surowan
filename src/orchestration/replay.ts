@@ -33,6 +33,7 @@ import { applyToolSchemaKeywords } from '../platform/tool-schema.ts';
 import type { BusinessStore } from '../store/store.ts';
 import { resolveChatConfig } from '../store/store.ts';
 import { chats, conversations, invocations } from '../store/schema.ts';
+import { RepeatedToolFailure } from './repeated-tool-failure.ts';
 import { createReplayTools, type ReplayToolRegistry, toolDefinition } from './replay-tools.ts';
 
 const MAX_TRACE_BYTES = 1_048_576;
@@ -368,6 +369,7 @@ export class ReplayRunner {
           return entry;
         }),
       );
+    const repeatedFailure = new RepeatedToolFailure();
     const agent = new Agent({
       initialState: {
         systemPrompt,
@@ -432,6 +434,10 @@ export class ReplayRunner {
         }
         if (turn.toolResults.some((result) => result.toolName === 'zzz' && !result.isError)) {
           completionReason = 'sleep';
+          return { action: 'end' };
+        }
+        if (repeatedFailure.observe(turn)) {
+          completionReason = 'repeated_tool_failure';
           return { action: 'end' };
         }
         if (turn.message.content.some((block) => block.type === 'toolCall') && turns >= maxTurns) {

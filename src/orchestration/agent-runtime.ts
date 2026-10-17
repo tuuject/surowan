@@ -64,6 +64,7 @@ import { resolveChatConfig } from '../store/store.ts';
 import { createToolAudit } from '../store/tool-audit.ts';
 import { type CachedConversationAgent, ConversationRuntime } from './conversation-runtime.ts';
 import { attachBucketToInvocation } from './invocation-queue.ts';
+import { RepeatedToolFailure } from './repeated-tool-failure.ts';
 import type { InvocationOutcome } from './scheduler.ts';
 
 /**
@@ -132,7 +133,14 @@ const SEND_NUDGE_TEXT =
   'You produced a reply as ordinary assistant text. Ordinary assistant text is private and is never published to Telegram. If that text is meant for the chat, call the send tool to publish it now. You will not be reminded again.';
 
 /** Why a run decided to stop; audit-only, the state comes from `InvocationOutcome`. */
-type StopReason = 'completed' | 'context_limit' | 'turn_budget' | 'wall_clock' | 'sleep' | 'budget';
+type StopReason =
+  | 'completed'
+  | 'context_limit'
+  | 'turn_budget'
+  | 'repeated_tool_failure'
+  | 'wall_clock'
+  | 'sleep'
+  | 'budget';
 
 interface RunState {
   turns: number;
@@ -411,6 +419,7 @@ export class AgentRuntime {
       barrierSpent: false,
       stopReason: 'completed',
     };
+    const repeatedFailure = new RepeatedToolFailure();
     const zzz = createZzzTool({
       orm: this.#store.orm,
       invocationId,
@@ -640,6 +649,7 @@ export class AgentRuntime {
       state.turnsSinceInjection = 0;
       state.sendUsed = false;
       state.nudged = false;
+      repeatedFailure.reset();
       state.estimatedInputTokens = Math.max(
         state.estimatedInputTokens,
         estimateMessagesTokens(agent.state.messages) +
@@ -896,6 +906,9 @@ export class AgentRuntime {
         // turn it schedules; that turn has streamed by the time this hook sees the
         // flag, so the promised answer is out and the run stops now.
         return stop(state.stopReason);
+      }
+      if (repeatedFailure.observe(turn)) {
+        return stop('repeated_tool_failure');
       }
       // `turn_end` now emits after this hook, so the turn that just completed is
       // not counted yet.

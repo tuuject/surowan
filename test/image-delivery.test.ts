@@ -642,10 +642,10 @@ describe('send image delivery ledger', () => {
     const { tool } = buildTool(fixture, context, { api });
 
     await expect(tool.execute('t-1', { kind: 'text', text: 'hello', resend: true })).rejects.toThrow(
-      'do not match its kind',
+      'resend applies only to kind:image; omit it for kind:text',
     );
     await expect(tool.execute('t-2', { kind: 'sticker', sticker_ref: 'stk_missing', resend: true })).rejects.toThrow(
-      'do not match its kind',
+      'resend applies only to kind:image; omit it for kind:sticker',
     );
 
     const receipt: CompletionContext = {

@@ -208,9 +208,10 @@ test('stops a cache-heavy runaway invocation on the daily budget', async () => {
     cacheRead: 59_985,
     cacheWrite: 0,
   });
+  // Distinct URIs, so the repeated-failure breaker does not end the loop first.
   faux.setResponses(
-    Array.from({ length: 8 }, () =>
-      fauxAssistantMessage(fauxToolCall('read', { uri: 'system:///missing.md' }), { stopReason: 'toolUse' }),
+    Array.from({ length: 8 }, (_, index) =>
+      fauxAssistantMessage(fauxToolCall('read', { uri: `system:///missing-${index}.md` }), { stopReason: 'toolUse' }),
     ),
   );
   expect(await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal)).toEqual({

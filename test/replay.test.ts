@@ -1014,6 +1014,23 @@ test('successful sleep terminates the replay without producing a real sleep reco
   expect(f.rows()).toEqual(before);
 });
 
+test('an unchanged failing call repeated for three turns ends the replay like production', async () => {
+  const f = await fixture();
+  f.faux.setResponses(
+    Array.from({ length: 5 }, () =>
+      fauxAssistantMessage(fauxToolCall('send', { kind: 'text', text: 'again', resend: true }), {
+        stopReason: 'toolUse',
+      }),
+    ),
+  );
+  expect(await f.run()).toMatchObject({
+    error: null,
+    completion_reason: 'repeated_tool_failure',
+    usage: { model_calls: 3 },
+    send_count: 0,
+  });
+});
+
 test('scene guards report missing, unfinished, unconfigured, invalid and empty scenes without model calls', async () => {
   const f = await fixture();
   replayError(() => f.runner.inspect(999_999n), 'not_found');

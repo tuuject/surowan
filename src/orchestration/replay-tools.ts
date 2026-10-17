@@ -2,10 +2,15 @@ import { randomUUID } from 'node:crypto';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import type { ImageContent } from '@earendil-works/pi-ai';
 import type { PublicModel } from '@plasticwan/image-service';
-import Type, { type TSchema } from 'typebox';
+import Type, { type Static, type TSchema } from 'typebox';
 import Compile from 'typebox/compile';
 import { capability, createExecuteTool, type ExecutableCapability } from '../capabilities/execute-tool.ts';
-import { SEND_REPLY_MAX_PARTS, SendInputSchema, SendReplyInputSchema } from '../capabilities/send-tool.ts';
+import {
+  narrowSendInput,
+  SEND_REPLY_MAX_PARTS,
+  SendInputSchema,
+  SendReplyInputSchema,
+} from '../capabilities/send-tool.ts';
 import {
   AddMemoryInputSchema,
   DEFAULT_MEMORY_TTL_SECONDS,
@@ -257,7 +262,7 @@ function replaySendTool(definition: ReplayToolDefinition, state: ReplayState): A
       if (!SendInputValidator.Check(params)) {
         throw new Error('send input does not match the tool schema');
       }
-      const input = params as Record<string, unknown>;
+      const input = params;
       checkReplaySend(input, state, 'send');
       state.dispatches.push({ tool_call_id: toolCallId, tool_name: 'send', mode: 'synthetic' });
       checkReplayReplyUnused(input, state);
@@ -281,7 +286,7 @@ function replaySendReplyTool(definition: ReplayToolDefinition, state: ReplayStat
       }
       const replyTo = typeof params.reply_to_message_id === 'string' ? params.reply_to_message_id : undefined;
       const parts = params.parts.map(
-        (part, index): Record<string, unknown> =>
+        (part, index): Static<typeof SendInputSchema> =>
           index === 0 && replyTo !== undefined ? { ...part, reply_to_message_id: replyTo } : { ...part },
       );
       for (const [index, part] of parts.entries()) {
@@ -306,9 +311,10 @@ function replaySendReplyTool(definition: ReplayToolDefinition, state: ReplayStat
 }
 
 /** The current configuration's text and reply-target rules for one synthesized message. */
-function checkReplaySend(input: Record<string, unknown>, state: ReplayState, label: string): void {
-  if (!sendKindResolvable(input)) {
-    throw new Error(`${label} input fields do not match its kind`);
+function checkReplaySend(input: Static<typeof SendInputSchema>, state: ReplayState, label: string): void {
+  const narrowed = narrowSendInput(input);
+  if ('problem' in narrowed) {
+    throw new Error(`${label} input does not match its kind: ${narrowed.problem}`);
   }
   if (typeof input.text === 'string') {
     if (input.text.length > (state.options.maxTextLength ?? 4_096)) {
@@ -616,29 +622,6 @@ function replayBlockedCapability(definition: ReplayToolDefinition): ExecutableCa
     },
     false,
   );
-}
-
-/** Mirrors `narrowSendInput` in capabilities/send-tool.ts, which is not exported. */
-function sendKindResolvable(input: Record<string, unknown>): boolean {
-  const kind =
-    (typeof input.kind === 'string' ? input.kind : undefined) ??
-    (input.text !== undefined && input.sticker_ref === undefined && input.image_generation_id === undefined
-      ? 'text'
-      : undefined);
-  if (
-    kind === undefined ||
-    (kind === 'sticker' && input.parse_mode !== undefined) ||
-    (kind !== 'image' && input.resend !== undefined)
-  ) {
-    return false;
-  }
-  if (kind === 'text') {
-    return input.text !== undefined;
-  }
-  if (kind === 'sticker') {
-    return input.sticker_ref !== undefined;
-  }
-  return input.image_generation_id !== undefined;
 }
 
 function recordExecuteDispatch(
