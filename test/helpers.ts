@@ -454,10 +454,10 @@ export function testTelegramRuntime(
     readonly sendRate?: ImSendRatePolicy;
     readonly now?: () => number;
   } = {},
-): { readonly host: TelegramHost; readonly conversation: AgentRuntimeOptions['conversation'] } {
+): { readonly hosts: AgentRuntimeOptions['hosts']; readonly conversation: AgentRuntimeOptions['conversation'] } {
   const scope = options.scope ?? 'private';
   return {
-    host: testTelegramHost(transport, options),
+    hosts: { telegram: testTelegramHost(transport, options) },
     conversation: (target) => identityConversation(target, 'telegram', scope),
   };
 }

@@ -842,7 +842,7 @@ async function main(): Promise<void> {
     store: openedStore,
     configStore: runtimeConfigStore,
     secrets: runtimeSecrets,
-    host: roomHost,
+    hosts: { playground: roomHost },
     conversation: (target) => resolveConversation(openedStore, target),
     bot: { id: 1n, displayName: 'Playground Bot', username: null },
     systemResources: runtimeResources,

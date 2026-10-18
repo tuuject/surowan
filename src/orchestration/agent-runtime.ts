@@ -35,7 +35,7 @@ import {
   type RawConfig,
 } from '../platform/config.ts';
 import { hostExecutionProfile } from '../platform/host-profile.ts';
-import type { ImConversationRef, ImHost } from '../platform/im-host.ts';
+import type { HostKind, ImConversationRef, ImHost } from '../platform/im-host.ts';
 import {
   type CapabilityRefResolver,
   type InvocationContext,
@@ -93,8 +93,13 @@ export interface AgentRuntimeOptions {
   readonly store: BusinessStore;
   readonly configStore: RuntimeConfigurationStore;
   readonly secrets: SecretStore;
-  /** The host that carries every delivery and chat action for this runtime. */
-  readonly host: ImHost;
+  /**
+   * The hosts this runtime may carry deliveries and chat actions for, by host
+   * kind. A single-host process passes one entry; a shared process passes every
+   * host it assembled. An invocation whose host is missing fails with a clear
+   * error instead of delivering through the wrong transport.
+   */
+  readonly hosts: Readonly<Partial<Record<HostKind, ImHost>>>;
   /**
    * Resolves the conversation a delivery targets, from server state. The runtime
    * never builds a chat route itself.
@@ -188,7 +193,7 @@ export class AgentRuntime {
   readonly #store: BusinessStore;
   readonly #configStore: RuntimeConfigurationStore;
   readonly #secrets: SecretStore;
-  readonly #host: ImHost;
+  readonly #hosts: Readonly<Partial<Record<HostKind, ImHost>>>;
   readonly #conversation: AgentRuntimeOptions['conversation'];
   readonly #bot: AgentRuntimeOptions['bot'];
   readonly #systemResources: SystemResources;
@@ -224,7 +229,7 @@ export class AgentRuntime {
     this.#store = options.store;
     this.#secrets = options.secrets;
     this.#configStore = options.configStore;
-    this.#host = options.host;
+    this.#hosts = options.hosts;
     this.#conversation = options.conversation;
     this.#bot = options.bot;
     this.#systemResources = options.systemResources;
@@ -252,6 +257,15 @@ export class AgentRuntime {
     return this.#conversationRuntime;
   }
 
+  /** The host bound to one kind of conversation, or a clear failure. */
+  #hostFor(kind: HostKind): ImHost {
+    const host = this.#hosts[kind];
+    if (host === undefined) {
+      throw new Error(`no "${kind}" host is bound to this process`);
+    }
+    return host;
+  }
+
   /**
    * Checks the per-invocation tool registry against a model's context window.
    * The model is passed in because the caller resolves it: `/model` switches and
@@ -262,7 +276,7 @@ export class AgentRuntime {
     const config = this.#configStore.current().config;
     const { send, sendReply } = createSendTools({
       store: this.#store,
-      host: this.#host,
+      host: this.#hostFor(context.hostKind),
       conversation: this.#conversation(context),
       context,
       capabilities: this.#staticCapabilities,
@@ -299,8 +313,11 @@ export class AgentRuntime {
     const capabilities = [
       capability(
         createTyping(
-          this.#host.activity,
-          { conversation: this.#conversation(context), policy: this.#host.policy(this.#conversation(context)) },
+          this.#hostFor(context.hostKind).activity,
+          {
+            conversation: this.#conversation(context),
+            policy: this.#hostFor(context.hostKind).policy(this.#conversation(context)),
+          },
           new AbortController().signal,
         ).tool,
         false,
@@ -344,7 +361,7 @@ export class AgentRuntime {
   ): readonly AgentTool[] {
     const { send, sendReply } = createSendTools({
       store: this.#store,
-      host: this.#host,
+      host: this.#hostFor(target.hostKind),
       conversation: this.#conversation(target),
       context: target,
       capabilities,
@@ -569,8 +586,8 @@ export class AgentRuntime {
       conversationId: identity.conversationId,
     });
     const typing = createTyping(
-      this.#host.activity,
-      { conversation: typingConversation, policy: this.#host.policy(typingConversation) },
+      this.#hostFor(identity.hostKind).activity,
+      { conversation: typingConversation, policy: this.#hostFor(identity.hostKind).policy(typingConversation) },
       signal,
     );
     const executableCapabilities = [
@@ -768,7 +785,7 @@ export class AgentRuntime {
      */
     const freeAgent = (): void => {
       typing.stop();
-      this.#host.activity.stop(this.#conversation(identity));
+      this.#hostFor(identity.hostKind).activity.stop(this.#conversation(identity));
       runtime.endRound(conversationId);
       state.barrierSpent = false;
       this.#deferCollectingBucket(config, conversationId, Date.now());
@@ -1135,7 +1152,7 @@ export class AgentRuntime {
       }
     } finally {
       typing.stop();
-      this.#host.activity.stop(this.#conversation(identity));
+      this.#hostFor(identity.hostKind).activity.stop(this.#conversation(identity));
       signal.removeEventListener('abort', abortAgent);
       unsubscribe();
       // The cached agent keeps its transcript on purpose: the next invocation

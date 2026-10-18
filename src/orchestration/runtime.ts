@@ -1,3 +1,4 @@
+import type { HostKind } from '../platform/im-host.ts';
 import { LongTaskService } from '../store/long-tasks.ts';
 import { AgentRuntime, type AgentRuntimeOptions } from './agent-runtime.ts';
 import { ConversationRuntime } from './conversation-runtime.ts';
@@ -18,6 +19,10 @@ export function createCoreRuntime(options: CoreRuntimeOptions) {
   });
   let scheduler: BucketScheduler | undefined;
   const tasks = options.tasks ?? new LongTaskService(options.store.orm, () => scheduler?.wake());
+  // The scheduler's scope is the set of hosts this runtime is bound to: it must
+  // never launch, recover or wait on work of a host the process does not carry.
+  // A scope covering every bound host is the same as no scope.
+  const hosts = Object.keys(options.hosts) as HostKind[];
   // `tasks` belongs to the scheduler; AgentRuntime has no such option.
   const { tasks: _tasks, ...agentOptions } = options;
   const runtime = new AgentRuntime({ ...agentOptions, conversationRuntime });
@@ -28,6 +33,7 @@ export function createCoreRuntime(options: CoreRuntimeOptions) {
     conversationRuntime,
     tasks,
     { bot: options.bot },
+    hosts,
   );
   return { runtime, scheduler, conversationRuntime, tasks };
 }

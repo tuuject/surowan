@@ -192,13 +192,15 @@ async function runDoctorChecks(
       store,
       configStore,
       secrets,
-      host: createTelegramHost({
-        transport: grammyTelegramTransport(bot.api),
-        sendRate: () => ({
-          sendsPerWindow: requiredConfig.agent.rate_limits.sends_per_window,
-          windowSeconds: requiredConfig.agent.rate_limits.window_seconds,
+      hosts: {
+        telegram: createTelegramHost({
+          transport: grammyTelegramTransport(bot.api),
+          sendRate: () => ({
+            sendsPerWindow: requiredConfig.agent.rate_limits.sends_per_window,
+            windowSeconds: requiredConfig.agent.rate_limits.window_seconds,
+          }),
         }),
-      }),
+      },
       conversation: (target) => resolveConversation(store, target),
       bot: {
         id: BigInt(me.id),

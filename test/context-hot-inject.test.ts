@@ -123,7 +123,7 @@ async function fixture(transform?: (config: FileConfig) => void): Promise<Fixtur
       store,
       configStore: runtimeConfigStore,
       secrets: new SecretStore(),
-      host,
+      hosts: { telegram: host },
       conversation,
 
       bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },

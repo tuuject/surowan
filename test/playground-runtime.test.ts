@@ -56,11 +56,13 @@ async function released() {
     store,
     configStore,
     secrets: new SecretStore(),
-    host: createPlaygroundHost({
-      store,
-      self: { displayName: 'Plastic Wan' },
-      sendRate: () => ({ sendsPerWindow: 20, windowSeconds: 60 }),
-    }),
+    hosts: {
+      playground: createPlaygroundHost({
+        store,
+        self: { displayName: 'Plastic Wan' },
+        sendRate: () => ({ sendsPerWindow: 20, windowSeconds: 60 }),
+      }),
+    },
     conversation: (target) => identityConversation(target, 'playground', 'group'),
     bot: { id: 999n, displayName: 'Plastic Wan', username: null },
     systemResources: emptySystemResources(),

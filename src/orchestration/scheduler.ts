@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, sql, type SQL } from 'drizzle-orm';
 import type { HostKind } from '../platform/im-host.ts';
 import { resolveBucketWindowSeconds } from '../platform/invocation-policy.ts';
 import { PlaygroundStore } from '../store/playground.ts';
@@ -53,6 +53,7 @@ export class BucketScheduler {
   readonly #configStore: RuntimeConfigurationStore;
   readonly #queue: InvocationQueueService;
   readonly #tasks: LongTaskService;
+  readonly #hosts: readonly HostKind[] | undefined;
   readonly #handler: InvocationHandler;
   readonly #active = new Map<string, ActiveInvocation>();
   #running = false;
@@ -67,12 +68,32 @@ export class BucketScheduler {
     attachment?: BucketAttachmentTarget,
     tasks = new LongTaskService(store.orm),
     proactive?: ProactiveReplyGateOptions,
+    /** Hosts this scheduler serves; undefined means every host of the database. */
+    hosts?: readonly HostKind[],
   ) {
     this.#store = store;
     this.#configStore = configStore;
     this.#tasks = tasks;
-    this.#queue = new InvocationQueueService(store, configStore, attachment, tasks, proactive);
+    this.#hosts = hosts === undefined || hosts.length === 0 ? undefined : hosts;
+    this.#queue = new InvocationQueueService(store, configStore, attachment, tasks, proactive, this.#hosts);
     this.#handler = handler;
+  }
+
+  /**
+   * `conversation_id`/`bucket_id` rows of this scheduler's hosts; always true
+   * when unscoped. A single-host process must not launch, recover or wait on
+   * another host's work.
+   */
+  #servedConversations(column: SQL): SQL {
+    const hosts = this.#hosts;
+    if (hosts === undefined) {
+      return sql`1 = 1`;
+    }
+    return sql`${column} IN (SELECT v.id FROM conversations v JOIN chats c ON c.id = v.chat_id
+      WHERE c.host_kind IN (${sql.join(
+        hosts.map((host) => sql`${host}`),
+        sql`, `,
+      )}))`;
   }
 
   start(now = new Date()): void {
@@ -221,6 +242,7 @@ export class BucketScheduler {
         sql`SELECT b.deadline_at FROM buckets b
          JOIN conversations v ON v.id = b.conversation_id
          WHERE b.state = 'collecting'
+           AND ${this.#servedConversations(sql`b.conversation_id`)}
            AND NOT EXISTS (
              SELECT 1 FROM invocations i
              JOIN conversations v2 ON v2.id = i.conversation_id
@@ -247,6 +269,7 @@ export class BucketScheduler {
          JOIN conversations v ON v.id = t.conversation_id
          JOIN chats c ON c.id = v.chat_id
          WHERE r.state = 'pending'
+           AND ${this.#servedConversations(sql`t.conversation_id`)}
            AND (c.host_kind = 'playground' OR ${sleepUntil} IS NULL OR json_extract(t.delivery_json, '$.bypassDailyBudget') = 1)
            AND NOT EXISTS (
              SELECT 1 FROM invocations i JOIN conversations v2 ON v2.id = i.conversation_id
@@ -271,6 +294,7 @@ export class BucketScheduler {
          JOIN buckets b ON b.id = i.bucket_id
          JOIN conversations v ON v.id = i.conversation_id
          WHERE i.state = 'queued'
+           AND ${this.#servedConversations(sql`i.conversation_id`)}
            AND NOT EXISTS (
              SELECT 1 FROM invocations r JOIN conversations v2 ON v2.id = r.conversation_id
              WHERE v2.chat_id = v.chat_id AND r.state = 'running'
@@ -310,6 +334,7 @@ export class BucketScheduler {
              JOIN conversations v ON v.id = i.conversation_id
              LEFT JOIN task_receipts r ON r.invocation_id = i.id AND r.state = 'claimed'
              WHERE i.state = 'queued' AND b.deadline_at <= ${new Date().toISOString()}
+               AND ${this.#servedConversations(sql`i.conversation_id`)}
                AND NOT EXISTS (
                  SELECT 1 FROM invocations r
                  JOIN conversations v2 ON v2.id = r.conversation_id

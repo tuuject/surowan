@@ -7,10 +7,7 @@ interface InvocationPayload {
 }
 
 /** Polls one room's invocation list until the newest run reaches a terminal state. */
-async function waitForRun(
-  request: APIRequestContext,
-  roomId: string,
-): Promise<InvocationPayload> {
+async function waitForRun(request: APIRequestContext, roomId: string): Promise<InvocationPayload> {
   const deadline = Date.now() + 15_000;
   for (;;) {
     const listed = (await (

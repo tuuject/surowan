@@ -227,7 +227,7 @@ async function playgroundImageFixture(options: FixtureOptions = {}) {
     store,
     configStore,
     secrets: new SecretStore(),
-    host,
+    hosts: { playground: host },
     conversation: (target) => resolveConversation(store, target),
     bot: { id: 999n, displayName: 'Plastic Wan', username: null },
     systemResources: resources,

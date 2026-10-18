@@ -1,6 +1,7 @@
-import { and, eq, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lt, ne, sql, type SQL } from 'drizzle-orm';
 import { AGENT_PROMPT_VERSION } from '../platform/agent-protocol.ts';
 import { completeAgentSettings, type RawConfig, resolveAgentSettings } from '../platform/config.ts';
+import type { HostKind } from '../platform/im-host.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import type { BusinessStore } from '../store/store.ts';
 import { asRunResult, isChatPaused, resolveChatConfig } from '../store/store.ts';
@@ -114,6 +115,13 @@ export class InvocationQueueService {
   readonly #attachment: BucketAttachmentTarget | undefined;
   readonly #tasks: LongTaskService;
   readonly #proactive: ProactiveReplyGate | undefined;
+  /**
+   * Conversations this process serves, as a subquery. Undefined means every
+   * host (a shared process); a single-host process passes its own set so
+   * recovery, due batches and receipts never read or write another host's
+   * work - the Telegram half of a mixed database is then untouched.
+   */
+  readonly #scope: SQL | undefined;
 
   constructor(
     store: BusinessStore,
@@ -121,6 +129,7 @@ export class InvocationQueueService {
     attachment?: BucketAttachmentTarget,
     tasks = new LongTaskService(store.orm),
     proactive?: ProactiveReplyGateOptions,
+    hosts?: readonly HostKind[],
   ) {
     this.#store = store;
     this.#configStore = configStore;
@@ -128,6 +137,20 @@ export class InvocationQueueService {
     this.#attachment = attachment;
     this.#tasks = tasks;
     this.#proactive = proactive === undefined ? undefined : new ProactiveReplyGate(store.orm, configStore, proactive);
+    this.#scope =
+      hosts === undefined || hosts.length === 0
+        ? undefined
+        : sql`SELECT v.id FROM conversations v JOIN chats c ON c.id = v.chat_id
+              WHERE c.host_kind IN (${sql.join(
+                hosts.map((host) => sql`${host}`),
+                sql`, `,
+              )})`;
+  }
+
+  /** `conversation_id`/`bucket_id` rows of this process's hosts; always true when unscoped. */
+  #servedConversations(column: SQL): SQL {
+    const scope = this.#scope;
+    return scope === undefined ? sql`1 = 1` : sql`${column} IN (${scope})`;
   }
 
   recover(now = new Date()): void {
@@ -135,23 +158,27 @@ export class InvocationQueueService {
       const nowIso = now.toISOString();
       const staleBefore = new Date(now.getTime() - RECOVERY_MAX_AGE_MS).toISOString();
       this.#store.orm.run(
-        sql`UPDATE invocations SET state = CASE WHEN side_effect_started = 1 THEN 'outcome_unknown' ELSE 'aborted' END, completion_reason = 'process_restart', finished_at = ${nowIso} WHERE state = 'running'`,
+        sql`UPDATE invocations SET state = CASE WHEN side_effect_started = 1 THEN 'outcome_unknown' ELSE 'aborted' END, completion_reason = 'process_restart', finished_at = ${nowIso}
+            WHERE state = 'running' AND ${this.#servedConversations(sql`conversation_id`)}`,
       );
       // Every attached bucket — the opening one included — decides its state
       // from the invocation it was attached to, not from `invocations.bucket_id`.
       this.#store.orm.run(
         sql`UPDATE buckets SET state = CASE WHEN EXISTS (SELECT 1 FROM invocation_buckets ib JOIN invocations i ON i.id = ib.invocation_id WHERE ib.bucket_id = buckets.id AND i.state = 'outcome_unknown') THEN 'outcome_unknown' ELSE 'aborted' END, error_code = 'process_restart', finished_at = ${nowIso}, updated_at = ${nowIso}
-           WHERE state = 'running' AND EXISTS (SELECT 1 FROM invocation_buckets ib WHERE ib.bucket_id = buckets.id)`,
+           WHERE state = 'running' AND ${this.#servedConversations(sql`conversation_id`)}
+             AND EXISTS (SELECT 1 FROM invocation_buckets ib WHERE ib.bucket_id = buckets.id)`,
       );
       this.#store.orm.run(
-        sql`UPDATE buckets SET state = CASE WHEN EXISTS (SELECT 1 FROM invocations i WHERE i.bucket_id = buckets.id AND i.state = 'outcome_unknown') THEN 'outcome_unknown' ELSE 'aborted' END, error_code = 'process_restart', finished_at = ${nowIso}, updated_at = ${nowIso} WHERE state = 'running'`,
+        sql`UPDATE buckets SET state = CASE WHEN EXISTS (SELECT 1 FROM invocations i WHERE i.bucket_id = buckets.id AND i.state = 'outcome_unknown') THEN 'outcome_unknown' ELSE 'aborted' END, error_code = 'process_restart', finished_at = ${nowIso}, updated_at = ${nowIso}
+            WHERE state = 'running' AND ${this.#servedConversations(sql`conversation_id`)}`,
       );
       // A claim is never replayed: the send outcome can be unknown even when
       // the invocation link is missing or already terminal. Close queued work
       // before ordinary age-based recovery can overwrite its restart reason.
       this.#store.orm.run(
         sql`UPDATE buckets SET state = 'aborted', error_code = 'process_restart', finished_at = ${nowIso}, updated_at = ${nowIso}
-           WHERE id IN (
+           WHERE ${this.#servedConversations(sql`conversation_id`)}
+             AND id IN (
              SELECT i.bucket_id FROM invocations i JOIN task_receipts r ON r.invocation_id = i.id
              WHERE r.state = 'claimed' AND i.state = 'queued'
              UNION
@@ -161,7 +188,8 @@ export class InvocationQueueService {
       );
       this.#store.orm.run(
         sql`UPDATE invocations SET state = 'aborted', completion_reason = 'process_restart', finished_at = ${nowIso}
-           WHERE state = 'queued' AND id IN (SELECT invocation_id FROM task_receipts WHERE state = 'claimed')`,
+           WHERE state = 'queued' AND ${this.#servedConversations(sql`conversation_id`)}
+             AND id IN (SELECT invocation_id FROM task_receipts WHERE state = 'claimed')`,
       );
       this.#store.orm
         .update(taskReceipts)
@@ -172,7 +200,12 @@ export class InvocationQueueService {
           invocationOutcome: 'outcome_unknown',
           completionReason: 'outcome_unknown',
         })
-        .where(eq(taskReceipts.state, 'claimed'))
+        .where(
+          and(
+            eq(taskReceipts.state, 'claimed'),
+            sql`${taskReceipts.taskId} IN (SELECT t.id FROM long_tasks t WHERE ${this.#servedConversations(sql`t.conversation_id`)})`,
+          ),
+        )
         .run();
       const expiring = this.#store.orm
         .select({ id: buckets.id, hostKind: chats.hostKind })
@@ -383,6 +416,7 @@ export class InvocationQueueService {
          FROM buckets b
          JOIN conversations v ON v.id = b.conversation_id
          WHERE b.state = 'collecting' AND b.deadline_at <= ${now.toISOString()}
+           AND ${this.#servedConversations(sql`b.conversation_id`)}
            AND NOT EXISTS (SELECT 1 FROM chat_pause p WHERE p.chat_id = v.chat_id)
            AND NOT EXISTS (
              SELECT 1 FROM invocations i
@@ -616,7 +650,7 @@ export class InvocationQueueService {
          FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id
          JOIN conversations v ON v.id = t.conversation_id
          JOIN chats c ON c.id = v.chat_id
-         WHERE r.state = 'pending'
+         WHERE r.state = 'pending' AND ${this.#servedConversations(sql`t.conversation_id`)}
          ORDER BY r.created_at, r.task_id`,
       );
       const invocationIds: bigint[] = [];
