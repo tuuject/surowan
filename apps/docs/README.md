@@ -33,9 +33,15 @@ Markdown、`llms.txt`、`llms-full.txt` 只有生产构建能完整验证，不�
 
 ## 静态部署
 
-`.github/workflows/docs.yml` 验证根路径与 `/surowan/`，仅上传静态检查 artifact；仅在 `main` 上构建 Bot 镜像验证站点依赖隔离。**没有公开发布 job，也不计划添加**，不绑定域名。检查 artifact 中的 `docs.example.com` 是测试域名，不能直接当生产部署。
+`.github/workflows/docs.yml` 验证根路径与 `/surowan/`，仅上传静态检查 artifact；仅在 `main` 上构建 Bot 镜像验证站点依赖隔离，不负责发布。检查 artifact 中的 `docs.example.com` 是测试域名，不能直接当生产部署。
 
-选择实际托管平台后，用干净、已提交的 checkout 显式设置：
+生产站点 `https://surowan.com` 由 Cloudflare Workers Builds 发布：连接本仓库的 `develop` 分支，根目录 `/`，Worker 为纯静态资源（无脚本），配置见 [`wrangler.jsonc`](wrangler.jsonc)。缺失路径走 `404-page`（最近的 `404.html` + 404 状态），不使用 SPA fallback；`.html` 深链按默认 `auto-trailing-slash` 重定向到无扩展名路径。Dashboard 中的构建设置：
+
+- Build command：`pnpm run docs:build`
+- Deploy command：`npx wrangler deploy --config apps/docs/wrangler.jsonc`（仓库根是 pnpm workspace，不指定配置时 Wrangler 拒绝在根目录自动探测）
+- Build variables：`DOCS_SITE_ORIGIN=https://surowan.com`、`DOCS_BASE_PATH=/`
+
+其他托管平台用干净、已提交的 checkout 显式设置：
 
 ```bash
 DOCS_SITE_ORIGIN=https://your-docs-host.example DOCS_BASE_PATH=/ pnpm run docs:build

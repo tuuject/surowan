@@ -1,0 +1,13 @@
+{
+  "$schema": "https://unpkg.com/wrangler@4.151.1/config-schema.json",
+  "name": "surowan",
+  "compatibility_date": "2026-10-18",
+  // Static-only Worker: no script, Rspress SSG output is served as-is.
+  "assets": {
+    "directory": "./dist",
+    // Missing pages (including .md) must 404; never fall back to index.html.
+    "not_found_handling": "404-page"
+  },
+  "routes": [{ "pattern": "surowan.com", "custom_domain": true }],
+  "workers_dev": false
+}
