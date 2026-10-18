@@ -9,11 +9,13 @@ import { TelegramMediaClient } from '../../capabilities/media/media-download.ts'
 import { StickerService } from '../../capabilities/stickers.ts';
 import { createTelegramHost, grammyTelegramTransport, type TelegramHost } from './telegram-host.ts';
 import { MemoryStore } from '../../context/memory.ts';
+import { PlaygroundStore } from '../../store/playground.ts';
 import { createImageBridge, type ImageBridge } from '../../image/bridge.ts';
 import { generationEligibilityForHosts } from '../../image/host-eligibility.ts';
 import { createImageService, type ImageService } from '../../image/service.ts';
 import { AdminQueryError } from '../../ingress/admin/audit.ts';
 import { AdminServer } from '../../ingress/admin/server.ts';
+import { PlaygroundIngress } from '../../ingress/playground.ts';
 import { TelegramIngestion } from '../../ingress/telegram-ingestion.ts';
 import { createCoreRuntime } from '../../orchestration/runtime.ts';
 import {
@@ -216,6 +218,13 @@ export async function serve(configPath: string, takeover = false): Promise<void>
     mcp = mcpManager;
     const memoryStore = new MemoryStore(store.orm);
     const tasks = new LongTaskService(store.orm, () => scheduler?.wake());
+    // The room write path: an admitted input is held, a Release seals it into a
+    // queued invocation through the same ledger Telegram uses.
+    const playgroundStore = new PlaygroundStore(store.orm);
+    const playgroundIngress = new PlaygroundIngress(store.orm, {
+      assets: playgroundAssets,
+      onQueued: () => scheduler?.wake(),
+    });
     const bridge = createImageBridge({
       service: imageService,
       store: openedStore,
@@ -385,6 +394,12 @@ export async function serve(configPath: string, takeover = false): Promise<void>
         requestRestart,
         imageService,
         imageBridge,
+        playground: {
+          store: openedStore,
+          rooms: playgroundStore,
+          ingress: playgroundIngress,
+          assets: playgroundAssets,
+        },
         mediaDownloader: mediaClient,
         shutdownSignal: replayShutdown.signal,
         replayPreflight: (id, selection) => {

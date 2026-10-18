@@ -90,6 +90,7 @@ import {
 import { clearModelPayloads, parseDeveloperSettings } from './developer-admin.ts';
 import { harnessEdits, harnessView, parseHarnessBody } from './harness-admin.ts';
 import { createImageAdminHandler, type ImageAdminResponse, reusableImageCredentials } from './image-admin.ts';
+import { createPlaygroundAdminHandler, type PlaygroundAdminDeps } from './playground-admin.ts';
 import { createInvocationMediaReader, listInvocationMedia } from './invocation-media.ts';
 import {
   createMemory,
@@ -223,6 +224,8 @@ export interface AdminServerOptions {
   readonly imageService?: ImageService;
   /** The image bridge; absent without image generation. */
   readonly imageBridge?: ImageBridge;
+  /** Playground rooms: store, write ingress and local picture store. */
+  readonly playground?: PlaygroundAdminDeps;
   /** Starts the graceful shutdown that exits with the restart code. */
   readonly requestRestart?: () => void;
   /** Replays one audit invocation; absent when the agent runtime is not wired. */
@@ -264,6 +267,7 @@ export class AdminServer {
   readonly #tasks: LongTaskService;
   readonly #image: ReturnType<typeof createImageAdminHandler> | undefined;
   readonly #imageBridge: ImageBridge | undefined;
+  readonly #playground: ReturnType<typeof createPlaygroundAdminHandler> | undefined;
   readonly #modelSwitcher: AgentModelSwitcher | undefined;
   readonly #configReloader: ConfigController | undefined;
   readonly #secrets: SecretStore | undefined;
@@ -303,6 +307,7 @@ export class AdminServer {
             bridge: options.imageBridge,
           });
     this.#imageBridge = options.imageBridge;
+    this.#playground = options.playground === undefined ? undefined : createPlaygroundAdminHandler(options.playground);
     this.#modelSwitcher = options.modelSwitcher;
     this.#configReloader = options.configReloader;
     this.#secrets = options.secrets;
@@ -675,6 +680,26 @@ export class AdminServer {
       if (handled !== undefined) {
         return handled;
       }
+    }
+    if (segments[0] === 'playground') {
+      const handler = this.#playground;
+      if (handler === undefined) {
+        return json({ error: 'playground_unavailable', message: 'Playground rooms are not wired' }, 503);
+      }
+      const response = await handler(
+        request,
+        segments.slice(1),
+        url,
+        { username: session.username, wake: () => this.#scheduler?.wake() },
+        (maxBytes) => readJsonObject(request, maxBytes ?? MAX_BODY_BYTES),
+      );
+      if (response.kind === 'content') {
+        return new Response(new Uint8Array(response.bytes), {
+          status: response.status,
+          headers: { 'content-type': response.mime, 'cache-control': 'private, no-store' },
+        });
+      }
+      return json(response.body, response.status);
     }
     if (segments[0] === 'image') {
       if (route === 'image/config' && request.method === 'GET') {

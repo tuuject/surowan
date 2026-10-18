@@ -26,7 +26,7 @@ import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
 import { createOpenRouterAdapter } from '@plasticwan/image-service';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import sharp from 'sharp';
 import { afterEach, describe, expect, test } from 'vitest';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
@@ -349,12 +349,13 @@ function receiptRows(f: Fixture) {
   return f.store.orm.select().from(taskReceipts).all();
 }
 
+/** Messages the bot published into the room (the inputs are not output). */
 function roomMessages(f: Fixture) {
   return f.store.orm
     .select()
     .from(messages)
     .innerJoin(messageRevisions, eq(messageRevisions.id, messages.currentRevisionId))
-    .where(eq(messages.chatId, f.room.chatId))
+    .where(and(eq(messages.chatId, f.room.chatId), eq(messages.sentByBot, true)))
     .all();
 }
 

@@ -199,19 +199,11 @@ describe('playground ingestion', () => {
       senderId: room.members[0]!.senderId,
       text: 'hello',
     });
-    const message = store.orm
-      .select()
-      .from(messages)
-      .where(eq(messages.chatId, room.chatId))
-      .get();
+    const message = store.orm.select().from(messages).where(eq(messages.chatId, room.chatId)).get();
     if (message === undefined) {
       throw new Error('the input was not admitted');
     }
-    const revision = store.orm
-      .select()
-      .from(messageRevisions)
-      .where(eq(messageRevisions.messageId, message.id))
-      .get();
+    const revision = store.orm.select().from(messageRevisions).where(eq(messageRevisions.messageId, message.id)).get();
     // Every reader joins the current revision, so an admitted message without
     // the pointer would be invisible to the timeline and to any audit view.
     expect(message.currentRevisionId).toBe(revision?.id);

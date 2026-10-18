@@ -139,6 +139,7 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 | `POST /dictionary/import/preview` / `POST /dictionary/import` | 批量导入两段式：preview 只解析并报告规范化 draft 与冲突（不写库），import 在**一个事务**里批量创建新词条，不按名称覆盖。`scope`/`chat_id` 来自请求而非文件内容 |
 | `POST /dictionary/merge/preview` / `POST /dictionary/merge` | 融合两段式：preview 调 Tool Model 生成建议（不写库，Tool Model 不可用返回 502 `tool_model_unavailable`）；merge 在一个事务里创建合并词条并按 `delete_sources` 删除来源，每个来源的 `revision` 必须仍匹配，否则整体回滚并返回 409 `dictionary_conflict` |
 | `PUT /tool-model` | 设置系统级辅助模型 `tool_model`（辞典融合等）。body 是 `{ provider, model, thinking_level }` 或 `{ inherit: true }`（删除该段，回到继承全局 Agent 设置）。写入前用注册表校验模型存在、支持 text 且接受该 thinking 级别；`If-Match` 规则同其它配置写端点。模型调用失败或未配置不影响辞典的其它功能 |
+| `/playground/...` | Playground 虚拟房间的全部端点（建房、身份、消息、Hold/Release、重试、图片上传与读取、能力开关、房间审计）。**仅面板 Session**，程序化 API key 一律 403，不用 `If-Match` 而用房间自己的 `revision`/请求 key，见「Playground 页端点」 |
 
 列表过滤同样只在少数端点上有效：`/alarms` 按 `state`(`pending`/`firing`/`fired`/`cancelled`)/`chat`/`target`，`/memories` 按 `chat`/`state`(`active`/`expired`/`long_ttl`)，`/stickers` 按 `set`/`state`，`/contexts` 只按 `chat`。记忆列表项带 `expired` 与 `long_ttl` 布尔标记，`long_ttl` 表示剩余寿命超过 `agent.memory_ttl_warning_days`。Alarm 列表把 `pending` 按 `scheduled_at, id` 升序置顶，非 pending 历史按最近状态时间/id 倒序。
 
@@ -147,6 +148,30 @@ Invocation 列表与详情的统计按 `invocation_id` 查询 `model_calls` / `t
 `GET /api/invocations` 还接受公开消息搜索：`search`（1–100 字符的字面关键词，`%`/`_` 不作为通配符）与 `at` 或 `from`/`to`（`at` 不能与 `from`/`to` 同用）。候选只有冻结 `invocation_messages`（`section = 'new'`）的群友消息，以及同 Invocation 成功 `telegram_sends` 的 text/caption——私有的 Assistant 文本与工具结果不是候选，失败的发送也不计入；同用时关键词与时间必须命中同一条消息，Invocation 只有每一项条件都命中才会出现在列表里。`at` 命中写出的整个精度窗口（`YYYY-MM-DD[T 或空格]HH:mm[:ss[.1-3 位小数]][Z|±HH:mm]`；`HH:mm` 为整分钟、`HH:mm:ss` 为整秒、小数精确到毫秒），`from`/`to` 是半开区间 `[from, to)` 并要求 `from` 早于 `to`；不带 offset 的时间按 `chat` 指定 Chat 的配置时区解析，没有 `chat` 或该 Chat 未配置时区时用全局时区，主机时区永不参与。非法日历、DST 跳变造成的不存在或重复时间、未知时区、非法区间分别返回 400 `invalid_at` / `invalid_from` / `invalid_to` / `invalid_time_range`。带任一过滤时每个 item 追加 `matched_messages`（最多 5 条，按时间从新到旧；`source` 为 `incoming`/`bot`，`telegram_message_id`/`telegram_send_id` 为十进制字符串且仅 bot 条目有 send id，`text` 是截断到 2000 字符的预览），不带过滤时维持原响应形状。
 
 `GET /messages` 的 `sender` 和 `GET /messages/:id` 的各条 Revision `sender` 包含 `telegram_id`（十进制字符串）与 `telegram_type`（`user` / `sender_chat`），身份不存在时整个 `sender` 为 `null`。这些 ID 来自 `senders.telegram_id`，不能用内部 sender 主键、Telegram message ID 或 username 替代；不经过 `Number` 转换。不新增数据库迁移或写端点。
+
+## Playground 页端点
+
+Playground 是产品的虚拟群聊沙盒：房间对应一个 `host_kind = 'playground'` 的 `chats` 行与它自己的 Conversation，输入默认被 Hold 住，只有显式 Release 才会封成一个 queued Invocation 进入真实 Scheduler/AgentRuntime。这套端点是唯一的房间写入口（不再是「页面隐藏」），全部挂在 `/api/playground` 下：
+
+| 端点 | Body / 语义 |
+| --- | --- |
+| `GET /rooms` | 房间列表：`id`、`title`、`revision`、`hold`、`next_seq`、`image_enabled`（含操作者与时间）与 `member_count` / `held_count` / `queued_invocations` / `running_invocations` |
+| `POST /rooms` | `{ title, members?, request_key }` 建房；同一 key 重放返回原房间，同 key 不同内容 409 `input_conflict`。成员在同一个事务里建为房间身份（`room_participants` + `senders`），不创建任何 Telegram 身份 |
+| `GET /rooms/:id` | 房间状态（revision、hold、能力、pending、过期输入）加 `participants`、`held`、`staged_assets` 与 `releases` 摘要 |
+| `POST /rooms/:id/participants` | `{ name, role?, request_key }` 新建虚拟身份；同 key 重放返回原身份，key 只在房间范围内唯一（另一个房间的同名 key 是另一件事） |
+| `GET /rooms/:id/messages` | 时间线 keyset 分页：`before=<seq>` 往回翻，`limit` 1–200，返回 `items`、`has_more` 与状态摘要。每条消息带 `seq`（房间内稳定序号）、发送者、`input_state`（`held`/`released`/`expired`）或 `send_state`、Reply 目标与本地媒体（`asset_id` 指向房间图片内容端点） |
+| `POST /rooms/:id/messages` | `{ request_key, sender_id, text, reply_to_seq?, asset_ids? }` 提交一条输入；身份必须是本房间的非 Bot 成员，`asset_ids` 必须是本房间已上传的资产，最多四张图。同 key 同内容返回原接纳结果，同 key 不同内容 409 |
+| `PUT /rooms/:id/hold` | 只开启 Hold（`{ hold: false }` 返回 400 `release_required`：关闭 Hold 唯一路径是 Release）。开启会递增 `revision` |
+| `POST /rooms/:id/releases` | `{ request_key, revision, through_seq }` 原子 Release：校验 `revision` 与「本 revision 下最新输入序号」`through_seq`（不匹配 409 `release_conflict`），把全部 held 输入封成一个 Bucket + queued Invocation 并关闭 Hold；空 Release 只关 Hold、不产生模型调用。同 key 重放返回原 release |
+| `GET /rooms/:id/releases/:releaseId` | 原始接纳结果与各 attempt（状态、错误、用量、receipt 状态）、发送行 |
+| `POST /rooms/:id/releases/:releaseId/retry` | `{ attempt_key }` 保守重试：只在原 attempt 已终止、未注入、无模型请求、无工具/发送/长任务副作用且同房间没有更晚 Release 时创建一个新 attempt，否则 409 `retry_refused` |
+| `GET /rooms/:id/assets` | 尚未挂到消息的暂存上传（`state = 'staged'`）：`asset_id`、`mime`、`byte_size`、`sha256`、`created_at`。这些文件在超过一小时后的下一次 sweep 里被删除；一旦挂进消息就成为消息资产，按引用计数保留 |
+| `POST /rooms/:id/assets` | `{ content_base64, mime, name? }` 上传静态图片：按真实内容嗅探并完整解码，只接受 JPEG/PNG/WebP、≤10 MiB、≤40 MP、非动画；与已存在的同内容资产去重。拒绝返回 422 `upload_<reason>`，且不写行、不落文件 |
+| `GET /rooms/:id/assets/:assetId/content` | 带认证读取房间图片字节；跨房间的资产 ID 一律 404 |
+| `PUT /rooms/:id/capabilities` | `{ image_enabled, revision }` 房间付费生图开关（记录操作者与时间）；值未变化时是 no-op（重试不会因自己造成的 revision 失败），否则 revision 不匹配返回 409 `room_revision_mismatch` |
+| `GET /rooms/:id/invocations[/:invocationId]` | scoped 房间审计：状态、错误、用量（tokens/成本）、发送用量与 receipt 状态；`invocationId` 不属于该房间返回 404 |
+
+所有路由都要求面板 Session；带 `Authorization` 的请求不会落到 Session 路径，程序化 key 的权限面保持不变（Invocation 读/重放与只读 inspection）。`GET` 从不触发运行或生成；冒烟与故障注入由测试驱动（`holdForNewMessages` 等语义见 [telegram-agent-flow.md](telegram-agent-flow.md)）。路径与 body 里的 ID 必须是规范十进制（无符号、无前导零、不超 int64）：`007`、`-1`、`pmsg_5`、`0x5` 一律 400，嵌套 ID 必须是该房间自己的行，否则 404 且没有任何行变化。房间图片字节由 `apps/admin-next` 的页面直接引用内容端点，浏览器不接触任何本地路径。
 
 ## Chats 页端点
 

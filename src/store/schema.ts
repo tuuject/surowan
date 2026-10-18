@@ -991,6 +991,30 @@ export const rooms = sqliteTable('rooms', {
 });
 
 /**
+ * Admin-side creation idempotency: one row per accepted create request.
+ *
+ * `room_chat_id` is 0 for the room-creation key itself and the owning room for
+ * nested keys, so both the uniqueness scope and every lookup match the room a
+ * key belongs to - a key can never return another room's result.
+ */
+export const playgroundMutations = sqliteTable(
+  'playground_mutations',
+  {
+    id: sqliteBigIntId('id').primaryKey(),
+    kind: text('kind').notNull(),
+    roomChatId: sqliteBigInt('room_chat_id').notNull().default(0n),
+    requestKey: text('request_key').notNull(),
+    fingerprint: text('fingerprint').notNull(),
+    resultJson: text('result_json').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    check('playground_mutations_kind_check', sql`kind IN ('room', 'participant')`),
+    uniqueIndex('playground_mutations_key_idx').on(t.kind, t.roomChatId, t.requestKey),
+  ],
+);
+
+/**
  * Membership of a sender in a room. A playground identity only exists as a
  * participant of exactly the rooms it was admitted to, which is what makes an
  * identity table without a Telegram id meaningful.

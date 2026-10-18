@@ -1,4 +1,4 @@
-import { and, asc, eq, or, sql } from 'drizzle-orm';
+import { and, asc, eq, or, sql, type SQL } from 'drizzle-orm';
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
 import type {
@@ -271,10 +271,30 @@ export class LongTaskService {
   readonly #orm: Orm;
   readonly #wake: (() => void) | undefined;
   readonly #conversationHosts = new Map<string, HostKind>();
+  /**
+   * Hosts whose timer work this instance may complete. Undefined means every
+   * host (the shared process); a single-host process passes its own set so a
+   * due Telegram alarm is never fired by a scheduler that does not serve
+   * Telegram.
+   */
+  readonly #hosts: readonly HostKind[] | undefined;
 
-  constructor(orm: Orm, wake?: () => void) {
+  constructor(orm: Orm, wake?: () => void, hosts?: readonly HostKind[]) {
     this.#orm = orm;
     this.#wake = wake;
+    this.#hosts = hosts === undefined || hosts.length === 0 ? undefined : hosts;
+  }
+
+  /** The host filter for one query, or undefined when this instance serves all hosts. */
+  #hostScope(): SQL | undefined {
+    const hosts = this.#hosts;
+    if (hosts === undefined) {
+      return undefined;
+    }
+    return sql`c.host_kind IN (${sql.join(
+      hosts.map((host) => sql`${host}`),
+      sql`, `,
+    )})`;
   }
 
   /**
@@ -615,12 +635,22 @@ export class LongTaskService {
     const at = now.toISOString();
     const changed = this.#orm.transaction(
       () => {
-        const due = this.#orm
-          .select({ id: longTasks.id, timerResultJson: longTasks.timerResultJson })
-          .from(longTasks)
-          .where(and(eq(longTasks.state, 'waiting'), sql`${longTasks.scheduledAt} <= ${at}`))
-          .orderBy(asc(longTasks.scheduledAt), asc(longTasks.id))
-          .all();
+        const scope = this.#hostScope();
+        const due =
+          scope === undefined
+            ? this.#orm
+                .select({ id: longTasks.id, timerResultJson: longTasks.timerResultJson })
+                .from(longTasks)
+                .where(and(eq(longTasks.state, 'waiting'), sql`${longTasks.scheduledAt} <= ${at}`))
+                .orderBy(asc(longTasks.scheduledAt), asc(longTasks.id))
+                .all()
+            : this.#orm.all<{ id: bigint; timerResultJson: string | null }>(
+                sql`SELECT t.id, t.timer_result_json FROM long_tasks t
+                    JOIN conversations v ON v.id = t.conversation_id
+                    JOIN chats c ON c.id = v.chat_id
+                    WHERE t.state = 'waiting' AND t.scheduled_at <= ${at} AND ${scope}
+                    ORDER BY t.scheduled_at, t.id`,
+              );
         let count = 0;
         for (const task of due) {
           if (task.timerResultJson === null) {
@@ -657,13 +687,27 @@ export class LongTaskService {
   }
 
   nextDeadline(): string | undefined {
+    const scope = this.#hostScope();
+    if (scope === undefined) {
+      return (
+        this.#orm
+          .select({ scheduledAt: longTasks.scheduledAt })
+          .from(longTasks)
+          .where(and(eq(longTasks.state, 'waiting'), sql`${longTasks.scheduledAt} IS NOT NULL`))
+          .orderBy(asc(longTasks.scheduledAt), asc(longTasks.id))
+          .get()?.scheduledAt ?? undefined
+      );
+    }
     return (
       this.#orm
-        .select({ scheduledAt: longTasks.scheduledAt })
-        .from(longTasks)
-        .where(and(eq(longTasks.state, 'waiting'), sql`${longTasks.scheduledAt} IS NOT NULL`))
-        .orderBy(asc(longTasks.scheduledAt), asc(longTasks.id))
-        .get()?.scheduledAt ?? undefined
+        .all<{ scheduled_at: string | null }>(
+          sql`SELECT t.scheduled_at FROM long_tasks t
+              JOIN conversations v ON v.id = t.conversation_id
+              JOIN chats c ON c.id = v.chat_id
+              WHERE t.state = 'waiting' AND t.scheduled_at IS NOT NULL AND ${scope}
+              ORDER BY t.scheduled_at, t.id LIMIT 1`,
+        )
+        .at(0)?.scheduled_at ?? undefined
     );
   }
 

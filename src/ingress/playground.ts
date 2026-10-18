@@ -51,15 +51,20 @@ export class PlaygroundIngress {
       readonly text?: unknown;
       readonly replyToSeq?: unknown;
       readonly attachments?: unknown;
+      readonly assetIds?: unknown;
     },
   ): Promise<SubmitResult> {
     const requestKey = requireKey(body.requestKey, 'requestKey');
     const attachments = requireAttachments(body.attachments);
+    const assetIds = requireAssetIds(body.assetIds);
     const text = body.text;
     if (typeof text !== 'string') {
       throw new PlaygroundError('input_conflict', 'text must be a string');
     }
-    if (text.trim().length === 0 && attachments.length === 0) {
+    if (attachments.length + assetIds.length > 4) {
+      throw new PlaygroundError('input_conflict', 'at most four images are accepted');
+    }
+    if (text.trim().length === 0 && attachments.length === 0 && assetIds.length === 0) {
       throw new PlaygroundError('input_conflict', 'text must be a non-empty string');
     }
     if (text.length > 16_384) {
@@ -68,7 +73,7 @@ export class PlaygroundIngress {
     const senderId = requireDecimal(body.senderId, 'senderId');
     const replyToSeq =
       body.replyToSeq === null || body.replyToSeq === undefined ? null : requireDecimal(body.replyToSeq, 'replyToSeq');
-    const media = await this.#ingest(chatId, attachments);
+    const media = [...(await this.#ingest(chatId, attachments)), ...this.#referenceAssets(chatId, assetIds)];
     const result = this.#store.submit(chatId, { requestKey, senderId, text, replyToSeq, media });
     if (result.admitted) {
       this.#scheduleSweep();
@@ -76,10 +81,21 @@ export class PlaygroundIngress {
     return result;
   }
 
-  release(chatId: bigint, body: { readonly releaseKey?: unknown; readonly revision?: unknown }): ReleaseResult {
+  release(
+    chatId: bigint,
+    body: { readonly releaseKey?: unknown; readonly revision?: unknown; readonly throughSeq?: unknown },
+  ): ReleaseResult {
     const releaseKey = requireKey(body.releaseKey, 'releaseKey');
     const revision = requireDecimal(body.revision, 'revision');
-    const result = this.#store.release(chatId, { releaseKey, revision });
+    const throughSeq =
+      body.throughSeq === null || body.throughSeq === undefined
+        ? undefined
+        : requireDecimal(body.throughSeq, 'throughSeq');
+    const result = this.#store.release(chatId, {
+      releaseKey,
+      revision,
+      ...(throughSeq === undefined ? {} : { throughSeq }),
+    });
     if (!result.replayed && result.invocationId !== null) {
       this.#options.onQueued?.(chatId, result.invocationId);
     }
@@ -121,6 +137,35 @@ export class PlaygroundIngress {
     void assets.sweep().catch(() => {});
   }
 
+  /**
+   * Turns previously uploaded asset ids into submission media. The room owns
+   * the asset or the reference is refused: ids are never resolved across rooms,
+   * and the values come from the stored row, not from the caller.
+   */
+  #referenceAssets(chatId: bigint, assetIds: readonly string[]): SubmitMedia[] {
+    if (assetIds.length === 0) {
+      return [];
+    }
+    const assets = this.#options.assets;
+    if (assets === undefined) {
+      throw new PlaygroundError('input_conflict', 'this room cannot accept images');
+    }
+    return assetIds.map((assetId) => {
+      const asset = assets.assetFor(chatId, assetId);
+      if (asset === null) {
+        throw new PlaygroundError('unknown_asset', `asset ${assetId} does not belong to room ${chatId}`);
+      }
+      return {
+        assetId: asset.id,
+        sha256: asset.sha256,
+        mime: asset.mime,
+        byteSize: asset.byteSize,
+        width: asset.width,
+        height: asset.height,
+      };
+    });
+  }
+
   async #ingest(chatId: bigint, attachments: readonly LocalAssetInput[]): Promise<SubmitMedia[]> {
     if (attachments.length === 0) {
       return [];
@@ -150,6 +195,16 @@ export class PlaygroundIngress {
     }
     return media;
   }
+}
+
+function requireAssetIds(value: unknown): string[] {
+  if (value === null || value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value) || value.length > 4 || value.some((item) => typeof item !== 'string')) {
+    throw new PlaygroundError('input_conflict', 'assetIds must be at most four asset id strings');
+  }
+  return value as string[];
 }
 
 function requireAttachments(value: unknown): LocalAssetInput[] {

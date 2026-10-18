@@ -214,6 +214,35 @@ export class PlaygroundAssetStore {
       .run();
   }
 
+  /**
+   * One stored asset of one room, staged or attached. A caller that names an
+   * asset id gets the room's own row or nothing: ids are never resolved across
+   * rooms, and the returned values are the stored ones, not the caller's.
+   */
+  assetFor(chatId: bigint, assetId: string): LocalAsset | null {
+    if (!ASSET_ID_PATTERN.test(assetId)) {
+      return null;
+    }
+    const row = this.#orm
+      .select()
+      .from(playgroundAssets)
+      .where(and(eq(playgroundAssets.id, assetId), eq(playgroundAssets.chatId, chatId)))
+      .get();
+    if (row === undefined || !isLocalImageMime(row.mime)) {
+      return null;
+    }
+    return {
+      id: row.id,
+      chatId: row.chatId,
+      sha256: row.sha256,
+      mime: row.mime,
+      byteSize: Number(row.byteSize),
+      width: Number(row.width),
+      height: Number(row.height),
+      path: this.#absolute(row.storagePath),
+    };
+  }
+
   /** Resolve an asset id to its stored file. Unknown ids resolve to null. */
   resolve(assetId: string): { path: string; mime: LocalImageMime; width: number; height: number } | null {
     if (!ASSET_ID_PATTERN.test(assetId)) {

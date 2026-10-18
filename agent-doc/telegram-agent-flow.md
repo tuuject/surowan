@@ -289,7 +289,7 @@ System Skills 是随 runtime 发布的只读文档包，位于 `src/system-resou
 
 `LongTaskService` 保存脱离创建 Invocation 继续存活的通用任务。插件只能取得绑定自身 plugin 与当前 Conversation 的 scope：创建时由可信插件冻结 payload 与 delivery policy；以后可用同一绑定 scope 的 completion handle `complete`/`fail`，不依赖创建 Invocation 或其 `AbortSignal`。没有通用后台 worker、executor、running/progress 或 retry。
 
-1. 任务先处于 `waiting`。有 timer 的任务由唯一 Scheduler 到期完成；无 timer 的任务等待插件的外部 completion handle。完成、失败或取消在同一事务写入唯一 receipt，任务状态与投递状态分别是真相。
+1. 任务先处于 `waiting`。有 timer 的任务由唯一 Scheduler 到期完成；无 timer 的任务等待插件的外部 completion handle。完成、失败或取消在同一事务写入唯一 receipt，任务状态与投递状态分别是真相。`LongTaskService` 允许带一个宿主集合构造：带上集合的实例只把该集合内 Conversation 的到期 timer 视为到期（`processDue` / `nextDeadline` 同一条件），不带则照旧处理全部宿主——组合根按进程实际服务的宿主传入，单宿主进程因此不会替别的宿主触发定时任务。
 2. Scheduler 先处理到期 timer，再按创建时间/ID 选择 pending receipt。目的地 allowlist、Topic 与 pause 仍在投递前检查；每次 claim 都创建一个独立的空 Bucket，不伪造 Telegram Update/Message/Revision。
    - 如果同一 Conversation 已有 running Invocation 且仍接受注入，receipt 的 Bucket 会 attach 到该 Invocation，不另开 Invocation；同一 Invocation 可以拥有多个 receipt。
    - 如果同 Chat 没有运行中的 Invocation，则创建 queued receipt Invocation，启动时优先于普通 Bucket，但仍受 Chat 串行与全局并发。
