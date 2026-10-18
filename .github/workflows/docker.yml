@@ -48,14 +48,16 @@ jobs:
       - name: Admin panel E2E
         run: pnpm run admin:test:e2e
 
-  # Other branches only verify; images are built for main and release tags.
+  # Every push builds the same multi-arch image so Dockerfile breakage shows up
+  # on develop; only main and release tags log in, push, and create a release.
   build:
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     needs: verify
     permissions:
       contents: write
       packages: write
+    env:
+      PUBLISH: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
     steps:
       - uses: actions/checkout@v7
 
@@ -71,6 +73,7 @@ jobs:
       - uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
+        if: env.PUBLISH == 'true'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -93,7 +96,7 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: true
+          push: ${{ env.PUBLISH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

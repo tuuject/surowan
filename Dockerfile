@@ -34,8 +34,10 @@ RUN pnpm --config.verify-deps-before-run=false run admin:build \
 # Pack the user-manual Markdown the runtime serves through its document
 # capabilities. Only content/docs and the examples enter the build context (see .dockerignore);
 # the docs site itself is never built or shipped. The pack lands in src/manual,
-# which the runtime stage copies verbatim with the rest of src/.
-RUN node scripts/manual-prepare.ts
+# which the runtime stage copies verbatim with the rest of src/. The sources go
+# away right after: the frozen prod install below treats an apps/docs directory
+# without its package.json as a lockfile mismatch.
+RUN node scripts/manual-prepare.ts && rm -rf apps/docs
 
 # Prune devDependencies — runtime only needs production deps.
 # --ignore-scripts: the workspace package's prepare runs tsc, which the prune

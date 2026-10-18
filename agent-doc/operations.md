@@ -266,15 +266,15 @@ node src/cli.ts backup --config dev-data/config.jsonc
 
 ## Docker 部署
 
-`.github/workflows/docker.yml` 在推送 `main`、`develop` 分支和 `v*` tag 时都运行 `verify` job，但只有 `main` 与 `v*` tag 构建 `linux/amd64` 与 `linux/arm64` 镜像并推送到 `ghcr.io/tuuject/surowan`：`main` 产出 `main` 与 `0.0.0-next-<UTC 时间戳>` tag，镜像推送成功后创建 `v0.0.0-next-<UTC 时间戳>` tag 与 GitHub Pre-release（`GITHUB_TOKEN` 推送的 tag 不会再触发 workflow）；`develop` 只做验证、不构建镜像，`v*` 产出 `latest` 与 semver tag。
+`.github/workflows/docker.yml` 在推送 `main`、`develop` 分支和 `v*` tag 时都运行 `verify` job，`build` job 也都会构建 `linux/amd64` 与 `linux/arm64` 镜像，但只有 `main` 与 `v*` tag 登录并推送到 `ghcr.io/tuuject/surowan`：`main` 产出 `main` 与 `0.0.0-next-<UTC 时间戳>` tag，镜像推送成功后创建 `v0.0.0-next-<UTC 时间戳>` tag 与 GitHub Pre-release（`GITHUB_TOKEN` 推送的 tag 不会再触发 workflow）；`develop` 只构建不登录、不推送、不建 release，用来在进 `main` 前暴露 Dockerfile 与构建上下文问题，`v*` 产出 `latest` 与 semver tag。
 
 镜像结构（`Dockerfile`，builder 与 runtime 均为 `node:24-bookworm-slim` 两阶段）：
 
 - builder 阶段 `pnpm install --frozen-lockfile` → `pnpm run admin:build` 与 `pnpm --filter @plasticwan/image-service build` → `node scripts/manual-prepare.ts` 把用户手册 Markdown 打包到 `src/manual/` → 再以 `pnpm install --prod --frozen-lockfile --ignore-scripts` 剪掉 devDependencies（`--ignore-scripts` 跳过 image-service 依赖 tsc 的 prepare，所以它的 `dist/` 必须先单独构建）。
 - runtime 阶段用 apt 装 `ffmpeg`（含 `ffprobe`）、`python3` 与 `gosu`，再 pip 装 `lottie`；因此**不需要**在宿主机准备任何媒体依赖。
-- 只复制 `src/`、`node_modules/`、`packages/image-service/` 的 `package.json`、`dist/` 与 `node_modules/`（经 workspace 符号链接解析）、`apps/admin-next/dist/`、`apps/admin-next/LICENSE`、`apps/admin-next/NOTICE` 和 `package.json`。`test/`、`agent-doc/`、`dev-data/` 被 `.dockerignore` 排除，镜像里没有这些目录。`apps/docs` 只保留 `content/docs` 与 `examples/` 作为手册源参与构建：`.dockerignore` 排除文档站配置、主题与生成产物，builder 生成的 `src/manual/` 随 `src/` 进入 runtime；镜像不含 Rspress 或文档站目录，该隔离由 `.github/workflows/docs.yml` 的 image-smoke 断言。
+- 只复制 `src/`、`node_modules/`、`packages/image-service/` 的 `package.json`、`dist/` 与 `node_modules/`（经 workspace 符号链接解析）、`apps/admin-next/dist/`、`apps/admin-next/LICENSE`、`apps/admin-next/NOTICE` 和 `package.json`。`test/`、`agent-doc/`、`dev-data/` 被 `.dockerignore` 排除，镜像里没有这些目录。`apps/docs` 只保留 `content/docs` 与 `examples/` 作为手册源参与构建：`.dockerignore` 排除文档站配置、主题与生成产物，builder 生成的 `src/manual/` 随 `src/` 进入 runtime，打包后立即删除 `apps/docs`——残留的目录没有 `package.json`，后续 `pnpm install --prod --frozen-lockfile` 会把它判为 lockfile 过期而失败；镜像不含 Rspress 或文档站目录，该隔离由 `.github/workflows/docs.yml` 的 image-smoke 断言。
 - Admin 前端已经构建进 `/app/apps/admin-next/dist`，与 `static_dir` 默认值一致，无需额外配置。前端模板许可（MIT，© Kiranism）随 `LICENSE` 保留，字体（@fontsource，SIL OFL 1.1）说明在 `NOTICE`。
-- CI（`.github/workflows/docker.yml`）在构建镜像前先跑 `verify` job：`pnpm install --frozen-lockfile` → `pnpm run lint` → `pnpm run check` → `pnpm test` → `pnpm run admin:build` → `pnpm --filter plasticwan-admin-next exec playwright install --with-deps chromium` → `pnpm run admin:test:e2e`，通过后 `build` job 才推送 `linux/amd64` 与 `linux/arm64`。
+- CI（`.github/workflows/docker.yml`）在构建镜像前先跑 `verify` job：`pnpm install --frozen-lockfile` → `pnpm run lint` → `pnpm run check` → `pnpm test` → `pnpm run admin:build` → `pnpm --filter plasticwan-admin-next exec playwright install --with-deps chromium` → `pnpm run admin:test:e2e`，通过后 `build` job 才构建 `linux/amd64` 与 `linux/arm64`（仅 `main` 与 `v*` 推送）。`.github/workflows/docs.yml` 的 `image-smoke` 在 PR 与每次推送时以单架构 `docker build` 构建镜像，并断言手册在镜像内、文档站与 Rspress 不在。
 
 运行约定：
 
