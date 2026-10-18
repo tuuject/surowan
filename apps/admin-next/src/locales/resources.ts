@@ -6,6 +6,7 @@ import { invocations } from './en/invocations.ts';
 import { layout } from './en/layout.ts';
 import { models } from './en/models.ts';
 import { pages } from './en/pages.ts';
+import { playground } from './en/playground.ts';
 
 import { common as commonZh } from './zh-CN/common.ts';
 import { dictionary as dictionaryZh } from './zh-CN/dictionary.ts';
@@ -15,6 +16,7 @@ import { invocations as invocationsZh } from './zh-CN/invocations.ts';
 import { layout as layoutZh } from './zh-CN/layout.ts';
 import { models as modelsZh } from './zh-CN/models.ts';
 import { pages as pagesZh } from './zh-CN/pages.ts';
+import { playgroundZh } from './zh-CN/playground.ts';
 
 /**
  * English is the source catalog; every other locale must mirror its key
@@ -30,6 +32,7 @@ const en = {
   image,
   dictionary,
   harness,
+  playground,
 };
 
 const zhCN: typeof en = {
@@ -41,6 +44,7 @@ const zhCN: typeof en = {
   image: imageZh,
   dictionary: dictionaryZh,
   harness: harnessZh,
+  playground: playgroundZh,
 };
 
 export { en, zhCN };

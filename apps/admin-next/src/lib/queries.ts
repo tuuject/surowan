@@ -2,6 +2,8 @@ import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 import {
   type DictionaryScope,
   getChats,
+  getPlaygroundRelease,
+  getPlaygroundRoom,
   getConfigStatus,
   getConversationContext,
   getDeveloperSettings,
@@ -27,6 +29,9 @@ import {
   listInvocations,
   listMemories,
   listMemoryChats,
+  listPlaygroundInvocations,
+  listPlaygroundMessages,
+  listPlaygroundRooms,
   listMessages,
   listPasskeys,
   listStickerSets,
@@ -236,3 +241,56 @@ export function messageQuery(id: string) {
     queryFn: () => getMessage(id),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Playground rooms
+// ---------------------------------------------------------------------------
+
+export const playgroundRoomsQuery = queryOptions({
+  queryKey: ['playground-rooms'],
+  queryFn: listPlaygroundRooms,
+});
+
+export function playgroundRoomQuery(roomId: string) {
+  return queryOptions({
+    queryKey: ['playground-room', roomId],
+    queryFn: () => getPlaygroundRoom(roomId),
+    enabled: roomId.length > 0,
+    // The status half of the page polls here; messages have their own query.
+    refetchInterval: 2_000,
+  });
+}
+
+export function playgroundMessagesQuery(roomId: string) {
+  return infiniteQueryOptions({
+    queryKey: ['playground-messages', roomId],
+    queryFn: ({ pageParam }) =>
+      listPlaygroundMessages(roomId, {
+        ...(pageParam === undefined ? {} : { before: pageParam }),
+        limit: PLAYGROUND_PAGE_SIZE,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => (last.has_more ? (last.items.at(-1)?.seq ?? undefined) : undefined),
+    enabled: roomId.length > 0,
+  });
+}
+
+export function playgroundInvocationsQuery(roomId: string) {
+  return queryOptions({
+    queryKey: ['playground-invocations', roomId],
+    queryFn: () => listPlaygroundInvocations(roomId, 20),
+    enabled: roomId.length > 0,
+    refetchInterval: 2_000,
+  });
+}
+
+export function playgroundReleaseQuery(roomId: string, releaseId: string) {
+  return queryOptions({
+    queryKey: ['playground-release', roomId, releaseId],
+    queryFn: () => getPlaygroundRelease(roomId, releaseId),
+    enabled: roomId.length > 0 && releaseId.length > 0,
+  });
+}
+
+/** Timeline pages of 50: a room's history is short and its polling is cheap. */
+export const PLAYGROUND_PAGE_SIZE = 50;

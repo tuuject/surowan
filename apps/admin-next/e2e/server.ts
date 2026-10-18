@@ -108,6 +108,7 @@ type PlaygroundModelStep = { readonly send?: string; readonly text?: string };
 let roomRuntime: ReturnType<typeof createCoreRuntime> | null = null;
 let roomFaux: ReturnType<typeof fauxProvider> | null = null;
 let roomSchedulerStarted = false;
+let roomScriptVersion = 0;
 
 /**
  * Starts the room scheduler on first use. Every spec file gets its own E2E
@@ -133,12 +134,19 @@ function setPlaygroundModel(steps: readonly PlaygroundModelStep[]): void {
   if (faux === null) {
     throw new Error('the room runtime is not assembled yet');
   }
+  // Tool-call ids must be unique across the whole database: the audit table
+  // keys on them, and two runs reusing one id would collide there.
+  roomScriptVersion += 1;
   const responses = steps.map((step, index) =>
     step.send === undefined
       ? () => fauxAssistantMessage(step.text ?? '')
       : () =>
           fauxAssistantMessage(
-            fauxToolCall('send', { kind: 'text', text: step.send ?? '' }, { id: `room-send-${index + 1}` }),
+            fauxToolCall(
+              'send',
+              { kind: 'text', text: step.send ?? '' },
+              { id: `room-send-${roomScriptVersion}-${index + 1}` },
+            ),
             { stopReason: 'toolUse' },
           ),
   );

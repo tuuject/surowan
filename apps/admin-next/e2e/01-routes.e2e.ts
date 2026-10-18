@@ -194,6 +194,13 @@ test.describe('routes and deep links', () => {
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 
+  test('/playground lists rooms and reads without executing anything', async ({ page }) => {
+    await page.goto(await adminUrl('/playground'));
+    await expect(page.getByText('Virtual group chats for trying the bot without Telegram.')).toBeVisible();
+    await expect(page.getByText('E2E Room').first()).toBeVisible();
+    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+  });
+
   test('/api-keys renders the key table and the create action', async ({ page }) => {
     await page.goto(await adminUrl('/api-keys'));
     await expect(page.getByRole('main').getByText('API keys', { exact: true }).first()).toBeVisible();

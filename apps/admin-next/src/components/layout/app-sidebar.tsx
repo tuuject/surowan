@@ -12,6 +12,7 @@ import {
   LogOut,
   MessageSquare,
   MessagesSquare,
+  Play,
   ScrollText,
   SlidersVertical,
   Settings,
@@ -67,6 +68,7 @@ export default function AppSidebar({
         { title: t('layout.nav.botStickerSets'), url: '/stickers', icon: Sticker },
         { title: t('layout.nav.imageGenerate'), url: '/image-generate', icon: ImagePlus },
         { title: t('layout.nav.imageGenerations'), url: '/image-generations', icon: ImagePlus },
+        { title: t('layout.nav.playground'), url: '/playground', icon: Play },
       ],
     },
     {
