@@ -193,6 +193,35 @@ test('the duplicate send guard rejects a repeated text or sticker within the sce
   expect(unguarded.outputs).toHaveLength(2);
 });
 
+test('a reply-policy rejection burns the content for the rest of the scene, mirroring production', async () => {
+  let rejections = 0;
+  const registry = replayInput({
+    tools: [definition('send', SendInputSchema), definition('send_reply', SendReplyInputSchema)],
+  });
+  const replay = createReplayTools(registry, emptySystemResources(), {
+    replyMessageIds: new Set(['42', '43']),
+    duplicateSendGuard: { onRejected: () => (rejections += 1) },
+  });
+  const send = toolOf(replay.tools, 'send');
+  const sendReply = toolOf(replay.tools, 'send_reply');
+  await send.execute('first', { text: 'first answer', reply_to_message_id: '42' });
+  await expect(send.execute('blocked', { text: 'second take', reply_to_message_id: '42' })).rejects.toThrow(
+    'reply_already_sent',
+  );
+  // Retargeting or omitting the reply target does not lift the rejection.
+  await expect(send.execute('retarget', { text: 'second take', reply_to_message_id: '43' })).rejects.toThrow(
+    'send_bypass',
+  );
+  await expect(send.execute('bare', { text: 'second take' })).rejects.toThrow('send_bypass');
+  await expect(sendReply.execute('bundle', { parts: [{ text: 'second take' }, { text: 'coda' }] })).rejects.toThrow(
+    'send_bypass',
+  );
+  await send.execute('fresh', { text: 'third take', reply_to_message_id: '43' });
+  expect(rejections).toBe(3);
+  expect(replay.outputs.map((output) => output.reply_to_message_id)).toEqual(['42', '43']);
+  expect(replay.dispatches).toHaveLength(6);
+});
+
 test('send allows repeated reply targets when configured without bypassing scene visibility', async () => {
   const replay = createReplayTools(
     replayInput({ tools: [definition('send', SendInputSchema)] }),
