@@ -32,6 +32,7 @@ import { RuntimeConfigurationStore } from './platform/runtime-config.ts';
 import { SecretStore } from './platform/secrets.ts';
 import { pickEnv, spawnProcess } from './platform/subprocess.ts';
 import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from './adapters/local-monolith/system-resources.ts';
+import { BUNDLED_MANUAL_DIR, bundledManualSpace, FileSystemDocSpaces } from './adapters/local-monolith/doc-spaces.ts';
 import { BUILTIN_PLUGINS } from './plugins/builtin.ts';
 import { loadPlugins } from './plugins/plugin.ts';
 import { SqliteStore } from './adapters/local-monolith/database.ts';
@@ -86,6 +87,12 @@ async function runDoctorChecks(
   await runDependency(['ffmpeg', '-version']);
   await runDependency(['ffprobe', '-version']);
   await verifyLottie(config.data_dir);
+  // The manual ships inside the runtime source tree; a missing pack means the
+  // build skipped scripts/manual-prepare.ts and the document tools are inert.
+  const docSpaces = await FileSystemDocSpaces.load([bundledManualSpace(BUNDLED_MANUAL_DIR)]);
+  if (docSpaces.missing.length > 0) {
+    throw new Error(`Bundled user manual is missing from ${BUNDLED_MANUAL_DIR}; run pnpm run manual:prepare`);
+  }
 
   const store = await SqliteStore.open(config);
   let mcp: McpManager | undefined;
@@ -209,6 +216,7 @@ async function runDoctorChecks(
         ffmpeg: true,
         ffprobe: true,
         lottie: true,
+        manual_documents: docSpaces.summaries[0]?.documents ?? 0,
         providers: Object.keys(config.providers).length,
         required_mcp: requiredConfig.mcp?.servers.length ?? 0,
         telegram_bot_id: String(me.id),

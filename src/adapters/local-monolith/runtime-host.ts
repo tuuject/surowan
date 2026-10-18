@@ -2,6 +2,7 @@
 import { eq } from 'drizzle-orm';
 import { Bot, type Context } from 'grammy';
 import { capability } from '../../capabilities/execute-tool.ts';
+import { createDocumentTools } from '../../capabilities/document-tools.ts';
 import { McpManager } from '../../capabilities/mcp.ts';
 import { MediaService } from '../../capabilities/media/media.ts';
 import { TelegramMediaClient } from '../../capabilities/media/media-download.ts';
@@ -35,6 +36,7 @@ import { buildModelRegistry, configuredAgentModels } from '../../platform/provid
 import { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { SecretStore } from '../../platform/secrets.ts';
 import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from './system-resources.ts';
+import { BUNDLED_MANUAL_DIR, bundledManualSpace, FileSystemDocSpaces } from './doc-spaces.ts';
 import { BUILTIN_PLUGINS } from '../../plugins/builtin.ts';
 import { loadPlugins } from '../../plugins/plugin.ts';
 import { runStartupCatchUp } from '../../startup-catch-up.ts';
@@ -214,11 +216,21 @@ export async function serve(configPath: string, takeover = false): Promise<void>
     });
     const systemResources = await FileSystemResources.load(BUNDLED_SYSTEM_RESOURCES_DIR, plugins.skillDirectories);
     logEvent('system_skills_loaded', { skills: systemResources.skills.map((skill) => skill.name).join(',') });
+    // Bundled documentation spaces: the user manual packed at build time. A
+    // missing pack only disables the document capabilities; doctor reports it.
+    const docSpaces = await FileSystemDocSpaces.load([bundledManualSpace(BUNDLED_MANUAL_DIR)]);
+    logEvent('doc_spaces_loaded', {
+      spaces: docSpaces.summaries.map((space) => `${space.id}:${space.documents}`).join(','),
+    });
+    if (docSpaces.missing.length > 0) {
+      logEvent('doc_spaces_missing', { spaces: docSpaces.missing.join(',') });
+    }
     // Runtime-internal capabilities: dispatched through the execute primitive.
     const capabilityTools: CapabilityToolFactory = (context, deadline, capabilities) => [
       capability(media.createReadImageTool(context, capabilities, deadline), false),
       capability(stickerService.createSearchTool(context, capabilities), false),
       ...createMemoryTools(memoryStore, context).map((tool) => capability(tool, true)),
+      ...createDocumentTools({ store: openedStore, spaces: docSpaces, context }).map((tool) => capability(tool, false)),
       ...plugins.capabilities(
         openedStore,
         configStore.current().config,

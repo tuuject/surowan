@@ -9,7 +9,20 @@ node_modules
 apps/admin-next/node_modules
 apps/admin-next/dist
 apps/admin-next/.output
-apps/docs
+# The runtime packs only content/docs and the downloadable examples into src/manual
+# (see scripts/manual-prepare.ts); the docs site itself is built and deployed
+# separately and never ships.
+apps/docs/dist
+apps/docs/node_modules
+apps/docs/content/index.md
+apps/docs/content/_nav.json
+apps/docs/content/public
+apps/docs/theme
+apps/docs/env.d.ts
+apps/docs/package.json
+apps/docs/rspress.config.ts
+apps/docs/tsconfig.json
+apps/docs/README.md
 docs/plan
 key.json
 *.sqlite

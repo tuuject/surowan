@@ -25,6 +25,7 @@
     "docs:preview": "pnpm --filter plasticwan-docs run preview",
     "docs:check": "pnpm --filter plasticwan-docs run check",
     "docs:verify": "node scripts/docs-verify.ts",
+    "manual:prepare": "node scripts/manual-prepare.ts",
     "lint": "biome lint . && biome format .",
     "lint:fix": "biome lint --write --unsafe . && biome format --write ."
   },
