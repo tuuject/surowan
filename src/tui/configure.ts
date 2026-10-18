@@ -6,7 +6,7 @@ import type { FileConfig, ThinkingLevelConfig } from '../platform/config.ts';
 import { loadConfig } from '../adapters/local-monolith/config.ts';
 import { writeConfigEdits } from '../adapters/local-monolith/config-file.ts';
 import { keyJarPath, readKeyJar, referencedJarNames, updateKeyJar } from '../platform/key-jar.ts';
-import { supportedThinkingLevels } from '../platform/thinking-levels.ts';
+import { supportedThinkingLevels, THINKING_LEVELS } from '../platform/thinking-levels.ts';
 import { runProviderWizard } from './provider-wizard.ts';
 
 export async function runConfigure(configPath: string): Promise<void> {
@@ -39,7 +39,7 @@ export async function runConfigure(configPath: string): Promise<void> {
         message: 'Plastic Wan configuration',
         choices: [
           { value: 'providers', name: 'Configure providers' },
-          { value: 'thinking', name: `Configure agent thinking level (${config.agent.thinking_level})` },
+          { value: 'thinking', name: `Configure agent thinking level (${config.agent?.thinking_level ?? 'unset'})` },
           { value: 'save', name: 'Save and exit' },
           { value: 'discard', name: 'Exit without saving' },
         ],
@@ -49,11 +49,12 @@ export async function runConfigure(configPath: string): Promise<void> {
           config = await runProviderWizard(config, keyJar);
           break;
         case 'thinking': {
+          const agent = config.agent;
           const level = await select<ThinkingLevelConfig>({
-            message: `Agent thinking level (${config.agent.provider}/${config.agent.model})`,
+            message: `Agent thinking level (${agent?.provider ?? 'unset'}/${agent?.model ?? 'unset'})`,
             choices: agentThinkingLevels(config).map((value) => ({ value, name: value })),
           });
-          config = { ...config, agent: { ...config.agent, thinking_level: level } };
+          config = { ...config, agent: { ...(agent ?? {}), thinking_level: level } };
           break;
         }
         case 'save': {
@@ -111,10 +112,17 @@ async function pruneKeyJar(
 
 /** Only the levels the agent model accepts are offered; saving validates the rest. */
 function agentThinkingLevels(config: FileConfig): readonly ThinkingLevelConfig[] {
-  const model = config.providers[config.agent.provider]?.models.find(
-    (candidate) => candidate.id === config.agent.model,
-  );
-  return model === undefined ? [config.agent.thinking_level] : supportedThinkingLevels(model);
+  const provider = config.agent?.provider;
+  const modelId = config.agent?.model;
+  const model =
+    provider === undefined || modelId === undefined
+      ? undefined
+      : config.providers[provider]?.models.find((candidate) => candidate.id === modelId);
+  if (model !== undefined) {
+    return supportedThinkingLevels(model);
+  }
+  // No resolvable model: offer every level — an incomplete identity is legal.
+  return config.agent?.thinking_level === undefined ? THINKING_LEVELS : [config.agent.thinking_level];
 }
 
 /**

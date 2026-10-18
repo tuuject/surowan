@@ -162,7 +162,7 @@ function ToolModelPicker({
     }
     return { alias: provider.alias, model: model.id, levels: supportedThinkingLevels(model) };
   });
-  const [level, setLevel] = useState<ThinkingLevel>(current.thinking_level);
+  const [level, setLevel] = useState<ThinkingLevel>(current.thinking_level ?? 'off');
 
   const options = useMemo(() => {
     const needle = search.trim().toLowerCase();

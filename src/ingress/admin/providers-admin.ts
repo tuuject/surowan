@@ -7,6 +7,7 @@ import {
   supportedBuiltinApi,
 } from '../../platform/builtin-providers.ts';
 import {
+  type AgentSettings,
   assertModelConfig,
   resolveBuiltinModelApi,
   type FileChat,
@@ -123,16 +124,22 @@ export interface ProvidersView {
   readonly revision: string;
   /** Whether the deployment declares an external supervisor that restarts `serve`. */
   readonly supervised: boolean;
-  readonly agent: { readonly provider: string; readonly model: string; readonly thinking_level: ThinkingLevelConfig };
+  /** Null fields mean the identity triple is not (fully) configured: no invocation can start. */
+  readonly agent: {
+    readonly provider: string | null;
+    readonly model: string | null;
+    readonly thinking_level: ThinkingLevelConfig | null;
+  };
   readonly vision: { readonly provider: string; readonly model: string };
   /**
    * The system-wide auxiliary model. `inherited` means no dedicated config
-   * exists and the three fields describe the global agent settings it follows.
+   * exists and the three fields describe the global agent settings it follows;
+   * they are null when the global agent itself is unconfigured.
    */
   readonly tool_model: {
-    readonly provider: string;
-    readonly model: string;
-    readonly thinking_level: ThinkingLevelConfig;
+    readonly provider: string | null;
+    readonly model: string | null;
+    readonly thinking_level: ThinkingLevelConfig | null;
     readonly inherited: boolean;
   };
   readonly restart_required: readonly string[];
@@ -194,7 +201,7 @@ export function supervisedRestartEnabled(): boolean {
 
 export function listProviders(
   file: Pick<FileConfig, 'providers' | 'vision' | 'tool_model'> & {
-    agent: Pick<FileConfig['agent'], 'provider' | 'model' | 'thinking_level'>;
+    agent?: AgentSettings | null;
   },
   revision: string,
   restartRequired: readonly string[],
@@ -203,14 +210,18 @@ export function listProviders(
   return {
     revision,
     supervised: supervisedRestartEnabled(),
-    agent: { provider: file.agent.provider, model: file.agent.model, thinking_level: file.agent.thinking_level },
+    agent: {
+      provider: file.agent?.provider ?? null,
+      model: file.agent?.model ?? null,
+      thinking_level: file.agent?.thinking_level ?? null,
+    },
     vision: { provider: file.vision.provider, model: file.vision.model },
     tool_model:
       configuredToolModel === undefined
         ? {
-            provider: file.agent.provider,
-            model: file.agent.model,
-            thinking_level: file.agent.thinking_level,
+            provider: file.agent?.provider ?? null,
+            model: file.agent?.model ?? null,
+            thinking_level: file.agent?.thinking_level ?? null,
             inherited: true,
           }
         : { ...configuredToolModel, inherited: false },
@@ -567,7 +578,7 @@ function referencingChats(context: ProviderWriteContext): readonly Pick<FileChat
 export function deleteProvider(context: ProviderWriteContext, alias: string): ConfigEdit[] {
   providerOf(context.file, alias);
   if (
-    context.file.agent.provider === alias ||
+    context.file.agent?.provider === alias ||
     context.file.vision.provider === alias ||
     referencingChats(context).some((chat) => chat.provider === alias)
   ) {
@@ -626,7 +637,7 @@ export function deleteModel(context: ProviderWriteContext, alias: string, modelI
     throw new AdminQueryError('model_not_found', `Model ${modelId} is not configured on ${alias}`, 404);
   }
   if (
-    (context.file.agent.provider === alias && context.file.agent.model === modelId) ||
+    (context.file.agent?.provider === alias && context.file.agent?.model === modelId) ||
     (context.file.vision.provider === alias && context.file.vision.model === modelId) ||
     referencingChats(context).some((chat) => chat.provider === alias && chat.model === modelId)
   ) {
@@ -675,8 +686,13 @@ export function thinkingLevelEdits(
   context: ProviderWriteContext,
   body: { readonly thinking_level: ThinkingLevelConfig },
 ): ConfigEdit[] {
-  const { provider, model: modelId } = context.file.agent;
-  const model = context.file.providers[provider]?.models.find((candidate) => candidate.id === modelId);
+  const provider = context.file.agent?.provider;
+  const modelId = context.file.agent?.model;
+  // Without a configured pair there is no model to check the level against.
+  const model =
+    provider === undefined || modelId === undefined
+      ? undefined
+      : context.file.providers[provider]?.models.find((candidate) => candidate.id === modelId);
   if (model === undefined) {
     throw new AdminQueryError('unknown_model', `Agent model ${provider}/${modelId} is absent from the configuration`);
   }

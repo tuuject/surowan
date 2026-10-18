@@ -121,7 +121,7 @@ command SecretRef：
 | `timezone` | 默认 IANA 时区 |
 | `telegram` | Token、Bucket 窗口、Chat/Topic allowlist、Sticker Set |
 | `providers` | 内置或自定义 Provider 别名 |
-| `agent` | 对话模型、Prompt、并发与限流、上下文保留策略、全局 Token 预算 |
+| `agent` | 可选段：对话模型、Prompt、并发与限流、上下文保留策略、全局 Token 预算；整段可省略 |
 | `vision` | Sticker 视觉模型、并发、Prompt 版本和预算 |
 | `dictionary` | 可选的辞典自动注入模式（`injection_mode`） |
 | `tool_model` | 可选的系统级辅助模型（辞典融合等）；缺省继承全局 Agent 设置 |
@@ -303,7 +303,7 @@ participation 放行 = 未配置 participation || 处于活跃时段 || 更新�
 
 Provider alias 必须匹配 `^[A-Za-z][A-Za-z0-9_-]{0,63}$`：它出现在 Admin API 的路径段和 reload 报告的 `providers.<alias>.*` 路径字符串里。
 
-`agent` 模型必须支持 text；若同时支持 image，用户 Photo/图片 Document 直接作为多模态输入，否则保留为 `read_image` capability 并由独立 `vision` 模型按需解析。`vision` 模型必须支持 image，也负责 Sticker 的按需理解与后台索引；配置输出上限不能超过注册模型上限。
+配置了 `agent.provider`/`agent.model` 时模型必须支持 text；若同时支持 image，用户 Photo/图片 Document 直接作为多模态输入，否则保留为 `read_image` capability 并由独立 `vision` 模型按需解析。`vision` 模型必须支持 image，也负责 Sticker 的按需理解与后台索引；配置输出上限不能超过注册模型上限。
 
 ### 模型 thinking 级别
 
@@ -361,8 +361,12 @@ tool "read" parameter schema: parameter "uri": unsupported schema keyword "minLe
 
 ## Agent 与 Vision
 
+`agent` 段整体可选：整段省略、写成 `null` 或空对象 `{}` 都通过配置校验，其余字段按 `AGENT_DEFAULTS`（`src/platform/config.ts`）自动填充——`daily_budget.max_tokens` 1_000_000_000、`max_concurrency` 4、`context_stop_ratio` 0.8、`history_messages` 20、`context`（`retained_sends_target` 20、`retained_sends_max` 30、`hard_token_ratio` 0.6、`ref_ttl_hours` 72、`idle_grace_seconds` 0、`max_wall_clock_seconds` 1800、`agent_cache_size` 32）、`rate_limits`（`sends_per_window` 100、`window_seconds` 300、`turns_per_injection` 24），语义校验（如 `retained_sends_target < retained_sends_max`、`hard_token_ratio <= context_stop_ratio`、`idle_grace_seconds` 与 `max_wall_clock_seconds` 的相互约束）按解析后的生效值执行。模型引用与 thinking 级别校验只在 `provider`/`model` 都给出时进行。
+
+只有 `provider`/`model`/`thinking_level` 三元组决定会不会发起 Invocation：三者缺一即「agent 未配置」，加载时产生 warning 但照常启动；之后到期 Bucket 直接以 `skipped_budget`/`agent_unconfigured` 关闭而不创建 Invocation，attach 到运行中 Invocation、完成回执投递与启动补偿走同一闸门。热更新把三元组改成不完整后下一次到期同样跳过，补全即恢复；Chat 覆盖可逐项补齐三元组（`resolveAgentSettings`），全局未配、某 Chat 配齐时该 Chat 照常发起 Invocation。Admin 各模型视图此时以 `null` 字段表示未配置。
+
 - `daily_budget.max_tokens`: 主 Agent 与聊天触发的 `read_image` 共享的全局每日 Token 上限；各 Chat 用量仍分别写入 `daily_usage`。它是防止循环、失控 Invocation 与 Tool loop 的安全熔断，不是成本预算，因此计的是一次模型调用涉及的全部 token：非缓存输入、缓存读取、缓存写入与生成（`meteredTokens`，`src/store/sleep.ts`）。模型是否收费、缓存是否便宜都不影响计量，免费模型同样受限。pi-ai 规范化后的 `input` 已扣除缓存读写，四项互不重叠，直接相加不会重复计数；Provider 原始 `total_tokens` 不参与计量。缓存读写仍在 `model_calls` 与 Admin Panel 的 Model call 明细里单列，`vision.daily_budget` 的 `vision_tokens` 同口径。
-- `system_prompt_file`: 指向运维侧人格提示的 Markdown 文件，路径相对配置文件目录，内容必须非空（剔除 HTML 注释后仍需有正文）。消息分区、安全边界、Tool 选择原则和副作用成功判定由代码内 Core Agent Protocol 固化；具体 Tool 的触发条件、禁用情形、调用顺序与收尾规则由 Tool description 固化，不应重复塞入人格文件。人格提示和 Chat 的 `instructions_file` 支持 `{{ agent.provider }}`、`{{ agent.model }}`、`{{ vision.provider }}`、`{{ vision.model }}`、`{{ timezone }}` 模板变量；模板只执行严格白名单替换，未知或格式错误的表达式会拒绝配置。
+- `system_prompt_file`（可选）: 指向运维侧人格提示的 Markdown 文件，缺省为空 Prompt，路径相对配置文件目录，内容必须非空（剔除 HTML 注释后仍需有正文）。消息分区、安全边界、Tool 选择原则和副作用成功判定由代码内 Core Agent Protocol 固化；具体 Tool 的触发条件、禁用情形、调用顺序与收尾规则由 Tool description 固化，不应重复塞入人格文件。人格提示和 Chat 的 `instructions_file` 支持 `{{ agent.provider }}`、`{{ agent.model }}`、`{{ vision.provider }}`、`{{ vision.model }}`、`{{ timezone }}` 模板变量；模板只执行严格白名单替换，未知或格式错误的表达式会拒绝配置。
 - Prompt 注释：`system_prompt_file` 与 `instructions_file` 中的 `<!-- ... -->` HTML 注释在加载时被剔除，可以写给人看的说明而不占模型上下文；注释可跨行，整行只有注释时该行一并消失。未闭合的 `<!--` 不构成注释，按原文保留；模板校验在剔除之后进行，因此注释里可以出现任意 `{{ ... }}` 文本。提示文件含 NUL 字符时拒绝加载。
 - 模板中的 `agent.provider` 与 `agent.model` 是当前 Invocation 实际使用的模型（按 Chat 解析后的生效值，未覆盖时即全局默认），因此 Admin Panel 或 `/model` 的运行时切换会反映到下一次会话；`vision.*` 始终来自配置。模板值只注入 Prompt，不会注入记忆；记忆内容按原文保留。
 - `max_concurrency`: 全局并行 running Invocation 上限；`history_messages` 是每个新开 Invocation 冻结 history 快照的条数上限（attach 进运行中 Invocation 的批次不带 history）。渲染时会跳过保留 transcript 里已经有的消息，所以真正注入的只是 transcript 从没见过的那部分，例如被参与闸门挡住、从未注入过的消息；并不是只在冷启动时才生效。单次运行不再有 `max_turns`/`max_sends`/`timeout_seconds`（字段已删除，写进配置会被拒绝），运行边界见「Conversation Context」。
@@ -374,7 +378,7 @@ tool "read" parameter schema: parameter "uri": unsupported schema keyword "minLe
 - `send_barrier_enabled`（可选，默认 `false`）：开启后，一轮里第一次即将真正发出的 `send` 前，若同一 Conversation 已有 `collecting` Bucket（模型组织回复期间又来了可触发消息），这批立即 attach 进当前 Invocation，本次 `send` 以 `send_barrier` 拒绝，新批次在下一个 turn 边界注入，模型读完再决定发什么，从而把「一句话被窗口切成两批、各回一次」合并成一次回复。每轮至多拦一次，行为细节见 [Telegram 与 Agent 流程：send 屏障](telegram-agent-flow.md#send-屏障)。
 - `allow_reply_message_multiple_times`（可选，默认 `false`）：默认开启按消息的 Reply 去重——同一 Conversation 内对同一条消息（`reply_to_message_id`）只允许一次回复，文字、贴纸、图片共享一次机会：已有 `success` 拒绝为 `reply_already_sent`，已有 `pending` / `outcome_unknown` 拒绝为 `reply_delivery_unknown`，只有明确失败可重试，且只依赖在线保留窗口内的发送审计、不承诺清理后的去重。被本守卫拒绝的文本或贴纸在当前 Invocation 内烧毁：删掉或改换引用目标重投同一内容会以 `send_bypass` 拒绝，本次运行结束后失效；图片与屏障/限流拦截不触发烧毁。设为 `true` 时禁用这一按消息的 Reply 去重连同烧毁，允许对同一显式目标多次发送；不会绕过授权、预算、发送限流或 send 屏障，也不关闭图片 generation/asset 交付去重或结果未知保护。`send` 工具描述随该值切换（开启时说明「当前配置允许对同一消息多次回复，但每次发送仍需有依据」），运行中的 Invocation 用启动时快照，显式应用配置后下一次 Invocation 与重放使用新值；全局字段，无 per-Chat 覆盖。细节见 [Telegram 与 Agent 流程：send Tool](telegram-agent-flow.md#send-tool)。
 - `send_duplicate_guard_enabled`（可选，默认 `true`，只有显式 `false` 才关闭）：同一 Invocation 内，与一条已被 Telegram 接受的 `send` 完全一致的文本或贴纸（按归一化后的 kind、内容、`parse_mode` 与 `reply_to_message_id` 比较）以 `send_duplicate` 拒绝，不调用 Telegram、不占发送额度；被拒超过 3 次时该次运行以 `duplicate_send` 结束。与 `allow_reply_message_multiple_times` 互相独立：后者放开同一消息的多次回复时，本守卫仍拦原样重复。图片不受本守卫约束，走自己的 generation/asset 交付去重。全局字段，无 per-Chat 覆盖；行为细节见 [Telegram 与 Agent 流程：send Tool](telegram-agent-flow.md#send-tool)。
-- `thinking_level`: 全局默认的 thinking 级别，取值同上，必须是 agent 模型接受的级别（见「模型 thinking 级别」）；被 Chat 的 `thinking_level` 覆盖时只影响未覆盖的 Chat，语义见「Telegram Chat 与 Topic」。切换全局 agent 模型（Admin Panel 或全局路径）时一并重置为新模型接受的最弱级别；可在 Admin Panel「Models」页的 In use 面板单独修改，热应用。
+- `thinking_level`（可选）: 全局默认的 thinking 级别，取值同上，必须是 agent 模型接受的级别（见「模型 thinking 级别」）；被 Chat 的 `thinking_level` 覆盖时只影响未覆盖的 Chat，语义见「Telegram Chat 与 Topic」。切换全局 agent 模型（Admin Panel 或全局路径）时一并重置为新模型接受的最弱级别；可在 Admin Panel「Models」页的 In use 面板单独修改，热应用。
 
 Agent 不再配置 `max_output_tokens`：每次请求的输出上限直接使用目标模型在 provider 中声明的 `max_tokens`。Provider 注册的模型必须满足 `max_tokens ≤ context_window`，且 agent 模型必须支持 text。
 

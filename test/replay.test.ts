@@ -329,11 +329,11 @@ function stateRows(store: SqliteStore): Record<string, unknown[]> {
 function stablePrompt(store: SqliteStore, config: RawConfig, invocationId: bigint): StablePrompt {
   const builder = new ContextBuilder(
     store,
-    new ContextRefStore(store, { ttlHours: () => config.agent.context.ref_ttl_hours }),
+    new ContextRefStore(store, { ttlHours: () => config.agent!.context!.ref_ttl_hours }),
   );
   return builder.buildSystemPrompt(config, builder.identity(config, invocationId), false, {
-    provider: config.agent.provider,
-    model: config.agent.model,
+    provider: config.agent!.provider!,
+    model: config.agent!.model!,
   });
 }
 
@@ -480,7 +480,7 @@ test.each([undefined, false, true])(
       defaultRegistry: true,
       change: (config) => {
         if (allow !== undefined) {
-          config.agent.allow_reply_message_multiple_times = allow;
+          config.agent!.allow_reply_message_multiple_times = allow;
         }
       },
     });
@@ -940,7 +940,7 @@ test('shutdown cancels an in-flight model request without writes and model error
 });
 
 test('configured wall-clock limit covers waiting for a model slot', async () => {
-  const f = await fixture({ change: (config) => (config.agent.context!.max_wall_clock_seconds = 1) });
+  const f = await fixture({ change: (config) => (config.agent!.context!.max_wall_clock_seconds = 1) });
   const release = await f.gate.acquire('123456789', new AbortController().signal);
   try {
     expect(await f.run()).toMatchObject({ error: { code: 'timeout' }, usage: { model_calls: 0 } });
@@ -953,7 +953,7 @@ test('context, turn and tool budgets stop the loop, including malformed unknown 
   const tiny = await fixture({ contextWindow: 256 });
   expect(await tiny.run()).toMatchObject({ error: { code: 'context_limit' }, usage: { model_calls: 0 } });
 
-  const f = await fixture({ change: (config) => (config.agent.rate_limits.turns_per_injection = 1) });
+  const f = await fixture({ change: (config) => (config.agent!.rate_limits!.turns_per_injection = 1) });
   f.faux.setResponses([fauxAssistantMessage(fauxToolCall('send', { text: 'once' }), { stopReason: 'toolUse' })]);
   expect(await f.run()).toMatchObject({ error: { code: 'turn_budget' }, send_count: 1, usage: { model_calls: 1 } });
 

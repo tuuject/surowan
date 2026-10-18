@@ -2,7 +2,7 @@ import type { TSchema } from 'typebox';
 import Compile from 'typebox/compile';
 import { DEFAULT_MEMORY_TTL_WARNING_DAYS } from '../../context/memory.ts';
 import type { ConfigEdit } from '../../platform/config-write.ts';
-import { ConfigSchema, type RawConfig } from '../../platform/config.ts';
+import { AGENT_DEFAULTS, type AgentSectionConfig, AgentSectionSchema, type RawConfig } from '../../platform/config.ts';
 import { AdminQueryError } from './audit.ts';
 
 export type HarnessValue = number | boolean | null;
@@ -15,7 +15,7 @@ interface HarnessField {
   readonly absent?: HarnessValue;
 }
 
-const agent = ConfigSchema.properties.agent.properties;
+const agent = AgentSectionSchema.properties;
 
 function field(key: string, schema: TSchema, absent?: HarnessValue): HarnessField {
   return { key, validator: Compile(schema), ...(absent === undefined ? {} : { absent }) };
@@ -26,12 +26,14 @@ function field(key: string, schema: TSchema, absent?: HarnessValue): HarnessFiel
  * (`provider`/`model`/`thinking_level`) lives on the Models page and the system
  * prompt on the Prompts page, so they are not repeated here. Each field reuses
  * its configuration schema, and the write is still validated as a whole file.
+ * Every field is optional in the file: `null` in a write removes it, and the
+ * absent value is the AGENT_DEFAULTS fallback the runtime resolves to.
  */
 const HARNESS_FIELDS: readonly HarnessField[] = [
-  field('daily_budget.max_tokens', agent.daily_budget.properties.max_tokens),
-  field('max_concurrency', agent.max_concurrency),
-  field('context_stop_ratio', agent.context_stop_ratio),
-  field('history_messages', agent.history_messages),
+  field('daily_budget.max_tokens', agent.daily_budget.properties.max_tokens, AGENT_DEFAULTS.daily_budget.max_tokens),
+  field('max_concurrency', agent.max_concurrency, AGENT_DEFAULTS.max_concurrency),
+  field('context_stop_ratio', agent.context_stop_ratio, AGENT_DEFAULTS.context_stop_ratio),
+  field('history_messages', agent.history_messages, AGENT_DEFAULTS.history_messages),
   field('memory_ttl_warning_days', agent.memory_ttl_warning_days, DEFAULT_MEMORY_TTL_WARNING_DAYS),
   field('send_max_text_length', agent.send_max_text_length, null),
   field('send_disallow_blank_lines', agent.send_disallow_blank_lines, false),
@@ -39,23 +41,51 @@ const HARNESS_FIELDS: readonly HarnessField[] = [
   field('send_barrier_enabled', agent.send_barrier_enabled, false),
   field('allow_reply_message_multiple_times', agent.allow_reply_message_multiple_times, false),
   field('send_duplicate_guard_enabled', agent.send_duplicate_guard_enabled, true),
-  field('context.retained_sends_target', agent.context.properties.retained_sends_target),
-  field('context.retained_sends_max', agent.context.properties.retained_sends_max),
-  field('context.hard_token_ratio', agent.context.properties.hard_token_ratio),
-  field('context.ref_ttl_hours', agent.context.properties.ref_ttl_hours),
-  field('context.idle_grace_seconds', agent.context.properties.idle_grace_seconds),
-  field('context.max_wall_clock_seconds', agent.context.properties.max_wall_clock_seconds),
-  field('context.agent_cache_size', agent.context.properties.agent_cache_size),
-  field('rate_limits.sends_per_window', agent.rate_limits.properties.sends_per_window),
-  field('rate_limits.window_seconds', agent.rate_limits.properties.window_seconds),
-  field('rate_limits.turns_per_injection', agent.rate_limits.properties.turns_per_injection),
+  field(
+    'context.retained_sends_target',
+    agent.context.properties.retained_sends_target,
+    AGENT_DEFAULTS.context.retained_sends_target,
+  ),
+  field(
+    'context.retained_sends_max',
+    agent.context.properties.retained_sends_max,
+    AGENT_DEFAULTS.context.retained_sends_max,
+  ),
+  field('context.hard_token_ratio', agent.context.properties.hard_token_ratio, AGENT_DEFAULTS.context.hard_token_ratio),
+  field('context.ref_ttl_hours', agent.context.properties.ref_ttl_hours, AGENT_DEFAULTS.context.ref_ttl_hours),
+  field(
+    'context.idle_grace_seconds',
+    agent.context.properties.idle_grace_seconds,
+    AGENT_DEFAULTS.context.idle_grace_seconds,
+  ),
+  field(
+    'context.max_wall_clock_seconds',
+    agent.context.properties.max_wall_clock_seconds,
+    AGENT_DEFAULTS.context.max_wall_clock_seconds,
+  ),
+  field('context.agent_cache_size', agent.context.properties.agent_cache_size, AGENT_DEFAULTS.context.agent_cache_size),
+  field(
+    'rate_limits.sends_per_window',
+    agent.rate_limits.properties.sends_per_window,
+    AGENT_DEFAULTS.rate_limits.sends_per_window,
+  ),
+  field(
+    'rate_limits.window_seconds',
+    agent.rate_limits.properties.window_seconds,
+    AGENT_DEFAULTS.rate_limits.window_seconds,
+  ),
+  field(
+    'rate_limits.turns_per_injection',
+    agent.rate_limits.properties.turns_per_injection,
+    AGENT_DEFAULTS.rate_limits.turns_per_injection,
+  ),
 ];
 
 const FIELDS_BY_KEY = new Map(HARNESS_FIELDS.map((entry) => [entry.key, entry]));
 
 type HarnessValues = Record<string, HarnessValue>;
 
-function rawValue(config: RawConfig['agent'], key: string): unknown {
+function rawValue(config: unknown, key: string): unknown {
   let value: unknown = config;
   for (const segment of key.split('.')) {
     value = typeof value === 'object' && value !== null ? (value as Record<string, unknown>)[segment] : undefined;
@@ -105,8 +135,12 @@ export function parseHarnessBody(body: Record<string, unknown>): ReadonlyMap<str
  * Turns requested values into file edits, skipping any that would not change
  * the file: a write with no change fails, and an optional field set to the value
  * it already means when absent stays absent. `null` removes an optional field.
+ * `file` is the file-layer section, which may be absent or null entirely.
  */
-export function harnessEdits(file: RawConfig['agent'], values: ReadonlyMap<string, HarnessValue>): ConfigEdit[] {
+export function harnessEdits(
+  file: AgentSectionConfig | null | undefined,
+  values: ReadonlyMap<string, HarnessValue>,
+): ConfigEdit[] {
   const edits: ConfigEdit[] = [];
   for (const [key, value] of values) {
     const current = rawValue(file, key);

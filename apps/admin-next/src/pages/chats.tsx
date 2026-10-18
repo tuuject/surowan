@@ -123,14 +123,14 @@ function ChatDialog({
   // A model override always carries its own thinking; a hand-edited file that
   // inherits it starts from the effective level so saving pins it explicitly.
   const [thinking, setThinking] = useState<ThinkingLevel | 'inherit'>(
-    saved?.thinking_level ?? (inheritsModel ? 'inherit' : saved.effective.thinking_level),
+    saved?.thinking_level ?? (inheritsModel ? 'inherit' : (saved.effective.thinking_level ?? 'off')),
   );
   const [validation, setValidation] = useState<string | null>(null);
-  const effectiveKey = model === 'inherit' ? modelKey(view.defaults.provider, view.defaults.model) : model;
+  const effectiveKey = model === 'inherit' ? modelKey(view.defaults.provider ?? '', view.defaults.model ?? '') : model;
   const selected = view.models.find((item) => modelKey(item.provider, item.model) === effectiveKey);
   const levels = selected?.thinking_levels ?? [];
   const inheritAllowed = model === 'inherit';
-  const inheritSupported = levels.includes(view.defaults.thinking_level);
+  const inheritSupported = view.defaults.thinking_level !== null && levels.includes(view.defaults.thinking_level);
   const save = useMutation({
     mutationFn: (settings: ChatSettings) =>
       chat === null
@@ -165,7 +165,10 @@ function ChatDialog({
       setValidation(t('pages.chats.thinkingRequired'));
       return;
     }
-    if (selected === undefined || !levels.includes(thinking === 'inherit' ? view.defaults.thinking_level : thinking)) {
+    if (
+      selected === undefined ||
+      !levels.includes(thinking === 'inherit' ? (view.defaults.thinking_level ?? 'off') : thinking)
+    ) {
       setValidation(t('pages.chats.thinkingUnsupported'));
       return;
     }

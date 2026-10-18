@@ -647,8 +647,12 @@ export class AdminServer {
             : result.message;
           return json({ error: result.code, message }, status);
         }
+        const currentOption = switcher.current();
+        if (currentOption === undefined) {
+          return json({ error: 'model_switch_unavailable', message: 'No agent model is configured' }, 409);
+        }
         return json({
-          ...this.#modelState(switcher, switcher.current()),
+          ...this.#modelState(switcher, currentOption),
           apply: { applied: result.applied, restart_required: result.restartRequired },
         });
       }
@@ -1204,6 +1208,10 @@ export class AdminServer {
     }
     const ids = parseMergePreview(await readJsonObject(request));
     const snapshot = this.#configStore.current();
+    const toolModel = resolveToolModel(snapshot.config);
+    if (toolModel === undefined) {
+      return json({ error: 'tool_model_unavailable', message: 'No tool model is configured' }, 502);
+    }
     try {
       return json(
         await mergePreview(
@@ -1212,7 +1220,7 @@ export class AdminServer {
             orm: this.#store.orm,
             models: snapshot.models,
             secrets,
-            toolModel: resolveToolModel(snapshot.config),
+            toolModel,
           },
           ids,
         ),
@@ -1752,7 +1760,7 @@ export class AdminServer {
     if (revision !== currentRevision) {
       return json({ error: 'config_conflict', message: 'The configuration file changed; reload before editing' }, 409);
     }
-    const edits = harnessEdits(loaded.config.agent, values);
+    const edits = harnessEdits(loaded.fileConfig.agent, values);
     if (edits.length === 0) {
       return json({
         ...(await this.#harnessView(reloader)),
@@ -2015,7 +2023,7 @@ export class AdminServer {
       readonly name: string;
       readonly context_window: number;
       readonly max_tokens: number;
-      readonly thinking_level: ModelThinkingLevel;
+      readonly thinking_level: ModelThinkingLevel | null;
     };
     readonly options: readonly { readonly provider: string; readonly model: string; readonly name: string }[];
   } {
@@ -2026,7 +2034,7 @@ export class AdminServer {
         name: current.name,
         context_window: current.contextWindow,
         max_tokens: current.maxTokens,
-        thinking_level: switcher.thinkingLevel(),
+        thinking_level: switcher.thinkingLevel() ?? null,
       },
       options: switcher.list().map((option) => ({
         provider: option.provider,

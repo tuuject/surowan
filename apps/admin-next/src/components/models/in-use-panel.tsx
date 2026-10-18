@@ -26,7 +26,7 @@ export function InUsePanel({
   const agentModel = agentModelConfig(view);
   // The file always names a configured agent model; if it was edited away under
   // us, the current level is the only one this page can vouch for.
-  const levels = agentModel === null ? [view.agent.thinking_level] : supportedThinkingLevels(agentModel);
+  const levels = agentModel === null ? [view.agent.thinking_level ?? 'off'] : supportedThinkingLevels(agentModel);
 
   const setLevel = useMutation({
     mutationFn: (level: ThinkingLevel) => setAgentThinkingLevel(level, revision),
@@ -52,7 +52,7 @@ export function InUsePanel({
             value: (
               <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <Select
-                  value={view.agent.thinking_level}
+                  value={view.agent.thinking_level ?? 'off'}
                   disabled={setLevel.isPending || levels.length < 2}
                   onValueChange={(value) => {
                     if (isThinkingLevel(value) && value !== view.agent.thinking_level) {

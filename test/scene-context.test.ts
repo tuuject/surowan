@@ -541,7 +541,7 @@ describe('scene context', () => {
     }
     attachBucketToInvocation(
       store,
-      fixture.loaded.config.agent.history_messages,
+      fixture.loaded.config.agent!.history_messages,
       invocationId,
       attached,
       conversationId,
@@ -592,7 +592,7 @@ describe('scene context', () => {
     }
     attachBucketToInvocation(
       store,
-      fixture.loaded.config.agent.history_messages,
+      fixture.loaded.config.agent!.history_messages,
       invocationId,
       attached,
       conversationId,

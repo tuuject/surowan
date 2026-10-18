@@ -72,7 +72,7 @@ function ProviderBadges({
   view,
   provider,
 }: {
-  readonly view: { readonly agent: { provider: string }; readonly vision: { provider: string } };
+  readonly view: { readonly agent: { provider: string | null }; readonly vision: { provider: string } };
   readonly provider: ProviderView;
 }): React.ReactElement {
   const { t } = useTranslation();

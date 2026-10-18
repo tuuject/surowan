@@ -2,7 +2,13 @@ import { access, chmod, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { type Api, createModels, type FauxProviderHandle, type Model, type Models } from '@earendil-works/pi-ai';
 import { serve, type ServerType } from '@hono/node-server';
-import { type FileConfig, KEY_JAR_FILE, type RawConfig } from '../src/platform/config.ts';
+import {
+  type AgentSectionConfig,
+  type FileConfig,
+  KEY_JAR_FILE,
+  type RawConfig,
+  type ThinkingLevelConfig,
+} from '../src/platform/config.ts';
 import { buildModelRegistry } from '../src/platform/providers.ts';
 import { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
@@ -36,7 +42,7 @@ export function invocationCapabilities(
   config: RawConfig,
   header: ContextHeader,
 ): CapabilityRefResolver {
-  const refs = new ContextRefStore(store, { ttlHours: () => config.agent.context.ref_ttl_hours });
+  const refs = new ContextRefStore(store, { ttlHours: () => config.agent!.context!.ref_ttl_hours });
   return createCapabilityResolver(refs, header);
 }
 
@@ -89,7 +95,7 @@ export function renderInvocationContext(
   invocationId: bigint,
   options: TestContextOptions = {},
 ): TestInvocationContext {
-  const refs = new ContextRefStore(store, { ttlHours: () => config.agent.context.ref_ttl_hours });
+  const refs = new ContextRefStore(store, { ttlHours: () => config.agent!.context!.ref_ttl_hours });
   const builder = new ContextBuilder(store, refs, options.skills?.skills ?? [], options.injectors ?? []);
   const identity = builder.identity(config, invocationId);
   const supportsImages = options.supportsImages ?? false;
@@ -98,8 +104,8 @@ export function renderInvocationContext(
     identity,
     supportsImages,
     options.agentModel ?? {
-      provider: config.agent.provider,
-      model: config.agent.model,
+      provider: config.agent!.provider ?? 'unconfigured',
+      model: config.agent!.model ?? 'unconfigured',
     },
   );
   const contexts = new ConversationContextStore(store);
@@ -125,7 +131,10 @@ export function renderInvocationContext(
     transcriptCharacters: 0,
     carriedStickerCatalog: options.carriedStickerCatalog ?? null,
     carriedInjections: options.carriedInjections ?? new Map<string, ReadonlySet<string>>(),
-    agentModel: options.agentModel ?? { provider: config.agent.provider, model: config.agent.model },
+    agentModel: options.agentModel ?? {
+      provider: config.agent!.provider ?? 'unconfigured',
+      model: config.agent!.model ?? 'unconfigured',
+    },
   });
   const replyTargets = new Map(
     [...refsReplyTargets(store, header)].map(
@@ -167,9 +176,40 @@ function refsReplyTargets(
     }));
 }
 
-export function testConfigJsonc(directory: string, transform?: (config: FileConfig) => void): string {
+/**
+ * The fixture always writes a fully configured `agent` section, so transforms
+ * may treat its fields as present; `FileConfig` itself keeps them optional.
+ */
+export type FixtureConfig = Omit<FileConfig, 'agent'> & {
+  agent: Omit<
+    AgentSectionConfig,
+    | 'provider'
+    | 'model'
+    | 'thinking_level'
+    | 'system_prompt_file'
+    | 'max_concurrency'
+    | 'context_stop_ratio'
+    | 'history_messages'
+    | 'daily_budget'
+    | 'context'
+    | 'rate_limits'
+  > & {
+    provider: string;
+    model: string;
+    thinking_level: ThinkingLevelConfig;
+    system_prompt_file: string;
+    max_concurrency: number;
+    context_stop_ratio: number;
+    history_messages: number;
+    daily_budget: { max_tokens: number };
+    context: Required<NonNullable<AgentSectionConfig['context']>>;
+    rate_limits: Required<NonNullable<AgentSectionConfig['rate_limits']>>;
+  };
+};
+
+export function testConfigJsonc(directory: string, transform?: (config: FixtureConfig) => void): string {
   const path = (name: string) => join(directory, name).replaceAll('\\', '/');
-  const config: FileConfig = {
+  const config: FixtureConfig = {
     version: 1,
     data_dir: path('data'),
     timezone: 'UTC',

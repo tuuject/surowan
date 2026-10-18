@@ -76,8 +76,8 @@ async function setup(): Promise<Fixture> {
     // Zero-second windows let a test open each invocation by hand; the nudge
     // would otherwise inject turns that are irrelevant to these assertions.
     config.telegram.bucket_window_seconds = 0;
-    config.agent.send_nudge_enabled = false;
-    config.agent.context.idle_grace_seconds = 0;
+    config.agent!.send_nudge_enabled = false;
+    config.agent!.context!.idle_grace_seconds = 0;
   });
   await writeTestConfig(directory, configPath, jsonc);
   const loaded = await loadConfig(configPath);
@@ -94,7 +94,7 @@ async function setup(): Promise<Fixture> {
     sendSticker: async () => ({ message_id: ++messageId, date: 1_700_000_100, chat: { id: CHAT_ID } }),
   };
   const conversationRuntime = new ConversationRuntime({
-    agentCacheSize: () => loaded.config.agent.context.agent_cache_size,
+    agentCacheSize: () => loaded.config.agent!.context!.agent_cache_size,
   });
   return {
     store,
@@ -318,16 +318,16 @@ describe('configuration snapshots', () => {
       );
     try {
       await runOnce(fixture, runtime, runtimeStore.beginInvocation(), 1, 10, 'first');
-      expect(refTtlHours()).toEqual({ 'reply:10': fixture.config.agent.context.ref_ttl_hours });
+      expect(refTtlHours()).toEqual({ 'reply:10': fixture.config.agent!.context!.ref_ttl_hours });
       const config = {
         ...fixture.config,
-        agent: { ...fixture.config.agent, context: { ...fixture.config.agent.context, ref_ttl_hours: 1 } },
+        agent: { ...fixture.config.agent, context: { ...fixture.config.agent!.context, ref_ttl_hours: 1 } },
       };
       runtimeStore.publish({ config, hash: 'reloaded', ...registry });
       faux.setResponses([() => fauxAssistantMessage('second answer')]);
       await runOnce(fixture, runtime, runtimeStore.beginInvocation(), 2, 11, 'second');
       // The earlier reference keeps the expiry it was issued with.
-      expect(refTtlHours()).toEqual({ 'reply:10': fixture.config.agent.context.ref_ttl_hours, 'reply:11': 1 });
+      expect(refTtlHours()).toEqual({ 'reply:10': fixture.config.agent!.context!.ref_ttl_hours, 'reply:11': 1 });
     } finally {
       fixture.store.close();
     }

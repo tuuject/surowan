@@ -88,9 +88,9 @@ describe('model registry', () => {
         api_key: { jar: 'builtin' },
         models: [BUILTIN_MODEL],
       };
-      draft.agent.provider = 'deepseek';
-      draft.agent.model = 'deepseek-chat';
-      draft.agent.thinking_level = 'off';
+      draft.agent!.provider = 'deepseek';
+      draft.agent!.model = 'deepseek-chat';
+      draft.agent!.thinking_level = 'off';
     });
     const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keyJarPath(loaded.configPath)));
     const registered = registry.models.getModels('deepseek');
@@ -114,9 +114,9 @@ describe('model registry', () => {
         api_key: { jar: 'builtin' },
         models: [BUILTIN_MODEL],
       };
-      draft.agent.provider = 'mine';
-      draft.agent.model = 'deepseek-chat';
-      draft.agent.thinking_level = 'off';
+      draft.agent!.provider = 'mine';
+      draft.agent!.model = 'deepseek-chat';
+      draft.agent!.thinking_level = 'off';
     });
     const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keyJarPath(loaded.configPath)));
     const provider = registry.models.getProvider('mine');
@@ -159,9 +159,9 @@ describe('model registry', () => {
         api_key: { jar: 'builtin' },
         models: [BUILTIN_MODEL],
       };
-      draft.agent.provider = 'deepseek';
-      draft.agent.model = 'deepseek-chat';
-      draft.agent.thinking_level = 'off';
+      draft.agent!.provider = 'deepseek';
+      draft.agent!.model = 'deepseek-chat';
+      draft.agent!.thinking_level = 'off';
     });
     const secrets = new CountingSecrets(keyJarPath(loaded.configPath));
     const registry = await buildModelRegistry(loaded.config, null, secrets);
@@ -201,9 +201,9 @@ describe('model registry', () => {
         api_key: { jar: 'builtin' },
         models: [BUILTIN_MODEL],
       };
-      draft.agent.provider = 'deepseek';
-      draft.agent.model = 'deepseek-chat';
-      draft.agent.thinking_level = 'off';
+      draft.agent!.provider = 'deepseek';
+      draft.agent!.model = 'deepseek-chat';
+      draft.agent!.thinking_level = 'off';
     });
     const secrets = new CountingSecrets(keyJarPath(loaded.configPath));
     const registry = await buildModelRegistry(loaded.config, null, secrets);
@@ -231,9 +231,9 @@ describe('model registry', () => {
         api_key: { jar: 'builtin' },
         models: [BUILTIN_MODEL],
       };
-      draft.agent.provider = 'deepseek';
-      draft.agent.model = 'deepseek-chat';
-      draft.agent.thinking_level = 'off';
+      draft.agent!.provider = 'deepseek';
+      draft.agent!.model = 'deepseek-chat';
+      draft.agent!.thinking_level = 'off';
     });
     const secrets = new CountingSecrets(keyJarPath(loaded.configPath));
     const registry = await buildModelRegistry(loaded.config, null, secrets);
@@ -284,7 +284,7 @@ describe('model registry', () => {
         { ...base, id: 'plain', reasoning: false },
         ...declared.map((levels, index) => ({ ...base, id: `declared-${index}`, thinking_levels: [...levels] })),
       ];
-      draft.agent.model = 'undeclared';
+      draft.agent!.model = 'undeclared';
     });
     const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keyJarPath(loaded.configPath)));
     const configured = loaded.config.providers.agent?.models ?? [];

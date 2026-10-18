@@ -525,7 +525,7 @@ describe('participation gate', () => {
     const contexts = new ConversationContextStore(store);
     const stable = new ContextBuilder(
       store,
-      new ContextRefStore(store, { ttlHours: () => config.agent.context.ref_ttl_hours }),
+      new ContextRefStore(store, { ttlHours: () => config.agent!.context!.ref_ttl_hours }),
     ).buildSystemPrompt(
       config,
       {
@@ -539,7 +539,7 @@ describe('participation gate', () => {
         timezone: config.timezone,
       },
       false,
-      { provider: config.agent.provider, model: config.agent.model },
+      { provider: config.agent!.provider!, model: config.agent!.model! },
     );
     contexts.open(conversationId, stable.systemPromptHash);
     store.db.prepare("UPDATE invocations SET state = 'completed' WHERE id = ?").run(first);

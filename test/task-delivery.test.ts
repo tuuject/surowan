@@ -45,7 +45,7 @@ async function setup(sendResponse = true): Promise<{
     configPath,
     testConfigJsonc(directory, (config) => {
       config.telegram.bucket_window_seconds = 60;
-      config.agent.send_nudge_enabled = false;
+      config.agent!.send_nudge_enabled = false;
     }),
   );
   const loaded = await loadConfig(configPath);

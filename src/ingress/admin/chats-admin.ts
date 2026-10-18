@@ -193,7 +193,7 @@ export function updateChatParticipation(file: FileConfig, id: number, body: Part
   return [{ path: ['telegram', 'chats', index, 'participation', 'active_windows'], value: body.active_windows }];
 }
 
-function chatSettings(config: { agent: AgentSettings }, chat: FileChat | undefined) {
+function chatSettings(config: { agent?: AgentSettings | null }, chat: FileChat | undefined) {
   return chat === undefined
     ? null
     : {

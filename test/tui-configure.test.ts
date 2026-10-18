@@ -72,7 +72,7 @@ describe('configure save', () => {
     const { fileConfig } = await loadConfig(configPath);
     const edited = { ...fileConfig, agent: { ...fileConfig.agent, thinking_level: 'off' as const } };
     expect(await saveConfig(configPath, edited, original)).toBe(true);
-    expect((await loadConfig(configPath)).config.agent.thinking_level).toBe('off');
+    expect((await loadConfig(configPath)).config.agent!.thinking_level).toBe('off');
   });
 });
 

@@ -127,7 +127,7 @@ async function setup(
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const jsonc = testConfigJsonc(directory, (config) => {
-    config.agent.history_messages = 10;
+    config.agent!.history_messages = 10;
     if (twoChats) {
       config.telegram.chats.push({
         id: SECOND_CHAT_ID,

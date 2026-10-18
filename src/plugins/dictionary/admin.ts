@@ -465,16 +465,16 @@ export function parseDictionaryImportBody(value: unknown): DictionaryImportBody 
 
 /** The panel's view of the auxiliary model: the selection plus whether it inherits. */
 export function toolModelView(config: Parameters<typeof resolveToolModel>[0]): {
-  readonly provider: string;
-  readonly model: string;
-  readonly thinking_level: string;
+  readonly provider: string | null;
+  readonly model: string | null;
+  readonly thinking_level: string | null;
   readonly inherited: boolean;
 } {
   const selection = resolveToolModel(config);
   return {
-    provider: selection.provider,
-    model: selection.model,
-    thinking_level: selection.thinkingLevel,
-    inherited: selection.inherited,
+    provider: selection?.provider ?? null,
+    model: selection?.model ?? null,
+    thinking_level: selection?.thinkingLevel ?? null,
+    inherited: selection?.inherited ?? true,
   };
 }

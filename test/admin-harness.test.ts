@@ -29,7 +29,7 @@ async function fixture() {
     path,
     testConfigJsonc(directory, (config) => {
       config.admin = { enabled: true, host: '127.0.0.1', port: 8899, session_ttl_hours: 12 };
-      config.agent.send_max_text_length = 2000;
+      config.agent!.send_max_text_length = 2000;
     }),
   );
   const loaded = await loadConfig(path);
@@ -127,8 +127,8 @@ test('a write hot-applies every changed field, including the ones that used to n
   expect(f.reloader.status().restartRequired).toEqual([]);
   // The removed optional field is gone from the file, not written as null.
   const file = (await loadConfig(f.path)).fileConfig.agent;
-  expect(Object.hasOwn(file, 'send_max_text_length')).toBe(false);
-  expect(file.provider).toBe(f.loaded.fileConfig.agent.provider);
+  expect(Object.hasOwn(file ?? {}, 'send_max_text_length')).toBe(false);
+  expect(file?.provider).toBe(f.loaded.fileConfig.agent!.provider);
   // The memory review window reads the applied value on the next request.
   expect(await longTtl()).toBe(1);
 });
@@ -139,7 +139,7 @@ test('a value equal to the file, or to an absent default, writes nothing', async
   const { revision } = await f.view();
   const response = await f.update(
     {
-      history_messages: f.loaded.config.agent.history_messages,
+      history_messages: f.loaded.config.agent!.history_messages,
       memory_ttl_warning_days: 30,
       send_duplicate_guard_enabled: true,
     },
@@ -156,8 +156,8 @@ test.each([
   [{ 'context.ref_ttl_hours': 1.5 }, 'invalid_harness_value'],
   [{ context_stop_ratio: 0.9 }, 'invalid_harness_value'],
   [{ send_nudge_enabled: 'yes' }, 'invalid_harness_value'],
-  // Only optional fields can be removed.
-  [{ history_messages: null }, 'invalid_harness_value'],
+  // Every field accepts null (remove → back to default); a wrong type is rejected.
+  [{ history_messages: 'many' }, 'invalid_harness_value'],
   [{}, 'invalid_body'],
 ])('rejects %j before touching the file', async (values, error) => {
   const f = await fixture();
@@ -172,7 +172,7 @@ test('cross-field rules are checked against the whole configuration', async () =
   const f = await fixture();
   const before = await readFile(f.path, 'utf8');
   const response = await f.update(
-    { 'context.retained_sends_target': f.loaded.config.agent.context.retained_sends_max },
+    { 'context.retained_sends_target': f.loaded.config.agent!.context!.retained_sends_max },
     (await f.view()).revision,
   );
   expect(response.status).toBe(422);
@@ -190,5 +190,5 @@ test('a stale or missing revision is refused', async () => {
   });
   expect(missing.status).toBe(400);
   expect(await missing.json()).toMatchObject({ error: 'revision_required' });
-  expect(f.configStore.current().config.agent.history_messages).toBe(f.loaded.config.agent.history_messages);
+  expect(f.configStore.current().config.agent!.history_messages).toBe(f.loaded.config.agent!.history_messages);
 });

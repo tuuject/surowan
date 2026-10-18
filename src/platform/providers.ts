@@ -16,6 +16,7 @@ import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completio
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy';
 import { builtinModelApi, findBuiltinProvider } from './builtin-providers.ts';
 import {
+  completeAgentSettings,
   type FileConfig,
   type ModelCompatConfig,
   type ModelFileConfig,
@@ -128,15 +129,21 @@ export function configuredAgentModels(
   ];
   const seen = new Set<string>();
   return selected.flatMap((settings) => {
-    const key = JSON.stringify([settings.provider, settings.model, settings.thinking_level]);
+    // An incomplete identity never reaches the registry: no invocation can
+    // start for it, so there is no model to resolve or probe.
+    const active = completeAgentSettings(settings);
+    if (active === undefined) {
+      return [];
+    }
+    const key = JSON.stringify([active.provider, active.model, active.thinking_level]);
     if (seen.has(key)) {
       return [];
     }
     seen.add(key);
     return [
       {
-        model: requireModel(models, settings.provider, settings.model, ['text']),
-        thinkingLevel: settings.thinking_level,
+        model: requireModel(models, active.provider, active.model, ['text']),
+        thinkingLevel: active.thinking_level,
       },
     ];
   });

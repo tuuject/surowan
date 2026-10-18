@@ -590,7 +590,7 @@ test('more than three duplicate rejections stop the run even when they alternate
 
 test('with the duplicate send guard off, a repeated message is sent again', async () => {
   const run = await duplicateSendRun('duplicate-off', ['same', 'same'], (config) => {
-    config.agent.send_duplicate_guard_enabled = false;
+    config.agent!.send_duplicate_guard_enabled = false;
   });
   expect(run.outcome).toEqual({ state: 'completed', reason: 'completed' });
   expect(run.sentTexts).toEqual(['same', 'same']);
@@ -1409,7 +1409,7 @@ test.each([true, false])(
       testConfigJsonc(directory, (config) => {
         config.developer = { record_model_payloads: recordPayloads };
         // One turn without a nudge: this test is about what a run records.
-        config.agent.send_nudge_enabled = false;
+        config.agent!.send_nudge_enabled = false;
       }),
     );
     const loaded = await loadConfig(configPath);
@@ -1500,7 +1500,7 @@ test('send_reply publishes its parts in order and counts as one send in the cano
     directory,
     configPath,
     testConfigJsonc(directory, (config) => {
-      config.agent.send_nudge_enabled = true;
+      config.agent!.send_nudge_enabled = true;
     }),
   );
   const loaded = await loadConfig(configPath);

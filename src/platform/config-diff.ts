@@ -177,7 +177,12 @@ function mergeFileConfig(active: ConfigSource, file: ConfigSource, recorder: Cha
     mergeField(activeRecord, fileRecord, target, key, key, recorder);
   }
   result.telegram = mergeTelegram(active, file, recorder);
-  result.agent = mergeAgent(active, file, recorder);
+  const mergedAgent = mergeAgent(active, file, recorder);
+  if (mergedAgent === undefined) {
+    delete result.agent;
+  } else {
+    result.agent = mergedAgent;
+  }
   result.providers = mergeProviders(active, file, recorder);
   return result;
 }
@@ -198,13 +203,27 @@ function mergeTelegram(active: ConfigSource, file: ConfigSource, recorder: Chang
 }
 
 function mergeAgent(active: ConfigSource, file: ConfigSource, recorder: ChangeRecorder): FileConfig['agent'] {
-  const result = structuredClone(active.file.agent);
-  const activeRecord = active.file.agent as unknown as Record<string, unknown>;
-  const fileRecord = file.file.agent as unknown as Record<string, unknown>;
+  const fileAgent = file.file.agent;
+  if (fileAgent === undefined || fileAgent === null) {
+    // The section is optional: a missing or null `agent` drops every field the
+    // active configuration carried, and each drop is an ordinary hot change.
+    for (const key of Object.keys(active.file.agent ?? {})) {
+      recorder.add(`agent.${key}`, classify(`agent.${key}`));
+    }
+    return fileAgent;
+  }
+  const result = structuredClone(active.file.agent ?? null) ?? {};
+  const activeRecord = (active.file.agent ?? {}) as unknown as Record<string, unknown>;
+  const fileRecord = fileAgent as unknown as Record<string, unknown>;
   const target = result as unknown as Record<string, unknown>;
   for (const key of unionKeys(activeRecord, fileRecord)) {
     if (key === 'system_prompt_file') {
-      target[key] = mergeSystemPromptFile(active, file, recorder);
+      const merged = mergeSystemPromptFile(active, file, recorder);
+      if (merged === undefined) {
+        delete target[key];
+      } else {
+        target[key] = merged;
+      }
       continue;
     }
     mergeField(activeRecord, fileRecord, target, key, `agent.${key}`, recorder);
@@ -214,15 +233,17 @@ function mergeAgent(active: ConfigSource, file: ConfigSource, recorder: ChangeRe
 
 /**
  * The prompt file is compared by path and by content: an edited prompt keeps the
- * same path, and a renamed file with the same text is still a change.
+ * same path, and a renamed file with the same text is still a change. A
+ * configuration without `agent.system_prompt_file` yields `undefined`, which the
+ * caller deletes from the candidate rather than storing a present-undefined key.
  */
-function mergeSystemPromptFile(active: ConfigSource, file: ConfigSource, recorder: ChangeRecorder): string {
-  const pathChanged = !deepEqual(active.file.agent.system_prompt_file, file.file.agent.system_prompt_file);
+function mergeSystemPromptFile(active: ConfigSource, file: ConfigSource, recorder: ChangeRecorder): string | undefined {
+  const pathChanged = !deepEqual(active.file.agent?.system_prompt_file, file.file.agent?.system_prompt_file);
   const contentChanged = active.raw.agent.system_prompt !== file.raw.agent.system_prompt;
   if (pathChanged || contentChanged) {
     recorder.add('agent.system_prompt_file', 'hot');
   }
-  return file.file.agent.system_prompt_file;
+  return file.file.agent?.system_prompt_file;
 }
 
 function mergeChats(active: ConfigSource, file: ConfigSource, recorder: ChangeRecorder): FileChat[] {

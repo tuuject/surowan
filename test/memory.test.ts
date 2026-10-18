@@ -265,7 +265,7 @@ test('admin panel manages memories with chat filter and long-TTL warnings', asyn
     directory,
     configPath,
     testConfigJsonc(directory, (config) => {
-      config.agent.memory_ttl_warning_days = 2;
+      config.agent!.memory_ttl_warning_days = 2;
       config.admin = {
         enabled: true,
         host: '127.0.0.1',

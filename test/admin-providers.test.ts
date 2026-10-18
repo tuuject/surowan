@@ -699,7 +699,7 @@ test('discovers models in saved mode from the registry connection', async () => 
     // the running process cannot adopt, so nothing of the file is applied.
     await rewriteFile(fixture, (config) => {
       config.telegram.bucket_window_seconds = 5;
-      config.agent.context.idle_grace_seconds = 10;
+      config.agent!.context!.idle_grace_seconds = 10;
       const agent = config.providers.agent;
       if (agent?.kind !== 'custom') {
         throw new Error('Expected a custom agent provider');
@@ -824,7 +824,7 @@ test('sets the agent thinking level only to a level the agent model accepts', as
       error: 'unsupported_thinking_level',
       message: 'agent/agent-model does not accept thinking level medium (supported: off, low, high, max)',
     });
-    expect(fixture.file().agent.thinking_level).toBe('low');
+    expect(fixture.file().agent!.thinking_level).toBe('low');
 
     const missingRevision = await write(fixture, '/api/thinking-level', 'PUT', { thinking_level: 'max' });
     expect(missingRevision.status).toBe(400);
@@ -836,9 +836,9 @@ test('sets the agent thinking level only to a level the agent model accepts', as
       agent: { thinking_level: 'max' },
       apply: { applied: ['agent.thinking_level'], restart_required: [] },
     });
-    expect(fixture.file().agent.thinking_level).toBe('max');
+    expect(fixture.file().agent!.thinking_level).toBe('max');
     // A whitelisted field: the next invocation already runs with it.
-    expect(fixture.configStore.current().config.agent.thinking_level).toBe('max');
+    expect(fixture.configStore.current().config.agent!.thinking_level).toBe('max');
 
     // Editing the agent model so that it loses the level in use is refused
     // before anything is written; the level has to move first.
@@ -865,7 +865,7 @@ test('sets the agent thinking level only to a level the agent model accepts', as
 test('global Admin writes preserve Chat overrides and reject incompatible inherited thinking', async () => {
   const fixture = await adminFixture({
     transform: (config) => {
-      config.agent.thinking_level = 'off';
+      config.agent!.thinking_level = 'off';
       Object.assign(config.telegram.chats[0] ?? {}, { provider: 'vision', model: 'vision-model' });
       config.telegram.chats.push({ id: -999, provider: 'agent', model: 'agent-model', thinking_level: 'high' });
     },
@@ -1058,7 +1058,7 @@ test('checks a real streaming provider with one fixed prompt and audits usage wi
         provider.api = 'openai-completions';
         provider.models[0]!.reasoning = false;
         provider.models[0]!.max_tokens = 64;
-        config.agent.thinking_level = 'off';
+        config.agent!.thinking_level = 'off';
         config.developer = { record_model_payloads: true };
       }
     },

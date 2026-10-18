@@ -75,22 +75,31 @@ export class AgentModelSwitcher {
     this.#configStore = configStore;
   }
 
-  current(): AgentModelOption {
+  /** `undefined` when the configuration carries no complete agent model reference. */
+  current(): AgentModelOption | undefined {
     const config = this.#configStore.current().config;
+    if (config.agent.provider === undefined || config.agent.model === undefined) {
+      return undefined;
+    }
     return this.option(config.agent.provider, config.agent.model);
   }
 
   /** The live thinking level; a model switch resets it (`ConfigReloader.setAgentModel`). */
-  thinkingLevel(): ModelThinkingLevel {
+  thinkingLevel(): ModelThinkingLevel | undefined {
     return this.#configStore.current().config.agent.thinking_level;
   }
 
   model(): Model<Api> {
     const snapshot = this.#configStore.current();
     const config = snapshot.config;
-    const found = snapshot.models.getModel(config.agent.provider, config.agent.model);
+    const provider = config.agent.provider;
+    const modelId = config.agent.model;
+    if (provider === undefined || modelId === undefined) {
+      throw new Error('No agent model is configured');
+    }
+    const found = snapshot.models.getModel(provider, modelId);
     if (found === undefined) {
-      throw new Error(`Agent model ${config.agent.provider}/${config.agent.model} is not registered`);
+      throw new Error(`Agent model ${provider}/${modelId} is not registered`);
     }
     return found;
   }

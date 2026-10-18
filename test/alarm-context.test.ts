@@ -134,7 +134,7 @@ async function runtimeFixture(transform?: (config: FileConfig) => void, existing
       configPath,
       testConfigJsonc(directory, (config) => {
         config.telegram.bucket_window_seconds = 0;
-        config.agent.send_nudge_enabled = false;
+        config.agent!.send_nudge_enabled = false;
         transform?.(config);
       }),
     );
@@ -164,7 +164,7 @@ async function runtimeFixture(transform?: (config: FileConfig) => void, existing
   const tasks = new LongTaskService(store.orm);
   const plugins = loadPlugins([alarmPlugin]);
   const conversationRuntime = new ConversationRuntime({
-    agentCacheSize: () => loaded.config.agent.context.agent_cache_size,
+    agentCacheSize: () => loaded.config.agent!.context!.agent_cache_size,
   });
   const runtime = new AgentRuntime({
     store,
@@ -347,8 +347,8 @@ describe('alarm canonical context', () => {
     async (mode) => {
       const f = await runtimeFixture((config) => {
         config.telegram.admins = [42];
-        config.agent.context.retained_sends_target = 1;
-        config.agent.context.retained_sends_max = 2;
+        config.agent!.context!.retained_sends_target = 1;
+        config.agent!.context!.retained_sends_max = 2;
       });
       const log = vi.spyOn(console, 'log').mockImplementation(() => {});
       insertAlarmTask(f.store, 1n, 42n, 'old-list-marker', futureIso());
@@ -467,7 +467,7 @@ async function authFixture() {
     directory,
     configPath,
     testConfigJsonc(directory, (config) => {
-      config.agent.history_messages = 5;
+      config.agent!.history_messages = 5;
       config.telegram.bucket_window_seconds = 0;
     }),
   );
