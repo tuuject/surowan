@@ -60,6 +60,29 @@ Coding Agent 接任务时只需读根 `AGENTS.md`、对应主题文档、本任�
 - 任何 Admin 前端/API/locale 变化必须运行相关真实 Admin E2E，不能用 Vitest 代替；先 `pnpm run admin:build`，再 `pnpm run admin:test:e2e <suite>`。
 - 新时间测试采用一个固定虚拟时钟或全部从当前时钟推导；异步竞态用明确 gate/barrier，不依赖短 sleep 或固定“未来”日期。
 
+### 3.1 T00–T07 回顾得出的共同不变量（T08 起适用）
+
+T00–T07 经两次独立实现与 review，重复出现的缺陷归纳为下列不变量。T08 起每个任务的「补充验收」列出相关条目；交接报告逐条写「满足 / 不适用」，满足的附测试名或 `文件:行`。
+
+开工前先确认前置任务的验收在当前代码上按 R01 成立；不成立时先修，单独提交并在交接中注明，不在下游任务里绕过或重新发明。
+
+| 编号 | 不变量 | 最低证据 |
+| --- | --- | --- |
+| R01 | **生产装配即验收对象**：验收场景用组合根（`runtime-host.ts` 的真实装配）产出的 Runtime、profile 与依赖运行。测试里手动注入 loader、工具或依赖只证明单元行为，不算验收。 | 至少一个测试经真实装配函数构造 PG Runtime 并走完本任务验收链路 |
+| R02 | **声明即生效**：新增的 profile 字段、能力开关、配置项必须有读者；状态枚举的每个值都有写入路径。 | 翻转字段后行为变化的测试；每个状态值至少一个到达它的测试 |
+| R03 | **Host 隔离覆盖全部入口**：一项能力对 PG 的开关同时作用于 system prompt 文案、Skills 索引、工具注册、`execute` search/help/call、context injector、后台任务/receipt 与 Scheduler 唤醒。 | 按入口逐一断言，含旧 transcript 直接调用；不只断言工具列表 |
+| R04 | **拒绝不留状态**：校验失败、409、超限、未授权等拒绝返回后，不留下行、文件、ref、checkpoint、计数或 staged 资产。先校验、先量容量，后分配、后写入。 | 拒绝前后相关表行数与目录文件列表相等 |
+| R05 | **单个元素不绕过上限**：长度、字节、像素、条数上限对第一个或唯一一个元素同样生效，不写「至少放进一个」的特例。 | 单个超限元素的拒绝测试 |
+| R06 | **内容校验做到底**：图片校验完整解码像素并拒绝动画；只读 header/metadata 不算校验。 | 探针含头部完整而像素截断的 PNG、APNG（`acTL`）、动画 WebP/GIF |
+| R07 | **写路径按归属匹配**：接收内部 ID 的写、删路径（含既有 Admin 端点）在同一条件里同时匹配 ID 与所属 room/Conversation/Host；只按 ID 匹配视为跨房间写。 | 跨 room ID 的写/删返回 404/403 且无行变化 |
+| R08 | **混合数据不让读路径出错**：既有只读 API、审计列表与详情、快照解析（含 GC 与缓存恢复后的重建）在含 PG 行的库上不 500，也不按 Telegram 数字格式解析而丢字段。 | 每种新 PG 行进入一次既有列表/详情端点的混合 fixture |
+| R09 | **级联与保留不吞台账**：保留期清理与 FK 删除行为不得静默删除台账、回执、审计行；需要终态的行先写终态再删关联消息。migration 里的 FK 与 `schema.ts` 声明一致。 | purge 后台账仍可查询且状态正确；新增 FK 写明删除行为 |
+| R10 | **文件生命周期与备份**：新增本地文件目录进入备份与恢复；清理只删确认无行引用的文件，并以条件删除先认领行再删文件，不能被并发上传或重新引用插入；备份不删正在写入的临时文件。 | 备份恢复后可读；共享文件的引用计数测试；清理与上传的并发测试 |
+| R11 | **幂等指纹覆盖全部语义字段**：request key 指纹包含 body 中所有影响结果的字段（文本、asset、reply ref、sender 等）；同 key 重放 Release/retry 返回原结果；runtime 自动生成的 key 与客户端 key 不同命名空间，冲突返回稳定错误而非 SQLite 异常。 | 只换一个字段的同 key 请求得 409；重放不产生第二次模型调用 |
+| R12 | **外部 ID 解析严格**：HTTP 与模型可见 ref 的解析区分 kind 前缀；十进制 ID 只接受 safe/int64 规范形式（无前导零、无符号、不超界）。 | 错 kind、前导零、超界、负数的拒绝测试 |
+| R13 | **闸门与计量键一致**：同一 TG 群的 Agent、Vision、replay、生图等模型调用沿用基线闸门键与 usage scope；PG 一律带 Host 范围。新增模型调用路径时写明它使用的闸门与计量 scope。 | TG 闸门键与 usage 行和 T00 合同对比无差异 |
+| R14 | **交接与测试可核对**：交接里的每条行为声明附测试名或 `文件:行`；测试名声称覆盖的内容必须有对应断言，不用 `void x` 之类占位；改动既有测试时说明是 API 迁移还是语义变化，不放宽断言。 | 评审能逐条复核；既有断言没有被弱化 |
+
 ## 4. P0 任务
 
 ### T00 — 固定 Telegram 行为合同和 Host 输入输出边界
@@ -274,6 +297,16 @@ Coding Agent 接任务时只需读根 `AGENTS.md`、对应主题文档、本任�
 
 **验收标准**：默认调用image_generate拒绝；开启后真实工具→generation→receipt→send→虚拟图片完整连通，失败/部分结果可见；无真实IM输出；standalone模式不恢复/执行不属于启用Host的历史生成任务。
 
+**补充验收（§3.1）**：
+
+- 前置（R01）：开工前在真实装配下确认 T07 验收成立，即房间图片进入模型、`read_image` 可按 ref 调用，且本地资产读取不经 Telegram 客户端；不成立先修。
+- R01：同一真实装配下，默认 room 调 `image_generate` 被拒；开启后 generation→receipt→send→虚拟图片连通。
+- R02/R03：image 开关翻转时，prompt 文案、Skills 索引、`execute` search/help/call、旧 transcript 直接调用、receipt 调度同时变化；关闭只阻止新提交。
+- R04：关闭状态、配置缺失、额度不足等拒绝不创建 generation、long task、资产行或文件。
+- R09/R10：PG 生成资产进入备份并能从恢复后的库读取；消息被保留期清理后，generation/receipt 审计仍可查询；多行共享同一文件时，只在最后一个引用消失后删除。
+- R13：PG 生图用量记在 playground scope；TG 生图的闸门键、用量与回执行为不变。
+- receipt 的取消与有效性检查按 Host 分支，PG 不读取 Telegram chat ID；全局并发额度满时，queued receipt 不让 Scheduler 忙等。
+
 **必要测试**：`test/image-agent.test.ts`、`image-delivery.test.ts`、`image-delivery-runtime.test.ts`、`image-startup.test.ts`、`task-delivery.test.ts`；使用现有image fake provider fixture，新增PG/混合队列断言；如改worker，运行`packages/image-service/test/`中相关既有测试及完整包测试。
 
 **不在范围**：新增图像模型、生成质量Eval、修改TG相册输出、自动重试收费请求、为PG再建图片worker。
@@ -298,6 +331,16 @@ Coding Agent 接任务时只需读根 `AGENTS.md`、对应主题文档、本任�
 6. E2E服务装配真实CoreRuntime/Scheduler + Faux，补控时/阻塞gate；不只seed几个成功结果。
 
 **验收标准**：未登录401、跨Origin403、API key不能写、跨room404/403；断线后同key取原release；空release零模型调用；失败无发送也能轮询看见。
+
+**补充验收（§3.1）**：
+
+- R07：新端点与既有 memory、audit 写端点都按 room/Host 归属匹配；用另一个 room 或 TG Conversation 的 ID 写、删返回 404/403 且无行变化。
+- R08：所有既有 Admin 列表与详情端点在含 PG invocation、消息、发送、资产、记忆的 fixture 上返回 200，且不把房间显示成可管理的 TG 群；E2E `02-lists-filters` 覆盖混合数据。
+- R11：同 key 只换文本、asset、reply 或 sender 之一都返回 409；同 key 重放 submit、Release、retry 返回原结果；断线重试不产生第二次模型调用。
+- R12：路径与 body 中的 ID 拒绝错 kind 前缀、前导零、负数、超出 int64。
+- R04/R06/R10：上传复用 T07 校验并通过 R06 探针；被拒的上传与被拒的提交不留下 asset 行或文件；未挂到消息的上传有明确清理期限，状态可查询。
+- 房间的 bot 身份不能作为输入 sender，也不能经 participant 端点被冒用；retry 在同房间已有更晚 Release 时拒绝，失败的 retry 留下可查询的终态，不让原输入永久无法处理。
+- 建房写入的通用列取值（如 `chats.type`）记入 `agent-doc/data-layer.md`；既有按类型过滤的查询不因房间而改变 TG 结果。
 
 **必要测试**：新增建议`test/admin-playground.test.ts`、`apps/admin-next/e2e/19-playground.e2e.ts`；重跑`admin.test.ts`、`admin-api-keys.test.ts`、`admin-invocation-media.test.ts`以及E2E `00-auth`、`04-writes`、`05-readonly-security`、`06-trust-boundary`。
 
@@ -324,6 +367,13 @@ Coding Agent 接任务时只需读根 `AGENTS.md`、对应主题文档、本任�
 
 **验收标准**：在Telegram网络被deny且无token的临时环境成功启动Admin、Release和图片闭环；两种模式shutdown无悬挂任务/锁；PG-only打开混合fixture不变更TG工作状态。
 
+**补充验收（§3.1）**：
+
+- R01：PG-only 验收用真实 `serve --playground-only` 子进程完成，而不是在测试里拼装 Runtime；Telegram 构造、API、getFile、Sticker、MCP 的计数取自生产装配上的 spy。
+- R03：PG-only 下 Scheduler 的 recover/due/launch、图片 worker、long task 与全局 sleep 都不触碰 TG 工作；混合模式下 PG profile 只在虚拟 Conversation 上绑定。
+- R10：PG-only 的 `backup` 覆盖全部 PG 文件目录，恢复后可读；`serve` 运行中执行 `backup` 不删除正在写入的上传或生成文件。
+- R13：混合模式下 TG 的闸门键、预算、usage scope 与 T00 合同一致。
+
 **必要测试**：扩展`test/runtime-host.test.ts`、`cli-harness.ts`相关CLI测试、`test/image-startup.test.ts`、`operations.test.ts`；新增Host装配spy，Telegram构造/API/文件下载/Sticker/MCP计数均0；ServeLock/takeover既有测试继续通过。
 
 **不在范围**：第二种部署方式、单独PG数据库进程、分布式工作者、全面重写FileConfig。
@@ -348,6 +398,13 @@ Coding Agent 接任务时只需读根 `AGENTS.md`、对应主题文档、本任�
 6. 中英locale、键盘操作、焦点/读屏标签、窄屏布局与reload/deep link。
 
 **验收标准**：只通过页面可完成多用户→Hold→Reply→Release→输出；两房间互不串内容；浏览器刷新恢复room状态；未知结果与重复提交可解释。
+
+**补充验收（§3.1）**：
+
+- R04/R14：被拒或网络失败的提交不显示为已发送，草稿与附件保留；E2E 断言服务端返回的错误码与页面文案，不只断言 toast 出现。
+- R06/R05：超限、截断、动画图片的拒绝原因来自服务端，页面不以客户端预检代替服务端校验；单张超限图片同样被拒。
+- R08/R12：页面只使用 API DTO 中的 opaque ref 和展示字段，不解析或显示内部数字 ID、本地文件路径。
+- R11：同一草稿的重试复用 request key，修改内容后换新 key；两个标签页不共享 key；E2E 覆盖响应丢失后重试。
 
 **必要测试**：扩展新增`19-playground`E2E的真实后端场景；跑`pnpm run admin:build`、`pnpm run admin:test:e2e 19-playground`及`01-routes`、`04-writes`、`06-trust-boundary`；locale/type检查必须通过。
 
