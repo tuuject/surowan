@@ -6,6 +6,7 @@ import { exampleNames, exampleSource, renderConfigFields } from '../scripts/docs
 import { manualContentRoot, packManual } from '../scripts/manual-prepare.ts';
 import { bundledManualSpace, FileSystemDocSpaces } from '../src/adapters/local-monolith/doc-spaces.ts';
 import { DOC_INDEX_PATH } from '../src/platform/doc-spaces.ts';
+import { PRODUCT_KNOWLEDGE_INDEX } from '../src/platform/product-knowledge.ts';
 
 const directories: string[] = [];
 const examplePages = [
@@ -150,6 +151,21 @@ test('the packed manual is readable through the document spaces contract', async
   const example = await spaces.read(access, 'manual', '../examples/config.example.jsonc.md', 'start/quick-start.md');
   expect(example.truncated).toBe(false);
   expect(example.text).toContain('```jsonc');
+});
+
+test('baked product routes resolve to readable manual pages within the context budget', async () => {
+  const outDir = await tempRoot();
+  const packed = await packManual({ outDir });
+  const spaces = await FileSystemDocSpaces.load([bundledManualSpace(outDir)]);
+  const access = { conversationId: 1n, chatId: 2n };
+  expect(Buffer.byteLength(PRODUCT_KNOWLEDGE_INDEX, 'utf8')).toBeLessThanOrEqual(7000);
+  const paths = new Set([...PRODUCT_KNOWLEDGE_INDEX.matchAll(/\]\(([^)\s]+)\)/g)].map((match) => match[1] ?? ''));
+  expect(paths.size).toBeGreaterThan(0);
+  for (const path of paths) {
+    const document = await spaces.read(access, 'manual', path);
+    expect(packed.documents, path).toContain(document.path);
+    expect(document.truncated, path).toBe(false);
+  }
 });
 
 test('every relative markdown link stays inside the packed manual', async () => {

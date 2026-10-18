@@ -7,6 +7,7 @@ import { type AgentPromptLayers, composeAgentPrompt } from '../platform/agent-pr
 import type { RawConfig } from '../platform/config.ts';
 import type { CompletionContext, DirectImage, VisibleSender } from '../platform/invocation-context.ts';
 import type { PromptTemplateModel, PromptTemplateValues } from '../platform/prompt-template.ts';
+import { PRODUCT_KNOWLEDGE_INDEX } from '../platform/product-knowledge.ts';
 import { renderSkillIndexPrompt, type SystemSkill } from '../platform/system-resources.ts';
 import { renderSpoilers, type SpoilerRange } from '../platform/spoilers.ts';
 import type { BusinessStore } from '../store/store.ts';
@@ -298,7 +299,13 @@ export class ContextBuilder {
     // global/group templates replaceable.
     const skillIndex = options?.skillFilter === undefined ? this.#skills : this.#skills.filter(options.skillFilter);
     const promptLayers: AgentPromptLayers = {
-      prefix: [CORE_AGENT_PROTOCOL, renderSkillIndexPrompt(skillIndex), imageHandling, stickerCatalogHandling]
+      prefix: [
+        CORE_AGENT_PROTOCOL,
+        PRODUCT_KNOWLEDGE_INDEX,
+        renderSkillIndexPrompt(skillIndex),
+        imageHandling,
+        stickerCatalogHandling,
+      ]
         .filter((part) => part.length > 0)
         .join('\n\n'),
       global: config.agent.system_prompt,

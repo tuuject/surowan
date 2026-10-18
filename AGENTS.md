@@ -86,6 +86,7 @@ Invocation 是运行窗口而不是一次问答：`agent.context.idle_grace_seco
 | Telegram 入库、Bucket、Context、发送与媒体流程 | [agent-doc/telegram-agent-flow.md](agent-doc/telegram-agent-flow.md) |
 | Conversation Context 生命周期、GC、热注入与引用 TTL | [agent-doc/telegram-agent-flow.md](agent-doc/telegram-agent-flow.md#context-生命周期) |
 | Skills、`read`/`execute` 原语与内部能力注册表 | [agent-doc/telegram-agent-flow.md](agent-doc/telegram-agent-flow.md) |
+| 离线产品知识烘焙、意图索引与事实约束 | [agent-doc/product-knowledge.md](agent-doc/product-knowledge.md) |
 | 本地运行、依赖、Docker 部署、诊断和故障处理 | [agent-doc/operations.md](agent-doc/operations.md) |
 | Admin Panel 认证、审计 API 与前端 | [agent-doc/admin-panel.md](agent-doc/admin-panel.md) |
 | 测试命令与真实验收矩阵 | [agent-doc/verification.md](agent-doc/verification.md) |

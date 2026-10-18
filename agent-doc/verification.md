@@ -47,6 +47,8 @@ pnpm test test/alarm.test.ts test/alarm-context.test.ts
 pnpm test test/prompt-template.test.ts test/prompt-markdown.test.ts test/tui-configure.test.ts
 ```
 
+产品知识改动还需按 [产品知识烘焙](product-knowledge.md#验证方法) 做五类轻量模型探针；固定文本断言不能证明模型会查文档。`manual-pack.test.ts` 检查烘焙索引的字节上限与所有来源路径在实际手册包中可读取。Full ReplayRunner 当前阻断文档能力，不能独立完成 grounding 验收。
+
 上面的命令按改动范围组织；新增测试文件时同步补充对应命令与下表契约。`pnpm test` 运行 `vitest.config.ts` 的 `include` 覆盖的全部测试（`test/**/*.test.ts`、`apps/admin-next/src/**/*.test.ts` 与 `packages/image-service/test/**/*.test.ts`），文件间串行（`fileParallelism: false`）。
 
 | 测试 | 主要契约 |
