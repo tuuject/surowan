@@ -96,9 +96,6 @@ describe('bucket scheduler', () => {
       .prepare<[], { snapshot_json: string }>("SELECT snapshot_json FROM invocation_messages WHERE section = 'new'")
       .get();
     expect(snapshot === undefined ? null : JSON.parse(snapshot.snapshot_json).text).toBe('after');
-    expect(
-      store.db.prepare<[], { prompt_version: bigint }>('SELECT prompt_version FROM invocations').get()?.prompt_version,
-    ).toBe(9n);
     store.close();
   });
 

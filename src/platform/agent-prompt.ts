@@ -6,8 +6,8 @@ export const MAX_PROMPT_OVERRIDE_CHARS = 65_536;
 
 /**
  * The ordered layers of the stable system prompt. `prefix` and `middle` are
- * runtime-owned text (core protocol, skill index, media handling, sticker
- * handling, conversation mode, memory guidance) and are never replaceable;
+ * runtime-owned text (core protocol, product knowledge, skill index, media
+ * handling, sticker handling, conversation mode, memory guidance) and are never replaceable;
  * `global` and `group` are the raw comment-stripped templates of
  * `agent.system_prompt` and the chat's `instructions`. A replay can rebuild the
  * current prompt from these four layers plus the active template values.

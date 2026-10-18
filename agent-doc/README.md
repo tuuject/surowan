@@ -30,6 +30,7 @@
 | 修改 Bot 命令、自助忽略与恢复 | [telegram-agent-flow.md](telegram-agent-flow.md#bot-commands)、[configuration.md](configuration.md#运行时配置热更新) |
 | 修改 Conversation Context、GC、热注入或引用 TTL | [telegram-agent-flow.md](telegram-agent-flow.md#context-生命周期) |
 | 实现/排查 Skills、`read`/`execute` 原语与内部能力注册表 | [telegram-agent-flow.md](telegram-agent-flow.md#skills-与受控能力调用) |
+| 维护离线产品知识索引、烘焙 Skill 与事实约束 | [product-knowledge.md](product-knowledge.md) |
 | 实现/排查 Alarm 与 Deferred Invocation | [telegram-agent-flow.md](telegram-agent-flow.md#alarm--deferred-invocation) |
 | 修改辞典、群级术语、自动注入、导入导出与 Tool Model 融合 | [dictionary.md](dictionary.md) |
 | 本地启动、安装媒体依赖、部署或排障 | [operations.md](operations.md) |

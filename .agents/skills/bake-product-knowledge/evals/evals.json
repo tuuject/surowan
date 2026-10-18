@@ -1,0 +1,17 @@
+{
+  "skill_name": "bake-product-knowledge",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Use $bake-product-knowledge to bake the current checkout's actual user manuals into src/platform/product-knowledge.ts. Discover navigation and linked/unlisted pages, read their full relevant contents, cover all documented Bot commands and self-ignore/restore natural-language intents, and keep every entry linked to packed manual paths. Update the source ledger. Keep the exported string at most 7000 UTF-8 bytes and aim for 2000 model tokens. Do not change runtime integration, start a server, call a model, add dependencies, or derive product facts from source code. Report coverage, measured versus estimated budgets, and unresolved documentation gaps.",
+      "expected_output": "A deterministic PRODUCT_KNOWLEDGE_INDEX with documented aliases, complete documented command inventory, correct member/admin and Chat/Topic boundaries, capability/configuration routes, valid packed links, and no grounding instructions or source report in runtime text. The external ledger distinguishes actual reads, unobserved generated resources and omitted details; checks are reported only if executed.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Use $bake-product-knowledge to refresh a checkout whose per-chat Admin-edit step says adding a Chat requires restart, while its dedicated lifecycle section and other current manuals say additions hot apply. Its manual names /cut_topic without syntax, /status without privileges, and navigation lists a generated fields.md that is absent locally. No manual-generation or verification commands are authorized for this run. Produce the reachable index and source ledger without consulting implementation for product behavior, inventing missing command details, silently deleting the undocumented command names, or claiming the unavailable page was read. Explain the evidence supporting any conflict resolution.",
+      "expected_output": "Retains documented command names and source routes without invented arguments, effects or access levels; records the conflicting passages and corroborated lifecycle choice outside runtime text; marks generated reference as unread with a packaging-derived route only; reports unrun checks and completes independent entries within the budget without new infrastructure.",
+      "files": []
+    }
+  ]
+}
