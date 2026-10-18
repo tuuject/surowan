@@ -77,6 +77,7 @@ test('reports file and running values with absent optional fields resolved', asy
     send_max_text_length: 2000,
     memory_ttl_warning_days: 30,
     allow_reply_message_multiple_times: false,
+    send_duplicate_guard_enabled: true,
   });
   // The model selection and the prompt have their own pages.
   expect(Object.keys(view.saved)).not.toContain('provider');
@@ -99,6 +100,7 @@ test('a write hot-applies every changed field, including the ones that used to n
       memory_ttl_warning_days: 7,
       history_messages: 9,
       send_nudge_enabled: true,
+      send_duplicate_guard_enabled: false,
       send_max_text_length: null,
     },
     (await f.view()).revision,
@@ -112,6 +114,7 @@ test('a write hot-applies every changed field, including the ones that used to n
       'agent.context.agent_cache_size',
       'agent.memory_ttl_warning_days',
       'agent.send_max_text_length',
+      'agent.send_duplicate_guard_enabled',
     ]),
   );
   expect(body.active).toEqual(body.saved);
@@ -119,6 +122,7 @@ test('a write hot-applies every changed field, including the ones that used to n
   const active = f.configStore.current().config.agent;
   expect(active.context).toMatchObject({ ref_ttl_hours: 24, agent_cache_size: 2, retained_sends_target: 1 });
   expect(active.memory_ttl_warning_days).toBe(7);
+  expect(active.send_duplicate_guard_enabled).toBe(false);
   expect(active.send_max_text_length).toBeUndefined();
   expect(f.reloader.status().restartRequired).toEqual([]);
   // The removed optional field is gone from the file, not written as null.
@@ -134,7 +138,11 @@ test('a value equal to the file, or to an absent default, writes nothing', async
   const before = await readFile(f.path, 'utf8');
   const { revision } = await f.view();
   const response = await f.update(
-    { history_messages: f.loaded.config.agent.history_messages, memory_ttl_warning_days: 30 },
+    {
+      history_messages: f.loaded.config.agent.history_messages,
+      memory_ttl_warning_days: 30,
+      send_duplicate_guard_enabled: true,
+    },
     revision,
   );
   expect(response.status).toBe(200);

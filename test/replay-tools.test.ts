@@ -159,6 +159,40 @@ test('send rejects repeated reply targets within the scene without recording ano
   expect(separate.outputs).toHaveLength(1);
 });
 
+test('the duplicate send guard rejects a repeated text or sticker within the scene', async () => {
+  let rejections = 0;
+  const registry = replayInput({
+    tools: [definition('send', SendInputSchema), definition('send_reply', SendReplyInputSchema)],
+  });
+  const replay = createReplayTools(registry, emptySystemResources(), {
+    allowReplyMessageMultipleTimes: true,
+    replyMessageIds: new Set(['42']),
+    duplicateSendGuard: { onRejected: () => (rejections += 1) },
+  });
+  const send = toolOf(replay.tools, 'send');
+  const sendReply = toolOf(replay.tools, 'send_reply');
+  await send.execute('first', { text: 'same', reply_to_message_id: '42' });
+  // Kind defaults and ignored fields do not make a different message.
+  await expect(
+    send.execute('again', { kind: 'text', text: 'same', reply_to_message_id: '42', sticker_ref: 'unused' }),
+  ).rejects.toThrow('send_duplicate');
+  await send.execute('unattached', { text: 'same' });
+  await send.execute('sticker', { kind: 'sticker', sticker_ref: 'stk_abc' });
+  await expect(
+    sendReply.execute('reply', { parts: [{ text: 'new' }, { kind: 'sticker', sticker_ref: 'stk_abc' }] }),
+  ).rejects.toThrow('send_duplicate');
+  await expect(sendReply.execute('twice', { parts: [{ text: 'twin' }, { text: 'twin' }] })).rejects.toThrow(
+    'send_duplicate',
+  );
+  expect(rejections).toBe(3);
+  expect(replay.outputs.map((output) => output.tool_call_id)).toEqual(['first', 'unattached', 'sticker']);
+  // Without the option every repeat is synthesized, as with the guard turned off in production.
+  const unguarded = createReplayTools(registry, emptySystemResources());
+  await toolOf(unguarded.tools, 'send').execute('one', { text: 'same' });
+  await toolOf(unguarded.tools, 'send').execute('two', { text: 'same' });
+  expect(unguarded.outputs).toHaveLength(2);
+});
+
 test('send allows repeated reply targets when configured without bypassing scene visibility', async () => {
   const replay = createReplayTools(
     replayInput({ tools: [definition('send', SendInputSchema)] }),

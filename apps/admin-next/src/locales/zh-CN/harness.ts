@@ -84,6 +84,10 @@ export const harness: typeof harnessEn = {
       label: '允许对同一消息多次回复',
       description: '关闭按消息的 Reply 去重；授权、预算与限流照常生效。',
     },
+    send_duplicate_guard_enabled: {
+      label: '重复发送保护',
+      description: '拒绝与同一 Invocation 内已发出内容完全一致的文本或贴纸；拒绝超过 3 次即停止本次运行。',
+    },
     'rate_limits.sends_per_window': {
       label: '窗口内发送上限',
       description: '每个 Chat 在滑动窗口内允许的 Telegram 发送次数，失败的尝试同样计数。',

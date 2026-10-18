@@ -11,6 +11,7 @@ const saved = {
   send_nudge_enabled: false,
   send_barrier_enabled: false,
   allow_reply_message_multiple_times: false,
+  send_duplicate_guard_enabled: true,
   'rate_limits.sends_per_window': 6,
   'rate_limits.window_seconds': 300,
   'rate_limits.turns_per_injection': 8,

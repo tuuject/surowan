@@ -63,6 +63,20 @@ class SendHeldBack extends Error {}
 export const SEND_BARRIER_TEXT =
   'Not sent: new messages arrived in this conversation before this reply went out. They follow as a new batch; read them, then decide again what, if anything, to send. One message can answer both batches when they continue the same discussion; when they are separate discussions, answer each with its own send.';
 
+/** Duplicate rejections an invocation may collect; one more ends the run. */
+export const DUPLICATE_SEND_REJECTION_LIMIT = 3;
+
+/** The guard option for `agent.send_duplicate_guard_enabled`; only an explicit `false` turns it off. */
+export function duplicateSendGuard(
+  enabled: boolean | undefined,
+  onRejected: () => void = () => {},
+): Pick<SendToolEnvironment, 'duplicateSendGuard'> {
+  return enabled === false ? {} : { duplicateSendGuard: { onRejected } };
+}
+
+const SEND_DUPLICATE_TEXT =
+  'Not sent: send_duplicate. This exact message was already published in this run and Telegram accepted it. Do not send it again; if nothing else needs saying, stop without calling send.';
+
 export type SendToolInput =
   | {
       readonly kind: 'text';
@@ -206,6 +220,12 @@ export interface SendToolEnvironment {
   readonly maxTextLength: number | undefined;
   readonly disallowBlankLines: boolean;
   readonly allowReplyMessageMultipleTimes?: boolean;
+  /**
+   * Duplicate send guard: rejects a text or sticker identical to one this
+   * invocation already published, and reports each rejection so the run can
+   * stop a model that keeps repeating itself. Absent when the guard is off.
+   */
+  readonly duplicateSendGuard?: { readonly onRejected: () => void };
   readonly deadline: number;
   readonly bot: { readonly id: bigint; readonly displayName: string; readonly username: string | null };
   /**
@@ -276,10 +296,16 @@ export function createSendTools(environment: SendToolEnvironment): {
   readonly sendReply: AgentTool<typeof SendReplyInputSchema, SendReplyDetails>;
 } {
   const mentionedTasks = new Set<bigint>();
-  const replyPolicy =
+  const replyPolicy = [
     environment.allowReplyMessageMultipleTimes === true
       ? 'Current configuration permits multiple replies to the same message; each send must still be warranted.'
-      : 'Each message may receive at most one reply across text, stickers, and images, even across later invocations; changing the content or setting resend:true does not permit another reply. A pending or unknown earlier reply also blocks a new one. Do not omit or change reply_to_message_id to bypass a rejected duplicate.';
+      : 'Each message may receive at most one reply across text, stickers, and images, even across later invocations; changing the content or setting resend:true does not permit another reply. A pending or unknown earlier reply also blocks a new one. Do not omit or change reply_to_message_id to bypass a rejected duplicate.',
+    environment.duplicateSendGuard === undefined
+      ? ''
+      : 'A text or sticker identical to one already sent in this run is rejected; never repeat a message that was sent.',
+  ]
+    .filter((part) => part.length > 0)
+    .join(' ');
   const textConstraints = [
     environment.maxTextLength === undefined
       ? 'Text must fit the schema limit.'
@@ -418,6 +444,13 @@ export function createSendTools(environment: SendToolEnvironment): {
           };
         }
       }
+    }
+    // Tools run sequentially within one invocation, so this check needs no
+    // transaction: no other send of the same run can land in between.
+    if (isDuplicateSend(environment, send)) {
+      recordRejectedSend(environment, toolCallId, input, 'send_duplicate');
+      environment.duplicateSendGuard?.onRejected();
+      throw new Error(SEND_DUPLICATE_TEXT);
     }
     const rejectDuplicateReply = (): { error: string } | undefined => {
       if (environment.allowReplyMessageMultipleTimes !== true && send.reply_to_message_id !== undefined) {
@@ -737,13 +770,29 @@ function createSendReplyTool(
       ) {
         reject('reply_not_visible', 'reply_to_message_id is not visible in this conversation context');
       }
+      const partKeys = new Set<string>();
       for (const [index, part] of input.parts.entries()) {
         const label = `part ${index + 1}`;
-        const narrowed = narrowSendInput(part);
+        const narrowed = narrowSendInput(
+          index === 0 && input.reply_to_message_id !== undefined
+            ? { ...part, reply_to_message_id: input.reply_to_message_id }
+            : part,
+        );
         if ('problem' in narrowed) {
           return reject('send_input_invalid', `${label} does not match its kind: ${narrowed.problem}`);
         }
         const { send } = narrowed;
+        if (environment.duplicateSendGuard !== undefined && send.kind !== 'image') {
+          const key = JSON.stringify(send);
+          if (partKeys.has(key) || isDuplicateSend(environment, send)) {
+            environment.duplicateSendGuard.onRejected();
+            reject(
+              'send_duplicate',
+              `${label} repeats a message already published in this run or an earlier part; do not send it again`,
+            );
+          }
+          partKeys.add(key);
+        }
         if (send.kind === 'text') {
           if (environment.maxTextLength !== undefined && send.text.length > environment.maxTextLength) {
             reject(
@@ -866,6 +915,33 @@ function recentSendCount(environment: SendToolEnvironment, now: Date): number {
     )
     .at(0);
   return Number(row?.count ?? 0n);
+}
+
+/**
+ * Whether this invocation already published exactly this text or sticker. The
+ * audit row stores the narrowed input, so equal sends serialize identically.
+ * Images are left to their own per-asset delivery dedup: a generation that
+ * gained pictures may be sent again with the same input and deliver only those.
+ */
+function isDuplicateSend(environment: SendToolEnvironment, send: SendToolInput): boolean {
+  if (environment.duplicateSendGuard === undefined || send.kind === 'image') {
+    return false;
+  }
+  const previous = environment.store.orm
+    .select({ id: toolCalls.id })
+    .from(toolCalls)
+    .where(
+      and(
+        eq(toolCalls.invocationId, environment.context.invocationId),
+        eq(toolCalls.toolName, 'send'),
+        eq(toolCalls.state, 'success'),
+        eq(toolCalls.sideEffect, true),
+        eq(toolCalls.argumentsJson, JSON.stringify(send)),
+      ),
+    )
+    .limit(1)
+    .get();
+  return previous !== undefined;
 }
 
 function recordRejectedSend(

@@ -409,8 +409,11 @@ test('bypass receipts still obey turn and chat send-rate budgets', async () => {
   const task = scope.create({ payload: {}, delivery: { bypassDailyBudget: true } });
   scope.complete(task.taskId);
   f.faux.setResponses(
-    Array.from({ length: 5 }, () =>
-      fauxAssistantMessage(fauxToolCall('send', { kind: 'text', text: 'one result' }), { stopReason: 'toolUse' }),
+    // Distinct texts, so the duplicate send guard does not reject them before the rate limit does.
+    Array.from({ length: 5 }, (_, index) =>
+      fauxAssistantMessage(fauxToolCall('send', { kind: 'text', text: `result ${index + 1}` }), {
+        stopReason: 'toolUse',
+      }),
     ),
   );
   f.scheduler.start();
@@ -419,7 +422,7 @@ test('bypass receipts still obey turn and chat send-rate budgets', async () => {
     invocation_outcome: 'completed',
     completion_reason: 'turn_budget',
   });
-  expect(f.sends).toEqual(['one result']);
+  expect(f.sends).toEqual(['result 1']);
   expect(
     f.store.db
       .prepare<[], { state: string; error_code: string | null }>('SELECT state, error_code FROM tool_calls ORDER BY id')

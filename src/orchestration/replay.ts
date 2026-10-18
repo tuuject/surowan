@@ -11,7 +11,7 @@ import { modelDefinitionSchema, type PublicModel } from '@plasticwan/image-servi
 import { eq } from 'drizzle-orm';
 import { createExecuteTool } from '../capabilities/execute-tool.ts';
 import { createReadTool } from '../capabilities/read-tool.ts';
-import { createSendTools } from '../capabilities/send-tool.ts';
+import { createSendTools, DUPLICATE_SEND_REJECTION_LIMIT, duplicateSendGuard } from '../capabilities/send-tool.ts';
 import { ContextBuilder, type StablePrompt } from '../context/context-builder.ts';
 import { estimateMessageTokens } from '../context/context-codec.ts';
 import { ContextRefStore } from '../context/context-refs.ts';
@@ -316,11 +316,15 @@ export class ReplayRunner {
     const { secrets, systemResources, modelGate, shutdownSignal } = this.#options;
     const config = snapshot.config;
     const imageLoader = this.#options.imageLoader;
+    let duplicateSendRejections = 0;
     const capture = createReplayTools(registry, systemResources, {
       imageModels: publicImageModels(config),
       ...(config.agent.send_max_text_length === undefined ? {} : { maxTextLength: config.agent.send_max_text_length }),
       disallowBlankLines: config.agent.send_disallow_blank_lines === true,
       allowReplyMessageMultipleTimes: config.agent.allow_reply_message_multiple_times === true,
+      ...duplicateSendGuard(config.agent.send_duplicate_guard_enabled, () => {
+        duplicateSendRejections += 1;
+      }),
       replyMessageIds: new Set(scene.replyMessageIds),
       ...(imageLoader === undefined || !model.input.includes('image')
         ? {}
@@ -434,6 +438,10 @@ export class ReplayRunner {
         }
         if (turn.toolResults.some((result) => result.toolName === 'zzz' && !result.isError)) {
           completionReason = 'sleep';
+          return { action: 'end' };
+        }
+        if (duplicateSendRejections > DUPLICATE_SEND_REJECTION_LIMIT) {
+          completionReason = 'duplicate_send';
           return { action: 'end' };
         }
         if (repeatedFailure.observe(turn)) {
@@ -676,6 +684,7 @@ export class ReplayRunner {
       maxTextLength: config.agent.send_max_text_length,
       disallowBlankLines: config.agent.send_disallow_blank_lines === true,
       allowReplyMessageMultipleTimes: config.agent.allow_reply_message_multiple_times === true,
+      ...duplicateSendGuard(config.agent.send_duplicate_guard_enabled),
       deadline: Number.MAX_SAFE_INTEGER,
       bot: { id: 0n, displayName: '', username: null },
     });
