@@ -7,6 +7,7 @@ import type { FileConfig } from '../src/platform/config.ts';
 import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
+import { AGENT_PROMPT_VERSION } from '../src/platform/agent-protocol.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { sleep, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 
@@ -96,6 +97,9 @@ describe('bucket scheduler', () => {
       .prepare<[], { snapshot_json: string }>("SELECT snapshot_json FROM invocation_messages WHERE section = 'new'")
       .get();
     expect(snapshot === undefined ? null : JSON.parse(snapshot.snapshot_json).text).toBe('after');
+    expect(
+      store.db.prepare<[], { prompt_version: bigint }>('SELECT prompt_version FROM invocations').get()?.prompt_version,
+    ).toBe(AGENT_PROMPT_VERSION);
     store.close();
   });
 
