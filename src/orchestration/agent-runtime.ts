@@ -15,7 +15,13 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import { capability, createExecuteTool, type ExecutableCapability } from '../capabilities/execute-tool.ts';
 import type { MentionTyping } from '../capabilities/mention-typing.ts';
 import { createReadTool } from '../capabilities/read-tool.ts';
-import { createSendTools, SEND_TOOL_NAMES, type TelegramSendApi } from '../capabilities/send-tool.ts';
+import {
+  createSendTools,
+  DUPLICATE_SEND_REJECTION_LIMIT,
+  duplicateSendGuard,
+  SEND_TOOL_NAMES,
+  type TelegramSendApi,
+} from '../capabilities/send-tool.ts';
 import { createTyping } from '../capabilities/typing.ts';
 import { ContextBuilder, type ContextIdentity, type Injection, type StablePrompt } from '../context/context-builder.ts';
 import { encodeContextMessage, estimateMessageTokens } from '../context/context-codec.ts';
@@ -138,6 +144,7 @@ type StopReason =
   | 'context_limit'
   | 'turn_budget'
   | 'repeated_tool_failure'
+  | 'duplicate_send'
   | 'wall_clock'
   | 'sleep'
   | 'budget';
@@ -158,6 +165,8 @@ interface RunState {
    * becomes free, not by the injection the barrier itself caused.
    */
   barrierSpent: boolean;
+  /** Sends the duplicate send guard rejected in this invocation; never reset. */
+  duplicateSendRejections: number;
   stopReason: StopReason;
 }
 
@@ -239,6 +248,7 @@ export class AgentRuntime {
       maxTextLength: config.agent.send_max_text_length,
       disallowBlankLines: config.agent.send_disallow_blank_lines === true,
       allowReplyMessageMultipleTimes: config.agent.allow_reply_message_multiple_times === true,
+      ...duplicateSendGuard(config.agent.send_duplicate_guard_enabled),
       deadline: Number.MAX_SAFE_INTEGER,
       bot: this.#bot,
     });
@@ -299,6 +309,7 @@ export class AgentRuntime {
     executableCapabilities: readonly ExecutableCapability[],
     zzz?: AgentTool,
     holdForNewMessages?: () => boolean,
+    onDuplicateSend?: () => void,
   ): readonly AgentTool[] {
     const { send, sendReply } = createSendTools({
       store: this.#store,
@@ -309,6 +320,7 @@ export class AgentRuntime {
       maxTextLength: config.agent.send_max_text_length,
       disallowBlankLines: config.agent.send_disallow_blank_lines === true,
       allowReplyMessageMultipleTimes: config.agent.allow_reply_message_multiple_times === true,
+      ...duplicateSendGuard(config.agent.send_duplicate_guard_enabled, onDuplicateSend),
       deadline,
       bot: this.#bot,
       ...(holdForNewMessages === undefined ? {} : { holdForNewMessages }),
@@ -417,6 +429,7 @@ export class AgentRuntime {
       modelBudgetBlocked: false,
       contextClosing: false,
       barrierSpent: false,
+      duplicateSendRejections: 0,
       stopReason: 'completed',
     };
     const repeatedFailure = new RepeatedToolFailure();
@@ -510,6 +523,9 @@ export class AgentRuntime {
         executableCapabilities,
         exposeZzz ? zzz : undefined,
         config.agent.send_barrier_enabled === true ? holdForNewMessages : undefined,
+        () => {
+          state.duplicateSendRejections += 1;
+        },
       );
     const tools = applyToolSchemaKeywords(buildTools(contextState, zzzExposed), toolSchemaKeywords);
     validateToolRegistry(tools, model.contextWindow);
@@ -906,6 +922,9 @@ export class AgentRuntime {
         // turn it schedules; that turn has streamed by the time this hook sees the
         // flag, so the promised answer is out and the run stops now.
         return stop(state.stopReason);
+      }
+      if (state.duplicateSendRejections > DUPLICATE_SEND_REJECTION_LIMIT) {
+        return stop('duplicate_send');
       }
       if (repeatedFailure.observe(turn)) {
         return stop('repeated_tool_failure');

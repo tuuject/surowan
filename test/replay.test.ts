@@ -1031,6 +1031,21 @@ test('an unchanged failing call repeated for three turns ends the replay like pr
   });
 });
 
+test('more than three duplicate sends end the replay like production', async () => {
+  const f = await fixture();
+  f.faux.setResponses(
+    ['a', 'b', 'a', 'b', 'a', 'b', 'a', 'b'].map((text) =>
+      fauxAssistantMessage(fauxToolCall('send', { text }), { stopReason: 'toolUse' }),
+    ),
+  );
+  expect(await f.run()).toMatchObject({
+    error: null,
+    completion_reason: 'duplicate_send',
+    usage: { model_calls: 6 },
+    send_count: 2,
+  });
+});
+
 test('scene guards report missing, unfinished, unconfigured, invalid and empty scenes without model calls', async () => {
   const f = await fixture();
   replayError(() => f.runner.inspect(999_999n), 'not_found');

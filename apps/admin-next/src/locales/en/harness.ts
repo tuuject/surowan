@@ -90,6 +90,11 @@ export const harness = {
       label: 'Allow multiple replies to one message',
       description: 'Disable per-message reply deduplication. Authorization, budgets and rate limits still apply.',
     },
+    send_duplicate_guard_enabled: {
+      label: 'Duplicate send guard',
+      description:
+        'Reject a text or sticker identical to one already sent in the same invocation; stop the run after more than 3 rejections.',
+    },
     'rate_limits.sends_per_window': {
       label: 'Sends per window',
       description: 'Telegram sends allowed per chat inside the sliding window; failed attempts count too.',

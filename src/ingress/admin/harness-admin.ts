@@ -38,6 +38,7 @@ const HARNESS_FIELDS: readonly HarnessField[] = [
   field('send_nudge_enabled', agent.send_nudge_enabled, false),
   field('send_barrier_enabled', agent.send_barrier_enabled, false),
   field('allow_reply_message_multiple_times', agent.allow_reply_message_multiple_times, false),
+  field('send_duplicate_guard_enabled', agent.send_duplicate_guard_enabled, true),
   field('context.retained_sends_target', agent.context.properties.retained_sends_target),
   field('context.retained_sends_max', agent.context.properties.retained_sends_max),
   field('context.hard_token_ratio', agent.context.properties.hard_token_ratio),

@@ -53,6 +53,8 @@ export interface ReplayToolOptions {
   readonly maxTextLength?: number;
   readonly disallowBlankLines?: boolean;
   readonly allowReplyMessageMultipleTimes?: boolean;
+  /** Mirrors the production duplicate send guard within one replay scene. */
+  readonly duplicateSendGuard?: { readonly onRejected: () => void };
   readonly replyMessageIds?: ReadonlySet<string>;
 }
 
@@ -265,6 +267,7 @@ function replaySendTool(definition: ReplayToolDefinition, state: ReplayState): A
       const input = params;
       checkReplaySend(input, state, 'send');
       state.dispatches.push({ tool_call_id: toolCallId, tool_name: 'send', mode: 'synthetic' });
+      checkReplayNotDuplicate([input], state);
       checkReplayReplyUnused(input, state);
       const messageId = recordReplaySend(toolCallId, input, state);
       return {
@@ -293,6 +296,7 @@ function replaySendReplyTool(definition: ReplayToolDefinition, state: ReplayStat
         checkReplaySend(part, state, `send_reply part ${index + 1}`);
       }
       state.dispatches.push({ tool_call_id: toolCallId, tool_name: 'send_reply', mode: 'synthetic' });
+      checkReplayNotDuplicate(parts, state);
       if (parts[0] !== undefined) {
         checkReplayReplyUnused(parts[0], state);
       }
@@ -331,6 +335,34 @@ function checkReplaySend(input: Static<typeof SendInputSchema>, state: ReplaySta
   ) {
     throw new Error('reply_to_message_id is not visible in this scene');
   }
+}
+
+/** The production duplicate send guard over this scene's synthesized sends; images are exempt there too. */
+function checkReplayNotDuplicate(inputs: readonly Static<typeof SendInputSchema>[], state: ReplayState): void {
+  const guard = state.options.duplicateSendGuard;
+  if (guard === undefined) {
+    return;
+  }
+  const sent = new Set(state.outputs.flatMap((output) => duplicateKey(output.arguments)));
+  for (const input of inputs) {
+    const [key] = duplicateKey(input);
+    if (key === undefined) {
+      continue;
+    }
+    if (sent.has(key)) {
+      guard.onRejected();
+      throw new Error('Not sent: send_duplicate. This exact message was already published in this scene.');
+    }
+    sent.add(key);
+  }
+}
+
+function duplicateKey(input: Record<string, unknown>): string[] {
+  if (!SendInputValidator.Check(input)) {
+    return [];
+  }
+  const narrowed = narrowSendInput(input);
+  return 'problem' in narrowed || narrowed.send.kind === 'image' ? [] : [JSON.stringify(narrowed.send)];
 }
 
 function checkReplayReplyUnused(input: Record<string, unknown>, state: ReplayState): void {

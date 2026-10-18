@@ -342,6 +342,7 @@ export const ConfigSchema = Type.Object(
         send_nudge_enabled: Type.Optional(Type.Boolean()),
         send_barrier_enabled: Type.Optional(Type.Boolean()),
         allow_reply_message_multiple_times: Type.Optional(Type.Boolean({ default: false })),
+        send_duplicate_guard_enabled: Type.Optional(Type.Boolean({ default: true })),
         context: Type.Object(
           {
             retained_sends_target: Type.Integer({ minimum: 1 }),

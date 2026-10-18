@@ -41,6 +41,7 @@ export const HARNESS_GROUPS: readonly HarnessGroup[] = [
       { key: 'send_nudge_enabled', kind: 'boolean' },
       { key: 'send_barrier_enabled', kind: 'boolean' },
       { key: 'allow_reply_message_multiple_times', kind: 'boolean' },
+      { key: 'send_duplicate_guard_enabled', kind: 'boolean' },
     ],
   },
   {

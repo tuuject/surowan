@@ -111,6 +111,7 @@ export function configurationView(config: RawConfig) {
       send_nudge_enabled: config.agent.send_nudge_enabled,
       send_barrier_enabled: config.agent.send_barrier_enabled,
       allow_reply_message_multiple_times: config.agent.allow_reply_message_multiple_times,
+      send_duplicate_guard_enabled: config.agent.send_duplicate_guard_enabled,
       context: config.agent.context,
       rate_limits: config.agent.rate_limits,
     },
