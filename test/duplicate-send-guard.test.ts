@@ -5,16 +5,18 @@ import { GrammyError } from 'grammy';
 import { afterAll, describe, expect, test } from 'vitest';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { createSendTools, duplicateSendGuard, type TelegramSendApi } from '../src/capabilities/send-tool.ts';
+import { createSendTools, duplicateSendGuard } from '../src/capabilities/send-tool.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import type { RawConfig } from '../src/platform/config.ts';
 import {
   invocationCapabilities,
   renderInvocationContext,
+  type TelegramTransport,
   type TestInvocationContext,
   testConfigJsonc,
   testConfigStore,
+  testSendToolEnv,
   writeTestConfig,
 } from './helpers.ts';
 
@@ -95,7 +97,7 @@ async function setup(): Promise<Fixture> {
   return { store, config: loaded.config, context };
 }
 
-interface RecordingApi extends TelegramSendApi {
+interface RecordingApi extends TelegramTransport {
   readonly calls: string[];
 }
 
@@ -125,12 +127,12 @@ function recordingApi(failOnce: ReadonlySet<string> = new Set()): RecordingApi {
   };
 }
 
-function makeTools(fixture: Fixture, api: TelegramSendApi, guard: boolean | undefined, onRejected = () => {}) {
+function makeTools(fixture: Fixture, api: TelegramTransport, guard: boolean | undefined, onRejected = () => {}) {
   const capabilities = invocationCapabilities(fixture.store, fixture.config, fixture.context.header);
   return {
     ...createSendTools({
       store: fixture.store,
-      api,
+      ...testSendToolEnv(api, fixture.context),
       context: fixture.context,
       capabilities,
       sendRateLimit: { sendsPerWindow: 50, windowSeconds: 300 },
@@ -154,10 +156,10 @@ function toolAudit(
     .all();
 }
 
-function sendCounts(fixture: Fixture): { telegram_sends: bigint; sends_used: bigint } {
+function sendCounts(fixture: Fixture): { host_sends: bigint; sends_used: bigint } {
   const row = fixture.store.db
-    .prepare<[bigint], { telegram_sends: bigint; sends_used: bigint }>(
-      'SELECT (SELECT COUNT(*) FROM telegram_sends) AS telegram_sends, sends_used FROM invocations WHERE id = ?',
+    .prepare<[bigint], { host_sends: bigint; sends_used: bigint }>(
+      "SELECT (SELECT COUNT(*) FROM host_sends WHERE state = 'success') AS host_sends, sends_used FROM invocations WHERE id = ?",
     )
     .get(fixture.context.invocationId);
   if (row === undefined) {
@@ -204,7 +206,7 @@ describe('duplicate send guard', () => {
         { tool_call_id: 'repeat', tool_name: 'send', state: 'error', error_code: 'send_duplicate' },
       ]);
       // The rejection spends no send budget.
-      expect(sendCounts(fixture)).toEqual({ telegram_sends: 5n, sends_used: 5n });
+      expect(sendCounts(fixture)).toEqual({ host_sends: 5n, sends_used: 5n });
     } finally {
       fixture.store.close();
     }

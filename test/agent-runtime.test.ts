@@ -538,13 +538,13 @@ async function duplicateSendRun(
     store,
     configStore,
     secrets: new SecretStore(),
-    telegramApi: {
+    ...testTelegramRuntime({
       sendMessage: async (_chatId, text) => {
         sentTexts.push(text);
         return { message_id: sentTexts.length, date: 1, chat: { id: 123456789 } };
       },
       sendSticker: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
-    },
+    }),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });
