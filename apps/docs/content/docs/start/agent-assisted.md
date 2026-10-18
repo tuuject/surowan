@@ -19,7 +19,7 @@ Agent 可以帮助阅读配置、生成非敏感 Prompt、执行校验和解释�
 删除数据前，请先解释影响并等待确认。
 ```
 
-部署后的文档站提供 [llms.txt](__DOCS_BASE__/llms.txt) 与逐页 Markdown；它们是定向阅读入口，不表示任何 Agent 会自动发现或执行其中内容。
+部署后的文档站提供 [llms.txt](__DOCS_BASE__/llms.txt) 与逐页 Markdown；它们是给外部 Agent 的定向阅读入口，不表示任何外部 Agent 会自动发现或执行其中内容。Bot 自己读的是镜像内置的手册副本（版本随镜像），入口见[使用 Skills、Plugin 与 MCP](../guides/extensions.md#内置用户手册让-bot-读懂自己的文档)。
 
 ## 推荐协作顺序
 

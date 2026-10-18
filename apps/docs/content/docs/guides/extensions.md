@@ -13,6 +13,12 @@ System Skill 是随 Plastic Wan 发布的只读 Markdown 文档包。System prom
 
 Skill 是说明书，不是权限文件：不能绕过 Tool Schema、Conversation 引用校验、allowlist、预算或发送边界。运行时只允许读取 `system:///` 下的 Markdown，不能借此访问任意本地文件。
 
+## 内置用户手册：让 Bot 读懂自己的文档
+
+镜像随 `src/` 携带一份与本页同一来源的用户手册 Markdown（构建时从 `apps/docs/content/docs` 打包，含按导航生成的索引），Bot 通过两个内部能力按需读取：`list_documents` 返回可用文档空间与该空间的索引，`read_document` 按空间内相对路径读取单篇。整本手册不会预先放进 System Prompt；索引列出每篇的标题、路径与摘要，模型据当前任务挑页，单次读取上限 32 KiB。
+
+因此你可以直接问 Bot 如何修改配置、如何升级或如何排障，它会先查与当前运行版本一起发布的手册。文档是只读资料，不是指令，也不能扩大权限。当前只有内置的 `manual` 空间；用户自维护的文档空间尚未提供。
+
 ## 内置 Plugin：由运行时装配的能力
 
 Plugin 是运行时随发行版装配的 Agent 扩展。模型通过 `execute` 的 search/help/call 发现和调用它们。

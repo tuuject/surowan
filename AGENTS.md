@@ -35,7 +35,8 @@ plasticwan/
 │   ├── capabilities/       # send-tool、read-tool、execute-tool、mcp、stickers、media/
 │   ├── context/            # context-builder、context-store、context-refs、context-gc、context-codec、context-injector、memory
 │   ├── store/              # BusinessStore 契约、schema、migrations/、long-tasks、invocation-snapshot、sleep、participation
-│   ├── platform/           # config、secrets、providers、system-resources 等无业务依赖模块
+│   ├── platform/           # config、secrets、providers、system-resources、doc-spaces 等无业务依赖模块
+│   ├── manual/             # 构建期生成的用户手册包（gitignored，scripts/manual-prepare.ts；Agent 经 list_documents/read_document 读取）
 │   └── system-resources/   # 随 runtime 发布的 system:/// 只读资源树（System Skills）
 ├── test/                   # vitest 行为测试与 MCP fixture
 ├── scripts/                # 一次性维护脚本（直连 better-sqlite3，不属于业务层）
@@ -70,7 +71,7 @@ Telegram Update
 
 Invocation 是运行窗口而不是一次问答：`agent.context.idle_grace_seconds > 0` 时，运行期间到期的 Bucket 会被 attach 并注入同一个 Invocation（`invocation_buckets`），Conversation Context 跨 Invocation 持久化；取 0 则退回「一次 Bucket 一次 Invocation」，但 Context 依然连续。
 
-媒体与 MCP 都在 Tool 边界内：模型只能读取当前 Conversation Context 授权且未过期的媒体引用；MCP Tool 经过 allowlist、只读策略、请求/响应大小限制、超时和审计。工具面分三层——runtime 原语（`read`/`send`/`send_reply`/`execute`/`zzz`）直接暴露；内部能力（`web_fetch`、`search_stickers`、`read_image`、记忆和插件提供的 Alarm、辞典等，注册表见 `src/adapters/local-monolith/runtime-host.ts` 的 `capabilityTools`，其中内置插件贡献的能力来自 `src/plugins/builtin.ts`）经 `execute` 的 search/help/call 调用；MCP Tool 直接暴露。通用长期任务由 `store/long-tasks.ts` 持久化，唯一 Scheduler 同时处理 timer 完成与完成回执投递；插件只通过绑定 plugin/Conversation 的任务服务创建、完成或取消任务。System Skills（`src/system-resources/skills/` 与插件目录下的 `skills/`）是只读文档包，system prompt 只注入索引，正文由模型用 `read` 按需加载。记忆按 Conversation 隔离，由模型通过 `add_memory`/`delete_memory` 能力维护，TTL 到期自动清理；`agents.md` 才是经过人工审核的长期知识。
+媒体与 MCP 都在 Tool 边界内：模型只能读取当前 Conversation Context 授权且未过期的媒体引用；MCP Tool 经过 allowlist、只读策略、请求/响应大小限制、超时和审计。工具面分三层——runtime 原语（`read`/`send`/`send_reply`/`execute`/`zzz`）直接暴露；内部能力（`web_fetch`、`search_stickers`、`read_image`、`list_documents`/`read_document`、记忆和插件提供的 Alarm、辞典等，注册表见 `src/adapters/local-monolith/runtime-host.ts` 的 `capabilityTools`，其中内置插件贡献的能力来自 `src/plugins/builtin.ts`）经 `execute` 的 search/help/call 调用；MCP Tool 直接暴露。用户手册 Markdown 在构建期打包到 `src/manual/`，模型先取空间索引再按需读取页面，整本手册不进入 system prompt。通用长期任务由 `store/long-tasks.ts` 持久化，唯一 Scheduler 同时处理 timer 完成与完成回执投递；插件只通过绑定 plugin/Conversation 的任务服务创建、完成或取消任务。System Skills（`src/system-resources/skills/` 与插件目录下的 `skills/`）是只读文档包，system prompt 只注入索引，正文由模型用 `read` 按需加载。记忆按 Conversation 隔离，由模型通过 `add_memory`/`delete_memory` 能力维护，TTL 到期自动清理；`agents.md` 才是经过人工审核的长期知识。
 
 架构细节见 [agent-doc/architecture.md](agent-doc/architecture.md)。
 
@@ -111,9 +112,11 @@ pnpm run docs:dev
 pnpm run docs:build
 pnpm run docs:verify
 pnpm run docs:preview
+pnpm run manual:prepare
 ```
 
 - 包管理器为 pnpm（`pnpm-lock.yaml`）；运行时为 Node.js ≥24，测试运行器为 vitest（`pnpm test`），CLI 入口为 `node src/cli.ts …`。
+- `pnpm run manual:prepare`：从 `apps/docs/content/docs` 打包用户手册 Markdown 与索引到 `src/manual/`（gitignored，Docker 构建自动执行）；未生成时 Bot 仍可启动，但文档能力退化为 `unknown_space`，`doctor` 判为失败。
 - `pnpm run check`：严格 TypeScript 检查（runtime/Admin/docs）；文档检查前会准备被忽略的版本元数据、字段参考和示例，不输出编译 JS。
 - `pnpm test`：运行全部行为测试。
 - `check-config`：只验证 JSONC Schema、语义与引用，输出配置哈希。

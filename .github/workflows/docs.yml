@@ -56,14 +56,17 @@ jobs:
       - uses: actions/checkout@v7
       - name: Build the unchanged Bot image with the shared lockfile
         run: docker build -t plasticwan:docs-check .
-      - name: Ensure docs are not shipped in the Bot image
+      - name: Ensure the image ships the manual but not the docs site
         run: >-
           docker run --rm --entrypoint node plasticwan:docs-check
           --input-type=module -e
-          "import { existsSync } from 'node:fs';
+          "import { existsSync, readFileSync } from 'node:fs';
           import { createRequire } from 'node:module';
           const require = createRequire(import.meta.url);
-          if (existsSync('/app/apps/docs')) throw new Error('Docs leaked into runtime');
+          if (existsSync('/app/apps/docs')) throw new Error('Docs site leaked into runtime');
+          const index = readFileSync('/app/src/manual/index.md', 'utf8');
+          if (!index.startsWith('# 塑料碗用户手册')) throw new Error('Manual index missing from runtime');
+          if (!existsSync('/app/src/manual/start/quick-start.md')) throw new Error('Manual pages missing from runtime');
           let found = false;
           try { require.resolve('@rspress/core'); found = true; }
           catch (error) { if (error.code !== 'MODULE_NOT_FOUND') throw error; }

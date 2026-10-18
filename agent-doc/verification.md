@@ -29,6 +29,7 @@ pnpm test test/invocation-cli.test.ts test/cli-inspection.test.ts test/invocatio
 pnpm test test/cli-credentials.test.ts test/cli-login.test.ts test/cli-login-http.test.ts
 pnpm test test/npm-release.test.ts
 pnpm test test/docs-examples.test.ts test/docs-search.test.ts test/docs-markdown.test.ts
+pnpm test test/doc-spaces.test.ts test/manual-pack.test.ts
 pnpm test test/replay.test.ts test/scene-context.test.ts test/scene-slice.test.ts test/scene-retention.test.ts test/replay-tools.test.ts test/replay-http.test.ts
 pnpm test test/skills.test.ts test/system-resources.test.ts test/plugins.test.ts
 pnpm test test/media.test.ts test/stickers.test.ts
@@ -100,6 +101,7 @@ pnpm test test/prompt-template.test.ts test/prompt-markdown.test.ts test/tui-con
 | `cli-login-http.test.ts` | 凭据文件驱动的 doctor 真实 HTTP 链路：`GET /api/invocations?limit=1` 验证连通与鉴权、成功输出 `{status:"ok",endpoint,credential_sources}` 与退出码 0、凭据值缺失或不合法退出码 2、文件校验或请求失败退出码 1、不输出 Invocation 正文、不调用模型/不发送 Telegram/不重试、鉴权仍更新 key 的 `last_used_at` |
 | `npm-release.test.ts` | main canary 版本含 run/attempt/SHA、仅精确稳定 tag 进入 latest、拒绝非 push/其它仓库与非法 ref、GitHub 输出不改源码 manifest、仅独立 CLI 包公开、Skill 分发清单与入口/子文档/元数据结构（含 `models list` 新命令、模型列表非授权与严禁自动尝试的隔离说明、`--provider`/`--thinking-level` 等模型覆盖契约断言） |
 | `docs-examples.test.ts` / `docs-search.test.ts` / `docs-markdown.test.ts` | 公开配置示例的离线语义校验、生成字段与部署 URL、已安装搜索组件的键盘回归；Markdown 检查正确区分缩进代码块与真实 H1，LF/CRLF 下不漏提取代码块 |
+| `doc-spaces.test.ts` / `manual-pack.test.ts` | 文档空间路径语法（绝对路径、`..` 越界、空段、非 Markdown 拒绝）与 `base` 链接解析；真实目录读取、索引、缺失文档、符号链接逃逸（含根内链接可读）、32 KiB 截断；未安装空间与缺失索引的加载语义；两个能力经 `execute` 注册表调用并与外层审计一致（成功/`unknown_space`/`document_not_found`/`invalid_path`/`unsupported_document`）；构建产物把 `content/docs` 与 `_meta.json` 导航打包为 `src/manual`（页面逐字节一致、生成的字段页来自 ConfigSchema、索引完整且顺序正确、侧栏外页面进入「其他页面」、重打包清理陈旧文档、导航指向缺失页面即失败），打包结果可经 `DocSpaces` 读取且文内相对链接全部落在包内 |
 | `scene-context.test.ts` | 开场冻结快照优先、当时可证明的公开历史、spoiler 标记与线上一致（开场、回退历史、回复引用）、后续 attach/编辑/迟到消息排除、切点/Topic/字符预算、损坏身份拒绝、缺修订与媒体降级、scene-local media/reply 引用、构建全表无写入 |
 | `scene-slice.test.ts` | 切片构建：两条 Bot 消息之间的冻结输入、上一条 Bot 可来自另一次 Invocation 或不带 send 行的消息、同一秒内边界仍精确、切点继续生效、只并入注入时间严格早于发送开始的 attach 批次（同毫秒保守省略）、同一消息重复冻结取最新合格快照、渲染冻结快照而非后续编辑、reply 引用只保留切片内消息、只授权冻结 revision 且已渲染的媒体、拒绝非本 Invocation/失败/跨 Conversation 的目标发送、连续两次发送之间为空、字符预算从新到旧裁剪、构建不写库 |
 | `scene-retention.test.ts` | 真实 029→030 有数据迁移仅移除旧 replay payload，调用/工具/发送/用量/冻结快照整行保留，迁移前备份含完整旧列且 integrity check 通过，重复打开、外键检查与 retention 级联后来源不可用 |
@@ -167,6 +169,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 
 - SQLite/FTS/磁盘。
 - Sharp、FFmpeg、FFprobe、python-lottie。
+- 内置用户手册包（`src/manual/`；缺失时失败并提示运行 `pnpm run manual:prepare`，成功时报告 `manual_documents`）。
 - 每个配置了 text 模型的 Provider 各一次连通探针。
 - Agent 严格 Tool Call（按全局默认与每个 Chat 实际选用的模型/思考组合去重探测，同一组合只探一次）。
 - Vision 图片请求。

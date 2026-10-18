@@ -37,6 +37,11 @@ Linux/macOS 要求 `lottie_convert.py` 本身在服务 PATH 中（`pip --user` �
 cd ~/Projects/plasticwan
 pnpm install
 
+# 生成 src/manual/（用户手册文档包，gitignored）：从 apps/docs/content/docs 打包
+# Markdown 并生成索引。跳过它时 Bot 仍能启动，但 list_documents/read_document
+# 退化为 unknown_space，且 `doctor` 会判为失败；Docker 镜像在构建时自动执行这一步。
+pnpm run manual:prepare
+
 # 本地 Secret 写进仓库根目录的 .env.local（已 gitignore；CLI 启动时自动加载
 # .env.local 与 .env，真实环境变量优先、.env.local 压过 .env），或在 shell 里 export。
 # 一键生成 dev-data/config.jsonc 与起步 agent-prompt.md（DeepSeek deepseek-flash 同时做 agent 与 vision）：
@@ -265,9 +270,9 @@ node src/cli.ts backup --config dev-data/config.jsonc
 
 镜像结构（`Dockerfile`，builder 与 runtime 均为 `node:24-bookworm-slim` 两阶段）：
 
-- builder 阶段 `pnpm install --frozen-lockfile` → `pnpm run admin:build` 与 `pnpm --filter @plasticwan/image-service build` → 再以 `pnpm install --prod --frozen-lockfile --ignore-scripts` 剪掉 devDependencies（`--ignore-scripts` 跳过 image-service 依赖 tsc 的 prepare，所以它的 `dist/` 必须先单独构建）。
+- builder 阶段 `pnpm install --frozen-lockfile` → `pnpm run admin:build` 与 `pnpm --filter @plasticwan/image-service build` → `node scripts/manual-prepare.ts` 把用户手册 Markdown 打包到 `src/manual/` → 再以 `pnpm install --prod --frozen-lockfile --ignore-scripts` 剪掉 devDependencies（`--ignore-scripts` 跳过 image-service 依赖 tsc 的 prepare，所以它的 `dist/` 必须先单独构建）。
 - runtime 阶段用 apt 装 `ffmpeg`（含 `ffprobe`）、`python3` 与 `gosu`，再 pip 装 `lottie`；因此**不需要**在宿主机准备任何媒体依赖。
-- 只复制 `src/`、`node_modules/`、`packages/image-service/` 的 `package.json`、`dist/` 与 `node_modules/`（经 workspace 符号链接解析）、`apps/admin-next/dist/`、`apps/admin-next/LICENSE`、`apps/admin-next/NOTICE` 和 `package.json`。`test/`、`agent-doc/`、`dev-data/` 被 `.dockerignore` 排除，镜像里没有这些目录。
+- 只复制 `src/`、`node_modules/`、`packages/image-service/` 的 `package.json`、`dist/` 与 `node_modules/`（经 workspace 符号链接解析）、`apps/admin-next/dist/`、`apps/admin-next/LICENSE`、`apps/admin-next/NOTICE` 和 `package.json`。`test/`、`agent-doc/`、`dev-data/` 被 `.dockerignore` 排除，镜像里没有这些目录。`apps/docs` 只保留 `content/docs` 作为手册源参与构建：`.dockerignore` 排除文档站配置、主题、示例与生成产物，builder 生成的 `src/manual/` 随 `src/` 进入 runtime；镜像不含 Rspress 或文档站目录，该隔离由 `.github/workflows/docs.yml` 的 image-smoke 断言。
 - Admin 前端已经构建进 `/app/apps/admin-next/dist`，与 `static_dir` 默认值一致，无需额外配置。前端模板许可（MIT，© Kiranism）随 `LICENSE` 保留，字体（@fontsource，SIL OFL 1.1）说明在 `NOTICE`。
 - CI（`.github/workflows/docker.yml`）在构建镜像前先跑 `verify` job：`pnpm install --frozen-lockfile` → `pnpm run lint` → `pnpm run check` → `pnpm test` → `pnpm run admin:build` → `pnpm --filter plasticwan-admin-next exec playwright install --with-deps chromium` → `pnpm run admin:test:e2e`，通过后 `build` job 才推送 `linux/amd64` 与 `linux/arm64`。
 
