@@ -49,8 +49,8 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # Runs on pull requests too: a build-context or lockfile break must fail before merge.
   image-smoke:
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
