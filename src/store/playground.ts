@@ -363,6 +363,10 @@ export class PlaygroundStore {
       if (revision === undefined) {
         throw new Error('failed to admit room revision');
       }
+      // The message points at its own revision, exactly like a Telegram row:
+      // readers (timeline, snapshots, audit) join on `current_revision_id`, so
+      // a room input without it would be invisible to every one of them.
+      this.#orm.update(messages).set({ currentRevisionId: revision.id }).where(eq(messages.id, message.id)).run();
       for (const item of input.media ?? []) {
         const mediaRow = this.#orm
           .insert(media)

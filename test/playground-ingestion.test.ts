@@ -12,6 +12,8 @@ import {
   invocationMessages,
   invocations,
   media,
+  messageRevisions,
+  messages,
   playgroundAssets,
   playgroundInputs,
   playgroundRetries,
@@ -187,6 +189,33 @@ describe('playground ingestion', () => {
       .where(eq(invocationMessages.invocationId, secondInvocation!.id))
       .all();
     expect(snapshots.map((row) => JSON.parse(row.snapshotJson).text)).toEqual(['later']);
+  });
+
+  test('an admitted message points at its own revision', async () => {
+    const { store, room } = await fixture();
+    const playground = new PlaygroundStore(store.orm);
+    playground.submit(room.chatId, {
+      requestKey: 'req-1',
+      senderId: room.members[0]!.senderId,
+      text: 'hello',
+    });
+    const message = store.orm
+      .select()
+      .from(messages)
+      .where(eq(messages.chatId, room.chatId))
+      .get();
+    if (message === undefined) {
+      throw new Error('the input was not admitted');
+    }
+    const revision = store.orm
+      .select()
+      .from(messageRevisions)
+      .where(eq(messageRevisions.messageId, message.id))
+      .get();
+    // Every reader joins the current revision, so an admitted message without
+    // the pointer would be invisible to the timeline and to any audit view.
+    expect(message.currentRevisionId).toBe(revision?.id);
+    expect(revision?.text).toBe('hello');
   });
 
   test('an empty release only closes the hold', async () => {
