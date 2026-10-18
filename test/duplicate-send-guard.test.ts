@@ -166,20 +166,22 @@ describe('duplicate send guard', () => {
       const { send } = makeTools(fixture, api, undefined, () => (rejections += 1));
       expect(send.description).toContain('identical to one already sent in this run is rejected');
       await send.execute('first', { text: 'good morning', reply_to_message_id: '10' });
-      // Ignored fields and an omitted kind do not make it a different message.
-      await expect(
-        send.execute('repeat', { kind: 'text', text: 'good morning', reply_to_message_id: '10', sticker_ref: 'x' }),
-      ).rejects.toThrow('Not sent: send_duplicate');
       // A different reply target or parse mode is a different message.
       await send.execute('unattached', { text: 'good morning' });
       await send.execute('markdown', { text: 'good morning', parse_mode: 'MarkdownV2' });
+      // Ignored fields and an omitted kind do not make it a different message.
+      // (Once a repeated reply is rejected, its text is burned for the run;
+      // send-bypass-guard.test.ts covers that.)
+      await expect(
+        send.execute('repeat', { kind: 'text', text: 'good morning', reply_to_message_id: '10', sticker_ref: 'x' }),
+      ).rejects.toThrow('Not sent: send_duplicate');
       expect(api.calls).toEqual(['good morning', 'good morning', 'good morning']);
       expect(rejections).toBe(1);
       expect(toolAudit(fixture.store)).toEqual([
         { tool_call_id: 'first', tool_name: 'send', state: 'success', error_code: null },
-        { tool_call_id: 'repeat', tool_name: 'send', state: 'error', error_code: 'send_duplicate' },
         { tool_call_id: 'unattached', tool_name: 'send', state: 'success', error_code: null },
         { tool_call_id: 'markdown', tool_name: 'send', state: 'success', error_code: null },
+        { tool_call_id: 'repeat', tool_name: 'send', state: 'error', error_code: 'send_duplicate' },
       ]);
       // The rejection spends no send budget.
       expect(sendCounts(fixture)).toEqual({ telegram_sends: 3n, sends_used: 3n });

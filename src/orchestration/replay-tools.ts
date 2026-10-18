@@ -7,6 +7,7 @@ import Compile from 'typebox/compile';
 import { capability, createExecuteTool, type ExecutableCapability } from '../capabilities/execute-tool.ts';
 import {
   narrowSendInput,
+  sendContentKey,
   SEND_REPLY_MAX_PARTS,
   SendInputSchema,
   SendReplyInputSchema,
@@ -103,6 +104,8 @@ interface ReplayState {
   readonly memories: Map<string, MemoryEntry>;
   readonly alarms: Map<string, AlarmEntry>;
   readonly imageResults: Map<string, ImageContent>;
+  /** Content the reply policy rejected in this scene; retargeting it is refused. */
+  readonly burnedContentKeys: Set<string>;
   sends: number;
   nextAlarmId: bigint;
   readonly options: ReplayToolOptions;
@@ -161,6 +164,7 @@ export function createReplayTools(
     memories: new Map(),
     alarms: new Map(),
     imageResults: new Map(),
+    burnedContentKeys: new Set(),
     sends: 0,
     nextAlarmId: 0n,
     options,
@@ -268,6 +272,7 @@ function replaySendTool(definition: ReplayToolDefinition, state: ReplayState): A
       checkReplaySend(input, state, 'send');
       state.dispatches.push({ tool_call_id: toolCallId, tool_name: 'send', mode: 'synthetic' });
       checkReplayNotDuplicate([input], state);
+      checkReplayNotBypassed([input], state);
       checkReplayReplyUnused(input, state);
       const messageId = recordReplaySend(toolCallId, input, state);
       return {
@@ -297,6 +302,7 @@ function replaySendReplyTool(definition: ReplayToolDefinition, state: ReplayStat
       }
       state.dispatches.push({ tool_call_id: toolCallId, tool_name: 'send_reply', mode: 'synthetic' });
       checkReplayNotDuplicate(parts, state);
+      checkReplayNotBypassed(parts, state);
       if (parts[0] !== undefined) {
         checkReplayReplyUnused(parts[0], state);
       }
@@ -350,6 +356,15 @@ function checkReplayNotDuplicate(inputs: readonly Static<typeof SendInputSchema>
       continue;
     }
     if (sent.has(key)) {
+      // Like production: repeating a published reply burns the content.
+      const burned = replayContentKey(input);
+      if (
+        burned !== null &&
+        state.options.allowReplyMessageMultipleTimes !== true &&
+        typeof input.reply_to_message_id === 'string'
+      ) {
+        state.burnedContentKeys.add(burned);
+      }
       guard.onRejected();
       throw new Error('Not sent: send_duplicate. This exact message was already published in this scene.');
     }
@@ -365,12 +380,43 @@ function duplicateKey(input: Record<string, unknown>): string[] {
   return 'problem' in narrowed || narrowed.send.kind === 'image' ? [] : [JSON.stringify(narrowed.send)];
 }
 
+/** Content key one scene send carries, identical to the production burn key. */
+function replayContentKey(input: Record<string, unknown>): string | null {
+  if (!SendInputValidator.Check(input)) {
+    return null;
+  }
+  const narrowed = narrowSendInput(input);
+  // Sticker search never runs in a scene, so no fresh ref can name a sticker
+  // that another ref already names: the ref itself is the sticker's identity.
+  return 'problem' in narrowed ? null : sendContentKey(narrowed.send, (ref) => ref);
+}
+
+/**
+ * Mirrors the production reply-policy burn: content a `reply_already_sent`
+ * rejection burned stays unsendable in this scene, retargeted or not.
+ */
+function checkReplayNotBypassed(inputs: readonly Static<typeof SendInputSchema>[], state: ReplayState): void {
+  for (const input of inputs) {
+    const key = replayContentKey(input);
+    if (key !== null && state.burnedContentKeys.has(key)) {
+      state.options.duplicateSendGuard?.onRejected();
+      throw new Error(
+        'Not sent: send_bypass. This exact message was already rejected by the reply policy in this scene.',
+      );
+    }
+  }
+}
+
 function checkReplayReplyUnused(input: Record<string, unknown>, state: ReplayState): void {
   if (
     state.options.allowReplyMessageMultipleTimes !== true &&
     typeof input.reply_to_message_id === 'string' &&
     state.outputs.some((output) => output.reply_to_message_id === input.reply_to_message_id)
   ) {
+    const key = replayContentKey(input);
+    if (key !== null) {
+      state.burnedContentKeys.add(key);
+    }
     throw new Error('Not sent: reply_already_sent. This message has already been replied to in this scene.');
   }
 }
