@@ -19,7 +19,7 @@ Do not read the manual for unrelated conversation, do not quote whole pages back
 2. Read the index: `list_documents` with `{ "space": "manual" }`. It lists every page with its title, path, and summary.
 3. Read one page: `read_document` with `{ "space": "manual", "path": "start/quick-start.md" }`.
 
-To follow a relative link inside a page, pass the link target as `path` and the current page path as `base`, for example `{ "space": "manual", "path": "../configure/config-file.md", "base": "guides/extensions.md" }`.
+To follow a relative link inside a page, pass the link target as `path` and the current page path as `base`, for example `{ "space": "manual", "path": "../configure/config-file.md", "base": "guides/extensions.md" }`. A `#heading` suffix is accepted and ignored: the whole page comes back, so find that heading in it. The downloadable examples (`examples/config.example.jsonc.md` and the others in the index) quote the files verbatim.
 
 ## Result handling
 

@@ -67,6 +67,7 @@ jobs:
           const index = readFileSync('/app/src/manual/index.md', 'utf8');
           if (!index.startsWith('# 塑料碗用户手册')) throw new Error('Manual index missing from runtime');
           if (!existsSync('/app/src/manual/start/quick-start.md')) throw new Error('Manual pages missing from runtime');
+          if (!existsSync('/app/src/manual/examples/config.example.jsonc.md')) throw new Error('Manual examples missing from runtime');
           let found = false;
           try { require.resolve('@rspress/core'); found = true; }
           catch (error) { if (error.code !== 'MODULE_NOT_FOUND') throw error; }

@@ -2,12 +2,17 @@ import { access, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { afterAll, expect, test } from 'vitest';
-import { renderConfigFields } from '../scripts/docs-prepare.ts';
+import { exampleNames, exampleSource, renderConfigFields } from '../scripts/docs-prepare.ts';
 import { manualContentRoot, packManual } from '../scripts/manual-prepare.ts';
 import { bundledManualSpace, FileSystemDocSpaces } from '../src/adapters/local-monolith/doc-spaces.ts';
 import { DOC_INDEX_PATH } from '../src/platform/doc-spaces.ts';
 
 const directories: string[] = [];
+const examplePages = [
+  'examples/config.example.jsonc.md',
+  'examples/docker-compose.yml.md',
+  'examples/system-prompt.example.md',
+];
 
 afterAll(async () => {
   await Promise.all(
@@ -32,7 +37,8 @@ test('packs the published manual into the runtime resource layout', async () => 
   const outDir = await tempRoot();
   const result = await packManual({ outDir });
   const sources = (await markdownFiles(manualContentRoot)).filter((path) => path !== 'index.md');
-  const expected = [...new Set([...sources, 'reference/fields.md'])].sort();
+  const pages = [...new Set([...sources, 'reference/fields.md'])].sort();
+  const expected = [...pages, ...examplePages].sort();
   expect([...result.documents].sort()).toEqual(expected);
 
   const packed = await markdownFiles(outDir);
@@ -40,11 +46,31 @@ test('packs the published manual into the runtime resource layout', async () => 
   for (const path of expected) {
     const text = await readFile(join(outDir, path), 'utf8');
     expect(text.length, path).toBeGreaterThan(0);
-    if (path === 'reference/fields.md') {
-      expect(text).toBe(renderConfigFields());
+    // `__DOCS_BASE__/` only resolves on the published site; nothing in the pack may keep it.
+    expect(text, path).not.toContain('__DOCS_BASE__');
+  }
+  for (const path of pages) {
+    const text = await readFile(join(outDir, path), 'utf8');
+    const source =
+      path === 'reference/fields.md' ? renderConfigFields() : await readFile(join(manualContentRoot, path), 'utf8');
+    if (!source.includes('__DOCS_BASE__')) {
+      expect(text, path).toBe(source);
       continue;
     }
-    expect(text, path).toBe(await readFile(join(manualContentRoot, path), 'utf8'));
+    // Only the public links change: every other line is the source verbatim.
+    const sourceLines = source.split('\n');
+    const packedLines = text.split('\n');
+    expect(packedLines, path).toHaveLength(sourceLines.length);
+    packedLines.forEach((line, index) => {
+      if (!sourceLines[index]?.includes('__DOCS_BASE__')) {
+        expect(line, `${path}:${index + 1}`).toBe(sourceLines[index]);
+      }
+    });
+  }
+  for (const name of exampleNames) {
+    const text = await readFile(join(outDir, 'examples', name.endsWith('.md') ? name : `${name}.md`), 'utf8');
+    expect(text.startsWith(`# ${name}\n`)).toBe(true);
+    expect(text, name).toContain((await readFile(exampleSource(name), 'utf8')).trimEnd());
   }
   // Navigation metadata is build input; only documents reach the runtime tree.
   expect(packed.some((path) => path.endsWith('_meta.json'))).toBe(false);
@@ -63,6 +89,30 @@ test('packs the published manual into the runtime resource layout', async () => 
   // The site links this page without listing it in its sidebar; the pack still ships and indexes it.
   expect(index.indexOf('## 其他页面')).toBeGreaterThan(index.indexOf('## 参考'));
   expect(index).toContain('(guides/images.md)');
+  expect(index).toContain('## 示例文件');
+  expect(index).toContain('(examples/config.example.jsonc.md)');
+});
+
+test('public download links point at the packed examples or lose their link', async () => {
+  const outDir = await tempRoot();
+  await packManual({ outDir });
+  const quickStart = await readFile(join(outDir, 'start/quick-start.md'), 'utf8');
+  expect(quickStart).toContain('[Compose 模板](../examples/docker-compose.yml.md)');
+  expect(quickStart).toContain('[配置示例](../examples/config.example.jsonc.md)');
+  expect(quickStart).toContain('[人格 Prompt 示例](../examples/system-prompt.example.md)');
+  // The runtime cannot serve llms.txt or the JSON Schema; the label stays as plain text.
+  const agentAssisted = await readFile(join(outDir, 'start/agent-assisted.md'), 'utf8');
+  expect(agentAssisted).toContain('部署后的文档站提供 llms.txt 与逐页 Markdown');
+
+  const contentRoot = await tempRoot('plasticwan-manual-content-');
+  await writeFile(join(contentRoot, '_meta.json'), JSON.stringify(['guide']));
+  await writeFile(
+    join(contentRoot, 'guide.md'),
+    '---\ntitle: Guide\ndescription: Guide page\n---\n\n<a href="__DOCS_BASE__/llms.txt">llms</a>\n',
+  );
+  await expect(packManual({ outDir: await tempRoot(), contentRoot })).rejects.toThrow(
+    'public-resource reference the pack cannot rewrite: guide.md',
+  );
 });
 
 test('the packed manual is readable through the document spaces contract', async () => {
@@ -81,7 +131,7 @@ test('the packed manual is readable through the document spaces contract', async
   expect(index.text.startsWith('# 塑料碗用户手册\n')).toBe(true);
 
   const quickStart = await spaces.read(access, 'manual', 'start/quick-start.md');
-  expect(quickStart.text).toBe(await readFile(join(manualContentRoot, 'start/quick-start.md'), 'utf8'));
+  expect(quickStart.text).toBe(await readFile(join(outDir, 'start/quick-start.md'), 'utf8'));
   expect(quickStart.truncated).toBe(false);
   expect(quickStart.text).toContain('# 第一次运行塑料碗');
 
@@ -89,6 +139,17 @@ test('the packed manual is readable through the document spaces contract', async
   const imageGuide = await spaces.read(access, 'manual', '../guides/images.md', 'configure/admin.md');
   expect(imageGuide.path).toBe('guides/images.md');
   expect(imageGuide.text).toContain('# 图片生成');
+
+  // Links with a heading fragment, copied verbatim from the page, read the whole target page.
+  const admin = await spaces.read(access, 'manual', 'configure/admin.md');
+  expect(admin.text).toContain('](telegram.md#自助忽略与恢复)');
+  const telegram = await spaces.read(access, 'manual', 'telegram.md#自助忽略与恢复', 'configure/admin.md');
+  expect(telegram.path).toBe('configure/telegram.md');
+  expect(telegram.text).toContain('## 自助忽略与恢复');
+
+  const example = await spaces.read(access, 'manual', '../examples/config.example.jsonc.md', 'start/quick-start.md');
+  expect(example.truncated).toBe(false);
+  expect(example.text).toContain('```jsonc');
 });
 
 test('every relative markdown link stays inside the packed manual', async () => {
@@ -103,7 +164,6 @@ test('every relative markdown link stays inside the packed manual', async () => 
         target.startsWith('http://') ||
         target.startsWith('https://') ||
         target.startsWith('mailto:') ||
-        target.startsWith('__DOCS_BASE__/') ||
         target.startsWith('#') ||
         !target.split('#')[0]?.endsWith('.md')
       ) {

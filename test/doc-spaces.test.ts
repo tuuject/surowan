@@ -90,6 +90,14 @@ test('resolves space-relative paths and page links inside the space', () => {
   expect(resolveDocPath('config.md', 'configure/config-file.md')).toEqual(['configure', 'config.md']);
   expect(resolveDocPath('../configure/models.md', 'guides/budgets.md')).toEqual(['configure', 'models.md']);
   expect(resolveDocPath('./../start/./quick-start.md', 'guides/per-chat.md')).toEqual(['start', 'quick-start.md']);
+  // Manual links carry heading fragments; the fragment never names a file.
+  expect(resolveDocPath('../operations/upgrade.md#镜像标签', 'start/quick-start.md')).toEqual([
+    'operations',
+    'upgrade.md',
+  ]);
+  expect(resolveDocPath('telegram.md#自助忽略与恢复', 'configure/admin.md')).toEqual(['configure', 'telegram.md']);
+  expect(resolveDocPath('start/quick-start.md#准备')).toEqual(['start', 'quick-start.md']);
+  expect(resolveDocPath('#内置用户手册', 'guides/extensions.md')).toEqual(['guides', 'extensions.md']);
 });
 
 test('rejects absolute, escaping, malformed, and non-markdown paths', () => {
@@ -109,6 +117,11 @@ test('rejects absolute, escaping, malformed, and non-markdown paths', () => {
   expectResolveError('assets/logo.png', 'unsupported_document');
   expectResolveError('start/quick-start', 'unsupported_document');
   expectResolveError('config.md', 'unsupported_document', 'configure/config-file');
+  // Dropping a fragment keeps every other path rule.
+  expectResolveError('#section', 'invalid_path');
+  expectResolveError('#section', 'invalid_path', '../outside.md');
+  expectResolveError('../../outside.md#section', 'invalid_path', 'guides/budgets.md');
+  expectResolveError('assets/logo.png#section', 'unsupported_document');
 });
 
 test('an empty document space set lists nothing and rejects every read', async () => {

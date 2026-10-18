@@ -69,15 +69,25 @@ export interface DocSpaces {
  * `path` is always space-relative: absolute paths, drive letters, backslashes,
  * percent escapes, and empty segments are rejected outright. A `base` document
  * path enables link resolution — `..` may climb within the space but never past
- * its root. Only Markdown documents are addressable.
+ * its root, and a `#fragment` names a heading, not a file, so it is dropped
+ * (a fragment-only link resolves to the base document itself). Only Markdown
+ * documents are addressable.
  */
-export function resolveDocPath(path: string, base?: string): readonly string[] {
+export function resolveDocPath(link: string, base?: string): readonly string[] {
   if (
-    path.length === 0 ||
-    path.length > DOC_PATH_MAX_LENGTH ||
+    link.length === 0 ||
+    link.length > DOC_PATH_MAX_LENGTH ||
     (base !== undefined && (base.length === 0 || base.length > DOC_PATH_MAX_LENGTH))
   ) {
     throw new DocSpaceError('invalid_path', 'Document path exceeds the length limit');
+  }
+  const fragment = link.indexOf('#');
+  const path = fragment === -1 ? link : link.slice(0, fragment);
+  if (path.length === 0) {
+    if (base === undefined) {
+      throw new DocSpaceError('invalid_path', 'A fragment-only link needs the base document it belongs to');
+    }
+    return resolveDocPath(base);
   }
   const segments: string[] = [];
   if (base === undefined) {
