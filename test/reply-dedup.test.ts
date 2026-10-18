@@ -254,7 +254,7 @@ async function expectRejected(tool: SendTool, callId: string, args: SendArgs): P
 const imageGeneration: SendToolEnvironment['imageGeneration'] = {
   resolve: (generationId) =>
     generationId === 'gen-1' || generationId === 'gen-2'
-      ? [{ assetId: `asset-${generationId}`, bytes: new Uint8Array([1, 2, 3]), fileName: 'pic.png' }]
+      ? [{ assetId: `asset-${generationId}`, bytes: new Uint8Array([1, 2, 3]), fileName: 'pic.png', mime: 'image/png' }]
       : undefined,
 };
 

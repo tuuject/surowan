@@ -188,7 +188,7 @@ export class BucketScheduler {
       this.processTasksDue();
       this.processDue();
       this.#launchQueued();
-      const delay = this.#nextDelayMilliseconds();
+      const delay = this.nextDelayMilliseconds();
       await new Promise<void>((resolve) => {
         let settled = false;
         const finish = (): void => {
@@ -205,7 +205,13 @@ export class BucketScheduler {
     }
   }
 
-  #nextDelayMilliseconds(): number {
+  /**
+   * How long the loop may sleep before its next pass, from the current
+   * deadlines. Public because it is the governor's own contract: work that
+   * cannot run right now (no free slot, a chat already running) must not make
+   * the loop spin, and that is asserted directly instead of by timing.
+   */
+  nextDelayMilliseconds(): number {
     const deadlines: number[] = [];
     // Buckets of a Conversation whose invocation is already running still need
     // a wake-up: the run attaches them as soon as their window closes, so the

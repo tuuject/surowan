@@ -45,7 +45,9 @@ export const PLAYGROUND_PROFILE: HostExecutionProfile = {
   sleep: false,
   budgetScope: 'playground',
   budgetBypass: false,
-  hiddenSkills: ['alarms', 'dictionary', 'image-generation', 'sticker-search'],
+  // The image skill is not listed: a room sees it exactly when its image
+  // switch is on, which the runtime decides per conversation.
+  hiddenSkills: ['alarms', 'dictionary', 'sticker-search'],
 };
 
 export function hostExecutionProfile(kind: HostKind): HostExecutionProfile {

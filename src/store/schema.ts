@@ -971,8 +971,9 @@ export const promptVersions = sqliteTable(
  * Per-room state for virtual (playground) rooms. `revision` is the optimistic
  * concurrency token for room settings; `next_seq` is the high-water mark for
  * local message sequence numbers and is never rewound, so a released batch can
- * always be ordered even after retention drops older rows. T02 reserves the
- * shape only — the write API arrives with the playground store.
+ * always be ordered even after retention drops older rows. `image_enabled` is
+ * the room's opt-in for the paid image pipeline; the operator columns record
+ * who last decided it and when (T08).
  */
 export const rooms = sqliteTable('rooms', {
   chatId: sqliteBigIntId('chat_id')
@@ -982,6 +983,9 @@ export const rooms = sqliteTable('rooms', {
   nextSeq: sqliteBigInt('next_seq').notNull().default(1n),
   hold: integer('hold', { mode: 'boolean' }).notNull().default(true),
   imageEnabled: integer('image_enabled', { mode: 'boolean' }).notNull().default(false),
+  /** Who last flipped the image switch; null until an operator decides. */
+  imageEnabledBy: text('image_enabled_by'),
+  imageEnabledAt: text('image_enabled_at'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });

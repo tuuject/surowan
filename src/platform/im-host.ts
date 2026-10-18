@@ -308,12 +308,18 @@ export interface ImPhotoPart {
   readonly kind: 'photo';
   readonly bytes: Uint8Array;
   readonly fileName: string;
+  /**
+   * The producing side's media type (`image/png`, …). A host that stores the
+   * bytes itself needs it to type the stored media; a host that uploads them
+   * to a wire re-derives the type from the payload.
+   */
+  readonly mime?: string;
   readonly caption?: string;
 }
 
 export interface ImPhotoAlbumPart {
   readonly kind: 'photo_album';
-  readonly pictures: readonly { readonly bytes: Uint8Array; readonly fileName: string }[];
+  readonly pictures: readonly { readonly bytes: Uint8Array; readonly fileName: string; readonly mime?: string }[];
   readonly caption?: string;
 }
 

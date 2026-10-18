@@ -51,6 +51,8 @@ export type ImageServiceOptions = {
   /** The Phase 1 adapter set holds exactly the OpenRouter adapter. */
   providerAdapter?: ImageProviderAdapter;
   logger?: { warn: (message: string) => void };
+  /** Limits which generations this process executes; see GenerationWorkerDeps. */
+  executionEligibility?: (generation: { readonly id: string; readonly actorId: string }) => boolean;
 };
 
 /** The host's SQLite handle the image core borrows; the host keeps its lifecycle. */
@@ -79,6 +81,7 @@ export function createImageService(
     // Generous shutdown budget: in-flight provider calls are paid for, so give
     // them a chance to land before they are marked interrupted.
     shutdownTimeoutMs: 30_000,
+    ...(options.executionEligibility === undefined ? {} : { executionEligibility: options.executionEligibility }),
     logger: options.logger ?? null,
   });
   return {

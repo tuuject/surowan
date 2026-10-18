@@ -1,3 +1,5 @@
+import type { HostKind } from './im-host.ts';
+
 /** Readonly System Skills resources; implementation and document source belong to the host. */
 export const SYSTEM_URI_PREFIX = 'system:///';
 export const SYSTEM_RESOURCE_MAX_BYTES = 32_768;
@@ -9,6 +11,16 @@ export interface SystemSkill {
   readonly name: string;
   readonly description: string;
   readonly uri: string;
+}
+
+/**
+ * The conversation facts a skill visibility rule may read. A skill can be
+ * gated by capability state that lives on one conversation (a room's image
+ * switch), so the host kind alone is not enough.
+ */
+export interface SkillVisibilityTarget {
+  readonly hostKind: HostKind;
+  readonly conversationId: bigint;
 }
 
 export interface SystemResourceText {

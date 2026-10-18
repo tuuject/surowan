@@ -58,7 +58,9 @@ SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是
 
 ### 虚拟房间（`rooms` / `room_participants`）
 
-虚拟房间就是 `host_kind = 'playground'` 的 `chats` 行：没有 Telegram ID，`type` 用 `virtual`，群类型只能读这一列，不能从 ID 符号推断。`rooms` 每行保存该房间的 `revision`（房间设置的乐观并发令牌）与 `next_seq`（本地消息序号高水位，只前进不回退，保证保留期清理掉旧行之后已释放批次仍可排序）；`room_participants` 记录身份归属，也是「没有 Telegram ID 的虚拟身份」唯一的存在形式。两者都随 `chats` 级联删除。身份修剪（`store.ts` 的 `prune`）保留仍属于某个房间的 sender，不能只按 `message_revisions` 引用判断。
+虚拟房间就是 `host_kind = 'playground'` 的 `chats` 行：没有 Telegram ID，`type` 只是会话形态标记（`PlaygroundStore.createRoom` 写 `group`；群类型判断只读 `host_kind`，不能从 ID 符号推断，`type` 也不参与 Telegram 的准入/暂停判断）。`rooms` 每行保存该房间的 `revision`（房间设置的乐观并发令牌）与 `next_seq`（本地消息序号高水位，只前进不回退，保证保留期清理掉旧行之后已释放批次仍可排序）；`hold` 是输入闸门（输入、Release 与能力设置都递增 `revision`，Bot 输出不递增）；`image_enabled` 是该房间的付费生图开关，默认关闭，迁移 `041` 为它补上 `image_enabled_by` / `image_enabled_at`（操作者与时间），三者一起构成可审计的能力状态。`room_participants` 记录身份归属，也是「没有 Telegram ID 的虚拟身份」唯一的存在形式。两者都随 `chats` 级联删除。身份修剪（`store.ts` 的 `prune`）保留仍属于某个房间的 sender，不能只按 `message_revisions` 引用判断。
+
+房间图片有两份文件、两种生命周期，不能混为一谈：生成原件属于图片归档（`<data_dir>/images/`，随备份整体复制、不继承媒体 TTL、不由房间保留清理删除）；房间自己用的副本属于 `playground_assets`（`<data_dir>/images/playground/`，按 `(chat_id, sha256)` 内容去重，一条文件可以被多条 `media` 行共享）。清理以引用为准：只有确认没有任何 `media` 行引用该资产行时才可以认领并删除文件，先删行再删文件，且认领条件与删除在同一语句里，避免与并发上传互相覆盖。
 
 ### 冻结与重放边界
 

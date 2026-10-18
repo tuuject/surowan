@@ -121,7 +121,7 @@ async function fixture(options: { readonly unsentOutputs?: readonly string[] } =
   const imageGeneration = {
     resolve: (generationId: string, conversationId: bigint) =>
       generationId === GENERATION_ID && conversationId === activeConversationId
-        ? [{ assetId: ASSET_ID, bytes: new Uint8Array([137, 80, 78, 71]), fileName: 'harbor.png' }]
+        ? [{ assetId: ASSET_ID, bytes: new Uint8Array([137, 80, 78, 71]), fileName: 'harbor.png', mime: 'image/png' }]
         : undefined,
   };
   const requests: string[] = [];

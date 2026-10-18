@@ -25,6 +25,8 @@ export type ImageCoreOptions = {
   logger?: { warn: (message: string) => void } | null;
   /** Supply when the host wants to own the config store; a fresh one is created otherwise. */
   configStore?: ImageConfigStore;
+  /** Limits which generations this process may execute; see GenerationWorkerDeps. */
+  executionEligibility?: (generation: { readonly id: string; readonly actorId: string }) => boolean;
 };
 
 export type ImageCore = ReturnType<typeof createImageCore>;
@@ -44,6 +46,7 @@ export function createImageCore(options: ImageCoreOptions) {
     concurrency: options.concurrency,
     providerTimeoutMs: options.providerTimeoutMs,
     ...(options.shutdownTimeoutMs === undefined ? {} : { shutdownTimeoutMs: options.shutdownTimeoutMs }),
+    ...(options.executionEligibility === undefined ? {} : { executionEligibility: options.executionEligibility }),
     logger: options.logger ?? null,
     redactor,
   });

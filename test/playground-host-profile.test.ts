@@ -83,13 +83,15 @@ describe('host execution profile', () => {
     const hosts = Object.fromEntries(BUILTIN_PLUGINS.map((plugin) => [plugin.id, pluginHosts(plugin)]));
     expect(hosts.alarm).toEqual(['telegram']);
     expect(hosts.dictionary).toEqual(['telegram']);
-    expect(hosts.image).toEqual(['telegram']);
+    // The image plugin mounts both hosts; a room only receives its tools once
+    // the room's own image switch is on (the bridge decides per conversation).
+    expect(hosts.image).toEqual(['telegram', 'playground']);
     expect(hosts['web-fetch']).toEqual(['telegram', 'playground']);
   });
 
   test('skills follow the plugin hosts', () => {
     const loaded = loadPlugins(BUILTIN_PLUGINS);
-    expect(loaded.skillHosts.get('image-generation')).toEqual(['telegram']);
+    expect(loaded.skillHosts.get('image-generation')).toEqual(['telegram', 'playground']);
     expect(loaded.skillHosts.get('alarms')).toEqual(['telegram']);
     expect(loaded.skillHosts.get('web-fetch')).toEqual(['telegram', 'playground']);
   });

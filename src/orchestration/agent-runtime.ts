@@ -35,7 +35,7 @@ import {
   type RawConfig,
 } from '../platform/config.ts';
 import { hostExecutionProfile } from '../platform/host-profile.ts';
-import type { HostKind, ImConversationRef, ImHost } from '../platform/im-host.ts';
+import type { ImConversationRef, ImHost } from '../platform/im-host.ts';
 import {
   type CapabilityRefResolver,
   type InvocationContext,
@@ -46,7 +46,7 @@ import {
 import { serializeModelRequestForAudit } from '../platform/model-request-audit.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import type { SecretStore } from '../platform/secrets.ts';
-import type { SystemResources, SystemSkill } from '../platform/system-resources.ts';
+import type { SkillVisibilityTarget, SystemResources, SystemSkill } from '../platform/system-resources.ts';
 import { applyToolSchemaKeywords } from '../platform/tool-schema.ts';
 import {
   agentMessages,
@@ -112,13 +112,20 @@ export interface AgentRuntimeOptions {
   /** Runtime-internal capabilities dispatched through the execute primitive. */
   readonly capabilityTools?: CapabilityToolFactory;
   /** Per-invocation skill visibility rule; hides skills of disabled capabilities. */
-  readonly skillVisibility?: (skill: SystemSkill, hostKind: HostKind) => boolean;
+  readonly skillVisibility?: (skill: SystemSkill, target: SkillVisibilityTarget) => boolean;
   /** Resolves generated pictures for the send tool; absent without image generation. */
   readonly imageGeneration?: {
     readonly resolve: (
       generationId: string,
       conversationId: bigint,
-    ) => readonly { readonly assetId: string; readonly bytes: Uint8Array; readonly fileName: string }[] | undefined;
+    ) =>
+      | readonly {
+          readonly assetId: string;
+          readonly bytes: Uint8Array;
+          readonly fileName: string;
+          readonly mime: string;
+        }[]
+      | undefined;
   };
   /** Directly exposed non-primitive tools (allowlisted MCP tools). */
   readonly additionalTools?: ToolFactory;
@@ -187,7 +194,7 @@ export class AgentRuntime {
   readonly #systemResources: SystemResources;
   readonly #capabilityTools: CapabilityToolFactory | undefined;
   /** Per-invocation skill visibility; used to hide disabled capability skills. */
-  readonly #skillVisibility: ((skill: SystemSkill, hostKind: HostKind) => boolean) | undefined;
+  readonly #skillVisibility: ((skill: SystemSkill, target: SkillVisibilityTarget) => boolean) | undefined;
   readonly #additionalTools: ToolFactory | undefined;
   readonly #directImageLoader: DirectImageLoader | undefined;
   readonly #modelGate: KeyedSemaphore;
@@ -200,7 +207,14 @@ export class AgentRuntime {
         readonly resolve: (
           generationId: string,
           conversationId: bigint,
-        ) => readonly { readonly assetId: string; readonly bytes: Uint8Array; readonly fileName: string }[] | undefined;
+        ) =>
+          | readonly {
+              readonly assetId: string;
+              readonly bytes: Uint8Array;
+              readonly fileName: string;
+              readonly mime: string;
+            }[]
+          | undefined;
       }
     | undefined;
   readonly #conversationRuntime: ConversationRuntime;
@@ -417,7 +431,13 @@ export class AgentRuntime {
       },
       this.#skillVisibility === undefined
         ? undefined
-        : { skillFilter: (skill: SystemSkill) => this.#skillVisibility?.(skill, identity.hostKind) ?? true },
+        : {
+            skillFilter: (skill: SystemSkill) =>
+              this.#skillVisibility?.(skill, {
+                hostKind: identity.hostKind,
+                conversationId: identity.conversationId,
+              }) ?? true,
+          },
     );
     const opened = this.#contexts.open(identity.conversationId, stable.systemPromptHash);
     const header = opened.header;

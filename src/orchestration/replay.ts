@@ -30,7 +30,7 @@ import { type InvocationContext, unavailableCapabilities } from '../platform/inv
 import { invocationGateKey } from '../platform/invocation-policy.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import type { SecretStore } from '../platform/secrets.ts';
-import type { SystemResources, SystemSkill } from '../platform/system-resources.ts';
+import type { SkillVisibilityTarget, SystemResources, SystemSkill } from '../platform/system-resources.ts';
 import { isThinkingLevel } from '../platform/thinking-levels.ts';
 import { applyToolSchemaKeywords } from '../platform/tool-schema.ts';
 import type { BusinessStore } from '../store/store.ts';
@@ -63,7 +63,7 @@ interface ReplayOptions {
   readonly modelGate: KeyedSemaphore;
   readonly shutdownSignal: AbortSignal;
   readonly toolDefinitions?: (context: InvocationContext, config: RawConfig) => ReplayToolRegistry;
-  readonly skillVisibility?: (skill: SystemSkill) => boolean;
+  readonly skillVisibility?: (skill: SystemSkill, target: SkillVisibilityTarget) => boolean;
   readonly imageLoader?: (mediaId: bigint, signal: AbortSignal) => Promise<ImageContent>;
 }
 
@@ -637,7 +637,15 @@ export class ReplayRunner {
       { provider: runtime.model.provider, model: runtime.model.id },
       {
         imageInput: 'on_demand',
-        ...(this.#options.skillVisibility === undefined ? {} : { skillFilter: this.#options.skillVisibility }),
+        ...(this.#options.skillVisibility === undefined
+          ? {}
+          : {
+              skillFilter: (skill: SystemSkill) =>
+                this.#options.skillVisibility?.(skill, {
+                  hostKind: 'telegram',
+                  conversationId: check.source.conversationId,
+                }) ?? true,
+            }),
       },
     );
     const context: InvocationContext = {

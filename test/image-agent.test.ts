@@ -214,6 +214,7 @@ async function fixture(plan: readonly boolean[] = []): Promise<ImageAgentFixture
   expect(applied.ok).toBe(true);
   const pluginBridge: ImagePluginBridge = {
     enabled: () => bridge.enabled(),
+    enabledFor: (conversationId) => bridge.enabledFor(conversationId),
     submit: (params, signal) => bridge.submit(params, signal),
     modelList: () => bridge.modelList(),
   };
@@ -359,7 +360,7 @@ test('send kind:image delivers finished outputs of a generation owned by this co
       resolve: (id, conversationId) => {
         const out = fixtureRef.bridge.sendableOutputs(id, conversationId)?.map((output) => {
           const content = fixtureRef.bridge.assetContent(output.asset_id);
-          return { assetId: output.asset_id, bytes: content.bytes, fileName: output.file_name };
+          return { assetId: output.asset_id, bytes: content.bytes, fileName: output.file_name, mime: content.mime };
         });
         return out;
       },
@@ -486,6 +487,7 @@ test('reconcile() settles outstanding image tasks after a restart', async () => 
 test('the plugin contributes image_generate only when the bridge is enabled', () => {
   const disabledScope = fakeScope({
     enabled: () => false,
+    enabledFor: () => false,
     submit: () => Promise.reject(new Error('no')),
     modelList: () => [],
   });
@@ -493,6 +495,7 @@ test('the plugin contributes image_generate only when the bridge is enabled', ()
 
   const enabledScope = fakeScope({
     enabled: () => true,
+    enabledFor: () => true,
     submit: () => Promise.reject(new Error('no')),
     modelList: () => [],
   });

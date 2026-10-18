@@ -48,10 +48,11 @@ interface Picture {
   readonly assetId: string;
   readonly bytes: Uint8Array;
   readonly fileName: string;
+  readonly mime: string;
 }
 
 function picture(assetId: string, fileName: string): Picture {
-  return { assetId, fileName, bytes: new Uint8Array([137, 80, 78, 71, assetId.length]) };
+  return { assetId, fileName, mime: 'image/png', bytes: new Uint8Array([137, 80, 78, 71, assetId.length]) };
 }
 
 const ASSET_A = picture('asset-a', 'a.png');
@@ -193,10 +194,11 @@ function buildTool(
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     imageGeneration: {
       resolve: (generationId, conversationId) =>
-        resolvePictures(generationId, conversationId)?.map(({ assetId, bytes, fileName }) => ({
+        resolvePictures(generationId, conversationId)?.map(({ assetId, bytes, fileName, mime }) => ({
           assetId,
           bytes,
           fileName,
+          mime,
         })),
     },
   });

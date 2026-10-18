@@ -201,7 +201,14 @@ export interface SendToolEnvironment {
     readonly resolve: (
       generationId: string,
       conversationId: bigint,
-    ) => readonly { readonly assetId: string; readonly bytes: Uint8Array; readonly fileName: string }[] | undefined;
+    ) =>
+      | readonly {
+          readonly assetId: string;
+          readonly bytes: Uint8Array;
+          readonly fileName: string;
+          readonly mime: string;
+        }[]
+      | undefined;
   };
 }
 
@@ -278,7 +285,9 @@ class DeliveryRejected extends Error {
 function resolveOutgoingPart(input: {
   readonly textPart: ImOutgoingPart | undefined;
   readonly stickerFileId: string | undefined;
-  readonly generationPictures: readonly { readonly bytes: Uint8Array; readonly fileName: string }[] | undefined;
+  readonly generationPictures:
+    | readonly { readonly bytes: Uint8Array; readonly fileName: string; readonly mime: string }[]
+    | undefined;
   readonly send: Static<typeof SendInputSchema>;
 }): ImOutgoingPart {
   if (input.textPart !== undefined) {
@@ -298,12 +307,17 @@ function resolveOutgoingPart(input: {
       kind: 'photo',
       bytes: only?.bytes ?? new Uint8Array(),
       fileName: only?.fileName ?? 'image.png',
+      mime: only?.mime ?? 'image/png',
       ...caption,
     };
   }
   return {
     kind: 'photo_album',
-    pictures: pictures.map((picture) => ({ bytes: picture.bytes, fileName: picture.fileName })),
+    pictures: pictures.map((picture) => ({
+      bytes: picture.bytes,
+      fileName: picture.fileName,
+      mime: picture.mime,
+    })),
     ...caption,
   };
 }
@@ -485,7 +499,9 @@ export function createSendTools(environment: SendToolEnvironment): {
         const firstMessageId = messageIds[0];
         generationPictures = generationPictures.filter((picture) => !delivery.delivered.has(picture.assetId));
         if (generationPictures.length === 0 && firstMessageId !== undefined) {
-          const text = `Images already delivered; Telegram delivery message(s): ${messageIds.join(', ')}. No new message was sent.`;
+          const text = reportsWireIds(environment.host)
+            ? `Images already delivered; Telegram delivery message(s): ${messageIds.join(', ')}. No new message was sent.`
+            : `Images already delivered; message(s): ${messageIds.join(', ')}. No new message was sent.`;
           const now = new Date().toISOString();
           environment.store.orm
             .insert(toolCalls)

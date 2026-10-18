@@ -65,6 +65,11 @@ export interface RoomState {
   readonly revision: bigint;
   readonly hold: boolean;
   readonly nextSeq: bigint;
+  /** Whether this room may spend real money on image generation. Default off. */
+  readonly imageEnabled: boolean;
+  /** Operator who last flipped the switch; null while nobody has. */
+  readonly imageEnabledBy: string | null;
+  readonly imageEnabledAt: string | null;
 }
 
 export interface RoomMember {
@@ -571,6 +576,50 @@ export class PlaygroundStore {
   }
 
   /**
+   * Flip the room's image-generation switch.
+   *
+   * This is the only way a room may reach the paid image pipeline; the default
+   * is off. The revision guard makes the write conflict with concurrent room
+   * mutations, and the operator is recorded so a paid capability has an owner.
+   * Setting the value it already has is a no-op: a retried request returns the
+   * current state instead of failing on a stale revision it did not cause.
+   */
+  setImageEnabled(
+    chatId: bigint,
+    input: { readonly enabled: boolean; readonly actor: string; readonly revision: bigint },
+  ): RoomState {
+    const now = this.#clock().toISOString();
+    return this.#orm.transaction(() => {
+      const room = this.#roomRow(chatId);
+      if (room === undefined) {
+        throw new PlaygroundError('room_not_found', `room ${chatId} does not exist`);
+      }
+      if (room.imageEnabled === input.enabled) {
+        return room;
+      }
+      if (room.revision !== input.revision) {
+        throw new PlaygroundError(
+          'room_revision_mismatch',
+          `room ${chatId} is at revision ${room.revision}, not ${input.revision}`,
+        );
+      }
+      const revision = room.revision + 1n;
+      this.#orm
+        .update(rooms)
+        .set({
+          imageEnabled: input.enabled,
+          imageEnabledBy: input.actor,
+          imageEnabledAt: now,
+          revision,
+          updatedAt: now,
+        })
+        .where(eq(rooms.chatId, chatId))
+        .run();
+      return { ...room, imageEnabled: input.enabled, imageEnabledBy: input.actor, imageEnabledAt: now, revision };
+    });
+  }
+
+  /**
    * Retry a terminated, side-effect-free release attempt.
    *
    * The original invocation and its frozen snapshot stay untouched; a new
@@ -832,6 +881,9 @@ export class PlaygroundStore {
         revision: rooms.revision,
         hold: rooms.hold,
         nextSeq: rooms.nextSeq,
+        imageEnabled: rooms.imageEnabled,
+        imageEnabledBy: rooms.imageEnabledBy,
+        imageEnabledAt: rooms.imageEnabledAt,
       })
       .from(rooms)
       .innerJoin(chats, eq(chats.id, rooms.chatId))

@@ -92,7 +92,7 @@ export function createListImageModelsTool(
         scope.audit.reject(toolCallId, 'list_image_models', argumentsJson, false, 'list_image_models_input_invalid');
         throw new Error('list_image_models input is invalid');
       }
-      if (!bridge.enabled()) {
+      if (!bridge.enabledFor(scope.context.conversationId)) {
         scope.audit.reject(toolCallId, 'list_image_models', argumentsJson, false, 'image_generation_disabled');
         throw new Error('image generation is not enabled');
       }
@@ -131,7 +131,7 @@ export function createImageGenerateTool(
         scope.audit.reject(toolCallId, 'image_generate', argumentsJson, true, 'image_generate_input_invalid');
         throw new Error('image_generate input is invalid');
       }
-      if (bridge === undefined || !bridge.enabled()) {
+      if (bridge === undefined || !bridge.enabledFor(scope.context.conversationId)) {
         scope.audit.reject(toolCallId, 'image_generate', argumentsJson, true, 'image_generation_disabled');
         throw new Error('image generation is not enabled');
       }

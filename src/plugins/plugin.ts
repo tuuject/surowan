@@ -23,7 +23,14 @@ const HOST_KINDS: readonly HostKind[] = ['playground', 'telegram'];
  * image service wired (the plugin then contributes nothing).
  */
 export interface ImagePluginBridge {
+  /** The global image configuration is usable. */
   enabled(): boolean;
+  /**
+   * The conversation may submit new generations. A Telegram chat follows the
+   * global switch; a Playground room is opt-in per room, so the same process
+   * can serve both. Turning the switch off only blocks new submissions.
+   */
+  enabledFor(conversationId: bigint): boolean;
   submit(
     params: {
       conversationId: bigint;

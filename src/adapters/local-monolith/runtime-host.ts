@@ -2,21 +2,19 @@
 import { join } from 'node:path';
 import { and, eq } from 'drizzle-orm';
 import { Bot, type Context } from 'grammy';
-import { createDocumentTools } from '../../capabilities/document-tools.ts';
-import { capability, type ExecutableCapability } from '../../capabilities/execute-tool.ts';
 import { PlaygroundAssetStore } from '../../capabilities/media/local-assets.ts';
 import { McpManager } from '../../capabilities/mcp.ts';
 import { MediaService } from '../../capabilities/media/media.ts';
 import { TelegramMediaClient } from '../../capabilities/media/media-download.ts';
 import { StickerService } from '../../capabilities/stickers.ts';
 import { createTelegramHost, grammyTelegramTransport, type TelegramHost } from './telegram-host.ts';
-import { createMemoryTools, MemoryStore } from '../../context/memory.ts';
+import { MemoryStore } from '../../context/memory.ts';
 import { createImageBridge, type ImageBridge } from '../../image/bridge.ts';
+import { generationEligibilityForHosts } from '../../image/host-eligibility.ts';
 import { createImageService, type ImageService } from '../../image/service.ts';
 import { AdminQueryError } from '../../ingress/admin/audit.ts';
 import { AdminServer } from '../../ingress/admin/server.ts';
 import { TelegramIngestion } from '../../ingress/telegram-ingestion.ts';
-import type { CapabilityToolFactory, ToolFactory } from '../../orchestration/agent-runtime.ts';
 import { createCoreRuntime } from '../../orchestration/runtime.ts';
 import {
   BOT_COMMANDS,
@@ -28,11 +26,10 @@ import {
 import { ReplayError, ReplayRunner } from '../../orchestration/replay.ts';
 import type { BucketScheduler } from '../../orchestration/scheduler.ts';
 import { KeyedSemaphore } from '../../platform/concurrency.ts';
-import { hostExecutionProfile } from '../../platform/host-profile.ts';
 import { toChatId, toConversationId, type HostKind, type ImConversationRef } from '../../platform/im-host.ts';
-import type { SystemSkill } from '../../platform/system-resources.ts';
 import { assertConfigPermissions, loadConfig } from './config.ts';
 import { ConfigReloader } from './config-reload.ts';
+import { createHostTooling, imageDeliveryResolver } from './host-tooling.ts';
 import { previewContext, unavailableCapabilities } from '../../platform/invocation-context.ts';
 import { keyJarPath } from '../../platform/key-jar.ts';
 import { AgentModelSwitcher } from '../../platform/model-switch.ts';
@@ -142,8 +139,14 @@ export async function serve(configPath: string, takeover = false): Promise<void>
     // The startup load is the first place a hand-edited prompt file becomes
     // visible to the process; record the starting versions before any apply.
     recordPromptVersionsFromConfig(openedStore.orm, loaded.config);
+    // Both hosts run through this process's shared runtime and scheduler, so
+    // image work of either may execute here. The Playground-only lifecycle
+    // narrows this set when it does not construct the Telegram host.
+    const servedHosts: readonly HostKind[] = ['telegram', 'playground'];
+    const imageEligible = generationEligibilityForHosts(openedStore, servedHosts);
     imageService = createImageService(openedStore, loaded.config, {
       logger: { warn: (message) => logEvent('image_service_warning', { message }) },
+      executionEligibility: imageEligible,
     });
     try {
       imageService.publishConfig(await imageService.prepareConfig(loaded.config, secrets));
@@ -217,6 +220,7 @@ export async function serve(configPath: string, takeover = false): Promise<void>
       service: imageService,
       store: openedStore,
       tasks,
+      eligible: imageEligible,
       prepareInputImage: (mediaId, signal) => media.prepareInputImage(mediaId, signal),
     });
     imageBridge = bridge;
@@ -235,49 +239,27 @@ export async function serve(configPath: string, takeover = false): Promise<void>
     if (docSpaces.missing.length > 0) {
       logEvent('doc_spaces_missing', { spaces: docSpaces.missing.join(',') });
     }
-    // Skills follow the plugin that ships them: a skill whose plugin is not
-    // mounted on a host never appears in that host's index.
-    const skillVisibleForHost = (skill: SystemSkill, hostKind: HostKind): boolean => {
-      if (hostExecutionProfile(hostKind).hiddenSkills.includes(skill.name)) {
-        return false;
-      }
-      const hosts = plugins.skillHosts.get(skill.name);
-      if (hosts !== undefined && !hosts.includes(hostKind)) {
-        return false;
-      }
-      return skill.name !== 'image-generation' || (imageBridge?.enabled() ?? false);
-    };
+    // The host profile, the plugins' host lists and the image bridge's
+    // per-conversation switch are decided in exactly one place.
+    const tooling = createHostTooling({
+      store: openedStore,
+      configStore,
+      plugins,
+      media,
+      memory: memoryStore,
+      stickers: stickerService,
+      mcp: mcpManager,
+      tasks,
+      docSpaces,
+      ...(imageBridge === undefined ? {} : { imageBridge }),
+    });
+    const skillVisibleForHost = tooling.skillVisible;
     // Runtime-internal capabilities: dispatched through the execute primitive.
     // The host profile decides which of them exist at all, so a Playground
     // room never inherits Telegram-only tools just because they are configured.
-    const capabilityTools: CapabilityToolFactory = (context, deadline, capabilities) => {
-      const profile = hostExecutionProfile(context.hostKind);
-      const tools: ExecutableCapability[] = [];
-      if (profile.mediaRead) {
-        tools.push(capability(media.createReadImageTool(context, capabilities, deadline), false));
-      }
-      if (profile.stickers) {
-        tools.push(capability(stickerService.createSearchTool(context, capabilities), false));
-      }
-      tools.push(...createMemoryTools(memoryStore, context).map((tool) => capability(tool, true)));
-      tools.push(
-        ...createDocumentTools({ store: openedStore, spaces: docSpaces, context }).map((tool) => capability(tool, false)),
-      );
-      tools.push(
-        ...plugins.capabilities(
-          openedStore,
-          configStore.current().config,
-          context,
-          deadline,
-          tasks,
-          capabilities.resolveMedia,
-        ),
-      );
-      return tools;
-    };
+    const capabilityTools = tooling.capabilityTools;
     // Directly exposed non-primitive tools: allowlisted MCP tools only.
-    const additionalTools: ToolFactory = (context, deadline) =>
-      hostExecutionProfile(context.hostKind).mcp ? [...mcpManager.createTools(context, deadline)] : [];
+    const additionalTools = tooling.additionalTools;
     // One host for both delivery and chat action: its per-conversation activity
     // bookkeeping is what keeps the ingestion status and the model's own
     // `typing` call from doubling up requests.
@@ -302,22 +284,7 @@ export async function serve(configPath: string, takeover = false): Promise<void>
       ...(imageBridge === undefined
         ? {}
         : {
-            imageGeneration: {
-              resolve: (generationId: string, conversationId: bigint) => {
-                const current = imageBridge;
-                if (current === undefined) {
-                  return undefined;
-                }
-                const outputs = current.sendableOutputs(generationId, conversationId);
-                if (outputs === undefined) {
-                  return undefined;
-                }
-                return outputs.map((output) => {
-                  const content = current.assetContent(output.asset_id);
-                  return { assetId: output.asset_id, bytes: content.bytes, fileName: output.file_name };
-                });
-              },
-            },
+            imageGeneration: imageDeliveryResolver(imageBridge),
           }),
       bot: {
         id: BigInt(me.id),
@@ -401,7 +368,7 @@ export async function serve(configPath: string, takeover = false): Promise<void>
         modelGate,
         shutdownSignal: replayShutdown.signal,
         toolDefinitions: (context, config) => runtime.sceneToolDefinitions(context, config),
-        skillVisibility: (skill) => skillVisibleForHost(skill, 'telegram'),
+        skillVisibility: (skill, target) => skillVisibleForHost(skill, target),
         imageLoader: async (mediaId, signal) => {
           const image = await media.prepareSceneImage(mediaId, signal);
           return { type: 'image', data: image.base64, mimeType: image.mime };
@@ -549,13 +516,42 @@ export function watchStopSignals(shutdown: () => void, forceExit: (signal: NodeJ
  */
 export function resolveConversation(
   store: BusinessStore,
-  target: { readonly chatId: bigint; readonly threadId: bigint },
+  target: { readonly chatId: bigint; readonly threadId: bigint; readonly conversationId?: bigint },
 ): ImConversationRef {
   const orm = store.orm;
+  // The conversation row decides the host when the caller has one: the same
+  // numeric value can be a Telegram chat id and a room's internal chat id, and
+  // only the row knows which. Ingestion's mention target carries no
+  // conversation id, so that path resolves a Telegram chat by its wire id.
+  if (target.conversationId !== undefined && target.conversationId !== 0n) {
+    const row = orm
+      .select({
+        id: conversations.id,
+        chatId: conversations.chatId,
+        threadId: conversations.messageThreadId,
+        hostKind: chats.hostKind,
+        type: chats.type,
+        telegramChatId: chats.telegramChatId,
+      })
+      .from(conversations)
+      .innerJoin(chats, eq(chats.id, conversations.chatId))
+      .where(eq(conversations.id, target.conversationId))
+      .get();
+    if (row !== undefined) {
+      const hostKind: HostKind = row.hostKind === 'playground' ? 'playground' : 'telegram';
+      return {
+        host: hostKind,
+        id: toConversationId(row.id),
+        chatId: toChatId((hostKind === 'telegram' ? row.telegramChatId : row.chatId)?.toString() ?? '0'),
+        topicId: row.threadId === 0n ? null : Number(row.threadId),
+        scope: row.type === 'private' ? 'private' : 'group',
+      };
+    }
+  }
   const chat = orm
     .select({ id: chats.id, type: chats.type })
     .from(chats)
-    .where(eq(chats.telegramChatId, target.chatId))
+    .where(and(eq(chats.hostKind, 'telegram'), eq(chats.telegramChatId, target.chatId)))
     .get();
   const conversation =
     chat === undefined

@@ -4,10 +4,10 @@ import {
   generationCreateSchema,
   type ImageAsset,
 } from '@plasticwan/image-service';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { BusinessStore } from '../store/store.ts';
-import type { LongTaskService } from '../store/long-tasks.ts';
-import { longTasks } from '../store/schema.ts';
+import { type LongTaskService, TaskQuotaError } from '../store/long-tasks.ts';
+import { chats, conversations, longTasks, rooms } from '../store/schema.ts';
 import type { ImageService } from './service.ts';
 
 /**
@@ -70,6 +70,13 @@ export interface ImageBridgeOptions {
   readonly service: ImageService;
   readonly store: BusinessStore;
   readonly tasks: LongTaskService;
+  /**
+   * Whether one generation may execute in this process. The composition root
+   * supplies it when only some hosts are running (`--playground-only`), so a
+   * standalone process never resumes work that belongs to a Host it does not
+   * serve. Absent means every generation may run.
+   */
+  readonly eligible?: (generation: { readonly id: string; readonly actorId: string }) => boolean;
   /** Prepares a stored media row (conversation media) as generation input. */
   readonly prepareInputImage: (
     mediaId: bigint,
@@ -108,6 +115,62 @@ export function createImageBridge(options: ImageBridgeOptions) {
     return core.config.hasValidConfig();
   }
 
+  /**
+   * Whether this conversation may submit new generations.
+   *
+   * Telegram spends under the global image configuration alone. A Playground
+   * room is opt-in per room: turning the switch off only blocks new
+   * submissions, so an accepted generation keeps running and its receipt still
+   * arrives. An unknown conversation authorizes nothing.
+   */
+  function enabledFor(conversationId: bigint): boolean {
+    if (!enabled()) {
+      return false;
+    }
+    const row = store.orm
+      .select({ hostKind: chats.hostKind, chatId: chats.id })
+      .from(conversations)
+      .innerJoin(chats, eq(chats.id, conversations.chatId))
+      .where(eq(conversations.id, conversationId))
+      .get();
+    if (row === undefined) {
+      return false;
+    }
+    if (row.hostKind === 'telegram') {
+      return true;
+    }
+    if (row.hostKind !== 'playground') {
+      return false;
+    }
+    return (
+      store.orm.select({ imageEnabled: rooms.imageEnabled }).from(rooms).where(eq(rooms.chatId, row.chatId)).get()
+        ?.imageEnabled === true
+    );
+  }
+
+  /** Whether this process may execute one generation at all. */
+  function canExecute(generation: { readonly id: string; readonly actorId: string }): boolean {
+    return options.eligible?.(generation) ?? true;
+  }
+
+  /**
+   * Whether the invocation that would own a new generation already reached its
+   * per-invocation quota. The task create re-checks inside its transaction, but
+   * this must be decided before the core creates (and enqueues) a generation:
+   * an orphaned generation would start a paid call even though the tool call
+   * was refused. Tools of one invocation run sequentially, so the count cannot
+   * change between this check and the create it guards.
+   */
+  function thisInvocationAtQuota(invocationId: bigint): boolean {
+    const used =
+      store.orm
+        .select({ count: sql<bigint>`count(*)` })
+        .from(longTasks)
+        .where(and(eq(longTasks.pluginId, 'image'), eq(longTasks.createdByInvocationId, invocationId)))
+        .get()?.count ?? 0n;
+    return used >= BigInt(MAX_PER_INVOCATION);
+  }
+
   /** Resolves one media row to a core input asset, reusing prior conversions. */
   async function inputAssetId(mediaId: bigint, signal: AbortSignal): Promise<string> {
     const cached = inputAssetCache.get(mediaId);
@@ -138,11 +201,16 @@ export function createImageBridge(options: ImageBridgeOptions) {
     params: SubmitParams,
     signal: AbortSignal = new AbortController().signal,
   ): Promise<SubmitResult> {
-    if (!enabled()) {
+    // Everything that would spend money is refused before anything is created:
+    // no generation row, no long task, no converted input asset, no file.
+    if (!enabledFor(params.conversationId)) {
       throw new Error('image generation is disabled');
     }
     if (params.inputMediaIds.length > MAX_INPUT_REFS) {
       throw new Error(`at most ${MAX_INPUT_REFS} input images are accepted`);
+    }
+    if (params.invocationId !== null && thisInvocationAtQuota(params.invocationId)) {
+      throw new TaskQuotaError();
     }
     const inputAssetIds: string[] = [];
     for (const mediaId of params.inputMediaIds) {
@@ -208,14 +276,23 @@ export function createImageBridge(options: ImageBridgeOptions) {
       .from(longTasks)
       .where(and(eq(longTasks.pluginId, 'image'), eq(longTasks.state, 'waiting')))
       .all();
-    const row = rows.find((candidate) => {
-      try {
-        return (JSON.parse(candidate.payloadJson) as { generation_id?: string }).generation_id === generationId;
-      } catch {
-        return false;
-      }
-    });
+    const row = rows.find((candidate) => generationIdOfPayload(candidate.payloadJson) === generationId);
     if (row === undefined) {
+      return;
+    }
+    const rowGeneration = core.generations.getRow(generationId);
+    if (rowGeneration === null) {
+      return;
+    }
+    // A generation that can still run settles its own task: the worker's
+    // finished listener reconciles it the moment the round ends. Completing
+    // the task here would record a failure for work that has not happened yet
+    // and swallow the real result, because a task settles exactly once.
+    if (rowGeneration.status === 'queued' || rowGeneration.status === 'running') {
+      return;
+    }
+    // Work belonging to a disabled host is not this process's to settle.
+    if (!canExecute({ id: generationId, actorId: rowGeneration.actorId })) {
       return;
     }
     const generation = core.generations.get(generationId, agentActor(row.conversationId));
@@ -299,12 +376,7 @@ export function createImageBridge(options: ImageBridgeOptions) {
       .where(and(eq(longTasks.pluginId, 'image'), eq(longTasks.state, 'waiting')))
       .all();
     for (const row of rows) {
-      let generationId: string | undefined;
-      try {
-        generationId = (JSON.parse(row.payloadJson) as { generation_id?: string }).generation_id;
-      } catch {
-        generationId = undefined;
-      }
+      const generationId = generationIdOfPayload(row.payloadJson);
       if (generationId === undefined) {
         tasks
           .scoped('image', row.conversationId)
@@ -321,6 +393,7 @@ export function createImageBridge(options: ImageBridgeOptions) {
 
   return {
     enabled,
+    enabledFor,
     submit,
     sendableOutputs,
     assetContent,
@@ -329,6 +402,21 @@ export function createImageBridge(options: ImageBridgeOptions) {
     /** The live model directory shared by Agent discovery and Admin views; no credentials. */
     modelList: () => core.config.publicModels(),
   };
+}
+
+/** The generation id a stored image-task payload names, when it is readable. */
+function generationIdOfPayload(payloadJson: string): string | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(payloadJson);
+  } catch {
+    return undefined;
+  }
+  if (parsed === null || typeof parsed !== 'object' || !('generation_id' in parsed)) {
+    return undefined;
+  }
+  const value = parsed.generation_id;
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
 export type ImageBridge = ReturnType<typeof createImageBridge>;

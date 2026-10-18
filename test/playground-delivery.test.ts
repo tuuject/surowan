@@ -10,8 +10,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
+import sharp from 'sharp';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { createPlaygroundHost } from '../src/adapters/local-monolith/playground-host.ts';
+import { PlaygroundAssetStore } from '../src/capabilities/media/local-assets.ts';
 import { createSendTools } from '../src/capabilities/send-tool.ts';
 import { InvocationContextState } from '../src/platform/invocation-context.ts';
 import { identityConversation, PLAYGROUND_ACTIVITY_CAP_MS } from '../src/platform/im-host.ts';
@@ -21,8 +23,10 @@ import {
   conversations,
   hostSends,
   invocations,
+  media,
   messageRevisions,
   messages,
+  playgroundAssets,
   rooms,
   roomParticipants,
   senders,
@@ -340,10 +344,15 @@ describe('Bot Playground virtual delivery', () => {
     );
     const target = { conversation, policy: host.policy(conversation) };
 
-    for (const part of [
-      { kind: 'sticker', stickerRef: 'stk_1' } as const,
-      { kind: 'photo', bytes: new Uint8Array([1, 2, 3]), fileName: 'a.png' } as const,
-    ]) {
+    // A sticker can never reach this host (no wire), and a picture cannot be
+    // stored when the room has no picture store: both refusals are permanent
+    // and leave nothing behind. The picture case names the missing store,
+    // because a room with one does show pictures (see the image delivery
+    // suite), while a sticker refusal names the part it cannot carry.
+    for (const [part, inDescription] of [
+      [{ kind: 'sticker', stickerRef: 'stk_1' } as const, 'sticker'],
+      [{ kind: 'photo', bytes: new Uint8Array([1, 2, 3]), fileName: 'a.png' } as const, 'picture store'],
+    ] as const) {
       const sendId = reserveSend(room.conversationId, room.invocationId, { id: `m-${part.kind}`, kind: part.kind });
       const outcome = await host.delivery.deliver({
         target,
@@ -355,7 +364,7 @@ describe('Bot Playground virtual delivery', () => {
       if (outcome.kind === 'rejected') {
         expect(outcome.failure.reason).toBe('permanent');
         expect(outcome.failure.code).toBe('unsupported_media');
-        expect(outcome.failure.description).toContain(part.kind);
+        expect(outcome.failure.description).toContain(inDescription);
         expect(outcome.failure.outcomeUnknown).toBe(false);
       }
       // A refusal must not leave a half-written message behind.
@@ -653,6 +662,80 @@ describe('Bot Playground virtual delivery', () => {
     // The tool call is recorded as success too.
     const call = store.orm.select().from(toolCalls).all();
     expect(call[0]?.state).toBe('success');
+    expect(telegramTransport).not.toHaveBeenCalled();
+  });
+
+  test('publishes a picture with its asset and refuses bytes it cannot store', async () => {
+    const room = createRoom({ chatId: 50n, title: 'pictures', selfDisplayName: '碗' });
+    const assets = new PlaygroundAssetStore({ orm: store.orm, root: join(directory, 'assets') });
+    const host = createPlaygroundHost({
+      store,
+      self: { displayName: '碗' },
+      pictures: assets,
+      sendRate: () => ({ sendsPerWindow: 20, windowSeconds: 60 }),
+      now: () => NOW,
+    });
+    const conversation = identityConversation(
+      { chatId: room.chatId, threadId: 0n, conversationId: room.conversationId },
+      'playground',
+      'private',
+    );
+    const target = { conversation, policy: host.policy(conversation) };
+    const png = new Uint8Array(
+      await sharp({ create: { width: 3, height: 2, channels: 3, background: { r: 1, g: 2, b: 3 } } })
+        .png()
+        .toBuffer(),
+    );
+    const deliverPhoto = (sendId: bigint, bytes: Uint8Array, caption?: string) =>
+      host.delivery.deliver({
+        target,
+        parts: [
+          {
+            kind: 'photo',
+            bytes,
+            fileName: 'room.png',
+            mime: 'image/png',
+            ...(caption === undefined ? {} : { caption }),
+          },
+        ],
+        sendId,
+        signal: undefined,
+      });
+
+    const firstSend = reserveSend(room.conversationId, room.invocationId, { id: 'photo-1', kind: 'photo' });
+    const delivered = await deliverPhoto(firstSend, png, 'a room picture');
+    expect(delivered.kind).toBe('delivered');
+    const written = roomMessages(room.conversationId);
+    expect(written).toHaveLength(1);
+    const revision = store.orm
+      .select()
+      .from(messageRevisions)
+      .where(eq(messageRevisions.messageId, written[0]!.id))
+      .get();
+    expect(revision).toMatchObject({ kind: 'image', caption: 'a room picture' });
+    const mediaRows = store.orm.select().from(media).all();
+    expect(mediaRows).toHaveLength(1);
+    expect(mediaRows[0]).toMatchObject({ kind: 'photo', hostKind: 'playground', mimeType: 'image/png' });
+    const assetId = mediaRows[0]!.localAssetId!;
+    expect(assets.resolve(assetId)).not.toBeNull();
+
+    // The same bytes delivered again share the one stored file.
+    const repeatSend = reserveSend(room.conversationId, room.invocationId, { id: 'photo-2', kind: 'photo' });
+    expect((await deliverPhoto(repeatSend, png)).kind).toBe('delivered');
+    expect(store.orm.select().from(media).all()).toHaveLength(2);
+    expect(store.orm.select().from(playgroundAssets).all()).toHaveLength(1);
+
+    // Bytes that are not an image are refused permanently and store nothing.
+    const badSend = reserveSend(room.conversationId, room.invocationId, { id: 'photo-3', kind: 'photo' });
+    const refused = await deliverPhoto(badSend, new Uint8Array([1, 2, 3]));
+    expect(refused.kind).toBe('rejected');
+    if (refused.kind === 'rejected') {
+      expect(refused.failure).toMatchObject({ reason: 'permanent', code: 'media_rejected', outcomeUnknown: false });
+    }
+    expect(ledgerRow(badSend)?.state).toBe('pending');
+    expect(ledgerRow(badSend)?.messageId).toBeNull();
+    expect(roomMessages(room.conversationId)).toHaveLength(2);
+    expect(store.orm.select().from(playgroundAssets).all()).toHaveLength(1);
     expect(telegramTransport).not.toHaveBeenCalled();
   });
 });
