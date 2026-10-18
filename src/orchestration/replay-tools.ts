@@ -356,6 +356,15 @@ function checkReplayNotDuplicate(inputs: readonly Static<typeof SendInputSchema>
       continue;
     }
     if (sent.has(key)) {
+      // Like production: repeating a published reply burns the content.
+      const burned = replayContentKey(input);
+      if (
+        burned !== null &&
+        state.options.allowReplyMessageMultipleTimes !== true &&
+        typeof input.reply_to_message_id === 'string'
+      ) {
+        state.burnedContentKeys.add(burned);
+      }
       guard.onRejected();
       throw new Error('Not sent: send_duplicate. This exact message was already published in this scene.');
     }
@@ -377,7 +386,9 @@ function replayContentKey(input: Record<string, unknown>): string | null {
     return null;
   }
   const narrowed = narrowSendInput(input);
-  return 'problem' in narrowed ? null : sendContentKey(narrowed.send);
+  // Sticker search never runs in a scene, so no fresh ref can name a sticker
+  // that another ref already names: the ref itself is the sticker's identity.
+  return 'problem' in narrowed ? null : sendContentKey(narrowed.send, (ref) => ref);
 }
 
 /**

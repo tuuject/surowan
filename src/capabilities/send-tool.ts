@@ -796,7 +796,12 @@ function createSendReplyTool(
         const { send } = narrowed;
         if (environment.duplicateSendGuard !== undefined && send.kind !== 'image') {
           const key = JSON.stringify(send);
-          if (partKeys.has(key) || isDuplicateSend(environment, send)) {
+          // A part 1 repeating a published reply is left to deliver(): its
+          // send_duplicate row then burns the content like a single send's.
+          // Nothing goes out either way, since part 1 is the first to send.
+          const leftToDeliver =
+            send.reply_to_message_id !== undefined && environment.allowReplyMessageMultipleTimes !== true;
+          if (partKeys.has(key) || (!leftToDeliver && isDuplicateSend(environment, send))) {
             environment.duplicateSendGuard.onRejected();
             reject(
               'send_duplicate',
@@ -965,17 +970,24 @@ function isDuplicateSend(environment: SendToolEnvironment, send: SendToolInput):
 
 /**
  * Content identity with the reply target and parse mode stripped: the unit a
- * reply-policy rejection burns for the rest of the run. Images stay exempt for
- * the same reason they skip the duplicate guard — a generation may gain
- * pictures and be sent again with the same input, delivering only the new
- * ones. Exported so the replay scene keys burned content identically.
+ * reply-policy rejection burns for the rest of the run. A sticker is keyed on
+ * the file its ref resolves to, because every `search_stickers` call mints a
+ * fresh `stk_` ref for the same sticker; an unresolvable ref has no key.
+ * Images stay exempt for the same reason they skip the duplicate guard — a
+ * generation may gain pictures and be sent again with the same input,
+ * delivering only the new ones. Exported so the replay scene keys burned
+ * content identically.
  */
-export function sendContentKey(send: SendToolInput): string | null {
+export function sendContentKey(
+  send: SendToolInput,
+  resolveStickerRef: (ref: string) => string | undefined,
+): string | null {
   if (send.kind === 'text') {
     return JSON.stringify(['text', send.text]);
   }
   if (send.kind === 'sticker') {
-    return JSON.stringify(['sticker', send.sticker_ref]);
+    const fileId = resolveStickerRef(send.sticker_ref);
+    return fileId === undefined ? null : JSON.stringify(['sticker', fileId]);
   }
   return null;
 }
@@ -984,36 +996,52 @@ export function sendContentKey(send: SendToolInput): string | null {
  * Whether this invocation's reply policy (`reply_already_sent` or
  * `reply_delivery_unknown`) already rejected exactly this text or sticker:
  * that rejection tells the model not to retry under a changed or omitted
- * reply_to_message_id, and this check enforces it. Barrier and rate-limit
+ * reply_to_message_id, and this check enforces it. A `send_duplicate` that
+ * carried a reply target burns too while the policy is on: an exact repeat of
+ * a published reply aims at a message already replied to, and the duplicate
+ * guard only answered before the policy could. Barrier and rate-limit
  * rejections never burn content, since both explicitly allow a later retry.
  */
 function wasRejectedByReplyPolicy(environment: SendToolEnvironment, send: SendToolInput): boolean {
-  const key = sendContentKey(send);
+  const resolveStickerRef = environment.capabilities.resolveStickerRef;
+  const key = sendContentKey(send, resolveStickerRef);
   if (key === null) {
     return false;
   }
+  const replyPolicyOn = environment.allowReplyMessageMultipleTimes !== true;
   const rejected = environment.store.orm
-    .select({ argumentsJson: toolCalls.argumentsJson })
+    .select({ argumentsJson: toolCalls.argumentsJson, errorCode: toolCalls.errorCode })
     .from(toolCalls)
     .where(
       and(
         eq(toolCalls.invocationId, environment.context.invocationId),
         eq(toolCalls.toolName, 'send'),
         eq(toolCalls.state, 'error'),
-        inArray(toolCalls.errorCode, ['reply_already_sent', 'reply_delivery_unknown']),
+        inArray(
+          toolCalls.errorCode,
+          replyPolicyOn
+            ? ['reply_already_sent', 'reply_delivery_unknown', 'send_duplicate']
+            : ['reply_already_sent', 'reply_delivery_unknown'],
+        ),
       ),
     )
     .all();
-  return rejected.some((row) => rejectedContentKey(row.argumentsJson) === key);
+  return rejected.some((row) => {
+    const previous = rejectedSend(row.argumentsJson);
+    return (
+      previous !== null &&
+      (row.errorCode !== 'send_duplicate' || previous.reply_to_message_id !== undefined) &&
+      sendContentKey(previous, resolveStickerRef) === key
+    );
+  });
 }
 
 /**
- * Content key of one rejected audit row. Rejections record the model's raw
- * input (placeholder fields included), so it is narrowed again before the key
- * is taken; a malformed row can never collide with a key from a real send, it
- * just never matches.
+ * The send one rejected audit row asked for. Rejections record the model's raw
+ * input (placeholder fields included), so it is narrowed again; a malformed row
+ * yields nothing and so never matches a real send.
  */
-function rejectedContentKey(argumentsJson: string): string | null {
+function rejectedSend(argumentsJson: string): SendToolInput | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(argumentsJson);
@@ -1024,7 +1052,7 @@ function rejectedContentKey(argumentsJson: string): string | null {
     return null;
   }
   const narrowed = narrowSendInput(parsed as Static<typeof SendInputSchema>);
-  return 'problem' in narrowed ? null : sendContentKey(narrowed.send);
+  return 'problem' in narrowed ? null : narrowed.send;
 }
 
 function recordRejectedSend(

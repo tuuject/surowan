@@ -222,6 +222,21 @@ test('a reply-policy rejection burns the content for the rest of the scene, mirr
   expect(replay.dispatches).toHaveLength(6);
 });
 
+test('an exact repeat of a published reply burns its content in the scene, mirroring production', async () => {
+  const registry = replayInput({ tools: [definition('send', SendInputSchema)] });
+  const replay = createReplayTools(registry, emptySystemResources(), {
+    replyMessageIds: new Set(['42', '43']),
+    duplicateSendGuard: { onRejected: () => {} },
+  });
+  const send = toolOf(replay.tools, 'send');
+  await send.execute('first', { text: 'first answer', reply_to_message_id: '42' });
+  await expect(send.execute('repeat', { text: 'first answer', reply_to_message_id: '42' })).rejects.toThrow(
+    'send_duplicate',
+  );
+  await expect(send.execute('bare', { text: 'first answer' })).rejects.toThrow('send_bypass');
+  expect(replay.outputs.map((output) => output.tool_call_id)).toEqual(['first']);
+});
+
 test('send allows repeated reply targets when configured without bypassing scene visibility', async () => {
   const replay = createReplayTools(
     replayInput({ tools: [definition('send', SendInputSchema)] }),
