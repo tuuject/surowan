@@ -155,23 +155,23 @@ Playground 是产品的虚拟群聊沙盒：房间对应一个 `host_kind = 'pla
 
 | 端点 | Body / 语义 |
 | --- | --- |
-| `GET /rooms` | 房间列表：`id`、`title`、`revision`、`hold`、`next_seq`、`image_enabled`（含操作者与时间）与 `member_count` / `held_count` / `queued_invocations` / `running_invocations` |
-| `POST /rooms` | `{ title, members?, request_key }` 建房；同一 key 重放返回原房间，同 key 不同内容 409 `input_conflict`。成员在同一个事务里建为房间身份（`room_participants` + `senders`），不创建任何 Telegram 身份 |
-| `GET /rooms/:id` | 房间状态（revision、hold、能力、pending、过期输入）加 `participants`、`held`、`staged_assets` 与 `releases` 摘要 |
+| `GET /rooms` | 房间列表：`id`、`title`、`revision`、`hold`、`next_seq`（房间序号高水位，Bot 输出也占号）、`latest_input_seq`（最新一条已接纳输入的序号，没有输入时为 0）、`image_enabled`（含操作者与时间）与 `member_count` / `held_count` / `queued_invocations` / `running_invocations` |
+| `POST /rooms` | `{ title, members?, request_key }` 建房；同一 key 重放返回原房间（计数器按房间当前状态给出），同 key 不同内容 409 `input_conflict`。成员在同一个事务里建为房间身份（`room_participants` + `senders`），不创建任何 Telegram 身份 |
+| `GET /rooms/:id` | 房间状态（与列表行相同的字段和计数器，加 pending、过期输入）加 `participants`、`held`、`staged_assets` 与 `releases` 摘要 |
 | `POST /rooms/:id/participants` | `{ name, role?, request_key }` 新建虚拟身份；同 key 重放返回原身份，key 只在房间范围内唯一（另一个房间的同名 key 是另一件事） |
-| `GET /rooms/:id/messages` | 时间线 keyset 分页：`before=<seq>` 往回翻，`limit` 1–200，返回 `items`、`has_more` 与状态摘要。每条消息带 `seq`（房间内稳定序号）、发送者、`input_state`（`held`/`released`/`expired`）或 `send_state`、Reply 目标与本地媒体（`asset_id` 指向房间图片内容端点） |
-| `POST /rooms/:id/messages` | `{ request_key, sender_id, text, reply_to_seq?, asset_ids? }` 提交一条输入；身份必须是本房间的非 Bot 成员，`asset_ids` 必须是本房间已上传的资产，最多四张图。同 key 同内容返回原接纳结果，同 key 不同内容 409 |
+| `GET /rooms/:id/messages` | 时间线 keyset 分页：`before=<seq>` 往回翻，`limit` 1–200，返回 `items`、`has_more` 与状态摘要。每条消息带 `seq`（房间内稳定序号）、发送者、`input_state`（`held`/`released`/`expired`）或 `send_state`、Reply 目标与它自己当前 revision 的本地媒体（`asset_id` 指向房间图片内容端点） |
+| `POST /rooms/:id/messages` | `{ request_key, sender_id, text, reply_to_seq?, asset_ids? }` 提交一条输入；身份必须是本房间的非 Bot 成员，`asset_ids` 必须是本房间已上传的资产，最多四张图，`text` 最多 16,384 个字符（请求体上限按最坏的 JSON 转义折算，任何合法文本都能送达）。同 key 同内容返回原接纳结果，同 key 不同内容 409；重放在解析资产之前用 key 自己的行回答，所以保留清理删掉消息和图片之后重发仍拿到原结果。幂等指纹按调用方给出的 `asset_ids` 计算 |
 | `PUT /rooms/:id/hold` | 只开启 Hold（`{ hold: false }` 返回 400 `release_required`：关闭 Hold 唯一路径是 Release）。开启会递增 `revision` |
-| `POST /rooms/:id/releases` | `{ request_key, revision, through_seq }` 原子 Release：校验 `revision` 与「本 revision 下最新输入序号」`through_seq`（不匹配 409 `release_conflict`），把全部 held 输入封成一个 Bucket + queued Invocation 并关闭 Hold；空 Release 只关 Hold、不产生模型调用。同 key 重放返回原 release |
+| `POST /rooms/:id/releases` | `{ request_key, revision, through_seq }` 原子 Release：校验 `revision` 与最新输入序号 `through_seq`（即房间的 `latest_input_seq`，不是 `next_seq - 1`：期间落库的 Bot 输出不改变这个边界；不匹配 409 `release_conflict`），把全部 held 输入封成一个 Bucket + queued Invocation 并关闭 Hold；空 Release 只关 Hold、不产生模型调用。同 key 重放返回原 release |
 | `GET /rooms/:id/releases/:releaseId` | 原始接纳结果与各 attempt（状态、错误、用量、receipt 状态）、发送行 |
-| `POST /rooms/:id/releases/:releaseId/retry` | `{ attempt_key }` 保守重试：只在原 attempt 已终止、未注入、无模型请求、无工具/发送/长任务副作用且同房间没有更晚 Release 时创建一个新 attempt，否则 409 `retry_refused` |
+| `POST /rooms/:id/releases/:releaseId/retry` | `{ attempt_key }` 保守重试：只在原 attempt 已终止、未注入、无模型请求、无工具/发送/长任务副作用且同房间没有更晚 Release 时创建一个新 attempt，否则 409 `retry_refused`。`attempt_key` 绑定到路径里的 Release：同 key 重放同一 Release 返回原 attempt，同 key 用于别的 Release（包括不存在的）409 `input_conflict` |
 | `GET /rooms/:id/assets` | 尚未挂到消息的暂存上传（`state = 'staged'`）：`asset_id`、`mime`、`byte_size`、`sha256`、`created_at`。这些文件在超过一小时后的下一次 sweep 里被删除；一旦挂进消息就成为消息资产，按引用计数保留 |
 | `POST /rooms/:id/assets` | `{ content_base64, mime, name? }` 上传静态图片：按真实内容嗅探并完整解码，只接受 JPEG/PNG/WebP、≤10 MiB、≤40 MP、非动画；与已存在的同内容资产去重。拒绝返回 422 `upload_<reason>`，且不写行、不落文件 |
 | `GET /rooms/:id/assets/:assetId/content` | 带认证读取房间图片字节；跨房间的资产 ID 一律 404 |
 | `PUT /rooms/:id/capabilities` | `{ image_enabled, revision }` 房间付费生图开关（记录操作者与时间）；值未变化时是 no-op（重试不会因自己造成的 revision 失败），否则 revision 不匹配返回 409 `room_revision_mismatch` |
-| `GET /rooms/:id/invocations[/:invocationId]` | scoped 房间审计：状态、错误、用量（tokens/成本）、发送用量与 receipt 状态；`invocationId` 不属于该房间返回 404 |
+| `GET /rooms/:id/invocations[/:invocationId]` | scoped 房间审计：状态、错误、用量（tokens/成本）、发送用量、receipt 状态与所属 `release_id`（首跑和重试都指向同一个 Release，重试按它寻址；不由 Release 打开的运行为 null）；`invocationId` 不属于该房间返回 404 |
 
-所有路由都要求面板 Session；带 `Authorization` 的请求不会落到 Session 路径，程序化 key 的权限面保持不变（Invocation 读/重放与只读 inspection）。`GET` 从不触发运行或生成；冒烟与故障注入由测试驱动（`holdForNewMessages` 等语义见 [telegram-agent-flow.md](telegram-agent-flow.md)）。路径与 body 里的 ID 必须是规范十进制（无符号、无前导零、不超 int64）：`007`、`-1`、`pmsg_5`、`0x5` 一律 400，嵌套 ID 必须是该房间自己的行，否则 404 且没有任何行变化。房间图片字节由 `apps/admin-next` 的页面直接引用内容端点，浏览器不接触任何本地路径。
+所有路由都要求面板 Session；带 `Authorization` 的请求不会落到 Session 路径，程序化 key 的权限面保持不变（Invocation 读/重放与只读 inspection）。`GET` 从不触发运行或生成；冒烟与故障注入由测试驱动（`holdForNewMessages` 等语义见 [telegram-agent-flow.md](telegram-agent-flow.md)）。路径、查询参数与 body 里的 ID 必须是规范十进制（无符号、无前导零、不超 int64，19 位但超出 int64 的值同样在查询前 400）：`007`、`-1`、`pmsg_5`、`0x5` 一律 400，嵌套 ID 必须是该房间自己的行，否则 404 且没有任何行变化。房间图片字节由 `apps/admin-next` 的页面直接引用内容端点，浏览器不接触任何本地路径。
 
 ## Chats 页端点
 

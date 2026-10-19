@@ -272,6 +272,9 @@ export function playgroundMessagesQuery(roomId: string) {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => (last.has_more ? (last.items.at(-1)?.seq ?? undefined) : undefined),
     enabled: roomId.length > 0,
+    // Bot output lands after the Release that caused it, without touching
+    // anything the page invalidates, so the timeline polls like the status.
+    refetchInterval: 2_000,
   });
 }
 
@@ -289,6 +292,11 @@ export function playgroundReleaseQuery(roomId: string, releaseId: string) {
     queryKey: ['playground-release', roomId, releaseId],
     queryFn: () => getPlaygroundRelease(roomId, releaseId),
     enabled: roomId.length > 0 && releaseId.length > 0,
+    // An open Release follows its attempts until none of them can change.
+    refetchInterval: (query) =>
+      query.state.data?.attempts.some((attempt) => attempt.state === 'queued' || attempt.state === 'running') === true
+        ? 2_000
+        : false,
   });
 }
 

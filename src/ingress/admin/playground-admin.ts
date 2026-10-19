@@ -220,6 +220,7 @@ function invocationJson(invocation: RoomInvocationSummary) {
     receipt_state: invocation.receiptState,
     receipt_status: invocation.receiptStatus,
     retry_of_invocation_id: invocation.retryOfInvocationId?.toString() ?? null,
+    release_id: invocation.releaseId?.toString() ?? null,
   };
 }
 

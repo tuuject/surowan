@@ -817,6 +817,14 @@ test('an attempt key names one retry of one release', async () => {
     const retried = await f.server.handle(post(retryPath(first.release_id), { attempt_key: 'try-1' }, f.cookie));
     expect(retried.status).toBe(201);
     const retriedBody = await readJson<{ invocation_id: string }>(retried);
+    // Both attempts name the Release a retry is addressed by.
+    const attempts = await readJson<{ items: { id: string; release_id: string | null }[] }>(
+      await f.server.handle(get(`/api/playground/rooms/${room.id}/invocations`, f.cookie)),
+    );
+    expect(attempts.items.map((item) => [item.id, item.release_id])).toEqual([
+      [retriedBody.invocation_id, first.release_id],
+      [first.invocation_id, first.release_id],
+    ]);
     const replay = await f.server.handle(post(retryPath(first.release_id), { attempt_key: 'try-1' }, f.cookie));
     expect(replay.status).toBe(200);
     expect(await readJson(replay)).toMatchObject({ replayed: true, invocation_id: retriedBody.invocation_id });

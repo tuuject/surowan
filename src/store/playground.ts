@@ -227,6 +227,12 @@ export interface RoomInvocationSummary {
   readonly receiptStatus: string | null;
   /** Set when this invocation is a retry of another attempt. */
   readonly retryOfInvocationId: bigint | null;
+  /**
+   * The Release this attempt belongs to, first run or retry alike: a retry is
+   * addressed by release, never by invocation id. Null for a run no Release
+   * opened (a receipt delivery).
+   */
+  readonly releaseId: bigint | null;
 }
 
 export interface ReleaseSend {
@@ -1414,10 +1420,18 @@ export class PlaygroundStore {
       .where(eq(taskReceipts.invocationId, invocationId))
       .get();
     const retryOf = this.#orm
-      .select({ retryOfInvocationId: playgroundRetries.retryOfInvocationId })
+      .select({ retryOfInvocationId: playgroundRetries.retryOfInvocationId, releaseId: playgroundRetries.releaseId })
       .from(playgroundRetries)
       .where(eq(playgroundRetries.invocationId, invocationId))
       .get();
+    const releasedBy =
+      retryOf?.releaseId ??
+      this.#orm
+        .select({ id: playgroundReleases.id })
+        .from(playgroundReleases)
+        .where(eq(playgroundReleases.invocationId, invocationId))
+        .get()?.id ??
+      null;
     return {
       id: row.id,
       state: row.state,
@@ -1434,6 +1448,7 @@ export class PlaygroundStore {
       receiptState: receipt?.state ?? null,
       receiptStatus: receipt?.status ?? null,
       retryOfInvocationId: retryOf?.retryOfInvocationId ?? null,
+      releaseId: releasedBy,
     };
   }
 

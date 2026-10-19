@@ -63,6 +63,9 @@ export const playgroundZh: typeof playground = {
     replyClear: '取消回复',
     reply: '回复',
     draftKept: '草稿已保留',
+    unresolved: '上一次发送可能已经进入房间',
+    unresolvedHint: '再次发送即可确认：同一条消息不会被收录两次。',
+    unresolvedEdit: '改为编辑新消息',
     unsupportedMedia: '这条消息带有 {{kind}}，房间暂时无法展示。',
   },
   states: {

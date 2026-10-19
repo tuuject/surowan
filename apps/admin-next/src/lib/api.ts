@@ -2062,6 +2062,8 @@ export interface PlaygroundRoom {
   readonly revision: string;
   readonly hold: boolean;
   readonly next_seq: string;
+  /** Seq of the latest admitted input; a Release names its boundary with it. */
+  readonly latest_input_seq: string;
   readonly image_enabled: boolean;
   readonly image_enabled_by: string | null;
   readonly image_enabled_at: string | null;
@@ -2112,6 +2114,7 @@ export interface PlaygroundStatusSummary {
   readonly revision: string;
   readonly hold: boolean;
   readonly next_seq: string;
+  readonly latest_input_seq: string;
   readonly image_enabled: boolean;
   readonly pending: number;
   readonly expired_inputs: number;
@@ -2174,6 +2177,8 @@ export interface PlaygroundInvocation {
   readonly receipt_state: string | null;
   readonly receipt_status: string | null;
   readonly retry_of_invocation_id: string | null;
+  /** The Release this attempt belongs to; a retry is addressed by it. */
+  readonly release_id: string | null;
 }
 
 export interface PlaygroundSend {

@@ -86,7 +86,8 @@ node src/cli.ts serve --config dev-data/config.jsonc --playground-only
 它和普通 `serve` 共用同一套生命周期：`ServeLock`（同 `data_dir` 仍然只能有一个实例）、接管（`--takeover` 同样可用，启动前不做 token 解析）、Admin Panel、Scheduler、图片 worker、优雅关闭与 supervisor 重启（退出码 75）。区别只在等待点与范围：
 
 - 长进程等待的是关闭信号而不是 Telegram long polling；`serve_started` 带 `mode: "playground-only"`、`bot_id: null`（普通模式不带 `mode`、带真实 `bot_id`）。
-- Scheduler 的 recover / due / launch / skip、timer 完成、图片 worker 与对账只处理本进程服务的 Host 集合；房间模式下混合数据库里的 Telegram running/queued Invocation、到期 timer 与 queued 图片生成保持原样，不会被标记成 `process_restart`、不会被过期、也不会被执行。
+- Scheduler 的 recover（含过期 Bucket 清扫）/ due / launch、睡眠跳过、回执压制、timer 完成、图片 worker 与对账只处理本进程服务的 Host 集合；房间模式下混合数据库里的 Telegram running/queued Invocation、陈旧 Bucket、claimed 回执、到期 timer 与 queued 图片生成保持原样，不会被标记成 `process_restart`、不会被过期或跳过、也不会被执行。`createCoreRuntime` 要求传入的 `LongTaskService` 与运行时绑定的宿主集合一致，否则直接报错。
+- 配置应用（Admin「应用配置文件」、`/model`）按本进程绑定的宿主校验工具注册表，房间模式下照常可用。
 - Admin 必须启用（`admin.enabled: true`），否则进程启动时直接报错退出：房间唯一的写入口就是面板。
 
 启动成功标志：

@@ -65,6 +65,9 @@ export const playground = {
     replyClear: 'Clear reply',
     reply: 'Reply',
     draftKept: 'Your draft was kept',
+    unresolved: 'The last send may have reached the room',
+    unresolvedHint: 'Send again to confirm it: the same message is never admitted twice.',
+    unresolvedEdit: 'Edit as a new message',
     unsupportedMedia: 'This message carries {{kind}}, which the room cannot show yet.',
   },
   states: {

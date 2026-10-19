@@ -330,3 +330,50 @@ test('a lost response keeps the draft and the same key never admits twice', asyn
   const detail = await (await request.get(await adminUrl(`/api/playground/rooms/${room.id}`))).json();
   expect(detail.room.pending).toBe(2);
 });
+
+test('Back and Forward never carry a draft into another room', async ({ page }) => {
+  const seed = await e2eFetch<SeedPayload>('/playground-seed');
+  const first = roomAt(seed, 0);
+  const second = roomAt(seed, 1);
+  await page.goto(await adminUrl(`/playground?room=${first.id}`));
+  await expect(page.getByText('first room message')).toBeVisible();
+  await page
+    .getByRole('button', { name: /E2E Second Room/ })
+    .first()
+    .click();
+  await expect(page).toHaveURL(new RegExp(`room=${second.id}`));
+  await page.getByRole('textbox', { name: 'Message' }).fill('draft for the second room');
+
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`room=${first.id}`));
+  await expect(page.getByText('first room message')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Message' })).toHaveValue('');
+
+  await page.goForward();
+  await expect(page).toHaveURL(new RegExp(`room=${second.id}`));
+  await expect(page.getByRole('textbox', { name: 'Message' })).toHaveValue('');
+});
+
+test('an identity name with spaces or CJK characters is accepted', async ({ page, request }) => {
+  const seed = await e2eFetch<SeedPayload>('/playground-seed');
+  const room = roomAt(seed, 0);
+  await page.goto(await adminUrl(`/playground?room=${room.id}`));
+  for (const name of ['Ada Lovelace', '小明']) {
+    await page.getByLabel('Name', { exact: true }).fill(name);
+    await page.getByRole('button', { name: 'Add identity' }).click();
+    await expect(page.getByText('Identity added').first()).toBeVisible();
+  }
+  const detail = await (await request.get(await adminUrl(`/api/playground/rooms/${room.id}`))).json();
+  const names = detail.participants.map((member: { name: string }) => member.name);
+  expect(names).toEqual(expect.arrayContaining(['Ada Lovelace', '小明']));
+});
+
+test('a refused room creation shows the server reason', async ({ page }) => {
+  await page.goto(await adminUrl('/playground'));
+  await page.getByRole('button', { name: 'New room' }).click();
+  // Titles are capped at 120 characters; the page leaves the check to the server.
+  await page.getByLabel('Room title').fill('x'.repeat(121));
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(page.getByText(/Request failed: invalid_body/)).toBeVisible();
+  await expect(page.getByLabel('Room title')).toHaveValue('x'.repeat(121));
+});
