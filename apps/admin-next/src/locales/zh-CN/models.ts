@@ -76,7 +76,9 @@ export const models: typeof modelsEn = {
     inUse: {
       title: '使用中',
       agentModel: 'Agent 模型',
+      notConfigured: '未配置',
       thinkingEffort: 'Thinking 档位',
+      levelUnset: '未设置',
       resetsNote: '切换模型时会重置为最低档位',
       visionModel: 'Vision 模型',
     },

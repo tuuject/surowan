@@ -586,3 +586,45 @@ test('participation schedules at both levels are hot, including their sub-fields
   expect(paths(diff.changes, 'restart')).toEqual([]);
   expect(diff.candidate.file.telegram.chats[1]?.participation).toEqual({ active_windows: [] });
 });
+
+test('adding or removing a whole optional agent object is hot', async () => {
+  const withoutObjects = (config: FileConfig) => {
+    delete config.agent!.daily_budget;
+    delete config.agent!.context;
+    delete config.agent!.rate_limits;
+  };
+  const withObjects = (config: FileConfig) => {
+    config.agent!.daily_budget = { max_tokens: 1000 };
+    config.agent!.context = { ref_ttl_hours: 24 };
+    config.agent!.rate_limits = { window_seconds: 60 };
+  };
+  const added = await loadBoth(withoutObjects, withObjects);
+  const addDiff = diffConfig(
+    { file: added.active.fileConfig, raw: added.active.config },
+    { file: added.file.fileConfig, raw: added.file.config },
+  );
+  expect(paths(addDiff.changes, 'hot')).toEqual(['agent.context', 'agent.daily_budget', 'agent.rate_limits']);
+  expect(paths(addDiff.changes, 'restart')).toEqual([]);
+  expect(addDiff.candidate.raw.agent.daily_budget.max_tokens).toBe(1000);
+  expect(addDiff.candidate.raw.agent.context.ref_ttl_hours).toBe(24);
+  expect(addDiff.candidate.raw.agent.rate_limits.window_seconds).toBe(60);
+
+  const removed = await loadBoth(withObjects, withoutObjects);
+  const removeDiff = diffConfig(
+    { file: removed.active.fileConfig, raw: removed.active.config },
+    { file: removed.file.fileConfig, raw: removed.file.config },
+  );
+  expect(paths(removeDiff.changes, 'hot')).toEqual(['agent.context', 'agent.daily_budget', 'agent.rate_limits']);
+  expect(paths(removeDiff.changes, 'restart')).toEqual([]);
+  expect(removeDiff.candidate.file.agent?.daily_budget).toBeUndefined();
+});
+
+test('dropping the whole agent section is hot and leaves no restart-only value behind', async () => {
+  const { active, file } = await loadBoth(undefined, (config) => {
+    (config as unknown as Record<string, unknown>).agent = null;
+  });
+  const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
+  expect(paths(diff.changes, 'restart')).toEqual([]);
+  expect(paths(diff.changes, 'hot')).toEqual(expect.arrayContaining(['agent.context', 'agent.daily_budget']));
+  expect(diff.candidate.file.agent).toBeNull();
+});

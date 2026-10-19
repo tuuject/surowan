@@ -165,9 +165,13 @@ function ChatDialog({
       setValidation(t('pages.chats.thinkingRequired'));
       return;
     }
+    // An inherited identity may be incomplete: that saves as a legal chat that
+    // starts no invocation, so only an identity that names a level is checked.
+    const effectiveLevel = thinking === 'inherit' ? view.defaults.thinking_level : thinking;
+    const override = model === 'inherit' ? null : selected;
     if (
-      selected === undefined ||
-      !levels.includes(thinking === 'inherit' ? (view.defaults.thinking_level ?? 'off') : thinking)
+      override === undefined ||
+      (selected !== undefined && effectiveLevel !== null && !levels.includes(effectiveLevel))
     ) {
       setValidation(t('pages.chats.thinkingUnsupported'));
       return;
@@ -175,8 +179,8 @@ function ChatDialog({
     setValidation(null);
     save.mutate({
       topic_ids: topicIds,
-      provider: model === 'inherit' ? null : selected.provider,
-      model: model === 'inherit' ? null : selected.model,
+      provider: override?.provider ?? null,
+      model: override?.model ?? null,
       thinking_level: thinking === 'inherit' ? null : thinking,
     });
   };

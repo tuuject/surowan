@@ -7,6 +7,7 @@ import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { AdminServer } from '../src/ingress/admin/server.ts';
+import { AGENT_DEFAULTS, type FileConfig } from '../src/platform/config.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
@@ -21,7 +22,7 @@ afterEach(async () => {
   }
 });
 
-async function fixture() {
+async function fixture(transform?: (config: FileConfig) => void) {
   const directory = await mkdtemp(join(tmpdir(), 'plasticwan-harness-'));
   const path = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -30,6 +31,7 @@ async function fixture() {
     testConfigJsonc(directory, (config) => {
       config.admin = { enabled: true, host: '127.0.0.1', port: 8899, session_ttl_hours: 12 };
       config.agent!.send_max_text_length = 2000;
+      transform?.(config);
     }),
   );
   const loaded = await loadConfig(path);
@@ -191,4 +193,26 @@ test('a stale or missing revision is refused', async () => {
   expect(missing.status).toBe(400);
   expect(await missing.json()).toMatchObject({ error: 'revision_required' });
   expect(f.configStore.current().config.agent!.history_messages).toBe(f.loaded.config.agent!.history_messages);
+});
+
+test('resetting the only daily budget field falls back to the default budget', async () => {
+  const f = await fixture((config) => {
+    config.agent!.daily_budget = { max_tokens: 400_000 };
+  });
+  const response = await f.update({ 'daily_budget.max_tokens': null }, (await f.view()).revision);
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as HarnessSettings;
+  expect(body.saved['daily_budget.max_tokens']).toBe(AGENT_DEFAULTS.daily_budget.max_tokens);
+  expect(f.configStore.current().config.agent.daily_budget.max_tokens).toBe(AGENT_DEFAULTS.daily_budget.max_tokens);
+  expect((await loadConfig(f.path)).fileConfig.agent?.daily_budget?.max_tokens).toBeUndefined();
+});
+
+test('a write against agent: null creates the section', async () => {
+  const f = await fixture((config) => {
+    (config as unknown as Record<string, unknown>).agent = null;
+  });
+  const response = await f.update({ history_messages: 9 }, (await f.view()).revision);
+  expect(response.status).toBe(200);
+  expect(f.configStore.current().config.agent.history_messages).toBe(9);
+  expect((await loadConfig(f.path)).fileConfig.agent).toEqual({ history_messages: 9 });
 });

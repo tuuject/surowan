@@ -111,7 +111,7 @@ async function pruneKeyJar(
 }
 
 /** Only the levels the agent model accepts are offered; saving validates the rest. */
-function agentThinkingLevels(config: FileConfig): readonly ThinkingLevelConfig[] {
+export function agentThinkingLevels(config: FileConfig): readonly ThinkingLevelConfig[] {
   const provider = config.agent?.provider;
   const modelId = config.agent?.model;
   const model =
@@ -122,7 +122,7 @@ function agentThinkingLevels(config: FileConfig): readonly ThinkingLevelConfig[]
     return supportedThinkingLevels(model);
   }
   // No resolvable model: offer every level — an incomplete identity is legal.
-  return config.agent?.thinking_level === undefined ? THINKING_LEVELS : [config.agent.thinking_level];
+  return THINKING_LEVELS;
 }
 
 /**

@@ -43,6 +43,11 @@ describe('optional agent section', () => {
     expect(loaded.warnings.some((warning) => warning.includes('invocation'))).toBe(true);
   });
 
+  test('an empty daily_budget object resolves the default budget', async () => {
+    const loaded = await loadWithoutAgent({ daily_budget: {} });
+    expect(loaded.config.agent.daily_budget.max_tokens).toBe(AGENT_DEFAULTS.daily_budget.max_tokens);
+  });
+
   test('agent: null is legal', async () => {
     const loaded = await loadWithoutAgent(null);
     expect(loaded.config.agent.provider).toBeUndefined();

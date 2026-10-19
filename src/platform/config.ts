@@ -207,7 +207,7 @@ export const AgentSectionSchema = Type.Object(
   {
     provider: Type.Optional(Type.String({ minLength: 1 })),
     model: Type.Optional(Type.String({ minLength: 1 })),
-    daily_budget: Type.Optional(Type.Object({ max_tokens: PositiveInteger }, Strict)),
+    daily_budget: Type.Optional(Type.Object({ max_tokens: Type.Optional(PositiveInteger) }, Strict)),
     thinking_level: Type.Optional(ThinkingLevelSchema),
     system_prompt_file: Type.Optional(Type.String({ minLength: 1 })),
     send_max_text_length: Type.Optional(Type.Integer({ minimum: 1, maximum: 4096 })),

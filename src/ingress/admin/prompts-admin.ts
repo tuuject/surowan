@@ -263,6 +263,8 @@ export async function savePromptVersion(
     }
     const fileChat = loaded.fileConfig.telegram.chats[chatIndex];
     if (fileChat !== undefined && fileChat.instructions_file !== undefined) {
+      // The global creation state does not carry over to an existing group file.
+      creationRelative = undefined;
       promptPath = resolve(configDir, fileChat.instructions_file);
     } else {
       // Creating the group prompt: a conventional path next to the config file.

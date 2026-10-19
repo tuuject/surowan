@@ -162,7 +162,9 @@ function ToolModelPicker({
     }
     return { alias: provider.alias, model: model.id, levels: supportedThinkingLevels(model) };
   });
-  const [level, setLevel] = useState<ThinkingLevel>(current.thinking_level ?? 'off');
+  // A partial agent identity may leave the inherited level unset: start from a
+  // level the picked model accepts instead of an `off` it may reject.
+  const [level, setLevel] = useState<ThinkingLevel>(() => current.thinking_level ?? pick?.levels[0] ?? 'off');
 
   const options = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -270,7 +272,7 @@ function ToolModelPicker({
           </Button>
           <Button
             type="button"
-            disabled={pick === null || pending}
+            disabled={pick === null || !pick.levels.includes(level) || pending}
             onClick={() => {
               if (pick !== null) {
                 onSubmit(pick.alias, pick.model, level);
