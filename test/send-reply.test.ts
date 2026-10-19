@@ -339,7 +339,7 @@ describe('send_reply', () => {
           parts: [{ text: 'delivered' }, { text: 'broken' }, { text: 'never tried' }],
         }),
       ).rejects.toThrow(
-        'Parts 1-1 were published as Telegram messages 501; do not send them again. Part 2 failed: Telegram send failed: telegram_400 The remaining 1 part(s) were not attempted.',
+        'Parts 1-1 were published as Telegram messages 501; do not send them again. Part 2 failed: Telegram send failed: telegram_400 (Bad Request: message is too long) The remaining 1 part(s) were not attempted.',
       );
       expect(api.calls.map((call) => call.content)).toEqual(['delivered']);
       expect(
@@ -347,7 +347,7 @@ describe('send_reply', () => {
       ).toEqual([
         ['partial', 'error', 'telegram_400', 'telegram_message_ids=501'],
         ['partial:1', 'success', null, 'telegram_message_id=501'],
-        ['partial:2', 'error', 'telegram_400', null],
+        ['partial:2', 'error', 'telegram_400', 'Telegram send failed: telegram_400 (Bad Request: message is too long)'],
       ]);
       expect(sendAudit(fixture.store).map((row) => row.state)).toEqual(['success', 'error']);
       expect(botMessages(fixture.store)).toBe(1);
