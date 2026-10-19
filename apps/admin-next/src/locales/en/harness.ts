@@ -93,7 +93,7 @@ export const harness = {
     send_duplicate_guard_enabled: {
       label: 'Duplicate send guard',
       description:
-        'Reject a text or sticker identical to one already sent in the same invocation; stop the run after more than 3 rejections.',
+        'Reject a text or sticker identical to one already sent in the same invocation, or the previous message re-aimed at another reply target; stop the run after more than 3 rejections.',
     },
     'rate_limits.sends_per_window': {
       label: 'Sends per window',

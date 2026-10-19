@@ -1,6 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { GrammyError, HttpError } from 'grammy';
 import type { MessageEntity } from 'grammy/types';
 import Type, { type Static } from 'typebox';
@@ -76,6 +76,9 @@ export function duplicateSendGuard(
 
 const SEND_DUPLICATE_TEXT =
   'Not sent: send_duplicate. This exact message was already published in this run and Telegram accepted it. Do not send it again; if nothing else needs saying, stop without calling send.';
+
+const SEND_REPEAT_TEXT =
+  'Not sent: send_duplicate. Your previous message in this run already published this same content and Telegram accepted it; changing or omitting reply_to_message_id does not make it a new message. Do not send it again; if nothing else needs saying, stop without calling send.';
 
 const SEND_BYPASS_TEXT =
   'Not sent: send_bypass. This exact message was already rejected by the reply policy in this run; omitting or changing reply_to_message_id does not make it sendable. Write something new, or stop without calling send.';
@@ -225,7 +228,8 @@ export interface SendToolEnvironment {
   readonly allowReplyMessageMultipleTimes?: boolean;
   /**
    * Duplicate send guard: rejects a text or sticker identical to one this
-   * invocation already published, and reports each rejection so the run can
+   * invocation already published, or repeating its last message's content
+   * under another reply target, and reports each rejection so the run can
    * stop a model that keeps repeating itself. Reply-policy bypass rejections
    * (`send_bypass`) report through the same hook. Absent when the guard is off.
    */
@@ -306,7 +310,7 @@ export function createSendTools(environment: SendToolEnvironment): {
       : 'Each message may receive at most one reply across text, stickers, and images, even across later invocations; changing the content or setting resend:true does not permit another reply. A pending or unknown earlier reply also blocks a new one. Once a send is rejected by this check, omitting or changing reply_to_message_id does not lift the rejection for the rest of the run.',
     environment.duplicateSendGuard === undefined
       ? ''
-      : 'A text or sticker identical to one already sent in this run is rejected; never repeat a message that was sent.',
+      : "A text or sticker identical to one already sent in this run is rejected, and so is repeating the previous message's text or sticker under another or no reply_to_message_id; never repeat a message that was sent.",
   ]
     .filter((part) => part.length > 0)
     .join(' ');
@@ -463,6 +467,11 @@ export function createSendTools(environment: SendToolEnvironment): {
       recordRejectedSend(environment, toolCallId, input, 'send_bypass');
       environment.duplicateSendGuard?.onRejected();
       throw new Error(SEND_BYPASS_TEXT);
+    }
+    if (repeatsLastSend(environment, send)) {
+      recordRejectedSend(environment, toolCallId, input, 'send_duplicate');
+      environment.duplicateSendGuard?.onRejected();
+      throw new Error(SEND_REPEAT_TEXT);
     }
     const rejectDuplicateReply = (): { error: string } | undefined => {
       if (environment.allowReplyMessageMultipleTimes !== true && send.reply_to_message_id !== undefined) {
@@ -783,6 +792,7 @@ function createSendReplyTool(
         reject('reply_not_visible', 'reply_to_message_id is not visible in this conversation context');
       }
       const partKeys = new Set<string>();
+      let previousPartKey: string | null = null;
       for (const [index, part] of input.parts.entries()) {
         const label = `part ${index + 1}`;
         const narrowed = narrowSendInput(
@@ -794,13 +804,13 @@ function createSendReplyTool(
           return reject('send_input_invalid', `${label} does not match its kind: ${narrowed.problem}`);
         }
         const { send } = narrowed;
+        // A part 1 repeating a published reply is left to deliver(): its
+        // send_duplicate row then burns the content like a single send's.
+        // Nothing goes out either way, since part 1 is the first to send.
+        const leftToDeliver =
+          send.reply_to_message_id !== undefined && environment.allowReplyMessageMultipleTimes !== true;
         if (environment.duplicateSendGuard !== undefined && send.kind !== 'image') {
           const key = JSON.stringify(send);
-          // A part 1 repeating a published reply is left to deliver(): its
-          // send_duplicate row then burns the content like a single send's.
-          // Nothing goes out either way, since part 1 is the first to send.
-          const leftToDeliver =
-            send.reply_to_message_id !== undefined && environment.allowReplyMessageMultipleTimes !== true;
           if (partKeys.has(key) || (!leftToDeliver && isDuplicateSend(environment, send))) {
             environment.duplicateSendGuard.onRejected();
             reject(
@@ -816,6 +826,22 @@ function createSendReplyTool(
             'send_bypass',
             `${label} was already rejected by the reply policy in this run; omitting or changing reply_to_message_id does not lift it`,
           );
+        }
+        if (environment.duplicateSendGuard !== undefined) {
+          // Part 1 follows the run's last send; each later part follows the part before it.
+          const contentKey = sendContentKey(send, environment.capabilities.resolveStickerRef);
+          const repeatsPrevious =
+            index === 0
+              ? !leftToDeliver && repeatsLastSend(environment, send)
+              : contentKey !== null && contentKey === previousPartKey;
+          if (repeatsPrevious) {
+            environment.duplicateSendGuard.onRejected();
+            reject(
+              'send_duplicate',
+              `${label} repeats the content of the message right before it; do not send it again`,
+            );
+          }
+          previousPartKey = contentKey;
         }
         if (send.kind === 'text') {
           if (environment.maxTextLength !== undefined && send.text.length > environment.maxTextLength) {
@@ -969,6 +995,40 @@ function isDuplicateSend(environment: SendToolEnvironment, send: SendToolInput):
 }
 
 /**
+ * Whether this text or sticker repeats the content of the last message this
+ * invocation published, whatever its reply target or parse mode: one message
+ * re-aimed at the next person ("answering" several people with the same line)
+ * is the loop this catches. Only the immediately preceding send counts, so a
+ * short line such as an acknowledgement may still recur later in the run.
+ */
+function repeatsLastSend(environment: SendToolEnvironment, send: SendToolInput): boolean {
+  if (environment.duplicateSendGuard === undefined) {
+    return false;
+  }
+  const resolveStickerRef = environment.capabilities.resolveStickerRef;
+  const key = sendContentKey(send, resolveStickerRef);
+  if (key === null) {
+    return false;
+  }
+  const last = environment.store.orm
+    .select({ argumentsJson: toolCalls.argumentsJson })
+    .from(toolCalls)
+    .where(
+      and(
+        eq(toolCalls.invocationId, environment.context.invocationId),
+        eq(toolCalls.toolName, 'send'),
+        eq(toolCalls.state, 'success'),
+        eq(toolCalls.sideEffect, true),
+      ),
+    )
+    .orderBy(desc(toolCalls.id))
+    .limit(1)
+    .get();
+  const previous = last === undefined ? null : auditedSend(last.argumentsJson);
+  return previous !== null && sendContentKey(previous, resolveStickerRef) === key;
+}
+
+/**
  * Content identity with the reply target and parse mode stripped: the unit a
  * reply-policy rejection burns for the rest of the run. A sticker is keyed on
  * the file its ref resolves to, because every `search_stickers` call mints a
@@ -1027,7 +1087,7 @@ function wasRejectedByReplyPolicy(environment: SendToolEnvironment, send: SendTo
     )
     .all();
   return rejected.some((row) => {
-    const previous = rejectedSend(row.argumentsJson);
+    const previous = auditedSend(row.argumentsJson);
     return (
       previous !== null &&
       (row.errorCode !== 'send_duplicate' || previous.reply_to_message_id !== undefined) &&
@@ -1037,11 +1097,11 @@ function wasRejectedByReplyPolicy(environment: SendToolEnvironment, send: SendTo
 }
 
 /**
- * The send one rejected audit row asked for. Rejections record the model's raw
- * input (placeholder fields included), so it is narrowed again; a malformed row
+ * The send one audit row asked for. Rejections record the model's raw input
+ * (placeholder fields included), so it is narrowed again; a malformed row
  * yields nothing and so never matches a real send.
  */
-function rejectedSend(argumentsJson: string): SendToolInput | null {
+function auditedSend(argumentsJson: string): SendToolInput | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(argumentsJson);

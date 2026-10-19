@@ -23,6 +23,8 @@ import {
  * on unless set to false): within one invocation, a text or sticker identical
  * to one Telegram already accepted is rejected as `send_duplicate` without
  * reaching Telegram, and every rejection is reported so the run can stop.
+ * The content of the message published right before may not be repeated
+ * either, whatever reply target or parse mode the repeat carries.
  */
 
 const directories: string[] = [];
@@ -65,6 +67,19 @@ async function setup(): Promise<Fixture> {
         chat: { id: 123456789, type: 'private', first_name: 'Owner' },
         from: { id: 42, is_bot: false, first_name: 'Alice' },
         text: 'look at this',
+      },
+    },
+    received,
+  );
+  ingestion.ingest(
+    {
+      update_id: 2,
+      message: {
+        message_id: 11,
+        date: 1_700_000_011,
+        chat: { id: 123456789, type: 'private', first_name: 'Owner' },
+        from: { id: 42, is_bot: false, first_name: 'Alice' },
+        text: 'and this',
       },
     },
     received,
@@ -166,8 +181,11 @@ describe('duplicate send guard', () => {
       const { send } = makeTools(fixture, api, undefined, () => (rejections += 1));
       expect(send.description).toContain('identical to one already sent in this run is rejected');
       await send.execute('first', { text: 'good morning', reply_to_message_id: '10' });
-      // A different reply target or parse mode is a different message.
+      // Once another message came in between, a different reply target or
+      // parse mode makes a different message.
+      await send.execute('between', { text: 'hello' });
       await send.execute('unattached', { text: 'good morning' });
+      await send.execute('between-again', { text: 'hey' });
       await send.execute('markdown', { text: 'good morning', parse_mode: 'MarkdownV2' });
       // Ignored fields and an omitted kind do not make it a different message.
       // (Once a repeated reply is rejected, its text is burned for the run;
@@ -175,16 +193,18 @@ describe('duplicate send guard', () => {
       await expect(
         send.execute('repeat', { kind: 'text', text: 'good morning', reply_to_message_id: '10', sticker_ref: 'x' }),
       ).rejects.toThrow('Not sent: send_duplicate');
-      expect(api.calls).toEqual(['good morning', 'good morning', 'good morning']);
+      expect(api.calls).toEqual(['good morning', 'hello', 'good morning', 'hey', 'good morning']);
       expect(rejections).toBe(1);
       expect(toolAudit(fixture.store)).toEqual([
         { tool_call_id: 'first', tool_name: 'send', state: 'success', error_code: null },
+        { tool_call_id: 'between', tool_name: 'send', state: 'success', error_code: null },
         { tool_call_id: 'unattached', tool_name: 'send', state: 'success', error_code: null },
+        { tool_call_id: 'between-again', tool_name: 'send', state: 'success', error_code: null },
         { tool_call_id: 'markdown', tool_name: 'send', state: 'success', error_code: null },
         { tool_call_id: 'repeat', tool_name: 'send', state: 'error', error_code: 'send_duplicate' },
       ]);
       // The rejection spends no send budget.
-      expect(sendCounts(fixture)).toEqual({ telegram_sends: 3n, sends_used: 3n });
+      expect(sendCounts(fixture)).toEqual({ telegram_sends: 5n, sends_used: 5n });
     } finally {
       fixture.store.close();
     }
@@ -201,6 +221,72 @@ describe('duplicate send guard', () => {
         'send_duplicate',
       );
       expect(api.calls).toEqual(['CAAD-fake-sticker']);
+    } finally {
+      fixture.store.close();
+    }
+  });
+
+  test('rejects the last message re-aimed at another reply target, keyed on content', async () => {
+    const fixture = await setup();
+    try {
+      const api = recordingApi();
+      let rejections = 0;
+      const { send, capabilities } = makeTools(fixture, api, true, () => (rejections += 1));
+      await send.execute('to-10', { text: 'not my field', reply_to_message_id: '10' });
+      await expect(send.execute('to-11', { text: 'not my field', reply_to_message_id: '11' })).rejects.toThrow(
+        'Not sent: send_duplicate. Your previous message',
+      );
+      // The re-aimed reply is burned like an exact repeat, so dropping the target does not lift it.
+      await expect(send.execute('bare', { text: 'not my field', parse_mode: 'MarkdownV2' })).rejects.toThrow(
+        'send_bypass',
+      );
+      await send.execute('other', { text: 'something new', reply_to_message_id: '11' });
+      // A fresh ref to the same sticker file is the same content.
+      await send.execute('sticker', { kind: 'sticker', sticker_ref: capabilities.registerStickerRef('CAAD-same') });
+      await expect(
+        send.execute('sticker-again', { kind: 'sticker', sticker_ref: capabilities.registerStickerRef('CAAD-same') }),
+      ).rejects.toThrow('send_duplicate');
+      expect(api.calls).toEqual(['not my field', 'something new', 'CAAD-same']);
+      expect(rejections).toBe(3);
+      expect(toolAudit(fixture.store).map((row) => [row.tool_call_id, row.error_code])).toEqual([
+        ['to-10', null],
+        ['to-11', 'send_duplicate'],
+        ['bare', 'send_bypass'],
+        ['other', null],
+        ['sticker', null],
+        ['sticker-again', 'send_duplicate'],
+      ]);
+      expect(sendCounts(fixture)).toEqual({ telegram_sends: 3n, sends_used: 3n });
+    } finally {
+      fixture.store.close();
+    }
+  });
+
+  test('send_reply compares part 1 with the last send and each later part with the part before it', async () => {
+    const fixture = await setup();
+    try {
+      const api = recordingApi();
+      const { send, sendReply } = makeTools(fixture, api, true);
+      await send.execute('said', { text: 'A', reply_to_message_id: '10' });
+      await expect(sendReply.execute('leads-with-it', { parts: [{ text: 'A' }, { text: 'B' }] })).rejects.toThrow(
+        'Nothing was sent: part 1 repeats the content of the message right before it',
+      );
+      await expect(
+        sendReply.execute('aimed', { reply_to_message_id: '10', parts: [{ text: 'C' }, { text: 'C' }] }),
+      ).rejects.toThrow('Nothing was sent: part 2 repeats the content of the message right before it');
+      // Not adjacent: B comes between the two As.
+      await sendReply.execute('apart', { parts: [{ text: 'B' }, { text: 'A' }] });
+      // A part 1 aimed at a reply target is checked by the send itself, which still sends nothing.
+      await expect(
+        sendReply.execute('re-aimed', { reply_to_message_id: '11', parts: [{ text: 'A' }, { text: 'D' }] }),
+      ).rejects.toThrow('Nothing was sent: part 1 failed. Not sent: send_duplicate');
+      expect(api.calls).toEqual(['A', 'B', 'A']);
+      expect(toolAudit(fixture.store).filter((row) => row.error_code === 'send_duplicate')).toEqual([
+        { tool_call_id: 'leads-with-it', tool_name: 'send_reply', state: 'error', error_code: 'send_duplicate' },
+        { tool_call_id: 'aimed', tool_name: 'send_reply', state: 'error', error_code: 'send_duplicate' },
+        { tool_call_id: 're-aimed', tool_name: 'send_reply', state: 'error', error_code: 'send_duplicate' },
+        { tool_call_id: 're-aimed:1', tool_name: 'send', state: 'error', error_code: 'send_duplicate' },
+      ]);
     } finally {
       fixture.store.close();
     }
