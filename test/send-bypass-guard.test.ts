@@ -381,8 +381,10 @@ describe('reply-policy content burn', () => {
       await expect(send.execute('repeat', { text: 'first answer', reply_to_message_id: '11' })).rejects.toThrow(
         'send_duplicate',
       );
+      // Something else in between, so retargeting is no longer a repeat of the last message.
+      await send.execute('interlude', { text: 'by the way' });
       await send.execute('retarget', { text: 'first answer', reply_to_message_id: '10' });
-      expect(api.calls).toEqual(['first answer', 'first answer']);
+      expect(api.calls).toEqual(['first answer', 'by the way', 'first answer']);
     } finally {
       fixture.close();
     }

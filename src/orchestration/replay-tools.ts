@@ -273,6 +273,7 @@ function replaySendTool(definition: ReplayToolDefinition, state: ReplayState): A
       state.dispatches.push({ tool_call_id: toolCallId, tool_name: 'send', mode: 'synthetic' });
       checkReplayNotDuplicate([input], state);
       checkReplayNotBypassed([input], state);
+      checkReplayNotRepeatingPrevious([input], state);
       checkReplayReplyUnused(input, state);
       const messageId = recordReplaySend(toolCallId, input, state);
       return {
@@ -303,6 +304,7 @@ function replaySendReplyTool(definition: ReplayToolDefinition, state: ReplayStat
       state.dispatches.push({ tool_call_id: toolCallId, tool_name: 'send_reply', mode: 'synthetic' });
       checkReplayNotDuplicate(parts, state);
       checkReplayNotBypassed(parts, state);
+      checkReplayNotRepeatingPrevious(parts, state);
       if (parts[0] !== undefined) {
         checkReplayReplyUnused(parts[0], state);
       }
@@ -369,6 +371,31 @@ function checkReplayNotDuplicate(inputs: readonly Static<typeof SendInputSchema>
       throw new Error('Not sent: send_duplicate. This exact message was already published in this scene.');
     }
     sent.add(key);
+  }
+}
+
+/**
+ * The production guard's other half: a text or sticker may not repeat the
+ * content of the message right before it (the scene's last output, or the
+ * previous part) under another or no reply target.
+ */
+function checkReplayNotRepeatingPrevious(inputs: readonly Static<typeof SendInputSchema>[], state: ReplayState): void {
+  const guard = state.options.duplicateSendGuard;
+  if (guard === undefined) {
+    return;
+  }
+  const last = state.outputs.at(-1);
+  let previous = last === undefined ? null : replayContentKey(last.arguments);
+  for (const input of inputs) {
+    const key = replayContentKey(input);
+    if (key !== null && key === previous) {
+      if (state.options.allowReplyMessageMultipleTimes !== true && typeof input.reply_to_message_id === 'string') {
+        state.burnedContentKeys.add(key);
+      }
+      guard.onRejected();
+      throw new Error('Not sent: send_duplicate. The message right before it already published this content.');
+    }
+    previous = key;
   }
 }
 

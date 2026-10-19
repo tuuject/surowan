@@ -176,16 +176,18 @@ test('the duplicate send guard rejects a repeated text or sticker within the sce
   await expect(
     send.execute('again', { kind: 'text', text: 'same', reply_to_message_id: '42', sticker_ref: 'unused' }),
   ).rejects.toThrow('send_duplicate');
-  await send.execute('unattached', { text: 'same' });
+  // Unattached right after it is the same content again; after another message it is not a repeat.
+  await expect(send.execute('unattached-now', { text: 'same' })).rejects.toThrow('send_duplicate');
   await send.execute('sticker', { kind: 'sticker', sticker_ref: 'stk_abc' });
+  await send.execute('unattached', { text: 'same' });
   await expect(
     sendReply.execute('reply', { parts: [{ text: 'new' }, { kind: 'sticker', sticker_ref: 'stk_abc' }] }),
   ).rejects.toThrow('send_duplicate');
   await expect(sendReply.execute('twice', { parts: [{ text: 'twin' }, { text: 'twin' }] })).rejects.toThrow(
     'send_duplicate',
   );
-  expect(rejections).toBe(3);
-  expect(replay.outputs.map((output) => output.tool_call_id)).toEqual(['first', 'unattached', 'sticker']);
+  expect(rejections).toBe(4);
+  expect(replay.outputs.map((output) => output.tool_call_id)).toEqual(['first', 'sticker', 'unattached']);
   // Without the option every repeat is synthesized, as with the guard turned off in production.
   const unguarded = createReplayTools(registry, emptySystemResources());
   await toolOf(unguarded.tools, 'send').execute('one', { text: 'same' });
@@ -235,6 +237,30 @@ test('an exact repeat of a published reply burns its content in the scene, mirro
   );
   await expect(send.execute('bare', { text: 'first answer' })).rejects.toThrow('send_bypass');
   expect(replay.outputs.map((output) => output.tool_call_id)).toEqual(['first']);
+});
+
+test('the last message re-aimed at another reply target is a duplicate in the scene, mirroring production', async () => {
+  let rejections = 0;
+  const registry = replayInput({
+    tools: [definition('send', SendInputSchema), definition('send_reply', SendReplyInputSchema)],
+  });
+  const replay = createReplayTools(registry, emptySystemResources(), {
+    replyMessageIds: new Set(['42', '43']),
+    duplicateSendGuard: { onRejected: () => (rejections += 1) },
+  });
+  const send = toolOf(replay.tools, 'send');
+  const sendReply = toolOf(replay.tools, 'send_reply');
+  await send.execute('to-42', { text: 'not my field', reply_to_message_id: '42' });
+  await expect(send.execute('to-43', { text: 'not my field', reply_to_message_id: '43' })).rejects.toThrow(
+    'send_duplicate',
+  );
+  await expect(send.execute('bare', { text: 'not my field' })).rejects.toThrow('send_bypass');
+  await expect(
+    sendReply.execute('adjacent', { parts: [{ text: 'B' }, { text: 'B', parse_mode: 'MarkdownV2' }] }),
+  ).rejects.toThrow('send_duplicate');
+  await sendReply.execute('apart', { parts: [{ text: 'B' }, { text: 'C' }] });
+  expect(rejections).toBe(3);
+  expect(replay.outputs.map((output) => output.tool_call_id)).toEqual(['to-42', 'apart:1', 'apart:2']);
 });
 
 test('send allows repeated reply targets when configured without bypassing scene visibility', async () => {

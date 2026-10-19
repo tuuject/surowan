@@ -86,7 +86,8 @@ export const harness: typeof harnessEn = {
     },
     send_duplicate_guard_enabled: {
       label: '重复发送保护',
-      description: '拒绝与同一 Invocation 内已发出内容完全一致的文本或贴纸；拒绝超过 3 次即停止本次运行。',
+      description:
+        '拒绝与同一 Invocation 内已发出内容完全一致的文本或贴纸，以及把上一条的内容换个引用目标重发；拒绝超过 3 次即停止本次运行。',
     },
     'rate_limits.sends_per_window': {
       label: '窗口内发送上限',
