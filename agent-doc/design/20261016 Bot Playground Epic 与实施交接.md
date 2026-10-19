@@ -625,3 +625,13 @@ Faux证明状态机与调用参数，不能证明真实模型一定发言/理解
 当前仅有规划文档和索引更新。已执行`pnpm run check`、`pnpm run lint`通过；8个相关测试文件、138项测试通过，命令详见调查报告。没有实现或运行本Epic的拟议新测试/API/界面，没有创建PR或提交运行代码。
 
 最终实施交接时应把“已有基线通过”与“新增功能验收通过”分开记录。优先遵循本文件Critical Path，P1/P2均可在MVP交付后独立规划，不允许借跨IM或Eval目标扩成一次大规模重构。
+
+## 9. 交付指针（T12 验收后追加）
+
+**P0 已全部交付（T00–T12）**，实现事实以当前源码与主题文档为准，本节只做导航：
+
+- 任务交接与不变量对照：`agent-doc/devlogs/20261019-bot-playground-t08-t11.md`（T08–T11 与 §3.1 R01–R14 逐条证据）与 `agent-doc/devlogs/20261019-bot-playground-t12-acceptance.md`（T12 全链路验收记录）。
+- 当前行为：`agent-doc/data-layer.md`（宿主中立 schema、`rooms`/`room_participants`、`host_sends`、房间资产）、`agent-doc/admin-panel.md`（`/api/playground` 端点表）、`agent-doc/operations.md`（`--playground-only` 模式）、`agent-doc/telegram-agent-flow.md`（宿主绑定 Context、图片输出）、`agent-doc/verification.md`（`20-playground` E2E）。
+- 用户指南：`apps/docs/content/docs/guides/playground.md`。
+- T12 自动化门全绿（`pnpm test` 1532 项、`pnpm run check`/`lint`、完整 `admin:test:e2e` 172 项、`docs:build`/`docs:verify`）；**人工验收项中「授权真实 Provider 的隔离环境试跑」与「真实 Telegram 测试群回归」尚未执行**，需要维护者环境，状态见 T12 devlog。
+- P1（E01–E05）与 P2（X01–X03）未开始，仍按本文档依赖关系独立规划。

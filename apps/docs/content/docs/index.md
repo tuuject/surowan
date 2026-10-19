@@ -28,6 +28,7 @@ description: 从首次部署到人格、群聊、记忆与维护，按你要完�
 - [选择和切换模型](configure/models.md)：Provider、thinking 与 Vision。
 - [控制用量](guides/budgets.md)：Token 预算、并发、限流和上下文。
 - [了解 Skills、Plugin 与 MCP](guides/extensions.md)：可以扩展什么，不能绕过什么。
+- [使用 Playground 虚拟群聊](guides/playground.md)：不接 Telegram 也能真实试用 Agent。
 - [使用管理面板](configure/admin.md)：查看运行状态和审计，不与此静态网站混淆。
 
 ## 要维护，或者出了问题
