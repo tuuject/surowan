@@ -314,8 +314,11 @@ export class BucketScheduler {
 
   #launchQueued(): void {
     // Room invocations that queued too long are expired visibly; Telegram
-    // collecting/debounce buckets keep their own lifecycle.
-    new PlaygroundStore(this.#store.orm).expireQueued();
+    // collecting/debounce buckets keep their own lifecycle. A scheduler that
+    // does not serve rooms leaves their queue to the process that does.
+    if (this.#hosts === undefined || this.#hosts.includes('playground')) {
+      new PlaygroundStore(this.#store.orm).expireQueued();
+    }
     while (this.#running) {
       const now = new Date();
       this.#queue.suppressInvalidQueuedReceipts(now);

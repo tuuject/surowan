@@ -828,7 +828,7 @@ async function main(): Promise<void> {
   });
   // The harness's room runtime is a Playground-only scheduler: it must not
   // complete the synthetic Telegram fixture's overdue timers, which exist to be
-  // rendered, not executed (the product passes its full host set here).
+  // rendered, not executed. The core runtime requires the same host set here.
   const runtimeTasks = new LongTaskService(openedStore.orm, () => roomRuntime?.scheduler.wake(), ['playground']);
   const roomMedia = new MediaService({
     store: openedStore,

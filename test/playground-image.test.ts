@@ -177,7 +177,8 @@ async function playgroundImageFixture(options: FixtureOptions = {}) {
   });
   cleanups.push(() => service.stop());
   service.publishConfig(await service.prepareConfig(loaded.config, new SecretStore(keyJarPath(configPath))));
-  const tasks = new LongTaskService(store.orm);
+  // A room-only runtime: its task service serves the same host set.
+  const tasks = new LongTaskService(store.orm, undefined, ['playground']);
   const bridge = createImageBridge({
     service,
     store,

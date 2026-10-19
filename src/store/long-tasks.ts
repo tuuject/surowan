@@ -285,6 +285,11 @@ export class LongTaskService {
     this.#hosts = hosts === undefined || hosts.length === 0 ? undefined : hosts;
   }
 
+  /** The hosts whose timers this instance completes; undefined means every host. */
+  get hosts(): readonly HostKind[] | undefined {
+    return this.#hosts;
+  }
+
   /** The host filter for one query, or undefined when this instance serves all hosts. */
   #hostScope(): SQL | undefined {
     const hosts = this.#hosts;
@@ -645,7 +650,7 @@ export class LongTaskService {
                 .orderBy(asc(longTasks.scheduledAt), asc(longTasks.id))
                 .all()
             : this.#orm.all<{ id: bigint; timerResultJson: string | null }>(
-                sql`SELECT t.id, t.timer_result_json FROM long_tasks t
+                sql`SELECT t.id, t.timer_result_json AS timerResultJson FROM long_tasks t
                     JOIN conversations v ON v.id = t.conversation_id
                     JOIN chats c ON c.id = v.chat_id
                     WHERE t.state = 'waiting' AND t.scheduled_at <= ${at} AND ${scope}

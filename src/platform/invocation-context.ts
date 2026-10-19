@@ -200,11 +200,11 @@ export class InvocationContextState implements InvocationContext {
 }
 
 /** Neutral context for registry-time tool validation, outside any invocation. */
-export function previewContext(): InvocationContext {
+export function previewContext(hostKind: InvocationContext['hostKind'] = 'telegram'): InvocationContext {
   return {
     invocationId: 0n,
     conversationId: 0n,
-    hostKind: 'telegram',
+    hostKind,
     chatId: 0n,
     threadId: 0n,
     systemPrompt: '',

@@ -177,10 +177,10 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
     // The startup load is the first place a hand-edited prompt file becomes
     // visible to the process; record the starting versions before any apply.
     recordPromptVersionsFromConfig(openedStore.orm, loaded.config);
-    // Both hosts run through this process's shared runtime and scheduler, so
-    // image work of either may execute here. The Playground-only lifecycle
-    // narrows this set when it does not construct the Telegram host.
-    const servedHosts: readonly HostKind[] = ['telegram', 'playground'];
+    // The hosts this process constructs. Image work, long-task timers and the
+    // scheduler are all scoped by this one set: a Playground-only process must
+    // never execute, recover or complete Telegram work it cannot deliver.
+    const servedHosts: readonly HostKind[] = playgroundOnly ? ['playground'] : ['telegram', 'playground'];
     const imageEligible = generationEligibilityForHosts(openedStore, servedHosts);
     imageService = createImageService(openedStore, loaded.config, {
       logger: { warn: (message) => logEvent('image_service_warning', { message }) },
@@ -273,7 +273,7 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
     const mcpManager = playgroundOnly ? undefined : new McpManager(store, loaded.config, secrets);
     mcp = mcpManager;
     const memoryStore = new MemoryStore(store.orm);
-    const tasks = new LongTaskService(store.orm, () => scheduler?.wake());
+    const tasks = new LongTaskService(store.orm, () => scheduler?.wake(), servedHosts);
     // The room write path: an admitted input is held, a Release seals it into a
     // queued invocation through the same ledger Telegram uses.
     const playgroundStore = new PlaygroundStore(store.orm);
@@ -389,7 +389,9 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
       skillVisibility: skillVisibleForHost,
     });
     scheduler = startedScheduler;
-    const preview = previewContext();
+    // Tool registries are validated against a host this process binds: the
+    // send tools resolve their host, and a missing one is a hard failure.
+    const preview = previewContext(playgroundOnly ? 'playground' : 'telegram');
     const configReloader = new ConfigReloader({
       loaded,
       store: configStore,

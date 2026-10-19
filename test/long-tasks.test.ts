@@ -210,6 +210,14 @@ describe('LongTaskService', () => {
       store.orm.select({ state: longTasks.state }).from(longTasks).where(eq(longTasks.id, taskId)).get()?.state;
     expect(stateOf(telegramTask.taskId)).toBe('waiting');
     expect(stateOf(roomTask.taskId)).toBe('completed');
+    // The scoped path writes the same receipt payload the unscoped one does.
+    expect(
+      store.orm
+        .select({ resultJson: taskReceipts.resultJson })
+        .from(taskReceipts)
+        .where(eq(taskReceipts.taskId, roomTask.taskId))
+        .get(),
+    ).toEqual({ resultJson: JSON.stringify({ kind: 'room' }) });
     // The filtered instance no longer advertises the Telegram timer.
     expect(roomOnly.nextDeadline()).toBeUndefined();
 

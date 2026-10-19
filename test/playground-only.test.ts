@@ -231,10 +231,16 @@ test('a playground-only process runs the room round and leaves Telegram work unt
     await writeFile(join(directory, 'agent-system-prompt.md'), 'You are a test agent.\n', { mode: 0o600 });
     await writeFile(join(directory, 'chat-instructions.md'), 'Test group.\n', { mode: 0o600 });
 
-    // Synthetic Telegram work: a running invocation, a queued one and a due
-    // alarm. A playground-only scheduler must leave all three alone.
+    // Synthetic Telegram work: a running invocation, a queued one, a due
+    // alarm, a stale collecting bucket, a queued invocation holding a claimed
+    // receipt for a chat the config no longer lists, and an active sleep
+    // window. Recovery, timer completion, receipt suppression and the sleep
+    // skip would each rewrite one of them; a playground-only scheduler must
+    // leave them all alone.
     const stamp = new Date().toISOString();
     const due = new Date(Date.now() - 60_000).toISOString();
+    const stale = new Date(Date.now() - 60 * 60_000).toISOString();
+    const sleepUntil = new Date(Date.now() + 60 * 60_000).toISOString();
     const seeding = await SqliteStore.open((await loadConfig(configPath)).config);
     seeding.db.exec(`
       INSERT INTO chats(id, host_kind, telegram_chat_id, canonical_chat_id, type, title, updated_at)
@@ -248,7 +254,18 @@ test('a playground-only process runs the room round and leaves Telegram work unt
         VALUES (900, 900, 900, 'running', 'tg-fixture', 1, '${stamp}', '${stamp}'),
                (901, 901, 900, 'queued', 'tg-fixture', 1, NULL, '${stamp}');
       INSERT INTO long_tasks(id, plugin_id, conversation_id, payload_json, state, scheduled_at, timer_result_json, delivery_json, created_at, updated_at)
-        VALUES (900, 'alarm', 900, '{"summary":"telegram alarm"}', 'waiting', '${due}', '{"summary":"telegram alarm"}', '{"bypassDailyBudget":false}', '${stamp}', '${stamp}');
+        VALUES (900, 'alarm', 900, '{"summary":"telegram alarm"}', 'waiting', '${due}', '{"summary":"telegram alarm"}', '{"bypassDailyBudget":false}', '${stamp}', '${stamp}'),
+               (901, 'alarm', 900, '{"summary":"fired alarm"}', 'completed', '${due}', '{"summary":"fired alarm"}', '{"bypassDailyBudget":false}', '${stamp}', '${stamp}');
+      INSERT INTO conversations(id, chat_id, message_thread_id, created_at, updated_at)
+        VALUES (901, 900, 7, '${stamp}', '${stamp}');
+      INSERT INTO buckets(id, conversation_id, state, kind, first_received_at, deadline_at, queued_at, started_at, created_at, updated_at)
+        VALUES (902, 901, 'collecting', 'realtime', '${stale}', '${stale}', NULL, NULL, '${stale}', '${stale}'),
+               (903, 900, 'queued', 'realtime', '${stamp}', '${stamp}', '${stamp}', NULL, '${stamp}', '${stamp}');
+      INSERT INTO invocations(id, bucket_id, conversation_id, state, config_hash, prompt_version, started_at, created_at)
+        VALUES (903, 903, 900, 'queued', 'tg-fixture', 1, NULL, '${stamp}');
+      INSERT INTO task_receipts(task_id, status, result_json, state, created_at, updated_at, claimed_at, invocation_id)
+        VALUES (901, 'completed', '{"summary":"fired alarm"}', 'claimed', '${stamp}', '${stamp}', '${stamp}', 903);
+      INSERT INTO app_state(key, value, updated_at) VALUES ('bot_sleep_until', '${sleepUntil}', '${stamp}');
     `);
     seeding.close();
 
@@ -347,9 +364,15 @@ test('a playground-only process runs the room round and leaves Telegram work unt
     );
     expect(byId.get('900')).toBe('running');
     expect(byId.get('901')).toBe('queued');
-    const alarms = await call('/api/alarms?limit=50');
-    const alarm = (alarms.body.items as { id: string; state: string }[]).find((item) => item.id === '900');
-    expect(alarm?.state).toBe('pending');
+    expect(byId.get('903')).toBe('queued');
+
+    // A config apply validates tool registries against a host this process
+    // binds: without the Telegram host, a Telegram preview would fail every
+    // apply as model_unusable.
+    config.agent.thinking_level = 'low';
+    await writeFile(configPath, JSON.stringify(config, null, 2), { mode: 0o600 });
+    const applied = await call('/api/config/apply', { method: 'POST' });
+    expect(applied).toMatchObject({ status: 200, body: { status: 'applied', applied: ['agent.thinking_level'] } });
 
     // A second instance may not start while this one holds the lock.
     await expect(ServeLock.acquire(dataDir)).rejects.toThrow();
@@ -364,6 +387,27 @@ test('a playground-only process runs the room round and leaves Telegram work unt
     // The lock is released, so a restart needs no manual lock cleanup.
     const lock = await ServeLock.acquire(dataDir);
     await lock.release();
+
+    // The persisted Telegram rows, read after the process stopped: the alarm
+    // API reports a completed timer whose receipt is still pending as
+    // `pending` too, so only the ledger itself proves nothing was touched.
+    const after = await SqliteStore.open((await loadConfig(configPath)).config);
+    try {
+      const row = (query: string) => after.db.prepare(query).get() as Record<string, unknown> | undefined;
+      expect(row('SELECT state FROM long_tasks WHERE id = 900')).toEqual({ state: 'waiting' });
+      expect(row('SELECT COUNT(*) AS n FROM task_receipts WHERE task_id = 900')).toEqual({ n: 0n });
+      expect(row('SELECT state FROM task_receipts WHERE task_id = 901')).toEqual({ state: 'claimed' });
+      expect(row('SELECT state, error_code FROM buckets WHERE id = 902')).toEqual({
+        state: 'collecting',
+        error_code: null,
+      });
+      expect(row('SELECT state FROM buckets WHERE id = 901')).toEqual({ state: 'queued' });
+      expect(row('SELECT state FROM buckets WHERE id = 903')).toEqual({ state: 'queued' });
+      expect(row('SELECT state FROM invocations WHERE id = 901')).toEqual({ state: 'queued' });
+      expect(row('SELECT state FROM invocations WHERE id = 903')).toEqual({ state: 'queued' });
+    } finally {
+      after.close();
+    }
   } finally {
     await stopFixtureServer(upstream.server);
   }

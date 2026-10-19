@@ -212,7 +212,13 @@ export class InvocationQueueService {
         .from(buckets)
         .innerJoin(conversations, eq(conversations.id, buckets.conversationId))
         .innerJoin(chats, eq(chats.id, conversations.chatId))
-        .where(and(inArray(buckets.state, ['collecting', 'queued']), lt(buckets.firstReceivedAt, staleBefore)))
+        .where(
+          and(
+            inArray(buckets.state, ['collecting', 'queued']),
+            lt(buckets.firstReceivedAt, staleBefore),
+            this.#servedConversations(sql`${buckets.conversationId}`),
+          ),
+        )
         .orderBy(buckets.id)
         .all();
       for (const bucket of expiring) {
@@ -710,7 +716,8 @@ export class InvocationQueueService {
             FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id
             JOIN invocations i ON i.id = r.invocation_id
             JOIN conversations v ON v.id = t.conversation_id JOIN chats c ON c.id = v.chat_id
-            WHERE r.state = 'claimed' AND i.state = 'queued'`,
+            WHERE r.state = 'claimed' AND i.state = 'queued'
+              AND ${this.#servedConversations(sql`t.conversation_id`)}`,
       );
       const timestamp = now.toISOString();
       for (const receipt of rows) {
@@ -754,6 +761,7 @@ export class InvocationQueueService {
          JOIN chats c ON c.id = v.chat_id
          WHERE i.state = 'queued'
            AND c.host_kind = 'telegram'
+           AND ${this.#servedConversations(sql`i.conversation_id`)}
            AND NOT EXISTS (
              SELECT 1 FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id
              WHERE r.invocation_id = i.id AND r.state = 'claimed'
