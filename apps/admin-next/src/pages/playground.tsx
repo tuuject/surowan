@@ -464,6 +464,8 @@ function RoomWorkspace({ roomId }: { readonly roomId: string }): React.ReactElem
       setAttachments([]);
       void queryClient.invalidateQueries({ queryKey: ['playground-messages', roomId] });
       void queryClient.invalidateQueries({ queryKey: ['playground-room', roomId] });
+      // The room list shows each room's pending count.
+      void queryClient.invalidateQueries({ queryKey: ['playground-rooms'] });
     },
     onError: (error, payload) => {
       if (outcomeUnknown(error)) {
@@ -503,6 +505,7 @@ function RoomWorkspace({ roomId }: { readonly roomId: string }): React.ReactElem
       void queryClient.invalidateQueries({ queryKey: ['playground-room', roomId] });
       void queryClient.invalidateQueries({ queryKey: ['playground-messages', roomId] });
       void queryClient.invalidateQueries({ queryKey: ['playground-invocations', roomId] });
+      void queryClient.invalidateQueries({ queryKey: ['playground-rooms'] });
     },
     onError: (error) => {
       if (error instanceof ApiError && error.code === 'release_conflict') {
@@ -512,6 +515,7 @@ function RoomWorkspace({ roomId }: { readonly roomId: string }): React.ReactElem
       }
       void queryClient.invalidateQueries({ queryKey: ['playground-room', roomId] });
       void queryClient.invalidateQueries({ queryKey: ['playground-messages', roomId] });
+      void queryClient.invalidateQueries({ queryKey: ['playground-rooms'] });
     },
   });
 
@@ -774,6 +778,9 @@ function RoomWorkspace({ roomId }: { readonly roomId: string }): React.ReactElem
                     type="button"
                     variant="outline"
                     size="sm"
+                    // While a replay is in flight its key must survive: if that
+                    // response is lost too, the next Send has to reuse it.
+                    disabled={submit.isPending}
                     onClick={() => {
                       // The user takes the risk explicitly: the earlier send
                       // may be in the room, and the draft becomes a new message.

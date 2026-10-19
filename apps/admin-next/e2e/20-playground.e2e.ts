@@ -51,10 +51,23 @@ test('the playground API is session-only and never answers an API key', async ({
   });
   expect(anonymous.status()).toBe(401);
 
-  const withKey = await request.get(await adminUrl('/api/playground/rooms'), {
+  const withBadKey = await request.get(await adminUrl('/api/playground/rooms'), {
     headers: { authorization: 'Bearer pwk_e2e_not_a_real_key' },
   });
-  expect(withKey.status()).toBe(401);
+  expect(withBadKey.status()).toBe(401);
+
+  // A valid key is still not a session, even next to the session cookie.
+  const created = await request.post(await adminUrl('/api/api-keys'), { data: { name: 'e2e-playground' } });
+  expect(created.status()).toBe(200);
+  const { key, item } = (await created.json()) as { key: string; item: { id: string } };
+  try {
+    const withKey = await request.get(await adminUrl('/api/playground/rooms'), {
+      headers: { authorization: `Bearer ${key}` },
+    });
+    expect(withKey.status()).toBe(403);
+  } finally {
+    expect((await request.delete(await adminUrl(`/api/api-keys/${item.id}`))).status()).toBe(200);
+  }
 
   const authorized = await request.get(await adminUrl('/api/playground/rooms'));
   expect(authorized.status()).toBe(200);
@@ -350,6 +363,57 @@ test('a lost response keeps the draft and the same key never admits twice', asyn
   expect(detail.room.pending).toBe(2);
 });
 
+test('a replay in flight keeps its key: the recovery action waits for it', async ({ page, request }) => {
+  const created = await request.post(await adminUrl('/api/playground/rooms'), {
+    data: { title: 'E2E Replay Room', members: [{ name: 'Ada' }], request_key: 'e2e-replay-room' },
+  });
+  const { room } = (await created.json()) as { room: { id: string } };
+  await page.goto(await adminUrl(`/playground?room=${room.id}`));
+  let attempt = 0;
+  let releaseReplay = (): void => {};
+  const replayHeld = new Promise<void>((resolve) => {
+    releaseReplay = resolve;
+  });
+  await page.route('**/api/playground/rooms/*/messages', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    attempt += 1;
+    if (attempt === 1) {
+      await route.fetch();
+      await route.abort('failed');
+      return;
+    }
+    await replayHeld;
+    await route.continue();
+  });
+  await page.getByRole('textbox', { name: 'Message' }).fill('replayed draft');
+  await page.getByRole('button', { name: 'Send' }).click();
+  const recover = page.getByRole('button', { name: 'Edit as a new message' });
+  await expect(recover).toBeEnabled();
+
+  await page.getByRole('button', { name: 'Send' }).click();
+  await expect.poll(() => attempt).toBe(2);
+  await expect(recover).toBeDisabled();
+  releaseReplay();
+  await expect(page.getByText('Message admitted')).toBeVisible();
+});
+
+test('the room list follows the pending count after a send', async ({ page, request }) => {
+  const created = await request.post(await adminUrl('/api/playground/rooms'), {
+    data: { title: 'E2E Pending Room', members: [{ name: 'Ada' }], request_key: 'e2e-pending-room' },
+  });
+  const { room } = (await created.json()) as { room: { id: string } };
+  await page.goto(await adminUrl(`/playground?room=${room.id}`));
+  const entry = page.getByRole('button', { name: /E2E Pending Room/ }).first();
+  await expect(entry).toContainText('0 pending');
+
+  await page.getByRole('textbox', { name: 'Message' }).fill('counted message');
+  await page.getByRole('button', { name: 'Send' }).click();
+  await expect(entry).toContainText('1 pending');
+});
+
 test('Back and Forward never carry a draft into another room', async ({ page }) => {
   const seed = await e2eFetch<SeedPayload>('/playground-seed');
   const first = roomAt(seed, 0);
@@ -379,8 +443,13 @@ test('an identity name with spaces or CJK characters is accepted', async ({ page
   await page.goto(await adminUrl(`/playground?room=${room.id}`));
   for (const name of ['Ada Lovelace', '小明']) {
     await page.getByLabel('Name', { exact: true }).fill(name);
+    // Wait for this identity's own response: a toast left by the previous
+    // one would otherwise satisfy the check while this POST is in flight.
+    const added = page.waitForResponse(
+      (response) => response.request().method() === 'POST' && response.url().endsWith('/participants'),
+    );
     await page.getByRole('button', { name: 'Add identity' }).click();
-    await expect(page.getByText('Identity added').first()).toBeVisible();
+    expect((await added).status()).toBe(201);
   }
   const detail = await (await request.get(await adminUrl(`/api/playground/rooms/${room.id}`))).json();
   const names = detail.participants.map((member: { name: string }) => member.name);
