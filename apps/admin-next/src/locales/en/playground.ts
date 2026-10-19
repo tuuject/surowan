@@ -124,6 +124,7 @@ export const playground = {
     identityRequired: 'Add an identity to the room first.',
     textRequired: 'Write a message or attach an image.',
     uploadLimit: 'Up to four images per message.',
+    uploadTooLarge: 'An image may be at most 10 MiB.',
     failed: 'Request failed: {{message}}',
   },
 };

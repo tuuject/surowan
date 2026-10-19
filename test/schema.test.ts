@@ -1220,3 +1220,18 @@ test('migration 036 upgrades a live Telegram database without disturbing it', as
     store.close();
   }
 });
+
+test('the room timeline reads an input state through the message index', async () => {
+  const { store } = await openStore();
+  try {
+    const plan = store.db
+      .prepare<[bigint], { detail: string }>(
+        'EXPLAIN QUERY PLAN SELECT state FROM playground_inputs WHERE message_id = ?',
+      )
+      .all(1n)
+      .map((row) => row.detail);
+    expect(plan.join('\n')).toContain('USING INDEX playground_inputs_message_idx');
+  } finally {
+    store.close();
+  }
+});

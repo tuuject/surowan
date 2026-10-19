@@ -292,6 +292,25 @@ test('a refused upload keeps the draft and shows the server reason', async ({ pa
   await expect(page.getByRole('textbox', { name: 'Message' })).toHaveValue('draft that must survive');
 });
 
+test('an image over the size limit is refused before it is uploaded', async ({ page }) => {
+  const seed = await e2eFetch<SeedPayload>('/playground-seed');
+  const room = roomAt(seed, 0);
+  await page.goto(await adminUrl(`/playground?room=${room.id}`));
+  const uploads: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().includes('/assets')) {
+      uploads.push(request.url());
+    }
+  });
+  await page.setInputFiles('#playground-attachment', {
+    name: 'huge.png',
+    mimeType: 'image/png',
+    buffer: Buffer.alloc(10 * 1024 * 1024 + 1),
+  });
+  await expect(page.getByText('An image may be at most 10 MiB.')).toBeVisible();
+  expect(uploads).toEqual([]);
+});
+
 test('the composer stays usable on a narrow screen and every control is labeled', async ({ page }) => {
   const seed = await e2eFetch<SeedPayload>('/playground-seed');
   const room = roomAt(seed, 0);

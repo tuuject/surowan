@@ -208,6 +208,8 @@ function AttemptRow({
 }
 
 const route = getRouteApi('/playground');
+/** The server's room picture limit; a larger file is refused before it is read. */
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 export default function PlaygroundPage(): React.ReactElement {
   const { t } = useTranslation();
@@ -803,6 +805,10 @@ function RoomWorkspace({ roomId }: { readonly roomId: string }): React.ReactElem
                       }
                       if (attachments.length >= 4) {
                         toast.error(t('playground.errors.uploadLimit'));
+                        return;
+                      }
+                      if (file.size > MAX_UPLOAD_BYTES) {
+                        toast.error(t('playground.errors.uploadTooLarge'));
                         return;
                       }
                       setUploading(true);

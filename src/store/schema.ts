@@ -1073,6 +1073,7 @@ export const playgroundInputs = sqliteTable(
     uniqueIndex('playground_inputs_room_seq_idx').on(t.chatId, t.seq),
     uniqueIndex('playground_inputs_request_idx').on(t.chatId, t.requestKey),
     index('playground_inputs_held_idx').on(t.chatId, t.state, t.seq),
+    index('playground_inputs_message_idx').on(t.messageId).where(sql`message_id IS NOT NULL`),
   ],
 );
 

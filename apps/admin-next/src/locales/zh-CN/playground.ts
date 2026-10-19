@@ -121,6 +121,7 @@ export const playgroundZh: typeof playground = {
     identityRequired: '请先为房间添加身份。',
     textRequired: '请写一条消息或附加图片。',
     uploadLimit: '每条消息最多四张图片。',
+    uploadTooLarge: '单张图片不能超过 10 MiB。',
     failed: '请求失败：{{message}}',
   },
 };
