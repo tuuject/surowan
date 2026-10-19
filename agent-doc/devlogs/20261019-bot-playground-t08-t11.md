@@ -108,3 +108,81 @@ c6a4c1b Add the Admin Playground page                           # T11
 ```
 
 后续任务（T12 及 P1/P2）可直接依赖的接口：`ImageBridge.enabledFor`、`PlaygroundStore.setImageEnabled/listRooms/timeline/releaseDetail/roomInvocation`、`createHostTooling`、`AgentRuntimeOptions.hosts`、`serve(configPath, { playgroundOnly })`、`/api/playground` 端点表与 `20-playground.e2e.ts` 的夹具钩子（`/playground-seed`、`/playground-model`）。
+
+## 评审修复（追加）
+
+T11 提交后对 `7d293d2..c6a4c1b` 跑了一轮 open-code-review（48 个文件，28 条意见，无 critical）。高危和中危的意见逐条对照源码核实，修复分三个提交；低危的没有处理。
+
+### 勘误
+
+上面的不变量对照表里有几处说法和代码不符，以本节为准：
+
+- **R03 / R13（T10）**：原文说「Playground-only 进程不碰 Telegram 工作」，实际并不成立。生产组合根的 `LongTaskService` 没有带作用域，所以房间进程照样会完成 Telegram alarm、生成 receipt。`servedHosts` 写死为两个宿主，生图 worker 会去执行或恢复 Telegram 的 queued generation。recover 的陈旧 Bucket 清扫、launch 时的睡眠跳过和回执压制也都没有过滤宿主。`a playground-only process runs the room round…` 没发现这些问题，原因有二：一是 `/api/alarms` 会把「task 已完成、receipt 仍 pending」的 alarm 也显示成 `pending`；二是种子数据没有陈旧 Bucket、睡眠窗口或 claimed 回执。
+- **作用域 timer 的 receipt**：`LongTaskService.processDue` 带作用域的 raw SQL 把列名读成了 `timerResultJson`，但实际返回的是 `timer_result_json`，结果 receipt 的 `result_json` 被写成 null。`a single-host instance completes only its own timers` 没有断言 receipt 内容，所以没抓到。
+- **T11 数据行为**：原文说「消息与状态分两条查询轮询」，实际只有状态在轮询，时间线不会自动刷新。原文说「切房间清空草稿」，实际只有点击切换会清空，浏览器前进/后退不会。
+- **验证计数**：原文 `00-auth … 13-sender-ids` 记为 81 passed，按当前代码这 8 个套件一共 77 例（这三个提交没有删除其中任何用例），以下文的验证结果为准。
+
+### 修复
+
+**`0a70944` 宿主作用域（高危）**
+
+- `servedHosts` 改为按模式取值：Playground-only 只有 `['playground']`。生图执行资格、`LongTaskService` 和 `previewContext` 共用这一个集合。
+- `createCoreRuntime` 的默认 task service 带上运行时绑定的宿主集合。如果外部传入的 `LongTaskService`（新增 `hosts` getter）作用域和运行时不一致，直接抛错，防止再次漏配。
+- 作用域 timer 查询加上 `AS timerResultJson` 别名。
+- `InvocationQueueService` 的 recover 过期清扫、`suppressInvalidQueuedReceipts`、`skipQueuedInvocations` 都加上 `#servedConversations` 过滤。`PlaygroundStore.expireQueued()` 只在调度器服务房间时才执行。
+- `previewContext(hostKind)`：Playground-only 进程按 `playground` 宿主校验工具注册表。原来 `validateAdditionalTools` 取不到 Telegram 宿主会抛错，导致每次「应用配置文件」和 `/model` 都报 `model_unusable`。
+
+**`b264459` 后端 API 与投递（中危）**
+
+- timeline 每页只查一次媒体，按 `messageId` 分组，并且只取当前 revision 的媒体。原来每条消息都挂着整页的图片。
+- 新增 `PlaygroundStore.roomSummary`。建房重放和 `GET /rooms/:id` 都返回真实计数器，原来重放时一律是 0，详情页也没有 queued/running。
+- 路径和查询参数里的 ID，以及能力开关的 `revision`，统一走 `canonicalId`：19 位但超出 int64 的值在查询前就返回 400。
+- 消息请求体上限改为 `16_384 × 6 + 8 KiB`，16K 个 CJK 字符或 `\uXXXX` 转义的合法文本都能送达。
+- 消息重放先于资产解析：`PlaygroundStore.replaySubmission` 直接用 key 自己的 tombstone 回答。幂等指纹改为按调用方给的 `asset_ids` 计算（同一个 asset id 只对应一个房间里的一份内容）。同时删掉了生产里没有调用方的 raw `attachments` 入口，相关测试改为先上传再引用。
+- Release 边界改用新增的 `RoomState.latestInputSeq`（API 字段 `latest_input_seq`）。中途落库的 Bot 输出会推进 `next_seq`，但不再误报 `release_conflict`。
+- retry 的 attempt key 绑定到 Release：同一个 key 用在别的 Release 上返回 409 `input_conflict`，不再把第一个 Release 的结果当成重放返回。
+- 生图配额判定前先查幂等 key（`generations.createKeyUsed`）。到达上限后，重放已经接受过的 tool call 会返回 `replayed`，不再抛 `TaskQuotaError`。
+- Playground host：相册在写入前整组校验（新增 `PlaygroundAssetStore.validate`）。`ingest` 返回 `created`，没有发布成功的投递会用 `discard` 回收自己新建的资产（内容去重命中的旧资产不动）。复制前后各检查一次 `signal`，取消时返回 `aborted` 且 `outcomeUnknown: false`。
+
+**`cd6c89c` 页面（高危 1 条，其余中危）**
+
+- 时间线开始轮询；打开的 Release 详情在还有 queued/running attempt 时轮询，重新打开或 retry 成功后都会失效重取。
+- 房间工作区抽成 `RoomWorkspace key={roomId}`：草稿、身份选择、上传回调和请求 key 都只属于一个房间，点击切换和浏览器前进/后退的行为一致。
+- 请求 key 改为 `usePayloadKey`：同一个 payload 复用同一个 key，换了 payload 就换新 key；key 是不透明 UUID，不再拼入身份名。4xx 视为服务端已明确拒绝，释放 key；网络错误或 5xx 视为结果未知，保留 key，并把草稿锁定为那次的 payload，直到重发确认，或者用户显式选择「改为编辑新消息」。发送过程中锁定草稿和附件，上传未完成时不能发送。
+- retry 按新的 `release_id` 寻址，`attempt_key = retry-of-<invocationId>`，断线后再点会重放原来那次重试。建房、建身份和 retry 失败时都会提示服务端返回的原因。
+- 文档：`admin-panel.md` 的 Playground 端点表和 `operations.md` 的 Playground-only 段落已同步上述字段和语义。
+
+### 验证
+
+```bash
+pnpm test                                   # 125 files, 1532 passed
+pnpm run check                              # 通过
+pnpm run lint                               # 通过
+git diff --check                            # 通过
+pnpm run admin:build && pnpm run admin:test:e2e   # 全量 172 passed（20-playground 15 例）
+```
+
+新增或加强的断言都回退过实现代码，确认能在旧代码上复现原故障：
+
+- `test/playground-only.test.ts`：种子补上陈旧 Bucket、claimed 回执、睡眠窗口和到期 alarm。进程停止后直接读台账，断言 `long_tasks`、`task_receipts`、`buckets`、`invocations` 都没变；在运行中的房间进程上应用配置应返回 `applied`。旧代码上依次失败于 `skipped_budget` 和 422。
+- `test/long-tasks.test.ts`：作用域 timer 的 receipt `resultJson` 必须等于原 timer 结果。旧代码上得到的是 null。
+- `test/admin-playground.test.ts`：新增 6 例（重放计数器、字符上限、Bot 输出不推进边界、attempt key 绑定 Release 和 `release_id`、timeline 媒体归属、清理后的重放），超 int64 的 ID 用例并入既有测试。旧代码上全部失败。
+- `test/playground-image.test.ts`：到达配额后重放已接受的调用返回 `replayed`，不新增 generation、task 或 provider 调用。
+- `test/playground-delivery.test.ts`：坏相册、复制途中取消、已经取消三种情况都不留资产行和文件。
+- `20-playground.e2e.ts`：新增前进/后退不串草稿、带空格或 CJK 字符的身份名、建房被拒时提示原因三例。用旧页面跑时三例全部失败。
+
+### 仍未覆盖
+
+- 时间线和 Release 详情轮询的实际刷新效果，只有「建房 → Release → 回答」这条 e2e 间接覆盖；queued/running 计数器只在 API 层有断言。
+- `servedHosts` 对图片 worker 的收窄没有端到端用例，只有 `generationEligibilityForHosts` 的单元覆盖和组合根代码审查。
+- 「结果未知时锁定草稿」的交互只验证了重发这条路径（`a lost response…`），「改为编辑新消息」按钮没有 e2e 用例。
+
+### 提交
+
+```txt
+0a70944 Scope Playground-only timers, recovery and housekeeping to its hosts
+b264459 Fix Playground API replays, boundaries and picture delivery cleanup
+cd6c89c Key the Playground workspace by room and retry runs by their release
+```
+
+接口变化（供 T12 及以后的任务参考）：`RoomState.latestInputSeq` / `latest_input_seq`、`RoomInvocationSummary.releaseId` / `release_id`、`PlaygroundStore.roomSummary` / `replaySubmission`、`PlaygroundAssetStore.validate` / `discard`（`ingest` 返回 `created`）、`LongTaskService.hosts`、`previewContext(hostKind)`、`generations.createKeyUsed`；`PlaygroundIngress.submit` 不再接受 `attachments`。
