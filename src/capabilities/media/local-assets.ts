@@ -109,6 +109,12 @@ export class PlaygroundAssetStore {
   readonly #now: () => Date;
   readonly #maxBytes: number;
   readonly #maxPixels: number;
+  /**
+   * Assets `ingest` handed to a second caller by content. Their creator may
+   * still roll back, but someone else now holds the id, so `discard` leaves
+   * them to the sweep's retention window instead.
+   */
+  readonly #shared = new Set<string>();
 
   constructor(options: PlaygroundAssetStoreOptions) {
     this.#orm = options.orm;
@@ -146,6 +152,7 @@ export class PlaygroundAssetStore {
     const sha256 = createHash('sha256').update(input.bytes).digest('hex');
     const existing = this.#byContent(chatId, sha256);
     if (existing !== undefined) {
+      this.#shared.add(existing.id);
       return { ...existing, created: false };
     }
 
@@ -183,6 +190,7 @@ export class PlaygroundAssetStore {
       if (winner === undefined) {
         throw new Error('Concurrent image upload left no asset row');
       }
+      this.#shared.add(winner.id);
       return { ...winner, created: false };
     }
 
@@ -202,9 +210,13 @@ export class PlaygroundAssetStore {
   /**
    * Undo an `ingest` that created an asset nobody uses yet. The row is claimed
    * by deleting it only while no media row references it, exactly like the
-   * sweep, so an asset that became a message meanwhile is kept.
+   * sweep, so an asset that became a message meanwhile is kept. One that was
+   * handed to another caller meanwhile is kept too.
    */
   async discard(assetId: string): Promise<void> {
+    if (this.#shared.has(assetId)) {
+      return;
+    }
     const row = this.#orm
       .select({ path: playgroundAssets.storagePath })
       .from(playgroundAssets)
@@ -365,6 +377,7 @@ export class PlaygroundAssetStore {
       if (claimed.changes !== 1) {
         continue;
       }
+      this.#shared.delete(asset.id);
       await rm(this.#absolute(asset.path), { force: true });
       staged += 1;
     }

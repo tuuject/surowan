@@ -10,10 +10,11 @@ import { SecretStore } from '../src/platform/secrets.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { PlaygroundIngress } from '../src/ingress/playground.ts';
-import { PlaygroundStore } from '../src/store/playground.ts';
+import { PLAYGROUND_QUEUE_TTL_MS, PlaygroundStore } from '../src/store/playground.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
-import { buckets, invocations, taskReceipts } from '../src/store/schema.ts';
+import { appState, buckets, invocations, taskReceipts } from '../src/store/schema.ts';
+import { SLEEP_STATE_KEY } from '../src/store/sleep.ts';
 import { testConfigJsonc, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
@@ -172,6 +173,62 @@ describe('playground scheduling', () => {
       open();
       await scheduler.stop(1_000);
     }
+  });
+
+  test('a queued room run behind the room run wakes the scheduler at its expiry', async () => {
+    const { store, configStore, room } = await fixture(1);
+    const playground = new PlaygroundStore(store.orm);
+    const senderId = store.orm.all<{ id: bigint }>('SELECT id FROM senders LIMIT 1')[0]!.id;
+    const releaseOnce = (key: string): bigint => {
+      playground.submit(room.chatId, { requestKey: `req-${key}`, senderId, text: key });
+      return playground.release(room.chatId, {
+        releaseKey: `rel-${key}`,
+        revision: playground.room(room.chatId).revision,
+      }).invocationId!;
+    };
+    const running = releaseOnce('1');
+    store.orm.update(invocations).set({ state: 'running' }).where(eq(invocations.id, running)).run();
+    // The second waits behind the room's own run, queued long enough ago that
+    // it expires in two seconds; nothing else would wake the loop before 60s.
+    const waiting = releaseOnce('2');
+    const createdAt = new Date(Date.now() - PLAYGROUND_QUEUE_TTL_MS + 2_000).toISOString();
+    store.orm.update(invocations).set({ createdAt }).where(eq(invocations.id, waiting)).run();
+    const scheduler = new BucketScheduler(
+      store,
+      configStore,
+      async () => ({ state: 'completed', reason: 'test' }),
+      undefined,
+      new LongTaskService(store.orm, undefined, ['playground']),
+      ['playground'],
+    );
+    expect(scheduler.nextDelayMilliseconds()).toBeLessThanOrEqual(2_001);
+    expect(playground.expireQueued(new Date(playground.nextQueuedExpiry()!))).toBe(1);
+    expect(playground.nextQueuedExpiry()).toBeUndefined();
+  });
+
+  test('a room-only scheduler never reads or clears the global sleep state', async () => {
+    const { store, configStore } = await fixture();
+    const expired = new Date(Date.now() - 60_000).toISOString();
+    store.orm.insert(appState).values({ key: SLEEP_STATE_KEY, value: expired, updatedAt: expired }).run();
+    const scheduler = new BucketScheduler(
+      store,
+      configStore,
+      async () => ({ state: 'completed', reason: 'test' }),
+      undefined,
+      new LongTaskService(store.orm, undefined, ['playground']),
+      ['playground'],
+    );
+    scheduler.start();
+    try {
+      scheduler.nextDelayMilliseconds();
+      scheduler.processDue();
+      scheduler.processTasksDue();
+      scheduler.wake();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    } finally {
+      await scheduler.stop(1_000);
+    }
+    expect(store.orm.select().from(appState).where(eq(appState.key, SLEEP_STATE_KEY)).get()?.value).toBe(expired);
   });
 
   test('a task completion for a room is delivered, not suppressed as a removed chat', async () => {

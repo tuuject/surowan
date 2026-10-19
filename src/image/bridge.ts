@@ -224,6 +224,11 @@ export function createImageBridge(options: ImageBridgeOptions) {
     for (const mediaId of params.inputMediaIds) {
       inputAssetIds.push(await inputAssetId(mediaId, signal));
     }
+    // Preparing inputs awaits, and the switch may close meanwhile. Only a
+    // generation created before it closed is accepted work; this one is not yet.
+    if (inputAssetIds.length > 0 && !enabledFor(params.conversationId)) {
+      throw new Error('image generation is disabled');
+    }
 
     const parsed = generationCreateSchema.parse({
       authoredPrompt: params.authoredPrompt,

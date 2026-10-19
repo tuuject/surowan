@@ -344,3 +344,36 @@ test('a sweep never deletes an asset attached while it was running', async () =>
   await expect(access(two.path)).resolves.toBeUndefined();
   expect(store.orm.select({ id: playgroundAssets.id }).from(playgroundAssets).all()).toEqual([{ id: two.id }]);
 });
+
+test('an asset handed to a second uploader survives its creator rolling back', async () => {
+  const { assets, room } = await setup();
+  const bytes = await png();
+  // A delivery creates the asset, an upload of the same bytes receives it, and
+  // then the delivery rolls back what it created.
+  const created = await assets.ingest(room.chatId, { bytes, declaredMime: 'image/png' });
+  const reused = await assets.ingest(room.chatId, { bytes, declaredMime: 'image/png' });
+  expect(created.created).toBe(true);
+  expect(reused).toMatchObject({ id: created.id, created: false });
+  await assets.discard(created.id);
+
+  expect(assets.resolve(reused.id)).not.toBeNull();
+  await expect(access(reused.path)).resolves.toBeUndefined();
+  // Retention still applies to it.
+  expect((await assets.sweep({ staleAfterMs: -1 })).staged).toBe(1);
+  expect(assets.resolve(reused.id)).toBeNull();
+});
+
+test('uploads that are never sent age out without any submission', async () => {
+  const { store, directory, room } = await setup();
+  let clock = new Date(Date.now() - 2 * 60 * 60 * 1000);
+  const assets = new PlaygroundAssetStore({ orm: store.orm, root: join(directory, 'aging'), now: () => clock });
+  const stale = await assets.ingest(room.chatId, { bytes: await png(8, 8), declaredMime: 'image/png' });
+  // The sweep is throttled per process: a fresh process's first upload sweeps.
+  clock = new Date();
+  const fresh = await new PlaygroundIngress(store.orm, { assets }).upload(room.chatId, {
+    bytes: await png(9, 9),
+    declaredMime: 'image/png',
+  });
+  await vi.waitFor(() => expect(assets.resolve(stale.id)).toBeNull());
+  expect(assets.resolve(fresh.id)).not.toBeNull();
+});

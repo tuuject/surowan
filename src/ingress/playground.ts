@@ -10,7 +10,7 @@
  * and request keys; a malformed value is refused before it reaches the store.
  */
 import type { Orm } from '../store/store.ts';
-import type { PlaygroundAssetStore } from '../capabilities/media/local-assets.ts';
+import type { LocalAsset, LocalAssetInput, PlaygroundAssetStore } from '../capabilities/media/local-assets.ts';
 import {
   PlaygroundError,
   PlaygroundStore,
@@ -97,6 +97,21 @@ export class PlaygroundIngress {
       this.#options.onQueued?.(chatId, result.invocationId);
     }
     return result;
+  }
+
+  /**
+   * Stage one uploaded picture. An upload is room write traffic like a
+   * submission, so it drives the sweep too: uploads that are never sent still
+   * age out.
+   */
+  async upload(chatId: bigint, input: LocalAssetInput): Promise<LocalAsset> {
+    const assets = this.#options.assets;
+    if (assets === undefined) {
+      throw new PlaygroundError('input_conflict', 'this room cannot accept images');
+    }
+    const asset = await assets.ingest(chatId, input);
+    this.#scheduleSweep();
+    return asset;
   }
 
   retry(chatId: bigint, body: { readonly releaseId?: unknown; readonly attemptKey?: unknown }): RetryResult {

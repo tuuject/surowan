@@ -7,6 +7,7 @@ import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { InjectionTooLargeError } from '../src/context/context-builder.ts';
 import { ContextBuilder } from '../src/context/context-builder.ts';
 import { ContextRefStore } from '../src/context/context-refs.ts';
+import { MemoryStore } from '../src/context/memory.ts';
 import { invocationCapabilities, renderInvocationContext, writeTestConfig } from './helpers.ts';
 import { seedPlaygroundRoom } from './fixtures/playground-room.ts';
 import { PlaygroundStore } from '../src/store/playground.ts';
@@ -169,6 +170,28 @@ describe('playground context projection', () => {
         maxOutputTokens: 1_024,
       }),
     ).toThrow(InjectionTooLargeError);
+    const refs = store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM context_refs').get();
+    expect(Number(refs?.count ?? 0)).toBe(0);
+  });
+
+  test('a room batch that only fits without its memory list is refused as rendered', async () => {
+    const { store, loaded } = await fixture();
+    // 2048 tokens * 4 * 0.8 - 1024 * 4 = 2457 characters of budget.
+    const room = seedPlaygroundRoom(store, { messages: [{ seq: 41, text: 'm'.repeat(1_500), sender: 0 }] });
+    const options = { contextWindow: 2_048, maxOutputTokens: 1_024 };
+    // The message alone fits.
+    expect(renderInvocationContext(store, loaded.config, room.invocationId, options).userPrompt).toContain(
+      'm'.repeat(1_500),
+    );
+    store.db.prepare('DELETE FROM context_refs').run();
+
+    const memory = new MemoryStore(store.orm);
+    for (let index = 0; index < 10; index += 1) {
+      memory.add(room.conversationId, `${index}`.repeat(150), 3_600);
+    }
+    expect(() => renderInvocationContext(store, loaded.config, room.invocationId, options)).toThrow(
+      InjectionTooLargeError,
+    );
     const refs = store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM context_refs').get();
     expect(Number(refs?.count ?? 0)).toBe(0);
   });

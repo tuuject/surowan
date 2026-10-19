@@ -67,7 +67,9 @@ import {
   messageRevisions,
   messages,
   taskReceipts,
+  toolCalls,
 } from '../src/store/schema.ts';
+import { imageDeliveryState } from '../src/store/image-delivery.ts';
 import { purgeExpiredData } from '../src/store/store.ts';
 import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from './helpers.ts';
 
@@ -151,6 +153,8 @@ interface FixtureOptions {
   readonly beforeProvider?: () => Promise<void> | undefined;
   /** Overrides the agent concurrency so a test can fill the only slot. */
   readonly maxConcurrency?: number;
+  /** Runs while an input image is prepared, before its asset exists. */
+  readonly beforeInputImage?: () => Promise<void> | void;
 }
 
 async function playgroundImageFixture(options: FixtureOptions = {}) {
@@ -184,6 +188,7 @@ async function playgroundImageFixture(options: FixtureOptions = {}) {
     store,
     tasks,
     prepareInputImage: async () => {
+      await options.beforeInputImage?.();
       const png = await sharp({ create: { width: 4, height: 4, channels: 3, background: { r: 3, g: 3, b: 3 } } })
         .png()
         .toBuffer();
@@ -485,6 +490,40 @@ describe('playground image generation', () => {
     expect(roomSystemPrompt(f, invocationId)).not.toContain('image-generation');
   });
 
+  test('a skill outside the room index is unreadable by absolute or relative reference', async () => {
+    const f = await playgroundImageFixture();
+    const invocationId = releaseRoomInput(f, 'ask-read');
+    const reads = [
+      { uri: 'system:///skills/alarms/SKILL.md' },
+      { uri: '../dictionary/SKILL.md', base: 'system:///skills/web-fetch/SKILL.md' },
+      // The switch is off, so the image skill is hidden in this room too.
+      { uri: 'system:///skills/image-generation/SKILL.md' },
+      { uri: 'system:///skills/web-fetch/SKILL.md' },
+    ];
+    f.faux.setResponses([
+      () =>
+        fauxAssistantMessage(
+          reads.map((input, index) => fauxToolCall('read', input, { id: `read-${index}` })),
+          { stopReason: 'toolUse' },
+        ),
+      () => fauxAssistantMessage('done'),
+    ]);
+    expect((await runInvocation(f, invocationId)).state).toBe('completed');
+
+    const audited = f.store.orm
+      .select({ toolCallId: toolCalls.toolCallId, state: toolCalls.state, errorCode: toolCalls.errorCode })
+      .from(toolCalls)
+      .where(eq(toolCalls.toolName, 'read'))
+      .all()
+      .sort((left, right) => left.toolCallId.localeCompare(right.toolCallId));
+    expect(audited).toEqual([
+      { toolCallId: 'read-0', state: 'error', errorCode: 'resource_not_found' },
+      { toolCallId: 'read-1', state: 'error', errorCode: 'resource_not_found' },
+      { toolCallId: 'read-2', state: 'error', errorCode: 'resource_not_found' },
+      { toolCallId: 'read-3', state: 'success', errorCode: null },
+    ]);
+  });
+
   test('a generation finishes into a receipt and the room publishes the picture', async () => {
     const f = await playgroundImageFixture();
     const invocationId = releaseRoomInput(f, 'ask-1');
@@ -519,6 +558,22 @@ describe('playground image generation', () => {
     expect(usage.filter((row) => row.scope === 'chat')).toEqual([]);
   });
 
+  test('a delivered picture stays delivered after retention unlinks its room message', async () => {
+    const f = await playgroundImageFixture();
+    const invocationId = releaseRoomInput(f, 'ask-unlinked');
+    enableRoomImage(f, true);
+    const generationId = await submitThroughRun(f, invocationId, 'call-unlinked');
+    await settledTask(f);
+    await publishThroughReceipt(f, 'send-unlinked', { generationId });
+    const published = roomMessages(f)[0]!.messages.id;
+    // What `ON DELETE SET NULL` leaves once retention removed the message.
+    f.store.orm.update(hostSends).set({ messageId: null }).run();
+
+    const state = imageDeliveryState(f.store.orm, f.room.conversationId, generationId);
+    expect([...state.delivered.values()]).toEqual([published.toString()]);
+    expect(state.uncertain.size).toBe(0);
+  });
+
   test('closing the switch only blocks new submissions; an accepted generation still lands', async () => {
     const f = await playgroundImageFixture();
     const invocationId = releaseRoomInput(f, 'ask-close');
@@ -532,6 +587,30 @@ describe('playground image generation', () => {
     await settledTask(f);
     await publishThroughReceipt(f, 'send-closed', { generationId });
     expect(roomMessages(f)).toHaveLength(1);
+  });
+
+  test('closing the switch while inputs are prepared refuses the submission', async () => {
+    let close = (): void => {};
+    const f = await playgroundImageFixture({ beforeInputImage: () => close() });
+    enableRoomImage(f, true);
+    close = () => enableRoomImage(f, false);
+    await expect(
+      f.bridge.submit({
+        conversationId: f.room.conversationId,
+        invocationId: null,
+        toolCallId: 'call-closing',
+        authoredPrompt: 'picture with an input',
+        modelId: undefined,
+        aspectRatio: undefined,
+        resolution: undefined,
+        outputCount: undefined,
+        inputMediaIds: [1n],
+        extendedData: undefined,
+      }),
+    ).rejects.toThrow('image generation is disabled');
+    expect(generationRows(f)).toEqual([]);
+    expect(taskRows(f)).toEqual([]);
+    expect(f.providerCalls).toEqual([]);
   });
 
   test('a quota refusal creates no generation and starts no provider call', async () => {

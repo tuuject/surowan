@@ -46,7 +46,12 @@ import {
 import { serializeModelRequestForAudit } from '../platform/model-request-audit.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import type { SecretStore } from '../platform/secrets.ts';
-import type { SkillVisibilityTarget, SystemResources, SystemSkill } from '../platform/system-resources.ts';
+import {
+  scopedSystemResources,
+  type SkillVisibilityTarget,
+  type SystemResources,
+  type SystemSkill,
+} from '../platform/system-resources.ts';
 import { applyToolSchemaKeywords } from '../platform/tool-schema.ts';
 import {
   agentMessages,
@@ -375,8 +380,15 @@ export class AgentRuntime {
       ...(holdForNewMessages === undefined ? {} : { holdForNewMessages }),
       ...(this.#imageGeneration === undefined ? {} : { imageGeneration: this.#imageGeneration }),
     });
+    const skillVisibility = this.#skillVisibility;
+    const resources =
+      skillVisibility === undefined
+        ? this.#systemResources
+        : scopedSystemResources(this.#systemResources, (skill) =>
+            skillVisibility(skill, { hostKind: target.hostKind, conversationId: target.conversationId }),
+          );
     return [
-      createReadTool({ store: this.#store, context: target, resources: this.#systemResources }),
+      createReadTool({ store: this.#store, context: target, resources }),
       send,
       sendReply,
       createExecuteTool({

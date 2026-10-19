@@ -621,6 +621,15 @@ export class ContextBuilder {
       `${omission}${currentText}`,
       '</untrusted_new_messages>',
     ].join('\n');
+    // The selection above only measured message bodies; the runtime state, the
+    // memory list, the envelopes and the figure markers come on top. A room
+    // batch is held to the budget as rendered, inside this same transaction, so
+    // an overflow still rolls its refs back.
+    if (identity.hostKind === 'playground' && text.length > maximumCharacters) {
+      throw new InjectionTooLargeError(
+        `the rendered injection for invocation ${identity.invocationId} does not fit the context budget`,
+      );
+    }
     const visibleSenders = new Map<string, VisibleSender>();
     for (const entry of selected) {
       const sender = senderByMessage.get(entry.messageId.toString());

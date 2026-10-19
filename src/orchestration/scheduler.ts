@@ -6,7 +6,6 @@ import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../pla
 import type { BusinessStore } from '../store/store.ts';
 import { LongTaskService } from '../store/long-tasks.ts';
 import { buckets, chats, conversations, invocations, taskReceipts } from '../store/schema.ts';
-import { activeSleepUntil } from '../store/sleep.ts';
 import { type BucketAttachmentTarget, InvocationQueueService } from './invocation-queue.ts';
 import type { ProactiveReplyGateOptions } from './proactive-reply.ts';
 
@@ -259,7 +258,7 @@ export class BucketScheduler {
     if (timerDeadline !== undefined) {
       deadlines.push(Date.parse(timerDeadline));
     }
-    const sleepUntil = activeSleepUntil(this.#store.orm);
+    const sleepUntil = this.#queue.sleepUntil(new Date());
     if (sleepUntil !== null) {
       deadlines.push(Date.parse(sleepUntil));
     }
@@ -305,6 +304,12 @@ export class BucketScheduler {
     if (queued !== undefined) {
       deadlines.push(Date.parse(queued.deadline_at));
     }
+    if (this.#hosts === undefined || this.#hosts.includes('playground')) {
+      const expiry = new PlaygroundStore(this.#store.orm).nextQueuedExpiry();
+      if (expiry !== undefined) {
+        deadlines.push(expiry);
+      }
+    }
     if (deadlines.length === 0) {
       return 60_000;
     }
@@ -322,7 +327,7 @@ export class BucketScheduler {
     while (this.#running) {
       const now = new Date();
       this.#queue.suppressInvalidQueuedReceipts(now);
-      const sleepUntil = activeSleepUntil(this.#store.orm, now);
+      const sleepUntil = this.#queue.sleepUntil(now);
       if (sleepUntil !== null) {
         this.#queue.skipQueuedInvocations(sleepUntil, now);
       }

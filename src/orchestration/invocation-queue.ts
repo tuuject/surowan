@@ -122,6 +122,8 @@ export class InvocationQueueService {
    * work - the Telegram half of a mixed database is then untouched.
    */
   readonly #scope: SQL | undefined;
+  /** The global sleep state is Telegram's; a process without it never reads or clears it. */
+  readonly #servesTelegram: boolean;
 
   constructor(
     store: BusinessStore,
@@ -137,6 +139,7 @@ export class InvocationQueueService {
     this.#attachment = attachment;
     this.#tasks = tasks;
     this.#proactive = proactive === undefined ? undefined : new ProactiveReplyGate(store.orm, configStore, proactive);
+    this.#servesTelegram = hosts === undefined || hosts.length === 0 || hosts.includes('telegram');
     this.#scope =
       hosts === undefined || hosts.length === 0
         ? undefined
@@ -151,6 +154,11 @@ export class InvocationQueueService {
   #servedConversations(column: SQL): SQL {
     const scope = this.#scope;
     return scope === undefined ? sql`1 = 1` : sql`${column} IN (${scope})`;
+  }
+
+  /** `activeSleepUntil` for a process that serves Telegram; null otherwise, without touching the row. */
+  sleepUntil(now: Date): string | null {
+    return this.#servesTelegram ? activeSleepUntil(this.#store.orm, now) : null;
   }
 
   recover(now = new Date()): void {
@@ -242,7 +250,7 @@ export class InvocationQueueService {
   }
 
   finishStartupCatchUp(startedAt: Date, now = new Date()): bigint[] {
-    const sleepUntil = activeSleepUntil(this.#store.orm, now);
+    const sleepUntil = this.sleepUntil(now);
     return this.#store.transaction(() => {
       const state = this.#store.orm
         .select({ value: appState.value })
@@ -398,7 +406,7 @@ export class InvocationQueueService {
   }
 
   processDue(now = new Date()): bigint[] {
-    const sleepUntil = activeSleepUntil(this.#store.orm, now);
+    const sleepUntil = this.sleepUntil(now);
     return this.#store.transaction(() => {
       // A bucket whose conversation already has a *running* invocation is
       // injected into it (below) instead of starting its own run. Everything
@@ -647,7 +655,7 @@ export class InvocationQueueService {
     // waits for a running chat or ordinary sleep policy.
     this.#tasks.processDue(now);
     const nowIso = now.toISOString();
-    const sleepUntil = activeSleepUntil(this.#store.orm, now);
+    const sleepUntil = this.sleepUntil(now);
     return this.#store.transaction(() => {
       const pending = this.#store.orm.all<ReceiptRow>(
         sql`SELECT r.task_id, t.conversation_id, v.chat_id, c.telegram_chat_id, v.message_thread_id,

@@ -118,6 +118,30 @@ export function emptySystemResources(): SystemResources {
 }
 
 /**
+ * The tree as one conversation sees it: a skill left out of its index is also
+ * unreadable, by absolute URI or by a relative reference from another document,
+ * so hiding a skill never depends on the model not guessing its path.
+ */
+export function scopedSystemResources(
+  resources: SystemResources,
+  visible: (skill: SystemSkill) => boolean,
+): SystemResources {
+  const skills = resources.skills.filter(visible);
+  const hidden = new Set(resources.skills.filter((skill) => !visible(skill)).map((skill) => skill.name));
+  return {
+    skills,
+    resolve: (reference, base) => resources.resolve(reference, base),
+    async readText(reference: string, base?: string): Promise<SystemResourceText> {
+      const { segments } = resources.resolve(reference, base);
+      if (segments[0] === 'skills' && segments[1] !== undefined && hidden.has(segments[1])) {
+        throw new SystemResourceError('resource_not_found', 'Resource does not exist');
+      }
+      return await resources.readText(reference, base);
+    },
+  };
+}
+
+/**
  * The system-prompt skill index: the only skill content injected eagerly.
  * Everything else is loaded on demand through the read primitive.
  */

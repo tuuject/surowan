@@ -268,6 +268,8 @@ export interface StagedAsset {
 }
 
 const RELEASE_HISTORY_MESSAGES = 0;
+/** How long a released batch may wait for its run before it fails as `queued_expired`. */
+export const PLAYGROUND_QUEUE_TTL_MS = 5 * 60_000;
 
 /**
  * Room-local ingestion.
@@ -529,6 +531,15 @@ export class PlaygroundStore {
         .where(and(eq(playgroundReleases.chatId, chatId), eq(playgroundReleases.releaseKey, input.releaseKey)))
         .get();
       if (existing !== undefined) {
+        // A replay names the revision it released; the same key at another
+        // revision is a new Release under a used key, and answering it with
+        // the old result would leave the newer inputs held.
+        if (existing.revision !== input.revision) {
+          throw new PlaygroundError(
+            'input_conflict',
+            `release key ${input.releaseKey} was already used at revision ${existing.revision}`,
+          );
+        }
         return {
           releaseId: existing.id,
           throughSeq: existing.throughSeq,
@@ -1459,7 +1470,7 @@ export class PlaygroundStore {
    * their own lifecycle. Expiry is visible in the status instead of silently
    * re-releasing anything.
    */
-  expireQueued(now = this.#clock(), ttlMilliseconds = 5 * 60_000): number {
+  expireQueued(now = this.#clock(), ttlMilliseconds = PLAYGROUND_QUEUE_TTL_MS): number {
     const cutoff = new Date(now.getTime() - ttlMilliseconds).toISOString();
     const rows = this.#orm
       .select({ id: invocations.id, bucketId: buckets.id })
@@ -1487,6 +1498,23 @@ export class PlaygroundStore {
         .run();
     }
     return rows.length;
+  }
+
+  /**
+   * When the oldest queued room invocation becomes expirable, in epoch
+   * milliseconds. A run that cannot launch (no free slot, its room busy) still
+   * has to fail visibly on time, so the scheduler wakes for this deadline too.
+   */
+  nextQueuedExpiry(ttlMilliseconds = PLAYGROUND_QUEUE_TTL_MS): number | undefined {
+    const oldest = this.#orm
+      .select({ createdAt: sql<string | null>`min(${invocations.createdAt})` })
+      .from(invocations)
+      .innerJoin(conversations, eq(conversations.id, invocations.conversationId))
+      .innerJoin(chats, eq(chats.id, conversations.chatId))
+      .where(and(eq(chats.hostKind, 'playground'), eq(invocations.state, 'queued')))
+      .get()?.createdAt;
+    // `expireQueued` takes rows strictly older than the cutoff.
+    return oldest === null || oldest === undefined ? undefined : Date.parse(oldest) + ttlMilliseconds + 1;
   }
 
   #roomRow(chatId: bigint): RoomState | undefined {

@@ -843,6 +843,74 @@ test('an attempt key names one retry of one release', async () => {
   }
 });
 
+test('a release key replays only the revision it released', async () => {
+  const f = await fixture();
+  try {
+    const room = await createRoom(f, 'Room', 'r', [{ name: 'Ada' }]);
+    const ada = (await roomState(f, room.id)).participants[0]!.id;
+    await sendMessage(f, room.id, { request_key: 'msg-1', sender_id: ada, text: 'one' });
+    const before = await roomState(f, room.id);
+    const first = await release(f, room.id, {
+      request_key: 'rel',
+      revision: before.room.revision,
+      through_seq: latestSeq(before),
+    });
+    expect(first.status).toBe(201);
+
+    await sendMessage(f, room.id, { request_key: 'msg-2', sender_id: ada, text: 'two' });
+    const after = await roomState(f, room.id);
+    expect(after.held).toHaveLength(1);
+    const reused = await release(f, room.id, {
+      request_key: 'rel',
+      revision: after.room.revision,
+      through_seq: latestSeq(after),
+    });
+    expect(reused.status).toBe(409);
+    expect(await readJson(reused)).toMatchObject({ error: 'input_conflict' });
+    // The newer input is still held and nothing else was queued for it.
+    expect((await roomState(f, room.id)).held.map((entry) => entry.seq)).toEqual(after.held.map((entry) => entry.seq));
+    expect(f.store.orm.select().from(invocations).all()).toHaveLength(1);
+  } finally {
+    f.store.close();
+  }
+});
+
+test('a route deeper than its endpoint is not found and runs nothing', async () => {
+  const f = await fixture();
+  try {
+    const room = await createRoom(f, 'Room', 'r', [{ name: 'Ada' }]);
+    const ada = (await roomState(f, room.id)).participants[0]!.id;
+    await sendMessage(f, room.id, { request_key: 'msg-1', sender_id: ada, text: 'one' });
+    const state = await roomState(f, room.id);
+    const released = await readJson<{ release_id: string }>(
+      await release(f, room.id, { request_key: 'rel', revision: state.room.revision, through_seq: latestSeq(state) }),
+    );
+    f.store.orm.update(invocations).set({ state: 'failed', finishedAt: new Date().toISOString() }).run();
+    const deeper = await f.server.handle(
+      post(
+        `/api/playground/rooms/${room.id}/releases/${released.release_id}/retry/extra`,
+        { attempt_key: 'try-1' },
+        f.cookie,
+      ),
+    );
+    expect(deeper.status).toBe(404);
+    expect(f.store.orm.select().from(invocations).all()).toHaveLength(1);
+  } finally {
+    f.store.close();
+  }
+});
+
+test('a room with every member at the name limit fits its creation request', async () => {
+  const f = await fixture();
+  try {
+    const members = Array.from({ length: 64 }, (_, index) => ({ name: `${'名'.repeat(117)}${index + 100}` }));
+    const created = await createRoom(f, '名'.repeat(120), 'r', members);
+    expect((await roomState(f, created.id)).participants).toHaveLength(64);
+  } finally {
+    f.store.close();
+  }
+});
+
 test('the timeline gives each message only its own pictures', async () => {
   const f = await fixture();
   try {

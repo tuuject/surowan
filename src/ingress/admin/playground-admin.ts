@@ -65,6 +65,13 @@ const MAX_MESSAGE_TEXT = 16_384;
  * plus the other fields still fits.
  */
 const MAX_MESSAGE_BODY_BYTES = MAX_MESSAGE_TEXT * 6 + 8_192;
+/** Most members a room may be created with. */
+const MAX_ROOM_MEMBERS = 64;
+/**
+ * The same escape bound for room creation: a title and every member name may
+ * spend six bytes per character, plus the field names around each member.
+ */
+const MAX_ROOM_BODY_BYTES = (MAX_ROOM_MEMBERS + 1) * (120 * 6 + 64) + 8_192;
 /** SQLite INTEGER is a signed 64-bit value; a larger id cannot be bound. */
 const MAX_ID = 9_223_372_036_854_775_807n;
 
@@ -74,7 +81,7 @@ const createRoomValidator = Compile(
       title: NAME_TEXT,
       members: Type.Optional(
         Type.Array(Type.Object({ name: NAME_TEXT, role: Type.Optional(ROLE) }, { additionalProperties: false }), {
-          maxItems: 64,
+          maxItems: MAX_ROOM_MEMBERS,
         }),
       ),
       request_key: REQUEST_KEY,
@@ -288,7 +295,9 @@ export function createPlaygroundAdminHandler(deps: PlaygroundAdminDeps) {
     const jsonOk = (body: unknown, status = 200): PlaygroundAdminResponse => ({ kind: 'json', status, body });
 
     try {
-      if (resource !== 'rooms') {
+      // No route is deeper than five segments; a longer path must not reach a
+      // write by its prefix.
+      if (resource !== 'rooms' || segments.length > 5) {
         return jsonOk({ error: 'not_found', message: 'Unknown playground route' }, 404);
       }
 
@@ -298,7 +307,7 @@ export function createPlaygroundAdminHandler(deps: PlaygroundAdminDeps) {
           return jsonOk({ items: rooms.listRooms().map((room) => roomJson(room)) });
         }
         if (method === 'POST') {
-          const body = requireValid(createRoomValidator, await readBody(), 'room creation');
+          const body = requireValid(createRoomValidator, await readBody(MAX_ROOM_BODY_BYTES), 'room creation');
           const created = rooms.createRoomWithKey({
             title: body.title,
             ...(body.members === undefined ? {} : { members: body.members }),
@@ -505,7 +514,7 @@ export function createPlaygroundAdminHandler(deps: PlaygroundAdminDeps) {
           if (method === 'POST') {
             const body = requireValid(uploadValidator, await readBody(MAX_UPLOAD_TEXT_BYTES + 8_192), 'upload');
             const bytes = Buffer.from(body.content_base64, 'base64');
-            const asset = await assets.ingest(room.chatId, {
+            const asset = await ingress.upload(room.chatId, {
               bytes,
               declaredMime: body.mime,
               ...(body.name === undefined ? {} : { name: body.name }),

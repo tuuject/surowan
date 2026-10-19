@@ -13,8 +13,13 @@ export function imageDeliveryState(orm: Orm, conversationId: bigint, generationI
     SELECT asset.value AS asset_id, s.state,
       -- A wire host reports the message it published; a virtual host publishes
       -- one itself and records it under its own column. Either names the
-      -- delivered message, and only the pair of them is meaningful.
-      COALESCE(s.telegram_message_id, s.message_id) AS message_ref,
+      -- delivered message. The local link is cleared when retention deletes
+      -- that message, so the receipt keeps naming it after that.
+      COALESCE(
+        s.telegram_message_id,
+        s.message_id,
+        CAST(json_extract(s.response_json, '$.message_id') AS INTEGER)
+      ) AS message_ref,
       COALESCE(json_extract(s.request_json, '$.asset_ids_unknown'), 0) AS unknown_assets
     FROM ${hostSends} s
     LEFT JOIN json_each(s.request_json, '$.asset_ids') asset ON asset.type = 'text'
