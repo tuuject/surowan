@@ -297,6 +297,7 @@ Alarm 是第一个 `plugin_id = "alarm"` 的 consumer，通过 `execute.call` �
 
 - 运行已被 abort（`/pause`、`/cut_topic`、Admin 取消）或已过 Invocation deadline 时，`send` 在写 pending 审计之前直接拒绝：Tool Call 记为 `error`，错误码 `aborted` / `deadline_exceeded`，不写 `telegram_sends`、不调用 Telegram。
 - Telegram 返回 429 时按 `retry_after` 等待后重试，等待超过 deadline 则不重试；等待期间 abort 记为 `error`/`aborted`。开启 send 屏障时，等待结束后会再判断一次屏障，命中则不重试，记为 `error`/`send_barrier`（此时已有 `telegram_sends` 行）。
+- 发送进入 Telegram 调用后失败时，`send` 的 `tool_calls.result_text` 记录返回给模型的同一段错误文本；Telegram API 错误（`telegram_<code>`，含 5xx 的 `outcome_unknown`）在末尾附上 Telegram 的 `description`，例如 `Telegram send failed: telegram_400 (Bad Request: can't parse entities: …)`，让模型能据此修正 MarkdownV2 转义等问题。`telegram_sends` 只记错误码。
 - Telegram 已接受、但本地落库失败（例如写 `messages` 出错）时，Tool 仍向模型返回成功，避免模型重发；日志输出 `send_record_failed`（带 `telegram_message_id`），并尽量单独把 `tool_calls` / `telegram_sends` 标为 `success`。这种情况下该条外发消息可能不在 `messages` 里。
 
 `agent.send_max_text_length` 配置了文本最大字符数（默认不限制）时，超长文本在进入发送前被拒绝：Tool Call 记为 `error`、错误码 `send_text_too_long`，不写 `telegram_sends`、不消耗窗口额度。

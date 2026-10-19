@@ -297,7 +297,9 @@ describe('duplicate send guard', () => {
     try {
       const api = recordingApi(new Set(['retry me']));
       const { send } = makeTools(fixture, api, true);
-      await expect(send.execute('failed', { text: 'retry me' })).rejects.toThrow('Telegram send failed: telegram_400');
+      await expect(send.execute('failed', { text: 'retry me' })).rejects.toThrow(
+        'Telegram send failed: telegram_400 (Bad Request: can not parse entities)',
+      );
       await send.execute('retried', { text: 'retry me' });
       expect(api.calls).toEqual(['retry me']);
     } finally {

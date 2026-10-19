@@ -670,6 +670,14 @@ export function createSendTools(environment: SendToolEnvironment): {
             : signal?.aborted
               ? 'aborted'
               : 'send_error';
+      // Telegram's description is what tells the model how to fix the send
+      // (an unescaped MarkdownV2 character, a reply target that is gone); the
+      // status code alone leaves it nothing to correct.
+      const reason = held
+        ? SEND_BARRIER_TEXT
+        : `${unknown ? 'Telegram send outcome is unknown' : `Telegram send failed: ${errorCode}`}${
+            error instanceof GrammyError ? ` (${error.description})` : ''
+          }`;
       environment.store.transaction(() => {
         const now = new Date().toISOString();
         const state = unknown ? 'outcome_unknown' : 'error';
@@ -677,6 +685,7 @@ export function createSendTools(environment: SendToolEnvironment): {
           .update(toolCalls)
           .set({
             state,
+            resultText: reason,
             errorCode,
             durationMs: BigInt(Math.round(performance.now() - startedAt)),
             finishedAt: now,
@@ -689,9 +698,7 @@ export function createSendTools(environment: SendToolEnvironment): {
           .where(eq(telegramSends.id, sendId))
           .run();
       });
-      throw new Error(
-        held ? SEND_BARRIER_TEXT : unknown ? 'Telegram send outcome is unknown' : `Telegram send failed: ${errorCode}`,
-      );
+      throw new Error(reason);
     }
     if (mention !== null && completion !== null) {
       mentionedTasks.add(completion.taskId);
