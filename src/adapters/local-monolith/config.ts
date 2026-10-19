@@ -63,17 +63,20 @@ async function resolvePrompts(
   directory: string,
 ): Promise<{ config: RawConfig; promptFiles: PromptFile[] }> {
   const promptFiles: PromptFile[] = [];
-  const systemPrompt = await readPromptFile(
-    resolve(directory, fileConfig.agent.system_prompt_file),
-    'agent.system_prompt_file',
-    promptFiles,
-  );
-  if (systemPrompt.length === 0) {
-    throw new Error(
-      `agent.system_prompt_file is empty or contains only HTML comments: ${fileConfig.agent.system_prompt_file}`,
-    );
+  // Without a system_prompt_file the runtime prompt is empty: the core protocol
+  // is baked into code, so an unconfigured agent still has a legal (and unused,
+  // since no invocation can start) prompt.
+  const systemPromptFile = fileConfig.agent?.system_prompt_file;
+  const systemPrompt =
+    systemPromptFile === undefined
+      ? ''
+      : await readPromptFile(resolve(directory, systemPromptFile), 'agent.system_prompt_file', promptFiles);
+  if (systemPromptFile !== undefined) {
+    if (systemPrompt.length === 0) {
+      throw new Error(`agent.system_prompt_file is empty or contains only HTML comments: ${systemPromptFile}`);
+    }
+    validatePromptTemplate(systemPrompt, 'agent.system_prompt_file');
   }
-  validatePromptTemplate(systemPrompt, 'agent.system_prompt_file');
   const instructionsByChatId = new Map<number, string>();
   for (const chat of fileConfig.telegram.chats) {
     const instructions =

@@ -55,8 +55,8 @@ test('public full example passes the real loader without resolving credentials o
   await writeFile(configPath, JSON.stringify(baseline));
   const loaded = await loadConfig(configPath);
   expect(loaded.config.telegram.token).toEqual({ env: 'TELEGRAM_BOT_TOKEN' });
-  expect(loaded.config.agent.system_prompt).not.toBe('');
-  expect(loaded.config.vision.model).toBe(loaded.config.agent.model);
+  expect(loaded.config.agent!.system_prompt).not.toBe('');
+  expect(loaded.config.vision.model).toBe(loaded.config.agent!.model);
   expect(loaded.hash).toMatch(/^[a-f0-9]{64}$/);
 });
 
@@ -85,7 +85,7 @@ test('schema reference covers nested arrays, union policies and required/optiona
   for (const name of [
     'telegram.chats[].topic_ids',
     'tool_policies[].name',
-    'agent.context.ref_ttl_hours',
+    'agent（分支 1）.context.ref_ttl_hours',
     'retention.online_days',
     'web_fetch',
     'developer.record_model_payloads',

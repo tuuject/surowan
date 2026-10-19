@@ -1,7 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import type { Message } from 'grammy/types';
 import { ConversationContextStore, listConversationContexts } from '../context/context-store.ts';
-import { type AgentSettings, type RawConfig, resolveAgentSettings } from '../platform/config.ts';
+import { type AgentSettings, completeAgentSettings, type RawConfig, resolveAgentSettings } from '../platform/config.ts';
 import type { BotCommandConfigWriter } from '../platform/config-write.ts';
 import type { AgentModelOption, AgentModelSwitcher } from '../platform/model-switch.ts';
 import { isWithinActiveWindows } from '../platform/participation.ts';
@@ -452,12 +452,14 @@ export class BotCommandService {
     }
     const current = this.#configStore.current().config;
     const settings = resolveAgentSettings(current, resolveChatConfig(current, this.#store.orm, telegramChatId));
+    const active = completeAgentSettings(settings);
+    const target = active === undefined ? '未配置' : `${active.provider} / ${active.model}`;
     const paths = switchPaths(configuredChatId);
     const lines = reset
-      ? [`已清除本群模型覆盖，跟随全局 ${settings.provider} / ${settings.model}，将在下一次 agent session 生效。`]
+      ? [`已清除本群模型覆盖，跟随全局 ${target}，将在下一次 agent session 生效。`]
       : [
-          `已为本群切换: ${settings.provider} / ${settings.model}，已写入 config.jsonc，将在下一次 agent session 生效。`,
-          `思考强度已重置为该模型最弱的一档: ${settings.thinking_level}`,
+          `已为本群切换: ${target}，已写入 config.jsonc，将在下一次 agent session 生效。`,
+          `思考强度已重置为该模型最弱的一档: ${settings.thinking_level ?? '未配置'}`,
         ];
     const other = result.applied.filter((path) => !paths.has(path));
     if (other.length > 0) {
@@ -481,9 +483,13 @@ export class BotCommandService {
     const pageCount = Math.max(1, Math.ceil(options.length / MODEL_PAGE_SIZE));
     const start = (page - 1) * MODEL_PAGE_SIZE;
     const end = Math.min(start + MODEL_PAGE_SIZE, options.length);
+    const modelLabel =
+      effective.provider === undefined || effective.model === undefined
+        ? '未配置'
+        : `${effective.provider} / ${effective.model}${hasProviderOverride || hasModelOverride ? '' : '（继承全局）'}`;
     const lines = [
-      `本群模型: ${effective.provider} / ${effective.model}${hasProviderOverride || hasModelOverride ? '' : '（继承全局）'}`,
-      `思考强度: ${effective.thinking_level}${hasThinkingOverride ? '' : '（继承全局）'}`,
+      `本群模型: ${modelLabel}`,
+      `思考强度: ${effective.thinking_level ?? '未配置'}${hasThinkingOverride ? '' : '（继承全局）'}`,
       `可用模型（第 ${page}/${pageCount} 页，共 ${options.length} 条）:`,
     ];
     for (let index = start; index < end; index += 1) {
@@ -551,9 +557,13 @@ export class BotCommandService {
     const hasProviderOverride = chat.provider !== undefined;
     const hasModelOverride = chat.model !== undefined;
     const hasThinkingOverride = chat.thinking_level !== undefined;
+    const modelLabel =
+      effective.provider === undefined || effective.model === undefined
+        ? '未配置'
+        : `${effective.provider} / ${effective.model}${hasProviderOverride || hasModelOverride ? '' : '（继承全局）'}`;
     const lines = [
-      `本群模型: ${effective.provider} / ${effective.model}${hasProviderOverride || hasModelOverride ? '' : '（继承全局）'}`,
-      `思考强度: ${effective.thinking_level}${hasThinkingOverride ? '' : '（继承全局）'}`,
+      `本群模型: ${modelLabel}`,
+      `思考强度: ${effective.thinking_level ?? '未配置'}${hasThinkingOverride ? '' : '（继承全局）'}`,
       `本群今日 token 用量: ${tokens.toLocaleString('en-US')}`,
       `全局今日 token 用量: ${dailyBudget.usedTokens.toLocaleString('en-US')} / ${dailyBudget.maxTokens.toLocaleString('en-US')} (${dailyBudgetPercentage})`,
       `读取: ${(tokenBreakdown?.readTokens ?? 0n).toLocaleString('en-US')}`,

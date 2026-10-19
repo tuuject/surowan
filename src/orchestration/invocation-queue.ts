@@ -1,5 +1,6 @@
 import { and, eq, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
 import { AGENT_PROMPT_VERSION } from '../platform/agent-protocol.ts';
+import { completeAgentSettings, resolveAgentSettings } from '../platform/config.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import type { BusinessStore } from '../store/store.ts';
 import { asRunResult, isChatPaused, resolveChatConfig } from '../store/store.ts';
@@ -234,16 +235,23 @@ export class InvocationQueueService {
         if (latest === undefined) {
           continue;
         }
+        const catchUpChat = resolveChatConfig(
+          this.#configStore.current().config,
+          this.#store.orm,
+          latest.telegram_chat_id,
+        );
         const skipReason =
-          resolveChatConfig(this.#configStore.current().config, this.#store.orm, latest.telegram_chat_id) === undefined
+          catchUpChat === undefined
             ? 'chat_removed'
-            : isChatPaused(this.#store.orm, latest.chat_id)
-              ? 'chat_paused'
-              : sleepUntil !== null
-                ? 'sleeping'
-                : this.#participationBlocks(latest, now)
-                  ? 'participation_gated'
-                  : undefined;
+            : completeAgentSettings(resolveAgentSettings(this.#configStore.current().config, catchUpChat)) === undefined
+              ? 'agent_unconfigured'
+              : isChatPaused(this.#store.orm, latest.chat_id)
+                ? 'chat_paused'
+                : sleepUntil !== null
+                  ? 'sleeping'
+                  : this.#participationBlocks(latest, now)
+                    ? 'participation_gated'
+                    : undefined;
         const created =
           skipReason === undefined
             ? this.#store.orm
@@ -396,8 +404,15 @@ export class InvocationQueueService {
     // invocation must not reach a running one either. Skipping it here also
     // keeps the waiter asleep, so a run idling through its grace period is not
     // woken for another model turn while the bot sleeps.
-    if (resolveChatConfig(this.#configStore.current().config, this.#store.orm, chat.telegram_chat_id) === undefined) {
+    const attachChat = resolveChatConfig(this.#configStore.current().config, this.#store.orm, chat.telegram_chat_id);
+    if (attachChat === undefined) {
       this.#markBucketSkipped(bucket.id, now, 'chat_removed');
+      return true;
+    }
+    // A batch that could not open its own invocation must not reach a running
+    // one either; the same is true when no complete agent identity exists.
+    if (completeAgentSettings(resolveAgentSettings(this.#configStore.current().config, attachChat)) === undefined) {
+      this.#markBucketSkipped(bucket.id, now, 'agent_unconfigured');
       return true;
     }
     if (sleepUntil !== null) {
@@ -695,9 +710,15 @@ export class InvocationQueueService {
   }
 
   #receiptCancelReason(receipt: ReceiptRow): string | undefined {
-    const chatConfig = resolveChatConfig(this.#configStore.current().config, this.#store.orm, receipt.telegram_chat_id);
+    const current = this.#configStore.current().config;
+    const chatConfig = resolveChatConfig(current, this.#store.orm, receipt.telegram_chat_id);
     if (chatConfig === undefined) {
       return 'chat_removed';
+    }
+    // A completion receipt is delivered by an invocation, so it waits for the
+    // same complete identity triple as a message bucket.
+    if (completeAgentSettings(resolveAgentSettings(current, chatConfig)) === undefined) {
+      return 'agent_unconfigured';
     }
     if (isChatPaused(this.#store.orm, receipt.chat_id)) {
       return 'chat_paused';
@@ -782,8 +803,16 @@ export class InvocationQueueService {
       this.#markBucketSkipped(bucket.id, now, 'chat_paused');
       return undefined;
     }
-    if (resolveChatConfig(this.#configStore.current().config, this.#store.orm, chat.telegram_chat_id) === undefined) {
+    const current = this.#configStore.current().config;
+    const chatConfig = resolveChatConfig(current, this.#store.orm, chat.telegram_chat_id);
+    if (chatConfig === undefined) {
       this.#markBucketSkipped(bucket.id, now, 'chat_removed');
+      return undefined;
+    }
+    // Without a complete provider/model/thinking_level no invocation may ever
+    // start: close the bucket as skipped and leave the reason for audit reads.
+    if (completeAgentSettings(resolveAgentSettings(current, chatConfig)) === undefined) {
+      this.#markBucketSkipped(bucket.id, now, 'agent_unconfigured');
       return undefined;
     }
     if (sleepUntil !== null) {

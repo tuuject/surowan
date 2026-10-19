@@ -233,8 +233,17 @@ export async function savePromptVersion(
   let chatId = 0n;
   let configuredChatId: bigint | undefined;
   let current = loaded.config.agent.system_prompt;
-  let promptPath = resolve(configDir, loaded.fileConfig.agent.system_prompt_file);
+  const systemPromptFile = loaded.fileConfig.agent?.system_prompt_file;
+  let promptPath: string;
   let creationRelative: string | undefined;
+  if (systemPromptFile === undefined) {
+    // No prompt file is configured: saving the global prompt creates the
+    // conventional one next to the config file, then points the section at it.
+    creationRelative = 'prompts/agent.md';
+    promptPath = join(configDir, creationRelative);
+  } else {
+    promptPath = resolve(configDir, systemPromptFile);
+  }
   let chatIndex = 0;
   if (input.scope === 'group') {
     if (input.chatId === undefined) {
@@ -254,6 +263,8 @@ export async function savePromptVersion(
     }
     const fileChat = loaded.fileConfig.telegram.chats[chatIndex];
     if (fileChat !== undefined && fileChat.instructions_file !== undefined) {
+      // The global creation state does not carry over to an existing group file.
+      creationRelative = undefined;
       promptPath = resolve(configDir, fileChat.instructions_file);
     } else {
       // Creating the group prompt: a conventional path next to the config file.
@@ -310,7 +321,11 @@ export async function savePromptVersion(
     creationRelative === undefined
       ? await reloader.reloadFromFile()
       : await reloader.writeAndApply(
-          [{ path: ['telegram', 'chats', chatIndex, 'instructions_file'], value: creationRelative }],
+          [
+            input.scope === 'global'
+              ? { path: ['agent', 'system_prompt_file'], value: creationRelative }
+              : { path: ['telegram', 'chats', chatIndex, 'instructions_file'], value: creationRelative },
+          ],
           await reloader.revision(),
         );
   if (!apply.ok) {

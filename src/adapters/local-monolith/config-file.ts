@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { lstat, open, readFile, rename, unlink } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
-import { applyEdits, modify, parse } from 'jsonc-parser';
+import { applyEdits, findNodeAtLocation, type JSONPath, modify, parse, parseTree } from 'jsonc-parser';
 import { assertConfigPermissions, type LoadedConfig, loadConfig } from './config.ts';
 import type { ConfigEdit } from '../../platform/config-write.ts';
 import { keyJarPath, referencedJarNames, updateKeyJar } from '../../platform/key-jar.ts';
@@ -32,6 +32,24 @@ export class ConfigWriteError extends Error {
 export async function readConfigRevision(configPath: string): Promise<string> {
   const source = await readFile(resolve(configPath));
   return createHash('sha256').update(source).digest('hex');
+}
+
+const FORMATTING = { insertSpaces: true, tabSize: 2 } as const;
+
+/**
+ * `modify` cannot add a property under a `null` node, and an optional section
+ * such as `agent` may be written as `null`: each such parent becomes `{}` first.
+ */
+function replaceNullParents(text: string, path: JSONPath): string {
+  let result = text;
+  for (let depth = 1; depth < path.length; depth += 1) {
+    const prefix = path.slice(0, depth);
+    const tree = parseTree(result, [], { allowTrailingComma: true });
+    if (tree !== undefined && findNodeAtLocation(tree, prefix)?.type === 'null') {
+      result = applyEdits(result, modify(result, prefix, {}, { formattingOptions: FORMATTING }));
+    }
+  }
+  return result;
 }
 
 /**
@@ -81,9 +99,10 @@ export async function writeConfigEdits(
   const added: Record<string, string> = {};
   for (const edit of edits) {
     Object.assign(added, edit.keys);
-    const valueEdits = modify(text, edit.path, edit.value, {
-      formattingOptions: { insertSpaces: true, tabSize: 2 },
-    });
+    if (edit.value !== undefined) {
+      text = replaceNullParents(text, edit.path);
+    }
+    const valueEdits = modify(text, edit.path, edit.value, { formattingOptions: FORMATTING });
     if (valueEdits.length === 0) {
       throw new ConfigWriteError('config_write_failed', `Config edit changed nothing: ${edit.path.join('.')}`);
     }

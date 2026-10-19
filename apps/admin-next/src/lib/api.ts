@@ -402,7 +402,7 @@ export interface CurrentModel extends ModelOption {
   readonly context_window: number;
   readonly max_tokens: number;
   /** Live level; switching the agent model resets it to the new model's weakest one. */
-  readonly thinking_level: ThinkingLevel;
+  readonly thinking_level: ThinkingLevel | null;
 }
 
 export interface ModelState {
@@ -522,9 +522,11 @@ export interface ProviderModelReference {
   readonly model: string;
 }
 
-export interface AgentModelReference extends ProviderModelReference {
-  /** The level every invocation runs with; it has to be one the agent model accepts. */
-  readonly thinking_level: ThinkingLevel;
+export interface AgentModelReference {
+  /** Null when the identity triple is not (fully) configured: no invocation can start. */
+  readonly provider: string | null;
+  readonly model: string | null;
+  readonly thinking_level: ThinkingLevel | null;
 }
 
 export interface ProvidersView {
@@ -1982,9 +1984,9 @@ export function mergeDictionaryEntries(body: {
 // ---------------------------------------------------------------------------
 
 export interface ToolModelView {
-  readonly provider: string;
-  readonly model: string;
-  readonly thinking_level: ThinkingLevel;
+  readonly provider: string | null;
+  readonly model: string | null;
+  readonly thinking_level: ThinkingLevel | null;
   /** True when nothing is configured and the global agent settings are in use. */
   readonly inherited: boolean;
 }

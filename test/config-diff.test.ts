@@ -97,18 +97,18 @@ function customModels(config: FileConfig, alias: string): readonly ModelEntry[] 
 
 test('classifies hot, restart and outside-serve fields', async () => {
   const { active, file } = await loadBoth(undefined, (config) => {
-    config.agent.thinking_level = 'high';
-    config.agent.send_max_text_length = 100;
-    config.agent.rate_limits.turns_per_injection = 3;
-    config.agent.context.idle_grace_seconds = 40;
-    config.agent.daily_budget.max_tokens = 400_000;
-    config.agent.max_concurrency = 8;
-    config.agent.history_messages = 5;
-    config.agent.memory_ttl_warning_days = 14;
-    config.agent.context.retained_sends_target = 1;
-    config.agent.context.hard_token_ratio = 0.5;
-    config.agent.context.ref_ttl_hours = 24;
-    config.agent.context.agent_cache_size = 2;
+    config.agent!.thinking_level = 'high';
+    config.agent!.send_max_text_length = 100;
+    config.agent!.rate_limits!.turns_per_injection = 3;
+    config.agent!.context!.idle_grace_seconds = 40;
+    config.agent!.daily_budget!.max_tokens = 400_000;
+    config.agent!.max_concurrency = 8;
+    config.agent!.history_messages = 5;
+    config.agent!.memory_ttl_warning_days = 14;
+    config.agent!.context!.retained_sends_target = 1;
+    config.agent!.context!.hard_token_ratio = 0.5;
+    config.agent!.context!.ref_ttl_hours = 24;
+    config.agent!.context!.agent_cache_size = 2;
     config.retention.online_days = 7;
     config.paths.backups = config.paths.backups.replace('backups', 'backups2');
     config.telegram.bucket_window_seconds = 30;
@@ -133,8 +133,8 @@ test('classifies hot, restart and outside-serve fields', async () => {
   expect(paths(diff.changes, 'outside_serve')).toEqual(['paths.backups', 'retention.online_days']);
   expect(paths(diff.changes, 'restart')).toEqual(['telegram.bucket_window_seconds']);
   // Hot and outside-serve values come from the file; restart-only values stay.
-  expect(diff.candidate.file.agent.thinking_level).toBe('high');
-  expect(diff.candidate.file.agent.history_messages).toBe(5);
+  expect(diff.candidate.file.agent!.thinking_level).toBe('high');
+  expect(diff.candidate.file.agent!.history_messages).toBe(5);
   expect(diff.candidate.file.retention.online_days).toBe(7);
   expect(diff.candidate.file.telegram.bucket_window_seconds).toBe(15);
   expect(diff.candidate.file.vision.max_output_tokens).toBe(4096);
@@ -209,9 +209,9 @@ test.each([
 ])('hot-applies allow_reply_message_multiple_times from $before to $after', async ({ before, after }) => {
   const setField = (config: FileConfig, value: boolean | undefined) => {
     if (value === undefined) {
-      delete config.agent.allow_reply_message_multiple_times;
+      delete config.agent!.allow_reply_message_multiple_times;
     } else {
-      config.agent.allow_reply_message_multiple_times = value;
+      config.agent!.allow_reply_message_multiple_times = value;
     }
   };
   const { active, file } = await loadBoth(
@@ -221,7 +221,7 @@ test.each([
   const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
   expect(paths(diff.changes, 'hot')).toEqual(['agent.allow_reply_message_multiple_times']);
   expect(paths(diff.changes, 'restart')).toEqual([]);
-  expect(diff.candidate.file.agent.allow_reply_message_multiple_times).toEqual(after);
+  expect(diff.candidate.file.agent!.allow_reply_message_multiple_times).toEqual(after);
   expect(diff.candidate.raw.agent.allow_reply_message_multiple_times).toEqual(after);
 });
 
@@ -305,7 +305,7 @@ test('a model is hot once the agent points at another one', async () => {
       { ...provider.models[0]!, context_window: 100_000 },
       { ...provider.models[0]!, id: 'agent-model-2' },
     ];
-    config.agent.model = 'agent-model-2';
+    config.agent!.model = 'agent-model-2';
   });
   const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
   expect(paths(diff.changes, 'hot')).toEqual([
@@ -336,7 +336,7 @@ test('editing the model the agent switches to in the same change is hot', async 
         throw new Error('Expected a custom provider fixture');
       }
       provider.models[1]!.context_window = 100_000;
-      config.agent.model = 'agent-model-2';
+      config.agent!.model = 'agent-model-2';
     },
   );
   const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
@@ -366,9 +366,9 @@ test('an agent pointing at a new provider is hot', async () => {
         },
       ],
     };
-    config.agent.provider = 'extra';
-    config.agent.model = 'extra-model';
-    config.agent.thinking_level = 'high';
+    config.agent!.provider = 'extra';
+    config.agent!.model = 'extra-model';
+    config.agent!.thinking_level = 'high';
   });
   const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
   expect(paths(diff.changes, 'hot')).toEqual([
@@ -585,4 +585,46 @@ test('participation schedules at both levels are hot, including their sub-fields
   ]);
   expect(paths(diff.changes, 'restart')).toEqual([]);
   expect(diff.candidate.file.telegram.chats[1]?.participation).toEqual({ active_windows: [] });
+});
+
+test('adding or removing a whole optional agent object is hot', async () => {
+  const withoutObjects = (config: FileConfig) => {
+    delete config.agent!.daily_budget;
+    delete config.agent!.context;
+    delete config.agent!.rate_limits;
+  };
+  const withObjects = (config: FileConfig) => {
+    config.agent!.daily_budget = { max_tokens: 1000 };
+    config.agent!.context = { ref_ttl_hours: 24 };
+    config.agent!.rate_limits = { window_seconds: 60 };
+  };
+  const added = await loadBoth(withoutObjects, withObjects);
+  const addDiff = diffConfig(
+    { file: added.active.fileConfig, raw: added.active.config },
+    { file: added.file.fileConfig, raw: added.file.config },
+  );
+  expect(paths(addDiff.changes, 'hot')).toEqual(['agent.context', 'agent.daily_budget', 'agent.rate_limits']);
+  expect(paths(addDiff.changes, 'restart')).toEqual([]);
+  expect(addDiff.candidate.raw.agent.daily_budget.max_tokens).toBe(1000);
+  expect(addDiff.candidate.raw.agent.context.ref_ttl_hours).toBe(24);
+  expect(addDiff.candidate.raw.agent.rate_limits.window_seconds).toBe(60);
+
+  const removed = await loadBoth(withObjects, withoutObjects);
+  const removeDiff = diffConfig(
+    { file: removed.active.fileConfig, raw: removed.active.config },
+    { file: removed.file.fileConfig, raw: removed.file.config },
+  );
+  expect(paths(removeDiff.changes, 'hot')).toEqual(['agent.context', 'agent.daily_budget', 'agent.rate_limits']);
+  expect(paths(removeDiff.changes, 'restart')).toEqual([]);
+  expect(removeDiff.candidate.file.agent?.daily_budget).toBeUndefined();
+});
+
+test('dropping the whole agent section is hot and leaves no restart-only value behind', async () => {
+  const { active, file } = await loadBoth(undefined, (config) => {
+    (config as unknown as Record<string, unknown>).agent = null;
+  });
+  const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
+  expect(paths(diff.changes, 'restart')).toEqual([]);
+  expect(paths(diff.changes, 'hot')).toEqual(expect.arrayContaining(['agent.context', 'agent.daily_budget']));
+  expect(diff.candidate.file.agent).toBeNull();
 });

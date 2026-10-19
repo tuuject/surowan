@@ -169,7 +169,7 @@ export function sortThinkingLevels(levels: readonly ThinkingLevel[]): readonly T
 
 /** The agent model's entry in the file view, or `null` if the file lost it. */
 export function agentModelConfig(view: {
-  readonly agent: { readonly provider: string; readonly model: string };
+  readonly agent: { readonly provider: string | null; readonly model: string | null };
   readonly providers: readonly ProviderView[];
 }): ProviderModelConfig | null {
   const provider = view.providers.find((candidate) => candidate.alias === view.agent.provider);
@@ -457,7 +457,10 @@ export function toolSchemaKeywordsFromState(state: string): ProviderModelConfig[
 export type ModelUsage = 'agent' | 'vision' | 'both' | null;
 
 export function modelUsage(
-  view: { readonly agent: { provider: string; model: string }; readonly vision: { provider: string; model: string } },
+  view: {
+    readonly agent: { provider: string | null; model: string | null };
+    readonly vision: { provider: string; model: string };
+  },
   alias: string,
   modelId: string,
 ): ModelUsage {
@@ -476,7 +479,7 @@ export function modelUsage(
 }
 
 export function providerUsage(
-  view: { readonly agent: { provider: string }; readonly vision: { provider: string } },
+  view: { readonly agent: { provider: string | null }; readonly vision: { provider: string } },
   alias: string,
 ): { readonly agent: boolean; readonly vision: boolean } {
   return { agent: view.agent.provider === alias, vision: view.vision.provider === alias };

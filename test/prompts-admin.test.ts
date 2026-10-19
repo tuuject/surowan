@@ -521,3 +521,23 @@ test('saving a prompt reports affected runs and the scoped cancel stops only tho
     store.close();
   }
 });
+
+test('a group prompt keeps its configured file when no global prompt file is configured', async () => {
+  const { store, server, directory } = await fixture((config) => {
+    delete config.agent!.system_prompt_file;
+  });
+  try {
+    const cookie = await login(server);
+    const view = await readJson(
+      await server.handle(request('/api/prompts/group?chat=123456789&source=file', { headers: { cookie } })),
+    );
+    const saved = await readJson(
+      await server.handle(put('/api/prompts/group?chat=123456789', { prompt: 'group v2' }, cookie, view.content_hash)),
+    );
+    expect(saved).toMatchObject({ status: 'saved' });
+    expect(await readFile(join(directory, 'chat-instructions.md'), 'utf8')).toBe('group v2');
+    expect(await readFile(join(directory, 'config.jsonc'), 'utf8')).not.toContain('prompts/agent.md');
+  } finally {
+    store.close();
+  }
+});

@@ -73,7 +73,7 @@ async function setup(chatIds: number[] = [123456789], allowReplyMessageMultipleT
     testConfigJsonc(directory, (config) => {
       config.telegram.chats = chatIds.map((id) => ({ id, instructions_file: 'chat-instructions.md' }));
       if (allowReplyMessageMultipleTimes !== undefined) {
-        config.agent.allow_reply_message_multiple_times = allowReplyMessageMultipleTimes;
+        config.agent!.allow_reply_message_multiple_times = allowReplyMessageMultipleTimes;
       }
     }),
   );
@@ -195,7 +195,7 @@ function makeTool(
     sendRateLimit: { sendsPerWindow: options.sendsPerWindow ?? 6, windowSeconds: 300 },
     maxTextLength: undefined,
     disallowBlankLines: false,
-    allowReplyMessageMultipleTimes: config.agent.allow_reply_message_multiple_times === true,
+    allowReplyMessageMultipleTimes: config.agent!.allow_reply_message_multiple_times === true,
     deadline: Date.now() + 30_000,
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     ...(options.imageGeneration === undefined ? {} : { imageGeneration: options.imageGeneration }),
@@ -802,7 +802,7 @@ describe('reply deduplication', () => {
           fixture.store.transaction(() =>
             attachBucketToInvocation(
               fixture.store,
-              fixture.config.agent.history_messages,
+              fixture.config.agent!.history_messages,
               context.invocationId,
               collecting.id,
               context.conversationId,

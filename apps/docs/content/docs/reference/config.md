@@ -16,7 +16,7 @@ description: 按配置节理解 Plastic Wan 的必填项、覆盖关系与运行
 | `timezone` | 默认 IANA 时区；Chat 可单独覆盖。 |
 | `telegram` | Token 引用、Bucket、allowlist、Topic、管理员与参与策略。 |
 | `providers` | 已启用 Provider 与模型定义；凭据使用 SecretRef。 |
-| `agent` | 主模型、Prompt、全局 Token 预算、并发、Context 和发送限流；全部字段可热应用，模型与 Prompt 之外的字段可在 [Harness tuning](../configure/admin.md#harness-tuning) 页编辑。 |
+| `agent` | 可选段：主模型、Prompt、全局 Token 预算、并发、Context 和发送限流，整段可省略；全部字段可热应用，模型与 Prompt 之外的字段可在 [Harness tuning](../configure/admin.md#harness-tuning) 页编辑。 |
 | `vision` | 图片/Sticker 模型、并发、独立 Token 与图片日预算。 |
 | `admin` | 本地管理面板；修改后重启。 |
 | `developer` | 可选调试设置；`record_model_payloads` 与 `record_agent_thinking` 均可省略，默认 `false`，可热应用。详见[Developer 页面](../configure/admin.md#developer-调试开关)。 |
@@ -25,7 +25,7 @@ description: 按配置节理解 Plastic Wan 的必填项、覆盖关系与运行
 
 ## 覆盖与隔离
 
-全局 `agent.provider`、`model`、`thinking_level` 是默认值。Chat 同时指定 `provider` 和 `model` 时覆盖全局，`thinking_level` 可独立覆盖；Topic 使用所属 Chat 的模型设置。Chat 的 `participation.active_windows` 覆盖全局时段，关键词则追加到全局关键词。
+全局 `agent.provider`、`model`、`thinking_level` 是默认值，三项缺一即「未配置」：Bot 照常启动但不发起任何 Invocation，补齐后恢复；Chat 同时指定 `provider` 和 `model` 时覆盖全局，`thinking_level` 可独立覆盖；Topic 使用所属 Chat 的模型设置。Chat 的 `participation.active_windows` 覆盖全局时段，关键词则追加到全局关键词。
 
 Conversation、短期记忆和注意力窗口按 Chat + Topic 隔离；预算硬限制不是每群配额：主 Agent 日 Token 限制全局共享，Vision 有另一组全局限制。
 

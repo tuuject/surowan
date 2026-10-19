@@ -20,8 +20,12 @@ export interface ToolModelSelection {
   readonly inherited: boolean;
 }
 
-/** Resolves the configured tool model, or the global agent defaults. */
-export function resolveToolModel(config: RawConfig): ToolModelSelection {
+/**
+ * Resolves the configured tool model, or the global agent defaults. `undefined`
+ * when nothing is configured: the global triple is optional, and an incomplete
+ * one means there is no model to inherit.
+ */
+export function resolveToolModel(config: RawConfig): ToolModelSelection | undefined {
   const configured = config.tool_model;
   if (configured !== undefined) {
     return {
@@ -31,10 +35,9 @@ export function resolveToolModel(config: RawConfig): ToolModelSelection {
       inherited: false,
     };
   }
-  return {
-    provider: config.agent.provider,
-    model: config.agent.model,
-    thinkingLevel: config.agent.thinking_level,
-    inherited: true,
-  };
+  const { provider, model, thinking_level } = config.agent;
+  if (provider === undefined || model === undefined || thinking_level === undefined) {
+    return undefined;
+  }
+  return { provider, model, thinkingLevel: thinking_level, inherited: true };
 }

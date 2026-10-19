@@ -78,9 +78,9 @@ async function fixture(transform?: (config: FileConfig) => void): Promise<Fixtur
   const configPath = join(directory, 'config.jsonc');
   const jsonc = testConfigJsonc(directory, (config) => {
     config.telegram.bucket_window_seconds = 0;
-    config.agent.send_nudge_enabled = false;
+    config.agent!.send_nudge_enabled = false;
     // No idle grace: one bucket per invocation keeps the transcript steps exact.
-    config.agent.context.idle_grace_seconds = 0;
+    config.agent!.context!.idle_grace_seconds = 0;
     // The dictionary is injected from the global scope by default; a private
     // chat reads globals only, which is exactly the scope under test here.
     config.dictionary = { injection_mode: 'aggressive' };
@@ -92,7 +92,7 @@ async function fixture(transform?: (config: FileConfig) => void): Promise<Fixtur
   const configStore = await testConfigStore(loaded, registry);
   const store = await SqliteStore.open(loaded.config);
   const conversationRuntime = new ConversationRuntime({
-    agentCacheSize: () => loaded.config.agent.context.agent_cache_size,
+    agentCacheSize: () => loaded.config.agent!.context!.agent_cache_size,
   });
   const logs: string[] = [];
   const log = vi.spyOn(console, 'log').mockImplementation((line: unknown) => {

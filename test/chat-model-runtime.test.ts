@@ -136,8 +136,8 @@ async function setup(): Promise<Fixture> {
   const configPath = join(directory, 'config.jsonc');
   const jsonc = testConfigJsonc(directory, (config: FileConfig) => {
     config.telegram.bucket_window_seconds = 0;
-    config.agent.send_nudge_enabled = false;
-    config.agent.context.idle_grace_seconds = 0;
+    config.agent!.send_nudge_enabled = false;
+    config.agent!.context!.idle_grace_seconds = 0;
     // Add the vision model to the provider definition so validation passes.
     const agentProvider = config.providers.agent;
     if (agentProvider === undefined || agentProvider.kind !== 'custom') {
@@ -201,7 +201,7 @@ async function setup(): Promise<Fixture> {
     sendSticker: async () => ({ message_id: ++messageId, date: 1_700_000_100, chat: { id: CHAT_A } }),
   };
   const conversationRuntime = new ConversationRuntime({
-    agentCacheSize: () => loaded.config.agent.context.agent_cache_size,
+    agentCacheSize: () => loaded.config.agent!.context!.agent_cache_size,
   });
   return {
     store,

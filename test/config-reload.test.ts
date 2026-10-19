@@ -158,7 +158,7 @@ class CountingSecrets extends SecretStore {
  */
 function baseConfig(config: FileConfig): void {
   config.telegram.admins = [42];
-  config.agent.send_nudge_enabled = false;
+  config.agent!.send_nudge_enabled = false;
   config.providers.faux = {
     kind: 'builtin',
     provider: 'deepseek',
@@ -168,9 +168,9 @@ function baseConfig(config: FileConfig): void {
       model(SECOND_MODEL, { reasoning: true }),
     ],
   };
-  config.agent.provider = 'faux';
-  config.agent.model = AGENT_MODEL;
-  config.agent.thinking_level = 'low';
+  config.agent!.provider = 'faux';
+  config.agent!.model = AGENT_MODEL;
+  config.agent!.thinking_level = 'low';
 }
 
 function fauxAgent(): ReturnType<typeof fauxProvider> {
@@ -252,7 +252,7 @@ async function setup(
   const configStore = new RuntimeConfigurationStore({ config: loaded.config, hash: loaded.hash, ...registry });
   const modelSwitcher = new AgentModelSwitcher(configStore);
   const conversationRuntime = new ConversationRuntime({
-    agentCacheSize: () => loaded.config.agent.context.agent_cache_size,
+    agentCacheSize: () => loaded.config.agent!.context!.agent_cache_size,
   });
   const sends: string[] = [];
   let messageId = 900;
@@ -367,7 +367,7 @@ test('applies a hot field and reports both hashes', async () => {
   const fixture = await setup();
   try {
     await fixture.patch((config) => {
-      config.agent.thinking_level = 'high';
+      config.agent!.thinking_level = 'high';
     });
     const result = await fixture.reloader.reloadFromFile();
     expect(result.ok).toBe(true);
@@ -378,7 +378,7 @@ test('applies a hot field and reports both hashes', async () => {
     expect(result.restartRequired).toEqual([]);
     expect(result.outsideServe).toEqual([]);
     expect(result.status.generation).toBe(2);
-    expect(fixture.configStore.current().config.agent.thinking_level).toBe('high');
+    expect(fixture.configStore.current().config.agent!.thinking_level).toBe('high');
     const event = logEvents('config_reloaded').at(-1);
     expect(event).toMatchObject({
       generation: 2,
@@ -414,7 +414,7 @@ test('keeps the active configuration when the file is invalid', async () => {
         'prompt',
         () =>
           fixture.patch((config) => {
-            config.agent.system_prompt_file = 'missing-prompt.md';
+            config.agent!.system_prompt_file = 'missing-prompt.md';
           }),
       ],
     ];
@@ -451,7 +451,7 @@ test('refuses a candidate whose model cannot run the tool registry', async () =>
       builtinProvider(config.providers, 'faux').models.push(
         model('tiny-model', { reasoning: true, context_window: 1_000, max_tokens: 512 }),
       );
-      config.agent.model = 'tiny-model';
+      config.agent!.model = 'tiny-model';
     });
     const result = await fixture.reloader.reloadFromFile();
     expect(result.ok).toBe(false);
@@ -460,7 +460,7 @@ test('refuses a candidate whose model cannot run the tool registry', async () =>
     }
     expect(result.code).toBe('model_unusable');
     expect(result.message).toMatch(/10% of the model context window/);
-    expect(fixture.configStore.current().config.agent.model).toBe(AGENT_MODEL);
+    expect(fixture.configStore.current().config.agent!.model).toBe(AGENT_MODEL);
   } finally {
     fixture.store.close();
   }
@@ -472,7 +472,7 @@ test('refuses a builtin model the file does not list', async () => {
     // A builtin provider's models come from the file, so an unregistered
     // reference is a file error: `check-config` rejects it before a reload does.
     await fixture.patch((config) => {
-      config.agent.model = 'no-such-model';
+      config.agent!.model = 'no-such-model';
     });
     const result = await fixture.reloader.reloadFromFile();
     expect(result.ok).toBe(false);
@@ -481,7 +481,7 @@ test('refuses a builtin model the file does not list', async () => {
     }
     expect(result.code).toBe('config_invalid');
     expect(result.message).toContain('no-such-model');
-    expect(fixture.configStore.current().config.agent.model).toBe(AGENT_MODEL);
+    expect(fixture.configStore.current().config.agent!.model).toBe(AGENT_MODEL);
   } finally {
     fixture.store.close();
   }
@@ -491,7 +491,7 @@ test('rejects a candidate that is only invalid together with a pending restart f
   const fixture = await setup({
     transform: (config) => {
       config.telegram.bucket_window_seconds = 30;
-      config.agent.context.idle_grace_seconds = 30;
+      config.agent!.context!.idle_grace_seconds = 30;
     },
   });
   try {
@@ -499,7 +499,7 @@ test('rejects a candidate that is only invalid together with a pending restart f
     // bucket_window_seconds = 30 until it restarts, so 10 < 30 is invalid here.
     await fixture.patch((config) => {
       config.telegram.bucket_window_seconds = 5;
-      config.agent.context.idle_grace_seconds = 10;
+      config.agent!.context!.idle_grace_seconds = 10;
     });
     const result = await fixture.reloader.reloadFromFile();
     expect(result.ok).toBe(false);
@@ -510,7 +510,7 @@ test('rejects a candidate that is only invalid together with a pending restart f
     expect(result.message).toContain('after a restart');
     expect(result.message).toContain('telegram.bucket_window_seconds');
     expect(fixture.configStore.current().config.telegram.bucket_window_seconds).toBe(30);
-    expect(fixture.configStore.current().config.agent.context.idle_grace_seconds).toBe(30);
+    expect(fixture.configStore.current().config.agent!.context!.idle_grace_seconds).toBe(30);
   } finally {
     fixture.store.close();
   }
@@ -529,7 +529,7 @@ test('removing a chat and its instructions file together still reloads', async (
   try {
     await fixture.patch((config) => {
       config.telegram.chats = [{ id: CHAT_ID, instructions_file: 'chat-instructions.md' }];
-      config.agent.thinking_level = 'high';
+      config.agent!.thinking_level = 'high';
     });
     await rm(join(fixture.directory, 'second-chat.md'), { force: true });
     const result = await fixture.reloader.reloadFromFile();
@@ -550,7 +550,7 @@ test('applies hot fields while restart-only fields wait, and keeps waiting after
   const fixture = await setup();
   try {
     await fixture.patch((config) => {
-      config.agent.thinking_level = 'high';
+      config.agent!.thinking_level = 'high';
       config.telegram.bucket_window_seconds = 30;
     });
     const first = await fixture.reloader.reloadFromFile();
@@ -565,7 +565,7 @@ test('applies hot fields while restart-only fields wait, and keeps waiting after
     expect(fixture.configStore.current().hash).not.toBe(first.status.fileHash);
 
     await fixture.patch((config) => {
-      config.agent.thinking_level = 'medium';
+      config.agent!.thinking_level = 'medium';
     });
     const second = await fixture.reloader.reloadFromFile();
     expect(second.ok).toBe(true);
@@ -575,7 +575,7 @@ test('applies hot fields while restart-only fields wait, and keeps waiting after
     expect(second.applied).toEqual(['agent.thinking_level']);
     expect(second.restartRequired).toEqual(['telegram.bucket_window_seconds']);
     expect(second.status.generation).toBe(3);
-    expect(fixture.configStore.current().config.agent.thinking_level).toBe('medium');
+    expect(fixture.configStore.current().config.agent!.thinking_level).toBe('medium');
   } finally {
     fixture.store.close();
   }
@@ -585,7 +585,7 @@ test('reverting a pending restart field brings the active hash back to the file 
   const fixture = await setup();
   try {
     await fixture.patch((config) => {
-      config.agent.thinking_level = 'high';
+      config.agent!.thinking_level = 'high';
       config.telegram.bucket_window_seconds = 30;
     });
     const pending = await fixture.reloader.reloadFromFile();
@@ -608,7 +608,7 @@ test('reverting a pending restart field brings the active hash back to the file 
     expect(reverted.restartRequired).toEqual([]);
     expect(reverted.status.activeHash).toBe(reverted.status.fileHash);
     expect(reverted.status.generation).toBe(3);
-    expect(fixture.configStore.current().config.agent.thinking_level).toBe('high');
+    expect(fixture.configStore.current().config.agent!.thinking_level).toBe('high');
   } finally {
     fixture.store.close();
   }
@@ -695,7 +695,7 @@ test('treats a new chat as hot, a timezone edit as restart-only and an instructi
 test('a reload during a run does not reach that run', async () => {
   const fixture = await setup({
     transform: (config) => {
-      config.agent.send_max_text_length = 10;
+      config.agent!.send_max_text_length = 10;
     },
   });
   try {
@@ -706,7 +706,7 @@ test('a reload during a run does not reach that run', async () => {
         prompts.push(getCurrentSystemPrompt(context.messages));
         await writeFile(join(fixture.directory, 'agent-system-prompt.md'), 'A prompt for later runs.');
         await fixture.patch((config) => {
-          config.agent.send_max_text_length = 1_000;
+          config.agent!.send_max_text_length = 1_000;
         });
         const reloaded = await fixture.reloader.reloadFromFile();
         expect(reloaded.ok).toBe(true);
@@ -745,8 +745,8 @@ test('a reload during a run does not reach that run', async () => {
       fixture.store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM telegram_sends').get()?.count,
     ).toBe(0n);
     // The reload did happen: the next run gets the new prompt and limit.
-    expect(fixture.configStore.current().config.agent.send_max_text_length).toBe(1_000);
-    expect(fixture.configStore.current().config.agent.system_prompt).toBe('A prompt for later runs.');
+    expect(fixture.configStore.current().config.agent!.send_max_text_length).toBe(1_000);
+    expect(fixture.configStore.current().config.agent!.system_prompt).toBe('A prompt for later runs.');
   } finally {
     fixture.store.close();
   }
@@ -772,7 +772,7 @@ test('the next invocation uses the reloaded configuration', async () => {
     await runDirect(fixture, runtime, first);
     expect(levels).toEqual(['low']);
     await fixture.patch((config) => {
-      config.agent.thinking_level = 'high';
+      config.agent!.thinking_level = 'high';
     });
     const reloaded = await fixture.reloader.reloadFromFile();
     expect(reloaded.ok).toBe(true);
@@ -799,8 +799,8 @@ test('a bucket attached to a long-lived invocation keeps its snapshot', async ()
   const fixture = await setup({
     transform: (config) => {
       config.telegram.bucket_window_seconds = 1;
-      config.agent.context.idle_grace_seconds = 3;
-      config.agent.context.max_wall_clock_seconds = 60;
+      config.agent!.context!.idle_grace_seconds = 3;
+      config.agent!.context!.max_wall_clock_seconds = 60;
     },
   });
   const faux = fauxAgent();
@@ -854,7 +854,7 @@ test('a bucket attached to a long-lived invocation keeps its snapshot', async ()
     expect(
       fixture.store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM invocation_buckets').get()?.count,
     ).toBe(2n);
-    expect(fixture.configStore.current().config.agent.system_prompt).toBe('A prompt for later runs.');
+    expect(fixture.configStore.current().config.agent!.system_prompt).toBe('A prompt for later runs.');
     expect(fixture.configStore.current().config.telegram.chats[0]?.model).toBe(SECOND_MODEL);
     expect(levels).toEqual(['low', 'low']);
     await until(
@@ -935,7 +935,7 @@ test('a running invocation keeps the connection it started with', async () => {
   });
   const active = await setup({
     transform: (config) => {
-      config.agent.send_nudge_enabled = true;
+      config.agent!.send_nudge_enabled = true;
       config.providers.agent = {
         kind: 'custom',
         base_url: `${running.baseUrl}/`,
@@ -950,9 +950,9 @@ test('a running invocation keeps the connection it started with', async () => {
           }),
         ],
       };
-      config.agent.provider = 'agent';
-      config.agent.model = 'agent-model';
-      config.agent.thinking_level = 'off';
+      config.agent!.provider = 'agent';
+      config.agent!.model = 'agent-model';
+      config.agent!.thinking_level = 'off';
     },
   });
   fixture = active;
@@ -1042,7 +1042,7 @@ test('a reload that cannot resolve a new secret leaves the running configuration
 test('a run keeps the registry it started with when a reload publishes a new one', async () => {
   const fixture = await setup({
     transform: (config) => {
-      config.agent.send_nudge_enabled = true;
+      config.agent!.send_nudge_enabled = true;
     },
   });
   try {
@@ -1153,7 +1153,7 @@ test('a budget lowered during a run blocks the next model call', async () => {
     faux.setResponses([
       async () => {
         await fixture.patch((config) => {
-          config.agent.daily_budget.max_tokens = 100_000;
+          config.agent!.daily_budget!.max_tokens = 100_000;
         });
         const reloaded = await fixture.reloader.reloadFromFile();
         expect(reloaded.ok).toBe(true);
@@ -1197,8 +1197,8 @@ test('a reloaded model and thinking level show up in /status and the admin API',
   try {
     fixture.runtimeWith(fauxAgent());
     await fixture.patch((config) => {
-      config.agent.model = SECOND_MODEL;
-      config.agent.thinking_level = 'high';
+      config.agent!.model = SECOND_MODEL;
+      config.agent!.thinking_level = 'high';
     });
     const reloaded = await fixture.reloader.reloadFromFile();
     expect(reloaded.ok).toBe(true);
@@ -1256,8 +1256,8 @@ test('/model writes the file, keeps its comments and applies from the next run',
     }
     // A restart sees the same model: the file is the desired configuration.
     const reloaded = await loadConfig(fixture.configPath);
-    expect(reloaded.config.agent.model).toBe(AGENT_MODEL);
-    expect(fixture.configStore.current().config.agent.model).toBe(AGENT_MODEL);
+    expect(reloaded.config.agent!.model).toBe(AGENT_MODEL);
+    expect(fixture.configStore.current().config.agent!.model).toBe(AGENT_MODEL);
     expect(resolveAgentSettings(reloaded.config, reloaded.config.telegram.chats[0])).toMatchObject({
       provider: 'faux',
       model: SECOND_MODEL,
@@ -1355,22 +1355,22 @@ test('/model reports a written file that could not be applied', async () => {
   const fixture = await setup({
     transform: (config) => {
       config.telegram.bucket_window_seconds = 30;
-      config.agent.context.idle_grace_seconds = 30;
+      config.agent!.context!.idle_grace_seconds = 30;
     },
   });
   try {
     await fixture.patch((config) => {
       config.telegram.bucket_window_seconds = 5;
-      config.agent.context.idle_grace_seconds = 10;
+      config.agent!.context!.idle_grace_seconds = 10;
     });
     const reply = await fixture.commands.run({ name: 'model', argument: '1' }, BigInt(CHAT_ID), ADMIN);
     expect(reply.startsWith('已写入 config.jsonc，但应用失败: ')).toBe(true);
     // The write happened, the application did not.
     const written = await loadConfig(fixture.configPath);
     expect(written.config.telegram.chats[0]?.provider).toBe('agent');
-    expect(written.config.agent.provider).toBe('faux');
+    expect(written.config.agent!.provider).toBe('faux');
     expect(fixture.configStore.current().config.telegram.chats[0]?.provider).toBeUndefined();
-    expect(fixture.configStore.current().config.agent.provider).toBe('faux');
+    expect(fixture.configStore.current().config.agent!.provider).toBe('faux');
   } finally {
     fixture.store.close();
   }
@@ -1391,7 +1391,7 @@ test('invocations.config_hash records the hash that was active when the run star
     expect(queued?.config_hash).toBe(fixture.configStore.current().hash);
 
     await fixture.patch((config) => {
-      config.agent.thinking_level = 'high';
+      config.agent!.thinking_level = 'high';
     });
     const reloaded = await fixture.reloader.reloadFromFile();
     expect(reloaded.ok).toBe(true);
@@ -1428,7 +1428,7 @@ test('redacts secrets from reload errors and logs', async () => {
   });
   try {
     await fixture.patch((config) => {
-      config.agent.system_prompt_file = 'secret-prompt-name.md';
+      config.agent!.system_prompt_file = 'secret-prompt-name.md';
     });
     const result = await fixture.reloader.reloadFromFile();
     expect(result.ok).toBe(false);
@@ -1449,7 +1449,7 @@ test('redacts secrets from reload errors and logs', async () => {
 test('a reloaded history_messages applies to new invocations only', async () => {
   const fixture = await setup({
     transform: (config) => {
-      config.agent.history_messages = 1;
+      config.agent!.history_messages = 1;
     },
   });
   try {
@@ -1481,7 +1481,7 @@ test('a reloaded history_messages applies to new invocations only', async () => 
     settle(fixture, second);
 
     await fixture.patch((config) => {
-      config.agent.history_messages = 20;
+      config.agent!.history_messages = 20;
     });
     const reloaded = await fixture.reloader.reloadFromFile();
     expect(reloaded.ok).toBe(true);
@@ -1553,7 +1553,7 @@ test('admin config endpoints apply the file and report status', async () => {
     expect(rejectedModel.status).toBe(403);
 
     await fixture.patch((config) => {
-      config.agent.thinking_level = 'high';
+      config.agent!.thinking_level = 'high';
     });
     const applied = await json(await server.handle(call('/api/config/apply', { method: 'POST', headers: { cookie } })));
     expect(applied).toMatchObject({
@@ -1665,7 +1665,7 @@ test('a write with a stale revision is refused and leaves the file unchanged', a
     }
     expect(stale.code).toBe('config_conflict');
     expect(await fixture.readText()).toBe(before);
-    expect(fixture.configStore.current().config.agent.thinking_level).toBe('low');
+    expect(fixture.configStore.current().config.agent!.thinking_level).toBe('low');
 
     const applied = await fixture.reloader.writeAndApply(
       [{ path: ['agent', 'thinking_level'], value: 'high' }],
@@ -1676,7 +1676,7 @@ test('a write with a stale revision is refused and leaves the file unchanged', a
       throw new Error(applied.message);
     }
     expect(applied.applied).toEqual(['agent.thinking_level']);
-    expect(fixture.configStore.current().config.agent.thinking_level).toBe('high');
+    expect(fixture.configStore.current().config.agent!.thinking_level).toBe('high');
     // Leaf edits keep the comments the test configuration was written with.
     expect(await fixture.readText()).toBe(before.replace('"thinking_level": "low"', '"thinking_level": "high"'));
   } finally {
@@ -1694,7 +1694,7 @@ test('setAgentModel resets the thinking level to the weakest one the new model a
     },
   });
   try {
-    expect(fixture.configStore.current().config.agent.thinking_level).toBe('low');
+    expect(fixture.configStore.current().config.agent!.thinking_level).toBe('low');
     const result = await fixture.reloader.setAgentModel('agent', 'agent-extra');
     expect(result.ok).toBe(true);
     if (!result.ok) {
@@ -1711,7 +1711,7 @@ test('setAgentModel resets the thinking level to the weakest one the new model a
     // Switching back does not restore the old level: it resets again.
     const back = await fixture.reloader.setAgentModel('faux', AGENT_MODEL);
     expect(back.ok).toBe(true);
-    expect(fixture.configStore.current().config.agent.thinking_level).toBe('off');
+    expect(fixture.configStore.current().config.agent!.thinking_level).toBe('off');
   } finally {
     fixture.store.close();
   }
@@ -1839,8 +1839,8 @@ test('a new model on an existing custom provider is hot and immediately selectab
 test('editing the model in use is hot', async () => {
   const fixture = await setup({
     transform: (config) => {
-      config.agent.provider = 'agent';
-      config.agent.model = 'agent-model';
+      config.agent!.provider = 'agent';
+      config.agent!.model = 'agent-model';
     },
   });
   try {
@@ -1865,16 +1865,16 @@ test('editing the model in use is hot', async () => {
 test('editing a model the agent just left is hot', async () => {
   const fixture = await setup({
     transform: (config) => {
-      config.agent.provider = 'agent';
-      config.agent.model = 'agent-model';
+      config.agent!.provider = 'agent';
+      config.agent!.model = 'agent-model';
     },
   });
   try {
     await fixture.patch((config) => {
-      config.agent.provider = 'vision';
-      config.agent.model = 'vision-model';
+      config.agent!.provider = 'vision';
+      config.agent!.model = 'vision-model';
       // The vision model does not reason, so `off` is the only level it takes.
-      config.agent.thinking_level = 'off';
+      config.agent!.thinking_level = 'off';
       customProvider(config.providers, 'agent').models[0]!.context_window = 100_000;
     });
     const result = await fixture.reloader.reloadFromFile();
@@ -1971,9 +1971,9 @@ test('an agent pointing at a brand new provider switches in the same reload', as
         api_key: { jar: 'extra' },
         models: [model('extra-model', { reasoning: true })],
       };
-      config.agent.provider = 'extra';
-      config.agent.model = 'extra-model';
-      config.agent.thinking_level = 'high';
+      config.agent!.provider = 'extra';
+      config.agent!.model = 'extra-model';
+      config.agent!.thinking_level = 'high';
     });
     const result = await fixture.reloader.reloadFromFile();
     expect(result.ok).toBe(true);
@@ -1996,7 +1996,7 @@ test('removing a provider is hot and unregisters it', async () => {
       delete config.providers.vision;
       config.vision.provider = 'agent';
       config.vision.model = 'agent-model';
-      config.agent.provider = 'faux';
+      config.agent!.provider = 'faux';
     });
     const result = await fixture.reloader.reloadFromFile();
     expect(result.ok).toBe(true);
@@ -2354,14 +2354,14 @@ test('self-ignore reports apply failures after persisting and repeated commands 
   const fixture = await setup({
     transform: (config) => {
       config.telegram.bucket_window_seconds = 30;
-      config.agent.context.idle_grace_seconds = 30;
+      config.agent!.context!.idle_grace_seconds = 30;
     },
   });
   try {
     const before = fixture.configStore.current();
     await fixture.patch((config) => {
       config.telegram.bucket_window_seconds = 5;
-      config.agent.context.idle_grace_seconds = 10;
+      config.agent!.context!.idle_grace_seconds = 10;
     });
     const reply = await fixture.commands.run({ name: 'ignoreme' }, BigInt(CHAT_ID), ADMIN);
     expect(reply).toContain('已写入 config.jsonc，但应用失败');
@@ -2369,7 +2369,7 @@ test('self-ignore reports apply failures after persisting and repeated commands 
     expect(fixture.configStore.current()).toBe(before);
     expect(logEvents('config_reload_failed').at(-1)?.code).toBe('candidate_invalid');
     const corrected = (await loadConfig(fixture.configPath)).fileConfig;
-    corrected.agent.context.idle_grace_seconds = 30;
+    corrected.agent!.context!.idle_grace_seconds = 30;
     await fixture.writeText(`${JSON.stringify(corrected, null, 2)}\n`);
     const saved = await fixture.readText();
     const retried = await fixture.commands.run({ name: 'ignoreme' }, BigInt(CHAT_ID), ADMIN);
@@ -2548,7 +2548,7 @@ test('global model changes refuse inherited thinking incompatibility and preserv
       model: SECOND_MODEL,
       thinking_level: 'off',
     });
-    expect(config.agent.provider).toBe('agent');
+    expect(config.agent!.provider).toBe('agent');
   } finally {
     fixture.store.close();
   }
@@ -2570,7 +2570,7 @@ test('concurrent switches in different Chats retain both overrides', async () =>
     const written = await loadConfig(fixture.configPath);
     expect(written.config.telegram.chats.find((chat) => chat.id === CHAT_ID)?.model).toBe(SECOND_MODEL);
     expect(written.config.telegram.chats.find((chat) => chat.id === secondChat)?.model).toBe('agent-model');
-    expect(written.config.agent.model).toBe(AGENT_MODEL);
+    expect(written.config.agent!.model).toBe(AGENT_MODEL);
   } finally {
     fixture.store.close();
   }

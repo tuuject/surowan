@@ -759,7 +759,7 @@ test('merge preview calls the tool model and persists nothing; confirm writes at
         orm: store.orm,
         models: configStore.current().models,
         secrets: new SecretStore(),
-        toolModel: resolveToolModel(configStore.current().config),
+        toolModel: resolveToolModel(configStore.current().config)!,
       },
       [a.id, b.id],
     );
@@ -882,7 +882,7 @@ test('merge rejects an abnormal stop reason and an invalid suggestion, and audit
       orm: store.orm,
       models: configStore.current().models,
       secrets: new SecretStore(),
-      toolModel: resolveToolModel(configStore.current().config),
+      toolModel: resolveToolModel(configStore.current().config)!,
     };
     const calls = () =>
       store.db

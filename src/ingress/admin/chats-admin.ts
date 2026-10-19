@@ -193,7 +193,17 @@ export function updateChatParticipation(file: FileConfig, id: number, body: Part
   return [{ path: ['telegram', 'chats', index, 'participation', 'active_windows'], value: body.active_windows }];
 }
 
-function chatSettings(config: { agent: AgentSettings }, chat: FileChat | undefined) {
+/** The API spells a missing identity field as `null`, never as an absent key. */
+function agentSettingsView(config: { agent?: AgentSettings | null }, chat?: FileChat) {
+  const settings = resolveAgentSettings(config, chat);
+  return {
+    provider: settings.provider ?? null,
+    model: settings.model ?? null,
+    thinking_level: settings.thinking_level ?? null,
+  };
+}
+
+function chatSettings(config: { agent?: AgentSettings | null }, chat: FileChat | undefined) {
   return chat === undefined
     ? null
     : {
@@ -203,7 +213,7 @@ function chatSettings(config: { agent: AgentSettings }, chat: FileChat | undefin
         thinking_level: chat.thinking_level ?? null,
         participation: chat.participation ?? null,
         timezone: chat.timezone ?? null,
-        effective: resolveAgentSettings(config, chat),
+        effective: agentSettingsView(config, chat),
       };
 }
 
@@ -222,7 +232,7 @@ export function listChats(
     restart_required: restartRequired,
     timezone: file.timezone,
     global_participation: file.telegram.participation ?? null,
-    defaults: resolveAgentSettings(file),
+    defaults: agentSettingsView(file),
     models: Object.entries(file.providers).flatMap(([provider, definition]) =>
       definition.models
         .filter((model) => model.input.includes('text'))

@@ -31,7 +31,8 @@ import { ContextRefStore, createCapabilityResolver } from '../context/context-re
 import { type ContextHeader, ConversationContextStore, type RetainedContextMessage } from '../context/context-store.ts';
 import { KeyedSemaphore } from '../platform/concurrency.ts';
 import {
-  type AgentSettings,
+  type ActiveAgentSettings,
+  completeAgentSettings,
   configuredToolSchemaKeywords,
   type RawConfig,
   resolveAgentSettings,
@@ -376,7 +377,12 @@ export class AgentRuntime {
     if (chat === undefined) {
       throw new Error(`Invocation chat ${identity.chatId} is no longer configured`);
     }
-    const settings = resolveAgentSettings(config, chat);
+    // The queue gates on the same check, but a reload may have dropped the
+    // identity triple between queuing and launch; abort instead of erroring.
+    const settings = completeAgentSettings(resolveAgentSettings(config, chat));
+    if (settings === undefined) {
+      return { state: 'aborted', reason: 'agent_unconfigured' };
+    }
     const model = snapshot.models.getModel(settings.provider, settings.model);
     if (model === undefined) {
       throw new Error(`Agent model ${settings.provider}/${settings.model} is not registered`);
@@ -1198,7 +1204,7 @@ export class AgentRuntime {
    * identically after an eviction or a process restart.
    */
   #createCachedAgent(
-    settings: AgentSettings,
+    settings: ActiveAgentSettings,
     identity: ContextIdentity,
     header: ContextHeader,
     stable: StablePrompt,

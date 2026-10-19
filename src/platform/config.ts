@@ -178,6 +178,55 @@ export const DictionaryInjectionModeSchema = Type.Union([
 export type DictionaryInjectionMode = Static<typeof DictionaryInjectionModeSchema>;
 
 /**
+ * The file shape of the `agent` section: every field optional, because a
+ * deployment may run without a model at all (message ingestion and the panel
+ * still work; no invocation ever starts). The runtime-facing form is
+ * `AgentRuntimeConfig`, produced by `resolveAgentSection`.
+ */
+export const AgentContextSectionSchema = Type.Object(
+  {
+    retained_sends_target: Type.Optional(Type.Integer({ minimum: 1 })),
+    retained_sends_max: Type.Optional(Type.Integer({ minimum: 2 })),
+    hard_token_ratio: Type.Optional(Type.Number({ exclusiveMinimum: 0, maximum: 0.8 })),
+    ref_ttl_hours: Type.Optional(Type.Integer({ minimum: 1, maximum: 720 })),
+    idle_grace_seconds: Type.Optional(Type.Integer({ minimum: 0, maximum: 3_600 })),
+    max_wall_clock_seconds: Type.Optional(Type.Integer({ minimum: 1, maximum: 86_400 })),
+    agent_cache_size: Type.Optional(Type.Integer({ minimum: 1, maximum: 1_024 })),
+  },
+  Strict,
+);
+export const AgentRateLimitsSectionSchema = Type.Object(
+  {
+    sends_per_window: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
+    window_seconds: Type.Optional(Type.Integer({ minimum: 1, maximum: 86_400 })),
+    turns_per_injection: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
+  },
+  Strict,
+);
+export const AgentSectionSchema = Type.Object(
+  {
+    provider: Type.Optional(Type.String({ minLength: 1 })),
+    model: Type.Optional(Type.String({ minLength: 1 })),
+    daily_budget: Type.Optional(Type.Object({ max_tokens: Type.Optional(PositiveInteger) }, Strict)),
+    thinking_level: Type.Optional(ThinkingLevelSchema),
+    system_prompt_file: Type.Optional(Type.String({ minLength: 1 })),
+    send_max_text_length: Type.Optional(Type.Integer({ minimum: 1, maximum: 4096 })),
+    send_disallow_blank_lines: Type.Optional(Type.Boolean()),
+    max_concurrency: Type.Optional(PositiveInteger),
+    context_stop_ratio: Type.Optional(Type.Number({ exclusiveMinimum: 0, maximum: 0.8 })),
+    history_messages: Type.Optional(Type.Integer({ minimum: 1 })),
+    memory_ttl_warning_days: Type.Optional(PositiveInteger),
+    send_nudge_enabled: Type.Optional(Type.Boolean()),
+    send_barrier_enabled: Type.Optional(Type.Boolean()),
+    allow_reply_message_multiple_times: Type.Optional(Type.Boolean({ default: false })),
+    send_duplicate_guard_enabled: Type.Optional(Type.Boolean({ default: true })),
+    context: Type.Optional(AgentContextSectionSchema),
+    rate_limits: Type.Optional(AgentRateLimitsSectionSchema),
+  },
+  Strict,
+);
+
+/**
  * The system-wide auxiliary model for dictionary merge and future helper tasks.
  * Absent means "inherit the global agent settings"; each Chat override is
  * deliberately not consulted, so one group's chat model cannot change a
@@ -326,46 +375,10 @@ export const ConfigSchema = Type.Object(
       Strict,
     ),
     providers: Type.Record(Type.String({ minLength: 1 }), Type.Union([BuiltinProviderSchema, CustomProviderSchema])),
-    agent: Type.Object(
-      {
-        provider: Type.String({ minLength: 1 }),
-        model: Type.String({ minLength: 1 }),
-        daily_budget: Type.Object({ max_tokens: PositiveInteger }, Strict),
-        thinking_level: ThinkingLevelSchema,
-        system_prompt_file: Type.String({ minLength: 1 }),
-        send_max_text_length: Type.Optional(Type.Integer({ minimum: 1, maximum: 4096 })),
-        send_disallow_blank_lines: Type.Optional(Type.Boolean()),
-        max_concurrency: PositiveInteger,
-        context_stop_ratio: Type.Number({ exclusiveMinimum: 0, maximum: 0.8 }),
-        history_messages: Type.Integer({ minimum: 1 }),
-        memory_ttl_warning_days: Type.Optional(PositiveInteger),
-        send_nudge_enabled: Type.Optional(Type.Boolean()),
-        send_barrier_enabled: Type.Optional(Type.Boolean()),
-        allow_reply_message_multiple_times: Type.Optional(Type.Boolean({ default: false })),
-        send_duplicate_guard_enabled: Type.Optional(Type.Boolean({ default: true })),
-        context: Type.Object(
-          {
-            retained_sends_target: Type.Integer({ minimum: 1 }),
-            retained_sends_max: Type.Integer({ minimum: 2 }),
-            hard_token_ratio: Type.Number({ exclusiveMinimum: 0, maximum: 0.8 }),
-            ref_ttl_hours: Type.Integer({ minimum: 1, maximum: 720 }),
-            idle_grace_seconds: Type.Integer({ minimum: 0, maximum: 3_600 }),
-            max_wall_clock_seconds: Type.Integer({ minimum: 1, maximum: 86_400 }),
-            agent_cache_size: Type.Integer({ minimum: 1, maximum: 1_024 }),
-          },
-          Strict,
-        ),
-        rate_limits: Type.Object(
-          {
-            sends_per_window: Type.Integer({ minimum: 1, maximum: 100 }),
-            window_seconds: Type.Integer({ minimum: 1, maximum: 86_400 }),
-            turns_per_injection: Type.Integer({ minimum: 1, maximum: 100 }),
-          },
-          Strict,
-        ),
-      },
-      Strict,
-    ),
+    // `agent` may be absent, null or a partial object: every field is optional,
+    // and only the provider/model/thinking_level triple decides whether any
+    // invocation can start — everything else resolves to AGENT_DEFAULTS.
+    agent: Type.Optional(Type.Union([AgentSectionSchema, Type.Null()])),
     vision: Type.Object(
       {
         provider: Type.String({ minLength: 1 }),
@@ -426,19 +439,131 @@ export type ProviderApi = Static<typeof CustomProviderApiSchema>;
 export type ModelCompatConfig = Static<typeof ModelCompatSchema>;
 export type ThinkingLevelConfig = Static<typeof ThinkingLevelSchema>;
 export type ModelFileConfig = Static<typeof ModelConfigSchema>;
+export type AgentSectionConfig = Static<typeof AgentSectionSchema>;
 export type FileConfig = Static<typeof ConfigSchema>;
 export type FileChat = FileConfig['telegram']['chats'][number];
-export type AgentSettings = Pick<FileConfig['agent'], 'provider' | 'model' | 'thinking_level'>;
+/**
+ * The model identity triple as configured: every field may be absent, and only a
+ * fully specified one can run an invocation (`completeAgentSettings` is the
+ * gate). A Chat override may supply whichever fields the global section lacks.
+ */
+export type AgentSettings = Pick<AgentSectionConfig, 'provider' | 'model' | 'thinking_level'>;
+
+/** All three identity fields present — the state in which invocations may start. */
+export type ActiveAgentSettings = Required<AgentSettings>;
+
+export function completeAgentSettings(settings: AgentSettings): ActiveAgentSettings | undefined {
+  const { provider, model, thinking_level } = settings;
+  if (provider === undefined || model === undefined || thinking_level === undefined) {
+    return undefined;
+  }
+  return { provider, model, thinking_level };
+}
 
 /** Resolves Chat overrides, or the global defaults when no Chat is supplied. */
 export function resolveAgentSettings(
-  config: { agent: AgentSettings },
+  config: { readonly agent?: AgentSettings | null },
   chat?: Pick<FileChat, 'provider' | 'model' | 'thinking_level'>,
 ): AgentSettings {
+  const agent = config.agent ?? undefined;
+  const provider = chat?.provider ?? agent?.provider;
+  const model = chat?.model ?? agent?.model;
+  const thinking_level = chat?.thinking_level ?? agent?.thinking_level;
   return {
-    provider: chat?.provider ?? config.agent.provider,
-    model: chat?.model ?? config.agent.model,
-    thinking_level: chat?.thinking_level ?? config.agent.thinking_level,
+    ...(provider === undefined ? {} : { provider }),
+    ...(model === undefined ? {} : { model }),
+    ...(thinking_level === undefined ? {} : { thinking_level }),
+  };
+}
+
+/**
+ * The runtime half of the `agent` section: `resolveAgentSection` fills every
+ * field that has a default, so consumers keep reading concrete values. The
+ * identity triple and the send/memory toggles stay optional — an absent triple
+ * means "no invocations", an absent toggle means "off" (or on, for the
+ * duplicate-send guard).
+ */
+export interface AgentRuntimeConfig extends AgentSettings {
+  readonly daily_budget: { readonly max_tokens: number };
+  readonly max_concurrency: number;
+  readonly context_stop_ratio: number;
+  readonly history_messages: number;
+  readonly memory_ttl_warning_days?: number;
+  readonly send_max_text_length?: number;
+  readonly send_disallow_blank_lines?: boolean;
+  readonly send_nudge_enabled?: boolean;
+  readonly send_barrier_enabled?: boolean;
+  readonly allow_reply_message_multiple_times?: boolean;
+  readonly send_duplicate_guard_enabled?: boolean;
+  readonly context: {
+    readonly retained_sends_target: number;
+    readonly retained_sends_max: number;
+    readonly hard_token_ratio: number;
+    readonly ref_ttl_hours: number;
+    readonly idle_grace_seconds: number;
+    readonly max_wall_clock_seconds: number;
+    readonly agent_cache_size: number;
+  };
+  readonly rate_limits: {
+    readonly sends_per_window: number;
+    readonly window_seconds: number;
+    readonly turns_per_injection: number;
+  };
+  /** Path the prompt text was loaded from; informational, the text lives in `system_prompt`. */
+  readonly system_prompt_file?: string;
+}
+
+/**
+ * Values a configuration gets when it leaves a field out. `idle_grace_seconds`
+ * defaults to 0 — not 60 like the documented example — because it is the only
+ * value that stays valid for every `telegram.bucket_window_seconds` an empty
+ * `agent` section may sit next to.
+ */
+export const AGENT_DEFAULTS = {
+  daily_budget: { max_tokens: 1_000_000_000 },
+  max_concurrency: 4,
+  context_stop_ratio: 0.8,
+  history_messages: 20,
+  context: {
+    retained_sends_target: 20,
+    retained_sends_max: 30,
+    hard_token_ratio: 0.6,
+    ref_ttl_hours: 72,
+    idle_grace_seconds: 0,
+    max_wall_clock_seconds: 1_800,
+    agent_cache_size: 32,
+  },
+  rate_limits: {
+    sends_per_window: 100,
+    window_seconds: 300,
+    turns_per_injection: 24,
+  },
+} as const;
+
+/** Fills the optional `agent` section with `AGENT_DEFAULTS`, field by field. */
+export function resolveAgentSection(section: AgentSectionConfig | null | undefined): AgentRuntimeConfig {
+  const context = section?.context;
+  const rateLimits = section?.rate_limits;
+  return {
+    ...(section ?? {}),
+    daily_budget: { max_tokens: section?.daily_budget?.max_tokens ?? AGENT_DEFAULTS.daily_budget.max_tokens },
+    max_concurrency: section?.max_concurrency ?? AGENT_DEFAULTS.max_concurrency,
+    context_stop_ratio: section?.context_stop_ratio ?? AGENT_DEFAULTS.context_stop_ratio,
+    history_messages: section?.history_messages ?? AGENT_DEFAULTS.history_messages,
+    context: {
+      retained_sends_target: context?.retained_sends_target ?? AGENT_DEFAULTS.context.retained_sends_target,
+      retained_sends_max: context?.retained_sends_max ?? AGENT_DEFAULTS.context.retained_sends_max,
+      hard_token_ratio: context?.hard_token_ratio ?? AGENT_DEFAULTS.context.hard_token_ratio,
+      ref_ttl_hours: context?.ref_ttl_hours ?? AGENT_DEFAULTS.context.ref_ttl_hours,
+      idle_grace_seconds: context?.idle_grace_seconds ?? AGENT_DEFAULTS.context.idle_grace_seconds,
+      max_wall_clock_seconds: context?.max_wall_clock_seconds ?? AGENT_DEFAULTS.context.max_wall_clock_seconds,
+      agent_cache_size: context?.agent_cache_size ?? AGENT_DEFAULTS.context.agent_cache_size,
+    },
+    rate_limits: {
+      sends_per_window: rateLimits?.sends_per_window ?? AGENT_DEFAULTS.rate_limits.sends_per_window,
+      window_seconds: rateLimits?.window_seconds ?? AGENT_DEFAULTS.rate_limits.window_seconds,
+      turns_per_injection: rateLimits?.turns_per_injection ?? AGENT_DEFAULTS.rate_limits.turns_per_injection,
+    },
   };
 }
 
@@ -446,7 +571,7 @@ export type ParticipationConfig = Static<typeof ParticipationSchema>;
 export type ParticipationWindowConfig = Static<typeof ParticipationWindowSchema>;
 export type RawConfig = Omit<FileConfig, 'agent' | 'telegram' | 'developer'> & {
   developer: { record_model_payloads: boolean; record_agent_thinking: boolean };
-  agent: Omit<FileConfig['agent'], 'system_prompt_file'> & { system_prompt: string };
+  agent: AgentRuntimeConfig & { readonly system_prompt: string };
   telegram: Omit<FileConfig['telegram'], 'chats'> & {
     chats: Array<Omit<FileChat, 'instructions_file'> & { instructions: string }>;
   };
@@ -490,6 +615,11 @@ export function validateFileConfig(parsed: unknown): { fileConfig: FileConfig; w
     throw new Error(`Invalid config: ${details}`);
   }
   validateSemantics(parsed);
+  if (completeAgentSettings(resolveAgentSettings(parsed)) === undefined) {
+    warnings.push(
+      'agent.provider, agent.model and agent.thinking_level are not all set: the bot will run without starting any invocation',
+    );
+  }
   return { fileConfig: parsed, warnings };
 }
 
@@ -557,7 +687,6 @@ export function assembleRawConfig(
   systemPrompt: string,
   instructionsByChatId: ReadonlyMap<number, string>,
 ): RawConfig {
-  const { system_prompt_file, ...agent } = fileConfig.agent;
   const chats = fileConfig.telegram.chats.map((chat) => {
     const { instructions_file, ...rest } = chat;
     return { ...rest, instructions: instructionsByChatId.get(chat.id) ?? '' };
@@ -568,7 +697,7 @@ export function assembleRawConfig(
       record_model_payloads: fileConfig.developer?.record_model_payloads ?? false,
       record_agent_thinking: fileConfig.developer?.record_agent_thinking ?? false,
     },
-    agent: { ...agent, system_prompt: systemPrompt },
+    agent: { ...resolveAgentSection(fileConfig.agent), system_prompt: systemPrompt },
     telegram: { ...fileConfig.telegram, chats },
   };
 }
@@ -607,7 +736,8 @@ export function validateSemantics(config: FileConfig): void {
   }
   validateTimezone(config.timezone, 'timezone');
   validateParticipation(config.telegram.participation, 'telegram.participation');
-  validateContextConfig(config);
+  const agent = resolveAgentSection(config.agent);
+  validateContextConfig(config, agent);
   const chatIds = new Set<number>();
   for (const chat of config.telegram.chats) {
     if (!Number.isSafeInteger(chat.id) || chat.id === 0) {
@@ -649,9 +779,16 @@ export function validateSemantics(config: FileConfig): void {
   assertUnique(config.telegram.sticker_sets ?? [], (item) => item.alias, 'sticker set alias');
   assertUnique(config.telegram.sticker_sets ?? [], (item) => item.name, 'sticker set name');
   const providerAliases = new Set(Object.keys(config.providers));
-  validateModelReference(config, config.agent.provider, config.agent.model, 'agent', ['text']);
+  // The agent model reference is validated only when both fields are written:
+  // a missing provider/model pair never reaches a model lookup at runtime.
+  if (agent.provider !== undefined && agent.model !== undefined) {
+    validateModelReference(config, agent.provider, agent.model, 'agent', ['text']);
+  }
   validateModelReference(config, config.vision.provider, config.vision.model, 'vision', ['image']);
-  if (!providerAliases.has(config.agent.provider) || !providerAliases.has(config.vision.provider)) {
+  if (
+    (agent.provider !== undefined && !providerAliases.has(agent.provider)) ||
+    !providerAliases.has(config.vision.provider)
+  ) {
     throw new Error('Agent and vision providers must reference configured aliases');
   }
   for (const [alias, provider] of Object.entries(config.providers)) {
@@ -678,7 +815,7 @@ export function validateSemantics(config: FileConfig): void {
       }
     }
   }
-  validateAgentThinkingLevel(config, config.agent, 'agent');
+  validateAgentThinkingLevel(config, agent, 'agent');
   const toolModel = config.tool_model;
   if (toolModel !== undefined) {
     validateModelReference(config, toolModel.provider, toolModel.model, 'tool_model', ['text']);
@@ -811,6 +948,11 @@ export function configuredToolSchemaKeywords(
  */
 function validateAgentThinkingLevel(config: FileConfig, settings: AgentSettings, label: string): void {
   const { provider, model: modelId, thinking_level: level } = settings;
+  // An incomplete identity never runs, so there is nothing to check the level
+  // against; the file stays loadable instead of rejecting a legal section.
+  if (provider === undefined || modelId === undefined || level === undefined) {
+    return;
+  }
   const model = config.providers[provider]?.models.find((candidate) => candidate.id === modelId);
   if (model === undefined) {
     return;
@@ -859,12 +1001,12 @@ function validateParticipation(participation: ParticipationConfig | undefined, l
  * window would look enabled while every run ends before the next bucket is due:
  * a silent degradation, rejected here instead of at 3 a.m. in production.
  */
-function validateContextConfig(config: FileConfig): void {
-  const context = config.agent.context;
+function validateContextConfig(config: FileConfig, agent: AgentRuntimeConfig): void {
+  const context = agent.context;
   if (context.retained_sends_target >= context.retained_sends_max) {
     throw new Error('agent.context.retained_sends_target must be smaller than retained_sends_max');
   }
-  if (context.hard_token_ratio > config.agent.context_stop_ratio) {
+  if (context.hard_token_ratio > agent.context_stop_ratio) {
     throw new Error('agent.context.hard_token_ratio must not exceed agent.context_stop_ratio');
   }
   if (context.idle_grace_seconds > 0 && context.idle_grace_seconds < config.telegram.bucket_window_seconds) {

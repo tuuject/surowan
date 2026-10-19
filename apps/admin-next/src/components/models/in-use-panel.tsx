@@ -24,9 +24,12 @@ export function InUsePanel({
   const { t } = useTranslation();
   const write = useProviderWrite();
   const agentModel = agentModelConfig(view);
-  // The file always names a configured agent model; if it was edited away under
-  // us, the current level is the only one this page can vouch for.
-  const levels = agentModel === null ? [view.agent.thinking_level] : supportedThinkingLevels(agentModel);
+  const current = view.agent.thinking_level;
+  // Without a resolvable agent model the current level, if any, is the only one
+  // this page can vouch for.
+  const levels = agentModel !== null ? supportedThinkingLevels(agentModel) : current === null ? [] : [current];
+  // An unset level must stay pickable even when the model offers just one.
+  const levelLocked = levels.length === 0 || (levels.length < 2 && current !== null);
 
   const setLevel = useMutation({
     mutationFn: (level: ThinkingLevel) => setAgentThinkingLevel(level, revision),
@@ -45,23 +48,28 @@ export function InUsePanel({
         items={[
           {
             label: t('models.models.inUse.agentModel'),
-            value: <MonoValue value={`${view.agent.provider} / ${view.agent.model}`} />,
+            value:
+              view.agent.provider === null || view.agent.model === null ? (
+                <span className="text-muted-foreground">{t('models.models.inUse.notConfigured')}</span>
+              ) : (
+                <MonoValue value={`${view.agent.provider} / ${view.agent.model}`} />
+              ),
           },
           {
             label: t('models.models.inUse.thinkingEffort'),
             value: (
               <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <Select
-                  value={view.agent.thinking_level}
-                  disabled={setLevel.isPending || levels.length < 2}
+                  value={current ?? ''}
+                  disabled={setLevel.isPending || levelLocked}
                   onValueChange={(value) => {
-                    if (isThinkingLevel(value) && value !== view.agent.thinking_level) {
+                    if (isThinkingLevel(value) && value !== current) {
                       setLevel.mutate(value);
                     }
                   }}
                 >
                   <SelectTrigger size="sm" className="w-32" aria-label={t('models.models.inUse.thinkingEffort')}>
-                    <SelectValue />
+                    <SelectValue placeholder={t('models.models.inUse.levelUnset')} />
                   </SelectTrigger>
                   <SelectContent>
                     {levels.map((level) => (

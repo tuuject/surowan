@@ -50,7 +50,7 @@ export async function runDoctor(configPath: string, outputAgentPrompt = false): 
 }
 export function renderDoctorAgentPrompt(config: RawConfig): string {
   const values: PromptTemplateValues = {
-    agent: { provider: config.agent.provider, model: config.agent.model },
+    agent: { provider: config.agent.provider ?? 'unconfigured', model: config.agent.model ?? 'unconfigured' },
     vision: { provider: config.vision.provider, model: config.vision.model },
     timezone: config.timezone,
   };

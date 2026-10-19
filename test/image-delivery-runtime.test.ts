@@ -74,11 +74,11 @@ async function fixture(options: { readonly unsentOutputs?: readonly string[] } =
     configPath,
     testConfigJsonc(directory, (config) => {
       config.telegram.bucket_window_seconds = 0;
-      config.agent.send_nudge_enabled = false;
-      config.agent.send_barrier_enabled = false;
-      config.agent.context.idle_grace_seconds = 0;
-      config.agent.context.retained_sends_target = 20;
-      config.agent.context.retained_sends_max = 30;
+      config.agent!.send_nudge_enabled = false;
+      config.agent!.send_barrier_enabled = false;
+      config.agent!.context!.idle_grace_seconds = 0;
+      config.agent!.context!.retained_sends_target = 20;
+      config.agent!.context!.retained_sends_max = 30;
     }),
   );
   const loaded = await loadConfig(configPath);

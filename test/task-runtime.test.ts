@@ -441,7 +441,7 @@ test('receipt invocations outrank ordinary work, serialize topics of one chat, a
     (config) => {
       config.telegram.chats[0] = { id: 123456789, topic_ids: [10, 20] };
       config.telegram.chats.push({ id: 987654321 }, { id: 777777777 }, { id: 888888888 });
-      config.agent.max_concurrency = 2;
+      config.agent!.max_concurrency = 2;
     },
     async (invocationId) => {
       starts.push(invocationId);
@@ -500,7 +500,7 @@ test('sleep entered after receipt claim but before launch settles it as skipped_
   const { store, scheduler, tasks, conversationId } = await setup(
     (config) => {
       config.telegram.chats.push({ id: 987654321 });
-      config.agent.max_concurrency = 1;
+      config.agent!.max_concurrency = 1;
     },
     async () => {
       if (first) {

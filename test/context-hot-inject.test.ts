@@ -67,9 +67,9 @@ async function fixture(transform?: (config: FileConfig) => void): Promise<Fixtur
     // moment its message lands, and the idle grace is the only thing that keeps
     // a run alive afterwards.
     config.telegram.bucket_window_seconds = 0;
-    config.agent.send_nudge_enabled = false;
-    config.agent.context.idle_grace_seconds = 2;
-    config.agent.context.max_wall_clock_seconds = 60;
+    config.agent!.send_nudge_enabled = false;
+    config.agent!.context!.idle_grace_seconds = 2;
+    config.agent!.context!.max_wall_clock_seconds = 60;
     transform?.(config);
   });
   await writeTestConfig(directory, configPath, jsonc);
@@ -93,7 +93,7 @@ async function fixture(transform?: (config: FileConfig) => void): Promise<Fixtur
   };
   const mentionTyping = new MentionTyping(sendApi);
   const conversationRuntime = new ConversationRuntime({
-    agentCacheSize: () => loaded.config.agent.context.agent_cache_size,
+    agentCacheSize: () => loaded.config.agent!.context!.agent_cache_size,
   });
   const build = async (
     faux: ReturnType<typeof fauxProvider>,
@@ -172,7 +172,7 @@ async function until(condition: () => boolean, label: string, timeoutMillisecond
 describe('long-lived invocation', () => {
   test.each([false, true])('silence and quick replies do not start typing with send=%s', async (send) => {
     const f = await fixture((config) => {
-      config.agent.context.idle_grace_seconds = 0;
+      config.agent!.context!.idle_grace_seconds = 0;
     });
     const faux = fauxAgent();
     faux.setResponses([
@@ -196,7 +196,7 @@ describe('long-lived invocation', () => {
 
   test('a mention status started at ingestion ends with the round, even when the model stays silent', async () => {
     const f = await fixture((config) => {
-      config.agent.context.idle_grace_seconds = 0;
+      config.agent!.context!.idle_grace_seconds = 0;
     });
     const faux = fauxAgent();
     faux.setResponses([fauxAssistantMessage(''), fauxAssistantMessage('')]);
@@ -272,7 +272,7 @@ describe('long-lived invocation', () => {
     const fixtureSetup = await fixture((config) => {
       config.telegram.bucket_window_seconds = 1;
       // Must stay >= the bucket window, else check-config rejects the pairing.
-      config.agent.context.idle_grace_seconds = 3;
+      config.agent!.context!.idle_grace_seconds = 3;
     });
     const faux = fauxAgent();
     const requests: string[] = [];
@@ -448,7 +448,7 @@ describe('long-lived invocation', () => {
     // quick reply never cuts the conversation into two batches.
     const fixtureSetup = await fixture((config) => {
       config.telegram.bucket_window_seconds = 1;
-      config.agent.context.idle_grace_seconds = 3;
+      config.agent!.context!.idle_grace_seconds = 3;
     });
     const faux = fauxAgent();
     let roundEnd = 0;
@@ -541,7 +541,7 @@ describe('long-lived invocation', () => {
     // while the model was working waited before being answered). The grace
     // belongs to the end of a round, where the run would otherwise stop.
     const fixtureSetup = await fixture((config) => {
-      config.agent.context.idle_grace_seconds = 3;
+      config.agent!.context!.idle_grace_seconds = 3;
     });
     const faux = fauxAgent();
     const callTimes: number[] = [];
@@ -640,7 +640,7 @@ describe('long-lived invocation', () => {
 
   test('idle_grace_seconds = 0 keeps one bucket per invocation but the context persists', async () => {
     const fixtureSetup = await fixture((config) => {
-      config.agent.context.idle_grace_seconds = 0;
+      config.agent!.context!.idle_grace_seconds = 0;
     });
     const faux = fauxAgent();
     const requests: string[] = [];
@@ -708,7 +708,7 @@ describe('long-lived invocation', () => {
     // as soon as another bucket arrived inside the grace — the model kept its
     // reply private and the chat saw nothing.
     const fixtureSetup = await fixture((config) => {
-      config.agent.send_nudge_enabled = true;
+      config.agent!.send_nudge_enabled = true;
     });
     const faux = fauxAgent();
     const requests: string[] = [];
@@ -918,8 +918,8 @@ describe('long-lived invocation', () => {
     // registry alone crosses 2 % of the window, which puts the very first turn boundary
     // into closing mode.
     const fixtureSetup = await fixture((config) => {
-      config.agent.context_stop_ratio = 0.02;
-      config.agent.context.hard_token_ratio = 0.02;
+      config.agent!.context_stop_ratio = 0.02;
+      config.agent!.context!.hard_token_ratio = 0.02;
     });
     const faux = fauxProvider({
       provider: 'agent',
@@ -979,7 +979,7 @@ describe('long-lived invocation', () => {
     // GC discarded live history and the run ended as `context_limit` while the real
     // context was still tiny.
     const fixtureSetup = await fixture((config) => {
-      config.agent.rate_limits.turns_per_injection = 40;
+      config.agent!.rate_limits!.turns_per_injection = 40;
     });
     // A window just wide enough for the registry: the drift used to cross
     // `context_stop_ratio` (0.8) well inside the turn budget below.
@@ -1222,7 +1222,7 @@ describe('long-lived invocation', () => {
     // took it from the queue and injected it a second time — on top of the opening
     // injection that same batch had become in the meantime.
     const fixtureSetup = await fixture((config) => {
-      config.agent.rate_limits.turns_per_injection = 1;
+      config.agent!.rate_limits!.turns_per_injection = 1;
     });
     const faux = fauxAgent();
     faux.setResponses([() => fauxAssistantMessage('answered')]);
@@ -1287,7 +1287,7 @@ describe('send barrier', () => {
     readonly started: bigint[];
   }> {
     const fixtureSetup = await fixture((config) => {
-      config.agent.send_barrier_enabled = enabled;
+      config.agent!.send_barrier_enabled = enabled;
     });
     const faux = fauxAgent();
     const requests: string[] = [];
@@ -1505,7 +1505,7 @@ describe('conversation continuity', () => {
   // The idle grace is off here: these tests care about the transcript, not about
   // waiting for new buckets, and 0 keeps them fast and deterministic.
   const withoutIdleWait = (config: FileConfig): void => {
-    config.agent.context.idle_grace_seconds = 0;
+    config.agent!.context!.idle_grace_seconds = 0;
   };
 
   test('a collection that relieves token pressure does not push the run into closing mode', async () => {
@@ -1515,8 +1515,8 @@ describe('conversation continuity', () => {
     // and ended as `context_limit` although the retained transcript was tiny.
     const fixtureSetup = await fixture((config) => {
       withoutIdleWait(config);
-      config.agent.context_stop_ratio = 0.8;
-      config.agent.context.hard_token_ratio = 0.6;
+      config.agent!.context_stop_ratio = 0.8;
+      config.agent!.context!.hard_token_ratio = 0.6;
     });
     const faux = fauxProvider({
       provider: 'agent',

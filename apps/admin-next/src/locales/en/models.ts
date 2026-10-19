@@ -79,7 +79,9 @@ export const models = {
     inUse: {
       title: 'In use',
       agentModel: 'Agent model',
+      notConfigured: 'Not configured',
       thinkingEffort: 'Thinking effort',
+      levelUnset: 'Not set',
       resetsNote: 'Resets to the weakest level on a model switch',
       visionModel: 'Vision model',
     },

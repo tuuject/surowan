@@ -36,10 +36,10 @@ async function fixture(transform?: (config: FileConfig) => void, additionalTools
     configPath,
     testConfigJsonc(directory, (config) => {
       config.telegram.bucket_window_seconds = 0;
-      config.agent.send_nudge_enabled = false;
-      config.agent.send_barrier_enabled = true;
-      config.agent.context.retained_sends_target = 20;
-      config.agent.context.retained_sends_max = 30;
+      config.agent!.send_nudge_enabled = false;
+      config.agent!.send_barrier_enabled = true;
+      config.agent!.context!.retained_sends_target = 20;
+      config.agent!.context!.retained_sends_max = 30;
       transform?.(config);
     }),
   );
@@ -254,7 +254,7 @@ test('two hot receipts wait for the ordinary tool chain, keep independent checkp
 
 test('a receipt wakes idle grace in the same invocation and completes normally', async () => {
   const f = await fixture((config) => {
-    config.agent.context.idle_grace_seconds = 1;
+    config.agent!.context!.idle_grace_seconds = 1;
   });
   f.faux.setResponses([
     fauxAssistantMessage('ordinary round ended'),
@@ -408,8 +408,8 @@ test.each(['ordinary', 'receipt'] as const)(
     const observations: { caller: bigint | null; ids: bigint[]; cancel: boolean | null }[] = [];
     const f = await fixture(
       (config) => {
-        config.agent.daily_budget.max_tokens = 10_000_000;
-        config.agent.context.idle_grace_seconds = next === 'ordinary' ? 1 : 0;
+        config.agent!.daily_budget!.max_tokens = 10_000_000;
+        config.agent!.context!.idle_grace_seconds = next === 'ordinary' ? 1 : 0;
       },
       (context) => [
         {

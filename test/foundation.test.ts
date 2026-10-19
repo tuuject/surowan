@@ -31,8 +31,8 @@ describe('configuration', () => {
   test('accepts the complete version 1 contract', async () => {
     const { configPath } = await fixture();
     const loaded = await loadConfig(configPath);
-    expect(loaded.config.agent.context.idle_grace_seconds).toBe(0);
-    expect(loaded.config.agent.rate_limits.sends_per_window).toBe(6);
+    expect(loaded.config.agent!.context!.idle_grace_seconds).toBe(0);
+    expect(loaded.config.agent!.rate_limits!.sends_per_window).toBe(6);
     expect(loaded.config.telegram.bucket_window_seconds).toBe(15);
     const agentProvider = loaded.config.providers.agent;
     expect(agentProvider?.kind).toBe('custom');
@@ -73,19 +73,19 @@ describe('configuration', () => {
     // Omitted: accepted, and the resolved configuration keeps it absent — no
     // default mechanism turns it into an explicit false.
     const omitted = await loadConfig(configPath);
-    expect(omitted.config.agent.allow_reply_message_multiple_times).toBeUndefined();
-    expect(omitted.fileConfig.agent.allow_reply_message_multiple_times).toBeUndefined();
+    expect(omitted.config.agent!.allow_reply_message_multiple_times).toBeUndefined();
+    expect(omitted.fileConfig.agent!.allow_reply_message_multiple_times).toBeUndefined();
     // Both explicit values are accepted and preserved.
     for (const value of [false, true]) {
       await writeFile(
         configPath,
         testConfigJsonc(directory, (config) => {
-          config.agent.allow_reply_message_multiple_times = value;
+          config.agent!.allow_reply_message_multiple_times = value;
         }),
       );
       const loaded = await loadConfig(configPath);
-      expect(loaded.config.agent.allow_reply_message_multiple_times).toBe(value);
-      expect(loaded.fileConfig.agent.allow_reply_message_multiple_times).toBe(value);
+      expect(loaded.config.agent!.allow_reply_message_multiple_times).toBe(value);
+      expect(loaded.fileConfig.agent!.allow_reply_message_multiple_times).toBe(value);
     }
     // Anything that is not a boolean is rejected by the schema.
     await writeFile(
@@ -106,13 +106,13 @@ describe('configuration', () => {
     // A target that is not below the trigger threshold can never converge.
     await expect(
       reload((config) => {
-        config.agent.context.retained_sends_target = config.agent.context.retained_sends_max;
+        config.agent!.context!.retained_sends_target = config.agent!.context!.retained_sends_max;
       }),
     ).rejects.toThrow('retained_sends_target must be smaller');
     // GC has to run before the closing mode takes over.
     await expect(
       reload((config) => {
-        config.agent.context.hard_token_ratio = 0.9;
+        config.agent!.context!.hard_token_ratio = 0.9;
       }),
     ).rejects.toThrow('hard_token_ratio');
     // A grace shorter than one bucket window would look enabled while every run
@@ -120,24 +120,24 @@ describe('configuration', () => {
     await expect(
       reload((config) => {
         config.telegram.bucket_window_seconds = 15;
-        config.agent.context.idle_grace_seconds = 5;
+        config.agent!.context!.idle_grace_seconds = 5;
       }),
     ).rejects.toThrow('idle_grace_seconds must be 0');
     // 0 is the supported way to turn long-lived invocations off.
     await expect(
       reload((config) => {
-        config.agent.context.idle_grace_seconds = 0;
+        config.agent!.context!.idle_grace_seconds = 0;
       }),
     ).resolves.toBeDefined();
     await expect(
       reload((config) => {
-        config.agent.context.idle_grace_seconds = 15;
+        config.agent!.context!.idle_grace_seconds = 15;
       }),
     ).resolves.toBeDefined();
     await expect(
       reload((config) => {
-        config.agent.context.idle_grace_seconds = 15;
-        config.agent.context.max_wall_clock_seconds = 15;
+        config.agent!.context!.idle_grace_seconds = 15;
+        config.agent!.context!.max_wall_clock_seconds = 15;
       }),
     ).rejects.toThrow('max_wall_clock_seconds must exceed');
   });
@@ -380,7 +380,7 @@ describe('configuration', () => {
           throw new Error('Expected an agent model fixture');
         }
         model.thinking_levels = ['off', 'high', 'max'];
-        config.agent.thinking_level = 'low';
+        config.agent!.thinking_level = 'low';
       }),
     );
     await expect(loadConfig(configPath)).rejects.toThrow(
@@ -394,7 +394,7 @@ describe('configuration', () => {
     await writeFile(
       configPath,
       testConfigJsonc(directory, (config) => {
-        config.agent.thinking_level = 'max';
+        config.agent!.thinking_level = 'max';
       }),
     );
     await expect(loadConfig(configPath)).rejects.toThrow('(supported: off, minimal, low, medium, high)');
@@ -406,11 +406,11 @@ describe('configuration', () => {
           throw new Error('Expected an agent model fixture');
         }
         model.thinking_levels = ['max', 'high'];
-        config.agent.thinking_level = 'max';
+        config.agent!.thinking_level = 'max';
       }),
     );
     const loaded = await loadConfig(configPath);
-    expect(loaded.config.agent.thinking_level).toBe('max');
+    expect(loaded.config.agent!.thinking_level).toBe('max');
   });
 
   test('rejects a provider alias that cannot survive a URL path or restart string', async () => {
@@ -495,8 +495,8 @@ describe('configuration', () => {
             },
           ],
         };
-        config.agent.provider = 'builtin';
-        config.agent.model = 'deepseek-reasoner';
+        config.agent!.provider = 'builtin';
+        config.agent!.model = 'deepseek-reasoner';
       }),
     );
     await expect(loadConfig(configPath)).rejects.toThrow('deepseek-reasoner is absent from provider builtin');
@@ -626,7 +626,7 @@ describe('configuration', () => {
       'private<!-- and keep quiet -->',
     );
     const loaded = await loadConfig(configPath);
-    expect(loaded.config.agent.system_prompt).toBe('# Persona\nStay kind.\n');
+    expect(loaded.config.agent!.system_prompt).toBe('# Persona\nStay kind.\n');
     expect(loaded.config.telegram.chats[0]?.instructions).toBe('private');
   });
 
@@ -639,7 +639,7 @@ describe('configuration', () => {
       'You run as {{ agent.model }}.<!-- {{ agent.api_key }} is an annotation, not a template -->',
     );
     const loaded = await loadConfig(configPath);
-    expect(loaded.config.agent.system_prompt).toBe('You run as {{ agent.model }}.');
+    expect(loaded.config.agent!.system_prompt).toBe('You run as {{ agent.model }}.');
   });
 
   test('a comment-only prompt edit still changes the config hash', async () => {
@@ -648,7 +648,7 @@ describe('configuration', () => {
     const plain = await loadConfig(configPath);
     await writeTestConfig(directory, configPath, testConfigJsonc(directory), '# Persona\n<!-- note -->\nStay kind.\n');
     const annotated = await loadConfig(configPath);
-    expect(annotated.config.agent.system_prompt).toBe(plain.config.agent.system_prompt);
+    expect(annotated.config.agent!.system_prompt).toBe(plain.config.agent!.system_prompt);
     expect(annotated.hash).not.toBe(plain.hash);
   });
 

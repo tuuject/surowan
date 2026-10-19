@@ -12,7 +12,8 @@ import {
   toModelDefaults,
 } from '../src/platform/models-dev.ts';
 import { assertBaseUrl, fetchProviderModels, planModelsEndpoint } from '../src/platform/provider-models.ts';
-import { saveConfig } from '../src/tui/configure.ts';
+import { agentThinkingLevels, saveConfig } from '../src/tui/configure.ts';
+import { THINKING_LEVELS } from '../src/platform/thinking-levels.ts';
 import { filterSearchChoices } from '../src/tui/provider-wizard.ts';
 import { startFixtureServer, stopFixtureServer, testConfigJsonc, writeTestConfig } from './helpers.ts';
 
@@ -72,7 +73,7 @@ describe('configure save', () => {
     const { fileConfig } = await loadConfig(configPath);
     const edited = { ...fileConfig, agent: { ...fileConfig.agent, thinking_level: 'off' as const } };
     expect(await saveConfig(configPath, edited, original)).toBe(true);
-    expect((await loadConfig(configPath)).config.agent.thinking_level).toBe('off');
+    expect((await loadConfig(configPath)).config.agent!.thinking_level).toBe('off');
   });
 });
 
@@ -247,5 +248,14 @@ describe('configure CLI option', () => {
     );
     const loaded = await loadConfig(configPath);
     expect(renderDoctorAgentPrompt(loaded.config)).toBe('Using agent/agent-model with vision-model');
+  });
+});
+
+describe('configure thinking levels', () => {
+  test('without an agent model every level stays selectable after one is chosen', async () => {
+    const { configPath } = await fixture();
+    const { fileConfig } = await loadConfig(configPath);
+    fileConfig.agent = { thinking_level: 'low' };
+    expect(agentThinkingLevels(fileConfig)).toEqual(THINKING_LEVELS);
   });
 });

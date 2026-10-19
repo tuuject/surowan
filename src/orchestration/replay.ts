@@ -19,7 +19,8 @@ import { buildSceneContext, type SceneContext, SceneSliceError } from '../contex
 import { composeAgentPrompt, PromptOverrideError, preparePromptOverride } from '../platform/agent-prompt.ts';
 import type { KeyedSemaphore } from '../platform/concurrency.ts';
 import {
-  type AgentSettings,
+  type ActiveAgentSettings,
+  completeAgentSettings,
   configuredToolSchemaKeywords,
   type RawConfig,
   resolveAgentSettings,
@@ -104,7 +105,7 @@ interface ReplaySource {
 
 interface ReplayRuntime {
   readonly snapshot: InvocationConfigSnapshot;
-  readonly settings: AgentSettings;
+  readonly settings: ActiveAgentSettings;
   readonly model: Model<Api>;
   /** Which explicit model-selection fields the caller supplied, for disclosure. */
   readonly selection: {
@@ -755,7 +756,10 @@ export class ReplayRunner {
     if (chat.topic_ids !== undefined && !chat.topic_ids.some((topic) => BigInt(topic) === source.threadId)) {
       return { ok: false, code: 'replay_topic_unconfigured', message: 'The source topic is no longer configured' };
     }
-    const settings = resolveAgentSettings(config, chat);
+    const settings = completeAgentSettings(resolveAgentSettings(config, chat));
+    if (settings === undefined) {
+      return { ok: false, code: 'replay_model_unavailable', message: 'The current agent model is not configured' };
+    }
     const currentModel = snapshot.models.getModel(settings.provider, settings.model);
     if (currentModel === undefined) {
       return { ok: false, code: 'replay_model_unavailable', message: 'The current agent model is unavailable' };
@@ -766,7 +770,7 @@ export class ReplayRunner {
       thinking_level: selection.thinking_level !== undefined,
     };
     let model = currentModel;
-    let effective: AgentSettings = settings;
+    let effective: ActiveAgentSettings = settings;
     if (selection.provider !== undefined || selection.model !== undefined) {
       // An explicit pair overrides the Chat settings for this replay only; a
       // pair without a thinking level resets it to the weakest level the target

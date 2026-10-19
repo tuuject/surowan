@@ -598,7 +598,7 @@ describe('alarm runtime budget bypass', () => {
       .prepare(
         "INSERT INTO daily_usage(utc_date, scope, resource, metric, amount, updated_at) VALUES (?, 'chat', ?, 'model_tokens', ?, ?) ON CONFLICT(utc_date, scope, resource, metric) DO UPDATE SET amount = excluded.amount, updated_at = excluded.updated_at",
       )
-      .run(today, '123456789', BigInt(loaded.config.agent.daily_budget.max_tokens), new Date().toISOString());
+      .run(today, '123456789', BigInt(loaded.config.agent!.daily_budget!.max_tokens), new Date().toISOString());
 
     insertAlarm(store, conversation.id, new Date(start - 60_000).toISOString());
     const [alarmInvocation] = scheduler.processTasksDue(new Date(start));

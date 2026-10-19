@@ -24,7 +24,7 @@ afterEach(async () => {
   }
 });
 
-async function fixture() {
+async function fixture(transform?: (config: FileConfig) => void) {
   const directory = await mkdtemp(join(tmpdir(), 'plasticwan-admin-chats-'));
   const path = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -39,6 +39,7 @@ async function fixture() {
         timezone: 'Asia/Shanghai',
         instructions_file: 'chat-instructions.md',
       });
+      transform?.(config);
     }),
   );
   const loaded = await loadConfig(path);
@@ -474,4 +475,16 @@ test('participation edits validate body, chat type and revision without touching
   expect(await unrevisioned.json()).toMatchObject({ error: 'revision_required' });
   expect(await readFile(f.path, 'utf8')).toBe(before);
   expect(f.configStore.current()).toBe(active);
+});
+
+test('an unconfigured agent identity is reported as explicit nulls', async () => {
+  const f = await fixture((config) => {
+    (config as unknown as Record<string, unknown>).agent = {};
+  });
+  const view = await f.view();
+  const unconfigured = { provider: null, model: null, thinking_level: null };
+  expect(view.defaults).toEqual(unconfigured);
+  const chat = view.items.find((item) => item.id === '-100100');
+  expect(chat?.saved?.effective).toEqual(unconfigured);
+  expect(chat?.active?.effective).toEqual(unconfigured);
 });

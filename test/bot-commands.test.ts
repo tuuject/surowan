@@ -509,7 +509,7 @@ describe('bot command service', () => {
         const reply = await commands.run({ name: 'model', argument: '21' }, 123456789n, ALICE, FIXED_NOW);
         expect(reply).toContain('已为本群切换: agent / agent-extra-20');
         expect(reply).toContain('思考强度已重置为该模型最弱的一档: off');
-        expect(switcher.current().model).toBe('agent-model');
+        expect(switcher.current()?.model).toBe('agent-model');
         const loaded = await loadConfig(reloader.configPath);
         expect(loaded.fileConfig.telegram.chats[0]).toMatchObject({
           provider: 'agent',
