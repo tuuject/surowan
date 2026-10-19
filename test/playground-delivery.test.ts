@@ -5,7 +5,7 @@
  * a real store and check the ledger, the message it produced, and every way a
  * delivery is refused - always with an explicit reason, never a fake success.
  */
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -737,5 +737,95 @@ describe('Bot Playground virtual delivery', () => {
     expect(roomMessages(room.conversationId)).toHaveLength(2);
     expect(store.orm.select().from(playgroundAssets).all()).toHaveLength(1);
     expect(telegramTransport).not.toHaveBeenCalled();
+  });
+
+  test('a refused or cancelled picture delivery leaves no asset and no file behind', async () => {
+    const room = createRoom({ chatId: 51n, title: 'albums', selfDisplayName: '碗' });
+    const root = join(directory, 'album-assets');
+    const assets = new PlaygroundAssetStore({ orm: store.orm, root });
+    const controller = new AbortController();
+    let abortDuringIngest = false;
+    const host = createPlaygroundHost({
+      store,
+      self: { displayName: '碗' },
+      // The real store, with a hook that cancels the run while a copy is in
+      // flight (the window between validation and publishing).
+      pictures: {
+        validate: (input) => assets.validate(input),
+        ingest: async (chatId, input) => {
+          const asset = await assets.ingest(chatId, input);
+          if (abortDuringIngest) {
+            controller.abort();
+          }
+          return asset;
+        },
+        discard: (assetId) => assets.discard(assetId),
+        markAttached: (assetId, mediaId) => assets.markAttached(assetId, mediaId),
+      },
+      sendRate: () => ({ sendsPerWindow: 20, windowSeconds: 60 }),
+      now: () => NOW,
+    });
+    const conversation = identityConversation(
+      { chatId: room.chatId, threadId: 0n, conversationId: room.conversationId },
+      'playground',
+      'private',
+    );
+    const target = { conversation, policy: host.policy(conversation) };
+    const picture = async (shade: number) =>
+      new Uint8Array(
+        await sharp({ create: { width: 3, height: 2, channels: 3, background: { r: shade, g: 2, b: 3 } } })
+          .png()
+          .toBuffer(),
+      );
+    const storedFiles = async () =>
+      (await readdir(root, { recursive: true }).catch(() => [])).filter((name) => name.endsWith('.png'));
+
+    // A valid first picture and a corrupt second one: the album is refused as
+    // a whole before anything is written.
+    const truncated = (await picture(9)).subarray(0, 40);
+    const albumSend = reserveSend(room.conversationId, room.invocationId, { id: 'album-1', kind: 'photo_album' });
+    const refused = await host.delivery.deliver({
+      target,
+      parts: [
+        {
+          kind: 'photo_album',
+          pictures: [
+            { bytes: await picture(1), fileName: 'a.png', mime: 'image/png' },
+            { bytes: truncated, fileName: 'b.png', mime: 'image/png' },
+          ],
+        },
+      ],
+      sendId: albumSend,
+      signal: undefined,
+    });
+    expect(refused).toMatchObject({ kind: 'rejected', failure: { code: 'media_rejected' } });
+    expect(store.orm.select().from(playgroundAssets).all()).toHaveLength(0);
+    expect(await storedFiles()).toEqual([]);
+
+    // A run cancelled while the copy runs publishes nothing and keeps nothing.
+    abortDuringIngest = true;
+    const cancelledSend = reserveSend(room.conversationId, room.invocationId, { id: 'photo-c', kind: 'photo' });
+    const cancelled = await host.delivery.deliver({
+      target,
+      parts: [{ kind: 'photo', bytes: await picture(2), fileName: 'c.png', mime: 'image/png' }],
+      sendId: cancelledSend,
+      signal: controller.signal,
+    });
+    expect(cancelled).toMatchObject({ kind: 'rejected', failure: { reason: 'aborted', outcomeUnknown: false } });
+    expect(ledgerRow(cancelledSend)?.state).toBe('pending');
+    expect(roomMessages(room.conversationId)).toHaveLength(0);
+    expect(store.orm.select().from(playgroundAssets).all()).toHaveLength(0);
+    expect(await storedFiles()).toEqual([]);
+
+    // An already cancelled run never starts the copy.
+    const lateSend = reserveSend(room.conversationId, room.invocationId, { id: 'photo-d', kind: 'photo' });
+    const late = await host.delivery.deliver({
+      target,
+      parts: [{ kind: 'photo', bytes: await picture(3), fileName: 'd.png', mime: 'image/png' }],
+      sendId: lateSend,
+      signal: controller.signal,
+    });
+    expect(late).toMatchObject({ kind: 'rejected', failure: { reason: 'aborted' } });
+    expect(store.orm.select().from(playgroundAssets).all()).toHaveLength(0);
   });
 });

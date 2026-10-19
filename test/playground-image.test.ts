@@ -546,6 +546,14 @@ describe('playground image generation', () => {
     expect(generationRows(f)).toHaveLength(3);
     expect(taskRows(f)).toHaveLength(3);
     await expect.poll(() => f.providerCalls.length).toBe(3);
+
+    // A retried tool call at the limit replays its own generation instead of
+    // being refused: replays create nothing, so they are not metered.
+    const replayed = await submitGeneration(f, invocationId, 'call-b');
+    expect(replayed.replayed).toBe(true);
+    expect(generationRows(f)).toHaveLength(3);
+    expect(taskRows(f)).toHaveLength(3);
+    expect(f.providerCalls).toHaveLength(3);
   });
 
   test('a running generation is not settled by reconciliation', async () => {

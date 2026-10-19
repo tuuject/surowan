@@ -154,6 +154,7 @@ interface RoomPayload {
     readonly title: string;
     readonly revision: string;
     readonly next_seq: string;
+    readonly latest_input_seq: string;
     readonly hold: boolean;
     readonly image_enabled: boolean;
     readonly image_enabled_by: string | null;
@@ -205,7 +206,22 @@ function release(f: Fixture, roomId: string, body: Record<string, unknown>): Pro
 
 /** The room's latest admitted input sequence, which a Release must state. */
 function latestSeq(state: RoomPayload): string {
-  return (BigInt(state.room.next_seq) - 1n).toString();
+  return state.room.latest_input_seq;
+}
+
+async function uploadPicture(f: Fixture, roomId: string, shade: number): Promise<string> {
+  const png = await sharp({ create: { width: 3, height: 2, channels: 3, background: { r: shade, g: 5, b: 6 } } })
+    .png()
+    .toBuffer();
+  const response = await f.server.handle(
+    post(
+      `/api/playground/rooms/${roomId}/assets`,
+      { content_base64: png.toString('base64'), mime: 'image/png' },
+      f.cookie,
+    ),
+  );
+  expect(response.status).toBe(201);
+  return (await readJson<{ asset_id: string }>(response)).asset_id;
 }
 
 test('the playground API demands a session, refuses a foreign Origin and never accepts an API key', async () => {
@@ -520,9 +536,22 @@ test('refuses ids that are not canonical decimals', async () => {
       '/api/playground/rooms/-1',
       '/api/playground/rooms/pmsg_5',
       '/api/playground/rooms/99999999999999999999',
+      // 19 digits, but past SQLite's int64: refused before any query binds it.
+      '/api/playground/rooms/9999999999999999999',
+      `/api/playground/rooms/${room.id}/messages?before=9999999999999999999`,
+      `/api/playground/rooms/${room.id}/releases/9999999999999999999`,
+      `/api/playground/rooms/${room.id}/invocations/9999999999999999999`,
     ]) {
       expect((await f.server.handle(get(path, f.cookie))).status).toBe(400);
     }
+    const hugeRevision = await f.server.handle(
+      put(
+        `/api/playground/rooms/${room.id}/capabilities`,
+        { image_enabled: true, revision: '9999999999999999999' },
+        f.cookie,
+      ),
+    );
+    expect(hugeRevision.status).toBe(400);
 
     for (const sender of ['007', '-1', 'puser_2', '99999999999999999999']) {
       const response = await sendMessage(f, room.id, { request_key: `k-${sender}`, sender_id: sender, text: 'x' });
@@ -686,6 +715,172 @@ test('mixed room data does not break the existing Telegram-scoped lists', async 
       await f.server.handle(get('/api/messages', f.cookie)),
     );
     expect(messagesList.items.some((item) => (item.chat_id ?? item.chat?.id) === room.id)).toBe(false);
+  } finally {
+    f.store.close();
+  }
+});
+
+test('a room-creation replay and the room detail report the real counters', async () => {
+  const f = await fixture();
+  try {
+    const room = await createRoom(f, 'Room', 'r', [{ name: 'Ada' }, { name: 'Bob' }]);
+    const ada = (await roomState(f, room.id)).participants[0]!.id;
+    await sendMessage(f, room.id, { request_key: 'msg-1', sender_id: ada, text: 'one' });
+    const state = await roomState(f, room.id);
+    expect(state.room).toMatchObject({ member_count: 2, held_count: 1, queued_invocations: 0, running_invocations: 0 });
+    await release(f, room.id, { request_key: 'rel', revision: state.room.revision, through_seq: latestSeq(state) });
+
+    const replay = await f.server.handle(
+      post(
+        '/api/playground/rooms',
+        { title: 'Room', members: [{ name: 'Ada' }, { name: 'Bob' }], request_key: 'r' },
+        f.cookie,
+      ),
+    );
+    expect(replay.status).toBe(200);
+    expect((await readJson<{ room: unknown; replayed: boolean }>(replay)).room).toMatchObject({
+      id: room.id,
+      member_count: 2,
+      held_count: 0,
+      queued_invocations: 1,
+      running_invocations: 0,
+    });
+    expect((await roomState(f, room.id)).room).toMatchObject({ queued_invocations: 1, running_invocations: 0 });
+  } finally {
+    f.store.close();
+  }
+});
+
+test('a message at the character limit is admitted whatever its encoded size', async () => {
+  const f = await fixture();
+  try {
+    const room = await createRoom(f, 'Room', 'r', [{ name: 'Ada' }]);
+    const ada = (await roomState(f, room.id)).participants[0]!.id;
+    // 16K CJK characters are ~48 KB of UTF-8; escaped they are ~96 KB.
+    const text = '字'.repeat(16_384);
+    const utf8 = await sendMessage(f, room.id, { request_key: 'cjk', sender_id: ada, text });
+    expect(utf8.status).toBe(201);
+    const escaped = await f.server.handle(
+      request(`/api/playground/rooms/${room.id}/messages`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: f.cookie },
+        body: `{"request_key":"esc","sender_id":"${ada}","text":"${'\\u5b57'.repeat(16_384)}"}`,
+      }),
+    );
+    expect(escaped.status).toBe(201);
+    const over = await sendMessage(f, room.id, { request_key: 'over', sender_id: ada, text: `${text}x` });
+    expect(over.status).toBe(400);
+  } finally {
+    f.store.close();
+  }
+});
+
+test('bot output between preparing and sending a Release does not move its boundary', async () => {
+  const f = await fixture();
+  try {
+    const room = await createRoom(f, 'Room', 'r', [{ name: 'Ada' }]);
+    const ada = (await roomState(f, room.id)).participants[0]!.id;
+    await sendMessage(f, room.id, { request_key: 'msg-1', sender_id: ada, text: 'one' });
+    const prepared = await roomState(f, room.id);
+    expect(prepared.room.latest_input_seq).toBe('1');
+    // An earlier run's reply takes the next room sequence (the host does this)
+    // without changing the revision.
+    f.store.orm
+      .update(rooms)
+      .set({ nextSeq: BigInt(prepared.room.next_seq) + 1n })
+      .run();
+    const released = await release(f, room.id, {
+      request_key: 'rel',
+      revision: prepared.room.revision,
+      through_seq: latestSeq(prepared),
+    });
+    expect(released.status).toBe(201);
+    expect(await readJson(released)).toMatchObject({ through_seq: '1' });
+  } finally {
+    f.store.close();
+  }
+});
+
+test('an attempt key names one retry of one release', async () => {
+  const f = await fixture();
+  try {
+    const room = await createRoom(f, 'Room', 'r', [{ name: 'Ada' }]);
+    const ada = (await roomState(f, room.id)).participants[0]!.id;
+    await sendMessage(f, room.id, { request_key: 'msg-1', sender_id: ada, text: 'one' });
+    const state = await roomState(f, room.id);
+    const first = await readJson<{ release_id: string; invocation_id: string }>(
+      await release(f, room.id, { request_key: 'rel', revision: state.room.revision, through_seq: latestSeq(state) }),
+    );
+    // A terminal attempt that did nothing is the one retry accepts.
+    f.store.orm.update(invocations).set({ state: 'failed', finishedAt: new Date().toISOString() }).run();
+    const retryPath = (releaseId: string) => `/api/playground/rooms/${room.id}/releases/${releaseId}/retry`;
+    const retried = await f.server.handle(post(retryPath(first.release_id), { attempt_key: 'try-1' }, f.cookie));
+    expect(retried.status).toBe(201);
+    const retriedBody = await readJson<{ invocation_id: string }>(retried);
+    const replay = await f.server.handle(post(retryPath(first.release_id), { attempt_key: 'try-1' }, f.cookie));
+    expect(replay.status).toBe(200);
+    expect(await readJson(replay)).toMatchObject({ replayed: true, invocation_id: retriedBody.invocation_id });
+
+    // The same key sent to another release - unknown or not - is refused,
+    // never answered with the first release's attempt.
+    const invocationsBefore = f.store.orm.select().from(invocations).all().length;
+    for (const releaseId of ['999999', (BigInt(first.release_id) + 1n).toString()]) {
+      const foreign = await f.server.handle(post(retryPath(releaseId), { attempt_key: 'try-1' }, f.cookie));
+      expect(foreign.status).toBe(409);
+      expect(await readJson(foreign)).toMatchObject({ error: 'input_conflict' });
+    }
+    expect(f.store.orm.select().from(invocations).all()).toHaveLength(invocationsBefore);
+  } finally {
+    f.store.close();
+  }
+});
+
+test('the timeline gives each message only its own pictures', async () => {
+  const f = await fixture();
+  try {
+    const room = await createRoom(f, 'Room', 'r', [{ name: 'Ada' }]);
+    const ada = (await roomState(f, room.id)).participants[0]!.id;
+    const picture = await uploadPicture(f, room.id, 4);
+    await sendMessage(f, room.id, { request_key: 'img', sender_id: ada, text: 'look', asset_ids: [picture] });
+    await sendMessage(f, room.id, { request_key: 'txt-1', sender_id: ada, text: 'nice' });
+    await sendMessage(f, room.id, { request_key: 'txt-2', sender_id: ada, text: 'yes' });
+    const timeline = await readJson<{ items: { text: string; media: { asset_id: string }[] }[] }>(
+      await f.server.handle(get(`/api/playground/rooms/${room.id}/messages`, f.cookie)),
+    );
+    expect(timeline.items.map((item) => [item.text, item.media.map((entry) => entry.asset_id)])).toEqual([
+      ['yes', []],
+      ['nice', []],
+      ['look', [picture]],
+    ]);
+  } finally {
+    f.store.close();
+  }
+});
+
+test('a picture message replays from its key after retention removed the picture', async () => {
+  const f = await fixture();
+  try {
+    const room = await createRoom(f, 'Room', 'r', [{ name: 'Ada' }]);
+    const ada = (await roomState(f, room.id)).participants[0]!.id;
+    const picture = await uploadPicture(f, room.id, 9);
+    const body = { request_key: 'img', sender_id: ada, text: 'look', asset_ids: [picture] };
+    const admitted = await readJson<{ input_id: string; seq: string }>(await sendMessage(f, room.id, body));
+    const state = await roomState(f, room.id);
+    await release(f, room.id, { request_key: 'rel', revision: state.room.revision, through_seq: latestSeq(state) });
+
+    // Retention drops the released message (the input row stays as a
+    // tombstone), and the sweep then drops the picture nothing references.
+    f.store.orm.delete(invocations).run();
+    f.store.orm.delete(messages).run();
+    await f.assets.sweep({ staleAfterMs: -1 });
+    expect(f.store.orm.select().from(playgroundAssets).all()).toHaveLength(0);
+
+    const replay = await sendMessage(f, room.id, body);
+    expect(replay.status).toBe(200);
+    expect(await readJson(replay)).toMatchObject({ input_id: admitted.input_id, seq: admitted.seq, admitted: false });
+    // Other content under the same key is still a conflict.
+    const changed = await sendMessage(f, room.id, { ...body, text: 'changed' });
+    expect(changed.status).toBe(409);
   } finally {
     f.store.close();
   }

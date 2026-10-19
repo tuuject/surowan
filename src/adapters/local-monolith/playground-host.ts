@@ -58,8 +58,15 @@ export interface PlaygroundSelfIdentity {
 
 /** The room's local picture store, as a delivery uses it. */
 export interface PlaygroundPictures {
-  /** Validates and stores one picture; content-addressed per room. */
-  ingest(chatId: bigint, input: LocalAssetInput): Promise<LocalAsset>;
+  /** Refuses a picture `ingest` would refuse, without writing anything. */
+  validate(input: LocalAssetInput): Promise<void>;
+  /**
+   * Validates and stores one picture; content-addressed per room. `created`
+   * is false when the room already held the same bytes.
+   */
+  ingest(chatId: bigint, input: LocalAssetInput): Promise<LocalAsset & { readonly created: boolean }>;
+  /** Removes an asset this host created, unless a message references it. */
+  discard(assetId: string): Promise<void>;
   /** Points an asset at the message media row that now owns it. */
   markAttached(assetId: string, mediaId: bigint): void;
 }
@@ -92,6 +99,9 @@ const rejected = (
   kind: 'rejected',
   failure: { reason, code, description, outcomeUnknown },
 });
+
+/** A cancelled run's send: nothing reached the room, so the outcome is known. */
+const abortedDelivery = (): ImDeliveryOutcome => rejected('aborted', 'aborted', 'the send was aborted');
 
 /** A delivery the room refuses from inside its transaction; nothing is written. */
 class DeliveryRefused extends Error {
@@ -336,12 +346,16 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
   /**
    * Copies one part's pictures into the room's local store. Images are
    * validated by content, so a payload whose declared type does not match what
-   * it really is never becomes a room asset.
+   * it really is never becomes a room asset. The whole part is validated
+   * before any file is written: an album with one bad picture leaves nothing.
+   * `created` lists the assets this call added, for the caller to discard if
+   * the delivery does not publish after all.
    */
   const ingestPictures = async (
     chatId: bigint,
     part: Extract<ImOutgoingPart, { kind: 'photo' | 'photo_album' }>,
-  ): Promise<readonly LocalAsset[]> => {
+    signal: AbortSignal | undefined,
+  ): Promise<{ readonly assets: readonly LocalAsset[]; readonly created: readonly string[] }> => {
     const pictures = options.pictures;
     if (pictures === undefined) {
       throw new Error('the room has no picture store');
@@ -357,8 +371,7 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
     if (candidates.length === 0) {
       throw new LocalAssetRejected('empty', 'the picture part carries no pictures');
     }
-    const assets: LocalAsset[] = [];
-    for (const candidate of candidates) {
+    const inputs = candidates.map((candidate) => {
       const sniffed = sniffImageMime(candidate.bytes);
       if (sniffed === null) {
         throw new LocalAssetRejected(
@@ -366,17 +379,42 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
           `picture ${candidate.fileName} is not a JPEG, PNG or WebP image`,
         );
       }
-      assets.push(
-        await pictures.ingest(chatId, {
-          bytes: candidate.bytes,
-          // The declared type must agree with the content; when the producer
-          // did not state one, the content is the claim.
-          declaredMime: candidate.mime ?? sniffed,
-          name: candidate.fileName,
-        }),
-      );
+      return {
+        bytes: candidate.bytes,
+        // The declared type must agree with the content; when the producer
+        // did not state one, the content is the claim.
+        declaredMime: candidate.mime ?? sniffed,
+        name: candidate.fileName,
+      };
+    });
+    for (const input of inputs) {
+      await pictures.validate(input);
     }
-    return assets;
+    const assets: LocalAsset[] = [];
+    const created: string[] = [];
+    try {
+      for (const input of inputs) {
+        if (signal?.aborted === true) {
+          throw new DeliveryRefused(abortedDelivery());
+        }
+        const asset = await pictures.ingest(chatId, input);
+        assets.push(asset);
+        if (asset.created) {
+          created.push(asset.id);
+        }
+      }
+    } catch (error) {
+      await discardPictures(created);
+      throw error;
+    }
+    return { assets, created };
+  };
+
+  /** Drops assets a delivery created but never published. */
+  const discardPictures = async (assetIds: readonly string[]): Promise<void> => {
+    for (const assetId of assetIds) {
+      await options.pictures?.discard(assetId);
+    }
   };
 
   const publish = (request: ImDeliveryRequest, content: RoomMessageContent): ImDeliveredMessage => {
@@ -535,20 +573,35 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
         if ('refusal' in checked) {
           return checked.refusal;
         }
+        // Read through a call: the flag can flip across the awaits below.
+        const aborted = (): boolean => request.signal?.aborted === true;
+        if (aborted()) {
+          return abortedDelivery();
+        }
+        if (part.kind === 'text') {
+          const published = store.transaction(() => publish(request, { kind: 'text', text: part.text }));
+          return { kind: 'delivered', messages: [published], recordedByHost: true };
+        }
         // Pictures are copied before the publishing transaction, because the
         // file write cannot be undone by a rollback. Everything knowable in
         // advance was refused above; a picture that fails validation refuses
-        // the delivery with nothing attached to the room.
-        const content: RoomMessageContent =
-          part.kind === 'text'
-            ? { kind: 'text', text: part.text }
-            : {
-                kind: 'image',
-                caption: part.caption ?? null,
-                pictures: await ingestPictures(checked.room.chatId, part),
-              };
-        const published = store.transaction(() => publish(request, content));
-        return { kind: 'delivered', messages: [published], recordedByHost: true };
+        // the delivery with nothing attached to the room, and a delivery that
+        // does not publish after the copy discards what it added.
+        const pictures = await ingestPictures(checked.room.chatId, part, request.signal);
+        try {
+          // The copy is the only await: a run cancelled meanwhile must not
+          // publish, or the room would show a message the run never sent.
+          if (aborted()) {
+            throw new DeliveryRefused(abortedDelivery());
+          }
+          const published = store.transaction(() =>
+            publish(request, { kind: 'image', caption: part.caption ?? null, pictures: pictures.assets }),
+          );
+          return { kind: 'delivered', messages: [published], recordedByHost: true };
+        } catch (error) {
+          await discardPictures(pictures.created);
+          throw error;
+        }
       } catch (error) {
         if (error instanceof DeliveryRefused) {
           return error.outcome;

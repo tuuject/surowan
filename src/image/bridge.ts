@@ -209,7 +209,15 @@ export function createImageBridge(options: ImageBridgeOptions) {
     if (params.inputMediaIds.length > MAX_INPUT_REFS) {
       throw new Error(`at most ${MAX_INPUT_REFS} input images are accepted`);
     }
-    if (params.invocationId !== null && thisInvocationAtQuota(params.invocationId)) {
+    const actor = agentActor(params.conversationId);
+    const idempotencyKey = `tool:${params.toolCallId}`;
+    // A replay of an accepted call returns its generation without creating
+    // anything, so only a new key is metered against the invocation's quota.
+    if (
+      params.invocationId !== null &&
+      !core.generations.createKeyUsed(actor, idempotencyKey) &&
+      thisInvocationAtQuota(params.invocationId)
+    ) {
       throw new TaskQuotaError();
     }
     const inputAssetIds: string[] = [];
@@ -226,8 +234,7 @@ export function createImageBridge(options: ImageBridgeOptions) {
       inputImages: inputAssetIds,
       ...(params.extendedData === undefined ? {} : { extendedData: params.extendedData }),
     });
-    const actor = agentActor(params.conversationId);
-    const { generation, replayed } = core.generations.create(parsed, actor, `tool:${params.toolCallId}`);
+    const { generation, replayed } = core.generations.create(parsed, actor, idempotencyKey);
 
     if (!replayed) {
       tasks.taskScope('image', params.conversationId, params.invocationId).create(

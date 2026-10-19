@@ -121,12 +121,13 @@ test('a room message carries its images into the snapshot as local media rows', 
   const { store, assets, room } = await setup();
   const ingress = new PlaygroundIngress(store.orm, { assets });
   const bytes = await png();
+  const uploaded = await assets.ingest(room.chatId, { bytes, declaredMime: 'image/png', name: 'shot.png' });
 
   const result = await ingress.submit(room.chatId, {
     requestKey: 'req-image',
     senderId: room.members[0]!.senderId,
     text: '',
-    attachments: [{ bytes, mime: 'image/png', name: 'shot.png' }],
+    assetIds: [uploaded.id],
   });
   expect(result.admitted).toBe(true);
 
@@ -185,7 +186,7 @@ test('a room image is read locally and never falls back to Telegram', async () =
     requestKey: 'req-read',
     senderId: room.members[0]!.senderId,
     text: 'look',
-    attachments: [{ bytes, mime: 'image/png' }],
+    assetIds: [asset.id],
   });
   const mediaRows = store.orm.select().from(media).all();
   const images = await service.loadDirectImages(
@@ -236,11 +237,13 @@ test('an asset shared by two messages survives losing one of them', async () => 
   const ingress = new PlaygroundIngress(store.orm, { assets });
   const bytes = await png();
   for (const requestKey of ['req-first', 'req-second']) {
+    // The same bytes uploaded twice resolve to the room's one asset.
+    const uploaded = await assets.ingest(room.chatId, { bytes, declaredMime: 'image/png' });
     await ingress.submit(room.chatId, {
       requestKey,
       senderId: room.members[0]!.senderId,
       text: requestKey,
-      attachments: [{ bytes, mime: 'image/png' }],
+      assetIds: [uploaded.id],
     });
   }
   const rows = store.orm.select().from(media).all();

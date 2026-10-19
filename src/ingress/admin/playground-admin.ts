@@ -25,6 +25,7 @@ import {
   type RoomMember,
   type RoomState,
   type RoomStatus,
+  type RoomSummary,
 } from '../../store/playground.ts';
 import type { BusinessStore } from '../../store/store.ts';
 
@@ -56,6 +57,16 @@ const RESOURCE_ID = Type.String({ pattern: '^[1-9][0-9]{0,18}$' });
 const MAX_MESSAGE_IMAGES = 4;
 /** A room picture is at most 10 MiB; base64 adds a third, so this is the cap. */
 const MAX_UPLOAD_TEXT_BYTES = 15_000_000;
+/** Text length limit of one message, in characters (UTF-16 code units). */
+const MAX_MESSAGE_TEXT = 16_384;
+/**
+ * The read limit is in encoded bytes while the text limit is in characters: a
+ * `\uXXXX` escape spends six bytes on one code unit, so the worst valid text
+ * plus the other fields still fits.
+ */
+const MAX_MESSAGE_BODY_BYTES = MAX_MESSAGE_TEXT * 6 + 8_192;
+/** SQLite INTEGER is a signed 64-bit value; a larger id cannot be bound. */
+const MAX_ID = 9_223_372_036_854_775_807n;
 
 const createRoomValidator = Compile(
   Type.Object(
@@ -86,7 +97,7 @@ const messageValidator = Compile(
     {
       request_key: REQUEST_KEY,
       sender_id: RESOURCE_ID,
-      text: Type.Optional(Type.String({ maxLength: 16_384 })),
+      text: Type.Optional(Type.String({ maxLength: MAX_MESSAGE_TEXT })),
       reply_to_seq: Type.Optional(Type.Union([RESOURCE_ID, Type.Null()])),
       asset_ids: Type.Optional(
         Type.Array(Type.String({ minLength: 32, maxLength: 32, pattern: '^[a-f0-9]{32}$' }), {
@@ -176,6 +187,7 @@ function roomJson(room: RoomJsonInput) {
     revision: room.revision.toString(),
     hold: room.hold,
     next_seq: room.nextSeq.toString(),
+    latest_input_seq: room.latestInputSeq.toString(),
     image_enabled: room.imageEnabled,
     image_enabled_by: room.imageEnabledBy,
     image_enabled_at: room.imageEnabledAt,
@@ -215,10 +227,9 @@ export function createPlaygroundAdminHandler(deps: PlaygroundAdminDeps) {
   const { rooms, ingress, assets } = deps;
 
   /** The room in the path, or a 404 that matches an unknown room exactly. */
-  const requireRoom = (roomId: string): RoomState => {
-    const chatId = BigInt(roomId);
+  const requireRoom = (chatId: bigint): RoomSummary => {
     try {
-      return rooms.room(chatId);
+      return rooms.roomSummary(chatId);
     } catch (error) {
       if (error instanceof PlaygroundError && error.code === 'room_not_found') {
         throw new PlaygroundAdminError('not_found', error.message, 404);
@@ -227,8 +238,7 @@ export function createPlaygroundAdminHandler(deps: PlaygroundAdminDeps) {
     }
   };
 
-  const roomDetail = (roomId: string) => {
-    const room = requireRoom(roomId);
+  const roomDetail = (room: RoomSummary) => {
     const status = rooms.status(room.chatId);
     return {
       room: {
@@ -298,14 +308,11 @@ export function createPlaygroundAdminHandler(deps: PlaygroundAdminDeps) {
         return jsonOk({ error: 'method_not_allowed', message: 'Rooms support GET and POST' }, 405);
       }
 
-      if (!/^[1-9][0-9]{0,18}$/.test(roomId)) {
-        throw new PlaygroundAdminError('invalid_room_id', 'room id must be a positive decimal id', 400);
-      }
-      const room = requireRoom(roomId);
+      const room = requireRoom(canonicalId(roomId, 'invalid_room_id', 'room id'));
 
       if (nested === undefined) {
         if (method === 'GET') {
-          return jsonOk(roomDetail(roomId));
+          return jsonOk(roomDetail(room));
         }
         return jsonOk({ error: 'method_not_allowed', message: 'A room supports GET' }, 405);
       }
@@ -329,11 +336,8 @@ export function createPlaygroundAdminHandler(deps: PlaygroundAdminDeps) {
         if (method === 'GET') {
           const before = url.searchParams.get('before');
           const limit = parseLimit(url.searchParams.get('limit'));
-          if (before !== null && !/^[1-9][0-9]{0,18}$/.test(before)) {
-            throw new PlaygroundAdminError('invalid_before', 'before must be a positive decimal sequence', 400);
-          }
           const page = rooms.timeline(room.chatId, {
-            ...(before === null ? {} : { beforeSeq: BigInt(before) }),
+            ...(before === null ? {} : { beforeSeq: canonicalId(before, 'invalid_before', 'before') }),
             limit,
           });
           return jsonOk({
@@ -369,7 +373,7 @@ export function createPlaygroundAdminHandler(deps: PlaygroundAdminDeps) {
         if (method === 'POST') {
           // A message may carry 16K characters of text plus four asset ids, so
           // it gets its own read limit instead of the 8 KiB default.
-          const body = requireValid(messageValidator, await readBody(32_768), 'message');
+          const body = requireValid(messageValidator, await readBody(MAX_MESSAGE_BODY_BYTES), 'message');
           const result = await ingress.submit(room.chatId, {
             requestKey: body.request_key,
             senderId: body.sender_id,
@@ -432,14 +436,13 @@ export function createPlaygroundAdminHandler(deps: PlaygroundAdminDeps) {
             result.replayed ? 200 : 201,
           );
         }
-        if (nestedId !== undefined && !/^[1-9][0-9]{0,18}$/.test(nestedId)) {
-          throw new PlaygroundAdminError('invalid_release_id', 'release id must be a positive decimal id', 400);
-        }
-        if (nestedId !== undefined && action === undefined) {
+        const releaseId =
+          nestedId === undefined ? undefined : canonicalId(nestedId, 'invalid_release_id', 'release id');
+        if (releaseId !== undefined && action === undefined) {
           if (method !== 'GET') {
             return jsonOk({ error: 'method_not_allowed', message: 'A release supports GET' }, 405);
           }
-          const detail = rooms.releaseDetail(room.chatId, BigInt(nestedId));
+          const detail = rooms.releaseDetail(room.chatId, releaseId);
           if (detail === undefined) {
             throw new PlaygroundAdminError('not_found', `release ${nestedId} does not exist`, 404);
           }
@@ -465,9 +468,9 @@ export function createPlaygroundAdminHandler(deps: PlaygroundAdminDeps) {
             })),
           });
         }
-        if (nestedId !== undefined && action === 'retry' && method === 'POST') {
+        if (releaseId !== undefined && action === 'retry' && method === 'POST') {
           const body = requireValid(retryValidator, await readBody(), 'retry');
-          const result = ingress.retry(room.chatId, { releaseId: nestedId, attemptKey: body.attempt_key });
+          const result = ingress.retry(room.chatId, { releaseId, attemptKey: body.attempt_key });
           if (!result.replayed) {
             context.wake();
           }
@@ -543,7 +546,7 @@ export function createPlaygroundAdminHandler(deps: PlaygroundAdminDeps) {
         const updated = rooms.setImageEnabled(room.chatId, {
           enabled: body.image_enabled,
           actor: context.username,
-          revision: BigInt(body.revision),
+          revision: canonicalId(body.revision, 'invalid_body', 'revision', { allowZero: true }),
         });
         return jsonOk({ room: roomJson(updated) });
       }
@@ -558,13 +561,11 @@ export function createPlaygroundAdminHandler(deps: PlaygroundAdminDeps) {
             items: rooms.roomInvocations(room.chatId, parseLimit(url.searchParams.get('limit'))).map(invocationJson),
           });
         }
-        if (!/^[1-9][0-9]{0,18}$/.test(nestedId)) {
-          throw new PlaygroundAdminError('invalid_invocation_id', 'invocation id must be a positive decimal id', 400);
-        }
+        const invocationId = canonicalId(nestedId, 'invalid_invocation_id', 'invocation id');
         if (method !== 'GET') {
           return jsonOk({ error: 'method_not_allowed', message: 'An invocation supports GET' }, 405);
         }
-        const found = rooms.roomInvocation(room.chatId, BigInt(nestedId));
+        const found = rooms.roomInvocation(room.chatId, invocationId);
         if (found === undefined) {
           throw new PlaygroundAdminError('not_found', `invocation ${nestedId} does not belong to this room`, 404);
         }
@@ -584,10 +585,23 @@ function roomStatusJson(status: RoomStatus) {
     revision: status.revision.toString(),
     hold: status.hold,
     next_seq: status.nextSeq.toString(),
+    latest_input_seq: status.latestInputSeq.toString(),
     image_enabled: status.imageEnabled,
     pending: status.held.length,
     expired_inputs: status.expiredInputs,
   };
+}
+
+/**
+ * An id or sequence in canonical decimal and within SQLite's int64: a value
+ * past it would reach the store as a binding error instead of a refusal.
+ */
+function canonicalId(value: string, code: string, label: string, options: { readonly allowZero?: boolean } = {}) {
+  const pattern = options.allowZero === true ? /^(0|[1-9][0-9]{0,18})$/ : /^[1-9][0-9]{0,18}$/;
+  if (!pattern.test(value) || BigInt(value) > MAX_ID) {
+    throw new PlaygroundAdminError(code, `${label} must be a canonical decimal id`, 400);
+  }
+  return BigInt(value);
 }
 
 function parseLimit(value: string | null): number {

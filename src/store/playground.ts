@@ -68,6 +68,12 @@ export interface RoomState {
   readonly revision: bigint;
   readonly hold: boolean;
   readonly nextSeq: bigint;
+  /**
+   * Seq of the latest admitted input, 0 before the first one. Bot output takes
+   * room sequence numbers too, so a Release names its boundary with this, not
+   * with `nextSeq - 1`.
+   */
+  readonly latestInputSeq: bigint;
   /** Whether this room may spend real money on image generation. Default off. */
   readonly imageEnabled: boolean;
   /** Operator who last flipped the switch; null while nobody has. */
@@ -289,6 +295,54 @@ export class PlaygroundStore {
   }
 
   /**
+   * The original admission of a request key, answered from the key's own row.
+   *
+   * The input row outlives the message and its pictures (retention keeps it as
+   * a tombstone), so a lost response is answered here before any asset is
+   * resolved: a replay never depends on rows that may already be gone.
+   * Undefined means the key is new; a key used with other content is a conflict.
+   */
+  replaySubmission(
+    chatId: bigint,
+    input: {
+      readonly requestKey: string;
+      readonly senderId: bigint;
+      readonly text: string;
+      readonly replyToSeq?: bigint | null;
+      readonly assetIds: readonly string[];
+    },
+  ): SubmitResult | undefined {
+    const fingerprint = fingerprintOf(input);
+    return this.#orm.transaction(() => {
+      if (this.#roomRow(chatId) === undefined) {
+        throw new PlaygroundError('room_not_found', `room ${chatId} does not exist`);
+      }
+      return this.#replayInside(chatId, input.requestKey, fingerprint);
+    });
+  }
+
+  #replayInside(chatId: bigint, requestKey: string, fingerprint: string): SubmitResult | undefined {
+    const existing = this.#orm
+      .select({
+        id: playgroundInputs.id,
+        seq: playgroundInputs.seq,
+        fingerprint: playgroundInputs.fingerprint,
+        revision: rooms.revision,
+      })
+      .from(playgroundInputs)
+      .innerJoin(rooms, eq(rooms.chatId, playgroundInputs.chatId))
+      .where(and(eq(playgroundInputs.chatId, chatId), eq(playgroundInputs.requestKey, requestKey)))
+      .get();
+    if (existing === undefined) {
+      return undefined;
+    }
+    if (existing.fingerprint !== fingerprint) {
+      throw new PlaygroundError('input_conflict', `request key ${requestKey} was already used with different content`);
+    }
+    return { inputId: existing.id, seq: existing.seq, revision: existing.revision, admitted: false };
+  }
+
+  /**
    * Admit one room message.
    *
    * The sequence is allocated here and never reused. The same request key with
@@ -297,36 +351,15 @@ export class PlaygroundStore {
    */
   submit(chatId: bigint, input: SubmitInput): SubmitResult {
     const now = this.#clock().toISOString();
-    const fingerprint = fingerprintOf(input);
+    const fingerprint = fingerprintOf({ ...input, assetIds: (input.media ?? []).map((item) => item.assetId) });
     return this.#orm.transaction(() => {
       const room = this.#roomRow(chatId);
       if (room === undefined) {
         throw new PlaygroundError('room_not_found', `room ${chatId} does not exist`);
       }
-      const existing = this.#orm
-        .select({
-          id: playgroundInputs.id,
-          seq: playgroundInputs.seq,
-          fingerprint: playgroundInputs.fingerprint,
-          revision: rooms.revision,
-        })
-        .from(playgroundInputs)
-        .innerJoin(rooms, eq(rooms.chatId, playgroundInputs.chatId))
-        .where(and(eq(playgroundInputs.chatId, chatId), eq(playgroundInputs.requestKey, input.requestKey)))
-        .get();
+      const existing = this.#replayInside(chatId, input.requestKey, fingerprint);
       if (existing !== undefined) {
-        if (existing.fingerprint !== fingerprint) {
-          throw new PlaygroundError(
-            'input_conflict',
-            `request key ${input.requestKey} was already used with different content`,
-          );
-        }
-        return {
-          inputId: existing.id,
-          seq: existing.seq,
-          revision: existing.revision,
-          admitted: false,
-        };
+        return existing;
       }
       // Only a human member of this room may speak in it. The sender id comes
       // from the caller, so a foreign key alone would accept another room's
@@ -541,8 +574,9 @@ export class PlaygroundStore {
       // The caller states the boundary it saw. P0 seals the whole hold, so a
       // boundary that is not the room's latest admitted input means the caller
       // is looking at a stale room (another input landed, or a release already
-      // ran): refuse instead of sealing more than it asked for.
-      const latestSeq = room.nextSeq - 1n;
+      // ran): refuse instead of sealing more than it asked for. Bot output that
+      // arrived meanwhile is not an input and does not move this boundary.
+      const latestSeq = room.latestInputSeq;
       if (input.throughSeq !== undefined && input.throughSeq !== latestSeq) {
         throw new PlaygroundError(
           'release_conflict',
@@ -693,6 +727,14 @@ export class PlaygroundStore {
         .where(and(eq(playgroundRetries.chatId, chatId), eq(playgroundRetries.attemptKey, input.attemptKey)))
         .get();
       if (existing !== undefined) {
+        // An attempt key names one retry of one release: the same key sent to
+        // another release is a different request, not a lost response.
+        if (existing.releaseId !== input.releaseId) {
+          throw new PlaygroundError(
+            'input_conflict',
+            `attempt key ${input.attemptKey} was already used for release ${existing.releaseId}`,
+          );
+        }
         return {
           retryId: existing.id,
           invocationId: existing.invocationId,
@@ -900,6 +942,19 @@ export class PlaygroundStore {
    * "queued/running" its invocations.
    */
   listRooms(): RoomSummary[] {
+    return this.#roomSummaries(undefined);
+  }
+
+  /** One room with the same counters `listRooms` reports. */
+  roomSummary(chatId: bigint): RoomSummary {
+    const summary = this.#roomSummaries(chatId)[0];
+    if (summary === undefined) {
+      throw new PlaygroundError('room_not_found', `room ${chatId} does not exist`);
+    }
+    return summary;
+  }
+
+  #roomSummaries(chatId: bigint | undefined): RoomSummary[] {
     return this.#orm
       .select({
         chatId: rooms.chatId,
@@ -908,6 +963,7 @@ export class PlaygroundStore {
         revision: rooms.revision,
         hold: rooms.hold,
         nextSeq: rooms.nextSeq,
+        latestInputSeq: latestInputSeqOf(rooms.chatId),
         imageEnabled: rooms.imageEnabled,
         imageEnabledBy: rooms.imageEnabledBy,
         imageEnabledAt: rooms.imageEnabledAt,
@@ -920,6 +976,7 @@ export class PlaygroundStore {
       .from(rooms)
       .innerJoin(chats, eq(chats.id, rooms.chatId))
       .innerJoin(conversations, eq(conversations.chatId, rooms.chatId))
+      .where(chatId === undefined ? undefined : eq(rooms.chatId, chatId))
       .orderBy(desc(rooms.chatId))
       .all()
       .map((row) => ({
@@ -1008,19 +1065,8 @@ export class PlaygroundStore {
             `request key ${input.requestKey} was already used with different content`,
           );
         }
-        const chatId = BigInt(existing.resultJson);
-        const room = this.room(chatId);
-        return {
-          room: {
-            ...room,
-            memberCount: 0,
-            heldCount: 0,
-            queuedInvocations: 0,
-            runningInvocations: 0,
-            createdAt: existing.createdAt,
-          },
-          replayed: true,
-        };
+        // The replay reports the room as it is now, counters included.
+        return { room: this.roomSummary(BigInt(existing.resultJson)), replayed: true };
       }
       const created = this.#createRoomInside(input);
       this.#orm
@@ -1034,25 +1080,7 @@ export class PlaygroundStore {
           createdAt: now,
         })
         .run();
-      return {
-        room: {
-          chatId: created.chatId,
-          conversationId: created.conversationId,
-          title: input.title,
-          revision: 1n,
-          hold: true,
-          nextSeq: 1n,
-          imageEnabled: false,
-          imageEnabledBy: null,
-          imageEnabledAt: null,
-          createdAt: now,
-          memberCount: created.members.length,
-          heldCount: 0,
-          queuedInvocations: 0,
-          runningInvocations: 0,
-        },
-        replayed: false,
-      };
+      return { room: this.roomSummary(created.chatId), replayed: false };
     });
   }
 
@@ -1169,6 +1197,11 @@ export class PlaygroundStore {
       .limit(options.limit + 1)
       .all();
     const page = rows.slice(0, options.limit);
+    // One media query per page, then each entry takes only its own pictures.
+    const mediaByMessage = Map.groupBy(
+      this.#timelineMedia(page.map((entry) => entry.messageId)),
+      (item) => item.messageId,
+    );
     const items = page.map((row) => ({
       messageId: row.messageId,
       seq: row.seq ?? 0n,
@@ -1184,7 +1217,7 @@ export class PlaygroundStore {
       replyToSeq: row.replyToSeq,
       inputState: row.inputState,
       sendState: row.sendState,
-      media: this.#timelineMedia(page.map((entry) => entry.messageId)),
+      media: mediaByMessage.get(row.messageId) ?? [],
     }));
     return { items, hasMore: rows.length > options.limit };
   }
@@ -1320,22 +1353,27 @@ export class PlaygroundStore {
     if (messageIds.length === 0) {
       return [];
     }
-    return this.#orm
-      .select({
-        messageId: messageRevisions.messageId,
-        id: media.id,
-        kind: media.kind,
-        mimeType: media.mimeType,
-        fileUniqueId: media.fileUniqueId,
-        width: media.width,
-        height: media.height,
-        assetId: media.localAssetId,
-      })
-      .from(media)
-      .innerJoin(messageRevisions, eq(messageRevisions.id, media.revisionId))
-      .where(inArray(messageRevisions.messageId, [...messageIds]))
-      .orderBy(asc(media.id))
-      .all();
+    return (
+      this.#orm
+        .select({
+          messageId: messageRevisions.messageId,
+          id: media.id,
+          kind: media.kind,
+          mimeType: media.mimeType,
+          fileUniqueId: media.fileUniqueId,
+          width: media.width,
+          height: media.height,
+          assetId: media.localAssetId,
+        })
+        .from(media)
+        .innerJoin(messageRevisions, eq(messageRevisions.id, media.revisionId))
+        // Only the revision the entry shows: an edited message's older pictures
+        // are history, not part of what the timeline renders.
+        .innerJoin(messages, eq(messages.currentRevisionId, messageRevisions.id))
+        .where(inArray(messageRevisions.messageId, [...messageIds]))
+        .orderBy(asc(media.id))
+        .all()
+    );
   }
 
   #releaseSends(invocationIds: readonly bigint[]): readonly ReleaseSend[] {
@@ -1445,6 +1483,7 @@ export class PlaygroundStore {
         revision: rooms.revision,
         hold: rooms.hold,
         nextSeq: rooms.nextSeq,
+        latestInputSeq: latestInputSeqOf(rooms.chatId),
         imageEnabled: rooms.imageEnabled,
         imageEnabledBy: rooms.imageEnabledBy,
         imageEnabledAt: rooms.imageEnabledAt,
@@ -1569,14 +1608,29 @@ export class PlaygroundStore {
   }
 }
 
-function fingerprintOf(input: SubmitInput): string {
+/** Seq of a room's latest admitted input in any state; 0 before the first. */
+function latestInputSeqOf(chatId: typeof rooms.chatId) {
+  return sql<bigint>`coalesce((SELECT MAX(pi.seq) FROM playground_inputs pi WHERE pi.chat_id = ${chatId}), 0)`;
+}
+
+/**
+ * A submission's semantic fields. Pictures are named by the asset ids the
+ * caller sent: an id names exactly one (room, content) pair, and unlike the
+ * asset row it survives in the request itself after retention removed the row.
+ */
+function fingerprintOf(input: {
+  readonly senderId: bigint;
+  readonly text: string;
+  readonly replyToSeq?: bigint | null;
+  readonly assetIds: readonly string[];
+}): string {
   return createHash('sha256')
     .update(
       JSON.stringify({
         senderId: input.senderId.toString(),
         text: input.text,
         replyToSeq: input.replyToSeq?.toString() ?? null,
-        media: (input.media ?? []).map((item) => item.sha256),
+        assetIds: input.assetIds,
       }),
     )
     .digest('hex');

@@ -10,11 +10,7 @@
  * and request keys; a malformed value is refused before it reaches the store.
  */
 import type { Orm } from '../store/store.ts';
-import {
-  LocalAssetRejected,
-  type LocalAssetInput,
-  type PlaygroundAssetStore,
-} from '../capabilities/media/local-assets.ts';
+import type { PlaygroundAssetStore } from '../capabilities/media/local-assets.ts';
 import {
   PlaygroundError,
   PlaygroundStore,
@@ -50,21 +46,16 @@ export class PlaygroundIngress {
       readonly senderId?: unknown;
       readonly text?: unknown;
       readonly replyToSeq?: unknown;
-      readonly attachments?: unknown;
       readonly assetIds?: unknown;
     },
   ): Promise<SubmitResult> {
     const requestKey = requireKey(body.requestKey, 'requestKey');
-    const attachments = requireAttachments(body.attachments);
     const assetIds = requireAssetIds(body.assetIds);
     const text = body.text;
     if (typeof text !== 'string') {
       throw new PlaygroundError('input_conflict', 'text must be a string');
     }
-    if (attachments.length + assetIds.length > 4) {
-      throw new PlaygroundError('input_conflict', 'at most four images are accepted');
-    }
-    if (text.trim().length === 0 && attachments.length === 0 && assetIds.length === 0) {
+    if (text.trim().length === 0 && assetIds.length === 0) {
       throw new PlaygroundError('input_conflict', 'text must be a non-empty string');
     }
     if (text.length > 16_384) {
@@ -73,7 +64,13 @@ export class PlaygroundIngress {
     const senderId = requireDecimal(body.senderId, 'senderId');
     const replyToSeq =
       body.replyToSeq === null || body.replyToSeq === undefined ? null : requireDecimal(body.replyToSeq, 'replyToSeq');
-    const media = [...(await this.#ingest(chatId, attachments)), ...this.#referenceAssets(chatId, assetIds)];
+    // A known key is answered before its pictures are resolved: retention may
+    // have removed the asset rows while the key's tombstone stays.
+    const replayed = this.#store.replaySubmission(chatId, { requestKey, senderId, text, replyToSeq, assetIds });
+    if (replayed !== undefined) {
+      return replayed;
+    }
+    const media = this.#referenceAssets(chatId, assetIds);
     const result = this.#store.submit(chatId, { requestKey, senderId, text, replyToSeq, media });
     if (result.admitted) {
       this.#scheduleSweep();
@@ -165,36 +162,6 @@ export class PlaygroundIngress {
       };
     });
   }
-
-  async #ingest(chatId: bigint, attachments: readonly LocalAssetInput[]): Promise<SubmitMedia[]> {
-    if (attachments.length === 0) {
-      return [];
-    }
-    const assets = this.#options.assets;
-    if (assets === undefined) {
-      throw new PlaygroundError('input_conflict', 'this room cannot accept images');
-    }
-    const media: SubmitMedia[] = [];
-    for (const attachment of attachments) {
-      try {
-        const asset = await assets.ingest(chatId, attachment);
-        media.push({
-          assetId: asset.id,
-          sha256: asset.sha256,
-          mime: asset.mime,
-          byteSize: asset.byteSize,
-          width: asset.width,
-          height: asset.height,
-        });
-      } catch (error) {
-        if (error instanceof LocalAssetRejected) {
-          throw new PlaygroundError('input_conflict', error.message);
-        }
-        throw error;
-      }
-    }
-    return media;
-  }
 }
 
 function requireAssetIds(value: unknown): string[] {
@@ -205,25 +172,6 @@ function requireAssetIds(value: unknown): string[] {
     throw new PlaygroundError('input_conflict', 'assetIds must be at most four asset id strings');
   }
   return value as string[];
-}
-
-function requireAttachments(value: unknown): LocalAssetInput[] {
-  if (value === null || value === undefined) {
-    return [];
-  }
-  if (!Array.isArray(value) || value.length > 4) {
-    throw new PlaygroundError('input_conflict', 'attachments must be at most four images');
-  }
-  return value.map((item, index) => {
-    if (typeof item !== 'object' || item === null) {
-      throw new PlaygroundError('input_conflict', `attachments[${index}] is not an image`);
-    }
-    const { bytes, mime, name } = item as { bytes?: unknown; mime?: unknown; name?: unknown };
-    if (!(bytes instanceof Uint8Array) || typeof mime !== 'string') {
-      throw new PlaygroundError('input_conflict', `attachments[${index}] needs image bytes and a MIME type`);
-    }
-    return { bytes, declaredMime: mime, ...(typeof name === 'string' ? { name } : {}) };
-  });
 }
 
 function requireKey(value: unknown, field: string): string {

@@ -127,33 +127,26 @@ export class PlaygroundAssetStore {
       .map((row) => row.id);
   }
 
-  async ingest(chatId: bigint, input: LocalAssetInput): Promise<LocalAsset> {
-    if (input.bytes.byteLength === 0) {
-      throw new LocalAssetRejected('empty', 'Image upload is empty');
-    }
-    if (input.bytes.byteLength > this.#maxBytes) {
-      throw new LocalAssetRejected('too_large', 'Image upload exceeds the size limit');
-    }
-    const declared = input.declaredMime.trim().toLowerCase();
-    if (!isLocalImageMime(declared)) {
-      throw new LocalAssetRejected('unsupported_type', `Unsupported image type: ${input.declaredMime}`);
-    }
-    const sniffed = sniffImageMime(input.bytes);
-    if (sniffed === null) {
-      throw new LocalAssetRejected('unsupported_type', 'Upload is not a JPEG, PNG or WebP image');
-    }
-    if (sniffed !== declared) {
-      throw new LocalAssetRejected('type_mismatch', 'Declared image type does not match the content');
-    }
-    if (sniffed === 'image/png' && isAnimatedPng(input.bytes)) {
-      throw new LocalAssetRejected('animated', 'Animated images are not supported');
-    }
-    const { width, height } = await this.#inspect(input.bytes, sniffed);
+  /**
+   * Refuse a payload exactly as `ingest` would, without writing anything. A
+   * caller storing several pictures as one unit checks them all first, so a
+   * bad later picture cannot leave the earlier ones behind.
+   */
+  async validate(input: LocalAssetInput): Promise<void> {
+    await this.#validated(input);
+  }
+
+  /**
+   * Store one picture. `created` is false when the room already held the same
+   * bytes: that asset belongs to someone else and must not be discarded.
+   */
+  async ingest(chatId: bigint, input: LocalAssetInput): Promise<LocalAsset & { readonly created: boolean }> {
+    const { sniffed, width, height } = await this.#validated(input);
 
     const sha256 = createHash('sha256').update(input.bytes).digest('hex');
     const existing = this.#byContent(chatId, sha256);
     if (existing !== undefined) {
-      return existing;
+      return { ...existing, created: false };
     }
 
     const id = randomBytes(16).toString('hex');
@@ -190,7 +183,7 @@ export class PlaygroundAssetStore {
       if (winner === undefined) {
         throw new Error('Concurrent image upload left no asset row');
       }
-      return winner;
+      return { ...winner, created: false };
     }
 
     return {
@@ -202,7 +195,61 @@ export class PlaygroundAssetStore {
       width,
       height,
       path: absolute,
+      created: true,
     };
+  }
+
+  /**
+   * Undo an `ingest` that created an asset nobody uses yet. The row is claimed
+   * by deleting it only while no media row references it, exactly like the
+   * sweep, so an asset that became a message meanwhile is kept.
+   */
+  async discard(assetId: string): Promise<void> {
+    const row = this.#orm
+      .select({ path: playgroundAssets.storagePath })
+      .from(playgroundAssets)
+      .where(eq(playgroundAssets.id, assetId))
+      .get();
+    if (row === undefined) {
+      return;
+    }
+    const claimed = this.#orm
+      .delete(playgroundAssets)
+      .where(
+        and(
+          eq(playgroundAssets.id, assetId),
+          notExists(this.#orm.select({ id: media.id }).from(media).where(eq(media.localAssetId, playgroundAssets.id))),
+        ),
+      )
+      .run();
+    if (claimed.changes === 1) {
+      await rm(this.#absolute(row.path), { force: true });
+    }
+  }
+
+  async #validated(input: LocalAssetInput): Promise<{ sniffed: LocalImageMime; width: number; height: number }> {
+    if (input.bytes.byteLength === 0) {
+      throw new LocalAssetRejected('empty', 'Image upload is empty');
+    }
+    if (input.bytes.byteLength > this.#maxBytes) {
+      throw new LocalAssetRejected('too_large', 'Image upload exceeds the size limit');
+    }
+    const declared = input.declaredMime.trim().toLowerCase();
+    if (!isLocalImageMime(declared)) {
+      throw new LocalAssetRejected('unsupported_type', `Unsupported image type: ${input.declaredMime}`);
+    }
+    const sniffed = sniffImageMime(input.bytes);
+    if (sniffed === null) {
+      throw new LocalAssetRejected('unsupported_type', 'Upload is not a JPEG, PNG or WebP image');
+    }
+    if (sniffed !== declared) {
+      throw new LocalAssetRejected('type_mismatch', 'Declared image type does not match the content');
+    }
+    if (sniffed === 'image/png' && isAnimatedPng(input.bytes)) {
+      throw new LocalAssetRejected('animated', 'Animated images are not supported');
+    }
+    const { width, height } = await this.#inspect(input.bytes, sniffed);
+    return { sniffed, width, height };
   }
 
   /** Point an asset at the message media row that now owns it. */
