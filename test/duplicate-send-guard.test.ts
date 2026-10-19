@@ -258,7 +258,7 @@ describe('duplicate send guard', () => {
         ['sticker', null],
         ['sticker-again', 'send_duplicate'],
       ]);
-      expect(sendCounts(fixture)).toEqual({ telegram_sends: 3n, sends_used: 3n });
+      expect(sendCounts(fixture)).toEqual({ host_sends: 3n, sends_used: 3n });
     } finally {
       fixture.store.close();
     }
