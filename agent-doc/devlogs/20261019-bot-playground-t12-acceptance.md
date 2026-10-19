@@ -20,7 +20,7 @@
 Epic §7 的矩阵由现有自动化套件覆盖，TG 合同与 PG 隔离两侧同时断言：
 
 - V01（TG 原行为）：`test/context-send.test.ts`、`send-reply.test.ts`、`reply-dedup.test.ts`、`typing.test.ts`、`scheduler.test.ts`、`telegram-ingestion.test.ts`、`startup-catch-up.test.ts`、`context-gc.test.ts` 等既有套件，加 `test/im-host-contract.test.ts` / `im-host-pinned-surface.test.ts` 固定的跨宿主合同。
-- V02–V08（多用户、Hold、Release 顺序、合批、运行中再 Hold、幂等、失败/重试守卫）：`test/playground-ingestion.test.ts`（43）、`playground-scheduler.test.ts`（15）、`playground-runtime.test.ts`（7）、`playground-context.test.ts`（11）、`test/admin-playground.test.ts`（37），断言均落到 Store/Scheduler/Provider 请求而非 UI 文案。
+- V02–V08（多用户、Hold、Release 顺序、合批、运行中再 Hold、幂等、失败/重试守卫）：`test/playground-ingestion.test.ts`（16）、`playground-scheduler.test.ts`（4）、`playground-runtime.test.ts`（1）、`playground-context.test.ts`（8）、`test/admin-playground.test.ts`（15），断言均落到 Store/Scheduler/Provider 请求而非 UI 文案。
 - V09（退出与重启）：`test/playground-only-serve.test.ts` 用真实 `serve --playground-only` 子进程验收启停与缺面板拒绝；`a queued release survives a restart and runs once on startup` 覆盖 queued 重启恢复；`expireQueued` 的五分钟上限由 `test/playground-ingestion.test.ts` 覆盖。
 - V10（整批拒绝）：`test/playground-context.test.ts` 与 `test/host-boundary.test.ts`。
 - V11–V13（输出只在当前虚拟群、零 Telegram 网络、副作用隔离）：`test/playground-delivery.test.ts`、`playground-only.test.ts`（`a playground-only process runs the room round and leaves Telegram work untouched`，TG 工作计数为零且原样保留）、`playground-host-profile.test.ts`。
