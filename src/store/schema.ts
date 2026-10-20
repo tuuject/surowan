@@ -674,6 +674,26 @@ export const conversationAttention = sqliteTable(
   ],
 );
 
+/**
+ * Consecutive proactive-reply misses per Chat. `settings_fingerprint` records
+ * the numeric parameter set the count belongs to: changing base_probability,
+ * increment or hard_pity resets the count on the next sample, while toggling
+ * enabled does not. One row per group, never one per message, and it survives
+ * restarts so hard pity cannot be dodged by a crash.
+ */
+export const proactiveReplyState = sqliteTable(
+  'proactive_reply_state',
+  {
+    chatId: sqliteBigIntId('chat_id')
+      .primaryKey()
+      .references(() => chats.id, { onDelete: 'cascade' }),
+    consecutiveMisses: sqliteBigInt('consecutive_misses').notNull().default(0n),
+    settingsFingerprint: text('settings_fingerprint').notNull(),
+    lastSampledAt: text('last_sampled_at').notNull(),
+  },
+  () => [check('proactive_reply_state_misses_check', sql`consecutive_misses >= 0`)],
+);
+
 export const longTasks = sqliteTable(
   'long_tasks',
   {

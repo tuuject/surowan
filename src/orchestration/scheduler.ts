@@ -5,6 +5,7 @@ import { LongTaskService } from '../store/long-tasks.ts';
 import { buckets, conversations, invocations, taskReceipts } from '../store/schema.ts';
 import { activeSleepUntil } from '../store/sleep.ts';
 import { type BucketAttachmentTarget, InvocationQueueService } from './invocation-queue.ts';
+import type { ProactiveReplyGateOptions } from './proactive-reply.ts';
 
 export interface InvocationOutcome {
   readonly state: 'completed' | 'failed' | 'aborted' | 'outcome_unknown';
@@ -61,11 +62,12 @@ export class BucketScheduler {
     handler: InvocationHandler,
     attachment?: BucketAttachmentTarget,
     tasks = new LongTaskService(store.orm),
+    proactive?: ProactiveReplyGateOptions,
   ) {
     this.#store = store;
     this.#configStore = configStore;
     this.#tasks = tasks;
-    this.#queue = new InvocationQueueService(store, configStore, attachment, tasks);
+    this.#queue = new InvocationQueueService(store, configStore, attachment, tasks, proactive);
     this.#handler = handler;
   }
 

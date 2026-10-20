@@ -25,7 +25,7 @@ description: 按配置节理解 Plastic Wan 的必填项、覆盖关系与运行
 
 ## 覆盖与隔离
 
-全局 `agent.provider`、`model`、`thinking_level` 是默认值，三项缺一即「未配置」：Bot 照常启动但不发起任何 Invocation，补齐后恢复；Chat 同时指定 `provider` 和 `model` 时覆盖全局，`thinking_level` 可独立覆盖；Topic 使用所属 Chat 的模型设置。Chat 的 `participation.active_windows` 覆盖全局时段，关键词则追加到全局关键词。
+全局 `agent.provider`、`model`、`thinking_level` 是默认值，三项缺一即「未配置」：Bot 照常启动但不发起任何 Invocation，补齐后恢复；Chat 同时指定 `provider` 和 `model` 时覆盖全局，`thinking_level` 可独立覆盖；Topic 使用所属 Chat 的模型设置。Chat 的 `participation.active_windows` 覆盖全局时段，关键词则追加到全局关键词；`proactive_reply` 则在全局与 Chat 两级按字段继承，默认关闭，见[控制主动插话频率](../guides/proactive-replies.md)。
 
 Conversation、短期记忆和注意力窗口按 Chat + Topic 隔离；预算硬限制不是每群配额：主 Agent 日 Token 限制全局共享，Vision 有另一组全局限制。
 
@@ -37,4 +37,4 @@ Conversation、短期记忆和注意力窗口按 Chat + Topic 隔离；预算硬
 
 ## 生效规则
 
-配置只在显式启动或应用时读取。Provider、模型、Prompt、`ignored_user_ids`、新增 Chat 与全部 Agent 字段可热应用；删除 allowlist Chat、MCP、Admin、路径和大多数结构变化要重启。详细操作见 [配置文件与密钥](../configure/config-file.md)，逐字段请下载 Schema。
+配置只在显式启动或应用时读取。Provider、模型、Prompt、`ignored_user_ids`、`participation`、`proactive_reply`、新增 Chat 与全部 Agent 字段可热应用；删除 allowlist Chat、MCP、Admin、路径和大多数结构变化要重启。详细操作见 [配置文件与密钥](../configure/config-file.md)，逐字段请下载 Schema。

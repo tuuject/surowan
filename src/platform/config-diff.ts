@@ -95,8 +95,16 @@ const OUTSIDE_SERVE_PATHS: ReadonlySet<string> = new Set([
   'retention.backup_copies',
 ]);
 
-/** Chat IDs appear verbatim in change paths, including negative supergroup IDs. */
+/**
+ * Chat IDs appear verbatim in change paths, including negative supergroup IDs.
+ * Per-Chat runtime policies resolve from the published configuration, so every
+ * scalar below them is hot as well.
+ */
 const HOT_PARTICIPATION_PATHS = [/^telegram\.participation(\.|$)/, /^telegram\.chats\[-?\d+\]\.participation(\.|$)/];
+const HOT_PROACTIVE_REPLY_PATHS = [
+  /^telegram\.proactive_reply(\.|$)/,
+  /^telegram\.chats\[-?\d+\]\.proactive_reply(\.|$)/,
+];
 
 function classify(path: string): ConfigChangeKind {
   if (OUTSIDE_SERVE_PATHS.has(path)) {
@@ -110,6 +118,11 @@ function classify(path: string): ConfigChangeKind {
   // the next reload like a hot-added Chat. The object merges field by field,
   // so every path inside either level counts.
   if (HOT_PARTICIPATION_PATHS.some((pattern) => pattern.test(path))) {
+    return 'hot';
+  }
+  // Same for spontaneous-participation tuning: the gate resolves the current
+  // published values and resets a counter whose parameter set changed.
+  if (HOT_PROACTIVE_REPLY_PATHS.some((pattern) => pattern.test(path))) {
     return 'hot';
   }
   return 'restart';

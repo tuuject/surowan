@@ -561,6 +561,30 @@ export interface ParticipationView {
   readonly attention_window_seconds?: number;
 }
 
+export interface ProactiveReplyView {
+  readonly enabled?: boolean;
+  readonly base_probability?: number;
+  readonly increment?: number;
+  readonly hard_pity?: number;
+}
+
+export interface ProactiveReplySettingsView {
+  readonly enabled: boolean;
+  readonly base_probability: number;
+  readonly increment: number;
+  readonly hard_pity: number;
+}
+
+export type ProactiveReplyWrite =
+  | { readonly mode: 'inherit' }
+  | { readonly mode: 'off' }
+  | {
+      readonly mode: 'custom';
+      readonly base_probability: number;
+      readonly increment: number;
+      readonly hard_pity: number;
+    };
+
 export interface ChatSettings {
   readonly topic_ids: readonly string[] | null;
   readonly provider: string | null;
@@ -570,6 +594,8 @@ export interface ChatSettings {
 
 export interface ChatSettingsView extends ChatSettings {
   readonly participation: ParticipationView | null;
+  readonly proactive_reply: ProactiveReplyView | null;
+  readonly effective_proactive_reply: ProactiveReplySettingsView;
   readonly timezone: string | null;
   readonly effective: AgentModelReference;
 }
@@ -590,6 +616,8 @@ export interface ChatsView {
   /** Global default timezone; per-chat overrides ride on each item. */
   readonly timezone: string;
   readonly global_participation: ParticipationView | null;
+  readonly global_proactive_reply: ProactiveReplyView | null;
+  readonly effective_global_proactive_reply: ProactiveReplySettingsView;
   readonly defaults: AgentModelReference;
   readonly models: readonly (ProviderModelReference & {
     readonly name: string;
@@ -1085,6 +1113,18 @@ export function updateChatParticipation(
   revision: string,
 ): Promise<ChatWriteResponse> {
   return call<ChatWriteResponse>(`/chats/${encodeURIComponent(id)}/participation`, {
+    method: 'PUT',
+    headers: writeHeaders(revision),
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateChatProactiveReply(
+  id: string,
+  body: ProactiveReplyWrite,
+  revision: string,
+): Promise<ChatWriteResponse> {
+  return call<ChatWriteResponse>(`/chats/${encodeURIComponent(id)}/proactive-reply`, {
     method: 'PUT',
     headers: writeHeaders(revision),
     body: JSON.stringify(body),

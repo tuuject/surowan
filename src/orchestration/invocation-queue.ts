@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
 import { AGENT_PROMPT_VERSION } from '../platform/agent-protocol.ts';
-import { completeAgentSettings, resolveAgentSettings } from '../platform/config.ts';
+import { completeAgentSettings, type RawConfig, resolveAgentSettings } from '../platform/config.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import type { BusinessStore } from '../store/store.ts';
 import { asRunResult, isChatPaused, resolveChatConfig } from '../store/store.ts';
@@ -9,6 +9,7 @@ import { LongTaskService } from '../store/long-tasks.ts';
 import { isConversationActive, ParticipationRegistry } from '../store/participation.ts';
 import { appState, bucketMessages, buckets, invocationBuckets, invocations, taskReceipts } from '../store/schema.ts';
 import { activeSleepUntil } from '../store/sleep.ts';
+import { ProactiveReplyGate, type ProactiveReplyGateOptions } from './proactive-reply.ts';
 
 export const RECOVERY_MAX_AGE_MS = 5 * 60_000;
 export const STARTUP_CATCH_UP_STATE_KEY = 'telegram_startup_catch_up';
@@ -99,18 +100,21 @@ export class InvocationQueueService {
   readonly #participation: ParticipationRegistry;
   readonly #attachment: BucketAttachmentTarget | undefined;
   readonly #tasks: LongTaskService;
+  readonly #proactive: ProactiveReplyGate | undefined;
 
   constructor(
     store: BusinessStore,
     configStore: RuntimeConfigurationStore,
     attachment?: BucketAttachmentTarget,
     tasks = new LongTaskService(store.orm),
+    proactive?: ProactiveReplyGateOptions,
   ) {
     this.#store = store;
     this.#configStore = configStore;
     this.#participation = new ParticipationRegistry(configStore);
     this.#attachment = attachment;
     this.#tasks = tasks;
+    this.#proactive = proactive === undefined ? undefined : new ProactiveReplyGate(store.orm, configStore, proactive);
   }
 
   recover(now = new Date()): void {
@@ -240,7 +244,7 @@ export class InvocationQueueService {
           this.#store.orm,
           latest.telegram_chat_id,
         );
-        const skipReason =
+        let skipReason =
           catchUpChat === undefined
             ? 'chat_removed'
             : completeAgentSettings(resolveAgentSettings(this.#configStore.current().config, catchUpChat)) === undefined
@@ -299,8 +303,23 @@ export class InvocationQueueService {
             .values({ bucketId, messageId: message.id, sequenceNo: BigInt(sequence + 1), sourceBucketId: bucketId })
             .run();
         }
-        if (skipReason === undefined) {
-          invocationIds.push(this.#insertInvocation(bucketId, latest.conversation_id, now, false));
+        if (skipReason === undefined && catchUpChat !== undefined) {
+          if (
+            this.#proactiveAllows(
+              bucketId,
+              latest.chat_id,
+              latest.telegram_chat_id,
+              latest.chat_type,
+              latest.conversation_id,
+              catchUpChat,
+              now,
+            )
+          ) {
+            invocationIds.push(this.#insertInvocation(bucketId, latest.conversation_id, now, false));
+          } else {
+            skipReason = 'proactive_reply_skipped';
+            this.#markBucketSkipped(bucketId, now, skipReason);
+          }
         }
       }
       const cleared = asRunResult(
@@ -393,8 +412,8 @@ export class InvocationQueueService {
     }
     // Paused chats never reach here: the due query excludes them.
     const chat = this.#store.orm
-      .all<{ telegram_chat_id: bigint }>(
-        sql`SELECT c.telegram_chat_id FROM conversations v JOIN chats c ON c.id = v.chat_id WHERE v.id = ${bucket.conversation_id}`,
+      .all<{ chat_id: bigint; telegram_chat_id: bigint; type: string }>(
+        sql`SELECT c.id AS chat_id, c.telegram_chat_id, c.type FROM conversations v JOIN chats c ON c.id = v.chat_id WHERE v.id = ${bucket.conversation_id}`,
       )
       .at(0);
     if (chat === undefined) {
@@ -418,6 +437,20 @@ export class InvocationQueueService {
     if (sleepUntil !== null) {
       this.#markBucketSkipped(bucket.id, now, 'sleeping');
       this.#logSleepingSkip(chat.telegram_chat_id, bucket.id, invocationId, sleepUntil);
+      return true;
+    }
+    if (
+      !this.#proactiveAllows(
+        bucket.id,
+        chat.chat_id,
+        chat.telegram_chat_id,
+        chat.type,
+        bucket.conversation_id,
+        attachChat,
+        now,
+      )
+    ) {
+      this.#markBucketSkipped(bucket.id, now, 'proactive_reply_skipped');
       return true;
     }
     const timestamp = now.toISOString();
@@ -790,8 +823,8 @@ export class InvocationQueueService {
 
   #queueBucket(bucket: BucketRow, now: Date, sleepUntil: string | null): bigint | undefined {
     const chat = this.#store.orm
-      .all<{ telegram_chat_id: bigint; paused: bigint }>(
-        sql`SELECT c.telegram_chat_id,
+      .all<{ chat_id: bigint; telegram_chat_id: bigint; type: string; paused: bigint }>(
+        sql`SELECT c.id AS chat_id, c.telegram_chat_id, c.type,
                 EXISTS(SELECT 1 FROM chat_pause p WHERE p.chat_id = c.id) AS paused
          FROM conversations v JOIN chats c ON c.id = v.chat_id WHERE v.id = ${bucket.conversation_id}`,
       )
@@ -818,6 +851,20 @@ export class InvocationQueueService {
     if (sleepUntil !== null) {
       this.#markBucketSkipped(bucket.id, now, 'sleeping');
       this.#logSleepingSkip(chat.telegram_chat_id, bucket.id, null, sleepUntil);
+      return undefined;
+    }
+    if (
+      !this.#proactiveAllows(
+        bucket.id,
+        chat.chat_id,
+        chat.telegram_chat_id,
+        chat.type,
+        bucket.conversation_id,
+        chatConfig,
+        now,
+      )
+    ) {
+      this.#markBucketSkipped(bucket.id, now, 'proactive_reply_skipped');
       return undefined;
     }
     this.#store.orm
@@ -858,6 +905,37 @@ export class InvocationQueueService {
       includeHistory,
     );
     return invocationId;
+  }
+
+  /**
+   * One probability decision for this aggregated bucket, after every gate that
+   * could skip it has already run. A miss keeps the bucket's messages in the
+   * database (and therefore in later history) but closes the bucket without an
+   * Invocation, exactly like a participation-gated message.
+   */
+  #proactiveAllows(
+    bucketId: bigint,
+    chatId: bigint,
+    telegramChatId: bigint,
+    chatType: string,
+    conversationId: bigint,
+    chat: Pick<RawConfig['telegram']['chats'][number], 'proactive_reply'>,
+    now: Date,
+  ): boolean {
+    if (this.#proactive === undefined) {
+      return true;
+    }
+    const rule = this.#participation.ruleFor(this.#store.orm, telegramChatId, chatType);
+    return this.#proactive.decide({
+      bucketId,
+      chatId,
+      telegramChatId,
+      chatType,
+      conversationId,
+      chat,
+      keywords: rule?.keywords ?? [],
+      now,
+    }).allowed;
   }
 
   #markBucketSkipped(bucketId: bigint, now: Date, reason: string): void {

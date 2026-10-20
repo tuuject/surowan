@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from 'vitest';
+import { afterAll, describe, expect, test, vi } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +7,7 @@ import { createSendTool, type TelegramSendApi } from '../src/capabilities/send-t
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { BotCommandService, type CommandSender } from '../src/orchestration/bot-commands.ts';
 import { BucketScheduler, STARTUP_CATCH_UP_STATE_KEY } from '../src/orchestration/scheduler.ts';
+import type { ProactiveReplyGateOptions } from '../src/orchestration/proactive-reply.ts';
 import type { FileConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { runStartupCatchUp, type StartupCatchUpApi } from '../src/startup-catch-up.ts';
@@ -115,6 +116,7 @@ function fakeApi(updates: readonly Update[]): StartupCatchUpApi {
 async function setup(
   twoChats: boolean,
   transform?: (config: FileConfig) => void,
+  proactive?: ProactiveReplyGateOptions,
 ): Promise<{
   readonly store: SqliteStore;
   readonly loaded: Awaited<ReturnType<typeof loadConfig>>;
@@ -140,10 +142,17 @@ async function setup(
   const loaded = await loadConfig(configPath);
   const configStore = await testConfigStore(loaded);
   const store = await SqliteStore.open(loaded.config);
-  const scheduler = new BucketScheduler(store, configStore, async () => ({
-    state: 'completed',
-    reason: 'done',
-  }));
+  const scheduler = new BucketScheduler(
+    store,
+    configStore,
+    async () => ({
+      state: 'completed',
+      reason: 'done',
+    }),
+    undefined,
+    undefined,
+    proactive,
+  );
   return {
     store,
     loaded,
@@ -735,6 +744,45 @@ describe('startup catch-up commands', () => {
     expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM telegram_updates').get()?.count).toBe(
       2n,
     );
+    store.close();
+  });
+
+  test('proactive scheduling gates a catch-up batch without a direct cue', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const random = vi.fn(() => 0.99);
+    const { store, ingestion, scheduler, commands } = await setup(
+      false,
+      (config) => {
+        config.telegram.proactive_reply = {
+          enabled: true,
+          base_probability: 0.2,
+          increment: 0.1,
+          hard_pity: 8,
+        };
+      },
+      { bot: { id: BigInt(999), username: 'PlasticWanBot' }, random },
+    );
+    const result = await runStartupCatchUp({
+      api: fakeApi([textUpdate(1, 10, 7)]),
+      store,
+      ingestion,
+      scheduler,
+      commands,
+      allowedUpdates: ['message', 'edited_message', 'my_chat_member'],
+      now: fixedClock(),
+    });
+
+    expect(result.invocationIds).toHaveLength(0);
+    expect(random).toHaveBeenCalledTimes(1);
+    expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM invocations').get()?.count).toBe(0n);
+    expect(
+      store.db.prepare<[], { state: string; error_code: string }>('SELECT state, error_code FROM buckets').get(),
+    ).toEqual({ state: 'skipped_budget', error_code: 'proactive_reply_skipped' });
+    expect(
+      store.db.prepare<[], { consecutive_misses: bigint }>('SELECT consecutive_misses FROM proactive_reply_state').get()
+        ?.consecutive_misses,
+    ).toBe(1n);
+    vi.restoreAllMocks();
     store.close();
   });
 

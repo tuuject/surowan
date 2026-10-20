@@ -73,4 +73,4 @@ Chat 的 `active_windows` 存在时整体替换全局时段；空数组表示没
 - 时段结束会立即回到静默；时段末尾的 @ 不会自动延长到时段外。
 - 单独 Sticker 默认不会开 Bucket，除非另外启用 `sticker_trigger_enabled`。
 
-相关页面：[Telegram 配置](../configure/telegram.md)、[排障](../operations/troubleshooting.md)、[字段参考](../reference/fields.md)。
+相关页面：[控制主动插话频率](proactive-replies.md)、[Telegram 配置](../configure/telegram.md)、[排障](../operations/troubleshooting.md)、[字段参考](../reference/fields.md)。

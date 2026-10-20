@@ -113,6 +113,10 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 
 `conversation_attention` 每个 Conversation 至多一行，记录 `expires_at`、命中的 `trigger_kind`（`mention`/`reply_to_bot`/`keyword`）与触发消息的 Telegram message ID。它只回答「这个会话现在算不算活跃」：行过期即无意义，读路径只比较 `expires_at > now` 且从不惰性删除，清理交给 `purgeExpiredData`。窗口要跨进程重启保持，因此放在 SQLite 而不是内存。
 
+### 主动回复计数（迁移 036）
+
+`proactive_reply_state` 每个 Chat 至多一行，记录 `consecutive_misses`、`settings_fingerprint` 与 `last_sampled_at`。它只服务主动回复概率调度的硬保底：抽样在 Bucket 状态转换的同一事务内完成，命中清零、未命中加一；`settings_fingerprint` 只包含三个数值参数，任一变化后下一次抽样先清零，仅开关 `enabled` 或重启则保留。按 Chat 而不是 Conversation 计数，因此 Forum Topic 共享所在群的保底。行随 `chats` 级联删除，不参与在线保留窗口的清理。
+
 ### dictionary_entries（迁移 034）
 
 辞典词条表。作用域为 `global`（所有会话可读）或 `group`（归属一个 Telegram Chat，同群 Forum Topic 共用）：

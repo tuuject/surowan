@@ -10,6 +10,7 @@ import {
   ThinkingLevelSchema,
 } from '../../platform/config.ts';
 import type { ConfigEdit } from '../../platform/config-write.ts';
+import { resolveProactiveReply } from '../../platform/proactive-reply.ts';
 import { supportedThinkingLevels } from '../../platform/thinking-levels.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { chatMigrations, chats } from '../../store/schema.ts';
@@ -38,6 +39,21 @@ const ParticipationBodySchema = Type.Object(
   { additionalProperties: false },
 );
 const participationValidator = Compile(ParticipationBodySchema);
+const ProbabilitySchema = Type.Number({ minimum: 0, maximum: 1 });
+const ProactiveReplyBodySchema = Type.Union([
+  Type.Object({ mode: Type.Literal('inherit') }, { additionalProperties: false }),
+  Type.Object({ mode: Type.Literal('off') }, { additionalProperties: false }),
+  Type.Object(
+    {
+      mode: Type.Literal('custom'),
+      base_probability: ProbabilitySchema,
+      increment: ProbabilitySchema,
+      hard_pity: Type.Integer({ minimum: 1, maximum: 100 }),
+    },
+    { additionalProperties: false },
+  ),
+]);
+const proactiveReplyValidator = Compile(ProactiveReplyBodySchema);
 const SettingsProperties = {
   topic_ids: Type.Union([Type.Array(TopicIdSchema, { minItems: 1, uniqueItems: true }), Type.Null()]),
   provider: Type.Union([Type.String({ minLength: 1 }), Type.Null()]),
@@ -87,6 +103,18 @@ export function parseParticipation(value: unknown): ParticipationBody {
     throw new AdminQueryError(
       'invalid_body',
       'Expected active_windows: either null to remove the Chat schedule or an array of { start, end, days? } windows',
+    );
+  }
+  return value;
+}
+
+export type ProactiveReplyBody = Static<typeof ProactiveReplyBodySchema>;
+
+export function parseProactiveReply(value: unknown): ProactiveReplyBody {
+  if (!proactiveReplyValidator.Check(value)) {
+    throw new AdminQueryError(
+      'invalid_body',
+      'Expected { mode: "inherit" | "off" } or { mode: "custom", base_probability, increment, hard_pity }',
     );
   }
   return value;
@@ -193,6 +221,33 @@ export function updateChatParticipation(file: FileConfig, id: number, body: Part
   return [{ path: ['telegram', 'chats', index, 'participation', 'active_windows'], value: body.active_windows }];
 }
 
+/** Edits only the Chat's `proactive_reply` override, preserving every other field. */
+export function updateChatProactiveReply(file: FileConfig, id: number, body: ProactiveReplyBody): ConfigEdit[] {
+  const index = chatIndex(file, id);
+  const chat = file.telegram.chats[index];
+  if (chat === undefined) {
+    throw new AdminQueryError('chat_not_found', `Chat ${id} is not configured in the file`, 404);
+  }
+  if (chat.id > 0) {
+    throw new AdminQueryError('invalid_body', 'Private chats cannot configure proactive replies');
+  }
+  const value =
+    body.mode === 'inherit'
+      ? undefined
+      : body.mode === 'off'
+        ? { enabled: false }
+        : {
+            enabled: true,
+            base_probability: body.base_probability,
+            increment: body.increment,
+            hard_pity: body.hard_pity,
+          };
+  if (JSON.stringify(chat.proactive_reply) === JSON.stringify(value)) {
+    return [];
+  }
+  return [{ path: ['telegram', 'chats', index, 'proactive_reply'], value }];
+}
+
 /** The API spells a missing identity field as `null`, never as an absent key. */
 function agentSettingsView(config: { agent?: AgentSettings | null }, chat?: FileChat) {
   const settings = resolveAgentSettings(config, chat);
@@ -203,7 +258,10 @@ function agentSettingsView(config: { agent?: AgentSettings | null }, chat?: File
   };
 }
 
-function chatSettings(config: { agent?: AgentSettings | null }, chat: FileChat | undefined) {
+function chatSettings(
+  config: { agent?: AgentSettings | null; telegram: Pick<FileConfig['telegram'], 'proactive_reply'> },
+  chat: FileChat | undefined,
+) {
   return chat === undefined
     ? null
     : {
@@ -212,6 +270,8 @@ function chatSettings(config: { agent?: AgentSettings | null }, chat: FileChat |
         model: chat.model ?? null,
         thinking_level: chat.thinking_level ?? null,
         participation: chat.participation ?? null,
+        proactive_reply: chat.proactive_reply ?? null,
+        effective_proactive_reply: resolveProactiveReply(config, chat),
         timezone: chat.timezone ?? null,
         effective: agentSettingsView(config, chat),
       };
@@ -232,6 +292,8 @@ export function listChats(
     restart_required: restartRequired,
     timezone: file.timezone,
     global_participation: file.telegram.participation ?? null,
+    global_proactive_reply: file.telegram.proactive_reply ?? null,
+    effective_global_proactive_reply: resolveProactiveReply(file),
     defaults: agentSettingsView(file),
     models: Object.entries(file.providers).flatMap(([provider, definition]) =>
       definition.models

@@ -82,4 +82,4 @@ Telegram 官方 FAQ 指引开发者通过 [@BotFather](https://t.me/BotFather) �
 
 管理员也可以直接编辑 `telegram.chats[].ignored_user_ids`（唯一的正安全整数数组），然后在面板点击 **Apply config file** 热应用。被忽略后的普通消息、编辑和其他命令不进入模型；已有消息与 Context 不会追溯删除，Update 审计仍保留。若命令提示“已写入，但应用失败”，运行中仍使用旧配置，修复配置后重新发送命令或在面板应用。
 
-若需限制群内唤醒时段，参阅 [参与方式](../guides/participation.md)。
+若需限制群内唤醒时段，参阅 [参与方式](../guides/participation.md)。若希望普通群消息只偶尔唤醒 Bot、而不是每条都参与，参阅 [控制主动插话频率](../guides/proactive-replies.md)。

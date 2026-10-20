@@ -75,7 +75,7 @@ deadline = anchor + telegram.bucket_window_seconds
 2. 同一 Chat 同时最多一个 queued/running Invocation；运行期间任何 Topic 的新消息只进入自己的 Bucket，不修改当前 Invocation。
 3. 每个 Bucket 的 deadline 是 **`max(第一条消息时刻, 该 Conversation 上一轮结束时刻) + bucket_window_seconds`**，按 Conversation 计算。Agent 空闲时它退化成 `first_received_at + bucket_window_seconds`；若第一条消息到达时上一轮还在跑，这批的窗口从该轮结束才开始，因此至少收集满一个窗口。deadline 与 Invocation 的 `started_at`/`finished_at`、queued/running 状态无关，也不会提前。
 4. 没有新的可触发消息时不创建 Bucket，也不启动空会话。`sticker_trigger_enabled` 默认为 `false`：单独的人类 Sticker 不开 Bucket，但可以加入已有 collecting Bucket；设为 `true` 后可以单独触发。
-5. 到达 deadline 后，Scheduler 冻结 `history` 与 `new` 快照并创建 Invocation；若该 **Conversation** 已有 running Invocation，则改为 attach，见「长活 Invocation 与热注入」。
+5. 到达 deadline 后，Scheduler 冻结 `history` 与 `new` 快照并创建 Invocation；若该 **Conversation** 已有 running Invocation，则改为 attach，见「长活 Invocation 与热注入」。创建/attach 之前还有一道按群概率的主动回复闸门（见「主动回复概率调度」）：批次含 @、Reply Bot 或触发关键词时直接放行，否则抽样；未命中会关闭该 Bucket 而不创建 Invocation。
 6. 每一轮结束时，该 Conversation 仍 `collecting` 的 Bucket 会把 deadline 推到至少 `本轮结束 + bucket_window_seconds`（只往后推，已有更晚的 deadline 不动）；Invocation 结束时，已到期的 collecting Bucket 立刻被处理，尚未到期的保持自己的窗口。deadline 从不被提前裁剪，已建立的批次也不会被打断。
 
 因此，只要 Agent 每轮都很快结束，会话开始时间仍大致相隔 `bucket_window_seconds`；某一轮超过一个窗口时，该轮期间到达的消息统一从该轮结束起算，这批会比固定网格晚一些，与该群有多少活跃 Topic 无关。Bot 自己通过 `send` 产生的消息写入可见历史，但不会触发下一 Bucket。
@@ -195,6 +195,28 @@ participation 放行 = 未配置 participation || 处于活跃时段 || 更新�
 - 命中时打印 `agent_attention_triggered`（`chat_id`、`conversation_id`、`trigger_kind`、`telegram_message_id`、`expires_at`）；被抑制的消息不打印，避免静默期每条消息一行。
 - 私聊永不受闸门影响；`/pause` 优先（暂停期间既不建 Bucket 也不记窗口）；任务 timer 仍可完成，但回执投递会在 pause/目的地无效时结算为 suppressed。
 - 启动追赶同样过闸门：追赶 Bucket 只在处于时段内或窗口未过期时创建，否则记为 `skipped_budget`/`participation_gated`。追赶期间收到的命中消息同样会刷新窗口，因此停机期间被 @ 不会丢。
+
+## 主动回复概率调度
+
+`telegram.proactive_reply` / `chats[].proactive_reply` 开启后，普通群聊批次在**创建 Invocation 或 attach 之前**多一道抽样。判定顺序固定：
+
+```text
+Bucket 到期
+  → allowlist / 暂停 / agent 配置 / 睡眠 / participation 闸门
+  → 批次内是否有直接唤起（@、Reply Bot、trigger_keyword）
+       ├─ 有：直接放行，不读写保底计数
+       └─ 无：按该 Chat 的连续未命中数抽样
+              ├─ 命中：重置计数，创建 Invocation 或 attach
+              └─ 未命中：Bucket → skipped_budget / proactive_reply_skipped
+```
+
+- 抽样粒度是**一个完成聚合的 Bucket**，不是单条消息；批次里任意一条直接唤起消息都会让整批绕过抽样。
+- 概率按 `hard_pity` 保证命中：`attempt >= hard_pity` 时为 1，否则 `min(1, base + (attempt - 1) * increment)`。`attempt` 从 1 开始。
+- 状态按 Chat 存在 `proactive_reply_state`，Forum Topic 共享所在群计数；跨重启保持。参数集合变化（指纹不匹配）会在下一次抽样前清零。
+- 计数更新与 Bucket 状态转换在同一个 SQLite 事务里；同一进程的 Scheduler 串行执行，抽样不会重复。
+- 未命中的批次保留 `bucket_messages`，之后作为历史进入其他 Invocation；不是删除消息，也不是丢弃 Context。
+- 私聊、Bot Command 与任务回执不经过这道闸门。直接唤起不增加、不重置保底计数。
+- 日志：`agent_proactive_reply_bypassed`、`agent_proactive_reply_sampled`；字段包含 `bucket_id`、`probability`、`attempt`、`consecutive_misses_before/after`、`hit`、`hard_pity`、`state_reset`。
 
 ## Context
 

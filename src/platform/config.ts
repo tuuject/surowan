@@ -170,6 +170,21 @@ const ParticipationSchema = Type.Object(
   },
   Strict,
 );
+// Probabilistic scheduling for *proactive* group participation. Direct
+// invocations (mention, reply to the bot, trigger keyword, bot command) never
+// pass through it. Every field is optional so a Chat can inherit the global
+// value field by field.
+const ProactiveReplySchema = Type.Object(
+  {
+    enabled: Type.Optional(Type.Boolean()),
+    base_probability: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
+    increment: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
+    // The attempt that is guaranteed to hit, counted from 1.
+    hard_pity: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
+  },
+  Strict,
+);
+export type ProactiveReplyConfig = Static<typeof ProactiveReplySchema>;
 export const DictionaryInjectionModeSchema = Type.Union([
   Type.Literal('off'),
   Type.Literal('on_demand'),
@@ -250,6 +265,7 @@ const ChatSchema = Type.Object(
     timezone: Type.Optional(Type.String({ minLength: 1 })),
     instructions_file: Type.Optional(Type.String({ minLength: 1 })),
     participation: Type.Optional(ParticipationSchema),
+    proactive_reply: Type.Optional(ProactiveReplySchema),
     dictionary_injection_mode: Type.Optional(DictionaryInjectionModeSchema),
     provider: Type.Optional(Type.String({ minLength: 1 })),
     model: Type.Optional(Type.String({ minLength: 1 })),
@@ -368,6 +384,7 @@ export const ConfigSchema = Type.Object(
         mention_typing_enabled: Type.Optional(Type.Boolean()),
         bucket_window_seconds: Type.Integer({ minimum: 0, maximum: 300 }),
         participation: Type.Optional(ParticipationSchema),
+        proactive_reply: Type.Optional(ProactiveReplySchema),
         chats: Type.Array(ChatSchema, { minItems: 1 }),
         admins: Type.Optional(Type.Array(Type.Integer({ minimum: 1 }), { uniqueItems: true })),
         sticker_sets: Type.Optional(Type.Array(StickerSetSchema)),
@@ -752,6 +769,9 @@ export function validateSemantics(config: FileConfig): void {
         throw new Error(`Chat ${chat.id} is a private chat and cannot configure participation`);
       }
       validateParticipation(chat.participation, `chat ${chat.id} participation`);
+    }
+    if (chat.proactive_reply !== undefined && chat.id > 0) {
+      throw new Error(`Chat ${chat.id} is a private chat and cannot configure proactive_reply`);
     }
     if (chat.timezone !== undefined) {
       validateTimezone(chat.timezone, `chat ${chat.id} timezone`);

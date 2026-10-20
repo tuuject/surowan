@@ -587,6 +587,29 @@ test('participation schedules at both levels are hot, including their sub-fields
   expect(diff.candidate.file.telegram.chats[1]?.participation).toEqual({ active_windows: [] });
 });
 
+test('proactive reply settings at both levels are hot, including their sub-fields', async () => {
+  const { active, file } = await loadBoth(
+    (config) => {
+      config.telegram.chats.push({ id: -100100, instructions_file: 'chat-instructions.md' });
+      config.telegram.proactive_reply = { enabled: true, base_probability: 0.2 };
+      config.telegram.chats[1]!.proactive_reply = { enabled: false };
+    },
+    (config) => {
+      config.telegram.proactive_reply = { enabled: true, base_probability: 0.35, increment: 0.05 };
+      config.telegram.chats[1]!.proactive_reply = { hard_pity: 4 };
+    },
+  );
+  const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
+  expect(paths(diff.changes, 'hot')).toEqual([
+    'telegram.chats[-100100].proactive_reply.enabled',
+    'telegram.chats[-100100].proactive_reply.hard_pity',
+    'telegram.proactive_reply.base_probability',
+    'telegram.proactive_reply.increment',
+  ]);
+  expect(paths(diff.changes, 'restart')).toEqual([]);
+  expect(diff.candidate.file.telegram.chats[1]?.proactive_reply).toEqual({ hard_pity: 4 });
+});
+
 test('adding or removing a whole optional agent object is hot', async () => {
   const withoutObjects = (config: FileConfig) => {
     delete config.agent!.daily_budget;

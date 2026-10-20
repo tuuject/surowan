@@ -14,7 +14,7 @@ npm 发布 workflow 可另用 `actionlint .github/workflows/npm.yml` 静态检�
 按改动范围可先运行目标测试：
 
 ```bash
-pnpm test test/telegram-ingestion.test.ts test/telegram-spoiler.test.ts test/startup-catch-up.test.ts test/participation.test.ts
+pnpm test test/telegram-ingestion.test.ts test/telegram-spoiler.test.ts test/startup-catch-up.test.ts test/participation.test.ts test/proactive-reply.test.ts
 pnpm test test/scheduler.test.ts test/sleep.test.ts
 pnpm test test/context-store.test.ts test/context-gc.test.ts test/context-hot-inject.test.ts
 pnpm test test/context-send.test.ts test/send-reply.test.ts test/reply-dedup.test.ts test/duplicate-send-guard.test.ts test/send-bypass-guard.test.ts test/cut-topic.test.ts
@@ -67,6 +67,7 @@ pnpm test test/prompt-template.test.ts test/prompt-markdown.test.ts test/tui-con
 | `telegram-ingestion.test.ts` | allowlist、Revision、Bot/Service、Topic 隔离、先到的 `migrate_from_chat_id` 授权新 Supergroup、匿名管理员（占位 Bot + `sender_chat`）按真人处理 |
 | `telegram-spoiler.test.ts` | Telegram spoiler 到 Agent 可见上下文：无 spoiler 的普通消息提示不变、整条/部分/多条 spoiler、UTF-16 偏移在 emoji 与中文后仍对齐、媒体 caption、回复引用行（含截断与前缀校验）、与其他 entity 并存、正文与 `raw_fragment_json` 保持原样、保留历史中的标签，以及无 spoiler 时快照不新增字段 |
 | `participation.test.ts` | 全局/每 Chat 规则合并、私聊配置拒绝、跨午夜时段、触发与注意力窗口、暂停/编辑边界、启动追赶与清理 |
+| `proactive-reply.test.ts` | 默认关闭、概率递增与硬保底、命中/未命中计数、聚合批次一次抽样、批次内直接唤起绕过、@/Reply/关键词/Bot Command、直呼不改变计数、按群隔离、跨重启恢复、配置变更清零、attach 前抽样、私聊/暂停/participation 边界；`startup-catch-up.test.ts` 覆盖追赶批次抽样 |
 | `startup-catch-up.test.ts` | 每 Conversation 一个追赶 Invocation（同群不同 Topic 分开）、`history_messages` 上限、`ignored_user_ids` 与 `sticker_trigger_enabled` 生效、排空后切换实时 Bucket、各 Topic 发送落回自己的 Topic；积压 `/pause`/`/resume` 顺序执行与鉴权、其他命令只审计不入上下文、重复 Update 不重放；慢排空或崩溃续跑后刚排队的追赶不被启动恢复判为过期，真正排队超过 recovery 年龄的仍以 `recovery_age` 过期 |
 | `scheduler.test.ts` | 配置 deadline、冻结快照、恢复和并发串行 |
 | `sleep.test.ts` | 5% 阈值边界与 `zzz` 可见性、跨轮次工具注册表、睡眠状态只随注入批次下发而不进入 system prompt、睡眠跳过 due/queued 会话、跨进程持久化、UTC 预算重置唤醒、并发 `zzz` 幂等 |

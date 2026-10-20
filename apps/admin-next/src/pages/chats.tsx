@@ -10,12 +10,14 @@ import {
   MessageSquareText,
   Pencil,
   Plus,
+  Sparkles,
   Speech,
   Trash2,
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { ParticipationDialog } from '@/components/chats/participation-dialog';
+import { ProactiveReplyDialog } from '@/components/chats/proactive-reply-dialog';
 import {
   type ColumnSpec,
   ConfirmDialog,
@@ -307,6 +309,7 @@ export default function ChatsPage(): React.ReactElement {
   const write = useProviderWrite();
   const [editing, setEditing] = useState<{ readonly view: ChatsView; readonly chat: ChatEntry | null } | null>(null);
   const [scheduling, setScheduling] = useState<{ readonly view: ChatsView; readonly chat: ChatEntry } | null>(null);
+  const [proactive, setProactive] = useState<{ readonly view: ChatsView; readonly chat: ChatEntry } | null>(null);
   const [removing, setRemoving] = useState<{ readonly chat: ChatEntry; readonly revision: string } | null>(null);
   const remove = useMutation({
     mutationFn: (target: { readonly chat: ChatEntry; readonly revision: string }) =>
@@ -368,6 +371,18 @@ export default function ChatsPage(): React.ReactElement {
       dayLabels: t('pages.chats.weekdaysShort').split(','),
       dailyLabel: t('pages.chats.daily'),
     });
+  const proactiveText = (settings: ChatSettingsView): string => {
+    const values = settings.effective_proactive_reply;
+    if (!values.enabled) {
+      return t('pages.chats.proactiveOffSummary');
+    }
+    const summary = t('pages.chats.proactiveSummary', {
+      base: Number((values.base_probability * 100).toFixed(2)),
+      increment: Number((values.increment * 100).toFixed(2)),
+      pity: values.hard_pity,
+    });
+    return settings.proactive_reply === null ? t('pages.chats.proactiveInheritSummary', { summary }) : summary;
+  };
   // One line per period keeps the allowlist table narrow with many windows.
   // Keys pair the window content with a duplicate tally: identical windows are
   // valid config, and the tally keeps keys unique and stable under reorders.
@@ -487,6 +502,20 @@ export default function ChatsPage(): React.ReactElement {
       },
     },
     {
+      key: 'proactive',
+      title: t('pages.chats.colProactive'),
+      // Private chats have no proactive path: every message is already directed at the bot.
+      render: (row) => {
+        const settings = shown(row);
+        return settings === null || !row.id.startsWith('-') ? null : (
+          <div className="space-y-1">
+            <p className="text-sm">{proactiveText(settings)}</p>
+            <RunningNote value={runningDiff(row, proactiveText)} />
+          </div>
+        );
+      },
+    },
+    {
       key: 'status',
       title: t('pages.chats.colStatus'),
       render: (row) =>
@@ -570,6 +599,18 @@ export default function ChatsPage(): React.ReactElement {
                 <Clock />
               </Button>
             ) : null}
+            {row.id.startsWith('-') ? (
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                aria-label={t('pages.chats.editProactiveReply')}
+                title={t('pages.chats.editProactiveReply')}
+                onClick={() => setProactive({ view, chat: row })}
+              >
+                <Sparkles />
+              </Button>
+            ) : null}
             <Button
               type="button"
               size="icon-sm"
@@ -628,6 +669,9 @@ export default function ChatsPage(): React.ReactElement {
       ) : null}
       {scheduling !== null ? (
         <ParticipationDialog view={scheduling.view} chat={scheduling.chat} onClose={() => setScheduling(null)} />
+      ) : null}
+      {proactive !== null ? (
+        <ProactiveReplyDialog view={proactive.view} chat={proactive.chat} onClose={() => setProactive(null)} />
       ) : null}
       <ConfirmDialog
         open={removing !== null}

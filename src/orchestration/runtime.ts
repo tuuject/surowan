@@ -27,6 +27,7 @@ export function createCoreRuntime(options: CoreRuntimeOptions) {
     (invocationId, snapshot, signal) => runtime.run(invocationId, snapshot, signal),
     conversationRuntime,
     tasks,
+    { bot: options.bot },
   );
   return { runtime, scheduler, conversationRuntime, tasks };
 }
