@@ -108,7 +108,7 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 | `DELETE /auth/passkeys/:id` | 面板 Session 删除单个 key；删除最后一个可用 key 且无密码时 409 `password_required`，key 不存在 404 `not_found` |
 | `DELETE /auth/password` | 面板 Session 删除密码（转为仅 Passkey 登录）；当前 `rpId` 下无 key 时 409 `passkey_required`，成功后撤销该用户**全部** Session 并签发新 Cookie |
 | `PUT /developer` | 保存并热应用 `record_model_payloads` / `record_agent_thinking`（二选一或都要），沿用配置 revision、校验与原子写入机制，见「Developer 页」 |
-| `PUT /harness` | 保存并热应用 `agent` 段除模型选择与 Prompt 外的字段，只写与文件不同的字段，沿用配置 revision、校验与原子写入机制，见「Harness tuning 页」 |
+| `PUT /harness` | 保存并热应用 `agent` 段除模型选择与 Prompt 外的字段及全局 `telegram.proactive_reply`，只写与文件不同的字段，沿用配置 revision、校验与原子写入机制，见「Harness tuning 页」 |
 | `DELETE /developer/model-payloads` | 分批置空历史 `model_calls.request_json` / `response_json`，保留所有审计行与关联；不执行 `VACUUM`，见「Developer 页」 |
 | `POST /api-keys` / `DELETE /api-keys/:id` | 仅面板 Session 可创建或撤销程序化密钥，见「程序化 API 密钥」 |
 | `POST /wake` | 删除持久化睡眠状态并唤醒 Scheduler；幂等，重复调用保持 `awake` |
@@ -249,9 +249,9 @@ Developer 页为两个开关（原始报文、Agent 思考文本 CoT）各展示
 
 ## Harness tuning 页
 
-Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_level`（Models 页）与 `system_prompt_file`（Prompts 页）以外的全部字段；字段表、键名与边界校验在 `src/ingress/admin/harness-admin.ts`，每个字段复用 `ConfigSchema` 里对应的 schema。键是 `agent` 下的点分路径（如 `context.ref_ttl_hours`、`rate_limits.window_seconds`）。
+Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_level`（Models 页）与 `system_prompt_file`（Prompts 页）以外的全部字段，以及全局主动回复默认值 `telegram.proactive_reply`（Chat 覆盖仍在 Chats 页）；字段表、键名与边界校验在 `src/ingress/admin/harness-admin.ts`，每个字段复用 `ConfigSchema` 里对应的 schema。每个字段登记所属配置段，键是该段下的点分路径：`agent` 字段如 `context.ref_ttl_hours`、`rate_limits.window_seconds`，`telegram` 字段为 `proactive_reply.enabled` / `base_probability` / `increment` / `hard_pity`，写入路径是「段 + 键」。
 
-`GET /harness` 返回 `{ revision, saved, active }`：`saved` 是磁盘文件值，`active` 是运行中配置的值；可选字段缺省时报告运行时实际使用的值（三个布尔开关为 `false`，`memory_ttl_warning_days` 为 30，`send_max_text_length` 为 `null` 即不限制）。读取与修改需要 `ConfigReloader`，不可用时返回 503 `harness_unavailable`。
+`GET /harness` 返回 `{ revision, saved, active }`：`saved` 是磁盘文件值，`active` 是运行中配置的值；可选字段缺省时报告运行时实际使用的值（主动回复四项为 `PROACTIVE_REPLY_DEFAULTS`，三个布尔开关为 `false`，`memory_ttl_warning_days` 为 30，`send_max_text_length` 为 `null` 即不限制）。读取与修改需要 `ConfigReloader`，不可用时返回 503 `harness_unavailable`。
 
 `PUT /harness` 接受严格的 `{ values: { <key>: value } }`，至少一项；未知键返回 400 `invalid_body`，类型或单字段范围不符返回 400 `invalid_harness_value`，`null` 只允许用于可选字段并表示从文件删除该字段。必须带 revision 的 `If-Match`，不符返回 409 `config_conflict`。端点只把值与文件不同的字段写成编辑（可选字段缺省时，等于缺省值的写入也跳过，保持文件干净）；没有任何编辑时不写文件，返回当前视图与空的 `apply`。跨字段规则（`retained_sends_target < retained_sends_max`、`hard_token_ratio <= context_stop_ratio`、`idle_grace_seconds` 与 Bucket 窗口、`max_wall_clock_seconds > idle_grace_seconds`）由整文件 `loadConfig` 校验，失败时 422 `config_invalid` 且文件不变。写入与热应用经 `ConfigReloader.writeAndApply`，失败后文件/运行态分离等契约与其它配置端点一致；成功返回更新后的视图与 `apply`。
 

@@ -41,7 +41,7 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 - **图片设置**：图片功能的启用开关、生图凭据与模型配置。保存后立即应用，不需要重启；禁用会删除整个 `image` 段并清理不再引用的 key jar 条目。
 - **Settings**：对手改配置使用 **Apply config file**，并查看 Saved 与 Running 状态及 `restart_required`。
 - **Panel preferences**（Account 组）：只对当前浏览器生效的显示选项：主题、界面语言（右上角按钮也能切换），以及是否在设置项下显示 `config.jsonc` 键名（默认关闭）。选项保存在浏览器本地，不写入配置文件，其他浏览器与管理员互不影响。
-- **Harness tuning**：调整 Agent 的运行上限与发送行为（预算、并发、发送规则、限流、Context 保留与记忆审核），保存后由下一次 Invocation 生效，见下文。
+- **Harness tuning**：调整 Agent 的运行上限与发送行为（预算、并发、发送规则、限流、Context 保留与记忆审核）以及全局主动回复默认值，保存后由下一次 Invocation 生效，见下文。
 - **Developer**：按需记录模型调用的调试报文，或在确认后清除已有报文。
 - **API keys**（Manage 组）：创建、查看与撤销供 CLI 与评估工具使用的密钥，明文只在创建弹窗中出现一次，见下文。
 - **Invocation 重放**：仍只有携带 API 密钥的 CLI/API 入口，没有页面入口；只读的配置/prompt 检查、可用模型列表、场景 prompt、Invocation 搜索、重放预检与媒体导出同样在 CLI/API 层提供，见下文。
@@ -98,7 +98,7 @@ Passkey 遗失，或因更换域名、关闭 Passkey 功能而无法登录时，
 
 ## Harness tuning
 
-Harness tuning 页集中编辑 `config.jsonc` 中 `agent` 段的运行参数：每日 Token 预算、并发、历史条数、Context 收尾比例、`send` 的文本规则与开关、发送限流、Conversation Context 的保留/裁剪/等待参数，以及记忆的长 TTL 警告天数。Agent 模型与 thinking 档位仍在 **Models** 页，系统提示在 **Prompts** 页。
+Harness tuning 页集中编辑 `config.jsonc` 中 `agent` 段的运行参数：每日 Token 预算、并发、历史条数、Context 收尾比例、`send` 的文本规则与开关、发送限流、Conversation Context 的保留/裁剪/等待参数，以及记忆的长 TTL 警告天数；「Proactive replies」一组编辑 `telegram.proactive_reply` 的全局默认值（开关、首次机会、每次增加、最多尝试次数，概率按 0–1 填写），单个群的覆盖仍在 **Chats** 页。Agent 模型与 thinking 档位仍在 **Models** 页，系统提示在 **Prompts** 页。
 
 - 想对照 `config.jsonc` 时，在 **Panel preferences** 打开「显示 config.jsonc 键名」，每个字段下方会标出对应的配置路径（如 `agent.context.ref_ttl_hours`），可以对照[配置参考](../reference/config.md)。
 - 可以一次改多项，点 **Save and apply** 一起写回 `config.jsonc` 并立即应用；**Discard changes** 恢复为文件里的值。只有真正改动的字段会写入文件，注释与格式保持不变。

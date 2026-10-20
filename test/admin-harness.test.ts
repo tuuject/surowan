@@ -8,6 +8,7 @@ import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts'
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { AdminServer } from '../src/ingress/admin/server.ts';
 import { AGENT_DEFAULTS, type FileConfig } from '../src/platform/config.ts';
+import { PROACTIVE_REPLY_DEFAULTS, resolveProactiveReply } from '../src/platform/proactive-reply.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
@@ -160,6 +161,8 @@ test.each([
   [{ send_nudge_enabled: 'yes' }, 'invalid_harness_value'],
   // Every field accepts null (remove → back to default); a wrong type is rejected.
   [{ history_messages: 'many' }, 'invalid_harness_value'],
+  [{ 'proactive_reply.base_probability': 1.5 }, 'invalid_harness_value'],
+  [{ 'proactive_reply.hard_pity': 0 }, 'invalid_harness_value'],
   [{}, 'invalid_body'],
 ])('rejects %j before touching the file', async (values, error) => {
   const f = await fixture();
@@ -205,6 +208,50 @@ test('resetting the only daily budget field falls back to the default budget', a
   expect(body.saved['daily_budget.max_tokens']).toBe(AGENT_DEFAULTS.daily_budget.max_tokens);
   expect(f.configStore.current().config.agent.daily_budget.max_tokens).toBe(AGENT_DEFAULTS.daily_budget.max_tokens);
   expect((await loadConfig(f.path)).fileConfig.agent?.daily_budget?.max_tokens).toBeUndefined();
+});
+
+test('edits the global proactive reply defaults under telegram and hot-applies them', async () => {
+  const f = await fixture();
+  expect((await f.view()).saved).toMatchObject({
+    'proactive_reply.enabled': PROACTIVE_REPLY_DEFAULTS.enabled,
+    'proactive_reply.base_probability': PROACTIVE_REPLY_DEFAULTS.base_probability,
+    'proactive_reply.increment': PROACTIVE_REPLY_DEFAULTS.increment,
+    'proactive_reply.hard_pity': PROACTIVE_REPLY_DEFAULTS.hard_pity,
+  });
+  const response = await f.update(
+    {
+      'proactive_reply.enabled': true,
+      'proactive_reply.base_probability': 0.35,
+      // Equal to the absent default: stays out of the file.
+      'proactive_reply.increment': PROACTIVE_REPLY_DEFAULTS.increment,
+      'proactive_reply.hard_pity': 5,
+    },
+    (await f.view()).revision,
+  );
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as HarnessSettings & { apply: { applied: string[]; restart_required: [] } };
+  expect(body.apply.restart_required).toEqual([]);
+  // The section did not exist yet, so the diff reports it as one hot change.
+  expect(body.apply.applied).toEqual(['telegram.proactive_reply']);
+  expect(body.active).toEqual(body.saved);
+  expect(resolveProactiveReply(f.configStore.current().config)).toEqual({
+    enabled: true,
+    base_probability: 0.35,
+    increment: PROACTIVE_REPLY_DEFAULTS.increment,
+    hard_pity: 5,
+  });
+  const file = (await loadConfig(f.path)).fileConfig;
+  expect(file.telegram.proactive_reply).toEqual({ enabled: true, base_probability: 0.35, hard_pity: 5 });
+  // Nothing leaked into the agent section.
+  expect(Object.hasOwn(file.agent ?? {}, 'proactive_reply')).toBe(false);
+
+  // null removes a field again, back to its default.
+  const reset = await f.update({ 'proactive_reply.hard_pity': null }, body.revision);
+  expect(reset.status).toBe(200);
+  expect((await loadConfig(f.path)).fileConfig.telegram.proactive_reply).toEqual({
+    enabled: true,
+    base_probability: 0.35,
+  });
 });
 
 test('a write against agent: null creates the section', async () => {

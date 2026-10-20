@@ -48,6 +48,11 @@ export const harness = {
       title: 'Memory review',
       description: 'When the Memories page flags a memory for review.',
     },
+    proactiveReply: {
+      title: 'Proactive replies',
+      description:
+        'Global defaults for how often the bot gets a chance to join ordinary group messages. Mentions, replies to the bot and trigger keywords always get through; per-Chat overrides are on the Chats page. Changing any of the three numbers resets the miss count of every group that uses them.',
+    },
   },
   fields: {
     'daily_budget.max_tokens': {
@@ -141,6 +146,23 @@ export const harness = {
     memory_ttl_warning_days: {
       label: 'Long-TTL warning (days)',
       description: 'Memories that live longer than this are flagged on the Memories page.',
+    },
+    'proactive_reply.enabled': {
+      label: 'Schedule proactive replies',
+      description:
+        'When on, a group batch without a direct mention only starts an Invocation if a draw hits. When off, every batch gets a chance. Private chats are never affected.',
+    },
+    'proactive_reply.base_probability': {
+      label: 'First-try chance',
+      description: 'Chance of the first draw after a hit, from 0 to 1 (0.2 means 20%).',
+    },
+    'proactive_reply.increment': {
+      label: 'Increase after each miss',
+      description: 'Added to the chance after every miss, from 0 to 1. A hit resets it.',
+    },
+    'proactive_reply.hard_pity': {
+      label: 'Maximum tries',
+      description: 'The draw at this try always hits.',
     },
   },
 };

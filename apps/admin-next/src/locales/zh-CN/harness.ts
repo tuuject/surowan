@@ -45,6 +45,11 @@ export const harness: typeof harnessEn = {
       title: '记忆审核',
       description: 'Memories 页何时把记忆标为需要审核。',
     },
+    proactiveReply: {
+      title: '主动回复',
+      description:
+        '普通群消息获得参与机会的全局默认值。直接 @、回复 Bot 与触发关键词始终放行；单个 Chat 的覆盖在 Chats 页设置。修改下面三个数值中的任意一个，使用这些数值的群都会清零未命中计数。',
+    },
   },
   fields: {
     'daily_budget.max_tokens': {
@@ -132,6 +137,22 @@ export const harness: typeof harnessEn = {
     memory_ttl_warning_days: {
       label: '长 TTL 警告（天）',
       description: '剩余寿命超过该天数的记忆会在 Memories 页标出。',
+    },
+    'proactive_reply.enabled': {
+      label: '启用主动回复调度',
+      description: '开启后，没有直接唤起的群聊批次要抽中才会创建 Invocation；关闭时每批都有机会。私聊不受影响。',
+    },
+    'proactive_reply.base_probability': {
+      label: '首次机会',
+      description: '命中后第一次抽样的概率，取值 0–1（0.2 即 20%）。',
+    },
+    'proactive_reply.increment': {
+      label: '每次增加',
+      description: '每次未命中后概率增加的量，取值 0–1；命中后重新计算。',
+    },
+    'proactive_reply.hard_pity': {
+      label: '最多尝试次数',
+      description: '到这一次必定命中。',
     },
   },
 };

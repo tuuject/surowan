@@ -174,7 +174,7 @@ const ParticipationSchema = Type.Object(
 // invocations (mention, reply to the bot, trigger keyword, bot command) never
 // pass through it. Every field is optional so a Chat can inherit the global
 // value field by field.
-const ProactiveReplySchema = Type.Object(
+export const ProactiveReplySchema = Type.Object(
   {
     enabled: Type.Optional(Type.Boolean()),
     base_probability: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),

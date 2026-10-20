@@ -1741,7 +1741,7 @@ export class AdminServer {
 
   /**
    * Harness tuning: every `agent` field outside the model selection and the
-   * prompt. A PUT writes only the fields whose file value changes and applies
+   * prompt, plus the global proactive reply defaults. A PUT writes only the fields whose file value changes and applies
    * the file like every other configuration write; the next invocation runs
    * with the new values.
    */
@@ -1765,7 +1765,7 @@ export class AdminServer {
     if (revision !== currentRevision) {
       return json({ error: 'config_conflict', message: 'The configuration file changed; reload before editing' }, 409);
     }
-    const edits = harnessEdits(loaded.fileConfig.agent, values);
+    const edits = harnessEdits(loaded.fileConfig, values);
     if (edits.length === 0) {
       return json({
         ...(await this.#harnessView(reloader)),
@@ -1787,7 +1787,7 @@ export class AdminServer {
 
   async #harnessView(reloader: ConfigController) {
     const { loaded, revision } = await this.#configFile(reloader);
-    return harnessView(loaded.config.agent, this.#configStore.current().config.agent, revision);
+    return harnessView(loaded.config, this.#configStore.current().config, revision);
   }
 
   /** A read-shaped POST: provider discovery and metadata lookup write nothing. */

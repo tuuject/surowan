@@ -196,7 +196,9 @@ function HarnessFieldRow({
   const description = t(`harness.fields.${field.key}.description` as 'harness.fields.max_concurrency.description');
   const showConfigKeys = useShowConfigKeys();
   const configPath = showConfigKeys ? (
-    <code className="text-muted-foreground block font-mono text-xs">agent.{field.key}</code>
+    <code className="text-muted-foreground block font-mono text-xs">
+      {field.section ?? 'agent'}.{field.key}
+    </code>
   ) : null;
 
   if (field.kind === 'boolean') {

@@ -7,8 +7,10 @@ import type { HarnessValues } from './api.ts';
  * pair) only there, against the whole file.
  */
 export interface HarnessField {
-  /** Dotted path below `agent`, the API key. */
+  /** Dotted path below `section`, the API key. */
   readonly key: string;
+  /** The configuration section the field lives in; `agent` when absent. */
+  readonly section?: 'telegram';
   readonly kind: 'integer' | 'ratio' | 'boolean';
   readonly min?: number;
   /** Ratios exclude their lower bound. */
@@ -19,7 +21,7 @@ export interface HarnessField {
 }
 
 export interface HarnessGroup {
-  readonly id: 'budget' | 'send' | 'rateLimits' | 'context' | 'memory';
+  readonly id: 'budget' | 'send' | 'rateLimits' | 'context' | 'memory' | 'proactiveReply';
   readonly fields: readonly HarnessField[];
 }
 
@@ -67,6 +69,15 @@ export const HARNESS_GROUPS: readonly HarnessGroup[] = [
   {
     id: 'memory',
     fields: [{ key: 'memory_ttl_warning_days', kind: 'integer', min: 1 }],
+  },
+  {
+    id: 'proactiveReply',
+    fields: [
+      { key: 'proactive_reply.enabled', section: 'telegram', kind: 'boolean' },
+      { key: 'proactive_reply.base_probability', section: 'telegram', kind: 'ratio', min: 0, max: 1 },
+      { key: 'proactive_reply.increment', section: 'telegram', kind: 'ratio', min: 0, max: 1 },
+      { key: 'proactive_reply.hard_pity', section: 'telegram', kind: 'integer', min: 1, max: 100 },
+    ],
   },
 ];
 

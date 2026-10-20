@@ -23,6 +23,10 @@ const saved = {
   'context.max_wall_clock_seconds': 900,
   'context.agent_cache_size': 8,
   memory_ttl_warning_days: 30,
+  'proactive_reply.enabled': false,
+  'proactive_reply.base_probability': 0.2,
+  'proactive_reply.increment': 0.1,
+  'proactive_reply.hard_pity': 8,
 };
 
 describe('harness draft', () => {
@@ -57,6 +61,8 @@ describe('harness draft', () => {
       'context.ref_ttl_hours': '721',
       'context.idle_grace_seconds': '-1',
       'rate_limits.window_seconds': 'abc',
+      'proactive_reply.base_probability': '1.5',
+      'proactive_reply.hard_pity': '0',
     };
     expect(parseDraft(draft, saved)).toEqual({
       changes: {},
@@ -67,6 +73,8 @@ describe('harness draft', () => {
         'context.ref_ttl_hours': { key: 'max', limit: 720 },
         'context.idle_grace_seconds': { key: 'min', limit: 0 },
         'rate_limits.window_seconds': { key: 'number' },
+        'proactive_reply.base_probability': { key: 'max', limit: 1 },
+        'proactive_reply.hard_pity': { key: 'min', limit: 1 },
       },
     });
   });

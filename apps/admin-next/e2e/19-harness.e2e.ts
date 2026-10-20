@@ -82,6 +82,36 @@ test('Harness tuning shows the running value when a save was written but not app
   await expect(page.getByRole('status').filter({ hasText: 'Running:' })).toHaveCount(0);
 });
 
+test('Harness tuning edits the global proactive reply defaults', async ({ page }) => {
+  await page.goto(await adminUrl('/harness'));
+  const enabled = page.getByRole('switch', { name: 'Schedule proactive replies' });
+  const base = page.getByLabel('First-try chance');
+  const pity = page.getByLabel('Maximum tries');
+  // Absent from the fixture file: the runtime defaults are shown.
+  await expect(enabled).not.toBeChecked();
+  await expect(base).toHaveValue('0.2');
+  await expect(page.getByLabel('Increase after each miss')).toHaveValue('0.1');
+  await expect(pity).toHaveValue('8');
+
+  await base.fill('1.5');
+  await expect(page.getByText('Must be at most 1')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save and apply' })).toBeDisabled();
+
+  await enabled.click();
+  await base.fill('0.35');
+  await pity.fill('5');
+  await page.getByRole('button', { name: 'Save and apply' }).click();
+  await expect(page.getByText('No unsaved changes')).toBeVisible();
+  const applied = await harnessApi(page);
+  expect(applied.saved).toMatchObject({
+    'proactive_reply.enabled': true,
+    'proactive_reply.base_probability': 0.35,
+    'proactive_reply.increment': 0.1,
+    'proactive_reply.hard_pity': 5,
+  });
+  expect(applied.active).toEqual(applied.saved);
+});
+
 test('Panel preferences toggle config key names for this browser only', async ({ page, browser }) => {
   await page.goto(await adminUrl('/harness'));
   await expect(page.getByLabel('Reference TTL (hours)')).toBeVisible();
@@ -99,6 +129,7 @@ test('Panel preferences toggle config key names for this browser only', async ({
   await page.getByRole('link', { name: 'Harness tuning', exact: true }).click();
   await expect(page.getByText('agent.context.ref_ttl_hours', { exact: true })).toBeVisible();
   await expect(page.getByText('agent.rate_limits.window_seconds', { exact: true })).toBeVisible();
+  await expect(page.getByText('telegram.proactive_reply.enabled', { exact: true })).toBeVisible();
 
   // Nothing reached the server: a fresh browser context still hides the keys.
   const other = await browser.newContext({
