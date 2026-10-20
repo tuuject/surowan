@@ -4,7 +4,7 @@ import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
 import { CORE_AGENT_PROTOCOL } from '../platform/agent-protocol.ts';
 import { type AgentPromptLayers, composeAgentPrompt } from '../platform/agent-prompt.ts';
-import type { RawConfig } from '../platform/config.ts';
+import { activeVisionModel, type RawConfig } from '../platform/config.ts';
 import type { CompletionContext, DirectImage, VisibleSender } from '../platform/invocation-context.ts';
 import type { PromptTemplateModel, PromptTemplateValues } from '../platform/prompt-template.ts';
 import { PRODUCT_KNOWLEDGE_INDEX } from '../platform/product-knowledge.ts';
@@ -277,17 +277,23 @@ export class ContextBuilder {
     if (chatConfig === undefined) {
       throw new Error(`Invocation chat ${identity.chatId} is no longer configured`);
     }
+    const vision = activeVisionModel(config.vision);
     const templateValues: PromptTemplateValues = {
       agent: agentModel,
-      vision: { provider: config.vision.provider, model: config.vision.model },
+      vision: { provider: vision?.provider ?? '', model: vision?.model ?? '' },
       timezone: identity.timezone,
     };
     const conversationMode =
       identity.chatType === 'private' ? 'Conversation mode: private chat.' : 'Conversation mode: group chat.';
+    const directImages = supportsImages && options?.imageInput !== 'on_demand';
     const imageHandling =
-      supportsImages && options?.imageInput !== 'on_demand'
-        ? 'Photos and supported image Documents from the newest injected messages are attached directly to the multimodal Agent input, in the same order as the [kind figure_N img_ref] media lines inside the messages. Treat each attached image as the media of the message that lists the matching figure_N. Attachments are not kept: older images, including earlier figure_N images, are inspected on demand with the read_image capability (called via execute) using their img_ refs. read_image never accepts figure_N refs.'
-        : 'Telegram images and Stickers are available through the read_image capability (called via execute). Call it when visual details are needed.';
+      vision === undefined
+        ? directImages
+          ? 'Photos and supported image Documents from the newest injected messages are attached directly to the multimodal Agent input, in the same order as the [kind figure_N img_ref] media lines inside the messages. Treat each attached image as the media of the message that lists the matching figure_N. Attachments are not kept, and no vision model is configured: older images, earlier figure_N images and Stickers cannot be inspected, and the read_image capability is unavailable. Do not claim visual details you cannot see.'
+          : 'No vision model is configured: Telegram images and Stickers cannot be inspected, and the read_image capability is unavailable. Do not claim visual details you cannot see.'
+        : directImages
+          ? 'Photos and supported image Documents from the newest injected messages are attached directly to the multimodal Agent input, in the same order as the [kind figure_N img_ref] media lines inside the messages. Treat each attached image as the media of the message that lists the matching figure_N. Attachments are not kept: older images, including earlier figure_N images, are inspected on demand with the read_image capability (called via execute) using their img_ refs. read_image never accepts figure_N refs.'
+          : 'Telegram images and Stickers are available through the read_image capability (called via execute). Call it when visual details are needed.';
     const stickerCatalog = this.#stickerCatalog();
     const stickerCatalogHandling =
       stickerCatalog.length === 0

@@ -11,8 +11,11 @@ import type { RawConfig } from './config.ts';
  */
 export interface ConfigurationModels {
   readonly models: Models;
-  /** The model `config.vision` names, checked to exist and accept image input. */
-  readonly visionModel: Model<Api>;
+  /**
+   * The model `config.vision` names, checked to exist and accept image input;
+   * undefined when no vision model is configured.
+   */
+  readonly visionModel: Model<Api> | undefined;
 }
 
 /** What a store is created or republished with: a configuration and its registry. */

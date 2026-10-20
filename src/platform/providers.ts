@@ -16,6 +16,7 @@ import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completio
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy';
 import { builtinModelApi, findBuiltinProvider } from './builtin-providers.ts';
 import {
+  activeVisionModel,
   completeAgentSettings,
   type FileConfig,
   type ModelCompatConfig,
@@ -111,7 +112,11 @@ export async function buildModelRegistry(
       }),
     );
   }
-  const visionModel = requireModel(models, config.vision.provider, config.vision.model, ['image']);
+  const vision = activeVisionModel(config.vision);
+  if (vision === undefined) {
+    return { models, visionModel: undefined };
+  }
+  const visionModel = requireModel(models, vision.provider, vision.model, ['image']);
   if (config.vision.max_output_tokens > visionModel.maxTokens) {
     throw new Error('Vision max_output_tokens exceeds registered model limit');
   }

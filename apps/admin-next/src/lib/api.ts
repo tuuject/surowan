@@ -529,13 +529,19 @@ export interface AgentModelReference {
   readonly thinking_level: ThinkingLevel | null;
 }
 
+export interface VisionModelReference {
+  /** Null when no vision model is configured: read_image and sticker indexing are unavailable. */
+  readonly provider: string | null;
+  readonly model: string | null;
+}
+
 export interface ProvidersView {
   /** SHA-256 of config.jsonc; every write has to echo it back via `If-Match`. */
   readonly revision: string;
   /** Whether the deployment declares an external supervisor that restarts `serve`. */
   readonly supervised: boolean;
   readonly agent: AgentModelReference;
-  readonly vision: ProviderModelReference;
+  readonly vision: VisionModelReference;
   /**
    * The system-wide auxiliary model. `inherited` means no dedicated config
    * exists and `provider`/`model`/`thinking_level` describe the global agent

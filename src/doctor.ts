@@ -51,7 +51,7 @@ export async function runDoctor(configPath: string, outputAgentPrompt = false): 
 export function renderDoctorAgentPrompt(config: RawConfig): string {
   const values: PromptTemplateValues = {
     agent: { provider: config.agent.provider ?? 'unconfigured', model: config.agent.model ?? 'unconfigured' },
-    vision: { provider: config.vision.provider, model: config.vision.model },
+    vision: { provider: config.vision.provider ?? 'unconfigured', model: config.vision.model ?? 'unconfigured' },
     timezone: config.timezone,
   };
   return renderPromptTemplate(config.agent.system_prompt, values);
@@ -142,28 +142,32 @@ async function runDoctorChecks(
         throw new Error(`Agent model ${model.provider}/${model.id} did not produce the required strict Tool Call`);
       }
     }
-    const pixel = await sharp({ create: { width: 1, height: 1, channels: 3, background: 'white' } })
-      .png()
-      .toBuffer();
-    await completeDoctorCall(
-      store,
-      registry.models,
-      registry.visionModel,
-      {
-        systemPrompt: 'Describe the image in one word.',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: 'Describe this image.' },
-              { type: 'image', data: pixel.toString('base64'), mimeType: 'image/png' },
-            ],
-            timestamp: Date.now(),
-          },
-        ],
-      },
-      doctorReasoning(registry.visionModel, 'low'),
-    );
+    // Without a vision model there is nothing to probe; the output reports it.
+    const visionModel = registry.visionModel;
+    if (visionModel !== undefined) {
+      const pixel = await sharp({ create: { width: 1, height: 1, channels: 3, background: 'white' } })
+        .png()
+        .toBuffer();
+      await completeDoctorCall(
+        store,
+        registry.models,
+        visionModel,
+        {
+          systemPrompt: 'Describe the image in one word.',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: 'Describe this image.' },
+                { type: 'image', data: pixel.toString('base64'), mimeType: 'image/png' },
+              ],
+              timestamp: Date.now(),
+            },
+          ],
+        },
+        doctorReasoning(visionModel, 'low'),
+      );
+    }
 
     const telegramToken = await secrets.resolve(config.telegram.token);
     const bot = new Bot(telegramToken);
@@ -218,6 +222,7 @@ async function runDoctorChecks(
         lottie: true,
         manual_documents: docSpaces.summaries[0]?.documents ?? 0,
         providers: Object.keys(config.providers).length,
+        vision: visionModel === undefined ? null : `${visionModel.provider}/${visionModel.id}`,
         required_mcp: requiredConfig.mcp?.servers.length ?? 0,
         telegram_bot_id: String(me.id),
         config_hash: configHash,

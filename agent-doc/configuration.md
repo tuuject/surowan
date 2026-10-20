@@ -123,7 +123,7 @@ command SecretRef：
 | `telegram` | Token、Bucket 窗口、Chat/Topic allowlist、Sticker Set |
 | `providers` | 内置或自定义 Provider 别名 |
 | `agent` | 可选段：对话模型、Prompt、并发与限流、上下文保留策略、全局 Token 预算；整段可省略 |
-| `vision` | Sticker 视觉模型、并发、Prompt 版本和预算 |
+| `vision` | 可选段：Sticker 视觉模型、并发、Prompt 版本和预算 |
 | `dictionary` | 可选的辞典自动注入模式（`injection_mode`） |
 | `tool_model` | 可选的系统级辅助模型（辞典融合等）；缺省继承全局 Agent 设置 |
 | `mcp` | 可选的 stdio/Streamable HTTP Server |
@@ -344,7 +344,7 @@ participation 放行 = 未配置 participation || 处于活跃时段 || 更新�
 
 Provider alias 必须匹配 `^[A-Za-z][A-Za-z0-9_-]{0,63}$`：它出现在 Admin API 的路径段和 reload 报告的 `providers.<alias>.*` 路径字符串里。
 
-配置了 `agent.provider`/`agent.model` 时模型必须支持 text；若同时支持 image，用户 Photo/图片 Document 直接作为多模态输入，否则保留为 `read_image` capability 并由独立 `vision` 模型按需解析。`vision` 模型必须支持 image，也负责 Sticker 的按需理解与后台索引；配置输出上限不能超过注册模型上限。
+配置了 `agent.provider`/`agent.model` 时模型必须支持 text；若同时支持 image，用户 Photo/图片 Document 直接作为多模态输入，否则保留为 `read_image` capability 并由独立 `vision` 模型按需解析。配置了 `vision.provider`/`vision.model` 时模型必须支持 image，也负责 Sticker 的按需理解与后台索引；配置输出上限不能超过注册模型上限。未配置时的降级见下文「`vision` 约束」。
 
 ### 模型 thinking 级别
 
@@ -427,6 +427,8 @@ Agent 不再配置 `max_output_tokens`：每次请求的输出上限直接使用
 
 `vision` 约束：
 
+- `vision` 段可省略、为 `null` 或部分对象，与 `agent` 同构：`resolveVisionSection` 用 `VISION_DEFAULTS`（`src/platform/config.ts`）补齐除 `provider`/`model` 外的字段，运行时消费者读到的始终是具体值。
+- `provider` 与 `model` 只有同时写出才校验模型引用并注册 `visionModel`；缺一时 `check-config` 只给 warning，`RuntimeConfiguration.visionModel` 为 `undefined`，降级为：`read_image` 拒绝调用（`tool_calls.error_code = vision_unconfigured`，不写 `media_analyses`）；Sticker 后台索引 `runOne` 直接返回、行保持 `pending` 不累计失败与退避；稳定系统提示的图片说明改为「无法检查图片」版本（多模态 Agent 仍直接接收新注入的图片），模板变量 `{{ vision.* }}` 渲染为空串；`doctor` 跳过 vision 探针并在输出里给 `vision: null`。`provider`/`model` 是热字段，补齐后热应用即恢复，无需重启。
 - 独立 Provider/Model 与输出上限，用于 text-only Agent 的普通图片回退和 Sticker 分析。
 - 前台 `read_image` 并发由 `max_concurrency` 控制。
 - `background_sticker_concurrency` 当前必须为 `1`。

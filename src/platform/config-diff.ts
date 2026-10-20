@@ -1,4 +1,10 @@
-import { assembleRawConfig, type FileChat, type FileConfig, type RawConfig } from './config.ts';
+import {
+  assembleRawConfig,
+  type FileChat,
+  type FileConfig,
+  type RawConfig,
+  type VisionSectionConfig,
+} from './config.ts';
 
 /**
  * How a changed configuration path can take effect.
@@ -187,12 +193,18 @@ function mergeFileConfig(active: ConfigSource, file: ConfigSource, recorder: Cha
   const fileRecord = file.file as unknown as Record<string, unknown>;
   const target = result as unknown as Record<string, unknown>;
   for (const key of unionKeys(activeRecord, fileRecord)) {
-    if (key === 'telegram' || key === 'providers' || key === 'agent') {
+    if (key === 'telegram' || key === 'providers' || key === 'agent' || key === 'vision') {
       continue;
     }
     mergeField(activeRecord, fileRecord, target, key, key, recorder);
   }
   result.telegram = mergeTelegram(active, file, recorder);
+  const mergedVision = mergeVision(active, file, recorder);
+  if (mergedVision === undefined) {
+    delete result.vision;
+  } else {
+    result.vision = mergedVision;
+  }
   const mergedAgent = mergeAgent(active, file, recorder);
   if (mergedAgent === undefined) {
     delete result.agent;
@@ -245,6 +257,25 @@ function mergeAgent(active: ConfigSource, file: ConfigSource, recorder: ChangeRe
     mergeField(activeRecord, fileRecord, target, key, `agent.${key}`, recorder);
   }
   return result;
+}
+
+/**
+ * `vision` is optional like `agent`, but mixes hot and restart-only fields, so a
+ * missing or null section merges as an empty one: its hot fields drop and its
+ * restart-only fields stay until the restart. Only a section left with nothing
+ * takes the file's absent or null form.
+ */
+function mergeVision(active: ConfigSource, file: ConfigSource, recorder: ChangeRecorder): FileConfig['vision'] {
+  const activeRecord = (active.file.vision ?? {}) as Record<string, unknown>;
+  const fileRecord = (file.file.vision ?? {}) as Record<string, unknown>;
+  const result = structuredClone(activeRecord);
+  for (const key of unionKeys(activeRecord, fileRecord)) {
+    mergeField(activeRecord, fileRecord, result, key, `vision.${key}`, recorder);
+  }
+  if (Object.keys(result).length === 0 && (file.file.vision === undefined || file.file.vision === null)) {
+    return file.file.vision;
+  }
+  return result as VisionSectionConfig;
 }
 
 /**

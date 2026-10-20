@@ -10,6 +10,7 @@ import {
   type AgentSettings,
   assertModelConfig,
   resolveBuiltinModelApi,
+  resolveVisionSection,
   type FileChat,
   type FileConfig,
   ModelConfigSchema,
@@ -130,7 +131,8 @@ export interface ProvidersView {
     readonly model: string | null;
     readonly thinking_level: ThinkingLevelConfig | null;
   };
-  readonly vision: { readonly provider: string; readonly model: string };
+  /** Null fields mean no vision model is configured: read_image and sticker indexing are unavailable. */
+  readonly vision: { readonly provider: string | null; readonly model: string | null };
   /**
    * The system-wide auxiliary model. `inherited` means no dedicated config
    * exists and the three fields describe the global agent settings it follows;
@@ -215,7 +217,7 @@ export function listProviders(
       model: file.agent?.model ?? null,
       thinking_level: file.agent?.thinking_level ?? null,
     },
-    vision: { provider: file.vision.provider, model: file.vision.model },
+    vision: { provider: file.vision?.provider ?? null, model: file.vision?.model ?? null },
     tool_model:
       configuredToolModel === undefined
         ? {
@@ -579,7 +581,7 @@ export function deleteProvider(context: ProviderWriteContext, alias: string): Co
   providerOf(context.file, alias);
   if (
     context.file.agent?.provider === alias ||
-    context.file.vision.provider === alias ||
+    context.file.vision?.provider === alias ||
     referencingChats(context).some((chat) => chat.provider === alias)
   ) {
     throw new AdminQueryError(
@@ -638,7 +640,7 @@ export function deleteModel(context: ProviderWriteContext, alias: string, modelI
   }
   if (
     (context.file.agent?.provider === alias && context.file.agent?.model === modelId) ||
-    (context.file.vision.provider === alias && context.file.vision.model === modelId) ||
+    (context.file.vision?.provider === alias && context.file.vision?.model === modelId) ||
     referencingChats(context).some((chat) => chat.provider === alias && chat.model === modelId)
   ) {
     throw new AdminQueryError('model_in_use', `Model ${modelId} is used by the default agent, a Chat, or vision`, 409);
@@ -666,10 +668,11 @@ export function visionEdits(
   if (!model.input.includes('image')) {
     throw new AdminQueryError('not_image_capable', `Model ${body.model} does not accept image input`);
   }
-  if (context.file.vision.max_output_tokens > model.max_tokens) {
+  const maxOutputTokens = resolveVisionSection(context.file.vision).max_output_tokens;
+  if (maxOutputTokens > model.max_tokens) {
     throw new AdminQueryError(
       'max_output_tokens_exceeded',
-      `vision.max_output_tokens (${context.file.vision.max_output_tokens}) exceeds the model limit (${model.max_tokens})`,
+      `vision.max_output_tokens (${maxOutputTokens}) exceeds the model limit (${model.max_tokens})`,
     );
   }
   return [

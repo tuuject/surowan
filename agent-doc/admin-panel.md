@@ -79,7 +79,7 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
   "revision": "<config.jsonc 原始字节的 SHA-256>",
   "supervised": false,                       // PLASTICWAN_SUPERVISED=1 时为 true
   "agent": { "provider": "openrouter", "model": "deepseek/deepseek-v4-flash-0731", "thinking_level": "off" },
-  "vision": { "provider": "google", "model": "gemini-3.7-flash" },
+  "vision": { "provider": "google", "model": "gemini-3.7-flash" }, // 未配置时两项为 null
   "restart_required": ["vision.max_concurrency"],
   "providers": [
     {
@@ -121,7 +121,7 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 | `PUT /chats/:id/proactive-reply` | 编辑该 Chat 的主动回复概率覆盖（`proactive_reply`），热应用，见「Chats 页端点」 |
 | `POST` / `PUT` / `DELETE /providers[...]` | Provider 与模型管理及 `POST /providers/health-check` 模型诊断，见「Models 页写端点」 |
 | `PUT /thinking-level` | body `{ thinking_level }`，设置全局 `agent.thinking_level`，热应用，响应同「Models 页写端点」。只写全局默认并保留 Chat 覆盖：有 `thinking_level` 覆盖的 Chat 保持自己的值；没有覆盖的 Chat 继承新值，若与文件中该 Chat 选用的模型不兼容则在写入前返回 422 `config_invalid`。覆盖可经 Chats 页或配置文件调整，也可用 Telegram `/model default` 连同模型覆盖一起清除。取值不是 Pi 级别返回 400 `invalid_body`；文件里的 agent 模型不接受该级别返回 422 `unsupported_thinking_level`，message 列出可选级别（规则见 [configuration.md](configuration.md#模型-thinking-级别)）；`If-Match` 规则同其它写端点 |
-| `PUT /vision` | 切换 vision 模型。写入前预检：模型在文件的该 Provider 下存在、支持 image 输入、且 `vision.max_output_tokens ≤ 该模型的 max_tokens`，不满足返回 400（`unknown_provider`/`unknown_model`/`not_image_capable`/`max_output_tokens_exceeded`）。`vision.provider`、`vision.model` 与 `vision.max_output_tokens` 热应用：下一次 vision 分析就用新模型，旧模型写的 `media_analyses` 行不会被命中；`vision` 的其它字段仍是 restart 字段 |
+| `PUT /vision` | 切换 vision 模型；`vision` 段缺失或为 `null` 时会新建该段。写入前预检：模型在文件的该 Provider 下存在、支持 image 输入、且 `vision.max_output_tokens`（缺省按 `VISION_DEFAULTS`）`≤ 该模型的 max_tokens`，不满足返回 400（`unknown_provider`/`unknown_model`/`not_image_capable`/`max_output_tokens_exceeded`）。`vision.provider`、`vision.model` 与 `vision.max_output_tokens` 热应用：下一次 vision 分析就用新模型，旧模型写的 `media_analyses` 行不会被命中；`vision` 的其它字段仍是 restart 字段 |
 | `POST /image/prompts` / `PUT` / `DELETE /image/prompts/:id` | 生图 Prompt 素材管理（创建/更新/归档）；归档的素材读取返回 404 |
 | `POST /image/images` / `PUT` / `DELETE /image/images/:id` | 参考图上传（base64，≤20 MB 原始体积）/ 元数据编辑 / 归档；`GET /image/images/:id/content` 返回二进制（带认证） |
 | `POST /image/generations/resolve` | 只读：按当前图片配置把生成请求 body 解析成快照返回（预检），不创建任何记录、不提交生成 |

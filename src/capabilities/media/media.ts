@@ -96,20 +96,28 @@ export class MediaService {
    * analysis reports, and a cache row written under one model is never read
    * under another.
    */
-  #visionRun(): VisionRun {
+  #visionRun(): VisionRun | undefined {
     const snapshot = this.#configStore.current();
     const model = snapshot.visionModel;
+    if (model === undefined) {
+      return undefined;
+    }
     return {
       models: snapshot.models,
       model,
       analysisVersion: `${model.provider}/${model.id}/prompt-${this.#visionPromptVersion}`,
       maxOutputTokens: snapshot.config.vision.max_output_tokens,
-      toolSchemaKeywords: configuredToolSchemaKeywords(
-        snapshot.config,
-        snapshot.config.vision.provider,
-        snapshot.config.vision.model,
-      ),
+      toolSchemaKeywords: configuredToolSchemaKeywords(snapshot.config, model.provider, model.id),
     };
+  }
+
+  /**
+   * Whether the live configuration names a vision model. Without one,
+   * `read_image` refuses every call and background sticker indexing waits; a
+   * hot switch that adds a model resumes both without a restart.
+   */
+  visionAvailable(): boolean {
+    return this.#configStore.current().visionModel !== undefined;
   }
 
   /**
@@ -272,6 +280,19 @@ export class MediaService {
           );
           throw new Error('image_ref is not visible in this conversation context');
         }
+        const run = this.#visionRun();
+        if (run === undefined) {
+          rejectToolCall(
+            this.#store.orm,
+            context.invocationId,
+            toolCallId,
+            'read_image',
+            JSON.stringify(input),
+            false,
+            'vision_unconfigured',
+          );
+          throw new Error('Image analysis is unavailable: no vision model is configured');
+        }
         const toolId = startToolCall(
           this.#store.orm,
           context.invocationId,
@@ -300,7 +321,6 @@ export class MediaService {
           if (media === undefined) {
             throw new Error('Referenced media no longer exists');
           }
-          const run = this.#visionRun();
           const cached = this.#store.orm
             .all<{ description: string }>(
               sql`SELECT description FROM media_analyses WHERE file_unique_id = ${media.fileUniqueId} AND analysis_version = ${run.analysisVersion} AND state = 'success' AND (expires_at IS NULL OR expires_at >= ${new Date().toISOString()})`,
@@ -380,6 +400,9 @@ export class MediaService {
       telegramJson: JSON.stringify(telegram),
     };
     const run = this.#visionRun();
+    if (run === undefined) {
+      throw new Error('No vision model is configured');
+    }
     let analysis = this.#store.orm
       .all<{ id: bigint; description: string; metadata_json: string }>(
         sql`SELECT id, description, metadata_json FROM media_analyses WHERE file_unique_id = ${media.fileUniqueId} AND analysis_version = ${run.analysisVersion} AND state = 'success'`,
