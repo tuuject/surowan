@@ -90,10 +90,14 @@ export function ProactiveReplyDialog({
       save.mutate({ mode });
       return;
     }
-    const baseProbability = Number(base) / 100;
-    const step = Number(increment) / 100;
+    const baseProbability = probabilityOf(base, effective.base_probability);
+    const step = probabilityOf(increment, effective.increment);
     const hardPity = Number(pity);
     if (
+      // Number('') is 0, so a cleared field would otherwise save as zero.
+      base.trim() === '' ||
+      increment.trim() === '' ||
+      pity.trim() === '' ||
       !Number.isFinite(baseProbability) ||
       !Number.isFinite(step) ||
       baseProbability < 0 ||
@@ -228,4 +232,13 @@ export function ProactiveReplyDialog({
 /** A human-facing percentage without trailing zeroes or floating noise. */
 function percent(value: number): string {
   return String(Number((value * 100).toFixed(2)));
+}
+
+/**
+ * An untouched field keeps the stored probability exactly: `percent` rounds
+ * for display, and saving the rounded value would change the sampling odds
+ * and reset the pity counter.
+ */
+function probabilityOf(text: string, original: number): number {
+  return text === percent(original) ? original : Number(text) / 100;
 }

@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from 'vitest';
+import { afterAll, describe, expect, test, vi } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -1281,6 +1281,8 @@ describe('send barrier', () => {
   async function runWithBarrier(
     steps: ReadonlyArray<{ readonly during?: Update; readonly reply: Parameters<typeof fauxAssistantMessage>[0] }>,
     enabled = true,
+    /** Runs in a forum topic with the proactive reply gate on, sampling with `random`. */
+    proactive?: { readonly threadId: number; readonly random: () => number },
   ): Promise<{
     readonly fixtureSetup: Fixture;
     readonly requests: string[];
@@ -1288,6 +1290,9 @@ describe('send barrier', () => {
   }> {
     const fixtureSetup = await fixture((config) => {
       config.agent!.send_barrier_enabled = enabled;
+      if (proactive !== undefined) {
+        config.telegram.proactive_reply = { enabled: true, base_probability: 0.5, increment: 0, hard_pity: 100 };
+      }
     });
     const faux = fauxAgent();
     const requests: string[] = [];
@@ -1323,10 +1328,12 @@ describe('send barrier', () => {
         return outcome;
       },
       fixtureSetup.conversationRuntime,
+      undefined,
+      proactive === undefined ? undefined : { bot: { id: 999n, username: 'plasticwan' }, random: proactive.random },
     );
     try {
       scheduler.start();
-      fixtureSetup.ingestion.ingest(update(1, 10, 'hello'), new Date());
+      fixtureSetup.ingestion.ingest(update(1, 10, 'hello', proactive?.threadId), new Date());
       scheduler.wake();
       await finishedSignal;
       // Let the scheduler's terminal-state transaction land before asserting.
@@ -1451,6 +1458,54 @@ describe('send barrier', () => {
           )
           .get()?.count,
       ).toBe(3n);
+    } finally {
+      store.close();
+    }
+  }, 30_000);
+
+  test('a held batch rides on the chance the running invocation already won', async () => {
+    // Only the opening batch may sample: it hits, and any later sample would miss.
+    const random = vi.fn<() => number>().mockReturnValueOnce(0).mockReturnValue(0.99);
+    const { fixtureSetup, requests, started } = await runWithBarrier(
+      [
+        {
+          during: update(2, 11, 'second message', 100),
+          reply: fauxToolCall('send', { kind: 'text', text: 'first draft' }),
+        },
+        { reply: fauxToolCall('send', { kind: 'text', text: 'combined answer' }) },
+        { reply: '' },
+      ],
+      true,
+      { threadId: 100, random },
+    );
+    const { store } = fixtureSetup;
+    try {
+      expect(started).toHaveLength(1);
+      expect(random).toHaveBeenCalledTimes(1);
+      expect(requests[1]).toContain('second message');
+      expect(sendCalls(store)).toEqual([
+        { state: 'error', error_code: 'send_barrier' },
+        { state: 'success', error_code: null },
+      ]);
+      expect(
+        store.db
+          .prepare<[bigint], { bucket_id: bigint; injected: bigint }>(
+            'SELECT bucket_id, injected_at IS NOT NULL AS injected FROM invocation_buckets WHERE invocation_id = ? ORDER BY bucket_id',
+          )
+          .all(started[0] ?? 0n),
+      ).toEqual([
+        { bucket_id: 1n, injected: 1n },
+        { bucket_id: 2n, injected: 1n },
+      ]);
+      expect(
+        store.db.prepare<[], { error_code: string | null }>('SELECT error_code FROM buckets ORDER BY id').all(),
+      ).toEqual([{ error_code: null }, { error_code: null }]);
+      // The opening hit reset the counter; the held batch neither sampled nor counted a miss.
+      expect(
+        store.db
+          .prepare<[], { consecutive_misses: bigint }>('SELECT consecutive_misses FROM proactive_reply_state')
+          .all(),
+      ).toEqual([{ consecutive_misses: 0n }]);
     } finally {
       store.close();
     }

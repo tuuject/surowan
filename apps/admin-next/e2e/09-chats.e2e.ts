@@ -355,7 +355,41 @@ test('proactive-reply editing follows inherit, off and custom values per group',
   await dialog.getByLabel('Chance on the first try (%)').fill('120');
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('between 0 and 100');
+  // A cleared field is rejected instead of saving as 0%.
+  await dialog.getByLabel('Chance on the first try (%)').fill('');
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('between 0 and 100');
+  await dialog.getByLabel('Chance on the first try (%)').fill('20');
+  await dialog.getByLabel('Increase after each miss (%)').fill('');
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('between 0 and 100');
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  expect((await viewOf(page)).items.find((chat) => chat.id === GROUP)?.saved?.proactive_reply).toBeNull();
+
+  // A probability finer than the dialog displays survives an edit of another field.
+  await page.evaluate(async (id) => {
+    const view = await (await fetch('/api/chats')).json();
+    const response = await fetch(`/api/chats/${id}/proactive-reply`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'if-match': view.revision },
+      body: JSON.stringify({ mode: 'custom', base_probability: 0.123456, increment: 0.0123456, hard_pity: 6 }),
+    });
+    if (!response.ok) {
+      throw new Error(`Seeding proactive reply failed: ${response.status}`);
+    }
+  }, GROUP);
+  await page.reload();
+  dialog = await openDialog();
+  await expect(dialog.getByLabel('Chance on the first try (%)')).toHaveValue('12.35');
+  await dialog.getByLabel('Maximum tries (guaranteed hit at this try)').fill('7');
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect((await viewOf(page)).items.find((chat) => chat.id === GROUP)?.saved?.proactive_reply).toEqual({
+    enabled: true,
+    base_probability: 0.123456,
+    increment: 0.0123456,
+    hard_pity: 7,
+  });
 
   await groupRow().getByRole('button', { name: 'Remove', exact: true }).click();
   await page.getByRole('button', { name: 'Remove Chat', exact: true }).click();

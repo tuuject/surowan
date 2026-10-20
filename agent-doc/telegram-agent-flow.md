@@ -216,6 +216,7 @@ Bucket 到期
 - 计数更新与 Bucket 状态转换在同一个 SQLite 事务里；同一进程的 Scheduler 串行执行，抽样不会重复。
 - 未命中的批次保留 `bucket_messages`，之后作为历史进入其他 Invocation；不是删除消息，也不是丢弃 Context。
 - 私聊、Bot Command 与任务回执不经过这道闸门。直接唤起不增加、不重置保底计数。
+- [send 屏障](#send-屏障) attach 的批次也不经过这道闸门：当前 Invocation 已经抽中（或被直接唤起），这批是正在进行的那次回复的延续，沿用这次机会，不抽样、不读写保底计数。到期 attach（idle grace）则仍要抽样：屏障每轮至多 attach 一批，而到期 attach 不受这个限制，不抽样的话一次命中就能把运行窗口无限延长。
 - 日志：`agent_proactive_reply_bypassed`、`agent_proactive_reply_sampled`；字段包含 `bucket_id`、`probability`、`attempt`、`consecutive_misses_before/after`、`hit`、`hard_pity`、`state_reset`。
 
 ## Context
@@ -364,6 +365,7 @@ Alarm 是第一个 `plugin_id = "alarm"` 的 consumer，通过 `execute.call` �
 - 已排队、尚未注入的普通消息批次会拦下同一 turn 里之后的所有 `send`，直到模型读过它，不会出现「第一条被拦、第二条先发出去」。待注入的 receipt 不触发这个屏障；当前处于回执轮时也不因新用户消息拦下 `send`，避免把回执政策与普通批次混合。
 - 运行处于收尾（`context_stop_ratio` 的 send-only 轮，或已 `beginClosing`）时屏障放行：收尾之后不再注入，拦下只会丢掉这次回复。已 attach 未注入的批次按原规则在运行结束时由 `releaseUninjectedBuckets` 重新排队。
 - 只看已开 Bucket 的消息：被参与闸门拦下、其他 Bot 的消息、不开桶的单独 Sticker 都不会触发屏障。
+- 屏障 attach 不经过[主动回复概率调度](#主动回复概率调度)：沿用当前 Invocation 已获得的机会，不抽样、不改保底计数。
 - 触发时日志输出 `send_barrier`（`invocation_id`、`bucket_id`、`conversation_id`、`chat_id`）。
 
 成功发送后：

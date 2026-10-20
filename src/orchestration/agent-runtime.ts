@@ -461,6 +461,9 @@ export class AgentRuntime {
      * first send of a round goes out, a batch collecting for this conversation is
      * attached to this run instead, and the send is held back; the batch reaches
      * the model at the next turn boundary through the ordinary injection path.
+     * The batch skips the proactive reply gate on purpose: this Invocation
+     * already won its chance (a hit or a direct trigger), and the batch is part
+     * of the reply in progress, so it neither samples nor moves the pity counter.
      */
     const holdForNewMessages = (): boolean => {
       const conversationRuntime = this.#conversationRuntime;
