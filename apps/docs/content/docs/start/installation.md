@@ -40,6 +40,8 @@ cp apps/docs/examples/config.example.jsonc config/config.jsonc
 cp apps/docs/examples/system-prompt.example.md config/system-prompt.md
 ```
 
+`pnpm install` 还会为开发本仓库的 Coding Agent 链接仓库自带的 Skill，并从 GitHub 拉取 `package.json` 锁定版本的外部 Skill（写入 `.agents/skills/` 与 `.claude/skills/`）。这与 Bot 运行无关；拉取失败只打印警告，不影响依赖安装。
+
 示例配置使用容器路径，需要改为本机路径：`data_dir` 设为 `./data`，`paths.database`、`paths.media_cache`、`paths.backups` 分别设为 `./data/plasticwan.sqlite`、`./data/media-cache`、`./data/backups`。Prompt 路径相对于配置文件目录，不用改。只在本机访问管理面板时，把 `admin.host` 改为 `127.0.0.1`。
 
 在当前终端设置 `TELEGRAM_BOT_TOKEN` 和 `PLASTICWAN_API_KEY`。非 Windows 主机要求配置文件为 `0600`、其父目录为 `0700`：

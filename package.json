@@ -26,6 +26,8 @@
     "docs:check": "pnpm --filter plasticwan-docs run check",
     "docs:verify": "node scripts/docs-verify.ts",
     "manual:prepare": "node scripts/manual-prepare.ts",
+    "postinstall": "node scripts/skills-sync.ts --postinstall",
+    "skills:sync": "node scripts/skills-sync.ts",
     "lint": "biome lint . && biome format .",
     "lint:fix": "biome lint --write --unsafe . && biome format --write ."
   },
@@ -52,6 +54,7 @@
     "@biomejs/biome": "^2.5.15",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.5",
+    "skills": "1.7.2",
     "typescript": "5.9.3",
     "vitest": "^5.0.3",
     "zod": "4.6.5"
@@ -59,5 +62,14 @@
   "workspaces": [
     "apps/*",
     "packages/*"
+  ],
+  "skills": [
+    {
+      "source": "alibaba/open-code-review",
+      "ref": "v1.13.2",
+      "skills": [
+        "open-code-review"
+      ]
+    }
   ]
 }

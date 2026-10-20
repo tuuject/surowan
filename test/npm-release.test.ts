@@ -107,7 +107,7 @@ describe('npm release selection', () => {
   });
 
   it('keeps the project-root Skill entry small and links to separate Invocation guides', () => {
-    const skill = new URL('../.agents/skills/surowan-utils/', import.meta.url);
+    const skill = new URL('../skills/surowan-utils/', import.meta.url);
     const entry = readFileSync(new URL('SKILL.md', skill), 'utf8');
     expect(entry).toContain('name: surowan-utils');
     expect(entry).toContain('(references/invocations.md)');

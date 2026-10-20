@@ -25,7 +25,7 @@
 
 ## 离线维护
 
-使用本地 [bake-product-knowledge Skill](../.agents/skills/bake-product-knowledge/SKILL.md)。任何能读取仓库并编辑文件的 Coding Agent 都能执行，无需启动 Bot。流程为发现文档、筛选意图与功能关系、生成紧凑索引、逐条核对事实与路径、测量体积、运行轻量场景。源文档是唯一产品事实源；有冲突则记录并回避争议细节，不从源码推导出未写入手册的新事实。
+使用本地 [bake-product-knowledge Skill](../skills/bake-product-knowledge/SKILL.md)。任何能读取仓库并编辑文件的 Coding Agent 都能执行，无需启动 Bot。流程为发现文档、筛选意图与功能关系、生成紧凑索引、逐条核对事实与路径、测量体积、运行轻量场景。源文档是唯一产品事实源；有冲突则记录并回避争议细节，不从源码推导出未写入手册的新事实。
 
 更新用户手册时检查对应索引项；先修原文再重烘焙。详细溯源、遗漏与不确定信息放在 Skill 的参考文件，不注入模型。没有 watcher、定时烘焙任务或生产 Coding Agent。回滚恢复索引与协议的版本即可，仍会触发既有 Prompt 哈希重建。
 

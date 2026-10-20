@@ -20,6 +20,8 @@ pnpm run docs:dev    # 文档站，127.0.0.1:5274
 
 生产管理面板通过 `pnpm run admin:build` 构建，由 Bot 服务托管。改动管理面板或其可见文案时，还要运行 `pnpm run admin:test:e2e`。完整的验证矩阵见 [agent-doc/verification.md](agent-doc/verification.md)。
 
+`pnpm install` 会顺带把仓库自带的 Coding Agent Skill（`skills/`）链接到 `.agents/skills/` 与 `.claude/skills/`，并安装 `package.json` 的 `skills` 字段里锁定版本的外部 Skill；新增 Skill 或改了该字段后运行 `pnpm run skills:sync`。说明见 [agent-doc/operations.md](agent-doc/operations.md#coding-agent-skills)。
+
 ## 仓库结构
 
 ```text
@@ -29,6 +31,7 @@ apps/docs/              中文使用文档与安全配置示例
 packages/image-service/ 图片生成核心包
 agent-doc/              架构、配置、运维与维护者文档
 scripts/                维护及验证脚本
+skills/                 Coding Agent Skill 源（不是 Bot 的 System Skill）
 test/                   行为测试
 ```
 

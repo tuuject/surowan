@@ -55,6 +55,20 @@ node src/cli.ts doctor --config dev-data/config.jsonc
 
 `dev-data/config.jsonc`、`dev-data/key.json`、数据库、媒体和备份已由 `.gitignore` 排除（任意位置的 `key.json` 也被排除）。`config.jsonc` 不含 Secret，排查配置时读它即可；Secret 值只在 `key.json`、环境变量或外部命令里，不要读取或复制到受版本控制的示例或文档。
 
+## Coding Agent Skills
+
+仓库根目录的 `skills/<name>/` 是开发本仓库时给 Coding Agent 用的官方 Skill，与 Bot 运行时的 System Skills（`src/system-resources/skills/`、插件目录下的 `skills/`）无关，也不进入镜像。外部使用者可以直接 `npx skills add tuuject/surowan`（或完整 GitHub URL，`--skill <name>` 只装其中一个）安装。
+
+本地 checkout 由 `scripts/skills-sync.ts` 安装：`pnpm install` 实际安装依赖时作为 root `postinstall` 自动运行，也可以手动执行 `pnpm run skills:sync`。
+
+- 仓库 Skill：`skills/` 下每个含 `SKILL.md` 的目录以相对软链接挂到 `.agents/skills/<name>`（Codex 等读取的通用目录）与 `.claude/skills/<name>`，修改 Skill 内容即时生效；Skill 删除或改名后脚本清理旧链接。目标不是 `skills/` 的既有条目一律不碰，只报告冲突。
+- 外部 Skill：在 `package.json` 的 `skills` 字段声明（语法见 [skills 字段规范](https://github.com/antfu/skills-npm/blob/main/SPEC.md)），必须用 `ref` 锁定 tag 或 commit。精确锁版本的 devDependency `skills`（[vercel-labs/skills](https://github.com/vercel-labs/skills) CLI）以 `experimental_sync --include .` 把它们装进 `.agents/skills/`，再链接到 `.claude/skills/`，内容哈希写入 `skills-lock.json`。它只同步该字段声明的 Skill，不链接 npm 依赖自带的 Skill，并关闭 CLI 遥测。已安装且 `ref` 未变时不联网；改 `ref` 会重新安装，删掉条目会清理对应 Skill。
+- `.agents/skills/` 与 `.claude/skills/` 是生成目录，已 gitignore；`skills-lock.json` 随 `skills` 字段一起提交。`ref` 没变而哈希变了，说明上游改写了 tag，先审查再提交。
+- 作为 `postinstall` 运行时，CI 环境（`CI` 非空且不为 `0`/`false`）或没有 `.git` 的目录（Docker 构建上下文、源码包）直接跳过；GitHub 不可达、条目被占用等问题只打印警告，不让 `pnpm install` 失败。手动的 `pnpm run skills:sync` 总会执行，有问题时以非零码退出。
+- pnpm 在依赖已是最新时不运行 `postinstall`。只改了 `skills` 字段、新增了仓库 Skill，或在设置了 `CI` 的 Agent 环境里装依赖后，都要手动运行 `pnpm run skills:sync`。
+- 个人使用的 Skill 用 `npx skills add -g` 装到用户目录；在仓库内不加 `-g` 安装会改写共享的 `skills-lock.json`。
+- 安装输出里的 `Agent skills awaiting approval` 来自 pnpm 自己对依赖包内 Skill 的审批（`pnpm approve`），与本机制无关；未经审查不要批准。
+
 ## 启动与停止
 
 ```bash
@@ -177,7 +191,7 @@ printf '%s' '临时替换的 global prompt' | surowan-utils invocation replay 12
 - 请求不跟随重定向、不自动重试；默认超时 login/doctor/list/get 30 秒、replay 300 秒；stdin 读取单独使用同一 `--timeout-ms` 上限，超时返回 `timeout`（退出码 1）且不发送 HTTP 请求；JSON 响应体不设客户端大小上限，完整读取后解析，仍受请求超时约束。
 - `--json` 时 stdout 恰好一个 JSON 文档；失败时 stderr 为 `{"error","message"}`（经 key 脱敏）。退出码 `0` 成功、`1` 请求/服务端/replay 失败或保存的凭据文件无效（`invalid_credentials`）、`2` 参数、输入或凭据缺失/不合法。replay 即使返回的 `error` 非空也会把完整结构写在 stdout。
 - replay 的行为边界（合成工具、不写生产数据、按 Provider 计费）见 [admin-panel.md](admin-panel.md#invocation-重放)；选项全集与响应形状以 [packages/cli/README.md](../packages/cli/README.md) 与源码为准。
-- 源码仓库根目录的 [`surowan-utils` Skill](../.agents/skills/surowan-utils/SKILL.md) 面向通过 CLI 访问 Admin API 的外部 Agent：每次任务先运行 `surowan-utils doctor --json`（恰好一次只读请求），只有退出码 `0` 且 `status` 为 `ok` 才读取对应指南并查询或重放；doctor 失败即停止并请操作员用 `login` 修复，不循环重试、不代为执行 `login` 或改动凭据、不直接读取聊天或存储中的 key，`--help` 只用于客户端缺失或命令不匹配时的诊断。`SKILL.md` 是轻量入口，审计与重放细节分列 `references/invocations.md`、`references/replay.md`，按当前任务加载子文档而不是一次全读。它不是 Bot 的 System Skill。npm 包不内置该 Skill，须按 [CLI README](../packages/cli/README.md#配套-agent-skill) 从源码仓库将整个目录（含 `references/` 与 `agents/openai.yaml`）复制/导入宿主并随仓库同步更新。不把服务端源码或 SQLite 访问作为前提。
+- 源码仓库根目录的 [`surowan-utils` Skill](../skills/surowan-utils/SKILL.md) 面向通过 CLI 访问 Admin API 的外部 Agent：每次任务先运行 `surowan-utils doctor --json`（恰好一次只读请求），只有退出码 `0` 且 `status` 为 `ok` 才读取对应指南并查询或重放；doctor 失败即停止并请操作员用 `login` 修复，不循环重试、不代为执行 `login` 或改动凭据、不直接读取聊天或存储中的 key，`--help` 只用于客户端缺失或命令不匹配时的诊断。`SKILL.md` 是轻量入口，审计与重放细节分列 `references/invocations.md`、`references/replay.md`，按当前任务加载子文档而不是一次全读。它不是 Bot 的 System Skill。npm 包不内置该 Skill，须按 [CLI README](../packages/cli/README.md#配套-agent-skill) 用 `npx skills add tuuject/surowan --skill surowan-utils` 安装，或从源码仓库将整个目录（含 `references/` 与 `agents/openai.yaml`）复制/导入宿主并随仓库同步更新。不把服务端源码或 SQLite 访问作为前提。
 
 ## 管理员凭据与 Passkey 恢复（admin-reset）
 
@@ -270,7 +284,7 @@ node src/cli.ts backup --config dev-data/config.jsonc
 
 镜像结构（`Dockerfile`，builder 与 runtime 均为 `node:24-bookworm-slim` 两阶段）：
 
-- builder 阶段 `pnpm install --frozen-lockfile` → `pnpm run admin:build` 与 `pnpm --filter @plasticwan/image-service build` → `node scripts/manual-prepare.ts` 把用户手册 Markdown 打包到 `src/manual/` → 再以 `pnpm install --prod --frozen-lockfile --ignore-scripts` 剪掉 devDependencies（`--ignore-scripts` 跳过 image-service 依赖 tsc 的 prepare，所以它的 `dist/` 必须先单独构建）。
+- builder 阶段先只复制 manifest、lockfile、patches 与 `scripts/skills-sync.ts`（root `postinstall` 要用；构建上下文没有 `.git`，它直接跳过），再 `pnpm install --frozen-lockfile` → `pnpm run admin:build` 与 `pnpm --filter @plasticwan/image-service build` → `node scripts/manual-prepare.ts` 把用户手册 Markdown 打包到 `src/manual/` → 再以 `pnpm install --prod --frozen-lockfile --ignore-scripts` 剪掉 devDependencies（`--ignore-scripts` 跳过 image-service 依赖 tsc 的 prepare，所以它的 `dist/` 必须先单独构建）。
 - runtime 阶段用 apt 装 `ffmpeg`（含 `ffprobe`）、`python3` 与 `gosu`，再 pip 装 `lottie`；因此**不需要**在宿主机准备任何媒体依赖。
 - 只复制 `src/`、`node_modules/`、`packages/image-service/` 的 `package.json`、`dist/` 与 `node_modules/`（经 workspace 符号链接解析）、`apps/admin-next/dist/`、`apps/admin-next/LICENSE`、`apps/admin-next/NOTICE` 和 `package.json`。`test/`、`agent-doc/`、`dev-data/` 被 `.dockerignore` 排除，镜像里没有这些目录。`apps/docs` 只保留 `content/docs` 与 `examples/` 作为手册源参与构建：`.dockerignore` 排除文档站配置、主题与生成产物，builder 生成的 `src/manual/` 随 `src/` 进入 runtime，打包后立即删除 `apps/docs`——残留的目录没有 `package.json`，后续 `pnpm install --prod --frozen-lockfile` 会把它判为 lockfile 过期而失败；镜像不含 Rspress 或文档站目录，该隔离由 `.github/workflows/docs.yml` 的 image-smoke 断言。
 - Admin 前端已经构建进 `/app/apps/admin-next/dist`，与 `static_dir` 默认值一致，无需额外配置。前端模板许可（MIT，© Kiranism）随 `LICENSE` 保留，字体（@fontsource，SIL OFL 1.1）说明在 `NOTICE`。
