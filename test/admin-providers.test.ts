@@ -793,7 +793,7 @@ test('checks the vision model before writing it', async () => {
     expect(fixture.file().vision).toMatchObject({ provider: 'agent', model: 'agent-model' });
     // The switch is hot: the running process analyzes with the new model.
     expect(fixture.configStore.current().config.vision).toMatchObject({ provider: 'agent', model: 'agent-model' });
-    expect(fixture.configStore.current().visionModel.id).toBe('agent-model');
+    expect(fixture.configStore.current().visionModel?.id).toBe('agent-model');
   } finally {
     fixture.store.close();
   }

@@ -459,7 +459,7 @@ export type ModelUsage = 'agent' | 'vision' | 'both' | null;
 export function modelUsage(
   view: {
     readonly agent: { provider: string | null; model: string | null };
-    readonly vision: { provider: string; model: string };
+    readonly vision: { provider: string | null; model: string | null };
   },
   alias: string,
   modelId: string,
@@ -479,7 +479,7 @@ export function modelUsage(
 }
 
 export function providerUsage(
-  view: { readonly agent: { provider: string | null }; readonly vision: { provider: string } },
+  view: { readonly agent: { provider: string | null }; readonly vision: { provider: string | null } },
   alias: string,
 ): { readonly agent: boolean; readonly vision: boolean } {
   return { agent: view.agent.provider === alias, vision: view.vision.provider === alias };

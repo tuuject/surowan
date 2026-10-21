@@ -62,6 +62,7 @@
       "turns_per_injection": 8
     }
   },
+  // 可选；整段省略、null 或缺 provider/model 时 read_image 不可用、Sticker 索引暂停，其余字段有默认值。
   "vision": {
     "provider": "gateway",
     "model": "replace-with-your-text-and-image-model",

@@ -163,6 +163,11 @@ export class StickerService {
   }
 
   async runOne(now = new Date(), signal = new AbortController().signal): Promise<boolean> {
+    // Without a vision model nothing can be indexed: pending stickers stay
+    // pending instead of accruing failures and backoff until one is configured.
+    if (!this.#media.visionAvailable()) {
+      return false;
+    }
     const orm = this.#store.orm;
     const sticker = orm
       .select({ id: stickers.id, emoji: stickers.emoji })

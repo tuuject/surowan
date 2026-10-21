@@ -268,8 +268,8 @@ describe('configuration', () => {
             },
           ],
         };
-        config.vision.provider = 'builtin';
-        config.vision.model = 'gemini-3.7-pro';
+        config.vision!.provider = 'builtin';
+        config.vision!.model = 'gemini-3.7-pro';
       }),
     );
     await expect(loadConfig(configPath)).rejects.toThrow('gemini-3.7-pro is absent from provider builtin');

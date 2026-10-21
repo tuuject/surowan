@@ -242,6 +242,29 @@ export const AgentSectionSchema = Type.Object(
 );
 
 /**
+ * The file shape of the `vision` section: every field optional, because a
+ * deployment may run without a vision model. Without the provider/model pair,
+ * `read_image` and background sticker indexing are unavailable, while a
+ * multimodal agent still receives newly injected images directly. The
+ * runtime-facing form is `VisionRuntimeConfig`, produced by
+ * `resolveVisionSection`.
+ */
+export const VisionSectionSchema = Type.Object(
+  {
+    provider: Type.Optional(Type.String({ minLength: 1 })),
+    model: Type.Optional(Type.String({ minLength: 1 })),
+    max_output_tokens: Type.Optional(PositiveInteger),
+    max_concurrency: Type.Optional(PositiveInteger),
+    background_sticker_concurrency: Type.Optional(Type.Literal(1)),
+    prompt_version: Type.Optional(PositiveInteger),
+    daily_budget: Type.Optional(
+      Type.Object({ max_tokens: Type.Optional(PositiveInteger), max_images: Type.Optional(PositiveInteger) }, Strict),
+    ),
+  },
+  Strict,
+);
+
+/**
  * The system-wide auxiliary model for dictionary merge and future helper tasks.
  * Absent means "inherit the global agent settings"; each Chat override is
  * deliberately not consulted, so one group's chat model cannot change a
@@ -396,18 +419,10 @@ export const ConfigSchema = Type.Object(
     // and only the provider/model/thinking_level triple decides whether any
     // invocation can start — everything else resolves to AGENT_DEFAULTS.
     agent: Type.Optional(Type.Union([AgentSectionSchema, Type.Null()])),
-    vision: Type.Object(
-      {
-        provider: Type.String({ minLength: 1 }),
-        model: Type.String({ minLength: 1 }),
-        max_output_tokens: PositiveInteger,
-        max_concurrency: PositiveInteger,
-        background_sticker_concurrency: Type.Literal(1),
-        prompt_version: PositiveInteger,
-        daily_budget: Type.Object({ max_tokens: PositiveInteger, max_images: PositiveInteger }, Strict),
-      },
-      Strict,
-    ),
+    // `vision` may be absent, null or a partial object, like `agent`: only the
+    // provider/model pair decides whether image analysis runs, and everything
+    // else resolves to VISION_DEFAULTS.
+    vision: Type.Optional(Type.Union([VisionSectionSchema, Type.Null()])),
     image: Type.Optional(ImageSectionSchema),
     dictionary: Type.Optional(DictionarySectionSchema),
     tool_model: Type.Optional(ToolModelSchema),
@@ -457,6 +472,7 @@ export type ModelCompatConfig = Static<typeof ModelCompatSchema>;
 export type ThinkingLevelConfig = Static<typeof ThinkingLevelSchema>;
 export type ModelFileConfig = Static<typeof ModelConfigSchema>;
 export type AgentSectionConfig = Static<typeof AgentSectionSchema>;
+export type VisionSectionConfig = Static<typeof VisionSectionSchema>;
 export type FileConfig = Static<typeof ConfigSchema>;
 export type FileChat = FileConfig['telegram']['chats'][number];
 /**
@@ -584,11 +600,67 @@ export function resolveAgentSection(section: AgentSectionConfig | null | undefin
   };
 }
 
+/** The vision model pair as configured; analysis runs only when both are present. */
+export interface VisionModelReference {
+  readonly provider: string;
+  readonly model: string;
+}
+
+/**
+ * The runtime half of the `vision` section: every field with a default is
+ * filled, and the provider/model pair stays optional — an absent or partial
+ * pair means "no vision model".
+ */
+export interface VisionRuntimeConfig {
+  provider?: string;
+  model?: string;
+  max_output_tokens: number;
+  max_concurrency: number;
+  background_sticker_concurrency: 1;
+  prompt_version: number;
+  daily_budget: { max_tokens: number; max_images: number };
+}
+
+/** Values a configuration gets when it leaves a `vision` field out. */
+export const VISION_DEFAULTS = {
+  max_output_tokens: 2_048,
+  max_concurrency: 2,
+  background_sticker_concurrency: 1,
+  prompt_version: 1,
+  daily_budget: { max_tokens: 200_000, max_images: 200 },
+} as const;
+
+/** Fills the optional `vision` section with `VISION_DEFAULTS`, field by field. */
+export function resolveVisionSection(section: VisionSectionConfig | null | undefined): VisionRuntimeConfig {
+  return {
+    ...(section?.provider === undefined ? {} : { provider: section.provider }),
+    ...(section?.model === undefined ? {} : { model: section.model }),
+    max_output_tokens: section?.max_output_tokens ?? VISION_DEFAULTS.max_output_tokens,
+    max_concurrency: section?.max_concurrency ?? VISION_DEFAULTS.max_concurrency,
+    background_sticker_concurrency: VISION_DEFAULTS.background_sticker_concurrency,
+    prompt_version: section?.prompt_version ?? VISION_DEFAULTS.prompt_version,
+    daily_budget: {
+      max_tokens: section?.daily_budget?.max_tokens ?? VISION_DEFAULTS.daily_budget.max_tokens,
+      max_images: section?.daily_budget?.max_images ?? VISION_DEFAULTS.daily_budget.max_images,
+    },
+  };
+}
+
+/** The configured vision model pair, or undefined when either half is missing. */
+export function activeVisionModel(
+  vision: Pick<VisionSectionConfig, 'provider' | 'model'> | null | undefined,
+): VisionModelReference | undefined {
+  const provider = vision?.provider;
+  const model = vision?.model;
+  return provider === undefined || model === undefined ? undefined : { provider, model };
+}
+
 export type ParticipationConfig = Static<typeof ParticipationSchema>;
 export type ParticipationWindowConfig = Static<typeof ParticipationWindowSchema>;
-export type RawConfig = Omit<FileConfig, 'agent' | 'telegram' | 'developer'> & {
+export type RawConfig = Omit<FileConfig, 'agent' | 'vision' | 'telegram' | 'developer'> & {
   developer: { record_model_payloads: boolean; record_agent_thinking: boolean };
   agent: AgentRuntimeConfig & { readonly system_prompt: string };
+  vision: VisionRuntimeConfig;
   telegram: Omit<FileConfig['telegram'], 'chats'> & {
     chats: Array<Omit<FileChat, 'instructions_file'> & { instructions: string }>;
   };
@@ -635,6 +707,11 @@ export function validateFileConfig(parsed: unknown): { fileConfig: FileConfig; w
   if (completeAgentSettings(resolveAgentSettings(parsed)) === undefined) {
     warnings.push(
       'agent.provider, agent.model and agent.thinking_level are not all set: the bot will run without starting any invocation',
+    );
+  }
+  if (activeVisionModel(parsed.vision) === undefined) {
+    warnings.push(
+      'vision.provider and vision.model are not both set: read_image and background sticker indexing are unavailable',
     );
   }
   return { fileConfig: parsed, warnings };
@@ -715,6 +792,7 @@ export function assembleRawConfig(
       record_agent_thinking: fileConfig.developer?.record_agent_thinking ?? false,
     },
     agent: { ...resolveAgentSection(fileConfig.agent), system_prompt: systemPrompt },
+    vision: resolveVisionSection(fileConfig.vision),
     telegram: { ...fileConfig.telegram, chats },
   };
 }
@@ -804,10 +882,14 @@ export function validateSemantics(config: FileConfig): void {
   if (agent.provider !== undefined && agent.model !== undefined) {
     validateModelReference(config, agent.provider, agent.model, 'agent', ['text']);
   }
-  validateModelReference(config, config.vision.provider, config.vision.model, 'vision', ['image']);
+  // Like the agent pair, the vision pair is validated only when both halves are written.
+  const vision = activeVisionModel(config.vision);
+  if (vision !== undefined) {
+    validateModelReference(config, vision.provider, vision.model, 'vision', ['image']);
+  }
   if (
     (agent.provider !== undefined && !providerAliases.has(agent.provider)) ||
-    !providerAliases.has(config.vision.provider)
+    (vision !== undefined && !providerAliases.has(vision.provider))
   ) {
     throw new Error('Agent and vision providers must reference configured aliases');
   }

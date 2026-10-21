@@ -317,7 +317,7 @@ export const sleep = (ms: number): Promise<void> => new Promise((resolve) => set
 /** The registry half of a configuration snapshot, as a test builds it. */
 export interface TestRegistry {
   readonly models: Models;
-  readonly visionModel: Model<Api>;
+  readonly visionModel: Model<Api> | undefined;
 }
 
 /** A registry whose only provider is the faux one: nothing here reaches a network. */

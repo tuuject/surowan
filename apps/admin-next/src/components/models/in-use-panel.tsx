@@ -85,7 +85,12 @@ export function InUsePanel({
           },
           {
             label: t('models.models.inUse.visionModel'),
-            value: <MonoValue value={`${view.vision.provider} / ${view.vision.model}`} />,
+            value:
+              view.vision.provider === null || view.vision.model === null ? (
+                <span className="text-muted-foreground">{t('models.models.inUse.notConfigured')}</span>
+              ) : (
+                <MonoValue value={`${view.vision.provider} / ${view.vision.model}`} />
+              ),
           },
         ]}
       />

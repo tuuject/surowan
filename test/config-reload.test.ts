@@ -1911,7 +1911,7 @@ test('editing the vision model is hot and republishes the vision model', async (
     expect(result.applied).toEqual(['providers.vision.models[vision-model]']);
     expect(result.restartRequired).toEqual([]);
     expect(customProvider(fixture.configStore.current().config.providers, 'vision').models[0]?.max_tokens).toBe(4_096);
-    expect(fixture.configStore.current().visionModel.maxTokens).toBe(4_096);
+    expect(fixture.configStore.current().visionModel?.maxTokens).toBe(4_096);
   } finally {
     fixture.store.close();
   }
@@ -1929,8 +1929,8 @@ test('switching the vision model is hot and refuses a model over the output limi
   });
   try {
     await fixture.patch((config) => {
-      config.vision.model = 'vision-alt';
-      config.vision.max_output_tokens = 4_096;
+      config.vision!.model = 'vision-alt';
+      config.vision!.max_output_tokens = 4_096;
     });
     const switched = await fixture.reloader.reloadFromFile();
     expect(switched.ok).toBe(true);
@@ -1939,13 +1939,13 @@ test('switching the vision model is hot and refuses a model over the output limi
     }
     expect(switched.applied).toEqual(['vision.max_output_tokens', 'vision.model']);
     expect(switched.restartRequired).toEqual([]);
-    expect(fixture.configStore.current().visionModel.id).toBe('vision-alt');
+    expect(fixture.configStore.current().visionModel?.id).toBe('vision-alt');
 
     // The check that used to guard the next startup now guards the publication:
     // a limit the new model cannot honour leaves the running configuration alone.
     const before = fixture.configStore.current();
     await fixture.patch((config) => {
-      config.vision.max_output_tokens = 65_536;
+      config.vision!.max_output_tokens = 65_536;
     });
     const refused = await fixture.reloader.reloadFromFile();
     expect(refused.ok).toBe(false);
@@ -1994,8 +1994,8 @@ test('removing a provider is hot and unregisters it', async () => {
   try {
     await fixture.patch((config) => {
       delete config.providers.vision;
-      config.vision.provider = 'agent';
-      config.vision.model = 'agent-model';
+      config.vision!.provider = 'agent';
+      config.vision!.model = 'agent-model';
       config.agent!.provider = 'faux';
     });
     const result = await fixture.reloader.reloadFromFile();
@@ -2006,7 +2006,7 @@ test('removing a provider is hot and unregisters it', async () => {
     expect(result.applied).toEqual(['providers.vision', 'vision.model', 'vision.provider']);
     expect(result.restartRequired).toEqual([]);
     expect(fixture.configStore.current().models.getProvider('vision')).toBeUndefined();
-    expect(fixture.configStore.current().visionModel.provider).toBe('agent');
+    expect(fixture.configStore.current().visionModel?.provider).toBe('agent');
   } finally {
     fixture.store.close();
   }
