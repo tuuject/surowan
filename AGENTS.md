@@ -40,6 +40,7 @@ plasticwan/
 │   └── system-resources/   # 随 runtime 发布的 system:/// 只读资源树（System Skills）
 ├── test/                   # vitest 行为测试与 MCP fixture
 ├── scripts/                # 一次性维护脚本（直连 better-sqlite3，不属于业务层）
+├── skills/                 # 开发本仓库用的 Coding Agent Skill 源（不是 Bot 的 System Skill）；`npx skills add tuuject/surowan` 可直接安装
 ├── apps/admin-next/        # Rsbuild + React + Tailwind + shadcn Admin Panel 前端（纯静态 SPA）
 ├── apps/docs/              # Rspress 中文官网与用户指南（独立静态站）
 ├── packages/image-service/ # 私有图片生成核心包：有损意图 API、provider adapter 边界、领域测试
@@ -114,10 +115,12 @@ pnpm run docs:build
 pnpm run docs:verify
 pnpm run docs:preview
 pnpm run manual:prepare
+pnpm run skills:sync
 ```
 
 - 包管理器为 pnpm（`pnpm-lock.yaml`）；运行时为 Node.js ≥24，测试运行器为 vitest（`pnpm test`），CLI 入口为 `node src/cli.ts …`。
 - `pnpm run manual:prepare`：从 `apps/docs/content/docs` 打包用户手册 Markdown 与索引到 `src/manual/`（gitignored，Docker 构建自动执行）；未生成时 Bot 仍可启动，但文档能力退化为 `unknown_space`，`doctor` 判为失败。
+- `pnpm run skills:sync`：把 `skills/` 下的仓库 Skill 软链接进 `.agents/skills/`、`.claude/skills/`（均 gitignored），并按 `package.json` 的 `skills` 字段安装锁定版本的外部 Skill（哈希记入 `skills-lock.json`）。`pnpm install` 实际安装依赖时由 `postinstall` 自动执行（CI 与无 `.git` 时跳过，失败只警告）；只改了 `skills` 字段或新增仓库 Skill 时要手动运行。细节见 [agent-doc/operations.md](agent-doc/operations.md#coding-agent-skills)。
 - `pnpm run check`：严格 TypeScript 检查（runtime/Admin/docs）；文档检查前会准备被忽略的版本元数据、字段参考和示例，不输出编译 JS。
 - `pnpm test`：运行全部行为测试。
 - `check-config`：只验证 JSONC Schema、语义与引用，输出配置哈希。

@@ -1,4 +1,4 @@
-// Baked from user manuals with .agents/skills/bake-product-knowledge/SKILL.md.
+// Baked from user manuals with skills/bake-product-knowledge/SKILL.md.
 export const PRODUCT_KNOWLEDGE_INDEX = `# Plastic Wan product knowledge
 Sources below are paths in the manual document space.
 
