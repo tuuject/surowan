@@ -18,6 +18,7 @@ surowan-utils invocation get 12345 --json
 - Chat ID 是 Telegram Chat ID，不是内部数据库 ID。把 Invocation、Chat、游标等十进制 ID 当精确字符串处理，不经过 JavaScript `Number` 转换。
 - 关键词与时间过滤只匹配公开消息：`--search`（1–100 字符，字面匹配，`%`/`_` 不是通配符）命中冻结新消息批次（含追加批次）的群友消息或同一 Invocation 成功发出的 Bot 消息；`--at` 命中写出的整个精度窗口（`HH:mm` 为整分钟、`HH:mm:ss` 为整秒、小数 1/2/3 位分别对应 100/10/1 毫秒窗口），`--from`/`--to` 是半开区间 `[from, to)`，且 `--at` 不能与 `--from`/`--to` 同用。关键词与时间过滤一起给出时必须命中同一条消息。时间格式为 `YYYY-MM-DD[空格或T]HH:mm[:ss[.1-3位]][Z|±HH:mm]`；不带 offset 时由服务端按 `--chat` 对应 Chat 的时区（没有 `--chat` 则用全局时区）解析，非法日历与夏令时跳变造成的不存在/重复时间会被拒绝。`--at` 不是按 Invocation `created_at` 过滤。
 - 带搜索或时间过滤时每个 item 追加 `matched_messages`（最新 5 条命中，按时间从新到旧）：`source` 为 `incoming`（群友消息）或 `bot`（成功发送），`telegram_send_id` 只有 bot 条目非空，`text` 是截断预览。bot 条目的 `telegram_send_id` 可直接作为切片重放的 `--before-send`；不带过滤时响应维持原形状。
+- 列表同时包含 Telegram 与 Playground 虚拟房间的 Invocation：`chat.host_kind` 为 `telegram` 或 `playground`，房间行的 `chat.telegram_chat_id` 为 `null`、以 `chat.room_id` 标识（人读输出显示为 `room:<id>`）；房间的 `matched_messages` 用 `room_seq` 代替 `telegram_message_id`。房间 Invocation 不支持重放。
 - 不存在按 Topic 的 CLI 过滤参数；在返回项的时间戳、`chat.message_thread_id` 中核对。多个候选不能区分时先确认目标，不批量导出所有详情。
 - `get` 返回 Invocation 详情对象。空列表、404 或缺失记录不等于模型选择沉默；说明查询范围、过滤条件和留存限制。
 - list/get 默认超时 30 秒；`--timeout-ms` 只改客户端等待上限。遇到 `unauthenticated` / `forbidden` 请操作员检查 key、撤销状态和授权范围，并在本机用 `surowan-utils login` 重新保存正确凭据；`missing_api_key` 表示当前没有可用的 endpoint/key 组合（显式给空值不会回退到保存文件），同样交回操作员，不自行混搭来源；`invalid_credentials` 表示保存的凭据文件损坏、是符号链接或权限不安全，交回操作员处理：仅内容损坏且文件/目录安全时可在本机重新 `login`；符号链接、非普通文件或不安全权限仍被 `login` 拒绝，需人工处理。Agent 不代为登录、不改权限、不删除或重建凭据；不换接口绕过认证。JSON 响应体不设客户端大小上限，完整读取后解析，仍受请求超时约束；请求失败不代表无记录。
@@ -32,7 +33,7 @@ surowan-utils invocation get 12345 --json
 | 模型调用 | `model_calls[]` 的 `id/role/provider/model/attempt/state/error_code/error_detail`；查看失败或重试是否发生在 agent 调用，勿混入视觉调用 |
 | 可用工具与输入 | `model_calls[].tools`、`tool_registry`、`context_messages[]`；按需解析 `request_json/response_json/snapshot_json`，缺失或 null 就标记无法核对 |
 | 工具执行 | `tool_calls[]` 的 `id/tool_call_id/tool_name/state/error_code`；按需检查 `arguments_json/result_text`，不要只看到调用就判成功 |
-| Telegram 发送 | `telegram_sends[]` 的 `tool_call_id/state/telegram_message_id/error_code`，关联同一工具调用；`agent_messages[]` 不是发送记录，普通 Assistant 文本不会直接发布 |
+| Telegram 发送 | `telegram_sends[]` 的 `tool_call_id/state/telegram_message_id/error_code`（房间 Invocation 的发送也在这里，`telegram_message_id` 为空，改看 `room_seq`），关联同一工具调用；`agent_messages[]` 不是发送记录，普通 Assistant 文本不会直接发布 |
 | 发送提醒与阻拦 | 检查 `agent_messages[].role = harness_nudge` 及其后调用和发送状态，可报告“提醒后仍未成功发送”，不猜测模型意图；`tool_calls[].error_code = send_barrier` 表示生产发送被新消息闸门拦下，不是 Telegram 故障 |
 | 用量 | `total_tokens/total_cost` 与逐次 `model_calls[]`，注明缺失成本是未知而非零；不重复加总已含缓存计数的 token 总量 |
 

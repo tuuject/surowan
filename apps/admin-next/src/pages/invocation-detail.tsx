@@ -25,6 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type {
   AgentMessageEntry,
   ContextMessageEntry,
+  InvocationChatSummary,
   InvocationDetail,
   ModelCallEntry,
   TelegramSendEntry,
@@ -62,6 +63,39 @@ function SectionBadge({ section }: { readonly section: string }): React.ReactEle
     <ToneBadge tone={isNew ? 'info' : 'neutral'}>
       {isNew ? t('invocations.invocationDetail.section.incoming') : t('invocations.invocationDetail.section.history')}
     </ToneBadge>
+  );
+}
+
+function isRoom(chat: InvocationChatSummary): boolean {
+  return chat.host_kind === 'playground';
+}
+
+/**
+ * A Telegram message has its own audit record; a room message lives in its
+ * room, which is where the link goes instead.
+ */
+function MessageRecordLink({
+  chat,
+  messageId,
+  className,
+  children,
+}: {
+  readonly chat: InvocationChatSummary;
+  readonly messageId: string;
+  readonly className: string;
+  readonly children: React.ReactNode;
+}): React.ReactElement {
+  if (chat.room_id !== null) {
+    return (
+      <Link to="/playground" search={{ room: chat.room_id }} className={className}>
+        {children}
+      </Link>
+    );
+  }
+  return (
+    <Link to="/messages/$messageId" params={{ messageId }} className={className}>
+      {children}
+    </Link>
   );
 }
 
@@ -132,12 +166,29 @@ function DetailHeader({ invocation }: { readonly invocation: InvocationDetail })
             },
             {
               label: t('invocations.invocationDetail.kv.chat'),
-              value: <TextValue value={invocation.chat.title ?? invocation.chat.telegram_chat_id} />,
+              value: (
+                <TextValue
+                  value={invocation.chat.title ?? invocation.chat.telegram_chat_id ?? invocation.chat.room_id}
+                />
+              ),
             },
-            {
-              label: t('invocations.invocationDetail.kv.chatId'),
-              value: <MonoValue value={invocation.chat.telegram_chat_id} />,
-            },
+            invocation.chat.room_id === null
+              ? {
+                  label: t('invocations.invocationDetail.kv.chatId'),
+                  value: <MonoValue value={invocation.chat.telegram_chat_id} />,
+                }
+              : {
+                  label: t('invocations.invocationDetail.kv.room'),
+                  value: (
+                    <Link
+                      to="/playground"
+                      search={{ room: invocation.chat.room_id }}
+                      className="text-primary font-mono text-xs underline-offset-4 hover:underline"
+                    >
+                      {invocation.chat.room_id}
+                    </Link>
+                  ),
+                },
             { label: t('invocations.invocationDetail.kv.topic'), value: String(invocation.chat.message_thread_id) },
             { label: t('invocations.invocationDetail.kv.bucket'), value: <MonoValue value={invocation.bucket_id} /> },
             { label: t('invocations.invocationDetail.kv.created'), value: formatTime(invocation.created_at) },
@@ -193,13 +244,16 @@ function TimelineCard({
 }
 
 function SendContent({
+  chat,
   parsed,
   send,
 }: {
+  readonly chat: InvocationChatSummary;
   readonly parsed: ParsedSendArguments;
   readonly send: TelegramSendEntry | null;
 }): React.ReactElement {
   const { t } = useTranslation();
+  const room = isRoom(chat);
   const content =
     parsed.kind === 'text'
       ? parsed.text
@@ -215,7 +269,11 @@ function SendContent({
       )}
       <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-xs">
         {parsed.reply_to_message_id !== null ? (
-          <span>{t('invocations.invocationDetail.send.replyTo', { id: parsed.reply_to_message_id })}</span>
+          <span>
+            {t(room ? 'invocations.invocationDetail.send.replyToRoom' : 'invocations.invocationDetail.send.replyTo', {
+              id: parsed.reply_to_message_id,
+            })}
+          </span>
         ) : null}
         {send !== null ? (
           <>
@@ -223,6 +281,9 @@ function SendContent({
             <StateBadge state={send.state} />
             {send.telegram_message_id !== null ? (
               <span>{t('invocations.invocationDetail.send.messageLabel', { id: send.telegram_message_id })}</span>
+            ) : null}
+            {send.room_seq !== null ? (
+              <span>{t('invocations.invocationDetail.send.roomMessageLabel', { id: send.room_seq })}</span>
             ) : null}
           </>
         ) : null}
@@ -232,9 +293,11 @@ function SendContent({
 }
 
 function ToolCallCard({
+  chat,
   tool,
   send,
 }: {
+  readonly chat: InvocationChatSummary;
   readonly tool: ToolCallEntry;
   readonly send: TelegramSendEntry | null;
 }): React.ReactElement {
@@ -251,7 +314,7 @@ function ToolCallCard({
       }
       extra={formatTime(tool.created_at)}
     >
-      {tool.tool_name === 'send' ? <SendContent parsed={parsed} send={send} /> : null}
+      {tool.tool_name === 'send' ? <SendContent chat={chat} parsed={parsed} send={send} /> : null}
       <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-xs">
         <span>{t('invocations.invocationDetail.toolCall.duration', { value: formatDuration(tool.duration_ms) })}</span>
         {tool.error_code !== null ? (
@@ -272,15 +335,23 @@ function ToolCallCard({
   );
 }
 
-function ContextMessageCard({ message }: { readonly message: ContextMessageEntry }): React.ReactElement {
+function ContextMessageCard({
+  chat,
+  message,
+}: {
+  readonly chat: InvocationChatSummary;
+  readonly message: ContextMessageEntry;
+}): React.ReactElement {
   const { t } = useTranslation();
+  const room = isRoom(chat);
   const snapshot = parseJsonObject(message.snapshot_json);
   const sender = objectField(snapshot, 'sender');
   const username = stringField(sender, 'username');
   const senderName =
     stringField(sender, 'name') ??
     (username === null ? t('invocations.invocationDetail.contextMessage.unknownSender') : `@${username}`);
-  const telegramMessageId = stringField(snapshot, 'message_id');
+  // A room snapshot's message_id is the room's own sequence.
+  const hostMessageId = stringField(snapshot, 'message_id');
   const kind = stringField(snapshot, 'kind') ?? 'message';
   const text = stringField(snapshot, 'text') ?? stringField(snapshot, 'caption');
   const media = snapshot?.media;
@@ -296,10 +367,14 @@ function ContextMessageCard({ message }: { readonly message: ContextMessageEntry
             <span className="text-muted-foreground text-xs">@{username}</span>
           ) : null}
           {sentByBot ? <span className="text-muted-foreground text-xs">bot</span> : null}
-          <CopyableValue label={t('common.telegramSenderId')} value={stringField(sender, 'id')} />
+          {room ? (
+            <CopyableValue label={t('invocations.invocationDetail.roomMemberRef')} value={stringField(sender, 'ref')} />
+          ) : (
+            <CopyableValue label={t('common.telegramSenderId')} value={stringField(sender, 'id')} />
+          )}
         </>
       }
-      extra={formatTime(stringField(snapshot, 'telegram_date'))}
+      extra={formatTime(stringField(snapshot, room ? 'sent_at' : 'telegram_date'))}
     >
       {text === null ? (
         <p className="text-muted-foreground text-sm">
@@ -311,20 +386,26 @@ function ContextMessageCard({ message }: { readonly message: ContextMessageEntry
       )}
       <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
         <span>
-          {telegramMessageId === null
+          {hostMessageId === null
             ? kind
-            : t('invocations.invocationDetail.contextMessage.telegramMessage', {
-                id: telegramMessageId,
-                kind,
-              })}
+            : t(
+                room
+                  ? 'invocations.invocationDetail.contextMessage.roomMessage'
+                  : 'invocations.invocationDetail.contextMessage.telegramMessage',
+                { id: hostMessageId, kind },
+              )}
         </span>
-        <Link
-          to="/messages/$messageId"
-          params={{ messageId: message.message_id }}
+        <MessageRecordLink
+          chat={chat}
+          messageId={message.message_id}
           className="text-primary underline-offset-4 hover:underline"
         >
-          {t('invocations.invocationDetail.contextMessage.openRecord')}
-        </Link>
+          {t(
+            room
+              ? 'invocations.invocationDetail.contextMessage.openRoom'
+              : 'invocations.invocationDetail.contextMessage.openRecord',
+          )}
+        </MessageRecordLink>
       </div>
     </TimelineCard>
   );
@@ -462,7 +543,13 @@ function ModelCallCard({ model }: { readonly model: ModelCallEntry }): React.Rea
   );
 }
 
-function TimelineItem({ event }: { readonly event: InvocationTimelineEvent }): React.ReactElement {
+function TimelineItem({
+  chat,
+  event,
+}: {
+  readonly chat: InvocationChatSummary;
+  readonly event: InvocationTimelineEvent;
+}): React.ReactElement {
   const { t } = useTranslation();
   switch (event.kind) {
     case 'queued':
@@ -499,11 +586,11 @@ function TimelineItem({ event }: { readonly event: InvocationTimelineEvent }): R
         />
       );
     case 'context_message':
-      return <ContextMessageCard message={event.message} />;
+      return <ContextMessageCard chat={chat} message={event.message} />;
     case 'model_call':
       return <ModelCallCard model={event.model} />;
     case 'tool_call':
-      return <ToolCallCard tool={event.tool} send={event.linkedSend} />;
+      return <ToolCallCard chat={chat} tool={event.tool} send={event.linkedSend} />;
     case 'agent_message':
       return <AgentMessageCard message={event.message} />;
   }
@@ -525,7 +612,7 @@ function OverviewTab({ invocation }: { readonly invocation: InvocationDetail }):
               event.kind === 'finished' ? 'bg-destructive' : 'bg-primary',
             )}
           />
-          <TimelineItem event={event} />
+          <TimelineItem chat={invocation.chat} event={event} />
         </li>
       ))}
     </ol>
@@ -744,8 +831,9 @@ function ModelCallsTab({ invocation }: { readonly invocation: InvocationDetail }
   );
 }
 
-function TelegramSendsTab({ invocation }: { readonly invocation: InvocationDetail }): React.ReactNode {
+function SendsTab({ invocation }: { readonly invocation: InvocationDetail }): React.ReactNode {
   const { t } = useTranslation();
+  const room = isRoom(invocation.chat);
   const SEND_COLUMNS: readonly ColumnSpec<TelegramSendEntry>[] = [
     { key: 'kind', title: t('invocations.invocationDetail.sendColumns.kind'), render: (row) => row.kind },
     {
@@ -753,11 +841,17 @@ function TelegramSendsTab({ invocation }: { readonly invocation: InvocationDetai
       title: t('invocations.invocationDetail.sendColumns.state'),
       render: (row) => <StateBadge state={row.state} />,
     },
-    {
-      key: 'message',
-      title: t('invocations.invocationDetail.sendColumns.telegramMessage'),
-      render: (row) => <TextValue value={row.telegram_message_id} />,
-    },
+    room
+      ? {
+          key: 'message',
+          title: t('invocations.invocationDetail.sendColumns.roomMessage'),
+          render: (row) => <TextValue value={row.room_seq === null ? null : `#${row.room_seq}`} />,
+        }
+      : {
+          key: 'message',
+          title: t('invocations.invocationDetail.sendColumns.telegramMessage'),
+          render: (row) => <TextValue value={row.telegram_message_id} />,
+        },
     {
       key: 'tool-call',
       title: t('invocations.invocationDetail.sendColumns.toolCall'),
@@ -775,7 +869,12 @@ function TelegramSendsTab({ invocation }: { readonly invocation: InvocationDetai
     },
   ];
   return (
-    <TabContent count={invocation.telegram_sends.length} message={t('invocations.invocationDetail.emptyTelegramSends')}>
+    <TabContent
+      count={invocation.telegram_sends.length}
+      message={t(
+        room ? 'invocations.invocationDetail.emptyRoomSends' : 'invocations.invocationDetail.emptyTelegramSends',
+      )}
+    >
       <TableShell
         columns={SEND_COLUMNS}
         data={invocation.telegram_sends}
@@ -876,13 +975,13 @@ function FrozenContextTab({ invocation }: { readonly invocation: InvocationDetai
       key: 'message',
       title: t('invocations.invocationDetail.contextColumns.message'),
       render: (row) => (
-        <Link
-          to="/messages/$messageId"
-          params={{ messageId: row.message_id }}
+        <MessageRecordLink
+          chat={invocation.chat}
+          messageId={row.message_id}
           className="font-mono text-xs break-all underline-offset-4 hover:underline"
         >
           {row.message_id}
-        </Link>
+        </MessageRecordLink>
       ),
     },
     {
@@ -898,7 +997,14 @@ function FrozenContextTab({ invocation }: { readonly invocation: InvocationDetai
         return (
           <div className="min-w-0 space-y-0.5">
             <TextValue value={stringField(sender, 'name') ?? stringField(sender, 'username')} />
-            <CopyableValue label={t('common.telegramSenderId')} value={stringField(sender, 'id')} />
+            {isRoom(invocation.chat) ? (
+              <CopyableValue
+                label={t('invocations.invocationDetail.roomMemberRef')}
+                value={stringField(sender, 'ref')}
+              />
+            ) : (
+              <CopyableValue label={t('common.telegramSenderId')} value={stringField(sender, 'id')} />
+            )}
           </div>
         );
       },
@@ -1002,7 +1108,12 @@ export function InvocationDetailView({ id }: { readonly id: string }): React.Rea
                 {t('invocations.invocationDetail.tabs.modelCalls', { count: data.model_calls.length })}
               </TabsTrigger>
               <TabsTrigger value="sends">
-                {t('invocations.invocationDetail.tabs.telegramSends', { count: data.telegram_sends.length })}
+                {t(
+                  isRoom(data.chat)
+                    ? 'invocations.invocationDetail.tabs.roomSends'
+                    : 'invocations.invocationDetail.tabs.telegramSends',
+                  { count: data.telegram_sends.length },
+                )}
               </TabsTrigger>
               <TabsTrigger value="agent">
                 {t('invocations.invocationDetail.tabs.agentTranscript', { count: data.agent_messages.length })}
@@ -1022,7 +1133,7 @@ export function InvocationDetailView({ id }: { readonly id: string }): React.Rea
                 <ModelCallsTab invocation={data} />
               </TabsContent>
               <TabsContent value="sends">
-                <TelegramSendsTab invocation={data} />
+                <SendsTab invocation={data} />
               </TabsContent>
               <TabsContent value="agent">
                 <AgentTranscriptTab invocation={data} />

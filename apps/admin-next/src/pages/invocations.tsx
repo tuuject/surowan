@@ -26,13 +26,16 @@ const INVOCATION_STATES = [
   'skipped_budget',
 ] as const;
 
+const INVOCATION_HOSTS = ['telegram', 'playground'] as const;
+
 export default function InvocationsPage(): React.ReactElement {
   const { t } = useTranslation();
   const [state, setState] = useState<string | undefined>(undefined);
+  const [host, setHost] = useState<string | undefined>(undefined);
   const chat = useChatScope();
   const navigate = useNavigate({ from: '/invocations' });
   const setChat = useChatScopeSetter(navigate);
-  const filters = useMemo(() => ({ state, chat }), [state, chat]);
+  const filters = useMemo(() => ({ state, host, chat }), [state, host, chat]);
 
   const COLUMNS: readonly ColumnSpec<InvocationListItem>[] = [
     {
@@ -58,8 +61,9 @@ export default function InvocationsPage(): React.ReactElement {
       title: t('invocations.invocations.columns.chat'),
       render: (row) => (
         <div className="min-w-0 space-y-0.5">
-          <div className="font-medium">{row.chat.title ?? row.chat.telegram_chat_id}</div>
+          <div className="font-medium">{row.chat.title ?? row.chat.telegram_chat_id ?? row.chat.room_id}</div>
           <div className="text-muted-foreground text-xs">
+            {row.chat.host_kind === 'playground' ? `${t('invocations.invocations.hosts.playground')} · ` : ''}
             {row.chat.type}
             {row.chat.message_thread_id === 0 ? '' : ` · topic ${row.chat.message_thread_id}`}
           </div>
@@ -123,6 +127,12 @@ export default function InvocationsPage(): React.ReactElement {
           value={state}
           onChange={setState}
           options={INVOCATION_STATES.map((value) => ({ value, label: value }))}
+        />
+        <SelectFilter
+          placeholder={t('invocations.invocations.hostPlaceholder')}
+          value={host}
+          onChange={setHost}
+          options={INVOCATION_HOSTS.map((value) => ({ value, label: t(`invocations.invocations.hosts.${value}`) }))}
         />
         <ChatFilter value={chat} onChange={setChat} />
       </FilterToolbar>

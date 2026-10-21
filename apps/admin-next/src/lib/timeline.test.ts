@@ -86,6 +86,7 @@ function telegramSend(overrides: Partial<TelegramSendEntry> = {}): TelegramSendE
     request_json: '{"chat_id":"123","text":"hi"}',
     state: 'success',
     telegram_message_id: '555',
+    room_seq: null,
     error_code: null,
     created_at: AT,
     finished_at: AT,
@@ -118,7 +119,15 @@ function invocation(overrides: Partial<InvocationDetail> = {}): InvocationDetail
     turns_used: 1,
     side_effect_started: true,
     config_hash: 'cfg-hash-1',
-    chat: { telegram_chat_id: '123456789', type: 'supergroup', title: 'Test Group', message_thread_id: 0 },
+    chat: {
+      host_kind: 'telegram',
+      telegram_chat_id: '123456789',
+      room_id: null,
+      type: 'supergroup',
+      title: 'Test Group',
+      username: null,
+      message_thread_id: 0,
+    },
     tool_call_count: 1,
     total_tokens: 150,
     cache_read_tokens: 0,
@@ -214,6 +223,13 @@ describe('context sections and timestamps', () => {
   test('uses snapshot telegram_date when present', () => {
     const message = contextMessage({ snapshot_json: '{"telegram_date":"2026-09-14T01:02:03.000Z"}' });
     expect(contextMessageTimestamp(message, AT)).toBe('2026-09-14T01:02:03.000Z');
+  });
+
+  test('uses a room snapshot sent_at when present', () => {
+    const message = contextMessage({
+      snapshot_json: '{"host":"playground","message_id":"3","sent_at":"2026-09-14T04:05:06.000Z"}',
+    });
+    expect(contextMessageTimestamp(message, AT)).toBe('2026-09-14T04:05:06.000Z');
   });
 
   test('falls back to the invocation timestamp when telegram_date is absent', () => {

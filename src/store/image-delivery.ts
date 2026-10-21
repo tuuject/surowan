@@ -11,13 +11,13 @@ export function imageDeliveryState(orm: Orm, conversationId: bigint, generationI
     unknown_assets: bigint;
   }>(sql`
     SELECT asset.value AS asset_id, s.state,
-      -- A wire host reports the message it published; a virtual host publishes
-      -- one itself and records it under its own column. Either names the
-      -- delivered message. The local link is cleared when retention deletes
-      -- that message, so the receipt keeps naming it after that.
+      -- Both hosts record the host-native id of the delivered message in the
+      -- response: the wire id for Telegram (also in telegram_message_id), the
+      -- sequence number for a room. That is the id the model may be told; the
+      -- room's message_id column is a storage row id and is cleared when
+      -- retention deletes the message, while the response keeps naming it.
       COALESCE(
         s.telegram_message_id,
-        s.message_id,
         CAST(json_extract(s.response_json, '$.message_id') AS INTEGER)
       ) AS message_ref,
       COALESCE(json_extract(s.request_json, '$.asset_ids_unknown'), 0) AS unknown_assets

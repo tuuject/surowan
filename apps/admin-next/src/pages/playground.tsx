@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getRouteApi } from '@tanstack/react-router';
+import { getRouteApi, Link } from '@tanstack/react-router';
 import { MessagesSquare, Plus, Send, Upload } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -180,6 +180,13 @@ function AttemptRow({
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-xs">{invocation.id}</span>
         <StateBadge state={invocation.state} />
+        <Link
+          to="/invocations/$invocationId"
+          params={{ invocationId: invocation.id }}
+          className="text-primary text-xs underline-offset-4 hover:underline"
+        >
+          {t('playground.runs.openAudit')}
+        </Link>
         {invocation.retry_of_invocation_id === null ? null : (
           <span className="text-muted-foreground text-xs">
             {t('playground.runs.retryOf', { id: invocation.retry_of_invocation_id })}

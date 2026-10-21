@@ -2147,6 +2147,7 @@ function listQuery(url: URL): ListQuery {
     cursor: url.searchParams.get('cursor'),
     state: url.searchParams.get('state'),
     chat: url.searchParams.get('chat'),
+    host: url.searchParams.get('host'),
     set: url.searchParams.get('set'),
     search: url.searchParams.get('search'),
     target: url.searchParams.get('target'),

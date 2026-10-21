@@ -251,6 +251,45 @@ describe('surowan-utils invocation CLI', () => {
     }
   }, 20_000);
 
+  it('list names a Playground room by its room id and room message sequence', async () => {
+    const room = {
+      ...ITEM,
+      chat: {
+        host_kind: 'playground',
+        telegram_chat_id: null,
+        room_id: '3',
+        type: 'group',
+        title: 'Room',
+        username: null,
+        message_thread_id: 0,
+      },
+      matched_messages: [
+        {
+          source: 'incoming',
+          telegram_message_id: null,
+          room_seq: '4',
+          telegram_send_id: null,
+          at: '2026-10-21T07:44:39.112Z',
+          text: 'hi',
+        },
+      ],
+    };
+    const server = await startServer((_request, response) => {
+      jsonResponse(response, 200, { items: [room], next_cursor: null });
+    });
+    try {
+      const result = await runCli(['invocation', 'list'], {
+        env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
+      });
+      expect(result.code).toBe(0);
+      expect(result.stdout).toContain('Room(room:3)');
+      expect(result.stdout).toContain('room_msg=4');
+      expect(result.stdout).not.toContain('msg=null');
+    } finally {
+      await server.close();
+    }
+  }, 20_000);
+
   it('--api-key overrides SUROWAN_API_KEY', async () => {
     const server = await startServer((_request, response) => {
       jsonResponse(response, 200, { items: [], next_cursor: null });

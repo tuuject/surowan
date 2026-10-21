@@ -230,7 +230,7 @@ function completionMention(completion: InvocationContext['completion']): ImMenti
 type SendDetails = {
   /** The wire id, under the key Telegram consumers have always read. */
   telegramMessageId?: string;
-  /** The id of the message a host published itself, e.g. a room. */
+  /** The id of the message a host published itself: a room's sequence number. */
   messageId?: string;
   replayed?: boolean;
 };
@@ -246,7 +246,8 @@ const reportsWireIds = (host: ImHost): boolean => host.host === 'telegram';
 /**
  * How a send result names what it published. Telegram keeps the wire id under
  * the key and wording it has always used, so nothing that reads a send result
- * has to know which host ran it; a room reports the message it recorded.
+ * has to know which host ran it; a room reports the sequence number of the
+ * message it recorded, the same number its messages and replies carry.
  */
 const sentMessageResult = (host: ImHost, messageId: bigint): string =>
   reportsWireIds(host) ? `telegram_message_id=${messageId}` : `message_id=${messageId}`;

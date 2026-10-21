@@ -94,6 +94,7 @@ export const playgroundZh: typeof playground = {
     empty: '还没有运行。',
     attempt: '尝试 {{id}}',
     retryOf: '重试自 {{id}}',
+    openAudit: '审计',
     usage: '{{tokens}} tokens · {{cost}}',
     receipt: '回执：{{state}}',
     sends: '发送',

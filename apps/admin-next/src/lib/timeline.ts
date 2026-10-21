@@ -131,10 +131,13 @@ export function isNewContextSection(section: string): boolean {
   return section === 'new';
 }
 
-/** Timeline time of a frozen context message: snapshot telegram_date, else the invocation start. */
+/**
+ * Timeline time of a frozen context message: the snapshot's message time
+ * (Telegram's telegram_date, a room's sent_at), else the invocation start.
+ */
 export function contextMessageTimestamp(message: ContextMessageEntry, fallback: string): string {
   const snapshot = parseJsonObject(message.snapshot_json);
-  return stringField(snapshot, 'telegram_date') ?? fallback;
+  return stringField(snapshot, 'telegram_date') ?? stringField(snapshot, 'sent_at') ?? fallback;
 }
 
 export function timelineEventKey(event: InvocationTimelineEvent): string {

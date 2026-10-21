@@ -23,6 +23,7 @@ interface Fixture {
 interface MatchedMessage {
   readonly source: string;
   readonly telegram_message_id: string | null;
+  readonly room_seq: string | null;
   readonly telegram_send_id: string | null;
   readonly at: string;
   readonly text: string | null;
@@ -104,6 +105,7 @@ test('keyword search matches only public messages; private text and failures sta
     {
       source: 'bot',
       telegram_message_id: '2001',
+      room_seq: null,
       telegram_send_id: '801',
       at: '2025-01-01T00:06:30.000Z',
       text: '机器人回复 苹果',
@@ -111,6 +113,7 @@ test('keyword search matches only public messages; private text and failures sta
     {
       source: 'incoming',
       telegram_message_id: '1001',
+      room_seq: null,
       telegram_send_id: null,
       at: '2025-01-01T00:00:10.000Z',
       text: '苹果 100% 好吃',
@@ -122,6 +125,7 @@ test('keyword search matches only public messages; private text and failures sta
     {
       source: 'incoming',
       telegram_message_id: '1008',
+      room_seq: null,
       telegram_send_id: null,
       at: '2024-03-10T06:29:30.000Z',
       text: '苹果在纽约',
@@ -144,6 +148,7 @@ test('cross-conversation successful sends remain searchable under their owning i
   expect(items.map((item) => item.id)).toEqual(['401']);
   expect(matched(items[0] as Item)[0]).toMatchObject({
     source: 'bot',
+    room_seq: null,
     telegram_send_id: '801',
     text: '机器人回复 苹果',
   });
@@ -157,6 +162,7 @@ test('a photo caption is matched and previewed when text is empty', () => {
     {
       source: 'incoming',
       telegram_message_id: '1002',
+      room_seq: null,
       telegram_send_id: null,
       at: '2025-01-01T00:05:20.000Z',
       text: '夜晚的猫',
@@ -226,6 +232,7 @@ test('keyword and time must hit the same message', () => {
     {
       source: 'bot',
       telegram_message_id: '2001',
+      room_seq: null,
       telegram_send_id: '801',
       at: '2025-01-01T00:06:30.000Z',
       text: '机器人回复 苹果',
@@ -242,6 +249,7 @@ test('bot time prefers the outgoing message telegram_date and falls back to the 
     {
       source: 'bot',
       telegram_message_id: '2001',
+      room_seq: null,
       telegram_send_id: '801',
       at: '2025-01-01T00:06:30.000Z',
       text: '机器人回复 苹果',
@@ -259,6 +267,7 @@ test('bot time prefers the outgoing message telegram_date and falls back to the 
     {
       source: 'bot',
       telegram_message_id: '3003',
+      room_seq: null,
       telegram_send_id: '803',
       at: '2025-01-01T03:00:00.000Z',
       text: '没有落盘的发送',
@@ -301,6 +310,7 @@ test('more than five mixed incoming/bot matches keep the five newest across both
     {
       source: 'bot',
       telegram_message_id: '2102',
+      room_seq: null,
       telegram_send_id: '812',
       at: '2025-01-01T06:06:00.000Z',
       text: '混流 回复 2',
@@ -308,6 +318,7 @@ test('more than five mixed incoming/bot matches keep the five newest across both
     {
       source: 'incoming',
       telegram_message_id: '1105',
+      room_seq: null,
       telegram_send_id: null,
       at: '2025-01-01T06:05:00.000Z',
       text: '混流 5',
@@ -315,6 +326,7 @@ test('more than five mixed incoming/bot matches keep the five newest across both
     {
       source: 'bot',
       telegram_message_id: '2101',
+      room_seq: null,
       telegram_send_id: '811',
       at: '2025-01-01T06:04:30.000Z',
       text: '混流 回复 1',
@@ -322,6 +334,7 @@ test('more than five mixed incoming/bot matches keep the five newest across both
     {
       source: 'incoming',
       telegram_message_id: '1104',
+      room_seq: null,
       telegram_send_id: null,
       at: '2025-01-01T06:04:00.000Z',
       text: '混流 4',
@@ -329,6 +342,7 @@ test('more than five mixed incoming/bot matches keep the five newest across both
     {
       source: 'incoming',
       telegram_message_id: '1103',
+      room_seq: null,
       telegram_send_id: null,
       at: '2025-01-01T06:03:00.000Z',
       text: '混流 3',
@@ -356,6 +370,7 @@ test('same-second matches order by the Telegram message ID numerically, not as t
   expect(messages[1]).toEqual({
     source: 'bot',
     telegram_message_id: '9999999999999999',
+    room_seq: null,
     telegram_send_id: '813',
     at: '2025-01-01T07:00:00.000Z',
     text: '同秒 回复',

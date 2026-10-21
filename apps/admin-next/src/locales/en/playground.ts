@@ -96,6 +96,7 @@ export const playground = {
     empty: 'No runs yet.',
     attempt: 'Attempt {{id}}',
     retryOf: 'retry of {{id}}',
+    openAudit: 'Audit',
     usage: '{{tokens}} tokens · {{cost}}',
     receipt: 'Receipt: {{state}}',
     sends: 'Sends',

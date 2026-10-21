@@ -1163,12 +1163,17 @@ test('migration 037 upgrades a live Telegram database without disturbing it', as
     expect(orm.get(sql`SELECT host_kind FROM chats WHERE id = 50`)).toEqual({ host_kind: 'playground' });
 
     // Read-only surfaces tolerate the mix instead of throwing on a NULL
-    // Telegram identity, and virtual rows stay out of Telegram-scoped views.
-    expect(listInvocations(orm, {}).items).toHaveLength(1);
+    // Telegram identity. The invocation audit is host-neutral and names the
+    // room by its own id; virtual rows stay out of Telegram-scoped views.
+    expect(listInvocations(orm, {}).items).toHaveLength(2);
     expect(orm.get(sql`SELECT count(*) AS c FROM invocations`)).toEqual({ c: 2n });
     expect(listMessages(orm, {}).items).toHaveLength(3);
     expect(listConversationContexts(orm, {}).items).toHaveLength(0);
-    expect(getInvocation(orm, 6000n)).toBeNull();
+    expect(getInvocation(orm, 6000n)?.chat).toMatchObject({
+      host_kind: 'playground',
+      telegram_chat_id: null,
+      room_id: '50',
+    });
     expect(getMessage(orm, 7000n)).toBeNull();
     expect(getConversationContext(orm, 150n)).toBeNull();
     expect(() => overview(orm)).not.toThrow();

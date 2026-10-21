@@ -560,17 +560,27 @@ describe('playground image generation', () => {
 
   test('a delivered picture stays delivered after retention unlinks its room message', async () => {
     const f = await playgroundImageFixture();
+    // Another room speaks first, so this room's rows are not numbered like its
+    // sequence and the delivered id below tells the two apart.
+    const otherRoom = f.playground.createRoom({ title: 'Other', members: [{ name: 'Bob', role: 'admin' }] });
+    f.playground.submit(otherRoom.chatId, {
+      requestKey: 'other-1',
+      senderId: otherRoom.members[0]!.senderId,
+      text: 'x',
+    });
     const invocationId = releaseRoomInput(f, 'ask-unlinked');
     enableRoomImage(f, true);
     const generationId = await submitThroughRun(f, invocationId, 'call-unlinked');
     await settledTask(f);
     await publishThroughReceipt(f, 'send-unlinked', { generationId });
-    const published = roomMessages(f)[0]!.messages.id;
+    const published = roomMessages(f)[0]!.messages;
+    expect(published.id).not.toBe(published.localSequenceNo);
     // What `ON DELETE SET NULL` leaves once retention removed the message.
     f.store.orm.update(hostSends).set({ messageId: null }).run();
 
+    // The picture is still named by the room sequence the model was told.
     const state = imageDeliveryState(f.store.orm, f.room.conversationId, generationId);
-    expect([...state.delivered.values()]).toEqual([published.toString()]);
+    expect([...state.delivered.values()]).toEqual([String(published.localSequenceNo)]);
     expect(state.uncertain.size).toBe(0);
   });
 
