@@ -117,7 +117,7 @@ if (!PASSKEYS_ENABLED) {
       // Do not revoke the shared storageState session used by the next tests.
       await page.context().clearCookies();
       await page.goto(await adminUrl('/'));
-      await expect(page.getByText('Plastic Wan admin sign-in')).toBeVisible();
+      await expect(page.getByText('Surowan admin sign-in')).toBeVisible();
       await expect(page.getByRole('button', { name: 'Sign in with a passkey' })).toHaveCount(0);
       await expect(page.getByText('Passkeys are unavailable', { exact: false })).toHaveCount(0);
     });
@@ -280,7 +280,7 @@ if (PASSKEYS_ENABLED) {
       const finish = watchPageIssues(sharedPage);
       await sharedPage.goto(await adminUrl('/'));
       await sharedPage.getByText('Sign out').click();
-      await expect(sharedPage.getByText('Plastic Wan admin sign-in')).toBeVisible();
+      await expect(sharedPage.getByText('Surowan admin sign-in')).toBeVisible();
       // Username-less: the discoverable ceremony runs without touching the form.
       await expect(sharedPage.getByLabel('Username')).toHaveValue('');
       const passkeySignIn = sharedPage.getByRole('button', { name: 'Sign in with a passkey' });
@@ -381,7 +381,7 @@ if (PASSKEYS_ENABLED) {
       // clear it first — the account itself has no passkeys left at this point.
       await cdp.send('WebAuthn.clearCredentials', { authenticatorId: authId });
       await sharedPage.getByText('Sign out').click();
-      await expect(sharedPage.getByText('Plastic Wan admin sign-in')).toBeVisible();
+      await expect(sharedPage.getByText('Surowan admin sign-in')).toBeVisible();
       await sharedPage.getByRole('button', { name: 'Sign in with a passkey' }).click();
       await expect(sharedPage.getByText('Passkey request cancelled')).toBeVisible();
 

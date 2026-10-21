@@ -1,7 +1,8 @@
+import { startAuthentication } from '@simplewebauthn/browser';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { startAuthentication } from '@simplewebauthn/browser';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -17,7 +18,6 @@ import {
 } from '@/lib/api';
 import { isWebAuthnAvailable, passkeyErrorMessage } from '@/lib/passkeys';
 import { sessionQuery } from '@/lib/queries';
-import { useTranslation } from 'react-i18next';
 
 export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boolean }): React.ReactElement {
   const { t } = useTranslation();
@@ -66,7 +66,7 @@ export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boole
     <div className="flex min-h-full items-center justify-center p-6">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>{t('pages.auth.loginTitle')}</CardTitle>
+          <CardTitle>{t('brand.loginTitle')}</CardTitle>
           <CardDescription>{t('pages.auth.loginDescription')}</CardDescription>
         </CardHeader>
         <CardContent>

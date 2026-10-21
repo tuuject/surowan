@@ -15,7 +15,7 @@ async function fillCredentials(page: Page, username: string, password: string): 
 
 async function login(page: Page, base: string, username: string, password: string): Promise<void> {
   await page.goto(base);
-  await expect(page.getByText('Plastic Wan admin sign-in')).toBeVisible();
+  await expect(page.getByText('Surowan admin sign-in')).toBeVisible();
   await fillCredentials(page, username, password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByText('Stored messages')).toBeVisible();
@@ -44,7 +44,7 @@ test('logout returns to the login form; bad password shows invalid_credentials a
 
   // Sign out from the shell footer → login form (not an error screen)
   await page.getByText('Sign out').click();
-  await expect(page.getByText('Plastic Wan admin sign-in')).toBeVisible();
+  await expect(page.getByText('Surowan admin sign-in')).toBeVisible();
   await expect(page.getByText('Something went wrong')).toHaveCount(0);
 
   // wrong password: inline error with the stable code, URL unchanged
@@ -53,7 +53,7 @@ test('logout returns to the login form; bad password shows invalid_credentials a
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByText('invalid_credentials', { exact: false })).toBeVisible();
   await expect(page).toHaveURL(before);
-  await expect(page.getByText('Plastic Wan admin sign-in')).toBeVisible();
+  await expect(page.getByText('Surowan admin sign-in')).toBeVisible();
 
   // correct login restores the shell
   await login(page, base, E2E_USERNAME, E2E_PASSWORD);
@@ -69,14 +69,14 @@ test('a revoked session is bounced to the login form without an error screen', a
 
   // The next protected request 401s; the global handler returns to the gate.
   await page.goto(await baseURLPath('/invocations'));
-  await expect(page.getByText('Plastic Wan admin sign-in')).toBeVisible();
+  await expect(page.getByText('Surowan admin sign-in')).toBeVisible();
   await expect(page.getByText('Something went wrong')).toHaveCount(0);
 
   // Signing in again works. The gate preserves the current route
   // (/invocations), so assert the shell, then the overview.
   await fillCredentials(page, E2E_USERNAME, E2E_PASSWORD);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await expect(page.getByText('Plastic Wan', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Surowan', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Something went wrong')).toHaveCount(0);
   await page.goto(await baseURLPath('/'));
   await expect(page.getByText('Stored messages')).toBeVisible();

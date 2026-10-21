@@ -14,10 +14,10 @@ import {
   MessagesSquare,
   Play,
   ScrollText,
-  SlidersVertical,
   Settings,
   Shield,
   SlidersHorizontal,
+  SlidersVertical,
   Sticker,
   Zap,
 } from 'lucide-react';
@@ -102,12 +102,12 @@ export default function AppSidebar({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link to="/" aria-label="Plastic Wan Admin">
+              <Link to="/" aria-label={t('brand.adminTitle')}>
                 <div className="bg-primary text-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-md">
                   <Zap className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">Plastic Wan</span>
+                  <span className="truncate font-semibold">{t('brand.name')}</span>
                   <span className="text-muted-foreground truncate text-xs">{t('layout.misc.admin')}</span>
                 </div>
               </Link>

@@ -1,4 +1,5 @@
 import type { dictionary as dictionaryEn } from '../en/dictionary.ts';
+import { brand } from './brand.ts';
 
 /** Mirrors `en/dictionary.ts` key for key; the annotation fails the build on drift. */
 export const dictionary: typeof dictionaryEn = {
@@ -69,7 +70,7 @@ export const dictionary: typeof dictionaryEn = {
     editTitle: '编辑「{{term}}」',
     editDescription: '保存会替换该词条的解释、别名与作用域。',
     termLabel: '主词',
-    termPlaceholder: '例如：塑料碗',
+    termPlaceholder: `例如：${brand.name}`,
     termRequired: '主词不能为空。',
     definitionLabel: '解释',
     definitionPlaceholder: '这个词在这个群里是什么意思',

@@ -94,11 +94,13 @@ describe('language switching', () => {
     setLanguage('zh-CN');
     expect(entries.get(LANGUAGE_KEY)).toBe('zh-CN');
     expect(document.documentElement.lang).toBe('zh-CN');
+    expect(document.title).toBe('塑料碗管理端');
     expect(i18n.t('common.requestFailed')).toBe('请求失败');
 
     setLanguage('en');
     expect(entries.get(LANGUAGE_KEY)).toBe('en');
     expect(document.documentElement.lang).toBe('en');
+    expect(document.title).toBe('Surowan Admin');
     expect(i18n.t('common.requestFailed')).toBe('Request failed');
   });
 
@@ -137,9 +139,13 @@ describe('language switching', () => {
   test('the Chinese catalog still mirrors the English keys these tests rely on', async () => {
     expect(i18n.t('common.requestFailed')).toBe('Request failed');
     expect(i18n.t('pages.memories.ttlUnitDays')).toBe('d');
+    expect(i18n.t('brand.name')).toBe('Surowan');
+    expect(i18n.t('brand.loginTitle')).toBe('Surowan admin sign-in');
 
     await i18n.changeLanguage('zh-CN');
     expect(i18n.t('common.requestFailed')).toBe('请求失败');
     expect(i18n.t('pages.memories.ttlUnitDays')).toBe('天');
+    expect(i18n.t('brand.name')).toBe('塑料碗');
+    expect(i18n.t('brand.loginTitle')).toBe('塑料碗管理端登录');
   });
 });

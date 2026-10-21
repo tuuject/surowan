@@ -47,6 +47,7 @@ void i18next.use(initReactI18next).init({
 
 if (typeof document !== 'undefined') {
   document.documentElement.lang = i18next.language;
+  document.title = i18next.t('brand.adminTitle');
 }
 
 export function setLanguage(lang: AppLanguage): void {
@@ -57,6 +58,7 @@ export function setLanguage(lang: AppLanguage): void {
     // localStorage unavailable
   }
   document.documentElement.lang = lang;
+  document.title = i18next.t('brand.adminTitle');
 }
 
 export default i18next;

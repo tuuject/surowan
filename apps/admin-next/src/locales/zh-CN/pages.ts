@@ -1,4 +1,5 @@
 import type { pages as pagesEn } from '../en/pages.ts';
+import { brand } from './brand.ts';
 
 /** Mirrors `en/pages.ts` key for key; the annotation fails the build on drift. */
 export const pages: typeof pagesEn = {
@@ -59,7 +60,6 @@ export const pages: typeof pagesEn = {
     wakeDialogConfirm: '立即唤醒',
   },
   auth: {
-    loginTitle: 'Plastic Wan 管理端登录',
     loginDescription: '输入凭据以继续。',
     username: '用户名',
     password: '密码',
@@ -163,20 +163,19 @@ export const pages: typeof pagesEn = {
     colProactive: '主动回复',
     editProactiveReply: '编辑主动回复概率',
     proactiveTitle: '主动回复概率',
-    proactiveDescription:
-      '普通群聊消息只有通过概率调度，塑料碗才会获得一次主动参与的机会。被 @、回复 Bot、命中触发关键词或使用 Bot 命令时不受影响。',
+    proactiveDescription: `普通群聊消息只有通过概率调度，${brand.name}才会获得一次主动参与的机会。被 @、回复 Bot、命中触发关键词或使用 Bot 命令时不受影响。`,
     proactiveInherit: '沿用全局设置',
     proactiveInheritHint: '当前全局：{{summary}}。',
     proactiveInheritOffHint: '全局当前关闭主动回复；本群也只在被直接叫到时参与。',
     proactiveOff: '关闭主动回复',
-    proactiveOffHint: '普通群聊消息不会唤起塑料碗，只有直接叫到它的消息才会触发。',
+    proactiveOffHint: `普通群聊消息不会唤起${brand.name}，只有直接叫到它的消息才会触发。`,
     proactiveCustom: '自定义本群参数',
     proactiveCustomHint: '为本群单独设置被选中的机会。',
     proactiveBase: '第一次被选中的机会（%）',
     proactiveIncrement: '每次未命中后增加（%）',
     proactivePity: '最多连续尝试次数（到达后必定命中）',
     proactiveMathHint: '例如首次 20%、每次 +10%、最多 8 次：第 1 次 20%，第 2 次 30%，一直到第 8 次必定获得机会。',
-    proactiveDirectHint: '命中只代表获得一次回复机会，塑料碗仍可能选择不说话；直接叫到它的消息不消耗次数。',
+    proactiveDirectHint: `命中只代表获得一次回复机会，${brand.name}仍可能选择不说话；直接叫到它的消息不消耗次数。`,
     proactiveInvalid: '请填写 0–100 的百分比，并把最多尝试次数设为 1–100 的整数。',
     proactiveGlobalSummary: '首次 {{base}}%，每次未命中 +{{increment}}%，最多 {{pity}} 次必定命中',
     proactiveOffSummary: '关闭',

@@ -1,3 +1,5 @@
+import { brand } from './brand.ts';
+
 /**
  * Dictionary area: the entries page, its scope/injection controls, the entry
  * editor, the import / export dialogs and the Tool-Model-driven merge flow.
@@ -74,7 +76,7 @@ export const dictionary = {
     editTitle: 'Edit “{{term}}”',
     editDescription: 'Saving replaces this entry’s definition, aliases and scope.',
     termLabel: 'Term',
-    termPlaceholder: 'e.g. 塑料碗',
+    termPlaceholder: `e.g. ${brand.name}`,
     termRequired: 'A term is required.',
     definitionLabel: 'Definition',
     definitionPlaceholder: 'What this term means in this group',

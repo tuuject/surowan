@@ -62,7 +62,6 @@ export const pages = {
     wakeDialogConfirm: 'Wake now',
   },
   auth: {
-    loginTitle: 'Plastic Wan admin sign-in',
     loginDescription: 'Enter your credentials to continue.',
     username: 'Username',
     password: 'Password',

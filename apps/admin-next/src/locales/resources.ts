@@ -1,3 +1,4 @@
+import { brand } from './en/brand.ts';
 import { common } from './en/common.ts';
 import { dictionary } from './en/dictionary.ts';
 import { harness } from './en/harness.ts';
@@ -8,6 +9,7 @@ import { models } from './en/models.ts';
 import { pages } from './en/pages.ts';
 import { playground } from './en/playground.ts';
 
+import { brand as brandZh } from './zh-CN/brand.ts';
 import { common as commonZh } from './zh-CN/common.ts';
 import { dictionary as dictionaryZh } from './zh-CN/dictionary.ts';
 import { harness as harnessZh } from './zh-CN/harness.ts';
@@ -25,6 +27,7 @@ import { playgroundZh } from './zh-CN/playground.ts';
  */
 const en = {
   common,
+  brand,
   layout,
   invocations,
   models,
@@ -37,6 +40,7 @@ const en = {
 
 const zhCN: typeof en = {
   common: commonZh,
+  brand: brandZh,
   layout: layoutZh,
   invocations: invocationsZh,
   models: modelsZh,
