@@ -27,6 +27,7 @@ import {
 } from '../../store/schema.ts';
 import { meteredTokens, storedSleepUntil } from '../../store/sleep.ts';
 import { telegramHostScope, telegramIdentity } from '../../store/host-scope.ts';
+import { HOST_KINDS, type HostKind } from '../../platform/im-host.ts';
 
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 25;
@@ -50,6 +51,8 @@ export interface ListQuery {
   readonly state?: string | null;
   readonly chat?: string | null;
   readonly set?: string | null;
+  /** Invocation host: `telegram` or `playground`. */
+  readonly host?: string | null;
   readonly search?: string | null;
   readonly target?: string | null;
   /** Whole-minute/second/fraction window, resolved in the Chat or global timezone. */
@@ -92,7 +95,11 @@ interface InvocationListRow {
   readonly turns_used: bigint;
   readonly side_effect_started: bigint;
   readonly config_hash: string;
-  readonly telegram_chat_id: bigint;
+  readonly host_kind: HostKind;
+  /** Internal chat row; a room's id is this value. */
+  readonly chat_id: bigint;
+  /** NULL on virtual rooms. */
+  readonly telegram_chat_id: bigint | null;
   readonly chat_type: string;
   readonly chat_title: string | null;
   readonly chat_username: string | null;
@@ -389,6 +396,8 @@ interface MatchedMessageRow {
   readonly source: string;
   /** TEXT for frozen snapshots, INTEGER for host_sends; both stringified in the API. */
   readonly telegram_message_id: bigint | string | null;
+  /** The room's own message sequence; NULL on Telegram rows, as above. */
+  readonly room_seq: bigint | string | null;
   readonly telegram_send_id: bigint | null;
   readonly at: string;
   readonly text: string | null;
@@ -397,22 +406,29 @@ interface MatchedMessageRow {
 const INCOMING_INVOCATION = sql`im.invocation_id`;
 const INCOMING_TEXT = sql`json_extract(im.snapshot_json, '$.text')`;
 const INCOMING_CAPTION = sql`json_extract(im.snapshot_json, '$.caption')`;
-// The snapshot froze telegram_date when the invocation ran; later edits never touch it.
-const INCOMING_DATE = sql`json_extract(im.snapshot_json, '$.telegram_date')`;
+// A room snapshot says so in `host`, and its `message_id` is the room's own
+// sequence rather than a Telegram message id.
+const INCOMING_ROOM = sql`json_extract(im.snapshot_json, '$.host') = 'playground'`;
+// The snapshot froze its message time (Telegram's telegram_date, a room's
+// sent_at) when the invocation ran; later edits never touch it.
+const INCOMING_DATE = sql`COALESCE(json_extract(im.snapshot_json, '$.telegram_date'), json_extract(im.snapshot_json, '$.sent_at'))`;
 const SEND_INVOCATION = sql`tc.invocation_id`;
 // The published text lives in the outgoing message; a send whose outgoing row
-// is gone falls back to the send arguments that Telegram accepted.
+// is gone falls back to the send arguments that the host accepted.
 const SEND_TEXT = sql`COALESCE(r.text, r.caption, json_extract(tc.arguments_json, '$.text'))`;
 const SEND_DATE = sql`COALESCE(m.telegram_date, ts.finished_at)`;
+// A room delivery links its outgoing message directly; a Telegram send only
+// knows the message id Telegram assigned.
 const SEND_SOURCE = sql`FROM host_sends ts
        JOIN tool_calls tc ON tc.id = ts.tool_call_id
-       LEFT JOIN messages m ON m.conversation_id = ts.conversation_id
-         AND m.telegram_message_id = ts.telegram_message_id AND m.sent_by_bot = 1
+       LEFT JOIN messages m ON m.sent_by_bot = 1 AND (m.id = ts.message_id
+         OR (ts.message_id IS NULL AND m.conversation_id = ts.conversation_id
+           AND m.telegram_message_id = ts.telegram_message_id))
        LEFT JOIN message_revisions r ON r.id = m.current_revision_id`;
 
 /**
  * `search` and `at`/`from`/`to` both look at the invocation's public messages:
- * frozen `section = 'new'` snapshots and successfully delivered Telegram
+ * frozen `section = 'new'` snapshots and successfully delivered host
  * sends. Private assistant text and tool results are never candidates, an
  * unsuccessful send never is, and a keyword must match the same message whose
  * time satisfies the bounds.
@@ -536,7 +552,8 @@ function matchedMessagesSelect(filter: InvocationMessageFilter, scope: Invocatio
       ? sql`COALESCE(${INCOMING_TEXT}, ${INCOMING_CAPTION})`
       : sql`CASE WHEN ${INCOMING_TEXT} LIKE ${filter.keyword} ESCAPE '\\' THEN ${INCOMING_TEXT} ELSE ${INCOMING_CAPTION} END`;
   const incoming = sql`SELECT im.invocation_id AS invocation_id, 'incoming' AS source,
-              json_extract(im.snapshot_json, '$.message_id') AS telegram_message_id,
+              CASE WHEN ${INCOMING_ROOM} THEN NULL ELSE json_extract(im.snapshot_json, '$.message_id') END AS telegram_message_id,
+              CASE WHEN ${INCOMING_ROOM} THEN json_extract(im.snapshot_json, '$.message_id') END AS room_seq,
               NULL AS telegram_send_id,
               ${INCOMING_DATE} AS at,
               ${preview} AS text
@@ -544,6 +561,7 @@ function matchedMessagesSelect(filter: InvocationMessageFilter, scope: Invocatio
        WHERE ${sql.join(incomingMatchedConditions(filter, scope), sql` AND `)}`;
   const send = sql`SELECT tc.invocation_id AS invocation_id, 'bot' AS source,
               COALESCE(ts.telegram_message_id, m.telegram_message_id) AS telegram_message_id,
+              m.local_sequence_no AS room_seq,
               ts.id AS telegram_send_id,
               ${SEND_DATE} AS at,
               ${SEND_TEXT} AS text
@@ -553,15 +571,15 @@ function matchedMessagesSelect(filter: InvocationMessageFilter, scope: Invocatio
 }
 
 /**
- * Total order inside one invocation: newest public time first, then the
- * Telegram message ID compared as an integer (`json_extract` returns the
- * snapshots' frozen TEXT ids while `host_sends` stores integers), then the
- * send row ID and source so same-second matches still have one deterministic
- * order.
+ * Total order inside one invocation: newest public time first, then the host
+ * message ID (Telegram's, or a room's sequence — an invocation has only one
+ * host) compared as an integer (`json_extract` returns the snapshots' frozen
+ * TEXT ids while `host_sends` stores integers), then the send row ID and source
+ * so same-second matches still have one deterministic order.
  */
 const matchedMessageOrder = (row: SQL): SQL => sql`${row}.at DESC,
-      CASE WHEN ${row}.telegram_message_id IS NULL THEN 1 ELSE 0 END,
-      CAST(${row}.telegram_message_id AS INTEGER) DESC,
+      CASE WHEN COALESCE(${row}.telegram_message_id, ${row}.room_seq) IS NULL THEN 1 ELSE 0 END,
+      CAST(COALESCE(${row}.telegram_message_id, ${row}.room_seq) AS INTEGER) DESC,
       CASE WHEN ${row}.telegram_send_id IS NULL THEN 1 ELSE 0 END,
       ${row}.telegram_send_id DESC,
       ${row}.source`;
@@ -589,7 +607,7 @@ function loadMatchedMessages(
   // `rank_no` already encodes the per-invocation order, so the outer query
   // reuses it instead of repeating the window's ORDER BY expression.
   const rows = orm.all<MatchedMessageRow>(
-    sql`SELECT mm.invocation_id, mm.source, mm.telegram_message_id, mm.telegram_send_id, mm.at, mm.text
+    sql`SELECT mm.invocation_id, mm.source, mm.telegram_message_id, mm.room_seq, mm.telegram_send_id, mm.at, mm.text
        FROM (
          SELECT ranked.*,
                 ROW_NUMBER() OVER (PARTITION BY ranked.invocation_id ORDER BY ${matchedMessageOrder(sql`ranked`)}) AS rank_no
@@ -604,6 +622,7 @@ function loadMatchedMessages(
     messages.push({
       source: row.source,
       telegram_message_id: row.telegram_message_id === null ? null : row.telegram_message_id.toString(),
+      room_seq: row.room_seq === null ? null : row.room_seq.toString(),
       telegram_send_id: row.telegram_send_id === null ? null : row.telegram_send_id.toString(),
       at: row.at,
       text: row.text === null ? null : row.text.slice(0, MAX_PAYLOAD_PREVIEW_LENGTH),
@@ -614,19 +633,30 @@ function loadMatchedMessages(
 }
 
 /**
- * The admin audit surface reports Telegram chats: it renders Telegram chat ids,
- * message ids and sender ids directly. Virtual rooms have none of those, so
- * every audit query states the host it speaks instead of reading a Telegram id
- * that a virtual row does not have.
+ * The message audit surface reports Telegram chats: it renders Telegram chat
+ * ids, message ids and sender ids directly. Virtual rooms have none of those,
+ * so those queries state the host they speak instead of reading a Telegram id
+ * that a virtual row does not have. Invocations are host-neutral and carry the
+ * host in their chat summary instead.
  */
 const TELEGRAM_HOST = sql`ch.host_kind = 'telegram'`;
 
+const INVOCATION_CHAT_COLUMNS = sql`ch.host_kind, ch.id AS chat_id, ch.telegram_chat_id, ch.type AS chat_type,
+              ch.title AS chat_title, ch.username AS chat_username, c.message_thread_id`;
+
 export function listInvocations(orm: Orm, query: ListQuery, config?: RawConfig): Page<Record<string, unknown>> {
   const limit = parseLimit(query.limit);
-  const conditions: SQL[] = [TELEGRAM_HOST];
+  const conditions: SQL[] = [];
   appendCursor(conditions, sql`i.id`, query.cursor);
   if (query.state !== undefined && query.state !== null && query.state.length > 0) {
     conditions.push(sql`i.state = ${assertToken(query.state, 'state')}`);
+  }
+  const host = optionalFilter(query.host);
+  if (host !== undefined) {
+    if (!(HOST_KINDS as readonly string[]).includes(host)) {
+      throw new AdminQueryError('invalid_host', `host must be one of ${HOST_KINDS.join(', ')}`);
+    }
+    conditions.push(sql`ch.host_kind = ${host}`);
   }
   if (query.chat !== undefined && query.chat !== null && query.chat.length > 0) {
     conditions.push(sql`ch.telegram_chat_id = ${parseId(query.chat, 'chat')}`);
@@ -638,8 +668,7 @@ export function listInvocations(orm: Orm, query: ListQuery, config?: RawConfig):
   const rows =
     orm.all<InvocationListRow>(sql`SELECT i.id, i.state, i.created_at, i.started_at, i.finished_at, i.completion_reason, i.error_code,
               i.sends_used, i.tool_calls_used, i.turns_used, i.side_effect_started, i.config_hash,
-              ch.telegram_chat_id, ch.type AS chat_type, ch.title AS chat_title, ch.username AS chat_username,
-              c.message_thread_id,
+              ${INVOCATION_CHAT_COLUMNS},
               (SELECT COUNT(*) FROM tool_calls tc WHERE tc.invocation_id = i.id) AS tool_call_count,
               (SELECT COALESCE(SUM(COALESCE(mc.input_tokens, 0) + COALESCE(mc.output_tokens, 0) + COALESCE(mc.cache_read_tokens, 0) + COALESCE(mc.cache_write_tokens, 0)), 0) FROM model_calls mc WHERE mc.invocation_id = i.id) AS total_tokens,
               (SELECT COALESCE(SUM(mc.cache_read_tokens), 0) FROM model_calls mc WHERE mc.invocation_id = i.id) AS cache_read_tokens,
@@ -673,7 +702,7 @@ export function listInvocations(orm: Orm, query: ListQuery, config?: RawConfig):
       turns_used: Number(row.turns_used),
       side_effect_started: bit(row.side_effect_started),
       config_hash: row.config_hash,
-      chat: chatSummary(row),
+      chat: invocationChat(row),
       tool_call_count: Number(row.tool_call_count),
       total_tokens: Number(row.total_tokens),
       cache_read_tokens: Number(row.cache_read_tokens),
@@ -692,8 +721,7 @@ export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | n
     .all<InvocationDetailRow>(sql`SELECT i.id, i.state, i.created_at, i.started_at, i.finished_at, i.completion_reason, i.error_code,
               i.sends_used, i.tool_calls_used, i.turns_used, i.side_effect_started, i.config_hash,
               i.prompt_version, i.tool_registry_hash, i.tool_registry_json, i.bucket_id,
-              ch.telegram_chat_id, ch.type AS chat_type, ch.title AS chat_title, ch.username AS chat_username,
-              c.message_thread_id,
+              ${INVOCATION_CHAT_COLUMNS},
               (SELECT COUNT(*) FROM tool_calls tc WHERE tc.invocation_id = i.id) AS tool_call_count,
               (SELECT COALESCE(SUM(COALESCE(mc.input_tokens, 0) + COALESCE(mc.output_tokens, 0) + COALESCE(mc.cache_read_tokens, 0) + COALESCE(mc.cache_write_tokens, 0)), 0) FROM model_calls mc WHERE mc.invocation_id = i.id) AS total_tokens,
               (SELECT COALESCE(SUM(mc.cache_read_tokens), 0) FROM model_calls mc WHERE mc.invocation_id = i.id) AS cache_read_tokens,
@@ -702,7 +730,7 @@ export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | n
        FROM invocations i
        JOIN conversations c ON c.id = i.conversation_id
        JOIN chats ch ON ch.id = c.chat_id
-       WHERE i.id = ${id} AND ch.host_kind = 'telegram'`)
+       WHERE i.id = ${id}`)
     .at(0);
   if (invocation === undefined) {
     return null;
@@ -772,12 +800,16 @@ export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | n
       requestJson: hostSends.requestJson,
       state: hostSends.state,
       telegramMessageId: hostSends.telegramMessageId,
+      roomSeq: messages.localSequenceNo,
       errorCode: hostSends.errorCode,
       createdAt: hostSends.createdAt,
       finishedAt: hostSends.finishedAt,
     })
     .from(hostSends)
     .innerJoin(toolCalls, eq(hostSends.toolCallId, toolCalls.id))
+    // Only a room delivery links its outgoing message; a Telegram send is
+    // identified by telegram_message_id alone, so room_seq stays null.
+    .leftJoin(messages, eq(messages.id, hostSends.messageId))
     .where(eq(toolCalls.invocationId, id))
     .orderBy(hostSends.id)
     .all();
@@ -811,7 +843,7 @@ export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | n
     prompt_version: Number(invocation.prompt_version),
     tool_registry_hash: invocation.tool_registry_hash,
     tool_registry: parseToolRegistry(invocation.tool_registry_json),
-    chat: chatSummary(invocation),
+    chat: invocationChat(invocation),
     total_tokens: Number(invocation.total_tokens),
     cache_read_tokens: Number(invocation.cache_read_tokens),
     cache_write_tokens: Number(invocation.cache_write_tokens),
@@ -873,6 +905,7 @@ export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | n
       request_json: row.requestJson,
       state: row.state,
       telegram_message_id: row.telegramMessageId === null ? null : row.telegramMessageId.toString(),
+      room_seq: row.roomSeq === null ? null : row.roomSeq.toString(),
       error_code: row.errorCode,
       created_at: row.createdAt,
       finished_at: row.finishedAt,
@@ -1198,18 +1231,20 @@ export function overview(orm: Orm, now = new Date()): Record<string, unknown> {
   };
 }
 
-function chatSummary(row: {
-  readonly telegram_chat_id: bigint;
-  readonly chat_type: string;
-  readonly chat_title: string | null;
-  readonly chat_username?: string | null;
-  readonly message_thread_id: bigint;
-}): Record<string, unknown> {
+/**
+ * Each host names its chat in its own identity column: a Telegram chat by its
+ * Telegram id, a room by its own id. The other column is always null, so a
+ * reader never mistakes one host's id for the other's.
+ */
+function invocationChat(row: InvocationListRow): Record<string, unknown> {
+  const telegram = row.host_kind === 'telegram';
   return {
-    telegram_chat_id: row.telegram_chat_id.toString(),
+    host_kind: row.host_kind,
+    telegram_chat_id: telegram ? telegramIdentity(row.telegram_chat_id, 'chats.telegram_chat_id').toString() : null,
+    room_id: telegram ? null : row.chat_id.toString(),
     type: row.chat_type,
     title: row.chat_title,
-    username: row.chat_username ?? null,
+    username: row.chat_username,
     message_thread_id: Number(row.message_thread_id),
   };
 }

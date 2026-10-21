@@ -47,6 +47,20 @@ export interface ChatSummary {
   readonly message_thread_id: number;
 }
 
+/**
+ * The chat an invocation ran in. Each host fills only its own identity: a
+ * Telegram chat its `telegram_chat_id`, a Playground room its `room_id`.
+ */
+export interface InvocationChatSummary {
+  readonly host_kind: 'telegram' | 'playground';
+  readonly telegram_chat_id: string | null;
+  readonly room_id: string | null;
+  readonly type: string;
+  readonly title: string | null;
+  readonly username: string | null;
+  readonly message_thread_id: number;
+}
+
 export interface AlarmChatSummary {
   readonly telegram_chat_id: string;
   readonly type: string;
@@ -67,7 +81,7 @@ export interface InvocationListItem {
   readonly turns_used: number;
   readonly side_effect_started: boolean;
   readonly config_hash: string;
-  readonly chat: ChatSummary;
+  readonly chat: InvocationChatSummary;
   readonly tool_call_count: number;
   /**
    * Daily-budget definition: input + output + cache read + cache write.
@@ -140,6 +154,8 @@ export interface TelegramSendEntry {
   readonly request_json: string;
   readonly state: string;
   readonly telegram_message_id: string | null;
+  /** The room's message sequence of a Playground delivery; null on Telegram. */
+  readonly room_seq: string | null;
   readonly error_code: string | null;
   readonly created_at: string;
   readonly finished_at: string | null;
@@ -837,6 +853,7 @@ export interface ListFilters {
   readonly cursor?: string | null;
   readonly state?: string | undefined;
   readonly chat?: string | undefined;
+  readonly host?: string | undefined;
   readonly set?: string | undefined;
   readonly search?: string | undefined;
   readonly target?: string | undefined;
@@ -878,7 +895,7 @@ function listPath(path: string, filters: ListFilters): string {
   if (filters.cursor !== undefined && filters.cursor !== null) {
     params.set('cursor', filters.cursor);
   }
-  for (const key of ['state', 'chat', 'set', 'search', 'target'] as const) {
+  for (const key of ['state', 'chat', 'host', 'set', 'search', 'target'] as const) {
     const value = filters[key];
     if (value !== undefined && value.length > 0) {
       params.set(key, value);

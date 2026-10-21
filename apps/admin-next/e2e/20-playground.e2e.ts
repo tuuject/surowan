@@ -244,7 +244,8 @@ test('a room is created, held, released and answered from the page alone', async
   });
   await page.goto(await adminUrl('/playground'));
   await page.getByRole('button', { name: 'New room' }).click();
-  await page.getByLabel('Room title').fill(`UI Room ${Date.now()}`);
+  const title = `UI Room ${Date.now()}`;
+  await page.getByLabel('Room title').fill(title);
   await page.getByLabel('First identities (comma separated)').fill('Ada, Bo');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(page).toHaveURL(/room=\d+/);
@@ -259,6 +260,19 @@ test('a room is created, held, released and answered from the page alone', async
   await expect(page.getByText('the room answers')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText('Delivered').first()).toBeVisible();
   await expect(page.getByText('Completed').first()).toBeVisible();
+
+  // The run is audited on the shared invocation pages, under the room's identity.
+  await page.getByRole('link', { name: 'Audit' }).first().click();
+  await expect(page).toHaveURL(/\/invocations\/\d+$/);
+  await expect(page.getByText('Playground room')).toBeVisible();
+  await expect(page.getByText('please answer as Ada').first()).toBeVisible();
+  await page.getByRole('tab', { name: 'Room sends (1)' }).click();
+  await expect(page.getByRole('columnheader', { name: 'Room message' })).toBeVisible();
+
+  await page.goto(await adminUrl('/invocations'));
+  await page.getByRole('combobox', { name: 'Host' }).click();
+  await page.getByRole('option', { name: 'Playground' }).click();
+  await expect(page.getByText(title)).toBeVisible();
 });
 
 test('switching rooms never shows another room content', async ({ page }) => {

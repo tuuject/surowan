@@ -13,6 +13,7 @@ import { fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-work
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { createPlaygroundHost } from '../src/adapters/local-monolith/playground-host.ts';
+import { AdminQueryError, getInvocation, listInvocations } from '../src/ingress/admin/audit.ts';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { identityConversation } from '../src/platform/im-host.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
@@ -67,7 +68,7 @@ async function released() {
     bot: { id: 999n, displayName: 'Plastic Wan', username: null },
     systemResources: emptySystemResources(),
   });
-  return { store, configStore, runtime, faux, invocationId: release.invocationId };
+  return { store, configStore, runtime, faux, invocationId: release.invocationId, roomId: room.chatId };
 }
 
 describe('playground runtime', () => {
@@ -90,6 +91,53 @@ describe('playground runtime', () => {
     expect(sends).toEqual([{ state: 'success' }]);
     // The room neither read nor ended the global window.
     expect(activeSleepUntil(store.orm)).toBe(sleepUntil);
+    store.close();
+  });
+
+  test('a room invocation is audited next to Telegram ones, under its own identity', async () => {
+    const { store, configStore, runtime, faux, invocationId, roomId } = await released();
+    faux.setResponses([
+      fauxAssistantMessage(fauxToolCall('send', { kind: 'text', text: 'hi from the room' }), {
+        stopReason: 'toolUse',
+      }),
+      fauxAssistantMessage('   '),
+    ]);
+    await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
+    const id = invocationId.toString();
+    const chat = {
+      host_kind: 'playground',
+      telegram_chat_id: null,
+      room_id: roomId.toString(),
+      type: 'group',
+      title: 'Runtime Room',
+      username: null,
+      message_thread_id: 0,
+    };
+
+    const listed = listInvocations(store.orm, {});
+    expect(listed.items.map((item) => [item.id, item.chat])).toEqual([[id, chat]]);
+    expect(listInvocations(store.orm, { host: 'playground' }).items.map((item) => item.id)).toEqual([id]);
+    expect(listInvocations(store.orm, { host: 'telegram' }).items).toEqual([]);
+    expect(() => listInvocations(store.orm, { host: 'irc' })).toThrow(AdminQueryError);
+
+    const detail = getInvocation(store.orm, invocationId);
+    expect(detail?.chat).toEqual(chat);
+    // The room's own sequence names the delivered message; there is no
+    // Telegram message id to report.
+    expect(detail?.telegram_sends).toEqual([
+      expect.objectContaining({ state: 'success', telegram_message_id: null, room_seq: '2' }),
+    ]);
+    expect(detail?.context_messages).toEqual([expect.objectContaining({ section: 'new' })]);
+
+    // Search reads room snapshots and room deliveries, with their times.
+    const incoming = listInvocations(store.orm, { search: 'hello', from: '2000-01-01T00:00:00Z' }).items;
+    expect(incoming.map((item) => item.matched_messages)).toEqual([
+      [expect.objectContaining({ source: 'incoming', telegram_message_id: null, room_seq: '1', text: 'hello' })],
+    ]);
+    const outgoing = listInvocations(store.orm, { search: 'from the room', from: '2000-01-01T00:00:00Z' }).items;
+    expect(outgoing.map((item) => item.matched_messages)).toEqual([
+      [expect.objectContaining({ source: 'bot', telegram_message_id: null, room_seq: '2', text: 'hi from the room' })],
+    ]);
     store.close();
   });
 });

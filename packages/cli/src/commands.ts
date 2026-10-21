@@ -334,10 +334,13 @@ function humanListLine(item: unknown): string {
   const chat = isRecord(item.chat) ? item.chat : undefined;
   const title = typeof chat?.title === 'string' && chat.title.length > 0 ? chat.title : undefined;
   const username = typeof chat?.username === 'string' && chat.username.length > 0 ? chat.username : undefined;
+  // A Playground room has no Telegram chat id; it is named by its room id.
   const chatId =
     chat !== undefined && (typeof chat.telegram_chat_id === 'string' || typeof chat.telegram_chat_id === 'number')
       ? String(chat.telegram_chat_id)
-      : '?';
+      : typeof chat?.room_id === 'string'
+        ? `room:${chat.room_id}`
+        : '?';
   const thread =
     chat !== undefined && typeof chat.message_thread_id === 'number' && chat.message_thread_id !== 0
       ? `#${chat.message_thread_id}`
@@ -384,6 +387,9 @@ function humanMatchedLines(item: unknown): string[] {
     }
     if (typeof entry.telegram_message_id === 'string') {
       parts.push(`msg=${entry.telegram_message_id}`);
+    }
+    if (typeof entry.room_seq === 'string') {
+      parts.push(`room_msg=${entry.room_seq}`);
     }
     if (typeof entry.telegram_send_id === 'string') {
       parts.push(`send=${entry.telegram_send_id}`);

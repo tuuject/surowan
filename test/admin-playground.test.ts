@@ -252,6 +252,58 @@ test('the playground API demands a session, refuses a foreign Origin and never a
   }
 });
 
+test('the invocation audit answers for a room under its own identity, for a session and an API key', async () => {
+  const f = await fixture();
+  try {
+    const room = await createRoom(f, 'Audit Room', 'room-audit');
+    const ada = await addMember(f, room.id, 'Ada', 'member-ada');
+    expect((await sendMessage(f, room.id, { request_key: 'msg-1', sender_id: ada, text: 'hello' })).status).toBe(201);
+    const state = await roomState(f, room.id);
+    const released = await release(f, room.id, {
+      request_key: 'rel-1',
+      revision: state.room.revision,
+      through_seq: latestSeq(state),
+    });
+    expect(released.status).toBe(201);
+    const invocationId = (await readJson<{ invocation_id: string }>(released)).invocation_id;
+    const chat = {
+      host_kind: 'playground',
+      telegram_chat_id: null,
+      room_id: room.id,
+      type: 'group',
+      title: 'Audit Room',
+      username: null,
+      message_thread_id: 0,
+    };
+
+    const keyResponse = await f.server.handle(post('/api/api-keys', { name: 'audit' }, f.cookie));
+    expect(keyResponse.status).toBe(200);
+    const { key } = await readJson<{ key: string }>(keyResponse);
+    for (const headers of [{ cookie: f.cookie }, { authorization: `Bearer ${key}` }]) {
+      const listed = await f.server.handle(request('/api/invocations?host=playground', { headers }));
+      expect(listed.status).toBe(200);
+      expect((await readJson<{ items: unknown[] }>(listed)).items).toEqual([
+        expect.objectContaining({ id: invocationId, state: 'queued', chat }),
+      ]);
+      const detail = await f.server.handle(request(`/api/invocations/${invocationId}`, { headers }));
+      expect(detail.status).toBe(200);
+      expect(await readJson(detail)).toMatchObject({ id: invocationId, chat });
+    }
+    const telegramOnly = await f.server.handle(get('/api/invocations?host=telegram', f.cookie));
+    expect((await readJson<{ items: unknown[] }>(telegramOnly)).items).toEqual([]);
+    const badHost = await f.server.handle(get('/api/invocations?host=irc', f.cookie));
+    expect(badHost.status).toBe(400);
+    expect(await readJson(badHost)).toMatchObject({ error: 'invalid_host' });
+    // Reading the audit is not a way into the room: its own routes stay session-only.
+    const roomWithKey = await f.server.handle(
+      request(`/api/playground/rooms/${room.id}`, { headers: { authorization: `Bearer ${key}` } }),
+    );
+    expect(roomWithKey.status).toBe(403);
+  } finally {
+    f.store.close();
+  }
+});
+
 test('creates rooms and identities under request keys', async () => {
   const f = await fixture();
   try {
