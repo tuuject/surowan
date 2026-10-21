@@ -90,5 +90,9 @@ test('the remaining Telegram type coupling is exactly this and no more', () => {
   const coupled = offenders(sourceFiles('src/platform'), /from 'grammy\/types'/).concat(
     offenders(sourceFiles('src/orchestration'), /from 'grammy\/types'/),
   );
-  expect([...coupled].sort()).toEqual(['src/orchestration/bot-commands.ts', 'src/platform/participation.ts']);
+  expect([...coupled].sort()).toEqual([
+    'src/orchestration/bot-commands.ts',
+    'src/orchestration/proactive-reply.ts',
+    'src/platform/participation.ts',
+  ]);
 });

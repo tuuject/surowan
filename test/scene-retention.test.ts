@@ -22,9 +22,9 @@ test('migration 030 drops only legacy replay payloads; retention cascades public
     for (const file of (await readdir(migrationDirectory)).filter((name) => /^\d{3}_.*\.sql$/.test(name)).sort()) {
       const version = Number(file.slice(0, 3));
       // Build a database where the migrations under test (030, 031, 032, 034)
-      // are still pending. Everything else - including 033 and 035..037 - is
+      // are still pending. Everything else - including 033 and 035..038 - is
       // applied here, in version order: the seed helper below writes the
-      // current schema, which 036 and 037 shape, and 037 drops the index that
+      // current schema, which 037 and 038 shape, and 038 drops the index that
       // 033 created, so 033 cannot be left pending either.
       if (version >= 30 && version < 35 && version !== 33) {
         continue;
@@ -53,12 +53,12 @@ test('migration 030 drops only legacy replay payloads; retention cascades public
       snapshots: store!.db.prepare('SELECT * FROM invocation_messages ORDER BY invocation_id, sequence_no').all(),
     });
     const before = preserved();
-    expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 43n });
+    expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 44n });
     store.close();
     store = undefined;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       store = await SqliteStore.open(config);
-      expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 43n });
+      expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 44n });
       expect(store.db.prepare('PRAGMA table_info(model_calls)').all()).not.toEqual(
         expect.arrayContaining([expect.objectContaining({ name: 'replay_input_json' })]),
       );
@@ -71,7 +71,7 @@ test('migration 030 drops only legacy replay payloads; retention cascades public
         try {
           backup.defaultSafeIntegers(true);
           expect(backup.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({
-            version: 43n,
+            version: 44n,
           });
           expect(backup.prepare('SELECT replay_input_json FROM model_calls LIMIT 1').get()).toEqual({
             replay_input_json: '{"version":2,"obsolete":true}',

@@ -20,9 +20,9 @@ Plastic Wan 使用单个 SQLite 数据库保存消息、调度状态、能力索
 
 迁移 `027` 为图片发送去重添加发送审计查询索引，并给旧 `telegram_sends.request_json` 回填发送当时已存在的 `asset_ids`（标记 `asset_ids_inferred`）。数量与旧 `pictures` 不一致时标记 `asset_ids_unknown`，阻止把不确定的旧投递当成可重发；后续生成的资产不会回填成旧发送的输出。发送审计本身就是交付台账，不引入第二套 outbox，去重范围也受在线保留窗口约束。
 
-迁移 `036` 把共享 Message/Context 存储改成宿主中立：`chats`、`senders`、`messages` 新增 `host_kind`，Telegram 身份列（`telegram_chat_id`、`canonical_chat_id`、`telegram_type`、`telegram_id`、`telegram_message_id`）从无条件 `NOT NULL` 变成随 `host_kind` 取值的条件约束，并新增 `rooms`、`room_participants` 和 `invocation_messages.snapshot_format`。旧库升级只补 `host_kind = 'telegram'` 与快照的 format 标识，行 ID、消息树、revision、Context 与 Telegram DTO 一律不变；同一数据库因此可以同时容纳没有任何 Telegram ID 的虚拟房间与身份。
+迁移 `037` 把共享 Message/Context 存储改成宿主中立：`chats`、`senders`、`messages` 新增 `host_kind`，Telegram 身份列（`telegram_chat_id`、`canonical_chat_id`、`telegram_type`、`telegram_id`、`telegram_message_id`）从无条件 `NOT NULL` 变成随 `host_kind` 取值的条件约束，并新增 `rooms`、`room_participants` 和 `invocation_messages.snapshot_format`。旧库升级只补 `host_kind = 'telegram'` 与快照的 format 标识，行 ID、消息树、revision、Context 与 Telegram DTO 一律不变；同一数据库因此可以同时容纳没有任何 Telegram ID 的虚拟房间与身份。
 
-迁移 `037` 把发送台账切成宿主中立：`telegram_sends` 改名为 `host_sends`，主键、外键、`state` 取值与 Telegram 响应元数据原样保留，去重索引改名为 `host_sends_reply_delivery_idx` / `host_sends_image_delivery_idx`，并新增可空的 `message_id` 指向虚拟宿主为该次发送落下的消息（`ON DELETE SET NULL`，保留期删掉消息时审计行仍在）。改名在开启外键约束的情况下直接 ALTER 完成，不需要重建表。
+迁移 `038` 把发送台账切成宿主中立：`telegram_sends` 改名为 `host_sends`，主键、外键、`state` 取值与 Telegram 响应元数据原样保留，去重索引改名为 `host_sends_reply_delivery_idx` / `host_sends_image_delivery_idx`，并新增可空的 `message_id` 指向虚拟宿主为该次发送落下的消息（`ON DELETE SET NULL`，保留期删掉消息时审计行仍在）。改名在开启外键约束的情况下直接 ALTER 完成，不需要重建表。
 
 SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是整棵消息树的级联父表（外键强制下 `DROP TABLE` 会级联删掉全部 Conversation 与 Message），`messages` 又被 NO ACTION 子表引用（同样条件下直接报错），所以重建只能在关闭外键强制的窗口里做。需要在重建表的迁移在文件里单独一行写 `-- @rebuild-tables` 显式声明：runner 只对带该指令的迁移临时关闭 `foreign_keys`，整个迁移仍在单个 IMMEDIATE transaction 内执行，提交前跑 `PRAGMA foreign_key_check`，发现违例就回滚，并在 `finally` 中恢复强制；不带该指令的迁移路径完全不变。这不是「关掉约束蒙混升级」——约束只在 DDL 窗口内让位，且提交前必须通过校验。
 
@@ -58,15 +58,15 @@ SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是
 
 ### 虚拟房间（`rooms` / `room_participants`）
 
-虚拟房间就是 `host_kind = 'playground'` 的 `chats` 行：没有 Telegram ID，`type` 只是会话形态标记（`PlaygroundStore.createRoom` 写 `group`；群类型判断只读 `host_kind`，不能从 ID 符号推断，`type` 也不参与 Telegram 的准入/暂停判断）。`rooms` 每行保存该房间的 `revision`（房间设置的乐观并发令牌）与 `next_seq`（本地消息序号高水位，只前进不回退，保证保留期清理掉旧行之后已释放批次仍可排序）；`hold` 是输入闸门（输入、Release 与能力设置都递增 `revision`，Bot 输出不递增）；`image_enabled` 是该房间的付费生图开关，默认关闭，迁移 `041` 为它补上 `image_enabled_by` / `image_enabled_at`（操作者与时间），三者一起构成可审计的能力状态。`room_participants` 记录身份归属，也是「没有 Telegram ID 的虚拟身份」唯一的存在形式。两者都随 `chats` 级联删除。身份修剪（`store.ts` 的 `prune`）保留仍属于某个房间的 sender，不能只按 `message_revisions` 引用判断。
+虚拟房间就是 `host_kind = 'playground'` 的 `chats` 行：没有 Telegram ID，`type` 只是会话形态标记（`PlaygroundStore.createRoom` 写 `group`；群类型判断只读 `host_kind`，不能从 ID 符号推断，`type` 也不参与 Telegram 的准入/暂停判断）。`rooms` 每行保存该房间的 `revision`（房间设置的乐观并发令牌）与 `next_seq`（本地消息序号高水位，只前进不回退，保证保留期清理掉旧行之后已释放批次仍可排序）；`hold` 是输入闸门（输入、Release 与能力设置都递增 `revision`，Bot 输出不递增）；`image_enabled` 是该房间的付费生图开关，默认关闭，迁移 `042` 为它补上 `image_enabled_by` / `image_enabled_at`（操作者与时间），三者一起构成可审计的能力状态。`room_participants` 记录身份归属，也是「没有 Telegram ID 的虚拟身份」唯一的存在形式。两者都随 `chats` 级联删除。身份修剪（`store.ts` 的 `prune`）保留仍属于某个房间的 sender，不能只按 `message_revisions` 引用判断。
 
-`playground_mutations`（迁移 `042`）是房间与身份的**创建幂等**记录：`kind` 为 `room`/`participant`，`room_chat_id` 为 0（建房本身，房间还不存在）或所属房间，`(kind, room_chat_id, request_key)` 唯一，`fingerprint` 区分「同 key 同内容」与「同 key 不同内容」，`result_json` 保存原结果（房间 id 或 sender id）。消息、Release 与重试各自有 `playground_inputs` / `playground_releases` / `playground_retries` 上的 key 列，不需要这张表。迁移 `043` 给 `playground_inputs.message_id` 补上部分索引：时间线逐条读取消息的输入状态、保留期清理按它置空，而这张账本的墓碑永久保留，两者都不能全表扫描。
+`playground_mutations`（迁移 `043`）是房间与身份的**创建幂等**记录：`kind` 为 `room`/`participant`，`room_chat_id` 为 0（建房本身，房间还不存在）或所属房间，`(kind, room_chat_id, request_key)` 唯一，`fingerprint` 区分「同 key 同内容」与「同 key 不同内容」，`result_json` 保存原结果（房间 id 或 sender id）。消息、Release 与重试各自有 `playground_inputs` / `playground_releases` / `playground_retries` 上的 key 列，不需要这张表。迁移 `044` 给 `playground_inputs.message_id` 补上部分索引：时间线逐条读取消息的输入状态、保留期清理按它置空，而这张账本的墓碑永久保留，两者都不能全表扫描。
 
 房间图片有两份文件、两种生命周期，不能混为一谈：生成原件属于图片归档（`<data_dir>/images/`，随备份整体复制、不继承媒体 TTL、不由房间保留清理删除）；房间自己用的副本属于 `playground_assets`（`<data_dir>/images/playground/`，按 `(chat_id, sha256)` 内容去重，一条文件可以被多条 `media` 行共享）。清理以引用为准：只有确认没有任何 `media` 行引用该资产行时才可以认领并删除文件，先删行再删文件，且认领条件与删除在同一语句里，避免与并发上传互相覆盖。
 
 ### 冻结与重放边界
 
-`invocation_messages` 是可重放边界，保存 `history`/`new` 两个区段的 Message Revision 快照；长生命周期 Invocation 的多个批次按 `source_bucket_id` 追加进同一个 Invocation（`sequence_no` 在 Invocation 内保持单调）。消息在 Invocation 创建后被编辑只影响未来 Context，不改写已经冻结的快照。`buckets` 区分 `realtime`（配置长度窗口）与 `startup_catch_up`（启动追赶）两种来源，状态机相同。`agent_messages` 是**按 Invocation 展开的扁平审计轨迹**（人类可读的 `assistant`/`tool_result`/`harness_nudge` 文本行；assistant 行的 `text` 是本轮 response 的普通文本，模型的 thinking（CoT）单独放在 `thinking_text` 供 Admin 展示，且仅在 `developer.record_agent_thinking = true` 时记录，缺省关闭，不直接进 Telegram），完整可重放的 transcript 属于 Conversation，见下一节——**Assistant 文本不等于对外发送**，真正发出去的只有 `host_sends` 里的行（迁移 `037` 之前叫 `telegram_sends`）。
+`invocation_messages` 是可重放边界，保存 `history`/`new` 两个区段的 Message Revision 快照；长生命周期 Invocation 的多个批次按 `source_bucket_id` 追加进同一个 Invocation（`sequence_no` 在 Invocation 内保持单调）。消息在 Invocation 创建后被编辑只影响未来 Context，不改写已经冻结的快照。`buckets` 区分 `realtime`（配置长度窗口）与 `startup_catch_up`（启动追赶）两种来源，状态机相同。`agent_messages` 是**按 Invocation 展开的扁平审计轨迹**（人类可读的 `assistant`/`tool_result`/`harness_nudge` 文本行；assistant 行的 `text` 是本轮 response 的普通文本，模型的 thinking（CoT）单独放在 `thinking_text` 供 Admin 展示，且仅在 `developer.record_agent_thinking = true` 时记录，缺省关闭，不直接进 Telegram），完整可重放的 transcript 属于 Conversation，见下一节——**Assistant 文本不等于对外发送**，真正发出去的只有 `host_sends` 里的行（迁移 `038` 之前叫 `telegram_sends`）。
 
 ### Conversation Context（长期会话 transcript）
 

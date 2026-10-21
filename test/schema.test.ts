@@ -47,8 +47,8 @@ import * as schema from '../src/store/schema.ts';
 import { seedAdminFixture } from './fixtures/admin-seed.ts';
 
 /**
- * Undoes migration 037 exactly - the ledger back under its Telegram name without
- * the virtual-message link, the pre-037 indexes back under their old names -
+ * Undoes migration 038 exactly - the ledger back under its Telegram name without
+ * the virtual-message link, the pre-038 indexes back under their old names -
  * so a test can put a live database one migration below where it started and
  * let the real chain run it again.
  */
@@ -65,7 +65,7 @@ function rollbackHostSendsRename(db: Database.Database): void {
     CREATE INDEX telegram_sends_image_delivery_idx
       ON telegram_sends(conversation_id, json_extract(request_json, '$.generation_id'))
       WHERE kind = 'image';
-    DELETE FROM schema_migrations WHERE version = 37;
+    DELETE FROM schema_migrations WHERE version = 38;
   `);
 }
 
@@ -251,7 +251,7 @@ test.each(['fresh', 'upgraded'])(
           sessions: store.orm.select().from(adminSessions).all(),
           passkeys: store.orm.select().from(adminPasskeys).all(),
         };
-        // The reply index belongs to 037 now, so that is the migration this
+        // The reply index belongs to 038 now, so that is the migration this
         // replay puts back on top of a live database.
         rollbackHostSendsRename(store.db);
         store.close();
@@ -261,12 +261,12 @@ test.each(['fresh', 'upgraded'])(
         expect(store.orm.select().from(adminUsers).all()).toEqual(adminBefore.users);
         expect(store.orm.select().from(adminSessions).all()).toEqual(adminBefore.sessions);
         expect(store.orm.select().from(adminPasskeys).all()).toEqual(adminBefore.passkeys);
-        // The already-applied 033 row survives, and the rebased 037 records
+        // The already-applied 033 row survives, and the rebased 038 records
         // exactly one row each for both versions.
         expect(store.db.prepare('SELECT count(*) AS n FROM schema_migrations WHERE version = 33').get()).toEqual({
           n: 1n,
         });
-        expect(store.db.prepare('SELECT count(*) AS n FROM schema_migrations WHERE version = 37').get()).toEqual({
+        expect(store.db.prepare('SELECT count(*) AS n FROM schema_migrations WHERE version = 38').get()).toEqual({
           n: 1n,
         });
       }
@@ -983,8 +983,8 @@ test('resolveAgentSettings inherits thinking_level while overriding provider/mod
   expect(result).toEqual({ provider: 'other', model: 'other-model', thinking_level: 'medium' });
 });
 
-/** Seeds a database that is still on the pre-036 schema. */
-const SEED_036 = `
+/** Seeds a database that is still on the pre-037 schema. */
+const SEED_037 = `
 INSERT INTO chats (id, telegram_chat_id, canonical_chat_id, type, title, username, updated_at)
   VALUES (1, -100123, -100123, 'supergroup', 'Group', 'grp', '2026-01-01T00:00:00.000Z'),
          (2, 555, 555, 'private', NULL, NULL, '2026-01-01T00:00:00.000Z');
@@ -1012,7 +1012,7 @@ INSERT INTO invocation_messages (invocation_id, message_id, revision_id, section
   VALUES (5000, 1000, 2000, 'new', 1, 0, '{"text":"hi"}');
 `;
 
-test('migration 036 upgrades a live Telegram database without disturbing it', async () => {
+test('migration 037 upgrades a live Telegram database without disturbing it', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'plasticwan-schema-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
@@ -1025,7 +1025,7 @@ test('migration 036 upgrades a live Telegram database without disturbing it', as
   legacy.defaultSafeIntegers(true);
   const migrations = join(import.meta.dirname, '..', 'src', 'store', 'migrations');
   for (const name of (await readdir(migrations))
-    .filter((name) => /^\d{3}_[a-z0-9_]+\.sql$/.test(name) && Number(name.slice(0, 3)) < 36)
+    .filter((name) => /^\d{3}_[a-z0-9_]+\.sql$/.test(name) && Number(name.slice(0, 3)) < 37)
     .sort()) {
     legacy.exec(await readFile(join(migrations, name), 'utf8'));
     // 001 creates schema_migrations, so recording starts from the first file.
@@ -1033,7 +1033,7 @@ test('migration 036 upgrades a live Telegram database without disturbing it', as
       .prepare('INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)')
       .run(Number(name.slice(0, 3)), '2026-01-01T00:00:00.000Z');
   }
-  legacy.exec(SEED_036);
+  legacy.exec(SEED_037);
   const before = {
     messages: legacy.prepare('SELECT id, telegram_message_id, current_revision_id FROM messages ORDER BY id').all(),
     revisions: legacy.prepare('SELECT id, message_id, sender_id, text FROM message_revisions ORDER BY id').all(),

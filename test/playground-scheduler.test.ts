@@ -199,6 +199,7 @@ describe('playground scheduling', () => {
       async () => ({ state: 'completed', reason: 'test' }),
       undefined,
       new LongTaskService(store.orm, undefined, ['playground']),
+      undefined,
       ['playground'],
     );
     expect(scheduler.nextDelayMilliseconds()).toBeLessThanOrEqual(2_001);
@@ -216,6 +217,7 @@ describe('playground scheduling', () => {
       async () => ({ state: 'completed', reason: 'test' }),
       undefined,
       new LongTaskService(store.orm, undefined, ['playground']),
+      undefined,
       ['playground'],
     );
     scheduler.start();
