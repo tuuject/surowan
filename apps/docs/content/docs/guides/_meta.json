@@ -1,1 +1,11 @@
-["personality", "participation", "proactive-replies", "per-chat", "memory", "dictionary", "extensions", "budgets"]
+[
+  "personality",
+  "participation",
+  "proactive-replies",
+  "per-chat",
+  "memory",
+  "dictionary",
+  "extensions",
+  "budgets",
+  "playground"
+]

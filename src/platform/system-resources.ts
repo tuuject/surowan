@@ -1,3 +1,5 @@
+import type { HostKind } from './im-host.ts';
+
 /** Readonly System Skills resources; implementation and document source belong to the host. */
 export const SYSTEM_URI_PREFIX = 'system:///';
 export const SYSTEM_RESOURCE_MAX_BYTES = 32_768;
@@ -9,6 +11,16 @@ export interface SystemSkill {
   readonly name: string;
   readonly description: string;
   readonly uri: string;
+}
+
+/**
+ * The conversation facts a skill visibility rule may read. A skill can be
+ * gated by capability state that lives on one conversation (a room's image
+ * switch), so the host kind alone is not enough.
+ */
+export interface SkillVisibilityTarget {
+  readonly hostKind: HostKind;
+  readonly conversationId: bigint;
 }
 
 export interface SystemResourceText {
@@ -101,6 +113,30 @@ export function emptySystemResources(): SystemResources {
     resolve: resolveSystemResource,
     async readText(_reference: string, _base?: string): Promise<SystemResourceText> {
       throw new SystemResourceError('resource_not_found', 'No system resources are available');
+    },
+  };
+}
+
+/**
+ * The tree as one conversation sees it: a skill left out of its index is also
+ * unreadable, by absolute URI or by a relative reference from another document,
+ * so hiding a skill never depends on the model not guessing its path.
+ */
+export function scopedSystemResources(
+  resources: SystemResources,
+  visible: (skill: SystemSkill) => boolean,
+): SystemResources {
+  const skills = resources.skills.filter(visible);
+  const hidden = new Set(resources.skills.filter((skill) => !visible(skill)).map((skill) => skill.name));
+  return {
+    skills,
+    resolve: (reference, base) => resources.resolve(reference, base),
+    async readText(reference: string, base?: string): Promise<SystemResourceText> {
+      const { segments } = resources.resolve(reference, base);
+      if (segments[0] === 'skills' && segments[1] !== undefined && hidden.has(segments[1])) {
+        throw new SystemResourceError('resource_not_found', 'Resource does not exist');
+      }
+      return await resources.readText(reference, base);
     },
   };
 }

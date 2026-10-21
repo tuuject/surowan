@@ -6,18 +6,18 @@ import { HttpError } from 'grammy';
 import type { Update } from 'grammy/types';
 import Type from 'typebox';
 import { afterEach, expect, test } from 'vitest';
-import type { TelegramSendApi } from '../src/capabilities/send-tool.ts';
 import { ConversationContextStore } from '../src/context/context-store.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { AgentRuntime, type ToolFactory } from '../src/orchestration/agent-runtime.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
-import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { fauxRegistry, testConfigJsonc, testConfigStore, testTelegramRuntime, writeTestConfig } from './helpers.ts';
 
 /**
  * Runtime regression for repeated picture delivery (audit 3486).
@@ -30,13 +30,13 @@ import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from 
  *
  * The contract under test:
  *  - `send kind:image` is deduplicated per conversation + generation + asset id
- *    against successful `telegram_sends` audit rows. A repeat is a successful
+ *    against successful `host_sends` audit rows. A repeat is a successful
  *    no-op: details `${telegramMessageId, replayed: true}`, tool call success
  *    with `side_effect = false`, a result text that says the picture was already
- *    delivered, no new `telegram_sends` row, no `sends_used` increment and no
+ *    delivered, no new `host_sends` row, no `sends_used` increment and no
  *    canonical `send_count_total` / `send_seq` increment.
  *  - A real image delivery keeps its existing details and now records the
- *    delivered `asset_ids` in `telegram_sends.request_json`.
+ *    delivered `asset_ids` in `host_sends.request_json`.
  *  - The injected image completion receipt carries `image_delivery` with the
  *    delivered / pending / unknown asset ids as of the injection instant.
  *  - A later ordinary user invocation may still resend the same generation once,
@@ -97,7 +97,7 @@ async function fixture(options: { readonly unsentOutputs?: readonly string[] } =
   const photoMessageIds: number[] = [];
   let nextMessageId = FIRST_PHOTO_MESSAGE_ID;
   let photoFailures = 0;
-  const telegramApi: TelegramSendApi = {
+  const telegramApi: TelegramTransport = {
     sendMessage: async () => ({ message_id: nextMessageId++, date: 1_700_000_000, chat: { id: 123456789 } }),
     sendSticker: async () => ({ message_id: nextMessageId++, date: 1_700_000_000, chat: { id: 123456789 } }),
     sendGeneratedPhoto: async () => {
@@ -121,7 +121,7 @@ async function fixture(options: { readonly unsentOutputs?: readonly string[] } =
   const imageGeneration = {
     resolve: (generationId: string, conversationId: bigint) =>
       generationId === GENERATION_ID && conversationId === activeConversationId
-        ? [{ assetId: ASSET_ID, bytes: new Uint8Array([137, 80, 78, 71]), fileName: 'harbor.png' }]
+        ? [{ assetId: ASSET_ID, bytes: new Uint8Array([137, 80, 78, 71]), fileName: 'harbor.png', mime: 'image/png' }]
         : undefined,
   };
   const requests: string[] = [];
@@ -192,7 +192,7 @@ async function fixture(options: { readonly unsentOutputs?: readonly string[] } =
     conversationRuntime,
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
-    telegramApi,
+    ...testTelegramRuntime(telegramApi),
     additionalTools,
     imageGeneration,
   });
@@ -282,7 +282,7 @@ function querySendToolCalls(store: SqliteStore) {
 function queryImageSends(store: SqliteStore) {
   return store.db
     .prepare<[], { id: bigint; state: string; request_json: string; telegram_message_id: bigint | null }>(
-      "SELECT id, state, request_json, telegram_message_id FROM telegram_sends WHERE kind = 'image' ORDER BY id",
+      "SELECT id, state, request_json, telegram_message_id FROM host_sends WHERE kind = 'image' ORDER BY id",
     )
     .all();
 }
@@ -828,7 +828,7 @@ test('an unprovable legacy delivery set makes the whole generation unknown inste
       const legacy = queryImageSends(f.store)[1]!;
       f.store.db
         .prepare(
-          "UPDATE telegram_sends SET request_json = json_set(request_json, '$.asset_ids_unknown', json('true')) WHERE id = ?",
+          "UPDATE host_sends SET request_json = json_set(request_json, '$.asset_ids_unknown', json('true')) WHERE id = ?",
         )
         .run(legacy.id);
       return fauxAssistantMessage('receipt boundary');

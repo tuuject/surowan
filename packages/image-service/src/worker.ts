@@ -56,6 +56,13 @@ export type GenerationWorkerDeps = {
   shutdownTimeoutMs?: number;
   logger?: WorkerLogger;
   redactor: Redactor;
+  /**
+   * Whether this process may execute one generation at all. The host supplies
+   * it when it serves only part of the hosts that share the database, so a
+   * standalone process never resumes work that belongs to a host it does not
+   * serve. Absent means every generation may run.
+   */
+  executionEligibility?: (generation: { readonly id: string; readonly actorId: string }) => boolean;
 };
 
 type ItemOutcome = { status: 'succeeded' | 'failed' | 'interrupted'; error: SafeError | null };
@@ -120,6 +127,7 @@ export class GenerationWorker {
   private readonly shutdownTimeoutMs: number;
   private readonly logger: WorkerLogger;
   private readonly redactor: Redactor;
+  private readonly executionEligibility: GenerationWorkerDeps['executionEligibility'];
   private queue: string[] = [];
   private queued = new Set<string>();
   private inFlight = new Set<Promise<void>>();
@@ -147,6 +155,7 @@ export class GenerationWorker {
     this.shutdownTimeoutMs = deps.shutdownTimeoutMs ?? 5000;
     this.logger = deps.logger ?? null;
     this.redactor = deps.redactor;
+    this.executionEligibility = deps.executionEligibility;
   }
 
   get pending(): number {
@@ -171,12 +180,15 @@ export class GenerationWorker {
     });
     this.recoverInterrupted();
     const pending = this.db
-      .select({ id: generations.id })
+      .select({ id: generations.id, actorId: generations.actorId })
       .from(generations)
       .where(eq(generations.status, 'queued'))
       .orderBy(asc(generations.createdAt))
       .all();
     for (const row of pending) {
+      if (!this.mayExecute(row)) {
+        continue;
+      }
       this.enqueue(row.id);
     }
   }
@@ -186,6 +198,14 @@ export class GenerationWorker {
       return;
     }
     if (this.queued.has(generationId)) {
+      return;
+    }
+    const row = this.db
+      .select({ id: generations.id, actorId: generations.actorId })
+      .from(generations)
+      .where(eq(generations.id, generationId))
+      .get();
+    if (row === undefined || !this.mayExecute(row)) {
       return;
     }
     this.queued.add(generationId);
@@ -214,18 +234,16 @@ export class GenerationWorker {
   }
 
   private recoverInterrupted(): void {
-    const running = this.db.select().from(generationAttempts).where(eq(generationAttempts.status, 'running')).all();
+    const runningAttempts = this.db
+      .select()
+      .from(generationAttempts)
+      .where(eq(generationAttempts.status, 'running'))
+      .all();
     const now = new Date().toISOString();
     const affected = new Set<string>();
-    for (const attempt of running) {
+    for (const attempt of runningAttempts) {
       affected.add(attempt.generationId);
-      this.db
-        .update(generationAttempts)
-        .set({ status: 'interrupted', finishedAt: now, error: RESTART_ERROR })
-        .where(eq(generationAttempts.id, attempt.id))
-        .run();
     }
-
     // Recompute every generation that claims to be running: attempts that were
     // in flight become interrupted, and a round with no attempt at all (crash or
     // shutdown before the call was made) returns to queued so it can be resumed.
@@ -245,6 +263,17 @@ export class GenerationWorker {
       if (row === undefined) {
         continue;
       }
+      // A generation this process may not execute keeps its previous state: the
+      // process that serves its host recovers it then. Rewriting it here would
+      // turn another host's in-flight work into a fabricated outcome.
+      if (!this.mayExecute(row)) {
+        continue;
+      }
+      this.db
+        .update(generationAttempts)
+        .set({ status: 'interrupted', finishedAt: now, error: RESTART_ERROR })
+        .where(and(eq(generationAttempts.generationId, generationId), eq(generationAttempts.status, 'running')))
+        .run();
       const attempts = this.attemptsForRound(generationId, row.round);
       const verdict = roundVerdict(attempts, row.snapshot.authored.outputCount);
       this.db
@@ -257,6 +286,11 @@ export class GenerationWorker {
         .where(eq(generations.id, generationId))
         .run();
     }
+  }
+
+  /** Whether this process is allowed to execute one generation. */
+  private mayExecute(generation: { readonly id: string; readonly actorId: string }): boolean {
+    return this.executionEligibility?.(generation) ?? true;
   }
 
   private attemptsForRound(generationId: string, round: number): AttemptRow[] {
@@ -316,6 +350,11 @@ export class GenerationWorker {
   private async runGeneration(generationId: string): Promise<void> {
     const row = this.db.select().from(generations).where(eq(generations.id, generationId)).get();
     if (row === undefined || row.status !== 'queued') {
+      return;
+    }
+    // The last gate before a paid call: a queue entry that predates an
+    // eligibility decision must not start work this process may not run.
+    if (!this.mayExecute(row)) {
       return;
     }
     const now = new Date().toISOString();

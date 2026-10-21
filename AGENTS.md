@@ -90,6 +90,7 @@ Invocation 是运行窗口而不是一次问答：`agent.context.idle_grace_seco
 | 离线产品知识烘焙、意图索引与事实约束 | [agent-doc/product-knowledge.md](agent-doc/product-knowledge.md) |
 | 本地运行、依赖、Docker 部署、诊断和故障处理 | [agent-doc/operations.md](agent-doc/operations.md) |
 | Admin Panel 认证、审计 API 与前端 | [agent-doc/admin-panel.md](agent-doc/admin-panel.md) |
+| Playground 虚拟房间、Hold/Release、房间 API 与 `--playground-only` | [agent-doc/admin-panel.md](agent-doc/admin-panel.md#playground-页端点)、[agent-doc/operations.md](agent-doc/operations.md#playground-only-模式)、[agent-doc/data-layer.md](agent-doc/data-layer.md#虚拟房间rooms--room_participants) |
 | 测试命令与真实验收矩阵 | [agent-doc/verification.md](agent-doc/verification.md) |
 | 用户文档、首页、生成参考与静态站维护 | [apps/docs/README.md](apps/docs/README.md) |
 | 审计某次 Invocation、排查 bot 为什么不回复 | [scripts/audit.ts](scripts/audit.ts) |

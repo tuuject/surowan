@@ -13,6 +13,7 @@ export const layout: typeof layoutEn = {
     botStickerSets: 'Bot 贴纸包',
     imageGenerate: '图片生成',
     imageGenerations: '生图记录',
+    playground: '虚拟群聊',
     alarms: '告警',
     memories: '记忆',
     dictionary: '辞典',

@@ -4,10 +4,11 @@ import { join } from 'node:path';
 import { GrammyError, HttpError } from 'grammy';
 import type { Update } from 'grammy/types';
 import { afterAll, describe, expect, test } from 'vitest';
-import { createSendTool, type TelegramSendApi } from '../src/capabilities/send-tool.ts';
+import { createSendTool } from '../src/capabilities/send-tool.ts';
 import { ContextRefStore } from '../src/context/context-refs.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import type { RawConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { CapabilityRefResolver, CompletionContext } from '../src/platform/invocation-context.ts';
@@ -15,9 +16,10 @@ import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import {
   invocationCapabilities,
   renderInvocationContext,
-  type TestInvocationContext,
   testConfigJsonc,
   testConfigStore,
+  testSendToolEnv,
+  type TestInvocationContext,
   writeTestConfig,
 } from './helpers.ts';
 
@@ -25,7 +27,7 @@ import {
  * `send kind:image` delivery-ledger boundary.
  *
  * Deduplication is per target conversation + generation id + asset id against
- * `telegram_sends.request_json` (`generation_id` / `asset_ids`): successful
+ * `host_sends.request_json` (`generation_id` / `asset_ids`): successful
  * deliveries are filtered out, a fully delivered generation replays as a
  * successful no-op that reaches no Telegram API and spends no rate window, and
  * pending / unknown attempts block every retry, resend or not. Authorization
@@ -46,10 +48,11 @@ interface Picture {
   readonly assetId: string;
   readonly bytes: Uint8Array;
   readonly fileName: string;
+  readonly mime: string;
 }
 
 function picture(assetId: string, fileName: string): Picture {
-  return { assetId, fileName, bytes: new Uint8Array([137, 80, 78, 71, assetId.length]) };
+  return { assetId, fileName, mime: 'image/png', bytes: new Uint8Array([137, 80, 78, 71, assetId.length]) };
 }
 
 const ASSET_A = picture('asset-a', 'a.png');
@@ -112,7 +115,7 @@ interface PhotoAttempt {
   readonly caption: string | undefined;
 }
 
-interface FakeTelegram extends TelegramSendApi {
+interface FakeTelegram extends TelegramTransport {
   readonly photoAttempts: PhotoAttempt[];
   readonly photoDeliveries: PhotoAttempt[];
   textSends: number;
@@ -181,7 +184,7 @@ function buildTool(
   const toolContext = { ...context, ...(options.context ?? {}) };
   const tool = createSendTool({
     store: fixture.store,
-    api,
+    ...testSendToolEnv(api, toolContext),
     context: toolContext,
     capabilities: options.capabilities ?? invocationCapabilities(fixture.store, fixture.config, context.header),
     sendRateLimit: options.sendRateLimit ?? { sendsPerWindow: 6, windowSeconds: 300 },
@@ -191,10 +194,11 @@ function buildTool(
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     imageGeneration: {
       resolve: (generationId, conversationId) =>
-        resolvePictures(generationId, conversationId)?.map(({ assetId, bytes, fileName }) => ({
+        resolvePictures(generationId, conversationId)?.map(({ assetId, bytes, fileName, mime }) => ({
           assetId,
           bytes,
           fileName,
+          mime,
         })),
     },
   });
@@ -251,7 +255,7 @@ interface SendRow {
 function sendRows(store: SqliteStore): SendRow[] {
   return store.db
     .prepare<[], SendRow>(
-      'SELECT id, state, error_code, telegram_message_id, request_json, conversation_id FROM telegram_sends ORDER BY id',
+      'SELECT id, state, error_code, telegram_message_id, request_json, conversation_id FROM host_sends ORDER BY id',
     )
     .all();
 }
@@ -608,7 +612,7 @@ describe('send image delivery ledger', () => {
     const refs = new ContextRefStore(fixture.store, { ttlHours: () => fixture.config.agent!.context!.ref_ttl_hours });
     refs.replyRef(
       context.header,
-      77n,
+      '77',
       { conversationId: context.conversationId, threadId: context.threadId },
       context.header.nextSeq,
       new Date(Date.now() - 100 * 3_600_000),

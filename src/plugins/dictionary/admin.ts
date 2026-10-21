@@ -24,6 +24,7 @@ import { resolveToolModel } from '../../platform/tool-model.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import { asRunResult, type Orm } from '../../store/store.ts';
 import { chats, dictionaryEntries } from '../../store/schema.ts';
+import { telegramHostScope, telegramIdentity } from '../../store/host-scope.ts';
 import { AdminQueryError } from '../../ingress/admin/audit.ts';
 
 /**
@@ -218,13 +219,22 @@ export function dictionaryView(store: DictionaryStore, query: DictionaryQuery) {
   };
 }
 
+/**
+ * Chat options for the dictionary scope picker. The picker identifies a
+ * conversation by its Telegram chat id, so virtual rooms are out of scope.
+ */
 export function listDictionaryChatOptions(orm: Orm) {
   return orm
     .select({ telegramChatId: chats.telegramChatId, title: chats.title, type: chats.type })
     .from(chats)
+    .where(telegramHostScope())
     .orderBy(chats.telegramChatId)
     .all()
-    .map((row) => ({ id: row.telegramChatId.toString(), title: row.title, type: row.type }));
+    .map((row) => ({
+      id: telegramIdentity(row.telegramChatId, 'chats.telegram_chat_id').toString(),
+      title: row.title,
+      type: row.type,
+    }));
 }
 
 /** Creates one entry from a validated draft. */

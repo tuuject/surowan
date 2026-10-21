@@ -1,3 +1,4 @@
+import { HOST_KINDS, type HostKind } from '../platform/im-host.ts';
 import { LongTaskService } from '../store/long-tasks.ts';
 import { AgentRuntime, type AgentRuntimeOptions } from './agent-runtime.ts';
 import { ConversationRuntime } from './conversation-runtime.ts';
@@ -17,7 +18,16 @@ export function createCoreRuntime(options: CoreRuntimeOptions) {
     agentCacheSize: () => options.configStore.current().config.agent.context.agent_cache_size,
   });
   let scheduler: BucketScheduler | undefined;
-  const tasks = options.tasks ?? new LongTaskService(options.store.orm, () => scheduler?.wake());
+  // The scheduler's scope is the set of hosts this runtime is bound to: it must
+  // never launch, recover or wait on work of a host the process does not carry.
+  // A scope covering every bound host is the same as no scope.
+  const hosts = Object.keys(options.hosts) as HostKind[];
+  const tasks = options.tasks ?? new LongTaskService(options.store.orm, () => scheduler?.wake(), hosts);
+  // The scheduler completes timers through `tasks` before it filters receipts,
+  // so a task service with a wider scope would complete foreign timers.
+  if (!sameHostScope(tasks.hosts, hosts)) {
+    throw new Error('the long-task service must serve exactly the hosts this runtime binds');
+  }
   // `tasks` belongs to the scheduler; AgentRuntime has no such option.
   const { tasks: _tasks, ...agentOptions } = options;
   const runtime = new AgentRuntime({ ...agentOptions, conversationRuntime });
@@ -28,8 +38,15 @@ export function createCoreRuntime(options: CoreRuntimeOptions) {
     conversationRuntime,
     tasks,
     { bot: options.bot },
+    hosts,
   );
   return { runtime, scheduler, conversationRuntime, tasks };
 }
 
 export type CoreRuntime = ReturnType<typeof createCoreRuntime>;
+
+function sameHostScope(left: readonly HostKind[] | undefined, right: readonly HostKind[]): boolean {
+  const covered = (scope: readonly HostKind[] | undefined) =>
+    HOST_KINDS.filter((host) => scope === undefined || scope.length === 0 || scope.includes(host)).join(',');
+  return covered(left) === covered(right);
+}

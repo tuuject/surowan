@@ -35,7 +35,7 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
       orm.run(sql`DELETE FROM conversation_attention WHERE expires_at <= ${now.toISOString()}`);
       orm.run(sql`DELETE FROM telegram_updates WHERE received_at < ${cutoff}`);
       orm.run(sql`
-      DELETE FROM telegram_sends
+      DELETE FROM host_sends
       WHERE tool_call_id IN (
         SELECT tc.id
         FROM tool_calls tc
@@ -72,6 +72,14 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
         WHERE m.received_at < ${cutoff}
       )
     `);
+      // A held room input past retention expires visibly; its ledger row then
+      // outlives the message as the request key's tombstone.
+      orm.run(sql`
+      UPDATE playground_inputs
+      SET state = 'expired'
+      WHERE state = 'held'
+        AND message_id IN (SELECT id FROM messages WHERE received_at < ${cutoff})
+    `);
       orm.run(sql`
       UPDATE messages
       SET current_revision_id = NULL
@@ -97,7 +105,9 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
       WHERE message_id IN (SELECT id FROM messages WHERE received_at < ${cutoff})
     `);
       orm.run(
-        sql`DELETE FROM senders WHERE NOT EXISTS (SELECT 1 FROM message_revisions r WHERE r.sender_id = senders.id)`,
+        sql`DELETE FROM senders
+            WHERE NOT EXISTS (SELECT 1 FROM message_revisions r WHERE r.sender_id = senders.id)
+              AND NOT EXISTS (SELECT 1 FROM room_participants p WHERE p.sender_id = senders.id)`,
       );
       orm.run(sql`DELETE FROM media_analyses WHERE kind = 'image' AND updated_at < ${cutoff}`);
       orm.run(

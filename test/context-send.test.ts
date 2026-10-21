@@ -5,12 +5,13 @@ import { join } from 'node:path';
 import { GrammyError, HttpError } from 'grammy';
 import type { Update } from 'grammy/types';
 import { Compile } from 'typebox/compile';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import type { RawConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { MemoryStore } from '../src/context/memory.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import { createSendTool, SEND_BARRIER_TEXT, type TelegramSendApi } from '../src/capabilities/send-tool.ts';
+import { createSendTool, SEND_BARRIER_TEXT } from '../src/capabilities/send-tool.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { ContextBuilder } from '../src/context/context-builder.ts';
 import {
@@ -18,9 +19,10 @@ import {
   renderInvocationContext,
   testConfigJsonc,
   testConfigStore,
-  writeTestConfig,
+  testSendToolEnv,
   type TestContextOptions,
   type TestInvocationContext,
+  writeTestConfig,
 } from './helpers.ts';
 
 const directories: string[] = [];
@@ -198,8 +200,8 @@ describe('send tool', () => {
     ingestion.ingest(update(1, 10, 'hello'), received);
     const invocationId = processOne(scheduler, new Date(received.getTime() + 15_000));
     const context = build(invocationId, { contextWindow: 200_000, maxOutputTokens: 32768 });
-    const requests: Array<{ text: string; options: Parameters<TelegramSendApi['sendMessage']>[2] }> = [];
-    const api: TelegramSendApi = {
+    const requests: Array<{ text: string; options: Parameters<TelegramTransport['sendMessage']>[2] }> = [];
+    const api: TelegramTransport = {
       sendMessage: async (_chatId, text, options) => {
         requests.push({ text, options });
         return { message_id: 500 + requests.length, date: 1_700_000_100, chat: { id: 123456789 } };
@@ -208,7 +210,7 @@ describe('send tool', () => {
     };
     const tool = createSendTool({
       store,
-      api,
+      ...testSendToolEnv(api, context),
       context,
       capabilities: invocationCapabilities(store, config, context.header),
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },
@@ -237,7 +239,7 @@ describe('send tool', () => {
     ]);
     const audits = store.db
       .prepare<[], { tool_state: string; send_state: string; sent_by_bot: bigint; text: string }>(
-        'SELECT tc.state AS tool_state, ts.state AS send_state, m.sent_by_bot, r.text FROM tool_calls tc JOIN telegram_sends ts ON ts.tool_call_id = tc.id JOIN messages m ON m.telegram_message_id = ts.telegram_message_id JOIN message_revisions r ON r.id = m.current_revision_id ORDER BY tc.id',
+        'SELECT tc.state AS tool_state, ts.state AS send_state, m.sent_by_bot, r.text FROM tool_calls tc JOIN host_sends ts ON ts.tool_call_id = tc.id JOIN messages m ON m.telegram_message_id = ts.telegram_message_id JOIN message_revisions r ON r.id = m.current_revision_id ORDER BY tc.id',
       )
       .all();
     expect(audits).toEqual([
@@ -253,13 +255,13 @@ describe('send tool', () => {
     ingestion.ingest(update(1, 10, 'hello'), received);
     const invocationId = processOne(scheduler, new Date(received.getTime() + 15_000));
     const context = build(invocationId, { contextWindow: 200_000, maxOutputTokens: 32768 });
-    const api: TelegramSendApi = {
+    const api: TelegramTransport = {
       sendMessage: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 502, date: 1_700_000_101, chat: { id: 123456789 } }),
     };
     const tool = createSendTool({
       store,
-      api,
+      ...testSendToolEnv(api, context),
       context,
       capabilities: invocationCapabilities(store, config, context.header),
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },
@@ -275,9 +277,7 @@ describe('send tool', () => {
       .prepare<[], { state: string; error_code: string }>('SELECT state, error_code FROM tool_calls')
       .get();
     expect(row).toEqual({ state: 'error', error_code: 'reply_not_visible' });
-    expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM telegram_sends').get()?.count).toBe(
-      0n,
-    );
+    expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(0n);
     store.close();
   });
   test('limits sends to the sliding window and does not retry an unknown network outcome', async () => {
@@ -287,7 +287,7 @@ describe('send tool', () => {
     const invocationId = processOne(scheduler, new Date(received.getTime() + 15_000));
     const context = build(invocationId, { contextWindow: 200_000, maxOutputTokens: 32768 });
     let successfulCalls = 0;
-    const successApi: TelegramSendApi = {
+    const successApi: TelegramTransport = {
       sendMessage: async () => {
         successfulCalls += 1;
         return { message_id: 500 + successfulCalls, date: 1_700_000_100 + successfulCalls, chat: { id: 123456789 } };
@@ -296,7 +296,7 @@ describe('send tool', () => {
     };
     const quotaTool = createSendTool({
       store,
-      api: successApi,
+      ...testSendToolEnv(successApi, context),
       context,
       capabilities: invocationCapabilities(store, config, context.header),
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },
@@ -311,9 +311,7 @@ describe('send tool', () => {
     // Failed attempts still count. Before, the window only counted success, pending
     // and unknown outcomes, so a loop whose every send Telegram rejected had no brake.
     store.db
-      .prepare(
-        "UPDATE telegram_sends SET state = 'error' WHERE id IN (SELECT id FROM telegram_sends ORDER BY id LIMIT 3)",
-      )
+      .prepare("UPDATE host_sends SET state = 'error' WHERE id IN (SELECT id FROM host_sends ORDER BY id LIMIT 3)")
       .run();
     await expect(quotaTool.execute('quota-6', { kind: 'text', text: 'seventh' })).rejects.toThrow('send rate limit');
     expect(successfulCalls).toBe(6);
@@ -335,7 +333,7 @@ describe('send tool', () => {
     const invocationId = processOne(scheduler, new Date(received.getTime() + 15_000));
     const context = build(invocationId, { contextWindow: 200_000, maxOutputTokens: 32768 });
     let unknownCalls = 0;
-    const unknownApi: TelegramSendApi = {
+    const unknownApi: TelegramTransport = {
       sendMessage: async () => {
         unknownCalls += 1;
         throw new HttpError('network failed', new Error('socket closed'));
@@ -344,7 +342,7 @@ describe('send tool', () => {
     };
     const unknownTool = createSendTool({
       store,
-      api: unknownApi,
+      ...testSendToolEnv(unknownApi, context),
       context,
       capabilities: invocationCapabilities(store, config, context.header),
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },
@@ -359,16 +357,14 @@ describe('send tool', () => {
     expect(unknownCalls).toBe(1);
     expect(
       store.db
-        .prepare<[], { state: string }>(
-          'SELECT state FROM telegram_sends WHERE id = (SELECT MAX(id) FROM telegram_sends)',
-        )
+        .prepare<[], { state: string }>('SELECT state FROM host_sends WHERE id = (SELECT MAX(id) FROM host_sends)')
         .get()?.state,
     ).toBe('outcome_unknown');
     store.close();
   });
 
   async function sendFixture(overrides: {
-    readonly api: TelegramSendApi;
+    readonly api: TelegramTransport;
     readonly deadline?: number;
     readonly holdForNewMessages?: () => boolean;
   }) {
@@ -379,7 +375,7 @@ describe('send tool', () => {
     const context = fixture.build(invocationId, { contextWindow: 200_000, maxOutputTokens: 32768 });
     const tool = createSendTool({
       store: fixture.store,
-      api: overrides.api,
+      ...testSendToolEnv(overrides.api, context),
       context,
       capabilities: invocationCapabilities(fixture.store, fixture.config, context.header),
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },
@@ -397,14 +393,14 @@ describe('send tool', () => {
         .all(),
       sends: fixture.store.db
         .prepare<[], { state: string; error_code: string | null; telegram_message_id: bigint | null }>(
-          'SELECT state, error_code, telegram_message_id FROM telegram_sends ORDER BY id',
+          'SELECT state, error_code, telegram_message_id FROM host_sends ORDER BY id',
         )
         .all(),
     });
     return { ...fixture, tool, audit };
   }
 
-  function countingApi(onSend: () => Promise<{ message_id: number }>): TelegramSendApi & { calls: number } {
+  function countingApi(onSend: () => Promise<{ message_id: number }>): TelegramTransport & { calls: number } {
     const api = {
       calls: 0,
       sendMessage: async () => {
@@ -484,6 +480,25 @@ describe('send tool', () => {
     fixture.store.close();
   });
 
+  test('a 429 without retry_after stops after one attempt instead of retrying', async () => {
+    const api = countingApi(async () => {
+      throw new GrammyError(
+        'Too Many Requests',
+        { ok: false, error_code: 429, description: 'Too Many Requests', parameters: {} },
+        'sendMessage',
+        {},
+      );
+    });
+    const fixture = await sendFixture({ api });
+    await expect(fixture.tool.execute('no-delay-1', { kind: 'text', text: 'hello' })).rejects.toThrow('telegram_429');
+    expect(api.calls).toBe(1);
+    expect(fixture.audit()).toEqual({
+      toolCalls: [{ state: 'error', error_code: 'telegram_429' }],
+      sends: [{ state: 'error', error_code: 'telegram_429', telegram_message_id: null }],
+    });
+    fixture.store.close();
+  });
+
   test('a message Telegram accepted stays a success when recording the outgoing copy fails', async () => {
     const api = countingApi(async () => ({ message_id: 501 }));
     const fixture = await sendFixture({ api });
@@ -507,7 +522,7 @@ describe('send tool', () => {
     const invocationId = processOne(scheduler, new Date(received.getTime() + 15_000));
     const context = build(invocationId, { contextWindow: 200_000, maxOutputTokens: 32768 });
     let sendMessageCalls = 0;
-    const api: TelegramSendApi = {
+    const api: TelegramTransport = {
       sendMessage: async () => {
         sendMessageCalls += 1;
         return { message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } };
@@ -516,7 +531,7 @@ describe('send tool', () => {
     };
     const tool = createSendTool({
       store,
-      api,
+      ...testSendToolEnv(api, context),
       context,
       capabilities: invocationCapabilities(store, config, context.header),
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },
@@ -538,9 +553,7 @@ describe('send tool', () => {
     expect(row?.state).toBe('error');
     expect(row?.error_code).toBe('send_text_too_long');
     expect(JSON.parse(row?.arguments_json ?? '{}')).toEqual({ kind: 'text', text: 'too long' });
-    expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM telegram_sends').get()?.count).toBe(
-      0n,
-    );
+    expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(0n);
     // A rejected send never reaches Telegram, so it costs nothing in the window.
     await tool.execute('call-2', { kind: 'text', text: 'ok' });
     expect(sendMessageCalls).toBe(1);
@@ -554,7 +567,7 @@ describe('send tool', () => {
     const invocationId = processOne(scheduler, new Date(received.getTime() + 15_000));
     const context = build(invocationId, { contextWindow: 200_000, maxOutputTokens: 32768 });
     const requests: string[] = [];
-    const api: TelegramSendApi = {
+    const api: TelegramTransport = {
       sendMessage: async (_chatId, text) => {
         requests.push(text);
         return { message_id: 500 + requests.length, date: 1_700_000_100, chat: { id: 123456789 } };
@@ -563,7 +576,7 @@ describe('send tool', () => {
     };
     const base = {
       store,
-      api,
+      ...testSendToolEnv(api, context),
       context,
       capabilities: invocationCapabilities(store, config, context.header),
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },

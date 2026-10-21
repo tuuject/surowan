@@ -153,6 +153,9 @@ export function resolveDictionaryInjectionMode(
 export function createDictionaryInjector(): ContextInjector {
   return {
     name: 'dictionary',
+    // Dictionary scopes are Telegram chats; a room has no chat entry to scope
+    // entries by, and its chat id is internal, so it must not be read as one.
+    hosts: ['telegram'],
     *collect(text: string): Generator<string> {
       for (const [id, revision] of collectInjectedDictionary(text)) {
         yield dictionaryEntrySignature({ id, revision });

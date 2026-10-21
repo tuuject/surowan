@@ -6,28 +6,31 @@ import { GrammyError, HttpError } from 'grammy';
 import type { Update } from 'grammy/types';
 import { eq } from 'drizzle-orm';
 import { afterAll, describe, expect, test } from 'vitest';
-import { createSendTool, type SendToolEnvironment, type TelegramSendApi } from '../src/capabilities/send-tool.ts';
+import { createSendTool, type SendToolEnvironment } from '../src/capabilities/send-tool.ts';
 import { ConversationContextStore } from '../src/context/context-store.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import { attachBucketToInvocation, InvocationQueueService } from '../src/orchestration/invocation-queue.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import type { RawConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { buckets, invocationBuckets, invocations, telegramSends, toolCalls } from '../src/store/schema.ts';
+import { buckets, invocationBuckets, invocations, hostSends, toolCalls } from '../src/store/schema.ts';
 import {
   fauxRegistry,
   invocationCapabilities,
   renderInvocationContext,
-  type TestContextOptions,
-  type TestInvocationContext,
   testConfigJsonc,
   testConfigStore,
+  testSendToolEnv,
+  testTelegramRuntime,
+  type TestContextOptions,
+  type TestInvocationContext,
   writeTestConfig,
 } from './helpers.ts';
 
@@ -36,12 +39,12 @@ import {
  * `send` at most one reply to one Telegram message id unless explicitly allowed,
  * regardless of content changes or switching to a sticker or generated picture.
  *
- * The dedup key is the retained audit (telegram_sends.conversation_id +
+ * The dedup key is the retained audit (host_sends.conversation_id +
  * request_json.reply_to_message_id), so it holds across invocations, freshly
  * built tools, rebuilt contexts and SQLite close/open. A prior `success`
  * rejects with `reply_already_sent`; a prior `pending` / `outcome_unknown`
  * rejects with `reply_delivery_unknown`; an explicit `error` still allows a
- * retry. A rejection must add no telegram_sends row, call no API, and consume
+ * retry. A rejection must add no host_sends row, call no API, and consume
  * no sends_used / rate-limit budget / send barrier.
  */
 
@@ -137,19 +140,22 @@ async function conversationContext(
 type SendArgs = Parameters<ReturnType<typeof createSendTool>['execute']>[1];
 type SendTool = ReturnType<typeof createSendTool>;
 
-interface CountingApi extends TelegramSendApi {
+interface CountingApi extends TelegramTransport {
   readonly calls: number;
 }
 
 function countingApi(gate?: Promise<void>): CountingApi {
   let calls = 0;
-  const respond = async (base: number, photo = false): Promise<Awaited<ReturnType<TelegramSendApi['sendMessage']>>> => {
+  const respond = async (
+    base: number,
+    photo = false,
+  ): Promise<Awaited<ReturnType<TelegramTransport['sendMessage']>>> => {
     calls += 1;
     const sequence = calls;
     if (gate !== undefined) {
       await gate;
     }
-    const response: Awaited<ReturnType<TelegramSendApi['sendMessage']>> = {
+    const response: Awaited<ReturnType<TelegramTransport['sendMessage']>> = {
       message_id: base + sequence,
       date: 1_700_000_100 + sequence,
       chat: { id: 123456789 },
@@ -180,7 +186,7 @@ function makeTool(
   config: RawConfig,
   context: TestInvocationContext,
   options: {
-    readonly api?: TelegramSendApi;
+    readonly api?: TelegramTransport;
     readonly sendsPerWindow?: number;
     readonly imageGeneration?: SendToolEnvironment['imageGeneration'];
     readonly holdForNewMessages?: () => boolean;
@@ -189,7 +195,7 @@ function makeTool(
   const capabilities = invocationCapabilities(store, config, context.header);
   const tool = createSendTool({
     store,
-    api: options.api ?? countingApi(),
+    ...testSendToolEnv(options.api ?? countingApi(), context),
     context,
     capabilities,
     sendRateLimit: { sendsPerWindow: options.sendsPerWindow ?? 6, windowSeconds: 300 },
@@ -221,7 +227,7 @@ function toolAudit(store: SqliteStore): ToolCallRow[] {
 }
 
 function sendAudit(store: SqliteStore): SendRow[] {
-  return store.db.prepare<[], SendRow>('SELECT state, error_code, request_json FROM telegram_sends ORDER BY id').all();
+  return store.db.prepare<[], SendRow>('SELECT state, error_code, request_json FROM host_sends ORDER BY id').all();
 }
 
 function errorCodeOf(store: SqliteStore, callId: string): string | null {
@@ -248,7 +254,7 @@ async function expectRejected(tool: SendTool, callId: string, args: SendArgs): P
 const imageGeneration: SendToolEnvironment['imageGeneration'] = {
   resolve: (generationId) =>
     generationId === 'gen-1' || generationId === 'gen-2'
-      ? [{ assetId: `asset-${generationId}`, bytes: new Uint8Array([1, 2, 3]), fileName: 'pic.png' }]
+      ? [{ assetId: `asset-${generationId}`, bytes: new Uint8Array([1, 2, 3]), fileName: 'pic.png', mime: 'image/png' }]
       : undefined,
 };
 
@@ -341,7 +347,7 @@ describe('reply deduplication', () => {
         store: fixture.store,
         configStore: fixture.configStore,
         secrets: new SecretStore(),
-        telegramApi: api,
+        ...testTelegramRuntime(api),
         bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
         systemResources: emptySystemResources(),
       });
@@ -444,7 +450,7 @@ describe('reply deduplication', () => {
       await tool.execute('first', input);
       const replay = await tool.execute('again', input);
       expect(replay.details.replayed).toBe(true);
-      fixture.store.orm.update(telegramSends).set({ state: 'outcome_unknown' }).run();
+      fixture.store.orm.update(hostSends).set({ state: 'outcome_unknown' }).run();
       await expect(tool.execute('unknown', { ...input, resend: true })).rejects.toThrow('unknown outcome');
       expect(errorCodeOf(fixture.store, 'unknown')).toBe('image_delivery_unknown');
       expect(api.calls).toBe(1);
@@ -521,7 +527,7 @@ describe('reply deduplication', () => {
         .returning({ id: toolCalls.id })
         .get()!;
       fixture.store.orm
-        .insert(telegramSends)
+        .insert(hostSends)
         .values({
           toolCallId: call.id,
           conversationId: context.conversationId,
@@ -567,7 +573,7 @@ describe('reply deduplication', () => {
     const fixture = await setup();
     const context = await conversationContext(fixture, 1, 10, new Date('2026-08-15T00:00:00.000Z'));
     let calls = 0;
-    const api: TelegramSendApi = {
+    const api: TelegramTransport = {
       sendMessage: async () => {
         calls += 1;
         throw new HttpError('network failed', new Error('socket closed'));
@@ -592,7 +598,7 @@ describe('reply deduplication', () => {
     const fixture = await setup();
     const context = await conversationContext(fixture, 1, 10, new Date('2026-08-15T00:00:00.000Z'));
     let calls = 0;
-    const api: TelegramSendApi = {
+    const api: TelegramTransport = {
       sendMessage: async () => {
         calls += 1;
         if (calls === 1) {
@@ -682,9 +688,7 @@ describe('reply deduplication', () => {
     expect(errorCodeOf(store2, 'inv-3')).toBe('reply_already_sent');
     expect(api3.calls).toBe(0);
     expect(sendsUsed(store2, invocationId3)).toBe(0n);
-    expect(store2.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM telegram_sends').get()?.count).toBe(
-      1n,
-    );
+    expect(store2.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(1n);
     store2.close();
   });
 

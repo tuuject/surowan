@@ -1,9 +1,19 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
-import { GrammyError, HttpError } from 'grammy';
-import type { MessageEntity } from 'grammy/types';
 import Type, { type Static } from 'typebox';
+import {
+  sameConversation,
+  toConversationId,
+  toSenderId,
+  type ImConversationRef,
+  type ImDeliveredMessage,
+  type ImDeliveryFailure,
+  type ImDeliveryTarget,
+  type ImHost,
+  type ImMentionRequest,
+  type ImOutgoingPart,
+} from '../platform/im-host.ts';
 import type { CapabilityRefResolver, InvocationContext } from '../platform/invocation-context.ts';
 import type { BusinessStore } from '../store/store.ts';
 import { finishToolCall, rejectToolCall, startToolCall } from '../store/store.ts';
@@ -16,7 +26,7 @@ import {
   messages,
   senders,
   stickers,
-  telegramSends,
+  hostSends,
   toolCalls,
 } from '../store/schema.ts';
 
@@ -149,72 +159,12 @@ export function narrowSendInput(
   };
 }
 
-interface TelegramSendResponse {
-  readonly message_id: number;
-  readonly date: number;
-  readonly chat: { readonly id: number };
-  /** Sizes of a sent photo (largest last); present on image deliveries. */
-  readonly photo?:
-    | readonly {
-        readonly file_id: string;
-        readonly file_unique_id: string;
-        readonly width: number;
-        readonly height: number;
-      }[]
-    | undefined;
-}
-
-export interface TelegramSendApi {
-  /** Cosmetic status only; hosts without chat actions can omit it. */
-  sendTyping?(chatId: string, threadId: bigint, signal: AbortSignal): Promise<void>;
-  sendMessage(
-    chatId: string,
-    text: string,
-    options: {
-      readonly message_thread_id?: number;
-      readonly parse_mode?: 'MarkdownV2';
-      readonly reply_parameters?: { readonly message_id: number };
-      readonly entities?: MessageEntity[];
-    },
-  ): Promise<TelegramSendResponse>;
-  sendSticker(
-    chatId: string,
-    sticker: string,
-    options: {
-      readonly message_thread_id?: number;
-      readonly reply_parameters?: { readonly message_id: number };
-    },
-  ): Promise<TelegramSendResponse>;
-  /**
-   * Delivers one generated picture. Optional so hosts that never ship image
-   * generation can reuse this interface; the send tool rejects image sends
-   * with a clear error when it is missing.
-   */
-  sendGeneratedPhoto?(
-    chatId: string,
-    bytes: Uint8Array,
-    fileName: string,
-    options: {
-      readonly message_thread_id?: number;
-      readonly reply_parameters?: { readonly message_id: number };
-      readonly caption?: string;
-    },
-  ): Promise<TelegramSendResponse>;
-  /** Delivers several pictures of one generation as a single album. */
-  sendGeneratedPhotoGroup?(
-    chatId: string,
-    pictures: readonly { readonly bytes: Uint8Array; readonly fileName: string }[],
-    options: {
-      readonly message_thread_id?: number;
-      readonly reply_parameters?: { readonly message_id: number };
-      readonly caption?: string;
-    },
-  ): Promise<TelegramSendResponse[]>;
-}
-
 export interface SendToolEnvironment {
   readonly store: BusinessStore;
-  readonly api: TelegramSendApi;
+  /** The host that carries this conversation; the only thing that speaks Telegram. */
+  readonly host: ImHost;
+  /** The conversation the bot publishes into, resolved by the server. */
+  readonly conversation: ImConversationRef;
   readonly context: InvocationContext;
   readonly capabilities: CapabilityRefResolver;
   /**
@@ -251,37 +201,126 @@ export interface SendToolEnvironment {
     readonly resolve: (
       generationId: string,
       conversationId: bigint,
-    ) => readonly { readonly assetId: string; readonly bytes: Uint8Array; readonly fileName: string }[] | undefined;
+    ) =>
+      | readonly {
+          readonly assetId: string;
+          readonly bytes: Uint8Array;
+          readonly fileName: string;
+          readonly mime: string;
+        }[]
+      | undefined;
   };
 }
 
-function completionMention(
-  completion: InvocationContext['completion'],
-): { readonly text: string; readonly entity: MessageEntity; readonly url: string } | null {
+/**
+ * The sender this completion should mention, if any. Turning that into a
+ * clickable mention is the host's job, not ours.
+ */
+function completionMention(completion: InvocationContext['completion']): ImMentionRequest | null {
   const target = completion?.delivery.mentionUser;
   if (target === undefined) {
     return null;
   }
-  const text = target.displayName.length > 0 ? `@${target.displayName}` : `@${target.userId.toString()}`;
-  const url = `tg://user?id=${target.userId.toString()}`;
   return {
-    text,
-    url,
-    entity: {
-      type: 'text_link',
-      offset: 0,
-      length: text.length,
-      url,
-    },
+    senderId: toSenderId(target.userId),
+    displayName: target.displayName,
   };
 }
 
-function escapeMarkdownV2LinkText(text: string): string {
-  return text.replace(/[\\_*[\]()~`>#+\-=|{}.!]/g, (character) => `\\${character}`);
+type SendDetails = {
+  /** The wire id, under the key Telegram consumers have always read. */
+  telegramMessageId?: string;
+  /** The id of the message a host published itself, e.g. a room. */
+  messageId?: string;
+  replayed?: boolean;
+};
+type SendReplyDetails = {
+  telegramMessageIds?: string[];
+  /** The same ids under a neutral key, for a host that has no wire. */
+  messageIds?: string[];
+};
+
+/** Whether this host reports ids from a wire, rather than publishing them. */
+const reportsWireIds = (host: ImHost): boolean => host.host === 'telegram';
+
+/**
+ * How a send result names what it published. Telegram keeps the wire id under
+ * the key and wording it has always used, so nothing that reads a send result
+ * has to know which host ran it; a room reports the message it recorded.
+ */
+const sentMessageResult = (host: ImHost, messageId: bigint): string =>
+  reportsWireIds(host) ? `telegram_message_id=${messageId}` : `message_id=${messageId}`;
+
+const sentMessagesResult = (host: ImHost, ids: readonly string[]): string =>
+  reportsWireIds(host) ? `telegram_message_ids=${ids.join(',')}` : `message_ids=${ids.join(',')}`;
+
+const sentDetails = (host: ImHost, messageId: string, replayed?: boolean): SendDetails =>
+  reportsWireIds(host)
+    ? { telegramMessageId: messageId, ...(replayed === undefined ? {} : { replayed }) }
+    : { messageId, ...(replayed === undefined ? {} : { replayed }) };
+
+const sentReplyDetails = (host: ImHost, ids: readonly string[]): SendReplyDetails =>
+  reportsWireIds(host) ? { telegramMessageIds: [...ids] } : { messageIds: [...ids] };
+
+const sentCountText = (host: ImHost, count: number, ids: readonly string[]): string =>
+  reportsWireIds(host)
+    ? `Sent ${count} Telegram messages in order: ${ids.join(', ')}`
+    : `Sent ${count} messages in order: ${ids.join(', ')}`;
+
+/** A delivery the host refused, carrying the host's own classification. */
+class DeliveryRejected extends Error {
+  readonly failure: ImDeliveryFailure;
+
+  constructor(failure: ImDeliveryFailure) {
+    super(`send rejected: ${failure.code}`);
+    this.name = 'DeliveryRejected';
+    this.failure = failure;
+  }
 }
 
-type SendDetails = { telegramMessageId: string; replayed?: boolean };
-type SendReplyDetails = { telegramMessageIds: string[] };
+/**
+ * Picks the single part one audited send carries. Which part it is comes from
+ * the input, never from the transport.
+ */
+function resolveOutgoingPart(input: {
+  readonly textPart: ImOutgoingPart | undefined;
+  readonly stickerFileId: string | undefined;
+  readonly generationPictures:
+    | readonly { readonly bytes: Uint8Array; readonly fileName: string; readonly mime: string }[]
+    | undefined;
+  readonly send: Static<typeof SendInputSchema>;
+}): ImOutgoingPart {
+  if (input.textPart !== undefined) {
+    return input.textPart;
+  }
+  if (input.stickerFileId !== undefined) {
+    return { kind: 'sticker', stickerRef: input.stickerFileId };
+  }
+  const pictures = input.generationPictures;
+  if (pictures === undefined) {
+    throw new Error('sticker_ref is not authorized in this conversation context');
+  }
+  const caption = input.send.kind === 'image' && input.send.text !== undefined ? { caption: input.send.text } : {};
+  if (pictures.length === 1) {
+    const [only] = pictures;
+    return {
+      kind: 'photo',
+      bytes: only?.bytes ?? new Uint8Array(),
+      fileName: only?.fileName ?? 'image.png',
+      mime: only?.mime ?? 'image/png',
+      ...caption,
+    };
+  }
+  return {
+    kind: 'photo_album',
+    pictures: pictures.map((picture) => ({
+      bytes: picture.bytes,
+      fileName: picture.fileName,
+      mime: picture.mime,
+    })),
+    ...caption,
+  };
+}
 
 /** Delivers one message through the full send pipeline: checks, audit, barrier and Telegram. */
 type Deliver = (
@@ -340,29 +379,59 @@ export function createSendTools(environment: SendToolEnvironment): {
     const targetConversationId = replyTarget?.conversationId ?? environment.context.conversationId;
     const targetThreadId = replyTarget?.threadId ?? environment.context.threadId;
     const completion = environment.context.completion;
-    let mention: { readonly text: string; readonly entity: MessageEntity; readonly url: string } | null = null;
-    let sendText = '';
-    if (send.kind === 'text') {
-      if (completion !== null && !mentionedTasks.has(completion.taskId)) {
-        mention = completionMention(completion);
-      }
-      if (mention === null) {
-        sendText = send.text;
-      } else if (send.parse_mode === 'MarkdownV2') {
-        // Telegram rejects `entities` together with `parse_mode`, so a
-        // MarkdownV2 first contact encodes the target mention as an inline
-        // `[text](tg://user?id=...)` link and keeps parse_mode intact.
-        sendText = `[${escapeMarkdownV2LinkText(mention.text)}](${mention.url}) ${send.text}`;
-      } else {
-        sendText = `${mention.text} ${send.text}`;
-      }
-      if (environment.maxTextLength !== undefined && sendText.length > environment.maxTextLength) {
+    const targetConversation: ImConversationRef = {
+      ...environment.conversation,
+      id: toConversationId(targetConversationId),
+      topicId: targetThreadId === 0n ? null : Number(targetThreadId),
+    };
+    // The host has to be the one this conversation belongs to. A missing or
+    // mismatched pair means no host was built for it, and guessing one would
+    // publish into a place nobody asked for.
+    if (environment.host.host !== environment.conversation.host) {
+      recordRejectedSend(environment, toolCallId, input, 'host_not_supported');
+      throw new Error(`no "${environment.conversation.host}" host is bound to this conversation`);
+    }
+    // A reply may address another conversation only where the host allows it:
+    // Telegram replies into another topic, a room publishes into itself alone.
+    if (
+      targetConversationId !== environment.context.conversationId &&
+      !sameConversation(targetConversation, environment.conversation) &&
+      !environment.host.delivery.crossConversationTargets
+    ) {
+      recordRejectedSend(environment, toolCallId, input, 'reply_target_other_room');
+      throw new Error('reply_to_message_id belongs to another conversation this host cannot reach');
+    }
+    const target: ImDeliveryTarget = {
+      conversation: targetConversation,
+      policy: environment.host.policy(targetConversation),
+    };
+    let mention: ImMentionRequest | null = null;
+    if (send.kind === 'text' && completion !== null && !mentionedTasks.has(completion.taskId)) {
+      mention = completionMention(completion);
+    }
+    const textPart: ImOutgoingPart | undefined =
+      send.kind === 'text'
+        ? {
+            kind: 'text',
+            text: send.text,
+            ...(send.parse_mode === 'MarkdownV2' ? { markup: 'markdown_v2' as const } : {}),
+            ...(mention === null ? {} : { mention }),
+          }
+        : undefined;
+    const composedText =
+      textPart === undefined
+        ? ''
+        : (environment.host.delivery.compose(textPart, target.policy.delivery).text ?? textPart.text);
+    if (textPart !== undefined) {
+      // The host owns mention rendering, so the size and shape checks must look
+      // at what it will actually put on the wire, prefix included.
+      if (environment.maxTextLength !== undefined && composedText.length > environment.maxTextLength) {
         recordRejectedSend(environment, toolCallId, input, 'send_text_too_long');
         throw new Error(
-          `text length ${sendText.length} exceeds the configured limit of ${environment.maxTextLength} characters`,
+          `text length ${composedText.length} exceeds the configured limit of ${environment.maxTextLength} characters`,
         );
       }
-      if (environment.disallowBlankLines && /\n[ \t]*\n/.test(sendText)) {
+      if (environment.disallowBlankLines && /\n[ \t]*\n/.test(composedText)) {
         recordRejectedSend(environment, toolCallId, input, 'send_blank_lines');
         throw new Error('text must not contain blank lines; separate paragraphs with single newlines');
       }
@@ -430,7 +499,9 @@ export function createSendTools(environment: SendToolEnvironment): {
         const firstMessageId = messageIds[0];
         generationPictures = generationPictures.filter((picture) => !delivery.delivered.has(picture.assetId));
         if (generationPictures.length === 0 && firstMessageId !== undefined) {
-          const text = `Images already delivered; Telegram delivery message(s): ${messageIds.join(', ')}. No new message was sent.`;
+          const text = reportsWireIds(environment.host)
+            ? `Images already delivered; Telegram delivery message(s): ${messageIds.join(', ')}. No new message was sent.`
+            : `Images already delivered; message(s): ${messageIds.join(', ')}. No new message was sent.`;
           const now = new Date().toISOString();
           environment.store.orm
             .insert(toolCalls)
@@ -448,7 +519,7 @@ export function createSendTools(environment: SendToolEnvironment): {
             .run();
           return {
             content: [{ type: 'text', text }],
-            details: { telegramMessageId: firstMessageId, replayed: true },
+            details: sentDetails(environment.host, firstMessageId, true),
           };
         }
       }
@@ -476,17 +547,17 @@ export function createSendTools(environment: SendToolEnvironment): {
     const rejectDuplicateReply = (): { error: string } | undefined => {
       if (environment.allowReplyMessageMultipleTimes !== true && send.reply_to_message_id !== undefined) {
         const previous = environment.store.orm
-          .select({ state: telegramSends.state })
-          .from(telegramSends)
+          .select({ state: hostSends.state })
+          .from(hostSends)
           .where(
             and(
-              eq(telegramSends.conversationId, targetConversationId),
-              sql`json_extract(${telegramSends.requestJson}, '$.reply_to_message_id') = ${send.reply_to_message_id}`,
-              sql`${telegramSends.state} IN ('success', 'pending', 'outcome_unknown')`,
+              eq(hostSends.conversationId, targetConversationId),
+              sql`json_extract(${hostSends.requestJson}, '$.reply_to_message_id') = ${send.reply_to_message_id}`,
+              sql`${hostSends.state} IN ('success', 'pending', 'outcome_unknown')`,
             ),
           )
           // A success does not resolve another pending or uncertain attempt.
-          .orderBy(sql`${telegramSends.state} = 'success'`)
+          .orderBy(sql`${hostSends.state} = 'success'`)
           .limit(1)
           .get();
         if (previous !== undefined) {
@@ -557,7 +628,7 @@ export function createSendTools(environment: SendToolEnvironment): {
         .where(eq(invocations.id, environment.context.invocationId))
         .run();
       const createdSend = environment.store.orm
-        .insert(telegramSends)
+        .insert(hostSends)
         .values({
           toolCallId: toolId,
           conversationId: targetConversationId,
@@ -577,10 +648,10 @@ export function createSendTools(environment: SendToolEnvironment): {
           state: 'pending',
           createdAt: now,
         })
-        .returning({ id: telegramSends.id })
+        .returning({ id: hostSends.id })
         .get();
       if (createdSend === undefined) {
-        throw new Error('telegram_sends insert returned no row');
+        throw new Error('host_sends insert returned no row');
       }
       return { toolId, sendId: createdSend.id };
     });
@@ -588,95 +659,65 @@ export function createSendTools(environment: SendToolEnvironment): {
       throw new Error(pending.error);
     }
     const sendId = pending.sendId;
-    const options = {
-      ...(targetThreadId === 0n ? {} : { message_thread_id: Number(targetThreadId) }),
-      ...(send.reply_to_message_id === undefined
-        ? {}
-        : { reply_parameters: { message_id: Number(send.reply_to_message_id) } }),
-      ...(send.kind === 'text' && send.parse_mode !== undefined ? { parse_mode: send.parse_mode } : {}),
-      ...(send.kind === 'text' && mention !== null && send.parse_mode !== 'MarkdownV2'
-        ? { entities: [mention.entity] }
-        : {}),
-    };
+    const outgoingPart = resolveOutgoingPart({ textPart, stickerFileId, generationPictures, send });
+    const replyToMessageId = send.reply_to_message_id === undefined ? undefined : BigInt(send.reply_to_message_id);
     const startedAt = performance.now();
-    let response: TelegramSendResponse;
+    let delivered: ImDeliveredMessage;
+    let recordedByHost = false;
     try {
       while (true) {
-        try {
-          if (send.kind === 'text') {
-            response = await environment.api.sendMessage(environment.context.chatId.toString(), sendText, options);
-            break;
+        const outcome = await environment.host.delivery.deliver({
+          target,
+          parts: [outgoingPart],
+          sendId,
+          ...(replyToMessageId === undefined ? {} : { replyToMessageId }),
+          signal,
+        });
+        if (outcome.kind === 'delivered') {
+          const [first] = outcome.messages;
+          if (first === undefined) {
+            throw new Error('the host reported a delivery without a message');
           }
-          if (stickerFileId !== undefined) {
-            response = await environment.api.sendSticker(environment.context.chatId.toString(), stickerFileId, options);
-            break;
-          }
-          if (generationPictures !== undefined) {
-            const pictures = generationPictures;
-            const sendPhoto = environment.api.sendGeneratedPhoto;
-            const sendPhotoGroup = environment.api.sendGeneratedPhotoGroup;
-            if (sendPhoto === undefined || sendPhotoGroup === undefined) {
-              throw new Error('picture delivery is not wired into this runtime');
-            }
-            const caption = send.kind === 'image' && send.text !== undefined ? { caption: send.text } : {};
-            const responses =
-              pictures.length === 1
-                ? [
-                    await sendPhoto(
-                      environment.context.chatId.toString(),
-                      pictures[0]?.bytes ?? new Uint8Array(),
-                      pictures[0]?.fileName ?? 'image.png',
-                      { ...options, ...caption },
-                    ),
-                  ]
-                : await sendPhotoGroup(
-                    environment.context.chatId.toString(),
-                    pictures.map((picture) => ({ bytes: picture.bytes, fileName: picture.fileName })),
-                    { ...options, ...caption },
-                  );
-            const first = responses[0];
-            if (first === undefined) {
-              throw new Error('Telegram returned no message for the delivered pictures');
-            }
-            response = first;
-            break;
-          }
-          throw new Error('sticker_ref is not authorized in this conversation context');
-        } catch (error) {
-          if (!(error instanceof GrammyError) || error.error_code !== 429) {
-            throw error;
-          }
-          const retryAfter = error.parameters.retry_after;
-          if (retryAfter === undefined || Date.now() + retryAfter * 1000 >= environment.deadline) {
-            throw error;
-          }
-          await delay(retryAfter * 1000, undefined, { signal });
-          // Messages that arrived during the wait make this reply stale, just
-          // as they would have before the first attempt.
-          if (barrier && environment.holdForNewMessages?.() === true) {
-            throw new SendHeldBack();
-          }
+          delivered = first;
+          recordedByHost = outcome.recordedByHost;
+          break;
+        }
+        const retryAfter = outcome.failure.retryAfterSeconds;
+        if (outcome.failure.reason !== 'rate_limited' || retryAfter === undefined) {
+          throw new DeliveryRejected(outcome.failure);
+        }
+        if (Date.now() + retryAfter * 1000 >= environment.deadline) {
+          throw new DeliveryRejected(outcome.failure);
+        }
+        await delay(retryAfter * 1000, undefined, { signal });
+        // Messages that arrived during the wait make this reply stale, just
+        // as they would have before the first attempt.
+        if (barrier && environment.holdForNewMessages?.() === true) {
+          throw new SendHeldBack();
         }
       }
     } catch (error) {
       const held = error instanceof SendHeldBack;
-      const unknown = error instanceof HttpError || (error instanceof GrammyError && error.error_code >= 500);
+      const failure = error instanceof DeliveryRejected ? error.failure : undefined;
+      const unknown = failure?.outcomeUnknown ?? false;
       const errorCode = held
         ? 'send_barrier'
-        : error instanceof GrammyError
-          ? `telegram_${error.error_code}`
-          : error instanceof HttpError
-            ? 'telegram_network'
-            : signal?.aborted
-              ? 'aborted'
-              : 'send_error';
-      // Telegram's description is what tells the model how to fix the send
+        : failure !== undefined
+          ? failure.code
+          : signal?.aborted
+            ? 'aborted'
+            : 'send_error';
+      // The host's description is what tells the model how to fix the send
       // (an unescaped MarkdownV2 character, a reply target that is gone); the
-      // status code alone leaves it nothing to correct.
+      // status code alone leaves it nothing to correct. Only host-reported
+      // rejections carry one worth showing; transport errors stay opaque.
+      const hostReported =
+        failure !== undefined &&
+        (failure.reason === 'permanent' || failure.reason === 'transient' || failure.reason === 'rate_limited');
       const reason = held
         ? SEND_BARRIER_TEXT
         : `${unknown ? 'Telegram send outcome is unknown' : `Telegram send failed: ${errorCode}`}${
-            error instanceof GrammyError ? ` (${error.description})` : ''
+            hostReported ? ` (${failure.description})` : ''
           }`;
       environment.store.transaction(() => {
         const now = new Date().toISOString();
@@ -693,9 +734,9 @@ export function createSendTools(environment: SendToolEnvironment): {
           .where(eq(toolCalls.id, pending.toolId))
           .run();
         environment.store.orm
-          .update(telegramSends)
+          .update(hostSends)
           .set({ state, errorCode, finishedAt: now })
-          .where(eq(telegramSends.id, sendId))
+          .where(eq(hostSends.id, sendId))
           .run();
       });
       throw new Error(reason);
@@ -703,7 +744,7 @@ export function createSendTools(environment: SendToolEnvironment): {
     if (mention !== null && completion !== null) {
       mentionedTasks.add(completion.taskId);
     }
-    // Telegram has accepted the message from here on. A failure to record it
+    // The host has accepted the message from here on. A failure to record it
     // must not read as a failed send, or the model would send it again.
     const now = new Date().toISOString();
     const markAccepted = (): void => {
@@ -711,34 +752,53 @@ export function createSendTools(environment: SendToolEnvironment): {
         .update(toolCalls)
         .set({
           state: 'success',
-          resultText: `telegram_message_id=${response.message_id}`,
+          resultText: sentMessageResult(environment.host, delivered.messageId),
           durationMs: BigInt(Math.round(performance.now() - startedAt)),
           finishedAt: now,
         })
         .where(eq(toolCalls.id, pending.toolId))
         .run();
+      // A virtual host wrote this row in the same transaction that published
+      // the message; overwriting it here would drop the link it recorded and
+      // could not add the Telegram metadata a room never had.
+      if (recordedByHost) {
+        return;
+      }
       environment.store.orm
-        .update(telegramSends)
+        .update(hostSends)
         .set({
           state: 'success',
-          telegramMessageId: BigInt(response.message_id),
-          responseJson: JSON.stringify({ message_id: response.message_id }),
+          telegramMessageId: delivered.messageId,
+          responseJson: JSON.stringify({ message_id: Number(delivered.messageId) }),
           finishedAt: now,
         })
-        .where(eq(telegramSends.id, sendId))
+        .where(eq(hostSends.id, sendId))
         .run();
     };
     try {
       environment.store.transaction(() => {
         markAccepted();
-        recordOutgoingMessage(environment, response, send, stickerFileId ?? null, targetConversationId, sendText, now);
+        if (recordedByHost) {
+          // The host already published the message it reported; mirroring it
+          // again would leave a second, contradicting copy in the store.
+          return;
+        }
+        recordOutgoingMessage(
+          environment,
+          delivered,
+          send,
+          stickerFileId ?? null,
+          targetConversationId,
+          composedText,
+          now,
+        );
       });
     } catch (error) {
       console.error(
         JSON.stringify({
           event: 'send_record_failed',
           invocation_id: environment.context.invocationId.toString(),
-          telegram_message_id: String(response.message_id),
+          telegram_message_id: String(delivered.messageId),
           error: error instanceof Error ? error.message : String(error),
           at: new Date().toISOString(),
         }),
@@ -750,8 +810,15 @@ export function createSendTools(environment: SendToolEnvironment): {
       } catch {}
     }
     return {
-      content: [{ type: 'text', text: `Sent Telegram message ${response.message_id}` }],
-      details: { telegramMessageId: String(response.message_id) },
+      content: [
+        {
+          type: 'text',
+          text: reportsWireIds(environment.host)
+            ? `Sent Telegram message ${delivered.messageId}`
+            : `Sent message ${delivered.messageId}`,
+        },
+      ],
+      details: sentDetails(environment.host, String(delivered.messageId)),
     };
   };
   const send: AgentTool<typeof SendInputSchema, SendDetails> = {
@@ -917,7 +984,12 @@ function createSendReplyTool(
             signal,
             { barrier: first },
           );
-          sent.push(result.details.telegramMessageId);
+          const detail = result.details;
+          const published = detail.telegramMessageId ?? detail.messageId;
+          if (published === undefined) {
+            throw new Error('the host reported a delivery without a message id');
+          }
+          sent.push(published);
         } catch (error) {
           const failed = environment.store.orm
             .select({ errorCode: toolCalls.errorCode })
@@ -928,7 +1000,7 @@ function createSendReplyTool(
             environment.store.orm,
             auditId,
             'error',
-            sent.length === 0 ? null : `telegram_message_ids=${sent.join(',')}`,
+            sent.length === 0 ? null : sentMessagesResult(environment.host, sent),
             failed?.errorCode ?? 'send_error',
             { startedAt },
           );
@@ -942,32 +1014,34 @@ function createSendReplyTool(
           );
         }
       }
-      finishToolCall(environment.store.orm, auditId, 'success', `telegram_message_ids=${sent.join(',')}`, null, {
+      finishToolCall(environment.store.orm, auditId, 'success', sentMessagesResult(environment.host, sent), null, {
         startedAt,
       });
       return {
-        content: [{ type: 'text', text: `Sent ${sent.length} Telegram messages in order: ${sent.join(', ')}` }],
-        details: { telegramMessageIds: sent },
+        content: [{ type: 'text', text: sentCountText(environment.host, sent.length, sent) }],
+        details: sentReplyDetails(environment.host, sent),
       };
     },
   };
 }
 
 /**
- * Send attempts that reached Telegram in this chat inside the rate-limit window.
- * Every state counts, including pending, unknown and error: those are exactly
- * what a runaway loop piles up during a Telegram hiccup or when every attempt is
- * rejected (a MarkdownV2 escape the model keeps getting wrong, for example).
+ * Send attempts recorded in this chat inside the rate-limit window. Every state
+ * counts, including pending, unknown and error: those are exactly what a
+ * runaway loop piles up when the host hiccups or when every attempt is rejected
+ * (a MarkdownV2 escape the model keeps getting wrong, for example).
+ *
+ * The scope is the internal chat that owns this conversation, not a Telegram
+ * chat id, so a host without a wire is limited by exactly the same rule.
  */
 function recentSendCount(environment: SendToolEnvironment, now: Date): number {
   const since = new Date(now.getTime() - environment.sendRateLimit.windowSeconds * 1_000).toISOString();
   const row = environment.store.orm
     .all<{ count: bigint }>(
       sql`SELECT COUNT(*) AS count
-       FROM telegram_sends ts
+       FROM host_sends ts
        JOIN conversations v ON v.id = ts.conversation_id
-       JOIN chats c ON c.id = v.chat_id
-       WHERE c.telegram_chat_id = ${environment.context.chatId}
+       WHERE v.chat_id = (SELECT owner.chat_id FROM conversations owner WHERE owner.id = ${environment.context.conversationId})
          AND ts.created_at >= ${since}`,
     )
     .at(0);
@@ -1142,7 +1216,7 @@ function recordRejectedSend(
 
 function recordOutgoingMessage(
   environment: SendToolEnvironment,
-  response: TelegramSendResponse,
+  delivered: ImDeliveredMessage,
   input: SendToolInput,
   stickerFileId: string | null,
   conversationId: bigint,
@@ -1190,10 +1264,10 @@ function recordOutgoingMessage(
     .values({
       conversationId,
       chatId: chat.id,
-      telegramMessageId: BigInt(response.message_id),
+      telegramMessageId: delivered.messageId,
       visible: true,
       sentByBot: true,
-      telegramDate: new Date(response.date * 1000).toISOString(),
+      telegramDate: new Date(delivered.sentAtSeconds * 1000).toISOString(),
       receivedAt: recordedAt,
     })
     .returning({ id: messages.id })
@@ -1214,7 +1288,7 @@ function recordOutgoingMessage(
       replyToMessageId: input.reply_to_message_id === undefined ? null : BigInt(input.reply_to_message_id),
       createdAt: recordedAt,
       rawFragmentJson: JSON.stringify({
-        message_id: response.message_id,
+        message_id: Number(delivered.messageId),
         kind: input.kind,
         ...(input.kind === 'image' ? { generation_id: input.image_generation_id } : {}),
       }),
@@ -1226,23 +1300,21 @@ function recordOutgoingMessage(
   }
   const revisionId = createdRevision.id;
   environment.store.orm.update(messages).set({ currentRevisionId: revisionId }).where(eq(messages.id, messageId)).run();
-  if (input.kind === 'image' && response.photo !== undefined && response.photo.length > 0) {
-    const largest = response.photo[response.photo.length - 1];
-    if (largest !== undefined) {
-      environment.store.orm
-        .insert(media)
-        .values({
-          revisionId,
-          kind: 'photo',
-          fileId: largest.file_id,
-          fileUniqueId: largest.file_unique_id,
-          mimeType: 'image/jpeg',
-          width: BigInt(largest.width),
-          height: BigInt(largest.height),
-          telegramJson: JSON.stringify({ sent: true, generated: true }),
-        })
-        .run();
-    }
+  const sentPhoto = delivered.photo;
+  if (input.kind === 'image' && sentPhoto !== undefined) {
+    environment.store.orm
+      .insert(media)
+      .values({
+        revisionId,
+        kind: 'photo',
+        fileId: sentPhoto.fileRef,
+        fileUniqueId: sentPhoto.fileUniqueRef,
+        mimeType: 'image/jpeg',
+        width: BigInt(sentPhoto.width),
+        height: BigInt(sentPhoto.height),
+        telegramJson: JSON.stringify({ sent: true, generated: true }),
+      })
+      .run();
   }
   if (input.kind === 'sticker' && stickerFileId !== null) {
     const sticker = environment.store.orm

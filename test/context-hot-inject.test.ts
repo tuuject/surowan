@@ -10,6 +10,7 @@ import {
   type MutableModels,
 } from '@earendil-works/pi-ai';
 import type { Update } from 'grammy/types';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import type { FileConfig, RawConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { RuntimeConfigurationStore, InvocationConfigSnapshot } from '../src/platform/runtime-config.ts';
@@ -22,9 +23,18 @@ import { InvocationQueueService } from '../src/orchestration/invocation-queue.ts
 import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
-import { MentionTyping } from '../src/capabilities/mention-typing.ts';
-import { SEND_BARRIER_TEXT, type TelegramSendApi } from '../src/capabilities/send-tool.ts';
-import { fauxRegistry, sleep, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { SEND_BARRIER_TEXT } from '../src/capabilities/send-tool.ts';
+import { identityConversation } from '../src/platform/im-host.ts';
+import type { TelegramHost } from '../src/adapters/local-monolith/telegram-host.ts';
+import {
+  fauxRegistry,
+  sleep,
+  testConfigJsonc,
+  testConfigStore,
+  testTelegramHost,
+  testTelegramRuntime,
+  writeTestConfig,
+} from './helpers.ts';
 
 const directories: string[] = [];
 const CHAT_ID = 123456789;
@@ -43,9 +53,9 @@ interface Fixture {
   readonly fileConfig: FileConfig;
   readonly conversationRuntime: ConversationRuntime;
   readonly ingestion: TelegramIngestion;
-  readonly sendApi: TelegramSendApi;
+  readonly sendApi: TelegramTransport;
+  readonly host: TelegramHost;
   readonly typingSignals: AbortSignal[];
-  readonly mentionTyping: MentionTyping;
   /** Builds a runtime over a fresh faux provider, mirroring the composition root. */
   runtimeWith(
     faux: ReturnType<typeof fauxProvider>,
@@ -84,17 +94,20 @@ async function fixture(transform?: (config: FileConfig) => void): Promise<Fixtur
   // with the bot message the previous send recorded.
   let nextMessageId = SEND_MESSAGE_ID;
   const typingSignals: AbortSignal[] = [];
-  const sendApi: TelegramSendApi = {
+  const sendApi: TelegramTransport = {
     sendTyping: async (_chatId, _threadId, signal) => {
       typingSignals.push(signal);
     },
     sendMessage: async () => ({ message_id: nextMessageId++, date: 1_700_000_100, chat: { id: CHAT_ID } }),
     sendSticker: async () => ({ message_id: nextMessageId++, date: 1_700_000_100, chat: { id: CHAT_ID } }),
   };
-  const mentionTyping = new MentionTyping(sendApi);
   const conversationRuntime = new ConversationRuntime({
     agentCacheSize: () => loaded.config.agent!.context!.agent_cache_size,
   });
+  // One host for the runtime and for the test, so a test drives the very same
+  // activity map the runtime does.
+  const host = testTelegramHost(sendApi);
+  const { conversation } = testTelegramRuntime(sendApi);
   const build = async (
     faux: ReturnType<typeof fauxProvider>,
     overrides: { readonly systemPrompt?: string; readonly registryModelId?: string } = {},
@@ -110,8 +123,9 @@ async function fixture(transform?: (config: FileConfig) => void): Promise<Fixtur
       store,
       configStore: runtimeConfigStore,
       secrets: new SecretStore(),
-      telegramApi: sendApi,
-      mentionTyping,
+      hosts: { telegram: host },
+      conversation,
+
       bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
       systemResources: emptySystemResources(),
       conversationRuntime,
@@ -126,8 +140,8 @@ async function fixture(transform?: (config: FileConfig) => void): Promise<Fixtur
     conversationRuntime,
     ingestion: new TelegramIngestion(store, configStore, { id: 999 }),
     sendApi,
+    host,
     typingSignals,
-    mentionTyping,
     runtimeWith: async (faux, overrides = {}) => (await build(faux, overrides)).runtime,
     runtimeAndSnapshot: (faux, overrides = {}) => build(faux, overrides),
   };
@@ -204,14 +218,26 @@ describe('long-lived invocation', () => {
     const service = new InvocationQueueService(f.store, f.configStore, f.conversationRuntime);
     try {
       f.ingestion.ingest(update(1, 10, 'hello'), new Date());
-      f.mentionTyping.start(String(CHAT_ID), 0n);
+      f.host.activity.start(
+        {
+          conversation: identityConversation(
+            { chatId: BigInt(CHAT_ID), threadId: 0n, conversationId: 1n },
+            'telegram',
+            'private',
+          ),
+          policy: f.host.policy(
+            identityConversation({ chatId: BigInt(CHAT_ID), threadId: 0n, conversationId: 1n }, 'telegram', 'private'),
+          ),
+        },
+        'until_delivery',
+      );
       await until(() => f.typingSignals.length === 1, 'mention status shown at ingestion');
       expect(f.typingSignals[0]!.aborted).toBe(false);
       const [id] = service.processDue(new Date());
       expect((await runtime.run(id!, snapshot, new AbortController().signal)).state).toBe('completed');
       expect(f.typingSignals[0]!.aborted).toBe(true);
     } finally {
-      f.mentionTyping.stopAll();
+      f.host.activity.stopAll();
       f.store.close();
     }
   });
@@ -960,7 +986,7 @@ describe('long-lived invocation', () => {
       expect(closingTools).toEqual([['send', 'send_reply']]);
       expect(
         fixtureSetup.store.db
-          .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM telegram_sends WHERE state = 'success'")
+          .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM host_sends WHERE state = 'success'")
           .get()?.count,
       ).toBe(1n);
       expect(
@@ -1389,9 +1415,7 @@ describe('send barrier', () => {
         { state: 'success', error_code: null },
       ]);
       expect(botTexts(store)).toEqual(['combined answer']);
-      expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM telegram_sends').get()?.count).toBe(
-        1n,
-      );
+      expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count).toBe(1n);
       // The follow-up joined the running invocation as its own injected batch.
       expect(
         store.db

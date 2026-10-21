@@ -13,16 +13,14 @@ import {
 } from '@earendil-works/pi-ai';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { capability, createExecuteTool, type ExecutableCapability } from '../capabilities/execute-tool.ts';
-import type { MentionTyping } from '../capabilities/mention-typing.ts';
 import { createReadTool } from '../capabilities/read-tool.ts';
 import {
   createSendTools,
   DUPLICATE_SEND_REJECTION_LIMIT,
   duplicateSendGuard,
   SEND_TOOL_NAMES,
-  type TelegramSendApi,
 } from '../capabilities/send-tool.ts';
-import { createTyping } from '../capabilities/typing.ts';
+import { createTyping } from '../capabilities/typing-tool.ts';
 import { ContextBuilder, type ContextIdentity, type Injection, type StablePrompt } from '../context/context-builder.ts';
 import { encodeContextMessage, estimateMessageTokens } from '../context/context-codec.ts';
 import { type ContextGcPlan, isRenderable, planContextGc } from '../context/context-gc.ts';
@@ -35,8 +33,9 @@ import {
   completeAgentSettings,
   configuredToolSchemaKeywords,
   type RawConfig,
-  resolveAgentSettings,
 } from '../platform/config.ts';
+import { hostExecutionProfile } from '../platform/host-profile.ts';
+import type { HostKind, ImConversationRef, ImHost } from '../platform/im-host.ts';
 import {
   type CapabilityRefResolver,
   type InvocationContext,
@@ -47,7 +46,12 @@ import {
 import { serializeModelRequestForAudit } from '../platform/model-request-audit.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import type { SecretStore } from '../platform/secrets.ts';
-import type { SystemResources, SystemSkill } from '../platform/system-resources.ts';
+import {
+  scopedSystemResources,
+  type SkillVisibilityTarget,
+  type SystemResources,
+  type SystemSkill,
+} from '../platform/system-resources.ts';
 import { applyToolSchemaKeywords } from '../platform/tool-schema.ts';
 import {
   agentMessages,
@@ -67,7 +71,6 @@ import {
   readDailyTokenBudget,
 } from '../store/sleep.ts';
 import type { BusinessStore } from '../store/store.ts';
-import { resolveChatConfig } from '../store/store.ts';
 import { createToolAudit } from '../store/tool-audit.ts';
 import { type CachedConversationAgent, ConversationRuntime } from './conversation-runtime.ts';
 import { attachBucketToInvocation } from './invocation-queue.ts';
@@ -95,9 +98,22 @@ export interface AgentRuntimeOptions {
   readonly store: BusinessStore;
   readonly configStore: RuntimeConfigurationStore;
   readonly secrets: SecretStore;
-  readonly telegramApi: TelegramSendApi;
-  /** Status started at ingestion for @-mentions; the runtime ends it when a round ends. */
-  readonly mentionTyping?: MentionTyping;
+  /**
+   * The hosts this runtime may carry deliveries and chat actions for, by host
+   * kind. A single-host process passes one entry; a shared process passes every
+   * host it assembled. An invocation whose host is missing fails with a clear
+   * error instead of delivering through the wrong transport.
+   */
+  readonly hosts: Readonly<Partial<Record<HostKind, ImHost>>>;
+  /**
+   * Resolves the conversation a delivery targets, from server state. The runtime
+   * never builds a chat route itself.
+   */
+  readonly conversation: (target: {
+    readonly chatId: bigint;
+    readonly threadId: bigint;
+    readonly conversationId: bigint;
+  }) => ImConversationRef;
   readonly bot: { readonly id: bigint; readonly displayName: string; readonly username: string | null };
   /** The bundled system:/// resource tree: read primitive backend plus skill index. */
   readonly systemResources: SystemResources;
@@ -106,13 +122,20 @@ export interface AgentRuntimeOptions {
   /** Runtime-internal capabilities dispatched through the execute primitive. */
   readonly capabilityTools?: CapabilityToolFactory;
   /** Per-invocation skill visibility rule; hides skills of disabled capabilities. */
-  readonly skillVisibility?: (skill: SystemSkill) => boolean;
+  readonly skillVisibility?: (skill: SystemSkill, target: SkillVisibilityTarget) => boolean;
   /** Resolves generated pictures for the send tool; absent without image generation. */
   readonly imageGeneration?: {
     readonly resolve: (
       generationId: string,
       conversationId: bigint,
-    ) => readonly { readonly assetId: string; readonly bytes: Uint8Array; readonly fileName: string }[] | undefined;
+    ) =>
+      | readonly {
+          readonly assetId: string;
+          readonly bytes: Uint8Array;
+          readonly fileName: string;
+          readonly mime: string;
+        }[]
+      | undefined;
   };
   /** Directly exposed non-primitive tools (allowlisted MCP tools). */
   readonly additionalTools?: ToolFactory;
@@ -175,13 +198,13 @@ export class AgentRuntime {
   readonly #store: BusinessStore;
   readonly #configStore: RuntimeConfigurationStore;
   readonly #secrets: SecretStore;
-  readonly #telegramApi: TelegramSendApi;
-  readonly #mentionTyping: MentionTyping | undefined;
+  readonly #hosts: Readonly<Partial<Record<HostKind, ImHost>>>;
+  readonly #conversation: AgentRuntimeOptions['conversation'];
   readonly #bot: AgentRuntimeOptions['bot'];
   readonly #systemResources: SystemResources;
   readonly #capabilityTools: CapabilityToolFactory | undefined;
   /** Per-invocation skill visibility; used to hide disabled capability skills. */
-  readonly #skillVisibility: ((skill: SystemSkill) => boolean) | undefined;
+  readonly #skillVisibility: ((skill: SystemSkill, target: SkillVisibilityTarget) => boolean) | undefined;
   readonly #additionalTools: ToolFactory | undefined;
   readonly #directImageLoader: DirectImageLoader | undefined;
   readonly #modelGate: KeyedSemaphore;
@@ -194,7 +217,14 @@ export class AgentRuntime {
         readonly resolve: (
           generationId: string,
           conversationId: bigint,
-        ) => readonly { readonly assetId: string; readonly bytes: Uint8Array; readonly fileName: string }[] | undefined;
+        ) =>
+          | readonly {
+              readonly assetId: string;
+              readonly bytes: Uint8Array;
+              readonly fileName: string;
+              readonly mime: string;
+            }[]
+          | undefined;
       }
     | undefined;
   readonly #conversationRuntime: ConversationRuntime;
@@ -204,8 +234,8 @@ export class AgentRuntime {
     this.#store = options.store;
     this.#secrets = options.secrets;
     this.#configStore = options.configStore;
-    this.#telegramApi = options.telegramApi;
-    this.#mentionTyping = options.mentionTyping;
+    this.#hosts = options.hosts;
+    this.#conversation = options.conversation;
     this.#bot = options.bot;
     this.#systemResources = options.systemResources;
     this.#capabilityTools = options.capabilityTools;
@@ -232,6 +262,15 @@ export class AgentRuntime {
     return this.#conversationRuntime;
   }
 
+  /** The host bound to one kind of conversation, or a clear failure. */
+  #hostFor(kind: HostKind): ImHost {
+    const host = this.#hosts[kind];
+    if (host === undefined) {
+      throw new Error(`no "${kind}" host is bound to this process`);
+    }
+    return host;
+  }
+
   /**
    * Checks the per-invocation tool registry against a model's context window.
    * The model is passed in because the caller resolves it: `/model` switches and
@@ -242,7 +281,8 @@ export class AgentRuntime {
     const config = this.#configStore.current().config;
     const { send, sendReply } = createSendTools({
       store: this.#store,
-      api: this.#telegramApi,
+      host: this.#hostFor(context.hostKind),
+      conversation: this.#conversation(context),
       context,
       capabilities: this.#staticCapabilities,
       sendRateLimit: this.#sendRateLimit(config),
@@ -277,7 +317,14 @@ export class AgentRuntime {
     const deadline = Number.MAX_SAFE_INTEGER;
     const capabilities = [
       capability(
-        createTyping(this.#telegramApi, context.chatId.toString(), context.threadId, new AbortController().signal).tool,
+        createTyping(
+          this.#hostFor(context.hostKind).activity,
+          {
+            conversation: this.#conversation(context),
+            policy: this.#hostFor(context.hostKind).policy(this.#conversation(context)),
+          },
+          new AbortController().signal,
+        ).tool,
         false,
       ),
       ...(this.#capabilityTools?.(context, deadline, resolver) ?? []),
@@ -289,7 +336,12 @@ export class AgentRuntime {
         deadline,
         resolver,
         capabilities,
-        isLowDailyTokenBudget(readDailyTokenBudget(this.#store.orm, config.agent.daily_budget.max_tokens))
+        hostExecutionProfile(context.hostKind).sleep &&
+          isLowDailyTokenBudget(
+            readDailyTokenBudget(this.#store.orm, config.agent.daily_budget.max_tokens, {
+              scope: hostExecutionProfile(context.hostKind).budgetScope,
+            }),
+          )
           ? createZzzTool({
               orm: this.#store.orm,
               invocationId: context.invocationId,
@@ -314,7 +366,8 @@ export class AgentRuntime {
   ): readonly AgentTool[] {
     const { send, sendReply } = createSendTools({
       store: this.#store,
-      api: this.#telegramApi,
+      host: this.#hostFor(target.hostKind),
+      conversation: this.#conversation(target),
       context: target,
       capabilities,
       sendRateLimit: this.#sendRateLimit(config),
@@ -327,8 +380,15 @@ export class AgentRuntime {
       ...(holdForNewMessages === undefined ? {} : { holdForNewMessages }),
       ...(this.#imageGeneration === undefined ? {} : { imageGeneration: this.#imageGeneration }),
     });
+    const skillVisibility = this.#skillVisibility;
+    const resources =
+      skillVisibility === undefined
+        ? this.#systemResources
+        : scopedSystemResources(this.#systemResources, (skill) =>
+            skillVisibility(skill, { hostKind: target.hostKind, conversationId: target.conversationId }),
+          );
     return [
-      createReadTool({ store: this.#store, context: target, resources: this.#systemResources }),
+      createReadTool({ store: this.#store, context: target, resources }),
       send,
       sendReply,
       createExecuteTool({
@@ -373,13 +433,11 @@ export class AgentRuntime {
     // instead of silently falling back.
     const config = snapshot.config;
     const identity = this.#contextBuilder.identity(config, invocationId);
-    const chat = resolveChatConfig(config, this.#store.orm, identity.chatId);
-    if (chat === undefined) {
-      throw new Error(`Invocation chat ${identity.chatId} is no longer configured`);
-    }
-    // The queue gates on the same check, but a reload may have dropped the
-    // identity triple between queuing and launch; abort instead of erroring.
-    const settings = completeAgentSettings(resolveAgentSettings(config, chat));
+    // The host resolved this policy once, when the run started. Reading it back
+    // here keeps a Telegram chat entry and a room on the same code path. The
+    // queue gates on the same check, but a reload may have dropped the identity
+    // triple between queuing and launch; abort instead of erroring.
+    const settings = completeAgentSettings(identity.policy.agent);
     if (settings === undefined) {
       return { state: 'aborted', reason: 'agent_unconfigured' };
     }
@@ -400,7 +458,15 @@ export class AgentRuntime {
         provider: model.provider,
         model: model.id,
       },
-      this.#skillVisibility === undefined ? undefined : { skillFilter: this.#skillVisibility },
+      this.#skillVisibility === undefined
+        ? undefined
+        : {
+            skillFilter: (skill: SystemSkill) =>
+              this.#skillVisibility?.(skill, {
+                hostKind: identity.hostKind,
+                conversationId: identity.conversationId,
+              }) ?? true,
+          },
     );
     const opened = this.#contexts.open(identity.conversationId, stable.systemPromptHash);
     const header = opened.header;
@@ -417,11 +483,20 @@ export class AgentRuntime {
     const contextState = new InvocationContextState({
       invocationId,
       conversationId: identity.conversationId,
+      hostKind: identity.hostKind,
       chatId: identity.chatId,
       threadId: identity.threadId,
       completion: identity.completion,
     });
-    const bypassDailyBudget = (): boolean => contextState.completion?.delivery.bypassDailyBudget === true;
+    // The host profile decides what this identity may reach. Nothing below
+    // falls back to the Telegram defaults when the host is the Playground.
+    const profile = hostExecutionProfile(identity.hostKind);
+    const bypassDailyBudget = (): boolean =>
+      profile.budgetBypass && contextState.completion?.delivery.bypassDailyBudget === true;
+    const dailyBudget = (): DailyTokenBudget =>
+      readDailyTokenBudget(this.#store.orm, this.#configStore.current().config.agent.daily_budget.max_tokens, {
+        scope: profile.budgetScope,
+      });
     contextState.setSystemPrompt(stable.systemPrompt);
     const capabilities = this.#capabilitiesFor(header);
     const state: RunState = {
@@ -439,19 +514,18 @@ export class AgentRuntime {
       stopReason: 'completed',
     };
     const repeatedFailure = new RepeatedToolFailure();
-    const zzz = createZzzTool({
-      orm: this.#store.orm,
-      invocationId,
-      chatId: identity.chatId,
-      onSleep: () => {
-        state.sleepRequested = true;
-      },
-    });
-    const initialBudget = readDailyTokenBudget(
-      this.#store.orm,
-      this.#configStore.current().config.agent.daily_budget.max_tokens,
-    );
-    let zzzExposed = !bypassDailyBudget() && isLowDailyTokenBudget(initialBudget);
+    const zzz = profile.sleep
+      ? createZzzTool({
+          orm: this.#store.orm,
+          invocationId,
+          chatId: identity.chatId,
+          onSleep: () => {
+            state.sleepRequested = true;
+          },
+        })
+      : undefined;
+    const initialBudget = dailyBudget();
+    let zzzExposed = zzz !== undefined && !bypassDailyBudget() && isLowDailyTokenBudget(initialBudget);
     if (zzzExposed) {
       this.#logZzzExposure(invocationId, identity.chatId, initialBudget);
     }
@@ -518,7 +592,16 @@ export class AgentRuntime {
       );
       return true;
     };
-    const typing = createTyping(this.#telegramApi, identity.chatId.toString(), identity.threadId, signal);
+    const typingConversation = this.#conversation({
+      chatId: identity.chatId,
+      threadId: identity.threadId,
+      conversationId: identity.conversationId,
+    });
+    const typing = createTyping(
+      this.#hostFor(identity.hostKind).activity,
+      { conversation: typingConversation, policy: this.#hostFor(identity.hostKind).policy(typingConversation) },
+      signal,
+    );
     const executableCapabilities = [
       capability(typing.tool, false),
       ...(this.#capabilityTools?.(contextState, deadline, capabilities) ?? []),
@@ -639,9 +722,7 @@ export class AgentRuntime {
         bucketId,
         seq: header.nextSeq,
         injectedMessageIds: collectTranscriptMessageIds(agent.state.messages),
-        sleepy: isLowDailyTokenBudget(
-          readDailyTokenBudget(this.#store.orm, this.#configStore.current().config.agent.daily_budget.max_tokens),
-        ),
+        sleepy: profile.sleep && isLowDailyTokenBudget(dailyBudget()),
         supportsImages,
         contextWindow: model.contextWindow,
         toolDefinitionCharacters,
@@ -716,7 +797,7 @@ export class AgentRuntime {
      */
     const freeAgent = (): void => {
       typing.stop();
-      this.#mentionTyping?.stop(identity.chatId.toString(), identity.threadId);
+      this.#hostFor(identity.hostKind).activity.stop(this.#conversation(identity));
       runtime.endRound(conversationId);
       state.barrierSpent = false;
       this.#deferCollectingBucket(config, conversationId, Date.now());
@@ -731,16 +812,11 @@ export class AgentRuntime {
     };
 
     agent.streamFunction = async (streamModel, modelContext, options) => {
-      if (
-        !bypassDailyBudget() &&
-        isDailyTokenBudgetReached(
-          readDailyTokenBudget(this.#store.orm, this.#configStore.current().config.agent.daily_budget.max_tokens),
-        )
-      ) {
+      if (!bypassDailyBudget() && isDailyTokenBudgetReached(dailyBudget())) {
         state.modelBudgetBlocked = true;
         return errorStream(streamModel, 'daily_token_budget');
       }
-      const release = await this.#modelGate.acquire(identity.chatId.toString(), signal);
+      const release = await this.#modelGate.acquire(identity.policy.gateKey, signal);
       // Per-request visibility audit: the exact tool names this llmContext
       // carried (the loop can trim tools to send-only near the context limit).
       // pi 1.x carries the declarations in the transcript's system messages.
@@ -784,7 +860,7 @@ export class AgentRuntime {
               // that crossed `hard_token_ratio` on turn count alone, so GC threw
               // away live history and the run then ended as `context_limit`.
               state.estimatedInputTokens = Math.max(state.estimatedInputTokens, message.usage.input);
-              this.#finishModelCall(callId, identity.chatId, message);
+              this.#finishModelCall(callId, identity.chatId, message, profile.budgetScope);
             },
             (error) => this.#failModelCall(callId, 'stream_rejected', error),
           )
@@ -800,18 +876,13 @@ export class AgentRuntime {
     agent.beforeToolCall = async ({ toolCall }) => {
       if (
         toolCall.name !== 'zzz' &&
+        profile.sleep &&
         !bypassDailyBudget() &&
         (state.sleepRequested || activeSleepUntil(this.#store.orm) !== null)
       ) {
         return { block: true, reason: 'The bot is sleeping', terminate: true };
       }
-      if (
-        toolCall.name === 'zzz' &&
-        (bypassDailyBudget() ||
-          !isLowDailyTokenBudget(
-            readDailyTokenBudget(this.#store.orm, this.#configStore.current().config.agent.daily_budget.max_tokens),
-          ))
-      ) {
+      if (toolCall.name === 'zzz' && (bypassDailyBudget() || !isLowDailyTokenBudget(dailyBudget()))) {
         return { block: true, reason: 'You are no longer sleepy' };
       }
       // Audit-only counter: there is no per-invocation tool-call cap. Runaway
@@ -826,17 +897,14 @@ export class AgentRuntime {
       return undefined;
     };
     const refreshZzz = (turnContext: AgentContext): boolean => {
-      const budget = readDailyTokenBudget(
-        this.#store.orm,
-        this.#configStore.current().config.agent.daily_budget.max_tokens,
-      );
+      const budget = dailyBudget();
       const shouldExposeZzz = !bypassDailyBudget() && isLowDailyTokenBudget(budget);
       if (shouldExposeZzz === zzzExposed) {
         return false;
       }
       zzzExposed = shouldExposeZzz;
       const nextTools = (turnContext.tools ?? tools).filter((tool) => tool.name !== 'zzz');
-      if (shouldExposeZzz) {
+      if (shouldExposeZzz && zzz !== undefined) {
         nextTools.push(zzz);
         this.#logZzzExposure(invocationId, identity.chatId, budget);
         state.estimatedInputTokens += Math.ceil(estimateToolDefinitionCharacters(zzz) / 4);
@@ -915,15 +983,14 @@ export class AgentRuntime {
         // Error and aborted responses are hard exits; pi ignores the decision.
         return undefined;
       }
-      if (!bypassDailyBudget() && (state.sleepRequested || activeSleepUntil(this.#store.orm) !== null)) {
+      if (
+        profile.sleep &&
+        !bypassDailyBudget() &&
+        (state.sleepRequested || activeSleepUntil(this.#store.orm) !== null)
+      ) {
         return stop('sleep');
       }
-      if (
-        !bypassDailyBudget() &&
-        isDailyTokenBudgetReached(
-          readDailyTokenBudget(this.#store.orm, this.#configStore.current().config.agent.daily_budget.max_tokens),
-        )
-      ) {
+      if (!bypassDailyBudget() && isDailyTokenBudgetReached(dailyBudget())) {
         return stop('budget');
       }
       if (state.contextClosing) {
@@ -968,11 +1035,8 @@ export class AgentRuntime {
         contextState.finishCompletion();
         refreshZzz(turn.context);
         if (
-          state.sleepRequested ||
-          activeSleepUntil(this.#store.orm) !== null ||
-          isDailyTokenBudgetReached(
-            readDailyTokenBudget(this.#store.orm, this.#configStore.current().config.agent.daily_budget.max_tokens),
-          )
+          (profile.sleep && (state.sleepRequested || activeSleepUntil(this.#store.orm) !== null)) ||
+          isDailyTokenBudgetReached(dailyBudget())
         ) {
           return stop('completed');
         }
@@ -1100,7 +1164,7 @@ export class AgentRuntime {
       }
     } finally {
       typing.stop();
-      this.#mentionTyping?.stop(identity.chatId.toString(), identity.threadId);
+      this.#hostFor(identity.hostKind).activity.stop(this.#conversation(identity));
       signal.removeEventListener('abort', abortAgent);
       unsubscribe();
       // The cached agent keeps its transcript on purpose: the next invocation
@@ -1529,7 +1593,7 @@ export class AgentRuntime {
     }
   }
 
-  #finishModelCall(callId: bigint, chatId: bigint, message: AssistantMessage): void {
+  #finishModelCall(callId: bigint, chatId: bigint, message: AssistantMessage, scope: 'chat' | 'playground'): void {
     this.#store.transaction(() => {
       const usage = message.usage;
       const now = new Date().toISOString();
@@ -1554,7 +1618,7 @@ export class AgentRuntime {
         .insert(dailyUsage)
         .values({
           utcDate: now.slice(0, 10),
-          scope: 'chat',
+          scope,
           resource: chatId.toString(),
           metric: 'model_tokens',
           amount: meteredTokens(usage),

@@ -101,18 +101,19 @@ export class ContextRefStore {
   }
 
   /**
-   * Reply target for one visible Telegram message. The ref token is derived from
-   * the Telegram message ID, so `send` can validate a `reply_to_message_id`
-   * without a client-side lookup table.
+   * Reply target for one visible message. `visibleRef` is whatever the host
+   * showed the model; it is treated as an opaque token, so a room can use an
+   * internal message id while Telegram keeps its numeric message id. The
+   * authorization is the target recorded here, never the token's shape.
    */
   replyRef(
     header: ContextHeader,
-    telegramMessageId: bigint,
+    visibleRef: string,
     target: { readonly conversationId: bigint; readonly threadId: bigint },
     sourceSeq: bigint,
     now = new Date(),
   ): string {
-    const ref = replyRefFor(telegramMessageId);
+    const ref = replyRefFor(visibleRef);
     this.#store.orm
       .insert(contextRefs)
       .values({
@@ -217,8 +218,8 @@ export class ContextRefStore {
   }
 }
 
-export function replyRefFor(telegramMessageId: bigint): string {
-  return `reply:${telegramMessageId.toString()}`;
+export function replyRefFor(visibleRef: string): string {
+  return `reply:${visibleRef}`;
 }
 
 /**
@@ -234,8 +235,10 @@ export function createCapabilityResolver(
   return {
     resolveMedia: (ref) => refs.resolve(header, ref, 'media', now())?.mediaId ?? undefined,
     resolveStickerRef: (ref) => refs.resolve(header, ref, 'sticker', now())?.stickerFileId ?? undefined,
-    resolveReplyTarget: (messageId) => {
-      const resolved = refs.resolve(header, replyRefFor(BigInt(messageId)), 'reply', now());
+    // The ref is opaque: core never parses a Telegram or room id out of it.
+    // Whether the host issued numeric ids is the host's business.
+    resolveReplyTarget: (ref) => {
+      const resolved = refs.resolve(header, replyRefFor(ref), 'reply', now());
       const conversationId = resolved?.targetConversationId;
       const threadId = resolved?.targetThreadId;
       if (conversationId === undefined || conversationId === null || threadId === undefined || threadId === null) {

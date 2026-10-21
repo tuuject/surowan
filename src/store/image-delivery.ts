@@ -1,18 +1,27 @@
 import { sql } from 'drizzle-orm';
 import type { Orm } from './store.ts';
-import { telegramSends } from './schema.ts';
+import { hostSends } from './schema.ts';
 
-/** Telegram audit is the delivery ledger, including attempts interrupted by a restart. */
+/** The delivery ledger is the audit, including attempts interrupted by a restart. */
 export function imageDeliveryState(orm: Orm, conversationId: bigint, generationId: string) {
   const rows = orm.all<{
     asset_id: string | null;
     state: string;
-    telegram_message_id: bigint | null;
+    message_ref: bigint | null;
     unknown_assets: bigint;
   }>(sql`
-    SELECT asset.value AS asset_id, s.state, s.telegram_message_id,
+    SELECT asset.value AS asset_id, s.state,
+      -- A wire host reports the message it published; a virtual host publishes
+      -- one itself and records it under its own column. Either names the
+      -- delivered message. The local link is cleared when retention deletes
+      -- that message, so the receipt keeps naming it after that.
+      COALESCE(
+        s.telegram_message_id,
+        s.message_id,
+        CAST(json_extract(s.response_json, '$.message_id') AS INTEGER)
+      ) AS message_ref,
       COALESCE(json_extract(s.request_json, '$.asset_ids_unknown'), 0) AS unknown_assets
-    FROM ${telegramSends} s
+    FROM ${hostSends} s
     LEFT JOIN json_each(s.request_json, '$.asset_ids') asset ON asset.type = 'text'
     WHERE s.conversation_id = ${conversationId} AND s.kind = 'image'
       AND json_extract(s.request_json, '$.generation_id') = ${generationId}
@@ -27,8 +36,8 @@ export function imageDeliveryState(orm: Orm, conversationId: bigint, generationI
       unknownAssets = true;
       continue;
     }
-    if (row.state === 'success' && row.telegram_message_id !== null) {
-      delivered.set(row.asset_id, row.telegram_message_id.toString());
+    if (row.state === 'success' && row.message_ref !== null) {
+      delivered.set(row.asset_id, row.message_ref.toString());
     } else {
       uncertain.add(row.asset_id);
     }

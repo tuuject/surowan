@@ -11,14 +11,19 @@ import { createDictionaryInjector } from './injection.ts';
  */
 export default definePlugin({
   id: 'dictionary',
+  hosts: ['telegram'],
   skills: [join(import.meta.dirname, 'skills', 'dictionary')],
   capabilities: (scope) =>
-    createDictionaryTools({
-      store: new DictionaryStore(scope.orm),
-      orm: scope.orm,
-      invocationId: scope.context.invocationId,
-      chatId: scope.context.chatId,
-      privateChat: scope.context.chatId > 0n,
-    }).map((tool) => capability(tool, true)),
+    // Dictionary scopes are Telegram chats. A room's chat id is internal and
+    // must never be read as one, so the tools are not offered to a room.
+    scope.context.hostKind === 'telegram'
+      ? createDictionaryTools({
+          store: new DictionaryStore(scope.orm),
+          orm: scope.orm,
+          invocationId: scope.context.invocationId,
+          chatId: scope.context.chatId,
+          privateChat: scope.context.chatId > 0n,
+        }).map((tool) => capability(tool, true))
+      : [],
   contextInjectors: [createDictionaryInjector()],
 });

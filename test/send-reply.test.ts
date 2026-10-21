@@ -4,18 +4,20 @@ import { join } from 'node:path';
 import { GrammyError } from 'grammy';
 import type { Update } from 'grammy/types';
 import { afterAll, describe, expect, test } from 'vitest';
-import { createSendTools, type TelegramSendApi } from '../src/capabilities/send-tool.ts';
+import { createSendTools } from '../src/capabilities/send-tool.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import type { RawConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import {
   invocationCapabilities,
   renderInvocationContext,
-  type TestInvocationContext,
   testConfigJsonc,
   testConfigStore,
+  testSendToolEnv,
+  type TestInvocationContext,
   writeTestConfig,
 } from './helpers.ts';
 
@@ -87,13 +89,13 @@ interface RecordedCall {
   readonly replyTo: number | undefined;
 }
 
-interface RecordingApi extends TelegramSendApi {
+interface RecordingApi extends TelegramTransport {
   readonly calls: RecordedCall[];
 }
 
 function recordingApi(failMessageText?: string): RecordingApi {
   const calls: RecordedCall[] = [];
-  const respond = (call: RecordedCall): Awaited<ReturnType<TelegramSendApi['sendMessage']>> => {
+  const respond = (call: RecordedCall): Awaited<ReturnType<TelegramTransport['sendMessage']>> => {
     calls.push(call);
     return { message_id: 500 + calls.length, date: 1_700_000_100 + calls.length, chat: { id: 123456789 } };
   };
@@ -117,13 +119,13 @@ function recordingApi(failMessageText?: string): RecordingApi {
 
 function makeTools(
   fixture: Fixture,
-  options: { api: TelegramSendApi; sendsPerWindow?: number; holdForNewMessages?: () => boolean },
+  options: { api: TelegramTransport; sendsPerWindow?: number; holdForNewMessages?: () => boolean },
 ): ReturnType<typeof createSendTools> & { readonly capabilities: ReturnType<typeof invocationCapabilities> } {
   const capabilities = invocationCapabilities(fixture.store, fixture.config, fixture.context.header);
   return {
     ...createSendTools({
       store: fixture.store,
-      api: options.api,
+      ...testSendToolEnv(options.api, fixture.context),
       context: fixture.context,
       capabilities,
       sendRateLimit: { sendsPerWindow: options.sendsPerWindow ?? 10, windowSeconds: 300 },
@@ -157,7 +159,7 @@ function toolAudit(store: SqliteStore): ToolCallRow[] {
 function sendAudit(store: SqliteStore): { state: string; kind: string; request_json: string }[] {
   return store.db
     .prepare<[], { state: string; kind: string; request_json: string }>(
-      'SELECT state, kind, request_json FROM telegram_sends ORDER BY id',
+      'SELECT state, kind, request_json FROM host_sends ORDER BY id',
     )
     .all();
 }

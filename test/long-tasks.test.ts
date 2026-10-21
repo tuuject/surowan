@@ -32,7 +32,7 @@ afterEach(async () => {
   }
 });
 
-async function initDb(): Promise<{ store: SqliteStore; conversationId: bigint }> {
+async function initDb(): Promise<{ store: SqliteStore; conversationId: bigint; roomConversationId: bigint }> {
   const directory = await mkdtemp(join(tmpdir(), 'plasticwan-lt-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
@@ -56,7 +56,23 @@ async function initDb(): Promise<{ store: SqliteStore; conversationId: bigint }>
     )
     .run(conversationId, chatId);
 
-  return { store, conversationId };
+  // A room conversation, for the host-scoped timer path.
+  const roomChatId = 2n;
+  store.db
+    .prepare(
+      `INSERT INTO chats(id, host_kind, telegram_chat_id, canonical_chat_id, type, updated_at)
+     VALUES (?, 'playground', NULL, NULL, 'group', '2025-01-01T00:00:00.000Z')`,
+    )
+    .run(roomChatId);
+  const roomConversationId = 201n;
+  store.db
+    .prepare(
+      `INSERT INTO conversations(id, chat_id, message_thread_id, created_at, updated_at)
+     VALUES (?, ?, 0, '2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z')`,
+    )
+    .run(roomConversationId, roomChatId);
+
+  return { store, conversationId, roomConversationId };
 }
 
 function seedInvocation(store: SqliteStore, invId: bigint, convId: bigint): void {
@@ -169,6 +185,45 @@ describe('LongTaskService', () => {
     expect(() =>
       scope.create({ payload: { n: 3 }, delivery: { bypassDailyBudget: false }, maxPerInvocation: 2 }),
     ).toThrow(TaskQuotaError);
+  });
+
+  test('a single-host instance completes only its own timers', async () => {
+    const { store, conversationId, roomConversationId } = await initDb();
+    const due = new Date(Date.now() - 60_000).toISOString();
+    seedInvocation(store, 300n, conversationId);
+    seedInvocation(store, 301n, roomConversationId);
+    const telegramChat = ctx(conversationId, { hostKind: 'telegram', invocationId: 300n });
+    const roomChat = ctx(roomConversationId, { hostKind: 'playground', invocationId: 301n });
+    const all = new LongTaskService(store.orm);
+    const telegramTask = all
+      .invocationScope('alarm', telegramChat)
+      .create({ payload: { kind: 'telegram' }, scheduledAt: due, timerResult: { kind: 'telegram' } }, new Date());
+    const roomTask = all
+      .invocationScope('alarm', roomChat, ['telegram', 'playground'])
+      .create({ payload: { kind: 'room' }, scheduledAt: due, timerResult: { kind: 'room' } }, new Date());
+
+    const roomOnly = new LongTaskService(store.orm, undefined, ['playground']);
+    expect(roomOnly.nextDeadline()).toBeDefined();
+    roomOnly.processDue(new Date());
+
+    const stateOf = (taskId: bigint) =>
+      store.orm.select({ state: longTasks.state }).from(longTasks).where(eq(longTasks.id, taskId)).get()?.state;
+    expect(stateOf(telegramTask.taskId)).toBe('waiting');
+    expect(stateOf(roomTask.taskId)).toBe('completed');
+    // The scoped path writes the same receipt payload the unscoped one does.
+    expect(
+      store.orm
+        .select({ resultJson: taskReceipts.resultJson })
+        .from(taskReceipts)
+        .where(eq(taskReceipts.taskId, roomTask.taskId))
+        .get(),
+    ).toEqual({ resultJson: JSON.stringify({ kind: 'room' }) });
+    // The filtered instance no longer advertises the Telegram timer.
+    expect(roomOnly.nextDeadline()).toBeUndefined();
+
+    // Without a filter the same service completes it, exactly as serve does.
+    all.processDue(new Date());
+    expect(stateOf(telegramTask.taskId)).toBe('completed');
   });
 
   test('quota is per plugin, not shared', async () => {

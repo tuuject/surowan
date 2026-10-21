@@ -25,10 +25,12 @@ import {
   type RawConfig,
   resolveAgentSettings,
 } from '../platform/config.ts';
+import { identityConversation, unwiredImHost } from '../platform/im-host.ts';
 import { type InvocationContext, unavailableCapabilities } from '../platform/invocation-context.ts';
+import { invocationGateKey } from '../platform/invocation-policy.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import type { SecretStore } from '../platform/secrets.ts';
-import type { SystemResources, SystemSkill } from '../platform/system-resources.ts';
+import type { SkillVisibilityTarget, SystemResources, SystemSkill } from '../platform/system-resources.ts';
 import { isThinkingLevel } from '../platform/thinking-levels.ts';
 import { applyToolSchemaKeywords } from '../platform/tool-schema.ts';
 import type { BusinessStore } from '../store/store.ts';
@@ -61,7 +63,7 @@ interface ReplayOptions {
   readonly modelGate: KeyedSemaphore;
   readonly shutdownSignal: AbortSignal;
   readonly toolDefinitions?: (context: InvocationContext, config: RawConfig) => ReplayToolRegistry;
-  readonly skillVisibility?: (skill: SystemSkill) => boolean;
+  readonly skillVisibility?: (skill: SystemSkill, target: SkillVisibilityTarget) => boolean;
   readonly imageLoader?: (mediaId: bigint, signal: AbortSignal) => Promise<ImageContent>;
 }
 
@@ -400,7 +402,7 @@ export class ReplayRunner {
           fail('turn_budget', 'Replay turn budget exhausted');
           throw new Error('Replay turn budget');
         }
-        const release = await modelGate.acquire(source.chatId.toString(), signal);
+        const release = await modelGate.acquire(invocationGateKey('telegram', source.chatId), signal);
         try {
           signal.throwIfAborted();
           turns += 1;
@@ -635,11 +637,20 @@ export class ReplayRunner {
       { provider: runtime.model.provider, model: runtime.model.id },
       {
         imageInput: 'on_demand',
-        ...(this.#options.skillVisibility === undefined ? {} : { skillFilter: this.#options.skillVisibility }),
+        ...(this.#options.skillVisibility === undefined
+          ? {}
+          : {
+              skillFilter: (skill: SystemSkill) =>
+                this.#options.skillVisibility?.(skill, {
+                  hostKind: 'telegram',
+                  conversationId: check.source.conversationId,
+                }) ?? true,
+            }),
       },
     );
     const context: InvocationContext = {
       invocationId: id,
+      hostKind: 'telegram',
       ...check.source,
       systemPrompt: stable.systemPrompt,
       userPrompt: '',
@@ -673,13 +684,13 @@ export class ReplayRunner {
   }
 
   #defaultRegistry(context: InvocationContext, config: RawConfig): ReplayToolRegistry {
-    const blocked = async (): Promise<never> => {
-      throw new Error('No production executor is wired');
-    };
     const { send, sendReply } = createSendTools({
       store: this.#options.store,
       context,
-      api: { sendMessage: blocked, sendSticker: blocked },
+      host: unwiredImHost('telegram', 'No production executor is wired'),
+      // Unused: the host above refuses every delivery, so this only has to be
+      // well-formed enough to validate tool arguments.
+      conversation: identityConversation(context, 'telegram', 'private'),
       capabilities: unavailableCapabilities(),
       sendRateLimit: { sendsPerWindow: 1, windowSeconds: 1 },
       maxTextLength: config.agent.send_max_text_length,
@@ -710,6 +721,7 @@ export class ReplayRunner {
       .select({
         state: invocations.state,
         finishedAt: invocations.finishedAt,
+        hostKind: chats.hostKind,
         chatId: chats.telegramChatId,
         conversationId: conversations.id,
         threadId: conversations.messageThreadId,
@@ -727,6 +739,16 @@ export class ReplayRunner {
         ok: false,
         code: 'replay_source_unfinished',
         message: 'Replay requires a finished invocation',
+      };
+    }
+    // Replay resolves the Telegram chat configuration, so it can only reproduce
+    // Telegram-hosted invocations. Say so explicitly instead of reading a
+    // Telegram id that a virtual row does not have.
+    if (source.hostKind !== 'telegram' || source.chatId === null) {
+      return {
+        ok: false,
+        code: 'replay_host_unsupported',
+        message: 'Replay currently supports Telegram-hosted invocations only',
       };
     }
     return {

@@ -24,7 +24,25 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { type ServerType, serve } from '@hono/node-server';
 import { and, eq, sql } from 'drizzle-orm';
+import { fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
 import { AdminServer } from '../../../src/ingress/admin/server.ts';
+import { PlaygroundAssetStore } from '../../../src/capabilities/media/local-assets.ts';
+import { PlaygroundIngress } from '../../../src/ingress/playground.ts';
+import { PlaygroundStore } from '../../../src/store/playground.ts';
+import { createHostTooling } from '../../../src/adapters/local-monolith/host-tooling.ts';
+import { createPlaygroundHost } from '../../../src/adapters/local-monolith/playground-host.ts';
+import { resolveConversation } from '../../../src/adapters/local-monolith/runtime-host.ts';
+import {
+  BUNDLED_SYSTEM_RESOURCES_DIR,
+  FileSystemResources,
+} from '../../../src/adapters/local-monolith/system-resources.ts';
+import { MediaService } from '../../../src/capabilities/media/media.ts';
+import { MemoryStore } from '../../../src/context/memory.ts';
+import { BUILTIN_PLUGINS } from '../../../src/plugins/builtin.ts';
+import { loadPlugins } from '../../../src/plugins/plugin.ts';
+import { createCoreRuntime } from '../../../src/orchestration/runtime.ts';
+import { KeyedSemaphore } from '../../../src/platform/concurrency.ts';
+import { LongTaskService } from '../../../src/store/long-tasks.ts';
 import { type LoadedConfig, loadConfig } from '../../../src/adapters/local-monolith/config.ts';
 import { ConfigReloader } from '../../../src/adapters/local-monolith/config-reload.ts';
 import { keyJarPath } from '../../../src/platform/key-jar.ts';
@@ -42,6 +60,7 @@ import { seedAdminBulkRows, seedAdminFixture } from '../../../test/fixtures/admi
 import {
   startFixtureServer,
   stopFixtureServer,
+  fauxRegistry,
   testConfigJsonc,
   writeTestConfig,
   writeTestKeyJar,
@@ -77,6 +96,63 @@ let admin: AdminServer | null = null;
 let directory = '';
 let shuttingDown = false;
 let failNextConfigApply = false;
+/** Rooms the playground specs address; the panel API owns their ids. */
+let playgroundSeed: { readonly rooms: readonly { readonly id: string; readonly title: string }[] } = { rooms: [] };
+/**
+ * What the room runtime's fake model does on its next turns. A spec scripts it
+ * before releasing a hold, so the run's output is deterministic without a real
+ * provider or network: `{ send }` publishes one message and continues,
+ * `{ text }` ends the round without publishing.
+ */
+type PlaygroundModelStep = { readonly send?: string; readonly text?: string };
+let roomRuntime: ReturnType<typeof createCoreRuntime> | null = null;
+let roomFaux: ReturnType<typeof fauxProvider> | null = null;
+let roomSchedulerStarted = false;
+let roomScriptVersion = 0;
+
+/**
+ * Starts the room scheduler on first use. Every spec file gets its own E2E
+ * server over the shared synthetic fixture; a scheduler that ran from boot
+ * would process the fixture's seeded alarms and contexts for specs that only
+ * render pages. Files that release a room explicitly opt in here.
+ */
+function wakeRoomScheduler(): void {
+  const runtime = roomRuntime;
+  if (runtime === null) {
+    return;
+  }
+  if (!roomSchedulerStarted) {
+    roomSchedulerStarted = true;
+    runtime.scheduler.start();
+  }
+  runtime.scheduler.wake();
+}
+
+/** Turns the spec's steps into model turns; a trailing turn always ends the round. */
+function setPlaygroundModel(steps: readonly PlaygroundModelStep[]): void {
+  const faux = roomFaux;
+  if (faux === null) {
+    throw new Error('the room runtime is not assembled yet');
+  }
+  // Tool-call ids must be unique across the whole database: the audit table
+  // keys on them, and two runs reusing one id would collide there.
+  roomScriptVersion += 1;
+  const responses = steps.map((step, index) =>
+    step.send === undefined
+      ? () => fauxAssistantMessage(step.text ?? '')
+      : () =>
+          fauxAssistantMessage(
+            fauxToolCall(
+              'send',
+              { kind: 'text', text: step.send ?? '' },
+              { id: `room-send-${roomScriptVersion}-${index + 1}` },
+            ),
+            { stopReason: 'toolUse' },
+          ),
+  );
+  responses.push(() => fauxAssistantMessage(''));
+  faux.setResponses(responses);
+}
 
 /**
  * Every chat-completion request the fixture upstream served (the health-check
@@ -366,6 +442,13 @@ async function shutdown(): Promise<void> {
     // best effort
   }
   try {
+    if (roomSchedulerStarted) {
+      await roomRuntime?.scheduler.stop(1_000);
+    }
+  } catch {
+    // best effort
+  }
+  try {
     if (upstream !== null) {
       await stopFixtureServer(upstream);
     }
@@ -396,6 +479,17 @@ async function handleHook(request: Request, url: URL): Promise<Response> {
   const route = url.pathname.slice('/__e2e'.length);
   if (request.method === 'GET' && route === '/health') {
     return json({ ok: true });
+  }
+  if (request.method === 'GET' && route === '/playground-seed') {
+    return json({ ...playgroundSeed, model_calls: roomFaux?.state.callCount ?? 0 });
+  }
+  if (request.method === 'POST' && route === '/playground-model') {
+    const body = (await request.json().catch(() => null)) as { steps?: PlaygroundModelStep[] } | null;
+    if (body === null || !Array.isArray(body.steps)) {
+      return json({ error: 'invalid_body' }, 400);
+    }
+    setPlaygroundModel(body.steps);
+    return json({ ok: true, steps: body.steps.length, model_calls: roomFaux?.state.callCount ?? 0 });
   }
   if (request.method === 'GET' && route === '/relay-stats') {
     const byModel = new Map<string, number>();
@@ -686,8 +780,103 @@ async function main(): Promise<void> {
   adminConfig.port = 0;
 
   store = await SqliteStore.open(loaded.config);
-  const seed = seedAdminFixture(store);
+  // Narrowed once: the room runtime's closures below capture this, and a `let`
+  // loses its narrowing inside a callback.
+  const openedStore = store;
+  const seed = seedAdminFixture(openedStore);
   seedAdminBulkRows(store);
+  // The playground specs drive the real room store: two rooms, one of them with
+  // an admitted (held) message, so the timeline, the counters and the
+  // per-room isolation all have something to show.
+  const playgroundStore = new PlaygroundStore(openedStore.orm);
+  const playgroundAssets = new PlaygroundAssetStore({
+    orm: openedStore.orm,
+    root: join(directory, 'images', 'playground'),
+  });
+  // The room runtime: the same AgentRuntime/Scheduler/Context path the product
+  // runs, with a fake model provider so a Release can be observed end to end
+  // without a network. Telegram-only services (stickers, MCP) are genuinely
+  // absent here, exactly as in a Playground-only process.
+  // The room runtime gets its own provider identity so the fixture's Telegram
+  // runs (which name the product's agent model) can never consume the scripted
+  // room turns: they fail fast at model resolution instead.
+  const faux = fauxProvider({
+    provider: 'playground-e2e',
+    models: [{ id: 'playground-model', input: ['text'], contextWindow: 200_000, maxTokens: 32_768 }],
+  });
+  roomFaux = faux;
+  setPlaygroundModel([{ text: 'room run finished without sending' }]);
+  const runtimeConfigStore = new RuntimeConfigurationStore({
+    config: {
+      ...loaded.config,
+      agent: { ...loaded.config.agent, provider: 'playground-e2e', model: 'playground-model' },
+    },
+    hash: 'e2e-playground',
+    ...fauxRegistry(faux),
+  });
+  const runtimeSecrets = new SecretStore();
+  const runtimePlugins = loadPlugins(BUILTIN_PLUGINS, {});
+  const runtimeResources = await FileSystemResources.load(
+    BUNDLED_SYSTEM_RESOURCES_DIR,
+    runtimePlugins.skillDirectories,
+  );
+  const roomHost = createPlaygroundHost({
+    store: openedStore,
+    self: { displayName: 'Playground Bot' },
+    pictures: playgroundAssets,
+    sendRate: () => ({ sendsPerWindow: 20, windowSeconds: 60 }),
+  });
+  // The harness's room runtime is a Playground-only scheduler: it must not
+  // complete the synthetic Telegram fixture's overdue timers, which exist to be
+  // rendered, not executed. The core runtime requires the same host set here.
+  const runtimeTasks = new LongTaskService(openedStore.orm, () => roomRuntime?.scheduler.wake(), ['playground']);
+  const roomMedia = new MediaService({
+    store: openedStore,
+    configStore: runtimeConfigStore,
+    secrets: runtimeSecrets,
+    mediaClient: { download: () => Promise.reject(new Error('the E2E process has no media wire')) },
+    modelGate: new KeyedSemaphore(),
+    localAssets: playgroundAssets,
+  });
+  const roomTooling = createHostTooling({
+    store: openedStore,
+    configStore: runtimeConfigStore,
+    plugins: runtimePlugins,
+    media: roomMedia,
+    memory: new MemoryStore(openedStore.orm),
+    tasks: runtimeTasks,
+  });
+  roomRuntime = createCoreRuntime({
+    store: openedStore,
+    configStore: runtimeConfigStore,
+    secrets: runtimeSecrets,
+    hosts: { playground: roomHost },
+    conversation: (target) => resolveConversation(openedStore, target),
+    bot: { id: 1n, displayName: 'Playground Bot', username: null },
+    systemResources: runtimeResources,
+    capabilityTools: roomTooling.capabilityTools,
+    additionalTools: roomTooling.additionalTools,
+    skillVisibility: roomTooling.skillVisible,
+    tasks: runtimeTasks,
+  });
+  const playgroundIngress = new PlaygroundIngress(openedStore.orm, {
+    assets: playgroundAssets,
+    onQueued: () => wakeRoomScheduler(),
+  });
+  const seededRooms: { id: string; title: string }[] = [];
+  for (const [title, text] of [
+    ['E2E Room', 'first room message'],
+    ['E2E Second Room', 'second room message'],
+  ] as const) {
+    const created = playgroundStore.createRoom({ title, members: [{ name: 'Ada', role: 'admin' }] });
+    await playgroundIngress.submit(created.chatId, {
+      requestKey: `e2e-${created.chatId.toString()}`,
+      senderId: created.members[0]?.senderId,
+      text,
+    });
+    seededRooms.push({ id: created.chatId.toString(), title });
+  }
+  playgroundSeed = { rooms: seededRooms };
   // E2E-only fixture tweak: the shared seed keeps `thinking_text = ''` because
   // some historical-replay tests build pre-030 tables; the panel meanwhile
   // gets one assistant row with CoT text to assert the separated display.
@@ -762,6 +951,12 @@ async function main(): Promise<void> {
     modelSwitcher,
     configReloader,
     secrets,
+    playground: {
+      store,
+      rooms: playgroundStore,
+      ingress: playgroundIngress,
+      assets: playgroundAssets,
+    },
     // The E2E process has to outlive the suite, so a restart request is recorded
     // instead of shutting the process down. `POST /api/restart` itself (the
     // config check and the 202) is exercised by test/admin-providers.test.ts.

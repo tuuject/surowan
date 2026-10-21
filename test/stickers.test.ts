@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { getCurrentTools, fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
 import type { Update } from 'grammy/types';
 import sharp from 'sharp';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import { KeyedSemaphore } from '../src/platform/concurrency.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
@@ -12,7 +13,7 @@ import type { MediaDownloader } from '../src/capabilities/media/media-download.t
 import { MediaService } from '../src/capabilities/media/media.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import { createSendTool, type TelegramSendApi } from '../src/capabilities/send-tool.ts';
+import { createSendTool } from '../src/capabilities/send-tool.ts';
 import { StickerService } from '../src/capabilities/stickers.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import {
@@ -21,6 +22,7 @@ import {
   renderInvocationContext,
   testConfigJsonc,
   testConfigStore,
+  testSendToolEnv,
   writeTestConfig,
 } from './helpers.ts';
 
@@ -178,7 +180,7 @@ test('sync, representative-frame indexing, search, and sticker send share scoped
     throw new Error('Search result omitted sticker_ref');
   }
   let sentSticker: string | undefined;
-  const api: TelegramSendApi = {
+  const api: TelegramTransport = {
     sendMessage: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
     sendSticker: async (_chatId, sticker) => {
       sentSticker = sticker;
@@ -187,7 +189,7 @@ test('sync, representative-frame indexing, search, and sticker send share scoped
   };
   const send = createSendTool({
     store,
-    api,
+    ...testSendToolEnv(api, context),
     context,
     capabilities,
     sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },

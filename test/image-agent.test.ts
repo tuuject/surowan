@@ -12,11 +12,12 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import sharp from 'sharp';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { createExecuteTool } from '../src/capabilities/execute-tool.ts';
-import { createSendTool, type TelegramSendApi } from '../src/capabilities/send-tool.ts';
+import { createSendTool } from '../src/capabilities/send-tool.ts';
 import { agentActor, createImageBridge } from '../src/image/bridge.ts';
 import { createImageService } from '../src/image/service.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
@@ -33,11 +34,11 @@ import {
   media,
   messages,
   taskReceipts,
-  telegramSends,
+  hostSends,
   toolCalls,
 } from '../src/store/schema.ts';
 import { createToolAudit } from '../src/store/tool-audit.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from './helpers.ts';
+import { testConfigJsonc, testConfigStore, testSendToolEnv, writeTestConfig, writeTestKeyJar } from './helpers.ts';
 
 // ---------------------------------------------------------------------------
 // M4: the agent tool surface. image_generate submits through the bridge; when a
@@ -213,6 +214,7 @@ async function fixture(plan: readonly boolean[] = []): Promise<ImageAgentFixture
   expect(applied.ok).toBe(true);
   const pluginBridge: ImagePluginBridge = {
     enabled: () => bridge.enabled(),
+    enabledFor: (conversationId) => bridge.enabledFor(conversationId),
     submit: (params, signal) => bridge.submit(params, signal),
     modelList: () => bridge.modelList(),
   };
@@ -299,7 +301,7 @@ test('send kind:image delivers finished outputs of a generation owned by this co
   expect(fixtureRef.bridge.assetContent(outputs?.[0]?.asset_id ?? '')?.mime).toBe('image/png');
 
   const sent: { chatId: string; fileName: string }[] = [];
-  const api: TelegramSendApi = {
+  const api: TelegramTransport = {
     sendMessage: async () => ({ message_id: 1, date: 0, chat: { id: 100 } }),
     sendSticker: async () => ({ message_id: 2, date: 0, chat: { id: 100 } }),
     sendGeneratedPhoto: async (chatId, _bytes, fileName) => {
@@ -325,22 +327,24 @@ test('send kind:image delivers finished outputs of a generation owned by this co
       ];
     },
   };
+  const sendContext = {
+    invocationId: 7n,
+    conversationId: 42n,
+    hostKind: 'telegram' as const,
+    chatId: 100n,
+    threadId: 0n,
+    systemPrompt: '',
+    userPrompt: '',
+    directImages: [],
+    visibleSenders: new Map(),
+    callerUserId: 1n,
+    completion: null,
+    omittedNewMessages: 0,
+  } as Parameters<typeof createSendTool>[0]['context'];
   const send = createSendTool({
     store: fixtureRef.store,
-    api,
-    context: {
-      invocationId: 7n,
-      conversationId: 42n,
-      chatId: 100n,
-      threadId: 0n,
-      systemPrompt: '',
-      userPrompt: '',
-      directImages: [],
-      visibleSenders: new Map(),
-      callerUserId: 1n,
-      completion: null,
-      omittedNewMessages: 0,
-    } as Parameters<typeof createSendTool>[0]['context'],
+    ...testSendToolEnv(api, sendContext),
+    context: sendContext,
     capabilities: {
       resolveMedia: () => undefined,
       resolveStickerRef: () => undefined,
@@ -356,7 +360,7 @@ test('send kind:image delivers finished outputs of a generation owned by this co
       resolve: (id, conversationId) => {
         const out = fixtureRef.bridge.sendableOutputs(id, conversationId)?.map((output) => {
           const content = fixtureRef.bridge.assetContent(output.asset_id);
-          return { assetId: output.asset_id, bytes: content.bytes, fileName: output.file_name };
+          return { assetId: output.asset_id, bytes: content.bytes, fileName: output.file_name, mime: content.mime };
         });
         return out;
       },
@@ -373,7 +377,7 @@ test('send kind:image delivers finished outputs of a generation owned by this co
   // Delivery is audited: kind image, the owning conversation, and a bot photo
   // media row so later rounds can reference the delivered picture.
   const db2 = drizzle(fixtureRef.store.db, { schema: imageSchema });
-  const sendRow = db2.select().from(telegramSends).where(eq(telegramSends.kind, 'image')).get();
+  const sendRow = db2.select().from(hostSends).where(eq(hostSends.kind, 'image')).get();
   expect(sendRow?.state).toBe('success');
   const messageRow = fixtureRef.store.orm.select().from(messages).where(eq(messages.sentByBot, true)).get();
   expect(messageRow).toBeDefined();
@@ -406,7 +410,7 @@ test('send kind:image delivers finished outputs of a generation owned by this co
     'image_generation_unavailable',
   );
   expect(sent).toHaveLength(1);
-  expect(fixtureRef.store.orm.select().from(telegramSends).all()).toHaveLength(1);
+  expect(fixtureRef.store.orm.select().from(hostSends).all()).toHaveLength(1);
   expect(
     fixtureRef.store.orm.select().from(toolCalls).where(eq(toolCalls.toolCallId, 'call-send-missing')).get(),
   ).toMatchObject({
@@ -483,6 +487,7 @@ test('reconcile() settles outstanding image tasks after a restart', async () => 
 test('the plugin contributes image_generate only when the bridge is enabled', () => {
   const disabledScope = fakeScope({
     enabled: () => false,
+    enabledFor: () => false,
     submit: () => Promise.reject(new Error('no')),
     modelList: () => [],
   });
@@ -490,6 +495,7 @@ test('the plugin contributes image_generate only when the bridge is enabled', ()
 
   const enabledScope = fakeScope({
     enabled: () => true,
+    enabledFor: () => true,
     submit: () => Promise.reject(new Error('no')),
     modelList: () => [],
   });

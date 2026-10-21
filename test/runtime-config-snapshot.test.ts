@@ -7,6 +7,7 @@ import type { Update } from 'grammy/types';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import type { FileConfig, RawConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { previewContext } from '../src/platform/invocation-context.ts';
@@ -17,8 +18,7 @@ import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
-import type { TelegramSendApi } from '../src/capabilities/send-tool.ts';
-import { type TestRegistry, sleep, testConfigJsonc, writeTestConfig } from './helpers.ts';
+import { sleep, testConfigJsonc, testTelegramRuntime, type TestRegistry, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
 const CHAT_ID = 123456789;
@@ -86,7 +86,7 @@ async function setup(): Promise<Fixture> {
   const configStore = new RuntimeConfigurationStore({ config: loaded.config, hash: loaded.hash, ...registry });
   const sends: string[] = [];
   let messageId = 900;
-  const sendApi: TelegramSendApi = {
+  const sendApi: TelegramTransport = {
     sendMessage: async (_chatId, text) => {
       sends.push(text);
       return { message_id: ++messageId, date: 1_700_000_100, chat: { id: CHAT_ID } };
@@ -114,7 +114,7 @@ async function setup(): Promise<Fixture> {
           store,
           configStore: runtimeStore,
           secrets: new SecretStore(),
-          telegramApi: sendApi,
+          ...testTelegramRuntime(sendApi),
           bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
           systemResources: emptySystemResources(),
           conversationRuntime,
@@ -276,7 +276,7 @@ describe('configuration snapshots', () => {
           .map((row) => row.error_code),
       ).toEqual(['send_text_too_long']);
       expect(
-        fixture.store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM telegram_sends').get()?.count,
+        fixture.store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count,
       ).toBe(0n);
 
       faux.setResponses([sendCall, () => fauxAssistantMessage('done')]);

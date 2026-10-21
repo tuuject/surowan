@@ -239,6 +239,15 @@ export function createGenerationService(deps: GenerationServiceDeps) {
     return generation;
   }
 
+  /**
+   * Whether this actor already created a generation under the key. A caller
+   * that meters creations checks this first: replaying an accepted request
+   * returns the original generation and must not count against a quota.
+   */
+  function createKeyUsed(actor: GenerationActor, idempotencyKey: string): boolean {
+    return findIdempotent(actor.id, 'generation:create', idempotencyKey) !== null;
+  }
+
   function create(input: GenerationInput, actor: GenerationActor, idempotencyKey: string): CreateGenerationResult {
     const operation = 'generation:create';
     // Idempotency is resolved from the authored input alone, before the current
@@ -356,5 +365,5 @@ export function createGenerationService(deps: GenerationServiceDeps) {
     }
   }
 
-  return { get, list, create, retry, resolve, load, attemptsFor, outputsFor, getRow, requireScope };
+  return { get, list, createKeyUsed, create, retry, resolve, load, attemptsFor, outputsFor, getRow, requireScope };
 }

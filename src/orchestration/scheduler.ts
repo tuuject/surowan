@@ -1,9 +1,11 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, sql, type SQL } from 'drizzle-orm';
+import type { HostKind } from '../platform/im-host.ts';
+import { resolveBucketWindowSeconds } from '../platform/invocation-policy.ts';
+import { PlaygroundStore } from '../store/playground.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import type { BusinessStore } from '../store/store.ts';
 import { LongTaskService } from '../store/long-tasks.ts';
-import { buckets, conversations, invocations, taskReceipts } from '../store/schema.ts';
-import { activeSleepUntil } from '../store/sleep.ts';
+import { buckets, chats, conversations, invocations, taskReceipts } from '../store/schema.ts';
 import { type BucketAttachmentTarget, InvocationQueueService } from './invocation-queue.ts';
 import type { ProactiveReplyGateOptions } from './proactive-reply.ts';
 
@@ -24,7 +26,8 @@ interface ActiveInvocation {
 }
 
 interface InvocationDiagnosticRow {
-  readonly telegram_chat_id: bigint;
+  readonly host_kind: string;
+  readonly telegram_chat_id: bigint | null;
   readonly bucket_message_count: bigint;
   readonly pending_bucket_count: bigint;
   readonly chat_pending_bucket_count: bigint;
@@ -49,6 +52,7 @@ export class BucketScheduler {
   readonly #configStore: RuntimeConfigurationStore;
   readonly #queue: InvocationQueueService;
   readonly #tasks: LongTaskService;
+  readonly #hosts: readonly HostKind[] | undefined;
   readonly #handler: InvocationHandler;
   readonly #active = new Map<string, ActiveInvocation>();
   #running = false;
@@ -63,12 +67,32 @@ export class BucketScheduler {
     attachment?: BucketAttachmentTarget,
     tasks = new LongTaskService(store.orm),
     proactive?: ProactiveReplyGateOptions,
+    /** Hosts this scheduler serves; undefined means every host of the database. */
+    hosts?: readonly HostKind[],
   ) {
     this.#store = store;
     this.#configStore = configStore;
     this.#tasks = tasks;
-    this.#queue = new InvocationQueueService(store, configStore, attachment, tasks, proactive);
+    this.#hosts = hosts === undefined || hosts.length === 0 ? undefined : hosts;
+    this.#queue = new InvocationQueueService(store, configStore, attachment, tasks, proactive, this.#hosts);
     this.#handler = handler;
+  }
+
+  /**
+   * `conversation_id`/`bucket_id` rows of this scheduler's hosts; always true
+   * when unscoped. A single-host process must not launch, recover or wait on
+   * another host's work.
+   */
+  #servedConversations(column: SQL): SQL {
+    const hosts = this.#hosts;
+    if (hosts === undefined) {
+      return sql`1 = 1`;
+    }
+    return sql`${column} IN (SELECT v.id FROM conversations v JOIN chats c ON c.id = v.chat_id
+      WHERE c.host_kind IN (${sql.join(
+        hosts.map((host) => sql`${host}`),
+        sql`, `,
+      )}))`;
   }
 
   start(now = new Date()): void {
@@ -184,7 +208,7 @@ export class BucketScheduler {
       this.processTasksDue();
       this.processDue();
       this.#launchQueued();
-      const delay = this.#nextDelayMilliseconds();
+      const delay = this.nextDelayMilliseconds();
       await new Promise<void>((resolve) => {
         let settled = false;
         const finish = (): void => {
@@ -201,7 +225,13 @@ export class BucketScheduler {
     }
   }
 
-  #nextDelayMilliseconds(): number {
+  /**
+   * How long the loop may sleep before its next pass, from the current
+   * deadlines. Public because it is the governor's own contract: work that
+   * cannot run right now (no free slot, a chat already running) must not make
+   * the loop spin, and that is asserted directly instead of by timing.
+   */
+  nextDelayMilliseconds(): number {
     const deadlines: number[] = [];
     // Buckets of a Conversation whose invocation is already running still need
     // a wake-up: the run attaches them as soon as their window closes, so the
@@ -211,6 +241,7 @@ export class BucketScheduler {
         sql`SELECT b.deadline_at FROM buckets b
          JOIN conversations v ON v.id = b.conversation_id
          WHERE b.state = 'collecting'
+           AND ${this.#servedConversations(sql`b.conversation_id`)}
            AND NOT EXISTS (
              SELECT 1 FROM invocations i
              JOIN conversations v2 ON v2.id = i.conversation_id
@@ -227,7 +258,7 @@ export class BucketScheduler {
     if (timerDeadline !== undefined) {
       deadlines.push(Date.parse(timerDeadline));
     }
-    const sleepUntil = activeSleepUntil(this.#store.orm);
+    const sleepUntil = this.#queue.sleepUntil(new Date());
     if (sleepUntil !== null) {
       deadlines.push(Date.parse(sleepUntil));
     }
@@ -235,8 +266,10 @@ export class BucketScheduler {
       .all<{ created_at: string }>(
         sql`SELECT r.created_at FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id
          JOIN conversations v ON v.id = t.conversation_id
+         JOIN chats c ON c.id = v.chat_id
          WHERE r.state = 'pending'
-           AND (${sleepUntil} IS NULL OR json_extract(t.delivery_json, '$.bypassDailyBudget') = 1)
+           AND ${this.#servedConversations(sql`t.conversation_id`)}
+           AND (c.host_kind = 'playground' OR ${sleepUntil} IS NULL OR json_extract(t.delivery_json, '$.bypassDailyBudget') = 1)
            AND NOT EXISTS (
              SELECT 1 FROM invocations i JOIN conversations v2 ON v2.id = i.conversation_id
              WHERE v2.chat_id = v.chat_id AND i.state = 'running'
@@ -247,6 +280,36 @@ export class BucketScheduler {
     if (receipt !== undefined) {
       deadlines.push(Date.parse(receipt.created_at));
     }
+    // A queued invocation that can actually launch must not wait for the next
+    // full poll. One blocked behind a running invocation in the same chat, or
+    // behind a full concurrency limit, is excluded: its past deadline would
+    // busy-loop the scheduler, and a finishing run wakes it anyway.
+    const slotsFull = this.#active.size >= this.#configStore.current().config.agent.max_concurrency;
+    const queued = slotsFull
+      ? undefined
+      : this.#store.orm
+          .all<{ deadline_at: string }>(
+            sql`SELECT b.deadline_at FROM invocations i
+         JOIN buckets b ON b.id = i.bucket_id
+         JOIN conversations v ON v.id = i.conversation_id
+         WHERE i.state = 'queued'
+           AND ${this.#servedConversations(sql`i.conversation_id`)}
+           AND NOT EXISTS (
+             SELECT 1 FROM invocations r JOIN conversations v2 ON v2.id = r.conversation_id
+             WHERE v2.chat_id = v.chat_id AND r.state = 'running'
+           )
+         ORDER BY b.deadline_at LIMIT 1`,
+          )
+          .at(0);
+    if (queued !== undefined) {
+      deadlines.push(Date.parse(queued.deadline_at));
+    }
+    if (this.#hosts === undefined || this.#hosts.includes('playground')) {
+      const expiry = new PlaygroundStore(this.#store.orm).nextQueuedExpiry();
+      if (expiry !== undefined) {
+        deadlines.push(expiry);
+      }
+    }
     if (deadlines.length === 0) {
       return 60_000;
     }
@@ -255,10 +318,16 @@ export class BucketScheduler {
   }
 
   #launchQueued(): void {
+    // Room invocations that queued too long are expired visibly; Telegram
+    // collecting/debounce buckets keep their own lifecycle. A scheduler that
+    // does not serve rooms leaves their queue to the process that does.
+    if (this.#hosts === undefined || this.#hosts.includes('playground')) {
+      new PlaygroundStore(this.#store.orm).expireQueued();
+    }
     while (this.#running) {
       const now = new Date();
       this.#queue.suppressInvalidQueuedReceipts(now);
-      const sleepUntil = activeSleepUntil(this.#store.orm, now);
+      const sleepUntil = this.#queue.sleepUntil(now);
       if (sleepUntil !== null) {
         this.#queue.skipQueuedInvocations(sleepUntil, now);
       }
@@ -273,6 +342,7 @@ export class BucketScheduler {
              JOIN conversations v ON v.id = i.conversation_id
              LEFT JOIN task_receipts r ON r.invocation_id = i.id AND r.state = 'claimed'
              WHERE i.state = 'queued' AND b.deadline_at <= ${new Date().toISOString()}
+               AND ${this.#servedConversations(sql`i.conversation_id`)}
                AND NOT EXISTS (
                  SELECT 1 FROM invocations r
                  JOIN conversations v2 ON v2.id = r.conversation_id
@@ -367,20 +437,26 @@ export class BucketScheduler {
         // This only ever moves a deadline later; a batch still inside its own
         // window keeps that window, which is what makes every batch collect a
         // full `bucket_window_seconds` (see the ingestion comments).
-        const nextDeadline = new Date(
-          Math.max(
-            finishedAt.getTime(),
-            Date.parse(started.started_at) + this.#configStore.current().config.telegram.bucket_window_seconds * 1_000,
-          ),
-        ).toISOString();
         const chat = this.#store.orm
-          .select({ chatId: conversations.chatId })
+          .select({
+            hostKind: chats.hostKind,
+            chatId: conversations.chatId,
+          })
           .from(conversations)
+          .innerJoin(chats, eq(chats.id, conversations.chatId))
           .where(eq(conversations.id, invocation.conversation_id))
           .get();
         if (chat === undefined) {
           throw new Error(`Invocation ${invocation.id} has no chat`);
         }
+        // The window follows the host: a room collects nothing. A Telegram
+        // chat reads the live window, as ingestion does for the buckets it is
+        // pushing back, so a reloaded window applies to both alike. Resolving
+        // it from the host kind does not require the chat entry to still exist.
+        const windowSeconds = resolveBucketWindowSeconds(this.#configStore.current().config, chat.hostKind as HostKind);
+        const nextDeadline = new Date(
+          Math.max(finishedAt.getTime(), Date.parse(started.started_at) + windowSeconds * 1_000),
+        ).toISOString();
         this.#store.orm.run(
           sql`UPDATE buckets SET deadline_at = ${nextDeadline}, updated_at = ${nowIso}
              WHERE conversation_id IN (SELECT id FROM conversations WHERE chat_id = ${chat.chatId})
@@ -429,7 +505,7 @@ export class BucketScheduler {
       const now = new Date();
       const row = this.#store.orm
         .all<InvocationDiagnosticRow>(
-          sql`SELECT c.telegram_chat_id,
+          sql`SELECT c.host_kind, c.telegram_chat_id,
                   (SELECT COUNT(*) FROM bucket_messages bm WHERE bm.bucket_id = ${invocation.bucket_id}) AS bucket_message_count,
                   (SELECT COUNT(*) FROM buckets pb WHERE pb.state IN ('collecting', 'queued')) AS pending_bucket_count,
                   (SELECT COUNT(*) FROM buckets pb
@@ -472,7 +548,8 @@ export class BucketScheduler {
           event,
           invocation_id: invocation.id.toString(),
           session_id: invocation.id.toString(),
-          chat_id: row.telegram_chat_id.toString(),
+          host_kind: row.host_kind,
+          chat_id: row.telegram_chat_id?.toString() ?? null,
           bucket_message_count: Number(row.bucket_message_count),
           pending_bucket_count: Number(row.pending_bucket_count),
           chat_pending_bucket_count: Number(row.chat_pending_bucket_count),

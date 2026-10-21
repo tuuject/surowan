@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, lt, lte, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, lt, lte, type SQL } from 'drizzle-orm';
 import {
   DEFAULT_MEMORY_TTL_SECONDS,
   MEMORY_ID_PATTERN,
@@ -9,6 +9,7 @@ import {
 } from '../../context/memory.ts';
 import { asRunResult, type Orm } from '../../store/store.ts';
 import { chats, conversations, memories } from '../../store/schema.ts';
+import { telegramHostScope, telegramIdentity } from '../../store/host-scope.ts';
 import { AdminQueryError, type ListQuery, type Page, page, parseId, parseLimit } from './audit.ts';
 
 export interface MemoryAdminItem {
@@ -56,7 +57,8 @@ interface MemoryListRow {
   readonly created_at: string;
   readonly expires_at: string;
   readonly updated_at: string;
-  readonly telegram_chat_id: bigint;
+  /** NULL on virtual rooms; every memory reader here is scoped to telegram hosts. */
+  readonly telegram_chat_id: bigint | null;
   readonly chat_type: string;
   readonly chat_title: string | null;
   readonly message_thread_id: bigint;
@@ -77,7 +79,8 @@ const MEMORY_LIST_FIELDS = {
 
 export function listMemories(orm: Orm, query: ListQuery, warningDays: number, now = new Date()): Page<MemoryAdminItem> {
   const limit = parseLimit(query.limit);
-  const conditions: SQL[] = [];
+  // The admin memory surface reports Telegram chats, so virtual rooms are out of scope.
+  const conditions: SQL[] = [telegramHostScope()];
   const nowIso = now.toISOString();
   if (query.cursor !== undefined && query.cursor !== null && query.cursor.length > 0) {
     if (!new RegExp(MEMORY_ID_PATTERN).test(query.cursor)) {
@@ -121,10 +124,11 @@ export function listMemoryChats(orm: Orm): readonly MemoryChatOption[] {
       username: chats.username,
     })
     .from(chats)
+    .where(telegramHostScope())
     .orderBy(chats.telegramChatId)
     .all()
     .map((row) => ({
-      telegram_chat_id: row.telegram_chat_id.toString(),
+      telegram_chat_id: telegramIdentity(row.telegram_chat_id, 'chats.telegram_chat_id').toString(),
       type: row.type,
       title: row.title,
       username: row.username,
@@ -183,6 +187,20 @@ export function createMemory(orm: Orm, body: CreateMemoryBody, warningDays: numb
   return getItem(orm, id, timestamp, warningDays, now);
 }
 
+/**
+ * Selects one memory only when it belongs to a Telegram chat. This surface
+ * lists Telegram chats alone, so a virtual room's memory id must read as
+ * missing for a write too, not be changed and then fail to load.
+ */
+function telegramMemory(orm: Orm, id: string): SQL {
+  const telegramConversations = orm
+    .select({ id: conversations.id })
+    .from(conversations)
+    .innerJoin(chats, eq(chats.id, conversations.chatId))
+    .where(telegramHostScope());
+  return and(eq(memories.id, id), inArray(memories.conversationId, telegramConversations)) as SQL;
+}
+
 export function updateMemory(
   orm: Orm,
   id: string,
@@ -198,7 +216,7 @@ export function updateMemory(
       ? { expiresAt: new Date(now.getTime() + body.ttlSeconds * 1_000).toISOString() }
       : {}),
   };
-  const updated = asRunResult(orm.update(memories).set(set).where(eq(memories.id, id)).run());
+  const updated = asRunResult(orm.update(memories).set(set).where(telegramMemory(orm, id)).run());
   if (updated.changes === 0) {
     throw new AdminQueryError('not_found', 'Memory does not exist', 404);
   }
@@ -206,7 +224,7 @@ export function updateMemory(
 }
 
 export function deleteMemory(orm: Orm, id: string): void {
-  const result = asRunResult(orm.delete(memories).where(eq(memories.id, id)).run());
+  const result = asRunResult(orm.delete(memories).where(telegramMemory(orm, id)).run());
   if (result.changes === 0) {
     throw new AdminQueryError('not_found', 'Memory does not exist', 404);
   }
@@ -298,7 +316,7 @@ function getItem(orm: Orm, id: string, nowIso: string, warningDays: number, now:
     .from(memories)
     .innerJoin(conversations, eq(conversations.id, memories.conversationId))
     .innerJoin(chats, eq(chats.id, conversations.chatId))
-    .where(eq(memories.id, id))
+    .where(and(telegramHostScope(), eq(memories.id, id)))
     .get();
   if (row === undefined) {
     throw new Error('Memory row vanished after write');
@@ -313,7 +331,7 @@ function toItem(row: MemoryListRow, nowIso: string, warningIso: string): MemoryA
     id: row.id,
     conversation_id: row.conversation_id.toString(),
     chat: {
-      telegram_chat_id: row.telegram_chat_id.toString(),
+      telegram_chat_id: telegramIdentity(row.telegram_chat_id, 'chats.telegram_chat_id').toString(),
       type: row.chat_type,
       title: row.chat_title,
       message_thread_id: Number(row.message_thread_id),

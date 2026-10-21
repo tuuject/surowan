@@ -16,6 +16,7 @@ export const layout = {
     botStickerSets: 'Bot sticker sets',
     imageGenerate: 'Image generation',
     imageGenerations: 'Image generations',
+    playground: 'Playground',
     alarms: 'Alarms',
     memories: 'Memories',
     dictionary: 'Dictionary',

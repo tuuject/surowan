@@ -246,7 +246,7 @@ test('batched payload cleanup preserves audit rows, associations and totals whil
   const snapshot = () => ({
     invocations: f.store.db.prepare('SELECT * FROM invocations ORDER BY id').all(),
     tools: f.store.db.prepare('SELECT * FROM tool_calls ORDER BY id').all(),
-    sends: f.store.db.prepare('SELECT * FROM telegram_sends ORDER BY id').all(),
+    sends: f.store.db.prepare('SELECT * FROM host_sends ORDER BY id').all(),
     usage: f.store.db.prepare('SELECT * FROM daily_usage').all(),
     list: listInvocations(f.store.orm, {}),
   });

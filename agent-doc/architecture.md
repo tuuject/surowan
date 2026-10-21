@@ -27,7 +27,7 @@ Config + SecretStore
 
 ## Runtime 与宿主边界
 
-`src/orchestration/runtime.ts` 的 `createCoreRuntime` 接收已经准备好的业务 Store、运行时配置、模型与工具工厂、SecretStore 和只读 SystemResources，统一创建 ConversationRuntime、AgentRuntime、LongTaskService 与 BucketScheduler。装配本身不读取配置或资源目录，不启动 Scheduler，也不取得进程锁；初始化、启动、停止和释放依赖由宿主负责。它复用原有调度和执行实现，不引入第二套 Bucket/Invocation 状态机。
+`src/orchestration/runtime.ts` 的 `createCoreRuntime` 接收已经准备好的业务 Store、运行时配置、模型与工具工厂、SecretStore、只读 SystemResources 与一份「本进程能承载的宿主」映射（`hosts`：一个或两个 `ImHost`），统一创建 ConversationRuntime、AgentRuntime、LongTaskService 与 BucketScheduler。装配本身不读取配置或资源目录，不启动 Scheduler，也不取得进程锁；初始化、启动、停止和释放依赖由宿主负责。它复用原有调度和执行实现，不引入第二套 Bucket/Invocation 状态机。——映射里的键同时也是 Scheduler 的处理范围：它只 recover/due/launch/skip 这些宿主的 Invocation、Bucket 与回执，其它宿主的工作保持原样，留给他们自己的进程；单宿主进程（`serve --playground-only`）因此能让同一数据库里的 Telegram 工作完全静止。`ImHost` 按 Conversation 的 `host_kind` 选择，缺项时投递明确失败而不是落到另一个平台上（见 [operations.md](operations.md#playground-only-模式)）。
 
 - `src/store/store.ts` 的 `BusinessStore` 只暴露 ORM 与 IMMEDIATE transaction；业务查询与审计 helper 留在共享层。SQLite 打开、PRAGMA、迁移、备份、checkpoint/close 与 ServeLock 位于 `adapters/local-monolith/database.ts`。
 - `platform/config.ts` 保留配置类型和纯校验；`platform/runtime-config.ts` 管理源无关的快照发布。JSONC、权限、相对路径、Prompt 文件读取和配置写回/热重载归 `adapters/local-monolith/config*.ts`。Bot 命令与 Admin Panel 只依赖 `platform/config-write.ts` 的契约（`BotCommandConfigWriter`、`ConfigController`、`ConfigEdit`/`secretEdit`），由 adapter 的 `ConfigReloader` 实现并在装配时注入；业务模块不导入 `adapters/local-monolith`，例外仅限宿主侧入口（`cli.ts`、`doctor.ts`、`tui/`、离线 `admin-reset` 的 `ingress/admin/recover.ts`）。

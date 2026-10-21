@@ -16,6 +16,7 @@ import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { BotCommandService, type CommandSender } from '../src/orchestration/bot-commands.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import { BucketScheduler, type InvocationOutcome } from '../src/orchestration/scheduler.ts';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import { type FileConfig, resolveAgentSettings } from '../src/platform/config.ts';
 import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { readConfigRevision } from '../src/adapters/local-monolith/config-file.ts';
@@ -28,12 +29,12 @@ import { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import type { TelegramSendApi } from '../src/capabilities/send-tool.ts';
 import {
   sleep,
   startFixtureServer,
   stopFixtureServer,
   testConfigJsonc,
+  testTelegramRuntime,
   writeTestConfig,
   writeTestKeyJar,
 } from './helpers.ts';
@@ -198,7 +199,7 @@ interface Fixture {
   readonly conversationRuntime: ConversationRuntime;
   readonly commands: BotCommandService;
   readonly scheduler: BucketScheduler;
-  readonly sendApi: TelegramSendApi;
+  readonly sendApi: TelegramTransport;
   readonly sends: string[];
   file(): FileConfig;
   /** Rewrites the file from the current one with `transform` applied. */
@@ -256,7 +257,7 @@ async function setup(
   });
   const sends: string[] = [];
   let messageId = 900;
-  const sendApi: TelegramSendApi = {
+  const sendApi: TelegramTransport = {
     sendMessage: async (_chatId, text) => {
       sends.push(text);
       return { message_id: ++messageId, date: 1_700_000_100, chat: { id: CHAT_ID } };
@@ -315,7 +316,7 @@ async function setup(
         store,
         configStore,
         secrets,
-        telegramApi: sendApi,
+        ...testTelegramRuntime(sendApi),
         bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
         systemResources: emptySystemResources(),
         conversationRuntime,
@@ -742,7 +743,7 @@ test('a reload during a run does not reach that run', async () => {
         .map((row) => row.error_code),
     ).toEqual(['send_text_too_long']);
     expect(
-      fixture.store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM telegram_sends').get()?.count,
+      fixture.store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM host_sends').get()?.count,
     ).toBe(0n);
     // The reload did happen: the next run gets the new prompt and limit.
     expect(fixture.configStore.current().config.agent!.send_max_text_length).toBe(1_000);

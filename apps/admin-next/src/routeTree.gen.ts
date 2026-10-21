@@ -25,6 +25,7 @@ import { Route as InvocationsRouteImport } from './routes/invocations'
 import { Route as MemoriesRouteImport } from './routes/memories'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as ModelsRouteImport } from './routes/models'
+import { Route as PlaygroundRouteImport } from './routes/playground'
 import { Route as PreferencesRouteImport } from './routes/preferences'
 import { Route as PromptsRouteImport } from './routes/prompts'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -114,6 +115,11 @@ const ModelsRoute = ModelsRouteImport.update({
   path: '/models',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlaygroundRoute = PlaygroundRouteImport.update({
+  id: '/playground',
+  path: '/playground',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PreferencesRoute = PreferencesRouteImport.update({
   id: '/preferences',
   path: '/preferences',
@@ -173,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/memories': typeof MemoriesRoute
   '/messages': typeof MessagesRoute
   '/models': typeof ModelsRoute
+  '/playground': typeof PlaygroundRoute
   '/preferences': typeof PreferencesRoute
   '/prompts': typeof PromptsRoute
   '/settings': typeof SettingsRoute
@@ -199,6 +206,7 @@ export interface FileRoutesByTo {
   '/memories': typeof MemoriesRoute
   '/messages': typeof MessagesRoute
   '/models': typeof ModelsRoute
+  '/playground': typeof PlaygroundRoute
   '/preferences': typeof PreferencesRoute
   '/prompts': typeof PromptsRoute
   '/settings': typeof SettingsRoute
@@ -226,6 +234,7 @@ export interface FileRoutesById {
   '/memories': typeof MemoriesRoute
   '/messages': typeof MessagesRoute
   '/models': typeof ModelsRoute
+  '/playground': typeof PlaygroundRoute
   '/preferences': typeof PreferencesRoute
   '/prompts': typeof PromptsRoute
   '/settings': typeof SettingsRoute
@@ -254,6 +263,7 @@ export interface FileRouteTypes {
     | '/memories'
     | '/messages'
     | '/models'
+    | '/playground'
     | '/preferences'
     | '/prompts'
     | '/settings'
@@ -280,6 +290,7 @@ export interface FileRouteTypes {
     | '/memories'
     | '/messages'
     | '/models'
+    | '/playground'
     | '/preferences'
     | '/prompts'
     | '/settings'
@@ -306,6 +317,7 @@ export interface FileRouteTypes {
     | '/memories'
     | '/messages'
     | '/models'
+    | '/playground'
     | '/preferences'
     | '/prompts'
     | '/settings'
@@ -333,6 +345,7 @@ export interface RootRouteChildren {
   MemoriesRoute: typeof MemoriesRoute
   MessagesRoute: typeof MessagesRoute
   ModelsRoute: typeof ModelsRoute
+  PlaygroundRoute: typeof PlaygroundRoute
   PreferencesRoute: typeof PreferencesRoute
   PromptsRoute: typeof PromptsRoute
   SettingsRoute: typeof SettingsRoute
@@ -457,6 +470,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ModelsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/playground': {
+      id: '/playground'
+      path: '/playground'
+      fullPath: '/playground'
+      preLoaderRoute: typeof PlaygroundRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/preferences': {
       id: '/preferences'
       path: '/preferences'
@@ -533,6 +553,7 @@ const rootRouteChildren: RootRouteChildren = {
   MemoriesRoute: MemoriesRoute,
   MessagesRoute: MessagesRoute,
   ModelsRoute: ModelsRoute,
+  PlaygroundRoute: PlaygroundRoute,
   PreferencesRoute: PreferencesRoute,
   PromptsRoute: PromptsRoute,
   SettingsRoute: SettingsRoute,

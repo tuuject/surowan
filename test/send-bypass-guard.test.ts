@@ -5,12 +5,7 @@ import type { Update } from 'grammy/types';
 import { afterAll, describe, expect, test } from 'vitest';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import {
-  createSendTools,
-  duplicateSendGuard,
-  type SendToolEnvironment,
-  type TelegramSendApi,
-} from '../src/capabilities/send-tool.ts';
+import { createSendTools, duplicateSendGuard, type SendToolEnvironment } from '../src/capabilities/send-tool.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import type { RawConfig } from '../src/platform/config.ts';
@@ -18,9 +13,11 @@ import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.t
 import {
   invocationCapabilities,
   renderInvocationContext,
+  type TelegramTransport,
   type TestInvocationContext,
   testConfigJsonc,
   testConfigStore,
+  testSendToolEnv,
   writeTestConfig,
 } from './helpers.ts';
 
@@ -120,7 +117,7 @@ function conversationContext(
   return fixture.build(invocationId);
 }
 
-interface RecordingApi extends TelegramSendApi {
+interface RecordingApi extends TelegramTransport {
   readonly calls: string[];
 }
 
@@ -151,7 +148,7 @@ function recordingApi(gate?: Promise<void>): RecordingApi {
 const imageGeneration: SendToolEnvironment['imageGeneration'] = {
   resolve: (generationId) =>
     generationId === 'gen-1'
-      ? [{ assetId: 'asset-gen-1', bytes: new Uint8Array([1, 2, 3]), fileName: 'pic.png' }]
+      ? [{ assetId: 'asset-gen-1', bytes: new Uint8Array([1, 2, 3]), fileName: 'pic.png', mime: 'image/png' }]
       : undefined,
 };
 
@@ -163,12 +160,17 @@ interface ToolOptions {
   readonly allowReplyMessageMultipleTimes?: boolean;
 }
 
-function makeTools(fixture: Fixture, api: TelegramSendApi, context: TestInvocationContext, options: ToolOptions = {}) {
+function makeTools(
+  fixture: Fixture,
+  api: TelegramTransport,
+  context: TestInvocationContext,
+  options: ToolOptions = {},
+) {
   const capabilities = invocationCapabilities(fixture.store, fixture.config, context.header);
   return {
     ...createSendTools({
       store: fixture.store,
-      api,
+      ...testSendToolEnv(api, context),
       context,
       capabilities,
       sendRateLimit: { sendsPerWindow: 50, windowSeconds: 300 },
@@ -203,10 +205,10 @@ function toolAudit(store: SqliteStore): ToolCallRow[] {
 function sendCounts(
   store: SqliteStore,
   invocationId: bigint,
-): { readonly telegram_sends: bigint; readonly sends_used: bigint } {
+): { readonly host_sends: bigint; readonly sends_used: bigint } {
   const row = store.db
-    .prepare<[bigint], { telegram_sends: bigint; sends_used: bigint }>(
-      'SELECT (SELECT COUNT(*) FROM telegram_sends) AS telegram_sends, sends_used FROM invocations WHERE id = ?',
+    .prepare<[bigint], { host_sends: bigint; sends_used: bigint }>(
+      'SELECT (SELECT COUNT(*) FROM host_sends) AS host_sends, sends_used FROM invocations WHERE id = ?',
     )
     .get(invocationId);
   if (row === undefined) {
@@ -257,8 +259,8 @@ describe('reply-policy content burn', () => {
         { tool_call_id: 'restyle', tool_name: 'send', state: 'error', error_code: 'send_bypass' },
         { tool_call_id: 'fresh', tool_name: 'send', state: 'success', error_code: null },
       ]);
-      // Burn rejections spend no send budget and write no telegram_sends row.
-      expect(sendCounts(fixture.store, context.invocationId)).toEqual({ telegram_sends: 2n, sends_used: 2n });
+      // Burn rejections spend no send budget and write no host_sends row.
+      expect(sendCounts(fixture.store, context.invocationId)).toEqual({ host_sends: 2n, sends_used: 2n });
     } finally {
       fixture.close();
     }

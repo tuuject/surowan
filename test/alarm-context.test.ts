@@ -26,7 +26,14 @@ import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
-import { fauxRegistry, renderInvocationContext, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import {
+  fauxRegistry,
+  renderInvocationContext,
+  testConfigJsonc,
+  testConfigStore,
+  testTelegramRuntime,
+  writeTestConfig,
+} from './helpers.ts';
 import { alarmTools, completeAlarmTask, getAlarmTask, insertAlarmTask } from './alarm-fixtures.ts';
 
 const directories: string[] = [];
@@ -170,13 +177,13 @@ async function runtimeFixture(transform?: (config: FileConfig) => void, existing
     store,
     configStore,
     secrets: new SecretStore(),
-    telegramApi: {
+    ...testTelegramRuntime({
       sendMessage: async (_chatId, text) => {
         sends.push(text);
         return { message_id: 900 + sends.length, date: 1_700_000_000, chat: { id: CHAT_ID } };
       },
       sendSticker: async () => ({ message_id: 800, date: 1_700_000_000, chat: { id: CHAT_ID } }),
-    },
+    }),
     bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
     conversationRuntime,

@@ -1,4 +1,4 @@
-import { and, asc, eq, or, sql } from 'drizzle-orm';
+import { and, asc, eq, or, sql, type SQL } from 'drizzle-orm';
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
 import type {
@@ -7,8 +7,9 @@ import type {
   InvocationContext,
   JsonValue,
 } from '../platform/invocation-context.ts';
+import type { HostKind } from '../platform/im-host.ts';
 import type { Orm } from './store.ts';
-import { longTasks, taskReceipts } from './schema.ts';
+import { chats, conversations, longTasks, taskReceipts } from './schema.ts';
 
 const JsonValueSchema = Type.Union(
   [
@@ -269,10 +270,36 @@ function listed(row: {
 export class LongTaskService {
   readonly #orm: Orm;
   readonly #wake: (() => void) | undefined;
+  readonly #conversationHosts = new Map<string, HostKind>();
+  /**
+   * Hosts whose timer work this instance may complete. Undefined means every
+   * host (the shared process); a single-host process passes its own set so a
+   * due Telegram alarm is never fired by a scheduler that does not serve
+   * Telegram.
+   */
+  readonly #hosts: readonly HostKind[] | undefined;
 
-  constructor(orm: Orm, wake?: () => void) {
+  constructor(orm: Orm, wake?: () => void, hosts?: readonly HostKind[]) {
     this.#orm = orm;
     this.#wake = wake;
+    this.#hosts = hosts === undefined || hosts.length === 0 ? undefined : hosts;
+  }
+
+  /** The hosts whose timers this instance completes; undefined means every host. */
+  get hosts(): readonly HostKind[] | undefined {
+    return this.#hosts;
+  }
+
+  /** The host filter for one query, or undefined when this instance serves all hosts. */
+  #hostScope(): SQL | undefined {
+    const hosts = this.#hosts;
+    if (hosts === undefined) {
+      return undefined;
+    }
+    return sql`c.host_kind IN (${sql.join(
+      hosts.map((host) => sql`${host}`),
+      sql`, `,
+    )})`;
   }
 
   /**
@@ -300,7 +327,19 @@ export class LongTaskService {
     );
   }
 
-  invocationScope(pluginId: string, liveContext: InvocationContext): PluginTaskScope {
+  /**
+   * Scope for a plugin acting inside a live invocation.
+   *
+   * The plugin must be registered for the host that owns the conversation.
+   * Without this check a tool that is not mounted on a host could still create
+   * work for it through the generic task service and bypass the tool layer.
+   */
+  invocationScope(
+    pluginId: string,
+    liveContext: InvocationContext,
+    hosts: readonly HostKind[] = ['telegram'],
+  ): PluginTaskScope {
+    this.#assertPluginHost(pluginId, liveContext.conversationId, hosts);
     return this.#scope(
       pluginId,
       liveContext.conversationId,
@@ -308,6 +347,24 @@ export class LongTaskService {
       () => liveContext.callerUserId,
       true,
     );
+  }
+
+  #assertPluginHost(pluginId: string, conversationId: bigint, hosts: readonly HostKind[]): void {
+    const key = conversationId.toString();
+    let hostKind = this.#conversationHosts.get(key);
+    if (hostKind === undefined) {
+      const [row] = this.#orm
+        .select({ hostKind: chats.hostKind })
+        .from(conversations)
+        .innerJoin(chats, eq(conversations.chatId, chats.id))
+        .where(eq(conversations.id, conversationId))
+        .all();
+      hostKind = row?.hostKind === 'playground' ? 'playground' : 'telegram';
+      this.#conversationHosts.set(key, hostKind);
+    }
+    if (!hosts.includes(hostKind)) {
+      throw new Error(`Plugin ${pluginId} is not enabled on the ${hostKind} host`);
+    }
   }
 
   #scope(
@@ -583,12 +640,22 @@ export class LongTaskService {
     const at = now.toISOString();
     const changed = this.#orm.transaction(
       () => {
-        const due = this.#orm
-          .select({ id: longTasks.id, timerResultJson: longTasks.timerResultJson })
-          .from(longTasks)
-          .where(and(eq(longTasks.state, 'waiting'), sql`${longTasks.scheduledAt} <= ${at}`))
-          .orderBy(asc(longTasks.scheduledAt), asc(longTasks.id))
-          .all();
+        const scope = this.#hostScope();
+        const due =
+          scope === undefined
+            ? this.#orm
+                .select({ id: longTasks.id, timerResultJson: longTasks.timerResultJson })
+                .from(longTasks)
+                .where(and(eq(longTasks.state, 'waiting'), sql`${longTasks.scheduledAt} <= ${at}`))
+                .orderBy(asc(longTasks.scheduledAt), asc(longTasks.id))
+                .all()
+            : this.#orm.all<{ id: bigint; timerResultJson: string | null }>(
+                sql`SELECT t.id, t.timer_result_json AS timerResultJson FROM long_tasks t
+                    JOIN conversations v ON v.id = t.conversation_id
+                    JOIN chats c ON c.id = v.chat_id
+                    WHERE t.state = 'waiting' AND t.scheduled_at <= ${at} AND ${scope}
+                    ORDER BY t.scheduled_at, t.id`,
+              );
         let count = 0;
         for (const task of due) {
           if (task.timerResultJson === null) {
@@ -625,13 +692,27 @@ export class LongTaskService {
   }
 
   nextDeadline(): string | undefined {
+    const scope = this.#hostScope();
+    if (scope === undefined) {
+      return (
+        this.#orm
+          .select({ scheduledAt: longTasks.scheduledAt })
+          .from(longTasks)
+          .where(and(eq(longTasks.state, 'waiting'), sql`${longTasks.scheduledAt} IS NOT NULL`))
+          .orderBy(asc(longTasks.scheduledAt), asc(longTasks.id))
+          .get()?.scheduledAt ?? undefined
+      );
+    }
     return (
       this.#orm
-        .select({ scheduledAt: longTasks.scheduledAt })
-        .from(longTasks)
-        .where(and(eq(longTasks.state, 'waiting'), sql`${longTasks.scheduledAt} IS NOT NULL`))
-        .orderBy(asc(longTasks.scheduledAt), asc(longTasks.id))
-        .get()?.scheduledAt ?? undefined
+        .all<{ scheduled_at: string | null }>(
+          sql`SELECT t.scheduled_at FROM long_tasks t
+              JOIN conversations v ON v.id = t.conversation_id
+              JOIN chats c ON c.id = v.chat_id
+              WHERE t.state = 'waiting' AND t.scheduled_at IS NOT NULL AND ${scope}
+              ORDER BY t.scheduled_at, t.id LIMIT 1`,
+        )
+        .at(0)?.scheduled_at ?? undefined
     );
   }
 

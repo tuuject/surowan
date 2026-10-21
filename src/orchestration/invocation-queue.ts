@@ -1,13 +1,25 @@
-import { and, eq, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lt, ne, sql, type SQL } from 'drizzle-orm';
 import { AGENT_PROMPT_VERSION } from '../platform/agent-protocol.ts';
 import { completeAgentSettings, type RawConfig, resolveAgentSettings } from '../platform/config.ts';
+import type { HostKind } from '../platform/im-host.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import type { BusinessStore } from '../store/store.ts';
 import { asRunResult, isChatPaused, resolveChatConfig } from '../store/store.ts';
 import { snapshotInvocation } from '../store/invocation-snapshot.ts';
+import { enqueueInvocation } from '../store/invocation-enqueue.ts';
 import { LongTaskService } from '../store/long-tasks.ts';
 import { isConversationActive, ParticipationRegistry } from '../store/participation.ts';
-import { appState, bucketMessages, buckets, invocationBuckets, invocations, taskReceipts } from '../store/schema.ts';
+import {
+  appState,
+  bucketMessages,
+  buckets,
+  chats,
+  conversations,
+  invocationBuckets,
+  invocations,
+  rooms,
+  taskReceipts,
+} from '../store/schema.ts';
 import { activeSleepUntil } from '../store/sleep.ts';
 import { ProactiveReplyGate, type ProactiveReplyGateOptions } from './proactive-reply.ts';
 
@@ -60,9 +72,11 @@ interface ReceiptRow {
   readonly task_id: bigint;
   readonly conversation_id: bigint;
   readonly chat_id: bigint;
-  readonly telegram_chat_id: bigint;
+  /** Null for a Playground room, which has no Telegram identity. */
+  readonly telegram_chat_id: bigint | null;
   readonly message_thread_id: bigint;
   readonly bypass_daily_budget: bigint;
+  readonly host_kind: string;
 }
 
 /**
@@ -101,6 +115,15 @@ export class InvocationQueueService {
   readonly #attachment: BucketAttachmentTarget | undefined;
   readonly #tasks: LongTaskService;
   readonly #proactive: ProactiveReplyGate | undefined;
+  /**
+   * Conversations this process serves, as a subquery. Undefined means every
+   * host (a shared process); a single-host process passes its own set so
+   * recovery, due batches and receipts never read or write another host's
+   * work - the Telegram half of a mixed database is then untouched.
+   */
+  readonly #scope: SQL | undefined;
+  /** The global sleep state is Telegram's; a process without it never reads or clears it. */
+  readonly #servesTelegram: boolean;
 
   constructor(
     store: BusinessStore,
@@ -108,6 +131,7 @@ export class InvocationQueueService {
     attachment?: BucketAttachmentTarget,
     tasks = new LongTaskService(store.orm),
     proactive?: ProactiveReplyGateOptions,
+    hosts?: readonly HostKind[],
   ) {
     this.#store = store;
     this.#configStore = configStore;
@@ -115,6 +139,26 @@ export class InvocationQueueService {
     this.#attachment = attachment;
     this.#tasks = tasks;
     this.#proactive = proactive === undefined ? undefined : new ProactiveReplyGate(store.orm, configStore, proactive);
+    this.#servesTelegram = hosts === undefined || hosts.length === 0 || hosts.includes('telegram');
+    this.#scope =
+      hosts === undefined || hosts.length === 0
+        ? undefined
+        : sql`SELECT v.id FROM conversations v JOIN chats c ON c.id = v.chat_id
+              WHERE c.host_kind IN (${sql.join(
+                hosts.map((host) => sql`${host}`),
+                sql`, `,
+              )})`;
+  }
+
+  /** `conversation_id`/`bucket_id` rows of this process's hosts; always true when unscoped. */
+  #servedConversations(column: SQL): SQL {
+    const scope = this.#scope;
+    return scope === undefined ? sql`1 = 1` : sql`${column} IN (${scope})`;
+  }
+
+  /** `activeSleepUntil` for a process that serves Telegram; null otherwise, without touching the row. */
+  sleepUntil(now: Date): string | null {
+    return this.#servesTelegram ? activeSleepUntil(this.#store.orm, now) : null;
   }
 
   recover(now = new Date()): void {
@@ -122,23 +166,27 @@ export class InvocationQueueService {
       const nowIso = now.toISOString();
       const staleBefore = new Date(now.getTime() - RECOVERY_MAX_AGE_MS).toISOString();
       this.#store.orm.run(
-        sql`UPDATE invocations SET state = CASE WHEN side_effect_started = 1 THEN 'outcome_unknown' ELSE 'aborted' END, completion_reason = 'process_restart', finished_at = ${nowIso} WHERE state = 'running'`,
+        sql`UPDATE invocations SET state = CASE WHEN side_effect_started = 1 THEN 'outcome_unknown' ELSE 'aborted' END, completion_reason = 'process_restart', finished_at = ${nowIso}
+            WHERE state = 'running' AND ${this.#servedConversations(sql`conversation_id`)}`,
       );
       // Every attached bucket — the opening one included — decides its state
       // from the invocation it was attached to, not from `invocations.bucket_id`.
       this.#store.orm.run(
         sql`UPDATE buckets SET state = CASE WHEN EXISTS (SELECT 1 FROM invocation_buckets ib JOIN invocations i ON i.id = ib.invocation_id WHERE ib.bucket_id = buckets.id AND i.state = 'outcome_unknown') THEN 'outcome_unknown' ELSE 'aborted' END, error_code = 'process_restart', finished_at = ${nowIso}, updated_at = ${nowIso}
-           WHERE state = 'running' AND EXISTS (SELECT 1 FROM invocation_buckets ib WHERE ib.bucket_id = buckets.id)`,
+           WHERE state = 'running' AND ${this.#servedConversations(sql`conversation_id`)}
+             AND EXISTS (SELECT 1 FROM invocation_buckets ib WHERE ib.bucket_id = buckets.id)`,
       );
       this.#store.orm.run(
-        sql`UPDATE buckets SET state = CASE WHEN EXISTS (SELECT 1 FROM invocations i WHERE i.bucket_id = buckets.id AND i.state = 'outcome_unknown') THEN 'outcome_unknown' ELSE 'aborted' END, error_code = 'process_restart', finished_at = ${nowIso}, updated_at = ${nowIso} WHERE state = 'running'`,
+        sql`UPDATE buckets SET state = CASE WHEN EXISTS (SELECT 1 FROM invocations i WHERE i.bucket_id = buckets.id AND i.state = 'outcome_unknown') THEN 'outcome_unknown' ELSE 'aborted' END, error_code = 'process_restart', finished_at = ${nowIso}, updated_at = ${nowIso}
+            WHERE state = 'running' AND ${this.#servedConversations(sql`conversation_id`)}`,
       );
       // A claim is never replayed: the send outcome can be unknown even when
       // the invocation link is missing or already terminal. Close queued work
       // before ordinary age-based recovery can overwrite its restart reason.
       this.#store.orm.run(
         sql`UPDATE buckets SET state = 'aborted', error_code = 'process_restart', finished_at = ${nowIso}, updated_at = ${nowIso}
-           WHERE id IN (
+           WHERE ${this.#servedConversations(sql`conversation_id`)}
+             AND id IN (
              SELECT i.bucket_id FROM invocations i JOIN task_receipts r ON r.invocation_id = i.id
              WHERE r.state = 'claimed' AND i.state = 'queued'
              UNION
@@ -148,7 +196,8 @@ export class InvocationQueueService {
       );
       this.#store.orm.run(
         sql`UPDATE invocations SET state = 'aborted', completion_reason = 'process_restart', finished_at = ${nowIso}
-           WHERE state = 'queued' AND id IN (SELECT invocation_id FROM task_receipts WHERE state = 'claimed')`,
+           WHERE state = 'queued' AND ${this.#servedConversations(sql`conversation_id`)}
+             AND id IN (SELECT invocation_id FROM task_receipts WHERE state = 'claimed')`,
       );
       this.#store.orm
         .update(taskReceipts)
@@ -159,15 +208,33 @@ export class InvocationQueueService {
           invocationOutcome: 'outcome_unknown',
           completionReason: 'outcome_unknown',
         })
-        .where(eq(taskReceipts.state, 'claimed'))
+        .where(
+          and(
+            eq(taskReceipts.state, 'claimed'),
+            sql`${taskReceipts.taskId} IN (SELECT t.id FROM long_tasks t WHERE ${this.#servedConversations(sql`t.conversation_id`)})`,
+          ),
+        )
         .run();
       const expiring = this.#store.orm
-        .select({ id: buckets.id })
+        .select({ id: buckets.id, hostKind: chats.hostKind })
         .from(buckets)
-        .where(and(inArray(buckets.state, ['collecting', 'queued']), lt(buckets.firstReceivedAt, staleBefore)))
+        .innerJoin(conversations, eq(conversations.id, buckets.conversationId))
+        .innerJoin(chats, eq(chats.id, conversations.chatId))
+        .where(
+          and(
+            inArray(buckets.state, ['collecting', 'queued']),
+            lt(buckets.firstReceivedAt, staleBefore),
+            this.#servedConversations(sql`${buckets.conversationId}`),
+          ),
+        )
         .orderBy(buckets.id)
         .all();
       for (const bucket of expiring) {
+        // A room's queue is not a Telegram collecting bucket: its expiry is
+        // reported by the room store, not swept up by restart recovery.
+        if (bucket.hostKind !== 'telegram') {
+          continue;
+        }
         this.#store.orm
           .update(buckets)
           .set({ state: 'expired', errorCode: 'recovery_age', finishedAt: nowIso, updatedAt: nowIso })
@@ -183,7 +250,7 @@ export class InvocationQueueService {
   }
 
   finishStartupCatchUp(startedAt: Date, now = new Date()): bigint[] {
-    const sleepUntil = activeSleepUntil(this.#store.orm, now);
+    const sleepUntil = this.sleepUntil(now);
     return this.#store.transaction(() => {
       const state = this.#store.orm
         .select({ value: appState.value })
@@ -206,6 +273,9 @@ export class InvocationQueueService {
            LEFT JOIN senders s ON s.id = r.sender_id
            JOIN chats c ON c.id = m.chat_id
            WHERE m.received_at >= ${startedAt.toISOString()} AND m.visible = 1 AND m.sent_by_bot = 0
+             -- Only Telegram catch-up: a room's inputs are released explicitly,
+             -- never swept up by a startup pass.
+             AND c.host_kind = 'telegram'
          ),
          ranked AS (
            SELECT *, ROW_NUMBER() OVER (
@@ -336,7 +406,7 @@ export class InvocationQueueService {
   }
 
   processDue(now = new Date()): bigint[] {
-    const sleepUntil = activeSleepUntil(this.#store.orm, now);
+    const sleepUntil = this.sleepUntil(now);
     return this.#store.transaction(() => {
       // A bucket whose conversation already has a *running* invocation is
       // injected into it (below) instead of starting its own run. Everything
@@ -360,6 +430,7 @@ export class InvocationQueueService {
          FROM buckets b
          JOIN conversations v ON v.id = b.conversation_id
          WHERE b.state = 'collecting' AND b.deadline_at <= ${now.toISOString()}
+           AND ${this.#servedConversations(sql`b.conversation_id`)}
            AND NOT EXISTS (SELECT 1 FROM chat_pause p WHERE p.chat_id = v.chat_id)
            AND NOT EXISTS (
              SELECT 1 FROM invocations i
@@ -584,15 +655,16 @@ export class InvocationQueueService {
     // waits for a running chat or ordinary sleep policy.
     this.#tasks.processDue(now);
     const nowIso = now.toISOString();
-    const sleepUntil = activeSleepUntil(this.#store.orm, now);
+    const sleepUntil = this.sleepUntil(now);
     return this.#store.transaction(() => {
       const pending = this.#store.orm.all<ReceiptRow>(
         sql`SELECT r.task_id, t.conversation_id, v.chat_id, c.telegram_chat_id, v.message_thread_id,
+                   c.host_kind AS host_kind,
                    json_extract(t.delivery_json, '$.bypassDailyBudget') AS bypass_daily_budget
          FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id
          JOIN conversations v ON v.id = t.conversation_id
          JOIN chats c ON c.id = v.chat_id
-         WHERE r.state = 'pending'
+         WHERE r.state = 'pending' AND ${this.#servedConversations(sql`t.conversation_id`)}
          ORDER BY r.created_at, r.task_id`,
       );
       const invocationIds: bigint[] = [];
@@ -612,7 +684,9 @@ export class InvocationQueueService {
             .run();
           continue;
         }
-        if (sleepUntil !== null && receipt.bypass_daily_budget !== 1n) {
+        // Only the Telegram host has a global sleep window; a Playground room
+        // never waits out a chat sleep, and never inherits its bypass either.
+        if (receipt.host_kind === 'telegram' && sleepUntil !== null && receipt.bypass_daily_budget !== 1n) {
           continue;
         }
         const running = this.#runningInvocation(receipt.conversation_id);
@@ -645,11 +719,13 @@ export class InvocationQueueService {
     this.#store.transaction(() => {
       const rows = this.#store.orm.all<ReceiptRow & { invocation_id: bigint }>(
         sql`SELECT r.task_id, r.invocation_id, t.conversation_id, v.chat_id, c.telegram_chat_id,
-                   v.message_thread_id, json_extract(t.delivery_json, '$.bypassDailyBudget') AS bypass_daily_budget
+                   v.message_thread_id, c.host_kind AS host_kind,
+                   json_extract(t.delivery_json, '$.bypassDailyBudget') AS bypass_daily_budget
             FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id
             JOIN invocations i ON i.id = r.invocation_id
             JOIN conversations v ON v.id = t.conversation_id JOIN chats c ON c.id = v.chat_id
-            WHERE r.state = 'claimed' AND i.state = 'queued'`,
+            WHERE r.state = 'claimed' AND i.state = 'queued'
+              AND ${this.#servedConversations(sql`t.conversation_id`)}`,
       );
       const timestamp = now.toISOString();
       for (const receipt of rows) {
@@ -692,6 +768,8 @@ export class InvocationQueueService {
          JOIN conversations v ON v.id = i.conversation_id
          JOIN chats c ON c.id = v.chat_id
          WHERE i.state = 'queued'
+           AND c.host_kind = 'telegram'
+           AND ${this.#servedConversations(sql`i.conversation_id`)}
            AND NOT EXISTS (
              SELECT 1 FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id
              WHERE r.invocation_id = i.id AND r.state = 'claimed'
@@ -743,6 +821,19 @@ export class InvocationQueueService {
   }
 
   #receiptCancelReason(receipt: ReceiptRow): string | undefined {
+    // A room has no Telegram chat entry, pause or topic list; it is a valid
+    // destination for as long as the room itself exists.
+    if (receipt.host_kind === 'playground') {
+      const room = this.#store.orm
+        .select({ chatId: rooms.chatId })
+        .from(rooms)
+        .where(eq(rooms.chatId, receipt.chat_id))
+        .get();
+      return room === undefined ? 'chat_removed' : undefined;
+    }
+    if (receipt.telegram_chat_id === null) {
+      return 'chat_removed';
+    }
     const current = this.#configStore.current().config;
     const chatConfig = resolveChatConfig(current, this.#store.orm, receipt.telegram_chat_id);
     if (chatConfig === undefined) {
@@ -877,25 +968,13 @@ export class InvocationQueueService {
 
   #insertInvocation(bucketId: bigint, conversationId: bigint, now: Date, includeHistory: boolean): bigint {
     const current = this.#configStore.current();
-    const created = this.#store.orm
-      .insert(invocations)
-      .values({
-        bucketId,
-        conversationId,
-        state: 'queued',
-        configHash: current.hash,
-        promptVersion: AGENT_PROMPT_VERSION,
-        createdAt: now.toISOString(),
-      })
-      .returning({ id: invocations.id })
-      .get();
-    if (created === undefined) {
-      throw new Error('invocations insert returned no row');
-    }
-    const invocationId = created.id;
-    // The opening bucket is joined like every attached one, so terminal state
-    // transitions and un-injected releases can be uniform.
-    this.#store.orm.insert(invocationBuckets).values({ invocationId, bucketId, attachedAt: now.toISOString() }).run();
+    const invocationId = enqueueInvocation(this.#store.orm, {
+      bucketId,
+      conversationId,
+      configHash: current.hash,
+      promptVersion: AGENT_PROMPT_VERSION,
+      createdAt: now.toISOString(),
+    });
     snapshotInvocation(
       this.#store,
       current.config.agent.history_messages,

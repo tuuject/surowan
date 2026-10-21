@@ -22,10 +22,11 @@ import {
   messages,
   modelCalls,
   senders,
-  telegramSends,
+  hostSends,
   toolCalls,
 } from '../../store/schema.ts';
 import { meteredTokens, storedSleepUntil } from '../../store/sleep.ts';
+import { telegramHostScope, telegramIdentity } from '../../store/host-scope.ts';
 
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 25;
@@ -187,7 +188,8 @@ interface CountRow {
 interface ConversationContextRow {
   readonly id: bigint;
   readonly conversation_id: bigint;
-  readonly telegram_chat_id: bigint;
+  /** NULL on virtual rooms; listConversationContexts is scoped to telegram hosts. */
+  readonly telegram_chat_id: bigint | null;
   readonly chat_type: string;
   readonly chat_title: string | null;
   readonly message_thread_id: bigint;
@@ -230,7 +232,8 @@ const CONTEXT_FIELDS = {
 /** Recently active first; the cursor carries the same pair so paging stays stable. */
 export function listConversationContexts(orm: Orm, query: ListQuery): Page<Record<string, unknown>> {
   const limit = parseLimit(query.limit);
-  const conditions: SQL[] = [];
+  // Admin surfaces speak Telegram identity, so virtual rows are out of scope here.
+  const conditions: SQL[] = [telegramHostScope()];
   const chatId = optionalFilter(query.chat);
   if (chatId !== undefined) {
     conditions.push(eq(chats.telegramChatId, parseId(chatId, 'chat')));
@@ -269,7 +272,7 @@ export function getConversationContext(orm: Orm, conversationId: bigint): Record
     .from(conversationContexts)
     .innerJoin(conversations, eq(conversations.id, conversationContexts.conversationId))
     .innerJoin(chats, eq(chats.id, conversations.chatId))
-    .where(eq(conversationContexts.conversationId, conversationId))
+    .where(and(telegramHostScope(), eq(conversationContexts.conversationId, conversationId)))
     .get();
   if (context === undefined) {
     return null;
@@ -331,7 +334,7 @@ function contextListItem(row: ConversationContextRow): Record<string, unknown> {
   return {
     id: row.id.toString(),
     conversation_id: row.conversation_id.toString(),
-    telegram_chat_id: row.telegram_chat_id.toString(),
+    telegram_chat_id: telegramIdentity(row.telegram_chat_id, 'chats.telegram_chat_id').toString(),
     chat_type: row.chat_type,
     chat_title: row.chat_title,
     message_thread_id: Number(row.message_thread_id),
@@ -384,7 +387,7 @@ type InvocationScope = (column: SQL) => SQL;
 interface MatchedMessageRow {
   readonly invocation_id: bigint;
   readonly source: string;
-  /** TEXT for frozen snapshots, INTEGER for telegram_sends; both stringified in the API. */
+  /** TEXT for frozen snapshots, INTEGER for host_sends; both stringified in the API. */
   readonly telegram_message_id: bigint | string | null;
   readonly telegram_send_id: bigint | null;
   readonly at: string;
@@ -401,7 +404,7 @@ const SEND_INVOCATION = sql`tc.invocation_id`;
 // is gone falls back to the send arguments that Telegram accepted.
 const SEND_TEXT = sql`COALESCE(r.text, r.caption, json_extract(tc.arguments_json, '$.text'))`;
 const SEND_DATE = sql`COALESCE(m.telegram_date, ts.finished_at)`;
-const SEND_SOURCE = sql`FROM telegram_sends ts
+const SEND_SOURCE = sql`FROM host_sends ts
        JOIN tool_calls tc ON tc.id = ts.tool_call_id
        LEFT JOIN messages m ON m.conversation_id = ts.conversation_id
          AND m.telegram_message_id = ts.telegram_message_id AND m.sent_by_bot = 1
@@ -552,7 +555,7 @@ function matchedMessagesSelect(filter: InvocationMessageFilter, scope: Invocatio
 /**
  * Total order inside one invocation: newest public time first, then the
  * Telegram message ID compared as an integer (`json_extract` returns the
- * snapshots' frozen TEXT ids while `telegram_sends` stores integers), then the
+ * snapshots' frozen TEXT ids while `host_sends` stores integers), then the
  * send row ID and source so same-second matches still have one deterministic
  * order.
  */
@@ -610,9 +613,17 @@ function loadMatchedMessages(
   return byInvocation;
 }
 
+/**
+ * The admin audit surface reports Telegram chats: it renders Telegram chat ids,
+ * message ids and sender ids directly. Virtual rooms have none of those, so
+ * every audit query states the host it speaks instead of reading a Telegram id
+ * that a virtual row does not have.
+ */
+const TELEGRAM_HOST = sql`ch.host_kind = 'telegram'`;
+
 export function listInvocations(orm: Orm, query: ListQuery, config?: RawConfig): Page<Record<string, unknown>> {
   const limit = parseLimit(query.limit);
-  const conditions: SQL[] = [];
+  const conditions: SQL[] = [TELEGRAM_HOST];
   appendCursor(conditions, sql`i.id`, query.cursor);
   if (query.state !== undefined && query.state !== null && query.state.length > 0) {
     conditions.push(sql`i.state = ${assertToken(query.state, 'state')}`);
@@ -691,7 +702,7 @@ export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | n
        FROM invocations i
        JOIN conversations c ON c.id = i.conversation_id
        JOIN chats ch ON ch.id = c.chat_id
-       WHERE i.id = ${id}`)
+       WHERE i.id = ${id} AND ch.host_kind = 'telegram'`)
     .at(0);
   if (invocation === undefined) {
     return null;
@@ -755,20 +766,20 @@ export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | n
     .all();
   const sendRows = orm
     .select({
-      id: telegramSends.id,
+      id: hostSends.id,
       toolCallId: toolCalls.toolCallId,
-      kind: telegramSends.kind,
-      requestJson: telegramSends.requestJson,
-      state: telegramSends.state,
-      telegramMessageId: telegramSends.telegramMessageId,
-      errorCode: telegramSends.errorCode,
-      createdAt: telegramSends.createdAt,
-      finishedAt: telegramSends.finishedAt,
+      kind: hostSends.kind,
+      requestJson: hostSends.requestJson,
+      state: hostSends.state,
+      telegramMessageId: hostSends.telegramMessageId,
+      errorCode: hostSends.errorCode,
+      createdAt: hostSends.createdAt,
+      finishedAt: hostSends.finishedAt,
     })
-    .from(telegramSends)
-    .innerJoin(toolCalls, eq(telegramSends.toolCallId, toolCalls.id))
+    .from(hostSends)
+    .innerJoin(toolCalls, eq(hostSends.toolCallId, toolCalls.id))
     .where(eq(toolCalls.invocationId, id))
-    .orderBy(telegramSends.id)
+    .orderBy(hostSends.id)
     .all();
   const contextMessageRows = orm
     .select({
@@ -892,7 +903,7 @@ const MESSAGE_SELECT = sql`SELECT m.id, m.telegram_message_id, m.telegram_date, 
 
 export function listMessages(orm: Orm, query: ListQuery): Page<Record<string, unknown>> {
   const limit = parseLimit(query.limit);
-  const conditions: SQL[] = [];
+  const conditions: SQL[] = [TELEGRAM_HOST];
   appendCursor(conditions, sql`m.id`, query.cursor);
   if (query.chat !== undefined && query.chat !== null && query.chat.length > 0) {
     conditions.push(sql`ch.telegram_chat_id = ${parseId(query.chat, 'chat')}`);
@@ -942,7 +953,9 @@ export function listMessages(orm: Orm, query: ListQuery): Page<Record<string, un
 }
 
 export function getMessage(orm: Orm, id: bigint): Record<string, unknown> | null {
-  const message = orm.all<MessageListRow>(sql`${MESSAGE_SELECT} WHERE m.id = ${id}`).at(0);
+  const message = orm
+    .all<MessageListRow>(sql`${MESSAGE_SELECT} WHERE m.id = ${id} AND ch.host_kind = 'telegram'`)
+    .at(0);
   if (message === undefined) {
     return null;
   }
@@ -1150,6 +1163,7 @@ export function overview(orm: Orm, now = new Date()): Record<string, unknown> {
   const sleepUntil = storedSleep !== null && storedSleep > now.toISOString() ? storedSleep : null;
   const pausedChats = orm.all<PausedChatRow>(sql`SELECT c.telegram_chat_id, c.type, c.title, c.username, p.paused_at
        FROM chat_pause p JOIN chats c ON c.id = p.chat_id
+       WHERE c.host_kind = 'telegram'
        ORDER BY p.paused_at, c.telegram_chat_id`);
   const messageCount = orm.select({ count: sql<bigint>`count(*)` }).from(messages).get();
   const analysisCount = orm

@@ -54,7 +54,7 @@ export interface SceneContextOptions {
   /** Rendering clock; defaults to the scene cutoff. History bounds never move. */
   readonly now?: Date;
   readonly supportsImages?: boolean;
-  /** Successful telegram_sends row: replay only the public input since the previous bot message. */
+  /** Successful host_sends row: replay only the public input since the previous bot message. */
   readonly beforeSendId?: bigint;
 }
 
@@ -625,7 +625,7 @@ function loadBotSlice(store: BusinessStore, invocationId: bigint, source: SceneS
   const target = store.orm
     .all<{ message_id: bigint; cutoff_at: string }>(
       sql`SELECT ts.telegram_message_id AS message_id, ts.created_at AS cutoff_at
-        FROM telegram_sends ts JOIN tool_calls tc ON tc.id = ts.tool_call_id
+        FROM host_sends ts JOIN tool_calls tc ON tc.id = ts.tool_call_id
         WHERE ts.id = ${sendId} AND tc.invocation_id = ${invocationId}
           AND ts.conversation_id = ${source.conversationId}
           AND ts.state = 'success' AND ts.telegram_message_id IS NOT NULL`,
@@ -644,7 +644,7 @@ function loadBotSlice(store: BusinessStore, invocationId: bigint, source: SceneS
           WHERE conversation_id = ${source.conversationId} AND sent_by_bot = 1
             AND telegram_message_id < ${target.message_id}
           UNION ALL
-          SELECT telegram_message_id AS message_id FROM telegram_sends
+          SELECT telegram_message_id AS message_id FROM host_sends
           WHERE conversation_id = ${source.conversationId} AND state = 'success'
             AND telegram_message_id < ${target.message_id}
         )`,
