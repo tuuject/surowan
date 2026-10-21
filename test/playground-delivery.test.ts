@@ -242,7 +242,8 @@ describe('Bot Playground virtual delivery', () => {
     const written = roomMessages(room.conversationId);
     expect(written).toHaveLength(1);
     const message = written[0]!;
-    expect(message.id).toBe(published?.messageId);
+    // A delivery reports the room's own message id, its sequence number.
+    expect(published?.messageId).toBe(message.localSequenceNo);
     expect(message.hostKind).toBe('playground');
     expect(message.telegramMessageId).toBeNull();
     expect(message.sentByBot).toBe(true);
@@ -427,7 +428,7 @@ describe('Bot Playground virtual delivery', () => {
     if (first.kind !== 'delivered') {
       return;
     }
-    const botId = authorOf(first.messages[0]!.messageId);
+    const botId = authorOf(roomMessages(room.conversationId)[0]!.id);
     expect(botId).toBeDefined();
     expect(botId).not.toBe(human.id);
     const bot = store.orm.select().from(senders).where(eq(senders.id, botId!)).get();
@@ -459,7 +460,7 @@ describe('Bot Playground virtual delivery', () => {
       return;
     }
     // Each room shows its own bot identity.
-    expect(authorOf(second.messages[0]!.messageId)).toBe(later.selfSenderId);
+    expect(authorOf(roomMessages(later.conversationId)[0]!.id)).toBe(later.selfSenderId);
   });
 
   test('refuses a multi-part delivery before publishing any of it', async () => {
@@ -537,26 +538,39 @@ describe('Bot Playground virtual delivery', () => {
     }
   });
 
-  test('a reply names a local message without touching Telegram', async () => {
+  test('a reply names a room sequence and links the stored message it carries', async () => {
+    // Another room publishes first, so this room's rows are not numbered like
+    // its sequence and a row id taken for a sequence would name the wrong row.
+    const other = createRoom({ chatId: 59n, title: 'other', selfDisplayName: '碗' });
     const room = createRoom({ chatId: 60n, title: 'reply', selfDisplayName: '碗' });
     const host = hostFor('碗');
+    await deliver(
+      host,
+      { ...other, title: 'other' },
+      reserveSend(other.conversationId, other.invocationId, { id: 'o1' }),
+      'x',
+    );
     const first = reserveSend(room.conversationId, room.invocationId, { id: 'p1', text: 'question' });
     const firstOutcome = await deliver(host, { ...room, title: 'reply' }, first, 'question');
     expect(firstOutcome.kind).toBe('delivered');
     if (firstOutcome.kind !== 'delivered') {
       return;
     }
-    const target = firstOutcome.messages[0]!.messageId;
+    expect(firstOutcome.messages[0]!.messageId).toBe(1n);
 
     const second = reserveSend(room.conversationId, room.invocationId, { id: 'p2', text: 'answer' });
-    const secondOutcome = await deliver(host, { ...room, title: 'reply' }, second, 'answer', target);
+    const secondOutcome = await deliver(host, { ...room, title: 'reply' }, second, 'answer', 1n);
     expect(secondOutcome.kind).toBe('delivered');
     if (secondOutcome.kind !== 'delivered') {
       return;
     }
+    expect(secondOutcome.messages[0]!.messageId).toBe(2n);
 
-    const reply = store.orm.select().from(messages).where(eq(messages.id, secondOutcome.messages[0]!.messageId)).get();
-    expect(reply?.localReplyToMessageId).toBe(target);
+    const written = roomMessages(room.conversationId);
+    expect(written.map((row) => row.localSequenceNo)).toEqual([1n, 2n]);
+    const [question, reply] = written;
+    expect(question?.id).not.toBe(1n);
+    expect(reply?.localReplyToMessageId).toBe(question?.id);
     expect(reply?.telegramMessageId).toBeNull();
     expect(telegramTransport).not.toHaveBeenCalled();
   });

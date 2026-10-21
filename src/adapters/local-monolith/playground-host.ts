@@ -9,7 +9,10 @@
  *
  * Everything a Telegram host reports from the wire (`sentAtSeconds`, a host
  * message id) is therefore decided here instead, which is why the caller does
- * not mirror or finalize anything this host accepted.
+ * not mirror or finalize anything this host accepted. A room's host message id
+ * is its sequence number, in both directions: a reply names the sequence the
+ * model was shown, and a delivery reports the sequence it took. Row ids stay
+ * inside this file.
  */
 import { and, eq } from 'drizzle-orm';
 import {
@@ -87,6 +90,12 @@ interface ResolvedRoom {
   readonly chatId: bigint;
   readonly hostKind: string;
   readonly nextSeq: bigint;
+}
+
+/** A room that passed every read-only check, with the stored row its reply names. */
+interface CheckedRoom {
+  readonly room: ResolvedRoom;
+  readonly replyTo: bigint | null;
 }
 
 /** A refusal always names why, so a room can show it instead of a blank turn. */
@@ -241,33 +250,22 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
       return undefined;
     }
     const published = orm
-      .select({ receivedAt: messages.receivedAt })
+      .select({ receivedAt: messages.receivedAt, seq: messages.localSequenceNo })
       .from(messages)
       .where(eq(messages.id, messageId))
       .limit(1)
       .get();
+    // The link is cleared when retention deletes the message, so a linked row
+    // exists and, being a room message, carries its sequence.
+    if (published?.seq === null || published?.seq === undefined) {
+      throw new Error(`published message ${messageId} has no room sequence`);
+    }
     return {
       partIndex: 0,
-      messageId,
-      sentAtSeconds: deliveredAt(published?.receivedAt ?? now().toISOString()),
+      messageId: published.seq,
+      sentAtSeconds: deliveredAt(published.receivedAt),
     };
   };
-
-  /** Whether one message is a message of this very room. */
-  const messageInRoom = (conversationId: bigint, chatId: bigint, messageId: bigint): boolean =>
-    orm
-      .select({ id: messages.id })
-      .from(messages)
-      .where(
-        and(
-          eq(messages.id, messageId),
-          eq(messages.chatId, chatId),
-          eq(messages.conversationId, conversationId),
-          eq(messages.hostKind, 'playground'),
-        ),
-      )
-      .limit(1)
-      .get() !== undefined;
 
   /**
    * The ledger row was reserved for one conversation. Publishing it anywhere
@@ -292,7 +290,7 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
   const checkedRoom = (
     request: ImDeliveryRequest,
     shape: { readonly kind: 'text' | 'image'; readonly text: string | null; readonly caption: string | null },
-  ): { readonly refusal: ImDeliveryOutcome } | { readonly room: ResolvedRoom } => {
+  ): { readonly refusal: ImDeliveryOutcome } | CheckedRoom => {
     const room = resolveRoom(request.target.conversation.id);
     if (room === null) {
       return { refusal: rejected('permanent', 'conversation_not_found', 'the target conversation no longer exists') };
@@ -302,12 +300,30 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
         refusal: rejected('permanent', 'host_mismatch', `conversation host is "${room.hostKind}", not "playground"`),
       };
     }
-    // A reply target is an internal message id. It must be a message of this
-    // very room; the foreign key alone would accept any row, Telegram included.
-    const replyToMessageId = request.replyToMessageId ?? null;
-    if (replyToMessageId !== null && !messageInRoom(request.target.conversation.id, room.chatId, replyToMessageId)) {
+    // A reply target is a sequence number of this very room: the room's own
+    // message id, the one the model was shown. The row id stays internal, so a
+    // number no message of this room carries is refused, never matched against
+    // a row of any other room.
+    const replySeq = request.replyToMessageId ?? null;
+    const replyTo =
+      replySeq === null
+        ? null
+        : (orm
+            .select({ id: messages.id })
+            .from(messages)
+            .where(
+              and(
+                eq(messages.conversationId, request.target.conversation.id),
+                eq(messages.chatId, room.chatId),
+                eq(messages.hostKind, 'playground'),
+                eq(messages.localSequenceNo, replySeq),
+              ),
+            )
+            .limit(1)
+            .get()?.id ?? null);
+    if (replySeq !== null && replyTo === null) {
       return {
-        refusal: rejected('permanent', 'reply_target_other_room', `message ${replyToMessageId} is not in this room`),
+        refusal: rejected('permanent', 'reply_target_other_room', `message ${replySeq} is not in this room`),
       };
     }
     const limits = request.target.policy.delivery;
@@ -325,7 +341,7 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
           ),
         };
       }
-      return { room };
+      return { room, replyTo };
     }
     if (options.pictures === undefined) {
       return { refusal: rejected('permanent', 'unsupported_media', 'this room has no picture store') };
@@ -340,7 +356,7 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
         ),
       };
     }
-    return { room };
+    return { room, replyTo };
   };
 
   /**
@@ -441,9 +457,8 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
     // from a send that committed in between. The room revision is left alone:
     // it guards inputs and settings, and bot output must not invalidate a
     // Release a client prepared meanwhile.
-    const { room } = checked;
+    const { room, replyTo } = checked;
     const stamp = now().toISOString();
-    const replyToMessageId = request.replyToMessageId ?? null;
     const sequenceNo = room.nextSeq;
 
     const createdMessage = orm
@@ -457,7 +472,7 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
         sentByBot: true,
         telegramDate: stamp,
         receivedAt: stamp,
-        localReplyToMessageId: replyToMessageId,
+        localReplyToMessageId: replyTo,
         localSequenceNo: sequenceNo,
       })
       .returning({ id: messages.id })
@@ -475,7 +490,9 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
         kind: content.kind,
         text: content.kind === 'text' ? content.text : null,
         caption: content.kind === 'image' ? content.caption : null,
-        replyToMessageId,
+        // The reply edge lives on the message row, as for every room message;
+        // this column holds a Telegram message id, which a room has none of.
+        replyToMessageId: null,
         createdAt: stamp,
         rawFragmentJson: '{}',
       })
@@ -523,12 +540,15 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
       .set({
         state: 'success',
         messageId: createdMessage.id,
-        responseJson: JSON.stringify({ message_id: createdMessage.id.toString() }),
+        // The host-native id, as a Telegram send records the wire id: the
+        // number the model was told, which still names the message after
+        // retention cleared the row link above.
+        responseJson: JSON.stringify({ message_id: sequenceNo.toString() }),
         finishedAt: stamp,
       })
       .where(eq(hostSends.id, request.sendId))
       .run();
-    return { partIndex: 0, messageId: createdMessage.id, sentAtSeconds: deliveredAt(stamp) };
+    return { partIndex: 0, messageId: sequenceNo, sentAtSeconds: deliveredAt(stamp) };
   };
 
   const delivery: ImDelivery = {

@@ -338,8 +338,10 @@ export interface ImDeliveryRequest {
    */
   readonly sendId: bigint;
   /**
-   * Host-native message the first part replies to, already resolved by the
-   * server. Never a model-supplied string.
+   * Host-native id of the message the first part replies to: the id the model
+   * was shown (a Telegram message id, a room sequence number), already
+   * authorized by the server against the conversation context. The host
+   * resolves it inside the target conversation; it is never a storage row id.
    */
   readonly replyToMessageId?: bigint;
   readonly signal: AbortSignal | undefined;
@@ -376,7 +378,11 @@ export interface ImDeliveryFailure {
 /** One host message produced by one part of the request. */
 export interface ImDeliveredMessage {
   readonly partIndex: number;
-  /** Internal. Never rendered into a prompt; the model sees a message ref. */
+  /**
+   * Host-native id of the published message (a Telegram message id, a room
+   * sequence number): the id the model is told, and may reply to later. Never
+   * a storage row id.
+   */
   readonly messageId: bigint;
   /** When the host accepted the message, in Unix seconds. */
   readonly sentAtSeconds: number;
