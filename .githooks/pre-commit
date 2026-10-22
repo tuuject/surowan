@@ -1,0 +1,3 @@
+#!/bin/sh
+# Enabled by `pnpm install` (scripts/git-hooks.ts sets core.hooksPath to .githooks).
+exec node "$(dirname "$0")/../scripts/file-token-limit.ts"
