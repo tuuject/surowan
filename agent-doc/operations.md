@@ -55,6 +55,25 @@ node src/cli.ts doctor --config dev-data/config.jsonc
 
 `dev-data/config.jsonc`、`dev-data/key.json`、数据库、媒体和备份已由 `.gitignore` 排除（任意位置的 `key.json` 也被排除）。`config.jsonc` 不含 Secret，排查配置时读它即可；Secret 值只在 `key.json`、环境变量或外部命令里，不要读取或复制到受版本控制的示例或文档。
 
+## 开发命令
+
+命令清单见 [AGENTS.md 的 Build, Test, and Development Commands](../AGENTS.md#build-test-and-development-commands)。各命令的用途与边界：
+
+- 包管理器为 pnpm（`pnpm-lock.yaml`）；运行时为 Node.js ≥24，测试运行器为 vitest（`pnpm test`），CLI 入口为 `node src/cli.ts …`。
+- `pnpm run manual:prepare`：从 `apps/docs/content/docs` 打包用户手册 Markdown 与索引到 `src/manual/`（gitignored，Docker 构建自动执行）；未生成时 Bot 仍可启动，但文档能力退化为 `unknown_space`，`doctor` 判为失败。
+- `pnpm run skills:sync`：把 `skills/` 下的仓库 Skill 软链接进 `.agents/skills/`、`.claude/skills/`（均 gitignored），并按 `package.json` 的 `skills` 字段安装锁定版本的外部 Skill（哈希记入 `skills-lock.json`）。`pnpm install` 实际安装依赖时由 `postinstall` 自动执行（CI 与无 `.git` 时跳过，失败只警告）；只改了 `skills` 字段或新增仓库 Skill 时要手动运行。细节见 [Coding Agent Skills](#coding-agent-skills)。
+- `pnpm run check`：严格 TypeScript 检查（runtime/Admin/docs）；文档检查前会准备被忽略的版本元数据、字段参考和示例，不输出编译 JS。
+- `pnpm test`：运行全部行为测试。
+- `check-config`：只验证 JSONC Schema、语义与引用，输出配置哈希。
+- `doctor`：执行 SQLite/Sharp/FFmpeg/Lottie、Provider、Vision、Telegram 与 required MCP 的真实探针。
+- `serve`：启动 Telegram long polling；白名单字段（agent 模型、Prompt、预算与并发等，见 [configuration.md](configuration.md#运行时配置热更新)）可在运行中通过 Admin 的「应用配置文件」或 `/model` 应用，其余字段仍需重启。
+- `backup`：执行保留清理、SQLite `VACUUM INTO` 备份与轮换；完整性检查属于独立恢复验证。
+- `configure`：`src/tui/` 的交互式配置向导，编辑既有配置的 Provider 与 thinking level，可从 Provider `/models` 拉取可路由模型 ID 后写回原文件。要求已存在可加载的配置且 stdin 是 TTY，非交互环境直接报错退出——agent 不要调用它。
+- `admin:build`：构建 `apps/admin-next` 生产 bundle（`apps/admin-next/dist`），供 `serve` 静态托管。
+- `admin:test:e2e`：Playwright 浏览器 E2E（`apps/admin-next/e2e`），驱动 `admin:build` 产物与真实 AdminServer 子进程，首次运行前需安装 Chromium；CI 的 Docker workflow 构建后会运行同一套件。命令细节与单套件过滤见 [verification.md](verification.md#admin-panel-浏览器-e2e)。
+- `admin:dev`：启动 Rsbuild dev server（监听 127.0.0.1:5273），`/api` 代理到运行中的 Admin Panel。
+- `docs:*`：独立静态文档站；`dev`/`preview` 监听 127.0.0.1:5274，`build` 输出 `apps/docs/dist`，`verify` 检查生产 HTML/Markdown/llms 与 HTTP。维护及部署边界见 [apps/docs/README.md](../apps/docs/README.md)。用户可见行为、配置或运维改变时，同步更新相关指南、示例与测试，不把 `agent-doc/` 自动发布到站点。
+
 ## Coding Agent Skills
 
 仓库根目录的 `skills/<name>/` 是开发本仓库时给 Coding Agent 用的官方 Skill，与 Bot 运行时的 System Skills（`src/system-resources/skills/`、插件目录下的 `skills/`）无关，也不进入镜像。外部使用者可以直接 `npx skills add tuuject/surowan`（或完整 GitHub URL，`--skill <name>` 只装其中一个）安装。
@@ -144,6 +163,15 @@ Admin Panel 的 Models / Chats 页在有字段等待重启时提供「立即重�
 
 执行前会按启动流程校验磁盘上的配置（权限检查与完整 `loadConfig`）：配置无效时拒绝重启并返回 422，否则进程退出后起不来，bot 就停了。本期没有「上次可用配置」回退，启动期才失败的情况（SecretRef 解析失败、Pi 升级导致 builtin 模型消失等）仍然需要人工修复。
 
+## 长进程运行约定
+
+- `serve` 是长期进程。Agent 必须使用进程监督器启动，等待 `serve_started`，并通过日志或真实消息验证。
+- 同一 `data_dir` 只能有一个实例；`ServeLock` 靠 `data_dir` 里 `serve.lock.sqlite` 上进程存活的 SQLite `EXCLUSIVE` 事务（内核在进程退出时释放）防止双实例和 Telegram long polling 竞争，`serve.lock` 只是记录 PID 的说明文件，不参与存活判断。
+- 需要替换同一 `data_dir` 上正在运行的实例时用 `node src/cli.ts serve --config <path> --takeover`：它请求对方优雅退出并等锁释放（对方日志 `takeover_requested`，接管方 `takeover_completed`），不要手动删 `serve.lock` 或强杀进程。
+- 修改 `config.jsonc` 后：白名单字段可用 Admin 的「应用配置文件」或 `/model` 热应用，其余字段必须重启。成员的 `/ignoreme`、`/unignoreme` 也会写回当前 Chat 的 `ignored_user_ids` 并热应用配置文件。用 `config_reloaded` 日志事件（同时带 `active_hash` 与 `file_hash`）或 `check-config` 输出对比哈希，避免误判白名单或模型配置。没有文件系统 watcher，文件只有在显式应用或配置写入入口被调用时才生效。
+- 本地人工运行使用 `Ctrl+C` 停止；再按一次 `Ctrl+C`（或再发一次 `SIGTERM`）会跳过收尾立即退出（日志 `shutdown_forced`）。不要用未验证 PID 的强制终止命令。
+- Admin Panel 随 `serve` 在同一进程内启动，仅在 `admin.enabled = true` 时监听；`admin.host` 不限制回环，非回环绑定的暴露风险由运维承担。
+
 ## 配置变更
 
 白名单字段可以热应用，其余字段不热重载。白名单（agent 模型、Provider 的全部字段——连接字段、模型列表与增删、vision 模型、Prompt、已有 Chat 的 `provider`/`model`/`thinking_level` 覆盖和 `ignored_user_ids`、预算与并发等）在改完文件后，用 Admin Panel 的「Apply config file」、Models / Chats 页的保存操作或 Telegram 的 `/model` 触发一次应用，不必重启；成员的 `/ignoreme`、`/unignoreme` 会写回自己的忽略设置并热应用同一配置文件。清单与语义见 [configuration.md](configuration.md#运行时配置热更新)。其它字段（allowlist 的删除与 Topic 范围、MCP、`admin.*`、`vision.max_concurrency` 等）变更后：
@@ -207,13 +235,13 @@ printf '%s' '临时替换的 global prompt' | surowan-utils invocation replay 12
 - 凭据：`login` 把 endpoint 与 key 成对保存到固定路径 `~/.config/surowan-utils/credentials.json`（所有平台一致，与 Bot 的 `config.jsonc`/`key.json` 无关），文件未加密；POSIX 上目录 `0700`、文件 `0600`（更窄权限亦可），拒绝符号链接与不安全权限且不自动修复，Windows 不做 POSIX mode 检查、沿用用户目录 ACL（不承诺 `chmod` 级别的保护）；key 全来源统一为 1–4096 字符且禁空白/控制字符，序列化凭据超过 16384 字节拒绝，写入失败不覆盖旧凭据。`login` 不访问服务器，保存后必须跑 `doctor`。非交互时可用 `--endpoint` 加 `--api-key`/环境变量，或用 `--api-key-stdin`：login 把 stdin 读到 EOF（不是读完一行就停），累计不超过 4098 字节，读取结束后只去掉一个尾部 LF/CRLF，剩余换行/空白/控制字符非法（`invalid_api_key`，退出码 2；受 `--timeout-ms` 约束，超时 `timeout` 退出码 1，不保存），不能与 `--api-key`/环境变量 key 同时给出，不是 `--api-key -`；stdin 读取只限 login 的 key 与 replay 的 `--global-prompt -` / `--group-prompt -`。
 - 凭据解析顺序（doctor 与 invocation list/get/replay 相同）：明确参数 > 环境变量 > 保存文件。参数或环境变量显式给出的空串按缺失/非法处理，不回退到下一来源或改为交互提示；endpoint 与 key 都明确给出时完全不读凭据文件（文件损坏或不安全也不影响），只给其一才读文件、文件问题以 `invalid_credentials`（退出码 1）失败。保存的 key 只用于与其规范化 endpoint 一致的地址：endpoint 经 `parseEndpoint` 规范化后不同且未显式给 key 时报 `missing_api_key`（不把文件 key 发往别的服务），规范化后一致时仍可复用；参数与环境变量不写回文件。
 - `doctor --json` 按同一顺序解析凭据后恰好一次 `GET /api/invocations?limit=1`：没有 replay、没有模型/Provider 调用；成功输出 `{status:"ok",endpoint,credential_sources:{endpoint,api_key}}`，来源取值为 `argument`/`environment`/`file`；不输出 Invocation 正文，不发送 Telegram、不重试，鉴权仍会更新 key 的 `last_used_at`。失败走既有 JSON stderr 路径：参数/环境变量凭据缺失或不合法退出码 `2`，保存文件无效（`invalid_credentials`）或请求失败退出码 `1`。
-- 发布由 `.github/workflows/npm.yml` 承担，独立于 Docker workflow：只有 `tuuject/surowan` 的 push 会发布，`main` 产出 canary（`0.0.0-canary.<run>.<attempt>.g<sha12>`，dist-tag `canary`），严格 `vMAJOR.MINOR.PATCH` tag 产出稳定版（dist-tag `latest`）；版本只在 CI checkout 内改写、不回写源码，用 OIDC 且没有 `NPM_TOKEN`；trusted publisher 只允许 `npm stage publish`，CI 产物进入待审批区，维护者 `npm stage approve`（2FA）后才对外发布。首次发布 bootstrap 与 trusted publisher 配置见 [packages/cli/README.md](../packages/cli/README.md#首次发布-bootstrap)：包必须先在 npm 上存在，之后手工打稳定 tag 才走 CI。Docker workflow 用 `GITHUB_TOKEN` 推送的 `v0.0.0-next-*` tag 不会触发它，手推 prerelease tag 会被版本 guard 拒绝。
+- 发布由 `.github/workflows/npm.yml` 承担，独立于 Docker workflow：只有 `tuuject/surowan` 的 push 会发布，`main` 产出 canary（`0.0.0-canary.<run>.<attempt>.g<sha12>`，dist-tag `canary`），严格 `vMAJOR.MINOR.PATCH` tag 产出稳定版（dist-tag `latest`）；版本只在 CI checkout 内改写、不回写源码，用 OIDC 且没有 `NPM_TOKEN`；trusted publisher 只允许 `npm stage publish`，CI 产物进入待审批区，维护者 `npm stage approve`（2FA）后才对外发布。首次发布 bootstrap 与 trusted publisher 配置见 [packages/cli/RELEASING.md](../packages/cli/RELEASING.md#首次发布-bootstrap)：包必须先在 npm 上存在，之后手工打稳定 tag 才走 CI。Docker workflow 用 `GITHUB_TOKEN` 推送的 `v0.0.0-next-*` tag 不会触发它，手推 prerelease tag 会被版本 guard 拒绝。
 - API key 只能在面板 Session 下创建：在面板 **Manage → API keys** 页（`/api-keys`）创建并取得唯一一次明文，也在同一页撤销（Bearer 密钥不能管理密钥，见 [admin-panel.md](admin-panel.md#程序化-api-密钥)）。本地 tarball 或 registry 全局安装后，直接用 `surowan-utils` 调用。
 - endpoint 来自明确参数、环境变量或 `login` 保存的凭据文件；明文 `http` 仅允许 loopback（`127.0.0.0/8`、`::1`、`localhost`），远端必须 `https`，URL 不得带凭据、query 或 fragment。
 - 请求不跟随重定向、不自动重试；默认超时 login/doctor/list/get 30 秒、replay 300 秒；stdin 读取单独使用同一 `--timeout-ms` 上限，超时返回 `timeout`（退出码 1）且不发送 HTTP 请求；JSON 响应体不设客户端大小上限，完整读取后解析，仍受请求超时约束。
 - `--json` 时 stdout 恰好一个 JSON 文档；失败时 stderr 为 `{"error","message"}`（经 key 脱敏）。退出码 `0` 成功、`1` 请求/服务端/replay 失败或保存的凭据文件无效（`invalid_credentials`）、`2` 参数、输入或凭据缺失/不合法。replay 即使返回的 `error` 非空也会把完整结构写在 stdout。
 - replay 的行为边界（合成工具、不写生产数据、按 Provider 计费）见 [admin-panel.md](admin-panel.md#invocation-重放)；选项全集与响应形状以 [packages/cli/README.md](../packages/cli/README.md) 与源码为准。
-- 源码仓库根目录的 [`surowan-utils` Skill](../skills/surowan-utils/SKILL.md) 面向通过 CLI 访问 Admin API 的外部 Agent：每次任务先运行 `surowan-utils doctor --json`（恰好一次只读请求），只有退出码 `0` 且 `status` 为 `ok` 才读取对应指南并查询或重放；doctor 失败即停止并请操作员用 `login` 修复，不循环重试、不代为执行 `login` 或改动凭据、不直接读取聊天或存储中的 key，`--help` 只用于客户端缺失或命令不匹配时的诊断。`SKILL.md` 是轻量入口，审计与重放细节分列 `references/invocations.md`、`references/replay.md`，按当前任务加载子文档而不是一次全读。它不是 Bot 的 System Skill。npm 包不内置该 Skill，须按 [CLI README](../packages/cli/README.md#配套-agent-skill) 用 `npx skills add tuuject/surowan --skill surowan-utils` 安装，或从源码仓库将整个目录（含 `references/` 与 `agents/openai.yaml`）复制/导入宿主并随仓库同步更新。不把服务端源码或 SQLite 访问作为前提。
+- 源码仓库根目录的 [`surowan-utils` Skill](../skills/surowan-utils/SKILL.md) 面向通过 CLI 访问 Admin API 的外部 Agent：每次任务先运行 `surowan-utils doctor --json`（恰好一次只读请求），只有退出码 `0` 且 `status` 为 `ok` 才读取对应指南并查询或重放；doctor 失败即停止并请操作员用 `login` 修复，不循环重试、不代为执行 `login` 或改动凭据、不直接读取聊天或存储中的 key，`--help` 只用于客户端缺失或命令不匹配时的诊断。`SKILL.md` 是轻量入口，审计与重放细节分列 `references/invocations.md`、`references/replay.md`，按当前任务加载子文档而不是一次全读。它不是 Bot 的 System Skill。npm 包不内置该 Skill，须按 [CLI Agent Skill](../packages/cli/AGENT-SKILL.md) 用 `npx skills add tuuject/surowan --skill surowan-utils` 安装，或从源码仓库将整个目录（含 `references/` 与 `agents/openai.yaml`）复制/导入宿主并随仓库同步更新。不把服务端源码或 SQLite 访问作为前提。
 
 ## 管理员凭据与 Passkey 恢复（admin-reset）
 
