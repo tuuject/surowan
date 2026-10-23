@@ -16,7 +16,7 @@ CI 在推送 `main` 分支与 `v*` tag 时自动发布镜像到 `ghcr.io/tuuject
 | `latest` | 推送 `v*` 稳定版本 tag 时，同时发布 `<version>`（如 `1.2.3`）与 `<major>.<minor>`（如 `1.2`） |
 | `<version>` / `<major>.<minor>` | 同上；固定具体版本可获得可复现部署 |
 | `main` | 每次推送 `main` 分支，开发滚动版 |
-| `0.0.0-next-<timestamp>` | 每次推送 `main` 时固定某次构建，并创建 GitHub pre-release |
+| `0.0.0-next-<timestamp>` | 每次推送 `main` 时固定某次构建，并创建 GitHub pre-release；只保留最近 20 个，更早的镜像与 pre-release 会一起删除 |
 
 `latest` 只跟随 `v*` 稳定 tag，不跟随 `main`；正式版本对应 GitHub Releases 中的非 pre-release 条目。本地镜像的实际版本可查：
 
@@ -53,4 +53,4 @@ docker image inspect ghcr.io/tuuject/surowan:latest \
 
 升级前备份不是降级保证。若启动或迁移失败，保留失败日志和原数据副本，在隔离目录演练 [恢复](backup-restore.md)，而不是删除 SQLite、缓存或锁文件。具体旧版本迁移路径尚未在本指南环境中演练。
 
-回滚镜像本身是安全的：把 compose 的 `image:` 指回上一个标签（或 pin 的 `0.0.0-next-*`）后 `docker compose up -d`。但数据库迁移不可自动降级——迁移后的 SQLite 需要用升级前备份恢复，这也是升级前先备份的原因。
+回滚镜像本身是安全的：把 compose 的 `image:` 指回上一个标签（或 pin 的 `0.0.0-next-*`，需仍在最近 20 个之内）后 `docker compose up -d`。但数据库迁移不可自动降级——迁移后的 SQLite 需要用升级前备份恢复，这也是升级前先备份的原因。

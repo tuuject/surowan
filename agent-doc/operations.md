@@ -330,7 +330,7 @@ node src/cli.ts backup --config dev-data/config.jsonc
 
 ## Docker 部署
 
-`.github/workflows/docker.yml` 在推送 `main`、`develop` 分支和 `v*` tag 时都运行 `verify` job，`build` job 也都会构建 `linux/amd64` 与 `linux/arm64` 镜像，但只有 `main` 与 `v*` tag 登录并推送到 `ghcr.io/tuuject/surowan`：`main` 产出 `main` 与 `0.0.0-next-<UTC 时间戳>` tag，镜像推送成功后创建 `v0.0.0-next-<UTC 时间戳>` tag 与 GitHub Pre-release（`GITHUB_TOKEN` 推送的 tag 不会再触发 workflow）；`develop` 只构建不登录、不推送、不建 release，用来在进 `main` 前暴露 Dockerfile 与构建上下文问题，`v*` 产出 `latest` 与 semver tag。
+`.github/workflows/docker.yml` 在推送 `main`、`develop` 分支和 `v*` tag 时都运行 `verify` job，`build` job 也都会构建 `linux/amd64` 与 `linux/arm64` 镜像，但只有 `main` 与 `v*` tag 登录并推送到 `ghcr.io/tuuject/surowan`：`main` 产出 `main` 与 `0.0.0-next-<UTC 时间戳>` tag，镜像推送成功后创建 `v0.0.0-next-<UTC 时间戳>` tag 与 GitHub Pre-release（`GITHUB_TOKEN` 推送的 tag 不会再触发 workflow），随后 `prune-next` job 对镜像 tag、git tag、Pre-release 三者的版本并集只保留最新 20 个（`KEEP`），超出的在三处一起删；删镜像用 `dataaxiom/ghcr-cleanup-action`（连同多架构子 manifest 与 attestation），要求 package 的 Manage Actions access 给本仓库 Admin 角色；`develop` 只构建不登录、不推送、不建 release，用来在进 `main` 前暴露 Dockerfile 与构建上下文问题，`v*` 产出 `latest` 与 semver tag。
 
 镜像结构（`Dockerfile`，builder 与 runtime 均为 `node:24-bookworm-slim` 两阶段）：
 
