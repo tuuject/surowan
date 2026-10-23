@@ -125,6 +125,23 @@ test('prompt save applies the next invocation, records versions, diffs and resto
   }
 });
 
+test('prompt routes only answer under the prompts namespace', async () => {
+  const { store, server, directory } = await fixture();
+  try {
+    const cookie = await login(server);
+    const view = await readJson(
+      await server.handle(request('/api/prompts/global?source=file', { headers: { cookie } })),
+    );
+    const save = await server.handle(put('/api/unknown/global', { prompt: 'Hijacked.' }, cookie, view.content_hash));
+    expect(save.status).toBe(405);
+    expect(await readFile(join(directory, 'agent-system-prompt.md'), 'utf8')).toBe('Participate safely.');
+    const versions = await server.handle(request('/api/unknown/versions?scope=global', { headers: { cookie } }));
+    expect(versions.status).toBe(404);
+  } finally {
+    store.close();
+  }
+});
+
 test('a hand-edited prompt file becomes a version on the next apply, comment-only edits do not', async () => {
   const { store, server, directory } = await fixture();
   try {

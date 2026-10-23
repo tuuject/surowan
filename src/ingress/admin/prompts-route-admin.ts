@@ -163,6 +163,9 @@ export function createPromptsAdminHandler(deps: PromptsAdminDeps) {
       segments: readonly string[],
       username: string,
     ): Promise<Response | undefined> {
+      if (segments[0] !== 'prompts') {
+        return undefined;
+      }
       const second = segments[1];
       if (segments.length === 2 && (second === 'global' || second === 'group')) {
         if (request.method === 'GET') {
