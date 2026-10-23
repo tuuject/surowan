@@ -1,23 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import type { TFunction } from 'i18next';
-import { AlertTriangle, Download, Info, Merge, Upload } from 'lucide-react';
+import { Download, Info, Merge, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import {
-  type ColumnSpec,
-  ConfirmDialog,
-  FilterToolbar,
-  TableShell,
-  TextFilter,
-  ToneBadge,
-} from '@/components/business';
+import { ConfirmDialog, FilterToolbar, TableShell, TextFilter } from '@/components/business';
+import { DictionaryConflictAlert } from '@/components/dictionary/conflict-alert.tsx';
+import { dictionaryColumns } from '@/components/dictionary/entry-columns.tsx';
 import { EntryFormFields } from '@/components/dictionary/entry-form.tsx';
 import { ExportDialog } from '@/components/dictionary/export-dialog.tsx';
 import { ImportDialog } from '@/components/dictionary/import-dialog.tsx';
 import { InjectionPanel } from '@/components/dictionary/injection-panel.tsx';
 import { MergeDialog } from '@/components/dictionary/merge-dialog.tsx';
+import { DictionaryScopePanel } from '@/components/dictionary/scope-panel.tsx';
 import { Panel } from '@/components/layout/panel';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -29,17 +24,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  createDictionaryEntry,
-  type DictionaryChatOption,
-  type DictionaryDraft,
-  type DictionaryEntry,
-  type DictionaryScope,
-  deleteDictionaryEntry,
-  updateDictionaryEntry,
-} from '@/lib/api.ts';
+
 import {
   conflictedEntryIds,
   type DictionaryDraftErrors,
@@ -49,9 +35,10 @@ import {
   normalizeDraft,
   validateDraft,
 } from '@/lib/dictionary.ts';
-import { formatTime } from '@/lib/format';
 import { dictionaryChatsQuery, dictionaryQuery } from '@/lib/queries.ts';
 import { useChatScope, useChatScopeSetter } from '@/lib/search-params.ts';
+import { createDictionaryEntry, deleteDictionaryEntry, updateDictionaryEntry } from '@/lib/api/dictionary.ts';
+import type { DictionaryDraft, DictionaryEntry, DictionaryScope } from '@/lib/api/dictionary.ts';
 
 const EMPTY_DRAFT: DictionaryDraft = {
   term: '',
@@ -61,18 +48,6 @@ const EMPTY_DRAFT: DictionaryDraft = {
   chat_id: null,
   enabled: true,
 };
-
-function targetLabel(
-  entry: { readonly scope: DictionaryScope; readonly chat_id: string | null },
-  chats: readonly DictionaryChatOption[],
-  t: TFunction,
-): string {
-  if (entry.scope === 'global') {
-    return t('dictionary.page.globalBadge');
-  }
-  const chat = chats.find((candidate) => candidate.id === entry.chat_id);
-  return `${t('dictionary.page.groupBadge')} · ${chat?.title ?? entry.chat_id ?? ''}`;
-}
 
 export default function DictionaryPage(): React.ReactElement {
   const { t } = useTranslation();
@@ -188,109 +163,20 @@ export default function DictionaryPage(): React.ReactElement {
 
   const allVisibleSelected = items.length > 0 && items.every((entry) => selected.has(entry.id));
 
-  const columns: readonly ColumnSpec<DictionaryEntry>[] = [
-    {
-      key: 'select',
-      title: '',
-      render: (entry) => (
-        <input
-          type="checkbox"
-          className="size-4 rounded border-input"
-          aria-label={t('dictionary.page.selectAria', { term: entry.term })}
-          checked={selected.has(entry.id)}
-          onChange={() => toggleSelected(entry.id)}
-        />
-      ),
+  const columns = dictionaryColumns({
+    t,
+    chats: chatOptions,
+    conflicted,
+    selected,
+    toggleEnabledPending: toggleEnabled.isPending,
+    onToggleSelected: toggleSelected,
+    onToggleEnabled: (entry) => toggleEnabled.mutate(entry),
+    onEdit: (entry) => {
+      setEditErrors({});
+      setEditing({ entry, draft: draftFromEntry(entry) });
     },
-    {
-      key: 'term',
-      title: t('dictionary.page.colTerm'),
-      className: 'whitespace-normal',
-      render: (entry) => (
-        <span className="flex flex-wrap items-center gap-1">
-          <span className="font-medium">{entry.term}</span>
-          {conflicted.has(entry.id) ? (
-            <ToneBadge tone="warning">
-              <AlertTriangle className="size-3" />
-              {t('dictionary.conflicts.title')}
-            </ToneBadge>
-          ) : null}
-        </span>
-      ),
-    },
-    {
-      key: 'aliases',
-      title: t('dictionary.page.colAliases'),
-      className: 'max-w-64 min-w-32 whitespace-normal',
-      render: (entry) =>
-        entry.aliases.length === 0 ? (
-          <span className="text-muted-foreground">{t('dictionary.page.noAliases')}</span>
-        ) : (
-          <span className="flex flex-wrap items-center gap-1">
-            {entry.aliases.map((alias) => (
-              <span key={alias} className="bg-muted rounded px-1.5 py-0.5 text-xs">
-                {alias}
-              </span>
-            ))}
-          </span>
-        ),
-    },
-    {
-      key: 'definition',
-      title: t('dictionary.page.colDefinition'),
-      className: 'max-w-80 min-w-48 whitespace-normal',
-      render: (entry) => <div className="line-clamp-2">{entry.definition}</div>,
-    },
-    {
-      key: 'scope',
-      title: t('dictionary.page.colScope'),
-      render: (entry) => <span className="text-sm">{targetLabel(entry, chatOptions, t)}</span>,
-    },
-    {
-      key: 'enabled',
-      title: t('dictionary.page.colEnabled'),
-      render: (entry) => (
-        <button
-          type="button"
-          className="text-sm underline-offset-4 hover:underline"
-          disabled={toggleEnabled.isPending}
-          onClick={() => toggleEnabled.mutate(entry)}
-        >
-          {entry.enabled ? t('dictionary.page.enabledOn') : t('dictionary.page.enabledOff')}
-        </button>
-      ),
-    },
-    { key: 'updated_at', title: t('dictionary.page.colUpdated'), render: (entry) => formatTime(entry.updated_at) },
-    {
-      key: 'actions',
-      title: t('dictionary.page.colActions'),
-      render: (entry) => (
-        <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            aria-label={t('dictionary.page.editAria', { term: entry.term })}
-            onClick={() => {
-              setEditErrors({});
-              setEditing({ entry, draft: draftFromEntry(entry) });
-            }}
-          >
-            {t('common.edit')}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="destructive"
-            aria-label={t('dictionary.page.deleteAria', { term: entry.term })}
-            onClick={() => setDeleting(entry)}
-          >
-            {t('common.delete')}
-          </Button>
-        </div>
-      ),
-    },
-  ];
+    onDelete: (entry) => setDeleting(entry),
+  });
 
   return (
     <div className="space-y-4">
@@ -301,34 +187,17 @@ export default function DictionaryPage(): React.ReactElement {
       </Alert>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
-        <Panel title={t('dictionary.scope.label')} className="self-start">
-          <div className="space-y-3">
-            <Select
-              value={chatId ?? '__global__'}
-              onValueChange={(value) => {
-                setChat(value === '__global__' ? undefined : value);
-                setSelected(new Set());
-              }}
-            >
-              <SelectTrigger className="w-full" aria-label={t('dictionary.scope.label')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__global__">{t('dictionary.scope.global')}</SelectItem>
-                {chatOptions.map((chat) => (
-                  <SelectItem key={chat.id} value={chat.id}>
-                    {t('dictionary.scope.groupPrefix')} · {chat.title ?? chat.id}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-muted-foreground text-xs">{t('dictionary.scope.groupHint')}</p>
-            {chats.isPending ? <Skeleton className="h-8 w-full" /> : null}
-            {chats.isError ? (
-              <p className="text-destructive text-sm break-words">{dictionaryErrorMessage(chats.error)}</p>
-            ) : null}
-          </div>
-        </Panel>
+        <DictionaryScopePanel
+          chatId={chatId}
+          chats={chatOptions}
+          chatsPending={chats.isPending}
+          chatsFailed={chats.isError}
+          chatsError={chats.error}
+          onSelect={(nextChatId) => {
+            setChat(nextChatId ?? undefined);
+            setSelected(new Set());
+          }}
+        />
 
         <InjectionPanel chatId={chatId} />
       </div>
@@ -371,34 +240,13 @@ export default function DictionaryPage(): React.ReactElement {
       ) : null}
 
       {conflicts.length > 0 ? (
-        <Alert>
-          <AlertTriangle className="text-warning" />
-          <AlertTitle>{t('dictionary.conflicts.title')}</AlertTitle>
-          <AlertDescription>
-            <p>{t('dictionary.conflicts.description')}</p>
-            <ul className="mt-2 space-y-1">
-              {conflicts.map((conflict) => (
-                <li key={conflict.value} className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-xs">{conflict.value}</span>
-                  <span className="text-muted-foreground text-xs">
-                    {t('dictionary.conflicts.entries', { count: conflict.entry_ids.length })}
-                  </span>
-                  <Button
-                    type="button"
-                    size="xs"
-                    variant="outline"
-                    onClick={() => {
-                      setSelected(new Set(conflict.entry_ids));
-                      setMergeOpen(false);
-                    }}
-                  >
-                    {t('dictionary.conflicts.mergeThis')}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
+        <DictionaryConflictAlert
+          conflicts={conflicts}
+          onSelectEntries={(entryIds) => {
+            setSelected(new Set(entryIds));
+            setMergeOpen(false);
+          }}
+        />
       ) : null}
 
       <Panel

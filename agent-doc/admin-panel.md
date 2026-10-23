@@ -339,7 +339,7 @@ pnpm run admin:test:e2e  # Playwright 浏览器 E2E（真实 AdminServer + 临�
 | 文件 | 职责 |
 | --- | --- |
 | `src/routes/**` | 文件路由（TanStack Router 官方 Rsbuild 插件）：`__root.tsx` 是认证门（setup/login gate）与 Layout，其余文件对应一级页面与详情页；新增页面在这里加文件，`src/routeTree.gen.ts` 由构建自动生成 |
-| `src/lib/api.ts` | 类型化 fetch 封装与 `ApiError` |
+| `src/lib/api/` | 类型化 fetch 封装（`core.ts` 含 `ApiError`），按 API 领域分模块 |
 | `src/lib/queries.ts` | TanStack Query option 工厂（列表用 infinite query，keyset cursor 透传） |
 | `src/lib/format.ts` | 格式化与状态色映射 |
 | `src/lib/errors.ts` | `errorMessage()`：统一错误文本（`ApiError.code: message`） |

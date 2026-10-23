@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ParticipationWindow } from '@/lib/api';
+
 import { daySegments, formatZonedTime, summarizeWindows, zonedClock } from '@/lib/participation';
 import { cn } from '@/lib/utils';
+import type { ParticipationWindow } from '@/lib/api/chats.ts';
 
 const HOUR_TICKS = [0, 6, 12, 18, 24];
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7];

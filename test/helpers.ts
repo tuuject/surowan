@@ -2,13 +2,7 @@ import { access, chmod, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { type Api, createModels, type FauxProviderHandle, type Model, type Models } from '@earendil-works/pi-ai';
 import { serve, type ServerType } from '@hono/node-server';
-import {
-  type AgentSectionConfig,
-  type FileConfig,
-  KEY_JAR_FILE,
-  type RawConfig,
-  type ThinkingLevelConfig,
-} from '../src/platform/config.ts';
+import type { AgentSectionConfig, FileConfig, RawConfig, ThinkingLevelConfig } from '../src/platform/config.ts';
 import { buildModelRegistry } from '../src/platform/providers.ts';
 import { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
@@ -37,7 +31,7 @@ import {
 } from '../src/adapters/local-monolith/telegram-host.ts';
 
 export type { TelegramHost, TelegramTransport };
-import type { AgentRuntimeOptions } from '../src/orchestration/agent-runtime.ts';
+
 import { ContextBuilder, type Injection } from '../src/context/context-builder.ts';
 import type { ContextInjector } from '../src/context/context-injector.ts';
 import { ContextRefStore, createCapabilityResolver } from '../src/context/context-refs.ts';
@@ -45,6 +39,8 @@ import { ConversationContextStore, type ContextHeader } from '../src/context/con
 import type { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { invocations } from '../src/store/schema.ts';
 import { eq } from 'drizzle-orm';
+import { KEY_JAR_FILE } from '../src/platform/config-validate.ts';
+import type { AgentRuntimeOptions } from '../src/orchestration/agent-runtime-types.ts';
 
 /**
  * Reference resolver bound to one Conversation Context, exactly as the runtime

@@ -43,7 +43,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm run cli:check
-      - run: pnpm test test/invocation-cli.test.ts test/npm-release.test.ts
+      - run: pnpm test test/invocation-cli test/npm-release.test.ts
 
       # Change only the disposable checkout; the tag is the stable version source.
       - name: Set package version

@@ -4,9 +4,12 @@ import { toast } from 'sonner';
 import { KvList, MonoValue } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { type ProvidersView, setAgentThinkingLevel, type ThinkingLevel } from '@/lib/api.ts';
+
 import { agentModelConfig, isThinkingLevel, supportedThinkingLevels, writeErrorMessage } from '@/lib/model-manager.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
+import type { ProvidersView } from '@/lib/api/providers.ts';
+import { setAgentThinkingLevel } from '@/lib/api/models.ts';
+import type { ThinkingLevel } from '@/lib/api/models.ts';
 
 /**
  * What the bot runs on right now, whichever provider the page has selected:

@@ -1,114 +1,22 @@
-import { randomUUID } from 'node:crypto';
 import { and, asc, eq } from 'drizzle-orm';
 import type { ImageService } from './assets.ts';
 import type { ImageConfigHandle } from './config.ts';
-import type { GenerationStatus, SafeError } from './contracts.ts';
+import type { GenerationStatus } from './contracts.ts';
 import type { ImageDatabase } from './db.ts';
-import { AppError, storageFailure } from './errors.ts';
-import { type AttemptRow, computeStatus, firstError, type GenerationRow } from './generations.ts';
-import type { AllowedMime } from './image-store.ts';
-import { decodeBase64Image, type ImageStore, MAX_IMAGE_BYTES } from './image-store.ts';
-import { ProviderCallError } from './openrouter.ts';
-import type { ImageProviderAdapter, ProviderImage } from './provider.ts';
+import type { ImageStore } from './image-store.ts';
+import type { ImageProviderAdapter } from './provider.ts';
 import type { Redactor } from './redactor.ts';
 import { redactWith } from './redactor.ts';
 import { generationAttempts, generations } from './schema.ts';
-
-/** Simple FIFO counting semaphore; bounds provider calls across the whole process. */
-class Semaphore {
-  private permits: number;
-  private readonly waiters: Array<() => void> = [];
-
-  constructor(permits: number) {
-    this.permits = Math.max(1, permits);
-  }
-
-  acquire(): Promise<void> {
-    if (this.permits > 0) {
-      this.permits -= 1;
-      return Promise.resolve();
-    }
-    return new Promise<void>((resolve) => {
-      this.waiters.push(resolve);
-    });
-  }
-
-  release(): void {
-    const next = this.waiters.shift();
-    if (next !== undefined) {
-      next();
-    } else {
-      this.permits += 1;
-    }
-  }
-}
-
-export type WorkerLogger = { warn: (message: string) => void } | null;
-
-export type GenerationWorkerDeps = {
-  db: ImageDatabase;
-  config: ImageConfigHandle;
-  images: ImageService;
-  store: ImageStore;
-  provider: ImageProviderAdapter;
-  concurrency: number;
-  providerTimeoutMs: number;
-  shutdownTimeoutMs?: number;
-  logger?: WorkerLogger;
-  redactor: Redactor;
-  /**
-   * Whether this process may execute one generation at all. The host supplies
-   * it when it serves only part of the hosts that share the database, so a
-   * standalone process never resumes work that belongs to a host it does not
-   * serve. Absent means every generation may run.
-   */
-  executionEligibility?: (generation: { readonly id: string; readonly actorId: string }) => boolean;
-};
-
-type ItemOutcome = { status: 'succeeded' | 'failed' | 'interrupted'; error: SafeError | null };
-
-const RESTART_ERROR: SafeError = {
-  code: 'server_restart',
-  message: '服务重启中断了该次上游调用，结果不确定',
-  stage: 'interrupted',
-};
-
-/** The round was cut short while later items had no attempt yet; they were never sent. */
-const INCOMPLETE_ROUND_ERROR: SafeError = {
-  code: 'shutdown_incomplete',
-  message: '服务中断了本轮执行，未执行的输出项不会自动重发',
-  stage: 'interrupted',
-};
-
-type RoundVerdict = { status: GenerationStatus; error: SafeError | null };
-
-/**
- * Verdict for a round from its recorded attempts and the item count it was authored
- * with. An item without an attempt was never sent upstream, so it counts as
- * interrupted: a round that is missing items can only be partial (something was
- * delivered) or interrupted, never succeeded. A round with no attempt at all stays
- * queued — nothing was sent, so a restart can resume it with no paid retry.
- */
-function roundVerdict(attempts: AttemptRow[], expectedOutputCount: number): RoundVerdict {
-  if (attempts.length === 0) {
-    return { status: 'queued', error: null };
-  }
-  const status = computeStatus(attempts);
-  const covered = new Set(attempts.map((attempt) => attempt.itemIndex));
-  const missingItems = Array.from({ length: expectedOutputCount }, (_, itemIndex) => itemIndex).some(
-    (itemIndex) => !covered.has(itemIndex),
-  );
-  if (!missingItems) {
-    return { status, error: status === 'succeeded' ? null : firstError(attempts) };
-  }
-  let incomplete: GenerationStatus = status;
-  if (status === 'succeeded') {
-    incomplete = 'partial';
-  } else if (status === 'failed') {
-    incomplete = 'interrupted';
-  }
-  return { status: incomplete, error: firstError(attempts) ?? INCOMPLETE_ROUND_ERROR };
-}
+import { attemptsForRound, type GenerationExecution, runGeneration } from './worker-generation.ts';
+import {
+  delay,
+  type GenerationWorkerDeps,
+  RESTART_ERROR,
+  roundVerdict,
+  Semaphore,
+  type WorkerLogger,
+} from './worker-support.ts';
 
 /**
  * Durable, bounded executor: one upstream call per output item per round, a finite
@@ -128,6 +36,8 @@ export class GenerationWorker {
   private readonly logger: WorkerLogger;
   private readonly redactor: Redactor;
   private readonly executionEligibility: GenerationWorkerDeps['executionEligibility'];
+  /** Explicit state for the round pipeline in `worker-generation.ts`; mutable members stay live references. */
+  private readonly pipeline: GenerationExecution;
   private queue: string[] = [];
   private queued = new Set<string>();
   private inFlight = new Set<Promise<void>>();
@@ -156,6 +66,21 @@ export class GenerationWorker {
     this.logger = deps.logger ?? null;
     this.redactor = deps.redactor;
     this.executionEligibility = deps.executionEligibility;
+    this.pipeline = {
+      db: this.db,
+      config: this.config,
+      images: this.images,
+      store: this.store,
+      provider: this.provider,
+      semaphore: this.semaphore,
+      providerTimeoutMs: this.providerTimeoutMs,
+      logger: this.logger,
+      redactor: this.redactor,
+      controllers: this.controllers,
+      onFinished: this.onFinished,
+      mayExecute: (generation) => this.mayExecute(generation),
+      isStopping: () => this.stopping,
+    };
   }
 
   get pending(): number {
@@ -274,7 +199,7 @@ export class GenerationWorker {
         .set({ status: 'interrupted', finishedAt: now, error: RESTART_ERROR })
         .where(and(eq(generationAttempts.generationId, generationId), eq(generationAttempts.status, 'running')))
         .run();
-      const attempts = this.attemptsForRound(generationId, row.round);
+      const attempts = attemptsForRound(this.db, generationId, row.round);
       const verdict = roundVerdict(attempts, row.snapshot.authored.outputCount);
       this.db
         .update(generations)
@@ -291,15 +216,6 @@ export class GenerationWorker {
   /** Whether this process is allowed to execute one generation. */
   private mayExecute(generation: { readonly id: string; readonly actorId: string }): boolean {
     return this.executionEligibility?.(generation) ?? true;
-  }
-
-  private attemptsForRound(generationId: string, round: number): AttemptRow[] {
-    return this.db
-      .select()
-      .from(generationAttempts)
-      .where(and(eq(generationAttempts.generationId, generationId), eq(generationAttempts.round, round)))
-      .orderBy(asc(generationAttempts.itemIndex))
-      .all();
   }
 
   /** Coalesced wake-up for publish events; pump() itself is re-entrancy safe. */
@@ -348,252 +264,6 @@ export class GenerationWorker {
   }
 
   private async runGeneration(generationId: string): Promise<void> {
-    const row = this.db.select().from(generations).where(eq(generations.id, generationId)).get();
-    if (row === undefined || row.status !== 'queued') {
-      return;
-    }
-    // The last gate before a paid call: a queue entry that predates an
-    // eligibility decision must not start work this process may not run.
-    if (!this.mayExecute(row)) {
-      return;
-    }
-    const now = new Date().toISOString();
-    const claimed = this.db
-      .update(generations)
-      .set({ status: 'running', startedAt: now, finishedAt: null, error: null })
-      .where(and(eq(generations.id, generationId), eq(generations.status, 'queued')))
-      .run();
-    if (claimed.changes === 0) {
-      return;
-    }
-
-    const outputCount = row.snapshot.authored.outputCount;
-    const items = Array.from({ length: outputCount }, (_, index) => index);
-    // Round-scoped credential: resolved exactly once, when the round starts, and
-    // shared by every output item. A mid-round republish never swaps the key.
-    let credential: string;
-    try {
-      credential = this.config.credentialFor(row.snapshot.model);
-    } catch (error) {
-      const safe: SafeError =
-        error instanceof AppError
-          ? error.toSafeError()
-          : { code: 'internal_error', message: '内部错误', stage: 'provider' };
-      for (const itemIndex of items) {
-        this.recordCredentialFailure(row, itemIndex, safe);
-      }
-      this.finalize(generationId, row.round);
-      return;
-    }
-    await Promise.all(items.map((itemIndex) => this.runItem(row, itemIndex, credential)));
-    this.finalize(generationId, row.round);
+    await runGeneration(this.pipeline, generationId);
   }
-
-  /** Records a failed attempt for an item that never reached the provider. */
-  private recordCredentialFailure(row: GenerationRow, itemIndex: number, error: SafeError): void {
-    const now = new Date().toISOString();
-    this.db
-      .insert(generationAttempts)
-      .values({
-        id: randomUUID(),
-        generationId: row.id,
-        round: row.round,
-        itemIndex,
-        status: 'failed',
-        startedAt: now,
-        finishedAt: now,
-        error,
-        providerRequestId: null,
-        usage: null,
-        outputAssetId: null,
-      })
-      .onConflictDoNothing()
-      .run();
-  }
-
-  private async runItem(row: GenerationRow, itemIndex: number, credential: string): Promise<void> {
-    if (this.stopping) {
-      return;
-    }
-    await this.semaphore.acquire();
-    const attemptId = randomUUID();
-    const controller = new AbortController();
-    this.controllers.set(attemptId, controller);
-    try {
-      if (this.stopping) {
-        return;
-      }
-      const startedAt = new Date().toISOString();
-      this.db
-        .insert(generationAttempts)
-        .values({
-          id: attemptId,
-          generationId: row.id,
-          round: row.round,
-          itemIndex,
-          status: 'running',
-          startedAt,
-          finishedAt: null,
-          error: null,
-          providerRequestId: null,
-          usage: null,
-          outputAssetId: null,
-        })
-        .run();
-      const outcome = await this.executeItem(row, itemIndex, credential, controller.signal);
-      this.db
-        .update(generationAttempts)
-        .set({
-          status: outcome.status,
-          finishedAt: new Date().toISOString(),
-          error: outcome.error,
-          providerRequestId: outcome.providerRequestId ?? null,
-          usage: outcome.usage ?? null,
-          outputAssetId: outcome.outputAssetId ?? null,
-        })
-        .where(eq(generationAttempts.id, attemptId))
-        .run();
-    } catch (error) {
-      // Never let an unexpected failure escape without a recorded attempt.
-      this.db
-        .update(generationAttempts)
-        .set({
-          status: 'failed',
-          finishedAt: new Date().toISOString(),
-          error: { code: 'internal_error', message: '内部错误', stage: 'storage' },
-        })
-        .where(eq(generationAttempts.id, attemptId))
-        .run();
-      this.logger?.warn(`尝试记录失败：${redactWith(this.redactor, error)}`);
-    } finally {
-      this.controllers.delete(attemptId);
-      this.semaphore.release();
-    }
-  }
-
-  private async executeItem(
-    row: GenerationRow,
-    itemIndex: number,
-    credential: string,
-    signal: AbortSignal,
-  ): Promise<
-    ItemOutcome & {
-      providerRequestId?: string | null;
-      usage?: Record<string, number> | null;
-      outputAssetId?: string | null;
-    }
-  > {
-    const snapshot = row.snapshot;
-    try {
-      const references = snapshot.imageAssets.map((asset) => {
-        const { bytes } = this.images.readContent(asset.id);
-        // Persisted assets were verified by sharp against AllowedMime; the text
-        // column only widens the type at rest.
-        return { mime: asset.mime as AllowedMime, base64: bytes.toString('base64') };
-      });
-      const result = await this.provider.generate({
-        model: snapshot.model,
-        credential,
-        prompt: snapshot.finalPrompt,
-        inputImages: references,
-        aspectRatio: snapshot.authored.aspectRatio,
-        resolution: snapshot.authored.resolution,
-        extendedData: snapshot.authored.extendedData,
-        timeoutMs: this.providerTimeoutMs,
-        signal,
-      });
-      const asset = await this.storeOutput(row, itemIndex, result);
-      return {
-        status: 'succeeded',
-        error: null,
-        providerRequestId: result.providerRequestId,
-        usage: result.usage,
-        outputAssetId: asset.id,
-      };
-    } catch (error) {
-      return { ...safeOutcome(error), providerRequestId: null, usage: null, outputAssetId: null };
-    }
-  }
-
-  private async storeOutput(row: GenerationRow, itemIndex: number, result: ProviderImage) {
-    let bytes: Buffer;
-    try {
-      bytes = decodeBase64Image(result.base64);
-    } catch {
-      throw storageFailure('output_decode_failed', '上游返回的图像数据无法解码');
-    }
-    if (bytes.length > MAX_IMAGE_BYTES) {
-      throw storageFailure('output_too_large', '输出图片超过 20MiB 上限');
-    }
-    let verified: Awaited<ReturnType<ImageStore['verifyBytes']>>;
-    try {
-      verified = await this.store.verifyBytes(bytes);
-    } catch (error) {
-      throw storageFailure(
-        'output_format_rejected',
-        error instanceof AppError ? error.message : '输出图片格式不受支持',
-      );
-    }
-    if (result.mediaType !== null && result.mediaType !== verified.mime) {
-      throw storageFailure('output_format_rejected', '上游声明的图片格式与实际内容不一致');
-    }
-    const stored = await this.store.store({ bytes });
-    return this.images.persist(stored, {
-      name: `${row.snapshot.model.name} 输出 ${itemIndex + 1}`,
-      description: '',
-      category: '',
-      source: 'generation',
-      generationId: row.id,
-      outputIndex: itemIndex,
-    });
-  }
-
-  private finalize(generationId: string, round: number): void {
-    const row = this.db.select().from(generations).where(eq(generations.id, generationId)).get();
-    if (row === undefined || row.status !== 'running') {
-      return;
-    }
-    const attempts = this.attemptsForRound(generationId, round);
-    const verdict = roundVerdict(attempts, row.snapshot.authored.outputCount);
-    const settled = verdict.status !== 'queued' && verdict.status !== 'running';
-    this.db
-      .update(generations)
-      .set({
-        status: verdict.status,
-        error: verdict.error,
-        finishedAt: settled ? new Date().toISOString() : null,
-      })
-      .where(eq(generations.id, generationId))
-      .run();
-    if (settled) {
-      for (const listener of this.onFinished) {
-        try {
-          listener(generationId, verdict.status);
-        } catch (error) {
-          this.logger?.warn(
-            `image generation finished listener failed: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-      }
-    }
-  }
-}
-
-function safeOutcome(error: unknown): ItemOutcome {
-  if (error instanceof ProviderCallError) {
-    return {
-      status: error.kind === 'interrupted' ? 'interrupted' : 'failed',
-      error: error.toSafeError(),
-    };
-  }
-  if (error instanceof AppError) {
-    return { status: 'failed', error: error.toSafeError() };
-  }
-  return { status: 'failed', error: { code: 'internal_error', message: '内部错误', stage: 'storage' } };
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
 }

@@ -8,16 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import {
-  PROVIDER_APIS,
-  type ProviderApi,
-  type ProviderView,
-  type UpdateProviderRequest,
-  updateProvider,
-} from '@/lib/api.ts';
+
 import { type HeaderRow, headerPayload, headerRowsFromNames, removedHeaderNames } from '@/lib/header-rows.ts';
 import { requestErrorMessage } from '@/lib/model-manager.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
+import { PROVIDER_APIS, updateProvider } from '@/lib/api/providers.ts';
+import type { ProviderApi, ProviderView, UpdateProviderRequest } from '@/lib/api/providers.ts';
 
 const API_LABELS: Record<ProviderApi, string> = {
   'openai-completions': 'openai-completions',

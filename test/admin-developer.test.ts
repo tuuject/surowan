@@ -2,12 +2,12 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, test, vi } from 'vitest';
-import type { DeveloperSettings } from '../apps/admin-next/src/lib/api.ts';
+
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { writeConfigEdits } from '../src/adapters/local-monolith/config-file.ts';
 import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { getInvocation, listInvocations } from '../src/ingress/admin/audit.ts';
+
 import { AdminServer } from '../src/ingress/admin/server.ts';
 import type { FileConfig } from '../src/platform/config.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
@@ -16,6 +16,9 @@ import { SecretStore } from '../src/platform/secrets.ts';
 import { modelCalls } from '../src/store/schema.ts';
 import { seedAdminFixture } from './fixtures/admin-seed.ts';
 import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { getInvocation } from '../src/ingress/admin/audit/invocation-detail.ts';
+import { listInvocations } from '../src/ingress/admin/audit/invocations.ts';
+import type { DeveloperSettings } from '../apps/admin-next/src/lib/api/config.ts';
 
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => {

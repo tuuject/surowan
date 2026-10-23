@@ -1,21 +1,16 @@
 import { eq } from 'drizzle-orm';
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
-import {
-  type AgentSettings,
-  type FileChat,
-  type FileConfig,
-  type RawConfig,
-  resolveAgentSettings,
-  ThinkingLevelSchema,
-} from '../../platform/config.ts';
+import type { AgentSettings, FileChat, FileConfig, RawConfig } from '../../platform/config.ts';
 import type { ConfigEdit } from '../../platform/config-write.ts';
 import { resolveProactiveReply } from '../../platform/proactive-reply.ts';
 import { supportedThinkingLevels } from '../../platform/thinking-levels.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { chatMigrations, chats } from '../../store/schema.ts';
 import { AdminQueryError } from './audit.ts';
-import { supervisedRestartEnabled } from './providers-admin.ts';
+import { supervisedRestartEnabled } from './providers-admin-read.ts';
+import { resolveAgentSettings } from '../../platform/config-resolve.ts';
+import { ThinkingLevelSchema } from '../../platform/config-schema-model.ts';
 
 const ChatIdSchema = Type.String({ pattern: '^-?[1-9][0-9]{0,15}$' });
 const TopicIdSchema = Type.String({ pattern: '^[1-9][0-9]{0,15}$' });

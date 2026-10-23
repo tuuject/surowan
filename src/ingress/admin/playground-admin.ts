@@ -14,20 +14,34 @@
  * is refused before it reaches the store, and a nested id must belong to the
  * room in the path or it reads as not found.
  */
-import Type from 'typebox';
-import { Compile } from 'typebox/compile';
-import { LocalAssetRejected, type PlaygroundAssetStore } from '../../capabilities/media/local-assets.ts';
+import type { PlaygroundAssetStore } from '../../capabilities/media/local-assets.ts';
 import type { PlaygroundIngress } from '../../ingress/playground.ts';
-import {
-  PlaygroundError,
-  type PlaygroundStore,
-  type RoomInvocationSummary,
-  type RoomMember,
-  type RoomState,
-  type RoomStatus,
-  type RoomSummary,
-} from '../../store/playground.ts';
+import type { PlaygroundStore, RoomSummary } from '../../store/playground.ts';
 import type { BusinessStore } from '../../store/store.ts';
+import {
+  canonicalId,
+  invocationJson,
+  memberJson,
+  parseLimit,
+  playgroundErrorResponse,
+  roomJson,
+  roomStatusJson,
+} from './playground-admin-json.ts';
+import {
+  capabilitiesValidator,
+  createRoomValidator,
+  MAX_MESSAGE_BODY_BYTES,
+  MAX_ROOM_BODY_BYTES,
+  MAX_UPLOAD_TEXT_BYTES,
+  messageValidator,
+  participantValidator,
+  PlaygroundAdminError,
+  releaseValidator,
+  requireValid,
+  retryValidator,
+  uploadValidator,
+} from './playground-admin-schemas.ts';
+import { PlaygroundError } from '../../store/playground/shared.ts';
 
 export interface PlaygroundAdminDeps {
   readonly store: BusinessStore;
@@ -44,191 +58,6 @@ export type PlaygroundAdminResponse =
 export interface PlaygroundAdminContext {
   readonly username: string;
   readonly wake: () => void;
-}
-
-/** Room titles and identity names: printable, bounded, no control characters. */
-const NAME_TEXT = Type.String({ minLength: 1, maxLength: 120, pattern: '^[^\\u0000-\\u001f\\u007f]+$' });
-const REQUEST_KEY = Type.String({ minLength: 1, maxLength: 128, pattern: '^[a-zA-Z0-9_.:-]+$' });
-/** A canonical unsigned int64 in decimal: no sign, no leading zero. */
-const DECIMAL_ID = Type.String({ pattern: '^(0|[1-9][0-9]{0,18})$' });
-const ROLE = Type.Union([Type.Literal('member'), Type.Literal('admin')]);
-const RESOURCE_ID = Type.String({ pattern: '^[1-9][0-9]{0,18}$' });
-/** One message may carry at most four pictures, matching the input limit. */
-const MAX_MESSAGE_IMAGES = 4;
-/** A room picture is at most 10 MiB; base64 adds a third, so this is the cap. */
-const MAX_UPLOAD_TEXT_BYTES = 15_000_000;
-/** Text length limit of one message, in characters (UTF-16 code units). */
-const MAX_MESSAGE_TEXT = 16_384;
-/**
- * The read limit is in encoded bytes while the text limit is in characters: a
- * `\uXXXX` escape spends six bytes on one code unit, so the worst valid text
- * plus the other fields still fits.
- */
-const MAX_MESSAGE_BODY_BYTES = MAX_MESSAGE_TEXT * 6 + 8_192;
-/** Most members a room may be created with. */
-const MAX_ROOM_MEMBERS = 64;
-/**
- * The same escape bound for room creation: a title and every member name may
- * spend six bytes per character, plus the field names around each member.
- */
-const MAX_ROOM_BODY_BYTES = (MAX_ROOM_MEMBERS + 1) * (120 * 6 + 64) + 8_192;
-/** SQLite INTEGER is a signed 64-bit value; a larger id cannot be bound. */
-const MAX_ID = 9_223_372_036_854_775_807n;
-
-const createRoomValidator = Compile(
-  Type.Object(
-    {
-      title: NAME_TEXT,
-      members: Type.Optional(
-        Type.Array(Type.Object({ name: NAME_TEXT, role: Type.Optional(ROLE) }, { additionalProperties: false }), {
-          maxItems: MAX_ROOM_MEMBERS,
-        }),
-      ),
-      request_key: REQUEST_KEY,
-    },
-    { additionalProperties: false },
-  ),
-);
-const participantValidator = Compile(
-  Type.Object(
-    {
-      name: NAME_TEXT,
-      role: Type.Optional(ROLE),
-      request_key: REQUEST_KEY,
-    },
-    { additionalProperties: false },
-  ),
-);
-const messageValidator = Compile(
-  Type.Object(
-    {
-      request_key: REQUEST_KEY,
-      sender_id: RESOURCE_ID,
-      text: Type.Optional(Type.String({ maxLength: MAX_MESSAGE_TEXT })),
-      reply_to_seq: Type.Optional(Type.Union([RESOURCE_ID, Type.Null()])),
-      asset_ids: Type.Optional(
-        Type.Array(Type.String({ minLength: 32, maxLength: 32, pattern: '^[a-f0-9]{32}$' }), {
-          maxItems: MAX_MESSAGE_IMAGES,
-        }),
-      ),
-    },
-    { additionalProperties: false },
-  ),
-);
-const releaseValidator = Compile(
-  Type.Object(
-    {
-      request_key: REQUEST_KEY,
-      revision: DECIMAL_ID,
-      // A room with no admitted input releases through seq 0: the boundary is a
-      // count, not an identity, so zero is a valid value here.
-      through_seq: DECIMAL_ID,
-    },
-    { additionalProperties: false },
-  ),
-);
-const retryValidator = Compile(Type.Object({ attempt_key: REQUEST_KEY }, { additionalProperties: false }));
-const capabilitiesValidator = Compile(
-  Type.Object({ image_enabled: Type.Boolean(), revision: DECIMAL_ID }, { additionalProperties: false }),
-);
-const uploadValidator = Compile(
-  Type.Object(
-    {
-      content_base64: Type.String({ minLength: 1, maxLength: MAX_UPLOAD_TEXT_BYTES }),
-      mime: Type.String({ minLength: 1, maxLength: 80 }),
-      name: Type.Optional(Type.String({ maxLength: 120 })),
-    },
-    { additionalProperties: false },
-  ),
-);
-
-/** Domain refusals map onto HTTP the way the panel shows them. */
-const STATUS_BY_CODE: Readonly<Record<string, number>> = {
-  room_not_found: 404,
-  unknown_release: 404,
-  unknown_sender: 404,
-  unknown_asset: 404,
-  unknown_input: 404,
-  room_revision_mismatch: 409,
-  release_conflict: 409,
-  retry_refused: 409,
-  input_conflict: 409,
-  room_not_held: 409,
-};
-
-class PlaygroundAdminError extends Error {
-  readonly status: number;
-  readonly code: string;
-  constructor(code: string, message: string, status: number) {
-    super(message);
-    this.code = code;
-    this.status = status;
-  }
-}
-
-/**
- * Validates one request body against its schema. The validator's own type
- * predicate is kept in the signature, so a checked body is the schema's type
- * without an assertion.
- */
-function requireValid<T>(validator: { Check(value: unknown): value is T }, value: unknown, label: string): T {
-  if (!validator.Check(value)) {
-    throw new PlaygroundAdminError('invalid_body', `${label} is invalid`, 400);
-  }
-  return value;
-}
-
-/** Room state plus the counters a list row carries; both shapes are accepted. */
-type RoomJsonInput = RoomState & {
-  readonly memberCount?: number;
-  readonly heldCount?: number;
-  readonly queuedInvocations?: number;
-  readonly runningInvocations?: number;
-  readonly createdAt?: string;
-};
-
-function roomJson(room: RoomJsonInput) {
-  return {
-    id: room.chatId.toString(),
-    title: room.title,
-    revision: room.revision.toString(),
-    hold: room.hold,
-    next_seq: room.nextSeq.toString(),
-    latest_input_seq: room.latestInputSeq.toString(),
-    image_enabled: room.imageEnabled,
-    image_enabled_by: room.imageEnabledBy,
-    image_enabled_at: room.imageEnabledAt,
-    ...(room.memberCount === undefined ? {} : { member_count: room.memberCount }),
-    ...(room.heldCount === undefined ? {} : { held_count: room.heldCount }),
-    ...(room.queuedInvocations === undefined ? {} : { queued_invocations: room.queuedInvocations }),
-    ...(room.runningInvocations === undefined ? {} : { running_invocations: room.runningInvocations }),
-    ...(room.createdAt === undefined ? {} : { created_at: room.createdAt }),
-  };
-}
-
-function memberJson(member: RoomMember) {
-  return { id: member.senderId.toString(), name: member.name, role: member.role };
-}
-
-function invocationJson(invocation: RoomInvocationSummary) {
-  return {
-    id: invocation.id.toString(),
-    state: invocation.state,
-    error_code: invocation.errorCode,
-    completion_reason: invocation.completionReason,
-    created_at: invocation.createdAt,
-    started_at: invocation.startedAt,
-    finished_at: invocation.finishedAt,
-    sends_used: invocation.sendsUsed,
-    tool_calls_used: invocation.toolCallsUsed,
-    side_effect_started: invocation.sideEffectStarted,
-    total_tokens: invocation.totalTokens,
-    total_cost: invocation.totalCost,
-    receipt_state: invocation.receiptState,
-    receipt_status: invocation.receiptStatus,
-    retry_of_invocation_id: invocation.retryOfInvocationId?.toString() ?? null,
-    release_id: invocation.releaseId?.toString() ?? null,
-  };
 }
 
 export function createPlaygroundAdminHandler(deps: PlaygroundAdminDeps) {
@@ -587,58 +416,4 @@ export function createPlaygroundAdminHandler(deps: PlaygroundAdminDeps) {
       return playgroundErrorResponse(error);
     }
   };
-}
-
-/** Room counters as the status half of a poll response. */
-function roomStatusJson(status: RoomStatus) {
-  return {
-    revision: status.revision.toString(),
-    hold: status.hold,
-    next_seq: status.nextSeq.toString(),
-    latest_input_seq: status.latestInputSeq.toString(),
-    image_enabled: status.imageEnabled,
-    pending: status.held.length,
-    expired_inputs: status.expiredInputs,
-  };
-}
-
-/**
- * An id or sequence in canonical decimal and within SQLite's int64: a value
- * past it would reach the store as a binding error instead of a refusal.
- */
-function canonicalId(value: string, code: string, label: string, options: { readonly allowZero?: boolean } = {}) {
-  const pattern = options.allowZero === true ? /^(0|[1-9][0-9]{0,18})$/ : /^[1-9][0-9]{0,18}$/;
-  if (!pattern.test(value) || BigInt(value) > MAX_ID) {
-    throw new PlaygroundAdminError(code, `${label} must be a canonical decimal id`, 400);
-  }
-  return BigInt(value);
-}
-
-function parseLimit(value: string | null): number {
-  if (value === null || value.length === 0) {
-    return 50;
-  }
-  if (!/^[1-9][0-9]{0,2}$/.test(value)) {
-    throw new PlaygroundAdminError('invalid_limit', 'limit must be a decimal between 1 and 200', 400);
-  }
-  const limit = Number(value);
-  if (limit > 200) {
-    throw new PlaygroundAdminError('invalid_limit', 'limit must be a decimal between 1 and 200', 400);
-  }
-  return limit;
-}
-
-function playgroundErrorResponse(error: unknown): PlaygroundAdminResponse {
-  if (error instanceof PlaygroundAdminError) {
-    return { kind: 'json', status: error.status, body: { error: error.code, message: error.message } };
-  }
-  if (error instanceof PlaygroundError) {
-    const status = STATUS_BY_CODE[error.code] ?? 400;
-    return { kind: 'json', status, body: { error: error.code, message: error.message } };
-  }
-  if (error instanceof LocalAssetRejected) {
-    // A payload the room store refuses is a client problem, not a server one.
-    return { kind: 'json', status: 422, body: { error: `upload_${error.reason}`, message: error.message } };
-  }
-  throw error;
 }

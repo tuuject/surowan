@@ -1,65 +1,28 @@
 import { createHash } from 'node:crypto';
-import { setTimeout as delay } from 'node:timers/promises';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { StreamableHTTPClientTransport, StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import type { Transport, TransportSendOptions } from '@modelcontextprotocol/sdk/shared/transport.js';
-import {
-  type CallToolResult,
-  type CompatibilityCallToolResult,
-  ErrorCode,
-  type JSONRPCMessage,
-  McpError,
-  type MessageExtraInfo,
-} from '@modelcontextprotocol/sdk/types.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { eq, sql } from 'drizzle-orm';
 import Type, { type TUnsafe } from 'typebox';
 import Compile from 'typebox/compile';
 import { AsyncSemaphore } from '../platform/concurrency.ts';
-import type { McpServerConfig, RawConfig, SecretRef } from '../platform/config.ts';
+import type { McpServerConfig, RawConfig } from '../platform/config.ts';
 import { type InvocationContext, previewContext } from '../platform/invocation-context.ts';
 import type { SecretStore } from '../platform/secrets.ts';
-import { safeJson, truncateUtf8 } from '../platform/truncate.ts';
 import type { BusinessStore } from '../store/store.ts';
-import { finishToolCall, rejectToolCall, startToolCall } from '../store/store.ts';
 import { mcpServerState } from '../store/schema.ts';
-
-const ARGUMENT_MAX_BYTES = 32_768;
-const RECONNECT_MAX_MS = 60_000;
-const TRUNCATION_MARKER = '\n[tool result truncated]';
-const TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]+$/;
-
-interface ToolPolicy {
-  readonly readOnly: boolean;
-  readonly timeoutMs: number;
-}
-
-interface McpToolDefinition {
-  readonly serverAlias: string;
-  readonly originalName: string;
-  readonly exposedName: string;
-  readonly description: string;
-  readonly parameters: TUnsafe<Record<string, unknown>>;
-  readonly validator: { Check(value: unknown): value is Record<string, unknown> };
-  readonly policy: ToolPolicy;
-  readonly resultMaxBytes: number;
-}
-
-interface ManagedServer {
-  readonly config: McpServerConfig;
-  readonly semaphore: AsyncSemaphore;
-  definitions: McpToolDefinition[];
-  client: Client | undefined;
-  generation: number;
-  reconnectAttempt: number;
-  reconnectTimer: NodeJS.Timeout | undefined;
-  stderrBytes: number;
-  state: 'starting' | 'ready' | 'degraded' | 'stopped';
-}
-
-type RegistryValidator = (tools: readonly AgentTool[]) => void;
-type McpCallResult = CallToolResult | CompatibilityCallToolResult;
+import { executeMcpTool, type McpCallDeps } from './mcp-calls.ts';
+import {
+  CompatibleTransport,
+  RECONNECT_MAX_MS,
+  TOOL_NAME_PATTERN,
+  limitResponseBody,
+  resolveSecretRecord,
+  type ManagedServer,
+  type McpToolDefinition,
+  type RegistryValidator,
+} from './mcp-support.ts';
 
 export class McpManager {
   readonly #store: BusinessStore;
@@ -67,10 +30,17 @@ export class McpManager {
   readonly #servers = new Map<string, ManagedServer>();
   #registryValidator: RegistryValidator | undefined;
   #stopping = false;
+  readonly #callDeps: McpCallDeps;
 
   constructor(store: BusinessStore, config: RawConfig, secrets: SecretStore) {
     this.#store = store;
     this.#secrets = secrets;
+    this.#callDeps = {
+      store,
+      servers: this.#servers,
+      setState: (server, state, errorCode) => this.#setState(server, state, errorCode),
+      scheduleReconnect: (server) => this.#scheduleReconnect(server),
+    };
     for (const serverConfig of config.mcp?.servers ?? []) {
       this.#servers.set(serverConfig.alias, {
         config: serverConfig,
@@ -396,133 +366,7 @@ export class McpManager {
     input: Record<string, unknown>,
     outerSignal?: AbortSignal,
   ): Promise<{ content: { type: 'text'; text: string }[]; details: { server: string; tool: string } }> {
-    if (invocationDeadline <= Date.now()) {
-      this.#recordRejectedCall(context.invocationId, toolCallId, definition, input, 'invocation_timeout');
-      throw new Error('Invocation deadline reached before MCP tool call');
-    }
-    if (!definition.validator.Check(input)) {
-      this.#recordRejectedCall(context.invocationId, toolCallId, definition, input, 'invalid_arguments');
-      throw new Error('MCP tool arguments do not match the configured schema');
-    }
-    const argumentsJson = JSON.stringify(input);
-    if (Buffer.byteLength(argumentsJson) > ARGUMENT_MAX_BYTES) {
-      this.#recordRejectedCall(context.invocationId, toolCallId, definition, input, 'arguments_too_large');
-      throw new Error('MCP tool arguments exceed 32 KiB');
-    }
-    const auditId = startToolCall(
-      this.#store.orm,
-      context.invocationId,
-      toolCallId,
-      definition.exposedName,
-      argumentsJson,
-      !definition.policy.readOnly,
-    );
-    const server = this.#servers.get(definition.serverAlias);
-    if (server === undefined) {
-      finishToolCall(this.#store.orm, auditId, 'error', null, 'server_unconfigured', {
-        startedAt: performance.now(),
-        pendingOnly: true,
-      });
-      throw new Error('MCP server is not configured');
-    }
-    const startedAt = performance.now();
-    let release: () => void;
-    try {
-      release = await server.semaphore.acquire(outerSignal ?? new AbortController().signal);
-    } catch {
-      finishToolCall(this.#store.orm, auditId, 'error', null, 'aborted_before_request', {
-        startedAt,
-        pendingOnly: true,
-      });
-      throw new Error('MCP tool call aborted before request');
-    }
-    try {
-      const timeoutMs = Math.max(1, Math.min(definition.policy.timeoutMs, invocationDeadline - Date.now()));
-      const signals = [AbortSignal.timeout(timeoutMs)];
-      if (outerSignal !== undefined) {
-        signals.push(outerSignal);
-      }
-      const signal = AbortSignal.any(signals);
-      let result: McpCallResult;
-      try {
-        result = await this.#call(server, definition, input, signal, timeoutMs);
-      } catch (error) {
-        if (!definition.policy.readOnly || !isTransient(error) || signal.aborted) {
-          throw error;
-        }
-        await delay(100, undefined, { signal });
-        result = await this.#call(server, definition, input, signal, timeoutMs);
-      }
-      const text = truncateUtf8(JSON.stringify(result), definition.resultMaxBytes, TRUNCATION_MARKER);
-      if ('isError' in result && result.isError === true) {
-        finishToolCall(this.#store.orm, auditId, 'error', text, 'mcp_tool_error', {
-          startedAt,
-          pendingOnly: true,
-        });
-        throw new KnownToolError(text);
-      }
-      finishToolCall(this.#store.orm, auditId, 'success', text, null, { startedAt, pendingOnly: true });
-      return {
-        content: [{ type: 'text', text }],
-        details: { server: definition.serverAlias, tool: definition.originalName },
-      };
-    } catch (error) {
-      if (error instanceof KnownToolError) {
-        throw new Error(error.message);
-      }
-      const known =
-        error instanceof McpError &&
-        error.code !== ErrorCode.ConnectionClosed &&
-        error.code !== ErrorCode.RequestTimeout;
-      const state = known ? 'error' : 'outcome_unknown';
-      finishToolCall(this.#store.orm, auditId, state, null, classifyMcpError(error), {
-        startedAt,
-        pendingOnly: true,
-      });
-      if (!known) {
-        this.#setState(server, 'degraded', classifyMcpError(error));
-        this.#scheduleReconnect(server);
-      }
-      throw new Error(`MCP tool ${definition.exposedName} failed: ${classifyMcpError(error)}`);
-    } finally {
-      release();
-    }
-  }
-
-  async #call(
-    server: ManagedServer,
-    definition: McpToolDefinition,
-    input: Record<string, unknown>,
-    signal: AbortSignal,
-    timeoutMs: number,
-  ): Promise<McpCallResult> {
-    const client = server.client;
-    if (client === undefined || server.state !== 'ready') {
-      throw new Error('MCP transport is unavailable');
-    }
-    return client.callTool({ name: definition.originalName, arguments: input }, undefined, {
-      signal,
-      timeout: timeoutMs,
-      maxTotalTimeout: timeoutMs,
-    });
-  }
-
-  #recordRejectedCall(
-    invocationId: bigint,
-    toolCallId: string,
-    definition: McpToolDefinition,
-    input: unknown,
-    errorCode: string,
-  ): void {
-    rejectToolCall(
-      this.#store.orm,
-      invocationId,
-      toolCallId,
-      definition.exposedName,
-      safeJson(input, ARGUMENT_MAX_BYTES),
-      !definition.policy.readOnly,
-      errorCode,
-    );
+    return executeMcpTool(this.#callDeps, definition, context, invocationDeadline, toolCallId, input, outerSignal);
   }
 
   #scheduleReconnect(server: ManagedServer): void {
@@ -603,124 +447,4 @@ export class McpManager {
         updated_at = excluded.updated_at
     `);
   }
-}
-
-class CompatibleTransport implements Transport {
-  readonly #inner: StdioClientTransport | StreamableHTTPClientTransport;
-  onclose?: () => void;
-  onerror?: (error: Error) => void;
-  onmessage?: <T extends JSONRPCMessage>(message: T, extra?: MessageExtraInfo) => void;
-
-  constructor(inner: StdioClientTransport | StreamableHTTPClientTransport) {
-    this.#inner = inner;
-  }
-
-  async start(): Promise<void> {
-    this.#inner.onclose = () => this.onclose?.();
-    this.#inner.onerror = (error) => this.onerror?.(error);
-    this.#inner.onmessage = (message) => this.onmessage?.(message);
-    await this.#inner.start();
-  }
-
-  async close(): Promise<void> {
-    await this.#inner.close();
-  }
-
-  async send(message: JSONRPCMessage, options?: TransportSendOptions): Promise<void> {
-    if (this.#inner instanceof StdioClientTransport) {
-      await this.#inner.send(message);
-      return;
-    }
-    const httpOptions =
-      options === undefined
-        ? undefined
-        : {
-            ...(options.resumptionToken === undefined ? {} : { resumptionToken: options.resumptionToken }),
-            ...(options.onresumptiontoken === undefined ? {} : { onresumptiontoken: options.onresumptiontoken }),
-          };
-    await this.#inner.send(message, httpOptions);
-  }
-
-  setProtocolVersion(version: string): void {
-    if (this.#inner instanceof StreamableHTTPClientTransport) {
-      this.#inner.setProtocolVersion(version);
-    }
-  }
-}
-
-class KnownToolError extends Error {}
-
-async function resolveSecretRecord(
-  record: Readonly<Record<string, SecretRef>>,
-  secrets: SecretStore,
-): Promise<Record<string, string>> {
-  const resolved: Record<string, string> = {};
-  for (const [name, reference] of Object.entries(record)) {
-    resolved[name] = await secrets.resolve(reference);
-  }
-  return resolved;
-}
-
-function limitResponseBody(response: Response, maxBytes: number, onLimit: () => void): Response {
-  if (response.body === null) {
-    return response;
-  }
-  const reader = response.body.getReader();
-  let bytes = 0;
-  const body = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      const item = await reader.read();
-      if (item.done) {
-        controller.close();
-        return;
-      }
-      bytes += item.value.byteLength;
-      if (bytes > maxBytes) {
-        onLimit();
-        await reader.cancel();
-        controller.error(new Error('MCP response exceeds payload limit'));
-        return;
-      }
-      controller.enqueue(item.value);
-    },
-    async cancel(reason) {
-      await reader.cancel(reason);
-    },
-  });
-  return new Response(body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: response.headers,
-  });
-}
-
-function isTransient(error: unknown): boolean {
-  if (error instanceof StreamableHTTPError) {
-    return error.code === 429 || error.code === 502 || error.code === 503 || error.code === 504;
-  }
-  return (
-    error instanceof McpError && (error.code === ErrorCode.ConnectionClosed || error.code === ErrorCode.RequestTimeout)
-  );
-}
-
-function classifyMcpError(error: unknown): string {
-  if (error instanceof McpError) {
-    if (error.code === ErrorCode.ConnectionClosed) {
-      return 'connection_closed';
-    }
-    if (error.code === ErrorCode.RequestTimeout) {
-      return 'timeout';
-    }
-    return `mcp_${error.code}`;
-  }
-  if (error instanceof StreamableHTTPError) {
-    return error.code === undefined ? 'http_error' : `http_${error.code}`;
-  }
-  if (error instanceof DOMException && error.name === 'TimeoutError') {
-    return 'timeout';
-  }
-  if (error instanceof Error && error.name === 'AbortError') {
-    return 'aborted';
-  }
-  return 'transport_error';
 }

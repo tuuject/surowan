@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { PlaygroundIngress } from '../src/ingress/playground.ts';
-import { PlaygroundError, PlaygroundStore } from '../src/store/playground.ts';
+import { PlaygroundStore } from '../src/store/playground.ts';
 import {
   buckets,
   invocationMessages,
@@ -23,6 +23,7 @@ import {
 import { purgeExpiredData } from '../src/store/store.ts';
 import type { RawConfig } from '../src/platform/config.ts';
 import { writeTestConfig } from './helpers.ts';
+import { PlaygroundError } from '../src/store/playground/shared.ts';
 
 const directories: string[] = [];
 

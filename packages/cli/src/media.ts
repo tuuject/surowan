@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { MediaCommand, MediaVariant } from './args.ts';
+import type { MediaCommand, MediaVariant } from './args/types.ts';
 import type { AdminClient, MediaContent } from './client.ts';
 import { isRecord } from './client.ts';
 import type { CommandContext } from './commands.ts';

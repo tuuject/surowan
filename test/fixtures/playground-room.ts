@@ -7,7 +7,7 @@
  * snapshots use the room format.
  */
 import type { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
-import { ROOM_SNAPSHOT_FORMAT } from '../../src/context/context-builder.ts';
+
 import {
   buckets,
   chats,
@@ -20,6 +20,7 @@ import {
   rooms,
   senders,
 } from '../../src/store/schema.ts';
+import { ROOM_SNAPSHOT_FORMAT } from '../../src/context/context-builder-schema.ts';
 
 export interface SeededRoomMessage {
   readonly seq: number;

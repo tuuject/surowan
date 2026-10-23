@@ -4,11 +4,9 @@ import {
   DICTIONARY_MAX_ALIASES,
   DICTIONARY_TERM_MAX_LENGTH,
   DictionaryError,
-  type DictionaryDraft,
-  type DictionaryEntryRecord,
-  type DictionaryScope,
   normalizeAliases,
-} from './dictionary.ts';
+} from './dictionary-match.ts';
+import type { DictionaryDraft, DictionaryEntryRecord, DictionaryScope } from './dictionary.ts';
 
 /**
  * CSV and JSONL for dictionary entries, kept independent of the Admin upload UI

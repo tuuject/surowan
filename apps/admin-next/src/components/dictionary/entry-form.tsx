@@ -6,9 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import type { DictionaryChatOption, DictionaryDraft, DictionaryScope } from '@/lib/api.ts';
+
 import { aliasesEqual, formatAliasLines, parseAliasLines } from '@/lib/dictionary.ts';
 import { cn } from '@/lib/utils';
+import type { DictionaryChatOption, DictionaryDraft, DictionaryScope } from '@/lib/api/dictionary.ts';
 
 /**
  * The alias editor: exactly one textarea, one alias per line. Every keystroke

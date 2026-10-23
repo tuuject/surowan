@@ -1,0 +1,40 @@
+/**
+ * Pages `stickers` group. English is the source catalog; `zh-CN/pages/stickers.ts`
+ * mirrors it key for key.
+ */
+export const stickers = {
+  yes: 'yes',
+  disabled: 'disabled',
+  setsTitle: 'Configured sticker sets',
+  setsDescPre: 'Only sets listed in',
+  setsDescPost:
+    'are synchronized here. Stickers received in chats are not automatically added or approved for sending.',
+  loadSetsFailed: 'Failed to load sticker sets',
+  adminRequestFailed: 'Admin request failed',
+  emptySets: 'No sticker sets configured.',
+  indexTitle: 'Bot search index',
+  indexDescPre: 'Only successfully analyzed stickers from configured sets appear here and are available to the',
+  indexDescMid: 'capability (called through',
+  indexDescPost: '). On-demand analyses of chat media are stored separately and appear in message details.',
+  filterSet: 'Sticker set',
+  filterState: 'Index state',
+  filterSearch: 'Search description or emoji',
+  colSet: 'Set',
+  colConfigured: 'Configured',
+  colSync: 'Sync',
+  colStickers: 'Stickers',
+  colIndexed: 'Indexed',
+  colPending: 'Pending',
+  colErrors: 'Errors',
+  colError: 'Error',
+  colLastSynced: 'Last synced',
+  colSticker: 'Sticker',
+  colIndexState: 'Index state',
+  colDescription: 'Description',
+  colModel: 'Model',
+  colFailures: 'Failures',
+  colUpdated: 'Updated',
+  nextRetry: 'Next retry',
+  analysisVersion: 'Analysis version',
+  metadata: 'Metadata',
+};

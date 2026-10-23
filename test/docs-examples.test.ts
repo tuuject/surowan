@@ -5,7 +5,7 @@ import { type ParseError, parse } from 'jsonc-parser';
 import { afterAll, expect, test } from 'vitest';
 import { deploymentSettings, docsRoot, renderConfigFields } from '../scripts/docs-prepare.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
-import { plaintextSecrets } from '../src/platform/config.ts';
+import { plaintextSecrets } from '../src/platform/config-validate.ts';
 
 const directories: string[] = [];
 afterAll(async () => {

@@ -8,16 +8,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import {
-  ApiError,
-  type Credentials,
-  createFirstAdmin,
-  login,
-  passkeyLoginOptions,
-  passkeyLoginVerify,
-} from '@/lib/api';
+
 import { isWebAuthnAvailable, passkeyErrorMessage } from '@/lib/passkeys';
 import { sessionQuery } from '@/lib/queries';
+import { ApiError } from '@/lib/api/core.ts';
+import type { Credentials } from '@/lib/api/core.ts';
+import { createFirstAdmin, login, passkeyLoginOptions, passkeyLoginVerify } from '@/lib/api/auth.ts';
 
 export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boolean }): React.ReactElement {
   const { t } = useTranslation();

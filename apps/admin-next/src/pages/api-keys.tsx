@@ -16,10 +16,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { type AdminApiKeyItem, createApiKey, revokeApiKey } from '@/lib/api';
+
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { apiKeysQuery } from '@/lib/queries';
+import { createApiKey, revokeApiKey } from '@/lib/api/admin.ts';
+import type { AdminApiKeyItem } from '@/lib/api/admin.ts';
 
 export default function ApiKeysPage(): React.ReactElement {
   const { t } = useTranslation();

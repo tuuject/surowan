@@ -6,9 +6,10 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import Type from 'typebox';
 import { Value } from 'typebox/value';
-import { ConfigSchema } from '../src/platform/config.ts';
+
 import { CODE_BLOCK_PATTERN } from './docs-markdown.ts';
 import { deploymentSettings, docsRoot, exampleNames, exampleSource, repositoryRoot } from './docs-prepare.ts';
+import { ConfigSchema } from '../src/platform/config-schema.ts';
 
 const dist = resolve(docsRoot, 'dist');
 const files = (await readdir(dist, { recursive: true, withFileTypes: true }))

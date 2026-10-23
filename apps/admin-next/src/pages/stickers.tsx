@@ -15,10 +15,12 @@ import {
 } from '@/components/business';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ApiError, type StickerEntry, type StickerSetEntry } from '@/lib/api';
+
 import { formatNumber, formatTime } from '@/lib/format';
 import { stickerSetsQuery, stickersQuery } from '@/lib/queries';
 import { useTranslation } from 'react-i18next';
+import { ApiError } from '@/lib/api/core.ts';
+import type { StickerEntry, StickerSetEntry } from '@/lib/api/stickers.ts';
 
 const INDEX_STATES = ['pending', 'running', 'success', 'error'] as const;
 

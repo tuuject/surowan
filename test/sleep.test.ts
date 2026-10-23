@@ -24,10 +24,11 @@ import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { activeSleepUntil, enterSleep, SLEEP_STATE_KEY } from '../src/store/sleep.ts';
-import { SLEEP_STATE_PROMPT } from '../src/context/context-builder.ts';
+
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { fauxRegistry, testConfigStore, testTelegramRuntime, type TestRegistry, writeTestConfig } from './helpers.ts';
+import { SLEEP_STATE_PROMPT } from '../src/context/context-builder-render.ts';
 
 const directories: string[] = [];
 

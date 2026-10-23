@@ -15,10 +15,12 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { addBotAdmin, type BotAdminEntry, removeBotAdmin } from '@/lib/api';
+
 import { errorMessage } from '@/lib/errors';
 import { adminsQuery } from '@/lib/queries';
 import { useTranslation } from 'react-i18next';
+import { addBotAdmin, removeBotAdmin } from '@/lib/api/admin.ts';
+import type { BotAdminEntry } from '@/lib/api/admin.ts';
 
 const ADMIN_ID_PATTERN = /^\d{1,15}$/;
 

@@ -2,15 +2,11 @@ import type { TSchema } from 'typebox';
 import Compile from 'typebox/compile';
 import { DEFAULT_MEMORY_TTL_WARNING_DAYS } from '../../context/memory.ts';
 import type { ConfigEdit } from '../../platform/config-write.ts';
-import {
-  AGENT_DEFAULTS,
-  AgentSectionSchema,
-  type FileConfig,
-  ProactiveReplySchema,
-  type RawConfig,
-} from '../../platform/config.ts';
+import type { FileConfig, RawConfig } from '../../platform/config.ts';
 import { PROACTIVE_REPLY_DEFAULTS } from '../../platform/proactive-reply.ts';
 import { AdminQueryError } from './audit.ts';
+import { AGENT_DEFAULTS } from '../../platform/config-resolve.ts';
+import { AgentSectionSchema, ProactiveReplySchema } from '../../platform/config-schema-sections.ts';
 
 export type HarnessValue = number | boolean | null;
 

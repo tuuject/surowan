@@ -13,10 +13,11 @@ import {
   ToneBadge,
 } from '@/components/business';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
-import type { MessageListItem } from '@/lib/api';
+
 import { formatNumber, formatTime } from '@/lib/format';
 import { messagesQuery } from '@/lib/queries';
 import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
+import type { MessageListItem } from '@/lib/api/messages.ts';
 
 const ID_LINK =
   'decoration-border hover:decoration-foreground font-medium tabular-nums underline underline-offset-4 transition-colors';

@@ -7,8 +7,9 @@ import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/co
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import { AGENT_DEFAULTS } from '../src/platform/config.ts';
+
 import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { AGENT_DEFAULTS } from '../src/platform/config-resolve.ts';
 
 const directories: string[] = [];
 

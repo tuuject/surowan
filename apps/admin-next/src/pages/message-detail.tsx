@@ -14,9 +14,10 @@ import {
   ToneBadge,
 } from '@/components/business';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type { MediaEntry, MessageDetail, RevisionEntry } from '@/lib/api';
+
 import { formatNumber, formatTime } from '@/lib/format';
 import { messageQuery } from '@/lib/queries';
+import type { MediaEntry, MessageDetail, RevisionEntry } from '@/lib/api/messages.ts';
 
 function YesNoBadge({ value }: { readonly value: boolean }): React.ReactElement {
   const { t } = useTranslation();

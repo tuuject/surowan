@@ -5,7 +5,7 @@ import type { SecretStore } from '../../platform/secrets.ts';
 import { type Orm, resolveChatConfig } from '../../store/store.ts';
 import { hashPromptContent } from '../../store/prompt-versions.ts';
 import { AdminQueryError } from './audit.ts';
-import { listProviders } from './providers-admin.ts';
+import { listProviders } from './providers-admin-read.ts';
 
 export type ConfigurationSource = 'active' | 'file';
 

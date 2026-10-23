@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { ModelMetadataDraft, ProviderModelConfig } from './api.ts';
+
 import {
   AUTO_COMPAT,
   agentModelConfig,
@@ -22,6 +22,7 @@ import {
   validateModelForm,
   writeErrorMessage,
 } from './model-manager.ts';
+import type { ModelMetadataDraft, ProviderModelConfig } from './api/providers.ts';
 
 function draft(overrides: Partial<ModelMetadataDraft> = {}): ModelMetadataDraft {
   return {
@@ -356,13 +357,13 @@ describe('write feedback', () => {
 
 describe('error text', () => {
   test('a stale revision is explained instead of echoed as a code', async () => {
-    const { ApiError } = await import('./api.ts');
+    const { ApiError } = await import('./api/core.ts');
     const message = writeErrorMessage(new ApiError(409, 'config_conflict', 'revision mismatch'));
     expect(message).toContain('config.jsonc changed');
   });
 
   test('other failures keep the code and message', async () => {
-    const { ApiError } = await import('./api.ts');
+    const { ApiError } = await import('./api/core.ts');
     expect(writeErrorMessage(new ApiError(400, 'credentials_required', 'key needed'))).toBe(
       'credentials_required: key needed',
     );

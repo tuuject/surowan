@@ -13,15 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import {
-  type DraftField,
-  type ModelInput,
-  type ModelMetadataDraft,
-  type ProviderApi,
-  type ProviderModelConfig,
-  THINKING_LEVELS,
-  type ThinkingLevel,
-} from '@/lib/api.ts';
+
 import {
   AUTO_COMPAT,
   compatFieldsForApi,
@@ -34,6 +26,15 @@ import {
   unconfirmedFields,
   validateModelForm,
 } from '@/lib/model-manager.ts';
+import type {
+  DraftField,
+  ModelInput,
+  ModelMetadataDraft,
+  ProviderApi,
+  ProviderModelConfig,
+} from '@/lib/api/providers.ts';
+import { THINKING_LEVELS } from '@/lib/api/models.ts';
+import type { ThinkingLevel } from '@/lib/api/models.ts';
 
 const INPUT_MODALITIES: readonly ModelInput[] = ['text', 'image'];
 const COST_FIELDS = ['input', 'output', 'cache_read', 'cache_write'] as const;

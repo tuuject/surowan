@@ -1,0 +1,363 @@
+import { and, eq, sql } from 'drizzle-orm';
+import type { Message } from 'grammy/types';
+import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
+import { conversations, media as mediaTable, messageRevisions, messages, senders } from '../../store/schema.ts';
+import type { BusinessStore } from '../../store/store.ts';
+
+const IMAGE_MIME_TYPES: Record<string, true> = {
+  'image/jpeg': true,
+  'image/png': true,
+  'image/webp': true,
+};
+const SERVICE_KEYS: Record<string, true> = {
+  new_chat_members: true,
+  left_chat_member: true,
+  new_chat_title: true,
+  new_chat_photo: true,
+  delete_chat_photo: true,
+  group_chat_created: true,
+  supergroup_chat_created: true,
+  channel_chat_created: true,
+  message_auto_delete_timer_changed: true,
+  migrate_to_chat_id: true,
+  migrate_from_chat_id: true,
+  pinned_message: true,
+  forum_topic_created: true,
+  forum_topic_closed: true,
+  forum_topic_reopened: true,
+  forum_topic_edited: true,
+  general_forum_topic_hidden: true,
+  general_forum_topic_unhidden: true,
+  video_chat_scheduled: true,
+  video_chat_started: true,
+  video_chat_ended: true,
+  video_chat_participants_invited: true,
+};
+const MAX_IMAGE_DOCUMENT_BYTES = 20 * 1024 * 1024;
+
+interface NormalizedMedia {
+  readonly kind: 'photo' | 'document' | 'sticker';
+  readonly fileId: string;
+  readonly fileUniqueId: string;
+  readonly mimeType: string | null;
+  readonly fileSize: bigint | null;
+  readonly width: bigint | null;
+  readonly height: bigint | null;
+  readonly telegramJson: string;
+}
+
+interface NormalizedMessage {
+  readonly kind: string;
+  readonly text: string | null;
+  readonly caption: string | null;
+  readonly replyToMessageId: bigint | null;
+  readonly replySnapshot: string | null;
+  readonly forwardOrigin: string | null;
+  readonly media: readonly NormalizedMedia[];
+}
+
+export interface StoredMessage {
+  readonly id: bigint;
+  readonly revisionId: bigint;
+  readonly conversationId: bigint;
+  readonly eligibleHuman: boolean;
+  readonly companionOnly: boolean;
+}
+
+/** What a message write needs from the ingestion entry point. */
+export interface TelegramMessageDeps {
+  readonly store: BusinessStore;
+  readonly configStore: RuntimeConfigurationStore;
+  readonly botId: bigint;
+}
+
+export function storeMessage(
+  deps: TelegramMessageDeps,
+  message: Message,
+  internalChatId: bigint,
+  threadId: bigint,
+  receivedAt: Date,
+  edited: boolean,
+  ignoredUserIds: readonly number[],
+): StoredMessage | undefined {
+  const sender = upsertSender(deps, message, receivedAt);
+  // A message sent on behalf of a chat (anonymous group admin, a channel
+  // identity, a linked-channel post) carries a placeholder bot in `from` for
+  // backward compatibility, such as GroupAnonymousBot. Its author is
+  // `sender_chat`, which `upsertSender` already records as a non-bot.
+  const fromBot = message.sender_chat === undefined && message.from?.is_bot === true;
+  const ownMessage = message.from !== undefined && BigInt(message.from.id) === deps.botId;
+  const service = isServiceMessage(message);
+  if (ownMessage || (fromBot && !deps.configStore.current().config.telegram.process_bot_messages)) {
+    return undefined;
+  }
+  const conversationId = upsertConversation(deps, internalChatId, threadId, receivedAt);
+  const telegramMessageId = BigInt(message.message_id);
+  const existing = deps.store.orm
+    .all<{ id: bigint; revision_no: bigint }>(
+      sql`SELECT m.id, COALESCE(MAX(r.revision_no), 0) AS revision_no FROM messages m LEFT JOIN message_revisions r ON r.message_id = m.id WHERE m.chat_id = ${internalChatId} AND m.telegram_message_id = ${telegramMessageId} GROUP BY m.id`,
+    )
+    .at(0);
+  let messageId: bigint;
+  let revisionNo: bigint;
+  if (existing === undefined) {
+    const created = deps.store.orm
+      .insert(messages)
+      .values({
+        conversationId,
+        chatId: internalChatId,
+        telegramMessageId,
+        telegramDate: new Date(message.date * 1000).toISOString(),
+        receivedAt: receivedAt.toISOString(),
+      })
+      .returning({ id: messages.id })
+      .get();
+    if (created === undefined) {
+      throw new Error('messages insert returned no row');
+    }
+    messageId = created.id;
+    revisionNo = 1n;
+  } else {
+    messageId = existing.id;
+    if (!edited) {
+      return undefined;
+    }
+    revisionNo = existing.revision_no + 1n;
+  }
+  const normalized = normalizeMessage(message, service, ignoredUserIds);
+  const stickerOnly =
+    normalized.kind === 'sticker' &&
+    normalized.text === null &&
+    normalized.caption === null &&
+    normalized.media.length === 1 &&
+    normalized.media[0]?.kind === 'sticker';
+  const eligibleHuman =
+    !fromBot &&
+    !service &&
+    (!stickerOnly || deps.configStore.current().config.telegram.sticker_trigger_enabled === true);
+  const revision = deps.store.orm
+    .insert(messageRevisions)
+    .values({
+      messageId,
+      revisionNo,
+      senderId: sender,
+      kind: normalized.kind,
+      text: normalized.text,
+      caption: normalized.caption,
+      replyToMessageId: normalized.replyToMessageId,
+      replySnapshotJson: normalized.replySnapshot,
+      forwardOriginJson: normalized.forwardOrigin,
+      mediaGroupId: message.media_group_id ?? null,
+      serviceJson: service ? JSON.stringify(message) : null,
+      createdAt: receivedAt.toISOString(),
+      rawFragmentJson: JSON.stringify(message),
+    })
+    .returning({ id: messageRevisions.id })
+    .get();
+  if (revision === undefined) {
+    throw new Error('message_revisions insert returned no row');
+  }
+  const revisionId = revision.id;
+  deps.store.orm.update(messages).set({ currentRevisionId: revisionId }).where(eq(messages.id, messageId)).run();
+  for (const media of normalized.media) {
+    deps.store.orm
+      .insert(mediaTable)
+      .values({
+        revisionId,
+        kind: media.kind,
+        fileId: media.fileId,
+        fileUniqueId: media.fileUniqueId,
+        mimeType: media.mimeType,
+        fileSize: media.fileSize,
+        width: media.width,
+        height: media.height,
+        telegramJson: media.telegramJson,
+      })
+      .run();
+  }
+  return {
+    id: messageId,
+    revisionId,
+    conversationId,
+    eligibleHuman,
+    companionOnly: !eligibleHuman,
+  };
+}
+
+function upsertSender(deps: TelegramMessageDeps, message: Message, receivedAt: Date): bigint | null {
+  const senderChat = message.sender_chat;
+  let type: 'user' | 'sender_chat';
+  let telegramId: bigint;
+  let displayName: string;
+  let username: string | null;
+  let isBot: boolean;
+  if (senderChat !== undefined) {
+    type = 'sender_chat';
+    telegramId = BigInt(senderChat.id);
+    displayName = senderChat.title ?? senderChat.username ?? senderChat.id.toString();
+    username = senderChat.username ?? null;
+    isBot = false;
+  } else if (message.from !== undefined) {
+    type = 'user';
+    telegramId = BigInt(message.from.id);
+    displayName = [message.from.first_name, message.from.last_name].filter((part) => part !== undefined).join(' ');
+    username = message.from.username ?? null;
+    isBot = message.from.is_bot;
+  } else {
+    return null;
+  }
+  deps.store.orm
+    .insert(senders)
+    .values({
+      telegramType: type,
+      telegramId,
+      displayName,
+      username,
+      isBot,
+      updatedAt: receivedAt.toISOString(),
+    })
+    .onConflictDoUpdate({
+      target: [senders.telegramType, senders.telegramId],
+      set: { displayName, username, isBot, updatedAt: receivedAt.toISOString() },
+    })
+    .run();
+  const row = deps.store.orm
+    .select({ id: senders.id })
+    .from(senders)
+    .where(and(eq(senders.telegramType, type), eq(senders.telegramId, telegramId)))
+    .get();
+  if (row === undefined) {
+    throw new Error('Sender upsert did not return a row');
+  }
+  return row.id;
+}
+
+function upsertConversation(deps: TelegramMessageDeps, chatId: bigint, threadId: bigint, receivedAt: Date): bigint {
+  deps.store.orm
+    .insert(conversations)
+    .values({
+      chatId,
+      messageThreadId: threadId,
+      createdAt: receivedAt.toISOString(),
+      updatedAt: receivedAt.toISOString(),
+    })
+    .onConflictDoUpdate({
+      target: [conversations.chatId, conversations.messageThreadId],
+      set: { updatedAt: receivedAt.toISOString() },
+    })
+    .run();
+  const row = deps.store.orm
+    .select({ id: conversations.id })
+    .from(conversations)
+    .where(and(eq(conversations.chatId, chatId), eq(conversations.messageThreadId, threadId)))
+    .get();
+  if (row === undefined) {
+    throw new Error('Conversation upsert did not return a row');
+  }
+  return row.id;
+}
+
+function normalizeMessage(message: Message, service: boolean, ignoredUserIds: readonly number[]): NormalizedMessage {
+  const media: NormalizedMedia[] = [];
+  let kind = service ? 'service' : 'unsupported';
+  if (message.text !== undefined) {
+    kind = 'text';
+  }
+  if (message.photo !== undefined) {
+    kind = 'photo';
+    const photo = message.photo.at(-1);
+    if (photo !== undefined) {
+      media.push({
+        kind: 'photo',
+        fileId: photo.file_id,
+        fileUniqueId: photo.file_unique_id,
+        mimeType: 'image/jpeg',
+        fileSize: photo.file_size === undefined ? null : BigInt(photo.file_size),
+        width: BigInt(photo.width),
+        height: BigInt(photo.height),
+        telegramJson: JSON.stringify(photo),
+      });
+    }
+  }
+  const document = message.document;
+  if (
+    document !== undefined &&
+    document.mime_type !== undefined &&
+    document.mime_type in IMAGE_MIME_TYPES &&
+    document.file_size !== undefined &&
+    document.file_size <= MAX_IMAGE_DOCUMENT_BYTES
+  ) {
+    kind = 'document';
+    media.push({
+      kind: 'document',
+      fileId: document.file_id,
+      fileUniqueId: document.file_unique_id,
+      mimeType: document.mime_type,
+      fileSize: BigInt(document.file_size),
+      width: document.thumbnail === undefined ? null : BigInt(document.thumbnail.width),
+      height: document.thumbnail === undefined ? null : BigInt(document.thumbnail.height),
+      telegramJson: JSON.stringify(document),
+    });
+  }
+  const sticker = message.sticker;
+  if (sticker !== undefined) {
+    kind = 'sticker';
+    media.push({
+      kind: 'sticker',
+      fileId: sticker.file_id,
+      fileUniqueId: sticker.file_unique_id,
+      mimeType: sticker.is_video ? 'video/webm' : sticker.is_animated ? 'application/x-tgsticker' : 'image/webp',
+      fileSize: sticker.file_size === undefined ? null : BigInt(sticker.file_size),
+      width: BigInt(sticker.width),
+      height: BigInt(sticker.height),
+      telegramJson: JSON.stringify(sticker),
+    });
+  }
+  const reply = message.reply_to_message;
+  const visibleReply = reply !== undefined && !isIgnoredUser(reply, ignoredUserIds) ? reply : undefined;
+  return {
+    kind,
+    text: message.text ?? null,
+    caption: message.caption ?? null,
+    replyToMessageId: visibleReply === undefined ? null : BigInt(visibleReply.message_id),
+    replySnapshot: visibleReply === undefined ? null : JSON.stringify(compactReply(visibleReply)),
+    forwardOrigin: message.forward_origin === undefined ? null : JSON.stringify(message.forward_origin),
+    media,
+  };
+}
+
+export function isIgnoredUser(message: Message, ignoredUserIds: readonly number[]): boolean {
+  if (message.sender_chat !== undefined || message.from === undefined) {
+    return false;
+  }
+  const senderId = BigInt(message.from.id);
+  return ignoredUserIds.some((ignoredUserId) => BigInt(ignoredUserId) === senderId);
+}
+
+function compactReply(message: Message): Record<string, unknown> {
+  const sender = message.sender_chat ?? message.from;
+  const senderName =
+    sender === undefined
+      ? 'unknown'
+      : 'title' in sender
+        ? sender.title
+        : [sender.first_name, sender.last_name].filter((part) => part !== undefined).join(' ');
+  const content = message.text ?? message.caption;
+  return {
+    message_id: String(message.message_id),
+    sender: senderName,
+    content:
+      content === undefined
+        ? `[${message.photo !== undefined ? 'photo' : message.sticker !== undefined ? 'sticker' : 'message'}]`
+        : content.slice(0, 500),
+  };
+}
+
+function isServiceMessage(message: Message): boolean {
+  for (const key of Object.keys(SERVICE_KEYS)) {
+    if (key in message) {
+      return true;
+    }
+  }
+  return false;
+}

@@ -1,16 +1,16 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { Message } from 'grammy/types';
-import { ConversationContextStore, listConversationContexts } from '../context/context-store.ts';
-import { type AgentSettings, completeAgentSettings, type RawConfig, resolveAgentSettings } from '../platform/config.ts';
+import { ConversationContextStore } from '../context/context-store.ts';
+import type { RawConfig } from '../platform/config.ts';
 import type { BotCommandConfigWriter } from '../platform/config-write.ts';
-import type { AgentModelOption, AgentModelSwitcher } from '../platform/model-switch.ts';
-import { isWithinActiveWindows } from '../platform/participation.ts';
+import type { AgentModelSwitcher } from '../platform/model-switch.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
-import type { BusinessStore } from '../store/store.ts';
-import { isChatPaused, resolveChatConfig } from '../store/store.ts';
-import { chatAttentionUntil, ParticipationRegistry } from '../store/participation.ts';
-import { chatPause, chats, conversationContextCutoffs, conversations, dailyUsage } from '../store/schema.ts';
-import { readDailyTokenBudget } from '../store/sleep.ts';
+import { ParticipationRegistry } from '../store/participation.ts';
+import { chats } from '../store/schema.ts';
+import { type BusinessStore, resolveChatConfig } from '../store/store.ts';
+import { allowlistChat, type BotCommandConfigDeps, setSelfIgnored, switchChatModel } from './bot-commands-config.ts';
+import { type BotCommandSessionDeps, cutTopic, pauseChat, resumeChat } from './bot-commands-session.ts';
+import { type BotCommandStatusDeps, chatStatus } from './bot-commands-status.ts';
 import type { ConversationRuntime } from './conversation-runtime.ts';
 import type { BucketScheduler } from './scheduler.ts';
 
@@ -77,14 +77,6 @@ export function commandSender(message: Message): CommandSender | null {
       };
 }
 
-/** What chat-scoped `/model` itself writes; any other applied path came from the file. */
-function switchPaths(configuredChatId: number): ReadonlySet<string> {
-  return new Set([
-    `telegram.chats[${configuredChatId}].provider`,
-    `telegram.chats[${configuredChatId}].model`,
-    `telegram.chats[${configuredChatId}].thinking_level`,
-  ]);
-}
 const COMMAND_NAMES: Record<string, true> = {
   pause: true,
   resume: true,
@@ -97,7 +89,6 @@ const COMMAND_NAMES: Record<string, true> = {
   unignoreme: true,
 } satisfies Record<ParsedCommand['name'], true>;
 const DENIED_REPLY = '该命令仅对本 Bot 的管理员可用。';
-const MODEL_PAGE_SIZE = 20;
 
 export interface BotCommandRegistration {
   readonly command: string;
@@ -237,391 +228,31 @@ export class BotCommandService {
   }
 
   #pause(telegramChatId: bigint, now: Date): string {
-    const chatId = this.#internalChatId(telegramChatId);
-    if (chatId === null) {
-      throw new Error(`Chat ${telegramChatId} has no stored row`);
-    }
-    const timestamp = now.toISOString();
-    this.#store.transaction(() => {
-      this.#store.orm
-        .insert(chatPause)
-        .values({ chatId, pausedAt: timestamp })
-        .onConflictDoUpdate({ target: chatPause.chatId, set: { pausedAt: timestamp } })
-        .run();
-      this.#store.orm.run(
-        sql`UPDATE buckets SET state = 'expired', error_code = 'chat_paused', finished_at = ${timestamp}, updated_at = ${timestamp}
-           WHERE conversation_id IN (SELECT id FROM conversations WHERE chat_id = ${chatId})
-             AND (state IN ('collecting', 'queued') OR (state = 'running' AND id IN (
-               SELECT ib.bucket_id FROM invocation_buckets ib JOIN invocations i ON i.id = ib.invocation_id
-               WHERE i.state = 'running' AND ib.injected_at IS NULL AND ib.bucket_id <> i.bucket_id
-             )))`,
-      );
-      // Suppress only queued deliveries. Running work settles normally after abort.
-      this.#store.orm.run(
-        sql`UPDATE task_receipts SET state = 'suppressed', cancelled_at = ${timestamp}, cancel_reason = 'chat_paused', admin_cancelled = 0, updated_at = ${timestamp}
-           WHERE state = 'claimed' AND invocation_id IN (
-             SELECT i.id FROM invocations i
-             JOIN conversations v ON v.id = i.conversation_id
-             WHERE i.state = 'queued' AND v.chat_id = ${chatId}
-           )`,
-      );
-      this.#store.orm.run(
-        sql`UPDATE invocations SET state = 'aborted', completion_reason = 'chat_paused', finished_at = ${timestamp}
-           WHERE state = 'queued' AND conversation_id IN (SELECT id FROM conversations WHERE chat_id = ${chatId})`,
-      );
-    });
-    this.#scheduler.pauseChat(chatId);
-    return '已暂停本群互动，发送 /resume 可恢复。';
+    return pauseChat(this.#sessionDeps(), telegramChatId, now);
   }
 
   #resume(telegramChatId: bigint): string {
-    const chatId = this.#internalChatId(telegramChatId);
-    if (chatId === null) {
-      throw new Error(`Chat ${telegramChatId} has no stored row`);
-    }
-    this.#store.orm.delete(chatPause).where(eq(chatPause.chatId, chatId)).run();
-    return '已恢复本群互动。';
+    return resumeChat(this.#sessionDeps(), telegramChatId);
   }
 
-  // Cuts one Conversation's agent-session history at the command message itself:
-  // the cutoff row stores the command's Telegram message ID, so the command and
-  // everything before it in the same topic drop out of future invocations. Other
-  // topics of the chat keep their history, matching the Context clear below.
-  // Replying is safe even when this chat has never triggered the agent.
-  //
-  // The continuous Conversation Context is cleared in the same step. Without
-  // that, the command would only trim the rendered history while the model kept
-  // seeing everything through its retained transcript.
   #cutTopic(telegramChatId: bigint, messageId: bigint | undefined, threadId: bigint | undefined, now: Date): string {
-    if (messageId === undefined) {
-      throw new Error(`cut_topic command is missing its Telegram message ID`);
-    }
-    const chatId = this.#internalChatId(telegramChatId);
-    if (chatId === null) {
-      throw new Error(`Chat ${telegramChatId} has no stored row`);
-    }
-    const timestamp = now.toISOString();
-    const conversationId = this.#store.orm
-      .select({ id: conversations.id })
-      .from(conversations)
-      .where(and(eq(conversations.chatId, chatId), eq(conversations.messageThreadId, threadId ?? 0n)))
-      .get()?.id;
-    // No Conversation row means this topic has stored nothing yet, so there is
-    // no history to cut and no Context to clear.
-    if (conversationId !== undefined) {
-      // The cutoff only moves forward: a late or re-delivered older command must
-      // not bring back history a newer cut already removed.
-      this.#store.orm
-        .insert(conversationContextCutoffs)
-        .values({ conversationId, telegramMessageId: messageId, createdAt: timestamp, updatedAt: timestamp })
-        .onConflictDoUpdate({
-          target: conversationContextCutoffs.conversationId,
-          set: {
-            telegramMessageId: sql`MAX(${conversationContextCutoffs.telegramMessageId}, excluded.telegram_message_id)`,
-            updatedAt: timestamp,
-          },
-        })
-        .run();
-      // Interrupt before clearing. A run in flight holds the pre-cut transcript and
-      // a header snapshot taken at its start, so it would keep answering from the
-      // history just cut and could write a lower `head_seq` back over the cut.
-      this.#scheduler.abortConversation(conversationId);
-      const header = this.#contexts.header(conversationId);
-      if (header !== undefined) {
-        this.#contexts.clear(header, now);
-        console.log(
-          JSON.stringify({
-            event: 'context_cleared',
-            conversation_id: conversationId.toString(),
-            chat_id: telegramChatId.toString(),
-            head_seq: header.headSeq.toString(),
-            at: timestamp,
-          }),
-        );
-      }
-      // Drop the in-memory transcript too; the canonical history is the truth.
-      this.#conversationRuntime?.forget(conversationId);
-    }
-    return '已切掉此消息及更早的历史，并清空该话题的连续 Context。';
+    return cutTopic(this.#sessionDeps(), telegramChatId, messageId, threadId, now);
   }
 
-  // The one command that may run in a chat the allowlist does not yet name:
-  // ingestion passes it through for admins precisely so it can extend the
-  // allowlist itself. The entry is appended to `telegram.chats` as `{ id }` and
-  // hot-applied, so the chat joins the normal ingestion path without a restart.
   async #allowlist(telegramChatId: bigint): Promise<string> {
-    if (resolveChatConfig(this.#configStore.current().config, this.#store.orm, telegramChatId) !== undefined) {
-      return '本群已在白名单中。';
-    }
-    const reloader = this.#configReloader;
-    if (reloader === undefined) {
-      return '运行时配置应用不可用。';
-    }
-    const chatId = Number(telegramChatId);
-    if (!Number.isSafeInteger(chatId) || chatId === 0) {
-      return `无效的 Chat ID: ${telegramChatId.toString()}`;
-    }
-    const result = await reloader.addChat(chatId);
-    if (!result.ok) {
-      return result.fileWritten
-        ? `已写入 config.jsonc，但应用失败: ${result.message}`
-        : `加入白名单失败: ${result.message}`;
-    }
-    const lines = ['已将本群加入白名单，配置已立即生效。'];
-    if (result.restartRequired.length > 0) {
-      lines.push(`另有 ${result.restartRequired.length} 项配置需要重启后生效。`);
-    }
-    return lines.join('\n');
+    return await allowlistChat(this.#configDeps(), telegramChatId);
   }
 
   async #setSelfIgnored(telegramChatId: bigint, sender: CommandSender | null, ignored: boolean): Promise<string> {
-    if (sender === null) {
-      return '无法识别发送者，请使用个人账号发送命令。';
-    }
-    const reloader = this.#configReloader;
-    if (reloader === undefined) {
-      return '运行时配置应用不可用。';
-    }
-    const chat = resolveChatConfig(this.#configStore.current().config, this.#store.orm, telegramChatId);
-    if (chat === undefined) {
-      return '本 Chat 未在配置中找到。';
-    }
-    const result = await reloader.setChatUserIgnored(chat.id, sender.id, ignored);
-    if (!result.ok) {
-      return result.fileWritten
-        ? `已写入 config.jsonc，但应用失败: ${result.message}`
-        : `更新忽略名单失败: ${result.message}`;
-    }
-    const lines = [
-      ignored
-        ? '已忽略你在本 Chat 的消息，配置已立即生效。发送 /unignoreme 可恢复。'
-        : '已恢复接收你在本 Chat 的消息，配置已立即生效。',
-    ];
-    const other = result.applied.filter((path) => path !== `telegram.chats[${chat.id}].ignored_user_ids`);
-    if (other.length > 0) {
-      lines.push(`同时应用了配置文件中的其它修改: ${other.join(', ')}`);
-    }
-    if (result.restartRequired.length > 0) {
-      lines.push(`另有 ${result.restartRequired.length} 项配置需要重启后生效。`);
-    }
-    return lines.join('\n');
+    return await setSelfIgnored(this.#configDeps(), telegramChatId, sender, ignored);
   }
 
   async #modelSwitch(argument: string | undefined, telegramChatId: bigint): Promise<string> {
-    const switcher = this.#modelSwitcher;
-    const reloader = this.#configReloader;
-    if (switcher === undefined || reloader === undefined) {
-      return '运行时模型切换不可用。';
-    }
-    const config = this.#configStore.current().config;
-    const chatConfig = resolveChatConfig(config, this.#store.orm, telegramChatId);
-    if (chatConfig === undefined) {
-      return '本 Chat 未在配置中找到。';
-    }
-    const configuredChatId = chatConfig.id;
-    const effective = resolveAgentSettings(config, chatConfig);
-    const options = switcher.list();
-
-    if (argument === undefined) {
-      return this.#modelMenu(1, options, effective, chatConfig);
-    }
-
-    const pageMatch = /^page\s+(\d+)$/.exec(argument);
-    if (pageMatch !== null) {
-      const page = Number.parseInt(pageMatch[1] ?? '', 10);
-      const pageCount = Math.max(1, Math.ceil(options.length / MODEL_PAGE_SIZE));
-      if (!Number.isSafeInteger(page) || page < 1 || page > pageCount) {
-        return `无效页码。${this.#modelMenu(1, options, effective, chatConfig)}`;
-      }
-      return this.#modelMenu(page, options, effective, chatConfig);
-    }
-    const reset = argument === 'default';
-    const index = /^\d+$/.test(argument) ? Number.parseInt(argument, 10) : NaN;
-    const option = options[index - 1];
-    if (!reset && option === undefined) {
-      return `无效序号。${this.#modelMenu(1, options, effective, chatConfig)}`;
-    }
-    const result =
-      option === undefined
-        ? await reloader.resetChatModel(configuredChatId)
-        : await reloader.setChatModel(configuredChatId, option.provider, option.model);
-    if (!result.ok) {
-      return result.fileWritten
-        ? `已写入 config.jsonc，但应用失败: ${result.message}`
-        : `${reset ? '恢复' : '切换'}失败: ${result.message}`;
-    }
-    const current = this.#configStore.current().config;
-    const settings = resolveAgentSettings(current, resolveChatConfig(current, this.#store.orm, telegramChatId));
-    const active = completeAgentSettings(settings);
-    const target = active === undefined ? '未配置' : `${active.provider} / ${active.model}`;
-    const paths = switchPaths(configuredChatId);
-    const lines = reset
-      ? [`已清除本群模型覆盖，跟随全局 ${target}，将在下一次 agent session 生效。`]
-      : [
-          `已为本群切换: ${target}，已写入 config.jsonc，将在下一次 agent session 生效。`,
-          `思考强度已重置为该模型最弱的一档: ${settings.thinking_level ?? '未配置'}`,
-        ];
-    const other = result.applied.filter((path) => !paths.has(path));
-    if (other.length > 0) {
-      lines.push(`同时应用了配置文件中的其它修改: ${other.join(', ')}`);
-    }
-    if (result.restartRequired.length > 0) {
-      lines.push(`另有 ${result.restartRequired.length} 项配置需要重启后生效。`);
-    }
-    return lines.join('\n');
-  }
-
-  #modelMenu(
-    page: number,
-    options: readonly AgentModelOption[],
-    effective: AgentSettings,
-    chatConfig: RawConfig['telegram']['chats'][number],
-  ): string {
-    const hasProviderOverride = chatConfig.provider !== undefined;
-    const hasModelOverride = chatConfig.model !== undefined;
-    const hasThinkingOverride = chatConfig.thinking_level !== undefined;
-    const pageCount = Math.max(1, Math.ceil(options.length / MODEL_PAGE_SIZE));
-    const start = (page - 1) * MODEL_PAGE_SIZE;
-    const end = Math.min(start + MODEL_PAGE_SIZE, options.length);
-    const modelLabel =
-      effective.provider === undefined || effective.model === undefined
-        ? '未配置'
-        : `${effective.provider} / ${effective.model}${hasProviderOverride || hasModelOverride ? '' : '（继承全局）'}`;
-    const lines = [
-      `本群模型: ${modelLabel}`,
-      `思考强度: ${effective.thinking_level ?? '未配置'}${hasThinkingOverride ? '' : '（继承全局）'}`,
-      `可用模型（第 ${page}/${pageCount} 页，共 ${options.length} 条）:`,
-    ];
-    for (let index = start; index < end; index += 1) {
-      const option = options[index];
-      if (option === undefined) {
-        break;
-      }
-      lines.push(`${index + 1}. ${option.provider} / ${option.model}（${option.name}）`);
-    }
-    lines.push('使用 /model 序号 切换，/model page 页码 翻页，/model default 清除本群覆盖');
-    return lines.join('\n');
+    return await switchChatModel(this.#configDeps(), argument, telegramChatId);
   }
 
   #status(telegramChatId: bigint, now: Date): string {
-    const chat = this.#chatConfig(telegramChatId);
-    if (chat === undefined) {
-      throw new Error(`Chat ${telegramChatId} is not configured`);
-    }
-    const date = now.toISOString().slice(0, 10);
-    const chatId = this.#internalChatId(telegramChatId);
-    const tokens =
-      this.#store.orm
-        .select({ amount: dailyUsage.amount })
-        .from(dailyUsage)
-        .where(
-          and(
-            eq(dailyUsage.utcDate, date),
-            eq(dailyUsage.scope, 'chat'),
-            eq(dailyUsage.resource, telegramChatId.toString()),
-            eq(dailyUsage.metric, 'model_tokens'),
-          ),
-        )
-        .get()?.amount ?? 0n;
-    const dailyBudget = readDailyTokenBudget(
-      this.#store.orm,
-      this.#configStore.current().config.agent.daily_budget.max_tokens,
-      { now },
-    );
-    const dailyBudgetBasisPoints =
-      (dailyBudget.usedTokens * 10_000n + dailyBudget.maxTokens / 2n) / dailyBudget.maxTokens;
-    const dailyBudgetPercentage = `${dailyBudgetBasisPoints / 100n}.${(dailyBudgetBasisPoints % 100n).toString().padStart(2, '0')}%`;
-    const tokenBreakdown =
-      chatId === null
-        ? null
-        : this.#store.orm
-            .all<{
-              readTokens: bigint;
-              writeTokens: bigint;
-              cacheReadTokens: bigint;
-              cacheWriteTokens: bigint;
-            }>(
-              sql`SELECT COALESCE(SUM(model_calls.input_tokens), 0) AS readTokens,
-                      COALESCE(SUM(model_calls.output_tokens), 0) AS writeTokens,
-                      COALESCE(SUM(model_calls.cache_read_tokens), 0) AS cacheReadTokens,
-                      COALESCE(SUM(model_calls.cache_write_tokens), 0) AS cacheWriteTokens
-               FROM model_calls
-               JOIN invocations ON invocations.id = model_calls.invocation_id
-               WHERE invocations.conversation_id IN (SELECT id FROM conversations WHERE chat_id = ${chatId})
-                 AND substr(model_calls.finished_at, 1, 10) = ${date}`,
-            )
-            .at(0);
-    const config = this.#configStore.current().config;
-    const effective = resolveAgentSettings(config, chat);
-    const paused = chatId !== null && isChatPaused(this.#store.orm, chatId);
-    const hasProviderOverride = chat.provider !== undefined;
-    const hasModelOverride = chat.model !== undefined;
-    const hasThinkingOverride = chat.thinking_level !== undefined;
-    const modelLabel =
-      effective.provider === undefined || effective.model === undefined
-        ? '未配置'
-        : `${effective.provider} / ${effective.model}${hasProviderOverride || hasModelOverride ? '' : '（继承全局）'}`;
-    const lines = [
-      `本群模型: ${modelLabel}`,
-      `思考强度: ${effective.thinking_level ?? '未配置'}${hasThinkingOverride ? '' : '（继承全局）'}`,
-      `本群今日 token 用量: ${tokens.toLocaleString('en-US')}`,
-      `全局今日 token 用量: ${dailyBudget.usedTokens.toLocaleString('en-US')} / ${dailyBudget.maxTokens.toLocaleString('en-US')} (${dailyBudgetPercentage})`,
-      `读取: ${(tokenBreakdown?.readTokens ?? 0n).toLocaleString('en-US')}`,
-      `写入: ${(tokenBreakdown?.writeTokens ?? 0n).toLocaleString('en-US')}`,
-      `缓存读取: ${(tokenBreakdown?.cacheReadTokens ?? 0n).toLocaleString('en-US')}`,
-      `缓存写入: ${(tokenBreakdown?.cacheWriteTokens ?? 0n).toLocaleString('en-US')}`,
-    ];
-    if (paused) {
-      lines.push('互动: 已暂停');
-      lines.push(...this.#contextLines(telegramChatId));
-      return lines.join('\n');
-    }
-    const participation = this.#participationLine(telegramChatId, chatId, now);
-    if (participation !== null) {
-      lines.push(participation);
-    }
-    lines.push(...this.#contextLines(telegramChatId));
-    return lines.join('\n');
-  }
-
-  /**
-   * Conversation Context visibility: how much retained history the agent sees,
-   * how many sends are inside the GC window, and when the last collection ran.
-   */
-  #contextLines(telegramChatId: bigint): string[] {
-    const rows = listConversationContexts(this.#store, { telegramChatId });
-    if (rows.length === 0) {
-      return ['Context: 尚未建立'];
-    }
-    return rows.map((row) => {
-      const topic = row.messageThreadId === 0n ? '' : `#${row.messageThreadId.toString()} `;
-      const header = this.#contexts.header(row.conversationId);
-      const stats = header === undefined ? null : this.#contexts.stats(header);
-      const gc = stats?.lastGcAt == null ? '未 GC' : `上次 GC ${stats.lastGcAt}`;
-      return `Context ${topic}消息 ${stats?.messageCount ?? Number(row.messageCount)}，保留 send ${stats?.retainedSends ?? 0}，head_seq ${row.headSeq}，${gc}`;
-    });
-  }
-
-  // Only chats with a configured schedule report a participation line, so chats
-  // that always participate keep the previous `/status` layout.
-  #participationLine(telegramChatId: bigint, chatId: bigint | null, now: Date): string | null {
-    const chat = this.#store.orm
-      .select({ type: chats.type })
-      .from(chats)
-      .where(eq(chats.telegramChatId, telegramChatId))
-      .get();
-    if (chat === undefined) {
-      return null;
-    }
-    const rule = this.#participation.ruleFor(this.#store.orm, telegramChatId, chat.type);
-    if (rule === undefined) {
-      return null;
-    }
-    if (isWithinActiveWindows(rule, now)) {
-      return '互动: 活跃时段内';
-    }
-    const until = chatId === null ? null : chatAttentionUntil(this.#store.orm, chatId, now);
-    return until === null ? '互动: 静默（仅 @、Reply 或关键词触发）' : `互动: 注意力窗口至 ${until}`;
+    return chatStatus(this.#statusDeps(), telegramChatId, now);
   }
 
   #internalChatId(telegramChatId: bigint): bigint | null {
@@ -633,5 +264,35 @@ export class BotCommandService {
 
   #chatConfig(telegramChatId: bigint): RawConfig['telegram']['chats'][number] | undefined {
     return resolveChatConfig(this.#configStore.current().config, this.#store.orm, telegramChatId);
+  }
+
+  #sessionDeps(): BotCommandSessionDeps {
+    return {
+      store: this.#store,
+      scheduler: this.#scheduler,
+      contexts: this.#contexts,
+      conversationRuntime: this.#conversationRuntime,
+      internalChatId: (telegramChatId) => this.#internalChatId(telegramChatId),
+    };
+  }
+
+  #configDeps(): BotCommandConfigDeps {
+    return {
+      store: this.#store,
+      configStore: this.#configStore,
+      modelSwitcher: this.#modelSwitcher,
+      configReloader: this.#configReloader,
+    };
+  }
+
+  #statusDeps(): BotCommandStatusDeps {
+    return {
+      store: this.#store,
+      configStore: this.#configStore,
+      contexts: this.#contexts,
+      participation: this.#participation,
+      internalChatId: (telegramChatId) => this.#internalChatId(telegramChatId),
+      chatConfig: (telegramChatId) => this.#chatConfig(telegramChatId),
+    };
   }
 }
