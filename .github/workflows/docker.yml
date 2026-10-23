@@ -116,3 +116,62 @@ jobs:
           --prerelease
           --generate-notes
           --notes "Docker image: \`$IMAGE\`"
+
+  # Each main push leaves an image tag, a git tag and a pre-release for the same
+  # 0.0.0-next-* version. Keep the newest KEEP versions across the union of all
+  # three, so a version missing from one place still ages out of the others.
+  prune-next:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    concurrency:
+      group: prune-next
+    permissions:
+      contents: write
+      packages: write
+    env:
+      KEEP: 20
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Select versions to drop
+        id: select
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP"
+          owner="$GITHUB_REPOSITORY_OWNER"
+          package="$(echo "${GITHUB_REPOSITORY#*/}" | tr '[:upper:]' '[:lower:]')"
+          scope=users
+          [ "$(gh api "users/$owner" --jq .type)" = Organization ] && scope=orgs
+          version='^0\\.0\\.0-next-[0-9]{14}$'
+
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 10000 --json tagName \
+            --jq ".[].tagName | ltrimstr(\"v\") | select(test(\"$version\"))" | sort > releases
+          gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/v0.0.0-next-" \
+            --jq ".[].ref | ltrimstr(\"refs/tags/v\") | select(test(\"$version\"))" | sort > tags
+          gh api --paginate "$scope/$owner/packages/container/$package/versions" \
+            --jq ".[].metadata.container.tags[] | select(test(\"$version\"))" | sort > images
+
+          # The fixed-width UTC timestamp makes lexical order chronological.
+          sort -u releases tags images | sort -r | tail -n +"$((KEEP + 1))" | sort > drop
+          echo "Dropping $(wc -l < drop) of $(sort -u releases tags images | wc -l) next versions:"
+          cat drop
+          echo "image-tags=$(comm -12 drop images | paste -sd, -)" >> "$GITHUB_OUTPUT"
+
+      # Images go first: the package permission is the likeliest failure, and
+      # stopping here leaves all three sets untouched.
+      - name: Delete images
+        if: steps.select.outputs.image-tags != ''
+        uses: dataaxiom/ghcr-cleanup-action@v1
+        with:
+          delete-tags: ${{ steps.select.outputs.image-tags }}
+
+      - name: Delete releases and tags
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP"
+          for v in $(comm -12 drop releases); do
+            gh release delete "v$v" --repo "$GITHUB_REPOSITORY" --yes
+          done
+          for v in $(comm -12 drop tags); do
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/v$v"
+          done

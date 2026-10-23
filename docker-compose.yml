@@ -21,7 +21,8 @@
 services:
   plasticwan:
     # Stable release. For development builds from main, use `main` (rolling) or a
-    # pinned `0.0.0-next-<timestamp>` tag from the GitHub pre-releases.
+    # pinned `0.0.0-next-<timestamp>` tag from the GitHub pre-releases (only the
+    # newest 20 are kept).
     image: ghcr.io/tuuject/surowan:latest
     restart: unless-stopped
     # Graceful shutdown gives a running Invocation up to 30s to finish, then
