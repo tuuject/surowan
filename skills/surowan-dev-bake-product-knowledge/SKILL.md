@@ -1,5 +1,5 @@
 ---
-name: bake-product-knowledge
+name: surowan-dev-bake-product-knowledge
 description: Bake or refresh Plastic Wan / Surowan product knowledge from the actual user manuals into the compact runtime index. Use when updating product self-knowledge, routing natural-language product questions to manual pages, or refreshing knowledge after manual changes. Runs locally in a coding-agent checkout; no bot, server, external model service, or new dependency is needed.
 ---
 
