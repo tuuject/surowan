@@ -1,7 +1,7 @@
 import { afterAll, expect, test } from 'vitest';
 import { standingWarnings } from '../src/platform/warning-catalog.ts';
 import { invocations } from '../src/store/schema.ts';
-import { WarningService, serializeVariables } from '../src/store/warnings.ts';
+import { INVOCATION_FAILURE_FLOOR_KEY, WarningService, serializeVariables } from '../src/store/warnings.ts';
 import { seedAdminFixture } from './fixtures/admin-seed.ts';
 import { cleanupSchemaDirectories, openStore } from './schema-fixtures.ts';
 
@@ -49,6 +49,16 @@ test('unread warnings of the same code are updated instead of duplicated', async
     expect(warnings.list({ limit: 10 }).items).toHaveLength(2);
     expect(warnings.clear()).toBe(2);
     expect(warnings.unreadCount()).toBe(0);
+
+    // A stale tab still holding `third.id` must not be able to mark a new warning read.
+    const afterClear = warnings.record({
+      code: 'admin_login_failures',
+      variables: { consecutive_failures: 5, threshold: 5, last_failed_at: FIXED_NOW.toISOString() },
+      now: FIXED_NOW,
+    });
+    expect(afterClear.id).toBeGreaterThan(third.id);
+    expect(warnings.markRead(third.id)).toBeNull();
+    expect(warnings.unreadCount()).toBe(1);
   } finally {
     store.close();
   }
@@ -123,26 +133,16 @@ test('standing warnings follow the active configuration and keep no history', as
   }
 });
 
-test('the invocation failure-rate warning samples the latest 100 completed or failed runs', async () => {
+test('the invocation failure-rate warning samples the latest 40 completed or failed runs', async () => {
   const { store } = await openStore();
   try {
     const seed = seedAdminFixture(store);
-    const finishedAt = FIXED_NOW.toISOString();
-    for (let index = 0; index < 100; index += 1) {
-      store.orm
-        .insert(invocations)
-        .values({
-          bucketId: seed.bucketA,
-          conversationId: seed.conversationId,
-          state: index < 51 ? 'failed' : 'completed',
-          configHash: 'warning-test',
-          promptVersion: 1n,
-          startedAt: finishedAt,
-          finishedAt,
-          createdAt: finishedAt,
-        })
-        .run();
-    }
+    // Older successes fall outside the window; inside it 21 of 40 failed.
+    insertInvocations(store, seed, [
+      ...Array.from({ length: 30 }, () => 'completed' as const),
+      ...Array.from({ length: 21 }, () => 'failed' as const),
+      ...Array.from({ length: 19 }, () => 'completed' as const),
+    ]);
     const warnings = new WarningService(store.orm);
     warnings.observeInvocation(FIXED_NOW);
     const items = warnings.list({ limit: 10 }).items;
@@ -150,11 +150,12 @@ test('the invocation failure-rate warning samples the latest 100 completed or fa
     expect(failureRate).toMatchObject({
       code: 'invocation_failure_rate',
       variables: expect.objectContaining({
-        failed: 51,
-        total: 100,
-        failure_rate: 0.51,
+        failed: 21,
+        total: 40,
+        failure_rate: 0.525,
         threshold: 0.5,
-        last_failed_at: finishedAt,
+        sample_size: 40,
+        last_failed_at: FIXED_NOW.toISOString(),
       }),
     });
   } finally {
@@ -162,34 +163,97 @@ test('the invocation failure-rate warning samples the latest 100 completed or fa
   }
 });
 
-test('a small sample still raises the failure-rate warning when it exceeds the threshold', async () => {
+function insertInvocations(
+  store: Awaited<ReturnType<typeof openStore>>['store'],
+  seed: ReturnType<typeof seedAdminFixture>,
+  states: readonly ('completed' | 'failed')[],
+): void {
+  const finishedAt = FIXED_NOW.toISOString();
+  for (const state of states) {
+    store.orm
+      .insert(invocations)
+      .values({
+        bucketId: seed.bucketA,
+        conversationId: seed.conversationId,
+        state,
+        configHash: 'warning-test',
+        promptVersion: 1n,
+        startedAt: finishedAt,
+        finishedAt,
+        createdAt: finishedAt,
+      })
+      .run();
+  }
+}
+
+test('the failure-rate warning waits for twenty terminal invocations', async () => {
   const { store } = await openStore();
   try {
     const seed = seedAdminFixture(store);
-    const finishedAt = FIXED_NOW.toISOString();
-    // The shared fixture already has one completed and one failed invocation;
-    // two more failures make the sample 3/4, over the 50% threshold.
-    for (let index = 0; index < 2; index += 1) {
-      store.orm
-        .insert(invocations)
-        .values({
-          bucketId: seed.bucketA,
-          conversationId: seed.conversationId,
-          state: 'failed',
-          configHash: 'warning-test',
-          promptVersion: 1n,
-          startedAt: finishedAt,
-          finishedAt,
-          createdAt: finishedAt,
-        })
-        .run();
-    }
     const warnings = new WarningService(store.orm);
+    // The shared fixture already has one completed and one failed invocation.
+    insertInvocations(
+      store,
+      seed,
+      Array.from({ length: 17 }, () => 'failed'),
+    );
+    warnings.observeInvocation(FIXED_NOW);
+    expect(warnings.unreadCount()).toBe(0);
+
+    insertInvocations(store, seed, ['failed']);
     warnings.observeInvocation(FIXED_NOW);
     expect(warnings.list({ limit: 10 }).items.find((item) => item.code === 'invocation_failure_rate')).toMatchObject({
-      code: 'invocation_failure_rate',
-      variables: expect.objectContaining({ failed: 3, total: 4, failure_rate: 0.75 }),
+      variables: expect.objectContaining({ failed: 19, total: 20, failure_rate: 0.95 }),
     });
+  } finally {
+    store.close();
+  }
+});
+
+test('reading or clearing the failure-rate warning restarts the sample after the newest invocation', async () => {
+  const { store } = await openStore();
+  try {
+    const seed = seedAdminFixture(store);
+    const warnings = new WarningService(store.orm);
+    insertInvocations(
+      store,
+      seed,
+      Array.from({ length: 30 }, () => 'failed'),
+    );
+    warnings.observeInvocation(FIXED_NOW);
+    const first = warnings.list({ limit: 10 }).items.find((item) => item.code === 'invocation_failure_rate');
+    expect(first).toBeDefined();
+    warnings.markRead(first?.id ?? 0n, FIXED_NOW);
+    const floor = store.db.prepare('SELECT value FROM app_state WHERE key = ?').get(INVOCATION_FAILURE_FLOOR_KEY) as {
+      value: string;
+    };
+    const newest = store.db.prepare('SELECT max(id) AS id FROM invocations').get() as { id: number | bigint };
+    expect(floor.value).toBe(String(newest.id));
+
+    // The acknowledged failures stay behind the floor: one more failure is a
+    // sample of 1, not 31 of 32.
+    insertInvocations(store, seed, ['failed']);
+    warnings.observeInvocation(FIXED_NOW);
+    expect(warnings.unreadCount()).toBe(0);
+
+    insertInvocations(
+      store,
+      seed,
+      Array.from({ length: 19 }, () => 'failed'),
+    );
+    warnings.observeInvocation(FIXED_NOW);
+    expect(warnings.list({ limit: 10, unreadOnly: true }).items).toEqual([
+      expect.objectContaining({
+        code: 'invocation_failure_rate',
+        variables: expect.objectContaining({ failed: 20, total: 20 }),
+      }),
+    ]);
+
+    // Clearing an unread failure-rate warning acknowledges it the same way.
+    warnings.clear(FIXED_NOW);
+    insertInvocations(store, seed, ['failed']);
+    warnings.observeInvocation(FIXED_NOW);
+    expect(warnings.unreadCount()).toBe(0);
   } finally {
     store.close();
   }

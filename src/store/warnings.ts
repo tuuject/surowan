@@ -1,6 +1,7 @@
 import { and, desc, eq, isNull, lt, sql } from 'drizzle-orm';
 import {
   type EventWarningCode,
+  INVOCATION_FAILURE_MIN_SAMPLE,
   INVOCATION_FAILURE_RATE_THRESHOLD,
   INVOCATION_FAILURE_SAMPLE_SIZE,
   LOGIN_FAILURE_THRESHOLD,
@@ -8,8 +9,16 @@ import {
   type WarningCode,
   type WarningSeverity,
 } from '../platform/warning-catalog.ts';
-import { warnings } from './schema.ts';
+import { appState, invocations, warnings } from './schema.ts';
 import type { Orm } from './store.ts';
+
+/**
+ * `app_state` key holding the highest invocation id the failure-rate sample
+ * skips. Reading (or clearing) an unread failure-rate warning moves it to the
+ * newest invocation, so the warning cannot reappear from the very sample the
+ * user just acknowledged.
+ */
+export const INVOCATION_FAILURE_FLOOR_KEY = 'warning_invocation_failure_floor';
 
 /** Variables are a small JSON object rendered as text; bound the row and reject non-JSON values. */
 export const MAX_WARNING_VARIABLES_BYTES = 8_192;
@@ -152,17 +161,39 @@ export class WarningService implements LoginWarningSink {
   }
 
   markRead(id: bigint, now = new Date()): EventWarning | null {
-    this.#orm
-      .update(warnings)
-      .set({ readAt: now.toISOString() })
-      .where(and(eq(warnings.id, id), isNull(warnings.readAt)))
-      .run();
+    this.#orm.transaction(
+      () => {
+        const read = this.#orm
+          .update(warnings)
+          .set({ readAt: now.toISOString() })
+          .where(and(eq(warnings.id, id), isNull(warnings.readAt)))
+          .returning({ code: warnings.code })
+          .get();
+        if (read?.code === 'invocation_failure_rate') {
+          this.#advanceInvocationFloor(now);
+        }
+      },
+      { behavior: 'immediate' },
+    );
     return this.#selectById(id);
   }
 
   /** Removes every event warning; standing warnings are derived and unaffected. */
-  clear(): number {
-    return this.#orm.delete(warnings).run().changes;
+  clear(now = new Date()): number {
+    return this.#orm.transaction(
+      () => {
+        const unreadFailureRate = this.#orm
+          .select({ id: warnings.id })
+          .from(warnings)
+          .where(and(eq(warnings.code, 'invocation_failure_rate'), isNull(warnings.readAt)))
+          .get();
+        if (unreadFailureRate !== undefined) {
+          this.#advanceInvocationFloor(now);
+        }
+        return this.#orm.delete(warnings).run().changes;
+      },
+      { behavior: 'immediate' },
+    );
   }
 
   purgeReadOlderThan(days: number, now = new Date()): number {
@@ -207,20 +238,26 @@ export class WarningService implements LoginWarningSink {
   }
 
   /**
-   * Samples the most recent completed/failed invocations (up to 100) after one
-   * run finishes. The denominator never includes aborted, unknown or
-   * budget-skipped rows: those are not runtime failures, and counting them as
-   * successes would hide a genuinely broken model.
+   * Samples the most recent completed/failed invocations (up to 40) past the
+   * acknowledged floor after one run finishes, and stays quiet below 20 so a
+   * single early failure is not a 100% rate. The denominator never includes
+   * aborted, unknown or budget-skipped rows: those are not runtime failures,
+   * and counting them as successes would hide a genuinely broken model.
    */
   observeInvocation(now = new Date()): void {
     try {
+      const floor = this.#orm
+        .select({ value: appState.value })
+        .from(appState)
+        .where(eq(appState.key, INVOCATION_FAILURE_FLOOR_KEY))
+        .get();
       const sample = this.#orm.all<SampleRow>(
         sql`SELECT state, finished_at FROM invocations
-            WHERE state IN ('completed', 'failed')
+            WHERE state IN ('completed', 'failed') AND id > ${BigInt(floor?.value ?? '0')}
             ORDER BY id DESC
             LIMIT ${INVOCATION_FAILURE_SAMPLE_SIZE}`,
       );
-      if (sample.length === 0) {
+      if (sample.length < INVOCATION_FAILURE_MIN_SAMPLE) {
         return;
       }
       const failedRows = sample.filter((row) => row.state === 'failed');
@@ -273,6 +310,22 @@ export class WarningService implements LoginWarningSink {
 
   loginSucceeded(): void {
     this.#loginFailures = 0;
+  }
+
+  /** Runs inside the caller's transaction; invocations still running below the floor are skipped too. */
+  #advanceInvocationFloor(now: Date): void {
+    const newest = this.#orm
+      .select({ id: sql<bigint | number | null>`max(${invocations.id})` })
+      .from(invocations)
+      .get();
+    // String() keeps the id exact whether or not the driver returns bigints.
+    const value = String(newest?.id ?? 0);
+    const updatedAt = now.toISOString();
+    this.#orm
+      .insert(appState)
+      .values({ key: INVOCATION_FAILURE_FLOOR_KEY, value, updatedAt })
+      .onConflictDoUpdate({ target: appState.key, set: { value, updatedAt } })
+      .run();
   }
 
   #selectById(id: bigint): EventWarning | null {

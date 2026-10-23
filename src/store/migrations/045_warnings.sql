@@ -3,8 +3,10 @@
 -- no history. An unread warning per code is enough; a repeated event updates
 -- that row's variables instead of appending duplicates. Read rows are retained
 -- until `read_at` passes the configured warning retention window.
+-- AUTOINCREMENT keeps ids from being reused after a clear or purge, so a stale
+-- panel tab marking an old id read can never hit a newer warning.
 CREATE TABLE warnings (
-  id INTEGER PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   code TEXT NOT NULL CHECK (length(code) BETWEEN 1 AND 64),
   severity TEXT NOT NULL CHECK (severity IN ('warning', 'critical')),
   variables_json TEXT NOT NULL CHECK (json_valid(variables_json)),

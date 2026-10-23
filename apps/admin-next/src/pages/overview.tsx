@@ -196,12 +196,18 @@ export default function OverviewPage(): React.ReactElement {
             <Skeleton className="h-16 w-full" />
             <Skeleton className="h-16 w-full" />
           </div>
-        ) : warnings.isError ? (
+        ) : warnings.isLoadingError ? (
           <p className="text-destructive text-sm break-words">
             {t('pages.overview.warningsLoadFailed')}: {errorMessage(warnings.error)}
           </p>
         ) : (
           <div className="space-y-4">
+            {/* A failed poll keeps the last good cards on screen and reports alongside them. */}
+            {warnings.isError ? (
+              <p className="text-destructive text-sm break-words">
+                {t('pages.overview.warningsLoadFailed')}: {errorMessage(warnings.error)}
+              </p>
+            ) : null}
             {warnings.data.standing.length > 0 ? (
               <div className="divide-y">
                 {warnings.data.standing.map((warning) => (

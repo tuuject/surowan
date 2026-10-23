@@ -53,13 +53,19 @@ export default function WarningsPage(): React.ReactElement {
 
   return (
     <div className="space-y-6">
+      {/* A failed poll or next page keeps the loaded cards and reports above them. */}
+      {query.isError && !query.isLoadingError ? (
+        <p className="text-destructive text-sm break-words">
+          {t('pages.warnings.loadFailed')}: {errorMessage(query.error)}
+        </p>
+      ) : null}
       <Panel title={t('pages.warnings.standingTitle')}>
         {query.isPending ? (
           <div className="space-y-3">
             <Skeleton className="h-16 w-full" />
             <Skeleton className="h-16 w-full" />
           </div>
-        ) : query.isError ? (
+        ) : query.isLoadingError ? (
           <p className="text-destructive text-sm break-words">
             {t('pages.warnings.loadFailed')}: {errorMessage(query.error)}
           </p>
@@ -99,7 +105,7 @@ export default function WarningsPage(): React.ReactElement {
             <Skeleton className="h-16 w-full" />
             <Skeleton className="h-16 w-full" />
           </div>
-        ) : query.isError ? (
+        ) : query.isLoadingError ? (
           <p className="text-destructive text-sm break-words">
             {t('pages.warnings.loadFailed')}: {errorMessage(query.error)}
           </p>

@@ -53,7 +53,9 @@ export interface StandingWarning {
 }
 
 /** The number of recent terminal invocations the failure-rate warning samples. */
-export const INVOCATION_FAILURE_SAMPLE_SIZE = 100;
+export const INVOCATION_FAILURE_SAMPLE_SIZE = 40;
+/** Fewer terminal invocations than this past the sample floor never raise the warning. */
+export const INVOCATION_FAILURE_MIN_SAMPLE = 20;
 /** Failure rate above this fraction raises `invocation_failure_rate`. */
 export const INVOCATION_FAILURE_RATE_THRESHOLD = 0.5;
 /** Consecutive username/password failures that raise `admin_login_failures`. */
