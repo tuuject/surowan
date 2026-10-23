@@ -1,4 +1,4 @@
-import type { ParticipationView, ParticipationWindow } from '@/lib/api';
+import type { ParticipationView, ParticipationWindow } from '@/lib/api/chats.ts';
 
 /**
  * Pure helpers around participation schedules. Weekdays are ISO numbers

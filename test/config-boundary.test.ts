@@ -5,8 +5,9 @@ import { createHash } from 'node:crypto';
 import { parse } from 'jsonc-parser';
 import { afterEach, expect, test } from 'vitest';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
-import { validateFileConfig } from '../src/platform/config.ts';
+
 import { testConfigJsonc, writeTestConfig } from './helpers.ts';
+import { validateFileConfig } from '../src/platform/config-validate.ts';
 
 const dirs: string[] = [];
 afterEach(async () => {

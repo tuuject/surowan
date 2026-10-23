@@ -14,8 +14,10 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { type DictionaryExportFormat, type DictionaryScope, fetchDictionaryExport } from '@/lib/api.ts';
+
 import { dictionaryErrorMessage, downloadTextFile } from '@/lib/dictionary.ts';
+import { fetchDictionaryExport } from '@/lib/api/dictionary.ts';
+import type { DictionaryExportFormat, DictionaryScope } from '@/lib/api/dictionary.ts';
 
 /**
  * Export dialog for the scope the page is currently showing. The API answers

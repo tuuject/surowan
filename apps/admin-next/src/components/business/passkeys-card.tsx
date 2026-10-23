@@ -16,17 +16,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  deletePasskey,
-  deletePassword,
-  type PasskeyItem,
-  passkeyRegisterOptions,
-  passkeyRegisterVerify,
-} from '@/lib/api';
+
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { isWebAuthnAvailable, passkeyErrorMessage } from '@/lib/passkeys';
 import { passkeysQuery, sessionQuery } from '@/lib/queries';
+import { deletePasskey, deletePassword, passkeyRegisterOptions, passkeyRegisterVerify } from '@/lib/api/auth.ts';
+import type { PasskeyItem } from '@/lib/api/auth.ts';
 
 /**
  * Passkey management card for the Settings page. Rendered only when the

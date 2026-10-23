@@ -7,17 +7,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+
+import { errorMessage } from '@/lib/errors';
 import {
   getImageStatus,
-  type ImageGenerationRecord,
   imageUrl,
   listImageAssets,
   listImagePrompts,
   resolveImageGeneration,
   submitImageGeneration,
   uploadImageAsset as uploadAsset,
-} from '@/lib/api';
-import { errorMessage } from '@/lib/errors';
+} from '@/lib/api/images.ts';
+import type { ImageGenerationRecord } from '@/lib/api/images.ts';
 
 /**
  * The image workspace: compose a generation from prompt and reference

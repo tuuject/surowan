@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { type HarnessValues, updateHarnessSettings } from '@/lib/api';
+
 import { errorMessage } from '@/lib/errors';
 import {
   type DraftError,
@@ -20,6 +20,8 @@ import {
 import { useShowConfigKeys } from '@/lib/panel-preferences';
 import { harnessQuery } from '@/lib/queries';
 import { useProviderWrite } from '@/lib/use-provider-write';
+import { updateHarnessSettings } from '@/lib/api/config.ts';
+import type { HarnessValues } from '@/lib/api/config.ts';
 
 function useHarnessSave() {
   const queryClient = useQueryClient();

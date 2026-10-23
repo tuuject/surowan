@@ -4,14 +4,11 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Panel } from '@/components/layout/panel';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import {
-  DICTIONARY_INJECTION_MODES,
-  type DictionaryInjectionMode,
-  getDictionarySettings,
-  putDictionarySettings,
-} from '@/lib/api.ts';
+
 import { dictionaryErrorMessage, injectionModeHint, injectionModeLabel } from '@/lib/dictionary.ts';
 import { dictionarySettingsQuery } from '@/lib/queries.ts';
+import { DICTIONARY_INJECTION_MODES, getDictionarySettings, putDictionarySettings } from '@/lib/api/dictionary.ts';
+import type { DictionaryInjectionMode } from '@/lib/api/dictionary.ts';
 
 const INHERIT_VALUE = '__inherit__';
 

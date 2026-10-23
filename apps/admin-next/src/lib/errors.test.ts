@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
-import { ApiError } from './api.ts';
+
 import { errorMessage } from './errors.ts';
+import { ApiError } from './api/core.ts';
 
 describe('errorMessage', () => {
   test('formats ApiErrors as code: message', () => {

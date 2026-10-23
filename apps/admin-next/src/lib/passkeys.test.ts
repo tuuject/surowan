@@ -1,7 +1,8 @@
 import { WebAuthnError } from '@simplewebauthn/browser';
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { ApiError } from './api.ts';
+
 import { isWebAuthnAvailable, passkeyErrorMessage } from './passkeys.ts';
+import { ApiError } from './api/core.ts';
 
 afterEach(() => vi.unstubAllGlobals());
 

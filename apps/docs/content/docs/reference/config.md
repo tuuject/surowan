@@ -16,10 +16,10 @@ description: 按配置节理解 Plastic Wan 的必填项、覆盖关系与运行
 | `timezone` | 默认 IANA 时区；Chat 可单独覆盖。 |
 | `telegram` | Token 引用、Bucket、allowlist、Topic、管理员与参与策略。 |
 | `providers` | 已启用 Provider 与模型定义；凭据使用 SecretRef。 |
-| `agent` | 可选段：主模型、Prompt、全局 Token 预算、并发、Context 和发送限流，整段可省略；全部字段可热应用，模型与 Prompt 之外的字段可在 [Harness tuning](../configure/admin.md#harness-tuning) 页编辑。 |
+| `agent` | 可选段：主模型、Prompt、全局 Token 预算、并发、Context 和发送限流，整段可省略；全部字段可热应用，模型与 Prompt 之外的字段可在 [Harness tuning](../configure/admin-harness-tuning.md#harness-tuning) 页编辑。 |
 | `vision` | 可选段：图片/Sticker 模型、并发、独立 Token 与图片日预算，整段可省略或写 `null`/`{}`，其余字段有默认值。`provider` 与 `model` 缺一即「未配置」：多模态主模型仍能直接看到新消息里的图片，但 `read_image` 不可用、Sticker 后台索引暂停；补齐后热应用即恢复。 |
 | `admin` | 本地管理面板；修改后重启。 |
-| `developer` | 可选调试设置；`record_model_payloads` 与 `record_agent_thinking` 均可省略，默认 `false`，可热应用。详见[Developer 页面](../configure/admin.md#developer-调试开关)。 |
+| `developer` | 可选调试设置；`record_model_payloads` 与 `record_agent_thinking` 均可省略，默认 `false`，可热应用。详见[Developer 页面](../configure/admin-developer.md#developer-调试开关)。 |
 | `mcp` | 受限 stdio 或 Streamable HTTP Tool；修改后重启。 |
 | `retention` | 在线保留天数与备份份数，仅下次备份使用。 |
 

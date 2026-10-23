@@ -5,9 +5,10 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { KvList, MonoValue, StateBadge } from '@/components/business';
 import { Button } from '@/components/ui/button';
-import { getImageGeneration, imageUrl, retryImageGeneration } from '@/lib/api';
+
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
+import { getImageGeneration, imageUrl, retryImageGeneration } from '@/lib/api/images.ts';
 
 /** One generation: intent snapshot, per-item attempts, outputs, and error. */
 

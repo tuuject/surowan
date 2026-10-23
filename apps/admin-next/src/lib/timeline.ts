@@ -1,11 +1,11 @@
 import type {
   AgentMessageEntry,
-  ContextMessageEntry,
   InvocationDetail,
   ModelCallEntry,
   TelegramSendEntry,
   ToolCallEntry,
-} from './api.ts';
+} from './api/invocations.ts';
+import type { ContextMessageEntry } from './api/contexts.ts';
 
 /**
  * Pure model for the Invocation "Overview" timeline. No React dependency on

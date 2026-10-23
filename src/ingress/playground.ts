@@ -12,7 +12,6 @@
 import type { Orm } from '../store/store.ts';
 import type { LocalAsset, LocalAssetInput, PlaygroundAssetStore } from '../capabilities/media/local-assets.ts';
 import {
-  PlaygroundError,
   PlaygroundStore,
   type ReleaseResult,
   type RetryResult,
@@ -21,6 +20,7 @@ import {
   type SubmitMedia,
   type SubmitResult,
 } from '../store/playground.ts';
+import { PlaygroundError } from '../store/playground/shared.ts';
 
 export interface PlaygroundIngressOptions {
   /** Called after a release commit; the scheduler uses it to wake up. */

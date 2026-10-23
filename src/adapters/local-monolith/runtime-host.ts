@@ -1,73 +1,10 @@
 /** Local process composition root: owns transport, files, locks and lifecycle. */
-import { join } from 'node:path';
-import { and, eq } from 'drizzle-orm';
-import { Bot, type Context } from 'grammy';
-import { PlaygroundAssetStore } from '../../capabilities/media/local-assets.ts';
-import { McpManager } from '../../capabilities/mcp.ts';
-import { MediaService } from '../../capabilities/media/media.ts';
-import { TelegramMediaClient, type MediaDownloader } from '../../capabilities/media/media-download.ts';
-import { StickerService } from '../../capabilities/stickers.ts';
-import { createTelegramHost, grammyTelegramTransport, type TelegramHost } from './telegram-host.ts';
-import { MemoryStore } from '../../context/memory.ts';
-import { PlaygroundStore } from '../../store/playground.ts';
-import { createPlaygroundHost } from './playground-host.ts';
-import { createImageBridge, type ImageBridge } from '../../image/bridge.ts';
-import { generationEligibilityForHosts } from '../../image/host-eligibility.ts';
-import { createImageService, type ImageService } from '../../image/service.ts';
-import { AdminQueryError } from '../../ingress/admin/audit.ts';
-import { AdminServer } from '../../ingress/admin/server.ts';
-import { PlaygroundIngress } from '../../ingress/playground.ts';
-import { TelegramIngestion } from '../../ingress/telegram-ingestion.ts';
-import { createCoreRuntime } from '../../orchestration/runtime.ts';
-import {
-  BOT_COMMANDS,
-  BotCommandService,
-  commandSender,
-  type ParsedCommand,
-  registerBotCommands,
-} from '../../orchestration/bot-commands.ts';
-import { ReplayError, ReplayRunner } from '../../orchestration/replay.ts';
-import type { BucketScheduler } from '../../orchestration/scheduler.ts';
-import { KeyedSemaphore } from '../../platform/concurrency.ts';
-import {
-  toChatId,
-  toConversationId,
-  type HostKind,
-  type ImConversationRef,
-  type ImHost,
-} from '../../platform/im-host.ts';
 import { assertConfigPermissions, loadConfig } from './config.ts';
-import { ConfigReloader } from './config-reload.ts';
-import { createHostTooling, imageDeliveryResolver } from './host-tooling.ts';
-import { previewContext, unavailableCapabilities } from '../../platform/invocation-context.ts';
 import { keyJarPath } from '../../platform/key-jar.ts';
-import { AgentModelSwitcher } from '../../platform/model-switch.ts';
-import { buildModelRegistry, configuredAgentModels } from '../../platform/providers.ts';
-import { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { SecretStore } from '../../platform/secrets.ts';
-import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from './system-resources.ts';
-import { BUNDLED_MANUAL_DIR, bundledManualSpace, FileSystemDocSpaces } from './doc-spaces.ts';
-import { BUILTIN_PLUGINS } from '../../plugins/builtin.ts';
-import { loadPlugins } from '../../plugins/plugin.ts';
-import { runStartupCatchUp } from '../../startup-catch-up.ts';
-import { ServeLock, SqliteStore, stopRunningInstance, watchStopRequests } from './database.ts';
-import { LongTaskService } from '../../store/long-tasks.ts';
-import { activeSleepUntil } from '../../store/sleep.ts';
-import { recordPromptVersionsFromConfig } from '../../store/prompt-versions.ts';
-import type { BusinessStore } from '../../store/store.ts';
-import { appState, chats, conversations } from '../../store/schema.ts';
-
-const ALLOWED_UPDATES = ['message', 'edited_message', 'my_chat_member'] as const;
-
-/**
- * Exit code of a panel-requested restart. `EX_TEMPFAIL` marks an intentional
- * stop that a supervisor should bring back, and stays distinguishable from a
- * crash in logs and container restart policies.
- */
-export const RESTART_EXIT_CODE = 75;
-
-/** The synthetic bot identity a room shows when no Telegram bot exists. */
-const PLAYGROUND_BOT_DISPLAY_NAME = 'Playground Bot';
+import { connectServeHosts, runServeLoop, startAdminServer, startCoreRuntime } from './runtime-host-serve-run.ts';
+import { openServeEnvironment, startServeServices } from './runtime-host-serve.ts';
+import { RESTART_EXIT_CODE, logEvent, type ServeContext, type ServeState } from './runtime-host-support.ts';
 
 export interface ServeOptions {
   /** Ask a running instance on the same data directory to stop first. */
@@ -89,19 +26,7 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
     throw new Error('--playground-only requires admin.enabled: the panel is the only entry point rooms have');
   }
   const secrets = new SecretStore(keyJarPath(loaded.configPath));
-  let lock: ServeLock | undefined;
-  let stopWatcher: (() => void) | undefined;
-  let store: SqliteStore | undefined;
-  let imageService: ImageService | undefined;
-  let imageBridge: ImageBridge | undefined;
-  let bot: Bot | undefined;
-  let scheduler: BucketScheduler | undefined;
-  let stickers: StickerService | undefined;
-  let mcp: McpManager | undefined;
-  let host: TelegramHost | undefined;
-  let roomHost: ImHost | undefined;
-  let admin: AdminServer | undefined;
-  let startupCatchUpController: AbortController | undefined;
+  const state: ServeState = {};
   const replayShutdown = new AbortController();
   let shuttingDown = false;
   let restartRequested = false;
@@ -118,13 +43,13 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
     shuttingDown = true;
     logEvent('shutdown_requested');
     releaseIdle?.();
-    startupCatchUpController?.abort(new Error('shutdown'));
+    state.startupCatchUpController?.abort(new Error('shutdown'));
     replayShutdown.abort(new Error('shutdown'));
     // Unblock bot.start() so the finally block below runs the full cleanup.
     // grammY's stop() also fires a best-effort offset-confirming getUpdates;
     // swallow its rejection so it can never become an unhandled promise
     // rejection and crash the process mid-shutdown.
-    void bot?.stop().catch(() => undefined);
+    void state.bot?.stop().catch(() => undefined);
   };
   /**
    * The Admin Panel's restart: the same graceful shutdown as a signal, but the
@@ -143,6 +68,17 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
     logEvent('restart_requested');
     shutdown();
   };
+  const context: ServeContext = {
+    loaded,
+    secrets,
+    takeover,
+    playgroundOnly,
+    replayShutdown,
+    idle,
+    state,
+    shutdown,
+    requestRestart,
+  };
   const stopSignals = watchStopSignals(shutdown, (signal) => {
     // 130/143 = 128 + the signal number: the shell's convention for a process
     // that died of a signal, which is what an interrupted drain is.
@@ -158,391 +94,12 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
     });
   });
   try {
-    // A Playground-only process never resolves the Telegram token: an
-    // unusable or deliberately absent SecretRef must not stop it.
-    const token = playgroundOnly ? undefined : await secrets.resolve(loaded.config.telegram.token);
-    if (takeover) {
-      // Stop the incumbent only once this process knows it can start at all:
-      // the config, its permissions and the bot token are checked by now.
-      const stopped = await stopRunningInstance(loaded.config.data_dir);
-      logEvent('takeover_completed', { stopped: stopped !== null, stopped_pid: stopped?.pid ?? null });
-    }
-    lock = await ServeLock.acquire(loaded.config.data_dir);
-    stopWatcher = watchStopRequests(loaded.config.data_dir, () => {
-      logEvent('takeover_requested');
-      shutdown();
-    });
-    store = await SqliteStore.open(loaded.config);
-    const openedStore = store;
-    // The startup load is the first place a hand-edited prompt file becomes
-    // visible to the process; record the starting versions before any apply.
-    recordPromptVersionsFromConfig(openedStore.orm, loaded.config);
-    // The hosts this process constructs. Image work, long-task timers and the
-    // scheduler are all scoped by this one set: a Playground-only process must
-    // never execute, recover or complete Telegram work it cannot deliver.
-    const servedHosts: readonly HostKind[] = playgroundOnly ? ['playground'] : ['telegram', 'playground'];
-    const imageEligible = generationEligibilityForHosts(openedStore, servedHosts);
-    imageService = createImageService(openedStore, loaded.config, {
-      logger: { warn: (message) => logEvent('image_service_warning', { message }) },
-      executionEligibility: imageEligible,
-    });
-    try {
-      imageService.publishConfig(await imageService.prepareConfig(loaded.config, secrets));
-    } catch (error) {
-      // Image generation is optional; an unusable snapshot must not stop the bot.
-      logEvent('image_service_warning', {
-        message: secrets.redact(error instanceof Error ? error.message : String(error)),
-      });
-    }
-    logEvent('image_service_started', {
-      image_dir: imageService.imageDir,
-      enabled: imageService.core.config.hasValidConfig(),
-    });
-    if (loaded.warnings.length > 0) {
-      logEvent('config_warnings', { warnings: loaded.warnings.join(' | ') });
-    }
-    // The registry is built once here and republished by every reload; the
-    // configuration and its models always travel together.
-    const registry = await buildModelRegistry(loaded.config, null, secrets);
-    const configStore = new RuntimeConfigurationStore({ config: loaded.config, hash: loaded.hash, ...registry });
-    const modelSwitcher = new AgentModelSwitcher(configStore);
-    // A Playground-only process owns no Telegram objects at all: no Bot, no
-    // command registration, no webhook delete, no ingestion, no sticker sync
-    // and no production MCP. What remains is the shared store, the scheduler,
-    // the panel and the room write path.
-    let me:
-      | { readonly id: number; readonly first_name: string; readonly last_name?: string; readonly username?: string }
-      | undefined;
-    let ingestion: TelegramIngestion | undefined;
-    if (!playgroundOnly) {
-      bot = new Bot(token as string);
-      me = await bot.api.getMe();
-      try {
-        await registerBotCommands(bot.api);
-        logEvent('commands_registered', { commands: BOT_COMMANDS.map((entry) => entry.command).join(',') });
-      } catch (error) {
-        // Registration is convenience only: command parsing works without the
-        // Telegram menu, so a failed setMyCommands must not block startup.
-        logEvent('command_registration_failed', {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-      const initialized =
-        store.orm
-          .select({ value: appState.value })
-          .from(appState)
-          .where(eq(appState.key, 'telegram_initialized'))
-          .get() !== undefined;
-      await bot.api.deleteWebhook({ drop_pending_updates: !initialized });
-      if (!initialized) {
-        store.orm
-          .insert(appState)
-          .values({ key: 'telegram_initialized', value: '1', updatedAt: new Date().toISOString() })
-          .run();
-      }
-      ingestion = new TelegramIngestion(store, configStore, me);
-    }
-    const modelGate = new KeyedSemaphore();
-    let playgroundSelfName = PLAYGROUND_BOT_DISPLAY_NAME;
-    // Without a Bot there is no Telegram transport to download through; room
-    // media is read from its own local assets, so the refusal is unreachable
-    // for a room and explicit for anything else.
-    const mediaClient: MediaDownloader = playgroundOnly
-      ? { download: () => Promise.reject(new Error('this process has no Telegram media transport')) }
-      : new TelegramMediaClient((bot as Bot).api, token as string);
-    const playgroundAssets = new PlaygroundAssetStore({
-      orm: store.orm,
-      root: join(configStore.current().config.data_dir, 'images', 'playground'),
-    });
-    const media = new MediaService({
-      store,
-      configStore,
-      secrets,
-      mediaClient,
-      modelGate,
-      localAssets: playgroundAssets,
-    });
-    const stickerService = playgroundOnly
-      ? undefined
-      : new StickerService({ store, config: loaded.config, api: (bot as Bot).api, media });
-    if (stickerService !== undefined) {
-      stickers = stickerService;
-      await stickerService.sync();
-      stickerService.start();
-    }
-    const mcpManager = playgroundOnly ? undefined : new McpManager(store, loaded.config, secrets);
-    mcp = mcpManager;
-    const memoryStore = new MemoryStore(store.orm);
-    const tasks = new LongTaskService(store.orm, () => scheduler?.wake(), servedHosts);
-    // The room write path: an admitted input is held, a Release seals it into a
-    // queued invocation through the same ledger Telegram uses.
-    const playgroundStore = new PlaygroundStore(store.orm);
-    const playgroundIngress = new PlaygroundIngress(store.orm, {
-      assets: playgroundAssets,
-      onQueued: () => scheduler?.wake(),
-    });
-    const bridge = createImageBridge({
-      service: imageService,
-      store: openedStore,
-      tasks,
-      eligible: imageEligible,
-      prepareInputImage: (mediaId, signal) => media.prepareInputImage(mediaId, signal),
-    });
-    imageBridge = bridge;
-    bridge.reconcile();
-    const plugins = loadPlugins(BUILTIN_PLUGINS, {
-      image: imageBridge,
-    });
-    const systemResources = await FileSystemResources.load(BUNDLED_SYSTEM_RESOURCES_DIR, plugins.skillDirectories);
-    logEvent('system_skills_loaded', { skills: systemResources.skills.map((skill) => skill.name).join(',') });
-    // Bundled documentation spaces: the user manual packed at build time. A
-    // missing pack only disables the document capabilities; doctor reports it.
-    const docSpaces = await FileSystemDocSpaces.load([bundledManualSpace(BUNDLED_MANUAL_DIR)]);
-    logEvent('doc_spaces_loaded', {
-      spaces: docSpaces.summaries.map((space) => `${space.id}:${space.documents}`).join(','),
-    });
-    if (docSpaces.missing.length > 0) {
-      logEvent('doc_spaces_missing', { spaces: docSpaces.missing.join(',') });
-    }
-    // The host profile, the plugins' host lists and the image bridge's
-    // per-conversation switch are decided in exactly one place.
-    const tooling = createHostTooling({
-      store: openedStore,
-      configStore,
-      plugins,
-      media,
-      memory: memoryStore,
-      ...(stickerService === undefined ? {} : { stickers: stickerService }),
-      ...(mcpManager === undefined ? {} : { mcp: mcpManager }),
-      tasks,
-      docSpaces,
-      ...(imageBridge === undefined ? {} : { imageBridge }),
-    });
-    const skillVisibleForHost = tooling.skillVisible;
-    // Runtime-internal capabilities: dispatched through the execute primitive.
-    // The host profile decides which of them exist at all, so a Playground
-    // room never inherits Telegram-only tools just because they are configured.
-    const capabilityTools = tooling.capabilityTools;
-    // Directly exposed non-primitive tools: allowlisted MCP tools only.
-    const additionalTools = tooling.additionalTools;
-    // One host for both delivery and chat action: its per-conversation activity
-    // bookkeeping is what keeps the ingestion status and the model's own
-    // `typing` call from doubling up requests.
-    const telegramHost = playgroundOnly
-      ? undefined
-      : createTelegramHost({
-          transport: grammyTelegramTransport((bot as Bot).api),
-          sendRate: () => ({
-            sendsPerWindow: configStore.current().config.agent.rate_limits.sends_per_window,
-            windowSeconds: configStore.current().config.agent.rate_limits.window_seconds,
-          }),
-        });
-    host = telegramHost;
-    if (telegramHost !== undefined) {
-      // Rooms show the same identity the Telegram bot has, so a mixed
-      // deployment reads as one bot; a Playground-only process names it itself.
-      playgroundSelfName = [me?.first_name, me?.last_name].filter((part) => part !== undefined).join(' ');
-    }
-    const playgroundHost: ImHost = createPlaygroundHost({
-      store: openedStore,
-      self: { displayName: playgroundSelfName, username: null },
-      pictures: playgroundAssets,
-      sendRate: () => ({
-        sendsPerWindow: configStore.current().config.agent.rate_limits.sends_per_window,
-        windowSeconds: configStore.current().config.agent.rate_limits.window_seconds,
-      }),
-    });
-    roomHost = playgroundHost;
-    const {
-      runtime,
-      scheduler: startedScheduler,
-      conversationRuntime,
-    } = createCoreRuntime({
-      store,
-      configStore,
-      secrets,
-      hosts: {
-        ...(telegramHost === undefined ? {} : { telegram: telegramHost }),
-        playground: playgroundHost,
-      } as Readonly<Partial<Record<HostKind, ImHost>>>,
-      conversation: (target) => resolveConversation(openedStore, target),
-      ...(imageBridge === undefined
-        ? {}
-        : {
-            imageGeneration: imageDeliveryResolver(imageBridge),
-          }),
-      bot: {
-        id: me === undefined ? 0n : BigInt(me.id),
-        displayName:
-          playgroundSelfName.length > 0
-            ? playgroundSelfName
-            : [me?.first_name, me?.last_name].filter((part) => part !== undefined).join(' '),
-        username: me?.username ?? null,
-      },
-      modelGate,
-      systemResources,
-      contextInjectors: plugins.contextInjectors,
-      directImageLoader: (context, signal) => media.loadDirectImages(context.directImages, signal),
-      capabilityTools,
-      additionalTools,
-      tasks,
-      skillVisibility: skillVisibleForHost,
-    });
-    scheduler = startedScheduler;
-    // Tool registries are validated against a host this process binds: the
-    // send tools resolve their host, and a missing one is a hard failure.
-    const preview = previewContext(playgroundOnly ? 'playground' : 'telegram');
-    const configReloader = new ConfigReloader({
-      loaded,
-      store: configStore,
-      modelSwitcher,
-      secrets,
-      imageConfig: {
-        prepare: (candidate) =>
-          imageService === undefined ? Promise.resolve(undefined) : imageService.prepareConfig(candidate, secrets),
-        publish: (snapshot) => imageService?.publishConfig(snapshot as Parameters<ImageService['publishConfig']>[0]),
-      },
-      validateAgentModel: (model) =>
-        runtime.validateAdditionalTools(
-          preview,
-          additionalTools(preview, Number.MAX_SAFE_INTEGER, unavailableCapabilities()),
-          model,
-        ),
-      // A raised max_concurrency only takes effect on the next scheduler tick.
-      onPublished: () => {
-        startedScheduler.wake();
-        // A hand-edited prompt file picked up by this apply becomes a version
-        // here; panel saves already recorded themselves before applying.
-        recordPromptVersionsFromConfig(openedStore.orm, configStore.current().config);
-      },
-    });
-    const commands = new BotCommandService(
-      store,
-      configStore,
-      startedScheduler,
-      modelSwitcher,
-      conversationRuntime,
-      configReloader,
-    );
-    mcpManager?.setRegistryValidator((mcpTools) => {
-      const snapshot = configStore.current();
-      for (const { model } of configuredAgentModels(snapshot.config, snapshot.models)) {
-        runtime.validateAdditionalTools(preview, mcpTools, model);
-      }
-    });
-    if (!playgroundOnly) {
-      const catchUpController = new AbortController();
-      startupCatchUpController = catchUpController;
-      const catchUp = await runStartupCatchUp({
-        api: (bot as Bot).api,
-        store,
-        ingestion: ingestion as TelegramIngestion,
-        scheduler: startedScheduler,
-        commands,
-        allowedUpdates: ALLOWED_UPDATES,
-        signal: catchUpController.signal,
-      });
-      startupCatchUpController = undefined;
-      logEvent('startup_catch_up_completed', {
-        updates: catchUp.updates,
-        stored_messages: catchUp.storedMessages,
-        invocations: catchUp.invocationIds.length,
-      });
-    }
-    await mcpManager?.start();
-    startedScheduler.start();
-    if (loaded.config.admin?.enabled === true) {
-      const replay = new ReplayRunner({
-        store,
-        configStore,
-        secrets,
-        systemResources,
-        modelGate,
-        shutdownSignal: replayShutdown.signal,
-        toolDefinitions: (context, config) => runtime.sceneToolDefinitions(context, config),
-        skillVisibility: (skill, target) => skillVisibleForHost(skill, target),
-        imageLoader: async (mediaId, signal) => {
-          const image = await media.prepareSceneImage(mediaId, signal);
-          return { type: 'image', data: image.base64, mimeType: image.mime };
-        },
-      });
-      const adminServer = new AdminServer({
-        store,
-        configStore,
-        scheduler: startedScheduler,
-        tasks,
-        modelSwitcher,
-        configReloader,
-        secrets,
-        requestRestart,
-        imageService,
-        imageBridge,
-        playground: {
-          store: openedStore,
-          rooms: playgroundStore,
-          ingress: playgroundIngress,
-          assets: playgroundAssets,
-        },
-        ...(playgroundOnly ? {} : { mediaDownloader: mediaClient }),
-        shutdownSignal: replayShutdown.signal,
-        replayPreflight: (id, selection) => {
-          try {
-            return replay.inspect(id, selection);
-          } catch (error) {
-            if (error instanceof ReplayError) {
-              throw new AdminQueryError(error.code, error.message, error.status);
-            }
-            throw error;
-          }
-        },
-        invocationPrompts: (id) => {
-          try {
-            return replay.prompts(id);
-          } catch (error) {
-            if (error instanceof ReplayError) {
-              throw new AdminQueryError(error.code, error.message, error.status);
-            }
-            throw error;
-          }
-        },
-        replayInvocation: async (id, input, signal) => {
-          try {
-            return await replay.run(id, input, signal);
-          } catch (error) {
-            if (error instanceof ReplayError) {
-              throw new AdminQueryError(error.code, error.message, error.status);
-            }
-            throw error;
-          }
-        },
-      });
-      admin = adminServer;
-      const listening = await adminServer.start();
-      logEvent('admin_started', { host: listening.hostname, port: listening.port });
-    }
-    if (playgroundOnly) {
-      // No long polling loop to block on: the process lives until a signal,
-      // takeover or panel restart resolves the same idle promise shutdown uses.
-      logEvent('serve_started', { mode: 'playground-only', bot_id: null, config_hash: loaded.hash });
-      await idle;
-    } else {
-      const runningBot = bot as Bot;
-      const runningHost = telegramHost as TelegramHost;
-      runningBot.use(async (context) => {
-        const result = (ingestion as TelegramIngestion).ingest(context.update);
-        // A sleeping bot skips queued invocations, so a status would promise a reply that never comes.
-        if (result.mention !== undefined && activeSleepUntil(openedStore.orm) === null) {
-          const target = resolveConversation(openedStore, result.mention);
-          runningHost.activity.start({ conversation: target, policy: runningHost.policy(target) }, 'until_delivery');
-        }
-        if (result.command !== undefined) {
-          await replyToCommand(context, commands, result.command);
-        }
-        startedScheduler.wake();
-      });
-      logEvent('serve_started', { bot_id: String((me as { id: number }).id), config_hash: loaded.hash });
-      await runningBot.start({ allowed_updates: [...ALLOWED_UPDATES] });
-    }
+    const environment = await openServeEnvironment(context);
+    const services = await startServeServices(context, environment);
+    const assembly = { ...services, ...connectServeHosts(context, services) };
+    const core = await startCoreRuntime(context, assembly);
+    await startAdminServer(context, assembly, core);
+    await runServeLoop(context, assembly, core);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(secrets.redact(message));
@@ -553,20 +110,20 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
     // PID 1, ignores the signal altogether.
     try {
       replayShutdown.abort(new Error('shutdown'));
-      stopWatcher?.();
-      await admin?.stop();
-      await scheduler?.stop(30_000);
-      host?.activity.stopAll();
-      roomHost?.activity.stopAll();
+      state.stopWatcher?.();
+      await state.admin?.stop();
+      await state.scheduler?.stop(30_000);
+      state.host?.activity.stopAll();
+      state.roomHost?.activity.stopAll();
       // The image worker borrows the SQLite connection; it must settle (marking
       // late results interrupted if the shutdown budget expires) before the
       // store closes underneath it.
-      imageBridge?.stop();
-      await imageService?.stop();
-      await stickers?.stop();
-      await mcp?.stop();
-      store?.close();
-      await lock?.release();
+      state.imageBridge?.stop();
+      await state.imageService?.stop();
+      await state.stickers?.stop();
+      await state.mcp?.stop();
+      state.store?.close();
+      await state.lock?.release();
     } finally {
       stopSignals();
     }
@@ -579,10 +136,6 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
     process.exitCode = RESTART_EXIT_CODE;
     setTimeout(() => process.exit(RESTART_EXIT_CODE), 1_000).unref();
   }
-}
-
-export function logEvent(event: string, fields: Readonly<Record<string, string | number | boolean | null>> = {}): void {
-  console.log(JSON.stringify({ event, ...fields, at: new Date().toISOString() }));
 }
 
 /**
@@ -612,101 +165,4 @@ export function watchStopSignals(shutdown: () => void, forceExit: (signal: NodeJ
     process.off('SIGINT', onSignal);
     process.off('SIGTERM', onSignal);
   };
-}
-
-/**
- * Resolves the conversation a delivery or activity call targets.
- *
- * The runtime never invents a chat route: the chat kind that decides the
- * conversation policy and the conversation row itself both come from storage,
- * so a group and a private chat with the same id cannot be confused, and a
- * delivery always lands on a conversation the server already knows about.
- */
-export function resolveConversation(
-  store: BusinessStore,
-  target: { readonly chatId: bigint; readonly threadId: bigint; readonly conversationId?: bigint },
-): ImConversationRef {
-  const orm = store.orm;
-  // The conversation row decides the host when the caller has one: the same
-  // numeric value can be a Telegram chat id and a room's internal chat id, and
-  // only the row knows which. Ingestion's mention target carries no
-  // conversation id, so that path resolves a Telegram chat by its wire id.
-  if (target.conversationId !== undefined && target.conversationId !== 0n) {
-    const row = orm
-      .select({
-        id: conversations.id,
-        chatId: conversations.chatId,
-        threadId: conversations.messageThreadId,
-        hostKind: chats.hostKind,
-        type: chats.type,
-        telegramChatId: chats.telegramChatId,
-      })
-      .from(conversations)
-      .innerJoin(chats, eq(chats.id, conversations.chatId))
-      .where(eq(conversations.id, target.conversationId))
-      .get();
-    if (row !== undefined) {
-      const hostKind: HostKind = row.hostKind === 'playground' ? 'playground' : 'telegram';
-      return {
-        host: hostKind,
-        id: toConversationId(row.id),
-        chatId: toChatId((hostKind === 'telegram' ? row.telegramChatId : row.chatId)?.toString() ?? '0'),
-        topicId: row.threadId === 0n ? null : Number(row.threadId),
-        scope: row.type === 'private' ? 'private' : 'group',
-      };
-    }
-  }
-  const chat = orm
-    .select({ id: chats.id, type: chats.type })
-    .from(chats)
-    .where(and(eq(chats.hostKind, 'telegram'), eq(chats.telegramChatId, target.chatId)))
-    .get();
-  const conversation =
-    chat === undefined
-      ? undefined
-      : orm
-          .select({ id: conversations.id })
-          .from(conversations)
-          .where(and(eq(conversations.chatId, chat.id), eq(conversations.messageThreadId, target.threadId)))
-          .get();
-  return {
-    host: 'telegram',
-    id: toConversationId(conversation?.id ?? 0n),
-    chatId: toChatId(target.chatId.toString()),
-    topicId: target.threadId === 0n ? null : Number(target.threadId),
-    scope: chat?.type === 'private' ? 'private' : 'group',
-  };
-}
-
-async function replyToCommand(context: Context, commands: BotCommandService, command: ParsedCommand): Promise<void> {
-  const message = context.update.message;
-  if (message === undefined) {
-    return;
-  }
-  const chatId = message.chat.id;
-  const sender = commandSender(message);
-  let text: string;
-  try {
-    text = await commands.run(command, BigInt(chatId), sender);
-  } catch (error) {
-    logEvent('command_failed', {
-      command: command.name,
-      chat_id: String(chatId),
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return;
-  }
-  try {
-    await context.api.sendMessage(String(chatId), text, {
-      ...(message.message_thread_id === undefined ? {} : { message_thread_id: message.message_thread_id }),
-      reply_parameters: { message_id: message.message_id },
-    });
-    logEvent('command_reply_sent', { command: command.name, chat_id: String(chatId) });
-  } catch (error) {
-    logEvent('command_reply_failed', {
-      command: command.name,
-      chat_id: String(chatId),
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
 }

@@ -1,9 +1,25 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { Update } from 'grammy/types';
 import { loadPlugins } from '../src/plugins/plugin.ts';
 import alarmPlugin from '../src/plugins/alarm/index.ts';
 import type { RawConfig } from '../src/platform/config.ts';
 import type { InvocationContext } from '../src/platform/invocation-context.ts';
-import type { SqliteStore } from '../src/adapters/local-monolith/database.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
+import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
+import { BucketScheduler } from '../src/orchestration/scheduler.ts';
+import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
+import {
+  renderInvocationContext,
+  testConfigJsonc,
+  testConfigStore,
+  type TestContextOptions,
+  type TestRegistry,
+  writeTestConfig,
+} from './helpers.ts';
 
 export function alarmTools(store: SqliteStore, config: RawConfig, context: InvocationContext) {
   const capabilities = loadPlugins([alarmPlugin]).capabilities(
@@ -111,4 +127,173 @@ export function completeAlarmTask(
       state === 'handled' ? at : null,
       taskId,
     );
+}
+
+const directories: string[] = [];
+
+export async function cleanupTestDirectories(): Promise<void> {
+  const pending = directories.splice(0, directories.length);
+  for (const directory of pending) {
+    await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  }
+}
+
+export async function setup(registry?: TestRegistry, recordPayloads = false) {
+  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-alarm-'));
+  directories.push(directory);
+  const configPath = join(directory, 'config.jsonc');
+  await writeTestConfig(
+    directory,
+    configPath,
+    testConfigJsonc(directory, (config) => {
+      config.developer = { record_model_payloads: recordPayloads };
+      config.telegram.admins = [42];
+    }),
+  );
+  const loaded = await loadConfig(configPath);
+  const configStore = await testConfigStore(loaded, registry);
+  const store = await SqliteStore.open(loaded.config);
+  return {
+    directory,
+    configPath,
+    loaded,
+    configStore,
+    config: loaded.config,
+    store,
+    ingestion: new TelegramIngestion(store, configStore, { id: 999 }),
+    scheduler: new BucketScheduler(store, configStore, async () => ({
+      state: 'completed',
+      reason: 'done',
+    })),
+    build: (invocationId: bigint, options: TestContextOptions = {}) =>
+      renderInvocationContext(store, loaded.config, invocationId, options),
+  };
+}
+
+export async function setupAdmin(): Promise<{
+  store: SqliteStore;
+  loaded: Awaited<ReturnType<typeof loadConfig>>;
+  configStore: RuntimeConfigurationStore;
+}> {
+  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-alarm-admin-'));
+  directories.push(directory);
+  const configPath = join(directory, 'config.jsonc');
+  await writeTestConfig(
+    directory,
+    configPath,
+    testConfigJsonc(directory, (config) => {
+      config.admin = {
+        enabled: true,
+        host: '127.0.0.1',
+        port: 8899,
+        session_ttl_hours: 12,
+      };
+    }),
+  );
+  const loaded = await loadConfig(configPath);
+  const configStore = await testConfigStore(loaded);
+  const store = await SqliteStore.open(loaded.config);
+  return { store, loaded, configStore };
+}
+
+export function update(updateId: number, messageId: number, text: string, userId = 42): Update {
+  return {
+    update_id: updateId,
+    message: {
+      message_id: messageId,
+      date: 1_700_000_000 + messageId,
+      chat: { id: 123456789, type: 'private', first_name: 'Owner' },
+      from: { id: userId, is_bot: false, first_name: 'Alice' },
+      text,
+    },
+  };
+}
+
+export function processDue(scheduler: BucketScheduler, at: Date): bigint {
+  const [invocationId] = scheduler.processDue(at);
+  if (invocationId === undefined) {
+    throw new Error('Expected one due invocation');
+  }
+  return invocationId;
+}
+
+export function futureIso(offsetMilliseconds: number): string {
+  return new Date(Date.now() + offsetMilliseconds).toISOString();
+}
+
+export function ensureConversation(store: SqliteStore): bigint {
+  const existing = store.db.prepare<[], { id: bigint }>('SELECT id FROM conversations LIMIT 1').get();
+  if (existing !== undefined) {
+    return existing.id;
+  }
+  const chat = store.db
+    .prepare<[string], { id: bigint }>(
+      "INSERT INTO chats(telegram_chat_id, canonical_chat_id, type, title, updated_at) VALUES (123456789, 123456789, 'private', 'Owner', ?) RETURNING id",
+    )
+    .get(new Date().toISOString());
+  const conversation = store.db
+    .prepare<[bigint, string, string], { id: bigint }>(
+      'INSERT INTO conversations(chat_id, message_thread_id, created_at, updated_at) VALUES (?, 0, ?, ?) RETURNING id',
+    )
+    .get(chat?.id ?? 0n, new Date().toISOString(), new Date().toISOString());
+  return conversation?.id ?? 0n;
+}
+
+export function insertAlarm(
+  store: SqliteStore,
+  conversationId: bigint,
+  scheduledAt: string,
+  options: {
+    targetUserId?: bigint;
+    displayName?: string;
+    summary?: string;
+    state?: string;
+    invocationId?: bigint;
+  } = {},
+): bigint {
+  const targetUserId = options.targetUserId ?? 42n;
+  const displayName = options.displayName ?? 'Alice';
+  const payload = {
+    target_user_id: targetUserId.toString(),
+    target_display_name: displayName,
+    summary: options.summary ?? 'test alarm',
+  };
+  const createdAt = new Date(Date.parse(scheduledAt) - 60_000).toISOString();
+  const taskId = new LongTaskService(store.orm).scoped('alarm', conversationId).create(
+    {
+      payload,
+      scheduledAt,
+      timerResult: payload,
+      delivery: { bypassDailyBudget: true, mentionUser: { userId: targetUserId, displayName } },
+    },
+    new Date(createdAt),
+  ).taskId;
+  const state = options.state ?? 'pending';
+  if (state !== 'pending') {
+    new LongTaskService(store.orm).processDue(new Date(scheduledAt));
+    if (state === 'firing' || state === 'fired') {
+      store.db
+        .prepare(
+          `UPDATE task_receipts SET state = ?, invocation_id = ?, claimed_at = ?, handled_at = ?, updated_at = ? WHERE task_id = ?`,
+        )
+        .run(
+          state === 'firing' ? 'claimed' : 'handled',
+          options.invocationId ?? null,
+          scheduledAt,
+          state === 'fired' ? scheduledAt : null,
+          scheduledAt,
+          taskId,
+        );
+    } else if (state === 'cancelled') {
+      store.db
+        .prepare(`UPDATE long_tasks SET state = 'cancelled', updated_at = ?, finished_at = ? WHERE id = ?`)
+        .run(scheduledAt, scheduledAt, taskId);
+      store.db
+        .prepare(
+          `UPDATE task_receipts SET status = 'cancelled', result_json = NULL, state = 'suppressed', cancelled_at = ?, updated_at = ? WHERE task_id = ?`,
+        )
+        .run(scheduledAt, scheduledAt, taskId);
+    }
+  }
+  return taskId;
 }

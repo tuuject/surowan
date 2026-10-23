@@ -1,21 +1,20 @@
-import {
-  ApiError,
-  type DraftField,
-  type MetadataSource,
-  type ModelApplySummary,
-  type ModelCompatConfig,
-  type ModelCostConfig,
-  type ModelInput,
-  type ModelMetadataDraft,
-  type ModelsDevMatch,
-  type ProviderApi,
-  type ProviderModelConfig,
-  type ProviderView,
-  THINKING_LEVELS,
-  type ThinkingLevel,
-} from './api.ts';
 import i18n from './i18n.ts';
 import { errorMessage } from './errors.ts';
+import { ApiError } from './api/core.ts';
+import type {
+  DraftField,
+  MetadataSource,
+  ModelCompatConfig,
+  ModelCostConfig,
+  ModelInput,
+  ModelMetadataDraft,
+  ModelsDevMatch,
+  ProviderApi,
+  ProviderModelConfig,
+  ProviderView,
+} from './api/providers.ts';
+import { THINKING_LEVELS } from './api/models.ts';
+import type { ModelApplySummary, ThinkingLevel } from './api/models.ts';
 
 /**
  * Pure helpers for the Models page: metadata source labels, draft → config

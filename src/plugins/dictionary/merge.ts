@@ -7,15 +7,15 @@ import type { ToolModelSelection } from '../../platform/tool-model.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import type { Orm } from '../../store/store.ts';
 import { modelCalls } from '../../store/schema.ts';
+import type { DictionaryEntryRecord } from './dictionary.ts';
 import {
   DICTIONARY_ALIAS_MAX_LENGTH,
   DICTIONARY_DEFINITION_MAX_LENGTH,
   DICTIONARY_MAX_ALIASES,
   DICTIONARY_TERM_MAX_LENGTH,
-  type DictionaryEntryRecord,
   DictionaryError,
   normalizeAliases,
-} from './dictionary.ts';
+} from './dictionary-match.ts';
 
 /**
  * The dictionary-merge suggestion, built on the system-wide auxiliary ("tool")

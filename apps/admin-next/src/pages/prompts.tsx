@@ -1,270 +1,34 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Fragment, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import {
-  type BadgeSemantic,
-  type ColumnSpec,
-  ConfirmDialog,
-  MonoValue,
-  TableShell,
-  TextValue,
-  ToneBadge,
-} from '@/components/business';
+import { type ColumnSpec, ConfirmDialog, MonoValue, TableShell, TextValue, ToneBadge } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { DiffView } from '@/components/prompts/diff-view';
+import { type Notice, type PromptDraft, sourceLabelKey, sourceTone } from '@/components/prompts/prompt-draft';
+import { PromptEditor } from '@/components/prompts/prompt-editor';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  ApiError,
-  cancelPromptRunning,
-  failedPromptVersion,
-  type PromptDiffHunk,
-  type PromptDiffLine,
-  type PromptDiffView,
-  type PromptDocument,
-  type PromptSaveResponse,
-  type PromptScopeRef,
-  type PromptVersionItem,
-  type PromptVersionSource,
-  restorePromptVersion,
-  savePrompt,
-} from '@/lib/api';
+
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { chatsQuery, promptDiffQuery, promptDocumentQuery, promptVersionsQuery } from '@/lib/queries';
 import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
-import { cn } from '@/lib/utils';
+import { ApiError } from '@/lib/api/core.ts';
+import { cancelPromptRunning, failedPromptVersion, restorePromptVersion, savePrompt } from '@/lib/api/prompts.ts';
+import type { PromptSaveResponse, PromptScopeRef, PromptVersionItem } from '@/lib/api/prompts.ts';
 
-/** The same limit the API enforces on a version note. */
-const MAX_NOTE_CHARS = 200;
 const GLOBAL_SCOPE_VALUE = 'global';
 const CHAT_SCOPE_PREFIX = 'chat:';
 const PROMPT_CONFLICT_CODE = 'prompt_conflict';
-
-/** What the last write reported, rendered next to the editor. */
-type Notice =
-  | { readonly kind: 'saved' }
-  | { readonly kind: 'unchanged' }
-  | { readonly kind: 'conflict' }
-  | { readonly kind: 'apply_failed'; readonly message: string }
-  | { readonly kind: 'error'; readonly message: string };
-
-/** The editor's own copy: text plus the file hash `Save` pins with If-Match. */
-interface PromptDraft {
-  readonly hash: string;
-  readonly text: string;
-  readonly note: string;
-}
 
 function scopeOfValue(value: string): PromptScopeRef {
   return value.startsWith(CHAT_SCOPE_PREFIX)
     ? { scope: 'group', chat: value.slice(CHAT_SCOPE_PREFIX.length) }
     : { scope: 'global' };
-}
-
-function sourceTone(source: PromptVersionSource): BadgeSemantic {
-  switch (source) {
-    case 'panel':
-      return 'info';
-    case 'rollback':
-      return 'neutral';
-    case 'external':
-      return 'warning';
-  }
-}
-
-function sourceLabelKey(
-  source: PromptVersionSource,
-): 'pages.prompts.sourcePanel' | 'pages.prompts.sourceExternal' | 'pages.prompts.sourceRollback' {
-  switch (source) {
-    case 'panel':
-      return 'pages.prompts.sourcePanel';
-    case 'rollback':
-      return 'pages.prompts.sourceRollback';
-    case 'external':
-      return 'pages.prompts.sourceExternal';
-  }
-}
-
-function diffMarker(type: PromptDiffLine['type']): string {
-  return type === 'added' ? '+' : type === 'removed' ? '-' : ' ';
-}
-
-/** Hunk separator in the unified-diff header format the API emits. */
-function hunkHeader(hunk: PromptDiffHunk): string {
-  return `@@ -${hunk.fromStart},${hunk.fromCount} +${hunk.toStart},${hunk.toCount} @@`;
-}
-
-function DiffView({ diff }: { readonly diff: PromptDiffView }): React.ReactElement {
-  const { t } = useTranslation();
-  return (
-    <div className="overflow-hidden rounded-lg border">
-      <div className="bg-muted/40 border-b px-3 py-2 font-mono text-xs">
-        {t('pages.prompts.diffTitle', { from: diff.from.seq, to: diff.to.seq })}
-      </div>
-      <div className="max-h-[32rem] overflow-auto">
-        <pre className="min-w-max font-mono text-xs leading-relaxed">
-          {diff.hunks.map((hunk) => (
-            <Fragment key={hunkHeader(hunk)}>
-              <div className="bg-muted/50 text-muted-foreground px-3 py-0.5">{hunkHeader(hunk)}</div>
-              {hunk.lines.map((line) => (
-                <div
-                  // Unified-diff coordinates are file-global and strictly
-                  // increasing, so a line's own numbers identify it.
-                  key={`${line.type}:${line.fromLine ?? 'x'}:${line.toLine ?? 'y'}`}
-                  data-line-type={line.type}
-                  className={cn(
-                    'flex',
-                    line.type === 'removed' && 'bg-danger/10',
-                    line.type === 'added' && 'bg-success/10',
-                  )}
-                >
-                  <span className="text-muted-foreground w-10 shrink-0 px-2 text-right tabular-nums select-none">
-                    {line.fromLine ?? ''}
-                  </span>
-                  <span className="text-muted-foreground w-10 shrink-0 px-2 text-right tabular-nums select-none">
-                    {line.toLine ?? ''}
-                  </span>
-                  <span className={cn('pr-4 whitespace-pre', line.type === 'context' && 'text-muted-foreground')}>
-                    {`${diffMarker(line.type)}${line.text}`}
-                  </span>
-                </div>
-              ))}
-            </Fragment>
-          ))}
-        </pre>
-      </div>
-    </div>
-  );
-}
-
-/** Save outcomes: a recorded/applied prompt, a no-op, or one of the write failures. */
-function WriteNotice({ notice }: { readonly notice: Notice | null }): React.ReactElement | null {
-  const { t } = useTranslation();
-  switch (notice?.kind) {
-    case undefined:
-      return null;
-    case 'saved':
-      return (
-        <p role="status" className="text-success text-sm">
-          {t('pages.prompts.saved')}
-        </p>
-      );
-    case 'unchanged':
-      return (
-        <p role="status" className="text-muted-foreground text-sm">
-          {t('pages.prompts.unchanged')}
-        </p>
-      );
-    case 'conflict':
-      return (
-        <p role="alert" className="text-destructive text-sm">
-          {t('pages.prompts.conflict')}
-        </p>
-      );
-    case 'apply_failed':
-      return (
-        <Alert variant="destructive">
-          <AlertTitle>{t('pages.prompts.applyFailedTitle')}</AlertTitle>
-          <AlertDescription>{notice.message}</AlertDescription>
-        </Alert>
-      );
-    case 'error':
-      return (
-        <p role="alert" className="text-destructive text-sm break-words">
-          {notice.message}
-        </p>
-      );
-  }
-}
-
-/**
- * The textarea is seeded from the file view and re-seeded whenever that view's
- * content hash changes (scope switch, refetch after a conflict): the draft only
- * survives while it still describes the content its hash pins.
- */
-function PromptEditor({
-  file,
-  applied,
-  notice,
-  saving,
-  onSave,
-}: {
-  readonly file: PromptDocument;
-  readonly applied: PromptVersionItem | null;
-  readonly notice: Notice | null;
-  readonly saving: boolean;
-  readonly onSave: (draft: PromptDraft) => void;
-}): React.ReactElement {
-  const { t } = useTranslation();
-  const [draft, setDraft] = useState<PromptDraft | null>(null);
-  const current =
-    draft !== null && draft.hash === file.content_hash
-      ? draft
-      : { hash: file.content_hash, text: file.prompt, note: '' };
-  const matches = applied !== null && applied.content_hash === file.content_hash;
-  return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="prompt-text">{t('pages.prompts.promptLabel')}</Label>
-        <Textarea
-          id="prompt-text"
-          value={current.text}
-          spellCheck={false}
-          placeholder={t('pages.prompts.promptPlaceholder')}
-          className="min-h-96 font-mono text-xs"
-          onChange={(event) => setDraft({ hash: file.content_hash, text: event.target.value, note: current.note })}
-        />
-        <p className="text-muted-foreground text-xs">{t('pages.prompts.editorHint')}</p>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="prompt-note">{t('pages.prompts.noteLabel')}</Label>
-        <Input
-          id="prompt-note"
-          value={current.note}
-          maxLength={MAX_NOTE_CHARS}
-          placeholder={t('pages.prompts.notePlaceholder')}
-          onChange={(event) => setDraft({ hash: file.content_hash, text: current.text, note: event.target.value })}
-        />
-        <p className="text-muted-foreground text-xs">{t('pages.prompts.noteHint', { count: MAX_NOTE_CHARS })}</p>
-      </div>
-      <div className="bg-muted/30 space-y-1.5 rounded-lg border p-3">
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-muted-foreground">{t('pages.prompts.appliedVersion')}</span>
-          {applied === null ? (
-            <span className="text-muted-foreground">{t('pages.prompts.noVersions')}</span>
-          ) : (
-            <>
-              <MonoValue value={`v${applied.seq}`} />
-              <ToneBadge tone={sourceTone(applied.source)}>{t(sourceLabelKey(applied.source))}</ToneBadge>
-              <span className="text-muted-foreground text-xs tabular-nums">{formatTime(applied.created_at)}</span>
-              {applied.created_by === null ? null : (
-                <span className="text-muted-foreground text-xs">{applied.created_by}</span>
-              )}
-            </>
-          )}
-        </div>
-        {applied === null ? null : (
-          <p className={cn('text-xs', matches ? 'text-success' : 'text-warning')}>
-            {matches ? t('pages.prompts.fileMatches') : t('pages.prompts.fileDiffers')}
-          </p>
-        )}
-      </div>
-      {file.scope === 'group' && file.prompt.length === 0 ? (
-        <p className="text-muted-foreground text-xs">{t('pages.prompts.groupCreationHint')}</p>
-      ) : null}
-      <WriteNotice notice={notice} />
-      <Button type="button" disabled={saving} onClick={() => onSave(current)}>
-        {saving ? t('pages.prompts.saving') : t('pages.prompts.save')}
-      </Button>
-    </div>
-  );
 }
 
 export default function PromptsPage(): React.ReactElement {

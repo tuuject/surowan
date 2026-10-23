@@ -14,7 +14,7 @@ import {
 import { assertBaseUrl, fetchProviderModels, planModelsEndpoint } from '../src/platform/provider-models.ts';
 import { agentThinkingLevels, saveConfig } from '../src/tui/configure.ts';
 import { THINKING_LEVELS } from '../src/platform/thinking-levels.ts';
-import { filterSearchChoices } from '../src/tui/provider-wizard.ts';
+import { filterSearchChoices } from '../src/tui/provider-wizard-support.ts';
 import { startFixtureServer, stopFixtureServer, testConfigJsonc, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];

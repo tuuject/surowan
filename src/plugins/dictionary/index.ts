@@ -1,8 +1,9 @@
 import { join } from 'node:path';
 import { capability } from '../../capabilities/execute-tool.ts';
 import { definePlugin } from '../plugin.ts';
-import { createDictionaryTools, DictionaryStore } from './dictionary.ts';
+import { createDictionaryTools } from './dictionary.ts';
 import { createDictionaryInjector } from './injection.ts';
+import { DictionaryStore } from './dictionary-store.ts';
 
 /**
  * The chat dictionary: entries injected into context per batch, plus the three

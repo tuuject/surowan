@@ -30,7 +30,7 @@ Admin Panel 已覆盖多数 Agent 日常调参，但还不能完整替代 `confi
 | Image | Image settings 启停、生图模型目录选择、路由选择、新模型的凭据绑定、凭据录入/复用、模型备注、移除模型 | 高级定义与凭据生命周期仍有缺口，见后文 |
 | 配置生效 | Settings 的 Apply config file；Models/Chats 的待重启提示与受监督重启 | Apply 只重新加载文件，不提供任意配置编辑 |
 
-依据：[Agent 字段 Schema](../../src/platform/config.ts#L329)、[Harness 白名单](../../src/ingress/admin/harness-admin.ts#L30)、[模型完整编辑表单](../../apps/admin-next/src/components/models/model-edit-dialog.tsx#L148)、[管理端写端点说明](../admin-panel.md#api)。
+依据：[Agent 字段 Schema](../../src/platform/config-schema-sections.ts#L82)、[Harness 白名单](../../src/ingress/admin/harness-admin.ts#L30)、[模型完整编辑表单](../../apps/admin-next/src/components/models/model-edit-dialog.tsx#L148)、[管理端写端点说明](../admin-panel.md#api)。
 
 Panel preferences 只控制当前浏览器的语言、主题、是否展示配置键名，不写 Bot 配置。Settings 中的账号、密码、Passkey 操作管理数据库中的认证状态，也不是 `admin.*` 配置编辑器。依据：[preferences.tsx](../../apps/admin-next/src/pages/preferences.tsx#L12)、[settings.tsx](../../apps/admin-next/src/pages/settings.tsx)。
 
@@ -58,7 +58,7 @@ Panel preferences 只控制当前浏览器的语言、主题、是否展示配�
 | `web_fetch.allow_proxy_synthetic_addresses`、`.dangerously_allow_all_ip_addresses`、`.accept_markdown` | inspection 可读，不能编辑 | 重启 | 新增 Tools settings 的网页读取区 |
 | `retention.online_days`、`.backup_copies` | inspection 可读，不能编辑 | `outside_serve`，下一次 backup 读取 | Maintenance 设置，显示“下次备份任务使用”，保存不执行清理 |
 
-完整字段依据：[配置 Schema](../../src/platform/config.ts#L150)、[顶层 Schema](../../src/platform/config.ts#L309)。覆盖边界依据：[Chats 请求 Schema](../../src/ingress/admin/chats-admin.ts#L31)、[Vision 请求 Schema](../../src/ingress/admin/providers-admin.ts#L101)、[配置 inspection 投影](../../src/ingress/admin/config-inspection.ts#L74)。生效分类依据：[config-diff.ts](../../src/platform/config-diff.ts#L35)、[Chat 专属分类](../../src/platform/config-diff.ts#L258)。
+完整字段依据：[配置 Schema](../../src/platform/config-schema-sections.ts#L12)、[顶层 Schema](../../src/platform/config-schema.ts#L125)。覆盖边界依据：[Chats 请求 Schema](../../src/ingress/admin/chats-admin.ts#L31)、[Vision 请求 Schema](../../src/ingress/admin/providers-admin.ts#L101)、[配置 inspection 投影](../../src/ingress/admin/config-inspection.ts#L74)。生效分类依据：[config-diff.ts](../../src/platform/config-diff.ts#L35)、[Chat 专属分类](../../src/platform/config-diff.ts#L258)。
 
 特别说明：新增 Chat 时整项配置可热加入；表中的群时区“重启”是指修改已存在的 Chat。删除 Chat、修改已有 Chat 的 Topic 白名单虽然需要重启，面板已经可以操作，不属于配置入口缺失。
 
@@ -73,7 +73,7 @@ Panel preferences 只控制当前浏览器的语言、主题、是否展示配�
 | Streamable HTTP | `url`、`headers` 名称与 SecretRef | 沿用 URL 校验、禁止 URL 凭据与重定向；密钥只写不读 |
 | 策略 | `tool_policies[].name/read_only/timeout_seconds`、`default_tool_policy.read_only/timeout_seconds` | 工具白名单与策略一起校验；显式工具必须有对应策略，`tools: "*"` 必须有 default policy |
 
-MCP 全部保留当前“保存后待重启”。`follow_redirects` 在 Schema 中只能是 `false`，显示为固定约束即可，不做可开启的开关。依据：[MCP Schema](../../src/platform/config.ts#L218)、[策略语义校验](../../src/platform/config.ts#L687)。
+MCP 全部保留当前“保存后待重启”。`follow_redirects` 在 Schema 中只能是 `false`，显示为固定约束即可，不做可开启的开关。依据：[MCP Schema](../../src/platform/config-schema.ts#L32)、[策略语义校验](../../src/platform/config-semantics.ts#L168)。
 
 MCP 热替换还涉及连接、发现工具、运行中调用和模型工具定义的同步，已经超出配置表单的必要改动。首次补齐无需改造这套生命周期。
 
@@ -177,7 +177,7 @@ MCP 热替换还涉及连接、发现工具、运行中调用和模型工具定�
 
 表单要区分“继承”“空数组”“删除整个策略”，展示合并后的触发词与时区。不能给群触发词的清空按钮标成“关闭所有关键词”。同时修改时区和时段时，应明确当前运行时区与待重启时区；不能预览成新时区已生效。私聊不接受 participation 配置。
 
-依据：[compileParticipation](../../src/platform/participation.ts#L34)、[已有删除时段逻辑](../../src/ingress/admin/chats-admin.ts#L157)、[配置语义校验](../../src/platform/config.ts#L620)。
+依据：[compileParticipation](../../src/platform/participation.ts#L34)、[已有删除时段逻辑](../../src/ingress/admin/chats-admin.ts#L157)、[配置语义校验](../../src/platform/config-semantics.ts#L70)。
 
 ### MCP 凭据必须保留旧运行态的可解析性
 
@@ -187,7 +187,7 @@ MCP 热替换还涉及连接、发现工具、运行中调用和模型工具定�
 
 因此在开放 MCP Secret 的替换、删除前，需要把 jar 回收改为至少保留“磁盘配置引用 + 仍存活的运行配置引用”。被保留条目的后续清理由宿主在旧配置释放或下次启动时处理，不能无限遗留，也不能删除从未由配置管理器拥有的手工条目。应对“保存但 apply 失败”使用同样原则。
 
-依据：[当前回收](../../src/adapters/local-monolith/config-file.ts#L133)、[每次重新读取 jar](../../src/platform/secrets.ts#L38)、[MCP 创建 transport](../../src/capabilities/mcp.ts#L261)、[MCP 重连](../../src/capabilities/mcp.ts#L545)。
+依据：[当前回收](../../src/adapters/local-monolith/config-file.ts#L133)、[每次重新读取 jar](../../src/platform/secrets.ts#L38)、[MCP 创建 transport](../../src/capabilities/mcp.ts#L231)、[MCP 重连](../../src/capabilities/mcp.ts#L372)。
 
 普通表单输入密钥继续只写不读，Provider 沿用新 jar 名称轮换；不要从现有图片凭据更新的特殊实现推导通用约定。高级 env/command 来源编辑会扩大面板对宿主环境/进程的控制能力，应单独设计与测试，而不是把任意 SecretRef JSON 透传给普通配置端点。
 

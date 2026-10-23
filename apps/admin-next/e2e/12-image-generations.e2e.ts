@@ -1,7 +1,8 @@
 import { expect } from '@playwright/test';
 import sharp from 'sharp';
-import type { ImageGenerationRecord } from '../src/lib/api.ts';
+
 import { adminUrl, test, watchPageIssues } from './helpers.ts';
+import type { ImageGenerationRecord } from '../src/lib/api/images.ts';
 
 test.use({ signedIn: true });
 

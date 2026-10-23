@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { clearModelPayloads, updateDeveloperSettings } from '@/lib/api';
+
 import { errorMessage } from '@/lib/errors';
 import { developerQuery } from '@/lib/queries';
 import { useProviderWrite } from '@/lib/use-provider-write';
+import { clearModelPayloads, updateDeveloperSettings } from '@/lib/api/config.ts';
 
 /** The two independent switches the page mutates through the same PUT /developer endpoint. */
 type DeveloperSwitch = 'record_model_payloads' | 'record_agent_thinking';

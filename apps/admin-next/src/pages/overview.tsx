@@ -17,11 +17,13 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { cancelOngoingSessions, type LabelCount, type UsageEntry, wakeBot } from '@/lib/api';
+
 import { errorMessage } from '@/lib/errors';
 import { formatNumber, formatTime } from '@/lib/format';
 import { overviewQuery, usageQuery } from '@/lib/queries';
 import { useTranslation } from 'react-i18next';
+import { cancelOngoingSessions, wakeBot } from '@/lib/api/usage.ts';
+import type { LabelCount, UsageEntry } from '@/lib/api/usage.ts';
 
 function Stat({ title, value }: { readonly title: string; readonly value: React.ReactNode }): React.ReactElement {
   return (

@@ -28,14 +28,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  createMemory,
-  deleteMemory,
-  type MemoryDraft,
-  type MemoryEntry,
-  type MemoryUpdate,
-  updateMemory,
-} from '@/lib/api';
+
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import {
@@ -51,6 +44,8 @@ import { memoriesQuery, memoryChatsQuery } from '@/lib/queries';
 import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
+import { createMemory, deleteMemory, updateMemory } from '@/lib/api/memories.ts';
+import type { MemoryDraft, MemoryEntry, MemoryUpdate } from '@/lib/api/memories.ts';
 
 const MEMORY_STATES = ['active', 'expired', 'long_ttl'] as const;
 

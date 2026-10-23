@@ -119,29 +119,11 @@ pnpm run manual:prepare
 pnpm run skills:sync
 ```
 
-- 包管理器为 pnpm（`pnpm-lock.yaml`）；运行时为 Node.js ≥24，测试运行器为 vitest（`pnpm test`），CLI 入口为 `node src/cli.ts …`。
-- `pnpm run manual:prepare`：从 `apps/docs/content/docs` 打包用户手册 Markdown 与索引到 `src/manual/`（gitignored，Docker 构建自动执行）；未生成时 Bot 仍可启动，但文档能力退化为 `unknown_space`，`doctor` 判为失败。
-- `pnpm run skills:sync`：把 `skills/` 下的仓库 Skill 软链接进 `.agents/skills/`、`.claude/skills/`（均 gitignored），并按 `package.json` 的 `skills` 字段安装锁定版本的外部 Skill（哈希记入 `skills-lock.json`）。`pnpm install` 实际安装依赖时由 `postinstall` 自动执行（CI 与无 `.git` 时跳过，失败只警告）；只改了 `skills` 字段或新增仓库 Skill 时要手动运行。细节见 [agent-doc/operations.md](agent-doc/operations.md#coding-agent-skills)。
-- `pnpm run check`：严格 TypeScript 检查（runtime/Admin/docs）；文档检查前会准备被忽略的版本元数据、字段参考和示例，不输出编译 JS。
-- `pnpm test`：运行全部行为测试。
-- `check-config`：只验证 JSONC Schema、语义与引用，输出配置哈希。
-- `doctor`：执行 SQLite/Sharp/FFmpeg/Lottie、Provider、Vision、Telegram 与 required MCP 的真实探针。
-- `serve`：启动 Telegram long polling；白名单字段（agent 模型、Prompt、预算与并发等，见 [agent-doc/configuration.md](agent-doc/configuration.md#运行时配置热更新)）可在运行中通过 Admin 的「应用配置文件」或 `/model` 应用，其余字段仍需重启。
-- `backup`：执行保留清理、SQLite `VACUUM INTO` 备份与轮换；完整性检查属于独立恢复验证。
-- `configure`：`src/tui/` 的交互式配置向导，编辑既有配置的 Provider 与 thinking level，可从 Provider `/models` 拉取可路由模型 ID 后写回原文件。要求已存在可加载的配置且 stdin 是 TTY，非交互环境直接报错退出——agent 不要调用它。
-- `admin:build`：构建 `apps/admin-next` 生产 bundle（`apps/admin-next/dist`），供 `serve` 静态托管。
-- `admin:test:e2e`：Playwright 浏览器 E2E（`apps/admin-next/e2e`），驱动 `admin:build` 产物与真实 AdminServer 子进程，首次运行前需安装 Chromium；CI 的 Docker workflow 构建后会运行同一套件。命令细节与单套件过滤见 [agent-doc/verification.md](agent-doc/verification.md#admin-panel-浏览器-e2e)。
-- `admin:dev`：启动 Rsbuild dev server（监听 127.0.0.1:5273），`/api` 代理到运行中的 Admin Panel。
-- `docs:*`：独立静态文档站；`dev`/`preview` 监听 127.0.0.1:5274，`build` 输出 `apps/docs/dist`，`verify` 检查生产 HTML/Markdown/llms 与 HTTP。维护及部署边界见 [apps/docs/README.md](apps/docs/README.md)。用户可见行为、配置或运维改变时，同步更新相关指南、示例与测试，不把 `agent-doc/` 自动发布到站点。
+逐条命令说明见 [agent-doc/operations.md](agent-doc/operations.md#开发命令)。
 
 ## Long-Running Process Rules
 
-- `serve` 是长期进程。Agent 必须使用进程监督器启动，等待 `serve_started`，并通过日志或真实消息验证。
-- 同一 `data_dir` 只能有一个实例；`ServeLock` 靠 `data_dir` 里 `serve.lock.sqlite` 上进程存活的 SQLite `EXCLUSIVE` 事务（内核在进程退出时释放）防止双实例和 Telegram long polling 竞争，`serve.lock` 只是记录 PID 的说明文件，不参与存活判断。
-- 需要替换同一 `data_dir` 上正在运行的实例时用 `node src/cli.ts serve --config <path> --takeover`：它请求对方优雅退出并等锁释放（对方日志 `takeover_requested`，接管方 `takeover_completed`），不要手动删 `serve.lock` 或强杀进程。
-- 修改 `config.jsonc` 后：白名单字段可用 Admin 的「应用配置文件」或 `/model` 热应用，其余字段必须重启。成员的 `/ignoreme`、`/unignoreme` 也会写回当前 Chat 的 `ignored_user_ids` 并热应用配置文件。用 `config_reloaded` 日志事件（同时带 `active_hash` 与 `file_hash`）或 `check-config` 输出对比哈希，避免误判白名单或模型配置。没有文件系统 watcher，文件只有在显式应用或配置写入入口被调用时才生效。
-- 本地人工运行使用 `Ctrl+C` 停止；再按一次 `Ctrl+C`（或再发一次 `SIGTERM`）会跳过收尾立即退出（日志 `shutdown_forced`）。不要用未验证 PID 的强制终止命令。
-- Admin Panel 随 `serve` 在同一进程内启动，仅在 `admin.enabled = true` 时监听；`admin.host` 不限制回环，非回环绑定的暴露风险由运维承担。
+运行、接管与关闭约定见 [agent-doc/operations.md](agent-doc/operations.md#长进程运行约定)。
 
 ## Coding Style & Naming Conventions
 

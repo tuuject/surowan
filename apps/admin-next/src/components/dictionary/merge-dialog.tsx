@@ -18,15 +18,15 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  type DictionaryChatOption,
-  type DictionaryEntry,
-  type DictionaryMergePreview,
-  type DictionaryScope,
-  mergeDictionaryEntries,
-  previewDictionaryMerge,
-} from '@/lib/api.ts';
+
 import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
+import { mergeDictionaryEntries, previewDictionaryMerge } from '@/lib/api/dictionary.ts';
+import type {
+  DictionaryChatOption,
+  DictionaryEntry,
+  DictionaryMergePreview,
+  DictionaryScope,
+} from '@/lib/api/dictionary.ts';
 
 type MergeStep =
   | { readonly kind: 'idle' }

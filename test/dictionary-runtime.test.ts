@@ -5,7 +5,7 @@ import { fauxAssistantMessage, fauxProvider, type MutableModels } from '@earendi
 import type { Update } from 'grammy/types';
 import { afterAll, describe, expect, test, vi } from 'vitest';
 import { ConversationContextStore } from '../src/context/context-store.ts';
-import { DictionaryStore } from '../src/plugins/dictionary/dictionary.ts';
+
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
@@ -20,6 +20,7 @@ import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
 import { loadPlugins } from '../src/plugins/plugin.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { fauxRegistry, testConfigJsonc, testConfigStore, testTelegramRuntime, writeTestConfig } from './helpers.ts';
+import { DictionaryStore } from '../src/plugins/dictionary/dictionary-store.ts';
 
 /**
  * Real invocation lifecycle for dictionary injection.

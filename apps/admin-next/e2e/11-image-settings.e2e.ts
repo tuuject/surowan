@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
-import type { ImageConfigView } from '../src/lib/api.ts';
+
 import { adminUrl, test } from './helpers.ts';
+import type { ImageConfigView } from '../src/lib/api/images.ts';
 
 test.use({ signedIn: true });
 

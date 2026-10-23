@@ -14,7 +14,7 @@ import { fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-work
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { createPlaygroundHost } from '../src/adapters/local-monolith/playground-host.ts';
-import { AdminQueryError, getInvocation, listInvocations } from '../src/ingress/admin/audit.ts';
+import { AdminQueryError } from '../src/ingress/admin/audit.ts';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { identityConversation } from '../src/platform/im-host.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
@@ -23,6 +23,8 @@ import { PlaygroundStore } from '../src/store/playground.ts';
 import { contextMessages, hostSends, toolCalls } from '../src/store/schema.ts';
 import { activeSleepUntil, enterSleep } from '../src/store/sleep.ts';
 import { fauxRegistry, testConfigStore, writeTestConfig } from './helpers.ts';
+import { getInvocation } from '../src/ingress/admin/audit/invocation-detail.ts';
+import { listInvocations } from '../src/ingress/admin/audit/invocations.ts';
 
 const directories: string[] = [];
 

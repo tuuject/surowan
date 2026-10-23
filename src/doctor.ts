@@ -24,7 +24,7 @@ import { AgentRuntime } from './orchestration/agent-runtime.ts';
 import { KeyedSemaphore } from './platform/concurrency.ts';
 import type { McpServerConfig, ProviderConfig, RawConfig, SecretRef } from './platform/config.ts';
 import { assertConfigPermissions, loadConfig } from './adapters/local-monolith/config.ts';
-import { resolveConversation } from './adapters/local-monolith/runtime-host.ts';
+
 import { createTelegramHost, grammyTelegramTransport } from './adapters/local-monolith/telegram-host.ts';
 import { previewContext } from './platform/invocation-context.ts';
 import { keyJarPath } from './platform/key-jar.ts';
@@ -38,6 +38,7 @@ import { BUNDLED_MANUAL_DIR, bundledManualSpace, FileSystemDocSpaces } from './a
 import { BUILTIN_PLUGINS } from './plugins/builtin.ts';
 import { loadPlugins } from './plugins/plugin.ts';
 import { SqliteStore } from './adapters/local-monolith/database.ts';
+import { resolveConversation } from './adapters/local-monolith/runtime-host-support.ts';
 
 export async function runDoctor(configPath: string, outputAgentPrompt = false): Promise<void> {
   const loaded = await loadConfig(configPath);

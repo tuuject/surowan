@@ -2,18 +2,20 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, test, vi } from 'vitest';
-import type { HarnessSettings } from '../apps/admin-next/src/lib/api.ts';
+
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { AdminServer } from '../src/ingress/admin/server.ts';
-import { AGENT_DEFAULTS, type FileConfig } from '../src/platform/config.ts';
+import type { FileConfig } from '../src/platform/config.ts';
 import { PROACTIVE_REPLY_DEFAULTS, resolveProactiveReply } from '../src/platform/proactive-reply.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { seedAdminFixture } from './fixtures/admin-seed.ts';
 import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { AGENT_DEFAULTS } from '../src/platform/config-resolve.ts';
+import type { HarnessSettings } from '../apps/admin-next/src/lib/api/config.ts';
 
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => {

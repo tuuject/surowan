@@ -26,8 +26,9 @@
     "docs:check": "pnpm --filter plasticwan-docs run check",
     "docs:verify": "node scripts/docs-verify.ts",
     "manual:prepare": "node scripts/manual-prepare.ts",
-    "postinstall": "node scripts/skills-sync.ts --postinstall",
+    "postinstall": "node scripts/skills-sync.ts --postinstall && node scripts/git-hooks.ts --postinstall",
     "skills:sync": "node scripts/skills-sync.ts",
+    "hooks:install": "node scripts/git-hooks.ts",
     "lint": "biome lint . && biome format .",
     "lint:fix": "biome lint --write --unsafe . && biome format --write ."
   },

@@ -6,19 +6,19 @@ import { type ColumnSpec, ConfirmDialog, TableShell } from '@/components/busines
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+
+import { errorMessage } from '@/lib/errors';
+import { formatTime } from '@/lib/format';
 import {
   archiveImageAsset,
   archiveImagePrompt,
   createImagePrompt,
-  type ImageAssetInfo,
-  type ImagePromptAsset,
   imageUrl,
   listImageAssets,
   listImagePrompts,
   uploadImageAsset as uploadAsset,
-} from '@/lib/api';
-import { errorMessage } from '@/lib/errors';
-import { formatTime } from '@/lib/format';
+} from '@/lib/api/images.ts';
+import type { ImageAssetInfo, ImagePromptAsset } from '@/lib/api/images.ts';
 
 /** Asset management: prompt templates and reference images, with upload and archive. */
 

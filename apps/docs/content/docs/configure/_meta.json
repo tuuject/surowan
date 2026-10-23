@@ -1,1 +1,11 @@
-["config-file", "telegram", "models", "admin"]
+[
+  "config-file",
+  "telegram",
+  "models",
+  "admin",
+  "admin-harness-tuning",
+  "admin-developer",
+  "admin-prompts",
+  "admin-api-keys",
+  "admin-invocation-replay"
+]

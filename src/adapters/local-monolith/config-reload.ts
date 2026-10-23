@@ -1,22 +1,19 @@
-import { createHash } from 'node:crypto';
 import { type Api, getSupportedThinkingLevels, type Model } from '@earendil-works/pi-ai';
-import { type AgentSettings, type FileConfig, type RawConfig, validateSemantics } from '../../platform/config.ts';
+import type { AgentSettings, RawConfig } from '../../platform/config.ts';
 import { assertConfigPermissions, type LoadedConfig, loadConfig } from './config.ts';
-import { type ConfigChange, type ConfigSource, diffConfig } from '../../platform/config-diff.ts';
 import type {
   BotCommandConfigWriter,
   ConfigApplyResult,
   ConfigController,
   ConfigEdit,
   ConfigErrorCode,
-  ConfigErrorDetail,
   ConfigStatus,
 } from '../../platform/config-write.ts';
 import { ConfigWriteError, readConfigRevision, writeConfigEdits } from './config-file.ts';
 import { type AgentModelSwitcher, ModelSwitchError } from '../../platform/model-switch.ts';
-import { buildModelRegistry, configuredAgentModels } from '../../platform/providers.ts';
-import type { ConfigurationModels, RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
-import { SecretResolutionError, type SecretStore } from '../../platform/secrets.ts';
+import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
+import type { SecretStore } from '../../platform/secrets.ts';
+import { applyFile, type ConfigReloadState, messageOf } from './config-reload-apply.ts';
 
 /**
  * The image configuration gateway. The reloader prepares a candidate snapshot
@@ -60,12 +57,8 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
   readonly #validateAgentModel: (model: Model<Api>) => void;
   readonly #onPublished: () => void;
   readonly #imageConfig: ImageConfigGateway | undefined;
-  /** Identity of the last published image snapshot; detects key-jar-only rotations. */
-  #imageSnapshotId: string | null = null;
-  #activeFile: FileConfig;
-  #fileHash: string;
-  #restartRequired: readonly string[] = [];
-  #lastError: ConfigErrorDetail | null = null;
+  /** Mutable reload state, shared by reference with `config-reload-apply.ts`. */
+  readonly #state: ConfigReloadState;
   /** Serializes reloads; a reload and a `/model` write never interleave. */
   #tail: Promise<unknown> = Promise.resolve();
 
@@ -77,8 +70,13 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     this.#validateAgentModel = options.validateAgentModel;
     this.#onPublished = options.onPublished;
     this.#imageConfig = options.imageConfig;
-    this.#activeFile = structuredClone(options.loaded.fileConfig);
-    this.#fileHash = options.loaded.hash;
+    this.#state = {
+      activeFile: structuredClone(options.loaded.fileConfig),
+      fileHash: options.loaded.hash,
+      restartRequired: [],
+      lastError: null,
+      imageSnapshotId: null,
+    };
   }
 
   status(): ConfigStatus {
@@ -86,9 +84,9 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     return {
       generation: current.generation,
       activeHash: current.hash,
-      fileHash: this.#fileHash,
-      restartRequired: this.#restartRequired,
-      lastError: this.#lastError,
+      fileHash: this.#state.fileHash,
+      restartRequired: this.#state.restartRequired,
+      lastError: this.#state.lastError,
     };
   }
 
@@ -319,146 +317,19 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
   }
 
   async #applyFile(): Promise<ConfigApplyResult> {
-    const active: ConfigSource = { file: this.#activeFile, raw: this.#store.current().config };
-    try {
-      await assertConfigPermissions(this.#configPath);
-    } catch (error) {
-      return this.#failure('config_permissions', messageOf(error), false);
-    }
-    let file: LoadedConfig;
-    try {
-      file = await loadConfig(this.#configPath);
-    } catch (error) {
-      return this.#failure('config_invalid', messageOf(error), false);
-    }
-    const fromFile: ConfigSource = { file: file.fileConfig, raw: file.config };
-    const diff = diffConfig(active, fromFile);
-    const restartRequired = pathsOf(diff.changes, 'restart');
-    try {
-      validateSemantics(diff.candidate.file);
-    } catch (error) {
-      // The file is valid on its own, so the next startup is fine; only this
-      // process cannot adopt it while the restart-only fields are still pending.
-      const pending = restartRequired.length === 0 ? '' : ` Pending restart paths: ${restartRequired.join(', ')}.`;
-      return this.#failure(
-        'candidate_invalid',
-        `The file itself is valid, but it is not valid together with the restart-only fields still pending in this process; those take effect together after a restart. ${messageOf(error)}${pending}`,
-        false,
-      );
-    }
-    const rebuilt = await this.#buildRegistry(diff.candidate.raw);
-    if (!rebuilt.ok) {
-      return this.#failure(rebuilt.code, rebuilt.error, false);
-    }
-    try {
-      for (const { model } of configuredAgentModels(diff.candidate.raw, rebuilt.registry.models)) {
-        this.#validateAgentModel(model);
-      }
-    } catch (error) {
-      return this.#failure('model_unusable', messageOf(error), false);
-    }
-    // The image candidate is prepared with every apply — including ones where
-    // the file is unchanged — so a key-jar rotation is picked up by the next
-    // explicit reload even though the configuration file hash did not move.
-    let imageSnapshot: unknown;
-    let imageSnapshotId: string | null;
-    if (this.#imageConfig === undefined) {
-      imageSnapshot = undefined;
-      imageSnapshotId = null;
-    } else {
-      try {
-        imageSnapshot = await this.#imageConfig.prepare(diff.candidate.raw);
-      } catch (error) {
-        const code = error instanceof SecretResolutionError ? 'secret_unresolved' : 'config_invalid';
-        return this.#failure(code, messageOf(error), false);
-      }
-      // `undefined` (no image section) is the disabled state with its own
-      // stable identity, so disabling and re-enabling each count as changes.
-      imageSnapshotId =
-        imageSnapshot === undefined
-          ? 'disabled'
-          : createHash('sha256').update(JSON.stringify(imageSnapshot)).digest('hex').slice(0, 32);
-    }
-    const imageChanged = imageSnapshotId !== this.#imageSnapshotId;
-    const applied = pathsOf(diff.changes, 'hot');
-    const outsideServe = pathsOf(diff.changes, 'outside_serve');
-    const changed = applied.length > 0 || outsideServe.length > 0 || imageChanged;
-    const currentHash = this.#store.current().hash;
-    // With nothing pending, the candidate is exactly the file, so its hash is the
-    // file hash and stays comparable with `check-config` output. With fields
-    // pending, a changed candidate matches no file version and gets a hash of its
-    // own, while an unchanged one keeps the identity it already has.
-    const activeHash =
-      restartRequired.length === 0
-        ? file.hash
-        : changed
-          ? createHash('sha256').update(JSON.stringify(diff.candidate.raw)).digest('hex')
-          : currentHash;
-    if (!changed && activeHash === currentHash) {
-      // Nothing to publish, but the file hash and the pending list still move.
-      this.#fileHash = file.hash;
-      this.#restartRequired = restartRequired;
-      this.#lastError = null;
-      this.#logReloaded(applied, restartRequired, outsideServe);
-      return this.#applied(applied, restartRequired, outsideServe);
-    }
-    // Reaching here without a changed field means only the hash moved: the active
-    // configuration now equals a different file version, e.g. after a pending
-    // field was reverted or only a comment was edited. Publishing the equal
-    // candidate adopts that identity.
-    // Synchronous from here on: the registry and the configuration are published
-    // together, and no run can observe one without the other.
-    this.#store.publish({
-      config: diff.candidate.raw,
-      hash: activeHash,
-      models: rebuilt.registry.models,
-      visionModel: rebuilt.registry.visionModel,
+    return await applyFile({
+      configPath: this.#configPath,
+      store: this.#store,
+      state: this.#state,
+      secrets: this.#secrets,
+      imageConfig: this.#imageConfig,
+      validateAgentModel: (model) => this.#validateAgentModel(model),
+      onPublished: () => this.#onPublished(),
+      failure: (code, message, fileWritten) => this.#failure(code, message, fileWritten),
+      applied: (applied, restartRequired, outsideServe) => this.#applied(applied, restartRequired, outsideServe),
+      logReloaded: (applied, restartRequired, outsideServe) =>
+        this.#logReloaded(applied, restartRequired, outsideServe),
     });
-    this.#activeFile = diff.candidate.file;
-    this.#fileHash = file.hash;
-    this.#restartRequired = restartRequired;
-    this.#lastError = null;
-    if (this.#imageConfig !== undefined) {
-      // Same synchronous section as the configuration publish: no run can
-      // observe a configuration whose image snapshot has not been swapped.
-      // `undefined` publishes the disabled state: a missing (or stripped)
-      // image section is a valid target state, not an error.
-      this.#imageConfig.publish(imageSnapshot);
-    }
-    this.#imageSnapshotId = imageSnapshotId;
-    this.#onPublished();
-    this.#logReloaded(applied, restartRequired, outsideServe);
-    return this.#applied(applied, restartRequired, outsideServe);
-  }
-
-  /**
-   * Builds the candidate's registry. Every provider keeps the connection the
-   * running process already resolved unless the file describes a different one,
-   * so this is the only place a reload may resolve a SecretRef — a `command`
-   * reference therefore runs here, exactly as it does at startup.
-   */
-  async #buildRegistry(
-    candidate: RawConfig,
-  ): Promise<
-    | { readonly ok: true; readonly registry: ConfigurationModels }
-    | { readonly ok: false; readonly code: ConfigErrorCode; readonly error: string }
-  > {
-    try {
-      return {
-        ok: true,
-        registry: await buildModelRegistry(
-          candidate,
-          { file: this.#activeFile, models: this.#store.current().models },
-          this.#secrets,
-        ),
-      };
-    } catch (error) {
-      return {
-        ok: false,
-        code: error instanceof SecretResolutionError ? 'secret_unresolved' : 'model_unusable',
-        error: messageOf(error),
-      };
-    }
   }
 
   #applied(
@@ -483,8 +354,8 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
   /** A failed apply: the active configuration stays, and the status records why. */
   #failure(code: ConfigErrorCode, message: string, fileWritten: boolean): ConfigApplyResult {
     const redacted = this.#secrets.redact(message);
-    this.#lastError = { code, message: redacted, at: new Date().toISOString() };
-    console.log(JSON.stringify({ event: 'config_reload_failed', code, error: redacted, at: this.#lastError.at }));
+    this.#state.lastError = { code, message: redacted, at: new Date().toISOString() };
+    console.log(JSON.stringify({ event: 'config_reload_failed', code, error: redacted, at: this.#state.lastError.at }));
     return { ok: false, code, message: redacted, fileWritten, status: this.status() };
   }
 
@@ -495,7 +366,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
         event: 'config_reloaded',
         generation: current.generation,
         active_hash: current.hash,
-        file_hash: this.#fileHash,
+        file_hash: this.#state.fileHash,
         applied: applied.join(','),
         restart_required: restartRequired.join(','),
         outside_serve: outsideServe.join(','),
@@ -512,12 +383,4 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     );
     return await result;
   }
-}
-
-function pathsOf(changes: readonly ConfigChange[], kind: ConfigChange['kind']): readonly string[] {
-  return changes.filter((change) => change.kind === kind).map((change) => change.path);
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

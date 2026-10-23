@@ -13,11 +13,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { type ChatEntry, type ChatsView, type ProactiveReplyWrite, updateChatProactiveReply } from '@/lib/api';
+
 import { errorMessage } from '@/lib/errors';
 import { isConfigConflict } from '@/lib/model-manager';
 import { useProviderWrite } from '@/lib/use-provider-write';
 import { useTranslation } from 'react-i18next';
+import { updateChatProactiveReply } from '@/lib/api/chats.ts';
+import type { ChatEntry, ChatsView, ProactiveReplyWrite } from '@/lib/api/chats.ts';
 
 type ProactiveMode = 'inherit' | 'off' | 'custom';
 

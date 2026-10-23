@@ -1,0 +1,35 @@
+import type { apiKeys as apiKeysEn } from '../../en/pages/api-keys.ts';
+
+/** Mirrors `en/pages/api-keys.ts` key for key; the annotation fails the build on drift. */
+export const apiKeys: typeof apiKeysEn = {
+  title: 'API 密钥',
+  description:
+    '密钥允许 surowan-utils 客户端查询和查看 Invocation、读取脱敏配置与全局/群 Prompt、导出快照授权媒体，并使用临时 Prompt 覆盖进行重放，不能修改生产 Prompt、配置或管理密钥。重放会调用模型，可能产生费用。',
+  create: '创建 API 密钥',
+  name: '名称',
+  prefix: '前缀',
+  created: '创建时间',
+  lastUsed: '最近使用',
+  status: '状态',
+  actions: '操作',
+  active: '有效',
+  revoked: '已撤销',
+  neverUsed: '从未使用',
+  empty: '尚未创建 API 密钥。',
+  createDescription: '用设备或集成名称标识这把密钥，名称为 1–80 个字符。',
+  namePlaceholder: '例如：笔记本 CLI',
+  invalidName: '请输入 1–80 个字符的名称。',
+  createConfirm: '创建密钥',
+  creating: '创建中…',
+  saveTitle: '保存 API 密钥',
+  saveDescription: '明文只展示这一次。关闭前请复制到密码管理器或安全的环境变量中。关闭、离开或刷新页面后无法再次查看。',
+  keyLabel: 'API 密钥',
+  copy: '复制 API 密钥',
+  copyFailed: '复制失败，请选中密钥并手动复制。',
+  done: '完成',
+  revoke: '撤销',
+  revokeTitle: '撤销 API 密钥？',
+  revokeDescription: '要撤销“{{name}}”吗？密钥将立即失效且无法恢复，元数据仍会保留在列表中。',
+  revokeConfirm: '撤销密钥',
+  revokedMessage: 'API 密钥已撤销',
+};

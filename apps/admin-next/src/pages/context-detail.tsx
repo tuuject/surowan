@@ -14,13 +14,14 @@ import {
 } from '@/components/business';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+
+import { formatNumber, formatTime } from '@/lib/format';
+import { conversationContextQuery } from '@/lib/queries';
 import type {
   ConversationContextDetail,
   ConversationContextMessageEntry,
   ConversationContextRefEntry,
-} from '@/lib/api';
-import { formatNumber, formatTime } from '@/lib/format';
-import { conversationContextQuery } from '@/lib/queries';
+} from '@/lib/api/contexts.ts';
 
 function RoleBadge({ role }: { readonly role: string }): React.ReactElement {
   return <ToneBadge tone="neutral">{role}</ToneBadge>;

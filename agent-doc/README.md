@@ -38,6 +38,7 @@
 | 修改 Models 页模型健康检查、诊断审计或批量取消 | [admin-panel.md](admin-panel.md#models-页写端点)、[verification.md](verification.md#admin-panel-浏览器-e2e) |
 | 修改 `surowan-utils` 模型列表、临时模型重放或配套 Skill | [admin-panel.md](admin-panel.md)、[CLI 使用说明](../packages/cli/README.md)、[客户端 Skill](../skills/surowan-utils/SKILL.md) |
 | 新增或修改 Coding Agent Skill、外部 Skill 清单与安装 | [operations.md](operations.md#coding-agent-skills) |
+| 修改 pre-commit 文件 Token 上限、忽略清单或 git hook 安装 | [CONTRIBUTING.md](../CONTRIBUTING.md#提交检查pre-commit) |
 | 决定该运行哪些验证 | [verification.md](verification.md) |
 | 维护公开用户文档、首页、生成参考与静态构建 | [文档站维护](../apps/docs/README.md) |
 

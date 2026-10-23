@@ -1,4 +1,4 @@
-import type { HarnessValues } from './api.ts';
+import type { HarnessValues } from './api/config.ts';
 
 /**
  * Field metadata for the Harness page. The bounds mirror the configuration

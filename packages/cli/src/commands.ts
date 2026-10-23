@@ -11,7 +11,7 @@ import type {
   PromptsCommand,
   ReplayCommand,
   ReplayModelSelection,
-} from './args.ts';
+} from './args/types.ts';
 import { type AdminClient, isRecord } from './client.ts';
 import { CliError, usageError } from './errors.ts';
 import { runMedia } from './media.ts';

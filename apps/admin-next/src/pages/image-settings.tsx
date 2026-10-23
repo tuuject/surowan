@@ -2,33 +2,23 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { CredentialsFields } from '@/components/image-settings/credentials-fields.tsx';
+import { ModelList } from '@/components/image-settings/model-list.tsx';
+import { ModelPicker } from '@/components/image-settings/model-picker.tsx';
+import { SaveActions } from '@/components/image-settings/save-actions.tsx';
+import { type EditableCredential, type EditableModel, toModelPayload } from '@/components/image-settings/shared.ts';
 import { Panel } from '@/components/layout/panel';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+
+import { errorMessage } from '@/lib/errors';
 import {
   getImageConfig,
   getImageModelCatalog,
   getImageModelEndpoints,
   getImageStatus,
-  type ImageConfigView,
-  type ImageModelConfig,
   putImageConfig,
-} from '@/lib/api';
-import { errorMessage } from '@/lib/errors';
-
-const selectClass =
-  'h-10 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm transition-colors focus-visible:outline-ring disabled:opacity-50';
-
-/** Model row in the form: `key` is a stable React key, `description` is normalized to a string. */
-type EditableModel = ImageModelConfig & { key: string; description: string };
-
-/** Strip the stable key and omit empty descriptions before persisting. */
-function toModelPayload(model: EditableModel): ImageModelConfig {
-  const { key: _key, description, ...rest } = model;
-  return description.trim() === '' ? rest : { ...rest, description };
-}
+} from '@/lib/api/images.ts';
+import type { ImageConfigView } from '@/lib/api/images.ts';
 
 export default function ImageSettingsPage() {
   const { t } = useTranslation();
@@ -71,7 +61,7 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
   const queryClient = useQueryClient();
   const [enabled, setEnabled] = useState(initial.enabled);
   const credentialNames = [...new Set([...initial.credentials, ...initial.models.map((model) => model.credentialRef)])];
-  const [credentials, setCredentials] = useState(() =>
+  const [credentials, setCredentials] = useState<EditableCredential[]>(() =>
     (credentialNames.length > 0 ? credentialNames : ['openrouter']).map((name) => ({
       key: crypto.randomUUID(),
       name,
@@ -86,7 +76,7 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
             : '',
     })),
   );
-  const [models, setModels] = useState(() =>
+  const [models, setModels] = useState<EditableModel[]>(() =>
     [...new Map(initial.models.map((model) => [JSON.stringify(model), model])).values()].map((model) => ({
       ...model,
       key: crypto.randomUUID(),
@@ -112,6 +102,8 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
     staleTime: 5 * 60_000,
     retry: false,
   });
+  const catalogErrorText = catalog.isError ? errorMessage(catalog.error) : null;
+  const endpointsErrorText = endpoints.isError ? errorMessage(endpoints.error) : null;
   const selectedModel = catalog.data?.models.find((model) => model.id === modelId);
   const availableEndpoints = endpoints.data?.endpoints ?? [];
   const selectedEndpoint =
@@ -126,6 +118,13 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
   const alreadyAdded = models.some(
     (model) => model.upstreamModel === modelId && model.providerTag === selectedEndpoint?.providerTag,
   );
+  const canAddModel =
+    selectedModel !== undefined &&
+    selectedEndpoint !== undefined &&
+    selectedEndpoint.unavailableReason === null &&
+    selectedCredential !== '' &&
+    !alreadyAdded &&
+    models.length < 64;
   const editedCredentials = credentials.filter(
     (entry) => entry.saved || entry.name.trim() || entry.secret.trim() || entry.source,
   );
@@ -219,112 +218,15 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
     <div className="space-y-6">
       <Panel title={t('image.settings.enablePanelTitle')}>
         <fieldset disabled={save.isPending} className="min-w-0 space-y-5">
-          <div className="flex items-center gap-3">
-            <input
-              id="image-enabled"
-              type="checkbox"
-              checked={enabled}
-              onChange={(event) => setEnabled(event.target.checked)}
-              className="size-4"
-            />
-            <Label htmlFor="image-enabled">{t('image.settings.enableLabel')}</Label>
-          </div>
-          {enabled && (
-            <>
-              <p className="text-muted-foreground text-sm">{t('image.settings.credentialsHint')}</p>
-              {credentials.map((entry, index) => (
-                <div key={entry.key} className="grid gap-3 sm:grid-cols-[160px_1fr]">
-                  <div className="space-y-2">
-                    <Label htmlFor={`credential-name-${index}`}>{t('image.settings.credentialName')}</Label>
-                    <Input
-                      id={`credential-name-${index}`}
-                      value={entry.name}
-                      disabled={entry.saved || models.some((model) => model.credentialRef === entry.name)}
-                      onChange={(event) =>
-                        setCredentials((current) =>
-                          current.map((item) =>
-                            item.key === entry.key ? { ...item, name: event.target.value } : item,
-                          ),
-                        )
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    {!entry.saved && initial.credential_providers.length > 0 && (
-                      <div className="space-y-2">
-                        <Label htmlFor={`credential-source-${index}`}>{t('image.settings.keySource')}</Label>
-                        <select
-                          id={`credential-source-${index}`}
-                          className={selectClass}
-                          value={entry.source}
-                          onChange={(event) =>
-                            setCredentials((current) =>
-                              current.map((item) =>
-                                item.key === entry.key ? { ...item, source: event.target.value, secret: '' } : item,
-                              ),
-                            )
-                          }
-                        >
-                          <option value="">{t('image.settings.newKeyOption')}</option>
-                          {initial.credential_providers.map((alias) => (
-                            <option key={alias} value={alias}>
-                              {t('image.settings.savedCredentialOption', { alias })}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                    {entry.source === '' && (
-                      <>
-                        <Label htmlFor={`credential-key-${index}`}>{t('image.settings.apiKeyLabel')}</Label>
-                        <Input
-                          id={`credential-key-${index}`}
-                          type="password"
-                          autoComplete="new-password"
-                          placeholder={
-                            initial.credentials.includes(entry.name)
-                              ? t('image.settings.configuredPlaceholder')
-                              : t('image.settings.newKeyPlaceholder')
-                          }
-                          value={entry.secret}
-                          onChange={(event) =>
-                            setCredentials((current) =>
-                              current.map((item) =>
-                                item.key === entry.key ? { ...item, secret: event.target.value } : item,
-                              ),
-                            )
-                          }
-                        />
-                      </>
-                    )}
-                  </div>
-                  {!entry.saved && credentials.length > 1 && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="sm:col-span-2 sm:justify-self-start"
-                      disabled={models.some((model) => model.credentialRef === entry.name)}
-                      onClick={() => setCredentials((current) => current.filter((item) => item.key !== entry.key))}
-                    >
-                      {t('image.settings.removeCredential')}
-                    </Button>
-                  )}
-                </div>
-              ))}
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() =>
-                  setCredentials((current) => [
-                    ...current,
-                    { key: crypto.randomUUID(), name: '', secret: '', saved: false, source: '' },
-                  ])
-                }
-              >
-                {t('image.settings.addCredential')}
-              </Button>
-            </>
-          )}
+          <CredentialsFields
+            enabled={enabled}
+            onEnabledChange={setEnabled}
+            credentials={credentials}
+            setCredentials={setCredentials}
+            models={models}
+            savedNames={initial.credentials}
+            credentialProviders={initial.credential_providers}
+          />
         </fieldset>
       </Panel>
       {enabled && (
@@ -347,233 +249,40 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
           }
         >
           <fieldset disabled={save.isPending} className="min-w-0 space-y-5">
-            <p className="text-muted-foreground text-sm">{t('image.settings.modelsHint')}</p>
-            {catalog.isError && (
-              <p role="alert" className="text-destructive text-sm">
-                {t('image.settings.catalogError', { error: errorMessage(catalog.error) })}
-              </p>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="image-model-search">{t('image.settings.searchModels')}</Label>
-              <Input
-                id="image-model-search"
-                placeholder={t('image.settings.searchPlaceholder')}
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="image-model-select">{t('image.settings.modelSelectLabel')}</Label>
-              <select
-                id="image-model-select"
-                className={selectClass}
-                value={modelId}
-                disabled={catalog.isPending || visibleModels.length === 0}
-                onChange={(event) => {
-                  setModelId(event.target.value);
-                  setProviderTag('');
-                }}
-              >
-                <option value="">
-                  {catalog.isPending
-                    ? t('image.settings.fetchingModelsOption')
-                    : visibleModels.length === 0
-                      ? t('image.settings.noMatchingModels')
-                      : t('image.settings.selectModelOption')}
-                </option>
-                {visibleModels.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.name} ({model.id})
-                  </option>
-                ))}
-              </select>
-            </div>
-            {modelId && (
-              <div className="space-y-3">
-                {endpoints.isPending ? (
-                  <p role="status" className="text-muted-foreground text-sm">
-                    {t('image.settings.readingEndpoints')}
-                  </p>
-                ) : endpoints.isError ? (
-                  <div role="alert" className="space-y-2">
-                    <p className="text-destructive text-sm">
-                      {t('image.settings.endpointsError', { error: errorMessage(endpoints.error) })}
-                    </p>
-                    <Button size="sm" variant="outline" onClick={() => void endpoints.refetch()}>
-                      {t('image.settings.retryProviders')}
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="image-provider-select">{t('image.settings.provider')}</Label>
-                      <select
-                        id="image-provider-select"
-                        className={selectClass}
-                        value={selectedEndpoint?.providerTag ?? ''}
-                        onChange={(event) => setProviderTag(event.target.value)}
-                      >
-                        {!selectedEndpoint && <option value="">{t('image.settings.noProviders')}</option>}
-                        {availableEndpoints.map((endpoint) => (
-                          <option
-                            key={endpoint.providerTag}
-                            value={endpoint.providerTag}
-                            disabled={endpoint.unavailableReason !== null}
-                          >
-                            {endpoint.providerName}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    {selectedEndpoint ? (
-                      <ModelCapabilities capabilities={selectedEndpoint.capabilities} />
-                    ) : (
-                      <p role="status" className="text-muted-foreground text-sm">
-                        {availableEndpoints[0]?.unavailableReason ?? t('image.settings.noAvailableProvider')}
-                      </p>
-                    )}
-                  </>
-                )}
-                {credentials.length > 1 && (
-                  <div className="space-y-2">
-                    <Label htmlFor="image-credential-select">{t('image.settings.useCredential')}</Label>
-                    <select
-                      id="image-credential-select"
-                      className={selectClass}
-                      value={selectedCredential}
-                      onChange={(event) => setCredentialRef(event.target.value)}
-                    >
-                      {credentials
-                        .filter((entry) => entry.name !== '')
-                        .map((entry) => (
-                          <option key={entry.key}>{entry.name}</option>
-                        ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-            )}
-            <Button
-              variant="outline"
-              disabled={
-                !selectedModel ||
-                !selectedEndpoint ||
-                selectedEndpoint.unavailableReason !== null ||
-                !selectedCredential ||
-                alreadyAdded ||
-                models.length >= 64
-              }
-              onClick={addModel}
-            >
-              {alreadyAdded ? t('image.settings.alreadyAdded') : t('image.settings.addModel')}
-            </Button>
-            {mergedDuplicates > 0 && (
-              <p className="text-muted-foreground text-sm">
-                {t('image.settings.mergedDuplicates', { count: mergedDuplicates })}
-              </p>
-            )}
-            {models.length === 0 ? (
-              <p className="text-muted-foreground text-sm">{t('image.settings.noModelsYet')}</p>
-            ) : (
-              <ul className="space-y-5">
-                {models.map((model) => (
-                  <li key={model.key} className="space-y-2">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 space-y-1">
-                        <p className="text-sm font-medium">{model.name}</p>
-                        <p className="text-muted-foreground break-all text-xs">
-                          {model.upstreamModel} · {model.providerTag} ·{' '}
-                          {t('image.settings.credentialRef', { name: model.credentialRef })}
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        aria-label={t('image.settings.removeModel', { name: model.name })}
-                        onClick={() => setModels((current) => current.filter((item) => item !== model))}
-                      >
-                        {t('image.settings.remove')}
-                      </Button>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`model-description-${model.key}`}>
-                        {t('image.settings.modelDescriptionLabel')}
-                      </Label>
-                      <Textarea
-                        id={`model-description-${model.key}`}
-                        rows={2}
-                        maxLength={1000}
-                        value={model.description}
-                        placeholder={t('image.settings.modelDescriptionPlaceholder')}
-                        onChange={(event) =>
-                          setModels((current) =>
-                            current.map((item) =>
-                              item.key === model.key ? { ...item, description: event.target.value } : item,
-                            ),
-                          )
-                        }
-                      />
-                      <p className="text-muted-foreground text-xs">{t('image.settings.modelDescriptionHint')}</p>
-                    </div>
-                    <ModelCapabilities capabilities={model.capabilities} />
-                  </li>
-                ))}
-              </ul>
-            )}
+            <ModelPicker
+              catalogPending={catalog.isPending}
+              catalogErrorText={catalogErrorText}
+              search={search}
+              onSearchChange={setSearch}
+              modelId={modelId}
+              onModelChange={(value) => {
+                setModelId(value);
+                setProviderTag('');
+              }}
+              visibleModels={visibleModels}
+              endpointsPending={endpoints.isPending}
+              endpointsErrorText={endpointsErrorText}
+              onRetryEndpoints={() => void endpoints.refetch()}
+              availableEndpoints={availableEndpoints}
+              selectedEndpoint={selectedEndpoint}
+              onProviderTagChange={setProviderTag}
+              credentials={credentials}
+              selectedCredential={selectedCredential}
+              onCredentialChange={setCredentialRef}
+              alreadyAdded={alreadyAdded}
+              canAdd={canAddModel}
+              onAddModel={addModel}
+            />
+            <ModelList models={models} setModels={setModels} mergedDuplicates={mergedDuplicates} />
           </fieldset>
         </Panel>
       )}
-      {validationError && (
-        <p id="image-save-requirements" role="status" className="text-sm text-muted-foreground">
-          {validationError}
-        </p>
-      )}
-      {save.isError && validationError === null && (
-        <p role="alert" className="text-destructive text-sm">
-          {errorMessage(save.error)}
-        </p>
-      )}
-      <Button
-        onClick={() => {
-          if (validationError !== null) {
-            toast.error(validationError);
-            return;
-          }
-          save.mutate();
-        }}
-        aria-describedby={validationError ? 'image-save-requirements' : undefined}
-        disabled={save.isPending}
-      >
-        {save.isPending ? t('common.saving') : t('image.settings.saveAndApply')}
-      </Button>
+      <SaveActions
+        validationError={validationError}
+        saveErrorText={save.isError && validationError === null ? errorMessage(save.error) : null}
+        savePending={save.isPending}
+        onSave={() => save.mutate()}
+      />
     </div>
-  );
-}
-
-function ModelCapabilities({ capabilities }: { capabilities: ImageModelConfig['capabilities'] }) {
-  const { t } = useTranslation();
-  const qualityNames: Record<string, string> = {
-    auto: t('image.settings.enumAuto'),
-    low: t('image.settings.enumLow'),
-    medium: t('image.settings.enumMedium'),
-    high: t('image.settings.enumHigh'),
-  };
-  return (
-    <p className="text-muted-foreground text-xs leading-relaxed">
-      {capabilities.imageInput
-        ? t('image.settings.capabilitiesInput', { count: capabilities.maxInputImages })
-        : t('image.settings.capabilitiesTextOnly')}{' '}
-      · {t('image.settings.capabilitiesOutputs', { count: capabilities.maxOutputs })}
-      <br />
-      {t('image.settings.aspectRatiosLabel', {
-        values: capabilities.aspectRatios
-          .map((value) => (value === 'auto' ? t('image.settings.enumAuto') : value))
-          .join('、'),
-      })}
-      {' · '}
-      {t('image.settings.qualityLabel', {
-        values: capabilities.resolutionClasses.map((value) => qualityNames[value] ?? value).join('、'),
-      })}
-    </p>
   );
 }

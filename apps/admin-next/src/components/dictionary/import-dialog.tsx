@@ -17,16 +17,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  type DictionaryChatOption,
-  type DictionaryDraft,
-  type DictionaryExportFormat,
-  type DictionaryImportPreview,
-  type DictionaryScope,
-  importDictionaryEntries,
-  previewDictionaryImport,
-} from '@/lib/api.ts';
+
 import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
+import { importDictionaryEntries, previewDictionaryImport } from '@/lib/api/dictionary.ts';
+import type {
+  DictionaryChatOption,
+  DictionaryDraft,
+  DictionaryExportFormat,
+  DictionaryImportPreview,
+  DictionaryScope,
+} from '@/lib/api/dictionary.ts';
 
 /**
  * Import flow: pick a CSV/JSONL file or paste content, ask the server for a

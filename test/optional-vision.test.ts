@@ -10,11 +10,11 @@ import { MediaService } from '../src/capabilities/media/media.ts';
 import { StickerService } from '../src/capabilities/stickers.ts';
 import { ContextBuilder } from '../src/context/context-builder.ts';
 import { ContextRefStore } from '../src/context/context-refs.ts';
-import { visionEdits } from '../src/ingress/admin/providers-admin.ts';
+import { visionEdits } from '../src/ingress/admin/providers-admin-write.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { KeyedSemaphore } from '../src/platform/concurrency.ts';
-import { VISION_DEFAULTS } from '../src/platform/config.ts';
+
 import { type ConfigChange, diffConfig } from '../src/platform/config-diff.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import {
@@ -24,6 +24,7 @@ import {
   testConfigStore,
   writeTestConfig,
 } from './helpers.ts';
+import { VISION_DEFAULTS } from '../src/platform/config-resolve.ts';
 
 const directories: string[] = [];
 

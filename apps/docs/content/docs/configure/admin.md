@@ -34,17 +34,17 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 - **Chats**：管理 Chat/Topic allowlist 与每群模型覆盖。新增 Chat 立即生效；删除 Chat 与 Topic 范围需重启；已有 Chat 的模型覆盖可热应用。每行 Chat 的「打开相关页面」菜单可直接进入该群的 Prompt、辞典、记忆、消息、Invocation 与 Alarm 视图；这些页面用 URL 的 `chat` 查询参数记住群范围（如 `/messages?chat=123456789`），可收藏或分享，页面内改选 Chat 时该参数会同步更新。
 - **Chats · 活跃时间**：每行 Chat 的时钟按钮编辑该群的活跃时段，支持多个时间段并按星期生效，保存后立即应用。三种模式：不限制（移除本群时段，已配置全局时段时按全局执行）、无固定时段（仅 @、回复或触发关键词可唤醒）、自定义时段。图表按该群时区显示一周各天的时段条，并标记当前时间位置。
 - **Chats · 主动回复**：每行 Chat 的星形按钮编辑普通群消息的主动参与概率；可跟随全局、关闭或自定义首次机会 / 每次增加 / 最多尝试次数。直接 @、回复 Bot 与触发关键词不受影响；保存后热应用，见[控制主动插话频率](../guides/proactive-replies.md)。
-- **Prompts**：编辑全局人格与每群附加指令，查看版本历史、比较差异并恢复旧版本；保存后由下一次 Invocation 生效，见下文。
+- **Prompts**：编辑全局人格与每群附加指令，查看版本历史、比较差异并恢复旧版本；保存后由下一次 Invocation 生效，见 [编辑 Prompt 与版本历史](admin-prompts.md)。
 - **Memories**：查看、编辑或删除短期记忆；长 TTL 记忆应由人工审核，不要把它当永久知识库。
 - **Dictionary**：维护全局与群组术语、别名和解释，查看冲突，审阅 AI 融合建议，批量导入导出并设置自动注入模式，见[辞典指南](../guides/dictionary.md)。
 - **图片生成 / 生图记录 / 图片资产**：图片生成工作台（提交、解析预览、实时查看输出）、全部生成的审计与重试、提示词素材与参考图库管理，见[图片生成](../guides/images.md)。
 - **图片设置**：图片功能的启用开关、生图凭据与模型配置。保存后立即应用，不需要重启；禁用会删除整个 `image` 段并清理不再引用的 key jar 条目。
 - **Settings**：对手改配置使用 **Apply config file**，并查看 Saved 与 Running 状态及 `restart_required`。
 - **Panel preferences**（Account 组）：只对当前浏览器生效的显示选项：主题、界面语言（右上角按钮也能切换），以及是否在设置项下显示 `config.jsonc` 键名（默认关闭）。选项保存在浏览器本地，不写入配置文件，其他浏览器与管理员互不影响。
-- **Harness tuning**：调整 Agent 的运行上限与发送行为（预算、并发、发送规则、限流、Context 保留与记忆审核）以及全局主动回复默认值，保存后由下一次 Invocation 生效，见下文。
-- **Developer**：按需记录模型调用的调试报文，或在确认后清除已有报文。
-- **API keys**（Manage 组）：创建、查看与撤销供 CLI 与评估工具使用的密钥，明文只在创建弹窗中出现一次，见下文。
-- **Invocation 重放**：仍只有携带 API 密钥的 CLI/API 入口，没有页面入口；只读的配置/prompt 检查、可用模型列表、场景 prompt、Invocation 搜索、重放预检与媒体导出同样在 CLI/API 层提供，见下文。
+- **Harness tuning**：调整 Agent 的运行上限与发送行为（预算、并发、发送规则、限流、Context 保留与记忆审核）以及全局主动回复默认值，保存后由下一次 Invocation 生效，见 [Harness tuning](admin-harness-tuning.md)。
+- **Developer**：按需记录模型调用的调试报文，或在确认后清除已有报文，见 [Developer 调试开关](admin-developer.md)。
+- **API keys**（Manage 组）：创建、查看与撤销供 CLI 与评估工具使用的密钥，明文只在创建弹窗中出现一次，见 [API 密钥](admin-api-keys.md)。
+- **Invocation 重放**：仍只有携带 API 密钥的 CLI/API 入口，没有页面入口；只读的配置/prompt 检查、可用模型列表、场景 prompt、Invocation 搜索、重放预检与媒体导出同样在 CLI/API 层提供，见 [Invocation 重放](admin-invocation-replay.md)。
 
 ## 查看和复制 Telegram ID
 
@@ -96,122 +96,16 @@ Passkey 遗失，或因更换域名、关闭 Passkey 功能而无法登录时，
 
 重置会替换该账号的密码、删除其**全部** Passkey 与登录 Session；API 密钥不受影响，首次设置流程不会重新打开。恢复或设置好密码后，再删除或更换 `public_url`/域名——改动之前请先确认至少保留一个可用登录方式。
 
-## Harness tuning
-
-Harness tuning 页集中编辑 `config.jsonc` 中 `agent` 段的运行参数：每日 Token 预算、并发、历史条数、Context 收尾比例、`send` 的文本规则与开关、发送限流、Conversation Context 的保留/裁剪/等待参数，以及记忆的长 TTL 警告天数；「Proactive replies」一组编辑 `telegram.proactive_reply` 的全局默认值（开关、首次机会、每次增加、最多尝试次数，概率按 0–1 填写），单个群的覆盖仍在 **Chats** 页。Agent 模型与 thinking 档位仍在 **Models** 页，系统提示在 **Prompts** 页。
-
-- 想对照 `config.jsonc` 时，在 **Panel preferences** 打开「显示 config.jsonc 键名」，每个字段下方会标出对应的配置路径（如 `agent.context.ref_ttl_hours`），可以对照[配置参考](../reference/config.md)。
-- 可以一次改多项，点 **Save and apply** 一起写回 `config.jsonc` 并立即应用；**Discard changes** 恢复为文件里的值。只有真正改动的字段会写入文件，注释与格式保持不变。
-- 超出范围的值在页面上直接标红；需要结合多个字段判断的规则（例如保留发送目标必须小于上限）由服务端校验，失败时文件保持不变并显示原因。
-- **生效时机**：之后开始的 Invocation 使用新值，正在运行的 Invocation 继续用启动时的值。每日 Token 预算实时读取；引用有效期只影响之后签发或续期的引用；Agent 缓存数在下一次缓存时按新上限逐出，不会丢历史。
-- 文件已写入但应用失败时，字段下会显示「Running: …」的运行值；修复后在 Settings 点击 **Apply config file**。
-
-## Developer 调试开关
-
-Developer 页提供两个调试开关，都写回 `config.jsonc`，保存成功后立即应用：
-
-```jsonc
-{
-  "developer": {
-    "record_model_payloads": false,
-    "record_agent_thinking": false
-  }
-}
-```
-
-- **记录原始请求报文以便调试**：开启后在 Invocation 详情里保存模型调用的原始请求与响应快照，供排查问题；可能显著增加数据库占用。
-
-整个 `developer` 节和其中的字段均可省略，缺省为 `false`。关闭后仍记录 Invocation、模型与工具调用、Token/缓存用量、费用、状态和错误；已保存的历史报文不会自动删除。开启会增加数据库占用，建议只在排查问题时启用。现有调试快照包含模型请求（内联图片正文替换为摘要）与 HTTP 响应状态，不保存完整响应流。
-
-- **记录 Agent 思考过程（CoT）**：开启后把 Assistant 消息的思考文本（模型的 CoT）与 response 正文分开保存在 Agent transcript 与时间线里，可折叠查看；Agent transcript 依然只展示私有推理，不会发布到 Telegram。同样缺省关闭、可热应用，开启前的消息不补录。
-
-「清除此前记录的原始请求报文」需要二次确认，只清除模型调用的请求/响应调试快照，不影响基于公开消息的场景重放。调用记录、关联关系和统计保留；详情页会显示报文未记录或已清除。记录开关仍开启时，新报文会继续保存。清除按批执行；若中途失败，已完成的批次不会恢复，可重试清除。清除不会删除 `thinking_text`：CoT 属于 Agent transcript 审计，随在线保留窗口一起清理。
-
-SQLite 释放的页可供后续写入复用，但数据库文件不一定立即缩小。此操作不会执行 `VACUUM`，也不清理已有备份；备份与恢复仍遵循[原有维护流程](../operations/backup-restore.md)。
-
-## 编辑 Prompt 与版本历史
-
-面板的 **Prompts** 页面直接编辑两层 Prompt：全局人格（配置里的 `agent.system_prompt_file`）与每个群的附加指令（`telegram.chats[].instructions_file`）。编辑的就是配置文件引用的那两个文件，保存写入去掉 HTML 注释后的正文，文件里原先的 HTML 注释不会保留；两层 Prompt 的含义、模板变量与手工修改方式见[配置人格与每群指令](../guides/personality.md)。这些操作只接受面板登录 Session，API 密钥不能编辑 Prompt。
-
-- **生效时机**：保存后按热更新流程应用，**下一次**开始的 Invocation 使用新内容；正在运行的 Invocation 继续用启动时的快照。Prompt 变化会重建受影响的 Conversation Context，该会话下一轮按新的稳定提示重新开始。
-- **并发保护**：编辑器基于打开时的 Prompt 内容哈希。文件在打开后被别人改过时，保存返回冲突并要求重新加载，不会静默覆盖；只改注释不算冲突，也不产生新版本。
-- **版本历史**：每次保存追加一个版本；手改 Prompt 文件后，启动服务或下一次显式应用会把它记成 `external` 版本（去注释后内容与上一条相同则不记录）。恢复旧版本不会删除任何历史，而是追加一个 `rollback` 版本（默认备注 `Restored from version N`）。每个范围只保留最近 100 个版本，且不随在线保留期清理——Prompt 历史是配置，不是会话数据。任意两个同范围版本之间可查看 unified 风格的差异（上下文/删除/新增行与两侧行号）。
-- **新建群指令**：某个群还没有 `instructions_file` 时，保存会在配置文件旁生成 `prompts/chat-<id>.md` 并把它补进配置；该路径已存在未被引用的文件时会拒绝保存而不是覆盖它。
-- **取消仍按旧 Prompt 运行的 Invocation**：保存或恢复后，如果有仍在旧 Prompt 上运行的 Invocation，面板会先询问是否取消，不会自动执行。确认后只取消这些运行：它们已挂载但尚未注入的批次会过期，已发出的消息与已完成的效果不会被撤销；正在收集或已排队的批次不受影响，因为它们是尚未开始的 Invocation，会以新 Prompt 起步。
-- **失败时**：Prompt 文件已写入、版本已记录但配置没有应用时，面板会明确提示；按显示的 `last error` 处理，不要当作已回滚。
-
-## API 密钥
-
-在面板的 **Manage → API keys**（`/api-keys`）页面创建、查看与撤销密钥；操作需要管理员登录 Session，API 密钥本身不能管理密钥。密钥用于 CLI 与评估工具，安装与用法见 [CLI 参考](../reference/cli.md)。
-
-- 列表显示 **Name**、**Prefix**、**Created**、**Last used**、**Status**（**Active** / **Revoked**）与 **Actions**，任何时刻都不回显明文；从未使用过的密钥在 **Last used** 显示 **Never used**。
-- 点 **Create API key** 只需填写 **Name**（1–80 字符），再点 **Create key**。成功后 **Save your API key** 弹窗显示一次完整明文，可点 **Copy API key** 复制；点 **Done** 或关闭弹窗、切换页面、刷新后都无法再查看，请立即存进密码管理器或部署环境变量。
-- 页面不把明文写入浏览器 `localStorage`/`sessionStorage` 或查询缓存，列表接口也不返回它。复制失败时弹窗保留文字并提示手动复制。
-- 点行内 **Revoke** 后需在确认框点 **Revoke key**；撤销立即生效且不可恢复，密钥行与元数据保留，**Status** 变为 **Revoked**，不再提供撤销操作。
-
-密钥的能力范围是只读检查与 Invocation 读/重放：允许查看当前配置与 global/group prompt 的脱敏视图、比较磁盘配置、列出当前 active 配置中可接受文本输入的已配置模型（`GET /api/models`，不探测 Provider）、读取 Invocation 场景将使用的当前两层 prompt、运行免费的重放预检、下载该 Invocation 快照授权的媒体，以及读取 Invocation 列表/详情并发起重放；它不能读取其它审计（Overview、Messages、Contexts、记忆等）、不能修改配置，也不能管理密钥。请求带密钥时服务器不再使用浏览器 Cookie，因此用密钥访问其它接口不会因为面板已登录而放行。列表里的 `last_used_at` 在每次密钥通过校验时更新；撤销后立即失效。明文遗失只能撤销后重建。请把密钥当密码对待，不要粘贴进聊天、日志或提交到仓库。
-
-## Invocation 重放
-
-重放从已经结束的 Invocation 重建一段历史公开聊天场景，用当前 Prompt、模型与工具定义观察它会怎样回复。入口是携带 API 密钥的 CLI/API，面板登录会话不能直接重放；免费的预检、场景 prompt 查看与媒体导出也没有页面入口。它不会发送 Telegram 消息、不修改生产会话与业务数据（鉴权仍更新密钥使用时间），但会**真实调用模型并计费**，不计入生产用量预算。交给 Agent 时，明确授权目标 ID、次数与可选覆盖（prompt 与临时模型/thinking），不把查询授权当重放授权。
-
-不需要开启 Developer 报文录制；关闭录制或清除调试报文不影响场景重建，也不要求源 Invocation 曾调用模型。需要仍在保留期内的开场公开消息；尚未结束、开场缺失或损坏、Chat/Topic 已不允许或当前模型不可用时会明确拒绝，先用免费预检确认。
-
-```bash
-# 免费预检：能否重放、能否覆盖 prompt；不调用模型
-surowan-utils invocation preflight 12345 --json
-# 查看该场景使用的当前两层 prompt（source: active，不是历史记录）
-surowan-utils invocation prompts 12345 --json
-# 列出当前 active 配置中可接受文本输入的已配置模型（免费、不探测 Provider；列表不是授权）
-surowan-utils models list --json
-
-surowan-utils invocation replay 12345 --json
-# 临时替换 global / group 层（每层最多 64Ki 字符；不写回配置）
-surowan-utils invocation replay 12345 --global-prompt prompt.txt --json
-surowan-utils invocation replay 12345 --group-prompt group.txt --json
-printf '%s' '临时替换的 global prompt' | surowan-utils invocation replay 12345 --global-prompt - --json
-
-# 临时模型/thinking 覆盖：--provider 与 --model 必须成对，预检与重放必须使用同一选择
-surowan-utils invocation preflight 12345 --provider openrouter --model deepseek/deepseek-v4-flash-0731 --thinking-level high --json
-surowan-utils invocation replay 12345 --provider openrouter --model deepseek/deepseek-v4-flash-0731 --thinking-level high --json
-
-# 切片重放：只重放某次成功 Bot 发言之前的一小段公开输入，需确认计费
-surowan-utils invocation preflight 12345 --before-send 678 --json
-surowan-utils invocation replay 12345 --before-send 678 --confirm-paid --json
-```
-
-### 临时模型/thinking 覆盖
-
-默认按当前 Chat 配置解析模型与 thinking；`invocation preflight`/`replay` 可临时覆盖：
-
-- `--provider <alias>` 与 `--model <id>` 必须成对（1–256 字符、不含控制字符），`--thinking-level` 取 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max` 且可单独使用（只临时改 thinking，模型沿用当前 Chat 配置）；本地校验失败以 `invalid_model_override`/`invalid_thinking_level`、退出码 2 拒绝，不发任何请求。
-- 给模型对而不给 thinking 时，使用该模型支持的最弱级别（非推理模型为 `off`）；请求模型不支持的级别会被拒绝；未给任何选择时按当前 Chat 配置。
-- 预检与重放必须使用同一选择：CLI 把相同的 `provider`/`model`/`thinking_level` 放进预检查询与 POST body，可与 `--before-send` 切片和 prompt 覆盖组合。
-- 覆盖不修改生产配置、Context、审计或预算；选中模型影响 prompt 变量、图片能力、context budget、Schema、Provider 连接与成本。响应的 `model`（`{ provider, id, thinking_level }`）与 `fidelity.model_selection`（`current_chat_config`/`temporary_override`）可核对实际使用的选择。`models list` 只列出 active 配置中接受文本输入的已配置模型，不保证连通，列表不构成使用授权。
-
-### 切片重放
-
-给出 `--before-send <telegram_sends 内部 ID>` 时，重放不再从整个开场批次重建场景，而是只取该次成功 Bot 发言之前的一小段公开输入：
-
-- 窗口严格位于上一条 Bot 发言之后、目标发言之前（两端不含），目标必须是本 Invocation 的成功发送；上一条 Bot 发言可以来自同一 Conversation 的另一次 Invocation。没有上一条 Bot 发言时，从保留输入的开头开始。
-- 只包含冻结且已注入的公开消息：目标发言之前已注入的批次会被拍平后一次性灌入，不按 Bucket 或历史节奏等待（模型并发与网络延迟仍可能造成等待）；附加批次的注入时间必须严格早于发送请求开始，同毫秒无法证明先后时保守省略。没有更早历史，也不读取历史的 reasoning、工具结果或 system prompt。
-- 原 Bot 回答不进入模型，只保留在审计里作为对照；回复引用不能跨出该窗口。返回的 `scene.slice` 为 `{ before_send_id, before_message_id, after_bot_message_id }`，`history_count` 为 0，`cutoff_at` 取该次发送请求的开始时间（不是交付完成时间）。
-- 窗口内没有新的公开消息返回 `replay_slice_empty`，目标不是本 Invocation 的成功发送返回 `replay_slice_target_invalid`。切片重放同样真实调用模型并计费，需要显式 `--confirm-paid`；缺失时 CLI 以 `confirm_paid_required`、退出码 2 拒绝，不读取 prompt 或 stdin，也不发预检或 POST。免费预检不接受该确认参数；预检与重放必须使用同一个 `--before-send`。
-- 目标发言 ID 可以先搜索：`surowan-utils invocation list --search '关键词' --at '2026-09-10 07:59' --json`，命中项里的 bot 条目带 `telegram_send_id`，可作为 `--before-send` 候选，再用同一 ID 预检。搜索也保留该 Invocation 向其他 Conversation 的真实发送；这类发送不能作为该 Invocation 的切片目标。
-
-限制与取舍：
-
-- 默认输入是开场批次的冻结公开消息与当时可证明存在的历史，不加入后续批次与热注入；切片重放只取 `--before-send` 窗口内的冻结输入，并拍平可证明在发送前已注入的批次。两种模式都不加入后来编辑，当前上下文预算、Topic 范围与话题切点仍可能收窄场景；默认模式还受当前历史长度限制。不是恢复历史私有推理、工具结果或完整 Conversation Context。
-- prompt、模板变量、模型、思考强度与工具定义默认取**当前**该 Chat 的配置；`invocation prompts` 返回 `source: active`，不能当历史记录。重放可临时覆盖模型/thinking（`--provider`/`--model` 成对、`--thinking-level` 可单独），只影响本次运行、不写回配置，但会改变 prompt 变量、图片能力、上下文预算、Schema、Provider 连接与真实费用；实际选择见响应的 `model` 与 `fidelity.model_selection`（`current_chat_config`/`temporary_override`）。只允许覆盖 global/group，固定协议和整体 system prompt **不能**覆盖；global 不能清空，group 可以清空，模板按当前白名单校验。
-- `send` 只收集到 `outputs`，校验当前参数、文字限制与场景内的回复目标，不执行真实发送限流或 Sticker/生成资产的世界状态检查。记忆和 Alarm 从空内存开始，typing、生图、`zzz` 只合成；`read` 读取当前系统文档。
-- 当前模型支持图片时，可按需读取本次场景授权且仍保留的 Photo、Sticker 与图片 Document，引用不跨场景；读图只下载/规范化图片给当前模型，不调用生产 Vision 或写分析缓存。缺失、不支持或下载失败会明确省略/报错，`omitted_images` 不代表之后下载成功的保证。网页抓取、Sticker 搜索、MCP 和未支持能力被拒绝。
-- 场景时间默认为开场冻结时间，切片模式取目标发送请求的开始时间（不是交付完成时间）；不恢复当时记忆/回执，不模拟全局睡眠、发送提醒或新消息发送屏障。当前低预算可暴露 `zzz`，但执行不写睡眠状态。
-- 返回的 `fidelity` 与 `overrides` 字段列出这些边界；`dispatches` 里的 `mode`（`synthetic`/`live_read`/`blocked`）只是调用走的分派路线，不代表调用成功，成功与否看 `tool_calls`。`error` 非空表示重放没有正常完成，完整结构仍会返回。
-- 同时只允许一个重放；轮次、时长、工具尝试次数与 `trace` 记录有上限，超限会明确报错结束。`trace` 的 1 MiB 预算只约束记录内容；CLI 不设 JSON 响应体大小上限，完整读取后解析，仍受请求超时约束。重放中的模型请求不自动重试。模型选择不发言（输出里没有 `send`）也是正常结果。
-- CLI 在重放前先跑预检，不可重放或不允许覆盖时不会发送 POST。媒体导出（`invocation media`）只读下载 Invocation 快照授权的媒体，不是视觉保真修复，也不改变重放输入。
-
 ## 验证与风险
 
 启动日志需要有 `admin_started`。设置页面显示“已保存”不一定等于运行中已使用：若有待重启字段，确认外部监督器已重启服务后再检查配置哈希。不要共享面板密码、Cookie 或从浏览器导出的请求。
 
 面板打不开时，请看 [排查问题](../operations/troubleshooting.md)。
+
+## 相关页面
+
+- [Harness tuning](admin-harness-tuning.md)
+- [Developer 调试开关](admin-developer.md)
+- [编辑 Prompt 与版本历史](admin-prompts.md)
+- [API 密钥](admin-api-keys.md)
+- [Invocation 重放](admin-invocation-replay.md)

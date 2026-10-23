@@ -6,9 +6,12 @@ import Header from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
-import { ApiError, logout, type SessionState } from '@/lib/api';
+
 import { sessionQuery } from '@/lib/queries';
 import { LoginForm, SetupForm } from '@/pages/auth';
+import { ApiError } from '@/lib/api/core.ts';
+import type { SessionState } from '@/lib/api/core.ts';
+import { logout } from '@/lib/api/auth.ts';
 
 const UNAUTHENTICATED_SESSION: SessionState = {
   setup_required: false,

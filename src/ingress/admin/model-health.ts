@@ -2,13 +2,14 @@ import type { AssistantMessage } from '@earendil-works/pi-ai';
 import { eq } from 'drizzle-orm';
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
-import { PROVIDER_ALIAS_PATTERN } from '../../platform/config.ts';
+
 import { deepEqual } from '../../platform/config-diff.ts';
 import { sameConnection } from '../../platform/providers.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { modelCalls } from '../../store/schema.ts';
 import { AdminQueryError } from './audit.ts';
 import type { ProviderWriteContext } from './providers-admin.ts';
+import { PROVIDER_ALIAS_PATTERN } from '../../platform/config-semantics.ts';
 
 const HEALTH_PROMPT = 'reply with extract content: ok';
 const TIMEOUT_MS = 30_000;

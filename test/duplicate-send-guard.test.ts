@@ -5,7 +5,7 @@ import { GrammyError } from 'grammy';
 import { afterAll, describe, expect, test } from 'vitest';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { createSendTools, duplicateSendGuard } from '../src/capabilities/send-tool.ts';
+import { createSendTools } from '../src/capabilities/send-tool.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import type { RawConfig } from '../src/platform/config.ts';
@@ -19,6 +19,7 @@ import {
   testSendToolEnv,
   writeTestConfig,
 } from './helpers.ts';
+import { duplicateSendGuard } from '../src/capabilities/send-tool-support.ts';
 
 /**
  * Contract for the duplicate send guard (`agent.send_duplicate_guard_enabled`,

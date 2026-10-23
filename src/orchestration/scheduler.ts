@@ -1,13 +1,21 @@
-import { and, eq, sql, type SQL } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import type { HostKind } from '../platform/im-host.ts';
-import { resolveBucketWindowSeconds } from '../platform/invocation-policy.ts';
-import { PlaygroundStore } from '../store/playground.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../platform/runtime-config.ts';
-import type { BusinessStore } from '../store/store.ts';
 import { LongTaskService } from '../store/long-tasks.ts';
-import { buckets, chats, conversations, invocations, taskReceipts } from '../store/schema.ts';
+import type { BusinessStore } from '../store/store.ts';
 import { type BucketAttachmentTarget, InvocationQueueService } from './invocation-queue.ts';
 import type { ProactiveReplyGateOptions } from './proactive-reply.ts';
+import {
+  type ActiveInvocation,
+  executeInvocation,
+  type InvocationExecutionDeps,
+  type InvocationExecutionState,
+} from './scheduler-execution.ts';
+import {
+  nextDelayMilliseconds as computeNextDelayMilliseconds,
+  launchQueued,
+  type SchedulerLoopDeps,
+} from './scheduler-loop.ts';
 
 export interface InvocationOutcome {
   readonly state: 'completed' | 'failed' | 'aborted' | 'outcome_unknown';
@@ -20,26 +28,6 @@ export type InvocationHandler = (
   signal: AbortSignal,
 ) => Promise<InvocationOutcome>;
 
-interface ActiveInvocation {
-  readonly controller: AbortController;
-  readonly promise: Promise<void>;
-}
-
-interface InvocationDiagnosticRow {
-  readonly host_kind: string;
-  readonly telegram_chat_id: bigint | null;
-  readonly bucket_message_count: bigint;
-  readonly pending_bucket_count: bigint;
-  readonly chat_pending_bucket_count: bigint;
-  readonly previous_started_at: string | null;
-}
-
-interface InvocationRow {
-  readonly id: bigint;
-  readonly bucket_id: bigint;
-  readonly conversation_id: bigint;
-}
-
 export { STARTUP_CATCH_UP_STATE_KEY } from './invocation-queue.ts';
 
 /**
@@ -49,16 +37,15 @@ export { STARTUP_CATCH_UP_STATE_KEY } from './invocation-queue.ts';
  */
 export class BucketScheduler {
   readonly #store: BusinessStore;
-  readonly #configStore: RuntimeConfigurationStore;
   readonly #queue: InvocationQueueService;
-  readonly #tasks: LongTaskService;
   readonly #hosts: readonly HostKind[] | undefined;
-  readonly #handler: InvocationHandler;
   readonly #active = new Map<string, ActiveInvocation>();
+  readonly #executionState: InvocationExecutionState = { lastForcedGcAt: 0 };
+  readonly #executionDeps: InvocationExecutionDeps;
+  readonly #loopDeps: SchedulerLoopDeps;
   #running = false;
   #wakeResolver: (() => void) | undefined;
   #loopPromise: Promise<void> | undefined;
-  #lastForcedGcAt = 0;
 
   constructor(
     store: BusinessStore,
@@ -71,28 +58,30 @@ export class BucketScheduler {
     hosts?: readonly HostKind[],
   ) {
     this.#store = store;
-    this.#configStore = configStore;
-    this.#tasks = tasks;
     this.#hosts = hosts === undefined || hosts.length === 0 ? undefined : hosts;
     this.#queue = new InvocationQueueService(store, configStore, attachment, tasks, proactive, this.#hosts);
-    this.#handler = handler;
-  }
-
-  /**
-   * `conversation_id`/`bucket_id` rows of this scheduler's hosts; always true
-   * when unscoped. A single-host process must not launch, recover or wait on
-   * another host's work.
-   */
-  #servedConversations(column: SQL): SQL {
-    const hosts = this.#hosts;
-    if (hosts === undefined) {
-      return sql`1 = 1`;
-    }
-    return sql`${column} IN (SELECT v.id FROM conversations v JOIN chats c ON c.id = v.chat_id
-      WHERE c.host_kind IN (${sql.join(
-        hosts.map((host) => sql`${host}`),
-        sql`, `,
-      )}))`;
+    this.#executionDeps = {
+      store,
+      configStore,
+      queue: this.#queue,
+      handler,
+      active: this.#active,
+      state: this.#executionState,
+      processDue: (now) => this.processDue(now),
+      processTasksDue: (now) => this.processTasksDue(now),
+      wake: () => this.wake(),
+    };
+    this.#loopDeps = {
+      store,
+      configStore,
+      queue: this.#queue,
+      tasks,
+      hosts: this.#hosts,
+      active: this.#active,
+      isRunning: () => this.#running,
+      execute: (invocation, snapshot, controller) =>
+        executeInvocation(this.#executionDeps, invocation, snapshot, controller),
+    };
   }
 
   start(now = new Date()): void {
@@ -207,7 +196,7 @@ export class BucketScheduler {
     while (this.#running) {
       this.processTasksDue();
       this.processDue();
-      this.#launchQueued();
+      launchQueued(this.#loopDeps);
       const delay = this.nextDelayMilliseconds();
       await new Promise<void>((resolve) => {
         let settled = false;
@@ -232,361 +221,6 @@ export class BucketScheduler {
    * the loop spin, and that is asserted directly instead of by timing.
    */
   nextDelayMilliseconds(): number {
-    const deadlines: number[] = [];
-    // Buckets of a Conversation whose invocation is already running still need
-    // a wake-up: the run attaches them as soon as their window closes, so the
-    // chat-level exclusion here only covers queued and other-conversation runs.
-    const bucket = this.#store.orm
-      .all<{ deadline_at: string }>(
-        sql`SELECT b.deadline_at FROM buckets b
-         JOIN conversations v ON v.id = b.conversation_id
-         WHERE b.state = 'collecting'
-           AND ${this.#servedConversations(sql`b.conversation_id`)}
-           AND NOT EXISTS (
-             SELECT 1 FROM invocations i
-             JOIN conversations v2 ON v2.id = i.conversation_id
-             WHERE v2.chat_id = v.chat_id
-               AND (i.state = 'queued' OR (i.state = 'running' AND i.conversation_id <> b.conversation_id))
-           )
-         ORDER BY b.deadline_at, b.id LIMIT 1`,
-      )
-      .at(0);
-    if (bucket !== undefined) {
-      deadlines.push(Date.parse(bucket.deadline_at));
-    }
-    const timerDeadline = this.#tasks.nextDeadline();
-    if (timerDeadline !== undefined) {
-      deadlines.push(Date.parse(timerDeadline));
-    }
-    const sleepUntil = this.#queue.sleepUntil(new Date());
-    if (sleepUntil !== null) {
-      deadlines.push(Date.parse(sleepUntil));
-    }
-    const receipt = this.#store.orm
-      .all<{ created_at: string }>(
-        sql`SELECT r.created_at FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id
-         JOIN conversations v ON v.id = t.conversation_id
-         JOIN chats c ON c.id = v.chat_id
-         WHERE r.state = 'pending'
-           AND ${this.#servedConversations(sql`t.conversation_id`)}
-           AND (c.host_kind = 'playground' OR ${sleepUntil} IS NULL OR json_extract(t.delivery_json, '$.bypassDailyBudget') = 1)
-           AND NOT EXISTS (
-             SELECT 1 FROM invocations i JOIN conversations v2 ON v2.id = i.conversation_id
-             WHERE v2.chat_id = v.chat_id AND i.state = 'running'
-           )
-         ORDER BY r.created_at, r.task_id LIMIT 1`,
-      )
-      .at(0);
-    if (receipt !== undefined) {
-      deadlines.push(Date.parse(receipt.created_at));
-    }
-    // A queued invocation that can actually launch must not wait for the next
-    // full poll. One blocked behind a running invocation in the same chat, or
-    // behind a full concurrency limit, is excluded: its past deadline would
-    // busy-loop the scheduler, and a finishing run wakes it anyway.
-    const slotsFull = this.#active.size >= this.#configStore.current().config.agent.max_concurrency;
-    const queued = slotsFull
-      ? undefined
-      : this.#store.orm
-          .all<{ deadline_at: string }>(
-            sql`SELECT b.deadline_at FROM invocations i
-         JOIN buckets b ON b.id = i.bucket_id
-         JOIN conversations v ON v.id = i.conversation_id
-         WHERE i.state = 'queued'
-           AND ${this.#servedConversations(sql`i.conversation_id`)}
-           AND NOT EXISTS (
-             SELECT 1 FROM invocations r JOIN conversations v2 ON v2.id = r.conversation_id
-             WHERE v2.chat_id = v.chat_id AND r.state = 'running'
-           )
-         ORDER BY b.deadline_at LIMIT 1`,
-          )
-          .at(0);
-    if (queued !== undefined) {
-      deadlines.push(Date.parse(queued.deadline_at));
-    }
-    if (this.#hosts === undefined || this.#hosts.includes('playground')) {
-      const expiry = new PlaygroundStore(this.#store.orm).nextQueuedExpiry();
-      if (expiry !== undefined) {
-        deadlines.push(expiry);
-      }
-    }
-    if (deadlines.length === 0) {
-      return 60_000;
-    }
-    const next = Math.min(...deadlines);
-    return Math.max(0, Math.min(60_000, next - Date.now()));
-  }
-
-  #launchQueued(): void {
-    // Room invocations that queued too long are expired visibly; Telegram
-    // collecting/debounce buckets keep their own lifecycle. A scheduler that
-    // does not serve rooms leaves their queue to the process that does.
-    if (this.#hosts === undefined || this.#hosts.includes('playground')) {
-      new PlaygroundStore(this.#store.orm).expireQueued();
-    }
-    while (this.#running) {
-      const now = new Date();
-      this.#queue.suppressInvalidQueuedReceipts(now);
-      const sleepUntil = this.#queue.sleepUntil(now);
-      if (sleepUntil !== null) {
-        this.#queue.skipQueuedInvocations(sleepUntil, now);
-      }
-      if (this.#active.size >= this.#configStore.current().config.agent.max_concurrency) {
-        return;
-      }
-      const launched = this.#store.transaction(() => {
-        const candidate = this.#store.orm
-          .all<InvocationRow>(
-            sql`SELECT i.id, i.bucket_id, i.conversation_id FROM invocations i
-             JOIN buckets b ON b.id = i.bucket_id
-             JOIN conversations v ON v.id = i.conversation_id
-             LEFT JOIN task_receipts r ON r.invocation_id = i.id AND r.state = 'claimed'
-             WHERE i.state = 'queued' AND b.deadline_at <= ${new Date().toISOString()}
-               AND ${this.#servedConversations(sql`i.conversation_id`)}
-               AND NOT EXISTS (
-                 SELECT 1 FROM invocations r
-                 JOIN conversations v2 ON v2.id = r.conversation_id
-                 WHERE v2.chat_id = v.chat_id AND r.state = 'running'
-               )
-             ORDER BY CASE WHEN r.task_id IS NOT NULL THEN 0 ELSE 1 END, i.id
-             LIMIT 1`,
-          )
-          .at(0);
-        if (candidate === undefined) {
-          return null;
-        }
-        // The snapshot is taken in the same synchronous block as the state
-        // transition: a configuration published after this point can never
-        // reach the run that is starting here. `config_hash` is written here
-        // rather than at queue time so it names the configuration the run
-        // actually used.
-        const snapshot = this.#configStore.beginInvocation();
-        const now = new Date().toISOString();
-        this.#store.orm
-          .update(invocations)
-          .set({ state: 'running', startedAt: now, configHash: snapshot.hash })
-          .where(eq(invocations.id, candidate.id))
-          .run();
-        this.#store.orm
-          .update(buckets)
-          .set({ state: 'running', startedAt: now, updatedAt: now })
-          .where(eq(buckets.id, candidate.bucket_id))
-          .run();
-        return { invocation: candidate, snapshot };
-      });
-      if (launched === null) {
-        return;
-      }
-      const controller = new AbortController();
-      const promise = this.#execute(launched.invocation, launched.snapshot, controller);
-      this.#active.set(launched.invocation.id.toString(), { controller, promise });
-    }
-  }
-
-  async #execute(
-    invocation: InvocationRow,
-    snapshot: InvocationConfigSnapshot,
-    controller: AbortController,
-  ): Promise<void> {
-    const executionStartedAt = performance.now();
-    this.#logInvocationDiagnostic('agent_invocation_start', invocation, this.#active.size + 1, null, null, null);
-    let outcome: InvocationOutcome;
-    try {
-      outcome = await this.#handler(invocation.id, snapshot, controller.signal);
-    } catch {
-      // A handler that throws is a runtime fault: persist an outcome code rather
-      // than `error.name`, which reads as "Error" for a plain Error and told
-      // operators nothing. `AgentRuntime.run` logs the message itself.
-      const aborted = controller.signal.aborted;
-      outcome = {
-        state: aborted ? 'aborted' : 'failed',
-        reason: aborted ? 'aborted' : 'invocation_error',
-      };
-    }
-    const finishedAt = new Date();
-    let persisted = false;
-    try {
-      this.#store.transaction(() => {
-        const nowIso = finishedAt.toISOString();
-        this.#store.orm
-          .update(invocations)
-          .set({ state: outcome.state, completionReason: outcome.reason, finishedAt: nowIso })
-          .where(and(eq(invocations.id, invocation.id), eq(invocations.state, 'running')))
-          .run();
-        // Release first, close second. The two statements both target buckets in
-        // `invocation_buckets`, and closing first left every un-injected batch in
-        // a terminal state, which made the release a no-op that still queued a new
-        // invocation: the batch was re-processed while its bucket read `completed`.
-        this.#queue.releaseUninjectedBuckets(invocation.id, finishedAt);
-        // Every bucket this run actually consumed — opening bucket and injected
-        // batches alike — closes with the invocation. Released batches are already
-        // back to `queued` and must keep that state.
-        this.#store.orm.run(
-          sql`UPDATE buckets SET state = ${outcome.state}, finished_at = ${nowIso}, updated_at = ${nowIso}
-             WHERE state = 'running'
-               AND id IN (SELECT bucket_id FROM invocation_buckets WHERE invocation_id = ${invocation.id})`,
-        );
-        const started = this.#store.orm
-          .all<{ started_at: string }>(sql`SELECT started_at FROM invocations WHERE id = ${invocation.id}`)
-          .at(0);
-        if (started === undefined) {
-          throw new Error(`Invocation ${invocation.id} has no start time`);
-        }
-        // A bucket that was due while the chat was busy is not overdue once the
-        // run ends: push it to the run's end so it starts with the next tick.
-        // This only ever moves a deadline later; a batch still inside its own
-        // window keeps that window, which is what makes every batch collect a
-        // full `bucket_window_seconds` (see the ingestion comments).
-        const chat = this.#store.orm
-          .select({
-            hostKind: chats.hostKind,
-            chatId: conversations.chatId,
-          })
-          .from(conversations)
-          .innerJoin(chats, eq(chats.id, conversations.chatId))
-          .where(eq(conversations.id, invocation.conversation_id))
-          .get();
-        if (chat === undefined) {
-          throw new Error(`Invocation ${invocation.id} has no chat`);
-        }
-        // The window follows the host: a room collects nothing. A Telegram
-        // chat reads the live window, as ingestion does for the buckets it is
-        // pushing back, so a reloaded window applies to both alike. Resolving
-        // it from the host kind does not require the chat entry to still exist.
-        const windowSeconds = resolveBucketWindowSeconds(this.#configStore.current().config, chat.hostKind as HostKind);
-        const nextDeadline = new Date(
-          Math.max(finishedAt.getTime(), Date.parse(started.started_at) + windowSeconds * 1_000),
-        ).toISOString();
-        this.#store.orm.run(
-          sql`UPDATE buckets SET deadline_at = ${nextDeadline}, updated_at = ${nowIso}
-             WHERE conversation_id IN (SELECT id FROM conversations WHERE chat_id = ${chat.chatId})
-               AND state = 'collecting' AND deadline_at < ${nextDeadline}`,
-        );
-        this.#store.orm
-          .update(taskReceipts)
-          .set({
-            state: 'handled',
-            handledAt: nowIso,
-            invocationOutcome: outcome.state,
-            completionReason: outcome.reason,
-            updatedAt: nowIso,
-          })
-          .where(and(eq(taskReceipts.invocationId, invocation.id), eq(taskReceipts.state, 'claimed')))
-          .run();
-      });
-      persisted = true;
-    } finally {
-      this.#active.delete(invocation.id.toString());
-      if (persisted) {
-        this.processTasksDue(finishedAt);
-        this.processDue(finishedAt);
-      }
-      this.#logInvocationDiagnostic(
-        'agent_invocation_end',
-        invocation,
-        this.#active.size,
-        Math.round(performance.now() - executionStartedAt),
-        outcome,
-        persisted,
-      );
-      this.wake();
-    }
-  }
-
-  #logInvocationDiagnostic(
-    event: 'agent_invocation_start' | 'agent_invocation_end',
-    invocation: InvocationRow,
-    activeAgentSessions: number,
-    durationMs: number | null,
-    outcome: InvocationOutcome | null,
-    persisted: boolean | null,
-  ): void {
-    try {
-      const now = new Date();
-      const row = this.#store.orm
-        .all<InvocationDiagnosticRow>(
-          sql`SELECT c.host_kind, c.telegram_chat_id,
-                  (SELECT COUNT(*) FROM bucket_messages bm WHERE bm.bucket_id = ${invocation.bucket_id}) AS bucket_message_count,
-                  (SELECT COUNT(*) FROM buckets pb WHERE pb.state IN ('collecting', 'queued')) AS pending_bucket_count,
-                  (SELECT COUNT(*) FROM buckets pb
-                   JOIN conversations pv ON pv.id = pb.conversation_id
-                   WHERE pv.chat_id = v.chat_id AND pb.state IN ('collecting', 'queued')) AS chat_pending_bucket_count,
-                  (SELECT MAX(prior.started_at) FROM invocations prior
-                   JOIN conversations prior_v ON prior_v.id = prior.conversation_id
-                   WHERE prior_v.chat_id = v.chat_id AND prior.id < ${invocation.id} AND prior.started_at IS NOT NULL) AS previous_started_at
-           FROM conversations v
-           JOIN chats c ON c.id = v.chat_id
-           WHERE v.id = ${invocation.conversation_id}`,
-        )
-        .at(0);
-      if (row === undefined) {
-        throw new Error('invocation_conversation_missing');
-      }
-      const currentStartedAt =
-        this.#store.orm
-          .all<{ started_at: string | null }>(sql`SELECT started_at FROM invocations WHERE id = ${invocation.id}`)
-          .at(0)?.started_at ?? null;
-      const recentInvocations =
-        this.#store.orm
-          .all<{ count: bigint }>(
-            sql`SELECT COUNT(*) AS count FROM invocations WHERE started_at >= ${new Date(now.getTime() - 60_000).toISOString()}`,
-          )
-          .at(0)?.count ?? 0n;
-      const memory = process.memoryUsage();
-      let gcMemory: NodeJS.MemoryUsage | null = null;
-      // Forced GC is a diagnostic aid, not a correctness requirement: it only
-      // runs when the runtime exposes it (Node requires --expose-gc), and the
-      // gc_* metrics simply stay null otherwise.
-      const forceGc = (globalThis as { gc?: () => void }).gc;
-      if (event === 'agent_invocation_end' && forceGc !== undefined && now.getTime() - this.#lastForcedGcAt >= 60_000) {
-        this.#lastForcedGcAt = now.getTime();
-        forceGc();
-        gcMemory = process.memoryUsage();
-      }
-      console.log(
-        JSON.stringify({
-          event,
-          invocation_id: invocation.id.toString(),
-          session_id: invocation.id.toString(),
-          host_kind: row.host_kind,
-          chat_id: row.telegram_chat_id?.toString() ?? null,
-          bucket_message_count: Number(row.bucket_message_count),
-          pending_bucket_count: Number(row.pending_bucket_count),
-          chat_pending_bucket_count: Number(row.chat_pending_bucket_count),
-          active_agent_sessions: activeAgentSessions,
-          invocations_started_last_minute: Number(recentInvocations),
-          invocation_duration_ms: durationMs,
-          previous_invocation_gap_ms:
-            currentStartedAt === null || row.previous_started_at === null
-              ? null
-              : Date.parse(currentStartedAt) - Date.parse(row.previous_started_at),
-          outcome_state: outcome?.state ?? null,
-          outcome_reason: outcome?.reason ?? null,
-          terminal_state_persisted: persisted,
-          rss_bytes: memory.rss,
-          heap_used_bytes: memory.heapUsed,
-          heap_total_bytes: memory.heapTotal,
-          external_bytes: memory.external,
-          array_buffers_bytes: memory.arrayBuffers,
-          forced_gc: gcMemory !== null,
-          gc_rss_bytes: gcMemory?.rss ?? null,
-          gc_heap_used_bytes: gcMemory?.heapUsed ?? null,
-          gc_heap_total_bytes: gcMemory?.heapTotal ?? null,
-          gc_external_bytes: gcMemory?.external ?? null,
-          gc_array_buffers_bytes: gcMemory?.arrayBuffers ?? null,
-          runtime_version: process.version,
-          at: now.toISOString(),
-        }),
-      );
-    } catch (error) {
-      console.log(
-        JSON.stringify({
-          event: 'agent_invocation_diagnostic_failed',
-          invocation_id: invocation.id.toString(),
-          error: error instanceof Error ? error.name : 'diagnostic_error',
-          at: new Date().toISOString(),
-        }),
-      );
-    }
+    return computeNextDelayMilliseconds(this.#loopDeps);
   }
 }

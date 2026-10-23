@@ -1,6 +1,7 @@
-import { ApiError, type DictionaryDraft, type DictionaryEntry, type DictionaryInjectionMode } from './api.ts';
 import { errorMessage } from './errors.ts';
 import i18n from './i18n.ts';
+import { ApiError } from './api/core.ts';
+import type { DictionaryDraft, DictionaryEntry, DictionaryInjectionMode } from './api/dictionary.ts';
 
 /**
  * Pure helpers for the Dictionary page: alias-list editing, draft conversion,

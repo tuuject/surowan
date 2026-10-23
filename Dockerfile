@@ -20,8 +20,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 # The shared lockfile validates patch hashes even when the docs workspace is absent.
 COPY patches ./patches
 COPY apps/admin-next/package.json ./apps/admin-next/
-# The root postinstall runs this script; without a .git it skips agent skills.
-COPY scripts/skills-sync.ts ./scripts/
+# The root postinstall runs these scripts; without a .git they skip agent skills and git hooks.
+COPY scripts/skills-sync.ts scripts/git-hooks.ts ./scripts/
 RUN pnpm install --frozen-lockfile
 
 # Copy source and build admin panel

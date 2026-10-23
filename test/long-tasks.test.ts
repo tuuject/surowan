@@ -1,104 +1,13 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, test } from 'vitest';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
-import type { InvocationContext } from '../src/platform/invocation-context.ts';
-import { previewContext } from '../src/platform/invocation-context.ts';
 import { definePlugin, type InvocationScope, loadPlugins } from '../src/plugins/plugin.ts';
-import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { LongTaskService, TaskQuotaError } from '../src/store/long-tasks.ts';
 import { longTasks, taskReceipts } from '../src/store/schema.ts';
-import { writeTestConfig } from './helpers.ts';
+import { cleanupTestDirectories, ctx, directories, initDb, seedInvocation } from './long-tasks-fixtures.ts';
 
-const stores: SqliteStore[] = [];
-const directories: string[] = [];
-
-afterEach(async () => {
-  for (const s of stores.splice(0)) {
-    try {
-      s.close();
-    } catch {
-      /* already closed */
-    }
-  }
-  for (const d of directories.splice(0)) {
-    try {
-      await rm(d, { recursive: true, force: true });
-    } catch {
-      /* ignore */
-    }
-  }
-});
-
-async function initDb(): Promise<{ store: SqliteStore; conversationId: bigint; roomConversationId: bigint }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-lt-'));
-  directories.push(directory);
-  const configPath = join(directory, 'config.jsonc');
-  await writeTestConfig(directory, configPath);
-  const { config } = await loadConfig(configPath);
-  const store = await SqliteStore.open(config);
-  stores.push(store);
-
-  const chatId = 1n;
-  store.db
-    .prepare(
-      `INSERT INTO chats(id, telegram_chat_id, canonical_chat_id, type, updated_at)
-     VALUES (?, 123, 123, 'private', '2025-01-01T00:00:00.000Z')`,
-    )
-    .run(chatId);
-  const conversationId = 200n;
-  store.db
-    .prepare(
-      `INSERT INTO conversations(id, chat_id, message_thread_id, created_at, updated_at)
-     VALUES (?, ?, 0, '2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z')`,
-    )
-    .run(conversationId, chatId);
-
-  // A room conversation, for the host-scoped timer path.
-  const roomChatId = 2n;
-  store.db
-    .prepare(
-      `INSERT INTO chats(id, host_kind, telegram_chat_id, canonical_chat_id, type, updated_at)
-     VALUES (?, 'playground', NULL, NULL, 'group', '2025-01-01T00:00:00.000Z')`,
-    )
-    .run(roomChatId);
-  const roomConversationId = 201n;
-  store.db
-    .prepare(
-      `INSERT INTO conversations(id, chat_id, message_thread_id, created_at, updated_at)
-     VALUES (?, ?, 0, '2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z')`,
-    )
-    .run(roomConversationId, roomChatId);
-
-  return { store, conversationId, roomConversationId };
-}
-
-function seedInvocation(store: SqliteStore, invId: bigint, convId: bigint): void {
-  store.db
-    .prepare(
-      `INSERT OR IGNORE INTO buckets(id, conversation_id, state, kind, first_received_at, deadline_at, created_at, updated_at)
-     VALUES (?, ?, 'completed', 'realtime', '2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z')`,
-    )
-    .run(invId, convId);
-  store.db
-    .prepare(
-      `INSERT OR IGNORE INTO invocations(id, bucket_id, conversation_id, state, config_hash, prompt_version, created_at)
-     VALUES (?, ?, ?, 'completed', 'h', 1, '2025-01-01T00:00:00.000Z')`,
-    )
-    .run(invId, invId, convId);
-}
-
-function ctx(convId: bigint, overrides: Partial<InvocationContext> = {}): InvocationContext {
-  return {
-    ...previewContext(),
-    invocationId: 100n,
-    conversationId: convId,
-    callerUserId: 42n,
-    ...overrides,
-  };
-}
+afterEach(cleanupTestDirectories);
 
 describe('LongTaskService', () => {
   test('loadPlugins binds task service without a sidecar context writer', async () => {
@@ -187,45 +96,6 @@ describe('LongTaskService', () => {
     ).toThrow(TaskQuotaError);
   });
 
-  test('a single-host instance completes only its own timers', async () => {
-    const { store, conversationId, roomConversationId } = await initDb();
-    const due = new Date(Date.now() - 60_000).toISOString();
-    seedInvocation(store, 300n, conversationId);
-    seedInvocation(store, 301n, roomConversationId);
-    const telegramChat = ctx(conversationId, { hostKind: 'telegram', invocationId: 300n });
-    const roomChat = ctx(roomConversationId, { hostKind: 'playground', invocationId: 301n });
-    const all = new LongTaskService(store.orm);
-    const telegramTask = all
-      .invocationScope('alarm', telegramChat)
-      .create({ payload: { kind: 'telegram' }, scheduledAt: due, timerResult: { kind: 'telegram' } }, new Date());
-    const roomTask = all
-      .invocationScope('alarm', roomChat, ['telegram', 'playground'])
-      .create({ payload: { kind: 'room' }, scheduledAt: due, timerResult: { kind: 'room' } }, new Date());
-
-    const roomOnly = new LongTaskService(store.orm, undefined, ['playground']);
-    expect(roomOnly.nextDeadline()).toBeDefined();
-    roomOnly.processDue(new Date());
-
-    const stateOf = (taskId: bigint) =>
-      store.orm.select({ state: longTasks.state }).from(longTasks).where(eq(longTasks.id, taskId)).get()?.state;
-    expect(stateOf(telegramTask.taskId)).toBe('waiting');
-    expect(stateOf(roomTask.taskId)).toBe('completed');
-    // The scoped path writes the same receipt payload the unscoped one does.
-    expect(
-      store.orm
-        .select({ resultJson: taskReceipts.resultJson })
-        .from(taskReceipts)
-        .where(eq(taskReceipts.taskId, roomTask.taskId))
-        .get(),
-    ).toEqual({ resultJson: JSON.stringify({ kind: 'room' }) });
-    // The filtered instance no longer advertises the Telegram timer.
-    expect(roomOnly.nextDeadline()).toBeUndefined();
-
-    // Without a filter the same service completes it, exactly as serve does.
-    all.processDue(new Date());
-    expect(stateOf(telegramTask.taskId)).toBe('completed');
-  });
-
   test('quota is per plugin, not shared', async () => {
     const { store, conversationId } = await initDb();
     const invId = 301n;
@@ -236,75 +106,6 @@ describe('LongTaskService', () => {
     a.create({ payload: 1, delivery: { bypassDailyBudget: false }, maxPerInvocation: 1 });
     const created = b.create({ payload: 2, delivery: { bypassDailyBudget: false }, maxPerInvocation: 1 });
     expect(typeof created.taskId).toBe('bigint');
-  });
-
-  test('scoped complete writes receipt', async () => {
-    const { store, conversationId } = await initDb();
-    seedInvocation(store, 100n, conversationId);
-    const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('test-plugin', ctx(conversationId));
-    const created = scope.create({ payload: {}, delivery: { bypassDailyBudget: false } });
-
-    const handle = tasks.scoped('test-plugin', conversationId);
-    const ok = handle.complete(created.taskId, { result: 'done' });
-    expect(ok).toBe(true);
-
-    const task = store.orm.select().from(longTasks).where(eq(longTasks.id, created.taskId)).get();
-    expect(task!.state).toBe('completed');
-    expect(task!.finishedAt).toBeDefined();
-
-    const receipt = store.orm.select().from(taskReceipts).where(eq(taskReceipts.taskId, created.taskId)).get();
-    expect(receipt).toBeDefined();
-    expect(receipt!.status).toBe('completed');
-    expect(receipt!.state).toBe('pending');
-    expect(JSON.parse(receipt!.resultJson!)).toEqual({ result: 'done' });
-  });
-
-  test('scoped complete is idempotent (CAS)', async () => {
-    const { store, conversationId } = await initDb();
-    seedInvocation(store, 100n, conversationId);
-    const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('test-plugin', ctx(conversationId));
-    const created = scope.create({ payload: {}, delivery: { bypassDailyBudget: false } });
-    const handle = tasks.scoped('test-plugin', conversationId);
-    expect(handle.complete(created.taskId)).toBe(true);
-    expect(handle.complete(created.taskId)).toBe(false);
-  });
-
-  test('scoped fail writes error receipt', async () => {
-    const { store, conversationId } = await initDb();
-    seedInvocation(store, 100n, conversationId);
-    const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('test-plugin', ctx(conversationId));
-    const created = scope.create({ payload: {}, delivery: { bypassDailyBudget: false } });
-    const ok = tasks.scoped('test-plugin', conversationId).fail(created.taskId, { code: 'E_TIMEOUT' });
-    expect(ok).toBe(true);
-
-    const task = store.orm.select().from(longTasks).where(eq(longTasks.id, created.taskId)).get();
-    expect(task!.state).toBe('failed');
-    const receipt = store.orm.select().from(taskReceipts).where(eq(taskReceipts.taskId, created.taskId)).get();
-    expect(receipt!.status).toBe('failed');
-    expect(JSON.parse(receipt!.errorJson!)).toEqual({ code: 'E_TIMEOUT' });
-  });
-
-  test('scoped works cross-plugin isolated', async () => {
-    const { store, conversationId } = await initDb();
-    seedInvocation(store, 100n, conversationId);
-    const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('plugin-x', ctx(conversationId));
-    const created = scope.create({ payload: {}, delivery: { bypassDailyBudget: false } });
-    expect(tasks.scoped('plugin-y', conversationId).complete(created.taskId)).toBe(false);
-  });
-
-  test('scoped works cross-conversation isolated after creator invocation is deleted', async () => {
-    const { store, conversationId } = await initDb();
-    seedInvocation(store, 100n, conversationId);
-    const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('plugin-x', ctx(conversationId));
-    const created = scope.create({ payload: {}, delivery: { bypassDailyBudget: false } });
-    store.db.prepare('DELETE FROM invocations WHERE id = 100').run();
-    expect(tasks.scoped('plugin-x', 999n).complete(created.taskId)).toBe(false);
-    expect(tasks.scoped('plugin-x', conversationId).complete(created.taskId, { late: true })).toBe(true);
   });
 
   test("invocationScope list returns caller's waiting tasks", async () => {
@@ -379,108 +180,6 @@ describe('LongTaskService', () => {
     expect(receipt!.state).toBe('suppressed');
   });
 
-  test('processDue completes timer tasks and calls wake', async () => {
-    let woken = false;
-    const { store, conversationId } = await initDb();
-    seedInvocation(store, 100n, conversationId);
-    const tasks = new LongTaskService(store.orm, () => {
-      woken = true;
-    });
-    const past = new Date(Date.now() - 60_000).toISOString();
-    const scope = tasks.invocationScope('alarm', ctx(conversationId));
-    const created = scope.create({
-      payload: { summary: 'timer' },
-      delivery: { bypassDailyBudget: true },
-      scheduledAt: past,
-    });
-
-    tasks.processDue(new Date());
-    expect(woken).toBe(true);
-
-    const task = store.orm.select().from(longTasks).where(eq(longTasks.id, created.taskId)).get();
-    expect(task!.state).toBe('completed');
-    expect(task!.timerResultJson).toBeDefined();
-
-    const receipt = store.orm.select().from(taskReceipts).where(eq(taskReceipts.taskId, created.taskId)).get();
-    expect(receipt).toBeDefined();
-    expect(receipt!.state).toBe('pending');
-  });
-
-  test('processDue skips future timers', async () => {
-    const { store, conversationId } = await initDb();
-    seedInvocation(store, 100n, conversationId);
-    const tasks = new LongTaskService(store.orm);
-    const future = new Date(Date.now() + 3600_000).toISOString();
-    const scope = tasks.invocationScope('alarm', ctx(conversationId));
-    const created = scope.create({
-      payload: {},
-      delivery: { bypassDailyBudget: false },
-      scheduledAt: future,
-    });
-    tasks.processDue(new Date());
-    const task = store.orm.select().from(longTasks).where(eq(longTasks.id, created.taskId)).get();
-    expect(task!.state).toBe('waiting');
-  });
-
-  test('nextDeadline returns earliest waiting timer', async () => {
-    const { store, conversationId } = await initDb();
-    seedInvocation(store, 100n, conversationId);
-    const tasks = new LongTaskService(store.orm);
-    const t1 = new Date(Date.now() + 7200_000).toISOString();
-    const t0 = new Date(Date.now() + 3600_000).toISOString();
-    const scope = tasks.invocationScope('alarm', ctx(conversationId));
-    scope.create({ payload: {}, delivery: { bypassDailyBudget: false }, scheduledAt: t1 });
-    scope.create({ payload: {}, delivery: { bypassDailyBudget: false }, scheduledAt: t0 });
-    expect(tasks.nextDeadline()).toBe(t0);
-  });
-
-  test('nextDeadline returns undefined when no timers', async () => {
-    const { store, conversationId } = await initDb();
-    seedInvocation(store, 100n, conversationId);
-    const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('alarm', ctx(conversationId));
-    scope.create({ payload: {}, delivery: { bypassDailyBudget: false } });
-    expect(tasks.nextDeadline()).toBeUndefined();
-  });
-
-  test('getCompletion returns receipt bound to invocation', async () => {
-    const { store, conversationId } = await initDb();
-    seedInvocation(store, 100n, conversationId);
-    const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('test-plugin', ctx(conversationId));
-    const created = scope.create({ payload: { data: 'x' }, delivery: { bypassDailyBudget: false } });
-    tasks.scoped('test-plugin', conversationId).complete(created.taskId);
-
-    // Seed an invocation for the receipt's FK.
-    seedInvocation(store, 500n, conversationId);
-    store.orm
-      .update(taskReceipts)
-      .set({
-        state: 'claimed',
-        invocationId: 500n,
-        bucketId: 500n,
-        claimedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(taskReceipts.taskId, created.taskId))
-      .run();
-
-    const completion = tasks.getCompletion(500n, 500n);
-    expect(tasks.getCompletion(500n, 100n)).toBeUndefined();
-    expect(tasks.getCompletion(100n, 500n)).toBeUndefined();
-    expect(completion).toBeDefined();
-    expect(completion!.taskId).toBe(created.taskId);
-    expect(completion!.pluginId).toBe('test-plugin');
-    expect(completion!.payload).toEqual({ data: 'x' });
-    expect(completion!.status).toBe('completed');
-  });
-
-  test('getCompletion returns undefined for non-receipt invocation', async () => {
-    const { store } = await initDb();
-    const tasks = new LongTaskService(store.orm);
-    expect(tasks.getCompletion(999999n, 999999n)).toBeUndefined();
-  });
-
   test('JSON payload rejects non-JSON structures without invoking accessors', async () => {
     const { store, conversationId } = await initDb();
     seedInvocation(store, 100n, conversationId);
@@ -542,52 +241,5 @@ describe('LongTaskService', () => {
     expect(() =>
       tasks.scoped('test-plugin', conversationId).complete(created.taskId, { big: 'x'.repeat(17_000) }),
     ).toThrow('exceeds');
-  });
-
-  test('cancel via scoped works', async () => {
-    const { store, conversationId } = await initDb();
-    seedInvocation(store, 100n, conversationId);
-    const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('test-plugin', ctx(conversationId));
-    const created = scope.create({ payload: {}, delivery: { bypassDailyBudget: false } });
-    expect(tasks.scoped('test-plugin', conversationId).cancel(created.taskId)).toBe(true);
-
-    const task = store.orm.select().from(longTasks).where(eq(longTasks.id, created.taskId)).get();
-    expect(task!.state).toBe('cancelled');
-    const receipt = store.orm.select().from(taskReceipts).where(eq(taskReceipts.taskId, created.taskId)).get();
-    expect(receipt!.state).toBe('suppressed');
-  });
-
-  test('complete, fail, and cancel race writes one terminal receipt', async () => {
-    const { store, conversationId } = await initDb();
-    seedInvocation(store, 100n, conversationId);
-    const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('alarm', ctx(conversationId));
-    const created = scope.create({ payload: {}, delivery: { bypassDailyBudget: false } });
-    const handle = tasks.scoped('alarm', conversationId);
-    expect(handle.fail(created.taskId, { code: 'first' })).toBe(true);
-    expect(handle.complete(created.taskId, { value: 'late' })).toBe(false);
-    expect(handle.cancel(created.taskId)).toBe(true);
-    expect(store.orm.select().from(taskReceipts).where(eq(taskReceipts.taskId, created.taskId)).all()).toHaveLength(1);
-    const task = store.orm.select().from(longTasks).where(eq(longTasks.id, created.taskId)).get();
-    expect(task!.state).toBe('failed');
-  });
-
-  test('wake occurs only after successful state changes', async () => {
-    let wakes = 0;
-    const { store, conversationId } = await initDb();
-    seedInvocation(store, 100n, conversationId);
-    const tasks = new LongTaskService(store.orm, () => {
-      wakes += 1;
-    });
-    const scope = tasks.invocationScope('alarm', ctx(conversationId));
-    const created = scope.create({ payload: {}, delivery: { bypassDailyBudget: false } });
-    expect(wakes).toBe(1);
-    expect(tasks.scoped('other', conversationId).complete(created.taskId)).toBe(false);
-    expect(wakes).toBe(1);
-    expect(tasks.scoped('alarm', conversationId).complete(created.taskId)).toBe(true);
-    expect(wakes).toBe(2);
-    expect(tasks.scoped('alarm', conversationId).complete(created.taskId)).toBe(false);
-    expect(wakes).toBe(2);
   });
 });

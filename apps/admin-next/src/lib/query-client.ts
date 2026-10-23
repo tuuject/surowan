@@ -1,5 +1,5 @@
+import { ApiError } from './api/core.ts';
 import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
-import { ApiError } from './api.ts';
 
 const SESSION_QUERY_KEY = ['session'] as const;
 

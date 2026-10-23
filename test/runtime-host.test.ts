@@ -7,13 +7,14 @@ import { fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-work
 import { createCoreRuntime } from '../src/orchestration/runtime.ts';
 import { listConversationContexts } from '../src/context/context-store.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
-import { validateFileConfig, assembleRawConfig } from '../src/platform/config.ts';
+import { assembleRawConfig } from '../src/platform/config.ts';
 import { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { resolveSystemResource, type SystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import * as schema from '../src/store/schema.ts';
 import { fauxRegistry, testConfigJsonc, testTelegramRuntime } from './helpers.ts';
+import { validateFileConfig } from '../src/platform/config-validate.ts';
 
 const directories: string[] = [];
 afterAll(async () => {

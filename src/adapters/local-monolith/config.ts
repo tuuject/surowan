@@ -2,10 +2,11 @@ import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { type ParseError, parse as parseJsonc, printParseErrorCode } from 'jsonc-parser';
-import { type FileConfig, type RawConfig, assembleRawConfig, validateFileConfig } from '../../platform/config.ts';
+import { type FileConfig, type RawConfig, assembleRawConfig } from '../../platform/config.ts';
 import type { PersistedConfig } from '../../platform/config-write.ts';
 import { stripHtmlComments } from '../../platform/prompt-markdown.ts';
 import { validatePromptTemplate } from '../../platform/prompt-template.ts';
+import { validateFileConfig } from '../../platform/config-validate.ts';
 
 export interface LoadedConfig extends PersistedConfig {
   readonly configPath: string;

@@ -51,7 +51,7 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 
 ## 程序化 API 密钥
 
-`src/ingress/admin/api-keys.ts` 提供供 CLI 与评估工具使用的 API 密钥。密钥管理是 **Session-only** 的：只有面板登录会话能创建、列出与撤销密钥，密钥自身不能管理密钥。前端入口是 **Manage → API keys** 独立页（`/api-keys`），复用下述现有接口，没有新增 API、迁移或配置项：表格列为 Name/Prefix/Created/Last used/Status/Actions（Active/Revoked，未使用时显示 Never used）；**Create API key** 只填 `name`（1–80 字符），明文只在随后 **Save your API key** 一次性弹窗中出现，Done/关闭/导航/刷新后不可再取回，也不写入 `localStorage`/`sessionStorage` 或查询缓存；**Copy API key** 失败时保留文字并提示手动复制；行内 **Revoke** 需确认、立即生效且保留元数据。列表失败提供 Retry，创建失败在弹窗内联显示且进行中禁止重复提交，撤销失败留在确认框。界面操作说明见[用户指南](../apps/docs/content/docs/configure/admin.md#api-密钥)。
+`src/ingress/admin/api-keys.ts` 提供供 CLI 与评估工具使用的 API 密钥。密钥管理是 **Session-only** 的：只有面板登录会话能创建、列出与撤销密钥，密钥自身不能管理密钥。前端入口是 **Manage → API keys** 独立页（`/api-keys`），复用下述现有接口，没有新增 API、迁移或配置项：表格列为 Name/Prefix/Created/Last used/Status/Actions（Active/Revoked，未使用时显示 Never used）；**Create API key** 只填 `name`（1–80 字符），明文只在随后 **Save your API key** 一次性弹窗中出现，Done/关闭/导航/刷新后不可再取回，也不写入 `localStorage`/`sessionStorage` 或查询缓存；**Copy API key** 失败时保留文字并提示手动复制；行内 **Revoke** 需确认、立即生效且保留元数据。列表失败提供 Retry，创建失败在弹窗内联显示且进行中禁止重复提交，撤销失败留在确认框。界面操作说明见[用户指南](../apps/docs/content/docs/configure/admin-api-keys.md#api-密钥)。
 
 | 路由 | 语义 |
 | --- | --- |
@@ -202,7 +202,7 @@ Chats 的编辑与删除确认在打开时冻结数据与 revision，后台刷�
 
 ## Prompts 页端点
 
-Prompts 管理两层可编辑 Prompt：全局人格（`agent.system_prompt_file`）与每个配置 Chat 的按群指令（`telegram.chats[].instructions_file`）。面板编辑的就是配置引用的那两个文件；写入需面板 Session 与同源 Origin，且面板前端在保存或恢复后先询问是否取消仍在旧 Prompt 上运行的 Invocation（保存本身从不自动取消）。界面操作说明见[用户指南](../apps/docs/content/docs/configure/admin.md#编辑-prompt-与版本历史)。
+Prompts 管理两层可编辑 Prompt：全局人格（`agent.system_prompt_file`）与每个配置 Chat 的按群指令（`telegram.chats[].instructions_file`）。面板编辑的就是配置引用的那两个文件；写入需面板 Session 与同源 Origin，且面板前端在保存或恢复后先询问是否取消仍在旧 Prompt 上运行的 Invocation（保存本身从不自动取消）。界面操作说明见[用户指南](../apps/docs/content/docs/configure/admin-prompts.md#编辑-prompt-与版本历史)。
 
 - `PUT /prompts/global` 与 `PUT /prompts/group?chat=`：body 为 `{ prompt, note? }`（prompt ≤ 65536 字符，note ≤ 200）。写入的是去 HTML 注释后的模板，走与重放覆盖相同的校验边界（NUL/BOM、模板变量白名单；global 不可为空），原子替换（同目录临时文件 + rename、`0600`）后记录版本，再经既有热应用发布：**下一次**开始的 Invocation 使用新 Prompt，正在运行的 Invocation 继续用它启动时的快照。群级 Chat 未配置返回 404 `chat_unconfigured`；创建时内容为空返回 400 `prompt_empty`。
 - `If-Match` 是 Prompt 内容哈希：GET 视图的 `content_hash` 是去 HTML 注释后内容的 SHA-256，写端点要求携带同一个值，缺失返回 400 `revision_required`，不一致返回 409 `prompt_conflict`。它**不是** `config.jsonc` revision（config revision 按设计排除 Prompt 文件），因此纯注释手改既不改变哈希也不产生版本。
@@ -339,7 +339,7 @@ pnpm run admin:test:e2e  # Playwright 浏览器 E2E（真实 AdminServer + 临�
 | 文件 | 职责 |
 | --- | --- |
 | `src/routes/**` | 文件路由（TanStack Router 官方 Rsbuild 插件）：`__root.tsx` 是认证门（setup/login gate）与 Layout，其余文件对应一级页面与详情页；新增页面在这里加文件，`src/routeTree.gen.ts` 由构建自动生成 |
-| `src/lib/api.ts` | 类型化 fetch 封装与 `ApiError` |
+| `src/lib/api/` | 类型化 fetch 封装（`core.ts` 含 `ApiError`），按 API 领域分模块 |
 | `src/lib/queries.ts` | TanStack Query option 工厂（列表用 infinite query，keyset cursor 透传） |
 | `src/lib/format.ts` | 格式化与状态色映射 |
 | `src/lib/errors.ts` | `errorMessage()`：统一错误文本（`ApiError.code: message`） |

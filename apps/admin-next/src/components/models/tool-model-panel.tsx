@@ -17,7 +17,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { type ProvidersView, type ProviderView, putToolModel, type ThinkingLevel } from '@/lib/api.ts';
+
 import {
   isConfigConflict,
   isTextCapable,
@@ -26,6 +26,9 @@ import {
   writeErrorMessage,
 } from '@/lib/model-manager.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
+import type { ProvidersView, ProviderView } from '@/lib/api/providers.ts';
+import { putToolModel } from '@/lib/api/tools.ts';
+import type { ThinkingLevel } from '@/lib/api/models.ts';
 
 interface Pick {
   readonly alias: string;

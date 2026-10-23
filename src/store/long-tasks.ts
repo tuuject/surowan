@@ -1,6 +1,4 @@
-import { and, asc, eq, or, sql, type SQL } from 'drizzle-orm';
-import Type, { type Static } from 'typebox';
-import Compile from 'typebox/compile';
+import { and, asc, eq, sql, type SQL } from 'drizzle-orm';
 import type {
   CompletionContext,
   DeliveryPolicy,
@@ -10,41 +8,9 @@ import type {
 import type { HostKind } from '../platform/im-host.ts';
 import type { Orm } from './store.ts';
 import { chats, conversations, longTasks, taskReceipts } from './schema.ts';
-
-const JsonValueSchema = Type.Union(
-  [
-    Type.Null(),
-    Type.Boolean(),
-    Type.Number(),
-    Type.String(),
-    Type.Array(Type.Ref('JsonValue')),
-    Type.Record(Type.String(), Type.Ref('JsonValue')),
-  ],
-  { $id: 'JsonValue' },
-);
-const jsonValidator = Compile(JsonValueSchema);
-const DeliverySchema = Type.Object(
-  {
-    bypassDailyBudget: Type.Boolean(),
-    mentionUser: Type.Optional(
-      Type.Object(
-        {
-          userId: Type.String({ pattern: '^[1-9][0-9]*$' }),
-          displayName: Type.String(),
-        },
-        { additionalProperties: false },
-      ),
-    ),
-  },
-  { additionalProperties: false },
-);
-const deliveryValidator = Compile(DeliverySchema);
-const MAX_JSON = 16_384;
-const MAX_ERROR = 8_192;
-const MAX_DELIVERY = 4_096;
-const MAX_INT64 = 9_223_372_036_854_775_807n;
-
-type StoredDelivery = Static<typeof DeliverySchema>;
+import { deliveryText, readDelivery } from './long-tasks-delivery.ts';
+import { MAX_ERROR, MAX_JSON, jsonText, parseJson } from './long-tasks-json.ts';
+import { getTask, listTasks } from './long-tasks-list.ts';
 
 export class TaskQuotaError extends Error {
   constructor() {
@@ -88,183 +54,12 @@ export interface PluginTaskScope {
   cancel(taskId: bigint, options?: CancelOptions, now?: Date): boolean;
 }
 
-function jsonText(value: unknown, limit: number, field: string): string {
-  validateJsonStructure(value, new Set<object>());
-  if (!jsonValidator.Check(value)) {
-    throw new Error(`${field} must be a JSON value`);
-  }
-  const text = JSON.stringify(value);
-  if (Buffer.byteLength(text, 'utf8') > limit) {
-    throw new Error(`${field} exceeds ${limit} bytes`);
-  }
-  return text;
-}
-
-function validateJsonStructure(value: unknown, ancestors: Set<object>): void {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
-    return;
-  }
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) {
-      throw new Error('JSON number must be finite');
-    }
-    return;
-  }
-  if (typeof value !== 'object') {
-    throw new Error('value is not JSON serializable');
-  }
-  if (ancestors.has(value)) {
-    throw new Error('JSON value must not contain cycles');
-  }
-  ancestors.add(value);
-  try {
-    if (Array.isArray(value)) {
-      validateJsonArray(value, ancestors);
-      return;
-    }
-    const prototype = Object.getPrototypeOf(value);
-    if (prototype !== Object.prototype && prototype !== null) {
-      throw new Error('JSON value must be a plain object');
-    }
-    for (const key of Reflect.ownKeys(value)) {
-      if (typeof key === 'symbol') {
-        throw new Error('JSON object must not contain symbol keys');
-      }
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (descriptor === undefined || !('value' in descriptor) || !descriptor.enumerable) {
-        throw new Error('JSON object must contain only enumerable data properties');
-      }
-      validateJsonStructure(descriptor.value, ancestors);
-    }
-  } finally {
-    ancestors.delete(value);
-  }
-}
-
-function validateJsonArray(value: readonly unknown[], ancestors: Set<object>): void {
-  const keys = Reflect.ownKeys(value);
-  for (const key of keys) {
-    if (typeof key === 'symbol') {
-      throw new Error('JSON array must not contain symbol keys');
-    }
-    if (key === 'length') {
-      continue;
-    }
-    const index = Number(key);
-    if (!Number.isSafeInteger(index) || index < 0 || String(index) !== key || index >= value.length) {
-      throw new Error('JSON array must not contain non-index properties');
-    }
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (descriptor === undefined || !('value' in descriptor) || !descriptor.enumerable) {
-      throw new Error('JSON array must contain only enumerable data properties');
-    }
-  }
-  for (let index = 0; index < value.length; index += 1) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
-    if (descriptor === undefined || !('value' in descriptor)) {
-      throw new Error('JSON array must not be sparse or contain accessors');
-    }
-    validateJsonStructure(descriptor.value, ancestors);
-  }
-}
-
-function parseJson(text: string, field: string): JsonValue {
-  let value: unknown;
-  try {
-    value = JSON.parse(text);
-  } catch {
-    throw new Error(`Invalid ${field} in database`);
-  }
-  if (!jsonValidator.Check(value)) {
-    throw new Error(`Invalid ${field} in database`);
-  }
-  return toJsonValue(value);
-}
-
-function toJsonValue(value: Static<typeof JsonValueSchema>): JsonValue {
-  if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return value;
-  }
-  if (Array.isArray(value)) {
-    return value.map((child) => toJsonValue(child as Static<typeof JsonValueSchema>));
-  }
-  return Object.fromEntries(
-    Object.entries(value).map(([key, child]) => [key, toJsonValue(child as Static<typeof JsonValueSchema>)]),
-  );
-}
-
 function canonicalIso(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.valueOf()) || date.toISOString() !== value) {
     throw new Error('scheduledAt must be canonical UTC ISO-8601');
   }
   return value;
-}
-
-function deliveryText(policy: DeliveryPolicy | undefined): string {
-  const value: Record<string, unknown> = { bypassDailyBudget: policy?.bypassDailyBudget ?? false };
-  if (policy?.mentionUser !== undefined) {
-    value.mentionUser = {
-      userId: positiveInt64(policy.mentionUser.userId).toString(),
-      displayName: policy.mentionUser.displayName,
-    };
-  }
-  if (!deliveryValidator.Check(value)) {
-    throw new Error('delivery policy is invalid');
-  }
-  return jsonText(value, MAX_DELIVERY, 'delivery');
-}
-
-function readDelivery(text: string): DeliveryPolicy {
-  let value: unknown;
-  try {
-    value = JSON.parse(text);
-  } catch {
-    throw new Error('Invalid delivery in database');
-  }
-  if (!deliveryValidator.Check(value)) {
-    throw new Error('Invalid delivery in database');
-  }
-  return fromStoredDelivery(value);
-}
-
-function fromStoredDelivery(value: StoredDelivery): DeliveryPolicy {
-  if (value.mentionUser === undefined) {
-    return { bypassDailyBudget: value.bypassDailyBudget };
-  }
-  return {
-    bypassDailyBudget: value.bypassDailyBudget,
-    mentionUser: {
-      userId: BigInt(value.mentionUser.userId),
-      displayName: value.mentionUser.displayName,
-    },
-  };
-}
-
-function positiveInt64(id: bigint): bigint {
-  if (id <= 0n || id > MAX_INT64) {
-    throw new Error('ID must be a positive int64');
-  }
-  return id;
-}
-
-function listed(row: {
-  id: bigint;
-  payloadJson: string;
-  state: string;
-  scheduledAt: string | null;
-  createdAt: string;
-}): ListedTask {
-  if (row.state !== 'waiting' && row.state !== 'completed' && row.state !== 'failed' && row.state !== 'cancelled') {
-    throw new Error('Invalid task state in database');
-  }
-  return {
-    id: row.id,
-    payload: parseJson(row.payloadJson, 'task payload'),
-    state: row.state,
-    scheduledAt: row.scheduledAt,
-    createdAt: row.createdAt,
-  };
 }
 
 export class LongTaskService {
@@ -464,51 +259,11 @@ export class LongTaskService {
     callerId: bigint | null,
     restricted: boolean,
   ): ListedTask | undefined {
-    if (restricted && callerId === null) {
-      return undefined;
-    }
-    const owner = restricted && callerId !== null ? eq(longTasks.createdByUserId, callerId) : undefined;
-    const row = this.#orm
-      .select({
-        id: longTasks.id,
-        payloadJson: longTasks.payloadJson,
-        state: longTasks.state,
-        scheduledAt: longTasks.scheduledAt,
-        createdAt: longTasks.createdAt,
-      })
-      .from(longTasks)
-      .where(
-        and(
-          eq(longTasks.id, taskId),
-          eq(longTasks.pluginId, pluginId),
-          eq(longTasks.conversationId, conversationId),
-          owner,
-        ),
-      )
-      .get();
-    return row === undefined ? undefined : listed(row);
+    return getTask(this.#orm, pluginId, conversationId, taskId, callerId, restricted);
   }
 
   #list(pluginId: string, conversationId: bigint, callerId: bigint | null, restricted: boolean): ListedTask[] {
-    if (restricted && callerId === null) {
-      return [];
-    }
-    const owner = restricted && callerId !== null ? eq(longTasks.createdByUserId, callerId) : undefined;
-    const visible = restricted ? or(eq(longTasks.state, 'waiting'), eq(taskReceipts.state, 'pending')) : undefined;
-    return this.#orm
-      .select({
-        id: longTasks.id,
-        payloadJson: longTasks.payloadJson,
-        state: longTasks.state,
-        scheduledAt: longTasks.scheduledAt,
-        createdAt: longTasks.createdAt,
-      })
-      .from(longTasks)
-      .leftJoin(taskReceipts, eq(taskReceipts.taskId, longTasks.id))
-      .where(and(eq(longTasks.pluginId, pluginId), eq(longTasks.conversationId, conversationId), owner, visible))
-      .orderBy(asc(longTasks.scheduledAt), asc(longTasks.id))
-      .all()
-      .map(listed);
+    return listTasks(this.#orm, pluginId, conversationId, callerId, restricted);
   }
 
   #finish(

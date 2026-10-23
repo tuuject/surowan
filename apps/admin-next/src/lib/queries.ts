@@ -1,44 +1,28 @@
-import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
+import { getDictionarySettings, listDictionary, listDictionaryChats } from './api/dictionary.ts';
+import type { DictionaryScope } from './api/dictionary.ts';
+import { getChats } from './api/chats.ts';
 import {
-  type DictionaryScope,
-  getChats,
   getPlaygroundRelease,
   getPlaygroundRoom,
-  getConfigStatus,
-  getConversationContext,
-  getDeveloperSettings,
-  getHarnessSettings,
-  getDictionarySettings,
-  getInvocation,
-  getMessage,
-  getOverview,
-  getPromptDiff,
-  getPromptDocument,
-  getPromptVersions,
-  getProviderPresets,
-  getProviders,
-  getSession,
-  getUsage,
-  type ListFilters,
-  listAlarms,
-  listApiKeys,
-  listBotAdmins,
-  listConversationContexts,
-  listDictionary,
-  listDictionaryChats,
-  listInvocations,
-  listMemories,
-  listMemoryChats,
   listPlaygroundInvocations,
   listPlaygroundMessages,
   listPlaygroundRooms,
-  listMessages,
-  listPasskeys,
-  listStickerSets,
-  listStickers,
-  type Page,
-  type PromptScopeRef,
-} from './api.ts';
+} from './api/playground.ts';
+import { getConfigStatus, getDeveloperSettings, getHarnessSettings } from './api/config.ts';
+import { getConversationContext, listConversationContexts } from './api/contexts.ts';
+import { getInvocation, listInvocations } from './api/invocations.ts';
+import { getMessage, listMessages } from './api/messages.ts';
+import { getOverview, getUsage } from './api/usage.ts';
+import { getPromptDiff, getPromptDocument, getPromptVersions } from './api/prompts.ts';
+import type { PromptScopeRef } from './api/prompts.ts';
+import { getProviderPresets, getProviders } from './api/providers.ts';
+import { getSession, listPasskeys } from './api/auth.ts';
+import type { ListFilters, Page } from './api/core.ts';
+import { listAlarms } from './api/alarms.ts';
+import { listApiKeys, listBotAdmins } from './api/admin.ts';
+import { listMemories, listMemoryChats } from './api/memories.ts';
+import { listStickerSets, listStickers } from './api/stickers.ts';
+import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 
 export const PAGE_SIZE = 25;
 

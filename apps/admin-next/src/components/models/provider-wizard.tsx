@@ -19,21 +19,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  type CreateProviderRequest,
-  createProvider,
-  type DiscoveredModel,
-  discoverProviderModels,
-  lookupModelMetadata,
-  PROVIDER_APIS,
-  type ProviderApi,
-  type ProviderKind,
-  type ProviderModelConfig,
-} from '@/lib/api.ts';
+
 import { type HeaderRow, headerRowsFromNames, headerValues } from '@/lib/header-rows.ts';
 import { modelFormFromDraft, parseModelIds, requestErrorMessage } from '@/lib/model-manager.ts';
 import { providerPresetsQuery } from '@/lib/queries.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
+import { createProvider, discoverProviderModels, lookupModelMetadata, PROVIDER_APIS } from '@/lib/api/providers.ts';
+import type {
+  CreateProviderRequest,
+  DiscoveredModel,
+  ProviderApi,
+  ProviderKind,
+  ProviderModelConfig,
+} from '@/lib/api/providers.ts';
 
 const ALIAS_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 

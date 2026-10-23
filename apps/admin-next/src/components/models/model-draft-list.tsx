@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { MonoValue, ToneBadge } from '@/components/business';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import type { DiscoveredModel, ProviderModelConfig } from '@/lib/api.ts';
+
 import { formatNumber } from '@/lib/format.ts';
 import { draftNeedsConfirmation, matchLabel, unconfirmedFields } from '@/lib/model-manager.ts';
+import type { DiscoveredModel, ProviderModelConfig } from '@/lib/api/providers.ts';
 
 /**
  * One drafted value; a field nobody could fill reads `—`. The label stays

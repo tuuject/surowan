@@ -2,8 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { type ColumnSpec, StateBadge, TableShell } from '@/components/business';
-import { type ImageGenerationRecord, listImageGenerations } from '@/lib/api';
+
 import { formatTime } from '@/lib/format';
+import { listImageGenerations } from '@/lib/api/images.ts';
+import type { ImageGenerationRecord } from '@/lib/api/images.ts';
 
 /** Generation audit list: every generation submitted from the panel or the agent. */
 

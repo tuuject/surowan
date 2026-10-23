@@ -16,7 +16,7 @@ import type { McpManager } from '../../capabilities/mcp.ts';
 import type { StickerService } from '../../capabilities/stickers.ts';
 import { createMemoryTools, type MemoryStore } from '../../context/memory.ts';
 import type { ImageBridge } from '../../image/bridge.ts';
-import type { AgentRuntimeOptions, CapabilityToolFactory, ToolFactory } from '../../orchestration/agent-runtime.ts';
+
 import type { DocSpaces } from '../../platform/doc-spaces.ts';
 import { hostExecutionProfile } from '../../platform/host-profile.ts';
 import type { SkillVisibilityTarget, SystemSkill } from '../../platform/system-resources.ts';
@@ -24,6 +24,11 @@ import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts
 import type { LongTaskService } from '../../store/long-tasks.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import type { LoadedPlugins } from '../../plugins/plugin.ts';
+import type {
+  AgentRuntimeOptions,
+  CapabilityToolFactory,
+  ToolFactory,
+} from '../../orchestration/agent-runtime-types.ts';
 
 export interface HostToolingOptions {
   readonly store: BusinessStore;

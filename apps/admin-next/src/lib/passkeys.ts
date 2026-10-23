@@ -1,6 +1,7 @@
 import { WebAuthnError, browserSupportsWebAuthn } from '@simplewebauthn/browser';
-import { ApiError } from './api.ts';
+
 import i18n from './i18n.ts';
+import { ApiError } from './api/core.ts';
 
 /**
  * WebAuthn only works in a secure context (HTTPS or a loopback origin), and
