@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/readme/logo.jpg" width="128" height="128" alt="塑料碗 Logo" />
+  <img src="assets/readme/logo.webp" width="128" height="128" alt="塑料碗 Logo" />
 
   <h1>塑料碗（Plastic Wan）</h1>
 
@@ -20,8 +20,8 @@
     <a href="https://github.com/tuuject/surowan/issues">反馈问题</a>
   </p>
 
-  <img src="assets/readme/cover.jpg" width="900" alt="塑料碗主题插画：紫色调的角色、工作台与聊天屏幕" />
-  <p><sub>主题插画，用来表达塑料碗的氛围；不是实际管理面板截图。</sub></p>
+  <img src="assets/readme/cover.webp" width="900" alt="塑料碗主题插画：紫色调的角色、工作台与聊天屏幕" />
+  <p>塑料碗和 LLM 的关系：塑料碗是皮套，LLM（比如被称为「蓝色大肥鱼」的 DeepSeek）是中之人。</p>
 </div>
 
 ---
