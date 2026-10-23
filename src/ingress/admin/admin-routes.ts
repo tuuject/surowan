@@ -2,6 +2,7 @@ import type { BucketScheduler } from '../../orchestration/scheduler.ts';
 import { LongTaskService } from '../../store/long-tasks.ts';
 import type { ImageBridge } from '../../image/bridge.ts';
 import type { ImageService } from '../../image/service.ts';
+import type { WarningService } from '../../store/warnings.ts';
 import type { PlaygroundAdminDeps } from './playground-admin.ts';
 import { createImageAdminHandler } from './image-admin.ts';
 import { createInvocationMediaReader } from './invocation-media.ts';
@@ -21,6 +22,7 @@ import { createPlaygroundAdminRoutes } from './playground-route-admin.ts';
 import { createPromptsAdminHandler } from './prompts-route-admin.ts';
 import { createProvidersAdminHandler } from './providers-route-admin.ts';
 import { createTuningAdminHandler } from './tuning-admin-routes.ts';
+import { createWarningsAdminHandler } from './warnings-admin.ts';
 import type { AdminServerOptions } from './server.ts';
 
 export interface AdminRoutesDeps {
@@ -32,6 +34,8 @@ export interface AdminRoutesDeps {
   /** Aborted when admin stops; joined with the host's shutdown signal. */
   readonly healthSignal: AbortSignal;
   readonly healthChecks: Set<Promise<unknown>>;
+  /** Shared with the scheduler and login path; the panel may fall back to its own instance. */
+  readonly warnings: WarningService;
   /** The in-flight model payload cleanup, shared with `stop()`. */
   readonly payloadClear: {
     current(): Promise<number> | undefined;
@@ -45,7 +49,7 @@ export interface AdminRoutesDeps {
  * back into `AdminServer`.
  */
 export function createAdminRoutes(deps: AdminRoutesDeps) {
-  const { options, auth, passkeys, healthSignal, healthChecks, payloadClear, staticDir } = deps;
+  const { options, auth, passkeys, healthSignal, healthChecks, payloadClear, staticDir, warnings } = deps;
   const reloader = options.configReloader;
   const secrets = options.secrets;
   const scheduler: BucketScheduler | undefined = options.scheduler;
@@ -127,6 +131,7 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       invocationPrompts: options.invocationPrompts,
       readInvocationMedia,
     }),
+    warnings: createWarningsAdminHandler({ warnings, configStore: options.configStore }),
     static: createStaticAssetHandler({ staticDir }),
   };
 }

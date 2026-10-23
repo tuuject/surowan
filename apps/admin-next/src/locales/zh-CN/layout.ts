@@ -7,6 +7,7 @@ export const layout: typeof layoutEn = {
     manage: '管理',
     account: '账户',
     overview: '概览',
+    warnings: '警告',
     toolSessions: '调用记录',
     contexts: '上下文',
     messages: '消息',

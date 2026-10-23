@@ -3,6 +3,7 @@ import type { HostKind } from '../platform/im-host.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import { LongTaskService } from '../store/long-tasks.ts';
 import type { BusinessStore } from '../store/store.ts';
+import type { WarningService } from '../store/warnings.ts';
 import { type BucketAttachmentTarget, InvocationQueueService } from './invocation-queue.ts';
 import type { ProactiveReplyGateOptions } from './proactive-reply.ts';
 import {
@@ -56,6 +57,7 @@ export class BucketScheduler {
     proactive?: ProactiveReplyGateOptions,
     /** Hosts this scheduler serves; undefined means every host of the database. */
     hosts?: readonly HostKind[],
+    warnings?: WarningService,
   ) {
     this.#store = store;
     this.#hosts = hosts === undefined || hosts.length === 0 ? undefined : hosts;
@@ -67,6 +69,7 @@ export class BucketScheduler {
       handler,
       active: this.#active,
       state: this.#executionState,
+      ...(warnings === undefined ? {} : { warnings }),
       processDue: (now) => this.processDue(now),
       processTasksDue: (now) => this.processTasksDue(now),
       wake: () => this.wake(),

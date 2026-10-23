@@ -29,6 +29,7 @@ import { PlaygroundStore } from '../../../src/store/playground.ts';
 import { recordPromptVersionsFromConfig } from '../../../src/store/prompt-versions.ts';
 import { seedAdminBulkRows } from '../../../test/fixtures/admin-seed-bulk.ts';
 import { seedAdminFixture } from '../../../test/fixtures/admin-seed.ts';
+import { seedAdminWarnings } from '../../../test/fixtures/admin-seed-context.ts';
 import { fauxRegistry } from '../../../test/helpers.ts';
 import {
   nudgeRoomScheduler,
@@ -55,6 +56,7 @@ export async function openFixtures(loaded: LoadedConfig, directory: string): Pro
   state.store = store;
   const seed = seedAdminFixture(store);
   seedAdminBulkRows(store);
+  seedAdminWarnings(store.orm);
   // The playground specs drive the real room store: two rooms, one of them with
   // an admitted (held) message, so the timeline, the counters and the
   // per-room isolation all have something to show.

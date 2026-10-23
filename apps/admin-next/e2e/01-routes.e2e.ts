@@ -36,6 +36,17 @@ test.describe('routes and deep links', () => {
     await expect(page.getByText('Stored messages')).toBeVisible();
     await expect(page.getByText('Cached media analyses')).toBeVisible();
     await expect(page.getByText('Bot status')).toBeVisible();
+    await expect(page.getByText('Invocation failure rate is above the threshold')).toBeVisible();
+    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+  });
+
+  test('/warnings lists standing and event warnings', async ({ page }) => {
+    await page.goto(await adminUrl('/warnings'));
+    await expect(page.getByText('Standing warnings', { exact: true })).toBeVisible();
+    await expect(page.getByText('Event warnings', { exact: true })).toBeVisible();
+    await expect(page.getByText('Invocation failure rate is above the threshold')).toBeVisible();
+    await expect(page.getByText('Consecutive administrator sign-in failures')).toBeVisible();
+    await expect(page.getByText('1 unread', { exact: true })).toBeVisible();
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 

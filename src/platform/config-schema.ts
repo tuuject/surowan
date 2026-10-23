@@ -154,7 +154,17 @@ export const ConfigSchema = Type.Object(
     image: Type.Optional(ImageSectionSchema),
     dictionary: Type.Optional(DictionarySectionSchema),
     tool_model: Type.Optional(ToolModelSchema),
-    retention: Type.Object({ online_days: PositiveInteger, backup_copies: PositiveInteger }, Strict),
+    retention: Type.Object(
+      {
+        online_days: PositiveInteger,
+        backup_copies: PositiveInteger,
+        // Read event warnings are kept this long after they are marked read.
+        // Optional so existing configurations keep working; the runtime default
+        // is 30 days.
+        warning_read_days: Type.Optional(PositiveInteger),
+      },
+      Strict,
+    ),
     paths: Type.Object(
       {
         database: Type.String({ minLength: 1 }),

@@ -12,6 +12,7 @@ import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts
 import type { SecretStore } from '../../platform/secrets.ts';
 import type { LongTaskService } from '../../store/long-tasks.ts';
 import type { BusinessStore } from '../../store/store.ts';
+import { WarningService } from '../../store/warnings.ts';
 import { type AdminRoutes, createAdminRoutes } from './admin-routes.ts';
 import { closeServer, json, parseOriginHost, redact } from './admin-http.ts';
 import { AdminQueryError } from './audit.ts';
@@ -62,6 +63,8 @@ export interface AdminServerOptions {
   /** Telegram bytes stay on the server; the caller can only name invocation-associated media IDs. */
   readonly mediaDownloader?: MediaDownloader;
   readonly shutdownSignal?: AbortSignal;
+  /** Shared with the scheduler so invocations and login attempts feed the same warnings. */
+  readonly warnings?: WarningService;
 }
 
 export class AdminServer {
@@ -82,7 +85,8 @@ export class AdminServer {
       throw new Error('Admin panel is not configured');
     }
     this.#admin = admin;
-    this.#auth = new AdminAuth(options.store.orm, admin.session_ttl_hours);
+    const warnings = options.warnings ?? new WarningService(options.store.orm);
+    this.#auth = new AdminAuth(options.store.orm, admin.session_ttl_hours, warnings);
     this.#passkeys =
       admin.public_url === undefined ? undefined : new AdminPasskeys(options.store.orm, this.#auth, admin.public_url);
     this.#secrets = options.secrets;
@@ -96,6 +100,7 @@ export class AdminServer {
         ...(options.shutdownSignal === undefined ? [] : [options.shutdownSignal]),
       ]),
       healthChecks: this.#healthChecks,
+      warnings,
       payloadClear: {
         current: () => this.#payloadClear,
         set: (value) => {
@@ -245,6 +250,7 @@ export class AdminServer {
     response ??= await routes.prompts.handle(request, url, segments, username);
     response ??= await routes.playground.handle(request, url, segments, username);
     response ??= await routes.image.handle(request, url, segments, username);
+    response ??= await routes.warnings.handle(request, url, segments);
     if (response !== undefined) {
       return response;
     }

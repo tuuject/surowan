@@ -9,6 +9,7 @@ import { passkeys } from './pages/passkeys.ts';
 import { preferences } from './pages/preferences.ts';
 import { prompts } from './pages/prompts.ts';
 import { stickers } from './pages/stickers.ts';
+import { warnings } from './pages/warnings.ts';
 
 /**
  * Audit and configuration pages: overview, auth, chats, stickers, memories,
@@ -27,4 +28,5 @@ export const pages = {
   prompts,
   passkeys,
   preferences,
+  warnings,
 };

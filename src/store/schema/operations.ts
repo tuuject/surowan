@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { check, index, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { sqliteBigInt, sqliteBigIntId } from './shared.ts';
 
 export const dailyUsage = sqliteTable(
@@ -60,5 +60,35 @@ export const promptVersions = sqliteTable(
     ),
     check('prompt_versions_source_check', sql`source IN ('panel', 'external', 'rollback')`),
     uniqueIndex('prompt_versions_scope_seq_unique').on(t.scope, t.chatId, t.seq),
+  ],
+);
+
+/**
+ * Event warnings raised by any runtime module. Standing warnings are not stored:
+ * the Admin API derives them from the active configuration, so they disappear
+ * the moment their condition clears. `variables_json` is a bounded JSON object
+ * rendered by the panel's per-code template; it never contains executable code.
+ * At most one unread row per `code` exists (partial unique index); a repeated
+ * event updates that row instead of appending duplicates. Read rows are pruned
+ * by `read_at` plus the configured warning retention window.
+ */
+export const warnings = sqliteTable(
+  'warnings',
+  {
+    id: sqliteBigIntId('id').primaryKey(),
+    code: text('code').notNull(),
+    severity: text('severity').notNull(),
+    variablesJson: text('variables_json').notNull(),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    readAt: text('read_at'),
+  },
+  (t) => [
+    check('warnings_code_check', sql`length(code) BETWEEN 1 AND 64`),
+    check('warnings_severity_check', sql`severity IN ('warning', 'critical')`),
+    check('warnings_variables_json_check', sql`json_valid(variables_json)`),
+    uniqueIndex('warnings_unread_code_unique').on(t.code).where(sql`read_at IS NULL`),
+    index('warnings_unread_created_idx').on(t.id).where(sql`read_at IS NULL`),
+    index('warnings_read_at_idx').on(t.readAt).where(sql`read_at IS NOT NULL`),
   ],
 );
