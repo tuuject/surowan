@@ -106,6 +106,7 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
     ingestion,
     modelSwitcher,
     mcpManager,
+    warnings,
   } = assembly;
   const {
     runtime,
@@ -140,6 +141,7 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
     capabilityTools,
     additionalTools,
     tasks,
+    warnings,
     skillVisibility: skillVisibleForHost,
   });
   state.scheduler = startedScheduler;
@@ -226,6 +228,7 @@ export async function startAdminServer(session: ServeContext, assembly: ServeAss
     playgroundStore,
     playgroundIngress,
     skillVisibleForHost,
+    warnings,
   } = assembly;
   const { runtime, startedScheduler, configReloader } = core;
   if (loaded.config.admin?.enabled === true) {
@@ -251,6 +254,7 @@ export async function startAdminServer(session: ServeContext, assembly: ServeAss
       modelSwitcher,
       configReloader,
       secrets,
+      warnings,
       requestRestart,
       imageService,
       imageBridge,

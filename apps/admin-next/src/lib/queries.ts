@@ -22,6 +22,7 @@ import { listAlarms } from './api/alarms.ts';
 import { listApiKeys, listBotAdmins } from './api/admin.ts';
 import { listMemories, listMemoryChats } from './api/memories.ts';
 import { listStickerSets, listStickers } from './api/stickers.ts';
+import { listWarnings } from './api/warnings.ts';
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 
 export const PAGE_SIZE = 25;
@@ -36,6 +37,27 @@ export const overviewQuery = queryOptions({
   queryKey: ['overview'],
   queryFn: getOverview,
 });
+
+/**
+ * The dashboard slice: standing warnings plus the latest five unread events.
+ * The background refetch is suspended by TanStack Query while the tab is
+ * hidden; pages also refetch explicitly when they become visible again.
+ */
+export const warningsSummaryQuery = queryOptions({
+  queryKey: ['warnings', 'summary'],
+  queryFn: () => listWarnings({ limit: 5, unread: true }),
+  refetchInterval: 10_000,
+});
+
+export function warningsQuery() {
+  return infiniteQueryOptions({
+    queryKey: ['warnings', 'list'],
+    queryFn: ({ pageParam }) => listWarnings({ limit: PAGE_SIZE, cursor: pageParam }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next_cursor,
+    refetchInterval: 10_000,
+  });
+}
 
 export function usageQuery(days: number) {
   return queryOptions({

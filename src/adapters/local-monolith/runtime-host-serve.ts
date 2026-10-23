@@ -26,6 +26,7 @@ import type { HostKind, ImHost } from '../../platform/im-host.ts';
 import { AgentModelSwitcher } from '../../platform/model-switch.ts';
 import { buildModelRegistry } from '../../platform/providers.ts';
 import { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
+import { WARNING_READ_RETENTION_DAYS as DEFAULT_WARNING_READ_RETENTION_DAYS } from '../../platform/warning-catalog.ts';
 import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from './system-resources.ts';
 import { BUNDLED_MANUAL_DIR, bundledManualSpace, FileSystemDocSpaces } from './doc-spaces.ts';
 import { BUILTIN_PLUGINS } from '../../plugins/builtin.ts';
@@ -33,6 +34,7 @@ import { loadPlugins, type LoadedPlugins } from '../../plugins/plugin.ts';
 import { ServeLock, SqliteStore, stopRunningInstance, watchStopRequests } from './database.ts';
 import { LongTaskService } from '../../store/long-tasks.ts';
 import { recordPromptVersionsFromConfig } from '../../store/prompt-versions.ts';
+import { WarningService } from '../../store/warnings.ts';
 import { createHostTooling, type HostTooling } from './host-tooling.ts';
 import { appState } from '../../store/schema.ts';
 import { logEvent, type ServeContext } from './runtime-host-support.ts';
@@ -68,6 +70,7 @@ export interface ServeServices {
   readonly mediaClient: MediaDownloader;
   readonly mcpManager: McpManager | undefined;
   readonly tasks: LongTaskService;
+  readonly warnings: WarningService;
   readonly playgroundStore: PlaygroundStore;
   readonly playgroundIngress: PlaygroundIngress;
   readonly plugins: LoadedPlugins;
@@ -153,6 +156,12 @@ export async function startServeServices(session: ServeContext, environment: Ser
   // configuration and its models always travel together.
   const registry = await buildModelRegistry(loaded.config, null, secrets);
   const configStore = new RuntimeConfigurationStore({ config: loaded.config, hash: loaded.hash, ...registry });
+  const warnings = new WarningService(openedStore.orm);
+  warnings.start({
+    retentionDays: () =>
+      configStore.current().config.retention.warning_read_days ?? DEFAULT_WARNING_READ_RETENTION_DAYS,
+  });
+  state.warnings = warnings;
   const modelSwitcher = new AgentModelSwitcher(configStore);
   // A Playground-only process owns no Telegram objects at all: no Bot, no
   // command registration, no webhook delete, no ingestion, no sticker sync
@@ -288,6 +297,7 @@ export async function startServeServices(session: ServeContext, environment: Ser
     mediaClient,
     mcpManager,
     tasks,
+    warnings,
     playgroundStore,
     playgroundIngress,
     plugins,

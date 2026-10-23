@@ -25,6 +25,7 @@ import type { LoadedConfig } from './config.ts';
 import type { ServeLock, SqliteStore } from './database.ts';
 import type { StickerService } from '../../capabilities/stickers.ts';
 import type { TelegramHost } from './telegram-host.ts';
+import type { WarningService } from '../../store/warnings.ts';
 
 export const ALLOWED_UPDATES = ['message', 'edited_message', 'my_chat_member'] as const;
 
@@ -55,6 +56,7 @@ export interface ServeState {
   host?: TelegramHost | undefined;
   roomHost?: ImHost | undefined;
   admin?: AdminServer | undefined;
+  warnings?: WarningService | undefined;
   startupCatchUpController?: AbortController | undefined;
 }
 

@@ -10,6 +10,7 @@ export const layout = {
     manage: 'Manage',
     account: 'Account',
     overview: 'Overview',
+    warnings: 'Warnings',
     toolSessions: 'Tool sessions',
     contexts: 'Contexts',
     messages: 'Messages',

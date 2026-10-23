@@ -189,6 +189,25 @@ test.describe('alarm cancel + conflict path', () => {
   });
 });
 
+test.describe('warnings', () => {
+  test('mark an event warning read, remove it from the dashboard, then clear history', async ({ page }) => {
+    await page.goto(await adminUrl('/warnings'));
+    await expect(page.getByText('Invocation failure rate is above the threshold')).toBeVisible();
+    await page.getByRole('button', { name: 'Mark read' }).click();
+    await expect(toast(page, 'Warning marked read')).toBeVisible();
+    await expect(page.getByText('Unread', { exact: true })).toHaveCount(0);
+
+    await page.goto(await adminUrl('/'));
+    await expect(page.getByText('Invocation failure rate is above the threshold')).toHaveCount(0);
+
+    await page.goto(await adminUrl('/warnings'));
+    await page.getByRole('button', { name: 'Clear warning history' }).click();
+    await page.getByRole('button', { name: 'Clear warnings' }).click();
+    await expect(toast(page, 'Cleared 2 warnings')).toBeVisible();
+    await expect(page.getByText('No event warnings yet.')).toBeVisible();
+  });
+});
+
 test.describe('overview operations', () => {
   test('cancel ongoing sessions reports the audit result', async ({ page }) => {
     await page.goto(await adminUrl('/'));

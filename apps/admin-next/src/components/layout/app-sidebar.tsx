@@ -19,6 +19,7 @@ import {
   SlidersHorizontal,
   SlidersVertical,
   Sticker,
+  TriangleAlert,
   Zap,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -62,6 +63,7 @@ export default function AppSidebar({
       label: t('layout.nav.observe'),
       items: [
         { title: t('layout.nav.overview'), url: '/', icon: LayoutDashboard },
+        { title: t('layout.nav.warnings'), url: '/warnings', icon: TriangleAlert },
         { title: t('layout.nav.toolSessions'), url: '/invocations', icon: Zap },
         { title: t('layout.nav.contexts'), url: '/contexts', icon: MessageSquare },
         { title: t('layout.nav.messages'), url: '/messages', icon: FileText },

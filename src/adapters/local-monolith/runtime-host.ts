@@ -111,6 +111,7 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
     try {
       replayShutdown.abort(new Error('shutdown'));
       state.stopWatcher?.();
+      state.warnings?.stop();
       await state.admin?.stop();
       await state.scheduler?.stop(30_000);
       state.host?.activity.stopAll();

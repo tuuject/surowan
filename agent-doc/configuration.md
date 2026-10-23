@@ -33,7 +33,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 | --- | --- |
 | `agent.provider`、`agent.model` | 永远热更新：目标 Provider 可以是同一次修改里新增的，reload 会重建模型注册表并随配置一起发布 |
 | `agent.system_prompt_file` | 路径或文件内容变化都算；内容变化会重建每个 Conversation 的 Context；可在面板编辑并保留版本历史 |
-| `developer`、`developer.record_model_payloads`、`developer.record_agent_thinking` | 可选节/字段的增删都热应用，缺省为 `false`；每次模型调用读取当前开关，关闭时后续快照回调停止写入 |
+| `developer`、`developer.record_model_payloads`、`developer.record_agent_thinking` | 可选节/字段的增删都热应用，缺省为 `false`；每次模型调用读取当前开关，关闭时后续快照回调停止写入。`record_model_payloads` 开启时会在看板与警告页持续产生常态警告 |
 | 其余全部 agent 字段（逐项列在 `HOT_PATHS`，`agent.context.*` 与 `agent.rate_limits.*` 按前缀）：`thinking_level`、`context_stop_ratio`、`send_max_text_length`、`send_disallow_blank_lines`、`send_nudge_enabled`、`send_barrier_enabled`、`allow_reply_message_multiple_times`、`send_duplicate_guard_enabled`、`daily_budget.max_tokens`、`max_concurrency`、`history_messages`、`memory_ttl_warning_days`、`context.*`、`rate_limits.*`。除模型选择与 Prompt 外都可在 Admin「Harness tuning」页编辑 | 下一次 Invocation 使用新值；运行中的 Invocation 继续用它启动时的快照。例外都在运行期读取当前发布的配置：`daily_budget.max_tokens`（调低后下一次模型调用立即被拦截）；`context.ref_ttl_hours`（发布之后签发或续期的引用使用新 TTL，已签发引用保留原到期时间）；`context.agent_cache_size`（下一次缓存 agent 时按新上限逐出，调小不丢历史）；`memory_ttl_warning_days`（只影响 Admin 记忆列表的 `long_ttl` 判定，下一次请求生效） |
 | `telegram.chats`（**新增** Chat，整项 `{ id, … }`） | 立即生效：ingestion 白名单、参与策略注册表与 `resolveChatConfig` 都读发布后的配置并按代数重建/直读，无需重启。删除 Chat、已有 Chat 的其它字段修改与 Topic 范围仍是 restart |
 | `telegram.chats[<id>].instructions_file` | 仅限两边都存在的 Chat；路径或内容变化都算；可在面板编辑并保留版本历史（Chat 尚无该字段时由面板创建） |
@@ -49,7 +49,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 | `vision.provider`、`vision.model`、`vision.max_output_tokens` | 下一次 vision 分析使用新模型；`max_output_tokens` 在构建注册表时与新模型的上限一起校验，并和模型一起在分析开始时从同一份快照取出，等待中发布的新值只影响之后的分析 |
 | `image`（整段：存在性、`credentials`、`models` 及所有子字段） | 图片功能启停与配置都热应用：reload 重新解析 image SecretRef 并原子发布新的图片快照，下一次提交生效；进行中的生成继续用它开始时的凭据快照。段被剥离（结构不合法）或删除都等于禁用，Agent 与 Admin 同步失去图片工具与页面能力，不需要重启 |
 
-`outside_serve` 字段（`serve` 从不读取，下一次 `backup` 生效，既不算已应用也不算待重启）：`paths.backups`、`retention.online_days`、`retention.backup_copies`。
+`outside_serve` 字段（`serve` 从不读取，下一次 `backup` 生效，既不算已应用也不算待重启）：`paths.backups`、`retention.online_days`、`retention.backup_copies`。`retention.warning_read_days` 由 `serve` 的警告清理读取，因此和 `retention` 的其它字段不同：它按普通 restart 字段处理，改动后需要重启才生效。
 
 其它所有路径都是 restart：改动会写进文件，但要重启才生效，包括 `telegram.token`、`data_dir`、`paths.database`、`admin.*`、`mcp.servers`、`telegram.sticker_sets`、Chat allowlist 的删除与已有 Chat 的修改（新增 Chat 与参与策略 `participation`、主动回复 `proactive_reply` 是热变更），以及 `instructions_file`、`provider`、`model`、`thinking_level`、`ignored_user_ids`、`dictionary_injection_mode`、`participation`、`proactive_reply` 以外的 Chat 字段，以及 `vision` 的 `max_concurrency`、`background_sticker_concurrency`、`prompt_version`、`daily_budget`。
 
@@ -131,7 +131,7 @@ command SecretRef：
 | `developer` | 可选的开发者调试配置；`record_model_payloads` 与 `record_agent_thinking` 均缺省为 `false` |
 | `image` | 可选的图片生成，见 [Image 生成](#image-生成) |
 | `web_fetch` | 可选的 `web_fetch` 设置，见 [web_fetch](#web_fetch) |
-| `retention` | 在线保留天数与备份份数 |
+| `retention` | 在线保留天数、备份份数与已读警告保留天数（可选 `warning_read_days`，缺省 30 天；改动后需重启生效） |
 | `paths` | SQLite、媒体缓存和备份目录 |
 
 ## Telegram Chat 与 Topic

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -17,13 +18,17 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { WarningCard } from '@/components/warnings/warning-card';
+import { useForegroundRefresh } from '@/hooks/use-foreground-refresh';
 
 import { errorMessage } from '@/lib/errors';
 import { formatNumber, formatTime } from '@/lib/format';
-import { overviewQuery, usageQuery } from '@/lib/queries';
+import { overviewQuery, usageQuery, warningsSummaryQuery } from '@/lib/queries';
 import { useTranslation } from 'react-i18next';
 import { cancelOngoingSessions, wakeBot } from '@/lib/api/usage.ts';
 import type { LabelCount, UsageEntry } from '@/lib/api/usage.ts';
+import { markWarningRead } from '@/lib/api/warnings.ts';
+import type { EventWarning } from '@/lib/api/warnings.ts';
 
 function Stat({ title, value }: { readonly title: string; readonly value: React.ReactNode }): React.ReactElement {
   return (
@@ -79,6 +84,20 @@ export default function OverviewPage(): React.ReactElement {
   const [wakeOpen, setWakeOpen] = useState(false);
 
   const { data, isPending, isError, error } = useQuery(overviewQuery);
+  const warnings = useQuery(warningsSummaryQuery);
+  useForegroundRefresh(() => {
+    void warnings.refetch();
+  });
+  const markWarningReadMutation = useMutation({
+    mutationFn: (warning: EventWarning) => markWarningRead(warning.id),
+    onSuccess: () => {
+      toast.success(t('pages.warnings.markedRead'));
+      void queryClient.invalidateQueries({ queryKey: ['warnings'] });
+    },
+    onError: (mutationError) => {
+      toast.error(errorMessage(mutationError));
+    },
+  });
   const {
     data: usage,
     isPending: usagePending,
@@ -164,6 +183,56 @@ export default function OverviewPage(): React.ReactElement {
 
   return (
     <div className="space-y-6">
+      <Panel
+        title={t('pages.overview.warnings')}
+        action={
+          <Button asChild size="sm" variant="ghost">
+            <Link to="/warnings">{t('pages.overview.warningsViewAll')}</Link>
+          </Button>
+        }
+      >
+        {warnings.isPending ? (
+          <div className="space-y-3">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        ) : warnings.isError ? (
+          <p className="text-destructive text-sm break-words">
+            {t('pages.overview.warningsLoadFailed')}: {errorMessage(warnings.error)}
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {warnings.data.standing.length > 0 ? (
+              <div className="divide-y">
+                {warnings.data.standing.map((warning) => (
+                  <WarningCard key={warning.code} warning={warning} />
+                ))}
+              </div>
+            ) : null}
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <p className="text-sm font-medium">
+                {t('pages.overview.warningsUnread', { count: formatNumber(warnings.data.unread_count) })}
+              </p>
+              {warnings.data.standing.length === 0 && warnings.data.items.length === 0 ? (
+                <p className="text-muted-foreground text-sm">{t('pages.overview.warningsNone')}</p>
+              ) : null}
+            </div>
+            {warnings.data.items.length > 0 ? (
+              <div className="divide-y">
+                {warnings.data.items.map((warning) => (
+                  <WarningCard
+                    key={warning.id}
+                    warning={warning}
+                    pending={markWarningReadMutation.isPending}
+                    onMarkRead={(item) => markWarningReadMutation.mutate(item)}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        )}
+      </Panel>
+
       <Card className="px-6">
         <dl className="grid gap-6 sm:grid-cols-3">
           <Stat title={t('pages.overview.statInvocations')} value={formatNumber(totalInvocations)} />

@@ -56,6 +56,54 @@ test('admin panel demands first-run setup, then authenticates and revokes sessio
   }
 });
 
+test('five consecutive username/password failures raise one warning that resets on success', async () => {
+  const { store, server } = await fixture();
+  try {
+    const created = await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD }));
+    const cookie = sessionCookie(created);
+    const call = (path: string, init: RequestInit = {}) =>
+      server.handle(
+        request(`/api${path}`, {
+          ...init,
+          headers: { cookie, origin: 'http://127.0.0.1:8899', ...init.headers },
+        }),
+      );
+
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      const failed = await server.handle(post('/api/auth/login', { username: 'x', password: PASSWORD }));
+      expect(failed.status).toBe(401);
+    }
+    expect(await readJson(await call('/warnings?unread=1'))).toMatchObject({ items: [], unread_count: 0 });
+
+    const fifth = await server.handle(post('/api/auth/login', { username: 'x', password: PASSWORD }));
+    expect(fifth.status).toBe(401);
+    const warned = await readJson(await call('/warnings?unread=1'));
+    expect(warned.items).toHaveLength(1);
+    expect(warned.items[0]).toMatchObject({
+      code: 'admin_login_failures',
+      variables: { consecutive_failures: 5, threshold: 5 },
+    });
+
+    expect((await server.handle(post(`/api/warnings/${String(warned.items[0].id)}/read`, {}, cookie))).status).toBe(
+      200,
+    );
+    const loggedIn = await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD }));
+    expect(loggedIn.status).toBe(200);
+
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      await server.handle(post('/api/auth/login', { username: 'x', password: PASSWORD }));
+    }
+    expect(await readJson(await call('/warnings?unread=1'))).toMatchObject({ items: [], unread_count: 0 });
+
+    await server.handle(post('/api/auth/login', { username: 'x', password: PASSWORD }));
+    const again = await readJson(await call('/warnings?unread=1'));
+    expect(again.items).toHaveLength(1);
+    expect(again.items[0]).toMatchObject({ code: 'admin_login_failures' });
+  } finally {
+    store.close();
+  }
+});
+
 test('admin login persists only hashes and rejects invalid credentials', async () => {
   const { store, server } = await fixture();
   try {

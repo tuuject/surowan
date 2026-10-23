@@ -148,6 +148,15 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 
 `purgeExpiredData` 不清理词条：辞典是人工维护的数据，不随在线保留窗口过期；删除只能经 Admin 或当前群的 Agent 写入。表由核心 schema 持有（`store/schema.ts` + 迁移 034），使用它的 `dictionary` 插件（[src/plugins/dictionary/](../src/plugins/dictionary/)）不自带表定义；把表迁进插件需要单独设计迁移排序、备份与保留。
 
+### 系统警告（迁移 045）
+
+`warnings` 只保存**事件警告**；常态警告由 Admin API 每次按 active 配置即时推导，不落库、没有历史行，因此条件解除后自然消失。
+
+- `code` 是警告目录里的稳定代码（`src/platform/warning-catalog.ts`），`severity` 为 `warning`/`critical`，`variables_json` 是受 `json_valid` 约束的 JSON 对象（服务端限制 8 KiB，只接受 JSON 值）。
+- 未读警告同一 `code` 只保留一行（部分唯一索引 `warnings_unread_code_unique`）；重复事件更新该行的 `variables_json`/`updated_at`，不追加重复行。标为已读后同一代码再次发生才会新建行。
+- `read_at` 为 `NULL` 表示未读。已读行在 `read_at` 超过 `retention.warning_read_days`（缺省 30 天）后删除；运行中的 `WarningService` 启动时清理一次，之后每小时检查，停机期间到期的行在下次启动时删除。它不参与 `retention.online_days` 的会话数据清理。
+- 警告不是会话数据：删除 Chat/Conversation 不级联删除 `warnings`；手动 `DELETE /api/warnings` 会清空全部事件警告。
+
 ### 工具可见性审计
 
 `invocations.tool_registry_hash` 之外还有 `tool_registry_json`：本次 Invocation 实际展示给模型的完整工具快照（`name`/`label`/`description`）；hash 覆盖名称、描述和参数 Schema，Tool 使用策略变化也会产生新 hash。`model_calls.tools_json` 记录该次请求真正附带的工具名数组——Agent 循环在 context 接近上限时会把工具裁剪到 `send`、`send_reply` 和当时可用的 `zzz`，因此同一 Invocation 内不同请求的工具列表可能不同；这两列共同回答“模型当时能看到哪些工具”。

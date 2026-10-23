@@ -1,6 +1,13 @@
 import { eq } from 'drizzle-orm';
 import type { Orm } from '../../src/store/store.ts';
-import { contextMessages, contextRefs, conversationContexts, dailyUsage, memories } from '../../src/store/schema.ts';
+import {
+  contextMessages,
+  contextRefs,
+  conversationContexts,
+  dailyUsage,
+  memories,
+  warnings,
+} from '../../src/store/schema.ts';
 import { AT, insertAlarmTask, LONG_CONTEXT_PAYLOAD_JSON, T } from './admin-seed-data.ts';
 
 /**
@@ -56,6 +63,43 @@ export function seedAdminAlarmsAndMemories(orm: Orm): AdminSeedMemories {
     .run();
 
   return { memoryActiveId, memoryExpiredId };
+}
+
+/** One unread runtime warning and one already-read security warning (Warnings page). */
+export function seedAdminWarnings(orm: Orm): void {
+  orm
+    .insert(warnings)
+    .values({
+      code: 'invocation_failure_rate',
+      severity: 'critical',
+      variablesJson: JSON.stringify({
+        failed: 51,
+        total: 100,
+        failure_rate: 0.51,
+        threshold: 0.5,
+        sample_size: 100,
+        last_failed_at: '2026-09-10T08:00:20.000Z',
+      }),
+      createdAt: '2026-09-10T08:01:00.000Z',
+      updatedAt: '2026-09-10T08:01:00.000Z',
+      readAt: null,
+    })
+    .run();
+  orm
+    .insert(warnings)
+    .values({
+      code: 'admin_login_failures',
+      severity: 'warning',
+      variablesJson: JSON.stringify({
+        consecutive_failures: 5,
+        threshold: 5,
+        last_failed_at: '2026-09-09T07:00:00.000Z',
+      }),
+      createdAt: '2026-09-09T07:00:01.000Z',
+      updatedAt: '2026-09-09T07:00:01.000Z',
+      readAt: '2026-09-09T07:05:00.000Z',
+    })
+    .run();
 }
 
 /** Conversation context + messages + capability ref (Contexts page). */

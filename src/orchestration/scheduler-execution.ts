@@ -4,6 +4,7 @@ import { resolveBucketWindowSeconds } from '../platform/invocation-policy.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import { chats, conversations, invocations, taskReceipts } from '../store/schema.ts';
 import type { BusinessStore } from '../store/store.ts';
+import type { WarningService } from '../store/warnings.ts';
 import type { InvocationQueueService } from './invocation-queue.ts';
 import type { InvocationHandler, InvocationOutcome } from './scheduler.ts';
 
@@ -44,6 +45,7 @@ export type InvocationExecutionDeps = {
   readonly handler: InvocationHandler;
   readonly active: Map<string, ActiveInvocation>;
   readonly state: InvocationExecutionState;
+  readonly warnings?: WarningService;
   readonly processDue: (now: Date) => bigint[];
   readonly processTasksDue: (now: Date) => bigint[];
   readonly wake: () => void;
@@ -142,6 +144,10 @@ export async function executeInvocation(
         .run();
     });
     persisted = true;
+    // The terminal row is visible now, so the failure-rate warning samples this
+    // run too. Recording must never change scheduling, so the service absorbs
+    // its own errors.
+    deps.warnings?.observeInvocation(finishedAt);
   } finally {
     deps.active.delete(invocation.id.toString());
     if (persisted) {

@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { hash, verify } from '@node-rs/argon2';
 import { and, eq, sql } from 'drizzle-orm';
+import type { LoginWarningSink } from '../../store/warnings.ts';
 import { asRunResult, type Orm } from '../../store/store.ts';
 import { adminPasskeys, adminSessions, adminUsers } from '../../store/schema.ts';
 
@@ -63,13 +64,15 @@ interface SessionRow {
 export class AdminAuth {
   readonly #orm: Orm;
   readonly #ttlMs: number;
+  readonly #warnings: LoginWarningSink | undefined;
   // Insertion order is recency order: a failure re-inserts its entry.
   readonly #failures = new Map<string, { count: number; lastAt: number; lockedUntil: number }>();
   #hashing = 0;
 
-  constructor(orm: Orm, sessionTtlHours: number) {
+  constructor(orm: Orm, sessionTtlHours: number, warnings?: LoginWarningSink) {
     this.#orm = orm;
     this.#ttlMs = sessionTtlHours * 3_600_000;
+    this.#warnings = warnings;
   }
 
   setupRequired(): boolean {
@@ -159,6 +162,7 @@ export class AdminAuth {
     // without spending a hash on it.
     if (!USERNAME_PATTERN.test(username) || password.length > MAX_PASSWORD_LENGTH) {
       this.#recordFailure(clientKey, nowMs);
+      this.#warnings?.loginFailed(now);
       throw new AdminAuthError(401, 'invalid_credentials', 'Invalid username or password');
     }
     const row = this.#orm
@@ -178,10 +182,11 @@ export class AdminAuth {
       return verify(row.passwordHash, password);
     });
     if (row === undefined || !verified) {
+      this.#warnings?.loginFailed(now);
       throw new AdminAuthError(401, 'invalid_credentials', 'Invalid username or password');
     }
     this.#failures.delete(clientKey);
-    return this.#orm.transaction(
+    const token = this.#orm.transaction(
       () => {
         // The password may have changed while it was being verified; a change
         // revokes every session, so a login checked against the old hash must
@@ -203,6 +208,8 @@ export class AdminAuth {
       },
       { behavior: 'immediate' },
     );
+    this.#warnings?.loginSucceeded();
+    return token;
   }
 
   hasPassword(userId: bigint): boolean {
@@ -275,6 +282,7 @@ export class AdminAuth {
   /** Called only inside the passkey verification transaction. */
   createPasskeySession(userId: bigint, now = new Date()): string {
     this.#orm.update(adminUsers).set({ lastLoginAt: now.toISOString() }).where(eq(adminUsers.id, userId)).run();
+    this.#warnings?.loginSucceeded();
     return this.#createSession(userId, now);
   }
 

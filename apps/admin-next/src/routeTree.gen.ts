@@ -30,6 +30,7 @@ import { Route as PreferencesRouteImport } from './routes/preferences'
 import { Route as PromptsRouteImport } from './routes/prompts'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StickersRouteImport } from './routes/stickers'
+import { Route as WarningsRouteImport } from './routes/warnings'
 import { Route as ContextsConversationIdRouteImport } from './routes/contexts_.$conversationId'
 import { Route as ImageGenerationsGenerationIdRouteImport } from './routes/image-generations_.$generationId'
 import { Route as InvocationsInvocationIdRouteImport } from './routes/invocations_.$invocationId'
@@ -140,6 +141,11 @@ const StickersRoute = StickersRouteImport.update({
   path: '/stickers',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WarningsRoute = WarningsRouteImport.update({
+  id: '/warnings',
+  path: '/warnings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ContextsConversationIdRoute = ContextsConversationIdRouteImport.update({
   id: '/contexts_/$conversationId',
   path: '/contexts/$conversationId',
@@ -184,6 +190,7 @@ export interface FileRoutesByFullPath {
   '/prompts': typeof PromptsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
+  '/warnings': typeof WarningsRoute
   '/contexts/$conversationId': typeof ContextsConversationIdRoute
   '/image-generations/$generationId': typeof ImageGenerationsGenerationIdRoute
   '/invocations/$invocationId': typeof InvocationsInvocationIdRoute
@@ -211,6 +218,7 @@ export interface FileRoutesByTo {
   '/prompts': typeof PromptsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
+  '/warnings': typeof WarningsRoute
   '/contexts/$conversationId': typeof ContextsConversationIdRoute
   '/image-generations/$generationId': typeof ImageGenerationsGenerationIdRoute
   '/invocations/$invocationId': typeof InvocationsInvocationIdRoute
@@ -239,6 +247,7 @@ export interface FileRoutesById {
   '/prompts': typeof PromptsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
+  '/warnings': typeof WarningsRoute
   '/contexts_/$conversationId': typeof ContextsConversationIdRoute
   '/image-generations_/$generationId': typeof ImageGenerationsGenerationIdRoute
   '/invocations_/$invocationId': typeof InvocationsInvocationIdRoute
@@ -268,6 +277,7 @@ export interface FileRouteTypes {
     | '/prompts'
     | '/settings'
     | '/stickers'
+    | '/warnings'
     | '/contexts/$conversationId'
     | '/image-generations/$generationId'
     | '/invocations/$invocationId'
@@ -295,6 +305,7 @@ export interface FileRouteTypes {
     | '/prompts'
     | '/settings'
     | '/stickers'
+    | '/warnings'
     | '/contexts/$conversationId'
     | '/image-generations/$generationId'
     | '/invocations/$invocationId'
@@ -322,6 +333,7 @@ export interface FileRouteTypes {
     | '/prompts'
     | '/settings'
     | '/stickers'
+    | '/warnings'
     | '/contexts_/$conversationId'
     | '/image-generations_/$generationId'
     | '/invocations_/$invocationId'
@@ -350,6 +362,7 @@ export interface RootRouteChildren {
   PromptsRoute: typeof PromptsRoute
   SettingsRoute: typeof SettingsRoute
   StickersRoute: typeof StickersRoute
+  WarningsRoute: typeof WarningsRoute
   ContextsConversationIdRoute: typeof ContextsConversationIdRoute
   ImageGenerationsGenerationIdRoute: typeof ImageGenerationsGenerationIdRoute
   InvocationsInvocationIdRoute: typeof InvocationsInvocationIdRoute
@@ -505,6 +518,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StickersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/warnings': {
+      id: '/warnings'
+      path: '/warnings'
+      fullPath: '/warnings'
+      preLoaderRoute: typeof WarningsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/contexts_/$conversationId': {
       id: '/contexts_/$conversationId'
       path: '/contexts/$conversationId'
@@ -558,6 +578,7 @@ const rootRouteChildren: RootRouteChildren = {
   PromptsRoute: PromptsRoute,
   SettingsRoute: SettingsRoute,
   StickersRoute: StickersRoute,
+  WarningsRoute: WarningsRoute,
   ContextsConversationIdRoute: ContextsConversationIdRoute,
   ImageGenerationsGenerationIdRoute: ImageGenerationsGenerationIdRoute,
   InvocationsInvocationIdRoute: InvocationsInvocationIdRoute,
