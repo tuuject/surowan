@@ -49,10 +49,26 @@
 - 不采用「扫描所有字符串、像绝对路径就拦」的启发式：误伤多，也挡不住 `~`、`../`、UNC 路径等变体。
 - 纵深防御：MCP Server 自身也应配置为只能读取 Harness 提供的目录，漏声明路径参数时也读不到外部文件。
 
-为了方便标注，需要在 Web Admin 增加 MCP Server 的配置菜单，基于 MCP Server 发布的 Tool schema 让用户勾选哪些参数是文件路径。
+### MCP 配置页（阶段一）
 
-- 这个菜单只是编辑器：结果写回 `config.jsonc` 的 `path_params`，配置文件仍是唯一的事实来源。
-- 保存属于 Admin 写端点，需要进入写端点白名单并校验 `Origin`。
+在 Web Admin 增加 MCP 配置页。阶段一基本只读，前端预留可编辑能力，供以后接上 MCP Server 的增删改。
+
+- 审计：列出每个 MCP Server 的连接状态，以及它暴露给模型的 Tool、description 与原始 `inputSchema`。数据来自 `McpManager` 内存中的 Tool 定义与 `mcp_server_state`，用只读审计 API 提供。
+- description 与 schema 来自 MCP Server，属于不可信数据：页面按纯文本渲染，不走允许 HTML 的 Markdown 渲染。
+- 路径字段声明：基于 Tool schema 展示字段树，让用户勾选哪些字段是文件路径。这是阶段一唯一的写操作：
+  - 页面只是编辑器，结果写回 `config.jsonc` 的 `path_params`（沿用现有 `ConfigEdit` 写回契约），配置文件仍是唯一的事实来源。
+  - 保存端点需要进入 Admin 写端点白名单并校验 `Origin`。
+  - `mcp.servers` 不在热更新白名单内，阶段一保存后提示需要重启才生效；MCP Server 的热重启另行设计。
+
+### AI 一键声明路径字段
+
+借助现有的 tool model（系统级辅助模型，辞典融合已在使用），提供「一键声明路径字段」按钮，由 AI 分析 Tool schema 与 description，给出路径字段建议。
+
+- 只有用户主动点击才运行，默认不自动帮用户做决定。
+- AI 的结果只填进表单，不直接保存；用户确认后再点保存。
+- 输出按 Tool schema 校验，只接受 schema 中真实存在的字段位置。
+- 输入的 schema 与 description 同样可能带注入，可能诱导模型漏标字段。漏标是危险方向（路径会被原样透传），多标只会误拦。因此 UI 把 AI 新增或取消的标注做成可逐条确认的 diff，不提供不看内容的「全部应用」。
+- 这次 tool model 调用的审计方式与辞典融合保持一致。
 
 ### 交给 MCP 的是副本
 
@@ -74,9 +90,13 @@ MCP Server 如果返回了一个文件路径，我有责任将其翻译回虚拟
 
 key 固定后，它的授权是否跟随 Context TTL 与 GC 驱逐失效（现有 `context_refs` 的规则），还是按 Conversation 归属长期有效（类似 `image_generation_id`）？群友发来的文件适合前者；ACP 交付的 Artifact 可能需要活得更久。
 
-### 路径参数标注何时生效
+### MCP Server 热重启
 
-`mcp.servers` 目前不在热更新白名单内，修改后需要重启。Admin 保存 `path_params` 后是提示重启，还是把 `path_params` 单独加入热更新白名单？后者体验更好，但要保证切换时正在进行的 MCP 调用仍按旧声明校验，不出现半新半旧的状态。
+阶段一 `path_params` 重启生效。以后支持 MCP 配置热更新时，核心问题是 Invocation 尚未结束时如何优雅处理：
+
+- 正在进行的 MCP 调用与本次 Invocation 已拿到的 Tool 定义，按旧配置跑完还是中断。
+- Server 增删、command/url/env 变化时的连接替换，以及 `required` Server 失败的语义。
+- 只改 Tool 策略（`tool_policies`、`path_params`）时不必重启连接：Tool 在每次 Invocation 构建时取一次，执行时用的是当时的定义，整体替换定义即可保证同一次调用不出现半新半旧的校验。
 
 ### Streamable HTTP MCP
 
