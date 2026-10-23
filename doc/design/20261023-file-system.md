@@ -36,16 +36,23 @@
 ### 只接受发给本 Conversation 的 key
 
 - LLM 只能传 Harness 提供过的虚拟路径；没发放过的 key 直接拦截。
-- 「提供过」按当前 Conversation 判定，不按全局判定：key 的结构可以猜，群 B 的模型照格式写出群 A 的 key 时必须解析失败。与现有 `context_refs` 的规则一致——引用只在自己的 Conversation Context 内解析。
+- 严格按当前 Conversation 判定，不按全局判定。key 的结构可以猜，群 B 的模型照格式写出群 A 的 key 时必须解析失败。这与现有 `context_refs` 的规则一致，引用只在自己的 Conversation Context 内解析。
 
 ### Harness 必须知道哪些参数是路径
 
 只拦截「没发过的虚拟路径」还不够：`/etc/passwd`、`C:\Users\...\.ssh\id_rsa` 这类真实路径不以虚拟路径前缀开头，Harness 查不到对应 key，会被原样透传给 MCP Server（目前 MCP 参数就是校验 schema 后原样透传）。因此：
 
 - 在 MCP `tool_policies` 中显式声明路径参数（如 `path_params`）。声明过的字段只接受本 Conversation 发放过的 key，其它任何值（真实路径、伪造 key、相对路径）一律拒绝，并记入审计。
+  - 路径参数可能位于数组或对象内（如 `files[].path`），只写顶层字段名不够，声明需要能定位嵌套位置（类似 JSON Pointer，支持数组通配）。
+  - MCP Server 升级后，已声明的路径参数可能消失或改名。此时 fail closed：停止暴露该 Tool 并告警，不悄悄退化成「不做路径校验」。可以借现有 `registry_hash` 检测 schema 变化。
 - 只做整串匹配；虚拟路径出现在未声明字段里，或作为子串嵌在其它文本中时，拒绝而不是替换。
 - 不采用「扫描所有字符串、像绝对路径就拦」的启发式：误伤多，也挡不住 `~`、`../`、UNC 路径等变体。
 - 纵深防御：MCP Server 自身也应配置为只能读取 Harness 提供的目录，漏声明路径参数时也读不到外部文件。
+
+为了方便标注，需要在 Web Admin 增加 MCP Server 的配置菜单，基于 MCP Server 发布的 Tool schema 让用户勾选哪些参数是文件路径。
+
+- 这个菜单只是编辑器：结果写回 `config.jsonc` 的 `path_params`，配置文件仍是唯一的事实来源。
+- 保存属于 Admin 写端点，需要进入写端点白名单并校验 `Origin`。
 
 ### 交给 MCP 的是副本
 
@@ -67,6 +74,10 @@ MCP Server 如果返回了一个文件路径，我有责任将其翻译回虚拟
 
 key 固定后，它的授权是否跟随 Context TTL 与 GC 驱逐失效（现有 `context_refs` 的规则），还是按 Conversation 归属长期有效（类似 `image_generation_id`）？群友发来的文件适合前者；ACP 交付的 Artifact 可能需要活得更久。
 
+### 路径参数标注何时生效
+
+`mcp.servers` 目前不在热更新白名单内，修改后需要重启。Admin 保存 `path_params` 后是提示重启，还是把 `path_params` 单独加入热更新白名单？后者体验更好，但要保证切换时正在进行的 MCP 调用仍按旧声明校验，不出现半新半旧的状态。
+
 ### Streamable HTTP MCP
 
 真实路径只对同机（且同一文件系统命名空间）的 stdio MCP Server 有意义，远端 HTTP MCP Server 拿到路径也读不到。需要另一条通道，例如 embedded resource 直接带内容，或短时签名 URL。
@@ -77,3 +88,8 @@ key 固定后，它的授权是否跟随 Context TTL 与 GC 驱逐失效（现�
 - Bot API `getFile` 有 20 MB 上限。
 - `send` 目前只能发 Sticker、照片和生成图，交付 Artifact 还需要发送文件的能力。
 - 管理面板的删除属于写端点，需要进入 Admin 写端点白名单，删除时同时让对应 key 失效。
+
+## 边界
+
+- 现阶段不做让塑料碗从任意 URL 下载并保存文件以便后续处理的功能。对于涉及到这种操作的场景，会考虑在未来允许用户（Bot 管理员）通过「外部 Agent 委派」间接实现。
+- 对于管理员选择配置高危 MCP Server（例如 bash、filesystem），这属于管理员自己的责任，塑料碗 Harness 不会负责。
