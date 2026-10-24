@@ -319,14 +319,14 @@ export class TelegramConnector {
     }
   }
 
-  /** Drains the cold backlog; a runtime pass is U4 and stays a no-op for now. */
+  /** Drains the cold backlog before polling; a runtime pass is bounded by chat. */
   async #runCatchUp(instance: RunningTelegram, coldStart: boolean, signal: AbortSignal): Promise<boolean> {
     const hook = coldStart ? this.#options.hooks()?.coldCatchUp : this.#options.hooks()?.runtimeCatchUp;
     if (hook === undefined) {
       return true;
     }
     try {
-      await hook(instance.api, instance.ingestion, signal);
+      await hook(instance.api, instance.ingestion, signal, instance.me);
       return true;
     } catch (error) {
       if (signal.aborted) {

@@ -159,6 +159,8 @@ export interface FixtureOptions {
   readonly withStickers?: boolean;
   readonly abortInvocations?: (ids: readonly bigint[], reason: string) => number;
   readonly abortGraceMs?: number;
+  /** Observes the readiness gate closing after a transition. */
+  readonly onSettled?: () => void;
 }
 
 const NOW = '2026-01-01T00:00:00.000Z';
@@ -179,6 +181,7 @@ export interface ConnectionFixture {
   readonly activityStops: number[];
   readonly aborted: { readonly ids: readonly bigint[]; readonly reason: string }[];
   readonly coldCatchUps: number[];
+  readonly runtimeCatchUps: number[];
   readonly token: string;
   readonly hooks: TelegramConnectionHooks;
   status(): ImConnectionState;
@@ -222,6 +225,7 @@ export async function openConnectionFixture(options: FixtureOptions = {}): Promi
   const activityStops: number[] = [];
   const aborted: { ids: readonly bigint[]; reason: string }[] = [];
   const coldCatchUps: number[] = [];
+  const runtimeCatchUps: number[] = [];
   const getMeQueue = [...(options.getMe ?? [])];
   const token = 'telegram-secret';
   const log = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
@@ -282,12 +286,16 @@ export async function openConnectionFixture(options: FixtureOptions = {}): Promi
     },
     stopTimeoutMs: 50,
     abortGraceMs: options.abortGraceMs ?? 50,
+    ...(options.onSettled === undefined ? {} : { onSettled: options.onSettled }),
   };
   const manager = new TelegramConnectionManager(managerOptions);
   const hooks: TelegramConnectionHooks = {
     onUpdate: () => undefined,
     coldCatchUp: async () => {
       coldCatchUps.push(Date.now());
+    },
+    runtimeCatchUp: async () => {
+      runtimeCatchUps.push(Date.now());
     },
   };
 
@@ -307,6 +315,7 @@ export async function openConnectionFixture(options: FixtureOptions = {}): Promi
     activityStops,
     aborted,
     coldCatchUps,
+    runtimeCatchUps,
     token,
     hooks,
     status: () => connections.get('telegram'),

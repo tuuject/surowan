@@ -189,6 +189,64 @@ test('401 and 409 from long polling stop the instance without rejecting the proc
   }
 });
 
+test('a settled transition releases the Scheduler gate', async () => {
+  let settled = 0;
+  const fixture = await openConnectionFixture({
+    onSettled: () => {
+      settled += 1;
+    },
+    getMe: [
+      () => Promise.resolve(identityOf('telegram-secret')),
+      () => Promise.resolve({ id: 62, first_name: 'Next', username: 'next_bot' }),
+    ],
+  });
+  await fixture.manager.start(fixture.hooks);
+  expect(settled).toBe(1);
+
+  fixture.manager.applyToken({ kind: 'token', token: 'telegram-secret' });
+  await fixture.manager.whenIdle();
+  // Nothing restarted, so no gate was ever closed.
+  expect(settled).toBe(1);
+
+  fixture.manager.applyToken({ kind: 'token', token: 'replacement' });
+  await fixture.waitForStatus((state) => state.status === 'connected' && state.bot?.id === '62');
+  await fixture.manager.whenIdle();
+  expect(settled).toBe(2);
+  expect(fixture.readiness.isReady()).toBe(true);
+
+  fixture.manager.applyToken({ kind: 'disabled' });
+  await fixture.waitForStatus((state) => state.status === 'disabled');
+  await fixture.manager.whenIdle();
+  expect(settled).toBe(3);
+});
+
+test('a cold start drains unbounded and a runtime start uses the bounded pass', async () => {
+  const identities = [identityOf('telegram-secret'), { id: 61, first_name: 'Token B', username: 'token_b_bot' }];
+  const fixture = await openConnectionFixture({ getMe: identities.map((identity) => () => Promise.resolve(identity)) });
+  await fixture.manager.start(fixture.hooks);
+  expect(fixture.coldCatchUps).toHaveLength(1);
+  expect(fixture.runtimeCatchUps).toHaveLength(0);
+
+  // Same token: nothing restarts, so no drain.
+  fixture.manager.applyToken({ kind: 'token', token: 'telegram-secret' });
+  await fixture.manager.whenIdle();
+  expect(fixture.coldCatchUps).toHaveLength(1);
+  expect(fixture.runtimeCatchUps).toHaveLength(0);
+
+  // Running a -> b: the new instance drains before polling starts.
+  fixture.manager.applyToken({ kind: 'token', token: 'token-b' });
+  await fixture.waitForStatus((state) => state.status === 'connected' && state.bot?.id === '61');
+  expect(fixture.runtimeCatchUps).toHaveLength(1);
+
+  // Disabled -> normal and configuration-error -> normal are runtime starts too.
+  fixture.manager.applyToken({ kind: 'disabled' });
+  await fixture.waitForStatus((state) => state.status === 'disabled');
+  fixture.manager.applyToken({ kind: 'token', token: 'telegram-secret' });
+  await fixture.waitForStatus((state) => state.status === 'connected' && state.bot?.id === '42');
+  expect(fixture.runtimeCatchUps).toHaveLength(2);
+  expect(fixture.coldCatchUps).toHaveLength(1);
+});
+
 test('a failed getUpdates is a live network error and the next success heals it', async () => {
   const fixture = await openConnectionFixture({ getMe: [() => Promise.resolve(identityOf('telegram-secret'))] });
   await fixture.manager.start(fixture.hooks);

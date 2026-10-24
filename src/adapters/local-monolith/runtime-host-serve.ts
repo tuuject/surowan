@@ -203,6 +203,9 @@ export async function startServeServices(session: ServeContext, environment: Ser
     createStickers: (api) => new StickerService({ store, config: configStore.current().config, api, media }),
     stopActivity: () => state.host?.activity.stopAll(),
     abortInvocations: (ids, reason) => state.scheduler?.abortInvocations(ids, reason) ?? 0,
+    // A backlog pass commits queued work while the Scheduler is gated; the
+    // moment the gate opens, the loop must see it instead of sleeping.
+    onSettled: () => state.scheduler?.wake(),
   });
   state.telegramConnection = telegramConnection;
   // MCP does not belong to Telegram: it is always constructed and started,

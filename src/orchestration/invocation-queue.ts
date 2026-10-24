@@ -14,6 +14,7 @@ import {
   suppressInvalidQueuedReceipts as suppressInvalidQueued,
 } from './invocation-queue/outcomes.ts';
 import { processReceiptsDue } from './invocation-queue/receipts.ts';
+import { finishRuntimeCatchUpQueue } from './invocation-queue/catch-up.ts';
 import { finishStartupCatchUpQueue, recoverQueue } from './invocation-queue/recovery.ts';
 import { type InvocationQueueDeps, sleepUntilFor } from './invocation-queue/shared.ts';
 import { ProactiveReplyGate, type ProactiveReplyGateOptions } from './proactive-reply.ts';
@@ -117,6 +118,11 @@ export class InvocationQueueService {
 
   finishStartupCatchUp(startedAt: Date, now = new Date()): bigint[] {
     return finishStartupCatchUpQueue(this.#deps, startedAt, now);
+  }
+
+  /** Materialises one runtime backlog pass; no process-wide drain marker involved. */
+  finishRuntimeCatchUp(startedAt: Date, now = new Date()): bigint[] {
+    return finishRuntimeCatchUpQueue(this.#deps, startedAt, now);
   }
 
   processDue(now = new Date()): bigint[] {

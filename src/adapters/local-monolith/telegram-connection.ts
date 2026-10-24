@@ -77,6 +77,12 @@ export interface TelegramConnectionManagerOptions {
   readonly stopTimeoutMs?: number;
   /** How long an interrupted run may take to persist its terminal state. */
   readonly abortGraceMs?: number;
+  /**
+   * Called after a migration releases the readiness gate. Work committed during
+   * the transition (a backlog pass) must not wait for the Scheduler's longest
+   * poll interval.
+   */
+  readonly onSettled?: () => void;
 }
 
 type ConnectionRequest =
@@ -102,6 +108,7 @@ export class TelegramConnectionManager {
   readonly #sleep: (ms: number, signal: AbortSignal) => Promise<void>;
   readonly #stopTimeoutMs: number;
   readonly #abortGraceMs: number;
+  readonly #onSettled: (() => void) | undefined;
   readonly #now: () => Date;
 
   #hooks: TelegramConnectionHooks | undefined;
@@ -125,6 +132,7 @@ export class TelegramConnectionManager {
     this.#sleep = options.retry?.sleep ?? waitFor;
     this.#stopTimeoutMs = options.stopTimeoutMs ?? DEFAULT_STOP_TIMEOUT_MS;
     this.#abortGraceMs = options.abortGraceMs ?? DEFAULT_ABORT_GRACE_MS;
+    this.#onSettled = options.onSettled;
     this.#connector = new TelegramConnector({
       store: options.store,
       secrets: options.secrets,
@@ -330,6 +338,7 @@ export class TelegramConnectionManager {
     }
     this.#pending = undefined;
     this.#readiness.endTransition();
+    this.#onSettled?.();
   }
 
   /**

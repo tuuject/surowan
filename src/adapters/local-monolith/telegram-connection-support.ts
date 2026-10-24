@@ -41,14 +41,22 @@ export class TelegramReadiness {
   }
 }
 
+/** One backlog pass for a live instance; `me` is the identity that will poll. */
+export type TelegramCatchUpHook = (
+  api: Api,
+  ingestion: TelegramIngestion,
+  signal: AbortSignal,
+  me: TelegramIdentity,
+) => Promise<void>;
+
 /** What the runtime provides once it exists; the manager needs all three. */
 export interface TelegramConnectionHooks {
   /** Handles one live update for the ingestion built from the current identity. */
   readonly onUpdate: (context: Context, ingestion: TelegramIngestion) => Promise<void> | void;
   /** Cold start only: drains the whole backlog before long polling begins. */
-  readonly coldCatchUp?: (api: Api, ingestion: TelegramIngestion, signal: AbortSignal) => Promise<void>;
-  /** Runtime starts: the bounded backlog pass (filled in by U4). */
-  readonly runtimeCatchUp?: (api: Api, ingestion: TelegramIngestion, signal: AbortSignal) => Promise<void>;
+  readonly coldCatchUp?: TelegramCatchUpHook;
+  /** Runtime starts: the bounded backlog pass before long polling begins. */
+  readonly runtimeCatchUp?: TelegramCatchUpHook;
 }
 
 /** One live Bot: everything a running connection owns. */

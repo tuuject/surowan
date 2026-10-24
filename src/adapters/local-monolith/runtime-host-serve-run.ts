@@ -15,6 +15,7 @@ import type { ImHost } from '../../platform/im-host.ts';
 import { previewContext, unavailableCapabilities } from '../../platform/invocation-context.ts';
 import { configuredAgentModels } from '../../platform/providers.ts';
 import { runStartupCatchUp } from '../../startup-catch-up.ts';
+import { runRuntimeCatchUp } from '../../runtime-catch-up.ts';
 import { recordPromptVersionsFromConfig } from '../../store/prompt-versions.ts';
 import { activeSleepUntil } from '../../store/sleep.ts';
 import { ConfigReloader } from './config-reload.ts';
@@ -216,6 +217,20 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
         updates: catchUp.updates,
         stored_messages: catchUp.storedMessages,
         invocations: catchUp.invocationIds.length,
+      });
+    },
+    // A replaced token or a recovered connection drains the bot-wide backlog
+    // again, but only the newest messages of each chat; the Scheduler must not
+    // start Telegram work until this pass is part of the connection.
+    runtimeCatchUp: async (api, ingestion, signal, me) => {
+      await runRuntimeCatchUp({
+        api,
+        ingestion,
+        commands,
+        scheduler: startedScheduler,
+        allowedUpdates: ALLOWED_UPDATES,
+        botUsername: me.username ?? null,
+        signal,
       });
     },
   });

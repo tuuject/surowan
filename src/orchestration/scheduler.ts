@@ -199,6 +199,10 @@ export class BucketScheduler {
     return this.#queue.finishStartupCatchUp(startedAt, now);
   }
 
+  finishRuntimeCatchUp(startedAt: Date, now = new Date()): bigint[] {
+    return this.#queue.finishRuntimeCatchUp(startedAt, now);
+  }
+
   processDue(now = new Date()): bigint[] {
     return this.#queue.processDue(now);
   }
