@@ -68,7 +68,7 @@ export async function openFixtures(loaded: LoadedConfig, directory: string): Pro
   // The room runtime: the same AgentRuntime/Scheduler/Context path the product
   // runs, with a fake model provider so a Release can be observed end to end
   // without a network. Telegram-only services (stickers, MCP) are genuinely
-  // absent here, exactly as in a Playground-only process.
+  // absent here, exactly as in a process with Telegram disabled.
   // The room runtime gets its own provider identity so the fixture's Telegram
   // runs (which name the product's agent model) can never consume the scripted
   // room turns: they fail fast at model resolution instead.
@@ -98,7 +98,7 @@ export async function openFixtures(loaded: LoadedConfig, directory: string): Pro
     pictures: playgroundAssets,
     sendRate: () => ({ sendsPerWindow: 20, windowSeconds: 60 }),
   });
-  // The harness's room runtime is a Playground-only scheduler: it must not
+  // The harness's room runtime is a scheduler bound to the playground host: it must not
   // complete the synthetic Telegram fixture's overdue timers, which exist to be
   // rendered, not executed. The core runtime requires the same host set here.
   const runtimeTasks = new LongTaskService(store.orm, () => nudgeRoomScheduler(), ['playground']);

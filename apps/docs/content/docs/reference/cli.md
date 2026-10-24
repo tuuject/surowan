@@ -15,7 +15,7 @@ node src/cli.ts serve --config /path/to/config.jsonc
 node src/cli.ts serve --config /path/to/config.jsonc --takeover
 ```
 
-`check-config` 仅验证 JSONC、语义和引用，输出配置哈希，不连接外部服务。`serve` 启动 Telegram long polling；成功日志包含 `serve_started`。`--takeover` 仅用于替换持有同一数据目录锁的本地实例，会请求旧实例优雅退出，不能作为生产 supervisor 的替代。
+`check-config` 仅验证 JSONC、语义和引用，输出配置哈希，不连接外部服务。`serve` 启动服务；配置了 Telegram token 时同时连接 Telegram，没有 token 时 `serve_started` 的 `mode` 为 `disabled` 并继续提供管理面板与虚拟群聊。成功日志包含 `serve_started`。`--takeover` 仅用于替换持有同一数据目录锁的本地实例，会请求旧实例优雅退出，不能作为生产 supervisor 的替代。
 
 ## 真实诊断与备份
 
@@ -24,7 +24,7 @@ node src/cli.ts doctor --config /path/to/config.jsonc
 node src/cli.ts backup --config /path/to/config.jsonc
 ```
 
-`doctor` 会探测 SQLite、媒体依赖、Telegram、Provider、Vision 与 required MCP，并可能消耗 Provider Token；不要把它当离线检查。`backup` 执行保留清理、SQLite 备份与轮换；之后仍应在隔离环境验证恢复。
+`doctor` 会探测 SQLite、媒体依赖、Provider、Vision 与 required MCP，并在配置了 Telegram token 时执行 `getMe`；没有 token 时跳过 Telegram 探针，成功 JSON 的 `telegram_status` 为 `disabled`、`telegram_bot_id` 为 `null`。它会消耗 Provider Token，不要把它当离线检查。`backup` 执行保留清理、SQLite 备份与轮换；之后仍应在隔离环境验证恢复。
 
 ## 交互式配置
 

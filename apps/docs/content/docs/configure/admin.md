@@ -23,7 +23,7 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 }
 ```
 
-`admin.*` 改动需要重启。Docker 中要从宿主机访问，容器应绑定 `0.0.0.0`，但端口发布必须限制为 `127.0.0.1:8787:8787`，再由你管理的 TLS 反向代理进行认证和访问控制。首次访问时创建管理员账号；密码长度为 12–200 字符，浏览器 Session 采用 HttpOnly 且 SameSite=Strict Cookie。
+`admin` 段必填，`enabled` 可省略并默认为 `true`；`admin.*` 改动需要重启。Docker 中要从宿主机访问，容器应绑定 `0.0.0.0`，但端口发布必须限制为 `127.0.0.1:8787:8787`，再由你管理的 TLS 反向代理进行认证和访问控制。首次访问时创建管理员账号；密码长度为 12–200 字符，浏览器 Session 采用 HttpOnly 且 SameSite=Strict Cookie。
 
 `admin.public_url` 可选，**显式配置后才会启用 Passkey 登录**（登录页出现「使用 Passkey 登录」，Settings 页出现 Passkeys 卡片）。它必须是规范 HTTPS origin：不带用户名/密码、路径、查询参数或片段，可以带一个尾部 `/`；本地开发可以用 `http://localhost`；IP 地址（包括 `127.0.0.1` 和 IPv6）不能作为 WebAuthn RP，因此不接受 IP 形式的 `public_url`，即使使用 HTTPS 也不行。启用后请始终从配置的来源访问：包括首次设置、密码登录在内的全部写操作都会校验该来源，直接访问另一个回环地址或端口会返回 `bad_origin`。Passkey 的域名绑定详见下文。
 
@@ -78,23 +78,23 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 
 ### 恢复（忘记密码或遗失 Passkey）
 
-Passkey 遗失，或因更换域名、关闭 Passkey 功能而无法登录时，使用**服务端内置 CLI** 本地重置——不是 `surowan-utils`（它只通过 Admin API 做只读检查与 Invocation 重放，不能恢复凭据）：
+Passkey 遗失，或因更换域名、关闭 Passkey 功能而无法登录时，使用**服务端内置 CLI** 的 `admin-account` 本地建号或重置——不是 `surowan-utils`（它只通过 Admin API 做只读检查与 Invocation 重放，不能恢复凭据）：
 
-1. **先停止 Bot**。重置命令通过 `ServeLock` 拒绝在运行中的实例上执行，不会强抢；同一 `data_dir` 的 Bot 停止后才能运行。
-2. 交互式重置（终端会隐藏输入新密码并要求重复确认）：
+1. **先停止 Bot**。命令通过 `ServeLock` 拒绝在运行中的实例上执行，不会强抢；同一 `data_dir` 的 Bot 停止后才能运行。
+2. 交互式执行（终端会隐藏输入新密码并要求重复确认）：
 
    ```bash
-   node src/cli.ts admin-reset --config /path/to/config.jsonc --username <name>
+   node src/cli.ts admin-account --config /path/to/config.jsonc --username <name>
    ```
 
 3. 非交互环境用 `--password-stdin`，把密码从安全来源（密码管理器或受限权限文件）经管道传入：**不要把密码写在命令行参数里**，它会留在 shell 历史与进程列表中。
 
    ```powershell
    # 示例：从受限权限文件读取；实际请使用你的密码管理器输出
-   Get-Content .\admin-password.txt | node src/cli.ts admin-reset --config .\config.jsonc --username <name> --password-stdin
+   Get-Content .\admin-password.txt | node src/cli.ts admin-account --config .\config.jsonc --username <name> --password-stdin
    ```
 
-重置会替换该账号的密码、删除其**全部** Passkey 与登录 Session；API 密钥不受影响，首次设置流程不会重新打开。恢复或设置好密码后，再删除或更换 `public_url`/域名——改动之前请先确认至少保留一个可用登录方式。
+还没有管理员账号时，命令会创建该账号（不创建登录 Session）；已有唯一管理员时，把用户名和密码改成新值；表里出现多个管理员时会直接报错退出。每次执行都会注销该账号的全部登录 Session。Passkey 默认保留，需要一并撤销全部 Passkey 时加 `--revoke-passkeys`。API 密钥不受影响，首次设置流程不会重新打开。恢复或设置好密码后，再删除或更换 `public_url`/域名——改动之前请先确认至少保留一个可用登录方式。
 
 ## 验证与风险
 

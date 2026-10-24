@@ -25,7 +25,7 @@ Compose 会把 `./config` 映射到 `/config`、`./data` 映射到 `/data`；配
 
 - Node.js 24 或更高版本；
 - FFmpeg、FFprobe、Python 与 `lottie_convert.py` 位于服务的 `PATH`；
-- 可写的数据目录、Telegram Token、Provider API key。
+- 可写的数据目录与 Provider API key；Telegram Token 可选，没有它时只运行管理面板与虚拟群聊。
 
 拉取源码，安装依赖并构建图片核心包与管理面板，再复制配置示例：
 
@@ -44,7 +44,7 @@ cp apps/docs/examples/system-prompt.example.md config/system-prompt.md
 
 示例配置使用容器路径，需要改为本机路径：`data_dir` 设为 `./data`，`paths.database`、`paths.media_cache`、`paths.backups` 分别设为 `./data/surowan.sqlite`、`./data/media-cache`、`./data/backups`。Prompt 路径相对于配置文件目录，不用改。只在本机访问管理面板时，把 `admin.host` 改为 `127.0.0.1`。
 
-在当前终端设置 `TELEGRAM_BOT_TOKEN` 和 `SUROWAN_API_KEY`。非 Windows 主机要求配置文件为 `0600`、其父目录为 `0700`：
+在当前终端设置 `SUROWAN_API_KEY`；接入 Telegram 时再设置 `TELEGRAM_BOT_TOKEN`（也可以从配置里删掉整个 `telegram` 段，只使用管理面板与虚拟群聊）。非 Windows 主机要求配置文件为 `0600`、其父目录为 `0700`：
 
 ```bash
 chmod 700 config data

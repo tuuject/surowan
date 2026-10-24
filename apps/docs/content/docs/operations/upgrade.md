@@ -49,6 +49,8 @@ docker image inspect ghcr.io/tuuject/surowan:latest \
 
 先读取目标版本的配置参考和报错信息；不要为通过校验而盲目删字段。字段可能需要重启，热应用只处理白名单，详见 [配置文件与密钥](../configure/config-file.md)。
 
+如果旧配置没有 `admin` 段，升级后 `check-config` 会直接报错：管理面板现在是必填项。按 [管理面板](../configure/admin.md) 补上 `host`、`port` 与 `session_ttl_hours`；`enabled` 可以省略（默认 `true`）。`telegram` 则相反，已从必填改为可选，保留旧配置不需要改动。
+
 ## 风险与恢复
 
 升级前备份不是降级保证。若启动或迁移失败，保留失败日志和原数据副本，在隔离目录演练 [恢复](backup-restore.md)，而不是删除 SQLite、缓存或锁文件。具体旧版本迁移路径尚未在本指南环境中演练。

@@ -4,7 +4,7 @@ Admin Panel 是随 `serve` 启动的本地审计与管理界面，覆盖 Tool Se
 
 审计查询只读；Developer 调试配置与历史报文清除、记忆管理、Bot 管理员列表管理、Chat/Topic 白名单与按群模型管理（Chats 页）、模型与 Provider 管理（Models 页）、两层可编辑 Prompt 的编辑与版本管理（全局人格与按群指令：版本历史、恢复，以及只取消仍按旧 Prompt 运行的 Invocation）、配置文件应用、立即重启、解除睡眠、取消挂起会话与取消 pending Alarm 是受控的控制端点。管理员可以增删改查记忆、按群聊过滤，并对长 TTL 记忆做人工判断（保留 / 删除 / 提升进 `agents.md`），也可以指派/移除能执行 `/pause`、`/resume`、`/cut_topic` 等 Bot 管理员命令的 Telegram 用户（写回 `telegram.admins` 并热应用），在 Models 页维护 Provider 与模型列表（写回 `config.jsonc` 并重新加载）、切换全局 agent 与 vision 模型并设置全局 thinking 级别（Models 页端点仍是全局语义）；在 Chats 页增删 Chat、编辑 Topic 白名单与 Chat 范围的模型/thinking 覆盖（同群所有 Topic 共用，支持恢复继承全局），唤醒/取消挂起会话，取消尚未触发的 Alarm，把配置文件中的热更新白名单字段应用到运行中的进程，或在有待重启字段时直接重启 `serve`。写入只发生在 [API](#api) 白名单里的端点。配置修改经 `writeConfigEdits` 校验并原子写入后，再由 `ConfigReloader` 尝试应用；应用失败时文件保留已写入内容，运行中的配置不变。
 
-`admin` section 的字段语义见 [configuration.md](configuration.md#admin-panel)；`admin.host` 不限制取值，绑定地址与暴露风险由运维负责（推荐回环 + 反向代理）。`admin.*` 不在热更新白名单里：改动后进入待重启列表，重启 `serve` 才生效。热更新白名单与语义见 [configuration.md](configuration.md#运行时配置热更新)。
+`admin` section 必填，`admin.enabled` 省略即为 `true`；字段语义见 [configuration.md](configuration.md#admin-panel)；`admin.host` 不限制取值，绑定地址与暴露风险由运维负责（推荐回环 + 反向代理）。`admin.*` 不在热更新白名单里：改动后进入待重启列表，重启 `serve` 才生效。热更新白名单与语义见 [configuration.md](configuration.md#运行时配置热更新)。
 
 ## 生命周期
 
@@ -402,7 +402,7 @@ Messages 列表与消息详情的 Revision 在发送者姓名旁显示可复制�
 
 迁移 `src/store/migrations/028_admin_api_keys.sql` 建立 `admin_api_keys`：每行一个程序化 API key，`token_hash` 只存明文的 SHA-256 摘要（UNIQUE），`prefix` 是展示用前缀，`created_at`/`last_used_at`/`revoked_at` 记录生命周期；撤销设置 `revoked_at` 而不删除行，`last_used_at` 在每次通过鉴权时刷新（包括随后被权限面拒绝的请求）。该表与 `admin_users`/`admin_sessions` 一样不参与在线保留清理。语义见「程序化 API 密钥」。
 
-迁移 `src/store/migrations/032_admin_passkeys.sql` 建立 `admin_passkeys` 并给 `admin_users` 补 `webauthn_user_id`（唯一，默认随机 16 字节 hex）：每行一个 WebAuthn 凭据，`credential_id` 全局唯一，`public_key`/`counter` 用于验证与防重放（登录以乐观锁更新 `counter`），`rp_id` 记录注册时的依赖方——key 只对注册它的 `rpId` 生效，换域名后旧 key 不可用；`name` 1–80 字符（CHECK 约束）。`user_id` 级联删除；`recoverCredentials`（`admin-reset` CLI 的落点）删除该账号全部 passkey 与 Session，但不触碰 `admin_api_keys`，也不重开 setup。该表不参与在线保留清理。语义见「Passkey 登录与凭据」。
+迁移 `src/store/migrations/032_admin_passkeys.sql` 建立 `admin_passkeys` 并给 `admin_users` 补 `webauthn_user_id`（唯一，默认随机 16 字节 hex）：每行一个 WebAuthn 凭据，`credential_id` 全局唯一，`public_key`/`counter` 用于验证与防重放（登录以乐观锁更新 `counter`），`rp_id` 记录注册时的依赖方——key 只对注册它的 `rpId` 生效，换域名后旧 key 不可用；`name` 1–80 字符（CHECK 约束）。`user_id` 级联删除；`createOrResetAccount`（`admin-account` CLI 的落点）在空表建号、已有唯一管理员时改用户名与密码，并总是删除该账号全部 Session，只有 `--revoke-passkeys` 才删除全部 passkey；不触碰 `admin_api_keys`，也不重开 setup。该表不参与在线保留清理。语义见「Passkey 登录与凭据」。
 
 Bot 管理员白名单不再是数据库表：迁移 `src/store/migrations/026_drop_bot_admins.sql` 删除了旧表 `bot_admins`（迁移 `008` 引入），唯一事实源是配置文件里的 `telegram.admins`，旧表内容用 `scripts/migrate-admins.ts` 搬迁。Admin Panel「Bot admins」页面经配置写端点增删该列表并热应用。Bot 管理员决定谁能执行 `/pause`、`/resume`、`/model` 与 `/cut_topic`，与面板登录账号无关。
 

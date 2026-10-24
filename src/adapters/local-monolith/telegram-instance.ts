@@ -115,7 +115,7 @@ export function forwardingTelegramTransport(holder: TelegramInstanceHolder): Tel
   };
 }
 
-/** Downloads through the current instance; without one, refuses like the old Playground-only process. */
+/** Downloads through the current instance; without one (Telegram stopped), refuses. */
 export class ForwardingTelegramMedia implements MediaDownloader {
   readonly #holder: TelegramInstanceHolder;
 

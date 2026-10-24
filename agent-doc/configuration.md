@@ -15,7 +15,7 @@ Surowan 使用严格 JSONC 配置。Schema 位于 `src/platform/config-schema.ts
 - 相对 `data_dir`/`paths` 按服务当前工作目录解释；Docker 镜像的工作目录是 `/app`。
 - Prompt 文件路径（`system_prompt_file`、`instructions_file`）相对于配置文件所在目录解释；修改文件内容同样会改变 `config_hash`。
 - Prompt 文件按原始字节参与哈希：剔除 HTML 注释只影响进入模型上下文的文本，纯注释改动仍然改变 `config_hash`。
-- 非 Windows 系统上 `serve`、`doctor`、`admin-reset` 与所有配置写入都要求配置文件 `0600`、父目录 `0700`；`check-config` 只做 Schema、语义与引用校验，不检查权限。
+- 非 Windows 系统上 `serve`、`doctor`、`admin-account` 与所有配置写入都要求配置文件 `0600`、父目录 `0700`；`check-config` 只做 Schema、语义与引用校验，不检查权限。
 
 验证命令：
 
@@ -106,7 +106,7 @@ command SecretRef：
 
 `.env` / `.env.local` 加载：
 
-- 所有 CLI 子命令（`serve`/`check-config`/`doctor`/`backup`/`configure`/`admin-reset`）启动时用 dotenv 加载当前工作目录下的 `.env.local` 与 `.env`；文件缺失时静默跳过。
+- 所有 CLI 子命令（`serve`/`check-config`/`doctor`/`backup`/`configure`/`admin-account`）启动时用 dotenv 加载当前工作目录下的 `.env.local` 与 `.env`；文件缺失时静默跳过。
 - 只按 CWD 解析，不向上递归查找目录。
 - 优先级：真实环境变量 > `.env.local` > `.env`；compose `environment:`/`env_file:` 等方式注入的值不会被覆盖。
 - 两份文件均已被 `.gitignore` 排除，用于本地开发便利；生产部署仍应使用环境注入。
@@ -120,14 +120,14 @@ command SecretRef：
 | `version` | 当前只接受 `1` |
 | `data_dir` | Serve lock 与运行数据根目录 |
 | `timezone` | 默认 IANA 时区 |
-| `telegram` | Token、Bucket 窗口、Chat/Topic allowlist、Sticker Set |
+| `telegram` | 可选段：Token、Bucket 窗口、Chat/Topic allowlist、Sticker Set。整段省略或没有 token 时 Telegram 停用，只运行 Admin Panel 与 Playground 虚拟房间；段内 `chats` 可为空数组 |
 | `providers` | 内置或自定义 Provider 别名 |
 | `agent` | 可选段：对话模型、Prompt、并发与限流、上下文保留策略、全局 Token 预算；整段可省略 |
 | `vision` | 可选段：Sticker 视觉模型、并发、Prompt 版本和预算 |
 | `dictionary` | 可选的辞典自动注入模式（`injection_mode`） |
 | `tool_model` | 可选的系统级辅助模型（辞典融合等）；缺省继承全局 Agent 设置 |
 | `mcp` | 可选的 stdio/Streamable HTTP Server |
-| `admin` | 可选的 Admin Panel（审计只读 + 受控管理写端点） |
+| `admin` | 必填的 Admin Panel（审计只读 + 受控管理写端点）；`enabled` 可省略，缺省为 `true` |
 | `developer` | 可选的开发者调试配置；`record_model_payloads` 与 `record_agent_thinking` 均缺省为 `false` |
 | `image` | 可选的图片生成，见 [Image 生成](#image-生成) |
 | `web_fetch` | 可选的 `web_fetch` 设置，见 [web_fetch](#web_fetch) |
@@ -161,6 +161,7 @@ command SecretRef：
 
 规则：
 
+- 整段 `telegram` 可以省略；段存在时 `token` 也可省略。没有 token 即「Telegram 停用」：服务照常启动，Panel 与虚拟房间可用，但没有 grammy 实例、不处理任何 Telegram Chat。token 的 SecretRef 取不到（环境变量未设、jar 无此项、命令失败或解析为空串）是配置异常，不是停用。`chats` 可以是空数组；Chat 通常等 Bot 进群后由 `/allowlist` 或面板补上。
 - `bucket_window_seconds` 是全局 Agent 会话节拍，单位秒，示例值为 15。`0` 表示有新消息时不额外延迟，但不会创建空会话。deadline 锚点、按 Chat 串行、轮中途不交出批次与 attach 到运行中 Invocation 的规则统一见 [Telegram 与 Agent 流程：会话节拍与 Bucket](telegram-agent-flow.md#会话节拍与-bucket)；运行结束后是否继续等待下一个 Bucket 由 `agent.context.idle_grace_seconds` 决定，见「Conversation Context」。
 - `process_bot_messages` 控制是否处理其他 Bot 的消息。`false` 时其他 Bot 的新消息与编辑只保留 Update 审计，完全不入库。`true` 时它们会入库，但永远不能创建 Bucket、命中 participation 触发或刷新注意力窗口：已有 collecting Bucket 时直接加入；否则暂存，等下一条真人消息创建 Bucket 时，按 Telegram 时间顺序排在该真人消息之前一并收入（仅收未进过任何 Bucket、晚于该 Conversation 上一个 Bucket 起点、且在 `/cut_topic` 截断之后的最新 `agent.history_messages` 条）。这样两个 Bot 无法互相唤醒形成死循环。自己发送的 Update 始终忽略。带 `sender_chat` 的消息（匿名管理员、以频道身份发言、关联频道自动转发）不算 Bot 消息：Telegram 为兼容会在 `from` 里放一个占位 Bot（如 GroupAnonymousBot），实际作者是 `sender_chat`，按真人消息处理。
 - `sticker_trigger_enabled` 可选，默认 `false`。关闭时，单独收到的人类 Sticker 仍会持久化，但不会创建 Bucket 或触发 Invocation；已有 collecting Bucket 时仍会加入。设为 `true` 后，单独的 Sticker 可以创建 Bucket。
@@ -613,7 +614,8 @@ Developer 页使用可选的 `developer.record_model_payloads` 与 `developer.re
 }
 ```
 
-- `enabled = false` 或省略整个 section 时 `serve` 不监听任何 HTTP 端口。
+- 整个 `admin` 段必填，缺段会被 `check-config` 拒绝；`enabled` 可省略，缺省为 `true`。
+- 显式写 `enabled = false` 时 `serve` 不监听任何 HTTP 端口；若同时 Telegram 处于停用（没有 token），进程拒绝启动并报 `Surowan is useless if neither admin panel is enabled nor telegram is configured`。面板关闭但 Telegram 处于网络异常或配置异常时不触发这条。
 - `host` 是任意非空字符串，不做回环限制；绑定非回环地址（如 `0.0.0.0`）会把面板暴露给所在网络，TLS 与访问控制由运维负责。推荐保持回环并经反向代理对外。
 - `session_ttl_hours` 同时决定 Session 过期与 Cookie `Max-Age`。
 - `static_dir` 可选，缺省时按源码位置推导为仓库内的 `apps/admin-next/dist`；显式写相对路径时按进程当前工作目录解释；目录缺失时审计 API 仍可用，静态路由返回 503 `admin_bundle_missing`。

@@ -4,33 +4,43 @@ This ledger supports local maintenance of `src/platform/product-knowledge.ts`; i
 
 ## Coverage
 
-Read **21 authored manual pages in full**, all **6 navigation files**, and **3 public example sources** (24 content sources total). The generated field-reference output was absent in this checkout and was not generated or read. The manual packer defines 25 packed documents including its generated root index: 20 authored content pages, the field reference, three examples, and the root index. The website landing page is read for discovery but is replaced by the generated packed index.
+Read **31 authored manual pages in full**, all **6 navigation files**, and **3 public example sources** (40 content sources total). The generated field reference was produced by `pnpm run docs:prepare` for this refresh and read as a generated route, not as authored evidence. The manual packer emitted 34 documents plus the generated root index (35 Markdown files under `src/manual/`). The website landing page is read for discovery but is replaced by the generated packed index.
 
 All source paths in the following table are relative to `apps/docs/content/docs/`. Except for the landing page, the same paths are packed manual paths.
 
 | Source read | Facts selected / routing role |
 | --- | --- |
 | `index.md` | Product identity, supported Telegram surfaces, task discovery; no link to this landing page in the baked index. |
-| `start/quick-start.md` | Setup route; Surowan name with Surowan distribution/repository naming. |
-| `start/installation.md` | Host/Docker deployment route; runtime requirements remain in manual. |
+| `start/quick-start.md` | Setup route; Telegram optional with a Playground trial path; Surowan name with Surowan distribution/repository naming. |
+| `start/installation.md` | Host/Docker deployment route; Telegram token optional, other runtime requirements remain in manual. |
 | `start/agent-assisted.md` | External coding-agent deployment route. |
 | `configure/config-file.md` | Explicit application/no watcher, hot application versus restart, saved versus running configuration. |
-| `configure/telegram.md` | Member commands, configured administrators, allowlist, Topic scope, self-ignore persistence and limitations, sending guards. |
+| `configure/telegram.md` | Optional Telegram section and disabled state; member commands, configured administrators, allowlist, Topic scope, self-ignore persistence and limitations, sending guards. |
 | `configure/models.md` | Explicit model registration, input capabilities, Tool Model route. |
-| `configure/admin.md` | Panel tasks, Passkey prerequisite, API-key limits, replay costs/limits, admin-reset. |
+| `configure/admin.md` | Required admin section with enabled defaulting to true, disabled-panel plus disabled-Telegram startup rule, panel tasks, Passkey prerequisite, API-key limits, replay costs/limits, admin-account. |
+| `configure/admin-harness-tuning.md` | Harness ranges and hot application of Agent fields; Admin page route. |
+| `configure/admin-developer.md` | Optional Developer payload and CoT switches; audit retention route. |
+| `configure/admin-prompts.md` | Two Prompt layers, version history, conflict handling and next-run application. |
+| `configure/admin-api-keys.md` | API-key creation/revocation, one-time plaintext, restricted read/replay scope. |
+| `configure/admin-invocation-replay.md` | CLI/API-only replay, paid model calls, temporary model/prompt overrides, sliced replay. |
 | `guides/personality.md` | Global/Chat prompts, relative paths, next-run Context rebuild, `/model` reload. |
 | `guides/participation.md` | Trigger versus reply, group windows, overrides, Topic isolation, non-triggering edits/stickers. |
+| `guides/proactive-replies.md` | Per-Chat probability gate, pity counter, direct-trigger bypass, persistence. |
+| `guides/playground.md` | Playground rooms as the no-Telegram trial path, Hold/Release, real model calls, image switch, data boundary. |
 | `guides/per-chat.md` | Chat model overrides, Topic inheritance, `/status`. |
 | `guides/memory.md` | TTL facts, Conversation isolation, manual review for lasting knowledge. |
 | `guides/dictionary.md` | Scope and write boundaries, terminology versus memory, literal matching, injection/import/merge routes. |
 | `guides/images.md` | Optional generation versus understanding, current-conversation references, Admin routes and application; this page is not in guides navigation but is linked and packed. |
 | `guides/extensions.md` | Alarm, web_fetch limitations, MCP, read-only System Skills and bundled manual scope. |
 | `guides/budgets.md` | Agent versus background Vision budgets, no automatic Context summaries, sleep and Alarm exemption. |
-| `operations/upgrade.md` | Upgrade route; detailed tag and migration instructions left in manual. |
+| `operations/upgrade.md` | Upgrade route; required-admin migration note and optional Telegram; detailed tag and migration instructions left in manual. |
 | `operations/backup-restore.md` | No restore command, separate config/Prompt/secrets backups; full isolation workflow left in manual. |
-| `operations/troubleshooting.md` | Silence versus non-trigger, audit-led troubleshooting, image understanding route. |
-| `reference/config.md` | Configuration semantics route; scope and lifecycle cross-check. |
-| `reference/cli.md` | Service CLI versus surowan-utils command inventory, costs and interaction requirements. |
+| `operations/troubleshooting.md` | Silence versus non-trigger, audit-led troubleshooting, image understanding route, panel startup check. |
+| `reference/config.md` | Configuration semantics route: optional Telegram, required Admin, scope and lifecycle cross-check. |
+| `reference/cli.md` | Service CLI versus surowan-utils command inventory, doctor disabled-Telegram behavior, costs and interaction requirements. |
+| `reference/cli-surowan-utils.md` | External Admin API client: login/doctor, read-only inspection and Invocation routes. |
+| `reference/cli-surowan-utils-reference.md` | Client option, response and failure boundaries. |
+| `reference/cli-surowan-utils-skill.md` | External Agent Skill installation and preflight rule. |
 
 Navigation read: `_meta.json`, `start/_meta.json`, `configure/_meta.json`, `guides/_meta.json`, `operations/_meta.json`, `reference/_meta.json`.
 
@@ -48,7 +58,9 @@ Packaging-only reads: `scripts/manual-prepare.ts` established root-index replace
 
 ## Selection and omissions
 
-Every runtime bullet has a packed source link. Command discovery and role/scope limits take priority over numerical ranges and UI detail. The documented Bot command inventory is `/whoami`, `/ignoreme`, `/unignoreme`, `/pause`, `/resume`, `/model`, `/cut_topic`, `/allowlist`, and `/status`.
+Every runtime bullet has a packed source link. Command discovery and role/scope limits take priority over numerical ranges and UI detail. The documented Bot command inventory is `/whoami`, `/ignoreme`, `/unignoreme`, `/pause`, `/resume`, `/model`, `/cut_topic`, `/allowlist`, and `/status`. The service CLI inventory is `serve`, `check-config`, `doctor`, `backup`, `configure`, and `admin-account`.
+
+The refresh adds three product facts from the reviewed manuals: Telegram is optional and its disabled state still provides the Admin Panel and Playground rooms; the `admin` section is required with `enabled` defaulting to true; the local admin entry is `admin-account` (create or reset the sole account, sessions always revoked, passkeys kept unless revoked). Doctor's Telegram probe is reported as skipped without a token.
 
 Natural-language phrases for ignore/restore are author-selected intent synonyms of the documented effects; the index explicitly distinguishes them from executable command aliases. Surowan is normalized from the repository/image naming used in setup/deployment manuals; the docs spell the display name as Surowan / 塑料碗 rather than explicitly presenting a three-name alias declaration.
 
@@ -66,9 +78,9 @@ Omitted from runtime text: detailed API flags/error codes, credential-storage im
 
 ## Handoff evidence
 
-The integration owner imported the actual TypeScript constant, packed the current manual and read all 24 unique linked pages through FileSystemDocSpaces without truncation. Measured index: 6750 characters, 6828 UTF-8 bytes, 1407 tokens with tiktoken/o200k_base in a temporary environment; no project dependency was added. The generated field page is now packaged and reachable; no additional field constraints were baked from it.
+The refresh imported the actual TypeScript constant, packed the current manual with `pnpm run manual:prepare`, and checked every link target in the index against `src/manual/`: 37 links, 25 unique paths, all present. Measured index: 6923 characters, 6997 UTF-8 bytes, GC-style estimate 1731 tokens (4 characters per token); no tokenizer was re-run and no project dependency was added. The generated field page is packaged and reachable; no additional field constraints were baked from it.
 
-The extensions manual was re-read after its product-index explanation was added; it does not change the indexed capability facts. Five one-shot model probes used the actual stable prompt, audited read/execute/document tools and synthetic sends: natural-language ignore, explicit /ignoreme, omitted configuration detail, invented command and ordinary chat. Product questions successfully read source pages; chat did not. Details and limitations are in agent-doc/product-knowledge.md. Skill frontmatter validation and 131 links across changed documentation passed.
+`pnpm run docs:build` and `pnpm run docs:verify` passed for the changed manuals. The earlier five one-shot model grounding probes were not re-run in this refresh; runtime grounding behavior is unchanged and remains an integration-owner check. The previous probes and their limitations are recorded in agent-doc/product-knowledge.md. Skill frontmatter validation was not re-run separately; `pnpm run lint` and `pnpm run check` cover the repository files.
 
 Two scoped three-page authoring probes ran with and without the Skill. Both retained documented commands and disclosed gaps/conflicts; only the Skill runs included natural-language intent labels. Length estimates were unreliable: the first Skill probe exceeded its smaller 3000-byte limit, and a revised reminder still did not reliably keep that textual probe under budget. Accept only measured output; the actual runtime index passed its 7000-byte limit. These probes do not establish a general success rate or production-model behavior.
 
