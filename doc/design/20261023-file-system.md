@@ -44,7 +44,7 @@
 
 - 在 MCP `tool_policies` 中显式声明路径参数（如 `path_params`）。声明过的字段只接受本 Conversation 发放过的 key，其它任何值（真实路径、伪造 key、相对路径）一律拒绝，并记入审计。
   - 路径参数可能位于数组或对象内（如 `files[].path`），只写顶层字段名不够，声明需要能定位嵌套位置（类似 JSON Pointer，支持数组通配）。
-  - MCP Server 升级后，已声明的路径参数可能消失或改名。此时 fail closed：停止暴露该 Tool 并告警，不悄悄退化成「不做路径校验」。可以借现有 `registry_hash` 检测 schema 变化。
+  - MCP Server 升级后，已声明的路径参数可能消失或改名。此时 fail closed：停止暴露该 Tool 并使用警告系统发送一次性警告，不悄悄退化成「不做路径校验」。可以借现有 `registry_hash` 检测 schema 变化。
   - 有的字段既接受路径也接受 URL（如 anymd 的 `read.source`）。声明为路径字段后同样只接受 key，URL 一律拒绝：这与「现阶段不做从任意 URL 下载」的边界一致，也避免 MCP Server 绕过 `web_fetch` 的 SSRF 防护去抓内网地址。
 - 只做整串匹配；虚拟路径出现在未声明字段里，或作为子串嵌在其它文本中时，拒绝而不是替换。
 - 不采用「扫描所有字符串、像绝对路径就拦」的启发式：误伤多，也挡不住 `~`、`../`、UNC 路径等变体。
