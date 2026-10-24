@@ -5,33 +5,31 @@ import { SecretStore } from '../../platform/secrets.ts';
 import { connectServeHosts, runServeLoop, startAdminServer, startCoreRuntime } from './runtime-host-serve-run.ts';
 import { openServeEnvironment, startServeServices } from './runtime-host-serve.ts';
 import { RESTART_EXIT_CODE, logEvent, type ServeContext, type ServeState } from './runtime-host-support.ts';
+import { isTelegramDisabled } from './telegram-connection-token.ts';
 
 export interface ServeOptions {
   /** Ask a running instance on the same data directory to stop first. */
   readonly takeover?: boolean;
-  /**
-   * Serve rooms only: no Telegram host is constructed and no Telegram token is
-   * resolved, so a deployment without Telegram credentials still runs the
-   * shared store, Scheduler, Admin panel and Plaground API. Requires the panel.
-   */
-  readonly playgroundOnly?: boolean;
 }
 
 export async function serve(configPath: string, options: ServeOptions = {}): Promise<void> {
   const takeover = options.takeover === true;
-  const playgroundOnly = options.playgroundOnly === true;
   const loaded = await loadConfig(configPath);
   await assertConfigPermissions(loaded.configPath);
-  if (playgroundOnly && loaded.config.admin.enabled === false) {
-    throw new Error('--playground-only requires admin.enabled: the panel is the only entry point rooms have');
+  // Both halves of the product may be off, but not both at once: rooms are
+  // reachable only through the panel, and a panel-only process with no IM has
+  // nothing to do. Only an explicit disable counts; an unreadable token is a
+  // configuration error the panel is expected to show, not a useless process.
+  if (isTelegramDisabled(loaded.config) && loaded.config.admin.enabled === false) {
+    throw new Error('Surowan is useless if neither admin panel is enabled nor telegram is configured');
   }
   const secrets = new SecretStore(keyJarPath(loaded.configPath));
   const state: ServeState = {};
   const replayShutdown = new AbortController();
   let shuttingDown = false;
   let restartRequested = false;
-  // A Playground-only process has no long polling loop to block on: it waits on
-  // this promise, which the same shutdown path resolves.
+  // Long polling belongs to the Telegram connection manager, so the process
+  // always lives on this promise; the same shutdown path resolves it.
   let releaseIdle: (() => void) | undefined;
   const idle = new Promise<void>((resolve) => {
     releaseIdle = resolve;
@@ -43,13 +41,7 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
     shuttingDown = true;
     logEvent('shutdown_requested');
     releaseIdle?.();
-    state.startupCatchUpController?.abort(new Error('shutdown'));
     replayShutdown.abort(new Error('shutdown'));
-    // Unblock bot.start() so the finally block below runs the full cleanup.
-    // grammY's stop() also fires a best-effort offset-confirming getUpdates;
-    // swallow its rejection so it can never become an unhandled promise
-    // rejection and crash the process mid-shutdown.
-    void state.bot?.stop().catch(() => undefined);
   };
   /**
    * The Admin Panel's restart: the same graceful shutdown as a signal, but the
@@ -72,7 +64,6 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
     loaded,
     secrets,
     takeover,
-    playgroundOnly,
     replayShutdown,
     idle,
     state,
@@ -99,7 +90,7 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
     const assembly = { ...services, ...connectServeHosts(context, services) };
     const core = await startCoreRuntime(context, assembly);
     await startAdminServer(context, assembly, core);
-    await runServeLoop(context, assembly, core);
+    await runServeLoop(context, assembly);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(secrets.redact(message));
@@ -112,6 +103,9 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
       replayShutdown.abort(new Error('shutdown'));
       state.stopWatcher?.();
       state.warnings?.stop();
+      // Stop ingress before the drain: no new update may become an invocation
+      // while the scheduler is waiting for its runs to finish.
+      await state.telegramConnection?.shutdown();
       await state.admin?.stop();
       await state.scheduler?.stop(30_000);
       state.host?.activity.stopAll();
@@ -121,7 +115,6 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
       // store closes underneath it.
       state.imageBridge?.stop();
       await state.imageService?.stop();
-      await state.stickers?.stop();
       await state.mcp?.stop();
       state.store?.close();
       await state.lock?.release();

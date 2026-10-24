@@ -12,7 +12,7 @@ import { BucketScheduler, type InvocationOutcome } from '../src/orchestration/sc
 import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
 import type { FileConfig } from '../src/platform/config.ts';
 import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config.ts';
-import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
+import { ConfigReloader, type TelegramConfigGateway } from '../src/adapters/local-monolith/config-reload.ts';
 import { previewContext } from '../src/platform/invocation-context.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
@@ -208,6 +208,8 @@ export async function setup(
     readonly secrets?: (keyJar: string) => SecretStore;
     /** Extra files written before the configuration is loaded. */
     readonly files?: Readonly<Record<string, string>>;
+    /** Observe the Telegram token gateway the composition root installs. */
+    readonly telegramConfig?: TelegramConfigGateway;
   } = {},
 ): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-reload-'));
@@ -265,6 +267,7 @@ export async function setup(
     // to fit into a context window, so the check has nothing to reject.
     validateAgentModel: (candidate) => runtime?.validateAdditionalTools(previewContext(), [], candidate),
     onPublished: () => undefined,
+    ...(options.telegramConfig === undefined ? {} : { telegramConfig: options.telegramConfig }),
   });
   const scheduler = new BucketScheduler(store, configStore, async () => ({ state: 'completed', reason: 'done' }));
   const ingestion = new TelegramIngestion(store, configStore, { id: 999 });

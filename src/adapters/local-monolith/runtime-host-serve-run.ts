@@ -3,7 +3,9 @@
  * the loops that keep the process alive until the shutdown path resolves.
  */
 
+import type { Context } from 'grammy';
 import type { ImageService } from '../../image/service.ts';
+import type { TelegramIngestion } from '../../ingress/telegram-ingestion.ts';
 import { AdminQueryError } from '../../ingress/admin/audit.ts';
 import { AdminServer } from '../../ingress/admin/server.ts';
 import { BotCommandService } from '../../orchestration/bot-commands.ts';
@@ -17,6 +19,7 @@ import { recordPromptVersionsFromConfig } from '../../store/prompt-versions.ts';
 import { activeSleepUntil } from '../../store/sleep.ts';
 import { ConfigReloader } from './config-reload.ts';
 import { imageDeliveryResolver } from './host-tooling.ts';
+import { resolveTelegramTokenSource } from './telegram-connection-token.ts';
 import { createPlaygroundHost } from './playground-host.ts';
 import type { ServeAssembly, ServeHosts, ServeServices } from './runtime-host-serve.ts';
 import {
@@ -58,11 +61,12 @@ export function connectServeHosts(session: ServeContext, services: ServeServices
   });
   state.host = telegramHost;
   // Rooms show the same identity the Telegram bot has, so a mixed deployment
-  // reads as one bot; a process with no Telegram instance names it itself.
-  const playgroundSelfName = new TelegramConnectionIdentity(services.telegram).displayName;
+  // reads as one bot; a process with no Telegram instance names it itself. The
+  // identity is read per delivery, so a connection that opens after the room
+  // host exists still names it.
   const playgroundHost: ImHost = createPlaygroundHost({
     store: services.store,
-    self: { displayName: playgroundSelfName, username: null },
+    self: new TelegramConnectionIdentity(services.telegram),
     pictures: services.playgroundAssets,
     sendRate: () => ({
       sendsPerWindow: services.configStore.current().config.agent.rate_limits.sends_per_window,
@@ -70,7 +74,7 @@ export function connectServeHosts(session: ServeContext, services: ServeServices
     }),
   });
   state.roomHost = playgroundHost;
-  return { telegramHost, playgroundHost, playgroundSelfName };
+  return { telegramHost, playgroundHost };
 }
 
 /**
@@ -78,7 +82,7 @@ export function connectServeHosts(session: ServeContext, services: ServeServices
  * background work: catch-up, MCP and the scheduler.
  */
 export async function startCoreRuntime(session: ServeContext, assembly: ServeAssembly): Promise<ServeCore> {
-  const { loaded, secrets, playgroundOnly, state } = session;
+  const { loaded, secrets, state } = session;
   const {
     store,
     configStore,
@@ -94,9 +98,8 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
     capabilityTools,
     additionalTools,
     skillVisibleForHost,
-    bot,
-    ingestion,
     telegram,
+    telegramConnection,
     isHostReady,
     modelSwitcher,
     mcpManager,
@@ -131,8 +134,9 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
   });
   state.scheduler = startedScheduler;
   // Tool registries are validated against a host this process binds: the
-  // send tools resolve their host, and a missing one is a hard failure.
-  const preview = previewContext(playgroundOnly ? 'playground' : 'telegram');
+  // send tools resolve their host, and a missing one is a hard failure. Both
+  // hosts are always bound, even while Telegram has no instance.
+  const preview = previewContext('telegram');
   const configReloader = new ConfigReloader({
     loaded,
     store: configStore,
@@ -142,6 +146,12 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
       prepare: (candidate) =>
         imageService === undefined ? Promise.resolve(undefined) : imageService.prepareConfig(candidate, secrets),
       publish: (snapshot) => imageService?.publishConfig(snapshot as Parameters<ImageService['publishConfig']>[0]),
+    },
+    // A published token is the connection manager's to act on; reading it here
+    // keeps a broken SecretRef a connection state instead of an apply failure.
+    telegramConfig: {
+      prepare: (candidate) => resolveTelegramTokenSource(candidate, secrets),
+      publish: (source) => telegramConnection.applyToken(source),
     },
     validateAgentModel: (model) =>
       runtime.validateAdditionalTools(
@@ -171,25 +181,44 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
       runtime.validateAdditionalTools(preview, mcpTools, model);
     }
   });
-  if (bot !== undefined && ingestion !== undefined) {
-    const catchUpController = new AbortController();
-    state.startupCatchUpController = catchUpController;
-    const catchUp = await runStartupCatchUp({
-      api: bot.api,
-      store,
-      ingestion,
-      scheduler: startedScheduler,
-      commands,
-      allowedUpdates: ALLOWED_UPDATES,
-      signal: catchUpController.signal,
-    });
-    state.startupCatchUpController = undefined;
-    logEvent('startup_catch_up_completed', {
-      updates: catchUp.updates,
-      stored_messages: catchUp.storedMessages,
-      invocations: catchUp.invocationIds.length,
-    });
-  }
+  // A live update goes through the same ingestion, command and status path the
+  // serve loop used to install on the bot; the manager calls it per connection.
+  const onUpdate = async (context: Context, ingestion: TelegramIngestion): Promise<void> => {
+    const result = ingestion.ingest(context.update);
+    // A sleeping bot skips queued invocations, so a status would promise a
+    // reply that never comes.
+    if (result.mention !== undefined && activeSleepUntil(store.orm) === null) {
+      const target = resolveConversation(store, result.mention);
+      telegramHost.activity.start({ conversation: target, policy: telegramHost.policy(target) }, 'until_delivery');
+    }
+    if (result.command !== undefined) {
+      await replyToCommand(context, commands, result.command);
+    }
+    startedScheduler.wake();
+  };
+  // The Telegram connection starts here, after the store, the panel command path
+  // and the scheduler exist. It resolves after the first attempt, so a slow or
+  // unreachable Telegram does not delay the scheduler; a healthy token finishes
+  // the cold backlog drain before the scheduler launches its first batch.
+  await telegramConnection.start({
+    onUpdate,
+    coldCatchUp: async (api, ingestion, signal) => {
+      const catchUp = await runStartupCatchUp({
+        api,
+        store,
+        ingestion,
+        scheduler: startedScheduler,
+        commands,
+        allowedUpdates: ALLOWED_UPDATES,
+        signal,
+      });
+      logEvent('startup_catch_up_completed', {
+        updates: catchUp.updates,
+        stored_messages: catchUp.storedMessages,
+        invocations: catchUp.invocationIds.length,
+      });
+    },
+  });
   await mcpManager.start();
   startedScheduler.start();
   return { runtime, startedScheduler, conversationRuntime, configReloader, commands };
@@ -288,42 +317,21 @@ export async function startAdminServer(session: ServeContext, assembly: ServeAss
   }
 }
 
-/** Blocks until shutdown: idle when no long polling runs, otherwise until the bot stops. */
-export async function runServeLoop(session: ServeContext, assembly: ServeAssembly, core: ServeCore): Promise<void> {
-  const { loaded, playgroundOnly, idle } = session;
-  const openedStore = assembly.store;
-  const startedScheduler = core.startedScheduler;
-  const commands = core.commands;
-  if (playgroundOnly) {
-    // No long polling loop to block on: the process lives until a signal,
-    // takeover or panel restart resolves the same idle promise shutdown uses.
-    logEvent('serve_started', { mode: 'playground-only', bot_id: null, config_hash: loaded.hash });
-    await idle;
-    return;
-  }
-  const instance = assembly.telegram.current;
-  if (instance === undefined || instance.bot === undefined || assembly.ingestion === undefined) {
-    // Telegram is disabled: the panel and rooms still need the process, so it
-    // lives on the same idle promise instead of exiting.
-    logEvent('serve_started', { mode: 'telegram-disabled', bot_id: null, config_hash: loaded.hash });
-    await idle;
-    return;
-  }
-  const runningBot = instance.bot;
-  const runningHost = assembly.telegramHost;
-  const runningIngestion = assembly.ingestion;
-  runningBot.use(async (context) => {
-    const result = runningIngestion.ingest(context.update);
-    // A sleeping bot skips queued invocations, so a status would promise a reply that never comes.
-    if (result.mention !== undefined && activeSleepUntil(openedStore.orm) === null) {
-      const target = resolveConversation(openedStore, result.mention);
-      runningHost.activity.start({ conversation: target, policy: runningHost.policy(target) }, 'until_delivery');
-    }
-    if (result.command !== undefined) {
-      await replyToCommand(context, commands, result.command);
-    }
-    startedScheduler.wake();
+/**
+ * Blocks until a signal, takeover or panel restart resolves the idle promise.
+ * Long polling belongs to the connection manager, so there is never a bot loop
+ * for this function to await: Telegram may be disabled, connecting or running
+ * and the process stays alive for the panel and rooms either way.
+ */
+export async function runServeLoop(session: ServeContext, assembly: ServeAssembly): Promise<void> {
+  const { loaded, idle } = session;
+  const state = assembly.connections.get('telegram');
+  const identity = assembly.telegram.identity;
+  logEvent('serve_started', {
+    mode: state.status,
+    ...(state.status === 'config_error' ? { reason: state.reason } : {}),
+    bot_id: identity === undefined ? null : String(identity.id),
+    config_hash: loaded.hash,
   });
-  logEvent('serve_started', { bot_id: String(instance.me.id), config_hash: loaded.hash });
-  await runningBot.start({ allowed_updates: [...ALLOWED_UPDATES] });
+  await idle;
 }

@@ -4,7 +4,7 @@
  * command reply path.
  */
 import { and, eq } from 'drizzle-orm';
-import type { Bot, Context } from 'grammy';
+import type { Context } from 'grammy';
 import type { McpManager } from '../../capabilities/mcp.ts';
 import type { ImageBridge } from '../../image/bridge.ts';
 import type { ImageService } from '../../image/service.ts';
@@ -23,8 +23,8 @@ import { chats, conversations } from '../../store/schema.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import type { LoadedConfig } from './config.ts';
 import type { ServeLock, SqliteStore } from './database.ts';
-import type { StickerService } from '../../capabilities/stickers.ts';
 import type { TelegramHost } from './telegram-host.ts';
+import type { TelegramConnectionManager } from './telegram-connection.ts';
 import type { WarningService } from '../../store/warnings.ts';
 
 export const ALLOWED_UPDATES = ['message', 'edited_message', 'my_chat_member'] as const;
@@ -49,15 +49,13 @@ export interface ServeState {
   store?: SqliteStore | undefined;
   imageService?: ImageService | undefined;
   imageBridge?: ImageBridge | undefined;
-  bot?: Bot | undefined;
+  telegramConnection?: TelegramConnectionManager | undefined;
   scheduler?: BucketScheduler | undefined;
-  stickers?: StickerService | undefined;
   mcp?: McpManager | undefined;
   host?: TelegramHost | undefined;
   roomHost?: ImHost | undefined;
   admin?: AdminServer | undefined;
   warnings?: WarningService | undefined;
-  startupCatchUpController?: AbortController | undefined;
 }
 
 /** What `serve` itself owns and every phase reads: config, secrets and the stop path. */
@@ -65,7 +63,6 @@ export interface ServeContext {
   readonly loaded: LoadedConfig;
   readonly secrets: SecretStore;
   readonly takeover: boolean;
-  readonly playgroundOnly: boolean;
   readonly replayShutdown: AbortController;
   readonly idle: Promise<void>;
   readonly state: ServeState;

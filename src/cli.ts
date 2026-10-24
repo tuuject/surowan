@@ -34,7 +34,7 @@ try {
       await runDoctor(options.configPath, options.outputAgentPrompt);
       break;
     case 'serve':
-      await serve(options.configPath, { takeover: options.takeover, playgroundOnly: options.playgroundOnly });
+      await serve(options.configPath, { takeover: options.takeover });
       break;
     case 'configure':
       await runConfigure(options.configPath);

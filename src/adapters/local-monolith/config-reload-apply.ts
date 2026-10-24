@@ -7,7 +7,8 @@ import { buildModelRegistry, configuredAgentModels } from '../../platform/provid
 import type { ConfigurationModels, RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { SecretResolutionError, type SecretStore } from '../../platform/secrets.ts';
 import { assertConfigPermissions, type LoadedConfig, loadConfig } from './config.ts';
-import type { ImageConfigGateway } from './config-reload.ts';
+import type { ImageConfigGateway, TelegramConfigGateway } from './config-reload.ts';
+import { telegramTokenIdentity, type TelegramTokenSource } from './telegram-connection-token.ts';
 import { validateSemantics } from '../../platform/config-semantics.ts';
 
 /** The mutable reload state the class owns and this module reads and writes. */
@@ -19,6 +20,8 @@ export type ConfigReloadState = {
   lastError: ConfigErrorDetail | null;
   /** Identity of the last published image snapshot; detects key-jar-only rotations. */
   imageSnapshotId: string | null;
+  /** Identity of the last published Telegram token source; null before the first apply. */
+  telegramTokenId: string | null;
 };
 
 /**
@@ -31,6 +34,7 @@ export type ConfigApplyDeps = {
   readonly state: ConfigReloadState;
   readonly secrets: SecretStore;
   readonly imageConfig: ImageConfigGateway | undefined;
+  readonly telegramConfig: TelegramConfigGateway | undefined;
   /** Throws when the tool registry does not fit the model's context window. */
   readonly validateAgentModel: (model: Model<Api>) => void;
   /** Called after every successful publish; the composition root wakes the scheduler. */
@@ -111,9 +115,19 @@ export async function applyFile(deps: ConfigApplyDeps): Promise<ConfigApplyResul
         : createHash('sha256').update(JSON.stringify(imageSnapshot)).digest('hex').slice(0, 32);
   }
   const imageChanged = imageSnapshotId !== state.imageSnapshotId;
+  // A key-jar rotation changes the token without touching the file, exactly as
+  // it does for the image credentials, so the source identity participates in
+  // "did anything change" as well.
+  let telegramSource: TelegramTokenSource | undefined;
+  let telegramTokenId: string | null = null;
+  if (deps.telegramConfig !== undefined) {
+    telegramSource = await deps.telegramConfig.prepare(diff.candidate.raw);
+    telegramTokenId = telegramTokenIdentity(telegramSource);
+  }
+  const telegramChanged = telegramTokenId !== state.telegramTokenId;
   const applied = pathsOf(diff.changes, 'hot');
   const outsideServe = pathsOf(diff.changes, 'outside_serve');
-  const changed = applied.length > 0 || outsideServe.length > 0 || imageChanged;
+  const changed = applied.length > 0 || outsideServe.length > 0 || imageChanged || telegramChanged;
   const currentHash = deps.store.current().hash;
   // With nothing pending, the candidate is exactly the file, so its hash is the
   // file hash and stays comparable with `check-config` output. With fields
@@ -130,6 +144,7 @@ export async function applyFile(deps: ConfigApplyDeps): Promise<ConfigApplyResul
     state.fileHash = file.hash;
     state.restartRequired = restartRequired;
     state.lastError = null;
+    state.telegramTokenId = telegramTokenId;
     deps.logReloaded(applied, restartRequired, outsideServe);
     return deps.applied(applied, restartRequired, outsideServe);
   }
@@ -157,6 +172,12 @@ export async function applyFile(deps: ConfigApplyDeps): Promise<ConfigApplyResul
     deps.imageConfig.publish(imageSnapshot);
   }
   state.imageSnapshotId = imageSnapshotId;
+  if (deps.telegramConfig !== undefined && telegramSource !== undefined) {
+    // Also synchronous: the manager may start a stop pass, but it never waits
+    // for `getMe` before this apply returns.
+    deps.telegramConfig.publish(telegramSource);
+  }
+  state.telegramTokenId = telegramTokenId;
   deps.onPublished();
   deps.logReloaded(applied, restartRequired, outsideServe);
   return deps.applied(applied, restartRequired, outsideServe);

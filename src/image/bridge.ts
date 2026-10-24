@@ -72,9 +72,10 @@ export interface ImageBridgeOptions {
   readonly tasks: LongTaskService;
   /**
    * Whether one generation may execute in this process. The composition root
-   * supplies it when only some hosts are running (`--playground-only`), so a
-   * standalone process never resumes work that belongs to a Host it does not
-   * serve. Absent means every generation may run.
+   * supplies it when a host it serves may not act right now (Telegram stopped,
+   * connecting or misconfigured), so work that belongs to that host stays
+   * queued instead of running without a transport. Absent means every
+   * generation may run.
    */
   readonly eligible?: (generation: { readonly id: string; readonly actorId: string }) => boolean;
   /** Prepares a stored media row (conversation media) as generation input. */

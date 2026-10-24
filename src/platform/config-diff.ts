@@ -101,6 +101,22 @@ function mergeTelegram(active: ConfigSource, file: ConfigSource, recorder: Chang
     if (key === 'chats') {
       continue;
     }
+    // A SecretRef is one value, not a tree of settings: merging its `jar`/`env`/
+    // `command` field-by-field would classify the change below the hot path and
+    // leave the running process on the previous token until a restart. The whole
+    // reference is hot, so replace it as a unit.
+    if (key === 'token') {
+      const before = activeRecord.token;
+      const after = fileRecord.token;
+      if (Object.hasOwn(fileRecord, key) === false) {
+        delete result.token;
+        recorder.add('telegram.token', classify('telegram.token'));
+      } else if (Object.hasOwn(activeRecord, key) === false || !deepEqual(before, after)) {
+        result.token = structuredClone(after);
+        recorder.add('telegram.token', classify('telegram.token'));
+      }
+      continue;
+    }
     mergeField(activeRecord, fileRecord, result, key, `telegram.${key}`, recorder);
   }
   const chats = mergeChats(active, file, recorder);

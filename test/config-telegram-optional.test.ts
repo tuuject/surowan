@@ -102,6 +102,25 @@ test('clearing the token is a hot change, while Chat removal stays restart-only'
   expect(fileTelegram(diff.candidate.file).chats).toHaveLength(1);
 });
 
+test('rotating the token SecretRef is one hot change of the whole token', async () => {
+  const active = await fixture();
+  const activeLoaded = await loadConfig(active.configPath);
+  const rotated = await fixture((json) => {
+    (json.telegram as Record<string, unknown>).token = { jar: 'rotated-telegram' };
+  });
+  const rotatedLoaded = await loadConfig(rotated.configPath);
+  const diff = diffConfig(
+    { file: activeLoaded.fileConfig, raw: activeLoaded.config },
+    { file: rotatedLoaded.fileConfig, raw: rotatedLoaded.config },
+  );
+  // A SecretRef is atomic: the change must not surface as a restart-only
+  // `telegram.token.jar`, which would leave the running bot on the old token.
+  expect(diff.changes).toContainEqual({ path: 'telegram.token', kind: 'hot' });
+  expect(diff.changes.some((change) => change.path.startsWith('telegram.token.'))).toBe(false);
+  expect(diff.candidate.file.telegram?.token).toEqual({ jar: 'rotated-telegram' });
+  expect(diff.candidate.raw.telegram.token).toEqual({ jar: 'rotated-telegram' });
+});
+
 test('adding the whole section classifies each field and keeps the candidate usable', async () => {
   const without = await fixture(withoutTelegram);
   const activeLoaded = await loadConfig(without.configPath);

@@ -5,8 +5,6 @@ interface CliOptions {
   readonly configPath: string;
   readonly outputAgentPrompt: boolean;
   readonly takeover: boolean;
-  /** `serve` without a Telegram host: rooms only, admin required. */
-  readonly playgroundOnly: boolean;
   readonly username: string | undefined;
   readonly passwordStdin: boolean;
 }
@@ -21,7 +19,6 @@ export function parseCli(argv: readonly string[]): CliOptions {
   let configPath: string | undefined;
   let outputAgentPrompt = false;
   let takeover = false;
-  let playgroundOnly = false;
   let username: string | undefined;
   let passwordStdin = false;
   for (let index = 0; index < argumentsList.length; index += 1) {
@@ -32,10 +29,6 @@ export function parseCli(argv: readonly string[]): CliOptions {
     }
     if (argument === '--takeover' && commandValue === 'serve' && !takeover) {
       takeover = true;
-      continue;
-    }
-    if (argument === '--playground-only' && commandValue === 'serve' && !playgroundOnly) {
-      playgroundOnly = true;
       continue;
     }
     if (argument === '--password-stdin' && commandValue === 'admin-reset' && !passwordStdin) {
@@ -65,7 +58,7 @@ export function parseCli(argv: readonly string[]): CliOptions {
   if (commandValue === 'admin-reset' && username === undefined) {
     throw new Error(usage());
   }
-  return { command: commandValue, configPath, outputAgentPrompt, takeover, playgroundOnly, username, passwordStdin };
+  return { command: commandValue, configPath, outputAgentPrompt, takeover, username, passwordStdin };
 }
 
 function isCommand(value: string): value is Command {
@@ -73,5 +66,5 @@ function isCommand(value: string): value is Command {
 }
 
 function usage(): string {
-  return 'Usage: surowan <serve|check-config|doctor|backup|configure|admin-reset> --config <path> [--output-agent-prompt] [--takeover] [--playground-only] [--username <name>] [--password-stdin]';
+  return 'Usage: surowan <serve|check-config|doctor|backup|configure|admin-reset> --config <path> [--output-agent-prompt] [--takeover] [--username <name>] [--password-stdin]';
 }

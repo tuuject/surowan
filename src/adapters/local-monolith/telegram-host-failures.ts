@@ -77,6 +77,42 @@ export function classifyTelegramDeliveryError(error: unknown): ImDeliveryFailure
   };
 }
 
+/** The configuration states a Telegram API answer can put the bot in. */
+export type TelegramConfigFailure = 'unauthorized' | 'conflict';
+
+/**
+ * Whether an answer from Telegram says this token cannot run here.
+ *
+ * 401 is a rejected token, 409 means the same token is polling elsewhere, and
+ * any other client error is Telegram refusing this bot/configuration: retrying
+ * cannot fix it, so it is a configuration state rather than a network one.
+ * Rate limiting (429) and server errors stay retryable.
+ */
+export function telegramConfigFailure(error: unknown): TelegramConfigFailure | undefined {
+  if (!(error instanceof GrammyError)) {
+    return undefined;
+  }
+  if (error.error_code === 401) {
+    return 'unauthorized';
+  }
+  if (error.error_code === 409) {
+    return 'conflict';
+  }
+  if (error.error_code >= 400 && error.error_code < 500 && error.error_code !== 429) {
+    return 'unauthorized';
+  }
+  return undefined;
+}
+
+/** Telegram's own retry hint, in milliseconds; only 429 carries one. */
+export function telegramRetryDelayMs(error: unknown): number | undefined {
+  if (!(error instanceof GrammyError) || error.error_code !== 429) {
+    return undefined;
+  }
+  const seconds = error.parameters.retry_after;
+  return seconds === undefined ? undefined : seconds * 1_000;
+}
+
 /** An abort is not a transport failure, but callers still branch on a failure. */
 export function abortedTelegramDelivery(): ImDeliveryFailure {
   return {

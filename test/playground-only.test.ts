@@ -1,17 +1,18 @@
 /**
- * T10 acceptance: a Playground-only process.
+ * Acceptance: a `serve` process with Telegram disabled.
  *
- * `serve(..., { playgroundOnly: true })` runs the shared store, Scheduler,
- * Admin panel and room write path with no Telegram host at all: no Bot, no
- * token resolution, no command registration, no webhook delete, no ingestion,
- * no sticker sync, no production MCP and no startup catch-up. The model is a
- * local HTTP fixture that answers the Responses API with a real `send` tool
- * call, so the room's Release runs the production runtime end to end.
+ * The configuration has no `telegram` section at all, which is a legal state:
+ * the process runs the shared store, Scheduler, Admin panel and room write path
+ * with no Bot, no token resolution, no command registration, no webhook delete,
+ * no ingestion, no sticker sync and no startup catch-up. MCP is still built,
+ * because it does not belong to Telegram. The model is a local HTTP fixture that
+ * answers the Responses API with a real `send` tool call, so the room's Release
+ * runs the production runtime end to end.
  *
  * The same database also holds synthetic Telegram work: after the room round
  * finishes, that work must stay put - not recovered, not expired, not launched
- * and not skipped by the playground scheduler. Timers still complete on
- * schedule, but their receipts remain pending because Telegram is not ready.
+ * and not skipped by the scheduler. Timers still complete on schedule, but
+ * their receipts remain pending because Telegram is not ready.
  */
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -24,13 +25,15 @@ import { startFixtureServer, stopFixtureServer } from './helpers.ts';
 
 const { botConstructed } = vi.hoisted(() => ({ botConstructed: vi.fn() }));
 vi.mock('grammy', () => ({
+  GrammyError: class extends Error {},
+  HttpError: class extends Error {},
   Bot: class {
     api = {
-      getMe: () => Promise.reject(new Error('a playground-only process must not call Telegram')),
+      getMe: () => Promise.reject(new Error('a process with Telegram disabled must not call Telegram')),
     };
     constructor() {
       botConstructed();
-      throw new Error('a playground-only process must not build a Bot');
+      throw new Error('a process with Telegram disabled must not build a Bot');
     }
   },
 }));
@@ -127,7 +130,7 @@ function jsonBody(value: unknown): RequestInit {
   return { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(value) };
 }
 
-test('a playground-only process runs the room round and leaves Telegram work untouched', async () => {
+test('a process with Telegram disabled runs the room round and leaves Telegram work untouched', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-playground-only-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
@@ -145,13 +148,6 @@ test('a playground-only process runs the room round and leaves Telegram work unt
       version: 1,
       data_dir: dataDir.replaceAll('\\', '/'),
       timezone: 'UTC',
-      telegram: {
-        // Unresolvable on purpose: a Playground-only process must never resolve it.
-        token: { jar: 'telegram-that-does-not-exist' },
-        process_bot_messages: false,
-        bucket_window_seconds: 15,
-        chats: [{ id: 123456789, instructions_file: 'chat-instructions.md' }],
-      },
       providers: {
         agent: {
           kind: 'custom',
@@ -236,7 +232,7 @@ test('a playground-only process runs the room round and leaves Telegram work unt
     // alarm, a stale collecting bucket, a queued invocation holding a claimed
     // receipt for a chat the config no longer lists, and an active sleep
     // window. Recovery, timer completion, receipt suppression and the sleep
-    // skip would each rewrite one of them; a playground-only scheduler must
+    // skip would each rewrite one of them; a scheduler with Telegram disabled must
     // leave them all alone.
     const stamp = new Date().toISOString();
     const due = new Date(Date.now() - 60_000).toISOString();
@@ -285,17 +281,17 @@ test('a playground-only process runs the room round and leaves Telegram work unt
         // Not a structured event line.
       }
     });
-    const serving = serve(configPath, { playgroundOnly: true });
+    const serving = serve(configPath);
     running.push(serving);
     await expect.poll(() => events.some((entry) => entry.event === 'admin_started'), { timeout: 30_000 }).toBe(true);
 
     // The process never built a Bot, never registered commands and never ran
-    // the Telegram startup pass.
+    // the Telegram startup pass; the connection state is the disabled one.
     expect(botConstructed).not.toHaveBeenCalled();
     const names = events.map((entry) => entry.event);
     expect(names).not.toContain('commands_registered');
     expect(names).not.toContain('startup_catch_up_completed');
-    expect(events.find((entry) => entry.event === 'serve_started')).toMatchObject({ mode: 'playground-only' });
+    expect(events.find((entry) => entry.event === 'serve_started')).toMatchObject({ mode: 'disabled', bot_id: null });
 
     // The panel is the only entry point, and the room round runs for real.
     const base = `http://127.0.0.1:${port}`;
