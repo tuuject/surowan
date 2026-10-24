@@ -1,4 +1,4 @@
-# Plastic Wan - 20261019 Bot Playground T08–T11：生图输出、房间 API、Playground-only 与页面
+# Surowan - 20261019 Bot Playground T08–T11：生图输出、房间 API、Playground-only 与页面
 
 ## 背景
 

@@ -11,7 +11,7 @@ All source paths in the following table are relative to `apps/docs/content/docs/
 | Source read | Facts selected / routing role |
 | --- | --- |
 | `index.md` | Product identity, supported Telegram surfaces, task discovery; no link to this landing page in the baked index. |
-| `start/quick-start.md` | Setup route; Plastic Wan name with Surowan distribution/repository naming. |
+| `start/quick-start.md` | Setup route; Surowan name with Surowan distribution/repository naming. |
 | `start/installation.md` | Host/Docker deployment route; runtime requirements remain in manual. |
 | `start/agent-assisted.md` | External coding-agent deployment route. |
 | `configure/config-file.md` | Explicit application/no watcher, hot application versus restart, saved versus running configuration. |
@@ -50,7 +50,7 @@ Packaging-only reads: `scripts/manual-prepare.ts` established root-index replace
 
 Every runtime bullet has a packed source link. Command discovery and role/scope limits take priority over numerical ranges and UI detail. The documented Bot command inventory is `/whoami`, `/ignoreme`, `/unignoreme`, `/pause`, `/resume`, `/model`, `/cut_topic`, `/allowlist`, and `/status`.
 
-Natural-language phrases for ignore/restore are author-selected intent synonyms of the documented effects; the index explicitly distinguishes them from executable command aliases. Surowan is normalized from the repository/image naming used in setup/deployment manuals; the docs spell the display name as Plastic Wan / 塑料碗 rather than explicitly presenting a three-name alias declaration.
+Natural-language phrases for ignore/restore are author-selected intent synonyms of the documented effects; the index explicitly distinguishes them from executable command aliases. Surowan is normalized from the repository/image naming used in setup/deployment manuals; the docs spell the display name as Surowan / 塑料碗 rather than explicitly presenting a three-name alias declaration.
 
 Omitted from runtime text: detailed API flags/error codes, credential-storage implementation, Passkey recovery steps, release tags, environment-specific installation commands, exact budget/sleep numbers, image model metadata, dictionary matching normalization details, backup copy/isolation procedures, startup command replay rules, and full examples. The linked pages retain those details. No runtime grounding rules, hashes, source inventories, bake timestamps, or reports were added.
 

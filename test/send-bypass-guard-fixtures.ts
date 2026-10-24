@@ -183,7 +183,7 @@ export function makeTools(
       disallowBlankLines: false,
       ...duplicateSendGuard(options.guard, options.onRejected ?? (() => {})),
       deadline: Date.now() + 30_000,
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
       ...(options.imageGeneration === undefined ? {} : { imageGeneration: options.imageGeneration }),
       ...(options.holdForNewMessages === undefined ? {} : { holdForNewMessages: options.holdForNewMessages }),
       ...(options.allowReplyMessageMultipleTimes === undefined

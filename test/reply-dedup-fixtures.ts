@@ -201,7 +201,7 @@ export function makeTool(
     disallowBlankLines: false,
     allowReplyMessageMultipleTimes: config.agent!.allow_reply_message_multiple_times === true,
     deadline: Date.now() + 30_000,
-    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     ...(options.imageGeneration === undefined ? {} : { imageGeneration: options.imageGeneration }),
     ...(options.holdForNewMessages === undefined ? {} : { holdForNewMessages: options.holdForNewMessages }),
   });

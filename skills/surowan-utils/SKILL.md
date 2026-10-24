@@ -1,9 +1,9 @@
 ---
 name: surowan-utils
-description: 通过 surowan-utils CLI 访问 Plastic Wan Admin API：每次任务先运行 doctor 验证凭据与连通，再按任务加载对应操作指南。用于已安装客户端、使用 API key 访问授权服务的外部 Agent；覆盖只读检查（当前配置/global/group prompt、可用模型列表、Invocation 场景所用的当前 prompt 与重放预检）、Invocation 查询与审计（含按关键词与公开消息时间搜索）、未回复排查、媒体导出，以及明确授权后的重放（含切片重放、临时模型/thinking 覆盖）和分层 prompt 比较。不依赖 Bot 源码或 SQLite，不用于启动 Bot、管理密钥或执行尚未提供的命令。
+description: 通过 surowan-utils CLI 访问 Surowan Admin API：每次任务先运行 doctor 验证凭据与连通，再按任务加载对应操作指南。用于已安装客户端、使用 API key 访问授权服务的外部 Agent；覆盖只读检查（当前配置/global/group prompt、可用模型列表、Invocation 场景所用的当前 prompt 与重放预检）、Invocation 查询与审计（含按关键词与公开消息时间搜索）、未回复排查、媒体导出，以及明确授权后的重放（含切片重放、临时模型/thinking 覆盖）和分层 prompt 比较。不依赖 Bot 源码或 SQLite，不用于启动 Bot、管理密钥或执行尚未提供的命令。
 ---
 
-# Plastic Wan Utils
+# Surowan Utils
 
 ## 每次任务先运行 doctor
 

@@ -82,7 +82,7 @@ async function setup(sendResponse = true): Promise<{
     configStore,
     secrets: new SecretStore(),
     ...testTelegramRuntime(telegramApi),
-    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });
   const tasks = new LongTaskService(store.orm);

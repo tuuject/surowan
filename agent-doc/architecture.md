@@ -1,8 +1,8 @@
-# Plastic Wan 架构
+# Surowan 架构
 
 ## 进程组成
 
-Plastic Wan 当前由 Local Monolith Adapter 运行成单进程 Node.js 服务。`src/adapters/local-monolith/runtime-host.ts` 负责装配以下组件：
+Surowan 当前由 Local Monolith Adapter 运行成单进程 Node.js 服务。`src/adapters/local-monolith/runtime-host.ts` 负责装配以下组件：
 
 ```text
 Config + SecretStore

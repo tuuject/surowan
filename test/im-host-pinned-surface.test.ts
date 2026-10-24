@@ -105,7 +105,7 @@ async function fixture() {
     disallowBlankLines: false,
     allowReplyMessageMultipleTimes: false,
     deadline: Date.now() + 30_000,
-    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
   } as never);
   return { store, context, tool, requests };
 }

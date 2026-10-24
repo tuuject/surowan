@@ -32,7 +32,7 @@ describe('send tool', () => {
       maxTextLength: undefined,
       disallowBlankLines: false,
       deadline: Date.now() + 30_000,
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     });
     await expect(unknownTool.execute('unknown-1', { kind: 'text', text: 'uncertain' })).rejects.toThrow(
       'outcome is unknown',
@@ -65,7 +65,7 @@ describe('send tool', () => {
       maxTextLength: undefined,
       disallowBlankLines: false,
       deadline: overrides.deadline ?? Date.now() + 30_000,
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
       ...(overrides.holdForNewMessages === undefined ? {} : { holdForNewMessages: overrides.holdForNewMessages }),
     });
     const audit = () => ({

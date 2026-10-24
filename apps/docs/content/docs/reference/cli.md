@@ -1,6 +1,6 @@
 ---
 title: CLI 参考
-description: Plastic Wan 的服务、配置校验、诊断、备份命令，以及用于保存凭据、检查连通、只读查看配置与 prompt、查询/导出/重放 Invocation 的 Admin API 工具客户端。
+description: Surowan 的服务、配置校验、诊断、备份命令，以及用于保存凭据、检查连通、只读查看配置与 prompt、查询/导出/重放 Invocation 的 Admin API 工具客户端。
 ---
 
 # CLI 参考

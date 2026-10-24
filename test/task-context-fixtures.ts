@@ -77,7 +77,7 @@ export async function fixture(transform?: (config: FileConfig) => void) {
     configStore,
     secrets: new SecretStore(),
     ...testTelegramRuntime(api),
-    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
     conversationRuntime,
   });

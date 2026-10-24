@@ -1,4 +1,4 @@
-# Plastic Wan - 20260926 视频 Sticker 只按 WebM 解码
+# Surowan - 20260926 视频 Sticker 只按 WebM 解码
 
 ## 背景
 

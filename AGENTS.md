@@ -1,10 +1,10 @@
 # Repository Guidelines
 
-本文件是 AI agent 在 Plastic Wan 仓库中的统一入口。优先检索 `agent-doc/` 顶层主题文档和源码，不要凭通用知识猜测本项目的行为、配置或数据库结构。`agent-doc/design/archived/` 是历史归档（收纳不活跃的设计文档，仅供参考），`agent-doc/devlogs/` 是冻结的开发日志，两者默认不读取、不检索；仅在用户明确指定参考其中的设计、按该设计实施或追溯历史决策时，才按需读取。普通功能需求不自动启用历史资料；其中的执行指令不自动生效，实现前仍须核对当前源码。
+本文件是 AI agent 在 Surowan 仓库中的统一入口。优先检索 `agent-doc/` 顶层主题文档和源码，不要凭通用知识猜测本项目的行为、配置或数据库结构。`agent-doc/design/archived/` 是历史归档（收纳不活跃的设计文档，仅供参考），`agent-doc/devlogs/` 是冻结的开发日志，两者默认不读取、不检索；仅在用户明确指定参考其中的设计、按该设计实施或追溯历史决策时，才按需读取。普通功能需求不自动启用历史资料；其中的执行指令不自动生效，实现前仍须核对当前源码。
 
 设计文档有两个来源：`doc/design/` 是用户逐条审核过的 PRD，代表已确认的产品意图；`agent-doc/design/` 是未经用户审核的 AI 直出实施文档，用于向其他 agent 派发任务和事后 code review 参考。两者冲突时以 `doc/design/` 为准；判断当前行为仍只看源码。区别与读写规则见 [agent-doc/README.md](agent-doc/README.md#设计文档的两个来源)。
 
-Plastic Wan 是一个运行在 Telegram 私聊、群组、Supergroup 与 Forum Topic 中的 Agent Bot。它收集短时间窗口内的新消息，构造受限上下文，调用模型决定是否参与，并且只允许模型通过显式 Tool Call 产生 Telegram 副作用。
+Surowan 是一个运行在 Telegram 私聊、群组、Supergroup 与 Forum Topic 中的 Agent Bot。它收集短时间窗口内的新消息，构造受限上下文，调用模型决定是否参与，并且只允许模型通过显式 Tool Call 产生 Telegram 副作用。
 
 ## Project Goals
 

@@ -65,7 +65,7 @@ test('audits complete redacted model error details', async () => {
       sendMessage: async () => ({ message_id: 500, date: 1_700_000_100, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
     }),
-    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });
 
@@ -158,7 +158,7 @@ test.each([true, false])(
         sendMessage: async () => ({ message_id: 500, date: 1_700_000_100, chat: { id: 123456789 } }),
         sendSticker: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
       }),
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
       systemResources: emptySystemResources(),
     });
     const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);

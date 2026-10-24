@@ -1,4 +1,4 @@
-# Plastic Wan - 20260930 修复管理面板 Invocation 列表查询延迟
+# Surowan - 20260930 修复管理面板 Invocation 列表查询延迟
 
 ## 背景
 

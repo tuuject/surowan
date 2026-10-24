@@ -1,6 +1,6 @@
 # Agent Documentation
 
-本目录是 Plastic Wan 项目的 agent 共享上下文，存放面向 AI agent 的项目知识。根目录 [`../AGENTS.md`](../AGENTS.md) 是统一入口；这里的文档按任务主题拆分，避免每次加载完整技术设计。
+本目录是 Surowan 项目的 agent 共享上下文，存放面向 AI agent 的项目知识。根目录 [`../AGENTS.md`](../AGENTS.md) 是统一入口；这里的文档按任务主题拆分，避免每次加载完整技术设计。
 
 ## 使用方式
 

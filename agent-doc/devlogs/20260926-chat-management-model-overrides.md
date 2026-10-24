@@ -1,4 +1,4 @@
-# Plastic Wan - 20260926 Chat 管理与按群模型覆盖
+# Surowan - 20260926 Chat 管理与按群模型覆盖
 
 ## 背景
 

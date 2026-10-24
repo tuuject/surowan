@@ -1,6 +1,6 @@
 ---
 title: 配置参考
-description: 按配置节理解 Plastic Wan 的必填项、覆盖关系与运行风险。
+description: 按配置节理解 Surowan 的必填项、覆盖关系与运行风险。
 ---
 
 # 配置参考

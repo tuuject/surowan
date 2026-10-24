@@ -44,7 +44,7 @@ describe('alarm send mention', () => {
       maxTextLength: undefined,
       disallowBlankLines: false,
       deadline: Date.now() + 30_000,
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     });
     // A sticker ref comes from search_stickers: without one, send refuses, and a
     // successful sticker send carries no alarm mention.
@@ -110,7 +110,7 @@ describe('alarm send mention', () => {
       maxTextLength: undefined,
       disallowBlankLines: false,
       deadline: Date.now() + 30_000,
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     });
     await expect(tool.execute('fail-1', { kind: 'text', text: 'are you ok?' })).rejects.toThrow(
       'Telegram send failed: telegram_400',
@@ -164,7 +164,7 @@ describe('alarm send mention', () => {
       maxTextLength: undefined,
       disallowBlankLines: false,
       deadline: Date.now() + 30_000,
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     });
     await tool.execute('md-1', { kind: 'text', text: '*bold* ok', parse_mode: 'MarkdownV2' });
     expect(requests[0]?.text).toBe('[@Back\\\\slash\\!ok\\[test\\]](tg://user?id=42) *bold* ok');
@@ -206,7 +206,7 @@ describe('alarm send mention', () => {
       maxTextLength: 20,
       disallowBlankLines: true,
       deadline: Date.now() + 30_000,
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     });
     await expect(tool.execute('long-1', { kind: 'text', text: 'x'.repeat(20) })).rejects.toThrow('exceeds');
     await expect(tool.execute('blank-1', { kind: 'text', text: 'a\n\nb' })).rejects.toThrow('blank lines');

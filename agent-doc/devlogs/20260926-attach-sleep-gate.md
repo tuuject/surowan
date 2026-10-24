@@ -1,4 +1,4 @@
-# Plastic Wan - 20260926 attach 路径补上睡眠与 Chat 配置闸门
+# Surowan - 20260926 attach 路径补上睡眠与 Chat 配置闸门
 
 ## 背景
 

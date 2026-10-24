@@ -36,7 +36,7 @@ export function bundledManualSpace(root: string): DocSpaceDefinition {
   return {
     id: 'manual',
     title: '塑料碗用户手册',
-    description: '塑料碗（Plastic Wan）的部署、配置与维护指南，与当前运行版本一起发布',
+    description: '塑料碗（Surowan）的部署、配置与维护指南，与当前运行版本一起发布',
     root,
   };
 }

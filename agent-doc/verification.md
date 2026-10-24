@@ -1,6 +1,6 @@
 # 验证
 
-本页记录 Plastic Wan 的验证层级。不要用单一 `pnpm test` 代替真实 Provider、Telegram 或媒体工具链验证，也不要把自然语言回复当作内部 Tool 成功证据。
+本页记录 Surowan 的验证层级。不要用单一 `pnpm test` 代替真实 Provider、Telegram 或媒体工具链验证，也不要把自然语言回复当作内部 Tool 成功证据。
 
 ## 静态与单元验证
 

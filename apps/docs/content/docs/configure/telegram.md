@@ -13,7 +13,7 @@ Telegram 官方 FAQ 指引开发者通过 [@BotFather](https://t.me/BotFather) �
 
 私聊消息对 Bot 可见。群中，Telegram 的隐私模式会限制 Bot 接收的消息；官方 FAQ 说明关闭隐私模式或将 Bot 设为管理员时，Bot 可收到除其他 Bot 消息外的群消息。按你的最小权限需求在 BotFather/群设置中调整，再测试一条普通成员消息。
 
-即使 Telegram 已投递，Plastic Wan 仍只处理 `telegram.chats` allowlist 中的 Chat。它默认不处理其他 Bot 的消息。
+即使 Telegram 已投递，Surowan 仍只处理 `telegram.chats` allowlist 中的 Chat。它默认不处理其他 Bot 的消息。
 
 ## 配置一个私聊或群
 

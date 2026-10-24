@@ -141,7 +141,7 @@ async function runtimeSetup(
     configStore,
     secrets: new SecretStore(),
     ...testTelegramRuntime(api),
-    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });
   return { store, configStore, runtime, invocationId, faux };

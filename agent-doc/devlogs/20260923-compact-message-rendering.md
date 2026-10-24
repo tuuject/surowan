@@ -1,4 +1,4 @@
-# Plastic Wan - 20260923 Telegram 消息改为紧凑文本渲染
+# Surowan - 20260923 Telegram 消息改为紧凑文本渲染
 
 ## 背景
 

@@ -30,7 +30,7 @@ describe('send tool', () => {
       maxTextLength: 5,
       disallowBlankLines: false,
       deadline: Date.now() + 30_000,
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     });
     expect(tool.description).toContain('Text must not exceed 5 characters.');
     await expect(tool.execute('call-1', { kind: 'text', text: 'too long' })).rejects.toThrow(
@@ -74,7 +74,7 @@ describe('send tool', () => {
       sendRateLimit: { sendsPerWindow: 6, windowSeconds: 300 },
       maxTextLength: undefined,
       deadline: Date.now() + 30_000,
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     };
     const permissive = createSendTool({ ...base, disallowBlankLines: false });
     await permissive.execute('call-1', { kind: 'text', text: 'a\n\n\nb' });

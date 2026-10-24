@@ -55,7 +55,7 @@ describe('alarm runtime budget bypass', () => {
         sendMessage: async () => ({ message_id: 500, date: 1_700_000_100, chat: { id: 123456789 } }),
         sendSticker: async () => ({ message_id: 501, date: 1_700_000_101, chat: { id: 123456789 } }),
       }),
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
       modelGate: new KeyedSemaphore(),
       systemResources: emptySystemResources(),
     });

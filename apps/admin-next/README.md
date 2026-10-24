@@ -1,6 +1,6 @@
-# Plastic Wan Admin (Next)
+# Surowan Admin (Next)
 
-Plastic Wan 的 Admin Panel 前端。构建产物是**静态 SPA**（Rsbuild + React + TanStack
+Surowan 的 Admin Panel 前端。构建产物是**静态 SPA**（Rsbuild + React + TanStack
 Router/Query + Tailwind 4 + shadcn/Base UI），由后端 `AdminServer`（`serve` 进程内的
 `src/ingress/admin/server.ts`）**同源托管**，不依赖任何 Node/Nitro 运行时。`dist/`
 里的 `index.html` 由后端做深链接回退（未知路径回落到 SPA）。

@@ -1,7 +1,7 @@
 <div align="center">
   <img src="assets/readme/logo.webp" width="128" height="128" alt="塑料碗 Logo" />
 
-  <h1>塑料碗（Plastic Wan）</h1>
+  <h1>塑料碗（Surowan）</h1>
 
   <p>让你的赛博 OC 出门玩！</p>
   <p>可以自行部署、使用自己的 API Key 的 Telegram Agent Bot。<br />为私聊、群组与 Forum Topic 配置人格、记忆和参与边界。</p>

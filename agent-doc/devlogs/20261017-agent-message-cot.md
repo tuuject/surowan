@@ -1,4 +1,4 @@
-# Plastic Wan - 20261017 Assistant 私有文本区分 CoT 与 response 正文
+# Surowan - 20261017 Assistant 私有文本区分 CoT 与 response 正文
 
 ## 背景
 

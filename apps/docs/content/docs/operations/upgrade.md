@@ -1,6 +1,6 @@
 ---
 title: 升级与数据库迁移
-description: 安全升级 Plastic Wan，并区分代码、配置和数据库变更。
+description: 安全升级 Surowan，并区分代码、配置和数据库变更。
 ---
 
 # 升级与数据库迁移

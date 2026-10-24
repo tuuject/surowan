@@ -5,7 +5,7 @@ description: 了解按 Conversation 隔离的短期记忆、TTL 和 Admin Panel 
 
 # 管理 Conversation 记忆
 
-Plastic Wan 的 Agent 记忆属于单个 Conversation：同一 Chat 的不同 Forum Topic 不共享记忆，私聊也有自己的 Conversation。记忆用于保存模型主动记录的短期事实，不是全局知识库。
+Surowan 的 Agent 记忆属于单个 Conversation：同一 Chat 的不同 Forum Topic 不共享记忆，私聊也有自己的 Conversation。记忆用于保存模型主动记录的短期事实，不是全局知识库。
 
 ## 先配置保留策略
 

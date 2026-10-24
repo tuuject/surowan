@@ -1,6 +1,6 @@
 # @tuuject/surowan-utils
 
-Plastic Wan Admin API 工具客户端，包内命令为 `surowan-utils`。它是 monorepo 工作区包（仓库根与其它 workspace 仍为 private），已配置为可公开发布到 npm；除 Invocation 的 `list`/`get`/`prompts`/`preflight`/`media`/`replay` 六个子命令外，还提供 `models list`（只读列出当前 active 配置中可接受文本输入的已配置模型）、`config show`、`prompt get global|group`、`login`（把 endpoint 与 API key 成对保存到本机）与 `doctor`（一次只读请求验证连通与鉴权）；`invocation preflight`/`replay` 支持临时模型/thinking 覆盖（`--provider`/`--model`/`--thinking-level`）。群聊管理等其它能力尚未实现，也不包含 SDK 或 Eval 能力；`login` 只保存本机凭据，不能创建、查看或撤销服务端密钥（密钥管理仍只在 Admin Panel 进行）。API key 的权限面是 Invocation 读/重放加只读 inspection：配置与 prompt 视图、可用模型列表、场景所用的当前 prompt 与重放预检、Invocation 媒体导出；其余接口（含面板写端点与密钥管理）仍返回 403。
+Surowan Admin API 工具客户端，包内命令为 `surowan-utils`。它是 monorepo 工作区包（仓库根与其它 workspace 仍为 private），已配置为可公开发布到 npm；除 Invocation 的 `list`/`get`/`prompts`/`preflight`/`media`/`replay` 六个子命令外，还提供 `models list`（只读列出当前 active 配置中可接受文本输入的已配置模型）、`config show`、`prompt get global|group`、`login`（把 endpoint 与 API key 成对保存到本机）与 `doctor`（一次只读请求验证连通与鉴权）；`invocation preflight`/`replay` 支持临时模型/thinking 覆盖（`--provider`/`--model`/`--thinking-level`）。群聊管理等其它能力尚未实现，也不包含 SDK 或 Eval 能力；`login` 只保存本机凭据，不能创建、查看或撤销服务端密钥（密钥管理仍只在 Admin Panel 进行）。API key 的权限面是 Invocation 读/重放加只读 inspection：配置与 prompt 视图、可用模型列表、场景所用的当前 prompt 与重放预检、Invocation 媒体导出；其余接口（含面板写端点与密钥管理）仍返回 403。
 
 它与服务端入口 `plasticwan`（`node src/cli.ts`）不是同一个程序：本客户端只通过 Admin API 做只读检查、查询、媒体导出与重放，不包含 `serve`、`check-config`、`backup`、`configure` 等服务命令；客户端自己的 `doctor` 也不执行服务端 Doctor 的 SQLite、媒体、Telegram、Provider 与 MCP 探针，只检查 Admin API 连通与鉴权。
 

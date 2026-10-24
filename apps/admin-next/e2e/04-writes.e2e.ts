@@ -23,7 +23,7 @@ test.describe('memories CRUD', () => {
     await page.goto(await adminUrl('/memories'));
     await page.getByRole('button', { name: 'New memory' }).click();
     await page.getByLabel('Select a chat').click();
-    await page.getByRole('option', { name: /Plastic Wan Test Group/ }).click();
+    await page.getByRole('option', { name: /Surowan Test Group/ }).click();
     await page.getByLabel('Content').fill('E2E memory created by test');
     await page.getByLabel('TTL in days').fill('7');
     await page.getByRole('button', { name: 'Create', exact: true }).click();

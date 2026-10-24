@@ -199,7 +199,7 @@ export async function playgroundImageFixture(options: FixtureOptions = {}) {
   const ingress = new PlaygroundIngress(store.orm, { assets });
   const host = createPlaygroundHost({
     store,
-    self: { displayName: 'Plastic Wan' },
+    self: { displayName: 'Surowan' },
     pictures: assets,
     sendRate: () => ({ sendsPerWindow: 20, windowSeconds: 60 }),
   });
@@ -209,7 +209,7 @@ export async function playgroundImageFixture(options: FixtureOptions = {}) {
     secrets: new SecretStore(),
     hosts: { playground: host },
     conversation: (target) => resolveConversation(store, target),
-    bot: { id: 999n, displayName: 'Plastic Wan', username: null },
+    bot: { id: 999n, displayName: 'Surowan', username: null },
     systemResources: resources,
     capabilityTools: tooling.capabilityTools,
     additionalTools: tooling.additionalTools,

@@ -175,7 +175,7 @@ export async function runtimeFixture(transform?: (config: FileConfig) => void, e
       },
       sendSticker: async () => ({ message_id: 800, date: 1_700_000_000, chat: { id: CHAT_ID } }),
     }),
-    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
     conversationRuntime,
     capabilityTools: (context, deadline) => plugins.capabilities(store, loaded.config, context, deadline, tasks),

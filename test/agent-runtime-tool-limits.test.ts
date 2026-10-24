@@ -80,7 +80,7 @@ test('an invocation keeps running past the removed per-invocation tool-call cap 
       sendMessage: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
     }),
-    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
     additionalTools: () => [noop],
   });
@@ -115,7 +115,7 @@ test('counts tool descriptions in registry limits', async () => {
       sendMessage: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
     }),
-    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });
   const oversizedDescriptionTool: AgentTool = {
@@ -204,7 +204,7 @@ test('a model that declares minimal tool-schema keywords is sent reduced tool de
       sendMessage: async () => ({ message_id: 500, date: 1_700_000_100, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
     }),
-    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });
   const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);

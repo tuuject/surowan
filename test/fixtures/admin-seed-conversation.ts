@@ -28,7 +28,7 @@ export function seedAdminConversation(orm: Orm): void {
       telegramChatId: 123_456_789n,
       canonicalChatId: 123_456_789n,
       type: 'supergroup',
-      title: 'Plastic Wan Test Group',
+      title: 'Surowan Test Group',
       username: 'plasticwan_test',
       updatedAt: AT,
     })
@@ -190,7 +190,7 @@ export function seedAdminStickers(orm: Orm): void {
       id: T.stickerSet,
       alias: 'mascot',
       telegramName: 'plasticwan_mascot',
-      title: 'Plastic Wan Mascot',
+      title: 'Surowan Mascot',
       configured: true,
       syncState: 'success',
       lastSyncedAt: '2026-09-10T08:00:10.000Z',

@@ -5,7 +5,7 @@ description: 设置全局 Agent Token 熔断、Vision 预算，了解睡眠状�
 
 # 配置 Agent、Vision 预算与睡眠
 
-Plastic Wan 有两套相关但不相同的预算：主 Agent 的全局 Token 上限，以及后台 Sticker 索引使用的 Vision 预算。聊天触发的 `read_image` 使用主 Agent 的全局预算，不会变成每群独立 Token 配额。
+Surowan 有两套相关但不相同的预算：主 Agent 的全局 Token 上限，以及后台 Sticker 索引使用的 Vision 预算。聊天触发的 `read_image` 使用主 Agent 的全局预算，不会变成每群独立 Token 配额。
 
 ## 设置全局 Agent Token 上限
 

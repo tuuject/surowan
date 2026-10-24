@@ -1,6 +1,6 @@
 ---
 name: surowan-dev-create-feature
-description: 在本仓库（surowan / Plastic Wan）开始任何新 feature 开发前的强制前置步骤：先从 origin/develop 拉取最新代码，再用 git worktree 在 ../<仓库文件夹名>.worktrees/feature/<feature 分支名> 建好工作树并切过去干活。用于 push 前的所有代码改动、修 bug、写测试、改文档；只要用户要求「开个 feature」「新开一个改动」「实现 xxx」「先拉最新 develop」「建 worktree」，或要动仓库里任何非只读文件，就先用这个 skill，即使用户没提 worktree 也要用。只读调查、跑测试、纯问答，以及已经位于 feature worktree 内的继续开发不需要。
+description: 在本仓库（surowan / Surowan）开始任何新 feature 开发前的强制前置步骤：先从 origin/develop 拉取最新代码，再用 git worktree 在 ../<仓库文件夹名>.worktrees/feature/<feature 分支名> 建好工作树并切过去干活。用于 push 前的所有代码改动、修 bug、写测试、改文档；只要用户要求「开个 feature」「新开一个改动」「实现 xxx」「先拉最新 develop」「建 worktree」，或要动仓库里任何非只读文件，就先用这个 skill，即使用户没提 worktree 也要用。只读调查、跑测试、纯问答，以及已经位于 feature worktree 内的继续开发不需要。
 ---
 
 # 创建 Feature Worktree 并开工

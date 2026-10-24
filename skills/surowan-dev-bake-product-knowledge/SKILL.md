@@ -1,6 +1,6 @@
 ---
 name: surowan-dev-bake-product-knowledge
-description: Bake or refresh Plastic Wan / Surowan product knowledge from the actual user manuals into the compact runtime index. Use when updating product self-knowledge, routing natural-language product questions to manual pages, or refreshing knowledge after manual changes. Runs locally in a coding-agent checkout; no bot, server, external model service, or new dependency is needed.
+description: Bake or refresh Surowan / Surowan product knowledge from the actual user manuals into the compact runtime index. Use when updating product self-knowledge, routing natural-language product questions to manual pages, or refreshing knowledge after manual changes. Runs locally in a coding-agent checkout; no bot, server, external model service, or new dependency is needed.
 ---
 
 # Bake product knowledge
@@ -25,7 +25,7 @@ This is a local authoring procedure. It does not install a runtime Skill, introd
 
 Choose facts that let the bot recognize its own product and find the right page before performing broad research:
 
-- Product names and supported surfaces: 塑料碗 / Plastic Wan, and the documented Surowan repository/distribution name.
+- Product names and supported surfaces: 塑料碗 / Surowan, and the documented Surowan repository/distribution name.
 - Every documented member/admin Bot command, preserving who may use it, scope, persistence, and only documented parameter syntax. Do not promote Telegram group administrators to configured bot administrators. Keep commands whose details are missing as names plus a source route.
 - Natural-language intent labels for `/ignoreme` and `/unignoreme`, such as “别理我 / 不要回复我 / ignore me” and “恢复接收 / 重新理我 / unignore me”. These are discovery labels, not claims that sending those phrases executes a command. Distinguish self-ignore from whole-chat pause and from deleting history.
 - Main tasks: participation, models, personality, memory, dictionary, image understanding/generation, reminders, web access, MCP, budgets, Admin, setup, upgrade and recovery.

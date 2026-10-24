@@ -5,7 +5,7 @@ description: 显式启用可用模型，并为 Agent 与视觉分析选择合适
 
 # 配置 Provider 与模型
 
-Plastic Wan 只使用配置 `providers.<alias>.models` 中显式列出的模型；Provider 目录里存在不代表运行时可选。主 Agent 模型必须支持 `text`，视觉模型必须支持 `image`，每个模型的上下文、输出上限与成本元数据都要写入配置。
+Surowan 只使用配置 `providers.<alias>.models` 中显式列出的模型；Provider 目录里存在不代表运行时可选。主 Agent 模型必须支持 `text`，视觉模型必须支持 `image`，每个模型的上下文、输出上限与成本元数据都要写入配置。
 
 ## 从样例开始
 

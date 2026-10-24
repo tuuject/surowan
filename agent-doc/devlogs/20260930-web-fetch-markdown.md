@@ -1,4 +1,4 @@
-# Plastic Wan - 20260930 web_fetch：HTML 默认转 Markdown，修复公网 IPv4 全部被拦截，新增放行全部地址开关
+# Surowan - 20260930 web_fetch：HTML 默认转 Markdown，修复公网 IPv4 全部被拦截，新增放行全部地址开关
 
 ## 背景
 

@@ -115,7 +115,7 @@ export async function fixture(transform?: (config: FileConfig) => void): Promise
       hosts: { telegram: host },
       conversation,
 
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
       systemResources: emptySystemResources(),
       conversationRuntime,
     });

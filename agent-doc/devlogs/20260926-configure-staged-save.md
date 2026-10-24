@@ -1,4 +1,4 @@
-# Plastic Wan - 20260926 configure 保存改为先校验再替换
+# Surowan - 20260926 configure 保存改为先校验再替换
 
 ## 背景
 

@@ -9,7 +9,7 @@ description: 区分只读 System Skills、内置 Agent Plugin 和配置的 MCP T
 
 ## System Skills：只读操作说明
 
-System Skill 是随 Plastic Wan 发布的只读 Markdown 文档包。System prompt 只包含 Skill 索引，模型需要先用 `read` 读取 `system:///skills/<name>/SKILL.md`，再按文档使用 `execute` 调用内部能力。
+System Skill 是随 Surowan 发布的只读 Markdown 文档包。System prompt 只包含 Skill 索引，模型需要先用 `read` 读取 `system:///skills/<name>/SKILL.md`，再按文档使用 `execute` 调用内部能力。
 
 Skill 是说明书，不是权限文件：不能绕过 Tool Schema、Conversation 引用校验、allowlist、预算或发送边界。运行时只允许读取 `system:///` 下的 Markdown，不能借此访问任意本地文件。
 

@@ -1,5 +1,5 @@
 /**
- * Read-only audit helper for a Plastic Wan database.
+ * Read-only audit helper for a Surowan database.
  *
  * Answers the question an operator actually asks — "why did the bot reply, or
  * why did it stay silent?" — from the audit trail alone: the frozen batch the

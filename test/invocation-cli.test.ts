@@ -243,7 +243,7 @@ describe('surowan-utils invocation CLI', () => {
   it('prints usage for --help without requiring an endpoint', async () => {
     const result = await runCli(['--help']);
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain('surowan-utils - Plastic Wan Admin API 工具客户端');
+    expect(result.stdout).toContain('surowan-utils - Surowan Admin API 工具客户端');
     expect(result.stdout).toContain('surowan-utils invocation replay');
     expect(result.stdout).toContain('--before-send');
     expect(result.stdout).toContain('--confirm-paid');

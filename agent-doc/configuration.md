@@ -1,6 +1,6 @@
 # 配置
 
-Plastic Wan 使用严格 JSONC 配置。Schema 位于 `src/platform/config-schema.ts` 与 `src/platform/config-schema-*.ts`（类型仍从 `src/platform/config.ts` 导出），未知字段会被拒绝；除类型校验外，还会验证时区、ID 唯一性、模型引用、URL 和预算关系。
+Surowan 使用严格 JSONC 配置。Schema 位于 `src/platform/config-schema.ts` 与 `src/platform/config-schema-*.ts`（类型仍从 `src/platform/config.ts` 导出），未知字段会被拒绝；除类型校验外，还会验证时区、ID 唯一性、模型引用、URL 和预算关系。
 
 本页只记录 Schema 表达不出来的语义。每个字段的类型、取值范围和必填性以 `src/platform/config-schema*.ts` 的 TypeBox Schema 为准——越界值由 `check-config` 直接报出，不要靠文档抄写的数字判断。
 

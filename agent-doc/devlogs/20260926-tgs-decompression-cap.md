@@ -1,4 +1,4 @@
-# Plastic Wan - 20260926 TGS 解压设上限
+# Surowan - 20260926 TGS 解压设上限
 
 ## 背景
 

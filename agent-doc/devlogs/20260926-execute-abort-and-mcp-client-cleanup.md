@@ -1,4 +1,4 @@
-# Plastic Wan - 20260926 execute 取消后不再派发，MCP 未发布的 client 一律关闭
+# Surowan - 20260926 execute 取消后不再派发，MCP 未发布的 client 一律关闭
 
 ## 背景
 

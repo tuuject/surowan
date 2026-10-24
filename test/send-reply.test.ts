@@ -132,7 +132,7 @@ function makeTools(
       maxTextLength: undefined,
       disallowBlankLines: false,
       deadline: Date.now() + 30_000,
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
       ...(options.holdForNewMessages === undefined ? {} : { holdForNewMessages: options.holdForNewMessages }),
     }),
     capabilities,

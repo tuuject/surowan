@@ -148,7 +148,7 @@ test('keeps history photos as img_ refs for the multimodal agent while attaching
       sendMessage: async () => ({ message_id: 601, date: 1_700_000_100, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 602, date: 1_700_000_100, chat: { id: 123456789 } }),
     }),
-    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
     capabilityTools: (context, deadline, capabilities) => [
       capability(media.createReadImageTool(context, capabilities, deadline), false),
@@ -274,7 +274,7 @@ test('lets a text-only agent read a Telegram photo through read_image', async ()
       sendMessage: async () => ({ message_id: 601, date: 1_700_000_100, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 602, date: 1_700_000_100, chat: { id: 123456789 } }),
     }),
-    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
     capabilityTools: (context, deadline, capabilities) => [
       capability(media.createReadImageTool(context, capabilities, deadline), false),

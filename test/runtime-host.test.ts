@@ -61,7 +61,7 @@ test('core assembly uses injected resources without loading host files or starti
         },
         sendSticker: async () => ({ message_id: 502, date: 1_700_000_100, chat: { id: 123456789 } }),
       }),
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
       systemResources: resources,
     });
     // Assembly must not start the scheduler or process anything on construction.

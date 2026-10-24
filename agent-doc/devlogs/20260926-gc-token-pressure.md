@@ -1,4 +1,4 @@
-# Plastic Wan - 20260926 GC 在 token 压力下的候选选择与 GC 后的估算回落
+# Surowan - 20260926 GC 在 token 压力下的候选选择与 GC 后的估算回落
 
 ## 背景
 

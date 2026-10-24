@@ -128,7 +128,7 @@ test('passes Telegram photos directly to the multimodal agent and keeps stickers
     configStore,
     secrets: new SecretStore(),
     ...testTelegramRuntime(api),
-    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
     directImageLoader: (context, signal) => media.loadDirectImages(context.directImages, signal),
   });

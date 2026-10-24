@@ -228,7 +228,7 @@ export async function setup(): Promise<Fixture> {
           configStore: runtimeStore,
           secrets: new SecretStore(),
           ...testTelegramRuntime(sendApi),
-          bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+          bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
           systemResources: emptySystemResources(),
           conversationRuntime,
         }),

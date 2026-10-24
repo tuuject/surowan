@@ -68,12 +68,12 @@ async function released() {
     hosts: {
       playground: createPlaygroundHost({
         store,
-        self: { displayName: 'Plastic Wan' },
+        self: { displayName: 'Surowan' },
         sendRate: () => ({ sendsPerWindow: 20, windowSeconds: 60 }),
       }),
     },
     conversation: (target) => identityConversation(target, 'playground', 'group'),
-    bot: { id: 999n, displayName: 'Plastic Wan', username: null },
+    bot: { id: 999n, displayName: 'Surowan', username: null },
     systemResources: emptySystemResources(),
   });
   return { store, configStore, runtime, faux, playground, invocationId: release.invocationId, roomId: room.chatId };

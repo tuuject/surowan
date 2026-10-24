@@ -83,7 +83,7 @@ test('a fresh Agent drops assistant thinking when CoT recording is off', async (
     configStore,
     secrets: new SecretStore(),
     ...testTelegramRuntime(api),
-    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });
   const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
@@ -188,7 +188,7 @@ test.each([undefined, false, true])(
       configStore,
       secrets: new SecretStore(),
       ...testTelegramRuntime(api),
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
       systemResources: emptySystemResources(),
     });
     const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);

@@ -230,7 +230,7 @@ test('search_stickers runs through execute and its refs authorize a sticker send
         return { message_id: 502, date: 1, chat: { id: 123456789 } };
       },
     }),
-    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     systemResources: await bundledSystemResources(),
     capabilityTools: (context, _deadline, capabilities) => [
       capability(stickers.createSearchTool(context, capabilities), false),

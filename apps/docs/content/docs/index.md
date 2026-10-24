@@ -5,7 +5,7 @@ description: 从首次部署到人格、群聊、记忆与维护，按你要完�
 
 # 使用文档
 
-塑料碗（Plastic Wan）是可自行部署、运行在 Telegram 私聊、群组、Supergroup 与 Forum Topic 中的 Agent Bot。你选择模型和人格，并明确允许它在哪些会话里活动。它收到消息后可以决定参与，也可以保持安静。
+塑料碗（Surowan）是可自行部署、运行在 Telegram 私聊、群组、Supergroup 与 Forum Topic 中的 Agent Bot。你选择模型和人格，并明确允许它在哪些会话里活动。它收到消息后可以决定参与，也可以保持安静。
 
 :::info 先核对版本
 页面上方标明本次构建的源码提交。它不自动对应远端镜像的 `latest` 或某个稳定版；含未提交修改的站点只是本地预览。本文档的 Docker 主路径从选定提交自行构建镜像。

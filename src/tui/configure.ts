@@ -36,7 +36,7 @@ export async function runConfigure(configPath: string): Promise<void> {
     let exit = false;
     while (!exit) {
       const action = await select<MainAction>({
-        message: 'Plastic Wan configuration',
+        message: 'Surowan configuration',
         choices: [
           { value: 'providers', name: 'Configure providers' },
           { value: 'thinking', name: `Configure agent thinking level (${config.agent?.thinking_level ?? 'unset'})` },

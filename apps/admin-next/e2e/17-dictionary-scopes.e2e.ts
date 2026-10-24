@@ -27,7 +27,7 @@ test.describe('dictionary page', () => {
     await dialog.getByLabel('Definition', { exact: true }).fill('Group-scoped entry');
     await dialog.getByRole('button', { name: 'Group', exact: true }).click();
     await dialog.getByRole('combobox', { name: 'Chat' }).click();
-    await page.getByRole('option', { name: /Plastic Wan Test Group/ }).click();
+    await page.getByRole('option', { name: /Surowan Test Group/ }).click();
     await dialog.getByRole('button', { name: 'Create entry' }).click();
     await expect(toast(page, 'Entry created')).toBeVisible();
 
@@ -44,7 +44,7 @@ test.describe('dictionary page', () => {
       // Switching the page scope to the group shows it; switching back to
       // global hides it again.
       await page.getByRole('combobox', { name: 'Dictionary scope' }).click();
-      await page.getByRole('option', { name: /Group · Plastic Wan Test Group/ }).click();
+      await page.getByRole('option', { name: /Group · Surowan Test Group/ }).click();
       await expect(page.locator('table tbody tr', { hasText: term })).toBeVisible();
       await page.getByRole('combobox', { name: 'Dictionary scope' }).click();
       await page.getByRole('option', { name: 'Global dictionary' }).click();
@@ -73,7 +73,7 @@ test.describe('dictionary page', () => {
     const groupBaseline = await settings(page, CHAT_ID);
     try {
       await page.getByRole('combobox', { name: 'Dictionary scope' }).click();
-      await page.getByRole('option', { name: /Group · Plastic Wan Test Group/ }).click();
+      await page.getByRole('option', { name: /Group · Surowan Test Group/ }).click();
       await page.getByRole('combobox', { name: 'Override for this Chat' }).click();
       await page.getByRole('option', { name: 'Aggressive', exact: true }).click();
       await expect(page.getByRole('combobox', { name: 'Override for this Chat' })).toContainText('Aggressive');
@@ -102,7 +102,7 @@ test.describe('dictionary page', () => {
 test.describe('dictionary chat deep link', () => {
   test('the chat search param opens the group scope directly', async ({ page }) => {
     await page.goto(await adminUrl(`/dictionary?chat=${CHAT_ID}`));
-    await expect(page.getByRole('combobox', { name: 'Dictionary scope' })).toContainText('Plastic Wan Test Group');
+    await expect(page.getByRole('combobox', { name: 'Dictionary scope' })).toContainText('Surowan Test Group');
     await page.getByRole('combobox', { name: 'Dictionary scope' }).click();
     await page.getByRole('option', { name: 'Global dictionary' }).click();
     await expect(page).toHaveURL(/\/dictionary$/);

@@ -1,4 +1,4 @@
-# Plastic Wan - 20260926 web_fetch：fake-ip 网段改为显式开启，拦截 IPv6 过渡地址
+# Surowan - 20260926 web_fetch：fake-ip 网段改为显式开启，拦截 IPv6 过渡地址
 
 ## 背景
 

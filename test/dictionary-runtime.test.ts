@@ -110,7 +110,7 @@ async function fixture(transform?: (config: FileConfig) => void): Promise<Fixtur
       configStore,
       secrets: new SecretStore(),
       ...testTelegramRuntime(sendApi),
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
       systemResources: emptySystemResources(),
       // The same injectors the composition root hands the runtime, so the
       // dictionary plugin's injection runs in these faux-provider invocations.

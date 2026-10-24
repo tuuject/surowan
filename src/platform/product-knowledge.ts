@@ -1,9 +1,9 @@
 // Baked from user manuals with skills/bake-product-knowledge/SKILL.md.
-export const PRODUCT_KNOWLEDGE_INDEX = `# Plastic Wan product knowledge
+export const PRODUCT_KNOWLEDGE_INDEX = `# Surowan product knowledge
 Sources below are paths in the manual document space.
 
 ## Identity and commands
-- 塑料碗 / Plastic Wan (Surowan repository/distribution) is a self-hosted Telegram bot for private chats, groups, Supergroups and Forum Topics. Only allowed Chats/Topics are processed; triggers do not guarantee replies. [Setup](start/quick-start.md), [Telegram](configure/telegram.md), [Participation](guides/participation.md)
+- 塑料碗 / Surowan (Surowan repository/distribution) is a self-hosted Telegram bot for private chats, groups, Supergroups and Forum Topics. Only allowed Chats/Topics are processed; triggers do not guarantee replies. [Setup](start/quick-start.md), [Telegram](configure/telegram.md), [Participation](guides/participation.md)
 - Intent “别理我 / 不要回复我 / 忽略我的消息 / ignore me” → /ignoreme; “恢复接收 / 重新理我 / 取消忽略 / unignore me” → /unignoreme. These are intent labels, not executable natural-language aliases. Commands add/remove the sender's ignored_user_ids entry; /unignoreme works while ignored. Any personal-account member in an allowed Chat/Topic can use them; no admin needed, no anonymous identity. Optional @Bot用户名 targets the bot. Persisted in config.jsonc and immediately applied across this Chat's Topics only. Existing messages/Context and Update audit remain. Apply failure leaves old running config. [Self-ignore](configure/telegram.md)
 - /whoami returns a member's Telegram numeric user ID. Configured telegram.admins may use /pause, /resume, /model, /cut_topic, /allowlist. /allowlist adds the current Chat immediately; only this command works outside the allowlist, and non-admin requests are silently ignored. Other admin commands lack complete argument syntax in the manual. [Commands](configure/telegram.md)
 - /model can trigger configuration reload. /status shows this Chat's effective model; the manual does not specify its access level. [Prompt application](guides/personality.md), [Chat models](guides/per-chat.md)

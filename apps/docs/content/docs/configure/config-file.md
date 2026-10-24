@@ -5,7 +5,7 @@ description: 编辑严格 JSONC 配置，安全引用密钥并确认变更何时
 
 # 配置文件与密钥
 
-Plastic Wan 读取严格 JSONC：未知字段、无效模型引用和不合法的跨字段组合都会被拒绝。下载 [完整样例](__DOCS_BASE__/examples/config.example.jsonc) 和 [Prompt 样例](__DOCS_BASE__/examples/system-prompt.example.md)，不要把局部片段当作独立配置。
+Surowan 读取严格 JSONC：未知字段、无效模型引用和不合法的跨字段组合都会被拒绝。下载 [完整样例](__DOCS_BASE__/examples/config.example.jsonc) 和 [Prompt 样例](__DOCS_BASE__/examples/system-prompt.example.md)，不要把局部片段当作独立配置。
 
 ## 文件布局
 

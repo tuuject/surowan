@@ -1,4 +1,4 @@
-# Plastic Wan - 20260924 web_fetch 迁为首个内置 Agent 插件
+# Surowan - 20260924 web_fetch 迁为首个内置 Agent 插件
 
 ## 背景
 

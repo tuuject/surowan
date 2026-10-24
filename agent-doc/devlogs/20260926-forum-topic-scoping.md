@@ -1,4 +1,4 @@
-# Plastic Wan - 20260926 Forum Topic 作用域修正：`/cut_topic`、启动补偿与 Supergroup 迁移
+# Surowan - 20260926 Forum Topic 作用域修正：`/cut_topic`、启动补偿与 Supergroup 迁移
 
 ## 背景
 

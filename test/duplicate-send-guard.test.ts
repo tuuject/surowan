@@ -141,7 +141,7 @@ function makeTools(fixture: Fixture, api: TelegramTransport, guard: boolean | un
       disallowBlankLines: false,
       ...duplicateSendGuard(guard, onRejected),
       deadline: Date.now() + 30_000,
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     }),
     capabilities,
   };

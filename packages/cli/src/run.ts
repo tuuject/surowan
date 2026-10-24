@@ -7,7 +7,7 @@ import { credentialsPath, readCredentials, writeCredentials } from './credential
 import { CliError, usageError } from './errors.ts';
 import { promptLoginField, readLoginKey } from './login.ts';
 
-export const USAGE = `surowan-utils - Plastic Wan Admin API 工具客户端
+export const USAGE = `surowan-utils - Surowan Admin API 工具客户端
 
 用法:
   surowan-utils login [--endpoint <url>] [--api-key-stdin] [--json]

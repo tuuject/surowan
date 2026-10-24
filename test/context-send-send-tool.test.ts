@@ -31,7 +31,7 @@ describe('send tool', () => {
       maxTextLength: undefined,
       disallowBlankLines: false,
       deadline: Date.now() + 30_000,
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     });
     expect(tool.description).toContain(
       'Use this only after deciding the new messages or a current task completion require a reply',
@@ -82,7 +82,7 @@ describe('send tool', () => {
       maxTextLength: undefined,
       disallowBlankLines: false,
       deadline: Date.now() + 30_000,
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     });
     await expect(tool.execute('call-1', { kind: 'text', text: 'world', reply_to_message_id: '9999' })).rejects.toThrow(
       'not visible',
@@ -117,7 +117,7 @@ describe('send tool', () => {
       maxTextLength: undefined,
       disallowBlankLines: false,
       deadline: Date.now() + 30_000,
-      bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     });
     for (let index = 0; index < 6; index += 1) {
       await quotaTool.execute(`quota-${index}`, { kind: 'text', text: `message-${index}` });

@@ -1,5 +1,5 @@
 /**
- * Drizzle schema for the Plastic Wan SQLite database.
+ * Drizzle schema for the Surowan SQLite database.
  *
  * The authoritative DDL lives in `src/migrations/*.sql`. This file is the
  * typed query-layer mapping for drizzle-orm: table and column names must

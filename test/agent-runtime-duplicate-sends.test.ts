@@ -84,7 +84,7 @@ test('a placeholder-filled send goes out, and a send repeated unchanged after fa
       },
       sendSticker: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
     }),
-    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });
   const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
@@ -173,7 +173,7 @@ async function duplicateSendRun(
       },
       sendSticker: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
     }),
-    bot: { id: 999n, displayName: 'Plastic Wan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
     systemResources: emptySystemResources(),
   });
   try {
