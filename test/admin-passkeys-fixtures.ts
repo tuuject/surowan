@@ -51,7 +51,7 @@ export async function fixture(enabled = true) {
   const auth = new AdminAuth(store.orm, 12);
   const token = await auth.createFirstUser({ username: 'owner', password });
   const session = auth.authenticate(token)!;
-  const cookie = `surowan_admin=${token}`;
+  const cookie = `plasticwan_admin=${token}`;
   return { store, server, auth, token, session, cookie };
 }
 

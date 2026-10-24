@@ -83,7 +83,7 @@ test('media content is authenticated, bounded to the source invocation and serve
   expect(response.headers.get('content-type')).toBe('application/octet-stream');
   expect(response.headers.get('x-content-type-options')).toBe('nosniff');
   expect(response.headers.get('content-disposition')).toBe('attachment');
-  expect(response.headers.get('x-surowan-media-variant')).toBe('original');
+  expect(response.headers.get('x-plasticwan-media-variant')).toBe('original');
   const bytes = Buffer.from(await response.arrayBuffer());
   expect(createHash('sha256').update(bytes).digest('hex')).toBe(
     createHash('sha256').update('fixture-original-bytes').digest('hex'),

@@ -151,7 +151,7 @@ if (PASSKEYS_ENABLED) {
       const base = await adminBase();
       const sessionCookie = async (): Promise<string | null> => {
         const cookies = await sharedContext.cookies(base);
-        return cookies.find((cookie) => cookie.name === 'surowan_admin')?.value ?? null;
+        return cookies.find((cookie) => cookie.name === 'plasticwan_admin')?.value ?? null;
       };
       const before = await sessionCookie();
       expect(before).not.toBeNull();

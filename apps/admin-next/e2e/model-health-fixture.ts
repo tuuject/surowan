@@ -150,7 +150,7 @@ async function createHealthProviders(request: APIRequestContext): Promise<void> 
   expect(response.status()).toBe(200);
   const header = response.headers()['set-cookie'] ?? '';
   cookie = header.slice(0, header.indexOf(';'));
-  expect(cookie.startsWith('surowan_admin=')).toBe(true);
+  expect(cookie.startsWith('plasticwan_admin=')).toBe(true);
 
   // The new providers reuse the relay connection the fixture already serves
   // models and chat completions from; only their model ids are new.

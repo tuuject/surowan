@@ -30,7 +30,7 @@ test.beforeAll(async ({ request }) => {
  */
 test.describe('API key management UI', () => {
   test.beforeEach(async ({ context }) => {
-    await context.addCookies([{ name: 'surowan_admin', value: sessionToken, url: await adminBase() }]);
+    await context.addCookies([{ name: 'plasticwan_admin', value: sessionToken, url: await adminBase() }]);
   });
 
   test('keeps a cancelled revocation request-free and revokes only after confirming', async ({ page }) => {

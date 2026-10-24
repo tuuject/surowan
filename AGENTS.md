@@ -142,6 +142,7 @@ pnpm run skills:sync
 - Conversation Context 的 canonical history 只有一个写者（`src/context/context-store.ts` 的 `ConversationContextStore`）；Pi Agent 的 transcript 是可丢弃缓存，任何裁剪都必须同时推进 `head_seq`、loop context、`Agent.state.messages` 与 `context_refs`，否则三份历史会分叉。同一份 Context 在运行期只能有**一个** header 对象：缓存命中时把运行开始时读到的 header 赋给缓存条目，否则注入路径与引用解析用的是一份永不推进的旧快照。
 - 不新增第二套 Provider、调度、审计或进程执行约定；复用现有模块。
 - 清理式切换：迁移所有调用方并删除旧路径，不保留兼容别名或隐藏 fallback。
+- `plasticwan` 是合法的内部 codename，不随品牌改名为 surowan：`PLASTICWAN_SUPERVISED` 环境变量、`plasticwan_admin`/`plasticwan_passkey` Cookie、`x-plasticwan-media-variant` 响应头、`plasticwan.invocation-snapshot.*` 快照格式与 `docker-compose.yml` 的 `plasticwan` service 名都被存量部署或已发布的 `surowan-utils` 依赖，改名即破坏无感升级。
 - Admin Panel 后端复用 `SqliteStore`，审计查询只读；管理写入只允许 [agent-doc/admin-panel.md](agent-doc/admin-panel.md#api) 写端点白名单中的端点，新增写端点须同步该表。
 
 ## Testing Guidelines

@@ -112,7 +112,7 @@ models.dev 目录缓存——`GET /providers/discover` 与 `lookup-metadata` 因
 - 保存反馈区分 “Applied” 与 “Saved, restart required”：只要 `apply.restart_required` 非空，
   就不能显示成全部已应用（`applyFeedback`）。Models 页自己的写入全部热应用，但其它字段仍可能
   待重启，此时也显示 “Saved, restart required”。待重启横幅与 “Restart now” 按钮由全局
-  `restart_required` + `supervised` 驱动（未声明 `SUROWAN_SUPERVISED=1` 时只列字段并提示手动重启）。
+  `restart_required` + `supervised` 驱动（未声明 `PLASTICWAN_SUPERVISED=1` 时只列字段并提示手动重启）。
 - 凭据只写不读：`api_key` 与 header 值永远是 `type="password"`、`autocomplete="new-password"`
   的空输入框，没有查看按钮；提交后用 `mutation.reset()` 立刻把带明文 key 的请求体
   从 mutation cache 里丢掉。页面不写 localStorage，也不把 key 放进任何持久结构。
