@@ -7,7 +7,7 @@ import { writeConfigEdits } from '../src/adapters/local-monolith/config-file.ts'
 import { type ConfigSource, diffConfig } from '../src/platform/config-diff.ts';
 import { TELEGRAM_DEFAULTS } from '../src/platform/config-resolve.ts';
 import { validateFileConfig } from '../src/platform/config-validate.ts';
-import { testConfigJsonc, writeTestConfig } from './helpers.ts';
+import { fileTelegram, testConfigJsonc, writeTestConfig } from './helpers.ts';
 
 /**
  * `telegram` is an optional section: a deployment that only wants the
@@ -59,7 +59,7 @@ test('a telegram section without a token or Chats is a legal, disabled state', a
     telegram.chats = [];
   });
   const loaded = await loadConfig(configPath);
-  expect(loaded.fileConfig.telegram?.chats).toEqual([]);
+  expect(fileTelegram(loaded.fileConfig).chats).toEqual([]);
   expect(loaded.config.telegram.token).toBeUndefined();
   expect(loaded.config.telegram.chats).toEqual([]);
 });
@@ -99,7 +99,7 @@ test('clearing the token is a hot change, while Chat removal stays restart-only'
   expect(diff.candidate.file.telegram?.token).toBeUndefined();
   expect(diff.candidate.raw.telegram.token).toBeUndefined();
   // The removed Chat waits for a restart, so the candidate still carries it.
-  expect(diff.candidate.file.telegram?.chats).toHaveLength(1);
+  expect(fileTelegram(diff.candidate.file).chats).toHaveLength(1);
 });
 
 test('adding the whole section classifies each field and keeps the candidate usable', async () => {
