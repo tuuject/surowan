@@ -27,7 +27,7 @@ export const FORUM_CHAT = 222000222n;
 export const TOPIC_A = 100n;
 export const TOPIC_B = 200n;
 const BOT_ID = 999n;
-const BOT_USERNAME = 'plasticwan_test';
+const BOT_USERNAME = 'surowan_test';
 export const START = new Date('2026-08-15T00:00:00.000Z');
 export const DEFAULT_OPTIONS: SceneContextOptions = {
   contextWindow: 200_000,
@@ -55,7 +55,7 @@ export interface Fixture {
 }
 
 export async function setup(tune?: (config: FileConfig) => void): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-scene-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-scene-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -296,7 +296,7 @@ function botSenderId(fixture: Fixture): bigint {
     .values({
       telegramType: 'user',
       telegramId: BOT_ID,
-      displayName: 'PlasticWan',
+      displayName: 'Surowan',
       username: BOT_USERNAME,
       isBot: true,
       updatedAt: at(0).toISOString(),

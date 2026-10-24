@@ -20,7 +20,7 @@ test('execute refuses primitives and unknown capabilities while memory calls sti
     provider: 'agent',
     models: [{ id: 'agent-model', input: ['text'], contextWindow: 200_000, maxTokens: 32_768 }],
   });
-  const setup = await setupInvocation('plasticwan-skills-memory-', false, fauxRegistry(agentFaux));
+  const setup = await setupInvocation('surowan-skills-memory-', false, fauxRegistry(agentFaux));
   const { store } = setup;
   agentFaux.setResponses([
     fauxAssistantMessage(
@@ -88,7 +88,7 @@ test('execute rejects a half-filled action before dispatch and audits the reject
     provider: 'agent',
     models: [{ id: 'agent-model', input: ['text'], contextWindow: 200_000, maxTokens: 32_768 }],
   });
-  const setup = await setupInvocation('plasticwan-skills-invalid-', false, fauxRegistry(agentFaux));
+  const setup = await setupInvocation('surowan-skills-invalid-', false, fauxRegistry(agentFaux));
   const { store } = setup;
   agentFaux.setResponses([
     // The flattened provider schema cannot require `input` for call alone, so a
@@ -148,7 +148,7 @@ test('execute does not dispatch a capability once the run is aborted', async () 
     provider: 'agent',
     models: [{ id: 'agent-model', input: ['text'], contextWindow: 200_000, maxTokens: 32_768 }],
   });
-  const setup = await setupInvocation('plasticwan-skills-aborted-', false, fauxRegistry(agentFaux));
+  const setup = await setupInvocation('surowan-skills-aborted-', false, fauxRegistry(agentFaux));
   const { store } = setup;
   let dispatched = 0;
   // Like the alarm capability, this side effect ignores its signal.

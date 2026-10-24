@@ -39,7 +39,7 @@ async function indexOneSticker(
   visionFaux: ReturnType<typeof fauxProvider>,
 ): Promise<{ stickers: StickerService; stickerId: bigint }> {
   const { store, loaded, configStore } = setup;
-  const fixturePath = join(tmpdir(), `plasticwan-skills-sticker-${crypto.randomUUID()}.webp`);
+  const fixturePath = join(tmpdir(), `surowan-skills-sticker-${crypto.randomUUID()}.webp`);
   await sharp({ create: { width: 64, height: 64, channels: 4, background: { r: 0, g: 0, b: 255, alpha: 1 } } })
     .webp()
     .toFile(fixturePath);
@@ -106,7 +106,7 @@ test('the skill index reaches the system prompt and primitives stay directly cal
     provider: 'agent',
     models: [{ id: 'agent-model', input: ['text'], contextWindow: 200_000, maxTokens: 32_768 }],
   });
-  const setup = await setupInvocation('plasticwan-skills-index-', false, fauxRegistry(agentFaux));
+  const setup = await setupInvocation('surowan-skills-index-', false, fauxRegistry(agentFaux));
   const { store } = setup;
   agentFaux.setResponses([
     (context) => {
@@ -180,7 +180,7 @@ test('search_stickers runs through execute and its refs authorize a sticker send
   const models = createModels();
   models.setProvider(agentFaux.provider);
   models.setProvider(visionFaux.provider);
-  const setup = await setupInvocation('plasticwan-skills-sticker-', true, {
+  const setup = await setupInvocation('surowan-skills-sticker-', true, {
     models,
     visionModel: visionFaux.getModel(),
   });
@@ -230,7 +230,7 @@ test('search_stickers runs through execute and its refs authorize a sticker send
         return { message_id: 502, date: 1, chat: { id: 123456789 } };
       },
     }),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: await bundledSystemResources(),
     capabilityTools: (context, _deadline, capabilities) => [
       capability(stickers.createSearchTool(context, capabilities), false),

@@ -43,7 +43,7 @@ test('loadPlugins rejects invalid and duplicate context injector names', () => {
 });
 
 test('the context builder runs injectors in order on a shrinking budget and places their blocks', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-plugins-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-plugins-'));
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
   const loaded = await loadConfig(configPath);

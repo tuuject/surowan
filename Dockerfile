@@ -31,7 +31,7 @@ COPY . .
 # The image-service build is explicit: its dist/ must exist before the prod
 # prune, whose --ignore-scripts flag (below) skips the prepare script.
 RUN pnpm --config.verify-deps-before-run=false run admin:build \
-    && pnpm --config.verify-deps-before-run=false run --filter @plasticwan/image-service build
+    && pnpm --config.verify-deps-before-run=false run --filter @surowan/image-service build
 
 # Pack the user-manual Markdown the runtime serves through its document
 # capabilities. Only content/docs and the examples enter the build context (see .dockerignore);
@@ -62,8 +62,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && python3 -m pip install --no-cache-dir --break-system-packages lottie
 
 # Non-root user
-RUN groupadd --system plasticwan \
-    && useradd --system --gid plasticwan --home-dir /app --shell /usr/sbin/nologin plasticwan
+RUN groupadd --system surowan \
+    && useradd --system --gid surowan --home-dir /app --shell /usr/sbin/nologin surowan
 
 WORKDIR /app
 
@@ -72,22 +72,22 @@ WORKDIR /app
 # node_modules, so the package directory itself must ship: manifest, built
 # dist/, and its own node_modules (whose relative symlinks point back into the
 # copied root node_modules/.pnpm store).
-COPY --from=builder --chown=plasticwan:plasticwan /app/src ./src
-COPY --from=builder --chown=plasticwan:plasticwan /app/node_modules ./node_modules
-COPY --from=builder --chown=plasticwan:plasticwan /app/packages/image-service/package.json ./packages/image-service/package.json
-COPY --from=builder --chown=plasticwan:plasticwan /app/packages/image-service/dist ./packages/image-service/dist
-COPY --from=builder --chown=plasticwan:plasticwan /app/packages/image-service/node_modules ./packages/image-service/node_modules
-COPY --from=builder --chown=plasticwan:plasticwan /app/apps/admin-next/dist ./apps/admin-next/dist
-COPY --from=builder --chown=plasticwan:plasticwan /app/apps/admin-next/LICENSE ./apps/admin-next/LICENSE
-COPY --from=builder --chown=plasticwan:plasticwan /app/apps/admin-next/NOTICE ./apps/admin-next/NOTICE
-COPY --from=builder --chown=plasticwan:plasticwan /app/package.json ./package.json
+COPY --from=builder --chown=surowan:surowan /app/src ./src
+COPY --from=builder --chown=surowan:surowan /app/node_modules ./node_modules
+COPY --from=builder --chown=surowan:surowan /app/packages/image-service/package.json ./packages/image-service/package.json
+COPY --from=builder --chown=surowan:surowan /app/packages/image-service/dist ./packages/image-service/dist
+COPY --from=builder --chown=surowan:surowan /app/packages/image-service/node_modules ./packages/image-service/node_modules
+COPY --from=builder --chown=surowan:surowan /app/apps/admin-next/dist ./apps/admin-next/dist
+COPY --from=builder --chown=surowan:surowan /app/apps/admin-next/LICENSE ./apps/admin-next/LICENSE
+COPY --from=builder --chown=surowan:surowan /app/apps/admin-next/NOTICE ./apps/admin-next/NOTICE
+COPY --from=builder --chown=surowan:surowan /app/package.json ./package.json
 
 # Entrypoint
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Data and config volume mount points
-RUN mkdir -p /data /config && chown plasticwan:plasticwan /data /config
+RUN mkdir -p /data /config && chown surowan:surowan /data /config
 
 # npx-based stdio MCP servers run with an SDK-sanitized environment (HOME,
 # PATH and a few other safe vars only), so the npm cache location must come
@@ -95,7 +95,7 @@ RUN mkdir -p /data /config && chown plasticwan:plasticwan /data /config
 # volume the entrypoint chowns to the runtime user on every boot.
 RUN npm config set --global cache /data/.npm-cache
 
-# PLASTICWAN_SUPERVISED is deliberately NOT set here: the image cannot know
+# SUROWAN_SUPERVISED is deliberately NOT set here: the image cannot know
 # whether it will be run with a restart policy, and declaring supervision
 # without one would offer a "restart now" button that stops the bot for good.
 # The deployment sets it — see docker-compose.yml, next to `restart:`.

@@ -59,7 +59,7 @@ export function mediaServer(
       headers['content-type'] = entry.contentType;
     }
     if (entry.variant !== null) {
-      headers['x-plasticwan-media-variant'] = entry.variant ?? requestQuery(request).variant ?? 'original';
+      headers['x-surowan-media-variant'] = entry.variant ?? requestQuery(request).variant ?? 'original';
     }
     binaryResponse(response, 200, entry.body, headers);
   });

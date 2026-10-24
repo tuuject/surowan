@@ -212,7 +212,7 @@ describe('startup catch-up', () => {
         maxTextLength: undefined,
         disallowBlankLines: false,
         deadline: Date.now() + 30_000,
-        bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+        bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
       });
       await tool.execute(`default-topic-${invocationId}`, { kind: 'text', text: 'latest' });
     }

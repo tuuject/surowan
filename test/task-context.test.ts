@@ -168,7 +168,7 @@ test('only successful text consumes the frozen mention, not stickers, rejection,
     maxTextLength: 40,
     disallowBlankLines: false,
     deadline: Date.now() + 30_000,
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     holdForNewMessages: () => hold,
   });
   await tool.execute('sticker', { kind: 'sticker', sticker_ref: sticker });

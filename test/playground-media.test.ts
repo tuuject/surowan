@@ -32,7 +32,7 @@ afterAll(async () => {
 });
 
 async function setup() {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-room-media-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-room-media-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);

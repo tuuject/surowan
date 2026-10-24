@@ -38,7 +38,7 @@ async function fixture(): Promise<{
   config: RawConfig;
   room: { chatId: bigint; conversationId: bigint; members: readonly { senderId: bigint; name: string }[] };
 }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-playground-ingest-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-playground-ingest-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);

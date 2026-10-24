@@ -37,7 +37,7 @@ async function setup(sendResponse = true): Promise<{
   capturedPrompts: string[];
   sends: string[];
 }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-task-delivery-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-task-delivery-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -82,7 +82,7 @@ async function setup(sendResponse = true): Promise<{
     configStore,
     secrets: new SecretStore(),
     ...testTelegramRuntime(telegramApi),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
   });
   const tasks = new LongTaskService(store.orm);

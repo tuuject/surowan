@@ -13,7 +13,7 @@ import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts'
 
 const directories: string[] = [];
 
-export const BOT_USERNAME = 'plasticwan_test_bot';
+export const BOT_USERNAME = 'surowan_test_bot';
 export const ALICE: CommandSender = { id: 42n, name: 'Alice', username: 'alice' };
 export const FIXED_NOW = new Date('2026-08-15T12:00:00.000Z');
 
@@ -40,7 +40,7 @@ export async function setup(
   configPath: string;
   directory: string;
 }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-commands-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-commands-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath, testConfigJsonc(directory, transform));

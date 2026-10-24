@@ -3,7 +3,7 @@ import {
   type GenerationStatus,
   generationCreateSchema,
   type ImageAsset,
-} from '@plasticwan/image-service';
+} from '@surowan/image-service';
 import { and, eq, sql } from 'drizzle-orm';
 import type { BusinessStore } from '../store/store.ts';
 import { type LongTaskService, TaskQuotaError } from '../store/long-tasks.ts';

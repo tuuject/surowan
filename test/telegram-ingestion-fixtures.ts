@@ -23,7 +23,7 @@ export async function setup(
   transform?: (config: FileConfig) => void,
   botUsername?: string,
 ): Promise<{ store: SqliteStore; ingestion: TelegramIngestion }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-ingest-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-ingest-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath, testConfigJsonc(directory, transform));

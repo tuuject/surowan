@@ -1,4 +1,4 @@
-import type { PublicModel } from '@plasticwan/image-service';
+import type { PublicModel } from '@surowan/image-service';
 import { basename } from 'node:path';
 import type { ExecutableCapability } from '../capabilities/execute-tool.ts';
 import type { ContextInjector } from '../context/context-injector.ts';

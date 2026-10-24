@@ -236,8 +236,8 @@ node src/cli.ts backup --config dev-data/config.jsonc
 2. 执行保留清理。
 3. 使用 `VACUUM INTO` 写入同目录临时文件。
 4. 非 Windows 系统将临时文件设为 `0600`。
-5. 原子 rename 为 `plasticwan-<timestamp>-<uuid>.sqlite`。
-6. `<data_dir>/images` 存在时，整目录复制为旁路快照 `plasticwan-<timestamp>-<uuid>.images/`。原图是归档数据而非媒体缓存，不进 SQLite，因此备份必须成对携带；SQLite 快照与目录复制之间没有跨存储原子性，快照点之后提交的行可能引用晚于复制点的文件。
+5. 原子 rename 为 `surowan-<timestamp>-<uuid>.sqlite`。
+6. `<data_dir>/images` 存在时，整目录复制为旁路快照 `surowan-<timestamp>-<uuid>.images/`。原图是归档数据而非媒体缓存，不进 SQLite，因此备份必须成对携带；SQLite 快照与目录复制之间没有跨存储原子性，快照点之后提交的行可能引用晚于复制点的文件。
 7. 按修改时间保留 `retention.backup_copies` 份，SQLite 副本与其 `.images/` 快照成对轮换删除。
 
 仓库不自带定时调度；定期备份由宿主机 cron 等外部调度运行，见[运维：Docker 部署](operations.md#docker-部署)。恢复或复制前应额外运行 `PRAGMA integrity_check`；当前备份命令不替代恢复演练。
@@ -250,9 +250,9 @@ node src/cli.ts backup --config dev-data/config.jsonc
 dev-data/
 ├── config.jsonc
 └── data/
-    ├── plasticwan.sqlite
-    ├── plasticwan.sqlite-wal
-    ├── plasticwan.sqlite-shm
+    ├── surowan.sqlite
+    ├── surowan.sqlite-wal
+    ├── surowan.sqlite-shm
     ├── media/
     ├── images/
     └── backups/

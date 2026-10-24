@@ -73,7 +73,7 @@ function update(updateId: number, messageId: number, text: string): Update {
 }
 
 async function fixture(transform?: (config: FileConfig) => void): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-dictionary-runtime-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-dictionary-runtime-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const jsonc = testConfigJsonc(directory, (config) => {
@@ -110,7 +110,7 @@ async function fixture(transform?: (config: FileConfig) => void): Promise<Fixtur
       configStore,
       secrets: new SecretStore(),
       ...testTelegramRuntime(sendApi),
-      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
       systemResources: emptySystemResources(),
       // The same injectors the composition root hands the runtime, so the
       // dictionary plugin's injection runs in these faux-provider invocations.

@@ -37,9 +37,9 @@ node src/cli.ts configure --config /path/to/config.jsonc
 ## Docker 等价命令
 
 ```bash
-docker compose run --rm plasticwan check-config --config /config/config.jsonc
-docker compose run --rm plasticwan doctor --config /config/config.jsonc
-docker compose run --rm plasticwan backup --config /config/config.jsonc
+docker compose run --rm surowan check-config --config /config/config.jsonc
+docker compose run --rm surowan doctor --config /config/config.jsonc
+docker compose run --rm surowan backup --config /config/config.jsonc
 ```
 
 这些一次性命令不启动 `serve`，可与正在运行的服务共存；不要用 `docker compose run` 再启动一个 `serve`。

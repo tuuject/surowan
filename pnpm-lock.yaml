@@ -187,12 +187,12 @@ importers:
       '@node-rs/argon2':
         specifier: ^2.2.2
         version: 2.2.2
-      '@plasticwan/image-service':
-        specifier: workspace:^
-        version: link:packages/image-service
       '@simplewebauthn/server':
         specifier: 14.0.3
         version: 14.0.3
+      '@surowan/image-service':
+        specifier: workspace:^
+        version: link:packages/image-service
       better-sqlite3:
         specifier: ^13.0.3
         version: 13.0.3

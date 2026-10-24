@@ -57,7 +57,7 @@ afterEach(async () => {
 });
 
 async function fixture(): Promise<{ directory: string; configPath: string; dataDir: string }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-admin-recovery-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-admin-recovery-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);

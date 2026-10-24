@@ -11,7 +11,7 @@ import { seedAdminFixture } from './fixtures/admin-seed.ts';
 import { writeTestConfig } from './helpers.ts';
 
 test('migration 030 drops only legacy replay payloads; retention cascades public scene and audit rows', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-scene-retention-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-scene-retention-'));
   let store: SqliteStore | undefined;
   try {
     const configPath = join(directory, 'config.jsonc');
@@ -113,7 +113,7 @@ test('migration 030 drops only legacy replay payloads; retention cascades public
 });
 
 test('retention keeps a sender that is still a room participant, and releases local reply targets', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-retention-room-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-retention-room-'));
   let store: SqliteStore | undefined;
   try {
     const configPath = join(directory, 'config.jsonc');

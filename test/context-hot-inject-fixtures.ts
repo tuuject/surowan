@@ -58,7 +58,7 @@ export interface Fixture {
 }
 
 export async function fixture(transform?: (config: FileConfig) => void): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-hot-inject-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-hot-inject-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const jsonc = testConfigJsonc(directory, (config) => {
@@ -115,7 +115,7 @@ export async function fixture(transform?: (config: FileConfig) => void): Promise
       hosts: { telegram: host },
       conversation,
 
-      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
       systemResources: emptySystemResources(),
       conversationRuntime,
     });

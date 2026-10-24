@@ -10,7 +10,7 @@
 #
 #   "data_dir": "/data",
 #   "paths": {
-#     "database": "/data/plasticwan.sqlite",
+#     "database": "/data/surowan.sqlite",
 #     "media_cache": "/data/media-cache",
 #     "backups": "/data/backups"
 #   }
@@ -19,7 +19,7 @@
 # to the config file, so keep them in ./config/ alongside config.jsonc.
 
 services:
-  plasticwan:
+  surowan:
     # Stable release. For development builds from main, use `main` (rolling) or a
     # pinned `0.0.0-next-<timestamp>` tag from the GitHub pre-releases (only the
     # newest 20 are kept).
@@ -37,12 +37,12 @@ services:
       # policy above does. It is what enables the Admin Panel's "restart now";
       # drop it together with `restart:`, or the panel offers a button that
       # stops the bot until someone starts it by hand.
-      PLASTICWAN_SUPERVISED: "1"
+      SUROWAN_SUPERVISED: "1"
       # Secrets referenced by the example config. Uncomment and export them in
       # the shell (or inject them from your deploy system); never paste the
       # real values here. Skip these if you use key.json instead.
       # TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?set TELEGRAM_BOT_TOKEN outside this file}
-      # PLASTICWAN_API_KEY: ${PLASTICWAN_API_KEY:?set PLASTICWAN_API_KEY outside this file}
+      # SUROWAN_API_KEY: ${SUROWAN_API_KEY:?set SUROWAN_API_KEY outside this file}
       # Optional: match host UID/GID to avoid permission issues with bind mounts
       # PUID: "1000"
       # PGID: "1000"

@@ -14,8 +14,8 @@ import { loadEnvFiles } from '../src/platform/load-env.ts';
  * Values come from the environment (`.env.local` / `.env` are loaded first);
  * a missing required variable prints setup instructions instead of JSON:
  *
- *   PLASTICWAN_DEV_CHAT_IDS   required, comma-separated Telegram chat IDs
- *   PLASTICWAN_DEV_ADMIN_IDS  optional, comma-separated Telegram user IDs
+ *   SUROWAN_DEV_CHAT_IDS   required, comma-separated Telegram chat IDs
+ *   SUROWAN_DEV_ADMIN_IDS  optional, comma-separated Telegram user IDs
  *   TELEGRAM_BOT_TOKEN        required; referenced as an env SecretRef, never written
  *   DEEPSEEK_API_KEY          required; referenced as an env SecretRef, never written
  *   BRAVE_API_KEY             optional; when set, the Brave Search MCP is added
@@ -49,7 +49,7 @@ interface RequiredEnv {
 
 const REQUIRED_ENV: readonly RequiredEnv[] = [
   {
-    name: 'PLASTICWAN_DEV_CHAT_IDS',
+    name: 'SUROWAN_DEV_CHAT_IDS',
     example: '-1001234567890,123456789',
     what: 'Comma-separated Telegram chat IDs (groups are negative, private chats are your user ID).',
     why: 'Written into telegram.chats; the bot ignores every chat not listed there.',
@@ -96,7 +96,7 @@ function describeMissingEnv(error: MissingEnvError): string {
     '',
     ...lines,
     '',
-    'or export them in your shell. Optional: PLASTICWAN_DEV_ADMIN_IDS (admin user IDs),',
+    'or export them in your shell. Optional: SUROWAN_DEV_ADMIN_IDS (admin user IDs),',
     'BRAVE_API_KEY (adds the Brave Search MCP).',
   ].join('\n');
 }
@@ -117,7 +117,7 @@ function idList(name: string): number[] {
 
 function seedConfig(dir: string): FileConfig {
   const dataDir = join(dir, 'data');
-  const admins = idList('PLASTICWAN_DEV_ADMIN_IDS');
+  const admins = idList('SUROWAN_DEV_ADMIN_IDS');
   const config: FileConfig = {
     version: 1,
     data_dir: dataDir,
@@ -128,7 +128,7 @@ function seedConfig(dir: string): FileConfig {
       bucket_window_seconds: 15,
       sticker_trigger_enabled: false,
       sticker_sets: [{ alias: 'yukino', name: 'YukinoWan' }],
-      chats: idList('PLASTICWAN_DEV_CHAT_IDS').map((id) => ({ id })),
+      chats: idList('SUROWAN_DEV_CHAT_IDS').map((id) => ({ id })),
       ...(admins.length > 0 ? { admins } : {}),
     },
     providers: {
@@ -173,7 +173,7 @@ function seedConfig(dir: string): FileConfig {
     retention: { online_days: 30, backup_copies: 7 },
     admin: { enabled: true, host: '127.0.0.1', port: 8787, session_ttl_hours: 168 },
     paths: {
-      database: join(dataDir, 'plasticwan.sqlite'),
+      database: join(dataDir, 'surowan.sqlite'),
       media_cache: join(dataDir, 'media'),
       backups: join(dataDir, 'backups'),
     },

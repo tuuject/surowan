@@ -26,7 +26,7 @@ export function installAdminPasskeyHooks(): void {
 }
 
 export async function fixture(enabled = true) {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-passkeys-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-passkeys-'));
   const path = join(directory, 'config.jsonc');
   await writeTestConfig(
     directory,
@@ -51,7 +51,7 @@ export async function fixture(enabled = true) {
   const auth = new AdminAuth(store.orm, 12);
   const token = await auth.createFirstUser({ username: 'owner', password });
   const session = auth.authenticate(token)!;
-  const cookie = `plasticwan_admin=${token}`;
+  const cookie = `surowan_admin=${token}`;
   return { store, server, auth, token, session, cookie };
 }
 

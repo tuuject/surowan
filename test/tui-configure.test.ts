@@ -24,7 +24,7 @@ afterEach(async () => {
 });
 
 async function fixture(): Promise<{ directory: string; configPath: string }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
@@ -237,7 +237,7 @@ describe('configure CLI option', () => {
     expect(() => parseCli(['doctor', '--config', 'dev-data/config.jsonc', '--takeover'])).toThrow();
   });
   test('renders the configured agent prompt templates', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'plasticwan-doctor-prompt-'));
+    const directory = await mkdtemp(join(tmpdir(), 'surowan-doctor-prompt-'));
     directories.push(directory);
     const configPath = join(directory, 'config.jsonc');
     await writeTestConfig(

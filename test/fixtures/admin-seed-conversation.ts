@@ -29,7 +29,7 @@ export function seedAdminConversation(orm: Orm): void {
       canonicalChatId: 123_456_789n,
       type: 'supergroup',
       title: 'Surowan Test Group',
-      username: 'plasticwan_test',
+      username: 'surowan_test',
       updatedAt: AT,
     })
     .run();
@@ -189,7 +189,7 @@ export function seedAdminStickers(orm: Orm): void {
     .values({
       id: T.stickerSet,
       alias: 'mascot',
-      telegramName: 'plasticwan_mascot',
+      telegramName: 'surowan_mascot',
       title: 'Surowan Mascot',
       configured: true,
       syncState: 'success',

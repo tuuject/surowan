@@ -77,7 +77,7 @@ describe('Telegram ingestion', () => {
   });
 
   describe('mention signal for immediate typing', () => {
-    const BOT = 'PlasticWanBot';
+    const BOT = 'SurowanBot';
     const mentionUpdate = (
       updateId: number,
       messageId: number,

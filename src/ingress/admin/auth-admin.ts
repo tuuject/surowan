@@ -6,7 +6,7 @@ import { type AdminAuth, AdminAuthError, type AdminCredentials, type AdminSessio
 import { parseId } from './audit.ts';
 import type { AdminPasskeys } from './passkeys.ts';
 
-const SESSION_COOKIE = 'plasticwan_admin';
+const SESSION_COOKIE = 'surowan_admin';
 
 /**
  * Adds `Secure` whenever the browser is on HTTPS. Behind a TLS-terminating proxy
@@ -69,7 +69,7 @@ export function createAdminAuthHandler(deps: AdminAuthHandlerDeps) {
     }
     const route = segments.join('/');
     const sessionToken = readCookie(request, SESSION_COOKIE);
-    const challengeCookie = 'plasticwan_passkey';
+    const challengeCookie = 'surowan_passkey';
     const challengeToken = readCookie(request, challengeCookie);
     if (request.method !== 'GET') {
       passkeys.checkOrigin(request.headers.get('origin'));

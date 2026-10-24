@@ -17,7 +17,7 @@ import { cleanupAgentRuntimeDirectories, directories } from './agent-runtime-fix
 afterAll(cleanupAgentRuntimeDirectories);
 
 test('a placeholder-filled send goes out, and a send repeated unchanged after failing stops the run', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-agent-repeated-failure-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-repeated-failure-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
@@ -84,7 +84,7 @@ test('a placeholder-filled send goes out, and a send repeated unchanged after fa
       },
       sendSticker: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
     }),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
   });
   const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
@@ -126,7 +126,7 @@ async function duplicateSendRun(
   readonly errorCodes: readonly (string | null)[];
   readonly lastToolResult: string | undefined;
 }> {
-  const directory = await mkdtemp(join(tmpdir(), `plasticwan-agent-${name}-`));
+  const directory = await mkdtemp(join(tmpdir(), `surowan-agent-${name}-`));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath, testConfigJsonc(directory, transform));
@@ -173,7 +173,7 @@ async function duplicateSendRun(
       },
       sendSticker: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
     }),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
   });
   try {

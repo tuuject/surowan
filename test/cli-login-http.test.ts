@@ -49,8 +49,8 @@ interface Fixture {
 }
 
 async function fixture(): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-cli-login-http-'));
-  const home = await mkdtemp(join(tmpdir(), 'plasticwan-cli-login-home-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-cli-login-http-'));
+  const home = await mkdtemp(join(tmpdir(), 'surowan-cli-login-home-'));
   const configPath = join(directory, 'config.jsonc');
   const staticDir = join(directory, 'bundle');
   await mkdir(join(staticDir, 'static'), { recursive: true });

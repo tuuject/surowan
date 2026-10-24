@@ -8,7 +8,7 @@ description: 安装 Admin API 工具客户端、保存凭据并完成首次连�
 
 `packages/cli` 提供 Admin API 工具客户端 `surowan-utils`（npm 包 `@tuuject/surowan-utils`），用于只读检查当前配置与 prompt、查询/导出/重放 Invocation。子命令为 `invocation list` / `get` / `prompts` / `preflight` / `media` / `replay`、`models list`、`config show` 与 `prompt get global|group`，另有 `login`（把 endpoint 与 API key 成对保存到本机）与 `doctor`（一次只读请求验证连通与鉴权）；群聊管理等其它能力尚未实现，也不包含 SDK 或 Eval 能力，`login` 也不提供服务端密钥管理（密钥的创建与撤销仍只在面板进行）。
 
-它与服务端入口 `plasticwan`（`node src/cli.ts`）不同：本客户端直接访问 Admin API，不包含 `serve`、`check-config`、`backup`、`configure` 等服务命令；客户端自己的 `doctor` 也不执行服务端 Doctor 的 SQLite、媒体、Telegram、Provider 与 MCP 探针，只检查 Admin API 连通与鉴权。
+它与服务端入口 `surowan`（`node src/cli.ts`）不同：本客户端直接访问 Admin API，不包含 `serve`、`check-config`、`backup`、`configure` 等服务命令；客户端自己的 `doctor` 也不执行服务端 Doctor 的 SQLite、媒体、Telegram、Provider 与 MCP 探针，只检查 Admin API 连通与鉴权。
 
 从 npm 全局安装（Node.js ≥ 24，无额外运行时依赖；命令名为 `surowan-utils`）：
 

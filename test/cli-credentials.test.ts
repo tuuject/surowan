@@ -37,7 +37,7 @@ afterAll(() => {
 });
 
 function tempDir(): string {
-  const directory = mkdtempSync(join(tmpdir(), 'plasticwan-credentials-'));
+  const directory = mkdtempSync(join(tmpdir(), 'surowan-credentials-'));
   directories.push(directory);
   return directory;
 }
@@ -71,7 +71,7 @@ function expectCredentialsError(error: unknown, context?: string): CliError {
 
 /** File symlinks need Developer Mode (or elevation) on Windows; the probe decides skipping. */
 function canCreateFileSymlink(): boolean {
-  const directory = mkdtempSync(join(tmpdir(), 'plasticwan-credentials-linkprobe-'));
+  const directory = mkdtempSync(join(tmpdir(), 'surowan-credentials-linkprobe-'));
   try {
     writeFileSync(join(directory, 'target'), 'target');
     symlinkSync(join(directory, 'target'), join(directory, 'link'));
@@ -93,7 +93,7 @@ function linkDirectory(target: string, path: string): void {
 }
 
 function canCreateDirectoryLink(): boolean {
-  const directory = mkdtempSync(join(tmpdir(), 'plasticwan-credentials-linkprobe-'));
+  const directory = mkdtempSync(join(tmpdir(), 'surowan-credentials-linkprobe-'));
   try {
     const target = join(directory, 'target');
     mkdirSync(target);
@@ -112,18 +112,18 @@ const isPosix = process.platform !== 'win32';
 
 describe('credentialsPath', () => {
   it('is fixed under the home directory on every platform', () => {
-    const home = join(tmpdir(), 'plasticwan-home-fixture');
+    const home = join(tmpdir(), 'surowan-home-fixture');
     expect(credentialsPath(home)).toBe(join(home, '.config', 'surowan-utils', 'credentials.json'));
     expect(credentialsPath()).toBe(join(homedir(), '.config', 'surowan-utils', 'credentials.json'));
   });
 
   it('ignores XDG overrides', () => {
-    const home = join(tmpdir(), 'plasticwan-home-fixture');
+    const home = join(tmpdir(), 'surowan-home-fixture');
     const previous = process.env.XDG_CONFIG_HOME;
-    process.env.XDG_CONFIG_HOME = join(tmpdir(), 'plasticwan-xdg-fixture');
+    process.env.XDG_CONFIG_HOME = join(tmpdir(), 'surowan-xdg-fixture');
     try {
       expect(credentialsPath(home)).toBe(join(home, '.config', 'surowan-utils', 'credentials.json'));
-      expect(credentialsPath(home)).not.toContain('plasticwan-xdg-fixture');
+      expect(credentialsPath(home)).not.toContain('surowan-xdg-fixture');
     } finally {
       if (previous === undefined) {
         delete process.env.XDG_CONFIG_HOME;

@@ -35,7 +35,7 @@ afterAll(async () => {
 });
 
 test('sync, representative-frame indexing, search, and sticker send share scoped capabilities', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-stickers-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-stickers-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const jsonc = testConfigJsonc(directory, (config) => {
@@ -196,7 +196,7 @@ test('sync, representative-frame indexing, search, and sticker send share scoped
     maxTextLength: undefined,
     disallowBlankLines: false,
     deadline: Date.now() + 30_000,
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
   });
   await send.execute('send-1', { kind: 'sticker', sticker_ref: first.sticker_ref });
   expect(sentSticker).toBe('sticker-file');

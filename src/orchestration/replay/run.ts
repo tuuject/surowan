@@ -7,7 +7,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { Agent } from '@earendil-works/pi-agent-core';
-import { modelDefinitionSchema, type PublicModel } from '@plasticwan/image-service';
+import { modelDefinitionSchema, type PublicModel } from '@surowan/image-service';
 
 import { estimateMessageTokens } from '../../context/context-codec.ts';
 import { composeAgentPrompt, PromptOverrideError, preparePromptOverride } from '../../platform/agent-prompt.ts';

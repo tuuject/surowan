@@ -225,7 +225,7 @@ node src/cli.ts serve --config dev-data/config.jsonc
 
 ```bash
 pnpm run admin:build        # 前置：E2E 驱动已构建的 dist（真实静态托管）
-pnpm --filter plasticwan-admin-next exec playwright install chromium   # 首次运行前安装 Chromium（Linux CI 用 --with-deps）
+pnpm --filter surowan-admin-next exec playwright install chromium   # 首次运行前安装 Chromium（Linux CI 用 --with-deps）
 pnpm run admin:test:e2e     # Playwright 套件（apps/admin-next/e2e/**/*.e2e.ts）
 pnpm run admin:test:e2e 08-models 16-model-health  # 模型管理与健康检查回归
 pnpm run admin:test:e2e 17-dictionary 18-tool-model  # 辞典页与 Tool Model 回归
@@ -300,7 +300,7 @@ Remove-Item Env:E2E_PASSKEYS
   10. API key（`14-api-keys.e2e.ts` 的 API 用例，API-only、自带登录，可单独运行）：Session 创建只返回一次明文与 `prefix`，列表不回显明文；Bearer 覆盖 invocation list/详情与 active/file 的 config view、global/group prompts，其它审计与管理路由（即使同时带 Cookie）403；撤销立即 401 且列表保留 `revoked_at`；`Authorization` 存在时不回退 Cookie；未接线的 replay 返回 503 `replay_unavailable`。
   11. API keys 页面：`01-routes.e2e.ts` 断言 `/api-keys` 深链接渲染标题、`Create API key` 与 Name/Prefix/Created/Last used/Status/Actions 列头；`14-api-keys.e2e.ts` 的 `API key management UI`（注入上方 API 登录的 Session Cookie）断言：侧栏 Manage → API keys 进入页面；创建弹窗 Name `maxlength=80`，成功后一次性 **Save your API key** 弹窗显示可复制的明文，`Copy API key` 的复制值正确（拦截 clipboard，不写系统剪贴板），Web Storage 无 `pwk_` 明文；Done/Escape、刷新、历史导航与会话过期后 DOM 和表单 value 均无明文，刷新后行内只保留元数据（前缀、Active、Never used）；Revoke 确认框取消不发 DELETE、确认后同一 key 立即 401 且状态 Revoked、按钮消失；列表失败显示错误与 Retry 且不伪造行，空白名称不发请求，创建失败在弹窗内联显示并禁止进行中重复提交，撤销失败留在确认框（Working… 禁用两端按钮）；窄屏暗色无整页横向溢出。该套件关闭 trace、截图、视频与失败时的 ARIA 页面快照，所有密钥值断言只输出布尔结果，避免失败产物泄漏明文。
 
-- 首次运行 E2E 前需要 `pnpm --filter plasticwan-admin-next exec playwright install chromium`；浏览器安装失败时套件无法
+- 首次运行 E2E 前需要 `pnpm --filter surowan-admin-next exec playwright install chromium`；浏览器安装失败时套件无法
   执行，属于环境前置问题而非代码缺陷。
 
 ## Invocation 重放与 API 密钥冒烟

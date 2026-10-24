@@ -203,7 +203,7 @@ export async function setup(
     readonly files?: Readonly<Record<string, string>>;
   } = {},
 ): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-reload-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-reload-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -301,7 +301,7 @@ export async function setup(
         configStore,
         secrets,
         ...testTelegramRuntime(sendApi),
-        bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+        bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
         systemResources: emptySystemResources(),
         conversationRuntime,
       });

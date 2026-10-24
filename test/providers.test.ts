@@ -19,7 +19,7 @@ afterEach(async () => {
 });
 
 async function loadFixture(transform: (config: FileConfig) => void): Promise<LoadedConfig> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-providers-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-providers-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath, testConfigJsonc(directory, transform));

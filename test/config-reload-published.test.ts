@@ -51,7 +51,7 @@ test('a reload that cannot resolve a new secret leaves the running configuration
       // Two providers change their connection in one edit; the second one's
       // SecretRef cannot be resolved, so nothing may be published.
       customProvider(config.providers, 'agent').api_key = { jar: 'agent-rotated' };
-      customProvider(config.providers, 'vision').api_key = { env: 'PLASTICWAN_TEST_MISSING_SECRET' };
+      customProvider(config.providers, 'vision').api_key = { env: 'SUROWAN_TEST_MISSING_SECRET' };
     });
     const result = await fixture.reloader.reloadFromFile();
     expect(result.ok).toBe(false);
@@ -59,7 +59,7 @@ test('a reload that cannot resolve a new secret leaves the running configuration
       throw new Error('Expected the reload to fail');
     }
     expect(result.code).toBe('secret_unresolved');
-    expect(result.message).toContain('PLASTICWAN_TEST_MISSING_SECRET');
+    expect(result.message).toContain('SUROWAN_TEST_MISSING_SECRET');
     expect(fixture.reloader.status().lastError).toMatchObject({ code: 'secret_unresolved' });
     // Neither the generation nor the registry moved: the whole candidate is
     // refused, not half applied.

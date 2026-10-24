@@ -31,7 +31,7 @@ test('scrubs every inline base64 image while preserving other request data', () 
           {
             image_url: {
               url: {
-                __plasticwan_audit_omission__: 'base64_image',
+                __surowan_audit_omission__: 'base64_image',
                 mime_type: 'image/png',
                 decoded_bytes: first.byteLength,
                 sha256: createHash('sha256').update(first).digest('hex'),
@@ -41,7 +41,7 @@ test('scrubs every inline base64 image while preserving other request data', () 
           {
             image_url: {
               url: {
-                __plasticwan_audit_omission__: 'base64_image',
+                __surowan_audit_omission__: 'base64_image',
                 mime_type: 'image/jpeg',
                 decoded_bytes: second.byteLength,
                 sha256: createHash('sha256').update(second).digest('hex'),

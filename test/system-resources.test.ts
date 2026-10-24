@@ -19,7 +19,7 @@ afterAll(async () => {
   );
 });
 
-async function tempRoot(prefix = 'plasticwan-system-resources-'): Promise<string> {
+async function tempRoot(prefix = 'surowan-system-resources-'): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), prefix));
   directories.push(root);
   return root;
@@ -95,7 +95,7 @@ test('rejects invalid skill manifests at load time', async () => {
 test('mounts plugin skill directories beside the bundled tree and rejects name conflicts', async () => {
   const root = await tempRoot();
   await writeSkill(root, 'alpha', '---\nname: alpha\ndescription: bundled\n---');
-  const plugin = await tempRoot('plasticwan-plugin-skills-');
+  const plugin = await tempRoot('surowan-plugin-skills-');
   await writeSkill(plugin, 'beta', '---\nname: beta\ndescription: from a plugin\n---\n# Beta\n', {
     'guide.md': 'Plugin guide.\n',
   });
@@ -120,7 +120,7 @@ test('mounts plugin skill directories beside the bundled tree and rejects name c
   const bare = await FileSystemResources.load(await tempRoot(), [join(plugin, 'skills', 'beta')]);
   expect(bare.skills.map((skill) => skill.name)).toEqual(['beta']);
 
-  const shadowing = await tempRoot('plasticwan-plugin-skills-');
+  const shadowing = await tempRoot('surowan-plugin-skills-');
   await writeSkill(shadowing, 'alpha', '---\nname: alpha\ndescription: shadows the bundled skill\n---');
   await expect(FileSystemResources.load(root, [join(shadowing, 'skills', 'alpha')])).rejects.toThrow(
     'Duplicate system skill name: alpha',

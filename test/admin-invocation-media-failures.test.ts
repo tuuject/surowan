@@ -141,7 +141,7 @@ test('a failing download reports one generic error and removes partial files', a
   expect(error.message).toBe('Invocation media download failed');
   expect(error.message).not.toContain('SECRET');
   expect(error.message).not.toContain('telegram');
-  expect(error.message).not.toContain('plasticwan-invocation-media-');
+  expect(error.message).not.toContain('surowan-invocation-media-');
   expect(calls).toHaveLength(1);
   expect(directories).toHaveLength(1);
   // The whole per-request directory (including the partial file) is removed.
@@ -178,7 +178,7 @@ test('a persistent cleanup failure rejects a successful read with a redacted cod
   );
   expect(error.message).toBe('Invocation media temporary files could not be removed');
   expect(error.message).not.toContain('EBUSY');
-  expect(error.message).not.toContain('plasticwan-invocation-media-');
+  expect(error.message).not.toContain('surowan-invocation-media-');
   expect(directories).toHaveLength(1);
 
   // The single-flight slot is released even though cleanup failed.
@@ -208,7 +208,7 @@ test('a failed read whose cleanup keeps failing ends with the cleanup code, not 
   // nor the download error leaks a path or a secret.
   expect(error.message).toBe('Invocation media temporary files could not be removed');
   expect(error.message).not.toContain('EBUSY');
-  expect(error.message).not.toContain('plasticwan-invocation-media-');
+  expect(error.message).not.toContain('surowan-invocation-media-');
 
   // The failed cleanup left its directory behind (that is the condition under
   // test); remove it explicitly now that the injection is off.

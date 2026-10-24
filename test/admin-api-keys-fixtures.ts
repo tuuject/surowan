@@ -37,7 +37,7 @@ export interface Fixture {
 }
 
 export async function fixture(replay?: ReplayFn): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-admin-api-keys-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-admin-api-keys-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const staticDir = join(directory, 'bundle');

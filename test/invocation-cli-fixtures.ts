@@ -190,7 +190,7 @@ export function cliPromptFile(): string {
 }
 
 export async function setupCliWorkDir(): Promise<void> {
-  workDir = await mkdtemp(join(tmpdir(), 'plasticwan-cli-'));
+  workDir = await mkdtemp(join(tmpdir(), 'surowan-cli-'));
   promptFile = join(workDir, 'prompt.txt');
   await writeFile(promptFile, 'from the prompt file');
 }

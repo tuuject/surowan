@@ -83,7 +83,7 @@ describe('surowan-utils invocation media', () => {
       }
       binaryResponse(response, 200, JPEG_BYTES, {
         'content-type': 'image/jpeg',
-        'x-plasticwan-media-variant': 'original',
+        'x-surowan-media-variant': 'original',
       });
     });
     let manifest: MediaManifest | undefined;

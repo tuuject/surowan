@@ -34,11 +34,11 @@ docker image inspect ghcr.io/tuuject/surowan:latest \
    docker compose pull
    ```
 
-   从源码自行构建的用户改为 `docker build -t plasticwan:local .` 并让 compose 指向该镜像，其余步骤相同。
+   从源码自行构建的用户改为 `docker build -t surowan:local .` 并让 compose 指向该镜像，其余步骤相同。
 3. 对现有配置运行目标版本的校验：
 
    ```bash
-   docker compose run --rm plasticwan check-config --config /config/config.jsonc
+   docker compose run --rm surowan check-config --config /config/config.jsonc
    ```
 
 4. 替换正在运行的服务。Compose 可执行 `docker compose up -d`；确保不会并发启动第二个相同 `/data` 的 `serve`。替换时旧容器要先收尾进行中的 Invocation，别把关闭超时压到 30 秒以下，见[生效与停止](../start/installation.md)。

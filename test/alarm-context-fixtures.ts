@@ -123,7 +123,7 @@ export function futureIso(offsetMs = 86_400_000): string {
 }
 
 export async function runtimeFixture(transform?: (config: FileConfig) => void, existingDirectory?: string) {
-  const directory = existingDirectory ?? (await mkdtemp(join(tmpdir(), 'plasticwan-alarm-ctx-')));
+  const directory = existingDirectory ?? (await mkdtemp(join(tmpdir(), 'surowan-alarm-ctx-')));
   const configPath = join(directory, 'config.jsonc');
   if (existingDirectory === undefined) {
     directories.push(directory);
@@ -175,7 +175,7 @@ export async function runtimeFixture(transform?: (config: FileConfig) => void, e
       },
       sendSticker: async () => ({ message_id: 800, date: 1_700_000_000, chat: { id: CHAT_ID } }),
     }),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
     conversationRuntime,
     capabilityTools: (context, deadline) => plugins.capabilities(store, loaded.config, context, deadline, tasks),

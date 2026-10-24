@@ -82,7 +82,7 @@ Telegram Token、Provider API key、MCP Header/环境变量都使用同一 Secre
   // 环境变量
   { "env": "GOOGLE_API_KEY" },
   // 固定 argv 的外部命令
-  { "command": ["secret-tool", "lookup", "service", "plasticwan"] },
+  { "command": ["secret-tool", "lookup", "service", "surowan"] },
 ]
 ```
 
@@ -607,7 +607,7 @@ Developer 页使用可选的 `developer.record_model_payloads` 与 `developer.re
     "host": "127.0.0.1",
     "port": 8787,
     "session_ttl_hours": 168,
-    "static_dir": "/opt/plasticwan/apps/admin-next/dist",
+    "static_dir": "/opt/surowan/apps/admin-next/dist",
     "public_url": "https://panel.example.com",
   },
 }

@@ -23,7 +23,7 @@ import { cleanupAgentRuntimeDirectories, directories } from './agent-runtime-fix
 afterAll(cleanupAgentRuntimeDirectories);
 
 test('passes Telegram photos directly to the multimodal agent and keeps stickers tool-only', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-agent-image-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-image-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -128,7 +128,7 @@ test('passes Telegram photos directly to the multimodal agent and keeps stickers
     configStore,
     secrets: new SecretStore(),
     ...testTelegramRuntime(api),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
     directImageLoader: (context, signal) => media.loadDirectImages(context.directImages, signal),
   });
@@ -158,7 +158,7 @@ test('passes Telegram photos directly to the multimodal agent and keeps stickers
           {
             image_url: {
               url: {
-                __plasticwan_audit_omission__: 'base64_image',
+                __surowan_audit_omission__: 'base64_image',
                 mime_type: 'image/jpeg',
                 encoded_characters: inlineImageBytes.toString('base64').length,
                 decoded_bytes: inlineImageBytes.byteLength,

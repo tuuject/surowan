@@ -300,7 +300,7 @@ function defaultRequestResolved(url: URL, address: string, accept: string, signa
         'accept-encoding': 'identity',
         connection: 'close',
         host: url.host,
-        'user-agent': 'PlasticWan/0.1 web_fetch',
+        'user-agent': 'Surowan/0.1 web_fetch',
       },
       ...(url.protocol === 'https:' && isIP(hostname) === 0 ? { servername: hostname } : {}),
     },

@@ -60,7 +60,7 @@ async function ensureServer(): Promise<RunningServer> {
     file,
     child,
     baseURL,
-    authFile: join(tmpdir(), `plasticwan-admin-e2e-${process.pid}-${serverCount}.auth.json`),
+    authFile: join(tmpdir(), `surowan-admin-e2e-${process.pid}-${serverCount}.auth.json`),
     signedIn: false,
   };
   return current;

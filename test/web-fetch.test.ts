@@ -29,7 +29,7 @@ interface Fixture {
 }
 
 async function fixture(transform?: (config: FileConfig) => void): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-web-fetch-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-web-fetch-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath, testConfigJsonc(directory, transform));

@@ -23,7 +23,7 @@ import {
 import { directories } from './media-fixtures.ts';
 
 test('read_image normalizes once and reuses the 30-day description cache', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-media-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-media-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);

@@ -104,9 +104,9 @@ test('selects an API model, fills capabilities, saves, and reloads existing conf
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByLabel('OpenRouter image model')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({ path: '/tmp/plasticwan-image-settings-mobile.png', fullPage: true });
+  await page.screenshot({ path: '/tmp/surowan-image-settings-mobile.png', fullPage: true });
   await page.setViewportSize({ width: 1280, height: 1000 });
-  await page.screenshot({ path: '/tmp/plasticwan-image-settings-desktop.png', fullPage: true });
+  await page.screenshot({ path: '/tmp/surowan-image-settings-desktop.png', fullPage: true });
 });
 
 test('keeps per-model description notes while typing, persists them on save, and restores them on reload', async ({

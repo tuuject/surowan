@@ -35,7 +35,7 @@ function merge(base: unknown, patch: unknown): unknown {
 }
 
 async function fixture(): Promise<{ directory: string; configPath: string; baseline: unknown }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-docs-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-docs-'));
   directories.push(directory);
   await copyFile(resolve(docsRoot, 'examples/system-prompt.example.md'), join(directory, 'system-prompt.md'));
   await mkdir(join(directory, 'prompts'));

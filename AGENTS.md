@@ -24,7 +24,7 @@ Surowan 是一个运行在 Telegram 私聊、群组、Supergroup 与 Forum Topic
 ## Project Structure & Module Organization
 
 ```text
-plasticwan/
+surowan/
 ├── src/                    # Node.js/TypeScript 运行时代码；依赖自上而下
 │   ├── adapters/local-monolith/ # 本地组合根：配置文件、SQLite、资源目录与进程生命周期
 │   ├── cli.ts              # serve/check-config/doctor/backup/configure/admin-reset 入口

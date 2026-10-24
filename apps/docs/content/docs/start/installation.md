@@ -9,10 +9,10 @@ description: 选择 Docker 或宿主机运行塑料碗，并准备运行环境�
 
 CI 把镜像发布到 `ghcr.io/tuuject/surowan`，已包含 FFmpeg、FFprobe、Python 与 Lottie 转换依赖。部署步骤见 [快速开始](quick-start.md)，标签选择见 [升级](../operations/upgrade.md#镜像标签)。
 
-需要运行未发布的提交或自行审计镜像时，可以在检出的仓库根目录构建，再把 `docker-compose.yml` 的 `image` 改为 `plasticwan:local`，其余步骤相同：
+需要运行未发布的提交或自行审计镜像时，可以在检出的仓库根目录构建，再把 `docker-compose.yml` 的 `image` 改为 `surowan:local`，其余步骤相同：
 
 ```bash
-docker build -t plasticwan:local .
+docker build -t surowan:local .
 ```
 
 Compose 会把 `./config` 映射到 `/config`、`./data` 映射到 `/data`；配置中必须使用容器内绝对路径。Admin 端口应仅发布到 `127.0.0.1`，再通过受控反向代理提供远程访问。
@@ -33,7 +33,7 @@ Compose 会把 `./config` 映射到 `/config`、`./data` 映射到 `/data`；配
 git clone https://github.com/tuuject/surowan.git
 cd surowan
 pnpm install --frozen-lockfile
-pnpm --filter @plasticwan/image-service build
+pnpm --filter @surowan/image-service build
 pnpm run admin:build
 mkdir -p config data
 cp apps/docs/examples/config.example.jsonc config/config.jsonc
@@ -42,9 +42,9 @@ cp apps/docs/examples/system-prompt.example.md config/system-prompt.md
 
 `pnpm install` 还会为开发本仓库的 Coding Agent 链接仓库自带的 Skill，并从 GitHub 拉取 `package.json` 锁定版本的外部 Skill（写入 `.agents/skills/` 与 `.claude/skills/`）。这与 Bot 运行无关；拉取失败只打印警告，不影响依赖安装。
 
-示例配置使用容器路径，需要改为本机路径：`data_dir` 设为 `./data`，`paths.database`、`paths.media_cache`、`paths.backups` 分别设为 `./data/plasticwan.sqlite`、`./data/media-cache`、`./data/backups`。Prompt 路径相对于配置文件目录，不用改。只在本机访问管理面板时，把 `admin.host` 改为 `127.0.0.1`。
+示例配置使用容器路径，需要改为本机路径：`data_dir` 设为 `./data`，`paths.database`、`paths.media_cache`、`paths.backups` 分别设为 `./data/surowan.sqlite`、`./data/media-cache`、`./data/backups`。Prompt 路径相对于配置文件目录，不用改。只在本机访问管理面板时，把 `admin.host` 改为 `127.0.0.1`。
 
-在当前终端设置 `TELEGRAM_BOT_TOKEN` 和 `PLASTICWAN_API_KEY`。非 Windows 主机要求配置文件为 `0600`、其父目录为 `0700`：
+在当前终端设置 `TELEGRAM_BOT_TOKEN` 和 `SUROWAN_API_KEY`。非 Windows 主机要求配置文件为 `0600`、其父目录为 `0700`：
 
 ```bash
 chmod 700 config data

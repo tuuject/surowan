@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 /**
  * Pending-restart banner. `serve` has to be restarted by something outside the
  * process, so the button only appears when the deployment declared a supervisor
- * (`PLASTICWAN_SUPERVISED=1`); the paths are listed either way.
+ * (`SUROWAN_SUPERVISED=1`); the paths are listed either way.
  */
 export function RestartBanner({
   paths,

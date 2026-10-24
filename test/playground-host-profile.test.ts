@@ -26,7 +26,7 @@ afterAll(async () => {
 });
 
 async function openStore() {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-host-profile-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-host-profile-'));
   const path = join(directory, 'config.jsonc');
   await writeTestConfig(directory, path, testConfigJsonc(directory));
   const loaded = await loadConfig(path);

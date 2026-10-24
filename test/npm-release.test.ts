@@ -69,7 +69,7 @@ describe('npm release selection', () => {
   });
 
   it('writes validated GitHub outputs without changing the package manifest', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'plasticwan-npm-release-'));
+    const dir = mkdtempSync(join(tmpdir(), 'surowan-npm-release-'));
     try {
       const output = join(dir, 'output');
       const before = readFileSync(packagePath, 'utf8');
@@ -102,7 +102,7 @@ describe('npm release selection', () => {
     const root = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
     const image = JSON.parse(readFileSync(new URL('../packages/image-service/package.json', import.meta.url), 'utf8'));
     expect(root.private).toBe(true);
-    expect(root.bin).toEqual({ plasticwan: './src/cli.ts' });
+    expect(root.bin).toEqual({ surowan: './src/cli.ts' });
     expect(image.private).toBe(true);
   });
 

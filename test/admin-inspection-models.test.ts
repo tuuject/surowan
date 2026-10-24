@@ -48,7 +48,7 @@ test('the models listing is a read-only active-snapshot projection for keys and 
 });
 
 test('the models listing filters image-only models and follows the active generation', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-models-listing-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-models-listing-'));
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
     directory,

@@ -27,7 +27,7 @@ function telegramClient(getFile: () => Promise<{ readonly file_path?: string }>)
 }
 
 test('the download client types oversized content-length and streaming as MediaTooLargeError', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-media-download-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-media-download-'));
   directories.push(directory);
   const destination = join(directory, 'payload');
   const client = telegramClient(async () => ({ file_path: 'photos/payload.bin' }));
@@ -63,7 +63,7 @@ test('the download client types oversized content-length and streaming as MediaT
 });
 
 test('an abort while getFile is pending rejects the download and a late response writes nothing', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-media-download-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-media-download-'));
   directories.push(directory);
   const destination = join(directory, 'payload');
   const controller = new AbortController();

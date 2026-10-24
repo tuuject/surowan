@@ -10,7 +10,7 @@ import type { ProviderPresetView, ProvidersView } from './providers-admin.ts';
 import { assertModelConfig, resolveBuiltinModelApi } from '../../platform/config-semantics.ts';
 
 export function supervisedRestartEnabled(): boolean {
-  return process.env.PLASTICWAN_SUPERVISED === '1';
+  return process.env.SUROWAN_SUPERVISED === '1';
 }
 
 export function listProviders(

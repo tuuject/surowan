@@ -127,7 +127,7 @@ function jsonBody(value: unknown): RequestInit {
 }
 
 test('a playground-only process runs the room round and leaves Telegram work untouched', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-playground-only-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-playground-only-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const dataDir = join(directory, 'data');
@@ -221,7 +221,7 @@ test('a playground-only process runs the room round and leaves Telegram work unt
       },
       retention: { online_days: 30, backup_copies: 7 },
       paths: {
-        database: join(dataDir, 'plasticwan.sqlite').replaceAll('\\', '/'),
+        database: join(dataDir, 'surowan.sqlite').replaceAll('\\', '/'),
         media_cache: join(dataDir, 'media').replaceAll('\\', '/'),
         backups: join(dataDir, 'backups').replaceAll('\\', '/'),
       },

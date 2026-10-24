@@ -34,7 +34,7 @@ afterEach(async () => {
 });
 
 export async function fixture(transform?: (config: FileConfig) => void) {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-task-context-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-task-context-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -77,7 +77,7 @@ export async function fixture(transform?: (config: FileConfig) => void) {
     configStore,
     secrets: new SecretStore(),
     ...testTelegramRuntime(api),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
     conversationRuntime,
   });

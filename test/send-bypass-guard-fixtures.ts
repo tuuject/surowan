@@ -57,7 +57,7 @@ export interface Fixture {
 }
 
 export async function setup(): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-send-bypass-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-send-bypass-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -183,7 +183,7 @@ export function makeTools(
       disallowBlankLines: false,
       ...duplicateSendGuard(options.guard, options.onRejected ?? (() => {})),
       deadline: Date.now() + 30_000,
-      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
       ...(options.imageGeneration === undefined ? {} : { imageGeneration: options.imageGeneration }),
       ...(options.holdForNewMessages === undefined ? {} : { holdForNewMessages: options.holdForNewMessages }),
       ...(options.allowReplyMessageMultipleTimes === undefined

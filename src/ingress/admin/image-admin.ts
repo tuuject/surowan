@@ -6,7 +6,7 @@ import {
   listSchema,
   promptCreateSchema,
   promptUpdateSchema,
-} from '@plasticwan/image-service';
+} from '@surowan/image-service';
 import type { ImageBridge } from '../../image/bridge.ts';
 import type { ImageService } from '../../image/service.ts';
 import type { RawConfig } from '../../platform/config.ts';

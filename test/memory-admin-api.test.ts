@@ -12,7 +12,7 @@ import { cleanupDirectories, post, readJson, request, sessionCookie, tempDirecto
 afterAll(cleanupDirectories);
 
 test('admin panel manages memories with chat filter and long-TTL warnings', async () => {
-  const directory = await tempDirectory('plasticwan-memory-admin-');
+  const directory = await tempDirectory('surowan-memory-admin-');
   const configPath = join(directory, 'config.jsonc');
   const staticDir = join(directory, 'bundle');
   await mkdir(staticDir, { recursive: true });

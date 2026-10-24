@@ -33,7 +33,7 @@ afterAll(async () => {
   );
 });
 
-async function tempRoot(prefix = 'plasticwan-doc-spaces-'): Promise<string> {
+async function tempRoot(prefix = 'surowan-doc-spaces-'): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), prefix));
   directories.push(root);
   return root;
@@ -194,7 +194,7 @@ test('treats a root without its index as a packaging error', async () => {
 
 test('rejects traversal, absolute paths, non-markdown files, and symlink escapes', async () => {
   const root = await tempRoot();
-  const outside = await tempRoot('plasticwan-doc-spaces-outside-');
+  const outside = await tempRoot('surowan-doc-spaces-outside-');
   await writeFile(join(outside, 'secret.md'), '# Secret\n');
   await writePack(root, { 'start/quick-start.md': '# Quick start\n' });
   await symlink(join(outside, 'secret.md'), join(root, 'leak.md'));
@@ -232,7 +232,7 @@ interface ToolFixture {
 }
 
 async function toolFixture(): Promise<ToolFixture> {
-  const directory = await tempRoot('plasticwan-document-tools-');
+  const directory = await tempRoot('surowan-document-tools-');
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath, testConfigJsonc(directory));
   const loaded = await loadConfig(configPath);

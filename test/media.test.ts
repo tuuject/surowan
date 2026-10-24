@@ -22,7 +22,7 @@ import {
 import { directories } from './media-fixtures.ts';
 
 test('a switched vision model analyzes under its own cache version', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-media-switch-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-media-switch-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);

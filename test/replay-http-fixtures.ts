@@ -89,7 +89,7 @@ function sceneRegistry() {
 }
 
 export async function fixture() {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-replay-http-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-replay-http-'));
   const configPath = join(directory, 'config.jsonc');
   const staticDir = join(directory, 'bundle');
   await mkdir(join(staticDir, 'static'), { recursive: true });

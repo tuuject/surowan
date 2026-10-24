@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Image generation domain (from @plasticwan/image-service)
+// Image generation domain (from @surowan/image-service)
 //
 // The image-domain tables are defined in the private image-service package and
 // aggregated here so host-side queries (Admin audit, future plugins) see one
@@ -13,4 +13,4 @@ export {
   idempotencyKeys as imageIdempotencyKeys,
   images as imageAssets,
   prompts as imagePrompts,
-} from '@plasticwan/image-service';
+} from '@surowan/image-service';

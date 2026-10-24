@@ -36,7 +36,7 @@ async function freePort(): Promise<number> {
 }
 
 async function writePlaygroundConfig(options: { readonly admin: boolean }): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-pg-only-serve-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-pg-only-serve-'));
   directories.push(directory);
   const dataDir = join(directory, 'data');
   const port = await freePort();
@@ -100,7 +100,7 @@ async function writePlaygroundConfig(options: { readonly admin: boolean }): Prom
     },
     retention: { online_days: 30, backup_copies: 7 },
     paths: {
-      database: join(dataDir, 'plasticwan.sqlite').replaceAll('\\', '/'),
+      database: join(dataDir, 'surowan.sqlite').replaceAll('\\', '/'),
       media_cache: join(dataDir, 'media').replaceAll('\\', '/'),
       backups: join(dataDir, 'backups').replaceAll('\\', '/'),
     },

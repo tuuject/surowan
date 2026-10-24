@@ -23,7 +23,7 @@ interface SwitcherFixture {
 }
 
 async function switcherWith(transform?: (config: FileConfig) => void): Promise<SwitcherFixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-switch-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-switch-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath, testConfigJsonc(directory, transform));

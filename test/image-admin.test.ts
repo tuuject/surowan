@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createOpenRouterAdapter, imageSchema } from '@plasticwan/image-service';
+import { createOpenRouterAdapter, imageSchema } from '@surowan/image-service';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import sharp from 'sharp';
@@ -30,7 +30,7 @@ const cleanup: Array<() => void | Promise<void>> = [];
 let directory: string;
 
 beforeEach(async () => {
-  directory = await mkdtemp(join(tmpdir(), 'plasticwan-image-admin-'));
+  directory = await mkdtemp(join(tmpdir(), 'surowan-image-admin-'));
   cleanup.push(() => rm(directory, { recursive: true, force: true }));
 });
 

@@ -40,7 +40,7 @@ const RECEIVED_AT = new Date('2023-11-14T22:13:20Z');
 const PINNED_ENVELOPE = '[50 2023-11-14T22:14:10 uid:42] Alice\n  hello there';
 
 async function fixture() {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-pinned-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-pinned-'));
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
     directory,
@@ -105,7 +105,7 @@ async function fixture() {
     disallowBlankLines: false,
     allowReplyMessageMultipleTimes: false,
     deadline: Date.now() + 30_000,
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
   } as never);
   return { store, context, tool, requests };
 }

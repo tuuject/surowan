@@ -43,7 +43,7 @@ jobs:
         run: pnpm run admin:build
 
       - name: Install Playwright chromium
-        run: pnpm --filter plasticwan-admin-next exec playwright install --with-deps chromium
+        run: pnpm --filter surowan-admin-next exec playwright install --with-deps chromium
 
       - name: Admin panel E2E
         run: pnpm run admin:test:e2e

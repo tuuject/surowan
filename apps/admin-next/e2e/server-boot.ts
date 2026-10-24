@@ -23,7 +23,7 @@ import { createRelayUpstream } from './server-relay.ts';
 import { state } from './server-state.ts';
 
 export async function main(): Promise<void> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-admin-e2e-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-admin-e2e-'));
   state.directory = directory;
   const configPath = join(directory, 'config.jsonc');
   const staticDir = resolve(join(import.meta.dirname, '..', 'dist'));

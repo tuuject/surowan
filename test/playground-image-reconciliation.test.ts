@@ -10,7 +10,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai';
-import { createOpenRouterAdapter } from '@plasticwan/image-service';
+import { createOpenRouterAdapter } from '@surowan/image-service';
 import { eq, sql } from 'drizzle-orm';
 import { describe, expect, test } from 'vitest';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
@@ -102,7 +102,7 @@ describe('playground image generation', () => {
   });
 
   test('a standalone process never executes or recovers work of a host it does not serve', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'plasticwan-standalone-image-'));
+    const directory = await mkdtemp(join(tmpdir(), 'surowan-standalone-image-'));
     directories.push(directory);
     const configPath = join(directory, 'config.jsonc');
     await writeImageFixture(directory, configPath);

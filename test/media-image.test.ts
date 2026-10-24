@@ -67,7 +67,7 @@ describe.skipIf(!hasFfmpeg)('video sticker frame extraction', () => {
     // including playlist and concat formats that open further files or URLs.
     // (This ffmpeg may refuse those itself; older builds do not.) Forcing the
     // Matroska demuxer is observable with any non-WebM input, such as MPEG-TS.
-    const directory = await mkdtemp(join(tmpdir(), 'plasticwan-media-'));
+    const directory = await mkdtemp(join(tmpdir(), 'surowan-media-'));
     directories.push(directory);
     const transport = join(directory, 'clip.ts');
     expect(
@@ -97,7 +97,7 @@ describe.skipIf(!hasFfmpeg)('video sticker frame extraction', () => {
   });
 
   test('a real WebM video sticker still yields a frame', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'plasticwan-media-'));
+    const directory = await mkdtemp(join(tmpdir(), 'surowan-media-'));
     directories.push(directory);
     const webm = join(directory, 'sticker.webm');
     const encoded = ffmpeg(['-f', 'lavfi', '-i', 'testsrc=size=64x64:rate=10', '-t', '1', '-c:v', 'libvpx-vp9', webm]);
@@ -117,7 +117,7 @@ describe.skipIf(!hasFfmpeg)('video sticker frame extraction', () => {
 });
 
 test('an animated sticker that decompresses past the TGS ceiling is refused before conversion', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-media-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-media-'));
   directories.push(directory);
   // 64 MiB of JSON that gzips to a few dozen KiB: inside the download limit, and
   // otherwise inflated in one synchronous call on the event loop.
@@ -171,7 +171,7 @@ function abortedAfterDownload(bytes: Uint8Array): {
 }
 
 test('a pre-cancelled signal refuses to spawn ffprobe or ffmpeg for a video sticker', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-media-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-media-'));
   directories.push(directory);
   const controller = new AbortController();
   controller.abort();
@@ -190,7 +190,7 @@ test('a pre-cancelled signal refuses to spawn ffprobe or ffmpeg for a video stic
 });
 
 test('a cancellation landing right after the download refuses to spawn ffprobe or ffmpeg', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-media-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-media-'));
   directories.push(directory);
   const { signal, downloader } = abortedAfterDownload(new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]));
   await expectCancelled(prepareMediaImage(videoSticker(), join(directory, 'input'), directory, downloader, signal));
@@ -198,7 +198,7 @@ test('a cancellation landing right after the download refuses to spawn ffprobe o
 });
 
 test('a cancellation landing right after the download refuses to spawn the Lottie converter', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-media-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-media-'));
   directories.push(directory);
   const { signal, downloader } = abortedAfterDownload(gzipSync(JSON.stringify({ ip: 0, op: 10 })));
   const sticker: MediaRow = {

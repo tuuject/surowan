@@ -18,7 +18,7 @@ import { cleanupAgentRuntimeDirectories, directories } from './agent-runtime-fix
 afterAll(cleanupAgentRuntimeDirectories);
 
 test('nudges the model once to use send when it drafts a private reply and never re-nudges', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-agent-nudge-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-nudge-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
@@ -77,7 +77,7 @@ test('nudges the model once to use send when it drafts a private reply and never
     configStore,
     secrets: new SecretStore(),
     ...testTelegramRuntime(api),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
   });
   const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
@@ -94,7 +94,7 @@ test('nudges the model once to use send when it drafts a private reply and never
 });
 
 test('does not nudge when the model ends without any draft text', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-agent-nudge-empty-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-nudge-empty-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
@@ -137,7 +137,7 @@ test('does not nudge when the model ends without any draft text', async () => {
       sendMessage: async () => ({ message_id: 500, date: 1_700_000_100, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
     }),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
   });
   const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
@@ -152,7 +152,7 @@ test('does not nudge when the model ends without any draft text', async () => {
 });
 
 test('send_reply publishes its parts in order and counts as one send in the canonical history', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-agent-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -213,7 +213,7 @@ test('send_reply publishes its parts in order and counts as one send in the cano
     configStore,
     secrets: new SecretStore(),
     ...testTelegramRuntime(api),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
   });
   try {

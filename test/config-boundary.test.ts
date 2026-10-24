@@ -15,7 +15,7 @@ afterEach(async () => {
 });
 
 async function fixture() {
-  const dir = await mkdtemp(join(tmpdir(), 'plasticwan-config-boundary-'));
+  const dir = await mkdtemp(join(tmpdir(), 'surowan-config-boundary-'));
   dirs.push(dir);
   const configPath = join(dir, 'config.jsonc');
   await writeTestConfig(dir, configPath, testConfigJsonc(dir));

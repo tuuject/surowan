@@ -1,4 +1,4 @@
-import { imageSchema } from '@plasticwan/image-service';
+import { imageSchema } from '@surowan/image-service';
 import { expect, test } from 'vitest';
 import { createListImageModelsTool } from '../src/plugins/image/image.ts';
 import { taskReceipts, toolCalls } from '../src/store/schema.ts';

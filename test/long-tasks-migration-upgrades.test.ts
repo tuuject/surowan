@@ -98,7 +98,7 @@ describe('migration 021', () => {
   });
 
   test('fresh and reopened stores have no sidecar table', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'plasticwan-mig-021-'));
+    const directory = await mkdtemp(join(tmpdir(), 'surowan-mig-021-'));
     directories.push(directory);
     const configPath = join(directory, 'config.jsonc');
     await writeTestConfig(directory, configPath);

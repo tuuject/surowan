@@ -24,7 +24,7 @@ afterEach(async () => {
 });
 
 export async function fixture(transform?: (config: FileConfig) => void) {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-admin-chats-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-admin-chats-'));
   const path = join(directory, 'config.jsonc');
   await writeTestConfig(
     directory,

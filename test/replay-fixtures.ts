@@ -241,7 +241,7 @@ export interface FixtureOptions {
 }
 
 export async function fixture(options: FixtureOptions = {}) {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-replay-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-replay-'));
   const path = join(directory, 'config.jsonc');
   await writeTestConfig(directory, path, testConfigJsonc(directory, options.change), options.systemPrompt);
   const loaded = await loadConfig(path);

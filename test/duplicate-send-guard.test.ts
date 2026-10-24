@@ -45,7 +45,7 @@ interface Fixture {
 }
 
 async function setup(): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-duplicate-send-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-duplicate-send-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -141,7 +141,7 @@ function makeTools(fixture: Fixture, api: TelegramTransport, guard: boolean | un
       disallowBlankLines: false,
       ...duplicateSendGuard(guard, onRejected),
       deadline: Date.now() + 30_000,
-      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     }),
     capabilities,
   };

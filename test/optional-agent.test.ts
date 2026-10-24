@@ -20,7 +20,7 @@ afterAll(async () => {
 });
 
 async function loadWithoutAgent(agent: unknown): Promise<LoadedConfig> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-optional-agent-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-optional-agent-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const jsonc = testConfigJsonc(directory, (config) => {
@@ -56,7 +56,7 @@ describe('optional agent section', () => {
   });
 
   test('a missing agent key is legal', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'plasticwan-optional-agent-'));
+    const directory = await mkdtemp(join(tmpdir(), 'surowan-optional-agent-'));
     directories.push(directory);
     const configPath = join(directory, 'config.jsonc');
     const jsonc = testConfigJsonc(directory, (config) => {
@@ -102,7 +102,7 @@ describe('optional agent section', () => {
   });
 
   test('a chat override completing the triple still starts an invocation', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'plasticwan-optional-agent-'));
+    const directory = await mkdtemp(join(tmpdir(), 'surowan-optional-agent-'));
     directories.push(directory);
     const configPath = join(directory, 'config.jsonc');
     const jsonc = testConfigJsonc(directory, (config) => {

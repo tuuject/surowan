@@ -31,7 +31,7 @@ afterEach(async () => {
 });
 
 export async function fixture(allowReplyMessageMultipleTimes?: boolean) {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-admin-inspection-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-admin-inspection-'));
   const configPath = join(directory, 'config.jsonc');
   const secret = 'inspection-secret-must-not-be-output';
   await writeTestConfig(
@@ -45,7 +45,7 @@ export async function fixture(allowReplyMessageMultipleTimes?: boolean) {
       }
       const agent = config.providers.agent;
       if (agent?.kind === 'custom') {
-        agent.headers = { 'x-private': { env: 'PLASTICWAN_TEST_HEADER_SECRET' } };
+        agent.headers = { 'x-private': { env: 'SUROWAN_TEST_HEADER_SECRET' } };
       }
       config.mcp = {
         servers: [

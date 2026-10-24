@@ -45,7 +45,7 @@ interface Fixture {
 }
 
 async function setup(): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-send-reply-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-send-reply-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -132,7 +132,7 @@ function makeTools(
       maxTextLength: undefined,
       disallowBlankLines: false,
       deadline: Date.now() + 30_000,
-      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
       ...(options.holdForNewMessages === undefined ? {} : { holdForNewMessages: options.holdForNewMessages }),
     }),
     capabilities,

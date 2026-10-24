@@ -21,7 +21,7 @@ import {
 afterEach(cleanupAlarmFixtures);
 
 async function authFixture() {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-alarm-auth-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-alarm-auth-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(

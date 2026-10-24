@@ -35,7 +35,7 @@ export async function createPre020Db(): Promise<{
   db: Database.Database;
   directory: string;
 }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-mig-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-mig-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);

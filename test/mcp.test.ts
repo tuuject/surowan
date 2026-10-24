@@ -34,7 +34,7 @@ afterAll(async () => {
 });
 
 test('stdio MCP discovery, result bounds, audit, and unmetered repeat calls', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-mcp-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-mcp-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const fixturePath = join(import.meta.dirname, 'fixtures', 'mcp-server.ts');
@@ -139,10 +139,10 @@ test('stdio MCP discovery, result bounds, audit, and unmetered repeat calls', as
 });
 
 test('Streamable HTTP MCP preserves query parameters and static headers while rejecting redirects', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-mcp-http-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-mcp-http-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
-  const server = new McpServer({ name: 'plasticwan-http-test', version: '1.0.0' });
+  const server = new McpServer({ name: 'surowan-http-test', version: '1.0.0' });
   server.registerTool(
     'lookup',
     {
@@ -295,7 +295,7 @@ test('Streamable HTTP MCP preserves query parameters and static headers while re
 });
 
 test('required stdio server failure reports the full underlying error', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-mcp-secret-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-mcp-secret-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const fixturePath = join(import.meta.dirname, 'fixtures', 'mcp-server.ts');
@@ -310,7 +310,7 @@ test('required stdio server failure reports the full underlying error', async ()
           tools: ['echo'],
           payload_max_bytes: 1048576,
           result_max_bytes: 128,
-          env: { PLASTICWAN_MCP_UNSET_SECRET: { env: 'PLASTICWAN_MCP_UNSET_SECRET' } },
+          env: { SUROWAN_MCP_UNSET_SECRET: { env: 'SUROWAN_MCP_UNSET_SECRET' } },
           tool_policies: [
             {
               name: 'echo',
@@ -331,7 +331,7 @@ test('required stdio server failure reports the full underlying error', async ()
     // (safeErrorName returned only the class name) and hid which variable
     // was missing.
     await expect(manager.start()).rejects.toThrow(
-      /Required MCP server missing-secret failed to initialize:[\s\S]*Secret environment variable is not set: PLASTICWAN_MCP_UNSET_SECRET/,
+      /Required MCP server missing-secret failed to initialize:[\s\S]*Secret environment variable is not set: SUROWAN_MCP_UNSET_SECRET/,
     );
     expect(
       store.db.prepare<[], { state: string }>("SELECT state FROM mcp_server_state WHERE alias = 'missing-secret'").get()
@@ -343,7 +343,7 @@ test('required stdio server failure reports the full underlying error', async ()
 });
 
 test('a server whose tool discovery fails is closed instead of left running', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-mcp-leak-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-mcp-leak-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const pidFile = join(directory, 'server.pid');
@@ -401,7 +401,7 @@ test('a server whose tool discovery fails is closed instead of left running', as
 });
 
 test('stop() during a pending connect leaves the server stopped and closed', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-mcp-stop-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-mcp-stop-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const pidFile = join(directory, 'server.pid');

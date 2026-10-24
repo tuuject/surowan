@@ -20,7 +20,7 @@
       "kind": "custom",
       "base_url": "https://api.example.com/v1",
       "api": "openai-responses",
-      "api_key": { "env": "PLASTICWAN_API_KEY" },
+      "api_key": { "env": "SUROWAN_API_KEY" },
       "models": [
         {
           "id": "replace-with-your-text-and-image-model",
@@ -102,7 +102,7 @@
   // 可省略；仅在排查模型调用时开启，历史报文在 Developer 页面手动清除。
   "developer": { "record_model_payloads": false },
   "paths": {
-    "database": "/data/plasticwan.sqlite",
+    "database": "/data/surowan.sqlite",
     "media_cache": "/data/media-cache",
     "backups": "/data/backups"
   },

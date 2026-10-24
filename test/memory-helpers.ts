@@ -31,7 +31,7 @@ export interface Fixture {
 }
 
 export async function fixture(): Promise<Fixture> {
-  const directory = await tempDirectory('plasticwan-memory-');
+  const directory = await tempDirectory('surowan-memory-');
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
   const loaded = await loadConfig(configPath);

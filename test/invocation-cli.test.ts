@@ -247,7 +247,7 @@ describe('surowan-utils invocation CLI', () => {
     expect(result.stdout).toContain('surowan-utils invocation replay');
     expect(result.stdout).toContain('--before-send');
     expect(result.stdout).toContain('--confirm-paid');
-    expect(result.stdout).not.toContain('plasticwan-debug');
+    expect(result.stdout).not.toContain('surowan-debug');
     expect(result.stderr).toBe('');
   }, 20_000);
 

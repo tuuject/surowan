@@ -11,7 +11,7 @@ const directories: string[] = [];
 
 /** Creates an isolated config/database directory and registers it for cleanup. */
 export async function makeSchemaDirectory(): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-schema-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-schema-'));
   directories.push(directory);
   return directory;
 }

@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 
 /** Repository root, resolved from this module under scripts/audit/. */
 export const REPO_ROOT = resolve(import.meta.dirname, '../..');
-export const DEFAULT_DATABASE = resolve(REPO_ROOT, 'dev-data/data/plasticwan.sqlite');
+export const DEFAULT_DATABASE = resolve(REPO_ROOT, 'dev-data/data/surowan.sqlite');
 export const DEFAULT_LIMIT = 15;
 
 const PREVIEW_CHARACTERS = 200;

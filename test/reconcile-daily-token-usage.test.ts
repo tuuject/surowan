@@ -50,7 +50,7 @@ function modelCall(
 
 /** A dev database as the retired migration 018 left it: cache-excluded rollup rows. */
 async function seededStore(): Promise<SqliteStore> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-reconcile-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-reconcile-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);

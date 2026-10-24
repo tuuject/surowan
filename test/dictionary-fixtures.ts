@@ -41,7 +41,7 @@ export interface Fixture {
 }
 
 export async function fixture(): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-dictionary-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-dictionary-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
@@ -76,7 +76,7 @@ export async function adminFixture(): Promise<{
   readonly store: SqliteStore;
   readonly cookie: string;
 }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-dictionary-admin-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-dictionary-admin-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const staticDir = join(directory, 'bundle');
