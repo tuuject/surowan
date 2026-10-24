@@ -12,7 +12,7 @@ import { ContextRefStore } from '../src/context/context-refs.ts';
 import { AddMemoryInputSchema } from '../src/context/memory.ts';
 import { type ReplayPromptOverrides, ReplayRunner } from '../src/orchestration/replay.ts';
 import { KeyedSemaphore } from '../src/platform/concurrency.ts';
-import type { FileConfig, RawConfig } from '../src/platform/config.ts';
+import type { RawConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { InvocationContext } from '../src/platform/invocation-context.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
@@ -21,7 +21,14 @@ import { AlarmInputSchema, ListAlarmInputSchema } from '../src/plugins/alarm/ala
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { invocationMessages, media, messageRevisions, messages } from '../src/store/schema.ts';
 import { seedAdminFixture } from './fixtures/admin-seed.ts';
-import { fauxRegistry, type TestRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import {
+  type FixtureConfig,
+  fauxRegistry,
+  type TestRegistry,
+  testConfigJsonc,
+  testConfigStore,
+  writeTestConfig,
+} from './helpers.ts';
 
 /**
  * Scene replay contract: a replay no longer reads a recorded model request.
@@ -214,7 +221,7 @@ function prepareScene(store: SqliteStore, seed: ReturnType<typeof seedAdminFixtu
 }
 
 export interface FixtureOptions {
-  readonly change?: (config: FileConfig) => void;
+  readonly change?: (config: FixtureConfig) => void;
   readonly contextWindow?: number;
   readonly images?: boolean;
   readonly imageLoader?: (mediaId: bigint, signal: AbortSignal) => Promise<ImageContent>;

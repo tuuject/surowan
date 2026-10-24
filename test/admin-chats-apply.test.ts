@@ -26,7 +26,7 @@ test('model changes apply hot while Topic scopes wait for restart, preserving ot
   expect(row?.active?.topic_ids).toEqual(['12']);
   expect(row?.active?.effective).toEqual({ provider: 'vision', model: 'vision-model', thinking_level: 'off' });
   const loaded = await loadConfig(f.path);
-  expect(loaded.fileConfig.telegram.chats[1]).toMatchObject({
+  expect(loaded.fileConfig.telegram?.chats[1]).toMatchObject({
     ignored_user_ids: [42],
     timezone: 'Asia/Shanghai',
     instructions_file: 'chat-instructions.md',
@@ -98,9 +98,19 @@ test('adding a Chat hot-applies while removal waits for restart, keeps removed a
   expect(view.restart_required).toEqual(
     expect.arrayContaining(['telegram.chats[-100100]', 'telegram.chats[-9007199254740991]']),
   );
+  // The allowlist may become empty: it only means no Chat is processed until one
+  // is added again, which is the normal state before the bot joins a group.
   const last = await f.write('/chats/123456789', 'DELETE', null, view.revision);
-  expect(last.status).toBe(409);
-  expect(await last.json()).toMatchObject({ error: 'last_chat_required' });
+  expect(last.status).toBe(200);
+  view = (await last.json()) as ChatWriteResponse;
+  expect((await loadConfig(f.path)).fileConfig.telegram?.chats).toEqual([]);
+  expect(view.restart_required).toEqual(
+    expect.arrayContaining([
+      'telegram.chats[123456789]',
+      'telegram.chats[-100100]',
+      'telegram.chats[-9007199254740991]',
+    ]),
+  );
 });
 
 test('invalid IDs, duplicate scopes, unknown models and unsupported inheritance never modify file or active state', async () => {

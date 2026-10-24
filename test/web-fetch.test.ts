@@ -2,7 +2,7 @@ import { afterAll, expect, test, vi } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { FileConfig, RawConfig } from '../src/platform/config.ts';
+import type { RawConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import type { InvocationContext } from '../src/platform/invocation-context.ts';
@@ -12,7 +12,13 @@ import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
 import { loadPlugins } from '../src/plugins/plugin.ts';
 import { createToolAudit } from '../src/store/tool-audit.ts';
 import { createWebFetchTool } from '../src/plugins/web-fetch/web-fetch.ts';
-import { renderInvocationContext, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import {
+  type FixtureConfig,
+  renderInvocationContext,
+  testConfigJsonc,
+  testConfigStore,
+  writeTestConfig,
+} from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -28,7 +34,7 @@ interface Fixture {
   readonly context: InvocationContext;
 }
 
-async function fixture(transform?: (config: FileConfig) => void): Promise<Fixture> {
+async function fixture(transform?: (config: FixtureConfig) => void): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-web-fetch-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');

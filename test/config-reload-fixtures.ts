@@ -21,7 +21,14 @@ import { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { sleep, testConfigJsonc, testTelegramRuntime, writeTestConfig, writeTestKeyJar } from './helpers.ts';
+import {
+  type FixtureConfig,
+  sleep,
+  testConfigJsonc,
+  testTelegramRuntime,
+  writeTestConfig,
+  writeTestKeyJar,
+} from './helpers.ts';
 
 const directories: string[] = [];
 export const CHAT_ID = 123456789;
@@ -141,7 +148,7 @@ export class CountingSecrets extends SecretStore {
  * the registry owns the streaming behavior while the custom `agent` / `vision`
  * providers stay available for the provider-level reload cases.
  */
-export function baseConfig(config: FileConfig): void {
+export function baseConfig(config: FixtureConfig): void {
   config.telegram.admins = [42];
   config.agent!.send_nudge_enabled = false;
   config.providers.faux = {
@@ -187,7 +194,7 @@ export interface Fixture {
   readonly sends: string[];
   file(): FileConfig;
   /** Rewrites the file from the current one with `transform` applied. */
-  patch(transform: (config: FileConfig) => void): Promise<void>;
+  patch(transform: (config: FixtureConfig) => void): Promise<void>;
   writeText(text: string): Promise<void>;
   readText(): Promise<string>;
   /** Builds a runtime over `faux`, replacing the registry's `faux` provider. */
@@ -196,7 +203,7 @@ export interface Fixture {
 
 export async function setup(
   options: {
-    readonly transform?: (config: FileConfig) => void;
+    readonly transform?: (config: FixtureConfig) => void;
     /** Builds the process-wide store over the fixture's key jar. */
     readonly secrets?: (keyJar: string) => SecretStore;
     /** Extra files written before the configuration is loaded. */
@@ -283,7 +290,7 @@ export async function setup(
     sends,
     file: () => fileConfig,
     patch: async (transform) => {
-      const next = structuredClone(fileConfig);
+      const next = structuredClone(fileConfig) as FixtureConfig;
       transform(next);
       fileConfig = next;
       await writeFile(configPath, `${JSON.stringify(next, null, 2)}\n`);

@@ -14,7 +14,7 @@ test('addChat appends a bare allowlist entry and hot-applies it', async () => {
     expect(result.applied).toEqual([`telegram.chats[${newChatId}]`]);
     expect(result.restartRequired).toEqual([]);
     const written = await loadConfig(fixture.configPath);
-    expect(written.fileConfig.telegram.chats.at(-1)).toEqual({ id: newChatId });
+    expect(written.fileConfig.telegram?.chats.at(-1)).toEqual({ id: newChatId });
     const active = fixture.configStore.current();
     expect(active.config.telegram.chats.at(-1)?.id).toBe(newChatId);
     expect(active.generation).toBe(2);
@@ -71,7 +71,7 @@ test('/allowlist allowlists the chat it is sent from and the next message ingest
     const reply = await fixture.commands.run({ name: 'allowlist' }, BigInt(newChatId), ADMIN);
     expect(reply).toBe('已将本群加入白名单，配置已立即生效。');
     expect(fixture.configStore.current().config.telegram.chats.some((chat) => chat.id === newChatId)).toBe(true);
-    expect(await loadConfig(fixture.configPath).then((loaded) => loaded.fileConfig.telegram.chats.at(-1))).toEqual({
+    expect(await loadConfig(fixture.configPath).then((loaded) => loaded.fileConfig.telegram?.chats.at(-1))).toEqual({
       id: newChatId,
     });
     const ingested = fixture.ingestion.ingest(groupUpdate(1, 10, newChatId));

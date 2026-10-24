@@ -120,15 +120,12 @@ export function configurationView(config: RawConfig) {
     vision: config.vision,
     retention: config.retention,
     developer: config.developer,
-    admin:
-      config.admin === undefined
-        ? undefined
-        : {
-            enabled: config.admin.enabled,
-            host: config.admin.host,
-            port: config.admin.port,
-            session_ttl_hours: config.admin.session_ttl_hours,
-          },
+    admin: {
+      enabled: config.admin.enabled,
+      host: config.admin.host,
+      port: config.admin.port,
+      session_ttl_hours: config.admin.session_ttl_hours,
+    },
     mcp:
       config.mcp === undefined
         ? undefined

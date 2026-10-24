@@ -2,9 +2,9 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { FileConfig } from '../src/platform/config.ts';
+
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
-import { testConfigJsonc, writeTestConfig } from './helpers.ts';
+import { type FixtureConfig, testConfigJsonc, writeTestConfig } from './helpers.ts';
 import { cleanupDirectories, directories, setup } from './participation-fixtures.ts';
 
 afterEach(async () => {
@@ -12,7 +12,7 @@ afterEach(async () => {
 });
 
 describe('participation configuration', () => {
-  async function configError(transform: (config: FileConfig) => void): Promise<string> {
+  async function configError(transform: (config: FixtureConfig) => void): Promise<string> {
     const directory = await mkdtemp(join(tmpdir(), 'surowan-participation-'));
     directories.push(directory);
     const configPath = join(directory, 'config.jsonc');

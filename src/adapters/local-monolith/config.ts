@@ -79,7 +79,7 @@ async function resolvePrompts(
     validatePromptTemplate(systemPrompt, 'agent.system_prompt_file');
   }
   const instructionsByChatId = new Map<number, string>();
-  for (const chat of fileConfig.telegram.chats) {
+  for (const chat of fileConfig.telegram?.chats ?? []) {
     const instructions =
       chat.instructions_file === undefined
         ? ''

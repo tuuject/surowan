@@ -6,11 +6,12 @@ import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { BotCommandService } from '../src/orchestration/bot-commands.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import type { ProactiveReplyGateOptions } from '../src/orchestration/proactive-reply.ts';
-import type { FileConfig } from '../src/platform/config.ts';
+
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { StartupCatchUpApi } from '../src/startup-catch-up.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import {
+  type FixtureConfig,
   renderInvocationContext,
   testConfigJsonc,
   testConfigStore,
@@ -117,7 +118,7 @@ export function fakeApi(updates: readonly Update[]): StartupCatchUpApi {
 
 export async function setup(
   twoChats: boolean,
-  transform?: (config: FileConfig) => void,
+  transform?: (config: FixtureConfig) => void,
   proactive?: ProactiveReplyGateOptions,
 ): Promise<{
   readonly store: SqliteStore;

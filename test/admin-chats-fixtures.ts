@@ -3,14 +3,14 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AdminServer } from '../src/ingress/admin/server.ts';
-import type { FileConfig } from '../src/platform/config.ts';
+
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 import type { ChatsView } from '../apps/admin-next/src/lib/api/chats.ts';
 
 const cleanup: Array<() => Promise<void>> = [];
@@ -23,7 +23,7 @@ afterEach(async () => {
   }
 });
 
-export async function fixture(transform?: (config: FileConfig) => void) {
+export async function fixture(transform?: (config: FixtureConfig) => void) {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-admin-chats-'));
   const path = join(directory, 'config.jsonc');
   await writeTestConfig(

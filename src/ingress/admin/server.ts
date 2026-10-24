@@ -81,9 +81,6 @@ export class AdminServer {
   constructor(options: AdminServerOptions) {
     const config = options.configStore.current().config;
     const admin = config.admin;
-    if (admin === undefined) {
-      throw new Error('Admin panel is not configured');
-    }
     this.#admin = admin;
     const warnings = options.warnings ?? new WarningService(options.store.orm);
     this.#auth = new AdminAuth(options.store.orm, admin.session_ttl_hours, warnings);

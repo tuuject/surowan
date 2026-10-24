@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { FileConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { diffConfig } from '../src/platform/config-diff.ts';
-import { testConfigJsonc, writeTestConfig } from './helpers.ts';
+import { testConfigJsonc, writeTestConfig, type FixtureConfig } from './helpers.ts';
 import { createDirectory, loadBoth, paths, spareModel } from './config-diff-fixtures.ts';
 
 test('edits inside existing dictionary and tool model sections are hot', async () => {
@@ -67,7 +67,7 @@ test('classifies hot, restart and outside-serve fields', async () => {
   expect(diff.candidate.file.agent!.thinking_level).toBe('high');
   expect(diff.candidate.file.agent!.history_messages).toBe(5);
   expect(diff.candidate.file.retention.online_days).toBe(7);
-  expect(diff.candidate.file.telegram.bucket_window_seconds).toBe(15);
+  expect(diff.candidate.file.telegram?.bucket_window_seconds).toBe(15);
   expect(diff.candidate.file.vision?.max_output_tokens).toBe(4096);
   expect(diff.candidate.raw.agent.thinking_level).toBe('high');
 });
@@ -93,7 +93,7 @@ test('aligns chats by id: additions are hot while removals wait for a restart', 
   expect(paths(diff.changes, 'hot')).toEqual(['telegram.chats[111]']);
   // The removed chat waits for a restart and keeps the active instructions; the
   // added chat is adopted immediately with its file instructions ('' here).
-  expect(diff.candidate.file.telegram.chats.map((chat) => chat.id)).toEqual([123456789, 111]);
+  expect(diff.candidate.file.telegram?.chats.map((chat) => chat.id)).toEqual([123456789, 111]);
   expect(diff.candidate.raw.telegram.chats.map((chat) => chat.instructions)).toEqual(['private', '']);
 });
 
@@ -104,7 +104,7 @@ test('adding a chat is hot and the candidate adopts it in file order', async () 
   const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
   expect(paths(diff.changes, 'hot')).toEqual(['telegram.chats[-987654321]']);
   expect(paths(diff.changes, 'restart')).toEqual([]);
-  expect(diff.candidate.file.telegram.chats.map((chat) => chat.id)).toEqual([123456789, -987654321]);
+  expect(diff.candidate.file.telegram?.chats.map((chat) => chat.id)).toEqual([123456789, -987654321]);
   expect(diff.candidate.raw.telegram.chats.map((chat) => chat.id)).toEqual([123456789, -987654321]);
 });
 
@@ -114,7 +114,7 @@ test.each([
   { before: [42], after: [] },
   { before: [42], after: undefined },
 ])('hot-applies ignored_user_ids from $before to $after', async ({ before, after }) => {
-  const setIds = (config: FileConfig, ids: number[] | undefined) => {
+  const setIds = (config: FixtureConfig, ids: number[] | undefined) => {
     if (ids === undefined) {
       delete config.telegram.chats[0]!.ignored_user_ids;
     } else {
@@ -128,7 +128,7 @@ test.each([
   const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
   expect(paths(diff.changes, 'hot')).toEqual(['telegram.chats[123456789].ignored_user_ids']);
   expect(paths(diff.changes, 'restart')).toEqual([]);
-  expect(diff.candidate.file.telegram.chats[0]?.ignored_user_ids).toEqual(after);
+  expect(diff.candidate.file.telegram?.chats[0]?.ignored_user_ids).toEqual(after);
   expect(diff.candidate.raw.telegram.chats[0]?.ignored_user_ids).toEqual(after);
 });
 
@@ -137,7 +137,7 @@ test.each([
   { before: true, after: false },
   { before: true, after: undefined },
 ])('hot-applies allow_reply_message_multiple_times from $before to $after', async ({ before, after }) => {
-  const setField = (config: FileConfig, value: boolean | undefined) => {
+  const setField = (config: FixtureConfig, value: boolean | undefined) => {
     if (value === undefined) {
       delete config.agent!.allow_reply_message_multiple_times;
     } else {
@@ -161,7 +161,7 @@ test('treats a chat field other than instructions as restart-only', async () => 
   });
   const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
   expect(paths(diff.changes, 'restart')).toEqual(['telegram.chats[123456789].timezone']);
-  expect(diff.candidate.file.telegram.chats[0]?.timezone).toBeUndefined();
+  expect(diff.candidate.file.telegram?.chats[0]?.timezone).toBeUndefined();
 });
 
 test('adding or removing a whole optional agent object is hot', async () => {

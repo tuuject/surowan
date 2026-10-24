@@ -4,10 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Update } from 'grammy/types';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
-import type { FileConfig } from '../src/platform/config.ts';
+
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -20,7 +20,7 @@ afterEach(async () => {
 });
 
 export async function setup(
-  transform?: (config: FileConfig) => void,
+  transform?: (config: FixtureConfig) => void,
   botUsername?: string,
 ): Promise<{ store: SqliteStore; ingestion: TelegramIngestion }> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-ingest-'));

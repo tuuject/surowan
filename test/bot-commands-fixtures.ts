@@ -3,13 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Message, Update } from 'grammy/types';
 import { BotCommandService, type CommandSender } from '../src/orchestration/bot-commands.ts';
-import type { FileConfig } from '../src/platform/config.ts';
+
 import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -17,7 +17,7 @@ export const BOT_USERNAME = 'surowan_test_bot';
 export const ALICE: CommandSender = { id: 42n, name: 'Alice', username: 'alice' };
 export const FIXED_NOW = new Date('2026-08-15T12:00:00.000Z');
 
-export type ConfigTransform = (config: FileConfig) => void;
+export type ConfigTransform = (config: FixtureConfig) => void;
 
 export async function cleanupDirectories(): Promise<void> {
   await Promise.all(

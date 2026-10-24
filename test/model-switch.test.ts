@@ -2,11 +2,11 @@ import { afterAll, expect, test } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { FileConfig } from '../src/platform/config.ts';
+
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -22,7 +22,7 @@ interface SwitcherFixture {
   readonly loaded: Awaited<ReturnType<typeof loadConfig>>;
 }
 
-async function switcherWith(transform?: (config: FileConfig) => void): Promise<SwitcherFixture> {
+async function switcherWith(transform?: (config: FixtureConfig) => void): Promise<SwitcherFixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-switch-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
@@ -32,7 +32,7 @@ async function switcherWith(transform?: (config: FileConfig) => void): Promise<S
   return { switcher: new AgentModelSwitcher(configStore), configStore, loaded };
 }
 
-function addImageOnlyModel(config: FileConfig): void {
+function addImageOnlyModel(config: FixtureConfig): void {
   const provider = config.providers.agent;
   if (provider?.kind !== 'custom') {
     throw new Error('Expected custom agent provider fixture');

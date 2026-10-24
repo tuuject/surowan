@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import type { FileConfig } from '../src/platform/config.ts';
+import type { FixtureConfig } from './helpers.ts';
 import {
   GROUP_A,
   GROUP_B,
@@ -60,7 +60,7 @@ describe('proactive reply probability', () => {
     const cases: readonly {
       readonly name: string;
       readonly fields: LooseFields;
-      readonly transform?: (config: FileConfig) => void;
+      readonly transform?: (config: FixtureConfig) => void;
     }[] = [
       { name: 'mention', fields: mentionFields() },
       { name: 'reply', fields: replyFields() },

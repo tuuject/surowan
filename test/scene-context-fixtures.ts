@@ -6,12 +6,12 @@ import type { Update } from 'grammy/types';
 import type { SceneContextOptions } from '../src/context/scene-context.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import type { FileConfig, RawConfig } from '../src/platform/config.ts';
+import type { RawConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { messageRevisions, messages, senders } from '../src/store/schema.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -54,7 +54,7 @@ export interface Fixture {
   readonly ingestion: TelegramIngestion;
 }
 
-export async function setup(tune?: (config: FileConfig) => void): Promise<Fixture> {
+export async function setup(tune?: (config: FixtureConfig) => void): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-scene-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');

@@ -171,11 +171,9 @@ export async function updateProvider(
  * would be written and only then rejected by the candidate check.
  */
 function referencingChats(context: ProviderWriteContext): readonly Pick<FileChat, 'provider' | 'model'>[] {
-  const saved = new Set(context.file.telegram.chats.map((chat) => chat.id));
-  return [
-    ...context.file.telegram.chats,
-    ...context.snapshot.config.telegram.chats.filter((chat) => !saved.has(chat.id)),
-  ];
+  const fileChats = context.file.telegram?.chats ?? [];
+  const saved = new Set(fileChats.map((chat) => chat.id));
+  return [...fileChats, ...context.snapshot.config.telegram.chats.filter((chat) => !saved.has(chat.id))];
 }
 
 export function deleteProvider(context: ProviderWriteContext, alias: string): ConfigEdit[] {

@@ -4,6 +4,8 @@ import type {
   AgentSectionConfig,
   AgentSettings,
   FileChat,
+  TelegramRuntimeConfig,
+  TelegramSectionConfig,
   VisionModelReference,
   VisionRuntimeConfig,
   VisionSectionConfig,
@@ -90,6 +92,29 @@ export function resolveAgentSection(section: AgentSectionConfig | null | undefin
       window_seconds: rateLimits?.window_seconds ?? AGENT_DEFAULTS.rate_limits.window_seconds,
       turns_per_injection: rateLimits?.turns_per_injection ?? AGENT_DEFAULTS.rate_limits.turns_per_injection,
     },
+  };
+}
+
+/**
+ * Values a configuration gets when it has no `telegram` section at all. The
+ * section's presence is not a feature switch — an empty Chat allowlist already
+ * means "no Chat is processed" — so these are ordinary defaults, chosen to
+ * match the documented example configuration.
+ */
+export const TELEGRAM_DEFAULTS = {
+  process_bot_messages: false,
+  bucket_window_seconds: 15,
+} as const;
+
+/** Fills the optional `telegram` section, keeping an absent token absent. */
+export function resolveTelegramSection(
+  section: TelegramSectionConfig | null | undefined,
+): Omit<TelegramRuntimeConfig, 'chats'> & { chats: TelegramSectionConfig['chats'] } {
+  return {
+    ...(section ?? {}),
+    process_bot_messages: section?.process_bot_messages ?? TELEGRAM_DEFAULTS.process_bot_messages,
+    bucket_window_seconds: section?.bucket_window_seconds ?? TELEGRAM_DEFAULTS.bucket_window_seconds,
+    chats: section?.chats ?? [],
   };
 }
 

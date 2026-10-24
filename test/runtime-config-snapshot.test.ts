@@ -8,7 +8,7 @@ import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
-import type { FileConfig, RawConfig } from '../src/platform/config.ts';
+import type { RawConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { previewContext } from '../src/platform/invocation-context.ts';
 import { buildModelRegistry } from '../src/platform/providers.ts';
@@ -18,7 +18,14 @@ import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
-import { sleep, testConfigJsonc, testTelegramRuntime, type TestRegistry, writeTestConfig } from './helpers.ts';
+import {
+  type FixtureConfig,
+  sleep,
+  testConfigJsonc,
+  testTelegramRuntime,
+  type TestRegistry,
+  writeTestConfig,
+} from './helpers.ts';
 
 const directories: string[] = [];
 const CHAT_ID = 123456789;
@@ -72,7 +79,7 @@ async function setup(): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-config-snapshot-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
-  const jsonc = testConfigJsonc(directory, (config: FileConfig) => {
+  const jsonc = testConfigJsonc(directory, (config: FixtureConfig) => {
     // Zero-second windows let a test open each invocation by hand; the nudge
     // would otherwise inject turns that are irrelevant to these assertions.
     config.telegram.bucket_window_seconds = 0;

@@ -97,8 +97,10 @@ export interface ServeAssembly extends ServeServices, ServeHosts {}
 export async function openServeEnvironment(session: ServeContext): Promise<ServeEnvironment> {
   const { loaded, secrets, takeover, playgroundOnly, state } = session;
   // A Playground-only process never resolves the Telegram token: an
-  // unusable or deliberately absent SecretRef must not stop it.
-  const token = playgroundOnly ? undefined : await secrets.resolve(loaded.config.telegram.token);
+  // unusable or deliberately absent SecretRef must not stop it. An absent
+  // token means Telegram is disabled, which is now a legal configuration.
+  const tokenReference = loaded.config.telegram.token;
+  const token = playgroundOnly || tokenReference === undefined ? undefined : await secrets.resolve(tokenReference);
   if (takeover) {
     // Stop the incumbent only once this process knows it can start at all:
     // the config, its permissions and the bot token are checked by now.
@@ -170,8 +172,8 @@ export async function startServeServices(session: ServeContext, environment: Ser
   let me: TelegramIdentity | undefined;
   let ingestion: TelegramIngestion | undefined;
   let bot: Bot | undefined;
-  if (!playgroundOnly) {
-    bot = new Bot(token as string);
+  if (!playgroundOnly && token !== undefined) {
+    bot = new Bot(token);
     state.bot = bot;
     me = await bot.api.getMe();
     try {
@@ -203,9 +205,10 @@ export async function startServeServices(session: ServeContext, environment: Ser
   // Without a Bot there is no Telegram transport to download through; room
   // media is read from its own local assets, so the refusal is unreachable
   // for a room and explicit for anything else.
-  const mediaClient: MediaDownloader = playgroundOnly
-    ? { download: () => Promise.reject(new Error('this process has no Telegram media transport')) }
-    : new TelegramMediaClient((bot as Bot).api, token as string);
+  const mediaClient: MediaDownloader =
+    bot === undefined
+      ? { download: () => Promise.reject(new Error('this process has no Telegram media transport')) }
+      : new TelegramMediaClient(bot.api, token as string);
   const playgroundAssets = new PlaygroundAssetStore({
     orm: openedStore.orm,
     root: join(configStore.current().config.data_dir, 'images', 'playground'),
@@ -218,9 +221,8 @@ export async function startServeServices(session: ServeContext, environment: Ser
     modelGate,
     localAssets: playgroundAssets,
   });
-  const stickerService = playgroundOnly
-    ? undefined
-    : new StickerService({ store, config: loaded.config, api: (bot as Bot).api, media });
+  const stickerService =
+    bot === undefined ? undefined : new StickerService({ store, config: loaded.config, api: bot.api, media });
   if (stickerService !== undefined) {
     state.stickers = stickerService;
     await stickerService.sync();

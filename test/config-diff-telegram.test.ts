@@ -12,8 +12,8 @@ test('adding a chat provider + model override is hot', async () => {
   const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
   expect(paths(diff.changes, 'hot')).toEqual(['telegram.chats[123456789].model', 'telegram.chats[123456789].provider']);
   expect(paths(diff.changes, 'restart')).toEqual([]);
-  expect(diff.candidate.file.telegram.chats[0]?.provider).toBe('agent');
-  expect(diff.candidate.file.telegram.chats[0]?.model).toBe('agent-model');
+  expect(diff.candidate.file.telegram?.chats[0]?.provider).toBe('agent');
+  expect(diff.candidate.file.telegram?.chats[0]?.model).toBe('agent-model');
 });
 
 test('modifying a chat provider override is hot and takes the file value', async () => {
@@ -34,8 +34,8 @@ test('modifying a chat provider override is hot and takes the file value', async
     'telegram.chats[123456789].provider',
     'telegram.chats[123456789].thinking_level',
   ]);
-  expect(diff.candidate.file.telegram.chats[0]?.provider).toBe('vision');
-  expect(diff.candidate.file.telegram.chats[0]?.model).toBe('vision-model');
+  expect(diff.candidate.file.telegram?.chats[0]?.provider).toBe('vision');
+  expect(diff.candidate.file.telegram?.chats[0]?.model).toBe('vision-model');
 });
 
 test('removing a chat provider override is hot and drops it from the candidate', async () => {
@@ -52,8 +52,8 @@ test('removing a chat provider override is hot and drops it from the candidate',
   const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
   expect(paths(diff.changes, 'hot')).toEqual(['telegram.chats[123456789].model', 'telegram.chats[123456789].provider']);
   expect(paths(diff.changes, 'restart')).toEqual([]);
-  expect(diff.candidate.file.telegram.chats[0]?.provider).toBeUndefined();
-  expect(diff.candidate.file.telegram.chats[0]?.model).toBeUndefined();
+  expect(diff.candidate.file.telegram?.chats[0]?.provider).toBeUndefined();
+  expect(diff.candidate.file.telegram?.chats[0]?.model).toBeUndefined();
 });
 
 test('setting a chat thinking_level override is hot', async () => {
@@ -63,7 +63,7 @@ test('setting a chat thinking_level override is hot', async () => {
   const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
   expect(paths(diff.changes, 'hot')).toEqual(['telegram.chats[123456789].thinking_level']);
   expect(paths(diff.changes, 'restart')).toEqual([]);
-  expect(diff.candidate.file.telegram.chats[0]?.thinking_level).toBe('high');
+  expect(diff.candidate.file.telegram?.chats[0]?.thinking_level).toBe('high');
 });
 
 test('removing a chat thinking_level override is hot', async () => {
@@ -77,7 +77,7 @@ test('removing a chat thinking_level override is hot', async () => {
   );
   const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
   expect(paths(diff.changes, 'hot')).toEqual(['telegram.chats[123456789].thinking_level']);
-  expect(diff.candidate.file.telegram.chats[0]?.thinking_level).toBeUndefined();
+  expect(diff.candidate.file.telegram?.chats[0]?.thinking_level).toBeUndefined();
 });
 
 test('chat override is hot even when a restart-only field changes in the same chat', async () => {
@@ -90,10 +90,10 @@ test('chat override is hot even when a restart-only field changes in the same ch
   // Override fields are hot; timezone is restart-only
   expect(paths(diff.changes, 'hot')).toEqual(['telegram.chats[123456789].model', 'telegram.chats[123456789].provider']);
   expect(paths(diff.changes, 'restart')).toEqual(['telegram.chats[123456789].timezone']);
-  expect(diff.candidate.file.telegram.chats[0]?.provider).toBe('agent');
-  expect(diff.candidate.file.telegram.chats[0]?.model).toBe('agent-model');
+  expect(diff.candidate.file.telegram?.chats[0]?.provider).toBe('agent');
+  expect(diff.candidate.file.telegram?.chats[0]?.model).toBe('agent-model');
   // Restart-only field keeps the active value
-  expect(diff.candidate.file.telegram.chats[0]?.timezone).toBeUndefined();
+  expect(diff.candidate.file.telegram?.chats[0]?.timezone).toBeUndefined();
 });
 
 test('chat override persists after an unrelated chat is removed (ID-based merge)', async () => {
@@ -113,11 +113,11 @@ test('chat override persists after an unrelated chat is removed (ID-based merge)
   const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
   expect(paths(diff.changes, 'restart')).toEqual(['telegram.chats[-987654321]']);
   // The override chat should still be present with its override
-  const chat = diff.candidate.file.telegram.chats.find((c) => c.id === 123456789);
+  const chat = diff.candidate.file.telegram?.chats.find((c) => c.id === 123456789);
   expect(chat?.provider).toBe('agent');
   expect(chat?.model).toBe('agent-model');
   // New chat in file
-  expect(diff.candidate.file.telegram.chats.map((c) => c.id).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))).toEqual([
+  expect(diff.candidate.file.telegram?.chats.map((c) => c.id).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))).toEqual([
     -987654321, 123456789,
   ]);
 });
@@ -143,7 +143,7 @@ test('participation schedules at both levels are hot, including their sub-fields
     'telegram.participation.trigger_keywords',
   ]);
   expect(paths(diff.changes, 'restart')).toEqual([]);
-  expect(diff.candidate.file.telegram.chats[1]?.participation).toEqual({ active_windows: [] });
+  expect(diff.candidate.file.telegram?.chats[1]?.participation).toEqual({ active_windows: [] });
 });
 
 test('proactive reply settings at both levels are hot, including their sub-fields', async () => {
@@ -166,5 +166,5 @@ test('proactive reply settings at both levels are hot, including their sub-field
     'telegram.proactive_reply.increment',
   ]);
   expect(paths(diff.changes, 'restart')).toEqual([]);
-  expect(diff.candidate.file.telegram.chats[1]?.proactive_reply).toEqual({ hard_pity: 4 });
+  expect(diff.candidate.file.telegram?.chats[1]?.proactive_reply).toEqual({ hard_pity: 4 });
 });

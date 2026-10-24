@@ -104,7 +104,9 @@ async function writePlaygroundConfig(options: { readonly admin: boolean }): Prom
       media_cache: join(dataDir, 'media').replaceAll('\\', '/'),
       backups: join(dataDir, 'backups').replaceAll('\\', '/'),
     },
-    ...(options.admin ? { admin: { enabled: true, host: '127.0.0.1', port, session_ttl_hours: 12 } } : {}),
+    ...(options.admin
+      ? { admin: { enabled: true, host: '127.0.0.1', port, session_ttl_hours: 12 } }
+      : { admin: { enabled: false, host: '127.0.0.1', port, session_ttl_hours: 12 } }),
   };
   const configPath = join(directory, 'config.jsonc');
   await writeFile(configPath, JSON.stringify(config, null, 2), { mode: 0o600 });

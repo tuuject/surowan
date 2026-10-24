@@ -45,7 +45,7 @@ test('proactive reply edits set, disable and inherit per Chat, applying hot', as
     increment: 0.05,
     hard_pity: 4,
   });
-  expect((await loadConfig(f.path)).fileConfig.telegram.chats[1]?.proactive_reply).toEqual({
+  expect((await loadConfig(f.path)).fileConfig.telegram?.chats[1]?.proactive_reply).toEqual({
     enabled: true,
     base_probability: 0.25,
     increment: 0.05,
@@ -69,7 +69,7 @@ test('proactive reply edits set, disable and inherit per Chat, applying hot', as
   expect(offResult.items.find((chat) => chat.id === '-100100')?.saved?.proactive_reply).toEqual({
     enabled: false,
   });
-  expect((await loadConfig(f.path)).fileConfig.telegram.chats[1]?.proactive_reply).toEqual({ enabled: false });
+  expect((await loadConfig(f.path)).fileConfig.telegram?.chats[1]?.proactive_reply).toEqual({ enabled: false });
 
   const inherit = await f.write('/chats/-100100/proactive-reply', 'PUT', { mode: 'inherit' }, offResult.revision);
   expect(inherit.status).toBe(200);

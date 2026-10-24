@@ -172,7 +172,11 @@ async function runDoctorChecks(
       );
     }
 
-    const telegramToken = await secrets.resolve(config.telegram.token);
+    const telegramTokenReference = config.telegram.token;
+    if (telegramTokenReference === undefined) {
+      throw new Error('Telegram is disabled: no Bot token is configured');
+    }
+    const telegramToken = await secrets.resolve(telegramTokenReference);
     const bot = new Bot(telegramToken);
     const me = await bot.api.getMe();
     const requiredConfig: RawConfig = {
@@ -321,12 +325,14 @@ async function completeDoctorCall(
 }
 
 async function resolveAllSecrets(
-  telegramToken: SecretRef,
+  telegramToken: SecretRef | undefined,
   providers: Readonly<Record<string, ProviderConfig>>,
   servers: readonly McpServerConfig[],
   secrets: SecretStore,
 ): Promise<void> {
-  await secrets.resolve(telegramToken);
+  if (telegramToken !== undefined) {
+    await secrets.resolve(telegramToken);
+  }
   for (const provider of Object.values(providers)) {
     await secrets.resolve(provider.api_key);
     if (provider.kind === 'custom') {

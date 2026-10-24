@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
-import type { AgentSettings, FileChat, FileConfig, RawConfig } from '../../platform/config.ts';
+import type { AgentSettings, FileChat, FileConfig, RawConfig, TelegramSectionConfig } from '../../platform/config.ts';
 import type { ConfigEdit } from '../../platform/config-write.ts';
 import { resolveProactiveReply } from '../../platform/proactive-reply.ts';
 import { supportedThinkingLevels } from '../../platform/thinking-levels.ts';
@@ -139,16 +139,22 @@ function managedSettings(body: ChatSettingsBody): Omit<FileChat, 'id'> {
   };
 }
 
+/** The file's Chat allowlist; a configuration without a `telegram` section has none. */
+function fileChats(file: FileConfig): TelegramSectionConfig['chats'] {
+  return file.telegram?.chats ?? [];
+}
+
 export function createChat(file: FileConfig, body: CreateChatBody): ConfigEdit[] {
   const id = parseChatId(body.id);
-  if (file.telegram.chats.some((chat) => chat.id === id)) {
+  const chats = fileChats(file);
+  if (chats.some((chat) => chat.id === id)) {
     throw new AdminQueryError('chat_exists', `Chat ${id} is already configured`, 409);
   }
-  return [{ path: ['telegram', 'chats', file.telegram.chats.length], value: { id, ...managedSettings(body) } }];
+  return [{ path: ['telegram', 'chats', chats.length], value: { id, ...managedSettings(body) } }];
 }
 
 function chatIndex(file: FileConfig, id: number): number {
-  const index = file.telegram.chats.findIndex((chat) => chat.id === id);
+  const index = fileChats(file).findIndex((chat) => chat.id === id);
   if (index < 0) {
     throw new AdminQueryError('chat_not_found', `Chat ${id} is not configured in the file`, 404);
   }
@@ -157,7 +163,7 @@ function chatIndex(file: FileConfig, id: number): number {
 
 export function updateChat(file: FileConfig, id: number, body: ChatSettingsBody): ConfigEdit[] {
   const index = chatIndex(file, id);
-  const current = file.telegram.chats[index];
+  const current = fileChats(file)[index];
   const settings = managedSettings(body);
   const edits: ConfigEdit[] = [];
   // Edit only the managed fields, preserving instructions, participation and other Chat settings.
@@ -171,9 +177,9 @@ export function updateChat(file: FileConfig, id: number, body: ChatSettingsBody)
 
 export function deleteChat(file: FileConfig, id: number): ConfigEdit[] {
   const index = chatIndex(file, id);
-  if (file.telegram.chats.length === 1) {
-    throw new AdminQueryError('last_chat_required', 'At least one Chat must remain in the allowlist', 409);
-  }
+  // The allowlist may become empty: it just means no Chat is processed until one
+  // is added again. The `telegram` section itself stays, because a token may
+  // still be configured and the panel never deletes the section.
   return [{ path: ['telegram', 'chats', index], value: undefined }];
 }
 
@@ -187,7 +193,7 @@ export function deleteChat(file: FileConfig, id: number): ConfigEdit[] {
  */
 export function updateChatParticipation(file: FileConfig, id: number, body: ParticipationBody): ConfigEdit[] {
   const index = chatIndex(file, id);
-  const chat = file.telegram.chats[index];
+  const chat = fileChats(file)[index];
   if (chat === undefined) {
     throw new AdminQueryError('chat_not_found', `Chat ${id} is not configured in the file`, 404);
   }
@@ -219,7 +225,7 @@ export function updateChatParticipation(file: FileConfig, id: number, body: Part
 /** Edits only the Chat's `proactive_reply` override, preserving every other field. */
 export function updateChatProactiveReply(file: FileConfig, id: number, body: ProactiveReplyBody): ConfigEdit[] {
   const index = chatIndex(file, id);
-  const chat = file.telegram.chats[index];
+  const chat = fileChats(file)[index];
   if (chat === undefined) {
     throw new AdminQueryError('chat_not_found', `Chat ${id} is not configured in the file`, 404);
   }
@@ -254,7 +260,7 @@ function agentSettingsView(config: { agent?: AgentSettings | null }, chat?: File
 }
 
 function chatSettings(
-  config: { agent?: AgentSettings | null; telegram: Pick<FileConfig['telegram'], 'proactive_reply'> },
+  config: { agent?: AgentSettings | null; telegram?: Pick<TelegramSectionConfig, 'proactive_reply'> },
   chat: FileChat | undefined,
 ) {
   return chat === undefined
@@ -279,15 +285,15 @@ export function listChats(
   revision: string,
   restartRequired: readonly string[],
 ) {
-  const savedChats = new Map(file.telegram.chats.map((chat) => [chat.id, chat]));
+  const savedChats = new Map((file.telegram?.chats ?? []).map((chat) => [chat.id, chat]));
   const activeChats = new Map(active.telegram.chats.map((chat) => [chat.id, chat]));
   return {
     revision,
     supervised: supervisedRestartEnabled(),
     restart_required: restartRequired,
     timezone: file.timezone,
-    global_participation: file.telegram.participation ?? null,
-    global_proactive_reply: file.telegram.proactive_reply ?? null,
+    global_participation: file.telegram?.participation ?? null,
+    global_proactive_reply: file.telegram?.proactive_reply ?? null,
     effective_global_proactive_reply: resolveProactiveReply(file),
     defaults: agentSettingsView(file),
     models: Object.entries(file.providers).flatMap(([provider, definition]) =>

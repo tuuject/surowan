@@ -34,8 +34,8 @@ test('active-hours edits set, empty and remove Chat participation windows, apply
   });
   expect(f.configStore.current().config.telegram.chats[1]?.participation).toEqual({ active_windows: windows });
   const loaded = await loadConfig(f.path);
-  expect(loaded.fileConfig.telegram.chats[1]?.participation).toEqual({ active_windows: windows });
-  expect(loaded.fileConfig.telegram.chats[1]?.ignored_user_ids).toEqual([42]);
+  expect(loaded.fileConfig.telegram?.chats[1]?.participation).toEqual({ active_windows: windows });
+  expect(loaded.fileConfig.telegram?.chats[1]?.ignored_user_ids).toEqual([42]);
   expect(
     log.mock.calls.some(
       ([line]) =>
@@ -57,7 +57,7 @@ test('active-hours edits set, empty and remove Chat participation windows, apply
   expect(emptiedResult.items.find((chat) => chat.id === '-100100')?.saved?.participation).toEqual({
     active_windows: [],
   });
-  expect((await loadConfig(f.path)).fileConfig.telegram.chats[1]?.participation).toEqual({ active_windows: [] });
+  expect((await loadConfig(f.path)).fileConfig.telegram?.chats[1]?.participation).toEqual({ active_windows: [] });
 
   // Removing the windows drops the whole object when nothing else remains.
   const removed = await f.write(
@@ -69,14 +69,14 @@ test('active-hours edits set, empty and remove Chat participation windows, apply
   expect(removed.status).toBe(200);
   const removedResult = (await removed.json()) as ChatWriteResponse;
   expect(removedResult.items.find((chat) => chat.id === '-100100')?.saved?.participation).toBeNull();
-  expect((await loadConfig(f.path)).fileConfig.telegram.chats[1]?.participation).toBeUndefined();
+  expect((await loadConfig(f.path)).fileConfig.telegram?.chats[1]?.participation).toBeUndefined();
   expect(await readFile(f.path, 'utf8')).not.toContain('participation');
 });
 
 test('removing active windows preserves other participation fields instead of faking an unrestricted chat', async () => {
   const f = await fixture();
   const file = JSON.parse(await readFile(f.path, 'utf8')) as FileConfig;
-  const chat = file.telegram.chats[1];
+  const chat = file.telegram!.chats[1];
   if (chat === undefined || chat.id !== -100100) {
     throw new Error('Fixture chat missing');
   }
@@ -89,7 +89,7 @@ test('removing active windows preserves other participation fields instead of fa
   expect(result.items.find((item) => item.id === '-100100')?.saved?.participation).toEqual({
     trigger_keywords: ['help'],
   });
-  expect((await loadConfig(f.path)).fileConfig.telegram.chats[1]?.participation).toEqual({
+  expect((await loadConfig(f.path)).fileConfig.telegram?.chats[1]?.participation).toEqual({
     trigger_keywords: ['help'],
   });
   // Removing again is a no-op that keeps the bytes.

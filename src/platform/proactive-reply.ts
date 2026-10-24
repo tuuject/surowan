@@ -20,7 +20,7 @@ export const PROACTIVE_REPLY_DEFAULTS: ProactiveReplySettings = {
 };
 
 export interface ProactiveReplyScope {
-  readonly telegram: {
+  readonly telegram?: {
     readonly proactive_reply?: ProactiveReplyConfig;
   };
 }
@@ -34,7 +34,7 @@ export function resolveProactiveReply(
   config: ProactiveReplyScope,
   chat?: Pick<FileChat, 'proactive_reply'>,
 ): ProactiveReplySettings {
-  const global: ProactiveReplyConfig | undefined = config.telegram.proactive_reply;
+  const global: ProactiveReplyConfig | undefined = config.telegram?.proactive_reply;
   const local: ProactiveReplyConfig | undefined = chat?.proactive_reply;
   return {
     enabled: local?.enabled ?? global?.enabled ?? PROACTIVE_REPLY_DEFAULTS.enabled,

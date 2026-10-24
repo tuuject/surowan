@@ -90,7 +90,7 @@ test('group prompt creation writes a conventional file, references it and refuse
 
 test('a group prompt keeps its configured file when no global prompt file is configured', async () => {
   const { store, server, directory } = await fixture((config) => {
-    delete config.agent!.system_prompt_file;
+    delete (config.agent as { system_prompt_file?: string }).system_prompt_file;
   });
   try {
     const cookie = await login(server);

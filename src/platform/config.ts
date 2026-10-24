@@ -1,5 +1,5 @@
 import type { Static } from 'typebox';
-import { resolveAgentSection, resolveVisionSection } from './config-resolve.ts';
+import { resolveAgentSection, resolveTelegramSection, resolveVisionSection } from './config-resolve.ts';
 import type { ConfigSchema } from './config-schema.ts';
 import type {
   CustomProviderApiSchema,
@@ -26,7 +26,9 @@ export type ModelFileConfig = Static<typeof ModelConfigSchema>;
 export type AgentSectionConfig = Static<typeof AgentSectionSchema>;
 export type VisionSectionConfig = Static<typeof VisionSectionSchema>;
 export type FileConfig = Static<typeof ConfigSchema>;
-export type FileChat = FileConfig['telegram']['chats'][number];
+/** The file layer may omit the whole section; everything inside it is required as before. */
+export type TelegramSectionConfig = NonNullable<FileConfig['telegram']>;
+export type FileChat = TelegramSectionConfig['chats'][number];
 /**
  * The model identity triple as configured: every field may be absent, and only a
  * fully specified one can run an invocation (`completeAgentSettings` is the
@@ -103,13 +105,22 @@ export interface VisionRuntimeConfig {
 
 export type ParticipationConfig = Static<typeof ParticipationSchema>;
 export type ParticipationWindowConfig = Static<typeof ParticipationWindowSchema>;
-export type RawConfig = Omit<FileConfig, 'agent' | 'vision' | 'telegram' | 'developer'> & {
+/** The panel section as the runtime reads it: `enabled` is always concrete. */
+export type AdminRuntimeConfig = Omit<FileConfig['admin'], 'enabled'> & { readonly enabled: boolean };
+/**
+ * The runtime half of an optional `telegram` section. The section itself always
+ * exists here so every consumer can keep reading `config.telegram.*`; an absent
+ * file section resolves to `chats: []`, no token and the defaults below.
+ */
+export type TelegramRuntimeConfig = Omit<TelegramSectionConfig, 'chats'> & {
+  chats: Array<Omit<FileChat, 'instructions_file'> & { instructions: string }>;
+};
+export type RawConfig = Omit<FileConfig, 'agent' | 'vision' | 'telegram' | 'developer' | 'admin'> & {
   developer: { record_model_payloads: boolean; record_agent_thinking: boolean };
   agent: AgentRuntimeConfig & { readonly system_prompt: string };
   vision: VisionRuntimeConfig;
-  telegram: Omit<FileConfig['telegram'], 'chats'> & {
-    chats: Array<Omit<FileChat, 'instructions_file'> & { instructions: string }>;
-  };
+  telegram: TelegramRuntimeConfig;
+  admin: AdminRuntimeConfig;
 };
 export type ImageConfig = RawConfig['image'];
 export type DictionaryConfig = RawConfig['dictionary'];
@@ -131,7 +142,8 @@ export function assembleRawConfig(
   systemPrompt: string,
   instructionsByChatId: ReadonlyMap<number, string>,
 ): RawConfig {
-  const chats = fileConfig.telegram.chats.map((chat) => {
+  const telegram = resolveTelegramSection(fileConfig.telegram);
+  const chats = telegram.chats.map((chat) => {
     const { instructions_file, ...rest } = chat;
     return { ...rest, instructions: instructionsByChatId.get(chat.id) ?? '' };
   });
@@ -143,7 +155,8 @@ export function assembleRawConfig(
     },
     agent: { ...resolveAgentSection(fileConfig.agent), system_prompt: systemPrompt },
     vision: resolveVisionSection(fileConfig.vision),
-    telegram: { ...fileConfig.telegram, chats },
+    admin: { ...fileConfig.admin, enabled: fileConfig.admin.enabled !== false },
+    telegram: { ...telegram, chats },
   };
 }
 

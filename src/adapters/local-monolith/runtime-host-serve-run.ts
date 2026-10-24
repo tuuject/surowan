@@ -44,19 +44,20 @@ export interface ServeCore {
  * borrows the bot's API, the Playground host borrows the room assets.
  */
 export function connectServeHosts(session: ServeContext, services: ServeServices): ServeHosts {
-  const { playgroundOnly, state } = session;
+  const { state } = session;
   // One host for both delivery and chat action: its per-conversation activity
   // bookkeeping is what keeps the ingestion status and the model's own
   // `typing` call from doubling up requests.
-  const telegramHost = playgroundOnly
-    ? undefined
-    : createTelegramHost({
-        transport: grammyTelegramTransport((services.bot as Bot).api),
-        sendRate: () => ({
-          sendsPerWindow: services.configStore.current().config.agent.rate_limits.sends_per_window,
-          windowSeconds: services.configStore.current().config.agent.rate_limits.window_seconds,
-        }),
-      });
+  const telegramHost =
+    services.bot === undefined
+      ? undefined
+      : createTelegramHost({
+          transport: grammyTelegramTransport(services.bot.api),
+          sendRate: () => ({
+            sendsPerWindow: services.configStore.current().config.agent.rate_limits.sends_per_window,
+            windowSeconds: services.configStore.current().config.agent.rate_limits.window_seconds,
+          }),
+        });
   state.host = telegramHost;
   let playgroundSelfName = PLAYGROUND_BOT_DISPLAY_NAME;
   if (telegramHost !== undefined) {
@@ -186,13 +187,13 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
       runtime.validateAdditionalTools(preview, mcpTools, model);
     }
   });
-  if (!playgroundOnly) {
+  if (bot !== undefined && ingestion !== undefined) {
     const catchUpController = new AbortController();
     state.startupCatchUpController = catchUpController;
     const catchUp = await runStartupCatchUp({
-      api: (bot as Bot).api,
+      api: bot.api,
       store,
-      ingestion: ingestion as TelegramIngestion,
+      ingestion,
       scheduler: startedScheduler,
       commands,
       allowedUpdates: ALLOWED_UPDATES,
@@ -231,7 +232,7 @@ export async function startAdminServer(session: ServeContext, assembly: ServeAss
     warnings,
   } = assembly;
   const { runtime, startedScheduler, configReloader } = core;
-  if (loaded.config.admin?.enabled === true) {
+  if (loaded.config.admin.enabled) {
     const replay = new ReplayRunner({
       store,
       configStore,

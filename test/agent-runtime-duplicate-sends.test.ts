@@ -10,8 +10,15 @@ import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
-import type { FileConfig } from '../src/platform/config.ts';
-import { fauxRegistry, testConfigJsonc, testConfigStore, testTelegramRuntime, writeTestConfig } from './helpers.ts';
+
+import {
+  type FixtureConfig,
+  fauxRegistry,
+  testConfigJsonc,
+  testConfigStore,
+  testTelegramRuntime,
+  writeTestConfig,
+} from './helpers.ts';
 import { cleanupAgentRuntimeDirectories, directories } from './agent-runtime-fixtures.ts';
 
 afterAll(cleanupAgentRuntimeDirectories);
@@ -119,7 +126,7 @@ test('a placeholder-filled send goes out, and a send repeated unchanged after fa
 async function duplicateSendRun(
   name: string,
   responses: readonly string[],
-  transform?: (config: FileConfig) => void,
+  transform?: (config: FixtureConfig) => void,
 ): Promise<{
   readonly outcome: unknown;
   readonly sentTexts: readonly string[];

@@ -19,11 +19,11 @@ import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts'
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
-import type { FileConfig } from '../src/platform/config.ts';
+
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { recordPromptVersionsFromConfig } from '../src/store/prompt-versions.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 
 const PASSWORD = 'correct-horse-battery';
 const directories: string[] = [];
@@ -43,7 +43,7 @@ export interface Fixture {
   readonly configPath: string;
 }
 
-export async function fixture(transform?: (config: FileConfig) => void): Promise<Fixture> {
+export async function fixture(transform?: (config: FixtureConfig) => void): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-prompts-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');

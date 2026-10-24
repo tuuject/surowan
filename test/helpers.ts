@@ -188,10 +188,12 @@ function refsReplyTargets(
 }
 
 /**
- * The fixture always writes a fully configured `agent` section, so transforms
- * may treat its fields as present; `FileConfig` itself keeps them optional.
+ * The fixture always writes a fully configured `agent` section and a `telegram`
+ * section, so transforms may treat their fields as present; `FileConfig` itself
+ * keeps them optional.
  */
-export type FixtureConfig = Omit<FileConfig, 'agent'> & {
+export type FixtureConfig = Omit<FileConfig, 'agent' | 'telegram'> & {
+  telegram: NonNullable<FileConfig['telegram']>;
   agent: Omit<
     AgentSectionConfig,
     | 'provider'
@@ -313,6 +315,11 @@ export function testConfigJsonc(directory: string, transform?: (config: FixtureC
       online_days: 30,
       backup_copies: 7,
     },
+    admin: {
+      host: '127.0.0.1',
+      port: 8899,
+      session_ttl_hours: 12,
+    },
     paths: {
       database: path('surowan.sqlite'),
       media_cache: path('media'),
@@ -324,6 +331,18 @@ export function testConfigJsonc(directory: string, transform?: (config: FixtureC
 }
 
 export const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * The file layer's `telegram` section, asserted present. A test fixture always
+ * writes one; a test that deliberately removes it reads it through the optional
+ * chain instead.
+ */
+export function fileTelegram(config: FileConfig): NonNullable<FileConfig['telegram']> {
+  if (config.telegram === undefined) {
+    throw new Error('expected the fixture to configure a telegram section');
+  }
+  return config.telegram;
+}
 
 /** The registry half of a configuration snapshot, as a test builds it. */
 export interface TestRegistry {

@@ -182,8 +182,9 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     } catch (error) {
       return this.#rejected('config_invalid', messageOf(error), 'config_write_failed');
     }
-    const index = loaded.fileConfig.telegram.chats.findIndex((chat) => chat.id === configuredChatId);
-    const chat = loaded.fileConfig.telegram.chats[index];
+    const chats = loaded.fileConfig.telegram?.chats ?? [];
+    const index = chats.findIndex((chat) => chat.id === configuredChatId);
+    const chat = chats[index];
     if (chat === undefined) {
       return this.#rejected(
         'config_invalid',
@@ -219,12 +220,11 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     } catch (error) {
       return this.#rejected('config_invalid', messageOf(error));
     }
-    if (loaded.fileConfig.telegram.chats.some((chat) => chat.id === configuredChatId)) {
+    const chats = loaded.fileConfig.telegram?.chats ?? [];
+    if (chats.some((chat) => chat.id === configuredChatId)) {
       return await this.#applyFile();
     }
-    const edits: ConfigEdit[] = [
-      { path: ['telegram', 'chats', loaded.fileConfig.telegram.chats.length], value: { id: configuredChatId } },
-    ];
+    const edits: ConfigEdit[] = [{ path: ['telegram', 'chats', chats.length], value: { id: configuredChatId } }];
     return await this.#writeAndApply(edits, revision);
   }
 
@@ -280,8 +280,9 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     } catch (error) {
       return this.#rejected('config_invalid', messageOf(error));
     }
-    const index = loaded.fileConfig.telegram.chats.findIndex((chat) => chat.id === configuredChatId);
-    const chat = loaded.fileConfig.telegram.chats[index];
+    const chats = loaded.fileConfig.telegram?.chats ?? [];
+    const index = chats.findIndex((chat) => chat.id === configuredChatId);
+    const chat = chats[index];
     if (chat === undefined) {
       return this.#rejected(
         'config_invalid',

@@ -5,6 +5,8 @@ import {
   type RawConfig,
   type VisionSectionConfig,
 } from './config.ts';
+import { ChangeRecorder, classify, deepEqual, mergeField, unionKeys } from './config-diff-merge.ts';
+import { mergeProviders } from './config-diff-providers.ts';
 
 /**
  * How a changed configuration path can take effect.
@@ -33,106 +35,7 @@ export interface ConfigDiff {
   readonly candidate: ConfigSource;
 }
 
-type ProviderFileConfig = FileConfig['providers'][string];
-type CustomProviderFileConfig = Extract<ProviderFileConfig, { kind: 'custom' }>;
-type ModelFileConfig = CustomProviderFileConfig['models'][number];
 type RawChat = RawConfig['telegram']['chats'][number];
-
-/**
- * The hot whitelist. This module is the only place that defines it: every path
- * that is not listed here is restart-only, and a configuration field added to
- * the schema stays restart-only until it is listed.
- */
-const HOT_PATHS: ReadonlySet<string> = new Set([
-  'developer',
-  'developer.record_model_payloads',
-  'developer.record_agent_thinking',
-  'agent.provider',
-  'agent.model',
-  'agent.system_prompt_file',
-  'agent.thinking_level',
-  'agent.context_stop_ratio',
-  'agent.send_max_text_length',
-  'agent.send_disallow_blank_lines',
-  'agent.send_nudge_enabled',
-  'agent.send_barrier_enabled',
-  'agent.allow_reply_message_multiple_times',
-  'agent.send_duplicate_guard_enabled',
-  'agent.daily_budget',
-  'agent.daily_budget.max_tokens',
-  'agent.context',
-  'agent.rate_limits',
-  'agent.max_concurrency',
-  'agent.history_messages',
-  'agent.memory_ttl_warning_days',
-  'vision.provider',
-  'vision.model',
-  'vision.max_output_tokens',
-  'image',
-  'dictionary',
-  'tool_model',
-  'telegram.admins',
-]);
-
-/**
- * `agent.context` and `agent.rate_limits` are hot as a whole; their fields are
- * listed for the report. Every provider field is hot — connection fields, the model list and
- * per-model paths, which are built dynamically — because a reload rebuilds the
- * model registry and publishes it with the configuration. The image section is
- * hot as a whole for the same reason: a reload re-resolves its SecretRefs and
- * republishes the image snapshot atomically.
- */
-const HOT_PREFIXES: readonly string[] = [
-  'agent.context.',
-  'agent.rate_limits.',
-  'providers.',
-  'image.',
-  'dictionary.',
-  'tool_model.',
-];
-
-/**
- * `serve` reads these only through `backup` and the pre-migration backup, so
- * they are neither applied nor pending a restart.
- */
-const OUTSIDE_SERVE_PATHS: ReadonlySet<string> = new Set([
-  'paths.backups',
-  'retention.online_days',
-  'retention.backup_copies',
-]);
-
-/**
- * Chat IDs appear verbatim in change paths, including negative supergroup IDs.
- * Per-Chat runtime policies resolve from the published configuration, so every
- * scalar below them is hot as well.
- */
-const HOT_PARTICIPATION_PATHS = [/^telegram\.participation(\.|$)/, /^telegram\.chats\[-?\d+\]\.participation(\.|$)/];
-const HOT_PROACTIVE_REPLY_PATHS = [
-  /^telegram\.proactive_reply(\.|$)/,
-  /^telegram\.chats\[-?\d+\]\.proactive_reply(\.|$)/,
-];
-
-function classify(path: string): ConfigChangeKind {
-  if (OUTSIDE_SERVE_PATHS.has(path)) {
-    return 'outside_serve';
-  }
-  if (HOT_PATHS.has(path) || HOT_PREFIXES.some((prefix) => path.startsWith(prefix))) {
-    return 'hot';
-  }
-  // Participation schedules compile on demand from the published configuration
-  // (`ParticipationRegistry.ruleFor`), so a changed schedule takes effect with
-  // the next reload like a hot-added Chat. The object merges field by field,
-  // so every path inside either level counts.
-  if (HOT_PARTICIPATION_PATHS.some((pattern) => pattern.test(path))) {
-    return 'hot';
-  }
-  // Same for spontaneous-participation tuning: the gate resolves the current
-  // published values and resets a counter whose parameter set changed.
-  if (HOT_PROACTIVE_REPLY_PATHS.some((pattern) => pattern.test(path))) {
-    return 'hot';
-  }
-  return 'restart';
-}
 
 /**
  * Compares a file configuration with the active one and builds the candidate the
@@ -153,40 +56,6 @@ export function diffConfig(active: ConfigSource, file: ConfigSource): ConfigDiff
   };
 }
 
-/** Structural equality that ignores object key order, unlike a JSON comparison. */
-export function deepEqual(left: unknown, right: unknown): boolean {
-  if (left === right) {
-    return true;
-  }
-  if (Array.isArray(left) && Array.isArray(right)) {
-    return left.length === right.length && left.every((item, index) => deepEqual(item, right[index]));
-  }
-  if (isJsonObject(left) && isJsonObject(right)) {
-    const keys = Object.keys(left);
-    return (
-      keys.length === Object.keys(right).length &&
-      keys.every((key) => Object.hasOwn(right, key) && deepEqual(left[key], right[key]))
-    );
-  }
-  return false;
-}
-
-class ChangeRecorder {
-  readonly #changes = new Map<string, ConfigChangeKind>();
-
-  add(path: string, kind: ConfigChangeKind): void {
-    if (!this.#changes.has(path)) {
-      this.#changes.set(path, kind);
-    }
-  }
-
-  changes(): readonly ConfigChange[] {
-    return [...this.#changes.entries()]
-      .map(([path, kind]) => ({ path, kind }))
-      .sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0));
-  }
-}
-
 function mergeFileConfig(active: ConfigSource, file: ConfigSource, recorder: ChangeRecorder): FileConfig {
   const result = structuredClone(active.file);
   const activeRecord = active.file as unknown as Record<string, unknown>;
@@ -198,7 +67,12 @@ function mergeFileConfig(active: ConfigSource, file: ConfigSource, recorder: Cha
     }
     mergeField(activeRecord, fileRecord, target, key, key, recorder);
   }
-  result.telegram = mergeTelegram(active, file, recorder);
+  const mergedTelegram = mergeTelegram(active, file, recorder);
+  if (mergedTelegram === undefined) {
+    delete result.telegram;
+  } else {
+    result.telegram = mergedTelegram;
+  }
   const mergedVision = mergeVision(active, file, recorder);
   if (mergedVision === undefined) {
     delete result.vision;
@@ -216,18 +90,27 @@ function mergeFileConfig(active: ConfigSource, file: ConfigSource, recorder: Cha
 }
 
 function mergeTelegram(active: ConfigSource, file: ConfigSource, recorder: ChangeRecorder): FileConfig['telegram'] {
-  const result = structuredClone(active.file.telegram);
-  const activeRecord = active.file.telegram as unknown as Record<string, unknown>;
-  const fileRecord = file.file.telegram as unknown as Record<string, unknown>;
-  const target = result as unknown as Record<string, unknown>;
+  // The section itself is optional. Both sides merge as empty records, so each
+  // field keeps its own classification: the token is hot, everything else stays
+  // restart-only, and a section that disappears entirely keeps its restart-only
+  // fields until the next start while the token drops immediately.
+  const activeRecord = (active.file.telegram ?? {}) as Record<string, unknown>;
+  const fileRecord = (file.file.telegram ?? {}) as Record<string, unknown>;
+  const result = structuredClone(activeRecord);
   for (const key of unionKeys(activeRecord, fileRecord)) {
     if (key === 'chats') {
       continue;
     }
-    mergeField(activeRecord, fileRecord, target, key, `telegram.${key}`, recorder);
+    mergeField(activeRecord, fileRecord, result, key, `telegram.${key}`, recorder);
   }
-  result.chats = mergeChats(active, file, recorder);
-  return result;
+  const chats = mergeChats(active, file, recorder);
+  if (chats.length > 0 || active.file.telegram !== undefined || file.file.telegram !== undefined) {
+    result.chats = chats;
+  }
+  if (Object.keys(result).length === 0 && file.file.telegram === undefined) {
+    return undefined;
+  }
+  return result as FileConfig['telegram'];
 }
 
 function mergeAgent(active: ConfigSource, file: ConfigSource, recorder: ChangeRecorder): FileConfig['agent'] {
@@ -294,8 +177,8 @@ function mergeSystemPromptFile(active: ConfigSource, file: ConfigSource, recorde
 }
 
 function mergeChats(active: ConfigSource, file: ConfigSource, recorder: ChangeRecorder): FileChat[] {
-  const activeChats = new Map(active.file.telegram.chats.map((chat) => [chat.id, chat]));
-  const fileChats = new Map(file.file.telegram.chats.map((chat) => [chat.id, chat]));
+  const activeChats = new Map((active.file.telegram?.chats ?? []).map((chat) => [chat.id, chat]));
+  const fileChats = new Map((file.file.telegram?.chats ?? []).map((chat) => [chat.id, chat]));
   const activeRaw = new Map(active.raw.telegram.chats.map((chat) => [chat.id, chat]));
   const fileRaw = new Map(file.raw.telegram.chats.map((chat) => [chat.id, chat]));
   const result: FileChat[] = [];
@@ -379,67 +262,6 @@ function mergeChat(
   return result;
 }
 
-function mergeProviders(active: ConfigSource, file: ConfigSource, recorder: ChangeRecorder): FileConfig['providers'] {
-  const result: Record<string, ProviderFileConfig> = {};
-  for (const [alias, activeProvider] of Object.entries(active.file.providers)) {
-    const fileProvider = file.file.providers[alias];
-    if (fileProvider === undefined || fileProvider.kind !== activeProvider.kind) {
-      // Adding, removing or re-kinding a provider is hot: the reload rebuilds the
-      // registry and publishes it with the configuration.
-      recorder.add(`providers.${alias}`, 'hot');
-      if (fileProvider !== undefined) {
-        result[alias] = structuredClone(fileProvider);
-      }
-      continue;
-    }
-    const activeRecord = activeProvider as unknown as Record<string, unknown>;
-    const fileRecord = fileProvider as unknown as Record<string, unknown>;
-    const merged = structuredClone(activeProvider) as unknown as Record<string, unknown>;
-    for (const key of unionKeys(activeRecord, fileRecord)) {
-      if (key === 'models') {
-        continue;
-      }
-      mergeField(activeRecord, fileRecord, merged, key, `providers.${alias}.${key}`, recorder);
-    }
-    // Both kinds carry `models`: for a builtin provider the list is the enabled
-    // subset of Pi's catalog, and changing it is as hot as it is for custom.
-    merged.models = mergeModels(alias, activeProvider.models, fileProvider.models, recorder);
-    result[alias] = merged as unknown as ProviderFileConfig;
-  }
-  for (const [alias, fileProvider] of Object.entries(file.file.providers)) {
-    if (!Object.hasOwn(active.file.providers, alias)) {
-      recorder.add(`providers.${alias}`, 'hot');
-      result[alias] = structuredClone(fileProvider);
-    }
-  }
-  return result;
-}
-
-function mergeModels(
-  alias: string,
-  activeModels: readonly ModelFileConfig[],
-  fileModels: readonly ModelFileConfig[],
-  recorder: ChangeRecorder,
-): ModelFileConfig[] {
-  const activeById = new Map(activeModels.map((model) => [model.id, model]));
-  const result: ModelFileConfig[] = [];
-  // The file order wins: it is the order the provider is rebuilt in.
-  for (const model of fileModels) {
-    const path = `providers.${alias}.models[${model.id}]`;
-    const activeModel = activeById.get(model.id);
-    if (activeModel === undefined || !deepEqual(activeModel, model)) {
-      recorder.add(path, 'hot');
-    }
-    result.push(structuredClone(model));
-  }
-  for (const model of activeModels) {
-    if (!fileModels.some((candidate) => candidate.id === model.id)) {
-      recorder.add(`providers.${alias}.models[${model.id}]`, 'hot');
-    }
-  }
-  return result;
-}
-
 /**
  * The candidate's raw layer reuses the prompt texts already loaded from both
  * sides — never the disk. A chat that exists only in the active configuration is
@@ -450,76 +272,8 @@ function buildCandidateRaw(active: ConfigSource, file: ConfigSource, candidateFi
   const fileInstructions = new Map(file.raw.telegram.chats.map((chat) => [chat.id, chat.instructions]));
   const activeInstructions = new Map(active.raw.telegram.chats.map((chat) => [chat.id, chat.instructions]));
   const instructions = new Map<number, string>();
-  for (const chat of candidateFile.telegram.chats) {
+  for (const chat of candidateFile.telegram?.chats ?? []) {
     instructions.set(chat.id, fileInstructions.get(chat.id) ?? activeInstructions.get(chat.id) ?? '');
   }
   return assembleRawConfig(candidateFile, file.raw.agent.system_prompt, instructions);
-}
-
-/** Merges one field into a candidate record, honouring the whitelist. */
-function mergeField(
-  active: Record<string, unknown>,
-  file: Record<string, unknown>,
-  target: Record<string, unknown>,
-  key: string,
-  path: string,
-  recorder: ChangeRecorder,
-): void {
-  const hasActive = Object.hasOwn(active, key);
-  const hasFile = Object.hasOwn(file, key);
-  if (!hasActive && !hasFile) {
-    return;
-  }
-  if (!hasFile) {
-    const kind = classify(path);
-    recorder.add(path, kind);
-    if (kind === 'restart') {
-      target[key] = active[key];
-    } else {
-      delete target[key];
-    }
-    return;
-  }
-  if (!hasActive) {
-    const kind = classify(path);
-    recorder.add(path, kind);
-    if (kind !== 'restart') {
-      target[key] = file[key];
-    }
-    return;
-  }
-  target[key] = mergeValue(active[key], file[key], path, recorder);
-}
-
-function mergeValue(activeValue: unknown, fileValue: unknown, path: string, recorder: ChangeRecorder): unknown {
-  if (isJsonObject(activeValue) && isJsonObject(fileValue)) {
-    return mergeObject(activeValue, fileValue, path, recorder);
-  }
-  if (deepEqual(activeValue, fileValue)) {
-    return fileValue;
-  }
-  const kind = classify(path);
-  recorder.add(path, kind);
-  return kind === 'restart' ? activeValue : fileValue;
-}
-
-function mergeObject(
-  active: Record<string, unknown>,
-  file: Record<string, unknown>,
-  path: string,
-  recorder: ChangeRecorder,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const key of unionKeys(active, file)) {
-    mergeField(active, file, result, key, `${path}.${key}`, recorder);
-  }
-  return result;
-}
-
-function unionKeys(left: object, right: object): readonly string[] {
-  return [...new Set([...Object.keys(left), ...Object.keys(right)])];
-}
-
-function isJsonObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

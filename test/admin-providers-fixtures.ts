@@ -15,7 +15,7 @@ import { buildModelRegistry } from '../src/platform/providers.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from './helpers.ts';
+import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from './helpers.ts';
 
 const PASSWORD = 'correct-horse-battery';
 const directories: string[] = [];
@@ -77,7 +77,7 @@ export interface Fixture {
 }
 
 export interface FixtureOptions {
-  readonly transform?: (config: FileConfig) => void;
+  readonly transform?: (config: FixtureConfig) => void;
   readonly onRestart?: () => void;
 }
 
@@ -224,8 +224,8 @@ export function write(
 }
 
 /** Edits the file behind the panel's back, as a hand edit would. */
-export async function rewriteFile(fixture: Fixture, transform: (config: FileConfig) => void): Promise<void> {
-  const config = JSON.parse(await fixture.read()) as FileConfig;
+export async function rewriteFile(fixture: Fixture, transform: (config: FixtureConfig) => void): Promise<void> {
+  const config = JSON.parse(await fixture.read()) as FixtureConfig;
   transform(config);
   await writeFile(fixture.configPath, `${JSON.stringify(config, null, 2)}\n`);
 }

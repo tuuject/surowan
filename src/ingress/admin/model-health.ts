@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
 
-import { deepEqual } from '../../platform/config-diff.ts';
+import { deepEqual } from '../../platform/config-diff-merge.ts';
 import { sameConnection } from '../../platform/providers.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { modelCalls } from '../../store/schema.ts';

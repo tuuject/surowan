@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test, vi } from 'vitest';
 import type { CommandSender } from '../src/orchestration/bot-commands.ts';
-import type { FileConfig } from '../src/platform/config.ts';
+import type { FixtureConfig } from './helpers.ts';
 import { runStartupCatchUp } from '../src/startup-catch-up.ts';
 import {
   FIRST_CHAT_ID,
@@ -17,7 +17,7 @@ afterAll(cleanupDirectories);
 
 describe('startup catch-up commands', () => {
   const ADMIN: CommandSender = { id: 42n, name: 'Alice', username: 'alice' };
-  const admins: (config: FileConfig) => void = (config) => {
+  const admins: (config: FixtureConfig) => void = (config) => {
     config.telegram.admins = [42];
   };
 

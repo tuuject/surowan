@@ -22,7 +22,7 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
   const playgroundOnly = options.playgroundOnly === true;
   const loaded = await loadConfig(configPath);
   await assertConfigPermissions(loaded.configPath);
-  if (playgroundOnly && loaded.config.admin?.enabled !== true) {
+  if (playgroundOnly && loaded.config.admin.enabled === false) {
     throw new Error('--playground-only requires admin.enabled: the panel is the only entry point rooms have');
   }
   const secrets = new SecretStore(keyJarPath(loaded.configPath));

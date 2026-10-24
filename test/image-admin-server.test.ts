@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { createImageBridge } from '../src/image/bridge.ts';
 import { createImageService } from '../src/image/service.ts';
 import { AdminServer } from '../src/ingress/admin/server.ts';
-import type { FileConfig } from '../src/platform/config.ts';
+
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
@@ -14,7 +14,7 @@ import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from './helpers.ts';
+import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from './helpers.ts';
 
 // ---------------------------------------------------------------------------
 // Regression: the image dispatch used `'bytes' in response` to detect the
@@ -61,7 +61,7 @@ interface Fixture {
   revision(): Promise<string>;
 }
 
-async function fixture(transform?: (config: FileConfig) => void): Promise<Fixture> {
+async function fixture(transform?: (config: FixtureConfig) => void): Promise<Fixture> {
   const configPath = join(directory, 'config.jsonc');
   const staticDir = join(directory, 'bundle');
   await mkdir(join(staticDir, 'static'), { recursive: true });
