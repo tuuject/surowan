@@ -60,7 +60,7 @@ test('rejects forged, wrong-origin/RP/UV, expired, mismatched-session and reused
   expect(
     (
       await f.server.handle(
-        req('passkeys/register/verify', 'POST', `surowan_admin=${otherToken}; ${cookie(registrationOptions)}`, {
+        req('passkeys/register/verify', 'POST', `plasticwan_admin=${otherToken}; ${cookie(registrationOptions)}`, {
           name: 'wrong-session',
           response: registration(key(), ro.challenge),
         }),

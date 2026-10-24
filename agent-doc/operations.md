@@ -159,7 +159,7 @@ node src/cli.ts serve --config dev-data/config.jsonc --takeover
 
 Admin Panel 的 Models / Chats 页在有字段等待重启时提供「立即重启」（`POST /api/restart`）。它不是 supervisor，只是请求当前进程优雅退出：走上面同一套关闭流程，然后以退出码 **75**（`EX_TEMPFAIL`，与崩溃区分）退出，由外部把进程重新拉起。重启期间 Admin 页面会断开，界面轮询等待服务恢复；这段时间收到的 Telegram 消息由启动补偿拉取。
 
-只有部署方声明了监督时这个端点才可用：环境变量 `SUROWAN_SUPERVISED=1` 未设置时端点返回 409 `restart_unsupported`，界面也不显示按钮。**声明的位置是部署，不是镜像**：`Dockerfile` 故意不设这个变量（镜像无法知道自己会不会带着重启策略跑），`docker-compose.yml` 模板在 `restart: unless-stopped` 旁边设好了；用 `docker run` 的话要自己同时给出 `--restart` 和 `-e SUROWAN_SUPERVISED=1`，systemd 则配合 `Restart=always`。Electron 版由主进程重启 server。裸机前台运行时不要设置它，否则退出后不会有人把 bot 拉起来。
+只有部署方声明了监督时这个端点才可用：环境变量 `PLASTICWAN_SUPERVISED=1` 未设置时端点返回 409 `restart_unsupported`，界面也不显示按钮。**声明的位置是部署，不是镜像**：`Dockerfile` 故意不设这个变量（镜像无法知道自己会不会带着重启策略跑），`docker-compose.yml` 模板在 `restart: unless-stopped` 旁边设好了；用 `docker run` 的话要自己同时给出 `--restart` 和 `-e PLASTICWAN_SUPERVISED=1`，systemd 则配合 `Restart=always`。Electron 版由主进程重启 server。裸机前台运行时不要设置它，否则退出后不会有人把 bot 拉起来。
 
 执行前会按启动流程校验磁盘上的配置（权限检查与完整 `loadConfig`）：配置无效时拒绝重启并返回 422，否则进程退出后起不来，bot 就停了。本期没有「上次可用配置」回退，启动期才失败的情况（SecretRef 解析失败、Pi 升级导致 builtin 模型消失等）仍然需要人工修复。
 
@@ -382,9 +382,9 @@ docker compose logs -f          # 确认 serve_started 与 config_hash
 因为最后一步把参数原样传给 CLI，其它子命令都能用同一镜像跑：
 
 ```bash
-docker compose run --rm surowan check-config --config /config/config.jsonc
-docker compose run --rm surowan doctor --config /config/config.jsonc
-docker compose run --rm surowan backup --config /config/config.jsonc
+docker compose run --rm plasticwan check-config --config /config/config.jsonc
+docker compose run --rm plasticwan doctor --config /config/config.jsonc
+docker compose run --rm plasticwan backup --config /config/config.jsonc
 ```
 
 注意：`serve` 是长期进程且受 `ServeLock` 约束，同一 `data_dir` 只能有一个实例。上面的一次性命令（`check-config`/`doctor`/`backup`）都不启动 `serve`，可以与运行中的容器共存；但**不要**用 `docker compose run` 再起一个 `serve`。例外是 `admin-reset`：它要独占数据库，运行前必须先停止同 `data_dir` 的 Bot 容器（`docker compose stop surowan`），否则 `ServeLock` 会拒绝执行，见「[管理员凭据与 Passkey 恢复](#管理员凭据与-passkey-恢复admin-reset)」。
@@ -393,7 +393,7 @@ docker compose run --rm surowan backup --config /config/config.jsonc
 
 `admin.host` 不再限制回环。容器内绑定 `127.0.0.1` 时，Docker 的端口发布转发到容器在 bridge 网络上的地址、够不到 loopback，所以 `docker-compose.yml` 里的 `ports:` 默认是注释掉的；要在容器外直接访问面板，需把 `admin.host` 显式改为 `0.0.0.0` 再取消 `ports:` 注释——这会把面板暴露给宿主网络，TLS 与访问控制由运维承担。更稳妥的访问方式：
 
-- `docker compose exec surowan <客户端> http://127.0.0.1:8787/...`（镜像未显式安装 curl，先确认基础镜像里有没有）；
+- `docker compose exec plasticwan <客户端> http://127.0.0.1:8787/...`（镜像未显式安装 curl，先确认基础镜像里有没有）；
 - 让反向代理与容器共享网络命名空间（`network_mode: "service:surowan"`），由它承担 TLS 与对外暴露。
 
 配置变更同样按白名单区分：白名单字段可在面板上应用，其余字段改完 `./config/config.jsonc` 后 `docker compose restart`，并比对新日志里的 `config_hash`（热应用则比对 `config_reloaded` 的 `active_hash`）。

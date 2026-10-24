@@ -48,7 +48,7 @@ export SUROWAN_API_KEY='…'
 
 ```bash
 docker compose pull
-docker compose run --rm surowan check-config --config /config/config.jsonc
+docker compose run --rm plasticwan check-config --config /config/config.jsonc
 ```
 
 `check-config` 成功后才继续。它不连接 Telegram 或模型；需要真实连通性检查时，在获准消耗少量 Token 的环境运行 `doctor`。
@@ -57,7 +57,7 @@ docker compose run --rm surowan check-config --config /config/config.jsonc
 
 ```bash
 docker compose up -d
-docker compose logs -f surowan
+docker compose logs -f plasticwan
 ```
 
 日志出现 `serve_started` 表示服务已开始轮询。向允许的 Chat 发送一条消息，等待配置的 `bucket_window_seconds`。模型可以选择沉默；要区分未触发与主动不发言，请看 [排查问题](../operations/troubleshooting.md)。

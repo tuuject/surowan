@@ -58,7 +58,7 @@ describe('surowan-utils invocation media', () => {
         return;
       }
       // Chunked (no content-length) so only the streaming cap can stop it.
-      response.writeHead(200, { 'content-type': 'image/jpeg', 'x-surowan-media-variant': 'original' });
+      response.writeHead(200, { 'content-type': 'image/jpeg', 'x-plasticwan-media-variant': 'original' });
       response.end(oversized);
     });
     let manifest: MediaManifest | undefined;
@@ -98,7 +98,7 @@ describe('surowan-utils invocation media', () => {
         jsonResponse(response, 404, { error: 'media_missing' });
         return;
       }
-      response.writeHead(200, { 'content-type': 'image/jpeg', 'x-surowan-media-variant': 'original' });
+      response.writeHead(200, { 'content-type': 'image/jpeg', 'x-plasticwan-media-variant': 'original' });
       response.end(body.subarray(0, size * 1024 * 1024));
     });
     let manifest: MediaManifest | undefined;

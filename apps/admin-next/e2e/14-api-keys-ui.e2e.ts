@@ -40,7 +40,7 @@ test.beforeAll(async ({ request }) => {
  */
 test.describe('API key management UI', () => {
   test.beforeEach(async ({ context }) => {
-    await context.addCookies([{ name: 'surowan_admin', value: sessionToken, url: await adminBase() }]);
+    await context.addCookies([{ name: 'plasticwan_admin', value: sessionToken, url: await adminBase() }]);
   });
 
   test('creates a key from the sidebar, shows it once, and drops the plaintext afterwards', async ({ page }) => {

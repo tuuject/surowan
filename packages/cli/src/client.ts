@@ -102,7 +102,7 @@ export class AdminClient {
       return {
         bytes: body.bytes,
         contentType: normalizeContentType(response.headers.get('content-type')),
-        variant: response.headers.get('x-surowan-media-variant'),
+        variant: response.headers.get('x-plasticwan-media-variant'),
       };
     } catch (error) {
       throw translateFetchError(error, this.#defaultTimeoutMs);

@@ -55,7 +55,7 @@ export function installAdminProviderHooks(): void {
   });
 
   afterEach(async () => {
-    delete process.env.SUROWAN_SUPERVISED;
+    delete process.env.PLASTICWAN_SUPERVISED;
     await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
   });
 }

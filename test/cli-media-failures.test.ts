@@ -80,14 +80,14 @@ describe('surowan-utils invocation media', () => {
         return;
       }
       if (path.endsWith('/media/6/content')) {
-        response.writeHead(200, { 'content-type': 'image/jpeg', 'x-surowan-media-variant': 'original' });
+        response.writeHead(200, { 'content-type': 'image/jpeg', 'x-plasticwan-media-variant': 'original' });
         response.write(JPEG_BYTES);
         // Never end the body: only the client-side timeout can stop the read.
         return;
       }
       binaryResponse(response, 200, JPEG_BYTES, {
         'content-type': 'image/jpeg',
-        'x-surowan-media-variant': 'preview',
+        'x-plasticwan-media-variant': 'preview',
       });
     });
     let manifest: MediaManifest | undefined;

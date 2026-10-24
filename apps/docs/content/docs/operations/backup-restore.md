@@ -14,7 +14,7 @@ description: 创建数据库备份、理解保留策略，并在隔离环境验�
 Docker：
 
 ```bash
-docker compose run --rm surowan backup --config /config/config.jsonc
+docker compose run --rm plasticwan backup --config /config/config.jsonc
 ```
 
 宿主机：

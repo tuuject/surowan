@@ -112,7 +112,7 @@ export function createControlAdminHandler(deps: ControlAdminDeps) {
         {
           error: 'restart_unsupported',
           message:
-            'This deployment does not declare an external supervisor; set SUROWAN_SUPERVISED=1 when something restarts the process',
+            'This deployment does not declare an external supervisor; set PLASTICWAN_SUPERVISED=1 when something restarts the process',
         },
         409,
       );

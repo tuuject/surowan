@@ -95,7 +95,7 @@ RUN mkdir -p /data /config && chown surowan:surowan /data /config
 # volume the entrypoint chowns to the runtime user on every boot.
 RUN npm config set --global cache /data/.npm-cache
 
-# SUROWAN_SUPERVISED is deliberately NOT set here: the image cannot know
+# PLASTICWAN_SUPERVISED is deliberately NOT set here: the image cannot know
 # whether it will be run with a restart policy, and declaring supervision
 # without one would offer a "restart now" button that stops the bot for good.
 # The deployment sets it — see docker-compose.yml, next to `restart:`.

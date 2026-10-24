@@ -26,7 +26,7 @@ export async function signIn(request: APIRequestContext): Promise<ApiKeySession>
   expect(response.status()).toBe(200);
   const header = response.headers()['set-cookie'] ?? '';
   const cookie = header.slice(0, header.indexOf(';'));
-  expect(cookie.startsWith('surowan_admin=')).toBe(true);
+  expect(cookie.startsWith('plasticwan_admin=')).toBe(true);
   return { cookie, sessionToken: cookie.slice(cookie.indexOf('=') + 1) };
 }
 
