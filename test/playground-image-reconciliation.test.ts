@@ -135,7 +135,7 @@ describe('playground image generation', () => {
       .run();
     store.orm.insert(conversations).values({ id: 43n, chatId: 200n, createdAt: now, updatedAt: now }).run();
 
-    const eligible = generationEligibilityForHosts(store, ['playground']);
+    const eligible = generationEligibilityForHosts(store, ['playground'], () => true);
     expect(eligible({ id: 'x', actorId: 'agent:42' })).toBe(false);
     expect(eligible({ id: 'x', actorId: 'agent:43' })).toBe(true);
     // An actor that is not one conversation's agent belongs to no host, and a

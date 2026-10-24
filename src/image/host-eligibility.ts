@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import type { HostReadiness } from '../orchestration/host-scope.ts';
 import type { HostKind } from '../platform/im-host.ts';
 import { chats, conversations } from '../store/schema.ts';
 import type { BusinessStore } from '../store/store.ts';
@@ -7,11 +8,11 @@ import type { BusinessStore } from '../store/store.ts';
  * Which image generations one process may execute.
  *
  * The image database is shared by every host of one installation, but a
- * process may serve only part of them (`serve --playground-only`). The worker's
+ * process may serve only some of them, and a host it serves may still not be
+ * ready to act (Telegram disabled, misconfigured or connecting). The worker's
  * recovery, queue and claim paths and the bridge's reconciliation all ask the
- * same question, so they get the same answer from one predicate: work belonging
- * to a host this process does not serve stays untouched — still queued, still
- * waiting — for the process that does serve it.
+ * same live question, so work that cannot run now stays queued for the pass
+ * that can.
  *
  * A generation whose actor is not a conversation's agent (the Admin workspace
  * submits with an admin actor) belongs to no host and touches no transport, so
@@ -20,10 +21,8 @@ import type { BusinessStore } from '../store/store.ts';
 export function generationEligibilityForHosts(
   store: BusinessStore,
   hosts: readonly HostKind[],
+  isHostReady: HostReadiness,
 ): (generation: { readonly id: string; readonly actorId: string }) => boolean {
-  if (hosts.includes('telegram') && hosts.includes('playground')) {
-    return () => true;
-  }
   return (generation) => {
     const conversationId = agentConversationId(generation.actorId);
     if (conversationId === null) {
@@ -38,7 +37,8 @@ export function generationEligibilityForHosts(
     if (row === undefined) {
       return false;
     }
-    return row.hostKind === 'telegram' ? hosts.includes('telegram') : hosts.includes('playground');
+    const host: HostKind = row.hostKind === 'telegram' ? 'telegram' : 'playground';
+    return hosts.includes(host) && isHostReady(host);
   };
 }
 

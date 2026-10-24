@@ -2,6 +2,7 @@ import { eq, type SQL, sql } from 'drizzle-orm';
 import { AGENT_PROMPT_VERSION } from '../../platform/agent-protocol.ts';
 import type { RawConfig } from '../../platform/config.ts';
 import { completeAgentSettings, resolveAgentSettings } from '../../platform/config-resolve.ts';
+import type { HostKind } from '../../platform/im-host.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { enqueueInvocation } from '../../store/invocation-enqueue.ts';
 import { snapshotInvocation } from '../../store/invocation-snapshot.ts';
@@ -10,6 +11,7 @@ import type { ParticipationRegistry } from '../../store/participation.ts';
 import { buckets, rooms } from '../../store/schema.ts';
 import { activeSleepUntil } from '../../store/sleep.ts';
 import { type BusinessStore, isChatPaused, resolveChatConfig } from '../../store/store.ts';
+import { activeHosts, conversationsOfHosts, type HostReadiness } from '../host-scope.ts';
 import type { BucketAttachmentTarget } from '../invocation-queue.ts';
 import type { ProactiveReplyGate } from '../proactive-reply.ts';
 
@@ -26,10 +28,13 @@ export interface InvocationQueueDeps {
   readonly tasks: LongTaskService;
   readonly proactive: ProactiveReplyGate | undefined;
   /**
-   * Conversations this process serves, as a subquery. Undefined means every
-   * host (a shared process).
+   * Hosts this process serves. Undefined means every host (a shared process).
+   * Every query narrows this by `isHostReady`, so a host whose connection is
+   * not usable keeps its work untouched.
    */
-  readonly scope: SQL | undefined;
+  readonly hosts: readonly HostKind[] | undefined;
+  /** Whether one host may execute work at this moment. */
+  readonly isHostReady: HostReadiness;
   /** The global sleep state is Telegram's; a process without it never reads or clears it. */
   readonly servesTelegram: boolean;
   /** `RECOVERY_MAX_AGE_MS`, owned by the service module. */
@@ -63,10 +68,9 @@ export interface ReceiptRow {
   readonly host_kind: string;
 }
 
-/** `conversation_id`/`bucket_id` rows of this process's hosts; always true when unscoped. */
+/** `conversation_id`/`bucket_id` rows of this process's hosts that are ready now. */
 export function servedConversations(deps: InvocationQueueDeps, column: SQL): SQL {
-  const scope = deps.scope;
-  return scope === undefined ? sql`1 = 1` : sql`${column} IN (${scope})`;
+  return conversationsOfHosts(activeHosts(deps.hosts, deps.isHostReady), column);
 }
 
 /** `activeSleepUntil` for a process that serves Telegram; null otherwise, without touching the row. */

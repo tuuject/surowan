@@ -5,6 +5,7 @@ import type { LongTaskService } from '../store/long-tasks.ts';
 import { PlaygroundStore } from '../store/playground.ts';
 import { buckets, invocations } from '../store/schema.ts';
 import type { BusinessStore } from '../store/store.ts';
+import { activeHosts, conversationsOfHosts, type HostReadiness } from './host-scope.ts';
 import type { InvocationQueueService } from './invocation-queue.ts';
 import type { ActiveInvocation, InvocationRow } from './scheduler-execution.ts';
 
@@ -20,6 +21,8 @@ export type SchedulerLoopDeps = {
   readonly tasks: LongTaskService;
   /** Hosts this scheduler serves; undefined means every host of the database. */
   readonly hosts: readonly HostKind[] | undefined;
+  /** Whether one host may execute work right now. */
+  readonly isHostReady: HostReadiness;
   readonly active: Map<string, ActiveInvocation>;
   /** The loop's own flag: it stops launching as soon as `stop` clears it. */
   readonly isRunning: () => boolean;
@@ -32,20 +35,12 @@ export type SchedulerLoopDeps = {
 };
 
 /**
- * `conversation_id`/`bucket_id` rows of this scheduler's hosts; always true
- * when unscoped. A single-host process must not launch, recover or wait on
- * another host's work.
+ * `conversation_id`/`bucket_id` rows of the hosts this pass may touch: the
+ * process scope narrowed by live connection readiness. Work of a host that is
+ * not ready is never launched, recovered or waited on here.
  */
 function servedConversations(deps: SchedulerLoopDeps, column: SQL): SQL {
-  const hosts = deps.hosts;
-  if (hosts === undefined) {
-    return sql`1 = 1`;
-  }
-  return sql`${column} IN (SELECT v.id FROM conversations v JOIN chats c ON c.id = v.chat_id
-      WHERE c.host_kind IN (${sql.join(
-        hosts.map((host) => sql`${host}`),
-        sql`, `,
-      )}))`;
+  return conversationsOfHosts(activeHosts(deps.hosts, deps.isHostReady), column);
 }
 
 /**
@@ -127,7 +122,7 @@ export function nextDelayMilliseconds(deps: SchedulerLoopDeps): number {
   if (queued !== undefined) {
     deadlines.push(Date.parse(queued.deadline_at));
   }
-  if (deps.hosts === undefined || deps.hosts.includes('playground')) {
+  if (activeHosts(deps.hosts, deps.isHostReady).includes('playground')) {
     const expiry = new PlaygroundStore(deps.store.orm).nextQueuedExpiry();
     if (expiry !== undefined) {
       deadlines.push(expiry);
@@ -144,7 +139,7 @@ export function launchQueued(deps: SchedulerLoopDeps): void {
   // Room invocations that queued too long are expired visibly; Telegram
   // collecting/debounce buckets keep their own lifecycle. A scheduler that
   // does not serve rooms leaves their queue to the process that does.
-  if (deps.hosts === undefined || deps.hosts.includes('playground')) {
+  if (activeHosts(deps.hosts, deps.isHostReady).includes('playground')) {
     new PlaygroundStore(deps.store.orm).expireQueued();
   }
   while (deps.isRunning()) {

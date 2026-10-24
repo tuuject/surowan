@@ -9,8 +9,9 @@
  * call, so the room's Release runs the production runtime end to end.
  *
  * The same database also holds synthetic Telegram work: after the room round
- * finishes, that work must be exactly as it was - not recovered, not expired,
- * not launched and not skipped by the playground scheduler.
+ * finishes, that work must stay put - not recovered, not expired, not launched
+ * and not skipped by the playground scheduler. Timers still complete on
+ * schedule, but their receipts remain pending because Telegram is not ready.
  */
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -388,14 +389,16 @@ test('a playground-only process runs the room round and leaves Telegram work unt
     const lock = await ServeLock.acquire(dataDir);
     await lock.release();
 
-    // The persisted Telegram rows, read after the process stopped: the alarm
-    // API reports a completed timer whose receipt is still pending as
-    // `pending` too, so only the ledger itself proves nothing was touched.
+    // The persisted Telegram rows, read after the process stopped. With no
+    // Telegram instance the overdue timer still completes, but its receipt is
+    // never claimed and no invocation is queued for it. Everything else stays
+    // exactly where it was: no recovery, no expiry, no launch.
     const after = await SqliteStore.open((await loadConfig(configPath)).config);
     try {
       const row = (query: string) => after.db.prepare(query).get() as Record<string, unknown> | undefined;
-      expect(row('SELECT state FROM long_tasks WHERE id = 900')).toEqual({ state: 'waiting' });
-      expect(row('SELECT COUNT(*) AS n FROM task_receipts WHERE task_id = 900')).toEqual({ n: 0n });
+      expect(row('SELECT state FROM long_tasks WHERE id = 900')).toEqual({ state: 'completed' });
+      expect(row('SELECT COUNT(*) AS n FROM task_receipts WHERE task_id = 900')).toEqual({ n: 1n });
+      expect(row('SELECT state FROM task_receipts WHERE task_id = 900')).toEqual({ state: 'pending' });
       expect(row('SELECT state FROM task_receipts WHERE task_id = 901')).toEqual({ state: 'claimed' });
       expect(row('SELECT state, error_code FROM buckets WHERE id = 902')).toEqual({
         state: 'collecting',

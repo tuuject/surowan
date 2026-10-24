@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { HostKind } from '../platform/im-host.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import { snapshotInvocation } from '../store/invocation-snapshot.ts';
@@ -6,6 +6,7 @@ import { LongTaskService } from '../store/long-tasks.ts';
 import { ParticipationRegistry } from '../store/participation.ts';
 import { buckets, invocationBuckets } from '../store/schema.ts';
 import type { BusinessStore } from '../store/store.ts';
+import { everyHostReady, type HostReadiness } from './host-scope.ts';
 import { processDueBuckets } from './invocation-queue/due.ts';
 import {
   releaseUninjectedBuckets as releaseUninjected,
@@ -78,31 +79,26 @@ export class InvocationQueueService {
     tasks = new LongTaskService(store.orm),
     proactive?: ProactiveReplyGateOptions,
     hosts?: readonly HostKind[],
+    isHostReady: HostReadiness = everyHostReady,
   ) {
     /**
-     * Conversations this process serves, as a subquery. Undefined means every
-     * host (a shared process); a single-host process passes its own set so
-     * recovery, due batches and receipts never read or write another host's
-     * work - the Telegram half of a mixed database is then untouched.
+     * Conversations this process serves. Undefined means every host (a shared
+     * process); a single-host process passes its own set so recovery, due
+     * batches and receipts never read or write another host's work. Readiness
+     * is applied per query, not copied, so a connection that becomes usable
+     * resumes its work on the next pass.
      */
-    const scope =
-      hosts === undefined || hosts.length === 0
-        ? undefined
-        : sql`SELECT v.id FROM conversations v JOIN chats c ON c.id = v.chat_id
-              WHERE c.host_kind IN (${sql.join(
-                hosts.map((host) => sql`${host}`),
-                sql`, `,
-              )})`;
     this.#deps = {
       store,
       configStore,
       participation: new ParticipationRegistry(configStore),
       attachment,
       tasks,
+      hosts: hosts === undefined || hosts.length === 0 ? undefined : hosts,
+      isHostReady,
       // The global sleep state is Telegram's; a process without it never reads or clears it.
       servesTelegram: hosts === undefined || hosts.length === 0 || hosts.includes('telegram'),
       proactive: proactive === undefined ? undefined : new ProactiveReplyGate(store.orm, configStore, proactive),
-      scope,
       recoveryMaxAgeMs: RECOVERY_MAX_AGE_MS,
       startupCatchUpStateKey: STARTUP_CATCH_UP_STATE_KEY,
       minimumDeferMs: MINIMUM_DEFER_MS,

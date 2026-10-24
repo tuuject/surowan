@@ -7,50 +7,49 @@
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { Bot } from 'grammy';
-import { PlaygroundAssetStore } from '../../capabilities/media/local-assets.ts';
 import { McpManager } from '../../capabilities/mcp.ts';
+import { PlaygroundAssetStore } from '../../capabilities/media/local-assets.ts';
 import { MediaService } from '../../capabilities/media/media.ts';
-import { TelegramMediaClient, type MediaDownloader } from '../../capabilities/media/media-download.ts';
+import type { MediaDownloader } from '../../capabilities/media/media-download.ts';
 import { StickerService } from '../../capabilities/stickers.ts';
-import type { TelegramHost } from './telegram-host.ts';
 import { MemoryStore } from '../../context/memory.ts';
-import { PlaygroundStore } from '../../store/playground.ts';
 import { createImageBridge, type ImageBridge } from '../../image/bridge.ts';
 import { generationEligibilityForHosts } from '../../image/host-eligibility.ts';
 import { createImageService, type ImageService } from '../../image/service.ts';
 import { PlaygroundIngress } from '../../ingress/playground.ts';
 import { TelegramIngestion } from '../../ingress/telegram-ingestion.ts';
 import { BOT_COMMANDS, registerBotCommands } from '../../orchestration/bot-commands.ts';
+import type { HostReadiness } from '../../orchestration/host-scope.ts';
 import { KeyedSemaphore } from '../../platform/concurrency.ts';
+import { ImConnectionRegistry } from '../../platform/im-connection.ts';
 import type { HostKind, ImHost } from '../../platform/im-host.ts';
 import { AgentModelSwitcher } from '../../platform/model-switch.ts';
 import { buildModelRegistry } from '../../platform/providers.ts';
 import { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { WARNING_READ_RETENTION_DAYS as DEFAULT_WARNING_READ_RETENTION_DAYS } from '../../platform/warning-catalog.ts';
-import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from './system-resources.ts';
-import { BUNDLED_MANUAL_DIR, bundledManualSpace, FileSystemDocSpaces } from './doc-spaces.ts';
 import { BUILTIN_PLUGINS } from '../../plugins/builtin.ts';
-import { loadPlugins, type LoadedPlugins } from '../../plugins/plugin.ts';
-import { ServeLock, SqliteStore, stopRunningInstance, watchStopRequests } from './database.ts';
+import { type LoadedPlugins, loadPlugins } from '../../plugins/plugin.ts';
 import { LongTaskService } from '../../store/long-tasks.ts';
+import { PlaygroundStore } from '../../store/playground.ts';
 import { recordPromptVersionsFromConfig } from '../../store/prompt-versions.ts';
-import { WarningService } from '../../store/warnings.ts';
-import { createHostTooling, type HostTooling } from './host-tooling.ts';
 import { appState } from '../../store/schema.ts';
+import { WarningService } from '../../store/warnings.ts';
+import { ServeLock, SqliteStore, stopRunningInstance, watchStopRequests } from './database.ts';
+import { BUNDLED_MANUAL_DIR, bundledManualSpace, FileSystemDocSpaces } from './doc-spaces.ts';
+import { createHostTooling, type HostTooling } from './host-tooling.ts';
 import { logEvent, type ServeContext } from './runtime-host-support.ts';
+import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from './system-resources.ts';
+import type { TelegramHost } from './telegram-host.ts';
+import { ForwardingTelegramMedia, type TelegramIdentity, TelegramInstanceHolder } from './telegram-instance.ts';
 
 /** The identity a Bot reports for itself; absent on a Playground-only process. */
-export interface TelegramIdentity {
-  readonly id: number;
-  readonly first_name: string;
-  readonly last_name?: string;
-  readonly username?: string;
-}
+export type { TelegramIdentity } from './telegram-instance.ts';
 
 /** What the environment phase produced: the resolved token and the open store. */
 export interface ServeEnvironment {
   readonly token: string | undefined;
   readonly store: SqliteStore;
+  readonly connections: ImConnectionRegistry;
 }
 
 /** Every live object the running phases share, built once and passed by reference. */
@@ -64,11 +63,17 @@ export interface ServeServices {
   readonly bot: Bot | undefined;
   readonly me: TelegramIdentity | undefined;
   readonly ingestion: TelegramIngestion | undefined;
+  /** The one slot the Telegram adapters read; empty while Telegram is stopped. */
+  readonly telegram: TelegramInstanceHolder;
+  /** Live per-namespace connection state, shared by the panel and the Scheduler. */
+  readonly connections: ImConnectionRegistry;
+  /** Whether one host may execute work right now. */
+  readonly isHostReady: HostReadiness;
   readonly modelGate: KeyedSemaphore;
   readonly playgroundAssets: PlaygroundAssetStore;
   readonly media: MediaService;
   readonly mediaClient: MediaDownloader;
-  readonly mcpManager: McpManager | undefined;
+  readonly mcpManager: McpManager;
   readonly tasks: LongTaskService;
   readonly warnings: WarningService;
   readonly playgroundStore: PlaygroundStore;
@@ -82,7 +87,7 @@ export interface ServeServices {
 
 /** The two transports this process exposes, plus the identity a room shows. */
 export interface ServeHosts {
-  readonly telegramHost: TelegramHost | undefined;
+  readonly telegramHost: TelegramHost;
   readonly playgroundHost: ImHost;
   readonly playgroundSelfName: string;
 }
@@ -101,6 +106,9 @@ export async function openServeEnvironment(session: ServeContext): Promise<Serve
   // token means Telegram is disabled, which is now a legal configuration.
   const tokenReference = loaded.config.telegram.token;
   const token = playgroundOnly || tokenReference === undefined ? undefined : await secrets.resolve(tokenReference);
+  // One registry per process. Nothing has opened a connection yet, so every IM
+  // namespace starts disabled; the phases below publish each transition.
+  const connections = new ImConnectionRegistry();
   if (takeover) {
     // Stop the incumbent only once this process knows it can start at all:
     // the config, its permissions and the bot token are checked by now.
@@ -117,7 +125,7 @@ export async function openServeEnvironment(session: ServeContext): Promise<Serve
   // The startup load is the first place a hand-edited prompt file becomes
   // visible to the process; record the starting versions before any apply.
   recordPromptVersionsFromConfig(openedStore.orm, loaded.config);
-  return { token, store: openedStore };
+  return { token, store: openedStore, connections };
 }
 
 /**
@@ -127,13 +135,15 @@ export async function openServeEnvironment(session: ServeContext): Promise<Serve
  */
 export async function startServeServices(session: ServeContext, environment: ServeEnvironment): Promise<ServeServices> {
   const { loaded, secrets, playgroundOnly, state } = session;
-  const { token, store } = environment;
+  const { token, store, connections } = environment;
   const openedStore = store;
-  // The hosts this process constructs. Image work, long-task timers and the
-  // scheduler are all scoped by this one set: a Playground-only process must
-  // never execute, recover or complete Telegram work it cannot deliver.
-  const servedHosts: readonly HostKind[] = playgroundOnly ? ['playground'] : ['telegram', 'playground'];
-  const imageEligible = generationEligibilityForHosts(openedStore, servedHosts);
+  // Hosts are fixed for the process lifetime. Whether one may execute work is a
+  // live question answered by `isHostReady`; a Telegram that is disabled, still
+  // connecting or misconfigured keeps its work in place instead of having the
+  // whole host disappear from the Scheduler and the image worker.
+  const servedHosts: readonly HostKind[] = ['telegram', 'playground'];
+  const isHostReady: HostReadiness = (host) => host === 'playground' || connections.isReady(host);
+  const imageEligible = generationEligibilityForHosts(openedStore, servedHosts, isHostReady);
   const imageService = createImageService(openedStore, loaded.config, {
     logger: { warn: (message) => logEvent('image_service_warning', { message }) },
     executionEligibility: imageEligible,
@@ -165,10 +175,11 @@ export async function startServeServices(session: ServeContext, environment: Ser
   });
   state.warnings = warnings;
   const modelSwitcher = new AgentModelSwitcher(configStore);
-  // A Playground-only process owns no Telegram objects at all: no Bot, no
-  // command registration, no webhook delete, no ingestion, no sticker sync
-  // and no production MCP. What remains is the shared store, the scheduler,
-  // the panel and the room write path.
+  // Telegram objects exist only while the process holds an instance. A
+  // Playground-only process (and a deployment with no token) owns none: no
+  // Bot, no command registration, no webhook delete, no ingestion and no
+  // sticker sync. The panel and room write path are independent of Telegram.
+  const telegram = new TelegramInstanceHolder();
   let me: TelegramIdentity | undefined;
   let ingestion: TelegramIngestion | undefined;
   let bot: Bot | undefined;
@@ -200,15 +211,18 @@ export async function startServeServices(session: ServeContext, environment: Ser
         .run();
     }
     ingestion = new TelegramIngestion(openedStore, configStore, me);
+    telegram.set({ api: bot.api, bot, token, me });
+    connections.set('telegram', {
+      status: 'connected',
+      since: new Date().toISOString(),
+      bot: { id: String(me.id), username: me.username ?? null },
+    });
   }
   const modelGate = new KeyedSemaphore();
-  // Without a Bot there is no Telegram transport to download through; room
-  // media is read from its own local assets, so the refusal is unreachable
-  // for a room and explicit for anything else.
-  const mediaClient: MediaDownloader =
-    bot === undefined
-      ? { download: () => Promise.reject(new Error('this process has no Telegram media transport')) }
-      : new TelegramMediaClient(bot.api, token as string);
+  // One downloader for the process lifetime: it follows the current instance,
+  // and refuses explicitly when there is none. Room media is read from its own
+  // local assets, so that refusal is unreachable for a room.
+  const mediaClient: MediaDownloader = new ForwardingTelegramMedia(telegram);
   const playgroundAssets = new PlaygroundAssetStore({
     orm: openedStore.orm,
     root: join(configStore.current().config.data_dir, 'images', 'playground'),
@@ -228,7 +242,9 @@ export async function startServeServices(session: ServeContext, environment: Ser
     await stickerService.sync();
     stickerService.start();
   }
-  const mcpManager = playgroundOnly ? undefined : new McpManager(store, loaded.config, secrets);
+  // MCP does not belong to Telegram: it is always constructed and started,
+  // whether or not this process holds a Telegram instance.
+  const mcpManager = new McpManager(store, loaded.config, secrets);
   state.mcp = mcpManager;
   const memoryStore = new MemoryStore(openedStore.orm);
   const tasks = new LongTaskService(openedStore.orm, () => state.scheduler?.wake(), servedHosts);
@@ -271,7 +287,7 @@ export async function startServeServices(session: ServeContext, environment: Ser
     media,
     memory: memoryStore,
     ...(stickerService === undefined ? {} : { stickers: stickerService }),
-    ...(mcpManager === undefined ? {} : { mcp: mcpManager }),
+    mcp: mcpManager,
     tasks,
     docSpaces,
     ...(bridge === undefined ? {} : { imageBridge: bridge }),
@@ -293,6 +309,9 @@ export async function startServeServices(session: ServeContext, environment: Ser
     bot,
     me,
     ingestion,
+    telegram,
+    connections,
+    isHostReady,
     modelGate,
     playgroundAssets,
     media,

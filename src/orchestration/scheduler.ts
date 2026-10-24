@@ -4,6 +4,7 @@ import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../pla
 import { LongTaskService } from '../store/long-tasks.ts';
 import type { BusinessStore } from '../store/store.ts';
 import type { WarningService } from '../store/warnings.ts';
+import { everyHostReady, type HostReadiness } from './host-scope.ts';
 import { type BucketAttachmentTarget, InvocationQueueService } from './invocation-queue.ts';
 import type { ProactiveReplyGateOptions } from './proactive-reply.ts';
 import {
@@ -58,10 +59,20 @@ export class BucketScheduler {
     /** Hosts this scheduler serves; undefined means every host of the database. */
     hosts?: readonly HostKind[],
     warnings?: WarningService,
+    /** Whether one host may execute work right now; every host by default. */
+    isHostReady: HostReadiness = everyHostReady,
   ) {
     this.#store = store;
     this.#hosts = hosts === undefined || hosts.length === 0 ? undefined : hosts;
-    this.#queue = new InvocationQueueService(store, configStore, attachment, tasks, proactive, this.#hosts);
+    this.#queue = new InvocationQueueService(
+      store,
+      configStore,
+      attachment,
+      tasks,
+      proactive,
+      this.#hosts,
+      isHostReady,
+    );
     this.#executionDeps = {
       store,
       configStore,
@@ -80,6 +91,7 @@ export class BucketScheduler {
       queue: this.#queue,
       tasks,
       hosts: this.#hosts,
+      isHostReady,
       active: this.#active,
       isRunning: () => this.#running,
       execute: (invocation, snapshot, controller) =>
