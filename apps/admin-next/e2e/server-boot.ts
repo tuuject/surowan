@@ -11,6 +11,7 @@ import { join, resolve } from 'node:path';
 import { serve } from '@hono/node-server';
 import { ConfigReloader } from '../../../src/adapters/local-monolith/config-reload.ts';
 import { AdminServer } from '../../../src/ingress/admin/server.ts';
+import { ImConnectionRegistry } from '../../../src/platform/im-connection.ts';
 import { keyJarPath } from '../../../src/platform/key-jar.ts';
 import { AgentModelSwitcher } from '../../../src/platform/model-switch.ts';
 import { buildModelRegistry } from '../../../src/platform/providers.ts';
@@ -43,6 +44,10 @@ export async function main(): Promise<void> {
 
   const secrets = new SecretStore(keyJarPath(configPath));
   const registry = await buildModelRegistry(loaded.config, null, secrets);
+  // The fixture runs no connection manager; tests move this registry between
+  // states to render the Telegram page and the standing warnings.
+  const connections = new ImConnectionRegistry();
+  state.connections = connections;
 
   // Bind the loopback listener FIRST so the random port is known before the
   // passkeys origin is derived from it; `AdminServer` reads `admin.public_url`
@@ -103,6 +108,7 @@ export async function main(): Promise<void> {
   state.admin = new AdminServer({
     store,
     configStore,
+    connections,
     modelSwitcher,
     configReloader,
     secrets,

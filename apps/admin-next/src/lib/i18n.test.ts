@@ -147,5 +147,13 @@ describe('language switching', () => {
     expect(i18n.t('pages.memories.ttlUnitDays')).toBe('天');
     expect(i18n.t('brand.name')).toBe('塑料碗');
     expect(i18n.t('brand.loginTitle')).toBe('塑料碗管理端登录');
+    expect(i18n.t('pages.warnings.codes.telegram_network_error.title')).toBe('未能成功连接 Telegram 服务器');
+    expect(i18n.t('pages.warnings.codes.telegram_config_error.unauthorized')).toBe(
+      '你的 Telegram Token 已被吊销或无效',
+    );
+    expect(i18n.t('pages.warnings.codes.telegram_config_error.conflict')).toBe(
+      '这个 Telegram Token 正在被其他程序使用',
+    );
+    expect(i18n.t('pages.warnings.codes.telegram_config_error.token_unreadable')).toBe('无法读取 Telegram Token');
   });
 });

@@ -1,0 +1,38 @@
+import type { telegram as telegramEn } from '../../en/pages/telegram.ts';
+
+export const telegram: typeof telegramEn = {
+  title: 'Telegram 设置',
+  description: '把塑料碗接到 Telegram。Bot Token 只写入 key.json，之后不会回显。',
+  connectionTitle: '连接',
+  fieldStatus: '状态',
+  fieldSince: '自',
+  fieldBot: 'Bot',
+  noBot: '尚未取得身份',
+  status: {
+    disabled: '停用',
+    connected: '正常',
+    network_error: '网络异常',
+    config_error: '配置异常',
+  },
+  reason: {
+    unauthorized: 'Token 被拒绝。',
+    conflict: '这个 Token 正被其他进程使用。',
+    token_unreadable: '无法读取 Token 来源。',
+  },
+  tokenTitle: 'Bot Token',
+  tokenConfigured: '已配置 Token。',
+  tokenMissing: '未配置 Token。',
+  sectionMissing: 'config.jsonc 里没有 telegram 段；保存 Token 时会自动创建。',
+  tokenLabel: '新的 Bot Token',
+  tokenPlaceholder: '123456:ABC-DEF…',
+  tokenHint: '粘贴 @BotFather 给的 Token。它只会写入 key.json，之后不会回显。',
+  save: '保存 Token',
+  saving: '保存中…',
+  saved: 'Telegram Token 已保存',
+  clear: '清空 Token',
+  clearTitle: '清空 Telegram Bot Token？',
+  clearDescription: 'Telegram 会停止并断开连接。config.jsonc 里的其它 Telegram 设置保留。此操作无法撤销。',
+  clearConfirm: '清空 Token',
+  cleared: 'Telegram Token 已清空',
+  readFailed: '读取 Telegram 设置失败',
+};

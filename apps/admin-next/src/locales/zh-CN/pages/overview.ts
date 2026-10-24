@@ -31,6 +31,7 @@ export const overview: typeof overviewEn = {
   botStatus: 'Bot 状态',
   wakeNow: '立即唤醒',
   fieldState: '状态',
+  fieldTelegram: 'Telegram',
   sleepUntil: '直到 {{time}}',
   adminPauses: '管理员暂停',
   none: '无',

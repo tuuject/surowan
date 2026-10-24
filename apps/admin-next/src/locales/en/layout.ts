@@ -25,6 +25,7 @@ export const layout = {
     apiKeys: 'API keys',
     models: 'Models',
     imageSettings: 'Image settings',
+    telegram: 'Telegram',
     chats: 'Chats',
     prompts: 'Prompts',
     harness: 'Harness tuning',

@@ -30,6 +30,7 @@ import { Route as PreferencesRouteImport } from './routes/preferences'
 import { Route as PromptsRouteImport } from './routes/prompts'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StickersRouteImport } from './routes/stickers'
+import { Route as TelegramRouteImport } from './routes/telegram'
 import { Route as WarningsRouteImport } from './routes/warnings'
 import { Route as ContextsConversationIdRouteImport } from './routes/contexts_.$conversationId'
 import { Route as ImageGenerationsGenerationIdRouteImport } from './routes/image-generations_.$generationId'
@@ -141,6 +142,11 @@ const StickersRoute = StickersRouteImport.update({
   path: '/stickers',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TelegramRoute = TelegramRouteImport.update({
+  id: '/telegram',
+  path: '/telegram',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WarningsRoute = WarningsRouteImport.update({
   id: '/warnings',
   path: '/warnings',
@@ -190,6 +196,7 @@ export interface FileRoutesByFullPath {
   '/prompts': typeof PromptsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
+  '/telegram': typeof TelegramRoute
   '/warnings': typeof WarningsRoute
   '/contexts/$conversationId': typeof ContextsConversationIdRoute
   '/image-generations/$generationId': typeof ImageGenerationsGenerationIdRoute
@@ -218,6 +225,7 @@ export interface FileRoutesByTo {
   '/prompts': typeof PromptsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
+  '/telegram': typeof TelegramRoute
   '/warnings': typeof WarningsRoute
   '/contexts/$conversationId': typeof ContextsConversationIdRoute
   '/image-generations/$generationId': typeof ImageGenerationsGenerationIdRoute
@@ -247,6 +255,7 @@ export interface FileRoutesById {
   '/prompts': typeof PromptsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
+  '/telegram': typeof TelegramRoute
   '/warnings': typeof WarningsRoute
   '/contexts_/$conversationId': typeof ContextsConversationIdRoute
   '/image-generations_/$generationId': typeof ImageGenerationsGenerationIdRoute
@@ -277,6 +286,7 @@ export interface FileRouteTypes {
     | '/prompts'
     | '/settings'
     | '/stickers'
+    | '/telegram'
     | '/warnings'
     | '/contexts/$conversationId'
     | '/image-generations/$generationId'
@@ -305,6 +315,7 @@ export interface FileRouteTypes {
     | '/prompts'
     | '/settings'
     | '/stickers'
+    | '/telegram'
     | '/warnings'
     | '/contexts/$conversationId'
     | '/image-generations/$generationId'
@@ -333,6 +344,7 @@ export interface FileRouteTypes {
     | '/prompts'
     | '/settings'
     | '/stickers'
+    | '/telegram'
     | '/warnings'
     | '/contexts_/$conversationId'
     | '/image-generations_/$generationId'
@@ -362,6 +374,7 @@ export interface RootRouteChildren {
   PromptsRoute: typeof PromptsRoute
   SettingsRoute: typeof SettingsRoute
   StickersRoute: typeof StickersRoute
+  TelegramRoute: typeof TelegramRoute
   WarningsRoute: typeof WarningsRoute
   ContextsConversationIdRoute: typeof ContextsConversationIdRoute
   ImageGenerationsGenerationIdRoute: typeof ImageGenerationsGenerationIdRoute
@@ -518,6 +531,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StickersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/telegram': {
+      id: '/telegram'
+      path: '/telegram'
+      fullPath: '/telegram'
+      preLoaderRoute: typeof TelegramRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/warnings': {
       id: '/warnings'
       path: '/warnings'
@@ -578,6 +598,7 @@ const rootRouteChildren: RootRouteChildren = {
   PromptsRoute: PromptsRoute,
   SettingsRoute: SettingsRoute,
   StickersRoute: StickersRoute,
+  TelegramRoute: TelegramRoute,
   WarningsRoute: WarningsRoute,
   ContextsConversationIdRoute: ContextsConversationIdRoute,
   ImageGenerationsGenerationIdRoute: ImageGenerationsGenerationIdRoute,

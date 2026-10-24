@@ -8,7 +8,7 @@ import { adminPasskeys, adminSessions, longTasks, taskReceipts } from '../../../
 import { enterSleep, wakeFromSleep } from '../../../src/store/sleep.ts';
 import { asRunResult } from '../../../src/store/store.ts';
 import { shutdown } from './server-lifecycle.ts';
-import { holdHealthGate, releaseHealthGate, relayStatsPayload, resetRelayStats } from './server-relay.ts';
+import { holdHealthGate, relayStatsPayload, releaseHealthGate, resetRelayStats } from './server-relay.ts';
 import { type PlaygroundModelStep, playgroundSeedPayload, roomModelCalls, setPlaygroundModel } from './server-rooms.ts';
 import { state as serverState } from './server-state.ts';
 
@@ -23,6 +23,42 @@ export async function handleHook(request: Request, url: URL): Promise<Response> 
   const route = url.pathname.slice('/__e2e'.length);
   if (request.method === 'GET' && route === '/health') {
     return json({ ok: true });
+  }
+  if (request.method === 'POST' && route === '/telegram-connection') {
+    const body = (await request.json().catch(() => null)) as {
+      status?: unknown;
+      reason?: unknown;
+      bot?: { id?: unknown; username?: unknown } | null;
+    } | null;
+    const connections = serverState.connections;
+    if (body === null) {
+      return json({ error: 'invalid_body' }, 400);
+    }
+    if (connections === null) {
+      return json({ error: 'not_ready' }, 503);
+    }
+    const since = new Date().toISOString();
+    if (body.status === 'connected') {
+      const bot =
+        typeof body.bot?.id === 'string'
+          ? { id: body.bot.id, username: typeof body.bot.username === 'string' ? body.bot.username : null }
+          : { id: '42', username: 'surowan_bot' };
+      connections.set('telegram', { status: 'connected', since, bot });
+      return json({ ok: true });
+    }
+    if (body.status === 'config_error') {
+      const reason = body.reason;
+      if (reason !== 'unauthorized' && reason !== 'conflict' && reason !== 'token_unreadable') {
+        return json({ error: 'invalid_reason' }, 400);
+      }
+      connections.set('telegram', { status: 'config_error', since, reason });
+      return json({ ok: true });
+    }
+    if (body.status === 'network_error' || body.status === 'disabled') {
+      connections.set('telegram', { status: body.status, since });
+      return json({ ok: true });
+    }
+    return json({ error: 'invalid_status' }, 400);
   }
   if (request.method === 'GET' && route === '/playground-seed') {
     return json({ ...playgroundSeedPayload(), model_calls: roomModelCalls() });

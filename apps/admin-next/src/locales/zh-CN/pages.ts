@@ -10,6 +10,7 @@ import { passkeys } from './pages/passkeys.ts';
 import { preferences } from './pages/preferences.ts';
 import { prompts } from './pages/prompts.ts';
 import { stickers } from './pages/stickers.ts';
+import { telegram } from './pages/telegram.ts';
 import { warnings } from './pages/warnings.ts';
 
 /** Mirrors `en/pages.ts` key for key; the annotation fails the build on drift. */
@@ -25,5 +26,6 @@ export const pages: typeof pagesEn = {
   prompts,
   passkeys,
   preferences,
+  telegram,
   warnings,
 };

@@ -32,6 +32,7 @@ export const overview = {
   botStatus: 'Bot status',
   wakeNow: 'Wake now',
   fieldState: 'State',
+  fieldTelegram: 'Telegram',
   sleepUntil: 'until {{time}}',
   adminPauses: 'Administrator pauses',
   none: 'None',

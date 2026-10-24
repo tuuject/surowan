@@ -8,12 +8,14 @@ import {
   type ColumnSpec,
   ConfirmDialog,
   FLUSH_TABLE_CLASS,
+  MonoValue,
   StateBadge,
   TableShell,
   TimeSeriesChart,
   ToneBadge,
 } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
+import { TelegramStatusBadge, TelegramStatusReason, telegramBotLabel } from '@/components/telegram/telegram-status.tsx';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -23,7 +25,7 @@ import { useForegroundRefresh } from '@/hooks/use-foreground-refresh';
 
 import { errorMessage } from '@/lib/errors';
 import { formatNumber, formatTime } from '@/lib/format';
-import { overviewQuery, usageQuery, warningsSummaryQuery } from '@/lib/queries';
+import { overviewQuery, telegramQuery, usageQuery, warningsSummaryQuery } from '@/lib/queries';
 import { useTranslation } from 'react-i18next';
 import { cancelOngoingSessions, wakeBot } from '@/lib/api/usage.ts';
 import type { LabelCount, UsageEntry } from '@/lib/api/usage.ts';
@@ -85,6 +87,7 @@ export default function OverviewPage(): React.ReactElement {
 
   const { data, isPending, isError, error } = useQuery(overviewQuery);
   const warnings = useQuery(warningsSummaryQuery);
+  const telegram = useQuery(telegramQuery);
   useForegroundRefresh(() => {
     void warnings.refetch();
   });
@@ -268,6 +271,21 @@ export default function OverviewPage(): React.ReactElement {
                   </span>
                 ) : null}
               </div>
+            </Field>
+            <Field label={t('pages.overview.fieldTelegram')}>
+              {telegram.isPending ? (
+                <span className="text-muted-foreground text-sm">{t('common.loading')}</span>
+              ) : telegram.isError ? (
+                <span className="text-destructive text-sm break-words">{errorMessage(telegram.error)}</span>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <TelegramStatusBadge state={telegram.data.status} />
+                  <TelegramStatusReason state={telegram.data.status} />
+                  {telegram.data.status.bot === undefined ? null : (
+                    <MonoValue value={telegramBotLabel(telegram.data.status.bot)} />
+                  )}
+                </div>
+              )}
             </Field>
             <Field label={t('pages.overview.adminPauses')}>
               {data.runtime_status.paused_chats.length === 0 ? (
