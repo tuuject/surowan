@@ -1,4 +1,4 @@
-type Command = 'serve' | 'check-config' | 'doctor' | 'backup' | 'configure' | 'admin-reset';
+type Command = 'serve' | 'check-config' | 'doctor' | 'backup' | 'configure' | 'admin-account';
 
 interface CliOptions {
   readonly command: Command;
@@ -7,9 +7,10 @@ interface CliOptions {
   readonly takeover: boolean;
   readonly username: string | undefined;
   readonly passwordStdin: boolean;
+  readonly revokePasskeys: boolean;
 }
 
-const COMMANDS: readonly string[] = ['serve', 'check-config', 'doctor', 'backup', 'configure', 'admin-reset'];
+const COMMANDS: readonly string[] = ['serve', 'check-config', 'doctor', 'backup', 'configure', 'admin-account'];
 
 export function parseCli(argv: readonly string[]): CliOptions {
   const [commandValue, ...argumentsList] = argv;
@@ -21,6 +22,7 @@ export function parseCli(argv: readonly string[]): CliOptions {
   let takeover = false;
   let username: string | undefined;
   let passwordStdin = false;
+  let revokePasskeys = false;
   for (let index = 0; index < argumentsList.length; index += 1) {
     const argument = argumentsList[index];
     if (argument === '--output-agent-prompt' && commandValue === 'doctor' && !outputAgentPrompt) {
@@ -31,11 +33,15 @@ export function parseCli(argv: readonly string[]): CliOptions {
       takeover = true;
       continue;
     }
-    if (argument === '--password-stdin' && commandValue === 'admin-reset' && !passwordStdin) {
+    if (argument === '--password-stdin' && commandValue === 'admin-account' && !passwordStdin) {
       passwordStdin = true;
       continue;
     }
-    if (argument === '--username' && commandValue === 'admin-reset' && username === undefined) {
+    if (argument === '--revoke-passkeys' && commandValue === 'admin-account' && !revokePasskeys) {
+      revokePasskeys = true;
+      continue;
+    }
+    if (argument === '--username' && commandValue === 'admin-account' && username === undefined) {
       username = argumentsList[index + 1];
       if (username === undefined || username.startsWith('--')) {
         throw new Error(usage());
@@ -55,10 +61,10 @@ export function parseCli(argv: readonly string[]): CliOptions {
   if (configPath === undefined) {
     throw new Error(usage());
   }
-  if (commandValue === 'admin-reset' && username === undefined) {
+  if (commandValue === 'admin-account' && username === undefined) {
     throw new Error(usage());
   }
-  return { command: commandValue, configPath, outputAgentPrompt, takeover, username, passwordStdin };
+  return { command: commandValue, configPath, outputAgentPrompt, takeover, username, passwordStdin, revokePasskeys };
 }
 
 function isCommand(value: string): value is Command {
@@ -66,5 +72,5 @@ function isCommand(value: string): value is Command {
 }
 
 function usage(): string {
-  return 'Usage: surowan <serve|check-config|doctor|backup|configure|admin-reset> --config <path> [--output-agent-prompt] [--takeover] [--username <name>] [--password-stdin]';
+  return 'Usage: surowan <serve|check-config|doctor|backup|configure|admin-account> --config <path> [--output-agent-prompt] [--takeover] [--username <name>] [--password-stdin] [--revoke-passkeys]';
 }

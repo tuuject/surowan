@@ -2,7 +2,7 @@
 import { serve } from './adapters/local-monolith/runtime-host.ts';
 import { parseCli } from './cli-options.ts';
 import { runDoctor } from './doctor.ts';
-import { runAdminReset } from './ingress/admin/recover.ts';
+import { runAdminAccount } from './ingress/admin/admin-account.ts';
 import { loadConfig } from './adapters/local-monolith/config.ts';
 import { loadEnvFiles } from './platform/load-env.ts';
 import { backupDatabase } from './adapters/local-monolith/database.ts';
@@ -39,14 +39,15 @@ try {
     case 'configure':
       await runConfigure(options.configPath);
       break;
-    case 'admin-reset': {
+    case 'admin-account': {
       if (options.username === undefined) {
-        throw new Error('admin-reset requires --username');
+        throw new Error('admin-account requires --username');
       }
-      await runAdminReset({
+      await runAdminAccount({
         configPath: options.configPath,
         username: options.username,
         passwordStdin: options.passwordStdin,
+        revokePasskeys: options.revokePasskeys,
       });
       break;
     }

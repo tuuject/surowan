@@ -32,6 +32,16 @@ export interface AdminCredentials {
   readonly password: string;
 }
 
+/** Offline account management: sessions are always revoked, passkeys only on request. */
+export interface AdminAccountOptions {
+  readonly revokePasskeys: boolean;
+}
+
+export interface AdminAccountResult {
+  readonly userId: bigint;
+  readonly created: boolean;
+}
+
 export interface AdminSession {
   readonly userId: bigint;
   readonly username: string;
@@ -248,35 +258,75 @@ export class AdminAuth {
     );
   }
 
-  /** Local, offline recovery: never reopens the unauthenticated setup endpoint. */
-  async recoverCredentials(credentials: AdminCredentials, now = new Date()): Promise<void> {
+  /**
+   * Offline account entry point for the `admin-account` CLI. Creates the first
+   * administrator when the table is empty; otherwise renames and rehashes the
+   * sole administrator. More than one row means the operator's intent is
+   * ambiguous, so it fails instead of picking one. Every call revokes the
+   * account's sessions, deletes its passkeys only when asked, never creates a
+   * session (so setup stays closed), and never touches `admin_api_keys`.
+   */
+  async createOrResetAccount(
+    credentials: AdminCredentials,
+    options: AdminAccountOptions,
+    now = new Date(),
+  ): Promise<AdminAccountResult> {
     assertCredentials(credentials);
-    const user = this.#orm
-      .select({ id: adminUsers.id })
-      .from(adminUsers)
-      .where(eq(adminUsers.username, credentials.username))
-      .get();
-    if (user === undefined) {
-      throw new AdminAuthError(404, 'admin_not_found', 'Administrator account does not exist');
-    }
+    // Fails before spending an Argon2 hash when the row count already decides it.
+    this.#soleAccountId();
     const passwordHash = await this.#withHashSlot(() => hash(credentials.password, HASH_OPTIONS));
-    this.#orm.transaction(
+    const iso = now.toISOString();
+    return this.#orm.transaction(
       () => {
+        const sole = this.#soleAccountId();
+        if (sole === undefined) {
+          const created = this.#orm
+            .insert(adminUsers)
+            .values({
+              username: credentials.username,
+              passwordHash,
+              createdAt: iso,
+              updatedAt: iso,
+              lastLoginAt: null,
+            })
+            .returning({ id: adminUsers.id })
+            .get();
+          if (created === undefined) {
+            throw new Error('admin_users insert returned no row');
+          }
+          return { userId: created.id, created: true };
+        }
         const updated = asRunResult(
           this.#orm
             .update(adminUsers)
-            .set({ passwordHash, updatedAt: now.toISOString() })
-            .where(and(eq(adminUsers.id, user.id), eq(adminUsers.username, credentials.username)))
+            .set({ username: credentials.username, passwordHash, updatedAt: iso })
+            .where(eq(adminUsers.id, sole))
             .run(),
         );
         if (updated.changes !== 1) {
-          throw new AdminAuthError(409, 'credentials_changed', 'Administrator account changed during recovery');
+          throw new AdminAuthError(409, 'credentials_changed', 'Administrator account changed during reset');
         }
-        this.#orm.delete(adminPasskeys).where(eq(adminPasskeys.userId, user.id)).run();
-        this.#orm.delete(adminSessions).where(eq(adminSessions.userId, user.id)).run();
+        this.#orm.delete(adminSessions).where(eq(adminSessions.userId, sole)).run();
+        if (options.revokePasskeys) {
+          this.#orm.delete(adminPasskeys).where(eq(adminPasskeys.userId, sole)).run();
+        }
+        return { userId: sole, created: false };
       },
       { behavior: 'immediate' },
     );
+  }
+
+  /** Returns the sole administrator's id; an empty table yields `undefined` and more than one row is refused. */
+  #soleAccountId(): bigint | undefined {
+    const rows = this.#orm.select({ id: adminUsers.id }).from(adminUsers).all();
+    if (rows.length > 1) {
+      throw new AdminAuthError(
+        409,
+        'multiple_accounts',
+        `admin_users contains ${rows.length} accounts; admin-account only manages a single administrator`,
+      );
+    }
+    return rows[0]?.id;
   }
 
   /** Called only inside the passkey verification transaction. */

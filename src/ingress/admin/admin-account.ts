@@ -11,33 +11,36 @@ import { AdminAuth } from './auth.ts';
 const STDIN_PASSWORD_MAX_BYTES = 800;
 /** A pipe that stays open is a mistake; stop waiting instead of hanging forever. */
 const STDIN_PASSWORD_TIMEOUT_MS = 10_000;
-/** Recovery creates no session, so the TTL is inert; the constructor still needs a value. */
+/** Account management creates no session, so the TTL is inert; the constructor still needs a value. */
 const FALLBACK_SESSION_TTL_HOURS = 168;
 
-export interface AdminResetOptions {
+export interface AdminAccountCliOptions {
   readonly configPath: string;
   readonly username: string;
   readonly passwordStdin: boolean;
+  readonly revokePasskeys: boolean;
 }
 
 /**
- * `admin-reset`: replaces the stored Argon2id password of an existing
- * administrator, deletes all of their passkeys, and revokes every active login
- * session. Offline and purely local: no Telegram, no Admin HTTP server, no
- * setup path. The recovery refuses to run while a `serve` process holds the
- * data directory's lock, and never takes the lock over.
+ * `admin-account`: creates the administrator when none exists, otherwise
+ * replaces the sole administrator's username and password. Every run revokes
+ * the account's login sessions; passkeys survive unless `--revoke-passkeys` is
+ * given. Offline and purely local: no Telegram, no Admin HTTP server, and no
+ * session, so the setup endpoint stays closed. API keys are never touched. The
+ * command refuses to run while a `serve` process holds the data directory's
+ * lock, and never takes the lock over.
  */
-export async function runAdminReset(options: AdminResetOptions): Promise<void> {
+export async function runAdminAccount(options: AdminAccountCliOptions): Promise<void> {
   const loaded = await loadConfig(options.configPath);
   await assertConfigPermissions(loaded.configPath);
   if (!options.passwordStdin && process.stdin.isTTY !== true) {
-    throw new Error('admin-reset needs a terminal to ask for the password; pipe it on stdin with --password-stdin');
+    throw new Error('admin-account needs a terminal to ask for the password; pipe it on stdin with --password-stdin');
   }
   const lock = await ServeLock.acquire(loaded.config.data_dir);
   let store: SqliteStore | undefined;
   try {
     console.error(
-      `admin-reset will replace the password of administrator "${options.username}", delete all of their passkeys, and revoke every active login session`,
+      `admin-account will create the administrator "${options.username}" if none exists, otherwise rename the sole administrator and replace its password; every active login session is revoked and existing passkeys are ${options.revokePasskeys ? 'deleted' : 'kept (pass --revoke-passkeys to delete them)'}`,
     );
     const credentials = {
       username: options.username,
@@ -45,14 +48,14 @@ export async function runAdminReset(options: AdminResetOptions): Promise<void> {
     };
     store = await SqliteStore.open(loaded.config);
     const auth = new AdminAuth(store.orm, loaded.config.admin?.session_ttl_hours ?? FALLBACK_SESSION_TTL_HOURS);
-    await auth.recoverCredentials(credentials);
+    const result = await auth.createOrResetAccount(credentials, { revokePasskeys: options.revokePasskeys });
+    console.log(JSON.stringify({ status: 'ok', username: options.username, created: result.created }));
   } finally {
     // Closing the store must come before releasing the lock: the lock is the
-    // guarantee that no `serve` touches the database mid-recovery.
+    // guarantee that no `serve` touches the database mid-account-change.
     store?.close();
     await lock.release();
   }
-  console.log(JSON.stringify({ status: 'ok', username: options.username }));
 }
 
 async function promptNewPassword(): Promise<string> {

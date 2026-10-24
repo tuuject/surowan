@@ -77,7 +77,10 @@ test('in-flight assertions cannot revive deleted keys or bypass recovery; concur
   passkeys.remove(f.session.userId, f.store.orm.select().from(adminPasskeys).get()!.id);
   await expect(inFlight).rejects.toMatchObject({ code: 'invalid_passkey' });
   await register(f);
-  await f.auth.recoverCredentials({ username: 'owner', password: 'fixture-reset-password' });
+  await f.auth.createOrResetAccount(
+    { username: 'owner', password: 'fixture-reset-password' },
+    { revokePasskeys: true },
+  );
   expect(f.store.orm.select().from(adminPasskeys).all()).toHaveLength(0);
   expect(f.auth.authenticate(f.token)).toBeNull();
   expect(f.auth.setupRequired()).toBe(false);
