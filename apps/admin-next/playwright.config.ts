@@ -24,7 +24,7 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 10_000 },
   // Keep all artifacts out of the repo.
-  outputDir: join(tmpdir(), 'plasticwan-admin-e2e-results'),
+  outputDir: join(tmpdir(), 'surowan-admin-e2e-results'),
   use: {
     trace: 'off',
     screenshot: 'off',

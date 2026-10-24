@@ -69,7 +69,7 @@ describe('send barrier', () => {
       },
       fixtureSetup.conversationRuntime,
       undefined,
-      proactive === undefined ? undefined : { bot: { id: 999n, username: 'plasticwan' }, random: proactive.random },
+      proactive === undefined ? undefined : { bot: { id: 999n, username: 'surowan' }, random: proactive.random },
     );
     try {
       scheduler.start();

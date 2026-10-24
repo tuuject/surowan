@@ -50,7 +50,7 @@ afterAll(async () => {
 });
 
 async function openStore(
-  prefix = 'plasticwan-sleep-',
+  prefix = 'surowan-sleep-',
   registry?: TestRegistry,
 ): Promise<{ loaded: LoadedConfig; configStore: RuntimeConfigurationStore; store: SqliteStore }> {
   const directory = await mkdtemp(join(tmpdir(), prefix));
@@ -110,7 +110,7 @@ async function runtimeSetup(
     models: [{ id: 'agent-model', input: ['text'], contextWindow: 200_000, maxTokens: 32_768 }],
   });
   const { configStore, store } = await openStore(
-    'plasticwan-sleep-',
+    'surowan-sleep-',
     usage === undefined ? fauxRegistry(faux) : reportingUsage(faux, usage),
   );
   const ingestion = new TelegramIngestion(store, configStore, { id: 999 });
@@ -141,7 +141,7 @@ async function runtimeSetup(
     configStore,
     secrets: new SecretStore(),
     ...testTelegramRuntime(api),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
   });
   return { store, configStore, runtime, invocationId, faux };
@@ -425,7 +425,7 @@ test('sleeping skips both due and already queued agent sessions', async () => {
 });
 
 test('sleeping persists across reopening the SQLite store', async () => {
-  const { loaded, store } = await openStore('plasticwan-sleep-restart-');
+  const { loaded, store } = await openStore('surowan-sleep-restart-');
   const expected = enterSleep(store.orm).sleepUntil;
   store.close();
   const reopened = await SqliteStore.open(loaded.config);

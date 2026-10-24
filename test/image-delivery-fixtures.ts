@@ -70,7 +70,7 @@ export interface Fixture {
 }
 
 export async function setup(extraChatIds: readonly number[] = []): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-image-delivery-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-image-delivery-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -178,7 +178,7 @@ export function buildTool(
     maxTextLength: undefined,
     disallowBlankLines: false,
     deadline: Date.now() + 30_000,
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     imageGeneration: {
       resolve: (generationId, conversationId) =>
         resolvePictures(generationId, conversationId)?.map(({ assetId, bytes, fileName, mime }) => ({

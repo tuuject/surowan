@@ -16,7 +16,7 @@ vi.mock('grammy', () => ({
 let directory: string;
 
 beforeEach(async () => {
-  directory = await mkdtemp(join(tmpdir(), 'plasticwan-image-startup-'));
+  directory = await mkdtemp(join(tmpdir(), 'surowan-image-startup-'));
   // Stop at the first Telegram call after real local startup, before polling or sends.
   getMe.mockReset().mockRejectedValue(new Error('telegram-startup-boundary'));
 });

@@ -139,7 +139,7 @@ export async function cleanupTestDirectories(): Promise<void> {
 }
 
 export async function setup(registry?: TestRegistry, recordPayloads = false) {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-alarm-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-alarm-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -175,7 +175,7 @@ export async function setupAdmin(): Promise<{
   loaded: Awaited<ReturnType<typeof loadConfig>>;
   configStore: RuntimeConfigurationStore;
 }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-alarm-admin-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-alarm-admin-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(

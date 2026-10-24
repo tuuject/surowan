@@ -37,7 +37,7 @@ export interface Fixture {
 }
 
 export async function fixture(): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-admin-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-admin-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const staticDir = join(directory, 'bundle');

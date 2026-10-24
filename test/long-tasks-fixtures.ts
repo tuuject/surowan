@@ -28,7 +28,7 @@ export async function cleanupTestDirectories(): Promise<void> {
 }
 
 export async function initDb(): Promise<{ store: SqliteStore; conversationId: bigint; roomConversationId: bigint }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-lt-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-lt-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);

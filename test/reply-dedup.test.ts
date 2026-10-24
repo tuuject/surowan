@@ -112,7 +112,7 @@ describe('reply deduplication', () => {
         configStore: fixture.configStore,
         secrets: new SecretStore(),
         ...testTelegramRuntime(api),
-        bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+        bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
         systemResources: emptySystemResources(),
       });
       const t0 = new Date('2026-08-15T00:00:00.000Z');

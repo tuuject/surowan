@@ -34,7 +34,7 @@ Linux/macOS 要求 `lottie_convert.py` 本身在服务 PATH 中（`pip --user` �
 ## 初始化开发环境
 
 ```bash
-cd ~/Projects/plasticwan
+cd ~/Projects/surowan
 pnpm install
 
 # 生成 src/manual/（用户手册文档包，gitignored）：从 apps/docs/content/docs 打包
@@ -45,8 +45,8 @@ pnpm run manual:prepare
 # 本地 Secret 写进仓库根目录的 .env.local（已 gitignore；CLI 启动时自动加载
 # .env.local 与 .env，真实环境变量优先、.env.local 压过 .env），或在 shell 里 export。
 # 一键生成 dev-data/config.jsonc 与起步 agent-prompt.md（DeepSeek deepseek-flash 同时做 agent 与 vision）：
-# 必需 PLASTICWAN_DEV_CHAT_IDS（逗号分隔）、TELEGRAM_BOT_TOKEN、DEEPSEEK_API_KEY，缺失时打印配置说明并退出；
-# 后两者只以 env SecretRef 写入。可选 PLASTICWAN_DEV_ADMIN_IDS；设置了 BRAVE_API_KEY 才加入 Brave MCP。
+# 必需 SUROWAN_DEV_CHAT_IDS（逗号分隔）、TELEGRAM_BOT_TOKEN、DEEPSEEK_API_KEY，缺失时打印配置说明并退出；
+# 后两者只以 env SecretRef 写入。可选 SUROWAN_DEV_ADMIN_IDS；设置了 BRAVE_API_KEY 才加入 Brave MCP。
 # 已有 config.jsonc 时需加 --force 覆盖；已有 prompt 文件始终保留。
 pnpm run dev:seed            # 或 pnpm run dev:seed -- --dir <目录> --force
 node src/cli.ts check-config --config dev-data/config.jsonc
@@ -159,7 +159,7 @@ node src/cli.ts serve --config dev-data/config.jsonc --takeover
 
 Admin Panel 的 Models / Chats 页在有字段等待重启时提供「立即重启」（`POST /api/restart`）。它不是 supervisor，只是请求当前进程优雅退出：走上面同一套关闭流程，然后以退出码 **75**（`EX_TEMPFAIL`，与崩溃区分）退出，由外部把进程重新拉起。重启期间 Admin 页面会断开，界面轮询等待服务恢复；这段时间收到的 Telegram 消息由启动补偿拉取。
 
-只有部署方声明了监督时这个端点才可用：环境变量 `PLASTICWAN_SUPERVISED=1` 未设置时端点返回 409 `restart_unsupported`，界面也不显示按钮。**声明的位置是部署，不是镜像**：`Dockerfile` 故意不设这个变量（镜像无法知道自己会不会带着重启策略跑），`docker-compose.yml` 模板在 `restart: unless-stopped` 旁边设好了；用 `docker run` 的话要自己同时给出 `--restart` 和 `-e PLASTICWAN_SUPERVISED=1`，systemd 则配合 `Restart=always`。Electron 版由主进程重启 server。裸机前台运行时不要设置它，否则退出后不会有人把 bot 拉起来。
+只有部署方声明了监督时这个端点才可用：环境变量 `SUROWAN_SUPERVISED=1` 未设置时端点返回 409 `restart_unsupported`，界面也不显示按钮。**声明的位置是部署，不是镜像**：`Dockerfile` 故意不设这个变量（镜像无法知道自己会不会带着重启策略跑），`docker-compose.yml` 模板在 `restart: unless-stopped` 旁边设好了；用 `docker run` 的话要自己同时给出 `--restart` 和 `-e SUROWAN_SUPERVISED=1`，systemd 则配合 `Restart=always`。Electron 版由主进程重启 server。裸机前台运行时不要设置它，否则退出后不会有人把 bot 拉起来。
 
 执行前会按启动流程校验磁盘上的配置（权限检查与完整 `loadConfig`）：配置无效时拒绝重启并返回 422，否则进程退出后起不来，bot 就停了。本期没有「上次可用配置」回退，启动期才失败的情况（SecretRef 解析失败、Pi 升级导致 builtin 模型消失等）仍然需要人工修复。
 
@@ -202,7 +202,7 @@ node src/cli.ts doctor --config dev-data/config.jsonc --output-agent-prompt
 
 ## Admin API 工具客户端（Invocation 查询与重放）
 
-[`packages/cli`](../packages/cli/README.md) 提供访问 Admin API 的工具客户端 `surowan-utils`（npm 包 `@tuuject/surowan-utils`；仓库根与其它工作区仍为 private），覆盖只读检查、当前模型目录、Invocation 查询/媒体导出/重放（含临时模型与 thinking 覆盖）。完整命令与选项以该包 README 为准。`login` 把 endpoint 与 API key 成对保存到本机凭据文件，不提供服务端密钥管理；客户端 `doctor` 只发一次只读请求检查 Admin API 连通与鉴权，不做服务端 Doctor 的 SQLite、媒体、Telegram、Provider 与 MCP 探针。Node.js ≥ 24，无运行时依赖；它与服务端入口 `plasticwan`（`node src/cli.ts`）不同，不含 serve/check-config/backup/configure 等服务命令，也不包含 SDK 或 Eval 能力。
+[`packages/cli`](../packages/cli/README.md) 提供访问 Admin API 的工具客户端 `surowan-utils`（npm 包 `@tuuject/surowan-utils`；仓库根与其它工作区仍为 private），覆盖只读检查、当前模型目录、Invocation 查询/媒体导出/重放（含临时模型与 thinking 覆盖）。完整命令与选项以该包 README 为准。`login` 把 endpoint 与 API key 成对保存到本机凭据文件，不提供服务端密钥管理；客户端 `doctor` 只发一次只读请求检查 Admin API 连通与鉴权，不做服务端 Doctor 的 SQLite、媒体、Telegram、Provider 与 MCP 探针。Node.js ≥ 24，无运行时依赖；它与服务端入口 `surowan`（`node src/cli.ts`）不同，不含 serve/check-config/backup/configure 等服务命令，也不包含 SDK 或 Eval 能力。
 
 ```bash
 npm install -g @tuuject/surowan-utils           # 稳定版（严格 vMAJOR.MINOR.PATCH tag，dist-tag latest）
@@ -334,11 +334,11 @@ node src/cli.ts backup --config dev-data/config.jsonc
 
 镜像结构（`Dockerfile`，builder 与 runtime 均为 `node:24-bookworm-slim` 两阶段）：
 
-- builder 阶段先只复制 manifest、lockfile、patches 与 `scripts/skills-sync.ts`（root `postinstall` 要用；构建上下文没有 `.git`，它直接跳过），再 `pnpm install --frozen-lockfile` → `pnpm run admin:build` 与 `pnpm --filter @plasticwan/image-service build` → `node scripts/manual-prepare.ts` 把用户手册 Markdown 打包到 `src/manual/` → 再以 `pnpm install --prod --frozen-lockfile --ignore-scripts` 剪掉 devDependencies（`--ignore-scripts` 跳过 image-service 依赖 tsc 的 prepare，所以它的 `dist/` 必须先单独构建）。
+- builder 阶段先只复制 manifest、lockfile、patches 与 `scripts/skills-sync.ts`（root `postinstall` 要用；构建上下文没有 `.git`，它直接跳过），再 `pnpm install --frozen-lockfile` → `pnpm run admin:build` 与 `pnpm --filter @surowan/image-service build` → `node scripts/manual-prepare.ts` 把用户手册 Markdown 打包到 `src/manual/` → 再以 `pnpm install --prod --frozen-lockfile --ignore-scripts` 剪掉 devDependencies（`--ignore-scripts` 跳过 image-service 依赖 tsc 的 prepare，所以它的 `dist/` 必须先单独构建）。
 - runtime 阶段用 apt 装 `ffmpeg`（含 `ffprobe`）、`python3` 与 `gosu`，再 pip 装 `lottie`；因此**不需要**在宿主机准备任何媒体依赖。
 - 只复制 `src/`、`node_modules/`、`packages/image-service/` 的 `package.json`、`dist/` 与 `node_modules/`（经 workspace 符号链接解析）、`apps/admin-next/dist/`、`apps/admin-next/LICENSE`、`apps/admin-next/NOTICE` 和 `package.json`。`test/`、`agent-doc/`、`dev-data/` 被 `.dockerignore` 排除，镜像里没有这些目录。`apps/docs` 只保留 `content/docs` 与 `examples/` 作为手册源参与构建：`.dockerignore` 排除文档站配置、主题与生成产物，builder 生成的 `src/manual/` 随 `src/` 进入 runtime，打包后立即删除 `apps/docs`——残留的目录没有 `package.json`，后续 `pnpm install --prod --frozen-lockfile` 会把它判为 lockfile 过期而失败；镜像不含 Rspress 或文档站目录，该隔离由 `.github/workflows/docs.yml` 的 image-smoke 断言。
 - Admin 前端已经构建进 `/app/apps/admin-next/dist`，与 `static_dir` 默认值一致，无需额外配置。前端模板许可（MIT，© Kiranism）随 `LICENSE` 保留，字体（@fontsource，SIL OFL 1.1）说明在 `NOTICE`。
-- CI（`.github/workflows/docker.yml`）在构建镜像前先跑 `verify` job：`pnpm install --frozen-lockfile` → `pnpm run lint` → `pnpm run check` → `pnpm test` → `pnpm run admin:build` → `pnpm --filter plasticwan-admin-next exec playwright install --with-deps chromium` → `pnpm run admin:test:e2e`，通过后 `build` job 才构建 `linux/amd64` 与 `linux/arm64`（仅 `main` 与 `v*` 推送）。`.github/workflows/docs.yml` 的 `image-smoke` 在 PR 与每次推送时以单架构 `docker build` 构建镜像，并断言手册在镜像内、文档站与 Rspress 不在。
+- CI（`.github/workflows/docker.yml`）在构建镜像前先跑 `verify` job：`pnpm install --frozen-lockfile` → `pnpm run lint` → `pnpm run check` → `pnpm test` → `pnpm run admin:build` → `pnpm --filter surowan-admin-next exec playwright install --with-deps chromium` → `pnpm run admin:test:e2e`，通过后 `build` job 才构建 `linux/amd64` 与 `linux/arm64`（仅 `main` 与 `v*` 推送）。`.github/workflows/docs.yml` 的 `image-smoke` 在 PR 与每次推送时以单架构 `docker build` 构建镜像，并断言手册在镜像内、文档站与 Rspress 不在。
 
 运行约定：
 
@@ -357,7 +357,7 @@ Secret 建议用 compose `environment:`/`env_file:` 注入；挂载到 `/app/.en
 {
   "data_dir": "/data",
   "paths": {
-    "database": "/data/plasticwan.sqlite",
+    "database": "/data/surowan.sqlite",
     "media_cache": "/data/media-cache",
     "backups": "/data/backups",
   },
@@ -375,25 +375,25 @@ docker compose logs -f          # 确认 serve_started 与 config_hash
 
 `docker-entrypoint.sh` 以 root 启动，做三件事后才降权：
 
-1. 按 `PUID`/`PGID`（默认 `1000`）重映射容器内 `plasticwan` 用户，避免 bind mount 的属主冲突。
+1. 按 `PUID`/`PGID`（默认 `1000`）重映射容器内 `surowan` 用户，避免 bind mount 的属主冲突。
 2. `chown -R` 挂载卷，并把 `/config`、`/data` 设为 `0700`、`/config/config.jsonc` 与 `/config/key.json` 设为 `0600` —— 这是为了满足 `assertConfigPermissions`（配置文件与其父目录）、key jar（`key.json`）与 `doctor` 对 `data_dir` 的权限检查，宿主机上不必手动 chmod。
-3. `exec gosu plasticwan node /app/src/cli.ts "$@"`。
+3. `exec gosu surowan node /app/src/cli.ts "$@"`。
 
 因为最后一步把参数原样传给 CLI，其它子命令都能用同一镜像跑：
 
 ```bash
-docker compose run --rm plasticwan check-config --config /config/config.jsonc
-docker compose run --rm plasticwan doctor --config /config/config.jsonc
-docker compose run --rm plasticwan backup --config /config/config.jsonc
+docker compose run --rm surowan check-config --config /config/config.jsonc
+docker compose run --rm surowan doctor --config /config/config.jsonc
+docker compose run --rm surowan backup --config /config/config.jsonc
 ```
 
-注意：`serve` 是长期进程且受 `ServeLock` 约束，同一 `data_dir` 只能有一个实例。上面的一次性命令（`check-config`/`doctor`/`backup`）都不启动 `serve`，可以与运行中的容器共存；但**不要**用 `docker compose run` 再起一个 `serve`。例外是 `admin-reset`：它要独占数据库，运行前必须先停止同 `data_dir` 的 Bot 容器（`docker compose stop plasticwan`），否则 `ServeLock` 会拒绝执行，见「[管理员凭据与 Passkey 恢复](#管理员凭据与-passkey-恢复admin-reset)」。
+注意：`serve` 是长期进程且受 `ServeLock` 约束，同一 `data_dir` 只能有一个实例。上面的一次性命令（`check-config`/`doctor`/`backup`）都不启动 `serve`，可以与运行中的容器共存；但**不要**用 `docker compose run` 再起一个 `serve`。例外是 `admin-reset`：它要独占数据库，运行前必须先停止同 `data_dir` 的 Bot 容器（`docker compose stop surowan`），否则 `ServeLock` 会拒绝执行，见「[管理员凭据与 Passkey 恢复](#管理员凭据与-passkey-恢复admin-reset)」。
 
 镜像不自带定时备份。需要定期备份时，用宿主机 cron 等调度器定期执行上面的 `backup` 命令，例如每天一次。
 
 `admin.host` 不再限制回环。容器内绑定 `127.0.0.1` 时，Docker 的端口发布转发到容器在 bridge 网络上的地址、够不到 loopback，所以 `docker-compose.yml` 里的 `ports:` 默认是注释掉的；要在容器外直接访问面板，需把 `admin.host` 显式改为 `0.0.0.0` 再取消 `ports:` 注释——这会把面板暴露给宿主网络，TLS 与访问控制由运维承担。更稳妥的访问方式：
 
-- `docker compose exec plasticwan <客户端> http://127.0.0.1:8787/...`（镜像未显式安装 curl，先确认基础镜像里有没有）；
-- 让反向代理与容器共享网络命名空间（`network_mode: "service:plasticwan"`），由它承担 TLS 与对外暴露。
+- `docker compose exec surowan <客户端> http://127.0.0.1:8787/...`（镜像未显式安装 curl，先确认基础镜像里有没有）；
+- 让反向代理与容器共享网络命名空间（`network_mode: "service:surowan"`），由它承担 TLS 与对外暴露。
 
 配置变更同样按白名单区分：白名单字段可在面板上应用，其余字段改完 `./config/config.jsonc` 后 `docker compose restart`，并比对新日志里的 `config_hash`（热应用则比对 `config_reloaded` 的 `active_hash`）。

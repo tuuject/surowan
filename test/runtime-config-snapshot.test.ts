@@ -69,7 +69,7 @@ interface Fixture {
 }
 
 async function setup(): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-config-snapshot-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-config-snapshot-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const jsonc = testConfigJsonc(directory, (config: FileConfig) => {
@@ -115,7 +115,7 @@ async function setup(): Promise<Fixture> {
           configStore: runtimeStore,
           secrets: new SecretStore(),
           ...testTelegramRuntime(sendApi),
-          bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+          bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
           systemResources: emptySystemResources(),
           conversationRuntime,
         }),

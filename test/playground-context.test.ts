@@ -22,7 +22,7 @@ afterAll(async () => {
 });
 
 async function fixture(): Promise<{ store: SqliteStore; loaded: Awaited<ReturnType<typeof loadConfig>> }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-playground-context-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-playground-context-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);

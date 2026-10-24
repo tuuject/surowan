@@ -114,7 +114,7 @@ export class McpManager {
       await oldClient.close().catch(() => undefined);
     }
     const client = new Client(
-      { name: 'plasticwan', version: '0.1.0' },
+      { name: 'surowan', version: '0.1.0' },
       {
         capabilities: {},
         enforceStrictCapabilities: true,

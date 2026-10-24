@@ -8,13 +8,13 @@ Router/Query + Tailwind 4 + shadcn/Base UI），由后端 `AdminServer`（`serve
 ## 命令
 
 ```bash
-pnpm --filter plasticwan-admin-next run check   # TypeScript 严格检查（tsc --noEmit）
-pnpm --filter plasticwan-admin-next run build   # 产出 dist/（静态 SPA）
-pnpm --filter plasticwan-admin-next run dev     # Rsbuild dev server，监听 127.0.0.1:5273
-pnpm --filter plasticwan-admin-next run test:e2e # Playwright 浏览器 E2E（见下文）
+pnpm --filter surowan-admin-next run check   # TypeScript 严格检查（tsc --noEmit）
+pnpm --filter surowan-admin-next run build   # 产出 dist/（静态 SPA）
+pnpm --filter surowan-admin-next run dev     # Rsbuild dev server，监听 127.0.0.1:5273
+pnpm --filter surowan-admin-next run test:e2e # Playwright 浏览器 E2E（见下文）
 ```
 
-- `pnpm --filter plasticwan-admin-next run dev` 会把 `/api` 代理到 `ADMIN_API_TARGET`（默认
+- `pnpm --filter surowan-admin-next run dev` 会把 `/api` 代理到 `ADMIN_API_TARGET`（默认
   `http://127.0.0.1:8787`），仅当浏览器 Origin 精确等于
   `http://localhost:5273` / `http://127.0.0.1:5273` 时才重写 Origin 为目标的
   origin；其它 Origin 原样转发，由后端拒绝。
@@ -56,8 +56,8 @@ pnpm --filter plasticwan-admin-next run test:e2e # Playwright 浏览器 E2E（�
 
 ```bash
 pnpm run admin:build                       # 前置：E2E 驱动已构建的 dist
-pnpm --filter plasticwan-admin-next exec playwright install chromium  # 首次运行前安装 Chromium
-pnpm run admin:test:e2e                    # 或在本目录 pnpm --filter plasticwan-admin-next run test:e2e
+pnpm --filter surowan-admin-next exec playwright install chromium  # 首次运行前安装 Chromium
+pnpm run admin:test:e2e                    # 或在本目录 pnpm --filter surowan-admin-next run test:e2e
 ```
 
 Playwright 套件位于 `e2e/**/*.e2e.ts`（文件名不以 `.test.ts` 结尾，vitest
@@ -112,7 +112,7 @@ models.dev 目录缓存——`GET /providers/discover` 与 `lookup-metadata` 因
 - 保存反馈区分 “Applied” 与 “Saved, restart required”：只要 `apply.restart_required` 非空，
   就不能显示成全部已应用（`applyFeedback`）。Models 页自己的写入全部热应用，但其它字段仍可能
   待重启，此时也显示 “Saved, restart required”。待重启横幅与 “Restart now” 按钮由全局
-  `restart_required` + `supervised` 驱动（未声明 `PLASTICWAN_SUPERVISED=1` 时只列字段并提示手动重启）。
+  `restart_required` + `supervised` 驱动（未声明 `SUROWAN_SUPERVISED=1` 时只列字段并提示手动重启）。
 - 凭据只写不读：`api_key` 与 header 值永远是 `type="password"`、`autocomplete="new-password"`
   的空输入框，没有查看按钮；提交后用 `mutation.reset()` 立刻把带明文 key 的请求体
   从 mutation cache 里丢掉。页面不写 localStorage，也不把 key 放进任何持久结构。

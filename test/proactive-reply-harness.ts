@@ -17,7 +17,7 @@ export const GROUP_A = -1_001_234_567_890;
 export const GROUP_B = -1_001_234_567_891;
 export const PRIVATE = 123_456_789;
 export const BOT_ID = 999;
-export const BOT_USERNAME = 'PlasticWanBot';
+export const BOT_USERNAME = 'SurowanBot';
 export const WINDOW_MS = 15_000;
 export const START = new Date('2026-08-15T00:00:00.000Z');
 
@@ -49,7 +49,7 @@ export async function setup(
     readonly twoGroups?: boolean;
   } = {},
 ): Promise<Harness> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-proactive-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-proactive-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const jsonc = testConfigJsonc(directory, (config) => {
@@ -138,7 +138,7 @@ export function replyFields(): LooseFields {
       message_id: 900,
       date: 1_700_000_000,
       chat: { id: GROUP_A, type: 'supergroup', title: 'Group' },
-      from: { id: BOT_ID, is_bot: true, first_name: 'PlasticWan' },
+      from: { id: BOT_ID, is_bot: true, first_name: 'Surowan' },
       text: 'earlier',
     },
   };

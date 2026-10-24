@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createOpenRouterAdapter } from '@plasticwan/image-service';
+import { createOpenRouterAdapter } from '@surowan/image-service';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { createImageBridge } from '../src/image/bridge.ts';
 import { createImageService } from '../src/image/service.ts';
@@ -31,7 +31,7 @@ const cleanup: Array<() => void | Promise<void>> = [];
 let directory: string;
 
 beforeEach(async () => {
-  directory = await mkdtemp(join(tmpdir(), 'plasticwan-image-admin-server-'));
+  directory = await mkdtemp(join(tmpdir(), 'surowan-image-admin-server-'));
   cleanup.push(() => rm(directory, { recursive: true, force: true }));
 });
 

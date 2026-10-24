@@ -30,7 +30,7 @@ async function fixture(maxConcurrency?: number): Promise<{
   configStore: RuntimeConfigurationStore;
   room: { chatId: bigint };
 }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-playground-scheduler-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-playground-scheduler-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(

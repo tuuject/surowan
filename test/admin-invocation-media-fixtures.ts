@@ -83,7 +83,7 @@ let transparentPng: Uint8Array;
 
 /** Seeds a fresh store and encodes the PNG fixtures the reader tests download. */
 export async function openInvocationMediaFixture(): Promise<InvocationMediaFixture> {
-  const configDirectory = await mkdtemp(join(tmpdir(), 'plasticwan-invocation-media-'));
+  const configDirectory = await mkdtemp(join(tmpdir(), 'surowan-invocation-media-'));
   const configPath = join(configDirectory, 'config.jsonc');
   await writeTestConfig(configDirectory, configPath);
   const loaded = await loadConfig(configPath);

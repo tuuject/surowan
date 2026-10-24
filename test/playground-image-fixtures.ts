@@ -15,7 +15,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
-import { createOpenRouterAdapter } from '@plasticwan/image-service';
+import { createOpenRouterAdapter } from '@surowan/image-service';
 import { and, eq } from 'drizzle-orm';
 import sharp from 'sharp';
 import { afterEach, expect } from 'vitest';
@@ -132,7 +132,7 @@ export interface FixtureOptions {
 }
 
 export async function playgroundImageFixture(options: FixtureOptions = {}) {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-playground-image-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-playground-image-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeImageFixture(directory, configPath, options.maxConcurrency);

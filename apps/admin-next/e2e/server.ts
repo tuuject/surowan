@@ -37,7 +37,7 @@ import { shutdown } from './server-lifecycle.ts';
  * The Models page only offers "Restart now" when the deployment declared a
  * supervisor; nothing here actually exits the process (see `requestRestart`).
  */
-process.env.PLASTICWAN_SUPERVISED = '1';
+process.env.SUROWAN_SUPERVISED = '1';
 
 process.on('SIGTERM', () => void shutdown());
 process.on('SIGINT', () => void shutdown());

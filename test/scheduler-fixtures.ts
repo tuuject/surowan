@@ -27,7 +27,7 @@ export async function setup(
   ingestion: TelegramIngestion;
   scheduler: BucketScheduler;
 }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-scheduler-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-scheduler-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const jsonc = testConfigJsonc(directory, transform);

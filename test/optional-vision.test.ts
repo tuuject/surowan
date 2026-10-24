@@ -38,7 +38,7 @@ async function loadWithVision(
   vision: unknown,
   transform?: (config: Record<string, unknown>) => void,
 ): Promise<LoadedConfig> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-optional-vision-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-optional-vision-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const jsonc = testConfigJsonc(directory, (config) => {

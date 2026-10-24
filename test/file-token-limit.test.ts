@@ -51,7 +51,7 @@ function commits(): number {
 }
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'plasticwan-token-limit-'));
+  dir = mkdtempSync(join(tmpdir(), 'surowan-token-limit-'));
   repo = join(dir, 'repo');
   mkdirSync(repo);
   expect(git('init', '-q').status).toBe(0);

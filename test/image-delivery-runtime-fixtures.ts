@@ -49,7 +49,7 @@ export function installImageDeliveryHooks(): void {
 }
 
 export async function fixture(options: { readonly unsentOutputs?: readonly string[] } = {}) {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-image-delivery-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-image-delivery-'));
   cleanups.push(async () => {
     await rm(directory, { recursive: true, force: true });
   });
@@ -175,7 +175,7 @@ export async function fixture(options: { readonly unsentOutputs?: readonly strin
     configStore,
     secrets: new SecretStore(),
     conversationRuntime,
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
     ...testTelegramRuntime(telegramApi),
     additionalTools,

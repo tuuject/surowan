@@ -36,7 +36,7 @@ export async function setup(): Promise<{
   scheduler: BucketScheduler;
   build: (invocationId: bigint, options?: TestContextOptions) => TestInvocationContext;
 }> {
-  const directory = await fixtureDirectory('plasticwan-context-');
+  const directory = await fixtureDirectory('surowan-context-');
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
   const loaded = await loadConfig(configPath);

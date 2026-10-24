@@ -36,7 +36,7 @@ export function scrubModelRequestAuditJson(json: string): ScrubbedModelRequestAu
     _encodedCharacters += encoded.length;
     decodedBytes += bytes.byteLength;
     return {
-      __plasticwan_audit_omission__: 'base64_image',
+      __surowan_audit_omission__: 'base64_image',
       mime_type: mimeType.toLowerCase(),
       encoded_characters: encoded.length,
       decoded_bytes: bytes.byteLength,

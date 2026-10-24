@@ -65,7 +65,7 @@ export async function setup(
   chatIds: number[] = [123456789],
   allowReplyMessageMultipleTimes?: boolean,
 ): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-reply-dedup-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-reply-dedup-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -201,7 +201,7 @@ export function makeTool(
     disallowBlankLines: false,
     allowReplyMessageMultipleTimes: config.agent!.allow_reply_message_multiple_times === true,
     deadline: Date.now() + 30_000,
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     ...(options.imageGeneration === undefined ? {} : { imageGeneration: options.imageGeneration }),
     ...(options.holdForNewMessages === undefined ? {} : { holdForNewMessages: options.holdForNewMessages }),
   });

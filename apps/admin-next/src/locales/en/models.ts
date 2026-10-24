@@ -74,7 +74,7 @@ export const models = {
       restarting: 'Restarting…',
       restartNow: 'Restart now',
       noSupervisor:
-        'This deployment does not declare a supervisor (PLASTICWAN_SUPERVISED=1), so there is no restart button - restart the server by hand.',
+        'This deployment does not declare a supervisor (SUROWAN_SUPERVISED=1), so there is no restart button - restart the server by hand.',
     },
     inUse: {
       title: 'In use',

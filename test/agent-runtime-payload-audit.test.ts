@@ -18,7 +18,7 @@ import { cleanupAgentRuntimeDirectories, directories } from './agent-runtime-fix
 afterAll(cleanupAgentRuntimeDirectories);
 
 test('audits complete redacted model error details', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-agent-error-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-error-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
@@ -65,7 +65,7 @@ test('audits complete redacted model error details', async () => {
       sendMessage: async () => ({ message_id: 500, date: 1_700_000_100, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
     }),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
   });
 
@@ -90,7 +90,7 @@ test('audits complete redacted model error details', async () => {
 test.each([true, false])(
   'payload recording %s writes request/response only, never a replay snapshot',
   async (recordPayloads) => {
-    const directory = await mkdtemp(join(tmpdir(), 'plasticwan-agent-replay-'));
+    const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-replay-'));
     directories.push(directory);
     const configPath = join(directory, 'config.jsonc');
     await writeTestConfig(
@@ -158,7 +158,7 @@ test.each([true, false])(
         sendMessage: async () => ({ message_id: 500, date: 1_700_000_100, chat: { id: 123456789 } }),
         sendSticker: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
       }),
-      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
       systemResources: emptySystemResources(),
     });
     const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);

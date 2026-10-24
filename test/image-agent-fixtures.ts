@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createImageConfigSnapshot, createOpenRouterAdapter, type ModelDefinition } from '@plasticwan/image-service';
+import { createImageConfigSnapshot, createOpenRouterAdapter, type ModelDefinition } from '@surowan/image-service';
 import sharp from 'sharp';
 import { afterEach, beforeEach, expect } from 'vitest';
 import { createExecuteTool } from '../src/capabilities/execute-tool.ts';
@@ -29,7 +29,7 @@ let directory: string;
 /** Registers the shared temp-directory lifecycle; call once at module top level. */
 export function installImageAgentHooks(): void {
   beforeEach(async () => {
-    directory = await mkdtemp(join(tmpdir(), 'plasticwan-image-agent-'));
+    directory = await mkdtemp(join(tmpdir(), 'surowan-image-agent-'));
     cleanup.push(() => rm(directory, { recursive: true, force: true }));
   });
 

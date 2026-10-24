@@ -10,7 +10,7 @@ export async function cleanupFixtureDirectories(): Promise<void> {
 }
 
 export async function fixture(): Promise<{ directory: string; configPath: string }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);

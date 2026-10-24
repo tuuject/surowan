@@ -173,7 +173,7 @@ async function setup(): Promise<{
   scheduler: BucketScheduler;
   build: (invocationId: bigint) => TestInvocationContext;
 }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-spoiler-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-spoiler-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);

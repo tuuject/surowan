@@ -26,7 +26,7 @@ import { cleanupAgentRuntimeDirectories, directories } from './agent-runtime-fix
 afterAll(cleanupAgentRuntimeDirectories);
 
 test('a fresh Agent drops assistant thinking when CoT recording is off', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-agent-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath, testConfigJsonc(directory));
@@ -83,7 +83,7 @@ test('a fresh Agent drops assistant thinking when CoT recording is off', async (
     configStore,
     secrets: new SecretStore(),
     ...testTelegramRuntime(api),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
   });
   const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
@@ -104,7 +104,7 @@ test('a fresh Agent drops assistant thinking when CoT recording is off', async (
 test.each([undefined, false, true])(
   'a fresh Agent preserves auditing and hot-applies payload recording from %s',
   async (recordPayloads) => {
-    const directory = await mkdtemp(join(tmpdir(), 'plasticwan-agent-'));
+    const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-'));
     directories.push(directory);
     const configPath = join(directory, 'config.jsonc');
     await writeTestConfig(
@@ -188,7 +188,7 @@ test.each([undefined, false, true])(
       configStore,
       secrets: new SecretStore(),
       ...testTelegramRuntime(api),
-      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
       systemResources: emptySystemResources(),
     });
     const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);

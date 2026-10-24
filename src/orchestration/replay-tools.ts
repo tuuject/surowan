@@ -1,6 +1,6 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import type { ImageContent } from '@earendil-works/pi-ai';
-import type { PublicModel } from '@plasticwan/image-service';
+import type { PublicModel } from '@surowan/image-service';
 import { createExecuteTool } from '../capabilities/execute-tool.ts';
 import { SystemResourceError, type SystemResources } from '../platform/system-resources.ts';
 import type { ToolAudit } from '../store/tool-audit.ts';

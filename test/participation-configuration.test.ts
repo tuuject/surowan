@@ -13,7 +13,7 @@ afterEach(async () => {
 
 describe('participation configuration', () => {
   async function configError(transform: (config: FileConfig) => void): Promise<string> {
-    const directory = await mkdtemp(join(tmpdir(), 'plasticwan-participation-'));
+    const directory = await mkdtemp(join(tmpdir(), 'surowan-participation-'));
     directories.push(directory);
     const configPath = join(directory, 'config.jsonc');
     await writeTestConfig(directory, configPath, testConfigJsonc(directory, transform));

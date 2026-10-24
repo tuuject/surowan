@@ -73,7 +73,7 @@ export async function setup(): Promise<{
   scheduler: BucketScheduler;
   commands: BotCommandService;
 }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-cut-topic-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-cut-topic-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -103,7 +103,7 @@ export async function setup(): Promise<{
     loaded,
     configStore,
     store,
-    ingestion: new TelegramIngestion(store, configStore, { id: 999, username: 'plasticwan_test_bot' }),
+    ingestion: new TelegramIngestion(store, configStore, { id: 999, username: 'surowan_test_bot' }),
     scheduler,
     commands: new BotCommandService(store, configStore, scheduler),
   };

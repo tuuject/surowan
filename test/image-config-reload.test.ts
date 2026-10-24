@@ -6,7 +6,7 @@ import {
   type GenerationInput,
   generationCreateSchema,
   imageSchema,
-} from '@plasticwan/image-service';
+} from '@surowan/image-service';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import sharp from 'sharp';
@@ -31,7 +31,7 @@ const cleanup: Array<() => void | Promise<void>> = [];
 let directory: string;
 
 beforeEach(async () => {
-  directory = await mkdtemp(join(tmpdir(), 'plasticwan-image-reload-'));
+  directory = await mkdtemp(join(tmpdir(), 'surowan-image-reload-'));
   cleanup.push(() => rm(directory, { recursive: true, force: true }));
 });
 
@@ -173,7 +173,7 @@ async function fixture(providerFetch: typeof fetch): Promise<Fixture> {
   const store = await SqliteStore.open(loaded.config);
   cleanup.push(() => store.close());
   const service = createImageService(store, loaded.config, {
-    providerAdapter: (await import('@plasticwan/image-service')).createOpenRouterAdapter({ fetchImpl: providerFetch }),
+    providerAdapter: (await import('@surowan/image-service')).createOpenRouterAdapter({ fetchImpl: providerFetch }),
   });
   cleanup.push(() => service.stop());
   const secrets = new SecretStore(keyJarPath(configPath));
@@ -372,7 +372,7 @@ test('creating without a published snapshot fails loudly, then succeeds after th
   cleanup.push(() => store.close());
   // The service starts with an empty snapshot; the first reload publishes.
   const service = createImageService(store, loaded.config, {
-    providerAdapter: (await import('@plasticwan/image-service')).createOpenRouterAdapter({
+    providerAdapter: (await import('@surowan/image-service')).createOpenRouterAdapter({
       fetchImpl: fakeProviderImageSink(calls),
     }),
   });

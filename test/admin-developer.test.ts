@@ -29,7 +29,7 @@ afterEach(async () => {
 });
 
 async function fixture(developer?: FileConfig['developer']) {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-developer-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-developer-'));
   const path = join(directory, 'config.jsonc');
   await writeTestConfig(
     directory,
@@ -297,7 +297,7 @@ test('batched payload cleanup preserves audit rows, associations and totals whil
 });
 
 test('migration 030 drops the retired replay snapshot column on fresh and upgraded databases', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-developer-mig-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-developer-mig-'));
   const path = join(directory, 'config.jsonc');
   await writeTestConfig(directory, path);
   const loaded = await loadConfig(path);

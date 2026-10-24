@@ -359,7 +359,7 @@ export async function backupDatabase(config: RawConfig): Promise<string> {
     source.exec('PRAGMA busy_timeout = 5000;');
     const sourceOrm = drizzle(source, { schema });
     purgeExpiredData(sourceOrm, config);
-    const filename = `plasticwan-${timestampForFile()}-${crypto.randomUUID()}.sqlite`;
+    const filename = `surowan-${timestampForFile()}-${crypto.randomUUID()}.sqlite`;
     const path = await createBackupFile(source, config.paths.backups, filename);
     // Original image files live outside SQLite; snapshot them next to the copy
     // so a backup restores both. Best-effort: a missing directory simply means

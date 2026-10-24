@@ -10,9 +10,9 @@ description: 在本仓库（surowan / Surowan）开始任何新 feature 开发�
 主目录 `~/Projects/<repo>` 是长期存在的基线 checkout；多个 feature 在同一个 checkout 上轮流切分支会互相踩脏、切分支丢状态。这个项目一致的做法是：**每个 feature 一个独立 worktree**，主目录不动。已有的工作树都长这样，直接沿用：
 
 ```text
-~/Projects/plasticwan                                    # 主 checkout
-~/Projects/plasticwan.worktrees/feature/bot-playground
-~/Projects/plasticwan.worktrees/feature/compact-user-ids
+~/Projects/surowan                                    # 主 checkout
+~/Projects/surowan.worktrees/feature/bot-playground
+~/Projects/surowan.worktrees/feature/compact-user-ids
 ```
 
 新 feature 必须基于 `origin/develop` 的最新提交，而不是本地可能落后的 `develop`，避免一开始就落后、合并时才炸。

@@ -314,7 +314,7 @@ export function testConfigJsonc(directory: string, transform?: (config: FixtureC
       backup_copies: 7,
     },
     paths: {
-      database: path('plasticwan.sqlite'),
+      database: path('surowan.sqlite'),
       media_cache: path('media'),
       backups: path('backups'),
     },

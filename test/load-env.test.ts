@@ -21,7 +21,7 @@ afterEach(async () => {
 });
 
 async function workingDirectory(): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-env-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-env-'));
   directories.push(directory);
   process.chdir(directory);
   return directory;
@@ -35,38 +35,38 @@ describe('environment file loading', () => {
 
   test('loads variables from .env.local and .env', async () => {
     const directory = await workingDirectory();
-    envKeys.push('PLASTICWAN_TEST_ENV_LOCAL', 'PLASTICWAN_TEST_ENV_FILE');
-    await writeFile(join(directory, '.env.local'), 'PLASTICWAN_TEST_ENV_LOCAL=from-local\n');
-    await writeFile(join(directory, '.env'), 'PLASTICWAN_TEST_ENV_FILE=from-file\n');
+    envKeys.push('SUROWAN_TEST_ENV_LOCAL', 'SUROWAN_TEST_ENV_FILE');
+    await writeFile(join(directory, '.env.local'), 'SUROWAN_TEST_ENV_LOCAL=from-local\n');
+    await writeFile(join(directory, '.env'), 'SUROWAN_TEST_ENV_FILE=from-file\n');
     loadEnvFiles(['.env.local', '.env']);
-    expect(process.env.PLASTICWAN_TEST_ENV_LOCAL).toBe('from-local');
-    expect(process.env.PLASTICWAN_TEST_ENV_FILE).toBe('from-file');
+    expect(process.env.SUROWAN_TEST_ENV_LOCAL).toBe('from-local');
+    expect(process.env.SUROWAN_TEST_ENV_FILE).toBe('from-file');
   });
 
   test('keeps the real environment and .env.local ahead of .env', async () => {
     const directory = await workingDirectory();
-    process.env.PLASTICWAN_TEST_ENV_PRECEDENCE = 'from-process';
-    envKeys.push('PLASTICWAN_TEST_ENV_PRECEDENCE', 'PLASTICWAN_TEST_ENV_LOCALITY');
+    process.env.SUROWAN_TEST_ENV_PRECEDENCE = 'from-process';
+    envKeys.push('SUROWAN_TEST_ENV_PRECEDENCE', 'SUROWAN_TEST_ENV_LOCALITY');
     await writeFile(
       join(directory, '.env.local'),
-      'PLASTICWAN_TEST_ENV_PRECEDENCE=from-local\nPLASTICWAN_TEST_ENV_LOCALITY=from-local\n',
+      'SUROWAN_TEST_ENV_PRECEDENCE=from-local\nSUROWAN_TEST_ENV_LOCALITY=from-local\n',
     );
     await writeFile(
       join(directory, '.env'),
-      'PLASTICWAN_TEST_ENV_PRECEDENCE=from-file\nPLASTICWAN_TEST_ENV_LOCALITY=from-file\n',
+      'SUROWAN_TEST_ENV_PRECEDENCE=from-file\nSUROWAN_TEST_ENV_LOCALITY=from-file\n',
     );
     loadEnvFiles(['.env.local', '.env']);
-    expect(process.env.PLASTICWAN_TEST_ENV_PRECEDENCE).toBe('from-process');
-    expect(process.env.PLASTICWAN_TEST_ENV_LOCALITY).toBe('from-local');
+    expect(process.env.SUROWAN_TEST_ENV_PRECEDENCE).toBe('from-process');
+    expect(process.env.SUROWAN_TEST_ENV_LOCALITY).toBe('from-local');
   });
 
   test('tolerates a UTF-8 BOM on the first line', async () => {
     const directory = await workingDirectory();
-    envKeys.push('PLASTICWAN_TEST_ENV_BOM');
+    envKeys.push('SUROWAN_TEST_ENV_BOM');
     // PowerShell 5 and legacy Notepad write this BOM; without stripping it the
     // first key silently becomes "\uFEFFKEY" and the variable stays unset.
-    await writeFile(join(directory, '.env.local'), '\uFEFFPLASTICWAN_TEST_ENV_BOM=yes\n');
+    await writeFile(join(directory, '.env.local'), '\uFEFFSUROWAN_TEST_ENV_BOM=yes\n');
     loadEnvFiles(['.env.local', '.env']);
-    expect(process.env.PLASTICWAN_TEST_ENV_BOM).toBe('yes');
+    expect(process.env.SUROWAN_TEST_ENV_BOM).toBe('yes');
   });
 });

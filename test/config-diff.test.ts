@@ -73,7 +73,7 @@ test('classifies hot, restart and outside-serve fields', async () => {
 });
 
 test('reports prompt content and path changes on the prompt field', async () => {
-  const directory = await createDirectory('plasticwan-diff-prompt-');
+  const directory = await createDirectory('surowan-diff-prompt-');
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
   const active = await loadConfig(configPath);

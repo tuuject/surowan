@@ -35,7 +35,7 @@ export async function setup(
   transform?: (config: FileConfig) => void,
   handler: InvocationHandler = async () => ({ state: 'completed', reason: 'test' }),
 ): Promise<SetupResult> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-task-runtime-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-task-runtime-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath, testConfigJsonc(directory, transform));

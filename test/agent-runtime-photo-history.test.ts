@@ -26,7 +26,7 @@ import { cleanupAgentRuntimeDirectories, directories } from './agent-runtime-fix
 afterAll(cleanupAgentRuntimeDirectories);
 
 test('keeps history photos as img_ refs for the multimodal agent while attaching only new photos', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-agent-history-image-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-history-image-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
@@ -148,7 +148,7 @@ test('keeps history photos as img_ refs for the multimodal agent while attaching
       sendMessage: async () => ({ message_id: 601, date: 1_700_000_100, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 602, date: 1_700_000_100, chat: { id: 123456789 } }),
     }),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
     capabilityTools: (context, deadline, capabilities) => [
       capability(media.createReadImageTool(context, capabilities, deadline), false),
@@ -177,7 +177,7 @@ test('keeps history photos as img_ refs for the multimodal agent while attaching
 });
 
 test('lets a text-only agent read a Telegram photo through read_image', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-agent-fallback-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-fallback-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const jsonc = testConfigJsonc(directory, (config) => {
@@ -274,7 +274,7 @@ test('lets a text-only agent read a Telegram photo through read_image', async ()
       sendMessage: async () => ({ message_id: 601, date: 1_700_000_100, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 602, date: 1_700_000_100, chat: { id: 123456789 } }),
     }),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
     capabilityTools: (context, deadline, capabilities) => [
       capability(media.createReadImageTool(context, capabilities, deadline), false),

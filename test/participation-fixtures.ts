@@ -16,7 +16,7 @@ export const directories: string[] = [];
 export const GROUP_CHAT_ID = -1_001_234_567_890;
 export const PRIVATE_CHAT_ID = 123_456_789;
 export const BOT_ID = 999;
-export const BOT_USERNAME = 'PlasticWanBot';
+export const BOT_USERNAME = 'SurowanBot';
 export const BOT_IDENTITY = { id: BigInt(BOT_ID), username: BOT_USERNAME };
 
 // 2026-08-15 is a Saturday; 10:00 UTC is inside 09:00-12:00 and 13:00 is not.
@@ -52,7 +52,7 @@ export async function setup(
     readonly chatId?: number;
   } = {},
 ): Promise<Harness> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-participation-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-participation-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const jsonc = testConfigJsonc(directory, (config) => {

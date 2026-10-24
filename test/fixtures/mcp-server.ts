@@ -10,7 +10,7 @@ if (pidFile !== undefined) {
   writeFileSync(pidFile, String(process.pid));
 }
 
-const server = new McpServer({ name: 'plasticwan-test', version: '1.0.0' });
+const server = new McpServer({ name: 'surowan-test', version: '1.0.0' });
 let calls = 0;
 server.registerTool(
   'echo',

@@ -1,5 +1,5 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core';
-import type { PublicModel } from '@plasticwan/image-service';
+import type { PublicModel } from '@surowan/image-service';
 import Type from 'typebox';
 import { Compile } from 'typebox/compile';
 import type { InvocationScope } from '../plugin.ts';

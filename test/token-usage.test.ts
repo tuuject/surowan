@@ -182,7 +182,7 @@ describe('provider usage normalization', () => {
   test.each(ADAPTERS)('$api usage is metered once per token', async ({ api, reply, expected }) => {
     const fixture = await startFixtureServer(() => reply());
     try {
-      const directory = await mkdtemp(join(tmpdir(), 'plasticwan-token-usage-'));
+      const directory = await mkdtemp(join(tmpdir(), 'surowan-token-usage-'));
       directories.push(directory);
       const configPath = join(directory, 'config.jsonc');
       await writeTestConfig(

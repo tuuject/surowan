@@ -20,7 +20,7 @@ import { cleanupAgentRuntimeDirectories, directories } from './agent-runtime-fix
 afterAll(cleanupAgentRuntimeDirectories);
 
 test('an invocation keeps running past the removed per-invocation tool-call cap and still audits the count', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-agent-no-tool-cap-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-no-tool-cap-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
@@ -80,7 +80,7 @@ test('an invocation keeps running past the removed per-invocation tool-call cap 
       sendMessage: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
     }),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
     additionalTools: () => [noop],
   });
@@ -94,7 +94,7 @@ test('an invocation keeps running past the removed per-invocation tool-call cap 
 });
 
 test('counts tool descriptions in registry limits', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-agent-tool-budget-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-tool-budget-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
@@ -115,7 +115,7 @@ test('counts tool descriptions in registry limits', async () => {
       sendMessage: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
     }),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
   });
   const oversizedDescriptionTool: AgentTool = {
@@ -133,7 +133,7 @@ test('counts tool descriptions in registry limits', async () => {
 });
 
 test('a model that declares minimal tool-schema keywords is sent reduced tool definitions', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-agent-tool-schema-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-tool-schema-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -204,7 +204,7 @@ test('a model that declares minimal tool-schema keywords is sent reduced tool de
       sendMessage: async () => ({ message_id: 500, date: 1_700_000_100, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 501, date: 1_700_000_100, chat: { id: 123456789 } }),
     }),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
   });
   const outcome = await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);

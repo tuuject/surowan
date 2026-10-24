@@ -297,7 +297,7 @@ describe('startup catch-up commands', () => {
           hard_pity: 8,
         };
       },
-      { bot: { id: BigInt(999), username: 'PlasticWanBot' }, random },
+      { bot: { id: BigInt(999), username: 'SurowanBot' }, random },
     );
     const result = await runStartupCatchUp({
       api: fakeApi([textUpdate(1, 10, 7)]),

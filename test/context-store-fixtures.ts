@@ -16,7 +16,7 @@ export async function cleanupContextStoreDirectories(): Promise<void> {
 }
 
 export async function fixture(): Promise<{ store: SqliteStore; loaded: Awaited<ReturnType<typeof loadConfig>> }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-context-store-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-context-store-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);

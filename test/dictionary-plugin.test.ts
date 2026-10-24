@@ -103,7 +103,7 @@ test('the tool model inherits the global agent settings until one is configured'
 });
 
 test('merge preview calls the tool model and persists nothing; confirm writes atomically', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-dictionary-merge-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-dictionary-merge-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
@@ -229,7 +229,7 @@ test('merge preview calls the tool model and persists nothing; confirm writes at
 });
 
 test('merge rejects an abnormal stop reason and an invalid suggestion, and audits each as an error', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-dictionary-merge-strict-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-dictionary-merge-strict-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);

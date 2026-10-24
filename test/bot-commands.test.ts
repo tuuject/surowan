@@ -25,7 +25,7 @@ describe('parseBotCommand', () => {
   });
 
   test('accepts an explicit matching bot mention and rejects others', async () => {
-    expect(parseBotCommand(message(commandUpdate(1, 1, '/pause@plasticwan_test_bot').message), BOT_USERNAME)).toEqual({
+    expect(parseBotCommand(message(commandUpdate(1, 1, '/pause@surowan_test_bot').message), BOT_USERNAME)).toEqual({
       name: 'pause',
       messageId: 1n,
     });
@@ -45,7 +45,7 @@ describe('parseBotCommand', () => {
 
   test('recognizes self-ignore commands, matching mentions and ignores supplied user IDs', () => {
     expect(
-      parseBotCommand(message(commandUpdate(1, 1, '/IgnoreMe@plasticwan_test_bot 99').message), BOT_USERNAME),
+      parseBotCommand(message(commandUpdate(1, 1, '/IgnoreMe@surowan_test_bot 99').message), BOT_USERNAME),
     ).toEqual({
       name: 'ignoreme',
       messageId: 1n,
@@ -77,9 +77,11 @@ describe('parseBotCommand', () => {
       argument: 'reset',
       messageId: 1n,
     });
-    expect(parseBotCommand(message(commandUpdate(1, 1, '/model@plasticwan_test_bot 2').message), BOT_USERNAME)).toEqual(
-      { name: 'model', argument: '2', messageId: 1n },
-    );
+    expect(parseBotCommand(message(commandUpdate(1, 1, '/model@surowan_test_bot 2').message), BOT_USERNAME)).toEqual({
+      name: 'model',
+      argument: '2',
+      messageId: 1n,
+    });
     expect(parseBotCommand(message(commandUpdate(1, 1, '/pause whatever').message), BOT_USERNAME)).toEqual({
       name: 'pause',
       messageId: 1n,

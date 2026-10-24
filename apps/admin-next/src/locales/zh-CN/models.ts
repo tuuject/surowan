@@ -71,7 +71,7 @@ export const models: typeof modelsEn = {
       writtenNote: '已写入 config.jsonc，但运行中的进程仍使用旧值：',
       restarting: '重启中…',
       restartNow: '立即重启',
-      noSupervisor: '当前部署未声明 supervisor（PLASTICWAN_SUPERVISED=1），因此没有重启按钮 - 请手动重启服务器。',
+      noSupervisor: '当前部署未声明 supervisor（SUROWAN_SUPERVISED=1），因此没有重启按钮 - 请手动重启服务器。',
     },
     inUse: {
       title: '使用中',

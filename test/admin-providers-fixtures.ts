@@ -55,7 +55,7 @@ export function installAdminProviderHooks(): void {
   });
 
   afterEach(async () => {
-    delete process.env.PLASTICWAN_SUPERVISED;
+    delete process.env.SUROWAN_SUPERVISED;
     await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
   });
 }
@@ -82,7 +82,7 @@ export interface FixtureOptions {
 }
 
 export async function adminFixture(options: FixtureOptions = {}): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-admin-providers-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-admin-providers-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const staticDir = join(directory, 'bundle');

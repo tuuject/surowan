@@ -55,10 +55,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Build the unchanged Bot image with the shared lockfile
-        run: docker build -t plasticwan:docs-check .
+        run: docker build -t surowan:docs-check .
       - name: Ensure the image ships the manual but not the docs site
         run: >-
-          docker run --rm --entrypoint node plasticwan:docs-check
+          docker run --rm --entrypoint node surowan:docs-check
           --input-type=module -e
           "import { existsSync, readFileSync } from 'node:fs';
           import { createRequire } from 'node:module';

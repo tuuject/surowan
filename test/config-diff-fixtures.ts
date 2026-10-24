@@ -15,7 +15,7 @@ afterAll(async () => {
   );
 });
 
-export async function createDirectory(prefix = 'plasticwan-diff-'): Promise<string> {
+export async function createDirectory(prefix = 'surowan-diff-'): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), prefix));
   directories.push(directory);
   return directory;

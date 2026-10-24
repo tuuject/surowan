@@ -1,4 +1,4 @@
-import { buildImageRequestBody, modelDefinitionSchema } from '@plasticwan/image-service';
+import { buildImageRequestBody, modelDefinitionSchema } from '@surowan/image-service';
 import { afterEach, expect, test, vi } from 'vitest';
 import { listOpenRouterImageEndpoints, listOpenRouterImageModels } from '../src/platform/image-models.ts';
 

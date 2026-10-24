@@ -37,7 +37,7 @@ afterAll(async () => {
 });
 
 export async function fixture() {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-admin-playground-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-admin-playground-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const staticDir = join(directory, 'bundle');

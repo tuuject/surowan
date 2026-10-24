@@ -35,11 +35,11 @@ Compose 模板使用 `ghcr.io/tuuject/surowan:latest`，它只跟随稳定版本
 
 ## 2. 安全提供密钥
 
-配置示例通过环境变量读取密钥。取消 `docker-compose.yml` 中 `TELEGRAM_BOT_TOKEN` 和 `PLASTICWAN_API_KEY` 两行的注释，然后为当前 shell 设置它们，或由部署系统注入：
+配置示例通过环境变量读取密钥。取消 `docker-compose.yml` 中 `TELEGRAM_BOT_TOKEN` 和 `SUROWAN_API_KEY` 两行的注释，然后为当前 shell 设置它们，或由部署系统注入：
 
 ```bash
 export TELEGRAM_BOT_TOKEN='…'
-export PLASTICWAN_API_KEY='…'
+export SUROWAN_API_KEY='…'
 ```
 
 不要把 Token 或 API key 写入配置、Compose 文件或聊天。Telegram 官方说明 Bot 由 [@BotFather](https://t.me/BotFather) 创建；不要将它返回的 Token 发给协助部署的 Agent。群聊需要 Bot 能收到你希望它处理的消息，见 [接入 Telegram](../configure/telegram.md)。
@@ -48,7 +48,7 @@ export PLASTICWAN_API_KEY='…'
 
 ```bash
 docker compose pull
-docker compose run --rm plasticwan check-config --config /config/config.jsonc
+docker compose run --rm surowan check-config --config /config/config.jsonc
 ```
 
 `check-config` 成功后才继续。它不连接 Telegram 或模型；需要真实连通性检查时，在获准消耗少量 Token 的环境运行 `doctor`。
@@ -57,7 +57,7 @@ docker compose run --rm plasticwan check-config --config /config/config.jsonc
 
 ```bash
 docker compose up -d
-docker compose logs -f plasticwan
+docker compose logs -f surowan
 ```
 
 日志出现 `serve_started` 表示服务已开始轮询。向允许的 Chat 发送一条消息，等待配置的 `bucket_window_seconds`。模型可以选择沉默；要区分未触发与主动不发言，请看 [排查问题](../operations/troubleshooting.md)。

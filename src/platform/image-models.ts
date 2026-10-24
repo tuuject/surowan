@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { aspectRatios, type ModelCapability, resolutionClasses } from '@plasticwan/image-service';
+import { aspectRatios, type ModelCapability, resolutionClasses } from '@surowan/image-service';
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
 import { readBoundedText } from './provider-models.ts';

@@ -21,7 +21,7 @@ afterAll(async () => {
   );
 });
 
-async function tempRoot(prefix = 'plasticwan-manual-'): Promise<string> {
+async function tempRoot(prefix = 'surowan-manual-'): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), prefix));
   directories.push(root);
   return root;
@@ -105,7 +105,7 @@ test('public download links point at the packed examples or lose their link', as
   const agentAssisted = await readFile(join(outDir, 'start/agent-assisted.md'), 'utf8');
   expect(agentAssisted).toContain('部署后的文档站提供 llms.txt 与逐页 Markdown');
 
-  const contentRoot = await tempRoot('plasticwan-manual-content-');
+  const contentRoot = await tempRoot('surowan-manual-content-');
   await writeFile(join(contentRoot, '_meta.json'), JSON.stringify(['guide']));
   await writeFile(
     join(contentRoot, 'guide.md'),
@@ -204,7 +204,7 @@ test('re-packing removes documents that are no longer published', async () => {
 });
 
 test('unsupported navigation fails the pack instead of dropping pages', async () => {
-  const contentRoot = await tempRoot('plasticwan-manual-content-');
+  const contentRoot = await tempRoot('surowan-manual-content-');
   await writeFile(
     join(contentRoot, '_meta.json'),
     JSON.stringify(['index', { type: 'dir', name: 'start', label: '开始' }]),
@@ -215,14 +215,14 @@ test('unsupported navigation fails the pack instead of dropping pages', async ()
     'Manual page listed in navigation does not exist: start/missing.md',
   );
 
-  const noFrontmatter = await tempRoot('plasticwan-manual-content-');
+  const noFrontmatter = await tempRoot('surowan-manual-content-');
   await writeFile(join(noFrontmatter, '_meta.json'), JSON.stringify(['guide']));
   await writeFile(join(noFrontmatter, 'guide.md'), '# Guide\n');
   await expect(packManual({ outDir: await tempRoot(), contentRoot: noFrontmatter })).rejects.toThrow(
     'missing frontmatter',
   );
 
-  const noNavigation = await tempRoot('plasticwan-manual-content-');
+  const noNavigation = await tempRoot('surowan-manual-content-');
   await expect(packManual({ outDir: await tempRoot(), contentRoot: noNavigation })).rejects.toThrow(
     'Documentation navigation is missing or invalid',
   );

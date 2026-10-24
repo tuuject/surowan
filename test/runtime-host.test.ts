@@ -22,7 +22,7 @@ afterAll(async () => {
 });
 
 test('core assembly uses injected resources without loading host files or starting lifecycle', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-runtime-host-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-runtime-host-'));
   directories.push(directory);
   const { fileConfig } = validateFileConfig(JSON.parse(testConfigJsonc(directory)));
   const config = assembleRawConfig(fileConfig, 'in-memory system prompt', new Map());
@@ -61,7 +61,7 @@ test('core assembly uses injected resources without loading host files or starti
         },
         sendSticker: async () => ({ message_id: 502, date: 1_700_000_100, chat: { id: 123456789 } }),
       }),
-      bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+      bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
       systemResources: resources,
     });
     // Assembly must not start the scheduler or process anything on construction.

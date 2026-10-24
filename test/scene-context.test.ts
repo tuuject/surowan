@@ -114,7 +114,7 @@ describe('scene context', () => {
 
     expect(scene.historyCount).toBe(2);
     expect(scene.messageCount).toBe(3);
-    expect(scene.text).toContain('[20 00:00:25 you uid:999 @plasticwan_test] PlasticWan\n  bot old words');
+    expect(scene.text).toContain('[20 00:00:25 you uid:999 @surowan_test] Surowan\n  bot old words');
     expect(scene.text).not.toContain('bot answer words');
     store.close();
   });

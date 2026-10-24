@@ -22,7 +22,7 @@ function insertChat(orm: Orm, id: bigint): void {
 }
 
 test('business store provides atomic rollback and exact bigint IDs across SQLite reopen', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-store-contract-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-store-contract-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);

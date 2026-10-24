@@ -10,7 +10,7 @@ import {
   ImageStore,
   imageSchema,
   modelDefinitionSchema,
-} from '@plasticwan/image-service';
+} from '@surowan/image-service';
 import type Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import type { RawConfig } from '../platform/config.ts';

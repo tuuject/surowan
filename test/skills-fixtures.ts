@@ -95,7 +95,7 @@ export async function skillAgentRuntime(
       sendMessage: async () => ({ message_id: 500, date: 1, chat: { id: 123456789 } }),
       sendSticker: async () => ({ message_id: 501, date: 1, chat: { id: 123456789 } }),
     }),
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: await bundledSystemResources(),
     capabilityTools,
   });

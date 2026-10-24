@@ -81,7 +81,7 @@ export async function cleanupFixtures(): Promise<void> {
 }
 
 export async function fixture(): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-scene-slice-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-scene-slice-'));
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
   const loaded = await loadConfig(configPath);
@@ -101,8 +101,8 @@ export async function fixture(): Promise<Fixture> {
       id: BOT_SENDER,
       telegramType: 'user',
       telegramId: 999n,
-      displayName: 'PlasticWan',
-      username: 'plasticwan_test',
+      displayName: 'Surowan',
+      username: 'surowan_test',
       isBot: true,
       updatedAt: at(30),
     })

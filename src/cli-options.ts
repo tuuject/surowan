@@ -73,5 +73,5 @@ function isCommand(value: string): value is Command {
 }
 
 function usage(): string {
-  return 'Usage: plasticwan <serve|check-config|doctor|backup|configure|admin-reset> --config <path> [--output-agent-prompt] [--takeover] [--playground-only] [--username <name>] [--password-stdin]';
+  return 'Usage: surowan <serve|check-config|doctor|backup|configure|admin-reset> --config <path> [--output-agent-prompt] [--takeover] [--playground-only] [--username <name>] [--password-stdin]';
 }

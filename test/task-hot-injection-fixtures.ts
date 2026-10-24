@@ -28,7 +28,7 @@ export async function cleanupFixtures(): Promise<void> {
 }
 
 export async function fixture(transform?: (config: FileConfig) => void, additionalTools?: ToolFactory) {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-task-hot-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-task-hot-'));
   cleanups.push(() => rm(directory, { recursive: true, force: true }));
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -63,7 +63,7 @@ export async function fixture(transform?: (config: FileConfig) => void, addition
     configStore,
     secrets: new SecretStore(),
     conversationRuntime,
-    bot: { id: 999n, displayName: 'Surowan', username: 'plasticwan' },
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     systemResources: emptySystemResources(),
     ...testTelegramRuntime({
       sendMessage: async (_chatId, text) => {

@@ -39,7 +39,7 @@ async function released() {
     provider: 'agent',
     models: [{ id: 'agent-model', input: ['text'], contextWindow: 200_000, maxTokens: 32_768 }],
   });
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-playground-runtime-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-playground-runtime-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);

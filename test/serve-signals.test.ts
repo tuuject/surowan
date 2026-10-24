@@ -25,7 +25,7 @@ describe.skipIf(process.platform === 'win32')('stop signals', () => {
     ['SIGINT', 130],
     ['SIGTERM', 143],
   ] as const)('a second %s forces the exit with code %i', async (signal, exitCode) => {
-    const directory = await mkdtemp(join(tmpdir(), 'plasticwan-signals-'));
+    const directory = await mkdtemp(join(tmpdir(), 'surowan-signals-'));
     directories.push(directory);
     const forcedMarker = join(directory, 'forced.txt');
     const scriptPath = join(directory, 'child.ts');

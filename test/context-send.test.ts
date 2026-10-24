@@ -81,7 +81,7 @@ describe('invocation context', () => {
   });
 
   test('renders agent templates from the effective model without templating memory', async () => {
-    const directory = await fixtureDirectory('plasticwan-context-template-');
+    const directory = await fixtureDirectory('surowan-context-template-');
     const configPath = join(directory, 'config.jsonc');
     await writeTestConfig(
       directory,

@@ -136,7 +136,7 @@ function selfCheck() {
 
 async function download(url) {
   const response = await fetch(url, {
-    headers: { 'User-Agent': 'plastic-wan-gif-metadata-research' },
+    headers: { 'User-Agent': 'surowan-gif-metadata-research' },
     signal: AbortSignal.timeout(60_000),
     redirect: 'error',
   });

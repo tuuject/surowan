@@ -30,7 +30,7 @@ afterAll(async () => {
 });
 
 test('retention scrubs referenced history and backup keeps seven consistent copies', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-operations-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-operations-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
@@ -130,7 +130,7 @@ test('retention scrubs referenced history and backup keeps seven consistent copi
 });
 
 test('takeover stops the instance holding the lock and leaves no stop request behind', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-takeover-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-takeover-'));
   directories.push(directory);
   const dataDir = join(directory, 'data');
   const lockPath = join(dataDir, 'serve.lock');
@@ -154,7 +154,7 @@ test('takeover stops the instance holding the lock and leaves no stop request be
 });
 
 test('takeover stops a holder that has no PID file and is still starting its watcher', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-takeover-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-takeover-'));
   directories.push(directory);
   const dataDir = join(directory, 'data');
   const stopPath = join(dataDir, 'serve.stop');
@@ -181,7 +181,7 @@ test('takeover stops a holder that has no PID file and is still starting its wat
 });
 
 test('a PID file left behind by a dead instance does not block the next one', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-takeover-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-takeover-'));
   directories.push(directory);
   const dataDir = join(directory, 'data');
   const lockPath = join(dataDir, 'serve.lock');
@@ -204,7 +204,7 @@ test('a PID file left behind by a dead instance does not block the next one', as
 });
 
 test('a failed PID file write does not keep the mutex held', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-takeover-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-takeover-'));
   directories.push(directory);
   const dataDir = join(directory, 'data');
   const lockPath = join(dataDir, 'serve.lock');
@@ -220,7 +220,7 @@ test('a failed PID file write does not keep the mutex held', async () => {
 });
 
 test('the lock refuses a second instance until it is released', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-takeover-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-takeover-'));
   directories.push(directory);
   const dataDir = join(directory, 'data');
   const lock = await ServeLock.acquire(dataDir);
@@ -233,7 +233,7 @@ test('the lock refuses a second instance until it is released', async () => {
 });
 
 test('takeover gives up on an instance that ignores the request', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-takeover-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-takeover-'));
   directories.push(directory);
   const dataDir = join(directory, 'data');
   const lock = await ServeLock.acquire(dataDir);
@@ -243,7 +243,7 @@ test('takeover gives up on an instance that ignores the request', async () => {
 });
 
 test('a stale stop request does not stop the instance that starts next', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-takeover-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-takeover-'));
   directories.push(directory);
   const dataDir = join(directory, 'data');
   await mkdir(dataDir, { recursive: true });

@@ -1,4 +1,4 @@
-import type { PublicModel } from '@plasticwan/image-service';
+import type { PublicModel } from '@surowan/image-service';
 import { expect, test } from 'vitest';
 import { AddMemoryInputSchema, DeleteMemoryInputSchema } from '../src/context/memory.ts';
 import { createReplayTools } from '../src/orchestration/replay-tools.ts';

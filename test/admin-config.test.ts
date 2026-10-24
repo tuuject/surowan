@@ -16,7 +16,7 @@ import { testConfigJsonc, writeTestConfig } from './helpers.ts';
 import { directories, fixture, PASSWORD, post, readJson, request, sessionCookie } from './admin-fixtures.ts';
 
 test('admin config accepts a non-loopback bind host', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-admin-host-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-admin-host-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(

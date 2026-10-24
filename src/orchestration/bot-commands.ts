@@ -123,7 +123,7 @@ export async function registerBotCommands(api: CommandRegistrationApi): Promise<
 }
 
 // Telegram command tokens are case-insensitive and may carry an explicit
-// bot mention (`/pause@PlasticWanBot`); the mention must match this bot.
+// bot mention (`/pause@SurowanBot`); the mention must match this bot.
 export function parseBotCommand(message: Message, botUsername: string | null): ParsedCommand | null {
   if (message.text === undefined || message.from?.is_bot === true) {
     return null;

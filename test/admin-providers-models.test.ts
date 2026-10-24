@@ -139,7 +139,7 @@ test('restarts only when the deployment declares a supervisor and the file loads
     expect(await readJson(unsupervised)).toMatchObject({ error: 'restart_unsupported' });
     expect(restarts).toBe(0);
 
-    process.env.PLASTICWAN_SUPERVISED = '1';
+    process.env.SUROWAN_SUPERVISED = '1';
     await writeFile(fixture.configPath, '{ "version": 1 }');
     const invalid = await call(fixture, '/api/restart', { method: 'POST' });
     expect(invalid.status).toBe(422);

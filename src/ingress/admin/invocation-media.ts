@@ -372,7 +372,7 @@ export function createInvocationMediaReader(deps: InvocationMediaReaderDeps): In
         | { readonly ok: true; readonly bytes: InvocationMediaBytes }
         | { readonly ok: false; readonly error: AdminQueryError };
       try {
-        directory = await mkdtemp(join(tmpdir(), 'plasticwan-invocation-media-'));
+        directory = await mkdtemp(join(tmpdir(), 'surowan-invocation-media-'));
         if (process.platform !== 'win32') {
           await chmod(directory, 0o700);
         }

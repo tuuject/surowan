@@ -127,7 +127,7 @@ export async function setup(
   readonly commands: BotCommandService;
   readonly build: (invocationId: bigint, options?: TestContextOptions) => TestInvocationContext;
 }> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-startup-catch-up-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-startup-catch-up-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   const jsonc = testConfigJsonc(directory, (config) => {

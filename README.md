@@ -174,11 +174,11 @@ Compose 模板默认使用 `ghcr.io/tuuject/surowan:latest`。如果要固定版
 
 ### 2. 提供密钥
 
-配置示例通过环境变量读取密钥。取消 `docker-compose.yml` 中 `TELEGRAM_BOT_TOKEN` 和 `PLASTICWAN_API_KEY` 两行的注释，然后在运行 Compose 的终端中设置它们，或由部署系统注入：
+配置示例通过环境变量读取密钥。取消 `docker-compose.yml` 中 `TELEGRAM_BOT_TOKEN` 和 `SUROWAN_API_KEY` 两行的注释，然后在运行 Compose 的终端中设置它们，或由部署系统注入：
 
 ```bash
 export TELEGRAM_BOT_TOKEN='替换为自己的 Bot Token'
-export PLASTICWAN_API_KEY='替换为自己的模型 API Key'
+export SUROWAN_API_KEY='替换为自己的模型 API Key'
 ```
 
 真实密钥不要写进 Compose 或 `config.jsonc`，也不要提交到仓库或发到聊天里。也可以改用配置同目录的 `key.json`，详见 [配置文件与密钥](apps/docs/content/docs/configure/config-file.md)。
@@ -187,12 +187,12 @@ export PLASTICWAN_API_KEY='替换为自己的模型 API Key'
 
 ```bash
 docker compose pull
-docker compose run --rm plasticwan check-config --config /config/config.jsonc
+docker compose run --rm surowan check-config --config /config/config.jsonc
 docker compose up -d
-docker compose logs -f plasticwan
+docker compose logs -f surowan
 ```
 
-`check-config` 只校验配置，成功以后再启动。如果需要检查实际依赖和外部连接，可以运行 `docker compose run --rm plasticwan doctor --config /config/config.jsonc`（会调用模型，消耗少量 Token）。
+`check-config` 只校验配置，成功以后再启动。如果需要检查实际依赖和外部连接，可以运行 `docker compose run --rm surowan doctor --config /config/config.jsonc`（会调用模型，消耗少量 Token）。
 
 日志出现 **`serve_started`** 后，向允许的 Chat 发消息，等待消息聚合窗口（示例配置为 15 秒）。没有回复时，排查方法见 [故障处理](apps/docs/content/docs/operations/troubleshooting.md)。
 

@@ -13,7 +13,7 @@ import {
   ImageStore,
   imageSchema,
   type ModelDefinition,
-} from '@plasticwan/image-service';
+} from '@surowan/image-service';
 import Database from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
@@ -37,7 +37,7 @@ const cleanup: Array<() => void | Promise<void>> = [];
 let directory: string;
 
 beforeEach(async () => {
-  directory = await mkdtemp(join(tmpdir(), 'plasticwan-image-service-'));
+  directory = await mkdtemp(join(tmpdir(), 'surowan-image-service-'));
   cleanup.push(() => rm(directory, { recursive: true, force: true }));
 });
 

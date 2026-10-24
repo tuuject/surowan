@@ -147,7 +147,7 @@ describe('participation rules', () => {
     });
     expect(matchTriggerKind(caption.message as Message, BOT_IDENTITY, ['wan'])).toBe('keyword');
     expect(
-      matchTriggerKind(groupMessage(2, 11, { text: 'hi @plasticwanbot' }).message as Message, BOT_IDENTITY, []),
+      matchTriggerKind(groupMessage(2, 11, { text: 'hi @surowanbot' }).message as Message, BOT_IDENTITY, []),
     ).toBeNull();
   });
 

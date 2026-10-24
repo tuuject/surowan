@@ -40,7 +40,7 @@ let directory: string;
 
 export function useInvocationSearchFixture(): void {
   beforeEach(async () => {
-    directory = await mkdtemp(join(tmpdir(), 'plasticwan-invocation-search-'));
+    directory = await mkdtemp(join(tmpdir(), 'surowan-invocation-search-'));
     const configPath = join(directory, 'config.jsonc');
     await writeTestConfig(
       directory,

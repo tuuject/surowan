@@ -15,7 +15,7 @@ import { testConfigStore, writeTestConfig } from './helpers.ts';
 import { directories } from './media-fixtures.ts';
 
 test('prepareSceneImage reads photos, image documents and stickers read-only, while generation input still rejects stickers', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-media-scene-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-media-scene-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);

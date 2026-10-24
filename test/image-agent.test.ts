@@ -1,4 +1,4 @@
-import { imageSchema } from '@plasticwan/image-service';
+import { imageSchema } from '@surowan/image-service';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { expect, test } from 'vitest';

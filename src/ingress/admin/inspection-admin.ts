@@ -287,7 +287,7 @@ export function createInspectionAdminHandler(deps: InspectionAdminDeps) {
         'content-length': String(content.bytes.byteLength),
         'cache-control': 'private, no-store',
         'content-disposition': 'attachment',
-        'x-plasticwan-media-variant': content.variant,
+        'x-surowan-media-variant': content.variant,
       },
     });
   };

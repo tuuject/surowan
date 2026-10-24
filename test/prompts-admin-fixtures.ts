@@ -44,7 +44,7 @@ export interface Fixture {
 }
 
 export async function fixture(transform?: (config: FileConfig) => void): Promise<Fixture> {
-  const directory = await mkdtemp(join(tmpdir(), 'plasticwan-prompts-'));
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-prompts-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(

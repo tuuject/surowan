@@ -78,7 +78,7 @@ export interface CliResult {
 let sharedHome: string | undefined;
 
 async function cliHome(): Promise<string> {
-  sharedHome ??= await mkdtemp(join(tmpdir(), 'plasticwan-cli-home-'));
+  sharedHome ??= await mkdtemp(join(tmpdir(), 'surowan-cli-home-'));
   return sharedHome;
 }
 

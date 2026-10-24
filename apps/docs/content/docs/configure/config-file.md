@@ -27,7 +27,7 @@ config/
 {
   "telegram": { "token": { "env": "TELEGRAM_BOT_TOKEN" } },
   "providers": {
-    "gateway": { "api_key": { "env": "PLASTICWAN_API_KEY" } }
+    "gateway": { "api_key": { "env": "SUROWAN_API_KEY" } }
   }
 }
 ```
