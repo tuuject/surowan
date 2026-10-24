@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { ImConnectionRegistry } from '../src/platform/im-connection.ts';
 import { WarningService } from '../src/store/warnings.ts';
 import { fixture, PASSWORD, post, readJson, request, sessionCookie } from './admin-fixtures.ts';
 
@@ -77,6 +78,62 @@ test('warnings API lists standing and event warnings, marks read and clears hist
     expect(await readJson(await call('/warnings'))).toMatchObject({ items: [], unread_count: 0 });
     // Standing warnings survive clearing history because they are derived.
     expect((await readJson(await call('/warnings'))).standing).toHaveLength(1);
+  } finally {
+    await f.server.stop();
+    f.store.close();
+  }
+});
+
+test('Telegram connection states appear and clear as standing warnings', async () => {
+  const connections = new ImConnectionRegistry();
+  const f = await fixture({ connections });
+  try {
+    const setup = await f.server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD }));
+    const cookie = sessionCookie(setup);
+    const call = (path: string) =>
+      f.server.handle(
+        request(`/api${path}`, {
+          headers: { cookie, origin: 'http://127.0.0.1:8899' },
+        }),
+      );
+    const telegramWarnings = async (): Promise<Record<string, unknown>[]> =>
+      (await readJson(await call('/warnings'))).standing.filter((warning: { code: string }) =>
+        warning.code.startsWith('telegram_'),
+      );
+
+    // No connection ever opened: disabled, and disabled never warns.
+    expect(await telegramWarnings()).toEqual([]);
+
+    connections.set('telegram', { status: 'network_error', since: '2026-10-25T00:00:00.000Z' });
+    expect(await telegramWarnings()).toEqual([
+      expect.objectContaining({ kind: 'standing', code: 'telegram_network_error', category: 'runtime' }),
+    ]);
+
+    for (const reason of ['unauthorized', 'conflict', 'token_unreadable'] as const) {
+      connections.set('telegram', {
+        status: 'config_error',
+        reason,
+        since: '2026-10-25T00:00:00.000Z',
+      });
+      expect(await telegramWarnings()).toEqual([
+        expect.objectContaining({
+          kind: 'standing',
+          code: 'telegram_config_error',
+          category: 'runtime',
+          variables: { reason },
+        }),
+      ]);
+    }
+
+    connections.set('telegram', {
+      status: 'connected',
+      since: '2026-10-25T00:00:00.000Z',
+      bot: { id: '1', username: 'bot' },
+    });
+    expect(await telegramWarnings()).toEqual([]);
+
+    connections.set('telegram', { status: 'disabled', since: '2026-10-25T00:00:00.000Z' });
+    expect(await telegramWarnings()).toEqual([]);
   } finally {
     await f.server.stop();
     f.store.close();

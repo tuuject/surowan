@@ -19,7 +19,7 @@ Config + SecretStore
         ├─ BotCommandService / AgentModelSwitcher / ConfigReloader
         ├─ AdminServer（仅 admin.enabled = true）
         ├─ LongTaskService（long_tasks / task_receipts）
-        ├─ WarningService（warnings 事件警告；常态警告由 active 配置即时推导）
+        ├─ WarningService（warnings 事件警告；常态警告由 active 配置与连接状态即时推导）
         ├─ 内置 Plugin（含 alarm）
         └─ ImageService（packages/image-service 核心；单 Worker 图片生成，原文件存 <data_dir>/images）
 ```

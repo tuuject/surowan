@@ -56,6 +56,11 @@ export function logEvents(event: string): Record<string, unknown>[] {
     .map((line) => JSON.parse(line) as Record<string, unknown>);
 }
 
+/** Every console.log line captured while the fixture's spy is installed. */
+export function logLines(): readonly string[] {
+  return captured;
+}
+
 export function textUpdate(updateId: number, messageId: number, text: string): Update {
   return {
     update_id: updateId,

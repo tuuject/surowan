@@ -97,6 +97,8 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 
 响应里不出现 `api_key`，也不出现任何 header 值，也不说明已保存的 SecretRef 是明文、`env` 还是 `command`。文件无效时返回 422 `config_invalid`（错误经过密钥脱敏）。`GET /provider-presets` 列出可配置的 builtin Provider（`id`、`name`、`api`、`base_url`），过滤规则见 [configuration.md](configuration.md#provider)。
 
+`GET /telegram` 是 Telegram 设置页的读端点（仅面板 Session，程序化 API key 请求得到 403），读磁盘上的 `config.jsonc`，返回 `{ revision, status, telegram_section_present, token_configured }`。`status` 是进程内连接状态登记处的快照（`disabled`/`connected`/`network_error`/`config_error`，`config_error` 带 `reason`，连接过时带 `bot`）；`token_configured` 只表示文件里有没有 `telegram.token`，永远是布尔值，不说明是 jar、env 还是 command，也不回显值。`ConfigReloader` 未接线时返回 503 `config_reload_unavailable`。
+
 **写端点是白名单例外**，只有这些：
 
 | 路由 | 非显然的语义 |
@@ -128,6 +130,7 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 | `POST /image/generations/resolve` | 只读：按当前图片配置把生成请求 body 解析成快照返回（预检），不创建任何记录、不提交生成 |
 | `POST /image/generations` / `POST /image/generations/:id/retry` | 以 `admin:<username>` actor 提交生成（body 含 `idempotency_key`，同键同内容重放不重新计费，同键不同内容 409）或重试已有 generation |
 | `PUT /image/config` | 图片功能启停与模型/凭据配置，`If-Match` revision 规则同其它配置写端点。`enabled: true` 时 body 必须带 `credentials`（名称 → 新明文；空对象保留已有 SecretRef，明文写入 key jar，`config.jsonc` 只保留 `{jar}` 引用）与 `models` 数组；可带 `credential_sources`（图片凭据名称 → 已配置的内置 OpenRouter Provider alias，服务端复用其 SecretRef，不返回密钥）。重复模型 ID 或缺失凭据引用在写入前拒绝（结构按 image 段 schema 校验，不合法返回 400 `invalid_body`）；`enabled: false` 删除整个 `image` 段并回收不再被引用的 jar 条目。写入经 reloader 原子应用，无需重启；响应 `{ enabled, apply }` |
+| `PUT /telegram` | 只接受 body `{ token: string \| null }`，其它字段返回 400 `invalid_body`。字符串写入 key jar，`config.jsonc` 只保留 `{jar}` 引用；`null` 删除 `telegram.token` 并回收不再被引用的 jar 条目；已经是 `null` 时幂等成功，不重写文件。`telegram` 段缺失时按 `TELEGRAM_DEFAULTS` 建段（`process_bot_messages: false`、`bucket_window_seconds: 15`、`chats: []`）。只改 token，不碰 Chats 或其它 `telegram.*` 字段，也不提供删除整段的写法。`If-Match` revision 规则同其它配置写端点：缺失 400 `revision_required`，过期 409 `config_conflict`；成功响应 `{ revision, status, telegram_section_present, token_configured, apply }`。明文在写入前注册进 `SecretStore`，响应、revision 冲突与 `config_invalid` 错误、reload 日志都不出现明文 |
 | `POST /restart` | 界面上的 “Restart now”。部署方未声明 `PLASTICWAN_SUPERVISED=1` 时返回 409 `restart_unsupported`；磁盘配置权限或内容校验失败时返回 422 `config_invalid` 且不退出；成功返回 202 `{ status: 'restarting' }`，随后走优雅关闭并以退出码 75（`EX_TEMPFAIL`）退出，由外部监督重新拉起 |
 | `POST /config/apply` | 重新读取 `config.jsonc` 并把热更新白名单字段应用到运行中的进程。成功返回 200 `{ status: 'applied', applied, restart_required, outside_serve, generation, active_hash, file_hash }`；失败返回 422 `{ error, message }`，此时 active 配置不变，错误记录在 `GET /config/status` 的 `last_error` |
 | `DELETE /alarms/:id` | 只取消 Alarm 投影为 `pending` 的项目：waiting 任务变为 cancelled；completed+pending receipt 则只 suppress 投递、保留完成结果。`firing`（claimed）与其它终态返回 409 `alarm_not_pending`，不存在返回 404 `not_found`。取消记录当前面板管理员与 `admin_cancelled` 原因并唤醒 Scheduler |
@@ -148,7 +151,7 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 
 `GET /api/warnings?limit=&cursor=&unread=1|true|0|false` 返回 `{ generated_at, standing, items, next_cursor, unread_count }`（仅面板 Session；Bearer API key 返回 403）：
 
-- `standing` 是**按当前 active 配置即时推导**的常态警告，不落库、没有 `id`，因此不能被标为已读；条件解除后下一次读取就消失，不保留开启/解除历史。Phase 1 包括 `developer_payload_recording`（`developer.record_model_payloads` 开启）、`agent_model_missing`（全局 agent 的 `provider`/`model`/`thinking_level` 未齐全）与 `vision_model_missing`（`vision.provider`/`model` 未齐全）。
+- `standing` 是**按当前 active 配置与连接状态即时推导**的常态警告，不落库、没有 `id`，因此不能被标为已读；条件解除后下一次读取就消失，不保留开启/解除历史。包括 `developer_payload_recording`（`developer.record_model_payloads` 开启）、`agent_model_missing`（全局 agent 的 `provider`/`model`/`thinking_level` 未齐全）、`vision_model_missing`（`vision.provider`/`model` 未齐全）、`telegram_network_error`（连接状态 `network_error`）与 `telegram_config_error`（连接状态 `config_error`，`variables.reason` 为 `unauthorized`/`conflict`/`token_unreadable`）。Telegram 停用（`disabled`）不产生警告；连接态只在内存中，进程重启后重新推导。
 - `items` 是 `warnings` 表中的事件警告，`read_at IS NULL` 为未读；`unread=1` 只返回未读，同样受 `limit`（1–100，默认 25）与 `cursor`（`id` 降序键集）约束。`unread_count` 只数未读事件警告，不含常态警告。
 - 每条警告返回 `kind`、`code`、`category`、`severity`、`variables`（从 `variables_json` 解析出的对象），事件行另有 `id`、`created_at`、`updated_at`、`read_at`。前端按 `code` 选模板；未知 code 显示通用模板与原始变量。变量只作文本插值，禁止 HTML/代码执行。
 - `POST /api/warnings/:id/read` 幂等设置 `read_at`，不存在返回 404 `warning_not_found`；不存在的写方法返回 405。

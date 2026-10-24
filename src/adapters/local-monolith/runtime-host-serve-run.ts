@@ -258,6 +258,7 @@ export async function startAdminServer(session: ServeContext, assembly: ServeAss
     playgroundIngress,
     skillVisibleForHost,
     warnings,
+    connections,
   } = assembly;
   const { runtime, startedScheduler, configReloader } = core;
   if (loaded.config.admin.enabled) {
@@ -278,6 +279,7 @@ export async function startAdminServer(session: ServeContext, assembly: ServeAss
     const adminServer = new AdminServer({
       store,
       configStore,
+      connections,
       scheduler: startedScheduler,
       tasks,
       modelSwitcher,

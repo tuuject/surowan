@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import type { Update } from 'grammy/types';
 import { AdminServer } from '../src/ingress/admin/server.ts';
 import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config.ts';
+import type { ImConnectionRegistry } from '../src/platform/im-connection.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
@@ -36,7 +37,7 @@ export interface Fixture {
   readonly directory: string;
 }
 
-export async function fixture(): Promise<Fixture> {
+export async function fixture(options: { readonly connections?: ImConnectionRegistry } = {}): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-admin-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
@@ -61,7 +62,17 @@ export async function fixture(): Promise<Fixture> {
   const loaded = await loadConfig(configPath);
   const configStore = await testConfigStore(loaded);
   const store = await SqliteStore.open(loaded.config);
-  return { store, server: new AdminServer({ store, configStore }), loaded, configStore, directory };
+  return {
+    store,
+    server: new AdminServer({
+      store,
+      configStore,
+      ...(options.connections === undefined ? {} : { connections: options.connections }),
+    }),
+    loaded,
+    configStore,
+    directory,
+  };
 }
 
 export function request(path: string, init: RequestInit = {}): Request {

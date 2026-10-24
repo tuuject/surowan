@@ -150,7 +150,7 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 
 ### 系统警告（迁移 045）
 
-`warnings` 只保存**事件警告**；常态警告由 Admin API 每次按 active 配置即时推导，不落库、没有历史行，因此条件解除后自然消失。
+`warnings` 只保存**事件警告**；常态警告由 Admin API 每次按 active 配置与进程内 IM 连接状态即时推导，不落库、没有历史行，因此条件解除后自然消失。
 
 - `code` 是警告目录里的稳定代码（`src/platform/warning-catalog.ts`），`severity` 为 `warning`/`critical`，`variables_json` 是受 `json_valid` 约束的 JSON 对象（服务端限制 8 KiB，只接受 JSON 值）。
 - 未读警告同一 `code` 只保留一行（部分唯一索引 `warnings_unread_code_unique`）；重复事件更新该行的 `variables_json`/`updated_at`，不追加重复行。标为已读后同一代码再次发生才会新建行。
