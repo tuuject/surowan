@@ -15,6 +15,7 @@ import type {
   ProviderConfig,
 } from './config.ts';
 import { activeVisionModel, resolveAgentSection, resolveAgentSettings } from './config-resolve.ts';
+import { SEARCH_VENDORS } from './search-vendors.ts';
 import { supportedThinkingLevels } from './thinking-levels.ts';
 
 /**
@@ -67,9 +68,38 @@ export function adminPublicOrigin(value: string): string {
   return url.origin;
 }
 
+/** SearXNG needs an address, You.com may run keyless, the rest need a key. */
+function validateWebSearch(section: NonNullable<FileConfig['web_search']>): void {
+  // Checked in every state: credentials must never land in config.jsonc.
+  if (section.base_url !== undefined) {
+    validateEndpoint(section.base_url, 'web_search.base_url');
+  }
+  // A disabled section may be a placeholder; the rest is required when on.
+  if (section.enabled === false) {
+    return;
+  }
+  const vendor = section.vendor;
+  if (vendor === undefined) {
+    throw new Error('web_search.vendor is required unless enabled is false');
+  }
+  const spec = SEARCH_VENDORS[vendor];
+  if (section.base_url === undefined && spec.defaultBaseUrl === null) {
+    throw new Error(`web_search.base_url is required for ${spec.label}`);
+  }
+  if (spec.keyRequired && section.api_key === undefined) {
+    throw new Error(`web_search.api_key is required for ${spec.label}`);
+  }
+  if (vendor === 'searxng' && section.api_key !== undefined) {
+    throw new Error('web_search.api_key is not used by SearXNG; remove it');
+  }
+}
+
 export function validateSemantics(config: FileConfig): void {
   if (config.admin?.public_url !== undefined) {
     adminPublicOrigin(config.admin.public_url);
+  }
+  if (config.web_search !== undefined) {
+    validateWebSearch(config.web_search);
   }
   validateTimezone(config.timezone, 'timezone');
   validateParticipation(config.telegram.participation, 'telegram.participation');

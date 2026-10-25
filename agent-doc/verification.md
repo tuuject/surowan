@@ -117,6 +117,8 @@ pnpm test test/prompt-template.test.ts test/prompt-markdown.test.ts test/tui-con
 | `media-image.test.ts` | 视频 Sticker 只按 WebM 解码（其他容器冒充时拒绝）、真实 WebM 仍能取帧、解压超过 8 MiB 的 TGS 在转换前拒绝；预取消或下载后立即取消均不启动 ffprobe/ffmpeg/Lottie；本机没有 ffmpeg/ffprobe 时仅视频取帧组跳过，TGS 与取消回归仍运行 |
 | `mcp.test.ts` | stdio/HTTP transport、策略、Header、重定向和审计、发现 Tool 失败时关闭 stdio 子进程、连接中 `stop()` 后保持 stopped 且关闭子进程 |
 | `web-fetch.test.ts` | 有界不可信文本结果与审计、公网 IPv4 放行与 IPv4 映射字面量拒绝、私网/合成地址拒绝（含跳转目标）、fake-ip 网段默认拒绝且需 `allow_proxy_synthetic_addresses` 开启、6to4/Teredo 过渡地址拒绝、`dangerously_allow_all_ip_addresses` 从配置到插件生效并放行私网/环回/跳转目标但仍拒绝非默认端口、默认 `Accept` 优先 `text/markdown` 且站点 Markdown 原样返回、`raw` 与 `accept_markdown: false` 不声明 Markdown、HTML 默认转 Markdown（正文在 32 KiB 之后仍保留、去导航/脚本/图片）、`raw` 返回原始 HTML、Markdown 按 UTF-8 边界截断、转换不发任何网络请求 |
+| `web-search.test.ts` | 七家 vendor 的请求形状（端点、认证头、字段名）、DeepSeek 路径归一化（API 根、`/v1` 根、完整端点不重复 `/search`）、响应归一化（Tavily/Brave/Exa/Firecrawl/DeepSeek/SearXNG/You，含 `results.web|news` 与 `data.web[]` 两种形状）、结果 URL 归一化拒绝换行注入、错误分类（401/403/402/432/433/429/5xx）、重定向拒绝、空结果、单条摘要上限、超时与过期 deadline 不发请求、未配置不注册、密钥无法解析报告为配置问题 |
+| `foundation-configuration-contract.test.ts`（web_search 段） | 有 key 的 vendor 缺 `api_key` 被拒、SearXNG 缺 `base_url` 被拒、SearXNG 配 `api_key` 被拒、`base_url` 拒绝凭据与 query、`count` 越界被拒、合法 keyed/keyless 配置被接受 |
 | `operations.test.ts` | Retention、备份轮换、Scheduler 关闭 |
 | `admin.test.ts` | Admin 首次设置、登录、登录锁定（不受 `X-Forwarded-For` 与用户名轮换影响、并发失败计数、过期后重新计数）、请求体按字节流式限长、HTTPS 下 Cookie 带 `Secure`、Session、只读审计 API（含 Conversation Context 列表/详情与写入尝试被拒）、静态托管 |
 | `admin-passkeys.test.ts` | 显式 public origin 开关、真实 P-256/CBOR WebAuthn 注册/登录、Origin/RP/UV/用户句柄与挑战绑定、过期/复用/伪造拒绝、多 key 与密码守卫、异步撤权与计数器竞态、恢复清理、旧 RP 安全、迁移保留用户/Session/外键 |

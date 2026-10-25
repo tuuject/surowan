@@ -2,7 +2,7 @@ import type { PublicModel } from '@surowan/image-service';
 import { basename } from 'node:path';
 import type { ExecutableCapability } from '../capabilities/execute-tool.ts';
 import type { ContextInjector } from '../context/context-injector.ts';
-import type { RawConfig } from '../platform/config.ts';
+import type { RawConfig, SecretRef } from '../platform/config.ts';
 import type { HostKind } from '../platform/im-host.ts';
 import type { InvocationContext } from '../platform/invocation-context.ts';
 import type { BusinessStore, Orm } from '../store/store.ts';
@@ -70,6 +70,8 @@ export interface InvocationScope {
   readonly resolveMedia?: (ref: string) => bigint | undefined;
   /** Image-generation bridge; `undefined` = the host runs without one. */
   readonly image?: ImagePluginBridge;
+  /** Resolves a SecretRef through the deployment's key jar, env or command. */
+  readonly resolveSecret?: (reference: SecretRef) => Promise<string>;
 }
 
 /**
@@ -101,6 +103,8 @@ export interface LoadPluginsOptions {
   readonly image?: ImagePluginBridge;
   /** Conversation media-reference resolver handed to plugins (`scope.resolveMedia`). */
   readonly resolveMedia?: (ref: string) => bigint | undefined;
+  /** SecretRef resolver handed to plugins (`scope.resolveSecret`); see `SecretStore`. */
+  readonly resolveSecret?: (reference: SecretRef) => Promise<string>;
 }
 
 export interface LoadedPlugins {
@@ -180,6 +184,7 @@ export function loadPlugins(plugins: readonly AgentPlugin[], options: LoadPlugin
           tasks: context.invocationId === 0n ? unavailableTasks() : service.invocationScope(plugin.id, context, hosts),
           ...(resolveMedia === undefined ? {} : { resolveMedia }),
           ...(options.image === undefined ? {} : { image: options.image }),
+          ...(options.resolveSecret === undefined ? {} : { resolveSecret: options.resolveSecret }),
         };
         return plugin.capabilities?.(scope) ?? [];
       });

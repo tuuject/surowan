@@ -256,7 +256,7 @@ Invocation 结束时 Agent 实例可以留在 `ConversationRuntime` 缓存里供
 工具面分三层：runtime 原语直接暴露、内部能力经 `execute`、MCP Tool 直接暴露。内部能力按需发现，避免每轮请求携带全部定义；这不是放宽授权，Schema、引用和预算仍由 Tool 边界校验。修改能力时先查 [组合根的 `capabilityTools`](../src/adapters/local-monolith/runtime-host.ts)（按符号名检索）与 [原语装配](../src/orchestration/agent-runtime.ts)，行为验证见 [验证索引](verification.md#静态与单元验证)。
 
 - **原语**：`read`、`send`、`send_reply`、`execute`、`zzz`（条件暴露）。它们的定义、Schema 与约束完全由 runtime 提供，不依赖任何 Skill；未读取任何 Skill 也能直接调用。
-- **内部能力注册表**：由 [runtime-host.ts](../src/adapters/local-monolith/runtime-host.ts) 的 `capabilityTools` 装配，完整清单以此为准，不在文档维护副本。其中内置 Agent 插件（[plugins/builtin.ts](../src/plugins/builtin.ts)，当前为 `web-fetch`、`image`、`alarm` 与 `dictionary`）经 `loadPlugins` 校验 id 后按 Invocation 贡献能力；插件只拿到 `InvocationScope`（当前配置快照、活的 Invocation 上下文、deadline、绑定本 Invocation 的 `ToolAudit`、宿主 `orm`、自身 plugin/Conversation 的 task scope，以及宿主接线时才有的 `resolveMedia` 引用解析与 `image` 生图桥；字段以 [plugins/plugin.ts](../src/plugins/plugin.ts) 为准），不持有 Store 或 Runtime。插件能力与其他内部能力走同一条 `execute` 注册、校验、分发与审计路径。模型经 `execute` 的 search/help/call 按需发现与调用；调用前按目标能力的参数 Schema 校验，input 超 32 KiB 拒绝。插件还可以声明 `contextInjectors`（契约见 [context/context-injector.ts](../src/context/context-injector.ts)；按插件加载顺序、在消息选定后逐个渲染本批的 `<untrusted_…>` 注入块，签名去重状态由 AgentRuntime 按注入器名维护，审计写 `context_injected.injections`）；辞典是它的第一个使用者。
+- **内部能力注册表**：由 [runtime-host.ts](../src/adapters/local-monolith/runtime-host.ts) 的 `capabilityTools` 装配，完整清单以此为准，不在文档维护副本。其中内置 Agent 插件（[plugins/builtin.ts](../src/plugins/builtin.ts)，当前为 `web-fetch`、`web-search`、`image`、`alarm` 与 `dictionary`）经 `loadPlugins` 校验 id 后按 Invocation 贡献能力；插件只拿到 `InvocationScope`（当前配置快照、活的 Invocation 上下文、deadline、绑定本 Invocation 的 `ToolAudit`、宿主 `orm`、自身 plugin/Conversation 的 task scope，以及宿主接线时才有的 `resolveMedia` 引用解析、`resolveSecret` SecretRef 解析与 `image` 生图桥；字段以 [plugins/plugin.ts](../src/plugins/plugin.ts) 为准），不持有 Store 或 Runtime。插件能力与其他内部能力走同一条 `execute` 注册、校验、分发与审计路径。模型经 `execute` 的 search/help/call 按需发现与调用；调用前按目标能力的参数 Schema 校验，input 超 32 KiB 拒绝。插件还可以声明 `contextInjectors`（契约见 [context/context-injector.ts](../src/context/context-injector.ts)；按插件加载顺序、在消息选定后逐个渲染本批的 `<untrusted_…>` 注入块，签名去重状态由 AgentRuntime 按注入器名维护，审计写 `context_injected.injections`）；辞典是它的第一个使用者。
 - **MCP Tool**：按配置 allowlist 直接暴露，不进入 `execute` 注册表。
 
 `execute.call` 的结果是 `{text, refs}` 封套：内层 `text` 上限 30 KiB，序列化后的整体上限 32 KiB，超限截断带 `[content truncated]` 标记；`refs` 是本次调用产生的 Conversation Context 级引用 token（目前只有 `search_stickers` 的 `sticker_ref`，带 TTL），只能交给对应消费 Tool 在边界校验后使用。`execute` 拒绝原语（`execute_primitive_rejected`）与未知能力（`unknown_capability`），也不会递归调用自己。运行已被 abort 时 `execute.call` 不再 dispatch：内部能力不一定理会 signal（例如 `alarm`），所以在调用之前检查，外层 `tool_calls` 记为 `error`/`aborted`，不产生内层记录。
@@ -382,6 +382,16 @@ Alarm 是第一个 `plugin_id = "alarm"` 的 consumer，通过 `execute.call` �
 直接提交的环回、私网、链路本地、文档与保留地址会被拒绝；IPv4 映射地址（`::ffff:0:0/96`）靠「IPv6 只放行 `2000::/3`」拦截，不能写进 `BlockList`——Node 的 `BlockList` 会拿 IPv4 查询去匹配该 IPv6 规则，结果拒绝所有 IPv4 地址；嵌入 IPv4 目标的 IPv6 过渡地址（6to4 的 `2002::/16`、Teredo 的 `2001::/32`）同样拒绝，否则有对应隧道路由的主机会绕过 IPv4 黑名单。域名解析到 `198.18.0.0/15` 默认拒绝：任何人都能把自己的域名解析到这个网段，所在网络恰好路由它时就是 SSRF。只有使用 fake-ip 代理（Clash、Surge 等把所有域名解析到该网段）的部署才应设置 `web_fetch.allow_proxy_synthetic_addresses: true`，此时也只放行「域名解析结果」，模型直接提交该网段 IP 仍会被拒绝。`web_fetch.dangerously_allow_all_ip_addresses: true` 跳过以上全部地址校验（含 IP 字面量与跳转目标），Tool 描述随之告知模型可访问私网；端口、协议、凭据、跳转次数与响应类型限制不变。
 
 Tool 只返回文本、JSON、XML 或 JavaScript 响应，拒绝压缩和二进制内容。默认 `Accept` 以 `text/markdown` 优先（`web_fetch.accept_markdown`，缺省开启；`raw: true` 时不声明），站点返回 `text/markdown` 时原样返回并加 `Format: Markdown served by the site` 行，`details.format` 记为 `markdown`。`text/html` 与 `application/xhtml+xml` 默认读取最多 2 MiB HTML，经 [Defuddle](https://github.com/kepano/defuddle) 抽取正文并转成 Markdown（去掉图片，Header 附 `Format` 与 `Title` 行）；模型传 `raw: true` 才返回原始 HTML，其他类型原样返回。转换固定 `useAsync: false` 并注入拒绝所有请求的 `fetch`：Defuddle 默认会为 YouTube、X、Bilibili 等页面调用第三方 API，那些请求绕过上面的地址校验与审计。转换是同步 CPU 工作，2 MiB 上限同时约束它阻塞事件循环的时长；转换失败返回 `conversion_failed`，不隐式回退原文。复杂解析（JS 渲染、登录页等）不在本 Tool 范围，交给用户自接的 MCP。单次调用最多 15 秒、结果最多 32 KiB；结果前缀明确标记网页为不可信数据。调用参数、结果、耗时和失败码写入 `tool_calls`，`side_effect = false`。
+
+## `web_search`
+
+`web_search` 是经 `execute.call` 调用的内部能力，只在 `web_search` 配置了 vendor 时注册；未配置或 `enabled: false` 时插件不贡献任何能力、Skill 索引同时隐藏，模型行为与未接入搜索完全一致。它只做发现：返回标题、URL 与摘要，正文仍由 `web_fetch` 按 URL 读取。`web_search` 整段是热更新，开关改动在下次 Invocation 生效。
+
+配置一个 vendor：`tavily`、`brave`、`exa`、`firecrawl`、`deepseek`、`searxng`、`you`。各家的请求形状与响应字段在 `src/platform/search-vendors.ts` 统一适配，插件只负责超时、审计和给模型的文本。`base_url` 可覆盖厂商默认地址，因此任何兼容 Tavily 协议的服务都能按 `tavily` 接入；`searxng` 必须提供地址；`you` 无 key 时走其免费端点，有 key 时走 Search API。DeepSeek 的地址会自动补成 `/v1/tools/search`，query 截断到其 128 字符上限。
+
+请求固定 `Accept: application/json`，不跟随重定向：任何跨主机跳转都会把 key 带到别处，跳转直接作为失败返回。响应最多读取 256 KiB，单条摘要压缩到 600 字符，最终文本最多 20 KiB。错误按状态分类——`401/403` 凭据被拒（无 key 的 SearXNG/You.com 免费端点则提示实例拒绝请求、需检查 JSON 输出）、`402/432/433` 额度耗尽、`429` 限流、`5xx` 上游不可用——**不重试**，也不回显响应体（响应体不可信，且可能回显 key）。模型侧只看到分类后的失败原因。
+
+结果前缀标记网页内容为不可信数据。查询参数、结果、失败码写入 `tool_calls`，`side_effect = false`；`api_key` 只在请求头中使用，不进入审计、日志或模型上下文。每次搜索都计费，因此不做自动重试，也不在 `web_fetch` 与 `web_search` 之间自动回退。
 
 ## 用户图片模型分流
 

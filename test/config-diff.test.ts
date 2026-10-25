@@ -26,6 +26,38 @@ test('edits inside existing dictionary and tool model sections are hot', async (
   expect(diff.candidate.raw.tool_model?.model).toBe('spare');
 });
 
+test('adding a web_search section is hot', async () => {
+  const { active, file } = await loadBoth(undefined, (config) => {
+    Object.assign(config, {
+      web_search: { enabled: false, vendor: 'deepseek', api_key: { env: 'DEEPSEEK_KEY' } },
+    });
+  });
+  const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
+  expect(paths(diff.changes, 'restart')).toEqual([]);
+  expect(paths(diff.changes, 'hot')).toContain('web_search');
+  expect(diff.candidate.raw.web_search).toMatchObject({ enabled: false, vendor: 'deepseek' });
+});
+
+test('edits inside an existing web_search section are hot', async () => {
+  const webSearch = (enabled: boolean) => ({
+    enabled,
+    vendor: 'deepseek',
+    api_key: { env: 'DEEPSEEK_KEY' },
+  });
+  const { active, file } = await loadBoth(
+    (config) => {
+      Object.assign(config, { web_search: webSearch(true) });
+    },
+    (config) => {
+      Object.assign(config, { web_search: webSearch(false) });
+    },
+  );
+  const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
+  expect(paths(diff.changes, 'restart')).toEqual([]);
+  expect(paths(diff.changes, 'hot')).toContain('web_search.enabled');
+  expect(diff.candidate.raw.web_search).toMatchObject({ enabled: false });
+});
+
 test('classifies hot, restart and outside-serve fields', async () => {
   const { active, file } = await loadBoth(undefined, (config) => {
     config.agent!.thinking_level = 'high';

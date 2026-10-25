@@ -57,6 +57,53 @@ describe('configuration', () => {
     await expect(loadConfig(configPath)).rejects.toThrow('Invalid config');
   });
 
+  test('web_search enforces vendor requirements', async () => {
+    const { directory, configPath } = await fixture();
+    const reload = async (search: unknown): Promise<unknown> => {
+      await writeFile(
+        configPath,
+        testConfigJsonc(directory, (config) => Object.assign(config, { web_search: search })),
+      );
+      return loadConfig(configPath);
+    };
+    // A vendor that needs a key cannot be configured without one.
+    await expect(reload({ vendor: 'tavily' })).rejects.toThrow('web_search.api_key is required');
+    // SearXNG has no public address, so the deployment must name its instance.
+    await expect(reload({ vendor: 'searxng' })).rejects.toThrow('web_search.base_url is required');
+    // The address is an endpoint, not a URL with credentials or a query.
+    await expect(
+      reload({ vendor: 'tavily', api_key: { env: 'TAVILY_KEY' }, base_url: 'https://user:pass@example.test' }),
+    ).rejects.toThrow('web_search.base_url');
+    // The result count stays within what every vendor accepts.
+    await expect(reload({ vendor: 'deepseek', api_key: { env: 'DEEPSEEK_KEY' }, count: 11 })).rejects.toThrow(
+      'Invalid config',
+    );
+    // SearXNG has no key, so one configured for it is a mistake worth naming.
+    await expect(
+      reload({ vendor: 'searxng', base_url: 'https://searx.example', api_key: { env: 'SEARX_KEY' } }),
+    ).rejects.toThrow('not used by SearXNG');
+    // A keyless vendor and a complete keyed vendor are both accepted.
+    await expect(reload({ vendor: 'searxng', base_url: 'https://searx.example' })).resolves.toBeDefined();
+    await expect(reload({ vendor: 'deepseek', api_key: { env: 'DEEPSEEK_KEY' } })).resolves.toBeDefined();
+    // The switch is a boolean and may be off while the rest stays configured.
+    await expect(
+      reload({ enabled: false, vendor: 'deepseek', api_key: { env: 'DEEPSEEK_KEY' } }),
+    ).resolves.toBeDefined();
+    await expect(reload({ enabled: 'no', vendor: 'deepseek', api_key: { env: 'DEEPSEEK_KEY' } })).rejects.toThrow(
+      'Invalid config',
+    );
+    // A disabled section may be a placeholder with nothing else filled in.
+    await expect(reload({ enabled: false })).resolves.toBeDefined();
+    // The address is still checked while disabled: credentials never belong in
+    // the configuration file, even in a paused section.
+    await expect(reload({ enabled: false, base_url: 'https://user:pass@example.test' })).rejects.toThrow(
+      'web_search.base_url',
+    );
+    // Switching on without a vendor is rejected, explicitly or by default.
+    await expect(reload({ enabled: true })).rejects.toThrow('web_search.vendor is required');
+    await expect(reload({})).rejects.toThrow('web_search.vendor is required');
+  });
+
   test('enforces the Conversation Context invariants', async () => {
     const { directory, configPath } = await fixture();
     const reload = async (transform: Parameters<typeof testConfigJsonc>[1]): Promise<unknown> => {

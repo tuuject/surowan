@@ -200,6 +200,35 @@ export const ConfigSchema = Type.Object(
         Strict,
       ),
     ),
+    web_search: Type.Optional(
+      Type.Object(
+        {
+          // Omitted means on; `false` pauses a billed capability without losing it.
+          enabled: Type.Optional(Type.Boolean()),
+          // Required unless `enabled` is false: a disabled section may be a
+          // placeholder that the operator fills in later. Kept literal so the
+          // static type is the union, not `string`.
+          vendor: Type.Optional(
+            Type.Union([
+              Type.Literal('tavily'),
+              Type.Literal('brave'),
+              Type.Literal('exa'),
+              Type.Literal('firecrawl'),
+              Type.Literal('deepseek'),
+              Type.Literal('searxng'),
+              Type.Literal('you'),
+            ]),
+          ),
+          // Optional for every vendor with a public address; SearXNG requires it.
+          base_url: Type.Optional(Type.String({ minLength: 1, maxLength: 2_048 })),
+          // Required by every vendor but SearXNG and You.com's keyless tier.
+          api_key: Type.Optional(SecretRefSchema),
+          count: Type.Optional(Type.Integer({ minimum: 1, maximum: 10 })),
+          timeout_seconds: Type.Optional(Type.Integer({ minimum: 5, maximum: 30 })),
+        },
+        Strict,
+      ),
+    ),
   },
   Strict,
 );

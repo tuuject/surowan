@@ -70,6 +70,9 @@ const HOT_PATHS: ReadonlySet<string> = new Set([
   'vision.max_output_tokens',
   'image',
   'dictionary',
+  // The whole section is safe to adopt live: the plugin rebuilds its one
+  // capability per invocation and resolves the key on every search.
+  'web_search',
   'tool_model',
   'telegram.admins',
 ]);
@@ -80,7 +83,8 @@ const HOT_PATHS: ReadonlySet<string> = new Set([
  * per-model paths, which are built dynamically — because a reload rebuilds the
  * model registry and publishes it with the configuration. The image section is
  * hot as a whole for the same reason: a reload re-resolves its SecretRefs and
- * republishes the image snapshot atomically.
+ * republishes the image snapshot atomically. `web_search` is hot because the
+ * plugin rebuilds its capability per invocation and resolves the key per search.
  */
 const HOT_PREFIXES: readonly string[] = [
   'agent.context.',
@@ -89,6 +93,7 @@ const HOT_PREFIXES: readonly string[] = [
   'image.',
   'dictionary.',
   'tool_model.',
+  'web_search.',
 ];
 
 /**

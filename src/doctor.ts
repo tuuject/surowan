@@ -65,7 +65,13 @@ async function runDoctorChecks(
   secrets: SecretStore,
   outputAgentPrompt: boolean,
 ): Promise<void> {
-  await resolveAllSecrets(config.telegram.token, config.providers, config.mcp?.servers ?? [], secrets);
+  await resolveAllSecrets(
+    config.telegram.token,
+    config.providers,
+    config.mcp?.servers ?? [],
+    config.web_search,
+    secrets,
+  );
   const registry = await buildModelRegistry(config, null, secrets);
   const configStore = new RuntimeConfigurationStore({ config, hash: configHash, ...registry });
   await mkdir(config.data_dir, { recursive: true, mode: 0o700 });
@@ -324,9 +330,13 @@ async function resolveAllSecrets(
   telegramToken: SecretRef,
   providers: Readonly<Record<string, ProviderConfig>>,
   servers: readonly McpServerConfig[],
+  webSearch: { readonly api_key?: SecretRef } | undefined,
   secrets: SecretStore,
 ): Promise<void> {
   await secrets.resolve(telegramToken);
+  if (webSearch?.api_key !== undefined) {
+    await secrets.resolve(webSearch.api_key);
+  }
   for (const provider of Object.values(providers)) {
     await secrets.resolve(provider.api_key);
     if (provider.kind === 'custom') {

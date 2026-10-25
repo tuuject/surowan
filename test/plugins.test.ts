@@ -23,6 +23,7 @@ test('built-in plugins load with unique ids and their skill directories', () => 
   const loaded = loadPlugins(BUILTIN_PLUGINS);
   expect(loaded.skillDirectories.map((directory) => directory.split(/[\\/]/).at(-1))).toEqual([
     'web-fetch',
+    'web-search',
     'image-generation',
     'alarms',
     'dictionary',

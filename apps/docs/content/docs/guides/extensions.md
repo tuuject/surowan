@@ -5,7 +5,7 @@ description: 区分只读 System Skills、内置 Agent Plugin 和配置的 MCP T
 
 # 使用 Skills、Plugin 与 MCP
 
-这三类扩展都能让 Agent 获得额外能力，但来源、发现方式和安全边界不同。当前发行版内置 Plugin 包含 `web_fetch` 与 Alarm；不要把本页当成插件市场或第三方扩展承诺。
+这三类扩展都能让 Agent 获得额外能力，但来源、发现方式和安全边界不同。当前发行版内置 Plugin 包含 `web_fetch`、`web_search` 与 Alarm；不要把本页当成插件市场或第三方扩展承诺。
 
 ## System Skills：只读操作说明
 
@@ -26,6 +26,7 @@ Skill 是说明书，不是权限文件：不能绕过 Tool Schema、Conversatio
 Plugin 是运行时随发行版装配的 Agent 扩展。模型通过 `execute` 的 search/help/call 发现和调用它们。
 
 - `web_fetch` 执行无 Cookie、无认证 Header 的 HTTP(S) GET，并限制目标地址、重定向、响应类型、大小和超时；请求会优先声明接受 Markdown，支持内容协商的站点直接返回自己的 Markdown（可用 `web_fetch.accept_markdown: false` 关闭）；其他 HTML 页面默认抽取正文并转成 Markdown，Agent 需要原始 HTML 时才会显式请求。它只做简单网页读取，需要 JS 渲染、登录或复杂解析时请接入 MCP。网页返回内容仍是不可信数据。
+- `web_search` 在 `web_search` 配置了 vendor 后可用：向 Tavily、Brave、Exa、Firecrawl、DeepSeek、SearXNG 或 You.com 发起一次搜索，返回标题、URL 与摘要。它只做发现，正文仍由 `web_fetch` 按 URL 读取；结果同样标记为不可信数据。每次成功调用按厂商规则计费，失败不会自动重试。
 - Alarm 提供“稍后提醒”的 `alarm`、`list_alarm`、`delete_alarm` 能力。它创建持久任务，到期后生成完成回执：若同一会话已有可接收注入的运行，回执会在当前工具链结束后独立注入；否则等待可启动时开启新的运行。Agent 决定是否通过 `send` 跟进，而不是预先保存并自动发送一段话。它不是通用后台 worker，也不会执行任意外部任务。
 
 使用任一内部能力前，模型应先读取相应 Skill（如果索引中提供），再 `execute.search`/`help` 了解参数，最后 `execute.call`。不要在配置中寻找“安装插件市场”的入口；当前没有这样的用户承诺。

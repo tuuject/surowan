@@ -161,6 +161,7 @@ export function configurationView(config: RawConfig) {
             })),
           },
     web_fetch: config.web_fetch,
+    web_search: config.web_search,
   };
 }
 

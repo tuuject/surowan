@@ -596,6 +596,41 @@ Streamable HTTP 使用 `url` 与可选 SecretRef `headers`，且 `follow_redirec
 - `accept_markdown` 默认 `true`：请求的 `Accept` 以 `text/markdown` 优先（HTML 降为 `q=0.9`）。支持内容协商的站点（如开启 Cloudflare「Markdown for Agents」的站点）会直接返回自己的 Markdown，原样交给模型，不再经过本地 HTML 抽取。设为 `false` 时 `Accept` 恢复为不含 Markdown 的旧值；站点返回的 Markdown 质量不如本地抽取时可以关闭。模型传 `raw: true` 时无论开关如何都不声明 Markdown。
 - 修改后需要重启（不在热更新白名单内）。
 
+## web_search
+
+```jsonc
+{
+  "web_search": {
+    "enabled": true,
+    "vendor": "deepseek",
+    "base_url": "https://api.deepseek.com",
+    "api_key": { "jar": "a1b2c3d4e5f60718" },
+    "count": 5,
+    "timeout_seconds": 15,
+  },
+}
+```
+
+- 整个 section 可省略。省略时 Agent 没有搜索能力，`execute` 中也不会出现 `web_search`。
+- `enabled` 可选，缺省 `true`。设为 `false` 时只需写这一项：`vendor`、`api_key`、`base_url` 都可以省略，能力不注册、Skill 索引同时隐藏，用于临时停用或占位。启用（或缺省）时才要求完整配置。
+- `vendor` 在启用时必填，取值见下表；一次只接一家。`base_url` 可省略（使用厂商默认地址），`searxng` 必须提供。
+- `api_key` 为 SecretRef，可复用模型 Provider 用的同一个 `key.json` 条目；`searxng` 不需要，`you` 可省略（走免费端点，有每日次数限制）。
+- `count` 为默认结果条数，1–10，缺省 5；模型可在单次调用里用 `count` 覆盖。
+- `timeout_seconds` 为单次请求上限，5–30，缺省 15，且不会超过 Invocation 剩余时间。
+- `web_search` 整段是热更新：应用配置后，下一次 Invocation 使用新值，运行中的 Invocation 继续用启动时的快照。切换开关不需要重启。
+
+| `vendor` | 默认地址 | 需要 key | 说明 |
+| --- | --- | --- | --- |
+| `tavily` | `https://api.tavily.com` | 是 | 填自建或中转地址即可接入任何兼容 Tavily 协议的服务 |
+| `brave` | `https://api.search.brave.com` | 是 | 使用 `X-Subscription-Token` |
+| `exa` | `https://api.exa.ai` | 是 | 使用 `X-API-Key` |
+| `firecrawl` | `https://api.firecrawl.dev` | 是 | `/v2/search` |
+| `deepseek` | `https://api.deepseek.com` | 是 | 自动补 `/v1/tools/search`，不请求正文 |
+| `searxng` | 无，必须配置 | 否 | 自建实例；必须在 `settings.yml` 的 `search.formats` 中启用 `json`，否则实例返回 403 |
+| `you` | 有 key 时 `https://ydc-index.io`，否则 `https://api.you.com` | 否 | 免费端点有每日次数限制（以厂商当前说明为准） |
+
+搜索结果只返回标题、URL 与摘要；需要正文时模型应对具体 URL 调用 `web_fetch`。搜索请求不跟随重定向，错误按状态分类后告诉模型，且不做自动重试——每次成功调用都按厂商规则计费。DeepSeek 搜索按厂商定价计费（当前约 `$0.75 / 1000` 次成功请求，以厂商页面为准），空结果、失败与超时不计费。`api_key` 解析失败会报告为配置问题，不会伪装成网络故障。
+
 ## Admin Panel
 
 Developer 页使用可选的 `developer.record_model_payloads` 与 `developer.record_agent_thinking`（均为 boolean，缺省 `false`）；整个 `developer` 节也可省略。文件层保留缺省状态，`assembleRawConfig` 将运行时值归一为 boolean。两者都可热应用：`record_model_payloads` 在每个模型调用开始时读取当前值，关闭期间已在途调用的后续快照回调也停止写入；`record_agent_thinking` 在每条 assistant 消息落库时读取当前值；开启前的消息不补录 CoT，关闭期间模型输出的 thinking 同样不留存。开启不会补录关闭时启动的调用。正常审计、错误与历史快照不受开关影响，历史报文必须通过 Developer 清除操作主动删除。Agent transcript 的 CoT 展示列在开关关闭时保持为空（[agent-doc/data-layer.md](data-layer.md#冻结与重放边界)）。

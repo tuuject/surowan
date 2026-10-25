@@ -3,6 +3,7 @@ import dictionary from './dictionary/index.ts';
 import image from './image/index.ts';
 import type { AgentPlugin } from './plugin.ts';
 import webFetch from './web-fetch/index.ts';
+import webSearch from './web-search/index.ts';
 
 /**
  * Built-in agent plugins. Every composition root loads this same list. The
@@ -10,4 +11,4 @@ import webFetch from './web-fetch/index.ts';
  * generation is enabled, so runtimes without image configuration are
  * unaffected.
  */
-export const BUILTIN_PLUGINS: readonly AgentPlugin[] = [webFetch, image, alarm, dictionary];
+export const BUILTIN_PLUGINS: readonly AgentPlugin[] = [webFetch, webSearch, image, alarm, dictionary];
