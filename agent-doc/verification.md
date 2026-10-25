@@ -121,7 +121,8 @@ pnpm test test/prompt-template.test.ts test/prompt-markdown.test.ts test/tui-con
 | `admin.test.ts` | Admin 首次设置、登录、登录锁定（不受 `X-Forwarded-For` 与用户名轮换影响、并发失败计数、过期后重新计数）、请求体按字节流式限长、HTTPS 下 Cookie 带 `Secure`、Session、只读审计 API（含 Conversation Context 列表/详情与写入尝试被拒）、静态托管 |
 | `admin-passkeys.test.ts` | 显式 public origin 开关、真实 P-256/CBOR WebAuthn 注册/登录、Origin/RP/UV/用户句柄与挑战绑定、过期/复用/伪造拒绝、多 key 与密码守卫、异步撤权与计数器竞态、恢复清理、旧 RP 安全、迁移保留用户/Session/外键 |
 | `admin-recovery.test.ts` | 内置 `admin-account` 参数边界（含 `--revoke-passkeys` 命令边界与重复 flag）、非 TTY 拒绝、stdin 字节/超时/不泄露、运行中锁拒绝、空表建号、唯一管理员改名改密、会话必注销、passkey 默认保留/显式撤销、多管理员报错不改写、保留 API key、不重开 setup、锁释放；真实 CLI 子进程与临时数据库 |
-| `doctor-telegram.test.ts` | Doctor 的 Telegram 三态：无 `telegram` 段、段内无 token 都是 `disabled`；可解析 token 交给 `getMe` 探针；SecretRef 缺失或解析为空串是 `Telegram token cannot be read` 配置错误，不静默当成停用 |
+| `doctor-telegram.test.ts` | Doctor 的 Telegram 三态：无 `telegram` 段、段内无 token、token 解析为空串都是 `disabled`；可解析 token 交给 `getMe` 探针；SecretRef 缺失是 `Telegram token cannot be read` 配置错误，不静默当成停用 |
+| `telegram-connection-races.test.ts` | 连接尝试重叠与补拉中断：被取代的网络重试晚醒时不清掉新实例的 holder 与 Sticker worker；重试中的意外异常只记日志、不成为 unhandled rejection；被新 token 取消或中途失败的冷启动补拉由下一次连接按冷路径续跑，marker 未清前实例不进入 long polling |
 | `admin-providers.test.ts` | Provider/模型管理、SecretRef 只写不读、修订冲突、全局模型端点保留 Chat 覆盖、阻止删除 Chat 引用（含待重启移除的运行中 Chat）的 Provider/模型且不落盘；模型健康检查的固定最小请求、真实本地 SSE、TTFB 与总耗时分离、无 hook 返回 null、响应分类与脱敏、权限/Origin/未应用配置拒绝、零重试、超时/取消/并发上限和诊断审计、不切换当前模型 |
 | `admin-chats.test.ts` | Chat 管理鉴权与 Origin、字符串 ID 与安全整数边界、Topic/模型严格校验、模型覆盖必须显式带 thinking、revision 先于 body 解析与并发写入保护、JSONC 注释及未管理字段保留、新增 Chat 热应用而删除/Topic 待重启与历史保留、模型热应用/恢复继承、迁移 ID、保存后应用失败的状态与脱敏审计 |
 | `prompts-admin.test.ts` | Prompt 版本按内容去重并裁剪到保留数、保存后下一次 Invocation 生效、diff 与恢复、手改文件在下次应用时成为新版本而只改注释不算、群 Prompt 的作用域校验与新建文件不覆盖已有文件 |

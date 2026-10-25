@@ -104,7 +104,7 @@ node src/cli.ts serve --config dev-data/config.jsonc
 
 停用是运行状态而不是启动形态的开关：在面板 Telegram 设置页保存 token 会启动实例并限量补拉；清空 token 会停止实例并作废排队中的 Telegram Invocation。停用本身不发警告。
 
-- Scheduler 的 recover（含过期 Bucket 清扫）/ due / launch、睡眠跳过、回执压制、timer 完成、图片 worker 与对账只放行连接已就绪的宿主；Telegram 未就绪（停用、网络异常或配置异常）时，混合数据库里的 Telegram running/queued Invocation、陈旧 Bucket、claimed 回执、到期 timer 与 queued 图片生成保持原样，不会被标记成 `process_restart`、不会被过期或跳过、也不会被执行。`createCoreRuntime` 要求传入的 `LongTaskService` 与运行时绑定的宿主集合一致，否则直接报错。
+- Scheduler 的 due / launch、睡眠跳过、回执压制与 claim、图片 worker 与对账只放行连接已就绪的宿主；Telegram 未就绪（停用、网络异常或配置异常）时，Telegram 的 queued Invocation、到期回执与 queued 图片生成保持原样，不会被跳过或执行；timer 照常到点完成，回执留在 `pending`。启动时的崩溃恢复是例外：它只关闭上个进程留下的工作、不执行任何东西，所以按静态宿主范围运行，Telegram 未就绪时也会把死进程的 running Invocation、带 claimed 回执的 queued Invocation 标记为 `process_restart`，并按 `recovery_age` 过期陈旧 Bucket。`createCoreRuntime` 要求传入的 `LongTaskService` 与运行时绑定的宿主集合一致，否则直接报错。
 - 配置应用（Admin「应用配置文件」、`/model`）按本进程绑定的宿主校验工具注册表，Telegram 停用不影响面板与房间。
 - `admin` 段必填，`admin.enabled` 省略即为 `true`。只有「面板显式关闭且 Telegram 停用」才拒绝启动（`Surowan is useless if neither admin panel is enabled nor telegram is configured`）；Telegram 处于网络异常或配置异常不算停用，照常启动。
 
@@ -191,7 +191,7 @@ node src/cli.ts doctor --config dev-data/config.jsonc
 
 Doctor 是对已配置运行环境执行的真实依赖检查，不是静态 lint；完整检查范围与何时可判定通过见[验证：Doctor](verification.md#doctor)。它会产生 `role = 'doctor'` 的模型调用审计并消耗少量 Provider Token；Tool Call 探针按实际选用的模型组合去重，因此新增 Chat 模型覆盖会引入新的探针并消耗相应 Token。
 
-Telegram 是可选依赖：没有 `telegram` 段或没有 token 时，Doctor 跳过 Telegram 探针，其余检查照常执行，成功 JSON 中 `telegram_status` 为 `"disabled"`、`telegram_bot_id` 为 `null`。有 token 时执行一次 `getMe`，成功时 `telegram_status` 为 `"connected"`、`telegram_bot_id` 为 Bot ID 字符串。token 的 SecretRef 无法解析（环境变量未设、jar 无此项、命令失败或为空串）时 Doctor 直接报错，不把它当成停用。
+Telegram 是可选依赖：没有 `telegram` 段、没有 token 或 token 解析为空串时，Doctor 跳过 Telegram 探针，其余检查照常执行，成功 JSON 中 `telegram_status` 为 `"disabled"`、`telegram_bot_id` 为 `null`。有 token 时执行一次 `getMe`，成功时 `telegram_status` 为 `"connected"`、`telegram_bot_id` 为 Bot ID 字符串。token 的 SecretRef 无法解析（环境变量未设、jar 无此项、命令失败）时 Doctor 直接报错，不把它当成停用。
 
 如需查看配置中 Agent 系统 Prompt 的模板渲染结果：
 

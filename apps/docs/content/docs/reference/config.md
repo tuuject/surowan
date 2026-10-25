@@ -25,7 +25,7 @@ description: 按配置节理解 Surowan 的必填项、覆盖关系与运行风�
 
 ## Telegram 可选与面板必填
 
-不写 `telegram` 段，或写了段但不写 `token`，都是合法的 Telegram 停用状态：服务启动后没有 Telegram 连接，也不会处理任何 Telegram Chat；此时仍可通过[管理面板](../configure/admin.md)和 [Playground 虚拟群聊](../guides/playground.md)使用 Agent。Token 的 SecretRef 无法解析（环境变量未设置、key jar 无此项、命令失败或解析为空串）是配置错误，不是「停用」。
+不写 `telegram` 段，写了段但不写 `token`，或 `token` 引用的值为空（例如环境变量设成了空串），都是合法的 Telegram 停用状态：服务启动后没有 Telegram 连接，也不会处理任何 Telegram Chat；此时仍可通过[管理面板](../configure/admin.md)和 [Playground 虚拟群聊](../guides/playground.md)使用 Agent。Token 的 SecretRef 无法解析（环境变量未设置、key jar 无此项、命令失败）是配置错误，不是「停用」。
 
 `admin` 段现在必填。`enabled` 可以省略，默认 `true`；显式关闭面板且 Telegram 停用时进程拒绝启动，因为此时没有任何可用入口。Telegram 处于网络异常或配置异常时不触发这条。
 
