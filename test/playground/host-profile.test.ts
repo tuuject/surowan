@@ -7,7 +7,7 @@ import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import type { ExecutableCapability } from '../../src/capabilities/execute-tool.ts';
 import { PLAYGROUND_PROFILE, TELEGRAM_PROFILE, hostExecutionProfile } from '../../src/platform/host-profile.ts';
 import type { ContextInjector } from '../../src/context/injector.ts';
-import type { HostKind } from '../../src/platform/im-host.ts';
+import type { HostKind } from '../../src/platform/im-host/identity.ts';
 import type { InvocationContext } from '../../src/platform/invocation-context.ts';
 import { BUILTIN_PLUGINS } from '../../src/plugins/builtin.ts';
 import { loadPlugins, pluginHosts, type AgentPlugin } from '../../src/plugins/plugin.ts';

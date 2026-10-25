@@ -10,7 +10,8 @@
 import { afterEach, expect, test, vi } from 'vitest';
 
 import { createTyping } from '../src/capabilities/typing-tool.ts';
-import { identityConversation, type ImDeliveryTarget } from '../src/platform/im-host.ts';
+import { identityConversation } from '../src/platform/im-host/identity.ts';
+import type { ImDeliveryTarget } from '../src/platform/im-host/policy.ts';
 import { grammyTelegramTransport } from '../src/adapters/local-monolith/telegram/host.ts';
 import { testTelegramHost, type TelegramHost, type TelegramTransport } from './helpers.ts';
 

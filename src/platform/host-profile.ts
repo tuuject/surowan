@@ -1,4 +1,4 @@
-import type { HostKind } from './im-host.ts';
+import type { HostKind } from './im-host/identity.ts';
 
 /**
  * The fixed execution profile of a host.

@@ -13,7 +13,7 @@ import { describe, expect, test } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { createSendTools } from '../../src/capabilities/send/index.ts';
 import { InvocationContextState } from '../../src/platform/invocation-context.ts';
-import { identityConversation } from '../../src/platform/im-host.ts';
+import { identityConversation } from '../../src/platform/im-host/identity.ts';
 import { hostSends, messageRevisions, rooms, toolCalls } from '../../src/store/schema/index.ts';
 import {
   createRoom,

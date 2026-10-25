@@ -12,7 +12,7 @@ import { eq } from 'drizzle-orm';
 import sharp from 'sharp';
 import { createPlaygroundHost } from '../../src/adapters/local-monolith/playground/index.ts';
 import { PlaygroundAssetStore } from '../../src/capabilities/media/local-assets.ts';
-import { identityConversation } from '../../src/platform/im-host.ts';
+import { identityConversation } from '../../src/platform/im-host/identity.ts';
 import { media, messageRevisions, playgroundAssets } from '../../src/store/schema/index.ts';
 import {
   createRoom,

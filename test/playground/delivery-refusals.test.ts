@@ -6,7 +6,7 @@
  * ledger row pending with no message behind it.
  */
 import { describe, expect, test } from 'vitest';
-import { identityConversation } from '../../src/platform/im-host.ts';
+import { identityConversation } from '../../src/platform/im-host/identity.ts';
 import { chats, conversations } from '../../src/store/schema/index.ts';
 import { createRoom, deliver, hostFor, ledgerRow, NOW, reserveSend, roomMessages, store } from './delivery-fixtures.ts';
 

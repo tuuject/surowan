@@ -8,14 +8,13 @@
  * because every caller runs inside the publishing transaction.
  */
 import { and, eq } from 'drizzle-orm';
-import {
-  type ImDeliveredMessage,
-  type ImDeliveryFailureReason,
-  type ImDeliveryOutcome,
-  type ImDeliveryPolicy,
-  type ImDeliveryRequest,
-  TELEGRAM_MAX_TEXT_LENGTH,
-} from '../../../platform/im-host.ts';
+import { type ImDeliveryPolicy, TELEGRAM_MAX_TEXT_LENGTH } from '../../../platform/im-host/policy.ts';
+import type {
+  ImDeliveredMessage,
+  ImDeliveryFailureReason,
+  ImDeliveryOutcome,
+  ImDeliveryRequest,
+} from '../../../platform/im-host/delivery.ts';
 import {
   chats,
   conversations,

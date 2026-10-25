@@ -19,7 +19,8 @@ import { TelegramIngestion } from '../../../ingress/telegram-ingestion/index.ts'
 import type { HostReadiness } from '../../../orchestration/host-scope.ts';
 import { KeyedSemaphore } from '../../../platform/concurrency.ts';
 import { ImConnectionRegistry } from '../../../platform/im-connection.ts';
-import type { HostKind, ImHost } from '../../../platform/im-host.ts';
+import type { HostKind } from '../../../platform/im-host/identity.ts';
+import type { ImHost } from '../../../platform/im-host/index.ts';
 import { AgentModelSwitcher } from '../../../platform/models/switch.ts';
 import { buildModelRegistry } from '../../../platform/providers.ts';
 import { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';

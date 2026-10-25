@@ -17,7 +17,8 @@ import { createCapabilityResolver } from '../../context/refs.ts';
 import type { ContextHeader } from '../../context/store.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
 import { hostExecutionProfile } from '../../platform/host-profile.ts';
-import type { HostKind, ImHost } from '../../platform/im-host.ts';
+import type { HostKind } from '../../platform/im-host/identity.ts';
+import type { ImHost } from '../../platform/im-host/index.ts';
 import {
   type CapabilityRefResolver,
   type InvocationContext,

@@ -7,7 +7,7 @@
  */
 
 import { and, eq, sql } from 'drizzle-orm';
-import type { ImDeliveredMessage } from '../../platform/im-host.ts';
+import type { ImDeliveredMessage } from '../../platform/im-host/delivery.ts';
 import {
   chats,
   media,

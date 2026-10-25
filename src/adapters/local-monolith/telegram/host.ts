@@ -4,32 +4,30 @@
  * Everything transport-specific lives here - the parameter and response shapes,
  * how a mention becomes a clickable entity or a MarkdownV2 inline link, and how
  * the chat action stays fresh; failure classification lives next door in
- * `telegram-host-failures.ts`. The platform above sees only `ImHost` from
- * `src/platform/im-host.ts`.
+ * `host-failures.ts`. The platform above sees only `ImHost` from
+ * `src/platform/im-host/`.
  */
 
 import { type Api, InputFile } from 'grammy';
 import type { MessageEntity } from 'grammy/types';
 
+import { conversationKey, type ImConversationRef, type SenderId } from '../../../platform/im-host/identity.ts';
 import {
-  type ActivityLifetime,
-  conversationKey,
-  type ImActivity,
-  type ImComposedPart,
   type ImConversationPolicy,
-  type ImConversationRef,
-  type ImDeliveredMessage,
-  type ImDelivery,
-  type ImDeliveryOutcome,
-  type ImDeliveryRequest,
   type ImDeliveryTarget,
-  type ImHost,
-  type ImMentionRequest,
-  type ImOutgoingPart,
   type ImSendRatePolicy,
   resolveConversationPolicy,
-  type SenderId,
-} from '../../../platform/im-host.ts';
+} from '../../../platform/im-host/policy.ts';
+import type {
+  ImComposedPart,
+  ImDeliveredMessage,
+  ImDelivery,
+  ImDeliveryOutcome,
+  ImDeliveryRequest,
+  ImMentionRequest,
+  ImOutgoingPart,
+} from '../../../platform/im-host/delivery.ts';
+import type { ActivityLifetime, ImActivity, ImHost } from '../../../platform/im-host/index.ts';
 import { abortedTelegramDelivery, classifyTelegramDeliveryError } from './host-failures.ts';
 
 const REFRESH_MILLISECONDS = 4_000;

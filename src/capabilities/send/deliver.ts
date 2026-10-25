@@ -9,14 +9,9 @@
  */
 
 import type { Static } from 'typebox';
-import {
-  sameConversation,
-  toConversationId,
-  type ImConversationRef,
-  type ImDeliveryTarget,
-  type ImMentionRequest,
-  type ImOutgoingPart,
-} from '../../platform/im-host.ts';
+import { sameConversation, toConversationId, type ImConversationRef } from '../../platform/im-host/identity.ts';
+import type { ImDeliveryTarget } from '../../platform/im-host/policy.ts';
+import type { ImMentionRequest, ImOutgoingPart } from '../../platform/im-host/delivery.ts';
 import type { InvocationContext } from '../../platform/invocation-context.ts';
 import { imageDeliveryState } from '../../store/image-delivery.ts';
 import type { SendInputSchema, SendToolInput } from './index.ts';

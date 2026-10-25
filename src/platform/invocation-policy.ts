@@ -13,7 +13,7 @@
  * not have to know whether they are looking at a Telegram chat or a room.
  */
 import type { RawConfig } from './config/index.ts';
-import type { HostKind } from './im-host.ts';
+import type { HostKind } from './im-host/identity.ts';
 import { resolveChatConfig, type Orm } from '../store/store.ts';
 import { resolveAgentSettings } from './config/resolve.ts';
 

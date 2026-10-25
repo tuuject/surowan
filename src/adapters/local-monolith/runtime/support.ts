@@ -20,8 +20,8 @@ import {
   toConversationId,
   type HostKind,
   type ImConversationRef,
-  type ImHost,
-} from '../../../platform/im-host.ts';
+} from '../../../platform/im-host/identity.ts';
+import type { ImHost } from '../../../platform/im-host/index.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
 import { chats, conversations } from '../../../store/schema/index.ts';
 import type { BusinessStore } from '../../../store/store.ts';

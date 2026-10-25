@@ -7,7 +7,7 @@
  * restarted process derives it again, and there is no ledger to migrate.
  */
 
-import type { HostKind } from './im-host.ts';
+import type { HostKind } from './im-host/identity.ts';
 
 /** The IM integrations a process may hold a connection for. */
 export type ImNamespace = Exclude<HostKind, 'playground'>;

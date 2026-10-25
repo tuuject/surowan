@@ -16,7 +16,8 @@ import { afterEach, beforeEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { createPlaygroundHost } from '../../src/adapters/local-monolith/playground/index.ts';
-import { identityConversation, type ImHost } from '../../src/platform/im-host.ts';
+import { identityConversation } from '../../src/platform/im-host/identity.ts';
+import type { ImHost } from '../../src/platform/im-host/index.ts';
 import {
   buckets,
   chats,

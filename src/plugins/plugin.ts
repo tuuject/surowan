@@ -3,7 +3,7 @@ import { basename } from 'node:path';
 import type { ExecutableCapability } from '../capabilities/execute-tool.ts';
 import type { ContextInjector } from '../context/injector.ts';
 import type { RawConfig } from '../platform/config/index.ts';
-import type { HostKind } from '../platform/im-host.ts';
+import type { HostKind } from '../platform/im-host/identity.ts';
 import type { InvocationContext } from '../platform/invocation-context.ts';
 import type { BusinessStore, Orm } from '../store/store.ts';
 import { LongTaskService, type PluginTaskScope } from '../store/long-tasks/index.ts';

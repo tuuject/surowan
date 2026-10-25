@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import type { HostKind } from '../../platform/im-host.ts';
+import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { snapshotInvocation } from '../../store/invocation-snapshot.ts';
 import { LongTaskService } from '../../store/long-tasks/index.ts';

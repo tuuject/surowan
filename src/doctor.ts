@@ -27,7 +27,7 @@ import { assertConfigPermissions, loadConfig } from './adapters/local-monolith/c
 
 import { createTelegramHost, grammyTelegramTransport } from './adapters/local-monolith/telegram/host.ts';
 import { resolveTelegramTokenSource } from './adapters/local-monolith/telegram/connection-token.ts';
-import { unwiredImHost } from './platform/im-host.ts';
+import { unwiredImHost } from './platform/im-host/index.ts';
 import { previewContext } from './platform/invocation-context.ts';
 import { keyJarPath } from './platform/key-jar.ts';
 import { type PromptTemplateValues, renderPromptTemplate } from './platform/prompt-template.ts';

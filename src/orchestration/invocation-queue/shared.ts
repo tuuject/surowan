@@ -2,7 +2,7 @@ import { eq, type SQL, sql } from 'drizzle-orm';
 import { AGENT_PROMPT_VERSION } from '../../platform/agent-protocol.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
 import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
-import type { HostKind } from '../../platform/im-host.ts';
+import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { enqueueInvocation } from '../../store/invocation-enqueue.ts';
 import { snapshotInvocation } from '../../store/invocation-snapshot.ts';

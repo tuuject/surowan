@@ -7,7 +7,8 @@
  */
 import { describe, expect, test } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { identityConversation, PLAYGROUND_ACTIVITY_CAP_MS } from '../../src/platform/im-host.ts';
+import { identityConversation } from '../../src/platform/im-host/identity.ts';
+import { PLAYGROUND_ACTIVITY_CAP_MS } from '../../src/platform/im-host/policy.ts';
 import { invocations, messageRevisions, roomParticipants, rooms, senders } from '../../src/store/schema/index.ts';
 import { purgeExpiredData } from '../../src/store/store.ts';
 import {

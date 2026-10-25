@@ -1,5 +1,5 @@
 import type { RawConfig } from '../platform/config/index.ts';
-import type { HostKind } from '../platform/im-host.ts';
+import type { HostKind } from '../platform/im-host/identity.ts';
 import type { Orm } from '../store/store.ts';
 
 /**

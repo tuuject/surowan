@@ -1,4 +1,4 @@
-import { HOST_KINDS, type HostKind } from '../platform/im-host.ts';
+import { HOST_KINDS, type HostKind } from '../platform/im-host/identity.ts';
 import { LongTaskService } from '../store/long-tasks/index.ts';
 import type { WarningService } from '../store/warnings.ts';
 import { AgentRuntime } from './agent-runtime/index.ts';

@@ -1,4 +1,4 @@
-import type { HostKind } from './im-host.ts';
+import type { HostKind } from './im-host/identity.ts';
 
 /** Readonly System Skills resources; implementation and document source belong to the host. */
 export const SYSTEM_URI_PREFIX = 'system:///';

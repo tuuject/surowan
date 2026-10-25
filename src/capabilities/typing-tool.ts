@@ -1,7 +1,8 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import Type from 'typebox';
 
-import type { ImActivity, ImDeliveryTarget } from '../platform/im-host.ts';
+import type { ImDeliveryTarget } from '../platform/im-host/policy.ts';
+import type { ImActivity } from '../platform/im-host/index.ts';
 
 /**
  * The `typing` capability: it decides *when* to ask for a chat action. Keeping

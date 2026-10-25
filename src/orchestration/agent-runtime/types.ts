@@ -8,7 +8,8 @@ import type { ContextHeader, ConversationContextStore } from '../../context/stor
 import type { KeyedSemaphore } from '../../platform/concurrency.ts';
 import type { ActiveAgentSettings, RawConfig, ToolSchemaKeywords } from '../../platform/config/index.ts';
 import type { HostExecutionProfile } from '../../platform/host-profile.ts';
-import type { HostKind, ImConversationRef, ImHost } from '../../platform/im-host.ts';
+import type { HostKind, ImConversationRef } from '../../platform/im-host/identity.ts';
+import type { ImHost } from '../../platform/im-host/index.ts';
 import type {
   CapabilityRefResolver,
   InvocationContext,

@@ -7,14 +7,8 @@
  * the same failure vocabulary for these inputs, whatever it does underneath.
  */
 
-import {
-  toChatId,
-  toConversationId,
-  toSenderId,
-  type ImConversationPolicy,
-  type ImConversationRef,
-  type ImSendRatePolicy,
-} from '../../src/platform/im-host.ts';
+import { toChatId, toConversationId, toSenderId, type ImConversationRef } from '../../src/platform/im-host/identity.ts';
+import type { ImConversationPolicy, ImSendRatePolicy } from '../../src/platform/im-host/policy.ts';
 
 export const PINNED_SEND_RATE: ImSendRatePolicy = { sendsPerWindow: 20, windowSeconds: 60 };
 

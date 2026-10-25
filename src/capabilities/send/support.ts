@@ -6,14 +6,9 @@
  */
 
 import type { Static } from 'typebox';
-import {
-  type ImConversationRef,
-  type ImDeliveryFailure,
-  type ImHost,
-  type ImMentionRequest,
-  type ImOutgoingPart,
-  toSenderId,
-} from '../../platform/im-host.ts';
+import { type ImConversationRef, toSenderId } from '../../platform/im-host/identity.ts';
+import type { ImDeliveryFailure, ImMentionRequest, ImOutgoingPart } from '../../platform/im-host/delivery.ts';
+import type { ImHost } from '../../platform/im-host/index.ts';
 import type { CapabilityRefResolver, InvocationContext } from '../../platform/invocation-context.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import type { SendInputSchema, SendToolInput } from './index.ts';

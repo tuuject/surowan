@@ -22,8 +22,8 @@ import {
   identityConversation,
   type ConversationScope,
   type ImConversationRef,
-  type ImSendRatePolicy,
-} from '../src/platform/im-host.ts';
+} from '../src/platform/im-host/identity.ts';
+import type { ImSendRatePolicy } from '../src/platform/im-host/policy.ts';
 import {
   createTelegramHost,
   type TelegramHost,

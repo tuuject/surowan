@@ -11,7 +11,7 @@ import { AdminServer } from '../../../ingress/admin/index.ts';
 import { BotCommandService } from '../../../orchestration/bot-commands/index.ts';
 import { ReplayError, ReplayRunner } from '../../../orchestration/replay/index.ts';
 import { type CoreRuntime, createCoreRuntime } from '../../../orchestration/runtime.ts';
-import type { ImHost } from '../../../platform/im-host.ts';
+import type { ImHost } from '../../../platform/im-host/index.ts';
 import { previewContext, unavailableCapabilities } from '../../../platform/invocation-context.ts';
 import { configuredAgentModels } from '../../../platform/providers.ts';
 import { runStartupCatchUp } from '../../../startup-catch-up.ts';

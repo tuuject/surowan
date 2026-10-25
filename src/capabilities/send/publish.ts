@@ -10,7 +10,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { eq } from 'drizzle-orm';
 import type { Static } from 'typebox';
-import type { ImDeliveredMessage } from '../../platform/im-host.ts';
+import type { ImDeliveredMessage } from '../../platform/im-host/delivery.ts';
 import { hostSends, toolCalls } from '../../store/schema/index.ts';
 import { prepareSend, type PreparedSend } from './deliver.ts';
 import { markSendFailed, recordOutgoingMessage } from './record.ts';

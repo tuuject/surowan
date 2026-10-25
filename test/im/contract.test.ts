@@ -7,29 +7,31 @@
  * conformance block fails before any behaviour test does.
  */
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { expect, test } from 'vitest';
 
 import {
   conversationKey,
-  isRetryableFailure,
   renderSenderRef,
-  resolveConversationPolicy,
   sameConversation,
   toChatId,
   toConversationId,
   toSenderId,
   type HostKind,
   type ImConversationRef,
+} from '../../src/platform/im-host/identity.ts';
+import { resolveConversationPolicy, type ImDeliveryTarget } from '../../src/platform/im-host/policy.ts';
+import {
+  isRetryableFailure,
   type ImDeliveryFailure,
   type ImDeliveryOutcome,
   type ImDeliveryRequest,
-  type ImDeliveryTarget,
-  type ImHost,
   type ImOutgoingPart,
-} from '../../src/platform/im-host.ts';
+} from '../../src/platform/im-host/delivery.ts';
+import type { ImHost } from '../../src/platform/im-host/index.ts';
 import {
   PINNED_PLAYGROUND_ROOM,
   PINNED_PLAYGROUND_ROOM_POLICY,
@@ -274,10 +276,21 @@ test('a delivery request carries the bound target, so policy travels with the ca
 /* The seam stays a leaf                                                      */
 /* -------------------------------------------------------------------------- */
 
-test('the contract module is a leaf: no imports, no transport library', () => {
-  const source = readFileSync(fileURLToPath(new URL('../../src/platform/im-host.ts', import.meta.url)), 'utf8');
-  expect(source).not.toMatch(/^\s*import\b/m);
-  expect(source).not.toMatch(/grammy|telegraf/i);
+test('the contract directory is a leaf: its modules import only each other, no transport library', () => {
+  const directory = fileURLToPath(new URL('../../src/platform/im-host/', import.meta.url));
+  const modules = readdirSync(directory).filter((name) => name.endsWith('.ts'));
+  expect(modules).toContain('index.ts');
+  for (const name of modules) {
+    const source = readFileSync(join(directory, name), 'utf8');
+    const statements = source.match(/^\s*import\b[^;]*;/gm) ?? [];
+    expect(source.match(/^\s*import\b/gm)?.length ?? 0, name).toBe(statements.length);
+    for (const statement of statements) {
+      const specifier = /from '(\.\/[\w-]+\.ts)';$/.exec(statement)?.[1];
+      expect(specifier, `${name}: ${statement}`).toBeDefined();
+      expect(modules, `${name}: ${statement}`).toContain(specifier?.slice(2));
+    }
+    expect(source, name).not.toMatch(/grammy|telegraf/i);
+  }
 });
 
 test('the contract can name Telegram and virtual targets without a transport type', () => {

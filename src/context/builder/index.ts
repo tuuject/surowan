@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import { CORE_AGENT_PROTOCOL } from '../../platform/agent-protocol.ts';
 import { type AgentPromptLayers, composeAgentPrompt } from '../../platform/agent-prompt.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
-import type { HostKind } from '../../platform/im-host.ts';
+import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { CompletionContext, DirectImage, VisibleSender } from '../../platform/invocation-context.ts';
 import { resolveInvocationPolicy, type InvocationPolicy } from '../../platform/invocation-policy.ts';
 import type { PromptTemplateModel, PromptTemplateValues } from '../../platform/prompt-template.ts';

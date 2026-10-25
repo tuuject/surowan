@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import type { HostKind } from '../../platform/im-host.ts';
+import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { LongTaskService } from '../../store/long-tasks/index.ts';
 import type { BusinessStore } from '../../store/store.ts';

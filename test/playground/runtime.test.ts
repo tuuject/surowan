@@ -16,7 +16,7 @@ import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { createPlaygroundHost } from '../../src/adapters/local-monolith/playground/index.ts';
 import { AdminQueryError } from '../../src/ingress/admin/audit/shared.ts';
 import { AgentRuntime } from '../../src/orchestration/agent-runtime/index.ts';
-import { identityConversation } from '../../src/platform/im-host.ts';
+import { identityConversation } from '../../src/platform/im-host/identity.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { emptySystemResources } from '../../src/platform/system-resources.ts';
 import { PlaygroundStore } from '../../src/store/playground/index.ts';

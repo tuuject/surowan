@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { RawConfig } from '../../platform/config/index.ts';
 import { hostExecutionProfile } from '../../platform/host-profile.ts';
-import type { HostKind } from '../../platform/im-host.ts';
+import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { CompletionContext, VisibleSender } from '../../platform/invocation-context.ts';
 import { imageDeliveryState } from '../../store/image-delivery.ts';
 import { LongTaskService } from '../../store/long-tasks/index.ts';

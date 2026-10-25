@@ -15,16 +15,14 @@
  * inside this file.
  */
 import type { LocalAsset, LocalAssetInput } from '../../../capabilities/media/local-assets.ts';
+import { conversationKey, type ImConversationRef } from '../../../platform/im-host/identity.ts';
 import {
-  conversationKey,
-  type ImActivity,
   type ImConversationPolicy,
-  type ImConversationRef,
   type ImDeliveryTarget,
-  type ImHost,
   type ImSendRatePolicy,
   resolveConversationPolicy,
-} from '../../../platform/im-host.ts';
+} from '../../../platform/im-host/policy.ts';
+import type { ImActivity, ImHost } from '../../../platform/im-host/index.ts';
 import type { BusinessStore } from '../../../store/store.ts';
 import { createPlaygroundDelivery } from './delivery.ts';
 import { createRoomReaders } from './room.ts';

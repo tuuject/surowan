@@ -11,7 +11,7 @@
  */
 
 import { type SQL, sql } from 'drizzle-orm';
-import { HOST_KINDS, type HostKind } from '../platform/im-host.ts';
+import { HOST_KINDS, type HostKind } from '../platform/im-host/identity.ts';
 
 /** Whether one host may execute work at this moment. */
 export type HostReadiness = (host: HostKind) => boolean;

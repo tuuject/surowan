@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
-import type { HostKind } from '../../platform/im-host.ts';
+import type { HostKind } from '../../platform/im-host/identity.ts';
 import { sqliteBigInt, sqliteBigIntId } from './shared.ts';
 
 export const schemaMigrations = sqliteTable('schema_migrations', {

@@ -1,6 +1,6 @@
 import { type SQL, sql } from 'drizzle-orm';
 import type { RawConfig } from '../../../platform/config/index.ts';
-import { HOST_KINDS, type HostKind } from '../../../platform/im-host.ts';
+import { HOST_KINDS, type HostKind } from '../../../platform/im-host/identity.ts';
 import { telegramIdentity } from '../../../store/host-scope.ts';
 import type { Orm } from '../../../store/store.ts';
 import {

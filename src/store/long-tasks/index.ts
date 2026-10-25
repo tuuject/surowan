@@ -5,7 +5,7 @@ import type {
   InvocationContext,
   JsonValue,
 } from '../../platform/invocation-context.ts';
-import type { HostKind } from '../../platform/im-host.ts';
+import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { Orm } from '../store.ts';
 import { chats, conversations, longTasks, taskReceipts } from '../schema/index.ts';
 import { deliveryText, readDelivery } from './delivery.ts';

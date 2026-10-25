@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from 'vitest';
 import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai';
 import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
 import { InvocationQueueService } from '../../src/orchestration/invocation-queue/index.ts';
-import { identityConversation } from '../../src/platform/im-host.ts';
+import { identityConversation } from '../../src/platform/im-host/identity.ts';
 import { cleanupFixtureDirectories, fixture, fauxAgent, update, until, CHAT_ID } from './hot-inject-fixtures.ts';
 import { sleep } from '../helpers.ts';
 

@@ -7,7 +7,7 @@ import Compile from 'typebox/compile';
 import type { AsyncSemaphore, KeyedSemaphore } from '../../platform/concurrency.ts';
 import type { ToolSchemaKeywords } from '../../platform/config/index.ts';
 import { hostExecutionProfile } from '../../platform/host-profile.ts';
-import type { HostKind } from '../../platform/im-host.ts';
+import type { HostKind } from '../../platform/im-host/identity.ts';
 import { invocationGateKey } from '../../platform/invocation-policy.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import { applyToolSchemaKeywords } from '../../platform/tool-schema.ts';

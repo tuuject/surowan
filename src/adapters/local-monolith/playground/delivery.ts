@@ -16,7 +16,7 @@ import type {
   ImDeliveryOutcome,
   ImDeliveryRequest,
   ImOutgoingPart,
-} from '../../../platform/im-host.ts';
+} from '../../../platform/im-host/delivery.ts';
 import { hostSends, media, messageRevisions, messages, rooms } from '../../../store/schema/index.ts';
 import type { BusinessStore } from '../../../store/store.ts';
 import type { PlaygroundPictures } from './index.ts';
