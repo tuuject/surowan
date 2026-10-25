@@ -91,7 +91,7 @@ describe('bot command service', () => {
         '该命令仅对本 Bot 的管理员可用。',
       );
       expect(configStore.current()).toBe(before);
-      expect(await loadConfig(configPath).then((loaded) => loaded.fileConfig.telegram.chats)).toHaveLength(1);
+      expect(await loadConfig(configPath).then((loaded) => loaded.fileConfig.telegram?.chats)).toHaveLength(1);
       store.close();
     });
 
@@ -115,7 +115,7 @@ describe('bot command service', () => {
       expect(await commands.run({ name: 'allowlist' }, 987654321n, ALICE, FIXED_NOW)).toBe(
         '已将本群加入白名单，配置已立即生效。',
       );
-      expect(await loadConfig(configPath).then((loaded) => loaded.fileConfig.telegram.chats.at(-1))).toEqual({
+      expect(await loadConfig(configPath).then((loaded) => loaded.fileConfig.telegram?.chats.at(-1))).toEqual({
         id: 987654321,
       });
       expect(configStore.current().config.telegram.chats.at(-1)?.id).toBe(987654321);

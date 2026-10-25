@@ -125,11 +125,12 @@ export function createDictionaryAdminHandler(deps: DictionaryAdminDeps) {
           ? []
           : [{ path: ['dictionary', 'injection_mode'], value: mode }];
     } else {
-      const index = loaded.fileConfig.telegram.chats.findIndex((chat) => BigInt(chat.id) === chatId);
+      const chats = loaded.fileConfig.telegram?.chats ?? [];
+      const index = chats.findIndex((chat) => BigInt(chat.id) === chatId);
       if (index === -1) {
         return json({ error: 'chat_unconfigured', message: 'The requested chat is not configured' }, 404);
       }
-      const chat = loaded.fileConfig.telegram.chats[index];
+      const chat = chats[index];
       if ((chat?.dictionary_injection_mode ?? null) === mode) {
         edits = [];
       } else if (mode === null) {

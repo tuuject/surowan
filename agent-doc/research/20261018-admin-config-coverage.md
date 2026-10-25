@@ -94,7 +94,7 @@ MCP 热替换还涉及连接、发现工具、运行中调用和模型工具定�
 
 新配置/错误配置导致 `serve` 无法启动时，当前面板也不可用。尤其 required MCP 在 Admin 创建前启动，不能假定“坏了再进面板改回来”。依据：[启动顺序](../../src/adapters/local-monolith/runtime-host.ts#L351)、[数据库与备份实现](../../src/adapters/local-monolith/database.ts)。
 
-`public_url` 决定 WebAuthn origin/RP ID，更换域名会影响已有 Passkey。现有密码恢复依赖离线 `admin-reset`，不能把地址变更当作普通文案设置。依据：[Passkey 认证说明](../admin-panel.md#passkey-登录与凭据)。
+`public_url` 决定 WebAuthn origin/RP ID，更换域名会影响已有 Passkey。现有密码恢复依赖离线 `admin-account`，不能把地址变更当作普通文案设置。依据：[Passkey 认证说明](../admin-panel.md#passkey-登录与凭据)。
 
 ### 已有配置器的局部缺口
 

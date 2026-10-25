@@ -5,7 +5,11 @@ description: 用 GHCR 镜像和 Docker Compose 部署，配置 Telegram 和模�
 
 # 第一次运行塑料碗
 
-本路径使用 GHCR 上的预构建镜像，镜像已包含 Node.js、媒体转换依赖和管理面板。需要 Docker Compose、一个 Telegram Bot、可调用的文本和图片模型，以及你要允许的一个私聊或群聊。想从源码构建镜像或直接在宿主机运行，见 [部署方式与环境要求](installation.md)。
+本路径使用 GHCR 上的预构建镜像，镜像已包含 Node.js、媒体转换依赖和管理面板。需要 Docker Compose、可调用的文本和图片模型；接入 Telegram 时还需要一个 Telegram Bot 和你要允许的一个私聊或群聊。想从源码构建镜像或直接在宿主机运行，见 [部署方式与环境要求](installation.md)。
+
+:::tip 不配 Telegram 也能先试用
+还没有 Bot Token 时，可以不写配置里的 `telegram` 段（或保留段但不写 `token`）。服务照常启动，只是不连接 Telegram；完成第 3、4 步后打开管理面板的[虚拟群聊](../guides/playground.md)，就能用真实模型试人格和工具。以下步骤按接入 Telegram 的完整路径说明。
+:::
 
 ## 1. 准备目录与文件
 
@@ -28,14 +32,14 @@ Compose 模板使用 `ghcr.io/tuuject/surowan:latest`，它只跟随稳定版本
 
 编辑 `config/config.jsonc`：
 
-- 将 `telegram.chats[0].id` 改为允许使用 Bot 的 Chat ID；私聊 ID 为正数，群/Supergroup 通常为负数。
+- 接入 Telegram 时，将 `telegram.chats[0].id` 改为允许使用 Bot 的 Chat ID；私聊 ID 为正数，群/Supergroup 通常为负数。只试用虚拟群聊时可以整段删除 `telegram`。
 - 替换 Provider 的 `base_url`、模型 `id` 与显示名，并同步修改 `agent.model`、`vision.model`。模型必须真实存在，且同时支持 `text` 与 `image`；示例中的占位模型不可直接运行。
 - 保留容器路径 `/data`，Prompt 文件与配置放在同一 `config/` 目录。
 - 首次不使用图片生成时，删除整个可选的 `image` 段；需要时再按 [图片能力](../guides/images.md) 配置。
 
 ## 2. 安全提供密钥
 
-配置示例通过环境变量读取密钥。取消 `docker-compose.yml` 中 `TELEGRAM_BOT_TOKEN` 和 `SUROWAN_API_KEY` 两行的注释，然后为当前 shell 设置它们，或由部署系统注入：
+配置示例通过环境变量读取密钥。取消 `docker-compose.yml` 中 `TELEGRAM_BOT_TOKEN` 和 `SUROWAN_API_KEY` 两行的注释，然后为当前 shell 设置它们，或由部署系统注入（只试用虚拟群聊时不需要 `TELEGRAM_BOT_TOKEN`）：
 
 ```bash
 export TELEGRAM_BOT_TOKEN='…'
@@ -60,7 +64,7 @@ docker compose up -d
 docker compose logs -f plasticwan
 ```
 
-日志出现 `serve_started` 表示服务已开始轮询。向允许的 Chat 发送一条消息，等待配置的 `bucket_window_seconds`。模型可以选择沉默；要区分未触发与主动不发言，请看 [排查问题](../operations/troubleshooting.md)。
+日志出现 `serve_started` 表示服务已启动；接入 Telegram 时 `mode` 为 `connected` 并开始轮询，没有 Telegram 时 `mode` 为 `disabled`、`bot_id` 为 `null`。接入后向允许的 Chat 发送一条消息，等待配置的 `bucket_window_seconds`。模型可以选择沉默；要区分未触发与主动不发言，请看 [排查问题](../operations/troubleshooting.md)。
 
 要从浏览器访问管理面板，取消 `docker-compose.yml` 中 `ports` 段的注释后重新 `docker compose up -d`；配置示例的 `admin.host` 已是容器所需的 `0.0.0.0`，端口只发布到 `127.0.0.1:8787`。首次访问创建本地管理员账号。不要把该端口直接公开到互联网，见 [管理面板](../configure/admin.md)。
 

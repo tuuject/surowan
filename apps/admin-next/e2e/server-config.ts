@@ -121,7 +121,13 @@ export async function prepareConfig(options: {
     throw new Error('Admin config is missing from the E2E config');
   }
   // Production validation demands port >= 1; tests bind an OS-assigned port
-  // by overriding to 0 in memory after a normal load.
+  // by overriding to 0 in memory after a normal load. Both layers are
+  // overridden: the reloader keeps a clone of the file layer as its active
+  // configuration, so only changing the raw layer would make the next reload
+  // adopt the file's port and hide the pending `admin.port` change.
   adminConfig.port = 0;
+  if (loaded.fileConfig.admin !== undefined) {
+    loaded.fileConfig.admin.port = 0;
+  }
   return { loaded, adminConfig };
 }

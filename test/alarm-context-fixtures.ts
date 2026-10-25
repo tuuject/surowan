@@ -19,13 +19,20 @@ import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import type { FileConfig } from '../src/platform/config.ts';
+
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
-import { fauxRegistry, testConfigJsonc, testConfigStore, testTelegramRuntime, writeTestConfig } from './helpers.ts';
+import {
+  type FixtureConfig,
+  fauxRegistry,
+  testConfigJsonc,
+  testConfigStore,
+  testTelegramRuntime,
+  writeTestConfig,
+} from './helpers.ts';
 
 export const directories: string[] = [];
 export const stores: SqliteStore[] = [];
@@ -122,7 +129,7 @@ export function futureIso(offsetMs = 86_400_000): string {
   return new Date(Date.now() + offsetMs).toISOString();
 }
 
-export async function runtimeFixture(transform?: (config: FileConfig) => void, existingDirectory?: string) {
+export async function runtimeFixture(transform?: (config: FixtureConfig) => void, existingDirectory?: string) {
   const directory = existingDirectory ?? (await mkdtemp(join(tmpdir(), 'surowan-alarm-ctx-')));
   const configPath = join(directory, 'config.jsonc');
   if (existingDirectory === undefined) {

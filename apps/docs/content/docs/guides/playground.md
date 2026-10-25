@@ -9,10 +9,10 @@ Playground 是 Admin Panel 内置的虚拟群聊沙盒。房间里的输入走�
 
 ## 打开页面
 
-1. 启用 Admin Panel（`admin.enabled: true`）并登录。
+1. 启动服务并打开 Admin Panel（`admin` 段必填，`enabled` 默认就是 `true`），完成首次设置后登录。
 2. 在侧栏进入 **虚拟群聊**（`/playground`）。
 
-也可以完全不接 Telegram 运行：`node src/cli.ts serve --config <config.jsonc> --playground-only` 只装配 Playground 宿主，不解析 Telegram token、不创建 Bot、不做任何 Telegram 网络请求。注意此时配置里的 `telegram` 段仍是必需的结构占位（不会被当作房间配置），且 `admin.enabled` 必须为真——面板是房间唯一的写入口。
+也可以完全不接 Telegram：配置里不写 `telegram` 段，或保留段但不写 `token`，服务仍会照常启动，只是没有 Telegram 连接，也不会做任何 Telegram 网络请求。此时虚拟群聊是主要入口，面板必须可用。
 
 ## 建房与身份
 

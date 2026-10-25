@@ -13,8 +13,14 @@ import type {
   ParticipationConfig,
   ProviderApi,
   ProviderConfig,
+  TelegramSectionConfig,
 } from './config.ts';
-import { activeVisionModel, resolveAgentSection, resolveAgentSettings } from './config-resolve.ts';
+import {
+  activeVisionModel,
+  resolveAgentSection,
+  resolveAgentSettings,
+  resolveTelegramSection,
+} from './config-resolve.ts';
 import { supportedThinkingLevels } from './thinking-levels.ts';
 
 /**
@@ -68,15 +74,16 @@ export function adminPublicOrigin(value: string): string {
 }
 
 export function validateSemantics(config: FileConfig): void {
-  if (config.admin?.public_url !== undefined) {
+  if (config.admin.public_url !== undefined) {
     adminPublicOrigin(config.admin.public_url);
   }
+  const telegram = resolveTelegramSection(config.telegram);
   validateTimezone(config.timezone, 'timezone');
-  validateParticipation(config.telegram.participation, 'telegram.participation');
+  validateParticipation(telegram.participation, 'telegram.participation');
   const agent = resolveAgentSection(config.agent);
-  validateContextConfig(config, agent);
+  validateContextConfig(telegram, agent);
   const chatIds = new Set<number>();
-  for (const chat of config.telegram.chats) {
+  for (const chat of telegram.chats) {
     if (!Number.isSafeInteger(chat.id) || chat.id === 0) {
       throw new Error(`Invalid Telegram chat ID: ${chat.id}`);
     }
@@ -111,13 +118,13 @@ export function validateSemantics(config: FileConfig): void {
       validateAgentThinkingLevel(config, resolveAgentSettings(config, chat), `chat ${chat.id}`);
     }
   }
-  for (const adminId of config.telegram.admins ?? []) {
+  for (const adminId of telegram.admins ?? []) {
     if (!Number.isSafeInteger(adminId) || adminId === 0) {
       throw new Error(`Invalid Telegram admin user ID: ${adminId}`);
     }
   }
-  assertUnique(config.telegram.sticker_sets ?? [], (item) => item.alias, 'sticker set alias');
-  assertUnique(config.telegram.sticker_sets ?? [], (item) => item.name, 'sticker set name');
+  assertUnique(telegram.sticker_sets ?? [], (item) => item.alias, 'sticker set alias');
+  assertUnique(telegram.sticker_sets ?? [], (item) => item.name, 'sticker set name');
   const providerAliases = new Set(Object.keys(config.providers));
   // The agent model reference is validated only when both fields are written:
   // a missing provider/model pair never reaches a model lookup at runtime.
@@ -320,7 +327,10 @@ function validateParticipation(participation: ParticipationConfig | undefined, l
  * window would look enabled while every run ends before the next bucket is due:
  * a silent degradation, rejected here instead of at 3 a.m. in production.
  */
-function validateContextConfig(config: FileConfig, agent: AgentRuntimeConfig): void {
+function validateContextConfig(
+  telegram: Pick<TelegramSectionConfig, 'bucket_window_seconds'>,
+  agent: AgentRuntimeConfig,
+): void {
   const context = agent.context;
   if (context.retained_sends_target >= context.retained_sends_max) {
     throw new Error('agent.context.retained_sends_target must be smaller than retained_sends_max');
@@ -328,7 +338,7 @@ function validateContextConfig(config: FileConfig, agent: AgentRuntimeConfig): v
   if (context.hard_token_ratio > agent.context_stop_ratio) {
     throw new Error('agent.context.hard_token_ratio must not exceed agent.context_stop_ratio');
   }
-  if (context.idle_grace_seconds > 0 && context.idle_grace_seconds < config.telegram.bucket_window_seconds) {
+  if (context.idle_grace_seconds > 0 && context.idle_grace_seconds < telegram.bucket_window_seconds) {
     throw new Error(
       'agent.context.idle_grace_seconds must be 0 (long-lived invocations off) or at least telegram.bucket_window_seconds',
     );

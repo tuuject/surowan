@@ -150,7 +150,7 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 
 ### 系统警告（迁移 045）
 
-`warnings` 只保存**事件警告**；常态警告由 Admin API 每次按 active 配置即时推导，不落库、没有历史行，因此条件解除后自然消失。
+`warnings` 只保存**事件警告**；常态警告由 Admin API 每次按 active 配置与进程内 IM 连接状态即时推导，不落库、没有历史行，因此条件解除后自然消失。
 
 - `code` 是警告目录里的稳定代码（`src/platform/warning-catalog.ts`），`severity` 为 `warning`/`critical`，`variables_json` 是受 `json_valid` 约束的 JSON 对象（服务端限制 8 KiB，只接受 JSON 值）。
 - 未读警告同一 `code` 只保留一行（部分唯一索引 `warnings_unread_code_unique`）；重复事件更新该行的 `variables_json`/`updated_at`，不追加重复行。标为已读后同一代码再次发生才会新建行。
@@ -188,7 +188,7 @@ Reply 去重也复用 `host_sends`：以 `conversation_id` + `request_json.reply
 
 MCP 只有 `mcp_server_state` 一张自己的表（Server 状态、Tool registry hash、重连次数、错误码）；Tool 调用复用 `tool_calls`，没有自己的调用配额。
 
-Admin 侧的 `admin_users`/`admin_sessions` 语义见 [admin-panel.md](admin-panel.md#数据表)。密码明文和 Session Token 原文都不入库；`admin_users` 与 `admin_sessions` 不参与在线保留清理（管理员账号不是会话数据），过期 Session 由 `AdminAuth` 在认证、新建 Session 和服务启动时删除。`admin_api_keys`（迁移 `028`）保存程序化 API key 的 SHA-256 摘要与生命周期（`prefix`/`created_at`/`last_used_at`/`revoked_at`），明文只在创建响应中出现一次；该表同样不参与在线保留清理。`admin_passkeys`（迁移 `032`，并给 `admin_users` 补 `webauthn_user_id`）保存 WebAuthn 凭据：`credential_id` 全局唯一，`public_key`/`counter` 用于验证与防重放（登录以乐观锁更新 `counter`），`rp_id` 记录注册时的依赖方——key 只对注册它的 `rpId` 生效，换域名后旧 key 不可用；`name` 1–80 字符（CHECK 约束），随 `admin_users` 级联删除。`recoverCredentials`（`admin-reset` CLI 的落点）删除该账号全部 passkey 与 Session、替换密码 hash，但不触碰 `admin_api_keys`，也不会重开 setup；该表不参与在线保留清理，语义见 [admin-panel.md](admin-panel.md#passkey-登录与凭据)。`chat_pause` 记录 `/pause` 暂停的 Chat，`conversation_context_cutoffs` 记录 `/cut_topic` 的每 Conversation 上下文切点（Telegram message ID，迁移 `019` 前为按 Chat 的 `chat_context_cutoffs`，迁移时复制到该 Chat 的每个 Conversation）：切点同时决定新批次 history 的下界，并在同一步中断该 Conversation 正在运行的 Invocation、清空被切 Topic 的 Conversation Context（保留行打上 `evicted_at`、删除其 `context_refs`、`head_seq` 推到 `next_seq`），否则切点只会裁掉渲染用的 history，模型仍然能从 transcript 里看到全部旧消息。`evicted_at` 是保留窗口的权威条件之一：读取一律附带 `evicted_at IS NULL`，这样运行中的 Invocation 持有的陈旧 `head_seq` 也无法把淘汰行读回来。
+Admin 侧的 `admin_users`/`admin_sessions` 语义见 [admin-panel.md](admin-panel.md#数据表)。密码明文和 Session Token 原文都不入库；`admin_users` 与 `admin_sessions` 不参与在线保留清理（管理员账号不是会话数据），过期 Session 由 `AdminAuth` 在认证、新建 Session 和服务启动时删除。`admin_api_keys`（迁移 `028`）保存程序化 API key 的 SHA-256 摘要与生命周期（`prefix`/`created_at`/`last_used_at`/`revoked_at`），明文只在创建响应中出现一次；该表同样不参与在线保留清理。`admin_passkeys`（迁移 `032`，并给 `admin_users` 补 `webauthn_user_id`）保存 WebAuthn 凭据：`credential_id` 全局唯一，`public_key`/`counter` 用于验证与防重放（登录以乐观锁更新 `counter`），`rp_id` 记录注册时的依赖方——key 只对注册它的 `rpId` 生效，换域名后旧 key 不可用；`name` 1–80 字符（CHECK 约束），随 `admin_users` 级联删除。`createOrResetAccount`（`admin-account` CLI 的落点）在空表建号、已有唯一管理员时替换用户名与密码 hash，并总是注销该账号全部 Session，只有 `--revoke-passkeys` 才删除全部 passkey；不触碰 `admin_api_keys`，也不会重开 setup；该表不参与在线保留清理，语义见 [admin-panel.md](admin-panel.md#passkey-登录与凭据)。`chat_pause` 记录 `/pause` 暂停的 Chat，`conversation_context_cutoffs` 记录 `/cut_topic` 的每 Conversation 上下文切点（Telegram message ID，迁移 `019` 前为按 Chat 的 `chat_context_cutoffs`，迁移时复制到该 Chat 的每个 Conversation）：切点同时决定新批次 history 的下界，并在同一步中断该 Conversation 正在运行的 Invocation、清空被切 Topic 的 Conversation Context（保留行打上 `evicted_at`、删除其 `context_refs`、`head_seq` 推到 `next_seq`），否则切点只会裁掉渲染用的 history，模型仍然能从 transcript 里看到全部旧消息。`evicted_at` 是保留窗口的权威条件之一：读取一律附带 `evicted_at IS NULL`，这样运行中的 Invocation 持有的陈旧 `head_seq` 也无法把淘汰行读回来。
 
 ## ID 与 JSON 规则
 

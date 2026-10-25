@@ -33,7 +33,7 @@ export async function cleanupDirectories(): Promise<void> {
   );
 }
 
-type ParticipationOptions = NonNullable<FileConfig['telegram']['participation']>;
+type ParticipationOptions = NonNullable<NonNullable<FileConfig['telegram']>['participation']>;
 
 export interface Harness {
   readonly store: SqliteStore;

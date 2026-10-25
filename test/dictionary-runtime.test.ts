@@ -11,7 +11,7 @@ import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
-import type { FileConfig, RawConfig } from '../src/platform/config.ts';
+import type { RawConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
@@ -19,7 +19,14 @@ import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
 import { loadPlugins } from '../src/plugins/plugin.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { fauxRegistry, testConfigJsonc, testConfigStore, testTelegramRuntime, writeTestConfig } from './helpers.ts';
+import {
+  type FixtureConfig,
+  fauxRegistry,
+  testConfigJsonc,
+  testConfigStore,
+  testTelegramRuntime,
+  writeTestConfig,
+} from './helpers.ts';
 import { DictionaryStore } from '../src/plugins/dictionary/dictionary-store.ts';
 
 /**
@@ -72,7 +79,7 @@ function update(updateId: number, messageId: number, text: string): Update {
   };
 }
 
-async function fixture(transform?: (config: FileConfig) => void): Promise<Fixture> {
+async function fixture(transform?: (config: FixtureConfig) => void): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-dictionary-runtime-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');

@@ -22,6 +22,7 @@ import { listAlarms } from './api/alarms.ts';
 import { listApiKeys, listBotAdmins } from './api/admin.ts';
 import { listMemories, listMemoryChats } from './api/memories.ts';
 import { listStickerSets, listStickers } from './api/stickers.ts';
+import { getTelegram } from './api/telegram.ts';
 import { listWarnings } from './api/warnings.ts';
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 
@@ -46,6 +47,18 @@ export const overviewQuery = queryOptions({
 export const warningsSummaryQuery = queryOptions({
   queryKey: ['warnings', 'summary'],
   queryFn: () => listWarnings({ limit: 5, unread: true }),
+  refetchInterval: 10_000,
+});
+
+/**
+ * The connection state lives in the running process, so a page that stays open
+ * has to poll for transitions; the settings page also invalidates it after a
+ * write. File-derived fields (`revision`, `token_configured`) follow the same
+ * cadence, which is enough for a panel.
+ */
+export const telegramQuery = queryOptions({
+  queryKey: ['telegram'],
+  queryFn: getTelegram,
   refetchInterval: 10_000,
 });
 

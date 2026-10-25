@@ -36,7 +36,7 @@ export function createAdminsAdminHandler(deps: AdminsAdminDeps) {
       return json({ error: 'admins_unavailable', message: 'Configuration reloading is not wired' }, 503);
     }
     const { loaded, revision } = await readConfigFile(reloader, secrets);
-    return json({ items: adminItems(loaded.fileConfig.telegram.admins), revision });
+    return json({ items: adminItems(loaded.fileConfig.telegram?.admins), revision });
   };
 
   const writeAdmins = async (request: Request, removeId?: string): Promise<Response> => {
@@ -52,7 +52,7 @@ export function createAdminsAdminHandler(deps: AdminsAdminDeps) {
     if (revision !== currentRevision) {
       return json({ error: 'config_conflict', message: 'The configuration file changed; reload before editing' }, 409);
     }
-    const current = loaded.fileConfig.telegram.admins ?? [];
+    const current = loaded.fileConfig.telegram?.admins ?? [];
     let merged: number[];
     if (removeId === undefined) {
       const added = parseTelegramUserId((await readJsonObject(request)).telegram_user_id);
@@ -81,7 +81,7 @@ export function createAdminsAdminHandler(deps: AdminsAdminDeps) {
     }
     const view = await readConfigFile(reloader, secrets);
     return json({
-      items: adminItems(view.loaded.fileConfig.telegram.admins),
+      items: adminItems(view.loaded.fileConfig.telegram?.admins),
       revision: view.revision,
       apply: { applied: result.applied, restart_required: result.restartRequired, outside_serve: result.outsideServe },
     });

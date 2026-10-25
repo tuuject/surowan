@@ -144,7 +144,7 @@ test('self-ignore in a migrated Forum Chat uses the configured ID and affects al
     migration.message = { ...migration.message!, migrate_from_chat_id: oldChat };
     fixture.ingestion.ingest(migration);
     expect(await fixture.commands.run({ name: 'ignoreme', threadId: 8n }, BigInt(newChat), ADMIN)).toContain('已忽略');
-    expect((await loadConfig(fixture.configPath)).fileConfig.telegram.chats).toEqual([
+    expect((await loadConfig(fixture.configPath)).fileConfig.telegram?.chats).toEqual([
       { id: oldChat, ignored_user_ids: [42] },
     ]);
     const topic = groupUpdate(2, 11, newChat);

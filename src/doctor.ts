@@ -22,10 +22,12 @@ import { createLottieCommand } from './capabilities/media/media-image.ts';
 
 import { AgentRuntime } from './orchestration/agent-runtime.ts';
 import { KeyedSemaphore } from './platform/concurrency.ts';
-import type { McpServerConfig, ProviderConfig, RawConfig, SecretRef } from './platform/config.ts';
+import type { McpServerConfig, ProviderConfig, RawConfig } from './platform/config.ts';
 import { assertConfigPermissions, loadConfig } from './adapters/local-monolith/config.ts';
 
 import { createTelegramHost, grammyTelegramTransport } from './adapters/local-monolith/telegram-host.ts';
+import { resolveTelegramTokenSource } from './adapters/local-monolith/telegram-connection-token.ts';
+import { unwiredImHost } from './platform/im-host.ts';
 import { previewContext } from './platform/invocation-context.ts';
 import { keyJarPath } from './platform/key-jar.ts';
 import { type PromptTemplateValues, renderPromptTemplate } from './platform/prompt-template.ts';
@@ -65,7 +67,8 @@ async function runDoctorChecks(
   secrets: SecretStore,
   outputAgentPrompt: boolean,
 ): Promise<void> {
-  await resolveAllSecrets(config.telegram.token, config.providers, config.mcp?.servers ?? [], secrets);
+  const telegram = await resolveDoctorTelegram(config, secrets);
+  await resolveAllSecrets(config.providers, config.mcp?.servers ?? [], secrets);
   const registry = await buildModelRegistry(config, null, secrets);
   const configStore = new RuntimeConfigurationStore({ config, hash: configHash, ...registry });
   await mkdir(config.data_dir, { recursive: true, mode: 0o700 });
@@ -172,48 +175,61 @@ async function runDoctorChecks(
       );
     }
 
-    const telegramToken = await secrets.resolve(config.telegram.token);
-    const bot = new Bot(telegramToken);
-    const me = await bot.api.getMe();
+    // Telegram is optional. Without a token the service would run with the
+    // Telegram host disabled, so the doctor skips only the Telegram network
+    // probe and still validates the provider, vision (above) and MCP surface.
+    const telegramBot = telegram.kind === 'token' ? { bot: new Bot(telegram.token), token: telegram.token } : undefined;
+    const me = telegramBot === undefined ? undefined : await telegramBot.bot.api.getMe();
     const requiredConfig: RawConfig = {
       ...config,
       mcp: { servers: (config.mcp?.servers ?? []).filter((server) => server.required) },
     };
     const modelGate = new KeyedSemaphore();
-    const media = new MediaService({
-      store,
-      configStore,
-      secrets,
-      mediaClient: new TelegramMediaClient(bot.api, telegramToken),
-      modelGate,
-    });
+    const media =
+      telegramBot === undefined
+        ? undefined
+        : new MediaService({
+            store,
+            configStore,
+            secrets,
+            mediaClient: new TelegramMediaClient(telegramBot.bot.api, telegramBot.token),
+            modelGate,
+          });
     const manager = new McpManager(store, requiredConfig, secrets);
     mcp = manager;
     const runtime = new AgentRuntime({
       store,
       configStore,
       secrets,
-      hosts: {
-        telegram: createTelegramHost({
-          transport: grammyTelegramTransport(bot.api),
-          sendRate: () => ({
-            sendsPerWindow: requiredConfig.agent.rate_limits.sends_per_window,
-            windowSeconds: requiredConfig.agent.rate_limits.window_seconds,
-          }),
-        }),
-      },
+      hosts:
+        telegramBot === undefined
+          ? { telegram: unwiredImHost('telegram', 'Telegram is disabled') }
+          : {
+              telegram: createTelegramHost({
+                transport: grammyTelegramTransport(telegramBot.bot.api),
+                sendRate: () => ({
+                  sendsPerWindow: requiredConfig.agent.rate_limits.sends_per_window,
+                  windowSeconds: requiredConfig.agent.rate_limits.window_seconds,
+                }),
+              }),
+            },
       conversation: (target) => resolveConversation(store, target),
-      bot: {
-        id: BigInt(me.id),
-        displayName: [me.first_name, me.last_name].filter((part) => part !== undefined).join(' '),
-        username: me.username ?? null,
-      },
+      bot:
+        me === undefined
+          ? { id: 0n, displayName: '', username: null }
+          : {
+              id: BigInt(me.id),
+              displayName: [me.first_name, me.last_name].filter((part) => part !== undefined).join(' '),
+              username: me.username ?? null,
+            },
       modelGate,
       systemResources: await FileSystemResources.load(
         BUNDLED_SYSTEM_RESOURCES_DIR,
         loadPlugins(BUILTIN_PLUGINS).skillDirectories,
       ),
-      directImageLoader: (context, signal) => media.loadDirectImages(context.directImages, signal),
+      ...(media === undefined
+        ? {}
+        : { directImageLoader: (context, signal) => media.loadDirectImages(context.directImages, signal) }),
       additionalTools: (context, deadline) => [...manager.createTools(context, deadline)],
     });
     const preview = previewContext();
@@ -236,7 +252,8 @@ async function runDoctorChecks(
         providers: Object.keys(config.providers).length,
         vision: visionModel === undefined ? null : `${visionModel.provider}/${visionModel.id}`,
         required_mcp: requiredConfig.mcp?.servers.length ?? 0,
-        telegram_bot_id: String(me.id),
+        telegram_status: me === undefined ? 'disabled' : 'connected',
+        telegram_bot_id: me === undefined ? null : String(me.id),
         config_hash: configHash,
         ...(outputAgentPrompt ? { agent_prompt: renderDoctorAgentPrompt(config) } : {}),
       }),
@@ -320,13 +337,33 @@ async function completeDoctorCall(
   }
 }
 
+/**
+ * What the doctor should probe for Telegram.
+ *
+ * `disabled` is a working deployment: no `telegram` section, or a section with
+ * no token. An unreadable SecretRef is a configuration error, never a silent
+ * "disabled", so the doctor fails instead of reporting a healthy run without
+ * the bot the operator meant to connect.
+ */
+export type DoctorTelegramSource = { readonly kind: 'disabled' } | { readonly kind: 'token'; readonly token: string };
+
+export async function resolveDoctorTelegram(config: RawConfig, secrets: SecretStore): Promise<DoctorTelegramSource> {
+  const source = await resolveTelegramTokenSource(config, secrets);
+  switch (source.kind) {
+    case 'disabled':
+      return { kind: 'disabled' };
+    case 'unreadable':
+      throw new Error(`Telegram token cannot be read: ${source.message}`);
+    case 'token':
+      return { kind: 'token', token: source.token };
+  }
+}
+
 async function resolveAllSecrets(
-  telegramToken: SecretRef,
   providers: Readonly<Record<string, ProviderConfig>>,
   servers: readonly McpServerConfig[],
   secrets: SecretStore,
 ): Promise<void> {
-  await secrets.resolve(telegramToken);
   for (const provider of Object.values(providers)) {
     await secrets.resolve(provider.api_key);
     if (provider.kind === 'custom') {

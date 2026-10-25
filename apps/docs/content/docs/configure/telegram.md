@@ -5,6 +5,8 @@ description: 创建 Bot，配置允许的 Chat、群聊消息可见性和 Forum 
 
 # 接入 Telegram 群组与 Topic
 
+`telegram` 是可选配置段：没有 Telegram Bot 时可以先不写它，服务会停用 Telegram，只运行管理面板与 [虚拟群聊](../guides/playground.md)。需要接入真实聊天时再按本节配置；也可以在管理面板的 Telegram 设置页保存 Token 后热启动连接。
+
 ## 创建 Bot 并保护 Token
 
 Telegram 官方 FAQ 指引开发者通过 [@BotFather](https://t.me/BotFather) 创建 Bot，再连接自己的后端。把获得的 Token 仅注入 `TELEGRAM_BOT_TOKEN` 等受控环境变量，绝不贴到配置、日志、截图或 Agent 对话。

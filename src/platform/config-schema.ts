@@ -70,7 +70,9 @@ const HttpMcpSchema = Type.Object(
 
 const AdminSchema = Type.Object(
   {
-    enabled: Type.Boolean(),
+    // The panel is part of every deployment now; only an operator who really
+    // means to run headless (with Telegram connected) writes `false`.
+    enabled: Type.Optional(Type.Boolean()),
     host: Type.String({ minLength: 1 }),
     port: Type.Integer({ minimum: 1, maximum: 65_535 }),
     session_ttl_hours: Type.Integer({ minimum: 1, maximum: 720 }),
@@ -127,20 +129,27 @@ export const ConfigSchema = Type.Object(
     version: Type.Literal(1),
     data_dir: Type.String({ minLength: 1 }),
     timezone: Type.String({ minLength: 1 }),
-    telegram: Type.Object(
-      {
-        token: SecretRefSchema,
-        process_bot_messages: Type.Boolean(),
-        sticker_trigger_enabled: Type.Optional(Type.Boolean()),
-        mention_typing_enabled: Type.Optional(Type.Boolean()),
-        bucket_window_seconds: Type.Integer({ minimum: 0, maximum: 300 }),
-        participation: Type.Optional(ParticipationSchema),
-        proactive_reply: Type.Optional(ProactiveReplySchema),
-        chats: Type.Array(ChatSchema, { minItems: 1 }),
-        admins: Type.Optional(Type.Array(Type.Integer({ minimum: 1 }), { uniqueItems: true })),
-        sticker_sets: Type.Optional(Type.Array(StickerSetSchema)),
-      },
-      Strict,
+    // `telegram` may be absent entirely: a deployment that only wants the
+    // playground configures no IM at all. Inside a present section every field
+    // keeps its old default rules — only the token is optional (empty means
+    // "disabled") and the Chat allowlist may stay empty until the bot has been
+    // added to a group.
+    telegram: Type.Optional(
+      Type.Object(
+        {
+          token: Type.Optional(SecretRefSchema),
+          process_bot_messages: Type.Boolean(),
+          sticker_trigger_enabled: Type.Optional(Type.Boolean()),
+          mention_typing_enabled: Type.Optional(Type.Boolean()),
+          bucket_window_seconds: Type.Integer({ minimum: 0, maximum: 300 }),
+          participation: Type.Optional(ParticipationSchema),
+          proactive_reply: Type.Optional(ProactiveReplySchema),
+          chats: Type.Array(ChatSchema),
+          admins: Type.Optional(Type.Array(Type.Integer({ minimum: 1 }), { uniqueItems: true })),
+          sticker_sets: Type.Optional(Type.Array(StickerSetSchema)),
+        },
+        Strict,
+      ),
     ),
     providers: Type.Record(Type.String({ minLength: 1 }), Type.Union([BuiltinProviderSchema, CustomProviderSchema])),
     // `agent` may be absent, null or a partial object: every field is optional,
@@ -174,7 +183,7 @@ export const ConfigSchema = Type.Object(
       Strict,
     ),
     mcp: Type.Optional(Type.Object({ servers: Type.Array(Type.Union([StdioMcpSchema, HttpMcpSchema])) }, Strict)),
-    admin: Type.Optional(AdminSchema),
+    admin: AdminSchema,
     developer: Type.Optional(
       Type.Object(
         {

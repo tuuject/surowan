@@ -10,13 +10,20 @@ import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
-import type { FileConfig } from '../src/platform/config.ts';
+
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
-import { fauxRegistry, testConfigJsonc, testConfigStore, testTelegramRuntime, writeTestConfig } from './helpers.ts';
+import {
+  type FixtureConfig,
+  fauxRegistry,
+  testConfigJsonc,
+  testConfigStore,
+  testTelegramRuntime,
+  writeTestConfig,
+} from './helpers.ts';
 
 const directories: string[] = [];
 const stores: SqliteStore[] = [];
@@ -33,7 +40,7 @@ afterEach(async () => {
   await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
 });
 
-export async function fixture(transform?: (config: FileConfig) => void) {
+export async function fixture(transform?: (config: FixtureConfig) => void) {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-task-context-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');

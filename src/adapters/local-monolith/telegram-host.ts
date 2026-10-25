@@ -2,34 +2,35 @@
  * The Telegram host: the one place that knows what Telegram actually looks like.
  *
  * Everything transport-specific lives here - the parameter and response shapes,
- * how a mention becomes a clickable entity or a MarkdownV2 inline link, which
- * failures are worth retrying, and how the chat action stays fresh. The platform
- * above sees only `ImHost` from `src/platform/im-host.ts`.
+ * how a mention becomes a clickable entity or a MarkdownV2 inline link, and how
+ * the chat action stays fresh; failure classification lives next door in
+ * `telegram-host-failures.ts`. The platform above sees only `ImHost` from
+ * `src/platform/im-host.ts`.
  */
 
-import { GrammyError, HttpError, InputFile, type Api } from 'grammy';
+import { type Api, InputFile } from 'grammy';
 import type { MessageEntity } from 'grammy/types';
 
 import {
-  conversationKey,
-  resolveConversationPolicy,
   type ActivityLifetime,
+  conversationKey,
   type ImActivity,
   type ImComposedPart,
   type ImConversationPolicy,
   type ImConversationRef,
+  type ImDeliveredMessage,
   type ImDelivery,
-  type ImDeliveryFailure,
   type ImDeliveryOutcome,
   type ImDeliveryRequest,
-  type ImDeliveredMessage,
   type ImDeliveryTarget,
   type ImHost,
   type ImMentionRequest,
   type ImOutgoingPart,
   type ImSendRatePolicy,
+  resolveConversationPolicy,
   type SenderId,
 } from '../../platform/im-host.ts';
+import { abortedTelegramDelivery, classifyTelegramDeliveryError } from './telegram-host-failures.ts';
 
 const REFRESH_MILLISECONDS = 4_000;
 // Telegram retains an action for up to five seconds; leave that tail inside the cap.
@@ -223,68 +224,6 @@ function mentionEntities(part: ImOutgoingPart): MessageEntity[] | undefined {
       url: telegramMentionUrl(part.mention.senderId),
     },
   ];
-}
-
-/* -------------------------------------------------------------------------- */
-/* Failure classification                                                     */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Turns whatever a Telegram client threw into the contract's vocabulary. A
- * caller branches on `reason`; only this function knows about HTTP status codes
- * and grammY error classes.
- */
-export function classifyTelegramDeliveryError(error: unknown): ImDeliveryFailure {
-  if (error instanceof GrammyError) {
-    if (error.error_code === 429) {
-      return {
-        reason: 'rate_limited',
-        code: 'telegram_429',
-        outcomeUnknown: false,
-        // Without a delay from Telegram the caller stops instead of guessing one.
-        ...(error.parameters.retry_after === undefined ? {} : { retryAfterSeconds: error.parameters.retry_after }),
-        description: error.description,
-      };
-    }
-    if (error.error_code >= 500) {
-      return {
-        reason: 'transient',
-        code: `telegram_${error.error_code}`,
-        outcomeUnknown: true,
-        description: error.description,
-      };
-    }
-    return {
-      reason: 'permanent',
-      code: `telegram_${error.error_code}`,
-      outcomeUnknown: false,
-      description: error.description,
-    };
-  }
-  if (error instanceof HttpError) {
-    return {
-      reason: 'network',
-      code: 'telegram_network',
-      outcomeUnknown: true,
-      description: error.message,
-    };
-  }
-  return {
-    reason: 'network',
-    code: 'telegram_network',
-    outcomeUnknown: true,
-    description: error instanceof Error ? error.message : String(error),
-  };
-}
-
-/** An abort is not a transport failure, but callers still branch on a failure. */
-export function abortedTelegramDelivery(): ImDeliveryFailure {
-  return {
-    reason: 'aborted',
-    code: 'aborted',
-    outcomeUnknown: true,
-    description: 'the send was aborted',
-  };
 }
 
 /* -------------------------------------------------------------------------- */

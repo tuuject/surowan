@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { FileConfig } from '../src/platform/config.ts';
 import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { ConfigChange } from '../src/platform/config-diff.ts';
-import { testConfigJsonc, writeTestConfig } from './helpers.ts';
+import { testConfigJsonc, writeTestConfig, type FixtureConfig } from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -24,14 +24,14 @@ export async function createDirectory(prefix = 'surowan-diff-'): Promise<string>
 export interface DiffLoadResult {
   active: LoadedConfig;
   file: LoadedConfig;
-  activeJsonc: (next: (config: FileConfig) => void) => string;
+  activeJsonc: (next: (config: FixtureConfig) => void) => string;
   directory: string;
   configPath: string;
 }
 
 export async function loadBoth(
-  transform?: (config: FileConfig) => void,
-  fileTransform?: (config: FileConfig) => void,
+  transform?: (config: FixtureConfig) => void,
+  fileTransform?: (config: FixtureConfig) => void,
 ): Promise<DiffLoadResult> {
   const directory = await createDirectory();
   const configPath = join(directory, 'config.jsonc');

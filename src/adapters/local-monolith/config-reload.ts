@@ -14,6 +14,7 @@ import { type AgentModelSwitcher, ModelSwitchError } from '../../platform/model-
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import { applyFile, type ConfigReloadState, messageOf } from './config-reload-apply.ts';
+import type { TelegramTokenSource } from './telegram-connection-token.ts';
 
 /**
  * The image configuration gateway. The reloader prepares a candidate snapshot
@@ -24,6 +25,18 @@ import { applyFile, type ConfigReloadState, messageOf } from './config-reload-ap
 export interface ImageConfigGateway {
   prepare: (candidate: RawConfig) => Promise<unknown>;
   publish: (snapshot: unknown) => void;
+}
+
+/**
+ * The Telegram token gateway. Preparing a candidate turns the configured
+ * SecretRef into one of three states and never fails an apply: an unreadable
+ * token is a connection problem the manager reports, not a bad file. Publishing
+ * only hands the source over; the manager decides whether that means a restart,
+ * a stop or nothing at all.
+ */
+export interface TelegramConfigGateway {
+  prepare: (candidate: RawConfig) => Promise<TelegramTokenSource>;
+  publish: (source: TelegramTokenSource) => void;
 }
 
 export interface ConfigReloaderOptions {
@@ -38,6 +51,8 @@ export interface ConfigReloaderOptions {
   readonly onPublished: () => void;
   /** Optional image configuration gateway; present when the image service runs. */
   readonly imageConfig?: ImageConfigGateway;
+  /** Optional Telegram token gateway; present when this process serves Telegram. */
+  readonly telegramConfig?: TelegramConfigGateway;
 }
 
 /**
@@ -57,6 +72,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
   readonly #validateAgentModel: (model: Model<Api>) => void;
   readonly #onPublished: () => void;
   readonly #imageConfig: ImageConfigGateway | undefined;
+  readonly #telegramConfig: TelegramConfigGateway | undefined;
   /** Mutable reload state, shared by reference with `config-reload-apply.ts`. */
   readonly #state: ConfigReloadState;
   /** Serializes reloads; a reload and a `/model` write never interleave. */
@@ -70,12 +86,14 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     this.#validateAgentModel = options.validateAgentModel;
     this.#onPublished = options.onPublished;
     this.#imageConfig = options.imageConfig;
+    this.#telegramConfig = options.telegramConfig;
     this.#state = {
       activeFile: structuredClone(options.loaded.fileConfig),
       fileHash: options.loaded.hash,
       restartRequired: [],
       lastError: null,
       imageSnapshotId: null,
+      telegramTokenId: null,
     };
   }
 
@@ -182,8 +200,9 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     } catch (error) {
       return this.#rejected('config_invalid', messageOf(error), 'config_write_failed');
     }
-    const index = loaded.fileConfig.telegram.chats.findIndex((chat) => chat.id === configuredChatId);
-    const chat = loaded.fileConfig.telegram.chats[index];
+    const chats = loaded.fileConfig.telegram?.chats ?? [];
+    const index = chats.findIndex((chat) => chat.id === configuredChatId);
+    const chat = chats[index];
     if (chat === undefined) {
       return this.#rejected(
         'config_invalid',
@@ -219,12 +238,11 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     } catch (error) {
       return this.#rejected('config_invalid', messageOf(error));
     }
-    if (loaded.fileConfig.telegram.chats.some((chat) => chat.id === configuredChatId)) {
+    const chats = loaded.fileConfig.telegram?.chats ?? [];
+    if (chats.some((chat) => chat.id === configuredChatId)) {
       return await this.#applyFile();
     }
-    const edits: ConfigEdit[] = [
-      { path: ['telegram', 'chats', loaded.fileConfig.telegram.chats.length], value: { id: configuredChatId } },
-    ];
+    const edits: ConfigEdit[] = [{ path: ['telegram', 'chats', chats.length], value: { id: configuredChatId } }];
     return await this.#writeAndApply(edits, revision);
   }
 
@@ -280,8 +298,9 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     } catch (error) {
       return this.#rejected('config_invalid', messageOf(error));
     }
-    const index = loaded.fileConfig.telegram.chats.findIndex((chat) => chat.id === configuredChatId);
-    const chat = loaded.fileConfig.telegram.chats[index];
+    const chats = loaded.fileConfig.telegram?.chats ?? [];
+    const index = chats.findIndex((chat) => chat.id === configuredChatId);
+    const chat = chats[index];
     if (chat === undefined) {
       return this.#rejected(
         'config_invalid',
@@ -323,6 +342,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
       state: this.#state,
       secrets: this.#secrets,
       imageConfig: this.#imageConfig,
+      telegramConfig: this.#telegramConfig,
       validateAgentModel: (model) => this.#validateAgentModel(model),
       onPublished: () => this.#onPublished(),
       failure: (code, message, fileWritten) => this.#failure(code, message, fileWritten),

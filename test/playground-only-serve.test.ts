@@ -1,11 +1,12 @@
 /**
- * T10 acceptance: the real `serve --playground-only` process.
+ * Acceptance: the real `serve` process with Telegram disabled.
  *
- * The epic's Playground-only acceptance runs as a child process, not as an
- * in-process assembly: it starts with no resolvable Telegram token, prints its
- * lifecycle events, serves the panel and shuts down cleanly on a signal. The
- * companion in-process suite (`playground-only.test.ts`) covers the room round
- * and the untouched Telegram work.
+ * These run as a child process, not as an in-process assembly: the process
+ * starts with no `telegram` section, prints its lifecycle events, serves the
+ * panel (or refuses to start when the panel is off too) and shuts down cleanly
+ * through the same stop-request file a takeover uses. The companion in-process
+ * suite (`playground-only.test.ts`) covers the room round and untouched
+ * Telegram work.
  */
 import { spawn } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -35,8 +36,15 @@ async function freePort(): Promise<number> {
   return port;
 }
 
-async function writePlaygroundConfig(options: { readonly admin: boolean }): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), 'surowan-pg-only-serve-'));
+interface FixtureOptions {
+  /** `false` leaves the panel off, which only an IM can make useful. */
+  readonly panel: boolean;
+  /** A token reference that resolves to nothing usable, or no Telegram section. */
+  readonly telegram?: { readonly token: { readonly jar: string } | { readonly env: string } };
+}
+
+async function writeConfig(options: FixtureOptions): Promise<{ configPath: string; dataDir: string }> {
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-tg-disabled-serve-'));
   directories.push(directory);
   const dataDir = join(directory, 'data');
   const port = await freePort();
@@ -44,7 +52,7 @@ async function writePlaygroundConfig(options: { readonly admin: boolean }): Prom
     kind: 'custom',
     base_url: 'http://127.0.0.1:9/v1',
     api: 'openai-responses',
-    api_key: { env: 'PG_ONLY_AGENT_KEY' },
+    api_key: { env: 'TG_DISABLED_AGENT_KEY' },
     models: [
       {
         id: modelId,
@@ -62,12 +70,16 @@ async function writePlaygroundConfig(options: { readonly admin: boolean }): Prom
     version: 1,
     data_dir: dataDir.replaceAll('\\', '/'),
     timezone: 'UTC',
-    telegram: {
-      token: { jar: 'telegram-that-does-not-exist' },
-      process_bot_messages: false,
-      bucket_window_seconds: 15,
-      chats: [{ id: 123456789, instructions_file: 'chat-instructions.md' }],
-    },
+    ...(options.telegram === undefined
+      ? {}
+      : {
+          telegram: {
+            token: options.telegram.token,
+            process_bot_messages: false,
+            bucket_window_seconds: 15,
+            chats: [],
+          },
+        }),
     providers: { agent: provider('agent-model'), vision: provider('vision-model') },
     agent: {
       provider: 'agent',
@@ -104,28 +116,20 @@ async function writePlaygroundConfig(options: { readonly admin: boolean }): Prom
       media_cache: join(dataDir, 'media').replaceAll('\\', '/'),
       backups: join(dataDir, 'backups').replaceAll('\\', '/'),
     },
-    ...(options.admin ? { admin: { enabled: true, host: '127.0.0.1', port, session_ttl_hours: 12 } } : {}),
+    admin: { enabled: options.panel, host: '127.0.0.1', port, session_ttl_hours: 12 },
   };
   const configPath = join(directory, 'config.jsonc');
   await writeFile(configPath, JSON.stringify(config, null, 2), { mode: 0o600 });
   await writeFile(join(directory, 'agent-system-prompt.md'), 'You are a test agent.\n', { mode: 0o600 });
-  await writeFile(join(directory, 'chat-instructions.md'), 'Test group.\n', { mode: 0o600 });
-  return configPath;
+  return { configPath, dataDir };
 }
 
-function startServe(configPath: string, extraArgs: readonly string[] = []) {
+function startServe(configPath: string, env: Readonly<Record<string, string>> = {}) {
   const child = spawn(
     process.execPath,
-    [
-      join(import.meta.dirname, '..', 'src', 'cli.ts'),
-      'serve',
-      '--config',
-      configPath,
-      '--playground-only',
-      ...extraArgs,
-    ],
+    [join(import.meta.dirname, '..', 'src', 'cli.ts'), 'serve', '--config', configPath],
     {
-      env: { ...process.env, PG_ONLY_AGENT_KEY: 'fixture-agent-key', PG_ONLY_VISION_KEY: 'fixture-vision-key' },
+      env: { ...process.env, TG_DISABLED_AGENT_KEY: 'fixture-agent-key', ...env },
       stdio: ['pipe', 'pipe', 'pipe'],
     },
   );
@@ -166,12 +170,20 @@ function startServe(configPath: string, extraArgs: readonly string[] = []) {
   };
 }
 
-test('serve --playground-only starts the panel and stops cleanly on a signal', async () => {
-  const configPath = await writePlaygroundConfig({ admin: true });
+/** Asks the process to drain through the production stop-request path. */
+async function requestStop(dataDir: string): Promise<void> {
+  await writeFile(join(dataDir, 'serve.stop'), `${process.pid}\n`, { mode: 0o600 });
+}
+
+test('serve with Telegram disabled starts the panel and stops cleanly on a stop request', async () => {
+  const { configPath, dataDir } = await writeConfig({ panel: true });
   const serving = startServe(configPath);
 
   await expect
     .poll(() => serving.events.some((entry) => entry.event === 'admin_started'), { timeout: 30_000 })
+    .toBe(true);
+  await expect
+    .poll(() => serving.events.some((entry) => entry.event === 'serve_started'), { timeout: 30_000 })
     .toBe(true);
   const names = serving.events.map((entry) => entry.event);
   expect(names).toContain('image_service_started');
@@ -180,21 +192,54 @@ test('serve --playground-only starts the panel and stops cleanly on a signal', a
   expect(names).not.toContain('commands_registered');
   expect(names).not.toContain('startup_catch_up_completed');
   expect(serving.events.find((entry) => entry.event === 'serve_started')).toMatchObject({
-    mode: 'playground-only',
+    mode: 'disabled',
     bot_id: null,
   });
 
-  serving.child.kill('SIGTERM');
+  await requestStop(dataDir);
   expect(await serving.exited).toBe(0);
-  // The lifecycle logged its shutdown and no Telegram object was ever built.
-  const shutdown = serving.events.find((entry) => entry.event === 'shutdown_requested');
-  expect(shutdown).toBeDefined();
+  expect(serving.events.find((entry) => entry.event === 'shutdown_requested')).toBeDefined();
   expect(serving.stderr()).toBe('');
 });
 
-test('serve --playground-only refuses a configuration without the panel', async () => {
-  const configPath = await writePlaygroundConfig({ admin: false });
+test('serve refuses a process with neither the panel nor Telegram', async () => {
+  const { configPath } = await writeConfig({ panel: false });
   const serving = startServe(configPath);
   expect(await serving.exited).toBe(1);
-  expect(serving.stderr()).toContain('--playground-only requires admin.enabled');
+  expect(serving.stderr()).toContain('Surowan is useless if neither admin panel is enabled nor telegram is configured');
+});
+
+test('a token that resolves to an empty value is a disabled Telegram, so the refusal applies', async () => {
+  const { configPath } = await writeConfig({
+    panel: false,
+    telegram: { token: { env: 'TG_DISABLED_EMPTY_TOKEN' } },
+  });
+  const serving = startServe(configPath, { TG_DISABLED_EMPTY_TOKEN: '' });
+  expect(await serving.exited).toBe(1);
+  expect(serving.stderr()).toContain('Surowan is useless if neither admin panel is enabled nor telegram is configured');
+});
+
+test('an unreadable token is a connection state, not a reason to refuse starting', async () => {
+  // Panel off and Telegram configured but unreadable: the configuration error
+  // is shown by the connection state, and the useless rule must not fire.
+  const { configPath, dataDir } = await writeConfig({
+    panel: false,
+    telegram: { token: { jar: 'missing-telegram-entry' } },
+  });
+  const serving = startServe(configPath);
+  await expect
+    .poll(() => serving.events.some((entry) => entry.event === 'serve_started'), { timeout: 30_000 })
+    .toBe(true);
+  const names = serving.events.map((entry) => entry.event);
+  expect(names).not.toContain('admin_started');
+  expect(names).not.toContain('commands_registered');
+  expect(serving.events.find((entry) => entry.event === 'serve_started')).toMatchObject({
+    mode: 'config_error',
+    reason: 'token_unreadable',
+    bot_id: null,
+  });
+
+  await requestStop(dataDir);
+  expect(await serving.exited).toBe(0);
+  expect(serving.stderr()).toBe('');
 });

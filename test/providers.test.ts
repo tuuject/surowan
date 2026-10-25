@@ -4,13 +4,13 @@ import { join } from 'node:path';
 import { normalizeContext, type Api, getSupportedThinkingLevels, type Model } from '@earendil-works/pi-ai';
 import { afterEach, describe, expect, test } from 'vitest';
 import { findBuiltinProvider } from '../src/platform/builtin-providers.ts';
-import type { FileConfig, RawConfig } from '../src/platform/config.ts';
+import type { RawConfig } from '../src/platform/config.ts';
 import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { buildModelRegistry, configuredAgentModels, mapCompat } from '../src/platform/providers.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { supportedThinkingLevels, THINKING_LEVELS } from '../src/platform/thinking-levels.ts';
-import { testConfigJsonc, writeTestConfig, writeTestKeyJar } from './helpers.ts';
+import { type FixtureConfig, testConfigJsonc, writeTestConfig, writeTestKeyJar } from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -18,7 +18,7 @@ afterEach(async () => {
   await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
 });
 
-async function loadFixture(transform: (config: FileConfig) => void): Promise<LoadedConfig> {
+async function loadFixture(transform: (config: FixtureConfig) => void): Promise<LoadedConfig> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-providers-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');

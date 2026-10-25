@@ -7,13 +7,13 @@ import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { ConfigReloader } from '../src/adapters/local-monolith/config-reload.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { AdminServer } from '../src/ingress/admin/server.ts';
-import type { FileConfig } from '../src/platform/config.ts';
+
 import { PROACTIVE_REPLY_DEFAULTS, resolveProactiveReply } from '../src/platform/proactive-reply.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { AgentModelSwitcher } from '../src/platform/model-switch.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { seedAdminFixture } from './fixtures/admin-seed.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 import { AGENT_DEFAULTS } from '../src/platform/config-resolve.ts';
 import type { HarnessSettings } from '../apps/admin-next/src/lib/api/config.ts';
 
@@ -25,7 +25,7 @@ afterEach(async () => {
   }
 });
 
-async function fixture(transform?: (config: FileConfig) => void) {
+async function fixture(transform?: (config: FixtureConfig) => void) {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-harness-'));
   const path = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -243,14 +243,14 @@ test('edits the global proactive reply defaults under telegram and hot-applies t
     hard_pity: 5,
   });
   const file = (await loadConfig(f.path)).fileConfig;
-  expect(file.telegram.proactive_reply).toEqual({ enabled: true, base_probability: 0.35, hard_pity: 5 });
+  expect(file.telegram?.proactive_reply).toEqual({ enabled: true, base_probability: 0.35, hard_pity: 5 });
   // Nothing leaked into the agent section.
   expect(Object.hasOwn(file.agent ?? {}, 'proactive_reply')).toBe(false);
 
   // null removes a field again, back to its default.
   const reset = await f.update({ 'proactive_reply.hard_pity': null }, body.revision);
   expect(reset.status).toBe(200);
-  expect((await loadConfig(f.path)).fileConfig.telegram.proactive_reply).toEqual({
+  expect((await loadConfig(f.path)).fileConfig.telegram?.proactive_reply).toEqual({
     enabled: true,
     base_probability: 0.35,
   });

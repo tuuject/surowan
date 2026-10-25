@@ -46,7 +46,7 @@ test('Chat edits require the original revision before parsing a body, reject sta
   expect(await missing.json()).toMatchObject({ error: 'revision_required' });
   const { revision } = await f.view();
   const file = JSON.parse(before) as FileConfig;
-  file.telegram.chats.reverse();
+  file.telegram!.chats.reverse();
   await writeFile(f.path, JSON.stringify(file));
   const stale = await f.write('/chats/-100100', 'PUT', inherited, revision);
   expect(stale.status).toBe(409);

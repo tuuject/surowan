@@ -4,6 +4,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { applyEdits, findNodeAtLocation, type JSONPath, modify, parse, parseTree } from 'jsonc-parser';
 import { assertConfigPermissions, type LoadedConfig, loadConfig } from './config.ts';
 import type { ConfigEdit } from '../../platform/config-write.ts';
+import { TELEGRAM_DEFAULTS } from '../../platform/config-resolve.ts';
 import { keyJarPath, referencedJarNames, updateKeyJar } from '../../platform/key-jar.ts';
 
 export type ConfigWriteErrorCode =
@@ -95,8 +96,18 @@ export async function writeConfigEdits(
   }
   const bom = source.charCodeAt(0) === 0xfeff;
   let text = bom ? source.slice(1) : source;
-  const previouslyReferenced = referencedJarNames(parse(text, [], { allowTrailingComma: true }));
+  const parsedSource = parse(text, [], { allowTrailingComma: true });
+  const previouslyReferenced = referencedJarNames(parsedSource);
   const added: Record<string, string> = {};
+  if (createsTelegramSection(parsedSource, edits)) {
+    // The section's scalars have no schema defaults, so creating it lazily with
+    // only e.g. `chats[0]` would write a file `loadConfig` rejects. Every write
+    // that reaches below `telegram` starts from the same defaults.
+    text = applyEdits(
+      text,
+      modify(text, ['telegram'], { ...TELEGRAM_DEFAULTS, chats: [] }, { formattingOptions: FORMATTING }),
+    );
+  }
   for (const edit of edits) {
     Object.assign(added, edit.keys);
     if (edit.value !== undefined) {
@@ -175,6 +186,19 @@ async function assertWritableTarget(configPath: string): Promise<void> {
   } catch (error) {
     throw new ConfigWriteError('config_permissions', describe('Config permissions', error));
   }
+}
+
+/**
+ * Whether these edits would add a key under a missing `telegram` section. Such
+ * a write creates the section from `TELEGRAM_DEFAULTS` first, so the schema's
+ * required scalars are always present.
+ */
+function createsTelegramSection(parsed: unknown, edits: readonly ConfigEdit[]): boolean {
+  const root = typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed : undefined;
+  if (root !== undefined && 'telegram' in root && root.telegram !== null && root.telegram !== undefined) {
+    return false;
+  }
+  return edits.some((edit) => edit.path[0] === 'telegram' && edit.path.length > 1 && edit.value !== undefined);
 }
 
 function temporaryPath(configPath: string): string {

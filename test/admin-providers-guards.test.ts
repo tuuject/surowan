@@ -193,7 +193,7 @@ test('global Admin writes preserve Chat overrides and reject incompatible inheri
     );
     expect(switched.status).toBe(200);
     expect(fixture.file().agent).toMatchObject({ provider: 'vision', model: 'vision-model', thinking_level: 'off' });
-    expect(fixture.file().telegram.chats).toEqual(fixture.loaded.fileConfig.telegram.chats);
+    expect(fixture.file().telegram?.chats).toEqual(fixture.loaded.fileConfig.telegram?.chats);
     expect(fixture.configStore.current().config.telegram.chats).toEqual(before.config.telegram.chats);
   } finally {
     fixture.store.close();

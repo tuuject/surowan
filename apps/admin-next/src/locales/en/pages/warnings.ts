@@ -34,6 +34,7 @@ export const warnings = {
     openModels: 'Open Models',
     openInvocations: 'Open invocations',
     openSettings: 'Open settings',
+    openTelegram: 'Open Telegram settings',
   },
   codes: {
     developer_payload_recording: {
@@ -55,6 +56,23 @@ export const warnings = {
     admin_login_failures: {
       title: 'Consecutive administrator sign-in failures',
       body: 'The panel has seen {{count}} consecutive username/password failures.',
+    },
+    telegram_network_error: {
+      title: 'Could not connect to the Telegram server',
+      body: 'The bot keeps retrying. It reconnects automatically once Telegram is reachable.',
+    },
+    telegram_config_error: {
+      title: 'Telegram configuration error',
+      unauthorized: 'Your Telegram token has been revoked or is invalid',
+      conflict: 'This Telegram token is already in use by another program',
+      token_unreadable: 'The Telegram token could not be read',
+      body: {
+        unknown: 'Telegram cannot start with the current token configuration.',
+        unauthorized: 'Replace the Bot Token on the Telegram page with a valid one from @BotFather.',
+        conflict: 'Another process is polling with this token. Stop it or configure a different token.',
+        token_unreadable:
+          'The configured token source could not be resolved. Check the key jar, environment variable or command.',
+      },
     },
     unknown: {
       title: 'Unknown warning: {{code}}',

@@ -31,6 +31,7 @@ export const warnings: typeof warningsEn = {
     openModels: '打开模型页',
     openInvocations: '打开调用记录',
     openSettings: '打开设置',
+    openTelegram: '打开 Telegram 设置',
   },
   codes: {
     developer_payload_recording: {
@@ -52,6 +53,22 @@ export const warnings: typeof warningsEn = {
     admin_login_failures: {
       title: '连续管理员登录失败',
       body: '面板已连续发生 {{count}} 次用户名/密码错误。',
+    },
+    telegram_network_error: {
+      title: '未能成功连接 Telegram 服务器',
+      body: 'Bot 会持续重试；Telegram 恢复可达后会自动重连。',
+    },
+    telegram_config_error: {
+      title: 'Telegram 配置异常',
+      unauthorized: '你的 Telegram Token 已被吊销或无效',
+      conflict: '这个 Telegram Token 正在被其他程序使用',
+      token_unreadable: '无法读取 Telegram Token',
+      body: {
+        unknown: '当前 Token 配置无法启动 Telegram。',
+        unauthorized: '请到 Telegram 页换一个 @BotFather 提供的有效 Bot Token。',
+        conflict: '另一个进程正在用这个 Token 收消息。请停掉它，或换一个 Token。',
+        token_unreadable: '配置的 Token 来源无法解析。请检查 key.json、环境变量或命令。',
+      },
     },
     unknown: {
       title: '未知警告：{{code}}',

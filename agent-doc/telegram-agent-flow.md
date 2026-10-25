@@ -55,7 +55,7 @@
 3. 每个有可触发消息的 Conversation（Chat + Forum Topic）只创建一个 `startup_catch_up` Bucket，取该 Conversation 最新的 `agent.history_messages` 条消息，参与闸门也按该 Conversation 判断；同一 Chat 的多个 Topic 各自排队，由 Scheduler 按 Chat 串行启动；单独的人类 Sticker 仍受 `sticker_trigger_enabled` 限制。
 4. Bucket 仅包含该 Conversation 按 Telegram 时间排序的最新 `agent.history_messages` 条本轮消息，不混合不同 Forum Topic。
 5. Snapshot 携带 `message_thread_id`。回复可见消息时，`send` 路由到该消息所属 Topic；不带 Reply 时仍发送到本 Conversation 的 Topic。
-6. 排空完成并原子清除启动状态后，才切换到常规按 Conversation 收集。
+6. 排空完成并原子清除启动状态后，才切换到常规按 Conversation 收集。启动状态未清时实例不进入 long polling：冷排空中途失败（如网络错误）按一次失败的连接尝试重试；被新 token 或停用请求取消时，下一次成功连接的实例（哪怕不是冷启动）也走这条冷路径从同一起点续跑，而不是限量的运行时补拉。运行时补拉（换 token、从停用/配置异常恢复）每个 Chat 只保留最新 100 条，分页时就地淘汰；`getUpdates` 带 `offset` 即确认上一页，所以已拉到的保留更新在中途失败或取消时也照样入库，取消只是不再创建追赶任务。
 7. 追赶 Invocation 建任务后，recovery 年龄从排空完成时刻起算（消息选取仍按本轮持久化起点），慢排空或崩溃续跑不会让它刚排队就被启动恢复判为过期；只有真正排队超过恢复上限（5 分钟）后才重启时，才按 `recovery_age` 过期。
 
 ## 会话节拍与 Bucket

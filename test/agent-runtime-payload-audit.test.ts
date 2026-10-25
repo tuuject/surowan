@@ -56,7 +56,10 @@ test('audits complete redacted model error details', async () => {
   const errorDetail = 'Provider request failed with telegram-secret\nstatus=500\nbody={"error":"upstream exploded"}';
   faux.setResponses([fauxAssistantMessage('', { stopReason: 'error', errorMessage: errorDetail })]);
   const secrets = new SecretStore(keyJarPath(loaded.configPath));
-  await secrets.resolve(loaded.config.telegram.token);
+  const telegramToken = loaded.config.telegram.token;
+  if (telegramToken !== undefined) {
+    await secrets.resolve(telegramToken);
+  }
   const runtime = new AgentRuntime({
     store,
     configStore,

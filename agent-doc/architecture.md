@@ -19,19 +19,19 @@ Config + SecretStore
         ├─ BotCommandService / AgentModelSwitcher / ConfigReloader
         ├─ AdminServer（仅 admin.enabled = true）
         ├─ LongTaskService（long_tasks / task_receipts）
-        ├─ WarningService（warnings 事件警告；常态警告由 active 配置即时推导）
+        ├─ WarningService（warnings 事件警告；常态警告由 active 配置与连接状态即时推导）
         ├─ 内置 Plugin（含 alarm）
         └─ ImageService（packages/image-service 核心；单 Worker 图片生成，原文件存 <data_dir>/images）
 ```
 
-启动顺序有语义：先加载并校验配置与权限，再取得单实例锁、迁移数据库、连接 Telegram、同步 Sticker Set；随后排空 Telegram pending updates，按 Conversation 创建 startup catch-up Invocation；最后启动 MCP、Scheduler、Admin Panel 和常规 long polling。启动时加载的配置是 active 配置的起点：运行期只有白名单字段可以被 `ConfigReloader` 应用到当前进程，其余字段仍要重启，见 [配置：运行时配置热更新](configuration.md#运行时配置热更新)。关闭时停止 Bot，先停 Admin Panel 再等待 Scheduler（最多 30 秒），随后停止 Image worker（在数据库连接关闭之前落地中断标记），停止 Sticker/MCP 服务，关闭数据库并释放锁。
+启动顺序有语义：先加载并校验配置与权限，再取得单实例锁、迁移数据库、装配 Runtime 与宿主；Telegram 连接由连接管理器在 Runtime 就绪后启动，停用、网络异常或配置异常都只更新连接状态，不阻止进程继续启动；连接成功时同步 Sticker Set、排空 pending updates 并按 Conversation 创建 startup catch-up Invocation。最后启动 MCP、Scheduler 与 Admin Panel，然后等待关闭信号。启动时加载的配置是 active 配置的起点：运行期只有白名单字段可以被 `ConfigReloader` 应用到当前进程，其余字段仍要重启，见 [配置：运行时配置热更新](configuration.md#运行时配置热更新)。关闭时停止 Telegram 连接，先停 Admin Panel 再等待 Scheduler（最多 30 秒），随后停止 Image worker（在数据库连接关闭之前落地中断标记），停止 Sticker/MCP 服务，关闭数据库并释放锁。
 
 ## Runtime 与宿主边界
 
-`src/orchestration/runtime.ts` 的 `createCoreRuntime` 接收已经准备好的业务 Store、运行时配置、模型与工具工厂、SecretStore、只读 SystemResources 与一份「本进程能承载的宿主」映射（`hosts`：一个或两个 `ImHost`），统一创建 ConversationRuntime、AgentRuntime、LongTaskService 与 BucketScheduler。装配本身不读取配置或资源目录，不启动 Scheduler，也不取得进程锁；初始化、启动、停止和释放依赖由宿主负责。它复用原有调度和执行实现，不引入第二套 Bucket/Invocation 状态机。——映射里的键同时也是 Scheduler 的处理范围：它只 recover/due/launch/skip 这些宿主的 Invocation、Bucket 与回执，其它宿主的工作保持原样，留给他们自己的进程；单宿主进程（`serve --playground-only`）因此能让同一数据库里的 Telegram 工作完全静止。`ImHost` 按 Conversation 的 `host_kind` 选择，缺项时投递明确失败而不是落到另一个平台上（见 [operations.md](operations.md#playground-only-模式)）。
+`src/orchestration/runtime.ts` 的 `createCoreRuntime` 接收已经准备好的业务 Store、运行时配置、模型与工具工厂、SecretStore、只读 SystemResources 与一份「本进程能承载的宿主」映射（`hosts`：一个或两个 `ImHost`），统一创建 ConversationRuntime、AgentRuntime、LongTaskService 与 BucketScheduler。装配本身不读取配置或资源目录，不启动 Scheduler，也不取得进程锁；初始化、启动、停止和释放依赖由宿主负责。它复用原有调度和执行实现，不引入第二套 Bucket/Invocation 状态机。——映射里的键同时也是 Scheduler 的处理范围：它只 recover/due/launch/skip 这些宿主的 Invocation、Bucket 与回执，其它宿主的工作保持原样。`serve` 每个进程都同时绑定 telegram 与 playground 宿主；Telegram 停用、网络异常或配置异常时 Scheduler 只放行 Playground 工作，Telegram 的 Invocation、Bucket 与回执不 launch、不 claim、不跳过。唯一例外是 Scheduler 启动时的一次崩溃恢复：它按静态宿主范围收掉上个进程留下的 running/queued 工作（`process_restart`/`recovery_age`），否则死进程的 running 行会永远堵住该 Chat（见 [operations.md](operations.md#telegram-停用)）。`ImHost` 按 Conversation 的 `host_kind` 选择，缺项时投递明确失败而不是落到另一个平台上。
 
 - `src/store/store.ts` 的 `BusinessStore` 只暴露 ORM 与 IMMEDIATE transaction；业务查询与审计 helper 留在共享层。SQLite 打开、PRAGMA、迁移、备份、checkpoint/close 与 ServeLock 位于 `adapters/local-monolith/database.ts`。
-- `platform/config.ts` 保留配置类型，Schema、默认值解析与纯校验在 `platform/config-schema*.ts`、`platform/config-resolve.ts`、`platform/config-semantics.ts`、`platform/config-validate.ts`；`platform/runtime-config.ts` 管理源无关的快照发布。JSONC、权限、相对路径、Prompt 文件读取和配置写回/热重载归 `adapters/local-monolith/config*.ts`。Bot 命令与 Admin Panel 只依赖 `platform/config-write.ts` 的契约（`BotCommandConfigWriter`、`ConfigController`、`ConfigEdit`/`secretEdit`），由 adapter 的 `ConfigReloader` 实现并在装配时注入；业务模块不导入 `adapters/local-monolith`，例外仅限宿主侧入口（`cli.ts`、`doctor.ts`、`tui/`、离线 `admin-reset` 的 `ingress/admin/recover.ts`）。
+- `platform/config.ts` 保留配置类型，Schema、默认值解析与纯校验在 `platform/config-schema*.ts`、`platform/config-resolve.ts`、`platform/config-semantics.ts`、`platform/config-validate.ts`；`platform/runtime-config.ts` 管理源无关的快照发布。JSONC、权限、相对路径、Prompt 文件读取和配置写回/热重载归 `adapters/local-monolith/config*.ts`。Bot 命令与 Admin Panel 只依赖 `platform/config-write.ts` 的契约（`BotCommandConfigWriter`、`ConfigController`、`ConfigEdit`/`secretEdit`），由 adapter 的 `ConfigReloader` 实现并在装配时注入；业务模块不导入 `adapters/local-monolith`，例外仅限宿主侧入口（`cli.ts`、`doctor.ts`、`tui/`、离线 `admin-account` 的 `ingress/admin/admin-account.ts`）。
 - `platform/system-resources.ts` 定义只读资源契约和 URI 解析；目录扫描、Skill frontmatter 校验和文件读取由 `adapters/local-monolith/system-resources.ts` 的 FileSystemResources 承担。AgentRuntime 和 ReplayRunner 必须显式接收资源，不再隐式扫描目录。
 
 本阶段只建立 M1/M2 的宿主解耦基础；Admin/CLI 仍是本地文件型入口，ORM 仍使用同步 SQLite，媒体、SecretStore、MCP 与图片执行尚未全面替换成远端端口。不提供多实例协调、远端 gateway 或租户隔离。

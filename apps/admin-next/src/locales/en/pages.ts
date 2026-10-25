@@ -9,6 +9,7 @@ import { passkeys } from './pages/passkeys.ts';
 import { preferences } from './pages/preferences.ts';
 import { prompts } from './pages/prompts.ts';
 import { stickers } from './pages/stickers.ts';
+import { telegram } from './pages/telegram.ts';
 import { warnings } from './pages/warnings.ts';
 
 /**
@@ -28,5 +29,6 @@ export const pages = {
   prompts,
   passkeys,
   preferences,
+  telegram,
   warnings,
 };

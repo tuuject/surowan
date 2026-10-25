@@ -2,6 +2,7 @@ import type { BucketScheduler } from '../../orchestration/scheduler.ts';
 import { LongTaskService } from '../../store/long-tasks.ts';
 import type { ImageBridge } from '../../image/bridge.ts';
 import type { ImageService } from '../../image/service.ts';
+import { ImConnectionRegistry } from '../../platform/im-connection.ts';
 import type { WarningService } from '../../store/warnings.ts';
 import type { PlaygroundAdminDeps } from './playground-admin.ts';
 import { createImageAdminHandler } from './image-admin.ts';
@@ -21,6 +22,7 @@ import { createMemoryAdminHandler } from './memory-route-admin.ts';
 import { createPlaygroundAdminRoutes } from './playground-route-admin.ts';
 import { createPromptsAdminHandler } from './prompts-route-admin.ts';
 import { createProvidersAdminHandler } from './providers-route-admin.ts';
+import { createTelegramAdminHandler } from './telegram-admin.ts';
 import { createTuningAdminHandler } from './tuning-admin-routes.ts';
 import { createWarningsAdminHandler } from './warnings-admin.ts';
 import type { AdminServerOptions } from './server.ts';
@@ -56,6 +58,9 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
   const imageBridge: ImageBridge | undefined = options.imageBridge;
   const imageService: ImageService | undefined = options.imageService;
   const playgroundDeps: PlaygroundAdminDeps | undefined = options.playground;
+  // Tests and standalone panels may have no connection manager; a fresh registry
+  // reports every namespace as disabled, which is the truthful default.
+  const connections = options.connections ?? new ImConnectionRegistry();
   const tasks = options.tasks ?? new LongTaskService(options.store.orm, () => scheduler?.wake());
   const image =
     imageService === undefined || imageBridge === undefined
@@ -121,6 +126,7 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
     }),
     playground: createPlaygroundAdminRoutes({ playground, scheduler }),
     image: createImageAdminRoutes({ image, bridge: imageBridge, configReloader: reloader, secrets }),
+    telegram: createTelegramAdminHandler({ connections, configReloader: reloader, secrets }),
     inspection: createInspectionAdminHandler({
       store: options.store,
       configStore: options.configStore,
@@ -131,7 +137,7 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       invocationPrompts: options.invocationPrompts,
       readInvocationMedia,
     }),
-    warnings: createWarningsAdminHandler({ warnings, configStore: options.configStore }),
+    warnings: createWarningsAdminHandler({ warnings, configStore: options.configStore, connections }),
     static: createStaticAssetHandler({ staticDir }),
   };
 }

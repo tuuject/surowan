@@ -247,7 +247,7 @@ async function main(): Promise<void> {
       config: configPath,
       hash: loaded.hash,
       prompt: promptSeeded ? 'seeded' : 'kept',
-      chats: config.telegram.chats.map((chat) => chat.id),
+      chats: (config.telegram?.chats ?? []).map((chat) => chat.id),
       mcp: config.mcp?.servers.map((server) => server.alias) ?? [],
       warnings: loaded.warnings,
     }),

@@ -5,11 +5,11 @@ import { join } from 'node:path';
 import type { Update } from 'grammy/types';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import type { FileConfig } from '../src/platform/config.ts';
+
 import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -44,7 +44,7 @@ export interface Harness {
 
 export async function setup(
   options: {
-    readonly transform?: (config: FileConfig) => void;
+    readonly transform?: (config: FixtureConfig) => void;
     readonly random?: () => number;
     readonly twoGroups?: boolean;
   } = {},

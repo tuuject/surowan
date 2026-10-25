@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { FileConfig } from '../src/platform/config.ts';
+
 import type { LoadedConfig } from '../src/adapters/local-monolith/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
@@ -9,7 +9,7 @@ import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import type { InvocationHandler } from '../src/orchestration/scheduler.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
+import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 
 export const stores: SqliteStore[] = [];
 export const directories: string[] = [];
@@ -32,7 +32,7 @@ export async function cleanupTaskRuntime(): Promise<void> {
 }
 
 export async function setup(
-  transform?: (config: FileConfig) => void,
+  transform?: (config: FixtureConfig) => void,
   handler: InvocationHandler = async () => ({ state: 'completed', reason: 'test' }),
 ): Promise<SetupResult> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-task-runtime-'));

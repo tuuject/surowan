@@ -15,6 +15,7 @@ import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import type { TelegramHost } from '../src/adapters/local-monolith/telegram-host.ts';
 import {
+  type FixtureConfig,
   fauxRegistry,
   sleep,
   testConfigJsonc,
@@ -57,7 +58,7 @@ export interface Fixture {
   ): Promise<{ readonly runtime: AgentRuntime; readonly snapshot: InvocationConfigSnapshot }>;
 }
 
-export async function fixture(transform?: (config: FileConfig) => void): Promise<Fixture> {
+export async function fixture(transform?: (config: FixtureConfig) => void): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-hot-inject-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
@@ -174,6 +175,6 @@ export async function until(condition: () => boolean, label: string, timeoutMill
 
 // The idle grace is off here: these tests care about the transcript, not about
 // waiting for new buckets, and 0 keeps them fast and deterministic.
-export const withoutIdleWait = (config: FileConfig): void => {
+export const withoutIdleWait = (config: FixtureConfig): void => {
   config.agent!.context!.idle_grace_seconds = 0;
 };

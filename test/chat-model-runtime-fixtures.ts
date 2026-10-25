@@ -8,7 +8,7 @@ import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
-import type { AgentSettings, FileConfig, RawConfig } from '../src/platform/config.ts';
+import type { AgentSettings, RawConfig } from '../src/platform/config.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { eq } from 'drizzle-orm';
 import { buckets, chatMigrations, invocations } from '../src/store/schema.ts';
@@ -19,7 +19,14 @@ import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
-import { sleep, testConfigJsonc, testTelegramRuntime, type TestRegistry, writeTestConfig } from './helpers.ts';
+import {
+  type FixtureConfig,
+  sleep,
+  testConfigJsonc,
+  testTelegramRuntime,
+  type TestRegistry,
+  writeTestConfig,
+} from './helpers.ts';
 
 const directories: string[] = [];
 export const CHAT_A = -100_000_000;
@@ -140,7 +147,7 @@ export async function setup(): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-chat-model-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
-  const jsonc = testConfigJsonc(directory, (config: FileConfig) => {
+  const jsonc = testConfigJsonc(directory, (config: FixtureConfig) => {
     config.telegram.bucket_window_seconds = 0;
     config.agent!.send_nudge_enabled = false;
     config.agent!.context!.idle_grace_seconds = 0;

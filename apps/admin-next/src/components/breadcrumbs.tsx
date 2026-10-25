@@ -32,6 +32,7 @@ const SEGMENT_TO_NAV: Partial<Record<string, NavKey>> = {
   'api-keys': 'apiKeys',
   models: 'models',
   'image-settings': 'imageSettings',
+  telegram: 'telegram',
   chats: 'chats',
   prompts: 'prompts',
   harness: 'harness',

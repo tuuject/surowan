@@ -4,7 +4,7 @@ Admin Panel 是随 `serve` 启动的本地审计与管理界面，覆盖 Tool Se
 
 审计查询只读；Developer 调试配置与历史报文清除、记忆管理、Bot 管理员列表管理、Chat/Topic 白名单与按群模型管理（Chats 页）、模型与 Provider 管理（Models 页）、两层可编辑 Prompt 的编辑与版本管理（全局人格与按群指令：版本历史、恢复，以及只取消仍按旧 Prompt 运行的 Invocation）、配置文件应用、立即重启、解除睡眠、取消挂起会话与取消 pending Alarm 是受控的控制端点。管理员可以增删改查记忆、按群聊过滤，并对长 TTL 记忆做人工判断（保留 / 删除 / 提升进 `agents.md`），也可以指派/移除能执行 `/pause`、`/resume`、`/cut_topic` 等 Bot 管理员命令的 Telegram 用户（写回 `telegram.admins` 并热应用），在 Models 页维护 Provider 与模型列表（写回 `config.jsonc` 并重新加载）、切换全局 agent 与 vision 模型并设置全局 thinking 级别（Models 页端点仍是全局语义）；在 Chats 页增删 Chat、编辑 Topic 白名单与 Chat 范围的模型/thinking 覆盖（同群所有 Topic 共用，支持恢复继承全局），唤醒/取消挂起会话，取消尚未触发的 Alarm，把配置文件中的热更新白名单字段应用到运行中的进程，或在有待重启字段时直接重启 `serve`。写入只发生在 [API](#api) 白名单里的端点。配置修改经 `writeConfigEdits` 校验并原子写入后，再由 `ConfigReloader` 尝试应用；应用失败时文件保留已写入内容，运行中的配置不变。
 
-`admin` section 的字段语义见 [configuration.md](configuration.md#admin-panel)；`admin.host` 不限制取值，绑定地址与暴露风险由运维负责（推荐回环 + 反向代理）。`admin.*` 不在热更新白名单里：改动后进入待重启列表，重启 `serve` 才生效。热更新白名单与语义见 [configuration.md](configuration.md#运行时配置热更新)。
+`admin` section 必填，`admin.enabled` 省略即为 `true`；字段语义见 [configuration.md](configuration.md#admin-panel)；`admin.host` 不限制取值，绑定地址与暴露风险由运维负责（推荐回环 + 反向代理）。`admin.*` 不在热更新白名单里：改动后进入待重启列表，重启 `serve` 才生效。热更新白名单与语义见 [configuration.md](configuration.md#运行时配置热更新)。
 
 ## 生命周期
 
@@ -97,6 +97,8 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 
 响应里不出现 `api_key`，也不出现任何 header 值，也不说明已保存的 SecretRef 是明文、`env` 还是 `command`。文件无效时返回 422 `config_invalid`（错误经过密钥脱敏）。`GET /provider-presets` 列出可配置的 builtin Provider（`id`、`name`、`api`、`base_url`），过滤规则见 [configuration.md](configuration.md#provider)。
 
+`GET /telegram` 是 Telegram 设置页的读端点（仅面板 Session，程序化 API key 请求得到 403），读磁盘上的 `config.jsonc`，返回 `{ revision, status, telegram_section_present, token_configured }`。`status` 是进程内连接状态登记处的快照（`disabled`/`connected`/`network_error`/`config_error`，`config_error` 带 `reason`，连接过时带 `bot`）；`token_configured` 只表示文件里有没有 `telegram.token`，永远是布尔值，不说明是 jar、env 还是 command，也不回显值。`ConfigReloader` 未接线时返回 503 `config_reload_unavailable`。
+
 **写端点是白名单例外**，只有这些：
 
 | 路由 | 非显然的语义 |
@@ -128,6 +130,7 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 | `POST /image/generations/resolve` | 只读：按当前图片配置把生成请求 body 解析成快照返回（预检），不创建任何记录、不提交生成 |
 | `POST /image/generations` / `POST /image/generations/:id/retry` | 以 `admin:<username>` actor 提交生成（body 含 `idempotency_key`，同键同内容重放不重新计费，同键不同内容 409）或重试已有 generation |
 | `PUT /image/config` | 图片功能启停与模型/凭据配置，`If-Match` revision 规则同其它配置写端点。`enabled: true` 时 body 必须带 `credentials`（名称 → 新明文；空对象保留已有 SecretRef，明文写入 key jar，`config.jsonc` 只保留 `{jar}` 引用）与 `models` 数组；可带 `credential_sources`（图片凭据名称 → 已配置的内置 OpenRouter Provider alias，服务端复用其 SecretRef，不返回密钥）。重复模型 ID 或缺失凭据引用在写入前拒绝（结构按 image 段 schema 校验，不合法返回 400 `invalid_body`）；`enabled: false` 删除整个 `image` 段并回收不再被引用的 jar 条目。写入经 reloader 原子应用，无需重启；响应 `{ enabled, apply }` |
+| `PUT /telegram` | 只接受 body `{ token: string \| null }`，其它字段返回 400 `invalid_body`。字符串写入 key jar，`config.jsonc` 只保留 `{jar}` 引用；`null` 删除 `telegram.token` 并回收不再被引用的 jar 条目；已经是 `null` 时幂等成功，不重写文件。`telegram` 段缺失时按 `TELEGRAM_DEFAULTS` 建段（`process_bot_messages: false`、`bucket_window_seconds: 15`、`chats: []`）。只改 token，不碰 Chats 或其它 `telegram.*` 字段，也不提供删除整段的写法。`If-Match` revision 规则同其它配置写端点：缺失 400 `revision_required`，过期 409 `config_conflict`；成功响应 `{ revision, status, telegram_section_present, token_configured, apply }`。明文在写入前注册进 `SecretStore`，响应、revision 冲突与 `config_invalid` 错误、reload 日志都不出现明文 |
 | `POST /restart` | 界面上的 “Restart now”。部署方未声明 `PLASTICWAN_SUPERVISED=1` 时返回 409 `restart_unsupported`；磁盘配置权限或内容校验失败时返回 422 `config_invalid` 且不退出；成功返回 202 `{ status: 'restarting' }`，随后走优雅关闭并以退出码 75（`EX_TEMPFAIL`）退出，由外部监督重新拉起 |
 | `POST /config/apply` | 重新读取 `config.jsonc` 并把热更新白名单字段应用到运行中的进程。成功返回 200 `{ status: 'applied', applied, restart_required, outside_serve, generation, active_hash, file_hash }`；失败返回 422 `{ error, message }`，此时 active 配置不变，错误记录在 `GET /config/status` 的 `last_error` |
 | `DELETE /alarms/:id` | 只取消 Alarm 投影为 `pending` 的项目：waiting 任务变为 cancelled；completed+pending receipt 则只 suppress 投递、保留完成结果。`firing`（claimed）与其它终态返回 409 `alarm_not_pending`，不存在返回 404 `not_found`。取消记录当前面板管理员与 `admin_cancelled` 原因并唤醒 Scheduler |
@@ -148,7 +151,7 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 
 `GET /api/warnings?limit=&cursor=&unread=1|true|0|false` 返回 `{ generated_at, standing, items, next_cursor, unread_count }`（仅面板 Session；Bearer API key 返回 403）：
 
-- `standing` 是**按当前 active 配置即时推导**的常态警告，不落库、没有 `id`，因此不能被标为已读；条件解除后下一次读取就消失，不保留开启/解除历史。Phase 1 包括 `developer_payload_recording`（`developer.record_model_payloads` 开启）、`agent_model_missing`（全局 agent 的 `provider`/`model`/`thinking_level` 未齐全）与 `vision_model_missing`（`vision.provider`/`model` 未齐全）。
+- `standing` 是**按当前 active 配置与连接状态即时推导**的常态警告，不落库、没有 `id`，因此不能被标为已读；条件解除后下一次读取就消失，不保留开启/解除历史。包括 `developer_payload_recording`（`developer.record_model_payloads` 开启）、`agent_model_missing`（全局 agent 的 `provider`/`model`/`thinking_level` 未齐全）、`vision_model_missing`（`vision.provider`/`model` 未齐全）、`telegram_network_error`（连接状态 `network_error`）与 `telegram_config_error`（连接状态 `config_error`，`variables.reason` 为 `unauthorized`/`conflict`/`token_unreadable`）。Telegram 停用（`disabled`）不产生警告；连接态只在内存中，进程重启后重新推导。
 - `items` 是 `warnings` 表中的事件警告，`read_at IS NULL` 为未读；`unread=1` 只返回未读，同样受 `limit`（1–100，默认 25）与 `cursor`（`id` 降序键集）约束。`unread_count` 只数未读事件警告，不含常态警告。
 - 每条警告返回 `kind`、`code`、`category`、`severity`、`variables`（从 `variables_json` 解析出的对象），事件行另有 `id`、`created_at`、`updated_at`、`read_at`。前端按 `code` 选模板；未知 code 显示通用模板与原始变量。变量只作文本插值，禁止 HTML/代码执行。
 - `POST /api/warnings/:id/read` 幂等设置 `read_at`，不存在返回 404 `warning_not_found`；不存在的写方法返回 405。
@@ -399,7 +402,7 @@ Messages 列表与消息详情的 Revision 在发送者姓名旁显示可复制�
 
 迁移 `src/store/migrations/028_admin_api_keys.sql` 建立 `admin_api_keys`：每行一个程序化 API key，`token_hash` 只存明文的 SHA-256 摘要（UNIQUE），`prefix` 是展示用前缀，`created_at`/`last_used_at`/`revoked_at` 记录生命周期；撤销设置 `revoked_at` 而不删除行，`last_used_at` 在每次通过鉴权时刷新（包括随后被权限面拒绝的请求）。该表与 `admin_users`/`admin_sessions` 一样不参与在线保留清理。语义见「程序化 API 密钥」。
 
-迁移 `src/store/migrations/032_admin_passkeys.sql` 建立 `admin_passkeys` 并给 `admin_users` 补 `webauthn_user_id`（唯一，默认随机 16 字节 hex）：每行一个 WebAuthn 凭据，`credential_id` 全局唯一，`public_key`/`counter` 用于验证与防重放（登录以乐观锁更新 `counter`），`rp_id` 记录注册时的依赖方——key 只对注册它的 `rpId` 生效，换域名后旧 key 不可用；`name` 1–80 字符（CHECK 约束）。`user_id` 级联删除；`recoverCredentials`（`admin-reset` CLI 的落点）删除该账号全部 passkey 与 Session，但不触碰 `admin_api_keys`，也不重开 setup。该表不参与在线保留清理。语义见「Passkey 登录与凭据」。
+迁移 `src/store/migrations/032_admin_passkeys.sql` 建立 `admin_passkeys` 并给 `admin_users` 补 `webauthn_user_id`（唯一，默认随机 16 字节 hex）：每行一个 WebAuthn 凭据，`credential_id` 全局唯一，`public_key`/`counter` 用于验证与防重放（登录以乐观锁更新 `counter`），`rp_id` 记录注册时的依赖方——key 只对注册它的 `rpId` 生效，换域名后旧 key 不可用；`name` 1–80 字符（CHECK 约束）。`user_id` 级联删除；`createOrResetAccount`（`admin-account` CLI 的落点）在空表建号、已有唯一管理员时改用户名与密码，并总是删除该账号全部 Session，只有 `--revoke-passkeys` 才删除全部 passkey；不触碰 `admin_api_keys`，也不重开 setup。该表不参与在线保留清理。语义见「Passkey 登录与凭据」。
 
 Bot 管理员白名单不再是数据库表：迁移 `src/store/migrations/026_drop_bot_admins.sql` 删除了旧表 `bot_admins`（迁移 `008` 引入），唯一事实源是配置文件里的 `telegram.admins`，旧表内容用 `scripts/migrate-admins.ts` 搬迁。Admin Panel「Bot admins」页面经配置写端点增删该列表并热应用。Bot 管理员决定谁能执行 `/pause`、`/resume`、`/model` 与 `/cut_topic`，与面板登录账号无关。
 

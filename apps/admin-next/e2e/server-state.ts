@@ -9,6 +9,7 @@
 import type { ServerType } from '@hono/node-server';
 import type { SqliteStore } from '../../../src/adapters/local-monolith/database.ts';
 import type { AdminServer } from '../../../src/ingress/admin/server.ts';
+import type { ImConnectionRegistry } from '../../../src/platform/im-connection.ts';
 
 export const state: {
   store: SqliteStore | null;
@@ -17,6 +18,8 @@ export const state: {
   /** The loopback upstream the config's providers point at. */
   upstream: ServerType | null;
   admin: AdminServer | null;
+  /** Live IM state handed to `AdminServer`; hooks move it between statuses. */
+  connections: ImConnectionRegistry | null;
   /** Temp directory holding the config, key jar and SQLite file; removed on shutdown. */
   directory: string;
   shuttingDown: boolean;
@@ -27,6 +30,7 @@ export const state: {
   server: null,
   upstream: null,
   admin: null,
+  connections: null,
   directory: '',
   shuttingDown: false,
   failNextConfigApply: false,

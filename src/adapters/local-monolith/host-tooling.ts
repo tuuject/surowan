@@ -36,8 +36,12 @@ export interface HostToolingOptions {
   readonly plugins: LoadedPlugins;
   readonly media: MediaService;
   readonly memory: MemoryStore;
-  /** Absent when this process runs without the sticker index at all. */
-  readonly stickers?: StickerService;
+  /**
+   * The sticker worker of the moment. Read per invocation because the index
+   * follows the Telegram instance: it is absent while Telegram is stopped and a
+   * connected instance makes it available without rebuilding the tool wiring.
+   */
+  readonly stickers?: () => StickerService | undefined;
   /** Absent when this process serves no MCP servers at all. */
   readonly mcp?: McpManager;
   readonly tasks: LongTaskService;
@@ -74,8 +78,9 @@ export function createHostTooling(options: HostToolingOptions): HostTooling {
     if (profile.mediaRead) {
       tools.push(capability(media.createReadImageTool(context, capabilities, deadline), false));
     }
-    if (profile.stickers && stickers !== undefined) {
-      tools.push(capability(stickers.createSearchTool(context, capabilities), false));
+    const currentStickers = stickers?.();
+    if (profile.stickers && currentStickers !== undefined) {
+      tools.push(capability(currentStickers.createSearchTool(context, capabilities), false));
     }
     tools.push(...createMemoryTools(memory, context).map((tool) => capability(tool, true)));
     if (docSpaces !== undefined) {

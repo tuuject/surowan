@@ -13,7 +13,7 @@ description: 从首次部署到人格、群聊、记忆与维护，按你要完�
 
 ## 还没有部署
 
-1. [第一次运行塑料碗](start/quick-start.md)：准备 Telegram Bot、模型和完整配置。
+1. [第一次运行塑料碗](start/quick-start.md)：准备模型和完整配置；Telegram 可选，也可以先在虚拟群聊里试用。
 2. [部署方式与环境要求](start/installation.md)：卷、权限、媒体依赖与进程管理。
 3. [配置文件、密钥与生效方式](configure/config-file.md)：分清公开配置和秘密。
 4. [让 Codex / Claude Code 协助部署](start/agent-assisted.md)：给外部 Agent 的文档入口与安全边界。

@@ -20,6 +20,7 @@ Surowan 是一个运行在 Telegram 私聊、群组、Supergroup 与 Forum Topic
 - 提供 Agent 短期记忆：模型自己记、自己忘，TTL 兜底遗忘；管理面板人工审核长 TTL 记忆。
 - 提供本地 Admin Panel，审计 Tool Session、消息、Sticker 视觉缓存与 Conversation Context，并管理记忆。
 - 在线数据按必填的 `retention.online_days` 保留（项目按 30 天设计，代码无默认值）；长期记忆只以人工审核后的 `agents.md` 形式存在。
+- `telegram` 段可选：不配置或没有 token 时 Telegram 停用，服务只提供 Admin Panel 与 Playground 虚拟房间；`admin` 必填，`admin.enabled` 省略即为 `true`。
 
 ## Project Structure & Module Organization
 
@@ -27,7 +28,7 @@ Surowan 是一个运行在 Telegram 私聊、群组、Supergroup 与 Forum Topic
 surowan/
 ├── src/                    # Node.js/TypeScript 运行时代码；依赖自上而下
 │   ├── adapters/local-monolith/ # 本地组合根：配置文件、SQLite、资源目录与进程生命周期
-│   ├── cli.ts              # serve/check-config/doctor/backup/configure/admin-reset 入口
+│   ├── cli.ts              # serve/check-config/doctor/backup/configure/admin-account 入口
 │   ├── doctor.ts           # 真实依赖与外部连接诊断
 │   ├── startup-catch-up.ts # 启动补偿拉取与排队
 │   ├── tui/                # 交互式配置向导
@@ -93,7 +94,7 @@ Invocation 是运行窗口而不是一次问答：`agent.context.idle_grace_seco
 | 离线产品知识烘焙、意图索引与事实约束 | [agent-doc/product-knowledge.md](agent-doc/product-knowledge.md) |
 | 本地运行、依赖、Docker 部署、诊断和故障处理 | [agent-doc/operations.md](agent-doc/operations.md) |
 | Admin Panel 认证、审计 API 与前端 | [agent-doc/admin-panel.md](agent-doc/admin-panel.md) |
-| Playground 虚拟房间、Hold/Release、房间 API 与 `--playground-only` | [agent-doc/admin-panel.md](agent-doc/admin-panel.md#playground-页端点)、[agent-doc/operations.md](agent-doc/operations.md#playground-only-模式)、[agent-doc/data-layer.md](agent-doc/data-layer.md#虚拟房间rooms--room_participants) |
+| Playground 虚拟房间、Hold/Release、房间 API 与 Telegram 停用状态 | [agent-doc/admin-panel.md](agent-doc/admin-panel.md#playground-页端点)、[agent-doc/operations.md](agent-doc/operations.md#telegram-停用)、[agent-doc/data-layer.md](agent-doc/data-layer.md#虚拟房间rooms--room_participants) |
 | 测试命令与真实验收矩阵 | [agent-doc/verification.md](agent-doc/verification.md) |
 | 用户文档、首页、生成参考与静态站维护 | [apps/docs/README.md](apps/docs/README.md) |
 | 审计某次 Invocation、排查 bot 为什么不回复 | [scripts/audit.ts](scripts/audit.ts) |

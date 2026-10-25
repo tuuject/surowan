@@ -121,12 +121,12 @@ describe('bot command service', () => {
         expect(reply).toContain('思考强度已重置为该模型最弱的一档: off');
         expect(switcher.current()?.model).toBe('agent-model');
         const loaded = await loadConfig(reloader.configPath);
-        expect(loaded.fileConfig.telegram.chats[0]).toMatchObject({
+        expect(loaded.fileConfig.telegram?.chats[0]).toMatchObject({
           provider: 'agent',
           model: 'agent-extra-20',
           thinking_level: 'off',
         });
-        expect(loaded.fileConfig.telegram.chats[1]?.model).toBeUndefined();
+        expect(loaded.fileConfig.telegram?.chats[1]?.model).toBeUndefined();
         expect(configStore.current().config.telegram.chats[0]?.model).toBe('agent-extra-20');
         expect(await commands.run({ name: 'status' }, -1001234567890n, ALICE, FIXED_NOW)).toContain(
           '本群模型: agent / agent-model（继承全局）',
@@ -170,7 +170,7 @@ describe('bot command service', () => {
         expect(reply).toContain('将在下一次 agent session 生效');
         const loaded = await loadConfig(reloader.configPath);
         for (const key of ['provider', 'model', 'thinking_level']) {
-          expect(loaded.fileConfig.telegram.chats[0]).not.toHaveProperty(key);
+          expect(loaded.fileConfig.telegram?.chats[0]).not.toHaveProperty(key);
         }
         const generation = configStore.current().generation;
         await commands.run({ name: 'model', argument: 'default' }, 123456789n, ALICE, FIXED_NOW);
@@ -207,11 +207,11 @@ describe('bot command service', () => {
           '本群模型: vision / vision-model\n',
         );
         const loaded = await loadConfig(reloader.configPath);
-        expect(loaded.fileConfig.telegram.chats).toEqual([
+        expect(loaded.fileConfig.telegram?.chats).toEqual([
           { id: oldId, provider: 'vision', model: 'vision-model', thinking_level: 'off' },
         ]);
         await commands.run({ name: 'model', argument: 'default', threadId: 8n }, BigInt(newId), ALICE, FIXED_NOW);
-        expect((await loadConfig(reloader.configPath)).fileConfig.telegram.chats).toEqual([{ id: oldId }]);
+        expect((await loadConfig(reloader.configPath)).fileConfig.telegram?.chats).toEqual([{ id: oldId }]);
       } finally {
         store.close();
       }

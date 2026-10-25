@@ -9,13 +9,20 @@ import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
 import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import type { FileConfig } from '../src/platform/config.ts';
+
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../src/store/long-tasks.ts';
-import { fauxRegistry, testConfigJsonc, testConfigStore, testTelegramRuntime, writeTestConfig } from './helpers.ts';
+import {
+  type FixtureConfig,
+  fauxRegistry,
+  testConfigJsonc,
+  testConfigStore,
+  testTelegramRuntime,
+  writeTestConfig,
+} from './helpers.ts';
 import type { ToolFactory } from '../src/orchestration/agent-runtime-types.ts';
 
 const cleanups: (() => Promise<void>)[] = [];
@@ -27,7 +34,7 @@ export async function cleanupFixtures(): Promise<void> {
   }
 }
 
-export async function fixture(transform?: (config: FileConfig) => void, additionalTools?: ToolFactory) {
+export async function fixture(transform?: (config: FixtureConfig) => void, additionalTools?: ToolFactory) {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-task-hot-'));
   cleanups.push(() => rm(directory, { recursive: true, force: true }));
   const configPath = join(directory, 'config.jsonc');

@@ -36,6 +36,8 @@ test.describe('routes and deep links', () => {
     await expect(page.getByText('Stored messages')).toBeVisible();
     await expect(page.getByText('Cached media analyses')).toBeVisible();
     await expect(page.getByText('Bot status')).toBeVisible();
+    await expect(page.getByRole('main').getByText('Telegram', { exact: true })).toBeVisible();
+    await expect(page.getByRole('main').getByText('Disabled', { exact: true })).toBeVisible();
     await expect(page.getByText('Invocation failure rate is above the threshold')).toBeVisible();
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
@@ -146,6 +148,15 @@ test.describe('routes and deep links', () => {
     await expect(page.getByRole('columnheader', { name: 'Topics' })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Agent model' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add Chat' })).toBeVisible();
+  });
+
+  test('/telegram renders the connection state and the token form', async ({ page }) => {
+    await page.goto(await adminUrl('/telegram'));
+    await expect(page.getByRole('heading', { name: 'Telegram settings' })).toBeVisible();
+    await expect(page.getByText('Disabled', { exact: true })).toBeVisible();
+    await expect(page.getByText('A token is configured.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Save token' })).toBeDisabled();
+    await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 
   test('/models lists providers, their models and the discovery actions', async ({ page }) => {

@@ -1,16 +1,18 @@
 /**
- * T10 acceptance: a Playground-only process.
+ * Acceptance: a `serve` process with Telegram disabled.
  *
- * `serve(..., { playgroundOnly: true })` runs the shared store, Scheduler,
- * Admin panel and room write path with no Telegram host at all: no Bot, no
- * token resolution, no command registration, no webhook delete, no ingestion,
- * no sticker sync, no production MCP and no startup catch-up. The model is a
- * local HTTP fixture that answers the Responses API with a real `send` tool
- * call, so the room's Release runs the production runtime end to end.
+ * The configuration has no `telegram` section at all, which is a legal state:
+ * the process runs the shared store, Scheduler, Admin panel and room write path
+ * with no Bot, no token resolution, no command registration, no webhook delete,
+ * no ingestion, no sticker sync and no startup catch-up. MCP is still built,
+ * because it does not belong to Telegram. The model is a local HTTP fixture that
+ * answers the Responses API with a real `send` tool call, so the room's Release
+ * runs the production runtime end to end.
  *
  * The same database also holds synthetic Telegram work: after the room round
- * finishes, that work must be exactly as it was - not recovered, not expired,
- * not launched and not skipped by the playground scheduler.
+ * finishes, that work must stay put - not recovered, not expired, not launched
+ * and not skipped by the scheduler. Timers still complete on schedule, but
+ * their receipts remain pending because Telegram is not ready.
  */
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -23,13 +25,15 @@ import { startFixtureServer, stopFixtureServer } from './helpers.ts';
 
 const { botConstructed } = vi.hoisted(() => ({ botConstructed: vi.fn() }));
 vi.mock('grammy', () => ({
+  GrammyError: class extends Error {},
+  HttpError: class extends Error {},
   Bot: class {
     api = {
-      getMe: () => Promise.reject(new Error('a playground-only process must not call Telegram')),
+      getMe: () => Promise.reject(new Error('a process with Telegram disabled must not call Telegram')),
     };
     constructor() {
       botConstructed();
-      throw new Error('a playground-only process must not build a Bot');
+      throw new Error('a process with Telegram disabled must not build a Bot');
     }
   },
 }));
@@ -126,7 +130,7 @@ function jsonBody(value: unknown): RequestInit {
   return { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(value) };
 }
 
-test('a playground-only process runs the room round and leaves Telegram work untouched', async () => {
+test('a process with Telegram disabled runs the room round and only recovers what a dead process left', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-playground-only-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
@@ -144,13 +148,6 @@ test('a playground-only process runs the room round and leaves Telegram work unt
       version: 1,
       data_dir: dataDir.replaceAll('\\', '/'),
       timezone: 'UTC',
-      telegram: {
-        // Unresolvable on purpose: a Playground-only process must never resolve it.
-        token: { jar: 'telegram-that-does-not-exist' },
-        process_bot_messages: false,
-        bucket_window_seconds: 15,
-        chats: [{ id: 123456789, instructions_file: 'chat-instructions.md' }],
-      },
       providers: {
         agent: {
           kind: 'custom',
@@ -234,9 +231,10 @@ test('a playground-only process runs the room round and leaves Telegram work unt
     // Synthetic Telegram work: a running invocation, a queued one, a due
     // alarm, a stale collecting bucket, a queued invocation holding a claimed
     // receipt for a chat the config no longer lists, and an active sleep
-    // window. Recovery, timer completion, receipt suppression and the sleep
-    // skip would each rewrite one of them; a playground-only scheduler must
-    // leave them all alone.
+    // window. Startup recovery closes what the dead previous process left
+    // (its run, its claim, its stale bucket) whether or not Telegram is up;
+    // receipt claims, suppression, the sleep skip and launches all wait for a
+    // ready connection.
     const stamp = new Date().toISOString();
     const due = new Date(Date.now() - 60_000).toISOString();
     const stale = new Date(Date.now() - 60 * 60_000).toISOString();
@@ -284,17 +282,17 @@ test('a playground-only process runs the room round and leaves Telegram work unt
         // Not a structured event line.
       }
     });
-    const serving = serve(configPath, { playgroundOnly: true });
+    const serving = serve(configPath);
     running.push(serving);
     await expect.poll(() => events.some((entry) => entry.event === 'admin_started'), { timeout: 30_000 }).toBe(true);
 
     // The process never built a Bot, never registered commands and never ran
-    // the Telegram startup pass.
+    // the Telegram startup pass; the connection state is the disabled one.
     expect(botConstructed).not.toHaveBeenCalled();
     const names = events.map((entry) => entry.event);
     expect(names).not.toContain('commands_registered');
     expect(names).not.toContain('startup_catch_up_completed');
-    expect(events.find((entry) => entry.event === 'serve_started')).toMatchObject({ mode: 'playground-only' });
+    expect(events.find((entry) => entry.event === 'serve_started')).toMatchObject({ mode: 'disabled', bot_id: null });
 
     // The panel is the only entry point, and the room round runs for real.
     const base = `http://127.0.0.1:${port}`;
@@ -356,15 +354,15 @@ test('a playground-only process runs the room round and leaves Telegram work unt
     expect(releaseDetail.body.sends).toMatchObject([{ state: 'success', kind: 'text' }]);
     expect(agentCalls).toBeGreaterThan(0);
 
-    // Telegram work is untouched: the running invocation is still running, the
-    // queued one is still queued, and the overdue alarm never fired.
+    // The dead process's run and its claimed receipt are closed by startup
+    // recovery; the fresh queued run still waits for Telegram.
     const invocations = await call('/api/invocations?limit=50');
     const byId = new Map(
       (invocations.body.items as { id: string; state: string }[]).map((item) => [item.id, item.state]),
     );
-    expect(byId.get('900')).toBe('running');
+    expect(byId.get('900')).toBe('aborted');
     expect(byId.get('901')).toBe('queued');
-    expect(byId.get('903')).toBe('queued');
+    expect(byId.get('903')).toBe('aborted');
 
     // A config apply validates tool registries against a host this process
     // binds: without the Telegram host, a Telegram preview would fail every
@@ -388,23 +386,37 @@ test('a playground-only process runs the room round and leaves Telegram work unt
     const lock = await ServeLock.acquire(dataDir);
     await lock.release();
 
-    // The persisted Telegram rows, read after the process stopped: the alarm
-    // API reports a completed timer whose receipt is still pending as
-    // `pending` too, so only the ledger itself proves nothing was touched.
+    // The persisted Telegram rows, read after the process stopped. With no
+    // Telegram instance the overdue timer still completes, but its receipt is
+    // never claimed and no invocation is queued for it. Recovery closed the
+    // previous process's work once at startup; nothing was launched.
     const after = await SqliteStore.open((await loadConfig(configPath)).config);
     try {
       const row = (query: string) => after.db.prepare(query).get() as Record<string, unknown> | undefined;
-      expect(row('SELECT state FROM long_tasks WHERE id = 900')).toEqual({ state: 'waiting' });
-      expect(row('SELECT COUNT(*) AS n FROM task_receipts WHERE task_id = 900')).toEqual({ n: 0n });
-      expect(row('SELECT state FROM task_receipts WHERE task_id = 901')).toEqual({ state: 'claimed' });
+      expect(row('SELECT state FROM long_tasks WHERE id = 900')).toEqual({ state: 'completed' });
+      expect(row('SELECT COUNT(*) AS n FROM task_receipts WHERE task_id = 900')).toEqual({ n: 1n });
+      expect(row('SELECT state FROM task_receipts WHERE task_id = 900')).toEqual({ state: 'pending' });
+      // A claim of a dead process is never replayed.
+      expect(row('SELECT state FROM task_receipts WHERE task_id = 901')).toEqual({ state: 'handled' });
+      expect(row('SELECT state, completion_reason FROM invocations WHERE id = 900')).toEqual({
+        state: 'aborted',
+        completion_reason: 'process_restart',
+      });
+      expect(row('SELECT state, error_code FROM buckets WHERE id = 900')).toEqual({
+        state: 'aborted',
+        error_code: 'process_restart',
+      });
       expect(row('SELECT state, error_code FROM buckets WHERE id = 902')).toEqual({
-        state: 'collecting',
-        error_code: null,
+        state: 'expired',
+        error_code: 'recovery_age',
       });
       expect(row('SELECT state FROM buckets WHERE id = 901')).toEqual({ state: 'queued' });
-      expect(row('SELECT state FROM buckets WHERE id = 903')).toEqual({ state: 'queued' });
+      expect(row('SELECT state FROM buckets WHERE id = 903')).toEqual({ state: 'aborted' });
       expect(row('SELECT state FROM invocations WHERE id = 901')).toEqual({ state: 'queued' });
-      expect(row('SELECT state FROM invocations WHERE id = 903')).toEqual({ state: 'queued' });
+      expect(row('SELECT state, completion_reason FROM invocations WHERE id = 903')).toEqual({
+        state: 'aborted',
+        completion_reason: 'process_restart',
+      });
     } finally {
       after.close();
     }

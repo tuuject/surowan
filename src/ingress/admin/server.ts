@@ -7,6 +7,7 @@ import type { ImageService } from '../../image/service.ts';
 import type { AgentModelSwitcher } from '../../platform/model-switch.ts';
 import type { BucketScheduler } from '../../orchestration/scheduler.ts';
 import type { RawConfig } from '../../platform/config.ts';
+import type { ImConnectionRegistry } from '../../platform/im-connection.ts';
 import type { ConfigController } from '../../platform/config-write.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
@@ -41,6 +42,8 @@ export type ReplayPreflightSelection = Pick<
 export interface AdminServerOptions {
   readonly store: BusinessStore;
   readonly configStore: RuntimeConfigurationStore;
+  /** Live IM connection state; absent in standalone panels, which report disabled. */
+  readonly connections?: ImConnectionRegistry;
   readonly scheduler?: BucketScheduler;
   readonly tasks?: LongTaskService;
   readonly modelSwitcher?: AgentModelSwitcher;
@@ -81,9 +84,6 @@ export class AdminServer {
   constructor(options: AdminServerOptions) {
     const config = options.configStore.current().config;
     const admin = config.admin;
-    if (admin === undefined) {
-      throw new Error('Admin panel is not configured');
-    }
     this.#admin = admin;
     const warnings = options.warnings ?? new WarningService(options.store.orm);
     this.#auth = new AdminAuth(options.store.orm, admin.session_ttl_hours, warnings);
@@ -250,6 +250,7 @@ export class AdminServer {
     response ??= await routes.prompts.handle(request, url, segments, username);
     response ??= await routes.playground.handle(request, url, segments, username);
     response ??= await routes.image.handle(request, url, segments, username);
+    response ??= await routes.telegram.handle(request, segments);
     response ??= await routes.warnings.handle(request, url, segments);
     if (response !== undefined) {
       return response;

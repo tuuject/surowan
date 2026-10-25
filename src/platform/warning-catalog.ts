@@ -1,5 +1,6 @@
 import { activeVisionModel } from './config-resolve.ts';
 import type { RawConfig } from './config.ts';
+import type { ImConnectionRegistry } from './im-connection.ts';
 
 /**
  * The warning catalog is the stable contract between runtime modules and the
@@ -25,6 +26,10 @@ export const WARNING_DEFINITIONS = {
   developer_payload_recording: { kind: 'standing', category: 'developer', severity: 'warning' },
   agent_model_missing: { kind: 'standing', category: 'models', severity: 'critical' },
   vision_model_missing: { kind: 'standing', category: 'models', severity: 'warning' },
+  // A Telegram connection that is down or misconfigured is a live condition, not
+  // an incident log: the warning exists exactly while the registry says so.
+  telegram_network_error: { kind: 'standing', category: 'runtime', severity: 'warning' },
+  telegram_config_error: { kind: 'standing', category: 'runtime', severity: 'critical' },
   invocation_failure_rate: { kind: 'event', category: 'runtime', severity: 'critical' },
   admin_login_failures: { kind: 'event', category: 'security', severity: 'warning' },
 } as const satisfies Record<string, WarningDefinition>;
@@ -70,7 +75,11 @@ const VISION_MODEL_FIELDS = ['provider', 'model'] as const;
  * Conditions that are true right now, in display order. A condition that clears
  * simply stops being returned; there is no resolved/opened history.
  */
-export function standingWarnings(config: RawConfig, now = new Date()): StandingWarning[] {
+export function standingWarnings(
+  config: RawConfig,
+  connections: Pick<ImConnectionRegistry, 'get'>,
+  now = new Date(),
+): StandingWarning[] {
   const updatedAt = now.toISOString();
   const standing: StandingWarning[] = [];
   const entry = (code: WarningCode, variables: Readonly<Record<string, unknown>>): StandingWarning => {
@@ -94,6 +103,15 @@ export function standingWarnings(config: RawConfig, now = new Date()): StandingW
   if (activeVisionModel(config.vision) === undefined) {
     const missingVisionFields = VISION_MODEL_FIELDS.filter((field) => config.vision[field] === undefined);
     standing.push(entry('vision_model_missing', { missing_fields: missingVisionFields }));
+  }
+  // A disabled Telegram is a deliberate choice, so it never warns. The state
+  // itself carries whether the failure is unreachable or unusable configuration.
+  const telegram = connections.get('telegram');
+  if (telegram.status === 'network_error') {
+    standing.push(entry('telegram_network_error', {}));
+  }
+  if (telegram.status === 'config_error') {
+    standing.push(entry('telegram_config_error', { reason: telegram.reason }));
   }
   return standing;
 }

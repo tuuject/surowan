@@ -1,3 +1,4 @@
+import type { ImConnectionRegistry } from '../../platform/im-connection.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import {
   WARNING_DEFINITIONS,
@@ -14,6 +15,8 @@ const LIST_PARAMS = new Set(['limit', 'cursor', 'unread']);
 export interface WarningsAdminDeps {
   readonly warnings: WarningService;
   readonly configStore: RuntimeConfigurationStore;
+  /** Live per-IM state; standing warnings follow it on every read. */
+  readonly connections: Pick<ImConnectionRegistry, 'get'>;
 }
 
 function categoryOf(code: string): WarningCategory {
@@ -26,7 +29,7 @@ function categoryOf(code: string): WarningCategory {
  * warnings can be marked read or cleared.
  */
 export function createWarningsAdminHandler(deps: WarningsAdminDeps) {
-  const { warnings, configStore } = deps;
+  const { warnings, configStore, connections } = deps;
 
   const list = (url: URL): Response => {
     for (const key of url.searchParams.keys()) {
@@ -55,7 +58,7 @@ export function createWarningsAdminHandler(deps: WarningsAdminDeps) {
     const now = new Date();
     return json({
       generated_at: now.toISOString(),
-      standing: standingWarnings(configStore.current().config, now),
+      standing: standingWarnings(configStore.current().config, connections, now),
       items: page.items.map((item) => ({
         id: item.id.toString(),
         kind: 'event',

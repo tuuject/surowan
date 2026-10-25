@@ -86,6 +86,16 @@ function WarningDetails({ warning }: { readonly warning: WarningItem }): React.R
         </div>
       );
     }
+    case 'telegram_network_error':
+      return <p className="text-muted-foreground text-sm">{t('pages.warnings.codes.telegram_network_error.body')}</p>;
+    case 'telegram_config_error': {
+      const reason = stringVariable(variables, 'reason');
+      const body =
+        reason === 'unauthorized' || reason === 'conflict' || reason === 'token_unreadable'
+          ? t(`pages.warnings.codes.telegram_config_error.body.${reason}`)
+          : t('pages.warnings.codes.telegram_config_error.body.unknown');
+      return <p className="text-muted-foreground text-sm">{body}</p>;
+    }
     default:
       return (
         <div className="space-y-1">
@@ -128,6 +138,13 @@ function WarningAction({ code }: { readonly code: string }): React.ReactElement 
           <Link to="/settings">{t('pages.warnings.actions.openSettings')}</Link>
         </Button>
       );
+    case 'telegram_network_error':
+    case 'telegram_config_error':
+      return (
+        <Button asChild size="sm" variant="outline">
+          <Link to="/telegram">{t('pages.warnings.actions.openTelegram')}</Link>
+        </Button>
+      );
     default:
       return null;
   }
@@ -147,6 +164,21 @@ function WarningTitle({ warning }: { readonly warning: WarningItem }): React.Rea
       return <>{t('pages.warnings.codes.invocation_failure_rate.title')}</>;
     case 'admin_login_failures':
       return <>{t('pages.warnings.codes.admin_login_failures.title')}</>;
+    case 'telegram_network_error':
+      return <>{t('pages.warnings.codes.telegram_network_error.title')}</>;
+    case 'telegram_config_error': {
+      const reason = stringVariable(warning.variables, 'reason');
+      switch (reason) {
+        case 'unauthorized':
+          return <>{t('pages.warnings.codes.telegram_config_error.unauthorized')}</>;
+        case 'conflict':
+          return <>{t('pages.warnings.codes.telegram_config_error.conflict')}</>;
+        case 'token_unreadable':
+          return <>{t('pages.warnings.codes.telegram_config_error.token_unreadable')}</>;
+        default:
+          return <>{t('pages.warnings.codes.telegram_config_error.title')}</>;
+      }
+    }
     default:
       return <>{t('pages.warnings.codes.unknown.title', { code: warning.code })}</>;
   }

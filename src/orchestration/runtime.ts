@@ -2,15 +2,18 @@ import { HOST_KINDS, type HostKind } from '../platform/im-host.ts';
 import { LongTaskService } from '../store/long-tasks.ts';
 import type { WarningService } from '../store/warnings.ts';
 import { AgentRuntime } from './agent-runtime.ts';
-import { ConversationRuntime } from './conversation-runtime.ts';
-import { BucketScheduler } from './scheduler.ts';
 import type { AgentRuntimeOptions } from './agent-runtime-types.ts';
+import { ConversationRuntime } from './conversation-runtime.ts';
+import { everyHostReady, type HostReadiness } from './host-scope.ts';
+import { BucketScheduler } from './scheduler.ts';
 
 /** Prepared host dependencies only: no file loading, transport or process lifecycle. */
 export interface CoreRuntimeOptions extends Omit<AgentRuntimeOptions, 'conversationRuntime'> {
   readonly tasks?: LongTaskService;
   /** Receives terminal invocation samples; absent in tests that do not assert warnings. */
   readonly warnings?: WarningService;
+  /** Whether one host may execute work right now; every host by default. */
+  readonly isHostReady?: HostReadiness;
 }
 
 /**
@@ -33,7 +36,7 @@ export function createCoreRuntime(options: CoreRuntimeOptions) {
     throw new Error('the long-task service must serve exactly the hosts this runtime binds');
   }
   // `tasks` belongs to the scheduler; AgentRuntime has no such option.
-  const { tasks: _tasks, warnings, ...agentOptions } = options;
+  const { tasks: _tasks, warnings, isHostReady, ...agentOptions } = options;
   const runtime = new AgentRuntime({ ...agentOptions, conversationRuntime });
   scheduler = new BucketScheduler(
     options.store,
@@ -44,6 +47,7 @@ export function createCoreRuntime(options: CoreRuntimeOptions) {
     { bot: options.bot },
     hosts,
     warnings,
+    isHostReady ?? everyHostReady,
   );
   return { runtime, scheduler, conversationRuntime, tasks };
 }

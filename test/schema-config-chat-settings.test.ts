@@ -2,7 +2,7 @@ import { afterAll, expect, test } from 'vitest';
 import { join } from 'node:path';
 
 import { loadConfig } from '../src/adapters/local-monolith/config.ts';
-import type { FileConfig } from '../src/platform/config.ts';
+import type { FileChat, FileConfig } from '../src/platform/config.ts';
 import { resolveAgentSettings } from '../src/platform/config-resolve.ts';
 import { testConfigJsonc, writeTestConfig } from './helpers.ts';
 import { cleanupSchemaDirectories, makeSchemaDirectory } from './schema-fixtures.ts';
@@ -44,8 +44,8 @@ test('accepts a chat with valid provider + model', async () => {
   });
   await writeTestConfig(directory, configPath, jsonc);
   const loaded = await loadConfig(configPath);
-  expect(loaded.fileConfig.telegram.chats[0]?.provider).toBe('agent');
-  expect(loaded.fileConfig.telegram.chats[0]?.model).toBe('agent-model');
+  expect(loaded.fileConfig.telegram?.chats[0]?.provider).toBe('agent');
+  expect(loaded.fileConfig.telegram?.chats[0]?.model).toBe('agent-model');
 });
 
 test('rejects a chat referencing a non-existent provider', async () => {
@@ -96,7 +96,7 @@ test('accepts a thinking_level override without provider/model (inherits from gl
   });
   await writeTestConfig(directory, configPath, jsonc);
   const loaded = await loadConfig(configPath);
-  expect(loaded.fileConfig.telegram.chats[0]?.thinking_level).toBe('high');
+  expect(loaded.fileConfig.telegram?.chats[0]?.thinking_level).toBe('high');
 });
 
 test('rejects an inherited thinking_level incompatible with the Chat model', async () => {
@@ -161,7 +161,7 @@ test('resolveAgentSettings applies chat overrides over global defaults', () => {
     agent: { provider: 'agent', model: 'agent-model', thinking_level: 'low' },
   } as Pick<FileConfig, 'agent'>;
   const chat = { provider: 'other', model: 'other-model', thinking_level: 'high' } as Pick<
-    FileConfig['telegram']['chats'][number],
+    FileChat,
     'provider' | 'model' | 'thinking_level'
   >;
   const result = resolveAgentSettings(config, chat);
@@ -172,10 +172,7 @@ test('resolveAgentSettings inherits thinking_level while overriding provider/mod
   const config = {
     agent: { provider: 'agent', model: 'agent-model', thinking_level: 'medium' },
   } as Pick<FileConfig, 'agent'>;
-  const chat = { provider: 'other', model: 'other-model' } as Pick<
-    FileConfig['telegram']['chats'][number],
-    'provider' | 'model' | 'thinking_level'
-  >;
+  const chat = { provider: 'other', model: 'other-model' } as Pick<FileChat, 'provider' | 'model' | 'thinking_level'>;
   const result = resolveAgentSettings(config, chat);
   expect(result).toEqual({ provider: 'other', model: 'other-model', thinking_level: 'medium' });
 });

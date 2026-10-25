@@ -9,7 +9,7 @@
 - Python
 - `lottie` Python package，提供 `lottie_convert.py`
 - Provider API key
-- Telegram Bot Token
+- Telegram Bot Token（可选；没有它时 Telegram 停用，只运行 Admin Panel 与 Playground 虚拟房间）
 
 数据层使用 `better-sqlite3`（原生模块，随 `pnpm install` 安装）。官方为 Node LTS 提供预编译二进制；没有匹配的预编译包时会回退到本地源码编译，此时需要 `python3`、`make` 与 C++ 工具链（Docker 镜像已在 builder 阶段预置）。
 
@@ -65,8 +65,8 @@ node src/cli.ts doctor --config dev-data/config.jsonc
 - `pnpm run check`：严格 TypeScript 检查（runtime/Admin/docs）；文档检查前会准备被忽略的版本元数据、字段参考和示例，不输出编译 JS。
 - `pnpm test`：运行全部行为测试。
 - `check-config`：只验证 JSONC Schema、语义与引用，输出配置哈希。
-- `doctor`：执行 SQLite/Sharp/FFmpeg/Lottie、Provider、Vision、Telegram 与 required MCP 的真实探针。
-- `serve`：启动 Telegram long polling；白名单字段（agent 模型、Prompt、预算与并发等，见 [configuration.md](configuration.md#运行时配置热更新)）可在运行中通过 Admin 的「应用配置文件」或 `/model` 应用，其余字段仍需重启。
+- `doctor`：执行 SQLite/Sharp/FFmpeg/Lottie、Provider、Vision、required MCP 与（配置了 token 时）Telegram 的真实探针。
+- `serve`：启动服务与 Telegram 连接（可用时）；白名单字段（agent 模型、Prompt、预算与并发等，见 [configuration.md](configuration.md#运行时配置热更新)）可在运行中通过 Admin 的「应用配置文件」或 `/model` 应用，其余字段仍需重启。
 - `backup`：执行保留清理、SQLite `VACUUM INTO` 备份与轮换；完整性检查属于独立恢复验证。
 - `configure`：`src/tui/` 的交互式配置向导，编辑既有配置的 Provider 与 thinking level，可从 Provider `/models` 拉取可路由模型 ID 后写回原文件。要求已存在可加载的配置且 stdin 是 TTY，非交互环境直接报错退出——agent 不要调用它。
 - `admin:build`：构建 `apps/admin-next` 生产 bundle（`apps/admin-next/dist`），供 `serve` 静态托管。
@@ -94,33 +94,32 @@ node src/cli.ts doctor --config dev-data/config.jsonc
 node src/cli.ts serve --config dev-data/config.jsonc
 ```
 
-### Playground-only 模式
+### Telegram 停用
 
 ```bash
-node src/cli.ts serve --config dev-data/config.jsonc --playground-only
+node src/cli.ts serve --config dev-data/config.jsonc
 ```
 
-`--playground-only` 让同一个进程只服务虚拟房间，不构造 Telegram 宿主：不解析 Telegram token（`telegram.token` 留给 schema 的占位 SecretRef 不需要能解析）、不创建 Bot、不注册命令、不删除 webhook、不启动 ingestion、Sticker 同步、生产 MCP 或启动追赶，也不做任何 Telegram 网络请求。配置里的 `telegram` 段仍是必需的结构（本期 schema 尚未把它改为可选，见 E05），其中的示例 `chats` 只是占位，不会被当作房间配置。
+`telegram` 段可以整段省略，或段内不写 `token`；两者都是 Telegram 停用。服务照常启动并保持运行，Admin Panel 与虚拟房间可用，但没有 grammy 实例、不注册 Bot 命令、不删除 webhook、不启动 ingestion、Sticker 同步、Telegram 启动追赶或任何 Telegram 网络请求。`serve_started` 的 `mode` 为 `disabled`、`bot_id: null`。
 
-它和普通 `serve` 共用同一套生命周期：`ServeLock`（同 `data_dir` 仍然只能有一个实例）、接管（`--takeover` 同样可用，启动前不做 token 解析）、Admin Panel、Scheduler、图片 worker、优雅关闭与 supervisor 重启（退出码 75）。区别只在等待点与范围：
+停用是运行状态而不是启动形态的开关：在面板 Telegram 设置页保存 token 会启动实例并限量补拉；清空 token 会停止实例并作废排队中的 Telegram Invocation。停用本身不发警告。
 
-- 长进程等待的是关闭信号而不是 Telegram long polling；`serve_started` 带 `mode: "playground-only"`、`bot_id: null`（普通模式不带 `mode`、带真实 `bot_id`）。
-- Scheduler 的 recover（含过期 Bucket 清扫）/ due / launch、睡眠跳过、回执压制、timer 完成、图片 worker 与对账只处理本进程服务的 Host 集合；房间模式下混合数据库里的 Telegram running/queued Invocation、陈旧 Bucket、claimed 回执、到期 timer 与 queued 图片生成保持原样，不会被标记成 `process_restart`、不会被过期或跳过、也不会被执行。`createCoreRuntime` 要求传入的 `LongTaskService` 与运行时绑定的宿主集合一致，否则直接报错。
-- 配置应用（Admin「应用配置文件」、`/model`）按本进程绑定的宿主校验工具注册表，房间模式下照常可用。
-- Admin 必须启用（`admin.enabled: true`），否则进程启动时直接报错退出：房间唯一的写入口就是面板。
+- Scheduler 的 due / launch、睡眠跳过、回执压制与 claim、图片 worker 与对账只放行连接已就绪的宿主；Telegram 未就绪（停用、网络异常或配置异常）时，Telegram 的 queued Invocation、到期回执与 queued 图片生成保持原样，不会被跳过或执行；timer 照常到点完成，回执留在 `pending`。启动时的崩溃恢复是例外：它只关闭上个进程留下的工作、不执行任何东西，所以按静态宿主范围运行，Telegram 未就绪时也会把死进程的 running Invocation、带 claimed 回执的 queued Invocation 标记为 `process_restart`，并按 `recovery_age` 过期陈旧 Bucket。`createCoreRuntime` 要求传入的 `LongTaskService` 与运行时绑定的宿主集合一致，否则直接报错。
+- 配置应用（Admin「应用配置文件」、`/model`）按本进程绑定的宿主校验工具注册表，Telegram 停用不影响面板与房间。
+- `admin` 段必填，`admin.enabled` 省略即为 `true`。只有「面板显式关闭且 Telegram 停用」才拒绝启动（`Surowan is useless if neither admin panel is enabled nor telegram is configured`）；Telegram 处于网络异常或配置异常不算停用，照常启动。
 
 启动成功标志：
 
 ```json
 {"event":"admin_started","host":"127.0.0.1","port":...}
-{"event":"serve_started","mode":"playground-only","bot_id":null,"config_hash":"..."}
+{"event":"serve_started","mode":"disabled","bot_id":null,"config_hash":"..."}
 ```
 
-普通模式成功标志依次包含启动追赶完成与常规轮询启动：
+Telegram 正常连接时先包含启动追赶完成，`mode` 为 `connected`、`bot_id` 为真实 Bot：
 
 ```json
 {"event":"startup_catch_up_completed","updates":0,"stored_messages":0,"invocations":0,"at":"..."}
-{"event":"serve_started","bot_id":"...","config_hash":"...","at":"..."}
+{"event":"serve_started","mode":"connected","bot_id":"...","config_hash":"...","at":"..."}
 ```
 
 人工前台运行使用 `Ctrl+C`。服务会：
@@ -146,7 +145,7 @@ node src/cli.ts serve --config dev-data/config.jsonc --playground-only
 node src/cli.ts serve --config dev-data/config.jsonc --takeover
 ```
 
-`--takeover` 用于本地调试时替换同一个 `data_dir` 上的实例。它先完成启动流程中不需要锁的那部分校验（配置权限、完整 `loadConfig`、Telegram token 解析），通过后向 `data_dir` 写一个 `serve.stop` 请求文件，再等待对方释放互斥锁，日志 `takeover_completed` 的 `stopped` 表示是否停掉了实例，`stopped_pid` 是被停实例的 PID（对方恰好处在拿锁后、写 PID 文件前，或已删 PID 文件、尚未放锁时为 `null`）。被接管的实例在轮询中看到请求后先记录 `takeover_requested`，然后走上面同一套优雅关闭流程（随后出现 `shutdown_requested`）。持有者刚启动时它的 watcher 会把已存在的请求当残留删掉，接管方等待期间发现请求文件消失会重新写入。互斥锁空闲时（含容器重建后留下 `serve.lock` 的情况）接管方直接返回，不会写请求也不会空等；残留的 PID 文件不在这里删（锁外删除可能误删刚拿到锁的新实例的文件），由下一次拿锁覆写。PID 文件只在持锁期间写入或删除：`ServeLock.release` 先删 PID 文件再放锁。
+`--takeover` 用于本地调试时替换同一个 `data_dir` 上的实例。它先完成启动流程中不需要锁的那部分校验（配置权限、完整 `loadConfig`、Telegram token 来源解析），通过后向 `data_dir` 写一个 `serve.stop` 请求文件，再等待对方释放互斥锁，日志 `takeover_completed` 的 `stopped` 表示是否停掉了实例，`stopped_pid` 是被停实例的 PID（对方恰好处在拿锁后、写 PID 文件前，或已删 PID 文件、尚未放锁时为 `null`）。被接管的实例在轮询中看到请求后先记录 `takeover_requested`，然后走上面同一套优雅关闭流程（随后出现 `shutdown_requested`）。持有者刚启动时它的 watcher 会把已存在的请求当残留删掉，接管方等待期间发现请求文件消失会重新写入。互斥锁空闲时（含容器重建后留下 `serve.lock` 的情况）接管方直接返回，不会写请求也不会空等；残留的 PID 文件不在这里删（锁外删除可能误删刚拿到锁的新实例的文件），由下一次拿锁覆写。PID 文件只在持锁期间写入或删除：`ServeLock.release` 先删 PID 文件再放锁。
 
 请求是文件而不是信号：Windows 没有可捕获的 `SIGTERM`，只有目标进程自己能跑关闭流程。对方 60 秒内没有释放锁（进程卡住或被暂停）时接管方报错退出，不会强杀；这一步也不会误伤其它进程——写下的请求文件只有持有该 `data_dir` 锁的进程会读，接管方在返回前把它清掉，下次启动时残留的请求文件会被丢弃而不是照做。
 
@@ -170,7 +169,7 @@ Admin Panel 的 Models / Chats 页在有字段等待重启时提供「立即重�
 - 需要替换同一 `data_dir` 上正在运行的实例时用 `node src/cli.ts serve --config <path> --takeover`：它请求对方优雅退出并等锁释放（对方日志 `takeover_requested`，接管方 `takeover_completed`），不要手动删 `serve.lock` 或强杀进程。
 - 修改 `config.jsonc` 后：白名单字段可用 Admin 的「应用配置文件」或 `/model` 热应用，其余字段必须重启。成员的 `/ignoreme`、`/unignoreme` 也会写回当前 Chat 的 `ignored_user_ids` 并热应用配置文件。用 `config_reloaded` 日志事件（同时带 `active_hash` 与 `file_hash`）或 `check-config` 输出对比哈希，避免误判白名单或模型配置。没有文件系统 watcher，文件只有在显式应用或配置写入入口被调用时才生效。
 - 本地人工运行使用 `Ctrl+C` 停止；再按一次 `Ctrl+C`（或再发一次 `SIGTERM`）会跳过收尾立即退出（日志 `shutdown_forced`）。不要用未验证 PID 的强制终止命令。
-- Admin Panel 随 `serve` 在同一进程内启动，仅在 `admin.enabled = true` 时监听；`admin.host` 不限制回环，非回环绑定的暴露风险由运维承担。
+- Admin Panel 随 `serve` 在同一进程内启动，`admin.enabled` 省略即为 `true`，仅在显式设为 `false` 时不监听；`admin.host` 不限制回环，非回环绑定的暴露风险由运维承担。
 
 ## 配置变更
 
@@ -191,6 +190,8 @@ node src/cli.ts doctor --config dev-data/config.jsonc
 ```
 
 Doctor 是对已配置运行环境执行的真实依赖检查，不是静态 lint；完整检查范围与何时可判定通过见[验证：Doctor](verification.md#doctor)。它会产生 `role = 'doctor'` 的模型调用审计并消耗少量 Provider Token；Tool Call 探针按实际选用的模型组合去重，因此新增 Chat 模型覆盖会引入新的探针并消耗相应 Token。
+
+Telegram 是可选依赖：没有 `telegram` 段、没有 token 或 token 解析为空串时，Doctor 跳过 Telegram 探针，其余检查照常执行，成功 JSON 中 `telegram_status` 为 `"disabled"`、`telegram_bot_id` 为 `null`。有 token 时执行一次 `getMe`，成功时 `telegram_status` 为 `"connected"`、`telegram_bot_id` 为 Bot ID 字符串。token 的 SecretRef 无法解析（环境变量未设、jar 无此项、命令失败）时 Doctor 直接报错，不把它当成停用。
 
 如需查看配置中 Agent 系统 Prompt 的模板渲染结果：
 
@@ -243,26 +244,28 @@ printf '%s' '临时替换的 global prompt' | surowan-utils invocation replay 12
 - replay 的行为边界（合成工具、不写生产数据、按 Provider 计费）见 [admin-panel.md](admin-panel.md#invocation-重放)；选项全集与响应形状以 [packages/cli/README.md](../packages/cli/README.md) 与源码为准。
 - 源码仓库根目录的 [`surowan-utils` Skill](../skills/surowan-utils/SKILL.md) 面向通过 CLI 访问 Admin API 的外部 Agent：每次任务先运行 `surowan-utils doctor --json`（恰好一次只读请求），只有退出码 `0` 且 `status` 为 `ok` 才读取对应指南并查询或重放；doctor 失败即停止并请操作员用 `login` 修复，不循环重试、不代为执行 `login` 或改动凭据、不直接读取聊天或存储中的 key，`--help` 只用于客户端缺失或命令不匹配时的诊断。`SKILL.md` 是轻量入口，审计与重放细节分列 `references/invocations.md`、`references/replay.md`，按当前任务加载子文档而不是一次全读。它不是 Bot 的 System Skill。npm 包不内置该 Skill，须按 [CLI Agent Skill](../packages/cli/AGENT-SKILL.md) 用 `npx skills add tuuject/surowan --skill surowan-utils` 安装，或从源码仓库将整个目录（含 `references/` 与 `agents/openai.yaml`）复制/导入宿主并随仓库同步更新。不把服务端源码或 SQLite 访问作为前提。
 
-## 管理员凭据与 Passkey 恢复（admin-reset）
+## 管理员账号与 Passkey（admin-account）
 
-`admin-reset` 是**服务端内置 CLI** 的本地恢复命令，与 `surowan-utils` 不是一回事——后者只通过 Admin API 做只读检查与 Invocation 重放，不能恢复凭据。
+`admin-account` 是**服务端内置 CLI** 的建号与恢复命令，与 `surowan-utils` 不是一回事——后者只通过 Admin API 做只读检查与 Invocation 重放，不能恢复凭据。
 
 ```bash
-node src/cli.ts admin-reset --config <path> --username <name> [--password-stdin]
+node src/cli.ts admin-account --config <path> --username <name> [--password-stdin] [--revoke-passkeys]
 ```
 
 - **前置条件**：先停止**同一 `data_dir`** 的 `serve`。命令经 `ServeLock` 拒绝在运行中的实例上执行（锁被活动进程持有时报错退出，没有 `--takeover`），保证恢复期间的数据库不与运行中的 Bot 竞争。
 - **交互模式**：stdin 是 TTY 时隐藏输入新密码并要求重复确认，两遍不一致则报错退出；密码不 echo。
 - **非交互模式**：stdin 不是 TTY 时必须显式给 `--password-stdin`，密码从 stdin 管道读取（最多 800 字节、10 秒超时、只去掉一个尾部换行）。**不要把明文密码写进命令行参数**——会进 shell history 与进程列表；请从密码管理器或受限权限文件等安全来源经管道传入。
-- **效果**：把该账号密码替换为新 Argon2id hash，删除该账号**全部 Passkey 与全部登录 Session**；`admin_api_keys` 保留，`setup` 不会重开（账号仍存在）。成功后 stdout 输出 `{ "status": "ok", "username": ... }`。
-- **使用场景**：遗失全部 Passkey、移除 `admin.public_url` 后关闭了 Passkey，或更换域名导致旧凭据无法用于新域名时，用它恢复密码登录。删除或更换公开 URL 之前，应先恢复或设置密码。
+- **建号与重置**：`admin_users` 为空时创建该用户（等同面板首次设置，但不创建登录 Session）；已有唯一管理员时把用户名与密码改成新值。表里出现多个管理员时直接报错退出，不猜改哪一个。
+- **会话与 Passkey**：每次都注销该账号**全部登录 Session**；Passkey 默认保留，只有显式传 `--revoke-passkeys` 才删除全部 Passkey。
+- `admin_api_keys` 不受影响，`setup` 不会重开。成功后 stdout 输出 `{ "status": "ok", "username": ..., "created": true|false }`。
+- **使用场景**：首次部署还没有管理员、遗失密码、或遗失全部 Passkey 后恢复密码登录。删除或更换公开 URL 之前，应先恢复或设置密码。
 
 ## 日志
 
 用户可见日志写 stdout，格式为单行 JSON；框架 trace 可能写 stderr。至少监控：
 
 - `serve_started`
-- `admin_started`（仅在 `admin.enabled = true` 时出现）
+- `admin_started`（`admin.enabled` 未显式关闭时出现）
 - 进程退出与重启次数
 - required MCP 初始化失败
 - 未脱敏前的错误不得直接输出
@@ -306,10 +309,10 @@ node src/cli.ts admin-reset --config <path> --username <name> [--password-stdin]
 
 ### Admin Panel 打不开
 
-1. 确认 `admin.enabled = true` 且已重启 `serve`。
+1. 确认 `admin.enabled` 没有被设为 `false`，且已重启 `serve`。
 2. 启动日志中应有一条 `admin_started`，`host`/`port` 与配置一致。
 3. 页面返回 503 `admin_bundle_missing`：先 `pnpm run admin:build`（产出 `apps/admin-next/dist`），或修正 `static_dir`；503 响应的 `message` 里带有实际查找的目录绝对路径（`admin_started` 日志只有 host/port）。
-4. 忘记密码或遗失 Passkey 时使用内置 CLI 本地重置，见「[管理员凭据与 Passkey 恢复](#管理员凭据与-passkey-恢复admin-reset)」。不要删除 `admin_users` 来重新开放首次设置入口。
+4. 忘记密码或遗失 Passkey 时使用内置 CLI 本地重置，见「[管理员账号与 Passkey](#管理员账号与-passkeyadmin-account)」。不要删除 `admin_users` 来重新开放首次设置入口。
 5. 登录返回 429 `too_many_attempts`：同一失败键连续 10 次失败后锁定 15 分钟，重启 `serve` 会清空内存计数；失败键的构成见[Admin Panel：认证](admin-panel.md#认证)。
 
 ## 备份
@@ -387,7 +390,7 @@ docker compose run --rm plasticwan doctor --config /config/config.jsonc
 docker compose run --rm plasticwan backup --config /config/config.jsonc
 ```
 
-注意：`serve` 是长期进程且受 `ServeLock` 约束，同一 `data_dir` 只能有一个实例。上面的一次性命令（`check-config`/`doctor`/`backup`）都不启动 `serve`，可以与运行中的容器共存；但**不要**用 `docker compose run` 再起一个 `serve`。例外是 `admin-reset`：它要独占数据库，运行前必须先停止同 `data_dir` 的 Bot 容器（`docker compose stop surowan`），否则 `ServeLock` 会拒绝执行，见「[管理员凭据与 Passkey 恢复](#管理员凭据与-passkey-恢复admin-reset)」。
+注意：`serve` 是长期进程且受 `ServeLock` 约束，同一 `data_dir` 只能有一个实例。上面的一次性命令（`check-config`/`doctor`/`backup`）都不启动 `serve`，可以与运行中的容器共存；但**不要**用 `docker compose run` 再起一个 `serve`。例外是 `admin-account`：它要独占数据库，运行前必须先停止同 `data_dir` 的 Bot 容器（`docker compose stop surowan`），否则 `ServeLock` 会拒绝执行，见「[管理员账号与 Passkey](#管理员账号与-passkeyadmin-account)」。
 
 镜像不自带定时备份。需要定期备份时，用宿主机 cron 等调度器定期执行上面的 `backup` 命令，例如每天一次。
 

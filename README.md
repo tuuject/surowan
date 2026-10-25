@@ -141,8 +141,8 @@ Telegram 消息
 
 开始前还需要：
 
-- 一个 Telegram Bot：通过 [@BotFather](https://t.me/BotFather) 创建；群聊中要确认它能收到目标消息（见 [Telegram 接入](apps/docs/content/docs/configure/telegram.md)）。
 - 一个模型服务的 API Key。
+- 接入 Telegram 时，一个 Telegram Bot：通过 [@BotFather](https://t.me/BotFather) 创建；群聊中要确认它能收到目标消息（见 [Telegram 接入](apps/docs/content/docs/configure/telegram.md)）。只想先在虚拟群聊里试用时可以不配 Telegram：删除配置里的 `telegram` 段，启动后打开管理面板的 [虚拟群聊](apps/docs/content/docs/guides/playground.md)。
 
 ### 1. 准备配置
 
@@ -165,7 +165,7 @@ Compose 模板默认使用 `ghcr.io/tuuject/surowan:latest`。如果要固定版
 
 然后编辑 `config/config.jsonc`：
 
-- 把 `telegram.chats[0].id` 改为允许的 Chat ID；私聊通常为正数，群/Supergroup 通常为负数。
+- 接入 Telegram 时，把 `telegram.chats[0].id` 改为允许的 Chat ID；私聊通常为正数，群/Supergroup 通常为负数。只试用虚拟群聊时删除整个 `telegram` 段。
 - 填入 Provider 的 `base_url`、`api` 和模型信息，并同步修改 `agent.model`、`vision.model`。示例中的模型 ID 和地址是占位符，需要换成服务商实际提供的值。
 - 保留容器内的 `/data` 路径；人格写在 `config/system-prompt.md` 中。
 - **首次不使用图片生成时，删除整个可选的 `image` 段。** 图片理解与图片生成是不同能力；需要生成图片时，再按[图片指南](apps/docs/content/docs/guides/images.md)配置。

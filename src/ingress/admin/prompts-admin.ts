@@ -256,12 +256,13 @@ export async function savePromptVersion(
     configuredChatId = BigInt(chat.id);
     chatId = configuredChatId;
     current = chat.instructions;
-    chatIndex = loaded.fileConfig.telegram.chats.findIndex((entry) => entry.id === chat.id);
+    const fileChats = loaded.fileConfig.telegram?.chats ?? [];
+    chatIndex = fileChats.findIndex((entry) => entry.id === chat.id);
     if (chatIndex < 0) {
       // resolveChatConfig found this chat in the same loaded configuration.
       throw new AdminQueryError('chat_unconfigured', 'The requested chat is not configured', 404);
     }
-    const fileChat = loaded.fileConfig.telegram.chats[chatIndex];
+    const fileChat = fileChats[chatIndex];
     if (fileChat !== undefined && fileChat.instructions_file !== undefined) {
       // The global creation state does not carry over to an existing group file.
       creationRelative = undefined;

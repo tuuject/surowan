@@ -1,9 +1,11 @@
 {
   // Copy this file to config/config.jsonc beside system-prompt.md.
-  // Supply the three environment variables through Docker Compose or your supervisor.
+  // Supply the environment variables referenced below through Docker Compose or your supervisor.
   "version": 1,
   "data_dir": "/data",
   "timezone": "Asia/Shanghai",
+  // Optional: delete this whole section (or just "token") to run without Telegram.
+  // The Admin Panel and Playground rooms keep working; no Bot is connected.
   "telegram": {
     "token": { "env": "TELEGRAM_BOT_TOKEN" },
     "process_bot_messages": false,
@@ -106,6 +108,7 @@
     "media_cache": "/data/media-cache",
     "backups": "/data/backups"
   },
+  // Required section. "enabled" defaults to true when omitted.
   "admin": {
     "enabled": true,
     "host": "0.0.0.0",

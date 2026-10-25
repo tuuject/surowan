@@ -1,4 +1,5 @@
 import { afterAll, expect, test } from 'vitest';
+import { ImConnectionRegistry } from '../src/platform/im-connection.ts';
 import { standingWarnings } from '../src/platform/warning-catalog.ts';
 import { invocations } from '../src/store/schema.ts';
 import { INVOCATION_FAILURE_FLOOR_KEY, WarningService, serializeVariables } from '../src/store/warnings.ts';
@@ -101,10 +102,12 @@ test('standing warnings follow the active configuration and keep no history', as
   const { store, loaded } = await openStore();
   try {
     const base = loaded.config;
-    expect(standingWarnings(base, FIXED_NOW)).toEqual([]);
+    const connections = new ImConnectionRegistry();
+    expect(standingWarnings(base, connections, FIXED_NOW)).toEqual([]);
 
     const recording = standingWarnings(
       { ...base, developer: { ...base.developer, record_model_payloads: true } },
+      connections,
       FIXED_NOW,
     );
     expect(recording).toEqual([
@@ -112,7 +115,7 @@ test('standing warnings follow the active configuration and keep no history', as
     ]);
 
     const { provider: _agentProvider, ...agent } = base.agent;
-    const missingAgent = standingWarnings({ ...base, agent }, FIXED_NOW);
+    const missingAgent = standingWarnings({ ...base, agent }, connections, FIXED_NOW);
     expect(missingAgent).toEqual([
       expect.objectContaining({
         code: 'agent_model_missing',
@@ -121,13 +124,57 @@ test('standing warnings follow the active configuration and keep no history', as
     ]);
 
     const { model: _visionModel, ...vision } = base.vision;
-    const missingVision = standingWarnings({ ...base, vision }, FIXED_NOW);
+    const missingVision = standingWarnings({ ...base, vision }, connections, FIXED_NOW);
     expect(missingVision).toEqual([
       expect.objectContaining({
         code: 'vision_model_missing',
         variables: { missing_fields: ['model'] },
       }),
     ]);
+  } finally {
+    store.close();
+  }
+});
+
+test('Telegram connection states are standing warnings except while disabled', async () => {
+  const { store, loaded } = await openStore();
+  try {
+    const base = loaded.config;
+    const connections = new ImConnectionRegistry();
+    const codes = (): string[] =>
+      standingWarnings(base, connections, FIXED_NOW)
+        .filter((warning) => warning.code.startsWith('telegram_'))
+        .map((warning) => warning.code);
+
+    expect(codes()).toEqual([]);
+
+    connections.set('telegram', { status: 'network_error', since: FIXED_NOW.toISOString() });
+    expect(codes()).toEqual(['telegram_network_error']);
+
+    const reasons = ['unauthorized', 'conflict', 'token_unreadable'] as const;
+    for (const reason of reasons) {
+      connections.set('telegram', { status: 'config_error', reason, since: FIXED_NOW.toISOString() });
+      const warning = standingWarnings(base, connections, FIXED_NOW).find(
+        (candidate) => candidate.code === 'telegram_config_error',
+      );
+      expect(warning).toMatchObject({
+        kind: 'standing',
+        category: 'runtime',
+        severity: 'critical',
+        variables: { reason },
+      });
+    }
+
+    connections.set('telegram', {
+      status: 'connected',
+      since: FIXED_NOW.toISOString(),
+      bot: { id: '1', username: 'bot' },
+    });
+    expect(codes()).toEqual([]);
+
+    // Disabled is a deliberate choice: no standing warning survives it.
+    connections.set('telegram', { status: 'disabled', since: FIXED_NOW.toISOString() });
+    expect(codes()).toEqual([]);
   } finally {
     store.close();
   }
