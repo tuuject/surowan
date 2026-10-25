@@ -30,6 +30,18 @@ export class SecretResolutionError extends Error {
   }
 }
 
+/**
+ * A SecretRef that resolved, but to an empty value. Most callers treat it as
+ * any other unusable secret; one whose feature is optional (the Telegram token)
+ * may read it as "nothing configured".
+ */
+export class EmptySecretError extends SecretResolutionError {
+  constructor() {
+    super('Resolved secret is empty');
+    this.name = 'EmptySecretError';
+  }
+}
+
 export class SecretStore {
   readonly #keyJarPath: string | undefined;
   readonly #values = new Set<string>();
@@ -58,7 +70,7 @@ export class SecretStore {
       value = await resolveCommand(reference.command);
     }
     if (value.length === 0) {
-      throw new SecretResolutionError('Resolved secret is empty');
+      throw new EmptySecretError();
     }
     this.#values.add(value);
     return value;

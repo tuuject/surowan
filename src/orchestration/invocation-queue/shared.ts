@@ -11,7 +11,7 @@ import type { ParticipationRegistry } from '../../store/participation.ts';
 import { buckets, rooms } from '../../store/schema.ts';
 import { activeSleepUntil } from '../../store/sleep.ts';
 import { type BusinessStore, isChatPaused, resolveChatConfig } from '../../store/store.ts';
-import { activeHosts, conversationsOfHosts, type HostReadiness } from '../host-scope.ts';
+import { activeHosts, conversationsOfHosts, everyHostReady, type HostReadiness } from '../host-scope.ts';
 import type { BucketAttachmentTarget } from '../invocation-queue.ts';
 import type { ProactiveReplyGate } from '../proactive-reply.ts';
 
@@ -29,8 +29,8 @@ export interface InvocationQueueDeps {
   readonly proactive: ProactiveReplyGate | undefined;
   /**
    * Hosts this process serves. Undefined means every host (a shared process).
-   * Every query narrows this by `isHostReady`, so a host whose connection is
-   * not usable keeps its work untouched.
+   * Every query except crash recovery narrows this by `isHostReady`, so a host
+   * whose connection is not usable keeps its work untouched.
    */
   readonly hosts: readonly HostKind[] | undefined;
   /** Whether one host may execute work at this moment. */
@@ -71,6 +71,17 @@ export interface ReceiptRow {
 /** `conversation_id`/`bucket_id` rows of this process's hosts that are ready now. */
 export function servedConversations(deps: InvocationQueueDeps, column: SQL): SQL {
   return conversationsOfHosts(activeHosts(deps.hosts, deps.isHostReady), column);
+}
+
+/**
+ * `conversation_id`/`bucket_id` rows of every host this process serves, ready
+ * or not. Only crash recovery reads it: closing a dead process's work executes
+ * nothing, and recovery runs once at Scheduler start, so a host that is still
+ * connecting then must not keep the previous process's `running` rows (which
+ * block their chat) or its stale queue forever.
+ */
+export function processConversations(deps: InvocationQueueDeps, column: SQL): SQL {
+  return conversationsOfHosts(activeHosts(deps.hosts, everyHostReady), column);
 }
 
 /** `activeSleepUntil` for a process that serves Telegram; null otherwise, without touching the row. */

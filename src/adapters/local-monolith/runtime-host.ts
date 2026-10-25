@@ -5,7 +5,7 @@ import { SecretStore } from '../../platform/secrets.ts';
 import { connectServeHosts, runServeLoop, startAdminServer, startCoreRuntime } from './runtime-host-serve-run.ts';
 import { openServeEnvironment, startServeServices } from './runtime-host-serve.ts';
 import { RESTART_EXIT_CODE, logEvent, type ServeContext, type ServeState } from './runtime-host-support.ts';
-import { isTelegramDisabled } from './telegram-connection-token.ts';
+import { resolveTelegramTokenSource } from './telegram-connection-token.ts';
 
 export interface ServeOptions {
   /** Ask a running instance on the same data directory to stop first. */
@@ -16,14 +16,17 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
   const takeover = options.takeover === true;
   const loaded = await loadConfig(configPath);
   await assertConfigPermissions(loaded.configPath);
+  const secrets = new SecretStore(keyJarPath(loaded.configPath));
   // Both halves of the product may be off, but not both at once: rooms are
   // reachable only through the panel, and a panel-only process with no IM has
-  // nothing to do. Only an explicit disable counts; an unreadable token is a
-  // configuration error the panel is expected to show, not a useless process.
-  if (isTelegramDisabled(loaded.config) && loaded.config.admin.enabled === false) {
+  // nothing to do. Only a disabled Telegram counts (no token, or an empty one);
+  // an unreadable token is a configuration error, not a useless process.
+  if (
+    loaded.config.admin.enabled === false &&
+    (await resolveTelegramTokenSource(loaded.config, secrets)).kind === 'disabled'
+  ) {
     throw new Error('Surowan is useless if neither admin panel is enabled nor telegram is configured');
   }
-  const secrets = new SecretStore(keyJarPath(loaded.configPath));
   const state: ServeState = {};
   const replayShutdown = new AbortController();
   let shuttingDown = false;

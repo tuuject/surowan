@@ -3,9 +3,10 @@
  *
  * Stopping an instance (a token replacement, an explicit disable or a 401/409)
  * must leave no queued Telegram work behind, must interrupt the running one and
- * must return every claimed delivery receipt to `pending`, so the reminder is
- * delivered once an instance exists again. Rooms are the control group: a
- * Telegram stop never touches their queue.
+ * must return every delivery receipt that provably never reached Telegram to
+ * `pending`, so the reminder is delivered once an instance exists again — but
+ * never twice. Rooms are the control group: a Telegram stop never touches
+ * their queue.
  */
 import { sql } from 'drizzle-orm';
 import { afterEach, expect, test } from 'vitest';
@@ -24,16 +25,26 @@ afterEach(async () => {
   await closeConnectionFixtures();
 });
 
-/** Mimics what an interrupted run persists when its abort lands. */
-function settleInterrupted(store: ConnectionFixture['store'], ids: readonly bigint[]): void {
+interface SettledRun {
+  readonly state: 'aborted' | 'completed' | 'outcome_unknown';
+  readonly sideEffectStarted: boolean;
+}
+
+/** Mimics what a run persists when it ends; by default, an abort before any send. */
+function settleInterrupted(
+  store: ConnectionFixture['store'],
+  ids: readonly bigint[],
+  run: SettledRun = { state: 'aborted', sideEffectStarted: false },
+): void {
   const stamp = new Date().toISOString();
   const list = sql.join(
     ids.map((id) => sql`${id}`),
     sql`, `,
   );
+  const reason = run.state === 'completed' ? 'completed' : 'telegram_stopped';
   store.orm
     .update(invocations)
-    .set({ state: 'aborted', completionReason: 'telegram_stopped', finishedAt: stamp })
+    .set({ state: run.state, completionReason: reason, finishedAt: stamp, sideEffectStarted: run.sideEffectStarted })
     .where(sql`id IN (${list})`)
     .run();
   store.orm
@@ -41,8 +52,8 @@ function settleInterrupted(store: ConnectionFixture['store'], ids: readonly bigi
     .set({
       state: 'handled',
       handledAt: stamp,
-      invocationOutcome: 'aborted',
-      completionReason: 'telegram_stopped',
+      invocationOutcome: run.state,
+      completionReason: reason,
       updatedAt: stamp,
     })
     .where(sql`invocation_id IN (${list}) AND state = 'claimed'`)
@@ -134,7 +145,7 @@ test('a stop expires Telegram work, aborts its invocations and requeues their re
   });
 });
 
-test('an interrupted run that never settles is logged and still returns its receipt', async () => {
+test('an interrupted run that never settles is logged and keeps its claim', async () => {
   const fixture = await openConnectionFixture({ abortGraceMs: 20 });
   const { store } = fixture;
   await fixture.manager.start(fixture.hooks);
@@ -147,13 +158,46 @@ test('an interrupted run that never settles is logged and still returns its rece
   // The run ignores the abort in this fixture; the stop does not wait forever.
   expect(fixture.events.some((entry) => entry.event === 'telegram_invocation_stop_timeout')).toBe(true);
   expect(invocationState(store, seeded.runningInvocation)).toMatchObject({ state: 'running' });
+  // It may still send, so its delivery is not handed to a second run: the
+  // run's own terminal write settles the receipt.
   expect(receiptState(store, seeded.runningReceiptTask)).toMatchObject({
-    state: 'pending',
-    invocationId: null,
-    claimedAt: null,
+    state: 'claimed',
+    invocationId: seeded.runningInvocation,
   });
   // A queued invocation's receipt is requeued immediately, independently of
   // what the running one does.
+  expect(receiptState(store, 901n)).toMatchObject({ state: 'pending', invocationId: null });
+});
+
+test.each([
+  { label: 'finished on its own before the abort landed', run: { state: 'completed', sideEffectStarted: true } },
+  { label: 'was aborted after it had started a send', run: { state: 'aborted', sideEffectStarted: true } },
+  { label: 'ended with an unknown send outcome', run: { state: 'outcome_unknown', sideEffectStarted: true } },
+] as const)('a run that $label keeps its delivered receipt', async ({ run }) => {
+  let fixture: ConnectionFixture | undefined;
+  fixture = await openConnectionFixture({
+    abortInvocations: (ids) => {
+      if (fixture !== undefined) {
+        settleInterrupted(fixture.store, ids, run);
+      }
+      return ids.length;
+    },
+  });
+  const { store } = fixture;
+  await fixture.manager.start(fixture.hooks);
+  const seeded = seedWork(store);
+
+  fixture.manager.applyToken({ kind: 'disabled' });
+  await fixture.waitForStatus((state) => state.status === 'disabled');
+  await fixture.manager.whenIdle();
+
+  // Re-queueing this receipt would deliver the reminder a second time once an
+  // instance is back.
+  expect(receiptState(store, seeded.runningReceiptTask)).toMatchObject({
+    state: 'handled',
+    invocationId: seeded.runningInvocation,
+  });
+  // The never-started queued run's receipt is still safe to deliver again.
   expect(receiptState(store, 901n)).toMatchObject({ state: 'pending', invocationId: null });
 });
 

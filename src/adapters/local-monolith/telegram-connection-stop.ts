@@ -4,9 +4,9 @@
  * Stopping a Telegram connection is not a transport detail: work already
  * accepted for Telegram conversations must not survive it. Queued and
  * collecting batches expire, queued invocations abort, and any long-task
- * receipt they claimed returns to `pending` so the delivery happens once the
- * instance is back. Only Telegram conversations are touched; rooms keep their
- * queue exactly as it is.
+ * receipt whose delivery provably never started returns to `pending` so it
+ * happens once the instance is back. Only Telegram conversations are touched;
+ * rooms keep their queue exactly as it is.
  */
 
 import { sql } from 'drizzle-orm';
@@ -125,12 +125,16 @@ export async function waitForTelegramInvocations(
 }
 
 /**
- * Returns receipts claimed by interrupted invocations to `pending` and marks
- * the batches those runs opened with the stop reason.
+ * Returns receipts of interrupted invocations to `pending` when their delivery
+ * provably did not happen, and marks the batches those runs opened with the
+ * stop reason.
  *
- * An aborted run persists its receipts as `handled` (and releases any
- * un-injected batch as `suppressed`); both mean "this delivery did not happen
- * because Telegram stopped", which is exactly what a re-delivery must undo.
+ * A claim is never replayed once its outcome may be known to Telegram: a run
+ * that finished on its own before the abort landed, one that already started
+ * a send, and one still running after the grace period all keep their
+ * receipts. Only two shapes are safe to deliver again — a batch the stop
+ * expired before the run injected it (`suppressed` with the stop reason), and
+ * a run that ended `aborted` without ever starting a side effect.
  */
 export function restoreAbandonedReceipts(store: BusinessStore, ids: readonly bigint[], now = new Date()): void {
   if (ids.length === 0) {
@@ -147,7 +151,16 @@ export function restoreAbandonedReceipts(store: BusinessStore, ids: readonly big
           handled_at = NULL, invocation_outcome = NULL, completion_reason = NULL,
           cancelled_at = NULL, cancelled_by = NULL, admin_cancelled = 0, cancel_reason = NULL,
           updated_at = ${timestamp}
-      WHERE invocation_id IN (${list}) AND state IN ('claimed', 'handled', 'suppressed')`);
+      WHERE invocation_id IN (${list})
+        AND (
+          (state = 'suppressed' AND cancel_reason = ${TELEGRAM_STOPPED_REASON})
+          OR (
+            state IN ('claimed', 'handled') AND invocation_id IN (
+              SELECT id FROM invocations
+              WHERE id IN (${list}) AND state = 'aborted' AND side_effect_started = 0
+            )
+          )
+        )`);
     // The abort itself closes the opening batch without a reason; the stop is
     // what ended it, so record that instead of leaving the cause empty.
     store.orm.run(sql`UPDATE buckets

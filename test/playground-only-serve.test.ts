@@ -39,8 +39,8 @@ async function freePort(): Promise<number> {
 interface FixtureOptions {
   /** `false` leaves the panel off, which only an IM can make useful. */
   readonly panel: boolean;
-  /** A token reference the key jar cannot satisfy, or no Telegram section. */
-  readonly telegram?: { readonly token: { readonly jar: string } };
+  /** A token reference that resolves to nothing usable, or no Telegram section. */
+  readonly telegram?: { readonly token: { readonly jar: string } | { readonly env: string } };
 }
 
 async function writeConfig(options: FixtureOptions): Promise<{ configPath: string; dataDir: string }> {
@@ -124,12 +124,12 @@ async function writeConfig(options: FixtureOptions): Promise<{ configPath: strin
   return { configPath, dataDir };
 }
 
-function startServe(configPath: string) {
+function startServe(configPath: string, env: Readonly<Record<string, string>> = {}) {
   const child = spawn(
     process.execPath,
     [join(import.meta.dirname, '..', 'src', 'cli.ts'), 'serve', '--config', configPath],
     {
-      env: { ...process.env, TG_DISABLED_AGENT_KEY: 'fixture-agent-key' },
+      env: { ...process.env, TG_DISABLED_AGENT_KEY: 'fixture-agent-key', ...env },
       stdio: ['pipe', 'pipe', 'pipe'],
     },
   );
@@ -205,6 +205,16 @@ test('serve with Telegram disabled starts the panel and stops cleanly on a stop 
 test('serve refuses a process with neither the panel nor Telegram', async () => {
   const { configPath } = await writeConfig({ panel: false });
   const serving = startServe(configPath);
+  expect(await serving.exited).toBe(1);
+  expect(serving.stderr()).toContain('Surowan is useless if neither admin panel is enabled nor telegram is configured');
+});
+
+test('a token that resolves to an empty value is a disabled Telegram, so the refusal applies', async () => {
+  const { configPath } = await writeConfig({
+    panel: false,
+    telegram: { token: { env: 'TG_DISABLED_EMPTY_TOKEN' } },
+  });
+  const serving = startServe(configPath, { TG_DISABLED_EMPTY_TOKEN: '' });
   expect(await serving.exited).toBe(1);
   expect(serving.stderr()).toContain('Surowan is useless if neither admin panel is enabled nor telegram is configured');
 });

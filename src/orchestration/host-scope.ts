@@ -5,7 +5,9 @@
  * says which of them can act right now (a Telegram instance that is disabled,
  * misconfigured or still connecting may not). Every pass narrows the first by
  * the second, so a host that is not ready keeps its work exactly where it is
- * instead of launching, failing or delivering it.
+ * instead of launching, failing or delivering it. Startup crash recovery is the
+ * one exception: it only closes a dead process's work, so it uses the static
+ * scope.
  */
 
 import { type SQL, sql } from 'drizzle-orm';

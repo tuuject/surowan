@@ -136,9 +136,15 @@ export class FakeStickers {
   synced = 0;
   started = 0;
   stops = 0;
+  readonly #gate: Promise<void> | undefined;
+
+  constructor(gate?: Promise<void>) {
+    this.#gate = gate;
+  }
 
   async sync(): Promise<void> {
     this.synced += 1;
+    await this.#gate;
   }
 
   start(): void {
@@ -157,6 +163,10 @@ export interface FixtureOptions {
   readonly startError?: (bot: FakeTelegramBot) => unknown;
   readonly sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   readonly withStickers?: boolean;
+  /** Holds the n-th sticker worker's `sync` until the promise settles. */
+  readonly stickerSync?: (index: number) => Promise<void> | undefined;
+  /** Replaces the fake ingestion factory, e.g. to fail one connection attempt. */
+  readonly createIngestion?: (me: TelegramIdentity) => TelegramIngestion;
   readonly abortInvocations?: (ids: readonly bigint[], reason: string) => number;
   readonly abortGraceMs?: number;
   /** Observes the readiness gate closing after a transition. */
@@ -250,11 +260,12 @@ export async function openConnectionFixture(options: FixtureOptions = {}): Promi
     connections,
     readiness,
     holder,
-    createIngestion: (me) => ({ botId: me.id, ingest: () => ({}) }) as unknown as TelegramIngestion,
+    createIngestion:
+      options.createIngestion ?? ((me) => ({ botId: me.id, ingest: () => ({}) }) as unknown as TelegramIngestion),
     ...(options.withStickers === true
       ? {
           createStickers: () => {
-            const service = new FakeStickers();
+            const service = new FakeStickers(options.stickerSync?.(stickers.length));
             stickers.push(service);
             return service as unknown as StickerService;
           },

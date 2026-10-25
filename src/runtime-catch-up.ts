@@ -3,12 +3,13 @@
  * is already serving: a replaced token, or a disabled/configuration-error
  * connection recovering.
  *
- * Telegram hands out one update stream per bot, so a per-chat limit can only be
- * applied after the whole backlog is in memory: the pass pages through every
- * pending update first, keeps the newest messages of each chat, and only then
- * feeds ingestion in the original update order. The cold-start path is a
- * different contract (unbounded, only before the Scheduler starts) and lives in
- * `startup-catch-up.ts`.
+ * Telegram hands out one update stream per bot, so a per-chat limit cannot be
+ * known until the stream ends: the pass pages through every pending update,
+ * keeping only the newest messages of each chat as it goes, and then feeds
+ * ingestion in the original update order. Paging confirms each previous page,
+ * so whatever was retained is ingested even when a later page fails or the
+ * pass is cancelled. The cold-start path is a different contract (unbounded,
+ * only before the Scheduler starts) and lives in `startup-catch-up.ts`.
  */
 
 import type { Message, Update } from 'grammy/types';
@@ -49,10 +50,11 @@ export interface RuntimeCatchUpResult {
 export async function runRuntimeCatchUp(options: RuntimeCatchUpOptions): Promise<RuntimeCatchUpResult> {
   const currentTime = options.now ?? (() => new Date());
   const startedAt = currentTime();
-  const buffered: Update[] = [];
-  let storedMessages = 0;
+  const retention = new RetentionBuffer(options.botUsername);
   let firstRequest = true;
   let offset: number | undefined;
+  let drainError: unknown;
+  let drained = false;
   try {
     while (true) {
       options.signal?.throwIfAborted();
@@ -63,113 +65,164 @@ export async function runRuntimeCatchUp(options: RuntimeCatchUpOptions): Promise
         ...(firstRequest ? { allowed_updates: options.allowedUpdates } : {}),
       };
       const updates = await options.api.getUpdates(request);
-      options.signal?.throwIfAborted();
       if (updates.length === 0) {
         break;
       }
-      buffered.push(...updates);
+      for (const update of updates) {
+        retention.add(update);
+      }
       const lastUpdate = updates.at(-1);
       if (lastUpdate !== undefined) {
         offset = lastUpdate.update_id + 1;
       }
       firstRequest = false;
     }
-    options.signal?.throwIfAborted();
-
-    const retained = retainUpdates(buffered, options.botUsername);
-    for (const update of retained.updates) {
-      options.signal?.throwIfAborted();
-      const receivedAt = currentTime();
-      const result = options.ingestion.ingestCatchUp(update, receivedAt);
-      if (result.messageId !== undefined && update.message !== undefined) {
-        storedMessages += 1;
-      }
-      const command = result.command;
-      const message = update.message;
-      if (command !== undefined && message !== undefined) {
-        // In update order, so a later /resume or /pause wins exactly as it
-        // would have live; duplicates never get here (ingestion dedupes them).
-        await options.commands.run(command, BigInt(message.chat.id), commandSender(message), receivedAt);
-      }
-    }
-    const invocationIds = options.scheduler.finishRuntimeCatchUp(startedAt, currentTime());
-    options.scheduler.wake();
-    logEvent('runtime_catch_up_completed', {
-      updates: buffered.length,
-      retained: retained.updates.length,
-      dropped: retained.dropped,
-      stored_messages: storedMessages,
-      invocations: invocationIds.length,
-    });
-    return {
-      updates: buffered.length,
-      retained: retained.updates.length,
-      dropped: retained.dropped,
-      storedMessages,
-      invocationIds,
-    };
+    drained = true;
   } catch (error) {
-    if (options.signal?.aborted === true) {
-      // A cancelled pass creates no catch-up work: the token that replaced
-      // this one drains the same stream again, while messages already ingested
-      // stay in history.
-      logEvent('runtime_catch_up_aborted', { updates: buffered.length, stored_messages: storedMessages });
-    }
-    throw error;
+    drainError = error;
   }
+
+  // Every request after the first carried an `offset`, which told Telegram to
+  // forget the page before it: what the buffer holds now is stored here or
+  // never. So neither an abort nor a failed page skips this step — they only
+  // decide whether the pass also becomes catch-up work.
+  const plan = retention.plan();
+  let storedMessages = 0;
+  for (const update of plan.updates) {
+    const receivedAt = currentTime();
+    const result = options.ingestion.ingestCatchUp(update, receivedAt);
+    if (result.messageId !== undefined && update.message !== undefined) {
+      storedMessages += 1;
+    }
+    const command = result.command;
+    const message = update.message;
+    if (command !== undefined && message !== undefined) {
+      // In update order, so a later /resume or /pause wins exactly as it
+      // would have live; duplicates never get here (ingestion dedupes them).
+      await options.commands.run(command, BigInt(message.chat.id), commandSender(message), receivedAt);
+    }
+  }
+  const counts = {
+    updates: plan.received,
+    retained: plan.updates.length,
+    dropped: plan.dropped,
+    stored_messages: storedMessages,
+  };
+  if (options.signal?.aborted === true) {
+    // A cancelled pass creates no catch-up work: the connection it belonged
+    // to is gone. The messages it stored stay in history.
+    logEvent('runtime_catch_up_aborted', counts);
+    options.signal.throwIfAborted();
+  }
+  // A page that failed after earlier ones were confirmed still leaves a usable
+  // window; the live stream picks up from the last confirmed offset.
+  const invocationIds = options.scheduler.finishRuntimeCatchUp(startedAt, currentTime());
+  options.scheduler.wake();
+  logEvent(drained ? 'runtime_catch_up_completed' : 'runtime_catch_up_interrupted', {
+    ...counts,
+    invocations: invocationIds.length,
+  });
+  if (!drained) {
+    throw drainError;
+  }
+  return {
+    updates: plan.received,
+    retained: plan.updates.length,
+    dropped: plan.dropped,
+    storedMessages,
+    invocationIds,
+  };
 }
 
 interface RetentionPlan {
   readonly updates: readonly Update[];
+  readonly received: number;
   readonly dropped: number;
 }
 
 /**
  * Keeps the newest {@link RUNTIME_CATCH_UP_MESSAGES_PER_CHAT} stored messages of
- * every chat, plus every recognition of a bot command: a control command is a
- * state change, not context, so a busy chat must not push `/pause` out of the
- * window. An edit is kept only when its original message is kept, because a
- * revision of a discarded message would create a message that never existed in
- * the retained window.
+ * every chat while the stream is paged, plus every recognition of a bot
+ * command: a control command is a state change, not context, so a busy chat
+ * must not push `/pause` out of the window. An edit is kept only while its
+ * original message is kept, because a revision of a discarded message would
+ * create a message that never existed in the retained window.
+ *
+ * Eviction happens as pages arrive, so memory is bounded by the window per
+ * chat instead of by the size of the backlog.
  */
-function retainUpdates(updates: readonly Update[], botUsername: string | null): RetentionPlan {
-  const messageKeysByChat = new Map<string, string[]>();
-  const commandKeys = new Set<string>();
-  for (const update of updates) {
+class RetentionBuffer {
+  readonly #botUsername: string | null;
+  /** Retained updates by `update_id`; insertion order is Telegram's update order. */
+  readonly #updates = new Map<number, Update>();
+  /** Per chat, the keys of retained ordinary messages, oldest first. */
+  readonly #messagesByChat = new Map<string, string[]>();
+  /** The update ids recorded for one retained message: itself and its edits. */
+  readonly #updateIdsByMessage = new Map<string, number[]>();
+  #received = 0;
+  #dropped = 0;
+
+  constructor(botUsername: string | null) {
+    this.#botUsername = botUsername;
+  }
+
+  add(update: Update): void {
+    this.#received += 1;
     const message = update.message;
-    if (message === undefined) {
-      continue;
-    }
-    const key = messageKey(message);
-    if (parseBotCommand(message, botUsername) !== null) {
-      commandKeys.add(key);
-      continue;
-    }
-    const chatKey = String(message.chat.id);
-    const keys = messageKeysByChat.get(chatKey);
-    if (keys === undefined) {
-      messageKeysByChat.set(chatKey, [key]);
-    } else {
+    if (message !== undefined) {
+      const key = messageKey(message);
+      const known = this.#updateIdsByMessage.has(key);
+      this.#keep(key, update);
+      if (known || parseBotCommand(message, this.#botUsername) !== null) {
+        return;
+      }
+      const chatKey = String(message.chat.id);
+      const keys = this.#messagesByChat.get(chatKey) ?? [];
       keys.push(key);
+      this.#messagesByChat.set(chatKey, keys);
+      if (keys.length > RUNTIME_CATCH_UP_MESSAGES_PER_CHAT) {
+        const oldest = keys.shift();
+        if (oldest !== undefined) {
+          this.#evict(oldest);
+        }
+      }
+      return;
     }
-  }
-  const retained = new Set(commandKeys);
-  for (const keys of messageKeysByChat.values()) {
-    for (const key of keys.slice(-RUNTIME_CATCH_UP_MESSAGES_PER_CHAT)) {
-      retained.add(key);
+    const edited = update.edited_message;
+    if (edited !== undefined) {
+      const key = messageKey(edited);
+      if (this.#updateIdsByMessage.has(key)) {
+        this.#keep(key, update);
+      } else {
+        this.#dropped += 1;
+      }
+      return;
     }
+    this.#updates.set(update.update_id, update);
   }
-  const kept: Update[] = [];
-  let dropped = 0;
-  for (const update of updates) {
-    const message = update.message ?? update.edited_message;
-    if (message === undefined || retained.has(messageKey(message))) {
-      kept.push(update);
+
+  plan(): RetentionPlan {
+    return { updates: [...this.#updates.values()], received: this.#received, dropped: this.#dropped };
+  }
+
+  #keep(key: string, update: Update): void {
+    this.#updates.set(update.update_id, update);
+    const ids = this.#updateIdsByMessage.get(key);
+    if (ids === undefined) {
+      this.#updateIdsByMessage.set(key, [update.update_id]);
     } else {
-      dropped += 1;
+      ids.push(update.update_id);
     }
   }
-  return { updates: kept, dropped };
+
+  #evict(key: string): void {
+    for (const id of this.#updateIdsByMessage.get(key) ?? []) {
+      if (this.#updates.delete(id)) {
+        this.#dropped += 1;
+      }
+    }
+    this.#updateIdsByMessage.delete(key);
+  }
 }
 
 function messageKey(message: Message): string {

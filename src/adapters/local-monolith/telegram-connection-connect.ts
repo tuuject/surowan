@@ -13,6 +13,7 @@ import type { Api, Bot } from 'grammy';
 import type { StickerService } from '../../capabilities/stickers.ts';
 import type { TelegramIngestion } from '../../ingress/telegram-ingestion.ts';
 import { BOT_COMMANDS, registerBotCommands } from '../../orchestration/bot-commands.ts';
+import { STARTUP_CATCH_UP_STATE_KEY } from '../../orchestration/invocation-queue.ts';
 import type { ImConnectionState } from '../../platform/im-connection.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import { appState } from '../../store/schema.ts';
@@ -73,6 +74,8 @@ export class TelegramConnector {
   readonly #options: TelegramConnectorOptions;
   #instance: RunningTelegram | undefined;
   #stickers: StickerService | undefined;
+  /** The instance whose API the sticker worker uses. */
+  #stickersOwner: RunningTelegram | undefined;
 
   constructor(options: TelegramConnectorOptions) {
     this.#options = options;
@@ -137,14 +140,15 @@ export class TelegramConnector {
     this.#adopt(instance);
     this.#options.holder.set({ api: bot.api, bot, token, me });
     poller.observe(bot.api);
-    await this.#startStickers(bot.api);
+    await this.#startStickers(instance);
     if (signal.aborted) {
       await this.abandon(instance);
       return { kind: 'aborted' };
     }
-    if (!(await this.#runCatchUp(instance, coldStart, signal))) {
+    const caughtUp = await this.#runCatchUp(instance, coldStart, signal);
+    if (caughtUp !== undefined) {
       await this.abandon(instance);
-      return { kind: 'aborted' };
+      return caughtUp;
     }
     this.#options.publish({ status: 'connected', bot: identityOf(me), since: this.#options.now().toISOString() });
     this.#installHandler(instance);
@@ -153,14 +157,23 @@ export class TelegramConnector {
     return { kind: 'connected' };
   }
 
-  /** Stops polling, the sticker worker and the identity a caller can resolve. */
+  /**
+   * Stops polling, the sticker worker and the identity a caller can resolve —
+   * each only while it still belongs to this instance. A superseded attempt
+   * (the manager's retry loop is not serialized with a newer request) may
+   * reach here after the replacement is live, and must not tear it down.
+   */
   async stop(instance: RunningTelegram): Promise<void> {
     if (this.#instance === instance) {
       this.#adopt(undefined);
     }
     await instance.poller.stop(this.#options.stopTimeoutMs);
-    await this.#stopStickers();
-    this.#options.holder.set(undefined);
+    if (this.#stickersOwner === instance) {
+      await this.#stopStickers();
+    }
+    if (this.#options.holder.current?.bot === instance.bot) {
+      this.#options.holder.set(undefined);
+    }
   }
 
   /** Cleans a half-built instance that was never announced as connected. */
@@ -286,21 +299,42 @@ export class TelegramConnector {
   }
 
   #markInitialized(): void {
+    // Two attempts can overlap (a superseded retry and its replacement), and
+    // both may have read "not initialized"; the marker only has to exist.
     this.#options.store.orm
       .insert(appState)
       .values({ key: 'telegram_initialized', value: '1', updatedAt: this.#options.now().toISOString() })
+      .onConflictDoNothing({ target: appState.key })
       .run();
   }
 
-  async #startStickers(api: Api): Promise<void> {
+  /** Whether a cold backlog drain started and never finished. */
+  #startupDrainPending(): boolean {
+    return (
+      this.#options.store.orm
+        .select({ value: appState.value })
+        .from(appState)
+        .where(eq(appState.key, STARTUP_CATCH_UP_STATE_KEY))
+        .get() !== undefined
+    );
+  }
+
+  async #startStickers(instance: RunningTelegram): Promise<void> {
     if (this.#options.createStickers === undefined) {
       return;
     }
-    const service = this.#options.createStickers(api);
+    const service = this.#options.createStickers(instance.api);
     try {
       await service.sync();
+      // `sync` cannot be cancelled: an attempt superseded meanwhile must not
+      // install its worker over the live one. A worker that never started
+      // holds nothing to stop.
+      if (this.#instance !== instance || instance.stopped) {
+        return;
+      }
       service.start();
       this.#stickers = service;
+      this.#stickersOwner = instance;
     } catch (error) {
       this.#log('telegram_stickers_failed', error);
     }
@@ -309,6 +343,7 @@ export class TelegramConnector {
   async #stopStickers(): Promise<void> {
     const service = this.#stickers;
     this.#stickers = undefined;
+    this.#stickersOwner = undefined;
     if (service === undefined) {
       return;
     }
@@ -319,23 +354,41 @@ export class TelegramConnector {
     }
   }
 
-  /** Drains the cold backlog before polling; a runtime pass is bounded by chat. */
-  async #runCatchUp(instance: RunningTelegram, coldStart: boolean, signal: AbortSignal): Promise<boolean> {
-    const hook = coldStart ? this.#options.hooks()?.coldCatchUp : this.#options.hooks()?.runtimeCatchUp;
+  /**
+   * Drains the backlog before polling. Returns `undefined` when the instance
+   * may go live, or the outcome that ends this attempt.
+   *
+   * The cold drain is unbounded and resumable: its marker owns every message
+   * since it began. A drain that did not finish — a crash, or a cancel by a
+   * newer request — is resumed by whichever connection comes next, and a cold
+   * drain that fails ends the attempt instead of going live: a live stream past
+   * a standing marker would let a later restart replay already-handled history.
+   * A runtime pass is bounded by chat and only best-effort context.
+   */
+  async #runCatchUp(
+    instance: RunningTelegram,
+    coldStart: boolean,
+    signal: AbortSignal,
+  ): Promise<ConnectOutcome | undefined> {
+    const cold = coldStart || this.#startupDrainPending();
+    const hook = cold ? this.#options.hooks()?.coldCatchUp : this.#options.hooks()?.runtimeCatchUp;
     if (hook === undefined) {
-      return true;
+      return undefined;
     }
     try {
       await hook(instance.api, instance.ingestion, signal, instance.me);
-      return true;
+      return undefined;
     } catch (error) {
       if (signal.aborted) {
-        return false;
+        return { kind: 'aborted' };
+      }
+      if (cold) {
+        return this.#failedAttempt('startupCatchUp', error);
       }
       // Context is a best-effort enrichment: a failed drain must not cost the
       // connection, and the live stream picks up from here.
       this.#log('telegram_catch_up_failed', error);
-      return true;
+      return undefined;
     }
   }
 

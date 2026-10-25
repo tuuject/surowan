@@ -73,12 +73,10 @@ test('an unreadable token is a configuration error, not a disabled Telegram', as
   );
 });
 
-test('an empty resolved token is also a configuration error', async () => {
+test('an empty resolved token is a disabled Telegram, like no token at all', async () => {
   process.env[ENV_NAME] = '';
   const loaded = await fixture((config) => {
     config.telegram = { ...config.telegram, token: { env: ENV_NAME } };
   });
-  await expect(resolveDoctorTelegram(loaded.config, new SecretStore())).rejects.toThrow(
-    'Telegram token cannot be read: Resolved secret is empty',
-  );
+  await expect(resolveDoctorTelegram(loaded.config, new SecretStore())).resolves.toEqual({ kind: 'disabled' });
 });

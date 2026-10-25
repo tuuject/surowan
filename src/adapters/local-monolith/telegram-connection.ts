@@ -114,6 +114,8 @@ export class TelegramConnectionManager {
   #hooks: TelegramConnectionHooks | undefined;
   #instance: RunningTelegram | undefined;
   #tail: Promise<void> = Promise.resolve();
+  /** Network retries run beside the tail so a newer request never waits for them. */
+  readonly #retries = new Set<Promise<void>>();
   #controller: AbortController | undefined;
   #pending: ConnectionRequest | undefined;
   #shuttingDown = false;
@@ -220,6 +222,9 @@ export class TelegramConnectionManager {
     this.#shuttingDown = true;
     this.#controller?.abort();
     await this.#tail.catch(() => undefined);
+    // A retry (even a superseded one) may be storing a backlog it already
+    // confirmed; the store must outlive that write.
+    await Promise.all(this.#retries);
     this.#instance = undefined;
     await this.#connector.shutdown();
     this.#stopActivity();
@@ -297,7 +302,9 @@ export class TelegramConnectionManager {
     if (outcome.kind === 'network' && !controller.signal.aborted && !this.#shuttingDown) {
       // Keep the transition (and the dedupe slot) until the retry settles: no
       // Telegram work may start into a connection that does not exist yet.
-      void this.#retryUntilConnected(token, controller, request, outcome.retryAfterMs);
+      const retry = this.#retryUntilConnected(token, controller, request, outcome.retryAfterMs);
+      this.#retries.add(retry);
+      void retry.finally(() => this.#retries.delete(retry));
       return;
     }
     this.#finish(request);
@@ -326,6 +333,11 @@ export class TelegramConnectionManager {
         }
         delayMs = outcome.retryAfterMs;
       }
+    } catch (error) {
+      // Nothing awaits this loop but shutdown, so a throw would surface as an
+      // unhandled rejection and end the process. Same as a first attempt that
+      // throws: the failure is logged and the attempt ends.
+      logEvent('telegram_connection_failed', { error: this.#secrets.redact(messageOf(error)) });
     } finally {
       this.#finish(request);
     }

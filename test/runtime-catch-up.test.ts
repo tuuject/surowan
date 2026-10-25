@@ -180,13 +180,14 @@ describe('runtime catch-up', () => {
     fixture.store.close();
   });
 
-  test('aborting mid-pass leaves no catch-up work', async () => {
+  test('aborting mid-pass stores the confirmed backlog but creates no catch-up work', async () => {
     const fixture = await setup(false);
     const controller = new AbortController();
     const inner = fixture.ingestion;
     let ingested = 0;
-    // Abort after the second stored message: the pass is already partially
-    // drained, which is exactly the state a replaced token leaves behind.
+    // Abort after the second stored message: the stream is already drained
+    // (and confirmed), which is exactly the state a replaced token leaves
+    // behind.
     const ingestion = {
       ingestCatchUp: (update: Update, receivedAt: Date) => {
         const result = inner.ingestCatchUp(update, receivedAt);
@@ -212,14 +213,63 @@ describe('runtime catch-up', () => {
       captured.restore();
     }
 
-    expect(ingested).toBe(2);
-    expect(count(fixture, 'messages')).toBe(2n);
+    // Telegram will not deliver these again, so the cancel must not skip them.
+    expect(ingested).toBe(3);
+    expect(count(fixture, 'messages')).toBe(3n);
     expect(count(fixture, 'buckets')).toBe(0n);
     expect(count(fixture, 'invocations')).toBe(0n);
     expect(captured.entries).toContainEqual(
-      expect.objectContaining({ event: 'runtime_catch_up_aborted', updates: 3, stored_messages: 2 }),
+      expect.objectContaining({ event: 'runtime_catch_up_aborted', updates: 3, stored_messages: 3 }),
     );
     expect(captured.entries.some((entry) => entry.event === 'runtime_catch_up_completed')).toBe(false);
+    fixture.store.close();
+  });
+
+  test('a page that fails after earlier pages were confirmed still stores and schedules them', async () => {
+    const fixture = await setup(false);
+    const updates: Update[] = [];
+    for (let index = 1; index <= 120; index += 1) {
+      updates.push(textUpdate(index, index, 7, FIRST_CHAT_ID));
+    }
+    const healthy = fakeApi(updates);
+    const failure = new Error('socket hang up');
+    const offsets: (number | undefined)[] = [];
+    const api: StartupCatchUpApi = {
+      getUpdates: async (options) => {
+        offsets.push(options.offset);
+        // The second request carries `offset`, which confirms the first page.
+        if (options.offset !== undefined) {
+          throw failure;
+        }
+        return await healthy.getUpdates(options);
+      },
+    };
+    const captured = captureEvents();
+    try {
+      await expect(drain(fixture, api)).rejects.toBe(failure);
+    } finally {
+      captured.restore();
+    }
+
+    expect(offsets).toEqual([undefined, 101]);
+    expect(count(fixture, 'messages')).toBe(100n);
+    expect(
+      fixture.store.db
+        .prepare<[], { kind: string; state: string; count: bigint }>(
+          'SELECT kind, state, COUNT(*) AS count FROM buckets GROUP BY kind, state',
+        )
+        .all(),
+    ).toEqual([{ kind: 'startup_catch_up', state: 'queued', count: 1n }]);
+    expect(count(fixture, 'invocations')).toBe(1n);
+    expect(captured.entries).toContainEqual(
+      expect.objectContaining({
+        event: 'runtime_catch_up_interrupted',
+        updates: 100,
+        retained: 100,
+        stored_messages: 100,
+        invocations: 1,
+      }),
+    );
     fixture.store.close();
   });
 

@@ -73,6 +73,34 @@ test.describe('Telegram settings', () => {
     expect(view.telegram_section_present).toBe(true);
   });
 
+  test('a failed status poll keeps the token being typed', async ({ page }) => {
+    await page.goto(await adminUrl('/telegram'));
+    const input = page.getByLabel('New Bot Token');
+    await input.fill('123456:half-typed-token');
+
+    // The page polls every 10 s; fail the next poll only.
+    await page.route('**/api/telegram', (route) =>
+      route.request().method() === 'GET'
+        ? route.fulfill({
+            status: 500,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: 'internal_error', message: 'poll failed' }),
+          })
+        : route.fallback(),
+    );
+    await expect(page.getByText('Failed to read the Telegram settings', { exact: false })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(input).toHaveValue('123456:half-typed-token');
+    await expect(page.getByRole('button', { name: 'Save token' })).toBeEnabled();
+
+    await page.unroute('**/api/telegram');
+    await expect(page.getByText('Failed to read the Telegram settings', { exact: false })).toHaveCount(0, {
+      timeout: 20_000,
+    });
+    await expect(input).toHaveValue('123456:half-typed-token');
+  });
+
   test('the overview shows the current Telegram status', async ({ page }) => {
     await setConnection({ status: 'connected' });
     await page.goto(await adminUrl('/'));

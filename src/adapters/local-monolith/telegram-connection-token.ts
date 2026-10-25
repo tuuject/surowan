@@ -3,27 +3,23 @@
  *
  * A configuration may name a token through any SecretRef, so whether Telegram
  * can run is only decided after resolving it. The three outcomes are different
- * states, not different errors: no token means the user disabled Telegram, a
- * token that cannot be read is a configuration problem, and anything else is a
- * token the connection manager may try.
+ * states, not different errors: no token (absent, or a SecretRef that resolves
+ * to an empty value) means the user disabled Telegram, a token that cannot be
+ * read is a configuration problem, and anything else is a token the connection
+ * manager may try.
  */
 
 import { createHash } from 'node:crypto';
 import type { RawConfig } from '../../platform/config.ts';
-import { SecretResolutionError, type SecretStore } from '../../platform/secrets.ts';
+import { EmptySecretError, SecretResolutionError, type SecretStore } from '../../platform/secrets.ts';
 
 export type TelegramTokenSource =
-  /** No `telegram.token` in the configuration: Telegram is disabled by choice. */
+  /** No `telegram.token`, or one whose value is empty: Telegram is disabled by choice. */
   | { readonly kind: 'disabled' }
   /** A configured SecretRef that cannot be turned into a value. */
   | { readonly kind: 'unreadable'; readonly message: string }
   /** A usable Bot Token. Callers must never log this value. */
   | { readonly kind: 'token'; readonly token: string };
-
-/** Whether the configuration asks for no Telegram at all. */
-export function isTelegramDisabled(config: RawConfig): boolean {
-  return config.telegram.token === undefined;
-}
 
 /**
  * Resolves the configured token. Every secret failure is a state the process
@@ -42,6 +38,11 @@ export async function resolveTelegramTokenSource(
     const token = await secrets.resolve(reference);
     return { kind: 'token', token };
   } catch (error) {
+    // An empty variable or jar entry is the same "Bot Token is empty" as not
+    // writing one; only a reference that cannot be read at all is broken.
+    if (error instanceof EmptySecretError) {
+      return { kind: 'disabled' };
+    }
     if (error instanceof SecretResolutionError) {
       return { kind: 'unreadable', message: secrets.redact(error.message) };
     }

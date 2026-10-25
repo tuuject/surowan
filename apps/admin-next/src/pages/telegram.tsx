@@ -176,7 +176,7 @@ export default function TelegramPage(): React.ReactElement {
     );
   }
 
-  if (query.isError || query.data === undefined) {
+  if (query.isLoadingError || query.data === undefined) {
     return (
       <div className="max-w-3xl space-y-4" role="alert">
         <p className="text-destructive text-sm">
@@ -189,5 +189,15 @@ export default function TelegramPage(): React.ReactElement {
     );
   }
 
-  return <TelegramSettings view={query.data} />;
+  // A failed poll keeps the form mounted, so a token being typed survives it.
+  return (
+    <div className="space-y-4">
+      {query.isError ? (
+        <p className="text-destructive max-w-3xl text-sm break-words" role="alert">
+          {t('pages.telegram.readFailed')}: {errorMessage(query.error)}
+        </p>
+      ) : null}
+      <TelegramSettings view={query.data} />
+    </div>
+  );
 }

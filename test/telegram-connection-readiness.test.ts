@@ -180,6 +180,71 @@ describe('connection readiness', () => {
     }
   });
 
+  test('startup recovery closes a dead process run although Telegram is not ready yet', async () => {
+    const { store, configStore } = await fixture();
+    seedTelegramChat(store, 900n);
+    seedQueuedInvocation(store, 900n);
+    // What a killed process leaves behind: its run is still `running`.
+    const startedAt = new Date(Date.now() - 60_000).toISOString();
+    store.orm
+      .insert(buckets)
+      .values({
+        id: 901n,
+        conversationId: 900n,
+        state: 'running',
+        kind: 'realtime',
+        firstReceivedAt: startedAt,
+        deadlineAt: startedAt,
+        createdAt: startedAt,
+        updatedAt: startedAt,
+      })
+      .run();
+    store.orm
+      .insert(invocations)
+      .values({
+        id: 901n,
+        bucketId: 901n,
+        conversationId: 900n,
+        state: 'running',
+        configHash: 'fixture',
+        promptVersion: 1n,
+        startedAt,
+        createdAt: startedAt,
+      })
+      .run();
+    const registry = new ImConnectionRegistry(() => new Date('2026-01-01T00:00:00.000Z'));
+    const launched: bigint[] = [];
+    const scheduler = schedulerFor(store, configStore, readinessFor(registry), launched);
+    // Recovery runs once, here, while the connection is still coming up.
+    scheduler.start();
+    try {
+      expect(
+        store.orm
+          .select({ state: invocations.state, reason: invocations.completionReason })
+          .from(invocations)
+          .where(eq(invocations.id, 901n))
+          .get(),
+      ).toEqual({ state: 'aborted', reason: 'process_restart' });
+      expect(store.orm.select({ state: buckets.state }).from(buckets).where(eq(buckets.id, 901n)).get()?.state).toBe(
+        'aborted',
+      );
+      // Fresh queued work is not the dead process's to close; it waits.
+      expect(invocationState(store, 900n)).toBe('queued');
+
+      registry.set('telegram', {
+        status: 'connected',
+        since: '2026-01-01T00:00:01.000Z',
+        bot: { id: '42', username: 'fixture_bot' },
+      });
+      scheduler.wake();
+      // The stale `running` row no longer blocks the chat.
+      await until(() => launched.length === 1);
+      expect(launched[0]).toBe(900n);
+    } finally {
+      await scheduler.stop(1_000);
+    }
+  });
+
   test('a due Telegram timer completes but its receipt stays pending until ready', async () => {
     const { store, configStore } = await fixture();
     seedTelegramChat(store, 900n);

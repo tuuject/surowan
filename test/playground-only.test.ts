@@ -130,7 +130,7 @@ function jsonBody(value: unknown): RequestInit {
   return { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(value) };
 }
 
-test('a process with Telegram disabled runs the room round and leaves Telegram work untouched', async () => {
+test('a process with Telegram disabled runs the room round and only recovers what a dead process left', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-playground-only-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
@@ -231,9 +231,10 @@ test('a process with Telegram disabled runs the room round and leaves Telegram w
     // Synthetic Telegram work: a running invocation, a queued one, a due
     // alarm, a stale collecting bucket, a queued invocation holding a claimed
     // receipt for a chat the config no longer lists, and an active sleep
-    // window. Recovery, timer completion, receipt suppression and the sleep
-    // skip would each rewrite one of them; a scheduler with Telegram disabled must
-    // leave them all alone.
+    // window. Startup recovery closes what the dead previous process left
+    // (its run, its claim, its stale bucket) whether or not Telegram is up;
+    // receipt claims, suppression, the sleep skip and launches all wait for a
+    // ready connection.
     const stamp = new Date().toISOString();
     const due = new Date(Date.now() - 60_000).toISOString();
     const stale = new Date(Date.now() - 60 * 60_000).toISOString();
@@ -353,15 +354,15 @@ test('a process with Telegram disabled runs the room round and leaves Telegram w
     expect(releaseDetail.body.sends).toMatchObject([{ state: 'success', kind: 'text' }]);
     expect(agentCalls).toBeGreaterThan(0);
 
-    // Telegram work is untouched: the running invocation is still running, the
-    // queued one is still queued, and the overdue alarm never fired.
+    // The dead process's run and its claimed receipt are closed by startup
+    // recovery; the fresh queued run still waits for Telegram.
     const invocations = await call('/api/invocations?limit=50');
     const byId = new Map(
       (invocations.body.items as { id: string; state: string }[]).map((item) => [item.id, item.state]),
     );
-    expect(byId.get('900')).toBe('running');
+    expect(byId.get('900')).toBe('aborted');
     expect(byId.get('901')).toBe('queued');
-    expect(byId.get('903')).toBe('queued');
+    expect(byId.get('903')).toBe('aborted');
 
     // A config apply validates tool registries against a host this process
     // binds: without the Telegram host, a Telegram preview would fail every
@@ -387,23 +388,35 @@ test('a process with Telegram disabled runs the room round and leaves Telegram w
 
     // The persisted Telegram rows, read after the process stopped. With no
     // Telegram instance the overdue timer still completes, but its receipt is
-    // never claimed and no invocation is queued for it. Everything else stays
-    // exactly where it was: no recovery, no expiry, no launch.
+    // never claimed and no invocation is queued for it. Recovery closed the
+    // previous process's work once at startup; nothing was launched.
     const after = await SqliteStore.open((await loadConfig(configPath)).config);
     try {
       const row = (query: string) => after.db.prepare(query).get() as Record<string, unknown> | undefined;
       expect(row('SELECT state FROM long_tasks WHERE id = 900')).toEqual({ state: 'completed' });
       expect(row('SELECT COUNT(*) AS n FROM task_receipts WHERE task_id = 900')).toEqual({ n: 1n });
       expect(row('SELECT state FROM task_receipts WHERE task_id = 900')).toEqual({ state: 'pending' });
-      expect(row('SELECT state FROM task_receipts WHERE task_id = 901')).toEqual({ state: 'claimed' });
+      // A claim of a dead process is never replayed.
+      expect(row('SELECT state FROM task_receipts WHERE task_id = 901')).toEqual({ state: 'handled' });
+      expect(row('SELECT state, completion_reason FROM invocations WHERE id = 900')).toEqual({
+        state: 'aborted',
+        completion_reason: 'process_restart',
+      });
+      expect(row('SELECT state, error_code FROM buckets WHERE id = 900')).toEqual({
+        state: 'aborted',
+        error_code: 'process_restart',
+      });
       expect(row('SELECT state, error_code FROM buckets WHERE id = 902')).toEqual({
-        state: 'collecting',
-        error_code: null,
+        state: 'expired',
+        error_code: 'recovery_age',
       });
       expect(row('SELECT state FROM buckets WHERE id = 901')).toEqual({ state: 'queued' });
-      expect(row('SELECT state FROM buckets WHERE id = 903')).toEqual({ state: 'queued' });
+      expect(row('SELECT state FROM buckets WHERE id = 903')).toEqual({ state: 'aborted' });
       expect(row('SELECT state FROM invocations WHERE id = 901')).toEqual({ state: 'queued' });
-      expect(row('SELECT state FROM invocations WHERE id = 903')).toEqual({ state: 'queued' });
+      expect(row('SELECT state, completion_reason FROM invocations WHERE id = 903')).toEqual({
+        state: 'aborted',
+        completion_reason: 'process_restart',
+      });
     } finally {
       after.close();
     }
