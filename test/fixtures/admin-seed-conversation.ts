@@ -10,7 +10,7 @@ import {
   senders,
   stickerSets,
   stickers,
-} from '../../src/store/schema.ts';
+} from '../../src/store/schema/index.ts';
 import { AT, T } from './admin-seed-data.ts';
 
 /**

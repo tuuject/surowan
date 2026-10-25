@@ -96,4 +96,4 @@ export {
   prompts,
   safeInteger,
 } from './schema.ts';
-export { GenerationWorker } from './worker.ts';
+export { GenerationWorker } from './worker/index.ts';

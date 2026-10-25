@@ -8,7 +8,7 @@
  */
 import type { ServerType } from '@hono/node-server';
 import type { SqliteStore } from '../../../src/adapters/local-monolith/database.ts';
-import type { AdminServer } from '../../../src/ingress/admin/server.ts';
+import type { AdminServer } from '../../../src/ingress/admin/index.ts';
 import type { ImConnectionRegistry } from '../../../src/platform/im-connection.ts';
 
 export const state: {

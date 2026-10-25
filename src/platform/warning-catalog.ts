@@ -1,5 +1,5 @@
-import { activeVisionModel } from './config-resolve.ts';
-import type { RawConfig } from './config.ts';
+import { activeVisionModel } from './config/resolve.ts';
+import type { RawConfig } from './config/index.ts';
 import type { ImConnectionRegistry } from './im-connection.ts';
 
 /**

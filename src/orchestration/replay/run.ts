@@ -9,19 +9,19 @@ import { randomUUID } from 'node:crypto';
 import { Agent } from '@earendil-works/pi-agent-core';
 import { modelDefinitionSchema, type PublicModel } from '@surowan/image-service';
 
-import { estimateMessageTokens } from '../../context/context-codec.ts';
+import { estimateMessageTokens } from '../../context/codec.ts';
 import { composeAgentPrompt, PromptOverrideError, preparePromptOverride } from '../../platform/agent-prompt.ts';
 import type { KeyedSemaphore } from '../../platform/concurrency.ts';
-import { configuredToolSchemaKeywords, type RawConfig } from '../../platform/config.ts';
+import { configuredToolSchemaKeywords, type RawConfig } from '../../platform/config/index.ts';
 import { invocationGateKey } from '../../platform/invocation-policy.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import { applyToolSchemaKeywords } from '../../platform/tool-schema.ts';
 import { RepeatedToolFailure } from '../repeated-tool-failure.ts';
-import type { ReplayPromptOverrides } from '../replay.ts';
-import { createReplayTools } from '../replay-tools.ts';
+import type { ReplayPromptOverrides } from './index.ts';
+import { createReplayTools } from './tools.ts';
 import { PREFLIGHT_FIDELITY, sceneMetadata } from './preflight.ts';
 import { prepareReplay, type ReplayPrepareDeps } from './prepare.ts';
-import { DUPLICATE_SEND_REJECTION_LIMIT, duplicateSendGuard } from '../../capabilities/send-tool-support.ts';
+import { DUPLICATE_SEND_REJECTION_LIMIT, duplicateSendGuard } from '../../capabilities/send/support.ts';
 
 const MAX_TRACE_BYTES = 1_048_576;
 const MAX_TOOL_CALLS = 128;

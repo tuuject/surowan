@@ -158,7 +158,7 @@
 
 例如 500×500×500 帧的 RGBA 若整段常驻内存，约占 477 MiB。应顺序解码、保留有界缓冲，不默认将整段展开成一张超高图或全部帧数组。
 
-本项目现有图片边界见 [media-image.ts:10](../../../src/capabilities/media/media-image.ts#L10)：20 MiB 下载、40,000,000 解码像素、10 MiB 标准化输出。当前 [格式列表:14](../../../src/capabilities/media/media-image.ts#L14)不包含 GIF；[现有媒体流程](../../../agent-doc/telegram-agent-flow.md#用户图片模型分流)主要仍是静态图片与 Sticker 代表帧。
+本项目现有图片边界见 [media-image.ts:10](../../../src/capabilities/media/image.ts#L10)：20 MiB 下载、40,000,000 解码像素、10 MiB 标准化输出。当前 [格式列表:14](../../../src/capabilities/media/image.ts#L14)不包含 GIF；[现有媒体流程](../../../agent-doc/telegram-agent-flow.md#用户图片模型分流)主要仍是静态图片与 Sticker 代表帧。
 
 本次原始资产最大约 38.7 MiB，不能为了样本全覆盖就取消现有安全边界。实际预算应结合服务器资源与 Telegram 转码后载荷另定；本研究未修改 runtime、权限或配置。
 

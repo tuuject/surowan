@@ -1,6 +1,12 @@
 import { and, desc, eq, gte, lt, or, type SQL, sql } from 'drizzle-orm';
 import { telegramHostScope, telegramIdentity } from '../../../store/host-scope.ts';
-import { chats, contextMessages, contextRefs, conversationContexts, conversations } from '../../../store/schema.ts';
+import {
+  chats,
+  contextMessages,
+  contextRefs,
+  conversationContexts,
+  conversations,
+} from '../../../store/schema/index.ts';
 import type { Orm } from '../../../store/store.ts';
 import {
   AdminQueryError,
@@ -10,7 +16,7 @@ import {
   type Page,
   parseId,
   parseLimit,
-} from '../audit.ts';
+} from './shared.ts';
 
 interface ConversationContextRow {
   readonly id: bigint;

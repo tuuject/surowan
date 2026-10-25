@@ -1,4 +1,4 @@
-import type { FileChat, ProactiveReplyConfig } from './config.ts';
+import type { FileChat, ProactiveReplyConfig } from './config/index.ts';
 
 export interface ProactiveReplySettings {
   readonly enabled: boolean;

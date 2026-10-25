@@ -3,7 +3,7 @@
  * sends, and the invocation summaries with their usage and receipt state.
  */
 import { and, asc, desc, eq, inArray, lt, sql } from 'drizzle-orm';
-import type { ReleaseDetail, ReleaseSend, RoomInvocationSummary, TimelineEntry, TimelineMedia } from '../playground.ts';
+import type { ReleaseDetail, ReleaseSend, RoomInvocationSummary, TimelineEntry, TimelineMedia } from './index.ts';
 import {
   hostSends,
   invocations,
@@ -15,7 +15,7 @@ import {
   senders,
   taskReceipts,
   toolCalls,
-} from '../schema.ts';
+} from '../schema/index.ts';
 import { PlaygroundError, type PlaygroundDeps, roomRow } from './shared.ts';
 
 export function timeline(

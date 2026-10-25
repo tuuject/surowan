@@ -15,12 +15,12 @@ import { googleGenerativeAIApi } from '@earendil-works/pi-ai/api/google-generati
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy';
 import { builtinModelApi, findBuiltinProvider } from './builtin-providers.ts';
-import type { FileConfig, ModelCompatConfig, ModelFileConfig, RawConfig, ThinkingLevelConfig } from './config.ts';
-import { deepEqual } from './config-diff-merge.ts';
+import type { FileConfig, ModelCompatConfig, ModelFileConfig, RawConfig, ThinkingLevelConfig } from './config/index.ts';
+import { deepEqual } from './config/diff-merge.ts';
 import type { ConfigurationModels } from './runtime-config.ts';
 import type { SecretStore } from './secrets.ts';
 import { thinkingLevelMap } from './thinking-levels.ts';
-import { activeVisionModel, completeAgentSettings, resolveAgentSettings } from './config-resolve.ts';
+import { activeVisionModel, completeAgentSettings, resolveAgentSettings } from './config/resolve.ts';
 
 type ProviderFileConfig = FileConfig['providers'][string];
 

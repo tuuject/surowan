@@ -1,11 +1,11 @@
 import { HOST_KINDS, type HostKind } from '../platform/im-host.ts';
-import { LongTaskService } from '../store/long-tasks.ts';
+import { LongTaskService } from '../store/long-tasks/index.ts';
 import type { WarningService } from '../store/warnings.ts';
-import { AgentRuntime } from './agent-runtime.ts';
-import type { AgentRuntimeOptions } from './agent-runtime-types.ts';
+import { AgentRuntime } from './agent-runtime/index.ts';
+import type { AgentRuntimeOptions } from './agent-runtime/types.ts';
 import { ConversationRuntime } from './conversation-runtime.ts';
 import { everyHostReady, type HostReadiness } from './host-scope.ts';
-import { BucketScheduler } from './scheduler.ts';
+import { BucketScheduler } from './scheduler/index.ts';
 
 /** Prepared host dependencies only: no file loading, transport or process lifecycle. */
 export interface CoreRuntimeOptions extends Omit<AgentRuntimeOptions, 'conversationRuntime'> {

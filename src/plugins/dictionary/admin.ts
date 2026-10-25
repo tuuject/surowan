@@ -2,26 +2,26 @@ import type { Models } from '@earendil-works/pi-ai';
 import { and, eq } from 'drizzle-orm';
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
-import type { DictionaryConflict, DictionaryDraft, DictionaryEntryRecord, DictionaryScope } from './dictionary.ts';
+import type { DictionaryConflict, DictionaryDraft, DictionaryEntryRecord, DictionaryScope } from './tools.ts';
 import { type DictionaryFormat, encodeDictionaryExport, exportFileName, parseDictionaryImport } from './format.ts';
 import { suggestMerge } from './merge.ts';
 import { resolveDictionaryInjectionMode } from './injection.ts';
-import type { DictionaryInjectionMode } from '../../platform/config.ts';
+import type { DictionaryInjectionMode } from '../../platform/config/index.ts';
 import { resolveToolModel } from '../../platform/tool-model.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import { asRunResult, type Orm } from '../../store/store.ts';
-import { chats, dictionaryEntries } from '../../store/schema.ts';
+import { chats, dictionaryEntries } from '../../store/schema/index.ts';
 import { telegramHostScope, telegramIdentity } from '../../store/host-scope.ts';
-import { AdminQueryError } from '../../ingress/admin/audit.ts';
-import { conflictGroupsFromValues, conflictsForScope } from './dictionary-conflicts.ts';
+import { AdminQueryError } from '../../ingress/admin/audit/shared.ts';
+import { conflictGroupsFromValues, conflictsForScope } from './conflicts.ts';
 import {
   DICTIONARY_ALIAS_MAX_LENGTH,
   DICTIONARY_DEFINITION_MAX_LENGTH,
   DICTIONARY_MAX_ALIASES,
   DICTIONARY_TERM_MAX_LENGTH,
   DictionaryError,
-} from './dictionary-match.ts';
-import { DictionaryStore } from './dictionary-store.ts';
+} from './match.ts';
+import { DictionaryStore } from './store.ts';
 
 /**
  * Admin-facing dictionary operations: CRUD with per-entry optimistic locking,

@@ -1,5 +1,5 @@
 import { and, eq, type SQL, sql } from 'drizzle-orm';
-import { media, mediaAnalyses, messageRevisions, senders } from '../../../store/schema.ts';
+import { media, mediaAnalyses, messageRevisions, senders } from '../../../store/schema/index.ts';
 import type { Orm } from '../../../store/store.ts';
 import {
   AdminQueryError,
@@ -14,7 +14,7 @@ import {
   parseId,
   parseLimit,
   whereSql,
-} from '../audit.ts';
+} from './shared.ts';
 
 interface MessageListRow {
   readonly id: bigint;

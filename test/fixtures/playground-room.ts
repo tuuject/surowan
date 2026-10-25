@@ -19,8 +19,8 @@ import {
   roomParticipants,
   rooms,
   senders,
-} from '../../src/store/schema.ts';
-import { ROOM_SNAPSHOT_FORMAT } from '../../src/context/context-builder-schema.ts';
+} from '../../src/store/schema/index.ts';
+import { ROOM_SNAPSHOT_FORMAT } from '../../src/context/builder/schema.ts';
 
 export interface SeededRoomMessage {
   readonly seq: number;

@@ -11,7 +11,7 @@ import {
   messages,
   senders,
   stickers,
-} from '../../src/store/schema.ts';
+} from '../../src/store/schema/index.ts';
 import { AT, insertAlarmTask, T } from './admin-seed-data.ts';
 
 /**

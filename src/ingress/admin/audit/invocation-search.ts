@@ -1,5 +1,5 @@
 import { type SQL, sql } from 'drizzle-orm';
-import type { RawConfig } from '../../../platform/config.ts';
+import type { RawConfig } from '../../../platform/config/index.ts';
 import {
   MessageTimeError,
   type MessageTimeOptions,
@@ -15,7 +15,7 @@ import {
   MAX_SEARCH_LENGTH,
   optionalFilter,
   parseId,
-} from '../audit.ts';
+} from './shared.ts';
 
 /** Keyword/time searches report only the first few matching messages per invocation. */
 const MAX_MATCHED_MESSAGES = 5;

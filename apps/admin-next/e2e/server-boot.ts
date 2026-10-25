@@ -9,11 +9,11 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { serve } from '@hono/node-server';
-import { ConfigReloader } from '../../../src/adapters/local-monolith/config-reload.ts';
-import { AdminServer } from '../../../src/ingress/admin/server.ts';
+import { ConfigReloader } from '../../../src/adapters/local-monolith/config/reload.ts';
+import { AdminServer } from '../../../src/ingress/admin/index.ts';
 import { ImConnectionRegistry } from '../../../src/platform/im-connection.ts';
 import { keyJarPath } from '../../../src/platform/key-jar.ts';
-import { AgentModelSwitcher } from '../../../src/platform/model-switch.ts';
+import { AgentModelSwitcher } from '../../../src/platform/models/switch.ts';
 import { buildModelRegistry } from '../../../src/platform/providers.ts';
 import { RuntimeConfigurationStore } from '../../../src/platform/runtime-config.ts';
 import { SecretStore } from '../../../src/platform/secrets.ts';
@@ -120,7 +120,7 @@ export async function main(): Promise<void> {
     },
     // The E2E process has to outlive the suite, so a restart request is recorded
     // instead of shutting the process down. `POST /api/restart` itself (the
-    // config check and the 202) is exercised by test/admin-providers.test.ts.
+    // config check and the 202) is exercised by test/admin/providers.test.ts.
     requestRestart: () => {
       console.log('E2E_RESTART_REQUESTED');
     },

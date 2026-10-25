@@ -19,7 +19,7 @@ import {
   type RoomStatus,
   type SubmitMedia,
   type SubmitResult,
-} from '../store/playground.ts';
+} from '../store/playground/index.ts';
 import { PlaygroundError } from '../store/playground/shared.ts';
 
 export interface PlaygroundIngressOptions {

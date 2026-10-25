@@ -4,7 +4,7 @@ import { and, eq, gt, sql } from 'drizzle-orm';
 import Type from 'typebox';
 import type { InvocationContext } from '../platform/invocation-context.ts';
 import { asRunResult, finishToolCall, type Orm, startToolCall } from '../store/store.ts';
-import { memories } from '../store/schema.ts';
+import { memories } from '../store/schema/index.ts';
 
 export const DEFAULT_MEMORY_TTL_SECONDS = 86_400;
 export const MEMORY_MAX_CONTENT_LENGTH = 150;

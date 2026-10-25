@@ -4,7 +4,7 @@
 
 | 环节 | 当前入口与契约 |
 | --- | --- |
-| 用户事实源 | `apps/docs/content/docs/` 的 Markdown、`_meta.json` 导航及 frontmatter。生成字段参考与部署示例由 `scripts/docs-prepare.ts` 提供；不从历史设计、人格或模型常识补产品事实。 |
+| 用户事实源 | `apps/docs/content/docs/` 的 Markdown、`_meta.json` 导航及 frontmatter。生成字段参考与部署示例由 `scripts/docs/prepare.ts` 提供；不从历史设计、人格或模型常识补产品事实。 |
 | 手册打包 | `scripts/manual-prepare.ts` 将页面、生成参考与示例打包到被 Git 忽略的 `src/manual/`，生成每页一行的 `index.md`。这个目录索引负责找页面，不负责理解用户意图。 |
 | 文档能力 | `createDocumentTools` 提供 `list_documents({space?})` 和 `read_document({space,path,base?})`，经 `execute` 注册表调用。前者返回空间或 Markdown 目录；后者返回整页文本以及 `{space,path,truncated}`，上限 32 KiB。相对链接可用 `base`，锚点不做切片。只读、路径受限、工具调用落审计。 |
 | 可用范围 | Local Monolith 安装 `manual` 空间；与 Conversation 授权上下文一起传入。未执行 `manual:prepare` 的源码部署可能返回 `unknown_space`，doctor 会报缺包。 |

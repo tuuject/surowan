@@ -51,7 +51,7 @@ test('the old transport construction entry points are gone', () => {
 test('the orchestrator imports the host contract, not a transport client', () => {
   const files = sourceFiles('src/orchestration');
   expect(offenders(files, /from 'grammy'/)).toEqual([]);
-  expect(offenders(files, /from '\.\.\/adapters\/local-monolith\/telegram-host\.ts'/)).toEqual([]);
+  expect(offenders(files, /from '\.\.\/adapters\/local-monolith\/telegram\/host\.ts'/)).toEqual([]);
 });
 
 test('only the Telegram host owns the grammY client, the local monolith and its CLI excepted', () => {
@@ -75,8 +75,8 @@ test('Telegram markup is named in exactly two places outside the tool schema', (
   // tool, and the host is the only other module that knows the name.
   const files = sourceFiles('src');
   expect([...offenders(files, /MarkdownV2/)].sort()).toEqual([
-    'src/adapters/local-monolith/telegram-host.ts',
-    'src/capabilities/send-tool.ts',
+    'src/adapters/local-monolith/telegram/host.ts',
+    'src/capabilities/send/index.ts',
   ]);
 });
 
@@ -91,7 +91,7 @@ test('the remaining Telegram type coupling is exactly this and no more', () => {
     offenders(sourceFiles('src/orchestration'), /from 'grammy\/types'/),
   );
   expect([...coupled].sort()).toEqual([
-    'src/orchestration/bot-commands.ts',
+    'src/orchestration/bot-commands/index.ts',
     'src/orchestration/proactive-reply.ts',
     'src/platform/participation.ts',
   ]);

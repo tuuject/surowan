@@ -2,7 +2,7 @@ import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { and, eq, sql } from 'drizzle-orm';
 import Type from 'typebox';
 import { asRunResult, finishToolCall, type Orm, startToolCall } from './store.ts';
-import { appState } from './schema.ts';
+import { appState } from './schema/index.ts';
 
 export const SLEEP_REMAINING_BUDGET_PERCENT = 5n;
 export const MINIMUM_SLEEP_MILLISECONDS = 8 * 60 * 60 * 1_000;

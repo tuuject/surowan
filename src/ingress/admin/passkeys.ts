@@ -9,10 +9,10 @@ import { and, eq } from 'drizzle-orm';
 import Type from 'typebox';
 import { Compile } from 'typebox/compile';
 
-import { adminPasskeys, adminUsers } from '../../store/schema.ts';
+import { adminPasskeys, adminUsers } from '../../store/schema/index.ts';
 import { asRunResult, type Orm } from '../../store/store.ts';
 import { type AdminAuth, AdminAuthError, hashToken } from './auth.ts';
-import { adminPublicOrigin } from '../../platform/config-semantics.ts';
+import { adminPublicOrigin } from '../../platform/config/semantics.ts';
 
 const CHALLENGE_MS = 5 * 60_000;
 const MAX_PENDING = 1_000;

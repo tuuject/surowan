@@ -6,8 +6,8 @@ import {
 } from '@surowan/image-service';
 import { and, eq, sql } from 'drizzle-orm';
 import type { BusinessStore } from '../store/store.ts';
-import { type LongTaskService, TaskQuotaError } from '../store/long-tasks.ts';
-import { chats, conversations, longTasks, rooms } from '../store/schema.ts';
+import { type LongTaskService, TaskQuotaError } from '../store/long-tasks/index.ts';
+import { chats, conversations, longTasks, rooms } from '../store/schema/index.ts';
 import type { ImageService } from './service.ts';
 
 /**

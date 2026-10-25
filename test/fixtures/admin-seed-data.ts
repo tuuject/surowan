@@ -1,5 +1,5 @@
 import type { Orm } from '../../src/store/store.ts';
-import { longTasks, taskReceipts } from '../../src/store/schema.ts';
+import { longTasks, taskReceipts } from '../../src/store/schema/index.ts';
 
 /**
  * Deterministic row ids, seed timestamps, JSON payloads and the shared alarm

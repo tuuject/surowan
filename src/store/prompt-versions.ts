@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
-import type { RawConfig } from '../platform/config.ts';
+import type { RawConfig } from '../platform/config/index.ts';
 import type { Orm } from './store.ts';
-import { promptVersions } from './schema.ts';
+import { promptVersions } from './schema/index.ts';
 
 /** How many versions each scope keeps; older rows are pruned by `seq`. */
 export const PROMPT_VERSIONS_RETAINED = 100n;

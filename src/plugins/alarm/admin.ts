@@ -1,8 +1,8 @@
 import { and, eq, type SQL, sql } from 'drizzle-orm';
-import { AdminQueryError, type ListQuery, type Page, parseId, parseLimit } from '../../ingress/admin/audit.ts';
+import { AdminQueryError, type ListQuery, type Page, parseId, parseLimit } from '../../ingress/admin/audit/shared.ts';
 import type { Orm } from '../../store/store.ts';
-import type { LongTaskService } from '../../store/long-tasks.ts';
-import { longTasks } from '../../store/schema.ts';
+import type { LongTaskService } from '../../store/long-tasks/index.ts';
+import { longTasks } from '../../store/schema/index.ts';
 
 const ALARM_STATES = new Set(['pending', 'firing', 'fired', 'cancelled']);
 

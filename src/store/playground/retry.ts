@@ -5,7 +5,7 @@
  */
 import { and, desc, eq, gt, sql } from 'drizzle-orm';
 import { enqueueInvocation } from '../invocation-enqueue.ts';
-import type { RetryInput, RetryResult } from '../playground.ts';
+import type { RetryInput, RetryResult } from './index.ts';
 import {
   buckets,
   invocationBuckets,
@@ -15,7 +15,7 @@ import {
   playgroundReleases,
   playgroundRetries,
   taskReceipts,
-} from '../schema.ts';
+} from '../schema/index.ts';
 import { PlaygroundError, type PlaygroundDeps, roomRow } from './shared.ts';
 
 export function retry(deps: PlaygroundDeps, chatId: bigint, input: RetryInput): RetryResult {

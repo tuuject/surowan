@@ -15,18 +15,18 @@ import Database from 'better-sqlite3';
 import { Bot } from 'grammy';
 import sharp from 'sharp';
 import Type from 'typebox';
-import { McpManager } from './capabilities/mcp.ts';
-import { MediaService } from './capabilities/media/media.ts';
-import { TelegramMediaClient } from './capabilities/media/media-download.ts';
-import { createLottieCommand } from './capabilities/media/media-image.ts';
+import { McpManager } from './capabilities/mcp/index.ts';
+import { MediaService } from './capabilities/media/index.ts';
+import { TelegramMediaClient } from './capabilities/media/download.ts';
+import { createLottieCommand } from './capabilities/media/image.ts';
 
-import { AgentRuntime } from './orchestration/agent-runtime.ts';
+import { AgentRuntime } from './orchestration/agent-runtime/index.ts';
 import { KeyedSemaphore } from './platform/concurrency.ts';
-import type { McpServerConfig, ProviderConfig, RawConfig } from './platform/config.ts';
-import { assertConfigPermissions, loadConfig } from './adapters/local-monolith/config.ts';
+import type { McpServerConfig, ProviderConfig, RawConfig } from './platform/config/index.ts';
+import { assertConfigPermissions, loadConfig } from './adapters/local-monolith/config/index.ts';
 
-import { createTelegramHost, grammyTelegramTransport } from './adapters/local-monolith/telegram-host.ts';
-import { resolveTelegramTokenSource } from './adapters/local-monolith/telegram-connection-token.ts';
+import { createTelegramHost, grammyTelegramTransport } from './adapters/local-monolith/telegram/host.ts';
+import { resolveTelegramTokenSource } from './adapters/local-monolith/telegram/connection-token.ts';
 import { unwiredImHost } from './platform/im-host.ts';
 import { previewContext } from './platform/invocation-context.ts';
 import { keyJarPath } from './platform/key-jar.ts';
@@ -40,7 +40,7 @@ import { BUNDLED_MANUAL_DIR, bundledManualSpace, FileSystemDocSpaces } from './a
 import { BUILTIN_PLUGINS } from './plugins/builtin.ts';
 import { loadPlugins } from './plugins/plugin.ts';
 import { SqliteStore } from './adapters/local-monolith/database.ts';
-import { resolveConversation } from './adapters/local-monolith/runtime-host-support.ts';
+import { resolveConversation } from './adapters/local-monolith/runtime/support.ts';
 
 export async function runDoctor(configPath: string, outputAgentPrompt = false): Promise<void> {
   const loaded = await loadConfig(configPath);

@@ -9,17 +9,17 @@
 import type { ImageContent } from '@earendil-works/pi-ai';
 import { createExecuteTool } from '../../capabilities/execute-tool.ts';
 import { createReadTool } from '../../capabilities/read-tool.ts';
-import { createSendTools } from '../../capabilities/send-tool.ts';
-import { ContextBuilder, type StablePrompt } from '../../context/context-builder.ts';
-import { ContextRefStore } from '../../context/context-refs.ts';
-import { buildSceneContext, type SceneContext } from '../../context/scene-context.ts';
-import { SceneSliceError } from '../../context/scene-context-rows.ts';
-import type { RawConfig } from '../../platform/config.ts';
+import { createSendTools } from '../../capabilities/send/index.ts';
+import { ContextBuilder, type StablePrompt } from '../../context/builder/index.ts';
+import { ContextRefStore } from '../../context/refs.ts';
+import { buildSceneContext, type SceneContext } from '../../context/scene/index.ts';
+import { SceneSliceError } from '../../context/scene/rows.ts';
+import type { RawConfig } from '../../platform/config/index.ts';
 import { identityConversation, unwiredImHost } from '../../platform/im-host.ts';
 import { type InvocationContext, unavailableCapabilities } from '../../platform/invocation-context.ts';
 import type { SkillVisibilityTarget, SystemResources, SystemSkill } from '../../platform/system-resources.ts';
-import type { ReplaySelection } from '../replay.ts';
-import { type ReplayToolRegistry, toolDefinition } from '../replay-tools.ts';
+import type { ReplaySelection } from './index.ts';
+import { type ReplayToolRegistry, toolDefinition } from './tools.ts';
 import {
   checkReplayRuntime,
   checkReplaySource,
@@ -27,7 +27,7 @@ import {
   type ReplayRuntime,
   type ReplaySource,
 } from './preflight.ts';
-import { duplicateSendGuard } from '../../capabilities/send-tool-support.ts';
+import { duplicateSendGuard } from '../../capabilities/send/support.ts';
 
 /**
  * Live dependencies of a replay: the same store, config source and scene tools

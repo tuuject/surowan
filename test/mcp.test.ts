@@ -6,14 +6,14 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import type { Update } from 'grammy/types';
 import { z } from 'zod';
-import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { McpManager } from '../src/capabilities/mcp.ts';
-import { BucketScheduler } from '../src/orchestration/scheduler.ts';
+import { McpManager } from '../src/capabilities/mcp/index.ts';
+import { BucketScheduler } from '../src/orchestration/scheduler/index.ts';
 import { previewContext } from '../src/platform/invocation-context.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
+import { TelegramIngestion } from '../src/ingress/telegram-ingestion/index.ts';
 import {
   renderInvocationContext,
   sleep,

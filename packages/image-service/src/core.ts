@@ -5,7 +5,7 @@ import type { ImageDatabase } from './db.ts';
 import { createGenerationService, type GenerationService } from './generations.ts';
 import type { ImageStore } from './image-store.ts';
 import type { ImageProviderAdapter } from './provider.ts';
-import { GenerationWorker } from './worker.ts';
+import { GenerationWorker } from './worker/index.ts';
 
 /**
  * The assembled image generation core. It owns prompts, images, generations, the

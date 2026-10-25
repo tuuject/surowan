@@ -30,7 +30,7 @@ Admin Panel 已覆盖多数 Agent 日常调参，但还不能完整替代 `confi
 | Image | Image settings 启停、生图模型目录选择、路由选择、新模型的凭据绑定、凭据录入/复用、模型备注、移除模型 | 高级定义与凭据生命周期仍有缺口，见后文 |
 | 配置生效 | Settings 的 Apply config file；Models/Chats 的待重启提示与受监督重启 | Apply 只重新加载文件，不提供任意配置编辑 |
 
-依据：[Agent 字段 Schema](../../src/platform/config-schema-sections.ts#L82)、[Harness 白名单](../../src/ingress/admin/harness-admin.ts#L30)、[模型完整编辑表单](../../apps/admin-next/src/components/models/model-edit-dialog.tsx#L148)、[管理端写端点说明](../admin-panel.md#api)。
+依据：[Agent 字段 Schema](../../src/platform/config/schema-sections.ts#L82)、[Harness 白名单](../../src/ingress/admin/harness.ts#L30)、[模型完整编辑表单](../../apps/admin-next/src/components/models/model-edit-dialog.tsx#L148)、[管理端写端点说明](../admin-panel.md#api)。
 
 Panel preferences 只控制当前浏览器的语言、主题、是否展示配置键名，不写 Bot 配置。Settings 中的账号、密码、Passkey 操作管理数据库中的认证状态，也不是 `admin.*` 配置编辑器。依据：[preferences.tsx](../../apps/admin-next/src/pages/preferences.tsx#L12)、[settings.tsx](../../apps/admin-next/src/pages/settings.tsx)。
 
@@ -58,7 +58,7 @@ Panel preferences 只控制当前浏览器的语言、主题、是否展示配�
 | `web_fetch.allow_proxy_synthetic_addresses`、`.dangerously_allow_all_ip_addresses`、`.accept_markdown` | inspection 可读，不能编辑 | 重启 | 新增 Tools settings 的网页读取区 |
 | `retention.online_days`、`.backup_copies` | inspection 可读，不能编辑 | `outside_serve`，下一次 backup 读取 | Maintenance 设置，显示“下次备份任务使用”，保存不执行清理 |
 
-完整字段依据：[配置 Schema](../../src/platform/config-schema-sections.ts#L12)、[顶层 Schema](../../src/platform/config-schema.ts#L125)。覆盖边界依据：[Chats 请求 Schema](../../src/ingress/admin/chats-admin.ts#L31)、[Vision 请求 Schema](../../src/ingress/admin/providers-admin.ts#L101)、[配置 inspection 投影](../../src/ingress/admin/config-inspection.ts#L74)。生效分类依据：[config-diff.ts](../../src/platform/config-diff.ts#L35)、[Chat 专属分类](../../src/platform/config-diff.ts#L258)。
+完整字段依据：[配置 Schema](../../src/platform/config/schema-sections.ts#L12)、[顶层 Schema](../../src/platform/config/schema.ts#L125)。覆盖边界依据：[Chats 请求 Schema](../../src/ingress/admin/chats.ts#L31)、[Vision 请求 Schema](../../src/ingress/admin/providers/index.ts#L101)、[配置 inspection 投影](../../src/ingress/admin/config-inspection.ts#L74)。生效分类依据：[config-diff.ts](../../src/platform/config/diff.ts#L35)、[Chat 专属分类](../../src/platform/config/diff.ts#L258)。
 
 特别说明：新增 Chat 时整项配置可热加入；表中的群时区“重启”是指修改已存在的 Chat。删除 Chat、修改已有 Chat 的 Topic 白名单虽然需要重启，面板已经可以操作，不属于配置入口缺失。
 
@@ -73,7 +73,7 @@ Panel preferences 只控制当前浏览器的语言、主题、是否展示配�
 | Streamable HTTP | `url`、`headers` 名称与 SecretRef | 沿用 URL 校验、禁止 URL 凭据与重定向；密钥只写不读 |
 | 策略 | `tool_policies[].name/read_only/timeout_seconds`、`default_tool_policy.read_only/timeout_seconds` | 工具白名单与策略一起校验；显式工具必须有对应策略，`tools: "*"` 必须有 default policy |
 
-MCP 全部保留当前“保存后待重启”。`follow_redirects` 在 Schema 中只能是 `false`，显示为固定约束即可，不做可开启的开关。依据：[MCP Schema](../../src/platform/config-schema.ts#L32)、[策略语义校验](../../src/platform/config-semantics.ts#L168)。
+MCP 全部保留当前“保存后待重启”。`follow_redirects` 在 Schema 中只能是 `false`，显示为固定约束即可，不做可开启的开关。依据：[MCP Schema](../../src/platform/config/schema.ts#L32)、[策略语义校验](../../src/platform/config/semantics.ts#L168)。
 
 MCP 热替换还涉及连接、发现工具、运行中调用和模型工具定义的同步，已经超出配置表单的必要改动。首次补齐无需改造这套生命周期。
 
@@ -92,7 +92,7 @@ MCP 热替换还涉及连接、发现工具、运行中调用和模型工具定�
 
 路径变更不是数据迁移。`data_dir` 关联 serve lock 和图片资源；`paths.database` 关联业务数据、认证和审计。直接改成新路径可能启动一套新库或丢失对原资源的访问，不能给出“已搬迁”的成功提示。专门迁移需要停机、备份、复制与完整性验证、修改配置、重新启动及验收；仅表单写路径无法完成。
 
-新配置/错误配置导致 `serve` 无法启动时，当前面板也不可用。尤其 required MCP 在 Admin 创建前启动，不能假定“坏了再进面板改回来”。依据：[启动顺序](../../src/adapters/local-monolith/runtime-host.ts#L351)、[数据库与备份实现](../../src/adapters/local-monolith/database.ts)。
+新配置/错误配置导致 `serve` 无法启动时，当前面板也不可用。尤其 required MCP 在 Admin 创建前启动，不能假定“坏了再进面板改回来”。依据：[启动顺序](../../src/adapters/local-monolith/runtime/index.ts#L351)、[数据库与备份实现](../../src/adapters/local-monolith/database.ts)。
 
 `public_url` 决定 WebAuthn origin/RP ID，更换域名会影响已有 Passkey。现有密码恢复依赖离线 `admin-account`，不能把地址变更当作普通文案设置。依据：[Passkey 认证说明](../admin-panel.md#passkey-登录与凭据)。
 
@@ -111,7 +111,7 @@ MCP 热替换还涉及连接、发现工具、运行中调用和模型工具定�
 
 图片并不支持任意 Provider：外层配置 Schema 的 `provider` 是 string，但实际图片服务约束为 `openrouter`。不能把它误报为“只是 UI 没有多 Provider 下拉框”。依据：[图片服务契约](../../packages/image-service/src/contracts.ts#L112)。
 
-以上局部边界依据：[Provider 请求结构](../../src/ingress/admin/providers-admin.ts#L47)、[图片新增与编辑](../../apps/admin-next/src/pages/image-settings.tsx#L195)、[图片已有模型区域](../../apps/admin-next/src/pages/image-settings.tsx#L479)、[图片配置写入](../../src/ingress/admin/server.ts#L1870)。
+以上局部边界依据：[Provider 请求结构](../../src/ingress/admin/providers/index.ts#L47)、[图片新增与编辑](../../apps/admin-next/src/pages/image-settings.tsx#L195)、[图片已有模型区域](../../apps/admin-next/src/pages/image-settings.tsx#L479)、[图片配置写入](../../src/ingress/admin/index.ts#L1870)。
 
 ### 应显示为固定规则的字段
 
@@ -150,7 +150,7 @@ MCP 热替换还涉及连接、发现工具、运行中调用和模型工具定�
 5. `writeAndApply(edits, revision)` 在现有锁中完成写入和应用。文件校验通过后才 rename；新模型、Provider 和图片快照按现有链路发布。
 6. 成功与失败都刷新配置相关 query，防止新 revision 下仍显示旧的已保存值。
 
-复用位置：[配置控制契约](../../src/platform/config-write.ts#L96)、[JSONC 写入](../../src/adapters/local-monolith/config-file.ts#L56)、[reloader](../../src/adapters/local-monolith/config-reload.ts#L99)、[稳定读取 helper](../../src/ingress/admin/server.ts#L1570)、[前端刷新机制](../../apps/admin-next/src/lib/use-provider-write.ts#L19)。
+复用位置：[配置控制契约](../../src/platform/config/write.ts#L96)、[JSONC 写入](../../src/adapters/local-monolith/config/file.ts#L56)、[reloader](../../src/adapters/local-monolith/config/reload.ts#L99)、[稳定读取 helper](../../src/ingress/admin/index.ts#L1570)、[前端刷新机制](../../apps/admin-next/src/lib/use-provider-write.ts#L19)。
 
 `GET /api/config/view` 不能直接作为通用表单 DTO：它是有损的安全投影，刻意隐藏路径、SecretRef、MCP command/URL 等，且没有写入所需的 config revision。也不能为了表单把这些内容直接加入 Bearer 可读的 inspection。新建 Session-only 的分域视图更符合现有边界。
 
@@ -162,7 +162,7 @@ MCP 热替换还涉及连接、发现工具、运行中调用和模型工具定�
 
 保存后应用失败不会自动回滚文件。本次 smoke 中返回 `409 model_unusable`，文件的 `history_messages` 已为 22，运行值仍为 21；之后显式 Apply 成功。这一状态需要展示修复/重新应用入口，不能仅提示“保存失败”或“已恢复原值”。
 
-依据：[保存后失败处理](../../src/adapters/local-monolith/config-reload.ts#L305)、[当前前端反馈](../../apps/admin-next/src/lib/model-manager.ts#L493)、[backup 执行顺序](../../src/adapters/local-monolith/database.ts#L302)。
+依据：[保存后失败处理](../../src/adapters/local-monolith/config/reload.ts#L305)、[当前前端反馈](../../apps/admin-next/src/lib/model-manager.ts#L493)、[backup 执行顺序](../../src/adapters/local-monolith/database.ts#L302)。
 
 ## 必须处理的具体边界
 
@@ -177,7 +177,7 @@ MCP 热替换还涉及连接、发现工具、运行中调用和模型工具定�
 
 表单要区分“继承”“空数组”“删除整个策略”，展示合并后的触发词与时区。不能给群触发词的清空按钮标成“关闭所有关键词”。同时修改时区和时段时，应明确当前运行时区与待重启时区；不能预览成新时区已生效。私聊不接受 participation 配置。
 
-依据：[compileParticipation](../../src/platform/participation.ts#L34)、[已有删除时段逻辑](../../src/ingress/admin/chats-admin.ts#L157)、[配置语义校验](../../src/platform/config-semantics.ts#L70)。
+依据：[compileParticipation](../../src/platform/participation.ts#L34)、[已有删除时段逻辑](../../src/ingress/admin/chats.ts#L157)、[配置语义校验](../../src/platform/config/semantics.ts#L70)。
 
 ### MCP 凭据必须保留旧运行态的可解析性
 
@@ -187,7 +187,7 @@ MCP 热替换还涉及连接、发现工具、运行中调用和模型工具定�
 
 因此在开放 MCP Secret 的替换、删除前，需要把 jar 回收改为至少保留“磁盘配置引用 + 仍存活的运行配置引用”。被保留条目的后续清理由宿主在旧配置释放或下次启动时处理，不能无限遗留，也不能删除从未由配置管理器拥有的手工条目。应对“保存但 apply 失败”使用同样原则。
 
-依据：[当前回收](../../src/adapters/local-monolith/config-file.ts#L133)、[每次重新读取 jar](../../src/platform/secrets.ts#L38)、[MCP 创建 transport](../../src/capabilities/mcp.ts#L231)、[MCP 重连](../../src/capabilities/mcp.ts#L372)。
+依据：[当前回收](../../src/adapters/local-monolith/config/file.ts#L133)、[每次重新读取 jar](../../src/platform/secrets.ts#L38)、[MCP 创建 transport](../../src/capabilities/mcp/index.ts#L231)、[MCP 重连](../../src/capabilities/mcp/index.ts#L372)。
 
 普通表单输入密钥继续只写不读，Provider 沿用新 jar 名称轮换；不要从现有图片凭据更新的特殊实现推导通用约定。高级 env/command 来源编辑会扩大面板对宿主环境/进程的控制能力，应单独设计与测试，而不是把任意 SecretRef JSON 透传给普通配置端点。
 
@@ -199,7 +199,7 @@ MCP 热替换还涉及连接、发现工具、运行中调用和模型工具定�
 
 `paths.backups` 需要专用目录：当前轮转遍历目录里的所有 `.sqlite` 文件，而不是仅匹配某个备份前缀。开放目录选择时必须展示这个真实约束或先收紧轮转范围。
 
-依据：[重启实现](../../src/ingress/admin/server.ts#L1972)、[备份轮转](../../src/adapters/local-monolith/database.ts#L355)。
+依据：[重启实现](../../src/ingress/admin/index.ts#L1972)、[备份轮转](../../src/adapters/local-monolith/database.ts#L355)。
 
 ## 推荐实施顺序
 

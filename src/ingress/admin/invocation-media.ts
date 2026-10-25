@@ -4,10 +4,10 @@ import { join } from 'node:path';
 import { sql } from 'drizzle-orm';
 import Type from 'typebox';
 import Compile from 'typebox/compile';
-import { MediaTooLargeError, type MediaDownloader } from '../../capabilities/media/media-download.ts';
-import { MAX_DOWNLOAD_BYTES, type MediaRow, prepareMediaImage } from '../../capabilities/media/media-image.ts';
+import { MediaTooLargeError, type MediaDownloader } from '../../capabilities/media/download.ts';
+import { MAX_DOWNLOAD_BYTES, type MediaRow, prepareMediaImage } from '../../capabilities/media/image.ts';
 import type { Orm } from '../../store/store.ts';
-import { AdminQueryError } from './audit.ts';
+import { AdminQueryError } from './audit/shared.ts';
 
 /**
  * Read-only Invocation media surface for the Admin panel.

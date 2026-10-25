@@ -1,5 +1,5 @@
 import { eq, sql } from 'drizzle-orm';
-import { dailyUsage, mediaAnalyses, messages } from '../../../store/schema.ts';
+import { dailyUsage, mediaAnalyses, messages } from '../../../store/schema/index.ts';
 import { storedSleepUntil } from '../../../store/sleep.ts';
 import type { Orm } from '../../../store/store.ts';
 

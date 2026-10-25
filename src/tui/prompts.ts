@@ -1,5 +1,5 @@
 import { checkbox, input, password, select } from '@inquirer/prompts';
-import type { ProviderApi, SecretRef } from '../platform/config.ts';
+import type { ProviderApi, SecretRef } from '../platform/config/index.ts';
 import { newKeyJarName, updateKeyJar } from '../platform/key-jar.ts';
 
 export type ApiAdapter = ProviderApi;

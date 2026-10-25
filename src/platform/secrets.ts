@@ -1,4 +1,4 @@
-import type { SecretRef } from './config.ts';
+import type { SecretRef } from './config/index.ts';
 import { readKeyJar } from './key-jar.ts';
 import { pickEnv, readBoundedOutput, spawnProcess } from './subprocess.ts';
 

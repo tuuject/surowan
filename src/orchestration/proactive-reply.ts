@@ -1,10 +1,10 @@
 import { eq, sql } from 'drizzle-orm';
 import type { Message } from 'grammy/types';
-import type { FileChat } from '../platform/config.ts';
+import type { FileChat } from '../platform/config/index.ts';
 import { matchTriggerKind, type TriggerKind } from '../platform/participation.ts';
 import { proactiveReplyFingerprint, resolveProactiveReply, sampleProactiveReply } from '../platform/proactive-reply.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
-import { proactiveReplyState } from '../store/schema.ts';
+import { proactiveReplyState } from '../store/schema/index.ts';
 import type { Orm } from '../store/store.ts';
 
 export interface ProactiveReplyGateOptions {

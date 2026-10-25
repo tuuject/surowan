@@ -3,13 +3,13 @@ import { eq } from 'drizzle-orm';
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
 
-import { deepEqual } from '../../platform/config-diff-merge.ts';
+import { deepEqual } from '../../platform/config/diff-merge.ts';
 import { sameConnection } from '../../platform/providers.ts';
 import type { BusinessStore } from '../../store/store.ts';
-import { modelCalls } from '../../store/schema.ts';
-import { AdminQueryError } from './audit.ts';
-import type { ProviderWriteContext } from './providers-admin.ts';
-import { PROVIDER_ALIAS_PATTERN } from '../../platform/config-semantics.ts';
+import { modelCalls } from '../../store/schema/index.ts';
+import { AdminQueryError } from './audit/shared.ts';
+import type { ProviderWriteContext } from './providers/index.ts';
+import { PROVIDER_ALIAS_PATTERN } from '../../platform/config/semantics.ts';
 
 const HEALTH_PROMPT = 'reply with extract content: ok';
 const TIMEOUT_MS = 30_000;

@@ -1,5 +1,5 @@
 import type { Message } from 'grammy/types';
-import type { ParticipationConfig, ParticipationWindowConfig } from './config.ts';
+import type { ParticipationConfig, ParticipationWindowConfig } from './config/index.ts';
 
 /** Default length of the post-trigger attention window, in seconds. */
 export const DEFAULT_ATTENTION_WINDOW_SECONDS = 300;

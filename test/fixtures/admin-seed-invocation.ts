@@ -7,7 +7,7 @@ import {
   invocations,
   modelCalls,
   toolCalls,
-} from '../../src/store/schema.ts';
+} from '../../src/store/schema/index.ts';
 import { AT, OVERSIZED_REQUEST_JSON, REDACTED_ERROR_DETAIL, T } from './admin-seed-data.ts';
 
 /**

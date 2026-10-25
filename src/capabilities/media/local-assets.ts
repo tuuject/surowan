@@ -3,7 +3,7 @@ import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/p
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import sharp, { type Metadata } from 'sharp';
 import { and, eq, lt, notExists } from 'drizzle-orm';
-import { media, playgroundAssets } from '../../store/schema.ts';
+import { media, playgroundAssets } from '../../store/schema/index.ts';
 import type { Orm } from '../../store/store.ts';
 
 /** The only formats a room may hold. Everything else is refused by content. */

@@ -11,7 +11,7 @@ import { afterEach, expect, test, vi } from 'vitest';
 
 import { createTyping } from '../src/capabilities/typing-tool.ts';
 import { identityConversation, type ImDeliveryTarget } from '../src/platform/im-host.ts';
-import { grammyTelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
+import { grammyTelegramTransport } from '../src/adapters/local-monolith/telegram/host.ts';
 import { testTelegramHost, type TelegramHost, type TelegramTransport } from './helpers.ts';
 
 afterEach(() => {

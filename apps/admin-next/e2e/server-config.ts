@@ -7,8 +7,8 @@
  * because production validation demands port >= 1 while tests bind an
  * OS-assigned one.
  */
-import { type LoadedConfig, loadConfig } from '../../../src/adapters/local-monolith/config.ts';
-import type { AdminConfig } from '../../../src/ingress/admin/server.ts';
+import { type LoadedConfig, loadConfig } from '../../../src/adapters/local-monolith/config/index.ts';
+import type { AdminConfig } from '../../../src/ingress/admin/index.ts';
 import { loadModelsDevCatalog } from '../../../src/platform/models-dev.ts';
 import { testConfigJsonc, writeTestConfig, writeTestKeyJar } from '../../../test/helpers.ts';
 import {

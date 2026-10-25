@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import { serve } from './adapters/local-monolith/runtime-host.ts';
+import { serve } from './adapters/local-monolith/runtime/index.ts';
 import { parseCli } from './cli-options.ts';
 import { runDoctor } from './doctor.ts';
-import { runAdminAccount } from './ingress/admin/admin-account.ts';
-import { loadConfig } from './adapters/local-monolith/config.ts';
+import { runAdminAccount } from './ingress/admin/account.ts';
+import { loadConfig } from './adapters/local-monolith/config/index.ts';
 import { loadEnvFiles } from './platform/load-env.ts';
 import { backupDatabase } from './adapters/local-monolith/database.ts';
 import { runConfigure } from './tui/configure.ts';

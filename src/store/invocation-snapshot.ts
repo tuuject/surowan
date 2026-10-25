@@ -1,7 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { spoilersFromFragment } from '../platform/spoilers.ts';
 import type { BusinessStore } from './store.ts';
-import { invocationMessages, media } from './schema.ts';
+import { invocationMessages, media } from './schema/index.ts';
 
 export interface MessageSnapshotRow {
   readonly message_id: bigint;

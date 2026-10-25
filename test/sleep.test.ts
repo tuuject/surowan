@@ -15,20 +15,20 @@ import {
   type Usage,
 } from '@earendil-works/pi-ai';
 import type { Update } from 'grammy/types';
-import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
-import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config.ts';
-import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
+import { AgentRuntime } from '../src/orchestration/agent-runtime/index.ts';
+import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config/index.ts';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram/host.ts';
 import { previewContext } from '../src/platform/invocation-context.ts';
 import type { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { BucketScheduler } from '../src/orchestration/scheduler.ts';
+import { BucketScheduler } from '../src/orchestration/scheduler/index.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { activeSleepUntil, enterSleep, SLEEP_STATE_KEY } from '../src/store/sleep.ts';
 
-import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
+import { TelegramIngestion } from '../src/ingress/telegram-ingestion/index.ts';
 import { emptySystemResources } from '../src/platform/system-resources.ts';
 import { fauxRegistry, testConfigStore, testTelegramRuntime, type TestRegistry, writeTestConfig } from './helpers.ts';
-import { SLEEP_STATE_PROMPT } from '../src/context/context-builder-render.ts';
+import { SLEEP_STATE_PROMPT } from '../src/context/builder/render.ts';
 
 const directories: string[] = [];
 

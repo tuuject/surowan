@@ -1,7 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import type { Message } from 'grammy/types';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
-import { conversations, media as mediaTable, messageRevisions, messages, senders } from '../../store/schema.ts';
+import { conversations, media as mediaTable, messageRevisions, messages, senders } from '../../store/schema/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
 
 const IMAGE_MIME_TYPES: Record<string, true> = {

@@ -5,17 +5,17 @@ import { join } from 'node:path';
 import { getCurrentTools, fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
 import type { Update } from 'grammy/types';
 import sharp from 'sharp';
-import type { TelegramTransport } from '../src/adapters/local-monolith/telegram-host.ts';
+import type { TelegramTransport } from '../src/adapters/local-monolith/telegram/host.ts';
 import { KeyedSemaphore } from '../src/platform/concurrency.ts';
-import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import type { MediaDownloader } from '../src/capabilities/media/media-download.ts';
-import { MediaService } from '../src/capabilities/media/media.ts';
+import type { MediaDownloader } from '../src/capabilities/media/download.ts';
+import { MediaService } from '../src/capabilities/media/index.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import { createSendTool } from '../src/capabilities/send-tool.ts';
+import { BucketScheduler } from '../src/orchestration/scheduler/index.ts';
+import { createSendTool } from '../src/capabilities/send/index.ts';
 import { StickerService } from '../src/capabilities/stickers.ts';
-import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
+import { TelegramIngestion } from '../src/ingress/telegram-ingestion/index.ts';
 import {
   fauxRegistry,
   invocationCapabilities,

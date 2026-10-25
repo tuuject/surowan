@@ -2,9 +2,9 @@ import { afterAll, expect, test } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { buckets, chats, conversations, dailyUsage, invocations, modelCalls } from '../src/store/schema.ts';
+import { buckets, chats, conversations, dailyUsage, invocations, modelCalls } from '../src/store/schema/index.ts';
 import { reconcileDailyTokenUsage } from '../scripts/reconcile-daily-token-usage.ts';
 import { writeTestConfig } from './helpers.ts';
 

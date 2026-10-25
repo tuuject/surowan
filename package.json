@@ -24,7 +24,7 @@
     "docs:build": "pnpm --filter surowan-docs run build",
     "docs:preview": "pnpm --filter surowan-docs run preview",
     "docs:check": "pnpm --filter surowan-docs run check",
-    "docs:verify": "node scripts/docs-verify.ts",
+    "docs:verify": "node scripts/docs/verify.ts",
     "manual:prepare": "node scripts/manual-prepare.ts",
     "postinstall": "node scripts/skills-sync.ts --postinstall && node scripts/git-hooks.ts --postinstall",
     "skills:sync": "node scripts/skills-sync.ts",

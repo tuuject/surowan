@@ -2,12 +2,12 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { confirm, select } from '@inquirer/prompts';
 import { type ParseError, parse } from 'jsonc-parser';
-import type { FileConfig, ThinkingLevelConfig } from '../platform/config.ts';
-import { loadConfig } from '../adapters/local-monolith/config.ts';
-import { writeConfigEdits } from '../adapters/local-monolith/config-file.ts';
+import type { FileConfig, ThinkingLevelConfig } from '../platform/config/index.ts';
+import { loadConfig } from '../adapters/local-monolith/config/index.ts';
+import { writeConfigEdits } from '../adapters/local-monolith/config/file.ts';
 import { keyJarPath, readKeyJar, referencedJarNames, updateKeyJar } from '../platform/key-jar.ts';
 import { supportedThinkingLevels, THINKING_LEVELS } from '../platform/thinking-levels.ts';
-import { runProviderWizard } from './provider-wizard.ts';
+import { runProviderWizard } from './provider-wizard/index.ts';
 
 export async function runConfigure(configPath: string): Promise<void> {
   if (!process.stdin.isTTY) {

@@ -28,7 +28,7 @@ pnpm run docs:dev    # 文档站，127.0.0.1:5274
 
 - 只检查本次提交的暂存内容（新增、修改、类型变更），不看工作区：未暂存的改动与未跟踪文件不影响提交，删除超限文件总能提交；`git commit -a` 与 `git commit <path>` 检查的是 Git 即将提交的那份 index。完成合并时只检查内容与 `MERGE_HEAD` 也不同的路径，即本次解决冲突或合并改写的文件。
 - 不检查的文件：Git 判定为二进制的文件（`.gitattributes` 的 `binary` 或含 NUL 字节），以及 `scripts/file-token-limit.ts` 中 `IGNORED` 列出的锁文件、`*.gen.ts` 代码生成、`patches/*.patch`、shadcn 引入的 `apps/admin-next/src/components/ui/**`，和整个 `agent-doc/`（维护者决定不设上限，不推广到其他文档）。除此之外只有工具生成、无人手改的文件才能加入 `IGNORED`；手写文件超限就拆分。
-- 拒绝时的错误信息列出每个超限文件的 Token 数、字节数与超出量，并按源码、测试、Markdown 与其他文件分别给出拆分步骤。仓库里已超限的手写文件（例如 `AGENTS.md`、`src/ingress/admin/server.ts`）在下次修改时必须先拆分。
+- 拒绝时的错误信息列出每个超限文件的 Token 数、字节数与超出量，并按源码、测试、Markdown 与其他文件分别给出拆分步骤。仓库里已超限的手写文件（例如 `AGENTS.md`、`src/ingress/admin/index.ts`）在下次修改时必须先拆分。
 
 ## 仓库结构
 

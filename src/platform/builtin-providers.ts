@@ -1,6 +1,6 @@
 import type { Api, Model, Provider } from '@earendil-works/pi-ai';
 import { builtinProviders } from '@earendil-works/pi-ai/providers/all';
-import type { ProviderApi } from './config.ts';
+import type { ProviderApi } from './config/index.ts';
 
 /**
  * The API adapters the configuration supports. Pi ships more (Bedrock, Mistral,

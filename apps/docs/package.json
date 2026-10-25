@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node ../../scripts/docs-prepare.ts && rspress dev --host 127.0.0.1 --port 5274",
-    "build": "node ../../scripts/docs-prepare.ts && rspress build",
+    "dev": "node ../../scripts/docs/prepare.ts && rspress dev --host 127.0.0.1 --port 5274",
+    "build": "node ../../scripts/docs/prepare.ts && rspress build",
     "preview": "rspress preview --host 127.0.0.1 --port 5274",
-    "check": "node ../../scripts/docs-prepare.ts && tsc --noEmit"
+    "check": "node ../../scripts/docs/prepare.ts && tsc --noEmit"
   },
   "devDependencies": {
     "@rspress/core": "2.0.22",

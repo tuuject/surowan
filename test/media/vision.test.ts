@@ -1,0 +1,120 @@
+import { expect, test } from 'vitest';
+import { copyFile, mkdtemp, readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fauxAssistantMessage, fauxProvider } from '@earendil-works/pi-ai';
+import type { Update } from 'grammy/types';
+import sharp from 'sharp';
+import { KeyedSemaphore } from '../../src/platform/concurrency.ts';
+import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
+import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
+import type { MediaDownloader } from '../../src/capabilities/media/download.ts';
+import { MediaService } from '../../src/capabilities/media/index.ts';
+import { SecretStore } from '../../src/platform/secrets.ts';
+import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
+import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
+import {
+  fauxRegistry,
+  invocationCapabilities,
+  renderInvocationContext,
+  testConfigStore,
+  writeTestConfig,
+} from '../helpers.ts';
+import { directories } from './fixtures.ts';
+
+test('read_image normalizes once and reuses the 30-day description cache', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-media-'));
+  directories.push(directory);
+  const configPath = join(directory, 'config.jsonc');
+  await writeTestConfig(directory, configPath);
+  const loaded = await loadConfig(configPath);
+  const faux = fauxProvider({
+    provider: 'vision',
+    models: [
+      { id: 'vision-model', reasoning: true, input: ['text', 'image'], contextWindow: 128_000, maxTokens: 8_192 },
+    ],
+  });
+  const configStore = await testConfigStore(loaded, fauxRegistry(faux));
+  const store = await SqliteStore.open(loaded.config);
+  const fixturePath = join(directory, 'fixture.png');
+  await sharp({ create: { width: 32, height: 16, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 0.5 } } })
+    .png()
+    .toFile(fixturePath);
+  const ingestion = new TelegramIngestion(store, configStore, { id: 999 });
+  const update: Update = {
+    update_id: 1,
+    message: {
+      message_id: 10,
+      date: 1_700_000_000,
+      chat: { id: 123456789, type: 'private', first_name: 'Owner' },
+      from: { id: 42, is_bot: false, first_name: 'Alice' },
+      photo: [
+        {
+          file_id: 'file-id',
+          file_unique_id: 'unique-id',
+          width: 32,
+          height: 16,
+          file_size: 100,
+        },
+      ],
+    },
+  };
+  const received = new Date('2026-08-15T00:00:00.000Z');
+  ingestion.ingest(update, received);
+  const scheduler = new BucketScheduler(store, configStore, async () => ({
+    state: 'completed',
+    reason: 'done',
+  }));
+  const [invocationId] = scheduler.processDue(new Date(received.getTime() + 15_000));
+  if (invocationId === undefined) {
+    throw new Error('Expected a due invocation');
+  }
+  const context = renderInvocationContext(store, loaded.config, invocationId, {
+    contextWindow: 200_000,
+    maxOutputTokens: 32768,
+  });
+  const capabilities = invocationCapabilities(store, loaded.config, context.header);
+  const [imageRef] = context.imageCapabilities.keys();
+  if (imageRef === undefined) {
+    throw new Error('Expected an image capability');
+  }
+  expect(context.directImages).toEqual([]);
+
+  let visionReasoning: string | undefined;
+  faux.setResponses([
+    (_context, options) => {
+      visionReasoning = options?.reasoning;
+      return fauxAssistantMessage('A translucent red rectangle.');
+    },
+  ]);
+  let downloads = 0;
+  const downloader: MediaDownloader = {
+    download: async (_fileId, destination, signal) => {
+      signal.throwIfAborted();
+      downloads += 1;
+      await copyFile(fixturePath, destination);
+    },
+  };
+  const media = new MediaService({
+    store,
+    configStore,
+    secrets: new SecretStore(),
+    mediaClient: downloader,
+    modelGate: new KeyedSemaphore(),
+  });
+  const tool = media.createReadImageTool(context, capabilities, Date.now() + 60_000);
+  const first = await tool.execute('read-1', { image_ref: imageRef });
+  const second = await tool.execute('read-2', { image_ref: imageRef });
+  expect(first.content).toEqual([{ type: 'text', text: 'A translucent red rectangle.' }]);
+  expect(second.details.cached).toBe(true);
+  expect(downloads).toBe(1);
+  expect(faux.state.callCount).toBe(1);
+  expect(visionReasoning).toBe('low');
+  expect(
+    store.db
+      .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM media_analyses WHERE state = 'success'")
+      .get()?.count,
+  ).toBe(1n);
+  expect(await readdir(loaded.config.paths.media_cache)).toEqual([]);
+  store.close();
+});

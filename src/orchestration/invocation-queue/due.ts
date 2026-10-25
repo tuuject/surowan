@@ -1,6 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
-import { completeAgentSettings, resolveAgentSettings } from '../../platform/config-resolve.ts';
-import { buckets } from '../../store/schema.ts';
+import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
+import { buckets } from '../../store/schema/index.ts';
 import { resolveChatConfig } from '../../store/store.ts';
 import {
   enqueueBucketInvocation,

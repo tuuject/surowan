@@ -3,7 +3,7 @@ import { hash, verify } from '@node-rs/argon2';
 import { and, eq, sql } from 'drizzle-orm';
 import type { LoginWarningSink } from '../../store/warnings.ts';
 import { asRunResult, type Orm } from '../../store/store.ts';
-import { adminPasskeys, adminSessions, adminUsers } from '../../store/schema.ts';
+import { adminPasskeys, adminSessions, adminUsers } from '../../store/schema/index.ts';
 
 const SESSION_TOKEN_BYTES = 32;
 const MAX_FAILED_ATTEMPTS = 10;

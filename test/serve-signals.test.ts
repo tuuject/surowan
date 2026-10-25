@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, test } from 'vitest';
 
 const RUNTIME_HOST = pathToFileURL(
-  fileURLToPath(new URL('../src/adapters/local-monolith/runtime-host.ts', import.meta.url)),
+  fileURLToPath(new URL('../src/adapters/local-monolith/runtime/index.ts', import.meta.url)),
 ).href;
 
 const children: ChildProcess[] = [];

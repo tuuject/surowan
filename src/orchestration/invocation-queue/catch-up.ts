@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
-import { completeAgentSettings, resolveAgentSettings } from '../../platform/config-resolve.ts';
+import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
 import { isConversationActive } from '../../store/participation.ts';
-import { bucketMessages, buckets } from '../../store/schema.ts';
+import { bucketMessages, buckets } from '../../store/schema/index.ts';
 import { isChatPaused, resolveChatConfig } from '../../store/store.ts';
 import {
   enqueueBucketInvocation,

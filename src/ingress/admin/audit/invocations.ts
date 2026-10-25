@@ -1,5 +1,5 @@
 import { type SQL, sql } from 'drizzle-orm';
-import type { RawConfig } from '../../../platform/config.ts';
+import type { RawConfig } from '../../../platform/config/index.ts';
 import { HOST_KINDS, type HostKind } from '../../../platform/im-host.ts';
 import { telegramIdentity } from '../../../store/host-scope.ts';
 import type { Orm } from '../../../store/store.ts';
@@ -15,7 +15,7 @@ import {
   parseId,
   parseLimit,
   whereSql,
-} from '../audit.ts';
+} from './shared.ts';
 import { loadMatchedMessages, matchedMessagesExists, parseInvocationMessageFilter } from './invocation-search.ts';
 
 export interface InvocationListRow {

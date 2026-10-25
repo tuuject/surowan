@@ -1,6 +1,6 @@
 # Admin Panel
 
-Admin Panel 是随 `serve` 启动的本地审计与管理界面，覆盖 Tool Session（Invocation）、收到的 Telegram 消息、媒体视觉分析、已配置 Sticker Set 的可搜索索引、Agent 短期记忆（`memories`）、系统警告（`warnings`）、Alarm（通用长程任务的闹钟投影）以及两层可编辑 Prompt 的版本历史（`prompt_versions`）。后端路由分发在 `src/ingress/admin/server.ts`，各页处理器在 `src/ingress/admin/`，插件自有页面（辞典、Alarm）的处理器在 `src/plugins/*/admin.ts`；前端在 `apps/admin-next/`（Rsbuild + React + Tailwind 4 + shadcn/Base UI + TanStack Query + TanStack Router），构建产物是**纯静态 SPA**，由 `AdminServer` 同源托管，不依赖任何 Node/Nitro 运行时。
+Admin Panel 是随 `serve` 启动的本地审计与管理界面，覆盖 Tool Session（Invocation）、收到的 Telegram 消息、媒体视觉分析、已配置 Sticker Set 的可搜索索引、Agent 短期记忆（`memories`）、系统警告（`warnings`）、Alarm（通用长程任务的闹钟投影）以及两层可编辑 Prompt 的版本历史（`prompt_versions`）。后端路由分发在 `src/ingress/admin/index.ts`，各页处理器在 `src/ingress/admin/`，插件自有页面（辞典、Alarm）的处理器在 `src/plugins/*/admin.ts`；前端在 `apps/admin-next/`（Rsbuild + React + Tailwind 4 + shadcn/Base UI + TanStack Query + TanStack Router），构建产物是**纯静态 SPA**，由 `AdminServer` 同源托管，不依赖任何 Node/Nitro 运行时。
 
 审计查询只读；Developer 调试配置与历史报文清除、记忆管理、Bot 管理员列表管理、Chat/Topic 白名单与按群模型管理（Chats 页）、模型与 Provider 管理（Models 页）、两层可编辑 Prompt 的编辑与版本管理（全局人格与按群指令：版本历史、恢复，以及只取消仍按旧 Prompt 运行的 Invocation）、配置文件应用、立即重启、解除睡眠、取消挂起会话与取消 pending Alarm 是受控的控制端点。管理员可以增删改查记忆、按群聊过滤，并对长 TTL 记忆做人工判断（保留 / 删除 / 提升进 `agents.md`），也可以指派/移除能执行 `/pause`、`/resume`、`/cut_topic` 等 Bot 管理员命令的 Telegram 用户（写回 `telegram.admins` 并热应用），在 Models 页维护 Provider 与模型列表（写回 `config.jsonc` 并重新加载）、切换全局 agent 与 vision 模型并设置全局 thinking 级别（Models 页端点仍是全局语义）；在 Chats 页增删 Chat、编辑 Topic 白名单与 Chat 范围的模型/thinking 覆盖（同群所有 Topic 共用，支持恢复继承全局），唤醒/取消挂起会话，取消尚未触发的 Alarm，把配置文件中的热更新白名单字段应用到运行中的进程，或在有待重启字段时直接重启 `serve`。写入只发生在 [API](#api) 白名单里的端点。配置修改经 `writeConfigEdits` 校验并原子写入后，再由 `ConfigReloader` 尝试应用；应用失败时文件保留已写入内容，运行中的配置不变。
 
@@ -8,7 +8,7 @@ Admin Panel 是随 `serve` 启动的本地审计与管理界面，覆盖 Tool Se
 
 ## 生命周期
 
-`src/adapters/local-monolith/runtime-host.ts` 在 Scheduler 启动后、Telegram long polling 之前创建 `AdminServer`，日志输出：
+`src/adapters/local-monolith/runtime/index.ts` 在 Scheduler 启动后、Telegram long polling 之前创建 `AdminServer`，日志输出：
 
 ```json
 {"event":"admin_started","host":"127.0.0.1","port":8787,"at":"..."}
@@ -40,7 +40,7 @@ Admin Panel 是随 `serve` 启动的本地审计与管理界面，覆盖 Tool Se
 
 ### Passkey 登录与凭据
 
-Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（`src/ingress/admin/server.ts`：`admin.public_url === undefined` 时不创建 `AdminPasskeys`，`/api/auth/passkeys/*` 与 `/api/auth/password` 一律返回 404 `passkeys_disabled`，前端登录页与 Settings 页也不显示 Passkey 入口）。`public_url` 的格式约束见 [configuration.md](configuration.md#admin-panel)。`src/ingress/admin/passkeys.ts` 的 `AdminPasskeys`：
+Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（`src/ingress/admin/index.ts`：`admin.public_url === undefined` 时不创建 `AdminPasskeys`，`/api/auth/passkeys/*` 与 `/api/auth/password` 一律返回 404 `passkeys_disabled`，前端登录页与 Settings 页也不显示 Passkey 入口）。`public_url` 的格式约束见 [configuration.md](configuration.md#admin-panel)。`src/ingress/admin/passkeys.ts` 的 `AdminPasskeys`：
 
 - **origin 与 RP**：`origin = adminPublicOrigin(public_url)`，`rpId = origin 的 hostname`。WebAuthn 只接受**配置的精确 origin**：`checkOrigin` 用请求 `Origin` 与 `this.origin` 全等比较，Host/转发头不参与选 RP，不匹配返回 403 `bad_origin`；未配置时整个端点组 404。
 - **可发现 + UV**：注册要求 `residentKey: 'required'`（`attestationType: 'none'`）；注册与登录都要求 `userVerification: 'required'`。注册排除同一 `rpId` 下已有的 credential（`excludeCredentials`）；登录是可发现流程，服务端不指定用户名，校验返回的 `userHandle` 与账号 `webauthn_user_id` 的 UTF-8/base64url 编码一致。`rp_id` 写入 `admin_passkeys`，因此**更换域名后旧 key 不再适用**。
@@ -68,7 +68,7 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 
 前缀 `/api`，全部返回 JSON，`cache-control: no-store`。
 
-完整路由表以 `src/ingress/admin/server.ts` 的分发为准。这里只记录路由签名看不出来的约束。
+完整路由表以 `src/ingress/admin/index.ts` 的分发为准。这里只记录路由签名看不出来的约束。
 
 **审计读端点**（`GET /auth/session`、`/overview`、`/usage`、`/invocations[/:id]`、`/invocations/:id/prompts`、`/invocations/:id/replay-preflight`、`/invocations/:id/media[/:media_id/content]`、`/config/view`、`/models`、`/prompts/global`、`/prompts/group`、`/prompts/versions[/:id]`、`/prompts/diff`、`/contexts[/:conversation_id]`、`/messages[/:id]`、`/sticker-sets`、`/stickers`、`/alarms`、`/memories`、`/memories/chats`、`/admins`、`/provider-presets`、`/config/status`、`/image/status`、`/image/config`、`/image/models`、`/image/models/endpoints?model=:id`、`/image/prompts[/:id]`、`/image/images[/:id[/:content]]`、`/image/generations[/:id]`、`/dictionary`、`/dictionary/chats`、`/dictionary/settings`、`/dictionary/export`）一律只读；落到审计分支的非 `GET` 请求返回 405 `method_not_allowed`。其中 `/config/view`、`/models`、`/prompts/global`、`/prompts/group` 与 `/invocations/:id/{prompts,replay-preflight,media}` 是 Session 与 Bearer key 共用的只读检查路由，查询校验与投影见「Inspection 只读视图」；`/prompts/versions`、`/prompts/versions/:id` 与 `/prompts/diff` 只在面板 Session 下提供（Bearer key 请求返回 403），语义见「Prompts 页端点」；密钥请求的非 `GET` 落在密钥权限面之外，返回 403。`GET /providers` 与 `GET /chats` 只读，但这两个路径同时是写端点前缀，不落到审计分支。`GET /dictionary?scope=global|group&chat=&search=` 返回 `{ items, conflicts }`（`items[].revision` 是词条自己的乐观锁 token，`conflicts` 是 `{ value, entry_ids }` 列表；group 作用域的冲突包含全局词条，但不含其它群）；`GET /dictionary/chats` 返回 `{ items: [{ id, title, type }] }`，`GET /dictionary/export?scope=&chat=&format=csv|jsonl` 直接返回文件文本。`/usage` 额外接受 `days`（1–90，默认 7），越界返回 400 `invalid_days`；Token 序列来自 `daily_usage`，Invocation 与 Tool call 序列直接按 UTC 日期 `COUNT` `invocations` 与 `tool_calls`。`/contexts` 是按 Conversation（chat + Forum Topic）维度只读投影 Conversation Context；`:conversation_id` 是 `conversations.id` 而不是 `conversation_contexts.id`，不存在返回 404。`GET /config/status` 返回 `generation`、`active_hash`、`file_hash`、`restart_required` 与 `last_error`（`{ code, message, at }` 或 `null`）。`ConfigReloader` 未接线时，`GET /config/status` 返回 503 `config_reload_unavailable`，`PUT /model` 返回 503 `model_switch_unavailable`，`/providers` 与 `PUT /vision` 返回 503 `providers_unavailable`，`/chats` 返回 503 `chats_unavailable`。警告读端点不在审计分支，见下一节。
 
@@ -291,7 +291,7 @@ Developer 页为两个开关（原始报文、Agent 思考文本 CoT）各展示
 
 ## Harness tuning 页
 
-Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_level`（Models 页）与 `system_prompt_file`（Prompts 页）以外的全部字段，以及全局主动回复默认值 `telegram.proactive_reply`（Chat 覆盖仍在 Chats 页）；字段表、键名与边界校验在 `src/ingress/admin/harness-admin.ts`，每个字段复用 `ConfigSchema` 里对应的 schema。每个字段登记所属配置段，键是该段下的点分路径：`agent` 字段如 `context.ref_ttl_hours`、`rate_limits.window_seconds`，`telegram` 字段为 `proactive_reply.enabled` / `base_probability` / `increment` / `hard_pity`，写入路径是「段 + 键」。
+Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_level`（Models 页）与 `system_prompt_file`（Prompts 页）以外的全部字段，以及全局主动回复默认值 `telegram.proactive_reply`（Chat 覆盖仍在 Chats 页）；字段表、键名与边界校验在 `src/ingress/admin/harness.ts`，每个字段复用 `ConfigSchema` 里对应的 schema。每个字段登记所属配置段，键是该段下的点分路径：`agent` 字段如 `context.ref_ttl_hours`、`rate_limits.window_seconds`，`telegram` 字段为 `proactive_reply.enabled` / `base_probability` / `increment` / `hard_pity`，写入路径是「段 + 键」。
 
 `GET /harness` 返回 `{ revision, saved, active }`：`saved` 是磁盘文件值，`active` 是运行中配置的值；可选字段缺省时报告运行时实际使用的值（主动回复四项为 `PROACTIVE_REPLY_DEFAULTS`，三个布尔开关为 `false`，`memory_ttl_warning_days` 为 30，`send_max_text_length` 为 `null` 即不限制）。读取与修改需要 `ConfigReloader`，不可用时返回 503 `harness_unavailable`。
 
@@ -313,7 +313,7 @@ Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_
 
 ## Invocation 重放
 
-`POST /api/invocations/:id/replay` 仅接受 Bearer API key，用**当前**配置重放一次已结束的 Invocation，由 `src/orchestration/replay.ts` 执行、`AdminServer` 只做转发（引擎未接线时 503 `replay_unavailable`）。请求体严格为 `{ global_prompt?, group_prompt?, before_send_id?, provider?, model?, thinking_level? }`，`global_prompt`/`group_prompt` 只允许替换 prompt 的两个可编辑层：省略某层表示沿用当前 active 配置值；`global_prompt` 不能为空（空串在边界返回 400 `invalid_body`，去注释后为空由引擎返回 400 `replay_prompt_empty`；含 NUL/BOM 或未知模板变量返回 400 `replay_prompt_invalid`；每层超过 65536 字符在边界返回 400 `invalid_body`），`group_prompt` 允许空串以显式丢掉群指令。`before_send_id` 是正整数十进制字符串（0、溢出或非十进制返回 400 `invalid_before_send_id`），选择切片边界；预检与重放必须使用同一值，它不是 prompt 覆盖。`provider` 与 `model` 必须成对，各为 1–256 字符、不可全为空白或含控制字符；`thinking_level` 取七档之一、可单独给出，形状非法返回 400 `invalid_body`。它们是**临时覆盖**，只影响这一次重放，不写回配置、不改生产 Context/审计/预算，但选中模型决定 prompt 变量、图片能力、context budget、Schema、Provider 连接与真实费用——给模型对而不给 thinking 时用该模型支持的最弱级别（非推理模型为 `off`），请求模型不支持的级别拒绝；未给选择时按源 Chat 配置解析。body 上限 1 MiB（超出 413 `body_too_large`），其它字段返回 400 `invalid_body`；`system_prompt` 已从契约删除且无别名，固定段与协议字段同样不可覆盖。请求的 `AbortSignal` 直接传给引擎，客户端断开或进程关停都会中止重放。
+`POST /api/invocations/:id/replay` 仅接受 Bearer API key，用**当前**配置重放一次已结束的 Invocation，由 `src/orchestration/replay/index.ts` 执行、`AdminServer` 只做转发（引擎未接线时 503 `replay_unavailable`）。请求体严格为 `{ global_prompt?, group_prompt?, before_send_id?, provider?, model?, thinking_level? }`，`global_prompt`/`group_prompt` 只允许替换 prompt 的两个可编辑层：省略某层表示沿用当前 active 配置值；`global_prompt` 不能为空（空串在边界返回 400 `invalid_body`，去注释后为空由引擎返回 400 `replay_prompt_empty`；含 NUL/BOM 或未知模板变量返回 400 `replay_prompt_invalid`；每层超过 65536 字符在边界返回 400 `invalid_body`），`group_prompt` 允许空串以显式丢掉群指令。`before_send_id` 是正整数十进制字符串（0、溢出或非十进制返回 400 `invalid_before_send_id`），选择切片边界；预检与重放必须使用同一值，它不是 prompt 覆盖。`provider` 与 `model` 必须成对，各为 1–256 字符、不可全为空白或含控制字符；`thinking_level` 取七档之一、可单独给出，形状非法返回 400 `invalid_body`。它们是**临时覆盖**，只影响这一次重放，不写回配置、不改生产 Context/审计/预算，但选中模型决定 prompt 变量、图片能力、context budget、Schema、Provider 连接与真实费用——给模型对而不给 thinking 时用该模型支持的最弱级别（非推理模型为 `off`），请求模型不支持的级别拒绝；未给选择时按源 Chat 配置解析。body 上限 1 MiB（超出 413 `body_too_large`），其它字段返回 400 `invalid_body`；`system_prompt` 已从契约删除且无别名，固定段与协议字段同样不可覆盖。请求的 `AbortSignal` 直接传给引擎，客户端断开或进程关停都会中止重放。
 
 引擎行为（也是响应 `fidelity` 字段承诺的边界）：
 

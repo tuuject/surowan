@@ -1,5 +1,5 @@
 import { and, eq, isNull, ne, sql } from 'drizzle-orm';
-import { buckets, invocationBuckets, invocations, taskReceipts } from '../../store/schema.ts';
+import { buckets, invocationBuckets, invocations, taskReceipts } from '../../store/schema/index.ts';
 import { asRunResult } from '../../store/store.ts';
 import {
   enqueueBucketInvocation,

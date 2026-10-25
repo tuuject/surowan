@@ -1,8 +1,8 @@
 import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import Database from 'better-sqlite3';
-import { loadConfig } from '../src/adapters/local-monolith/config.ts';
-import { writeConfigEdits } from '../src/adapters/local-monolith/config-file.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config/index.ts';
+import { writeConfigEdits } from '../src/adapters/local-monolith/config/file.ts';
 
 /**
  * One-off: moves the bot admin whitelist out of the dropped `bot_admins` table

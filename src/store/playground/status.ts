@@ -3,7 +3,7 @@
  * staged uploads, and the expiry clock of queued room runs.
  */
 import { and, asc, count, eq, lt, sql } from 'drizzle-orm';
-import type { RoomState, RoomStatus, RoomSummary, StagedAsset } from '../playground.ts';
+import type { RoomState, RoomStatus, RoomSummary, StagedAsset } from './index.ts';
 import {
   buckets,
   chats,
@@ -14,7 +14,7 @@ import {
   playgroundInputs,
   playgroundReleases,
   rooms,
-} from '../schema.ts';
+} from '../schema/index.ts';
 import { PlaygroundError, type PlaygroundDeps, roomOf, roomRow, roomSummariesOf } from './shared.ts';
 
 export function status(deps: PlaygroundDeps, chatId: bigint): RoomStatus {

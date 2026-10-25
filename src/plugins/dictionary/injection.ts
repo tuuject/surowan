@@ -1,9 +1,9 @@
-import type { DictionaryInjectionMode, FileChat } from '../../platform/config.ts';
+import type { DictionaryInjectionMode, FileChat } from '../../platform/config/index.ts';
 import { resolveChatConfig } from '../../store/store.ts';
-import type { ContextInjector } from '../../context/context-injector.ts';
-import type { DictionaryEntryRecord } from './dictionary.ts';
-import { DictionaryStore } from './dictionary-store.ts';
-import { matchingEntries } from './dictionary-conflicts.ts';
+import type { ContextInjector } from '../../context/injector.ts';
+import type { DictionaryEntryRecord } from './tools.ts';
+import { DictionaryStore } from './store.ts';
+import { matchingEntries } from './conflicts.ts';
 
 /**
  * Rendering and de-duplication for automatic dictionary injection.

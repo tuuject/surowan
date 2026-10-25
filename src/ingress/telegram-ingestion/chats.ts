@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { Message } from 'grammy/types';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
-import { chatMigrations, chats } from '../../store/schema.ts';
+import { chatMigrations, chats } from '../../store/schema/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
 
 /**

@@ -1,5 +1,5 @@
 import process from 'node:process';
-import { parseCli, parseTimeout, resolveCli } from './args.ts';
+import { parseCli, parseTimeout, resolveCli } from './args/index.ts';
 import type { ParsedCli } from './args/types.ts';
 import { AdminClient, isRecord, parseEndpoint } from './client.ts';
 import { type CliIo, executeCommand } from './commands.ts';

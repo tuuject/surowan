@@ -3,7 +3,7 @@ import { dirname, join, posix, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { BUNDLED_MANUAL_DIR } from '../src/adapters/local-monolith/doc-spaces.ts';
 import { DOC_INDEX_PATH, resolveDocPath } from '../src/platform/doc-spaces.ts';
-import { docsRoot, exampleNames, exampleSource, renderConfigFields, repositoryRoot } from './docs-prepare.ts';
+import { docsRoot, exampleNames, exampleSource, renderConfigFields, repositoryRoot } from './docs/prepare.ts';
 
 /** The docs site's hand-written page sources; the single source for the agent manual. */
 export const manualContentRoot = resolve(docsRoot, 'content/docs');

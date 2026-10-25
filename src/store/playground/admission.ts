@@ -5,7 +5,7 @@
  */
 import { createHash } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
-import type { SubmitInput, SubmitResult } from '../playground.ts';
+import type { SubmitInput, SubmitResult } from './index.ts';
 import {
   media,
   messageRevisions,
@@ -15,7 +15,7 @@ import {
   roomParticipants,
   rooms,
   senders,
-} from '../schema.ts';
+} from '../schema/index.ts';
 import { PlaygroundError, type PlaygroundDeps, roomRow } from './shared.ts';
 
 export function replaySubmission(

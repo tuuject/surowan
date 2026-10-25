@@ -2,7 +2,7 @@
 
 辞典用于解释群聊词语，不替代记忆或人格 Prompt。产品原始需求见 [辞典系统 PRD](design/archived/20261010%20辞典系统.md)；当前行为以源码与测试为准。
 
-实现位置：辞典插件整体在 [src/plugins/dictionary/](../src/plugins/dictionary/)——存储与工具在 [dictionary.ts](../src/plugins/dictionary/dictionary.ts)，CSV/JSONL 核心在 [format.ts](../src/plugins/dictionary/format.ts)，注入渲染、去重与注入模式解析在 [injection.ts](../src/plugins/dictionary/injection.ts)（`ContextInjector` 契约见 [src/context/context-injector.ts](../src/context/context-injector.ts)），融合建议在 [merge.ts](../src/plugins/dictionary/merge.ts)，Tool Model 选择在 [src/platform/tool-model.ts](../src/platform/tool-model.ts)，Admin 端点在 [admin.ts](../src/plugins/dictionary/admin.ts)（由 [server.ts](../src/ingress/admin/server.ts) 引入），表定义在迁移 [034_dictionary.sql](../src/store/migrations/034_dictionary.sql)（表仍由核心 schema 持有）。行为测试见 [test/dictionary.test.ts](../test/dictionary.test.ts)。
+实现位置：辞典插件整体在 [src/plugins/dictionary/](../src/plugins/dictionary/)——存储与工具在 [dictionary.ts](../src/plugins/dictionary/tools.ts)，CSV/JSONL 核心在 [format.ts](../src/plugins/dictionary/format.ts)，注入渲染、去重与注入模式解析在 [injection.ts](../src/plugins/dictionary/injection.ts)（`ContextInjector` 契约见 [src/context/injector.ts](../src/context/injector.ts)），融合建议在 [merge.ts](../src/plugins/dictionary/merge.ts)，Tool Model 选择在 [src/platform/tool-model.ts](../src/platform/tool-model.ts)，Admin 端点在 [admin.ts](../src/plugins/dictionary/admin.ts)（由 [server.ts](../src/ingress/admin/index.ts) 引入），表定义在迁移 [034_dictionary.sql](../src/store/migrations/034_dictionary.sql)（表仍由核心 schema 持有）。行为测试见 [test/dictionary/dictionary.test.ts](../test/dictionary/dictionary.test.ts)。
 
 ## 作用域和信任边界
 
@@ -32,6 +32,6 @@ CRUD 按独立 ID 操作，更新/删除携带词条 revision 防止旧表单覆
 
 Tool Model 是系统级辅助模型选择，复用 Provider 注册表、凭据和 thinking 支持列表；未单独配置时继承全局 Agent 设置，不继承每 Chat 覆盖。辅助调用不接入生产 Agent Conversation Context。模型选择热应用，开始的调用钉住配置快照，模型错误与取消必须落终态审计（`model_calls.role = 'tool'`，不挂 `invocation_id`，不计入 Chat 的每日 Token 预算）。融合输出通过严格 Schema 校验，非法结构、空字段、超长字段或非正常停止记为失败；审计保留用量和耗时。
 
-`lookup_dictionary` 通过 `offset` 分页返回 `{ entries, total, offset, next_offset, more }`，页面按实际 `execute` 信封编码体积限长，避免通用截断破坏 JSON。`more` 为真时必须继续取 `next_offset` 才能获取所有匹配。群作用域读取及写入同时解析 `chat_migrations`，迁移前后的同群词条继续可见，但不扩大到其他群。真实生命周期回归见 [test/dictionary-runtime.test.ts](../test/dictionary-runtime.test.ts)，覆盖 canonical 落盘、缓存重建、更新和 GC 后重注入；`context_injected.injections` 按注入器名记录本批实际注入数量（辞典的键是 `dictionary`）。
+`lookup_dictionary` 通过 `offset` 分页返回 `{ entries, total, offset, next_offset, more }`，页面按实际 `execute` 信封编码体积限长，避免通用截断破坏 JSON。`more` 为真时必须继续取 `next_offset` 才能获取所有匹配。群作用域读取及写入同时解析 `chat_migrations`，迁移前后的同群词条继续可见，但不扩大到其他群。真实生命周期回归见 [test/dictionary/runtime.test.ts](../test/dictionary/runtime.test.ts)，覆盖 canonical 落盘、缓存重建、更新和 GC 后重注入；`context_injected.injections` 按注入器名记录本批实际注入数量（辞典的键是 `dictionary`）。
 
 面向用户的步骤见 [辞典指南](../apps/docs/content/docs/guides/dictionary.md)。Admin 路由及写端点白名单见 [Admin Panel](admin-panel.md#api)，配置字段见 [配置](configuration.md#dictionary-与-tool-model)，表结构见 [数据层](data-layer.md#dictionary_entries迁移-034)，注入与能力边界见 [Telegram 与 Agent 流程](telegram-agent-flow.md#skills-与受控能力调用)。

@@ -7,7 +7,7 @@
  * values, because a room release leaves them frozen from its own config.
  */
 import type { Orm } from './store.ts';
-import { invocationBuckets, invocations } from './schema.ts';
+import { invocationBuckets, invocations } from './schema/index.ts';
 
 export interface QueuedInvocationInput {
   readonly bucketId: bigint;

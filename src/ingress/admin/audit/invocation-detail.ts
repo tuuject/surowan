@@ -6,10 +6,10 @@ import {
   messages,
   modelCalls,
   toolCalls,
-} from '../../../store/schema.ts';
+} from '../../../store/schema/index.ts';
 import { meteredTokens } from '../../../store/sleep.ts';
 import type { Orm } from '../../../store/store.ts';
-import { bit, num } from '../audit.ts';
+import { bit, num } from './shared.ts';
 import { INVOCATION_CHAT_COLUMNS, type InvocationListRow, invocationChat } from './invocations.ts';
 
 interface InvocationDetailRow extends InvocationListRow {

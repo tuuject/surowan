@@ -1,5 +1,5 @@
 import { and, eq, inArray, lt, sql } from 'drizzle-orm';
-import { appState, buckets, chats, conversations, invocations, taskReceipts } from '../../store/schema.ts';
+import { appState, buckets, chats, conversations, invocations, taskReceipts } from '../../store/schema/index.ts';
 import { asRunResult } from '../../store/store.ts';
 import { materializeCatchUpBuckets, selectCatchUpMessages } from './catch-up.ts';
 import { type InvocationQueueDeps, processConversations } from './shared.ts';

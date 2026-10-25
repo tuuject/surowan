@@ -1,6 +1,6 @@
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
-import type { ProviderApi } from './config.ts';
+import type { ProviderApi } from './config/index.ts';
 
 /**
  * One budget for the whole listing rather than a smaller per-page cap: an

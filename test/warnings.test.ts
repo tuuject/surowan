@@ -1,10 +1,10 @@
 import { afterAll, expect, test } from 'vitest';
 import { ImConnectionRegistry } from '../src/platform/im-connection.ts';
 import { standingWarnings } from '../src/platform/warning-catalog.ts';
-import { invocations } from '../src/store/schema.ts';
+import { invocations } from '../src/store/schema/index.ts';
 import { INVOCATION_FAILURE_FLOOR_KEY, WarningService, serializeVariables } from '../src/store/warnings.ts';
 import { seedAdminFixture } from './fixtures/admin-seed.ts';
-import { cleanupSchemaDirectories, openStore } from './schema-fixtures.ts';
+import { cleanupSchemaDirectories, openStore } from './schema/fixtures.ts';
 
 afterAll(cleanupSchemaDirectories);
 

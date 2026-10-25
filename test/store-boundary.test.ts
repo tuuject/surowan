@@ -3,9 +3,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
-import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { chats } from '../src/store/schema.ts';
+import { chats } from '../src/store/schema/index.ts';
 import type { BusinessStore, Orm } from '../src/store/store.ts';
 import { writeTestConfig } from './helpers.ts';
 

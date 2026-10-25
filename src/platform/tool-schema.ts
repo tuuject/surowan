@@ -1,4 +1,4 @@
-import type { ToolSchemaKeywords } from './config.ts';
+import type { ToolSchemaKeywords } from './config/index.ts';
 
 /**
  * How much of a tool definition's JSON Schema reaches one model.

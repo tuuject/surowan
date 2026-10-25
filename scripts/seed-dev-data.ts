@@ -1,8 +1,8 @@
 import { chmod, copyFile, mkdir, stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { assertConfigPermissions, loadConfig } from '../src/adapters/local-monolith/config.ts';
-import type { FileConfig } from '../src/platform/config.ts';
+import { assertConfigPermissions, loadConfig } from '../src/adapters/local-monolith/config/index.ts';
+import type { FileConfig } from '../src/platform/config/index.ts';
 import { loadEnvFiles } from '../src/platform/load-env.ts';
 
 /**

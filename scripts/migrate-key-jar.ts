@@ -2,10 +2,10 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { type ParseError, parse } from 'jsonc-parser';
 
-import { writeConfigEdits } from '../src/adapters/local-monolith/config-file.ts';
-import { secretEdit } from '../src/platform/config-write.ts';
+import { writeConfigEdits } from '../src/adapters/local-monolith/config/file.ts';
+import { secretEdit } from '../src/platform/config/write.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
-import { plaintextSecrets } from '../src/platform/config-validate.ts';
+import { plaintextSecrets } from '../src/platform/config/validate.ts';
 
 /**
  * One-off: moves the plaintext secrets of a configuration written before the key

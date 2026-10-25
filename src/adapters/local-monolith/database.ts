@@ -2,8 +2,8 @@ import { access, chmod, cp, mkdir, readdir, readFile, rename, rm, stat, unlink, 
 import { basename, dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import type { RawConfig } from '../../platform/config.ts';
-import * as schema from '../../store/schema.ts';
+import type { RawConfig } from '../../platform/config/index.ts';
+import * as schema from '../../store/schema/index.ts';
 import { purgeExpiredData, type BusinessStore, type Orm } from '../../store/store.ts';
 
 interface Migration {

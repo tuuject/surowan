@@ -43,7 +43,7 @@ trusted publisher 只能配置到 npm 上已存在的包，因此第一次发布
 
    ```bash
    pnpm run check
-   pnpm test test/invocation-cli.test.ts test/npm-release.test.ts
+   pnpm test test/invocations/cli.test.ts test/npm-release.test.ts
    ```
 
 3. 打包到明确的输出目录（用绝对路径，避免相对路径歧义；产物名随版本变化）：

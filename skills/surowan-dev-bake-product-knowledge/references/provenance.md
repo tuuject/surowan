@@ -54,7 +54,7 @@ Public example sources read and their packed routes:
 
 The examples are routed, not copied: sample quotas, model IDs, timezone and prompts do not become universal product defaults. `reference/fields.md` is a generated route listed in navigation and handled explicitly by the manual packer; no unobserved field limits were extracted from it.
 
-Packaging-only reads: `scripts/manual-prepare.ts` established root-index replacement, unlisted-page inclusion and example wrapping; `scripts/docs-prepare.ts` established generated reference/example locations. `src/platform/doc-spaces.ts` established the logical path shape. These files and the repository's AGENTS.md supplied development/path constraints, not product behavior evidence.
+Packaging-only reads: `scripts/manual-prepare.ts` established root-index replacement, unlisted-page inclusion and example wrapping; `scripts/docs/prepare.ts` established generated reference/example locations. `src/platform/doc-spaces.ts` established the logical path shape. These files and the repository's AGENTS.md supplied development/path constraints, not product behavior evidence.
 
 ## Selection and omissions
 

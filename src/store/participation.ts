@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 import type { Message } from 'grammy/types';
-import type { RawConfig } from '../platform/config.ts';
+import type { RawConfig } from '../platform/config/index.ts';
 import {
   type BotIdentity,
   compileParticipation,
@@ -11,7 +11,7 @@ import {
 } from '../platform/participation.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import { isChatPaused, type Orm, resolveChatConfig } from './store.ts';
-import { conversationAttention } from './schema.ts';
+import { conversationAttention } from './schema/index.ts';
 
 export interface ParticipationDecision {
   /** Whether this message may open a new bucket. */

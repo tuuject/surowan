@@ -1,12 +1,12 @@
 # 配置
 
-Surowan 使用严格 JSONC 配置。Schema 位于 `src/platform/config-schema.ts` 与 `src/platform/config-schema-*.ts`（类型仍从 `src/platform/config.ts` 导出），未知字段会被拒绝；除类型校验外，还会验证时区、ID 唯一性、模型引用、URL 和预算关系。
+Surowan 使用严格 JSONC 配置。Schema 位于 `src/platform/config/schema.ts` 与 `src/platform/config-schema-*.ts`（类型仍从 `src/platform/config/index.ts` 导出），未知字段会被拒绝；除类型校验外，还会验证时区、ID 唯一性、模型引用、URL 和预算关系。
 
 本页只记录 Schema 表达不出来的语义。每个字段的类型、取值范围和必填性以 `src/platform/config-schema*.ts` 的 TypeBox Schema 为准——越界值由 `check-config` 直接报出，不要靠文档抄写的数字判断。
 
 ## 加载语义
 
-文件加载入口为 `src/adapters/local-monolith/config.ts` 的 `loadConfig`；JSONC 写回与重载协调器也属于该 adapter。`platform/config.ts` 的纯校验与 `platform/runtime-config.ts` 的快照管理不读取本地文件，其他宿主可以直接提供已准备好的配置与 Prompt 文本。
+文件加载入口为 `src/adapters/local-monolith/config/index.ts` 的 `loadConfig`；JSONC 写回与重载协调器也属于该 adapter。`platform/config/index.ts` 的纯校验与 `platform/runtime-config.ts` 的快照管理不读取本地文件，其他宿主可以直接提供已准备好的配置与 Prompt 文本。
 
 - CLI 必须显式传入 `--config <path>`。
 - 配置在 `serve` 启动时读取一次；只有[运行时配置热更新](#运行时配置热更新)列出的白名单字段可以在运行中应用，其余字段修改后必须重启。
@@ -27,7 +27,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 
 `serve` 启动时读取一次配置，但白名单字段可以在运行中应用：Admin Panel 的「Apply config file」按钮（`POST /api/config/apply`）、Models / Chats / Harness tuning 页保存，以及 Telegram `/model`、`/ignoreme`、`/unignoreme` 都会重新读取 `config.jsonc` 并把白名单字段的变化发布到当前进程。没有文件系统 watcher——手改文件后必须显式应用才生效。
 
-热更新白名单（`src/platform/config-diff.ts` 是唯一定义处，未列出的字段一律按 restart 处理；新增字段默认 restart）：
+热更新白名单（`src/platform/config/diff.ts` 是唯一定义处，未列出的字段一律按 restart 处理；新增字段默认 restart）：
 
 | 路径 | 说明 |
 | --- | --- |
@@ -67,7 +67,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 - 每次成功应用输出 `config_reloaded` 日志事件，带 `generation`、`active_hash`、`file_hash`、`applied`、`restart_required`、`outside_serve`；失败输出 `config_reload_failed`（`code` 与脱敏后的 `error`）。失败时 active 配置与注册表都不变，错误记录在 `ConfigReloader.status().lastError`；`code` 为 `config_invalid`、`candidate_invalid`、`model_unusable`（注册模型缺失或不可用，含 vision 输出上限越界、MCP/Tool 注册表容量不足）或 `secret_unresolved`（新增或连接字段变化的 Provider 无法解析 SecretRef）。全局默认与每个 Chat 的生效组合都须通过校验；删除仍被引用的模型会在文件或 candidate 校验阶段被拒绝，任一失败都不会部分发布。
 - `/model` 在写入文件之前就被拒绝时（模型不存在、不可用，或文件无法写入），没有发生 reload：只输出 `model_switch_failed` 日志并把错误返回给调用方，不改变 `lastError`。写入之后应用失败才按上一条处理。
 - 没有任何待重启字段时 `active_hash` 等于文件哈希，可以直接与 `check-config` 的输出比对。只改注释或格式、或者把待重启字段改回原值后应用，都会发布一次内容相同的配置，让 `active_hash` 跟上新的文件哈希。有待重启字段时，`active_hash` 是 candidate RawConfig 的 JSON 序列化的 SHA-256；若本次应用没有任何热字段变化（只改注释、只有 restart 字段变化），它保持不变，不会跟上文件哈希。
-- 写入配置文件（如 `/model`、`/ignoreme`、`/unignoreme`）由 `src/adapters/local-monolith/config-file.ts` 的 `writeConfigEdits` 完成：只替换 JSONC 的值，保留注释与格式；先写同目录临时文件并完整校验，再 rename 覆盖，因此读者只会看到旧文件或完整合法的新文件。配置文件是符号链接时拒绝写入（`config_symlink`）。带 Secret 的写入（`src/platform/config-write.ts` 的 `secretEdit`）把明文写进 key jar，文件里只留条目名，见 [SecretRef](#secretref)。
+- 写入配置文件（如 `/model`、`/ignoreme`、`/unignoreme`）由 `src/adapters/local-monolith/config/file.ts` 的 `writeConfigEdits` 完成：只替换 JSONC 的值，保留注释与格式；先写同目录临时文件并完整校验，再 rename 覆盖，因此读者只会看到旧文件或完整合法的新文件。配置文件是符号链接时拒绝写入（`config_symlink`）。带 Secret 的写入（`src/platform/config/write.ts` 的 `secretEdit`）把明文写进 key jar，文件里只留条目名，见 [SecretRef](#secretref)。
 - Admin「Chats」管理 Chat/Topic 白名单与按 Chat 的模型覆盖：列表分别显示磁盘 Saved settings 与进程 Running settings。新增 Chat 保存后立即热应用；删除 Chat 和 Topic 范围修改保存后等待重启，已有 active Chat 的模型/thinking 覆盖热应用；删除不会清除消息、Context 或审计历史，最后一个配置 Chat 不允许删除。编辑只更新这四项管理字段，不覆盖 `instructions_file`、参与策略等其它设置。
 - 端点、状态码与响应体见 [admin-panel.md](admin-panel.md#api)。
 
@@ -363,7 +363,7 @@ Provider alias 必须匹配 `^[A-Za-z][A-Za-z0-9_-]{0,63}$`：它出现在 Admin
 
 Admin Panel 从 models.dev 的 `reasoning_options` 预填级别（`src/platform/models-dev.ts` 的 `extractThinkingLevels`）：`effort` 的取值直接对应 Pi 级别，其中 `none` 是 `off`；`toggle` 额外提供 `off`；只有 `budget_tokens` 时取 Pi 能换算成预算的 `minimal`–`high`，预算本身不代表能关闭。models.dev 没有给出可选级别时（没有 `reasoning_options`、空列表即始终推理、只有开关）不预填，模型沿用 Pi 默认。与其它元数据一样，跨 Provider 或模糊匹配得来的级别需要管理员确认；缺失的级别不需要确认。
 
-**已知限制（暂缓修复）：Anthropic 原生接口没有 adaptive thinking。** Pi 的 `anthropic-messages` 适配器只在模型带 `compat.forceAdaptiveThinking === true` 时按 effort 发送 thinking（`low`–`max` 原样传给 API），否则走 token 预算：`clampReasoning` 把 `xhigh` / `max` 折成 `high`，预算固定为 16384。Pi 的模型目录给 Opus 4.6+、Sonnet 4.6+ 与 Fable 5 标了这个字段，但本项目不使用 Pi 的模型目录（模型只来自配置 `models[]`），而 `anthropic-messages` 的 compat 白名单是空的（`src/platform/config-semantics.ts` 的 `COMPAT_FIELDS_BY_API`），配置里也写不进这个字段。结果是：经 builtin `anthropic` 或 `api: "anthropic-messages"` 的 custom Provider 调用这些 Claude 模型时，即使声明并选了 `xhigh` / `max`，实际也只按 `high` 的预算思考；这些模型是否仍接受预算模式，尚未用真实 API 验证。经 OpenRouter 等 `openai-completions` 路径调用不受影响，effort 会原样发送。同一原因还让这些模型丢了 Pi 目录里的 `supportsTemperature: false` 与 `supportsStrictTools`。Claude API 价格高，项目暂不直连，需要时再修：给 `anthropic-messages` 开放 `force_adaptive_thinking` compat 字段并在 `mapCompat` 映射，或在注册 builtin `anthropic` 模型时继承 Pi 目录里同 id 模型的 compat。
+**已知限制（暂缓修复）：Anthropic 原生接口没有 adaptive thinking。** Pi 的 `anthropic-messages` 适配器只在模型带 `compat.forceAdaptiveThinking === true` 时按 effort 发送 thinking（`low`–`max` 原样传给 API），否则走 token 预算：`clampReasoning` 把 `xhigh` / `max` 折成 `high`，预算固定为 16384。Pi 的模型目录给 Opus 4.6+、Sonnet 4.6+ 与 Fable 5 标了这个字段，但本项目不使用 Pi 的模型目录（模型只来自配置 `models[]`），而 `anthropic-messages` 的 compat 白名单是空的（`src/platform/config/semantics.ts` 的 `COMPAT_FIELDS_BY_API`），配置里也写不进这个字段。结果是：经 builtin `anthropic` 或 `api: "anthropic-messages"` 的 custom Provider 调用这些 Claude 模型时，即使声明并选了 `xhigh` / `max`，实际也只按 `high` 的预算思考；这些模型是否仍接受预算模式，尚未用真实 API 验证。经 OpenRouter 等 `openai-completions` 路径调用不受影响，effort 会原样发送。同一原因还让这些模型丢了 Pi 目录里的 `supportsTemperature: false` 与 `supportsStrictTools`。Claude API 价格高，项目暂不直连，需要时再修：给 `anthropic-messages` 开放 `force_adaptive_thinking` compat 字段并在 `mapCompat` 映射，或在注册 builtin `anthropic` 模型时继承 Pi 目录里同 id 模型的 compat。
 
 ### 模型 compat
 
@@ -403,7 +403,7 @@ tool "read" parameter schema: parameter "uri": unsupported schema keyword "minLe
 
 ## Agent 与 Vision
 
-`agent` 段整体可选：整段省略、写成 `null` 或空对象 `{}` 都通过配置校验，其余字段按 `AGENT_DEFAULTS`（`src/platform/config-resolve.ts`）自动填充——`daily_budget.max_tokens` 1_000_000_000、`max_concurrency` 4、`context_stop_ratio` 0.8、`history_messages` 20、`context`（`retained_sends_target` 20、`retained_sends_max` 30、`hard_token_ratio` 0.6、`ref_ttl_hours` 72、`idle_grace_seconds` 0、`max_wall_clock_seconds` 1800、`agent_cache_size` 32）、`rate_limits`（`sends_per_window` 100、`window_seconds` 300、`turns_per_injection` 24），语义校验（如 `retained_sends_target < retained_sends_max`、`hard_token_ratio <= context_stop_ratio`、`idle_grace_seconds` 与 `max_wall_clock_seconds` 的相互约束）按解析后的生效值执行。模型引用与 thinking 级别校验只在 `provider`/`model` 都给出时进行。
+`agent` 段整体可选：整段省略、写成 `null` 或空对象 `{}` 都通过配置校验，其余字段按 `AGENT_DEFAULTS`（`src/platform/config/resolve.ts`）自动填充——`daily_budget.max_tokens` 1_000_000_000、`max_concurrency` 4、`context_stop_ratio` 0.8、`history_messages` 20、`context`（`retained_sends_target` 20、`retained_sends_max` 30、`hard_token_ratio` 0.6、`ref_ttl_hours` 72、`idle_grace_seconds` 0、`max_wall_clock_seconds` 1800、`agent_cache_size` 32）、`rate_limits`（`sends_per_window` 100、`window_seconds` 300、`turns_per_injection` 24），语义校验（如 `retained_sends_target < retained_sends_max`、`hard_token_ratio <= context_stop_ratio`、`idle_grace_seconds` 与 `max_wall_clock_seconds` 的相互约束）按解析后的生效值执行。模型引用与 thinking 级别校验只在 `provider`/`model` 都给出时进行。
 
 只有 `provider`/`model`/`thinking_level` 三元组决定会不会发起 Invocation：三者缺一即「agent 未配置」，加载时产生 warning 但照常启动；之后到期 Bucket 直接以 `skipped_budget`/`agent_unconfigured` 关闭而不创建 Invocation，attach 到运行中 Invocation、完成回执投递与启动补偿走同一闸门。热更新把三元组改成不完整后下一次到期同样跳过，补全即恢复；Chat 覆盖可逐项补齐三元组（`resolveAgentSettings`），全局未配、某 Chat 配齐时该 Chat 照常发起 Invocation。Admin 各模型视图此时以 `null` 字段表示未配置。
 
@@ -428,7 +428,7 @@ Agent 不再配置 `max_output_tokens`：每次请求的输出上限直接使用
 
 `vision` 约束：
 
-- `vision` 段可省略、为 `null` 或部分对象，与 `agent` 同构：`resolveVisionSection` 用 `VISION_DEFAULTS`（`src/platform/config-resolve.ts`）补齐除 `provider`/`model` 外的字段，运行时消费者读到的始终是具体值。
+- `vision` 段可省略、为 `null` 或部分对象，与 `agent` 同构：`resolveVisionSection` 用 `VISION_DEFAULTS`（`src/platform/config/resolve.ts`）补齐除 `provider`/`model` 外的字段，运行时消费者读到的始终是具体值。
 - `provider` 与 `model` 只有同时写出才校验模型引用并注册 `visionModel`；缺一时 `check-config` 只给 warning，`RuntimeConfiguration.visionModel` 为 `undefined`，降级为：`read_image` 拒绝调用（`tool_calls.error_code = vision_unconfigured`，不写 `media_analyses`）；Sticker 后台索引 `runOne` 直接返回、行保持 `pending` 不累计失败与退避；稳定系统提示的图片说明改为「无法检查图片」版本（多模态 Agent 仍直接接收新注入的图片），模板变量 `{{ vision.* }}` 渲染为空串；`doctor` 跳过 vision 探针并在输出里给 `vision: null`。`provider`/`model` 是热字段，补齐后热应用即恢复，无需重启。
 - 独立 Provider/Model 与输出上限，用于 text-only Agent 的普通图片回退和 Sticker 分析。
 - 前台 `read_image` 并发由 `max_concurrency` 控制。
@@ -619,6 +619,6 @@ Developer 页使用可选的 `developer.record_model_payloads` 与 `developer.re
 - `host` 是任意非空字符串，不做回环限制；绑定非回环地址（如 `0.0.0.0`）会把面板暴露给所在网络，TLS 与访问控制由运维负责。推荐保持回环并经反向代理对外。
 - `session_ttl_hours` 同时决定 Session 过期与 Cookie `Max-Age`。
 - `static_dir` 可选，缺省时按源码位置推导为仓库内的 `apps/admin-next/dist`；显式写相对路径时按进程当前工作目录解释；目录缺失时审计 API 仍可用，静态路由返回 503 `admin_bundle_missing`。
-- `public_url` 可选，**显式配置才启用 Passkey**：未配置时 `/api/auth/passkeys/*` 与 `DELETE /api/auth/password` 返回 404 `passkeys_disabled`，登录页与 Settings 页不显示 Passkey 入口。值必须是**规范 HTTPS origin**：无用户名/密码、路径（仅 `/`）与查询/fragment，可带一个尾部 `/`；仅开发场景允许 `http://localhost`；IPv4/IPv6 字面量不能作为 WebAuthn RP，HTTP 与 HTTPS 下均拒绝（校验在 `adminPublicOrigin`，`src/platform/config-semantics.ts`）。属于 `admin.*`，改动需重启。启用后：WebAuthn 只认配置的精确 origin，RP 是 origin 的 hostname（换域名后旧 key 失效）；Admin **全部写端点**的 Origin 校验从「与 Host 匹配」收紧为「与 public origin 全等」。语义与端点见 [admin-panel.md](admin-panel.md#passkey-登录与凭据)。
+- `public_url` 可选，**显式配置才启用 Passkey**：未配置时 `/api/auth/passkeys/*` 与 `DELETE /api/auth/password` 返回 404 `passkeys_disabled`，登录页与 Settings 页不显示 Passkey 入口。值必须是**规范 HTTPS origin**：无用户名/密码、路径（仅 `/`）与查询/fragment，可带一个尾部 `/`；仅开发场景允许 `http://localhost`；IPv4/IPv6 字面量不能作为 WebAuthn RP，HTTP 与 HTTPS 下均拒绝（校验在 `adminPublicOrigin`，`src/platform/config/semantics.ts`）。属于 `admin.*`，改动需重启。启用后：WebAuthn 只认配置的精确 origin，RP 是 origin 的 hostname（换域名后旧 key 失效）；Admin **全部写端点**的 Origin 校验从「与 Host 匹配」收紧为「与 public origin 全等」。语义与端点见 [admin-panel.md](admin-panel.md#passkey-登录与凭据)。
 
 详细认证、API 与前端约定见 [admin-panel.md](admin-panel.md)。

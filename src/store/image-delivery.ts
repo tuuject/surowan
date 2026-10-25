@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Orm } from './store.ts';
-import { hostSends } from './schema.ts';
+import { hostSends } from './schema/index.ts';
 
 /** The delivery ledger is the audit, including attempts interrupted by a restart. */
 export function imageDeliveryState(orm: Orm, conversationId: bigint, generationId: string) {

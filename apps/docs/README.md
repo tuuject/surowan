@@ -10,7 +10,7 @@
 pnpm install --frozen-lockfile
 pnpm run docs:dev
 pnpm run docs:check
-pnpm test test/docs-examples.test.ts test/docs-search.test.ts test/docs-markdown.test.ts
+pnpm test test/docs/examples.test.ts test/docs/search.test.ts test/docs/markdown.test.ts
 pnpm run docs:build
 pnpm run docs:verify
 pnpm run docs:preview
@@ -25,11 +25,11 @@ Markdown、`llms.txt`、`llms-full.txt` 只有生产构建能完整验证，不�
 - 用户正文：`content/docs/`，按任务拆页，写 `title`、`description` 与一个 H1；页面间用相对 `.md` 链接，公开下载用 `__DOCS_BASE__/文件名`。Rspress `replaceRules` 为后者加部署 base，确保 HTML、单页 Markdown 与合并的 `llms-full.txt` 都可用；新增下载须列入精确 dead-link 例外，由 `docs:verify` 检查真实产物。导航由 `_nav.json` / `_meta.json` 维护。
 - 运行镜像内置的用户手册：`pnpm run manual:prepare`（Docker 构建自动执行）把 `content/docs/**/*.md` 与按 `_meta.json` 导航生成的 `index.md` 打包到 `src/manual/`（gitignored），供 Bot 的 `list_documents`/`read_document` 能力按需读取。只打包 Markdown 与导航顺序，不复制 `_meta.json`、主题或 Rspress 产物；`__DOCS_BASE__/examples/` 下的下载示例被包成原文引用页（`examples/*.md`）并把链接改写到包内，其他 `__DOCS_BASE__/` 资源只保留链接文字，打包后残留占位符即失败；新增或移动页面只改正文与 `_meta.json`，下一次构建自动同步。侧栏未列出的页面仍会打包，并列在索引末尾的「其他页面」。
 - 安全下载示例唯一源：`examples/`；Compose 模板例外，直接发布仓库根目录的 `docker-compose.yml`，与 README 共用一份。完整配置与正文 JSONC 片段由真实 `loadConfig` 做离线校验，不解析 SecretRef 或使用真实密钥。
-- `scripts/docs-prepare.ts` 从当前 `ConfigSchema` 生成 `reference/fields.md` 和 `public/config.schema.json`，复制白名单示例，并生成 `public/build-info.json`。这些文件被 Git 忽略，不手改、不另存第二份 Schema。生成页关闭编辑链接与 Git 更新时间：2.0.22 的默认组件不识别这些 frontmatter 开关，主题以两个小包装落实，`docs:verify` 验证生成页隐藏且手写页仍有编辑链接。
+- `scripts/docs/prepare.ts` 从当前 `ConfigSchema` 生成 `reference/fields.md` 和 `public/config.schema.json`，复制白名单示例，并生成 `public/build-info.json`。这些文件被 Git 忽略，不手改、不另存第二份 Schema。生成页关闭编辑链接与 Git 更新时间：2.0.22 的默认组件不识别这些 frontmatter 开关，主题以两个小包装落实，`docs:verify` 验证生成页隐藏且手写页仍有编辑链接。
 - Schema 字段表只描述类型与显式约束，不推导运行时默认值。字段、权限、热更新、迁移、用户可见行为改变时，同一变更更新相关手写指南和测试。
 - 页面与 llms 共享完整 Git SHA；未提交修改明确标为本地预览。更新时间不是适用版本，SHA 也不自动等于 `latest` 镜像。
 - 仅保留轻量主题扩展，布局/导航/搜索/Markdown 使用 Rspress。`static-search-links` 针对 2.0.22 的 extensionless 搜索结果补上原生 `normalizeHref`。其本地搜索仅用 FlexSearch Document（不启用 worker/持久化），因此精确 alias 到同包 compact ESM 构建，避免完整版未使用的 worker fallback 把构建机路径带入 JS；不跳过泄漏检查。
-- `patches/@rspress__core@2.0.22.patch` 修复默认搜索的全局 Enter 越界和空结果上下键取模：仅处理打开面板的搜索输入，有实际结果才导航。通过 pnpm 的 `patchedDependencies` 锁定并安装，不手改安装目录；`test/docs-search.test.ts` 执行已安装包的实际事件处理器。Docker 安装层也复制补丁，最终 runtime 不复制补丁或 docs。按钮补充 `:focus-visible` 边框。升级 Rspress/FlexSearch 后复查路由、compact alias、来源控件与键盘补丁的必要性，并运行生产浏览器验收。
+- `patches/@rspress__core@2.0.22.patch` 修复默认搜索的全局 Enter 越界和空结果上下键取模：仅处理打开面板的搜索输入，有实际结果才导航。通过 pnpm 的 `patchedDependencies` 锁定并安装，不手改安装目录；`test/docs/search.test.ts` 执行已安装包的实际事件处理器。Docker 安装层也复制补丁，最终 runtime 不复制补丁或 docs。按钮补充 `:focus-visible` 边框。升级 Rspress/FlexSearch 后复查路由、compact alias、来源控件与键盘补丁的必要性，并运行生产浏览器验收。
 - 禁止把真实配置、密钥、SQLite、日志、`dev-data` 或 `agent-doc/design` 放进公开内容/资源。示例只用占位符与 SecretRef。当前无真实 Admin 截图；不制作假截图。
 
 ## 静态部署

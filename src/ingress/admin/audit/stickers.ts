@@ -13,7 +13,7 @@ import {
   page,
   parseLimit,
   whereSql,
-} from '../audit.ts';
+} from './shared.ts';
 
 interface StickerSetRow {
   readonly id: bigint;

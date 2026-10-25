@@ -12,10 +12,10 @@
  * the only place that decides how a host maps to those pieces, so callers do
  * not have to know whether they are looking at a Telegram chat or a room.
  */
-import type { RawConfig } from './config.ts';
+import type { RawConfig } from './config/index.ts';
 import type { HostKind } from './im-host.ts';
 import { resolveChatConfig, type Orm } from '../store/store.ts';
-import { resolveAgentSettings } from './config-resolve.ts';
+import { resolveAgentSettings } from './config/resolve.ts';
 
 /** The resolved agent settings for one scope. */
 export type InvocationAgentSettings = ReturnType<typeof resolveAgentSettings>;

@@ -1,6 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
-import { bucketMessages, buckets, conversations } from '../../store/schema.ts';
+import { bucketMessages, buckets, conversations } from '../../store/schema/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { isChatPaused } from '../../store/store.ts';
 import type { StoredMessage } from './messages.ts';

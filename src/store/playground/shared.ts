@@ -3,8 +3,8 @@
  * collaborator pair, and the room row reads that all of them start from.
  */
 import { desc, eq, sql } from 'drizzle-orm';
-import type { RoomState, RoomSummary } from '../playground.ts';
-import { chats, conversations, rooms } from '../schema.ts';
+import type { RoomState, RoomSummary } from './index.ts';
+import { chats, conversations, rooms } from '../schema/index.ts';
 import type { Orm } from '../store.ts';
 
 export type PlaygroundErrorCode =

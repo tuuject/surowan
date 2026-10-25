@@ -5,17 +5,17 @@
  */
 import { join } from 'node:path';
 import { fauxProvider } from '@earendil-works/pi-ai';
-import type { LoadedConfig } from '../../../src/adapters/local-monolith/config.ts';
+import type { LoadedConfig } from '../../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../../src/adapters/local-monolith/database.ts';
 import { createHostTooling } from '../../../src/adapters/local-monolith/host-tooling.ts';
-import { createPlaygroundHost } from '../../../src/adapters/local-monolith/playground-host.ts';
+import { createPlaygroundHost } from '../../../src/adapters/local-monolith/playground/index.ts';
 
 import {
   BUNDLED_SYSTEM_RESOURCES_DIR,
   FileSystemResources,
 } from '../../../src/adapters/local-monolith/system-resources.ts';
 import { PlaygroundAssetStore } from '../../../src/capabilities/media/local-assets.ts';
-import { MediaService } from '../../../src/capabilities/media/media.ts';
+import { MediaService } from '../../../src/capabilities/media/index.ts';
 import { MemoryStore } from '../../../src/context/memory.ts';
 import { PlaygroundIngress } from '../../../src/ingress/playground.ts';
 import { createCoreRuntime } from '../../../src/orchestration/runtime.ts';
@@ -24,8 +24,8 @@ import { RuntimeConfigurationStore } from '../../../src/platform/runtime-config.
 import { SecretStore } from '../../../src/platform/secrets.ts';
 import { BUILTIN_PLUGINS } from '../../../src/plugins/builtin.ts';
 import { loadPlugins } from '../../../src/plugins/plugin.ts';
-import { LongTaskService } from '../../../src/store/long-tasks.ts';
-import { PlaygroundStore } from '../../../src/store/playground.ts';
+import { LongTaskService } from '../../../src/store/long-tasks/index.ts';
+import { PlaygroundStore } from '../../../src/store/playground/index.ts';
 import { recordPromptVersionsFromConfig } from '../../../src/store/prompt-versions.ts';
 import { seedAdminBulkRows } from '../../../test/fixtures/admin-seed-bulk.ts';
 import { seedAdminFixture } from '../../../test/fixtures/admin-seed.ts';
@@ -40,7 +40,7 @@ import {
   wakeRoomScheduler,
 } from './server-rooms.ts';
 import { state } from './server-state.ts';
-import { resolveConversation } from '../../../src/adapters/local-monolith/runtime-host-support.ts';
+import { resolveConversation } from '../../../src/adapters/local-monolith/runtime/support.ts';
 
 export interface Fixtures {
   readonly store: SqliteStore;

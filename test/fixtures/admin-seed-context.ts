@@ -7,7 +7,7 @@ import {
   dailyUsage,
   memories,
   warnings,
-} from '../../src/store/schema.ts';
+} from '../../src/store/schema/index.ts';
 import { AT, insertAlarmTask, LONG_CONTEXT_PAYLOAD_JSON, T } from './admin-seed-data.ts';
 
 /**
@@ -166,7 +166,7 @@ export function seedAdminContexts(orm: Orm): void {
     })
     .run();
   // Seq 4 carries a payload above the admin API preview cap so the detail
-  // page's `payload_truncated` marker is exercised by test/admin.test.ts.
+  // page's `payload_truncated` marker is exercised by test/admin/admin.test.ts.
   orm
     .insert(contextMessages)
     .values({

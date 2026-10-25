@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { HostReadiness } from '../orchestration/host-scope.ts';
 import type { HostKind } from '../platform/im-host.ts';
-import { chats, conversations } from '../store/schema.ts';
+import { chats, conversations } from '../store/schema/index.ts';
 import type { BusinessStore } from '../store/store.ts';
 
 /**

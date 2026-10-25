@@ -1,6 +1,6 @@
 import type { Agent } from '@earendil-works/pi-agent-core';
 import { expect, test } from 'vitest';
-import type { ContextHeader } from '../src/context/context-store.ts';
+import type { ContextHeader } from '../src/context/store.ts';
 import { ConversationRuntime } from '../src/orchestration/conversation-runtime.ts';
 
 function remember(runtime: ConversationRuntime, conversationId: bigint): void {

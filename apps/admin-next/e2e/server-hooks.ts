@@ -4,7 +4,7 @@
  * prefix here before `AdminServer` sees it.
  */
 import { and, eq, sql } from 'drizzle-orm';
-import { adminPasskeys, adminSessions, longTasks, taskReceipts } from '../../../src/store/schema.ts';
+import { adminPasskeys, adminSessions, longTasks, taskReceipts } from '../../../src/store/schema/index.ts';
 import { enterSleep, wakeFromSleep } from '../../../src/store/sleep.ts';
 import { asRunResult } from '../../../src/store/store.ts';
 import { shutdown } from './server-lifecycle.ts';

@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, test } from 'vitest';
-import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config/index.ts';
 import { resolveDoctorTelegram } from '../src/doctor.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { type FixtureConfig, testConfigJsonc, writeTestConfig } from './helpers.ts';

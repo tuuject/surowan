@@ -7,14 +7,14 @@
 
 import { type Api, getSupportedThinkingLevels, type Model } from '@earendil-works/pi-ai';
 import { eq } from 'drizzle-orm';
-import type { SceneContext } from '../../context/scene-context.ts';
-import type { ActiveAgentSettings, RawConfig } from '../../platform/config.ts';
+import type { SceneContext } from '../../context/scene/index.ts';
+import type { ActiveAgentSettings, RawConfig } from '../../platform/config/index.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { isThinkingLevel } from '../../platform/thinking-levels.ts';
-import { chats, conversations, invocations } from '../../store/schema.ts';
+import { chats, conversations, invocations } from '../../store/schema/index.ts';
 import { type BusinessStore, resolveChatConfig } from '../../store/store.ts';
-import type { ReplayError, ReplayModelSelection } from '../replay.ts';
-import { completeAgentSettings, resolveAgentSettings } from '../../platform/config-resolve.ts';
+import type { ReplayError, ReplayModelSelection } from './index.ts';
+import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
 
 /**
  * The live objects the guards read, plus `ReplayError` passed in rather than

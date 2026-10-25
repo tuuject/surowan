@@ -1,8 +1,8 @@
 import { and, eq, sql } from 'drizzle-orm';
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
-import type { RawConfig } from '../platform/config.ts';
-import type * as schema from './schema.ts';
-import { chatMigrations, chatPause, toolCalls } from './schema.ts';
+import type { RawConfig } from '../platform/config/index.ts';
+import type * as schema from './schema/index.ts';
+import { chatMigrations, chatPause, toolCalls } from './schema/index.ts';
 
 /** Synchronous, schema-aware SQLite query surface; no native driver leaks into business code. */
 export type Orm = BaseSQLiteDatabase<'sync', SqliteRunResult, typeof schema>;

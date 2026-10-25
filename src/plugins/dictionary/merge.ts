@@ -6,8 +6,8 @@ import Compile from 'typebox/compile';
 import type { ToolModelSelection } from '../../platform/tool-model.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import type { Orm } from '../../store/store.ts';
-import { modelCalls } from '../../store/schema.ts';
-import type { DictionaryEntryRecord } from './dictionary.ts';
+import { modelCalls } from '../../store/schema/index.ts';
+import type { DictionaryEntryRecord } from './tools.ts';
 import {
   DICTIONARY_ALIAS_MAX_LENGTH,
   DICTIONARY_DEFINITION_MAX_LENGTH,
@@ -15,7 +15,7 @@ import {
   DICTIONARY_TERM_MAX_LENGTH,
   DictionaryError,
   normalizeAliases,
-} from './dictionary-match.ts';
+} from './match.ts';
 
 /**
  * The dictionary-merge suggestion, built on the system-wide auxiliary ("tool")

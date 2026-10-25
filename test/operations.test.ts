@@ -4,9 +4,9 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { Update } from 'grammy/types';
 import { afterAll, expect, test } from 'vitest';
-import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
-import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { TelegramIngestion } from '../src/ingress/telegram-ingestion/index.ts';
+import { BucketScheduler } from '../src/orchestration/scheduler/index.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config/index.ts';
 import {
   backupDatabase,
   ServeLock,

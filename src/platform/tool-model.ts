@@ -1,5 +1,5 @@
 import type { ModelThinkingLevel } from '@earendil-works/pi-ai';
-import type { RawConfig } from './config.ts';
+import type { RawConfig } from './config/index.ts';
 
 /**
  * The system-wide auxiliary ("tool") model that helper features run on, such as

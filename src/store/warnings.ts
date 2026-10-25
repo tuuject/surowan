@@ -9,7 +9,7 @@ import {
   type WarningCode,
   type WarningSeverity,
 } from '../platform/warning-catalog.ts';
-import { appState, invocations, warnings } from './schema.ts';
+import { appState, invocations, warnings } from './schema/index.ts';
 import type { Orm } from './store.ts';
 
 /**

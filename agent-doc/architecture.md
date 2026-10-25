@@ -2,7 +2,7 @@
 
 ## 进程组成
 
-Surowan 当前由 Local Monolith Adapter 运行成单进程 Node.js 服务。`src/adapters/local-monolith/runtime-host.ts` 负责装配以下组件：
+Surowan 当前由 Local Monolith Adapter 运行成单进程 Node.js 服务。`src/adapters/local-monolith/runtime/index.ts` 负责装配以下组件：
 
 ```text
 Config + SecretStore
@@ -31,7 +31,7 @@ Config + SecretStore
 `src/orchestration/runtime.ts` 的 `createCoreRuntime` 接收已经准备好的业务 Store、运行时配置、模型与工具工厂、SecretStore、只读 SystemResources 与一份「本进程能承载的宿主」映射（`hosts`：一个或两个 `ImHost`），统一创建 ConversationRuntime、AgentRuntime、LongTaskService 与 BucketScheduler。装配本身不读取配置或资源目录，不启动 Scheduler，也不取得进程锁；初始化、启动、停止和释放依赖由宿主负责。它复用原有调度和执行实现，不引入第二套 Bucket/Invocation 状态机。——映射里的键同时也是 Scheduler 的处理范围：它只 recover/due/launch/skip 这些宿主的 Invocation、Bucket 与回执，其它宿主的工作保持原样。`serve` 每个进程都同时绑定 telegram 与 playground 宿主；Telegram 停用、网络异常或配置异常时 Scheduler 只放行 Playground 工作，Telegram 的 Invocation、Bucket 与回执不 launch、不 claim、不跳过。唯一例外是 Scheduler 启动时的一次崩溃恢复：它按静态宿主范围收掉上个进程留下的 running/queued 工作（`process_restart`/`recovery_age`），否则死进程的 running 行会永远堵住该 Chat（见 [operations.md](operations.md#telegram-停用)）。`ImHost` 按 Conversation 的 `host_kind` 选择，缺项时投递明确失败而不是落到另一个平台上。
 
 - `src/store/store.ts` 的 `BusinessStore` 只暴露 ORM 与 IMMEDIATE transaction；业务查询与审计 helper 留在共享层。SQLite 打开、PRAGMA、迁移、备份、checkpoint/close 与 ServeLock 位于 `adapters/local-monolith/database.ts`。
-- `platform/config.ts` 保留配置类型，Schema、默认值解析与纯校验在 `platform/config-schema*.ts`、`platform/config-resolve.ts`、`platform/config-semantics.ts`、`platform/config-validate.ts`；`platform/runtime-config.ts` 管理源无关的快照发布。JSONC、权限、相对路径、Prompt 文件读取和配置写回/热重载归 `adapters/local-monolith/config*.ts`。Bot 命令与 Admin Panel 只依赖 `platform/config-write.ts` 的契约（`BotCommandConfigWriter`、`ConfigController`、`ConfigEdit`/`secretEdit`），由 adapter 的 `ConfigReloader` 实现并在装配时注入；业务模块不导入 `adapters/local-monolith`，例外仅限宿主侧入口（`cli.ts`、`doctor.ts`、`tui/`、离线 `admin-account` 的 `ingress/admin/admin-account.ts`）。
+- `platform/config/index.ts` 保留配置类型，Schema、默认值解析与纯校验在 `platform/config-schema*.ts`、`platform/config/resolve.ts`、`platform/config/semantics.ts`、`platform/config/validate.ts`；`platform/runtime-config.ts` 管理源无关的快照发布。JSONC、权限、相对路径、Prompt 文件读取和配置写回/热重载归 `adapters/local-monolith/config*.ts`。Bot 命令与 Admin Panel 只依赖 `platform/config/write.ts` 的契约（`BotCommandConfigWriter`、`ConfigController`、`ConfigEdit`/`secretEdit`），由 adapter 的 `ConfigReloader` 实现并在装配时注入；业务模块不导入 `adapters/local-monolith`，例外仅限宿主侧入口（`cli.ts`、`doctor.ts`、`tui/`、离线 `admin-account` 的 `ingress/admin/account.ts`）。
 - `platform/system-resources.ts` 定义只读资源契约和 URI 解析；目录扫描、Skill frontmatter 校验和文件读取由 `adapters/local-monolith/system-resources.ts` 的 FileSystemResources 承担。AgentRuntime 和 ReplayRunner 必须显式接收资源，不再隐式扫描目录。
 
 本阶段只建立 M1/M2 的宿主解耦基础；Admin/CLI 仍是本地文件型入口，ORM 仍使用同步 SQLite，媒体、SecretStore、MCP 与图片执行尚未全面替换成远端端口。不提供多实例协调、远端 gateway 或租户隔离。
@@ -83,11 +83,11 @@ Admin 的 Invocation 重放是新的内存 Agent 循环，不是生产 Conversat
 
 ## 模块职责
 
-代码按层组织，依赖只允许自上而下：`ingress/` → `orchestration/` → `capabilities/` → `context/` → `store/` → `platform/`；`plugins/` 只被组合根引用，可依赖 `capabilities/` 及以下各层；宿主适配层 `adapters/local-monolith/`（`runtime-host.ts` 是 `serve` 的组合根）与 `src` 根的宿主入口（`cli.ts`、`doctor.ts`、`startup-catch-up.ts`、`tui/`）可以引用所有层；业务层不反向导入 adapter，例外见上方 [Runtime 与宿主边界](#runtime-与宿主边界)。
+代码按层组织，依赖只允许自上而下：`ingress/` → `orchestration/` → `capabilities/` → `context/` → `store/` → `platform/`；`plugins/` 只被组合根引用，可依赖 `capabilities/` 及以下各层；宿主适配层 `adapters/local-monolith/`（`runtime/index.ts` 是 `serve` 的组合根）与 `src` 根的宿主入口（`cli.ts`、`doctor.ts`、`startup-catch-up.ts`、`tui/`）可以引用所有层；业务层不反向导入 adapter，例外见上方 [Runtime 与宿主边界](#runtime-与宿主边界)。
 
 | 层 | 职责 |
 | --- | --- |
-| `adapters/local-monolith/` | 本地单体宿主：`runtime-host.ts` 进程装配、配置文件 I/O 与热重载、SQLite 连接/迁移/备份/ServeLock、`system:///` 目录加载 |
+| `adapters/local-monolith/` | 本地单体宿主：`runtime/index.ts` 进程装配、配置文件 I/O 与热重载、SQLite 连接/迁移/备份/ServeLock、`system:///` 目录加载 |
 | 宿主入口（`src/` 根文件与 `tui/`） | CLI、诊断、启动追赶、配置向导 |
 | `ingress/` | 外部输入边界：Telegram Update 入库、Admin Panel HTTP、认证与审计查询 |
 | `orchestration/` | Bucket → Invocation 状态转换、调度与并发、Agent 运行循环、Bot 命令 |
@@ -105,9 +105,24 @@ Admin 的 Invocation 重放是新的内存 Agent 循环，不是生产 Conversat
 - `platform/agent-protocol.ts` 是代码固化的 **Core Agent Protocol**——消息分区、Tool 选择原则与副作用成功判定都在这里，不在人格 Prompt 文件里。它属于稳定段：改动它等于重建所有 Conversation Context。稳定段不写参与时机：是否发言由模型按当前批次自行判断；群聊的消息准入由运行期 participation 闸门与主动回复概率调度决定（配置了才生效）。
 - 只读 **System Skills** 的契约与 URI 解析在 [platform/system-resources.ts](../src/platform/system-resources.ts)，目录扫描与读取由 [adapters/local-monolith/system-resources.ts](../src/adapters/local-monolith/system-resources.ts) 的 `FileSystemResources` 承担；索引注入、按需读取和调用契约统一见 [Skills 与受控能力调用](telegram-agent-flow.md#skills-与受控能力调用)。Skill 提供操作知识而不授予权限，能力是否注册仍由组合根决定。
 - 不是所有 Agent Tool 都在 `capabilities/`：`zzz` 定义在 `store/sleep.ts`，`add_memory`/`delete_memory` 定义在 `context/memory.ts`，`web_fetch` 在 `plugins/web-fetch/`，Alarm 在 `plugins/alarm/`，辞典三件套在 `plugins/dictionary/`，各自与所属状态放在一起。找某个 Tool 的实现时按名字 grep，别只翻 `capabilities/`。
-- `store/long-tasks.ts` 持久化 plugin/Conversation 绑定的任务及唯一完成回执；timer 任务和外部 `complete`/`fail` 都写入同一套终态/receipt，未实现通用后台 executor、running/progress 或 retry。`store/invocation-snapshot.ts` 是 Invocation 消息快照的冻结边界；`orchestration/invocation-queue.ts` 负责 Bucket/receipt → Invocation 的同步状态转换、attach、恢复与 Startup Catch-up。这两个名字容易和 `scheduler.ts` 混淆——Scheduler 是唯一的 timer、回执投递、事件循环与并发驱动。
+- `store/long-tasks/index.ts` 持久化 plugin/Conversation 绑定的任务及唯一完成回执；timer 任务和外部 `complete`/`fail` 都写入同一套终态/receipt，未实现通用后台 executor、running/progress 或 retry。`store/invocation-snapshot.ts` 是 Invocation 消息快照的冻结边界；`orchestration/invocation-queue/index.ts` 负责 Bucket/receipt → Invocation 的同步状态转换、attach、恢复与 Startup Catch-up。这两个名字容易和 `scheduler/index.ts` 混淆——Scheduler 是唯一的 timer、回执投递、事件循环与并发驱动。
 - `platform/invocation-context.ts` 是无依赖的叶子类型模块，存在的唯一目的是打断 import 环，不要往里加逻辑；它同时定义 `CapabilityRefResolver`（引用解析边界）与 `InvocationContextState`（一次运行中可被新批次刷新的可变上下文）。
-- `adapters/local-monolith/config-reload.ts` 的 `ConfigReloader` 是配置热更新的唯一入口：`reloadFromFile()`、`setAgentModel()`（全局默认）与 `setChatModel()`/`resetChatModel()`（单个 Chat 的模型覆盖写入与清除）把 `config.jsonc` 中白名单字段的变化发布到 `RuntimeConfigurationStore`（generation + 1），其余字段只报告为待重启。每次发布都带着这一代的模型注册表（`platform/providers.ts` 的 `buildModelRegistry`）：连接字段没变的 Provider 沿用进程里已有的对象，新增或连接变化的 Provider 重新解析 SecretRef，所以一次 reload 会重建注册表并把注册表与配置一起发布。白名单只定义在 `platform/config-diff.ts`；写配置文件走 `adapters/local-monolith/config-file.ts`（保留注释，先写同目录临时文件并校验再 rename；带 Secret 的写入把明文放进同目录的 key jar `key.json`，见 `platform/key-jar.ts`）。语义见 [配置：运行时配置热更新](configuration.md#运行时配置热更新)。
+- `adapters/local-monolith/config/reload.ts` 的 `ConfigReloader` 是配置热更新的唯一入口：`reloadFromFile()`、`setAgentModel()`（全局默认）与 `setChatModel()`/`resetChatModel()`（单个 Chat 的模型覆盖写入与清除）把 `config.jsonc` 中白名单字段的变化发布到 `RuntimeConfigurationStore`（generation + 1），其余字段只报告为待重启。每次发布都带着这一代的模型注册表（`platform/providers.ts` 的 `buildModelRegistry`）：连接字段没变的 Provider 沿用进程里已有的对象，新增或连接变化的 Provider 重新解析 SecretRef，所以一次 reload 会重建注册表并把注册表与配置一起发布。白名单只定义在 `platform/config/diff.ts`；写配置文件走 `adapters/local-monolith/config/file.ts`（保留注释，先写同目录临时文件并校验再 rename；带 Secret 的写入把明文放进同目录的 key jar `key.json`，见 `platform/key-jar.ts`）。语义见 [配置：运行时配置热更新](configuration.md#运行时配置热更新)。
+
+### 目录组织
+
+源码按「一个目录一个子系统」组织，文件名不重复所在目录的名字：
+
+- 同前缀的三件以上收进该前缀的目录，文件名去掉前缀：`telegram-host.ts`、`telegram-connection*.ts`、`telegram-instance.ts` → `adapters/local-monolith/telegram/{index,host,instance,connection-*}.ts`。
+- 与目录同名的入口文件成为 `index.ts`：`runtime-host.ts` → `runtime/index.ts`，`store/long-tasks.ts` → `store/long-tasks/index.ts`，`capabilities/send-tool.ts` → `capabilities/send/index.ts`。
+- 只去掉「目录自己的名字」这个前缀；子话题前缀保留，它仍然携带信息：`telegram/connection-*.ts` 是连接生命周期的阶段，`agent-runtime/run-*.ts` 是运行循环的阶段，`replay/tools-*.ts` 是 Replay 的三个 Tool 面。
+- 目录内的共享 helper 叫 `shared.ts`（`store/playground/shared.ts`、`ingress/admin/audit/shared.ts`），不要用只放 helper 的 `index.ts` 顶替；角色后缀 `-support`、`-types`、`-schema`、`-fixtures` 同样保留。
+- `ingress/admin/` 另有 `routes/`（路由表，文件名即路由域）与按域聚合的 `providers/`、`playground/`，处理函数直接以域命名（`chats.ts`、`image.ts`）。
+- 少于三件的散件保持平铺，不为对称再造目录；只有一个读者的模块不必单独成层。
+- 测试镜像同一分组：`test/<主题>/`，文件名去掉主题前缀（`test/context/store-conversation.test.ts`），共享 helper 留在 `test/helpers.ts`，跨域 fixture 在 `test/fixtures/`。
+- `apps/admin-next/src/routes/` 与 `pages/` 的文件名承载 URL 语义（TanStack Router 文件路由），不参与这套重命名；`src/lib/api/` 已是一域一文件。
+
+新增模块先按这套规则决定位置，不要新增 `runtime-host-serve-run.ts` 这种前缀平铺兄弟文件。
 
 ## 并发模型
 

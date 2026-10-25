@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { lstat, open, readFile, rename, stat, unlink } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
-import { KEY_JAR_FILE } from './config-validate.ts';
+import { KEY_JAR_FILE } from './config/validate.ts';
 
 /**
  * The key jar holds every plaintext secret the configuration uses, keyed by the

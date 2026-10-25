@@ -1,5 +1,5 @@
 import type { Api, Model, Models } from '@earendil-works/pi-ai';
-import type { RawConfig } from './config.ts';
+import type { RawConfig } from './config/index.ts';
 
 /**
  * The model registry half of one configuration: the providers and models this

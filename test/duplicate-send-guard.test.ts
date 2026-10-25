@@ -3,12 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GrammyError } from 'grammy';
 import { afterAll, describe, expect, test } from 'vitest';
-import { loadConfig } from '../src/adapters/local-monolith/config.ts';
+import { loadConfig } from '../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { createSendTools } from '../src/capabilities/send-tool.ts';
-import { TelegramIngestion } from '../src/ingress/telegram-ingestion.ts';
-import { BucketScheduler } from '../src/orchestration/scheduler.ts';
-import type { RawConfig } from '../src/platform/config.ts';
+import { createSendTools } from '../src/capabilities/send/index.ts';
+import { TelegramIngestion } from '../src/ingress/telegram-ingestion/index.ts';
+import { BucketScheduler } from '../src/orchestration/scheduler/index.ts';
+import type { RawConfig } from '../src/platform/config/index.ts';
 import {
   invocationCapabilities,
   renderInvocationContext,
@@ -19,7 +19,7 @@ import {
   testSendToolEnv,
   writeTestConfig,
 } from './helpers.ts';
-import { duplicateSendGuard } from '../src/capabilities/send-tool-support.ts';
+import { duplicateSendGuard } from '../src/capabilities/send/support.ts';
 
 /**
  * Contract for the duplicate send guard (`agent.send_duplicate_guard_enabled`,

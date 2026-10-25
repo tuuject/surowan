@@ -11,11 +11,11 @@ import {
   getCurrentTools,
 } from '@earendil-works/pi-ai';
 import sharp from 'sharp';
-import { AgentRuntime } from '../src/orchestration/agent-runtime.ts';
+import { AgentRuntime } from '../src/orchestration/agent-runtime/index.ts';
 import { KeyedSemaphore } from '../src/platform/concurrency.ts';
 import { capability } from '../src/capabilities/execute-tool.ts';
-import type { MediaDownloader } from '../src/capabilities/media/media-download.ts';
-import { MediaService } from '../src/capabilities/media/media.ts';
+import type { MediaDownloader } from '../src/capabilities/media/download.ts';
+import { MediaService } from '../src/capabilities/media/index.ts';
 import { createMemoryTools, MemoryStore } from '../src/context/memory.ts';
 import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
 import { loadPlugins } from '../src/plugins/plugin.ts';
@@ -30,7 +30,7 @@ import {
   skillAgentRuntime,
   toolResultText,
   trackSkillTempPath,
-} from './skills-fixtures.ts';
+} from './skills/fixtures.ts';
 
 afterAll(cleanupSkillDirectories);
 

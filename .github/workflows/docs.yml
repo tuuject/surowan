@@ -37,7 +37,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run check
       - run: pnpm run lint
-      - run: pnpm test test/docs-examples.test.ts test/docs-search.test.ts
+      - run: pnpm test test/docs/examples.test.ts test/docs/search.test.ts
       - run: pnpm run docs:build
       - run: pnpm run docs:verify
       - name: Ensure generated files stay ignored

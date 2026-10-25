@@ -1,18 +1,18 @@
 import { eq, type SQL, sql } from 'drizzle-orm';
 import { AGENT_PROMPT_VERSION } from '../../platform/agent-protocol.ts';
-import type { RawConfig } from '../../platform/config.ts';
-import { completeAgentSettings, resolveAgentSettings } from '../../platform/config-resolve.ts';
+import type { RawConfig } from '../../platform/config/index.ts';
+import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
 import type { HostKind } from '../../platform/im-host.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { enqueueInvocation } from '../../store/invocation-enqueue.ts';
 import { snapshotInvocation } from '../../store/invocation-snapshot.ts';
-import type { LongTaskService } from '../../store/long-tasks.ts';
+import type { LongTaskService } from '../../store/long-tasks/index.ts';
 import type { ParticipationRegistry } from '../../store/participation.ts';
-import { buckets, rooms } from '../../store/schema.ts';
+import { buckets, rooms } from '../../store/schema/index.ts';
 import { activeSleepUntil } from '../../store/sleep.ts';
 import { type BusinessStore, isChatPaused, resolveChatConfig } from '../../store/store.ts';
 import { activeHosts, conversationsOfHosts, everyHostReady, type HostReadiness } from '../host-scope.ts';
-import type { BucketAttachmentTarget } from '../invocation-queue.ts';
+import type { BucketAttachmentTarget } from './index.ts';
 import type { ProactiveReplyGate } from '../proactive-reply.ts';
 
 /**

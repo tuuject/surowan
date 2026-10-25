@@ -2,12 +2,12 @@ import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { and, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
-import type { RawConfig } from '../platform/config.ts';
+import type { RawConfig } from '../platform/config/index.ts';
 import type { CapabilityRefResolver, InvocationContext } from '../platform/invocation-context.ts';
 import type { BusinessStore } from '../store/store.ts';
 import { finishToolCall, startToolCall } from '../store/store.ts';
-import { mediaAnalyses, stickerSets, stickers } from '../store/schema.ts';
-import type { MediaService, StickerIndexAnalysis } from './media/media.ts';
+import { mediaAnalyses, stickerSets, stickers } from '../store/schema/index.ts';
+import type { MediaService, StickerIndexAnalysis } from './media/index.ts';
 
 const StickerSetResponseSchema = Type.Object(
   {

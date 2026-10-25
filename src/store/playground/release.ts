@@ -5,7 +5,7 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
 
 import { enqueueInvocation } from '../invocation-enqueue.ts';
-import type { ReleaseInput, ReleaseResult } from '../playground.ts';
+import type { ReleaseInput, ReleaseResult } from './index.ts';
 import {
   buckets,
   invocationMessages,
@@ -17,9 +17,9 @@ import {
   roomParticipants,
   rooms,
   senders,
-} from '../schema.ts';
+} from '../schema/index.ts';
 import { PlaygroundError, type PlaygroundDeps, roomRow } from './shared.ts';
-import { ROOM_SNAPSHOT_FORMAT } from '../../context/context-builder-schema.ts';
+import { ROOM_SNAPSHOT_FORMAT } from '../../context/builder/schema.ts';
 
 const RELEASE_HISTORY_MESSAGES = 0;
 

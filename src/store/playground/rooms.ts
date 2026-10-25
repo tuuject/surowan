@@ -3,8 +3,8 @@
  */
 import { createHash } from 'node:crypto';
 import { and, asc, eq } from 'drizzle-orm';
-import type { RoomMember, RoomSummary } from '../playground.ts';
-import { chats, conversations, playgroundMutations, roomParticipants, rooms, senders } from '../schema.ts';
+import type { RoomMember, RoomSummary } from './index.ts';
+import { chats, conversations, playgroundMutations, roomParticipants, rooms, senders } from '../schema/index.ts';
 import { PlaygroundError, type PlaygroundDeps, roomRow, roomSummaryOf } from './shared.ts';
 
 export function createRoom(

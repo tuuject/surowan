@@ -1,6 +1,6 @@
 import { eq, type SQL } from 'drizzle-orm';
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
-import { chats } from './schema.ts';
+import { chats } from './schema/index.ts';
 
 /**
  * Host scoping for readers of the shared Message/Context store.
