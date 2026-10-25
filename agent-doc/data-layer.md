@@ -39,7 +39,7 @@ SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是
 
 ## 查询层（Drizzle）
 
-业务查询依赖 `src/store/store.ts` 的 `BusinessStore` 契约，通过 `store.orm` 访问 Drizzle（仍为 `better-sqlite3` 驱动的同步 API；依赖版本见 [package.json](../package.json) 与 [pnpm-lock.yaml](../pnpm-lock.yaml)）。该契约不暴露裸连接、文件路径或关闭方法；本地 `SqliteStore` 实现它。`SqliteStore.db` 仅供连接层自身、doctor 探针、图片宿主连接桥接与测试验证断言使用。表定义在 [src/store/schema.ts](../src/store/schema.ts)，是迁移终态的类型化映射——新增迁移必须同步更新它。
+业务查询依赖 `src/store/store.ts` 的 `BusinessStore` 契约，通过 `store.orm` 访问 Drizzle（仍为 `better-sqlite3` 驱动的同步 API；依赖版本见 [package.json](../package.json) 与 [pnpm-lock.yaml](../pnpm-lock.yaml)）。该契约不暴露裸连接、文件路径或关闭方法；本地 `SqliteStore` 实现它。`SqliteStore.db` 仅供连接层自身、doctor 探针、图片宿主连接桥接与测试验证断言使用。表定义在 [src/store/schema/](../src/store/schema/)（按表组分文件，`index.ts` 聚合导出），是迁移终态的类型化映射——新增迁移必须同步更新它。
 
 约定：
 
@@ -54,7 +54,7 @@ SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是
 
 ## 表组
 
-表与列定义见 [src/store/schema.ts](../src/store/schema.ts) 和 [迁移目录](../src/store/migrations/)，不在文档维护表数量或字段类型副本；类型、可空性与 CHECK 约束以 schema、迁移与源码为准。下面只记录 schema 读不出来的语义。
+表与列定义见 [src/store/schema/](../src/store/schema/) 和 [迁移目录](../src/store/migrations/)，不在文档维护表数量或字段类型副本；类型、可空性与 CHECK 约束以 schema、迁移与源码为准。下面只记录 schema 读不出来的语义。
 
 ### 虚拟房间（`rooms` / `room_participants`）
 
@@ -146,7 +146,7 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 - `enabled` 为 0 的词条不参与查询与自动注入，但保留历史；`revision` 是词条自己的乐观锁 token，每次写入递增，Admin 的 `If-Match` 与 Agent 工具的读-改-写都用它。
 - 索引 `dictionary_entries_scope_idx`（scope, chat_id, id）与 `dictionary_entries_term_idx`（scope, chat_id, term）前者支撑按作用域列举；term/alias 匹配需要词边界规则，当前在 JS 中完成（`src/plugins/dictionary/tools.ts` 的 `dictionaryTextMatches`），不走 term 索引。
 
-`purgeExpiredData` 不清理词条：辞典是人工维护的数据，不随在线保留窗口过期；删除只能经 Admin 或当前群的 Agent 写入。表由核心 schema 持有（`store/schema.ts` + 迁移 034），使用它的 `dictionary` 插件（[src/plugins/dictionary/](../src/plugins/dictionary/)）不自带表定义；把表迁进插件需要单独设计迁移排序、备份与保留。
+`purgeExpiredData` 不清理词条：辞典是人工维护的数据，不随在线保留窗口过期；删除只能经 Admin 或当前群的 Agent 写入。表由核心 schema 持有（`store/schema/` + 迁移 034），使用它的 `dictionary` 插件（[src/plugins/dictionary/](../src/plugins/dictionary/)）不自带表定义；把表迁进插件需要单独设计迁移排序、备份与保留。
 
 ### 系统警告（迁移 045）
 
@@ -199,7 +199,7 @@ Admin 侧的 `admin_users`/`admin_sessions` 语义见 [admin-panel.md](admin-pan
 
 ## 图片生成域（迁移 024）
 
-迁移 `024` 建立图片生成域的 `image_*` 表（清单以迁移文件为准），Drizzle 定义在私有包 [packages/image-service](../packages/image-service) 内并由 [src/store/schema.ts](../src/store/schema.ts) 聚合 re-export；该包同时拥有图片域的查询服务与 worker，宿主借出 SQLite 连接（同一句柄上的第二个 Drizzle 视图）而不移交所有权。与宿主表不同的语义：
+迁移 `024` 建立图片生成域的 `image_*` 表（清单以迁移文件为准），Drizzle 定义在私有包 [packages/image-service](../packages/image-service) 内并由 [src/store/schema/image.ts](../src/store/schema/image.ts) 聚合 re-export；该包同时拥有图片域的查询服务与 worker，宿主借出 SQLite 连接（同一句柄上的第二个 Drizzle 视图）而不移交所有权。与宿主表不同的语义：
 
 - 图片域主键是应用生成的 text UUID，不是 `sqliteBigInt` 行 ID；计数与尺寸列使用包内 `safeInteger` 列（`fromDriver` 强制 `number`），保证宿主 `defaultSafeIntegers(true)` 连接下这些值可安全 JSON 序列化。
 - 素材删除是软删除（`deleted_at`），原始图片文件按内容寻址存放于 `<data_dir>/images`，删除素材不删文件；文件不在 SQLite 内，`backup` 以旁路 `.images/` 快照携带（见[备份](#备份)）。

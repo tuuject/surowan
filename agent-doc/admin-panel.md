@@ -273,7 +273,7 @@ Invocation 的关键词与时间只匹配冻结 `section=new` 的公开 text/cap
 
 时间格式为 `YYYY-MM-DD[空格或T]HH:mm[:ss[.1-3位]][Z|±HH:mm]`；`at` 命中所写精度窗口（分钟、秒、小数 1/2/3 位对应 100/10/1 毫秒），不可与 `from` / `to` 同用；区间为 `[from, to)`。显式 offset 优先，无 offset 时仅使用指定 Chat 的配置时区或全局时区，不回退主机时区；DST 不存在或重复的本地时间拒绝，需明确 offset。非法时间或区间返回 400 `invalid_at` / `invalid_from` / `invalid_to` / `invalid_time_range`。
 
-输入校验在 `src/ingress/admin/audit.ts`：`state`/`set` 必须匹配 `^[A-Za-z0-9._-]{1,64}$`，`chat`/`cursor` 必须是整数，`search` 最长 100 字符且 `LIKE` 通配符经过转义。非法输入返回 400 与稳定错误码（`invalid_limit`、`invalid_state`、`invalid_cursor`…）。所有查询使用绑定参数。
+输入校验在 `src/ingress/admin/audit/shared.ts`：`state`/`set` 必须匹配 `^[A-Za-z0-9._-]{1,64}$`，`chat`/`cursor` 必须是整数，`search` 最长 100 字符且 `LIKE` 通配符经过转义。非法输入返回 400 与稳定错误码（`invalid_limit`、`invalid_state`、`invalid_cursor`…）。所有查询使用绑定参数。
 
 SQLite `bigint` ID 在 JSON 中字符串化，Token/计数等小整数转 `number`。Alarm 列表是 `plugin_id = "alarm"` 对 `long_tasks`/`task_receipts` 的兼容投影：waiting 或 completed+pending 为 `pending`，claimed 为 `firing`，handled 为 `fired`，取消任务或 suppressed 投递为 `cancelled`。列表项把 `message_thread_id`、目标 User ID、conversation ID 与关联 Invocation ID 全部字符串化，展开详情展示完整 summary、原始 UTC 计划时间、conversation ID、Telegram Chat ID、thread ID、目标 User ID、创建/触发/取消时间、取消者、取消原因、Invocation 结果、`admin_cancelled` 标记与 `updated_at`。
 

@@ -6,7 +6,7 @@ const SESSION_QUERY_KEY = ['session'] as const;
 /**
  * Returns true for 401s emitted by the admin auth gate on protected routes,
  * which the backend reports with code `unauthenticated`
- * (src/ingress/admin/server.ts). Credential failures (`invalid_credentials`
+ * (src/ingress/admin/index.ts). Credential failures (`invalid_credentials`
  * from login, plus 4xx validation codes from setup / change-credentials) are
  * also 401 in the case of a bad password but must stay in their form as an
  * inline error — never bounce the user back to the login gate. That is why the

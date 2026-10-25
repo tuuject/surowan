@@ -3,11 +3,11 @@
  *
  * The host below catches whatever the client threw and asks this module what it
  * means in the IM contract's vocabulary. Keeping the HTTP/grammY knowledge here
- * is what lets `telegram-host.ts` stay about delivery shape and activity.
+ * is what lets `host.ts` stay about delivery shape and activity.
  */
 
 import { GrammyError, HttpError } from 'grammy';
-import type { ImDeliveryFailure } from '../../../platform/im-host.ts';
+import type { ImDeliveryFailure } from '../../../platform/im-host/delivery.ts';
 
 /**
  * Raised when a transport adapter has no live instance to forward to. It is a

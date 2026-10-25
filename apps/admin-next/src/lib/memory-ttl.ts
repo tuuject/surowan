@@ -1,7 +1,7 @@
 /**
  * Pure memory-form helpers shared by the Memories page forms and list.
  * The bounds mirror the backend (`src/context/memory.ts` and
- * `src/ingress/admin/memory-admin.ts`): content is capped at 150 characters
+ * `src/ingress/admin/memory.ts`): content is capped at 150 characters
  * and TTL days are 1..1825 (the backend stores seconds, minimum 60; the panel
  * edits at day granularity like the old frontend).
  */

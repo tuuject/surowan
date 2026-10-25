@@ -139,7 +139,7 @@ pnpm run skills:sync
 - `pnpm run lint` 需要保持通过，如果存在问题需要先使用 `pnpm run lint:fix` 进行自动修复，如果无法自动修复需要尝试进行手动修改。
 - 配置和外部响应在边界处使用 TypeBox 校验；不要把未经校验的 `unknown` 转成业务类型。
 - SQLite ID 使用 `bigint`；Telegram JSON 中需要字符串化的 ID 不得经过不安全 `number` 转换。
-- 业务查询走 `store.orm`（Drizzle 同步 API；表定义在 `src/store/schema.ts`，新增迁移必须同步更新）；`store.db` 仅限连接层、doctor 探针与测试验证断言。复杂 SQL 与 FTS5 用 `sql` 模板，值一律绑定参数。
+- 业务查询走 `store.orm`（Drizzle 同步 API；表定义在 `src/store/schema/`，新增迁移必须同步更新）；`store.db` 仅限连接层、doctor 探针与测试验证断言。复杂 SQL 与 FTS5 用 `sql` 模板，值一律绑定参数。
 - Conversation Context 的 canonical history 只有一个写者（`src/context/store.ts` 的 `ConversationContextStore`）；Pi Agent 的 transcript 是可丢弃缓存，任何裁剪都必须同时推进 `head_seq`、loop context、`Agent.state.messages` 与 `context_refs`，否则三份历史会分叉。同一份 Context 在运行期只能有**一个** header 对象：缓存命中时把运行开始时读到的 header 赋给缓存条目，否则注入路径与引用解析用的是一份永不推进的旧快照。
 - 不新增第二套 Provider、调度、审计或进程执行约定；复用现有模块。
 - 目录即子系统：不要再新增 `telegram-host.ts` / `send-tool-claim.ts` / `config-diff-merge.ts` 这类「同前缀平铺兄弟文件」。同前缀的三件以上收进该前缀的目录，文件名去掉前缀，与目录同名的入口改为 `index.ts`（例如 `src/adapters/local-monolith/telegram/{index,host,instance,connection-*}.ts`、`src/capabilities/send/{index,claim,deliver}.ts`）。只去掉目录自己的名字，子话题前缀保留（`telegram/connection-*.ts`、`agent-runtime/run-*.ts`）。少于三件的散件保持平铺；目录内共享 helper 叫 `shared.ts`，`-support`/`-types`/`-schema`/`-fixtures` 这类角色后缀保留。测试同样按主题进 `test/<主题>/`，文件名去掉主题前缀，共享 helper 留在 `test/helpers.ts` 与 `test/fixtures/`。`apps/admin-next/src/routes/`、`pages/` 的文件名带 URL 语义（TanStack Router 文件路由），不参与重命名。细则见 [agent-doc/architecture.md](agent-doc/architecture.md#目录组织)。

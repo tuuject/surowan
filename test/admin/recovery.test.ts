@@ -12,7 +12,7 @@ import { ServeLock, SqliteStore } from '../../src/adapters/local-monolith/databa
 import { writeTestConfig } from '../helpers.ts';
 
 const BIN = fileURLToPath(new URL('../../src/cli.ts', import.meta.url));
-const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
+const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
 interface CliResult {
   readonly code: number;
