@@ -215,6 +215,31 @@ test('a save conflict offers a reload onto the current revision', async ({ page 
   expect(ifMatch).toEqual(['rev-1', 'rev-2']);
 });
 
+test('reusing the only DeepSeek model key saves that alias', async ({ page }) => {
+  const writes: unknown[] = [];
+  await page.route('**/api/search/config', async (route) => {
+    if (route.request().method() === 'PUT') {
+      writes.push(route.request().postDataJSON());
+      await route.fulfill({
+        json: { ...view({ revision: 'rev-2' }), apply: { applied: ['web_search'], restart_required: [] } },
+      });
+      return;
+    }
+    await route.fulfill({ json: view({ deepseek_keys: ['deepseek'] }) });
+  });
+  await page.goto(await adminUrl('/search-settings'));
+  await page.getByRole('button', { name: 'Add engine' }).click();
+  await page.getByLabel('Provider').click();
+  await page.getByRole('option', { name: 'DeepSeek' }).click();
+  await page.getByLabel('Credential').click();
+  await page.getByRole('option', { name: 'Reuse a DeepSeek model key' }).click();
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  await expect(toast(page, 'Web search settings saved')).toBeVisible();
+  expect(writes[0]).toMatchObject({
+    engines: [{ provider: 'deepseek', api_key: null, keep_api_key: false, key_source: 'deepseek' }],
+  });
+});
+
 test('an invalid URL filter blocks saving with a visible message', async ({ page }) => {
   let writes = 0;
   await page.route('**/api/search/config', async (route) => {

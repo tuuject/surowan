@@ -152,7 +152,15 @@ export function EngineEditor({
           <Label htmlFor={`${idPrefix}-key-mode`}>{t('search.fieldKey')}</Label>
           <Select
             value={keyMode}
-            onValueChange={(value) => onChange({ keyMode: value as KeyMode })}
+            onValueChange={(value) =>
+              // Entering alias mode stores the alias the picker shows, so a
+              // single available alias needs no extra pick before saving.
+              onChange(
+                value === 'alias' && draft.keyAlias === ''
+                  ? { keyMode: 'alias', keyAlias: deepseekKeys[0] ?? '' }
+                  : { keyMode: value as KeyMode },
+              )
+            }
             disabled={disabled || keyModes.length === 0}
           >
             <SelectTrigger id={`${idPrefix}-key-mode`} className="w-full sm:w-72">
@@ -177,11 +185,7 @@ export function EngineEditor({
             />
           ) : null}
           {keyMode === 'alias' ? (
-            <Select
-              value={draft.keyAlias === '' ? (deepseekKeys[0] ?? '') : draft.keyAlias}
-              onValueChange={(value) => onChange({ keyAlias: value })}
-              disabled={disabled}
-            >
+            <Select value={draft.keyAlias} onValueChange={(value) => onChange({ keyAlias: value })} disabled={disabled}>
               <SelectTrigger className="w-full sm:w-72">
                 <SelectValue />
               </SelectTrigger>
