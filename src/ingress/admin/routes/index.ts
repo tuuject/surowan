@@ -143,6 +143,7 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
     search: createSearchAdminRoutes({
       configReloader: reloader,
       secrets,
+      configStore: options.configStore,
       searchProviders: options.searchProviders ?? BUILTIN_SEARCH_PROVIDERS,
     }),
     static: createStaticAssetHandler({ staticDir }),

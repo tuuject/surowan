@@ -411,7 +411,7 @@ Bot 管理员白名单不再是数据库表：迁移 `src/store/migrations/026_d
 
 ## 网络搜索设置
 
-`GET /search/config`（面板 Session）返回 `{ revision, enabled, active, url_filters, engines[], providers[], deepseek_keys[] }`：`enabled` 是文件里的总开关，`active` 是「开关打开且至少一个引擎启用」的运行态；`engines[]` 只说明 `key_configured` 布尔值，永远不回显密钥或 SecretRef 内容；`providers[]` 来自已加载插件贡献的规格（标识、显示名、默认地址、密钥策略、查询上限、是否支持条数），面板不自行硬编码服务商；`deepseek_keys[]` 是可用于复用的 DeepSeek 模型 Provider alias。
+`GET /search/config`（面板 Session）返回 `{ revision, enabled, active, url_filters, engines[], providers[], deepseek_keys[] }`：`enabled` 是文件里的总开关，`active` 按正在运行的配置（`configStore.current()`）计算「开关打开且至少一个引擎启用」，文件已改但尚未生效或 apply 失败时以运行态为准；`engines[]` 只说明 `key_configured` 布尔值，永远不回显密钥或 SecretRef 内容；`providers[]` 来自已加载插件贡献的规格（标识、显示名、默认地址、密钥策略、查询上限、是否支持条数），面板不自行硬编码服务商；`deepseek_keys[]` 是可用于复用的 DeepSeek 模型 Provider alias。
 
 `PUT /search/config` 接受 `{ enabled: boolean, url_filters: string[], engines: [{ id, provider, enabled, endpoint, results, timeout_seconds, note, api_key, keep_api_key, key_source }] }`。字段规则与 [configuration.md](configuration.md#网络搜索web_search) 一致；`api_key` 是新明文，`keep_api_key` 保留该引擎原有引用，`key_source` 只能指向 `deepseek_keys[]` 里的 alias，三者互斥。校验失败返回 400 `search_invalid`，配置 revision 冲突返回 409 `config_conflict`，其它写失败沿用配置写端点的状态码。保存后立即热应用：关闭功能或禁用所有引擎会让运行中的 Invocation 立刻停止（`web_search_disabled`），下一次消息用重建的 Context 开启新 Invocation；只禁用部分引擎不打断运行。
 

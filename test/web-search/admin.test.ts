@@ -235,6 +235,27 @@ test('a write landing while the saved file is read back never pairs old engines 
   expect(fresh.engines.map((engine) => engine.id)).toEqual(['main']);
 });
 
+test('active reports the running configuration, not the file waiting to be applied', async () => {
+  const f = await fixture();
+  await f.save({ enabled: true, url_filters: [], engines: [TAVILY] }, (await f.view()).revision);
+  expect((await f.view()).active).toBe(true);
+  // The file now asks for search off, but nothing applied it: the bot still searches.
+  const readPersisted = f.reloader.readPersisted.bind(f.reloader);
+  vi.spyOn(f.reloader, 'readPersisted').mockImplementation(async (options) => {
+    const persisted = await readPersisted(options);
+    const off = (section: FileConfig['web_search']) => ({ ...section, enabled: false });
+    return {
+      ...persisted,
+      fileConfig: { ...persisted.fileConfig, web_search: off(persisted.fileConfig.web_search) },
+      config: { ...persisted.config, web_search: off(persisted.config.web_search) },
+    } as typeof persisted;
+  });
+  const view = await f.view();
+  expect(view.enabled).toBe(false);
+  expect(view.active).toBe(true);
+  expect(f.configStore.current().config.web_search?.enabled).not.toBe(false);
+});
+
 test('a missing If-Match is refused before anything is written', async () => {
   const f = await fixture();
   const response = await f.call('/search/config', {

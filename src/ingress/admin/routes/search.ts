@@ -1,4 +1,5 @@
 import type { ConfigController } from '../../../platform/config/write.ts';
+import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
 import type { SearchProviderRule } from '../../../platform/web-search.ts';
 import { CONFIG_WRITE_STATUS, readConfigFile } from '../config-file.ts';
@@ -9,6 +10,8 @@ export interface SearchAdminRoutesDeps {
   /** Absent when the process has no reloadable configuration (tests, panels). */
   readonly configReloader?: ConfigController | undefined;
   readonly secrets?: SecretStore | undefined;
+  /** The running configuration: `active` reports what the bot does now, not what the file asks for. */
+  readonly configStore: Pick<RuntimeConfigurationStore, 'current'>;
   /** Providers registered by the loaded plugins; the panel never invents one. */
   readonly searchProviders: readonly SearchProviderRule[];
 }
@@ -27,7 +30,7 @@ const SEARCH_BODY_MAX_BYTES = 64 * 1024;
 export function createSearchAdminRoutes(deps: SearchAdminRoutesDeps) {
   const searchConfigViewOf = async (reloader: ConfigController): Promise<Response> => {
     const { loaded, revision } = await readConfigFile(reloader, deps.secrets);
-    return json(searchConfigView(loaded.fileConfig, loaded.config, revision, deps.searchProviders));
+    return json(searchConfigView(loaded.fileConfig, deps.configStore.current().config, revision, deps.searchProviders));
   };
 
   return {
@@ -83,7 +86,7 @@ export function createSearchAdminRoutes(deps: SearchAdminRoutesDeps) {
       // of pairing old engines with a newer revision the client would reuse.
       const { loaded, revision: nextRevision } = await readConfigFile(reloader, deps.secrets);
       return json({
-        ...searchConfigView(loaded.fileConfig, loaded.config, nextRevision, deps.searchProviders),
+        ...searchConfigView(loaded.fileConfig, deps.configStore.current().config, nextRevision, deps.searchProviders),
         apply: { applied: result.applied, restart_required: result.restartRequired },
       });
     },
