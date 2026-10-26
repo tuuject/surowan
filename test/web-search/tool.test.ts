@@ -321,6 +321,22 @@ test('action "list" reports the live engines, their notes and the disabled ones'
   expect(fixture.rows[0]?.state).toBe('success');
 });
 
+test('a truncated engine list stays within 24 KiB including its marker', async () => {
+  // 32 engines with 400 three-byte characters each overflow the bound.
+  const engines = Array.from({ length: 32 }, (_, index) => ({
+    id: `e${index}`,
+    provider: 'tavily',
+    api_key: { jar: 'tavily' },
+    note: '汉'.repeat(400),
+  }));
+  const fixture = toolFixture(searchConfig(engines), () => jsonResponse({ results: [] }), {
+    secrets: secretStore({ tavily: 'a' }),
+  });
+  const text = textOf(await fixture.tool.execute('call-list-long', { action: 'list' }));
+  expect(text.endsWith('\n[results truncated]')).toBe(true);
+  expect(Buffer.byteLength(text)).toBeLessThanOrEqual(24 * 1024);
+});
+
 test('the result envelope never exceeds 24 KiB', async () => {
   const results = Array.from({ length: 10 }, (_, index) => ({
     title: `Result ${index + 1} ${'t'.repeat(280)}`,

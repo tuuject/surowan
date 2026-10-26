@@ -148,7 +148,8 @@ function trimBytes(value: string, limit: number): string {
   if (bytes.byteLength <= limit) {
     return value;
   }
-  let end = limit;
+  // The marker counts toward the bound, like the envelope's reserved budget.
+  let end = limit - Buffer.byteLength(TRUNCATION_MARKER);
   while (end > 0 && ((bytes[end] ?? 0) & 0xc0) === 0x80) {
     end -= 1;
   }
