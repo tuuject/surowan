@@ -65,7 +65,6 @@ export async function executeSearch(input: {
   readonly engine: ResolvedSearchEngine;
   readonly provider: SearchProviderSpec;
   readonly request: SearchRequestInput;
-  readonly query: string;
   readonly filters: readonly string[];
   readonly deadline: number;
   readonly fetchImpl: typeof fetch;
@@ -139,7 +138,13 @@ export async function executeSearch(input: {
   const kept = normalized.filter((hit) => !filtered(hit.url));
   const limit = input.provider.rule.supportsResultCount ? Math.max(1, input.request.count) : Number.POSITIVE_INFINITY;
   const limited = kept.slice(0, limit);
-  const formatted = formatResults(input.engine, input.provider, input.query, limited, normalized.length - kept.length);
+  const formatted = formatResults(
+    input.engine,
+    input.provider,
+    input.request.query,
+    limited,
+    normalized.length - kept.length,
+  );
   input.audit.succeed(formatted.text);
   return {
     result: formatted.text,

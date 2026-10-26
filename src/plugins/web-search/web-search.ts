@@ -126,7 +126,16 @@ export function createWebSearchTool(
         record = options.audit.start(
           toolCallId,
           'web_search',
-          JSON.stringify({ action, query, engine: selected.id, provider: provider.rule.id, count: count ?? null }),
+          // The audit records what was sent: the provider-trimmed query, plus
+          // the model's original only when trimming changed it.
+          JSON.stringify({
+            action,
+            query: request.query,
+            ...(request.query === query ? {} : { requested_query: query }),
+            engine: selected.id,
+            provider: provider.rule.id,
+            count: count ?? null,
+          }),
           false,
         );
         const text = await executeSearch({
@@ -134,7 +143,6 @@ export function createWebSearchTool(
           engine: selected,
           provider,
           request,
-          query,
           filters: section.url_filters ?? [],
           deadline: options.invocationDeadline,
           fetchImpl,

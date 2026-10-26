@@ -257,9 +257,14 @@ test('a long query is silently trimmed to the provider limit', async () => {
     () => jsonResponse({ results: [] }),
     { secrets: secretStore({ deepseek: 'k' }) },
   );
-  await fixture.tool.execute('call-trim', { query: '词'.repeat(200) });
+  const result = await fixture.tool.execute('call-trim', { query: '词'.repeat(200) });
   const body = JSON.parse(String(fixture.calls[0]?.init.body)) as { query: string };
   expect([...body.query]).toHaveLength(128);
+  // The model and the audit see the query that was actually searched.
+  expect(textOf(result)).toContain(`Query: ${'词'.repeat(128)}\n`);
+  const audited = JSON.parse(fixture.rows[0]?.arguments ?? '{}') as { query: string; requested_query: string };
+  expect(audited.query).toBe('词'.repeat(128));
+  expect(audited.requested_query).toBe('词'.repeat(200));
 });
 
 test('requesting an engine disabled under a running invocation steers the model', async () => {
