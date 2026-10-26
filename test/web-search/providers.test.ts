@@ -96,12 +96,27 @@ test('SearXNG composes /search, asks for JSON and sends no credential or count',
   expect(prefixed.url).toBe('https://example.com/searxng/search?q=cats&format=json');
 });
 
-test('You.com omits the key header when the free endpoint is used', () => {
-  const keyless = build(youcom, { key: undefined });
-  expect(keyless.url).toBe('https://api.you.com/v1/search?query=cats&count=3');
-  expect(keyless.headers['x-api-key']).toBeUndefined();
+test('You.com sends its key in X-API-Key and requires one', () => {
+  expect(youcom.rule.keyPolicy).toBe('required');
   const keyed = build(youcom);
+  expect(keyed.url).toBe('https://ydc-index.io/v1/search?query=cats&count=3');
   expect(keyed.headers['x-api-key']).toBe('secret');
+});
+
+test('You.com reads the snippets array and falls back to the description', () => {
+  expect(
+    youcom.parse({
+      results: {
+        web: [
+          { title: 'T', url: 'https://a.example', description: 'D', snippets: ['one', 'two'] },
+          { title: 'U', url: 'https://b.example', description: 'D', snippets: [] },
+        ],
+      },
+    }),
+  ).toEqual([
+    { title: 'T', url: 'https://a.example', snippet: 'one two' },
+    { title: 'U', url: 'https://b.example', snippet: 'D' },
+  ]);
 });
 
 test('each provider reads its own successful payload shape', () => {

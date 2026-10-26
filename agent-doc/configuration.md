@@ -637,7 +637,7 @@ Streamable HTTP 使用 `url` 与可选 SecretRef `headers`，且 `follow_redirec
 | `firecrawl` | `https://api.firecrawl.dev/v2/search` | 必填 | 500 字符 | 支持 |
 | `deepseek` | `https://api.deepseek.com/v1/tools/search` | 必填 | 128 字符 | 支持 |
 | `searxng` | 无（必须配置） | 不允许 | 500 字符 | 不支持（由实例分页决定） |
-| `youcom` | `https://api.you.com/v1/search` | 可选（不配则走免费端点） | 500 字符 | 支持 |
+| `youcom` | `https://ydc-index.io/v1/search` | 必填 | 500 字符 | 支持 |
 
 - 查询最长 500 字符，发送前按所选服务商的上限静默裁剪（按字符而非 UTF-16 单元，不会切碎代理对）。DeepSeek 引擎可在面板里直接复用已配置的 DeepSeek 模型 Provider 密钥，不必另存一份。
 - 服务地址必须是 HTTP(S)、不带凭据、查询参数或 fragment；SearXNG 只接入不需要鉴权的实例。

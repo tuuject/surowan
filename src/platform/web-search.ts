@@ -80,8 +80,8 @@ export const BUILTIN_SEARCH_PROVIDERS: readonly SearchProviderRule[] = [
   {
     id: 'youcom',
     label: 'You.com',
-    defaultEndpoint: 'https://api.you.com/v1/search',
-    keyPolicy: 'optional',
+    defaultEndpoint: 'https://ydc-index.io/v1/search',
+    keyPolicy: 'required',
     queryLimit: 500,
     supportsResultCount: true,
   },

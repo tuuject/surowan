@@ -56,8 +56,8 @@ const providers = [
   {
     id: 'youcom',
     label: 'You.com',
-    default_endpoint: 'https://api.you.com/v1/search',
-    key: 'optional',
+    default_endpoint: 'https://ydc-index.io/v1/search',
+    key: 'required',
     query_limit: 500,
     supports_count: true,
   },
