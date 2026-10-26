@@ -88,6 +88,15 @@ test('loadPlugins rejects invalid extension contributions', () => {
       definePlugin({ id: 'two', dependencies: ['host'], extensions: [contribute(point, { id: 'same' })] }),
     ]),
   ).toThrow('Duplicate search.providers contribution same');
+  // A same-named point without `identify` still answers to the owner's identity.
+  const lookalike = defineExtensionPoint<{ readonly id: string }>('search.providers');
+  expect(() =>
+    loadPlugins([
+      definePlugin({ id: 'host', extensionPoints: [point] }),
+      definePlugin({ id: 'one', dependencies: ['host'], extensions: [contribute(point, { id: 'same' })] }),
+      definePlugin({ id: 'two', dependencies: ['host'], extensions: [contribute(lookalike, { id: 'same' })] }),
+    ]),
+  ).toThrow('Duplicate search.providers contribution same');
 });
 
 test('loadPlugins rejects invalid and duplicate context injector names', () => {

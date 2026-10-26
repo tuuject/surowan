@@ -321,16 +321,21 @@ export function loadPlugins(plugins: readonly AgentPlugin[], options: LoadPlugin
   };
 }
 
-/** Extension point name → declaring plugin id. A name has exactly one owner. */
-function collectExtensionPoints(plugins: readonly AgentPlugin[]): ReadonlyMap<string, string> {
-  const owners = new Map<string, string>();
+interface DeclaredExtensionPoint {
+  readonly owner: string;
+  readonly point: ExtensionPointLike;
+}
+
+/** Extension point name → declaring plugin and its point. A name has exactly one owner. */
+function collectExtensionPoints(plugins: readonly AgentPlugin[]): ReadonlyMap<string, DeclaredExtensionPoint> {
+  const owners = new Map<string, DeclaredExtensionPoint>();
   for (const plugin of plugins) {
     for (const point of plugin.extensionPoints ?? []) {
       const existing = owners.get(point.name);
       if (existing !== undefined) {
-        throw new Error(`Duplicate extension point ${point.name}: declared by ${existing} and ${plugin.id}`);
+        throw new Error(`Duplicate extension point ${point.name}: declared by ${existing.owner} and ${plugin.id}`);
       }
-      owners.set(point.name, plugin.id);
+      owners.set(point.name, { owner: plugin.id, point });
     }
   }
   return owners;
@@ -343,7 +348,7 @@ function collectExtensionPoints(plugins: readonly AgentPlugin[]): ReadonlyMap<st
  */
 function collectExtensions(
   plugins: readonly AgentPlugin[],
-  owners: ReadonlyMap<string, string>,
+  owners: ReadonlyMap<string, DeclaredExtensionPoint>,
 ): ReadonlyMap<string, readonly unknown[]> {
   const values = new Map<string, unknown[]>();
   for (const point of owners.keys()) {
@@ -353,14 +358,18 @@ function collectExtensions(
   for (const plugin of plugins) {
     const dependencies = new Set(plugin.dependencies ?? []);
     for (const contribution of plugin.extensions ?? []) {
-      const owner = owners.get(contribution.point.name);
-      if (owner === undefined) {
+      const declared = owners.get(contribution.point.name);
+      if (declared === undefined) {
         throw new Error(`Plugin ${plugin.id} contributes to unknown extension point ${contribution.point.name}`);
       }
-      if (!dependencies.has(owner)) {
-        throw new Error(`Plugin ${plugin.id} contributes to ${contribution.point.name} without depending on ${owner}`);
+      if (!dependencies.has(declared.owner)) {
+        throw new Error(
+          `Plugin ${plugin.id} contributes to ${contribution.point.name} without depending on ${declared.owner}`,
+        );
       }
-      const identify = contribution.point.identify;
+      // The owner's declaration is the contract: a contributor that builds its
+      // own point object by the same name cannot opt out of identity checks.
+      const identify = declared.point.identify;
       if (identify !== undefined) {
         const seen = identities.get(contribution.point.name) ?? new Map<string, string>();
         identities.set(contribution.point.name, seen);
