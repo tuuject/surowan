@@ -25,6 +25,8 @@ import { createProvidersAdminHandler } from './providers.ts';
 import { createTelegramAdminHandler } from '../telegram.ts';
 import { createTuningAdminHandler } from './tuning.ts';
 import { createWarningsAdminHandler } from '../warnings.ts';
+import { createSearchAdminRoutes } from './search.ts';
+import { BUILTIN_SEARCH_PROVIDERS } from '../../../platform/web-search.ts';
 import type { AdminServerOptions } from '../index.ts';
 
 export interface AdminRoutesDeps {
@@ -138,6 +140,11 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       readInvocationMedia,
     }),
     warnings: createWarningsAdminHandler({ warnings, configStore: options.configStore, connections }),
+    search: createSearchAdminRoutes({
+      configReloader: reloader,
+      secrets,
+      searchProviders: options.searchProviders ?? BUILTIN_SEARCH_PROVIDERS,
+    }),
     static: createStaticAssetHandler({ staticDir }),
   };
 }

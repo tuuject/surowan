@@ -18,6 +18,7 @@ description: 按配置节理解 Surowan 的必填项、覆盖关系与运行风�
 | `providers` | 已启用 Provider 与模型定义；凭据使用 SecretRef。 |
 | `agent` | 可选段：主模型、Prompt、全局 Token 预算、并发、Context 和发送限流，整段可省略；全部字段可热应用，模型与 Prompt 之外的字段可在 [Harness tuning](../configure/admin-harness-tuning.md#harness-tuning) 页编辑。 |
 | `vision` | 可选段：图片/Sticker 模型、并发、独立 Token 与图片日预算，整段可省略或写 `null`/`{}`，其余字段有默认值。`provider` 与 `model` 缺一即「未配置」：多模态主模型仍能直接看到新消息里的图片，但 `read_image` 不可用、Sticker 后台索引暂停；补齐后热应用即恢复。 |
+| `web_search` | 可选节：内置网络搜索。总开关、多个搜索引擎（服务商、地址、密钥、条数、超时、备注）与 URL 正则过滤；整段省略即不启用，所有字段热更新。模型只用它发现来源，正文由 `web_fetch` 读取。 |
 | `admin` | 必填的本地管理面板；`enabled` 可省略，默认 `true`，修改后重启。显式关闭面板且 Telegram 停用时服务拒绝启动。 |
 | `developer` | 可选调试设置；`record_model_payloads` 与 `record_agent_thinking` 均可省略，默认 `false`，可热应用。详见[Developer 页面](../configure/admin-developer.md#developer-调试开关)。 |
 | `mcp` | 受限 stdio 或 Streamable HTTP Tool；修改后重启。 |

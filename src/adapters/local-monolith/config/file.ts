@@ -6,6 +6,7 @@ import { assertConfigPermissions, type LoadedConfig, loadConfig } from './index.
 import type { ConfigEdit } from '../../../platform/config/write.ts';
 import { TELEGRAM_DEFAULTS } from '../../../platform/config/resolve.ts';
 import { keyJarPath, referencedJarNames, updateKeyJar } from '../../../platform/key-jar.ts';
+import type { SearchProviderRule } from '../../../platform/web-search.ts';
 
 export type ConfigWriteErrorCode =
   | 'config_symlink'
@@ -76,6 +77,7 @@ export async function writeConfigEdits(
   configPath: string,
   edits: readonly ConfigEdit[],
   expectedRevision?: string,
+  options: { readonly searchProviders?: readonly SearchProviderRule[] } = {},
 ): Promise<void> {
   const target = resolve(configPath);
   await assertWritableTarget(target);
@@ -136,7 +138,9 @@ export async function writeConfigEdits(
   try {
     // Prompt paths resolve against the containing directory, so this is the same
     // validation the next `serve` would run.
-    written = await loadConfig(temporary);
+    written = await loadConfig(temporary, {
+      ...(options.searchProviders === undefined ? {} : { searchProviders: options.searchProviders }),
+    });
   } catch (error) {
     await removeQuietly(temporary);
     throw new ConfigWriteError('config_invalid', describe('Edited config is invalid', error));

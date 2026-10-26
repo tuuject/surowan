@@ -33,7 +33,8 @@ pnpm test test/docs/spaces.test.ts test/manual-pack.test.ts
 pnpm test test/replay/replay.test.ts test/scene/context.test.ts test/scene/slice.test.ts test/scene/retention.test.ts test/replay/tools.test.ts test/replay/http.test.ts
 pnpm test test/skills.test.ts test/system-resources.test.ts test/plugins.test.ts
 pnpm test test/media/media.test.ts test/stickers.test.ts
-pnpm test test/mcp.test.ts test/web-fetch.test.ts
+pnpm test test/mcp.test.ts test/web-fetch.test.ts test/web-search
+pnpm test test/plugins.test.ts   # 插件依赖、扩展点与贡献冲突
 pnpm test test/operations.test.ts test/foundation/foundation.test.ts test/schema/schema.test.ts test/load-env.test.ts
 pnpm test packages/image-service/test test/image/service-store.test.ts test/image/models.test.ts test/image/admin.test.ts test/image/admin-server.test.ts
 pnpm test test/admin/admin.test.ts test/admin/passkeys.test.ts test/admin/recovery.test.ts test/admin/providers.test.ts test/admin/chats.test.ts test/prompts/admin.test.ts test/models/switch.test.ts
@@ -150,6 +151,15 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 
 跨模块改动完成后运行全部测试与 TypeScript 检查。最终验收前先冻结源码与测试树，禁止并发创建、编辑或删除临时 `*.test.ts` 探针：Vitest 的发现和加载分开进行，发现后删除会令整轮以缺模块失败；临时探针应在全量发现前移除，或放在 include 之外单独执行。
 
+`test/web-search/` 的覆盖范围（服务商相关用例按插件分文件组织）：
+
+- `tool.test.ts`：请求构造与结果归一化、标题/URL 注入清洗、单条 600 字符与整段 24 KiB 截断、空结果、URL 正则过滤、重定向拒绝、401/402/432/433/429/5xx/其余 4xx 的错误分类、无密钥服务商 403 的提示、超时与 Invocation 到期、密钥无法解析、按服务商裁剪查询、禁用引擎的 steer、未知引擎不 steer、关闭功能或禁用所有引擎后的失败、按请求冻结配置（在途请求用旧配置、下一次用新配置）、`action: "list"` 的引擎与备注、响应超过 256 KiB 与非 JSON 响应。
+- `providers.test.ts`：七个服务商各自的请求构造（地址、方法、认证头、条数/查询上限）与响应解析（含 Firecrawl/You.com 的两种形状、空结果）。
+- `config.test.ts`：整段可省略、开关与「禁用所有引擎」等价、未知服务商、缺失/禁止的密钥、SearXNG 必填地址、重复引擎 ID、非法 URL 与正则、明文密钥、条数与超时边界、热更新分类，以及注入的已注册服务商集合生效。
+- `plugin.test.ts`：内置插件注册七个服务商、能力与 Skill 索引同步可见、Tool 描述带备注、不可用插件不贡献能力、重复服务商标识在加载时报错、`scope.steer` 贯通到能力。
+- `availability.test.ts`：禁用搜索时按 id 停下所有运行中的 Invocation，无运行时不发信号。
+- `admin.test.ts`：`GET/PUT /search/config` 的密钥不回显、写入 key jar、保留引用、删除引擎回收密钥、revision 冲突、缺失 `If-Match`、未注册服务商被拒、DeepSeek 密钥复用、无密钥 SearXNG 保存。
+
 ## 配置验证
 
 ```bash
@@ -232,6 +242,7 @@ pnpm run admin:test:e2e     # Playwright 套件（apps/admin-next/e2e/**/*.e2e.t
 pnpm run admin:test:e2e 08-models 16-model-health  # 模型管理与健康检查回归
 pnpm run admin:test:e2e 17-dictionary 18-tool-model  # 辞典页与 Tool Model 回归
 pnpm run admin:test:e2e 20-playground  # Playground 房间 API 与页面回归
+pnpm run admin:test:e2e 22-search-settings  # 网络搜索设置页与保存流程
 ```
 
 `20-playground.e2e.ts` 用真实 `AdminServer` + 房间写入路径驱动：Session-only 与 API key 拒绝、请求 key 幂等建房、房间之间的 ID 隔离、上传校验与内容读取（页面部分随 Playground 页面一并断言）。夹具 `e2e/server.ts` 在仿真数据里额外建两个房间并放入一条 held 消息，规格通过 `GET /__e2e/playground-seed` 取用它们的 ID，不依赖自增主键。

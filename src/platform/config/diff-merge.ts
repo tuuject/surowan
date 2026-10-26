@@ -40,6 +40,10 @@ const HOT_PATHS: ReadonlySet<string> = new Set([
   'vision.max_output_tokens',
   'image',
   'dictionary',
+  // The search section is read per invocation and per request; a reload that
+  // changes it is published immediately, and availability transitions abort
+  // running invocations from the composition root.
+  'web_search',
   'tool_model',
   'telegram.admins',
   // The connection manager owns the grammY instance and follows the resolved
@@ -61,6 +65,7 @@ const HOT_PREFIXES: readonly string[] = [
   'providers.',
   'image.',
   'dictionary.',
+  'web_search.',
   'tool_model.',
 ];
 

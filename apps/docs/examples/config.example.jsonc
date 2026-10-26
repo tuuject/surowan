@@ -100,6 +100,15 @@
       }
     ]
   },
+  // 网络搜索默认不启用；去掉注释即可开启。模型用 web_search 发现来源，再用 web_fetch 读正文。
+  // 每个引擎的 note 对模型可见；SearXNG 必须填 endpoint 且不接受密钥。
+  // "web_search": {
+  //   "engines": [
+  //     { "id": "main", "provider": "tavily", "api_key": { "jar": "tavily" }, "note": "中文技术博客与更新日志" },
+  //     { "id": "local", "provider": "searxng", "endpoint": "https://searx.example.com", "note": "私有实例" }
+  //   ],
+  //   "url_filters": ["csdn"]
+  // },
   "retention": { "online_days": 30, "backup_copies": 7 },
   // 可省略；仅在排查模型调用时开启，历史报文在 Developer 页面手动清除。
   "developer": { "record_model_payloads": false },

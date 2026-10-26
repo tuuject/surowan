@@ -20,6 +20,7 @@ import { AdminQueryError } from './audit/shared.ts';
 import { AdminAuth, AdminAuthError } from './auth.ts';
 import { AdminPasskeys } from './passkeys.ts';
 import type { PlaygroundAdminDeps } from './playground/index.ts';
+import type { SearchProviderRule } from '../../platform/web-search.ts';
 
 export type AdminConfig = NonNullable<RawConfig['admin']>;
 
@@ -68,6 +69,8 @@ export interface AdminServerOptions {
   readonly shutdownSignal?: AbortSignal;
   /** Shared with the scheduler so invocations and login attempts feed the same warnings. */
   readonly warnings?: WarningService;
+  /** Search providers registered by the loaded plugins; absent uses the bundled set. */
+  readonly searchProviders?: readonly SearchProviderRule[];
 }
 
 export class AdminServer {
@@ -241,6 +244,7 @@ export class AdminServer {
     let response = await routes.control.handle(request, segments, username);
     response ??= await routes.tuning.handle(request, segments);
     response ??= await routes.dictionary.handle(request, url, segments);
+    response ??= await routes.search.handle(request, url, segments);
     response ??= await routes.memory.handle(request, url, segments);
     response ??= await routes.admins.handle(request, segments);
     response ??= await routes.providers.handle(request, segments);

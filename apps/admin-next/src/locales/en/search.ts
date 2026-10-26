@@ -1,0 +1,63 @@
+/**
+ * The web-search settings page. English is the source catalog; the zh-CN file
+ * mirrors it key for key.
+ */
+export const search = {
+  title: 'Web search',
+  description:
+    'Give the model search engines to discover sources, then let it read the pages it chooses with web_fetch. Search returns titles, URLs and short snippets only.',
+  warningTitle: 'Turning search off changes the capability set',
+  warningBody:
+    'Disabling web search, or disabling every engine, removes the search capability and its skill from the index. Running invocations stop immediately and the next message starts a fresh context. Disabling only some engines keeps running invocations; if one asks for a disabled engine, it is told to re-read the list.',
+  switchTitle: 'Availability',
+  switchDescription: 'Search is off unless this is on and at least one engine is enabled.',
+  switchLabel: 'Enable web search',
+  switchActive: 'Search is available to new invocations.',
+  switchInactive: 'Search is unavailable: the switch is off or no engine is enabled.',
+  enginesTitle: 'Search engines',
+  enginesDescription:
+    'Each engine is one provider with its own credential, endpoint and note. The note is shown to the model so it can choose the right engine for a query.',
+  addEngine: 'Add engine',
+  noEngines: 'No engine configured. Add one to make search available.',
+  engineHeading: 'Engine {{index}}',
+  engineEnabled: 'Enabled',
+  removeEngine: 'Remove',
+  fieldId: 'Engine id',
+  fieldIdHint: 'Lowercase letters, digits and dashes. The model picks an engine by this id.',
+  fieldProvider: 'Provider',
+  fieldEndpoint: 'Endpoint',
+  endpointRequired: 'Required',
+  endpointRequiredHint:
+    'This provider has no public default; enter the instance address (for example https://searx.example.com).',
+  endpointHint: 'Leave empty to use the provider default. No credentials, query or fragment.',
+  fieldResults: 'Results',
+  resultsUnsupported: 'This provider decides its own page size; no count is sent.',
+  resultsHint: 'Default number of results per search, 1–10.',
+  fieldTimeout: 'Timeout (s)',
+  fieldNote: 'Note for the model',
+  notePlaceholder: 'Use for Chinese developer blogs and release notes.',
+  noteHint: 'Say which sites or material this engine suits. Shown in the tool description and in the engine list.',
+  fieldKey: 'Credential',
+  keyKeep: 'Keep the configured key',
+  keyNew: 'Enter a new key',
+  keyReuse: 'Reuse a DeepSeek model key',
+  keyPlaceholder: 'Paste the API key',
+  keyForbidden: 'This provider takes no credential.',
+  keyOptional: 'The key is optional; without one the free endpoint is used.',
+  keyRequired: 'This provider requires a key.',
+  filtersTitle: 'URL filters',
+  filtersDescription:
+    'Drop results whose URL matches a regular expression. One rule per line; a rule matches anywhere in the URL.',
+  filtersLabel: 'Rules',
+  filtersHint: 'For example csdn drops every blog.csdn.net result. Invalid expressions block saving.',
+  filtersInvalid: 'Not a valid regular expression: {{rules}}',
+  filterTestLabel: 'Test URLs',
+  filterTestHint: 'Paste one URL per line to preview which rules match. This never sends a request.',
+  filterMatched: 'filtered by {{rules}}',
+  filterKept: 'kept',
+  invalidTitle: 'Fix these before saving',
+  save: 'Save settings',
+  saving: 'Saving…',
+  saved: 'Web search settings saved',
+  saveHint: 'Applied immediately; no restart needed.',
+};

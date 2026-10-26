@@ -1,5 +1,5 @@
 import Type from 'typebox';
-import { PositiveInteger, Strict, ThinkingLevelSchema } from './schema-model.ts';
+import { PositiveInteger, SecretRefSchema, Strict, ThinkingLevelSchema } from './schema-model.ts';
 
 /**
  * The participation, chat, agent, vision, tool-model and dictionary sections of
@@ -144,6 +144,40 @@ export const DictionarySectionSchema = Type.Object(
   { injection_mode: Type.Optional(DictionaryInjectionModeSchema) },
   Strict,
 );
+
+/**
+ * One configured search engine. The provider id stays a plain string here: the
+ * set of registered providers comes from plugins, so `validateWebSearchSection`
+ * checks membership while the schema only checks the shape.
+ */
+export const SearchEngineSchema = Type.Object(
+  {
+    id: Type.String({ pattern: '^[a-z][a-z0-9-]{0,31}$' }),
+    provider: Type.String({ pattern: '^[a-z][a-z0-9-]{0,63}$' }),
+    enabled: Type.Optional(Type.Boolean()),
+    endpoint: Type.Optional(Type.String({ minLength: 1, maxLength: 2048 })),
+    api_key: Type.Optional(SecretRefSchema),
+    results: Type.Optional(Type.Integer({ minimum: 1, maximum: 10 })),
+    timeout_seconds: Type.Optional(Type.Integer({ minimum: 5, maximum: 30 })),
+    note: Type.Optional(Type.String({ maxLength: 1000 })),
+  },
+  Strict,
+);
+
+/**
+ * The `web_search` section. The whole section is optional and its absence means
+ * "disabled"; inside a present section only the switch is required to turn the
+ * feature off, so `engines` may stay empty.
+ */
+export const WebSearchSectionSchema = Type.Object(
+  {
+    enabled: Type.Optional(Type.Boolean()),
+    engines: Type.Optional(Type.Array(SearchEngineSchema, { maxItems: 32 })),
+    url_filters: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 512 }), { maxItems: 50 })),
+  },
+  Strict,
+);
+
 export const ChatSchema = Type.Object(
   {
     id: Type.Integer(),

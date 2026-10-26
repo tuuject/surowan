@@ -383,6 +383,16 @@ Alarm 是第一个 `plugin_id = "alarm"` 的 consumer，通过 `execute.call` �
 
 Tool 只返回文本、JSON、XML 或 JavaScript 响应，拒绝压缩和二进制内容。默认 `Accept` 以 `text/markdown` 优先（`web_fetch.accept_markdown`，缺省开启；`raw: true` 时不声明），站点返回 `text/markdown` 时原样返回并加 `Format: Markdown served by the site` 行，`details.format` 记为 `markdown`。`text/html` 与 `application/xhtml+xml` 默认读取最多 2 MiB HTML，经 [Defuddle](https://github.com/kepano/defuddle) 抽取正文并转成 Markdown（去掉图片，Header 附 `Format` 与 `Title` 行）；模型传 `raw: true` 才返回原始 HTML，其他类型原样返回。转换固定 `useAsync: false` 并注入拒绝所有请求的 `fetch`：Defuddle 默认会为 YouTube、X、Bilibili 等页面调用第三方 API，那些请求绕过上面的地址校验与审计。转换是同步 CPU 工作，2 MiB 上限同时约束它阻塞事件循环的时长；转换失败返回 `conversion_failed`，不隐式回退原文。复杂解析（JS 渲染、登录页等）不在本 Tool 范围，交给用户自接的 MCP。单次调用最多 15 秒、结果最多 32 KiB；结果前缀明确标记网页为不可信数据。调用参数、结果、耗时和失败码写入 `tool_calls`，`side_effect = false`。
 
+## `web_search`
+
+`web_search` 是经 `execute.call` 调用的内部能力，只在 `web_search` 可用（总开关打开且至少一个引擎启用）时注册；同一状态还决定 `web-search` Skill 是否出现在索引里。它只负责发现：返回标题、URL 与摘要，不读取正文；需要正文时由模型对选中的 URL 调用 `web_fetch`。
+
+- **输入**：`{ action?, query?, engine?, count? }`。`action: "list"` 返回当前启用的引擎与备注（可用于配置在运行中被修改后刷新列表）；默认 `search` 需要非空 `query`（最长 500 字符）。`engine` 省略时用第一个启用的引擎；`count` 覆盖该引擎的默认条数（1–10，服务商可能自行限制）。
+- **引擎可见性**：每个引擎的 `note` 同时出现在 Tool 描述（最多 8 个、每条截断到 160 字符）与 `action: "list"` 的结果里，模型据此选择引擎。描述不写死某家服务商的上限或默认条数，避免同一个 Invocation 内配置变化后描述失真。
+- **按请求冻结**：每次调用开始时读一次当前配置，固定本次的引擎、服务商、地址、已解析密钥、条数与超时；查询按该服务商上限静默裁剪。搜索进行中修改配置，在途请求继续用旧配置完成，同一 Invocation 的下一次搜索用新配置。审计记录实际使用的引擎与服务商。
+- **运行中变化**：关闭总开关或禁用所有引擎时，进程会 abort 所有运行中的 Invocation（`web_search_disabled`），它们保留的旧 Tool 集合因此不会再被使用；接下来的消息重建 Context。只禁用部分引擎时不打断运行：请求到被禁用的引擎会返回 `engine_disabled`，并通过 steer 注入一条提醒，要求模型重新读取引擎列表；请求不存在的引擎只返回 `unknown_engine`，不 steer。
+- **边界**：查询、标题、URL 与摘要都是不可信数据；标题与摘要清掉控制字符与换行，URL 只接受绝对 HTTP(S)、去掉 fragment 与凭据，防止用换行伪造结果行。服务商重定向一律拒绝，失败响应体不读取，响应最多 256 KiB，失败不自动重试。结果文本上限 24 KiB、单条摘要 600 字符，超出部分截断并标记。失败按认证（401/403）、额度（402/432/433）、限流（429）、上游不可用（5xx）、请求被拒（其余 4xx）、重定向、响应过大、超时、Invocation 到期、密钥无法解析、响应无法解析与网络失败分类；密钥不进入审计、日志或模型上下文。
+
 ## 用户图片模型分流
 
 当 `agent` 模型支持 image 时，`new` 区段的 Photo 与受支持的图片 Document 随冻结 Context 直接送入主模型，不经过 `read_image` 或独立 `vision` 模型；历史区段的图片只保留 `image_ref`，模型可用 `read_image` 按需查看，避免旧图占用输入或分散注意力。Telegram Photo 只保留最高分辨率变体，避免同一照片重复占用模型输入。
