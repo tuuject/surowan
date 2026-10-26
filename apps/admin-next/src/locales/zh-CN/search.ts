@@ -54,4 +54,6 @@ export const search: typeof searchEn = {
   saving: '保存中…',
   saved: '网络搜索设置已保存',
   saveHint: '立即生效，无需重启。',
+  conflictTitle: '配置已在别处被修改',
+  conflictBody: '本页加载后又有其它修改落盘，这次没有保存。重新加载后从当前设置开始编辑；本页未保存的改动会被丢弃。',
 };

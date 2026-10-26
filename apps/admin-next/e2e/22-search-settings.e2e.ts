@@ -184,6 +184,37 @@ test('adds an engine with a new key and previews URL filter matches', async ({ p
   });
 });
 
+test('a save conflict offers a reload onto the current revision', async ({ page }) => {
+  let served = view({ engines: [configuredEngine] });
+  const ifMatch: string[] = [];
+  await page.route('**/api/search/config', async (route) => {
+    if (route.request().method() === 'PUT') {
+      const revision = route.request().headers()['if-match'] ?? '';
+      ifMatch.push(revision);
+      if (revision !== 'rev-2') {
+        // Another tab saved after this page loaded: the server moved to rev-2.
+        served = { ...served, revision: 'rev-2' };
+        await route.fulfill({ status: 409, json: { error: 'config_conflict', message: 'stale' } });
+        return;
+      }
+      served = { ...served, revision: 'rev-3' };
+      await route.fulfill({ json: { ...served, apply: { applied: ['web_search'], restart_required: [] } } });
+      return;
+    }
+    await route.fulfill({ json: served });
+  });
+  await page.goto(await adminUrl('/search-settings'));
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  await expect(page.getByText('The configuration changed elsewhere')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save settings' })).toBeDisabled();
+
+  await page.getByRole('button', { name: 'Reload' }).click();
+  await expect(page.getByText('The configuration changed elsewhere')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  await expect(toast(page, 'Web search settings saved')).toBeVisible();
+  expect(ifMatch).toEqual(['rev-1', 'rev-2']);
+});
+
 test('an invalid URL filter blocks saving with a visible message', async ({ page }) => {
   let writes = 0;
   await page.route('**/api/search/config', async (route) => {

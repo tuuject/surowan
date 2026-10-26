@@ -60,4 +60,7 @@ export const search = {
   saving: 'Saving…',
   saved: 'Web search settings saved',
   saveHint: 'Applied immediately; no restart needed.',
+  conflictTitle: 'The configuration changed elsewhere',
+  conflictBody:
+    'Another edit landed after this page loaded, so nothing was saved. Reload to start from the current settings; unsaved changes here are discarded.',
 };

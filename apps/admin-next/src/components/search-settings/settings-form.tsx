@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Panel } from '@/components/layout/panel';
 import { errorMessage } from '@/lib/errors';
+import { isConfigConflict } from '@/lib/model-manager';
 import { configStatusQuery } from '@/lib/queries';
 import { putSearchConfig, type SearchConfigView } from '@/lib/api/search.ts';
 import { EngineEditor } from './engine-editor.tsx';
@@ -121,12 +122,33 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
       ) : null}
 
       <div className="flex items-center gap-3">
-        <Button type="button" disabled={save.isPending || errors.length > 0} onClick={() => save.mutate()}>
+        <Button
+          type="button"
+          disabled={save.isPending || errors.length > 0 || (save.isError && isConfigConflict(save.error))}
+          onClick={() => save.mutate()}
+        >
           {save.isPending ? t('search.saving') : t('search.save')}
         </Button>
         <p className="text-muted-foreground text-xs">{t('search.saveHint')}</p>
       </div>
-      {save.isError ? (
+      {save.isError && isConfigConflict(save.error) ? (
+        // The form is keyed by revision, so a refetch remounts it on the
+        // current revision; retrying with the stale one could never succeed.
+        <Alert variant="destructive" role="alert">
+          <AlertTitle>{t('search.conflictTitle')}</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>{t('search.conflictBody')}</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void queryClient.invalidateQueries({ queryKey: ['search-config'] })}
+            >
+              {t('common.reload')}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : save.isError ? (
         <p role="alert" className="text-destructive text-sm break-words">
           {errorMessage(save.error)}
         </p>
