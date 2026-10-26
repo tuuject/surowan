@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import type { SearchProviderView } from '@/lib/api/search.ts';
-import { type EngineDraft, type KeyMode, switchProvider } from './draft.ts';
+import { canKeepKey, type EngineDraft, type KeyMode, renameEngine, switchProvider } from './draft.ts';
 
 /**
  * One engine's fields. The key control is a source choice rather than a value:
@@ -36,7 +36,7 @@ export function EngineEditor({
   const idPrefix = `search-engine-${draft.key}`;
   const canReuseModelKey = provider?.id === 'deepseek' && deepseekKeys.length > 0;
   const keyModes: KeyMode[] = [
-    ...(draft.keyConfigured ? (['keep'] as const) : []),
+    ...(canKeepKey(draft) ? (['keep'] as const) : []),
     'new',
     ...(canReuseModelKey ? (['alias'] as const) : []),
   ];
@@ -66,7 +66,7 @@ export function EngineEditor({
           <Input
             id={`${idPrefix}-id`}
             value={draft.id}
-            onChange={(event) => onChange({ id: event.target.value })}
+            onChange={(event) => onChange(renameEngine(draft, event.target.value))}
             placeholder="tavily-main"
             disabled={disabled}
           />

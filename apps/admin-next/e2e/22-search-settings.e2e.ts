@@ -240,6 +240,22 @@ test('reusing the only DeepSeek model key saves that alias', async ({ page }) =>
   });
 });
 
+test('renaming a configured engine asks for a credential instead of keeping one', async ({ page }) => {
+  await page.route('**/api/search/config', async (route) => {
+    await route.fulfill({ json: view({ engines: [configuredEngine] }) });
+  });
+  await page.goto(await adminUrl('/search-settings'));
+  await expect(page.getByLabel('Credential')).toHaveText('Keep the configured key');
+  await page.getByLabel('Engine id').fill('renamed');
+  // The server keeps keys by id, so the renamed engine has no key to keep.
+  await expect(page.getByLabel('Credential')).toHaveText('Enter a new key');
+  await expect(page.getByRole('button', { name: 'Save settings' })).toBeDisabled();
+  // Back on the stored id, keeping the configured key is offered again.
+  await page.getByLabel('Engine id').fill('main');
+  await page.getByLabel('Credential').click();
+  await expect(page.getByRole('option', { name: 'Keep the configured key' })).toBeVisible();
+});
+
 test('an invalid URL filter blocks saving with a visible message', async ({ page }) => {
   let writes = 0;
   await page.route('**/api/search/config', async (route) => {

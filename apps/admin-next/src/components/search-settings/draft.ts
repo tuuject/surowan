@@ -22,6 +22,8 @@ export interface EngineDraft {
   readonly keyMode: KeyMode;
   readonly keyAlias: string;
   readonly keyConfigured: boolean;
+  /** The id the server stored this engine under; null for an engine added here. */
+  readonly savedId: string | null;
 }
 
 export function toDraft(engine: SearchEngineView): EngineDraft {
@@ -38,6 +40,7 @@ export function toDraft(engine: SearchEngineView): EngineDraft {
     keyMode: engine.key_configured ? 'keep' : 'new',
     keyAlias: '',
     keyConfigured: engine.key_configured,
+    savedId: engine.id,
   };
 }
 
@@ -62,7 +65,23 @@ export function emptyDraft(provider: SearchProviderView, existing: readonly Engi
     keyMode: 'new',
     keyAlias: '',
     keyConfigured: false,
+    savedId: null,
   };
+}
+
+/**
+ * The server keeps a configured key by engine id, so a kept key only exists
+ * while the id is the one it was stored under: a renamed engine would either
+ * lose its key or pick up another engine's former one.
+ */
+export function canKeepKey(draft: EngineDraft): boolean {
+  return draft.keyConfigured && draft.savedId !== null && draft.id.trim() === draft.savedId;
+}
+
+/** Renaming away from the stored id drops "keep" so a credential choice is explicit. */
+export function renameEngine(draft: EngineDraft, id: string): Partial<EngineDraft> {
+  const next = { ...draft, id };
+  return draft.keyMode === 'keep' && !canKeepKey(next) ? { id, keyMode: 'new' } : { id };
 }
 
 /**
@@ -99,7 +118,7 @@ export function buildPayload(
       timeout_seconds: parseInteger(draft.timeout),
       note: draft.note.trim().length === 0 ? null : draft.note.trim(),
       api_key: draft.keyMode === 'new' && draft.apiKey.trim().length > 0 ? draft.apiKey.trim() : null,
-      keep_api_key: draft.keyMode === 'keep',
+      keep_api_key: draft.keyMode === 'keep' && canKeepKey(draft),
       key_source: draft.keyMode === 'alias' && draft.keyAlias.trim().length > 0 ? draft.keyAlias.trim() : null,
     };
   });
