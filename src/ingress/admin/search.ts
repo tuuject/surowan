@@ -8,6 +8,7 @@ import {
   DEFAULT_SEARCH_TIMEOUT_SECONDS,
   validateWebSearchSection,
   webSearchAvailable,
+  type SearchEngineConfig,
   type SearchProviderRule,
   type WebSearchConfig,
 } from '../../platform/web-search.ts';
@@ -135,7 +136,7 @@ export function parseSearchConfigBody(
     throw invalid('enabled must be a boolean');
   }
   const rules = new Map(providers.map((provider) => [provider.id, provider]));
-  const previousApiKeys = new Map((existing?.engines ?? []).map((engine) => [engine.id, engine.api_key]));
+  const previousEngines = new Map((existing?.engines ?? []).map((engine) => [engine.id, engine]));
   const submissions = readEngines(body.engines, rules);
   const keys: Record<string, string> = {};
   const engines: NonNullable<WebSearchConfig['engines']> = [];
@@ -148,7 +149,7 @@ export function parseSearchConfigBody(
     if (endpoint === undefined || endpoint.length === 0) {
       throw invalid(`engine ${submission.id} (${rule.label}) requires an endpoint`);
     }
-    const apiKey = resolveEngineKey(submission, rule, previousApiKeys.get(submission.id), reusable, keys);
+    const apiKey = resolveEngineKey(submission, rule, previousEngines.get(submission.id), reusable, keys);
     engines.push({
       id: submission.id,
       provider: submission.provider,
@@ -234,7 +235,7 @@ function readEngines(value: unknown, rules: ReadonlyMap<string, SearchProviderRu
 function resolveEngineKey(
   submission: EngineSubmission,
   rule: SearchProviderRule,
-  previous: SecretRef | undefined,
+  previous: SearchEngineConfig | undefined,
   reusable: Readonly<Record<string, SecretRef>>,
   keys: Record<string, string>,
 ): SecretRef | undefined {
@@ -253,8 +254,13 @@ function resolveEngineKey(
     }
     return reference;
   }
-  if (submission.key.keep && previous !== undefined) {
-    return previous;
+  if (submission.key.keep && previous?.api_key !== undefined) {
+    // A kept key belongs to the provider it was issued for; carrying it to a
+    // different provider would send one vendor's credential to another.
+    if (previous.provider !== submission.provider) {
+      throw invalid(`engine ${submission.id} changed provider; enter a new api_key`);
+    }
+    return previous.api_key;
   }
   if (rule.keyPolicy === 'required') {
     throw invalid(`engine ${submission.id} (${rule.label}) requires an api_key`);

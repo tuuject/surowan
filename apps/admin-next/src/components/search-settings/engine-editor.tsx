@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import type { SearchProviderView } from '@/lib/api/search.ts';
-import type { EngineDraft, KeyMode } from './draft.ts';
+import { type EngineDraft, type KeyMode, switchProvider } from './draft.ts';
 
 /**
  * One engine's fields. The key control is a source choice rather than a value:
@@ -74,7 +74,16 @@ export function EngineEditor({
         </div>
         <div className="space-y-1">
           <Label htmlFor={`${idPrefix}-provider`}>{t('search.fieldProvider')}</Label>
-          <Select value={draft.provider} onValueChange={(value) => onChange({ provider: value })} disabled={disabled}>
+          <Select
+            value={draft.provider}
+            onValueChange={(value) => {
+              const next = providers.find((entry) => entry.id === value);
+              if (next !== undefined && next.id !== draft.provider) {
+                onChange(switchProvider(next));
+              }
+            }}
+            disabled={disabled}
+          >
             <SelectTrigger id={`${idPrefix}-provider`} className="w-full">
               <SelectValue />
             </SelectTrigger>

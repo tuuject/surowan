@@ -64,6 +64,23 @@ export function emptyDraft(provider: SearchProviderView, existing: readonly Engi
   };
 }
 
+/**
+ * The fields a provider switch must reset. The loaded endpoint is the old
+ * provider's address and a configured key was issued by the old vendor, so
+ * keeping either would send one vendor's credential to another.
+ */
+export function switchProvider(provider: SearchProviderView): Partial<EngineDraft> {
+  return {
+    provider: provider.id,
+    endpoint: '',
+    results: provider.supports_count ? '5' : '',
+    apiKey: '',
+    keyMode: 'new',
+    keyAlias: '',
+    keyConfigured: false,
+  };
+}
+
 export function buildPayload(
   enabled: boolean,
   drafts: readonly EngineDraft[],

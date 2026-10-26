@@ -168,6 +168,28 @@ test('keeping the key reuses the same reference and never duplicates the jar ent
   expect((await loadConfig(f.path)).fileConfig.web_search?.engines?.[0]?.api_key).toEqual(reference);
 });
 
+test('a kept key never follows an engine to a different provider', async () => {
+  const f = await fixture();
+  await f.save({ enabled: true, url_filters: [], engines: [TAVILY] }, (await f.view()).revision);
+  const before = await readFile(f.path, 'utf8');
+  const jarBefore = await f.jar();
+  const response = await f.save(
+    {
+      enabled: true,
+      url_filters: [],
+      engines: [{ ...TAVILY, provider: 'brave', api_key: null, keep_api_key: true }],
+    },
+    (await f.view()).revision,
+  );
+  expect(response.status).toBe(400);
+  const body = (await response.json()) as { error: string; message: string };
+  expect(body.error).toBe('search_invalid');
+  expect(body.message).toContain('changed provider');
+  expect(await readFile(f.path, 'utf8')).toBe(before);
+  expect(await f.jar()).toEqual(jarBefore);
+  expect(f.configStore.current().config.web_search?.engines?.[0]?.provider).toBe('tavily');
+});
+
 test('removing an engine recycles the credential it referenced', async () => {
   const f = await fixture();
   await f.save({ enabled: true, url_filters: [], engines: [TAVILY] }, (await f.view()).revision);

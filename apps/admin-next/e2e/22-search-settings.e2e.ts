@@ -132,6 +132,21 @@ test('shows a configured engine without its key and saves the switch', async ({ 
   expect(JSON.stringify(config)).not.toContain('tvly-');
 });
 
+test('switching provider drops the old endpoint and configured key', async ({ page }) => {
+  await page.route('**/api/search/config', async (route) => {
+    await route.fulfill({ json: view({ engines: [configuredEngine] }) });
+  });
+  await page.goto(await adminUrl('/search-settings'));
+  await expect(page.getByLabel('Credential')).toHaveText('Keep the configured key');
+  await page.getByLabel('Provider').click();
+  await page.getByRole('option', { name: 'Brave Search' }).click();
+  await expect(page.getByLabel('Provider')).toHaveText('Brave Search');
+  // The Tavily address and key belong to Tavily; Brave starts from its own default.
+  await expect(page.getByLabel('Endpoint')).toHaveValue('');
+  await expect(page.getByLabel('Credential')).toHaveText('Enter a new key');
+  await expect(page.getByRole('button', { name: 'Save settings' })).toBeDisabled();
+});
+
 test('adds an engine with a new key and previews URL filter matches', async ({ page }) => {
   let config = view({ enabled: false, active: false, engines: [] });
   const writes: Array<{ enabled: boolean; engines: { id: string; provider: string; api_key: string | null }[] }> = [];
