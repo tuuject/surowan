@@ -78,9 +78,12 @@ export function createSearchAdminRoutes(deps: SearchAdminRoutesDeps) {
           : result.message;
         return json({ error: result.code, message }, CONFIG_WRITE_STATUS[result.code] ?? 409);
       }
-      const next = await reloader.readPersisted();
+      // Read back through readConfigFile so the returned revision describes
+      // the very file shown; a write slipping in between answers 409 instead
+      // of pairing old engines with a newer revision the client would reuse.
+      const { loaded, revision: nextRevision } = await readConfigFile(reloader, deps.secrets);
       return json({
-        ...searchConfigView(next.fileConfig, next.config, await reloader.revision(), deps.searchProviders),
+        ...searchConfigView(loaded.fileConfig, loaded.config, nextRevision, deps.searchProviders),
         apply: { applied: result.applied, restart_required: result.restartRequired },
       });
     },

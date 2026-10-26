@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { appendFile, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, test, vi } from 'vitest';
@@ -209,6 +209,30 @@ test('a stale revision is refused and leaves the file untouched', async () => {
   const stale = await f.save({ enabled: true, url_filters: [], engines: [TAVILY] }, `${first.revision}-stale`);
   expect(stale.status).toBe(409);
   expect(await readFile(f.path, 'utf8')).toBe(before);
+});
+
+test('a write landing while the saved file is read back never pairs old engines with its revision', async () => {
+  const f = await fixture();
+  const first = await f.view();
+  const readPersisted = f.reloader.readPersisted.bind(f.reloader);
+  let calls = 0;
+  vi.spyOn(f.reloader, 'readPersisted').mockImplementation(async (options) => {
+    const persisted = await readPersisted(options);
+    calls += 1;
+    // The second read is the read-back after the save: another writer lands now.
+    if (calls === 2) {
+      await appendFile(f.path, '\n// external edit\n');
+    }
+    return persisted;
+  });
+  const response = await f.save({ enabled: true, url_filters: [], engines: [TAVILY] }, first.revision);
+  expect(response.status).toBe(409);
+  expect(((await response.json()) as { error: string }).error).toBe('config_conflict');
+  // The save itself landed; a fresh read shows it under the current revision.
+  vi.restoreAllMocks();
+  const fresh = await f.view();
+  expect(fresh.revision).toBe(await f.reloader.revision());
+  expect(fresh.engines.map((engine) => engine.id)).toEqual(['main']);
 });
 
 test('a missing If-Match is refused before anything is written', async () => {
