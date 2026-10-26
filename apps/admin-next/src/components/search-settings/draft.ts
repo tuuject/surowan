@@ -1,9 +1,4 @@
-import type {
-  SearchConfigInput,
-  SearchEngineInput,
-  SearchEngineView,
-  SearchProviderView,
-} from '@/lib/api/search.ts';
+import type { SearchConfigInput, SearchEngineInput, SearchEngineView, SearchProviderView } from '@/lib/api/search.ts';
 
 /**
  * The editable draft of one engine plus the translation to and from the API

@@ -29,7 +29,9 @@ export function UrlFilterEditor({
       return { rule, pattern: null };
     }
   });
-  const results = splitLines(testText).map((url) => ({
+  // A pasted URL may repeat; the preview reports each distinct line once, which
+  // also keeps the list keyed by the URL itself instead of its position.
+  const results = [...new Set(splitLines(testText))].map((url) => ({
     url,
     matchedBy: compiled.filter((entry) => entry.pattern?.test(url) === true).map((entry) => entry.rule),
   }));
@@ -75,8 +77,8 @@ export function UrlFilterEditor({
         </div>
         {results.length > 0 ? (
           <ul className="space-y-1 text-sm" aria-live="polite">
-            {results.map((result, index) => (
-              <li key={`${index}-${result.url}`} className="flex flex-wrap items-center gap-2">
+            {results.map((result) => (
+              <li key={result.url} className="flex flex-wrap items-center gap-2">
                 <span
                   className={cn(
                     'break-all',
