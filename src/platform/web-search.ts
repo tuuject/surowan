@@ -64,7 +64,7 @@ export const BUILTIN_SEARCH_PROVIDERS: readonly SearchProviderRule[] = [
   {
     id: 'deepseek',
     label: 'DeepSeek',
-    defaultEndpoint: 'https://api.deepseek.com/search',
+    defaultEndpoint: 'https://api.deepseek.com/v1/tools/search',
     keyPolicy: 'required',
     queryLimit: 128,
     supportsResultCount: true,

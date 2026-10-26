@@ -3,9 +3,10 @@ import { searchProviderRule, WEB_SEARCH_PROVIDERS, type SearchProviderSpec } fro
 import { firstArray, mapHits } from './shared.ts';
 
 /**
- * DeepSeek's search endpoint is not part of its chat API, so the adapter reads
- * the common `{ results: [{ title, url, snippet }] }` answer and the endpoint
- * stays overridable for a self-hosted or relay service speaking the same shape.
+ * DeepSeek's search tool API (`POST /v1/tools/search`) takes the chat API key,
+ * a query of at most 128 characters and a `count`. The parser reads the common
+ * `{ results: [{ title, url, snippet }] }` answer, and the endpoint stays
+ * overridable for a relay speaking the same shape.
  */
 export const deepseek: SearchProviderSpec = {
   rule: searchProviderRule('deepseek'),
@@ -17,7 +18,7 @@ export const deepseek: SearchProviderSpec = {
       'content-type': 'application/json',
       authorization: `Bearer ${key ?? ''}`,
     },
-    body: JSON.stringify({ query, max_results: count }),
+    body: JSON.stringify({ query, count }),
   }),
   parse: (payload) =>
     mapHits(firstArray(payload, ['results', 'data', 'web.results', 'search_results']) ?? [], [

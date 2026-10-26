@@ -635,7 +635,7 @@ Streamable HTTP 使用 `url` 与可选 SecretRef `headers`，且 `follow_redirec
 | `brave` | `https://api.search.brave.com/res/v1/web/search` | 必填 | 400 字符 | 支持 |
 | `exa` | `https://api.exa.ai/search` | 必填 | 500 字符 | 支持 |
 | `firecrawl` | `https://api.firecrawl.dev/v2/search` | 必填 | 500 字符 | 支持 |
-| `deepseek` | `https://api.deepseek.com/search` | 必填 | 128 字符 | 支持 |
+| `deepseek` | `https://api.deepseek.com/v1/tools/search` | 必填 | 128 字符 | 支持 |
 | `searxng` | 无（必须配置） | 不允许 | 500 字符 | 不支持（由实例分页决定） |
 | `youcom` | `https://api.you.com/v1/search` | 可选（不配则走免费端点） | 500 字符 | 支持 |
 

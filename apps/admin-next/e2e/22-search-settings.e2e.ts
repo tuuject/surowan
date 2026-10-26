@@ -40,7 +40,7 @@ const providers = [
   {
     id: 'deepseek',
     label: 'DeepSeek',
-    default_endpoint: 'https://api.deepseek.com/search',
+    default_endpoint: 'https://api.deepseek.com/v1/tools/search',
     key: 'required',
     query_limit: 128,
     supports_count: true,

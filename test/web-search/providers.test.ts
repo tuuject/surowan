@@ -76,11 +76,12 @@ test('Firecrawl posts a web search with a limit', () => {
   expect(JSON.parse(built.body ?? '{}')).toMatchObject({ query: 'cats', limit: 3, sources: ['web'] });
 });
 
-test('DeepSeek posts max_results and honours an override endpoint', () => {
+test('DeepSeek posts to its tools search API with a count and honours an override endpoint', () => {
+  expect(deepseek.rule.defaultEndpoint).toBe('https://api.deepseek.com/v1/tools/search');
   const built = build(deepseek, { endpoint: 'https://relay.example/search' });
   expect(built.url).toBe('https://relay.example/search');
   expect(built.headers.authorization).toBe('Bearer secret');
-  expect(JSON.parse(built.body ?? '{}')).toMatchObject({ query: 'cats', max_results: 3 });
+  expect(JSON.parse(built.body ?? '{}')).toEqual({ query: 'cats', count: 3 });
 });
 
 test('SearXNG composes /search, asks for JSON and sends no credential or count', () => {
