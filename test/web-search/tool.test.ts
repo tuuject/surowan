@@ -175,6 +175,24 @@ test('a stalled request times out and reports the timeout code', async () => {
   expect(fixture.rows[0]?.code).toBe('timeout');
 });
 
+test('a body that stalls after the headers times out and reports the timeout code', async () => {
+  const fixture = toolFixture(
+    searchConfig([{ id: 'main', provider: 'tavily', api_key: { jar: 'tavily' } }]),
+    (call) => {
+      // Headers arrive at once; the body never does until the request aborts.
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          call.init.signal?.addEventListener('abort', () => controller.error(new Error('body aborted')));
+        },
+      });
+      return new Response(body, { status: 200, headers: { 'content-type': 'application/json' } });
+    },
+    { secrets: secretStore({ tavily: 'k' }), deadlineMs: 80 },
+  );
+  await expect(fixture.tool.execute('call-slow-body', { query: 'x' })).rejects.toThrow('timed out');
+  expect(fixture.rows[0]?.code).toBe('timeout');
+});
+
 test('an invocation that already ran out of time never sends a request', async () => {
   const fixture = toolFixture(
     searchConfig([{ id: 'main', provider: 'tavily', api_key: { jar: 'tavily' } }]),

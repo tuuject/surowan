@@ -102,7 +102,14 @@ export async function executeSearch(input: {
     const failure = classifyStatus(response.status, input.provider, input.request.key);
     throw new WebSearchError(failure.code, failure.message);
   }
-  const bytes = await readBounded(response, RESPONSE_MAX_BYTES);
+  let bytes: Uint8Array;
+  try {
+    // The timeout keeps running while the body streams, so a provider that
+    // stalls after its headers is a timeout too, not a generic network error.
+    bytes = await readBounded(response, RESPONSE_MAX_BYTES);
+  } catch (error) {
+    throw networkError(error, input.outerSignal, timeout);
+  }
   let payload: unknown;
   try {
     payload = JSON.parse(new TextDecoder().decode(bytes));
