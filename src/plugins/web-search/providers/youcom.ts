@@ -1,6 +1,6 @@
 import { contribute, definePlugin } from '../../plugin.ts';
 import { searchProviderRule, WEB_SEARCH_PROVIDERS, type SearchProviderSpec } from '../extension.ts';
-import { firstArray, mapHits } from './shared.ts';
+import { mapHits, resultList } from './shared.ts';
 
 /**
  * You.com's search API accepts an optional key: the free endpoint answers
@@ -22,8 +22,7 @@ export const youcom: SearchProviderSpec = {
       },
     };
   },
-  parse: (payload) =>
-    mapHits(firstArray(payload, ['results.web', 'results', 'hits']) ?? [], ['description', 'snippet']),
+  parse: (payload) => mapHits(resultList(payload, ['results.web', 'results', 'hits']), ['description', 'snippet']),
 };
 
 export default definePlugin({

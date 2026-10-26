@@ -112,6 +112,19 @@ test('a backtracking-prone URL filter stays linear on a hostile URL', async () =
   expect(fixture.rows[0]?.state).toBe('success');
 });
 
+test('a 200 answer without a result list is audited as invalid_response', async () => {
+  const fixture = toolFixture(
+    searchConfig([{ id: 'main', provider: 'tavily', api_key: { jar: 'tavily' } }]),
+    () => jsonResponse({ results: 'unexpected' }),
+    { secrets: secretStore({ tavily: 'k' }) },
+  );
+  await expect(fixture.tool.execute('call-malformed', { query: 'x' })).rejects.toThrow(
+    "Could not read Tavily's response",
+  );
+  expect(fixture.rows[0]?.state).toBe('error');
+  expect(fixture.rows[0]?.code).toBe('invalid_response');
+});
+
 test('an empty result set is a successful answer', async () => {
   const fixture = toolFixture(
     searchConfig([{ id: 'main', provider: 'tavily', api_key: { jar: 'tavily' } }]),

@@ -1,6 +1,6 @@
 import { contribute, definePlugin } from '../../plugin.ts';
 import { searchProviderRule, WEB_SEARCH_PROVIDERS, type SearchProviderSpec } from '../extension.ts';
-import { firstArray, mapHits } from './shared.ts';
+import { mapHits, resultList } from './shared.ts';
 
 /**
  * Brave's web endpoint is a GET with the subscription token in a header and
@@ -22,7 +22,13 @@ export const brave: SearchProviderSpec = {
       },
     };
   },
-  parse: (payload) => mapHits(firstArray(payload, ['web.results', 'results']) ?? [], ['description', 'snippet']),
+  // Brave omits `web` entirely when nothing matched; the `type: "search"`
+  // envelope is what still identifies a well-formed empty answer.
+  parse: (payload) =>
+    mapHits(
+      resultList(payload, ['web.results', 'results'], (record) => record.type === 'search'),
+      ['description', 'snippet'],
+    ),
 };
 
 export default definePlugin({

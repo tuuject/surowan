@@ -136,9 +136,24 @@ test('each provider reads its own successful payload shape', () => {
 });
 
 test('an empty result set parses to an empty list, not an error', () => {
+  expect(tavily.parse({ results: [] })).toEqual([]);
+  expect(brave.parse({ type: 'search', web: { results: [] } })).toEqual([]);
+  // Brave drops `web` when nothing matched.
+  expect(brave.parse({ type: 'search', query: { original: 'cats' } })).toEqual([]);
+  expect(exa.parse({ results: [] })).toEqual([]);
+  expect(firecrawl.parse({ success: true, data: { web: [] } })).toEqual([]);
+  expect(firecrawl.parse({ success: true, data: {} })).toEqual([]);
+  expect(firecrawl.parse({ success: true, data: [] })).toEqual([]);
+  expect(deepseek.parse({ results: [] })).toEqual([]);
+  expect(searxng.parse({ results: [] })).toEqual([]);
+  expect(youcom.parse({ results: { web: [] } })).toEqual([]);
+  expect(youcom.parse({ hits: [] })).toEqual([]);
+});
+
+test('a payload without a result list is malformed, not an empty answer', () => {
   for (const provider of PROVIDERS) {
-    expect(provider.parse({})).toEqual([]);
-    expect(provider.parse({ results: [] })).toEqual([]);
-    expect(provider.parse({ web: { results: [] } })).toEqual([]);
+    expect(() => provider.parse({})).toThrow('No result list');
+    expect(() => provider.parse({ results: 'unexpected' })).toThrow('No result list');
   }
+  expect(() => firecrawl.parse({ success: false, data: {} })).toThrow('No result list');
 });

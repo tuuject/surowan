@@ -1,6 +1,6 @@
 import { contribute, definePlugin } from '../../plugin.ts';
 import { searchProviderRule, WEB_SEARCH_PROVIDERS, type SearchProviderSpec } from '../extension.ts';
-import { firstArray, mapHits } from './shared.ts';
+import { mapHits, resultList } from './shared.ts';
 
 /**
  * Exa's `/search` takes a POST with `numResults` and wants the contents it
@@ -23,7 +23,7 @@ export const exa: SearchProviderSpec = {
       contents: { text: { maxCharacters: 1_200 } },
     }),
   }),
-  parse: (payload) => mapHits(firstArray(payload, ['results']) ?? [], ['text', 'summary', 'snippet']),
+  parse: (payload) => mapHits(resultList(payload, ['results']), ['text', 'summary', 'snippet']),
 };
 
 export default definePlugin({

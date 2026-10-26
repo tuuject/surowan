@@ -1,6 +1,6 @@
 import { contribute, definePlugin } from '../../plugin.ts';
 import { searchProviderRule, WEB_SEARCH_PROVIDERS, type SearchProviderSpec } from '../extension.ts';
-import { firstArray, mapHits } from './shared.ts';
+import { mapHits, resultList } from './shared.ts';
 
 /**
  * Tavily answers `POST /search` with `{ results: [{ title, url, content }] }`.
@@ -26,7 +26,7 @@ export const tavily: SearchProviderSpec = {
       include_images: false,
     }),
   }),
-  parse: (payload) => mapHits(firstArray(payload, ['results']) ?? [], ['content', 'snippet', 'description']),
+  parse: (payload) => mapHits(resultList(payload, ['results']), ['content', 'snippet', 'description']),
 };
 
 export default definePlugin({

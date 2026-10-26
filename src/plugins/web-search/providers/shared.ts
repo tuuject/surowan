@@ -21,24 +21,44 @@ export function readString(record: Record<string, unknown>, key: string): string
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-/** The first non-empty array found at a dotted path, e.g. `data.web`. */
-export function firstArray(payload: unknown, paths: readonly string[]): readonly unknown[] | undefined {
-  for (const path of paths) {
-    let current: unknown = payload;
-    for (const segment of path.split('.')) {
-      const record = asRecord(current);
-      if (record === undefined) {
-        current = undefined;
-        break;
-      }
-      current = record[segment];
+function arrayAt(payload: unknown, path: string): readonly unknown[] | undefined {
+  let current: unknown = payload;
+  for (const segment of path.split('.')) {
+    const record = asRecord(current);
+    if (record === undefined) {
+      return undefined;
     }
-    const array = asArray(current);
-    if (array !== undefined && array.length > 0) {
-      return array;
-    }
+    current = record[segment];
   }
-  return undefined;
+  return asArray(current);
+}
+
+/**
+ * The result list at the first dotted path (e.g. `data.web`) holding a
+ * non-empty array. An empty array at any path is a genuine "no results"; so
+ * is a payload the provider's `emptyEnvelope` recognises when it omits the
+ * list on an empty answer. Anything else does not look like this provider's
+ * answer and throws, which the core reports as `invalid_response` instead of
+ * a successful empty search.
+ */
+export function resultList(
+  payload: unknown,
+  paths: readonly string[],
+  emptyEnvelope?: (record: Record<string, unknown>) => boolean,
+): readonly unknown[] {
+  const arrays = paths.map((path) => arrayAt(payload, path));
+  const found = arrays.find((array) => array !== undefined && array.length > 0);
+  if (found !== undefined) {
+    return found;
+  }
+  if (arrays.some((array) => array !== undefined)) {
+    return [];
+  }
+  const record = asRecord(payload);
+  if (record !== undefined && emptyEnvelope?.(record) === true) {
+    return [];
+  }
+  throw new Error(`No result list at ${paths.join(', ')}`);
 }
 
 /** Reads the first string field present, in the order given. */

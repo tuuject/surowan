@@ -1,6 +1,6 @@
 import { contribute, definePlugin } from '../../plugin.ts';
 import { searchProviderRule, WEB_SEARCH_PROVIDERS, type SearchProviderSpec } from '../extension.ts';
-import { firstArray, mapHits } from './shared.ts';
+import { mapHits, resultList } from './shared.ts';
 
 /**
  * DeepSeek's search tool API (`POST /v1/tools/search`) takes the chat API key,
@@ -21,7 +21,7 @@ export const deepseek: SearchProviderSpec = {
     body: JSON.stringify({ query, count }),
   }),
   parse: (payload) =>
-    mapHits(firstArray(payload, ['results', 'data', 'web.results', 'search_results']) ?? [], [
+    mapHits(resultList(payload, ['results', 'data', 'web.results', 'search_results']), [
       'snippet',
       'content',
       'description',

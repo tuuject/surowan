@@ -1,6 +1,6 @@
 import { contribute, definePlugin } from '../../plugin.ts';
 import { searchProviderRule, WEB_SEARCH_PROVIDERS, type SearchProviderSpec } from '../extension.ts';
-import { asRecord, asArray, firstArray, mapHits } from './shared.ts';
+import { asRecord, mapHits, resultList } from './shared.ts';
 
 /**
  * Firecrawl's v2 search returns `{ success, data: { web: [...] } }`; older
@@ -18,15 +18,17 @@ export const firecrawl: SearchProviderSpec = {
     },
     body: JSON.stringify({ query, limit: count, sources: ['web'] }),
   }),
-  parse: (payload) => {
-    const data = asRecord(payload)?.data;
-    const array = asArray(data);
-    return mapHits(array ?? firstArray(payload, ['data.web', 'web', 'results']) ?? [], [
-      'description',
-      'snippet',
-      'markdown',
-    ]);
-  },
+  // v1 answers `data: [...]`, v2 `data: { web: [...] }`; a v2 answer with no
+  // web hits may drop the list but keeps `success: true` and its `data` object.
+  parse: (payload) =>
+    mapHits(
+      resultList(
+        payload,
+        ['data', 'data.web', 'web', 'results'],
+        (record) => record.success === true && asRecord(record.data) !== undefined,
+      ),
+      ['description', 'snippet', 'markdown'],
+    ),
 };
 
 export default definePlugin({
