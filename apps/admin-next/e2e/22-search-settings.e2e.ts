@@ -196,5 +196,9 @@ test('an invalid URL filter blocks saving with a visible message', async ({ page
   await page.getByLabel('Rules').fill('(');
   await expect(page.getByText('Not a valid regular expression: (')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save settings' })).toBeDisabled();
+  // The panel uses the server's RE2 rules, so lookaround is refused here too.
+  await page.getByLabel('Rules').fill('csdn(?!\\.net)');
+  await expect(page.getByText('Not a valid regular expression: csdn(?!\\.net)')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save settings' })).toBeDisabled();
   expect(writes).toBe(0);
 });

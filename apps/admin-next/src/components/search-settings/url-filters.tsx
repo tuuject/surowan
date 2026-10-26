@@ -1,3 +1,4 @@
+import { RE2JS } from 're2js';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,8 +9,8 @@ import { splitLines } from './draft.ts';
 
 /**
  * URL rules plus a preview. The preview compiles the same expressions the
- * server will store and marks each pasted URL as dropped or kept; it never
- * sends a search, so trying a rule costs nothing.
+ * server will store, with the same RE2 engine, and marks each pasted URL as
+ * dropped or kept; it never sends a search, so trying a rule costs nothing.
  */
 export function UrlFilterEditor({
   rules,
@@ -24,7 +25,7 @@ export function UrlFilterEditor({
   const [testText, setTestText] = useState('');
   const compiled = splitLines(rules).map((rule) => {
     try {
-      return { rule, pattern: new RegExp(rule) };
+      return { rule, pattern: RE2JS.compile(rule) };
     } catch {
       return { rule, pattern: null };
     }

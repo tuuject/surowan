@@ -87,6 +87,30 @@ test('URL filters drop matching results and report the count', async () => {
   expect(text).toContain('https://example.com/b');
 });
 
+test('a backtracking-prone URL filter stays linear on a hostile URL', async () => {
+  // `(a+)+$` takes exponential time on a backtracking engine; RE2 answers at once.
+  const hostile = `https://evil.example/${'a'.repeat(64)}!`;
+  const fixture = toolFixture(
+    searchConfig([{ id: 'main', provider: 'tavily', api_key: { jar: 'tavily' } }], {
+      urlFilters: ['(a+)+$'],
+    }),
+    () =>
+      jsonResponse({
+        results: [
+          { title: 'A', url: hostile, content: 'one' },
+          { title: 'B', url: 'https://example.com/aaa', content: 'two' },
+        ],
+      }),
+    { secrets: secretStore({ tavily: 'k' }) },
+  );
+  const started = performance.now();
+  const text = textOf(await fixture.tool.execute('call-redos', { query: 'x' }));
+  expect(performance.now() - started).toBeLessThan(1_000);
+  expect(text).toContain('Results: 1 (1 filtered by URL rules)');
+  expect(text).toContain(hostile);
+  expect(fixture.rows[0]?.state).toBe('success');
+});
+
 test('an empty result set is a successful answer', async () => {
   const fixture = toolFixture(
     searchConfig([{ id: 'main', provider: 'tavily', api_key: { jar: 'tavily' } }]),

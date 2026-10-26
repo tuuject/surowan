@@ -1,5 +1,5 @@
 import type { SecretStore } from '../../platform/secrets.ts';
-import { matchesUrlFilters, type ResolvedSearchEngine } from '../../platform/web-search.ts';
+import { type ResolvedSearchEngine, urlFilterMatcher } from '../../platform/web-search.ts';
 import type { ToolAudit } from '../../store/tool-audit.ts';
 import { classifyStatus, networkError, WebSearchError } from './errors.ts';
 import type { RawSearchHit, SearchHttpRequest, SearchProviderSpec, SearchRequestInput } from './extension.ts';
@@ -128,7 +128,8 @@ export async function executeSearch(input: {
     const value = normalizeHit(hit);
     return value === undefined ? [] : [value];
   });
-  const kept = normalized.filter((hit) => !matchesUrlFilters(hit.url, input.filters));
+  const filtered = urlFilterMatcher(input.filters);
+  const kept = normalized.filter((hit) => !filtered(hit.url));
   const limit = input.provider.rule.supportsResultCount ? Math.max(1, input.request.count) : Number.POSITIVE_INFINITY;
   const limited = kept.slice(0, limit);
   const formatted = formatResults(input.engine, input.provider, input.query, limited, normalized.length - kept.length);

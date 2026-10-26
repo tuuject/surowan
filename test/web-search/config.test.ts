@@ -130,6 +130,10 @@ test('duplicate ids, bad endpoints and bad URL filters are rejected', async () =
   await expectInvalid((file) => {
     file.web_search = { url_filters: ['('], engines: [tavilyEngine] };
   }, 'Invalid web_search URL filter');
+  // RE2 has no lookaround: a rule that needs backtracking is refused up front.
+  await expectInvalid((file) => {
+    file.web_search = { url_filters: ['csdn(?!\\.net)'], engines: [tavilyEngine] };
+  }, 'Invalid web_search URL filter');
 });
 
 test('a plaintext key is refused with the key-jar hint', async () => {

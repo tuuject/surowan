@@ -1,3 +1,4 @@
+import { RE2JS } from 're2js';
 import type { SearchConfigInput, SearchEngineInput, SearchEngineView, SearchProviderView } from '@/lib/api/search.ts';
 
 /**
@@ -127,7 +128,7 @@ export function validate(input: SearchConfigInput, providers: readonly SearchPro
   const errors: string[] = [];
   for (const [index, rule] of input.url_filters.entries()) {
     try {
-      new RegExp(rule);
+      RE2JS.compile(rule);
     } catch {
       errors.push(`URL filter #${index + 1} is not a valid regular expression`);
     }

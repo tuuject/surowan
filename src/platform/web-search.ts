@@ -1,3 +1,4 @@
+import { RE2JS } from 're2js';
 import type { RawConfig, SecretRef } from './config/index.ts';
 
 /**
@@ -222,19 +223,26 @@ export function validateSearchEndpoint(value: string, label: string): void {
   }
 }
 
-/** Compiles one user-supplied URL filter. Invalid patterns are a configuration error. */
-export function compileUrlFilter(pattern: string): RegExp {
+/**
+ * Compiles one user-supplied URL filter with RE2 semantics. Matching runs
+ * synchronously on provider-supplied URLs, so a backtracking engine would let
+ * a rule like `(a+)+$` stall the whole process; RE2 is linear in the input and
+ * rejects the lookaround and backreference syntax that needs backtracking.
+ */
+export function compileUrlFilter(pattern: string): RE2JS {
   try {
-    return new RegExp(pattern);
+    return RE2JS.compile(pattern);
   } catch {
     throw new Error(`Invalid web_search URL filter: ${pattern}`);
   }
 }
 
 /**
- * True when `url` matches any configured filter. A rule matches anywhere in
- * the URL, so `csdn` drops `https://blog.csdn.net/...` without an anchor.
+ * A predicate that is true when a URL matches any configured filter. A rule
+ * matches anywhere in the URL, so `csdn` drops `https://blog.csdn.net/...`
+ * without an anchor.
  */
-export function matchesUrlFilters(url: string, filters: readonly string[]): boolean {
-  return filters.some((pattern) => compileUrlFilter(pattern).test(url));
+export function urlFilterMatcher(filters: readonly string[]): (url: string) => boolean {
+  const compiled = filters.map(compileUrlFilter);
+  return (url) => compiled.some((pattern) => pattern.test(url));
 }
