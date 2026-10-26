@@ -1,4 +1,4 @@
-import type { RawConfig } from '../../src/platform/config/index.ts';
+import type { RawConfig, SecretRef } from '../../src/platform/config/index.ts';
 import type { SecretStore } from '../../src/platform/secrets.ts';
 import { brave } from '../../src/plugins/web-search/providers/brave.ts';
 import { deepseek } from '../../src/plugins/web-search/providers/deepseek.ts';
@@ -42,7 +42,7 @@ export interface EngineFixture {
   readonly id: string;
   readonly provider: string;
   readonly endpoint?: string;
-  readonly api_key?: { readonly jar: string };
+  readonly api_key?: SecretRef;
   readonly results?: number;
   readonly timeout_seconds?: number;
   readonly note?: string;
@@ -157,5 +157,6 @@ export function secretStore(values: Readonly<Record<string, string>> = {}): Secr
       }
       return value;
     },
+    redact: (text: string) => text,
   } as unknown as SecretStore;
 }

@@ -1,4 +1,5 @@
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
+import { SecretStore } from '../../src/platform/secrets.ts';
 import { jsonResponse, searchConfig, secretStore, toolFixture } from './fixtures.ts';
 
 function textOf(result: { readonly content: readonly { readonly type: string; readonly text?: string }[] }): string {
@@ -194,6 +195,29 @@ test('an unresolvable key fails before any request', async () => {
   await expect(fixture.tool.execute('call-secret', { query: 'x' })).rejects.toThrow('cannot resolve its api_key');
   expect(fixture.calls).toHaveLength(0);
   expect(fixture.rows[0]?.code).toBe('secret_unresolved');
+});
+
+test('a transport error that echoes the key never reaches the model unredacted', async () => {
+  const key = 'tvly-live-secret-0123456789';
+  vi.stubEnv('SUROWAN_TEST_SEARCH_KEY', key);
+  try {
+    const fixture = toolFixture(
+      searchConfig([{ id: 'main', provider: 'tavily', api_key: { env: 'SUROWAN_TEST_SEARCH_KEY' } }]),
+      (call) => {
+        // undici reports an invalid header together with its value.
+        const header = (call.init.headers as Record<string, string>).authorization ?? '';
+        throw new TypeError(`Headers.append: "${header}" is an invalid header value.`);
+      },
+      { secrets: new SecretStore() },
+    );
+    const failure = await fixture.tool.execute('call-leak', { query: 'x' }).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toContain('[REDACTED]');
+    expect((failure as Error).message).not.toContain(key);
+    expect(fixture.rows[0]?.code).toBe('network_error');
+  } finally {
+    vi.unstubAllEnvs();
+  }
 });
 
 test('a long query is silently trimmed to the provider limit', async () => {

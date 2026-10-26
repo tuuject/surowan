@@ -168,7 +168,10 @@ export function createWebSearchTool(
         } else {
           record.fail(code);
         }
-        throw new Error(`web_search failed: ${error instanceof Error ? error.message : String(error)}`);
+        // A transport error can echo request headers, so the credential is
+        // scrubbed before the message reaches the model.
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`web_search failed: ${options.secrets?.redact(message) ?? message}`);
       }
     },
   };
