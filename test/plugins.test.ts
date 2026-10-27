@@ -8,7 +8,7 @@ import { TelegramIngestion } from '../src/ingress/telegram-ingestion/index.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler/index.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config/index.ts';
 import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
-import { definePlugin, loadPlugins } from '../src/plugins/plugin.ts';
+import { contribute, defineExtensionPoint, definePlugin, loadPlugins } from '../src/plugins/plugin.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { renderInvocationContext, testConfigStore, writeTestConfig } from './helpers.ts';
 
@@ -22,11 +22,81 @@ test('loadPlugins rejects invalid and duplicate plugin ids', () => {
 test('built-in plugins load with unique ids and their skill directories', () => {
   const loaded = loadPlugins(BUILTIN_PLUGINS);
   expect(loaded.skillDirectories.map((directory) => directory.split(/[\\/]/).at(-1))).toEqual([
+    'web-search',
     'web-fetch',
     'image-generation',
     'alarms',
     'dictionary',
   ]);
+});
+
+test('loadPlugins loads dependencies first and collects their extension values', () => {
+  const point = defineExtensionPoint<{ readonly id: string }>('search.providers', (value) => value.id);
+  const host = definePlugin({ id: 'host', extensionPoints: [point] });
+  const one = definePlugin({
+    id: 'one',
+    dependencies: ['host'],
+    extensions: [contribute(point, { id: 'one' })],
+  });
+  const two = definePlugin({
+    id: 'two',
+    dependencies: ['host'],
+    extensions: [contribute(point, { id: 'two' })],
+  });
+  const loaded = loadPlugins([host, one, two]);
+  expect(loaded.extensions(point)).toEqual([{ id: 'one' }, { id: 'two' }]);
+});
+
+test('loadPlugins rejects a broken dependency graph', () => {
+  expect(() => loadPlugins([definePlugin({ id: 'one', dependencies: ['missing'] })])).toThrow(
+    'depends on unknown plugin missing',
+  );
+  expect(() => loadPlugins([definePlugin({ id: 'one', dependencies: ['two'] }), definePlugin({ id: 'two' })])).toThrow(
+    'must load after its dependency two',
+  );
+  expect(() => loadPlugins([definePlugin({ id: 'one', dependencies: ['one'] })])).toThrow('cannot depend on itself');
+  // A cycle can never satisfy "dependencies load first".
+  expect(() =>
+    loadPlugins([
+      definePlugin({ id: 'one', dependencies: ['two'] }),
+      definePlugin({ id: 'two', dependencies: ['one'] }),
+    ]),
+  ).toThrow();
+});
+
+test('loadPlugins rejects invalid extension contributions', () => {
+  const point = defineExtensionPoint<{ readonly id: string }>('search.providers', (value) => value.id);
+  expect(() => loadPlugins([definePlugin({ id: 'one', extensions: [contribute(point, { id: 'one' })] })])).toThrow(
+    'contributes to unknown extension point search.providers',
+  );
+  expect(() =>
+    loadPlugins([
+      definePlugin({ id: 'host', extensionPoints: [point] }),
+      definePlugin({ id: 'one', extensions: [contribute(point, { id: 'one' })] }),
+    ]),
+  ).toThrow('contributes to search.providers without depending on host');
+  expect(() =>
+    loadPlugins([
+      definePlugin({ id: 'host', extensionPoints: [point] }),
+      definePlugin({ id: 'twin', dependencies: ['host'], extensionPoints: [point] }),
+    ]),
+  ).toThrow('Duplicate extension point search.providers');
+  expect(() =>
+    loadPlugins([
+      definePlugin({ id: 'host', extensionPoints: [point] }),
+      definePlugin({ id: 'one', dependencies: ['host'], extensions: [contribute(point, { id: 'same' })] }),
+      definePlugin({ id: 'two', dependencies: ['host'], extensions: [contribute(point, { id: 'same' })] }),
+    ]),
+  ).toThrow('Duplicate search.providers contribution same');
+  // A same-named point without `identify` still answers to the owner's identity.
+  const lookalike = defineExtensionPoint<{ readonly id: string }>('search.providers');
+  expect(() =>
+    loadPlugins([
+      definePlugin({ id: 'host', extensionPoints: [point] }),
+      definePlugin({ id: 'one', dependencies: ['host'], extensions: [contribute(point, { id: 'same' })] }),
+      definePlugin({ id: 'two', dependencies: ['host'], extensions: [contribute(lookalike, { id: 'same' })] }),
+    ]),
+  ).toThrow('Duplicate search.providers contribution same');
 });
 
 test('loadPlugins rejects invalid and duplicate context injector names', () => {

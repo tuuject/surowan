@@ -17,6 +17,7 @@ import type {
 } from './index.ts';
 import { activeVisionModel, resolveAgentSection, resolveAgentSettings, resolveTelegramSection } from './resolve.ts';
 import { supportedThinkingLevels } from '../thinking-levels.ts';
+import { validateWebSearchSection, type SearchProviderRule } from '../web-search.ts';
 
 /**
  * Cross-field rules the schema cannot express: provider aliases and model
@@ -68,10 +69,16 @@ export function adminPublicOrigin(value: string): string {
   return url.origin;
 }
 
-export function validateSemantics(config: FileConfig): void {
+export interface ValidateSemanticsOptions {
+  /** Registered search providers; omitted uses the bundled ones. */
+  readonly searchProviders?: readonly SearchProviderRule[];
+}
+
+export function validateSemantics(config: FileConfig, options: ValidateSemanticsOptions = {}): void {
   if (config.admin.public_url !== undefined) {
     adminPublicOrigin(config.admin.public_url);
   }
+  validateWebSearchSection(config.web_search, options.searchProviders);
   const telegram = resolveTelegramSection(config.telegram);
   validateTimezone(config.timezone, 'timezone');
   validateParticipation(telegram.participation, 'telegram.participation');

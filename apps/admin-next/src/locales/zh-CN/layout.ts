@@ -22,6 +22,7 @@ export const layout: typeof layoutEn = {
     apiKeys: 'API 密钥',
     models: '模型',
     imageSettings: '图片设置',
+    searchSettings: '网络搜索',
     telegram: 'Telegram',
     chats: '会话',
     prompts: 'Prompt',

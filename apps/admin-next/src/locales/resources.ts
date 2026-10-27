@@ -8,6 +8,7 @@ import { layout } from './en/layout.ts';
 import { models } from './en/models.ts';
 import { pages } from './en/pages.ts';
 import { playground } from './en/playground.ts';
+import { search } from './en/search.ts';
 
 import { brand as brandZh } from './zh-CN/brand.ts';
 import { common as commonZh } from './zh-CN/common.ts';
@@ -19,6 +20,7 @@ import { layout as layoutZh } from './zh-CN/layout.ts';
 import { models as modelsZh } from './zh-CN/models.ts';
 import { pages as pagesZh } from './zh-CN/pages.ts';
 import { playgroundZh } from './zh-CN/playground.ts';
+import { search as searchZh } from './zh-CN/search.ts';
 
 /**
  * English is the source catalog; every other locale must mirror its key
@@ -36,6 +38,7 @@ const en = {
   dictionary,
   harness,
   playground,
+  search,
 };
 
 const zhCN: typeof en = {
@@ -49,6 +52,7 @@ const zhCN: typeof en = {
   dictionary: dictionaryZh,
   harness: harnessZh,
   playground: playgroundZh,
+  search: searchZh,
 };
 
 export { en, zhCN };

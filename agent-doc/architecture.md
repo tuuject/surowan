@@ -20,7 +20,7 @@ Config + SecretStore
         ├─ AdminServer（仅 admin.enabled = true）
         ├─ LongTaskService（long_tasks / task_receipts）
         ├─ WarningService（warnings 事件警告；常态警告由 active 配置与连接状态即时推导）
-        ├─ 内置 Plugin（含 alarm）
+        ├─ 内置 Plugin（web-search 及其服务商插件、web-fetch、image、alarm、dictionary）
         └─ ImageService（packages/image-service 核心；单 Worker 图片生成，原文件存 <data_dir>/images）
 ```
 
@@ -91,7 +91,7 @@ Admin 的 Invocation 重放是新的内存 Agent 循环，不是生产 Conversat
 | 宿主入口（`src/` 根文件与 `tui/`） | CLI、诊断、启动追赶、配置向导 |
 | `ingress/` | 外部输入边界：Telegram Update 入库、Admin Panel HTTP、认证与审计查询 |
 | `orchestration/` | Bucket → Invocation 状态转换、调度与并发、Agent 运行循环、Bot 命令 |
-| `plugins/` | 内置 Agent 插件：`definePlugin` 定义、`loadPlugins` 校验与装配、`builtin.ts` 清单；包含 `web-fetch`、`image`、`alarm` 与 `dictionary`。插件只获得 invocation scope、审计、宿主 `orm` 和绑定任务服务，不直接持有 Store 或 Runtime；还可声明 `contextInjectors` 为每批注入渲染 `<untrusted_…>` 块（首个使用者是辞典） |
+| `plugins/` | 内置 Agent 插件：`definePlugin` 定义、`loadPlugins` 校验与装配、`builtin.ts` 清单；包含 `web-search`（核心）与七个服务商插件、`web-fetch`、`image`、`alarm` 与 `dictionary`。插件只获得 invocation scope、审计、宿主 `orm`、绑定任务服务和按需读取的 `secrets`，不直接持有 Store 或 Runtime；还可声明 `contextInjectors` 为每批注入渲染 `<untrusted_…>` 块（首个使用者是辞典）。插件可声明 `dependencies`（必须先于依赖方加载）、`extensionPoints`（对其他插件发布的带类型契约）与 `extensions`（向直接依赖的扩展点贡献值）；`available(config)` 决定它与它的 Skills 是否出现，`scope.readConfig()` 读取热更新后的当前配置，`scope.steer()` 在不重建 Invocation 的前提下提醒运行中的模型 |
 | `capabilities/` | 模型可调用的 Tool 与外部能力（原语、媒体、Sticker、MCP） |
 | `context/` | Conversation Context：canonical history 存储、GC、引用、编解码、模型输入组装、记忆与完成回执注入 |
 | `store/` | `BusinessStore` 契约（ORM + IMMEDIATE transaction）、schema 与迁移 SQL、通用 `long-tasks` 服务及跨层共享的持久化状态；连接生命周期在 adapter |

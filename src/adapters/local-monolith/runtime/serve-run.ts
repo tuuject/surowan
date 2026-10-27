@@ -26,6 +26,9 @@ import type { ServeAssembly, ServeHosts, ServeServices } from './serve.ts';
 import { ALLOWED_UPDATES, logEvent, replyToCommand, resolveConversation, type ServeContext } from './support.ts';
 import { createTelegramHost } from '../telegram/host.ts';
 import { forwardingTelegramTransport, TelegramConnectionIdentity } from '../telegram/instance.ts';
+import { WEB_SEARCH_PROVIDERS } from '../../../plugins/web-search/extension.ts';
+import { webSearchAvailable } from '../../../platform/web-search.ts';
+import { abortRunningInvocationsOnSearchDisable } from './web-search-availability.ts';
 
 /** The wired runtime, its scheduler and the command path the panel shares. */
 export interface ServeCore {
@@ -132,6 +135,14 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
   // send tools resolve their host, and a missing one is a hard failure. Both
   // hosts are always bound, even while Telegram has no instance.
   const preview = previewContext('telegram');
+  // The provider set is decided by the loaded plugins; every configuration read
+  // below (and in the panel's write path) validates engine ids against it.
+  const searchProviders = plugins.extensions(WEB_SEARCH_PROVIDERS).map((provider) => provider.rule);
+  // Availability is a capability-set change, not an ordinary setting: turning
+  // search off (or disabling the last engine) removes the tool and its skill,
+  // so every running invocation has to stop instead of continuing with a set
+  // the next invocation will not see.
+  let webSearchWasAvailable = webSearchAvailable(configStore.current().config, searchProviders);
   const configReloader = new ConfigReloader({
     loaded,
     store: configStore,
@@ -148,6 +159,7 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
       prepare: (candidate) => resolveTelegramTokenSource(candidate, secrets),
       publish: (source) => telegramConnection.applyToken(source),
     },
+    searchProviders,
     validateAgentModel: (model) =>
       runtime.validateAdditionalTools(
         preview,
@@ -156,6 +168,14 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
       ),
     // A raised max_concurrency only takes effect on the next scheduler tick.
     onPublished: () => {
+      const available = webSearchAvailable(configStore.current().config, searchProviders);
+      if (webSearchWasAvailable && !available) {
+        const stopped = abortRunningInvocationsOnSearchDisable(store.orm, (ids, reason) =>
+          startedScheduler.abortInvocations(ids, reason),
+        );
+        logEvent('web_search_disabled', { stopped });
+      }
+      webSearchWasAvailable = available;
       startedScheduler.wake();
       // A hand-edited prompt file picked up by this apply becomes a version
       // here; panel saves already recorded themselves before applying.
@@ -251,9 +271,11 @@ export async function startAdminServer(session: ServeContext, assembly: ServeAss
     playgroundStore,
     playgroundIngress,
     skillVisibleForHost,
+    plugins,
     warnings,
     connections,
   } = assembly;
+  const searchProviders = plugins.extensions(WEB_SEARCH_PROVIDERS).map((provider) => provider.rule);
   const { runtime, startedScheduler, configReloader } = core;
   if (loaded.config.admin.enabled) {
     const replay = new ReplayRunner({
@@ -279,6 +301,7 @@ export async function startAdminServer(session: ServeContext, assembly: ServeAss
       modelSwitcher,
       configReloader,
       secrets,
+      searchProviders,
       warnings,
       requestRestart,
       imageService,

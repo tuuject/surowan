@@ -5,6 +5,7 @@ import type { FileConfig } from './index.ts';
 import { activeVisionModel, completeAgentSettings, resolveAgentSettings } from './resolve.ts';
 import { ConfigSchema, ImageSectionSchema } from './schema.ts';
 import { validateSemantics } from './semantics.ts';
+import type { SearchProviderRule } from '../web-search.ts';
 
 /**
  * File-shape validation: refuses plaintext secrets, soft-disables an invalid
@@ -16,7 +17,10 @@ import { validateSemantics } from './semantics.ts';
 export const KEY_JAR_FILE = 'key.json';
 
 /** Validate a parsed configuration independently of its source or location. */
-export function validateFileConfig(parsed: unknown): { fileConfig: FileConfig; warnings: readonly string[] } {
+export function validateFileConfig(
+  parsed: unknown,
+  options: ValidateFileConfigOptions = {},
+): { fileConfig: FileConfig; warnings: readonly string[] } {
   const plaintext = plaintextSecrets(parsed);
   if (plaintext.length > 0) {
     // The schema would only report a failed union at each of these paths.
@@ -47,7 +51,7 @@ export function validateFileConfig(parsed: unknown): { fileConfig: FileConfig; w
       .join('; ');
     throw new Error(`Invalid config: ${details}`);
   }
-  validateSemantics(parsed);
+  validateSemantics(parsed, options);
   if (completeAgentSettings(resolveAgentSettings(parsed)) === undefined) {
     warnings.push(
       'agent.provider, agent.model and agent.thinking_level are not all set: the bot will run without starting any invocation',
@@ -59,6 +63,14 @@ export function validateFileConfig(parsed: unknown): { fileConfig: FileConfig; w
     );
   }
   return { fileConfig: parsed, warnings };
+}
+
+export interface ValidateFileConfigOptions {
+  /**
+   * The search providers the loaded plugins register. Omitted falls back to the
+   * bundled provider set, which is what every path without plugin context uses.
+   */
+  readonly searchProviders?: readonly SearchProviderRule[];
 }
 
 const validator = Compile(ConfigSchema);
@@ -92,6 +104,10 @@ export function plaintextSecrets(parsed: unknown): { readonly path: JSONPath; re
   for (const [index, server] of (Array.isArray(servers) ? servers : []).entries()) {
     checkEach(asRecord(server).env, ['mcp', 'servers', index, 'env']);
     checkEach(asRecord(server).headers, ['mcp', 'servers', index, 'headers']);
+  }
+  const engines = asRecord(root.web_search).engines;
+  for (const [index, engine] of (Array.isArray(engines) ? engines : []).entries()) {
+    check(asRecord(engine).api_key, ['web_search', 'engines', index, 'api_key']);
   }
   return found;
 }

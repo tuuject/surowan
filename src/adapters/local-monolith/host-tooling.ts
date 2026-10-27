@@ -16,6 +16,7 @@ import type { McpManager } from '../../capabilities/mcp/index.ts';
 import type { StickerService } from '../../capabilities/stickers.ts';
 import { createMemoryTools, type MemoryStore } from '../../context/memory.ts';
 import type { ImageBridge } from '../../image/bridge.ts';
+import type { SecretStore } from '../../platform/secrets.ts';
 
 import type { DocSpaces } from '../../platform/doc-spaces.ts';
 import { hostExecutionProfile } from '../../platform/host-profile.ts';
@@ -49,6 +50,8 @@ export interface HostToolingOptions {
   readonly docSpaces?: DocSpaces;
   /** Absent when the process runs without image generation. */
   readonly imageBridge?: ImageBridge;
+  /** Resolves capability credentials (web search) at call time. */
+  readonly secrets?: SecretStore;
 }
 
 export interface HostTooling {
@@ -61,7 +64,7 @@ export interface HostTooling {
 }
 
 export function createHostTooling(options: HostToolingOptions): HostTooling {
-  const { store, configStore, plugins, media, memory, stickers, mcp, tasks, docSpaces, imageBridge } = options;
+  const { store, configStore, plugins, media, memory, stickers, mcp, tasks, docSpaces, imageBridge, secrets } = options;
   const skillVisible = (skill: SystemSkill, target: SkillVisibilityTarget): boolean => {
     if (hostExecutionProfile(target.hostKind).hiddenSkills.includes(skill.name)) {
       return false;
@@ -70,9 +73,14 @@ export function createHostTooling(options: HostToolingOptions): HostTooling {
     if (hosts !== undefined && !hosts.includes(target.hostKind)) {
       return false;
     }
+    // A plugin whose availability depends on configuration hides its skills in
+    // the same breath as its capabilities; the index is what the model reads.
+    if (!plugins.skillAvailable(skill.name, configStore.current().config)) {
+      return false;
+    }
     return skill.name !== 'image-generation' || (imageBridge?.enabledFor(target.conversationId) ?? false);
   };
-  const capabilityTools: CapabilityToolFactory = (context, deadline, capabilities) => {
+  const capabilityTools: CapabilityToolFactory = (context, deadline, capabilities, live) => {
     const profile = hostExecutionProfile(context.hostKind);
     const tools: ExecutableCapability[] = [];
     if (profile.mediaRead) {
@@ -87,7 +95,19 @@ export function createHostTooling(options: HostToolingOptions): HostTooling {
       tools.push(...createDocumentTools({ store, spaces: docSpaces, context }).map((tool) => capability(tool, false)));
     }
     tools.push(
-      ...plugins.capabilities(store, configStore.current().config, context, deadline, tasks, capabilities.resolveMedia),
+      ...plugins.capabilities(
+        store,
+        configStore.current().config,
+        context,
+        deadline,
+        tasks,
+        capabilities.resolveMedia,
+        {
+          readConfig: () => configStore.current().config,
+          ...(secrets === undefined ? {} : { secrets }),
+          ...(live?.steer === undefined ? {} : { steer: live.steer }),
+        },
+      ),
     );
     return tools;
   };

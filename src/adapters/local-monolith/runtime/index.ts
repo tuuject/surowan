@@ -6,6 +6,9 @@ import { connectServeHosts, runServeLoop, startAdminServer, startCoreRuntime } f
 import { openServeEnvironment, startServeServices } from './serve.ts';
 import { RESTART_EXIT_CODE, logEvent, type ServeContext, type ServeState } from './support.ts';
 import { resolveTelegramTokenSource } from '../telegram/connection-token.ts';
+import { BUILTIN_PLUGINS } from '../../../plugins/builtin.ts';
+import { loadPlugins } from '../../../plugins/plugin.ts';
+import { WEB_SEARCH_PROVIDERS } from '../../../plugins/web-search/extension.ts';
 
 export interface ServeOptions {
   /** Ask a running instance on the same data directory to stop first. */
@@ -14,7 +17,13 @@ export interface ServeOptions {
 
 export async function serve(configPath: string, options: ServeOptions = {}): Promise<void> {
   const takeover = options.takeover === true;
-  const loaded = await loadConfig(configPath);
+  // Plugin definitions are static, so they can be inspected before the
+  // configuration is read: the search providers they register are part of the
+  // configuration's validation contract.
+  const pluginDefinitions = loadPlugins(BUILTIN_PLUGINS);
+  const loaded = await loadConfig(configPath, {
+    searchProviders: pluginDefinitions.extensions(WEB_SEARCH_PROVIDERS).map((provider) => provider.rule),
+  });
   await assertConfigPermissions(loaded.configPath);
   const secrets = new SecretStore(keyJarPath(loaded.configPath));
   // Both halves of the product may be off, but not both at once: rooms are

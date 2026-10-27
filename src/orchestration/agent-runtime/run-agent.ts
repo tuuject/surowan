@@ -115,9 +115,15 @@ export function createAgentRun(scope: RunScope, zzzExposed: boolean): AgentRun {
     { conversation: typingConversation, policy: hostFor(services, identity.hostKind).policy(typingConversation) },
     signal,
   );
+  // A capability that detects a changed capability list (web search's engines)
+  // has to say so mid-run; the sink exists before the agent does and is bound
+  // once the agent is available.
+  const steerSink: { deliver?: (text: string) => void } = {};
   const executableCapabilities = [
     capability(typing.tool, false),
-    ...(services.capabilityTools?.(contextState, deadline, capabilities) ?? []),
+    ...(services.capabilityTools?.(contextState, deadline, capabilities, {
+      steer: (text) => steerSink.deliver?.(text),
+    }) ?? []),
   ];
   const buildToolsFor = (target: InvocationContext, exposeZzz: boolean): readonly AgentTool[] =>
     buildTools(
@@ -161,6 +167,9 @@ export function createAgentRun(scope: RunScope, zzzExposed: boolean): AgentRun {
     entry.header = header;
   }
   const cached: CachedConversationAgent = entry;
+  steerSink.deliver = (text) => {
+    cached.agent.steer({ role: 'user', content: [{ type: 'text', text }], timestamp: Date.now() });
+  };
   const carried: { stickerCatalog: string | null } = { stickerCatalog: null };
   /**
    * Per-injector dedupe signatures the retained transcript still carries.

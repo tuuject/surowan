@@ -34,6 +34,21 @@ config/
 
 `{ "jar": "name" }` 只引用同目录 `key.json` 中的条目，不能将该文件提交、上传到文档站或交给 Agent 阅读。生产环境优先让 Compose、supervisor 或密钥管理器注入环境变量。
 
+## 网络搜索（web_search）
+
+```jsonc
+{
+  "web_search": {
+    "engines": [
+      { "id": "main", "provider": "tavily", "api_key": { "jar": "tavily" }, "note": "中文技术博客" }
+    ],
+    "url_filters": ["csdn"]
+  }
+}
+```
+
+整段可省略（不启用）；`enabled` 缺省为开启，关闭只需 `{ "enabled": false }`。每个引擎必须指定已注册的服务商，SearXNG 必须提供 `endpoint` 且不接受密钥；`results` 为 1–10（缺省 5），`timeout_seconds` 为 5–30（缺省 15）。`url_filters` 每行一个正则表达式，命中的结果会被丢弃。该段热更新：引擎、密钥与过滤规则的修改在下一次搜索调用生效，关闭功能或禁用所有引擎会让运行中的 Invocation 立即停止。完整说明见 [网络搜索](../guides/web-search.md)。
+
 ## 检查、应用与重启
 
 每次编辑后先检查：

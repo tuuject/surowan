@@ -28,6 +28,7 @@ import { Route as ModelsRouteImport } from './routes/models'
 import { Route as PlaygroundRouteImport } from './routes/playground'
 import { Route as PreferencesRouteImport } from './routes/preferences'
 import { Route as PromptsRouteImport } from './routes/prompts'
+import { Route as SearchSettingsRouteImport } from './routes/search-settings'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StickersRouteImport } from './routes/stickers'
 import { Route as TelegramRouteImport } from './routes/telegram'
@@ -132,6 +133,11 @@ const PromptsRoute = PromptsRouteImport.update({
   path: '/prompts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SearchSettingsRoute = SearchSettingsRouteImport.update({
+  id: '/search-settings',
+  path: '/search-settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -194,6 +200,7 @@ export interface FileRoutesByFullPath {
   '/playground': typeof PlaygroundRoute
   '/preferences': typeof PreferencesRoute
   '/prompts': typeof PromptsRoute
+  '/search-settings': typeof SearchSettingsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
   '/telegram': typeof TelegramRoute
@@ -223,6 +230,7 @@ export interface FileRoutesByTo {
   '/playground': typeof PlaygroundRoute
   '/preferences': typeof PreferencesRoute
   '/prompts': typeof PromptsRoute
+  '/search-settings': typeof SearchSettingsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
   '/telegram': typeof TelegramRoute
@@ -253,6 +261,7 @@ export interface FileRoutesById {
   '/playground': typeof PlaygroundRoute
   '/preferences': typeof PreferencesRoute
   '/prompts': typeof PromptsRoute
+  '/search-settings': typeof SearchSettingsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
   '/telegram': typeof TelegramRoute
@@ -284,6 +293,7 @@ export interface FileRouteTypes {
     | '/playground'
     | '/preferences'
     | '/prompts'
+    | '/search-settings'
     | '/settings'
     | '/stickers'
     | '/telegram'
@@ -313,6 +323,7 @@ export interface FileRouteTypes {
     | '/playground'
     | '/preferences'
     | '/prompts'
+    | '/search-settings'
     | '/settings'
     | '/stickers'
     | '/telegram'
@@ -342,6 +353,7 @@ export interface FileRouteTypes {
     | '/playground'
     | '/preferences'
     | '/prompts'
+    | '/search-settings'
     | '/settings'
     | '/stickers'
     | '/telegram'
@@ -372,6 +384,7 @@ export interface RootRouteChildren {
   PlaygroundRoute: typeof PlaygroundRoute
   PreferencesRoute: typeof PreferencesRoute
   PromptsRoute: typeof PromptsRoute
+  SearchSettingsRoute: typeof SearchSettingsRoute
   SettingsRoute: typeof SettingsRoute
   StickersRoute: typeof StickersRoute
   TelegramRoute: typeof TelegramRoute
@@ -517,6 +530,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PromptsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/search-settings': {
+      id: '/search-settings'
+      path: '/search-settings'
+      fullPath: '/search-settings'
+      preLoaderRoute: typeof SearchSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -596,6 +616,7 @@ const rootRouteChildren: RootRouteChildren = {
   PlaygroundRoute: PlaygroundRoute,
   PreferencesRoute: PreferencesRoute,
   PromptsRoute: PromptsRoute,
+  SearchSettingsRoute: SearchSettingsRoute,
   SettingsRoute: SettingsRoute,
   StickersRoute: StickersRoute,
   TelegramRoute: TelegramRoute,

@@ -23,6 +23,7 @@
     "i18next": "^26.4.3",
     "lucide-react": "^1.55.0",
     "radix-ui": "^1.7.0",
+    "re2js": "^2.9.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-hook-form": "^7.90.0",

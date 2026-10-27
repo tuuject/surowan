@@ -7,6 +7,16 @@ import type { PersistedConfig } from '../../../platform/config/write.ts';
 import { stripHtmlComments } from '../../../platform/prompt-markdown.ts';
 import { validatePromptTemplate } from '../../../platform/prompt-template.ts';
 import { validateFileConfig } from '../../../platform/config/validate.ts';
+import type { SearchProviderRule } from '../../../platform/web-search.ts';
+
+export interface LoadConfigOptions {
+  /**
+   * The search providers the loaded plugins register. The configuration
+   * validator rejects an engine naming anything outside this set; omitted
+   * falls back to the bundled providers.
+   */
+  readonly searchProviders?: readonly SearchProviderRule[];
+}
 
 export interface LoadedConfig extends PersistedConfig {
   readonly configPath: string;
@@ -30,7 +40,7 @@ function describeOffset(source: string, offset: number): string {
   return `line ${line + 1}, column ${offset - lineStart + 1}`;
 }
 
-export async function loadConfig(path: string): Promise<LoadedConfig> {
+export async function loadConfig(path: string, options: LoadConfigOptions = {}): Promise<LoadedConfig> {
   const configPath = resolve(path);
   const text = await readFile(configPath, 'utf8');
   // jsonc-parser records a UTF-8 BOM as an invalid symbol, so strip it before
@@ -45,7 +55,9 @@ export async function loadConfig(path: string): Promise<LoadedConfig> {
       .join('; ');
     throw new Error(`Invalid JSONC: ${details || 'empty document'}`);
   }
-  const { fileConfig: validated, warnings } = validateFileConfig(parsed);
+  const { fileConfig: validated, warnings } = validateFileConfig(parsed, {
+    ...(options.searchProviders === undefined ? {} : { searchProviders: options.searchProviders }),
+  });
   const { config, promptFiles } = await resolvePrompts(validated, dirname(configPath));
   const hash = createHash('sha256');
   hash.update(text);

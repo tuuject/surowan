@@ -48,6 +48,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 | `providers.<alias>`（新增、删除、改 kind）与 `providers.<alias>.*`（连接字段、模型列表） | Provider 的每个字段都热更新：reload 按新定义重建注册表。模型列表变化只替换该 Provider 的模型；连接字段变化会重新解析它的 SecretRef |
 | `vision.provider`、`vision.model`、`vision.max_output_tokens` | 下一次 vision 分析使用新模型；`max_output_tokens` 在构建注册表时与新模型的上限一起校验，并和模型一起在分析开始时从同一份快照取出，等待中发布的新值只影响之后的分析 |
 | `image`（整段：存在性、`credentials`、`models` 及所有子字段） | 图片功能启停与配置都热应用：reload 重新解析 image SecretRef 并原子发布新的图片快照，下一次提交生效；进行中的生成继续用它开始时的凭据快照。段被剥离（结构不合法）或删除都等于禁用，Agent 与 Admin 同步失去图片工具与页面能力，不需要重启 |
+| `web_search`（整段：`enabled`、`engines`、`url_filters`） | 搜索能力与 Skill 的可见性、每次请求读取的配置都在下一次 Invocation / 下一次搜索调用生效。关闭整个功能或禁用所有引擎会立刻 abort 所有运行中的 Invocation（原因 `web_search_disabled`），接下来的消息用重建的 Context 开启新 Invocation；只禁用部分引擎不打断运行，运行中的 Invocation 请求已禁用引擎时由 Tool 通过 steer 提醒模型重新读取引擎列表。每次请求开始即冻结本次引擎、地址、密钥、条数与超时，进行中的请求不受后续修改影响 |
 
 `outside_serve` 字段（`serve` 从不读取，下一次 `backup` 生效，既不算已应用也不算待重启）：`paths.backups`、`retention.online_days`、`retention.backup_copies`。`retention.warning_read_days` 由 `serve` 的警告清理读取，因此和 `retention` 的其它字段不同：它按普通 restart 字段处理，改动后需要重启才生效。
 
@@ -596,6 +597,55 @@ Streamable HTTP 使用 `url` 与可选 SecretRef `headers`，且 `follow_redirec
 - `dangerously_allow_all_ip_addresses` 默认 `false`。设为 `true` 后跳过全部目标地址校验：环回、私网、链路本地（含云厂商 `169.254.169.254` 元数据端点）、IP 字面量与跳转到这些地址的目标都会放行，此时 `allow_proxy_synthetic_addresses` 不再起作用。URL 规则不变：仍只允许 HTTP(S) 默认端口、禁止 URL 凭据与 fragment、最多 3 次跳转、不发 Cookie。群聊里任何人都能让模型访问内网，只应在信任所有可触发 bot 的人、且确实需要读取自有内网服务的部署中开启。开启后 Tool 描述会告知模型可以访问私网地址。
 - `accept_markdown` 默认 `true`：请求的 `Accept` 以 `text/markdown` 优先（HTML 降为 `q=0.9`）。支持内容协商的站点（如开启 Cloudflare「Markdown for Agents」的站点）会直接返回自己的 Markdown，原样交给模型，不再经过本地 HTML 抽取。设为 `false` 时 `Accept` 恢复为不含 Markdown 的旧值；站点返回的 Markdown 质量不如本地抽取时可以关闭。模型传 `raw: true` 时无论开关如何都不声明 Markdown。
 - 修改后需要重启（不在热更新白名单内）。
+
+## 网络搜索（web_search）
+
+```jsonc
+{
+  "web_search": {
+    "enabled": true,
+    "engines": [
+      {
+        "id": "main",
+        "provider": "tavily",
+        "api_key": { "jar": "tavily" },
+        "results": 5,
+        "timeout_seconds": 15,
+        "note": "中文技术博客与更新日志",
+      },
+      {
+        "id": "local",
+        "provider": "searxng",
+        "endpoint": "https://searx.example.com",
+        "note": "私有实例，适合查文档站",
+      },
+    ],
+    "url_filters": ["csdn"],
+  },
+}
+```
+
+- 整段可省略，省略即不启用。提供该段时 `enabled` 可省略，缺省为启用；关闭时只写 `{ "enabled": false }` 即可，其余字段都可省略。总开关关闭或没有任何启用引擎时，`web_search` 能力与 `web-search` Skill 都不出现在索引里；禁用所有引擎与关闭总开关效力相同。
+- `engines[].id` 是模型选择引擎时使用的名字（小写字母、数字与 `-`，最长 32）；`provider` 必须是已注册的服务商（见下表）。`enabled` 缺省为 `true`；`endpoint` 覆盖服务商默认地址（SearXNG 必填，其它可省略）；`api_key` 用 SecretRef；`results` 为 1–10，缺省 5；`timeout_seconds` 为 5–30，缺省 15，且不会超过 Invocation 剩余时间；`note` 对 LLM 可见，说明该引擎适合搜索哪些网站或内容。
+- 服务商由插件注册，配置检查、启动、热更新与面板保存四条路径都拒绝未注册的服务商与缺失的必填项。
+
+| provider | 默认地址 | 密钥 | 查询上限 | 结果条数 |
+| --- | --- | --- | --- | --- |
+| `tavily` | `https://api.tavily.com/search` | 必填 | 400 字符 | 支持 |
+| `brave` | `https://api.search.brave.com/res/v1/web/search` | 必填 | 400 字符 | 支持 |
+| `exa` | `https://api.exa.ai/search` | 必填 | 500 字符 | 支持 |
+| `firecrawl` | `https://api.firecrawl.dev/v2/search` | 必填 | 500 字符 | 支持 |
+| `deepseek` | `https://api.deepseek.com/v1/tools/search` | 必填 | 128 字符 | 支持 |
+| `searxng` | 无（必须配置） | 不允许 | 500 字符 | 不支持（由实例分页决定） |
+| `youcom` | `https://ydc-index.io/v1/search` | 必填 | 500 字符 | 支持 |
+
+- 查询最长 500 字符，发送前按所选服务商的上限静默裁剪（按字符而非 UTF-16 单元，不会切碎代理对）。DeepSeek 引擎可在面板里直接复用已配置的 DeepSeek 模型 Provider 密钥，不必另存一份。
+- 服务地址必须是 HTTP(S)、不带凭据、查询参数或 fragment；SearXNG 只接入不需要鉴权的实例。
+- `url_filters` 是正则表达式列表（每行一条，最多 50 条）：URL 命中任一规则的搜索结果会被丢弃，结果头部会报告被过滤的条数。规则按 RE2 语法（`re2js`，线性时间匹配）在保存前逐个编译，非法表达式直接拒绝；RE2 不支持前后行断言与反向引用，这样 `(a+)+$` 一类规则也不会因回溯卡死事件循环。面板预览用同一引擎。
+- 搜索只返回标题、URL 与摘要（单条摘要最多 600 字符，整段结果最多 24 KiB）；需要正文时再调用 `web_fetch`（正文硬上限 30 KiB）。两者都按 UTF-8 字节计算。
+- 失败不自动重试。分类覆盖认证失败、额度耗尽（402/432/433）、限流（429）、上游不可用（5xx）、请求被拒（其余 4xx）、重定向被拒、响应过大（>256 KiB）、超时、Invocation 到期、密钥无法解析、响应无法解析与网络失败。无需密钥的服务商返回 403 时提示检查端点的 JSON 输出。
+- 服务商重定向一律拒绝，失败响应体不读取、不回显；密钥不进入审计、日志或模型上下文。审计记录本次实际使用的引擎与服务商。
+- 能力是否可用在每次 Invocation 装配时按当前配置判定；运行中的 Invocation 保留它启动时的 Tool 集合，但每次调用都会重新读取当前配置：搜索已关闭时返回明确失败，引擎被禁用时（仍有其它引擎启用）通过 steer 提醒模型重新读取列表。
 
 ## Admin Panel
 

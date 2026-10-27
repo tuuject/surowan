@@ -14,6 +14,7 @@ import {
   ProactiveReplySchema,
   ToolModelSchema,
   VisionSectionSchema,
+  WebSearchSectionSchema,
 } from './schema-sections.ts';
 
 /**
@@ -162,6 +163,10 @@ export const ConfigSchema = Type.Object(
     vision: Type.Optional(Type.Union([VisionSectionSchema, Type.Null()])),
     image: Type.Optional(ImageSectionSchema),
     dictionary: Type.Optional(DictionarySectionSchema),
+    // Absent means disabled. A present section with `enabled: false` is the
+    // explicit way to turn the same feature off; both hide the capability and
+    // its skill from every invocation.
+    web_search: Type.Optional(WebSearchSectionSchema),
     tool_model: Type.Optional(ToolModelSchema),
     retention: Type.Object(
       {

@@ -35,6 +35,8 @@ test('the plugin contributes its capabilities with the pre-migration side-effect
     };
     const capabilities = dictionaryPlugin.capabilities?.({
       config: loaded.config,
+      readConfig: () => loaded.config,
+      extensions: () => [],
       context,
       deadline: Number.MAX_SAFE_INTEGER,
       audit: createToolAudit(store, 0n),

@@ -33,10 +33,21 @@ export type ToolFactory = (
   capabilities: CapabilityRefResolver,
 ) => readonly AgentTool[];
 export type AdditionalToolFactory = ToolFactory;
+
+/**
+ * Runtime-only facilities a capability factory needs from the live run. The
+ * host wires configuration and secrets itself; only `steer` belongs to the
+ * agent loop, and it is absent outside a run.
+ */
+export interface CapabilityLiveContext {
+  readonly steer?: (text: string) => void;
+}
+
 export type CapabilityToolFactory = (
   context: InvocationContext,
   deadline: number,
   capabilities: CapabilityRefResolver,
+  live?: CapabilityLiveContext,
 ) => readonly ExecutableCapability[];
 export type DirectImageLoader = (context: InvocationContext, signal: AbortSignal) => Promise<readonly ImageContent[]>;
 

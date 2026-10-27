@@ -15,6 +15,7 @@ import type { RuntimeConfigurationStore } from '../../../platform/runtime-config
 import type { SecretStore } from '../../../platform/secrets.ts';
 import { applyFile, type ConfigReloadState, messageOf } from './reload-apply.ts';
 import type { TelegramTokenSource } from '../telegram/connection-token.ts';
+import type { SearchProviderRule } from '../../../platform/web-search.ts';
 
 /**
  * The image configuration gateway. The reloader prepares a candidate snapshot
@@ -53,6 +54,12 @@ export interface ConfigReloaderOptions {
   readonly imageConfig?: ImageConfigGateway;
   /** Optional Telegram token gateway; present when this process serves Telegram. */
   readonly telegramConfig?: TelegramConfigGateway;
+  /**
+   * Search providers registered by the loaded plugins. Every read of the file
+   * — reload, panel write, panel read — validates engine ids against this set,
+   * so an unregistered provider never reaches the running process.
+   */
+  readonly searchProviders?: readonly SearchProviderRule[];
 }
 
 /**
@@ -73,6 +80,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
   readonly #onPublished: () => void;
   readonly #imageConfig: ImageConfigGateway | undefined;
   readonly #telegramConfig: TelegramConfigGateway | undefined;
+  readonly #searchProviders: readonly SearchProviderRule[] | undefined;
   /** Mutable reload state, shared by reference with `config-reload-apply.ts`. */
   readonly #state: ConfigReloadState;
   /** Serializes reloads; a reload and a `/model` write never interleave. */
@@ -87,6 +95,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     this.#onPublished = options.onPublished;
     this.#imageConfig = options.imageConfig;
     this.#telegramConfig = options.telegramConfig;
+    this.#searchProviders = options.searchProviders;
     this.#state = {
       activeFile: structuredClone(options.loaded.fileConfig),
       fileHash: options.loaded.hash,
@@ -128,6 +137,11 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     return this.#configPath;
   }
 
+  /** Options every read of the file shares; the provider set is part of validation. */
+  #loadOptions(): { readonly searchProviders?: readonly SearchProviderRule[] } {
+    return this.#searchProviders === undefined ? {} : { searchProviders: this.#searchProviders };
+  }
+
   /** Revision of the file on disk, for the panel's optimistic concurrency. */
   revision(): Promise<string> {
     return readConfigRevision(this.#configPath);
@@ -138,7 +152,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     if (options.checkPermissions === true) {
       await assertConfigPermissions(this.#configPath);
     }
-    return await loadConfig(this.#configPath);
+    return await loadConfig(this.#configPath, this.#loadOptions());
   }
 
   /**
@@ -196,7 +210,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     let loaded: LoadedConfig;
     try {
       revision = await readConfigRevision(this.#configPath);
-      loaded = await loadConfig(this.#configPath);
+      loaded = await loadConfig(this.#configPath, this.#loadOptions());
     } catch (error) {
       return this.#rejected('config_invalid', messageOf(error), 'config_write_failed');
     }
@@ -234,7 +248,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     let loaded: LoadedConfig;
     try {
       revision = await readConfigRevision(this.#configPath);
-      loaded = await loadConfig(this.#configPath);
+      loaded = await loadConfig(this.#configPath, this.#loadOptions());
     } catch (error) {
       return this.#rejected('config_invalid', messageOf(error));
     }
@@ -294,7 +308,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
       // Array order may differ from the active configuration. Locate by ID in the
       // file, then pin its revision so a concurrent reorder cannot target another Chat.
       revision = await readConfigRevision(this.#configPath);
-      loaded = await loadConfig(this.#configPath);
+      loaded = await loadConfig(this.#configPath, this.#loadOptions());
     } catch (error) {
       return this.#rejected('config_invalid', messageOf(error));
     }
@@ -325,7 +339,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     rejectedEvent = 'config_write_failed',
   ): Promise<ConfigApplyResult> {
     try {
-      await writeConfigEdits(this.#configPath, edits, expectedRevision);
+      await writeConfigEdits(this.#configPath, edits, expectedRevision, this.#loadOptions());
     } catch (error) {
       return error instanceof ConfigWriteError
         ? this.#rejected(error.code, error.message, rejectedEvent)
@@ -343,6 +357,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
       secrets: this.#secrets,
       imageConfig: this.#imageConfig,
       telegramConfig: this.#telegramConfig,
+      ...(this.#searchProviders === undefined ? {} : { searchProviders: this.#searchProviders }),
       validateAgentModel: (model) => this.#validateAgentModel(model),
       onPublished: () => this.#onPublished(),
       failure: (code, message, fileWritten) => this.#failure(code, message, fileWritten),

@@ -252,6 +252,7 @@ export async function startServeServices(session: ServeContext, environment: Ser
     configStore,
     plugins,
     media,
+    secrets,
     memory: memoryStore,
     stickers: () => telegramConnection.stickers,
     mcp: mcpManager,

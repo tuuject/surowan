@@ -10,6 +10,7 @@ import { assertConfigPermissions, type LoadedConfig, loadConfig } from './index.
 import type { ImageConfigGateway, TelegramConfigGateway } from './reload.ts';
 import { telegramTokenIdentity, type TelegramTokenSource } from '../telegram/connection-token.ts';
 import { validateSemantics } from '../../../platform/config/semantics.ts';
+import type { SearchProviderRule } from '../../../platform/web-search.ts';
 
 /** The mutable reload state the class owns and this module reads and writes. */
 export type ConfigReloadState = {
@@ -35,6 +36,8 @@ export type ConfigApplyDeps = {
   readonly secrets: SecretStore;
   readonly imageConfig: ImageConfigGateway | undefined;
   readonly telegramConfig: TelegramConfigGateway | undefined;
+  /** Registered search providers; missing means the bundled set. */
+  readonly searchProviders?: readonly SearchProviderRule[];
   /** Throws when the tool registry does not fit the model's context window. */
   readonly validateAgentModel: (model: Model<Api>) => void;
   /** Called after every successful publish; the composition root wakes the scheduler. */
@@ -62,7 +65,9 @@ export async function applyFile(deps: ConfigApplyDeps): Promise<ConfigApplyResul
   }
   let file: LoadedConfig;
   try {
-    file = await loadConfig(configPath);
+    file = await loadConfig(configPath, {
+      ...(deps.searchProviders === undefined ? {} : { searchProviders: deps.searchProviders }),
+    });
   } catch (error) {
     return deps.failure('config_invalid', messageOf(error), false);
   }
@@ -70,7 +75,9 @@ export async function applyFile(deps: ConfigApplyDeps): Promise<ConfigApplyResul
   const diff = diffConfig(active, fromFile);
   const restartRequired = pathsOf(diff.changes, 'restart');
   try {
-    validateSemantics(diff.candidate.file);
+    validateSemantics(diff.candidate.file, {
+      ...(deps.searchProviders === undefined ? {} : { searchProviders: deps.searchProviders }),
+    });
   } catch (error) {
     // The file is valid on its own, so the next startup is fine; only this
     // process cannot adopt it while the restart-only fields are still pending.
