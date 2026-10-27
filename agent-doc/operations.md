@@ -64,6 +64,7 @@ node src/cli.ts doctor --config dev-data/config.jsonc
 - `pnpm run skills:sync`：把 `skills/` 下的仓库 Skill 软链接进 `.agents/skills/`、`.claude/skills/`（均 gitignored），并按 `package.json` 的 `skills` 字段安装锁定版本的外部 Skill（哈希记入 `skills-lock.json`）。`pnpm install` 实际安装依赖时由 `postinstall` 自动执行（CI 与无 `.git` 时跳过，失败只警告）；只改了 `skills` 字段或新增仓库 Skill 时要手动运行。细节见 [Coding Agent Skills](#coding-agent-skills)。
 - `pnpm run check`：严格 TypeScript 检查（runtime/Admin/docs）；文档检查前会准备被忽略的版本元数据、字段参考和示例，不输出编译 JS。
 - `pnpm test`：运行全部行为测试。
+- `pnpm run lint` / `pnpm run lint:fix`：Biome 检查与格式校验；`lint` 只读、每个 workflow 都跑，`lint:fix` 写回文件后仍需重跑 `lint`。
 - `check-config`：只验证 JSONC Schema、语义与引用，输出配置哈希。
 - `doctor`：执行 SQLite/Sharp/FFmpeg/Lottie、Provider、Vision、required MCP 与（配置了 token 时）Telegram 的真实探针。
 - `serve`：启动服务与 Telegram 连接（可用时）；白名单字段（agent 模型、Prompt、预算与并发等，见 [configuration.md](configuration.md#运行时配置热更新)）可在运行中通过 Admin 的「应用配置文件」或 `/model` 应用，其余字段仍需重启。
@@ -341,7 +342,7 @@ node src/cli.ts backup --config dev-data/config.jsonc
 - runtime 阶段用 apt 装 `ffmpeg`（含 `ffprobe`）、`python3` 与 `gosu`，再 pip 装 `lottie`；因此**不需要**在宿主机准备任何媒体依赖。
 - 只复制 `src/`、`node_modules/`、`packages/image-service/` 的 `package.json`、`dist/` 与 `node_modules/`（经 workspace 符号链接解析）、`apps/admin-next/dist/`、`apps/admin-next/LICENSE`、`apps/admin-next/NOTICE` 和 `package.json`。`test/`、`agent-doc/`、`dev-data/` 被 `.dockerignore` 排除，镜像里没有这些目录。`apps/docs` 只保留 `content/docs` 与 `examples/` 作为手册源参与构建：`.dockerignore` 排除文档站配置、主题与生成产物，builder 生成的 `src/manual/` 随 `src/` 进入 runtime，打包后立即删除 `apps/docs`——残留的目录没有 `package.json`，后续 `pnpm install --prod --frozen-lockfile` 会把它判为 lockfile 过期而失败；镜像不含 Rspress 或文档站目录，该隔离由 `.github/workflows/docs.yml` 的 image-smoke 断言。
 - Admin 前端已经构建进 `/app/apps/admin-next/dist`，与 `static_dir` 默认值一致，无需额外配置。前端模板许可（MIT，© Kiranism）随 `LICENSE` 保留，字体（@fontsource，SIL OFL 1.1）说明在 `NOTICE`。
-- CI（`.github/workflows/docker.yml`）在构建镜像前先跑 `verify` job：`pnpm install --frozen-lockfile` → `pnpm run lint` → `pnpm run check` → `pnpm test` → `pnpm run admin:build` → `pnpm --filter surowan-admin-next exec playwright install --with-deps chromium` → `pnpm run admin:test:e2e`，通过后 `build` job 才构建 `linux/amd64` 与 `linux/arm64`（仅 `main` 与 `v*` 推送）。`.github/workflows/docs.yml` 的 `image-smoke` 在 PR 与每次推送时以单架构 `docker build` 构建镜像，并断言手册在镜像内、文档站与 Rspress 不在。
+- CI（`.github/workflows/docker.yml`）在构建镜像前先跑 `verify` job：`pnpm install --frozen-lockfile` → `pnpm run lint` → `pnpm run check` → `pnpm test` → `pnpm run admin:build` → `pnpm --filter surowan-admin-next exec playwright install --with-deps chromium` → `pnpm run admin:test:e2e`，通过后 `build` job 才构建 `linux/amd64` 与 `linux/arm64`（仅 `main` 与 `v*` 推送）。`.github/workflows/docs.yml` 的 `image-smoke` 在 PR 与每次推送时以单架构 `docker build` 构建镜像，并断言手册在镜像内、文档站与 Rspress 不在；同 workflow 的 `verify` job 在 PR 与 push `main`/`develop` 时跑 `pnpm run lint`、`pnpm run check`、`pnpm test test/docs/examples.test.ts test/docs/search.test.ts`、`pnpm run docs:build`、`pnpm run docs:verify`（`DOCS_BASE_PATH=/` 与 `/surowan/` 各一遍），并要求构建后 `git status --porcelain` 为空。`.github/workflows/npm.yml` 在发布前跑 `pnpm run cli:check`、`pnpm test test/invocations test/cli` 与 `pnpm test test/npm-release.test.ts`。全部 workflow 都用 `pnpm install --frozen-lockfile`；完整对照见[验证：CI 对齐](verification.md#ci-对齐)。
 
 运行约定：
 

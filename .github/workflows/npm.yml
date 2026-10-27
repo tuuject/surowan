@@ -43,7 +43,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm run cli:check
-      - run: pnpm test test/invocation-cli test/npm-release.test.ts
+      # Separate runs: a filter that matches no file exits non-zero, while vitest
+      # ORs multiple filters and silently passes a stale one.
+      - run: pnpm test test/invocations test/cli
+      - run: pnpm test test/npm-release.test.ts
 
       # Change only the disposable checkout; the tag is the stable version source.
       - name: Set package version

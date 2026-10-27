@@ -105,6 +105,7 @@ Invocation 是运行窗口而不是一次问答：`agent.context.idle_grace_seco
 
 ```bash
 pnpm install
+pnpm run lint
 pnpm run check
 pnpm test
 node src/cli.ts check-config --config dev-data/config.jsonc
@@ -155,13 +156,14 @@ pnpm run skills:sync
 - 媒体改动至少覆盖静态图片、Sticker 结构化输出或外部转换链路中受影响的一项。
 - Context 改动至少断言 canonical history 的落盘状态（`context_messages` / `head_seq` / `context_refs`）与审计事件，不能只断言返回文本。
 - Admin Panel 前端、admin API 端点或面板可见文案（含 locale 键值）改动，提交前运行 `pnpm run admin:test:e2e`，至少覆盖受影响套件（如 `pnpm run admin:test:e2e 01-routes`）：e2e 断言各路由真实渲染与页面可见文案（英文 locale），`pnpm test` 与 `pnpm run check` 不包含这一层，漏跑只会在 CI 上暴露。
-- 最终验证至少运行受影响测试与 `pnpm run check`；跨模块改动运行完整 `pnpm test`。
+- 最终验证至少运行受影响测试、`pnpm run check` 与 `pnpm run lint`；跨模块改动运行完整 `pnpm test`。
+- 改动 `apps/docs/`、`scripts/docs/`，或改动会进入生成文档的 `ConfigSchema` 与 `apps/docs/examples/` 示例时，另外运行 `pnpm run docs:build` 与 `pnpm run docs:verify`（`DOCS_BASE_PATH=/` 与 `/surowan/` 各一遍），并保证构建后 `git status --porcelain` 为空。各 workflow 实际执行的命令见 [agent-doc/verification.md](agent-doc/verification.md#ci-对齐)。
 - E2E 与 fixture 的时间只取一种基准：要么全部从当前时钟推导（`Date.now()` ± 偏移），要么全部是无关运行时刻的固定值（如永远成立的「已过期」行）。写死的绝对时间不得承担「未来/仍然有效」语义——它会在某天穿过真实时钟，变成到点即失败的「时间炸弹」。
 
 ## Commit & Pull Request Guidelines
 
 - 提交信息使用简短英文祈使句，与现有历史一致，例如 `Implement Telegram agent bot`、`Fix sticker vision parsing`。
-- 提交前运行 `git diff --check`、相关测试和 TypeScript 检查。
+- 提交前运行 `git diff --check`、`pnpm run lint`、相关测试和 TypeScript 检查；依赖变更同步提交 `pnpm-lock.yaml`（CI 一律 `pnpm install --frozen-lockfile`）。
 - 不提交 `dev-data/`、`key.json`、真实 Token、API key、SQLite、媒体缓存或备份。
 - PR 说明应列出行为变化、数据库/配置影响、验证证据和真实环境中仍未执行的检查。
 

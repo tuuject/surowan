@@ -5,9 +5,22 @@
 ## 静态与单元验证
 
 ```bash
+pnpm run lint
 pnpm run check
 pnpm test
 ```
+
+### CI 对齐
+
+GitHub Actions 会跑同一组检查；提交前按改动范围自己跑过，不要等 CI 才发现。Docker 镜像构建与镜像内容断言不在下表：
+
+| Workflow | 触发 | 执行的验证 |
+| --- | --- | --- |
+| `.github/workflows/docs.yml` | PR、push `main`/`develop` | `pnpm install --frozen-lockfile`、`pnpm run check`、`pnpm run lint`、`pnpm test test/docs/examples.test.ts test/docs/search.test.ts`、`pnpm run docs:build`、`pnpm run docs:verify`；构建后 `git status --porcelain` 必须为空；`DOCS_BASE_PATH=/` 与 `/surowan/` 各跑一遍 |
+| `.github/workflows/docker.yml` 的 `verify` job | push `main`/`develop`/`v*` | 全量 `pnpm test`、`pnpm run admin:build` 后全量 `pnpm run admin:test:e2e`（镜像构建见 [Docker 部署](operations.md#docker-部署)） |
+| `.github/workflows/npm.yml` | push `main` 与 `v*` tag | `pnpm run cli:check`、`pnpm test test/invocations test/cli`、`pnpm test test/npm-release.test.ts`、`scripts/npm-release.ts` 的 ref/版本校验与打包发布 |
+
+依赖变更必须同步提交 `pnpm-lock.yaml`：每个 workflow 都用 `pnpm install --frozen-lockfile`。本页其余检查（`git diff --check`、`actionlint`、`check-config`、`doctor`、服务冒烟与真实 Telegram 验收等）不在 workflow 里执行，仍需按范围人工完成。
 
 npm 发布 workflow 可另用 `actionlint .github/workflows/npm.yml` 静态检查。actionlint 1.7.12 尚不识别 GitHub 已支持的 [`concurrency.queue: max`](https://docs.github.com/actions/writing-workflows/choosing-what-your-workflow-does/control-the-concurrency-of-workflows-and-jobs)；该版本须人工核对 queue，并用 `-ignore 'unexpected key "queue" for "concurrency" section'` 仅忽略这一条旧 Schema 误报。dry-run 不能替代真实 OIDC、npm 权限与版本冲突验证。
 
@@ -456,10 +469,14 @@ telegram_updates
 
 ```bash
 git diff --check
+pnpm run lint
 pnpm run check
-pnpm cli:check
 pnpm test
 ```
+
+- 改动 `apps/docs/`、`scripts/docs/`，或改动会进入生成文档的 `ConfigSchema` 与 `apps/docs/examples/` 示例时，额外运行 `pnpm run docs:build` 与 `pnpm run docs:verify`，并分别用 `DOCS_BASE_PATH=/` 与 `DOCS_BASE_PATH=/surowan/` 各跑一遍；构建后 `git status --porcelain` 必须为空（`apps/docs/dist/`、`apps/docs/content/docs/reference/fields.md`、`apps/docs/content/public/`、`src/manual/` 都在 `.gitignore` 里）。
+- 依赖变更同步提交 `pnpm-lock.yaml`；本地 `node_modules` 过期会表现成 `Cannot find package '<name>'`，先按 lockfile 跑 `pnpm install --frozen-lockfile`。
+- `.githooks/pre-commit`（`pnpm install` 自动启用）按暂存内容拒绝超过 5,000 token 的文件（字节 / 4 估算，约 20 KB），超限要拆分文件，不要绕过 hook。
 
 最终报告应精确写明：
 
