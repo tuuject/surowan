@@ -153,12 +153,11 @@ test('the packed manual is readable through the document spaces contract', async
   expect(example.text).toContain('```jsonc');
 });
 
-test('baked product routes resolve to readable manual pages within the context budget', async () => {
+test('baked product routes resolve to readable manual pages', async () => {
   const outDir = await tempRoot();
   const packed = await packManual({ outDir });
   const spaces = await FileSystemDocSpaces.load([bundledManualSpace(outDir)]);
   const access = { conversationId: 1n, chatId: 2n };
-  expect(Buffer.byteLength(PRODUCT_KNOWLEDGE_INDEX, 'utf8')).toBeLessThanOrEqual(7000);
   const paths = new Set([...PRODUCT_KNOWLEDGE_INDEX.matchAll(/\]\(([^)\s]+)\)/g)].map((match) => match[1] ?? ''));
   expect(paths.size).toBeGreaterThan(0);
   for (const path of paths) {

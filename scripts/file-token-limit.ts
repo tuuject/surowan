@@ -15,7 +15,8 @@ const BYTES_PER_TOKEN = 4;
 const MAX_BYTES = MAX_TOKENS * BYTES_PER_TOKEN;
 
 /**
- * Git glob pathspecs exempt from the limit: files that tools write rather than agents, plus agent-doc/. Binary
+ * Git glob pathspecs exempt from the limit: files that tools write rather than agents, plus agent-doc/ and the
+ * system prompt partitions. Binary
  * files need no entry: git's own detection (`binary` in .gitattributes, or NUL bytes) skips them. Never list a
  * hand-written file here to get it past the limit; split it.
  */
@@ -31,6 +32,8 @@ const IGNORED = [
   'apps/admin-next/src/components/ui/**',
   // Maintainer decision: agent-doc/ has no size limit. Do not extend it to other documentation.
   'agent-doc/**',
+  // Maintainer decision: each system prompt partition is sized by what the prompt needs, not split for the limit.
+  'src/platform/prompts/*.md',
 ];
 
 type Kind = 'code' | 'test' | 'markdown' | 'other';
