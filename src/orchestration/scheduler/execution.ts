@@ -1,6 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import type { HostKind } from '../../platform/im-host/identity.ts';
-import { resolveBucketWindowSeconds } from '../../platform/invocation-policy.ts';
+import { resolveBucketWindowSeconds } from '../../platform/config/resolve.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { chats, conversations, invocations, taskReceipts } from '../../store/schema/index.ts';
 import type { BusinessStore } from '../../store/store.ts';

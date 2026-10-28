@@ -24,7 +24,7 @@ import {
   type InvocationContext,
   unavailableCapabilities,
 } from '../../platform/invocation-context.ts';
-import { resolveBucketWindowSeconds } from '../../platform/invocation-policy.ts';
+import { resolveBucketWindowSeconds } from '../../platform/config/resolve.ts';
 import { scopedSystemResources } from '../../platform/system-resources.ts';
 import { agentMessages, invocations } from '../../store/schema/index.ts';
 import { createZzzTool, isLowDailyTokenBudget, readDailyTokenBudget } from '../../store/sleep.ts';

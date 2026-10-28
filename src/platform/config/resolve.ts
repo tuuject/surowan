@@ -10,6 +10,7 @@ import type {
   VisionRuntimeConfig,
   VisionSectionConfig,
 } from './index.ts';
+import type { HostKind } from '../im-host/identity.ts';
 
 /**
  * Turns the optional `agent` and `vision` sections into the runtime shape: every
@@ -116,6 +117,26 @@ export function resolveTelegramSection(
     bucket_window_seconds: section?.bucket_window_seconds ?? TELEGRAM_DEFAULTS.bucket_window_seconds,
     chats: section?.chats ?? [],
   };
+}
+
+/**
+ * The debounce window a host collects its batches with.
+ *
+ * Telegram keeps the configured window; a room is sealed when its input is
+ * released, so it collects nothing. There is no default case: a new host kind
+ * does not compile until it names its window, because config validation checks
+ * `agent.context.idle_grace_seconds` against every host's window.
+ */
+export function resolveBucketWindowSeconds(
+  config: { readonly telegram: Pick<TelegramRuntimeConfig, 'bucket_window_seconds'> },
+  hostKind: HostKind,
+): number {
+  switch (hostKind) {
+    case 'telegram':
+      return config.telegram.bucket_window_seconds;
+    case 'playground':
+      return 0;
+  }
 }
 
 /** Values a configuration gets when it leaves a `vision` field out. */

@@ -547,7 +547,7 @@ Agent 侧使用（`image_generate` 工具、图片技能、发送与审计链路
 
 - `retained_sends_target < retained_sends_max`。
 - `hard_token_ratio <= agent.context_stop_ratio`。
-- `idle_grace_seconds` 为 `0`（关闭长生命周期运行）或不小于 `telegram.bucket_window_seconds`；比一个 Bucket 窗口还短的等待会在下一个 Bucket 到期前就结束运行，看似启用实则无效，因此在配置期直接拒绝。
+- `idle_grace_seconds` 为 `0`（关闭长生命周期运行）或不小于每个 host 的 Bucket 窗口（`resolveBucketWindowSeconds`，当前即 `telegram.bucket_window_seconds`，Playground 房间为 0）；比一个 Bucket 窗口还短的等待会在下一个 Bucket 到期前就结束运行，看似启用实则无效，因此在配置期直接拒绝。
 - `max_wall_clock_seconds > idle_grace_seconds`。
 
 稳定系统提示与重建：稳定段与每批注入段各含什么，见 [Telegram 与 Agent 流程：Context 生命周期](telegram-agent-flow.md#context-生命周期)。配置侧只需记住：人格提示、Chat `instructions` 及其模板变量渲染结果都属于稳定段，其 SHA-256 记在 `conversation_contexts.system_prompt_hash`。稳定段内容一变（改 Prompt 文件或 `instructions_file`、运行时切换模型导致模板或图片说明变化等——仅当实际变化时才重建，切模型本身不必然清空历史），该 Conversation 的整份 Context 会重建：已保留的 transcript 与能力引用全部丢弃，`head_seq`/`next_seq` 复位为 1。时间、记忆、睡眠状态等运行期状态随批次注入，改变它们不会触发重建。

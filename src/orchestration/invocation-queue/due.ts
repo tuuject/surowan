@@ -1,7 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
 import type { HostKind } from '../../platform/im-host/identity.ts';
-import { resolveBucketWindowSeconds } from '../../platform/invocation-policy.ts';
+import { resolveBucketWindowSeconds } from '../../platform/config/resolve.ts';
 import { buckets } from '../../store/schema/index.ts';
 import { resolveChatConfig } from '../../store/store.ts';
 import {
