@@ -123,7 +123,7 @@ export function createRoundControl(scope: RunScope, run: AgentRun): RoundControl
     hostFor(services, identity.hostKind).activity.stop(services.conversation(identity));
     runtime.endRound(conversationId);
     state.barrierSpent = false;
-    deferCollectingBucket(services, config, conversationId, Date.now());
+    deferCollectingBucket(services, config, identity.hostKind, conversationId, Date.now());
   };
   const stop = (reason: StopReason): { action: 'end' } => {
     // A run that ends frees the agent just like the end of a round does.

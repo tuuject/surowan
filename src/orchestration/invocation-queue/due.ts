@@ -1,5 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
+import type { HostKind } from '../../platform/im-host/identity.ts';
+import { resolveBucketWindowSeconds } from '../../platform/invocation-policy.ts';
 import { buckets } from '../../store/schema/index.ts';
 import { resolveChatConfig } from '../../store/store.ts';
 import {
@@ -18,6 +20,7 @@ export interface BucketRow {
   readonly conversation_id: bigint;
   readonly first_received_at: string;
   readonly deadline_at: string;
+  readonly host_kind: HostKind;
 }
 
 /**
@@ -46,9 +49,10 @@ export function processDueBuckets(deps: InvocationQueueDeps, now = new Date()): 
     // rule is a *startup* rule: `recover()` expires that work before this
     // method is ever called, so nothing stale can reach the queue from here.
     const due = store.orm.all<BucketRow>(
-      sql`SELECT b.id, b.conversation_id, b.first_received_at, b.deadline_at
+      sql`SELECT b.id, b.conversation_id, b.first_received_at, b.deadline_at, c.host_kind
        FROM buckets b
        JOIN conversations v ON v.id = b.conversation_id
+       JOIN chats c ON c.id = v.chat_id
        WHERE b.state = 'collecting' AND b.deadline_at <= ${now.toISOString()}
          AND ${servedConversations(deps, sql`b.conversation_id`)}
          AND NOT EXISTS (SELECT 1 FROM chat_pause p WHERE p.chat_id = v.chat_id)
@@ -183,7 +187,7 @@ export function attachDueBucket(
  */
 export function deferBucket(deps: InvocationQueueDeps, bucket: BucketRow, now: Date): void {
   const deferMilliseconds = Math.max(
-    deps.configStore.current().config.telegram.bucket_window_seconds * 1_000,
+    resolveBucketWindowSeconds(deps.configStore.current().config, bucket.host_kind) * 1_000,
     deps.minimumDeferMs,
   );
   const atLeast = new Date(now.getTime() + deferMilliseconds).toISOString();
