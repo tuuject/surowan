@@ -42,9 +42,6 @@ describe('alarm tool', () => {
 
     const scheduled = futureIso(3_600_000);
     const tool = alarmTools(store, config, context).alarm;
-    expect(tool.description).toContain('Use only when a new user message explicitly requests a future reminder');
-    expect(tool.description).toContain('use send to clarify instead of calling alarm');
-    expect(tool.description).toContain('After success, use send to briefly confirm');
     const result = await tool.execute('call-1', {
       target_user_id: '42',
       summary: 'follow up on the hospital visit',
@@ -137,9 +134,6 @@ describe('alarm tool', () => {
     const invocationId = processDue(scheduler, new Date(received.getTime() + 15_000));
     const context = build(invocationId, { contextWindow: 200_000, maxOutputTokens: 32768 });
     const tool = alarmTools(store, config, context).list_alarm;
-    expect(tool.description).toContain('Use when the user asks what reminders they have');
-    expect(tool.description).toContain('call delete_alarm directly');
-    expect(tool.description).toContain('never expose internal alarm IDs');
 
     // Regression: `Invalid schema for function 'list_alarm':
     // schema must be a JSON Schema of type object, got type null`.

@@ -33,11 +33,6 @@ describe('send tool', () => {
       deadline: Date.now() + 30_000,
       bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     });
-    expect(tool.description).toContain(
-      'Use this only after deciding the new messages or a current task completion require a reply',
-    );
-    expect(tool.description).toContain('Text must fit the schema limit.');
-    expect(tool.description).toContain('do not claim it was sent and do not blindly retry');
     // Unrelated discussions get one send each. The description must not talk the
     // model back into merging them, which is what made group replies run together.
     expect(tool.description).toContain('keep one message to one discussion');

@@ -1,4 +1,5 @@
 import type { DictionaryInjectionMode, FileChat } from '../../platform/config/index.ts';
+import { escapeXml } from '../../platform/spoilers.ts';
 import { resolveChatConfig } from '../../store/store.ts';
 import type { ContextInjector } from '../../context/injector.ts';
 import type { DictionaryEntryRecord } from './tools.ts';
@@ -51,9 +52,12 @@ function singleLine(value: string): string {
  * line) can never be mistaken for the runtime's own tag.
  */
 function renderLine(entry: DictionaryEntryRecord): string {
-  const aliases = entry.aliases.length === 0 ? '' : ` aliases: ${entry.aliases.map(singleLine).join(' | ')}`;
+  const aliases =
+    entry.aliases.length === 0
+      ? ''
+      : ` aliases: ${entry.aliases.map((alias) => escapeXml(singleLine(alias))).join(' | ')}`;
   const scope = entry.scope === 'global' ? 'global' : 'this group';
-  return `- [${entry.id} r${entry.revision}] ${singleLine(entry.term)} (${scope})${aliases}: ${singleLine(entry.definition)}`;
+  return `- [${entry.id} r${entry.revision}] ${escapeXml(singleLine(entry.term))} (${scope})${aliases}: ${escapeXml(singleLine(entry.definition))}`;
 }
 
 /**

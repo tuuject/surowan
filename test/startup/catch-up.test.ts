@@ -221,6 +221,12 @@ describe('startup catch-up', () => {
     expect(prompts[0]).not.toContain(`chat-${FIRST_CHAT_ID}-message-11`);
     expect(prompts[1]).toContain(`chat-${FIRST_CHAT_ID}-message-11`);
     expect(prompts[1]).not.toContain(`chat-${FIRST_CHAT_ID}-message-10`);
+    for (const prompt of prompts) {
+      expect(prompt).toContain(
+        'Startup catch-up: these are the latest configured number of messages that arrived in this conversation while the bot was offline.',
+      );
+      expect(prompt).not.toContain('topic:');
+    }
     const outgoingThreads = store.db
       .prepare<[], { message_thread_id: bigint }>(
         'SELECT v.message_thread_id FROM messages m JOIN conversations v ON v.id = m.conversation_id WHERE m.sent_by_bot = 1 ORDER BY m.id',

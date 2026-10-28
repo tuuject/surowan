@@ -1,4 +1,4 @@
-import { renderSpoilers, type SpoilerRange } from '../../platform/spoilers.ts';
+import { escapeXml, renderSpoilers, type SpoilerRange, unescapeXml } from '../../platform/spoilers.ts';
 import type { FormatOptions, PreparedSnapshot, ReplySnapshot } from './schema.ts';
 
 /**
@@ -14,9 +14,6 @@ import type { FormatOptions, PreparedSnapshot, ReplySnapshot } from './schema.ts
  */
 export function formatSnapshot(snapshot: PreparedSnapshot, options: FormatOptions): string {
   const tokens = [snapshot.message_id, formatTime(snapshot.telegram_date, options.timezone, options.now)];
-  if (options.showTopic && snapshot.message_thread_id !== undefined) {
-    tokens.push(`topic:${snapshot.message_thread_id}`);
-  }
   if (snapshot.sent_by_bot) {
     tokens.push('you');
   }
@@ -29,7 +26,7 @@ export function formatSnapshot(snapshot: PreparedSnapshot, options: FormatOption
   if (snapshot.sender.username !== null && USERNAME.test(snapshot.sender.username)) {
     tokens.push(`@${snapshot.sender.username}`);
   }
-  const name = singleLine(snapshot.sender.name ?? 'unknown');
+  const name = escapeXml(singleLine(snapshot.sender.name ?? 'unknown'));
   return [`[${tokens.join(' ')}] ${name}`, ...snapshotBody(snapshot, options).map((line) => `  ${line}`)].join('\n');
 }
 
@@ -42,9 +39,6 @@ export function formatSnapshot(snapshot: PreparedSnapshot, options: FormatOption
  */
 export function formatRoomSnapshot(snapshot: PreparedSnapshot, options: FormatOptions): string {
   const tokens = [snapshot.message_id, formatTime(snapshot.telegram_date, options.timezone, options.now)];
-  if (options.showTopic && snapshot.message_thread_id !== undefined) {
-    tokens.push(`topic:${snapshot.message_thread_id}`);
-  }
   if (snapshot.sent_by_bot) {
     tokens.push('you');
   }
@@ -52,7 +46,7 @@ export function formatRoomSnapshot(snapshot: PreparedSnapshot, options: FormatOp
     tokens.push(`re:${snapshot.reply_to_message_id}`);
   }
   tokens.push(`member:${snapshot.senderRef ?? 'unknown'}`);
-  const name = singleLine(snapshot.sender.name ?? 'unknown');
+  const name = escapeXml(singleLine(snapshot.sender.name ?? 'unknown'));
   return [`[${tokens.join(' ')}] ${name}`, ...snapshotBody(snapshot, options).map((line) => `  ${line}`)].join('\n');
 }
 
@@ -60,7 +54,7 @@ function snapshotBody(snapshot: PreparedSnapshot, options: FormatOptions): strin
   const body: string[] = [];
   const forwardedFrom = forwardOriginName(snapshot.forward_origin);
   if (forwardedFrom !== null) {
-    body.push(`(forwarded from ${singleLine(forwardedFrom)})`);
+    body.push(`(forwarded from ${escapeXml(singleLine(forwardedFrom))})`);
   }
   const reply = replySnapshot(snapshot.reply_snapshot);
   if (
@@ -68,7 +62,9 @@ function snapshotBody(snapshot: PreparedSnapshot, options: FormatOptions): strin
     snapshot.reply_to_message_id !== null &&
     !options.inlineReplies.has(snapshot.reply_to_message_id)
   ) {
-    body.push(`> ${singleLine(reply.sender)}: ${singleLine(renderSpoilers(reply.content, snapshot.spoilers?.reply))}`);
+    body.push(
+      `> ${escapeXml(singleLine(reply.sender))}: ${singleLine(renderSpoilers(reply.content, snapshot.spoilers?.reply))}`,
+    );
   }
   // The body stays exactly what the sender wrote; a spoiler only adds the tag
   // that says a human folded this span, so the model can weigh what it reads
@@ -191,7 +187,7 @@ export function parseSnapshotLines(text: string): RenderedHeader[] {
       message_id: messageId,
       sender: {
         id: uid === undefined ? null : uid.slice(4),
-        name,
+        name: unescapeXml(name),
         username: username === undefined ? null : username.slice(1),
       },
     });

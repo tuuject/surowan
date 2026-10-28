@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { CORE_AGENT_PROTOCOL } from '../../platform/agent-protocol.ts';
+import { CAPABILITIES_PROMPT, CORE_AGENT_PROTOCOL, PERSONA_PROMPT } from '../../platform/agent-protocol.ts';
 import { type AgentPromptLayers, composeAgentPrompt } from '../../platform/agent-prompt.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
 import type { HostKind } from '../../platform/im-host/identity.ts';
@@ -29,9 +29,6 @@ import { activeVisionModel } from '../../platform/config/resolve.ts';
 export class InjectionTooLargeError extends Error {
   override readonly name = 'InjectionTooLargeError';
 }
-
-const MEMORY_GUIDANCE =
-  'Memory: short-term notes you deliberately saved for this conversation with the add_memory capability (called via execute). Keep each note under 100 characters; the hard limit is 150. Notes expire after their TTL (1 day by default). Delete wrong or obsolete notes with the delete_memory capability. Setting a long TTL nominates stable knowledge for human review; durable rules live in agents.md and are curated by humans.';
 
 interface InvocationIdentityRow {
   readonly conversation_id: bigint;
@@ -214,33 +211,39 @@ export class ContextBuilder {
     const imageHandling =
       vision === undefined
         ? directImages
-          ? 'Photos and supported image Documents from the newest injected messages are attached directly to the multimodal Agent input, in the same order as the [kind figure_N img_ref] media lines inside the messages. Treat each attached image as the media of the message that lists the matching figure_N. Attachments are not kept, and no vision model is configured: older images, earlier figure_N images and Stickers cannot be inspected, and the read_image capability is unavailable. Do not claim visual details you cannot see.'
-          : `No vision model is configured: ${hostImages} cannot be inspected, and the read_image capability is unavailable. Do not claim visual details you cannot see.`
+          ? 'Photos and supported image Documents from the newest injected messages are attached directly to the multimodal Agent input, in the same order as the [kind figure_N img_ref] media lines inside the messages. You MUST treat each attached image as the media of the message that lists the matching figure_N. Attachments are not kept, and no vision model is configured: older images, earlier figure_N images and Stickers cannot be inspected, and the read_image capability is unavailable. You MUST NOT claim visual details you cannot see.'
+          : `No vision model is configured: ${hostImages} cannot be inspected, and the read_image capability is unavailable. You MUST NOT claim visual details you cannot see.`
         : directImages
-          ? 'Photos and supported image Documents from the newest injected messages are attached directly to the multimodal Agent input, in the same order as the [kind figure_N img_ref] media lines inside the messages. Treat each attached image as the media of the message that lists the matching figure_N. Attachments are not kept: older images, including earlier figure_N images, are inspected on demand with the read_image capability (called via execute) using their img_ refs. read_image never accepts figure_N refs.'
-          : `${hostImages.charAt(0).toUpperCase()}${hostImages.slice(1)} are available through the read_image capability (called via execute). Call it when visual details are needed.`;
+          ? 'Photos and supported image Documents from the newest injected messages are attached directly to the multimodal Agent input, in the same order as the [kind figure_N img_ref] media lines inside the messages. You MUST treat each attached image as the media of the message that lists the matching figure_N. Attachments are not kept: older images, including earlier figure_N images, MAY be inspected on demand with the read_image capability (called via execute) using their img_ refs. You MUST NOT pass figure_N refs to read_image.'
+          : `${hostImages.charAt(0).toUpperCase()}${hostImages.slice(1)} are available through the read_image capability (called via execute). You SHOULD call it when visual details are needed.`;
     const stickerCatalog = stickerCatalogFor(this.#store.orm, identity.hostKind);
     const stickerCatalogHandling =
       stickerCatalog.length === 0
         ? ''
-        : 'An untrusted sticker catalog is included as sticker_id:emoji entries. Emoji is only a coarse hint. To inspect one or more candidates and authorize sending, call the search_stickers capability via execute with ids; use only the returned sticker_ref with send. search_stickers also supports semantic queries.';
+        : 'An untrusted sticker catalog is included as sticker_id:emoji entries. Emoji is only a coarse hint. To inspect one or more candidates and authorize sending, you MUST call the search_stickers capability via execute with ids, and you MUST use only the returned sticker_ref with send. search_stickers also supports semantic queries.';
     // Everything in this array is hashed below, so a change to the skill index or
     // to the sticker catalog's presence restarts each Conversation Context on its
     // next invocation. Scene tests reuse the same current layers, with only the
     // global/group templates replaceable.
     const skillIndex = options?.skillFilter === undefined ? this.#skills : this.#skills.filter(options.skillFilter);
+    // The persona section header only opens a persona that actually exists: a
+    // conversation with neither a global prompt nor chat instructions must not
+    // end on an empty heading.
+    const persona = config.agent.system_prompt.length > 0 || identity.policy.instructions.length > 0;
     const promptLayers: AgentPromptLayers = {
       prefix: [
         CORE_AGENT_PROTOCOL,
+        conversationMode,
         PRODUCT_KNOWLEDGE_INDEX,
+        CAPABILITIES_PROMPT,
         renderSkillIndexPrompt(skillIndex),
         imageHandling,
         stickerCatalogHandling,
+        ...(persona ? [PERSONA_PROMPT] : []),
       ]
         .filter((part) => part.length > 0)
         .join('\n\n'),
       global: config.agent.system_prompt,
-      middle: [conversationMode, MEMORY_GUIDANCE].filter((part) => part.length > 0).join('\n\n'),
       // The chat entry contributes its instructions to the group layer. A room
       // has no chat entry, so the layer is empty and stable.
       group: identity.policy.instructions,

@@ -128,7 +128,6 @@ export interface PreparedSnapshot extends Omit<MessageSnapshot, 'revision' | 'me
 export interface FormatOptions {
   readonly timezone: string;
   readonly now: Date;
-  readonly showTopic: boolean;
   /** Message IDs rendered in the same batch; replies to them skip the quote. */
   readonly inlineReplies: ReadonlySet<string>;
 }

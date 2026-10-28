@@ -157,7 +157,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `tasks/context.test.ts` | receipt opening 与后续普通注入的 canonical history/context refs/model audit、不可信数据边界、caller 清空、mention/bypass 不泄漏到普通批次、mention 仅首次成功文本发送、冻结预算豁免及 turn/send/context/wall-clock 限制 |
 | `tasks/hot-injection.test.ts` | 同一运行的多 receipt 等工具链结束后逐条独立注入、receipt 不触发 send barrier、独立 checkpoint/mention、idle grace 唤醒并正常完成、模型失败时未消费回执重排、`/pause`/Admin cancel 防止回执复活、跨回执与普通批次的 caller/budget/zzz 恢复 |
 | `alarm/alarm.test.ts` / `alarm/context.test.ts` | Alarm 输入与 ownership、列表/取消四态、canonical context_messages 保存与跨 Invocation/重启复用、checkpoint GC/话题清空遗忘、send 不泄漏、Admin 投影、pending/claimed 保留与终态 retention |
-| `prompts/template.test.ts` | Prompt 模板白名单变量渲染、未知与格式错误表达式拒绝、四层按序拼装并丢弃空段、replay 覆盖的注释剥离与 NUL/BOM/未知变量/超长/空 global 拒绝 |
+| `prompts/template.test.ts` | Prompt 模板白名单变量渲染、未知与格式错误表达式拒绝、三层（运行时 prefix / 全局人格 / Chat 指令）按序拼装并丢弃空段、replay 覆盖的注释剥离与 NUL/BOM/未知变量/超长/空 global 拒绝 |
 | `prompts/markdown.test.ts` | HTML 注释剔除、纯注释行移除、跨行注释与未闭合注释保留 |
 | `tui-configure.test.ts` | `configure` 向导输出可被 `loadConfig` 接受、非法配置不落盘、会话期间被改过的文件不被覆盖、models.dev 能力/费用映射、Provider `/models` 拉取与去重、CLI 参数与 `--output-agent-prompt` 解析 |
 | `apps/admin-next/src/lib/*.test.ts` | Admin 前端纯函数：错误文本、记忆 TTL 边界、Invocation 时间线排序与 send 参数解析 |

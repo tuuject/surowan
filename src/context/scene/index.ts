@@ -152,8 +152,7 @@ export function buildSceneContext(
 
   const timezone = chatConfig.timezone ?? config.timezone;
   const renderedAt = options.now ?? new Date(source.createdAt);
-  const showTopic = source.bucketKind === 'startup_catch_up';
-  const renderOptions = { timezone, now: renderedAt, showTopic, inlineReplies: new Set<string>() };
+  const renderOptions = { timezone, now: renderedAt, inlineReplies: new Set<string>() };
   const render = (entry: SceneMessage, inlineReplies: ReadonlySet<string>): string =>
     formatSnapshot(entry.snapshot, { ...renderOptions, inlineReplies });
   const maximumCharacters = Math.max(

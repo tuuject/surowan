@@ -23,7 +23,6 @@ test('rejects unsupported and malformed expressions', () => {
 const LAYERS = {
   prefix: 'fixed prefix',
   global: 'global {{agent.model}}',
-  middle: 'fixed middle',
   group: 'group {{timezone}}',
 };
 const VALUES = {
@@ -32,19 +31,13 @@ const VALUES = {
   timezone: 'Asia/Shanghai',
 };
 
-test('composes the four layers in order, rendering templates and dropping empty segments', () => {
-  expect(composeAgentPrompt(LAYERS, VALUES)).toBe(
-    'fixed prefix\n\nglobal chat-model\n\nfixed middle\n\ngroup Asia/Shanghai',
-  );
-  expect(composeAgentPrompt({ ...LAYERS, group: '' }, VALUES)).toBe(
-    'fixed prefix\n\nglobal chat-model\n\nfixed middle',
-  );
-  expect(composeAgentPrompt({ ...LAYERS, global: '' }, VALUES)).toBe(
-    'fixed prefix\n\nfixed middle\n\ngroup Asia/Shanghai',
-  );
-  // The fixed layers are never rendered: they are runtime-owned text, verbatim.
+test('composes the three layers in order, rendering templates and dropping empty segments', () => {
+  expect(composeAgentPrompt(LAYERS, VALUES)).toBe('fixed prefix\n\nglobal chat-model\n\ngroup Asia/Shanghai');
+  expect(composeAgentPrompt({ ...LAYERS, group: '' }, VALUES)).toBe('fixed prefix\n\nglobal chat-model');
+  expect(composeAgentPrompt({ ...LAYERS, global: '' }, VALUES)).toBe('fixed prefix\n\ngroup Asia/Shanghai');
+  // The fixed runtime prefix is never rendered: it is runtime-owned text, verbatim.
   expect(composeAgentPrompt({ ...LAYERS, prefix: '{{agent.model}}' }, VALUES)).toBe(
-    '{{agent.model}}\n\nglobal chat-model\n\nfixed middle\n\ngroup Asia/Shanghai',
+    '{{agent.model}}\n\nglobal chat-model\n\ngroup Asia/Shanghai',
   );
 });
 

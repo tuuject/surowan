@@ -32,7 +32,6 @@ describe('send tool', () => {
       deadline: Date.now() + 30_000,
       bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
     });
-    expect(tool.description).toContain('Text must not exceed 5 characters.');
     await expect(tool.execute('call-1', { kind: 'text', text: 'too long' })).rejects.toThrow(
       'exceeds the configured limit of 5 characters',
     );
@@ -80,7 +79,6 @@ describe('send tool', () => {
     await permissive.execute('call-1', { kind: 'text', text: 'a\n\n\nb' });
     expect(requests).toEqual(['a\n\n\nb']);
     const strict = createSendTool({ ...base, disallowBlankLines: true });
-    expect(strict.description).toContain('Text must not contain blank lines');
     await expect(strict.execute('call-2', { kind: 'text', text: 'a\n\nb' })).rejects.toThrow(
       'must not contain blank lines',
     );

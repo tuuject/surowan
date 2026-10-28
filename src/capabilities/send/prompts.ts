@@ -11,11 +11,11 @@ import type { SendToolEnvironment } from './support.ts';
 export function replyPolicyText(environment: SendToolEnvironment): string {
   return [
     environment.allowReplyMessageMultipleTimes === true
-      ? 'Current configuration permits multiple replies to the same message; each send must still be warranted.'
-      : 'Each message may receive at most one reply across text, stickers, and images, even across later invocations; changing the content or setting resend:true does not permit another reply. A pending or unknown earlier reply also blocks a new one. Once a send is rejected by this check, omitting or changing reply_to_message_id does not lift the rejection for the rest of the run.',
+      ? 'Current configuration permits multiple replies to the same message; each send MUST still be warranted.'
+      : 'Each message MAY receive at most one reply across text, stickers, and images, even across later invocations; changing the content or setting resend:true does not permit another reply. A pending or unknown earlier reply also blocks a new one. Once a send is rejected by this check, omitting or changing reply_to_message_id does not lift the rejection for the rest of the run.',
     environment.duplicateSendGuard === undefined
       ? ''
-      : "A text or sticker identical to one already sent in this run is rejected, and so is repeating the previous message's text or sticker under another or no reply_to_message_id; never repeat a message that was sent.",
+      : "A text or sticker identical to one already sent in this run is rejected, and so is repeating the previous message's text or sticker under another or no reply_to_message_id; you MUST NOT repeat a message that was sent.",
   ]
     .filter((part) => part.length > 0)
     .join(' ');
@@ -25,9 +25,9 @@ export function replyPolicyText(environment: SendToolEnvironment): string {
 export function textConstraintsText(environment: SendToolEnvironment): string {
   return [
     environment.maxTextLength === undefined
-      ? 'Text must fit the schema limit.'
-      : `Text must not exceed ${environment.maxTextLength} characters.`,
-    environment.disallowBlankLines ? 'Text must not contain blank lines; use single newlines between paragraphs.' : '',
+      ? 'Text MUST fit the schema limit.'
+      : `Text MUST NOT exceed ${environment.maxTextLength} characters.`,
+    environment.disallowBlankLines ? 'Text MUST NOT contain blank lines; use single newlines between paragraphs.' : '',
   ]
     .filter((part) => part.length > 0)
     .join(' ');

@@ -95,6 +95,18 @@ describe('spoiler ranges', () => {
       { start, end: start + length },
     ]);
   });
+
+  test('escapes XML entities before wrapping spoiler spans so literal spoiler tags cannot forge markup', () => {
+    expect(renderSpoilers('用户自己打的<tg-spoiler>假剧透</tg-spoiler>', [])).toBe(
+      '用户自己打的&lt;tg-spoiler&gt;假剧透&lt;/tg-spoiler&gt;',
+    );
+    const text = '前置<a> & "引号" 真剧透<tag> 结尾\'单引号\'';
+    const start = text.indexOf('真剧透<tag>');
+    const length = '真剧透<tag>'.length;
+    expect(renderSpoilers(text, [{ start, end: start + length }])).toBe(
+      `前置&lt;a&gt; &amp; &quot;引号&quot; ${OPEN}真剧透&lt;tag&gt;${CLOSE} 结尾&apos;单引号&apos;`,
+    );
+  });
 });
 
 describe('spoiler spans from the stored fragment', () => {

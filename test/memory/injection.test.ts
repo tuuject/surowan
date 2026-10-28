@@ -13,7 +13,7 @@ test('the injected batch carries active memories in creation order', async () =>
     // time, so a fixed calendar date made this test fail once that date plus the TTL
     // passed (it started failing exactly 30 days after 2026-08-15).
     const now = new Date(Date.now() - 120_000);
-    const first = memory.add(conversationId, 'first note', 30 * 86_400, now);
+    const first = memory.add(conversationId, 'first note <escaped> & "quoted" \'single\'', 30 * 86_400, now);
     const second = memory.add(conversationId, 'second note', 30 * 86_400, new Date(now.getTime() + 5_000));
     // Created two minutes ago with a one-minute TTL: already expired.
     memory.add(conversationId, 'short note', 60, now);
@@ -27,11 +27,12 @@ test('the injected batch carries active memories in creation order', async () =>
     // the system prompt has to stay byte-identical for the whole context.
     expect(context.systemPrompt).not.toContain('<memory_list>');
     expect(context.userPrompt).toContain('<memory_list>');
-    const firstIndex = context.userPrompt.indexOf(`- ${first.id}: first note`);
+    const firstIndex = context.userPrompt.indexOf(
+      `- ${first.id}: first note &lt;escaped&gt; &amp; &quot;quoted&quot; &apos;single&apos;`,
+    );
     const secondIndex = context.userPrompt.indexOf(`- ${second.id}: second note`);
     expect(firstIndex).toBeGreaterThan(0);
     expect(secondIndex).toBeGreaterThan(firstIndex);
-    expect(context.systemPrompt).toContain('100 characters');
     expect(context.userPrompt).not.toContain('short note');
     expect(context.userPrompt).not.toContain('other conversation note');
     // The current time is per-batch state too, and the untrusted batch follows
