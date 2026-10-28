@@ -125,6 +125,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `scene/retention.test.ts` | 真实 029→030 有数据迁移仅移除旧 replay payload，调用/工具/发送/用量/冻结快照整行保留，迁移前备份含完整旧列且 integrity check 通过，重复打开、外键检查与 retention 级联后来源不可用 |
 | `replay/tools.test.ts` | 当前定义下合成 send（同一重放场景内 Reply 去重、重复发送守卫与拒后内容烧毁（`send_bypass`，含 `send_reply` 组内重复、原样重发已发出 Reply 同样烧毁、未开启时照常合成）、各场景独立；配置开启 `allow_reply_message_multiple_times` 时同目标可多次回复但仍校验场景可见性）与内存记忆/Alarm、`list_image_models` 内存分页（带 description、无凭据、offset 越界拒绝）、生图假回执、zzz 不写状态、当前只读 system 资源、MCP/未知能力阻断、execute search/help/call 共用校验、abort 不 dispatch、无生产执行器 |
 | `replay/replay.test.ts` | 历史公开场景 + 当前 prompt/模型/工具、当前 Reply 策略的省略/关闭/开启同时影响描述与执行、`list_image_models` 回放当前图片目录且无凭据无付费调用、录制关闭与调试报文清除后仍可用、全表无写入、两层覆盖与模板边界、scene-local 图片读取和 reply 校验、图片错误脱敏/文本模型降级、来源守卫、共享模型闸门/单飞、取消与模型错误、context/turn/tool/trace/wall-clock 预算、参数键与 dispatch 脱敏、合成 sleep 终止 |
+| `replay/prompt.test.ts` | 当前配置的 global/group 分层覆盖；新增首个 global 人格或清空唯一 group 人格时，临时覆盖与保存同样配置后发送给模型的 system prompt 完全一致，且重放不改数据库状态 |
 | `replay/http.test.ts` | CLI 子进程 → 回环 AdminServer → ReplayRunner → Faux Provider 真实 HTTP 链路，当前 prompt/模型与分层覆盖、合成 send/记忆/Alarm、MCP 阻断、preflight 与 active prompts 免费只读、切片 preflight/replay（`before_send_id` 在查询与 body 的校验：0/溢出/重复/未知参数 400、非法目标 409；窗口输入一次注入且生产表不变；缺少 `--confirm-paid` 时模型调用为零、连密钥使用时间都不更新）、keyword+公开消息时间搜索经 key 与 Session 结果一致、生产表不变（密钥使用时间除外）、无场景 409/非零退出、撤销 key 401 |
 | `media/media.test.ts` | 图片标准化、缓存和 Vision reasoning、换 vision 模型后按新 `analysis_version` 重新分析；下载客户端把 content-length 与流式超限统一类型化为 `MediaTooLargeError`，并在 `getFile` 挂起时立即中止而迟到响应不写文件 |
 | `stickers.test.ts` | Set 同步、结构化视觉 Tool Call、索引、搜索、发送 |
@@ -157,7 +158,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `tasks/context.test.ts` | receipt opening 与后续普通注入的 canonical history/context refs/model audit、不可信数据边界、caller 清空、mention/bypass 不泄漏到普通批次、mention 仅首次成功文本发送、冻结预算豁免及 turn/send/context/wall-clock 限制 |
 | `tasks/hot-injection.test.ts` | 同一运行的多 receipt 等工具链结束后逐条独立注入、receipt 不触发 send barrier、独立 checkpoint/mention、idle grace 唤醒并正常完成、模型失败时未消费回执重排、`/pause`/Admin cancel 防止回执复活、跨回执与普通批次的 caller/budget/zzz 恢复 |
 | `alarm/alarm.test.ts` / `alarm/context.test.ts` | Alarm 输入与 ownership、列表/取消四态、canonical context_messages 保存与跨 Invocation/重启复用、checkpoint GC/话题清空遗忘、send 不泄漏、Admin 投影、pending/claimed 保留与终态 retention |
-| `prompts/template.test.ts` | Prompt 模板白名单变量渲染、未知与格式错误表达式拒绝、四层按序拼装并丢弃空段、replay 覆盖的注释剥离与 NUL/BOM/未知变量/超长/空 global 拒绝 |
+| `prompts/template.test.ts` | Prompt 模板白名单变量渲染、未知与格式错误表达式拒绝、运行时 prefix 不渲染且全局人格先于 Chat 指令、两层最终渲染为空时省略人格分区、replay 覆盖的注释剥离与 NUL/BOM/未知变量/超长/空 global 拒绝 |
 | `prompts/markdown.test.ts` | HTML 注释剔除、纯注释行移除、跨行注释与未闭合注释保留 |
 | `tui-configure.test.ts` | `configure` 向导输出可被 `loadConfig` 接受、非法配置不落盘、会话期间被改过的文件不被覆盖、models.dev 能力/费用映射、Provider `/models` 拉取与去重、CLI 参数与 `--output-agent-prompt` 解析 |
 | `apps/admin-next/src/lib/*.test.ts` | Admin 前端纯函数：错误文本、记忆 TTL 边界、Invocation 时间线排序与 send 参数解析 |

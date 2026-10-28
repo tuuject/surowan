@@ -113,8 +113,6 @@ test('the skill index reaches the system prompt and primitives stay directly cal
       expect(getCurrentSystemPrompt(context.messages)).toContain('System skills:');
       expect(getCurrentSystemPrompt(context.messages)).toContain('system:///skills/sticker-search/SKILL.md');
       expect(getCurrentSystemPrompt(context.messages)).toContain('This index is the complete list');
-      expect(getCurrentSystemPrompt(context.messages)).toContain('read_image capability (called via execute)');
-      expect(getCurrentSystemPrompt(context.messages)).toContain('add_memory capability (called via execute)');
       expect(getCurrentSystemPrompt(context.messages)).not.toContain('# Web fetch');
       expect(getCurrentTools(context.messages).map((tool) => tool.name)).toEqual([
         'read',

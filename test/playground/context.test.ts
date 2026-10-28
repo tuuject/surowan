@@ -213,7 +213,6 @@ describe('playground context projection', () => {
 
     const rendered = renderInvocationContext(store, loaded.config, room.invocationId);
 
-    expect(rendered.systemPrompt).not.toContain('sticker catalog');
     expect(rendered.userPrompt).not.toContain('untrusted_sticker_catalog');
     expect(rendered.userPrompt).not.toContain('😺');
   });

@@ -1,3 +1,4 @@
+import { PERSONA_PROMPT } from './agent-protocol.ts';
 import { stripHtmlComments } from './prompt-markdown.ts';
 import { renderPromptTemplate, type PromptTemplateValues, validatePromptTemplate } from './prompt-template.ts';
 
@@ -5,17 +6,16 @@ import { renderPromptTemplate, type PromptTemplateValues, validatePromptTemplate
 export const MAX_PROMPT_OVERRIDE_CHARS = 65_536;
 
 /**
- * The ordered layers of the stable system prompt. `prefix` and `middle` are
- * runtime-owned text (core protocol, product knowledge, skill index, media
- * handling, sticker handling, conversation mode, memory guidance) and are never replaceable;
- * `global` and `group` are the raw comment-stripped templates of
- * `agent.system_prompt` and the chat's `instructions`. A replay can rebuild the
- * current prompt from these four layers plus the active template values.
+ * The ordered layers of the stable system prompt. `prefix` is runtime-owned
+ * text (core protocol, conversation mode, product knowledge, capabilities and
+ * skill index and media/sticker handling) and is never replaceable; `global`
+ * and `group` are the raw comment-stripped templates of `agent.system_prompt`
+ * and the chat's `instructions`. Composition adds the runtime-owned persona
+ * section header only when the final rendered templates contain a persona.
  */
 export interface AgentPromptLayers {
   readonly prefix: string;
   readonly global: string;
-  readonly middle: string;
   readonly group: string;
 }
 
@@ -34,17 +34,16 @@ export class PromptOverrideError extends Error {
 
 /**
  * Rebuilds a system prompt from its layers exactly as `ContextBuilder` does:
- * fixed prefix, rendered global template, fixed middle, rendered group template,
- * empty segments dropped, segments joined by a blank line. The templates render
- * with the values supplied by the caller's pinned runtime configuration.
+ * fixed runtime prefix, optional persona header, rendered global template,
+ * rendered group template. Empty segments are dropped and the rest joined by
+ * a blank line. Templates use the caller's pinned runtime configuration.
  */
 export function composeAgentPrompt(layers: AgentPromptLayers, values: PromptTemplateValues): string {
-  return [
-    layers.prefix,
-    renderPromptTemplate(layers.global, values),
-    layers.middle,
-    renderPromptTemplate(layers.group, values),
-  ]
+  const global = renderPromptTemplate(layers.global, values);
+  const group = renderPromptTemplate(layers.group, values);
+  // Replay replaces the templates after building the prefix; decide the
+  // boundary here so temporary overrides match the same saved configuration.
+  return [layers.prefix, global.length > 0 || group.length > 0 ? PERSONA_PROMPT : '', global, group]
     .filter((part) => part.length > 0)
     .join('\n\n');
 }

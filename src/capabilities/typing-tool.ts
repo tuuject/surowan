@@ -28,7 +28,7 @@ export function createTyping(
     name: 'typing',
     label: 'Start typing',
     description:
-      'Show typing only after deciding to reply when search or other work will take noticeable time. Optional: send quick replies directly and stay silent when no reply is warranted. Call once before slow work; the runtime refreshes and stops the status automatically. This does not publish a reply or guarantee delivery.',
+      'Show typing only after deciding to reply when search or other work will take noticeable time. Optional: you SHOULD send quick replies directly and MUST stay silent when no reply is warranted. Call once before slow work; the runtime refreshes and stops the status automatically. This does not publish a reply or guarantee delivery.',
     parameters: Type.Object({}, { additionalProperties: false }),
     execute: async (_id, _input, toolSignal) => {
       if (signal.aborted || toolSignal?.aborted) {

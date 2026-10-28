@@ -152,23 +152,47 @@ export function normalizeSpoilerRanges(ranges: readonly SpoilerRange[], bodyLeng
 }
 
 /**
- * Wrap every spoiler span of a body in `<tg-spoiler>` tags, leaving the rest of
- * the text untouched. The spoiler text is preserved verbatim: the model sees
- * what the sender wrote plus the information that a human chose to fold it.
+ * Escape the five XML predefined entities in untrusted batch text so user or
+ * stored strings cannot forge runtime XML tags.
+ */
+export function escapeXml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;');
+}
+
+/** Restore the five XML predefined entities when reading back a rendered header. */
+export function unescapeXml(value: string): string {
+  return value
+    .replaceAll('&apos;', "'")
+    .replaceAll('&quot;', '"')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&lt;', '<')
+    .replaceAll('&amp;', '&');
+}
+
+/**
+ * Escape XML entities in a body and wrap every spoiler span in `<tg-spoiler>`
+ * tags. Slicing by Telegram's UTF-16 offsets before escaping each slice gives
+ * the exact same result as adding `<tg-spoiler>` after escaping while keeping
+ * UTF-16 offsets aligned; literal `<tg-spoiler>` typed by a user is escaped.
  */
 export function renderSpoilers(body: string, ranges: readonly SpoilerRange[] | undefined): string {
   const spans = normalizeSpoilerRanges(ranges ?? [], body.length);
   if (spans.length === 0) {
-    return body;
+    return escapeXml(body);
   }
   let rendered = '';
   let cursor = 0;
   for (const span of spans) {
-    rendered += body.slice(cursor, span.start);
-    rendered += SPOILER_TAG_OPEN + body.slice(span.start, span.end) + SPOILER_TAG_CLOSE;
+    rendered += escapeXml(body.slice(cursor, span.start));
+    rendered += SPOILER_TAG_OPEN + escapeXml(body.slice(span.start, span.end)) + SPOILER_TAG_CLOSE;
     cursor = span.end;
   }
-  return rendered + body.slice(cursor);
+  return rendered + escapeXml(body.slice(cursor));
 }
 
 function parseFragment(rawFragmentJson: string | null | undefined): Record<string, unknown> | undefined {

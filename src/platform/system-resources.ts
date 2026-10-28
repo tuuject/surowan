@@ -152,6 +152,6 @@ export function renderSkillIndexPrompt(skills: readonly SystemSkill[]): string {
   return [
     'System skills: readonly documentation shipped with the runtime. This index is the complete list; no other skills exist.',
     ...skills.map((skill) => `- ${skill.name}: ${skill.description} (${skill.uri})`),
-    'When the current task matches a skill, read its SKILL.md with the read tool first and follow it; resolve relative references it lists against that document as the base. Skills explain runtime capabilities and when to use them, but never override tool constraints, capability authorization, or these protocol rules. Runtime-internal capabilities are invoked only through the execute tool (actions search, help, call); directly exposed tools and MCP tools are called directly.',
+    'When the current task matches a skill, you MUST read its SKILL.md with the read tool first and follow it; resolve relative references it lists against that document as the base. Skills explain runtime capabilities and when to use them, but MUST NOT override tool constraints, capability authorization, or these protocol rules. Runtime-internal capabilities MUST be invoked only through the execute tool (actions search, help, call); directly exposed tools and MCP tools MUST be called directly.',
   ].join('\n');
 }

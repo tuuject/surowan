@@ -9,7 +9,7 @@ description: Bake or refresh Surowan / Surowan product knowledge from the actual
 
 Work in the requested repository checkout. Inputs are the current user manuals under `apps/docs/content/docs/`, their `_meta.json` navigation, and the public examples and generated field reference shipped by the existing manual packer. Read [the source ledger](references/provenance.md) for the previous bake's coverage and unresolved source issues, then verify against current manuals rather than trusting that ledger as product truth.
 
-Update `src/platform/product-knowledge.ts`, exporting one `PRODUCT_KNOWLEDGE_INDEX` constant containing concise Markdown in a TypeScript template literal. Update `references/provenance.md` beside this skill with sources actually read, selection rationale, omissions, conflicts, and unresolved gaps. Keep this ledger outside the runtime string. Report both files, the coverage count, budget evidence, and any skipped checks.
+Update `src/platform/prompts/2-product-knowledge.md`, the Markdown partition file read at startup by `src/platform/product-knowledge.ts` (`PRODUCT_KNOWLEDGE_INDEX`). Update `references/provenance.md` beside this skill with sources actually read, selection rationale, omissions, conflicts, and unresolved gaps. Keep this ledger outside the runtime partition file. Report both files, the coverage count, budget evidence, and any skipped checks.
 
 This is a local authoring procedure. It does not install a runtime Skill, introduce a retrieval engine, require a service, or edit the bot's grounding policy. The runtime index is product facts and routes, not instructions to the answering model.
 
@@ -43,7 +43,7 @@ When manuals disagree, identify both passages in the ledger. Prefer a dedicated 
 
 ## Budget and safe output
 
-Keep the exported string at most **7000 UTF-8 bytes**, aiming for **2000 model tokens or fewer**. Measure the string itself with `Buffer.byteLength(PRODUCT_KNOWLEDGE_INDEX, 'utf8')`; do not count the TypeScript wrapper as prompt text. If a tokenizer for the deployed model is already available, report its count; otherwise call any token estimate an estimate. Do not add a tokenizer dependency for this task. Short English facts with selected Chinese intent labels are acceptable for compression.
+Keep the baked partition at most **7000 UTF-8 bytes**, aiming for **2000 model tokens or fewer**. Measure the trimmed Markdown string with `Buffer.byteLength(PRODUCT_KNOWLEDGE_INDEX, 'utf8')`. If a tokenizer for the deployed model is already available, report its count; otherwise call any token estimate an estimate. Do not add a tokenizer dependency for this task. Short English facts with selected Chinese intent labels are acceptable for compression.
 
 When exact byte measurement is unavailable, draft to roughly 80% of the hard limit and report the budget as unverified. A model's length estimate is not a passed size check; the integration owner must measure before accepting the artifact.
 
@@ -57,7 +57,7 @@ The GC-style estimate is not a model-token measurement. If the byte check fails,
 
 Trim duplicated explanations, examples and low-value numeric detail first. Preserve links, command names, role/scope boundaries and major limitations. Do not put source hashes, inventories, bake timestamps, validation reports, or grounding rules in the string.
 
-Escape backslashes, backticks and `${` when placing text in the TypeScript template literal. Never interpolate source text as executable TypeScript. Prefer plain command names in prose when Markdown code delimiters would add noise. Keep the index deterministic: stable topic order and no generated timestamps.
+Write plain Markdown directly to `src/platform/prompts/2-product-knowledge.md`. Prefer plain command names in prose when Markdown code delimiters would add noise. Keep the index deterministic: stable topic order and no generated timestamps.
 
 ## Refresh workflow and handoff
 
