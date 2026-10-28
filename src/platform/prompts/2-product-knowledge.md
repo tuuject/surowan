@@ -1,13 +1,16 @@
 # Surowan product knowledge
+
 Sources below are paths in the manual document space.
 
 ## Identity and commands
+
 - 塑料碗 / Surowan (Surowan repo/distribution) is a self-hosted Agent bot for Telegram private chats, groups, Supergroups and Forum Topics; without Telegram it still runs Admin Panel and Playground rooms. Only allowed Chats/Topics are processed; triggers do not guarantee replies. [Setup](start/quick-start.md), [Telegram](configure/telegram.md), [Playground](guides/playground.md), [Participation](guides/participation.md)
 - Intent “别理我 / 不要回复我 / 忽略我的消息 / ignore me” → /ignoreme; “恢复接收 / 重新理我 / 取消忽略 / unignore me” → /unignoreme (intent labels, not natural-language aliases). Commands edit the sender's ignored_user_ids; /unignoreme works while ignored. Any personal-account member in an allowed Chat/Topic can use them, no admin or anonymous identity; optional @Bot名 targets the bot. Persisted in config.jsonc and applied across this Chat's Topics only; existing messages/Context and audit remain, and apply failure keeps the old running config. [Self-ignore](configure/telegram.md)
 - /whoami returns a member's Telegram numeric user ID. Configured telegram.admins may use /pause, /resume, /model, /cut_topic, /allowlist. /allowlist adds the current Chat immediately; only this command works outside the allowlist, and non-admin requests are silently ignored. Other admin commands lack complete argument syntax in the manual. [Commands](configure/telegram.md)
 - /model can trigger configuration reload. /status shows the effective Chat model (access level undocumented). [Prompt application](guides/personality.md), [Chat models](guides/per-chat.md)
 
 ## Capabilities and boundaries
+
 - Participation: active hours, direct @, replies to the bot or keywords trigger group runs. Chat hours replace global; keywords append. Attention windows are per Chat+Topic; private chats bypass it. Blocked messages may appear later as history; edits do not trigger; standalone stickers need sticker_trigger_enabled. [Participation](guides/participation.md)
 - Models must be explicitly configured. Agent needs text input; direct image understanding and Vision need image input. Chat provider+model override together, thinking can override alone; Topics share Chat settings. [Models/Tool Model](configure/models.md), [Chat overrides](guides/per-chat.md)
 - Personality: global agent.system_prompt_file plus Chat instructions_file; paths relative to config.jsonc. Topics share Chat instructions. Prompt changes rebuild affected Context next run; they grant no permissions. [Personality](guides/personality.md)
@@ -20,6 +23,7 @@ Sources below are paths in the manual document space.
 - Sending: default one explicit reply per target; exact duplicate text/stickers and the previous content re-aimed at another target are also blocked within a run. agent.allow_reply_message_multiple_times and agent.send_duplicate_guard_enabled control separate guards; neither removes image uncertain-delivery protection. [Sending settings](configure/telegram.md)
 
 ## Configuration and operations routes
+
 - No file watcher: saving a file alone does not apply it. Settings → Apply config file; Prompts, Models, Chats and Harness tuning edit related settings. New Chat/model/Prompt/Agent changes can hot apply; deleted Chats, Topic ranges, MCP/Admin/path changes require restart. Saved and Running may differ. The admin section is required (enabled defaults true); Telegram is optional and a missing token is the disabled state. [Config lifecycle](configure/config-file.md), [Admin](configure/admin.md)
 - Admin audits messages, invocations, contexts and usage. Passkeys need public_url. API keys allow restricted inspection/replay, not config edits. Replay uses current config, calls a paid model, sends no Telegram messages; not full historical restoration. [Admin](configure/admin.md)
 - Service CLI: serve, check-config (offline), doctor (real dependency probes, possible model cost; Telegram probe skipped without a token), backup, configure (existing config + TTY). admin-account creates the sole admin or resets its username/password after stopping the bot; it always revokes sessions and keeps passkeys unless --revoke-passkeys. surowan-utils is a separate Admin API client: login/doctor, config show, prompt get, models list and invocation list/get/prompts/preflight/media/replay. [CLI](reference/cli.md), [Recovery](configure/admin.md)

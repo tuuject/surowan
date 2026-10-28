@@ -10,6 +10,6 @@ const PROMPTS_DIR = join(import.meta.dirname, 'prompts');
  * startup. Anything that varies per invocation belongs in the injected batch
  * instead, because a change here rebuilds every Conversation Context.
  */
-export const CORE_AGENT_PROTOCOL = readFileSync(join(PROMPTS_DIR, 'core-protocol.md'), 'utf8').trim();
-export const CAPABILITIES_PROMPT = readFileSync(join(PROMPTS_DIR, 'capabilities.md'), 'utf8').trim();
-export const PERSONA_PROMPT = readFileSync(join(PROMPTS_DIR, 'persona.md'), 'utf8').trim();
+export const CORE_AGENT_PROTOCOL = readFileSync(join(PROMPTS_DIR, '1-core-protocol.md'), 'utf8').trim();
+export const CAPABILITIES_PROMPT = readFileSync(join(PROMPTS_DIR, '3-capabilities.md'), 'utf8').trim();
+export const PERSONA_PROMPT = readFileSync(join(PROMPTS_DIR, '4-persona.md'), 'utf8').trim();
