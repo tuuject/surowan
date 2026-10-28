@@ -90,6 +90,65 @@ test('the scene prompt is the current config and an override replaces only its o
   });
 });
 
+test.each([
+  {
+    scenario: 'adding the first global persona',
+    initialGlobal: '',
+    initialGroup: '',
+    override: { global_prompt: 'Speak as {{agent.model}}.' },
+  },
+  {
+    scenario: 'clearing the only group persona',
+    initialGlobal: '',
+    initialGroup: 'Speak as {{agent.model}}.',
+    override: { group_prompt: '' },
+  },
+])('replay matches saving the same prompt when $scenario', async ({ initialGlobal, initialGroup, override }) => {
+  const f = await fixture();
+  const current = f.configStore.current();
+  const config = {
+    ...current.config,
+    agent: { ...current.config.agent, system_prompt: initialGlobal },
+    telegram: {
+      ...current.config.telegram,
+      chats: current.config.telegram.chats.map((chat) => ({ ...chat, instructions: initialGroup })),
+    },
+  };
+  f.configStore.publish({ ...current, config });
+  const prompts: string[] = [];
+  const capturePrompt = () => {
+    f.faux.setResponses([
+      (context) => {
+        prompts.push(getCurrentSystemPrompt(context.messages));
+        return fauxAssistantMessage('done');
+      },
+    ]);
+  };
+  const before = f.rows();
+  capturePrompt();
+  expect(await f.run(override)).toMatchObject({ error: null });
+
+  const saved = {
+    ...config,
+    agent: { ...config.agent, system_prompt: override.global_prompt ?? config.agent.system_prompt },
+    telegram: {
+      ...config.telegram,
+      chats: config.telegram.chats.map((chat) => ({
+        ...chat,
+        instructions: override.group_prompt ?? chat.instructions,
+      })),
+    },
+  };
+  f.configStore.publish({ ...f.configStore.current(), config: saved });
+  capturePrompt();
+  expect(await f.run()).toMatchObject({ error: null });
+  expect(prompts).toEqual([
+    stablePrompt(f.store, saved, f.seed.invocationA).systemPrompt,
+    stablePrompt(f.store, saved, f.seed.invocationA).systemPrompt,
+  ]);
+  expect(f.rows()).toEqual(before);
+});
+
 test('prompt overrides reject unknown templates, NUL, BOM, oversize and emptied global layers', async () => {
   const f = await fixture();
   const stable = stablePrompt(f.store, f.loaded.config, f.seed.invocationA);

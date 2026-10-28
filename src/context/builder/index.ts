@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { CAPABILITIES_PROMPT, CORE_AGENT_PROTOCOL, PERSONA_PROMPT } from '../../platform/agent-protocol.ts';
+import { CAPABILITIES_PROMPT, CORE_AGENT_PROTOCOL } from '../../platform/agent-protocol.ts';
 import { type AgentPromptLayers, composeAgentPrompt } from '../../platform/agent-prompt.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
 import type { HostKind } from '../../platform/im-host/identity.ts';
@@ -226,10 +226,6 @@ export class ContextBuilder {
     // next invocation. Scene tests reuse the same current layers, with only the
     // global/group templates replaceable.
     const skillIndex = options?.skillFilter === undefined ? this.#skills : this.#skills.filter(options.skillFilter);
-    // The persona section header only opens a persona that actually exists: a
-    // conversation with neither a global prompt nor chat instructions must not
-    // end on an empty heading.
-    const persona = config.agent.system_prompt.length > 0 || identity.policy.instructions.length > 0;
     const promptLayers: AgentPromptLayers = {
       prefix: [
         CORE_AGENT_PROTOCOL,
@@ -239,7 +235,6 @@ export class ContextBuilder {
         renderSkillIndexPrompt(skillIndex),
         imageHandling,
         stickerCatalogHandling,
-        ...(persona ? [PERSONA_PROMPT] : []),
       ]
         .filter((part) => part.length > 0)
         .join('\n\n'),

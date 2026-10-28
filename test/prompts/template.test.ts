@@ -31,14 +31,20 @@ const VALUES = {
   timezone: 'Asia/Shanghai',
 };
 
-test('composes the three layers in order, rendering templates and dropping empty segments', () => {
-  expect(composeAgentPrompt(LAYERS, VALUES)).toBe('fixed prefix\n\nglobal chat-model\n\ngroup Asia/Shanghai');
-  expect(composeAgentPrompt({ ...LAYERS, group: '' }, VALUES)).toBe('fixed prefix\n\nglobal chat-model');
-  expect(composeAgentPrompt({ ...LAYERS, global: '' }, VALUES)).toBe('fixed prefix\n\ngroup Asia/Shanghai');
-  // The fixed runtime prefix is never rendered: it is runtime-owned text, verbatim.
-  expect(composeAgentPrompt({ ...LAYERS, prefix: '{{agent.model}}' }, VALUES)).toBe(
-    '{{agent.model}}\n\nglobal chat-model\n\ngroup Asia/Shanghai',
-  );
+test('renders only operator templates and keeps the global and group precedence', () => {
+  const prompt = composeAgentPrompt({ ...LAYERS, prefix: '{{agent.model}}' }, VALUES);
+  expect(prompt.startsWith('{{agent.model}}\n\n')).toBe(true);
+  expect(prompt.endsWith('\n\nglobal chat-model\n\ngroup Asia/Shanghai')).toBe(true);
+});
+
+test('omits the persona section when both final templates render empty', () => {
+  expect(composeAgentPrompt({ ...LAYERS, global: '', group: '' }, VALUES)).toBe(LAYERS.prefix);
+  expect(
+    composeAgentPrompt(
+      { ...LAYERS, global: '{{vision.provider}}', group: '{{vision.model}}' },
+      { ...VALUES, vision: { provider: '', model: '' } },
+    ),
+  ).toBe(LAYERS.prefix);
 });
 
 test('prompt overrides strip HTML comments exactly like the configuration loader', () => {
