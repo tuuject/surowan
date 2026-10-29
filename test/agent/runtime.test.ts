@@ -286,7 +286,7 @@ test.each([undefined, false, true])(
       .get(invocationId);
     expect(registryRow?.tool_registry_json).toContain('"name":"send"');
     expect(registryRow?.tool_registry_json).toContain('"label":"Send to Telegram"');
-    expect(registryRow?.tool_registry_json).toContain('Publish exactly one warranted user-visible Telegram message');
+    expect(registryRow?.tool_registry_json).toContain('Publish exactly one user-visible Telegram message');
     expect(
       store.db
         .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM agent_messages WHERE role = 'harness_nudge'")

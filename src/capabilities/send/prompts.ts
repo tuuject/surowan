@@ -11,7 +11,7 @@ import type { SendToolEnvironment } from './support.ts';
 export function replyPolicyText(environment: SendToolEnvironment): string {
   return [
     environment.allowReplyMessageMultipleTimes === true
-      ? 'Current configuration permits multiple replies to the same message; each send MUST still be warranted.'
+      ? 'Current configuration permits multiple replies to the same message.'
       : 'Each message MAY receive at most one reply across text, stickers, and images, even across later invocations; changing the content or setting resend:true does not permit another reply. A pending or unknown earlier reply also blocks a new one. Once a send is rejected by this check, omitting or changing reply_to_message_id does not lift the rejection for the rest of the run.',
     environment.duplicateSendGuard === undefined
       ? ''
