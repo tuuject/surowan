@@ -147,17 +147,3 @@ export function injectionModeHint(mode: DictionaryInjectionMode): string {
       ? i18n.t('dictionary.injection.modeOnDemandHint')
       : i18n.t('dictionary.injection.modeAggressiveHint');
 }
-
-/** Triggers a client-side download of text the API already returned. */
-export function downloadTextFile(filename: string, text: string): void {
-  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  // Revoked on the next task so the click has already been dispatched.
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}

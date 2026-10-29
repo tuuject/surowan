@@ -53,6 +53,7 @@ export const layout = {
     tree: 'Tree',
     text: 'Text',
     chars: '{{n}} chars',
+    downloadJson: 'Download JSON',
     payloadSummary: 'Payload ({{n}} chars) — click to expand',
     noAccess: 'You do not have access to this page.',
   },

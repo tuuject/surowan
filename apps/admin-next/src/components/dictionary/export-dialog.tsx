@@ -15,7 +15,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-import { dictionaryErrorMessage, downloadTextFile } from '@/lib/dictionary.ts';
+import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
+import { downloadTextFile } from '@/lib/download.ts';
 import { fetchDictionaryExport } from '@/lib/api/dictionary.ts';
 import type { DictionaryExportFormat, DictionaryScope } from '@/lib/api/dictionary.ts';
 

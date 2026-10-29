@@ -330,6 +330,7 @@ export function ModelCallCard({ model }: { readonly model: ModelCallEntry }): Re
               value={model.request_json}
               initiallyCollapsed
               title={t('invocations.invocationDetail.modelCall.requestPayload')}
+              downloadFileName={`model-call-${model.id}-request.json`}
             />
           ) : null}
           {model.response_json !== null ? (

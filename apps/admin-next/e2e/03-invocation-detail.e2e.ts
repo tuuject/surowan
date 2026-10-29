@@ -40,6 +40,25 @@ test.describe('completed invocation (4001)', () => {
     await expect(page.getByText('Last API request payload')).toBeVisible();
   });
 
+  test('downloads the recorded request payload as JSON', async ({ page }) => {
+    await page.getByRole('tab', { name: /Model calls/ }).click();
+    const tabpanel = page.getByRole('tabpanel', { name: /Model calls/ });
+    await tabpanel.getByRole('button', { name: 'Toggle row details' }).first().click();
+    const download = page.waitForEvent('download');
+    await tabpanel.getByRole('button', { name: 'Download JSON' }).first().click();
+    const file = await download;
+    expect(file.suggestedFilename()).toBe('model-call-7001-request.json');
+    const stream = await file.createReadStream();
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.from(chunk));
+    }
+    const payload = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { context_messages: unknown[] };
+    // The saved bytes must be the recorded payload itself, not the viewer's
+    // shortened tree rendering.
+    expect(payload.context_messages).toHaveLength(150);
+  });
+
   test('model call payloads mount only when their disclosure is expanded', async ({ page }) => {
     const overview = page.getByRole('tabpanel', { name: /Overview/ });
     // A native <details> renders its subtree while collapsed; the payloads must

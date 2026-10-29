@@ -50,6 +50,7 @@ export const layout: typeof layoutEn = {
     tree: '树形',
     text: '文本',
     chars: '{{n}} 字符',
+    downloadJson: '下载 JSON',
     payloadSummary: '载荷（{{n}} 字符）— 点击展开',
     noAccess: '您没有访问此页面的权限。',
   },

@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/components/themes/theme-provider';
 import { Button } from '@/components/ui/button';
+import { downloadTextFile } from '@/lib/download.ts';
 import { prettyJson } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { LazyDetails } from './lazy-details';
@@ -67,6 +68,12 @@ export interface JsonViewerProps {
   readonly initiallyCollapsed?: boolean;
   /** Payloads above this many characters start collapsed in tree mode. */
   readonly collapseThresholdChars?: number;
+  /**
+   * When set, the toolbar offers a download of the payload under this file
+   * name. The saved bytes are the pretty-printed payload (or the raw text when
+   * the stored payload is not valid JSON).
+   */
+  readonly downloadFileName?: string;
   readonly className?: string;
 }
 
@@ -76,6 +83,7 @@ export function JsonViewer({
   defaultMode = 'tree',
   initiallyCollapsed = false,
   collapseThresholdChars = DEFAULT_COLLAPSE_THRESHOLD_CHARS,
+  downloadFileName,
   className,
 }: JsonViewerProps): React.ReactElement {
   const { t } = useTranslation();
@@ -106,6 +114,15 @@ export function JsonViewer({
         {title !== undefined ? <span className="text-muted-foreground text-xs">{title}</span> : null}
         {collapsed ? (
           <span className="text-muted-foreground text-xs">{t('layout.business.chars', { n: text.length })}</span>
+        ) : null}
+        {downloadFileName !== undefined ? (
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={() => downloadTextFile(downloadFileName, text, 'application/json;charset=utf-8')}
+          >
+            {t('layout.business.downloadJson')}
+          </Button>
         ) : null}
       </div>
       {mode === 'tree' && canTree ? (

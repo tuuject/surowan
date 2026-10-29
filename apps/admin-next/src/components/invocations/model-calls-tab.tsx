@@ -102,7 +102,11 @@ export function ModelCallsTab({ invocation }: { readonly invocation: InvocationD
         expandedRender={(row) => (
           <div className="space-y-3">
             {row.request_json !== null ? (
-              <JsonViewer value={row.request_json} title={t('invocations.invocationDetail.modelCall.requestPayload')} />
+              <JsonViewer
+                value={row.request_json}
+                title={t('invocations.invocationDetail.modelCall.requestPayload')}
+                downloadFileName={`model-call-${row.id}-request.json`}
+              />
             ) : null}
             {row.response_json !== null ? (
               <JsonViewer
