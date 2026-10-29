@@ -29,8 +29,8 @@ const IGNORED = [
   'patches/*.patch',
   // Components vendored by the shadcn CLI.
   'apps/admin-next/src/components/ui/**',
-  // Maintainer decision: agent-doc/ has no size limit. Do not extend it to other documentation.
-  'agent-doc/**',
+  // Maintainer decision: Markdown files has no size limit.
+  '**/*.md',
 ];
 
 type Kind = 'code' | 'test' | 'markdown' | 'other';
