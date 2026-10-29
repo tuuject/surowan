@@ -27,8 +27,8 @@ pnpm run docs:dev    # 文档站，127.0.0.1:5274
 `.githooks/pre-commit` 拒绝超过 5,000 Token（按 `字节数 / 4` 估算，即单文件最多 20,000 字节）的文件，保证 Coding Agent 总能一次读完整个文件。`pnpm install` 实际安装依赖时由 root `postinstall` 把 `core.hooksPath` 指向 `.githooks`（没有 `.git` 的目录跳过，冲突只警告）；依赖已是最新时 pnpm 不跑 `postinstall`，已有 checkout 手动执行一次 `pnpm run hooks:install`。`core.hooksPath` 已指向别处，或默认 hooks 目录里已有非 `.sample` 的 hook 时，脚本不会覆盖，只报告冲突。
 
 - 只检查本次提交的暂存内容（新增、修改、类型变更），不看工作区：未暂存的改动与未跟踪文件不影响提交，删除超限文件总能提交；`git commit -a` 与 `git commit <path>` 检查的是 Git 即将提交的那份 index。完成合并时只检查内容与 `MERGE_HEAD` 也不同的路径，即本次解决冲突或合并改写的文件。
-- 不检查的文件：Git 判定为二进制的文件（`.gitattributes` 的 `binary` 或含 NUL 字节），以及 `scripts/file-token-limit.ts` 中 `IGNORED` 列出的锁文件、`*.gen.ts` 代码生成、`patches/*.patch`、shadcn 引入的 `apps/admin-next/src/components/ui/**`，整个 `agent-doc/`（维护者决定不设上限，不推广到其他文档），和系统 Prompt 分区 `src/platform/prompts/*.md`（维护者决定按 Prompt 需要定长，不为上限拆分）。除此之外只有工具生成、无人手改的文件才能加入 `IGNORED`；手写文件超限就拆分。
-- 拒绝时的错误信息列出每个超限文件的 Token 数、字节数与超出量，并按源码、测试、Markdown 与其他文件分别给出拆分步骤。仓库里已超限的手写文件（例如 `AGENTS.md`、`src/ingress/admin/index.ts`）在下次修改时必须先拆分。
+- 不检查的文件：Git 判定为二进制的文件（`.gitattributes` 的 `binary` 或含 NUL 字节），以及 `scripts/file-token-limit.ts` 中 `IGNORED` 列出的锁文件、`*.gen.ts` 代码生成、`patches/*.patch`、shadcn 引入的 `apps/admin-next/src/components/ui/**`、全部 Markdown（`**/*.md` 与 `**/*.mdx`，含 `agent-doc/` 与系统 Prompt 分区；维护者决定文档不设上限、不为上限拆分），和整个 `agent-doc/`（`research/` 下的 `measurements.json`、`verification.json` 是脚本抓取的数据）。除此之外只有工具生成、无人手改的文件才能加入 `IGNORED`；手写文件超限就拆分。
+- 拒绝时的错误信息列出每个超限文件的 Token 数、字节数与超出量，并按源码、测试与其他文件分别给出拆分步骤。
 
 ## 仓库结构
 

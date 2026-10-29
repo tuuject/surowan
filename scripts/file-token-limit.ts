@@ -15,10 +15,10 @@ const BYTES_PER_TOKEN = 4;
 const MAX_BYTES = MAX_TOKENS * BYTES_PER_TOKEN;
 
 /**
- * Git glob pathspecs exempt from the limit: files that tools write rather than agents, plus agent-doc/ and the
- * system prompt partitions. Binary
- * files need no entry: git's own detection (`binary` in .gitattributes, or NUL bytes) skips them. Never list a
- * hand-written file here to get it past the limit; split it.
+ * Git glob pathspecs exempt from the limit: files that tools write rather than agents, plus every Markdown
+ * document and agent-doc/ as a whole. Binary files need no entry: git's own detection (`binary` in
+ * .gitattributes, or NUL bytes) skips them. Never list a hand-written file here to get it past the limit;
+ * split it.
  */
 const IGNORED = [
   '**/*.lock',
@@ -30,11 +30,15 @@ const IGNORED = [
   'patches/*.patch',
   // Components vendored by the shadcn CLI.
   'apps/admin-next/src/components/ui/**',
-  // Maintainer decision: Markdown files has no size limit.
+  // Maintainer decision: Markdown has no size limit, so prose is never split for this hook.
   '**/*.md',
+  '**/*.mdx',
+  // agent-doc/ also holds captured measurement data (measurements.json and verification.json under
+  // agent-doc/research/) that a script writes and nobody edits by hand.
+  'agent-doc/**',
 ];
 
-type Kind = 'code' | 'test' | 'markdown' | 'other';
+type Kind = 'code' | 'test' | 'other';
 
 interface Oversized {
   path: string;
@@ -93,9 +97,6 @@ function kindOf(path: string): Kind {
   if (/\.(test|spec|e2e)\.[cm]?[jt]sx?$/.test(path)) {
     return 'test';
   }
-  if (/\.mdx?$/.test(path)) {
-    return 'markdown';
-  }
   if (/\.[cm]?[jt]sx?$/.test(path)) {
     return 'code';
   }
@@ -132,15 +133,6 @@ function instructions(kind: Kind, paths: string[]): string[] {
         '  - Move setup that several files need (fixtures, builders, fake servers) into a shared helper',
         '    module and import it; do not copy it into each file.',
         '  - Run every new file and confirm the total number of tests is unchanged.',
-      ];
-    case 'markdown':
-      return [
-        `Markdown (${files}):`,
-        `  - Move each large \`##\` section into its own page in the same directory, e.g. ${topicPath(first)},`,
-        '    and keep the original as a short overview that links to every page.',
-        '  - Search the repository for links to the moved anchors (`<file>.md#`) and point them at the new pages.',
-        '  - Register new pages where the directory is indexed: agent-doc/README.md, the sibling _meta.json',
-        '    under apps/docs/content/docs/, or the "Where to Look" table in AGENTS.md.',
       ];
     case 'other':
       return [

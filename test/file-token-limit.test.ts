@@ -66,13 +66,11 @@ describe('pre-commit file token limit', () => {
     stage({ 'src/exact.ts': 'a'.repeat(LIMIT_BYTES) });
     expect(git('commit', '-qm', 'exact').status).toBe(0);
 
-    stage({ 'src/big.test.ts': 'a'.repeat(LIMIT_BYTES + 1), 'docs/guide.md': 'b'.repeat(LIMIT_BYTES * 2) });
+    stage({ 'src/big.test.ts': 'a'.repeat(LIMIT_BYTES + 1) });
     const rejected = git('commit', '-qm', 'too big');
     expect(rejected.status).toBe(1);
     expect(rejected.stderr).toMatch(/src\/big\.test\.ts +5,001 tokens \(20,001 bytes, 1 over\)/);
-    expect(rejected.stderr).toMatch(/docs\/guide\.md +10,000 tokens/);
     expect(rejected.stderr).toContain('src/big-<topic>.test.ts');
-    expect(rejected.stderr).toContain('docs/guide-<topic>.md');
     expect(commits()).toBe(1);
   });
 
@@ -92,15 +90,14 @@ describe('pre-commit file token limit', () => {
     expect(commits()).toBe(1);
   });
 
-  it('skips generated, vendored, binary, agent-doc and system prompt files, and allows deleting an oversized file', () => {
+  it('skips generated, vendored, binary, markdown and agent-doc files, and allows deleting an oversized file', () => {
     const big = 'a'.repeat(LIMIT_BYTES * 2);
     stage({
       'pnpm-lock.yaml': big,
       'apps/admin-next/src/routeTree.gen.ts': big,
       'apps/admin-next/src/components/ui/sidebar.tsx': big,
-      'agent-doc/admin-panel.md': big,
       'agent-doc/research/im-gif/measurements.json': big,
-      'src/platform/prompts/1-core-protocol.md': big,
+      'docs/guide.md': big,
       'assets/cover.bin': Buffer.alloc(LIMIT_BYTES * 2),
     });
     expect(git('commit', '-qm', 'generated').status).toBe(0);
