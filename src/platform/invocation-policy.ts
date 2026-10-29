@@ -10,12 +10,14 @@
  * A policy names the host explicitly and carries the pieces an invocation
  * needs (agent settings, timezone, debounce window, gate key). Resolving it is
  * the only place that decides how a host maps to those pieces, so callers do
- * not have to know whether they are looking at a Telegram chat or a room.
+ * not have to know whether they are looking at a Telegram chat or a room. The
+ * debounce window itself is resolved in `config/resolve.ts`, because config
+ * validation checks it per host before any policy exists.
  */
 import type { RawConfig } from './config/index.ts';
 import type { HostKind } from './im-host/identity.ts';
 import { resolveChatConfig, type Orm } from '../store/store.ts';
-import { resolveAgentSettings } from './config/resolve.ts';
+import { resolveAgentSettings, resolveBucketWindowSeconds } from './config/resolve.ts';
 
 /** The resolved agent settings for one scope. */
 export type InvocationAgentSettings = ReturnType<typeof resolveAgentSettings>;
@@ -57,16 +59,6 @@ export interface InvocationPolicy {
  */
 export function invocationGateKey(hostKind: HostKind, chatId: bigint): string {
   return `${hostKind}:${chatId}`;
-}
-
-/**
- * The debounce window a host collects its batches with.
- *
- * Telegram keeps the configured window; a room is sealed when its input is
- * released, so it collects nothing.
- */
-export function resolveBucketWindowSeconds(config: RawConfig, hostKind: HostKind): number {
-  return hostKind === 'telegram' ? config.telegram.bucket_window_seconds : 0;
 }
 
 /** The Telegram chat entry for a scope, or undefined when it is not Telegram. */

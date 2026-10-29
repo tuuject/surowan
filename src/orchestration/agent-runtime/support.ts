@@ -24,6 +24,7 @@ import {
   type InvocationContext,
   unavailableCapabilities,
 } from '../../platform/invocation-context.ts';
+import { resolveBucketWindowSeconds } from '../../platform/config/resolve.ts';
 import { scopedSystemResources } from '../../platform/system-resources.ts';
 import { agentMessages, invocations } from '../../store/schema/index.ts';
 import { createZzzTool, isLowDailyTokenBudget, readDailyTokenBudget } from '../../store/sleep.ts';
@@ -196,7 +197,7 @@ export function staticCapabilities(): CapabilityRefResolver {
  * Anchors the next batch's collection window at the moment the agent becomes
  * free. A batch that collected while the model was working (its messages
  * arrived mid-round) would otherwise be handed over the instant the round ends,
- * having collected far less than `telegram.bucket_window_seconds`.
+ * having collected far less than its host's bucket window.
  *
  * Extension-only: a batch whose own deadline is already later — one whose first
  * message arrived after this round ended — keeps it. The write is what also
@@ -205,10 +206,11 @@ export function staticCapabilities(): CapabilityRefResolver {
 export function deferCollectingBucket(
   services: RuntimeServices,
   config: RawConfig,
+  hostKind: HostKind,
   conversationId: bigint,
   freeSince: number,
 ): void {
-  const atLeast = new Date(freeSince + config.telegram.bucket_window_seconds * 1_000).toISOString();
+  const atLeast = new Date(freeSince + resolveBucketWindowSeconds(config, hostKind) * 1_000).toISOString();
   services.store.orm.run(
     sql`UPDATE buckets SET deadline_at = ${atLeast}, updated_at = ${new Date(freeSince).toISOString()}
        WHERE conversation_id = ${conversationId} AND state = 'collecting' AND deadline_at < ${atLeast}`,

@@ -13,9 +13,15 @@ import type {
   ParticipationConfig,
   ProviderApi,
   ProviderConfig,
-  TelegramSectionConfig,
 } from './index.ts';
-import { activeVisionModel, resolveAgentSection, resolveAgentSettings, resolveTelegramSection } from './resolve.ts';
+import {
+  activeVisionModel,
+  resolveAgentSection,
+  resolveAgentSettings,
+  resolveBucketWindowSeconds,
+  resolveTelegramSection,
+} from './resolve.ts';
+import { HOST_KINDS } from '../im-host/identity.ts';
 import { supportedThinkingLevels } from '../thinking-levels.ts';
 import { validateWebSearchSection, type SearchProviderRule } from '../web-search.ts';
 
@@ -83,7 +89,7 @@ export function validateSemantics(config: FileConfig, options: ValidateSemantics
   validateTimezone(config.timezone, 'timezone');
   validateParticipation(telegram.participation, 'telegram.participation');
   const agent = resolveAgentSection(config.agent);
-  validateContextConfig(telegram, agent);
+  validateContextConfig({ telegram }, agent);
   const chatIds = new Set<number>();
   for (const chat of telegram.chats) {
     if (!Number.isSafeInteger(chat.id) || chat.id === 0) {
@@ -327,10 +333,11 @@ function validateParticipation(participation: ParticipationConfig | undefined, l
  * Conversation Context invariants. `idle_grace_seconds = 0` is the supported way
  * to turn long-lived invocations off, but a grace shorter than one bucket
  * window would look enabled while every run ends before the next bucket is due:
- * a silent degradation, rejected here instead of at 3 a.m. in production.
+ * a silent degradation, rejected here instead of at 3 a.m. in production. The
+ * grace is shared by every host, so it has to cover each host's window.
  */
 function validateContextConfig(
-  telegram: Pick<TelegramSectionConfig, 'bucket_window_seconds'>,
+  windows: Parameters<typeof resolveBucketWindowSeconds>[0],
   agent: AgentRuntimeConfig,
 ): void {
   const context = agent.context;
@@ -340,10 +347,12 @@ function validateContextConfig(
   if (context.hard_token_ratio > agent.context_stop_ratio) {
     throw new Error('agent.context.hard_token_ratio must not exceed agent.context_stop_ratio');
   }
-  if (context.idle_grace_seconds > 0 && context.idle_grace_seconds < telegram.bucket_window_seconds) {
-    throw new Error(
-      'agent.context.idle_grace_seconds must be 0 (long-lived invocations off) or at least telegram.bucket_window_seconds',
-    );
+  for (const hostKind of HOST_KINDS) {
+    if (context.idle_grace_seconds > 0 && context.idle_grace_seconds < resolveBucketWindowSeconds(windows, hostKind)) {
+      throw new Error(
+        `agent.context.idle_grace_seconds must be 0 (long-lived invocations off) or at least ${hostKind}.bucket_window_seconds`,
+      );
+    }
   }
   if (context.max_wall_clock_seconds <= context.idle_grace_seconds) {
     throw new Error('agent.context.max_wall_clock_seconds must exceed idle_grace_seconds');

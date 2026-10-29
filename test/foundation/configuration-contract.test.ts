@@ -82,7 +82,9 @@ describe('configuration', () => {
         config.telegram.bucket_window_seconds = 15;
         config.agent!.context!.idle_grace_seconds = 5;
       }),
-    ).rejects.toThrow('idle_grace_seconds must be 0');
+    ).rejects.toThrow(
+      'idle_grace_seconds must be 0 (long-lived invocations off) or at least telegram.bucket_window_seconds',
+    );
     // 0 is the supported way to turn long-lived invocations off.
     await expect(
       reload((config) => {
