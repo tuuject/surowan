@@ -92,7 +92,7 @@ describe('pre-commit file token limit', () => {
     expect(commits()).toBe(1);
   });
 
-  it('skips generated, vendored, binary and agent-doc files, and allows deleting an oversized file', () => {
+  it('skips generated, vendored, binary, agent-doc and system prompt files, and allows deleting an oversized file', () => {
     const big = 'a'.repeat(LIMIT_BYTES * 2);
     stage({
       'pnpm-lock.yaml': big,
@@ -100,6 +100,7 @@ describe('pre-commit file token limit', () => {
       'apps/admin-next/src/components/ui/sidebar.tsx': big,
       'agent-doc/admin-panel.md': big,
       'agent-doc/research/im-gif/measurements.json': big,
+      'src/platform/prompts/1-core-protocol.md': big,
       'assets/cover.bin': Buffer.alloc(LIMIT_BYTES * 2),
     });
     expect(git('commit', '-qm', 'generated').status).toBe(0);

@@ -1,6 +1,6 @@
 # Product knowledge source ledger
 
-This ledger supports local maintenance of `src/platform/product-knowledge.ts`; it is not injected into the bot prompt. Product facts come only from the user manuals and their public examples. The index uses short English summaries plus Chinese self-ignore intent labels to preserve useful detail within the byte budget.
+This ledger supports local maintenance of `src/platform/product-knowledge.ts`; it is not injected into the bot prompt. Product facts come only from the user manuals and their public examples. The index uses short English summaries plus Chinese self-ignore intent labels to keep useful detail compact.
 
 ## Coverage
 
@@ -82,6 +82,6 @@ The refresh imported the actual TypeScript constant, packed the current manual w
 
 `pnpm run docs:build` and `pnpm run docs:verify` passed for the changed manuals. The earlier five one-shot model grounding probes were not re-run in this refresh; runtime grounding behavior is unchanged and remains an integration-owner check. The previous probes and their limitations are recorded in agent-doc/product-knowledge.md. Skill frontmatter validation was not re-run separately; `pnpm run lint` and `pnpm run check` cover the repository files.
 
-Two scoped three-page authoring probes ran with and without the Skill. Both retained documented commands and disclosed gaps/conflicts; only the Skill runs included natural-language intent labels. Length estimates were unreliable: the first Skill probe exceeded its smaller 3000-byte limit, and a revised reminder still did not reliably keep that textual probe under budget. Accept only measured output; the actual runtime index passed its 7000-byte limit. These probes do not establish a general success rate or production-model behavior.
+Two scoped three-page authoring probes ran with and without the Skill. Both retained documented commands and disclosed gaps/conflicts; only the Skill runs included natural-language intent labels. Length estimates were unreliable: the first Skill probe exceeded its smaller 3000-byte limit, and a revised reminder still did not reliably keep that textual probe under budget. Accept only measured output. These probes do not establish a general success rate or production-model behavior.
 
 An independent source-comparison pass checked each of 19 runtime bullets against its cited manual pages and marked all supported. This is model-assisted evidence, not proof beyond the source excerpts; the explicit gaps and conflicts above remain relevant.

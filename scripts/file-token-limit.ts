@@ -15,7 +15,8 @@ const BYTES_PER_TOKEN = 4;
 const MAX_BYTES = MAX_TOKENS * BYTES_PER_TOKEN;
 
 /**
- * Git glob pathspecs exempt from the limit: files that tools write rather than agents, plus agent-doc/. Binary
+ * Git glob pathspecs exempt from the limit: files that tools write rather than agents, plus agent-doc/ and the
+ * system prompt partitions. Binary
  * files need no entry: git's own detection (`binary` in .gitattributes, or NUL bytes) skips them. Never list a
  * hand-written file here to get it past the limit; split it.
  */

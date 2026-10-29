@@ -41,21 +41,21 @@ When evidence is missing, keep a route or omit the claim and record the gap. Do 
 
 When manuals disagree, identify both passages in the ledger. Prefer a dedicated procedure corroborated by related pages over an isolated summary only when that resolution is defensible; describe that choice in the ledger. Otherwise omit the disputed detail or mark it as uncertain in the index with its source route. Never silently resolve disagreements using source code. A new manual fix can resolve a gap on the next bake; the index should not become a second specification.
 
-## Budget and safe output
+## Size and safe output
 
-Keep the baked partition at most **7000 UTF-8 bytes**, aiming for **2000 model tokens or fewer**. Measure the trimmed Markdown string with `Buffer.byteLength(PRODUCT_KNOWLEDGE_INDEX, 'utf8')`. If a tokenizer for the deployed model is already available, report its count; otherwise call any token estimate an estimate. Do not add a tokenizer dependency for this task. Short English facts with selected Chinese intent labels are acceptable for compression.
+The system prompt partitions under `src/platform/prompts/` have no hard size limit by maintainer decision, and no test or commit hook enforces one. The partition is still injected into every system prompt, so keep it compact, aiming for **2000 model tokens or fewer**. Measure the trimmed Markdown string with `Buffer.byteLength(PRODUCT_KNOWLEDGE_INDEX, 'utf8')` and report it. If a tokenizer for the deployed model is already available, report its count; otherwise call any token estimate an estimate. Do not add a tokenizer dependency for this task. Short English facts with selected Chinese intent labels are acceptable for compression.
 
-When exact byte measurement is unavailable, draft to roughly 80% of the hard limit and report the budget as unverified. A model's length estimate is not a passed size check; the integration owner must measure before accepting the artifact.
+When exact byte measurement is unavailable, report the size as unmeasured. A model's length estimate is not a measurement; the integration owner must measure before accepting the artifact.
 
 From the repository root, measure the actual exported string without starting the runtime:
 
 ```bash
-node --input-type=module -e 'import { PRODUCT_KNOWLEDGE_INDEX as text } from "./src/platform/product-knowledge.ts"; const bytes = Buffer.byteLength(text, "utf8"); console.log({ chars: text.length, bytes, gc_estimated_tokens: Math.ceil(text.length / 4) }); if (bytes > 7000) process.exitCode = 1;'
+node --input-type=module -e 'import { PRODUCT_KNOWLEDGE_INDEX as text } from "./src/platform/product-knowledge.ts"; console.log({ chars: text.length, bytes: Buffer.byteLength(text, "utf8"), gc_estimated_tokens: Math.ceil(text.length / 4) });'
 ```
 
-The GC-style estimate is not a model-token measurement. If the byte check fails, trim and repeat before handing off; do not round the result down or silently raise the budget.
+The GC-style estimate is not a model-token measurement. Report the measured size as is; do not round it down.
 
-Trim duplicated explanations, examples and low-value numeric detail first. Preserve links, command names, role/scope boundaries and major limitations. Do not put source hashes, inventories, bake timestamps, validation reports, or grounding rules in the string.
+When compressing, trim duplicated explanations, examples and low-value numeric detail first. Preserve links, command names, role/scope boundaries and major limitations. Do not put source hashes, inventories, bake timestamps, validation reports, or grounding rules in the string.
 
 Write plain Markdown directly to `src/platform/prompts/2-product-knowledge.md`. Prefer plain command names in prose when Markdown code delimiters would add noise. Keep the index deterministic: stable topic order and no generated timestamps.
 
@@ -63,7 +63,7 @@ Write plain Markdown directly to `src/platform/prompts/2-product-knowledge.md`. 
 
 On every refresh, repeat discovery to catch additions, renamed/deleted pages and navigation drift. Re-read changed pages in full plus their related pages; review previously recorded conflicts. Remove stale facts and routes instead of retaining compatibility aliases for removed documentation. Update the source ledger to describe the current bake, without appending a chronological log.
 
-When checks are authorized, verify the byte budget, TypeScript import, every packed path against the prepared manual, and coverage of the documented slash-command inventory. Use the repository's existing tests and five lightweight product-question scenarios where present; do not introduce a generic evaluation framework. If working as a delegated author with checks assigned to the integration owner, hand over the exact checks and report them as unrun.
+When checks are authorized, measure the size, verify the TypeScript import, every packed path against the prepared manual, and coverage of the documented slash-command inventory. Use the repository's existing tests and five lightweight product-question scenarios where present; do not introduce a generic evaluation framework. If working as a delegated author with checks assigned to the integration owner, hand over the exact checks and report them as unrun.
 
 Review scenario expectations against the manuals: self-ignore in natural language; restoring reception; member versus configured-admin commands; capability/configuration routing; and an unsupported or undocumented request that must not acquire invented syntax. Runtime grounding probes own answering behavior; this skill owns the quality of the baked source material.
 
