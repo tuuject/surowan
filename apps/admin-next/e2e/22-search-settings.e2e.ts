@@ -143,7 +143,9 @@ test('switching provider drops the old endpoint and configured key', async ({ pa
   await expect(page.getByLabel('Provider')).toHaveText('Brave Search');
   // The Tavily address and key belong to Tavily; Brave starts from its own default.
   await expect(page.getByLabel('Endpoint')).toHaveValue('');
-  await expect(page.getByLabel('Credential')).toHaveText('Enter a new key');
+  // A key must be entered, so the mode dropdown is not a choice and disappears.
+  await expect(page.getByRole('combobox', { name: 'Credential' })).toHaveCount(0);
+  await expect(page.getByLabel('Enter a new key')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save settings' })).toBeDisabled();
 });
 
@@ -164,6 +166,8 @@ test('adds an engine with a new key and previews URL filter matches', async ({ p
   await expect(page.getByText('No engine configured. Add one to make search available.')).toBeVisible();
   await page.getByRole('button', { name: 'Add engine' }).click();
   await expect(page.getByLabel('Engine id')).toHaveValue('tavily-1');
+  // No stored key and no DeepSeek alias, so "enter a new key" is the only mode.
+  await expect(page.getByRole('combobox', { name: 'Credential' })).toHaveCount(0);
   await page.getByLabel('Enter a new key').fill('e2e-search-key');
   await page.getByLabel('Note for the model').fill('Chinese developer blogs');
 
@@ -247,8 +251,10 @@ test('renaming a configured engine asks for a credential instead of keeping one'
   await page.goto(await adminUrl('/search-settings'));
   await expect(page.getByLabel('Credential')).toHaveText('Keep the configured key');
   await page.getByLabel('Engine id').fill('renamed');
-  // The server keeps keys by id, so the renamed engine has no key to keep.
-  await expect(page.getByLabel('Credential')).toHaveText('Enter a new key');
+  // The server keeps keys by id, so the renamed engine has no key to keep;
+  // "enter a new key" is then the only mode and its dropdown disappears.
+  await expect(page.getByRole('combobox', { name: 'Credential' })).toHaveCount(0);
+  await expect(page.getByLabel('Enter a new key')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save settings' })).toBeDisabled();
   // Back on the stored id, keeping the configured key is offered again.
   await page.getByLabel('Engine id').fill('main');

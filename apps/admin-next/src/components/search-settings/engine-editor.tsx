@@ -41,6 +41,8 @@ export function EngineEditor({
     ...(canReuseModelKey ? (['alias'] as const) : []),
   ];
   const keyMode: KeyMode = keyModes.includes(draft.keyMode) ? draft.keyMode : (keyModes[0] ?? 'new');
+  // Only "new" available means no choice to make: show the paste field alone.
+  const showKeyModeChoice = keyModes.length > 1;
   return (
     <div className="space-y-3 rounded-md border p-3">
       <div className="flex items-center justify-between gap-3">
@@ -149,29 +151,31 @@ export function EngineEditor({
           <p className="text-muted-foreground text-xs">{t('search.noteHint')}</p>
         </div>
         <div className="space-y-1 sm:col-span-2">
-          <Label htmlFor={`${idPrefix}-key-mode`}>{t('search.fieldKey')}</Label>
-          <Select
-            value={keyMode}
-            onValueChange={(value) =>
-              // Entering alias mode stores the alias the picker shows, so a
-              // single available alias needs no extra pick before saving.
-              onChange(
-                value === 'alias' && draft.keyAlias === ''
-                  ? { keyMode: 'alias', keyAlias: deepseekKeys[0] ?? '' }
-                  : { keyMode: value as KeyMode },
-              )
-            }
-            disabled={disabled || keyModes.length === 0}
-          >
-            <SelectTrigger id={`${idPrefix}-key-mode`} className="w-full sm:w-72">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {keyModes.includes('keep') ? <SelectItem value="keep">{t('search.keyKeep')}</SelectItem> : null}
-              {keyModes.includes('new') ? <SelectItem value="new">{t('search.keyNew')}</SelectItem> : null}
-              {keyModes.includes('alias') ? <SelectItem value="alias">{t('search.keyReuse')}</SelectItem> : null}
-            </SelectContent>
-          </Select>
+          <Label htmlFor={showKeyModeChoice ? `${idPrefix}-key-mode` : `${idPrefix}-key`}>{t('search.fieldKey')}</Label>
+          {showKeyModeChoice ? (
+            <Select
+              value={keyMode}
+              onValueChange={(value) =>
+                // Entering alias mode stores the alias the picker shows, so a
+                // single available alias needs no extra pick before saving.
+                onChange(
+                  value === 'alias' && draft.keyAlias === ''
+                    ? { keyMode: 'alias', keyAlias: deepseekKeys[0] ?? '' }
+                    : { keyMode: value as KeyMode },
+                )
+              }
+              disabled={disabled}
+            >
+              <SelectTrigger id={`${idPrefix}-key-mode`} className="w-full sm:w-72">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {keyModes.includes('keep') ? <SelectItem value="keep">{t('search.keyKeep')}</SelectItem> : null}
+                {keyModes.includes('new') ? <SelectItem value="new">{t('search.keyNew')}</SelectItem> : null}
+                {keyModes.includes('alias') ? <SelectItem value="alias">{t('search.keyReuse')}</SelectItem> : null}
+              </SelectContent>
+            </Select>
+          ) : null}
           {keyMode === 'new' ? (
             <Input
               id={`${idPrefix}-key`}
