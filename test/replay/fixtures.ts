@@ -9,7 +9,7 @@ import { afterEach, expect } from 'vitest';
 import { SendInputSchema } from '../../src/capabilities/send/index.ts';
 import { ContextBuilder, type StablePrompt } from '../../src/context/builder/index.ts';
 import { ContextRefStore } from '../../src/context/refs.ts';
-import { AddMemoryInputSchema } from '../../src/context/memory.ts';
+import { AddMemoInputSchema } from '../../src/context/memo-pad/index.ts';
 import { type ReplayPromptOverrides, ReplayRunner } from '../../src/orchestration/replay/index.ts';
 import { KeyedSemaphore } from '../../src/platform/concurrency.ts';
 import type { RawConfig } from '../../src/platform/config/index.ts';
@@ -92,7 +92,7 @@ export function sceneRegistry(): { readonly tools: readonly AgentTool[]; readonl
       definition('mcp_remote_write'),
     ],
     capabilities: [
-      definition('add_memory', AddMemoryInputSchema),
+      definition('add_memo', AddMemoInputSchema),
       definition('alarm', AlarmInputSchema),
       definition('list_alarm', ListAlarmInputSchema),
       definition('search_stickers'),

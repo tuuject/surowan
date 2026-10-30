@@ -1,6 +1,3 @@
-import type { Agent } from '@earendil-works/pi-agent-core';
-import type { ContextHeader } from '../context/store.ts';
-
 /**
  * Per-Conversation runtime state: the cached Pi agent instance, the queue of
  * buckets attached to a running invocation, and the "this run is ending" flag.
@@ -12,12 +9,18 @@ import type { ContextHeader } from '../context/store.ts';
  * stop, and the runtime must not stop while a bucket is waiting to be injected.
  */
 
+import type { Agent } from '@earendil-works/pi-agent-core';
+import type { MemoStateUpdate } from '../context/memo-pad/index.ts';
+import type { ContextHeader } from '../context/store.ts';
+
 export interface CachedConversationAgent {
   readonly conversationId: bigint;
   readonly agent: Agent;
   header: ContextHeader;
   /** Sequence number of each transcript entry; `null` for non-persisted rows. */
   transcriptSeqs: (bigint | null)[];
+  /** Memo state computed by the newest rendered batch, committed on persist. */
+  pendingMemoState: MemoStateUpdate | null;
   systemPromptHash: string;
   lastUsedAt: number;
 }

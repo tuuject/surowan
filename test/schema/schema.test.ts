@@ -6,7 +6,7 @@ import {
   buckets,
   chats,
   conversations,
-  memories,
+  memoPadEntries,
   messages,
   schemaMigrations,
   stickerSets,
@@ -157,11 +157,12 @@ test('drizzle layer preserves check constraints from the sql migrations', async 
     store.orm.insert(conversations).values({ id: 1n, chatId: 1n, createdAt: now, updatedAt: now }).run();
     expect(() => {
       store.orm
-        .insert(memories)
+        .insert(memoPadEntries)
         .values({
-          id: 'm1',
-          conversationId: 1n,
-          content: 'x'.repeat(151),
+          id: 'mem_cccccccccccccccccccccccccccccccc',
+          chatId: 1n,
+          summary: 'x'.repeat(151),
+          detail: 'x',
           createdAt: now,
           expiresAt: new Date('2026-09-02T00:00:00.000Z').toISOString(),
           updatedAt: now,
@@ -170,8 +171,8 @@ test('drizzle layer preserves check constraints from the sql migrations', async 
     }).toThrow();
     const count = store.orm
       .select({ count: sql<bigint>`count(*)` })
-      .from(memories)
-      .where(eq(memories.conversationId, 1n))
+      .from(memoPadEntries)
+      .where(eq(memoPadEntries.chatId, 1n))
       .get();
     expect(count?.count).toBe(0n);
   } finally {

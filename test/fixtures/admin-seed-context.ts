@@ -5,7 +5,7 @@ import {
   contextRefs,
   conversationContexts,
   dailyUsage,
-  memories,
+  memoPadEntries,
   warnings,
 } from '../../src/store/schema/index.ts';
 import { AT, insertAlarmTask, LONG_CONTEXT_PAYLOAD_JSON, T } from './admin-seed-data.ts';
@@ -37,11 +37,12 @@ export function seedAdminAlarmsAndMemories(orm: Orm): AdminSeedMemories {
 
   const memoryActiveId = 'mem_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   orm
-    .insert(memories)
+    .insert(memoPadEntries)
     .values({
       id: memoryActiveId,
-      conversationId: T.conversation,
-      content: 'Alice prefers short replies.',
+      chatId: T.chat,
+      summary: 'Alice prefers short replies.',
+      detail: 'Alice prefers short replies.',
       createdAt: '2026-09-10T08:00:12.000Z',
       // Must stay active regardless of when the fixture runs: a fixed date
       // silently aged into "expired" and broke the state=expired filter E2E.
@@ -51,11 +52,12 @@ export function seedAdminAlarmsAndMemories(orm: Orm): AdminSeedMemories {
     .run();
   const memoryExpiredId = 'mem_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
   orm
-    .insert(memories)
+    .insert(memoPadEntries)
     .values({
       id: memoryExpiredId,
-      conversationId: T.conversation,
-      content: 'Old note that expired already.',
+      chatId: T.chat,
+      summary: 'Old note that expired already.',
+      detail: 'Old note that expired already.',
       createdAt: '2026-09-01T08:00:12.000Z',
       expiresAt: '2026-09-05T08:00:12.000Z',
       updatedAt: '2026-09-01T08:00:12.000Z',

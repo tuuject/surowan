@@ -1,7 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { sqliteBigInt, sqliteBigIntId } from './shared.ts';
-import { conversations } from './core.ts';
 
 export const adminUsers = sqliteTable('admin_users', {
   id: sqliteBigIntId('id').primaryKey(),
@@ -64,26 +63,6 @@ export const adminApiKeys = sqliteTable('admin_api_keys', {
   lastUsedAt: text('last_used_at'),
   revokedAt: text('revoked_at'),
 });
-
-export const memories = sqliteTable(
-  'memories',
-  {
-    id: text('id').primaryKey(),
-    conversationId: sqliteBigInt('conversation_id')
-      .notNull()
-      .references(() => conversations.id, { onDelete: 'cascade' }),
-    content: text('content').notNull(),
-    createdAt: text('created_at').notNull(),
-    expiresAt: text('expires_at').notNull(),
-    updatedAt: text('updated_at').notNull(),
-  },
-  (t) => [
-    check('memories_content_length_check', sql`length(content) BETWEEN 1 AND 150`),
-    check('memories_expiry_check', sql`expires_at > created_at`),
-    index('memories_conversation_created_idx').on(t.conversationId, t.createdAt),
-    index('memories_expiry_idx').on(t.expiresAt),
-  ],
-);
 
 /**
  * Dictionary entries. `chat_id` is the Telegram chat ID (not `chats.id`), so a

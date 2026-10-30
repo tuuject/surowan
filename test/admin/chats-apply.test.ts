@@ -50,7 +50,7 @@ test('model changes apply hot while Topic scopes wait for restart, preserving ot
   expect(await readFile(f.path, 'utf8')).toBe(bytes);
 });
 
-test('adding a Chat hot-applies while removal waits for restart, keeps removed active Chats visible and never deletes stored history', async () => {
+test('adding and removing a Chat both hot-apply and a removal drops the row immediately', async () => {
   const f = await fixture();
   const now = new Date().toISOString();
   f.store.orm
@@ -77,40 +77,25 @@ test('adding a Chat hot-applies while removal waits for restart, keeps removed a
   const removed = await f.write('/chats/-100100', 'DELETE', null, view.revision);
   expect(removed.status).toBe(200);
   view = (await removed.json()) as ChatWriteResponse;
-  expect(view.items.find((chat) => chat.id === '-100100')).toMatchObject({
-    title: 'Saved group',
-    saved: null,
-    active: { topic_ids: ['12'] },
-  });
-  expect(view.restart_required).toEqual(['telegram.chats[-100100]']);
-  expect(f.store.orm.select().from(chats).all()).toHaveLength(1);
+  expect(view.items.find((chat) => chat.id === '-100100')).toBeUndefined();
+  expect(view.restart_required).toEqual([]);
+  // Admin removal deletes stored data for the Chat immediately.
+  expect(f.store.orm.select().from(chats).all()).toEqual([]);
   const restarted = await loadConfig(f.path);
   expect(restarted.config.telegram.chats.map((chat) => chat.id)).toEqual([123456789, -9007199254740991]);
-  // Removing a hot-added Chat also waits for a restart: the running allowlist
-  // keeps serving it, so the row stays visible as pending.
+  // A hot-added Chat is removed just as immediately.
   const removePending = await f.write('/chats/-9007199254740991', 'DELETE', null, view.revision);
   expect(removePending.status).toBe(200);
   view = (await removePending.json()) as ChatWriteResponse;
-  expect(view.items.find((chat) => chat.id === '-9007199254740991')).toMatchObject({
-    saved: null,
-    active: { ...inherited, effective: view.defaults },
-  });
-  expect(view.restart_required).toEqual(
-    expect.arrayContaining(['telegram.chats[-100100]', 'telegram.chats[-9007199254740991]']),
-  );
+  expect(view.items.find((chat) => chat.id === '-9007199254740991')).toBeUndefined();
+  expect(view.restart_required).toEqual([]);
   // The allowlist may become empty: it only means no Chat is processed until one
   // is added again, which is the normal state before the bot joins a group.
   const last = await f.write('/chats/123456789', 'DELETE', null, view.revision);
   expect(last.status).toBe(200);
   view = (await last.json()) as ChatWriteResponse;
   expect((await loadConfig(f.path)).fileConfig.telegram?.chats).toEqual([]);
-  expect(view.restart_required).toEqual(
-    expect.arrayContaining([
-      'telegram.chats[123456789]',
-      'telegram.chats[-100100]',
-      'telegram.chats[-9007199254740991]',
-    ]),
-  );
+  expect(view.restart_required).toEqual([]);
 });
 
 test('invalid IDs, duplicate scopes, unknown models and unsupported inheritance never modify file or active state', async () => {

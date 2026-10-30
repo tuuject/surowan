@@ -7,7 +7,7 @@ description: 维护群聊术语、别名和解释，配置自动注入，并通�
 
 辞典用于解释昵称、缩写、黑话和内部梗。全局辞典对所有会话可读；群组辞典属于一个 Chat，同群的 Forum Topic 共用词条，但各 Topic 的 Conversation Context 仍独立。其他群的词条不会进入当前群的查询结果或自动注入。私聊只能读取全局词条。
 
-辞典与 [Conversation 记忆](./memory.md) 分开维护：词条描述一个表达的含义，记忆保存临时事实或偏好。辞典解释属于数据，不能授予工具权限或替代人格 Prompt。
+辞典与 [Memo Pad](./memory.md) 分开维护：词条描述一个表达的含义，Memo Pad 保存事实、材料或偏好。辞典解释属于数据，不能授予工具权限或替代人格 Prompt。
 
 ## 创建和修改词条
 
@@ -70,4 +70,4 @@ JSONL 每行一个 JSON 对象，别名直接写数组：
 
 导出所选作用域后，可用相同格式重新导入。重新导入会创建新词条，因此导入自己的导出文件也可能产生重复项；先检查预览。导出文件可能包含群内术语和解释，分享前应核对内容。
 
-相关页面：[管理面板](../configure/admin.md)、[模型配置](../configure/models.md)、[Conversation 记忆](./memory.md)。
+相关页面：[管理面板](../configure/admin.md)、[模型配置](../configure/models.md)、[Memo Pad](./memory.md)。

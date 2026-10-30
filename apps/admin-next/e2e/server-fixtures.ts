@@ -16,7 +16,8 @@ import {
 } from '../../../src/adapters/local-monolith/system-resources.ts';
 import { PlaygroundAssetStore } from '../../../src/capabilities/media/local-assets.ts';
 import { MediaService } from '../../../src/capabilities/media/index.ts';
-import { MemoryStore } from '../../../src/context/memory.ts';
+import { MemoBlobStore } from '../../../src/context/memo-pad/blobs.ts';
+import { MemoPadStore } from '../../../src/context/memo-pad/store.ts';
 import { PlaygroundIngress } from '../../../src/ingress/playground.ts';
 import { createCoreRuntime } from '../../../src/orchestration/runtime.ts';
 import { KeyedSemaphore } from '../../../src/platform/concurrency.ts';
@@ -115,7 +116,11 @@ export async function openFixtures(loaded: LoadedConfig, directory: string): Pro
     configStore: runtimeConfigStore,
     plugins: runtimePlugins,
     media: roomMedia,
-    memory: new MemoryStore(store.orm),
+    memoPad: new MemoPadStore(store.orm),
+    memoBlobs: new MemoBlobStore({
+      orm: store.orm,
+      root: join(runtimeConfigStore.current().config.data_dir, 'images', 'memo-blobs'),
+    }),
     tasks: runtimeTasks,
   });
   setRoomRuntime(

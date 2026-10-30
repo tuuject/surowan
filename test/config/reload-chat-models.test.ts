@@ -116,7 +116,7 @@ test('reload validates every selected Chat model before publishing and rejects d
   }
 });
 
-test.each(['model', 'provider'] as const)('a pending Chat removal still protects its %s reference', async (removed) => {
+test.each(['model', 'provider'] as const)('a hot-removed Chat no longer protects its %s reference', async (removed) => {
   const fixture = await setup({
     transform: (config) => {
       config.providers.chat = {
@@ -128,7 +128,6 @@ test.each(['model', 'provider'] as const)('a pending Chat removal still protects
     },
   });
   try {
-    const before = fixture.configStore.current();
     await fixture.patch((config) => {
       config.telegram.chats = config.telegram.chats.filter((chat) => chat.id !== CHAT_ID);
       if (removed === 'provider') {
@@ -137,17 +136,10 @@ test.each(['model', 'provider'] as const)('a pending Chat removal still protects
         customProvider(config.providers, 'chat').models = [model('spare')];
       }
     });
-    await expect(loadConfig(fixture.configPath)).resolves.toBeDefined();
     const result = await fixture.reloader.reloadFromFile();
-    expect(result).toMatchObject({
-      ok: false,
-      code: 'candidate_invalid',
-      fileWritten: false,
-      message: expect.stringContaining(`telegram.chats[${CHAT_ID}]`),
-    });
-    expect(fixture.configStore.current()).toBe(before);
-    expect(before.models.getModel('chat', 'chat-only')).toBeDefined();
-    expect(logEvents('config_reload_failed').at(-1)?.code).toBe('candidate_invalid');
+    expect(result.ok).toBe(true);
+    expect(fixture.configStore.current().config.telegram.chats.some((chat) => chat.id === CHAT_ID)).toBe(false);
+    expect(fixture.configStore.current().models.getModel('chat', 'chat-only')).toBeUndefined();
   } finally {
     fixture.store.close();
   }

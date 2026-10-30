@@ -27,9 +27,9 @@
  *   pre-send injections are flattened into one batch; no earlier history or
  *   reply quotes enter it. The cutoff is the selected send's request start;
  *   equal-millisecond injections are omitted because their order is unproven.
- * - The runtime block carries `current_time` (the scene cutoff, or `options.now`)
- *   and an empty `<memory_list>`; live memory, sticker catalogs and task
- *   receipts are never read.
+ * - The runtime block carries only `current_time` (the scene cutoff, or
+ *   `options.now`); live memory, sticker catalogs and task receipts are never
+ *   read.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -202,10 +202,7 @@ export function buildSceneContext(
   const historyText = selectedHistory.map((entry) => render(entry, inlineReplies)).join('\n');
   const currentText = selectedNew.map((entry) => render(entry, inlineReplies)).join('\n');
   const omission = omittedNew === 0 ? '' : `[${omittedNew} earlier new messages omitted to fit the model context]\n`;
-  const runtimeState = [
-    `current_time: ${renderCurrentTime(timezone, renderedAt)}`,
-    '<memory_list>\n</memory_list>',
-  ].join('\n');
+  const runtimeState = [`current_time: ${renderCurrentTime(timezone, renderedAt)}`].join('\n');
   const text = [
     '<runtime_state>',
     runtimeState,

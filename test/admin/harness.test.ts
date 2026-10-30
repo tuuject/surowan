@@ -80,7 +80,6 @@ test('reports file and running values with absent optional fields resolved', asy
     'context.ref_ttl_hours': agent.context.ref_ttl_hours,
     'rate_limits.window_seconds': agent.rate_limits.window_seconds,
     send_max_text_length: 2000,
-    memory_ttl_warning_days: 30,
     allow_reply_message_multiple_times: false,
     send_duplicate_guard_enabled: true,
   });
@@ -93,16 +92,12 @@ test('reports file and running values with absent optional fields resolved', asy
 test('a write hot-applies every changed field, including the ones that used to need a restart', async () => {
   const f = await fixture();
   seedAdminFixture(f.store);
-  const longTtl = async () =>
-    ((await (await f.call('/memories?state=long_ttl')).json()) as { items: unknown[] }).items.length;
-  expect(await longTtl()).toBe(0);
   const response = await f.update(
     {
       'context.ref_ttl_hours': 24,
       'context.agent_cache_size': 2,
       'context.retained_sends_target': 1,
       'context.hard_token_ratio': 0.5,
-      memory_ttl_warning_days: 7,
       history_messages: 9,
       send_nudge_enabled: true,
       send_duplicate_guard_enabled: false,
@@ -117,7 +112,6 @@ test('a write hot-applies every changed field, including the ones that used to n
     expect.arrayContaining([
       'agent.context.ref_ttl_hours',
       'agent.context.agent_cache_size',
-      'agent.memory_ttl_warning_days',
       'agent.send_max_text_length',
       'agent.send_duplicate_guard_enabled',
     ]),
@@ -126,7 +120,6 @@ test('a write hot-applies every changed field, including the ones that used to n
   expect(body.saved).toMatchObject({ 'context.ref_ttl_hours': 24, send_max_text_length: null });
   const active = f.configStore.current().config.agent;
   expect(active.context).toMatchObject({ ref_ttl_hours: 24, agent_cache_size: 2, retained_sends_target: 1 });
-  expect(active.memory_ttl_warning_days).toBe(7);
   expect(active.send_duplicate_guard_enabled).toBe(false);
   expect(active.send_max_text_length).toBeUndefined();
   expect(f.reloader.status().restartRequired).toEqual([]);
@@ -134,8 +127,6 @@ test('a write hot-applies every changed field, including the ones that used to n
   const file = (await loadConfig(f.path)).fileConfig.agent;
   expect(Object.hasOwn(file ?? {}, 'send_max_text_length')).toBe(false);
   expect(file?.provider).toBe(f.loaded.fileConfig.agent!.provider);
-  // The memory review window reads the applied value on the next request.
-  expect(await longTtl()).toBe(1);
 });
 
 test('a value equal to the file, or to an absent default, writes nothing', async () => {
@@ -145,7 +136,6 @@ test('a value equal to the file, or to an absent default, writes nothing', async
   const response = await f.update(
     {
       history_messages: f.loaded.config.agent!.history_messages,
-      memory_ttl_warning_days: 30,
       send_duplicate_guard_enabled: true,
     },
     revision,

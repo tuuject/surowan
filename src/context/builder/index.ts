@@ -16,7 +16,8 @@ import { renderInjection, stickerCatalogFor } from './render.ts';
 import type { ContextInjector } from '../injector.ts';
 import type { ContextRefStore } from '../refs.ts';
 import type { ContextHeader } from '../store.ts';
-import { MemoryStore } from '../memory.ts';
+import { MemoPadStore } from '../memo-pad/store.ts';
+import type { MemoStateUpdate } from '../memo-pad/index.ts';
 import { activeVisionModel } from '../../platform/config/resolve.ts';
 
 /**
@@ -46,6 +47,8 @@ export interface ContextIdentity {
   readonly conversationId: bigint;
   /** The host's chat id: Telegram chat id, or the internal chat id of a room. */
   readonly chatId: bigint;
+  /** Internal `chats.id`; Memo Pad and blob ownership use this. */
+  readonly internalChatId: bigint;
   readonly hostKind: HostKind;
   readonly threadId: bigint;
   readonly chatType: string;
@@ -112,6 +115,8 @@ export interface Injection {
   readonly stickerCatalog: string;
   /** One entry per registered context injector, in run order; `count` is 0 when nothing was injected. */
   readonly injections: readonly ContextInjectionContribution[];
+  /** Memo list/delta state to commit once this batch is persisted; null when unchanged. */
+  readonly memoState: MemoStateUpdate | null;
 }
 
 export interface ContextInjectionContribution {
@@ -123,7 +128,7 @@ export interface ContextInjectionContribution {
 
 export class ContextBuilder {
   readonly #store: BusinessStore;
-  readonly #memory: MemoryStore;
+  readonly #memoPad: MemoPadStore;
   readonly #skills: readonly SystemSkill[];
   readonly #refs: ContextRefStore;
   readonly #injectors: readonly ContextInjector[];
@@ -135,7 +140,7 @@ export class ContextBuilder {
     injectors: readonly ContextInjector[] = [],
   ) {
     this.#store = store;
-    this.#memory = new MemoryStore(store.orm);
+    this.#memoPad = new MemoPadStore(store.orm);
     this.#refs = refs;
     this.#skills = skills;
     this.#injectors = injectors;
@@ -170,6 +175,7 @@ export class ContextBuilder {
       invocationId,
       conversationId: identity.conversation_id,
       chatId: policy.chatId,
+      internalChatId: identity.chat_id,
       hostKind,
       threadId: identity.message_thread_id,
       chatType: identity.chat_type,
@@ -266,7 +272,7 @@ export class ContextBuilder {
       renderInjection(
         {
           orm: this.#store.orm,
-          memory: this.#memory,
+          memoPad: this.#memoPad,
           refs: this.#refs,
           injectors: this.#injectors,
           InjectionTooLargeError,

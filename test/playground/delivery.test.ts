@@ -120,6 +120,7 @@ describe('Bot Playground virtual delivery', () => {
       conversationId: room.conversationId,
       hostKind: 'playground',
       chatId: room.chatId,
+      internalChatId: room.chatId,
       threadId: 0n,
       completion: null,
     });

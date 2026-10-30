@@ -232,7 +232,7 @@ test('the default registry is the current read, send, send_reply, and execute de
         [
           fauxToolCall('read', { uri: skill.uri }),
           fauxToolCall('send', { kind: 'text', text: 'default registry send' }),
-          fauxToolCall('execute', { action: 'call', tool: 'add_memory', input: { content: 'x' } }),
+          fauxToolCall('execute', { action: 'call', tool: 'add_memo', input: { summary: 'x', detail: 'x' } }),
         ],
         { stopReason: 'toolUse' },
       );
@@ -245,13 +245,13 @@ test('the default registry is the current read, send, send_reply, and execute de
   expect(JSON.stringify(readCall?.result)).toContain(skill.uri);
   const capabilityCall = result.tool_calls.find((call) => call.tool_name === 'execute');
   expect(capabilityCall?.is_error).toBe(true);
-  expect(JSON.stringify(capabilityCall?.result)).toContain('no capability named add_memory');
+  expect(JSON.stringify(capabilityCall?.result)).toContain('no capability named add_memo');
   expect(result).toMatchObject({ error: null, send_count: 1 });
   expect(result.fidelity.dispatches).toEqual(
     expect.arrayContaining([
       expect.objectContaining({ tool_name: 'read', mode: 'live_read' }),
       expect.objectContaining({ tool_name: 'send', mode: 'synthetic' }),
-      expect.objectContaining({ tool_name: 'execute', mode: 'blocked', capability: 'add_memory' }),
+      expect.objectContaining({ tool_name: 'execute', mode: 'blocked', capability: 'add_memo' }),
     ]),
   );
 });

@@ -11,6 +11,8 @@ import {
 import { eq, sql } from 'drizzle-orm';
 import { capability, createExecuteTool, type ExecutableCapability } from '../../capabilities/execute-tool.ts';
 import { createReadTool } from '../../capabilities/read-tool.ts';
+import { createMemoReadTools } from '../../context/memo-pad/tools/index.ts';
+import { MemoPadStore } from '../../context/memo-pad/store.ts';
 import { createSendTools } from '../../capabilities/send/index.ts';
 import { createTyping } from '../../capabilities/typing-tool.ts';
 import { createCapabilityResolver } from '../../context/refs.ts';
@@ -75,9 +77,11 @@ export function validateAdditionalTools(
     deadline: Number.MAX_SAFE_INTEGER,
     bot: services.bot,
   });
+  const memoPad = new MemoPadStore(services.store.orm);
   validateToolRegistry(
     [
       createReadTool({ store: services.store, context, resources: services.systemResources }),
+      ...createMemoReadTools({ store: services.store, memoPad, context }),
       send,
       sendReply,
       createExecuteTool({ audit: createToolAudit(services.store, context.invocationId), capabilities: [] }),
@@ -172,8 +176,10 @@ export function buildTools(
       : scopedSystemResources(services.systemResources, (skill) =>
           skillVisibility(skill, { hostKind: target.hostKind, conversationId: target.conversationId }),
         );
+  const memoPad = new MemoPadStore(services.store.orm);
   return [
     createReadTool({ store: services.store, context: target, resources }),
+    ...createMemoReadTools({ store: services.store, memoPad, context: target }),
     send,
     sendReply,
     createExecuteTool({

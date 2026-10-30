@@ -17,7 +17,7 @@ import { SceneSliceError } from '../../context/scene/rows.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
 import { identityConversation } from '../../platform/im-host/identity.ts';
 import { unwiredImHost } from '../../platform/im-host/index.ts';
-import { type InvocationContext, unavailableCapabilities } from '../../platform/invocation-context.ts';
+import { type InvocationContext, noMemoReads, unavailableCapabilities } from '../../platform/invocation-context.ts';
 import type { SkillVisibilityTarget, SystemResources, SystemSkill } from '../../platform/system-resources.ts';
 import type { ReplaySelection } from './index.ts';
 import { type ReplayToolRegistry, toolDefinition } from './tools.ts';
@@ -95,6 +95,7 @@ export function prepareReplay(deps: ReplayPrepareDeps, id: bigint, selection: Re
     invocationId: id,
     hostKind: 'telegram',
     ...check.source,
+    internalChatId: 0n,
     systemPrompt: stable.systemPrompt,
     userPrompt: '',
     directImages: [],
@@ -102,6 +103,7 @@ export function prepareReplay(deps: ReplayPrepareDeps, id: bigint, selection: Re
     callerUserId: null,
     completion: null,
     omittedNewMessages: 0,
+    memoReads: noMemoReads,
   };
   const registry = deps.toolDefinitions?.(context, config) ?? defaultRegistry(deps, context, config);
   let scene: SceneContext;

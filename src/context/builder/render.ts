@@ -12,7 +12,8 @@ import { imageReceiptValidator, prepareSnapshot, type PreparedSnapshot } from '.
 import type { ContextInjectionContribution, Injection, InjectionInput } from './index.ts';
 import type { ContextInjector } from '../injector.ts';
 import type { ContextRefStore } from '../refs.ts';
-import type { MemoryStore } from '../memory.ts';
+import type { MemoPadStore } from '../memo-pad/store.ts';
+import { renderMemoInjection } from '../memo-pad/injection.ts';
 
 interface InvocationMessageRow {
   readonly section: 'history' | 'new';
@@ -46,7 +47,7 @@ interface SenderIdentityRow {
  */
 export interface RenderDependencies {
   readonly orm: Orm;
-  readonly memory: MemoryStore;
+  readonly memoPad: MemoPadStore;
   readonly refs: ContextRefStore;
   readonly injectors: readonly ContextInjector[];
   /** The builder's refusal error, passed in so this module never imports it. */
@@ -241,6 +242,13 @@ export function renderInjection(deps: RenderDependencies, config: RawConfig, inp
   const omission =
     omittedNewMessages === 0 ? '' : `[${omittedNewMessages} earlier new messages omitted to fit the model context]\n`;
   const completion = new LongTaskService(deps.orm).getCompletion(identity.invocationId, input.bucketId) ?? null;
+  const memo = renderMemoInjection(deps.memoPad, {
+    chatId: identity.internalChatId,
+    header: input.header,
+    seq: input.seq,
+    contextWindow: input.contextWindow,
+    now,
+  });
   const runtimeState = [
     `current_time: ${renderCurrentTime(identity.timezone, now)}`,
     ...(input.sleepy && completion?.delivery.bypassDailyBudget !== true ? [SLEEP_STATE_PROMPT] : []),
@@ -254,7 +262,7 @@ export function renderInjection(deps: RenderDependencies, config: RawConfig, inp
           'Startup catch-up: these are the latest configured number of messages that arrived in this conversation while the bot was offline.',
         ]
       : []),
-    memoryPrompt(deps.memory, identity.conversationId),
+    memo.listText,
   ]
     .filter((part) => part.length > 0)
     .join('\n');
@@ -276,6 +284,7 @@ export function renderInjection(deps: RenderDependencies, config: RawConfig, inp
     '<untrusted_new_messages>',
     `${omission}${currentText}`,
     '</untrusted_new_messages>',
+    ...(memo.deltaText.length === 0 ? [] : [memo.deltaText]),
   ].join('\n');
   // The selection above only measured message bodies; the runtime state, the
   // memory list, the envelopes and the figure markers come on top. A room
@@ -319,6 +328,7 @@ export function renderInjection(deps: RenderDependencies, config: RawConfig, inp
     historyCount: selectedHistory.length,
     stickerCatalog,
     injections,
+    memoState: memo.state,
   };
 }
 
@@ -376,13 +386,4 @@ export function stickerCatalogFor(orm: Orm, hostKind: HostKind): string {
          ORDER BY s.id`)
     .map((sticker) => `${sticker.id}:${escapeXml(sticker.emoji ?? '∅')}`)
     .join(' ');
-}
-
-function memoryPrompt(memory: MemoryStore, conversationId: bigint): string {
-  const memories = memory.listActive(conversationId, new Date());
-  return [
-    '<memory_list>',
-    ...memories.map((entry) => `- ${entry.id}: ${escapeXml(entry.content)}`),
-    '</memory_list>',
-  ].join('\n');
 }

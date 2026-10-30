@@ -74,7 +74,11 @@ test('a scene replay runs the historical public chat under the current config wi
       return fauxAssistantMessage(
         [
           fauxToolCall('send', { kind: 'text', text: 'synthetic scene send' }),
-          fauxToolCall('execute', { action: 'call', tool: 'add_memory', input: { content: 'synthetic scene memory' } }),
+          fauxToolCall('execute', {
+            action: 'call',
+            tool: 'add_memo',
+            input: { summary: 'synthetic scene memory', detail: 'synthetic scene memory' },
+          }),
           fauxToolCall('execute', { action: 'call', tool: 'search_stickers', input: {} }),
           fauxToolCall('mcp_remote_write', {}),
         ],
@@ -108,9 +112,9 @@ test('a scene replay runs the historical public chat under the current config wi
       arguments: expect.objectContaining({ text: 'synthetic scene send' }),
     }),
   ]);
-  const memoryCall = result.tool_calls.find((call) => JSON.stringify(call.arguments).includes('"add_memory"'));
+  const memoryCall = result.tool_calls.find((call) => JSON.stringify(call.arguments).includes('"add_memo"'));
   expect(memoryCall?.is_error).toBe(false);
-  expect(JSON.stringify(memoryCall?.result)).toContain('Saved memory');
+  expect(JSON.stringify(memoryCall?.result)).toContain('Saved mem_');
   // Sticker search has no scene executor and MCP tools are deny-by-default.
   const stickerCall = result.tool_calls.find((call) => JSON.stringify(call.arguments).includes('"search_stickers"'));
   expect(stickerCall?.is_error).toBe(true);
@@ -119,7 +123,7 @@ test('a scene replay runs the historical public chat under the current config wi
   expect(result.fidelity.dispatches).toEqual(
     expect.arrayContaining([
       expect.objectContaining({ tool_name: 'send', mode: 'synthetic' }),
-      expect.objectContaining({ tool_name: 'execute', mode: 'synthetic', capability: 'add_memory' }),
+      expect.objectContaining({ tool_name: 'execute', mode: 'synthetic', capability: 'add_memo' }),
       expect.objectContaining({ tool_name: 'execute', mode: 'blocked', capability: 'search_stickers' }),
       expect.objectContaining({ tool_name: 'mcp_remote_write', mode: 'blocked' }),
     ]),

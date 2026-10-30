@@ -24,8 +24,12 @@ import { readdir } from 'node:fs/promises';
 import { testConfigStore, writeTestConfig } from '../helpers.ts';
 
 const directories: string[] = [];
+const stores: SqliteStore[] = [];
 
 afterAll(async () => {
+  for (const store of stores.splice(0)) {
+    store.close();
+  }
   await Promise.all(
     directories.map((directory) => rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })),
   );
@@ -38,6 +42,7 @@ async function setup() {
   await writeTestConfig(directory, configPath);
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
+  stores.push(store);
   const assets = new PlaygroundAssetStore({ orm: store.orm, root: join(directory, 'assets') });
   const room = new PlaygroundStore(store.orm).createRoom({
     title: 'Room',

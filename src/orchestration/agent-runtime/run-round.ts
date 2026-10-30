@@ -57,6 +57,15 @@ export function createRoundControl(scope: RunScope, run: AgentRun): RoundControl
       carriedInjections,
     });
     contextState.applyInjection(injection);
+    cached.pendingMemoState = injection.memoState;
+    if (injection.memoState !== null) {
+      // Advance the live header too: several buckets can be injected before the
+      // first one is persisted, and each later render must not repeat the same
+      // list or delta. The DB commit still waits for `persistMessage`.
+      header.memoStateJson = injection.memoState.stateJson;
+      header.memoRefreshSeq = injection.memoState.refreshSeq;
+      header.memoRefreshPending = injection.memoState.pending;
+    }
     if (injection.stickerCatalog.length > 0) {
       carriedSticker.stickerCatalog = injection.stickerCatalog;
     }

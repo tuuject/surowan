@@ -145,6 +145,11 @@ export const conversationContexts = sqliteTable('conversation_contexts', {
   activeInvocationId: sqliteBigInt('active_invocation_id').references(() => invocations.id, { onDelete: 'set null' }),
   lastActiveAt: text('last_active_at').notNull(),
   lastGcAt: text('last_gc_at'),
+  /** Batch seq that carried the last full short-term memo list. */
+  memoRefreshSeq: sqliteBigInt('memo_refresh_seq'),
+  /** Short-term Memo state already announced to this Context. */
+  memoStateJson: text('memo_state_json'),
+  memoRefreshPending: integer('memo_refresh_pending', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });

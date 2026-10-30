@@ -54,7 +54,7 @@ export const chats: typeof chatsEn = {
   emptyChats: '尚未配置任何会话。',
   removeTitle: '删除会话 {{id}}？',
   removeDescription:
-    '这将从 config.jsonc 中删除该会话及其话题范围，包括模型等覆盖项。运行中的白名单在重启前保持不变。已存储的历史记录会保留。',
+    '这会立即从运行中的白名单删除该会话，并同时删除它的备忘录条目与 Blob 文件。该会话已存储的数据会立刻移除，正在运行的 Invocation 与任务会被中止。它也会从 config.jsonc 中删除，包括话题范围、模型等覆盖项。',
   removeConfirm: '删除会话',
   colActiveHours: '活跃时间',
   editActiveHours: '编辑活跃时间',

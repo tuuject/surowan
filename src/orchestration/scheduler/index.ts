@@ -164,6 +164,36 @@ export class BucketScheduler {
     return signaled;
   }
 
+  /**
+   * Waits for already-aborted invocations to unwind. A caller deleting their
+   * rows must not race their final audit/context inserts; the timeout keeps a
+   * wedged provider from blocking the Admin request forever.
+   */
+  async waitForInvocations(ids: readonly bigint[], timeoutMilliseconds = 5_000): Promise<number> {
+    const promises: Promise<void>[] = [];
+    for (const id of ids) {
+      const entry = this.#active.get(id.toString());
+      if (entry !== undefined) {
+        promises.push(entry.promise.catch(() => undefined));
+      }
+    }
+    if (promises.length === 0) {
+      return 0;
+    }
+    let timer: NodeJS.Timeout | undefined;
+    await Promise.race([
+      Promise.all(promises),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, Math.max(0, timeoutMilliseconds));
+        timer.unref?.();
+      }),
+    ]);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+    return promises.length;
+  }
+
   async stop(graceMilliseconds = 30_000): Promise<void> {
     this.#running = false;
     this.wake();

@@ -26,6 +26,12 @@ export interface ContextHeader {
   sendCountTotal: bigint;
   systemPromptHash: string;
   lastGcAt: string | null;
+  /** Batch seq that carried the last full short-term Memo list. */
+  memoRefreshSeq: bigint | null;
+  /** Short-term Memo state already announced to this Context. */
+  memoStateJson: string | null;
+  /** Set when the next batch must re-render the full list regardless of seq. */
+  memoRefreshPending: boolean;
 }
 
 export interface ContextMessageInput {
@@ -113,6 +119,9 @@ export class ConversationContextStore {
           systemPromptHash,
           activeInvocationId: null,
           lastGcAt: null,
+          memoRefreshSeq: null,
+          memoStateJson: null,
+          memoRefreshPending: true,
           updatedAt: timestamp,
         })
         .where(eq(conversationContexts.id, existing.id))
@@ -253,6 +262,48 @@ export class ConversationContextStore {
     header.headSeq = header.nextSeq;
   }
 
+  /**
+   * Commits the Memo state after the batch carrying it has reached the canonical
+   * history. Rendering only computes it, so a batch that never persists cannot
+   * mark a change as already announced.
+   */
+  setMemoState(
+    header: ContextHeader,
+    update: { readonly refreshSeq: bigint; readonly stateJson: string; readonly pending: boolean },
+    now = new Date(),
+  ): void {
+    this.#store.orm
+      .update(conversationContexts)
+      .set({
+        memoRefreshSeq: update.refreshSeq,
+        memoStateJson: update.stateJson,
+        memoRefreshPending: update.pending,
+        updatedAt: now.toISOString(),
+      })
+      .where(eq(conversationContexts.id, header.id))
+      .run();
+    header.memoRefreshSeq = update.refreshSeq;
+    header.memoStateJson = update.stateJson;
+    header.memoRefreshPending = update.pending;
+  }
+
+  /** Chat-level variant used when a configuration reload removes a Chat. */
+  requestMemoRefreshForConversations(conversationIds: readonly bigint[], now = new Date()): void {
+    if (conversationIds.length === 0) {
+      return;
+    }
+    const timestamp = now.toISOString();
+    this.#store.transaction(() => {
+      for (const conversationId of conversationIds) {
+        this.#store.orm
+          .update(conversationContexts)
+          .set({ memoRefreshPending: true, updatedAt: timestamp })
+          .where(eq(conversationContexts.conversationId, conversationId))
+          .run();
+      }
+    });
+  }
+
   /** Records that the invocation owning this context started or ended. */
   touch(header: ContextHeader, activeInvocationId: bigint | null, now = new Date()): void {
     this.#store.orm
@@ -299,6 +350,9 @@ export class ConversationContextStore {
         sendCountTotal: conversationContexts.sendCountTotal,
         systemPromptHash: conversationContexts.systemPromptHash,
         lastGcAt: conversationContexts.lastGcAt,
+        memoRefreshSeq: conversationContexts.memoRefreshSeq,
+        memoStateJson: conversationContexts.memoStateJson,
+        memoRefreshPending: conversationContexts.memoRefreshPending,
       })
       .from(conversationContexts)
       .where(eq(conversationContexts.conversationId, conversationId))

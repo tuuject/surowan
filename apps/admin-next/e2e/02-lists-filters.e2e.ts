@@ -121,19 +121,27 @@ test.describe('memories list', () => {
     await expect(rows).toHaveCount(30);
   });
 
-  test('state=expired keeps only the expired seed memory', async ({ page }) => {
+  test('state=expired keeps only the expired seed memo', async ({ page }) => {
     await page.goto(await adminUrl('/memories'));
     await page.getByRole('combobox', { name: 'State' }).click();
-    await page.getByRole('option', { name: 'expired' }).click();
+    await page.getByRole('option', { name: 'Expired', exact: true }).click();
     await expect(tableBodyRows(page)).toHaveCount(1);
     await expect(page.getByText('Old note that expired already.')).toBeVisible();
+    await expect(page.getByText('expired', { exact: true }).first()).toBeVisible();
+  });
+
+  test('long-term filter is empty because every seed memo is short-term', async ({ page }) => {
+    await page.goto(await adminUrl('/memories'));
+    await page.getByRole('combobox', { name: 'State' }).click();
+    await page.getByRole('option', { name: 'Long-term', exact: true }).click();
+    await expect(page.getByText('No memos match these filters.')).toBeVisible();
   });
 
   test('chat filter empties the list for an unknown chat', async ({ page }) => {
     await page.goto(await adminUrl('/memories'));
     await page.getByRole('combobox', { name: 'Chat', exact: true }).fill('999999999');
     await page.getByRole('combobox', { name: 'Chat', exact: true }).press('Enter');
-    await expect(page.getByText('No memories match these filters.')).toBeVisible();
+    await expect(page.getByText('No memos match these filters.')).toBeVisible();
   });
 });
 

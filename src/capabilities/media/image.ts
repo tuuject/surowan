@@ -38,6 +38,8 @@ export interface MediaRow {
   readonly mimeType: string | null;
   readonly fileSize: bigint | null;
   readonly telegramJson: string;
+  /** A Memo blob read from disk; never set for a stored Telegram media row. */
+  readonly localFile?: string;
 }
 
 /**
@@ -214,7 +216,11 @@ async function runExternal(argv: readonly string[], captureOutput: boolean, sign
  * interrupted, but a cancellation that lands while it runs must surface as a
  * failure before any bytes are handed back to the caller.
  */
-async function normalizeImage(inputPath: string, directory: string, signal: AbortSignal): Promise<NormalizedImage> {
+export async function normalizeImage(
+  inputPath: string,
+  directory: string,
+  signal: AbortSignal,
+): Promise<NormalizedImage> {
   signal.throwIfAborted();
   const input = await readFile(inputPath, { signal });
   signal.throwIfAborted();

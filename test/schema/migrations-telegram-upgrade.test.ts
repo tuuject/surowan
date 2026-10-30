@@ -222,7 +222,7 @@ test('migration 037 upgrades a live Telegram database without disturbing it', as
     expect(getMessage(orm, 7000n)).toBeNull();
     expect(getConversationContext(orm, 150n)).toBeNull();
     expect(() => overview(orm)).not.toThrow();
-    expect(() => listMemories(orm, {}, 30)).not.toThrow();
+    expect(() => listMemories(orm, {})).not.toThrow();
     expect(listMemoryChats(orm)).toHaveLength(2);
     expect(listDictionaryChatOptions(orm)).toHaveLength(2);
 

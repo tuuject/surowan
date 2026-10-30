@@ -3,6 +3,7 @@ import { preview } from './support.ts';
 
 interface ConversationRow {
   readonly id: number;
+  readonly chat_id: number;
   readonly message_thread_id: number;
   readonly telegram_chat_id: number;
   readonly chat_title: string | null;
@@ -51,7 +52,7 @@ interface AttentionRow {
 export function renderConversation(database: Database.Database, id: number, limit: number, json: boolean): string {
   const conversation = database
     .prepare<[number], ConversationRow>(
-      `SELECT v.id, v.message_thread_id, c.telegram_chat_id, c.title AS chat_title, c.type AS chat_type
+      `SELECT v.id, v.chat_id, v.message_thread_id, c.telegram_chat_id, c.title AS chat_title, c.type AS chat_type
        FROM conversations v JOIN chats c ON c.id = v.chat_id WHERE v.id = ?`,
     )
     .get(id);
@@ -95,9 +96,9 @@ export function renderConversation(database: Database.Database, id: number, limi
       `SELECT expires_at, trigger_kind, triggered_at FROM conversation_attention WHERE conversation_id = ?`,
     )
     .get(id);
-  const memories = database
-    .prepare<[number], { count: number }>(`SELECT count(*) AS count FROM memories WHERE conversation_id = ?`)
-    .get(id);
+  const memos = database
+    .prepare<[number], { count: number }>(`SELECT count(*) AS count FROM memo_pad_entries WHERE chat_id = ?`)
+    .get(conversation.chat_id);
   const gate =
     attention === undefined
       ? 'no attention window recorded'
@@ -112,7 +113,7 @@ export function renderConversation(database: Database.Database, id: number, limi
         privateTexts,
         context: context ?? null,
         attention: attention ?? null,
-        memoryCount: memories?.count ?? 0,
+        memoCount: memos?.count ?? 0,
       },
       null,
       2,
@@ -126,7 +127,7 @@ export function renderConversation(database: Database.Database, id: number, limi
   section('Conversation');
   out.push(
     `id=${conversation.id} chat=${conversation.telegram_chat_id} (${conversation.chat_title ?? '-'}, ${conversation.chat_type}) thread=${conversation.message_thread_id}`,
-    `memories=${memories?.count ?? 0}`,
+    `memos=${memos?.count ?? 0}`,
     `participation: ${gate}`,
   );
   if (context !== undefined) {

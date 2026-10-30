@@ -17,7 +17,7 @@ test.beforeEach(async ({ page }) => {
   await prepareChatsPage(page);
 });
 
-test('navigation, exact string IDs and hot add work; removal waits for a restart', async ({ page }) => {
+test('navigation, exact string IDs and hot add work; removal is immediate', async ({ page }) => {
   const finish = watchPageIssues(page);
   await page.getByLabel('Chats', { exact: true }).click();
   await page.getByRole('button', { name: 'Add Chat', exact: true }).click();
@@ -44,13 +44,12 @@ test('navigation, exact string IDs and hot add work; removal waits for a restart
   expect(view.restart_required).not.toContain('telegram.chats[9007199254740991]');
 
   await added.getByRole('button', { name: 'Remove', exact: true }).click();
-  await expect(page.getByRole('alertdialog')).toContainText('Stored history is kept');
+  await expect(page.getByRole('alertdialog')).toContainText('Memo Pad entries and Blob files');
   await page.getByRole('button', { name: 'Remove Chat', exact: true }).click();
-  // The chat just hot-applied stays in the running allowlist: the removal is
-  // only written to the file and waits for a restart.
-  await expect(added).toContainText('Removal pending');
-  expect((await viewOf(page)).restart_required).toContain('telegram.chats[9007199254740991]');
-  await expect(chatRow(page).getByRole('button', { name: 'Remove', exact: true })).toBeDisabled();
+  // Removal is hot: the Chat leaves both the saved and the running view at once.
+  await expect(chatRow(page, '9007199254740991')).toHaveCount(0);
+  expect((await viewOf(page)).restart_required).not.toContain('telegram.chats[9007199254740991]');
+  expect((await viewOf(page)).items.find((chat) => chat.id === '9007199254740991')).toBeUndefined();
   const issues = finish();
   expect(issues.pageErrors).toEqual([]);
   expect(issues.externalRequests).toEqual([]);
@@ -127,9 +126,7 @@ test('a background refetch cannot upgrade the revision of an open Chat edit', as
   expect((await viewOf(page)).items.find((chat) => chat.id === ACTIVE_CHAT)?.saved?.topic_ids).toEqual(['45']);
 });
 
-test('remove confirmation retains its original revision and shows removed active Chats as pending', async ({
-  page,
-}) => {
+test('remove confirmation retains its original revision and removes Chats immediately', async ({ page }) => {
   await page.getByRole('button', { name: 'Add Chat', exact: true }).click();
   await page.getByLabel('Telegram Chat ID').fill('-1009876543210');
   await saveDialog(page);
@@ -143,20 +140,16 @@ test('remove confirmation retains its original revision and shows removed active
 
   await chatRow(page).getByRole('button', { name: 'Remove', exact: true }).click();
   await page.getByRole('button', { name: 'Remove Chat', exact: true }).click();
-  await expect(chatRow(page)).toContainText('Removal pending');
-  expect((await viewOf(page)).items.find((chat) => chat.id === ACTIVE_CHAT)).toMatchObject({
-    saved: null,
-    active: inherited,
-  });
+  await expect(chatRow(page)).toHaveCount(0);
+  expect((await viewOf(page)).items.find((chat) => chat.id === ACTIVE_CHAT)).toBeUndefined();
 
   await page.getByRole('button', { name: 'Add Chat', exact: true }).click();
   await page.getByLabel('Telegram Chat ID').fill(ACTIVE_CHAT);
   await saveDialog(page);
   await chatRow(page, '-1009876543210').getByRole('button', { name: 'Remove', exact: true }).click();
   await page.getByRole('button', { name: 'Remove Chat', exact: true }).click();
-  // The hot-added Chat stays in the running allowlist: removal waits for a
-  // restart and the row remains visible as pending.
-  await expect(chatRow(page, '-1009876543210')).toContainText('Removal pending');
+  // A hot-added Chat is removed just as immediately.
+  await expect(chatRow(page, '-1009876543210')).toHaveCount(0);
 });
 
 test('saved-but-not-applied errors refresh both views and Settings can apply the saved model', async ({ page }) => {

@@ -35,9 +35,9 @@ Telegram 官方 FAQ 指引开发者通过 [@BotFather](https://t.me/BotFather) �
 - Chat ID 必须唯一且非零；私聊为正数，群/Supergroup 通常为负数。
 - 不写 `topic_ids` 时允许该 Chat 的普通消息和全部 Topic。
 - 写入非空 `topic_ids` 时只允许列出的正整数 Topic ID。
-- Forum Topic 的对话与记忆按 Chat + Topic 隔离；模型与参与策略仍是 Chat 级配置。
+- Forum Topic 的对话与 Context 按 Chat + Topic 隔离；Memo Pad、模型与参与策略是 Chat 级，所有 Topic 共用。
 
-修改 allowlist 后运行 `check-config`。新增 Chat 立即生效，无需重启；删除 Chat 与修改 Topic 范围后需要重启服务，变更未重启前仍可能出现 `chat_not_allowed`。
+修改 allowlist 后运行 `check-config`。新增与删除 Chat 都热应用：删除会停止该 Chat 的运行并拒绝其新消息（面板删除还会立即清除数据）；修改 Topic 范围后需要重启服务，变更未重启前仍可能出现 `chat_not_allowed`。
 
 ## 同一条消息只回复一次
 

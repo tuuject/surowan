@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import Type from 'typebox';
 import { expect, test } from 'vitest';
 import { SendInputSchema } from '../../src/capabilities/send/index.ts';
-import { AddMemoryInputSchema } from '../../src/context/memory.ts';
+import { AddMemoInputSchema } from '../../src/context/memo-pad/index.ts';
 import { createReplayTools } from '../../src/orchestration/replay/tools.ts';
 import { emptySystemResources } from '../../src/platform/system-resources.ts';
 import { ReadParameters, callCapability, definition, replayInput, textOf, toolOf } from './tools-fixtures.ts';
@@ -47,15 +47,15 @@ test('execute denies primitives, unknown names, and side-effect-free production 
     'execute has no capability named not_a_capability',
   );
   // A known synthetic name is still blocked when the snapshot never listed it.
-  await expect(callCapability(replay, 'exec-5', 'add_memory', { content: 'x' })).rejects.toThrow(
-    'execute has no capability named add_memory',
+  await expect(callCapability(replay, 'exec-5', 'add_memo', { summary: 'x', detail: 'x' })).rejects.toThrow(
+    'execute has no capability named add_memo',
   );
   expect(replay.dispatches).toEqual([
     { tool_call_id: 'exec-1', tool_name: 'execute', mode: 'blocked', capability: 'web_fetch' },
     { tool_call_id: 'exec-2', tool_name: 'execute', mode: 'blocked', capability: 'search_stickers' },
     { tool_call_id: 'exec-3', tool_name: 'execute', mode: 'blocked', capability: 'read' },
     { tool_call_id: 'exec-4', tool_name: 'execute', mode: 'blocked', capability: 'not_a_capability' },
-    { tool_call_id: 'exec-5', tool_name: 'execute', mode: 'blocked', capability: 'add_memory' },
+    { tool_call_id: 'exec-5', tool_name: 'execute', mode: 'blocked', capability: 'add_memo' },
   ]);
   expect(replay.outputs).toEqual([]);
 });
@@ -66,7 +66,7 @@ test('execute search and help stay inside the current registry', async () => {
       tools: [definition('execute')],
       capabilities: [
         definition('web_fetch', Type.Object({ url: Type.String() })),
-        definition('add_memory', AddMemoryInputSchema),
+        definition('add_memo', AddMemoInputSchema),
       ],
     }),
     emptySystemResources(),
@@ -74,8 +74,8 @@ test('execute search and help stay inside the current registry', async () => {
   const execute = toolOf(replay.tools, 'execute');
   const search = await execute.execute('exec-5', { action: 'search', query: 'fetch a web page' });
   expect(JSON.parse(textOf(search))).toEqual([{ name: 'web_fetch', summary: 'web_fetch' }]);
-  const help = await execute.execute('exec-6', { action: 'help', tool: 'add_memory' });
-  expect(JSON.parse(textOf(help))).toMatchObject({ name: 'add_memory', description: 'add_memory current definition' });
+  const help = await execute.execute('exec-6', { action: 'help', tool: 'add_memo' });
+  expect(JSON.parse(textOf(help))).toMatchObject({ name: 'add_memo', description: 'add_memo current definition' });
   expect(replay.dispatches).toEqual([
     { tool_call_id: 'exec-5', tool_name: 'execute', mode: 'synthetic' },
     { tool_call_id: 'exec-6', tool_name: 'execute', mode: 'synthetic' },
@@ -86,7 +86,7 @@ test('an aborted signal stops every replay tool before dispatch', async () => {
   const replay = createReplayTools(
     replayInput({
       tools: [definition('send', SendInputSchema), definition('read', ReadParameters), definition('execute')],
-      capabilities: [definition('add_memory', AddMemoryInputSchema)],
+      capabilities: [definition('add_memo', AddMemoInputSchema)],
     }),
     emptySystemResources(),
   );
@@ -101,7 +101,7 @@ test('an aborted signal stops every replay tool before dispatch', async () => {
   await expect(
     toolOf(replay.tools, 'execute').execute(
       'abort-3',
-      { action: 'call', tool: 'add_memory', input: { content: 'x' } },
+      { action: 'call', tool: 'add_memo', input: { summary: 'x', detail: 'x' } },
       controller.signal,
     ),
   ).rejects.toThrow();

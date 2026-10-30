@@ -6,7 +6,7 @@ import {
   conversations,
   dailyUsage,
   invocations,
-  memories,
+  memoPadEntries,
   messageRevisions,
   messages,
   senders,
@@ -242,11 +242,12 @@ export function seedAdminBulkRows(store: SqliteStore): AdminBulkSeedIds {
   for (let index = 0; index < EXTRA_MEMORIES; index += 1) {
     const id = `mem_${String(index + 1).padStart(32, '0')}`;
     orm
-      .insert(memories)
+      .insert(memoPadEntries)
       .values({
         id,
-        conversationId: T.conversation,
-        content: `e2e memory ${index + 1}`,
+        chatId: T.chat,
+        summary: `e2e memory ${index + 1}`,
+        detail: `e2e memory ${index + 1}`,
         createdAt: iso(index),
         expiresAt: bulkMemoryExpiresAt,
         updatedAt: iso(index),

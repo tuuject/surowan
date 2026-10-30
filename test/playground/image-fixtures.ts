@@ -32,13 +32,14 @@ import { PlaygroundAssetStore } from '../../src/capabilities/media/local-assets.
 import { MediaService } from '../../src/capabilities/media/index.ts';
 import { ContextBuilder } from '../../src/context/builder/index.ts';
 import { ContextRefStore } from '../../src/context/refs.ts';
-import { MemoryStore } from '../../src/context/memory.ts';
+import { MemoBlobStore } from '../../src/context/memo-pad/blobs.ts';
+import { MemoPadStore } from '../../src/context/memo-pad/store.ts';
 import { createImageBridge } from '../../src/image/bridge.ts';
 import { createImageService } from '../../src/image/service.ts';
 import { PlaygroundIngress } from '../../src/ingress/playground.ts';
 import { createCoreRuntime } from '../../src/orchestration/runtime.ts';
 import { KeyedSemaphore } from '../../src/platform/concurrency.ts';
-import { unavailableCapabilities, type InvocationContext } from '../../src/platform/invocation-context.ts';
+import { noMemoReads, unavailableCapabilities, type InvocationContext } from '../../src/platform/invocation-context.ts';
 import { keyJarPath } from '../../src/platform/key-jar.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import type { SystemSkill } from '../../src/platform/system-resources.ts';
@@ -193,7 +194,8 @@ export async function playgroundImageFixture(options: FixtureOptions = {}) {
     configStore,
     plugins,
     media,
-    memory: new MemoryStore(store.orm),
+    memoPad: new MemoPadStore(store.orm),
+    memoBlobs: new MemoBlobStore({ orm: store.orm, root: join(loaded.config.data_dir, 'images', 'memo-blobs') }),
     tasks,
     imageBridge: bridge,
   });
@@ -285,6 +287,7 @@ function roomToolContext(f: Fixture, invocationId: bigint): InvocationContext {
     conversationId: f.room.conversationId,
     hostKind: 'playground',
     chatId: f.room.chatId,
+    internalChatId: f.room.chatId,
     threadId: 0n,
     systemPrompt: '',
     userPrompt: '',
@@ -293,6 +296,7 @@ function roomToolContext(f: Fixture, invocationId: bigint): InvocationContext {
     callerUserId: null,
     completion: null,
     omittedNewMessages: 0,
+    memoReads: noMemoReads,
   };
 }
 

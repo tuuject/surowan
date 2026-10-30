@@ -59,7 +59,7 @@ BucketScheduler / ConversationRuntime
         ▼
 ContextBuilder（稳定 system prompt + 本批注入块）
   ├─ 稳定段：Core Agent Protocol、System Skill 索引、人格与 Chat 指令、能力说明
-  ├─ 注入段：当前时间、睡眠状态、完成回执、Memory + 本批新消息
+  ├─ 注入段：当前时间、睡眠状态、完成回执、Memo Pad 列表/增量 + 本批新消息
   ├─ 历史来自 canonical Conversation Context，不重新渲染
   ├─ Reply 可见集合来自 context_refs
   ├─ 模型支持 image：本批 Photo/图片 Document 多模态载荷
@@ -104,7 +104,7 @@ Admin 的 Invocation 重放是新的内存 Agent 循环，不是生产 Conversat
 - `orchestration/runtime.ts` 的 `createCoreRuntime` 装配的 AgentRuntime 与 Scheduler 共享一个 `ConversationRuntime`；`orchestration/conversation-runtime.ts` 拥有 Agent 实例 LRU 缓存与「已 attach 待注入的 Bucket」队列，是 runtime 与调度之间的唯一握手点。
 - `platform/agent-protocol.ts` 加载随版本发布的 **Core Agent Protocol** 分区——消息分区、可信边界、Tool 选择原则与副作用成功判定都在 `platform/prompts/1-core-protocol.md`，不在人格 Prompt 文件里。同目录的 `2-product-knowledge.md`、`3-capabilities.md`、`4-persona.md` 与它一起构成稳定段的运行时分区，数字前缀对应拼装顺序：启动时读入、固定顺序拼接，`4-persona.md` 标题之后才接运营者的人格与 Chat 指令。它们属于稳定段：改动任何一个都等于重建所有 Conversation Context；运行时文件不支持热编辑。稳定段不写参与时机：是否发言由模型按当前批次自行判断；群聊的消息准入由运行期 participation 闸门与主动回复概率调度决定（配置了才生效）。
 - 只读 **System Skills** 的契约与 URI 解析在 [platform/system-resources.ts](../src/platform/system-resources.ts)，目录扫描与读取由 [adapters/local-monolith/system-resources.ts](../src/adapters/local-monolith/system-resources.ts) 的 `FileSystemResources` 承担；索引注入、按需读取和调用契约统一见 [Skills 与受控能力调用](telegram-agent-flow.md#skills-与受控能力调用)。Skill 提供操作知识而不授予权限，能力是否注册仍由组合根决定。
-- 不是所有 Agent Tool 都在 `capabilities/`：`zzz` 定义在 `store/sleep.ts`，`add_memory`/`delete_memory` 定义在 `context/memory.ts`，`web_fetch` 在 `plugins/web-fetch/`，Alarm 在 `plugins/alarm/`，辞典三件套在 `plugins/dictionary/`，各自与所属状态放在一起。找某个 Tool 的实现时按名字 grep，别只翻 `capabilities/`。
+- 不是所有 Agent Tool 都在 `capabilities/`：`zzz` 定义在 `store/sleep.ts`，Memo Pad 的 `search_memory`/`read_memory` 原语在 `context/memo-pad/tools/read.ts`、写能力在 `tools/write.ts`，`web_fetch` 在 `plugins/web-fetch/`，Alarm 在 `plugins/alarm/`，辞典三件套在 `plugins/dictionary/`，各自与所属状态放在一起。找某个 Tool 的实现时按名字 grep，别只翻 `capabilities/`。
 - `store/long-tasks/index.ts` 持久化 plugin/Conversation 绑定的任务及唯一完成回执；timer 任务和外部 `complete`/`fail` 都写入同一套终态/receipt，未实现通用后台 executor、running/progress 或 retry。`store/invocation-snapshot.ts` 是 Invocation 消息快照的冻结边界；`orchestration/invocation-queue/index.ts` 负责 Bucket/receipt → Invocation 的同步状态转换、attach、恢复与 Startup Catch-up。这两个名字容易和 `scheduler/index.ts` 混淆——Scheduler 是唯一的 timer、回执投递、事件循环与并发驱动。
 - `platform/invocation-context.ts` 是无依赖的叶子类型模块，存在的唯一目的是打断 import 环，不要往里加逻辑；它同时定义 `CapabilityRefResolver`（引用解析边界）与 `InvocationContextState`（一次运行中可被新批次刷新的可变上下文）。
 - `adapters/local-monolith/config/reload.ts` 的 `ConfigReloader` 是配置热更新的唯一入口：`reloadFromFile()`、`setAgentModel()`（全局默认）与 `setChatModel()`/`resetChatModel()`（单个 Chat 的模型覆盖写入与清除）把 `config.jsonc` 中白名单字段的变化发布到 `RuntimeConfigurationStore`（generation + 1），其余字段只报告为待重启。每次发布都带着这一代的模型注册表（`platform/providers.ts` 的 `buildModelRegistry`）：连接字段没变的 Provider 沿用进程里已有的对象，新增或连接变化的 Provider 重新解析 SecretRef，所以一次 reload 会重建注册表并把注册表与配置一起发布。白名单只定义在 `platform/config/diff.ts`；写配置文件走 `adapters/local-monolith/config/file.ts`（保留注释，先写同目录临时文件并校验再 rename；带 Secret 的写入把明文放进同目录的 key jar `key.json`，见 `platform/key-jar.ts`）。语义见 [配置：运行时配置热更新](configuration.md#运行时配置热更新)。
@@ -146,7 +146,7 @@ Admin 的 Invocation 重放是新的内存 Agent 循环，不是生产 Conversat
 
 以下内容全部是不可信数据：Telegram 文本与媒体、Reply/Forward 元数据、MCP Tool 描述、MCP 结果、模型生成的 Tool 参数。
 
-Memory 内容是模型自己写入的持久化数据，按 Conversation 隔离，每条由 `add_memory` 写入时限 150 字符；注入前不做额外校验。它不构成任何授权来源，管理员可在面板中人工审核或删除。
+Memo Pad 内容是模型自己写入的持久化数据，按 Chat 隔离、同一 Chat 的 Topic 共用；每条的 summary 限 150 字符，detail 是 Markdown 且不自动注入。`pwblob://` 引用按 Chat 鉴权，Blob URI 本身不授予权限。它不构成任何授权来源，管理员可在面板中人工审核、修改或删除。
 
 Conversation Context 是运行时自己写下的历史，但它由模型输出与 Telegram 输入拼装而成，因此其中的文本、Tool 参数与 Tool 结果仍然只是数据：恢复旧 transcript 不等于恢复旧授权。
 

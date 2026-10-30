@@ -55,7 +55,7 @@ export const chats = {
   emptyChats: 'No Chats configured.',
   removeTitle: 'Remove Chat {{id}}?',
   removeDescription:
-    'This removes the Chat and its Topic scope from config.jsonc, including its model and other overrides. The running allowlist stays unchanged until restart. Stored history is kept.',
+    'This removes the Chat from the running allowlist immediately and also deletes its Memo Pad entries and Blob files. Its stored chat data is removed right away, and running Invocations and tasks for this Chat are aborted. It is removed from config.jsonc as well, including its Topic scope, model, and other overrides.',
   removeConfirm: 'Remove Chat',
   colActiveHours: 'Active hours',
   editActiveHours: 'Edit active hours',

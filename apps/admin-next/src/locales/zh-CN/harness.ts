@@ -41,10 +41,6 @@ export const harness: typeof harnessEn = {
       title: 'Conversation Context',
       description: '持久 transcript 的保留、裁剪与等待方式。',
     },
-    memory: {
-      title: '记忆审核',
-      description: 'Memories 页何时把记忆标为需要审核。',
-    },
     proactiveReply: {
       title: '主动回复',
       description:
@@ -133,10 +129,6 @@ export const harness: typeof harnessEn = {
     'context.agent_cache_size': {
       label: 'Agent 缓存数',
       description: '内存中缓存 agent 实例的 Conversation 数（LRU）。调小后在下一次缓存时逐出，不会丢历史。',
-    },
-    memory_ttl_warning_days: {
-      label: '长 TTL 警告（天）',
-      description: '剩余寿命超过该天数的记忆会在 Memories 页标出。',
     },
     'proactive_reply.enabled': {
       label: '启用主动回复调度',

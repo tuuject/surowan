@@ -31,17 +31,17 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 
 - **Overview / Invocations / Messages / Contexts**：查看收到消息、运行窗口、Tool 调用和连续对话上下文；审计读取不修改数据。
 - **Models**：维护 Provider、已启用模型和全局 Agent/Vision 选择。保存后查看是否成功应用。
-- **Chats**：管理 Chat/Topic allowlist 与每群模型覆盖。新增 Chat 立即生效；删除 Chat 与 Topic 范围需重启；已有 Chat 的模型覆盖可热应用。每行 Chat 的「打开相关页面」菜单可直接进入该群的 Prompt、辞典、记忆、消息、Invocation 与 Alarm 视图；这些页面用 URL 的 `chat` 查询参数记住群范围（如 `/messages?chat=123456789`），可收藏或分享，页面内改选 Chat 时该参数会同步更新。
+- **Chats**：管理 Chat/Topic allowlist 与每群模型覆盖。新增与删除 Chat 都热应用（删除会停止该 Chat 的运行并立即清除其 Memo Pad、Blob 与会话数据）；修改 Topic 范围需重启；已有 Chat 的模型覆盖可热应用。每行 Chat 的「打开相关页面」菜单可直接进入该群的 Prompt、辞典、Memo Pad、消息、Invocation 与 Alarm 视图；这些页面用 URL 的 `chat` 查询参数记住群范围（如 `/messages?chat=123456789`），可收藏或分享，页面内改选 Chat 时该参数会同步更新。
 - **Chats · 活跃时间**：每行 Chat 的时钟按钮编辑该群的活跃时段，支持多个时间段并按星期生效，保存后立即应用。三种模式：不限制（移除本群时段，已配置全局时段时按全局执行）、无固定时段（仅 @、回复或触发关键词可唤醒）、自定义时段。图表按该群时区显示一周各天的时段条，并标记当前时间位置。
 - **Chats · 主动回复**：每行 Chat 的星形按钮编辑普通群消息的主动参与概率；可跟随全局、关闭或自定义首次机会 / 每次增加 / 最多尝试次数。直接 @、回复 Bot 与触发关键词不受影响；保存后热应用，见[控制主动插话频率](../guides/proactive-replies.md)。
 - **Prompts**：编辑全局人格与每群附加指令，查看版本历史、比较差异并恢复旧版本；保存后由下一次 Invocation 生效，见 [编辑 Prompt 与版本历史](admin-prompts.md)。
-- **Memories**：查看、编辑或删除短期记忆；长 TTL 记忆应由人工审核，不要把它当永久知识库。
+- **Memories**：查看、编辑或删除按 Chat 共享的 Memo Pad。条目有 summary 与 Markdown 详情；带期限的短期条目会自动列进 Context，无期限的长期条目不会自动注入，只能由 Agent 搜索后读取详情。需要长期稳定的事实仍应人工审核后写进 `agents.md`。
 - **Dictionary**：维护全局与群组术语、别名和解释，查看冲突，审阅 AI 融合建议，批量导入导出并设置自动注入模式，见[辞典指南](../guides/dictionary.md)。
 - **图片生成 / 生图记录 / 图片资产**：图片生成工作台（提交、解析预览、实时查看输出）、全部生成的审计与重试、提示词素材与参考图库管理，见[图片生成](../guides/images.md)。
 - **图片设置**：图片功能的启用开关、生图凭据与模型配置。保存后立即应用，不需要重启；禁用会删除整个 `image` 段并清理不再引用的 key jar 条目。
 - **Settings**：对手改配置使用 **Apply config file**，并查看 Saved 与 Running 状态及 `restart_required`。
 - **Panel preferences**（Account 组）：只对当前浏览器生效的显示选项：主题、界面语言（右上角按钮也能切换），以及是否在设置项下显示 `config.jsonc` 键名（默认关闭）。选项保存在浏览器本地，不写入配置文件，其他浏览器与管理员互不影响。
-- **Harness tuning**：调整 Agent 的运行上限与发送行为（预算、并发、发送规则、限流、Context 保留与记忆审核）以及全局主动回复默认值，保存后由下一次 Invocation 生效，见 [Harness tuning](admin-harness-tuning.md)。
+- **Harness tuning**：调整 Agent 的运行上限与发送行为（预算、并发、发送规则、限流与 Context 保留）以及全局主动回复默认值，保存后由下一次 Invocation 生效，见 [Harness tuning](admin-harness-tuning.md)。
 - **Developer**：按需记录模型调用的调试报文，或在确认后清除已有报文，见 [Developer 调试开关](admin-developer.md)。
 - **API keys**（Manage 组）：创建、查看与撤销供 CLI 与评估工具使用的密钥，明文只在创建弹窗中出现一次，见 [API 密钥](admin-api-keys.md)。
 - **Invocation 重放**：仍只有携带 API 密钥的 CLI/API 入口，没有页面入口；只读的配置/prompt 检查、可用模型列表、场景 prompt、Invocation 搜索、重放预检与媒体导出同样在 CLI/API 层提供，见 [Invocation 重放](admin-invocation-replay.md)。

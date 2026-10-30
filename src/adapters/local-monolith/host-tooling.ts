@@ -11,10 +11,16 @@
  */
 import { createDocumentTools } from '../../capabilities/document-tools.ts';
 import { capability, type ExecutableCapability } from '../../capabilities/execute-tool.ts';
+import {
+  createMemoWriteTools,
+  createSaveMemoImageTool,
+  type MemoToolEnvironment,
+} from '../../context/memo-pad/tools/index.ts';
+import type { MemoBlobStore } from '../../context/memo-pad/blobs.ts';
+import type { MemoPadStore } from '../../context/memo-pad/store.ts';
 import type { MediaService } from '../../capabilities/media/index.ts';
 import type { McpManager } from '../../capabilities/mcp/index.ts';
 import type { StickerService } from '../../capabilities/stickers.ts';
-import { createMemoryTools, type MemoryStore } from '../../context/memory.ts';
 import type { ImageBridge } from '../../image/bridge.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 
@@ -36,7 +42,8 @@ export interface HostToolingOptions {
   readonly configStore: RuntimeConfigurationStore;
   readonly plugins: LoadedPlugins;
   readonly media: MediaService;
-  readonly memory: MemoryStore;
+  readonly memoPad: MemoPadStore;
+  readonly memoBlobs: MemoBlobStore;
   /**
    * The sticker worker of the moment. Read per invocation because the index
    * follows the Telegram instance: it is absent while Telegram is stopped and a
@@ -64,7 +71,20 @@ export interface HostTooling {
 }
 
 export function createHostTooling(options: HostToolingOptions): HostTooling {
-  const { store, configStore, plugins, media, memory, stickers, mcp, tasks, docSpaces, imageBridge, secrets } = options;
+  const {
+    store,
+    configStore,
+    plugins,
+    media,
+    memoPad,
+    memoBlobs,
+    stickers,
+    mcp,
+    tasks,
+    docSpaces,
+    imageBridge,
+    secrets,
+  } = options;
   const skillVisible = (skill: SystemSkill, target: SkillVisibilityTarget): boolean => {
     if (hostExecutionProfile(target.hostKind).hiddenSkills.includes(skill.name)) {
       return false;
@@ -84,13 +104,23 @@ export function createHostTooling(options: HostToolingOptions): HostTooling {
     const profile = hostExecutionProfile(context.hostKind);
     const tools: ExecutableCapability[] = [];
     if (profile.mediaRead) {
-      tools.push(capability(media.createReadImageTool(context, capabilities, deadline), false));
+      tools.push(capability(media.createReadImageTool(context, capabilities, deadline, memoBlobs), false));
     }
     const currentStickers = stickers?.();
     if (profile.stickers && currentStickers !== undefined) {
       tools.push(capability(currentStickers.createSearchTool(context, capabilities), false));
     }
-    tools.push(...createMemoryTools(memory, context).map((tool) => capability(tool, true)));
+    const memoEnvironment: MemoToolEnvironment = {
+      store,
+      memoPad,
+      blobs: memoBlobs,
+      context,
+      configStore,
+      capabilities,
+      prepareImage: (mediaId, signal) => media.prepareSceneImage(mediaId, signal),
+    };
+    tools.push(...createMemoWriteTools(memoEnvironment).map((tool) => capability(tool, true)));
+    tools.push(capability(createSaveMemoImageTool(memoEnvironment), true));
     if (docSpaces !== undefined) {
       tools.push(...createDocumentTools({ store, spaces: docSpaces, context }).map((tool) => capability(tool, false)));
     }

@@ -114,7 +114,7 @@ test('proactive-reply editing follows inherit, off and custom values per group',
 
   await groupRow().getByRole('button', { name: 'Remove', exact: true }).click();
   await page.getByRole('button', { name: 'Remove Chat', exact: true }).click();
-  await expect(groupRow()).toContainText('Removal pending');
+  await expect(groupRow()).toHaveCount(0);
   const issues = finish();
   expect(issues.pageErrors).toEqual([]);
   expect(issues.externalRequests).toEqual([]);

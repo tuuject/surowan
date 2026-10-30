@@ -56,9 +56,9 @@ surowan-utils invocation replay 12345 --before-send 678 --confirm-paid --json
 
 - 默认输入是开场批次的冻结公开消息与当时可证明存在的历史，不加入后续批次与热注入；切片重放只取 `--before-send` 窗口内的冻结输入，并拍平可证明在发送前已注入的批次。两种模式都不加入后来编辑，当前上下文预算、Topic 范围与话题切点仍可能收窄场景；默认模式还受当前历史长度限制。不是恢复历史私有推理、工具结果或完整 Conversation Context。
 - prompt、模板变量、模型、思考强度与工具定义默认取**当前**该 Chat 的配置；`invocation prompts` 返回 `source: active`，不能当历史记录。重放可临时覆盖模型/thinking（`--provider`/`--model` 成对、`--thinking-level` 可单独），只影响本次运行、不写回配置，但会改变 prompt 变量、图片能力、上下文预算、Schema、Provider 连接与真实费用；实际选择见响应的 `model` 与 `fidelity.model_selection`（`current_chat_config`/`temporary_override`）。只允许覆盖 global/group，固定协议和整体 system prompt **不能**覆盖；global 不能清空，group 可以清空，模板按当前白名单校验。
-- `send` 只收集到 `outputs`，校验当前参数、文字限制与场景内的回复目标，不执行真实发送限流或 Sticker/生成资产的世界状态检查。记忆和 Alarm 从空内存开始，typing、生图、`zzz` 只合成；`read` 读取当前系统文档。
+- `send` 只收集到 `outputs`，校验当前参数、文字限制与场景内的回复目标，不执行真实发送限流或 Sticker/生成资产的世界状态检查。Memo Pad 和 Alarm 从空内存开始，typing、生图、`zzz` 只合成；`read` 读取当前系统文档。
 - 当前模型支持图片时，可按需读取本次场景授权且仍保留的 Photo、Sticker 与图片 Document，引用不跨场景；读图只下载/规范化图片给当前模型，不调用生产 Vision 或写分析缓存。缺失、不支持或下载失败会明确省略/报错，`omitted_images` 不代表之后下载成功的保证。网页抓取、Sticker 搜索、MCP 和未支持能力被拒绝。
-- 场景时间默认为开场冻结时间，切片模式取目标发送请求的开始时间（不是交付完成时间）；不恢复当时记忆/回执，不模拟全局睡眠、发送提醒或新消息发送屏障。当前低预算可暴露 `zzz`，但执行不写睡眠状态。
+- 场景时间默认为开场冻结时间，切片模式取目标发送请求的开始时间（不是交付完成时间）；不恢复当时的 Memo Pad 或回执，不模拟全局睡眠、发送提醒或新消息发送屏障。当前低预算可暴露 `zzz`，但执行不写睡眠状态。
 - 返回的 `fidelity` 与 `overrides` 字段列出这些边界；`dispatches` 里的 `mode`（`synthetic`/`live_read`/`blocked`）只是调用走的分派路线，不代表调用成功，成功与否看 `tool_calls`。`error` 非空表示重放没有正常完成，完整结构仍会返回。
 - 同时只允许一个重放；轮次、时长、工具尝试次数与 `trace` 记录有上限，超限会明确报错结束。`trace` 的 1 MiB 预算只约束记录内容；CLI 不设 JSON 响应体大小上限，完整读取后解析，仍受请求超时约束。重放中的模型请求不自动重试。模型选择不发言（输出里没有 `send`）也是正常结果。
 - CLI 在重放前先跑预检，不可重放或不允许覆盖时不会发送 POST。媒体导出（`invocation media`）只读下载 Invocation 快照授权的媒体，不是视觉保真修复，也不改变重放输入。

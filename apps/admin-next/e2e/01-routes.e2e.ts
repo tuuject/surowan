@@ -120,9 +120,11 @@ test.describe('routes and deep links', () => {
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 
-  test('/memories lists seeded memories', async ({ page }) => {
+  test('/memories lists seeded memos', async ({ page }) => {
     await page.goto(await adminUrl('/memories'));
+    await expect(page.getByText('Chat-scoped Memo Pad')).toBeVisible();
     await expect(page.getByText('Alice prefers short replies.')).toBeVisible();
+    await expect(page.getByText('short-term').first()).toBeVisible();
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 
@@ -196,13 +198,7 @@ test.describe('routes and deep links', () => {
 
   test('/harness renders the grouped agent settings', async ({ page }) => {
     await page.goto(await adminUrl('/harness'));
-    for (const title of [
-      'Budget and concurrency',
-      'Send behavior',
-      'Rate limits',
-      'Conversation Context',
-      'Memory review',
-    ]) {
+    for (const title of ['Budget and concurrency', 'Send behavior', 'Rate limits', 'Conversation Context']) {
       await expect(page.getByText(title, { exact: true })).toBeVisible();
     }
     await expect(page.getByLabel('Daily token budget')).toHaveValue('300000');

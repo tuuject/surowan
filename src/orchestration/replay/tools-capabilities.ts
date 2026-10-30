@@ -10,21 +10,23 @@
 import { randomUUID } from 'node:crypto';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { capability, type ExecutableCapability } from '../../capabilities/execute-tool.ts';
-import { DEFAULT_MEMORY_TTL_SECONDS, newMemoryId } from '../../context/memory.ts';
+import { newMemoBlobId, newMemoId } from '../../context/memo-pad/index.ts';
 import { imageModelPage } from '../../plugins/image/image.ts';
 import type { ReplayDispatch, ReplayState, ReplayToolDefinition } from './tools.ts';
 import {
-  AddMemoryInputValidator,
+  AddMemoInputValidator,
   AlarmInputValidator,
   DeleteAlarmInputValidator,
-  DeleteMemoryInputValidator,
+  DeleteMemoInputValidator,
   ImageGenerateInputValidator,
   ListAlarmInputValidator,
   ListImageModelsInputValidator,
   REPLAY_IMAGE_DEFAULT_OUTPUT_COUNT,
   REPLAY_IMAGE_MODEL_ID,
   REPLAY_MINIMUM_SLEEP_MS,
+  SaveMemoImageInputValidator,
   SYNTHETIC_CAPABILITIES,
+  UpdateMemoInputValidator,
   ZzzInputValidator,
   replayToolBase,
 } from './tools-spec.ts';
@@ -123,11 +125,17 @@ export function replayCapability(definition: ReplayToolDefinition, state: Replay
       false,
     );
   }
-  if (definition.name === 'add_memory') {
-    return capability(replayAddMemoryTool(definition, state), true);
+  if (definition.name === 'add_memo') {
+    return capability(replayAddMemoTool(definition, state), true);
   }
-  if (definition.name === 'delete_memory') {
-    return capability(replayDeleteMemoryTool(definition, state), true);
+  if (definition.name === 'update_memo') {
+    return capability(replayUpdateMemoTool(definition, state), true);
+  }
+  if (definition.name === 'delete_memo') {
+    return capability(replayDeleteMemoTool(definition, state), true);
+  }
+  if (definition.name === 'save_memo_image') {
+    return capability(replaySaveMemoImageTool(definition), true);
   }
   if (definition.name === 'alarm') {
     return capability(replayAlarmTool(definition, state), true);
@@ -147,31 +155,86 @@ export function replayCapability(definition: ReplayToolDefinition, state: Replay
   return replayBlockedCapability(definition);
 }
 
-function replayAddMemoryTool(definition: ReplayToolDefinition, state: ReplayState): AgentTool {
+function replayAddMemoTool(definition: ReplayToolDefinition, state: ReplayState): AgentTool {
   return {
     ...replayToolBase(definition),
     execute: async (_toolCallId, params, signal) => {
       signal?.throwIfAborted();
-      const input = checkedInput(AddMemoryInputValidator, params, 'add_memory');
-      const ttlSeconds = input.ttl_seconds ?? DEFAULT_MEMORY_TTL_SECONDS;
-      const expiresAt = new Date(Date.now() + ttlSeconds * 1_000).toISOString();
-      const id = newMemoryId();
-      state.memories.set(id, { content: input.content, expiresAt });
+      const input = checkedInput(AddMemoInputValidator, params, 'add_memo');
+      const now = new Date();
+      const timestamp = now.toISOString();
+      const expiresAt =
+        input.ttl_seconds === undefined ? null : new Date(now.getTime() + input.ttl_seconds * 1_000).toISOString();
+      const id = newMemoId();
+      state.memories.set(id, {
+        summary: input.summary,
+        detail: input.detail,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        expiresAt,
+      });
       return {
-        content: [{ type: 'text' as const, text: `Saved memory ${id}; it expires at ${expiresAt}` }],
+        content: [
+          {
+            type: 'text' as const,
+            text: `Saved ${id}; ${expiresAt === null ? 'it does not expire' : `it expires at ${expiresAt}`}`,
+          },
+        ],
         details: { id, expires_at: expiresAt },
       };
     },
   };
 }
 
-function replayDeleteMemoryTool(definition: ReplayToolDefinition, state: ReplayState): AgentTool {
+function replayUpdateMemoTool(definition: ReplayToolDefinition, state: ReplayState): AgentTool {
   return {
     ...replayToolBase(definition),
     execute: async (_toolCallId, params, signal) => {
       signal?.throwIfAborted();
-      const input = checkedInput(DeleteMemoryInputValidator, params, 'delete_memory');
+      const input = checkedInput(UpdateMemoInputValidator, params, 'update_memo');
+      const existing = state.memories.get(input.id);
+      if (existing === undefined) {
+        throw new Error('Memory not found in this Chat');
+      }
+      if (!state.memoryReads.has(input.id)) {
+        throw new Error('Read this memory with read_memory before modifying it');
+      }
+      const now = new Date();
+      const expiresAt =
+        input.ttl_seconds === undefined
+          ? existing.expiresAt
+          : input.ttl_seconds === null
+            ? null
+            : new Date(now.getTime() + input.ttl_seconds * 1_000).toISOString();
+      state.memories.set(input.id, {
+        summary: input.summary ?? existing.summary,
+        detail: input.detail ?? existing.detail,
+        createdAt: existing.createdAt,
+        updatedAt: now.toISOString(),
+        expiresAt,
+      });
+      state.memoryReads.delete(input.id);
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Updated ${input.id}; ${expiresAt === null ? 'it does not expire' : `it expires at ${expiresAt}`}`,
+          },
+        ],
+        details: { id: input.id, expires_at: expiresAt },
+      };
+    },
+  };
+}
+
+function replayDeleteMemoTool(definition: ReplayToolDefinition, state: ReplayState): AgentTool {
+  return {
+    ...replayToolBase(definition),
+    execute: async (_toolCallId, params, signal) => {
+      signal?.throwIfAborted();
+      const input = checkedInput(DeleteMemoInputValidator, params, 'delete_memo');
       const deleted = state.memories.delete(input.id);
+      state.memoryReads.delete(input.id);
       return {
         content: [
           {
@@ -179,7 +242,25 @@ function replayDeleteMemoryTool(definition: ReplayToolDefinition, state: ReplayS
             text: deleted ? `Memory ${input.id} deleted` : `Memory ${input.id} was already gone`,
           },
         ],
-        details: { id: input.id },
+        details: { id: input.id, deleted },
+      };
+    },
+  };
+}
+
+function replaySaveMemoImageTool(definition: ReplayToolDefinition): AgentTool {
+  return {
+    ...replayToolBase(definition),
+    execute: async (_toolCallId, params, signal) => {
+      signal?.throwIfAborted();
+      const input = checkedInput(SaveMemoImageInputValidator, params, 'save_memo_image');
+      if (!input.image_ref.startsWith('img_')) {
+        throw new Error('image_ref is not visible in this conversation context');
+      }
+      const uri = `pwblob://${newMemoBlobId()}`;
+      return {
+        content: [{ type: 'text' as const, text: `Saved image as ${uri}.` }],
+        details: { blob_uri: uri, mime: 'image/png', byte_size: 1 },
       };
     },
   };

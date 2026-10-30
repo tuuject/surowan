@@ -86,6 +86,7 @@ export function createCachedAgent(
     // retained history; it is runtime-owned and never persisted, so it gets
     // the `null` sequence entry here.
     transcriptSeqs: [null, ...retained.map((row) => row.seq)],
+    pendingMemoState: null,
     systemPromptHash: stable.systemPromptHash,
     lastUsedAt: Date.now(),
   };
@@ -124,6 +125,10 @@ export function persistMessage(
   entry.transcriptSeqs.push(seq);
   if (entry.transcriptSeqs.length !== entry.agent.state.messages.length) {
     throw new Error('Conversation transcript diverged from the canonical history');
+  }
+  if (isCheckpoint && entry.pendingMemoState !== null) {
+    services.contexts.setMemoState(entry.header, entry.pendingMemoState);
+    entry.pendingMemoState = null;
   }
   return seq;
 }

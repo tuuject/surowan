@@ -4,6 +4,7 @@
  */
 
 import type { Context } from 'grammy';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { ImageService } from '../../../image/service.ts';
 import type { TelegramIngestion } from '../../../ingress/telegram-ingestion/index.ts';
 import { AdminQueryError } from '../../../ingress/admin/audit/shared.ts';
@@ -12,11 +13,16 @@ import { BotCommandService } from '../../../orchestration/bot-commands/index.ts'
 import { ReplayError, ReplayRunner } from '../../../orchestration/replay/index.ts';
 import { type CoreRuntime, createCoreRuntime } from '../../../orchestration/runtime.ts';
 import type { ImHost } from '../../../platform/im-host/index.ts';
+import type { RawConfig } from '../../../platform/config/index.ts';
 import { previewContext, unavailableCapabilities } from '../../../platform/invocation-context.ts';
 import { configuredAgentModels } from '../../../platform/providers.ts';
 import { runStartupCatchUp } from '../../../startup-catch-up.ts';
 import { runRuntimeCatchUp } from '../../../runtime-catch-up.ts';
 import { recordPromptVersionsFromConfig } from '../../../store/prompt-versions.ts';
+import { ConversationContextStore } from '../../../context/store.ts';
+import { chatMigrations, chats, conversations, invocations } from '../../../store/schema/index.ts';
+import type { BusinessStore } from '../../../store/store.ts';
+import type { LongTaskService } from '../../../store/long-tasks/index.ts';
 import { activeSleepUntil } from '../../../store/sleep.ts';
 import { ConfigReloader } from '../config/reload.ts';
 import { imageDeliveryResolver } from '../host-tooling.ts';
@@ -37,6 +43,87 @@ export interface ServeCore {
   readonly conversationRuntime: CoreRuntime['conversationRuntime'];
   readonly configReloader: ConfigReloader;
   readonly commands: BotCommandService;
+}
+
+/**
+ * Telegram Chat ids that the published configuration no longer contains. The
+ * file may remove several at once; the stored rows stay untouched here.
+ */
+function removedTelegramChatIds(previous: RawConfig, next: RawConfig): bigint[] {
+  const nextIds = new Set(next.telegram.chats.map((chat) => String(chat.id)));
+  return previous.telegram.chats.filter((chat) => !nextIds.has(String(chat.id))).map((chat) => BigInt(chat.id));
+}
+
+/** Telegram Chat ids that appeared in the published configuration. */
+function addedTelegramChatIds(previous: RawConfig, next: RawConfig): bigint[] {
+  const previousIds = new Set(previous.telegram.chats.map((chat) => String(chat.id)));
+  return next.telegram.chats.filter((chat) => !previousIds.has(String(chat.id))).map((chat) => BigInt(chat.id));
+}
+
+function conversationIdsForTelegramChats(store: BusinessStore, telegramChatIds: readonly bigint[]): bigint[] {
+  if (telegramChatIds.length === 0) {
+    return [];
+  }
+  const migrated = store.orm
+    .select({ newChatId: chatMigrations.newChatId })
+    .from(chatMigrations)
+    .where(inArray(chatMigrations.oldChatId, [...telegramChatIds]))
+    .all();
+  const runtimeIds = [...new Set([...telegramChatIds, ...migrated.map((row) => row.newChatId)])];
+  const chatRows = store.orm
+    .select({ id: chats.id })
+    .from(chats)
+    .where(and(eq(chats.hostKind, 'telegram'), inArray(chats.telegramChatId, runtimeIds)))
+    .all();
+  if (chatRows.length === 0) {
+    return [];
+  }
+  return store.orm
+    .select({ id: conversations.id })
+    .from(conversations)
+    .where(
+      inArray(
+        conversations.chatId,
+        chatRows.map((row) => row.id),
+      ),
+    )
+    .all()
+    .map((row) => row.id);
+}
+
+/**
+ * Stops everything a Chat still owns after it left the published configuration.
+ * The stored history, Memo Pad and blobs are deliberately left in place: only an
+ * explicit Admin deletion removes them.
+ */
+function stopRemovedChats(
+  store: BusinessStore,
+  tasks: LongTaskService,
+  abortInvocations: (ids: readonly bigint[], reason: string) => number,
+  forgetConversation: (conversationId: bigint) => void,
+  telegramChatIds: readonly bigint[],
+): { readonly invocations: number; readonly tasks: number } {
+  if (telegramChatIds.length === 0) {
+    return { invocations: 0, tasks: 0 };
+  }
+  const conversationIds = conversationIdsForTelegramChats(store, telegramChatIds);
+  if (conversationIds.length === 0) {
+    return { invocations: 0, tasks: 0 };
+  }
+  const running = store.orm
+    .select({ id: invocations.id })
+    .from(invocations)
+    .where(and(inArray(invocations.conversationId, conversationIds), eq(invocations.state, 'running')))
+    .all()
+    .map((row) => row.id);
+  for (const conversationId of conversationIds) {
+    forgetConversation(conversationId);
+  }
+  new ConversationContextStore(store).requestMemoRefreshForConversations(conversationIds);
+  return {
+    invocations: abortInvocations(running, 'chat_removed'),
+    tasks: tasks.cancelForConversations(conversationIds),
+  };
 }
 
 /**
@@ -143,6 +230,7 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
   // so every running invocation has to stop instead of continuing with a set
   // the next invocation will not see.
   let webSearchWasAvailable = webSearchAvailable(configStore.current().config, searchProviders);
+  let publishedConfig = configStore.current().config;
   const configReloader = new ConfigReloader({
     loaded,
     store: configStore,
@@ -168,7 +256,33 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
       ),
     // A raised max_concurrency only takes effect on the next scheduler tick.
     onPublished: () => {
-      const available = webSearchAvailable(configStore.current().config, searchProviders);
+      const nextConfig = configStore.current().config;
+      const removedChats = removedTelegramChatIds(publishedConfig, nextConfig);
+      if (removedChats.length > 0) {
+        const stopped = stopRemovedChats(
+          store,
+          tasks,
+          (ids, reason) => startedScheduler.abortInvocations(ids, reason),
+          (conversationId) => conversationRuntime.forget(conversationId),
+          removedChats,
+        );
+        logEvent('telegram_chat_removed', {
+          chats: removedChats.map((id) => id.toString()).join(','),
+          stopped_invocations: stopped.invocations,
+          cancelled_tasks: stopped.tasks,
+        });
+      }
+      const addedChats = addedTelegramChatIds(publishedConfig, nextConfig);
+      publishedConfig = nextConfig;
+      if (addedChats.length > 0) {
+        // A Chat can be removed and added again while its stored Memo Pad
+        // survives; the first run after the re-add must re-render the full list
+        // instead of trusting the old snapshot in its retained Context.
+        new ConversationContextStore(store).requestMemoRefreshForConversations(
+          conversationIdsForTelegramChats(store, addedChats),
+        );
+      }
+      const available = webSearchAvailable(nextConfig, searchProviders);
       if (webSearchWasAvailable && !available) {
         const stopped = abortRunningInvocationsOnSearchDisable(store.orm, (ids, reason) =>
           startedScheduler.abortInvocations(ids, reason),
@@ -179,7 +293,7 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
       startedScheduler.wake();
       // A hand-edited prompt file picked up by this apply becomes a version
       // here; panel saves already recorded themselves before applying.
-      recordPromptVersionsFromConfig(store.orm, configStore.current().config);
+      recordPromptVersionsFromConfig(store.orm, nextConfig);
     },
   });
   const commands = new BotCommandService(

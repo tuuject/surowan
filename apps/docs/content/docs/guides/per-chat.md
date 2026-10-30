@@ -64,7 +64,7 @@ description: 配置 Chat 或 Topic allowlist、每群模型覆盖，以及恢复
 
 - Topic allowlist 只控制消息是否进入；Topic 不会获得独立的模型预算或 Chat 配置。
 - Chat 覆盖按字段继承：没有覆盖的字段仍来自全局默认。
-- 变更 Topic 范围不会删除旧消息、Context、记忆或审计历史。
+- 变更 Topic 范围不会删除旧消息、Context、Memo Pad 或审计历史。
 - 不要把 Chat ID 转成浮点数；配置和管理面板都使用安全整数语义。
 
 相关页面：[Telegram 与 Topic](../configure/telegram.md)、[模型](../configure/models.md)、[管理面板](../configure/admin.md)、[快速开始](../start/quick-start.md)。

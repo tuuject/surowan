@@ -1,6 +1,6 @@
 import type { PublicModel } from '@surowan/image-service';
 import { expect, test } from 'vitest';
-import { AddMemoryInputSchema, DeleteMemoryInputSchema } from '../../src/context/memory.ts';
+import { AddMemoInputSchema, DeleteMemoInputSchema } from '../../src/context/memo-pad/index.ts';
 import { createReplayTools } from '../../src/orchestration/replay/tools.ts';
 import { emptySystemResources } from '../../src/platform/system-resources.ts';
 import { AlarmInputSchema, DeleteAlarmInputSchema, ListAlarmInputSchema } from '../../src/plugins/alarm/alarm.ts';
@@ -30,32 +30,31 @@ test('memory capabilities use an in-memory map without a store', async () => {
   const replay = createReplayTools(
     replayInput({
       tools: [definition('execute')],
-      capabilities: [
-        definition('add_memory', AddMemoryInputSchema),
-        definition('delete_memory', DeleteMemoryInputSchema),
-      ],
+      capabilities: [definition('add_memo', AddMemoInputSchema), definition('delete_memo', DeleteMemoInputSchema)],
     }),
     emptySystemResources(),
   );
-  const added = envelopeOf(await callCapability(replay, 'exec-1', 'add_memory', { content: 'owner likes cats' }));
-  const id = /^Saved memory (mem_[a-f0-9]{32}); it expires at /.exec(added.text)?.[1];
+  const added = envelopeOf(
+    await callCapability(replay, 'exec-1', 'add_memo', { summary: 'owner likes cats', detail: 'owner likes cats' }),
+  );
+  const id = /^Saved (mem_[a-f0-9]{32}); it does not expire$/.exec(added.text)?.[1];
   if (id === undefined) {
-    throw new Error(`Unexpected add_memory result: ${added.text}`);
+    throw new Error(`Unexpected add_memo result: ${added.text}`);
   }
-  expect(envelopeOf(await callCapability(replay, 'exec-2', 'delete_memory', { id }))).toEqual({
+  expect(envelopeOf(await callCapability(replay, 'exec-2', 'delete_memo', { id }))).toEqual({
     text: `Memory ${id} deleted`,
   });
-  expect(envelopeOf(await callCapability(replay, 'exec-3', 'delete_memory', { id }))).toEqual({
+  expect(envelopeOf(await callCapability(replay, 'exec-3', 'delete_memo', { id }))).toEqual({
     text: `Memory ${id} was already gone`,
   });
-  await expect(callCapability(replay, 'exec-4', 'add_memory', {})).rejects.toThrow(
-    'execute.call input does not match the schema of add_memory',
+  await expect(callCapability(replay, 'exec-4', 'add_memo', {})).rejects.toThrow(
+    'execute.call input does not match the schema of add_memo',
   );
   expect(replay.dispatches).toEqual([
-    { tool_call_id: 'exec-1', tool_name: 'execute', mode: 'synthetic', capability: 'add_memory' },
-    { tool_call_id: 'exec-2', tool_name: 'execute', mode: 'synthetic', capability: 'delete_memory' },
-    { tool_call_id: 'exec-3', tool_name: 'execute', mode: 'synthetic', capability: 'delete_memory' },
-    { tool_call_id: 'exec-4', tool_name: 'execute', mode: 'synthetic', capability: 'add_memory' },
+    { tool_call_id: 'exec-1', tool_name: 'execute', mode: 'synthetic', capability: 'add_memo' },
+    { tool_call_id: 'exec-2', tool_name: 'execute', mode: 'synthetic', capability: 'delete_memo' },
+    { tool_call_id: 'exec-3', tool_name: 'execute', mode: 'synthetic', capability: 'delete_memo' },
+    { tool_call_id: 'exec-4', tool_name: 'execute', mode: 'synthetic', capability: 'add_memo' },
   ]);
 });
 

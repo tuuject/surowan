@@ -1,4 +1,6 @@
 import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
+import type { MemoBlobStore } from '../../../context/memo-pad/blobs.ts';
+import type { BucketScheduler } from '../../../orchestration/scheduler/index.ts';
 import type { ConfigController, ConfigEdit } from '../../../platform/config/write.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
 import type { BusinessStore } from '../../../store/store.ts';
@@ -7,12 +9,14 @@ import { CONFIG_WRITE_STATUS, readConfigFile } from '../config-file.ts';
 import {
   createChat,
   deleteChat,
+  deleteTelegramChatData,
   listChats,
   parseChatId,
   parseChatSettings,
   parseCreateChat,
   parseParticipation,
   parseProactiveReply,
+  runningInvocationIdsForTelegramChat,
   updateChat,
   updateChatParticipation,
   updateChatProactiveReply,
@@ -23,11 +27,13 @@ export interface ChatsAdminDeps {
   readonly configStore: RuntimeConfigurationStore;
   readonly configReloader: ConfigController | undefined;
   readonly secrets: SecretStore | undefined;
+  readonly memoBlobs: MemoBlobStore;
+  readonly scheduler?: BucketScheduler;
 }
 
 /** `/api/chats*` — the Chat list and the per-Chat settings writes. */
 export function createChatsAdminHandler(deps: ChatsAdminDeps) {
-  const { store, configStore, configReloader, secrets } = deps;
+  const { store, configStore, configReloader, secrets, memoBlobs, scheduler } = deps;
 
   const chatsView = async (reloader: ConfigController) => {
     const { loaded, revision } = await readConfigFile(reloader, secrets);
@@ -66,6 +72,8 @@ export function createChatsAdminHandler(deps: ChatsAdminDeps) {
     if (revision !== currentRevision) {
       return json({ error: 'config_conflict', message: 'The configuration file changed; reload before editing' }, 409);
     }
+    const deletingChatId = request.method === 'DELETE' ? BigInt(parseChatId(segments[1] ?? '')) : undefined;
+    const running = deletingChatId === undefined ? [] : runningInvocationIdsForTelegramChat(store, deletingChatId);
     let edits: readonly ConfigEdit[];
     if (request.method === 'POST') {
       edits = createChat(loaded.fileConfig, parseCreateChat(await readJsonObject(request)));
@@ -87,6 +95,12 @@ export function createChatsAdminHandler(deps: ChatsAdminDeps) {
         ? `config.jsonc was updated but not applied: ${result.message}`
         : result.message;
       return json({ error: result.code, message }, CONFIG_WRITE_STATUS[result.code] ?? 409);
+    }
+    if (deletingChatId !== undefined) {
+      // `onPublished` already signalled the abort; wait for the runs to unwind
+      // before deleting the rows they are still allowed to write.
+      await scheduler?.waitForInvocations(running);
+      await deleteTelegramChatData(store, memoBlobs, deletingChatId);
     }
     return json({
       ...(await chatsView(reloader)),

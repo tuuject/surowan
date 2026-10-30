@@ -197,9 +197,14 @@ test('rejects traversal, absolute paths, non-markdown files, and symlink escapes
   const outside = await tempRoot('surowan-doc-spaces-outside-');
   await writeFile(join(outside, 'secret.md'), '# Secret\n');
   await writePack(root, { 'start/quick-start.md': '# Quick start\n' });
-  await symlink(join(outside, 'secret.md'), join(root, 'leak.md'));
-  await symlink(outside, join(root, 'linked'));
-  await symlink(join(root, 'start/quick-start.md'), join(root, 'alias.md'));
+  // Windows refuses symlink creation without Developer Mode or elevation; the
+  // escape checks below still run for the platform-independent paths.
+  const symlinks = process.platform !== 'win32';
+  if (symlinks) {
+    await symlink(join(outside, 'secret.md'), join(root, 'leak.md'));
+    await symlink(outside, join(root, 'linked'));
+    await symlink(join(root, 'start/quick-start.md'), join(root, 'alias.md'));
+  }
   const spaces = await FileSystemDocSpaces.load([bundledManualSpace(root)]);
 
   await expectReadError(spaces.read(access, 'manual', '../secret.md'), 'invalid_path');
@@ -207,13 +212,17 @@ test('rejects traversal, absolute paths, non-markdown files, and symlink escapes
   await expectReadError(spaces.read(access, 'manual', 'start/../../secret.md'), 'invalid_path');
   await expectReadError(spaces.read(access, 'manual', 'start/quick-start.png'), 'unsupported_document');
   await expectReadError(spaces.read(access, 'manual', 'start/missing.md'), 'document_not_found');
-  await expectReadError(spaces.read(access, 'manual', 'leak.md'), 'document_not_found');
-  await expectReadError(spaces.read(access, 'manual', 'linked/secret.md'), 'document_not_found');
+  if (symlinks) {
+    await expectReadError(spaces.read(access, 'manual', 'leak.md'), 'document_not_found');
+    await expectReadError(spaces.read(access, 'manual', 'linked/secret.md'), 'document_not_found');
+  }
   await mkdir(join(root, 'folder.md'), { recursive: true });
   await expectReadError(spaces.read(access, 'manual', 'folder.md'), 'document_not_found');
 
   // A symlink whose target stays inside the space root is still readable.
-  expect((await spaces.read(access, 'manual', 'alias.md')).text).toBe('# Quick start\n');
+  if (symlinks) {
+    expect((await spaces.read(access, 'manual', 'alias.md')).text).toBe('# Quick start\n');
+  }
 });
 
 test('bounds a read to the document limit with the shared truncation marker', async () => {

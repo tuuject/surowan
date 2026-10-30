@@ -304,6 +304,13 @@ test('lets a text-only agent read a Telegram photo through read_image', async ()
     )
     .get();
   const toolsJson = presented?.tools_json ?? null;
-  expect(toolsJson === null ? null : JSON.parse(toolsJson)).toEqual(['read', 'send', 'send_reply', 'execute']);
+  expect(toolsJson === null ? null : JSON.parse(toolsJson)).toEqual([
+    'read',
+    'search_memory',
+    'read_memory',
+    'send',
+    'send_reply',
+    'execute',
+  ]);
   store.close();
 });

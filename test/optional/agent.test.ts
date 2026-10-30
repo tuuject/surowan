@@ -12,8 +12,12 @@ import { testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts
 import { AGENT_DEFAULTS } from '../../src/platform/config/resolve.ts';
 
 const directories: string[] = [];
+const stores: SqliteStore[] = [];
 
 afterAll(async () => {
+  for (const store of stores.splice(0)) {
+    store.close();
+  }
   await Promise.all(
     directories.map((directory) => rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })),
   );
@@ -78,6 +82,7 @@ describe('optional agent section', () => {
     const loaded = await loadWithoutAgent({});
     const configStore = await testConfigStore(loaded);
     const store = await SqliteStore.open(loaded.config);
+    stores.push(store);
     const ingestion = new TelegramIngestion(store, configStore, { id: 999 });
     const scheduler = new BucketScheduler(store, configStore, async () => ({ state: 'completed', reason: 'done' }));
     const start = new Date('2024-01-01T00:00:00Z');
@@ -116,6 +121,7 @@ describe('optional agent section', () => {
     const loaded = await loadConfig(configPath);
     const configStore = await testConfigStore(loaded);
     const store = await SqliteStore.open(loaded.config);
+    stores.push(store);
     const ingestion = new TelegramIngestion(store, configStore, { id: 999 });
     const scheduler = new BucketScheduler(store, configStore, async () => ({ state: 'completed', reason: 'done' }));
     const start = new Date('2024-01-01T00:00:00Z');

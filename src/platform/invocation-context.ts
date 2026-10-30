@@ -48,6 +48,24 @@ export interface VisibleSender {
 }
 
 /**
+ * Per-invocation record of Memo details the model has read. A write capability
+ * compares the current `updated_at` with the recorded value, so an Admin edit
+ * invalidates the read.
+ */
+export interface MemoReadState {
+  markRead(id: string, updatedAt: string): void;
+  isRead(id: string, updatedAt: string): boolean;
+  forget(id: string): void;
+}
+
+/** For validation and previews outside any invocation; authorizes no writes. */
+export const noMemoReads: MemoReadState = {
+  markRead: () => undefined,
+  isRead: () => false,
+  forget: () => undefined,
+};
+
+/**
  * Resolves capability references (`img_`, `stk_`, `reply:<message id>`) for the
  * Conversation Context currently running. References live in the context with a
  * TTL, so a ref quoted in retained history keeps working across invocations and
@@ -87,6 +105,8 @@ export interface InvocationContext {
    */
   readonly hostKind: 'telegram' | 'playground';
   readonly chatId: bigint;
+  /** Internal `chats.id`; Memo Pad and blob ownership use this, never the platform id. */
+  readonly internalChatId: bigint;
   readonly threadId: bigint;
   readonly systemPrompt: string;
   readonly userPrompt: string;
@@ -95,6 +115,7 @@ export interface InvocationContext {
   readonly callerUserId: bigint | null;
   readonly completion: CompletionContext | null;
   readonly omittedNewMessages: number;
+  readonly memoReads: MemoReadState;
 }
 
 /**
@@ -110,7 +131,9 @@ export class InvocationContextState implements InvocationContext {
   readonly conversationId: bigint;
   readonly hostKind: 'telegram' | 'playground';
   readonly chatId: bigint;
+  readonly internalChatId: bigint;
   readonly threadId: bigint;
+  readonly memoReads: MemoReadState;
   #systemPrompt = '';
   #userPrompt = '';
   #directImages: DirectImage[] = [];
@@ -124,6 +147,7 @@ export class InvocationContextState implements InvocationContext {
     readonly conversationId: bigint;
     readonly hostKind: 'telegram' | 'playground';
     readonly chatId: bigint;
+    readonly internalChatId: bigint;
     readonly threadId: bigint;
     readonly completion: CompletionContext | null;
   }) {
@@ -131,8 +155,19 @@ export class InvocationContextState implements InvocationContext {
     this.conversationId = identity.conversationId;
     this.hostKind = identity.hostKind;
     this.chatId = identity.chatId;
+    this.internalChatId = identity.internalChatId;
     this.threadId = identity.threadId;
     this.#completion = identity.completion;
+    const reads = new Map<string, string>();
+    this.memoReads = {
+      markRead: (id, updatedAt) => {
+        reads.set(id, updatedAt);
+      },
+      isRead: (id, updatedAt) => reads.get(id) === updatedAt,
+      forget: (id) => {
+        reads.delete(id);
+      },
+    };
   }
 
   get systemPrompt(): string {
@@ -206,6 +241,7 @@ export function previewContext(hostKind: InvocationContext['hostKind'] = 'telegr
     conversationId: 0n,
     hostKind,
     chatId: 0n,
+    internalChatId: 0n,
     threadId: 0n,
     systemPrompt: '',
     userPrompt: '',
@@ -214,5 +250,6 @@ export function previewContext(hostKind: InvocationContext['hostKind'] = 'telegr
     callerUserId: null,
     completion: null,
     omittedNewMessages: 0,
+    memoReads: noMemoReads,
   };
 }

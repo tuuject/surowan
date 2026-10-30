@@ -119,7 +119,7 @@ test('protects a provider and model used only by a Chat override', async () => {
   }
 });
 
-test('protects a provider and model still used by a running Chat pending removal', async () => {
+test('a hot-removed Chat no longer protects its provider or model', async () => {
   const fixture = await adminFixture({
     transform: (config) => {
       const provider = config.providers.agent;
@@ -134,25 +134,14 @@ test('protects a provider and model still used by a running Chat pending removal
     const view = await readJson(await call(fixture, '/api/chats'));
     const removed = await write(fixture, '/api/chats/-999', 'DELETE', null, view.revision as string);
     expect(removed.status).toBe(200);
-    expect(await readJson(removed)).toMatchObject({ apply: { restart_required: ['telegram.chats[-999]'] } });
-    expect(fixture.configStore.current().config.telegram.chats.some((chat) => chat.id === -999)).toBe(true);
+    expect(await readJson(removed)).toMatchObject({ apply: { restart_required: [] } });
+    expect(fixture.configStore.current().config.telegram.chats.some((chat) => chat.id === -999)).toBe(false);
 
-    const before = await fixture.read();
-    const snapshot = fixture.configStore.current();
+    // The Chat is gone from the running allowlist, so the provider it used is
+    // no longer in use and the write is allowed.
     const provider = await write(fixture, '/api/providers/chat', 'DELETE', {}, await revisionOf(fixture));
-    expect(provider.status).toBe(409);
-    expect(await readJson(provider)).toMatchObject({ error: 'provider_in_use' });
-    const selected = await write(
-      fixture,
-      '/api/providers/chat/models/chat-only',
-      'DELETE',
-      {},
-      await revisionOf(fixture),
-    );
-    expect(selected.status).toBe(409);
-    expect(await readJson(selected)).toMatchObject({ error: 'model_in_use' });
-    expect(await fixture.read()).toBe(before);
-    expect(fixture.configStore.current()).toBe(snapshot);
+    expect(provider.status).toBe(200);
+    expect(fixture.configStore.current().config.providers.chat).toBeUndefined();
   } finally {
     fixture.store.close();
   }

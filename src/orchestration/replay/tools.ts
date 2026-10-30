@@ -12,7 +12,12 @@ import {
   replayZzzTool,
 } from './tools-capabilities.ts';
 import { replaySendReplyTool, replaySendTool } from './tools-send.ts';
-import { ReplayReadInputValidator, replayToolBase } from './tools-spec.ts';
+import {
+  ReadMemoryInputValidator,
+  ReplayReadInputValidator,
+  SearchMemoryInputValidator,
+  replayToolBase,
+} from './tools-spec.ts';
 
 /**
  * Scene execution against current tool definitions, never their production
@@ -80,8 +85,11 @@ export interface ReplayTools {
 }
 
 interface MemoryEntry {
-  readonly content: string;
-  readonly expiresAt: string;
+  readonly summary: string;
+  readonly detail: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly expiresAt: string | null;
 }
 
 interface AlarmEntry {
@@ -93,6 +101,8 @@ export interface ReplayState {
   readonly outputs: ReplayOutput[];
   readonly dispatches: ReplayDispatch[];
   readonly memories: Map<string, MemoryEntry>;
+  /** Memo ids whose detail a scene tool has read. */
+  readonly memoryReads: Set<string>;
   readonly alarms: Map<string, AlarmEntry>;
   readonly imageResults: Map<string, ImageContent>;
   /** Content the reply policy rejected in this scene; retargeting it is refused. */
@@ -111,6 +121,7 @@ export function createReplayTools(
     outputs: [],
     dispatches: [],
     memories: new Map(),
+    memoryReads: new Set(),
     alarms: new Map(),
     imageResults: new Map(),
     burnedContentKeys: new Set(),
@@ -163,6 +174,12 @@ function replayTool(
   if (definition.name === 'zzz') {
     return replayZzzTool(definition, state.dispatches);
   }
+  if (definition.name === 'search_memory') {
+    return replaySearchMemoryTool(definition, state);
+  }
+  if (definition.name === 'read_memory') {
+    return replayReadMemoryTool(definition, state);
+  }
   return replayBlockedTool(definition, state.dispatches);
 }
 
@@ -190,6 +207,85 @@ function replayReadTool(
             : 'read failed: read_error',
         );
       }
+    },
+  };
+}
+
+function replaySearchMemoryTool(definition: ReplayToolDefinition, state: ReplayState): AgentTool {
+  return {
+    ...replayToolBase(definition),
+    execute: async (_toolCallId, params, signal) => {
+      signal?.throwIfAborted();
+      const input = checkedInput(SearchMemoryInputValidator, params, 'search_memory');
+      const keywords = (input.keywords ?? []).map((keyword) => keyword.trim().toLowerCase()).filter(Boolean);
+      const matches = [...state.memories.entries()]
+        .filter(([, entry]) => {
+          if (input.from !== undefined && entry.createdAt < new Date(input.from).toISOString()) {
+            return false;
+          }
+          if (input.to !== undefined && entry.createdAt > new Date(input.to).toISOString()) {
+            return false;
+          }
+          if (keywords.length === 0) {
+            return true;
+          }
+          const summary = entry.summary.toLowerCase();
+          const detail = entry.detail.toLowerCase();
+          const hits = keywords.filter((keyword) => summary.includes(keyword) || detail.includes(keyword)).length;
+          return hits >= Math.ceil(keywords.length / 2);
+        })
+        .toReversed()
+        .slice(0, input.limit ?? 20);
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text:
+              matches.length === 0
+                ? 'No matching memories in this Chat.'
+                : [
+                    `Found ${matches.length} memories:`,
+                    ...matches.map(
+                      ([id, entry]) =>
+                        `- ${id} [${entry.expiresAt === null ? 'long-term' : `short-term, expires ${entry.expiresAt}`}; created ${entry.createdAt}]: ${entry.summary}`,
+                    ),
+                    'Call read_memory with an id to read its detail.',
+                  ].join('\n'),
+          },
+        ],
+        details: { count: matches.length },
+      };
+    },
+  };
+}
+
+function replayReadMemoryTool(definition: ReplayToolDefinition, state: ReplayState): AgentTool {
+  return {
+    ...replayToolBase(definition),
+    execute: async (_toolCallId, params, signal) => {
+      signal?.throwIfAborted();
+      const input = checkedInput(ReadMemoryInputValidator, params, 'read_memory');
+      const entry = state.memories.get(input.id);
+      if (entry === undefined) {
+        throw new Error('Memory not found in this Chat');
+      }
+      state.memoryReads.add(input.id);
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: [
+              `id: ${input.id}`,
+              `summary: ${entry.summary}`,
+              `created_at: ${entry.createdAt}`,
+              `expires_at: ${entry.expiresAt ?? 'permanent'}`,
+              'detail:',
+              entry.detail,
+            ].join('\n'),
+          },
+        ],
+        details: { id: input.id },
+      };
     },
   };
 }
