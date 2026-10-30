@@ -3,6 +3,7 @@ import { and, desc, eq, gte, isNull, lt, type SQL, sql } from 'drizzle-orm';
 import type { BusinessStore } from '../store/store.ts';
 import { contextMessages, contextRefs, conversationContexts, invocations } from '../store/schema/index.ts';
 import { type ContextMessageRole, decodeContextMessage } from './codec.ts';
+import type { MemoStateUpdate } from './memo-pad/index.ts';
 
 /**
  * Canonical Conversation Context storage.
@@ -42,6 +43,8 @@ export interface ContextMessageInput {
   readonly role: ContextMessageRole;
   /** Set when this row is the tool result of a successful `send`. */
   readonly countedSend?: boolean;
+  /** Announced with this checkpoint, atomically with its canonical message. */
+  readonly memoState?: MemoStateUpdate & { readonly refresh: boolean };
 }
 
 /** Light row projection used by GC and `/status`; never carries payloads. */
@@ -139,6 +142,14 @@ export class ConversationContextStore {
     const seq = header.nextSeq;
     const timestamp = now.toISOString();
     const countedSend = input.countedSend === true;
+    const memoState = input.isCheckpoint ? input.memoState : undefined;
+    // Queued batches render before their real sequence is known.
+    const memoRefreshSeq =
+      memoState === undefined
+        ? header.memoRefreshSeq
+        : memoState.refresh
+          ? seq
+          : (header.memoRefreshSeq ?? memoState.refreshSeq);
     this.#store.transaction(() => {
       this.#store.orm
         .insert(contextMessages)
@@ -159,6 +170,13 @@ export class ConversationContextStore {
         .set({
           nextSeq: seq + 1n,
           ...(countedSend ? { sendCountTotal: header.sendCountTotal + 1n } : {}),
+          ...(memoState === undefined
+            ? {}
+            : {
+                memoRefreshSeq,
+                memoStateJson: memoState.stateJson,
+                memoRefreshPending: memoState.pending,
+              }),
           lastActiveAt: timestamp,
           updatedAt: timestamp,
         })
@@ -168,6 +186,11 @@ export class ConversationContextStore {
     header.nextSeq = seq + 1n;
     if (countedSend) {
       header.sendCountTotal += 1n;
+    }
+    if (memoState !== undefined) {
+      header.memoRefreshSeq = memoRefreshSeq;
+      header.memoStateJson = memoState.stateJson;
+      header.memoRefreshPending = memoState.pending;
     }
     return seq;
   }
@@ -260,31 +283,6 @@ export class ConversationContextStore {
         .run();
     });
     header.headSeq = header.nextSeq;
-  }
-
-  /**
-   * Commits the Memo state after the batch carrying it has reached the canonical
-   * history. Rendering only computes it, so a batch that never persists cannot
-   * mark a change as already announced.
-   */
-  setMemoState(
-    header: ContextHeader,
-    update: { readonly refreshSeq: bigint; readonly stateJson: string; readonly pending: boolean },
-    now = new Date(),
-  ): void {
-    this.#store.orm
-      .update(conversationContexts)
-      .set({
-        memoRefreshSeq: update.refreshSeq,
-        memoStateJson: update.stateJson,
-        memoRefreshPending: update.pending,
-        updatedAt: now.toISOString(),
-      })
-      .where(eq(conversationContexts.id, header.id))
-      .run();
-    header.memoRefreshSeq = update.refreshSeq;
-    header.memoStateJson = update.stateJson;
-    header.memoRefreshPending = update.pending;
   }
 
   /** Chat-level variant used when a configuration reload removes a Chat. */

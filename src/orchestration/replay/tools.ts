@@ -2,6 +2,7 @@ import type { AgentTool } from '@earendil-works/pi-agent-core';
 import type { ImageContent } from '@earendil-works/pi-ai';
 import type { PublicModel } from '@surowan/image-service';
 import { createExecuteTool } from '../../capabilities/execute-tool.ts';
+import { isMemoActive, searchMemoEntries } from '../../context/memo-pad/search.ts';
 import { SystemResourceError, type SystemResources } from '../../platform/system-resources.ts';
 import type { ToolAudit } from '../../store/tool-audit.ts';
 import {
@@ -70,6 +71,8 @@ export interface ReplayOutput {
  * `synthetic` call is recorded when its tool handles it without any external
  * effect. `capability` is set for `execute.call` dispatches and names the inner
  * capability the call targeted.
+ * Saving an image records its readonly source load, then synthetic persistence
+ * only after success; reading that replay-local URI is entirely synthetic.
  */
 export interface ReplayDispatch {
   readonly tool_call_id: string;
@@ -85,6 +88,7 @@ export interface ReplayTools {
 }
 
 interface MemoryEntry {
+  readonly id: string;
   readonly summary: string;
   readonly detail: string;
   readonly createdAt: string;
@@ -105,6 +109,8 @@ export interface ReplayState {
   readonly memoryReads: Set<string>;
   readonly alarms: Map<string, AlarmEntry>;
   readonly imageResults: Map<string, ImageContent>;
+  /** Saved bytes live only in this replay; these URIs never access production blobs. */
+  readonly savedImages: Map<string, ImageContent>;
   /** Content the reply policy rejected in this scene; retargeting it is refused. */
   readonly burnedContentKeys: Set<string>;
   sends: number;
@@ -124,6 +130,7 @@ export function createReplayTools(
     memoryReads: new Set(),
     alarms: new Map(),
     imageResults: new Map(),
+    savedImages: new Map(),
     burnedContentKeys: new Set(),
     sends: 0,
     nextAlarmId: 0n,
@@ -214,28 +221,11 @@ function replayReadTool(
 function replaySearchMemoryTool(definition: ReplayToolDefinition, state: ReplayState): AgentTool {
   return {
     ...replayToolBase(definition),
-    execute: async (_toolCallId, params, signal) => {
+    execute: async (toolCallId, params, signal) => {
       signal?.throwIfAborted();
       const input = checkedInput(SearchMemoryInputValidator, params, 'search_memory');
-      const keywords = (input.keywords ?? []).map((keyword) => keyword.trim().toLowerCase()).filter(Boolean);
-      const matches = [...state.memories.entries()]
-        .filter(([, entry]) => {
-          if (input.from !== undefined && entry.createdAt < new Date(input.from).toISOString()) {
-            return false;
-          }
-          if (input.to !== undefined && entry.createdAt > new Date(input.to).toISOString()) {
-            return false;
-          }
-          if (keywords.length === 0) {
-            return true;
-          }
-          const summary = entry.summary.toLowerCase();
-          const detail = entry.detail.toLowerCase();
-          const hits = keywords.filter((keyword) => summary.includes(keyword) || detail.includes(keyword)).length;
-          return hits >= Math.ceil(keywords.length / 2);
-        })
-        .toReversed()
-        .slice(0, input.limit ?? 20);
+      state.dispatches.push({ tool_call_id: toolCallId, tool_name: 'search_memory', mode: 'synthetic' });
+      const matches = searchMemoEntries([...state.memories.values()], input);
       return {
         content: [
           {
@@ -246,8 +236,8 @@ function replaySearchMemoryTool(definition: ReplayToolDefinition, state: ReplayS
                 : [
                     `Found ${matches.length} memories:`,
                     ...matches.map(
-                      ([id, entry]) =>
-                        `- ${id} [${entry.expiresAt === null ? 'long-term' : `short-term, expires ${entry.expiresAt}`}; created ${entry.createdAt}]: ${entry.summary}`,
+                      (entry) =>
+                        `- ${entry.id} [${entry.expiresAt === null ? 'long-term' : `short-term, expires ${entry.expiresAt}`}; created ${entry.createdAt}]: ${entry.summary}`,
                     ),
                     'Call read_memory with an id to read its detail.',
                   ].join('\n'),
@@ -262,11 +252,12 @@ function replaySearchMemoryTool(definition: ReplayToolDefinition, state: ReplayS
 function replayReadMemoryTool(definition: ReplayToolDefinition, state: ReplayState): AgentTool {
   return {
     ...replayToolBase(definition),
-    execute: async (_toolCallId, params, signal) => {
+    execute: async (toolCallId, params, signal) => {
       signal?.throwIfAborted();
       const input = checkedInput(ReadMemoryInputValidator, params, 'read_memory');
+      state.dispatches.push({ tool_call_id: toolCallId, tool_name: 'read_memory', mode: 'synthetic' });
       const entry = state.memories.get(input.id);
-      if (entry === undefined) {
+      if (entry === undefined || !isMemoActive(entry)) {
         throw new Error('Memory not found in this Chat');
       }
       state.memoryReads.add(input.id);

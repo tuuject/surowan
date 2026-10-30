@@ -63,11 +63,16 @@ export interface ExecuteToolDetails {
 export interface ExecutableCapability {
   readonly tool: AgentTool;
   readonly sideEffect: boolean;
+  readonly inputMaxBytes?: number;
 }
 
 /** Wraps one runtime-internal tool as an execute-registry entry. */
-export function capability(tool: AgentTool, sideEffect: boolean): ExecutableCapability {
-  return { tool, sideEffect };
+export function capability(
+  tool: AgentTool,
+  sideEffect: boolean,
+  options: { readonly inputMaxBytes?: number } = {},
+): ExecutableCapability {
+  return { tool, sideEffect, ...options };
 }
 
 export interface ExecuteToolOptions {
@@ -205,14 +210,15 @@ async function executeCall(
     rejectExecute(options, toolCallId, { action: 'call', tool: toolName }, unknownCapabilityCode(toolName));
     throw new Error(unknownCapabilityMessage(toolName));
   }
+  const inputMaxBytes = target.entry.inputMaxBytes ?? INPUT_MAX_BYTES;
   if (
     Array.isArray(callInput) ||
     typeof callInput !== 'object' ||
     callInput === null ||
-    Buffer.byteLength(JSON.stringify(callInput)) > INPUT_MAX_BYTES
+    Buffer.byteLength(JSON.stringify(callInput)) > inputMaxBytes
   ) {
     rejectExecute(options, toolCallId, { action: 'call', tool: toolName, input: callInput }, 'arguments_too_large');
-    throw new Error('execute.call input exceeds 32 KiB');
+    throw new Error(`execute.call input exceeds ${inputMaxBytes / 1_024} KiB`);
   }
   if (!target.validator.Check(callInput)) {
     rejectExecute(options, toolCallId, { action: 'call', tool: toolName, input: callInput }, 'invalid_arguments');

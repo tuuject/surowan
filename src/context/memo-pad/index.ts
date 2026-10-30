@@ -16,6 +16,8 @@ export const MEMO_BLOB_URI_PATTERN = '^pwblob://blb_[a-f0-9]{32}$';
 export const MEMO_BLOB_URI_PREFIX = 'pwblob://';
 export const MEMO_SUMMARY_MAX_LENGTH = 150;
 export const MEMO_DETAIL_MAX_LENGTH = 32_768;
+/** JSON may escape each character as six bytes; reserve room for keys, id and TTL. */
+export const MEMO_WRITE_INPUT_MAX_BYTES = 6 * (MEMO_SUMMARY_MAX_LENGTH + MEMO_DETAIL_MAX_LENGTH) + 256;
 export const MEMO_TTL_MIN_SECONDS = 60;
 export const MEMO_TTL_MAX_SECONDS = 157_680_000;
 export const MEMO_SEARCH_DEFAULT_LIMIT = 20;

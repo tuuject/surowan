@@ -25,12 +25,14 @@ export function daysToTtlSeconds(days: number | null | undefined): number | unde
   return days * DAY_SECONDS;
 }
 
-/**
- * Edit semantics: an empty TTL promotes the entry to permanent (`null`), a
- * number makes it short-term again.
- */
-export function editTtlSeconds(days: number | null | undefined): number | null {
-  return days === null || days === undefined ? null : days * DAY_SECONDS;
+/** Days displayed when editing; sub-day notes still retain their exact expiry until changed. */
+export function editTtlDays(ttlSeconds: number | null): number | null {
+  return ttlSeconds === null ? null : Math.max(TTL_MIN_DAYS, Math.round(ttlSeconds / DAY_SECONDS));
+}
+
+/** Omit an unchanged TTL; only an explicitly cleared duration promotes to permanent. */
+export function editTtlSeconds(days: number | null, initialDays: number | null): number | null | undefined {
+  return days === initialDays ? undefined : days === null ? null : days * DAY_SECONDS;
 }
 
 export function isTtlDaysValid(days: number | null | undefined): boolean {

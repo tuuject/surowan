@@ -159,6 +159,11 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `memo/migration.test.ts` | 046 之前的库升级：同一 Chat 两个 Topic 的旧记忆合并、id/content/期限保留、`memories` 表消失；047 为既有 Blob 回填 `last_saved_at` 并保留文件/行 |
 | `memo/chat-delete.test.ts` / `admin/chats-lifecycle.test.ts` | Admin 删除在迁移别名、慢速 abort、重授权和重试场景下保留或清理正确数据；手改配置停止 queued/running 工作但保留数据，仍授权的别名与其它 Chat 不受影响 |
 | `context/hot-inject-memo-state.test.ts` | 多个 queued batch 各自提交 Memo refresh 状态；后续无变化/刷新/失败重排不覆盖前一批状态，重开 Context 后状态可恢复 |
+| `memo/write-contracts.test.ts` | 同毫秒/回退时钟下修订递增、Admin 修改使读取失效、连续模型更新必须重读；完整 ASCII/CJK/转义 detail 经 execute 落盘及审计、超限拒绝、其它能力默认额度不变 |
+| `memo/image.test.ts` | 图片准备与文件写入/重命名/重复副本清理期间撤权或取消，拒绝元数据写入、错误审计、无孤立文件且并发赢家不受损 |
+| `context/store-conversation.test.ts` / `memo/injection.test.ts` | checkpoint 与 Memo 状态原子回滚/重试、活 header 不提前推进；截断增量跨批次及 SQLite 重开逐步通知新增/修改/删除，不重复已输出部分 |
+| `replay/memory.test.ts` / `replay/tools-memory*.test.ts` | 到期边界、日期上界与线上一致，两个读原语 dispatch 完整；场景图片保存后读取相同字节、缺失/跨场景拒绝、两阶段 fidelity 与生产表无写入 |
+| `apps/admin-next/e2e/04-memo-expiry.e2e.ts` | 实际页面仅改文本时省略 TTL 并保持小时级/过期/同天数/永久条目的精确 expires_at |
 | `tasks/long-tasks.test.ts` | 任务/receipt 的 JSON 边界、终态 CAS 与唯一 receipt、plugin/Conversation/caller scope、quota（含取消记录）及外部 completion handle |
 | `tasks/migration.test.ts` | 使用历史迁移建立 019/020 测试库再升级至 022：ID、owner、取消后 Invocation 关联、四态迁移、NULL 创建者、丢弃旧旁路观察（含非法 payload）、canonical history/refs/正常审计与任务回执整行保留，并验证 022 为每个 receipt 建立唯一 `bucket_id`、重复打开及新库无旧表、Drizzle CHECK/partial index 与 SQLite 一致性 |
 | `tasks/delivery.test.ts` | 创建 Invocation 删除后的外部 complete/fail 真实内部链路、普通 assistant 不直发、目的地移除、queued 管理取消与 running AbortSignal 审计结算 |

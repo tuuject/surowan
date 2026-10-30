@@ -60,6 +60,52 @@ describe('conversation context store', () => {
     store.close();
   });
 
+  test('memo write failure rolls back the checkpoint and live header, then retries at the same seq', async () => {
+    const { store } = await fixture();
+    try {
+      const contexts = new ConversationContextStore(store);
+      const conversation = conversationId(store);
+      const { header } = contexts.open(conversation, 'hash-a');
+      const before = { ...header };
+      const checkpoint = {
+        invocationId: null,
+        isCheckpoint: true,
+        estTokens: 10,
+        json: JSON.stringify({ role: 'user', content: '<memo_list>first</memo_list>', timestamp: 1 }),
+        role: 'user' as const,
+        memoState: { refresh: true, refreshSeq: 99n, stateJson: '[{"id":"first"}]', pending: false },
+      };
+      store.db.exec(`CREATE TRIGGER fail_memo_state BEFORE UPDATE OF memo_state_json ON conversation_contexts
+        BEGIN SELECT RAISE(ABORT, 'memo state write failed'); END;`);
+      expect(() => contexts.append(header, checkpoint)).toThrow();
+      expect(header).toEqual(before);
+      expect(contexts.header(conversation)).toEqual(before);
+      expect(contexts.retained(header)).toEqual([]);
+      expect(
+        store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM context_messages').get()?.count,
+      ).toBe(0n);
+
+      store.db.exec('DROP TRIGGER fail_memo_state');
+      expect(contexts.append(header, checkpoint)).toBe(1n);
+      expect(header.nextSeq).toBe(2n);
+      expect(header.memoRefreshSeq).toBe(1n);
+      expect(header.memoStateJson).toBe(checkpoint.memoState.stateJson);
+      expect(header.memoRefreshPending).toBe(false);
+      expect(contexts.header(conversation)).toEqual(header);
+      expect(contexts.window(header).map((row) => [row.seq, row.isCheckpoint])).toEqual([[1n, true]]);
+
+      contexts.append(header, {
+        ...checkpoint,
+        memoState: { ...checkpoint.memoState, refresh: false, stateJson: '[]' },
+      });
+      expect(header.nextSeq).toBe(3n);
+      expect(header.memoRefreshSeq).toBe(1n);
+      expect(contexts.header(conversation)).toEqual(header);
+    } finally {
+      store.close();
+    }
+  });
+
   test('rebuilds the history when the stable system prompt changes', async () => {
     const { store } = await fixture();
     const contexts = new ConversationContextStore(store);

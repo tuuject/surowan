@@ -54,11 +54,20 @@ export function createSaveMemoImageTool(
         argumentsJson,
         true,
       );
+      const assertWritable = (): void => {
+        signal?.throwIfAborted();
+        if (memoChatRemoved(env)) {
+          throw new Error('This Chat is no longer configured; memory writes are refused');
+        }
+      };
       try {
+        assertWritable();
         const image = await env.prepareImage(mediaId, signal ?? new AbortController().signal);
+        assertWritable();
         const { blob, created } = await env.blobs.ingest(env.context.internalChatId, {
           bytes: Buffer.from(image.base64, 'base64'),
           mime: image.mime,
+          assertWritable,
         });
         const uri = memoBlobUri(blob.id);
         finishToolCall(env.store.orm, toolId, 'success', `blob_id=${blob.id} created=${created}`, null);

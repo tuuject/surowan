@@ -53,18 +53,17 @@ export function renderMemoInjection(memoPad: MemoPadStore, input: MemoInjectionI
     };
   }
   const delta = renderMemoDelta(parseMemoState(input.header.memoStateJson), current, budget);
-  // Dropped change lines MUST NOT be marked as announced; leave the state
-  // alone so the next batch (or a later refresh) can still surface them.
-  if (delta.omitted > 0) {
-    return { listText: '', deltaText: delta.text, state: null };
-  }
-  if (currentJson === input.header.memoStateJson) {
-    return { listText: '', deltaText: delta.text, state: null };
+  if (delta.text === '') {
+    return { listText: '', deltaText: '', state: null };
   }
   return {
     listText: '',
     deltaText: delta.text,
-    state: { refreshSeq: input.header.memoRefreshSeq ?? input.seq, stateJson: currentJson, pending: false },
+    state: {
+      refreshSeq: input.header.memoRefreshSeq ?? input.seq,
+      stateJson: JSON.stringify(delta.state),
+      pending: false,
+    },
   };
 }
 
@@ -96,42 +95,53 @@ export function renderMemoDelta(
   previous: readonly MemoStateEntry[],
   current: readonly MemoStateEntry[],
   maximumCharacters: number,
-): { readonly text: string; readonly omitted: number } {
+): { readonly text: string; readonly omitted: number; readonly state: readonly MemoStateEntry[] } {
   const before = new Map(previous.map((entry) => [entry.id, entry]));
   const after = new Map(current.map((entry) => [entry.id, entry]));
-  const lines: string[] = [];
+  const changes: { entry: MemoStateEntry; removed: boolean; line: string }[] = [];
   for (const entry of current) {
     const old = before.get(entry.id);
-    if (old === undefined) {
-      lines.push(`+ ${entry.id}: ${summaryLine(entry.summary)}`);
-    } else if (old.updatedAt !== entry.updatedAt || old.summary !== entry.summary) {
-      lines.push(`~ ${entry.id}: ${summaryLine(entry.summary)}`);
+    if (old === undefined || old.updatedAt !== entry.updatedAt || old.summary !== entry.summary) {
+      changes.push({
+        entry,
+        removed: false,
+        line: `${old === undefined ? '+' : '~'} ${entry.id}: ${summaryLine(entry.summary)}`,
+      });
     }
   }
   for (const entry of previous) {
     if (!after.has(entry.id)) {
-      lines.push(`- ${entry.id}: ${summaryLine(entry.summary)}`);
+      changes.push({ entry, removed: true, line: `- ${entry.id}: ${summaryLine(entry.summary)}` });
+    }
+  }
+  const lines: string[] = [];
+  let characters = '<memo_updates>\n</memo_updates>'.length;
+  let omitted = changes.length;
+  const notice = (count: number): string => (count === 0 ? '' : `[${count} memory changes omitted]\n`);
+  // Prefer the newest suffix, but an oversized change must not block smaller
+  // changes forever. Only selected lines advance their persisted revisions.
+  for (let index = changes.length - 1; index >= 0; index -= 1) {
+    const change = changes[index];
+    if (change === undefined || characters + change.line.length + 1 + notice(omitted - 1).length > maximumCharacters) {
+      continue;
+    }
+    lines.push(change.line);
+    characters += change.line.length + 1;
+    omitted -= 1;
+    if (change.removed) {
+      before.delete(change.entry.id);
+    } else {
+      before.set(change.entry.id, change.entry);
     }
   }
   if (lines.length === 0) {
-    return { text: '', omitted: 0 };
+    return { text: '', omitted, state: previous };
   }
-  let omitted = 0;
-  const build = (): string =>
-    [
-      '<memo_updates>',
-      ...lines,
-      ...(omitted === 0 ? [] : [`[${omitted} earlier memory changes omitted]`]),
-      '</memo_updates>',
-    ].join('\n');
-  while (lines.length > 1 && build().length > maximumCharacters) {
-    lines.shift();
-    omitted += 1;
-  }
-  if (build().length > maximumCharacters) {
-    return { text: '', omitted };
-  }
-  return { text: build(), omitted };
+  return {
+    text: `<memo_updates>\n${lines.reverse().join('\n')}\n${notice(omitted)}</memo_updates>`,
+    omitted,
+    state: omitted === 0 ? current : [...before.values()],
+  };
 }
 
 function parseMemoState(json: string | null): MemoStateEntry[] {

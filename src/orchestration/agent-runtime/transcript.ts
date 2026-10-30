@@ -107,6 +107,7 @@ export function persistMessage(
   const seq = services.contexts.append(entry.header, {
     invocationId,
     isCheckpoint,
+    ...(memoState === undefined ? {} : { memoState }),
     estTokens: estimateMessageTokens(message),
     json: encoded.json,
     role: encoded.role,
@@ -125,15 +126,6 @@ export function persistMessage(
   entry.transcriptSeqs.push(seq);
   if (entry.transcriptSeqs.length !== entry.agent.state.messages.length) {
     throw new Error('Conversation transcript diverged from the canonical history');
-  }
-  if (isCheckpoint && memoState !== undefined) {
-    // Rendering several queued batches shares nextSeq. Only persistence knows
-    // the actual checkpoint carrying a full list; deltas retain that checkpoint.
-    services.contexts.setMemoState(entry.header, {
-      stateJson: memoState.stateJson,
-      pending: memoState.pending,
-      refreshSeq: memoState.refresh ? seq : (entry.header.memoRefreshSeq ?? memoState.refreshSeq),
-    });
   }
   return seq;
 }

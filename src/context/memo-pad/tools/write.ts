@@ -144,6 +144,7 @@ function createUpdateTool(
           finishToolCall(env.store.orm, toolId, 'error', null, 'memo_not_found');
           throw new Error('Memory not found in this Chat');
         }
+        env.context.memoReads.forget(existing.id);
         if (input.detail !== undefined && input.detail !== existing.detail) {
           await env.blobs.cleanupAfterDetailChange(env.context.internalChatId, existing.detail).catch(() => undefined);
         }

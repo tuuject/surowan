@@ -177,6 +177,7 @@ Memories 页管理 Chat 级 Memo Pad，不是按 Conversation 隔离的短期记
 - 每项：`id`、`chat: { telegram_chat_id, type, title }`、`summary`、`detail`、`created_at`、`expires_at`（永久为 `null`）、`updated_at`、`ttl_seconds`（永久为 `null`，否则按 `created_at → expires_at` 计算）、`remaining_seconds`（永久为 `null`，已过期为 0 或负数）、`expired`、`short_term`。这里没有 `long_ttl` 警告标记，也不再读取 `agent.memory_ttl_warning_days`。
 - `GET /api/memories/chats` 返回 `{ items: [{ telegram_chat_id, type, title, username }] }`，只列 `host_kind = 'telegram'` 的已入库 Chat，供筛选下拉使用；该路径只读，其它方法返回 405。
 - `POST` / `PUT` / `DELETE` 的 body 与语义见 [API](#api) 的写端点表；`PUT` 与 `DELETE` 在 detail 变化后清理不再被同 Chat 任何 detail 引用的 Blob。
+- 编辑表单保留打开时的 TTL：未改变显示天数时不发送 `ttl_seconds`，因此只改 summary/detail 不会延长期限、把小时级 TTL 舍入成整天或复活过期条目。明确清空原有期限才发送 `null`；修改为其它天数则从保存时刻重新计期。
 
 `GET /api/memories/blobs/:id/content` 返回一个 Blob 存储的图片字节：
 
@@ -346,7 +347,8 @@ Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_
 - **切片重放（`before_send_id`）**：输入改为只取该次成功 `telegram_sends` 之前的一小段公开窗口——严格位于上一条 Bot 发言之后、目标发言之前（两端不含），上一条 Bot 发言可以来自同一 Conversation 的另一次 Invocation，没有上一条时从保留输入开头开始；目标是失败的、别的 Conversation 的或不存在的发送返回 `replay_slice_target_invalid`，窗口内没有新的公开消息返回 `replay_slice_empty`（均 409）。输入只含冻结且已注入的公开消息（目标之前已注入的批次拍平后一次性灌入，不按 Bucket 或历史节奏等待；模型并发与网络延迟仍可能造成等待），不读更早历史、历史 reasoning、工具结果或 system prompt；原 Bot 回答不进入模型，只留在审计中对照，回复引用不能跨出窗口。`scene.slice` 为 `{ before_send_id, before_message_id, after_bot_message_id }`，`history_count` 为 0，`cutoff_at` 取该次发送的 `created_at`（请求开始，不是投递完成；`hot_injections: "flattened_before_send"`）。
 - **prompt、模型与工具定义都用当前配置**：global/group 模板、渲染变量、固定协议、可见 Skill 索引来自当前 active 配置，覆盖只替换可编辑层。Provider/model/thinking level 按源 Chat 解析，除非请求带临时模型/thinking 覆盖（`fidelity.model_selection = temporary_override`；覆盖不写回配置，只影响本次重放）。Chat/Topic 不再允许或模型不可用即拒绝。生产注册表只提供定义，不把生产执行器接入循环；`zzz` 可见性遵循当前低于 5% 剩余预算规则，但执行不写睡眠、不扣预算。
 - **工具副作用隔离**：`send` 只收集 `outputs`，按当前 Schema、文字长度/空行限制与本场景 reply 可见性校验；不执行真实发送、速率闸门或图片/Sticker 世界状态验证。Memo Pad 与 Alarm 从空内存起步，typing 与生图只返回合成回执，`zzz` 不持久化。`read` 只读当前 `system:///`；MCP、网页抓取、Sticker 搜索与未支持能力 blocked。
-- **图片按场景授权后按需读取**：当前模型支持图片且接线 image loader 时，保留的 Photo、Sticker、图片 Document 获得一次性 `img_` 引用；`execute.call read_image` 只下载/规范化该引用的媒体并给当前模型返回图片，不调用生产 Vision 或写分析缓存。引用不跨场景，不接受任意 file ID；媒体缺失、不支持或下载失败有明确省略/错误，`omitted_images` 是渲染时没有授权引用的媒体数量，不是之后读取成功的保证。
+- **Memo 读写规则与线上一致**：查询、读取、更新均检查到期时间，已过期条目不能通过 update 复活；日期上界只写 `YYYY-MM-DD` 时包含当天最后一毫秒。两个读原语使用真实 tool call id 记录 `synthetic` dispatch。
+- **图片按场景授权后按需读取**：当前模型支持图片且接线 image loader 时，保留的 Photo、Sticker、图片 Document 获得一次性 `img_` 引用；`execute.call read_image` 只下载/规范化该引用的媒体并给当前模型返回图片，不调用生产 Vision 或写分析缓存。`save_memo_image` 通过同一场景授权 loader 读取后，把字节保存在本次 replay 内存中；返回的 `pwblob://` 只能在本次 replay 读取，绝不访问生产 Blob。成功保存按同一调用 ID 记录 `live_read` 和 `synthetic` 两阶段，读取已保存 URI 记为 `synthetic`。缺失引用或未接 loader 明确失败，不返回虚构 URI。引用不跨场景，不接受任意 file ID；`omitted_images` 是渲染时没有授权引用的媒体数量，不是之后读取成功的保证。
 - **不是历史私有 Agent 状态复现**：不恢复 thinking、工具结果或 Memo Pad/任务回执；默认模式不加入后续热注入，切片模式仅拍平可证明在目标发送前已注入的公开批次。渲染时间默认是场景 cutoff，System Resources 是当前版本。发送提醒关闭，不模拟 send barrier、真实限流与全局睡眠阻断。模型请求是真实调用并**按 Provider 计费**，共享生产模型并发闸门，但不写生产审计、Conversation Context、引用或 `daily_usage`（`fidelity.production_budgets: "not_charged"`），关闭自动重试（`maxRetries: 0`）。
 - **限流与预算**：同一进程同时只允许一个重放，运行中再次请求返回 429 `replay_busy`；轮次取 `min(20, agent.rate_limits.turns_per_injection)`，wall clock 取 `min(240s, agent.context.max_wall_clock_seconds)`；工具调用尝试固定上限 128（含未知工具名与非法参数，在 `tool_execution_start` 即计数）；trace 投影累计上限 1 MiB。超限以 `turn_budget`/`timeout`/`tool_budget`/`trace_limit` 等 `error` 结束，结构照常返回。
 

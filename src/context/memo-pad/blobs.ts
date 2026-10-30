@@ -84,7 +84,12 @@ export class MemoBlobStore {
    */
   async ingest(
     chatId: bigint,
-    input: { readonly bytes: Uint8Array; readonly mime: string },
+    input: {
+      readonly bytes: Uint8Array;
+      readonly mime: string;
+      /** Throws if the bound caller may no longer persist or renew this image. */
+      readonly assertWritable?: () => void;
+    },
   ): Promise<{ readonly blob: MemoBlob; readonly created: boolean }> {
     const extension = EXTENSIONS[input.mime];
     if (extension === undefined) {
@@ -94,6 +99,7 @@ export class MemoBlobStore {
       throw new Error('Memo blob is empty or too large');
     }
     const sha256 = createHash('sha256').update(input.bytes).digest('hex');
+    input.assertWritable?.();
     const existing = this.#reuseByContent(chatId, sha256);
     if (existing !== undefined) {
       return { blob: existing, created: false };
@@ -101,43 +107,54 @@ export class MemoBlobStore {
     const id = newMemoBlobId();
     const storagePath = join(chatId.toString(), `${id}.${extension}`);
     const absolute = this.#absolute(storagePath);
-    await mkdir(dirname(absolute), { recursive: true });
     const temporary = `${absolute}.${randomBytes(6).toString('hex')}.part`;
-    await writeFile(temporary, input.bytes, { flag: 'wx' });
-    await rename(temporary, absolute);
-    const createdAt = this.#now().toISOString();
-    const inserted = this.#orm
-      .insert(memoBlobs)
-      .values({
-        id,
-        chatId,
-        sha256,
-        mime: input.mime,
-        byteSize: BigInt(input.bytes.byteLength),
-        storagePath,
-        createdAt,
-        lastSavedAt: createdAt,
-      })
-      .onConflictDoUpdate({
-        target: [memoBlobs.chatId, memoBlobs.sha256],
-        set: { lastSavedAt: createdAt },
-      })
-      .returning({ id: memoBlobs.id })
-      .get();
-    if (inserted?.id !== id) {
-      // Protect the concurrent winner before awaiting removal of this copy,
-      // then renew again so the caller gets a full grace window on return.
-      await rm(absolute, { force: true });
-      const winner = this.#reuseByContent(chatId, sha256);
-      if (winner === undefined) {
-        throw new Error('Concurrent Memo blob save left no row');
+    try {
+      await mkdir(dirname(absolute), { recursive: true });
+      input.assertWritable?.();
+      await writeFile(temporary, input.bytes, { flag: 'wx' });
+      input.assertWritable?.();
+      await rename(temporary, absolute);
+      input.assertWritable?.();
+      const createdAt = this.#now().toISOString();
+      const inserted = this.#orm
+        .insert(memoBlobs)
+        .values({
+          id,
+          chatId,
+          sha256,
+          mime: input.mime,
+          byteSize: BigInt(input.bytes.byteLength),
+          storagePath,
+          createdAt,
+          lastSavedAt: createdAt,
+        })
+        .onConflictDoUpdate({
+          target: [memoBlobs.chatId, memoBlobs.sha256],
+          set: { lastSavedAt: createdAt },
+        })
+        .returning({ id: memoBlobs.id })
+        .get();
+      if (inserted?.id !== id) {
+        // Protect the concurrent winner before awaiting removal of this copy,
+        // then renew again so the caller gets a full grace window on return.
+        await rm(absolute, { force: true });
+        input.assertWritable?.();
+        const winner = this.#reuseByContent(chatId, sha256);
+        if (winner === undefined) {
+          throw new Error('Concurrent Memo blob save left no row');
+        }
+        return { blob: winner, created: false };
       }
-      return { blob: winner, created: false };
+      return {
+        blob: { id, chatId, sha256, mime: input.mime, byteSize: input.bytes.byteLength, storagePath, createdAt },
+        created: true,
+      };
+    } catch (error) {
+      // Neither path belongs to a dedup winner; failed saves never remove its bytes.
+      await rm(temporary, { force: true });
+      await rm(absolute, { force: true });
+      throw error;
     }
-    return {
-      blob: { id, chatId, sha256, mime: input.mime, byteSize: input.bytes.byteLength, storagePath, createdAt },
-      created: true,
-    };
   }
 
   /**

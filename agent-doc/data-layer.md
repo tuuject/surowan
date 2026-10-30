@@ -125,9 +125,9 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 
 `memo_pad_entries` 是按 **Chat**（`chats.id`，不是 Telegram chat id）隔离的记忆，同一个 Chat 的所有 Forum Topic 共用；Agent 与 Admin Panel 都通过 `MemoPadStore`（[src/context/memo-pad/store.ts](../src/context/memo-pad/store.ts)）读写。
 
-- `summary` 1–150 字符、`detail` 1–32768 字符：SQLite `CHECK` 兜底，Tool Schema 与 Admin API 先校验。
+- `summary` 1–150 字符、`detail` 1–32768 字符：SQLite `CHECK` 兜底，Tool Schema 与 Admin API 先校验。`add_memo`/`update_memo` 的 execute 输入字节额度单独容纳最大字符数及 UTF-8/JSON 转义开销，其它能力仍沿用默认 32 KiB。
 - `expires_at IS NULL` = 长期条目，**不参与自动注入**；非空 = 短期条目，按 `expires_at > now` 过滤后注入。`CHECK(expires_at > created_at)` 兜底；`ttl_seconds` 只受 [src/context/memo-pad/index.ts](../src/context/memo-pad/index.ts) 的 `MEMO_TTL_MIN_SECONDS`/`MEMO_TTL_MAX_SECONDS`（60 秒至约 5 年）约束，Tool Schema 与 Admin API 共用这对边界。创建时 `ttl_seconds` 缺省或 `null` 表示永久；更新时 `null` 表示提升为永久，缺省则保持原到期时间。
-- `updated_at` 每次写入刷新。`read_memory` → `update_memo` 的读-改-写用它判断「读后是否被改过」，因此 Admin 或其他写入者的修改会让模型已持有的读取失效，必须重读。
+- `updated_at` 每次更新严格递增，即使同毫秒写入或时钟回退也不能复用旧值。`read_memory` → `update_memo` 的读-改-写用它判断「读后是否被改过」；Admin 或其他写入者修改会使旧读取失效，模型成功更新后也消耗本次已读授权，再次修改前必须重读。
 - 创建与删除写路径机会性清除该 Chat 的过期行，`purgeExpiredData` 也会删除（见「保留清理」）。过期状态与短期/长期分类按查询时的当前时钟计算，不依赖 Context。
 
 `memo_blobs` 是这个 Chat 所有的二进制对象（Chat 自己的图片附件）：
@@ -136,8 +136,9 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 - `storage_path` 相对 `<data_dir>/images/memo-blobs`，实际文件位于 `<data_dir>/images/memo-blobs/<chatId>/<blobId>.<ext>`；因为落在 `images/` 下，现有备份的旁路 `.images/` 目录快照会一并携带它（见[备份](#备份)）。
 - 更新/删除 detail 后，只删除不再被该 Chat 任何 detail 引用的 blob：写路径与 Admin 调用 `cleanupAfterDetailChange`，确认同 Chat 其他条目未引用后删行、再删文件。`MemoBlobStore.sweep()` 按同一引用规则清理孤儿行与文件，在服务启动、备份前与写路径调用；迁移 `047` 增加 `last_saved_at`，保存或去重重用都会刷新十分钟保护窗口，`created_at` 保持不变。候选查询后，实际 DELETE 再检查引用与保护窗口，只有成功删行才删除文件。
 - `read_image` 接受 `pwblob://` URI，按当前 `internalChatId` 鉴权后读取；Admin 的 blob 内容端点见 [admin-panel.md](admin-panel.md#api)。
+- `save_memo_image` 在准备图片及存储的异步边界重新检查取消信号和当前 Chat 授权；撤权后不提交 Blob 元数据、不继续续租去重行，失败只清理本次拥有的临时/最终副本，不删除并发保存者的文件。
 
-`conversation_contexts` 的三个 Memo 列（`memo_refresh_seq`、`memo_state_json`、`memo_refresh_pending`）记录短期记忆注入状态：完整列表最近一次渲染的批次 `seq`、最近一次已告知模型的状态快照、以及强制刷新标记。Context 重建会把三者复位；状态只在批次消息落盘时推进，渲染本身只读。刷新判据与预算见 [telegram-agent-flow.md](telegram-agent-flow.md#context)。
+`conversation_contexts` 的三个 Memo 列（`memo_refresh_seq`、`memo_state_json`、`memo_refresh_pending`）记录短期记忆注入状态：完整列表所在 checkpoint 的实际 `seq`、已告知模型的状态快照，以及强制刷新标记。Context 重建会把三者复位；消息、序号与 Memo 状态在同一个事务中提交，失败时数据库和活 header 都不推进。刷新判据与预算见 [telegram-agent-flow.md](telegram-agent-flow.md#context)。
 
 ### 注意力窗口
 

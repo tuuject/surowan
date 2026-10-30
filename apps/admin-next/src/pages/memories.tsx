@@ -23,8 +23,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import {
-  DAY_SECONDS,
   daysToTtlSeconds,
+  editTtlDays,
   editTtlSeconds,
   formatTtl,
   MEMORY_DETAIL_MAX_LENGTH,
@@ -89,13 +89,17 @@ export default function MemoriesPage(): React.ReactElement {
   });
 
   const update = useMutation({
-    mutationFn: ({ id, values }: { readonly id: string; readonly values: MemoryFormValues }) => {
+    mutationFn: ({ entry, values }: { readonly entry: MemoryEntry; readonly values: MemoryFormValues }) => {
+      const ttlSeconds = editTtlSeconds(
+        values.ttl_days.trim().length === 0 ? null : Number(values.ttl_days),
+        editTtlDays(entry.ttl_seconds),
+      );
       const body: MemoryUpdate = {
         summary: values.summary.trim(),
         detail: values.detail,
-        ttl_seconds: editTtlSeconds(values.ttl_days.trim().length === 0 ? null : Number(values.ttl_days)),
+        ...(ttlSeconds === undefined ? {} : { ttl_seconds: ttlSeconds }),
       };
-      return updateMemory(id, body);
+      return updateMemory(entry.id, body);
     },
     onSuccess: () => {
       setEditing(null);
@@ -130,8 +134,7 @@ export default function MemoriesPage(): React.ReactElement {
         chat_id: '',
         summary: row.summary,
         detail: row.detail,
-        ttl_days:
-          row.ttl_seconds === null ? '' : String(Math.max(TTL_MIN_DAYS, Math.round(row.ttl_seconds / DAY_SECONDS))),
+        ttl_days: String(editTtlDays(row.ttl_seconds) ?? ''),
       });
       setEditErrors({});
       setEditing(row);
@@ -394,7 +397,7 @@ export default function MemoriesPage(): React.ReactElement {
                 const errors = validateMemoryForm(editValues, true, t);
                 setEditErrors(errors);
                 if (Object.keys(errors).length === 0) {
-                  update.mutate({ id: editing.id, values: editValues });
+                  update.mutate({ entry: editing, values: editValues });
                 }
               }}
             >

@@ -13,8 +13,9 @@ import { cleanupFixtureDirectories, fixture, fauxAgent, update, withoutIdleWait 
 
 afterAll(cleanupFixtureDirectories);
 
-for (const scenario of ['unchanged', 'changed', 'later-refresh', 'failed-later'] as const) {
+for (const scenario of ['unchanged', 'changed', 'later-refresh', 'failed-later', 'failed-state'] as const) {
   test(`queued memo announcements retain their checkpoint state: ${scenario}`, async () => {
+    const failed = scenario === 'failed-later' || scenario === 'failed-state';
     const f = await fixture(withoutIdleWait);
     let store = f.store;
     const memoPad = new MemoPadStore(store.orm);
@@ -76,6 +77,11 @@ for (const scenario of ['unchanged', 'changed', 'later-refresh', 'failed-later']
           WHEN NEW.payload_json LIKE '%last queued batch%'
           BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END;`);
       }
+      if (scenario === 'failed-state') {
+        store.db.exec(`CREATE TRIGGER fail_memo_state BEFORE UPDATE OF memo_state_json ON conversation_contexts
+          WHEN NEW.memo_state_json LIKE '%later memo%'
+          BEGIN SELECT RAISE(ABORT, 'memo state write failed'); END;`);
+      }
       faux.setResponses([
         () => {
           if (scenario !== 'later-refresh') {
@@ -94,7 +100,7 @@ for (const scenario of ['unchanged', 'changed', 'later-refresh', 'failed-later']
         () => fauxAssistantMessage('last queued answer'),
       ]);
       const outcome = await runtime.run(invocationId, f.configStore.beginInvocation(), new AbortController().signal);
-      expect(outcome.state).toBe(scenario === 'failed-later' ? 'failed' : 'completed');
+      expect(outcome.state).toBe(failed ? 'failed' : 'completed');
       expect(renderCount).toBe(3);
       expect(renderedSeqs[0]).toBe(renderedSeqs[1]);
       const checkpoints = store.db
@@ -102,10 +108,10 @@ for (const scenario of ['unchanged', 'changed', 'later-refresh', 'failed-later']
           'SELECT seq, payload_json FROM context_messages WHERE is_checkpoint = 1 ORDER BY seq',
         )
         .all();
-      expect(checkpoints).toHaveLength(scenario === 'failed-later' ? 2 : 3);
+      expect(checkpoints).toHaveLength(failed ? 2 : 3);
       expect(checkpoints[0]?.payload_json).toContain('opening batch');
       expect(checkpoints[1]?.payload_json).toContain('first queued batch');
-      if (scenario !== 'failed-later') {
+      if (!failed) {
         expect(checkpoints[2]?.payload_json).toContain('last queued batch');
       }
       if (scenario === 'later-refresh') {
@@ -161,7 +167,7 @@ for (const scenario of ['unchanged', 'changed', 'later-refresh', 'failed-later']
             ? ['first memo', 'later memo']
             : ['first memo'],
       );
-      if (scenario === 'failed-later') {
+      if (failed) {
         expect(persisted.memo_state_json).not.toContain('later memo');
         expect(f.conversationRuntime.cachedAgent(conversationId)).toBeUndefined();
         queue.releaseUninjectedBuckets(invocationId, new Date());
@@ -170,7 +176,7 @@ for (const scenario of ['unchanged', 'changed', 'later-refresh', 'failed-later']
             .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM invocations WHERE state = 'queued'")
             .get()?.count,
         ).toBe(1n);
-        store.db.exec('DROP TRIGGER fail_later_batch');
+        store.db.exec(`DROP TRIGGER ${scenario === 'failed-state' ? 'fail_memo_state' : 'fail_later_batch'}`);
       }
       store.db.prepare('UPDATE invocations SET state = ? WHERE id = ?').run(outcome.state, invocationId);
       store.db.prepare("UPDATE buckets SET state = ? WHERE state = 'running'").run(outcome.state);
@@ -190,7 +196,7 @@ for (const scenario of ['unchanged', 'changed', 'later-refresh', 'failed-later']
       });
       const nextQueue = new InvocationQueueService(store, f.configStore, restarted.conversationRuntime);
       let nextInvocationId: bigint | undefined;
-      if (scenario === 'failed-later') {
+      if (failed) {
         nextInvocationId = store.db
           .prepare<[], { id: bigint }>("SELECT id FROM invocations WHERE state = 'queued'")
           .get()?.id;
@@ -212,7 +218,7 @@ for (const scenario of ['unchanged', 'changed', 'later-refresh', 'failed-later']
         )
         .get(nextInvocationId)!;
       expect(restartCheckpoint.payload_json).not.toContain('<memo_list>');
-      if (scenario === 'failed-later') {
+      if (failed) {
         expect(restartCheckpoint.payload_json).toContain('<memo_updates>');
         expect(restartCheckpoint.payload_json).toContain('later memo');
         expect(
@@ -231,7 +237,7 @@ for (const scenario of ['unchanged', 'changed', 'later-refresh', 'failed-later']
         )
         .get()!;
       expect(reopenedState.memo_refresh_seq).toBe(refreshSeq);
-      if (scenario === 'failed-later') {
+      if (failed) {
         expect(reopenedState.memo_state_json).toContain('later memo');
       } else {
         expect(reopenedState.memo_state_json).toBe(persisted.memo_state_json);

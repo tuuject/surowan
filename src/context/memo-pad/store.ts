@@ -1,7 +1,10 @@
 import { and, eq, gt, isNull, lte, or, sql } from 'drizzle-orm';
 import { asRunResult, type Orm } from '../../store/store.ts';
 import { memoPadEntries } from '../../store/schema/index.ts';
-import { type MemoEntry, type MemoStateEntry, MEMO_SEARCH_DEFAULT_LIMIT, newMemoId } from './index.ts';
+import { type MemoEntry, type MemoStateEntry, newMemoId } from './index.ts';
+import { searchMemoEntries, type SearchMemoInput } from './search.ts';
+
+export type { SearchMemoInput } from './search.ts';
 
 export interface CreateMemoInput {
   readonly summary: string;
@@ -15,13 +18,6 @@ export interface UpdateMemoInput {
   readonly detail?: string | undefined;
   /** Omit to leave the expiry; `null` promotes the entry to permanent. */
   readonly ttlSeconds?: number | null | undefined;
-}
-
-export interface SearchMemoInput {
-  readonly keywords?: readonly string[] | undefined;
-  readonly from?: string | undefined;
-  readonly to?: string | undefined;
-  readonly limit?: number | undefined;
 }
 
 const ENTRY_FIELDS = {
@@ -121,7 +117,7 @@ export class MemoPadStore {
     if (existing === undefined) {
       return undefined;
     }
-    const timestamp = now.toISOString();
+    const timestamp = new Date(Math.max(now.getTime(), Date.parse(existing.updatedAt) + 1)).toISOString();
     const expiresAt =
       input.ttlSeconds === undefined
         ? existing.expiresAt
@@ -182,28 +178,7 @@ export class MemoPadStore {
    * `summary` and `detail`.
    */
   search(chatId: bigint, input: SearchMemoInput, now = new Date()): MemoEntry[] {
-    const from = input.from === undefined ? undefined : parsedDateBound(input.from, 'from');
-    const to = input.to === undefined ? undefined : parsedDateBound(input.to, 'to', true);
-    if (from !== undefined && to !== undefined && from > to) {
-      throw new Error('from must not be later than to');
-    }
-    const rows = this.listActive(chatId, now).filter(
-      (entry) => (from === undefined || entry.createdAt >= from) && (to === undefined || entry.createdAt <= to),
-    );
-    const keywords = [
-      ...new Set((input.keywords ?? []).map((keyword) => keyword.trim().toLowerCase()).filter(Boolean)),
-    ];
-    const limit = Math.min(input.limit ?? MEMO_SEARCH_DEFAULT_LIMIT, 50);
-    const matched =
-      keywords.length === 0
-        ? rows
-        : rows.filter((entry) => {
-            const summary = entry.summary.toLowerCase();
-            const detail = entry.detail.toLowerCase();
-            const hits = keywords.filter((keyword) => summary.includes(keyword) || detail.includes(keyword)).length;
-            return hits >= Math.ceil(keywords.length / 2);
-          });
-    return matched.toReversed().slice(0, limit);
+    return searchMemoEntries(this.listActive(chatId, now), input, now);
   }
 
   /** The exact short-term state used by the injected snapshot and its deltas. */
@@ -215,17 +190,4 @@ export class MemoPadStore {
       updatedAt: entry.updatedAt,
     }));
   }
-}
-
-/**
- * ISO bound for `created_at`. A date-only upper bound covers the whole day, so
- * `to: "2026-10-30"` includes entries created at 23:59.
- */
-function parsedDateBound(value: string, field: 'from' | 'to', endOfDay = false): string {
-  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
-  const parsed = new Date(dateOnly && endOfDay ? `${value}T23:59:59.999Z` : value);
-  if (Number.isNaN(parsed.getTime())) {
-    throw new Error(`${field} is not a valid date`);
-  }
-  return parsed.toISOString();
 }

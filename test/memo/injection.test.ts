@@ -1,7 +1,9 @@
 import { afterEach, expect, test } from 'vitest';
+import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import type { MemoEntry, MemoStateEntry } from '../../src/context/memo-pad/index.ts';
 import { renderMemoDelta, renderMemoInjection, renderMemoList } from '../../src/context/memo-pad/injection.ts';
-import type { ContextHeader } from '../../src/context/store.ts';
+import { MemoPadStore } from '../../src/context/memo-pad/store.ts';
+import { type ContextHeader, ConversationContextStore } from '../../src/context/store.ts';
 import type { MemoFixture } from './fixtures.ts';
 import { memoFixture, seedChat } from './fixtures.ts';
 
@@ -123,6 +125,15 @@ test('the ten-percent budget hides the oldest entries and reports how many are h
   expect(result.listText).not.toContain(entries[1]?.id);
   expect(result.listText).not.toContain(entries[2]?.id);
   expect(result.listText).toContain(entries[3]?.id);
+  const next = renderMemoInjection(f.memoPad, {
+    chatId: chat.chatId,
+    contextWindow: 2_000,
+    header: header({ memoRefreshSeq: 1n, memoStateJson: result.state?.stateJson ?? null }),
+    seq: 2n,
+    now: new Date(base.getTime() + 10_000),
+  });
+  expect(next.deltaText).toBe('');
+  expect(next.state).toBeNull();
 });
 
 test('delta reports added, updated and removed entries and is empty when the state matches', () => {
@@ -142,7 +153,7 @@ test('delta reports added, updated and removed entries and is empty when the sta
     ['<memo_updates>', '~ mem_c: new text', '+ mem_d: added', '- mem_b: removed', '</memo_updates>'].join('\n'),
   );
   expect(delta.omitted).toBe(0);
-  expect(renderMemoDelta(previous, previous, 10_000)).toEqual({ text: '', omitted: 0 });
+  expect(renderMemoDelta(previous, previous, 10_000)).toEqual({ text: '', omitted: 0, state: previous });
 });
 
 test('the injected delta is a tail note when the list batch is still retained', async () => {
@@ -251,4 +262,146 @@ test('a delta that cannot fit does not mark the dropped changes as announced', a
   });
   expect(result.state).toBeNull();
   expect(result.deltaText).toBe('');
+});
+
+test('a single oversized change remains unannounced without blocking smaller changes', () => {
+  const now = '2026-06-01T00:00:00.000Z';
+  const small = stateEntry('mem_small', 'fits', now);
+  const large = stateEntry('mem_large', 'x'.repeat(300), now);
+  const first = renderMemoDelta([], [small, large], 120);
+  expect(first.text).toContain('+ mem_small: fits');
+  expect(first.text).not.toContain('mem_large');
+  expect(first.text.length).toBeLessThanOrEqual(120);
+  expect(first.omitted).toBe(1);
+  expect(first.state).toEqual([small]);
+  const blocked = renderMemoDelta(first.state, [small, large], 120);
+  expect(blocked).toEqual({ text: '', omitted: 1, state: [small] });
+  const resumed = renderMemoDelta(blocked.state, [small, large], 500);
+  expect(resumed.text).toContain('+ mem_large:');
+  expect(resumed.text).not.toContain('mem_small');
+  expect(resumed.state).toEqual([small, large]);
+});
+
+test('bounded deltas drain additions, updates and removals across SQLite restarts without repeats', async () => {
+  const f = await fixture();
+  const chat = seedChat(f.store, 111n);
+  const now = new Date('2026-06-01T00:00:00.000Z');
+  const contexts = new ConversationContextStore(f.store);
+  const initial = contexts.open(chat.conversationId, 'hash').header;
+  const updates: MemoEntry[] = [];
+  const removals: MemoEntry[] = [];
+  for (let index = 0; index < 8; index += 1) {
+    updates.push(
+      f.memoPad.create(
+        chat.chatId,
+        {
+          summary: `update ${index} ${'u'.repeat(40)}`,
+          detail: 'before',
+          ttlSeconds: 3_600,
+        },
+        now,
+      ),
+    );
+    removals.push(
+      f.memoPad.create(
+        chat.chatId,
+        {
+          summary: `remove ${index} ${'r'.repeat(40)}`,
+          detail: 'before',
+          ttlSeconds: 3_600,
+        },
+        now,
+      ),
+    );
+  }
+  const full = renderMemoInjection(f.memoPad, {
+    chatId: chat.chatId,
+    header: initial,
+    seq: initial.nextSeq,
+    contextWindow: 200_000,
+    now,
+  });
+  if (full.state === null) {
+    throw new Error('Expected initial memo snapshot');
+  }
+  contexts.append(initial, {
+    invocationId: null,
+    isCheckpoint: true,
+    estTokens: 1,
+    role: 'user',
+    json: JSON.stringify({ role: 'user', content: full.listText, timestamp: now.getTime() }),
+    memoState: { ...full.state, refresh: true },
+  });
+  const expected = new Set<string>();
+  const later = new Date(now.getTime() + 1_000);
+  for (const entry of updates) {
+    // Detail-only edits must advance and announce the revision too.
+    f.memoPad.update(entry.id, chat.chatId, { detail: 'after' }, later);
+    expected.add(`~ ${entry.id}: ${entry.summary}`);
+  }
+  for (const entry of removals) {
+    f.memoPad.remove(entry.id, chat.chatId, later);
+    expected.add(`- ${entry.id}: ${entry.summary}`);
+  }
+  for (let index = 0; index < 8; index += 1) {
+    const entry = f.memoPad.create(
+      chat.chatId,
+      {
+        summary: `addition ${index} ${'a'.repeat(40)}`,
+        detail: 'new',
+        ttlSeconds: 3_600,
+      },
+      later,
+    );
+    expected.add(`+ ${entry.id}: ${entry.summary}`);
+  }
+  const announced = new Set<string>();
+  let batches = 0;
+  for (; batches <= expected.size; batches += 1) {
+    const restartedStore = await SqliteStore.open(f.loaded.config);
+    try {
+      const restartedContexts = new ConversationContextStore(restartedStore);
+      const currentHeader = restartedContexts.open(chat.conversationId, 'hash').header;
+      const result = renderMemoInjection(new MemoPadStore(restartedStore.orm), {
+        chatId: chat.chatId,
+        header: currentHeader,
+        seq: currentHeader.nextSeq,
+        contextWindow: 2_500,
+        now: later,
+      });
+      expect(result.listText).toBe('');
+      expect(result.deltaText.length).toBeLessThanOrEqual(250);
+      if (result.state === null) {
+        expect(result.deltaText).toBe('');
+        break;
+      }
+      const lines = result.deltaText.split('\n').filter((line) => /^[+~-] /.test(line));
+      expect(lines.length).toBeGreaterThan(0);
+      for (const line of lines) {
+        expect(expected.has(line)).toBe(true);
+        expect(announced.has(line)).toBe(false);
+        announced.add(line);
+      }
+      const seq = restartedContexts.append(currentHeader, {
+        invocationId: null,
+        isCheckpoint: true,
+        estTokens: 1,
+        role: 'user',
+        json: JSON.stringify({ role: 'user', content: result.deltaText, timestamp: later.getTime() }),
+        memoState: { ...result.state, refresh: false },
+      });
+      expect(currentHeader.memoRefreshSeq).toBe(1n);
+      expect(restartedContexts.header(chat.conversationId)).toEqual(currentHeader);
+      expect(restartedContexts.retained(currentHeader).at(-1)).toMatchObject({
+        seq,
+        message: { role: 'user', content: result.deltaText },
+      });
+    } finally {
+      restartedStore.close();
+    }
+  }
+  expect(batches).toBeGreaterThan(1);
+  expect(batches).toBeLessThanOrEqual(expected.size);
+  expect(announced).toEqual(expected);
+  expect(contexts.header(chat.conversationId)?.memoStateJson).toBe(JSON.stringify(f.memoPad.state(chat.chatId, later)));
 });

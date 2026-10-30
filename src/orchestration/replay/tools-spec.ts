@@ -61,7 +61,6 @@ export const SYNTHETIC_CAPABILITIES: ReadonlySet<string> = new Set([
   'add_memo',
   'update_memo',
   'delete_memo',
-  'save_memo_image',
   'alarm',
   'list_alarm',
   'delete_alarm',

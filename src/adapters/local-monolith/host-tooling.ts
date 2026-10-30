@@ -17,6 +17,7 @@ import {
   type MemoToolEnvironment,
 } from '../../context/memo-pad/tools/index.ts';
 import type { MemoBlobStore } from '../../context/memo-pad/blobs.ts';
+import { MEMO_WRITE_INPUT_MAX_BYTES } from '../../context/memo-pad/index.ts';
 import type { MemoPadStore } from '../../context/memo-pad/store.ts';
 import type { MediaService } from '../../capabilities/media/index.ts';
 import type { McpManager } from '../../capabilities/mcp/index.ts';
@@ -119,7 +120,11 @@ export function createHostTooling(options: HostToolingOptions): HostTooling {
       capabilities,
       prepareImage: (mediaId, signal) => media.prepareSceneImage(mediaId, signal),
     };
-    tools.push(...createMemoWriteTools(memoEnvironment).map((tool) => capability(tool, true)));
+    tools.push(
+      ...createMemoWriteTools(memoEnvironment).map((tool) =>
+        capability(tool, true, tool.name === 'delete_memo' ? {} : { inputMaxBytes: MEMO_WRITE_INPUT_MAX_BYTES }),
+      ),
+    );
     tools.push(capability(createSaveMemoImageTool(memoEnvironment), true));
     if (docSpaces !== undefined) {
       tools.push(...createDocumentTools({ store, spaces: docSpaces, context }).map((tool) => capability(tool, false)));
