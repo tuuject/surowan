@@ -10,7 +10,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Static } from 'typebox';
 import Compile from 'typebox/compile';
 import type { RawConfig } from '../../platform/config/index.ts';
-import { spoilersFromFragment } from '../../platform/spoilers.ts';
+import { bodyFromFragment } from '../../platform/telegram-markdown/index.ts';
 import { media } from '../../store/schema/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
 
@@ -152,10 +152,11 @@ export function renderHistoryRows(
     }
     const mediaRows = mediaByRevision.get(row.revision_id) ?? [];
     const replySnapshot = parseStoredJson(row.reply_snapshot_json);
-    const spoilers = spoilersFromFragment(row.raw_fragment_json, {
+    const body = bodyFromFragment(row.raw_fragment_json, {
       text: row.text,
       caption: row.caption,
       reply_snapshot: replySnapshot,
+      mediaCount: mediaRows.length,
     });
     newestFirst.push({
       snapshot: {
@@ -169,9 +170,10 @@ export function renderHistoryRows(
           username: row.sender_username,
         },
         kind: row.kind ?? 'unknown',
-        text: row.text,
-        caption: row.caption,
-        ...(spoilers === undefined ? {} : { spoilers }),
+        text: body.text,
+        caption: body.caption,
+        ...(body.spoilers === undefined ? {} : { spoilers: body.spoilers }),
+        ...(body.media_slots === undefined ? {} : { media_slots: body.media_slots }),
         reply_to_message_id: row.reply_to_message_id?.toString() ?? null,
         reply_snapshot: replySnapshot,
         forward_origin: parseStoredJson(row.forward_origin_json),

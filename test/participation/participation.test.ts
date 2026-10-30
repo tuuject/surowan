@@ -6,6 +6,7 @@ import { resolveInvocationPolicy } from '../../src/platform/invocation-policy.ts
 import { renderInvocationContext } from '../helpers.ts';
 import {
   BOT_ID,
+  BOT_USERNAME,
   DAY_WINDOW,
   GROUP_CHAT_ID,
   INSIDE_PERIOD,
@@ -57,6 +58,24 @@ describe('participation gate', () => {
         fields: {
           caption: '塑料碗 look',
           photo: [{ file_id: 'f', file_unique_id: 'u', width: 10, height: 10, file_size: 100 }],
+        },
+        kind: 'keyword',
+      },
+      {
+        name: 'mention in a rich message',
+        fields: {
+          rich_message: {
+            blocks: [
+              { type: 'paragraph', text: { type: 'mention', text: `@${BOT_USERNAME}`, username: BOT_USERNAME } },
+            ],
+          },
+        },
+        kind: 'mention',
+      },
+      {
+        name: 'keyword in a rich message',
+        fields: {
+          rich_message: { blocks: [{ type: 'heading', size: 2, text: ['问', { type: 'bold', text: '塑料碗' }] }] },
         },
         kind: 'keyword',
       },

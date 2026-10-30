@@ -136,6 +136,21 @@ describe('Telegram ingestion', () => {
       store.close();
     });
 
+    test('counts a mention inside a rich message', async () => {
+      const { store, ingestion } = await setup(undefined, BOT);
+      const rich = (updateId: number, messageId: number, username: string): Update =>
+        mentionUpdate(updateId, messageId, {
+          text: undefined,
+          entities: undefined,
+          rich_message: {
+            blocks: [{ type: 'paragraph', text: ['ping ', { type: 'mention', text: `@${username}`, username }] }],
+          },
+        });
+      expect(ingestion.ingest(rich(1, 10, BOT.toLowerCase())).mention).toEqual({ chatId: 123456789n, threadId: 0n });
+      expect(ingestion.ingest(rich(2, 11, 'SomeoneElse')).mention).toBeUndefined();
+      store.close();
+    });
+
     test('stays silent for everything that is not a live human @mention of this bot', async () => {
       const { store, ingestion } = await setup(undefined, BOT);
       const other = ingestion.ingest(

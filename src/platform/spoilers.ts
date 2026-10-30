@@ -2,13 +2,11 @@
  * Telegram spoiler spans, shared by the message snapshot and the context
  * renderer.
  *
- * A spoiler is a Telegram MessageEntity of type `spoiler` over a slice of the
- * message body (the text, or the caption of a media message). The adapter
- * (`ingress/telegram-ingestion.ts`) keeps only the body text on a revision, so
- * the entity detail that survives is the revision's `raw_fragment_json`; the
- * spans are recovered from it here when the invocation snapshot is built. The
- * body itself is never rewritten, and no schema or prompt-side storage is
- * needed to carry the information.
+ * A spoiler is a Telegram MessageEntity of type `spoiler` (or a rich-text
+ * spoiler run) over a slice of the message body. The spans are recovered from
+ * the revision's `raw_fragment_json` together with the rest of the formatting
+ * (`telegram-markdown/`) when the invocation snapshot is built, as ranges into
+ * the Markdown body, and become `<tg-spoiler>` tags only here, after escaping.
  *
  * Offsets are UTF-16 code units counted from the start of the body they belong
  * to. Telegram's Bot API also reports entity offsets and lengths in UTF-16 code
@@ -48,65 +46,6 @@ export interface SpoilerEntity {
 
 export const SPOILER_TAG_OPEN = '<tg-spoiler>';
 export const SPOILER_TAG_CLOSE = '</tg-spoiler>';
-
-/**
- * Recover the spoiler spans of a revision from its stored raw Telegram message.
- *
- * The adapter stores the raw message fragment verbatim and derives `text` and
- * `caption` from it, so an entity list is only trusted when the fragment still
- * carries exactly the body it belongs to; a fragment that disagrees (or is
- * unreadable) simply yields no span. Losing presentation must never fail an
- * invocation or change a message the model would otherwise read.
- */
-export function spoilersFromFragment(
-  rawFragmentJson: string | null | undefined,
-  body: { readonly text: string | null; readonly caption: string | null; readonly reply_snapshot?: unknown },
-): MessageSpoilers | undefined {
-  const fragment = parseFragment(rawFragmentJson);
-  if (fragment === undefined) {
-    return undefined;
-  }
-  const text =
-    body.text !== null && fragment.text === body.text
-      ? spoilerRanges(readEntities(fragment.entities), body.text.length)
-      : [];
-  const caption =
-    body.caption !== null && fragment.caption === body.caption
-      ? spoilerRanges(readEntities(fragment.caption_entities), body.caption.length)
-      : [];
-  const reply = replySpoilers(fragment.reply_to_message, body.reply_snapshot);
-  if (text.length === 0 && caption.length === 0 && reply.length === 0) {
-    return undefined;
-  }
-  return {
-    ...(text.length === 0 ? {} : { text }),
-    ...(caption.length === 0 ? {} : { caption }),
-    ...(reply.length === 0 ? {} : { reply }),
-  };
-}
-
-/**
- * The reply preview is the replied-to body (text, else caption) cut to a
- * prefix by the adapter, so its spans are the replied-to message's own spoiler
- * entities clamped to that prefix. Only a preview that is still a prefix of the
- * fragment's body is trusted.
- */
-function replySpoilers(replyFragment: unknown, replySnapshot: unknown): SpoilerRange[] {
-  if (typeof replyFragment !== 'object' || replyFragment === null) {
-    return [];
-  }
-  if (typeof replySnapshot !== 'object' || replySnapshot === null) {
-    return [];
-  }
-  const { content } = replySnapshot as { content?: unknown };
-  const { text, entities, caption, caption_entities } = replyFragment as Record<string, unknown>;
-  const [source, sourceEntities] =
-    typeof text === 'string' ? [text, entities] : typeof caption === 'string' ? [caption, caption_entities] : [];
-  if (typeof content !== 'string' || source === undefined || !source.startsWith(content)) {
-    return [];
-  }
-  return spoilerRanges(readEntities(sourceEntities), content.length);
-}
 
 /**
  * Extract the spoiler ranges of one Telegram entity list, clamped to the body
@@ -193,40 +132,6 @@ export function renderSpoilers(body: string, ranges: readonly SpoilerRange[] | u
     cursor = span.end;
   }
   return rendered + escapeXml(body.slice(cursor));
-}
-
-function parseFragment(rawFragmentJson: string | null | undefined): Record<string, unknown> | undefined {
-  if (rawFragmentJson === null || rawFragmentJson === undefined || rawFragmentJson === '') {
-    return undefined;
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(rawFragmentJson);
-  } catch {
-    return undefined;
-  }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    return undefined;
-  }
-  return parsed as Record<string, unknown>;
-}
-
-function readEntities(value: unknown): SpoilerEntity[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  const entities: SpoilerEntity[] = [];
-  for (const item of value) {
-    if (typeof item !== 'object' || item === null) {
-      continue;
-    }
-    const { type, offset, length } = item as { type?: unknown; offset?: unknown; length?: unknown };
-    if (typeof type !== 'string' || typeof offset !== 'number' || typeof length !== 'number') {
-      continue;
-    }
-    entities.push({ type, offset, length });
-  }
-  return entities;
 }
 
 function clamp(offset: number, bodyLength: number): number {

@@ -1,5 +1,5 @@
 import { eq, sql } from 'drizzle-orm';
-import { spoilersFromFragment } from '../platform/spoilers.ts';
+import { bodyFromFragment } from '../platform/telegram-markdown/index.ts';
 import type { BusinessStore } from './store.ts';
 import { invocationMessages, media } from './schema/index.ts';
 
@@ -130,15 +130,16 @@ function insertSnapshot(
       width: entry.width?.toString() ?? null,
       height: entry.height?.toString() ?? null,
     }));
-  // Spoiler spans are recovered from the raw fragment the revision already
-  // keeps, because the adapter stores only the body text. They ride along only
-  // when the message has one, so a message without spoilers keeps producing the
-  // same snapshot as before.
+  // Formatting is recovered from the raw fragment the revision already keeps,
+  // because the adapter stores only the body text: the snapshot body is its
+  // Markdown, and spoiler spans and media slots ride along only when present,
+  // so an unformatted message keeps producing the same snapshot as before.
   const replySnapshot: unknown = message.reply_snapshot_json === null ? null : JSON.parse(message.reply_snapshot_json);
-  const spoilers = spoilersFromFragment(message.raw_fragment_json, {
+  const body = bodyFromFragment(message.raw_fragment_json, {
     text: message.text,
     caption: message.caption,
     reply_snapshot: replySnapshot,
+    mediaCount: mediaRows.length,
   });
   const snapshot = JSON.stringify({
     message_id: message.telegram_message_id.toString(),
@@ -152,9 +153,10 @@ function insertSnapshot(
       username: message.sender_username,
     },
     kind: message.kind,
-    text: message.text,
-    caption: message.caption,
-    ...(spoilers === undefined ? {} : { spoilers }),
+    text: body.text,
+    caption: body.caption,
+    ...(body.spoilers === undefined ? {} : { spoilers: body.spoilers }),
+    ...(body.media_slots === undefined ? {} : { media_slots: body.media_slots }),
     reply_to_message_id: message.reply_to_message_id?.toString() ?? null,
     reply_snapshot: replySnapshot,
     forward_origin: message.forward_origin_json === null ? null : JSON.parse(message.forward_origin_json),

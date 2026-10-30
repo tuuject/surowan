@@ -1,14 +1,15 @@
 import { and, eq, sql } from 'drizzle-orm';
 import type { Message } from 'grammy/types';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
+import {
+  type ImageDocument,
+  isImageDocument,
+  richMessageMarkdown,
+  type TelegramPhoto,
+} from '../../platform/telegram-markdown/index.ts';
 import { conversations, media as mediaTable, messageRevisions, messages, senders } from '../../store/schema/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
 
-const IMAGE_MIME_TYPES: Record<string, true> = {
-  'image/jpeg': true,
-  'image/png': true,
-  'image/webp': true,
-};
 const SERVICE_KEYS: Record<string, true> = {
   new_chat_members: true,
   left_chat_member: true,
@@ -33,7 +34,6 @@ const SERVICE_KEYS: Record<string, true> = {
   video_chat_ended: true,
   video_chat_participants_invited: true,
 };
-const MAX_IMAGE_DOCUMENT_BYTES = 20 * 1024 * 1024;
 
 interface NormalizedMedia {
   readonly kind: 'photo' | 'document' | 'sticker';
@@ -263,41 +263,27 @@ function normalizeMessage(message: Message, service: boolean, ignoredUserIds: re
   if (message.text !== undefined) {
     kind = 'text';
   }
+  // A rich message has no text of its own: the revision stores its Markdown,
+  // and its photos become the revision's media in document order, matching
+  // the placeholders the snapshot builder later finds in that Markdown.
+  const rich = message.rich_message === undefined ? undefined : richMessageMarkdown(message.rich_message);
+  if (rich !== undefined) {
+    kind = 'rich_message';
+    for (const item of rich.media) {
+      media.push(item.kind === 'photo' ? photoMedia(item.photo) : documentMedia(item.document));
+    }
+  }
   if (message.photo !== undefined) {
     kind = 'photo';
     const photo = message.photo.at(-1);
     if (photo !== undefined) {
-      media.push({
-        kind: 'photo',
-        fileId: photo.file_id,
-        fileUniqueId: photo.file_unique_id,
-        mimeType: 'image/jpeg',
-        fileSize: photo.file_size === undefined ? null : BigInt(photo.file_size),
-        width: BigInt(photo.width),
-        height: BigInt(photo.height),
-        telegramJson: JSON.stringify(photo),
-      });
+      media.push(photoMedia(photo));
     }
   }
   const document = message.document;
-  if (
-    document !== undefined &&
-    document.mime_type !== undefined &&
-    document.mime_type in IMAGE_MIME_TYPES &&
-    document.file_size !== undefined &&
-    document.file_size <= MAX_IMAGE_DOCUMENT_BYTES
-  ) {
+  if (document !== undefined && isImageDocument(document)) {
     kind = 'document';
-    media.push({
-      kind: 'document',
-      fileId: document.file_id,
-      fileUniqueId: document.file_unique_id,
-      mimeType: document.mime_type,
-      fileSize: BigInt(document.file_size),
-      width: document.thumbnail === undefined ? null : BigInt(document.thumbnail.width),
-      height: document.thumbnail === undefined ? null : BigInt(document.thumbnail.height),
-      telegramJson: JSON.stringify(document),
-    });
+    media.push(documentMedia(document));
   }
   const sticker = message.sticker;
   if (sticker !== undefined) {
@@ -317,12 +303,38 @@ function normalizeMessage(message: Message, service: boolean, ignoredUserIds: re
   const visibleReply = reply !== undefined && !isIgnoredUser(reply, ignoredUserIds) ? reply : undefined;
   return {
     kind,
-    text: message.text ?? null,
+    text: message.text ?? (rich === undefined || rich.text.length === 0 ? null : rich.text),
     caption: message.caption ?? null,
     replyToMessageId: visibleReply === undefined ? null : BigInt(visibleReply.message_id),
     replySnapshot: visibleReply === undefined ? null : JSON.stringify(compactReply(visibleReply)),
     forwardOrigin: message.forward_origin === undefined ? null : JSON.stringify(message.forward_origin),
     media,
+  };
+}
+
+function photoMedia(photo: TelegramPhoto): NormalizedMedia {
+  return {
+    kind: 'photo',
+    fileId: photo.file_id,
+    fileUniqueId: photo.file_unique_id,
+    mimeType: 'image/jpeg',
+    fileSize: photo.file_size === undefined ? null : BigInt(photo.file_size),
+    width: BigInt(photo.width),
+    height: BigInt(photo.height),
+    telegramJson: JSON.stringify(photo),
+  };
+}
+
+function documentMedia(document: ImageDocument): NormalizedMedia {
+  return {
+    kind: 'document',
+    fileId: document.file_id,
+    fileUniqueId: document.file_unique_id,
+    mimeType: document.mime_type,
+    fileSize: BigInt(document.file_size),
+    width: document.thumbnail === undefined ? null : BigInt(document.thumbnail.width),
+    height: document.thumbnail === undefined ? null : BigInt(document.thumbnail.height),
+    telegramJson: JSON.stringify(document),
   };
 }
 
@@ -342,7 +354,8 @@ function compactReply(message: Message): Record<string, unknown> {
       : 'title' in sender
         ? sender.title
         : [sender.first_name, sender.last_name].filter((part) => part !== undefined).join(' ');
-  const content = message.text ?? message.caption;
+  const rich = message.rich_message === undefined ? '' : richMessageMarkdown(message.rich_message).text;
+  const content = message.text ?? message.caption ?? (rich.length === 0 ? undefined : rich);
   return {
     message_id: String(message.message_id),
     sender: senderName,

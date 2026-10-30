@@ -5,7 +5,7 @@ import type { ContextRefStore } from '../refs.ts';
 import type { ContextHeader } from '../store.ts';
 
 const Strict = { additionalProperties: false } as const;
-const SpoilerRangeArraySchema = Type.Array(
+const RangeArraySchema = Type.Array(
   Type.Object(
     {
       start: Type.Integer(),
@@ -46,13 +46,15 @@ export const MessageSnapshotSchema = Type.Object(
     spoilers: Type.Optional(
       Type.Object(
         {
-          text: Type.Optional(SpoilerRangeArraySchema),
-          caption: Type.Optional(SpoilerRangeArraySchema),
-          reply: Type.Optional(SpoilerRangeArraySchema),
+          text: Type.Optional(RangeArraySchema),
+          caption: Type.Optional(RangeArraySchema),
+          reply: Type.Optional(RangeArraySchema),
         },
         Strict,
       ),
     ),
+    // Where each of a rich message's media sits in `text`, in media order.
+    media_slots: Type.Optional(RangeArraySchema),
     reply_to_message_id: Type.Union([Type.String(), Type.Null()]),
     reply_snapshot: Type.Unknown(),
     forward_origin: Type.Unknown(),
@@ -180,6 +182,7 @@ export function prepareSnapshot(
     text: string | null;
     caption: string | null;
     spoilers?: MessageSnapshot['spoilers'];
+    media_slots?: MessageSnapshot['media_slots'];
     reply_to_message_id: string | null;
     reply_snapshot: unknown;
     forward_origin: unknown;
@@ -243,6 +246,7 @@ export function prepareSnapshot(
     text: payload.text,
     caption: payload.caption,
     ...(payload.spoilers === undefined ? {} : { spoilers: payload.spoilers }),
+    ...(payload.media_slots === undefined ? {} : { media_slots: payload.media_slots }),
     reply_to_message_id: payload.reply_to_message_id,
     reply_snapshot: payload.reply_snapshot,
     forward_origin: payload.forward_origin,
