@@ -16,48 +16,13 @@
  */
 
 import { normalizeSpoilerRanges, type SpoilerRange } from '../spoilers.ts';
+import { normalizeImageDocument, normalizePhoto, type RichMedia } from './rich-media.ts';
 import { codeFence, fenceLanguage, inlineCode, isRecord, linkTarget, type MarkdownBody } from './shared.ts';
 
-const IMAGE_DOCUMENT_TYPES: ReadonlySet<string> = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const MAX_IMAGE_DOCUMENT_BYTES = 20 * 1024 * 1024;
 /** Telegram allows 16 levels; anything deeper is malformed data, not a message. */
 const MAX_DEPTH = 32;
 /** Telegram allows 20 columns; a wider grid can only come from bad spans. */
 const MAX_TABLE_COLUMNS = 20;
-
-/** The part of a Telegram PhotoSize the runtime stores. */
-export interface TelegramPhoto {
-  readonly file_id: string;
-  readonly file_unique_id: string;
-  readonly width: number;
-  readonly height: number;
-  readonly file_size?: number;
-}
-
-/** The part of a Telegram Document the runtime stores, once it is known to be an image. */
-export interface ImageDocument {
-  readonly file_id: string;
-  readonly file_unique_id: string;
-  readonly mime_type: string;
-  readonly file_size: number;
-  readonly thumbnail?: { readonly width: number; readonly height: number };
-}
-
-/** A Document the runtime reads like a photo. */
-export function isImageDocument<T extends { readonly mime_type?: string; readonly file_size?: number }>(
-  document: T,
-): document is T & { readonly mime_type: string; readonly file_size: number } {
-  return (
-    document.mime_type !== undefined &&
-    IMAGE_DOCUMENT_TYPES.has(document.mime_type) &&
-    document.file_size !== undefined &&
-    document.file_size <= MAX_IMAGE_DOCUMENT_BYTES
-  );
-}
-
-export type RichMedia =
-  | { readonly kind: 'photo'; readonly photo: TelegramPhoto }
-  | { readonly kind: 'document'; readonly document: ImageDocument };
 
 export interface RichMarkdown extends MarkdownBody {
   /** One placeholder range per entry of `media`, in the same order. */
@@ -70,6 +35,9 @@ interface Piece {
   readonly spoiler: boolean;
   /** The placeholder of one stored media item. */
   readonly slot: boolean;
+  readonly literal?: boolean;
+  /** An empty marker for the newline inserted after this line. */
+  readonly spoilerNewline?: boolean;
 }
 
 type Line = readonly Piece[];
@@ -90,7 +58,7 @@ export function richMessageMarkdown(value: unknown): RichMarkdown {
       if (piece.slot) {
         slots.push({ start, end: text.length });
       } else if (piece.spoiler) {
-        spoilers.push({ start, end: text.length });
+        spoilers.push({ start, end: text.length + (piece.spoilerNewline ? 1 : 0) });
       }
     }
   });
@@ -131,7 +99,7 @@ function block(value: unknown, media: RichMedia[], depth: number): Line[] {
       return title.length === 0 ? [] : [[plain(`${'#'.repeat(size)} `), ...title]];
     }
     case 'pre':
-      return codeBlock(plainText(text(value.text)), fenceLanguage(value.language));
+      return codeBlock(inline(value.text, false, depth, true), fenceLanguage(value.language));
     case 'divider':
       return [[plain('---')]];
     case 'mathematical_expression':
@@ -227,9 +195,9 @@ function caption(value: unknown, depth: number): Line[] {
   return lines(by.length === 0 ? text : [...text, plain(' — '), ...by]);
 }
 
-function codeBlock(code: string, language: string): Line[] {
-  const fence = codeFence(code, 3);
-  return [[plain(`${fence}${language}`)], ...code.split('\n').map((line) => [plain(line)]), [plain(fence)]];
+function codeBlock(pieces: Piece[], language: string): Line[] {
+  const fence = codeFence(plainText(pieces), 3);
+  return lines([plain(`${fence}${language}\n`), ...pieces, plain(`\n${fence}`)]);
 }
 
 function table(value: Record<string, unknown>, depth: number): Line[] {
@@ -291,10 +259,8 @@ function tableCell(pieces: readonly Piece[]): Piece[] {
 }
 
 function photoSlot(value: unknown, media: RichMedia[]): Piece {
-  // Telegram lists sizes smallest first; like a photo message, only the
-  // largest is kept.
-  const photo = Array.isArray(value) ? value.at(-1) : undefined;
-  if (!isPhotoSize(photo)) {
+  const photo = normalizePhoto(value);
+  if (photo === undefined) {
     return plain('[photo]');
   }
   media.push({ kind: 'photo', photo });
@@ -307,42 +273,12 @@ function documentSlot(value: unknown, media: RichMedia[]): Piece {
   }
   const name = typeof value.file_name === 'string' ? singleLine(value.file_name) : '';
   const label = name.length === 0 ? '[document]' : `[document: ${name}]`;
-  if (!isFileRecord(value) || (value.thumbnail !== undefined && !hasSize(value.thumbnail))) {
-    return plain(label);
-  }
-  const document = value as unknown as Omit<ImageDocument, 'mime_type' | 'file_size'> & {
-    readonly mime_type?: string;
-    readonly file_size?: number;
-  };
-  if (!isImageDocument(document)) {
+  const document = normalizeImageDocument(value);
+  if (document === undefined) {
     return plain(label);
   }
   media.push({ kind: 'document', document });
   return { text: label, spoiler: false, slot: true };
-}
-
-function isPhotoSize(value: unknown): value is TelegramPhoto {
-  return isFileRecord(value) && hasSize(value);
-}
-
-function hasSize(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    typeof value.width === 'number' &&
-    Number.isInteger(value.width) &&
-    typeof value.height === 'number' &&
-    Number.isInteger(value.height)
-  );
-}
-
-function isFileRecord(value: unknown): value is Record<string, unknown> {
-  return (
-    isRecord(value) &&
-    typeof value.file_id === 'string' &&
-    typeof value.file_unique_id === 'string' &&
-    (value.file_size === undefined || (typeof value.file_size === 'number' && Number.isInteger(value.file_size))) &&
-    (value.mime_type === undefined || typeof value.mime_type === 'string')
-  );
 }
 
 function audioLabel(value: unknown): string {
@@ -363,21 +299,37 @@ function mapLabel(value: unknown): string {
   return `[map: ${value.latitude}, ${value.longitude}]`;
 }
 
-function inline(value: unknown, spoiler: boolean, depth: number): Piece[] {
+function inline(value: unknown, spoiler: boolean, depth: number, literal = false): Piece[] {
   if (typeof value === 'string') {
-    return value.length === 0 ? [] : [{ text: value, spoiler, slot: false }];
+    return value.length === 0 ? [] : [{ text: value, spoiler, slot: false, literal }];
   }
   if (depth > MAX_DEPTH) {
     return [];
   }
   if (Array.isArray(value)) {
-    return value.flatMap((item) => inline(item, spoiler, depth + 1));
+    return value.flatMap((item) => inline(item, spoiler, depth + 1, literal));
   }
   if (!isRecord(value)) {
     return [];
   }
-  const inner = (hidden = spoiler): Piece[] => inline(value.text, hidden, depth + 1);
-  const mark = (text: string): Piece => ({ text, spoiler, slot: false });
+  const inner = (hidden = spoiler): Piece[] => inline(value.text, hidden, depth + 1, literal);
+  const mark = (text: string): Piece => ({ text, spoiler, slot: false, literal });
+  if (literal) {
+    switch (value.type) {
+      case 'spoiler':
+        return inner(true);
+      case 'custom_emoji':
+        return typeof value.alternative_text === 'string' ? [mark(value.alternative_text)] : [];
+      case 'mathematical_expression':
+        return typeof value.expression === 'string' ? [mark(value.expression)] : [];
+      case 'button':
+        return isRecord(value.button) ? inline(value.button.text, spoiler, depth + 1, true) : [];
+      case 'anchor':
+        return [];
+      default:
+        return inner();
+    }
+  }
   switch (value.type) {
     case 'bold':
       return wrap('**', inner(), spoiler);
@@ -394,8 +346,14 @@ function inline(value: unknown, spoiler: boolean, depth: number): Piece[] {
     case 'spoiler':
       return inner(true);
     case 'code': {
-      const code = plainText(inner());
-      return code.length === 0 ? [] : [mark(inlineCode(code))];
+      const pieces = inline(value.text, spoiler, depth + 1, true);
+      const code = plainText(pieces);
+      if (code.length === 0) {
+        return [];
+      }
+      const wrapped = inlineCode(code);
+      const width = (wrapped.length - code.length) / 2;
+      return [mark(wrapped.slice(0, width)), ...pieces, mark(wrapped.slice(-width))];
     }
     case 'custom_emoji':
       return typeof value.alternative_text === 'string' && value.alternative_text.length > 0
@@ -489,6 +447,9 @@ function lines(pieces: readonly Piece[]): Line[] {
   for (const piece of pieces) {
     piece.text.split('\n').forEach((part, index) => {
       if (index > 0) {
+        if (piece.spoiler && piece.literal) {
+          result.at(-1)?.push({ text: '', spoiler: true, slot: false, spoilerNewline: true });
+        }
         result.push([]);
       }
       if (part.length > 0) {

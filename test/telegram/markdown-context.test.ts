@@ -77,6 +77,46 @@ function finishAll(store: SqliteStore): void {
 }
 
 describe('formatted Telegram messages in the agent context', () => {
+  test('freezes full linked spoilers including URLs while preserving partial label spoilers', async () => {
+    const { store, ingestion, scheduler, build } = await setup();
+    const received = new Date();
+    const text = '😀 secret';
+    const url = 'https://example.com/private-information';
+    try {
+      for (const [index, length] of [6, 3].entries()) {
+        ingestion.ingest(
+          {
+            update_id: index + 1,
+            message: {
+              ...baseMessage(index + 1),
+              text,
+              entities: [
+                { type: 'text_link', offset: 3, length: 6, url },
+                { type: 'spoiler', offset: 3, length },
+              ],
+            },
+          } as unknown as Update,
+          received,
+        );
+      }
+      const context = build(processOne(scheduler, new Date(received.getTime() + 15_000)));
+      expect(context.userPrompt).toContain(`😀 ${OPEN}[secret](${url})${CLOSE}`);
+      expect(context.userPrompt).toContain(`😀 [${OPEN}sec${CLOSE}ret](${url})`);
+      const snapshots = store.db
+        .prepare<[], { snapshot_json: string }>('SELECT snapshot_json FROM invocation_messages ORDER BY sequence_no')
+        .all()
+        .map(
+          (row) =>
+            JSON.parse(row.snapshot_json) as { text: string; spoilers: { text: { start: number; end: number }[] } },
+        );
+      expect(
+        snapshots.map((snapshot) => snapshot.spoilers.text.map((range) => snapshot.text.slice(range.start, range.end))),
+      ).toEqual([[`[secret](${url})`], ['sec']]);
+    } finally {
+      store.close();
+    }
+  });
+
   test('shows text and caption formatting as Markdown while the revision keeps Telegram text', async () => {
     const { store, ingestion, scheduler, build } = await setup();
     const received = new Date('2026-08-15T00:00:00.000Z');
@@ -109,7 +149,8 @@ describe('formatted Telegram messages in the agent context', () => {
       } as unknown as Update,
       received,
     );
-    const context = build(processOne(scheduler, new Date(received.getTime() + 15_000)));
+    const invocationId = processOne(scheduler, new Date(received.getTime() + 15_000));
+    const context = build(invocationId);
     const ref = /\[photo (img_[^\s\]]+) 90x60\]/.exec(context.userPrompt)?.[1];
     expect(newMessages(context)).toBe(
       [
@@ -132,6 +173,13 @@ describe('formatted Telegram messages in the agent context', () => {
       { text, caption: null },
       { text: null, caption },
     ]);
+    const snapshots = store.db
+      .prepare<[bigint], { snapshot_json: string }>(
+        'SELECT snapshot_json FROM invocation_messages WHERE invocation_id = ? ORDER BY sequence_no',
+      )
+      .all(invocationId)
+      .map((row) => JSON.parse(row.snapshot_json));
+    expect(snapshots).toMatchObject([{ match_text: [text] }, { match_text: [caption] }]);
     store.close();
   });
 
@@ -208,6 +256,7 @@ describe('formatted Telegram messages in the agent context', () => {
         ?.snapshot_json ?? '{}',
     );
     expect(snapshot.media_slots).toEqual(richMessageMarkdown(RICH_MEDIA).slots);
+    expect(snapshot.match_text).toEqual(['Look:\nTwo shots\nAlice\nA clip\nSecret: it was the butler']);
     store.close();
   });
 
@@ -254,5 +303,43 @@ describe('formatted Telegram messages in the agent context', () => {
       [header(4, ' re:3'), '  > Alice: # Plan', '  真的假的', '</untrusted_new_messages>'].join('\n'),
     );
     store.close();
+  });
+
+  test('omits matching overrides for unchanged bodies and distrusts mismatched rich fragments', async () => {
+    const { store, ingestion, scheduler, build } = await setup();
+    try {
+      const received = new Date('2026-08-15T00:00:00.000Z');
+      const rich = { blocks: [{ type: 'paragraph', text: [{ type: 'bold', text: 'Frozen' }] }] };
+      const messages = [
+        { ...baseMessage(1), text: 'Plain text' },
+        { ...baseMessage(2), rich_message: { blocks: [{ type: 'paragraph', text: 'Plain rich text' }] } },
+        { ...baseMessage(3), rich_message: rich },
+      ];
+      for (const [index, message] of messages.entries()) {
+        ingestion.ingest({ update_id: index + 1, message } as unknown as Update, received);
+      }
+      // A fragment that no longer describes the stored body cannot supply matching text.
+      store.db
+        .prepare<[string]>(
+          'UPDATE message_revisions SET raw_fragment_json = ? WHERE message_id = (SELECT id FROM messages WHERE telegram_message_id = 3)',
+        )
+        .run(JSON.stringify({ rich_message: { blocks: [{ type: 'paragraph', text: 'Untrusted replacement' }] } }));
+      const invocationId = processOne(scheduler, new Date(received.getTime() + 15_000));
+      const snapshots = store.db
+        .prepare<[bigint], { snapshot_json: string }>(
+          'SELECT snapshot_json FROM invocation_messages WHERE invocation_id = ? ORDER BY sequence_no',
+        )
+        .all(invocationId)
+        .map((row) => JSON.parse(row.snapshot_json));
+      expect(snapshots.map((snapshot) => snapshot.text)).toEqual(['Plain text', 'Plain rich text', '**Frozen**']);
+      for (const snapshot of snapshots) {
+        expect(snapshot).not.toHaveProperty('match_text');
+      }
+      const context = build(invocationId);
+      expect(context.userPrompt).toContain('**Frozen**');
+      expect(context.userPrompt).not.toContain('Untrusted replacement');
+    } finally {
+      store.close();
+    }
   });
 });

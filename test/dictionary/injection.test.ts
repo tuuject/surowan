@@ -1,6 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { Update } from 'grammy/types';
 import { expect, test } from 'vitest';
+import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
+import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
 import {
   collectInjectedDictionary,
   createDictionaryInjector,
@@ -153,6 +156,139 @@ test('automatic injection follows the mode, dedupes against the retained context
     );
     const disabled = renderInvocationContext(store, withMode('aggressive'), invocationId, { injectors });
     expect(disabled.userPrompt).not.toContain(entry.id);
+  } finally {
+    store.close();
+  }
+});
+
+test.each([
+  {
+    name: 'partially bold text',
+    body: { text: '塑料碗', entities: [{ type: 'bold', offset: 0, length: 2 }] },
+    field: 'text',
+    rendered: '**塑料**碗',
+  },
+  {
+    name: 'partially linked text',
+    body: {
+      text: '塑料碗',
+      entities: [{ type: 'text_link', offset: 0, length: 2, url: 'https://example.com/targetonly' }],
+    },
+    field: 'text',
+    rendered: '[塑料](https://example.com/targetonly)碗',
+  },
+  {
+    name: 'partially bold caption',
+    body: {
+      caption: '塑料碗',
+      caption_entities: [{ type: 'bold', offset: 0, length: 2 }],
+      photo: [{ file_id: 'photo', file_unique_id: 'photo-unique', width: 90, height: 60 }],
+    },
+    field: 'caption',
+    rendered: '**塑料**碗',
+  },
+  {
+    name: 'partially linked caption',
+    body: {
+      caption: '塑料碗',
+      caption_entities: [{ type: 'text_link', offset: 0, length: 2, url: 'https://example.com/targetonly' }],
+      photo: [{ file_id: 'photo', file_unique_id: 'photo-unique', width: 90, height: 60 }],
+    },
+    field: 'caption',
+    rendered: '[塑料](https://example.com/targetonly)碗',
+  },
+  {
+    name: 'rich text split across formats',
+    body: {
+      rich_message: {
+        blocks: [
+          {
+            type: 'paragraph',
+            text: [
+              { type: 'bold', text: '塑料' },
+              { type: 'url', text: '碗', url: 'https://example.com/targetonly' },
+            ],
+          },
+        ],
+      },
+    },
+    field: 'text',
+    rendered: '**塑料**[碗](https://example.com/targetonly)',
+  },
+])('on-demand matching freezes visible terms and aliases for $name', async ({ body, field, rendered }) => {
+  const { store, loaded, configStore } = await fixture();
+  try {
+    store.db.prepare("UPDATE buckets SET state = 'completed'").run();
+    store.db.prepare("UPDATE invocations SET state = 'completed'").run();
+    const dictionary = new DictionaryStore(store.orm);
+    const create = (term: string, aliases: string[] = []) =>
+      dictionary.create({ term, aliases, definition: term, scope: 'global', chatId: null, enabled: true });
+    const term = create('塑料碗');
+    const alias = create('昵称', ['塑料碗']);
+    const target = create('targetonly');
+    const late = create('后改词');
+    const ingestion = new TelegramIngestion(store, configStore, { id: 999 });
+    const scheduler = new BucketScheduler(store, configStore, async () => ({ state: 'completed', reason: 'done' }));
+    const received = new Date('2026-08-15T00:01:00.000Z');
+    const message = {
+      message_id: 11,
+      date: 1_700_000_001,
+      chat: { id: 123456789, type: 'private', first_name: 'Owner' },
+      from: { id: 42, is_bot: false, first_name: 'Alice' },
+      ...body,
+    };
+    ingestion.ingest({ update_id: 2, message } as unknown as Update, received);
+    const [invocationId] = scheduler.processDue(new Date(received.getTime() + 15_000));
+    if (invocationId === undefined) {
+      throw new Error('Expected a due invocation');
+    }
+    const snapshotJson = store.db
+      .prepare<[bigint], { snapshot_json: string }>(
+        "SELECT snapshot_json FROM invocation_messages WHERE invocation_id = ? AND section = 'new'",
+      )
+      .get(invocationId)?.snapshot_json;
+    expect(JSON.parse(snapshotJson ?? '{}')).toMatchObject({ [field]: rendered, match_text: ['塑料碗'] });
+
+    // Rendering must use the invocation's matching input, not the now-current revision.
+    ingestion.ingest(
+      {
+        update_id: 3,
+        edited_message: {
+          message_id: message.message_id,
+          date: message.date,
+          chat: message.chat,
+          from: message.from,
+          edit_date: message.date + 60,
+          text: '后改词',
+        },
+      } as unknown as Update,
+      new Date(received.getTime() + 30_000),
+    );
+    expect(
+      store.db
+        .prepare<[], { text: string | null }>(
+          'SELECT r.text FROM messages m JOIN message_revisions r ON r.id = m.current_revision_id WHERE m.telegram_message_id = 11',
+        )
+        .get()?.text,
+    ).toBe('后改词');
+    const context = renderInvocationContext(
+      store,
+      { ...loaded.config, dictionary: { injection_mode: 'on_demand' } },
+      invocationId,
+      { injectors: dictionaryPlugin.contextInjectors },
+    );
+    expect(context.userPrompt).toContain(`[${term.id} r1]`);
+    expect(context.userPrompt).toContain(`[${alias.id} r1]`);
+    expect(context.userPrompt).not.toContain(`[${target.id} r1]`);
+    expect(context.userPrompt).not.toContain(`[${late.id} r1]`);
+    expect(context.userPrompt).toContain(rendered);
+    expect(
+      store.db
+        .prepare<[bigint], { snapshot_json: string }>(
+          "SELECT snapshot_json FROM invocation_messages WHERE invocation_id = ? AND section = 'new'",
+        )
+        .get(invocationId)?.snapshot_json,
+    ).toBe(snapshotJson);
   } finally {
     store.close();
   }

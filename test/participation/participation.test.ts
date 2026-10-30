@@ -48,6 +48,45 @@ describe('participation gate', () => {
     store.close();
   });
 
+  test('ignores copy payloads and caption-credit joins without opening attention', async () => {
+    const { store, ingestion } = await setup({
+      global: { active_windows: [], trigger_keywords: ['wake-bot', 'hello world'] },
+    });
+    try {
+      const blocks = [
+        { type: 'buttons', buttons: [{ text: 'Copy', copy_text: { text: 'wake-bot' } }] },
+        {
+          type: 'photo',
+          photo: [{ file_id: 'f', file_unique_id: 'u', width: 10, height: 10 }],
+          caption: { text: 'hello', credit: 'world' },
+        },
+      ];
+      for (const [index, block] of blocks.entries()) {
+        const result = ingestion.ingest(
+          groupMessage(index + 1, index + 10, { rich_message: { blocks: [block] } }),
+          OUTSIDE_PERIOD,
+        );
+        expect(result.messageId).toBeDefined();
+        expect(result.bucketId).toBeUndefined();
+        expect(result.mention).toBeUndefined();
+      }
+      expect(bucketCount(store)).toBe(0n);
+      expect(attention(store)).toBeNull();
+      const visible = ingestion.ingest(
+        groupMessage(3, 12, {
+          rich_message: {
+            blocks: [{ type: 'buttons', buttons: [{ text: 'wake-bot', copy_text: { text: 'unrelated' } }] }],
+          },
+        }),
+        OUTSIDE_PERIOD,
+      );
+      expect(visible.bucketId).toBeDefined();
+      expect(attention(store)?.triggerKind).toBe('keyword');
+    } finally {
+      store.close();
+    }
+  });
+
   test('opens a bucket and a window for each trigger kind', async () => {
     const cases: readonly { readonly name: string; readonly fields: LooseFields; readonly kind: string }[] = [
       { name: 'mention', fields: mentionText(), kind: 'mention' },

@@ -14,15 +14,21 @@ import { isRecord } from './shared.ts';
  * Fields that hold visible rich text. Everything else (link targets, file
  * ids and names, list labels, node types) is never matched.
  */
-const VISIBLE_KEYS: ReadonlySet<string> = new Set([
-  'text',
-  'summary',
-  'credit',
-  'caption',
-  'alternative_text',
-  'expression',
-  'button',
-]);
+const VISIBLE_KEYS: Readonly<Record<string, true>> = {
+  text: true,
+  summary: true,
+  credit: true,
+  caption: true,
+  alternative_text: true,
+  expression: true,
+  button: true,
+};
+const STRUCTURAL_KEYS: Readonly<Record<string, true>> = {
+  blocks: true,
+  items: true,
+  cells: true,
+  buttons: true,
+};
 /** Telegram allows 16 levels of nesting; anything deeper is malformed data. */
 const MAX_DEPTH = 64;
 
@@ -86,12 +92,14 @@ function collectLines(value: unknown, lines: string[], depth: number): void {
     return;
   }
   for (const [key, field] of Object.entries(value)) {
-    if (VISIBLE_KEYS.has(key)) {
+    if (key === 'caption' && isRecord(field) && field.type === undefined) {
+      collectLines(field, lines, depth + 1);
+    } else if (VISIBLE_KEYS[key] === true) {
       const line = runText(field, depth + 1);
       if (line.length > 0) {
         lines.push(line);
       }
-    } else {
+    } else if (STRUCTURAL_KEYS[key] === true) {
       collectLines(field, lines, depth + 1);
     }
   }
@@ -111,9 +119,14 @@ function runText(value: unknown, depth: number): string {
   if (!isRecord(value)) {
     return '';
   }
-  return Object.entries(value)
-    .filter(([key]) => VISIBLE_KEYS.has(key))
-    .map(([, field]) => runText(field, depth + 1))
-    .filter((part) => part.length > 0)
-    .join(' ');
+  if (value.type === 'custom_emoji' && typeof value.alternative_text === 'string') {
+    return value.alternative_text;
+  }
+  if (value.type === 'mathematical_expression' && typeof value.expression === 'string') {
+    return value.expression;
+  }
+  if (value.type === 'button' && isRecord(value.button)) {
+    return runText(value.button.text, depth + 1);
+  }
+  return 'text' in value ? runText(value.text, depth + 1) : '';
 }

@@ -19,23 +19,20 @@ import {
   spoilerRanges,
 } from '../spoilers.ts';
 import { entitiesMarkdown } from './entities.ts';
+import { richMessagePlainText } from './matching.ts';
 import { richMessageMarkdown } from './rich.ts';
 import { isRecord, type MarkdownBody } from './shared.ts';
 
 export { entitiesMarkdown } from './entities.ts';
 export { type RichMention, richMessageMentions, richMessagePlainText } from './matching.ts';
-export {
-  type ImageDocument,
-  isImageDocument,
-  type RichMarkdown,
-  type RichMedia,
-  richMessageMarkdown,
-  type TelegramPhoto,
-} from './rich.ts';
+export { type ImageDocument, isImageDocument, type RichMedia, type TelegramPhoto } from './rich-media.ts';
+export { type RichMarkdown, richMessageMarkdown } from './rich.ts';
 
 export interface RenderedBody {
   readonly text: string | null;
   readonly caption: string | null;
+  /** Frozen visible text for literal matching, without Markdown syntax or link targets. */
+  readonly match_text?: string[];
   readonly spoilers?: MessageSpoilers;
   /**
    * A rich message's media placeholders in `text`, one per stored media item
@@ -77,9 +74,19 @@ export function bodyFromFragment(
     ...(caption === undefined || caption.spoilers.length === 0 ? {} : { caption: caption.spoilers }),
     ...(reply.length === 0 ? {} : { reply }),
   };
+  const renderedText = text?.text ?? stored.text;
+  const renderedCaption = caption?.text ?? stored.caption;
+  const plainText = text?.plainText ?? stored.text;
   return {
-    text: text?.text ?? stored.text,
-    caption: caption?.text ?? stored.caption,
+    text: renderedText,
+    caption: renderedCaption,
+    ...(plainText === renderedText && stored.caption === renderedCaption
+      ? {}
+      : {
+          match_text: [plainText, stored.caption].filter(
+            (value): value is string => value !== null && value.length > 0,
+          ),
+        }),
     ...(Object.keys(spoilers).length === 0 ? {} : { spoilers }),
     ...(text?.slots === undefined ? {} : { media_slots: text.slots }),
   };
@@ -89,7 +96,7 @@ function textBody(
   fragment: Record<string, unknown>,
   stored: string | null,
   mediaCount: number,
-): (MarkdownBody & { readonly slots?: SpoilerRange[] }) | undefined {
+): (MarkdownBody & { readonly plainText?: string; readonly slots?: SpoilerRange[] }) | undefined {
   if (stored === null) {
     return undefined;
   }
@@ -100,6 +107,7 @@ function textBody(
     }
     return {
       text: rich.text,
+      plainText: richMessagePlainText(fragment.rich_message),
       spoilers: rich.spoilers,
       ...(rich.slots.length > 0 && rich.slots.length === mediaCount ? { slots: rich.slots } : {}),
     };

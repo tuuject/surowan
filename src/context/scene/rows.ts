@@ -181,6 +181,7 @@ export function loadOpeningBatch(store: BusinessStore, invocationId: bigint, sou
         kind: snapshot.kind,
         text: snapshot.text,
         caption: snapshot.caption,
+        ...(snapshot.match_text === undefined ? {} : { match_text: snapshot.match_text }),
         ...(snapshot.spoilers === undefined ? {} : { spoilers: snapshot.spoilers }),
         ...(snapshot.media_slots === undefined ? {} : { media_slots: snapshot.media_slots }),
         reply_to_message_id: snapshot.reply_to_message_id,

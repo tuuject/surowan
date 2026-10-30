@@ -16,6 +16,8 @@ Agent 只能创建或修改当前群组的词条，不能指定任意群、写�
 
 Term 和 Aliases 区分大小写，按字面字符串在消息中匹配；匹配时忽略汉字与 ASCII 字母／数字之间的水平空白，例如 `AB钙` 和 `AB 钙` 等价。英文词之间的空格及换行不忽略，存储和返回的词条、别名原文不变。不使用向量、分词或模糊搜索。多个匹配保留多个解释，不做全局覆盖群级或自动合并。同一词条内的别名去重，不同词条可以同名。
 
+Telegram 的按需匹配使用冻结快照中的可见原文，而不是渲染后的 Markdown：只有两者不同时才保存可选 `match_text` 字符串数组。普通 text/caption 保留原文，Rich Message 使用 `richMessagePlainText`；格式片段原地拼接、不同字段用换行分隔，不把链接目标、按钮复制载荷、文件名或媒体占位当作正文。ContextInjector 消费这份冻结值，后续编辑不会改变已创建 Invocation 的匹配结果。旧快照与 Playground 不带该字段时仍使用其冻结的 text/caption；不会重新读取当前 Revision，也不反向剥离旧快照的 Markdown。
+
 冲突按当前有效辞典（全局 + 本群）检查规范化后相同的 Term/Term、Term/Alias、Alias/Alias；`AB钙` 与 `AB 钙` 也会报告潜在冲突，其他群的词条不参与。冲突不阻止写入、查询或注入，供管理员判断歧义是否需要处理。
 
 注入模式为 `off`、`on_demand`、`aggressive`，默认 `on_demand`；可按 Chat 覆盖全局设置。`on_demand` 仅在命中时附带解释，`aggressive` 预加载有效词条。去重以实际保留的 canonical Context 为依据：同版本词条仍在保留段时不重注，随 checkpoint GC 淘汰后可以重注，更新可刷新。不能用永久的“已注入”数据库标记代替保留段状态。

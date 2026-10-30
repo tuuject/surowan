@@ -172,6 +172,7 @@ export function renderHistoryRows(
         kind: row.kind ?? 'unknown',
         text: body.text,
         caption: body.caption,
+        ...(body.match_text === undefined ? {} : { match_text: body.match_text }),
         ...(body.spoilers === undefined ? {} : { spoilers: body.spoilers }),
         ...(body.media_slots === undefined ? {} : { media_slots: body.media_slots }),
         reply_to_message_id: row.reply_to_message_id?.toString() ?? null,

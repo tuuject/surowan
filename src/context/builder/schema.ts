@@ -43,6 +43,7 @@ export const MessageSnapshotSchema = Type.Object(
     kind: Type.String(),
     text: Type.Union([Type.String(), Type.Null()]),
     caption: Type.Union([Type.String(), Type.Null()]),
+    match_text: Type.Optional(Type.Array(Type.String())),
     spoilers: Type.Optional(
       Type.Object(
         {
@@ -181,6 +182,7 @@ export function prepareSnapshot(
     kind: string;
     text: string | null;
     caption: string | null;
+    match_text?: MessageSnapshot['match_text'];
     spoilers?: MessageSnapshot['spoilers'];
     media_slots?: MessageSnapshot['media_slots'];
     reply_to_message_id: string | null;
@@ -245,6 +247,7 @@ export function prepareSnapshot(
     kind: payload.kind,
     text: payload.text,
     caption: payload.caption,
+    ...(payload.match_text === undefined ? {} : { match_text: payload.match_text }),
     ...(payload.spoilers === undefined ? {} : { spoilers: payload.spoilers }),
     ...(payload.media_slots === undefined ? {} : { media_slots: payload.media_slots }),
     reply_to_message_id: payload.reply_to_message_id,

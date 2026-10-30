@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { formatSnapshot } from '../../src/context/builder/format.ts';
 import type { PreparedSnapshot } from '../../src/context/builder/schema.ts';
-import { SPOILER_TAG_CLOSE, SPOILER_TAG_OPEN } from '../../src/platform/spoilers.ts';
+import { renderSpoilers, SPOILER_TAG_CLOSE, SPOILER_TAG_OPEN } from '../../src/platform/spoilers.ts';
 import { bodyFromFragment, entitiesMarkdown, richMessageMarkdown } from '../../src/platform/telegram-markdown/index.ts';
 import { entity, RICH_MEDIA } from './markdown-fixtures.ts';
 
@@ -232,6 +232,61 @@ describe('rich messages as Markdown', () => {
     ]);
   });
 
+  test.each(['pre', 'code'])('keeps %s style runs and link labels literal', (type) => {
+    const text = [
+      'console.',
+      { type: 'bold', text: 'log' },
+      { type: 'url', text: '(1)', url: 'https://example.com/not-code' },
+    ];
+    const block = type === 'pre' ? { type, text } : { type: 'paragraph', text: { type, text } };
+    expect(richMessageMarkdown({ blocks: [block] })).toEqual({
+      text: type === 'pre' ? '```\nconsole.log(1)\n```' : '`console.log(1)`',
+      spoilers: [],
+      slots: [],
+      media: [],
+    });
+  });
+
+  test.each(['pre', 'code'])('keeps partial %s spoilers after emoji, backticks and blank lines', (type) => {
+    const before = '\n😀 `open`\n';
+    const hidden = '密`码\n\n😀secret';
+    const after = '\nend\n';
+    const text = [before, { type: 'bold', text: { type: 'spoiler', text: hidden } }, after];
+    const block = type === 'pre' ? { type, language: 'js', text } : { type: 'paragraph', text: { type, text } };
+    const body = richMessageMarkdown({ blocks: [block] });
+    const opening = type === 'pre' ? '```js\n' : '``';
+    const closing = type === 'pre' ? '\n```' : '``';
+    expect(body.text).toBe(opening + before + hidden + after + closing);
+    expect(body.spoilers).toEqual([
+      { start: opening.length + before.length, end: opening.length + before.length + hidden.length },
+    ]);
+    expect(body.text.slice(body.spoilers[0]?.start, body.spoilers[0]?.end)).toBe(hidden);
+  });
+
+  test.each(['pre', 'code'])('keeps full nested %s spoilers without hiding its fences', (type) => {
+    const hidden = '`😀\n\nsecret`';
+    const text = { type: 'spoiler', text: { type: 'url', text: hidden, url: 'https://example.com/' } };
+    const block = type === 'pre' ? { type, text } : { type: 'paragraph', text: { type, text } };
+    const body = richMessageMarkdown({ blocks: [block] });
+    const opening = type === 'pre' ? '```\n' : '`` ';
+    const closing = type === 'pre' ? '\n```' : ' ``';
+    expect(body.text).toBe(opening + hidden + closing);
+    expect(body.spoilers).toEqual([{ start: opening.length, end: opening.length + hidden.length }]);
+  });
+
+  test('inherits spoilers around inline code including padding and fences', () => {
+    const body = richMessageMarkdown({
+      blocks: [
+        {
+          type: 'paragraph',
+          text: ['😀 ', { type: 'spoiler', text: { type: 'code', text: '`😀\n\nsecret`' } }],
+        },
+      ],
+    });
+    expect(body.text).toBe('😀 `` `😀\n\nsecret` ``');
+    expect(body.spoilers).toEqual([{ start: 3, end: body.text.length }]);
+  });
+
   test('survives malformed and unknown content', () => {
     expect(richMessageMarkdown(null).text).toBe('');
     expect(
@@ -249,6 +304,24 @@ describe('rich messages as Markdown', () => {
 });
 
 describe('message bodies from the stored fragment', () => {
+  test('covers complete caption mention targets regardless of entity order', () => {
+    const caption = '😀 Alice';
+    const entities = [
+      { type: 'text_mention', offset: 3, length: 5, user: { id: 42, is_bot: false, first_name: 'Alice' } },
+      { type: 'spoiler', offset: 3, length: 5 },
+    ];
+    for (const ordered of [entities, entities.toReversed()]) {
+      const body = bodyFromFragment(JSON.stringify({ caption, caption_entities: ordered }), {
+        text: null,
+        caption,
+        mediaCount: 0,
+      });
+      expect(renderSpoilers(body.caption ?? '', body.spoilers?.caption)).toBe(
+        `😀 ${OPEN}[Alice](tg://user?id=42)${CLOSE}`,
+      );
+    }
+  });
+
   test('keeps the stored body when the fragment no longer matches it', () => {
     const rich = richMessageMarkdown(RICH_MEDIA);
     const fragment = JSON.stringify({ rich_message: RICH_MEDIA });
@@ -257,6 +330,7 @@ describe('message bodies from the stored fragment', () => {
       caption: null,
       spoilers: { text: rich.spoilers },
       media_slots: rich.slots,
+      match_text: ['Look:\nTwo shots\nAlice\nA clip\nSecret: it was the butler'],
     });
     // A different flattening (an older revision, or newer code) keeps the
     // stored Markdown but trusts none of its ranges.
@@ -282,6 +356,7 @@ describe('message bodies from the stored fragment', () => {
     expect(bodyFromFragment(fragment, { text: null, caption, mediaCount: 1 })).toEqual({
       text: null,
       caption: '配文 **粗体**',
+      match_text: [caption],
     });
     expect(bodyFromFragment(fragment, { text: caption, caption: null, mediaCount: 1 })).toEqual({
       text: caption,

@@ -220,6 +220,29 @@ describe('participation rules', () => {
     ).toBeNull();
   });
 
+  test('keeps visible rich fields separate while joining formatted runs', () => {
+    const trigger = (blocks: unknown[], keywords: readonly string[]) =>
+      matchTriggerKind(groupMessage(1, 10, { rich_message: { blocks } }).message as Message, BOT_IDENTITY, keywords);
+    const table = {
+      type: 'table',
+      caption: { type: 'bold', text: ['wake-', { type: 'italic', text: 'bot' }] },
+      cells: [[{ text: 'cell', align: 'left', valign: 'top' }]],
+    };
+    expect(trigger([table], ['wake-bot'])).toBe('keyword');
+    const caption = {
+      type: 'photo',
+      caption: { text: ['hel', { type: 'bold', text: 'lo' }], credit: { type: 'italic', text: 'world' } },
+    };
+    expect(trigger([caption], ['hello world'])).toBeNull();
+    expect(trigger([caption], ['hello'])).toBe('keyword');
+    expect(trigger([caption], ['world'])).toBe('keyword');
+    const button = { text: 'Copy', copy_text: { text: 'wake-bot' } };
+    expect(trigger([{ type: 'paragraph', text: ['press ', { type: 'button', button }] }], ['wake-bot'])).toBeNull();
+    expect(trigger([{ type: 'paragraph', text: ['press ', { type: 'button', button }] }], ['press copy'])).toBe(
+      'keyword',
+    );
+  });
+
   test('lower-cases and de-duplicates merged keywords', () => {
     const rule = compileParticipation({
       global: { trigger_keywords: ['Wan', 'wan'] },
