@@ -75,3 +75,7 @@ git -C "$REPO" worktree add -b "feature/<name>" "$WORKTREE_PATH" origin/develop
 - 在主 checkout 上切分支、stash、直接改代码：违背「一个 feature 一个 worktree」的约定，也会打断主目录上其它进行中的事。
 - 绕过 worktree 在 `/tmp` 里 clone 一份：路径约定不一致，后续审计/清理都会漏掉它。
 - 已有 worktree 或分支占用时直接报错放弃：应该复用并继续，或者停下来问，而不是换个名字硬建。
+
+## 例外情况
+
+对于纯粹是增加和修改 `doc/design` 的需求，可以直接在 `develop` 分支做。但是不含 `main` 分支。
