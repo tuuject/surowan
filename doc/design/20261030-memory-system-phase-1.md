@@ -22,7 +22,9 @@
 
 记忆系统包含群友档案记忆、群聊记忆和 Memo Pad。
 
-其中，Memo Pad 的每条记录具有 `summary` 和 `detail` 两部分，支持增删改查，并按照聊天隔离。
+其中，群友档案记忆和 Memo Pad 的每条记录具有 `summary` 和 `detail` 两部分，支持增删改查，并按照聊天隔离。
+
+群友档案记忆和 Memo Pad 的列表会呈现 `summary`。`detail` 只有在查询单条记录详情时才会呈现。
 
 塑料碗能够在聊天过程中使用 Memo Pad 保存资料，并在后续 Invocation 中重新读取和修改。
 
