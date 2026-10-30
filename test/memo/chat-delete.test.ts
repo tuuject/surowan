@@ -1,11 +1,14 @@
 import { eq, sql } from 'drizzle-orm';
 import { afterEach, expect, test } from 'vitest';
-import { deleteTelegramChatData } from '../../src/ingress/admin/chats.ts';
+import { deleteTelegramChatData, runningInvocationIdsForTelegramChat } from '../../src/ingress/admin/chats.ts';
+import { ConversationContextStore } from '../../src/context/store.ts';
 import { diffConfig } from '../../src/platform/config/diff.ts';
 import {
   chatMigrations,
   chats,
   conversations,
+  contextMessages,
+  invocations,
   memoBlobs,
   memoPadEntries,
   messageRevisions,
@@ -13,7 +16,7 @@ import {
 } from '../../src/store/schema/index.ts';
 import { pathExists } from '../helpers.ts';
 import type { MemoFixture } from './fixtures.ts';
-import { memoFixture, seedChat } from './fixtures.ts';
+import { memoFixture, seedChat, seedInvocation } from './fixtures.ts';
 
 const fixtures: MemoFixture[] = [];
 
@@ -123,4 +126,50 @@ test('deleteTelegramChatData resolves a configured id through chat_migrations', 
   expect(f.memoPad.get(entry.id, runtime.chatId)).toBeUndefined();
   expect(f.blobs.get(stored.blob.id, runtime.chatId)).toBeUndefined();
   expect(f.store.orm.select().from(chatMigrations).all()).toEqual([]);
+});
+
+test('deleting the newest migration ID purges predecessor and successor history, memos and blobs', async () => {
+  const f = await fixture();
+  const ids = [111n, 222n, 333n];
+  const paths: string[] = [];
+  const contexts = new ConversationContextStore(f.store);
+  const invocationIds: bigint[] = [];
+  for (const id of ids) {
+    const chat = seedChat(f.store, id);
+    const invocationId = seedInvocation(f.store, chat.conversationId);
+    invocationIds.push(invocationId);
+    f.memoPad.create(chat.chatId, { summary: `history for ${id}`, detail: 'retained on migration' });
+    const stored = await f.blobs.ingest(chat.chatId, { bytes: new Uint8Array([Number(id)]), mime: 'image/png' });
+    paths.push(f.blobs.absolutePath(stored.blob));
+    const { header } = contexts.open(chat.conversationId, 'test');
+    contexts.append(header, {
+      invocationId,
+      role: 'user',
+      isCheckpoint: true,
+      estTokens: 2,
+      json: JSON.stringify({ role: 'user', content: 'old history', timestamp: Date.now() }),
+    });
+  }
+  f.store.orm
+    .insert(chatMigrations)
+    .values([
+      { oldChatId: 111n, newChatId: 222n, receivedAt: new Date().toISOString() },
+      { oldChatId: 222n, newChatId: 333n, receivedAt: new Date().toISOString() },
+    ])
+    .run();
+  f.store.orm.update(invocations).set({ state: 'running' }).run();
+  expect(runningInvocationIdsForTelegramChat(f.store, 333n)).toEqual(invocationIds);
+  f.store.orm.update(invocations).set({ state: 'completed' }).run();
+
+  expect(await deleteTelegramChatData(f.store, f.blobs, 333n)).toBe(true);
+  expect(f.store.orm.select().from(chats).all()).toEqual([]);
+  expect(f.store.orm.select().from(conversations).all()).toEqual([]);
+  expect(f.store.orm.select().from(contextMessages).all()).toEqual([]);
+  expect(f.store.orm.select().from(invocations).all()).toEqual([]);
+  expect(f.store.orm.select().from(memoPadEntries).all()).toEqual([]);
+  expect(f.store.orm.select().from(memoBlobs).all()).toEqual([]);
+  expect(f.store.orm.select().from(chatMigrations).all()).toEqual([]);
+  for (const path of paths) {
+    expect(await pathExists(path)).toBe(false);
+  }
 });

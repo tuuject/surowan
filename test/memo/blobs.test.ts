@@ -1,12 +1,37 @@
-import { afterEach, expect, test } from 'vitest';
+import type * as fs from 'node:fs/promises';
+import { afterEach, expect, test, vi } from 'vitest';
+import { MemoBlobStore } from '../../src/context/memo-pad/blobs.ts';
 import { memoBlobUri } from '../../src/context/memo-pad/index.ts';
 import { pathExists } from '../helpers.ts';
 import type { MemoFixture } from './fixtures.ts';
 import { memoFixture, seedChat } from './fixtures.ts';
 
+const fsHooks = vi.hoisted(() => ({
+  beforeRemove: undefined as ((path: string) => Promise<void>) | undefined,
+  beforeRename: undefined as ((path: string) => Promise<void>) | undefined,
+}));
+
+// Pause filesystem boundaries while retaining real SQLite rows and file bytes.
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof fs>();
+  return {
+    ...actual,
+    rm: async (path: Parameters<typeof actual.rm>[0], options?: Parameters<typeof actual.rm>[1]) => {
+      await fsHooks.beforeRemove?.(String(path));
+      return actual.rm(path, options);
+    },
+    rename: async (...args: Parameters<typeof actual.rename>) => {
+      await fsHooks.beforeRename?.(String(args[1]));
+      return actual.rename(...args);
+    },
+  };
+});
+
 const fixtures: MemoFixture[] = [];
 
 afterEach(async () => {
+  fsHooks.beforeRemove = undefined;
+  fsHooks.beforeRename = undefined;
   for (const fixture of fixtures.splice(0)) {
     await fixture.close();
   }
@@ -132,4 +157,138 @@ test('sweep leaves a freshly saved blob alone until the grace window passes', as
   expect(f.blobs.get(stored.blob.id, chat.chatId)).toBeDefined();
   expect(await f.blobs.sweep(chat.chatId, new Date(Date.now() + 11 * 60_000))).toBe(1);
   expect(f.blobs.get(stored.blob.id, chat.chatId)).toBeUndefined();
+});
+
+test.each([null, 'chat'] as const)('sweep rechecks a later candidate referenced during removal (%s)', async (scope) => {
+  const f = await fixture();
+  const chat = seedChat(f.store, 111n);
+  const createdAt = new Date('2026-01-01T00:00:00.000Z');
+  const blobs = new MemoBlobStore({ orm: f.store.orm, root: f.blobRoot, now: () => createdAt });
+  const saved = [
+    await blobs.ingest(chat.chatId, { bytes: PNG, mime: 'image/png' }),
+    await blobs.ingest(chat.chatId, { bytes: JPEG, mime: 'image/jpeg' }),
+  ];
+  const removing = Promise.withResolvers<void>();
+  const resume = Promise.withResolvers<void>();
+  fsHooks.beforeRemove = async () => {
+    removing.resolve();
+    await resume.promise;
+  };
+  const sweep = blobs.sweep(scope === null ? null : chat.chatId, new Date(createdAt.getTime() + 11 * 60_000));
+  await removing.promise;
+  const survivor = saved.find(({ blob }) => blobs.get(blob.id, chat.chatId) !== undefined);
+  try {
+    expect(survivor).toBeDefined();
+    f.memoPad.create(chat.chatId, {
+      summary: 'reference added while another file is being removed',
+      detail: memoBlobUri(survivor!.blob.id),
+    });
+  } finally {
+    resume.resolve();
+    await sweep;
+  }
+  expect(await sweep).toBe(1);
+  expect(blobs.get(survivor!.blob.id, chat.chatId)).toEqual(survivor!.blob);
+  expect(Buffer.from(await blobs.content(survivor!.blob))).toEqual(Buffer.from(survivor === saved[0] ? PNG : JPEG));
+  const removed = saved.find((savedBlob) => savedBlob !== survivor)!;
+  expect(await pathExists(blobs.absolutePath(removed.blob))).toBe(false);
+});
+
+test('reusing an old orphan renews a full grace window without changing its creation time', async () => {
+  const f = await fixture();
+  const chat = seedChat(f.store, 111n);
+  let now = new Date('2026-01-01T00:00:00.000Z');
+  const blobs = new MemoBlobStore({ orm: f.store.orm, root: f.blobRoot, now: () => now });
+  const original = await blobs.ingest(chat.chatId, { bytes: PNG, mime: 'image/png' });
+  now = new Date(now.getTime() + 11 * 60_000);
+  const reused = await blobs.ingest(chat.chatId, { bytes: PNG, mime: 'image/png' });
+  expect(reused).toEqual({ blob: original.blob, created: false });
+
+  expect(await blobs.sweep(chat.chatId, now)).toBe(0);
+  expect(await blobs.sweep(chat.chatId, new Date(now.getTime() + 10 * 60_000))).toBe(0);
+  expect(blobs.get(original.blob.id, chat.chatId)).toEqual(original.blob);
+  expect(Buffer.from(await blobs.content(original.blob))).toEqual(Buffer.from(PNG));
+  expect(await blobs.sweep(chat.chatId, new Date(now.getTime() + 10 * 60_000 + 1))).toBe(1);
+  expect(blobs.get(original.blob.id, chat.chatId)).toBeUndefined();
+  expect(await pathExists(blobs.absolutePath(original.blob))).toBe(false);
+});
+
+test.each([null, 'chat'] as const)('sweep rechecks a later candidate reused during removal (%s)', async (scope) => {
+  const f = await fixture();
+  const chat = seedChat(f.store, 111n);
+  let now = new Date('2026-01-01T00:00:00.000Z');
+  const blobs = new MemoBlobStore({ orm: f.store.orm, root: f.blobRoot, now: () => now });
+  const saved = [
+    await blobs.ingest(chat.chatId, { bytes: PNG, mime: 'image/png' }),
+    await blobs.ingest(chat.chatId, { bytes: JPEG, mime: 'image/jpeg' }),
+  ];
+  now = new Date(now.getTime() + 11 * 60_000);
+  const removing = Promise.withResolvers<void>();
+  const resume = Promise.withResolvers<void>();
+  fsHooks.beforeRemove = async () => {
+    removing.resolve();
+    await resume.promise;
+  };
+  const sweep = blobs.sweep(scope === null ? null : chat.chatId, now);
+  await removing.promise;
+  const survivor = saved.find(({ blob }) => blobs.get(blob.id, chat.chatId) !== undefined);
+  const bytes = survivor === saved[0] ? PNG : JPEG;
+  try {
+    expect(survivor).toBeDefined();
+    const reused = await blobs.ingest(chat.chatId, { bytes, mime: survivor!.blob.mime });
+    expect(reused).toEqual({ blob: survivor!.blob, created: false });
+  } finally {
+    resume.resolve();
+    await sweep;
+  }
+  expect(await sweep).toBe(1);
+  expect(blobs.get(survivor!.blob.id, chat.chatId)).toEqual(survivor!.blob);
+  expect(Buffer.from(await blobs.content(survivor!.blob))).toEqual(Buffer.from(bytes));
+  expect(await blobs.sweep(chat.chatId, new Date(now.getTime() + 10 * 60_000))).toBe(0);
+  expect(await blobs.sweep(chat.chatId, new Date(now.getTime() + 10 * 60_000 + 1))).toBe(1);
+  expect(await pathExists(blobs.absolutePath(survivor!.blob))).toBe(false);
+});
+
+test('a concurrent ingest winner is protected before cleanup and receives full grace on return', async () => {
+  const f = await fixture();
+  const chat = seedChat(f.store, 111n);
+  let now = new Date('2026-01-01T00:00:00.000Z');
+  const blobs = new MemoBlobStore({ orm: f.store.orm, root: f.blobRoot, now: () => now });
+  const renaming = Promise.withResolvers<string>();
+  const resumeRename = Promise.withResolvers<void>();
+  fsHooks.beforeRename = async (path) => {
+    fsHooks.beforeRename = undefined;
+    renaming.resolve(path);
+    await resumeRename.promise;
+  };
+  const pending = blobs.ingest(chat.chatId, { bytes: PNG, mime: 'image/png' });
+  const losingPath = await renaming.promise;
+  const winner = await blobs.ingest(chat.chatId, { bytes: PNG, mime: 'image/png' });
+  now = new Date(now.getTime() + 11 * 60_000);
+  const removing = Promise.withResolvers<void>();
+  const resumeRemove = Promise.withResolvers<void>();
+  fsHooks.beforeRemove = async (path) => {
+    if (path === losingPath) {
+      removing.resolve();
+      await resumeRemove.promise;
+    }
+  };
+  resumeRename.resolve();
+  await removing.promise;
+  try {
+    expect(await blobs.sweep(chat.chatId, now)).toBe(0);
+    expect(blobs.get(winner.blob.id, chat.chatId)).toEqual(winner.blob);
+    expect(Buffer.from(await blobs.content(winner.blob))).toEqual(Buffer.from(PNG));
+    now = new Date(now.getTime() + 9 * 60_000);
+  } finally {
+    resumeRemove.resolve();
+    await pending;
+  }
+  expect(await pending).toEqual({ blob: winner.blob, created: false });
+  expect(await pathExists(losingPath)).toBe(false);
+  expect(await blobs.sweep(chat.chatId, new Date(now.getTime() + 10 * 60_000))).toBe(0);
+  expect(blobs.get(winner.blob.id, chat.chatId)).toEqual(winner.blob);
+  expect(Buffer.from(await blobs.content(winner.blob))).toEqual(Buffer.from(PNG));
+  expect(await blobs.sweep(chat.chatId, new Date(now.getTime() + 10 * 60_000 + 1))).toBe(1);
+  expect(await pathExists(blobs.absolutePath(winner.blob))).toBe(false);
 });

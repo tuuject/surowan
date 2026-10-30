@@ -223,7 +223,7 @@ Playground 是产品的虚拟群聊沙盒：房间对应一个 `host_kind = 'pla
 | --- | --- |
 | `POST /chats` | `{ id, topic_ids, provider, model, thinking_level }`，追加一个白名单 Chat（热应用，立即生效）；配置 ID 已存在返回 409 `chat_exists` |
 | `PUT /chats/:id` | `{ topic_ids, provider, model, thinking_level }`，四字段必填，仅替换这些字段；保留 `instructions_file`、参与策略、忽略用户等其它设置与 JSONC 注释。ID 不可改名，body 不接受 `id` 或其它字段 |
-| `DELETE /chats/:id` | 从文件删除整项 Chat（含该项的其它设置）并热应用，随后**立即删除该 Chat 的存储数据**：先删 Blob 文件，再在一个事务里删除 `chats` 行（级联 Conversation、Context、Message、Memo Pad 行与 Blob 行）；已热移除期间的 running Invocation 与长任务在应用配置时以 `chat_removed` 停止。不删除 `warnings`、`prompt_versions` 或审计行，也不影响其它 Chat。删除最后一个配置 Chat 返回 409 `last_chat_required`。面板确认弹窗必须明确写出 Memo Pad 与 Blobs 会一并删除 |
+| `DELETE /chats/:id` | 从文件移除 Chat 并热应用；确认其迁移身份不再授权、所有运行结束后，在事务中删除 Chat、Conversation、Context、Message、Memo Pad、Blob 行及所属 Invocation/发送审计，再删除 Blob 文件。超时返回 409 `chat_delete_pending` 并保留数据，可用当前 revision 重试；仍有迁移别名配置时返回 409 `chat_still_authorized`。允许删除最后一个配置 Chat；不影响其它 Chat、`warnings` 与 `prompt_versions` |
 | `PUT /chats/:id/participation` | `{ active_windows: [...] \| null }`，只编辑该 Chat 的活跃时段。`null` 删除本群 `active_windows`（继承全局时段；全局也未配置即完全不限制），participation 对象因此为空时整个对象一并删除；数组（可为空）整体替换 `active_windows`，空数组表示「无固定时段」，闸门保持开启、仅触发可唤醒。每个时段为 `{ start, end, days? }`，`start`/`end` 是 `HH:MM`（`end` 允许 `24:00`），`start !== end`，`days` 是 1（周一）–7（周日）的唯一数组、缺省每天；只管理时段，`trigger_keywords` 与 `attention_window_seconds` 原样保留。时段变化热应用；请求与响应契约同 `PUT /chats/:id`（If-Match、8 KiB 上限、完整 Chats 视图 + `apply`），额外校验：私聊（正数 ID）不接受数组（私聊从不参与闸门），未知 Chat 返回 404 `chat_not_found`，重复保存相同数组不写文件 |
 | `PUT /chats/:id/proactive-reply` | `{ mode: 'inherit' }`、`{ mode: 'off' }` 或 `{ mode: 'custom', base_probability, increment, hard_pity }`。`inherit` 删除本群 `proactive_reply`（字段逐项继承全局），`off` 写 `{ enabled: false }`，`custom` 写完整四字段并启用。`base_probability` 与 `increment` 为 0–1，`hard_pity` 为 1–100 的整数；私聊返回 400 `invalid_body`，未知 Chat 404，重复保存相同模式不写文件。热应用；`base_probability`、`increment` 或 `hard_pity` 变化后下一次抽样会把该群保底计数清零，仅开关 `enabled` 或重启则保留 |
 
@@ -233,8 +233,8 @@ Chat/Topic ID 在 HTTP 中必须是十进制字符串：不接受 0、前导零�
 
 **删除语义有两种，不能混为一谈**：
 
-- **Admin 删除**（`DELETE /chats/:id`）= 配置热移除 + 立即停跑 + 立即删数据：应用配置后先删该 Chat 的 Blob 文件，再在事务里删 `chats` 行，级联删除 Memo Pad 行、Blob 行、Conversation、Context 与 Message。删除不可撤销，面板确认弹窗必须明确提示 Memo Pad 与 Blobs 一并删除。
-- **手改配置文件移除** = 只停跑：reload 发布的新配置不再列出该 Chat，下发时 abort 其 running Invocation（`chat_removed`）并取消其长任务，但**不删除任何存储数据**；同时把该 Chat 各 Conversation 的 `memo_refresh_pending` 置 1，重新加入后首批必须重新渲染完整的 `<memo_list>`，不能沿用旧 Context 里已被移除条目组成的快照。在这个窗口里该 Chat 的 Memo 写入也会被拒绝（工具层按当前配置校验）。
+- **Admin 删除**（`DELETE /chats/:id`）= 配置热移除 + 停止运行 + 删除数据。应用配置后停止新任务并等待既有 Invocation；若五秒内仍未结束返回 409 `chat_delete_pending`，保留数据并可用当前 revision 重试。迁移别名仍配置时返回 409 `chat_still_authorized`，不删除任何身份的数据；确认所有别名都未配置后，先在事务中删除数据库行，再清理 Blob 文件。超时后或手改配置后已不在文件中的 ID 仍可显式 DELETE。删除不可撤销，面板确认弹窗必须明确写出 Memo Pad 与 Blobs 会一并删除。
+- **手改配置文件移除** = 只停跑：reload 发布的新配置不再列出该 Chat，下发时 abort 其 running Invocation、终止 queued work（`chat_removed`）并取消其长任务，但**不删除任何存储数据**；同时把该 Chat 各 Conversation 的 `memo_refresh_pending` 置 1，重新加入后首批必须重新渲染完整的 `<memo_list>`，不能沿用旧 Context 里已被移除条目组成的快照。在这个窗口里该 Chat 的 Memo 写入也会被拒绝（工具层按当前配置校验）。
 
 校验失败返回 400 `invalid_body` / `invalid_chat_id` / `invalid_topic_id` / `invalid_model_reference` 或 422 `config_invalid`；其它写入与应用错误沿用 Models 页的错误码。文件已写入但应用失败时，message 以 `config.jsonc was updated but not applied: ` 开头，active 不变且 `GET /config/status.last_error` 记录错误，不把失败伪装成回滚。
 

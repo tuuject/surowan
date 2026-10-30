@@ -130,7 +130,14 @@ export function subscribeRunEvents(scope: RunScope, run: AgentRun, round: RoundC
       return;
     }
     const pendingUser = event.message.role === 'user' ? pendingUserTags.shift() : undefined;
-    persistMessage(services, cached, invocationId, event.message, pendingUser?.tag === 'checkpoint');
+    persistMessage(
+      services,
+      cached,
+      invocationId,
+      event.message,
+      pendingUser?.tag === 'checkpoint',
+      pendingUser?.memoState,
+    );
     if (pendingUser !== undefined && pendingUser.bucketId !== null) {
       markBucketInjected(services, invocationId, pendingUser.bucketId);
     }

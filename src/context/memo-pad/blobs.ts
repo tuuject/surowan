@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, lt, sql } from 'drizzle-orm';
 import { memoBlobs } from '../../store/schema/index.ts';
 import { asRunResult, type Orm } from '../../store/store.ts';
 import { type MemoBlob, MEMO_BLOB_URI_PREFIX, memoBlobIdsIn, newMemoBlobId } from './index.ts';
@@ -11,8 +11,8 @@ export const MEMO_BLOB_MAX_BYTES = 10 * 1024 * 1024;
 
 /**
  * A blob becomes referenced only when a Memo detail is written after
- * `save_memo_image` returns. Sweeps skip fresh rows so the two-call flow cannot
- * lose the image before the model writes the URI.
+ * `save_memo_image` returns. Every save renews the grace window, including reuse,
+ * so the two-call flow cannot lose the image before the model writes the URI.
  */
 const MEMO_BLOB_SWEEP_GRACE_MS = 10 * 60_000;
 
@@ -94,7 +94,7 @@ export class MemoBlobStore {
       throw new Error('Memo blob is empty or too large');
     }
     const sha256 = createHash('sha256').update(input.bytes).digest('hex');
-    const existing = this.#byContent(chatId, sha256);
+    const existing = this.#reuseByContent(chatId, sha256);
     if (existing !== undefined) {
       return { blob: existing, created: false };
     }
@@ -116,15 +116,19 @@ export class MemoBlobStore {
         byteSize: BigInt(input.bytes.byteLength),
         storagePath,
         createdAt,
+        lastSavedAt: createdAt,
       })
-      .onConflictDoNothing({ target: [memoBlobs.chatId, memoBlobs.sha256] })
+      .onConflictDoUpdate({
+        target: [memoBlobs.chatId, memoBlobs.sha256],
+        set: { lastSavedAt: createdAt },
+      })
       .returning({ id: memoBlobs.id })
       .get();
-    if (inserted === undefined) {
-      // A concurrent save of the same bytes won; drop this copy and share the
-      // winner's row, exactly like the room asset store.
+    if (inserted?.id !== id) {
+      // Protect the concurrent winner before awaiting removal of this copy,
+      // then renew again so the caller gets a full grace window on return.
       await rm(absolute, { force: true });
-      const winner = this.#byContent(chatId, sha256);
+      const winner = this.#reuseByContent(chatId, sha256);
       if (winner === undefined) {
         throw new Error('Concurrent Memo blob save left no row');
       }
@@ -156,7 +160,7 @@ export class MemoBlobStore {
     return deleted;
   }
 
-  /** Deletes every blob in one Chat that no Memo detail references. */
+  /** Deletes unreferenced blobs once the grace window since their last save passes. */
   async sweep(
     chatId: bigint | null = null,
     now = new Date(),
@@ -167,7 +171,7 @@ export class MemoBlobStore {
       chatId === null
         ? sql`SELECT b.id, b.storage_path
               FROM memo_blobs b
-              WHERE b.created_at < ${cutoff}
+              WHERE b.last_saved_at < ${cutoff}
                 AND NOT EXISTS (
                   SELECT 1 FROM memo_pad_entries e
                   WHERE e.chat_id = b.chat_id AND instr(e.detail, ${MEMO_BLOB_URI_PREFIX} || b.id) > 0
@@ -175,7 +179,7 @@ export class MemoBlobStore {
         : sql`SELECT b.id, b.storage_path
               FROM memo_blobs b
               WHERE b.chat_id = ${chatId}
-                AND b.created_at < ${cutoff}
+                AND b.last_saved_at < ${cutoff}
                 AND NOT EXISTS (
                   SELECT 1 FROM memo_pad_entries e
                   WHERE e.chat_id = b.chat_id AND instr(e.detail, ${MEMO_BLOB_URI_PREFIX} || b.id) > 0
@@ -187,7 +191,16 @@ export class MemoBlobStore {
         this.#orm
           .delete(memoBlobs)
           .where(
-            chatId === null ? eq(memoBlobs.id, row.id) : and(eq(memoBlobs.id, row.id), eq(memoBlobs.chatId, chatId)),
+            and(
+              eq(memoBlobs.id, row.id),
+              chatId === null ? undefined : eq(memoBlobs.chatId, chatId),
+              lt(memoBlobs.lastSavedAt, cutoff),
+              sql`NOT EXISTS (
+                SELECT 1 FROM memo_pad_entries e
+                WHERE e.chat_id = ${memoBlobs.chatId}
+                  AND instr(e.detail, ${MEMO_BLOB_URI_PREFIX} || ${memoBlobs.id}) > 0
+              )`,
+            ),
           )
           .run(),
       );
@@ -253,11 +266,12 @@ export class MemoBlobStore {
     return true;
   }
 
-  #byContent(chatId: bigint, sha256: string): MemoBlob | undefined {
+  #reuseByContent(chatId: bigint, sha256: string): MemoBlob | undefined {
     const row = this.#orm
-      .select(BLOB_FIELDS)
-      .from(memoBlobs)
+      .update(memoBlobs)
+      .set({ lastSavedAt: this.#now().toISOString() })
       .where(and(eq(memoBlobs.chatId, chatId), eq(memoBlobs.sha256, sha256)))
+      .returning(BLOB_FIELDS)
       .get();
     return row === undefined ? undefined : { ...row, byteSize: Number(row.byteSize) };
   }

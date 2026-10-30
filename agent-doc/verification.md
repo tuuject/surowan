@@ -155,9 +155,10 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `memo/store.test.ts` | Chat 隔离、短期 TTL 与永久条目、搜索（关键词与半数阈值、大小写、日期范围、排序与 limit）、更新（`ttl_seconds` 与 `null` 提升为永久）、删除幂等、过期清理 |
 | `memo/injection.test.ts` | 只列短期未过期条目、10% 预算隐藏最早条目并给出隐藏数、增量新增/更新/删除与空增量、`null`/落后 `head_seq`/`pending` 触发完整刷新、列表仍在保留窗口时不刷新 |
 | `memo/tools.test.ts` | `read_memory` 记录已读、`update_memo` 拒绝未读与读后被 Admin 修改、`delete_memo` 无需已读且幂等、Chat 移出配置后写入被拒、`tool_calls` 审计行 |
-| `memo/blobs.test.ts` | 同 Chat 按 sha256 去重、跨 Chat 复制隔离、路径逃逸拒绝、detail 变化只清理无引用 Blob、`sweep()` 清理孤儿行与文件、`deleteChatFiles` |
-| `memo/migration.test.ts` | 046 之前的库升级：同一 Chat 两个 Topic 的旧记忆合并、id/content/期限保留、`memories` 表消失 |
-| `memo/chat-delete.test.ts` | Admin 删除真实删除 Chat/Conversation/Memo 行/Blob 行与文件；只改配置文件（diff）不删除任何行 |
+| `memo/blobs.test.ts` | 同 Chat 按 sha256 去重、跨 Chat 复制隔离、路径逃逸拒绝、detail 变化只清理无引用 Blob、sweep 的删除时引用/保护窗口复查、去重重用刷新保护窗口、`deleteChatFiles` |
+| `memo/migration.test.ts` | 046 之前的库升级：同一 Chat 两个 Topic 的旧记忆合并、id/content/期限保留、`memories` 表消失；047 为既有 Blob 回填 `last_saved_at` 并保留文件/行 |
+| `memo/chat-delete.test.ts` / `admin/chats-lifecycle.test.ts` | Admin 删除在迁移别名、慢速 abort、重授权和重试场景下保留或清理正确数据；手改配置停止 queued/running 工作但保留数据，仍授权的别名与其它 Chat 不受影响 |
+| `context/hot-inject-memo-state.test.ts` | 多个 queued batch 各自提交 Memo refresh 状态；后续无变化/刷新/失败重排不覆盖前一批状态，重开 Context 后状态可恢复 |
 | `tasks/long-tasks.test.ts` | 任务/receipt 的 JSON 边界、终态 CAS 与唯一 receipt、plugin/Conversation/caller scope、quota（含取消记录）及外部 completion handle |
 | `tasks/migration.test.ts` | 使用历史迁移建立 019/020 测试库再升级至 022：ID、owner、取消后 Invocation 关联、四态迁移、NULL 创建者、丢弃旧旁路观察（含非法 payload）、canonical history/refs/正常审计与任务回执整行保留，并验证 022 为每个 receipt 建立唯一 `bucket_id`、重复打开及新库无旧表、Drizzle CHECK/partial index 与 SQLite 一致性 |
 | `tasks/delivery.test.ts` | 创建 Invocation 删除后的外部 complete/fail 真实内部链路、普通 assistant 不直发、目的地移除、queued 管理取消与 running AbortSignal 审计结算 |

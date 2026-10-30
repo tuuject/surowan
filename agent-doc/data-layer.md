@@ -121,7 +121,7 @@ SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是
 
 Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id` 是可信 owner：新建时由当前 Invocation 的可靠 caller 写入；迁移历史行允许为 `NULL`，这些旧行不会被用户 list/delete，也不会把 target 冒充 creator 回填。
 
-### Memo Pad（迁移 046）
+### Memo Pad（迁移 046 / 047）
 
 `memo_pad_entries` 是按 **Chat**（`chats.id`，不是 Telegram chat id）隔离的记忆，同一个 Chat 的所有 Forum Topic 共用；Agent 与 Admin Panel 都通过 `MemoPadStore`（[src/context/memo-pad/store.ts](../src/context/memo-pad/store.ts)）读写。
 
@@ -134,7 +134,7 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 
 - `id` 为 `blb_<32hex>`，detail 里以 Markdown `pwblob://blb_<32hex>` 引用；按 `(chat_id, sha256)` 去重，同 Chat 多条 detail 可以共享一个 blob，跨 Chat 永不共享。
 - `storage_path` 相对 `<data_dir>/images/memo-blobs`，实际文件位于 `<data_dir>/images/memo-blobs/<chatId>/<blobId>.<ext>`；因为落在 `images/` 下，现有备份的旁路 `.images/` 目录快照会一并携带它（见[备份](#备份)）。
-- 更新/删除 detail 后，只删除不再被该 Chat 任何 detail 引用的 blob：写路径与 Admin 调用 `cleanupAfterDetailChange`，确认同 Chat 其他条目未引用后删行、再删文件。`MemoBlobStore.sweep()` 按同一引用规则清理孤儿行与文件，在服务启动、备份前与写路径调用；它按 `instr(detail, 'pwblob://' || id)` 判定引用，并跳过创建不足 10 分钟的 blob，避免 `save_memo_image` 与随后写入 detail 之间被误删。
+- 更新/删除 detail 后，只删除不再被该 Chat 任何 detail 引用的 blob：写路径与 Admin 调用 `cleanupAfterDetailChange`，确认同 Chat 其他条目未引用后删行、再删文件。`MemoBlobStore.sweep()` 按同一引用规则清理孤儿行与文件，在服务启动、备份前与写路径调用；迁移 `047` 增加 `last_saved_at`，保存或去重重用都会刷新十分钟保护窗口，`created_at` 保持不变。候选查询后，实际 DELETE 再检查引用与保护窗口，只有成功删行才删除文件。
 - `read_image` 接受 `pwblob://` URI，按当前 `internalChatId` 鉴权后读取；Admin 的 blob 内容端点见 [admin-panel.md](admin-panel.md#api)。
 
 `conversation_contexts` 的三个 Memo 列（`memo_refresh_seq`、`memo_state_json`、`memo_refresh_pending`）记录短期记忆注入状态：完整列表最近一次渲染的批次 `seq`、最近一次已告知模型的状态快照、以及强制刷新标记。Context 重建会把三者复位；状态只在批次消息落盘时推进，渲染本身只读。刷新判据与预算见 [telegram-agent-flow.md](telegram-agent-flow.md#context)。

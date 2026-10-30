@@ -38,10 +38,26 @@ export function createRoundControl(scope: RunScope, run: AgentRun): RoundControl
   const { agent, tools, typing, toolDefinitionCharacters, carriedInjections, cached, carried: carriedSticker } = run;
   // One entry per user message handed to the agent, in delivery order. A batch
   // carries its bucket so it is acknowledged only once it is in the transcript.
-  const pendingUserTags: { readonly tag: 'checkpoint' | 'harness'; readonly bucketId: bigint | null }[] = [];
+  const { pendingUserTags } = run;
   const injectBatch = async (bucketId: bigint): Promise<AgentMessage> => {
+    // Later queued batches see earlier announcements without changing the
+    // durable header before their checkpoints actually reach the transcript.
+    const pendingMemo = pendingUserTags.findLast((entry) => entry.memoState !== undefined)?.memoState;
+    const injectionHeader =
+      pendingMemo === undefined
+        ? header
+        : {
+            ...header,
+            memoStateJson: pendingMemo.stateJson,
+            memoRefreshSeq: pendingMemo.refreshSeq,
+            memoRefreshPending: pendingMemo.pending,
+          };
+    const refresh =
+      injectionHeader.memoRefreshPending ||
+      injectionHeader.memoRefreshSeq === null ||
+      injectionHeader.memoRefreshSeq < injectionHeader.headSeq;
     const injection = services.contextBuilder.renderInjection(config, {
-      header,
+      header: injectionHeader,
       identity,
       bucketId,
       seq: header.nextSeq,
@@ -57,15 +73,6 @@ export function createRoundControl(scope: RunScope, run: AgentRun): RoundControl
       carriedInjections,
     });
     contextState.applyInjection(injection);
-    cached.pendingMemoState = injection.memoState;
-    if (injection.memoState !== null) {
-      // Advance the live header too: several buckets can be injected before the
-      // first one is persisted, and each later render must not repeat the same
-      // list or delta. The DB commit still waits for `persistMessage`.
-      header.memoStateJson = injection.memoState.stateJson;
-      header.memoRefreshSeq = injection.memoState.refreshSeq;
-      header.memoRefreshPending = injection.memoState.pending;
-    }
     if (injection.stickerCatalog.length > 0) {
       carriedSticker.stickerCatalog = injection.stickerCatalog;
     }
@@ -84,7 +91,11 @@ export function createRoundControl(scope: RunScope, run: AgentRun): RoundControl
     }
     runtime.beginRound(conversationId);
     const images = supportsImages ? ((await services.directImageLoader?.(contextState, signal)) ?? []) : [];
-    pendingUserTags.push({ tag: 'checkpoint', bucketId });
+    pendingUserTags.push({
+      tag: 'checkpoint',
+      bucketId,
+      ...(injection.memoState === null ? {} : { memoState: { ...injection.memoState, refresh } }),
+    });
     state.turnsSinceInjection = 0;
     state.sendUsed = false;
     state.nudged = false;

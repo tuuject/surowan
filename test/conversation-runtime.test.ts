@@ -9,7 +9,6 @@ function remember(runtime: ConversationRuntime, conversationId: bigint): void {
     agent: {} as Agent,
     header: {} as ContextHeader,
     transcriptSeqs: [],
-    pendingMemoState: null,
     systemPromptHash: 'hash',
     lastUsedAt: 0,
   });

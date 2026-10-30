@@ -47,6 +47,7 @@ export const memoBlobs = sqliteTable(
     byteSize: sqliteBigInt('byte_size').notNull(),
     storagePath: text('storage_path').notNull(),
     createdAt: text('created_at').notNull(),
+    lastSavedAt: text('last_saved_at').notNull(),
   },
   (t) => [
     check('memo_blobs_byte_size_check', sql`byte_size > 0`),

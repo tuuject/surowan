@@ -246,7 +246,7 @@ Memo Pad 是 **Chat 级**记忆：同一个 Chat 的所有 Forum Topic 共享，
 
 字符预算是 `floor(contextWindow × 0.1)`（PRD 按每字符 1 Token 折算），列表超限时从最早的条目开始隐藏，并在末尾给出 `[N earlier short-term memories are not shown; use search_memory to find them]`；增量同理按最新变化优先保留，并有 `[N earlier memory changes omitted]` 提示。
 
-`memo_refresh_seq` / `memo_state_json` 只在消息真正落盘（`persistMessage`）时提交：渲染只计算，不写库，因此一个最终没有进入 canonical history 的批次不会宣称自己的变化已经告知。Context 重建会把这两个字段与 `memo_refresh_pending` 一起复位，下一次运行重新渲染完整列表。增量跨 Invocation 累积在历史里，直到所在行被 GC；Admin 在批次之间修改或删除条目，会在下一个批次以增量或完整列表的形式出现。
+`memo_refresh_seq` / `memo_state_json` 只在对应批次的 user checkpoint 真正落盘时提交：每个排队批次携带自己的待提交状态，后续批次不能覆盖或替代前一个批次。渲染只计算，不写库，因此一个最终没有进入 canonical history 的批次不会宣称自己的变化已经告知。Context 重建会把这两个字段与 `memo_refresh_pending` 一起复位，下一次运行重新渲染完整列表。增量跨 Invocation 累积在历史里，直到所在行被 GC；Admin 在批次之间修改或删除条目，会在下一个批次以增量或完整列表的形式出现。
 
 `search_memory` 接受 `keywords`（匹配 `summary` 与 `detail`，大小写不敏感子串；单个关键词必须命中，多个关键词至少命中一半）、`from`/`to`（按 `created_at` 过滤）与 `limit`，只返回 id、summary 与期限；`read_memory` 按 id 返回完整 detail，并记录本 Invocation 已读（`id -> updatedAt`），`update_memo` 必须先读且读后未被改动。读原语直接暴露，不经 `execute`；`add_memo`、`update_memo`、`delete_memo`、`save_memo_image` 是经 `execute` 调用的内部能力，完整定义与参数以 [src/context/memo-pad/tools/](../src/context/memo-pad/tools/) 为准，何时使用的说明在 memory System Skill。
 

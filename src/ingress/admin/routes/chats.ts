@@ -4,6 +4,7 @@ import type { BucketScheduler } from '../../../orchestration/scheduler/index.ts'
 import type { ConfigController, ConfigEdit } from '../../../platform/config/write.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
 import type { BusinessStore } from '../../../store/store.ts';
+import { telegramChatIdentity } from '../../../store/chat-identity.ts';
 import { json, readJsonObject, requiredRevision, revisionRequired } from '../http.ts';
 import { CONFIG_WRITE_STATUS, readConfigFile } from '../config-file.ts';
 import {
@@ -73,7 +74,6 @@ export function createChatsAdminHandler(deps: ChatsAdminDeps) {
       return json({ error: 'config_conflict', message: 'The configuration file changed; reload before editing' }, 409);
     }
     const deletingChatId = request.method === 'DELETE' ? BigInt(parseChatId(segments[1] ?? '')) : undefined;
-    const running = deletingChatId === undefined ? [] : runningInvocationIdsForTelegramChat(store, deletingChatId);
     let edits: readonly ConfigEdit[];
     if (request.method === 'POST') {
       edits = createChat(loaded.fileConfig, parseCreateChat(await readJsonObject(request)));
@@ -97,9 +97,45 @@ export function createChatsAdminHandler(deps: ChatsAdminDeps) {
       return json({ error: result.code, message }, CONFIG_WRITE_STATUS[result.code] ?? 409);
     }
     if (deletingChatId !== undefined) {
-      // `onPublished` already signalled the abort; wait for the runs to unwind
-      // before deleting the rows they are still allowed to write.
-      await scheduler?.waitForInvocations(running);
+      const stillAuthorized = () => {
+        const identity = new Set(telegramChatIdentity(store, [deletingChatId]));
+        return configStore.current().config.telegram.chats.some((chat) => identity.has(BigInt(chat.id)));
+      };
+      if (stillAuthorized()) {
+        return json(
+          {
+            error: 'chat_still_authorized',
+            message: 'A migration alias is still configured; stored data was retained',
+          },
+          409,
+        );
+      }
+      // Publication closes admission first. Include runs that started while
+      // writeAndApply was preparing the next configuration, not a pre-write snapshot.
+      const running = runningInvocationIdsForTelegramChat(store, deletingChatId);
+      scheduler?.abortInvocations(running, 'chat_removed');
+      const settled = scheduler === undefined ? running.length === 0 : await scheduler.waitForInvocations(running);
+      // Another writer may have restored this Chat while handlers unwound.
+      // This check and the row deletion below have no asynchronous gap.
+      if (stillAuthorized()) {
+        return json(
+          {
+            error: 'chat_still_authorized',
+            message: 'A migration alias is still configured; stored data was retained',
+          },
+          409,
+        );
+      }
+      if (!settled || runningInvocationIdsForTelegramChat(store, deletingChatId).length > 0) {
+        return json(
+          {
+            error: 'chat_delete_pending',
+            message:
+              'Chat removed from configuration; active work is still stopping. Data was retained. Reload and retry DELETE.',
+          },
+          409,
+        );
+      }
       await deleteTelegramChatData(store, memoBlobs, deletingChatId);
     }
     return json({

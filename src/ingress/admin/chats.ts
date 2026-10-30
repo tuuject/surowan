@@ -13,6 +13,7 @@ import type { ConfigEdit } from '../../platform/config/write.ts';
 import { resolveProactiveReply } from '../../platform/proactive-reply.ts';
 import { supportedThinkingLevels } from '../../platform/thinking-levels.ts';
 import type { BusinessStore } from '../../store/store.ts';
+import { telegramChatIdentity } from '../../store/chat-identity.ts';
 import { chatMigrations, chats } from '../../store/schema/index.ts';
 import { conversations, invocations } from '../../store/schema/index.ts';
 import { AdminQueryError } from './audit/shared.ts';
@@ -184,7 +185,12 @@ export function updateChat(file: FileConfig, id: number, body: ChatSettingsBody)
 }
 
 export function deleteChat(file: FileConfig, id: number): ConfigEdit[] {
-  const index = chatIndex(file, id);
+  // Retained data must remain explicitly purgeable after a timed-out delete or
+  // a file-only removal, without restoring the Chat's authorization.
+  const index = fileChats(file).findIndex((chat) => chat.id === id);
+  if (index < 0) {
+    return [];
+  }
   // The allowlist may become empty: it just means no Chat is processed until one
   // is added again. The `telegram` section itself stays, because a token may
   // still be configured and the panel never deletes the section.
@@ -193,12 +199,7 @@ export function deleteChat(file: FileConfig, id: number): ConfigEdit[] {
 
 /** Running invocation ids whose Conversation belongs to the configured Chat. */
 export function runningInvocationIdsForTelegramChat(store: BusinessStore, telegramChatId: bigint): bigint[] {
-  const migrated = store.orm
-    .select({ newChatId: chatMigrations.newChatId })
-    .from(chatMigrations)
-    .where(eq(chatMigrations.oldChatId, telegramChatId))
-    .all();
-  const runtimeIds = [...new Set([telegramChatId, ...migrated.map((row) => row.newChatId)])];
+  const runtimeIds = telegramChatIdentity(store, [telegramChatId]);
   return store.orm
     .select({ id: invocations.id })
     .from(invocations)
@@ -222,12 +223,7 @@ export async function deleteTelegramChatData(
   memoBlobs: MemoBlobStore,
   telegramChatId: bigint,
 ): Promise<boolean> {
-  const migrated = store.orm
-    .select({ newChatId: chatMigrations.newChatId })
-    .from(chatMigrations)
-    .where(eq(chatMigrations.oldChatId, telegramChatId))
-    .all();
-  const runtimeIds = [...new Set([telegramChatId, ...migrated.map((row) => row.newChatId)])];
+  const runtimeIds = telegramChatIdentity(store, [telegramChatId]);
   const chatRows = store.orm
     .select({ id: chats.id })
     .from(chats)

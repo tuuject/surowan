@@ -10,7 +10,6 @@
  */
 
 import type { Agent } from '@earendil-works/pi-agent-core';
-import type { MemoStateUpdate } from '../context/memo-pad/index.ts';
 import type { ContextHeader } from '../context/store.ts';
 
 export interface CachedConversationAgent {
@@ -19,8 +18,6 @@ export interface CachedConversationAgent {
   header: ContextHeader;
   /** Sequence number of each transcript entry; `null` for non-persisted rows. */
   transcriptSeqs: (bigint | null)[];
-  /** Memo state computed by the newest rendered batch, committed on persist. */
-  pendingMemoState: MemoStateUpdate | null;
   systemPromptHash: string;
   lastUsedAt: number;
 }

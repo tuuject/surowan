@@ -9,7 +9,7 @@ import type { ContextHeader, RetainedContextMessage } from '../../context/store.
 import type { ActiveAgentSettings, RawConfig } from '../../platform/config/index.ts';
 import { invocations } from '../../store/schema/index.ts';
 import type { CachedConversationAgent } from '../conversation-runtime.ts';
-import type { RuntimeServices } from './types.ts';
+import type { RoundControl, RuntimeServices } from './types.ts';
 import { logContextGc, logContextRealigned } from './observability.ts';
 
 /**
@@ -86,7 +86,6 @@ export function createCachedAgent(
     // retained history; it is runtime-owned and never persisted, so it gets
     // the `null` sequence entry here.
     transcriptSeqs: [null, ...retained.map((row) => row.seq)],
-    pendingMemoState: null,
     systemPromptHash: stable.systemPromptHash,
     lastUsedAt: Date.now(),
   };
@@ -98,6 +97,7 @@ export function persistMessage(
   invocationId: bigint,
   message: AgentMessage,
   isCheckpoint: boolean,
+  memoState?: RoundControl['pendingUserTags'][number]['memoState'],
 ): bigint | undefined {
   const encoded = encodeContextMessage(message);
   if (encoded === undefined) {
@@ -126,9 +126,14 @@ export function persistMessage(
   if (entry.transcriptSeqs.length !== entry.agent.state.messages.length) {
     throw new Error('Conversation transcript diverged from the canonical history');
   }
-  if (isCheckpoint && entry.pendingMemoState !== null) {
-    services.contexts.setMemoState(entry.header, entry.pendingMemoState);
-    entry.pendingMemoState = null;
+  if (isCheckpoint && memoState !== undefined) {
+    // Rendering several queued batches shares nextSeq. Only persistence knows
+    // the actual checkpoint carrying a full list; deltas retain that checkpoint.
+    services.contexts.setMemoState(entry.header, {
+      stateJson: memoState.stateJson,
+      pending: memoState.pending,
+      refreshSeq: memoState.refresh ? seq : (entry.header.memoRefreshSeq ?? memoState.refreshSeq),
+    });
   }
   return seq;
 }

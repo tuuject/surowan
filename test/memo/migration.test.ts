@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -6,7 +6,9 @@ import { sql } from 'drizzle-orm';
 import { afterAll, expect, test } from 'vitest';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
-import { writeTestConfig } from '../helpers.ts';
+import { MemoBlobStore } from '../../src/context/memo-pad/blobs.ts';
+import { memoBlobs } from '../../src/store/schema/index.ts';
+import { pathExists, writeTestConfig } from '../helpers.ts';
 
 const directories: string[] = [];
 
@@ -81,6 +83,63 @@ test('migration 046 merges conversation memories of one Chat into Memo Pad entri
         updated_at: '2026-01-03T12:00:00.000Z',
       },
     ]);
+  } finally {
+    store.close();
+  }
+});
+
+test('migration 047 preserves blob creation time and backfills last-save sweep protection', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'memo-blob-migration-'));
+  directories.push(directory);
+  const configPath = join(directory, 'config.jsonc');
+  await writeTestConfig(directory, configPath);
+  const loaded = await loadConfig(configPath);
+  await mkdir(dirname(loaded.config.paths.database), { recursive: true });
+  const createdAt = '2026-01-01T00:00:00.000Z';
+  const id = `blb_${'1'.repeat(32)}`;
+  const root = join(loaded.config.data_dir, 'images', 'memo-blobs');
+  const storagePath = join('1', `${id}.png`);
+  const bytes = new Uint8Array([1, 2, 3]);
+  await mkdir(dirname(join(root, storagePath)), { recursive: true });
+  await writeFile(join(root, storagePath), bytes);
+
+  const legacy = new Database(loaded.config.paths.database);
+  try {
+    legacy.defaultSafeIntegers(true);
+    legacy.pragma('foreign_keys = ON');
+    for (const name of (await readdir(MIGRATIONS))
+      .filter((file) => /^\d{3}_[a-z0-9_]+\.sql$/.test(file) && Number(file.slice(0, 3)) < 47)
+      .sort()) {
+      legacy.exec(await readFile(join(MIGRATIONS, name), 'utf8'));
+      legacy
+        .prepare('INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)')
+        .run(Number(name.slice(0, 3)), createdAt);
+    }
+    legacy
+      .prepare(`INSERT INTO chats (id, telegram_chat_id, canonical_chat_id, type, updated_at)
+                VALUES (1, 111, 111, 'private', ?)`)
+      .run(createdAt);
+    legacy
+      .prepare(`INSERT INTO memo_blobs (id, chat_id, sha256, mime, byte_size, storage_path, created_at)
+                VALUES (?, 1, 'sha', 'image/png', ?, ?, ?)`)
+      .run(id, bytes.byteLength, storagePath, createdAt);
+  } finally {
+    legacy.close();
+  }
+
+  const store = await SqliteStore.open(loaded.config);
+  try {
+    const blobs = new MemoBlobStore({ orm: store.orm, root });
+    const blob = blobs.get(id, 1n);
+    expect(blob?.createdAt).toBe(createdAt);
+    expect(store.orm.select({ lastSavedAt: memoBlobs.lastSavedAt }).from(memoBlobs).get()).toEqual({
+      lastSavedAt: createdAt,
+    });
+    expect(Buffer.from(await blobs.content(blob!))).toEqual(Buffer.from(bytes));
+    expect(await blobs.sweep(1n, new Date('2026-01-01T00:10:00.000Z'))).toBe(0);
+    expect(await blobs.sweep(1n, new Date('2026-01-01T00:10:00.001Z'))).toBe(1);
+    expect(blobs.get(id, 1n)).toBeUndefined();
+    expect(await pathExists(join(root, storagePath))).toBe(false);
   } finally {
     store.close();
   }
