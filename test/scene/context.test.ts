@@ -191,6 +191,58 @@ describe('scene context', () => {
     store.close();
   });
 
+  test('renders Markdown and in-place rich media like production in the opening batch and fallback history', async () => {
+    const fixture = await setup();
+    const { store, ingestion } = fixture;
+    ingestion.ingest(
+      {
+        update_id: 1,
+        message: {
+          ...telegramMessage(GROUP_CHAT, 10, 0, ALICE),
+          rich_message: {
+            blocks: [
+              { type: 'heading', size: 1, text: 'Menu' },
+              {
+                type: 'photo',
+                photo: [{ file_id: 'menu-photo', file_unique_id: 'menu-photo-unique', width: 640, height: 480 }],
+                caption: { text: 'Noodles' },
+              },
+              { type: 'paragraph', text: [{ type: 'bold', text: 'Price' }, ': 12'] },
+            ],
+          },
+        },
+      } as unknown as Update,
+      at(0),
+    );
+    flush(fixture, 20);
+    ingestion.ingest(
+      {
+        update_id: 2,
+        message: {
+          ...telegramMessage(GROUP_CHAT, 11, 30, ALICE),
+          text: 'see docs',
+          entities: [{ type: 'text_link', offset: 4, length: 4, url: 'https://example.com/' }],
+        },
+      } as unknown as Update,
+      at(30),
+    );
+    flush(fixture, 50);
+    const invocationId = latestInvocation(store, conversationIdOf(store, GROUP_CHAT, 0n));
+    // The fallback rebuilds history from the revision row and must recover the
+    // media slots from its raw fragment, as the live snapshot does.
+    store.db
+      .prepare("DELETE FROM invocation_messages WHERE invocation_id = ? AND section = 'history'")
+      .run(invocationId);
+
+    const scene = buildSceneContext(store, fixture.loaded.config, invocationId, DEFAULT_OPTIONS);
+
+    expect(scene.text).toContain(
+      '[10 00:00:00 uid:42 @alice] Alice\n  # Menu\n  \n  [photo media_unavailable 640x480]\n  Noodles\n  \n  **Price**: 12',
+    );
+    expect(scene.text).toContain('[11 00:00:30 uid:42 @alice] Alice\n  see [docs](https://example.com/)');
+    store.close();
+  });
+
   test('renders the revision that existed at the cutoff, not later edits', async () => {
     const fixture = await setup();
     const { store, ingestion } = fixture;

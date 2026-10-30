@@ -8,13 +8,8 @@ import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
 import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
 import type { RawConfig } from '../../src/platform/config/index.ts';
-import {
-  renderSpoilers,
-  spoilersFromFragment,
-  SPOILER_TAG_CLOSE,
-  SPOILER_TAG_OPEN,
-  spoilerRanges,
-} from '../../src/platform/spoilers.ts';
+import { renderSpoilers, SPOILER_TAG_CLOSE, SPOILER_TAG_OPEN, spoilerRanges } from '../../src/platform/spoilers.ts';
+import { bodyFromFragment } from '../../src/platform/telegram-markdown/index.ts';
 import { renderInvocationContext, testConfigStore, writeTestConfig, type TestInvocationContext } from '../helpers.ts';
 
 const OPEN = SPOILER_TAG_OPEN;
@@ -109,17 +104,25 @@ describe('spoiler ranges', () => {
   });
 });
 
+/** The spoiler spans odyFromFragment recovers, or undefined when there are none. */
+function spoilersOf(
+  fragment: string | null,
+  body: { readonly text: string | null; readonly caption: string | null; readonly reply_snapshot?: unknown },
+) {
+  return bodyFromFragment(fragment, { ...body, mediaCount: 0 }).spoilers;
+}
+
 describe('spoiler spans from the stored fragment', () => {
   test('reads text entities out of the raw fragment', () => {
     const text = '我觉得这个定价有问题。';
     const fragment = JSON.stringify({ text, entities: [{ type: 'spoiler', offset: 3, length: 7 }] });
-    expect(spoilersFromFragment(fragment, { text, caption: null })).toEqual({ text: [{ start: 3, end: 10 }] });
+    expect(spoilersOf(fragment, { text, caption: null })).toEqual({ text: [{ start: 3, end: 10 }] });
   });
 
   test('reads caption entities out of the raw fragment', () => {
     const caption = '剧透警告，慎点。';
     const fragment = JSON.stringify({ caption, caption_entities: [{ type: 'spoiler', offset: 4, length: 2 }] });
-    expect(spoilersFromFragment(fragment, { text: null, caption })).toEqual({ caption: [{ start: 4, end: 6 }] });
+    expect(spoilersOf(fragment, { text: null, caption })).toEqual({ caption: [{ start: 4, end: 6 }] });
   });
 
   test('reads the replied-to entities for the stored reply preview', () => {
@@ -128,16 +131,16 @@ describe('spoiler spans from the stored fragment', () => {
       text: '真的假的',
       reply_to_message: { text: replied, entities: [{ type: 'spoiler', offset: 2, length: 9 }] },
     });
-    expect(
-      spoilersFromFragment(fragment, { text: '真的假的', caption: null, reply_snapshot: { content: replied } }),
-    ).toEqual({ reply: [{ start: 2, end: 11 }] });
+    expect(spoilersOf(fragment, { text: '真的假的', caption: null, reply_snapshot: { content: replied } })).toEqual({
+      reply: [{ start: 2, end: 11 }],
+    });
     // The adapter truncates the preview, so spans are clamped to that prefix.
     expect(
-      spoilersFromFragment(fragment, { text: '真的假的', caption: null, reply_snapshot: { content: '结局是男主' } }),
+      spoilersOf(fragment, { text: '真的假的', caption: null, reply_snapshot: { content: '结局是男主' } }),
     ).toEqual({ reply: [{ start: 2, end: 5 }] });
     // A caption-only replied-to message contributes its caption entities.
     expect(
-      spoilersFromFragment(
+      spoilersOf(
         JSON.stringify({
           text: '真的假的',
           reply_to_message: { caption: '配文剧透', caption_entities: [{ type: 'spoiler', offset: 2, length: 2 }] },
@@ -147,33 +150,31 @@ describe('spoiler spans from the stored fragment', () => {
     ).toEqual({ reply: [{ start: 2, end: 4 }] });
     // A preview that is no longer a prefix of the replied-to body is not trusted.
     expect(
-      spoilersFromFragment(fragment, { text: '真的假的', caption: null, reply_snapshot: { content: '别的内容' } }),
+      spoilersOf(fragment, { text: '真的假的', caption: null, reply_snapshot: { content: '别的内容' } }),
     ).toBeUndefined();
     // No stored preview (for example an ignored replied-to user) means no span.
-    expect(spoilersFromFragment(fragment, { text: '真的假的', caption: null, reply_snapshot: null })).toBeUndefined();
+    expect(spoilersOf(fragment, { text: '真的假的', caption: null, reply_snapshot: null })).toBeUndefined();
   });
 
   test('reports nothing for plain messages, mismatched bodies, and unreadable fragments', () => {
-    expect(
-      spoilersFromFragment(JSON.stringify({ text: '普通消息' }), { text: '普通消息', caption: null }),
-    ).toBeUndefined();
-    expect(spoilersFromFragment('{}', { text: '普通消息', caption: null })).toBeUndefined();
-    expect(spoilersFromFragment(null, { text: '普通消息', caption: null })).toBeUndefined();
-    expect(spoilersFromFragment('nonsense', { text: '普通消息', caption: null })).toBeUndefined();
+    expect(spoilersOf(JSON.stringify({ text: '普通消息' }), { text: '普通消息', caption: null })).toBeUndefined();
+    expect(spoilersOf('{}', { text: '普通消息', caption: null })).toBeUndefined();
+    expect(spoilersOf(null, { text: '普通消息', caption: null })).toBeUndefined();
+    expect(spoilersOf('nonsense', { text: '普通消息', caption: null })).toBeUndefined();
     // An entity list belongs to the body the fragment carries: a revision whose
     // text was rewritten (for example an edit) must not borrow stale offsets.
     expect(
-      spoilersFromFragment(JSON.stringify({ text: '旧版本', entities: [{ type: 'spoiler', offset: 0, length: 3 }] }), {
+      spoilersOf(JSON.stringify({ text: '旧版本', entities: [{ type: 'spoiler', offset: 0, length: 3 }] }), {
         text: '新版本内容',
         caption: null,
       }),
     ).toBeUndefined();
     // A media message keeps its caption entities away from the text field.
     expect(
-      spoilersFromFragment(
-        JSON.stringify({ caption: '配文', caption_entities: [{ type: 'spoiler', offset: 0, length: 2 }] }),
-        { text: '配文', caption: null },
-      ),
+      spoilersOf(JSON.stringify({ caption: '配文', caption_entities: [{ type: 'spoiler', offset: 0, length: 2 }] }), {
+        text: '配文',
+        caption: null,
+      }),
     ).toBeUndefined();
   });
 });
@@ -342,8 +343,8 @@ describe('telegram spoiler context', () => {
   test('keeps spoiler markup correct around emoji and other entities', async () => {
     const { store, ingestion, scheduler, build } = await setup();
     const received = new Date('2026-08-15T00:00:00.000Z');
-    // '🎉' is two UTF-16 units, so the spoiler offsets sit after it, and the
-    // bold entity is unrelated formatting that must not become markup.
+    // '🎉' is two UTF-16 units, so the spoiler offsets sit after it; the bold
+    // markers shift the spoiler in the Markdown body, and the tag must follow.
     const text = '🎉我觉得这个定价有问题';
     const start = 2;
     ingestion.ingest(
@@ -362,7 +363,7 @@ describe('telegram spoiler context', () => {
     );
     const context = build(processOne(scheduler, new Date(received.getTime() + 15_000)));
     expect(newMessages(context)).toBe(
-      [header(1), `  🎉${OPEN}我觉得这个定价有问题${CLOSE}`, '</untrusted_new_messages>'].join('\n'),
+      [header(1), `  **🎉**${OPEN}我觉得这个定价有问题${CLOSE}`, '</untrusted_new_messages>'].join('\n'),
     );
     store.close();
   });

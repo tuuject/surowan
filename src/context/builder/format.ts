@@ -66,27 +66,70 @@ function snapshotBody(snapshot: PreparedSnapshot, options: FormatOptions): strin
       `> ${escapeXml(singleLine(reply.sender))}: ${singleLine(renderSpoilers(reply.content, snapshot.spoilers?.reply))}`,
     );
   }
-  // The body stays exactly what the sender wrote; a spoiler only adds the tag
-  // that says a human folded this span, so the model can weigh what it reads
-  // without ever losing the text itself.
-  const bodies: readonly (readonly [string | null, readonly SpoilerRange[] | undefined])[] = [
-    [snapshot.text, snapshot.spoilers?.text],
-    [snapshot.caption, snapshot.spoilers?.caption],
-  ];
-  for (const [content, spoilers] of bodies) {
-    if (content !== null) {
-      body.push(...renderSpoilers(content, spoilers).split('\n'));
-    }
-  }
-  for (const media of snapshot.media) {
+  const mediaLines = snapshot.media.map((media) => {
     const size = media.width === null || media.height === null ? '' : ` ${media.width}x${media.height}`;
     const figure = media.figure === undefined ? '' : `${media.figure} `;
-    body.push(`[${media.kind} ${figure}${media.image_ref}${size}]`);
+    return `[${media.kind} ${figure}${media.image_ref}${size}]`;
+  });
+  // The body is what the sender wrote, as Markdown; a spoiler only adds the tag
+  // that says a human folded this span, so the model can weigh what it reads
+  // without ever losing the text itself.
+  const bodies: readonly (readonly [string | null, readonly SpoilerRange[] | undefined, readonly SpoilerRange[]])[] = [
+    [snapshot.text, snapshot.spoilers?.text, snapshot.media_slots ?? []],
+    [snapshot.caption, snapshot.spoilers?.caption, []],
+  ];
+  let placed = 0;
+  for (const [content, spoilers, slots] of bodies) {
+    if (content !== null) {
+      const rendered = renderBody(content, spoilers, slots, mediaLines);
+      body.push(...rendered.text.split('\n'));
+      placed += rendered.placed;
+    }
   }
+  body.push(...mediaLines.slice(placed));
   if (body.length === 0) {
     body.push(`[${snapshot.kind}]`);
   }
   return body;
+}
+
+/**
+ * A rich message keeps a placeholder where each of its pictures sits, and the
+ * media line takes that placeholder's place so every picture reads in
+ * position. Slots that do not line up with the media (out of order, out of
+ * range, more slots than media) are ignored as a whole, leaving the
+ * placeholders in the text and the media lines after it.
+ */
+function renderBody(
+  content: string,
+  spoilers: readonly SpoilerRange[] | undefined,
+  slots: readonly SpoilerRange[],
+  mediaLines: readonly string[],
+): { readonly text: string; readonly placed: number } {
+  let previousEnd = 0;
+  for (const slot of slots) {
+    if (slot.start < previousEnd || slot.end <= slot.start || slot.end > content.length) {
+      return { text: renderSpoilers(content, spoilers), placed: 0 };
+    }
+    previousEnd = slot.end;
+  }
+  if (slots.length > mediaLines.length) {
+    return { text: renderSpoilers(content, spoilers), placed: 0 };
+  }
+  // Spoilers are clipped to each stretch between slots, so a tag never spans a
+  // media line.
+  const stretch = (start: number, end: number): string =>
+    renderSpoilers(
+      content.slice(start, end),
+      (spoilers ?? []).map((range) => ({ start: range.start - start, end: Math.min(range.end, end) - start })),
+    );
+  let text = '';
+  let cursor = 0;
+  slots.forEach((slot, index) => {
+    text += stretch(cursor, slot.start) + (mediaLines[index] ?? '');
+    cursor = slot.end;
+  });
+  return { text: text + stretch(cursor, content.length), placed: slots.length };
 }
 
 const USERNAME = /^[A-Za-z0-9_]+$/;

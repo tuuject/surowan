@@ -1,5 +1,6 @@
 import type { Message } from 'grammy/types';
 import type { ParticipationConfig, ParticipationWindowConfig } from './config/index.ts';
+import { richMessageMentions, richMessagePlainText } from './telegram-markdown/index.ts';
 
 /** Default length of the post-trigger attention window, in seconds. */
 export const DEFAULT_ATTENTION_WINDOW_SECONDS = 300;
@@ -97,9 +98,20 @@ export function matchTriggerKind(message: Message, bot: BotIdentity, keywords: r
   return containsKeyword(message, keywords) ? 'keyword' : null;
 }
 
-/** Whether the message @-mentions the bot by username or by a text mention of its id. */
+/**
+ * Whether the message @-mentions the bot by username or by a text mention of
+ * its id, in its text, its caption, or anywhere in a rich message.
+ */
 export function mentionsBot(message: Message, bot: BotIdentity): boolean {
   const username = bot.username?.toLowerCase() ?? null;
+  if (
+    message.rich_message !== undefined &&
+    richMessageMentions(message.rich_message).some((mention) =>
+      mention.kind === 'user' ? BigInt(mention.id) === bot.id : mention.username.toLowerCase() === username,
+    )
+  ) {
+    return true;
+  }
   // `entities` offsets index `text`; `caption_entities` offsets index `caption`.
   const sources = [
     [message.text, message.entities],
@@ -140,7 +152,9 @@ function containsKeyword(message: Message, keywords: readonly string[]): boolean
   if (keywords.length === 0) {
     return false;
   }
-  for (const content of [message.text, message.caption]) {
+  // A rich message has no text; its visible text stands in for it.
+  const rich = message.rich_message === undefined ? undefined : richMessagePlainText(message.rich_message);
+  for (const content of [message.text, message.caption, rich]) {
     if (content === undefined) {
       continue;
     }

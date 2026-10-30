@@ -27,7 +27,7 @@ npm 发布 workflow 可另用 `actionlint .github/workflows/npm.yml` 静态检�
 按改动范围可先运行目标测试：
 
 ```bash
-pnpm test test/telegram/ingestion.test.ts test/telegram/spoiler.test.ts test/startup/catch-up.test.ts test/participation/participation.test.ts test/proactive/reply.test.ts
+pnpm test test/telegram/ingestion.test.ts test/telegram/spoiler.test.ts test/telegram/markdown.test.ts test/telegram/markdown-context.test.ts test/startup/catch-up.test.ts test/participation/participation.test.ts test/proactive/reply.test.ts
 pnpm test test/scheduler/scheduler.test.ts test/sleep.test.ts
 pnpm test test/context/store.test.ts test/context/gc.test.ts test/context/hot-inject.test.ts
 pnpm test test/context/send.test.ts test/send/reply.test.ts test/send/dedup.test.ts test/duplicate-send-guard.test.ts test/send/guard.test.ts test/cut/topic.test.ts
@@ -79,9 +79,11 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `load-env.test.ts` | CLI `.env.local`/`.env` 加载语义：缺失跳过、dotenv 解析（含 BOM）、真实环境变量 > `.env.local` > `.env` 优先级 |
 | `schema/schema.test.ts` | Drizzle 层 bigint/boolean 往返、STRICT 与 CHECK 约束、better-sqlite3 IMMEDIATE 事务回滚、`sql` 模板绑定与 FTS5 查询；Invocation 审计索引的新建/升级、分页统计与查询计划；图片交付台账旧库升级、已知/未知资产回填与查询索引；Reply 查重索引新建/升级及既有重复审计保留 |
 | `telegram/ingestion.test.ts` | allowlist、Revision、Bot/Service、Topic 隔离、先到的 `migrate_from_chat_id` 授权新 Supergroup、匿名管理员（占位 Bot + `sender_chat`）按真人处理 |
-| `telegram/spoiler.test.ts` | Telegram spoiler 到 Agent 可见上下文：无 spoiler 的普通消息提示不变、整条/部分/多条 spoiler、UTF-16 偏移在 emoji 与中文后仍对齐、媒体 caption、回复引用行（含截断与前缀校验）、与其他 entity 并存、正文与 `raw_fragment_json` 保持原样、保留历史中的标签，以及无 spoiler 时快照不新增字段 |
-| `participation/participation.test.ts` | 全局/每 Chat 规则合并、私聊配置拒绝、跨午夜时段、触发与注意力窗口、暂停/编辑边界、启动追赶与清理 |
-| `proactive/reply.test.ts` | 默认关闭、概率递增与硬保底、命中/未命中计数、聚合批次一次抽样、批次内直接唤起绕过、@/Reply/关键词/Bot Command、直呼不改变计数、按群隔离、跨重启恢复、配置变更清零、attach 前抽样、私聊/暂停/participation 边界；`startup/catch-up.test.ts` 覆盖追赶批次抽样 |
+| `telegram/spoiler.test.ts` | Telegram spoiler 到 Agent 可见上下文：无 spoiler 的普通消息提示不变、整条/部分/多条 spoiler、UTF-16 偏移在 emoji 与中文后仍对齐、媒体 caption、回复引用行（含截断与前缀校验）、与其他 entity 并存（区间随 Markdown 标记偏移）、正文与 `raw_fragment_json` 保持原样、保留历史中的标签，以及无 spoiler 时快照不新增字段 |
+| `telegram/markdown.test.ts` | Telegram 格式到 Markdown：无格式 entity 原样、行内格式/链接/提及、嵌套与 emoji 后的 spoiler 偏移、代码块与引用独占行、交叉/坏 entity 裁剪；Rich Message 块结构、图片与图片 Document 的媒体槽位顺序、坏数据降级；pre/code 的字面内容、内部及继承 spoiler、反引号与空行；完整 caption 提及的目标折叠；fragment 一致性、`match_text`、caption 隔离、回复 Rich Message 的 spoiler；媒体行就位与槽位不一致回退 |
+| `telegram/markdown-context.test.ts` | 格式消息入库到 Agent 上下文：Revision 保留原文，快照冻结 Markdown 与必要的 `match_text`；完整链接 spoiler 包含 URL、部分标签 spoiler 不扩大范围；Rich Message 的 Revision/媒体行/`media_slots`、多模态 `figure_N` 顺序与 `context_refs` 对应；保留历史与回复引用。`dictionary/injection.test.ts` 验证 text/caption/rich 部分格式下的 Term/Alias 匹配、链接目标排除及快照后编辑不改变注入 |
+| `participation/participation.test.ts` | 全局/每 Chat 规则合并、私聊配置拒绝、跨午夜时段、触发与注意力窗口（含 Rich Message 内的 @ 与关键词）；复制载荷与 caption/credit 跨字段短语不创建 Bucket/attention，按钮可见标签仍触发；暂停/编辑边界、启动追赶与清理 |
+| `proactive/reply.test.ts` | 默认关闭、概率递增与硬保底、命中/未命中计数、聚合批次一次抽样、批次内直接唤起绕过、@/Reply/关键词/Bot Command；隐藏复制载荷及 caption/credit 拼接不绕过抽样，分段格式的可见关键词仍直接唤起；直呼不改变计数、按群隔离、跨重启恢复、配置变更清零、attach 前抽样、私聊/暂停/participation 边界；`startup/catch-up.test.ts` 覆盖追赶批次抽样 |
 | `startup/catch-up.test.ts` | 每 Conversation 一个追赶 Invocation（同群不同 Topic 分开）、`history_messages` 上限、`ignored_user_ids` 与 `sticker_trigger_enabled` 生效、排空后切换实时 Bucket、各 Topic 发送落回自己的 Topic；积压 `/pause`/`/resume` 顺序执行与鉴权、其他命令只审计不入上下文、重复 Update 不重放；慢排空或崩溃续跑后刚排队的追赶不被启动恢复判为过期，真正排队超过 recovery 年龄的仍以 `recovery_age` 过期 |
 | `scheduler/scheduler.test.ts` | 配置 deadline、冻结快照、恢复和并发串行 |
 | `sleep.test.ts` | 5% 阈值边界与 `zzz` 可见性、跨轮次工具注册表、睡眠状态只随注入批次下发而不进入 system prompt、睡眠跳过 due/queued 会话、跨进程持久化、UTC 预算重置唤醒、并发 `zzz` 幂等 |
@@ -120,7 +122,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `npm-release.test.ts` | main canary 版本含 run/attempt/SHA、仅精确稳定 tag 进入 latest、拒绝非 push/其它仓库与非法 ref、GitHub 输出不改源码 manifest、仅独立 CLI 包公开、Skill 分发清单与入口/子文档/元数据结构（含 `models list` 新命令、模型列表非授权与严禁自动尝试的隔离说明、`--provider`/`--thinking-level` 等模型覆盖契约断言） |
 | `docs/examples.test.ts` / `docs/search.test.ts` / `docs/markdown.test.ts` | 公开配置示例的离线语义校验、生成字段与部署 URL、已安装搜索组件的键盘回归；Markdown 检查正确区分缩进代码块与真实 H1，LF/CRLF 下不漏提取代码块 |
 | `docs/spaces.test.ts` / `manual-pack.test.ts` | 文档空间路径语法（绝对路径、`..` 越界、空段、非 Markdown 拒绝）与 `base` 链接解析（含 `#锚点` 丢弃与纯锚点链接）；真实目录读取、索引、缺失文档、符号链接逃逸（含根内链接可读）、32 KiB 截断；未安装空间与缺失索引的加载语义；两个能力经 `execute` 注册表调用并与外层审计一致（成功/`unknown_space`/`document_not_found`/`invalid_path`/`unsupported_document`）；构建产物把 `content/docs` 与 `_meta.json` 导航打包为 `src/manual`（无占位符的页面逐字节一致、`__DOCS_BASE__` 链接改写且示例原文成页、生成的字段页来自 ConfigSchema、索引完整且顺序正确、侧栏外页面进入「其他页面」、重打包清理陈旧文档、导航指向缺失页面即失败），打包结果可经 `DocSpaces` 读取且文内相对链接全部落在包内 |
-| `scene/context.test.ts` | 开场冻结快照优先、当时可证明的公开历史、spoiler 标记与线上一致（开场、回退历史、回复引用）、后续 attach/编辑/迟到消息排除、切点/Topic/字符预算、损坏身份拒绝、缺修订与媒体降级、scene-local media/reply 引用、构建全表无写入 |
+| `scene/context.test.ts` | 开场冻结快照优先、当时可证明的公开历史、spoiler 标记与线上一致（开场、回退历史、回复引用）、Markdown 正文与 Rich Message 媒体行就位与线上一致（开场、回退历史）、后续 attach/编辑/迟到消息排除、切点/Topic/字符预算、损坏身份拒绝、缺修订与媒体降级、scene-local media/reply 引用、构建全表无写入 |
 | `scene/slice.test.ts` | 切片构建：两条 Bot 消息之间的冻结输入、上一条 Bot 可来自另一次 Invocation 或不带 send 行的消息、同一秒内边界仍精确、切点继续生效、只并入注入时间严格早于发送开始的 attach 批次（同毫秒保守省略）、同一消息重复冻结取最新合格快照、渲染冻结快照而非后续编辑、reply 引用只保留切片内消息、只授权冻结 revision 且已渲染的媒体、拒绝非本 Invocation/失败/跨 Conversation 的目标发送、连续两次发送之间为空、字符预算从新到旧裁剪、构建不写库 |
 | `scene/retention.test.ts` | 真实 029→030 有数据迁移仅移除旧 replay payload，调用/工具/发送/用量/冻结快照整行保留，迁移前备份含完整旧列且 integrity check 通过，重复打开、外键检查与 retention 级联后来源不可用 |
 | `replay/tools.test.ts` | 当前定义下合成 send（同一重放场景内 Reply 去重、重复发送守卫与拒后内容烧毁（`send_bypass`，含 `send_reply` 组内重复、原样重发已发出 Reply 同样烧毁、未开启时照常合成）、各场景独立；配置开启 `allow_reply_message_multiple_times` 时同目标可多次回复但仍校验场景可见性）与内存记忆/Alarm、`list_image_models` 内存分页（带 description、无凭据、offset 越界拒绝）、生图假回执、zzz 不写状态、当前只读 system 资源、MCP/未知能力阻断、execute search/help/call 共用校验、abort 不 dispatch、无生产执行器 |

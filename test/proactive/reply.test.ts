@@ -9,6 +9,7 @@ import {
   PRIVATE,
   START,
   attempt,
+  bypassedEvents,
   enabled,
   groupMessage,
   invocationCount,
@@ -123,6 +124,55 @@ describe('proactive reply probability', () => {
     expect(invocationCount(harness.store)).toBe(1);
     expect(state(harness.store)?.misses).toBe(0n);
     harness.store.close();
+  });
+
+  test('samples hidden button payloads and split captions instead of treating them as direct wakes', async () => {
+    const harness = await setup({
+      transform: (config) => {
+        config.telegram.proactive_reply = enabled();
+        config.telegram.participation = {
+          active_windows: [{ start: '00:00', end: '24:00' }],
+          trigger_keywords: ['wake-bot', 'hello world'],
+        };
+      },
+    });
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      const first = attempt(
+        harness,
+        groupMessage(1, 10, {
+          text: undefined,
+          rich_message: {
+            blocks: [
+              { type: 'buttons', buttons: [{ text: 'Copy', copy_text: { text: 'wake-bot' } }] },
+              {
+                type: 'photo',
+                caption: { text: 'hello', credit: 'world' },
+                photo: [{ file_id: 'f', file_unique_id: 'u', width: 10, height: 10 }],
+              },
+            ],
+          },
+        }),
+        START,
+      );
+      expect(first.invocations).toEqual([]);
+      expect(state(harness.store)?.misses).toBe(1n);
+      expect(sampledEvents(log)).toMatchObject([{ hit: false, consecutive_misses_after: 1 }]);
+      expect(bypassedEvents(log)).toEqual([]);
+      const visible = attempt(
+        harness,
+        groupMessage(2, 11, {
+          text: undefined,
+          rich_message: { blocks: [{ type: 'paragraph', text: ['wake-', { type: 'bold', text: 'bot' }] }] },
+        }),
+        new Date(START.getTime() + 20_000),
+      );
+      expect(visible.invocations).toHaveLength(1);
+      expect(state(harness.store)?.misses).toBe(1n);
+      expect(bypassedEvents(log)).toMatchObject([{ trigger_kind: 'keyword' }]);
+    } finally {
+      harness.store.close();
+    }
   });
 
   test('consecutive misses increment the chance and the eighth attempt hits by pity', async () => {

@@ -151,6 +151,98 @@ describe('participation rules', () => {
     ).toBeNull();
   });
 
+  test('reads mentions anywhere in a rich message', () => {
+    const rich = (blocks: unknown[]) => groupMessage(1, 10, { rich_message: { blocks } }).message as Message;
+    const inList = (text: unknown) => [
+      { type: 'heading', size: 1, text: 'Notes' },
+      { type: 'list', items: [{ label: '•', blocks: [{ type: 'paragraph', text: ['ask ', text] }] }] },
+    ];
+    expect(
+      mentionsBot(
+        rich(inList({ type: 'mention', text: `@${BOT_USERNAME.toUpperCase()}`, username: BOT_USERNAME })),
+        BOT_IDENTITY,
+      ),
+    ).toBe(true);
+    // Without a username field the visible "@name" is compared instead.
+    expect(mentionsBot(rich(inList({ type: 'mention', text: `@${BOT_USERNAME}` })), BOT_IDENTITY)).toBe(true);
+    const textMention = {
+      type: 'table',
+      cells: [
+        [
+          {
+            text: { type: 'text_mention', text: 'Wan', user: { id: BOT_ID, is_bot: true, first_name: 'Wan' } },
+            align: 'left',
+            valign: 'top',
+          },
+        ],
+      ],
+    };
+    expect(mentionsBot(rich([textMention]), BOT_IDENTITY)).toBe(true);
+    expect(matchTriggerKind(rich([textMention]), BOT_IDENTITY, [])).toBe('mention');
+    expect(mentionsBot(rich(inList({ type: 'mention', text: '@Another', username: 'Another' })), BOT_IDENTITY)).toBe(
+      false,
+    );
+    expect(mentionsBot(rich(inList(`@${BOT_USERNAME}`)), BOT_IDENTITY)).toBe(false);
+  });
+
+  test('matches keywords against the visible text of a rich message only', () => {
+    const rich = (blocks: unknown[]) => groupMessage(1, 10, { rich_message: { blocks } }).message as Message;
+    const keyword = (blocks: unknown[], keywords: readonly string[]) =>
+      matchTriggerKind(rich(blocks), BOT_IDENTITY, keywords);
+    // Formatting runs join in place, so a keyword split across them still matches.
+    expect(keyword([{ type: 'paragraph', text: ['问问', { type: 'bold', text: '塑料' }, '碗'] }], ['塑料碗'])).toBe(
+      'keyword',
+    );
+    expect(
+      keyword(
+        [
+          {
+            type: 'photo',
+            photo: [{ file_id: 'f', file_unique_id: 'u', width: 10, height: 10 }],
+            caption: { text: 'Lunch', credit: 'WAN' },
+          },
+        ],
+        ['wan'],
+      ),
+    ).toBe('keyword');
+    // Link targets, media placeholders, file names and separate blocks are not text a reader sees.
+    expect(
+      keyword(
+        [
+          { type: 'paragraph', text: { type: 'url', text: 'docs', url: 'https://example.com/wan' } },
+          { type: 'photo', photo: [{ file_id: 'f', file_unique_id: 'u', width: 10, height: 10 }] },
+          { type: 'document', document: { file_id: 'd', file_unique_id: 'du', file_name: 'report.pdf' } },
+          { type: 'paragraph', text: 'end' },
+          { type: 'paragraph', text: 'start' },
+        ],
+        ['wan', 'photo', 'report', 'endstart'],
+      ),
+    ).toBeNull();
+  });
+
+  test('keeps visible rich fields separate while joining formatted runs', () => {
+    const trigger = (blocks: unknown[], keywords: readonly string[]) =>
+      matchTriggerKind(groupMessage(1, 10, { rich_message: { blocks } }).message as Message, BOT_IDENTITY, keywords);
+    const table = {
+      type: 'table',
+      caption: { type: 'bold', text: ['wake-', { type: 'italic', text: 'bot' }] },
+      cells: [[{ text: 'cell', align: 'left', valign: 'top' }]],
+    };
+    expect(trigger([table], ['wake-bot'])).toBe('keyword');
+    const caption = {
+      type: 'photo',
+      caption: { text: ['hel', { type: 'bold', text: 'lo' }], credit: { type: 'italic', text: 'world' } },
+    };
+    expect(trigger([caption], ['hello world'])).toBeNull();
+    expect(trigger([caption], ['hello'])).toBe('keyword');
+    expect(trigger([caption], ['world'])).toBe('keyword');
+    const button = { text: 'Copy', copy_text: { text: 'wake-bot' } };
+    expect(trigger([{ type: 'paragraph', text: ['press ', { type: 'button', button }] }], ['wake-bot'])).toBeNull();
+    expect(trigger([{ type: 'paragraph', text: ['press ', { type: 'button', button }] }], ['press copy'])).toBe(
+      'keyword',
+    );
+  });
+
   test('lower-cases and de-duplicates merged keywords', () => {
     const rule = compileParticipation({
       global: { trigger_keywords: ['Wan', 'wan'] },

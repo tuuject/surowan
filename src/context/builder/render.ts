@@ -178,7 +178,7 @@ export function renderInjection(deps: RenderDependencies, config: RawConfig, inp
   // blocks land at the dictionary's historic position: after the sticker
   // catalog, before the Telegram history.
   const messageTexts = selected.flatMap((entry) =>
-    [entry.snapshot.text, entry.snapshot.caption].filter(
+    (entry.snapshot.match_text ?? [entry.snapshot.text, entry.snapshot.caption]).filter(
       (content): content is string => content !== null && content.length > 0,
     ),
   );
