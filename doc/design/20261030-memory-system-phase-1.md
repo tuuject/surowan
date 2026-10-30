@@ -37,7 +37,7 @@ Markdown 可以引用由记忆系统管理的 Blob，例如：
 ```markdown
 # 香烟价格表
 
-![香烟价格表](plasticwanblob://5464363543523...)
+![香烟价格表](pwblob://5464363543523...)
 ```
 
 Blob URI 是内部资源引用，不是实际文件系统路径或公开 HTTP 地址。
@@ -52,12 +52,12 @@ Blob URI 是内部资源引用，不是实际文件系统路径或公开 HTTP �
 
 ### 4. Admin Panel 展示
 
-Admin Panel 能够识别 Markdown 中的 `plasticwanblob://` 引用，并将其转换为可访问的资源地址。
+Admin Panel 能够识别 Markdown 中的 `pwblob://` 引用，并将其转换为可访问的资源地址。
 
 例如：
 
 ```text
-plasticwanblob://5464363543523...
+pwblob://5464363543523...
 ```
 
 在前端展示时，可以转换为：
