@@ -47,7 +47,9 @@ test('send synthesizes text, image, and sticker messages and preserves arguments
     { tool_call_id: 'send-3', tool_name: 'send', mode: 'synthetic' },
     { tool_call_id: 'send-4', tool_name: 'send', mode: 'synthetic' },
   ]);
-  await expect(send.execute('send-5', {})).rejects.toThrow('send input does not match its kind: kind:text needs text');
+  await expect(send.execute('send-5', {})).rejects.toThrow(
+    'send input does not match its kind: text is missing — put the message itself in text',
+  );
   await expect(send.execute('send-6', { kind: 'sticker', sticker_ref: 'stk_abc', text: 'caption' })).rejects.toThrow(
     'send input does not match its kind: a sticker cannot carry text',
   );
