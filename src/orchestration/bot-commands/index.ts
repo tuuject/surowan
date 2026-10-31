@@ -8,11 +8,17 @@ import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts
 import { ParticipationRegistry } from '../../store/participation.ts';
 import { chats } from '../../store/schema/index.ts';
 import { type BusinessStore, resolveChatConfig } from '../../store/store.ts';
-import { allowlistChat, type BotCommandConfigDeps, setSelfIgnored, switchChatModel } from './config.ts';
-import { type BotCommandSessionDeps, cutTopic, pauseChat, resumeChat } from './session.ts';
-import { type BotCommandStatusDeps, chatStatus } from './status.ts';
 import type { ConversationRuntime } from '../conversation-runtime.ts';
 import type { BucketScheduler } from '../scheduler/index.ts';
+import {
+  allowlistChat,
+  type BotCommandConfigDeps,
+  setSelfIgnored,
+  switchChatEffort,
+  switchChatModel,
+} from './config.ts';
+import { type BotCommandSessionDeps, cutTopic, pauseChat, resumeChat } from './session.ts';
+import { type BotCommandStatusDeps, chatStatus } from './status.ts';
 
 export interface ParsedCommand {
   readonly name:
@@ -20,6 +26,7 @@ export interface ParsedCommand {
     | 'resume'
     | 'status'
     | 'model'
+    | 'effort'
     | 'cut_topic'
     | 'whoami'
     | 'allowlist'
@@ -82,12 +89,15 @@ const COMMAND_NAMES: Record<string, true> = {
   resume: true,
   status: true,
   model: true,
+  effort: true,
   cut_topic: true,
   whoami: true,
   allowlist: true,
   ignoreme: true,
   unignoreme: true,
 } satisfies Record<ParsedCommand['name'], true>;
+// Commands whose trailing text is an argument. Every other command ignores it.
+const ARGUMENT_COMMANDS: ReadonlySet<string> = new Set(['model', 'effort']);
 const DENIED_REPLY = '该命令仅对本 Bot 的管理员可用。';
 
 export interface BotCommandRegistration {
@@ -102,6 +112,7 @@ export const BOT_COMMANDS: readonly BotCommandRegistration[] = [
   { command: 'resume', description: '恢复本群互动（仅管理员）' },
   { command: 'status', description: '查看当前模型、thinking effort 与本日 token 用量' },
   { command: 'model', description: '查看或切换 agent 模型（仅管理员）' },
+  { command: 'effort', description: '查看或设置本群模型的思考强度（仅管理员）' },
   { command: 'cut_topic', description: '切掉此消息及更早的历史，仅对新会话生效（仅管理员）' },
   { command: 'whoami', description: '查看你的 Telegram 数字 ID' },
   { command: 'allowlist', description: '将本群加入白名单，立即生效（仅管理员）' },
@@ -128,11 +139,12 @@ export function parseBotCommand(message: Message, botUsername: string | null): P
   if (message.text === undefined || message.from?.is_bot === true) {
     return null;
   }
+  const text = message.text;
   const entity = message.entities?.find((entry) => entry.type === 'bot_command' && entry.offset === 0);
   if (entity === undefined) {
     return null;
   }
-  const token = message.text.slice(0, entity.length);
+  const token = text.slice(0, entity.length);
   const separator = token.indexOf('@');
   const name = (separator === -1 ? token.slice(1) : token.slice(1, separator)).toLowerCase();
   const mention = separator === -1 ? null : token.slice(separator + 1).toLowerCase();
@@ -142,13 +154,14 @@ export function parseBotCommand(message: Message, botUsername: string | null): P
   if (COMMAND_NAMES[name] !== true) {
     return null;
   }
-  const base: ParsedCommand =
-    name !== 'model'
-      ? { name: name as ParsedCommand['name'] }
-      : (() => {
-          const argument = message.text.slice(entity.offset + entity.length).trim();
-          return argument.length === 0 ? { name: 'model' } : { name: 'model', argument };
-        })();
+  const commandName = name as ParsedCommand['name'];
+  const base: ParsedCommand = (() => {
+    if (!ARGUMENT_COMMANDS.has(name)) {
+      return { name: commandName };
+    }
+    const argument = text.slice(entity.offset + entity.length).trim();
+    return argument.length === 0 ? { name: commandName } : { name: commandName, argument };
+  })();
   const threadId = conversationThreadId(message);
   const scoped: ParsedCommand = {
     ...base,
@@ -203,6 +216,8 @@ export class BotCommandService {
         return this.#status(telegramChatId, now);
       case 'model':
         return this.#adminGate(sender) ? await this.#modelSwitch(command.argument, telegramChatId) : DENIED_REPLY;
+      case 'effort':
+        return this.#adminGate(sender) ? await this.#effortSwitch(command.argument, telegramChatId) : DENIED_REPLY;
       case 'cut_topic':
         return this.#adminGate(sender)
           ? this.#cutTopic(telegramChatId, command.messageId, command.threadId, now)
@@ -249,6 +264,10 @@ export class BotCommandService {
 
   async #modelSwitch(argument: string | undefined, telegramChatId: bigint): Promise<string> {
     return await switchChatModel(this.#configDeps(), argument, telegramChatId);
+  }
+
+  async #effortSwitch(argument: string | undefined, telegramChatId: bigint): Promise<string> {
+    return await switchChatEffort(this.#configDeps(), argument, telegramChatId);
   }
 
   #status(telegramChatId: bigint, now: Date): string {

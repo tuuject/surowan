@@ -88,6 +88,7 @@ Telegram 消息
 | `/whoami` | 所有人 | 查看自己的 Telegram 数字 ID |
 | `/pause`、`/resume` | Bot 管理员 | 暂停或恢复本群互动 |
 | `/model` | Bot 管理员 | 查看或切换模型 |
+| `/effort` | Bot 管理员 | 查看或设置本群模型的思考强度 |
 
 完整命令与管理员配置见 [Telegram 接入](apps/docs/content/docs/configure/telegram.md#管理员命令与验证)。
 

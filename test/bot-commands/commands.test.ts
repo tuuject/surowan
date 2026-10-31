@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'vitest';
 import type { Message, Update } from 'grammy/types';
+import { describe, expect, test } from 'vitest';
 import {
   BOT_COMMANDS,
   type BotCommandRegistration,
@@ -86,6 +86,26 @@ describe('parseBotCommand', () => {
       name: 'pause',
       messageId: 1n,
     });
+  });
+
+  test('captures the optional /effort argument', async () => {
+    expect(parseBotCommand(message(commandUpdate(1, 1, '/effort').message), BOT_USERNAME)).toEqual({
+      name: 'effort',
+      messageId: 1n,
+    });
+    expect(parseBotCommand(message(commandUpdate(1, 1, '/effort high').message), BOT_USERNAME)).toEqual({
+      name: 'effort',
+      argument: 'high',
+      messageId: 1n,
+    });
+    expect(
+      parseBotCommand(message(commandUpdate(1, 1, '/EFFORT@surowan_test_bot default').message), BOT_USERNAME),
+    ).toEqual({
+      name: 'effort',
+      argument: 'default',
+      messageId: 1n,
+    });
+    expect(parseBotCommand(message(commandUpdate(1, 1, '/effort@other_bot max').message), BOT_USERNAME)).toBeNull();
   });
 
   test('ignores non-commands, unknown commands and trailing text', async () => {

@@ -1,6 +1,5 @@
-import { type Api, getSupportedThinkingLevels, type Model } from '@earendil-works/pi-ai';
-import type { AgentSettings, RawConfig } from '../../../platform/config/index.ts';
-import { assertConfigPermissions, type LoadedConfig, loadConfig } from './index.ts';
+import { type Api, getSupportedThinkingLevels, type Model, type ModelThinkingLevel } from '@earendil-works/pi-ai';
+import type { RawConfig } from '../../../platform/config/index.ts';
 import type {
   BotCommandConfigWriter,
   ConfigApplyResult,
@@ -9,13 +8,21 @@ import type {
   ConfigErrorCode,
   ConfigStatus,
 } from '../../../platform/config/write.ts';
-import { ConfigWriteError, readConfigRevision, writeConfigEdits } from './file.ts';
 import { type AgentModelSwitcher, ModelSwitchError } from '../../../platform/models/switch.ts';
 import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
-import { applyFile, type ConfigReloadState, messageOf } from './reload-apply.ts';
-import type { TelegramTokenSource } from '../telegram/connection-token.ts';
 import type { SearchProviderRule } from '../../../platform/web-search.ts';
+import type { TelegramTokenSource } from '../telegram/connection-token.ts';
+import { ConfigWriteError, readConfigRevision, writeConfigEdits } from './file.ts';
+import { assertConfigPermissions, type LoadedConfig, loadConfig } from './index.ts';
+import { applyFile, type ConfigReloadState, messageOf } from './reload-apply.ts';
+import {
+  addChatToFile,
+  type ChatWriteContext,
+  writeChatSettings,
+  writeChatThinkingLevel,
+  writeChatUserIgnored,
+} from './reload-chat.ts';
 
 /**
  * The image configuration gateway. The reloader prepares a candidate snapshot
@@ -176,7 +183,20 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
 
   /** Removes all three overrides; if absent, still applies other pending file changes without rewriting. */
   resetChatModel(configuredChatId: number): Promise<ConfigApplyResult> {
-    return this.#withLock(() => this.#writeChatSettings(configuredChatId, null));
+    return this.#withLock(() => writeChatSettings(this.#chatWrites(), configuredChatId, null));
+  }
+
+  /**
+   * Writes only the Chat's `thinking_level` override and applies the file, so a
+   * Chat can tune its thinking level without touching the model overrides.
+   */
+  setChatThinkingLevel(configuredChatId: number, level: ModelThinkingLevel): Promise<ConfigApplyResult> {
+    return this.#withLock(() => writeChatThinkingLevel(this.#chatWrites(), configuredChatId, level));
+  }
+
+  /** Removes only the thinking-level override; the Chat follows `agent.thinking_level` again. */
+  resetChatThinkingLevel(configuredChatId: number): Promise<ConfigApplyResult> {
+    return this.#withLock(() => writeChatThinkingLevel(this.#chatWrites(), configuredChatId, undefined));
   }
 
   /**
@@ -187,77 +207,12 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
    * then covers a previously written but unapplied add.
    */
   addChat(configuredChatId: number): Promise<ConfigApplyResult> {
-    return this.#withLock(() => this.#addChat(configuredChatId));
+    return this.#withLock(() => addChatToFile(this.#chatWrites(), configuredChatId));
   }
 
   /** Reads the latest file under the write lock so concurrent members cannot overwrite each other's IDs. */
   setChatUserIgnored(configuredChatId: number, userId: bigint, ignored: boolean): Promise<ConfigApplyResult> {
-    return this.#withLock(() => this.#setChatUserIgnored(configuredChatId, userId, ignored));
-  }
-
-  async #setChatUserIgnored(configuredChatId: number, userId: bigint, ignored: boolean): Promise<ConfigApplyResult> {
-    if (userId <= 0n || userId > BigInt(Number.MAX_SAFE_INTEGER)) {
-      return this.#rejected('config_invalid', `Invalid Telegram user ID: ${userId}`, 'config_write_failed');
-    }
-    if (!this.#store.current().config.telegram.chats.some((chat) => chat.id === configuredChatId)) {
-      return this.#rejected(
-        'config_invalid',
-        `Chat ${configuredChatId} is not configured in the running process`,
-        'config_write_failed',
-      );
-    }
-    let revision: string;
-    let loaded: LoadedConfig;
-    try {
-      revision = await readConfigRevision(this.#configPath);
-      loaded = await loadConfig(this.#configPath, this.#loadOptions());
-    } catch (error) {
-      return this.#rejected('config_invalid', messageOf(error), 'config_write_failed');
-    }
-    const chats = loaded.fileConfig.telegram?.chats ?? [];
-    const index = chats.findIndex((chat) => chat.id === configuredChatId);
-    const chat = chats[index];
-    if (chat === undefined) {
-      return this.#rejected(
-        'config_invalid',
-        `Chat ${configuredChatId} is no longer present in the configuration file`,
-        'config_write_failed',
-      );
-    }
-    const id = Number(userId);
-    const ids = chat.ignored_user_ids ?? [];
-    if (ids.includes(id) === ignored) {
-      return await this.#applyFile();
-    }
-    return await this.#writeAndApply(
-      [
-        {
-          path: ['telegram', 'chats', index, 'ignored_user_ids'],
-          value: ignored ? [...ids, id] : ids.filter((entry) => entry !== id),
-        },
-      ],
-      revision,
-    );
-  }
-
-  async #addChat(configuredChatId: number): Promise<ConfigApplyResult> {
-    if (!Number.isSafeInteger(configuredChatId) || configuredChatId === 0) {
-      return this.#rejected('config_invalid', `Invalid Telegram chat ID: ${configuredChatId}`);
-    }
-    let revision: string;
-    let loaded: LoadedConfig;
-    try {
-      revision = await readConfigRevision(this.#configPath);
-      loaded = await loadConfig(this.#configPath, this.#loadOptions());
-    } catch (error) {
-      return this.#rejected('config_invalid', messageOf(error));
-    }
-    const chats = loaded.fileConfig.telegram?.chats ?? [];
-    if (chats.some((chat) => chat.id === configuredChatId)) {
-      return await this.#applyFile();
-    }
-    const edits: ConfigEdit[] = [{ path: ['telegram', 'chats', chats.length], value: { id: configuredChatId } }];
-    return await this.#writeAndApply(edits, revision);
+    return this.#withLock(() => writeChatUserIgnored(this.#chatWrites(), configuredChatId, userId, ignored));
   }
 
   async #setModel(
@@ -285,7 +240,11 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     }
     const [weakest = 'off'] = getSupportedThinkingLevels(resolved);
     if (configuredChatId !== undefined) {
-      return await this.#writeChatSettings(configuredChatId, { provider, model, thinking_level: weakest });
+      return await writeChatSettings(this.#chatWrites(), configuredChatId, {
+        provider,
+        model,
+        thinking_level: weakest,
+      });
     }
     return await this.#writeAndApply(
       [
@@ -298,39 +257,17 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     );
   }
 
-  async #writeChatSettings(configuredChatId: number, settings: AgentSettings | null): Promise<ConfigApplyResult> {
-    if (!this.#store.current().config.telegram.chats.some((chat) => chat.id === configuredChatId)) {
-      return this.#rejected('config_invalid', `Chat ${configuredChatId} is not configured in the running process`);
-    }
-    let revision: string;
-    let loaded: LoadedConfig;
-    try {
-      // Array order may differ from the active configuration. Locate by ID in the
-      // file, then pin its revision so a concurrent reorder cannot target another Chat.
-      revision = await readConfigRevision(this.#configPath);
-      loaded = await loadConfig(this.#configPath, this.#loadOptions());
-    } catch (error) {
-      return this.#rejected('config_invalid', messageOf(error));
-    }
-    const chats = loaded.fileConfig.telegram?.chats ?? [];
-    const index = chats.findIndex((chat) => chat.id === configuredChatId);
-    const chat = chats[index];
-    if (chat === undefined) {
-      return this.#rejected(
-        'config_invalid',
-        `Chat ${configuredChatId} is no longer present in the configuration file`,
-      );
-    }
-    const edits: ConfigEdit[] = [];
-    for (const key of ['provider', 'model', 'thinking_level'] as const) {
-      const value = settings?.[key];
-      if (chat[key] !== value) {
-        edits.push({ path: ['telegram', 'chats', index, key], value });
-      }
-    }
-    return edits.length === 0
-      ? await this.#applyFile()
-      : await this.#writeAndApply(edits, revision, 'model_switch_failed');
+  /** What a Chat write needs, bound to this reloader's file, store and lock. */
+  #chatWrites(): ChatWriteContext {
+    return {
+      configPath: this.#configPath,
+      store: this.#store,
+      loadOptions: () => this.#loadOptions(),
+      writeAndApply: (edits, expectedRevision, rejectedEvent) =>
+        this.#writeAndApply(edits, expectedRevision, rejectedEvent),
+      applyFile: () => this.#applyFile(),
+      reject: (code, message, event) => this.#rejected(code, message, event),
+    };
   }
 
   async #writeAndApply(

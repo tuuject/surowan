@@ -123,7 +123,7 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 | `PUT /chats/:id/participation` | 编辑该 Chat 的活跃时段（`participation.active_windows`），热应用，见「Chats 页端点」 |
 | `PUT /chats/:id/proactive-reply` | 编辑该 Chat 的主动回复概率覆盖（`proactive_reply`），热应用，见「Chats 页端点」 |
 | `POST` / `PUT` / `DELETE /providers[...]` | Provider 与模型管理及 `POST /providers/health-check` 模型诊断，见「Models 页写端点」 |
-| `PUT /thinking-level` | body `{ thinking_level }`，设置全局 `agent.thinking_level`，热应用，响应同「Models 页写端点」。只写全局默认并保留 Chat 覆盖：有 `thinking_level` 覆盖的 Chat 保持自己的值；没有覆盖的 Chat 继承新值，若与文件中该 Chat 选用的模型不兼容则在写入前返回 422 `config_invalid`。覆盖可经 Chats 页或配置文件调整，也可用 Telegram `/model default` 连同模型覆盖一起清除。取值不是 Pi 级别返回 400 `invalid_body`；文件里的 agent 模型不接受该级别返回 422 `unsupported_thinking_level`，message 列出可选级别（规则见 [configuration.md](configuration.md#模型-thinking-级别)）；`If-Match` 规则同其它写端点 |
+| `PUT /thinking-level` | body `{ thinking_level }`，设置全局 `agent.thinking_level`，热应用，响应同「Models 页写端点」。只写全局默认并保留 Chat 覆盖：有 `thinking_level` 覆盖的 Chat 保持自己的值；没有覆盖的 Chat 继承新值，若与文件中该 Chat 选用的模型不兼容则在写入前返回 422 `config_invalid`。覆盖可经 Chats 页或配置文件调整，也可用 Telegram `/effort <级别>` 只改该 Chat 的级别、`/effort default` 只清除这一项，`/model default` 则连同模型覆盖一起清除。取值不是 Pi 级别返回 400 `invalid_body`；文件里的 agent 模型不接受该级别返回 422 `unsupported_thinking_level`，message 列出可选级别（规则见 [configuration.md](configuration.md#模型-thinking-级别)）；`If-Match` 规则同其它写端点 |
 | `PUT /vision` | 切换 vision 模型；`vision` 段缺失或为 `null` 时会新建该段。写入前预检：模型在文件的该 Provider 下存在、支持 image 输入、且 `vision.max_output_tokens`（缺省按 `VISION_DEFAULTS`）`≤ 该模型的 max_tokens`，不满足返回 400（`unknown_provider`/`unknown_model`/`not_image_capable`/`max_output_tokens_exceeded`）。`vision.provider`、`vision.model` 与 `vision.max_output_tokens` 热应用：下一次 vision 分析就用新模型，旧模型写的 `media_analyses` 行不会被命中；`vision` 的其它字段仍是 restart 字段 |
 | `POST /image/prompts` / `PUT` / `DELETE /image/prompts/:id` | 生图 Prompt 素材管理（创建/更新/归档）；归档的素材读取返回 404 |
 | `POST /image/images` / `PUT` / `DELETE /image/images/:id` | 参考图上传（base64，≤20 MB 原始体积）/ 元数据编辑 / 归档；`GET /image/images/:id/content` 返回二进制（带认证） |
@@ -431,7 +431,7 @@ Messages 列表与消息详情的 Revision 在发送者姓名旁显示可复制�
 
 迁移 `src/store/migrations/032_admin_passkeys.sql` 建立 `admin_passkeys` 并给 `admin_users` 补 `webauthn_user_id`（唯一，默认随机 16 字节 hex）：每行一个 WebAuthn 凭据，`credential_id` 全局唯一，`public_key`/`counter` 用于验证与防重放（登录以乐观锁更新 `counter`），`rp_id` 记录注册时的依赖方——key 只对注册它的 `rpId` 生效，换域名后旧 key 不可用；`name` 1–80 字符（CHECK 约束）。`user_id` 级联删除；`createOrResetAccount`（`admin-account` CLI 的落点）在空表建号、已有唯一管理员时改用户名与密码，并总是删除该账号全部 Session，只有 `--revoke-passkeys` 才删除全部 passkey；不触碰 `admin_api_keys`，也不重开 setup。该表不参与在线保留清理。语义见「Passkey 登录与凭据」。
 
-Bot 管理员白名单不再是数据库表：迁移 `src/store/migrations/026_drop_bot_admins.sql` 删除了旧表 `bot_admins`（迁移 `008` 引入），唯一事实源是配置文件里的 `telegram.admins`，旧表内容用 `scripts/migrate-admins.ts` 搬迁。Admin Panel「Bot admins」页面经配置写端点增删该列表并热应用。Bot 管理员决定谁能执行 `/pause`、`/resume`、`/model` 与 `/cut_topic`，与面板登录账号无关。
+Bot 管理员白名单不再是数据库表：迁移 `src/store/migrations/026_drop_bot_admins.sql` 删除了旧表 `bot_admins`（迁移 `008` 引入），唯一事实源是配置文件里的 `telegram.admins`，旧表内容用 `scripts/migrate-admins.ts` 搬迁。Admin Panel「Bot admins」页面经配置写端点增删该列表并热应用。Bot 管理员决定谁能执行 `/pause`、`/resume`、`/model`、`/effort` 与 `/cut_topic`，与面板登录账号无关。
 
 迁移 `src/store/migrations/034_dictionary.sql` 建立 `dictionary_entries`（辞典词条）并把 `model_calls` 的 `role` 约束扩展为包含 `tool`（Tool Model 辅助调用）。表结构、索引与作用域约束见 [data-layer.md](data-layer.md#dictionary_entries迁移-034)；注入与工具边界见 [dictionary.md](dictionary.md)。
 

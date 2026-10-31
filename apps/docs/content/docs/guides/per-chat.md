@@ -57,6 +57,7 @@ description: 配置 Chat 或 Topic allowlist、每群模型覆盖，以及恢复
 
 - 在 Admin **Chats** 查看 `Saved settings` 与 `Running settings` 是否一致。
 - `/status` 显示当前 Chat 的生效模型。
+- `/effort` 显示当前 Chat 生效模型接受的思考级别与当前级别（管理员），`/effort 级别` 只改这一项、`/effort default` 恢复继承全局。
 - 在 Tool session 的 Model call 中确认 Provider、模型和 thinking level；不要只根据配置文件判断运行中的旧 Invocation。
 - 运行 `check-config` 可提前发现 Chat 模型引用或 thinking level 不兼容。
 

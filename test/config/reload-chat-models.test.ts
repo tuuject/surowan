@@ -1,18 +1,75 @@
 import { expect, test } from 'vitest';
-import type { FileConfig } from '../../src/platform/config/index.ts';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
+import type { FileConfig } from '../../src/platform/config/index.ts';
 import { resolveAgentSettings } from '../../src/platform/config/resolve.ts';
 import {
-  CHAT_ID,
   AGENT_MODEL,
-  SECOND_MODEL,
-  logEvents,
-  customProvider,
   builtinProvider,
-  model,
+  CHAT_ID,
+  customProvider,
   fauxAgent,
+  logEvents,
+  model,
+  SECOND_MODEL,
   setup,
 } from './reload-fixtures.ts';
+
+test('Chat thinking-level writes preserve model overrides and reset removes only the level', async () => {
+  const fixture = await setup();
+  try {
+    const wrote = await fixture.reloader.setChatThinkingLevel(CHAT_ID, 'high');
+    expect(wrote.ok).toBe(true);
+    if (!wrote.ok) {
+      throw new Error(wrote.message);
+    }
+    expect(wrote.applied).toContain(`telegram.chats[${CHAT_ID}].thinking_level`);
+    const written = await loadConfig(fixture.configPath);
+    const fileChat = written.fileConfig.telegram?.chats.find((chat) => chat.id === CHAT_ID);
+    expect(fileChat).toMatchObject({ id: CHAT_ID, thinking_level: 'high' });
+    expect(fileChat).not.toHaveProperty('provider');
+    expect(fixture.configStore.current().config.telegram.chats.find((chat) => chat.id === CHAT_ID)).toMatchObject({
+      thinking_level: 'high',
+    });
+
+    // The edited file is validated like any other configuration: a level the
+    // Chat's effective model does not accept never reaches the disk.
+    const before = await fixture.readText();
+    const unsupported = await fixture.reloader.setChatThinkingLevel(CHAT_ID, 'xhigh');
+    expect(unsupported).toMatchObject({ ok: false, code: 'config_invalid', fileWritten: false });
+    expect(await fixture.readText()).toBe(before);
+
+    const reset = await fixture.reloader.resetChatThinkingLevel(CHAT_ID);
+    expect(reset.ok).toBe(true);
+    const inheritedChat = (await loadConfig(fixture.configPath)).fileConfig.telegram?.chats.find(
+      (chat) => chat.id === CHAT_ID,
+    );
+    expect(inheritedChat).not.toHaveProperty('thinking_level');
+    const noOp = await fixture.reloader.resetChatThinkingLevel(CHAT_ID);
+    expect(noOp.ok).toBe(true);
+    if (!reset.ok || !noOp.ok) {
+      throw new Error('Expected successful resets');
+    }
+    expect(noOp.status.generation).toBe(reset.status.generation);
+  } finally {
+    fixture.store.close();
+  }
+});
+
+test('Chat thinking-level writes reject Chats the running process does not know', async () => {
+  const fixture = await setup();
+  try {
+    const before = fixture.configStore.current();
+    const original = await fixture.readText();
+    const unknown = await fixture.reloader.setChatThinkingLevel(-999, 'high');
+    expect(unknown).toMatchObject({ ok: false, code: 'config_invalid', fileWritten: false });
+    const missing = await fixture.reloader.resetChatThinkingLevel(-999);
+    expect(missing).toMatchObject({ ok: false, code: 'config_invalid', fileWritten: false });
+    expect(await fixture.readText()).toBe(original);
+    expect(fixture.configStore.current()).toBe(before);
+  } finally {
+    fixture.store.close();
+  }
+});
 
 test('Chat switches resolve file IDs after a reorder and preserve other Chats and defaults', async () => {
   const secondChat = -1009876543210;

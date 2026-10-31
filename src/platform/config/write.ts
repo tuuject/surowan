@@ -1,6 +1,7 @@
+import type { ModelThinkingLevel } from '@earendil-works/pi-ai';
 import type { JSONPath } from 'jsonc-parser';
-import type { FileConfig, RawConfig } from './index.ts';
 import { type KeyJar, newKeyJarName } from '../key-jar.ts';
+import type { FileConfig, RawConfig } from './index.ts';
 
 /**
  * Configuration read/write contracts consumed by bot commands and the Admin
@@ -91,6 +92,8 @@ export interface BotCommandConfigWriter {
   setChatUserIgnored(configuredChatId: number, userId: bigint, ignored: boolean): Promise<BotCommandConfigWriteResult>;
   setChatModel(configuredChatId: number, provider: string, model: string): Promise<BotCommandConfigWriteResult>;
   resetChatModel(configuredChatId: number): Promise<BotCommandConfigWriteResult>;
+  setChatThinkingLevel(configuredChatId: number, level: ModelThinkingLevel): Promise<BotCommandConfigWriteResult>;
+  resetChatThinkingLevel(configuredChatId: number): Promise<BotCommandConfigWriteResult>;
 }
 
 /** Reading, editing and applying the persisted configuration on behalf of the Admin Panel. */

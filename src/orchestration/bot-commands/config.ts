@@ -1,8 +1,10 @@
+import { getSupportedThinkingLevels, type ModelThinkingLevel } from '@earendil-works/pi-ai';
 import type { AgentSettings, RawConfig } from '../../platform/config/index.ts';
 import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
 import type { BotCommandConfigWriter } from '../../platform/config/write.ts';
 import type { AgentModelOption, AgentModelSwitcher } from '../../platform/models/switch.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
+import { isThinkingLevel } from '../../platform/thinking-levels.ts';
 import { type BusinessStore, resolveChatConfig } from '../../store/store.ts';
 import type { CommandSender } from './index.ts';
 
@@ -149,14 +151,123 @@ export async function switchChatModel(
         `已为本群切换: ${target}，已写入 config.jsonc，将在下一次 agent session 生效。`,
         `思考强度已重置为该模型最弱的一档: ${settings.thinking_level ?? '未配置'}`,
       ];
-  const other = result.applied.filter((path) => !paths.has(path));
+  lines.push(...applyReport(result.applied, paths, result.restartRequired));
+  return lines.join('\n');
+}
+
+/**
+ * `/effort`: the thinking level of this Chat's effective model. Without an
+ * argument it lists the levels that model accepts; with one it writes the Chat's
+ * `telegram.chats[<id>].thinking_level` override, and `default` removes that
+ * override so the Chat follows `agent.thinking_level` again.
+ */
+export async function switchChatEffort(
+  deps: BotCommandConfigDeps,
+  argument: string | undefined,
+  telegramChatId: bigint,
+): Promise<string> {
+  const reloader = deps.configReloader;
+  if (reloader === undefined) {
+    return '运行时配置应用不可用。';
+  }
+  const config = deps.configStore.current().config;
+  const chatConfig = resolveChatConfig(config, deps.store.orm, telegramChatId);
+  if (chatConfig === undefined) {
+    return '本 Chat 未在配置中找到。';
+  }
+  const effective = resolveAgentSettings(config, chatConfig);
+  const { provider, model: modelId, thinking_level: level } = effective;
+  if (provider === undefined || modelId === undefined) {
+    return '本群尚未配置模型，无法查看或设置思考强度。';
+  }
+  // The registered model, not the file entry: Pi derives the accepted levels
+  // from the `thinkingLevelMap` the registry builds, which is what an invocation
+  // actually runs with.
+  const model = deps.configStore.current().models.getModel(provider, modelId);
+  if (model === undefined) {
+    return `模型 ${provider} / ${modelId} 未注册，无法查看或设置思考强度。`;
+  }
+  const supported = getSupportedThinkingLevels(model);
+  const configuredChatId = chatConfig.id;
+
+  if (argument === undefined) {
+    return effortMenu(provider, modelId, level, chatConfig, supported);
+  }
+
+  const requested = argument.trim().toLowerCase();
+  if (requested === 'default') {
+    const result = await reloader.resetChatThinkingLevel(configuredChatId);
+    if (!result.ok) {
+      return result.fileWritten ? `已写入 config.jsonc，但应用失败: ${result.message}` : `恢复失败: ${result.message}`;
+    }
+    const current = deps.configStore.current().config;
+    const inherited = resolveAgentSettings(current, resolveChatConfig(current, deps.store.orm, telegramChatId));
+    const lines = [
+      `已清除本群思考强度覆盖，跟随全局 ${inherited.thinking_level ?? '未配置'}，将在下一次 agent session 生效。`,
+    ];
+    lines.push(
+      ...applyReport(
+        result.applied,
+        new Set([`telegram.chats[${configuredChatId}].thinking_level`]),
+        result.restartRequired,
+      ),
+    );
+    return lines.join('\n');
+  }
+
+  if (!isThinkingLevel(requested)) {
+    return `无效的思考强度: ${argument}。\n${effortMenu(provider, modelId, level, chatConfig, supported)}`;
+  }
+  if (!supported.includes(requested)) {
+    return `${provider} / ${modelId} 不支持思考强度 ${requested}。可选: ${supported.join(', ')}`;
+  }
+  const result = await reloader.setChatThinkingLevel(configuredChatId, requested);
+  if (!result.ok) {
+    return result.fileWritten ? `已写入 config.jsonc，但应用失败: ${result.message}` : `设置失败: ${result.message}`;
+  }
+  const lines = [`已为本群设置思考强度: ${requested}，已写入 config.jsonc，将在下一次 agent session 生效。`];
+  lines.push(
+    ...applyReport(
+      result.applied,
+      new Set([`telegram.chats[${configuredChatId}].thinking_level`]),
+      result.restartRequired,
+    ),
+  );
+  return lines.join('\n');
+}
+
+/** The current level, what the model accepts, and how to change either. */
+function effortMenu(
+  provider: string,
+  modelId: string,
+  level: ModelThinkingLevel | undefined,
+  chatConfig: RawConfig['telegram']['chats'][number],
+  supported: readonly ModelThinkingLevel[],
+): string {
+  const configurable = supported.length > 1;
+  return [
+    `本群模型: ${provider} / ${modelId}`,
+    `思考强度: ${level ?? '未配置'}${chatConfig.thinking_level === undefined ? '（继承全局）' : ''}`,
+    `可选: ${supported.join(', ')}${configurable ? '' : '（该模型不支持思考）'}`,
+    configurable ? '使用 /effort 级别 设置本群强度，/effort default 恢复继承全局' : '使用 /effort default 恢复继承全局',
+  ].join('\n');
+}
+
+/** Changes the same apply carried in from the configuration file, and pending restarts. */
+function applyReport(
+  applied: readonly string[],
+  written: ReadonlySet<string>,
+  restartRequired: readonly string[],
+): string[] {
+  const lines: string[] = [];
+  const other = applied.filter((path) => !written.has(path));
   if (other.length > 0) {
     lines.push(`同时应用了配置文件中的其它修改: ${other.join(', ')}`);
   }
-  if (result.restartRequired.length > 0) {
-    lines.push(`另有 ${result.restartRequired.length} 项配置需要重启后生效。`);
+  if (restartRequired.length > 0) {
+    lines.push(`另有 ${restartRequired.length} 项配置需要重启后生效。`);
   }
-  return lines.join('\n');
+  return lines;
 }
 
 function modelMenu(
