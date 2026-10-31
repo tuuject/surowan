@@ -61,7 +61,12 @@ export function narrowSendInput(
   const reply = input.reply_to_message_id === undefined ? {} : { reply_to_message_id: input.reply_to_message_id };
   if (kind === 'text') {
     if (input.text === undefined) {
-      return { problem: 'kind:text needs text' };
+      // Kind falls back to text, so this is also what a send carrying nothing
+      // but reply_to_message_id hits; spell out where the words go.
+      return {
+        problem:
+          'text is missing — put the message itself in text (kind defaults to text); for a sticker or image, set kind with sticker_ref or image_generation_id. Plain assistant text is never published',
+      };
     }
     const parseMode = input.parse_mode !== undefined ? { parse_mode: input.parse_mode } : {};
     return { send: { kind, text: input.text, ...parseMode, ...reply } };
