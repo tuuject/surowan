@@ -255,3 +255,21 @@ test('self-ignore reports apply failures after persisting and repeated commands 
     fixture.store.close();
   }
 });
+
+test('a self-ignore refused because the Chat left the file is logged as a config write failure', async () => {
+  const fixture = await setup();
+  try {
+    await fixture.patch((config) => {
+      config.telegram.chats = config.telegram.chats.filter((chat) => chat.id !== CHAT_ID);
+    });
+    const reply = await fixture.commands.run({ name: 'ignoreme' }, BigInt(CHAT_ID), ADMIN);
+    expect(reply).toContain('no longer present');
+    expect(logEvents('model_switch_failed')).toEqual([]);
+    expect(logEvents('config_write_failed').at(-1)).toMatchObject({
+      code: 'config_invalid',
+      error: `Chat ${CHAT_ID} is no longer present in the configuration file`,
+    });
+  } finally {
+    fixture.store.close();
+  }
+});

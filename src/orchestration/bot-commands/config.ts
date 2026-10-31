@@ -175,6 +175,13 @@ export async function switchChatEffort(
   if (chatConfig === undefined) {
     return '本 Chat 未在配置中找到。';
   }
+  const configuredChatId = chatConfig.id;
+  const requested = argument?.trim().toLowerCase();
+  // Removing the override needs no model: it must still work when the Chat's
+  // model is incomplete or unregistered, which is when the override is stuck.
+  if (requested === 'default') {
+    return await resetChatEffort(deps, configuredChatId, telegramChatId);
+  }
   const effective = resolveAgentSettings(config, chatConfig);
   const { provider, model: modelId, thinking_level: level } = effective;
   if (provider === undefined || modelId === undefined) {
@@ -188,31 +195,9 @@ export async function switchChatEffort(
     return `模型 ${provider} / ${modelId} 未注册，无法查看或设置思考强度。`;
   }
   const supported = getSupportedThinkingLevels(model);
-  const configuredChatId = chatConfig.id;
 
-  if (argument === undefined) {
+  if (requested === undefined) {
     return effortMenu(provider, modelId, level, chatConfig, supported);
-  }
-
-  const requested = argument.trim().toLowerCase();
-  if (requested === 'default') {
-    const result = await reloader.resetChatThinkingLevel(configuredChatId);
-    if (!result.ok) {
-      return result.fileWritten ? `已写入 config.jsonc，但应用失败: ${result.message}` : `恢复失败: ${result.message}`;
-    }
-    const current = deps.configStore.current().config;
-    const inherited = resolveAgentSettings(current, resolveChatConfig(current, deps.store.orm, telegramChatId));
-    const lines = [
-      `已清除本群思考强度覆盖，跟随全局 ${inherited.thinking_level ?? '未配置'}，将在下一次 agent session 生效。`,
-    ];
-    lines.push(
-      ...applyReport(
-        result.applied,
-        new Set([`telegram.chats[${configuredChatId}].thinking_level`]),
-        result.restartRequired,
-      ),
-    );
-    return lines.join('\n');
   }
 
   if (!isThinkingLevel(requested)) {
@@ -236,6 +221,35 @@ export async function switchChatEffort(
   return lines.join('\n');
 }
 
+/** `/effort default`: removes the Chat's thinking-level override. */
+async function resetChatEffort(
+  deps: BotCommandConfigDeps,
+  configuredChatId: number,
+  telegramChatId: bigint,
+): Promise<string> {
+  const reloader = deps.configReloader;
+  if (reloader === undefined) {
+    return '运行时配置应用不可用。';
+  }
+  const result = await reloader.resetChatThinkingLevel(configuredChatId);
+  if (!result.ok) {
+    return result.fileWritten ? `已写入 config.jsonc，但应用失败: ${result.message}` : `恢复失败: ${result.message}`;
+  }
+  const current = deps.configStore.current().config;
+  const inherited = resolveAgentSettings(current, resolveChatConfig(current, deps.store.orm, telegramChatId));
+  const lines = [
+    `已清除本群思考强度覆盖，跟随全局 ${inherited.thinking_level ?? '未配置'}，将在下一次 agent session 生效。`,
+  ];
+  lines.push(
+    ...applyReport(
+      result.applied,
+      new Set([`telegram.chats[${configuredChatId}].thinking_level`]),
+      result.restartRequired,
+    ),
+  );
+  return lines.join('\n');
+}
+
 /** The current level, what the model accepts, and how to change either. */
 function effortMenu(
   provider: string,
@@ -244,12 +258,14 @@ function effortMenu(
   chatConfig: RawConfig['telegram']['chats'][number],
   supported: readonly ModelThinkingLevel[],
 ): string {
-  const configurable = supported.length > 1;
+  // A reasoning model may declare a single level such as `high`; only an
+  // `off`-only list means the model cannot think.
+  const thinks = supported.some((entry) => entry !== 'off');
   return [
     `本群模型: ${provider} / ${modelId}`,
     `思考强度: ${level ?? '未配置'}${chatConfig.thinking_level === undefined ? '（继承全局）' : ''}`,
-    `可选: ${supported.join(', ')}${configurable ? '' : '（该模型不支持思考）'}`,
-    configurable ? '使用 /effort 级别 设置本群强度，/effort default 恢复继承全局' : '使用 /effort default 恢复继承全局',
+    `可选: ${supported.join(', ')}${thinks ? '' : '（该模型不支持思考）'}`,
+    thinks ? '使用 /effort 级别 设置本群强度，/effort default 恢复继承全局' : '使用 /effort default 恢复继承全局',
   ].join('\n');
 }
 

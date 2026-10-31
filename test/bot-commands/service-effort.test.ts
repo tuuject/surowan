@@ -74,6 +74,44 @@ describe('bot command service', () => {
       store.close();
     });
 
+    test('labels a reasoning model with a single declared level as configurable', async () => {
+      const { store, commands } = await commandSetup((config) => {
+        config.telegram.admins = [42];
+        config.agent.thinking_level = 'high';
+        const model = config.providers.agent?.models[0];
+        if (model !== undefined) {
+          model.thinking_levels = ['high'];
+        }
+      });
+      const reply = await commands.run({ name: 'effort' }, CHAT_ID, ALICE, FIXED_NOW);
+      expect(reply.split('\n')).toEqual([
+        '本群模型: agent / agent-model',
+        '思考强度: high（继承全局）',
+        '可选: high',
+        '使用 /effort 级别 设置本群强度，/effort default 恢复继承全局',
+      ]);
+      store.close();
+    });
+
+    test('/effort default clears an override while the Chat has no complete model', async () => {
+      const { store, commands, reloader } = await commandSetup((config) => {
+        config.telegram.admins = [42];
+        delete (config.agent as { provider?: string }).provider;
+        delete (config.agent as { model?: string }).model;
+        config.telegram.chats = [{ id: 123456789, thinking_level: 'high' }];
+      });
+      try {
+        expect(await commands.run({ name: 'effort' }, CHAT_ID, ALICE, FIXED_NOW)).toBe(
+          '本群尚未配置模型，无法查看或设置思考强度。',
+        );
+        const reply = await commands.run({ name: 'effort', argument: 'default' }, CHAT_ID, ALICE, FIXED_NOW);
+        expect(reply).toBe('已清除本群思考强度覆盖，跟随全局 low，将在下一次 agent session 生效。');
+        expect((await loadConfig(reloader.configPath)).fileConfig.telegram?.chats).toEqual([{ id: 123456789 }]);
+      } finally {
+        store.close();
+      }
+    });
+
     test('writes only the Chat thinking level, keeps other Chats and overrides, and status reflects it', async () => {
       const { store, commands, reloader } = await commandSetup((config) => {
         config.telegram.admins = [42];

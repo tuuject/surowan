@@ -36,20 +36,28 @@ interface LocatedChat {
 }
 
 /** The file's Chat entry located by configured ID, or the refusal to report. */
-async function readChat(ctx: ChatWriteContext, configuredChatId: number): Promise<LocatedChat | ConfigApplyResult> {
+async function readChat(
+  ctx: ChatWriteContext,
+  configuredChatId: number,
+  rejectedEvent?: string,
+): Promise<LocatedChat | ConfigApplyResult> {
   let revision: string;
   let loaded: LoadedConfig;
   try {
     revision = await readConfigRevision(ctx.configPath);
     loaded = await loadConfig(ctx.configPath, ctx.loadOptions());
   } catch (error) {
-    return ctx.reject('config_invalid', messageOf(error));
+    return ctx.reject('config_invalid', messageOf(error), rejectedEvent);
   }
   const chats = loaded.fileConfig.telegram?.chats ?? [];
   const index = chats.findIndex((chat) => chat.id === configuredChatId);
   const chat = chats[index];
   if (chat === undefined) {
-    return ctx.reject('config_invalid', `Chat ${configuredChatId} is no longer present in the configuration file`);
+    return ctx.reject(
+      'config_invalid',
+      `Chat ${configuredChatId} is no longer present in the configuration file`,
+      rejectedEvent,
+    );
   }
   return { revision, index, chat };
 }
@@ -91,7 +99,7 @@ export async function writeChatUserIgnored(
       'config_write_failed',
     );
   }
-  const located = await readChat(ctx, configuredChatId);
+  const located = await readChat(ctx, configuredChatId, 'config_write_failed');
   if (!('chat' in located)) {
     return located;
   }
