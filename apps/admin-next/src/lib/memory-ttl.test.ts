@@ -2,9 +2,12 @@ import { describe, expect, test } from 'vitest';
 import {
   DAY_SECONDS,
   daysToTtlSeconds,
+  editTtlDays,
+  editTtlSeconds,
   formatTtl,
   isTtlDaysValid,
-  MEMORY_MAX_CONTENT_LENGTH,
+  MEMORY_DETAIL_MAX_LENGTH,
+  MEMORY_SUMMARY_MAX_LENGTH,
   TTL_MAX_DAYS,
   TTL_MIN_DAYS,
 } from './memory-ttl.ts';
@@ -33,6 +36,18 @@ describe('memory-ttl', () => {
     expect(daysToTtlSeconds(null)).toBeUndefined();
   });
 
+  test('editTtlSeconds omits unchanged values and promotes only a cleared duration', () => {
+    expect(editTtlSeconds(null, null)).toBeUndefined();
+    expect(editTtlSeconds(7, 7)).toBeUndefined();
+    expect(editTtlSeconds(Number('07'), 7)).toBeUndefined();
+    expect(editTtlSeconds(null, 7)).toBeNull();
+    expect(editTtlSeconds(7, null)).toBe(604_800);
+    expect(editTtlSeconds(7, 1)).toBe(604_800);
+    expect(editTtlDays(3_600)).toBe(1);
+    expect(editTtlSeconds(1, editTtlDays(3_600))).toBeUndefined();
+    expect(editTtlDays(null)).toBeNull();
+  });
+
   test('TTL day bounds match the backend range', () => {
     expect(isTtlDaysValid(1)).toBe(true);
     expect(isTtlDaysValid(365)).toBe(true);
@@ -46,7 +61,8 @@ describe('memory-ttl', () => {
   });
 
   test('shared constants track the backend limits', () => {
-    expect(MEMORY_MAX_CONTENT_LENGTH).toBe(150);
+    expect(MEMORY_SUMMARY_MAX_LENGTH).toBe(150);
+    expect(MEMORY_DETAIL_MAX_LENGTH).toBe(32_768);
     expect(TTL_MIN_DAYS).toBe(1);
     expect(TTL_MAX_DAYS).toBe(1_825);
   });

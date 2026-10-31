@@ -10,21 +10,24 @@
 import { randomUUID } from 'node:crypto';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { capability, type ExecutableCapability } from '../../capabilities/execute-tool.ts';
-import { DEFAULT_MEMORY_TTL_SECONDS, newMemoryId } from '../../context/memory.ts';
+import { MEMO_WRITE_INPUT_MAX_BYTES, newMemoBlobId, newMemoId } from '../../context/memo-pad/index.ts';
+import { isMemoActive } from '../../context/memo-pad/search.ts';
 import { imageModelPage } from '../../plugins/image/image.ts';
 import type { ReplayDispatch, ReplayState, ReplayToolDefinition } from './tools.ts';
 import {
-  AddMemoryInputValidator,
+  AddMemoInputValidator,
   AlarmInputValidator,
   DeleteAlarmInputValidator,
-  DeleteMemoryInputValidator,
+  DeleteMemoInputValidator,
   ImageGenerateInputValidator,
   ListAlarmInputValidator,
   ListImageModelsInputValidator,
   REPLAY_IMAGE_DEFAULT_OUTPUT_COUNT,
   REPLAY_IMAGE_MODEL_ID,
   REPLAY_MINIMUM_SLEEP_MS,
+  SaveMemoImageInputValidator,
   SYNTHETIC_CAPABILITIES,
+  UpdateMemoInputValidator,
   ZzzInputValidator,
   replayToolBase,
 } from './tools-spec.ts';
@@ -59,18 +62,21 @@ export function replayExecuteTool(
     ...replayToolBase(definition),
     execute: async (toolCallId, params, signal) => {
       signal?.throwIfAborted();
-      recordExecuteDispatch(
-        state.dispatches,
-        toolCallId,
-        params,
-        registeredCapabilities,
-        state.options.readImage !== undefined,
-      );
+      recordExecuteDispatch(state, toolCallId, params, registeredCapabilities);
       const imageCallId = `${toolCallId}:read_image`;
       try {
         // The shared execute gateway validates and audits text envelopes. Scene
         // reads additionally return bytes to this image-capable model, not Vision.
         const result = await inner.execute(toolCallId, params, signal);
+        const request = params as { action?: unknown; tool?: unknown };
+        if (request.action === 'call' && request.tool === 'save_memo_image') {
+          state.dispatches.push({
+            tool_call_id: toolCallId,
+            tool_name: 'execute',
+            mode: 'synthetic',
+            capability: 'save_memo_image',
+          });
+        }
         const image = state.imageResults.get(imageCallId);
         return image === undefined ? result : { ...result, content: [...result.content, image] };
       } finally {
@@ -114,7 +120,10 @@ export function replayCapability(definition: ReplayToolDefinition, state: Replay
           if (typeof input.image_ref !== 'string') {
             throw new Error('read_image input does not match the tool schema');
           }
-          const image = await readImage(input.image_ref, signal ?? new AbortController().signal);
+          signal?.throwIfAborted();
+          const image =
+            state.savedImages.get(input.image_ref) ??
+            (await readImage(input.image_ref, signal ?? new AbortController().signal));
           signal?.throwIfAborted();
           state.imageResults.set(id, image);
           return { content: [{ type: 'text', text: 'Scene image loaded.' }], details: { scene_image: true } };
@@ -123,11 +132,17 @@ export function replayCapability(definition: ReplayToolDefinition, state: Replay
       false,
     );
   }
-  if (definition.name === 'add_memory') {
-    return capability(replayAddMemoryTool(definition, state), true);
+  if (definition.name === 'add_memo') {
+    return capability(replayAddMemoTool(definition, state), true, { inputMaxBytes: MEMO_WRITE_INPUT_MAX_BYTES });
   }
-  if (definition.name === 'delete_memory') {
-    return capability(replayDeleteMemoryTool(definition, state), true);
+  if (definition.name === 'update_memo') {
+    return capability(replayUpdateMemoTool(definition, state), true, { inputMaxBytes: MEMO_WRITE_INPUT_MAX_BYTES });
+  }
+  if (definition.name === 'delete_memo') {
+    return capability(replayDeleteMemoTool(definition, state), true);
+  }
+  if (definition.name === 'save_memo_image' && readImage !== undefined) {
+    return capability(replaySaveMemoImageTool(definition, state, readImage), true);
   }
   if (definition.name === 'alarm') {
     return capability(replayAlarmTool(definition, state), true);
@@ -147,31 +162,88 @@ export function replayCapability(definition: ReplayToolDefinition, state: Replay
   return replayBlockedCapability(definition);
 }
 
-function replayAddMemoryTool(definition: ReplayToolDefinition, state: ReplayState): AgentTool {
+function replayAddMemoTool(definition: ReplayToolDefinition, state: ReplayState): AgentTool {
   return {
     ...replayToolBase(definition),
     execute: async (_toolCallId, params, signal) => {
       signal?.throwIfAborted();
-      const input = checkedInput(AddMemoryInputValidator, params, 'add_memory');
-      const ttlSeconds = input.ttl_seconds ?? DEFAULT_MEMORY_TTL_SECONDS;
-      const expiresAt = new Date(Date.now() + ttlSeconds * 1_000).toISOString();
-      const id = newMemoryId();
-      state.memories.set(id, { content: input.content, expiresAt });
+      const input = checkedInput(AddMemoInputValidator, params, 'add_memo');
+      const now = new Date();
+      const timestamp = now.toISOString();
+      const expiresAt =
+        input.ttl_seconds === undefined ? null : new Date(now.getTime() + input.ttl_seconds * 1_000).toISOString();
+      const id = newMemoId();
+      state.memories.set(id, {
+        id,
+        summary: input.summary,
+        detail: input.detail,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        expiresAt,
+      });
       return {
-        content: [{ type: 'text' as const, text: `Saved memory ${id}; it expires at ${expiresAt}` }],
+        content: [
+          {
+            type: 'text' as const,
+            text: `Saved ${id}; ${expiresAt === null ? 'it does not expire' : `it expires at ${expiresAt}`}`,
+          },
+        ],
         details: { id, expires_at: expiresAt },
       };
     },
   };
 }
 
-function replayDeleteMemoryTool(definition: ReplayToolDefinition, state: ReplayState): AgentTool {
+function replayUpdateMemoTool(definition: ReplayToolDefinition, state: ReplayState): AgentTool {
   return {
     ...replayToolBase(definition),
     execute: async (_toolCallId, params, signal) => {
       signal?.throwIfAborted();
-      const input = checkedInput(DeleteMemoryInputValidator, params, 'delete_memory');
+      const input = checkedInput(UpdateMemoInputValidator, params, 'update_memo');
+      const existing = state.memories.get(input.id);
+      const now = new Date();
+      if (existing === undefined || !isMemoActive(existing, now)) {
+        throw new Error('Memory not found in this Chat');
+      }
+      if (!state.memoryReads.has(input.id)) {
+        throw new Error('Read this memory with read_memory before modifying it');
+      }
+      const expiresAt =
+        input.ttl_seconds === undefined
+          ? existing.expiresAt
+          : input.ttl_seconds === null
+            ? null
+            : new Date(now.getTime() + input.ttl_seconds * 1_000).toISOString();
+      state.memories.set(input.id, {
+        id: input.id,
+        summary: input.summary ?? existing.summary,
+        detail: input.detail ?? existing.detail,
+        createdAt: existing.createdAt,
+        updatedAt: now.toISOString(),
+        expiresAt,
+      });
+      state.memoryReads.delete(input.id);
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Updated ${input.id}; ${expiresAt === null ? 'it does not expire' : `it expires at ${expiresAt}`}`,
+          },
+        ],
+        details: { id: input.id, expires_at: expiresAt },
+      };
+    },
+  };
+}
+
+function replayDeleteMemoTool(definition: ReplayToolDefinition, state: ReplayState): AgentTool {
+  return {
+    ...replayToolBase(definition),
+    execute: async (_toolCallId, params, signal) => {
+      signal?.throwIfAborted();
+      const input = checkedInput(DeleteMemoInputValidator, params, 'delete_memo');
       const deleted = state.memories.delete(input.id);
+      state.memoryReads.delete(input.id);
       return {
         content: [
           {
@@ -179,7 +251,32 @@ function replayDeleteMemoryTool(definition: ReplayToolDefinition, state: ReplayS
             text: deleted ? `Memory ${input.id} deleted` : `Memory ${input.id} was already gone`,
           },
         ],
-        details: { id: input.id },
+        details: { id: input.id, deleted },
+      };
+    },
+  };
+}
+
+function replaySaveMemoImageTool(
+  definition: ReplayToolDefinition,
+  state: ReplayState,
+  readImage: NonNullable<ReplayState['options']['readImage']>,
+): AgentTool {
+  return {
+    ...replayToolBase(definition),
+    execute: async (_toolCallId, params, signal) => {
+      signal?.throwIfAborted();
+      const input = checkedInput(SaveMemoImageInputValidator, params, 'save_memo_image');
+      if (!input.image_ref.startsWith('img_')) {
+        throw new Error('image_ref is not visible in this conversation context');
+      }
+      const image = await readImage(input.image_ref, signal ?? new AbortController().signal);
+      signal?.throwIfAborted();
+      const uri = `pwblob://${newMemoBlobId()}`;
+      state.savedImages.set(uri, image);
+      return {
+        content: [{ type: 'text' as const, text: `Saved image as ${uri}.` }],
+        details: { blob_uri: uri, mime: image.mimeType, byte_size: Buffer.byteLength(image.data, 'base64') },
       };
     },
   };
@@ -300,11 +397,10 @@ function replayBlockedCapability(definition: ReplayToolDefinition): ExecutableCa
 }
 
 function recordExecuteDispatch(
-  dispatches: ReplayDispatch[],
+  state: ReplayState,
   toolCallId: string,
   params: unknown,
   registeredCapabilities: ReadonlySet<string>,
-  readImage: boolean,
 ): void {
   if (typeof params !== 'object' || params === null) {
     return;
@@ -312,15 +408,23 @@ function recordExecuteDispatch(
   const request = params as Record<string, unknown>;
   const action = typeof request.action === 'string' ? request.action : undefined;
   const target = typeof request.tool === 'string' ? request.tool : undefined;
+  const dispatches = state.dispatches;
   if (action === 'call' && target !== undefined) {
     const synthetic = registeredCapabilities.has(target) && SYNTHETIC_CAPABILITIES.has(target);
+    const imageInput = request.input as { image_ref?: unknown } | undefined;
+    const localImage =
+      target === 'read_image' &&
+      typeof imageInput?.image_ref === 'string' &&
+      state.savedImages.has(imageInput.image_ref);
+    const readsImage =
+      (target === 'read_image' || target === 'save_memo_image') && state.options.readImage !== undefined;
     dispatches.push({
       tool_call_id: toolCallId,
       tool_name: 'execute',
       mode:
-        registeredCapabilities.has(target) && target === 'read_image' && readImage
+        registeredCapabilities.has(target) && readsImage && !localImage
           ? 'live_read'
-          : synthetic
+          : synthetic || (registeredCapabilities.has(target) && localImage)
             ? 'synthetic'
             : 'blocked',
       capability: target,

@@ -1,17 +1,25 @@
-import { call, type ChatSummary, type ListFilters, listPath, type Page } from './core.ts';
+import { call, type ListFilters, listPath, type Page } from './core.ts';
+
+/** The Chat a memo belongs to; the Memo Pad is Chat-scoped and shared by Topics. */
+export interface MemoryChat {
+  readonly telegram_chat_id: string;
+  readonly type: string;
+  readonly title: string | null;
+}
 
 export interface MemoryEntry {
   readonly id: string;
-  readonly conversation_id: string;
-  readonly chat: ChatSummary;
-  readonly content: string;
+  readonly chat: MemoryChat;
+  readonly summary: string;
+  readonly detail: string;
   readonly created_at: string;
-  readonly expires_at: string;
+  /** `null` = permanent (long-term); a timestamp = short-term expiry. */
+  readonly expires_at: string | null;
   readonly updated_at: string;
-  readonly ttl_seconds: number;
-  readonly remaining_seconds: number;
+  readonly ttl_seconds: number | null;
+  readonly remaining_seconds: number | null;
   readonly expired: boolean;
-  readonly long_ttl: boolean;
+  readonly short_term: boolean;
 }
 
 export interface MemoryChatOption {
@@ -23,14 +31,17 @@ export interface MemoryChatOption {
 
 export interface MemoryDraft {
   readonly chat_id: string;
-  readonly message_thread_id: number;
-  readonly content: string;
-  readonly ttl_seconds: number;
+  readonly summary: string;
+  readonly detail: string;
+  /** Omit (or pass `null`) for a permanent entry. */
+  readonly ttl_seconds?: number | null;
 }
 
 export interface MemoryUpdate {
-  readonly content?: string;
-  readonly ttl_seconds?: number;
+  readonly summary?: string;
+  readonly detail?: string;
+  /** `null` promotes to permanent; omitted keeps the current expiry. */
+  readonly ttl_seconds?: number | null;
 }
 
 export function listMemories(filters: ListFilters): Promise<Page<MemoryEntry>> {
@@ -59,4 +70,9 @@ export function updateMemory(id: string, update: MemoryUpdate): Promise<MemoryEn
 
 export function deleteMemory(id: string): Promise<{ status: string }> {
   return call<{ status: string }>(`/memories/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+/** Panel-session-only image bytes used by `pwblob://` references in a memo detail. */
+export function memoryBlobContentPath(id: string): string {
+  return `/api/memories/blobs/${encodeURIComponent(id)}/content`;
 }

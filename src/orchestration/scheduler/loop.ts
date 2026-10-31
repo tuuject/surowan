@@ -4,7 +4,7 @@ import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../../
 import type { LongTaskService } from '../../store/long-tasks/index.ts';
 import { PlaygroundStore } from '../../store/playground/index.ts';
 import { buckets, invocations } from '../../store/schema/index.ts';
-import type { BusinessStore } from '../../store/store.ts';
+import { type BusinessStore, resolveChatConfig } from '../../store/store.ts';
 import { activeHosts, conversationsOfHosts, type HostReadiness } from '../host-scope.ts';
 import type { InvocationQueueService } from '../invocation-queue/index.ts';
 import type { ActiveInvocation, InvocationRow } from './execution.ts';
@@ -154,10 +154,11 @@ export function launchQueued(deps: SchedulerLoopDeps): void {
     }
     const launched = deps.store.transaction(() => {
       const candidate = deps.store.orm
-        .all<InvocationRow>(
-          sql`SELECT i.id, i.bucket_id, i.conversation_id FROM invocations i
+        .all<InvocationRow & { host_kind: string; telegram_chat_id: bigint | null }>(
+          sql`SELECT i.id, i.bucket_id, i.conversation_id, c.host_kind, c.telegram_chat_id FROM invocations i
              JOIN buckets b ON b.id = i.bucket_id
              JOIN conversations v ON v.id = i.conversation_id
+             JOIN chats c ON c.id = v.chat_id
              LEFT JOIN task_receipts r ON r.invocation_id = i.id AND r.state = 'claimed'
              WHERE i.state = 'queued' AND b.deadline_at <= ${new Date().toISOString()}
                AND ${servedConversations(deps, sql`i.conversation_id`)}
@@ -180,6 +181,23 @@ export function launchQueued(deps: SchedulerLoopDeps): void {
       // actually used.
       const snapshot = deps.configStore.beginInvocation();
       const now = new Date().toISOString();
+      if (
+        candidate.host_kind === 'telegram' &&
+        (candidate.telegram_chat_id === null ||
+          resolveChatConfig(snapshot.config, deps.store.orm, candidate.telegram_chat_id) === undefined)
+      ) {
+        deps.store.orm
+          .update(invocations)
+          .set({ state: 'aborted', completionReason: 'chat_removed', finishedAt: now })
+          .where(eq(invocations.id, candidate.id))
+          .run();
+        deps.store.orm
+          .update(buckets)
+          .set({ state: 'aborted', errorCode: 'chat_removed', finishedAt: now, updatedAt: now })
+          .where(eq(buckets.id, candidate.bucket_id))
+          .run();
+        return undefined;
+      }
       deps.store.orm
         .update(invocations)
         .set({ state: 'running', startedAt: now, configHash: snapshot.hash })
@@ -194,6 +212,9 @@ export function launchQueued(deps: SchedulerLoopDeps): void {
     });
     if (launched === null) {
       return;
+    }
+    if (launched === undefined) {
+      continue;
     }
     const controller = new AbortController();
     const promise = deps.execute(launched.invocation, launched.snapshot, controller);

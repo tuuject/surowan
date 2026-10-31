@@ -3,6 +3,7 @@ import type { Api, ImageContent, Model } from '@earendil-works/pi-ai';
 import type { ExecutableCapability } from '../../capabilities/execute-tool.ts';
 import type { ContextBuilder, ContextIdentity, StablePrompt } from '../../context/builder/index.ts';
 import type { ContextInjector } from '../../context/injector.ts';
+import type { MemoStateUpdate } from '../../context/memo-pad/index.ts';
 import type { ContextRefStore } from '../../context/refs.ts';
 import type { ContextHeader, ConversationContextStore } from '../../context/store.ts';
 import type { KeyedSemaphore } from '../../platform/concurrency.ts';
@@ -170,6 +171,7 @@ interface TypingHandle {
 interface PendingUserTag {
   readonly tag: 'checkpoint' | 'harness';
   readonly bucketId: bigint | null;
+  readonly memoState?: MemoStateUpdate & { readonly refresh: boolean };
 }
 
 /**
@@ -181,6 +183,7 @@ export interface AgentRun {
   readonly cached: CachedConversationAgent;
   readonly typing: TypingHandle;
   readonly tools: readonly AgentTool[];
+  readonly pendingUserTags: PendingUserTag[];
   readonly toolDefinitionCharacters: number;
   /**
    * Per-injector dedupe signatures the retained transcript still carries.

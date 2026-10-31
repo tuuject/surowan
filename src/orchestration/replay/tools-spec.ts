@@ -10,7 +10,14 @@
 import Type, { type TSchema } from 'typebox';
 import Compile from 'typebox/compile';
 import { SendInputSchema, SendReplyInputSchema } from '../../capabilities/send/index.ts';
-import { AddMemoryInputSchema, DeleteMemoryInputSchema } from '../../context/memory.ts';
+import {
+  AddMemoInputSchema,
+  DeleteMemoInputSchema,
+  ReadMemoryInputSchema,
+  SaveMemoImageInputSchema,
+  SearchMemoryInputSchema,
+  UpdateMemoInputSchema,
+} from '../../context/memo-pad/index.ts';
 import { AlarmInputSchema, DeleteAlarmInputSchema, ListAlarmInputSchema } from '../../plugins/alarm/alarm.ts';
 import { ImageGenerateInputSchema, ListImageModelsInputSchema } from '../../plugins/image/image.ts';
 import type { ReplayToolDefinition } from './tools.ts';
@@ -18,8 +25,12 @@ import type { ReplayToolDefinition } from './tools.ts';
 /** Current-schema guards: model-facing schemas come from the active tool registry. */
 export const SendInputValidator = Compile(SendInputSchema);
 export const SendReplyInputValidator = Compile(SendReplyInputSchema);
-export const AddMemoryInputValidator = Compile(AddMemoryInputSchema);
-export const DeleteMemoryInputValidator = Compile(DeleteMemoryInputSchema);
+export const AddMemoInputValidator = Compile(AddMemoInputSchema);
+export const UpdateMemoInputValidator = Compile(UpdateMemoInputSchema);
+export const DeleteMemoInputValidator = Compile(DeleteMemoInputSchema);
+export const SearchMemoryInputValidator = Compile(SearchMemoryInputSchema);
+export const ReadMemoryInputValidator = Compile(ReadMemoryInputSchema);
+export const SaveMemoImageInputValidator = Compile(SaveMemoImageInputSchema);
 export const AlarmInputValidator = Compile(AlarmInputSchema);
 export const ListAlarmInputValidator = Compile(ListAlarmInputSchema);
 export const DeleteAlarmInputValidator = Compile(DeleteAlarmInputSchema);
@@ -47,8 +58,9 @@ export const REPLAY_IMAGE_DEFAULT_OUTPUT_COUNT = 1;
 
 /** Capabilities that have a real in-memory implementation; everything else is blocked. */
 export const SYNTHETIC_CAPABILITIES: ReadonlySet<string> = new Set([
-  'add_memory',
-  'delete_memory',
+  'add_memo',
+  'update_memo',
+  'delete_memo',
   'alarm',
   'list_alarm',
   'delete_alarm',

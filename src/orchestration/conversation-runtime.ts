@@ -1,6 +1,3 @@
-import type { Agent } from '@earendil-works/pi-agent-core';
-import type { ContextHeader } from '../context/store.ts';
-
 /**
  * Per-Conversation runtime state: the cached Pi agent instance, the queue of
  * buckets attached to a running invocation, and the "this run is ending" flag.
@@ -11,6 +8,9 @@ import type { ContextHeader } from '../context/store.ts';
  * the attach path must not hand a bucket to a run that has already decided to
  * stop, and the runtime must not stop while a bucket is waiting to be injected.
  */
+
+import type { Agent } from '@earendil-works/pi-agent-core';
+import type { ContextHeader } from '../context/store.ts';
 
 export interface CachedConversationAgent {
   readonly conversationId: bigint;

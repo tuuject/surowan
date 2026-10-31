@@ -12,6 +12,7 @@ import type { ConfigController } from '../../platform/config/write.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import type { LongTaskService } from '../../store/long-tasks/index.ts';
+import type { MemoBlobStore } from '../../context/memo-pad/blobs.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { WarningService } from '../../store/warnings.ts';
 import { type AdminRoutes, createAdminRoutes } from './routes/index.ts';
@@ -49,6 +50,8 @@ export interface AdminServerOptions {
   readonly tasks?: LongTaskService;
   readonly modelSwitcher?: AgentModelSwitcher;
   readonly configReloader?: ConfigController;
+  /** Memo Pad blob storage; absent uses the configured `data_dir`. */
+  readonly memoBlobs?: MemoBlobStore;
   /** Registers panel-supplied plaintext secrets before they are written or sent. */
   readonly secrets?: SecretStore;
   /** Image generation service; absent when the host runs without one. */

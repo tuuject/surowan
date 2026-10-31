@@ -10,7 +10,8 @@ import { PlaygroundAssetStore } from '../../../capabilities/media/local-assets.t
 import { MediaService } from '../../../capabilities/media/index.ts';
 import type { MediaDownloader } from '../../../capabilities/media/download.ts';
 import { StickerService } from '../../../capabilities/stickers.ts';
-import { MemoryStore } from '../../../context/memory.ts';
+import { MemoBlobStore } from '../../../context/memo-pad/blobs.ts';
+import { MemoPadStore } from '../../../context/memo-pad/store.ts';
 import { createImageBridge, type ImageBridge } from '../../../image/bridge.ts';
 import { generationEligibilityForHosts } from '../../../image/host-eligibility.ts';
 import { createImageService, type ImageService } from '../../../image/service.ts';
@@ -213,7 +214,13 @@ export async function startServeServices(session: ServeContext, environment: Ser
   // whether or not this process holds a Telegram instance.
   const mcpManager = new McpManager(store, loaded.config, secrets);
   state.mcp = mcpManager;
-  const memoryStore = new MemoryStore(openedStore.orm);
+  const memoPad = new MemoPadStore(openedStore.orm);
+  const memoBlobs = new MemoBlobStore({
+    orm: openedStore.orm,
+    root: join(loaded.config.data_dir, 'images', 'memo-blobs'),
+  });
+  memoPad.purgeExpired();
+  await memoBlobs.sweep();
   const tasks = new LongTaskService(openedStore.orm, () => state.scheduler?.wake(), servedHosts);
   // The room write path: an admitted input is held, a Release seals it into a
   // queued invocation through the same ledger Telegram uses.
@@ -253,7 +260,8 @@ export async function startServeServices(session: ServeContext, environment: Ser
     plugins,
     media,
     secrets,
-    memory: memoryStore,
+    memoPad,
+    memoBlobs,
     stickers: () => telegramConnection.stickers,
     mcp: mcpManager,
     tasks,

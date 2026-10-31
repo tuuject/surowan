@@ -1,3 +1,4 @@
+import { noMemoReads } from '../src/platform/invocation-context.ts';
 import { access, chmod, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { type Api, createModels, type FauxProviderHandle, type Model, type Models } from '@earendil-works/pi-ai';
@@ -155,6 +156,7 @@ export function renderInvocationContext(
     invocationId,
     hostKind: identity.hostKind,
     chatId: identity.chatId,
+    internalChatId: identity.internalChatId,
     threadId: identity.threadId,
     completion: identity.completion,
     systemPrompt: stable.systemPrompt,
@@ -167,6 +169,7 @@ export function renderInvocationContext(
     visibleSenders: new Map(injection.visibleSenders.map((sender) => [sender.userId.toString(), sender])),
     callerUserId: injection.callerUserId,
     omittedNewMessages: injection.omittedNewMessages,
+    memoReads: noMemoReads,
     injections: injection.injections,
   };
 }

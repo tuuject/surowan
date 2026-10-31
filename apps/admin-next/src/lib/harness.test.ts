@@ -22,7 +22,6 @@ const saved = {
   'context.idle_grace_seconds': 30,
   'context.max_wall_clock_seconds': 900,
   'context.agent_cache_size': 8,
-  memory_ttl_warning_days: 30,
   'proactive_reply.enabled': false,
   'proactive_reply.base_probability': 0.2,
   'proactive_reply.increment': 0.1,

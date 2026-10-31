@@ -8,12 +8,14 @@ import { media as mediaTable } from '../../store/schema/index.ts';
 import type { BusinessStore, Orm } from '../../store/store.ts';
 import type { LocalAssetResolver } from './index.ts';
 import type { MediaDownloader } from './download.ts';
-import { MAX_DOWNLOAD_BYTES, type NormalizedImage, prepareMediaImage } from './image.ts';
+import { MAX_DOWNLOAD_BYTES, type NormalizedImage, normalizeImage, prepareMediaImage } from './image.ts';
 
 /** A stored row as `prepareMediaImage` wants it, plus the host columns the row may carry. */
 export type RowImageSource = Parameters<typeof prepareMediaImage>[0] & {
   readonly hostKind?: string;
   readonly localAssetId?: string | null;
+  /** Absolute path of a Memo blob; checked before host-specific sources. */
+  readonly localFile?: string;
 };
 
 /**
@@ -147,6 +149,9 @@ export async function prepareRowImage(
   directory: string,
   signal: AbortSignal,
 ): Promise<NormalizedImage> {
+  if (media.localFile !== undefined) {
+    return normalizeImage(media.localFile, directory, signal);
+  }
   if (media.hostKind === 'playground') {
     if (media.kind === 'sticker') {
       throw new Error('A room asset cannot be a sticker');

@@ -26,8 +26,12 @@ import { writeTestConfig } from '../helpers.ts';
 import { PlaygroundError } from '../../src/store/playground/shared.ts';
 
 const directories: string[] = [];
+const stores: SqliteStore[] = [];
 
 afterAll(async () => {
+  for (const store of stores.splice(0)) {
+    store.close();
+  }
   await Promise.all(
     directories.map((directory) => rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })),
   );
@@ -44,6 +48,7 @@ async function fixture(): Promise<{
   await writeTestConfig(directory, configPath);
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
+  stores.push(store);
   const playground = new PlaygroundStore(store.orm);
   const room = playground.createRoom({
     title: 'Test Room',

@@ -93,6 +93,7 @@ export async function runInvocation(
     conversationId: identity.conversationId,
     hostKind: identity.hostKind,
     chatId: identity.chatId,
+    internalChatId: identity.internalChatId,
     threadId: identity.threadId,
     completion: identity.completion,
   });

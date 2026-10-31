@@ -3,6 +3,7 @@ import { and, desc, eq, gte, isNull, lt, type SQL, sql } from 'drizzle-orm';
 import type { BusinessStore } from '../store/store.ts';
 import { contextMessages, contextRefs, conversationContexts, invocations } from '../store/schema/index.ts';
 import { type ContextMessageRole, decodeContextMessage } from './codec.ts';
+import type { MemoStateUpdate } from './memo-pad/index.ts';
 
 /**
  * Canonical Conversation Context storage.
@@ -26,6 +27,12 @@ export interface ContextHeader {
   sendCountTotal: bigint;
   systemPromptHash: string;
   lastGcAt: string | null;
+  /** Batch seq that carried the last full short-term Memo list. */
+  memoRefreshSeq: bigint | null;
+  /** Short-term Memo state already announced to this Context. */
+  memoStateJson: string | null;
+  /** Set when the next batch must re-render the full list regardless of seq. */
+  memoRefreshPending: boolean;
 }
 
 export interface ContextMessageInput {
@@ -36,6 +43,8 @@ export interface ContextMessageInput {
   readonly role: ContextMessageRole;
   /** Set when this row is the tool result of a successful `send`. */
   readonly countedSend?: boolean;
+  /** Announced with this checkpoint, atomically with its canonical message. */
+  readonly memoState?: MemoStateUpdate & { readonly refresh: boolean };
 }
 
 /** Light row projection used by GC and `/status`; never carries payloads. */
@@ -113,6 +122,9 @@ export class ConversationContextStore {
           systemPromptHash,
           activeInvocationId: null,
           lastGcAt: null,
+          memoRefreshSeq: null,
+          memoStateJson: null,
+          memoRefreshPending: true,
           updatedAt: timestamp,
         })
         .where(eq(conversationContexts.id, existing.id))
@@ -130,6 +142,14 @@ export class ConversationContextStore {
     const seq = header.nextSeq;
     const timestamp = now.toISOString();
     const countedSend = input.countedSend === true;
+    const memoState = input.isCheckpoint ? input.memoState : undefined;
+    // Queued batches render before their real sequence is known.
+    const memoRefreshSeq =
+      memoState === undefined
+        ? header.memoRefreshSeq
+        : memoState.refresh
+          ? seq
+          : (header.memoRefreshSeq ?? memoState.refreshSeq);
     this.#store.transaction(() => {
       this.#store.orm
         .insert(contextMessages)
@@ -150,6 +170,13 @@ export class ConversationContextStore {
         .set({
           nextSeq: seq + 1n,
           ...(countedSend ? { sendCountTotal: header.sendCountTotal + 1n } : {}),
+          ...(memoState === undefined
+            ? {}
+            : {
+                memoRefreshSeq,
+                memoStateJson: memoState.stateJson,
+                memoRefreshPending: memoState.pending,
+              }),
           lastActiveAt: timestamp,
           updatedAt: timestamp,
         })
@@ -159,6 +186,11 @@ export class ConversationContextStore {
     header.nextSeq = seq + 1n;
     if (countedSend) {
       header.sendCountTotal += 1n;
+    }
+    if (memoState !== undefined) {
+      header.memoRefreshSeq = memoRefreshSeq;
+      header.memoStateJson = memoState.stateJson;
+      header.memoRefreshPending = memoState.pending;
     }
     return seq;
   }
@@ -253,6 +285,23 @@ export class ConversationContextStore {
     header.headSeq = header.nextSeq;
   }
 
+  /** Chat-level variant used when a configuration reload removes a Chat. */
+  requestMemoRefreshForConversations(conversationIds: readonly bigint[], now = new Date()): void {
+    if (conversationIds.length === 0) {
+      return;
+    }
+    const timestamp = now.toISOString();
+    this.#store.transaction(() => {
+      for (const conversationId of conversationIds) {
+        this.#store.orm
+          .update(conversationContexts)
+          .set({ memoRefreshPending: true, updatedAt: timestamp })
+          .where(eq(conversationContexts.conversationId, conversationId))
+          .run();
+      }
+    });
+  }
+
   /** Records that the invocation owning this context started or ended. */
   touch(header: ContextHeader, activeInvocationId: bigint | null, now = new Date()): void {
     this.#store.orm
@@ -299,6 +348,9 @@ export class ConversationContextStore {
         sendCountTotal: conversationContexts.sendCountTotal,
         systemPromptHash: conversationContexts.systemPromptHash,
         lastGcAt: conversationContexts.lastGcAt,
+        memoRefreshSeq: conversationContexts.memoRefreshSeq,
+        memoStateJson: conversationContexts.memoStateJson,
+        memoRefreshPending: conversationContexts.memoRefreshPending,
       })
       .from(conversationContexts)
       .where(eq(conversationContexts.conversationId, conversationId))

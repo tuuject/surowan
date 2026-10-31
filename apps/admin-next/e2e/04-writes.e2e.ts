@@ -8,48 +8,83 @@ import { adminUrl, appliedToast, E2E_USERNAME, e2eFetch, test, toast } from './h
  */
 test.use({ signedIn: true });
 
-test.describe('memories CRUD', () => {
-  test('delete the expired seed memory via the confirmation flow', async ({ page }) => {
+test.describe('memo pad CRUD', () => {
+  test('delete the expired seed memo via the confirmation flow', async ({ page }) => {
     await page.goto(await adminUrl('/memories'));
     const row = page.locator('table tbody tr', { hasText: 'Old note that expired already.' });
     await expect(row).toBeVisible();
     await row.getByRole('button', { name: 'Delete' }).click();
-    await page.getByRole('button', { name: 'Delete memory' }).click();
-    await expect(toast(page, 'Memory deleted')).toBeVisible();
+    await page.getByRole('button', { name: 'Delete memo' }).click();
+    await expect(toast(page, 'Memo deleted')).toBeVisible();
     await expect(row).toHaveCount(0);
   });
 
-  test('create a memory through the dialog and verify server + UI state', async ({ page }) => {
+  test('create, view, edit to permanent, and delete a memo through the dialogs', async ({ page }) => {
     await page.goto(await adminUrl('/memories'));
-    await page.getByRole('button', { name: 'New memory' }).click();
+    await page.getByRole('button', { name: 'New memo' }).click();
     await page.getByLabel('Select a chat').click();
     await page.getByRole('option', { name: /Surowan Test Group/ }).click();
-    await page.getByLabel('Content').fill('E2E memory created by test');
+    await page.getByLabel('Summary').fill('E2E memo created by test');
+    await page.getByLabel('Detail').fill('E2E memo detail with a [link](https://example.com).');
     await page.getByLabel('TTL in days').fill('7');
     await page.getByRole('button', { name: 'Create', exact: true }).click();
-    await expect(toast(page, 'Memory created')).toBeVisible();
+    await expect(toast(page, 'Memo created')).toBeVisible();
 
-    // server state: the row exists in the API
+    // server state: summary/detail and a short-term expiry
     const listResponse = await page.request.get(await adminUrl('/api/memories?limit=100'));
     expect(listResponse.ok()).toBeTruthy();
-    const listBody = (await listResponse.json()) as { items: { content: string }[] };
-    expect(listBody.items.some((item) => item.content === 'E2E memory created by test')).toBeTruthy();
+    const listBody = (await listResponse.json()) as {
+      items: { id: string; summary: string; detail: string; expires_at: string | null; short_term: boolean }[];
+    };
+    const created = listBody.items.find((item) => item.summary === 'E2E memo created by test');
+    expect(created).toBeDefined();
+    expect(created?.detail).toBe('E2E memo detail with a [link](https://example.com).');
+    expect(created?.short_term).toBe(true);
+    expect(created?.expires_at).not.toBeNull();
 
-    // UI state: load every page, then delete the created memory from its row
+    // UI state: load every page, then view the created memo
     const loadMore = page.getByRole('button', { name: 'Load more' });
     if (await loadMore.isVisible()) {
       await loadMore.click();
     }
-    const createdRow = page.locator('table tbody tr', { hasText: 'E2E memory created by test' });
+    const createdRow = page.locator('table tbody tr', { hasText: 'E2E memo created by test' });
     await expect(createdRow).toBeVisible();
-    await createdRow.getByRole('button', { name: 'Delete' }).click();
-    await page.getByRole('button', { name: 'Delete memory' }).click();
-    await expect(toast(page, 'Memory deleted')).toBeVisible();
-    await expect(createdRow).toHaveCount(0);
+    await createdRow.getByRole('button', { name: 'View' }).click();
+    const viewDialog = page.getByRole('dialog');
+    await expect(viewDialog.getByText('Memo details')).toBeVisible();
+    await expect(viewDialog.getByText('E2E memo detail with a [link](https://example.com).')).toBeVisible();
+    await viewDialog.getByRole('button', { name: 'Close' }).click();
+    await expect(viewDialog).not.toBeVisible();
+
+    // Edit: an empty TTL promotes the entry to permanent.
+    await createdRow.getByRole('button', { name: 'Edit' }).click();
+    const editDialog = page.getByRole('dialog');
+    await editDialog.getByLabel('Summary').fill('E2E memo updated by test');
+    await editDialog.getByLabel('TTL in days').fill('');
+    await editDialog.getByRole('button', { name: 'Save' }).click();
+    await expect(toast(page, 'Memo updated')).toBeVisible();
+
+    const updatedResponse = await page.request.get(await adminUrl('/api/memories?limit=100'));
+    const updatedBody = (await updatedResponse.json()) as {
+      items: { id: string; summary: string; expires_at: string | null; short_term: boolean }[];
+    };
+    const updated = updatedBody.items.find((item) => item.id === created?.id);
+    expect(updated?.summary).toBe('E2E memo updated by test');
+    expect(updated?.expires_at).toBeNull();
+    expect(updated?.short_term).toBe(false);
+
+    // UI state: the refreshed row shows the update and can be deleted.
+    const updatedRow = page.locator('table tbody tr', { hasText: 'E2E memo updated by test' });
+    await expect(updatedRow).toBeVisible();
+    await expect(updatedRow.getByText('Permanent').first()).toBeVisible();
+    await updatedRow.getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('button', { name: 'Delete memo' }).click();
+    await expect(toast(page, 'Memo deleted')).toBeVisible();
+    await expect(updatedRow).toHaveCount(0);
 
     const afterResponse = await page.request.get(await adminUrl('/api/memories?limit=100'));
-    const afterBody = (await afterResponse.json()) as { items: { content: string }[] };
-    expect(afterBody.items.some((item) => item.content === 'E2E memory created by test')).toBeFalsy();
+    const afterBody = (await afterResponse.json()) as { items: { summary: string }[] };
+    expect(afterBody.items.some((item) => item.summary === 'E2E memo updated by test')).toBeFalsy();
   });
 });
 

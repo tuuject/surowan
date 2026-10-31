@@ -16,7 +16,6 @@ import { KeyedSemaphore } from '../src/platform/concurrency.ts';
 import { capability } from '../src/capabilities/execute-tool.ts';
 import type { MediaDownloader } from '../src/capabilities/media/download.ts';
 import { MediaService } from '../src/capabilities/media/index.ts';
-import { createMemoryTools, MemoryStore } from '../src/context/memory.ts';
 import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
 import { loadPlugins } from '../src/plugins/plugin.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
@@ -116,6 +115,8 @@ test('the skill index reaches the system prompt and primitives stay directly cal
       expect(getCurrentSystemPrompt(context.messages)).not.toContain('# Web fetch');
       expect(getCurrentTools(context.messages).map((tool) => tool.name)).toEqual([
         'read',
+        'search_memory',
+        'read_memory',
         'send',
         'send_reply',
         'execute',
@@ -143,9 +144,7 @@ test('the skill index reaches the system prompt and primitives stay directly cal
     // Non-empty draft triggers the send nudge; the model then stays silent.
     fauxAssistantMessage(''),
   ]);
-  const memoryStore = new MemoryStore(store.orm);
   const runtime = await skillAgentRuntime(store, setup.configStore, (context, deadline) => [
-    ...createMemoryTools(memoryStore, context).map((tool) => capability(tool, true)),
     ...loadPlugins(BUILTIN_PLUGINS).capabilities(store, setup.loaded.config, context, deadline),
   ]);
   expect(

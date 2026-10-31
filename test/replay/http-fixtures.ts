@@ -11,7 +11,7 @@ import { createExecuteTool } from '../../src/capabilities/execute-tool.ts';
 import { SendInputSchema } from '../../src/capabilities/send/index.ts';
 import { ContextBuilder } from '../../src/context/builder/index.ts';
 import { ContextRefStore } from '../../src/context/refs.ts';
-import { AddMemoryInputSchema } from '../../src/context/memory.ts';
+import { AddMemoInputSchema } from '../../src/context/memo-pad/index.ts';
 import { AdminQueryError } from '../../src/ingress/admin/audit/shared.ts';
 import { AdminServer } from '../../src/ingress/admin/index.ts';
 import { ReplayError, ReplayRunner } from '../../src/orchestration/replay/index.ts';
@@ -67,7 +67,7 @@ function sceneRegistry() {
     ],
     capabilities: [
       {
-        ...definition('add_memory', AddMemoryInputSchema),
+        ...definition('add_memo', AddMemoInputSchema),
         execute: async () => {
           throw new Error('not wired');
         },

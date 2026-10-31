@@ -238,8 +238,8 @@ test.each([285_000n, 285_001n])(
       const registry = runtime.sceneToolDefinitions(previewContext(), configStore.current().config);
       expect(registry.tools.map((tool) => tool.name)).toEqual(
         used === 285_000n
-          ? ['read', 'send', 'send_reply', 'execute']
-          : ['read', 'send', 'send_reply', 'execute', 'zzz'],
+          ? ['read', 'search_memory', 'read_memory', 'send', 'send_reply', 'execute']
+          : ['read', 'search_memory', 'read_memory', 'send', 'send_reply', 'execute', 'zzz'],
       );
       expect(store.db.prepare('SELECT * FROM daily_usage').all()).toEqual(before);
       expect(store.db.prepare('SELECT * FROM tool_calls').all()).toEqual([]);
@@ -256,7 +256,7 @@ test('does not expose zzz while more than five percent remains', async () => {
   // cannot add a second turn whose usage would push the budget over the line.
   faux.setResponses([fauxAssistantMessage('   ')]);
   await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
-  expect(modelToolLists(store)).toEqual([['read', 'send', 'send_reply', 'execute']]);
+  expect(modelToolLists(store)).toEqual([['read', 'search_memory', 'read_memory', 'send', 'send_reply', 'execute']]);
   store.close();
 });
 
@@ -264,7 +264,9 @@ test('exposes zzz after global remaining budget falls below five percent', async
   const { store, configStore, runtime, invocationId, faux } = await runtimeSetup(285_001n, '987654321');
   faux.setResponses([fauxAssistantMessage('   ')]);
   await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
-  expect(modelToolLists(store)).toEqual([['read', 'send', 'send_reply', 'execute', 'zzz']]);
+  expect(modelToolLists(store)).toEqual([
+    ['read', 'search_memory', 'read_memory', 'send', 'send_reply', 'execute', 'zzz'],
+  ]);
   store.close();
 });
 
@@ -282,7 +284,7 @@ test('keeps zzz hidden at exactly five percent remaining', async () => {
   const { store, configStore, runtime, invocationId, faux } = await runtimeSetup(285_000n);
   faux.setResponses([fauxAssistantMessage('   ')]);
   await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
-  expect(modelToolLists(store)).toEqual([['read', 'send', 'send_reply', 'execute']]);
+  expect(modelToolLists(store)).toEqual([['read', 'search_memory', 'read_memory', 'send', 'send_reply', 'execute']]);
   store.close();
 });
 
@@ -314,8 +316,8 @@ test('adds zzz at the next turn boundary when a running session crosses the thre
   ]);
   await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
   expect(modelToolLists(store)).toEqual([
-    ['read', 'send', 'send_reply', 'execute'],
-    ['read', 'send', 'send_reply', 'execute', 'zzz'],
+    ['read', 'search_memory', 'read_memory', 'send', 'send_reply', 'execute'],
+    ['read', 'search_memory', 'read_memory', 'send', 'send_reply', 'execute', 'zzz'],
   ]);
   expect(activeSleepUntil(store.orm)).not.toBeNull();
   expect(systemPrompts).toHaveLength(2);

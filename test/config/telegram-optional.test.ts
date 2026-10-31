@@ -82,7 +82,7 @@ test('admin is required, and an absent enabled means enabled', async () => {
   expect((await loadConfig(disabled.configPath)).config.admin.enabled).toBe(false);
 });
 
-test('clearing the token is a hot change, while Chat removal stays restart-only', async () => {
+test('clearing the token and removing a Chat are both hot changes', async () => {
   const active = await fixture();
   const activeLoaded = await loadConfig(active.configPath);
   const cleared = await fixture((json) => {
@@ -95,11 +95,10 @@ test('clearing the token is a hot change, while Chat removal stays restart-only'
     { file: clearedLoaded.fileConfig, raw: clearedLoaded.config },
   );
   expect(diff.changes).toContainEqual({ path: 'telegram.token', kind: 'hot' });
-  expect(diff.changes).toContainEqual({ path: 'telegram.chats[123456789]', kind: 'restart' });
+  expect(diff.changes).toContainEqual({ path: 'telegram.chats[123456789]', kind: 'hot' });
   expect(diff.candidate.file.telegram?.token).toBeUndefined();
   expect(diff.candidate.raw.telegram.token).toBeUndefined();
-  // The removed Chat waits for a restart, so the candidate still carries it.
-  expect(fileTelegram(diff.candidate.file).chats).toHaveLength(1);
+  expect(fileTelegram(diff.candidate.file).chats).toHaveLength(0);
 });
 
 test('rotating the token SecretRef is one hot change of the whole token', async () => {

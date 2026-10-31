@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from 'vitest';
 import type { Update } from 'grammy/types';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
-import { MemoryStore } from '../../src/context/memory.ts';
+import { MemoPadStore } from '../../src/context/memo-pad/store.ts';
 import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
 import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
 import { ContextBuilder } from '../../src/context/builder/index.ts';
@@ -98,7 +98,7 @@ describe('invocation context', () => {
       state: 'completed',
       reason: 'done',
     }));
-    const memory = new MemoryStore(store.orm);
+    const memory = new MemoPadStore(store.orm);
     const received = new Date('2026-08-15T00:00:00.000Z');
     ingestion.ingest(update(1, 1, 'hello'), received);
     const invocationId = processOne(scheduler, new Date(received.getTime() + 15_000));
@@ -108,7 +108,13 @@ describe('invocation context', () => {
     if (conversation === undefined) {
       throw new Error('Expected invocation conversation');
     }
-    memory.add(conversation.conversation_id, '{{ agent.model }}', 86_400);
+    const chat = store.db
+      .prepare<[bigint], { chat_id: bigint }>('SELECT chat_id FROM conversations WHERE id = ?')
+      .get(conversation.conversation_id);
+    if (chat === undefined) {
+      throw new Error('Expected conversation chat');
+    }
+    memory.create(chat.chat_id, { summary: '{{ agent.model }}', detail: '{{ agent.model }}', ttlSeconds: 86_400 });
     const context = renderInvocationContext(store, loaded.config, invocationId, {
       agentModel: { provider: 'runtime', model: 'runtime-model' },
     });

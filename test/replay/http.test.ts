@@ -84,7 +84,11 @@ test('CLI replay over real HTTP runs ReplayRunner with synthetic side effects an
       return fauxAssistantMessage(
         [
           fauxToolCall('send', { text: 'synthetic CLI send' }),
-          fauxToolCall('execute', { action: 'call', tool: 'add_memory', input: { content: 'synthetic CLI memory' } }),
+          fauxToolCall('execute', {
+            action: 'call',
+            tool: 'add_memo',
+            input: { summary: 'synthetic CLI memory', detail: 'synthetic CLI memory' },
+          }),
           fauxToolCall('execute', {
             action: 'call',
             tool: 'alarm',
@@ -153,9 +157,9 @@ test('CLI replay over real HTTP runs ReplayRunner with synthetic side effects an
   const executeCalls = result.tool_calls.filter((call) => call.tool_name === 'execute');
   expect(executeCalls).toHaveLength(2);
   expect(executeCalls.every((call) => call.is_error === false)).toBe(true);
-  const memoryCall = executeCalls.find((call) => JSON.stringify(call.arguments).includes('"add_memory"'));
+  const memoryCall = executeCalls.find((call) => JSON.stringify(call.arguments).includes('"add_memo"'));
   expect(memoryCall?.is_error).toBe(false);
-  expect(JSON.stringify(memoryCall?.result)).toContain('Saved memory');
+  expect(JSON.stringify(memoryCall?.result)).toContain('Saved mem_');
   const alarmCall = executeCalls.find((call) => JSON.stringify(call.arguments).includes('"alarm"'));
   expect(alarmCall?.is_error).toBe(false);
   expect(JSON.stringify(alarmCall?.result)).toContain('Scheduled alarm');
@@ -165,7 +169,7 @@ test('CLI replay over real HTTP runs ReplayRunner with synthetic side effects an
   expect(result.fidelity.dispatches).toEqual(
     expect.arrayContaining([
       expect.objectContaining({ tool_name: 'send', mode: 'synthetic' }),
-      expect.objectContaining({ tool_name: 'execute', mode: 'synthetic', capability: 'add_memory' }),
+      expect.objectContaining({ tool_name: 'execute', mode: 'synthetic', capability: 'add_memo' }),
       expect.objectContaining({ tool_name: 'execute', mode: 'synthetic', capability: 'alarm' }),
       expect.objectContaining({ tool_name: 'mcp_remote_write', mode: 'blocked' }),
     ]),

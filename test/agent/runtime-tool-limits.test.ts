@@ -212,7 +212,14 @@ test('a model that declares minimal tool-schema keywords is sent reduced tool de
 
   // What the provider was handed: the shape of every call survives, the
   // validation-only annotations a grammar endpoint rejects are gone.
-  expect(presented.map((tool) => tool.name)).toEqual(['read', 'send', 'send_reply', 'execute']);
+  expect(presented.map((tool) => tool.name)).toEqual([
+    'read',
+    'search_memory',
+    'read_memory',
+    'send',
+    'send_reply',
+    'execute',
+  ]);
   expect(JSON.stringify(presented)).not.toContain('minLength');
   expect(JSON.stringify(presented)).not.toContain('maxLength');
   expect(JSON.stringify(presented)).not.toContain('patternProperties');

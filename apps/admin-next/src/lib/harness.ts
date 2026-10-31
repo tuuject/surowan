@@ -21,7 +21,7 @@ export interface HarnessField {
 }
 
 export interface HarnessGroup {
-  readonly id: 'budget' | 'send' | 'rateLimits' | 'context' | 'memory' | 'proactiveReply';
+  readonly id: 'budget' | 'send' | 'rateLimits' | 'context' | 'proactiveReply';
   readonly fields: readonly HarnessField[];
 }
 
@@ -65,10 +65,6 @@ export const HARNESS_GROUPS: readonly HarnessGroup[] = [
       { key: 'context.max_wall_clock_seconds', kind: 'integer', min: 1, max: 86_400 },
       { key: 'context.agent_cache_size', kind: 'integer', min: 1, max: 1_024 },
     ],
-  },
-  {
-    id: 'memory',
-    fields: [{ key: 'memory_ttl_warning_days', kind: 'integer', min: 1 }],
   },
   {
     id: 'proactiveReply',

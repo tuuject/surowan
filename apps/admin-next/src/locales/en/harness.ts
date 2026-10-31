@@ -44,10 +44,6 @@ export const harness = {
       title: 'Conversation Context',
       description: 'How the persistent transcript is retained, trimmed and kept open.',
     },
-    memory: {
-      title: 'Memory review',
-      description: 'When the Memories page flags a memory for review.',
-    },
     proactiveReply: {
       title: 'Proactive replies',
       description:
@@ -142,10 +138,6 @@ export const harness = {
       label: 'Agent cache size',
       description:
         'Conversations whose agent stays cached in memory (LRU). A smaller value evicts on the next cached agent; history is never lost.',
-    },
-    memory_ttl_warning_days: {
-      label: 'Long-TTL warning (days)',
-      description: 'Memories that live longer than this are flagged on the Memories page.',
     },
     'proactive_reply.enabled': {
       label: 'Schedule proactive replies',

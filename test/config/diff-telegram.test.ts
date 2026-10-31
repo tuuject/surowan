@@ -111,15 +111,17 @@ test('chat override persists after an unrelated chat is removed (ID-based merge)
     },
   );
   const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
-  expect(paths(diff.changes, 'restart')).toEqual(['telegram.chats[-987654321]']);
-  // The override chat should still be present with its override
+  expect(paths(diff.changes, 'restart')).toEqual([]);
+  expect(paths(diff.changes, 'hot')).toEqual([
+    'telegram.chats[-987654321]',
+    'telegram.chats[123456789].instructions_file',
+  ]);
+  // The override chat survives with its override; the removed chat leaves the
+  // candidate immediately, while its stored data is kept.
   const chat = diff.candidate.file.telegram?.chats.find((c) => c.id === 123456789);
   expect(chat?.provider).toBe('agent');
   expect(chat?.model).toBe('agent-model');
-  // New chat in file
-  expect(diff.candidate.file.telegram?.chats.map((c) => c.id).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))).toEqual([
-    -987654321, 123456789,
-  ]);
+  expect(diff.candidate.file.telegram?.chats.map((c) => c.id)).toEqual([123456789]);
 });
 
 test('participation schedules at both levels are hot, including their sub-fields', async () => {

@@ -115,7 +115,7 @@ test('active-hours editing sets custom periods, an empty schedule and back to un
 
   await groupRow().getByRole('button', { name: 'Remove', exact: true }).click();
   await page.getByRole('button', { name: 'Remove Chat', exact: true }).click();
-  await expect(groupRow()).toContainText('Removal pending');
+  await expect(groupRow()).toHaveCount(0);
   const issues = finish();
   expect(issues.pageErrors).toEqual([]);
   expect(issues.externalRequests).toEqual([]);

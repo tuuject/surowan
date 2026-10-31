@@ -3,7 +3,11 @@ import { fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-work
 import Type from 'typebox';
 import { createToolAudit } from '../../src/store/tool-audit.ts';
 import { capability, createExecuteTool } from '../../src/capabilities/execute-tool.ts';
-import { createMemoryTools, MemoryStore } from '../../src/context/memory.ts';
+import { MemoBlobStore } from '../../src/context/memo-pad/blobs.ts';
+import { MemoPadStore } from '../../src/context/memo-pad/store.ts';
+import { createMemoWriteTools } from '../../src/context/memo-pad/tools/index.ts';
+import { unavailableCapabilities } from '../../src/platform/invocation-context.ts';
+import { join } from 'node:path';
 import { fauxRegistry } from '../helpers.ts';
 import {
   cleanupSkillDirectories,
@@ -32,14 +36,18 @@ test('execute refuses primitives and unknown capabilities while memory calls sti
       expect(rejected.isError).toBe(true);
       expect(toolResultText(rejected)).toContain('runtime primitive send');
       return fauxAssistantMessage(
-        fauxToolCall('execute', { action: 'call', tool: 'add_memory', input: { content: 'owner likes cats' } }),
+        fauxToolCall('execute', {
+          action: 'call',
+          tool: 'add_memo',
+          input: { summary: 'owner likes cats', detail: 'owner likes cats' },
+        }),
         { stopReason: 'toolUse' },
       );
     },
     (context) => {
       const saved = lastToolResult(context.messages);
       expect(saved.isError).toBe(false);
-      expect(toolResultText(saved)).toContain('Saved memory');
+      expect(toolResultText(saved)).toContain('Saved mem_');
       return fauxAssistantMessage(
         fauxToolCall('execute', { action: 'call', tool: 'generate_image', input: { prompt: 'x' } }),
         { stopReason: 'toolUse' },
@@ -53,9 +61,23 @@ test('execute refuses primitives and unknown capabilities while memory calls sti
     },
     fauxAssistantMessage('done'),
   ]);
-  const memoryStore = new MemoryStore(store.orm);
+  const memoPad = new MemoPadStore(store.orm);
+  const blobs = new MemoBlobStore({
+    orm: store.orm,
+    root: join(setup.loaded.config.data_dir, 'images', 'memo-blobs'),
+  });
   const runtime = await skillAgentRuntime(store, setup.configStore, (context) => [
-    ...createMemoryTools(memoryStore, context).map((tool) => capability(tool, true)),
+    ...createMemoWriteTools({
+      store,
+      memoPad,
+      blobs,
+      context,
+      configStore: setup.configStore,
+      capabilities: unavailableCapabilities(),
+      prepareImage: async () => {
+        throw new Error('no image in this test');
+      },
+    }).map((tool) => capability(tool, true)),
   ]);
   expect(
     await runtime.run(setup.invocationId, setup.configStore.beginInvocation(), new AbortController().signal),
@@ -71,14 +93,14 @@ test('execute refuses primitives and unknown capabilities while memory calls sti
   expect(rows).toEqual([
     { tool_name: 'execute', state: 'error', error_code: 'execute_primitive_rejected' },
     { tool_name: 'execute', state: 'success', error_code: null },
-    { tool_name: 'add_memory', state: 'success', error_code: null },
+    { tool_name: 'add_memo', state: 'success', error_code: null },
     { tool_name: 'execute', state: 'error', error_code: 'unknown_capability' },
     { tool_name: 'send', state: 'success', error_code: null },
   ]);
   const memories = store.db
-    .prepare<[], { content: string }>('SELECT content FROM memories')
+    .prepare<[], { summary: string }>('SELECT summary FROM memo_pad_entries')
     .all()
-    .map((row) => row.content);
+    .map((row) => row.summary);
   expect(memories).toEqual(['owner likes cats']);
   store.close();
 });
@@ -93,7 +115,7 @@ test('execute rejects a half-filled action before dispatch and audits the reject
   agentFaux.setResponses([
     // The flattened provider schema cannot require `input` for call alone, so a
     // lenient endpoint can hand this over; the runtime must reject it.
-    fauxAssistantMessage(fauxToolCall('execute', { action: 'call', tool: 'add_memory' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage(fauxToolCall('execute', { action: 'call', tool: 'add_memo' }), { stopReason: 'toolUse' }),
     (context) => {
       const missingInput = lastToolResult(context.messages);
       expect(missingInput.isError).toBe(true);
@@ -104,23 +126,37 @@ test('execute rejects a half-filled action before dispatch and audits the reject
       const missingQuery = lastToolResult(context.messages);
       expect(missingQuery.isError).toBe(true);
       expect(toolResultText(missingQuery)).toContain('execute.search requires a query string');
-      return fauxAssistantMessage(fauxToolCall('execute', { action: 'help', tool: 'add_memory' }), {
+      return fauxAssistantMessage(fauxToolCall('execute', { action: 'help', tool: 'add_memo' }), {
         stopReason: 'toolUse',
       });
     },
     (context) => {
       const help = lastToolResult(context.messages);
       expect(help.isError).toBe(false);
-      expect(toolResultText(help)).toContain('add_memory');
+      expect(toolResultText(help)).toContain('add_memo');
       return fauxAssistantMessage(fauxToolCall('send', { kind: 'text', text: 'nothing to save' }), {
         stopReason: 'toolUse',
       });
     },
     fauxAssistantMessage('done'),
   ]);
-  const memoryStore = new MemoryStore(store.orm);
+  const memoPad = new MemoPadStore(store.orm);
+  const blobs = new MemoBlobStore({
+    orm: store.orm,
+    root: join(setup.loaded.config.data_dir, 'images', 'memo-blobs'),
+  });
   const runtime = await skillAgentRuntime(store, setup.configStore, (context) => [
-    ...createMemoryTools(memoryStore, context).map((tool) => capability(tool, true)),
+    ...createMemoWriteTools({
+      store,
+      memoPad,
+      blobs,
+      context,
+      configStore: setup.configStore,
+      capabilities: unavailableCapabilities(),
+      prepareImage: async () => {
+        throw new Error('no image in this test');
+      },
+    }).map((tool) => capability(tool, true)),
   ]);
   expect(
     await runtime.run(setup.invocationId, setup.configStore.beginInvocation(), new AbortController().signal),
@@ -139,7 +175,9 @@ test('execute rejects a half-filled action before dispatch and audits the reject
     { tool_name: 'execute', state: 'success', error_code: null },
     { tool_name: 'send', state: 'success', error_code: null },
   ]);
-  expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM memories').get()?.count).toBe(0n);
+  expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM memo_pad_entries').get()?.count).toBe(
+    0n,
+  );
   store.close();
 });
 

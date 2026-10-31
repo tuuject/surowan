@@ -1,3 +1,4 @@
+import { noMemoReads } from '../../src/platform/invocation-context.ts';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -253,6 +254,7 @@ export function fakeScope(
       invocationId: 7n,
       conversationId: 42n,
       chatId: 100n,
+      internalChatId: 100n,
       threadId: 0n,
       systemPrompt: '',
       userPrompt: '',
@@ -261,6 +263,7 @@ export function fakeScope(
       callerUserId: 1n,
       completion: null,
       omittedNewMessages: 0,
+      memoReads: noMemoReads,
     },
     deadline: Date.now() + 60_000,
     audit: {

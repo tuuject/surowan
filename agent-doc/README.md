@@ -61,7 +61,7 @@
 | --- | --- | --- |
 | [20260815 设计方案](design/archived/20260815%20塑料碗%20Telegram%20Bot%20设计方案.md) | Phase 1 产品范围与验收 | 已实现 |
 | [20260815 技术设计](design/archived/20260815%20塑料碗%20Telegram%20Bot%20技术设计.md) | 原始技术设计、安全边界与状态机 | 已实现，见 [architecture.md](architecture.md) |
-| [20260819 记忆系统](design/archived/20260819%20记忆系统.md) | Conversation 级短期记忆与 TTL | 已实现，见 [data-layer.md](data-layer.md) |
+| [20260819 记忆系统](design/archived/20260819%20记忆系统.md) | Conversation 级短期记忆与 TTL | 已被 20261030 Memo Pad Phase 1 取代；当前行为见 [data-layer.md](data-layer.md) 与 [telegram-agent-flow.md](telegram-agent-flow.md) |
 | [20260823 睡眠系统](design/archived/20260823%20睡眠系统.md) | 预算耗尽后的 `zzz` 与全局睡眠 | 已实现，见 [telegram-agent-flow.md](telegram-agent-flow.md) |
 | [20260828 闹钟系统](design/archived/20260828%20闹钟系统.md) | Alarm / Deferred Invocation | 已实现，见 [telegram-agent-flow.md](telegram-agent-flow.md) |
 | [20260901 Bun 到 Node 迁移 Epic](design/archived/20260901%20Bun%20到%20Node%20迁移%20Epic.md) | 运行时迁移分阶段计划与决策记录 | 已完成（2026-09-18 全阶段收尾）；运行时与命令事实见 [operations.md](operations.md) |

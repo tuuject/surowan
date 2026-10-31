@@ -1,3 +1,4 @@
+import { noMemoReads } from '../../src/platform/invocation-context.ts';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -24,6 +25,7 @@ test('the plugin contributes its capabilities with the pre-migration side-effect
       conversationId: 0n,
       hostKind: 'telegram',
       chatId: 123456789n,
+      internalChatId: 0n,
       threadId: 0n,
       systemPrompt: '',
       userPrompt: '',
@@ -32,6 +34,7 @@ test('the plugin contributes its capabilities with the pre-migration side-effect
       callerUserId: null,
       completion: null,
       omittedNewMessages: 0,
+      memoReads: noMemoReads,
     };
     const capabilities = dictionaryPlugin.capabilities?.({
       config: loaded.config,

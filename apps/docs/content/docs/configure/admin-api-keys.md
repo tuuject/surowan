@@ -13,4 +13,4 @@ description: 创建、查看与撤销 CLI 与评估工具使用的 API key。
 - 页面不把明文写入浏览器 `localStorage`/`sessionStorage` 或查询缓存，列表接口也不返回它。复制失败时弹窗保留文字并提示手动复制。
 - 点行内 **Revoke** 后需在确认框点 **Revoke key**；撤销立即生效且不可恢复，密钥行与元数据保留，**Status** 变为 **Revoked**，不再提供撤销操作。
 
-密钥的能力范围是只读检查与 Invocation 读/重放：允许查看当前配置与 global/group prompt 的脱敏视图、比较磁盘配置、列出当前 active 配置中可接受文本输入的已配置模型（`GET /api/models`，不探测 Provider）、读取 Invocation 场景将使用的当前两层 prompt、运行免费的重放预检、下载该 Invocation 快照授权的媒体，以及读取 Invocation 列表/详情并发起重放；它不能读取其它审计（Overview、Messages、Contexts、记忆等）、不能修改配置，也不能管理密钥。请求带密钥时服务器不再使用浏览器 Cookie，因此用密钥访问其它接口不会因为面板已登录而放行。列表里的 `last_used_at` 在每次密钥通过校验时更新；撤销后立即失效。明文遗失只能撤销后重建。请把密钥当密码对待，不要粘贴进聊天、日志或提交到仓库。
+密钥的能力范围是只读检查与 Invocation 读/重放：允许查看当前配置与 global/group prompt 的脱敏视图、比较磁盘配置、列出当前 active 配置中可接受文本输入的已配置模型（`GET /api/models`，不探测 Provider）、读取 Invocation 场景将使用的当前两层 prompt、运行免费的重放预检、下载该 Invocation 快照授权的媒体，以及读取 Invocation 列表/详情并发起重放；它不能读取其它审计（Overview、Messages、Contexts、Memo Pad 等）、不能修改配置，也不能管理密钥。请求带密钥时服务器不再使用浏览器 Cookie，因此用密钥访问其它接口不会因为面板已登录而放行。列表里的 `last_used_at` 在每次密钥通过校验时更新；撤销后立即失效。明文遗失只能撤销后重建。请把密钥当密码对待，不要粘贴进聊天、日志或提交到仓库。

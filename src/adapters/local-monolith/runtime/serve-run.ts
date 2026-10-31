@@ -17,6 +17,7 @@ import { configuredAgentModels } from '../../../platform/providers.ts';
 import { runStartupCatchUp } from '../../../startup-catch-up.ts';
 import { runRuntimeCatchUp } from '../../../runtime-catch-up.ts';
 import { recordPromptVersionsFromConfig } from '../../../store/prompt-versions.ts';
+import { ConversationContextStore } from '../../../context/store.ts';
 import { activeSleepUntil } from '../../../store/sleep.ts';
 import { ConfigReloader } from '../config/reload.ts';
 import { imageDeliveryResolver } from '../host-tooling.ts';
@@ -29,6 +30,12 @@ import { forwardingTelegramTransport, TelegramConnectionIdentity } from '../tele
 import { WEB_SEARCH_PROVIDERS } from '../../../plugins/web-search/extension.ts';
 import { webSearchAvailable } from '../../../platform/web-search.ts';
 import { abortRunningInvocationsOnSearchDisable } from './web-search-availability.ts';
+import {
+  addedTelegramChatIds,
+  conversationIdsForTelegramChats,
+  removedTelegramChatIds,
+  stopRemovedChats,
+} from './chat-lifecycle.ts';
 
 /** The wired runtime, its scheduler and the command path the panel shares. */
 export interface ServeCore {
@@ -143,6 +150,7 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
   // so every running invocation has to stop instead of continuing with a set
   // the next invocation will not see.
   let webSearchWasAvailable = webSearchAvailable(configStore.current().config, searchProviders);
+  let publishedConfig = configStore.current().config;
   const configReloader = new ConfigReloader({
     loaded,
     store: configStore,
@@ -168,7 +176,34 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
       ),
     // A raised max_concurrency only takes effect on the next scheduler tick.
     onPublished: () => {
-      const available = webSearchAvailable(configStore.current().config, searchProviders);
+      const nextConfig = configStore.current().config;
+      const removedChats = removedTelegramChatIds(publishedConfig, nextConfig);
+      if (removedChats.length > 0) {
+        const stopped = stopRemovedChats(
+          store,
+          tasks,
+          (ids, reason) => startedScheduler.abortInvocations(ids, reason),
+          (conversationId) => conversationRuntime.forget(conversationId),
+          removedChats,
+          nextConfig,
+        );
+        logEvent('telegram_chat_removed', {
+          chats: removedChats.map((id) => id.toString()).join(','),
+          stopped_invocations: stopped.invocations,
+          cancelled_tasks: stopped.tasks,
+        });
+      }
+      const addedChats = addedTelegramChatIds(publishedConfig, nextConfig);
+      publishedConfig = nextConfig;
+      if (addedChats.length > 0) {
+        // A Chat can be removed and added again while its stored Memo Pad
+        // survives; the first run after the re-add must re-render the full list
+        // instead of trusting the old snapshot in its retained Context.
+        new ConversationContextStore(store).requestMemoRefreshForConversations(
+          conversationIdsForTelegramChats(store, addedChats),
+        );
+      }
+      const available = webSearchAvailable(nextConfig, searchProviders);
       if (webSearchWasAvailable && !available) {
         const stopped = abortRunningInvocationsOnSearchDisable(store.orm, (ids, reason) =>
           startedScheduler.abortInvocations(ids, reason),
@@ -179,7 +214,7 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
       startedScheduler.wake();
       // A hand-edited prompt file picked up by this apply becomes a version
       // here; panel saves already recorded themselves before applying.
-      recordPromptVersionsFromConfig(store.orm, configStore.current().config);
+      recordPromptVersionsFromConfig(store.orm, nextConfig);
     },
   });
   const commands = new BotCommandService(

@@ -38,7 +38,15 @@ type ExecuteRequest =
   | { readonly action: 'call'; readonly tool: string; readonly input: Record<string, unknown> };
 
 /** Runtime primitives are registered by the runtime itself and never callable through execute. */
-export const EXECUTE_PRIMITIVES: ReadonlySet<string> = new Set(['read', 'send', 'send_reply', 'execute', 'zzz']);
+export const EXECUTE_PRIMITIVES: ReadonlySet<string> = new Set([
+  'read',
+  'send',
+  'send_reply',
+  'execute',
+  'zzz',
+  'search_memory',
+  'read_memory',
+]);
 const SIDE_EFFECTING_PRIMITIVES: ReadonlySet<string> = new Set(['send', 'send_reply', 'zzz']);
 
 export interface CapabilityToolDetails {
@@ -55,11 +63,16 @@ export interface ExecuteToolDetails {
 export interface ExecutableCapability {
   readonly tool: AgentTool;
   readonly sideEffect: boolean;
+  readonly inputMaxBytes?: number;
 }
 
 /** Wraps one runtime-internal tool as an execute-registry entry. */
-export function capability(tool: AgentTool, sideEffect: boolean): ExecutableCapability {
-  return { tool, sideEffect };
+export function capability(
+  tool: AgentTool,
+  sideEffect: boolean,
+  options: { readonly inputMaxBytes?: number } = {},
+): ExecutableCapability {
+  return { tool, sideEffect, ...options };
 }
 
 export interface ExecuteToolOptions {
@@ -197,14 +210,15 @@ async function executeCall(
     rejectExecute(options, toolCallId, { action: 'call', tool: toolName }, unknownCapabilityCode(toolName));
     throw new Error(unknownCapabilityMessage(toolName));
   }
+  const inputMaxBytes = target.entry.inputMaxBytes ?? INPUT_MAX_BYTES;
   if (
     Array.isArray(callInput) ||
     typeof callInput !== 'object' ||
     callInput === null ||
-    Buffer.byteLength(JSON.stringify(callInput)) > INPUT_MAX_BYTES
+    Buffer.byteLength(JSON.stringify(callInput)) > inputMaxBytes
   ) {
     rejectExecute(options, toolCallId, { action: 'call', tool: toolName, input: callInput }, 'arguments_too_large');
-    throw new Error('execute.call input exceeds 32 KiB');
+    throw new Error(`execute.call input exceeds ${inputMaxBytes / 1_024} KiB`);
   }
   if (!target.validator.Check(callInput)) {
     rejectExecute(options, toolCallId, { action: 'call', tool: toolName, input: callInput }, 'invalid_arguments');

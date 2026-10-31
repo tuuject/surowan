@@ -201,10 +201,11 @@ function mergeChats(active: ConfigSource, file: ConfigSource, recorder: ChangeRe
   for (const [id, chat] of activeChats) {
     const fromFile = fileChats.get(id);
     if (fromFile === undefined) {
-      // Removing a chat needs a restart: the allowlist, the participation
-      // registry and every conversation row already exist for it.
-      recorder.add(`telegram.chats[${id}]`, 'restart');
-      result.push(structuredClone(chat));
+      // Removing a chat is hot: the published configuration no longer lists it,
+      // the reload hooks stop its running invocations and tasks, and ingestion
+      // rejects its updates. The stored history, Memo Pad and blobs stay until
+      // an Admin explicitly deletes the Chat.
+      recorder.add(`telegram.chats[${id}]`, 'hot');
       continue;
     }
     result.push(mergeChat(chat, fromFile, activeRaw.get(id), fileRaw.get(id), recorder));

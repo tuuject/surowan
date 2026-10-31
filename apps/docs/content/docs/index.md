@@ -1,6 +1,6 @@
 ---
 title: 使用文档
-description: 从首次部署到人格、群聊、记忆与维护，按你要完成的任务选择入口。
+description: 从首次部署到人格、群聊、Memo Pad 与维护，按你要完成的任务选择入口。
 ---
 
 # 使用文档
@@ -24,7 +24,7 @@ description: 从首次部署到人格、群聊、记忆与维护，按你要完�
 - [让碗在合适的时候参与](guides/participation.md)：时段、触发方式和注意力窗口。
 - [控制主动插话频率](guides/proactive-replies.md)：用带保底的概率调度减少普通群消息的主动参与。
 - [给不同群配置不同的碗](guides/per-chat.md)：群级覆盖与 Topic 的区别。
-- [管理记忆](guides/memory.md)：记住、遗忘，以及人工整理长期知识。
+- [管理 Memo Pad](guides/memory.md)：按 Chat 记住与遗忘，以及人工整理长期知识。
 - [选择和切换模型](configure/models.md)：Provider、thinking 与 Vision。
 - [控制用量](guides/budgets.md)：Token 预算、并发、限流和上下文。
 - [了解 Skills、Plugin 与 MCP](guides/extensions.md)：可以扩展什么，不能绕过什么。

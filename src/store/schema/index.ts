@@ -22,6 +22,7 @@ export * from './agent-loop.ts';
 export * from './core.ts';
 export * from './image.ts';
 export * from './invocation.ts';
+export * from './memo.ts';
 export * from './messaging.ts';
 export * from './operations.ts';
 export * from './playground.ts';

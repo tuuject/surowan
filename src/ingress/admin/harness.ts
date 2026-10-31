@@ -1,6 +1,5 @@
 import type { TSchema } from 'typebox';
 import Compile from 'typebox/compile';
-import { DEFAULT_MEMORY_TTL_WARNING_DAYS } from '../../context/memory.ts';
 import type { ConfigEdit } from '../../platform/config/write.ts';
 import type { FileConfig, RawConfig } from '../../platform/config/index.ts';
 import { PROACTIVE_REPLY_DEFAULTS } from '../../platform/proactive-reply.ts';
@@ -43,7 +42,6 @@ const HARNESS_FIELDS: readonly HarnessField[] = [
   field('max_concurrency', agent.max_concurrency, AGENT_DEFAULTS.max_concurrency),
   field('context_stop_ratio', agent.context_stop_ratio, AGENT_DEFAULTS.context_stop_ratio),
   field('history_messages', agent.history_messages, AGENT_DEFAULTS.history_messages),
-  field('memory_ttl_warning_days', agent.memory_ttl_warning_days, DEFAULT_MEMORY_TTL_WARNING_DAYS),
   field('send_max_text_length', agent.send_max_text_length, null),
   field('send_disallow_blank_lines', agent.send_disallow_blank_lines, false),
   field('send_nudge_enabled', agent.send_nudge_enabled, false),

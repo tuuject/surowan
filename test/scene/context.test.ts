@@ -57,7 +57,6 @@ describe('scene context', () => {
     expect(scene.text).toContain('[10 00:00:00 uid:42 @alice] Alice\n  old one');
     expect(scene.text).toContain('<untrusted_new_messages>');
     expect(scene.text).toContain('[11 00:00:30 uid:42 @alice] Alice\n  trigger text');
-    expect(scene.text).toContain('<memory_list>\n</memory_list>');
     store.close();
   });
 

@@ -1,6 +1,7 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
+import type { MemoBlobStore } from '../../context/memo-pad/blobs.ts';
 import type {
   AgentSettings,
   FileChat,
@@ -12,7 +13,9 @@ import type { ConfigEdit } from '../../platform/config/write.ts';
 import { resolveProactiveReply } from '../../platform/proactive-reply.ts';
 import { supportedThinkingLevels } from '../../platform/thinking-levels.ts';
 import type { BusinessStore } from '../../store/store.ts';
+import { telegramChatIdentity } from '../../store/chat-identity.ts';
 import { chatMigrations, chats } from '../../store/schema/index.ts';
+import { conversations, invocations } from '../../store/schema/index.ts';
 import { AdminQueryError } from './audit/shared.ts';
 import { supervisedRestartEnabled } from './providers/read.ts';
 import { resolveAgentSettings } from '../../platform/config/resolve.ts';
@@ -182,11 +185,101 @@ export function updateChat(file: FileConfig, id: number, body: ChatSettingsBody)
 }
 
 export function deleteChat(file: FileConfig, id: number): ConfigEdit[] {
-  const index = chatIndex(file, id);
+  // Retained data must remain explicitly purgeable after a timed-out delete or
+  // a file-only removal, without restoring the Chat's authorization.
+  const index = fileChats(file).findIndex((chat) => chat.id === id);
+  if (index < 0) {
+    return [];
+  }
   // The allowlist may become empty: it just means no Chat is processed until one
   // is added again. The `telegram` section itself stays, because a token may
   // still be configured and the panel never deletes the section.
   return [{ path: ['telegram', 'chats', index], value: undefined }];
+}
+
+/** Running invocation ids whose Conversation belongs to the configured Chat. */
+export function runningInvocationIdsForTelegramChat(store: BusinessStore, telegramChatId: bigint): bigint[] {
+  const runtimeIds = telegramChatIdentity(store, [telegramChatId]);
+  return store.orm
+    .select({ id: invocations.id })
+    .from(invocations)
+    .innerJoin(conversations, eq(conversations.id, invocations.conversationId))
+    .innerJoin(chats, eq(chats.id, conversations.chatId))
+    .where(and(inArray(chats.telegramChatId, runtimeIds), eq(invocations.state, 'running')))
+    .all()
+    .map((row) => row.id);
+}
+
+/**
+ * Deletes one Telegram Chat's stored data after its configuration removal was
+ * applied: Memo Pad rows and blob files, conversations, contexts, messages and
+ * tasks. A configured Chat id may resolve through `chat_migrations` to the
+ * runtime Chat row that actually owns the data, so every matching row is
+ * removed. Files are deleted after the rows: a failed file cleanup can only
+ * leave an orphan file, never a live row pointing at a missing one.
+ */
+export async function deleteTelegramChatData(
+  store: BusinessStore,
+  memoBlobs: MemoBlobStore,
+  telegramChatId: bigint,
+): Promise<boolean> {
+  const runtimeIds = telegramChatIdentity(store, [telegramChatId]);
+  const chatRows = store.orm
+    .select({ id: chats.id })
+    .from(chats)
+    .where(and(eq(chats.hostKind, 'telegram'), inArray(chats.telegramChatId, runtimeIds)))
+    .all();
+  if (chatRows.length === 0) {
+    return false;
+  }
+  const blobPaths = chatRows.flatMap((chat) => memoBlobs.storagePaths(chat.id));
+  store.orm.transaction(
+    () => {
+      for (const chat of chatRows) {
+        // Several owned rows use NO ACTION instead of a cascade, so the delete
+        // order matters: host sends and context pointers first, then invocations
+        // (their children cascade), then buckets, then the message/revision cycle
+        // and finally the Chat itself.
+        store.orm.run(sql`
+          DELETE FROM host_sends
+          WHERE conversation_id IN (SELECT id FROM conversations WHERE chat_id = ${chat.id})
+             OR tool_call_id IN (
+               SELECT tc.id FROM tool_calls tc
+               JOIN invocations i ON i.id = tc.invocation_id
+               JOIN conversations v ON v.id = i.conversation_id
+               WHERE v.chat_id = ${chat.id}
+             )
+        `);
+        store.orm.run(sql`
+          UPDATE conversation_contexts SET active_invocation_id = NULL
+          WHERE conversation_id IN (SELECT id FROM conversations WHERE chat_id = ${chat.id})
+        `);
+        store.orm.run(sql`
+          DELETE FROM invocations
+          WHERE conversation_id IN (SELECT id FROM conversations WHERE chat_id = ${chat.id})
+        `);
+        store.orm.run(sql`
+          UPDATE buckets SET merged_into_bucket_id = NULL
+          WHERE conversation_id IN (SELECT id FROM conversations WHERE chat_id = ${chat.id})
+        `);
+        store.orm.run(sql`
+          DELETE FROM buckets
+          WHERE conversation_id IN (SELECT id FROM conversations WHERE chat_id = ${chat.id})
+        `);
+        // `messages.current_revision_id` points back at `message_revisions`;
+        // clear it before the cascade removes both sides of the cycle.
+        store.orm.run(sql`UPDATE messages SET current_revision_id = NULL WHERE chat_id = ${chat.id}`);
+        store.orm.run(sql`DELETE FROM conversations WHERE chat_id = ${chat.id}`);
+        store.orm.delete(chats).where(eq(chats.id, chat.id)).run();
+      }
+      for (const runtimeId of runtimeIds) {
+        store.orm.run(sql`DELETE FROM chat_migrations WHERE old_chat_id = ${runtimeId} OR new_chat_id = ${runtimeId}`);
+      }
+    },
+    { behavior: 'immediate' },
+  );
+  await memoBlobs.removeFiles(blobPaths);
+  return true;
 }
 
 /**

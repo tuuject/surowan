@@ -24,6 +24,8 @@ Surowan 使用单个 SQLite 数据库保存消息、调度状态、能力索引�
 
 迁移 `038` 把发送台账切成宿主中立：`telegram_sends` 改名为 `host_sends`，主键、外键、`state` 取值与 Telegram 响应元数据原样保留，去重索引改名为 `host_sends_reply_delivery_idx` / `host_sends_image_delivery_idx`，并新增可空的 `message_id` 指向虚拟宿主为该次发送落下的消息（`ON DELETE SET NULL`，保留期删掉消息时审计行仍在）。改名在开启外键约束的情况下直接 ALTER 完成，不需要重建表。
 
+迁移 `046` 建立 Memo Pad：`memo_pad_entries` 与 `memo_blobs`（都随 `chats` 级联删除），给 `conversation_contexts` 加 `memo_refresh_seq`、`memo_state_json`、`memo_refresh_pending` 三个列，并把旧 `memories` 行按 `conversations.chat_id` 迁入（`summary` 与 `detail` 都取旧 `content`，保留 `expires_at`、时间戳与旧 `mem_` id），随后删除 `memories`。旧记忆按 Conversation 隔离，迁移后同一 Chat 的多个 Topic 共享同一份 Memo Pad，这是有意的语义变化。
+
 SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是整棵消息树的级联父表（外键强制下 `DROP TABLE` 会级联删掉全部 Conversation 与 Message），`messages` 又被 NO ACTION 子表引用（同样条件下直接报错），所以重建只能在关闭外键强制的窗口里做。需要在重建表的迁移在文件里单独一行写 `-- @rebuild-tables` 显式声明：runner 只对带该指令的迁移临时关闭 `foreign_keys`，整个迁移仍在单个 IMMEDIATE transaction 内执行，提交前跑 `PRAGMA foreign_key_check`，发现违例就回滚，并在 `finally` 中恢复强制；不带该指令的迁移路径完全不变。这不是「关掉约束蒙混升级」——约束只在 DDL 窗口内让位，且提交前必须通过校验。
 
 `host_kind` 取 `telegram` 或 `playground`。任何读取 Telegram 身份列的地方都要显式表态：要么用 [src/store/host-scope.ts](../src/store/host-scope.ts) 的 `telegramHostScope()` 把查询限定在 Telegram 行上，要么把该身份列当可空处理并说明虚拟行意味着什么。禁止用 ID 符号判断群类型或宿主。
@@ -119,14 +121,24 @@ SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是
 
 Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id` 是可信 owner：新建时由当前 Invocation 的可靠 caller 写入；迁移历史行允许为 `NULL`，这些旧行不会被用户 list/delete，也不会把 target 冒充 creator 回填。
 
-### 短期记忆
+### Memo Pad（迁移 046 / 047）
 
-`memories` 由 Agent 通过 `add_memory`/`delete_memory` 维护，也可在 Admin Panel 手工增删改查：
+`memo_pad_entries` 是按 **Chat**（`chats.id`，不是 Telegram chat id）隔离的记忆，同一个 Chat 的所有 Forum Topic 共用；Agent 与 Admin Panel 都通过 `MemoPadStore`（[src/context/memo-pad/store.ts](../src/context/memo-pad/store.ts)）读写。
 
-- 每条记忆归属一个 `conversations` 行（Chat + Forum Topic 隔离，互不可见）。
-- `content` 硬限制 150 字符（SQLite `CHECK` 兜底；Tool Schema 与 Admin API 先校验）。
-- `expires_at` 由 `created_at + ttl_seconds` 决定，默认 TTL 1 天；过期行在每次写操作机会性清除，`purgeExpiredData` 也会清除。
-- `ttl_seconds` 只受 `src/context/memory.ts` 的 `MEMORY_TTL_MIN_SECONDS`/`MEMORY_TTL_MAX_SECONDS`（60 秒至约 5 年）约束，Tool Schema 与 Admin API 共用这对边界，此外不禁止长 TTL；剩余寿命超过 `agent.memory_ttl_warning_days`（默认 30 天）的记忆在 Admin Panel 显示 warning，由管理员决定保留、删除或提升进 `agents.md`。
+- `summary` 1–150 字符、`detail` 1–32768 字符：SQLite `CHECK` 兜底，Tool Schema 与 Admin API 先校验。`add_memo`/`update_memo` 的 execute 输入字节额度单独容纳最大字符数及 UTF-8/JSON 转义开销，其它能力仍沿用默认 32 KiB。
+- `expires_at IS NULL` = 长期条目，**不参与自动注入**；非空 = 短期条目，按 `expires_at > now` 过滤后注入。`CHECK(expires_at > created_at)` 兜底；`ttl_seconds` 只受 [src/context/memo-pad/index.ts](../src/context/memo-pad/index.ts) 的 `MEMO_TTL_MIN_SECONDS`/`MEMO_TTL_MAX_SECONDS`（60 秒至约 5 年）约束，Tool Schema 与 Admin API 共用这对边界。创建时 `ttl_seconds` 缺省或 `null` 表示永久；更新时 `null` 表示提升为永久，缺省则保持原到期时间。
+- `updated_at` 每次更新严格递增，即使同毫秒写入或时钟回退也不能复用旧值。`read_memory` → `update_memo` 的读-改-写用它判断「读后是否被改过」；Admin 或其他写入者修改会使旧读取失效，模型成功更新后也消耗本次已读授权，再次修改前必须重读。
+- 创建与删除写路径机会性清除该 Chat 的过期行，`purgeExpiredData` 也会删除（见「保留清理」）。过期状态与短期/长期分类按查询时的当前时钟计算，不依赖 Context。
+
+`memo_blobs` 是这个 Chat 所有的二进制对象（Chat 自己的图片附件）：
+
+- `id` 为 `blb_<32hex>`，detail 里以 Markdown `pwblob://blb_<32hex>` 引用；按 `(chat_id, sha256)` 去重，同 Chat 多条 detail 可以共享一个 blob，跨 Chat 永不共享。
+- `storage_path` 相对 `<data_dir>/images/memo-blobs`，实际文件位于 `<data_dir>/images/memo-blobs/<chatId>/<blobId>.<ext>`；因为落在 `images/` 下，现有备份的旁路 `.images/` 目录快照会一并携带它（见[备份](#备份)）。
+- 更新/删除 detail 后，只删除不再被该 Chat 任何 detail 引用的 blob：写路径与 Admin 调用 `cleanupAfterDetailChange`，确认同 Chat 其他条目未引用后删行、再删文件。`MemoBlobStore.sweep()` 按同一引用规则清理孤儿行与文件，在服务启动、备份前与写路径调用；迁移 `047` 增加 `last_saved_at`，保存或去重重用都会刷新十分钟保护窗口，`created_at` 保持不变。候选查询后，实际 DELETE 再检查引用与保护窗口，只有成功删行才删除文件。
+- `read_image` 接受 `pwblob://` URI，按当前 `internalChatId` 鉴权后读取；Admin 的 blob 内容端点见 [admin-panel.md](admin-panel.md#api)。
+- `save_memo_image` 在准备图片及存储的异步边界重新检查取消信号和当前 Chat 授权；撤权后不提交 Blob 元数据、不继续续租去重行，失败只清理本次拥有的临时/最终副本，不删除并发保存者的文件。
+
+`conversation_contexts` 的三个 Memo 列（`memo_refresh_seq`、`memo_state_json`、`memo_refresh_pending`）记录短期记忆注入状态：完整列表所在 checkpoint 的实际 `seq`、已告知模型的状态快照，以及强制刷新标记。Context 重建会把三者复位；消息、序号与 Memo 状态在同一个事务中提交，失败时数据库和活 header 都不推进。刷新判据与预算见 [telegram-agent-flow.md](telegram-agent-flow.md#context)。
 
 ### 注意力窗口
 
@@ -209,7 +221,7 @@ Admin 侧的 `admin_users`/`admin_sessions` 语义见 [admin-panel.md](admin-pan
 
 `backup` 在备份前调用 `purgeExpiredData`。清理仅删除已完成终态和不再被活跃引用的数据：
 
-- 已过期的 `memories`（按自身 TTL，不参与在线保留窗口）。
+- 已过期的 `memo_pad_entries`（按自身 TTL，不参与在线保留窗口）；`purgeExpiredData` 删除的是行，`memo_blobs` 的行与文件由随后的 `MemoBlobStore.sweep()` 按引用清理（服务启动时也会执行一次）。
 - 已过期的 `conversation_attention` 注意力窗口行（窗口过期即无意义，不参与在线保留窗口）。
 - 过期 Telegram Update 与终态 Invocation/Send/Bucket。
 - 不再被 Invocation/Bucket 引用的旧 Message。
@@ -233,11 +245,11 @@ node src/cli.ts backup --config dev-data/config.jsonc
 流程：
 
 1. 打开现有 SQLite 并启用与服务一致的 PRAGMA。
-2. 执行保留清理。
+2. 执行保留清理；随后运行 `MemoBlobStore.sweep()`，删除不再被任何 Memo detail 引用的 blob 行与文件（过期 Memo 行已在同一步删除）。
 3. 使用 `VACUUM INTO` 写入同目录临时文件。
 4. 非 Windows 系统将临时文件设为 `0600`。
 5. 原子 rename 为 `surowan-<timestamp>-<uuid>.sqlite`。
-6. `<data_dir>/images` 存在时，整目录复制为旁路快照 `surowan-<timestamp>-<uuid>.images/`。原图是归档数据而非媒体缓存，不进 SQLite，因此备份必须成对携带；SQLite 快照与目录复制之间没有跨存储原子性，快照点之后提交的行可能引用晚于复制点的文件。
+6. `<data_dir>/images` 存在时，整目录复制为旁路快照 `surowan-<timestamp>-<uuid>.images/`。原图与 Memo Blob（`images/memo-blobs/<chatId>/`）都是归档数据而非媒体缓存，不进 SQLite，因此备份必须成对携带；SQLite 快照与目录复制之间没有跨存储原子性，快照点之后提交的行可能引用晚于复制点的文件。
 7. 按修改时间保留 `retention.backup_copies` 份，SQLite 副本与其 `.images/` 快照成对轮换删除。
 
 仓库不自带定时调度；定期备份由宿主机 cron 等外部调度运行，见[运维：Docker 部署](operations.md#docker-部署)。恢复或复制前应额外运行 `PRAGMA integrity_check`；当前备份命令不替代恢复演练。
@@ -258,4 +270,4 @@ dev-data/
     └── backups/
 ```
 
-`dev-data/` 已 gitignore。不得提交数据库、WAL/SHM、媒体缓存、备份或真实配置。
+`dev-data/` 已 gitignore。不得提交数据库、WAL/SHM、媒体缓存、备份或真实配置。Memo Blob 位于 `<data_dir>/images/memo-blobs/<chatId>/`，属于 `images/` 归档，随 `.images/` 备份快照携带。

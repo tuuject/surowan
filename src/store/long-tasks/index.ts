@@ -1,4 +1,4 @@
-import { and, asc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import type {
   CompletionContext,
   DeliveryPolicy,
@@ -317,6 +317,39 @@ export class LongTaskService {
       this.#wake?.();
     }
     return changed;
+  }
+
+  /**
+   * Cancels waiting tasks and suppresses still-pending receipts for every given
+   * Conversation. Used when a Chat leaves the configuration: its runs must stop,
+   * but the data stays until an Admin deletes it.
+   */
+  cancelForConversations(conversationIds: readonly bigint[], reason = 'chat_removed'): number {
+    if (conversationIds.length === 0) {
+      return 0;
+    }
+    const rows = this.#orm
+      .select({ id: longTasks.id, pluginId: longTasks.pluginId, conversationId: longTasks.conversationId })
+      .from(longTasks)
+      .where(
+        and(
+          inArray(longTasks.conversationId, [...conversationIds]),
+          inArray(longTasks.state, ['waiting', 'completed']),
+        ),
+      )
+      .all();
+    let cancelled = 0;
+    for (const row of rows) {
+      if (
+        this.#cancel(row.pluginId, row.conversationId, row.id, null, false, {
+          adminCancelled: true,
+          reason,
+        })
+      ) {
+        cancelled += 1;
+      }
+    }
+    return cancelled;
   }
 
   #cancel(

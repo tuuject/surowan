@@ -145,8 +145,9 @@ export class MediaService {
     context: InvocationContext,
     capabilities: CapabilityRefResolver,
     invocationDeadline: number,
+    memoBlobs?: Parameters<typeof createReadImageTool>[4],
   ): AgentTool<typeof ReadImageSchema, { cached: boolean }> {
-    return createReadImageTool(this.#deps(), context, capabilities, invocationDeadline);
+    return createReadImageTool(this.#deps(), context, capabilities, invocationDeadline, memoBlobs);
   }
 
   async analyzeStickerForIndex(stickerId: bigint, signal: AbortSignal): Promise<StickerIndexAnalysis> {

@@ -167,7 +167,9 @@ export function createAgentRun(scope: RunScope, zzzExposed: boolean): AgentRun {
     entry.header = header;
   }
   const cached: CachedConversationAgent = entry;
+  const pendingUserTags: AgentRun['pendingUserTags'] = [];
   steerSink.deliver = (text) => {
+    pendingUserTags.push({ tag: 'harness', bucketId: null });
     cached.agent.steer({ role: 'user', content: [{ type: 'text', text }], timestamp: Date.now() });
   };
   const carried: { stickerCatalog: string | null } = { stickerCatalog: null };
@@ -239,6 +241,7 @@ export function createAgentRun(scope: RunScope, zzzExposed: boolean): AgentRun {
   return {
     agent,
     cached,
+    pendingUserTags,
     typing,
     tools,
     toolDefinitionCharacters,

@@ -214,6 +214,7 @@ describe('participation gate', () => {
       {
         invocationId: first,
         conversationId,
+        internalChatId: 0n,
         chatId: BigInt(GROUP_CHAT_ID),
         hostKind: 'telegram',
         threadId: 0n,

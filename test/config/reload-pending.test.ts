@@ -24,10 +24,11 @@ test('removing a chat and its instructions file together still reloads', async (
     if (!result.ok) {
       throw new Error(result.message);
     }
-    expect(result.applied).toEqual(['agent.thinking_level']);
-    expect(result.restartRequired).toEqual(['telegram.chats[111]']);
-    // The removed chat waits for a restart and keeps the active instructions.
-    expect(fixture.configStore.current().config.telegram.chats.map((chat) => chat.id)).toEqual([CHAT_ID, 111]);
+    expect(result.applied).toEqual(['agent.thinking_level', 'telegram.chats[111]']);
+    expect(result.restartRequired).toEqual([]);
+    // The removal is hot and leaves the running configuration immediately; its
+    // stored data stays until an Admin deletes the Chat.
+    expect(fixture.configStore.current().config.telegram.chats.map((chat) => chat.id)).toEqual([CHAT_ID]);
   } finally {
     fixture.store.close();
   }

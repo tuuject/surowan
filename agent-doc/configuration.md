@@ -11,7 +11,7 @@ Surowan 使用严格 JSONC 配置。Schema 位于 `src/platform/config/schema.ts
 - CLI 必须显式传入 `--config <path>`。
 - 配置在 `serve` 启动时读取一次；只有[运行时配置热更新](#运行时配置热更新)列出的白名单字段可以在运行中应用，其余字段修改后必须重启。
 - 配置哈希是原始 JSONC 文本与所有 Prompt 文件内容的 SHA-256，写入 Invocation 并打印在 `serve_started` 日志中。
-- 修改 Bucket 窗口、Sticker Set 或 MCP 后必须重启；Prompt、Provider（含连接字段与模型列表）、agent 模型与 vision 模型、`agent` 段的全部字段、已有 Chat 的 `provider`/`model`/`thinking_level` 覆盖、**新增 Chat** 等白名单字段可用 Admin「Apply config file」或 `/model` 热应用；删除 Chat 与修改 Topic 范围仍需重启。
+- 修改 Bucket 窗口、Sticker Set 或 MCP 后必须重启；Prompt、Provider（含连接字段与模型列表）、agent 模型与 vision 模型、`agent` 段的全部字段、已有 Chat 的 `provider`/`model`/`thinking_level` 覆盖、**新增或删除 Chat** 等白名单字段可用 Admin「Apply config file」或 `/model` 热应用（删除会停掉该 Chat 的运行，但保留数据）；修改 Topic 范围仍需重启。
 - 相对 `data_dir`/`paths` 按服务当前工作目录解释；Docker 镜像的工作目录是 `/app`。
 - Prompt 文件路径（`system_prompt_file`、`instructions_file`）相对于配置文件所在目录解释；修改文件内容同样会改变 `config_hash`。
 - Prompt 文件按原始字节参与哈希：剔除 HTML 注释只影响进入模型上下文的文本，纯注释改动仍然改变 `config_hash`。
@@ -34,10 +34,10 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 | `agent.provider`、`agent.model` | 永远热更新：目标 Provider 可以是同一次修改里新增的，reload 会重建模型注册表并随配置一起发布 |
 | `agent.system_prompt_file` | 路径或文件内容变化都算；内容变化会重建每个 Conversation 的 Context；可在面板编辑并保留版本历史 |
 | `developer`、`developer.record_model_payloads`、`developer.record_agent_thinking` | 可选节/字段的增删都热应用，缺省为 `false`；每次模型调用读取当前开关，关闭时后续快照回调停止写入。`record_model_payloads` 开启时会在看板与警告页持续产生常态警告 |
-| 其余全部 agent 字段（逐项列在 `HOT_PATHS`，`agent.context.*` 与 `agent.rate_limits.*` 按前缀）：`thinking_level`、`context_stop_ratio`、`send_max_text_length`、`send_disallow_blank_lines`、`send_nudge_enabled`、`send_barrier_enabled`、`allow_reply_message_multiple_times`、`send_duplicate_guard_enabled`、`daily_budget.max_tokens`、`max_concurrency`、`history_messages`、`memory_ttl_warning_days`、`context.*`、`rate_limits.*`。除模型选择与 Prompt 外都可在 Admin「Harness tuning」页编辑 | 下一次 Invocation 使用新值；运行中的 Invocation 继续用它启动时的快照。例外都在运行期读取当前发布的配置：`daily_budget.max_tokens`（调低后下一次模型调用立即被拦截）；`context.ref_ttl_hours`（发布之后签发或续期的引用使用新 TTL，已签发引用保留原到期时间）；`context.agent_cache_size`（下一次缓存 agent 时按新上限逐出，调小不丢历史）；`memory_ttl_warning_days`（只影响 Admin 记忆列表的 `long_ttl` 判定，下一次请求生效） |
-| `telegram.chats`（**新增** Chat，整项 `{ id, … }`） | 立即生效：ingestion 白名单、参与策略注册表与 `resolveChatConfig` 都读发布后的配置并按代数重建/直读，无需重启。删除 Chat、已有 Chat 的其它字段修改与 Topic 范围仍是 restart |
+| 其余全部 agent 字段（逐项列在 `HOT_PATHS`，`agent.context.*` 与 `agent.rate_limits.*` 按前缀）：`thinking_level`、`context_stop_ratio`、`send_max_text_length`、`send_disallow_blank_lines`、`send_nudge_enabled`、`send_barrier_enabled`、`allow_reply_message_multiple_times`、`send_duplicate_guard_enabled`、`daily_budget.max_tokens`、`max_concurrency`、`history_messages`、`memory_ttl_warning_days`、`context.*`、`rate_limits.*`。除模型选择、Prompt 与仅为兼容保留的 `memory_ttl_warning_days` 外都可在 Admin「Harness tuning」页编辑 | 下一次 Invocation 使用新值；运行中的 Invocation 继续用它启动时的快照。例外都在运行期读取当前发布的配置：`daily_budget.max_tokens`（调低后下一次模型调用立即被拦截）；`context.ref_ttl_hours`（发布之后签发或续期的引用使用新 TTL，已签发引用保留原到期时间）；`context.agent_cache_size`（下一次缓存 agent 时按新上限逐出，调小不丢历史） |
+| `telegram.chats`（**新增或删除** Chat，整项 `{ id, … }`） | 立即生效：ingestion 白名单、参与策略注册表与 `resolveChatConfig` 都读发布后的配置并按代数重建/直读，无需重启。删除还会在发布时停止该 Chat 的 running Invocation 与长任务（`chat_removed`）并强制其 Memo 列表刷新，但**不删除**已存数据（面板的 Admin 删除才删）。已有 Chat 的其它字段修改与 Topic 范围仍是 restart |
 | `telegram.chats[<id>].instructions_file` | 仅限两边都存在的 Chat；路径或内容变化都算；可在面板编辑并保留版本历史（Chat 尚无该字段时由面板创建） |
-| `telegram.chats[<id>].provider` / `.model` / `.thinking_level` | 仅限两边都存在的 Chat 的按群模型覆盖（语义与校验见「Telegram Chat 与 Topic」）；删除 Chat 仍是 restart |
+| `telegram.chats[<id>].provider` / `.model` / `.thinking_level` | 仅限两边都存在的 Chat 的按群模型覆盖（语义与校验见「Telegram Chat 与 Topic」）；删除 Chat 见 `telegram.chats` 一行（热移除并停跑） |
 | `telegram.chats[<id>].ignored_user_ids` | 增删字段、替换或清空列表都热应用；下一条实时/启动追赶 Update 使用新名单，不追溯删除已有 Message 或 Context。成员可用 `/ignoreme`、`/unignoreme` 写入或移除自己的 ID |
 | `telegram.chats[<id>].dictionary_injection_mode` | 该 Chat 的辞典注入模式覆盖；增删字段都热应用，下一次 Invocation 生效。缺省继承全局 `dictionary.injection_mode` |
 | `telegram.participation` 与 `telegram.chats[<id>].participation`（含全部子字段） | 参与策略时段；`ParticipationRegistry` 按发布代数即时重编译，下一次消息判定就用新时段（时段按该 Chat 的 `timezone` 解析，时区本身是 restart 字段）。可经 Admin Chats 页编辑 |
@@ -52,7 +52,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 
 `outside_serve` 字段（`serve` 从不读取，下一次 `backup` 生效，既不算已应用也不算待重启）：`paths.backups`、`retention.online_days`、`retention.backup_copies`。`retention.warning_read_days` 由 `serve` 的警告清理读取，因此和 `retention` 的其它字段不同：它按普通 restart 字段处理，改动后需要重启才生效。
 
-其它所有路径都是 restart：改动会写进文件，但要重启才生效，包括 `telegram.token`、`data_dir`、`paths.database`、`admin.*`、`mcp.servers`、`telegram.sticker_sets`、Chat allowlist 的删除与已有 Chat 的修改（新增 Chat 与参与策略 `participation`、主动回复 `proactive_reply` 是热变更），以及 `instructions_file`、`provider`、`model`、`thinking_level`、`ignored_user_ids`、`dictionary_injection_mode`、`participation`、`proactive_reply` 以外的 Chat 字段，以及 `vision` 的 `max_concurrency`、`background_sticker_concurrency`、`prompt_version`、`daily_budget`。
+其它所有路径都是 restart：改动会写进文件，但要重启才生效，包括 `telegram.token`、`data_dir`、`paths.database`、`admin.*`、`mcp.servers`、`telegram.sticker_sets`、Chat allowlist 中已有 Chat 的修改（新增与删除 Chat、参与策略 `participation`、主动回复 `proactive_reply` 是热变更），以及 `instructions_file`、`provider`、`model`、`thinking_level`、`ignored_user_ids`、`dictionary_injection_mode`、`participation`、`proactive_reply` 以外的 Chat 字段，以及 `vision` 的 `max_concurrency`、`background_sticker_concurrency`、`prompt_version`、`daily_budget`。
 
 应用流程与语义：
 
@@ -69,7 +69,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 - `/model` 在写入文件之前就被拒绝时（模型不存在、不可用，或文件无法写入），没有发生 reload：只输出 `model_switch_failed` 日志并把错误返回给调用方，不改变 `lastError`。写入之后应用失败才按上一条处理。
 - 没有任何待重启字段时 `active_hash` 等于文件哈希，可以直接与 `check-config` 的输出比对。只改注释或格式、或者把待重启字段改回原值后应用，都会发布一次内容相同的配置，让 `active_hash` 跟上新的文件哈希。有待重启字段时，`active_hash` 是 candidate RawConfig 的 JSON 序列化的 SHA-256；若本次应用没有任何热字段变化（只改注释、只有 restart 字段变化），它保持不变，不会跟上文件哈希。
 - 写入配置文件（如 `/model`、`/ignoreme`、`/unignoreme`）由 `src/adapters/local-monolith/config/file.ts` 的 `writeConfigEdits` 完成：只替换 JSONC 的值，保留注释与格式；先写同目录临时文件并完整校验，再 rename 覆盖，因此读者只会看到旧文件或完整合法的新文件。配置文件是符号链接时拒绝写入（`config_symlink`）。带 Secret 的写入（`src/platform/config/write.ts` 的 `secretEdit`）把明文写进 key jar，文件里只留条目名，见 [SecretRef](#secretref)。
-- Admin「Chats」管理 Chat/Topic 白名单与按 Chat 的模型覆盖：列表分别显示磁盘 Saved settings 与进程 Running settings。新增 Chat 保存后立即热应用；删除 Chat 和 Topic 范围修改保存后等待重启，已有 active Chat 的模型/thinking 覆盖热应用；删除不会清除消息、Context 或审计历史，最后一个配置 Chat 不允许删除。编辑只更新这四项管理字段，不覆盖 `instructions_file`、参与策略等其它设置。
+- Admin「Chats」管理 Chat/Topic 白名单与按 Chat 的模型覆盖：列表分别显示磁盘 Saved settings 与进程 Running settings。新增与删除 Chat 保存后立即热应用（删除会停止该 Chat 的运行，面板删除还会立即清除其 Memo Pad/Blob/会话数据）；Topic 范围修改保存后等待重启，已有 active Chat 的模型/thinking 覆盖热应用；最后一个配置 Chat 不允许删除。编辑只更新这四项管理字段，不覆盖 `instructions_file`、参与策略等其它设置。
 - 端点、状态码与响应体见 [admin-panel.md](admin-panel.md#api)。
 
 ## SecretRef
@@ -176,7 +176,7 @@ command SecretRef：
 - `ignored_user_ids`（可选）是此 Chat 内要忽略的 Telegram User ID 数组；必须是唯一的正安全整数。匹配 `message.from.id` 的新消息和编辑只保留 Update 审计，不写入 Message、Revision、Media 或 Bucket，也不会进入实时或启动追赶 Invocation 的 Context。命令同样被丢弃，只有实时新消息中的 `/ignoreme`、`/unignoreme` 会放行，供成员自行加入或取消忽略；两者只改发送者自己的 ID，作用于当前 Chat 的全部 Topic。其他成员消息中若 Reply 快照指向被忽略用户，该引用同样不保存。该字段不匹配 `sender_chat` 身份，支持热应用；已入库的旧消息不会追溯删除。
 - `instructions_file`（可选）指向该 Chat 的附加系统提示 Markdown 文件，缺省时为空；提示内容不提供额外授权。
 - `provider` / `model` / `thinking_level`（可选）是此 Chat 的按群模型覆盖：全局 `agent.provider` / `agent.model` / `agent.thinking_level` 作为默认值，缺省逐项继承（`resolveAgentSettings`）。`provider` 与 `model` 必须成对出现，只写其一会被 `check-config` 直接拒绝；`thinking_level` 可独立覆盖，不必随模型一起写。生效模型按「Chat 覆盖 → 全局默认」逐项解析，该组合必须合法：覆盖模型必须在该 Provider 下存在、支持 text，`thinking_level` 必须被解析后的生效模型接受，否则严格报错。每次 Invocation 从运行快照按此解析模型与思考档；运行中的 Invocation（含 attach 的批次）沿用启动时冻结的快照，下一次 Invocation 才用新值。Topic 共用所在 Chat 的设置，私聊同理；群迁移按已有 `resolveChatConfig` 规则解析到迁移前 Chat 的配置。
-- 删除 Chat、修改 Topic 或其它非热字段后必须重启，并比较 `check-config` 与 `serve_started` 的 `config_hash`；新增 Chat、已有 Chat 的 `instructions_file`、`provider`/`model`/`thinking_level`、`ignored_user_ids`、`participation` 与 `proactive_reply` 属于热更新白名单，见「运行时配置热更新」。
+- 修改 Topic 或其它非热字段后必须重启，并比较 `check-config` 与 `serve_started` 的 `config_hash`；新增或删除 Chat、已有 Chat 的 `instructions_file`、`provider`/`model`/`thinking_level`、`ignored_user_ids`、`participation` 与 `proactive_reply` 属于热更新白名单（删除 Chat 会停跑但保留数据），见「运行时配置热更新」。
 - Chat 没有每日 Invocation 次数上限，也不设 Token 硬上限；Token 只按 Chat 归属统计，唯一硬上限是全局 `agent.daily_budget.max_tokens`。
 - `admins`（可选）是 Telegram User ID 数组，Bot 管理员白名单的唯一事实源；只有管理员能执行 `/pause`、`/resume`、`/model`、`/cut_topic`。属热更新白名单，见「运行时配置热更新」。
 
@@ -411,12 +411,12 @@ tool "read" parameter schema: parameter "uri": unsupported schema keyword "minLe
 - `daily_budget.max_tokens`: 主 Agent 与聊天触发的 `read_image` 共享的全局每日 Token 上限；各 Chat 用量仍分别写入 `daily_usage`。它是防止循环、失控 Invocation 与 Tool loop 的安全熔断，不是成本预算，因此计的是一次模型调用涉及的全部 token：非缓存输入、缓存读取、缓存写入与生成（`meteredTokens`，`src/store/sleep.ts`）。模型是否收费、缓存是否便宜都不影响计量，免费模型同样受限。pi-ai 规范化后的 `input` 已扣除缓存读写，四项互不重叠，直接相加不会重复计数；Provider 原始 `total_tokens` 不参与计量。缓存读写仍在 `model_calls` 与 Admin Panel 的 Model call 明细里单列，`vision.daily_budget` 的 `vision_tokens` 同口径。
 - `system_prompt_file`（可选）: 指向运维侧人格提示的 Markdown 文件，缺省为空 Prompt，路径相对配置文件目录，内容必须非空（剔除 HTML 注释后仍需有正文）。消息分区、安全边界、Tool 选择原则和副作用成功判定由代码内 Core Agent Protocol 固化；具体 Tool 的触发条件、禁用情形、调用顺序与收尾规则由 Tool description 固化，不应重复塞入人格文件。人格提示和 Chat 的 `instructions_file` 支持 `{{ agent.provider }}`、`{{ agent.model }}`、`{{ vision.provider }}`、`{{ vision.model }}`、`{{ timezone }}` 模板变量；模板只执行严格白名单替换，未知或格式错误的表达式会拒绝配置。
 - Prompt 注释：`system_prompt_file` 与 `instructions_file` 中的 `<!-- ... -->` HTML 注释在加载时被剔除，可以写给人看的说明而不占模型上下文；注释可跨行，整行只有注释时该行一并消失。未闭合的 `<!--` 不构成注释，按原文保留；模板校验在剔除之后进行，因此注释里可以出现任意 `{{ ... }}` 文本。提示文件含 NUL 字符时拒绝加载。
-- 模板中的 `agent.provider` 与 `agent.model` 是当前 Invocation 实际使用的模型（按 Chat 解析后的生效值，未覆盖时即全局默认），因此 Admin Panel 或 `/model` 的运行时切换会反映到下一次会话；`vision.*` 始终来自配置。模板值只注入 Prompt，不会注入记忆；记忆内容按原文保留。
+- 模板中的 `agent.provider` 与 `agent.model` 是当前 Invocation 实际使用的模型（按 Chat 解析后的生效值，未覆盖时即全局默认），因此 Admin Panel 或 `/model` 的运行时切换会反映到下一次会话；`vision.*` 始终来自配置。模板值只注入 Prompt，不会注入 Memo Pad；Memo 内容按原文保留。
 - `max_concurrency`: 全局并行 running Invocation 上限；`history_messages` 是每个新开 Invocation 冻结 history 快照的条数上限（attach 进运行中 Invocation 的批次不带 history）。渲染时会跳过保留 transcript 里已经有的消息，所以真正注入的只是 transcript 从没见过的那部分，例如被参与闸门挡住、从未注入过的消息；并不是只在冷启动时才生效。单次运行不再有 `max_turns`/`max_sends`/`timeout_seconds`（字段已删除，写进配置会被拒绝），运行边界见「Conversation Context」。
 - `context_stop_ratio`: 估算输入 Token 达到 `context_window × context_stop_ratio` 后进入收尾模式：下一次模型调用只带 `send` 和当时可用的 `zzz`，模型用这一轮把话说完；这一轮结束后运行以 `completion_reason = context_limit` 结束。收尾轮只给一次，模型调用使用的是本次运行实际生效的模型（含 `/model` 热切换后的模型），GC 的 token 判据同理。
 - `send_max_text_length`（可选，默认不限制）：`send` 工具文本消息的最大字符数。超出时 Tool Call 记为 `send_text_too_long` 错误，不消耗发送配额、不调用 Telegram；Sticker 不受影响。
 - `send_disallow_blank_lines`（可选，默认 `false`）：开启后，文本包含任何空行（两个换行符之间只有空格/Tab 也算空行）时 Tool Call 记为 `send_blank_lines` 错误，不消耗发送配额、不调用 Telegram；段落只能用单个换行分隔。Sticker 不受影响。
-- `memory_ttl_warning_days`（可选，默认 30）：Agent 记忆剩余寿命超过该天数时，Admin Panel 显示 warning，提示管理员判断保留、删除或提升进 `agents.md`。系统不禁止长 TTL。
+- `memory_ttl_warning_days`（可选，默认 30）：仅为兼容旧配置文件保留，运行时、Harness 页与 Memories 页都已不再使用；改或删都不影响行为，也不会再产生 `long_ttl` 警告。
 - `send_nudge_enabled`（可选，默认 `false`）：开启后，当 agent 即将自然停止、本轮未调用任何工具且产生了去除首尾空白后非空的普通 Assistant 文本，又从未调用过 `send` 时，注入一条 harness 级 user 消息提醒其用 `send` 发送面向群聊的文本。判定排在「注入下一批」与空闲等待之前，因此该提醒按**注入批次**计数（每个批次至多触发一次），而不是按 Invocation 计数；触发与提醒文本记录在 `agent_messages` 中，role 为 `harness_nudge`。用于稳定性不足、偶尔把回复写成私文本却忘记调用 `send` 的模型。
 - `send_barrier_enabled`（可选，默认 `false`）：开启后，一轮里第一次即将真正发出的 `send` 前，若同一 Conversation 已有 `collecting` Bucket（模型组织回复期间又来了可触发消息），这批立即 attach 进当前 Invocation，本次 `send` 以 `send_barrier` 拒绝，新批次在下一个 turn 边界注入，模型读完再决定发什么，从而把「一句话被窗口切成两批、各回一次」合并成一次回复。每轮至多拦一次，行为细节见 [Telegram 与 Agent 流程：send 屏障](telegram-agent-flow.md#send-屏障)。
 - `allow_reply_message_multiple_times`（可选，默认 `false`）：默认开启按消息的 Reply 去重——同一 Conversation 内对同一条消息（`reply_to_message_id`）只允许一次回复，文字、贴纸、图片共享一次机会：已有 `success` 拒绝为 `reply_already_sent`，已有 `pending` / `outcome_unknown` 拒绝为 `reply_delivery_unknown`，只有明确失败可重试，且只依赖在线保留窗口内的发送审计、不承诺清理后的去重。被本守卫拒绝的文本或贴纸在当前 Invocation 内烧毁：删掉或改换引用目标重投同一内容会以 `send_bypass` 拒绝，本次运行结束后失效；图片与屏障/限流拦截不触发烧毁。设为 `true` 时禁用这一按消息的 Reply 去重连同烧毁，允许对同一显式目标多次发送；不会绕过授权、预算、发送限流或 send 屏障，也不关闭图片 generation/asset 交付去重或结果未知保护。`send` 工具描述随该值切换（开启时说明「当前配置允许对同一消息多次回复，但每次发送仍需有依据」），运行中的 Invocation 用启动时快照，显式应用配置后下一次 Invocation 与重放使用新值；全局字段，无 per-Chat 覆盖。细节见 [Telegram 与 Agent 流程：send Tool](telegram-agent-flow.md#send-tool)。
@@ -550,7 +550,7 @@ Agent 侧使用（`image_generate` 工具、图片技能、发送与审计链路
 - `idle_grace_seconds` 为 `0`（关闭长生命周期运行）或不小于每个 host 的 Bucket 窗口（`resolveBucketWindowSeconds`，当前即 `telegram.bucket_window_seconds`，Playground 房间为 0）；比一个 Bucket 窗口还短的等待会在下一个 Bucket 到期前就结束运行，看似启用实则无效，因此在配置期直接拒绝。
 - `max_wall_clock_seconds > idle_grace_seconds`。
 
-稳定系统提示与重建：稳定段与每批注入段各含什么，见 [Telegram 与 Agent 流程：Context 生命周期](telegram-agent-flow.md#context-生命周期)。配置侧只需记住：人格提示、Chat `instructions` 及其模板变量渲染结果都属于稳定段，其 SHA-256 记在 `conversation_contexts.system_prompt_hash`。稳定段内容一变（改 Prompt 文件或 `instructions_file`、运行时切换模型导致模板或图片说明变化等——仅当实际变化时才重建，切模型本身不必然清空历史），该 Conversation 的整份 Context 会重建：已保留的 transcript 与能力引用全部丢弃，`head_seq`/`next_seq` 复位为 1。时间、记忆、睡眠状态等运行期状态随批次注入，改变它们不会触发重建。
+稳定系统提示与重建：稳定段与每批注入段各含什么，见 [Telegram 与 Agent 流程：Context 生命周期](telegram-agent-flow.md#context-生命周期)。配置侧只需记住：人格提示、Chat `instructions` 及其模板变量渲染结果都属于稳定段，其 SHA-256 记在 `conversation_contexts.system_prompt_hash`。稳定段内容一变（改 Prompt 文件或 `instructions_file`、运行时切换模型导致模板或图片说明变化等——仅当实际变化时才重建，切模型本身不必然清空历史），该 Conversation 的整份 Context 会重建：已保留的 transcript 与能力引用全部丢弃，`head_seq`/`next_seq` 复位为 1。时间、Memo Pad 列表/增量、睡眠状态等运行期状态随批次注入，改变它们不会触发重建。
 
 ## MCP
 

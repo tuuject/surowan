@@ -195,7 +195,7 @@ describe('scene context', () => {
       'conversation_contexts',
       'context_messages',
       'context_refs',
-      'memories',
+      'memo_pad_entries',
     ];
     const counts = (): Record<string, number> =>
       Object.fromEntries(

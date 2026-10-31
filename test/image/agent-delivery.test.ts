@@ -1,3 +1,4 @@
+import { noMemoReads } from '../../src/platform/invocation-context.ts';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { imageSchema } from '@surowan/image-service';
@@ -62,6 +63,7 @@ test('send kind:image delivers finished outputs of a generation owned by this co
     conversationId: 42n,
     hostKind: 'telegram' as const,
     chatId: 100n,
+    internalChatId: 100n,
     threadId: 0n,
     systemPrompt: '',
     userPrompt: '',
@@ -70,6 +72,7 @@ test('send kind:image delivers finished outputs of a generation owned by this co
     callerUserId: 1n,
     completion: null,
     omittedNewMessages: 0,
+    memoReads: noMemoReads,
   } as Parameters<typeof createSendTool>[0]['context'];
   const send = createSendTool({
     store: fixtureRef.store,

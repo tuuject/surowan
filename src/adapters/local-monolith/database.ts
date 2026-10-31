@@ -3,6 +3,7 @@ import { basename, dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import type { RawConfig } from '../../platform/config/index.ts';
+import { MemoBlobStore } from '../../context/memo-pad/blobs.ts';
 import * as schema from '../../store/schema/index.ts';
 import { purgeExpiredData, type BusinessStore, type Orm } from '../../store/store.ts';
 
@@ -359,6 +360,12 @@ export async function backupDatabase(config: RawConfig): Promise<string> {
     source.exec('PRAGMA busy_timeout = 5000;');
     const sourceOrm = drizzle(source, { schema });
     purgeExpiredData(sourceOrm, config);
+    // Expired Memo entries are gone; drop the blob rows and files no remaining
+    // detail references before the SQLite copy is taken.
+    await new MemoBlobStore({
+      orm: sourceOrm,
+      root: join(config.data_dir, 'images', 'memo-blobs'),
+    }).sweep();
     const filename = `surowan-${timestampForFile()}-${crypto.randomUUID()}.sqlite`;
     const path = await createBackupFile(source, config.paths.backups, filename);
     // Original image files live outside SQLite; snapshot them next to the copy

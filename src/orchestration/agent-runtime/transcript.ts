@@ -9,7 +9,7 @@ import type { ContextHeader, RetainedContextMessage } from '../../context/store.
 import type { ActiveAgentSettings, RawConfig } from '../../platform/config/index.ts';
 import { invocations } from '../../store/schema/index.ts';
 import type { CachedConversationAgent } from '../conversation-runtime.ts';
-import type { RuntimeServices } from './types.ts';
+import type { RoundControl, RuntimeServices } from './types.ts';
 import { logContextGc, logContextRealigned } from './observability.ts';
 
 /**
@@ -97,6 +97,7 @@ export function persistMessage(
   invocationId: bigint,
   message: AgentMessage,
   isCheckpoint: boolean,
+  memoState?: RoundControl['pendingUserTags'][number]['memoState'],
 ): bigint | undefined {
   const encoded = encodeContextMessage(message);
   if (encoded === undefined) {
@@ -106,6 +107,7 @@ export function persistMessage(
   const seq = services.contexts.append(entry.header, {
     invocationId,
     isCheckpoint,
+    ...(memoState === undefined ? {} : { memoState }),
     estTokens: estimateMessageTokens(message),
     json: encoded.json,
     role: encoded.role,

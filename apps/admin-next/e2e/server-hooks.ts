@@ -4,7 +4,13 @@
  * prefix here before `AdminServer` sees it.
  */
 import { and, eq, sql } from 'drizzle-orm';
-import { adminPasskeys, adminSessions, longTasks, taskReceipts } from '../../../src/store/schema/index.ts';
+import {
+  adminPasskeys,
+  adminSessions,
+  longTasks,
+  memoPadEntries,
+  taskReceipts,
+} from '../../../src/store/schema/index.ts';
 import { enterSleep, wakeFromSleep } from '../../../src/store/sleep.ts';
 import { asRunResult } from '../../../src/store/store.ts';
 import { shutdown } from './server-lifecycle.ts';
@@ -103,6 +109,21 @@ export async function handleHook(request: Request, url: URL): Promise<Response> 
     return json({ status: 'stopping' });
   }
   const store = serverState.store;
+  if (request.method === 'POST' && route === '/expire-memo') {
+    if (store === null) {
+      return json({ error: 'store_closed' }, 500);
+    }
+    const id = url.searchParams.get('id');
+    if (id === null) {
+      return json({ error: 'missing_id' }, 400);
+    }
+    const expiresAt = new Date(Date.now() - 1_000).toISOString();
+    const createdAt = new Date(Date.parse(expiresAt) - 3_600_000).toISOString();
+    const result = asRunResult(
+      store.orm.update(memoPadEntries).set({ createdAt, expiresAt }).where(eq(memoPadEntries.id, id)).run(),
+    );
+    return json({ updated: Number(result.changes), expires_at: expiresAt });
+  }
   if (request.method === 'POST' && route === '/revoke-sessions') {
     const result = store === null ? null : asRunResult(store.orm.delete(adminSessions).run());
     return json({ deleted: Number(result?.changes ?? 0) });

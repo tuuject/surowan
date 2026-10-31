@@ -1,24 +1,38 @@
 /**
- * Pure memory-form helpers shared by the Memories page forms and list.
- * The bounds mirror the backend (`src/context/memory.ts` and
- * `src/ingress/admin/memory.ts`): content is capped at 150 characters
- * and TTL days are 1..1825 (the backend stores seconds, minimum 60; the panel
- * edits at day granularity like the old frontend).
+ * Pure Memo Pad form helpers shared by the Memories page forms and list.
+ * The bounds mirror the backend (`src/context/memo-pad/index.ts` and
+ * `src/ingress/admin/memory.ts`): the summary is capped at 150 characters, the
+ * detail at 32768, and TTL days are 1..1825 (the backend stores seconds,
+ * minimum 60; the panel edits at day granularity).
  */
 
 import i18n from './i18n.ts';
 
 export const DAY_SECONDS = 86_400;
-export const MEMORY_MAX_CONTENT_LENGTH = 150;
+export const MEMORY_SUMMARY_MAX_LENGTH = 150;
+export const MEMORY_DETAIL_MAX_LENGTH = 32_768;
 export const TTL_MIN_DAYS = 1;
 export const TTL_MAX_DAYS = 1_825;
 
-/** Converts a TTL in days to seconds; `null`/`undefined` stays `undefined` (edit keeps current expiry). */
+/**
+ * Create semantics: converts a TTL in days to seconds; `null`/`undefined`
+ * stays `undefined` and the entry is created permanent (long-term).
+ */
 export function daysToTtlSeconds(days: number | null | undefined): number | undefined {
   if (days === null || days === undefined) {
     return undefined;
   }
   return days * DAY_SECONDS;
+}
+
+/** Days displayed when editing; sub-day notes still retain their exact expiry until changed. */
+export function editTtlDays(ttlSeconds: number | null): number | null {
+  return ttlSeconds === null ? null : Math.max(TTL_MIN_DAYS, Math.round(ttlSeconds / DAY_SECONDS));
+}
+
+/** Omit an unchanged TTL; only an explicitly cleared duration promotes to permanent. */
+export function editTtlSeconds(days: number | null, initialDays: number | null): number | null | undefined {
+  return days === initialDays ? undefined : days === null ? null : days * DAY_SECONDS;
 }
 
 export function isTtlDaysValid(days: number | null | undefined): boolean {

@@ -119,6 +119,17 @@ test('a present Authorization header never falls back to the session cookie', as
   const upgraded = await request.get(await adminUrl('/api/memories'), { headers: { cookie, ...bearer(key) } });
   expect(upgraded.status()).toBe(403);
 
+  // Memo Pad image bytes are panel-session only: an unauthenticated request is
+  // rejected, a Bearer key is forbidden even with the cookie, and the session
+  // reaches the route (the fixture has no blob for this well-formed id).
+  const blobPath = await adminUrl(`/api/memories/blobs/blb_${'a'.repeat(32)}/content`);
+  const anonymousBlob = await request.get(blobPath);
+  expect(anonymousBlob.status()).toBe(401);
+  const keyBlob = await request.get(blobPath, { headers: { cookie, ...bearer(key) } });
+  expect(keyBlob.status()).toBe(403);
+  const sessionBlob = await request.get(blobPath, { headers: { cookie } });
+  expect(sessionBlob.status()).toBe(404);
+
   // The session cookie itself is still intact.
   const session = await request.get(await adminUrl('/api/invocations'), { headers: { cookie } });
   expect(session.status()).toBe(200);

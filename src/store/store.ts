@@ -31,7 +31,7 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
   const cutoff = new Date(now.getTime() - config.retention.online_days * 86_400_000).toISOString();
   orm.transaction(
     () => {
-      orm.run(sql`DELETE FROM memories WHERE expires_at <= ${now.toISOString()}`);
+      orm.run(sql`DELETE FROM memo_pad_entries WHERE expires_at IS NOT NULL AND expires_at <= ${now.toISOString()}`);
       orm.run(sql`DELETE FROM conversation_attention WHERE expires_at <= ${now.toISOString()}`);
       orm.run(sql`DELETE FROM telegram_updates WHERE received_at < ${cutoff}`);
       orm.run(sql`

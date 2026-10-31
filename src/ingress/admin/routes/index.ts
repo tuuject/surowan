@@ -1,5 +1,7 @@
+import { join } from 'node:path';
 import type { BucketScheduler } from '../../../orchestration/scheduler/index.ts';
 import { LongTaskService } from '../../../store/long-tasks/index.ts';
+import { MemoBlobStore } from '../../../context/memo-pad/blobs.ts';
 import type { ImageBridge } from '../../../image/bridge.ts';
 import type { ImageService } from '../../../image/service.ts';
 import { ImConnectionRegistry } from '../../../platform/im-connection.ts';
@@ -69,6 +71,12 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       ? undefined
       : createImageAdminHandler({ service: imageService, bridge: imageBridge });
   const playground = playgroundDeps === undefined ? undefined : createPlaygroundAdminHandler(playgroundDeps);
+  const memoBlobs =
+    options.memoBlobs ??
+    new MemoBlobStore({
+      orm: options.store.orm,
+      root: join(options.configStore.current().config.data_dir, 'images', 'memo-blobs'),
+    });
   const readInvocationMedia =
     options.mediaDownloader === undefined
       ? undefined
@@ -103,7 +111,10 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       secrets,
       modelSwitcher: options.modelSwitcher,
     }),
-    memory: createMemoryAdminHandler({ store: options.store, configStore: options.configStore }),
+    memory: createMemoryAdminHandler({
+      store: options.store,
+      memoBlobs,
+    }),
     admins: createAdminsAdminHandler({ configReloader: reloader, secrets }),
     providers: createProvidersAdminHandler({
       store: options.store,
@@ -118,6 +129,8 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       configStore: options.configStore,
       configReloader: reloader,
       secrets,
+      memoBlobs,
+      ...(scheduler === undefined ? {} : { scheduler }),
     }),
     prompts: createPromptsAdminHandler({
       store: options.store,
