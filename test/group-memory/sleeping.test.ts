@@ -179,3 +179,52 @@ test('disabled Chats and a global budget sleep start no model call', async () =>
     await f.close();
   }
 });
+
+test('the per-tick cap counts failed model calls, not only successful commits', async () => {
+  const f = await groupMemoryFixture({ faux: true, extraChatIds: [-1001, -1002, -1003] });
+  try {
+    for (const chat of [f, ...f.extraChats]) {
+      seedMessage(f.store, chat, {
+        telegramMessageId: 4005,
+        date: new Date('2026-10-01T10:00:00.000Z'),
+        text: 'hello',
+      });
+    }
+    // A provider outage: every call returns something unusable.
+    f.faux?.setResponses(Array.from({ length: 4 }, () => fauxAssistantMessage('not json')));
+    expect(await service(f).tick(new Date('2026-10-02T12:00:00.000Z'))).toBe(0);
+    expect(f.store.orm.select().from(modelCalls).all()).toHaveLength(3);
+  } finally {
+    await f.close();
+  }
+});
+
+test('a Chat paused while an earlier batch was running starts no model call', async () => {
+  const f = await groupMemoryFixture({ faux: true, extraChatIds: [-1001] });
+  const second = f.extraChats[0];
+  if (second === undefined) {
+    throw new Error('Missing extra Chat');
+  }
+  try {
+    for (const chat of [f, second]) {
+      seedMessage(f.store, chat, {
+        telegramMessageId: 4005,
+        date: new Date('2026-10-01T10:00:00.000Z'),
+        text: 'hello',
+      });
+    }
+    f.faux?.setResponses([
+      () => {
+        // While the first Chat's call is in flight, the operator pauses the second.
+        f.store.orm.insert(chatPause).values({ chatId: second.chatId, pausedAt: '2026-10-02T12:00:00.000Z' }).run();
+        return fauxAssistantMessage('{"events":[]}');
+      },
+      fauxAssistantMessage('{"events":[]}'),
+    ]);
+    expect(await service(f).tick(new Date('2026-10-02T12:00:00.000Z'))).toBe(1);
+    expect(f.store.orm.select().from(modelCalls).all()).toHaveLength(1);
+    expect(f.groupMemory.state(second.chatId)).toBeUndefined();
+  } finally {
+    await f.close();
+  }
+});

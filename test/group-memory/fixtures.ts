@@ -22,8 +22,16 @@ export interface GroupMemoryFixture {
   readonly chatId: bigint;
   readonly telegramChatId: bigint;
   readonly conversationId: bigint;
+  /** Further configured, group-memory-enabled Chats from `extraChatIds`, in order. */
+  readonly extraChats: readonly SeededGroupChat[];
   readonly faux: FauxProviderHandle | undefined;
   close(): Promise<void>;
+}
+
+export interface SeededGroupChat {
+  readonly chatId: bigint;
+  readonly telegramChatId: bigint;
+  readonly conversationId: bigint;
 }
 
 export interface SeedMessageInput {
@@ -130,7 +138,7 @@ export function seedMessage(
 }
 
 export async function groupMemoryFixture(
-  options: { readonly faux?: boolean; readonly enabled?: boolean } = {},
+  options: { readonly faux?: boolean; readonly enabled?: boolean; readonly extraChatIds?: readonly number[] } = {},
 ): Promise<GroupMemoryFixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-group-memory-'));
   const configPath = join(directory, 'config.jsonc');
@@ -144,6 +152,9 @@ export async function groupMemoryFixture(
       }
       if (options.enabled !== false) {
         chat.group_memory = { enabled: true, idle_minutes: 30 };
+      }
+      for (const id of options.extraChatIds ?? []) {
+        config.telegram.chats.push({ ...structuredClone(chat), id, group_memory: { enabled: true, idle_minutes: 30 } });
       }
     }),
   );
@@ -181,6 +192,18 @@ export async function groupMemoryFixture(
   if (conversation === undefined) {
     throw new Error('conversation insert returned no row');
   }
+  const extraChats = (options.extraChatIds ?? []).map((telegramChatId, index): SeededGroupChat => {
+    const chatId = BigInt(index + 2);
+    store.orm.run(
+      sql`INSERT INTO chats (id, host_kind, telegram_chat_id, canonical_chat_id, type, title, updated_at)
+          VALUES (${chatId}, 'telegram', ${telegramChatId}, ${telegramChatId}, 'supergroup', 'Extra group', '2026-01-01T00:00:00.000Z')`,
+    );
+    return {
+      chatId,
+      telegramChatId: BigInt(telegramChatId),
+      conversationId: ensureConversation(store, chatId, 0n),
+    };
+  });
   return {
     directory,
     loaded,
@@ -191,6 +214,7 @@ export async function groupMemoryFixture(
     chatId: seeded.chatId,
     telegramChatId: seeded.telegramChatId,
     conversationId: conversation.id,
+    extraChats,
     faux,
     close: async () => {
       store.close();

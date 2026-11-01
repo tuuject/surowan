@@ -1,9 +1,10 @@
+import type { Models } from '@earendil-works/pi-ai';
 import { sql } from 'drizzle-orm';
 import type { RawConfig } from '../../platform/config/index.ts';
 import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
-import { resolveToolModel } from '../../platform/tool-model.ts';
+import { resolveToolModel, type ToolModelSelection } from '../../platform/tool-model.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { isChatPaused, resolveChatConfig } from '../../store/store.ts';
 import { activeSleepUntil } from '../../store/sleep.ts';
@@ -106,19 +107,34 @@ export class SleepingService {
     this.#busy = true;
     try {
       this.#groupMemory.recoverStale(now);
-      const config = this.#configStore.current();
-      const selection = resolveToolModel(config.config);
+      const startedAt = performance.now();
+      let attempts = 0;
       let consolidated = 0;
-      for (const batch of this.#eligibleBatches(config.config, now)) {
-        if (this.#stopping || consolidated >= MAX_CONSOLIDATIONS_PER_TICK) {
+      for (const candidate of this.#candidateChats(this.#configStore.current().config)) {
+        // The cap counts model calls, not successes: during a provider outage a
+        // failing call is exactly as expensive as a good one.
+        if (this.#stopping || attempts >= MAX_CONSOLIDATIONS_PER_TICK) {
           break;
         }
-        const claimed = this.#groupMemory.claim(batch.chatId, now);
+        // Each earlier batch may have waited minutes on the model. Re-evaluate
+        // every gate against the current state and the elapsed clock instead of
+        // trusting a decision taken before that wait.
+        const at = new Date(now.getTime() + Math.round(performance.now() - startedAt));
+        if (!this.#isHostReady('telegram') || activeSleepUntil(this.#store.orm, at) !== null) {
+          break;
+        }
+        const config = this.#configStore.current();
+        const batch = this.#batchFor(config.config, candidate, at);
+        if (batch === undefined) {
+          continue;
+        }
+        const claimed = this.#groupMemory.claim(batch.chatId, at);
         if (!claimed) {
           continue;
         }
+        const selection = resolveToolModel(config.config);
         if (selection === undefined) {
-          this.#groupMemory.fail(batch.chatId, 'tool_model_unavailable', now);
+          this.#groupMemory.fail(batch.chatId, 'tool_model_unavailable', at);
           log('group_memory_failed', {
             chat_id: batch.chatId.toString(),
             day: batch.day,
@@ -126,51 +142,9 @@ export class SleepingService {
           });
           continue;
         }
-        const controller = new AbortController();
-        this.#controller = controller;
-        try {
-          const result = await consolidateDay(
-            { orm: this.#store.orm, secrets: this.#secrets },
-            {
-              day: batch.day,
-              rows: batch.rows,
-              models: config.models,
-              selection,
-              signal: controller.signal,
-              now,
-            },
-          );
-          const stillEnabled =
-            resolveChatConfig(this.#configStore.current().config, this.#store.orm, batch.telegramChatId)?.group_memory
-              ?.enabled === true;
-          if (!stillEnabled) {
-            // The Admin switched the Chat off while the model was running: do
-            // not write memories for a Chat whose capability is already gone.
-            this.#groupMemory.fail(batch.chatId, 'group_memory_disabled', now, 0);
-            log('group_memory_failed', {
-              chat_id: batch.chatId.toString(),
-              day: batch.day,
-              error_code: 'group_memory_disabled',
-            });
-            continue;
-          }
-          this.#groupMemory.commit(batch.chatId, batch.day, result.events, result.through, now);
+        attempts += 1;
+        if (await this.#consolidate(batch, config.models, selection, at)) {
           consolidated += 1;
-          log('group_memory_consolidated', {
-            chat_id: batch.chatId.toString(),
-            day: batch.day,
-            messages: result.messages,
-            events: result.events.length,
-            through: result.through.toString(),
-          });
-        } catch (error) {
-          const code = error instanceof Error && 'code' in error ? String(error.code) : 'group_memory_error';
-          // A shutdown-aborted batch must be retried as soon as the next process
-          // starts, not after the normal failure backoff.
-          this.#groupMemory.fail(batch.chatId, this.#stopping ? 'shutdown' : code, now, this.#stopping ? 0 : undefined);
-          log('group_memory_failed', { chat_id: batch.chatId.toString(), day: batch.day, error_code: code });
-        } finally {
-          this.#controller = undefined;
         }
       }
       return consolidated;
@@ -179,13 +153,60 @@ export class SleepingService {
     }
   }
 
-  /**
-   * The batches this pass may summarize, oldest Chat first. A Chat contributes
-   * at most its first pending Chat-local day, so a backlog is consolidated one
-   * day at a time and never mixes two days into one memory batch.
-   */
-  #eligibleBatches(config: RawConfig, now: Date): Batch[] {
-    const batches: Batch[] = [];
+  /** Runs one claimed batch; true when its memories were committed. */
+  async #consolidate(batch: Batch, models: Models, selection: ToolModelSelection, now: Date): Promise<boolean> {
+    const controller = new AbortController();
+    this.#controller = controller;
+    try {
+      const result = await consolidateDay(
+        { orm: this.#store.orm, secrets: this.#secrets },
+        {
+          day: batch.day,
+          rows: batch.rows,
+          models,
+          selection,
+          signal: controller.signal,
+          now,
+        },
+      );
+      const stillEnabled =
+        resolveChatConfig(this.#configStore.current().config, this.#store.orm, batch.telegramChatId)?.group_memory
+          ?.enabled === true;
+      if (!stillEnabled) {
+        // The Admin switched the Chat off while the model was running: do
+        // not write memories for a Chat whose capability is already gone.
+        this.#groupMemory.fail(batch.chatId, 'group_memory_disabled', now, 0);
+        log('group_memory_failed', {
+          chat_id: batch.chatId.toString(),
+          day: batch.day,
+          error_code: 'group_memory_disabled',
+        });
+        return false;
+      }
+      this.#groupMemory.commit(batch.chatId, batch.day, result.events, result.through, now);
+      log('group_memory_consolidated', {
+        chat_id: batch.chatId.toString(),
+        day: batch.day,
+        messages: result.messages,
+        events: result.events.length,
+        through: result.through.toString(),
+      });
+      return true;
+    } catch (error) {
+      const code = error instanceof Error && 'code' in error ? String(error.code) : 'group_memory_error';
+      // A shutdown-aborted batch must be retried as soon as the next process
+      // starts, not after the normal failure backoff.
+      this.#groupMemory.fail(batch.chatId, this.#stopping ? 'shutdown' : code, now, this.#stopping ? 0 : undefined);
+      log('group_memory_failed', { chat_id: batch.chatId.toString(), day: batch.day, error_code: code });
+      return false;
+    } finally {
+      this.#controller = undefined;
+    }
+  }
+
+  /** Stored Chats of every configured Chat with group memory on, each once. */
+  #candidateChats(config: RawConfig): ChatRow[] {
+    const candidates: ChatRow[] = [];
     const seen = new Set<string>();
     for (const configured of config.telegram.chats) {
       if (configured.group_memory?.enabled !== true) {
@@ -201,54 +222,63 @@ export class SleepingService {
       );
       for (const row of rows) {
         const key = row.id.toString();
-        if (seen.has(key)) {
-          continue;
+        if (!seen.has(key)) {
+          seen.add(key);
+          candidates.push(row);
         }
-        seen.add(key);
-        const chat = resolveChatConfig(config, this.#store.orm, row.telegram_chat_id);
-        if (chat?.group_memory?.enabled !== true) {
-          continue;
-        }
-        // `/pause` is an operator stop, not just a reply gate: it also stops
-        // background model calls until the Chat resumes.
-        if (isChatPaused(this.#store.orm, row.id) || this.#chatBusy(row.id)) {
-          continue;
-        }
-        const state = this.#groupMemory.state(row.id);
-        const watermark = state?.consolidatedThroughMessageId ?? 0n;
-        const pending = loadPendingMessages(this.#store.orm, row.id, watermark);
-        const first = pending[0];
-        if (first === undefined) {
-          continue;
-        }
-        const timezone = chat.timezone ?? config.timezone;
-        const day = chatLocalDay(first.telegramDate, timezone);
-        if (day > chatLocalDay(now.toISOString(), timezone)) {
-          // Clock skew or a future-dated message: wait instead of inventing a day.
-          continue;
-        }
-        const window = localDayWindow(day, timezone);
-        const dayRows = pending.filter(
-          (message) => message.telegramDate >= window.start && message.telegramDate < window.end,
-        );
-        const rows = trimToBudget(dayRows);
-        if (rows.length === 0) {
-          continue;
-        }
-        if (day === chatLocalDay(now.toISOString(), timezone)) {
-          const newest = newestPendingMessage(this.#store.orm, row.id, watermark);
-          if (newest === undefined) {
-            continue;
-          }
-          const idleMilliseconds = (chat.group_memory.idle_minutes ?? GROUP_MEMORY_DEFAULT_IDLE_MINUTES) * 60_000;
-          if (now.getTime() - Date.parse(newest.telegramDate) < idleMilliseconds) {
-            continue;
-          }
-        }
-        batches.push({ chatId: row.id, telegramChatId: row.telegram_chat_id, day, rows });
       }
     }
-    return batches;
+    return candidates;
+  }
+
+  /**
+   * The batch one Chat may summarize right now, or undefined. A Chat contributes
+   * at most its first pending Chat-local day, so a backlog is consolidated one
+   * day at a time and never mixes two days into one memory batch.
+   */
+  #batchFor(config: RawConfig, row: ChatRow, now: Date): Batch | undefined {
+    const chat = resolveChatConfig(config, this.#store.orm, row.telegram_chat_id);
+    if (chat?.group_memory?.enabled !== true) {
+      return undefined;
+    }
+    // `/pause` is an operator stop, not just a reply gate: it also stops
+    // background model calls until the Chat resumes.
+    if (isChatPaused(this.#store.orm, row.id) || this.#chatBusy(row.id)) {
+      return undefined;
+    }
+    const state = this.#groupMemory.state(row.id);
+    const watermark = state?.consolidatedThroughMessageId ?? 0n;
+    const pending = loadPendingMessages(this.#store.orm, row.id, watermark);
+    const first = pending[0];
+    if (first === undefined) {
+      return undefined;
+    }
+    const timezone = chat.timezone ?? config.timezone;
+    const today = chatLocalDay(now.toISOString(), timezone);
+    const day = chatLocalDay(first.telegramDate, timezone);
+    if (day > today) {
+      // Clock skew or a future-dated message: wait instead of inventing a day.
+      return undefined;
+    }
+    const window = localDayWindow(day, timezone);
+    const dayRows = pending.filter(
+      (message) => message.telegramDate >= window.start && message.telegramDate < window.end,
+    );
+    const rows = trimToBudget(dayRows);
+    if (rows.length === 0) {
+      return undefined;
+    }
+    if (day === today) {
+      const newest = newestPendingMessage(this.#store.orm, row.id, watermark);
+      if (newest === undefined) {
+        return undefined;
+      }
+      const idleMilliseconds = (chat.group_memory.idle_minutes ?? GROUP_MEMORY_DEFAULT_IDLE_MINUTES) * 60_000;
+      if (now.getTime() - Date.parse(newest.telegramDate) < idleMilliseconds) {
+        return undefined;
+      }
+    }
+    return { chatId: row.id, telegramChatId: row.telegram_chat_id, day, rows };
   }
 
   #chatBusy(chatId: bigint): boolean {
