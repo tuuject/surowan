@@ -122,7 +122,7 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 | `POST /chats` / `PUT /chats/:id` / `DELETE /chats/:id` | Chat/Topic 白名单与按 Chat 的模型/thinking 覆盖，见「Chats 页端点」；新增与删除 Chat 都热应用（删除停止该 Chat 的运行与任务、立即删除其数据），Topic 范围等待重启，已有 active Chat 的模型覆盖热应用 |
 | `PUT /chats/:id/participation` | 编辑该 Chat 的活跃时段（`participation.active_windows`），热应用，见「Chats 页端点」 |
 | `PUT /chats/:id/proactive-reply` | 编辑该 Chat 的主动回复概率覆盖（`proactive_reply`），热应用，见「Chats 页端点」 |
-| `PUT /chats/:id/group-memory` | `{ enabled: boolean, idle_minutes?: 1-1440 \| null }`；只编辑该 Chat 的 `group_memory`，省略 `idle_minutes` 保留旧值，`null` 删除该字段。热应用；`enabled` 变化时配置发布后中止该 Chat 所有 running Invocation、驱逐 Agent 缓存并重建全部 Conversation Context，响应在切替完成后返回 |
+| `PUT /chats/:id/group-memory` | `{ enabled: boolean, idle_minutes?: 1-1440 \| null }`；只编辑该 Chat 的 `group_memory`，省略 `idle_minutes` 保留旧值，`null` 删除该字段。热应用；`enabled` 变化时配置发布后 fence 该 Chat 的全部 Conversation（排队的 Invocation 暂不启动）、中止所有 running Invocation，等它们落定后再驱逐 Agent 缓存并重建全部 Conversation Context。通常响应在切替完成后返回；某个 handler 30 秒内仍未落定时，响应先返回（日志 `group_memory_toggled` 记 `settled: false`），fence 保持到该 handler 落定，再完成重建（`group_memory_cutover_completed` / `group_memory_cutover_failed`），绝不在旧写者存活时重置 Context |
 | `PUT /chats/:id/group-memory` | 开关该 Chat 的群聊记忆并设置 `idle_minutes`；热应用。开关状态变化时，配置发布完成后会中止该 Chat 所有 running Invocation、驱逐 Agent 缓存并重建其全部 Conversation Context，响应在完成切替后返回，见「Chats 页端点」 |
 | `PUT` / `DELETE /group-memories/:id` | 修改群聊记忆的 summary 或删除该条事件。summary 1–150 字符；消息区间、日期与 Chat 不可改。删除不回退 sleeping 水位，因此同一区间不会重新生成。仅面板 Session |
 | `POST` / `PUT` / `DELETE /providers[...]` | Provider 与模型管理及 `POST /providers/health-check` 模型诊断，见「Models 页写端点」 |

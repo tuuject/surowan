@@ -24,6 +24,11 @@ export type SchedulerLoopDeps = {
   /** Whether one host may execute work right now. */
   readonly isHostReady: HostReadiness;
   readonly active: Map<string, ActiveInvocation>;
+  /**
+   * Conversations a cutover holds closed: their queued work is neither launched
+   * nor counted as due until the fence is released.
+   */
+  readonly fencedConversations: () => readonly bigint[];
   /** The loop's own flag: it stops launching as soon as `stop` clears it. */
   readonly isRunning: () => boolean;
   /** Starts one invocation; resolves after its terminal state is persisted. */
@@ -41,6 +46,18 @@ export type SchedulerLoopDeps = {
  */
 function servedConversations(deps: SchedulerLoopDeps, column: SQL): SQL {
   return conversationsOfHosts(activeHosts(deps.hosts, deps.isHostReady), column);
+}
+
+/** Excludes fenced Conversations; an empty fence matches every row. */
+function unfenced(deps: SchedulerLoopDeps, column: SQL): SQL {
+  const fenced = deps.fencedConversations();
+  if (fenced.length === 0) {
+    return sql`1 = 1`;
+  }
+  return sql`${column} NOT IN (${sql.join(
+    fenced.map((id) => sql`${id}`),
+    sql`, `,
+  )})`;
 }
 
 /**
@@ -112,6 +129,7 @@ export function nextDelayMilliseconds(deps: SchedulerLoopDeps): number {
          JOIN conversations v ON v.id = i.conversation_id
          WHERE i.state = 'queued'
            AND ${servedConversations(deps, sql`i.conversation_id`)}
+           AND ${unfenced(deps, sql`i.conversation_id`)}
            AND NOT EXISTS (
              SELECT 1 FROM invocations r JOIN conversations v2 ON v2.id = r.conversation_id
              WHERE v2.chat_id = v.chat_id AND r.state = 'running'
@@ -162,6 +180,7 @@ export function launchQueued(deps: SchedulerLoopDeps): void {
              LEFT JOIN task_receipts r ON r.invocation_id = i.id AND r.state = 'claimed'
              WHERE i.state = 'queued' AND b.deadline_at <= ${new Date().toISOString()}
                AND ${servedConversations(deps, sql`i.conversation_id`)}
+               AND ${unfenced(deps, sql`i.conversation_id`)}
                AND NOT EXISTS (
                  SELECT 1 FROM invocations r
                  JOIN conversations v2 ON v2.id = r.conversation_id

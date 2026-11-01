@@ -1,153 +1,22 @@
 import { eq } from 'drizzle-orm';
-import { afterEach, expect, test, vi } from 'vitest';
-import { ConfigReloader, type ImageConfigGateway } from '../../src/adapters/local-monolith/config/reload.ts';
-import { applyGroupMemoryToggles, stopRemovedChats } from '../../src/adapters/local-monolith/runtime/chat-lifecycle.ts';
-import { createChatsAdminHandler } from '../../src/ingress/admin/routes/chats.ts';
-import { BucketScheduler, type InvocationHandler } from '../../src/orchestration/scheduler/index.ts';
-import { ConversationContextStore } from '../../src/context/store.ts';
-import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
-import { SecretStore } from '../../src/platform/secrets.ts';
-import { LongTaskService } from '../../src/store/long-tasks/index.ts';
+import { expect, test, vi } from 'vitest';
+import type { InvocationHandler } from '../../src/orchestration/scheduler/index.ts';
 import {
   buckets,
   chatMigrations,
   chats,
-  contextMessages,
   conversations,
-  invocationBuckets,
   invocations,
   longTasks,
   taskReceipts,
   toolCalls,
 } from '../../src/store/schema/index.ts';
-import { finishToolCall, startToolCall } from '../../src/store/store.ts';
-import { pathExists, type FixtureConfig } from '../helpers.ts';
-import { memoFixture, seedChat, seedInvocation, type MemoFixture } from '../memo/fixtures.ts';
+import { pathExists } from '../helpers.ts';
+import { seedChat } from '../memo/fixtures.ts';
 
-const cleanup: Array<() => Promise<void>> = [];
+import { fixture, queue, slowHandler, useLifecycleCleanup } from './chats-lifecycle-fixtures.ts';
 
-afterEach(async () => {
-  for (const close of cleanup.splice(0)) {
-    await close();
-  }
-  vi.restoreAllMocks();
-});
-
-async function fixture(
-  handler: (f: MemoFixture) => InvocationHandler,
-  options: { transform?: (config: FixtureConfig) => void; imageConfig?: ImageConfigGateway } = {},
-) {
-  const f = await memoFixture(options.transform);
-  const tasks = new LongTaskService(f.store.orm);
-  const scheduler = new BucketScheduler(f.store, f.configStore, handler(f), undefined, tasks);
-  cleanup.push(async () => {
-    await scheduler.stop(0);
-    await f.close();
-  });
-  let published = f.configStore.current().config;
-  const forget = vi.fn();
-  const reloader = new ConfigReloader({
-    loaded: f.loaded,
-    store: f.configStore,
-    modelSwitcher: new AgentModelSwitcher(f.configStore),
-    secrets: new SecretStore(keyJarPath(f.loaded.configPath)),
-    validateAgentModel: () => undefined,
-    ...(options.imageConfig === undefined ? {} : { imageConfig: options.imageConfig }),
-    onPublished: async () => {
-      const next = f.configStore.current().config;
-      const nextIds = new Set(next.telegram.chats.map((chat) => chat.id));
-      const removed = published.telegram.chats.filter((chat) => !nextIds.has(chat.id)).map((chat) => BigInt(chat.id));
-      stopRemovedChats(f.store, tasks, (ids, reason) => scheduler.abortInvocations(ids, reason), forget, removed, next);
-      await applyGroupMemoryToggles(f.store, scheduler, forget, published, next);
-      published = next;
-      scheduler.wake();
-    },
-  });
-  const route = createChatsAdminHandler({
-    store: f.store,
-    configStore: f.configStore,
-    configReloader: reloader,
-    secrets: undefined,
-    memoBlobs: f.blobs,
-    scheduler,
-  });
-  const updateGroupMemory = async (id: bigint, body: { readonly enabled: boolean }) => {
-    const response = await route.handle(
-      new Request(`http://localhost/api/chats/${id}/group-memory`, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json', 'if-match': await reloader.revision() },
-        body: JSON.stringify(body),
-      }),
-      ['chats', id.toString(), 'group-memory'],
-    );
-    if (response === undefined) {
-      throw new Error('Group memory route was not handled');
-    }
-    return response;
-  };
-  const remove = async (id: bigint) => {
-    const response = await route.handle(
-      new Request(`http://localhost/api/chats/${id}`, {
-        method: 'DELETE',
-        headers: { 'if-match': await reloader.revision() },
-      }),
-      ['chats', id.toString()],
-    );
-    if (response === undefined) {
-      throw new Error('Chat delete route was not handled');
-    }
-    return response;
-  };
-  return { ...f, tasks, scheduler, reloader, forget, updateGroupMemory, remove };
-}
-
-function queue(f: MemoFixture, conversationId: bigint): bigint {
-  const id = seedInvocation(f.store, conversationId);
-  const now = new Date().toISOString();
-  const invocation = f.store.orm.select().from(invocations).where(eq(invocations.id, id)).get();
-  if (invocation === undefined) {
-    throw new Error('Missing seeded invocation');
-  }
-  f.store.orm.update(invocations).set({ state: 'queued', createdAt: now }).where(eq(invocations.id, id)).run();
-  f.store.orm
-    .update(buckets)
-    .set({ state: 'queued', firstReceivedAt: now, deadlineAt: now, createdAt: now, updatedAt: now })
-    .where(eq(buckets.id, invocation.bucketId))
-    .run();
-  f.store.orm
-    .insert(invocationBuckets)
-    .values({ invocationId: id, bucketId: invocation.bucketId, attachedAt: now, injectedAt: now })
-    .run();
-  return id;
-}
-
-function slowHandler() {
-  const started = Promise.withResolvers<void>();
-  const aborted = Promise.withResolvers<void>();
-  const release = Promise.withResolvers<void>();
-  const audited = vi.fn();
-  cleanup.push(async () => release.resolve());
-  return {
-    started,
-    aborted,
-    release,
-    audited,
-    handler:
-      (f: MemoFixture): InvocationHandler =>
-      async (id, _snapshot, signal) => {
-        const auditId = startToolCall(f.store.orm, id, 'slow-tool', 'test', '{}', false);
-        signal.addEventListener('abort', () => aborted.resolve(), { once: true });
-        started.resolve();
-        await release.promise;
-        finishToolCall(f.store.orm, auditId, 'success', 'finished after abort', null);
-        const lateAuditId = startToolCall(f.store.orm, id, 'late-audit', 'test-finalize', '{}', false);
-        finishToolCall(f.store.orm, lateAuditId, 'success', 'final audit persisted', null);
-        audited(f.store.orm.select().from(toolCalls).where(eq(toolCalls.id, auditId)).get());
-        return { state: signal.aborted ? 'aborted' : 'completed', reason: signal.aborted ? 'chat_removed' : 'done' };
-      },
-  };
-}
+useLifecycleCleanup();
 
 test('Admin delete waits for a run started during asynchronous configuration preparation', async () => {
   const run = slowHandler();
@@ -392,42 +261,4 @@ test('explicit purge leaves an unrelated configured Chat and its waiting task in
   expect(f.memoPad.get(entry.id, retained.chatId)).toBeDefined();
   expect(f.store.orm.select().from(longTasks).where(eq(longTasks.id, task.taskId)).get()?.state).toBe('waiting');
   expect(await pathExists(f.blobs.absolutePath(blob.blob))).toBe(true);
-});
-
-test('toggling group memory aborts the running Invocation and rebuilds the Conversation Context', async () => {
-  const run = slowHandler();
-  const f = await fixture(run.handler);
-  const chat = seedChat(f.store, 123456789n);
-  const contexts = new ConversationContextStore(f.store);
-  const opened = contexts.open(chat.conversationId, 'seed-hash');
-  contexts.append(opened.header, {
-    invocationId: null,
-    isCheckpoint: true,
-    estTokens: 1,
-    json: JSON.stringify({ role: 'user', content: [{ type: 'text', text: 'before toggle' }] }),
-    role: 'user',
-  });
-  const id = queue(f, chat.conversationId);
-  f.scheduler.start();
-  await run.started.promise;
-  try {
-    const toggle = f.updateGroupMemory(chat.telegramChatId, { enabled: true });
-    await run.aborted.promise;
-    expect(f.configStore.current().config.telegram.chats[0]?.group_memory).toEqual({ enabled: true });
-    run.release.resolve();
-    expect((await toggle).status).toBe(200);
-    expect(f.forget).toHaveBeenCalledWith(chat.conversationId);
-    expect(
-      f.store.orm.select().from(contextMessages).where(eq(contextMessages.contextId, opened.header.id)).all(),
-    ).toEqual([]);
-    expect(contexts.header(chat.conversationId)).toMatchObject({
-      headSeq: 1n,
-      nextSeq: 1n,
-      sendCountTotal: 0n,
-      memoRefreshPending: true,
-    });
-    expect(f.store.orm.select().from(invocations).where(eq(invocations.id, id)).get()?.state).toBe('aborted');
-  } finally {
-    run.release.resolve();
-  }
 });

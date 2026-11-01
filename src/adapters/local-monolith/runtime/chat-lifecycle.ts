@@ -40,16 +40,38 @@ export function toggledGroupMemoryChats(previous: RawConfig, next: RawConfig): G
 /** The scheduler surface a group-memory toggle needs; tests pass a stub. */
 export interface InvocationStopper {
   abortInvocations(ids: readonly bigint[], reason: string): number;
+  fenceConversations(ids: readonly bigint[]): () => void;
   waitForInvocations(ids: readonly bigint[], timeoutMilliseconds?: number): Promise<boolean>;
+  settleInvocations(ids: readonly bigint[]): Promise<void>;
 }
+
+export interface GroupMemoryCutover {
+  readonly chats: number;
+  readonly conversations: number;
+  readonly invocations: number;
+  /** Contexts rebuilt before this call returned; 0 while `settled` is false. */
+  readonly rebuilt: number;
+  /** False: a handler outlived the wait, and the rebuild runs in `completion`. */
+  readonly settled: boolean;
+  /** Resolves with the rebuilt count once the cutover has really finished. */
+  readonly completion: Promise<number>;
+}
+
+/** How long a toggle waits in-line before handing the rebuild to `completion`. */
+const CUTOVER_WAIT_MILLISECONDS = 30_000;
 
 /**
  * Enforces a group-memory switch change: abort every running Invocation of the
  * Chat, drop its cached Agents, then rebuild every Conversation Context from
  * scratch. The config is published before this runs, so queued work starts with
- * the new tool set; aborting running work closes the window where an old run
- * could finish with the previous capability set. The abort/check loop is bounded
- * so a queued run that starts during the cutover is caught in the next round.
+ * the new tool set once the cutover ends.
+ *
+ * The Conversations are fenced first, so no queued run can start between the
+ * abort and the rebuild. A Context is only rewritten after every handler that
+ * held it has settled: a live handler keeps its own header and sequence
+ * counters, and resetting under it would fork the canonical history. When a
+ * handler outlives the in-line wait the fence stays up and the rebuild finishes
+ * in `completion` instead of racing the stale writer.
  */
 export async function applyGroupMemoryToggles(
   store: BusinessStore,
@@ -57,57 +79,71 @@ export async function applyGroupMemoryToggles(
   forgetConversation: (conversationId: bigint) => void,
   previous: RawConfig,
   next: RawConfig,
-  now = new Date(),
-): Promise<{
-  readonly chats: number;
-  readonly conversations: number;
-  readonly invocations: number;
-  readonly rebuilt: number;
-  readonly settled: boolean;
-}> {
+  options: { readonly now?: Date; readonly waitMilliseconds?: number } = {},
+): Promise<GroupMemoryCutover> {
   const toggles = toggledGroupMemoryChats(previous, next);
-  if (toggles.length === 0) {
-    return { chats: 0, conversations: 0, invocations: 0, rebuilt: 0, settled: true };
-  }
-  const conversationIds = conversationIdsForTelegramChats(
-    store,
-    toggles.map((toggle) => toggle.chatId),
-  );
+  const conversationIds =
+    toggles.length === 0
+      ? []
+      : conversationIdsForTelegramChats(
+          store,
+          toggles.map((toggle) => toggle.chatId),
+        );
+  const reset = (): number => {
+    for (const conversationId of conversationIds) {
+      forgetConversation(conversationId);
+    }
+    return new ConversationContextStore(store).rebuildForConversations(conversationIds, options.now ?? new Date());
+  };
+  const finished = (invocationCount: number, rebuilt: number): GroupMemoryCutover => ({
+    chats: toggles.length,
+    conversations: conversationIds.length,
+    invocations: invocationCount,
+    rebuilt,
+    settled: true,
+    completion: Promise.resolve(rebuilt),
+  });
   if (conversationIds.length === 0) {
-    return { chats: toggles.length, conversations: 0, invocations: 0, rebuilt: 0, settled: true };
+    return finished(0, 0);
   }
-  let stoppedInvocations = 0;
-  let settled = true;
-  for (let round = 0; round < 3; round += 1) {
+  if (stopper === undefined) {
+    // Without a scheduler this process runs no Invocation that could hold a Context.
+    return finished(0, reset());
+  }
+  const release = stopper.fenceConversations(conversationIds);
+  let handedOff = false;
+  try {
     const running = store.orm
       .select({ id: invocations.id })
       .from(invocations)
       .where(and(inArray(invocations.conversationId, conversationIds), eq(invocations.state, 'running')))
       .all()
       .map((row) => row.id);
-    if (running.length === 0) {
-      break;
+    const stopped = running.length === 0 ? 0 : stopper.abortInvocations(running, 'group_memory_toggled');
+    const settled =
+      running.length === 0 ||
+      (await stopper.waitForInvocations(running, options.waitMilliseconds ?? CUTOVER_WAIT_MILLISECONDS));
+    if (settled) {
+      return finished(stopped, reset());
     }
-    stoppedInvocations += stopper?.abortInvocations(running, 'group_memory_toggled') ?? 0;
-    if (stopper === undefined) {
-      break;
-    }
-    settled = await stopper.waitForInvocations(running, 30_000);
-    if (!settled) {
-      break;
+    handedOff = true;
+    const completion = stopper.settleInvocations(running).then(reset).finally(release);
+    // The caller observes the outcome through `completion`; this guard only
+    // keeps a rejection from becoming unhandled before it attaches.
+    completion.catch(() => undefined);
+    return {
+      chats: toggles.length,
+      conversations: conversationIds.length,
+      invocations: stopped,
+      rebuilt: 0,
+      settled: false,
+      completion,
+    };
+  } finally {
+    if (!handedOff) {
+      release();
     }
   }
-  for (const conversationId of conversationIds) {
-    forgetConversation(conversationId);
-  }
-  const rebuilt = new ConversationContextStore(store).rebuildForConversations(conversationIds, now);
-  return {
-    chats: toggles.length,
-    conversations: conversationIds.length,
-    invocations: stoppedInvocations,
-    rebuilt,
-    settled,
-  };
 }
 
 export function conversationIdsForTelegramChats(

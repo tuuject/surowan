@@ -215,6 +215,14 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
           settled: groupMemory.settled,
         });
       }
+      if (!groupMemory.settled) {
+        // The Conversations stay fenced until their stale handlers settle; the
+        // rebuild then finishes here instead of racing those writers.
+        void groupMemory.completion.then(
+          (rebuilt) => logEvent('group_memory_cutover_completed', { rebuilt_contexts: rebuilt }),
+          (error: unknown) => logEvent('group_memory_cutover_failed', { error: secrets.redactError(error) }),
+        );
+      }
       publishedConfig = nextConfig;
       if (addedChats.length > 0) {
         // A Chat can be removed and added again while its stored Memo Pad

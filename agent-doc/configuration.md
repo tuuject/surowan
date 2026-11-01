@@ -42,7 +42,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 | `telegram.chats[<id>].dictionary_injection_mode` | 该 Chat 的辞典注入模式覆盖；增删字段都热应用，下一次 Invocation 生效。缺省继承全局 `dictionary.injection_mode` |
 | `telegram.participation` 与 `telegram.chats[<id>].participation`（含全部子字段） | 参与策略时段；`ParticipationRegistry` 按发布代数即时重编译，下一次消息判定就用新时段（时段按该 Chat 的 `timezone` 解析，时区本身是 restart 字段）。可经 Admin Chats 页编辑 |
 | `telegram.proactive_reply` 与 `telegram.chats[<id>].proactive_reply`（含全部子字段） | 群聊主动回复概率；每次 Bucket 到期时读取当前发布值，下一次抽样即生效；`base_probability` / `increment` / `hard_pity` 任一变化会在下一次抽样时把该群的连续未命中计数清零（仅开关 `enabled` 或重启不清零）。全局值可经 Admin Harness tuning 页编辑，Chat 覆盖经 Chats 页编辑 |
-| `telegram.chats[<id>].group_memory`（含 `enabled`、`idle_minutes`） | 该 Chat 的群聊记忆开关与空闲阈值；增删字段或改值都热应用，下一次 sleeping 扫描使用新值。开关状态变化时中止该 Chat 的 running Invocation、驱逐 Agent 缓存并重建全部 Conversation Context；关闭只停止后续整理并让新 Invocation 不再拿到回忆工具，已写入的记忆与原文保留 |
+| `telegram.chats[<id>].group_memory`（含 `enabled`、`idle_minutes`） | 该 Chat 的群聊记忆开关与空闲阈值；增删字段或改值都热应用，下一次 sleeping 扫描使用新值。开关状态变化时先 fence 该 Chat 的全部 Conversation（期间排队的 Invocation 不启动），中止 running Invocation，等它们真正落定后才驱逐 Agent 缓存并重建全部 Conversation Context；关闭只停止后续整理并让新 Invocation 不再拿到回忆工具，已写入的记忆与原文保留 |
 | `telegram.admins` | Bot 管理员白名单（`/pause`、`/resume`、`/model`、`/cut_topic`、`/allowlist` 的唯一事实源）；运行期判定直接读运行中的配置，下一次命令执行就用新列表 |
 | `dictionary`（整段，含 `injection_mode`） | 全局辞典注入模式；下一次 Invocation 生效 |
 | `tool_model` | 系统级辅助模型（辞典融合等）。下一次辅助调用使用新选择；运行中的调用继续用它开始时从快照取出的模型。删除该段表示继承全局 Agent 设置 |

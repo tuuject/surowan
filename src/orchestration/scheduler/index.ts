@@ -38,6 +38,8 @@ export class BucketScheduler {
   readonly #queue: InvocationQueueService;
   readonly #hosts: readonly HostKind[] | undefined;
   readonly #active = new Map<string, ActiveInvocation>();
+  /** Conversation id → number of live fences holding it closed. */
+  readonly #fenced = new Map<string, number>();
   readonly #executionState: InvocationExecutionState = { lastForcedGcAt: 0 };
   readonly #executionDeps: InvocationExecutionDeps;
   readonly #loopDeps: SchedulerLoopDeps;
@@ -89,6 +91,7 @@ export class BucketScheduler {
       hosts: this.#hosts,
       isHostReady,
       active: this.#active,
+      fencedConversations: () => [...this.#fenced.keys()].map((id) => BigInt(id)),
       isRunning: () => this.#running,
       execute: (invocation, snapshot, controller) =>
         executeInvocation(this.#executionDeps, invocation, snapshot, controller),
@@ -162,6 +165,47 @@ export class BucketScheduler {
       }
     }
     return signaled;
+  }
+
+  /**
+   * Holds the listed Conversations closed: no queued Invocation of theirs is
+   * launched until the returned release runs. A cutover that aborts running work
+   * and then rewrites a Context uses it so no replacement run can start in
+   * between. Fences nest; releasing is idempotent and wakes the loop.
+   */
+  fenceConversations(ids: readonly bigint[]): () => void {
+    const keys = [...new Set(ids.map((id) => id.toString()))];
+    for (const key of keys) {
+      this.#fenced.set(key, (this.#fenced.get(key) ?? 0) + 1);
+    }
+    let released = false;
+    return () => {
+      if (released) {
+        return;
+      }
+      released = true;
+      for (const key of keys) {
+        const count = (this.#fenced.get(key) ?? 1) - 1;
+        if (count <= 0) {
+          this.#fenced.delete(key);
+        } else {
+          this.#fenced.set(key, count);
+        }
+      }
+      this.wake();
+    };
+  }
+
+  /** Resolves once every listed handler has settled, however long that takes. */
+  async settleInvocations(ids: readonly bigint[]): Promise<void> {
+    const promises: Promise<void>[] = [];
+    for (const id of ids) {
+      const entry = this.#active.get(id.toString());
+      if (entry !== undefined) {
+        promises.push(entry.promise.catch(() => undefined));
+      }
+    }
+    await Promise.all(promises);
   }
 
   /** False means handlers are still alive: callers must retain their rows and retry. */
