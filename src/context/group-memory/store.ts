@@ -12,6 +12,9 @@ import {
   newGroupMemoryId,
 } from './index.ts';
 
+/** Rows read per keyset page while a keyword search looks for matches. */
+const SEARCH_SCAN_PAGE_SIZE = 500;
+
 export interface SearchGroupMemory {
   readonly day?: string | undefined;
   readonly keywords?: readonly string[] | undefined;
@@ -58,25 +61,50 @@ export class GroupMemoryStore {
   /**
    * Newest entries first. Keywords match the summary case-insensitively; with
    * several keywords at least half must match, the same rule Memo Pad uses.
+   *
+   * Matching is done in JavaScript (Unicode-aware lowercasing, which SQLite's
+   * `lower()` is not), so the rows are scanned in keyset pages until `limit`
+   * matches are found or the Chat's history is exhausted: an old entry stays
+   * reachable however many newer ones exist.
    */
   list(chatId: bigint, input: SearchGroupMemory = {}): GroupMemoryEntry[] {
     const limit = Math.min(input.limit ?? GROUP_MEMORY_SEARCH_DEFAULT_LIMIT, GROUP_MEMORY_SEARCH_MAX_LIMIT);
-    const rows = this.#orm.all<EntryRow>(
-      sql`SELECT id, chat_id, day, summary, first_message_id, last_message_id, created_at
-          FROM group_memories
-          WHERE chat_id = ${chatId}${input.day === undefined ? sql`` : sql` AND day = ${input.day}`}
-          ORDER BY day DESC, first_message_id ASC
-          LIMIT 5000`,
-    );
     const keywords = (input.keywords ?? []).map((keyword) => keyword.toLowerCase());
     const needed = keywords.length === 0 ? 0 : Math.ceil(keywords.length / 2);
-    return rows
-      .map(toEntry)
-      .filter(
-        (entry) =>
-          needed === 0 || keywords.filter((keyword) => entry.summary.toLowerCase().includes(keyword)).length >= needed,
-      )
-      .slice(0, limit);
+    const matches = (entry: GroupMemoryEntry): boolean =>
+      needed === 0 || keywords.filter((keyword) => entry.summary.toLowerCase().includes(keyword)).length >= needed;
+    const pageSize = needed === 0 ? limit : SEARCH_SCAN_PAGE_SIZE;
+    const found: GroupMemoryEntry[] = [];
+    let after: EntryRow | undefined;
+    while (found.length < limit) {
+      const rows = this.#orm.all<EntryRow>(
+        sql`SELECT id, chat_id, day, summary, first_message_id, last_message_id, created_at
+            FROM group_memories
+            WHERE chat_id = ${chatId}${input.day === undefined ? sql`` : sql` AND day = ${input.day}`}${
+              after === undefined
+                ? sql``
+                : sql` AND (day < ${after.day}
+                    OR (day = ${after.day} AND first_message_id > ${after.first_message_id})
+                    OR (day = ${after.day} AND first_message_id = ${after.first_message_id} AND id > ${after.id}))`
+            }
+            ORDER BY day DESC, first_message_id ASC, id ASC
+            LIMIT ${BigInt(pageSize)}`,
+      );
+      for (const row of rows) {
+        const entry = toEntry(row);
+        if (matches(entry)) {
+          found.push(entry);
+          if (found.length >= limit) {
+            break;
+          }
+        }
+      }
+      if (rows.length < pageSize) {
+        break;
+      }
+      after = rows.at(-1);
+    }
+    return found;
   }
 
   state(chatId: bigint): GroupMemoryStateRow | undefined {

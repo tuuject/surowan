@@ -80,3 +80,23 @@ test('claim refuses a live claim and a pending backoff, then recovers a stale cl
     await f.close();
   }
 });
+
+test('a keyword search reaches an entry older than thousands of non-matching ones', async () => {
+  const f = await groupMemoryFixture();
+  try {
+    f.groupMemory.commit(f.chatId, '2025-01-01', [{ ...range(1), summary: 'The Ärger about the needle' }], 1n);
+    // More newer entries than one scan page, and more than the old fixed cap of 5,000.
+    for (let day = 0; day < 6; day += 1) {
+      const date = `2026-0${day + 1}-01`;
+      const events = Array.from({ length: 1_000 }, (_, index) => range(10_000 * (day + 1) + index));
+      f.groupMemory.commit(f.chatId, date, events, BigInt(10_000 * (day + 1) + 999));
+    }
+    expect(f.groupMemory.list(f.chatId, { keywords: ['ärger'] }).map((entry) => entry.summary)).toEqual([
+      'The Ärger about the needle',
+    ]);
+    // Without keywords the newest page is returned directly.
+    expect(f.groupMemory.list(f.chatId, { limit: 2 }).map((entry) => entry.firstMessageId)).toEqual([60_000n, 60_001n]);
+  } finally {
+    await f.close();
+  }
+});
