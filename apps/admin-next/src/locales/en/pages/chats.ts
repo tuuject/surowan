@@ -98,7 +98,7 @@ export const chats = {
   groupMemoryIdle: 'Idle minutes before consolidating the current day',
   groupMemoryIdleHint: 'A finished local day is consolidated without waiting. Values outside 1–1440 are rejected.',
   groupMemoryCutover:
-    'Saving a change aborts every running Invocation in this Chat and rebuilds all of its Conversation Contexts before the request returns.',
+    'Turning group memory on or off aborts every running Invocation in this Chat and rebuilds all of its Conversation Contexts. Changing only the idle minutes does neither.',
   groupMemoryInvalid: 'Enter a whole number of minutes between 1 and 1440.',
   colProactive: 'Proactive replies',
   editProactiveReply: 'Edit proactive reply chance',

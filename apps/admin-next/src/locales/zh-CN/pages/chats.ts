@@ -96,7 +96,7 @@ export const chats: typeof chatsEn = {
   groupMemoryIdle: '整理当天消息前的静默分钟数',
   groupMemoryIdleHint: '已经结束的本地日期不会等待。允许 1–1440。',
   groupMemoryCutover:
-    '保存变更会先中止此 Chat 所有正在运行的 Invocation，并在请求返回前重建它的全部 Conversation Context。',
+    '开启或关闭群聊记忆会中止此 Chat 所有正在运行的 Invocation，并重建它的全部 Conversation Context；只修改空闲分钟数不会触发这些操作。',
   groupMemoryInvalid: '请输入 1–1440 之间的整数分钟数。',
   colProactive: '主动回复',
   editProactiveReply: '编辑主动回复概率',
