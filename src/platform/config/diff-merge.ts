@@ -85,6 +85,7 @@ const OUTSIDE_SERVE_PATHS: ReadonlySet<string> = new Set([
  * scalar below them is hot as well.
  */
 const HOT_PARTICIPATION_PATHS = [/^telegram\.participation(\.|$)/, /^telegram\.chats\[-?\d+\]\.participation(\.|$)/];
+const HOT_GROUP_MEMORY_PATHS = [/^telegram\.chats\[-?\d+\]\.group_memory(\.|$)/];
 const HOT_PROACTIVE_REPLY_PATHS = [
   /^telegram\.proactive_reply(\.|$)/,
   /^telegram\.chats\[-?\d+\]\.proactive_reply(\.|$)/,
@@ -102,6 +103,12 @@ export function classify(path: string): ConfigChangeKind {
   // the next reload like a hot-added Chat. The object merges field by field,
   // so every path inside either level counts.
   if (HOT_PARTICIPATION_PATHS.some((pattern) => pattern.test(path))) {
+    return 'hot';
+  }
+  // Group-memory enablement and idleness are read by the sleeping worker and the
+  // recall tools from the published configuration, so a change applies without a
+  // restart. Existing memories stay valid.
+  if (HOT_GROUP_MEMORY_PATHS.some((pattern) => pattern.test(path))) {
     return 'hot';
   }
   // Same for spontaneous-participation tuning: the gate resolves the current

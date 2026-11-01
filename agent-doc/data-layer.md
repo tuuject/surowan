@@ -1,6 +1,6 @@
 # 数据层
 
-Surowan 使用单个 SQLite 数据库保存消息、调度状态、能力索引、预算与审计。数据库不是长期记忆；在线保留窗口由必填的 `retention.online_days` 指定。
+Surowan 使用单个 SQLite 数据库保存消息、调度状态、能力索引、预算与审计。`retention.online_days` 只约束审计与调度数据；聊天消息、Revision、Media、Conversation Context 与原始 Telegram Update 不做 30 天清理，只随 Chat/Conversation 删除或显式截断。
 
 ## 打开与迁移
 
@@ -23,6 +23,8 @@ Surowan 使用单个 SQLite 数据库保存消息、调度状态、能力索引�
 迁移 `037` 把共享 Message/Context 存储改成宿主中立：`chats`、`senders`、`messages` 新增 `host_kind`，Telegram 身份列（`telegram_chat_id`、`canonical_chat_id`、`telegram_type`、`telegram_id`、`telegram_message_id`）从无条件 `NOT NULL` 变成随 `host_kind` 取值的条件约束，并新增 `rooms`、`room_participants` 和 `invocation_messages.snapshot_format`。旧库升级只补 `host_kind = 'telegram'` 与快照的 format 标识，行 ID、消息树、revision、Context 与 Telegram DTO 一律不变；同一数据库因此可以同时容纳没有任何 Telegram ID 的虚拟房间与身份。
 
 迁移 `038` 把发送台账切成宿主中立：`telegram_sends` 改名为 `host_sends`，主键、外键、`state` 取值与 Telegram 响应元数据原样保留，去重索引改名为 `host_sends_reply_delivery_idx` / `host_sends_image_delivery_idx`，并新增可空的 `message_id` 指向虚拟宿主为该次发送落下的消息（`ON DELETE SET NULL`，保留期删掉消息时审计行仍在）。改名在开启外键约束的情况下直接 ALTER 完成，不需要重建表。
+
+迁移 `048` 建立群聊记忆：`group_memories` 保存 Chat 级、按本地日期组织的事件摘要与闭区间 Telegram message-id 范围；`group_memory_state` 每个 Chat 至多一行，保存已整理的 message-id 水位、`idle`/`running` 认领状态与失败退避。两张表都随 `chats` 级联删除，不参与在线保留窗口。原文本身也不再被在线保留清理，见「保留清理」。
 
 迁移 `046` 建立 Memo Pad：`memo_pad_entries` 与 `memo_blobs`（都随 `chats` 级联删除），给 `conversation_contexts` 加 `memo_refresh_seq`、`memo_state_json`、`memo_refresh_pending` 三个列，并把旧 `memories` 行按 `conversations.chat_id` 迁入（`summary` 与 `detail` 都取旧 `content`，保留 `expires_at`、时间戳与旧 `mem_` id），随后删除 `memories`。旧记忆按 Conversation 隔离，迁移后同一 Chat 的多个 Topic 共享同一份 Memo Pad，这是有意的语义变化。
 
@@ -81,13 +83,13 @@ SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是
 - `send_count_total` 是该 context 累计的成功实发 `send` 次数（一次成功的 `send_reply` 无论几条都算一次），跨 Invocation 累计，`head_seq` 前移时不清零；图片去重返回的 `replayed:true` 只落 toolResult，不增加该计数。
 - `system_prompt_hash` 是稳定系统提示的 SHA-256。打开 context 时 hash 不一致按「重建」处理：删除该 context 的全部 `context_messages` 与 `context_refs`，`head_seq`/`next_seq` 复位为 1、`send_count_total` 归零、`active_invocation_id` 清空。
 - `active_invocation_id` 指向当前拥有该 context 的 running Invocation，运行结束时清空；Invocation 行本身被清理时置 `NULL`。
-- `last_active_at` 在每次追加行与 `touch`（Invocation 开始/结束）时刷新，是保留清理判定「空闲 Conversation」的依据；`last_gc_at` 记录最近一次 GC 时间。
+- `last_active_at` 在每次追加行与 `touch`（Invocation 开始/结束）时刷新；它不再用于 30 天保留清理，`last_gc_at` 记录最近一次 GC 时间。
 - `context_messages.payload_json` 保存**完整 AgentMessage JSON**（含 thinking 与 tool call 结构），可以直接解码重放，而不是从文本反推；`role` 只有 `user`/`assistant`/`toolResult`。
 - `agent_messages` 与 `context_messages` 的分工：前者是审计轨迹（每 Invocation 扁平展开、人可读、把 harness 提醒单独标成 `harness_nudge`，assistant 行在 `developer.record_agent_thinking` 开启时带单独的 `thinking_text` CoT 展示），后者是生产 Agent 跨 Invocation 续跑的来源（完整结构与 thinking、按 Conversation 保留），不是 Admin 场景重放输入；两者都由 `agent-runtime` 写入，互不替代。
 - `is_checkpoint` 标记一条注入批次的首条 user 消息；GC 只会把 `head_seq` 推到 checkpoint 行上。
 - `send_seq` 只在「成功实发 `send` 或 `send_reply` 的 toolResult」行上非空（排除图片去重返回），值等于写入时的 `send_count_total + 1`；GC 用它统计保留窗内还剩几次发送。
 - `est_tokens` 是逐行 Token 估算，供 GC 与收尾判定使用，不是精确计数。
-- `evicted_at` 是软删除标记：GC 不立即物理删除行，只打标记；行保留到在线窗口之后才由 `purgeExpiredData` 真正删除（见「保留清理」）。
+- `evicted_at` 是软删除标记：GC 不立即物理删除行，只打标记；这些行不随在线窗口清理，只有 Conversation/Chat 删除或显式截断才移除。
 - `invocation_id` 记录写入该行的 Invocation，Invocation 被清理时置 `NULL`，历史行本身不随之删除。
 
 写路径只有一处：`advanceHead` 把 `head_seq` 前移时，在同一事务里软标记被丢弃的行、删除这些行携带的 `context_refs`、更新 `head_seq` 与 `last_gc_at`。GC 是**纯丢弃，从不做摘要**：`planContextGc` 决定新起点（默认跳到「仍保留至少 `retained_sends_target` 次发送」的最新 checkpoint，发送稀疏但 Token 压力大的历史退回 Token 预算判定），保留段还必须通过 `isRenderable` 结构检查（必须以 user 消息开头，每个 tool result 都要有对应的 assistant tool call），否则这一轮不裁剪。
@@ -139,6 +141,16 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 - `save_memo_image` 在准备图片及存储的异步边界重新检查取消信号和当前 Chat 授权；撤权后不提交 Blob 元数据、不继续续租去重行，失败只清理本次拥有的临时/最终副本，不删除并发保存者的文件。
 
 `conversation_contexts` 的三个 Memo 列（`memo_refresh_seq`、`memo_state_json`、`memo_refresh_pending`）记录短期记忆注入状态：完整列表所在 checkpoint 的实际 `seq`、已告知模型的状态快照，以及强制刷新标记。Context 重建会把三者复位；消息、序号与 Memo 状态在同一个事务中提交，失败时数据库和活 header 都不推进。刷新判据与预算见 [telegram-agent-flow.md](telegram-agent-flow.md#context)。
+
+### 群聊记忆（迁移 048）
+
+`group_memories` 是 **Chat** 级（`chats.id`）的只读事件索引，同一个 Chat 的所有 Forum Topic 共用；写入只由 sleeping worker 完成，模型只能通过两个读原语查询。
+
+- `summary` 1–150 字符，是给模型看的检索索引；`first_message_id` / `last_message_id` 是事件对应的闭区间 Telegram message id，`CHECK(last >= first)` 兜底。没有 detail：第二层披露直接回放原始消息，不复制一份摘要正文。
+- `day` 是 Chat `timezone` 下的 `YYYY-MM-DD`，`CHECK` 只校验形态；合法日历日由 [src/context/group-memory/day.ts](../src/context/group-memory/day.ts) 计算。一天可以有多条事件，批次上限是 120 条消息或 40000 字符（再按工具模型窗口收窄），超出部分在下一个批次继续。
+- `group_memory_state.consolidated_through_message_id` 是已提交批次的最大 Telegram message id；摘要与水位在同一个 IMMEDIATE transaction 提交，失败时两者都不推进。`state = 'running'` + `claimed_at` 是数据库认领；超过 30 分钟的认领由 `recoverStale()` 释放，失败写入 `next_attempt_at` 退避，不会对同一批无限调用模型。
+- 摘要范围可能不覆盖批次里的每一条消息（模型可以跳过寒暄与命令），但水位仍推进到批次末尾，避免噪声让同一批永久重试。
+- 原始消息的保留：`purgeExpiredData` 不再删除或匿名化 Message、Revision 与 Media；它们只在删除 Chat 时随 `chats` 级联清理。记忆行本身也没有 TTL。
 
 ### 注意力窗口
 
@@ -206,7 +218,7 @@ Admin 侧的 `admin_users`/`admin_sessions` 语义见 [admin-panel.md](admin-pan
 
 - SQLite 整数 ID 在 TypeScript 中使用 `bigint`。
 - Telegram Chat/Message ID 进入 JSON 快照时字符串化，避免超出 JavaScript 安全整数。
-- 原始 Update 不整体永久保存；只保存需要审计和重放的受限片段。
+- 允许的 `telegram_updates` 行保存完整 `raw_json`，且不再随在线窗口清理；被拒绝的行只保存 Chat 类型、接收时间与拒绝原因。
 - 读取 `snapshot_json`、`telegram_json`、`metadata_json` 时必须在使用前校验结构。
 
 ## 图片生成域（迁移 024）
@@ -223,18 +235,16 @@ Admin 侧的 `admin_users`/`admin_sessions` 语义见 [admin-panel.md](admin-pan
 
 - 已过期的 `memo_pad_entries`（按自身 TTL，不参与在线保留窗口）；`purgeExpiredData` 删除的是行，`memo_blobs` 的行与文件由随后的 `MemoBlobStore.sweep()` 按引用清理（服务启动时也会执行一次）。
 - 已过期的 `conversation_attention` 注意力窗口行（窗口过期即无意义，不参与在线保留窗口）。
-- 过期 Telegram Update 与终态 Invocation/Send/Bucket。
-- 不再被 Invocation/Bucket 引用的旧 Message。
-- 仍被快照引用的旧 Message 保留身份，但匿名化 Revision 文本、Sender、Reply/Forward 和 Service 内容。
+- 终态 Invocation/Send/Bucket 等审计与调度行。
+- **聊天记录永不按在线窗口清理**：`messages`、`message_revisions` 与 `media` 只在 Chat 被显式删除时级联删除；`telegram_updates` 也不再按窗口清理。`purgeExpiredData` 不再删除或匿名化它们，因此 `read_group_messages` 始终能回溯。
 - 删除无引用 Sender、过期普通图片分析、无 `invocation_id` 的非 pending 模型调用（Doctor 与 Tool Model）与旧 `daily_usage` 日期。
 - Sticker 长期视觉索引不按普通图片策略删除。
 - `long_tasks` 的 waiting 行及 pending/claimed `task_receipts` 永不因 online cutoff 删除；任务终态且 receipt 已 handled/suppressed 后才随在线窗口一起清理。
 - `context_refs` 中 `expires_at <= now` 的行（TTL 到期即删，与在线保留窗口无关）。
-- `context_messages` 中已软标记 `evicted_at` 且早于在线窗口的行；软标记本身保留一个在线窗口，便于审计 GC 丢掉了什么。
-- `last_active_at` 早于在线窗口的 `conversation_contexts`，连带级联删除其 `context_messages` 与 `context_refs`；空闲 Conversation 的长期 transcript 因此不会无限增长。
+- Conversation Context（`conversation_contexts` / `context_messages`）也是聊天记录：软删除的 `evicted_at` 行与空闲 Context 都不随在线窗口清理，只有 Conversation/Chat 删除或显式截断才移除。GC 仍按 token 预算推进 `head_seq`，但不再做 30 天删除。
 - `invocation_buckets` 没有独立清理规则，随 `invocations`/`buckets` 的删除级联消失。
 
-不要把 `DELETE FROM messages WHERE received_at < ...` 当作等价实现；外键和冻结快照要求分阶段清理。
+聊天记录不受 `retention.online_days` 影响；不要重新引入 `DELETE FROM messages WHERE received_at < ...` 或 Revision/Media 的脱敏清理。
 
 ## 备份
 

@@ -10,7 +10,7 @@ import { purgeExpiredData } from '../../src/store/store.ts';
 import { seedAdminFixture } from '../fixtures/admin-seed.ts';
 import { writeTestConfig } from '../helpers.ts';
 
-test('migration 030 drops only legacy replay payloads; retention cascades public scene and audit rows', async () => {
+test('migration 030 drops only legacy replay payloads; retention prunes audit rows but keeps chat records', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-scene-retention-'));
   let store: SqliteStore | undefined;
   try {
@@ -53,12 +53,12 @@ test('migration 030 drops only legacy replay payloads; retention cascades public
       snapshots: store!.db.prepare('SELECT * FROM invocation_messages ORDER BY invocation_id, sequence_no').all(),
     });
     const before = preserved();
-    expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 47n });
+    expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 48n });
     store.close();
     store = undefined;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       store = await SqliteStore.open(config);
-      expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 47n });
+      expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 48n });
       expect(store.db.prepare('PRAGMA table_info(model_calls)').all()).not.toEqual(
         expect.arrayContaining([expect.objectContaining({ name: 'replay_input_json' })]),
       );
@@ -71,7 +71,7 @@ test('migration 030 drops only legacy replay payloads; retention cascades public
         try {
           backup.defaultSafeIntegers(true);
           expect(backup.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({
-            version: 47n,
+            version: 48n,
           });
           expect(backup.prepare('SELECT replay_input_json FROM model_calls LIMIT 1').get()).toEqual({
             replay_input_json: '{"version":2,"obsolete":true}',
@@ -92,12 +92,15 @@ test('migration 030 drops only legacy replay payloads; retention cascades public
       'model_calls',
       'tool_calls',
       'host_sends',
-      'media',
-      'message_revisions',
-      'messages',
     ]) {
       expect(store!.db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()).toEqual({ count: 0n });
     }
+    // Chat records are outside the online-retention window.
+    expect(store!.db.prepare('SELECT COUNT(*) AS count FROM messages').get()).toEqual({ count: 2n });
+    expect(store!.db.prepare('SELECT COUNT(*) AS count FROM message_revisions').get()).toEqual({ count: 4n });
+    expect(store!.db.prepare('SELECT COUNT(*) AS count FROM media').get()).toEqual({ count: 1n });
+    expect(store!.db.prepare('SELECT COUNT(*) AS count FROM conversation_contexts').get()).toEqual({ count: 1n });
+    expect(store!.db.prepare('SELECT COUNT(*) AS count FROM context_messages').get()).toEqual({ count: 4n });
     expect(() =>
       buildSceneContext(store!, config, seed.invocationA, {
         contextWindow: 200_000,
@@ -149,11 +152,10 @@ test('retention keeps a sender that is still a room participant, and releases lo
 
     purgeExpiredData(store.orm, config, new Date('2026-12-31T00:00:00.000Z'));
 
-    // The aged-out message goes, and surviving local replies are released
-    // instead of blocking the delete.
-    expect(db.prepare('SELECT id FROM messages ORDER BY id').all()).toEqual([{ id: 7001n }]);
+    // Chat records survive the online-retention window, including the reply edge.
+    expect(db.prepare('SELECT id FROM messages ORDER BY id').all()).toEqual([{ id: 7000n }, { id: 7001n }]);
     expect(db.prepare('SELECT local_reply_to_message_id AS r FROM messages WHERE id = 7001').get()).toEqual({
-      r: null,
+      r: 7000n,
     });
     // A sender that only exists as a room participant survives the prune; one
     // with neither revisions nor membership still goes.

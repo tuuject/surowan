@@ -380,7 +380,8 @@ describe('playground ingestion', () => {
     expect(status.held).toHaveLength(0);
     expect(status.expiredInputs).toBe(1);
     const tombstone = store.orm.select().from(playgroundInputs).all();
-    expect(tombstone).toMatchObject([{ requestKey: 'req-old', state: 'expired', messageId: null }]);
+    expect(tombstone).toMatchObject([{ requestKey: 'req-old', state: 'expired' }]);
+    expect(tombstone[0]?.messageId).not.toBeNull();
     // The key still names the first admission: neither its replay nor a new
     // body under it admits a second message.
     expect(playground.submit(room.chatId, { requestKey: 'req-old', senderId: alice, text: 'long held' })).toMatchObject(

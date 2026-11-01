@@ -29,7 +29,7 @@ afterAll(async () => {
   );
 });
 
-test('retention scrubs referenced history and backup keeps seven consistent copies', async () => {
+test('retention prunes old audit rows, keeps chat history, and backup keeps seven consistent copies', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-operations-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
@@ -89,13 +89,14 @@ test('retention scrubs referenced history and backup keeps seven consistent copi
   expect(
     store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM telegram_updates WHERE update_id = 1').get()
       ?.count,
-  ).toBe(0n);
-  const scrubbed = store.db
+  ).toBe(1n);
+  const kept = store.db
     .prepare<[], { text: string | null; raw: string }>(
       'SELECT r.text, r.raw_fragment_json AS raw FROM message_revisions r JOIN messages m ON m.id = r.message_id WHERE m.telegram_message_id = 10',
     )
     .get();
-  expect(scrubbed).toEqual({ text: null, raw: '{}' });
+  expect(kept?.text).toContain('old private text');
+  expect(kept?.raw).not.toBe('{}');
   const retainedSnapshot = store.db
     .prepare<[bigint], { snapshot_json: string }>(
       "SELECT snapshot_json FROM invocation_messages WHERE invocation_id = ? AND section = 'history'",

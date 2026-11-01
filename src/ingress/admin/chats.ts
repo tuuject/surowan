@@ -58,6 +58,14 @@ const ProactiveReplyBodySchema = Type.Union([
   ),
 ]);
 const proactiveReplyValidator = Compile(ProactiveReplyBodySchema);
+const GroupMemoryBodySchema = Type.Object(
+  {
+    enabled: Type.Boolean(),
+    idle_minutes: Type.Optional(Type.Union([Type.Integer({ minimum: 1, maximum: 1_440 }), Type.Null()])),
+  },
+  { additionalProperties: false },
+);
+const groupMemoryValidator = Compile(GroupMemoryBodySchema);
 const SettingsProperties = {
   topic_ids: Type.Union([Type.Array(TopicIdSchema, { minItems: 1, uniqueItems: true }), Type.Null()]),
   provider: Type.Union([Type.String({ minLength: 1 }), Type.Null()]),
@@ -108,6 +116,15 @@ export function parseParticipation(value: unknown): ParticipationBody {
       'invalid_body',
       'Expected active_windows: either null to remove the Chat schedule or an array of { start, end, days? } windows',
     );
+  }
+  return value;
+}
+
+export type GroupMemoryBody = Static<typeof GroupMemoryBodySchema>;
+
+export function parseGroupMemory(value: unknown): GroupMemoryBody {
+  if (!groupMemoryValidator.Check(value)) {
+    throw new AdminQueryError('invalid_body', 'Expected { enabled: boolean, idle_minutes?: 1-1440 | null }');
   }
   return value;
 }
@@ -321,6 +338,18 @@ export function updateChatParticipation(file: FileConfig, id: number, body: Part
   return [{ path: ['telegram', 'chats', index, 'participation', 'active_windows'], value: body.active_windows }];
 }
 
+/** Edits only the Chat's `group_memory` switch, preserving every other field. */
+export function updateChatGroupMemory(file: FileConfig, id: number, body: GroupMemoryBody): ConfigEdit[] {
+  const index = chatIndex(file, id);
+  const current = fileChats(file)[index]?.group_memory;
+  const idleMinutes = body.idle_minutes === null ? undefined : (body.idle_minutes ?? current?.idle_minutes);
+  const value = { enabled: body.enabled, ...(idleMinutes === undefined ? {} : { idle_minutes: idleMinutes }) };
+  if (JSON.stringify(current) === JSON.stringify(value)) {
+    return [];
+  }
+  return [{ path: ['telegram', 'chats', index, 'group_memory'], value }];
+}
+
 /** Edits only the Chat's `proactive_reply` override, preserving every other field. */
 export function updateChatProactiveReply(file: FileConfig, id: number, body: ProactiveReplyBody): ConfigEdit[] {
   const index = chatIndex(file, id);
@@ -370,6 +399,7 @@ function chatSettings(
         model: chat.model ?? null,
         thinking_level: chat.thinking_level ?? null,
         participation: chat.participation ?? null,
+        group_memory: chat.group_memory ?? null,
         proactive_reply: chat.proactive_reply ?? null,
         effective_proactive_reply: resolveProactiveReply(config, chat),
         timezone: chat.timezone ?? null,

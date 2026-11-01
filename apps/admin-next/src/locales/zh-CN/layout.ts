@@ -17,6 +17,7 @@ export const layout: typeof layoutEn = {
     playground: '虚拟群聊',
     alarms: '告警',
     memories: '记忆',
+    groupMemories: '群聊记忆',
     dictionary: '辞典',
     botAdmins: 'Bot 管理员',
     apiKeys: 'API 密钥',

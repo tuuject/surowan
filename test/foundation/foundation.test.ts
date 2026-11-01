@@ -175,7 +175,7 @@ describe('database', () => {
     const store = await SqliteStore.open(config);
     try {
       const prepared = store.orm.select().from(schemaMigrations).prepare();
-      expect(prepared.all()).toHaveLength(47);
+      expect(prepared.all()).toHaveLength(48);
       store.close();
       expect(() => prepared.all()).toThrow();
       await unlink(config.paths.database);
@@ -193,7 +193,7 @@ describe('database', () => {
       const version = store.db
         .prepare<[], { version: bigint }>('SELECT MAX(version) AS version FROM schema_migrations')
         .get();
-      expect(version?.version).toBe(47n);
+      expect(version?.version).toBe(48n);
     } finally {
       store.close();
     }
@@ -209,12 +209,12 @@ describe('database', () => {
     const { config } = await loadConfig(configPath);
     const store = await SqliteStore.open(config);
     try {
-      store.db.exec('DROP TABLE telegram_updates');
+      store.db.exec('DROP TABLE daily_usage');
     } finally {
       store.close();
     }
 
-    await expect(backupDatabase(config)).rejects.toThrow('telegram_updates');
+    await expect(backupDatabase(config)).rejects.toThrow('daily_usage');
     await unlink(config.paths.database);
     expect(await pathExists(config.paths.database)).toBe(false);
   });

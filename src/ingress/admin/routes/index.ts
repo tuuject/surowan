@@ -18,6 +18,7 @@ import type { AdminPasskeys } from '../passkeys.ts';
 import { createChatsAdminHandler } from './chats.ts';
 import { createControlAdminHandler } from '../control.ts';
 import { createDictionaryAdminHandler } from './dictionary.ts';
+import { createGroupMemoryAdminHandler } from './group-memory.ts';
 import { createImageAdminRoutes } from './image.ts';
 import { createInspectionAdminHandler } from '../inspection.ts';
 import { createMemoryAdminHandler } from './memory.ts';
@@ -115,6 +116,7 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       store: options.store,
       memoBlobs,
     }),
+    groupMemory: createGroupMemoryAdminHandler({ store: options.store }),
     admins: createAdminsAdminHandler({ configReloader: reloader, secrets }),
     providers: createProvidersAdminHandler({
       store: options.store,

@@ -20,6 +20,7 @@ export const layout = {
     playground: 'Playground',
     alarms: 'Alarms',
     memories: 'Memories',
+    groupMemories: 'Group memory',
     dictionary: 'Dictionary',
     botAdmins: 'Bot admins',
     apiKeys: 'API keys',

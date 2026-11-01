@@ -55,6 +55,7 @@ pnpm test test/bot-commands/commands.test.ts
 pnpm test test/config/diff.test.ts test/config/reload.test.ts test/chat/model-runtime.test.ts
 pnpm test test/runtime/host.test.ts test/config/boundary.test.ts test/store-boundary.test.ts
 pnpm test test/memo
+pnpm test test/group-memory
 pnpm test test/dictionary/dictionary.test.ts test/dictionary/runtime.test.ts
 pnpm test test/tasks/long-tasks.test.ts test/tasks/migration.test.ts test/tasks/delivery.test.ts test/tasks/runtime.test.ts test/tasks/context.test.ts test/tasks/hot-injection.test.ts
 pnpm test test/alarm/alarm.test.ts test/alarm/context.test.ts
@@ -124,7 +125,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `docs/spaces.test.ts` / `manual-pack.test.ts` | 文档空间路径语法（绝对路径、`..` 越界、空段、非 Markdown 拒绝）与 `base` 链接解析（含 `#锚点` 丢弃与纯锚点链接）；真实目录读取、索引、缺失文档、符号链接逃逸（含根内链接可读）、32 KiB 截断；未安装空间与缺失索引的加载语义；两个能力经 `execute` 注册表调用并与外层审计一致（成功/`unknown_space`/`document_not_found`/`invalid_path`/`unsupported_document`）；构建产物把 `content/docs` 与 `_meta.json` 导航打包为 `src/manual`（无占位符的页面逐字节一致、`__DOCS_BASE__` 链接改写且示例原文成页、生成的字段页来自 ConfigSchema、索引完整且顺序正确、侧栏外页面进入「其他页面」、重打包清理陈旧文档、导航指向缺失页面即失败），打包结果可经 `DocSpaces` 读取且文内相对链接全部落在包内 |
 | `scene/context.test.ts` | 开场冻结快照优先、当时可证明的公开历史、spoiler 标记与线上一致（开场、回退历史、回复引用）、Markdown 正文与 Rich Message 媒体行就位与线上一致（开场、回退历史）、后续 attach/编辑/迟到消息排除、切点/Topic/字符预算、损坏身份拒绝、缺修订与媒体降级、scene-local media/reply 引用、构建全表无写入 |
 | `scene/slice.test.ts` | 切片构建：两条 Bot 消息之间的冻结输入、上一条 Bot 可来自另一次 Invocation 或不带 send 行的消息、同一秒内边界仍精确、切点继续生效、只并入注入时间严格早于发送开始的 attach 批次（同毫秒保守省略）、同一消息重复冻结取最新合格快照、渲染冻结快照而非后续编辑、reply 引用只保留切片内消息、只授权冻结 revision 且已渲染的媒体、拒绝非本 Invocation/失败/跨 Conversation 的目标发送、连续两次发送之间为空、字符预算从新到旧裁剪、构建不写库 |
-| `scene/retention.test.ts` | 真实 029→030 有数据迁移仅移除旧 replay payload，调用/工具/发送/用量/冻结快照整行保留，迁移前备份含完整旧列且 integrity check 通过，重复打开、外键检查与 retention 级联后来源不可用 |
+| `scene/retention.test.ts` | 真实 029→030 有数据迁移仅移除旧 replay payload，调用/工具/发送/用量/冻结快照整行保留，迁移前备份含完整旧列且 integrity check 通过，重复打开与外键检查；retention 只清理审计行，消息/Revision/Media/Context 保留 |
 | `replay/tools.test.ts` | 当前定义下合成 send（同一重放场景内 Reply 去重、重复发送守卫与拒后内容烧毁（`send_bypass`，含 `send_reply` 组内重复、原样重发已发出 Reply 同样烧毁、未开启时照常合成）、各场景独立；配置开启 `allow_reply_message_multiple_times` 时同目标可多次回复但仍校验场景可见性）与内存 Memo Pad/Alarm、`list_image_models` 内存分页（带 description、无凭据、offset 越界拒绝）、生图假回执、zzz 不写状态、当前只读 system 资源、MCP/未知能力阻断、execute search/help/call 共用校验、abort 不 dispatch、无生产执行器 |
 | `replay/replay.test.ts` | 历史公开场景 + 当前 prompt/模型/工具、当前 Reply 策略的省略/关闭/开启同时影响描述与执行、`list_image_models` 回放当前图片目录且无凭据无付费调用、录制关闭与调试报文清除后仍可用、全表无写入、两层覆盖与模板边界、scene-local 图片读取和 reply 校验、图片错误脱敏/文本模型降级、来源守卫、共享模型闸门/单飞、取消与模型错误、context/turn/tool/trace/wall-clock 预算、参数键与 dispatch 脱敏、合成 sleep 终止 |
 | `replay/prompt.test.ts` | 当前配置的 global/group 分层覆盖；新增首个 global 人格或清空唯一 group 人格时，临时覆盖与保存同样配置后发送给模型的 system prompt 完全一致，且重放不改数据库状态 |
@@ -134,7 +135,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `media/image.test.ts` | 视频 Sticker 只按 WebM 解码（其他容器冒充时拒绝）、真实 WebM 仍能取帧、解压超过 8 MiB 的 TGS 在转换前拒绝；预取消或下载后立即取消均不启动 ffprobe/ffmpeg/Lottie；本机没有 ffmpeg/ffprobe 时仅视频取帧组跳过，TGS 与取消回归仍运行 |
 | `mcp.test.ts` | stdio/HTTP transport、策略、Header、重定向和审计、发现 Tool 失败时关闭 stdio 子进程、连接中 `stop()` 后保持 stopped 且关闭子进程 |
 | `web-fetch.test.ts` | 有界不可信文本结果与审计、公网 IPv4 放行与 IPv4 映射字面量拒绝、私网/合成地址拒绝（含跳转目标）、fake-ip 网段默认拒绝且需 `allow_proxy_synthetic_addresses` 开启、6to4/Teredo 过渡地址拒绝、`dangerously_allow_all_ip_addresses` 从配置到插件生效并放行私网/环回/跳转目标但仍拒绝非默认端口、默认 `Accept` 优先 `text/markdown` 且站点 Markdown 原样返回、`raw` 与 `accept_markdown: false` 不声明 Markdown、HTML 默认转 Markdown（正文在 32 KiB 之后仍保留、去导航/脚本/图片）、`raw` 返回原始 HTML、Markdown 按 UTF-8 边界截断、转换不发任何网络请求 |
-| `operations.test.ts` | Retention、备份轮换、Scheduler 关闭 |
+| `operations.test.ts` | 审计行 Retention、聊天记录保留、备份轮换、Scheduler 关闭 |
 | `admin/admin.test.ts` | Admin 首次设置、登录、登录锁定（不受 `X-Forwarded-For` 与用户名轮换影响、并发失败计数、过期后重新计数）、请求体按字节流式限长、HTTPS 下 Cookie 带 `Secure`、Session、只读审计 API（含 Conversation Context 列表/详情与写入尝试被拒）、静态托管 |
 | `admin/passkeys.test.ts` | 显式 public origin 开关、真实 P-256/CBOR WebAuthn 注册/登录、Origin/RP/UV/用户句柄与挑战绑定、过期/复用/伪造拒绝、多 key 与密码守卫、异步撤权与计数器竞态、恢复清理、旧 RP 安全、迁移保留用户/Session/外键 |
 | `admin/recovery.test.ts` | 内置 `admin-account` 参数边界（含 `--revoke-passkeys` 命令边界与重复 flag）、非 TTY 拒绝、stdin 字节/超时/不泄露、运行中锁拒绝、空表建号、唯一管理员改名改密、会话必注销、passkey 默认保留/显式撤销、多管理员报错不改写、保留 API key、不重开 setup、锁释放；真实 CLI 子进程与临时数据库 |
@@ -152,18 +153,27 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `config/reload.test.ts` | `ConfigReloader` 外部契约：generation 与两个 hash、`config_reloaded`/`config_reload_failed`/`model_switch_failed` 日志、待重启字段撤销与只改注释后 active hash 跟上文件 hash、两遍校验与 `candidate_invalid`、`secret_unresolved` 的整次拒绝、待重启列表、运行中 Invocation 钉住模型与 Provider 连接（两个本地端点验证换地址后的下一轮仍走旧地址）、`/model` 写入文件（保留注释、`0600`、符号链接拒绝）、`invocations.config_hash` 在 `queued → running` 写入、Admin `POST /config/apply` 与 `PUT /model` 的响应体；Chat 覆盖切换按文件 ID 定位（reorder 后仍解析正确、保留其它 Chat 与全局默认、文件里缺该 Chat 时拒绝写入不落盘）、并发 Chat 切换互不覆盖、发布前对全局与每个选中 Chat 模型逐一校验（删除在用 Chat 模型被拒、全局换模型拒绝继承不兼容的 thinking）；自助忽略持久化/恢复、重复与并发增删、跨 Chat 隔离、迁移 Forum Chat、实时/追赶名单热应用、失败后的文件/运行态与重试审计 |
 | `dictionary/dictionary.test.ts` | 辞典词条与别名归一化、pangu 空格折叠匹配、revision 乐观锁且不改作用域、Agent 工具只写当前群、私聊只读全局、CSV 导入导出转义 |
 | `dictionary/runtime.test.ts` | 辞典注入生命周期：命中持久化、下一批去重、缓存遗忘后从数据库重新播种、GC 后刷新；禁用词条不注入；`on_demand` 双向 pangu 空格匹配 |
+| `group-memory/day.test.ts` | Chat 时区日期、UTC/Asia-Shanghai 边界、DST 23/25 小时日、日期与下一天校验 |
+| `group-memory/store.test.ts` | 摘要与水位原子提交、日期/关键词半数阈值/排序、Chat 隔离、认领互斥、失败退避与 stale claim 恢复 |
+| `group-memory/consolidate.test.ts` | 模型 JSON 事件范围校验（批次外/倒退/重叠拒绝）、成功与非法输出的 `model_calls` 审计 |
+| `group-memory/sleeping.test.ts` | 已完成日期立即整理、当天 idle 窗口、queued/running 与 collecting 跳过、禁用与全局睡眠不发模型调用 |
+| `admin/group-memory.test.ts` | 群聊记忆列表鉴权、Chat/Day/摘要/keyset 过滤、summary 修改、删除、原文区间读取与非法 id/摘要拒绝 |
+| `group-memory/tools.test.ts` | `search_group_memory` 日期/范围展示、`read_group_messages` 回放与越界/过宽拒绝、审计行、未启用时工具缺失 |
+| `group-memory/retention.test.ts` | 在线保留完全不删除 Message/Revision/Media，含未被任何记忆覆盖的旧消息 |
 | `memo/store.test.ts` | Chat 隔离、短期 TTL 与永久条目、搜索（关键词与半数阈值、大小写、日期范围、排序与 limit）、更新（`ttl_seconds` 与 `null` 提升为永久）、删除幂等、过期清理 |
 | `memo/injection.test.ts` | 只列短期未过期条目、10% 预算隐藏最早条目并给出隐藏数、增量新增/更新/删除与空增量、`null`/落后 `head_seq`/`pending` 触发完整刷新、列表仍在保留窗口时不刷新 |
 | `memo/tools.test.ts` | `read_memory` 记录已读、`update_memo` 拒绝未读与读后被 Admin 修改、`delete_memo` 无需已读且幂等、Chat 移出配置后写入被拒、`tool_calls` 审计行 |
 | `memo/blobs.test.ts` | 同 Chat 按 sha256 去重、跨 Chat 复制隔离、路径逃逸拒绝、detail 变化只清理无引用 Blob、sweep 的删除时引用/保护窗口复查、去重重用刷新保护窗口、`deleteChatFiles` |
 | `memo/migration.test.ts` | 046 之前的库升级：同一 Chat 两个 Topic 的旧记忆合并、id/content/期限保留、`memories` 表消失；047 为既有 Blob 回填 `last_saved_at` 并保留文件/行 |
-| `memo/chat-delete.test.ts` / `admin/chats-lifecycle.test.ts` | Admin 删除在迁移别名、慢速 abort、重授权和重试场景下保留或清理正确数据；手改配置停止 queued/running 工作但保留数据，仍授权的别名与其它 Chat 不受影响 |
+| `memo/chat-delete.test.ts` / `admin/chats-lifecycle.test.ts` | Admin 删除在迁移别名、慢速 abort、重授权和重试场景下保留或清理正确数据；手改配置停止 queued/running 工作但保留数据；群聊记忆开关变更中止 running Invocation、驱逐 Agent 并重建 Context |
 | `context/hot-inject-memo-state.test.ts` | 多个 queued batch 各自提交 Memo refresh 状态；后续无变化/刷新/失败重排不覆盖前一批状态，重开 Context 后状态可恢复 |
 | `memo/write-contracts.test.ts` | 同毫秒/回退时钟下修订递增、Admin 修改使读取失效、连续模型更新必须重读；完整 ASCII/CJK/转义 detail 经 execute 落盘及审计、超限拒绝、其它能力默认额度不变 |
 | `memo/image.test.ts` | 图片准备与文件写入/重命名/重复副本清理期间撤权或取消，拒绝元数据写入、错误审计、无孤立文件且并发赢家不受损 |
 | `context/store-conversation.test.ts` / `memo/injection.test.ts` | checkpoint 与 Memo 状态原子回滚/重试、活 header 不提前推进；截断增量跨批次及 SQLite 重开逐步通知新增/修改/删除，不重复已输出部分 |
 | `replay/memory.test.ts` / `replay/tools-memory*.test.ts` | 到期边界、日期上界与线上一致，两个读原语 dispatch 完整；场景图片保存后读取相同字节、缺失/跨场景拒绝、两阶段 fidelity 与生产表无写入 |
 | `apps/admin-next/e2e/04-memo-expiry.e2e.ts` | 实际页面仅改文本时省略 TTL 并保持小时级/过期/同天数/永久条目的精确 expires_at |
+| `apps/admin-next/e2e/09-chats-group-memory.e2e.ts` | Chats 行开关群聊记忆、idle 分钟校验、关闭后保留 idle，以及运行态立即更新 |
+| `apps/admin-next/e2e/18-group-memory.e2e.ts` | Group memory 页面审计、修改 summary、删除事件与 API 状态复核 |
 | `tasks/long-tasks.test.ts` | 任务/receipt 的 JSON 边界、终态 CAS 与唯一 receipt、plugin/Conversation/caller scope、quota（含取消记录）及外部 completion handle |
 | `tasks/migration.test.ts` | 使用历史迁移建立 019/020 测试库再升级至 022：ID、owner、取消后 Invocation 关联、四态迁移、NULL 创建者、丢弃旧旁路观察（含非法 payload）、canonical history/refs/正常审计与任务回执整行保留，并验证 022 为每个 receipt 建立唯一 `bucket_id`、重复打开及新库无旧表、Drizzle CHECK/partial index 与 SQLite 一致性 |
 | `tasks/delivery.test.ts` | 创建 Invocation 删除后的外部 complete/fail 真实内部链路、普通 assistant 不直发、目的地移除、queued 管理取消与 running AbortSignal 审计结算 |
@@ -248,15 +258,16 @@ node src/cli.ts serve --config dev-data/config.jsonc
 4. Tool session 详情六个 Tab（Overview / Tool calls / Model calls / Telegram sends / Agent transcript / Frozen context）各自渲染；默认落在 Overview 时间线。
 5. 消息搜索命中当前 Chat 的文本，详情展示全部 Revision；列表与 Revision 显示并复制发送者的 Telegram User ID（频道身份明确标为 Chat ID）。Invocation Overview 与 Frozen context 复制冻结快照的 sender ID，缺失 ID 不提供复制按钮；剪贴板失败明确提示手动复制。
 6. Bot sticker sets 页面明确说明只包含 `telegram.sticker_sets` 中配置的 Set，并按 Set 与 `index_state` 过滤后行数变化。
-7. Memories 页面按 Chat 与状态（Active / Expired / Short-term / Long-term）过滤；新建/编辑/删除条目后列表刷新；列表只显示 summary，打开详情显示 Markdown 全文，`pwblob://` 图片经 `/api/memories/blobs/:id/content` 渲染；不再出现 `long_ttl` 警告标记。
-8. Overview 的 Bot status 卡片显示 `sleeping`/`awake` 与 `sleep_until`，睡眠时 `Wake now` 带二次确认；同时列出所有 `chat_pause` Chat 与暂停时间。
-9. Alarms 页面按 state/Chat/Target 过滤，pending 优先置顶，展开显示完整诊断并链接到对应 Tool session；取消只对 pending 开放且需二次确认，对非 pending 给出 409 冲突提示。
-10. Bot admins 页面能添加/移除管理员：写回 `telegram.admins` 并热应用，命令权限无需重启即更新；列表在下次进入页面时反映文件值。
-11. Models 页面列出 Provider 与模型；切换 agent / vision 模型后 `config.jsonc` 的 `agent.provider` / `agent.model`（或 `vision.*`）被改写，页面立即反映新模型，后续 Invocation / vision 分析使用新模型，重启 `serve` 后仍然生效；Provider 增删、连接字段与模型列表的修改均热应用（在用引用仍受校验保护）。Models 页的 `PUT /api/model` 与 `PUT /api/thinking-level` 只写全局默认，保留 `telegram.chats[]` 的覆盖；未覆盖的 Chat 在 `/status` 中显示新的全局值，已覆盖的 Chat 保持自己的设置。Chat 覆盖通过 Chats 页、配置文件或 Telegram `/model` 维护。Settings 页的 `Configuration file` 卡片显示 generation、active hash 与 file hash；改一个白名单字段后点 `Apply config file`，应用列表出现该路径，改一个 restart 字段则出现在待重启列表。
-12. Conversation Contexts 页面按 chat 过滤，列表按最近活跃倒序并可用 Load more 翻页；详情显示 head/next seq、保留消息数与 capability refs，展开消息看到 `payload_preview` 与截断标记，且不出现已 GC 的行。
-13. 登出后访问深链接回落登录页；重新登录恢复访问。
-14. `admin_users.password_hash` 使用 Argon2id 格式，`admin_sessions` 只有 64 位十六进制摘要。
-15. Manage → Chats 并排显示 Saved settings 与 Running settings：新增 Chat 后文件保存且运行态立即生效（状态为 Active，无待重启项）；删除 Chat 后文件保存且运行态立即移除、该 Chat 的运行与任务被停止，确认框明确提示 Memo Pad 与 Blobs 一并删除；修改 Topic 白名单后文件已保存但运行态不变；已有 active Chat 切换模型/thinking 后运行列同步，恢复 Global default 清除两种覆盖。删除需确认且保留其它 Chat 的历史，最后一个配置 Chat 禁止删除。并发编辑/删除冲突不能覆盖新文件；保存后应用失败要显示两种状态，Settings 应用成功后刷新 Chats。待重启横幅列出字段，只在有 supervisor 时提供 Restart now。
+7. Group memory 页按 Chat、日期与摘要过滤；查看原文区间、修改 summary、删除事件；在 Chats 页切换群聊记忆开关后 running Invocation 被中止、Context 重建且无需重启。
+8. Memories 页面按 Chat 与状态（Active / Expired / Short-term / Long-term）过滤；新建/编辑/删除条目后列表刷新；列表只显示 summary，打开详情显示 Markdown 全文，`pwblob://` 图片经 `/api/memories/blobs/:id/content` 渲染；不再出现 `long_ttl` 警告标记。
+9. Overview 的 Bot status 卡片显示 `sleeping`/`awake` 与 `sleep_until`，睡眠时 `Wake now` 带二次确认；同时列出所有 `chat_pause` Chat 与暂停时间。
+10. Alarms 页面按 state/Chat/Target 过滤，pending 优先置顶，展开显示完整诊断并链接到对应 Tool session；取消只对 pending 开放且需二次确认，对非 pending 给出 409 冲突提示。
+11. Bot admins 页面能添加/移除管理员：写回 `telegram.admins` 并热应用，命令权限无需重启即更新；列表在下次进入页面时反映文件值。
+12. Models 页面列出 Provider 与模型；切换 agent / vision 模型后 `config.jsonc` 的 `agent.provider` / `agent.model`（或 `vision.*`）被改写，页面立即反映新模型，后续 Invocation / vision 分析使用新模型，重启 `serve` 后仍然生效；Provider 增删、连接字段与模型列表的修改均热应用（在用引用仍受校验保护）。Models 页的 `PUT /api/model` 与 `PUT /api/thinking-level` 只写全局默认，保留 `telegram.chats[]` 的覆盖；未覆盖的 Chat 在 `/status` 中显示新的全局值，已覆盖的 Chat 保持自己的设置。Chat 覆盖通过 Chats 页、配置文件或 Telegram `/model` 维护。Settings 页的 `Configuration file` 卡片显示 generation、active hash 与 file hash；改一个白名单字段后点 `Apply config file`，应用列表出现该路径，改一个 restart 字段则出现在待重启列表。
+13. Conversation Contexts 页面按 chat 过滤，列表按最近活跃倒序并可用 Load more 翻页；详情显示 head/next seq、保留消息数与 capability refs，展开消息看到 `payload_preview` 与截断标记，且不出现已 GC 的行。
+14. 登出后访问深链接回落登录页；重新登录恢复访问。
+15. `admin_users.password_hash` 使用 Argon2id 格式，`admin_sessions` 只有 64 位十六进制摘要。
+16. Manage → Chats 并排显示 Saved settings 与 Running settings：新增 Chat 后文件保存且运行态立即生效（状态为 Active，无待重启项）；删除 Chat 后文件保存且运行态立即移除、该 Chat 的运行与任务被停止，确认框明确提示 Memo Pad 与 Blobs 一并删除；修改 Topic 白名单后文件已保存但运行态不变；已有 active Chat 切换模型/thinking 后运行列同步，恢复 Global default 清除两种覆盖。删除需确认且保留其它 Chat 的历史，最后一个配置 Chat 禁止删除。并发编辑/删除冲突不能覆盖新文件；保存后应用失败要显示两种状态，Settings 应用成功后刷新 Chats。待重启横幅列出字段，只在有 supervisor 时提供 Restart now。
 
 未构建 bundle 时静态路由返回 503 `admin_bundle_missing`，API 仍可用；这不是启动失败。
 
@@ -311,7 +322,7 @@ Remove-Item Env:E2E_PASSKEYS
   1. 认证：setup → shell；错误密码表单内显示 `invalid_credentials` 且 URL 不变；
      登出回登录页；会话撤销后受保护请求 401 → 登录页且无错误屏。
   2. `apps/admin-next/src/routes/**` 声明的全部路由与深链接直接访问渲染真实内容（非错误边界、非空白）。
-  3. 列表过滤与游标分页：Invocations、Messages、Contexts、Alarms、Memories、Stickers
+  3. 列表过滤与游标分页：Invocations、Messages、Contexts、Alarms、Memories、Group memory、Stickers
      的过滤器真正改变结果集（Memories 的 Active / Expired / Short-term / Long-term 状态过滤；
      各页可用过滤器以页面与 `02-lists-filters.e2e.ts` 为准）；
      `seedAdminBulkRows`（`test/fixtures/admin-seed.ts`）让每张列表的种子行数都超过
@@ -321,7 +332,7 @@ Remove-Item Env:E2E_PASSKEYS
      Agent transcript / Frozen context）切换并渲染期望字段；失败调用显示稳定错误码
      （`provider_timeout`）且可展开脱敏详情（`sk-***`，无活密钥模式）；assistant 文本
      带 `Private reasoning` 标记。
-  5. 写操作（请求真实发出 + UI/数据变化）：Memo 新建、编辑与删除（含 API 复核），详情里的 `pwblob://` 图片经内容端点渲染且监听到的请求带会话 Cookie、Bot admin
+  5. 写操作（请求真实发出 + UI/数据变化）：Memo 新建、编辑与删除（含 API 复核）、群聊记忆的 Chats 开关与 Group memory 页编辑/删除，详情里的 `pwblob://` 图片经内容端点渲染且监听到的请求带会话 Cookie、Bot admin
      添加与移除（写回 `telegram.admins`）、模型切换（写回 `config.jsonc`）、Settings 页的 `Apply config file`、
      Alarm 取消成功与 409 冲突路径（`alarm_not_pending` + 列表刷新到新状态）、
      Overview 的 Cancel ongoing 与睡眠态 Wake now；Models 页并发编辑（模型编辑输掉 revision 竞争后关闭而不覆盖、

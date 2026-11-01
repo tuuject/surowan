@@ -85,6 +85,21 @@ export const chats = {
   attentionPreserved: 'Keeping the {{seconds}}s attention window configured on this Chat.',
   daily: 'Daily',
   weekdaysShort: 'Mon,Tue,Wed,Thu,Fri,Sat,Sun',
+  colGroupMemory: 'Group memory',
+  groupMemoryOffSummary: 'Off',
+  groupMemorySummary: 'On · idle {{minutes}} min',
+  editGroupMemory: 'Edit group memory',
+  groupMemoryTitle: 'Group memory',
+  groupMemoryDescription:
+    'Sleeping group memory summarizes quiet group chats into dated events with Telegram message-id ranges. Recalling an event is on demand through the search_group_memory and read_group_messages tools.',
+  groupMemoryEnable: 'Enable group memory for this Chat',
+  groupMemoryEnableHint:
+    'When enabled, the background worker summarizes unprocessed messages after the Chat stays quiet for the configured idle time, or when a local day ends.',
+  groupMemoryIdle: 'Idle minutes before consolidating the current day',
+  groupMemoryIdleHint: 'A finished local day is consolidated without waiting. Values outside 1–1440 are rejected.',
+  groupMemoryCutover:
+    'Turning group memory on or off aborts every running Invocation in this Chat and rebuilds all of its Conversation Contexts. Changing only the idle minutes does neither.',
+  groupMemoryInvalid: 'Enter a whole number of minutes between 1 and 1440.',
   colProactive: 'Proactive replies',
   editProactiveReply: 'Edit proactive reply chance',
   proactiveTitle: 'Proactive reply chance',

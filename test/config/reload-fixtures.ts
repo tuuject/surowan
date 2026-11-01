@@ -215,6 +215,8 @@ export async function setup(
     readonly files?: Readonly<Record<string, string>>;
     /** Observe the Telegram token gateway the composition root installs. */
     readonly telegramConfig?: TelegramConfigGateway;
+    /** Stands in for the composition root's publish hook. */
+    readonly onPublished?: () => void | Promise<void>;
   } = {},
 ): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-reload-'));
@@ -271,7 +273,7 @@ export async function setup(
     // The pipeline tests build a runtime; without one there is no tool registry
     // to fit into a context window, so the check has nothing to reject.
     validateAgentModel: (candidate) => runtime?.validateAdditionalTools(previewContext(), [], candidate),
-    onPublished: () => undefined,
+    onPublished: options.onPublished ?? (() => undefined),
     ...(options.telegramConfig === undefined ? {} : { telegramConfig: options.telegramConfig }),
   });
   const scheduler = new BucketScheduler(store, configStore, async () => ({ state: 'completed', reason: 'done' }));

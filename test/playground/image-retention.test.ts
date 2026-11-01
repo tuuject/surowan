@@ -30,7 +30,7 @@ import {
 } from './image-fixtures.ts';
 
 describe('playground image generation', () => {
-  test('message retention keeps the generation archive and an unhandled receipt', async () => {
+  test('retention keeps chat records, the generation archive and an unhandled receipt', async () => {
     const f = await playgroundImageFixture();
     const published = releaseRoomInput(f, 'ask-retention');
     enableRoomImage(f, true);
@@ -57,22 +57,23 @@ describe('playground image generation', () => {
       stat(join(backup.replace(/\.sqlite$/, '.images'), relative(imagesRoot, assetPath))),
     ).resolves.toBeDefined();
 
-    // Retention removes the room's messages and media rows. The generation
-    // archive, its audit and the unhandled receipt are never touched by it.
+    // Retention keeps the room's messages and media rows. The generation
+    // archive, its audit and the unhandled receipt are untouched as well.
+    const beforePurgeMessages = roomMessages(f).length;
     purgeExpiredData(f.store.orm, f.config, new Date(Date.now() + 31 * 86_400_000));
-    expect(roomMessages(f).filter((row) => row.messages.sentByBot)).toEqual([]);
-    expect(f.store.orm.select().from(media).all()).toEqual([]);
+    expect(roomMessages(f)).toHaveLength(beforePurgeMessages);
+    expect(f.store.orm.select().from(media).all()).toHaveLength(1);
     expect(generationRows(f)).toHaveLength(2);
     const outputs = f.bridge.sendableOutputs(generationId, f.room.conversationId);
     expect(outputs).toHaveLength(1);
     expect(f.bridge.assetContent(outputs![0]!.asset_id).bytes.byteLength).toBeGreaterThan(0);
     expect(receiptRows(f).some((row) => row.state === 'pending')).toBe(true);
 
-    // The room's own copy is deleted only once nothing references it; the
-    // archive original above stays readable.
+    // The room's own copy and the archive original both stay readable while
+    // the room messages that reference them exist.
     await f.assets.sweep({ staleAfterMs: 0 });
-    expect(f.assets.resolve(assetId)).toBeNull();
-    await expect(stat(assetPath)).rejects.toThrow();
+    expect(f.assets.resolve(assetId)).not.toBeNull();
+    await expect(stat(assetPath)).resolves.toBeDefined();
     expect(f.bridge.assetContent(outputs![0]!.asset_id).bytes.byteLength).toBeGreaterThan(0);
   });
 

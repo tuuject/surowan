@@ -55,8 +55,8 @@ export interface ConfigReloaderOptions {
   readonly secrets: SecretStore;
   /** Throws when the tool registry does not fit the model's context window. */
   readonly validateAgentModel: (model: Model<Api>) => void;
-  /** Called after every successful publish; the composition root wakes the scheduler. */
-  readonly onPublished: () => void;
+  /** Called after every successful publish; awaited so cutovers finish before apply returns. */
+  readonly onPublished: () => void | Promise<void>;
   /** Optional image configuration gateway; present when the image service runs. */
   readonly imageConfig?: ImageConfigGateway;
   /** Optional Telegram token gateway; present when this process serves Telegram. */
@@ -84,7 +84,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
   readonly #modelSwitcher: AgentModelSwitcher;
   readonly #secrets: SecretStore;
   readonly #validateAgentModel: (model: Model<Api>) => void;
-  readonly #onPublished: () => void;
+  readonly #onPublished: () => void | Promise<void>;
   readonly #imageConfig: ImageConfigGateway | undefined;
   readonly #telegramConfig: TelegramConfigGateway | undefined;
   readonly #searchProviders: readonly SearchProviderRule[] | undefined;
@@ -110,6 +110,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
       lastError: null,
       imageSnapshotId: null,
       telegramTokenId: null,
+      publicationPending: false,
     };
   }
 

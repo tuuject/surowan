@@ -19,7 +19,9 @@ export type ConfigErrorCode =
   | 'unknown_model'
   | 'not_text_capable'
   | 'config_symlink'
-  | 'config_write_failed';
+  | 'config_write_failed'
+  /** The configuration was published, but the publish hook failed; applying again retries it. */
+  | 'publish_incomplete';
 
 export interface ConfigEdit {
   readonly path: JSONPath;

@@ -120,6 +120,7 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
       await state.telegramConnection?.shutdown();
       await state.admin?.stop();
       await state.scheduler?.stop(30_000);
+      await state.sleeping?.stop();
       state.host?.activity.stopAll();
       state.roomHost?.activity.stopAll();
       // The image worker borrows the SQLite connection; it must settle (marking

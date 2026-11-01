@@ -33,7 +33,6 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
     () => {
       orm.run(sql`DELETE FROM memo_pad_entries WHERE expires_at IS NOT NULL AND expires_at <= ${now.toISOString()}`);
       orm.run(sql`DELETE FROM conversation_attention WHERE expires_at <= ${now.toISOString()}`);
-      orm.run(sql`DELETE FROM telegram_updates WHERE received_at < ${cutoff}`);
       orm.run(sql`
       DELETE FROM host_sends
       WHERE tool_call_id IN (
@@ -64,14 +63,9 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
         AND COALESCE(finished_at, updated_at) < ${cutoff}
         AND NOT EXISTS (SELECT 1 FROM invocations i WHERE i.bucket_id = buckets.id)
     `);
-      orm.run(sql`
-      DELETE FROM media
-      WHERE revision_id IN (
-        SELECT r.id FROM message_revisions r
-        JOIN messages m ON m.id = r.message_id
-        WHERE m.received_at < ${cutoff}
-      )
-    `);
+      // Chat records are never pruned by the online-retention window: messages,
+      // their revisions and their media stay for as long as the Chat exists.
+      // `retention.online_days` still bounds audit and scheduling rows below.
       // A held room input past retention expires visibly; its ledger row then
       // outlives the message as the request key's tombstone.
       orm.run(sql`
@@ -79,30 +73,6 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
       SET state = 'expired'
       WHERE state = 'held'
         AND message_id IN (SELECT id FROM messages WHERE received_at < ${cutoff})
-    `);
-      orm.run(sql`
-      UPDATE messages
-      SET current_revision_id = NULL
-      WHERE received_at < ${cutoff}
-        AND NOT EXISTS (SELECT 1 FROM invocation_messages im WHERE im.message_id = messages.id)
-        AND NOT EXISTS (SELECT 1 FROM bucket_messages bm WHERE bm.message_id = messages.id)
-    `);
-      orm.run(sql`
-      DELETE FROM messages
-      WHERE received_at < ${cutoff}
-        AND NOT EXISTS (SELECT 1 FROM invocation_messages im WHERE im.message_id = messages.id)
-        AND NOT EXISTS (SELECT 1 FROM bucket_messages bm WHERE bm.message_id = messages.id)
-    `);
-      orm.run(sql`
-      UPDATE message_revisions
-      SET sender_id = NULL,
-          text = NULL,
-          caption = NULL,
-          reply_snapshot_json = NULL,
-          forward_origin_json = NULL,
-          service_json = NULL,
-          raw_fragment_json = '{}'
-      WHERE message_id IN (SELECT id FROM messages WHERE received_at < ${cutoff})
     `);
       orm.run(
         sql`DELETE FROM senders
@@ -125,11 +95,9 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
         )
       `);
       orm.run(sql`DELETE FROM daily_usage WHERE utc_date < ${cutoff.slice(0, 10)}`);
-      // Conversation Context housekeeping: soft-evicted rows and unused
-      // references go first, then contexts that have been idle past retention.
+      // Capability references expire by their own TTL. Conversation Context rows
+      // are chat records too: they are not deleted by the online-retention window.
       orm.run(sql`DELETE FROM context_refs WHERE expires_at <= ${now.toISOString()}`);
-      orm.run(sql`DELETE FROM context_messages WHERE evicted_at IS NOT NULL AND evicted_at < ${cutoff}`);
-      orm.run(sql`DELETE FROM conversation_contexts WHERE last_active_at < ${cutoff}`);
     },
     { behavior: 'immediate' },
   );

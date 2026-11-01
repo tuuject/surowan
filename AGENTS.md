@@ -18,8 +18,9 @@ Surowan 是一个运行在 Telegram 私聊、群组、Supergroup 与 Forum Topic
 - 不向模型暴露 Bash、任意代码执行或不受限文件系统能力。
 - 审计 Invocation、模型调用（含每次请求附带的工具）、Tool Call、Telegram 发送、Context GC 与预算使用。
 - 提供 Agent Memo Pad：按 Chat 隔离、Topic 共用，条目有 summary 与 Markdown detail 及可选期限；短期条目自动注入，长期条目通过查询读取；支持 Chat 私有 Blob 图片。
+- 提供可选的群聊记忆：按 Chat 开启，sleeping 后台把安静或已结束本地日期的群聊整理成带 Telegram message-id 区间的事件摘要，模型按需用 `search_group_memory` / `read_group_messages` 两层回忆；原始消息不随在线保留窗口删除。
 - 提供本地 Admin Panel，审计 Tool Session、消息、Sticker 视觉缓存与 Conversation Context，并管理 Memo Pad。
-- 在线数据按必填的 `retention.online_days` 保留（项目按 30 天设计，代码无默认值）；Memo Pad 的长期条目是模型可维护的持久记忆，人工审核的稳定知识仍写在 `agents.md`。
+- 审计与调度数据按必填的 `retention.online_days` 保留（项目按 30 天设计，代码无默认值）；聊天消息、Revision、Media 与 Conversation Context 不再随该窗口清理，只在删除 Chat/Conversation 或显式截断时移除；原始 Update 也不清理。Memo Pad 的长期条目是模型可维护的持久记忆，人工审核的稳定知识仍写在 `agents.md`。
 - `telegram` 段可选：不配置或没有 token 时 Telegram 停用，服务只提供 Admin Panel 与 Playground 虚拟房间；`admin` 必填，`admin.enabled` 省略即为 `true`。
 
 ## Project Structure & Module Organization
@@ -36,7 +37,7 @@ surowan/
 │   ├── orchestration/      # scheduler、invocation-queue、agent-runtime、conversation-runtime、bot-commands
 │   ├── plugins/            # 内置 Agent 插件：plugin（definePlugin/loadPlugins）、builtin 清单、web-fetch/、image/、alarm/、dictionary/
 │   ├── capabilities/       # send-tool、read-tool、execute-tool、mcp、stickers、media/
-│   ├── context/            # context-builder、context-store、context-refs、context-gc、context-codec、context-injector、memo-pad/
+│   ├── context/            # context-builder、context-store、context-refs、context-gc、context-codec、context-injector、memo-pad/、group-memory/
 │   ├── store/              # BusinessStore 契约、schema、migrations/、long-tasks、invocation-snapshot、sleep、participation
 │   ├── platform/           # config、secrets、providers、system-resources、doc-spaces 等无业务依赖模块
 │   ├── manual/             # 构建期生成的用户手册包（gitignored，scripts/manual-prepare.ts；Agent 经 list_documents/read_document 读取）
@@ -97,6 +98,7 @@ Invocation 是运行窗口而不是一次问答：`agent.context.idle_grace_seco
 | Playground 虚拟房间、Hold/Release、房间 API 与 Telegram 停用状态 | [agent-doc/admin-panel.md](agent-doc/admin-panel.md#playground-页端点)、[agent-doc/operations.md](agent-doc/operations.md#telegram-停用)、[agent-doc/data-layer.md](agent-doc/data-layer.md#虚拟房间rooms--room_participants) |
 | 测试命令与真实验收矩阵 | [agent-doc/verification.md](agent-doc/verification.md) |
 | 用户文档、首页、生成参考与静态站维护 | [apps/docs/README.md](apps/docs/README.md) |
+| 群聊记忆、sleeping 整理与按需回忆 | [agent-doc/telegram-agent-flow.md](agent-doc/telegram-agent-flow.md#群聊记忆sleeping)、[agent-doc/data-layer.md](agent-doc/data-layer.md#群聊记忆迁移-048) |
 | 审计某次 Invocation、排查 bot 为什么不回复 | [scripts/audit.ts](scripts/audit.ts) |
 
 历史资料的按需索引与读取边界见 [agent-doc/README.md](agent-doc/README.md#历史归档读取规则)。判断当前行为只看源码与上表主题文档，不以历史设计作为当前约束或待办。
@@ -177,4 +179,5 @@ pnpm run skills:sync
 - MCP HTTP 禁止重定向和 URL 凭据；stdio 仅执行配置中的固定 argv。
 - 非 Windows 系统上，`serve` 与 `doctor` 都要求配置文件 `0600`、其父目录 `0700`；`data_dir` 不得授予 group/other 权限只由 `doctor` 检查（`serve` 仅在目录缺失时以 `0700` 创建）。
 - Admin Panel 密码只以 Argon2id hash 存储；Session Token 只存 SHA-256 摘要，Cookie 为 `HttpOnly` + `SameSite=Strict`。
+- 群聊记忆的读取工具只能按当前 `internalChatId` 返回本 Chat 的摘要与原文；`read_group_messages` 只接受合法 message-id 闭区间并限制宽度与条数，不跨 Chat、不按任意 chat id 解析。整理用的模型输出必须通过事件 Schema 与批次内 message-id 校验后才能落库。
 - Admin 审计 API 全部只读；写入只允许 [admin-panel.md](agent-doc/admin-panel.md#api) 白名单中的控制端点，且都校验 `Origin`。过滤参数经白名单校验并使用绑定参数，禁止拼接 SQL。

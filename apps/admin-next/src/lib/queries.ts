@@ -21,6 +21,7 @@ import type { ListFilters, Page } from './api/core.ts';
 import { listAlarms } from './api/alarms.ts';
 import { listApiKeys, listBotAdmins } from './api/admin.ts';
 import { listMemories, listMemoryChats } from './api/memories.ts';
+import { listGroupMemories } from './api/group-memories.ts';
 import { listStickerSets, listStickers } from './api/stickers.ts';
 import { getTelegram } from './api/telegram.ts';
 import { listWarnings } from './api/warnings.ts';
@@ -107,6 +108,10 @@ export function stickersQuery(filters: ListFilters) {
 
 export function memoriesQuery(filters: ListFilters) {
   return infiniteList('memories', listMemories, filters);
+}
+
+export function groupMemoriesQuery(filters: ListFilters) {
+  return infiniteList('group-memories', listGroupMemories, filters);
 }
 
 export function alarmsQuery(filters: ListFilters) {
