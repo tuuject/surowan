@@ -174,7 +174,7 @@ Invocation 列表与详情的统计按 `invocation_id` 查询 `model_calls` / `t
 
 ## Group memory 页
 
-`/group-memories` 展示 sleeping worker 生成的事件摘要，与 Memo Pad 分开。列表按 `day DESC, first_message_id DESC` keyset 分页，`cursor` 是 `<YYYY-MM-DD>:<message_id>`；可按 Chat、日期与 summary 搜索。每行显示闭区间 Telegram message-id；`View source` 调用 `GET /api/group-memories/:id/messages` 回放仍保留的原始消息（响应文本按 20000 字符截断）。`Edit` 只改 summary；`Delete` 删除事件行但不回退 `group_memory_state` 水位，因此不会被 worker 重新生成。该页仅面板 Session，Bearer API key 不可读。
+`/group-memories` 展示 sleeping worker 生成的事件摘要，与 Memo Pad 分开。列表按 `day DESC, first_message_id DESC, id DESC` keyset 分页，`cursor` 是 `<YYYY-MM-DD>:<message_id>:<id>`（Telegram message id 按 Chat 各自编号，不同 Chat 可能同日同起点，`id` 打破平局）；可按 Chat、日期与 summary 搜索。每行显示闭区间 Telegram message-id；`View source` 调用 `GET /api/group-memories/:id/messages` 回放仍保留的原始消息（响应文本按 20000 字符截断）。`Edit` 只改 summary；`Delete` 删除事件行但不回退 `group_memory_state` 水位，因此不会被 worker 重新生成。该页仅面板 Session，Bearer API key 不可读。
 
 Memories 页管理 Chat 级 Memo Pad，不是按 Conversation 隔离的短期记忆。所有读写仅面板 Session；已配置的 Bearer API key 没有 `/memories` 权限（403），与其它面板写端点一致。
 

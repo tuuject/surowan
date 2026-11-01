@@ -69,22 +69,31 @@ const ITEM_FIELDS = {
   chat_title: chats.title,
 };
 
-const CURSOR_PATTERN = /^(\d{4}-\d{2}-\d{2}):(\d{1,19})$/;
+const CURSOR_PATTERN = /^(\d{4}-\d{2}-\d{2}):(\d{1,19}):(gmem_[a-f0-9]{32})$/;
+const CURSOR_FORMAT = 'cursor must be <YYYY-MM-DD>:<message_id>:<id>';
 
-/** A `day:first_message_id` keyset cursor, ordered newest day/range first. */
+/**
+ * A `day:first_message_id:id` keyset cursor, ordered newest day/range first.
+ * Telegram message ids are per Chat, so two Chats can share a day and a first
+ * id; the row id breaks that tie, otherwise a page boundary inside the tie would
+ * skip the remaining rows.
+ */
 function cursorCondition(cursor: string): SQL {
   const match = CURSOR_PATTERN.exec(cursor);
   if (match === null) {
-    throw new AdminQueryError('invalid_cursor', 'cursor must be <YYYY-MM-DD>:<message_id>');
+    throw new AdminQueryError('invalid_cursor', CURSOR_FORMAT);
   }
   const day = match[1] ?? '';
   try {
     parseDay(day);
   } catch {
-    throw new AdminQueryError('invalid_cursor', 'cursor must be <YYYY-MM-DD>:<message_id>');
+    throw new AdminQueryError('invalid_cursor', CURSOR_FORMAT);
   }
   const first = parseId(match[2] ?? '', 'cursor');
-  return sql`(${groupMemories.day} < ${day} OR (${groupMemories.day} = ${day} AND ${groupMemories.firstMessageId} < ${first}))`;
+  const id = match[3] ?? '';
+  return sql`(${groupMemories.day} < ${day}
+    OR (${groupMemories.day} = ${day} AND ${groupMemories.firstMessageId} < ${first})
+    OR (${groupMemories.day} = ${day} AND ${groupMemories.firstMessageId} = ${first} AND ${groupMemories.id} < ${id}))`;
 }
 
 export function listGroupMemories(
@@ -120,14 +129,14 @@ export function listGroupMemories(
     .from(groupMemories)
     .innerJoin(chats, eq(chats.id, groupMemories.chatId))
     .where(and(...conditions))
-    .orderBy(desc(groupMemories.day), desc(groupMemories.firstMessageId))
+    .orderBy(desc(groupMemories.day), desc(groupMemories.firstMessageId), desc(groupMemories.id))
     .limit(limit + 1)
     .all();
   const visible = rows.slice(0, limit);
   const last = visible.at(-1);
   return {
     items: visible.map(toItem),
-    next_cursor: rows.length > limit && last !== undefined ? `${last.day}:${last.first_message_id}` : null,
+    next_cursor: rows.length > limit && last !== undefined ? `${last.day}:${last.first_message_id}:${last.id}` : null,
   };
 }
 

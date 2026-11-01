@@ -58,10 +58,38 @@ test('group memory admin list is authenticated, filterable and paginated', async
   const firstPage = await f.call('/group-memories?limit=1');
   const firstBody = (await firstPage.json()) as { items: unknown[]; next_cursor: string | null };
   expect(firstBody.items).toHaveLength(1);
-  expect(firstBody.next_cursor).toBe('2026-09-11:902');
+  expect(firstBody.next_cursor).toMatch(/^2026-09-11:902:gmem_[a-f0-9]{32}$/);
   const secondPage = await f.call(`/group-memories?limit=1&cursor=${firstBody.next_cursor}`);
   expect(((await secondPage.json()) as { items: unknown[] }).items).toHaveLength(1);
   expect((await f.call('/group-memories?cursor=bad')).status).toBe(400);
+  expect((await f.call('/group-memories?cursor=2026-09-11:902')).status).toBe(400);
+});
+
+test('group memory admin pagination does not skip Chats that share a day and first message id', async () => {
+  const f = await fixture();
+  const memories = new GroupMemoryStore(f.store.orm);
+  // Telegram numbers messages per Chat, so two groups easily share a range start.
+  for (const telegramChatId of [111_111_111n, 222_222_222n, 333_333_333n]) {
+    const chat = seedChat(f.store, telegramChatId);
+    memories.commit(
+      chat.chatId,
+      '2026-09-10',
+      [{ summary: `Event in ${telegramChatId}`, firstMessageId: 500n, lastMessageId: 510n }],
+      510n,
+    );
+  }
+  const seen: string[] = [];
+  let cursor: string | null = null;
+  do {
+    const query: string = cursor === null ? '' : `&cursor=${encodeURIComponent(cursor)}`;
+    const page = (await (await f.call(`/group-memories?limit=1${query}`)).json()) as {
+      items: { chat: { telegram_chat_id: string } }[];
+      next_cursor: string | null;
+    };
+    seen.push(...page.items.map((item) => item.chat.telegram_chat_id));
+    cursor = page.next_cursor;
+  } while (cursor !== null);
+  expect(seen.toSorted()).toEqual(['111111111', '222222222', '333333333']);
 });
 
 test('group memory admin update and delete change only the summary/row', async () => {
