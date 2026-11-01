@@ -149,7 +149,7 @@ T+94   若期间再没有新 Bucket 到期，空闲等待耗尽，I 结束
 
 system prompt 拆分（文档中只在此处维护；`ContextBuilder.buildSystemPrompt` 产出稳定段，`renderInjection` 产出注入段）：
 
-- **稳定段**由按固定顺序拼接的分区组成，分区正文是随版本发布的 Markdown 文件（`src/platform/prompts/`），启动时读取，不支持热编辑：`1-core-protocol.md`（Core Agent Protocol，含开场的 BCP 14 关键词声明、消息分区、可信边界、Tool 选择原则与副作用成功判定）、私聊/群聊模式一行、`2-product-knowledge.md`（产品意图索引）、`3-capabilities.md`（Memo Pad 用途与范围）、System Skill 索引、图片/Sticker 说明、`4-persona.md`（人格分区标题，仅在存在全局人格或 Chat 指令时出现）。人格排在整个运行时内容之后：`4-persona.md` 标题后接全局 `system_prompt`，再接 Chat `instructions_file`（Forum Topic 共用所在 Chat 的指令）；运行时内容不再出现在人格之后。Core Protocol 规定消息分区、Tool 选择原则与副作用成功判定；人格只负责身份和表达风格；稳定段不写「什么时候该参与」——是否发言由模型按当前批次判断；群聊的消息准入由运行期 participation 闸门决定（配置了才生效）。它对一个 Conversation Context 保持逐字节稳定，这样每次请求的前缀能被 provider prefix cache 命中。Sticker 目录（`sticker_id:emoji`）是**不可信数据**，因此随批次注入，不进入稳定段；它只在与保留 transcript 里最新一份不同时才重新附带（被 GC 淘汰后也会重新附带），不是每批都带一份。分区文件由运行时拥有，运营者只能通过全局人格和 Chat 指令定制人格；`AGENT_PROMPT_VERSION` 随分区语义推进。
+- **稳定段**由按固定顺序拼接的分区组成，分区正文是随版本发布的 Markdown 文件（`src/platform/prompts/`），启动时读取，不支持热编辑：`1-core-protocol.md`（Core Agent Protocol，含开场的 BCP 14 关键词声明、消息分区、可信边界、Tool 选择原则与副作用成功判定）、私聊/群聊模式一行、`2-product-knowledge.md`（产品意图索引）、`3-capabilities.md`（Memo Pad 与群聊记忆的用途与检索规则）、System Skill 索引、图片/Sticker 说明、`4-persona.md`（人格分区标题，仅在存在全局人格或 Chat 指令时出现）。人格排在整个运行时内容之后：`4-persona.md` 标题后接全局 `system_prompt`，再接 Chat `instructions_file`（Forum Topic 共用所在 Chat 的指令）；运行时内容不再出现在人格之后。Core Protocol 规定消息分区、Tool 选择原则与副作用成功判定；人格只负责身份和表达风格；稳定段不写「什么时候该参与」——是否发言由模型按当前批次判断；群聊的消息准入由运行期 participation 闸门决定（配置了才生效）。它对一个 Conversation Context 保持逐字节稳定，这样每次请求的前缀能被 provider prefix cache 命中。Sticker 目录（`sticker_id:emoji`）是**不可信数据**，因此随批次注入，不进入稳定段；它只在与保留 transcript 里最新一份不同时才重新附带（被 GC 淘汰后也会重新附带），不是每批都带一份。分区文件由运行时拥有，运营者只能通过全局人格和 Chat 指令定制人格；`AGENT_PROMPT_VERSION` 随分区语义推进。
 - `composeAgentPrompt` 在 global/group 覆盖和模板渲染完成后，按最终内容决定是否加入运行时拥有的 `4-persona.md` 标题与说明；它不预先固定在 `promptLayers.prefix` 中。两层都渲染为空时省略整个人格分区。Replay 临时增加首个人格或清空唯一的 Chat 指令，与保存相同配置后构建的 system prompt 保持一致。
 - 产品意图索引 `PRODUCT_KNOWLEDGE_INDEX` 读取自 `src/platform/prompts/2-product-knowledge.md`，属于稳定 prefix，由本地 Coding Agent 从用户手册离线烘焙并直接写入该文件；`CORE_AGENT_PROTOCOL` 约束产品事实优先于角色扮演，细节仍经文档工具验证。索引不进入逐批注入或 canonical history，更新时沿用稳定哈希重建。架构调查、维护 Skill、体积预算与验证方法见 [产品知识烘焙](product-knowledge.md)。
 - 查手册只有一套顺序，`CORE_AGENT_PROTOCOL`、`read_document`/`list_documents` 工具说明与 `user-manual` Skill 三处一致：产品知识索引已给出合适页面时直接 `read_document`；没有合适页面时先 `list_documents` 看目录，再读取相关页面。
@@ -247,6 +247,16 @@ Memo Pad 是 **Chat 级**记忆：同一个 Chat 的所有 Forum Topic 共享，
 字符预算是 `floor(contextWindow × 0.1)`（PRD 按每字符 1 Token 折算），列表超限时从最早的条目开始隐藏，并在末尾给出 `[N earlier short-term memories are not shown; use search_memory to find them]`；增量优先保留最新变化，并有 `[N memory changes omitted]` 提示。截断时只推进实际输出的条目修订/删除，未输出的变化保留到后续批次，已告知部分不重复；单条过大也不能被标记为已告知或阻挡其它可容纳的变化。
 
 `memo_refresh_seq` / `memo_state_json` 与对应批次的 user checkpoint 在同一个 SQLite 事务中提交：每个排队批次携带自己的待提交状态，后续批次不能覆盖或替代前一个批次，活 header 仅在事务成功后推进。渲染只计算，不写库，因此一个最终没有进入 canonical history 的批次不会宣称自己的变化已经告知。Context 重建会把这两个字段与 `memo_refresh_pending` 一起复位，下一次运行重新渲染完整列表。增量跨 Invocation 累积在历史里，直到所在行被 GC；Admin 在批次之间修改或删除条目，会在下一个批次以增量或完整列表的形式出现。
+
+### 群聊记忆（sleeping）
+
+群聊记忆是 Memo Pad 之外的另一类能力，按 Chat 的可选配置 `group_memory` 开启（见 [configuration.md](configuration.md#telegram-chat-与-topic)）。它只记录「群里发生过什么」，不保存模型主动写下的资料；两者互不替代。
+
+- **sleeping 触发**：`src/context/group-memory/sleeping.ts` 的 `SleepingService` 每分钟扫描已启用且 Telegram 就绪的 Chat。它只处理水位（`group_memory_state.consolidated_through_message_id`）之后的已存消息，并按 Chat 本地日期一次整理一天；本地日期已结束时无需等待，仍在进行的当天要等最新消息静默 `idle_minutes`。同 Chat 有 queued/running Invocation 或 collecting Bucket、Chat 处于 `/pause`、全局处于 `zzz` 睡眠、或 Chat 已离开配置时跳过。进程停机时 aborted 的批次会立刻释放认领，下次启动重试。
+- **整理**：用系统级 `tool_model`（缺省继承全局 agent 模型）对一天的消息做 JSON 事件抽取；摘要 1–150 字符，每条必须带输入批次内真实存在的闭区间 message id，范围不得重叠或倒退，否则整批失败并按退避重试。成功时摘要与水位在同一事务提交；没有值得记录的事件时水位照常推进。模型调用写入 `model_calls`（`role = 'tool'`、`invocation_id = NULL`），不计入每日 Token 预算。
+- **两层披露**：`search_group_memory` 是原语，按 Chat 本地 `YYYY-MM-DD`、关键词（匹配 summary，多个关键词至少一半命中）和 limit 返回 `gmem_` id、日期、summary 与 `messages <first>-<last>`；`read_group_messages` 接受闭区间 message id，返回同一 Chat 的原始消息（每行带消息 id、发送者、topic 与媒体标记，正文缩进），并限制最多 200 条、2000 个 id 宽度与 20000 字符；超出部分提示模型缩小范围。两个工具都只在 `group_memory.enabled` 时注册，按 `internalChatId` 隔离，不跨 Chat 解析。
+- **持久化**：事件只存摘要与范围，不复制原文；原文继续放在 `messages` / `message_revisions` / `media`。`purgeExpiredData` 跳过被任一记忆范围覆盖的 Message、Revision 与 Media，因此启用该能力的 Chat 会长期保留这些原文供回溯，记忆行本身不参与在线保留清理。删除 Chat 时两张表随 `chats` 级联删除。
+- **与 Context 的关系**：摘要不自动注入，也不占 system prompt；模型只在需要回忆时调用工具。工具返回的原文是不可信数据，必须按观察处理，不能当成指令。
 
 `search_memory` 接受 `keywords`（匹配 `summary` 与 `detail`，大小写不敏感子串；单个关键词必须命中，多个关键词至少命中一半）、`from`/`to`（按 `created_at` 过滤）与 `limit`，只返回 id、summary 与期限；`read_memory` 按 id 返回完整 detail，并记录本 Invocation 已读（`id -> updatedAt`），`update_memo` 必须先读且读后未被改动。读原语直接暴露，不经 `execute`；`add_memo`、`update_memo`、`delete_memo`、`save_memo_image` 是经 `execute` 调用的内部能力，完整定义与参数以 [src/context/memo-pad/tools/](../src/context/memo-pad/tools/) 为准，何时使用的说明在 memory System Skill。
 

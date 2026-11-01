@@ -1,13 +1,13 @@
 ---
-title: 管理 Memo Pad（Chat 记忆）
-description: 按 Chat 共享的记忆：summary 与 Markdown 详情、可选期限、图片附件和 Admin Panel 管理方式。
+title: 管理记忆（Memo Pad 与群聊记忆）
+description: 按 Chat 共享的 Memo Pad 与可选的群聊记忆：摘要、详情、期限、图片附件、事件回忆与 Admin Panel 管理方式。
 ---
 
-# 管理 Memo Pad
+# 管理记忆
 
-Surowan 的记忆是一块 **Memo Pad**，属于一个 Chat：同一个群的所有 Forum Topic 共用一份，私聊各自一份，不同 Chat 互不可见。Topic 之间的 Context、消息与回复范围仍然隔离，只有 Memo Pad 是 Chat 级共享的。
+Surowan 有两类记忆：模型主动维护的 **Memo Pad**，以及可选的 **群聊记忆**。两者都属于一个 Chat：同一个群的所有 Forum Topic 共用一份，私聊各自一份，不同 Chat 互不可见。Topic 之间的 Context、消息与回复范围仍然隔离，只有记忆是 Chat 级共享的。
 
-每个条目有两层内容：
+Memo Pad 的每个条目有两层内容：
 
 - **summary**：最多 150 字符，列表、搜索结果与自动注入看到的就是它。
 - **detail**：最多 32768 字符的 Markdown，只有真正读取条目时才返回；图片以 `pwblob://` 引用。
@@ -24,6 +24,45 @@ Surowan 的记忆是一块 **Memo Pad**，属于一个 Chat：同一个群的所
 - 长期条目不注入。需要时模型用 `search_memory` 按关键词或创建日期搜索，再用 `read_memory` 读取详情。
 - 新增、修改、删除条目与保存图片由 `add_memo`、`update_memo`、`delete_memo`、`save_memo_image` 完成，经由受控的 `execute` 调用。修改前必须先读取当前版本；如果读取后有人（包括面板）改过它，写入会被拒绝并要求重读。
 - `save_memo_image` 把对话里可见的图片复制成 Chat 自己的 Blob，返回 `pwblob://` 地址；原图引用会随 Context 淘汰失效，Blob 不会。detail 不再引用某个 Blob，且同 Chat 没有其他条目引用它时，系统把行与文件一起清理；刚保存不到 10 分钟的 Blob 不会被清理，给写入 detail 留出窗口。
+
+## 群聊记忆（sleeping）
+
+群聊记忆是另一项可选能力，用来记住群里发生过的事件，而不是模型主动保存的资料。它默认关闭，需要按 Chat 在配置里开启：
+
+```jsonc
+{
+  "telegram": {
+    "chats": [
+      {
+        "id": -1001234567890,
+        "group_memory": { "enabled": true, "idle_minutes": 30 }
+      }
+    ]
+  }
+}
+```
+
+开启后，后台 sleeping 整理会在群里安静 `idle_minutes` 分钟（或某个本地日期已经结束）时，把还没整理的消息交给系统辅助模型，生成按日期组织的事件摘要。每条摘要都带对应的原始消息 ID 区间，例如：
+
+```text
+- gmem_... [2026-10-01; messages 4005-4114]: Natu 和 tcdw 讨论了 eSIM 的价格。
+```
+
+回忆分两层，模型按需调用：
+
+1. `search_group_memory`：按 Chat 本地日期、关键词或条数上限查询事件摘要，只返回摘要与消息区间。
+2. `read_group_messages`：用摘要带的 `first_message_id` / `last_message_id` 读取原始消息，核对当时的上下文。
+
+要点：
+
+- 群聊记忆按 Chat 共享，Topic 共用；不同 Chat 的摘要与原文互不可见。
+- 摘要不会自动注入对话，只在模型判断需要回忆时查询，因此不会挤占普通上下文。
+- 整理使用系统级 `tool_model`；未配置时继承全局 Agent 模型。这个后台调用不计入每日 Agent Token 预算，但全局 `zzz` 睡眠期间不会运行。
+- 同一个 Chat 有正在运行或排队的对话、或正在收集新消息时会跳过一次整理。
+- 群里执行 `/pause` 后整理也会暂停；`/resume` 后继续，暂停期间积压的消息会补整理。
+- 某项事件不再需要时，可在配置里把 `group_memory.enabled` 改为 `false`；已有摘要与原文保留，模型不再获得回忆工具。需要彻底清理时请连同 Chat 一起删除。
+- 被摘要区间覆盖的原始消息会越过在线保留窗口继续保留，供 `read_group_messages` 回溯；这也是群聊记忆会额外占用磁盘空间的原因。
+- 群聊记忆目前没有独立的 Admin 页面；摘要由模型工具读取，随 Chat 删除。需要人工审阅历史事件时，可以让模型回忆，或直接查看 Chat 原始消息。
 
 ## 在面板查看和处理
 

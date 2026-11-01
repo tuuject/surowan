@@ -70,6 +70,10 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
         SELECT r.id FROM message_revisions r
         JOIN messages m ON m.id = r.message_id
         WHERE m.received_at < ${cutoff}
+          AND NOT EXISTS (
+            SELECT 1 FROM group_memories gm
+            WHERE gm.chat_id = m.chat_id AND m.telegram_message_id BETWEEN gm.first_message_id AND gm.last_message_id
+          )
       )
     `);
       // A held room input past retention expires visibly; its ledger row then
@@ -86,12 +90,22 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
       WHERE received_at < ${cutoff}
         AND NOT EXISTS (SELECT 1 FROM invocation_messages im WHERE im.message_id = messages.id)
         AND NOT EXISTS (SELECT 1 FROM bucket_messages bm WHERE bm.message_id = messages.id)
+        AND NOT EXISTS (
+          SELECT 1 FROM group_memories gm
+          WHERE gm.chat_id = messages.chat_id
+            AND messages.telegram_message_id BETWEEN gm.first_message_id AND gm.last_message_id
+        )
     `);
       orm.run(sql`
       DELETE FROM messages
       WHERE received_at < ${cutoff}
         AND NOT EXISTS (SELECT 1 FROM invocation_messages im WHERE im.message_id = messages.id)
         AND NOT EXISTS (SELECT 1 FROM bucket_messages bm WHERE bm.message_id = messages.id)
+        AND NOT EXISTS (
+          SELECT 1 FROM group_memories gm
+          WHERE gm.chat_id = messages.chat_id
+            AND messages.telegram_message_id BETWEEN gm.first_message_id AND gm.last_message_id
+        )
     `);
       orm.run(sql`
       UPDATE message_revisions
@@ -103,6 +117,12 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
           service_json = NULL,
           raw_fragment_json = '{}'
       WHERE message_id IN (SELECT id FROM messages WHERE received_at < ${cutoff})
+        AND NOT EXISTS (
+          SELECT 1 FROM messages m
+          JOIN group_memories gm ON gm.chat_id = m.chat_id
+            AND m.telegram_message_id BETWEEN gm.first_message_id AND gm.last_message_id
+          WHERE m.id = message_revisions.message_id
+        )
     `);
       orm.run(
         sql`DELETE FROM senders

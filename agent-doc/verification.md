@@ -55,6 +55,7 @@ pnpm test test/bot-commands/commands.test.ts
 pnpm test test/config/diff.test.ts test/config/reload.test.ts test/chat/model-runtime.test.ts
 pnpm test test/runtime/host.test.ts test/config/boundary.test.ts test/store-boundary.test.ts
 pnpm test test/memo
+pnpm test test/group-memory
 pnpm test test/dictionary/dictionary.test.ts test/dictionary/runtime.test.ts
 pnpm test test/tasks/long-tasks.test.ts test/tasks/migration.test.ts test/tasks/delivery.test.ts test/tasks/runtime.test.ts test/tasks/context.test.ts test/tasks/hot-injection.test.ts
 pnpm test test/alarm/alarm.test.ts test/alarm/context.test.ts
@@ -152,6 +153,12 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `config/reload.test.ts` | `ConfigReloader` 外部契约：generation 与两个 hash、`config_reloaded`/`config_reload_failed`/`model_switch_failed` 日志、待重启字段撤销与只改注释后 active hash 跟上文件 hash、两遍校验与 `candidate_invalid`、`secret_unresolved` 的整次拒绝、待重启列表、运行中 Invocation 钉住模型与 Provider 连接（两个本地端点验证换地址后的下一轮仍走旧地址）、`/model` 写入文件（保留注释、`0600`、符号链接拒绝）、`invocations.config_hash` 在 `queued → running` 写入、Admin `POST /config/apply` 与 `PUT /model` 的响应体；Chat 覆盖切换按文件 ID 定位（reorder 后仍解析正确、保留其它 Chat 与全局默认、文件里缺该 Chat 时拒绝写入不落盘）、并发 Chat 切换互不覆盖、发布前对全局与每个选中 Chat 模型逐一校验（删除在用 Chat 模型被拒、全局换模型拒绝继承不兼容的 thinking）；自助忽略持久化/恢复、重复与并发增删、跨 Chat 隔离、迁移 Forum Chat、实时/追赶名单热应用、失败后的文件/运行态与重试审计 |
 | `dictionary/dictionary.test.ts` | 辞典词条与别名归一化、pangu 空格折叠匹配、revision 乐观锁且不改作用域、Agent 工具只写当前群、私聊只读全局、CSV 导入导出转义 |
 | `dictionary/runtime.test.ts` | 辞典注入生命周期：命中持久化、下一批去重、缓存遗忘后从数据库重新播种、GC 后刷新；禁用词条不注入；`on_demand` 双向 pangu 空格匹配 |
+| `group-memory/day.test.ts` | Chat 时区日期、UTC/Asia-Shanghai 边界、DST 23/25 小时日、日期与下一天校验 |
+| `group-memory/store.test.ts` | 摘要与水位原子提交、日期/关键词半数阈值/排序、Chat 隔离、认领互斥、失败退避与 stale claim 恢复 |
+| `group-memory/consolidate.test.ts` | 模型 JSON 事件范围校验（批次外/倒退/重叠拒绝）、成功与非法输出的 `model_calls` 审计 |
+| `group-memory/sleeping.test.ts` | 已完成日期立即整理、当天 idle 窗口、queued/running 与 collecting 跳过、禁用与全局睡眠不发模型调用 |
+| `group-memory/tools.test.ts` | `search_group_memory` 日期/范围展示、`read_group_messages` 回放与越界/过宽拒绝、审计行、未启用时工具缺失 |
+| `group-memory/retention.test.ts` | 在线保留跳过被记忆范围覆盖的 Message/Revision/Media，其余旧消息照常删除 |
 | `memo/store.test.ts` | Chat 隔离、短期 TTL 与永久条目、搜索（关键词与半数阈值、大小写、日期范围、排序与 limit）、更新（`ttl_seconds` 与 `null` 提升为永久）、删除幂等、过期清理 |
 | `memo/injection.test.ts` | 只列短期未过期条目、10% 预算隐藏最早条目并给出隐藏数、增量新增/更新/删除与空增量、`null`/落后 `head_seq`/`pending` 触发完整刷新、列表仍在保留窗口时不刷新 |
 | `memo/tools.test.ts` | `read_memory` 记录已读、`update_memo` 拒绝未读与读后被 Admin 修改、`delete_memo` 无需已读且幂等、Chat 移出配置后写入被拒、`tool_calls` 审计行 |

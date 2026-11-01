@@ -24,6 +24,8 @@ Surowan 使用单个 SQLite 数据库保存消息、调度状态、能力索引�
 
 迁移 `038` 把发送台账切成宿主中立：`telegram_sends` 改名为 `host_sends`，主键、外键、`state` 取值与 Telegram 响应元数据原样保留，去重索引改名为 `host_sends_reply_delivery_idx` / `host_sends_image_delivery_idx`，并新增可空的 `message_id` 指向虚拟宿主为该次发送落下的消息（`ON DELETE SET NULL`，保留期删掉消息时审计行仍在）。改名在开启外键约束的情况下直接 ALTER 完成，不需要重建表。
 
+迁移 `048` 建立群聊记忆：`group_memories` 保存 Chat 级、按本地日期组织的事件摘要与闭区间 Telegram message-id 范围；`group_memory_state` 每个 Chat 至多一行，保存已整理的 message-id 水位、`idle`/`running` 认领状态与失败退避。两张表都随 `chats` 级联删除，不参与在线保留窗口；被记忆范围覆盖的原文由 `purgeExpiredData` 例外保留，见「保留清理」。
+
 迁移 `046` 建立 Memo Pad：`memo_pad_entries` 与 `memo_blobs`（都随 `chats` 级联删除），给 `conversation_contexts` 加 `memo_refresh_seq`、`memo_state_json`、`memo_refresh_pending` 三个列，并把旧 `memories` 行按 `conversations.chat_id` 迁入（`summary` 与 `detail` 都取旧 `content`，保留 `expires_at`、时间戳与旧 `mem_` id），随后删除 `memories`。旧记忆按 Conversation 隔离，迁移后同一 Chat 的多个 Topic 共享同一份 Memo Pad，这是有意的语义变化。
 
 SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是整棵消息树的级联父表（外键强制下 `DROP TABLE` 会级联删掉全部 Conversation 与 Message），`messages` 又被 NO ACTION 子表引用（同样条件下直接报错），所以重建只能在关闭外键强制的窗口里做。需要在重建表的迁移在文件里单独一行写 `-- @rebuild-tables` 显式声明：runner 只对带该指令的迁移临时关闭 `foreign_keys`，整个迁移仍在单个 IMMEDIATE transaction 内执行，提交前跑 `PRAGMA foreign_key_check`，发现违例就回滚，并在 `finally` 中恢复强制；不带该指令的迁移路径完全不变。这不是「关掉约束蒙混升级」——约束只在 DDL 窗口内让位，且提交前必须通过校验。
@@ -140,6 +142,16 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 
 `conversation_contexts` 的三个 Memo 列（`memo_refresh_seq`、`memo_state_json`、`memo_refresh_pending`）记录短期记忆注入状态：完整列表所在 checkpoint 的实际 `seq`、已告知模型的状态快照，以及强制刷新标记。Context 重建会把三者复位；消息、序号与 Memo 状态在同一个事务中提交，失败时数据库和活 header 都不推进。刷新判据与预算见 [telegram-agent-flow.md](telegram-agent-flow.md#context)。
 
+### 群聊记忆（迁移 048）
+
+`group_memories` 是 **Chat** 级（`chats.id`）的只读事件索引，同一个 Chat 的所有 Forum Topic 共用；写入只由 sleeping worker 完成，模型只能通过两个读原语查询。
+
+- `summary` 1–150 字符，是给模型看的检索索引；`first_message_id` / `last_message_id` 是事件对应的闭区间 Telegram message id，`CHECK(last >= first)` 兜底。没有 detail：第二层披露直接回放原始消息，不复制一份摘要正文。
+- `day` 是 Chat `timezone` 下的 `YYYY-MM-DD`，`CHECK` 只校验形态；合法日历日由 [src/context/group-memory/day.ts](../src/context/group-memory/day.ts) 计算。一天可以有多条事件，批次上限是 120 条消息或 40000 字符（再按工具模型窗口收窄），超出部分在下一个批次继续。
+- `group_memory_state.consolidated_through_message_id` 是已提交批次的最大 Telegram message id；摘要与水位在同一个 IMMEDIATE transaction 提交，失败时两者都不推进。`state = 'running'` + `claimed_at` 是数据库认领；超过 30 分钟的认领由 `recoverStale()` 释放，失败写入 `next_attempt_at` 退避，不会对同一批无限调用模型。
+- 摘要范围可能不覆盖批次里的每一条消息（模型可以跳过寒暄与命令），但水位仍推进到批次末尾，避免噪声让同一批永久重试。
+- 原始消息的保留：`purgeExpiredData` 在删除/匿名化旧 Message、Revision 与 Media 时跳过被任一 `group_memories` 范围覆盖的 message。因此启用了群聊记忆的 Chat 会长期保留这些原文，用于 `read_group_messages` 回溯；记忆行本身没有 TTL。
+
 ### 注意力窗口
 
 `conversation_attention` 每个 Conversation 至多一行，记录 `expires_at`、命中的 `trigger_kind`（`mention`/`reply_to_bot`/`keyword`）与触发消息的 Telegram message ID。它只回答「这个会话现在算不算活跃」：行过期即无意义，读路径只比较 `expires_at > now` 且从不惰性删除，清理交给 `purgeExpiredData`。窗口要跨进程重启保持，因此放在 SQLite 而不是内存。
@@ -224,8 +236,8 @@ Admin 侧的 `admin_users`/`admin_sessions` 语义见 [admin-panel.md](admin-pan
 - 已过期的 `memo_pad_entries`（按自身 TTL，不参与在线保留窗口）；`purgeExpiredData` 删除的是行，`memo_blobs` 的行与文件由随后的 `MemoBlobStore.sweep()` 按引用清理（服务启动时也会执行一次）。
 - 已过期的 `conversation_attention` 注意力窗口行（窗口过期即无意义，不参与在线保留窗口）。
 - 过期 Telegram Update 与终态 Invocation/Send/Bucket。
-- 不再被 Invocation/Bucket 引用的旧 Message。
-- 仍被快照引用的旧 Message 保留身份，但匿名化 Revision 文本、Sender、Reply/Forward 和 Service 内容。
+- 不再被 Invocation/Bucket 引用的旧 Message；被 `group_memories` 的 message-id 范围覆盖的 Message 例外保留。
+- 仍被快照引用的旧 Message 保留身份，但匿名化 Revision 文本、Sender、Reply/Forward 和 Service 内容；被群聊记忆覆盖的 Message 不做匿名化，也不删除其 Media，否则 `read_group_messages` 回溯不到现场。
 - 删除无引用 Sender、过期普通图片分析、无 `invocation_id` 的非 pending 模型调用（Doctor 与 Tool Model）与旧 `daily_usage` 日期。
 - Sticker 长期视觉索引不按普通图片策略删除。
 - `long_tasks` 的 waiting 行及 pending/claimed `task_receipts` 永不因 online cutoff 删除；任务终态且 receipt 已 handled/suppressed 后才随在线窗口一起清理。

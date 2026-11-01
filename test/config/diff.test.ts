@@ -205,3 +205,23 @@ test('dropping the whole agent section is hot and leaves no restart-only value b
   expect(paths(diff.changes, 'hot')).toEqual(expect.arrayContaining(['agent.context', 'agent.daily_budget']));
   expect(diff.candidate.file.agent).toBeNull();
 });
+
+test('group memory enablement and tuning are hot', async () => {
+  const { active, file } = await loadBoth(undefined, (config) => {
+    config.telegram.chats[0]!.group_memory = { enabled: true, idle_minutes: 45 };
+  });
+  const added = diffConfig(
+    { file: active.fileConfig, raw: active.config },
+    { file: file.fileConfig, raw: file.config },
+  );
+  expect(paths(added.changes, 'restart')).toEqual([]);
+  expect(paths(added.changes, 'hot')).toEqual(['telegram.chats[123456789].group_memory']);
+  expect(added.candidate.raw.telegram.chats[0]?.group_memory).toEqual({ enabled: true, idle_minutes: 45 });
+
+  const removed = diffConfig(
+    { file: file.fileConfig, raw: file.config },
+    { file: active.fileConfig, raw: active.config },
+  );
+  expect(paths(removed.changes, 'hot')).toEqual(['telegram.chats[123456789].group_memory']);
+  expect(removed.candidate.raw.telegram.chats[0]?.group_memory).toBeUndefined();
+});

@@ -20,6 +20,7 @@
 export * from './admin.ts';
 export * from './agent-loop.ts';
 export * from './core.ts';
+export * from './group-memory.ts';
 export * from './image.ts';
 export * from './invocation.ts';
 export * from './memo.ts';

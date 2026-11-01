@@ -12,6 +12,7 @@ import { eq, sql } from 'drizzle-orm';
 import { capability, createExecuteTool, type ExecutableCapability } from '../../capabilities/execute-tool.ts';
 import { createReadTool } from '../../capabilities/read-tool.ts';
 import { createMemoReadTools } from '../../context/memo-pad/tools/index.ts';
+import { createGroupMemoryReadTools } from '../../context/group-memory/tools/read.ts';
 import { MemoPadStore } from '../../context/memo-pad/store.ts';
 import { createSendTools } from '../../capabilities/send/index.ts';
 import { createTyping } from '../../capabilities/typing-tool.ts';
@@ -82,6 +83,7 @@ export function validateAdditionalTools(
     [
       createReadTool({ store: services.store, context, resources: services.systemResources }),
       ...createMemoReadTools({ store: services.store, memoPad, context }),
+      ...createGroupMemoryReadTools({ store: services.store, configStore: services.configStore, context }),
       send,
       sendReply,
       createExecuteTool({ audit: createToolAudit(services.store, context.invocationId), capabilities: [] }),
@@ -180,6 +182,7 @@ export function buildTools(
   return [
     createReadTool({ store: services.store, context: target, resources }),
     ...createMemoReadTools({ store: services.store, memoPad, context: target }),
+    ...createGroupMemoryReadTools({ store: services.store, configStore: services.configStore, context: target }),
     send,
     sendReply,
     createExecuteTool({

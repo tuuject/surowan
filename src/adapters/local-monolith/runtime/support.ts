@@ -9,6 +9,7 @@ import type { McpManager } from '../../../capabilities/mcp/index.ts';
 import type { ImageBridge } from '../../../image/bridge.ts';
 import type { ImageService } from '../../../image/service.ts';
 import type { AdminServer } from '../../../ingress/admin/index.ts';
+import type { SleepingService } from '../../../context/group-memory/sleeping.ts';
 import {
   commandSender,
   type BotCommandService,
@@ -55,6 +56,7 @@ export interface ServeState {
   imageBridge?: ImageBridge | undefined;
   telegramConnection?: TelegramConnectionManager | undefined;
   scheduler?: BucketScheduler | undefined;
+  sleeping?: SleepingService | undefined;
   mcp?: McpManager | undefined;
   host?: TelegramHost | undefined;
   roomHost?: ImHost | undefined;

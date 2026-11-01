@@ -12,6 +12,7 @@ import type { MediaDownloader } from '../../../capabilities/media/download.ts';
 import { StickerService } from '../../../capabilities/stickers.ts';
 import { MemoBlobStore } from '../../../context/memo-pad/blobs.ts';
 import { MemoPadStore } from '../../../context/memo-pad/store.ts';
+import { SleepingService } from '../../../context/group-memory/sleeping.ts';
 import { createImageBridge, type ImageBridge } from '../../../image/bridge.ts';
 import { generationEligibilityForHosts } from '../../../image/host-eligibility.ts';
 import { createImageService, type ImageService } from '../../../image/service.ts';
@@ -73,6 +74,8 @@ export interface ServeServices {
   readonly mcpManager: McpManager;
   readonly tasks: LongTaskService;
   readonly warnings: WarningService;
+  /** Background group-memory consolidation; inert unless a Chat enables it. */
+  readonly sleeping: SleepingService;
   readonly playgroundStore: PlaygroundStore;
   readonly playgroundIngress: PlaygroundIngress;
   readonly plugins: LoadedPlugins;
@@ -222,6 +225,15 @@ export async function startServeServices(session: ServeContext, environment: Ser
   memoPad.purgeExpired();
   await memoBlobs.sweep();
   const tasks = new LongTaskService(openedStore.orm, () => state.scheduler?.wake(), servedHosts);
+  // Group memory is a background reader of stored messages: it only needs the
+  // published configuration and the same readiness gate the scheduler uses, so
+  // a disabled or reconnecting Telegram never starts a model call here.
+  const sleeping = new SleepingService({
+    store: openedStore,
+    configStore,
+    secrets,
+    isHostReady,
+  });
   // The room write path: an admitted input is held, a Release seals it into a
   // queued invocation through the same ledger Telegram uses.
   const playgroundStore = new PlaygroundStore(openedStore.orm);
@@ -292,6 +304,7 @@ export async function startServeServices(session: ServeContext, environment: Ser
     mcpManager,
     tasks,
     warnings,
+    sleeping,
     playgroundStore,
     playgroundIngress,
     plugins,

@@ -178,6 +178,21 @@ export const WebSearchSectionSchema = Type.Object(
   Strict,
 );
 
+/**
+ * Optional group-chat memory. When enabled, the runtime consolidates a quiet
+ * Chat's unprocessed messages into dated event memories; each memory keeps the
+ * inclusive Telegram message-id range it was written from. `idle_minutes` is how
+ * long the Chat must stay quiet before a still-running local day is consolidated
+ * (a finished local day is consolidated without waiting).
+ */
+export const GroupMemorySchema = Type.Object(
+  {
+    enabled: Type.Boolean(),
+    idle_minutes: Type.Optional(Type.Integer({ minimum: 1, maximum: 1_440 })),
+  },
+  Strict,
+);
+
 export const ChatSchema = Type.Object(
   {
     id: Type.Integer(),
@@ -185,6 +200,7 @@ export const ChatSchema = Type.Object(
     ignored_user_ids: Type.Optional(Type.Array(PositiveInteger, { uniqueItems: true })),
     timezone: Type.Optional(Type.String({ minLength: 1 })),
     instructions_file: Type.Optional(Type.String({ minLength: 1 })),
+    group_memory: Type.Optional(GroupMemorySchema),
     participation: Type.Optional(ParticipationSchema),
     proactive_reply: Type.Optional(ProactiveReplySchema),
     dictionary_injection_mode: Type.Optional(DictionaryInjectionModeSchema),

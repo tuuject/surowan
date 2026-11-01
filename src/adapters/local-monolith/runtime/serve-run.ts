@@ -285,6 +285,8 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
   });
   await mcpManager.start();
   startedScheduler.start();
+  assembly.sleeping.start();
+  state.sleeping = assembly.sleeping;
   return { runtime, startedScheduler, conversationRuntime, configReloader, commands };
 }
 
