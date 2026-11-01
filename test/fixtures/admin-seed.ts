@@ -1,5 +1,10 @@
 import type { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
-import { seedAdminAlarmsAndMemories, seedAdminContexts, seedAdminDailyUsage } from './admin-seed-context.ts';
+import {
+  seedAdminAlarmsAndMemories,
+  seedAdminContexts,
+  seedAdminDailyUsage,
+  seedAdminGroupMemories,
+} from './admin-seed-context.ts';
 import { seedAdminConversation, seedAdminMessages, seedAdminStickers } from './admin-seed-conversation.ts';
 import { T } from './admin-seed-data.ts';
 import {
@@ -40,6 +45,7 @@ export interface AdminSeedResult {
   readonly alarmId: bigint;
   readonly memoryActiveId: string;
   readonly memoryExpiredId: string;
+  readonly groupMemoryId: string;
   readonly contextId: bigint;
 }
 
@@ -55,6 +61,7 @@ export function seedAdminFixture(store: SqliteStore): AdminSeedResult {
   seedAdminFrozenContext(orm);
   seedAdminStickers(orm);
   const memoryIds = seedAdminAlarmsAndMemories(orm);
+  const groupMemoryId = seedAdminGroupMemories(orm);
   seedAdminContexts(orm);
   seedAdminDailyUsage(orm);
 
@@ -70,6 +77,7 @@ export function seedAdminFixture(store: SqliteStore): AdminSeedResult {
     alarmId: T.alarm,
     memoryActiveId: memoryIds.memoryActiveId,
     memoryExpiredId: memoryIds.memoryExpiredId,
+    groupMemoryId,
     contextId: T.context,
   };
 }

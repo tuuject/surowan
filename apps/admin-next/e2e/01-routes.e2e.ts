@@ -128,6 +128,19 @@ test.describe('routes and deep links', () => {
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 
+  test('/group-memories lists generated events and replays their source range', async ({ page }) => {
+    await page.goto(await adminUrl('/group-memories'));
+    await expect(page.getByText('Generated group memory')).toBeVisible();
+    await expect(page.getByText('Alice discussed the fixture data.')).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Messages' })).toBeVisible();
+    await page.getByRole('button', { name: 'View source', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByText('Messages 900–901, capped for display.')).toBeVisible();
+    await expect(dialog.getByText('edited caption')).toBeVisible();
+    await expect(dialog.getByText('edited text with forward origin')).toBeVisible();
+    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+  });
+
   test('/prompts shows the prompt editor and version history', async ({ page }) => {
     await page.goto(await adminUrl('/prompts'));
     await expect(page.getByText('Prompt editor')).toBeVisible();

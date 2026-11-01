@@ -62,3 +62,41 @@ test('Chat edits require the original revision before parsing a body, reject sta
     f.configStore.current().config.telegram.chats.find((chat) => chat.id === 123456789)?.thinking_level,
   ).toBeUndefined();
 });
+
+test('group memory toggle is hot and preserves unrelated Chat fields', async () => {
+  const f = await fixture();
+  const before = await f.view();
+  const chat = before.items.find((item) => item.id === '-100100');
+  expect(chat?.saved?.group_memory).toBeNull();
+  const enabled = await f.write(
+    '/chats/-100100/group-memory',
+    'PUT',
+    { enabled: true, idle_minutes: 45 },
+    before.revision,
+  );
+  expect(enabled.status).toBe(200);
+  const body = (await enabled.json()) as { apply: { applied: readonly string[]; restart_required: readonly string[] } };
+  expect(body.apply.applied).toContain('telegram.chats[-100100].group_memory');
+  expect(body.apply.restart_required).toEqual([]);
+  const afterEnable = await f.view();
+  const enabledChat = afterEnable.items.find((item) => item.id === '-100100');
+  expect(enabledChat?.saved?.group_memory).toEqual({ enabled: true, idle_minutes: 45 });
+  expect(enabledChat?.saved).toMatchObject({ topic_ids: ['12'] });
+  expect(enabledChat?.saved?.effective).toEqual(before.defaults);
+
+  const disabled = await f.write('/chats/-100100/group-memory', 'PUT', { enabled: false }, afterEnable.revision);
+  expect(disabled.status).toBe(200);
+  expect((await f.view()).items.find((item) => item.id === '-100100')?.saved?.group_memory).toEqual({
+    enabled: false,
+    idle_minutes: 45,
+  });
+
+  const invalid = await f.write(
+    '/chats/-100100/group-memory',
+    'PUT',
+    { enabled: true, idle_minutes: 0 },
+    (await f.view()).revision,
+  );
+  expect(invalid.status).toBe(400);
+  expect(await invalid.json()).toMatchObject({ error: 'invalid_body' });
+});

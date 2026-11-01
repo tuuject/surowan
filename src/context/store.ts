@@ -302,6 +302,48 @@ export class ConversationContextStore {
     });
   }
 
+  /**
+   * Drops the canonical transcript and resets the sequence counters for the
+   * listed Conversations. The next run opens the same header (same stable prompt
+   * hash) but starts from a clean context; the caller must have aborted and
+   * forgotten every in-memory run first, otherwise a stale Agent could append on
+   * top of the reset.
+   */
+  rebuildForConversations(conversationIds: readonly bigint[], now = new Date()): number {
+    if (conversationIds.length === 0) {
+      return 0;
+    }
+    const timestamp = now.toISOString();
+    return this.#store.transaction(() => {
+      let rebuilt = 0;
+      for (const conversationId of conversationIds) {
+        const header = this.#selectHeader(conversationId);
+        if (header === undefined) {
+          continue;
+        }
+        this.#store.orm.delete(contextMessages).where(eq(contextMessages.contextId, header.id)).run();
+        this.#store.orm.delete(contextRefs).where(eq(contextRefs.contextId, header.id)).run();
+        this.#store.orm
+          .update(conversationContexts)
+          .set({
+            headSeq: 1n,
+            nextSeq: 1n,
+            sendCountTotal: 0n,
+            activeInvocationId: null,
+            lastGcAt: null,
+            memoRefreshSeq: null,
+            memoStateJson: null,
+            memoRefreshPending: true,
+            updatedAt: timestamp,
+          })
+          .where(eq(conversationContexts.id, header.id))
+          .run();
+        rebuilt += 1;
+      }
+      return rebuilt;
+    });
+  }
+
   /** Records that the invocation owning this context started or ended. */
   touch(header: ContextHeader, activeInvocationId: bigint | null, now = new Date()): void {
     this.#store.orm

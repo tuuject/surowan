@@ -248,6 +248,7 @@ export class AdminServer {
     response ??= await routes.tuning.handle(request, segments);
     response ??= await routes.dictionary.handle(request, url, segments);
     response ??= await routes.search.handle(request, url, segments);
+    response ??= await routes.groupMemory.handle(request, url, segments);
     response ??= await routes.memory.handle(request, url, segments);
     response ??= await routes.admins.handle(request, segments);
     response ??= await routes.providers.handle(request, segments);

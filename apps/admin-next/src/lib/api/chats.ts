@@ -23,6 +23,11 @@ export interface ProactiveReplyView {
   readonly hard_pity?: number;
 }
 
+export interface GroupMemoryView {
+  readonly enabled: boolean;
+  readonly idle_minutes?: number;
+}
+
 export interface ProactiveReplySettingsView {
   readonly enabled: boolean;
   readonly base_probability: number;
@@ -49,6 +54,7 @@ export interface ChatSettings {
 
 export interface ChatSettingsView extends ChatSettings {
   readonly participation: ParticipationView | null;
+  readonly group_memory: GroupMemoryView | null;
   readonly proactive_reply: ProactiveReplyView | null;
   readonly effective_proactive_reply: ProactiveReplySettingsView;
   readonly timezone: string | null;
@@ -112,6 +118,19 @@ export function updateChatParticipation(
   revision: string,
 ): Promise<ChatWriteResponse> {
   return call<ChatWriteResponse>(`/chats/${encodeURIComponent(id)}/participation`, {
+    method: 'PUT',
+    headers: writeHeaders(revision),
+    body: JSON.stringify(body),
+  });
+}
+
+/** Omit `idle_minutes` to keep the stored value; `null` removes it. */
+export function updateChatGroupMemory(
+  id: string,
+  body: { readonly enabled: boolean; readonly idle_minutes?: number | null },
+  revision: string,
+): Promise<ChatWriteResponse> {
+  return call<ChatWriteResponse>(`/chats/${encodeURIComponent(id)}/group-memory`, {
     method: 'PUT',
     headers: writeHeaders(revision),
     body: JSON.stringify(body),

@@ -32,6 +32,7 @@ import { webSearchAvailable } from '../../../platform/web-search.ts';
 import { abortRunningInvocationsOnSearchDisable } from './web-search-availability.ts';
 import {
   addedTelegramChatIds,
+  applyGroupMemoryToggles,
   conversationIdsForTelegramChats,
   removedTelegramChatIds,
   stopRemovedChats,
@@ -175,7 +176,7 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
         model,
       ),
     // A raised max_concurrency only takes effect on the next scheduler tick.
-    onPublished: () => {
+    onPublished: async () => {
       const nextConfig = configStore.current().config;
       const removedChats = removedTelegramChatIds(publishedConfig, nextConfig);
       if (removedChats.length > 0) {
@@ -194,6 +195,26 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
         });
       }
       const addedChats = addedTelegramChatIds(publishedConfig, nextConfig);
+      // A group-memory switch change aborts every running Invocation of the Chat
+      // and rebuilds its Conversations. It must complete before this apply
+      // returns, so the panel's next read and the next run both see the new
+      // capability set with a clean Context.
+      const groupMemory = await applyGroupMemoryToggles(
+        store,
+        startedScheduler,
+        (conversationId) => conversationRuntime.forget(conversationId),
+        publishedConfig,
+        nextConfig,
+      );
+      if (groupMemory.chats > 0) {
+        logEvent('group_memory_toggled', {
+          chats: String(groupMemory.chats),
+          conversations: String(groupMemory.conversations),
+          stopped_invocations: groupMemory.invocations,
+          rebuilt_contexts: groupMemory.rebuilt,
+          settled: groupMemory.settled,
+        });
+      }
       publishedConfig = nextConfig;
       if (addedChats.length > 0) {
         // A Chat can be removed and added again while its stored Memo Pad

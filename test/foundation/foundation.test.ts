@@ -209,12 +209,12 @@ describe('database', () => {
     const { config } = await loadConfig(configPath);
     const store = await SqliteStore.open(config);
     try {
-      store.db.exec('DROP TABLE telegram_updates');
+      store.db.exec('DROP TABLE daily_usage');
     } finally {
       store.close();
     }
 
-    await expect(backupDatabase(config)).rejects.toThrow('telegram_updates');
+    await expect(backupDatabase(config)).rejects.toThrow('daily_usage');
     await unlink(config.paths.database);
     expect(await pathExists(config.paths.database)).toBe(false);
   });

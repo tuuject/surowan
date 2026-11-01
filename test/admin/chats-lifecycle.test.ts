@@ -1,9 +1,10 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, expect, test, vi } from 'vitest';
 import { ConfigReloader, type ImageConfigGateway } from '../../src/adapters/local-monolith/config/reload.ts';
-import { stopRemovedChats } from '../../src/adapters/local-monolith/runtime/chat-lifecycle.ts';
+import { applyGroupMemoryToggles, stopRemovedChats } from '../../src/adapters/local-monolith/runtime/chat-lifecycle.ts';
 import { createChatsAdminHandler } from '../../src/ingress/admin/routes/chats.ts';
 import { BucketScheduler, type InvocationHandler } from '../../src/orchestration/scheduler/index.ts';
+import { ConversationContextStore } from '../../src/context/store.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { keyJarPath } from '../../src/platform/key-jar.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
@@ -12,6 +13,7 @@ import {
   buckets,
   chatMigrations,
   chats,
+  contextMessages,
   conversations,
   invocationBuckets,
   invocations,
@@ -52,11 +54,12 @@ async function fixture(
     secrets: new SecretStore(keyJarPath(f.loaded.configPath)),
     validateAgentModel: () => undefined,
     ...(options.imageConfig === undefined ? {} : { imageConfig: options.imageConfig }),
-    onPublished: () => {
+    onPublished: async () => {
       const next = f.configStore.current().config;
       const nextIds = new Set(next.telegram.chats.map((chat) => chat.id));
       const removed = published.telegram.chats.filter((chat) => !nextIds.has(chat.id)).map((chat) => BigInt(chat.id));
       stopRemovedChats(f.store, tasks, (ids, reason) => scheduler.abortInvocations(ids, reason), forget, removed, next);
+      await applyGroupMemoryToggles(f.store, scheduler, forget, published, next);
       published = next;
       scheduler.wake();
     },
@@ -69,6 +72,20 @@ async function fixture(
     memoBlobs: f.blobs,
     scheduler,
   });
+  const updateGroupMemory = async (id: bigint, body: { readonly enabled: boolean }) => {
+    const response = await route.handle(
+      new Request(`http://localhost/api/chats/${id}/group-memory`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', 'if-match': await reloader.revision() },
+        body: JSON.stringify(body),
+      }),
+      ['chats', id.toString(), 'group-memory'],
+    );
+    if (response === undefined) {
+      throw new Error('Group memory route was not handled');
+    }
+    return response;
+  };
   const remove = async (id: bigint) => {
     const response = await route.handle(
       new Request(`http://localhost/api/chats/${id}`, {
@@ -82,7 +99,7 @@ async function fixture(
     }
     return response;
   };
-  return { ...f, tasks, scheduler, reloader, forget, remove };
+  return { ...f, tasks, scheduler, reloader, forget, updateGroupMemory, remove };
 }
 
 function queue(f: MemoFixture, conversationId: bigint): bigint {
@@ -375,4 +392,42 @@ test('explicit purge leaves an unrelated configured Chat and its waiting task in
   expect(f.memoPad.get(entry.id, retained.chatId)).toBeDefined();
   expect(f.store.orm.select().from(longTasks).where(eq(longTasks.id, task.taskId)).get()?.state).toBe('waiting');
   expect(await pathExists(f.blobs.absolutePath(blob.blob))).toBe(true);
+});
+
+test('toggling group memory aborts the running Invocation and rebuilds the Conversation Context', async () => {
+  const run = slowHandler();
+  const f = await fixture(run.handler);
+  const chat = seedChat(f.store, 123456789n);
+  const contexts = new ConversationContextStore(f.store);
+  const opened = contexts.open(chat.conversationId, 'seed-hash');
+  contexts.append(opened.header, {
+    invocationId: null,
+    isCheckpoint: true,
+    estTokens: 1,
+    json: JSON.stringify({ role: 'user', content: [{ type: 'text', text: 'before toggle' }] }),
+    role: 'user',
+  });
+  const id = queue(f, chat.conversationId);
+  f.scheduler.start();
+  await run.started.promise;
+  try {
+    const toggle = f.updateGroupMemory(chat.telegramChatId, { enabled: true });
+    await run.aborted.promise;
+    expect(f.configStore.current().config.telegram.chats[0]?.group_memory).toEqual({ enabled: true });
+    run.release.resolve();
+    expect((await toggle).status).toBe(200);
+    expect(f.forget).toHaveBeenCalledWith(chat.conversationId);
+    expect(
+      f.store.orm.select().from(contextMessages).where(eq(contextMessages.contextId, opened.header.id)).all(),
+    ).toEqual([]);
+    expect(contexts.header(chat.conversationId)).toMatchObject({
+      headSeq: 1n,
+      nextSeq: 1n,
+      sendCountTotal: 0n,
+      memoRefreshPending: true,
+    });
+    expect(f.store.orm.select().from(invocations).where(eq(invocations.id, id)).get()?.state).toBe('aborted');
+  } finally {
+    run.release.resolve();
+  }
 });

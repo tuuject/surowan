@@ -48,12 +48,17 @@ async function restoreBaseline(page: Page): Promise<void> {
         const inherits =
           baseline !== undefined &&
           ['topic_ids', 'provider', 'model', 'thinking_level'].every((key) => baseline.saved[key] === null) &&
-          ['topic_ids', 'provider', 'model', 'thinking_level'].every((key) => baseline.active?.[key] === null);
+          ['topic_ids', 'provider', 'model', 'thinking_level'].every((key) => baseline.active?.[key] === null) &&
+          (baseline.saved.group_memory === null || baseline.saved.group_memory.enabled === false) &&
+          (baseline.active?.group_memory === null || baseline.active.group_memory.enabled === false);
         let request: [string, string, unknown];
+        const groupMemoryOn = baseline?.saved?.group_memory?.enabled === true;
         if (baseline === undefined) {
           request = ['/api/chats', 'POST', { id, ...settings }];
         } else if (extra !== undefined) {
           request = [`/api/chats/${extra.id}`, 'DELETE', null];
+        } else if (groupMemoryOn) {
+          request = [`/api/chats/${id}/group-memory`, 'PUT', { enabled: false }];
         } else if (!inherits) {
           request = [`/api/chats/${id}`, 'PUT', settings];
         } else {

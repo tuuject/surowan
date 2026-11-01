@@ -8,6 +8,7 @@ import {
   FileText,
   ImagePlus,
   KeyRound,
+  LibraryBig,
   LayoutDashboard,
   LogOut,
   MessageSquare,
@@ -80,6 +81,7 @@ export default function AppSidebar({
       items: [
         { title: t('layout.nav.alarms'), url: '/alarms', icon: Bell },
         { title: t('layout.nav.memories'), url: '/memories', icon: Brain },
+        { title: t('layout.nav.groupMemories'), url: '/group-memories', icon: LibraryBig },
         { title: t('layout.nav.dictionary'), url: '/dictionary', icon: BookText },
         { title: t('layout.nav.botAdmins'), url: '/admins', icon: Shield },
         { title: t('layout.nav.apiKeys'), url: '/api-keys', icon: KeyRound },

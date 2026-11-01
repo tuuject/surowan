@@ -5,6 +5,7 @@ import {
   contextRefs,
   conversationContexts,
   dailyUsage,
+  groupMemories,
   memoPadEntries,
   warnings,
 } from '../../src/store/schema/index.ts';
@@ -102,6 +103,25 @@ export function seedAdminWarnings(orm: Orm): void {
       readAt: '2026-09-09T07:05:00.000Z',
     })
     .run();
+}
+
+/** One generated group memory over the seeded messages (Group memory page). */
+export const ADMIN_GROUP_MEMORY_ID = 'gmem_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+export function seedAdminGroupMemories(orm: Orm): string {
+  orm
+    .insert(groupMemories)
+    .values({
+      id: ADMIN_GROUP_MEMORY_ID,
+      chatId: T.chat,
+      day: '2026-09-10',
+      summary: 'Alice discussed the fixture data.',
+      firstMessageId: 900n,
+      lastMessageId: 901n,
+      createdAt: '2026-09-10T08:05:00.000Z',
+    })
+    .run();
+  return ADMIN_GROUP_MEMORY_ID;
 }
 
 /** Conversation context + messages + capability ref (Contexts page). */

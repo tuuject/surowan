@@ -5,6 +5,7 @@ import { apiKeys } from './pages/api-keys.ts';
 import { auth } from './pages/auth.ts';
 import { chats } from './pages/chats.ts';
 import { memories } from './pages/memories.ts';
+import { groupMemories } from './pages/group-memories.ts';
 import { overview } from './pages/overview.ts';
 import { passkeys } from './pages/passkeys.ts';
 import { preferences } from './pages/preferences.ts';
@@ -20,6 +21,7 @@ export const pages: typeof pagesEn = {
   chats,
   stickers,
   memories,
+  groupMemories,
   apiKeys,
   admins,
   alarms,

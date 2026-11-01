@@ -6,6 +6,7 @@ import {
   Brain,
   Clock,
   ExternalLink,
+  LibraryBig,
   MessageSquareText,
   Pencil,
   Sparkles,
@@ -56,12 +57,14 @@ export function ChatTable({
   onEdit,
   onSchedule,
   onProactive,
+  onGroupMemory,
   onRemove,
 }: {
   readonly view: ChatsView;
   readonly onEdit: (chat: ChatEntry) => void;
   readonly onSchedule: (chat: ChatEntry) => void;
   readonly onProactive: (chat: ChatEntry) => void;
+  readonly onGroupMemory: (chat: ChatEntry) => void;
   readonly onRemove: (chat: ChatEntry) => void;
 }): React.ReactElement {
   const { t } = useTranslation();
@@ -80,6 +83,13 @@ export function ChatTable({
       dayLabels: t('pages.chats.weekdaysShort').split(','),
       dailyLabel: t('pages.chats.daily'),
     });
+  const groupMemoryText = (settings: ChatSettingsView): string => {
+    const memory = settings.group_memory;
+    if (memory === null || !memory.enabled) {
+      return t('pages.chats.groupMemoryOffSummary');
+    }
+    return t('pages.chats.groupMemorySummary', { minutes: memory.idle_minutes ?? 30 });
+  };
   const proactiveText = (settings: ChatSettingsView): string => {
     const values = settings.effective_proactive_reply;
     if (!values.enabled) {
@@ -225,6 +235,19 @@ export function ChatTable({
       },
     },
     {
+      key: 'groupMemory',
+      title: t('pages.chats.colGroupMemory'),
+      render: (row) => {
+        const settings = shown(row);
+        return settings === null || !row.id.startsWith('-') ? null : (
+          <div className="space-y-1">
+            <p className="text-sm">{groupMemoryText(settings)}</p>
+            <RunningNote value={runningDiff(row, groupMemoryText)} />
+          </div>
+        );
+      },
+    },
+    {
       key: 'status',
       title: t('pages.chats.colStatus'),
       render: (row) =>
@@ -277,6 +300,12 @@ export function ChatTable({
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
+                  <Link to="/group-memories" search={{ chat: row.runtime_chat_id }}>
+                    <LibraryBig />
+                    {t('layout.nav.groupMemories')}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
                   <Link to="/messages" search={{ chat: row.runtime_chat_id }}>
                     <MessageSquareText />
                     {t('layout.nav.messages')}
@@ -318,6 +347,18 @@ export function ChatTable({
                 onClick={() => onProactive(row)}
               >
                 <Sparkles />
+              </Button>
+            ) : null}
+            {row.id.startsWith('-') ? (
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                aria-label={t('pages.chats.editGroupMemory')}
+                title={t('pages.chats.editGroupMemory')}
+                onClick={() => onGroupMemory(row)}
+              >
+                <LibraryBig />
               </Button>
             ) : null}
             <Button

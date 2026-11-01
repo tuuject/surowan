@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { ChatDialog } from '@/components/chats/chat-dialog';
+import { GroupMemoryDialog } from '@/components/chats/group-memory-dialog';
 import { ChatTable } from '@/components/chats/chat-table';
 import { ParticipationDialog } from '@/components/chats/participation-dialog';
 import { ProactiveReplyDialog } from '@/components/chats/proactive-reply-dialog';
@@ -29,6 +30,7 @@ export default function ChatsPage(): React.ReactElement {
   const [editing, setEditing] = useState<{ readonly view: ChatsView; readonly chat: ChatEntry | null } | null>(null);
   const [scheduling, setScheduling] = useState<{ readonly view: ChatsView; readonly chat: ChatEntry } | null>(null);
   const [proactive, setProactive] = useState<{ readonly view: ChatsView; readonly chat: ChatEntry } | null>(null);
+  const [groupMemory, setGroupMemory] = useState<{ readonly view: ChatsView; readonly chat: ChatEntry } | null>(null);
   const [removing, setRemoving] = useState<{ readonly chat: ChatEntry; readonly revision: string } | null>(null);
   const remove = useMutation({
     mutationFn: (target: { readonly chat: ChatEntry; readonly revision: string }) =>
@@ -98,6 +100,7 @@ export default function ChatsPage(): React.ReactElement {
           onEdit={(chat) => setEditing({ view, chat })}
           onSchedule={(chat) => setScheduling({ view, chat })}
           onProactive={(chat) => setProactive({ view, chat })}
+          onGroupMemory={(chat) => setGroupMemory({ view, chat })}
           onRemove={(chat) => {
             remove.reset();
             setRemoving({ chat, revision: view.revision });
@@ -112,6 +115,9 @@ export default function ChatsPage(): React.ReactElement {
       ) : null}
       {proactive !== null ? (
         <ProactiveReplyDialog view={proactive.view} chat={proactive.chat} onClose={() => setProactive(null)} />
+      ) : null}
+      {groupMemory !== null ? (
+        <GroupMemoryDialog view={groupMemory.view} chat={groupMemory.chat} onClose={() => setGroupMemory(null)} />
       ) : null}
       <ConfirmDialog
         open={removing !== null}

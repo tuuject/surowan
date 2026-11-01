@@ -37,6 +37,7 @@ interface ChatRow {
 
 interface Batch {
   readonly chatId: bigint;
+  readonly telegramChatId: bigint;
   readonly day: string;
   readonly rows: readonly GroupMemoryMessageRow[];
 }
@@ -139,6 +140,20 @@ export class SleepingService {
               now,
             },
           );
+          const stillEnabled =
+            resolveChatConfig(this.#configStore.current().config, this.#store.orm, batch.telegramChatId)?.group_memory
+              ?.enabled === true;
+          if (!stillEnabled) {
+            // The Admin switched the Chat off while the model was running: do
+            // not write memories for a Chat whose capability is already gone.
+            this.#groupMemory.fail(batch.chatId, 'group_memory_disabled', now, 0);
+            log('group_memory_failed', {
+              chat_id: batch.chatId.toString(),
+              day: batch.day,
+              error_code: 'group_memory_disabled',
+            });
+            continue;
+          }
           this.#groupMemory.commit(batch.chatId, batch.day, result.events, result.through, now);
           consolidated += 1;
           log('group_memory_consolidated', {
@@ -230,7 +245,7 @@ export class SleepingService {
             continue;
           }
         }
-        batches.push({ chatId: row.id, day, rows });
+        batches.push({ chatId: row.id, telegramChatId: row.telegram_chat_id, day, rows });
       }
     }
     return batches;

@@ -23,6 +23,8 @@ export interface ListQuery {
   /** Invocation host: `telegram` or `playground`. */
   readonly host?: string | null;
   readonly search?: string | null;
+  /** Chat-local day for group memory. */
+  readonly day?: string | null;
   readonly target?: string | null;
   /** Whole-minute/second/fraction window, resolved in the Chat or global timezone. */
   readonly at?: string | null;

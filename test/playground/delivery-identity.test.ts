@@ -62,15 +62,15 @@ describe('Bot Playground virtual delivery', () => {
       room.chatId,
     );
 
-    // Retention drops the bot's old message; membership keeps its identity, so
-    // the next send reuses a row that still exists.
+    // Retention no longer drops the bot's old message; membership keeps its
+    // identity and the next send reuses the same row.
     store.orm
       .update(invocations)
       .set({ state: 'completed', finishedAt: NOW.toISOString() })
       .where(eq(invocations.id, room.invocationId))
       .run();
     purgeExpiredData(store.orm, { retention: { online_days: 30 } } as never, new Date('2027-06-01T00:00:00.000Z'));
-    expect(roomMessages(room.conversationId)).toHaveLength(0);
+    expect(roomMessages(room.conversationId)).toHaveLength(1);
     expect(store.orm.select().from(senders).where(eq(senders.id, botId!)).get()).toBeDefined();
 
     const later = createRoom({ chatId: 48n, title: 'later', selfDisplayName: '碗' });

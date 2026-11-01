@@ -18,9 +18,9 @@ Surowan 是一个运行在 Telegram 私聊、群组、Supergroup 与 Forum Topic
 - 不向模型暴露 Bash、任意代码执行或不受限文件系统能力。
 - 审计 Invocation、模型调用（含每次请求附带的工具）、Tool Call、Telegram 发送、Context GC 与预算使用。
 - 提供 Agent Memo Pad：按 Chat 隔离、Topic 共用，条目有 summary 与 Markdown detail 及可选期限；短期条目自动注入，长期条目通过查询读取；支持 Chat 私有 Blob 图片。
-- 提供可选的群聊记忆：按 Chat 开启，sleeping 后台把安静或已结束本地日期的群聊整理成带 Telegram message-id 区间的事件摘要，模型按需用 `search_group_memory` / `read_group_messages` 两层回忆；被记忆覆盖的原文越过在线保留窗口仍保留。
+- 提供可选的群聊记忆：按 Chat 开启，sleeping 后台把安静或已结束本地日期的群聊整理成带 Telegram message-id 区间的事件摘要，模型按需用 `search_group_memory` / `read_group_messages` 两层回忆；原始消息不随在线保留窗口删除。
 - 提供本地 Admin Panel，审计 Tool Session、消息、Sticker 视觉缓存与 Conversation Context，并管理 Memo Pad。
-- 在线数据按必填的 `retention.online_days` 保留（项目按 30 天设计，代码无默认值）；Memo Pad 的长期条目是模型可维护的持久记忆，人工审核的稳定知识仍写在 `agents.md`。
+- 审计与调度数据按必填的 `retention.online_days` 保留（项目按 30 天设计，代码无默认值）；聊天消息、Revision、Media 与 Conversation Context 不再随该窗口清理，只在删除 Chat/Conversation 或显式截断时移除；原始 Update 也不清理。Memo Pad 的长期条目是模型可维护的持久记忆，人工审核的稳定知识仍写在 `agents.md`。
 - `telegram` 段可选：不配置或没有 token 时 Telegram 停用，服务只提供 Admin Panel 与 Playground 虚拟房间；`admin` 必填，`admin.enabled` 省略即为 `true`。
 
 ## Project Structure & Module Organization

@@ -40,8 +40,8 @@ export type ConfigApplyDeps = {
   readonly searchProviders?: readonly SearchProviderRule[];
   /** Throws when the tool registry does not fit the model's context window. */
   readonly validateAgentModel: (model: Model<Api>) => void;
-  /** Called after every successful publish; the composition root wakes the scheduler. */
-  readonly onPublished: () => void;
+  /** Called after every successful publish; awaited by `applyFile`. */
+  readonly onPublished: () => void | Promise<void>;
   readonly failure: (code: ConfigErrorCode, message: string, fileWritten: boolean) => ConfigApplyResult;
   readonly applied: (
     applied: readonly string[],
@@ -185,7 +185,7 @@ export async function applyFile(deps: ConfigApplyDeps): Promise<ConfigApplyResul
     deps.telegramConfig.publish(telegramSource);
   }
   state.telegramTokenId = telegramTokenId;
-  deps.onPublished();
+  await deps.onPublished();
   deps.logReloaded(applied, restartRequired, outsideServe);
   return deps.applied(applied, restartRequired, outsideServe);
 }

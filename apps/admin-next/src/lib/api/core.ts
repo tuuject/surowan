@@ -48,6 +48,7 @@ export interface ListFilters {
   readonly host?: string | undefined;
   readonly set?: string | undefined;
   readonly search?: string | undefined;
+  readonly day?: string | undefined;
   readonly target?: string | undefined;
 }
 
@@ -87,7 +88,7 @@ export function listPath(path: string, filters: ListFilters): string {
   if (filters.cursor !== undefined && filters.cursor !== null) {
     params.set('cursor', filters.cursor);
   }
-  for (const key of ['state', 'chat', 'host', 'set', 'search', 'target'] as const) {
+  for (const key of ['state', 'chat', 'host', 'set', 'search', 'day', 'target'] as const) {
     const value = filters[key];
     if (value !== undefined && value.length > 0) {
       params.set(key, value);
