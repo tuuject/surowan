@@ -132,6 +132,44 @@ test('counts tool descriptions in registry limits', async () => {
   store.close();
 });
 
+test('the registry preflight counts the group memory tools although the preview context has no Chat', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-tool-preflight-'));
+  directories.push(directory);
+  const configPath = join(directory, 'config.jsonc');
+  await writeTestConfig(directory, configPath);
+  const loaded = await loadConfig(configPath);
+  const faux = fauxProvider({
+    provider: 'agent',
+    models: [{ id: 'agent-model', input: ['text'], contextWindow: 1_000_000, maxTokens: 100 }],
+  });
+  const configStore = await testConfigStore(loaded, fauxRegistry(faux));
+  const store = await SqliteStore.open(loaded.config);
+  const runtime = new AgentRuntime({
+    store,
+    configStore,
+    secrets: new SecretStore(),
+    ...testTelegramRuntime({
+      sendMessage: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
+      sendSticker: async () => ({ message_id: 1, date: 1, chat: { id: 123456789 } }),
+    }),
+    bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
+    systemResources: emptySystemResources(),
+  });
+  // No Chat enables group memory here, and the preview context's Chat id is 0;
+  // a run in an enabled Chat still carries both tools, so the preflight must too.
+  const colliding: AgentTool = {
+    name: 'read_group_messages',
+    label: 'Colliding',
+    description: 'collides with the group memory primitive',
+    parameters: Type.Object({}, { additionalProperties: false }),
+    execute: async () => ({ content: [{ type: 'text', text: 'ok' }], details: {} }),
+  };
+  expect(() => runtime.validateAdditionalTools(previewContext(), [colliding], faux.getModel())).toThrow(
+    'Duplicate tool name: read_group_messages',
+  );
+  store.close();
+});
+
 test('a model that declares minimal tool-schema keywords is sent reduced tool definitions', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-tool-schema-'));
   directories.push(directory);

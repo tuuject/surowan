@@ -12,7 +12,7 @@ import { eq, sql } from 'drizzle-orm';
 import { capability, createExecuteTool, type ExecutableCapability } from '../../capabilities/execute-tool.ts';
 import { createReadTool } from '../../capabilities/read-tool.ts';
 import { createMemoReadTools } from '../../context/memo-pad/tools/index.ts';
-import { createGroupMemoryReadTools } from '../../context/group-memory/tools/read.ts';
+import { createGroupMemoryReadTools, groupMemoryReadToolDefinitions } from '../../context/group-memory/tools/read.ts';
 import { MemoPadStore } from '../../context/memo-pad/store.ts';
 import { createSendTools } from '../../capabilities/send/index.ts';
 import { createTyping } from '../../capabilities/typing-tool.ts';
@@ -83,7 +83,9 @@ export function validateAdditionalTools(
     [
       createReadTool({ store: services.store, context, resources: services.systemResources }),
       ...createMemoReadTools({ store: services.store, memoPad, context }),
-      ...createGroupMemoryReadTools({ store: services.store, configStore: services.configStore, context }),
+      // Counted unconditionally: the preview context has no Chat, but any
+      // Chat that enables group memory gets these two tools at run time.
+      ...groupMemoryReadToolDefinitions({ store: services.store, configStore: services.configStore, context }),
       send,
       sendReply,
       createExecuteTool({ audit: createToolAudit(services.store, context.invocationId), capabilities: [] }),

@@ -35,6 +35,15 @@ export function createGroupMemoryReadTools(env: GroupMemoryReadEnvironment): rea
   if (chat?.group_memory?.enabled !== true) {
     return [];
   }
+  return groupMemoryReadToolDefinitions(env);
+}
+
+/**
+ * Both tools regardless of the Chat's switch. The registry preflight runs on a
+ * preview context that belongs to no Chat, yet must bound the largest registry
+ * any Chat can receive, so it always counts these definitions.
+ */
+export function groupMemoryReadToolDefinitions(env: GroupMemoryReadEnvironment): readonly AgentTool[] {
   return [createSearchTool(env), createReadMessagesTool(env)];
 }
 
