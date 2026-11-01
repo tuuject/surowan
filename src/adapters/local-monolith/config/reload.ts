@@ -110,6 +110,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
       lastError: null,
       imageSnapshotId: null,
       telegramTokenId: null,
+      publicationPending: false,
     };
   }
 

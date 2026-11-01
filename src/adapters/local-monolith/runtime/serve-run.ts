@@ -152,6 +152,10 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
   // the next invocation will not see.
   let webSearchWasAvailable = webSearchAvailable(configStore.current().config, searchProviders);
   let publishedConfig = configStore.current().config;
+  // The configuration the group-memory cutover last completed against. It only
+  // advances when a cutover succeeds, so a failed one is retried by the next
+  // apply (the reloader reruns this hook while its publication is pending).
+  let groupMemoryConfig = publishedConfig;
   const configReloader = new ConfigReloader({
     loaded,
     store: configStore,
@@ -198,30 +202,38 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
       // A group-memory switch change aborts every running Invocation of the Chat
       // and rebuilds its Conversations. It must complete before this apply
       // returns, so the panel's next read and the next run both see the new
-      // capability set with a clean Context.
-      const groupMemory = await applyGroupMemoryToggles(
-        store,
-        startedScheduler,
-        (conversationId) => conversationRuntime.forget(conversationId),
-        publishedConfig,
-        nextConfig,
-      );
-      if (groupMemory.chats > 0) {
-        logEvent('group_memory_toggled', {
-          chats: String(groupMemory.chats),
-          conversations: String(groupMemory.conversations),
-          stopped_invocations: groupMemory.invocations,
-          rebuilt_contexts: groupMemory.rebuilt,
-          settled: groupMemory.settled,
-        });
-      }
-      if (!groupMemory.settled) {
-        // The Conversations stay fenced until their stale handlers settle; the
-        // rebuild then finishes here instead of racing those writers.
-        void groupMemory.completion.then(
-          (rebuilt) => logEvent('group_memory_cutover_completed', { rebuilt_contexts: rebuilt }),
-          (error: unknown) => logEvent('group_memory_cutover_failed', { error: secrets.redactError(error) }),
+      // capability set with a clean Context. A failure does not skip the steps
+      // below; it is rethrown at the end so the apply reports it.
+      let groupMemoryFailure: unknown;
+      try {
+        const groupMemory = await applyGroupMemoryToggles(
+          store,
+          startedScheduler,
+          (conversationId) => conversationRuntime.forget(conversationId),
+          groupMemoryConfig,
+          nextConfig,
         );
+        groupMemoryConfig = nextConfig;
+        if (groupMemory.chats > 0) {
+          logEvent('group_memory_toggled', {
+            chats: String(groupMemory.chats),
+            conversations: String(groupMemory.conversations),
+            stopped_invocations: groupMemory.invocations,
+            rebuilt_contexts: groupMemory.rebuilt,
+            settled: groupMemory.settled,
+          });
+        }
+        if (!groupMemory.settled) {
+          // The Conversations stay fenced until their stale handlers settle; the
+          // rebuild then finishes here instead of racing those writers.
+          void groupMemory.completion.then(
+            (rebuilt) => logEvent('group_memory_cutover_completed', { rebuilt_contexts: rebuilt }),
+            (error: unknown) => logEvent('group_memory_cutover_failed', { error: secrets.redactError(error) }),
+          );
+        }
+      } catch (error) {
+        groupMemoryFailure = error;
+        logEvent('group_memory_cutover_failed', { error: secrets.redactError(error) });
       }
       publishedConfig = nextConfig;
       if (addedChats.length > 0) {
@@ -244,6 +256,9 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
       // A hand-edited prompt file picked up by this apply becomes a version
       // here; panel saves already recorded themselves before applying.
       recordPromptVersionsFromConfig(store.orm, nextConfig);
+      if (groupMemoryFailure !== undefined) {
+        throw groupMemoryFailure;
+      }
     },
   });
   const commands = new BotCommandService(

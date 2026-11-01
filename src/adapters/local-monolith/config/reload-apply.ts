@@ -23,6 +23,12 @@ export type ConfigReloadState = {
   imageSnapshotId: string | null;
   /** Identity of the last published Telegram token source; null before the first apply. */
   telegramTokenId: string | null;
+  /**
+   * The configuration is published but the publish hook has not completed. The
+   * next apply reruns the hook even when the file did not change, so a failed
+   * cutover is retried instead of being skipped by the unchanged early return.
+   */
+  publicationPending: boolean;
 };
 
 /**
@@ -40,7 +46,11 @@ export type ConfigApplyDeps = {
   readonly searchProviders?: readonly SearchProviderRule[];
   /** Throws when the tool registry does not fit the model's context window. */
   readonly validateAgentModel: (model: Model<Api>) => void;
-  /** Called after every successful publish; awaited by `applyFile`. */
+  /**
+   * Called after every successful publish; awaited by `applyFile`. It may throw
+   * after doing part of its work: it must be safe to call again for the same
+   * configuration, which is how a pending publication is retried.
+   */
   readonly onPublished: () => void | Promise<void>;
   readonly failure: (code: ConfigErrorCode, message: string, fileWritten: boolean) => ConfigApplyResult;
   readonly applied: (
@@ -152,6 +162,12 @@ export async function applyFile(deps: ConfigApplyDeps): Promise<ConfigApplyResul
     state.restartRequired = restartRequired;
     state.lastError = null;
     state.telegramTokenId = telegramTokenId;
+    if (state.publicationPending) {
+      const unfinished = await finishPublication(deps);
+      if (unfinished !== undefined) {
+        return unfinished;
+      }
+    }
     deps.logReloaded(applied, restartRequired, outsideServe);
     return deps.applied(applied, restartRequired, outsideServe);
   }
@@ -185,9 +201,32 @@ export async function applyFile(deps: ConfigApplyDeps): Promise<ConfigApplyResul
     deps.telegramConfig.publish(telegramSource);
   }
   state.telegramTokenId = telegramTokenId;
-  await deps.onPublished();
+  const unfinished = await finishPublication(deps);
+  if (unfinished !== undefined) {
+    return unfinished;
+  }
   deps.logReloaded(applied, restartRequired, outsideServe);
   return deps.applied(applied, restartRequired, outsideServe);
+}
+
+/**
+ * Runs the publish hook. A failure is reported as `publish_incomplete`: the new
+ * configuration is already active, so the caller must not read it as "nothing
+ * changed", and the pending flag makes the next apply retry the hook.
+ */
+async function finishPublication(deps: ConfigApplyDeps): Promise<ConfigApplyResult | undefined> {
+  deps.state.publicationPending = true;
+  try {
+    await deps.onPublished();
+  } catch (error) {
+    return deps.failure(
+      'publish_incomplete',
+      `The configuration is active, but finishing its publication failed; apply again to retry: ${messageOf(error)}`,
+      false,
+    );
+  }
+  deps.state.publicationPending = false;
+  return undefined;
 }
 
 type BuildRegistryResult =

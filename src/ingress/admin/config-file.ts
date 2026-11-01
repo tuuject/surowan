@@ -11,6 +11,7 @@ export const CONFIG_WRITE_STATUS: Partial<Record<ConfigErrorCode, number>> = {
   config_symlink: 409,
   secret_unresolved: 422,
   config_write_failed: 500,
+  publish_incomplete: 500,
 };
 
 /** The on-disk configuration plus the revision that describes exactly that read. */
