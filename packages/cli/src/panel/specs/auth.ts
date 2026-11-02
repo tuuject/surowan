@@ -47,6 +47,7 @@ export const AUTH_SPECS: readonly EndpointSpec[] = [
     path: 'auth/passkeys/:id',
     positional: [{ name: 'id', kind: 'decimal' }],
     confirm: 'destructive',
+    origin: true,
     summary: 'Delete one passkey',
   },
   {
@@ -55,6 +56,7 @@ export const AUTH_SPECS: readonly EndpointSpec[] = [
     path: 'auth/password',
     confirm: 'destructive',
     session: 'save',
+    origin: true,
     summary: 'Delete the password and keep passkey-only sign-in',
   },
   {

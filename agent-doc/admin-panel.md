@@ -83,6 +83,8 @@ Session Token 以 Cookie 头发送（`plasticwan_admin`），因为带 `Authoriz
 
 `POST /api/auth/credentials`、`DELETE /api/auth/password` 与 `POST /api/auth/setup` 会撤销该账号全部 Session 并签发新 Cookie，CLI 把新 token 写回凭据文件；`POST /api/auth/logout` 成功后删除凭据文件。`save` 类命令未收到新 token 时以 `invalid_response` 失败，避免保留已失效的凭据。
 
+`DELETE /api/auth/passkeys/:id` 与 `DELETE /api/auth/password` 走 `passkeyRequest`，非 GET 一律经 `AdminPasskeys.checkOrigin` 要求 `Origin` 与 `admin.public_url` 全等，缺失也拒绝（不同于其它写端点「缺失放行」）。对应 spec 带 `origin: true`，CLI 只在这两条上发送 endpoint 自身的 origin；其余写入不发 `Origin`，否则 endpoint 与 public URL 不同时会被通用 Origin 校验拒绝。
+
 ## API
 
 前缀 `/api`，全部返回 JSON，`cache-control: no-store`。

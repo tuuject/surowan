@@ -130,4 +130,41 @@ describe('surowan-utils panel sessions and credentials', () => {
       await fixture.close();
     }
   }, 60_000);
+
+  it('passes the exact-Origin check of the passkey and password routes', async () => {
+    const fixture = await panelFixture({ publicUrl: true });
+    try {
+      await fetch(`${fixture.baseUrl}/api/auth/setup`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
+      });
+      await loginPanel(fixture);
+      // A passkey can only be registered by a browser authenticator, so two
+      // rows for this website stand in for it.
+      const insert = fixture.store.db.prepare(
+        `INSERT INTO admin_passkeys (user_id, credential_id, public_key, counter, rp_id, name, created_at)
+         SELECT id, ?, 'cGs', 0, 'localhost', ?, ? FROM admin_users`,
+      );
+      const createdAt = new Date().toISOString();
+      insert.run('credential-a', 'Laptop', createdAt);
+      insert.run('credential-b', 'Phone', createdAt);
+
+      // The password route rotates the session; the stored one must keep working.
+      const password = await runCli(['password', 'delete', '--yes', '--json'], fixture);
+      expect(password.code, password.stderr).toBe(0);
+      const listed = await runCli(['passkey', 'list', '--json'], fixture);
+      expect(listed.code, listed.stderr).toBe(0);
+      const keys = JSON.parse(listed.stdout) as { items: readonly { id: string }[]; has_password: boolean };
+      expect(keys.has_password).toBe(false);
+      expect(keys.items).toHaveLength(2);
+
+      const removed = await runCli(['passkey', 'delete', keys.items[0]?.id ?? '', '--yes', '--json'], fixture);
+      expect(removed.code, removed.stderr).toBe(0);
+      const after = await runCli(['passkey', 'list', '--json'], fixture);
+      expect((JSON.parse(after.stdout) as { items: readonly unknown[] }).items).toHaveLength(1);
+    } finally {
+      await fixture.close();
+    }
+  }, 60_000);
 });

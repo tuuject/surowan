@@ -73,6 +73,12 @@ export interface RequestOptions {
   readonly ifMatch?: string;
   /** A caller-supplied abort signal, joined with the request timeout. */
   readonly signal?: AbortSignal;
+  /**
+   * Sends the endpoint's own origin as `Origin`. Only routes that demand the
+   * exact `admin.public_url` origin set it: on every other write a mismatched
+   * `Origin` would be rejected, while a missing one is accepted.
+   */
+  readonly sendOrigin?: boolean;
 }
 
 /**
@@ -268,6 +274,9 @@ export class AdminClient {
     }
     if (options.ifMatch !== undefined) {
       headers['if-match'] = options.ifMatch;
+    }
+    if (options.sendOrigin === true) {
+      headers.origin = this.#baseUrl.origin;
     }
     const timeout = AbortSignal.timeout(this.#defaultTimeoutMs);
     const init: RequestInit = {

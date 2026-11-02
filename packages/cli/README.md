@@ -96,7 +96,7 @@ surowan-utils chat delete -1009876543210 --dry-run --json
 
 `If-Match` 的取法：写入命令默认在发请求前读取当前 revision（配置写入读 `GET /api/providers` 的 `revision`，Prompt 写入读该 scope 的 `content_hash`），所以不必手工搬运；`--if-match <值>` 用于显式钉住一份旧快照（例如脚本重试），字典词条的 revision 只能由调用方从上次读取中给出。配置在两步之间被别人改过时，服务端返回 `config_conflict`/`prompt_conflict`，文件不会被覆盖。
 
-Passkey 的注册与登录需要浏览器 WebAuthn，CLI 无法完成；`passkey list`/`passkey delete` 可用，新增 passkey 请回到面板。除此之外面板的每个 `/api` 路由都有对应命令，`surowan-utils commands` 是完整清单。
+Passkey 的注册与登录需要浏览器 WebAuthn，CLI 无法完成；`passkey list`/`passkey delete` 可用，新增 passkey 请回到面板。`passkey delete` 与 `password delete` 的服务端要求 `Origin` 与 `admin.public_url` 全等，CLI 发送 endpoint 自身的 origin，因此这两条命令需要以 `admin.public_url` 作为 endpoint 登录，否则返回 `bad_origin`。除此之外面板的每个 `/api` 路由都有对应命令，`surowan-utils commands` 是完整清单。
 
 ### API key：只读检查与重放
 

@@ -47,11 +47,19 @@ export interface PanelFixture {
   close(): Promise<void>;
 }
 
+export interface PanelFixtureOptions {
+  /**
+   * Serves on `http://localhost:<port>` and configures that origin as
+   * `admin.public_url`, which enables passkeys and their exact-Origin check.
+   */
+  readonly publicUrl?: boolean;
+}
+
 /**
  * Serves the real `AdminServer.handle` over a loopback HTTP socket, because the
  * CLI is a separate process and must speak HTTP to the same code the panel uses.
  */
-export async function panelFixture(): Promise<PanelFixture> {
+export async function panelFixture(options: PanelFixtureOptions = {}): Promise<PanelFixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-cli-panel-'));
   directories.push(directory);
   const home = join(directory, 'home');
@@ -60,49 +68,19 @@ export async function panelFixture(): Promise<PanelFixture> {
   const staticDir = join(directory, 'bundle');
   await mkdir(join(staticDir, 'static'), { recursive: true });
   await writeFile(join(staticDir, 'index.html'), '<!doctype html><title>admin</title>');
-  await writeTestConfig(
-    directory,
-    configPath,
-    testConfigJsonc(directory, (config) => {
-      config.admin = {
-        enabled: true,
-        host: '127.0.0.1',
-        port: 8899,
-        session_ttl_hours: 12,
-        static_dir: staticDir.replaceAll('\\', '/'),
-      };
-    }),
-  );
-  const loaded: LoadedConfig = await loadConfig(configPath);
-  const configStore: RuntimeConfigurationStore = await testConfigStore(loaded);
-  const store = await SqliteStore.open(loaded.config);
-  const secrets = new SecretStore(keyJarPath(configPath));
-  const switcher = new AgentModelSwitcher(configStore);
-  const reloader = new ConfigReloader({
-    loaded,
-    store: configStore,
-    secrets,
-    validateAgentModel: () => undefined,
-    modelSwitcher: switcher,
-    onPublished: () => undefined,
-  });
-  const assets = new PlaygroundAssetStore({ orm: store.orm, root: join(directory, 'images', 'playground') });
-  const rooms = new PlaygroundStore(store.orm);
-  const ingress = new PlaygroundIngress(store.orm, { assets });
-  const server = new AdminServer({
-    store,
-    configStore,
-    configReloader: reloader,
-    modelSwitcher: switcher,
-    secrets,
-    playground: { store, rooms, ingress, assets },
-  });
 
+  // The socket is bound before the configuration is written, because a public
+  // URL must name the port the server actually listens on.
+  let server: AdminServer | undefined;
   const sockets = new Set<Socket>();
   const http = createServer((request, response) => {
     const chunks: Buffer[] = [];
     request.on('data', (chunk: Buffer) => chunks.push(chunk));
     request.on('end', () => {
+      if (server === undefined) {
+        response.writeHead(503).end();
+        return;
+      }
       const headers = new Headers();
       for (const [key, value] of Object.entries(request.headers)) {
         if (typeof value === 'string') {
@@ -152,8 +130,48 @@ export async function panelFixture(): Promise<PanelFixture> {
   if (address === null || typeof address === 'string') {
     throw new Error('the panel fixture did not bind a TCP port');
   }
+  const baseUrl = options.publicUrl === true ? `http://localhost:${address.port}` : `http://127.0.0.1:${address.port}`;
+
+  await writeTestConfig(
+    directory,
+    configPath,
+    testConfigJsonc(directory, (config) => {
+      config.admin = {
+        enabled: true,
+        host: '127.0.0.1',
+        port: 8899,
+        session_ttl_hours: 12,
+        static_dir: staticDir.replaceAll('\\', '/'),
+        ...(options.publicUrl === true ? { public_url: `${baseUrl}/` } : {}),
+      };
+    }),
+  );
+  const loaded: LoadedConfig = await loadConfig(configPath);
+  const configStore: RuntimeConfigurationStore = await testConfigStore(loaded);
+  const store = await SqliteStore.open(loaded.config);
+  const secrets = new SecretStore(keyJarPath(configPath));
+  const switcher = new AgentModelSwitcher(configStore);
+  const reloader = new ConfigReloader({
+    loaded,
+    store: configStore,
+    secrets,
+    validateAgentModel: () => undefined,
+    modelSwitcher: switcher,
+    onPublished: () => undefined,
+  });
+  const assets = new PlaygroundAssetStore({ orm: store.orm, root: join(directory, 'images', 'playground') });
+  const rooms = new PlaygroundStore(store.orm);
+  const ingress = new PlaygroundIngress(store.orm, { assets });
+  server = new AdminServer({
+    store,
+    configStore,
+    configReloader: reloader,
+    modelSwitcher: switcher,
+    secrets,
+    playground: { store, rooms, ingress, assets },
+  });
   return {
-    baseUrl: `http://127.0.0.1:${address.port}`,
+    baseUrl,
     home,
     configPath,
     store,

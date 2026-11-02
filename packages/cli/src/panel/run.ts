@@ -61,7 +61,10 @@ export async function runPanelCommand(
 
   const ifMatch = await resolveRevision(spec, command, client);
 
-  const options = ifMatch === undefined ? {} : { ifMatch };
+  const options = {
+    ...(ifMatch === undefined ? {} : { ifMatch }),
+    ...(spec.origin === true ? { sendOrigin: true } : {}),
+  };
   const raw =
     spec.response === 'binary' || spec.response === 'text'
       ? await rawResponse(client, `api/${path}`, query, options, spec)

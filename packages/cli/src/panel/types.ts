@@ -75,6 +75,12 @@ export interface EndpointSpec {
    * `clear` deletes the stored credential because the session is gone.
    */
   readonly session?: 'save' | 'clear';
+  /**
+   * The route requires `Origin` to equal `admin.public_url` exactly (the
+   * passkey and password routes). The CLI sends the endpoint's own origin, so
+   * these commands work when the endpoint is that public URL.
+   */
+  readonly origin?: boolean;
   /** One line shown by `commands`; states what the panel action does. */
   readonly summary: string;
 }

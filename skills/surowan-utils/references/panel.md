@@ -113,7 +113,7 @@ printf '%s' "$NEW_PROMPT" | surowan-utils prompt save global --file - --json
 
 ## 明确不在 CLI 里的能力
 
-- **Passkey 注册与 Passkey 登录**（`/api/auth/passkeys/{register,login}/{options,verify}`）需要浏览器的 WebAuthn authenticator，CLI 无法完成。可以用 `passkey list` 查看已注册的 key、用 `passkey delete` 删除，但新增或使用 passkey 必须回到面板。
+- **Passkey 注册与 Passkey 登录**（`/api/auth/passkeys/{register,login}/{options,verify}`）需要浏览器的 WebAuthn authenticator，CLI 无法完成。可以用 `passkey list` 查看已注册的 key、用 `passkey delete` 删除，但新增或使用 passkey 必须回到面板。`passkey delete` 与 `password delete` 要求 endpoint 就是 `admin.public_url`（服务端按该 origin 全等校验 `Origin`）；返回 `bad_origin` 时说明当前 endpoint 不是这个地址，不要尝试其它绕过方式。
 - **面板前端专属的本地偏好**（主题、语言、是否显示 config.jsonc 键名）只存在浏览器 `localStorage`，没有服务端接口。
 - 除上述之外，面板的每个 `/api` 路由都有对应命令；`surowan-utils commands` 的输出就是完整清单，两者不一致即为缺陷。
 
