@@ -66,6 +66,12 @@ export interface EndpointSpec {
   readonly fileField?: string;
   /** A body the route always takes; the caller provides no fields. */
   readonly fixedBody?: unknown;
+  /**
+   * Body fields whose `null` deletes data that another row clears behind
+   * `--yes`, mapped to that row's command. This row refuses the `null`, so
+   * the confirmation cannot be bypassed through a generic body flag.
+   */
+  readonly nullClearedBy?: Readonly<Record<string, string>>;
   readonly revision?: RevisionKind;
   readonly confirm?: ConfirmKind;
   readonly response?: ResponseKind;

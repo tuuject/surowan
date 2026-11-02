@@ -79,7 +79,7 @@ Session Token 以 Cookie 头发送（`plasticwan_admin`），因为带 `Authoriz
 
 写入的乐观锁不需要手工搬运：配置写入先读 `GET /api/providers` 的 `revision`，Prompt 写入先读该 scope 的 `content_hash`（`prompt restore` 先读版本的 scope 与 `chat_id`），字典词条写入的 `revision` 只存在于调用方上次读取里，因此必须显式 `--if-match`。服务端冲突码（`config_conflict`/`prompt_conflict`/`dictionary_conflict`）原样返回，CLI 不重试也不覆盖。
 
-破坏性与计费路由带 `confirm` 标记：缺少 `--yes` 时 CLI 在发请求前以 `confirmation_required`（退出码 2）拒绝，`--dry-run` 打印 `{method, path, if_match, body}` 且不发请求。`--yes` 只是机械闸门；[客户端 Skill](../skills/surowan-utils/references/panel.md) 要求 Agent 在执行写操作前向用户逐项说明目标、字段与值、影响范围与可撤销性，并在用户明确同意后才加 `--yes`。
+破坏性与计费路由带 `confirm` 标记：缺少 `--yes` 时 CLI 在发请求前以 `confirmation_required`（退出码 2）拒绝；同一路由上的删除若由另一条确认命令负责（spec 的 `nullClearedBy`，如 `telegram token` 不接受 `token: null`，须走 `telegram token clear`），解析阶段以 `invalid_body` 拒绝，`--dry-run` 打印 `{method, path, if_match, body}` 且不发请求。`--yes` 只是机械闸门；[客户端 Skill](../skills/surowan-utils/references/panel.md) 要求 Agent 在执行写操作前向用户逐项说明目标、字段与值、影响范围与可撤销性，并在用户明确同意后才加 `--yes`。
 
 `POST /api/auth/credentials`、`DELETE /api/auth/password` 与 `POST /api/auth/setup` 会撤销该账号全部 Session 并签发新 Cookie，CLI 把新 token 写回凭据文件；`POST /api/auth/logout` 成功后删除凭据文件。`save` 类命令未收到新 token 时以 `invalid_response` 失败，避免保留已失效的凭据。写回与删除只在凭据来源是文件时发生（`credentialSources.credential === 'file'`）：`--session`/`SUROWAN_SESSION` 提供的 token 与文件无关，文件里可能是另一个 endpoint 的凭据，因此 `logout` 不删文件，轮换后只在 stderr 输出 `session_not_stored` 警告（新 token 会被输出脱敏，无法交给调用方）。
 

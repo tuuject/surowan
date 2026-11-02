@@ -103,6 +103,18 @@ describe('surowan-utils panel writes', () => {
       );
       expect(health.code).toBe(2);
       expect(errorCode(health)).toBe('confirmation_required');
+
+      // A null token deletes it; only the confirmed clear row may send that.
+      for (const args of [
+        ['telegram', 'token', '--set-json', 'token=null', '--json'],
+        ['telegram', 'token', '--body', '{"token":null}', '--json'],
+      ]) {
+        const cleared = await runCli(args, fixture);
+        expect(cleared.code, args.join(' ')).toBe(2);
+        expect(errorCode(cleared)).toBe('invalid_body');
+      }
+      const telegram = await runCli(['telegram', 'show', '--json'], fixture);
+      expect(JSON.parse(telegram.stdout)).toMatchObject({ token_configured: true });
     } finally {
       await fixture.close();
     }

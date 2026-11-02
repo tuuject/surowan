@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { isRecord } from '../client.ts';
 import { usageError } from '../errors.ts';
 import { findPanelSpec, panelCommandsStartingWith } from './specs/index.ts';
 import type { EndpointSpec, PanelCommand, PositionalArg } from './types.ts';
@@ -52,6 +53,14 @@ export function parsePanelCommand(words: readonly string[], flags: PanelFlags): 
     (flags.sets.length > 0 || flags.setJson.length > 0 || flags.body !== undefined || flags.file !== undefined)
   ) {
     throw usageError('unexpected_option', `${spec.command} takes no body; --set, --body and --file are invalid`);
+  }
+  for (const [field, clearCommand] of Object.entries(spec.nullClearedBy ?? {})) {
+    if (isRecord(body) && body[field] === null) {
+      throw usageError(
+        'invalid_body',
+        `${spec.command} cannot set ${field} to null; run ${clearCommand} (it requires --yes)`,
+      );
+    }
   }
   // Checked here, not after the response: a write that returns JSON would
   // otherwise take effect (or be billed) and then exit with a usage error.
