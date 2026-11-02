@@ -110,7 +110,7 @@ export const PLAYGROUND_SPECS: readonly EndpointSpec[] = [
     path: 'playground/rooms/:id/assets/:assetId/content',
     positional: [
       { name: 'id', kind: 'decimal' },
-      { name: 'assetId', kind: 'decimal' },
+      { name: 'assetId', kind: 'text' },
     ],
     response: 'binary',
     summary: 'Download the bytes of one room asset',

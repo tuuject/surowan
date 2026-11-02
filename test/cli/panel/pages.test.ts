@@ -1,3 +1,6 @@
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import { loginPanel, PASSWORD, panelFixture, runCli, USERNAME } from './fixtures.ts';
 
@@ -144,6 +147,55 @@ describe('surowan-utils panel pages', () => {
       );
       expect(asJson.code, asJson.stderr).toBe(0);
       expect(() => JSON.parse(asJson.stdout)).not.toThrow();
+    } finally {
+      await fixture.close();
+    }
+  }, 60_000);
+
+  it('downloads a room asset by the hexadecimal id the upload returned', async () => {
+    const fixture = await panelFixture();
+    try {
+      await fetch(`${fixture.baseUrl}/api/auth/setup`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
+      });
+      await loginPanel(fixture);
+      const created = await runCli(
+        ['room', 'create', '--set', 'title=Asset room', '--set', 'request_key=cli-asset-room', '--json'],
+        fixture,
+      );
+      expect(created.code, created.stderr).toBe(0);
+      const roomId = (JSON.parse(created.stdout) as { room: { id: string } }).room.id;
+      const png = await sharp({ create: { width: 4, height: 4, channels: 3, background: { r: 7, g: 8, b: 9 } } })
+        .png()
+        .toBuffer();
+
+      const uploaded = await runCli(
+        [
+          'room',
+          'asset',
+          'upload',
+          roomId,
+          '--set',
+          'mime=image/png',
+          '--set',
+          `content_base64=${png.toString('base64')}`,
+          '--json',
+        ],
+        fixture,
+      );
+      expect(uploaded.code, uploaded.stderr).toBe(0);
+      const assetId = (JSON.parse(uploaded.stdout) as { asset_id: string }).asset_id;
+      expect(assetId).toMatch(/^[0-9a-f]{32}$/);
+
+      const target = join(fixture.home, 'asset.png');
+      const content = await runCli(
+        ['room', 'asset', 'content', roomId, assetId, '--output', target, '--json'],
+        fixture,
+      );
+      expect(content.code, content.stderr).toBe(0);
+      expect(await readFile(target)).toEqual(png);
     } finally {
       await fixture.close();
     }
