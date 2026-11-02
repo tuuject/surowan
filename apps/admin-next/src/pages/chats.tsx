@@ -6,6 +6,7 @@ import { ChatDialog } from '@/components/chats/chat-dialog';
 import { GroupMemoryDialog } from '@/components/chats/group-memory-dialog';
 import { ChatTable } from '@/components/chats/chat-table';
 import { ParticipationDialog } from '@/components/chats/participation-dialog';
+import { PausePolicyDialog } from '@/components/chats/pause-policy-dialog';
 import { ProactiveReplyDialog } from '@/components/chats/proactive-reply-dialog';
 import { ConfirmDialog } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
@@ -31,6 +32,7 @@ export default function ChatsPage(): React.ReactElement {
   const [scheduling, setScheduling] = useState<{ readonly view: ChatsView; readonly chat: ChatEntry } | null>(null);
   const [proactive, setProactive] = useState<{ readonly view: ChatsView; readonly chat: ChatEntry } | null>(null);
   const [groupMemory, setGroupMemory] = useState<{ readonly view: ChatsView; readonly chat: ChatEntry } | null>(null);
+  const [pausePolicy, setPausePolicy] = useState<{ readonly view: ChatsView; readonly chat: ChatEntry } | null>(null);
   const [removing, setRemoving] = useState<{ readonly chat: ChatEntry; readonly revision: string } | null>(null);
   const remove = useMutation({
     mutationFn: (target: { readonly chat: ChatEntry; readonly revision: string }) =>
@@ -101,6 +103,7 @@ export default function ChatsPage(): React.ReactElement {
           onSchedule={(chat) => setScheduling({ view, chat })}
           onProactive={(chat) => setProactive({ view, chat })}
           onGroupMemory={(chat) => setGroupMemory({ view, chat })}
+          onPausePolicy={(chat) => setPausePolicy({ view, chat })}
           onRemove={(chat) => {
             remove.reset();
             setRemoving({ chat, revision: view.revision });
@@ -118,6 +121,9 @@ export default function ChatsPage(): React.ReactElement {
       ) : null}
       {groupMemory !== null ? (
         <GroupMemoryDialog view={groupMemory.view} chat={groupMemory.chat} onClose={() => setGroupMemory(null)} />
+      ) : null}
+      {pausePolicy !== null ? (
+        <PausePolicyDialog view={pausePolicy.view} chat={pausePolicy.chat} onClose={() => setPausePolicy(null)} />
       ) : null}
       <ConfirmDialog
         open={removing !== null}

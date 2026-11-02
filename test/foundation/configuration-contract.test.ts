@@ -121,4 +121,37 @@ describe('configuration', () => {
     );
     await expect(loadConfig(configPath)).rejects.toThrow('Invalid config');
   });
+
+  test('pause_by_members is a boolean that only group chats may set', async () => {
+    const { directory, configPath } = await fixture();
+    // The fixture's only Chat is private: opening `/pause` there would let a
+    // non-admin lock a chat they can never unlock, because `/resume` stays admin-only.
+    await writeFile(
+      configPath,
+      testConfigJsonc(directory, (config) => {
+        config.telegram.chats[0]!.pause_by_members = true;
+      }),
+    );
+    await expect(loadConfig(configPath)).rejects.toThrow(/private chat and cannot open \/pause/);
+
+    await writeFile(
+      configPath,
+      testConfigJsonc(directory, (config) => {
+        config.telegram.chats.push({ id: -100200, instructions_file: 'chat-instructions.md' });
+        Object.assign(config.telegram.chats[1]!, { pause_by_members: 'yes' });
+      }),
+    );
+    await expect(loadConfig(configPath)).rejects.toThrow('Invalid config');
+
+    await writeFile(
+      configPath,
+      testConfigJsonc(directory, (config) => {
+        config.telegram.chats.push({ id: -100200, instructions_file: 'chat-instructions.md' });
+        config.telegram.chats[1]!.pause_by_members = true;
+      }),
+    );
+    const loaded = await loadConfig(configPath);
+    expect(loaded.fileConfig.telegram?.chats[1]?.pause_by_members).toBe(true);
+    expect(loaded.config.telegram.chats[1]?.pause_by_members).toBe(true);
+  });
 });

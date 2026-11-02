@@ -38,10 +38,12 @@ Conversation、短期记忆和注意力窗口按 Chat + Topic 隔离；预算硬
 
 `telegram.chats[].ignored_user_ids` 是当前 Chat 的忽略名单，包含唯一的正安全整数 User ID，支持热应用。成员可用 [`/ignoreme`、`/unignoreme`](../configure/telegram.md#自助忽略与恢复) 自行加入或取消，覆盖该 Chat 的全部 Topic；已有消息和 Context 不会追溯删除。
 
+`telegram.chats[].pause_by_members` 是布尔开关，默认关闭：打开后该群的任何成员都能用 `/pause` 暂停互动，`/resume` 仍然只对 `telegram.admins` 开放。支持热应用，私聊声明该字段会让配置校验失败。
+
 ## SecretRef 与安全
 
 敏感字段只能用 `{ "env": "NAME" }`、`{ "jar": "name" }` 或固定 argv 的 `{ "command": [...] }`。HTTP MCP 禁止重定向和 URL 凭据；stdio MCP 仅运行配置里的固定 argv。Prompt 不会获得额外权限。
 
 ## 生效规则
 
-配置只在显式启动或应用时读取。Provider、模型、Prompt、`ignored_user_ids`、`participation`、`proactive_reply`、新增 Chat 与全部 Agent 字段可热应用；删除 allowlist Chat、MCP、Admin、路径和大多数结构变化要重启。详细操作见 [配置文件与密钥](../configure/config-file.md)，逐字段请下载 Schema。
+配置只在显式启动或应用时读取。Provider、模型、Prompt、`ignored_user_ids`、`pause_by_members`、`participation`、`proactive_reply`、新增 Chat 与全部 Agent 字段可热应用；删除 allowlist Chat、MCP、Admin、路径和大多数结构变化要重启。详细操作见 [配置文件与密钥](../configure/config-file.md)，逐字段请下载 Schema。

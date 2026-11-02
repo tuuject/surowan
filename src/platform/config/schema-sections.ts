@@ -201,6 +201,9 @@ export const ChatSchema = Type.Object(
     timezone: Type.Optional(Type.String({ minLength: 1 })),
     instructions_file: Type.Optional(Type.String({ minLength: 1 })),
     group_memory: Type.Optional(GroupMemorySchema),
+    // `/resume` is never opened: a Chat whose members may silence the bot still
+    // needs an admin to bring it back, so the switch covers `/pause` only.
+    pause_by_members: Type.Optional(Type.Boolean()),
     participation: Type.Optional(ParticipationSchema),
     proactive_reply: Type.Optional(ProactiveReplySchema),
     dictionary_injection_mode: Type.Optional(DictionaryInjectionModeSchema),

@@ -108,6 +108,12 @@ export function validateSemantics(config: FileConfig, options: ValidateSemantics
     if (chat.proactive_reply !== undefined && chat.id > 0) {
       throw new Error(`Chat ${chat.id} is a private chat and cannot configure proactive_reply`);
     }
+    // A private chat has no members to hand the command to: enabling it there
+    // would only let a non-admin lock a chat they could never unlock, because
+    // `/resume` stays admin-only.
+    if (chat.pause_by_members !== undefined && chat.id > 0) {
+      throw new Error(`Chat ${chat.id} is a private chat and cannot open /pause to members`);
+    }
     if (chat.timezone !== undefined) {
       validateTimezone(chat.timezone, `chat ${chat.id} timezone`);
     }

@@ -90,6 +90,26 @@ export function textUpdate(updateId: number, messageId: number, text: string, ch
   };
 }
 
+/** A supergroup message: the Chat kind that can open `/pause` to its members. */
+export function groupTextUpdate(
+  updateId: number,
+  messageId: number,
+  text: string,
+  chatId: number,
+  fromId = 42,
+): Update {
+  return {
+    update_id: updateId,
+    message: {
+      message_id: messageId,
+      date: 1_700_000_000 + messageId,
+      chat: { id: chatId, type: 'supergroup', title: 'Test Group' },
+      from: { id: fromId, is_bot: false, first_name: 'Member' },
+      text,
+    },
+  };
+}
+
 export function message(message: Update['message']): Message {
   return message!;
 }

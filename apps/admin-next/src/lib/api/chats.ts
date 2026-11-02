@@ -55,6 +55,8 @@ export interface ChatSettings {
 export interface ChatSettingsView extends ChatSettings {
   readonly participation: ParticipationView | null;
   readonly group_memory: GroupMemoryView | null;
+  /** `/pause` open to every member; `/resume` stays admin-only in either case. */
+  readonly pause_by_members: boolean;
   readonly proactive_reply: ProactiveReplyView | null;
   readonly effective_proactive_reply: ProactiveReplySettingsView;
   readonly timezone: string | null;
@@ -143,6 +145,19 @@ export function updateChatProactiveReply(
   revision: string,
 ): Promise<ChatWriteResponse> {
   return call<ChatWriteResponse>(`/chats/${encodeURIComponent(id)}/proactive-reply`, {
+    method: 'PUT',
+    headers: writeHeaders(revision),
+    body: JSON.stringify(body),
+  });
+}
+
+/** `/pause` only: `/resume` stays admin-only, so this switch never covers it. */
+export function updateChatPausePolicy(
+  id: string,
+  body: { readonly pause_by_members: boolean },
+  revision: string,
+): Promise<ChatWriteResponse> {
+  return call<ChatWriteResponse>(`/chats/${encodeURIComponent(id)}/pause-policy`, {
     method: 'PUT',
     headers: writeHeaders(revision),
     body: JSON.stringify(body),

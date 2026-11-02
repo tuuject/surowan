@@ -98,6 +98,16 @@ export const chats: typeof chatsEn = {
   groupMemoryCutover:
     '开启或关闭群聊记忆会中止此 Chat 所有正在运行的 Invocation，并重建它的全部 Conversation Context；只修改空闲分钟数不会触发这些操作。',
   groupMemoryInvalid: '请输入 1–1440 之间的整数分钟数。',
+  colPausePolicy: '暂停命令',
+  pausePolicyEveryone: '所有成员',
+  pausePolicyAdmins: '仅 Bot 管理员',
+  editPausePolicy: '编辑暂停权限',
+  pausePolicyTitle: '谁可以暂停 Bot',
+  pausePolicyDescription:
+    '暂停后本群不再回复，直到有人恢复。群太吵时成员可以直接让 Bot 安静；恢复互动始终只属于 Bot 管理员。',
+  pausePolicyEnable: '允许所有成员发送 /pause',
+  pausePolicyEnableHint: '只作用于本群，保存后立即生效。关闭时与之前一样，仅 Bot 管理员可用。',
+  pausePolicyResumeHint: '/resume 不会开放：暂停之后只有 Bot 管理员能恢复互动。',
   colProactive: '主动回复',
   editProactiveReply: '编辑主动回复概率',
   proactiveTitle: '主动回复概率',

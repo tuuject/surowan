@@ -9,6 +9,7 @@ import {
   LibraryBig,
   MessageSquareText,
   Pencil,
+  ShieldCheck,
   Sparkles,
   Speech,
   Trash2,
@@ -58,6 +59,7 @@ export function ChatTable({
   onSchedule,
   onProactive,
   onGroupMemory,
+  onPausePolicy,
   onRemove,
 }: {
   readonly view: ChatsView;
@@ -65,6 +67,7 @@ export function ChatTable({
   readonly onSchedule: (chat: ChatEntry) => void;
   readonly onProactive: (chat: ChatEntry) => void;
   readonly onGroupMemory: (chat: ChatEntry) => void;
+  readonly onPausePolicy: (chat: ChatEntry) => void;
   readonly onRemove: (chat: ChatEntry) => void;
 }): React.ReactElement {
   const { t } = useTranslation();
@@ -102,6 +105,8 @@ export function ChatTable({
     });
     return settings.proactive_reply === null ? t('pages.chats.proactiveInheritSummary', { summary }) : summary;
   };
+  const pausePolicyText = (settings: ChatSettingsView): string =>
+    settings.pause_by_members ? t('pages.chats.pausePolicyEveryone') : t('pages.chats.pausePolicyAdmins');
   // One line per period keeps the allowlist table narrow with many windows.
   // Keys pair the window content with a duplicate tally: identical windows are
   // valid config, and the tally keeps keys unique and stable under reorders.
@@ -248,6 +253,20 @@ export function ChatTable({
       },
     },
     {
+      key: 'pausePolicy',
+      title: t('pages.chats.colPausePolicy'),
+      // Private chats have no members to open `/pause` to, and the config rejects it.
+      render: (row) => {
+        const settings = shown(row);
+        return settings === null || !row.id.startsWith('-') ? null : (
+          <div className="space-y-1">
+            <p className="text-sm">{pausePolicyText(settings)}</p>
+            <RunningNote value={runningDiff(row, pausePolicyText)} />
+          </div>
+        );
+      },
+    },
+    {
       key: 'status',
       title: t('pages.chats.colStatus'),
       render: (row) =>
@@ -359,6 +378,18 @@ export function ChatTable({
                 onClick={() => onGroupMemory(row)}
               >
                 <LibraryBig />
+              </Button>
+            ) : null}
+            {row.id.startsWith('-') ? (
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                aria-label={t('pages.chats.editPausePolicy')}
+                title={t('pages.chats.editPausePolicy')}
+                onClick={() => onPausePolicy(row)}
+              >
+                <ShieldCheck />
               </Button>
             ) : null}
             <Button

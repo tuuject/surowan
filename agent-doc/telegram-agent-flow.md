@@ -489,11 +489,11 @@ Sticker 视觉元数据通过严格 Tool Call 返回：中文描述、情绪、�
 `/pause`、`/resume`、`/status`、`/model` 与 `/effort` 是 Chat 级控制命令，作用于发送命令的 Chat（含 Forum 全部 Topic），不按 Topic 隔离——`/model` 与 `/effort` 读写的就是该 Chat 的模型与思考强度覆盖，Topic 共用 Chat 设置。`/cut_topic` 是 Conversation 级命令：切点与 Context 清空都只作用于命令所在的 Topic。`/allowlist` 把命令所在的 Chat 追加进 `telegram.chats` 白名单。
 
 - 判定：`message.entities` 中 offset 为 0 的 `bot_command`；命令名大小写不敏感；带 `@用户名` 后缀时必须匹配当前 Bot；Bot 发送者的消息不触发命令。未知命令与非命令消息照常入库。
-- 启动时（`getMe` 后）调用 `setMyCommands` 自动注册 `/pause`、`/resume`、`/status`、`/model`、`/effort`、`/cut_topic`、`/whoami`、`/allowlist`、`/ignoreme`、`/unignoreme` 及中文描述（`BOT_COMMANDS` 是唯一事实来源，注册前校验每个命令都能被 `parseBotCommand` 解析）；注册失败只记 `command_registration_failed`，不阻塞启动——命令菜单是便利设施，文本解析不依赖它。
+- 启动时（`getMe` 后）调用 `setMyCommands` 自动注册 `/pause`、`/resume`、`/status`、`/model`、`/effort`、`/cut_topic`、`/whoami`、`/allowlist`、`/ignoreme`、`/unignoreme` 及中文描述（`/pause` 的描述标注「默认仅管理员」，因为菜单是全局的，按群开关只能由配置表达）（`BOT_COMMANDS` 是唯一事实来源，注册前校验每个命令都能被 `parseBotCommand` 解析）；注册失败只记 `command_registration_failed`，不阻塞启动——命令菜单是便利设施，文本解析不依赖它。
 - 命令消息只写 `telegram_updates` 审计，不写入 `messages`，因此不会创建 Bucket 或进入 Agent 历史。`parseBotCommand` 返回的命令附带 `messageId`（命令消息自身的 Telegram message ID）与 `threadId`（命令所在 Forum Topic），供 `/cut_topic` 记录切点并定位要清空的 Conversation Context。`threadId` 与入库共用 `conversationThreadId` 规则：只有 forum supergroup 的 topic 消息才取 `message_thread_id`，其余一律视为 thread 0，包括私聊（开启话题模式后消息会带 `message_thread_id`）和普通 supergroup 里 Reply 链自带的 `message_thread_id`。两边规则不一致时，带这类 thread id 的 `/cut_topic` 会找不到 Conversation、只写切点不清 Context，却仍回复「已清空」。
 - 回复是确定性 Bot 输出（不经模型），直接通过 Bot API 发送并 Reply 原命令消息，不经过 `send` Tool；发送失败只记 `command_reply_failed` 事件，不重试。
 
-`/pause`、`/resume`、`/model` 与 `/effort` 仅对 Bot 管理员开放（`telegram.admins` 配置，见下文）；`/status` 对任何成员开放。`/whoami` 同样对任何成员开放：回复发送者的 Telegram 数字 ID，发送者身份无法识别（`message.from` 缺失）时回复「无法识别发送者。」。非管理员或匿名身份执行受限命令会收到拒绝回复，不产生任何状态变更。
+`/resume`、`/model` 与 `/effort` 仅对 Bot 管理员开放（`telegram.admins` 配置，见下文）；`/pause` 默认同样仅限管理员，但该 Chat 的 `pause_by_members` 为 `true` 时对所有成员开放（匿名 `sender_chat` 仍拒绝），`BotCommandService.#pauseAllowed` 先读管理员名单、再读发布配置里的该字段。`/status` 对任何成员开放。`/whoami` 同样对任何成员开放：回复发送者的 Telegram 数字 ID，发送者身份无法识别（`message.from` 缺失）时回复「无法识别发送者。」。非管理员或匿名身份执行受限命令会收到拒绝回复，不产生任何状态变更。
 
 `/ignoreme`、`/unignoreme` 对任何可识别的个人账号开放，无需管理员权限：在当前 Chat 的 `ignored_user_ids` 中加入/移除发送者自己的 `message.from.id`，参数和 Reply 不会指定其他用户。作用范围是整个 Chat（含全部 Forum Topic）；迁移群写回迁移前配置条目。两者写回 `config.jsonc` 并立即热应用，重启后仍保留；已忽略用户仍可使用这两个命令，其他命令继续被丢弃。Chat/Topic allowlist、Bot 发送者、编辑和启动追赶仍按原有边界处理，不会靠自助命令越过。匿名 `sender_chat` 或无法识别发送者时不能改名单。
 

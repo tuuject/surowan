@@ -170,3 +170,39 @@ test('proactive reply settings at both levels are hot, including their sub-field
   expect(paths(diff.changes, 'restart')).toEqual([]);
   expect(diff.candidate.file.telegram?.chats[1]?.proactive_reply).toEqual({ hard_pity: 4 });
 });
+
+test('opening /pause to members is hot in both directions', async () => {
+  const opened = await loadBoth(
+    (config) => {
+      config.telegram.chats.push({ id: -100100, instructions_file: 'chat-instructions.md' });
+    },
+    (config) => {
+      config.telegram.chats[1]!.pause_by_members = true;
+    },
+  );
+  const diff = diffConfig(
+    { file: opened.active.fileConfig, raw: opened.active.config },
+    { file: opened.file.fileConfig, raw: opened.file.config },
+  );
+  expect(paths(diff.changes, 'hot')).toEqual(['telegram.chats[-100100].pause_by_members']);
+  expect(paths(diff.changes, 'restart')).toEqual([]);
+  expect(diff.candidate.file.telegram?.chats[1]?.pause_by_members).toBe(true);
+
+  // Turning it back off deletes the key: absent already means admins-only.
+  const closed = await loadBoth(
+    (config) => {
+      config.telegram.chats.push({ id: -100100, instructions_file: 'chat-instructions.md' });
+      config.telegram.chats[1]!.pause_by_members = true;
+    },
+    (config) => {
+      delete (config.telegram.chats[1] as Record<string, unknown>).pause_by_members;
+    },
+  );
+  const closing = diffConfig(
+    { file: closed.active.fileConfig, raw: closed.active.config },
+    { file: closed.file.fileConfig, raw: closed.file.config },
+  );
+  expect(paths(closing.changes, 'hot')).toEqual(['telegram.chats[-100100].pause_by_members']);
+  expect(paths(closing.changes, 'restart')).toEqual([]);
+  expect(closing.candidate.file.telegram?.chats[1]?.pause_by_members).toBeUndefined();
+});

@@ -108,7 +108,9 @@ export interface BotCommandRegistration {
 // Single source of truth for the Telegram command menu: everything registered
 // via setMyCommands must also parse in parseBotCommand.
 export const BOT_COMMANDS: readonly BotCommandRegistration[] = [
-  { command: 'pause', description: '暂停本群互动（仅管理员）' },
+  // The menu is global, so it cannot say per Chat who may pause: the Chat's
+  // `pause_by_members` decides, and the default is still admins only.
+  { command: 'pause', description: '暂停本群互动（默认仅管理员）' },
   { command: 'resume', description: '恢复本群互动（仅管理员）' },
   { command: 'status', description: '查看当前模型、thinking effort 与本日 token 用量' },
   { command: 'model', description: '查看或切换 agent 模型（仅管理员）' },
@@ -209,7 +211,7 @@ export class BotCommandService {
   ): Promise<string> {
     switch (command.name) {
       case 'pause':
-        return this.#adminGate(sender) ? this.#pause(telegramChatId, now) : DENIED_REPLY;
+        return this.#pauseAllowed(telegramChatId, sender) ? this.#pause(telegramChatId, now) : DENIED_REPLY;
       case 'resume':
         return this.#adminGate(sender) ? this.#resume(telegramChatId) : DENIED_REPLY;
       case 'status':
@@ -240,6 +242,19 @@ export class BotCommandService {
     // hot-applied list change takes effect on the next command.
     const admins = this.#configStore.current().config.telegram.admins ?? [];
     return admins.some((id) => BigInt(id) === sender.id);
+  }
+
+  /**
+   * `/pause` is the one admin command a Chat may hand to its members: a noisy
+   * group should not have to wait for an admin just to silence the bot. The
+   * switch never covers `/resume`, so a member can stop the bot but only an
+   * admin can start it again.
+   */
+  #pauseAllowed(telegramChatId: bigint, sender: CommandSender | null): boolean {
+    if (sender === null) {
+      return false;
+    }
+    return this.#adminGate(sender) || this.#chatConfig(telegramChatId)?.pause_by_members === true;
   }
 
   #pause(telegramChatId: bigint, now: Date): string {

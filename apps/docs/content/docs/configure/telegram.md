@@ -65,6 +65,8 @@ Telegram 官方 FAQ 指引开发者通过 [@BotFather](https://t.me/BotFather) �
 
 `telegram.admins` 中的 Telegram 用户可以使用 `/pause`、`/resume`、`/model`、`/effort`、`/cut_topic`、`/allowlist`。名单由 `config.jsonc` 的 `telegram.admins` 字段管理，修改后可热应用，无需重启。先在目标 Chat 发送一条测试消息，检查 `serve_started` 后的审计记录；“Bot 在线”不等于消息被允许，也不等于模型一定发言。
 
+`/pause` 可以按群单独开放给所有成员：在 `telegram.chats[]` 里给该群加上 `"pause_by_members": true`（或在面板 Chats 页用「编辑暂停权限」打开），保存后热应用。开放后该群任何能发消息的成员都能用 `/pause` 让 Bot 安静下来，匿名身份（频道身份发言、匿名管理员）依旧不行。这项设置只覆盖 `/pause`：`/resume`、`/model`、`/effort`、`/cut_topic`、`/allowlist` 仍然只对 `telegram.admins` 开放，成员能让 Bot 停下，但只有管理员能让它重新开口。私聊不能设置该字段。
+
 `/allowlist` 把 Bot 当前所在的 Chat（通常是刚把它拉进的新群）追加进 `telegram.chats` 并立即生效，无需重启。它是唯一能在未列入 allowlist 的 Chat 里使用的命令，且仅限 `telegram.admins` 中的用户：非管理员的 `/allowlist` 会被静默忽略。
 
 `/effort` 查看或设置本群模型的思考强度（thinking effort）：不带参数时列出当前生效模型接受的级别与当前级别，未覆盖的级别会标注“继承全局”；`/effort 级别` 只写该群 `telegram.chats[].thinking_level` 这一项覆盖并热应用，不动该群的模型覆盖，级别必须是当前模型接受的取值之一；`/effort default` 只删除这项覆盖，思考强度回到继承全局。非推理模型只接受 `off`。改动只对之后启动的 Invocation 生效，正在运行的会话继续使用旧值。

@@ -7,7 +7,15 @@ import type { SqliteStore } from '../../src/adapters/local-monolith/database.ts'
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { testConfigJsonc, writeTestConfig } from '../helpers.ts';
-import { ALICE, type ConfigTransform, FIXED_NOW, cleanupDirectories, setup, textUpdate } from './fixtures.ts';
+import {
+  ALICE,
+  type ConfigTransform,
+  FIXED_NOW,
+  cleanupDirectories,
+  groupTextUpdate,
+  setup,
+  textUpdate,
+} from './fixtures.ts';
 
 afterAll(cleanupDirectories);
 
@@ -42,6 +50,37 @@ describe('bot command service', () => {
     );
     expect(await commands.run({ name: 'status' }, 123456789n, stranger, FIXED_NOW)).toContain('本群模型');
     expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM chat_pause').get()?.count).toBe(0n);
+    store.close();
+  });
+
+  test('pause opens to members only where the chat asks for it, and resume stays admin-only', async () => {
+    const GROUP_ID = -1_001_234_567_890n;
+    const { store, ingestion, commands } = await setup((config) => {
+      config.telegram.admins = [42];
+      config.telegram.chats = [
+        { id: Number(GROUP_ID), instructions_file: 'chat-instructions.md', pause_by_members: true },
+      ];
+    });
+    // `/pause` needs a stored Chat row; one ingested message creates it.
+    ingestion.ingest(groupTextUpdate(1, 10, 'hello', Number(GROUP_ID), 99), FIXED_NOW);
+    const mallory: CommandSender = { id: 99n, name: 'Mallory', username: 'mallory' };
+    const paused = (): bigint | undefined =>
+      store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM chat_pause').get()?.count;
+
+    // An anonymous chat identity is still nobody, open switch or not.
+    expect(await commands.run({ name: 'pause' }, GROUP_ID, null, FIXED_NOW)).toBe('该命令仅对本 Bot 的管理员可用。');
+    expect(await commands.run({ name: 'pause' }, GROUP_ID, mallory, FIXED_NOW)).toBe(
+      '已暂停本群互动，发送 /resume 可恢复。',
+    );
+    expect(paused()).toBe(1n);
+
+    // The switch covers `/pause` alone: restoring the Chat still needs an admin.
+    expect(await commands.run({ name: 'resume' }, GROUP_ID, mallory, FIXED_NOW)).toBe(
+      '该命令仅对本 Bot 的管理员可用。',
+    );
+    expect(paused()).toBe(1n);
+    expect(await commands.run({ name: 'resume' }, GROUP_ID, ALICE, FIXED_NOW)).toBe('已恢复本群互动。');
+    expect(paused()).toBe(0n);
     store.close();
   });
 

@@ -100,6 +100,17 @@ export const chats = {
   groupMemoryCutover:
     'Turning group memory on or off aborts every running Invocation in this Chat and rebuilds all of its Conversation Contexts. Changing only the idle minutes does neither.',
   groupMemoryInvalid: 'Enter a whole number of minutes between 1 and 1440.',
+  colPausePolicy: 'Pause command',
+  pausePolicyEveryone: 'Any member',
+  pausePolicyAdmins: 'Bot admins only',
+  editPausePolicy: 'Edit who can pause',
+  pausePolicyTitle: 'Who can pause the bot',
+  pausePolicyDescription:
+    'Pausing stops replies in this Chat until someone resumes. Members can silence a noisy group; resuming always stays with bot admins.',
+  pausePolicyEnable: 'Let every member send /pause',
+  pausePolicyEnableHint:
+    'Applies to this Chat only and takes effect immediately. Off means /pause is admin-only, as before.',
+  pausePolicyResumeHint: '/resume is never opened: after a pause, only a bot admin can restore interaction.',
   colProactive: 'Proactive replies',
   editProactiveReply: 'Edit proactive reply chance',
   proactiveTitle: 'Proactive reply chance',

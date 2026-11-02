@@ -8,6 +8,16 @@ import { telegramChatIdentity } from '../../../store/chat-identity.ts';
 import { json, readJsonObject, requiredRevision, revisionRequired } from '../http.ts';
 import { CONFIG_WRITE_STATUS, readConfigFile } from '../config-file.ts';
 import {
+  parseGroupMemory,
+  parseParticipation,
+  parsePausePolicy,
+  parseProactiveReply,
+  updateChatGroupMemory,
+  updateChatPausePolicy,
+  updateChatParticipation,
+  updateChatProactiveReply,
+} from '../chat-feature-edits.ts';
+import {
   createChat,
   deleteChat,
   deleteTelegramChatData,
@@ -15,14 +25,8 @@ import {
   parseChatId,
   parseChatSettings,
   parseCreateChat,
-  parseGroupMemory,
-  parseParticipation,
-  parseProactiveReply,
   runningInvocationIdsForTelegramChat,
   updateChat,
-  updateChatGroupMemory,
-  updateChatParticipation,
-  updateChatProactiveReply,
 } from '../chats.ts';
 
 export interface ChatsAdminDeps {
@@ -63,6 +67,7 @@ export function createChatsAdminHandler(deps: ChatsAdminDeps) {
         ((request.method === 'PUT' || request.method === 'DELETE') && segments.length === 2) ||
         (request.method === 'PUT' && segments.length === 3 && segments[2] === 'participation') ||
         (request.method === 'PUT' && segments.length === 3 && segments[2] === 'group-memory') ||
+        (request.method === 'PUT' && segments.length === 3 && segments[2] === 'pause-policy') ||
         (request.method === 'PUT' && segments.length === 3 && segments[2] === 'proactive-reply')
       )
     ) {
@@ -89,9 +94,11 @@ export function createChatsAdminHandler(deps: ChatsAdminDeps) {
             ? updateChatParticipation(loaded.fileConfig, id, parseParticipation(await readJsonObject(request)))
             : segments[2] === 'group-memory'
               ? updateChatGroupMemory(loaded.fileConfig, id, parseGroupMemory(await readJsonObject(request)))
-              : segments[2] === 'proactive-reply'
-                ? updateChatProactiveReply(loaded.fileConfig, id, parseProactiveReply(await readJsonObject(request)))
-                : updateChat(loaded.fileConfig, id, parseChatSettings(await readJsonObject(request)));
+              : segments[2] === 'pause-policy'
+                ? updateChatPausePolicy(loaded.fileConfig, id, parsePausePolicy(await readJsonObject(request)))
+                : segments[2] === 'proactive-reply'
+                  ? updateChatProactiveReply(loaded.fileConfig, id, parseProactiveReply(await readJsonObject(request)))
+                  : updateChat(loaded.fileConfig, id, parseChatSettings(await readJsonObject(request)));
     }
     // The revision pins the ID-to-array-index mapping even if another writer reorders the file.
     const result = await reloader.writeAndApply(edits, revision);
