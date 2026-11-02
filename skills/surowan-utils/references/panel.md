@@ -67,7 +67,7 @@ printf '%s' "$NEW_PROMPT" | surowan-utils prompt save global --file - --json
 - 返回 `config_conflict` / `prompt_conflict`：文件在读取与写入之间被别人改过。重新读取、重新向用户确认新值，再执行；**不要**用 `--if-match` 把旧值钉住覆盖别人的修改。
 - `revision_required`：服务端没收到 `If-Match`。配置类写入不应出现（CLI 会自动补）；字典词条写入必须由调用方给出，因为它只存在于用户上次读取的结果里——重新读取词条拿新 `revision`。
 - 字典词条写入（`dictionary update`/`delete`）的 `--if-match` 是**词条自己的 revision**，不是配置 revision；`dictionary settings update` 才是配置 revision。
-- `prompt save` 用位置参数指定 scope（`global` 或 `group` + `--chat`）；`prompt restore` 会先读取该版本的 scope，再取对应 Prompt 的 `content_hash`。
+- `prompt save` 用位置参数指定 scope（`global` 或 `group` + `--chat`）；`prompt restore` 会先读取该版本的 scope 与 `chat_id`（群 Prompt 版本自带 Chat，不需要也不接受 `--chat`），再取对应 Prompt 的 `content_hash`。
 
 ## 破坏性操作
 

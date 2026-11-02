@@ -173,8 +173,8 @@ export async function configRevision(client: AdminClient): Promise<string> {
 
 /**
  * A prompt write is pinned by the prompt's own content hash. `prompt save`
- * names its scope positionally; `prompt restore` inherits the scope of the
- * version it restores, which the CLI reads first.
+ * names its scope positionally; `prompt restore` inherits the scope and, for a
+ * group version, the Chat of the version it restores, which the CLI reads first.
  */
 async function promptRevision(client: AdminClient, spec: EndpointSpec, command: PanelCommand): Promise<string> {
   if (spec.command === 'prompt restore') {
@@ -183,7 +183,14 @@ async function promptRevision(client: AdminClient, spec: EndpointSpec, command: 
     if (!isRecord(version) || typeof version.scope !== 'string' || typeof version.content_hash !== 'string') {
       throw new CliError('invalid_response', 'the prompt version did not report its scope and content hash');
     }
-    return await promptContentHash(client, version.scope, command.query.chat);
+    let chat: string | undefined;
+    if (version.scope === 'group') {
+      if (typeof version.chat_id !== 'string') {
+        throw new CliError('invalid_response', 'the group prompt version did not report its chat');
+      }
+      chat = version.chat_id;
+    }
+    return await promptContentHash(client, version.scope, chat);
   }
   const scope = command.positionals.scope;
   if (scope !== 'global' && scope !== 'group') {

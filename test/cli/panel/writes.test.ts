@@ -185,4 +185,43 @@ describe('surowan-utils panel writes', () => {
       await fixture.close();
     }
   }, 60_000);
+
+  it('restores a group prompt version, discovering its Chat and hash itself', async () => {
+    const fixture = await panelFixture();
+    try {
+      await fetch(`${fixture.baseUrl}/api/auth/setup`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
+      });
+      await loginPanel(fixture);
+      for (const text of ['First group rules.\n', 'Second group rules.\n']) {
+        const saved = await runCli(
+          ['prompt', 'save', 'group', '--chat', '123456789', '--file', '-', '--json'],
+          fixture,
+          {},
+          { stdin: text },
+        );
+        expect(saved.code, saved.stderr).toBe(0);
+      }
+      const versions = await runCli(
+        ['prompt', 'versions', '--scope', 'group', '--chat', '123456789', '--json'],
+        fixture,
+      );
+      expect(versions.code, versions.stderr).toBe(0);
+      const items = (JSON.parse(versions.stdout) as { items: readonly { id: string }[] }).items;
+      const older = items.at(-1)?.id ?? '';
+      const shown = await runCli(['prompt', 'version', 'show', older, '--json'], fixture);
+      const content = (JSON.parse(shown.stdout) as { content: string }).content;
+
+      // The version knows its Chat; `prompt restore` takes no --chat flag.
+      const restored = await runCli(['prompt', 'restore', older, '--json'], fixture);
+      expect(restored.code, restored.stderr).toBe(0);
+      expect(JSON.parse(restored.stdout)).toMatchObject({ status: 'saved' });
+      const prompt = await runCli(['prompt', 'get', 'group', '--chat', '123456789', '--json'], fixture);
+      expect(JSON.parse(prompt.stdout)).toMatchObject({ prompt: content });
+    } finally {
+      await fixture.close();
+    }
+  }, 60_000);
 });
