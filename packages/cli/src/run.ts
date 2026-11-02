@@ -36,8 +36,11 @@ export async function runCli(argv: readonly string[], options: RunOptions = {}):
       return 0;
     }
     const explicitEndpoint = parsed.endpointRaw ?? env.SUROWAN_ENDPOINT;
-    const explicitKey = parsed.apiKeyRaw ?? env.SUROWAN_API_KEY ?? env.SUROWAN_SESSION;
-    const saved = explicitEndpoint !== undefined && explicitKey !== undefined ? undefined : await readCredentials(path);
+    const explicitCredential = parsed.apiKeyRaw ?? parsed.sessionRaw ?? env.SUROWAN_API_KEY ?? env.SUROWAN_SESSION;
+    // With both an endpoint and a credential supplied, the file is never
+    // consulted, so a damaged or foreign file cannot block the command.
+    const saved =
+      explicitEndpoint !== undefined && explicitCredential !== undefined ? undefined : await readCredentials(path);
     secrets.push(saved?.apiKey, saved?.session);
     const resolved = resolveCli(parsed, env, saved);
     secrets.push(resolved.apiKey, resolved.session);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { errorCode, loginPanel, PASSWORD, panelFixture, runCli, storedSession, USERNAME } from './fixtures.ts';
 
@@ -203,6 +203,29 @@ describe('surowan-utils panel sessions and credentials', () => {
       expect(changed.code, changed.stderr).toBe(0);
       expect(JSON.parse(changed.stderr)).toMatchObject({ warning: 'session_not_stored' });
       expect(await readFile(storedPath, 'utf8')).toBe(stored);
+    } finally {
+      await fixture.close();
+    }
+  }, 60_000);
+
+  it('never reads the credentials file when --endpoint and --session are both given', async () => {
+    const fixture = await panelFixture();
+    try {
+      await fetch(`${fixture.baseUrl}/api/auth/setup`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
+      });
+      await loginPanel(fixture);
+      const session = storedSession(fixture);
+      // A damaged file must not block a command that does not need it.
+      await writeFile(join(fixture.home, '.config', 'surowan-utils', 'credentials.json'), '{', { mode: 0o600 });
+
+      const overview = await runCli(
+        ['overview', '--endpoint', fixture.baseUrl, '--session', session, '--json'],
+        fixture,
+      );
+      expect(overview.code, overview.stderr).toBe(0);
     } finally {
       await fixture.close();
     }
