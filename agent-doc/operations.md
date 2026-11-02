@@ -204,7 +204,7 @@ node src/cli.ts doctor --config dev-data/config.jsonc --output-agent-prompt
 
 ## 工具客户端（面板对齐与 Invocation 查询/重放）
 
-[`packages/cli`](../packages/cli/README.md) 提供工具客户端 `surowan-utils`（npm 包 `@tuuject/surowan-utils`；仓库根与其它工作区仍为 private），覆盖只读检查、当前模型目录、Invocation 查询/媒体导出/重放（含临时模型与 thinking 覆盖），以及与 Admin Panel 等价的全部面板命令（改配置、管 Chat/模型/Prompt、Memo Pad、辞典、群聊记忆、告警、Playground 房间）。完整命令与选项以该包 README 为准；`surowan-utils commands` 列出面板命令表，其数据源是 `packages/cli/src/panel/specs/`——新增面板端点必须同时加一行 spec，见 [admin-panel.md](admin-panel.md#cli-与面板能力对齐)。
+[`packages/cli`](../packages/cli/README.md) 提供工具客户端 `surowan-utils`（npm 包 `@tuuject/surowan-utils`；仓库根与其它工作区仍为 private），覆盖只读检查、当前模型目录、Invocation 查询/媒体导出/重放（含临时模型与 thinking 覆盖），以及与 Admin Panel 等价的全部面板命令（改配置、管 Chat/模型/Prompt、Memo Pad、辞典、群聊记忆、告警、Playground 房间；唯一例外是浏览器专属硬限制 Passkey 注册/登录）。完整命令与选项以该包 README 为准；`surowan-utils commands` 列出面板命令表，其数据源是 `packages/cli/src/panel/specs/`——新增面板端点必须同时加一行 spec，见 [admin-panel.md](admin-panel.md#cli-与面板能力对齐)。
 
 两种凭据决定能到达哪一层：`login --username <name>` 用面板密码换取 Session Token（与浏览器面板同权限，可执行面板命令）；`login` 的 API key 路径只授权 inspection 只读视图与 Invocation 读/重放。凭据文件只保存一份凭据（`{endpoint, session}` 或 `{endpoint, apiKey}`），`--api-key` 与 `--session` 同时给出报 `conflicting_credentials`。面板写操作要求操作员先行确认具体目标、字段与后果，[客户端 Skill](../skills/surowan-utils/references/panel.md) 对此有逐项要求；`--yes` 只是机械闸门，`--dry-run` 用于先看请求。`login` 把 endpoint 与凭据成对保存到本机凭据文件，不提供服务端密钥管理；客户端 `doctor` 只发一次只读请求检查 Admin API 连通与鉴权，不做服务端 Doctor 的 SQLite、媒体、Telegram、Provider 与 MCP 探针。Node.js ≥ 24，无运行时依赖；它与服务端入口 `surowan`（`node src/cli.ts`）不同，不含 serve/check-config/backup/configure 等服务命令，也不包含 SDK 或 Eval 能力。
 

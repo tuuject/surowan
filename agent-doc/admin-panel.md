@@ -66,6 +66,8 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 
 ## CLI 与面板能力对齐
 
+对齐是契约，不是现状陈述：除浏览器专属硬限制外，`surowan-utils`（面板 Session）的能力面必须与 Web 面板等价——面板能做的每一件事，CLI 都必须有对应命令。目前唯一的硬限制是 WebAuthn Passkey 注册与登录（register/login 的 options/verify 需要浏览器 authenticator 参与仪式，CLI 物理上无法完成），Passkey 的管理面（`passkey list`/`passkey delete`）不受此限。硬限制的判定标准是「客户端形态上不可实现」，而非实现取舍：除此之外的任何面板能力缺席都是 parity 缺口，必须按下面的数据表规则补齐，不算可接受差异。只存于浏览器 `localStorage` 的面板偏好（主题、语言、键名显示）没有服务端能力面，不参与对齐。
+
 `packages/cli`（`surowan-utils`）有两类凭据，决定它能到达哪一层：
 
 | 凭据 | 来源 | 服务端权限面 |
