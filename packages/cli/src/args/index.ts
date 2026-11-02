@@ -39,6 +39,7 @@ export function parseCli(argv: readonly string[]): ParsedCli {
       format: parsed.values.format,
       output: parsed.values.output,
       offset: parsed.values.offset,
+      days: parsed.values.days,
       q: parsed.values.q,
       unread: parsed.values.unread,
       host: parsed.values.host,

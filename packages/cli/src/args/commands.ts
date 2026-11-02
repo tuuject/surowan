@@ -189,6 +189,7 @@ export const PANEL_ONLY_FLAGS: readonly FlagName[] = [
   'output',
   'format',
   'offset',
+  'days',
   'q',
   'unread',
   'host',

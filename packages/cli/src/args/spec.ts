@@ -58,6 +58,7 @@ export const OPTIONS = {
   format: { type: 'string' },
   output: { type: 'string' },
   offset: { type: 'string' },
+  days: { type: 'string' },
   q: { type: 'string' },
   unread: { type: 'string' },
   host: { type: 'string' },
