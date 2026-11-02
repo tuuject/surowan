@@ -1,8 +1,17 @@
 # @tuuject/surowan-utils
 
-Surowan Admin API 工具客户端，包内命令为 `surowan-utils`。它是 monorepo 工作区包（仓库根与其它 workspace 仍为 private），已配置为可公开发布到 npm；除 Invocation 的 `list`/`get`/`prompts`/`preflight`/`media`/`replay` 六个子命令外，还提供 `models list`（只读列出当前 active 配置中可接受文本输入的已配置模型）、`config show`、`prompt get global|group`、`login`（把 endpoint 与 API key 成对保存到本机）与 `doctor`（一次只读请求验证连通与鉴权）；`invocation preflight`/`replay` 支持临时模型/thinking 覆盖（`--provider`/`--model`/`--thinking-level`）。群聊管理等其它能力尚未实现，也不包含 SDK 或 Eval 能力；`login` 只保存本机凭据，不能创建、查看或撤销服务端密钥（密钥管理仍只在 Admin Panel 进行）。API key 的权限面是 Invocation 读/重放加只读 inspection：配置与 prompt 视图、可用模型列表、场景所用的当前 prompt 与重放预检、Invocation 媒体导出；其余接口（含面板写端点与密钥管理）仍返回 403。
+Surowan Admin Panel 与 Admin API 的工具客户端，包内命令为 `surowan-utils`。它是 monorepo 工作区包（仓库根与其它 workspace 仍为 private），已配置为可公开发布到 npm。
 
-它与服务端入口 `surowan`（`node src/cli.ts`）不是同一个程序：本客户端只通过 Admin API 做只读检查、查询、媒体导出与重放，不包含 `serve`、`check-config`、`backup`、`configure` 等服务命令；客户端自己的 `doctor` 也不执行服务端 Doctor 的 SQLite、媒体、Telegram、Provider 与 MCP 探针，只检查 Admin API 连通与鉴权。
+两种凭据决定能做什么：
+
+| 凭据 | 取得方式 | 权限 |
+| --- | --- | --- |
+| 面板 Session Token | `login --username <name>` 用面板密码登录 | 与浏览器面板完全相同：全部审计读取与全部受控写入 |
+| API key（`pwk_…`） | 面板 **Manage → API keys** | 固定窄面：只读检查视图与 Invocation 读/重放 |
+
+因此“面板里能做的事，`surowan-utils` 里也能做”：`surowan-utils commands` 列出全部面板命令（每个 `/api` 面板路由对应一行），`--help` 给出分组概览。第一类命令（Invocation 查询/媒体导出/重放、`config show`、`prompt get`、`models list`、`login`、`doctor`）保持原有行为不变。
+
+它与服务端入口 `surowan`（`node src/cli.ts`）不是同一个程序：本客户端只通过 Admin API 访问运行中的面板，不包含 `serve`、`check-config`、`backup`、`configure` 等服务命令；客户端自己的 `doctor` 也不执行服务端 Doctor 的 SQLite、媒体、Telegram、Provider 与 MCP 探针，只检查连通与鉴权。
 
 配套 Agent Skill 的安装与用法见 [AGENT-SKILL.md](./AGENT-SKILL.md)。
 
@@ -32,7 +41,66 @@ npm install -g ./dist/npm/tuuject-surowan-utils-0.1.0.tgz   # 文件名以实际
 
 ## 用法
 
-先在 Admin Panel 的 **Manage → API keys** 创建密钥（明文只在创建弹窗出现一次，关闭后无法再取回），再在本机保存凭据并验证连通。推荐顺序：
+### 面板 Session：完整面板能力
+
+要执行面板里的写入操作（改配置、管 Chat、编 Prompt、管模型、导出数据等），用面板账号登录，换取一个 Session Token：
+
+```bash
+# 交互式：提示面板密码（隐藏输入）
+surowan-utils login --username owner --endpoint https://panel.example.com/
+
+# 无人值守：密码只经 stdin 进入
+printf '%s' "$PANEL_PASSWORD" | surowan-utils login --username owner --password-stdin --json
+
+surowan-utils doctor --json          # 退出码 0 且 status=ok 才继续
+surowan-utils commands               # 列出全部面板命令
+```
+
+`doctor` 的 `--json` 输出里 `credential` 为 `session` 或 `api_key`，`credential_sources.credential` 说明它来自参数、环境变量还是文件。凭据文件仍只保存一份凭据：面板登录写 `session`，API key 登录写 `apiKey`，字段互斥。
+
+首次部署、面板里还没有管理员时，可以不凭任何凭据完成建号（服务端只允许一次）：
+
+```bash
+surowan-utils session show --endpoint https://panel.example.com/ --json   # setup_required: true
+
+# 密码经 stdin 进入，不出现在进程参数与 shell 历史里；--file - 表示从标准输入读整份文档
+printf '{"username":"owner","password":"%s"}' "$PANEL_PASSWORD" \
+  | surowan-utils setup --endpoint https://panel.example.com/ --file - --json
+```
+
+`setup` 的 body 是 `{ username, password }`；成功后服务端签发 Session，CLI 直接写入凭据文件。`session show` 与 `setup` 是仅有的两条不需要既有凭据的面板命令，用来确认是否仍需要建号。
+
+面板命令的通用形态：
+
+```bash
+# 读取
+surowan-utils harness show --json
+surowan-utils chat list --json
+surowan-utils memo list --chat -1001234567890 --json
+
+# 写入：body 由 --set（字符串）/ --set-json（任意 JSON）/ --body / --file 组成
+surowan-utils harness update --set-json values.history_messages=40 --json
+surowan-utils chat create --set id=-1009876543210 --set-json topic_ids=null --set-json provider=null --set-json model=null --set-json thinking_level=null --json
+surowan-utils memo create --set chat_id=-1001234567890 --set summary=偏好 --set detail=细节 --set-json ttl_seconds=null --json
+surowan-utils prompt save global --file prompt.md --set note='更简短' --json   # --file 读原始 Markdown
+printf '%s' "$NEW_PROMPT" | surowan-utils prompt save global --file - --json
+
+# 破坏性或计费操作：缺少 --yes 时在发请求前以 confirmation_required（退出码 2）拒绝
+surowan-utils chat delete -1009876543210 --yes --json
+surowan-utils telegram token clear --yes --json
+surowan-utils provider health-check --set provider=openrouter --set model=deepseek/deepseek-v4-flash-0731 --yes --json
+
+# 先看清楚会发什么，再决定
+surowan-utils chat delete -1009876543210 --dry-run --json
+```
+
+`If-Match` 的取法：写入命令默认在发请求前读取当前 revision（配置写入读 `GET /api/providers` 的 `revision`，Prompt 写入读该 scope 的 `content_hash`），所以不必手工搬运；`--if-match <值>` 用于显式钉住一份旧快照（例如脚本重试），字典词条的 revision 只能由调用方从上次读取中给出。配置在两步之间被别人改过时，服务端返回 `config_conflict`/`prompt_conflict`，文件不会被覆盖。
+
+Passkey 的注册与登录需要浏览器 WebAuthn，CLI 无法完成；`passkey list`/`passkey delete` 可用，新增 passkey 请回到面板。除此之外面板的每个 `/api` 路由都有对应命令，`surowan-utils commands` 是完整清单。
+
+### API key：只读检查与重放
+
+只需查询或重放时，用面板 **Manage → API keys** 创建的密钥即可（明文只在创建弹窗出现一次）。这类凭据不能执行面板命令——服务端对 `Authorization` 请求固定返回 403 `forbidden`：
 
 ```bash
 # 1. 交互式登录：逐项提示 endpoint 与 API key（key 隐藏输入、不回显），无须参数或环境变量
@@ -87,18 +155,28 @@ printf '%s' "$SECRET_KEY" | surowan-utils login --endpoint "$SUROWAN_ENDPOINT" -
 
 `login` 把 endpoint 与 key 成对保存到固定路径 `~/.config/surowan-utils/credentials.json`（所有平台一致；与 Bot 的 `config.jsonc`、`key.json` 无关，同一时间只保留最近一次 `login` 的一对）。文件是 JSON 对象，字段为 `endpoint` 与 `apiKey`，**未加密**；POSIX 上目录 `0700`、文件 `0600`（更窄的权限同样接受），Windows 不做 POSIX mode 检查、权限由用户目录 ACL 继承（工具不承诺 `chmod` 级别的保护）。既有文件是符号链接、不是普通文件或权限不安全时，读写都拒绝且**不自动修复或替换**，需人工处理。`login` 不访问服务器，也不读取旧凭据内容；保存成功不代表在线鉴权通过，请接着运行 `doctor`。序列化后的凭据超过 16384 字节会被拒绝（`credentials_too_large`，退出码 2）且不触碰旧文件；写入经同目录临时文件 `rename` 落地，任何失败都不会覆盖旧文件。
 
-凭据解析顺序（`doctor`、`config show`、`prompt get`、`models list` 与 `invocation list/get/prompts/preflight/media/replay` 相同）：命令行参数 > 环境变量 > 保存文件。参数或环境变量显式给出的空串（含只含空白的 endpoint）按缺失/非法处理，**不会回退**到下一来源或改为提示（解析命令报 `missing_endpoint`/`missing_api_key`，`login` 报 `invalid_endpoint`/`invalid_api_key`）。endpoint 与 key 都由参数或环境变量明确给出时完全不读取凭据文件，文件损坏、是符号链接或权限不安全都不影响这次调用；只给其一才读文件，此时文件本身的问题以 `invalid_credentials` 失败（退出码 1）。保存的 key 只属于它保存时的规范化 endpoint：当前 endpoint 与文件中的 endpoint 在 `parseEndpoint` 规范化后不一致（例如换了主机）就不会使用该 key，缺少显式 key 会以 `missing_api_key` 失败（退出码 2），更换服务必须同时显式提供 key 或重新 `login`；规范化后相同（如仅尾斜杠差异）则仍可使用。参数与环境变量不会被写回文件（只有 `login` 写文件）。`login --json` 输出 `{"status":"saved","endpoint":…,"credentials_file":…}`，不含 key；`endpoint` 是规范化后的基地址。
+凭据解析顺序（`doctor`、`config show`、`prompt get`、`models list` 与 `invocation list/get/prompts/preflight/media/replay` 相同）：命令行参数 > 环境变量 > 保存文件。参数或环境变量显式给出的空串（含只含空白的 endpoint）按缺失/非法处理，**不会回退**到下一来源或改为提示（解析命令报 `missing_endpoint`/`missing_credential`，`login` 报 `invalid_endpoint`/`invalid_api_key`）。endpoint 与 key 都由参数或环境变量明确给出时完全不读取凭据文件，文件损坏、是符号链接或权限不安全都不影响这次调用；只给其一才读文件，此时文件本身的问题以 `invalid_credentials` 失败（退出码 1）。保存的 key 只属于它保存时的规范化 endpoint：当前 endpoint 与文件中的 endpoint 在 `parseEndpoint` 规范化后不一致（例如换了主机）就不会使用该 key，缺少显式 key 会以 `missing_credential` 失败（退出码 2），更换服务必须同时显式提供 key 或重新 `login`；规范化后相同（如仅尾斜杠差异）则仍可使用。参数与环境变量不会被写回文件（只有 `login` 写文件）。`login --json` 输出 `{"status":"saved","endpoint":…,"credentials_file":…}`，不含 key；`endpoint` 是规范化后的基地址。
 
-`doctor` 按同一顺序解析凭据后恰好发起一次 `GET /api/invocations?limit=1`——没有 replay、没有模型/Provider 调用，也不发送 Telegram 消息；`--json` 成功时 stdout 为 `{"status":"ok","endpoint":…,"credential_sources":{"endpoint":"argument|environment|file","api_key":…}}`，不输出 Invocation 正文，失败不自动重试；鉴权仍会在服务端更新该密钥的 `last_used_at`。失败时 stderr 为 `{"error","message"}`：参数/环境变量给出的凭据缺失或不合法（`missing_endpoint`、`missing_api_key`、`invalid_api_key` 等）退出码 `2`，保存文件无效（`invalid_credentials`）或请求失败退出码 `1`。
+凭据解析顺序同样适用于 Session：`--session <token>` / `SUROWAN_SESSION` 覆盖文件；`--api-key` 与 `--session`（或对应环境变量）同时给出报 `conflicting_credentials`，因为两者授权范围不同，静默择一会隐藏风险。
+
+`doctor` 按同一顺序解析凭据后恰好发起一次 `GET /api/invocations?limit=1`——没有 replay、没有模型/Provider 调用，也不发送 Telegram 消息；`--json` 成功时 stdout 为 `{"status":"ok","endpoint":…,"credential":"session|api_key","credential_sources":{"endpoint":"argument|environment|file","credential":…}}`，不输出 Invocation 正文，失败不自动重试；鉴权仍会在服务端更新该密钥的 `last_used_at`。失败时 stderr 为 `{"error","message"}`：参数/环境变量给出的凭据缺失或不合法（`missing_endpoint`、`missing_credential`、`invalid_api_key` 等）退出码 `2`，保存文件无效（`invalid_credentials`）或请求失败退出码 `1`。
 
 ### 选项
 
 | 选项 | 说明 |
 | --- | --- |
 | `--endpoint <url>` / `SUROWAN_ENDPOINT` | Admin Panel 基地址；解析顺序为参数 > 环境变量 > `login` 保存的凭据文件，三处都没有时按缺失报错，显式空串或纯空白按缺失报错（`missing_endpoint`）、不回退。明文 `http` 仅允许 loopback（`127.0.0.0/8`、`::1`、`localhost`）；远端必须 `https`；禁止 URL 内凭据、query 与 fragment；保存与比较都用 `parseEndpoint` 规范化后的 URL（trim、补尾斜杠、去默认端口） |
-| `--api-key <key>` / `SUROWAN_API_KEY` | API key：1–4096 字符，不得含空白或控制字符（参数/环境变量报 `invalid_api_key`，保存文件内的非法值报 `invalid_credentials`）；与 endpoint 同一解析顺序，命令行参数优先于环境变量，显式空串不回退。仅当解析出的 endpoint 与文件 endpoint 规范化后相同才使用文件中的 key，否则缺少显式 key 报 `missing_api_key` |
+| `--api-key <key>` / `SUROWAN_API_KEY` | API key：1–4096 字符，不得含空白或控制字符（参数/环境变量报 `invalid_api_key`，保存文件内的非法值报 `invalid_credentials`）；与 endpoint 同一解析顺序，命令行参数优先于环境变量，显式空串不回退。仅当解析出的 endpoint 与文件 endpoint 规范化后相同才使用文件中的 key，否则缺少显式 key 报 `missing_credential` |
+| `--session <token>` / `SUROWAN_SESSION` | 面板 Session Token：与浏览器面板同权限，可执行全部面板命令。与 `--api-key`/`SUROWAN_API_KEY` 同时给出报 `conflicting_credentials`（退出码 2）；空串按缺失处理且不回退 |
+| `--username <name>` / `--password <pw>` / `--password-stdin` | 仅 `login`：用面板账号换取 Session Token 并写入凭据文件。`--password-stdin` 从标准输入读到 EOF（不超过 4098 字节，去掉一个尾部换行），TTY 上拒绝；`--password` 与 `--password-stdin` 互斥；不提供 `--password` 时会交互式隐藏提示 |
 | `--api-key-stdin` | 仅 `login`：把标准输入读到 EOF（不是读完一行就停），累计不超过 4098 字节，读取结束后只去掉一个尾部 LF/CRLF，剩余换行、空白或控制字符整体非法（`invalid_api_key`，退出码 2）；TTY 上拒绝；整次读取受 `--timeout-ms` 约束，超时 `timeout`（退出码 1）且不保存；不能与 `--api-key` 或 `SUROWAN_API_KEY` 同时给出；不是 `--api-key -`，其它子命令不从标准输入读取 key |
 | `--source <active\|file>` | 仅 `config show` 与 `prompt get`：`active`（默认）读运行中的配置快照，`file` 读磁盘上的配置文件并可与 active 对比；其它子命令带 `--source` 报 `unexpected_option`。两者不会互相替代，`file` 需要服务端已接线配置加载 |
+| `--set key=value` / `--set-json key=<json>` | 面板命令：设置 body 字段；`--set` 只收字符串，`--set-json` 收任意 JSON（`null`、数组、对象、数字、布尔）。键支持 `a.b` 嵌套；同一键重复设置报 `invalid_set` |
+| `--body <json>` / `--file <path>` | 面板命令：整份 body 文档；与 `--set`/`--set-json` 互斥（`conflicting_body`）。`prompt save` 是例外：`--file` 按**原始文档**读取并填入 `prompt` 字段，可同时用 `--set note=…`。`--file -` 从标准输入读到 EOF（TTY 上拒绝），用来传密码、token 或 prompt 而不进 shell 历史；上限 1 MiB，读取失败报 `body_file_unreadable` |
+| `--if-match <revision>` | 面板命令：显式指定 `If-Match`。省略时配置写入自动读取当前 `revision`，Prompt 写入自动读取该 scope 的 `content_hash`；字典词条写入必须显式给出（`if_match_required`） |
+| `--yes` | 面板命令：确认破坏性（`destructive`）或计费（`paid`）操作；缺失时在发请求前以 `confirmation_required`（退出码 2）拒绝。`--dry-run` 可替代它用于预览 |
+| `--dry-run` | 面板命令：只把将要发送的 `method`/`path`/`if_match`/`body` 写到 stdout，不发请求 |
+| `--output <path>` | 面板命令：把二进制（图片、媒体）或文本（字典导出）响应写入文件，并输出 `{status,path,bytes}`；JSON 响应不接受该选项 |
 | `--variant <original\|preview>` | 仅 `invocation media`：下载原始文件（默认）或服务端规范化预览；preview 只对 photo/sticker 可用，单文件与总量上限见下文 |
 | `--timeout-ms <ms>` | 请求/输入超时；默认除 replay（300s）外都是 30s。stdin 读取单独使用同一上限，超时返回 `timeout`（退出码 1）且不发请求；HTTP 超时会中止请求，均**不自动重试** |
 | `--json` | 稳定 JSON 输出；成功时 stdout 恰好一个 JSON 文档 |

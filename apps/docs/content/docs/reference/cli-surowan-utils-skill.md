@@ -6,7 +6,7 @@ description: 为外部 Agent 安装并运行 surowan-utils Skill。
 # 让外部 Agent 使用配套 Skill
 
 
-源码仓库根目录内置 `skills/surowan-utils/`，指导外部 Agent 先运行 `doctor` 验证凭据与连通，再定位 Invocation（可按关键词与公开消息时间用 `invocation list --search/--at/--from/--to` 搜索，也可用 `--model` 按该 Invocation 的 agent 模型精确过滤）、核对模型调用/工具/真实发送记录；只读核对可用 `config show`、`prompt get`、`models list`、`invocation prompts` 与 `invocation preflight`，并在明确授权后重放（含用 `--before-send` 限定窗口的切片重放、`--provider`/`--model`/`--thinking-level` 临时模型覆盖）或分层比较 global/group prompt。它不是 Bot 的只读 System Skill，无需放入服务器的 `system:///` 资源树。Skill 以 `SKILL.md` 为轻量入口，主题细节按当前任务加载子文档：审计流程见 `references/invocations.md`，重放的保真限制、授权要求与错误处理见 `references/replay.md`，不要一次加载全部内容。
+源码仓库根目录内置 `skills/surowan-utils/`，指导外部 Agent 先运行 `doctor` 验证凭据与连通，再定位 Invocation（可按关键词与公开消息时间用 `invocation list --search/--at/--from/--to` 搜索，也可用 `--model` 按该 Invocation 的 agent 模型精确过滤）、核对模型调用/工具/真实发送记录；只读核对可用 `config show`、`prompt get`、`models list`、`invocation prompts` 与 `invocation preflight`，并在明确授权后重放（含用 `--before-send` 限定窗口的切片重放、`--provider`/`--model`/`--thinking-level` 临时模型覆盖）或分层比较 global/group prompt；也可以在用户逐项确认后执行与面板等价的写操作（改配置、管 Chat/模型/Prompt、Memo Pad、辞典、群聊记忆、告警）。写操作前必须先给出目标、字段与值、影响范围与可撤销性并取得明确同意，`--yes` 只是机械闸门而不是授权本身；`--dry-run` 用来把确切请求交给用户核对。它不是 Bot 的只读 System Skill，无需放入服务器的 `system:///` 资源树。Skill 以 `SKILL.md` 为轻量入口，主题细节按当前任务加载子文档：面板写操作的确认边界与破坏性/计费清单在 `references/panel.md`，审计流程见 `references/invocations.md`，重放的保真限制、授权要求与错误处理见 `references/replay.md`，不要一次加载全部内容。
 
 **npm 包不内置 Skill，安装 CLI 也不会自动启用 Skill。** 推荐用 [skills CLI](https://github.com/vercel-labs/skills) 直接从 GitHub 安装；手工复制的步骤以 [Codex 的项目级目录](https://developers.openai.com/codex/build-skills)为例，其他宿主请使用其自己的 Skill 导入功能，不假定自动兼容。
 

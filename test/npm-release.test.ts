@@ -140,6 +140,14 @@ describe('npm release selection', () => {
     expect(replay).toContain('invalid_thinking_level');
     expect(replay).toContain('fidelity.model_selection');
     expect(replay).toContain('temporary_override');
+    // The panel guide carries the write-confirmation contract, which is the
+    // whole reason a session credential is offered at all.
+    const panel = readFileSync(new URL('references/panel.md', skill), 'utf8');
+    expect(panel).toContain('confirmation_required');
+    expect(panel).toContain('--dry-run');
+    expect(panel).toContain('config_conflict');
+    expect(entry).toContain('(references/panel.md)');
+    expect(entry).toContain('不要把补 `--yes` 当成确认');
     const metadata = readFileSync(new URL('agents/openai.yaml', skill), 'utf8');
     expect(metadata).toContain('$surowan-utils');
   });

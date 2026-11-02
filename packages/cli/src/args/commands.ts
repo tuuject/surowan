@@ -1,4 +1,6 @@
 import { usageError } from '../errors.ts';
+import { parsePanelCommand } from '../panel/parse.ts';
+import { findPanelSpec } from '../panel/specs/index.ts';
 import {
   CONFIRM_PAID_FLAGS,
   INSPECTION_FLAGS,
@@ -53,12 +55,50 @@ export function parseCommand(positionals: readonly string[], flags: StringFlags)
     }
     rejectUnsupportedFlags(flags, [...INSPECTION_FLAGS, ...CONFIRM_PAID_FLAGS]);
     if (group === 'doctor') {
-      rejectUnsupportedFlags(flags, ['api-key-stdin']);
+      rejectUnsupportedFlags(flags, ['api-key-stdin', 'username', 'password', 'password-stdin']);
       return { kind: 'doctor' };
     }
-    return { kind: 'login', apiKeyStdin: flags['api-key-stdin'] === true };
+    const username = flags.username;
+    const password = flags.password;
+    const passwordStdin = flags['password-stdin'] === true;
+    const panelLogin = username !== undefined || password !== undefined || passwordStdin;
+    if (panelLogin) {
+      // A panel login cannot also carry an API key: the file holds one credential.
+      if (flags['api-key-stdin'] === true) {
+        throw usageError('conflicting_key_input', '--api-key-stdin cannot be combined with panel login options');
+      }
+      if (username === undefined) {
+        throw usageError('missing_argument', 'panel login requires --username <name>');
+      }
+      if (password !== undefined && passwordStdin) {
+        throw usageError('conflicting_key_input', '--password and --password-stdin cannot be combined');
+      }
+    } else if (passwordStdin) {
+      throw usageError('missing_argument', '--password-stdin requires --username');
+    }
+    return {
+      kind: 'login',
+      apiKeyStdin: flags['api-key-stdin'] === true,
+      username,
+      password,
+      passwordStdin,
+    };
+  }
+  if (group === 'commands') {
+    if (positionals.length !== 1) {
+      throw usageError('unexpected_argument', 'commands takes no positional arguments');
+    }
+    rejectPanelFlags(flags);
+    rejectUnsupportedFlags(flags, [...INSPECTION_FLAGS, ...CONFIRM_PAID_FLAGS]);
+    return { kind: 'commands-list' };
   }
   rejectUnsupportedFlags(flags, ['api-key-stdin']);
+  // A panel route wins over a first-class group of the same name: `config
+  // apply` and `prompt save` are panel writes, while `config show` and
+  // `prompt get` stay the existing read commands and have no panel row.
+  if (findPanelSpec(positionals) !== undefined) {
+    return parsePanelCommand(positionals, toPanelFlags(flags));
+  }
   switch (group) {
     case 'models':
       if (subcommand === undefined) {
@@ -79,8 +119,78 @@ export function parseCommand(positionals: readonly string[], flags: StringFlags)
     case 'invocation':
       return parseInvocation(subcommand, rest, flags);
     default:
-      throw usageError('unknown_command', 'command must be login, doctor, models, config, prompt, or invocation');
+      // Everything else is one of the Admin Panel routes, resolved from the
+      // declarative table. Unknown words fail there with a suggestion.
+      return parsePanelCommand(positionals, toPanelFlags(flags));
   }
+}
+
+/** The raw values the panel parser needs; query flags are matched by the spec. */
+function toPanelFlags(flags: StringFlags): Parameters<typeof parsePanelCommand>[1] {
+  const values: Record<string, string | undefined> = {};
+  const present: string[] = [];
+  for (const [key, value] of Object.entries(flags)) {
+    if (value === undefined || GLOBAL_FLAGS[key] === true) {
+      continue;
+    }
+    // Every set flag is recorded so a boolean the route does not take is
+    // rejected instead of silently ignored.
+    present.push(key);
+    if (typeof value === 'string') {
+      values[key] = value;
+    }
+  }
+  return {
+    present,
+    sets: flags.set ?? [],
+    setJson: flags['set-json'] ?? [],
+    file: flags.file,
+    body: flags.body,
+    ifMatch: flags['if-match'],
+    yes: flags.yes === true,
+    dryRun: flags['dry-run'] === true,
+    output: flags.output,
+    values,
+  };
+}
+
+/**
+ * Global flags consumed before a command runs (credential, endpoint, timeout,
+ * login input). They are never a route parameter, so the panel parser must not
+ * report them as unexpected.
+ */
+const GLOBAL_FLAGS: Readonly<Record<string, true>> = {
+  session: true,
+  username: true,
+  password: true,
+  'password-stdin': true,
+  'api-key-stdin': true,
+};
+
+/** Flags only the panel commands understand, rejected by the first-class ones. */
+export const PANEL_ONLY_FLAGS: readonly FlagName[] = [
+  'if-match',
+  'dry-run',
+  'yes',
+  'file',
+  'body',
+  'set',
+  'set-json',
+  'output',
+  'format',
+  'offset',
+  'q',
+  'unread',
+  'host',
+  'target',
+  'day',
+  'before',
+  'scope',
+  'sticker-set',
+];
+
+function rejectPanelFlags(flags: StringFlags): void {
+  rejectUnsupportedFlags(flags, PANEL_ONLY_FLAGS);
 }
 
 function parseConfigShow(

@@ -75,8 +75,8 @@ surowan-utils invocation replay 12345 --before-send 678 --confirm-paid --json
 
 | 错误 | 下一步 |
 | --- | --- |
-| `unauthenticated` / `forbidden` | 请操作员核对密钥、撤销状态和授权范围，在本机用 `login` 保存正确凭据；不换接口绕过认证 |
-| `missing_api_key` | 当前没有可用的 endpoint/key 组合；请操作员补全参数/环境变量或 `login`，不自行混搭来源 |
+| `unauthenticated` / `forbidden` | 请操作员核对凭据（API key 或面板 Session）、撤销状态和授权范围，在本机用 `login` 保存正确凭据；不换接口绕过认证 |
+| `missing_credential` | 当前没有可用的 endpoint 与凭据组合（API key 或面板 Session）；请操作员补全参数/环境变量或 `login`，不自行混搭来源 |
 | `invalid_credentials` | 凭据文件损坏、符号链接或权限不安全；需操作员处理，Agent 不代登录、不改权限或删除/重建凭据 |
 | `confirm_paid_required` | 切片 replay 缺少 `--confirm-paid`，退出码 2；尚未读取 prompt 或发出任何请求。先取得目标、次数和覆盖的计费授权，再显式确认；不自行补 flag 或改成整场重放绕过 |
 | `replay_source_unfinished` / `replay_busy` | 源未结束或已有 replay；报告并停止，不轮询或自动重试计费请求 |

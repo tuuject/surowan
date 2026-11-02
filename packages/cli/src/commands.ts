@@ -2,8 +2,8 @@ import { Buffer } from 'node:buffer';
 import type { Stats } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import type {
-  CliCommand,
   ConfigShowCommand,
+  FirstClassCommand,
   GetCommand,
   ListCommand,
   PreflightCommand,
@@ -37,7 +37,7 @@ export interface CommandContext {
 }
 
 export async function executeCommand(
-  command: CliCommand,
+  command: FirstClassCommand,
   context: CommandContext,
   client: AdminClient,
 ): Promise<number> {

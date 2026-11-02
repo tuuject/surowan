@@ -5,6 +5,24 @@ description: 查询、导出与重放 Invocation 的选项、请求/响应形状
 
 # surowan-utils 参考
 
+面板命令示例（需要面板 Session；`surowan-utils commands` 列出全部）：
+
+```bash
+surowan-utils commands --json                                  # 命令表：method/path/revision/confirm
+surowan-utils harness show --json                              # 读取当前调优字段
+surowan-utils chat list --json                                 # 读取配置与运行态的 Chat
+surowan-utils chat create --set id=-1009876543210 --set-json topic_ids=null \
+  --set-json provider=null --set-json model=null --set-json thinking_level=null --json
+surowan-utils harness update --set-json values.history_messages=40 --json
+surowan-utils prompt save global --file prompt.md --json
+surowan-utils memo create --set chat_id=-1001234567890 --set summary=偏好 --set detail=细节 --json
+surowan-utils dictionary export --scope global --format jsonl --output global.jsonl
+surowan-utils chat delete -1009876543210 --dry-run --json      # 先看请求，不发
+surowan-utils chat delete -1009876543210 --yes --json          # 用户确认后执行
+```
+
+写入命令默认在发请求前读取当前 revision（配置写读 `GET /api/providers` 的 `revision`，Prompt 写读该 scope 的 `content_hash`），冲突返回 `config_conflict`/`prompt_conflict` 且不覆盖文件。破坏性与计费命令缺少 `--yes` 时以 `confirmation_required`（退出码 2）在发请求前拒绝；`--dry-run` 完全不发请求。
+
 查询、导出与重放示例：
 
 ```bash
@@ -30,10 +48,18 @@ surowan-utils invocation replay 12345 --provider openrouter --model deepseek/dee
 | 选项 | 说明 |
 | --- | --- |
 | `--endpoint <url>` / `SUROWAN_ENDPOINT` | Admin Panel 基地址；解析顺序为参数 > 环境变量 > `login` 保存的凭据文件，三处都没有或显式空串/纯空白时按缺失报错（`missing_endpoint`，不回退）。明文 `http` 只允许 loopback（`127.0.0.0/8`、`::1`、`localhost`），远端必须 `https`；URL 不能带凭据、query 或 fragment；保存与比较都用 `parseEndpoint` 规范化后的 URL（trim、补尾斜杠、去默认端口） |
-| `--api-key <key>` / `SUROWAN_API_KEY` | API key：1–4096 字符，不得含空白或控制字符（参数/环境变量报 `invalid_api_key`，保存文件内的非法值报 `invalid_credentials`）；与 endpoint 同一解析顺序，命令行参数优先于环境变量，显式空串不回退。仅当解析出的 endpoint 与文件 endpoint 规范化后相同才使用文件中的 key，否则缺少显式 key 报 `missing_api_key` |
+| `--api-key <key>` / `SUROWAN_API_KEY` | API key：1–4096 字符，不得含空白或控制字符（参数/环境变量报 `invalid_api_key`，保存文件内的非法值报 `invalid_credentials`）；与 endpoint 同一解析顺序，命令行参数优先于环境变量，显式空串不回退。仅当解析出的 endpoint 与文件 endpoint 规范化后相同才使用文件中的 key，否则缺少显式 key 报 `missing_credential` |
+| `--session <token>` / `SUROWAN_SESSION` | 面板 Session Token：与浏览器面板同权限，可执行全部面板命令。与 `--api-key`/`SUROWAN_API_KEY` 同时给出会以 `conflicting_credentials`（退出码 2）拒绝；空串按缺失处理且不回退 |
+| `--username <name>` / `--password <pw>` / `--password-stdin` | 仅 `login`：用面板账号换取 Session Token。`--password-stdin` 从标准输入读到 EOF（不超过 4098 字节，去掉一个尾部换行），TTY 上拒绝；`--password` 与 `--password-stdin` 互斥；未提供时交互式隐藏提示 |
 | `--api-key-stdin` | 仅 `login`：把标准输入读到 EOF（不是读完一行就停），累计不超过 4098 字节，读取结束后只去掉一个尾部 LF/CRLF，剩余换行、空白或控制字符整体非法（`invalid_api_key`，退出码 2）；TTY 上拒绝；整次读取受 `--timeout-ms` 约束，超时 `timeout`（退出码 1）且不保存；不能与 `--api-key` 或 `SUROWAN_API_KEY` 同时给出；不是 `--api-key -`，其它命令不从标准输入读取 key |
 | `--source <active\|file>` | 仅 `config show` 与 `prompt get`：`active`（默认）读运行中快照，`file` 读磁盘配置；两者不会互相替代 |
 | `--variant <original\|preview>` | 仅 `invocation media`：下载原始文件（默认）或服务端规范化预览；preview 只对 photo/sticker 可用 |
+| `--set key=value` / `--set-json key=<json>` | 面板命令：设置 body 字段。`--set` 只收字符串，`--set-json` 收任意 JSON（`null`、数组、对象、数字、布尔）；键支持 `a.b` 嵌套；同一键重复设置报 `invalid_set` |
+| `--body <json>` / `--file <path>` | 面板命令：整份 body 文档，与 `--set`/`--set-json` 互斥（`conflicting_body`）；`prompt save` 的 `--file` 按原始 Markdown 读入 `prompt` 字段（可同时 `--set note=…`）；`--file -` 从标准输入读到 EOF（TTY 上拒绝），用于传密码、token 或 prompt 而不进 shell 历史；上限 1 MiB |
+| `--if-match <revision>` | 面板命令：显式指定 `If-Match`。省略时配置写入自动读取当前 `revision`，Prompt 写入自动读取该 scope 的 `content_hash`；字典词条写入必须显式给出（`if_match_required`） |
+| `--yes` | 面板命令：确认破坏性（`destructive`）或计费（`paid`）操作；缺失时在发请求前以 `confirmation_required`（退出码 2）拒绝 |
+| `--dry-run` | 面板命令：完全不发请求，输出 `{method, path, if_match, if_match_source, body}` 供人工核对 |
+| `--output <path>` | 面板命令：把二进制或文本响应写入文件并输出 `{status, path, bytes}`；JSON 响应不接受该选项 |
 | `--timeout-ms <ms>` | 请求/输入超时；默认除 replay（300 秒）外都是 30 秒。stdin 读取单独使用同一上限，超时返回 `timeout`（退出码 1）且不发请求；HTTP 超时中止请求，均不自动重试 |
 | `--json` | stdout 恰好一个 JSON 文档；人类模式输出列表摘要或缩进 JSON |
 | `--limit`（1–100）/ `--cursor` / `--state` | `invocation list` 的过滤参数，发出前先做形状校验（cursor 为非负十进制） |
@@ -48,7 +74,7 @@ surowan-utils invocation replay 12345 --provider openrouter --model deepseek/dee
 | `--model <id>` | `invocation list`：按该 Invocation 的 **agent** `model_calls.model` 精确过滤（区分大小写，不做前缀/模糊匹配；视觉与 Tool Model 调用不算），1–256 字符、不含控制字符，空值、纯空白或其它非法值以 `invalid_model`（退出码 2）拒绝；list 不接受 `--provider`/`--thinking-level`。`invocation preflight` 与 `invocation replay`：临时模型覆盖的模型 ID，必须与 `--provider` 成对，规则同上 |
 | `--thinking-level <level>` | 仅 `invocation preflight` 与 `invocation replay`：临时 thinking 覆盖，取 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`（`invalid_thinking_level`，退出码 2）。可单独使用（只临时改 thinking，模型沿用当前 Chat 配置）；与模型对同给时按该模型校验级别，给模型对而不给 thinking 时使用该模型支持的最弱级别（非推理模型为 `off`），模型不支持的级别由服务端拒绝。预检与重放必须使用同一选择 |
 
-失败时 stderr 输出 `{"error":"<code>","message":"<message>"}`，错误信息经 key 脱敏，密钥不会出现在任何输出中；退出码 `0` 表示成功，`1` 表示请求/服务端/replay/媒体下载失败或保存文件无效（`invalid_credentials`），`2` 表示参数、输入或凭据不合法（含 `missing_endpoint`、`missing_api_key`、`invalid_api_key`、`credentials_too_large`、搜索/时间过滤与 `--before-send` 的本地校验错误、模型选择的 `invalid_model_override`/`invalid_thinking_level`，以及 prompt 覆盖相关错误）。标准输入只用于 `login` 的 `--api-key-stdin` 与 replay 的 `--global-prompt -` / `--group-prompt -`（不能同时）。请求不跟随重定向；JSON 响应体不设客户端大小上限，完整读取后解析，仍受请求超时约束。
+失败时 stderr 输出 `{"error":"<code>","message":"<message>"}`，错误信息经 key 脱敏，密钥不会出现在任何输出中；退出码 `0` 表示成功，`1` 表示请求/服务端/replay/媒体下载失败或保存文件无效（`invalid_credentials`），`2` 表示参数、输入或凭据不合法（含 `missing_endpoint`、`missing_credential`、`invalid_api_key`、`credentials_too_large`、搜索/时间过滤与 `--before-send` 的本地校验错误、模型选择的 `invalid_model_override`/`invalid_thinking_level`，以及 prompt 覆盖相关错误）。标准输入只用于 `login` 的 `--api-key-stdin` 与 replay 的 `--global-prompt -` / `--group-prompt -`（不能同时）。请求不跟随重定向；JSON 响应体不设客户端大小上限，完整读取后解析，仍受请求超时约束。
 
 `invocation media` 把每个媒体顺序下载到新建的私有临时目录（每文件不超过 20 MiB、单次合计不超过 100 MiB、最多 32 项），stdout 输出带 `sha256` 的 manifest；全部成功退出码 `0`，部分失败保留成功文件并写入 `manifest.json` 后以 `media_download_failed` 退出（退出码 `1`），全部失败先尝试清理目录，删除成功后输出 manifest；若文件系统拒绝清理，命令失败、目录可能残留，stdout 不保证含 manifest。服务端持续清理失败会作为条目错误 `media_cleanup_failed` 返回；这不等于客户端目录也已删除。manifest 等文本输出与落盘元数据经 API key 脱敏；媒体二进制保留响应原字节，不做文本脱敏，`bytes` 与 `sha256` 对应实际保存的文件。`invocation replay` 在 POST 前先调用一次免费的 `replay-preflight`（切片重放带同一 `before_send_id`，临时模型/thinking 选择也带同一 `provider`/`model`/`thinking_level`）：不可重放时直接以原因码结束（不发送 replay），请求了 prompt 覆盖而预检不允许时返回 `replay_prompt_parts_unavailable`；`--before-send` 是重放边界而不是 prompt 覆盖，不要求该权限，但切片重放需 `--confirm-paid` 显式确认计费。只读检查（`config show`、`prompt get`、`models list`、`invocation prompts`、`invocation preflight`、媒体列表）不调用模型、不计费；重放不会发送 Telegram 消息，也不修改生产会话与业务数据（鉴权仍会更新密钥使用时间），但它会真实调用模型并计费，限制与注意事项见[使用管理面板](../configure/admin-invocation-replay.md#invocation-重放)。
 

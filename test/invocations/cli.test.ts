@@ -218,7 +218,7 @@ describe('surowan-utils invocation CLI', () => {
       env: { SUROWAN_ENDPOINT: 'http://127.0.0.1:8787' },
     });
     expect(missingKey.code).toBe(2);
-    expect(errorDocument(missingKey).error).toBe('missing_api_key');
+    expect(errorDocument(missingKey).error).toBe('missing_credential');
 
     const remotePlaintext = await runCli(['invocation', 'list', '--endpoint', 'http://10.255.255.1:9', '--json'], {
       env: { SUROWAN_API_KEY: API_KEY },
@@ -243,8 +243,8 @@ describe('surowan-utils invocation CLI', () => {
   it('prints usage for --help without requiring an endpoint', async () => {
     const result = await runCli(['--help']);
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain('surowan-utils - Surowan Admin API 工具客户端');
     expect(result.stdout).toContain('surowan-utils invocation replay');
+    expect(result.stdout).toContain('surowan-utils commands');
     expect(result.stdout).toContain('--before-send');
     expect(result.stdout).toContain('--confirm-paid');
     expect(result.stdout).not.toContain('surowan-debug');

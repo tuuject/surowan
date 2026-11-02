@@ -19,6 +19,7 @@ describe('surowan-utils login and doctor', () => {
     expect(JSON.parse(login.stdout)).toEqual({
       status: 'saved',
       endpoint: `${http.endpoint}/`,
+      credential: 'api_key',
       credentials_file: credentialsPath(homeDir),
     });
     expect(login.stdout).not.toContain(KEY);
@@ -34,7 +35,8 @@ describe('surowan-utils login and doctor', () => {
     expect(JSON.parse(doctor.stdout)).toEqual({
       status: 'ok',
       endpoint: `${http.endpoint}/`,
-      credential_sources: { endpoint: 'file', api_key: 'file' },
+      credential: 'api_key',
+      credential_sources: { endpoint: 'file', credential: 'file' },
     });
     expect(doctor.stdout).not.toContain('private_message');
     expect(doctor.stdout).not.toContain(KEY);
@@ -54,7 +56,7 @@ describe('surowan-utils login and doctor', () => {
     const before = await readFile(credentialsPath(homeDir), 'utf8');
     const fromEnv = await cli(['doctor', '--json'], homeDir, { SUROWAN_API_KEY: 'synthetic-environment-key' });
     expect(fromEnv.code).toBe(0);
-    expect(JSON.parse(fromEnv.stdout).credential_sources).toEqual({ endpoint: 'file', api_key: 'environment' });
+    expect(JSON.parse(fromEnv.stdout).credential_sources).toEqual({ endpoint: 'file', credential: 'environment' });
     const fromArgs = await cli(
       ['doctor', '--endpoint', http.endpoint, '--api-key', 'synthetic-argument-key', '--json'],
       homeDir,
@@ -64,7 +66,7 @@ describe('surowan-utils login and doctor', () => {
       },
     );
     expect(fromArgs.code).toBe(0);
-    expect(JSON.parse(fromArgs.stdout).credential_sources).toEqual({ endpoint: 'argument', api_key: 'argument' });
+    expect(JSON.parse(fromArgs.stdout).credential_sources).toEqual({ endpoint: 'argument', credential: 'argument' });
     expect(http.requests.map((request) => request.authorization)).toEqual([
       'Bearer synthetic-environment-key',
       'Bearer synthetic-argument-key',

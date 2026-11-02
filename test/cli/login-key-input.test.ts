@@ -16,7 +16,7 @@ describe('surowan-utils login and doctor', () => {
     ]) {
       const result = await cli(options.args, homeDir, options.env);
       expect(result.code).toBe(2);
-      expect(JSON.parse(result.stderr).error).toBe('missing_api_key');
+      expect(JSON.parse(result.stderr).error).toBe('missing_credential');
       expect(result.stderr).not.toContain(KEY);
     }
     expect(first.requests).toHaveLength(0);

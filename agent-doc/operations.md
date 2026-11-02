@@ -202,9 +202,11 @@ node src/cli.ts doctor --config dev-data/config.jsonc --output-agent-prompt
 
 该选项仍会执行完整 Doctor 检查；成功 JSON 中增加 `agent_prompt` 字段。输出包含 Prompt 正文，但不会包含 Secret、Chat 记忆或 Chat-specific instructions。不要在共享日志中使用该选项。
 
-## Admin API 工具客户端（Invocation 查询与重放）
+## 工具客户端（面板对齐与 Invocation 查询/重放）
 
-[`packages/cli`](../packages/cli/README.md) 提供访问 Admin API 的工具客户端 `surowan-utils`（npm 包 `@tuuject/surowan-utils`；仓库根与其它工作区仍为 private），覆盖只读检查、当前模型目录、Invocation 查询/媒体导出/重放（含临时模型与 thinking 覆盖）。完整命令与选项以该包 README 为准。`login` 把 endpoint 与 API key 成对保存到本机凭据文件，不提供服务端密钥管理；客户端 `doctor` 只发一次只读请求检查 Admin API 连通与鉴权，不做服务端 Doctor 的 SQLite、媒体、Telegram、Provider 与 MCP 探针。Node.js ≥ 24，无运行时依赖；它与服务端入口 `surowan`（`node src/cli.ts`）不同，不含 serve/check-config/backup/configure 等服务命令，也不包含 SDK 或 Eval 能力。
+[`packages/cli`](../packages/cli/README.md) 提供工具客户端 `surowan-utils`（npm 包 `@tuuject/surowan-utils`；仓库根与其它工作区仍为 private），覆盖只读检查、当前模型目录、Invocation 查询/媒体导出/重放（含临时模型与 thinking 覆盖），以及与 Admin Panel 等价的全部面板命令（改配置、管 Chat/模型/Prompt、Memo Pad、辞典、群聊记忆、告警、Playground 房间）。完整命令与选项以该包 README 为准；`surowan-utils commands` 列出面板命令表，其数据源是 `packages/cli/src/panel/specs/`——新增面板端点必须同时加一行 spec，见 [admin-panel.md](admin-panel.md#cli-与面板能力对齐)。
+
+两种凭据决定能到达哪一层：`login --username <name>` 用面板密码换取 Session Token（与浏览器面板同权限，可执行面板命令）；`login` 的 API key 路径只授权 inspection 只读视图与 Invocation 读/重放。凭据文件只保存一份凭据（`{endpoint, session}` 或 `{endpoint, apiKey}`），`--api-key` 与 `--session` 同时给出报 `conflicting_credentials`。面板写操作要求操作员先行确认具体目标、字段与后果，[客户端 Skill](../skills/surowan-utils/references/panel.md) 对此有逐项要求；`--yes` 只是机械闸门，`--dry-run` 用于先看请求。`login` 把 endpoint 与凭据成对保存到本机凭据文件，不提供服务端密钥管理；客户端 `doctor` 只发一次只读请求检查 Admin API 连通与鉴权，不做服务端 Doctor 的 SQLite、媒体、Telegram、Provider 与 MCP 探针。Node.js ≥ 24，无运行时依赖；它与服务端入口 `surowan`（`node src/cli.ts`）不同，不含 serve/check-config/backup/configure 等服务命令，也不包含 SDK 或 Eval 能力。
 
 ```bash
 npm install -g @tuuject/surowan-utils           # 稳定版（严格 vMAJOR.MINOR.PATCH tag，dist-tag latest）
@@ -222,8 +224,13 @@ npm install -g ./dist/npm/tuuject-surowan-utils-<version>.tgz                   
 
 ```bash
 # 首次使用：面板 Manage → API keys 创建密钥，操作员在本机保存凭据并验证连通
-surowan-utils login                 # 交互式逐项提示 endpoint 与隐藏输入的 API key
+surowan-utils login                 # 交互式逐项提示 endpoint 与隐藏输入的 API key（只读面）
+surowan-utils login --username owner   # 改用面板账号登录，换取 Session（面板命令需要）
 surowan-utils doctor --json         # 一次 GET /api/invocations?limit=1；退出码 0 且 status=ok 才继续
+surowan-utils commands              # 列出与面板等价的面板命令
+surowan-utils harness show --json   # 面板只读视图
+surowan-utils harness update --set-json values.history_messages=40 --dry-run --json   # 先看请求
+surowan-utils harness update --set-json values.history_messages=40 --json             # 确认后执行
 
 node packages/cli/dist/bin.js invocation list --limit 20 --state completed --chat -1001234567890 --json
 surowan-utils invocation get 12345 --json                       # 全局安装后
@@ -235,19 +242,19 @@ printf '%s' '临时替换的 global prompt' | surowan-utils invocation replay 12
 ```
 
 - 凭据：`login` 把 endpoint 与 key 成对保存到固定路径 `~/.config/surowan-utils/credentials.json`（所有平台一致，与 Bot 的 `config.jsonc`/`key.json` 无关），文件未加密；POSIX 上目录 `0700`、文件 `0600`（更窄权限亦可），拒绝符号链接与不安全权限且不自动修复，Windows 不做 POSIX mode 检查、沿用用户目录 ACL（不承诺 `chmod` 级别的保护）；key 全来源统一为 1–4096 字符且禁空白/控制字符，序列化凭据超过 16384 字节拒绝，写入失败不覆盖旧凭据。`login` 不访问服务器，保存后必须跑 `doctor`。非交互时可用 `--endpoint` 加 `--api-key`/环境变量，或用 `--api-key-stdin`：login 把 stdin 读到 EOF（不是读完一行就停），累计不超过 4098 字节，读取结束后只去掉一个尾部 LF/CRLF，剩余换行/空白/控制字符非法（`invalid_api_key`，退出码 2；受 `--timeout-ms` 约束，超时 `timeout` 退出码 1，不保存），不能与 `--api-key`/环境变量 key 同时给出，不是 `--api-key -`；stdin 读取只限 login 的 key 与 replay 的 `--global-prompt -` / `--group-prompt -`。
-- 凭据解析顺序（doctor 与 invocation list/get/replay 相同）：明确参数 > 环境变量 > 保存文件。参数或环境变量显式给出的空串按缺失/非法处理，不回退到下一来源或改为交互提示；endpoint 与 key 都明确给出时完全不读凭据文件（文件损坏或不安全也不影响），只给其一才读文件、文件问题以 `invalid_credentials`（退出码 1）失败。保存的 key 只用于与其规范化 endpoint 一致的地址：endpoint 经 `parseEndpoint` 规范化后不同且未显式给 key 时报 `missing_api_key`（不把文件 key 发往别的服务），规范化后一致时仍可复用；参数与环境变量不写回文件。
-- `doctor --json` 按同一顺序解析凭据后恰好一次 `GET /api/invocations?limit=1`：没有 replay、没有模型/Provider 调用；成功输出 `{status:"ok",endpoint,credential_sources:{endpoint,api_key}}`，来源取值为 `argument`/`environment`/`file`；不输出 Invocation 正文，不发送 Telegram、不重试，鉴权仍会更新 key 的 `last_used_at`。失败走既有 JSON stderr 路径：参数/环境变量凭据缺失或不合法退出码 `2`，保存文件无效（`invalid_credentials`）或请求失败退出码 `1`。
+- 凭据解析顺序（doctor 与 invocation list/get/replay 相同）：明确参数 > 环境变量 > 保存文件。参数或环境变量显式给出的空串按缺失/非法处理，不回退到下一来源或改为交互提示；endpoint 与 key 都明确给出时完全不读凭据文件（文件损坏或不安全也不影响），只给其一才读文件、文件问题以 `invalid_credentials`（退出码 1）失败。保存的 key 只用于与其规范化 endpoint 一致的地址：endpoint 经 `parseEndpoint` 规范化后不同且未显式给 key 时报 `missing_credential`（不把文件 key 发往别的服务），规范化后一致时仍可复用；参数与环境变量不写回文件。
+- `doctor --json` 按同一顺序解析凭据后恰好一次 `GET /api/invocations?limit=1`：没有 replay、没有模型/Provider 调用；成功输出 `{status:"ok",endpoint,credential:"session"|"api_key",credential_sources:{endpoint,credential}}`，来源取值为 `argument`/`environment`/`file`；不输出 Invocation 正文，不发送 Telegram、不重试，鉴权仍会更新 key 的 `last_used_at`。失败走既有 JSON stderr 路径：参数/环境变量凭据缺失或不合法退出码 `2`，保存文件无效（`invalid_credentials`）或请求失败退出码 `1`。
 - 发布由 `.github/workflows/npm.yml` 承担，独立于 Docker workflow：只有 `tuuject/surowan` 的 push 会发布，`main` 产出 canary（`0.0.0-canary.<run>.<attempt>.g<sha12>`，dist-tag `canary`），严格 `vMAJOR.MINOR.PATCH` tag 产出稳定版（dist-tag `latest`）；版本只在 CI checkout 内改写、不回写源码，用 OIDC 且没有 `NPM_TOKEN`；trusted publisher 只允许 `npm stage publish`，CI 产物进入待审批区，维护者 `npm stage approve`（2FA）后才对外发布。首次发布 bootstrap 与 trusted publisher 配置见 [packages/cli/RELEASING.md](../packages/cli/RELEASING.md#首次发布-bootstrap)：包必须先在 npm 上存在，之后手工打稳定 tag 才走 CI。Docker workflow 用 `GITHUB_TOKEN` 推送的 `v0.0.0-next-*` tag 不会触发它，手推 prerelease tag 会被版本 guard 拒绝。
 - API key 只能在面板 Session 下创建：在面板 **Manage → API keys** 页（`/api-keys`）创建并取得唯一一次明文，也在同一页撤销（Bearer 密钥不能管理密钥，见 [admin-panel.md](admin-panel.md#程序化-api-密钥)）。本地 tarball 或 registry 全局安装后，直接用 `surowan-utils` 调用。
 - endpoint 来自明确参数、环境变量或 `login` 保存的凭据文件；明文 `http` 仅允许 loopback（`127.0.0.0/8`、`::1`、`localhost`），远端必须 `https`，URL 不得带凭据、query 或 fragment。
 - 请求不跟随重定向、不自动重试；默认超时 login/doctor/list/get 30 秒、replay 300 秒；stdin 读取单独使用同一 `--timeout-ms` 上限，超时返回 `timeout`（退出码 1）且不发送 HTTP 请求；JSON 响应体不设客户端大小上限，完整读取后解析，仍受请求超时约束。
 - `--json` 时 stdout 恰好一个 JSON 文档；失败时 stderr 为 `{"error","message"}`（经 key 脱敏）。退出码 `0` 成功、`1` 请求/服务端/replay 失败或保存的凭据文件无效（`invalid_credentials`）、`2` 参数、输入或凭据缺失/不合法。replay 即使返回的 `error` 非空也会把完整结构写在 stdout。
 - replay 的行为边界（合成工具、不写生产数据、按 Provider 计费）见 [admin-panel.md](admin-panel.md#invocation-重放)；选项全集与响应形状以 [packages/cli/README.md](../packages/cli/README.md) 与源码为准。
-- 源码仓库根目录的 [`surowan-utils` Skill](../skills/surowan-utils/SKILL.md) 面向通过 CLI 访问 Admin API 的外部 Agent：每次任务先运行 `surowan-utils doctor --json`（恰好一次只读请求），只有退出码 `0` 且 `status` 为 `ok` 才读取对应指南并查询或重放；doctor 失败即停止并请操作员用 `login` 修复，不循环重试、不代为执行 `login` 或改动凭据、不直接读取聊天或存储中的 key，`--help` 只用于客户端缺失或命令不匹配时的诊断。`SKILL.md` 是轻量入口，审计与重放细节分列 `references/invocations.md`、`references/replay.md`，按当前任务加载子文档而不是一次全读。它不是 Bot 的 System Skill。npm 包不内置该 Skill，须按 [CLI Agent Skill](../packages/cli/AGENT-SKILL.md) 用 `npx skills add tuuject/surowan --skill surowan-utils` 安装，或从源码仓库将整个目录（含 `references/` 与 `agents/openai.yaml`）复制/导入宿主并随仓库同步更新。不把服务端源码或 SQLite 访问作为前提。
+- 源码仓库根目录的 [`surowan-utils` Skill](../skills/surowan-utils/SKILL.md) 面向通过 CLI 访问 Admin API 的外部 Agent：每次任务先运行 `surowan-utils doctor --json`（恰好一次只读请求），只有退出码 `0` 且 `status` 为 `ok` 才读取对应指南并查询或重放；doctor 失败即停止并请操作员用 `login` 修复，不循环重试、不代为执行 `login` 或改动凭据、不直接读取聊天或存储中的 key，`--help` 只用于客户端缺失或命令不匹配时的诊断。`SKILL.md` 是轻量入口，审计、重放与面板写操作的细节分列 `references/invocations.md`、`references/replay.md`、`references/panel.md`，按当前任务加载子文档而不是一次全读。它不是 Bot 的 System Skill。npm 包不内置该 Skill，须按 [CLI Agent Skill](../packages/cli/AGENT-SKILL.md) 用 `npx skills add tuuject/surowan --skill surowan-utils` 安装，或从源码仓库将整个目录（含 `references/` 与 `agents/openai.yaml`）复制/导入宿主并随仓库同步更新。不把服务端源码或 SQLite 访问作为前提。
 
 ## 管理员账号与 Passkey（admin-account）
 
-`admin-account` 是**服务端内置 CLI** 的建号与恢复命令，与 `surowan-utils` 不是一回事——后者只通过 Admin API 做只读检查与 Invocation 重放，不能恢复凭据。
+`admin-account` 是**服务端内置 CLI** 的建号与恢复命令，与 `surowan-utils` 不是一回事——后者通过 Admin API 登录或使用 API key，不能离线恢复凭据（面板密码遗失时只能用它重建账号）。
 
 ```bash
 node src/cli.ts admin-account --config <path> --username <name> [--password-stdin] [--revoke-passkeys]

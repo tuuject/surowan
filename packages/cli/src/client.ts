@@ -1,6 +1,9 @@
 import { Buffer } from 'node:buffer';
 import { CliError, usageError } from './errors.ts';
 
+/** The panel session cookie the server reads; a token is sent under this name. */
+export const SESSION_COOKIE = 'plasticwan_admin';
+
 /**
  * Validates an endpoint. Plaintext http is only accepted on loopback: the API
  * key travels in a header and must not cross the network unencrypted. URL
@@ -39,7 +42,13 @@ function isLoopbackHost(hostname: string): boolean {
 
 export interface AdminClientOptions {
   readonly baseUrl: URL;
-  readonly apiKey: string;
+  /**
+   * Programmatic `pwk_…` key. The server restricts it to the inspection
+   * allowlist and Invocation replay.
+   */
+  readonly apiKey?: string;
+  /** Panel session token; authorizes everything the browser panel authorizes. */
+  readonly session?: string;
   readonly defaultTimeoutMs: number;
 }
 
@@ -50,28 +59,60 @@ export interface MediaContent {
   readonly variant: string | null;
 }
 
+/** A non-JSON response body: an export file or an image. */
+export interface RawContent {
+  readonly bytes: Buffer;
+  readonly contentType: string | null;
+  /** True when the content type is text-ish, so the caller can decode it. */
+  readonly isText: boolean;
+}
+
+/** Options shared by every request the client issues. */
+export interface RequestOptions {
+  /** `If-Match` value: a config revision, prompt content hash or entry revision. */
+  readonly ifMatch?: string;
+  /** A caller-supplied abort signal, joined with the request timeout. */
+  readonly signal?: AbortSignal;
+}
+
 /**
  * Minimal JSON client for the Admin API. Requests never follow redirects and
  * are never retried; the timeout aborts the in-flight request and the response
  * body read that follows it.
+ *
+ * A session token is sent as the panel cookie, because the server routes any
+ * request carrying `Authorization` to the narrow API-key surface and never
+ * falls back to a cookie. An API key is sent as a Bearer header.
  */
 export class AdminClient {
   readonly #baseUrl: URL;
-  readonly #apiKey: string;
+  readonly #apiKey: string | undefined;
+  readonly #session: string | undefined;
   readonly #defaultTimeoutMs: number;
+  /** `set-cookie` headers from the most recent request, for session rotation. */
+  #setCookies: readonly string[] = [];
 
   constructor(options: AdminClientOptions) {
     this.#baseUrl = options.baseUrl;
     this.#apiKey = options.apiKey;
+    this.#session = options.session;
     this.#defaultTimeoutMs = options.defaultTimeoutMs;
   }
 
-  async get(path: string, query?: URLSearchParams): Promise<unknown> {
-    return await this.#request('GET', path, query, undefined);
+  async get(path: string, query?: URLSearchParams, options: RequestOptions = {}): Promise<unknown> {
+    return await this.#request('GET', path, query, undefined, options);
   }
 
-  async post(path: string, body: unknown): Promise<unknown> {
-    return await this.#request('POST', path, undefined, body);
+  async post(path: string, body: unknown, options: RequestOptions = {}): Promise<unknown> {
+    return await this.#request('POST', path, undefined, body, options);
+  }
+
+  async put(path: string, body: unknown, options: RequestOptions = {}): Promise<unknown> {
+    return await this.#request('PUT', path, undefined, body, options);
+  }
+
+  async delete(path: string, options: RequestOptions = {}): Promise<unknown> {
+    return await this.#request('DELETE', path, undefined, undefined, options);
   }
 
   /**
@@ -83,10 +124,7 @@ export class AdminClient {
     const url = this.#resolve(path, query);
     const init: RequestInit = {
       method: 'GET',
-      headers: {
-        authorization: `Bearer ${this.#apiKey}`,
-        accept: 'application/octet-stream',
-      },
+      headers: { ...this.#authHeaders(), accept: 'application/octet-stream' },
       redirect: 'error',
       signal: AbortSignal.timeout(this.#defaultTimeoutMs),
     };
@@ -109,6 +147,107 @@ export class AdminClient {
     }
   }
 
+  /** The credential this client authenticates with, for the doctor report. */
+  get credentialKind(): 'api_key' | 'session' {
+    return this.#apiKey === undefined ? 'session' : 'api_key';
+  }
+
+  /**
+   * The `set-cookie` headers the last request produced. A route that rotates
+   * the session (credentials change, password removal, logout) answers with a
+   * new token, and the stored one is invalid from that moment.
+   */
+  get lastSetCookies(): readonly string[] {
+    return this.#setCookies;
+  }
+
+  /**
+   * `POST /api/auth/login` with the panel password. Returns the `set-cookie`
+   * headers, which carry the session token; no cookie jar is involved.
+   */
+  async loginWithPassword(username: string, password: string): Promise<readonly string[]> {
+    const url = this.#resolve('api/auth/login');
+    const init: RequestInit = {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ username, password }),
+      redirect: 'error',
+      signal: AbortSignal.timeout(this.#defaultTimeoutMs),
+    };
+    try {
+      const response = await fetch(url, init);
+      const text = await response.text();
+      if (!response.ok) {
+        throw responseErrorFromBody(response, text);
+      }
+      const parsed = tryParseJson(text);
+      if (!isRecord(parsed) || parsed.status !== 'ok') {
+        throw new CliError('invalid_response', 'the login response had an unexpected shape');
+      }
+      const cookies = response.headers.getSetCookie();
+      if (cookies.length === 0) {
+        throw new CliError('invalid_response', 'the login response did not set a session cookie');
+      }
+      return cookies;
+    } catch (error) {
+      throw translateFetchError(error, this.#defaultTimeoutMs);
+    }
+  }
+
+  /**
+   * Fetches a non-JSON body (an export file or an image). The caller decides
+   * whether the bytes are written to disk; `maxBytes` bounds the buffer.
+   */
+  async getRaw(
+    path: string,
+    query: URLSearchParams,
+    options: RequestOptions & { readonly maxBytes: number },
+  ): Promise<RawContent> {
+    const url = this.#resolve(path, query);
+    const headers: Record<string, string> = { ...this.#authHeaders(), accept: '*/*' };
+    if (options.ifMatch !== undefined) {
+      headers['if-match'] = options.ifMatch;
+    }
+    const timeout = AbortSignal.timeout(this.#defaultTimeoutMs);
+    const init: RequestInit = {
+      method: 'GET',
+      headers,
+      redirect: 'error',
+      signal: options.signal === undefined ? timeout : AbortSignal.any([timeout, options.signal]),
+    };
+    try {
+      const response = await fetch(url, init);
+      if (!response.ok) {
+        throw await responseError(response);
+      }
+      const body = await readBodyBytes(response, options.maxBytes);
+      if (body.truncated) {
+        throw new CliError('response_too_large', `the response exceeded ${options.maxBytes} bytes`);
+      }
+      const contentType = normalizeContentType(response.headers.get('content-type'));
+      return {
+        bytes: body.bytes,
+        contentType,
+        // An export is text; an image is not. The caller asked for one or the other.
+        isText: contentType === null || contentType.startsWith('text/') || contentType.includes('json'),
+      };
+    } catch (error) {
+      throw translateFetchError(error, this.#defaultTimeoutMs);
+    }
+  }
+
+  #authHeaders(): Record<string, string> {
+    if (this.#apiKey !== undefined) {
+      return { authorization: `Bearer ${this.#apiKey}` };
+    }
+    if (this.#session !== undefined) {
+      return { cookie: `${SESSION_COOKIE}=${this.#session}` };
+    }
+    // Only the pre-session routes (`auth/setup`, `auth/login`, `auth/session`)
+    // are reachable without a credential; every other route answers 401.
+    return {};
+  }
+
   #resolve(path: string, query?: URLSearchParams): URL {
     const url = new URL(path.replace(/^\/+/, ''), this.#baseUrl);
     if (query !== undefined) {
@@ -120,30 +259,33 @@ export class AdminClient {
   }
 
   async #request(
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     path: string,
     query: URLSearchParams | undefined,
     body: unknown,
+    options: RequestOptions,
   ): Promise<unknown> {
     const url = this.#resolve(path, query);
-    const headers: Record<string, string> = {
-      authorization: `Bearer ${this.#apiKey}`,
-      accept: 'application/json',
-    };
+    const headers: Record<string, string> = { ...this.#authHeaders(), accept: 'application/json' };
     if (body !== undefined) {
       headers['content-type'] = 'application/json';
     }
+    if (options.ifMatch !== undefined) {
+      headers['if-match'] = options.ifMatch;
+    }
+    const timeout = AbortSignal.timeout(this.#defaultTimeoutMs);
     const init: RequestInit = {
       method,
       headers,
       redirect: 'error',
-      signal: AbortSignal.timeout(this.#defaultTimeoutMs),
+      signal: options.signal === undefined ? timeout : AbortSignal.any([timeout, options.signal]),
     };
     if (body !== undefined) {
       init.body = JSON.stringify(body);
     }
     try {
       const response = await fetch(url, init);
+      this.#setCookies = response.headers.getSetCookie();
       // The body read belongs to the same try: a server that sends headers and
       // then stalls must hit the timeout path, not `internal_error`.
       return await readJsonResponse(response);

@@ -240,6 +240,7 @@ test('login, doctor and reads over the real Admin API leave production state alo
   expect(JSON.parse(login.stdout)).toEqual({
     status: 'saved',
     endpoint: `${f.baseUrl}/`,
+    credential: 'api_key',
     credentials_file: credentialsPath(f.home),
   });
   expect(login.stdout).not.toContain(admin.key);
@@ -260,7 +261,8 @@ test('login, doctor and reads over the real Admin API leave production state alo
   expect(JSON.parse(doctor.stdout)).toEqual({
     status: 'ok',
     endpoint: `${f.baseUrl}/`,
-    credential_sources: { endpoint: 'file', api_key: 'file' },
+    credential: 'api_key',
+    credential_sources: { endpoint: 'file', credential: 'file' },
   });
   expect(doctor.stdout).not.toContain(admin.key);
 

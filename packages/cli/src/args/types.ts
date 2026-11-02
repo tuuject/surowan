@@ -1,3 +1,5 @@
+import type { PanelCommand } from '../panel/types.ts';
+
 export type ConfigSource = 'active' | 'file';
 export type PromptScope = 'global' | 'group';
 export type MediaVariant = 'original' | 'preview';
@@ -70,10 +72,18 @@ export interface PromptGetCommand {
 export interface LoginCommand {
   readonly kind: 'login';
   readonly apiKeyStdin: boolean;
+  /** Panel credentials replace an API key with a session token. */
+  readonly username: string | undefined;
+  readonly password: string | undefined;
+  readonly passwordStdin: boolean;
 }
 
 export interface DoctorCommand {
   readonly kind: 'doctor';
+}
+
+export interface CommandsListCommand {
+  readonly kind: 'commands-list';
 }
 
 export type InvocationCommand =
@@ -83,7 +93,12 @@ export type InvocationCommand =
   | PreflightCommand
   | MediaCommand
   | ReplayCommand;
-export type CliCommand = InvocationCommand | ModelsListCommand | ConfigShowCommand | PromptGetCommand;
+/**
+ * The commands with hand-written handlers in `commands.ts`. Everything else is
+ * either local (`login`) or resolved from the panel spec table (`panel`).
+ */
+export type FirstClassCommand = InvocationCommand | ModelsListCommand | ConfigShowCommand | PromptGetCommand;
+export type CliCommand = FirstClassCommand | CommandsListCommand | PanelCommand;
 export type Command = CliCommand | LoginCommand | DoctorCommand;
 export type CredentialSource = 'argument' | 'environment' | 'file';
 
@@ -93,20 +108,45 @@ export interface ParsedCli {
   readonly command: Command | undefined;
   readonly endpointRaw: string | undefined;
   readonly apiKeyRaw: string | undefined;
+  readonly sessionRaw: string | undefined;
   readonly timeoutRaw: string | undefined;
 }
 
 export interface ResolvedCli {
   readonly command: Command;
   readonly endpoint: URL;
-  readonly apiKey: string;
+  /** Exactly one of these is set, matching the credential that resolved. */
+  readonly apiKey: string | undefined;
+  readonly session: string | undefined;
   readonly json: boolean;
   readonly timeoutMs: number;
-  readonly credentialSources: { readonly endpoint: CredentialSource; readonly api_key: CredentialSource };
+  readonly credentialSources: { readonly endpoint: CredentialSource; readonly credential: CredentialSource };
 }
 
 export interface StringFlags {
   readonly 'api-key-stdin': boolean | undefined;
+  readonly 'password-stdin': boolean | undefined;
+  readonly username: string | undefined;
+  readonly password: string | undefined;
+  readonly session: string | undefined;
+  readonly 'if-match': string | undefined;
+  readonly 'dry-run': boolean | undefined;
+  readonly yes: boolean | undefined;
+  readonly file: string | undefined;
+  readonly body: string | undefined;
+  readonly set: readonly string[] | undefined;
+  readonly 'set-json': readonly string[] | undefined;
+  readonly format: string | undefined;
+  readonly output: string | undefined;
+  readonly offset: string | undefined;
+  readonly q: string | undefined;
+  readonly unread: string | undefined;
+  readonly host: string | undefined;
+  readonly target: string | undefined;
+  readonly day: string | undefined;
+  readonly before: string | undefined;
+  readonly scope: string | undefined;
+  readonly 'sticker-set': string | undefined;
   readonly provider: string | undefined;
   readonly model: string | undefined;
   readonly 'thinking-level': string | undefined;

@@ -13,11 +13,22 @@ import { CliError, usageError } from './errors.ts';
  * the file must be a regular file that group/other cannot read or write, its
  * bytes never reach an error message, and a replacement is renamed into place
  * so a failure cannot damage the previous pair.
+ *
+ * A file holds exactly one credential kind:
+ *
+ * - `apiKey`: a programmatic `pwk_…` key. The server limits it to the
+ *   inspection allowlist and Invocation replay, so it cannot change anything.
+ * - `session`: a panel session token, obtained by logging in with the panel
+ *   password. It authorizes exactly what the browser panel authorizes, which
+ *   is the whole point of the CLI: one client for both.
  */
 export interface Credentials {
   /** Normalized base URL, in the form `parseEndpoint` produces. */
   readonly endpoint: string;
-  readonly apiKey: string;
+  /** Programmatic API key, when the file was written by an API-key login. */
+  readonly apiKey?: string;
+  /** Panel session token, when the file was written by a panel login. */
+  readonly session?: string;
 }
 
 /** A credentials file is tiny; anything larger is not one this tool wrote. */
@@ -47,6 +58,17 @@ export function validateApiKey(value: string): string {
     throw usageError(
       'invalid_api_key',
       `API key must be 1 to ${MAX_API_KEY_LENGTH} characters with no whitespace or control characters`,
+    );
+  }
+  return value;
+}
+
+/** Session tokens are opaque 32-byte base64url values; the same character rules apply. */
+export function validateSessionToken(value: string): string {
+  if (value.length < 1 || value.length > MAX_API_KEY_LENGTH || FORBIDDEN_API_KEY_CHARACTERS.test(value)) {
+    throw usageError(
+      'invalid_session_token',
+      `session token must be 1 to ${MAX_API_KEY_LENGTH} characters with no whitespace or control characters`,
     );
   }
   return value;
@@ -84,8 +106,7 @@ export async function readCredentials(path: string): Promise<Credentials | undef
  */
 export async function writeCredentials(path: string, credentials: Credentials): Promise<void> {
   const endpoint = parseEndpoint(credentials.endpoint).href;
-  const apiKey = validateApiKey(credentials.apiKey);
-  const text = `${JSON.stringify({ endpoint, apiKey })}\n`;
+  const text = `${JSON.stringify(storedDocument(endpoint, credentials))}\n`;
   if (Buffer.byteLength(text) > MAX_CREDENTIALS_BYTES) {
     throw usageError('credentials_too_large', `credentials must not exceed ${MAX_CREDENTIALS_BYTES} bytes`);
   }
@@ -115,6 +136,24 @@ export async function writeCredentials(path: string, credentials: Credentials): 
     // The filesystem message is dropped: it can name the temporary file, and
     // the caller only ever needs to know that the write did not happen.
     throw new CliError('credentials_write_failed', `credentials file could not be written: ${path}`);
+  }
+}
+
+/**
+ * Removes the stored credential after the server invalidated it (logout, or a
+ * revoked session). A missing file is already the desired state, so it is not
+ * an error; anything that is present must still be safe to unlink.
+ */
+export async function clearCredentials(path: string): Promise<void> {
+  const info = await inspectCredentialsFile(path);
+  if (info === undefined) {
+    return;
+  }
+  await assertCredentialsDirectory(dirname(path), path);
+  try {
+    await unlink(path);
+  } catch {
+    throw new CliError('credentials_write_failed', `credentials file could not be removed: ${path}`);
   }
 }
 
@@ -156,6 +195,22 @@ async function assertCredentialsDirectory(directory: string, path: string): Prom
   }
 }
 
+/**
+ * A file holds exactly one credential kind. Both shapes are read, so a stored
+ * API key keeps working, and the session shape is what a panel login writes.
+ */
+function storedDocument(endpoint: string, credentials: Credentials): Record<string, string> {
+  const hasApiKey = credentials.apiKey !== undefined;
+  const hasSession = credentials.session !== undefined;
+  if (hasApiKey === hasSession) {
+    throw usageError('invalid_credentials', 'credentials must hold exactly one of an API key or a session token');
+  }
+  if (credentials.apiKey !== undefined) {
+    return { endpoint, apiKey: validateApiKey(credentials.apiKey) };
+  }
+  return { endpoint, session: validateSessionToken(credentials.session ?? '') };
+}
+
 function parseStoredCredentials(text: string, path: string): Credentials {
   let parsed: unknown;
   try {
@@ -164,11 +219,15 @@ function parseStoredCredentials(text: string, path: string): Credentials {
     throw invalidCredentials(path, 'credentials file is not valid JSON');
   }
   if (!isRecord(parsed)) {
-    throw invalidCredentials(path, 'credentials file must contain exactly "endpoint" and "apiKey" strings');
+    throw invalidCredentials(path, 'credentials file must contain exactly "endpoint" and one credential');
   }
-  const { endpoint: rawEndpoint, apiKey: rawApiKey } = parsed;
-  if (Object.keys(parsed).length !== 2 || typeof rawEndpoint !== 'string' || typeof rawApiKey !== 'string') {
-    throw invalidCredentials(path, 'credentials file must contain exactly "endpoint" and "apiKey" strings');
+  const { endpoint: rawEndpoint, apiKey: rawApiKey, session: rawSession } = parsed;
+  const keys = Object.keys(parsed).sort().join(',');
+  const validShape =
+    (keys === 'apiKey,endpoint' && typeof rawApiKey === 'string' && rawSession === undefined) ||
+    (keys === 'endpoint,session' && typeof rawSession === 'string' && rawApiKey === undefined);
+  if (!validShape || typeof rawEndpoint !== 'string') {
+    throw invalidCredentials(path, 'credentials file must contain exactly "endpoint" and one credential');
   }
   let endpoint: string;
   try {
@@ -176,12 +235,18 @@ function parseStoredCredentials(text: string, path: string): Credentials {
   } catch {
     throw invalidCredentials(path, 'credentials file endpoint is invalid');
   }
-  try {
-    validateApiKey(rawApiKey);
-  } catch {
-    throw invalidCredentials(path, 'credentials file API key is invalid');
+  if (rawApiKey !== undefined) {
+    try {
+      return { endpoint, apiKey: validateApiKey(rawApiKey) };
+    } catch {
+      throw invalidCredentials(path, 'credentials file API key is invalid');
+    }
   }
-  return { endpoint, apiKey: rawApiKey };
+  try {
+    return { endpoint, session: validateSessionToken(rawSession as string) };
+  } catch {
+    throw invalidCredentials(path, 'credentials file session token is invalid');
+  }
 }
 
 function invalidCredentials(path: string, reason: string): CliError {

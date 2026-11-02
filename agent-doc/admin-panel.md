@@ -64,6 +64,25 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 - 请求带 `Authorization` 头时**完全不读取面板 Cookie**：非 `Bearer` 前缀、空值、未知或已撤销的密钥统一返回 401 `unauthenticated`（固定消息，不区分原因），Bearer 前缀大小写不敏感；无效密钥也不会回退成有效 Session，有效 Session 也不能把密钥权限升级成完整面板权限。
 - 密钥的权限面固定为 Invocation 读/重放与只读 inspection：`GET /api/invocations`、`GET /api/invocations/:id`、`GET /api/invocations/:id/prompts`、`GET /api/invocations/:id/replay-preflight`、`GET /api/invocations/:id/media`、`GET /api/invocations/:id/media/:media_id/content`、`GET /api/config/view`、`GET /api/models`、`GET /api/prompts/global`、`GET /api/prompts/group` 与 `POST /api/invocations/:id/replay`；其余一切——包括密钥管理自身、Prompt 版本历史与 diff 读取、全部 Prompt 写端点、其它审计读端点、全部面板写端点与未知路由——都返回 403 `forbidden`（未知路由不泄露 404 差异）。这些 GET 与面板 Session 共用同一条只读检查路径（见「Inspection 只读视图」）；`POST .../replay` 仍只接受 Bearer key，Session 请求落到审计分支返回 405 `method_not_allowed`。
 
+## CLI 与面板能力对齐
+
+`packages/cli`（`surowan-utils`）有两类凭据，决定它能到达哪一层：
+
+| 凭据 | 来源 | 服务端权限面 |
+| --- | --- | --- |
+| 面板 Session Token | `surowan-utils login --username <name>`（`POST /api/auth/login` 的 Cookie） | 与浏览器面板完全相同：全部审计读取与全部白名单写入 |
+| API key（`pwk_…`） | 面板 **Manage → API keys** | 固定窄面：inspection 只读视图与 Invocation 读/重放 |
+
+Session Token 以 Cookie 头发送（`plasticwan_admin`），因为带 `Authorization` 的请求会被服务端固定路由到 API key 分支且**不回退**到 Cookie。凭据文件 `~/.config/surowan-utils/credentials.json` 只保存一份凭据（`{endpoint, session}` 或 `{endpoint, apiKey}`），互斥。
+
+面板路由与 CLI 命令是一一对应的数据表：`packages/cli/src/panel/specs/` 里每个 `EndpointSpec` 就是一条 `/api` 路由（method、path、位置参数、query 参数、是否需要 `If-Match` 及哪种 revision、是否属于破坏性/计费、响应是 JSON/二进制/文本），`surowan-utils commands` 原样输出这张表。**新增面板端点时必须同时加一行 spec**，否则该能力在 CLI 里不存在；`test/cli/panel-parity.test.ts` 用真实 `AdminServer` 与真实 CLI 子进程验证登录、自动 revision、配置落盘、破坏性拒绝与 Session 轮换。
+
+写入的乐观锁不需要手工搬运：配置写入先读 `GET /api/providers` 的 `revision`，Prompt 写入先读该 scope 的 `content_hash`（`prompt restore` 先读版本的 scope），字典词条写入的 `revision` 只存在于调用方上次读取里，因此必须显式 `--if-match`。服务端冲突码（`config_conflict`/`prompt_conflict`/`dictionary_conflict`）原样返回，CLI 不重试也不覆盖。
+
+破坏性与计费路由带 `confirm` 标记：缺少 `--yes` 时 CLI 在发请求前以 `confirmation_required`（退出码 2）拒绝，`--dry-run` 打印 `{method, path, if_match, body}` 且不发请求。`--yes` 只是机械闸门；[客户端 Skill](../skills/surowan-utils/references/panel.md) 要求 Agent 在执行写操作前向用户逐项说明目标、字段与值、影响范围与可撤销性，并在用户明确同意后才加 `--yes`。
+
+`POST /api/auth/credentials`、`DELETE /api/auth/password` 与 `POST /api/auth/setup` 会撤销该账号全部 Session 并签发新 Cookie，CLI 把新 token 写回凭据文件；`POST /api/auth/logout` 成功后删除凭据文件。`save` 类命令未收到新 token 时以 `invalid_response` 失败，避免保留已失效的凭据。
+
 ## API
 
 前缀 `/api`，全部返回 JSON，`cache-control: no-store`。
