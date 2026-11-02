@@ -44,6 +44,22 @@ test.describe('invocations list', () => {
     await page.getByRole('combobox', { name: 'Chat', exact: true }).press('Enter');
     await expect(page.getByText('No records match the current filters.')).toBeVisible();
   });
+
+  test('model filter narrows to the invocations that ran on that model', async ({ page }) => {
+    await page.goto(await adminUrl('/invocations'));
+    const model = page.getByRole('textbox', { name: 'Model', exact: true });
+    await model.fill('gpt-4.1-mini');
+    await model.press('Enter');
+    // Only the two seeded invocations recorded agent model calls; the bulk rows
+    // have none and must drop out of the filtered page.
+    await expect(tableBodyRows(page)).toHaveCount(2);
+    await expect(page.getByRole('link', { name: '4001' })).toBeVisible();
+    await expect(page.getByRole('link', { name: '4002' })).toBeVisible();
+
+    await model.fill('unknown-model');
+    await model.press('Enter');
+    await expect(page.getByText('No records match the current filters.')).toBeVisible();
+  });
 });
 
 test.describe('messages list', () => {

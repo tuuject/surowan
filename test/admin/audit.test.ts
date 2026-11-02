@@ -100,6 +100,14 @@ test('audit routes expose tool sessions, messages and sticker cache', async () =
       chat: { telegram_chat_id: '123456789', type: 'private' },
     });
 
+    const modelMatch = await readJson(await server.handle(request('/api/invocations?model=agent-model', { headers })));
+    expect(modelMatch.items).toHaveLength(1);
+    const modelMiss = await readJson(await server.handle(request('/api/invocations?model=gpt-4.1-mini', { headers })));
+    expect(modelMiss.items).toEqual([]);
+    const modelInvalid = await server.handle(request('/api/invocations?model=%20', { headers }));
+    expect(modelInvalid.status).toBe(400);
+    expect(await readJson(modelInvalid)).toMatchObject({ error: 'invalid_model' });
+
     const detail = await readJson(await server.handle(request(`/api/invocations/${invocationId}`, { headers })));
     expect(detail.tool_calls[0]).toMatchObject({
       tool_name: 'send',

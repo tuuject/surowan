@@ -57,6 +57,7 @@ npm install -g ./dist/npm/tuuject-surowan-utils-0.1.0.tgz   # 文件名以实际
    surowan-utils invocation preflight 12345 --json
    surowan-utils invocation list --limit 20 --state completed --chat -1001234567890 --json
    surowan-utils invocation list --search '关键词' --at '2026-09-10 07:59' --json
+   surowan-utils invocation list --model deepseek/deepseek-v4-flash --from '2026-09-10 07:00' --to '2026-09-11 07:00' --json
    surowan-utils invocation get 12345 --json
    ```
 

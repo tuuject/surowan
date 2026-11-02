@@ -30,7 +30,7 @@ surowan-utils doctor --json
 | 定位 Invocation、排查未回复、核对可用模型/工具/真实发送或用量 | [Invocation 查询与审计](references/invocations.md) |
 | 重放 Invocation、临时模型/thinking 覆盖、覆盖或比较 global/group prompt、解释重放失败与保真限制 | [Invocation 重放](references/replay.md) |
 
-默认先查询和审计。`config show`、`prompt get`、`models list`、`invocation prompts`、`invocation preflight` 是免费只读检查（不调用模型、无计费），可以在授权前用于核对；`invocation list --search/--at/--from/--to` 可按关键词与公开消息时间定位 Invocation。`models list` 只列出当前 active 配置中接受 text 输入的已配置模型，不是上游完整目录、不保证连通，也不构成对任何模型的使用授权。重放会真实调用模型并计费，必须明确授权目标、次数和可选覆盖（prompt 与模型/thinking）；“看看为什么没回复”不是重放授权。临时模型/thinking 覆盖只影响这一次重放，不写回配置，但会改变 prompt 变量、图片能力、context budget、Schema、Provider 连接与真实费用。切片重放（`--before-send`）把输入收窄到某次成功 Bot 发言之前的窗口，并需 `--confirm-paid` 显式确认计费；预检与重放必须使用同一选择（含模型/thinking 选择）。不扩大到批量操作或自动重试。媒体导出只读授权 Invocation 冻结快照内的媒体，不属于视觉保真修复，也不构成重放授权。
+默认先查询和审计。`config show`、`prompt get`、`models list`、`invocation prompts`、`invocation preflight` 是免费只读检查（不调用模型、无计费），可以在授权前用于核对；`invocation list --search/--at/--from/--to` 可按关键词与公开消息时间定位 Invocation，`--model` 可按该 Invocation 的 agent 模型精确过滤。`models list` 只列出当前 active 配置中接受 text 输入的已配置模型，不是上游完整目录、不保证连通，也不构成对任何模型的使用授权。重放会真实调用模型并计费，必须明确授权目标、次数和可选覆盖（prompt 与模型/thinking）；“看看为什么没回复”不是重放授权。临时模型/thinking 覆盖只影响这一次重放，不写回配置，但会改变 prompt 变量、图片能力、context budget、Schema、Provider 连接与真实费用。切片重放（`--before-send`）把输入收窄到某次成功 Bot 发言之前的窗口，并需 `--confirm-paid` 显式确认计费；预检与重放必须使用同一选择（含模型/thinking 选择）。不扩大到批量操作或自动重试。媒体导出只读授权 Invocation 冻结快照内的媒体，不属于视觉保真修复，也不构成重放授权。
 
 ## 共同边界
 

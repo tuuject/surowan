@@ -65,6 +65,11 @@ test.each(['fresh', 'upgraded'])('invocation audit uses indexed calls in %s data
     expect(second.items[0]?.total_cost).toBeCloseTo(0.0048);
     expect(second.next_cursor).toBeNull();
     expect(listInvocations(orm, { chat: '-999' }).items).toEqual([]);
+    // The model filter must ride the same correlation index; a full scan of the
+    // audit table on every list request is the regression this guards.
+    const byModel = listInvocations(orm, { model: 'gpt-4.1-mini' });
+    expect(byModel.items.map((item) => item.id)).toEqual([seed.invocationB.toString(), seed.invocationA.toString()]);
+    expect(listInvocations(orm, { model: 'not-configured' }).items).toEqual([]);
     expect(plans.some((detail) => /SCAN (?:mc|tc)\b/.test(detail))).toBe(false);
     expect(plans.some((detail) => /SEARCH mc USING .*INDEX .*\(invocation_id=\?\)/.test(detail))).toBe(true);
     expect(plans.some((detail) => /SEARCH tc USING .*INDEX .*\(invocation_id=\?\)/.test(detail))).toBe(true);

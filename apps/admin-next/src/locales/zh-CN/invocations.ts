@@ -16,6 +16,7 @@ export const invocations: typeof invocationsEn = {
     },
     statePlaceholder: '状态',
     hostPlaceholder: '宿主',
+    modelPlaceholder: '模型',
     hosts: {
       telegram: 'Telegram',
       playground: 'Playground',

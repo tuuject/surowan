@@ -10,6 +10,7 @@ import {
   SelectFilter,
   StateBadge,
   TableShell,
+  TextFilter,
 } from '@/components/business';
 
 import { formatCost, formatNumber, formatTime } from '@/lib/format';
@@ -33,10 +34,11 @@ export default function InvocationsPage(): React.ReactElement {
   const { t } = useTranslation();
   const [state, setState] = useState<string | undefined>(undefined);
   const [host, setHost] = useState<string | undefined>(undefined);
+  const [model, setModel] = useState<string | undefined>(undefined);
   const chat = useChatScope();
   const navigate = useNavigate({ from: '/invocations' });
   const setChat = useChatScopeSetter(navigate);
-  const filters = useMemo(() => ({ state, host, chat }), [state, host, chat]);
+  const filters = useMemo(() => ({ state, host, chat, model }), [state, host, chat, model]);
 
   const COLUMNS: readonly ColumnSpec<InvocationListItem>[] = [
     {
@@ -136,6 +138,13 @@ export default function InvocationsPage(): React.ReactElement {
           options={INVOCATION_HOSTS.map((value) => ({ value, label: t(`invocations.invocations.hosts.${value}`) }))}
         />
         <ChatFilter value={chat} onChange={setChat} />
+        <TextFilter
+          placeholder={t('invocations.invocations.modelPlaceholder')}
+          value={model}
+          onCommit={(value) => setModel(value.length > 0 ? value : undefined)}
+          onClear={() => setModel(undefined)}
+          widthClassName="w-56"
+        />
       </FilterToolbar>
       <p className="text-muted-foreground text-xs">{t('invocations.invocations.tokensNote')}</p>
       <CursorList

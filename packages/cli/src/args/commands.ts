@@ -26,6 +26,7 @@ import {
   parseBeforeSend,
   parseDecimalId,
   parseLimit,
+  parseModelFilter,
   parseSearch,
   parseSource,
   parseState,
@@ -181,8 +182,11 @@ function parseList(rest: readonly string[], flags: StringFlags): ListCommand {
   if (rest.length > 0) {
     throw usageError('unexpected_argument', 'invocation list takes no positional arguments');
   }
+  // `--model` filters the recorded agent model; the rest of the replay
+  // override trio (`--provider`, `--thinking-level`) has no meaning here.
   rejectUnsupportedFlags(flags, [
-    ...MODEL_FLAGS,
+    'provider',
+    'thinking-level',
     'source',
     'variant',
     ...PROMPT_PART_FLAGS,
@@ -203,6 +207,7 @@ function parseList(rest: readonly string[], flags: StringFlags): ListCommand {
     state: flags.state === undefined ? undefined : parseState(flags.state),
     chat: flags.chat === undefined ? undefined : parseDecimalId(flags.chat, 'chat', true),
     search: parseSearch(flags.search),
+    model: parseModelFilter(flags.model),
     at,
     from,
     to,

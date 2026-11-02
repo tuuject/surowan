@@ -29,7 +29,7 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 
 ## 常用任务
 
-- **Overview / Invocations / Messages / Contexts**：查看收到消息、运行窗口、Tool 调用和连续对话上下文；审计读取不修改数据。
+- **Overview / Invocations / Messages / Contexts**：查看收到消息、运行窗口、Tool 调用和连续对话上下文；审计读取不修改数据。Invocations 列表可按 State、Host、Chat 与 Model 过滤，Model 匹配该 Invocation 实际运行的 agent 模型 ID（精确、区分大小写），适合按模型核对一段时间内的表现。
 - **Models**：维护 Provider、已启用模型和全局 Agent/Vision 选择。保存后查看是否成功应用。
 - **Chats**：管理 Chat/Topic allowlist 与每群模型覆盖。新增与删除 Chat 都热应用（删除会停止该 Chat 的运行并立即清除其 Memo Pad、Blob 与会话数据）；修改 Topic 范围需重启；已有 Chat 的模型覆盖可热应用。每行 Chat 的「打开相关页面」菜单可直接进入该群的 Prompt、辞典、Memo Pad、消息、Invocation 与 Alarm 视图；这些页面用 URL 的 `chat` 查询参数记住群范围（如 `/messages?chat=123456789`），可收藏或分享，页面内改选 Chat 时该参数会同步更新。
 - **Chats · 活跃时间**：每行 Chat 的时钟按钮编辑该群的活跃时段，支持多个时间段并按星期生效，保存后立即应用。三种模式：不限制（移除本群时段，已配置全局时段时按全局执行）、无固定时段（仅 @、回复或触发关键词可唤醒）、自定义时段。图表按该群时区显示一周各天的时段条，并标记当前时间位置。
