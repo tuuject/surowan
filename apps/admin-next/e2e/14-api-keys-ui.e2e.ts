@@ -46,9 +46,9 @@ test.describe('API key management UI', () => {
   test('creates a key from the sidebar, shows it once, and drops the plaintext afterwards', async ({ page }) => {
     await installClipboardRecorder(page);
     await page.goto(await adminUrl('/'));
-    const manageGroup = page.locator('[data-sidebar="group"]').filter({ hasText: 'Manage' });
-    await expect(manageGroup.getByRole('link', { name: 'API keys', exact: true })).toBeVisible();
-    await manageGroup.getByRole('link', { name: 'API keys', exact: true }).click();
+    const systemGroup = page.locator('[data-sidebar="group"]').filter({ hasText: 'System' });
+    await expect(systemGroup.getByRole('link', { name: 'API keys', exact: true })).toBeVisible();
+    await systemGroup.getByRole('link', { name: 'API keys', exact: true }).click();
     await expect(page).toHaveURL(/\/api-keys$/);
 
     const main = page.getByRole('main');

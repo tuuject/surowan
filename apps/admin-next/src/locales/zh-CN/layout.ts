@@ -2,10 +2,16 @@ import type { layout as layoutEn } from '../en/layout.ts';
 
 export const layout: typeof layoutEn = {
   switchLanguage: '切换语言',
+  navGroups: {
+    monitor: '监控',
+    activity: '运行记录',
+    agentData: 'Agent 数据',
+    media: '媒体',
+    agentSetup: 'Agent 配置',
+    telegram: 'Telegram',
+    system: '系统',
+  },
   nav: {
-    observe: '观察',
-    manage: '管理',
-    account: '账户',
     overview: '概览',
     warnings: '警告',
     toolSessions: '调用记录',
