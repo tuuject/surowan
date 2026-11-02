@@ -109,6 +109,7 @@ printf '%s' "$NEW_PROMPT" | surowan-utils prompt save global --file - --json
 - `--api-key` 与 `--session`（或对应环境变量）同时给出报 `conflicting_credentials`；两者授权范围不同，不要静默择一。
 - `account update`、`password delete`、`setup` 成功后 CLI 会把服务端新签发的 token 写回文件；若服务端未返回新 token，CLI 以 `invalid_response` 失败并提示重新 `login`，因为旧 token 已失效。
 - `logout` 成功后删除凭据文件；再次使用需要操作员重新 `login`。
+- 以上写回与删除只针对凭据文件里的 Session。Session 由 `--session` 或 `SUROWAN_SESSION` 提供时，CLI 不动凭据文件；轮换后 stderr 出现 `session_not_stored` 警告，表示提供的 token 已失效、新 token 未保存，需要操作员重新 `login`。
 - 不要读取、打印或转贴凭据文件内容，也不要向聊天索要明文密码或 token。
 
 ## 明确不在 CLI 里的能力

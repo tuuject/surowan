@@ -167,4 +167,44 @@ describe('surowan-utils panel sessions and credentials', () => {
       await fixture.close();
     }
   }, 60_000);
+
+  it('leaves the stored credential alone when a supplied session is rotated or ended', async () => {
+    const fixture = await panelFixture();
+    try {
+      await fetch(`${fixture.baseUrl}/api/auth/setup`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
+      });
+      await loginPanel(fixture);
+      const storedPath = join(fixture.home, '.config', 'surowan-utils', 'credentials.json');
+      const stored = await readFile(storedPath, 'utf8');
+      // A second browser-style login yields a token the file knows nothing about.
+      const signIn = async (): Promise<string> => {
+        const response = await fetch(`${fixture.baseUrl}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
+        });
+        return response.headers.getSetCookie()[0]?.split(';')[0]?.split('=')[1] ?? '';
+      };
+
+      const logout = await runCli(['logout', '--json'], fixture, { SUROWAN_SESSION: await signIn() });
+      expect(logout.code, logout.stderr).toBe(0);
+      expect(await readFile(storedPath, 'utf8')).toBe(stored);
+      const stillValid = await runCli(['overview', '--json'], fixture);
+      expect(stillValid.code, stillValid.stderr).toBe(0);
+
+      const changed = await runCli(
+        ['account', 'update', '--set', `username=${USERNAME}`, '--set', 'password=another-horse-battery', '--json'],
+        fixture,
+        { SUROWAN_SESSION: await signIn() },
+      );
+      expect(changed.code, changed.stderr).toBe(0);
+      expect(JSON.parse(changed.stderr)).toMatchObject({ warning: 'session_not_stored' });
+      expect(await readFile(storedPath, 'utf8')).toBe(stored);
+    } finally {
+      await fixture.close();
+    }
+  }, 60_000);
 });

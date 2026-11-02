@@ -34,7 +34,7 @@
 | `If-Match` | `--if-match` 显式指定；否则配置写入读 `GET /api/providers` 的 `revision`，Prompt 写入读该 scope 的 `content_hash`（`prompt save` 用位置参数 scope，`prompt restore` 先读版本的 scope）；字典词条写入必须显式给出（`if_match_required`）；不接受 revision 的命令带 `--if-match` 报 `unexpected_option` |
 | 确认 | `confirm: destructive` 与 `confirm: paid` 的命令缺少 `--yes` 时以 `confirmation_required`（退出码 2）在发请求前拒绝；`--dry-run` 不需要 `--yes`，只打印请求 |
 | `--dry-run` | 完全不发请求，因此也不读取 revision：输出 `{ method, path, if_match, if_match_source, body }`，其中 `if_match` 只在显式给了 `--if-match` 时非 null，`if_match_source` 为将要自动读取的来源（`config`/`prompt`/`entry`）或 `argument` |
-| Session 轮换 | `account update`、`password delete`、`setup` 成功后会撤销全部 Session 并签发新 Cookie，CLI 把新 token 写回凭据文件；`logout` 成功后删除凭据文件。`save` 类命令未返回新 token 时报 `invalid_response`，避免留下已失效的凭据 |
+| Session 轮换 | `account update`、`password delete`、`setup` 成功后会撤销全部 Session 并签发新 Cookie，CLI 把新 token 写回凭据文件；`logout` 成功后删除凭据文件。`save` 类命令未返回新 token 时报 `invalid_response`，避免留下已失效的凭据。Session 来自 `--session` 或 `SUROWAN_SESSION` 时不读写凭据文件：`logout` 不删除文件，轮换后的新 token 不写入，stderr 输出 `{"warning":"session_not_stored"}`（退出码仍为 0），调用方需重新 `login` |
 | 非 JSON 响应 | `response: binary`（图片、媒体）与 `response: text`（字典导出）按 32 MiB 上限读取；`--output` 写文件，缺省时二进制报 `output_required`，文本原样写 stdout |
 | 服务端错误 | HTTP 非 2xx 的 `{error,message}` 直接成为 CLI 的 `error`/`message`（`config_conflict`、`prompt_conflict`、`dictionary_conflict`、`revision_required`、`forbidden` 等保持原码），退出码 1 |
 

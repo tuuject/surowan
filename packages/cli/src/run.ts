@@ -163,6 +163,10 @@ export async function runCli(argv: readonly string[], options: RunOptions = {}):
       throw usageError('invalid_command', 'login cannot execute an invocation request');
     }
     if (resolved.command.kind === 'panel') {
+      // A token from --session or SUROWAN_SESSION is not the stored one, and
+      // the file may hold another endpoint's credential: rotating or ending
+      // that token must leave the file alone.
+      const ownsStoredCredential = resolved.credentialSources.credential === 'file';
       return await runPanelCommand(
         resolved.command,
         {
@@ -175,12 +179,26 @@ export async function runCli(argv: readonly string[], options: RunOptions = {}):
         {
           currentToken: resolved.session,
           save: async (token) => {
+            if (!ownsStoredCredential) {
+              // The new token cannot be printed (output is redacted) and the
+              // supplied one is already revoked, so the caller must log in.
+              output.stderr(
+                `${JSON.stringify({
+                  warning: 'session_not_stored',
+                  message:
+                    'the server rotated the session; the supplied token is revoked and the new one was not stored; run surowan-utils login',
+                })}\n`,
+              );
+              return;
+            }
             // The endpoint must be the one that issued the token; `resolved`
             // already normalized and validated it.
             await writeCredentials(path, { endpoint: resolved.endpoint.href, session: token });
           },
           clear: async () => {
-            await clearCredentials(path);
+            if (ownsStoredCredential) {
+              await clearCredentials(path);
+            }
           },
         },
       );
