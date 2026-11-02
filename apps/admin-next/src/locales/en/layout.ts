@@ -5,10 +5,16 @@
 export const layout = {
   // Referenced flat as t("layout.switchLanguage") by themes/language-toggle.tsx.
   switchLanguage: 'Switch language',
+  navGroups: {
+    monitor: 'Monitor',
+    activity: 'Activity',
+    agentData: 'Agent data',
+    media: 'Media',
+    agentSetup: 'Agent setup',
+    telegram: 'Telegram',
+    system: 'System',
+  },
   nav: {
-    observe: 'Observe',
-    manage: 'Manage',
-    account: 'Account',
     overview: 'Overview',
     warnings: 'Warnings',
     toolSessions: 'Tool sessions',

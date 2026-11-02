@@ -7,9 +7,10 @@ import {
   Cpu,
   FileText,
   ImagePlus,
+  Images,
   KeyRound,
-  LibraryBig,
   LayoutDashboard,
+  LibraryBig,
   LogOut,
   MessageSquare,
   MessagesSquare,
@@ -23,6 +24,7 @@ import {
   SlidersVertical,
   Sticker,
   TriangleAlert,
+  UserCog,
   Zap,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -63,42 +65,62 @@ export default function AppSidebar({
   // Built on render so language switches re-label the sidebar.
   const navGroups: NavGroup[] = [
     {
-      label: t('layout.nav.observe'),
+      label: t('layout.navGroups.monitor'),
       items: [
         { title: t('layout.nav.overview'), url: '/', icon: LayoutDashboard },
         { title: t('layout.nav.warnings'), url: '/warnings', icon: TriangleAlert },
+      ],
+    },
+    {
+      label: t('layout.navGroups.activity'),
+      items: [
         { title: t('layout.nav.toolSessions'), url: '/invocations', icon: Zap },
         { title: t('layout.nav.contexts'), url: '/contexts', icon: MessageSquare },
         { title: t('layout.nav.messages'), url: '/messages', icon: FileText },
-        { title: t('layout.nav.botStickerSets'), url: '/stickers', icon: Sticker },
-        { title: t('layout.nav.imageGenerate'), url: '/image-generate', icon: ImagePlus },
-        { title: t('layout.nav.imageGenerations'), url: '/image-generations', icon: ImagePlus },
         { title: t('layout.nav.playground'), url: '/playground', icon: Play },
       ],
     },
     {
-      label: t('layout.nav.manage'),
+      label: t('layout.navGroups.agentData'),
       items: [
-        { title: t('layout.nav.alarms'), url: '/alarms', icon: Bell },
         { title: t('layout.nav.memories'), url: '/memories', icon: Brain },
         { title: t('layout.nav.groupMemories'), url: '/group-memories', icon: LibraryBig },
         { title: t('layout.nav.dictionary'), url: '/dictionary', icon: BookText },
-        { title: t('layout.nav.botAdmins'), url: '/admins', icon: Shield },
-        { title: t('layout.nav.apiKeys'), url: '/api-keys', icon: KeyRound },
-        { title: t('layout.nav.models'), url: '/models', icon: Cpu },
-        { title: t('layout.nav.imageSettings'), url: '/image-settings', icon: Settings },
-        { title: t('layout.nav.searchSettings'), url: '/search-settings', icon: Search },
-        { title: t('layout.nav.telegram'), url: '/telegram', icon: Send },
-        { title: t('layout.nav.chats'), url: '/chats', icon: MessagesSquare },
-        { title: t('layout.nav.prompts'), url: '/prompts', icon: ScrollText },
-        { title: t('layout.nav.harness'), url: '/harness', icon: SlidersHorizontal },
-        { title: t('layout.nav.developer'), url: '/developer', icon: Bug },
+        { title: t('layout.nav.alarms'), url: '/alarms', icon: Bell },
       ],
     },
     {
-      label: t('layout.nav.account'),
+      label: t('layout.navGroups.media'),
       items: [
-        { title: t('layout.nav.settings'), url: '/settings', icon: Settings },
+        { title: t('layout.nav.botStickerSets'), url: '/stickers', icon: Sticker },
+        { title: t('layout.nav.imageGenerate'), url: '/image-generate', icon: ImagePlus },
+        { title: t('layout.nav.imageGenerations'), url: '/image-generations', icon: Images },
+        { title: t('layout.nav.imageSettings'), url: '/image-settings', icon: Settings },
+      ],
+    },
+    {
+      label: t('layout.navGroups.agentSetup'),
+      items: [
+        { title: t('layout.nav.models'), url: '/models', icon: Cpu },
+        { title: t('layout.nav.prompts'), url: '/prompts', icon: ScrollText },
+        { title: t('layout.nav.harness'), url: '/harness', icon: SlidersHorizontal },
+        { title: t('layout.nav.searchSettings'), url: '/search-settings', icon: Search },
+      ],
+    },
+    {
+      label: t('layout.navGroups.telegram'),
+      items: [
+        { title: t('layout.nav.telegram'), url: '/telegram', icon: Send },
+        { title: t('layout.nav.chats'), url: '/chats', icon: MessagesSquare },
+        { title: t('layout.nav.botAdmins'), url: '/admins', icon: Shield },
+      ],
+    },
+    {
+      label: t('layout.navGroups.system'),
+      items: [
+        { title: t('layout.nav.apiKeys'), url: '/api-keys', icon: KeyRound },
+        { title: t('layout.nav.developer'), url: '/developer', icon: Bug },
+        { title: t('layout.nav.settings'), url: '/settings', icon: UserCog },
         { title: t('layout.nav.preferences'), url: '/preferences', icon: SlidersVertical },
       ],
     },
