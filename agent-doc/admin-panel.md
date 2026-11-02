@@ -75,7 +75,7 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 
 Session Token 以 Cookie 头发送（`plasticwan_admin`），因为带 `Authorization` 的请求会被服务端固定路由到 API key 分支且**不回退**到 Cookie。凭据文件 `~/.config/surowan-utils/credentials.json` 只保存一份凭据（`{endpoint, session}` 或 `{endpoint, apiKey}`），互斥。
 
-面板路由与 CLI 命令是一一对应的数据表：`packages/cli/src/panel/specs/` 里每个 `EndpointSpec` 就是一条 `/api` 路由（method、path、位置参数、query 参数、是否需要 `If-Match` 及哪种 revision、是否属于破坏性/计费、响应是 JSON/二进制/文本），`surowan-utils commands` 原样输出这张表。**新增面板端点时必须同时加一行 spec**，否则该能力在 CLI 里不存在；`test/cli/panel-parity.test.ts` 用真实 `AdminServer` 与真实 CLI 子进程验证登录、自动 revision、配置落盘、破坏性拒绝与 Session 轮换。
+面板路由与 CLI 命令是一一对应的数据表：`packages/cli/src/panel/specs/` 里每个 `EndpointSpec` 就是一条 `/api` 路由（method、path、位置参数、query 参数、是否需要 `If-Match` 及哪种 revision、是否属于破坏性/计费、响应是 JSON/二进制/文本），`surowan-utils commands` 原样输出这张表。**新增面板端点时必须同时加一行 spec**，否则该能力在 CLI 里不存在；`test/cli/panel/` 用真实 `AdminServer` 与真实 CLI 子进程验证登录、自动 revision、配置落盘、破坏性拒绝与 Session 轮换。
 
 写入的乐观锁不需要手工搬运：配置写入先读 `GET /api/providers` 的 `revision`，Prompt 写入先读该 scope 的 `content_hash`（`prompt restore` 先读版本的 scope），字典词条写入的 `revision` 只存在于调用方上次读取里，因此必须显式 `--if-match`。服务端冲突码（`config_conflict`/`prompt_conflict`/`dictionary_conflict`）原样返回，CLI 不重试也不覆盖。
 
