@@ -224,14 +224,25 @@ function buildBody(spec: EndpointSpec, flags: PanelFlags): unknown {
   return body;
 }
 
+/**
+ * Keys that resolve to `Object.prototype` (or set it) instead of naming a body
+ * field: `--set __proto__.x=1` would otherwise pollute every object in the
+ * process and silently drop the field from the request.
+ */
+const UNSAFE_SEGMENTS: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'prototype']);
+
 function assign(body: Record<string, unknown>, path: string, value: unknown, flag: string): void {
   const segments = path.split('.').filter((segment) => segment.length > 0);
   if (segments.length === 0) {
     throw usageError('invalid_set', `${flag} requires a non-empty key`);
   }
+  const unsafe = segments.find((segment) => UNSAFE_SEGMENTS.has(segment));
+  if (unsafe !== undefined) {
+    throw usageError('invalid_set', `${flag} cannot set ${path}: "${unsafe}" is not a body field`);
+  }
   let target: Record<string, unknown> = body;
   for (const segment of segments.slice(0, -1)) {
-    const next = target[segment];
+    const next = Object.hasOwn(target, segment) ? target[segment] : undefined;
     if (next === undefined) {
       const created: Record<string, unknown> = {};
       target[segment] = created;

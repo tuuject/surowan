@@ -198,6 +198,12 @@ describe('surowan-utils panel writes', () => {
       const strayBoolean = await runCli(['chat', 'list', '--confirm-paid'], fixture);
       expect(strayBoolean.code).toBe(2);
       expect(errorCode(strayBoolean)).toBe('unexpected_option');
+      // A dotted key may not reach Object.prototype through `__proto__` & co.
+      for (const key of ['__proto__.polluted', 'constructor.prototype.polluted', 'a.__proto__']) {
+        const unsafe = await runCli(['chat', 'create', '--set', `${key}=1`, '--json'], fixture);
+        expect(unsafe.code, key).toBe(2);
+        expect(errorCode(unsafe), key).toBe('invalid_set');
+      }
       // Global credential flags are consumed, never treated as route params.
       const viaFlag = await runCli(
         ['overview', '--json', '--session', storedSession(fixture), '--endpoint', fixture.baseUrl],
