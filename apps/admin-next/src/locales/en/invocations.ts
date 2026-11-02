@@ -20,6 +20,7 @@ export const invocations = {
     },
     statePlaceholder: 'State',
     hostPlaceholder: 'Host',
+    modelPlaceholder: 'Model',
     hosts: {
       telegram: 'Telegram',
       playground: 'Playground',

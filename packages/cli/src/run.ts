@@ -16,7 +16,7 @@ export const USAGE = `surowan-utils - Surowan Admin API 工具客户端
   surowan-utils config show [--source active|file] [--json]
   surowan-utils prompt get global [--source active|file] [--json]
   surowan-utils prompt get group --chat <id> [--source active|file] [--json]
-  surowan-utils invocation list [--limit N] [--cursor ID] [--state STATE] [--chat ID] [--search <keyword>] [--at <time>] [--from <time>] [--to <time>] [--json]
+  surowan-utils invocation list [--limit N] [--cursor ID] [--state STATE] [--chat ID] [--model ID] [--search <keyword>] [--at <time>] [--from <time>] [--to <time>] [--json]
   surowan-utils invocation get <id> [--json]
   surowan-utils invocation prompts <id> [--json]
   surowan-utils invocation preflight <id> [--before-send <send-id>] [--provider <alias> --model <id>] [--thinking-level <level>] [--json]
@@ -34,6 +34,7 @@ export const USAGE = `surowan-utils - Surowan Admin API 工具客户端
   --global-prompt <file|->  仅 invocation replay：替换 global prompt；- 表示 stdin
   --group-prompt <file|->   仅 invocation replay：替换 group prompt（允许空）；- 表示 stdin
   --search <keyword>  仅 invocation list：按字面关键词过滤消息（1-100 字符，不解释通配符）
+  --model <id>        仅 invocation list：按 agent 模型 ID 精确过滤（1-256 字符，与 --provider/--thinking-level 无关）
   --at <time>         仅 invocation list：筛选该时刻的 Invocation，与 --from/--to 互斥
   --from <time> / --to <time>  仅 invocation list：筛选时间范围
   --before-send <send-id>  仅 invocation preflight/replay：从该 telegram_sends 内部 id（已成功发送）之前开始回放

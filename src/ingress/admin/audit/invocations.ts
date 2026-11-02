@@ -52,6 +52,9 @@ export interface InvocationListRow {
   readonly total_cost: number | null;
 }
 
+/** `model_calls.model` is stored verbatim; the bound matches the replay override. */
+const MAX_MODEL_FILTER_LENGTH = 256;
+
 export const INVOCATION_CHAT_COLUMNS = sql`ch.host_kind, ch.id AS chat_id, ch.telegram_chat_id, ch.type AS chat_type,
               ch.title AS chat_title, ch.username AS chat_username, c.message_thread_id`;
 
@@ -71,6 +74,20 @@ export function listInvocations(orm: Orm, query: ListQuery, config?: RawConfig):
   }
   if (query.chat !== undefined && query.chat !== null && query.chat.length > 0) {
     conditions.push(sql`ch.telegram_chat_id = ${parseId(query.chat, 'chat')}`);
+  }
+  const model = optionalFilter(query.model);
+  if (model !== undefined) {
+    if (model.trim().length === 0 || model.length > MAX_MODEL_FILTER_LENGTH || /\p{Cc}/u.test(model)) {
+      throw new AdminQueryError(
+        'invalid_model',
+        `model must be 1 to ${MAX_MODEL_FILTER_LENGTH} characters without control characters`,
+      );
+    }
+    // The agent model is what the invocation actually ran on; vision and
+    // auxiliary calls belong to other models and never make a row match.
+    conditions.push(
+      sql`EXISTS (SELECT 1 FROM model_calls mc WHERE mc.invocation_id = i.id AND mc.role = 'agent' AND mc.model = ${model})`,
+    );
   }
   const filter = parseInvocationMessageFilter(orm, query, config);
   if (filter !== null) {

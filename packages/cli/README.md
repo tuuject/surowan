@@ -56,6 +56,7 @@ surowan-utils invocation list --cursor 12345 --json
 # 按关键词与公开消息时间定位 Invocation；--at 与 --from/--to 互斥
 surowan-utils invocation list --search '关键词' --at '2026-09-10 07:59' --json
 surowan-utils invocation list --search '关键词' --from '2026-09-10 07:00' --to '2026-09-10 08:00' --json
+surowan-utils invocation list --model deepseek/deepseek-v4-flash --from '2026-09-10 07:00' --to '2026-09-11 07:00' --json
 surowan-utils invocation get 12345 --json
 surowan-utils invocation media 12345 --json
 surowan-utils invocation replay 12345 --json
@@ -110,7 +111,7 @@ printf '%s' "$SECRET_KEY" | surowan-utils login --endpoint "$SUROWAN_ENDPOINT" -
 | `--global-prompt <file\|->` | 仅 replay：临时替换 global prompt 层；`-` 从非终端标准输入读取，去空白后不能为空、最多 65,536 字符，否则在发请求前以退出码 2 失败 |
 | `--group-prompt <file\|->` | 仅 replay：临时替换 group 层；允许空内容以显式清空该层，最多 65,536 字符；与 `--global-prompt -` 不能同时从 stdin 读取（`conflicting_prompt_input`）。标准输入只用于 `login` 的 key 与 replay 的 prompt |
 | `--provider <alias>` | 仅 `invocation preflight` 与 `invocation replay`：临时模型覆盖的 Provider alias；必须与 `--model` 成对（`invalid_model_override`，退出码 2），1–256 字符、不含控制字符 |
-| `--model <id>` | 仅 `invocation preflight` 与 `invocation replay`：临时模型覆盖的模型 ID；必须与 `--provider` 成对，规则同上 |
+| `--model <id>` | `invocation list`：按该 Invocation 的 **agent** `model_calls.model` 精确过滤（区分大小写，不做前缀/模糊匹配；视觉与 Tool Model 调用不算），1–256 字符、不含控制字符，空值、纯空白或其它非法值以 `invalid_model`（退出码 2）拒绝；list 不接受 `--provider`/`--thinking-level`。`invocation preflight` 与 `invocation replay`：临时模型覆盖的模型 ID，必须与 `--provider` 成对，规则同上 |
 | `--thinking-level <level>` | 仅 `invocation preflight` 与 `invocation replay`：临时 thinking 覆盖，取 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`（`invalid_thinking_level`，退出码 2）。可单独使用（只临时改 thinking，模型沿用当前 Chat 配置）；与模型对同给时按该模型校验级别，给模型对而不给 thinking 时使用该模型支持的最弱级别（非推理模型为 `off`），模型不支持的级别由服务端拒绝。预检与重放必须使用同一选择 |
 
 完整 API 契约、输出与退出码见 [REFERENCE.md](./REFERENCE.md)。

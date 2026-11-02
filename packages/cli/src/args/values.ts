@@ -1,6 +1,7 @@
 import { usageError } from '../errors.ts';
 import {
   DECIMAL_PATTERN,
+  MAX_MODEL_LENGTH,
   MAX_PAGE_LIMIT,
   MAX_SEARCH_LENGTH,
   MAX_SIGNED_64,
@@ -210,6 +211,21 @@ export function parseDecimalId(text: string, label: 'id' | 'cursor' | 'chat', al
 export function parseState(text: string): string {
   if (!STATE_PATTERN.test(text)) {
     throw usageError('invalid_state', 'state filter is invalid');
+  }
+  return text;
+}
+
+/**
+ * `--model` on `invocation list` is the model id recorded on the invocation's
+ * agent calls, not a replay override: it is matched verbatim, so it is bounded
+ * like the replay override instead of being narrowed to a token shape.
+ */
+export function parseModelFilter(text: string | undefined): string | undefined {
+  if (text === undefined) {
+    return undefined;
+  }
+  if (text.trim().length === 0 || text.length > MAX_MODEL_LENGTH || /\p{Cc}/u.test(text)) {
+    throw usageError('invalid_model', `model must be 1 to ${MAX_MODEL_LENGTH} characters without control characters`);
   }
   return text;
 }

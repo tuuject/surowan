@@ -152,6 +152,7 @@ export function listQuery(url: URL): ListQuery {
     host: url.searchParams.get('host'),
     set: url.searchParams.get('set'),
     search: url.searchParams.get('search'),
+    model: url.searchParams.get('model'),
     day: url.searchParams.get('day'),
     target: url.searchParams.get('target'),
     at: url.searchParams.get('at'),

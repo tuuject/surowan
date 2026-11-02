@@ -18,6 +18,8 @@ export const TIME_PATTERN =
 export const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
 
 export const MAX_SEARCH_LENGTH = 100;
+/** `invocation list --model` matches the stored model id verbatim, bounded like replay overrides. */
+export const MAX_MODEL_LENGTH = 256;
 
 export const OPTIONS = {
   endpoint: { type: 'string' },

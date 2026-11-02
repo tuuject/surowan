@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_SEARCH_LENGTH } from '../../packages/cli/src/args/spec.ts';
+import { MAX_MODEL_LENGTH, MAX_SEARCH_LENGTH } from '../../packages/cli/src/args/spec.ts';
 import { jsonResponse, onlyRequest, requestPath, requestQuery, runCli, startServer } from './harness.ts';
 import { ENV, PREFLIGHT, LIST_ITEM, PLAIN_ITEM } from './inspection-fixtures.ts';
 
@@ -94,6 +94,29 @@ describe('surowan-utils inspection commands', () => {
       await server.close();
     }
   }, 30_000);
+
+  it('invocation list forwards the model filter verbatim alongside the other filters', async () => {
+    const server = await startServer((_request, response) => {
+      jsonResponse(response, 200, { items: [], next_cursor: null });
+    });
+    try {
+      const env = ENV(server.baseUrl);
+      const result = await runCli(
+        ['invocation', 'list', '--model', 'deepseek/deepseek-v4-flash', '--state', 'completed', '--json'],
+        { env },
+      );
+      expect(result.code, result.stderr).toBe(0);
+      expect(requestQuery(onlyRequest(server))).toEqual({ model: 'deepseek/deepseek-v4-flash', state: 'completed' });
+
+      const exactLength = await runCli(['invocation', 'list', '--model', 'm'.repeat(MAX_MODEL_LENGTH), '--json'], {
+        env,
+      });
+      expect(exactLength.code, exactLength.stderr).toBe(0);
+      expect(requestQuery(onlyRequest(server, 1))).toEqual({ model: 'm'.repeat(MAX_MODEL_LENGTH) });
+    } finally {
+      await server.close();
+    }
+  }, 20_000);
 
   it('invocation list leaves timezone-less ranges to the server instead of guessing an order', async () => {
     const server = await startServer((_request, response) => {

@@ -9,6 +9,7 @@ export interface ListCommand {
   readonly state: string | undefined;
   readonly chat: string | undefined;
   readonly search: string | undefined;
+  readonly model: string | undefined;
   readonly at: string | undefined;
   readonly from: string | undefined;
   readonly to: string | undefined;

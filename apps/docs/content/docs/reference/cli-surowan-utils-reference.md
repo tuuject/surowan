@@ -11,6 +11,8 @@ description: 查询、导出与重放 Invocation 的选项、请求/响应形状
 surowan-utils invocation list --cursor 12345 --json
 surowan-utils invocation list --search '关键词' --at '2026-09-10 07:59' --json
 surowan-utils invocation list --search '关键词' --from '2026-09-10 07:00' --to '2026-09-10 08:00' --json
+# 按 agent 模型 ID 精确过滤：给某个模型在一段时间内的表现建立基线
+surowan-utils invocation list --model deepseek/deepseek-v4-flash --from '2026-09-10 07:00' --to '2026-09-11 07:00' --json
 surowan-utils invocation media 12345 --json
 surowan-utils invocation media 12345 --variant preview --json
 surowan-utils invocation replay 12345 --json
@@ -43,7 +45,7 @@ surowan-utils invocation replay 12345 --provider openrouter --model deepseek/dee
 | `--global-prompt <file\|->` | 仅 `invocation replay`：完整替换 global 层；`-` 从非终端标准输入读取，去空白后不能为空、最多 65,536 字符，否则在发请求前以退出码 2 失败 |
 | `--group-prompt <file\|->` | 仅 `invocation replay`：完整替换 group 层；允许空内容以显式清空，最多 65,536 字符；与 `--global-prompt -` 不能同时从 stdin 读取 |
 | `--provider <alias>` | 仅 `invocation preflight` 与 `invocation replay`：临时模型覆盖的 Provider alias；必须与 `--model` 成对（`invalid_model_override`，退出码 2），1–256 字符、不含控制字符 |
-| `--model <id>` | 仅 `invocation preflight` 与 `invocation replay`：临时模型覆盖的模型 ID；必须与 `--provider` 成对，规则同上 |
+| `--model <id>` | `invocation list`：按该 Invocation 的 **agent** `model_calls.model` 精确过滤（区分大小写，不做前缀/模糊匹配；视觉与 Tool Model 调用不算），1–256 字符、不含控制字符，空值、纯空白或其它非法值以 `invalid_model`（退出码 2）拒绝；list 不接受 `--provider`/`--thinking-level`。`invocation preflight` 与 `invocation replay`：临时模型覆盖的模型 ID，必须与 `--provider` 成对，规则同上 |
 | `--thinking-level <level>` | 仅 `invocation preflight` 与 `invocation replay`：临时 thinking 覆盖，取 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`（`invalid_thinking_level`，退出码 2）。可单独使用（只临时改 thinking，模型沿用当前 Chat 配置）；与模型对同给时按该模型校验级别，给模型对而不给 thinking 时使用该模型支持的最弱级别（非推理模型为 `off`），模型不支持的级别由服务端拒绝。预检与重放必须使用同一选择 |
 
 失败时 stderr 输出 `{"error":"<code>","message":"<message>"}`，错误信息经 key 脱敏，密钥不会出现在任何输出中；退出码 `0` 表示成功，`1` 表示请求/服务端/replay/媒体下载失败或保存文件无效（`invalid_credentials`），`2` 表示参数、输入或凭据不合法（含 `missing_endpoint`、`missing_api_key`、`invalid_api_key`、`credentials_too_large`、搜索/时间过滤与 `--before-send` 的本地校验错误、模型选择的 `invalid_model_override`/`invalid_thinking_level`，以及 prompt 覆盖相关错误）。标准输入只用于 `login` 的 `--api-key-stdin` 与 replay 的 `--global-prompt -` / `--group-prompt -`（不能同时）。请求不跟随重定向；JSON 响应体不设客户端大小上限，完整读取后解析，仍受请求超时约束。

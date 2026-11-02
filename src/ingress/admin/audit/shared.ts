@@ -23,6 +23,8 @@ export interface ListQuery {
   /** Invocation host: `telegram` or `playground`. */
   readonly host?: string | null;
   readonly search?: string | null;
+  /** Exact `model_calls.model` of the invocation's agent calls. */
+  readonly model?: string | null;
   /** Chat-local day for group memory. */
   readonly day?: string | null;
   readonly target?: string | null;

@@ -80,6 +80,9 @@ async function runList(command: ListCommand, context: CommandContext, client: Ad
   if (command.search !== undefined) {
     query.set('search', command.search);
   }
+  if (command.model !== undefined) {
+    query.set('model', command.model);
+  }
   if (command.at !== undefined) {
     query.set('at', command.at);
   }
