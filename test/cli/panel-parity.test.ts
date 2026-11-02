@@ -92,6 +92,43 @@ describe('surowan-utils panel surface', () => {
     }
   }, 60_000);
 
+  it('sends the query of a write so it reaches the Chat it names', async () => {
+    const fixture = await panelFixture();
+    try {
+      await fetch(`${fixture.baseUrl}/api/auth/setup`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
+      });
+      await loginPanel(fixture);
+
+      // Without `chat` the server would change the global mode instead.
+      const override = await runCli(
+        ['dictionary', 'settings', 'update', '--chat', '123456789', '--set', 'injection_mode=off', '--json'],
+        fixture,
+      );
+      expect(override.code, override.stderr).toBe(0);
+      const settings = await runCli(['dictionary', 'settings', 'show', '--chat', '123456789', '--json'], fixture);
+      expect(settings.code, settings.stderr).toBe(0);
+      expect(JSON.parse(settings.stdout)).toMatchObject({ injection_mode: 'on_demand', override_mode: 'off' });
+
+      // The group prompt route rejects a write without `chat`.
+      const saved = await runCli(
+        ['prompt', 'save', 'group', '--chat', '123456789', '--file', '-', '--json'],
+        fixture,
+        {},
+        { stdin: 'Group rules from the cli.\n' },
+      );
+      expect(saved.code, saved.stderr).toBe(0);
+      expect(JSON.parse(saved.stdout)).toMatchObject({ status: 'saved' });
+      const prompt = await runCli(['prompt', 'get', 'group', '--chat', '123456789', '--json'], fixture);
+      expect(prompt.code, prompt.stderr).toBe(0);
+      expect(JSON.parse(prompt.stdout)).toMatchObject({ prompt: 'Group rules from the cli.\n' });
+    } finally {
+      await fixture.close();
+    }
+  }, 60_000);
+
   it('refuses destructive and billed actions without --yes, and never sends them', async () => {
     const fixture = await panelFixture();
     try {

@@ -65,13 +65,7 @@ export async function runPanelCommand(
   const raw =
     spec.response === 'binary' || spec.response === 'text'
       ? await rawResponse(client, `api/${path}`, query, options, spec)
-      : spec.method === 'GET'
-        ? await client.get(`api/${path}`, query, options)
-        : spec.method === 'DELETE'
-          ? await client.delete(`api/${path}`, options)
-          : spec.method === 'POST'
-            ? await client.post(`api/${path}`, command.body, options)
-            : await client.put(`api/${path}`, command.body, options);
+      : await client.request(spec.method, `api/${path}`, query, command.body, options);
   await applySessionEffect(spec, client, session);
   await writeOutput(raw, spec, command, context);
   return 0;

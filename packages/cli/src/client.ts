@@ -100,19 +100,11 @@ export class AdminClient {
   }
 
   async get(path: string, query?: URLSearchParams, options: RequestOptions = {}): Promise<unknown> {
-    return await this.#request('GET', path, query, undefined, options);
+    return await this.request('GET', path, query, undefined, options);
   }
 
   async post(path: string, body: unknown, options: RequestOptions = {}): Promise<unknown> {
-    return await this.#request('POST', path, undefined, body, options);
-  }
-
-  async put(path: string, body: unknown, options: RequestOptions = {}): Promise<unknown> {
-    return await this.#request('PUT', path, undefined, body, options);
-  }
-
-  async delete(path: string, options: RequestOptions = {}): Promise<unknown> {
-    return await this.#request('DELETE', path, undefined, undefined, options);
+    return await this.request('POST', path, undefined, body, options);
   }
 
   /**
@@ -258,7 +250,11 @@ export class AdminClient {
     return url;
   }
 
-  async #request(
+  /**
+   * One JSON request. The query applies to every method: panel writes such as
+   * `PUT /api/prompts/group?chat=…` select their target through it.
+   */
+  async request(
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     path: string,
     query: URLSearchParams | undefined,
