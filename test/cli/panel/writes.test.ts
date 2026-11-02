@@ -18,6 +18,17 @@ describe('surowan-utils panel writes', () => {
       const before = JSON.parse(harness.stdout) as { saved: Record<string, number | boolean | null> };
       expect(before.saved.history_messages).toBeTypeOf('number');
 
+      // `--output` only fits file and image responses; a JSON write that
+      // carries it is refused before it can take effect.
+      const unchanged = await readFile(fixture.configPath, 'utf8');
+      const misplaced = await runCli(
+        ['harness', 'update', '--set-json', 'values.history_messages=17', '--output', 'out.json', '--json'],
+        fixture,
+      );
+      expect(misplaced.code).toBe(2);
+      expect(errorCode(misplaced)).toBe('unexpected_option');
+      expect(await readFile(fixture.configPath, 'utf8')).toBe(unchanged);
+
       const update = await runCli(['harness', 'update', '--set-json', 'values.history_messages=17', '--json'], fixture);
       expect(update.code, update.stderr).toBe(0);
       const after = JSON.parse(update.stdout) as { saved: Record<string, number | boolean | null>; apply: unknown };

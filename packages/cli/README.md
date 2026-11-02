@@ -176,7 +176,7 @@ printf '%s' "$SECRET_KEY" | surowan-utils login --endpoint "$SUROWAN_ENDPOINT" -
 | `--if-match <revision>` | 面板命令：显式指定 `If-Match`。省略时配置写入自动读取当前 `revision`，Prompt 写入自动读取该 scope 的 `content_hash`；字典词条写入必须显式给出（`if_match_required`） |
 | `--yes` | 面板命令：确认破坏性（`destructive`）或计费（`paid`）操作；缺失时在发请求前以 `confirmation_required`（退出码 2）拒绝。`--dry-run` 可替代它用于预览 |
 | `--dry-run` | 面板命令：只把将要发送的 `method`/`path`/`if_match`/`body` 写到 stdout，不发请求 |
-| `--output <path>` | 面板命令：把二进制（图片、媒体）或文本（字典导出）响应写入文件，并输出 `{status,path,bytes}`；JSON 响应不接受该选项 |
+| `--output <path>` | 面板命令：把二进制（图片、媒体）或文本（字典导出）响应写入文件，并输出 `{status,path,bytes}`；JSON 响应的命令带该选项时在发请求前以 `unexpected_option`（退出码 2）拒绝 |
 | `--variant <original\|preview>` | 仅 `invocation media`：下载原始文件（默认）或服务端规范化预览；preview 只对 photo/sticker 可用，单文件与总量上限见下文 |
 | `--timeout-ms <ms>` | 请求/输入超时；默认除 replay（300s）外都是 30s。stdin 读取单独使用同一上限，超时返回 `timeout`（退出码 1）且不发请求；HTTP 超时会中止请求，均**不自动重试** |
 | `--json` | 稳定 JSON 输出；成功时 stdout 恰好一个 JSON 文档 |

@@ -53,6 +53,11 @@ export function parsePanelCommand(words: readonly string[], flags: PanelFlags): 
   ) {
     throw usageError('unexpected_option', `${spec.command} takes no body; --set, --body and --file are invalid`);
   }
+  // Checked here, not after the response: a write that returns JSON would
+  // otherwise take effect (or be billed) and then exit with a usage error.
+  if (flags.output !== undefined && spec.response !== 'binary' && spec.response !== 'text') {
+    throw usageError('unexpected_option', `${spec.command} returns JSON; --output is only valid for files and images`);
+  }
   if (spec.confirm !== undefined && !flags.yes && !flags.dryRun) {
     throw usageError(
       'confirmation_required',
