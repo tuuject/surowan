@@ -111,6 +111,17 @@ describe('surowan-utils inspection commands', () => {
         [['config', 'show', '--search', 'x'], 'unexpected_option'],
         [['prompt', 'get', 'global', '--to', '2026-10-06T12:00'], 'unexpected_option'],
         [['prompt', 'get', 'global', '--before-send', '1'], 'unexpected_option'],
+        // Panel-only flags would be dropped silently: a `--dry-run` replay must
+        // not turn into a real, billed one.
+        [['invocation', 'replay', '1', '--dry-run'], 'unexpected_option'],
+        [['invocation', 'replay', '1', '--yes'], 'unexpected_option'],
+        [['invocation', 'media', '1', '--output', 'x.bin'], 'unexpected_option'],
+        [['invocation', 'list', '--set', 'a=b'], 'unexpected_option'],
+        [['models', 'list', '--dry-run'], 'unexpected_option'],
+        [['config', 'show', '--if-match', 'x'], 'unexpected_option'],
+        [['prompt', 'get', 'global', '--file', 'x'], 'unexpected_option'],
+        [['login', '--dry-run'], 'unexpected_option'],
+        [['doctor', '--yes'], 'unexpected_option'],
       ];
       for (const [args, code] of cases) {
         const result = await runCli(args, { env });

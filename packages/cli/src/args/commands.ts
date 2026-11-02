@@ -54,6 +54,7 @@ export function parseCommand(positionals: readonly string[], flags: StringFlags)
       throw usageError('unexpected_argument', `${group} takes no positional arguments`);
     }
     rejectUnsupportedFlags(flags, [...INSPECTION_FLAGS, ...CONFIRM_PAID_FLAGS]);
+    rejectPanelFlags(flags);
     if (group === 'doctor') {
       rejectUnsupportedFlags(flags, ['api-key-stdin', 'username', 'password', 'password-stdin']);
       return { kind: 'doctor' };
@@ -98,6 +99,12 @@ export function parseCommand(positionals: readonly string[], flags: StringFlags)
   // `prompt get` stay the existing read commands and have no panel row.
   if (findPanelSpec(positionals) !== undefined) {
     return parsePanelCommand(positionals, toPanelFlags(flags));
+  }
+  if (FIRST_CLASS_GROUPS.has(group)) {
+    // These commands predate the panel flags and only reject the flags they
+    // know about. An ignored `--dry-run` would send the real, possibly billed,
+    // request, so every panel-only flag is refused here.
+    rejectPanelFlags(flags);
   }
   switch (group) {
     case 'models':
@@ -166,6 +173,9 @@ const GLOBAL_FLAGS: Readonly<Record<string, true>> = {
   'password-stdin': true,
   'api-key-stdin': true,
 };
+
+/** Groups the `switch` below parses itself rather than through the panel table. */
+const FIRST_CLASS_GROUPS: ReadonlySet<string> = new Set(['models', 'config', 'prompt', 'invocation']);
 
 /** Flags only the panel commands understand, rejected by the first-class ones. */
 export const PANEL_ONLY_FLAGS: readonly FlagName[] = [
