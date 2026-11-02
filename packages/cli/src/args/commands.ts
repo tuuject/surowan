@@ -56,9 +56,12 @@ export function parseCommand(positionals: readonly string[], flags: StringFlags)
     rejectUnsupportedFlags(flags, [...INSPECTION_FLAGS, ...CONFIRM_PAID_FLAGS]);
     rejectPanelFlags(flags);
     if (group === 'doctor') {
-      rejectUnsupportedFlags(flags, ['api-key-stdin', 'username', 'password', 'password-stdin']);
+      rejectUnsupportedFlags(flags, LOGIN_ONLY_FLAGS);
       return { kind: 'doctor' };
     }
+    // `--session` authenticates requests; login creates a credential and
+    // would otherwise ignore it while prompting for a different one.
+    rejectUnsupportedFlags(flags, ['session']);
     const username = flags.username;
     const password = flags.password;
     const passwordStdin = flags['password-stdin'] === true;
@@ -90,10 +93,12 @@ export function parseCommand(positionals: readonly string[], flags: StringFlags)
       throw usageError('unexpected_argument', 'commands takes no positional arguments');
     }
     rejectPanelFlags(flags);
-    rejectUnsupportedFlags(flags, [...INSPECTION_FLAGS, ...CONFIRM_PAID_FLAGS]);
+    rejectUnsupportedFlags(flags, [...INSPECTION_FLAGS, ...CONFIRM_PAID_FLAGS, ...LOGIN_ONLY_FLAGS]);
     return { kind: 'commands-list' };
   }
-  rejectUnsupportedFlags(flags, ['api-key-stdin']);
+  // Login input on any other command would be ignored while the request runs
+  // with whatever credential resolves, so it is refused instead.
+  rejectUnsupportedFlags(flags, LOGIN_ONLY_FLAGS);
   // A panel route wins over a first-class group of the same name: `config
   // apply` and `prompt save` are panel writes, while `config show` and
   // `prompt get` stay the existing read commands and have no panel row.
@@ -162,17 +167,16 @@ function toPanelFlags(flags: StringFlags): Parameters<typeof parsePanelCommand>[
 }
 
 /**
- * Global flags consumed before a command runs (credential, endpoint, timeout,
- * login input). They are never a route parameter, so the panel parser must not
- * report them as unexpected.
+ * Global flags consumed before a command runs (the request credential). They
+ * are never a route parameter, so the panel parser must not report them as
+ * unexpected. Login input is refused before a panel command is parsed.
  */
 const GLOBAL_FLAGS: Readonly<Record<string, true>> = {
   session: true,
-  username: true,
-  password: true,
-  'password-stdin': true,
-  'api-key-stdin': true,
 };
+
+/** Inputs to `login` itself; every other command refuses them. */
+const LOGIN_ONLY_FLAGS: readonly FlagName[] = ['api-key-stdin', 'username', 'password', 'password-stdin'];
 
 /** Groups the `switch` below parses itself rather than through the panel table. */
 const FIRST_CLASS_GROUPS: ReadonlySet<string> = new Set(['models', 'config', 'prompt', 'invocation']);

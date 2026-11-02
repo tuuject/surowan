@@ -122,6 +122,14 @@ describe('surowan-utils inspection commands', () => {
         [['prompt', 'get', 'global', '--file', 'x'], 'unexpected_option'],
         [['login', '--dry-run'], 'unexpected_option'],
         [['doctor', '--yes'], 'unexpected_option'],
+        // Login input elsewhere would be ignored while the request runs with
+        // the resolved credential; a request credential on login likewise.
+        [['models', 'list', '--username', 'owner'], 'unexpected_option'],
+        [['invocation', 'list', '--password', 'secret-password'], 'unexpected_option'],
+        [['overview', '--password', 'secret-password'], 'unexpected_option'],
+        [['chat', 'list', '--password-stdin'], 'unexpected_option'],
+        [['commands', '--username', 'owner'], 'unexpected_option'],
+        [['login', '--session', 'token'], 'unexpected_option'],
       ];
       for (const [args, code] of cases) {
         const result = await runCli(args, { env });
