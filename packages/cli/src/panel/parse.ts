@@ -191,7 +191,7 @@ function buildBody(spec: EndpointSpec, flags: PanelFlags): unknown {
     return parseJsonDocument(flags.body, '--body');
   }
   if (flags.file !== undefined && spec.fileField === undefined) {
-    return readBodyFileSync(flags.file);
+    return parseJsonDocument(readBodyText(flags.file), '--file');
   }
   if (flags.file === undefined && !hasFields) {
     if (spec.body === 'optional') {
@@ -286,12 +286,4 @@ function parseJsonDocument(text: string, flag: string): unknown {
     throw usageError('invalid_json', `${flag} must be valid JSON`);
   }
   return parsed;
-}
-
-/**
- * A whole-document body from a file (or `-` for stdin) is parsed as JSON.
- * A secret supplied this way never appears in the process arguments.
- */
-function readBodyFileSync(path: string): unknown {
-  return parseJsonDocument(readBodyText(path), '--file');
 }

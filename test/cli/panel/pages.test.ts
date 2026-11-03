@@ -147,6 +147,33 @@ describe('surowan-utils panel pages', () => {
       );
       expect(asJson.code, asJson.stderr).toBe(0);
       expect(() => JSON.parse(asJson.stdout)).not.toThrow();
+
+      // A CSV cell is not JSON: a quoted cell holding a backslash must survive
+      // the plain-text redaction instead of being parsed as a JSON token.
+      const entry = await runCli(
+        [
+          'dictionary',
+          'create',
+          '--set',
+          'term=path',
+          '--set-json',
+          'definition="C:\\\\Users\\\\me, and more"',
+          '--set-json',
+          'aliases=[]',
+          '--set',
+          'scope=global',
+          '--set-json',
+          'chat_id=null',
+          '--set-json',
+          'enabled=true',
+          '--json',
+        ],
+        fixture,
+      );
+      expect(entry.code, entry.stderr).toBe(0);
+      const csv = await runCli(['dictionary', 'export', '--scope', 'global', '--format', 'csv'], fixture);
+      expect(csv.code, csv.stderr).toBe(0);
+      expect(csv.stdout).toContain('"C:\\Users\\me, and more"');
     } finally {
       await fixture.close();
     }

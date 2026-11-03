@@ -216,9 +216,8 @@ export function parseState(text: string): string {
 }
 
 /**
- * `--model` on `invocation list` is the model id recorded on the invocation's
- * agent calls, not a replay override: it is matched verbatim, so it is bounded
- * like the replay override instead of being narrowed to a token shape.
+ * `--model` filters on the id recorded on the invocation's agent calls, matched
+ * verbatim: bounded like the replay override, not narrowed to a token shape.
  */
 export function parseModelFilter(text: string | undefined): string | undefined {
   if (text === undefined) {

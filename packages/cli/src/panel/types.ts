@@ -39,7 +39,6 @@ export interface PositionalArg {
    * restricts the value to `values`; `text` is passed through and encoded.
    */
   readonly kind: 'decimal' | 'enum' | 'text';
-  /** Allowed values for `enum`. */
   readonly values?: readonly string[];
   readonly optional?: boolean;
 }

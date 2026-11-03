@@ -50,9 +50,10 @@ export async function runCli(argv: readonly string[], options: RunOptions = {}):
       ...(resolved.session === undefined ? {} : { session: resolved.session }),
       defaultTimeoutMs: resolved.timeoutMs,
     });
-    // Everything except `invocation list` writes JSON documents, so string
-    // tokens can be redacted without touching the document structure.
-    const output = redactingIo(io, secrets, resolved.json || resolved.command.kind !== 'list');
+    // JSON-aware redaction decodes each string token, so it only fits a body
+    // that is JSON: a panel text export (CSV/JSONL) is raw bytes, and rewriting
+    // its quoted cells as JSON fails on any cell holding a backslash.
+    const output = redactingIo(io, secrets, emitsJsonDocument(resolved.command, resolved.json));
     if (resolved.command.kind === 'doctor') {
       const raw = await client.get('api/invocations', new URLSearchParams({ limit: '1' }));
       if (
@@ -217,7 +218,18 @@ async function panelLoginFlow(
   return 0;
 }
 
-/** `commands` lists the panel surface so an operator can see what is reachable. */
+/**
+ * Whether stdout carries a JSON document, which is what lets the redactor
+ * rewrite string tokens in place. A panel text export without `--json` prints
+ * raw bytes instead, so it needs the plain whole-text redaction.
+ */
+function emitsJsonDocument(command: Command, json: boolean): boolean {
+  if (command.kind === 'panel' && command.spec.response === 'text' && command.output === undefined && !json) {
+    return false;
+  }
+  return json || command.kind !== 'list';
+}
+
 function renderCommands(json: boolean): string {
   if (json) {
     return `${JSON.stringify(

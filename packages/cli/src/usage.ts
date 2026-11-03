@@ -1,4 +1,3 @@
-/** The `--help` text: every command, the panel command groups and the global options. */
 export const USAGE = `surowan-utils - Surowan Admin Panel 与 Admin API 工具客户端
 
 用法:

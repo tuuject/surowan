@@ -3,7 +3,7 @@
  * `zh-CN/layout.ts` mirrors this structure key for key.
  */
 export const layout = {
-  // Referenced flat as t("layout.switchLanguage") by themes/language-toggle.tsx.
+  // Referenced flat as t("layout.switchLanguage") by components/themes/language-toggle.tsx.
   switchLanguage: 'Switch language',
   navGroups: {
     monitor: 'Monitor',

@@ -85,7 +85,7 @@ test('a keyword search reaches an entry older than thousands of non-matching one
   const f = await groupMemoryFixture();
   try {
     f.groupMemory.commit(f.chatId, '2025-01-01', [{ ...range(1), summary: 'The Ärger about the needle' }], 1n);
-    // More newer entries than one scan page, and more than the old fixed cap of 5,000.
+    // 6,000 newer entries: well past one scan page, so the needle sits beyond it.
     for (let day = 0; day < 6; day += 1) {
       const date = `2026-0${day + 1}-01`;
       const events = Array.from({ length: 1_000 }, (_, index) => range(10_000 * (day + 1) + index));

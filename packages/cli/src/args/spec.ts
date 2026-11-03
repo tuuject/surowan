@@ -18,7 +18,7 @@ export const TIME_PATTERN =
 export const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
 
 export const MAX_SEARCH_LENGTH = 100;
-/** `invocation list --model` matches the stored model id verbatim, bounded like replay overrides. */
+/** Bound shared by the replay model override and the `invocation list --model` filter. */
 export const MAX_MODEL_LENGTH = 256;
 
 export const OPTIONS = {
@@ -93,9 +93,9 @@ export const INSPECTION_FLAGS: readonly FlagName[] = [
   'before-send',
 ];
 export const PROMPT_PART_FLAGS: readonly FlagName[] = ['global-prompt', 'group-prompt'];
-/** `invocation list` time filters; every other subcommand rejects them. */
+/** `invocation list` filters; every other subcommand rejects them. */
 export const TIME_FILTER_FLAGS: readonly FlagName[] = ['search', 'at', 'from', 'to'];
-/** Only `invocation preflight` and `invocation replay` accept `--before-send`. */
+/** What `invocation preflight` rejects: every inspection read flag except the replay boundary and the model override. */
 export const PREFLIGHT_REJECTED_FLAGS: readonly FlagName[] = INSPECTION_FLAGS.filter(
   (flag) => flag !== 'before-send' && !MODEL_FLAGS.includes(flag),
 );

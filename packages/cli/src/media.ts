@@ -8,7 +8,7 @@ import { isRecord } from './client.ts';
 import type { CommandContext } from './commands.ts';
 import { CliError } from './errors.ts';
 
-/** Bounds for one `invocation media` run; requests are sequential and bounded by these. */
+/** Per-run caps. The total exists because 32 items at the per-file cap would be 640 MB. */
 export const MAX_MEDIA_ITEMS = 32;
 export const MAX_MEDIA_FILE_BYTES = 20 * 1024 * 1024;
 export const MAX_MEDIA_TOTAL_BYTES = 100 * 1024 * 1024;

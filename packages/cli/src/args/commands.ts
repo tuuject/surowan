@@ -4,6 +4,7 @@ import { findPanelSpec } from '../panel/specs/index.ts';
 import {
   CONFIRM_PAID_FLAGS,
   INSPECTION_FLAGS,
+  MAX_MODEL_LENGTH,
   MODEL_FLAGS,
   PREFLIGHT_REJECTED_FLAGS,
   PROMPT_PART_FLAGS,
@@ -167,9 +168,8 @@ function toPanelFlags(flags: StringFlags): Parameters<typeof parsePanelCommand>[
 }
 
 /**
- * Global flags consumed before a command runs (the request credential). They
- * are never a route parameter, so the panel parser must not report them as
- * unexpected. Login input is refused before a panel command is parsed.
+ * The one global flag that also lives in `StringFlags`: it authenticates the
+ * request, so the panel parser must not report it as a route parameter.
  */
 const GLOBAL_FLAGS: Readonly<Record<string, true>> = {
   session: true,
@@ -442,8 +442,14 @@ function parseReplayModel(flags: StringFlags): ReplayModelSelection {
   }
   for (const key of ['provider', 'model'] as const) {
     const value = flags[key];
-    if (value !== undefined && (value.trim().length === 0 || value.length > 256 || /\p{Cc}/u.test(value))) {
-      throw usageError('invalid_model_override', `${key} must be 1 to 256 characters without control characters`);
+    if (
+      value !== undefined &&
+      (value.trim().length === 0 || value.length > MAX_MODEL_LENGTH || /\p{Cc}/u.test(value))
+    ) {
+      throw usageError(
+        'invalid_model_override',
+        `${key} must be 1 to ${MAX_MODEL_LENGTH} characters without control characters`,
+      );
     }
   }
   const thinkingLevel = flags['thinking-level'];

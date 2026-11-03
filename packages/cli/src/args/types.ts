@@ -72,7 +72,6 @@ export interface PromptGetCommand {
 export interface LoginCommand {
   readonly kind: 'login';
   readonly apiKeyStdin: boolean;
-  /** Panel credentials replace an API key with a session token. */
   readonly username: string | undefined;
   readonly password: string | undefined;
   readonly passwordStdin: boolean;

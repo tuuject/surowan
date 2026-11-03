@@ -63,11 +63,10 @@ export interface MediaContent {
 export interface RawContent {
   readonly bytes: Buffer;
   readonly contentType: string | null;
-  /** True when the content type is text-ish, so the caller can decode it. */
+  /** A missing content type counts as text: a text route that omits it still has decodable bytes. */
   readonly isText: boolean;
 }
 
-/** Options shared by every request the client issues. */
 export interface RequestOptions {
   /** `If-Match` value: a config revision, prompt content hash or entry revision. */
   readonly ifMatch?: string;
@@ -145,7 +144,7 @@ export class AdminClient {
     }
   }
 
-  /** The credential this client authenticates with, for the doctor report. */
+  /** `api_key` when a key is configured, otherwise `session` — including a client that has neither. */
   get credentialKind(): 'api_key' | 'session' {
     return this.#apiKey === undefined ? 'session' : 'api_key';
   }
@@ -226,7 +225,6 @@ export class AdminClient {
       return {
         bytes: body.bytes,
         contentType,
-        // An export is text; an image is not. The caller asked for one or the other.
         isText: contentType === null || contentType.startsWith('text/') || contentType.includes('json'),
       };
     } catch (error) {

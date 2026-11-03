@@ -20,7 +20,7 @@ import { CliError, usageError } from './errors.ts';
  *   inspection allowlist and Invocation replay, so it cannot change anything.
  * - `session`: a panel session token, obtained by logging in with the panel
  *   password. It authorizes exactly what the browser panel authorizes, which
- *   is the whole point of the CLI: one client for both.
+ *   is what makes the panel write surface reachable from here.
  */
 export interface Credentials {
   /** Normalized base URL, in the form `parseEndpoint` produces. */
