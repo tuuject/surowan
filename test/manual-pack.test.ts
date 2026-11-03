@@ -2,10 +2,10 @@ import { access, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { afterAll, expect, test } from 'vitest';
-import { exampleNames, exampleSource, renderConfigFields } from '../scripts/docs/prepare.ts';
+import { exampleNames, exampleSource, renderConfigFieldPages } from '../scripts/docs/prepare.ts';
 import { manualContentRoot, packManual } from '../scripts/manual-prepare.ts';
 import { bundledManualSpace, FileSystemDocSpaces } from '../src/adapters/local-monolith/doc-spaces.ts';
-import { DOC_INDEX_PATH } from '../src/platform/doc-spaces.ts';
+import { DOC_INDEX_PATH, DOC_READ_MAX_BYTES } from '../src/platform/doc-spaces.ts';
 import { PRODUCT_KNOWLEDGE_INDEX } from '../src/platform/product-knowledge.ts';
 
 const directories: string[] = [];
@@ -37,8 +37,9 @@ async function markdownFiles(root: string): Promise<readonly string[]> {
 test('packs the published manual into the runtime resource layout', async () => {
   const outDir = await tempRoot();
   const result = await packManual({ outDir });
+  const generated = renderConfigFieldPages();
   const sources = (await markdownFiles(manualContentRoot)).filter((path) => path !== 'index.md');
-  const pages = [...new Set([...sources, 'reference/fields.md'])].sort();
+  const pages = [...new Set([...sources, ...generated.keys()])].sort();
   const expected = [...pages, ...examplePages].sort();
   expect([...result.documents].sort()).toEqual(expected);
 
@@ -52,8 +53,7 @@ test('packs the published manual into the runtime resource layout', async () => 
   }
   for (const path of pages) {
     const text = await readFile(join(outDir, path), 'utf8');
-    const source =
-      path === 'reference/fields.md' ? renderConfigFields() : await readFile(join(manualContentRoot, path), 'utf8');
+    const source = generated.get(path) ?? (await readFile(join(manualContentRoot, path), 'utf8'));
     if (!source.includes('__DOCS_BASE__')) {
       expect(text, path).toBe(source);
       continue;
@@ -164,6 +164,22 @@ test('baked product routes resolve to readable manual pages', async () => {
     const document = await spaces.read(access, 'manual', path);
     expect(packed.documents, path).toContain(document.path);
     expect(document.truncated, path).toBe(false);
+  }
+});
+
+test('the field reference is split so every page fits one document read', async () => {
+  const outDir = await tempRoot();
+  const packed = await packManual({ outDir });
+  const pages = renderConfigFieldPages();
+  expect(pages.size).toBeGreaterThan(1);
+  const index = pages.get('reference/fields.md') ?? '';
+  for (const [path, content] of pages) {
+    expect(packed.documents, path).toContain(path);
+    expect(Buffer.byteLength(content), path).toBeLessThanOrEqual(DOC_READ_MAX_BYTES);
+    if (path !== 'reference/fields.md') {
+      // Reachable from the index the sidebar and the product knowledge point at.
+      expect(index, path).toContain(`](${path.slice('reference/'.length)})`);
+    }
   }
 });
 

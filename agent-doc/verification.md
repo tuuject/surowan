@@ -504,7 +504,7 @@ pnpm run check
 pnpm test
 ```
 
-- 改动 `apps/docs/`、`scripts/docs/`，或改动会进入生成文档的 `ConfigSchema` 与 `apps/docs/examples/` 示例时，额外运行 `pnpm run docs:build` 与 `pnpm run docs:verify`，并分别用 `DOCS_BASE_PATH=/` 与 `DOCS_BASE_PATH=/surowan/` 各跑一遍；构建后 `git status --porcelain` 必须为空（`apps/docs/dist/`、`apps/docs/content/docs/reference/fields.md`、`apps/docs/content/public/`、`src/manual/` 都在 `.gitignore` 里）。
+- 改动 `apps/docs/`、`scripts/docs/`，或改动会进入生成文档的 `ConfigSchema` 与 `apps/docs/examples/` 示例时，额外运行 `pnpm run docs:build` 与 `pnpm run docs:verify`，并分别用 `DOCS_BASE_PATH=/` 与 `DOCS_BASE_PATH=/surowan/` 各跑一遍；构建后 `git status --porcelain` 必须为空（`apps/docs/dist/`、`apps/docs/content/docs/reference/fields.md` 与分页 `fields-*.md`、`apps/docs/content/public/`、`src/manual/` 都在 `.gitignore` 里）。
 - 依赖变更同步提交 `pnpm-lock.yaml`；本地 `node_modules` 过期会表现成 `Cannot find package '<name>'`，先按 lockfile 跑 `pnpm install --frozen-lockfile`。
 - `.githooks/pre-commit`（`pnpm install` 自动启用）按暂存内容拒绝超过 5,000 token 的文件（字节 / 4 估算，约 20 KB），超限要拆分文件，不要绕过 hook。
 
