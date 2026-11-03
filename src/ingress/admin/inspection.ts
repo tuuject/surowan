@@ -1,4 +1,3 @@
-import { readToolImageRoute } from './tool-images.ts';
 import Type from 'typebox';
 import { Compile } from 'typebox/compile';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
@@ -27,6 +26,7 @@ import {
 } from './config-inspection.ts';
 import { type InvocationMediaReader, listInvocationMedia } from './invocation-media.ts';
 import type { ReplayInvocationInput, ReplayPreflightSelection } from './index.ts';
+import { readToolImageRoute } from './tool-images.ts';
 
 const MAX_PROMPT_LENGTH = 65_536;
 const replayBodyValidator = Compile(

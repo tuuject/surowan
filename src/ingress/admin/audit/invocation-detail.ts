@@ -1,4 +1,3 @@
-import { toolContentView } from '../tool-images.ts';
 import { eq, sql } from 'drizzle-orm';
 import {
   agentMessages,
@@ -10,8 +9,9 @@ import {
 } from '../../../store/schema/index.ts';
 import { meteredTokens } from '../../../store/sleep.ts';
 import type { Orm } from '../../../store/store.ts';
-import { bit, num } from './shared.ts';
+import { toolContentView } from '../tool-images.ts';
 import { INVOCATION_CHAT_COLUMNS, type InvocationListRow, invocationChat } from './invocations.ts';
+import { bit, num } from './shared.ts';
 
 interface InvocationDetailRow extends InvocationListRow {
   readonly prompt_version: bigint;

@@ -1,11 +1,9 @@
-import { loadToolImages, projectCompletionsToolImages } from '../../capabilities/media/tool-images.ts';
 import { getCurrentTools, type ThinkingContent } from '@earendil-works/pi-ai';
 import { eq } from 'drizzle-orm';
+import { loadToolImages, projectCompletionsToolImages } from '../../capabilities/media/tool-images.ts';
 import { SEND_TOOL_NAMES } from '../../capabilities/send/index.ts';
-import { activeSleepUntil, isDailyTokenBudgetReached, isLowDailyTokenBudget } from '../../store/sleep.ts';
 import { invocations } from '../../store/schema/index.ts';
-import { errorStream, recordAgentMessage } from './support.ts';
-import type { AgentRun, RoundControl, RunScope } from './types.ts';
+import { activeSleepUntil, isDailyTokenBudgetReached, isLowDailyTokenBudget } from '../../store/sleep.ts';
 import {
   failModelCall,
   finishModelCall,
@@ -13,7 +11,9 @@ import {
   recordModelCallResponse,
   startModelCall,
 } from './observability.ts';
+import { errorStream, recordAgentMessage } from './support.ts';
 import { markBucketInjected, persistMessage } from './transcript.ts';
+import type { AgentRun, RoundControl, RunScope } from './types.ts';
 
 /** Binds the model-call and tool-call hooks; both close over this run's state. */
 export function bindRequestHooks(scope: RunScope, run: AgentRun): void {

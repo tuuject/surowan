@@ -1,5 +1,3 @@
-import { localImageAssets } from '../media/local-assets.ts';
-import type { McpToolResult, McpResultDetails } from './content.ts';
 import { createHash } from 'node:crypto';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -13,6 +11,8 @@ import type { McpServerConfig, RawConfig } from '../../platform/config/index.ts'
 import { type InvocationContext, previewContext } from '../../platform/invocation-context.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import type { BusinessStore } from '../../store/store.ts';
+import { localImageAssets } from '../media/local-assets.ts';
+import type { McpResultDetails, McpToolResult } from './content.ts';
 import { mcpServerState } from '../../store/schema/index.ts';
 import { executeMcpTool, type McpCallDeps } from './calls.ts';
 import {

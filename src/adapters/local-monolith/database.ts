@@ -1,8 +1,8 @@
-import { localImageAssets } from '../../capabilities/media/local-assets.ts';
 import { access, chmod, cp, mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { localImageAssets } from '../../capabilities/media/local-assets.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
 import { MemoBlobStore } from '../../context/memo-pad/blobs.ts';
 import * as schema from '../../store/schema/index.ts';

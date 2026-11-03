@@ -3,11 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentToolResult } from '@earendil-works/pi-agent-core';
 import type { InvocationContext } from '../../platform/invocation-context.ts';
-import { toolImageMarker, type ToolImageReference } from '../../platform/tool-images.ts';
+import { type ToolImageReference, toolImageMarker } from '../../platform/tool-images.ts';
 import { truncateUtf8 } from '../../platform/truncate.ts';
-import { normalizeImage, MAX_DOWNLOAD_BYTES } from '../media/image.ts';
+import { MAX_DOWNLOAD_BYTES, normalizeImage } from '../media/image.ts';
 import { LocalAssetRejected, type PlaygroundAssetStore } from '../media/local-assets.ts';
-import { TRUNCATION_MARKER, type McpCallResult, type McpToolDefinition } from './support.ts';
+import { type McpCallResult, type McpToolDefinition, TRUNCATION_MARKER } from './support.ts';
 
 export type McpResultDetails = {
   server: string;

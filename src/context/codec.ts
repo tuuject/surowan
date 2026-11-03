@@ -1,8 +1,8 @@
-import { toolImageReferences, parseStoredToolContent } from '../platform/tool-images.ts';
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import type { AssistantMessage, ToolResultMessage, UserMessage } from '@earendil-works/pi-ai';
 import Type from 'typebox';
 import Compile from 'typebox/compile';
+import { parseStoredToolContent, toolImageReferences } from '../platform/tool-images.ts';
 
 /**
  * Codec between the Pi `AgentMessage` union and the `context_messages`
