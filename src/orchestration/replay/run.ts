@@ -21,7 +21,11 @@ import type { ReplayPromptOverrides } from './index.ts';
 import { createReplayTools } from './tools.ts';
 import { PREFLIGHT_FIDELITY, sceneMetadata } from './preflight.ts';
 import { prepareReplay, type ReplayPrepareDeps } from './prepare.ts';
-import { DUPLICATE_SEND_REJECTION_LIMIT, duplicateSendGuard } from '../../capabilities/send/support.ts';
+import {
+  DUPLICATE_SEND_REJECTION_LIMIT,
+  duplicateSendGuard,
+  emptyTextFallback,
+} from '../../capabilities/send/support.ts';
 
 const MAX_TRACE_BYTES = 1_048_576;
 const MAX_TOOL_CALLS = 128;
@@ -114,6 +118,7 @@ export async function runReplay(
     ...duplicateSendGuard(config.agent.send_duplicate_guard_enabled, () => {
       duplicateSendRejections += 1;
     }),
+    ...emptyTextFallback(config.agent),
     replyMessageIds: new Set(scene.replyMessageIds),
     ...(imageLoader === undefined || !model.input.includes('image')
       ? {}

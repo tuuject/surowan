@@ -364,6 +364,8 @@ Alarm 是第一个 `plugin_id = "alarm"` 的 consumer，通过 `execute.call` �
 
 `agent.send_disallow_blank_lines` 开启（默认关闭）时，包含任何空行的文本同样在发送前被拒绝，错误码 `send_blank_lines`。
 
+`agent.send_empty_text_fallback_enabled` 开启（默认关闭）时，解析为文本（`kind: "text"` 或 kind 缺省且没有 `sticker_ref`/`image_generation_id`/`image_ref`）却没有 `text` 的一条，由 `fillEmptyText` 在 Tool 入口从 `send_empty_text_fallback_texts`（默认 `["……"]`）随机取一条补上，并去掉 `parse_mode`（兜底文本没有按 MarkdownV2 转义），而不是以 `send_input_invalid` 拒绝。补全发生在任何检查之前，所以长度/空行规则、Reply 去重、重复发送守卫与烧毁、`tool_calls.arguments_json`（`send_reply` 行与各 `:<n>` 行）看到的都是实际发出的文本：同一次运行里连续两次无文本发送抽中同一条，第二次照常以 `send_duplicate` 拒绝。Tool 结果在原文之后追加一句说明发出的是哪条兜底文本（`send_reply` 按 part 编号逐条说明），模型的 transcript 里保留的仍是它原本的调用参数。Sticker、图片、文件与带了 `text` 的发送不受影响；`text: ""` 仍被 schema 的 `minLength: 1` 拒绝，不触发兜底。Tool 描述不提及此功能；重放的合成 send 按当前配置套用同一补全。
+
 `agent.allow_reply_message_multiple_times`（可选，默认 `false`）是上述「同一消息只回复一次」守卫的总开关，与 `send_*` 同级、全局生效、无 per-Chat 覆盖：`false`/省略时守卫启用，`true` 时跳过查重并允许对同一显式目标多次发送，但图片 generation/asset 交付去重与结果未知保护不受影响。它属于热更新白名单：显式应用配置后**下一次** Invocation 与重放读取新值，运行中的 Invocation 继续用启动时的快照；Tool 描述在每次运行时按该快照生成，因此同一进程里新旧运行可能看到不同的 `send` 描述。
 
 `agent.rate_limits.sends_per_window` / `window_seconds` 限制同一 Chat 在滑动窗口内的 `telegram_sends` 行数，不区分状态（失败的尝试同样消耗额度，否则失败重试的循环就没有刹车）；超出时 Tool Call 记为 `error`/`send_rate_limited`，不写 `telegram_sends`。这是长活 Invocation 取代 per-Invocation `max_sends` 的刹车。

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { copyFile, mkdir, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ConfigSchema } from '../../src/platform/config/schema.ts';
@@ -45,65 +45,117 @@ function typeLabel(schema: SchemaNode): string {
   return schema.type;
 }
 
-export function renderConfigFields(): string {
-  const lines = [
-    '---',
-    'title: 配置字段参考',
-    'description: 从当前源码 ConfigSchema 生成的字段类型、必填性与取值限制。',
-    'editLink: false',
-    'lastUpdated: false',
-    '---',
+/** The generated reference index, relative to `content/docs`; each section page sits next to it. */
+export const FIELDS_INDEX_PAGE = 'reference/fields.md';
+const FIELDS_SECTION_PAGE = /^reference\/fields-[a-z0-9-]+\.md$/;
+
+/** Whether a page below `content/docs` is generated from ConfigSchema rather than written by hand. */
+export function isGeneratedFieldsPage(path: string): boolean {
+  return path === FIELDS_INDEX_PAGE || FIELDS_SECTION_PAGE.test(path);
+}
+
+const FIELDS_NOTICE = [
+  '**必填是相对于所在对象而言**；可选对象未启用时不要求它的子字段。',
+  '可选不等于有默认值，类型合法也不等于通过跨字段语义校验。默认行为、热更新与覆盖关系请读[配置说明](config.md)。',
+];
+
+function frontmatter(title: string, description: string): string[] {
+  return ['---', `title: ${title}`, `description: ${description}`, 'editLink: false', 'lastUpdated: false', '---', ''];
+}
+
+function fieldHeading(lines: string[], schema: SchemaNode, name: string, required: boolean, depth: number): void {
+  const constraints = [
+    'minimum',
+    'maximum',
+    'exclusiveMinimum',
+    'minLength',
+    'minItems',
+    'maxItems',
+    'pattern',
+    'uniqueItems',
+  ] as const;
+  const limits = constraints
+    .filter((key) => schema[key] !== undefined)
+    .map((key) => `${key}: ${JSON.stringify(schema[key])}`);
+  lines.push(
+    `${'#'.repeat(Math.min(depth + 1, 4))} \`${name}\``,
     '',
+    `类型：\`${typeLabel(schema)}\`；${required ? '必填' : '可选'}。`,
+    '',
+  );
+  if (limits.length) {
+    lines.push(`限制：${limits.map((limit) => `\`${limit}\``).join('，')}。`, '');
+  }
+}
+
+function walk(lines: string[], schema: SchemaNode, name: string, required: boolean, depth: number): void {
+  fieldHeading(lines, schema, name, required, depth);
+  for (const [key, child] of Object.entries(schema.properties ?? {})) {
+    walk(lines, child, `${name}.${key}`, schema.required?.includes(key) ?? false, depth + 1);
+  }
+  for (const child of Object.values(schema.patternProperties ?? {})) {
+    walk(lines, child, `${name}.<名称>`, false, depth + 1);
+  }
+  if (schema.items) {
+    walk(lines, schema.items, `${name}[]`, true, depth + 1);
+  }
+  for (const [index, child] of (schema.anyOf ?? []).entries()) {
+    if (child.type === 'object') {
+      walk(lines, child, `${name}（分支 ${index + 1}）`, required, depth + 1);
+    }
+  }
+}
+
+/** Whether a top-level field has fields of its own, and so a page of its own. */
+function hasFields(schema: SchemaNode): boolean {
+  return (
+    schema.properties !== undefined ||
+    schema.patternProperties !== undefined ||
+    schema.items !== undefined ||
+    (schema.anyOf ?? []).some((child) => child.type === 'object')
+  );
+}
+
+/**
+ * The ConfigSchema reference, keyed by path below `content/docs`: an index
+ * with the scalar top-level fields, plus one page per configuration section.
+ * Split so the agent can read the one section it needs: as a single page the
+ * reference outgrew the document tools' read limit.
+ */
+export function renderConfigFieldPages(): ReadonlyMap<string, string> {
+  const schema: SchemaNode = ConfigSchema;
+  const index = [
+    ...frontmatter('配置字段参考', '从当前源码 ConfigSchema 生成的字段类型、必填性与取值限制，按配置段分页。'),
     '# 配置字段参考',
     '',
-    '本页由同一提交的 ConfigSchema 自动生成。**必填是相对于所在对象而言**；可选对象未启用时不要求它的子字段。',
-    '可选不等于有默认值，类型合法也不等于通过跨字段语义校验。默认行为、热更新与覆盖关系请读[配置说明](config.md)。',
+    '本页与各配置段的分页由同一提交的 ConfigSchema 自动生成。',
+    ...FIELDS_NOTICE,
     '',
     '[下载 JSON Schema](__DOCS_BASE__/config.schema.json)。日常配置优先从[完整示例](../configure/config-file.md)开始。',
     '',
   ];
-  function walk(schema: SchemaNode, name: string, required: boolean, depth: number): void {
-    if (name) {
-      const constraints = [
-        'minimum',
-        'maximum',
-        'exclusiveMinimum',
-        'minLength',
-        'minItems',
-        'maxItems',
-        'pattern',
-        'uniqueItems',
-      ] as const;
-      const limits = constraints
-        .filter((key) => schema[key] !== undefined)
-        .map((key) => `${key}: ${JSON.stringify(schema[key])}`);
-      lines.push(
-        `${'#'.repeat(Math.min(depth + 1, 4))} \`${name}\``,
-        '',
-        `类型：\`${typeLabel(schema)}\`；${required ? '必填' : '可选'}。`,
-        '',
-      );
-      if (limits.length) {
-        lines.push(`限制：${limits.map((limit) => `\`${limit}\``).join('，')}。`, '');
-      }
+  const pages = new Map<string, string>();
+  for (const [key, child] of Object.entries(schema.properties ?? {})) {
+    const required = schema.required?.includes(key) ?? false;
+    if (!hasFields(child)) {
+      walk(index, child, key, required, 1);
+      continue;
     }
-    for (const [key, child] of Object.entries(schema.properties ?? {})) {
-      walk(child, name ? `${name}.${key}` : key, schema.required?.includes(key) ?? false, depth + 1);
-    }
-    for (const child of Object.values(schema.patternProperties ?? {})) {
-      walk(child, `${name}.<名称>`, false, depth + 1);
-    }
-    if (schema.items) {
-      walk(schema.items, `${name}[]`, true, depth + 1);
-    }
-    for (const [index, child] of (schema.anyOf ?? []).entries()) {
-      if (child.type === 'object') {
-        walk(child, `${name}（分支 ${index + 1}）`, required, depth + 1);
-      }
-    }
+    const file = `fields-${key.replaceAll('_', '-')}.md`;
+    fieldHeading(index, child, key, required, 1);
+    index.push(`字段见[\`${key}\` 段字段参考](${file})。`, '');
+    const page = [
+      ...frontmatter(`配置字段参考：${key}`, `从当前源码 ConfigSchema 生成的 ${key} 段字段类型、必填性与取值限制。`),
+      `# 配置字段参考：\`${key}\``,
+      '',
+      `本页由同一提交的 ConfigSchema 自动生成，属于[配置字段参考](fields.md)。`,
+      ...FIELDS_NOTICE,
+      '',
+    ];
+    walk(page, child, key, required, 1);
+    pages.set(`reference/${file}`, `${page.join('\n')}\n`);
   }
-  walk(ConfigSchema, '', true, 0);
-  return `${lines.join('\n')}\n`;
+  return new Map([[FIELDS_INDEX_PAGE, `${index.join('\n')}\n`], ...pages]);
 }
 
 export function deploymentSettings(env: NodeJS.ProcessEnv): { siteOrigin: string; base: string } {
@@ -130,15 +182,23 @@ export async function prepareDocs(): Promise<void> {
     throw new Error('A full Git commit is required for documentation provenance');
   }
   const publicRoot = resolve(docsRoot, 'content/public');
-  const fieldsPath = resolve(docsRoot, 'content/docs/reference');
+  const contentRoot = resolve(docsRoot, 'content/docs');
   await mkdir(resolve(publicRoot, 'examples'), { recursive: true });
-  await mkdir(fieldsPath, { recursive: true });
+  await mkdir(resolve(contentRoot, 'reference'), { recursive: true });
   await writeFile(
     resolve(publicRoot, 'build-info.json'),
     `${JSON.stringify({ commit, dirty, ...deploymentSettings(process.env) }, null, 2)}\n`,
   );
   await writeFile(resolve(publicRoot, 'config.schema.json'), `${JSON.stringify(ConfigSchema, null, 2)}\n`);
-  await writeFile(resolve(fieldsPath, 'fields.md'), renderConfigFields());
+  // A section dropped from the schema must not leave its page behind to be published.
+  for (const name of await readdir(resolve(contentRoot, 'reference'))) {
+    if (isGeneratedFieldsPage(`reference/${name}`)) {
+      await rm(resolve(contentRoot, 'reference', name));
+    }
+  }
+  for (const [path, content] of renderConfigFieldPages()) {
+    await writeFile(resolve(contentRoot, path), content);
+  }
   for (const name of exampleNames) {
     await copyFile(exampleSource(name), resolve(publicRoot, 'examples', name));
   }

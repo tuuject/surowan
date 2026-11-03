@@ -13,6 +13,7 @@ dev-data/
 key.json
 apps/docs/doc_build/
 apps/docs/content/docs/reference/fields.md
+apps/docs/content/docs/reference/fields-*.md
 apps/docs/content/public/examples/
 apps/docs/content/public/config.schema.json
 apps/docs/content/public/build-info.json

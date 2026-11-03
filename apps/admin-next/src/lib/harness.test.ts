@@ -12,6 +12,8 @@ const saved = {
   send_barrier_enabled: false,
   allow_reply_message_multiple_times: false,
   send_duplicate_guard_enabled: true,
+  send_empty_text_fallback_enabled: false,
+  send_empty_text_fallback_texts: ['……'],
   'rate_limits.sends_per_window': 6,
   'rate_limits.window_seconds': 300,
   'rate_limits.turns_per_injection': 8,
@@ -48,6 +50,24 @@ describe('harness draft', () => {
     expect(parseDraft(draft, { ...saved, send_max_text_length: 2000 })).toEqual({
       changes: { 'context.ref_ttl_hours': 24, send_nudge_enabled: true, send_max_text_length: null },
       errors: {},
+    });
+  });
+
+  test('edits a text list one trimmed entry per line and compares it by content', () => {
+    expect(draftOf({ ...saved, send_empty_text_fallback_texts: ['……', '嗯'] }).send_empty_text_fallback_texts).toBe(
+      '……\n嗯',
+    );
+    const unchanged = { ...draftOf(saved), send_empty_text_fallback_texts: '  ……  \r\n\n' };
+    expect(parseDraft(unchanged, saved)).toEqual({ changes: {}, errors: {} });
+    const changed = { ...draftOf(saved), send_empty_text_fallback_texts: '……\n 嗯 \n\n啊这' };
+    expect(parseDraft(changed, saved)).toEqual({
+      changes: { send_empty_text_fallback_texts: ['……', '嗯', '啊这'] },
+      errors: {},
+    });
+    const empty = { ...draftOf(saved), send_empty_text_fallback_texts: ' \n ' };
+    expect(parseDraft(empty, saved)).toEqual({
+      changes: {},
+      errors: { send_empty_text_fallback_texts: { key: 'lines' } },
     });
   });
 

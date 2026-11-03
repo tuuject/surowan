@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { type ParseError, parse } from 'jsonc-parser';
 import { afterAll, expect, test } from 'vitest';
-import { deploymentSettings, docsRoot, renderConfigFields } from '../../scripts/docs/prepare.ts';
+import {
+  deploymentSettings,
+  docsRoot,
+  isGeneratedFieldsPage,
+  renderConfigFieldPages,
+} from '../../scripts/docs/prepare.ts';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { plaintextSecrets } from '../../src/platform/config/validate.ts';
 
@@ -64,7 +69,7 @@ test('every hand-written JSONC fragment merges into the public baseline and pass
   const { configPath, baseline } = await fixture();
   const root = resolve(docsRoot, 'content/docs');
   const pages = (await readdir(root, { recursive: true })).filter(
-    (path) => path.endsWith('.md') && !path.endsWith('fields.md'),
+    (path) => path.endsWith('.md') && !isGeneratedFieldsPage(path.replaceAll('\\', '/')),
   );
   let checked = 0;
   for (const page of pages) {
@@ -81,7 +86,7 @@ test('every hand-written JSONC fragment merges into the public baseline and pass
 });
 
 test('schema reference covers nested arrays, union policies and required/optional distinctions', () => {
-  const fields = renderConfigFields();
+  const fields = [...renderConfigFieldPages().values()].join('\n');
   for (const name of [
     'telegram.chats[].topic_ids',
     'tool_policies[].name',

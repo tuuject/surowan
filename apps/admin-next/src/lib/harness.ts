@@ -1,4 +1,4 @@
-import type { HarnessValues } from './api/config.ts';
+import type { HarnessValue, HarnessValues } from './api/config.ts';
 
 /**
  * Field metadata for the Harness page. The bounds mirror the configuration
@@ -11,7 +11,8 @@ export interface HarnessField {
   readonly key: string;
   /** The configuration section the field lives in; `agent` when absent. */
   readonly section?: 'telegram';
-  readonly kind: 'integer' | 'ratio' | 'boolean';
+  /** `lines` edits a string list one entry per line. */
+  readonly kind: 'integer' | 'ratio' | 'boolean' | 'lines';
   readonly min?: number;
   /** Ratios exclude their lower bound. */
   readonly exclusiveMin?: number;
@@ -44,6 +45,8 @@ export const HARNESS_GROUPS: readonly HarnessGroup[] = [
       { key: 'send_barrier_enabled', kind: 'boolean' },
       { key: 'allow_reply_message_multiple_times', kind: 'boolean' },
       { key: 'send_duplicate_guard_enabled', kind: 'boolean' },
+      { key: 'send_empty_text_fallback_enabled', kind: 'boolean' },
+      { key: 'send_empty_text_fallback_texts', kind: 'lines' },
     ],
   },
   {
@@ -84,7 +87,7 @@ export type DraftValue = string | boolean;
 
 export interface DraftError {
   /** Key below `harness.errors`. */
-  readonly key: 'integer' | 'number' | 'min' | 'max' | 'greaterThan';
+  readonly key: 'integer' | 'number' | 'min' | 'max' | 'greaterThan' | 'lines';
   readonly limit?: number;
 }
 
@@ -93,9 +96,31 @@ export function draftOf(saved: HarnessValues): Record<string, DraftValue> {
   for (const field of FIELDS) {
     const value = saved[field.key];
     draft[field.key] =
-      field.kind === 'boolean' ? value === true : value === null || value === undefined ? '' : String(value);
+      field.kind === 'boolean'
+        ? value === true
+        : Array.isArray(value)
+          ? value.join('\n')
+          : value === null || value === undefined
+            ? ''
+            : String(value);
   }
   return draft;
+}
+
+/** Lists compare by content: the saved value and a parsed draft are never the same array. */
+export function sameHarnessValue(left: HarnessValue | undefined, right: HarnessValue | undefined): boolean {
+  return Array.isArray(left) && Array.isArray(right)
+    ? left.length === right.length && left.every((item, index) => item === right[index])
+    : left === right;
+}
+
+/** One entry per non-blank line, trimmed; the list may not end up empty. */
+function parseLines(text: string): readonly string[] | DraftError {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  return lines.length === 0 ? { key: 'lines' } : lines;
 }
 
 function parseNumber(field: HarnessField, text: string): number | null | DraftError {
@@ -126,20 +151,20 @@ function parseNumber(field: HarnessField, text: string): number | null | DraftEr
 export function parseDraft(
   draft: Readonly<Record<string, DraftValue>>,
   saved: HarnessValues,
-): { readonly changes: Record<string, number | boolean | null>; readonly errors: Record<string, DraftError> } {
-  const changes: Record<string, number | boolean | null> = {};
+): { readonly changes: Record<string, HarnessValue>; readonly errors: Record<string, DraftError> } {
+  const changes: Record<string, HarnessValue> = {};
   const errors: Record<string, DraftError> = {};
   for (const field of FIELDS) {
     const raw = draft[field.key];
     if (raw === undefined) {
       continue;
     }
-    const value = typeof raw === 'boolean' ? raw : parseNumber(field, raw);
-    if (typeof value === 'object' && value !== null) {
-      errors[field.key] = value;
+    const value = typeof raw === 'boolean' ? raw : field.kind === 'lines' ? parseLines(raw) : parseNumber(field, raw);
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      errors[field.key] = value as DraftError;
       continue;
     }
-    if (value !== (saved[field.key] ?? null)) {
+    if (!sameHarnessValue(value, saved[field.key] ?? null)) {
       changes[field.key] = value;
     }
   }

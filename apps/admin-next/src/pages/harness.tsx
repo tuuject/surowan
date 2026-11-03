@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 
 import { errorMessage } from '@/lib/errors';
 import {
@@ -16,12 +17,13 @@ import {
   HARNESS_GROUPS,
   type HarnessField,
   parseDraft,
+  sameHarnessValue,
 } from '@/lib/harness';
 import { useShowConfigKeys } from '@/lib/panel-preferences';
 import { harnessQuery } from '@/lib/queries';
 import { useProviderWrite } from '@/lib/use-provider-write';
 import { updateHarnessSettings } from '@/lib/api/config.ts';
-import type { HarnessValues } from '@/lib/api/config.ts';
+import type { HarnessValue, HarnessValues } from '@/lib/api/config.ts';
 
 function useHarnessSave() {
   const queryClient = useQueryClient();
@@ -175,25 +177,26 @@ function HarnessFieldRow({
   readonly field: HarnessField;
   readonly value: DraftValue;
   readonly error: DraftError | undefined;
-  readonly active: number | boolean | null;
-  readonly saved: number | boolean | null;
+  readonly active: HarnessValue;
+  readonly saved: HarnessValue;
   readonly onChange: (value: DraftValue) => void;
 }): React.ReactElement {
   const { t } = useTranslation();
   const id = `harness-${field.key.replace(/[._]/g, '-')}`;
   const describedBy = `${id}-description`;
-  const display = (shown: number | boolean | null): string =>
+  const display = (shown: HarnessValue): string =>
     shown === null
       ? t('harness.noLimit')
       : typeof shown === 'boolean'
         ? t(shown ? 'harness.on' : 'harness.off')
-        : String(shown);
-  const mismatch =
-    saved === active ? null : (
-      <p role="status" className="text-warning text-sm">
-        {t('harness.running', { value: display(active) })}
-      </p>
-    );
+        : Array.isArray(shown)
+          ? shown.join(' / ')
+          : String(shown);
+  const mismatch = sameHarnessValue(saved, active) ? null : (
+    <p role="status" className="text-warning text-sm">
+      {t('harness.running', { value: display(active) })}
+    </p>
+  );
   const label = t(`harness.fields.${field.key}.label` as 'harness.fields.max_concurrency.label');
   const description = t(`harness.fields.${field.key}.description` as 'harness.fields.max_concurrency.description');
   const showConfigKeys = useShowConfigKeys();
@@ -225,6 +228,34 @@ function HarnessFieldRow({
       </div>
     );
   }
+  const errorText =
+    error === undefined ? null : (
+      <p className="text-destructive text-sm">
+        {t(`harness.errors.${error.key}`, { min: error.limit, max: error.limit })}
+      </p>
+    );
+  if (field.kind === 'lines') {
+    return (
+      <div className="space-y-2">
+        <div className="space-y-1">
+          <Label htmlFor={id}>{label}</Label>
+          <p id={describedBy} className="text-muted-foreground text-sm">
+            {description}
+          </p>
+          {configPath}
+        </div>
+        <Textarea
+          id={id}
+          aria-describedby={describedBy}
+          aria-invalid={error !== undefined}
+          value={typeof value === 'string' ? value : ''}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        {errorText}
+        {mismatch}
+      </div>
+    );
+  }
   return (
     <div className="space-y-2">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
@@ -246,11 +277,7 @@ function HarnessFieldRow({
           onChange={(event) => onChange(event.target.value)}
         />
       </div>
-      {error === undefined ? null : (
-        <p className="text-destructive text-sm">
-          {t(`harness.errors.${error.key}`, { min: error.limit, max: error.limit })}
-        </p>
-      )}
+      {errorText}
       {mismatch}
     </div>
   );

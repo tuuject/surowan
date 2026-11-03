@@ -26,6 +26,7 @@ export const harness = {
     min: 'Must be at least {{min}}',
     max: 'Must be at most {{max}}',
     greaterThan: 'Must be greater than {{min}}',
+    lines: 'Enter at least one line',
   },
   groups: {
     budget: {
@@ -95,6 +96,15 @@ export const harness = {
       label: 'Duplicate send guard',
       description:
         'Reject a text or sticker identical to one already sent in the same invocation, or the previous message re-aimed at another reply target; stop the run after more than 3 rejections.',
+    },
+    send_empty_text_fallback_enabled: {
+      label: 'Fallback for sends without text',
+      description:
+        'When the model calls send without text, send one of the fallback texts below instead of rejecting the call. Stickers and images are not affected.',
+    },
+    send_empty_text_fallback_texts: {
+      label: 'Fallback texts',
+      description: 'One per line; each fallback send picks one at random. Sent as plain text.',
     },
     'rate_limits.sends_per_window': {
       label: 'Sends per window',

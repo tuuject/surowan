@@ -59,6 +59,39 @@ test('send synthesizes text, image, and sticker messages and preserves arguments
   expect(replay.outputs).toHaveLength(4);
 });
 
+test('the empty-text fallback fills sends without text the way production does', async () => {
+  const replay = createReplayTools(
+    replayInput({ tools: [definition('send', SendInputSchema), definition('send_reply', SendReplyInputSchema)] }),
+    emptySystemResources(),
+    { emptyTextFallback: ['……'], replyMessageIds: new Set(['42']) },
+  );
+  const result = await toolOf(replay.tools, 'send').execute('bare', {
+    reply_to_message_id: '42',
+    parse_mode: 'MarkdownV2',
+  });
+  expect(result.content).toEqual([
+    {
+      type: 'text',
+      text: 'Sent Telegram message 1 The call had no text, so the configured fallback text "……" was sent.',
+    },
+  ]);
+  const reply = await toolOf(replay.tools, 'send_reply').execute('parts', { parts: [{ text: 'well' }, {}] });
+  expect(reply.content).toEqual([
+    {
+      type: 'text',
+      text: 'Sent 2 Telegram messages in order: 2, 3 Part 2 had no text, so the configured fallback text "……" was sent.',
+    },
+  ]);
+  await expect(toolOf(replay.tools, 'send').execute('sticker', { kind: 'sticker' })).rejects.toThrow(
+    'kind:sticker needs sticker_ref',
+  );
+  expect(replay.outputs.map((output) => output.arguments)).toEqual([
+    { text: '……', reply_to_message_id: '42' },
+    { text: 'well' },
+    { text: '……' },
+  ]);
+});
+
 test('send rejects repeated reply targets within the scene without recording another output', async () => {
   const registry = replayInput({ tools: [definition('send', SendInputSchema)] });
   const replay = createReplayTools(registry, emptySystemResources(), { replyMessageIds: new Set(['42', '43']) });

@@ -8,7 +8,14 @@ import Type from 'typebox';
 import { Value } from 'typebox/value';
 
 import { CODE_BLOCK_PATTERN } from './markdown.ts';
-import { deploymentSettings, docsRoot, exampleNames, exampleSource, repositoryRoot } from './prepare.ts';
+import {
+  deploymentSettings,
+  docsRoot,
+  exampleNames,
+  exampleSource,
+  isGeneratedFieldsPage,
+  repositoryRoot,
+} from './prepare.ts';
 import { ConfigSchema } from '../../src/platform/config/schema.ts';
 
 const dist = resolve(docsRoot, 'dist');
@@ -92,7 +99,7 @@ for (const page of pages) {
   }
   assert(!/<(?:!doctype|html|script)\b/i.test(markdown), `HTML leaked into Markdown: ${page}`);
   if (page !== 'index.md') {
-    const generated = page === 'docs/reference/fields.md';
+    const generated = page.startsWith('docs/') && isGeneratedFieldsPage(page.slice('docs/'.length));
     assert.equal(html.includes('rp-edit-link'), !generated, `Wrong edit-link visibility: ${page}`);
     if (generated) {
       assert(!html.includes('rp-last-updated'), 'Generated reference must not show a Git timestamp');

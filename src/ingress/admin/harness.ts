@@ -7,7 +7,14 @@ import { AdminQueryError } from './audit/shared.ts';
 import { AGENT_DEFAULTS } from '../../platform/config/resolve.ts';
 import { AgentSectionSchema, ProactiveReplySchema } from '../../platform/config/schema-sections.ts';
 
-export type HarnessValue = number | boolean | null;
+/** A string list is a field edited one entry per line, such as the empty-text fallback. */
+export type HarnessValue = number | boolean | readonly string[] | null;
+
+/** Lists compare by content: a value read back from the file is never the same array. */
+const sameValue = (left: unknown, right: unknown): boolean =>
+  Array.isArray(left) && Array.isArray(right)
+    ? left.length === right.length && left.every((item, index) => item === right[index])
+    : left === right;
 
 /** The configuration section a field lives in. */
 type HarnessSection = 'agent' | 'telegram';
@@ -48,6 +55,12 @@ const HARNESS_FIELDS: readonly HarnessField[] = [
   field('send_barrier_enabled', agent.send_barrier_enabled, false),
   field('allow_reply_message_multiple_times', agent.allow_reply_message_multiple_times, false),
   field('send_duplicate_guard_enabled', agent.send_duplicate_guard_enabled, true),
+  field('send_empty_text_fallback_enabled', agent.send_empty_text_fallback_enabled, false),
+  field(
+    'send_empty_text_fallback_texts',
+    agent.send_empty_text_fallback_texts,
+    AGENT_DEFAULTS.send_empty_text_fallback_texts,
+  ),
   field(
     'context.retained_sends_target',
     agent.context.properties.retained_sends_target,
@@ -168,7 +181,7 @@ export function harnessEdits(
       continue;
     }
     const current = rawValue(file[entry.section], key);
-    if (current === undefined ? value === null || value === entry.absent : current === value) {
+    if (current === undefined ? value === null || sameValue(value, entry.absent) : sameValue(current, value)) {
       continue;
     }
     edits.push({ path: [entry.section, ...key.split('.')], value: value === null ? undefined : value });

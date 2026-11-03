@@ -55,6 +55,24 @@ Telegram 官方 FAQ 指引开发者通过 [@BotFather](https://t.me/BotFather) �
 
 这条保护与上面的「同一条消息只回复一次」相互独立：即使把 `agent.allow_reply_message_multiple_times` 设为 `true`，原样重复仍会被拦下。确需关闭时，将 `agent.send_duplicate_guard_enabled` 设为 `false`（可选，默认 `true`，全局字段、无每群覆盖），也可以在管理面板 Harness 页面切换。它同样属于热更新，显式应用配置后下一次 Invocation 生效。
 
+## 没写文字的发送
+
+模型偶尔会调用发送却没有给出文字，例如只指定了要回复哪条消息。默认情况下这次发送会被退回，模型需要补上文字再发。把 `agent.send_empty_text_fallback_enabled` 设为 `true`（可选，默认 `false`）后，Bot 会改为发出一条兜底文本，默认是「……」：
+
+```jsonc
+{
+  "agent": {
+    "send_empty_text_fallback_enabled": true,
+    // 可选，默认 ["……"]：每次兜底随机选一条
+    "send_empty_text_fallback_texts": ["……", "嗯", "啊这"]
+  }
+}
+```
+
+- 兜底文本按纯文本发送，照常遵守引用回复、文本长度、空行和重复发送等规则；同一次运行里连续兜底抽中同一条时，第二次会被当作重复发送拦下。
+- 每条必须是一行、含有非空白字符；贴纸、图片和写了文字的发送不受影响。
+- 也可以在管理面板 Harness 页面打开开关，并在「Fallback texts」里一行写一条。两项都是全局字段、无每群覆盖，属于热更新，显式应用配置后下一次 Invocation 生效。
+
 ## 输入状态
 
 模型决定接话且需要搜索等耗时处理时，可以显示“正在输入”。快回复直接发送，保持沉默时不显示。状态每 4 秒刷新，同一 Chat 和 Topic 的请求不重叠；每轮最长约 60 秒，本轮结束、空闲等待或中断时停止刷新，客户端已有状态可能再保留最多 5 秒。输入状态不保证最终一定有回复。

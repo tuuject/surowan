@@ -96,6 +96,12 @@ export const AgentSectionSchema = Type.Object(
     send_barrier_enabled: Type.Optional(Type.Boolean()),
     allow_reply_message_multiple_times: Type.Optional(Type.Boolean({ default: false })),
     send_duplicate_guard_enabled: Type.Optional(Type.Boolean({ default: true })),
+    send_empty_text_fallback_enabled: Type.Optional(Type.Boolean({ default: false })),
+    // One line each: the panel edits the list as a one-per-line textarea, so a
+    // line break inside an entry could not survive a round trip there.
+    send_empty_text_fallback_texts: Type.Optional(
+      Type.Array(Type.String({ maxLength: 4096, pattern: '^[^\\r\\n]*\\S[^\\r\\n]*$' }), { minItems: 1 }),
+    ),
     context: Type.Optional(AgentContextSectionSchema),
     rate_limits: Type.Optional(AgentRateLimitsSectionSchema),
   },

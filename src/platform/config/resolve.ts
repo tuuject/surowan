@@ -53,6 +53,7 @@ export const AGENT_DEFAULTS = {
   max_concurrency: 4,
   context_stop_ratio: 0.8,
   history_messages: 20,
+  send_empty_text_fallback_texts: ['……'],
   context: {
     retained_sends_target: 20,
     retained_sends_max: 30,
@@ -79,6 +80,8 @@ export function resolveAgentSection(section: AgentSectionConfig | null | undefin
     max_concurrency: section?.max_concurrency ?? AGENT_DEFAULTS.max_concurrency,
     context_stop_ratio: section?.context_stop_ratio ?? AGENT_DEFAULTS.context_stop_ratio,
     history_messages: section?.history_messages ?? AGENT_DEFAULTS.history_messages,
+    send_empty_text_fallback_texts:
+      section?.send_empty_text_fallback_texts ?? AGENT_DEFAULTS.send_empty_text_fallback_texts,
     context: {
       retained_sends_target: context?.retained_sends_target ?? AGENT_DEFAULTS.context.retained_sends_target,
       retained_sends_max: context?.retained_sends_max ?? AGENT_DEFAULTS.context.retained_sends_max,

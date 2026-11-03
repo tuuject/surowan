@@ -82,6 +82,8 @@ test('reports file and running values with absent optional fields resolved', asy
     send_max_text_length: 2000,
     allow_reply_message_multiple_times: false,
     send_duplicate_guard_enabled: true,
+    send_empty_text_fallback_enabled: false,
+    send_empty_text_fallback_texts: ['……'],
   });
   // The model selection and the prompt have their own pages.
   expect(Object.keys(view.saved)).not.toContain('provider');
@@ -129,6 +131,42 @@ test('a write hot-applies every changed field, including the ones that used to n
   expect(file?.provider).toBe(f.loaded.fileConfig.agent!.provider);
 });
 
+test('the empty-text fallback list is written, hot-applied and compared by content', async () => {
+  const f = await fixture();
+  const response = await f.update(
+    { send_empty_text_fallback_enabled: true, send_empty_text_fallback_texts: ['嗯', '……'] },
+    (await f.view()).revision,
+  );
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as HarnessSettings & { apply: { applied: string[] } };
+  expect(body.apply.applied).toEqual(
+    expect.arrayContaining(['agent.send_empty_text_fallback_enabled', 'agent.send_empty_text_fallback_texts']),
+  );
+  expect(body.active).toEqual(body.saved);
+  expect(body.saved).toMatchObject({
+    send_empty_text_fallback_enabled: true,
+    send_empty_text_fallback_texts: ['嗯', '……'],
+  });
+  const active = f.configStore.current().config.agent;
+  expect(active.send_empty_text_fallback_enabled).toBe(true);
+  expect(active.send_empty_text_fallback_texts).toEqual(['嗯', '……']);
+  expect((await loadConfig(f.path)).fileConfig.agent?.send_empty_text_fallback_texts).toEqual(['嗯', '……']);
+
+  // An equal list read back from the client is a different array, not a change.
+  const before = await readFile(f.path, 'utf8');
+  const same = await f.update({ send_empty_text_fallback_texts: ['嗯', '……'] }, body.revision);
+  expect(same.status).toBe(200);
+  expect(await same.json()).toMatchObject({ revision: body.revision, apply: { applied: [] } });
+  expect(await readFile(f.path, 'utf8')).toBe(before);
+
+  // null removes the list again, back to the default.
+  const reset = await f.update({ send_empty_text_fallback_texts: null }, body.revision);
+  expect(((await reset.json()) as HarnessSettings).saved.send_empty_text_fallback_texts).toEqual(['……']);
+  expect(Object.hasOwn((await loadConfig(f.path)).fileConfig.agent ?? {}, 'send_empty_text_fallback_texts')).toBe(
+    false,
+  );
+});
+
 test('a value equal to the file, or to an absent default, writes nothing', async () => {
   const f = await fixture();
   const before = await readFile(f.path, 'utf8');
@@ -137,6 +175,7 @@ test('a value equal to the file, or to an absent default, writes nothing', async
     {
       history_messages: f.loaded.config.agent!.history_messages,
       send_duplicate_guard_enabled: true,
+      send_empty_text_fallback_texts: ['……'],
     },
     revision,
   );
@@ -155,6 +194,10 @@ test.each([
   [{ history_messages: 'many' }, 'invalid_harness_value'],
   [{ 'proactive_reply.base_probability': 1.5 }, 'invalid_harness_value'],
   [{ 'proactive_reply.hard_pity': 0 }, 'invalid_harness_value'],
+  [{ send_empty_text_fallback_texts: [] }, 'invalid_harness_value'],
+  [{ send_empty_text_fallback_texts: ['   '] }, 'invalid_harness_value'],
+  [{ send_empty_text_fallback_texts: ['two\nlines'] }, 'invalid_harness_value'],
+  [{ send_empty_text_fallback_texts: '……' }, 'invalid_harness_value'],
   [{}, 'invalid_body'],
 ])('rejects %j before touching the file', async (values, error) => {
   const f = await fixture();
