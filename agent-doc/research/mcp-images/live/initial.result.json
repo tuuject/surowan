@@ -1,0 +1,33 @@
+{
+  "stage": "initial",
+  "pid": 3,
+  "parentPid": 2,
+  "startedAt": "2026-11-03T11:59:45.153Z",
+  "finishedAt": "2026-11-03T11:59:47.324Z",
+  "baseUrl": "http://127.0.0.1:3425/v1",
+  "api": "openai-responses",
+  "requestedModel": "codex/gpt-6-luna",
+  "responseModel": "codex/gpt-6-luna",
+  "responseProvider": "agent",
+  "stopReason": "stop",
+  "imageCount": 1,
+  "imageSha256": "5308db125a1a40a94308fe2caf20b6849310f446e3d861141fe802de8fe8e125",
+  "imageBytes": 8696,
+  "canonicalSha256": "3ed82843ae186f55bc5dd7776b0f3c2cfc10b9a9ba36460d524af2852224a916",
+  "answer": "BAAA61",
+  "usage": {
+    "input": 3873,
+    "output": 7,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "reasoning": 0,
+    "totalTokens": 3880,
+    "cost": {
+      "input": 0.0038729999999999997,
+      "output": 1.4e-5,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "total": 0.003887
+    }
+  }
+}

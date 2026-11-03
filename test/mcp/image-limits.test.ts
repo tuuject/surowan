@@ -1,9 +1,9 @@
-import { fauxProvider } from '@earendil-works/pi-ai';
+import { fauxProvider, type Message } from '@earendil-works/pi-ai';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { expect, test } from 'vitest';
-import { McpManager } from '../../src/capabilities/mcp/index.ts';
 import { convertMcpResult } from '../../src/capabilities/mcp/content.ts';
+import { McpManager } from '../../src/capabilities/mcp/index.ts';
 import { MAX_DOWNLOAD_BYTES } from '../../src/capabilities/media/image.ts';
 import { loadToolImages } from '../../src/capabilities/media/tool-images.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
@@ -70,6 +70,101 @@ test('format, MIME and decoded-size failures are explicit without serializing bi
       entry.role === 'toolResult' ? entry.content.filter((block) => block.type === 'image') : [],
     ),
   ).toHaveLength(1);
+});
+
+test.each(['count', 'bytes'] as const)('existing user images reserve the MCP request %s budget', async (limit) => {
+  const f = await imageFixture();
+  const result = await f.tool.execute('mixed_budget', {});
+  const message = appendImageResult(f, result, 'mixed_budget');
+  const user: Message = {
+    role: 'user',
+    content: [
+      {
+        type: 'image',
+        mimeType: 'image/png',
+        data: Buffer.alloc(limit === 'bytes' ? MAX_DOWNLOAD_BYTES - 1 : 1).toString('base64'),
+      },
+    ],
+    timestamp: Date.now(),
+  };
+  const notices: string[] = [];
+  const loaded = await loadToolImages([user, message], {
+    orm: f.store.orm,
+    dataDir: f.loaded.config.data_dir,
+    conversationId: f.seed.conversationId,
+    chatId: f.seed.chatId,
+    model: fauxProvider({
+      models: [
+        {
+          id: 'mixed',
+          input: ['text', 'image'],
+          inputLimits: { images: { maxPerRequest: limit === 'count' ? 1 : 10 } },
+        },
+      ],
+    }).getModel(),
+    signal: new AbortController().signal,
+    onUnavailable: (notice) => notices.push(notice),
+  });
+  expect(loaded[0]).toBe(user);
+  expect(loaded[1]?.content).toEqual(
+    expect.arrayContaining([
+      { type: 'text', text: 'before' },
+      { type: 'text', text: 'after' },
+    ]),
+  );
+  expect(JSON.stringify(loaded[1])).not.toContain('"type":"image"');
+  expect(notices).toHaveLength(2);
+  expect(notices.every((notice) => notice.includes('image_request_budget_exceeded'))).toBe(true);
+  expect(message.content).toEqual(result.content);
+  // Projection neither repeats the tool nor changes its successful audit state.
+  expect(f.store.db.prepare('SELECT state FROM tool_calls WHERE tool_call_id = ?').all('mixed_budget')).toEqual([
+    { state: 'success' },
+  ]);
+});
+
+test.each([
+  ['openai-completions', 'merged', 2],
+  ['anthropic-messages', 'claude-sonnet-4', 2],
+  ['google-generative-ai', 'gemini-3-flash', 2],
+  ['google-generative-ai', 'gemini-2.5-flash', 5],
+  ['openai-responses', 'separate', 5],
+] as const)('%s/%s reserves existing tool pixels using provider message grouping', async (api, id, expectedCount) => {
+  const f = await imageFixture();
+  const first = appendImageResult(f, await f.tool.execute('merged_first', {}), 'merged_first');
+  const second = appendImageResult(f, await f.tool.execute('merged_second', {}), 'merged_second');
+  const existing: Message = {
+    role: 'toolResult',
+    toolName: 'existing',
+    toolCallId: 'existing',
+    isError: false,
+    timestamp: Date.now(),
+    content: [{ type: 'image', mimeType: 'image/png', data: 'AA==' }],
+  };
+  const model = fauxProvider({
+    api,
+    models: [{ id, input: ['text', 'image'], inputLimits: { images: { maxPerMessage: 2 } } }],
+  }).getModel();
+  const options = {
+    orm: f.store.orm,
+    dataDir: f.loaded.config.data_dir,
+    conversationId: f.seed.conversationId,
+    chatId: f.seed.chatId,
+    model,
+    signal: new AbortController().signal,
+  };
+  const merged = await loadToolImages([existing, first, second], options);
+  const images = (messages: Message[]) =>
+    messages.flatMap((message) =>
+      Array.isArray(message.content) ? message.content.filter((block) => block.type === 'image') : [],
+    );
+  expect(images(merged)).toHaveLength(expectedCount);
+  expect(images([merged[1]!])).toHaveLength(expectedCount === 2 ? 0 : 2);
+  expect(images([merged[2]!])).toHaveLength(expectedCount === 2 ? 1 : 2);
+  const separate = await loadToolImages(
+    [existing, first, { role: 'user', content: 'next', timestamp: Date.now() }, second],
+    options,
+  );
+  expect(images(separate)).toHaveLength(expectedCount === 2 ? 4 : 5);
 });
 
 test('Streamable HTTP accepts native mixed images and bounds oversized image responses', async () => {

@@ -1,0 +1,105 @@
+{
+  "phase": "after",
+  "sqlite": {
+    "version": "3.53.4"
+  },
+  "candidateAssets": 1000,
+  "contextRows": 2000,
+  "toolRows": 2000,
+  "itemsPerRow": 2,
+  "query": "DELETE FROM playground_assets WHERE COALESCE(last_used_at, created_at) < '2026-01-01' AND NOT EXISTS (SELECT id FROM media WHERE media.local_asset_id = playground_assets.id) AND playground_assets.id NOT IN (\n    SELECT json_extract(image.value, '$.assetId') FROM context_messages cm,\n      json_each(cm.payload_json, '$.details.mcpImages.items') image\n    WHERE json_extract(image.value, '$.assetId') IS NOT NULL\n    UNION\n    SELECT json_extract(image.value, '$.assetId') FROM tool_calls tc,\n      json_each(tc.result_content_json, '$.details.mcpImages.items') image\n    WHERE json_extract(image.value, '$.assetId') IS NOT NULL\n  ) RETURNING id, storage_path",
+  "plan": [
+    {
+      "id": 3,
+      "parent": 0,
+      "notused": 216,
+      "detail": "SCAN playground_assets"
+    },
+    {
+      "id": 12,
+      "parent": 0,
+      "notused": 0,
+      "detail": "LIST SUBQUERY 3"
+    },
+    {
+      "id": 15,
+      "parent": 12,
+      "notused": 0,
+      "detail": "MERGE (UNION)"
+    },
+    {
+      "id": 17,
+      "parent": 15,
+      "notused": 0,
+      "detail": "LEFT"
+    },
+    {
+      "id": 21,
+      "parent": 17,
+      "notused": 216,
+      "detail": "SCAN cm"
+    },
+    {
+      "id": 23,
+      "parent": 17,
+      "notused": 0,
+      "detail": "SCAN image VIRTUAL TABLE INDEX 3:"
+    },
+    {
+      "id": 38,
+      "parent": 17,
+      "notused": 0,
+      "detail": "USE TEMP B-TREE FOR ORDER BY"
+    },
+    {
+      "id": 47,
+      "parent": 15,
+      "notused": 0,
+      "detail": "RIGHT"
+    },
+    {
+      "id": 51,
+      "parent": 47,
+      "notused": 216,
+      "detail": "SCAN tc"
+    },
+    {
+      "id": 53,
+      "parent": 47,
+      "notused": 0,
+      "detail": "SCAN image VIRTUAL TABLE INDEX 3:"
+    },
+    {
+      "id": 68,
+      "parent": 47,
+      "notused": 0,
+      "detail": "USE TEMP B-TREE FOR ORDER BY"
+    },
+    {
+      "id": 84,
+      "parent": 15,
+      "notused": 0,
+      "detail": "CREATE BLOOM FILTER"
+    },
+    {
+      "id": 94,
+      "parent": 15,
+      "notused": 0,
+      "detail": "CREATE BLOOM FILTER"
+    },
+    {
+      "id": 128,
+      "parent": 0,
+      "notused": 0,
+      "detail": "CORRELATED SCALAR SUBQUERY 1"
+    },
+    {
+      "id": 132,
+      "parent": 128,
+      "notused": 56,
+      "detail": "SEARCH media USING COVERING INDEX media_local_asset (local_asset_id=?)"
+    }
+  ],
+  "rows": 1000,
+  "elapsedMs": 3.8977579999999996
+}

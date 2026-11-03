@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomInt } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -9,10 +9,26 @@ if (!expectedPath) {
   throw new Error('A private expected-answer path is required');
 }
 const code = randomBytes(3).toString('hex').toUpperCase();
-await writeFile(expectedPath, code, { mode: 0o600, flag: 'wx' });
+const color = ['RED', 'BLUE', 'GREEN', 'ORANGE', 'PURPLE'][randomInt(5)]!;
+const shape = ['CIRCLE', 'SQUARE', 'TRIANGLE'][randomInt(3)]!;
+const count = randomInt(2, 7);
+await writeFile(expectedPath, JSON.stringify({ code, detail: `${color} ${shape} ${count}` }), {
+  mode: 0o600,
+  flag: 'wx',
+});
+const shapes = Array.from({ length: count }, (_, index) => {
+  const x = 65 + index * 100;
+  if (shape === 'CIRCLE') {
+    return `<circle cx="${x}" cy="300" r="32" fill="${color.toLowerCase()}"/>`;
+  }
+  if (shape === 'SQUARE') {
+    return `<rect x="${x - 32}" y="268" width="64" height="64" fill="${color.toLowerCase()}"/>`;
+  }
+  return `<polygon points="${x},265 ${x - 36},333 ${x + 36},333" fill="${color.toLowerCase()}"/>`;
+}).join('');
 const bytes = await sharp(
   Buffer.from(
-    `<svg width="640" height="240"><rect width="640" height="240" fill="white"/><text x="50" y="155" fill="black" font-family="monospace" font-size="90">${code}</text></svg>`,
+    `<svg width="640" height="400"><rect width="640" height="400" fill="white"/><text x="50" y="155" fill="black" font-family="monospace" font-size="90">${code}</text>${shapes}</svg>`,
   ),
 )
   .png()
@@ -21,7 +37,7 @@ const server = new McpServer({ name: 'isolated-vision-verification', version: '1
 server.registerTool(
   'capture',
   {
-    description: 'Return an image containing a random six-character code',
+    description: 'Return an isolated verification image',
     inputSchema: {},
     annotations: { readOnlyHint: true },
   },

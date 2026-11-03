@@ -1,26 +1,27 @@
-import { afterAll, expect, test, vi } from 'vitest';
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
+import { access, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { crc32 } from 'node:zlib';
 import { sql } from 'drizzle-orm';
 import sharp from 'sharp';
-import { KeyedSemaphore } from '../../src/platform/concurrency.ts';
+import { afterAll, expect, test, vi } from 'vitest';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
+import { MediaService } from '../../src/capabilities/media/index.ts';
 import {
   isAnimatedPng,
   LocalAssetRejected,
   PlaygroundAssetStore,
   sniffImageMime,
 } from '../../src/capabilities/media/local-assets.ts';
-import { MediaService } from '../../src/capabilities/media/index.ts';
+import { ConversationContextStore } from '../../src/context/store.ts';
 import { PlaygroundIngress } from '../../src/ingress/playground.ts';
+import { KeyedSemaphore } from '../../src/platform/concurrency.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { PlaygroundStore } from '../../src/store/playground/index.ts';
-import { media, playgroundAssets } from '../../src/store/schema/index.ts';
-import { crc32 } from 'node:zlib';
-import { randomBytes } from 'node:crypto';
-import { readdir } from 'node:fs/promises';
+import { media, playgroundAssets, toolCalls } from '../../src/store/schema/index.ts';
+import { seedAdminFixture } from '../fixtures/admin-seed.ts';
 import { testConfigStore, writeTestConfig } from '../helpers.ts';
 
 const directories: string[] = [];
@@ -327,27 +328,120 @@ test('concurrent uploads of the same bytes resolve to one asset and one file', a
   expect(files).toHaveLength(1);
 });
 
-test('a sweep never deletes an asset attached while it was running', async () => {
+test.each(['context', 'audit'] as const)(
+  'a %s reference committed immediately before sweep deletion protects its bytes',
+  async (source) => {
+    const { store, assets, room } = await setup();
+    const seed = seedAdminFixture(store);
+    const referenced = await assets.ingest(room.chatId, { bytes: await png(8, 8), declaredMime: 'image/png' });
+    const unreferenced = await assets.ingest(room.chatId, { bytes: await png(9, 9), declaredMime: 'image/png' });
+    const payload = JSON.stringify({
+      details: {
+        mcpImages: { items: [{ assetId: referenced.id }, {}, { assetId: null }, { assetId: referenced.id }] },
+      },
+    });
+    const remove = store.orm.delete.bind(store.orm);
+    const deleting = vi.spyOn(store.orm, 'delete').mockImplementationOnce((table) => {
+      // Insert at the deletion boundary: a reference set captured earlier in
+      // JavaScript would miss this committed reference.
+      if (source === 'context') {
+        const contexts = new ConversationContextStore(store);
+        const { header } = contexts.open(seed.conversationId, 'sweep-test');
+        contexts.append(header, {
+          invocationId: seed.invocationA,
+          role: 'toolResult',
+          json: payload,
+          estTokens: 1,
+          isCheckpoint: false,
+        });
+      } else {
+        store.orm
+          .insert(toolCalls)
+          .values({
+            invocationId: seed.invocationA,
+            toolCallId: 'sweep-reference',
+            toolName: 'local__images',
+            argumentsJson: '{}',
+            resultContentJson: payload,
+            state: 'success',
+            sideEffect: false,
+            createdAt: new Date().toISOString(),
+          })
+          .run();
+      }
+      return remove(table);
+    });
+    try {
+      expect((await assets.sweep({ staleAfterMs: -1 })).staged).toBe(1);
+    } finally {
+      deleting.mockRestore();
+    }
+    expect(assets.resolve(referenced.id)).not.toBeNull();
+    await expect(access(referenced.path)).resolves.toBeUndefined();
+    expect(assets.resolve(unreferenced.id)).toBeNull();
+    await expect(access(unreferenced.path)).rejects.toThrow();
+  },
+);
+
+test('a media reference committed immediately before sweep deletion protects its bytes', async () => {
+  const { store, assets, room } = await setup();
+  const asset = await assets.ingest(room.chatId, { bytes: await png(), declaredMime: 'image/png' });
+  const remove = store.orm.delete.bind(store.orm);
+  const deleting = vi.spyOn(store.orm, 'delete').mockImplementationOnce((table) => {
+    new PlaygroundStore(store.orm).submit(room.chatId, {
+      requestKey: 'req-before-delete',
+      senderId: room.members[0]!.senderId,
+      text: '',
+      media: [
+        { assetId: asset.id, sha256: asset.sha256, mime: asset.mime, byteSize: asset.byteSize, width: 32, height: 16 },
+      ],
+    });
+    return remove(table);
+  });
+  try {
+    expect((await assets.sweep({ staleAfterMs: -1 })).staged).toBe(0);
+  } finally {
+    deleting.mockRestore();
+  }
+  expect(assets.resolve(asset.id)).not.toBeNull();
+  await expect(access(asset.path)).resolves.toBeUndefined();
+  expect(store.orm.select().from(media).all()).toHaveLength(1);
+});
+
+test('a sweep claims expired assets before yielding and late submissions cannot create dangling media', async () => {
   const { store, assets, room } = await setup();
   const one = await assets.ingest(room.chatId, { bytes: await png(8, 8), declaredMime: 'image/png' });
   const two = await assets.ingest(room.chatId, { bytes: await png(9, 9), declaredMime: 'image/png' });
   const playground = new PlaygroundStore(store.orm);
 
-  // Both are stale when the sweep selects them. The sweep yields while it
-  // removes the first file; a submission attaches the second in that window.
+  // Both rows are atomically claimed before removing the first file yields.
+  // A submission in that await window must reject the expired id, including
+  // callers using the store directly: admission rechecks inside its transaction.
   const sweeping = assets.sweep({ staleAfterMs: -1 });
-  playground.submit(room.chatId, {
-    requestKey: 'req-late',
-    senderId: room.members[0]!.senderId,
-    text: '',
-    media: [{ assetId: two.id, sha256: two.sha256, mime: two.mime, byteSize: two.byteSize, width: 9, height: 9 }],
-  });
-  await sweeping;
-
   expect(assets.resolve(one.id)).toBeNull();
-  expect(assets.resolve(two.id)).not.toBeNull();
-  await expect(access(two.path)).resolves.toBeUndefined();
-  expect(store.orm.select({ id: playgroundAssets.id }).from(playgroundAssets).all()).toEqual([{ id: two.id }]);
+  expect(assets.resolve(two.id)).toBeNull();
+  expect(() =>
+    playground.submit(room.chatId, {
+      requestKey: 'req-late',
+      senderId: room.members[0]!.senderId,
+      text: '',
+      media: [{ assetId: two.id, sha256: two.sha256, mime: two.mime, byteSize: two.byteSize, width: 9, height: 9 }],
+    }),
+  ).toThrow(/does not belong to room/);
+  await expect(
+    new PlaygroundIngress(store.orm, { assets }).submit(room.chatId, {
+      requestKey: 'req-late-ingress',
+      senderId: room.members[0]!.senderId,
+      text: '',
+      assetIds: [two.id],
+    }),
+  ).rejects.toMatchObject({ code: 'unknown_asset' });
+  expect((await sweeping).staged).toBe(2);
+
+  await expect(access(one.path)).rejects.toThrow();
+  await expect(access(two.path)).rejects.toThrow();
+  expect(store.orm.select().from(media).all()).toEqual([]);
+  expect(store.orm.select().from(playgroundAssets).all()).toEqual([]);
 });
 
 test('an asset handed to a second uploader survives its creator rolling back', async () => {

@@ -1,0 +1,64 @@
+{
+  "model": "codex/gpt-6-luna",
+  "input": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "Read the six-character hexadecimal code in the tool image. Return only that code, no other text."
+        }
+      ]
+    },
+    {
+      "type": "function_call",
+      "call_id": "live_capture",
+      "name": "verify__capture",
+      "arguments": "{}"
+    },
+    {
+      "type": "function_call_output",
+      "call_id": "live_capture",
+      "output": [
+        {
+          "type": "input_text",
+          "text": "Tool result image 1 from verify__capture (tool_call_id: live_capture)"
+        },
+        {
+          "type": "input_image",
+          "detail": "auto",
+          "image_url": {
+            "__surowan_audit_omission__": "base64_image",
+            "mime_type": "image/png",
+            "encoded_characters": 11596,
+            "decoded_bytes": 8696,
+            "sha256": "5308db125a1a40a94308fe2caf20b6849310f446e3d861141fe802de8fe8e125"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "Ignore the printed code. Describe the colored shapes in the image. Return only COLOR SHAPE COUNT, with the singular shape name and a digit count, no punctuation or other text."
+        }
+      ]
+    }
+  ],
+  "stream": true,
+  "store": false,
+  "max_output_tokens": 32768,
+  "tools": [
+    {
+      "type": "function",
+      "name": "verify__capture",
+      "description": "Capture a verification image",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
+}

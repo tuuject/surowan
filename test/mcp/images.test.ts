@@ -1,14 +1,14 @@
 import { readFile, rm } from 'node:fs/promises';
-import { eq, sql } from 'drizzle-orm';
 import { fauxProvider } from '@earendil-works/pi-ai';
-import { expect, test } from 'vitest';
-import { loadToolImages } from '../../src/capabilities/media/tool-images.ts';
+import { eq, sql } from 'drizzle-orm';
+import { expect, test, vi } from 'vitest';
 import { convertMcpResult } from '../../src/capabilities/mcp/content.ts';
+import { loadToolImages } from '../../src/capabilities/media/tool-images.ts';
 import { ConversationContextStore } from '../../src/context/store.ts';
 import { toolImageReferences } from '../../src/platform/tool-images.ts';
 import { contextMessages, toolCalls } from '../../src/store/schema/index.ts';
 import { purgeExpiredData } from '../../src/store/store.ts';
-import { appendImageResult, imageFixture, type ImageFixture } from './image-fixtures.ts';
+import { appendImageResult, type ImageFixture, imageFixture } from './image-fixtures.ts';
 
 function load(f: ImageFixture, messages: Parameters<typeof loadToolImages>[0], vision = true) {
   return loadToolImages(messages, {
@@ -140,6 +140,50 @@ test('forged references cannot load another conversation or an unlisted asset', 
   });
   expect(JSON.stringify(projected)).toContain('image_not_authorized');
   expect(JSON.stringify(projected)).not.toContain('"type":"image"');
+});
+
+test('one retained-history query authorizes multiple calls and preserves call, asset, chat and cut bounds', async () => {
+  const f = await imageFixture();
+  const first = appendImageResult(f, await f.tool.execute('batch_first', {}), 'batch_first');
+  const second = appendImageResult(f, await f.tool.execute('batch_second', {}), 'batch_second');
+  const query = vi.spyOn(f.store.orm, 'all');
+  try {
+    const hydrated = await load(f, [first, second]);
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(
+      hydrated.flatMap((message) =>
+        Array.isArray(message.content) ? message.content.filter((block) => block.type === 'image') : [],
+      ),
+    ).toHaveLength(4);
+    const forgedCall = await load(f, [{ ...first, toolCallId: 'unretained' }]);
+    expect(JSON.stringify(forgedCall)).toContain('image_not_authorized');
+    const refs = toolImageReferences(first.details);
+    const forgedAsset = {
+      ...first,
+      details: {
+        mcpImages: { version: 1, items: refs.map((ref) => ({ ...ref, contentIndex: ref.contentIndex + 1 })) },
+      },
+    };
+    expect(JSON.stringify(await load(f, [forgedAsset]))).not.toContain('"type":"image"');
+    const wrongChat = await loadToolImages([first], {
+      orm: f.store.orm,
+      dataDir: f.loaded.config.data_dir,
+      conversationId: f.seed.conversationId,
+      chatId: 999999n,
+      model: fauxProvider({ models: [{ id: 'vision', input: ['text', 'image'] }] }).getModel(),
+      signal: new AbortController().signal,
+    });
+    expect(JSON.stringify(wrongChat)).not.toContain('"type":"image"');
+    f.store.orm.run(
+      sql`UPDATE context_messages SET evicted_at = '2000-01-01' WHERE context_id = ${f.context.header.id}`,
+    );
+    expect(JSON.stringify(await load(f, [first, second]))).not.toContain('"type":"image"');
+    f.store.orm.run(sql`UPDATE context_messages SET evicted_at = NULL WHERE context_id = ${f.context.header.id}`);
+    f.store.orm.run(sql`UPDATE conversation_contexts SET head_seq = next_seq WHERE id = ${f.context.header.id}`);
+    expect(JSON.stringify(await load(f, [first, second]))).not.toContain('"type":"image"');
+  } finally {
+    query.mockRestore();
+  }
 });
 
 test('legacy text-only MCP envelope and unsupported binary content remain bounded', async () => {

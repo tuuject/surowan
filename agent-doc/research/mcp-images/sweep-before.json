@@ -1,0 +1,69 @@
+{
+  "phase": "before",
+  "sqlite": {
+    "version": "3.53.4"
+  },
+  "candidateAssets": 1000,
+  "contextRows": 2000,
+  "toolRows": 2000,
+  "itemsPerRow": 2,
+  "query": "SELECT id, storage_path FROM playground_assets WHERE COALESCE(last_used_at, created_at) < '2026-01-01' AND NOT EXISTS (SELECT id FROM media WHERE media.local_asset_id = playground_assets.id) AND NOT EXISTS (\n    SELECT 1 FROM context_messages cm,\n      json_each(cm.payload_json, '$.details.mcpImages.items') image\n    WHERE json_extract(image.value, '$.assetId') = playground_assets.id\n  ) AND NOT EXISTS (\n    SELECT 1 FROM tool_calls tc,\n      json_each(tc.result_content_json, '$.details.mcpImages.items') image\n    WHERE json_extract(image.value, '$.assetId') = playground_assets.id\n  )",
+  "plan": [
+    {
+      "id": 2,
+      "parent": 0,
+      "notused": 216,
+      "detail": "SCAN playground_assets"
+    },
+    {
+      "id": 9,
+      "parent": 0,
+      "notused": 0,
+      "detail": "CORRELATED SCALAR SUBQUERY 1"
+    },
+    {
+      "id": 13,
+      "parent": 9,
+      "notused": 56,
+      "detail": "SEARCH media USING COVERING INDEX media_local_asset (local_asset_id=?)"
+    },
+    {
+      "id": 24,
+      "parent": 0,
+      "notused": 0,
+      "detail": "CORRELATED SCALAR SUBQUERY 2"
+    },
+    {
+      "id": 29,
+      "parent": 24,
+      "notused": 216,
+      "detail": "SCAN cm"
+    },
+    {
+      "id": 31,
+      "parent": 24,
+      "notused": 0,
+      "detail": "SCAN image VIRTUAL TABLE INDEX 3:"
+    },
+    {
+      "id": 48,
+      "parent": 0,
+      "notused": 0,
+      "detail": "CORRELATED SCALAR SUBQUERY 3"
+    },
+    {
+      "id": 53,
+      "parent": 48,
+      "notused": 216,
+      "detail": "SCAN tc"
+    },
+    {
+      "id": 55,
+      "parent": 48,
+      "notused": 0,
+      "detail": "SCAN image VIRTUAL TABLE INDEX 3:"
+    }
+  ],
+  "rows": 1000,
+  "elapsedMs": 1568.448044
+}

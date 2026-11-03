@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import sharp, { type Metadata } from 'sharp';
 import { and, eq, lt, notExists, sql } from 'drizzle-orm';
+import sharp, { type Metadata } from 'sharp';
 import { media, playgroundAssets } from '../../store/schema/index.ts';
 import type { Orm } from '../../store/store.ts';
 
@@ -352,9 +352,12 @@ export class PlaygroundAssetStore {
     // that never became a message, or one whose every message was pruned.
     // One asset can back several messages (uploads dedupe by content), so
     // `media_id`, which names only the latest attachment, is not the test.
+    // Claim the whole batch in one statement: the reference set is extracted
+    // once, and the reference check and row deletion share one SQLite snapshot.
+    // This is the cutoff for submissions: admission rejects a claimed asset
+    // even while its file is still being removed after the first await.
     const stale = this.#orm
-      .select({ id: playgroundAssets.id, path: playgroundAssets.storagePath })
-      .from(playgroundAssets)
+      .delete(playgroundAssets)
       .where(
         and(
           lt(sql`COALESCE(${playgroundAssets.lastUsedAt}, ${playgroundAssets.createdAt})`, cutoff),
@@ -362,29 +365,11 @@ export class PlaygroundAssetStore {
           noToolImageReferences(),
         ),
       )
+      .returning({ id: playgroundAssets.id, path: playgroundAssets.storagePath })
       .all();
 
     let staged = 0;
     for (const asset of stale) {
-      // The selection is stale once an await has run: a submission may have
-      // attached the asset since. The row is claimed by deleting it under the
-      // same condition, and only a claimed asset loses its file.
-      const claimed = this.#orm
-        .delete(playgroundAssets)
-        .where(
-          and(
-            eq(playgroundAssets.id, asset.id),
-            notExists(
-              this.#orm.select({ id: media.id }).from(media).where(eq(media.localAssetId, playgroundAssets.id)),
-            ),
-            noToolImageReferences(),
-            lt(sql`COALESCE(${playgroundAssets.lastUsedAt}, ${playgroundAssets.createdAt})`, cutoff),
-          ),
-        )
-        .run();
-      if (claimed.changes !== 1) {
-        continue;
-      }
       this.#shared.delete(asset.id);
       await rm(this.#absolute(asset.path), { force: true });
       staged += 1;
@@ -544,13 +529,15 @@ export function localImageAssets(orm: Orm, dataDir: string): PlaygroundAssetStor
 
 /** Audit retention must not delete bytes still referenced by canonical history. */
 function noToolImageReferences() {
-  return sql`NOT EXISTS (
-    SELECT 1 FROM context_messages cm,
+  // An uncorrelated UNION builds a reusable membership set once per statement.
+  // Missing/null ids must be excluded: a NULL in NOT IN would retain every row.
+  return sql`${playgroundAssets.id} NOT IN (
+    SELECT json_extract(image.value, '$.assetId') FROM context_messages cm,
       json_each(cm.payload_json, '$.details.mcpImages.items') image
-    WHERE json_extract(image.value, '$.assetId') = ${playgroundAssets.id}
-  ) AND NOT EXISTS (
-    SELECT 1 FROM tool_calls tc,
+    WHERE json_extract(image.value, '$.assetId') IS NOT NULL
+    UNION
+    SELECT json_extract(image.value, '$.assetId') FROM tool_calls tc,
       json_each(tc.result_content_json, '$.details.mcpImages.items') image
-    WHERE json_extract(image.value, '$.assetId') = ${playgroundAssets.id}
+    WHERE json_extract(image.value, '$.assetId') IS NOT NULL
   )`;
 }
