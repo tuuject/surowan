@@ -1,5 +1,9 @@
-# ── Stage 1: Build admin panel + install production deps ────────
-FROM node:24-bookworm-slim AS builder
+# ── Stage 1: Architecture-independent build outputs ─────────────
+# The admin panel bundle, the image-service dist/ and the manual pack are plain
+# JS and Markdown, so this stage runs on the build host's own platform even for
+# a cross-platform image. Under QEMU the arm64 admin build alone took ten times
+# as long as on amd64.
+FROM --platform=$BUILDPLATFORM node:24-bookworm-slim AS assets
 
 WORKDIR /app
 
@@ -29,24 +33,50 @@ COPY . .
 # A cached install layer looks stale next to freshly checked-out manifests;
 # skip pnpm's pre-run reinstall, which fails on the docs-only patch.
 # The image-service build is explicit: its dist/ must exist before the prod
-# prune, whose --ignore-scripts flag (below) skips the prepare script.
+# prune, whose --ignore-scripts flag (in the builder stage) skips the prepare script.
 RUN pnpm --config.verify-deps-before-run=false run admin:build \
     && pnpm --config.verify-deps-before-run=false run --filter @surowan/image-service build
 
 # Pack the user-manual Markdown the runtime serves through its document
 # capabilities. Only content/docs and the examples enter the build context (see .dockerignore);
 # the docs site itself is never built or shipped. The pack lands in src/manual,
-# which the runtime stage copies verbatim with the rest of src/. The sources go
-# away right after: the frozen prod install below treats an apps/docs directory
-# without its package.json as a lockfile mismatch.
-RUN node scripts/manual-prepare.ts && rm -rf apps/docs
+# which the builder stage copies into the src/ that ships.
+RUN node scripts/manual-prepare.ts
+
+# ── Stage 2: Target-platform production deps ────────────────────
+FROM node:24-bookworm-slim AS builder
+
+WORKDIR /app
+
+# The same install as the assets stage, step for step: native modules must
+# match the target, and when the target is the build platform BuildKit sees
+# identical steps and runs them once for both stages.
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY package.json ./
+RUN PNPM_VERSION="$(node -p 'require("./package.json").packageManager.split("+")[0]')" \
+    && npm install --global "$PNPM_VERSION"
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY patches ./patches
+COPY apps/admin-next/package.json ./apps/admin-next/
+COPY scripts/skills-sync.ts scripts/git-hooks.ts ./scripts/
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+COPY --from=assets /app/apps/admin-next/dist ./apps/admin-next/dist
+COPY --from=assets /app/packages/image-service/dist ./packages/image-service/dist
+COPY --from=assets /app/src/manual ./src/manual
 
 # Prune devDependencies — runtime only needs production deps.
 # --ignore-scripts: the workspace package's prepare runs tsc, which the prune
-# is about to remove; dist/ was already built by the explicit step above.
-RUN pnpm install --prod --frozen-lockfile --ignore-scripts
+# is about to remove; dist/ was already built in the assets stage.
+# The manual sources go first: the frozen prod install treats an apps/docs
+# directory without its package.json as a lockfile mismatch.
+RUN rm -rf apps/docs && pnpm install --prod --frozen-lockfile --ignore-scripts
 
-# ── Stage 2: Runtime (Node.js 24) ───────────────────────────────
+# ── Stage 3: Runtime (Node.js 24) ───────────────────────────────
 FROM node:24-bookworm-slim
 
 # Runtime system dependencies:
