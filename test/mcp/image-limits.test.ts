@@ -225,7 +225,7 @@ test('Streamable HTTP accepts native mixed images and bounds oversized image res
     expect(result.isError).toBe(true);
     expect(result.content.map((block) => (block.type === 'text' ? block.text : ''))).toEqual([
       'before',
-      expect.stringContaining('[MCP image '),
+      expect.stringContaining('[image '),
       'after',
       expect.stringContaining('isError=true'),
     ]);

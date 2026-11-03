@@ -337,7 +337,7 @@ test.each(['context', 'audit'] as const)(
     const unreferenced = await assets.ingest(room.chatId, { bytes: await png(9, 9), declaredMime: 'image/png' });
     const payload = JSON.stringify({
       details: {
-        mcpImages: { items: [{ assetId: referenced.id }, {}, { assetId: null }, { assetId: referenced.id }] },
+        toolImages: { items: [{ assetId: referenced.id }, {}, { assetId: null }, { assetId: referenced.id }] },
       },
     });
     const remove = store.orm.delete.bind(store.orm);

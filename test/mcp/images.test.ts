@@ -29,9 +29,9 @@ test.each([false, true])(
     expect(result.isError).toBe(isError);
     expect(result.content.filter((block) => block.type === 'text').map((block) => block.text)).toEqual([
       'before',
-      expect.stringContaining('[MCP image '),
+      expect.stringContaining('[image '),
       'between',
-      expect.stringContaining('[MCP image '),
+      expect.stringContaining('[image '),
       'after',
       ...(isError ? [expect.stringContaining('isError=true')] : []),
     ]);
@@ -161,7 +161,7 @@ test('one retained-history query authorizes multiple calls and preserves call, a
     const forgedAsset = {
       ...first,
       details: {
-        mcpImages: { version: 1, items: refs.map((ref) => ({ ...ref, contentIndex: ref.contentIndex + 1 })) },
+        toolImages: { version: 1, items: refs.map((ref) => ({ ...ref, contentIndex: ref.contentIndex + 1 })) },
       },
     };
     expect(JSON.stringify(await load(f, [forgedAsset]))).not.toContain('"type":"image"');

@@ -532,14 +532,14 @@ function noToolImageReferences() {
   // An uncorrelated UNION builds a reusable membership set once per statement.
   // Missing/null ids must be excluded: a NULL in NOT IN would retain every row.
   // context_messages is never pruned by retention, so only tool results are
-  // parsed; user and assistant payloads cannot carry MCP image references.
+  // parsed; user and assistant payloads cannot carry tool image references.
   return sql`${playgroundAssets.id} NOT IN (
     SELECT json_extract(image.value, '$.assetId') FROM context_messages cm,
-      json_each(cm.payload_json, '$.details.mcpImages.items') image
+      json_each(cm.payload_json, '$.details.toolImages.items') image
     WHERE cm.role = 'toolResult' AND json_extract(image.value, '$.assetId') IS NOT NULL
     UNION
     SELECT json_extract(image.value, '$.assetId') FROM tool_calls tc,
-      json_each(tc.result_content_json, '$.details.mcpImages.items') image
+      json_each(tc.result_content_json, '$.details.toolImages.items') image
     WHERE tc.result_content_json IS NOT NULL AND json_extract(image.value, '$.assetId') IS NOT NULL
   )`;
 }

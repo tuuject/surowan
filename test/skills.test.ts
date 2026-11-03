@@ -115,6 +115,7 @@ test('the skill index reaches the system prompt and primitives stay directly cal
       expect(getCurrentSystemPrompt(context.messages)).not.toContain('# Web fetch');
       expect(getCurrentTools(context.messages).map((tool) => tool.name)).toEqual([
         'read',
+        'read_member_profile',
         'search_memory',
         'read_memory',
         'send',

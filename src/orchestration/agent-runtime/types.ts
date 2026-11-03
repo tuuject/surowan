@@ -20,6 +20,7 @@ import type {
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import type { SkillVisibilityTarget, SystemResources, SystemSkill } from '../../platform/system-resources.ts';
+import type { ToolImageReference } from '../../platform/tool-images.ts';
 import type { DailyTokenBudget } from '../../store/sleep.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import type { CachedConversationAgent, ConversationRuntime } from '../conversation-runtime.ts';
@@ -52,6 +53,8 @@ export type CapabilityToolFactory = (
   live?: CapabilityLiveContext,
 ) => readonly ExecutableCapability[];
 export type DirectImageLoader = (context: InvocationContext, signal: AbortSignal) => Promise<readonly ImageContent[]>;
+/** Normalizes and stores one tool image for one Chat, returning its reference. */
+export type ToolImageStore = (chatId: bigint, bytes: Uint8Array, signal: AbortSignal) => Promise<ToolImageReference>;
 
 export interface AgentRuntimeOptions {
   readonly store: BusinessStore;
@@ -101,6 +104,12 @@ export interface AgentRuntimeOptions {
   /** Directly exposed non-primitive tools (allowlisted MCP tools). */
   readonly additionalTools?: ToolFactory;
   readonly directImageLoader?: DirectImageLoader;
+  /**
+   * Stores one tool-obtained picture as a Chat-owned tool image. Absent when the
+   * process has no local asset store, which makes `read_member_profile` refuse
+   * to attach avatars instead of inventing a storage path.
+   */
+  readonly toolImageStore?: ToolImageStore;
   readonly modelGate?: KeyedSemaphore;
   /** Shared with the scheduler so the attach path and the runtime agree. */
   readonly conversationRuntime?: ConversationRuntime;
@@ -155,6 +164,7 @@ export interface RuntimeServices {
   readonly skillVisibility: ((skill: SystemSkill, target: SkillVisibilityTarget) => boolean) | undefined;
   readonly additionalTools: ToolFactory | undefined;
   readonly directImageLoader: DirectImageLoader | undefined;
+  readonly toolImageStore: ToolImageStore | undefined;
   readonly modelGate: KeyedSemaphore;
   readonly contextBuilder: ContextBuilder;
   readonly contexts: ConversationContextStore;

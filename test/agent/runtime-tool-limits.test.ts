@@ -252,6 +252,7 @@ test('a model that declares minimal tool-schema keywords is sent reduced tool de
   // validation-only annotations a grammar endpoint rejects are gone.
   expect(presented.map((tool) => tool.name)).toEqual([
     'read',
+    'read_member_profile',
     'search_memory',
     'read_memory',
     'send',

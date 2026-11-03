@@ -1,15 +1,15 @@
-import { afterAll, describe, expect, test } from 'vitest';
 import { fauxAssistantMessage, fauxProvider, fauxToolCall, getCurrentTools, type Tool } from '@earendil-works/pi-ai';
 import { getJsonSchemaToolParameters } from '@earendil-works/pi-ai/api/constrained-sampling';
 import { Compile } from 'typebox/compile';
+import { afterAll, describe, expect, test } from 'vitest';
+import { capability } from '../../src/capabilities/execute-tool.ts';
 import { AgentRuntime } from '../../src/orchestration/agent-runtime/index.ts';
-import { AlarmInputSchema } from '../../src/plugins/alarm/alarm.ts';
 import { KeyedSemaphore } from '../../src/platform/concurrency.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
-import { capability } from '../../src/capabilities/execute-tool.ts';
 import { emptySystemResources } from '../../src/platform/system-resources.ts';
-import { alarmTools, cleanupTestDirectories, futureIso, processDue, setup, update } from './fixtures.ts';
+import { AlarmInputSchema } from '../../src/plugins/alarm/alarm.ts';
 import { fauxRegistry, testTelegramRuntime } from '../helpers.ts';
+import { alarmTools, cleanupTestDirectories, futureIso, processDue, setup, update } from './fixtures.ts';
 
 afterAll(async () => {
   await cleanupTestDirectories();
@@ -239,7 +239,7 @@ describe('alarm tool', () => {
       )
       .get();
     expect(presented?.tools_json).toBe(
-      JSON.stringify(['read', 'search_memory', 'read_memory', 'send', 'send_reply', 'execute']),
+      JSON.stringify(['read', 'read_member_profile', 'search_memory', 'read_memory', 'send', 'send_reply', 'execute']),
     );
     const auditPayload = store.db
       .prepare<[], { request_json: string | null }>(
@@ -251,6 +251,7 @@ describe('alarm tool', () => {
     // list_alarm schema was served by the execute help action above.
     expect(payload.tools?.map((entry) => entry.name)).toEqual([
       'read',
+      'read_member_profile',
       'search_memory',
       'read_memory',
       'send',

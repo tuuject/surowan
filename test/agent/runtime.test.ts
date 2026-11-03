@@ -158,6 +158,7 @@ test.each([undefined, false, true])(
         const tools = getCurrentTools(context.messages);
         expect(tools.map((tool) => tool.name)).toEqual([
           'read',
+          'read_member_profile',
           'search_memory',
           'read_memory',
           'send',
@@ -237,7 +238,7 @@ test.each([undefined, false, true])(
       )
       .get();
     expect(presented?.tools_json).toBe(
-      JSON.stringify(['read', 'search_memory', 'read_memory', 'send', 'send_reply', 'execute']),
+      JSON.stringify(['read', 'read_member_profile', 'search_memory', 'read_memory', 'send', 'send_reply', 'execute']),
     );
     const snapshot = store.db
       .prepare<[], { request_json: string | null; response_json: string | null }>(

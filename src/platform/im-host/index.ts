@@ -32,6 +32,7 @@
 import type { ImDelivery, ImDeliveryOutcome } from './delivery.ts';
 import type { HostKind, ImConversationRef } from './identity.ts';
 import { type ImConversationPolicy, type ImDeliveryTarget, resolveConversationPolicy } from './policy.ts';
+import type { ImMemberProfiles } from './profiles.ts';
 
 /* -------------------------------------------------------------------------- */
 /* Activity                                                                   */
@@ -70,6 +71,13 @@ export interface ImHost {
   policy(conversation: ImConversationRef): ImConversationPolicy;
   readonly delivery: ImDelivery;
   readonly activity: ImActivity;
+  /**
+   * The member-profile reader of the moment, or undefined while this host
+   * cannot read profiles at all (Telegram stopped, no instance). Read per call,
+   * exactly like the sticker worker: a connection that opens later makes the
+   * reader available without rebuilding the host.
+   */
+  readonly profiles?: () => ImMemberProfiles | undefined;
 }
 
 /**
