@@ -39,7 +39,9 @@ pnpm run admin:build
 pnpm run admin:test:e2e 01-routes 03-invocation-detail 05-readonly-security 06-trust-boundary 23-mcp-images --workers=2
 ```
 
-执行结果：完整 `pnpm test --silent` 为 **363 个测试文件、2,008 项全部通过**；上述五组 Admin E2E **43 项全部通过**；`check`、`lint`、Admin 构建通过。冷恢复测试还单独验证了先停止 MCP、关闭原 SQLite，再打开数据库并创建新 Runtime 的路径。首次完整测试暴露的 5 个迁移断言已更新为版本 049 及新增字段的明确 null 值，并通过完整复跑。
+执行结果：MCP 图片相关 **23 项测试通过**；上述五组 Admin E2E **43 项全部通过**；`check`、`lint`、Admin 构建通过。冷恢复测试还单独验证了先停止 MCP、关闭原 SQLite，再打开数据库并创建新 Runtime 的路径。迁移断言已同步为版本 049 及新增字段的明确 null 值。
+
+完整套件共 **363 个测试文件、2,008 项**。曾有一轮全部通过；最后对业务提交 `c782f700e731b1673b9e9863f355ebec33b0fb4b` 的完整复跑为 **2,007 通过、1 失败**，失败是既有的 `test/playground/context.test.ts:198`（`a room memory list hides the oldest entries to fit its 10% budget`）。使用原始基线 `932612cf8fc0d354ae4bc29f074e9bd1fecbaf8b` 的隔离源码连续运行该测试 8 次，复现 1 次相同失败：快速创建的记忆可能拥有相同毫秒时间，存储再按随机 ID 排序，测试却要求最后创建的 `9` 一定保留。本次未修改这个无关的记忆模块或测试，没有通过重试把该项记成通过。
 
 Provider fixture 有意在收到请求后返回 400 终止，因此它证明真实 adapter 的 wire 契约，不代表真实供应商接受或理解了图片。fixture 的 `image-model`、`claude-sonnet-4`、`gemini-3-flash` 和 `gemini-2.5-flash` 是用于选择适配路径的测试 ID，不能据此宣称这些真实模型已验收。
 
