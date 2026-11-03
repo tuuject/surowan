@@ -49,7 +49,7 @@ surowan/
 ├── apps/docs/              # Rspress 中文官网与用户指南（独立静态站）
 ├── packages/image-service/ # 私有图片生成核心包：有损意图 API、provider adapter 边界、领域测试
 ├── src/image/              # 图片核心的进程级装配（借宿主连接、<data_dir>/images、优雅停止）
-├── Dockerfile              # 两阶段镜像；媒体依赖打包在内
+├── Dockerfile              # 三阶段镜像（架构无关产物在构建机原生构建）；媒体依赖打包在内
 ├── docker-compose.yml      # Docker 部署模板（/config 与 /data 两个卷）
 ├── doc/design/             # 用户逐条审核过的 PRD；agent 仅在用户明确要求时修改
 ├── agent-doc/              # 项目的 agent 共享上下文：按主题文档
