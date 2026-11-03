@@ -117,6 +117,7 @@ export class AgentRuntime {
       contexts: this.#contexts,
       refs: this.#refs,
       imageGeneration: this.#imageGeneration,
+      mediaFiles: options.mediaFiles,
       conversationRuntime: this.#conversationRuntime,
       contextInjectors: this.#contextInjectors,
     };

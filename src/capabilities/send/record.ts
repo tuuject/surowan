@@ -110,13 +110,15 @@ export function recordOutgoingMessage(
       senderId: sender.id,
       kind: input.kind,
       text: input.kind === 'text' ? sentText : null,
-      caption: input.kind === 'image' ? (input.text ?? null) : null,
+      caption: input.kind === 'image' || input.kind === 'file' ? (input.text ?? null) : null,
       replyToMessageId: input.reply_to_message_id === undefined ? null : BigInt(input.reply_to_message_id),
       createdAt: recordedAt,
       rawFragmentJson: JSON.stringify({
         message_id: Number(delivered.messageId),
         kind: input.kind,
-        ...(input.kind === 'image' ? { generation_id: input.image_generation_id } : {}),
+        ...((input.kind === 'image' || input.kind === 'file') && 'image_generation_id' in input
+          ? { generation_id: input.image_generation_id }
+          : {}),
       }),
     })
     .returning({ id: messageRevisions.id })

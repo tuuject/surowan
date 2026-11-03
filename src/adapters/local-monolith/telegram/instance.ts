@@ -112,6 +112,17 @@ export function forwardingTelegramTransport(holder: TelegramInstanceHolder): Tel
       }
       return transport.sendGeneratedPhotoGroup(chatId, pictures, options);
     },
+    sendDocuments: (
+      chatId: string,
+      files: readonly { readonly bytes: Uint8Array; readonly fileName: string }[],
+      options: TelegramMediaOptions,
+    ): Promise<TelegramSendResponse[]> => {
+      const transport = requireTransport(holder);
+      if (transport.sendDocuments === undefined) {
+        throw new TelegramUnavailableError();
+      }
+      return transport.sendDocuments(chatId, files, options);
+    },
   };
 }
 

@@ -281,6 +281,11 @@ export function createPlaygroundDelivery(deps: PlaygroundDeliveryDeps): ImDelive
           // have carried one would be worse than a clear refusal.
           return rejected('permanent', 'unsupported_media', 'a Bot Playground room cannot show a sticker message');
         }
+        if (part.kind === 'document') {
+          // A room keeps every picture at its original bytes already, and has
+          // no file message to show one as.
+          return rejected('permanent', 'unsupported_media', 'a Bot Playground room cannot show a file message');
+        }
         const shape =
           part.kind === 'text'
             ? ({ kind: 'text', text: part.text, caption: null } as const)

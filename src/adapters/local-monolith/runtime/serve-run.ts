@@ -132,6 +132,7 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
     systemResources,
     contextInjectors: plugins.contextInjectors,
     directImageLoader: (context, signal) => media.loadDirectImages(context.directImages, signal),
+    mediaFiles: { read: (mediaId, signal) => media.readOriginalFile(mediaId, signal) },
     capabilityTools,
     additionalTools,
     tasks,

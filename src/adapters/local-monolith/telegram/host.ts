@@ -88,6 +88,12 @@ export interface TelegramTransport {
     pictures: readonly { readonly bytes: Uint8Array; readonly fileName: string }[],
     options: TelegramMediaOptions,
   ): Promise<TelegramSendResponse[]>;
+  /** Delivers files uncompressed: one file as a document, several as one document group. */
+  sendDocuments?(
+    chatId: string,
+    files: readonly { readonly bytes: Uint8Array; readonly fileName: string }[],
+    options: TelegramMediaOptions,
+  ): Promise<TelegramSendResponse[]>;
 }
 
 /** Adapts a grammY client to {@link TelegramTransport}. */
@@ -161,6 +167,31 @@ export function grammyTelegramTransport(api: Api): TelegramTransport {
       );
       return messages.map(narrow);
     },
+    sendDocuments: async (chatId, files, options) => {
+      const target = {
+        ...(options.message_thread_id === undefined ? {} : { message_thread_id: options.message_thread_id }),
+        ...(options.reply_parameters === undefined ? {} : { reply_parameters: options.reply_parameters }),
+      };
+      const [only] = files;
+      if (files.length === 1 && only !== undefined) {
+        const message = await api.sendDocument(chatId, new InputFile(Buffer.from(only.bytes), only.fileName), {
+          ...target,
+          ...(options.caption === undefined ? {} : { caption: options.caption }),
+        });
+        return [narrow(message)];
+      }
+      // The caption rides on the first file, the message the send records.
+      const messages = await api.sendMediaGroup(
+        chatId,
+        files.map((file, index) => ({
+          type: 'document' as const,
+          media: new InputFile(Buffer.from(file.bytes), file.fileName),
+          ...(index === 0 && options.caption !== undefined ? { caption: options.caption } : {}),
+        })),
+        target,
+      );
+      return messages.map(narrow);
+    },
   };
 }
 
@@ -202,6 +233,7 @@ export function composeTelegramPart(part: ImOutgoingPart): ImComposedPart {
     }
     case 'photo':
     case 'photo_album':
+    case 'document':
       return { text: part.caption ?? null, markup: null };
     case 'sticker':
       return { text: null, markup: null };
@@ -438,6 +470,20 @@ export function createTelegramHost(options: TelegramHostOptions): TelegramHost {
         const [first] = responses;
         if (first === undefined) {
           throw new Error('the album delivery returned no messages');
+        }
+        return first;
+      }
+      case 'document': {
+        if (transport.sendDocuments === undefined) {
+          throw new MissingTransportCapability('files');
+        }
+        const responses = await transport.sendDocuments(chatId, part.files, {
+          ...base,
+          ...(part.caption === undefined ? {} : { caption: part.caption }),
+        });
+        const [first] = responses;
+        if (first === undefined) {
+          throw new Error('the file delivery returned no messages');
         }
         return first;
       }

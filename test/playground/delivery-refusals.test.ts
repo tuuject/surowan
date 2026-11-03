@@ -52,13 +52,15 @@ describe('Bot Playground virtual delivery', () => {
     );
     const target = { conversation, policy: host.policy(conversation) };
 
-    // A sticker can never reach this host (no wire), and a picture cannot be
-    // stored when the room has no picture store: both refusals are permanent
-    // and leave nothing behind. The picture case names the missing store,
-    // because a room with one does show pictures (see the image delivery
-    // suite), while a sticker refusal names the part it cannot carry.
+    // A sticker can never reach this host (no wire), a room has no file
+    // message, and a picture cannot be stored when the room has no picture
+    // store: every refusal is permanent and leaves nothing behind. The picture
+    // case names the missing store, because a room with one does show pictures
+    // (see the image delivery suite), while the others name the part they
+    // cannot carry.
     for (const [part, inDescription] of [
       [{ kind: 'sticker', stickerRef: 'stk_1' } as const, 'sticker'],
+      [{ kind: 'document', files: [{ bytes: new Uint8Array([1, 2, 3]), fileName: 'a.png' }] } as const, 'file'],
       [{ kind: 'photo', bytes: new Uint8Array([1, 2, 3]), fileName: 'a.png' } as const, 'picture store'],
     ] as const) {
       const sendId = reserveSend(room.conversationId, room.invocationId, { id: `m-${part.kind}`, kind: part.kind });

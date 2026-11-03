@@ -31,7 +31,7 @@ pnpm test test/telegram/ingestion.test.ts test/telegram/spoiler.test.ts test/tel
 pnpm test test/scheduler/scheduler.test.ts test/sleep.test.ts
 pnpm test test/context/store.test.ts test/context/gc.test.ts test/context/hot-inject.test.ts
 pnpm test test/context/send.test.ts test/send/reply.test.ts test/send/dedup.test.ts test/duplicate-send-guard.test.ts test/send/guard.test.ts test/cut/topic.test.ts
-pnpm test test/image/agent.test.ts test/image/delivery.test.ts test/image/delivery-runtime.test.ts
+pnpm test test/image/agent.test.ts test/image/delivery.test.ts test/image/delivery-runtime.test.ts test/image/delivery-file.test.ts test/media/original-file.test.ts
 pnpm test test/image/config-reload.test.ts test/image/config-degrade.test.ts
 pnpm test test/agent/runtime.test.ts test/models/request-audit.test.ts test/runtime/config-snapshot.test.ts
 pnpm test test/providers.test.ts test/models/metadata.test.ts test/tool-schema.test.ts test/token-usage.test.ts test/reconcile-daily-token-usage.test.ts
@@ -97,6 +97,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `duplicate-send-guard.test.ts` | 缺省/显式 `true` 开启、显式 `false` 关闭；同一 Invocation 内与已成功发送完全一致的文本与贴纸以 `send_duplicate` 拒绝且不调用 Telegram、不写 `telegram_sends`、不计 `sends_used`；忽略字段与省略 kind 不算不同；与上一条成功发送内容相同（重搜贴纸的新 ref 也算）而只改 Reply 目标或 `parse_mode` 也拒绝为 `send_duplicate` 并烧毁，中间隔了别的消息后则放行；Telegram 明确拒绝的发送可原样重试；`send_reply` 预检比对之前的发送与本组前面的条目（内容判重时 part 1 比上一条发送、后续 part 比前一条 part），命中整组不发，其各条也算本次已发；每次拒绝回调计数；关闭后描述不含守卫说明、重复照常发出 |
 | `send/guard.test.ts` | Reply 去重拒绝（`reply_already_sent`/`reply_delivery_unknown`）把该内容（kind + 文本或贴纸 file id，含留原始输入占位字段的归一化比对）在本次 Invocation 内烧毁；原样重发已发出的 Reply（`send_duplicate`，含 `send_reply` part 1）同样烧毁，`allow_reply_message_multiple_times` 开启时不烧；重搜贴纸得到的新 ref 仍命中烧毁：改换/省略 Reply 目标或改 `parse_mode` 重投以 `send_bypass` 拒绝、不调 Telegram、不占额度、拒绝回调计数；新内容不受影响；贴纸同规则；屏障拒绝不烧毁、放行后可原样发出；`send_reply` 预检命中烧毁整组不发、交付中途被拒的 part 内容同样烧毁；图片豁免；`send_duplicate_guard_enabled` 关闭时烧毁仍生效；烧毁跨 Invocation 失效而 Reply 去重持续 |
 | `image/delivery.test.ts` / `image/delivery-runtime.test.ts` | 图片按 Conversation/generation/asset 去重、跨 Invocation/重启有效、已送成功 no-op 的审计/限流/屏障与 canonical send 计数、后续新增输出、显式重发与完成轮限制、并发 pending/未知结果保护、回执 `image_delivery` 三类互斥且未知优先、无法证明集合的旧发送整代保守拒绝、权限与过期引用；工具链先发送后注入回执的真实 Faux 回归及普通回执不受影响 |
+| `image/delivery-file.test.ts` | `send kind:file`：generation 原图以 document 组发出且不算图片交付、Bot 生成照片的 `img_` 反查回该次交付的原图（原图已清理时 `file_original_unavailable` 拒绝而不发压缩版）、其他图片原样读取并补扩展名、Sticker/未授权引用/来源歧义在副作用前拒绝、缺 `sendDocuments` 的 transport 以 `send_unsupported` 失败、grammY 单文件与 document 组映射、迁移 `049` 重建后行与索引不变 |
 | `cut/topic.test.ts` | `/cut_topic` 切点排除命令消息及更早历史、切点只前移、按 Chat 与 Forum Topic 隔离、非管理员拒绝、重建服务后仍生效、同时清空该 Conversation 的 Conversation Context、中断仍持有切点前 transcript 的运行 |
 | `agent/runtime.test.ts` | 按 Conversation 播种的 Agent、Tool 循环、每批注入的 turn 预算、transcript 隔离与工具可见性审计、关闭调试报文录制时公开消息快照与正常审计仍保留 |
 | `chat/model-runtime.test.ts` | 按 Chat 解析模型覆盖（覆盖生效、缺省逐项继承全局、仅 `thinking_level` 覆盖时重绑缓存 Agent）、Topic 共用 Chat 设置、群迁移解析迁移前 Chat 配置且直接配置的新 ID 优先、跨 Provider 切换保留未变的 Context 与模型审计、queued→running 用当前快照而下一次 Invocation 才用新值、Chat 选用的 Agent 模型具备 image 能力时启用对应图片提示 |
@@ -133,6 +134,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `replay/prompt.test.ts` | 当前配置的 global/group 分层覆盖；新增首个 global 人格或清空唯一 group 人格时，临时覆盖与保存同样配置后发送给模型的 system prompt 完全一致，且重放不改数据库状态 |
 | `replay/http.test.ts` | CLI 子进程 → 回环 AdminServer → ReplayRunner → Faux Provider 真实 HTTP 链路，当前 prompt/模型与分层覆盖、合成 send/记忆/Alarm、MCP 阻断、preflight 与 active prompts 免费只读、切片 preflight/replay（`before_send_id` 在查询与 body 的校验：0/溢出/重复/未知参数 400、非法目标 409；窗口输入一次注入且生产表不变；缺少 `--confirm-paid` 时模型调用为零、连密钥使用时间都不更新）、keyword+公开消息时间搜索经 key 与 Session 结果一致、生产表不变（密钥使用时间除外）、无场景 409/非零退出、撤销 key 401 |
 | `media/media.test.ts` | 图片标准化、缓存和 Vision reasoning、换 vision 模型后按新 `analysis_version` 重新分析；下载客户端把 content-length 与流式超限统一类型化为 `MediaTooLargeError`，并在 `getFile` 挂起时立即中止而迟到响应不写文件 |
+| `media/original-file.test.ts` | `readOriginalFile`：下载字节原样交出（不归一化）、保留 document 文件名、拒绝 Sticker、下载临时目录不留残留 |
 | `stickers.test.ts` | Set 同步、结构化视觉 Tool Call、索引、搜索、发送 |
 | `media/image.test.ts` | 视频 Sticker 只按 WebM 解码（其他容器冒充时拒绝）、真实 WebM 仍能取帧、解压超过 8 MiB 的 TGS 在转换前拒绝；预取消或下载后立即取消均不启动 ffprobe/ffmpeg/Lottie；本机没有 ffmpeg/ffprobe 时仅视频取帧组跳过，TGS 与取消回归仍运行 |
 | `mcp.test.ts` | stdio/HTTP transport、策略、Header、重定向和审计、发现 Tool 失败时关闭 stdio 子进程、连接中 `stop()` 后保持 stopped 且关闭子进程 |

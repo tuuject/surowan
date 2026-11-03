@@ -80,7 +80,15 @@ export function checkReplyParts(
       }
     } else {
       if ((send.text?.length ?? 0) > 1024) {
-        reject('send_caption_too_long', `${label} image caption must not exceed 1024 characters`);
+        reject('send_caption_too_long', `${label} ${send.kind} caption must not exceed 1024 characters`);
+      }
+      // A file read may download, so only its authorization is checked here;
+      // the read itself waits for this part's turn.
+      if (!('image_generation_id' in send)) {
+        if (environment.capabilities.resolveMedia(send.image_ref) === undefined) {
+          reject('image_ref_not_authorized', `${label} image_ref is not visible in this conversation context`);
+        }
+        continue;
       }
       let pictures: ReturnType<NonNullable<SendToolEnvironment['imageGeneration']>['resolve']>;
       try {
