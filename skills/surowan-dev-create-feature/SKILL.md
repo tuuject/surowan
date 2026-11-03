@@ -1,25 +1,28 @@
 ---
 name: surowan-dev-create-feature
-description: 在本仓库（surowan / Surowan）开始任何新 feature 开发前的强制前置步骤：先从 origin/develop 拉取最新代码，再用 git worktree 在 ../<仓库文件夹名>.worktrees/feature/<feature 分支名> 建好工作树并切过去干活。用于 push 前的所有代码改动、修 bug、写测试、改文档；只要用户要求「开个 feature」「新开一个改动」「实现 xxx」「先拉最新 develop」「建 worktree」，或要动仓库里任何非只读文件，就先用这个 skill，即使用户没提 worktree 也要用。只读调查、跑测试、纯问答，以及已经位于 feature worktree 内的继续开发不需要。
+description: 本仓库（surowan / Surowan）的 git worktree 工作流，覆盖两件事：一是开始任何新 feature 开发前的强制前置步骤——先从 origin/develop 拉取最新代码，再在 ../<仓库文件夹名>.worktrees/feature/<feature 分支名> 建好工作树并切过去干活；二是 review、修改、合并 PR——无论是本仓库分支还是外部贡献者 fork 的 PR，都在 ../<仓库文件夹名>.worktrees/review/pr-<N> 检出审阅，fork PR 先审执行面再装依赖跑测试，合并锁定 review 过的 head。用于 push 前的所有代码改动、修 bug、写测试、改文档；只要用户要求「开个 feature」「新开一个改动」「实现 xxx」「先拉最新 develop」「建 worktree」「review / 看看 PR #N」「合并这个 PR」「处理外部贡献」，或要动仓库里任何非只读文件，就先用这个 skill，即使用户没提 worktree 也要用。只读调查、跑测试、纯问答，以及已经位于 feature worktree 内的继续开发不需要。
 ---
 
-# 创建 Feature Worktree 并开工
+# Surowan 的 Worktree 工作流：Feature 开工与 PR Review
+
+本文件的步骤是**新 feature 开工**。review、修改或合并 PR（本仓库分支与外部 fork 都算）读 [references/review-pr.md](references/review-pr.md)，它沿用这里的路径约定与查重规则。
 
 ## 为什么
 
-主目录 `~/Projects/<repo>` 是长期存在的基线 checkout；多个 feature 在同一个 checkout 上轮流切分支会互相踩脏、切分支丢状态。这个项目一致的做法是：**每个 feature 一个独立 worktree**，主目录不动。已有的工作树都长这样，直接沿用：
+主目录 `~/Projects/<repo>` 是长期存在的基线 checkout；多个 feature 在同一个 checkout 上轮流切分支会互相踩脏、切分支丢状态。这个项目一致的做法是：**每个 feature 一个独立 worktree**，每个被 review 的 PR 也一个，主目录不动。已有的工作树都长这样，直接沿用：
 
 ```text
 ~/Projects/surowan                                    # 主 checkout
 ~/Projects/surowan.worktrees/feature/bot-playground
 ~/Projects/surowan.worktrees/feature/compact-user-ids
+~/Projects/surowan.worktrees/review/pr-51             # PR review，detached 在 PR head
 ```
 
 新 feature 必须基于 `origin/develop` 的最新提交，而不是本地可能落后的 `develop`，避免一开始就落后、合并时才炸。
 
 ## 不适用
 
-- 只读调查、跑测试、看代码、纯问答：不动文件，不开 worktree。
+- 只读调查、跑测试、看代码、纯问答：不动文件，不开 worktree。（review PR 虽然不改文件，但要检出 PR 的代码，走 review 流程。）
 - 当前已经在某个 feature worktree 里开发（`git worktree list` 的输出中有当前分支）：那是本 skill 的产物，直接继续。
 - 一次性的 hotfix、rebase、清理分支、发布准备：不属于「新 feature 开工」。
 
@@ -68,12 +71,21 @@ git -C "$REPO" worktree add -b "feature/<name>" "$WORKTREE_PATH" origin/develop
 
 告诉用户：worktree 路径、分支名、base commit（`git rev-parse --short HEAD`），以及本地 develop 是否领先这类需要人知道的风险，然后直接开始用户的 feature 工作，不要停下来等确认。
 
+## PR Review 速览
+
+完整步骤见 [references/review-pr.md](references/review-pr.md)。最容易出错的几条先记住：
+
+- 检出：`git fetch origin develop "+pull/<N>/head:refs/remotes/origin/pr/<N>"`，核对它等于 `headRefOid` 后在 `../$NAME.worktrees/review/pr-<N>` 建 detached worktree，钉在 `headRefOid`；不在主 checkout 上 `gh pr checkout`，不放 `/tmp`。
+- 外部 fork 的代码不可信：先读 `package.json`、锁文件、`pnpm-workspace.yaml`、`scripts/`、`.githooks/`、`.github/`、测试配置与 `skills/` 的 diff，确认无害后才 `pnpm install` 和跑测试。
+- PR 上的 CI 不跑全量 `pnpm test` 和 Admin e2e，合并前要在本地跑。
+- 发评论、approve、推送到 fork、合并都是对外动作，用户明确授权后才做；合并用 `gh pr merge <N> --merge --match-head-commit <headRefOid>`。
+
 ## 反例（常犯）
 
 - 跳过 fetch 直接 `git worktree add -b ... origin/develop`：用的是上次 fetch 的陈旧 ref，开头就落后别人几天的提交。
 - 基于 `HEAD` / 本地 `develop` 建 worktree：用户要的是「最新 develop」，本地 ref 不一定最新。
 - 在主 checkout 上切分支、stash、直接改代码：违背「一个 feature 一个 worktree」的约定，也会打断主目录上其它进行中的事。
-- 绕过 worktree 在 `/tmp` 里 clone 一份：路径约定不一致，后续审计/清理都会漏掉它。
+- 绕过 worktree 在 `/tmp` 里 clone 一份或建 worktree：路径约定不一致，后续审计/清理都会漏掉它。
 - 已有 worktree 或分支占用时直接报错放弃：应该复用并继续，或者停下来问，而不是换个名字硬建。
 
 ## 例外情况
