@@ -7,7 +7,7 @@ import { cleanupSchemaDirectories, openStore } from './fixtures.ts';
 
 afterAll(cleanupSchemaDirectories);
 
-test('migration 049 preserves version-048 text history, tool audit and local images', async () => {
+test('migration 050 preserves version-049 text history, tool audit and local images', async () => {
   const { store, loaded } = await openStore();
   const seed = seedAdminFixture(store);
   const legacy = {
@@ -51,13 +51,13 @@ test('migration 049 preserves version-048 text history, tool audit and local ima
     ALTER TABLE tool_calls DROP COLUMN result_content_json;
     ALTER TABLE agent_messages DROP COLUMN tool_call_id;
     ALTER TABLE playground_assets DROP COLUMN last_used_at;
-    DELETE FROM schema_migrations WHERE version = 49;
+    DELETE FROM schema_migrations WHERE version = 50;
   `);
   store.close();
   const reopened = await SqliteStore.open(loaded.config);
   try {
     expect(reopened.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({
-      version: 49n,
+      version: 50n,
     });
     expect(reopened.db.prepare('SELECT tool_call_id, result_text FROM tool_calls ORDER BY id').all()).toEqual(before);
     const row = reopened.db

@@ -10,7 +10,7 @@ Admin 工具审计、时间线、Transcript 和 Context 使用认证图片 URL �
 
 没有新增图片生命周期服务、定时器或一组新配置。复用 `PlaygroundAssetStore` 的现有目录、格式校验、私有文件、去重和 staging grace；旧的 table/directory/class 名保留，MCP 也使用该存储，不开放 Playground MCP。清扫同时检查输入 media、工具审计和 canonical 引用；复用旧资产会续期 staging grace。cut 撤销模型读取，仍被历史记录引用的资产继续保留。
 
-迁移 049 只增加 nullable 字段：`tool_calls.result_content_json`、`agent_messages.tool_call_id`、`playground_assets.last_used_at`。旧纯文本 MCP 保留原 JSON 包装与截断行为，旧工具历史可不含 details，新字段为空时使用原文本展示。
+迁移 050 只增加 nullable 字段：`tool_calls.result_content_json`、`agent_messages.tool_call_id`、`playground_assets.last_used_at`。旧纯文本 MCP 保留原 JSON 包装与截断行为，旧工具历史可不含 details，新字段为空时使用原文本展示。
 
 边界沿用已有配置和处理能力：MCP `payload_max_bytes` 配置及最大 1 MiB 不变；本地资产最多 10 MiB、40M 像素；规范化最长边 2048、JPEG/PNG 输出；请求加载工具图片共用现有 20 MiB 媒体字节预算，预先扣除 transcript 内全部已有图片的解码字节与数量，并遵守模型声明的每请求、每消息图片数量。连续 tool results 按 Pi adapter 的实际分组共用消息额度：Completions、Anthropic、Gemini 3+ 合并；Responses 与 Gemini 2 图片输出各自计数。原生数据严格校验 base64、静态 JPEG/PNG/WebP 的 MIME/魔数和可解码内容。传输超限报告 `payload_limit`；格式错误、缺图、请求预算和不支持图片的模型均明确反馈，不自动重发工具或调用辅助 vision。
 
