@@ -1,0 +1,28 @@
+[
+  {
+    "t": "2026-11-03T19:59:48.334826923+08:00",
+    "route_id": 1793706814154,
+    "provider": "codex",
+    "model": "gpt-6-luna",
+    "req": "codex/gpt-6-luna",
+    "served": "gpt-6-luna",
+    "in": 201,
+    "out": 9,
+    "cache_read": 3712,
+    "ms": 3201,
+    "status": 200
+  },
+  {
+    "t": "2026-11-03T19:59:45.203930397+08:00",
+    "route_id": 1793706814153,
+    "provider": "codex",
+    "model": "gpt-6-luna",
+    "req": "codex/gpt-6-luna",
+    "served": "gpt-6-luna",
+    "in": 3873,
+    "out": 7,
+    "cache_read": 0,
+    "ms": 2116,
+    "status": 200
+  }
+]

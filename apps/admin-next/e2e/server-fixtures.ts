@@ -30,6 +30,7 @@ import { PlaygroundStore } from '../../../src/store/playground/index.ts';
 import { recordPromptVersionsFromConfig } from '../../../src/store/prompt-versions.ts';
 import { seedAdminBulkRows } from '../../../test/fixtures/admin-seed-bulk.ts';
 import { seedAdminFixture } from '../../../test/fixtures/admin-seed.ts';
+import { seedAdminToolImages } from '../../../test/fixtures/admin-tool-images.ts';
 import { seedAdminWarnings } from '../../../test/fixtures/admin-seed-context.ts';
 import { fauxRegistry } from '../../../test/helpers.ts';
 import {
@@ -56,6 +57,9 @@ export async function openFixtures(loaded: LoadedConfig, directory: string): Pro
   // must still find the open store to close.
   state.store = store;
   const seed = seedAdminFixture(store);
+  if (process.env.E2E_MCP_IMAGES === '1') {
+    await seedAdminToolImages(store, loaded.config.data_dir, seed);
+  }
   seedAdminBulkRows(store);
   seedAdminWarnings(store.orm);
   // The playground specs drive the real room store: two rooms, one of them with

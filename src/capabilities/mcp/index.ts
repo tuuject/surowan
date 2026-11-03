@@ -11,6 +11,8 @@ import type { McpServerConfig, RawConfig } from '../../platform/config/index.ts'
 import { type InvocationContext, previewContext } from '../../platform/invocation-context.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import type { BusinessStore } from '../../store/store.ts';
+import { localImageAssets } from '../media/local-assets.ts';
+import type { McpResultDetails, McpToolResult } from './content.ts';
 import { mcpServerState } from '../../store/schema/index.ts';
 import { executeMcpTool, type McpCallDeps } from './calls.ts';
 import {
@@ -37,6 +39,7 @@ export class McpManager {
     this.#secrets = secrets;
     this.#callDeps = {
       store,
+      assets: localImageAssets(store.orm, config.data_dir),
       servers: this.#servers,
       setState: (server, state, errorCode) => this.#setState(server, state, errorCode),
       scheduleReconnect: (server) => this.#scheduleReconnect(server),
@@ -51,6 +54,7 @@ export class McpManager {
         reconnectAttempt: 0,
         reconnectTimer: undefined,
         stderrBytes: 0,
+        payloadLimited: false,
         state: 'stopped',
       });
     }
@@ -145,11 +149,14 @@ export class McpManager {
       this.#setState(server, 'degraded', detail);
       this.#scheduleReconnect(server);
     };
-    client.onerror = () => {
+    client.onerror = (error) => {
       if (this.#stopping || generation !== server.generation) {
         return;
       }
-      this.#setState(server, 'degraded', 'transport_error');
+      if (error.message.startsWith('ReadBuffer exceeded maximum size of ')) {
+        server.payloadLimited = true;
+      }
+      this.#setState(server, 'degraded', server.payloadLimited ? 'payload_limit' : 'transport_error');
     };
     // Every exit that does not publish this client closes it: a failed
     // discovery or validation used to leave its stdio process or HTTP session
@@ -267,7 +274,10 @@ export class McpManager {
         await response.body?.cancel();
         throw new Error('MCP HTTP redirect rejected');
       }
-      return limitResponseBody(response, maxBytes, () => this.#setState(server, 'degraded', 'payload_limit'));
+      return limitResponseBody(response, maxBytes, () => {
+        server.payloadLimited = true;
+        this.#setState(server, 'degraded', 'payload_limit');
+      });
     };
     return new StreamableHTTPClientTransport(new URL(server.config.url), {
       requestInit: { headers, redirect: 'manual' },
@@ -344,7 +354,7 @@ export class McpManager {
     invocationDeadline: number,
   ): AgentTool[] {
     return definitions.map(
-      (definition): AgentTool<TUnsafe<Record<string, unknown>>, { server: string; tool: string }> => ({
+      (definition): AgentTool<TUnsafe<Record<string, unknown>>, McpResultDetails> => ({
         name: definition.exposedName,
         label: definition.exposedName,
         // Usage, untrusted-result, and failure rules live once in CORE_AGENT_PROTOCOL;
@@ -365,7 +375,7 @@ export class McpManager {
     toolCallId: string,
     input: Record<string, unknown>,
     outerSignal?: AbortSignal,
-  ): Promise<{ content: { type: 'text'; text: string }[]; details: { server: string; tool: string } }> {
+  ): Promise<McpToolResult> {
     return executeMcpTool(this.#callDeps, definition, context, invocationDeadline, toolCallId, input, outerSignal);
   }
 

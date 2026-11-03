@@ -251,6 +251,7 @@ export function recordAgentMessage(
   role: 'assistant' | 'tool_result' | 'harness_nudge',
   text: string,
   thinking = '',
+  toolCallId?: string,
 ): bigint {
   const sequence =
     services.store.orm
@@ -266,6 +267,7 @@ export function recordAgentMessage(
       role,
       text,
       thinkingText: thinking,
+      toolCallId,
       createdAt: new Date().toISOString(),
     })
     .returning({ id: agentMessages.id })

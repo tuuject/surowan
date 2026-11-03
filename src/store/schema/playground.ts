@@ -136,6 +136,7 @@ export const playgroundAssets = sqliteTable(
     height: sqliteBigInt('height').notNull(),
     storagePath: text('storage_path').notNull(),
     state: text('state').notNull().default('staged'),
+    lastUsedAt: text('last_used_at'),
     mediaId: sqliteBigInt('media_id').references(() => media.id, { onDelete: 'set null' }),
     createdAt: text('created_at').notNull(),
     attachedAt: text('attached_at'),

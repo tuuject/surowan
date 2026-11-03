@@ -63,3 +63,17 @@ test('is idempotent for an already scrubbed request', () => {
   expect(second.removedCharacters).toBe(0);
   expect(second.decodedBytes).toBe(0);
 });
+
+test('scrubs Anthropic and Google image bytes without treating ordinary data fields as images', () => {
+  const encoded = Buffer.from('private image payload').toString('base64');
+  const source = {
+    content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: encoded } }],
+    parts: [{ inlineData: { mimeType: 'image/jpeg', data: encoded } }],
+    business: { data: 'ordinary data', mimeType: 'image/png' },
+    text: 'ordinary data',
+  };
+  const scrubbed = scrubModelRequestAuditJson(JSON.stringify(source));
+  expect(scrubbed.replacements).toBe(2);
+  expect(scrubbed.json).not.toContain(encoded);
+  expect(JSON.parse(scrubbed.json).business.data).toBe('ordinary data');
+});

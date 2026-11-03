@@ -198,7 +198,7 @@ export function finishToolCall(
   state: ToolCallFinishState,
   resultText: string | null,
   errorCode: string | null,
-  options: { startedAt?: number; pendingOnly?: boolean; now?: Date } = {},
+  options: { startedAt?: number; pendingOnly?: boolean; now?: Date; resultContentJson?: string } = {},
 ): void {
   const finishedAt = (options.now ?? new Date()).toISOString();
   const durationMs =
@@ -208,7 +208,7 @@ export function finishToolCall(
   const pending = options.pendingOnly === true;
   orm
     .update(toolCalls)
-    .set({ state, resultText, errorCode, durationMs, finishedAt })
+    .set({ state, resultText, errorCode, durationMs, finishedAt, resultContentJson: options.resultContentJson })
     .where(pending ? and(eq(toolCalls.id, auditId), eq(toolCalls.state, 'pending')) : eq(toolCalls.id, auditId))
     .run();
 }

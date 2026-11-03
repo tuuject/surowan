@@ -1,3 +1,4 @@
+import { ToolResult } from './tool-result';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -97,7 +98,11 @@ export function ToolCallsTab({ invocation }: { readonly invocation: InvocationDe
             </div>
             <div>
               <p className="text-muted-foreground mb-1 text-xs">{t('invocations.invocationDetail.toolCall.result')}</p>
-              <JsonViewer value={row.result_text} />
+              {row.result_content ? (
+                <ToolResult content={row.result_content} />
+              ) : (
+                <JsonViewer value={row.result_text} />
+              )}
             </div>
           </div>
         )}

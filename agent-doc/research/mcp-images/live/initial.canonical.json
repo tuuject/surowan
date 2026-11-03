@@ -1,0 +1,67 @@
+[
+  {
+    "role": "user",
+    "content": "Read the six-character hexadecimal code in the tool image. Return only that code, no other text.",
+    "timestamp": 1793707185130
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "toolCall",
+        "id": "live_capture",
+        "name": "verify__capture",
+        "arguments": {}
+      }
+    ],
+    "api": "faux",
+    "provider": "faux",
+    "model": "faux-1",
+    "usage": {
+      "input": 0,
+      "output": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 0,
+      "cost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 0
+      }
+    },
+    "stopReason": "toolUse",
+    "timestamp": 1793707185130
+  },
+  {
+    "role": "toolResult",
+    "toolCallId": "live_capture",
+    "toolName": "verify__capture",
+    "content": [
+      {
+        "type": "text",
+        "text": "[MCP image f7711d4a28dbece010330c0ab919b38b]"
+      }
+    ],
+    "details": {
+      "server": "verify",
+      "tool": "capture",
+      "mcpImages": {
+        "version": 1,
+        "items": [
+          {
+            "contentIndex": 0,
+            "assetId": "f7711d4a28dbece010330c0ab919b38b",
+            "mimeType": "image/png",
+            "byteSize": 8696,
+            "width": 640,
+            "height": 400
+          }
+        ]
+      }
+    },
+    "isError": false,
+    "timestamp": 1793707185130
+  }
+]

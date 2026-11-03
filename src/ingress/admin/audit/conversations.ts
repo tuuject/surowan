@@ -8,6 +8,7 @@ import {
   conversations,
 } from '../../../store/schema/index.ts';
 import type { Orm } from '../../../store/store.ts';
+import { toolContentView } from '../tool-images.ts';
 import {
   AdminQueryError,
   type ListQuery,
@@ -151,6 +152,10 @@ export function getConversationContext(orm: Orm, conversationId: bigint): Record
       invocation_id: row.invocation_id === null ? null : row.invocation_id.toString(),
       evicted_at: row.evicted_at,
       created_at: row.created_at,
+      result_content:
+        row.role === 'toolResult'
+          ? toolContentView(row.payload_json, `/api/contexts/${conversationId}/messages/${row.seq}/images`)
+          : null,
       payload_preview: row.payload_json.slice(0, MAX_PAYLOAD_PREVIEW_LENGTH),
       payload_truncated: row.payload_json.length > MAX_PAYLOAD_PREVIEW_LENGTH,
     })),

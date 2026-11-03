@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
+import { and, eq, lt, notExists, sql } from 'drizzle-orm';
 import sharp, { type Metadata } from 'sharp';
-import { and, eq, lt, notExists } from 'drizzle-orm';
 import { media, playgroundAssets } from '../../store/schema/index.ts';
 import type { Orm } from '../../store/store.ts';
 
@@ -98,7 +98,8 @@ export interface PlaygroundAssetStoreOptions {
 }
 
 /**
- * Local static image assets for Playground rooms.
+ * Local static images shared by room uploads and MCP tool results.
+ * Existing table and directory names remain stable for stored installations.
  *
  * Validation happens on the bytes, storage is confined to `root`, and the row
  * is the only way back to a file: no caller may name a path.
@@ -152,6 +153,7 @@ export class PlaygroundAssetStore {
     const sha256 = createHash('sha256').update(input.bytes).digest('hex');
     const existing = this.#byContent(chatId, sha256);
     if (existing !== undefined) {
+      this.#renew(existing.id);
       this.#shared.add(existing.id);
       return { ...existing, created: false };
     }
@@ -159,9 +161,9 @@ export class PlaygroundAssetStore {
     const id = randomBytes(16).toString('hex');
     const relativePath = join(chatId.toString(), `${id}.${EXTENSIONS[sniffed]}`);
     const absolute = this.#absolute(relativePath);
-    await mkdir(dirname(absolute), { recursive: true });
+    await mkdir(dirname(absolute), { recursive: true, mode: 0o700 });
     const temporary = `${absolute}.${randomBytes(6).toString('hex')}.part`;
-    await writeFile(temporary, input.bytes, { flag: 'wx' });
+    await writeFile(temporary, input.bytes, { flag: 'wx', mode: 0o600 });
     await rename(temporary, absolute);
 
     // A concurrent upload of the same bytes may have won between the lookup
@@ -179,6 +181,7 @@ export class PlaygroundAssetStore {
         height: BigInt(height),
         storagePath: relativePath,
         state: 'staged',
+        lastUsedAt: this.#now().toISOString(),
         createdAt: this.#now().toISOString(),
       })
       .onConflictDoNothing({ target: [playgroundAssets.chatId, playgroundAssets.sha256] })
@@ -190,6 +193,7 @@ export class PlaygroundAssetStore {
       if (winner === undefined) {
         throw new Error('Concurrent image upload left no asset row');
       }
+      this.#renew(winner.id);
       this.#shared.add(winner.id);
       return { ...winner, created: false };
     }
@@ -231,6 +235,7 @@ export class PlaygroundAssetStore {
         and(
           eq(playgroundAssets.id, assetId),
           notExists(this.#orm.select({ id: media.id }).from(media).where(eq(media.localAssetId, playgroundAssets.id))),
+          noToolImageReferences(),
         ),
       )
       .run();
@@ -347,36 +352,24 @@ export class PlaygroundAssetStore {
     // that never became a message, or one whose every message was pruned.
     // One asset can back several messages (uploads dedupe by content), so
     // `media_id`, which names only the latest attachment, is not the test.
+    // Claim the whole batch in one statement: the reference set is extracted
+    // once, and the reference check and row deletion share one SQLite snapshot.
+    // This is the cutoff for submissions: admission rejects a claimed asset
+    // even while its file is still being removed after the first await.
     const stale = this.#orm
-      .select({ id: playgroundAssets.id, path: playgroundAssets.storagePath })
-      .from(playgroundAssets)
+      .delete(playgroundAssets)
       .where(
         and(
-          lt(playgroundAssets.createdAt, cutoff),
+          lt(sql`COALESCE(${playgroundAssets.lastUsedAt}, ${playgroundAssets.createdAt})`, cutoff),
           notExists(this.#orm.select({ id: media.id }).from(media).where(eq(media.localAssetId, playgroundAssets.id))),
+          noToolImageReferences(),
         ),
       )
+      .returning({ id: playgroundAssets.id, path: playgroundAssets.storagePath })
       .all();
 
     let staged = 0;
     for (const asset of stale) {
-      // The selection is stale once an await has run: a submission may have
-      // attached the asset since. The row is claimed by deleting it under the
-      // same condition, and only a claimed asset loses its file.
-      const claimed = this.#orm
-        .delete(playgroundAssets)
-        .where(
-          and(
-            eq(playgroundAssets.id, asset.id),
-            notExists(
-              this.#orm.select({ id: media.id }).from(media).where(eq(media.localAssetId, playgroundAssets.id)),
-            ),
-          ),
-        )
-        .run();
-      if (claimed.changes !== 1) {
-        continue;
-      }
       this.#shared.delete(asset.id);
       await rm(this.#absolute(asset.path), { force: true });
       staged += 1;
@@ -412,6 +405,15 @@ export class PlaygroundAssetStore {
       throw new LocalAssetRejected('animated', 'Animated images are not supported');
     }
     return { width, height };
+  }
+
+  /** Keep a reused staged image alive while its caller is still constructing the result. */
+  #renew(id: string): void {
+    this.#orm
+      .update(playgroundAssets)
+      .set({ lastUsedAt: this.#now().toISOString() })
+      .where(eq(playgroundAssets.id, id))
+      .run();
   }
 
   #byContent(chatId: bigint, sha256: string): LocalAsset | undefined {
@@ -518,4 +520,26 @@ export function isAnimatedPng(bytes: Uint8Array): boolean {
     offset += 12 + length;
   }
   return false;
+}
+
+/** Use the installed asset location for both uploads and tool images. */
+export function localImageAssets(orm: Orm, dataDir: string): PlaygroundAssetStore {
+  return new PlaygroundAssetStore({ orm, root: join(dataDir, 'images', 'playground') });
+}
+
+/** Audit retention must not delete bytes still referenced by canonical history. */
+function noToolImageReferences() {
+  // An uncorrelated UNION builds a reusable membership set once per statement.
+  // Missing/null ids must be excluded: a NULL in NOT IN would retain every row.
+  // context_messages is never pruned by retention, so only tool results are
+  // parsed; user and assistant payloads cannot carry MCP image references.
+  return sql`${playgroundAssets.id} NOT IN (
+    SELECT json_extract(image.value, '$.assetId') FROM context_messages cm,
+      json_each(cm.payload_json, '$.details.mcpImages.items') image
+    WHERE cm.role = 'toolResult' AND json_extract(image.value, '$.assetId') IS NOT NULL
+    UNION
+    SELECT json_extract(image.value, '$.assetId') FROM tool_calls tc,
+      json_each(tc.result_content_json, '$.details.mcpImages.items') image
+    WHERE tc.result_content_json IS NOT NULL AND json_extract(image.value, '$.assetId') IS NOT NULL
+  )`;
 }

@@ -26,6 +26,7 @@ import {
 } from './config-inspection.ts';
 import { type InvocationMediaReader, listInvocationMedia } from './invocation-media.ts';
 import type { ReplayInvocationInput, ReplayPreflightSelection } from './index.ts';
+import { readToolImageRoute } from './tool-images.ts';
 
 const MAX_PROMPT_LENGTH = 65_536;
 const replayBodyValidator = Compile(
@@ -295,6 +296,10 @@ export function createInspectionAdminHandler(deps: InspectionAdminDeps) {
   /** The audit listings; each returns `undefined` when the path names something else. */
   const list = async (url: URL, segments: readonly string[]): Promise<Response | undefined> => {
     const route = segments.join('/');
+    const image = await readToolImageRoute(store.orm, configStore.current().config.data_dir, url, segments);
+    if (image !== undefined) {
+      return image;
+    }
     const query = listQuery(url);
     if (route === 'overview') {
       return json(overview(store.orm));

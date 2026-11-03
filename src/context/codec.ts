@@ -2,6 +2,7 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import type { AssistantMessage, ToolResultMessage, UserMessage } from '@earendil-works/pi-ai';
 import Type from 'typebox';
 import Compile from 'typebox/compile';
+import { parseStoredToolContent, toolImageReferences } from '../platform/tool-images.ts';
 
 /**
  * Codec between the Pi `AgentMessage` union and the `context_messages`
@@ -219,6 +220,7 @@ export function encodeContextMessage(message: AgentMessage): { role: ContextMess
     }
     case 'toolResult': {
       const content = textBlocksOnly(message.content);
+      parseStoredToolContent(JSON.stringify({ content, details: message.details ?? null }));
       return {
         role: 'toolResult',
         json: JSON.stringify({
@@ -252,6 +254,7 @@ export function decodeContextMessage(json: string): AgentMessage {
     return parsed as unknown as AssistantMessage;
   }
   if (toolResultValidator.Check(parsed)) {
+    parseStoredToolContent(JSON.stringify({ content: parsed.content, details: parsed.details ?? null }));
     return parsed as unknown as ToolResultMessage;
   }
   throw new Error('Stored context message does not match its schema');
@@ -264,7 +267,15 @@ export function decodeContextMessage(json: string): AgentMessage {
  */
 export function estimateMessageTokens(message: AgentMessage): number {
   const encoded = encodeContextMessage(message);
-  return encoded === undefined ? 0 : Math.ceil(encoded.json.length / 4);
+  if (encoded === undefined) {
+    return 0;
+  }
+  // A conservative patch estimate; actual accounting still comes from provider usage.
+  const images = message.role === 'toolResult' ? toolImageReferences(message.details) : [];
+  return (
+    Math.ceil(encoded.json.length / 4) +
+    images.reduce((total, image) => total + Math.ceil(image.width / 32) * Math.ceil(image.height / 32), 0)
+  );
 }
 
 function textBlocksOnly(content: readonly { type: string }[]): { type: 'text'; text: string }[] {

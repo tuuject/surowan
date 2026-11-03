@@ -1,10 +1,9 @@
 import { getCurrentTools, type ThinkingContent } from '@earendil-works/pi-ai';
 import { eq } from 'drizzle-orm';
+import { loadToolImages, projectCompletionsToolImages } from '../../capabilities/media/tool-images.ts';
 import { SEND_TOOL_NAMES } from '../../capabilities/send/index.ts';
-import { activeSleepUntil, isDailyTokenBudgetReached, isLowDailyTokenBudget } from '../../store/sleep.ts';
 import { invocations } from '../../store/schema/index.ts';
-import { errorStream, recordAgentMessage } from './support.ts';
-import type { AgentRun, RoundControl, RunScope } from './types.ts';
+import { activeSleepUntil, isDailyTokenBudgetReached, isLowDailyTokenBudget } from '../../store/sleep.ts';
 import {
   failModelCall,
   finishModelCall,
@@ -12,13 +11,16 @@ import {
   recordModelCallResponse,
   startModelCall,
 } from './observability.ts';
+import { errorStream, recordAgentMessage } from './support.ts';
 import { markBucketInjected, persistMessage } from './transcript.ts';
+import type { AgentRun, RoundControl, RunScope } from './types.ts';
 
 /** Binds the model-call and tool-call hooks; both close over this run's state. */
 export function bindRequestHooks(scope: RunScope, run: AgentRun): void {
   const services = scope.services;
   const { identity, invocationId, deadline, signal, snapshot, state, profile, dailyBudget, bypassDailyBudget } = scope;
   const { agent } = run;
+  const imageNotices = new Set<string>();
   agent.streamFunction = async (streamModel, modelContext, options) => {
     if (!bypassDailyBudget() && isDailyTokenBudgetReached(dailyBudget())) {
       state.modelBudgetBlocked = true;
@@ -36,27 +38,46 @@ export function bindRequestHooks(scope: RunScope, run: AgentRun): void {
     );
     const recordPayloads = services.configStore.current().config.developer.record_model_payloads;
     try {
-      const stream = snapshot.models.streamSimple(streamModel, modelContext, {
-        ...options,
+      const hydrated = await loadToolImages(modelContext.messages, {
+        orm: services.store.orm,
+        dataDir: snapshot.config.data_dir,
+        conversationId: identity.conversationId,
+        chatId: identity.internalChatId,
+        model: streamModel,
         signal,
-        maxTokens: streamModel.maxTokens,
-        maxRetries: 2,
-        maxRetryDelayMs: Math.max(0, deadline - Date.now()),
-        // Snapshot audit: capture the provider request payload without
-        // retaining inline image bytes, plus the HTTP response status, so
-        // rendered context and transport outcome stay inspectable.
-        onPayload: (payload) => {
-          if (recordPayloads && services.configStore.current().config.developer.record_model_payloads) {
-            recordModelCallRequest(services, callId, payload);
-          }
-          return undefined;
-        },
-        onResponse: (response) => {
-          if (recordPayloads && services.configStore.current().config.developer.record_model_payloads) {
-            recordModelCallResponse(services, callId, response);
+        onUnavailable: (notice) => {
+          if (!imageNotices.has(notice)) {
+            imageNotices.add(notice);
+            recordAgentMessage(services, invocationId, 'harness_nudge', notice);
           }
         },
       });
+      const messages = streamModel.api === 'openai-completions' ? projectCompletionsToolImages(hydrated) : hydrated;
+      const stream = snapshot.models.streamSimple(
+        streamModel,
+        { ...modelContext, messages },
+        {
+          ...options,
+          signal,
+          maxTokens: streamModel.maxTokens,
+          maxRetries: 2,
+          maxRetryDelayMs: Math.max(0, deadline - Date.now()),
+          // Snapshot audit: capture the provider request payload without
+          // retaining inline image bytes, plus the HTTP response status, so
+          // rendered context and transport outcome stay inspectable.
+          onPayload: (payload) => {
+            if (recordPayloads && services.configStore.current().config.developer.record_model_payloads) {
+              recordModelCallRequest(services, callId, payload);
+            }
+            return undefined;
+          },
+          onResponse: (response) => {
+            if (recordPayloads && services.configStore.current().config.developer.record_model_payloads) {
+              recordModelCallResponse(services, callId, response);
+            }
+          },
+        },
+      );
       void stream
         .result()
         .then(
@@ -160,7 +181,7 @@ export function subscribeRunEvents(scope: RunScope, run: AgentRun, round: RoundC
         .filter((entry) => entry.type === 'text')
         .map((entry) => entry.text)
         .join('');
-      recordAgentMessage(services, invocationId, 'tool_result', text);
+      recordAgentMessage(services, invocationId, 'tool_result', text, '', event.message.toolCallId);
     }
   });
 

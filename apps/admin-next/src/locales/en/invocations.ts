@@ -5,6 +5,11 @@
  * `zh-CN/invocations.ts`).
  */
 export const invocations = {
+  toolImage: {
+    label: 'Tool image {{index}}',
+    enlarge: 'Enlarge tool image {{index}}',
+    unavailable: 'Tool image {{index}} is unavailable',
+  },
   invocations: {
     columns: {
       id: 'ID',
