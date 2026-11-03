@@ -20,12 +20,13 @@ import {
 
 /** What one Telegram message carries; `send` and every `send_reply` part share it. */
 const sendContentProperties = {
-  kind: Type.Optional(Type.Enum({ text: 'text', sticker: 'sticker', image: 'image' })),
+  kind: Type.Optional(Type.Enum({ text: 'text', sticker: 'sticker', image: 'image', file: 'file' })),
   resend: Type.Optional(Type.Boolean()),
   text: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
   parse_mode: Type.Optional(Type.Literal('MarkdownV2')),
   sticker_ref: Type.Optional(Type.String({ minLength: 1 })),
   image_generation_id: Type.Optional(Type.String({ pattern: '^[0-9a-f-]{36}$' })),
+  image_ref: Type.Optional(Type.String({ minLength: 4, maxLength: 80 })),
 };
 const replyToMessageId = Type.Optional(Type.String({ pattern: '^[1-9][0-9]*$' }));
 
@@ -33,6 +34,13 @@ export const SendInputSchema = Type.Object(
   { ...sendContentProperties, reply_to_message_id: replyToMessageId },
   { additionalProperties: false },
 );
+
+/**
+ * When a picture may go out as a file. The runtime cannot tell whether a user
+ * asked for the original, so the rule binds the model and nothing else does.
+ */
+const FILE_SEND_TEXT =
+  'kind:file sends pictures uncompressed as files. You MUST use it only when a user explicitly asks for the original picture or for a picture as a file; otherwise you MUST send pictures with kind:image. Set exactly one source: image_generation_id delivers every output of that generation of this conversation at its original quality, and image_ref takes an img_ ref visible in this conversation (a picture you generated resolves to its original outputs; any other picture is sent as Telegram stored it, and stickers are refused). text is an optional caption.';
 
 /** The tools that publish to Telegram; everything else stays private. */
 export const SEND_TOOL_NAMES: ReadonlySet<string> = new Set(['send', 'send_reply']);
@@ -65,7 +73,11 @@ export type SendToolInput =
       readonly resend?: boolean;
       readonly text?: string;
       readonly reply_to_message_id?: string;
-    };
+    }
+  | ({ readonly kind: 'file'; readonly text?: string; readonly reply_to_message_id?: string } & (
+      | { readonly image_generation_id: string }
+      | { readonly image_ref: string }
+    ));
 
 export function createSendTool(environment: SendToolEnvironment): AgentTool<typeof SendInputSchema, SendDetails> {
   return createSendTools(environment).send;
@@ -87,7 +99,7 @@ export function createSendTools(environment: SendToolEnvironment): {
   const send: AgentTool<typeof SendInputSchema, SendDetails> = {
     name: 'send',
     label: 'Send to Telegram',
-    description: `Publish exactly one user-visible Telegram message or sticker. You MUST NOT use it to answer history-only content or to publish private reasoning. Keep the message concise and self-contained. For text, kind MAY be omitted; omit parse_mode for plain text, or set parse_mode to MarkdownV2 only when the text is correctly escaped. ${textConstraints} For generated images, use kind:image with image_generation_id from this conversation. Already delivered outputs are not sent again; a replayed result reports the earlier delivery, not a new message. You MAY set resend:true only when a new user message explicitly asks to resend those pictures, and MUST NOT set it just to handle a completion receipt or retry an unknown outcome. For a sticker, kind MUST be sticker and sticker_ref MUST be a stk_ value returned by the search_stickers capability (via execute); img_ refs MUST NOT be sent. You MUST set reply_to_message_id only to a message visible in this conversation, preferring the relevant new message; when several separate discussions are active, you SHOULD set it on every message so each reply is visibly attached to the one it answers. ${replyPolicy} Success means Telegram accepted the send; if the tool fails or reports an unknown outcome, you MUST NOT claim it was sent and MUST NOT blindly retry. One batch of new messages MAY hold several separate discussions among different people: keep one message to one discussion, calling send once per discussion you choose to answer rather than merging unrelated discussions into a single message. You SHOULD NOT split one answer across several send calls: when one answer reads better as a few short consecutive messages, or pairs a sticker or generated picture with text, you SHOULD use send_reply once instead. Repeated sends are rate limited per chat.`,
+    description: `Publish exactly one user-visible Telegram message or sticker. You MUST NOT use it to answer history-only content or to publish private reasoning. Keep the message concise and self-contained. For text, kind MAY be omitted; omit parse_mode for plain text, or set parse_mode to MarkdownV2 only when the text is correctly escaped. ${textConstraints} For generated images, use kind:image with image_generation_id from this conversation. Already delivered outputs are not sent again; a replayed result reports the earlier delivery, not a new message. You MAY set resend:true only when a new user message explicitly asks to resend those pictures, and MUST NOT set it just to handle a completion receipt or retry an unknown outcome. ${FILE_SEND_TEXT} For a sticker, kind MUST be sticker and sticker_ref MUST be a stk_ value returned by the search_stickers capability (via execute); img_ refs MUST NOT be sent as stickers. You MUST set reply_to_message_id only to a message visible in this conversation, preferring the relevant new message; when several separate discussions are active, you SHOULD set it on every message so each reply is visibly attached to the one it answers. ${replyPolicy} Success means Telegram accepted the send; if the tool fails or reports an unknown outcome, you MUST NOT claim it was sent and MUST NOT blindly retry. One batch of new messages MAY hold several separate discussions among different people: keep one message to one discussion, calling send once per discussion you choose to answer rather than merging unrelated discussions into a single message. You SHOULD NOT split one answer across several send calls: when one answer reads better as a few short consecutive messages, or pairs a sticker or generated picture with text, you SHOULD use send_reply once instead. Repeated sends are rate limited per chat.`,
     parameters: SendInputSchema,
     executionMode: 'sequential',
     execute: (toolCallId, input, signal) => deliver(toolCallId, input, signal, { barrier: true }),
@@ -111,7 +123,7 @@ export function createSendReplyTool(
   return {
     name: 'send_reply',
     label: 'Send a multi-part reply to Telegram',
-    description: `Publish one reply as 2 to ${SEND_REPLY_MAX_PARTS} consecutive Telegram messages, sent in the listed order: for example a sticker and then text, a generated picture and then its explanation, or a medium-length answer that reads more naturally as a few short messages. You SHOULD use send for a single message; you MUST NOT pad an answer into parts, and MUST NOT use send_reply to merge separate discussions (answer each with its own send). Each part is one message with the same fields as send: text (kind MAY be omitted, optional parse_mode), kind:sticker with a stk_ sticker_ref, or kind:image with image_generation_id and an optional caption in text. ${textConstraints} reply_to_message_id applies to the first part only; the later parts follow it without a reply. ${replyPolicy} Every part is checked before anything is sent, so a rejection means nothing went out. Once the first part is out the rest follow without waiting for new messages. If a later part fails, the earlier ones stay published and the error lists them: you MUST NOT send those again. Each part counts against the per-chat send rate limit.`,
+    description: `Publish one reply as 2 to ${SEND_REPLY_MAX_PARTS} consecutive Telegram messages, sent in the listed order: for example a sticker and then text, a generated picture and then its explanation, or a medium-length answer that reads more naturally as a few short messages. You SHOULD use send for a single message; you MUST NOT pad an answer into parts, and MUST NOT use send_reply to merge separate discussions (answer each with its own send). Each part is one message with the same fields as send: text (kind MAY be omitted, optional parse_mode), kind:sticker with a stk_ sticker_ref, kind:image with image_generation_id and an optional caption in text, or kind:file under the same rule as send. ${textConstraints} reply_to_message_id applies to the first part only; the later parts follow it without a reply. ${replyPolicy} Every part is checked before anything is sent, so a rejection means nothing went out. Once the first part is out the rest follow without waiting for new messages. If a later part fails, the earlier ones stay published and the error lists them: you MUST NOT send those again. Each part counts against the per-chat send rate limit.`,
     parameters: SendReplyInputSchema,
     executionMode: 'sequential',
     execute: async (toolCallId, input, signal) => {

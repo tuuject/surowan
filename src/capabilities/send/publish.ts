@@ -38,7 +38,7 @@ export async function deliverSend(
   signal: AbortSignal | undefined,
   options: { readonly barrier: boolean },
 ): Promise<{ content: { type: 'text'; text: string }[]; details: SendDetails }> {
-  const outcome = prepareSend(environment, mentionedTasks, toolCallId, input, signal, options);
+  const outcome = await prepareSend(environment, mentionedTasks, toolCallId, input, signal, options);
   if (outcome.kind === 'replay') {
     return outcome.result;
   }
@@ -60,13 +60,14 @@ async function publishSend(
     textPart,
     stickerFileId,
     generationPictures,
+    files,
     composedText,
     mention,
     completion,
     toolId,
     sendId,
   } = prepared;
-  const outgoingPart = resolveOutgoingPart({ textPart, stickerFileId, generationPictures, send });
+  const outgoingPart = resolveOutgoingPart({ textPart, stickerFileId, generationPictures, files, send });
   const replyToMessageId = send.reply_to_message_id === undefined ? undefined : BigInt(send.reply_to_message_id);
   const startedAt = performance.now();
   let delivered: ImDeliveredMessage;

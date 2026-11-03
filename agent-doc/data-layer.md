@@ -26,6 +26,8 @@ Surowan 使用单个 SQLite 数据库保存消息、调度状态、能力索引�
 
 迁移 `048` 建立群聊记忆：`group_memories` 保存 Chat 级、按本地日期组织的事件摘要与闭区间 Telegram message-id 范围；`group_memory_state` 每个 Chat 至多一行，保存已整理的 message-id 水位、`idle`/`running` 认领状态与失败退避。两张表都随 `chats` 级联删除，不参与在线保留窗口。原文本身也不再被在线保留清理，见「保留清理」。
 
+迁移 `049` 给 `host_sends.kind` 的 CHECK 增加 `file`（图片以文件发送，见 [send Tool](telegram-agent-flow.md#send-tool)）。SQLite 改不了 CHECK，所以原位重建表：没有表引用 `host_sends`，外键全程保持强制，行 1:1 搬运，三个索引原样重建。文件发送单独成 kind，是为了让 `kind = 'image'` 的图片交付索引与去重永远不把它算作照片交付。
+
 迁移 `046` 建立 Memo Pad：`memo_pad_entries` 与 `memo_blobs`（都随 `chats` 级联删除），给 `conversation_contexts` 加 `memo_refresh_seq`、`memo_state_json`、`memo_refresh_pending` 三个列，并把旧 `memories` 行按 `conversations.chat_id` 迁入（`summary` 与 `detail` 都取旧 `content`，保留 `expires_at`、时间戳与旧 `mem_` id），随后删除 `memories`。旧记忆按 Conversation 隔离，迁移后同一 Chat 的多个 Topic 共享同一份 Memo Pad，这是有意的语义变化。
 
 SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是整棵消息树的级联父表（外键强制下 `DROP TABLE` 会级联删掉全部 Conversation 与 Message），`messages` 又被 NO ACTION 子表引用（同样条件下直接报错），所以重建只能在关闭外键强制的窗口里做。需要在重建表的迁移在文件里单独一行写 `-- @rebuild-tables` 显式声明：runner 只对带该指令的迁移临时关闭 `foreign_keys`，整个迁移仍在单个 IMMEDIATE transaction 内执行，提交前跑 `PRAGMA foreign_key_check`，发现违例就回滚，并在 `finally` 中恢复强制；不带该指令的迁移路径完全不变。这不是「关掉约束蒙混升级」——约束只在 DDL 窗口内让位，且提交前必须通过校验。

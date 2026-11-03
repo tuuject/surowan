@@ -10,6 +10,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { Static } from 'typebox';
 import { hostSends, invocations, toolCalls } from '../../store/schema/index.ts';
 import type { SendInputSchema, SendToolInput } from './index.ts';
+import type { FileSendSource } from './files.ts';
 import { recentSendCount } from './guards.ts';
 import { recordRejectedSend } from './record.ts';
 import type { SendToolEnvironment } from './support.ts';
@@ -67,6 +68,7 @@ export function claimSend(
   send: SendToolInput,
   targetConversationId: bigint,
   generationPictures: ReturnType<NonNullable<SendToolEnvironment['imageGeneration']>['resolve']>,
+  fileSource?: Exclude<FileSendSource, { errorCode: string }>,
 ): { readonly toolId: bigint; readonly sendId: bigint } | { readonly error: string } {
   return environment.store.transaction(() => {
     // Recheck under the write lock and claim with the pending send atomically.
@@ -126,6 +128,15 @@ export function claimSend(
                 pictures: generationPictures?.length ?? 0,
                 asset_ids: generationPictures?.map((picture) => picture.assetId) ?? [],
                 resend: send.resend === true,
+              }
+            : {}),
+          // A file send is no image delivery: kind 'file' keeps it out of the
+          // per-asset dedup, so a photo and its original never block each other.
+          ...(send.kind === 'file'
+            ? {
+                ...('image_ref' in send ? { image_ref: send.image_ref } : {}),
+                ...fileSource?.audit,
+                files: fileSource?.files.length ?? 0,
               }
             : {}),
         }),

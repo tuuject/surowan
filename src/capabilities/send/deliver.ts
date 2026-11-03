@@ -16,11 +16,13 @@ import type { InvocationContext } from '../../platform/invocation-context.ts';
 import { imageDeliveryState } from '../../store/image-delivery.ts';
 import type { SendInputSchema, SendToolInput } from './index.ts';
 import { claimSend, rejectDuplicateReply } from './claim.ts';
+import { type FileSendSource, resolveFileSource } from './files.ts';
 import { isDuplicateSend, repeatsLastSend, wasRejectedByReplyPolicy } from './guards.ts';
 import { recordRejectedSend, recordReplayedSend } from './record.ts';
 import {
   completionMention,
   narrowSendInput,
+  type OutgoingFile,
   reportsWireIds,
   SEND_BARRIER_TEXT,
   SEND_BYPASS_TEXT,
@@ -39,6 +41,7 @@ export type PreparedSend = {
   readonly textPart: ImOutgoingPart | undefined;
   readonly stickerFileId: string | undefined;
   readonly generationPictures: ReturnType<NonNullable<SendToolEnvironment['imageGeneration']>['resolve']>;
+  readonly files: readonly OutgoingFile[] | undefined;
   readonly composedText: string;
   readonly mention: ImMentionRequest | null;
   readonly completion: InvocationContext['completion'];
@@ -51,14 +54,14 @@ export type PreparedOutcome =
   | { readonly kind: 'replay'; readonly result: { content: { type: 'text'; text: string }[]; details: SendDetails } }
   | { readonly kind: 'ready'; readonly prepared: PreparedSend };
 
-export function prepareSend(
+export async function prepareSend(
   environment: SendToolEnvironment,
   mentionedTasks: Set<bigint>,
   toolCallId: string,
   input: Static<typeof SendInputSchema>,
   signal: AbortSignal | undefined,
   options: { readonly barrier: boolean },
-): PreparedOutcome {
+): Promise<PreparedOutcome> {
   const { barrier } = options;
   const narrowed = narrowSendInput(input);
   if ('problem' in narrowed) {
@@ -161,9 +164,20 @@ export function prepareSend(
     recordRejectedSend(environment, toolCallId, input, 'image_generation_no_outputs');
     throw new Error('that generation produced no pictures to send');
   }
-  if (send.kind === 'image' && (send.text?.length ?? 0) > 1024) {
+  if ((send.kind === 'image' || send.kind === 'file') && (send.text?.length ?? 0) > 1024) {
     recordRejectedSend(environment, toolCallId, input, 'send_caption_too_long');
-    throw new Error('image caption must not exceed 1024 characters');
+    throw new Error(`${send.kind} caption must not exceed 1024 characters`);
+  }
+  // Reading a file may download it, so every check below runs after the wait,
+  // the barrier included.
+  let fileSource: Exclude<FileSendSource, { errorCode: string }> | undefined;
+  if (send.kind === 'file') {
+    const source = await resolveFileSource(environment, send, signal);
+    if ('errorCode' in source) {
+      recordRejectedSend(environment, toolCallId, input, source.errorCode);
+      throw new Error(source.message);
+    }
+    fileSource = source;
   }
   // A cancelled or expired run must not start a side effect: the model may
   // have queued this call before the abort or deadline landed.
@@ -241,7 +255,7 @@ export function prepareSend(
     recordRejectedSend(environment, toolCallId, input, 'send_barrier');
     throw new Error(SEND_BARRIER_TEXT);
   }
-  const pending = claimSend(environment, toolCallId, input, send, targetConversationId, generationPictures);
+  const pending = claimSend(environment, toolCallId, input, send, targetConversationId, generationPictures, fileSource);
   if ('error' in pending) {
     throw new Error(pending.error);
   }
@@ -254,6 +268,7 @@ export function prepareSend(
       textPart,
       stickerFileId,
       generationPictures,
+      files: fileSource?.files,
       composedText,
       mention,
       completion,

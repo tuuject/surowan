@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import type { Update } from 'grammy/types';
 import { afterAll } from 'vitest';
 import { createSendTool } from '../../src/capabilities/send/index.ts';
+import type { SendToolEnvironment } from '../../src/capabilities/send/support.ts';
 import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
 import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
 import type { TelegramTransport } from '../../src/adapters/local-monolith/telegram/host.ts';
@@ -105,6 +106,8 @@ export interface PhotoAttempt {
 export interface FakeTelegram extends TelegramTransport {
   readonly photoAttempts: PhotoAttempt[];
   readonly photoDeliveries: PhotoAttempt[];
+  /** Files sent as documents, with the exact bytes each carried. */
+  readonly documentDeliveries: (PhotoAttempt & { readonly bytes: readonly Uint8Array[] })[];
   textSends: number;
   stickerSends: number;
 }
@@ -123,6 +126,7 @@ export function fakeTelegram(beforePhoto?: (attempt: number) => void | Promise<v
   const api: FakeTelegram = {
     photoAttempts: [],
     photoDeliveries: [],
+    documentDeliveries: [],
     textSends: 0,
     stickerSends: 0,
     sendMessage: async () => {
@@ -149,6 +153,20 @@ export function fakeTelegram(beforePhoto?: (attempt: number) => void | Promise<v
       api.photoDeliveries.push(attempt);
       return pictures.map((_entry, index) => photoResponse(firstMessageId + index));
     },
+    sendDocuments: async (chatId, files, options) => {
+      const firstMessageId = 700 + api.documentDeliveries.length;
+      api.documentDeliveries.push({
+        chatId,
+        fileNames: files.map((file) => file.fileName),
+        caption: options.caption,
+        bytes: files.map((file) => file.bytes),
+      });
+      return files.map((_file, index) => ({
+        message_id: firstMessageId + index,
+        date: 1_700_000_100,
+        chat: { id: CHAT_ID },
+      }));
+    },
   };
   return api;
 }
@@ -159,6 +177,7 @@ export interface ToolOptions {
   readonly context?: Partial<Pick<TestInvocationContext, 'completion' | 'callerUserId'>>;
   readonly sendRateLimit?: { readonly sendsPerWindow: number; readonly windowSeconds: number };
   readonly capabilities?: CapabilityRefResolver;
+  readonly mediaFiles?: SendToolEnvironment['mediaFiles'];
 }
 
 export function buildTool(
@@ -188,6 +207,7 @@ export function buildTool(
           mime,
         })),
     },
+    ...(options.mediaFiles === undefined ? {} : { mediaFiles: options.mediaFiles }),
   });
   return { tool, api };
 }

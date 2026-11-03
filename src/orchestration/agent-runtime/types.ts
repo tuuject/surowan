@@ -1,6 +1,7 @@
 import type { Agent, AgentContext, AgentMessage, AgentTool } from '@earendil-works/pi-agent-core';
 import type { Api, ImageContent, Model } from '@earendil-works/pi-ai';
 import type { ExecutableCapability } from '../../capabilities/execute-tool.ts';
+import type { SendToolEnvironment } from '../../capabilities/send/support.ts';
 import type { ContextBuilder, ContextIdentity, StablePrompt } from '../../context/builder/index.ts';
 import type { ContextInjector } from '../../context/injector.ts';
 import type { MemoStateUpdate } from '../../context/memo-pad/index.ts';
@@ -95,6 +96,8 @@ export interface AgentRuntimeOptions {
         }[]
       | undefined;
   };
+  /** Reads conversation pictures unaltered for a file send; absent without media access. */
+  readonly mediaFiles?: SendToolEnvironment['mediaFiles'];
   /** Directly exposed non-primitive tools (allowlisted MCP tools). */
   readonly additionalTools?: ToolFactory;
   readonly directImageLoader?: DirectImageLoader;
@@ -157,6 +160,7 @@ export interface RuntimeServices {
   readonly contexts: ConversationContextStore;
   readonly refs: ContextRefStore;
   readonly imageGeneration: AgentRuntimeOptions['imageGeneration'];
+  readonly mediaFiles: AgentRuntimeOptions['mediaFiles'];
   readonly conversationRuntime: ConversationRuntime;
   readonly contextInjectors: readonly ContextInjector[];
 }

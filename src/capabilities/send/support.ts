@@ -51,9 +51,12 @@ export function narrowSendInput(
   input: Static<typeof SendInputSchema>,
 ): { readonly send: SendToolInput } | { readonly problem: string } {
   const kind =
-    input.kind ?? (input.sticker_ref === undefined && input.image_generation_id === undefined ? 'text' : undefined);
+    input.kind ??
+    (input.sticker_ref === undefined && input.image_generation_id === undefined && input.image_ref === undefined
+      ? 'text'
+      : undefined);
   if (kind === undefined) {
-    return { problem: 'kind is required when sticker_ref or image_generation_id is set' };
+    return { problem: 'kind is required when sticker_ref, image_generation_id or image_ref is set' };
   }
   if (kind !== 'image' && input.resend === true) {
     return { problem: `resend applies only to kind:image; omit it for kind:${kind}` };
@@ -80,10 +83,19 @@ export function narrowSendInput(
     }
     return { send: { kind, sticker_ref: input.sticker_ref, ...reply } };
   }
+  const caption = input.text === undefined ? {} : { text: input.text };
+  if (kind === 'file') {
+    if (input.image_generation_id !== undefined && input.image_ref === undefined) {
+      return { send: { kind, image_generation_id: input.image_generation_id, ...caption, ...reply } };
+    }
+    if (input.image_ref !== undefined && input.image_generation_id === undefined) {
+      return { send: { kind, image_ref: input.image_ref, ...caption, ...reply } };
+    }
+    return { problem: 'kind:file needs exactly one of image_generation_id or image_ref' };
+  }
   if (input.image_generation_id === undefined) {
     return { problem: 'kind:image needs image_generation_id' };
   }
-  const caption = input.text === undefined ? {} : { text: input.text };
   return {
     send: {
       kind: 'image',
@@ -146,6 +158,20 @@ export interface SendToolEnvironment {
         }[]
       | undefined;
   };
+  /**
+   * Reads one conversation-authorized media row as the host stored it, never
+   * re-encoded, for a file send. Absent when this runtime cannot read media.
+   */
+  readonly mediaFiles?: {
+    readonly read: (mediaId: bigint, signal: AbortSignal) => Promise<OutgoingFile>;
+  };
+}
+
+/** One file a send delivers as it is. */
+export interface OutgoingFile {
+  readonly bytes: Uint8Array;
+  readonly fileName: string;
+  readonly mime: string;
 }
 
 /**
@@ -225,6 +251,7 @@ export function resolveOutgoingPart(input: {
   readonly generationPictures:
     | readonly { readonly bytes: Uint8Array; readonly fileName: string; readonly mime: string }[]
     | undefined;
+  readonly files: readonly OutgoingFile[] | undefined;
   readonly send: Static<typeof SendInputSchema>;
 }): ImOutgoingPart {
   if (input.textPart !== undefined) {
@@ -232,6 +259,13 @@ export function resolveOutgoingPart(input: {
   }
   if (input.stickerFileId !== undefined) {
     return { kind: 'sticker', stickerRef: input.stickerFileId };
+  }
+  if (input.files !== undefined) {
+    return {
+      kind: 'document',
+      files: input.files.map((file) => ({ bytes: file.bytes, fileName: file.fileName, mime: file.mime })),
+      ...(input.send.text === undefined ? {} : { caption: input.send.text }),
+    };
   }
   const pictures = input.generationPictures;
   if (pictures === undefined) {

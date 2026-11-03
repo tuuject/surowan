@@ -8,6 +8,7 @@ import type { SecretStore } from '../../platform/secrets.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import type { MediaDownloader } from './download.ts';
 import { loadDirectImages, prepareImageBytes } from './image-input.ts';
+import { readOriginalFile } from './original-file.ts';
 import { createReadImageTool, type ReadImageSchema } from './read-image.ts';
 import { analyzeStickerForIndex } from './sticker-index.ts';
 import type { MediaVisionDeps, StickerAnalysis, VisionRun } from './vision-analysis.ts';
@@ -135,6 +136,17 @@ export class MediaService {
     signal: AbortSignal,
   ): Promise<{ readonly base64: string; readonly mime: string }> {
     return await prepareImageBytes(this.#deps(), mediaId, signal, true);
+  }
+
+  /**
+   * Reads one stored picture as its host keeps it, for a send that delivers it
+   * as a file: downloaded but never re-encoded. Stickers are refused.
+   */
+  async readOriginalFile(
+    mediaId: bigint,
+    signal: AbortSignal,
+  ): Promise<{ readonly bytes: Uint8Array; readonly fileName: string; readonly mime: string }> {
+    return await readOriginalFile(this.#deps(), mediaId, signal);
   }
 
   async loadDirectImages(images: readonly DirectImage[], signal: AbortSignal): Promise<ImageContent[]> {

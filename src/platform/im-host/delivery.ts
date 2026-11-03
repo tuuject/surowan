@@ -51,7 +51,17 @@ export interface ImPhotoAlbumPart {
   readonly caption?: string;
 }
 
-export type ImOutgoingPart = ImTextPart | ImStickerPart | ImPhotoPart | ImPhotoAlbumPart;
+/**
+ * Pictures delivered as files rather than photos, so the host does not
+ * re-encode them: one file is one message, several go out as one group.
+ */
+export interface ImDocumentPart {
+  readonly kind: 'document';
+  readonly files: readonly { readonly bytes: Uint8Array; readonly fileName: string; readonly mime?: string }[];
+  readonly caption?: string;
+}
+
+export type ImOutgoingPart = ImTextPart | ImStickerPart | ImPhotoPart | ImPhotoAlbumPart | ImDocumentPart;
 
 export interface ImDeliveryRequest {
   readonly target: ImDeliveryTarget;

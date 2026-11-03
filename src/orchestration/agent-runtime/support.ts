@@ -172,6 +172,7 @@ export function buildTools(
     bot: services.bot,
     ...(holdForNewMessages === undefined ? {} : { holdForNewMessages }),
     ...(services.imageGeneration === undefined ? {} : { imageGeneration: services.imageGeneration }),
+    ...(services.mediaFiles === undefined ? {} : { mediaFiles: services.mediaFiles }),
   });
   const skillVisibility = services.skillVisibility;
   const resources =
