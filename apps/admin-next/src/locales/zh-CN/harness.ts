@@ -23,6 +23,7 @@ export const harness: typeof harnessEn = {
     min: '不能小于 {{min}}',
     max: '不能大于 {{max}}',
     greaterThan: '必须大于 {{min}}',
+    lines: '至少填写一行',
   },
   groups: {
     budget: {
@@ -89,6 +90,15 @@ export const harness: typeof harnessEn = {
       label: '重复发送保护',
       description:
         '拒绝与同一 Invocation 内已发出内容完全一致的文本或贴纸，以及把上一条的内容换个引用目标重发；拒绝超过 3 次即停止本次运行。',
+    },
+    send_empty_text_fallback_enabled: {
+      label: '无文本发送兜底',
+      description:
+        '模型调用 send 却没有给出文本时，改为发送下方兜底文本中的一条，而不是拒绝这次调用。贴纸与图片不受影响。',
+    },
+    send_empty_text_fallback_texts: {
+      label: '兜底文本',
+      description: '一行一条；每次兜底随机选一条，按纯文本发送。',
     },
     'rate_limits.sends_per_window': {
       label: '窗口内发送上限',

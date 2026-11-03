@@ -53,6 +53,8 @@ export interface ReplayToolOptions {
   readonly allowReplyMessageMultipleTimes?: boolean;
   /** Mirrors the production duplicate send guard within one replay scene. */
   readonly duplicateSendGuard?: { readonly onRejected: () => void };
+  /** Mirrors the production fallback for a text message sent without text. */
+  readonly emptyTextFallback?: readonly string[];
   readonly replyMessageIds?: ReadonlySet<string>;
 }
 

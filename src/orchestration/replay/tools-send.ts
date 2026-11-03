@@ -10,7 +10,7 @@ import type { Static } from 'typebox';
 import { SEND_REPLY_MAX_PARTS, type SendInputSchema } from '../../capabilities/send/index.ts';
 import type { ReplayState, ReplayToolDefinition } from './tools.ts';
 import { SendInputValidator, SendReplyInputValidator, replayToolBase } from './tools-spec.ts';
-import { narrowSendInput } from '../../capabilities/send/support.ts';
+import { fallbackSentText, fillEmptyText, narrowSendInput } from '../../capabilities/send/support.ts';
 import { sendContentKey } from '../../capabilities/send/guards.ts';
 
 export function replaySendTool(definition: ReplayToolDefinition, state: ReplayState): AgentTool {
@@ -21,7 +21,7 @@ export function replaySendTool(definition: ReplayToolDefinition, state: ReplaySt
       if (!SendInputValidator.Check(params)) {
         throw new Error('send input does not match the tool schema');
       }
-      const input = params;
+      const input = fillEmptyText(params, state.options.emptyTextFallback);
       checkReplaySend(input, state, 'send');
       state.dispatches.push({ tool_call_id: toolCallId, tool_name: 'send', mode: 'synthetic' });
       checkReplayNotDuplicate([input], state);
@@ -30,7 +30,14 @@ export function replaySendTool(definition: ReplayToolDefinition, state: ReplaySt
       checkReplayReplyUnused(input, state);
       const messageId = recordReplaySend(toolCallId, input, state);
       return {
-        content: [{ type: 'text' as const, text: `Sent Telegram message ${messageId}` }],
+        content: [
+          {
+            type: 'text' as const,
+            text: `Sent Telegram message ${messageId}${
+              input === params || input.text === undefined ? '' : fallbackSentText(input.text)
+            }`,
+          },
+        ],
         details: { telegramMessageId: messageId },
       };
     },
@@ -47,7 +54,8 @@ export function replaySendReplyTool(definition: ReplayToolDefinition, state: Rep
         throw new Error(`send_reply input does not match the tool schema (2 to ${SEND_REPLY_MAX_PARTS} parts)`);
       }
       const replyTo = typeof params.reply_to_message_id === 'string' ? params.reply_to_message_id : undefined;
-      const parts = params.parts.map(
+      const filled = params.parts.map((part) => fillEmptyText(part, state.options.emptyTextFallback));
+      const parts = filled.map(
         (part, index): Static<typeof SendInputSchema> =>
           index === 0 && replyTo !== undefined ? { ...part, reply_to_message_id: replyTo } : { ...part },
       );
@@ -62,11 +70,14 @@ export function replaySendReplyTool(definition: ReplayToolDefinition, state: Rep
         checkReplayReplyUnused(parts[0], state);
       }
       const messageIds = parts.map((part, index) => recordReplaySend(`${toolCallId}:${index + 1}`, part, state));
+      const notes = filled.flatMap((part, index) =>
+        part === params.parts[index] || part.text === undefined ? [] : [fallbackSentText(part.text, index + 1)],
+      );
       return {
         content: [
           {
             type: 'text' as const,
-            text: `Sent ${messageIds.length} Telegram messages in order: ${messageIds.join(', ')}`,
+            text: `Sent ${messageIds.length} Telegram messages in order: ${messageIds.join(', ')}${notes.join('')}`,
           },
         ],
         details: { telegramMessageIds: messageIds },

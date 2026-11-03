@@ -13,6 +13,8 @@ import {
   type SendDetails,
   type SendReplyDetails,
   type SendToolEnvironment,
+  fallbackSentText,
+  fillEmptyText,
   sentCountText,
   sentMessagesResult,
   sentReplyDetails,
@@ -102,7 +104,15 @@ export function createSendTools(environment: SendToolEnvironment): {
     description: `Publish exactly one user-visible Telegram message or sticker. You MUST NOT use it to answer history-only content or to publish private reasoning. Keep the message concise and self-contained. For text, kind MAY be omitted; omit parse_mode for plain text, or set parse_mode to MarkdownV2 only when the text is correctly escaped. ${textConstraints} For generated images, use kind:image with image_generation_id from this conversation. Already delivered outputs are not sent again; a replayed result reports the earlier delivery, not a new message. You MAY set resend:true only when a new user message explicitly asks to resend those pictures, and MUST NOT set it just to handle a completion receipt or retry an unknown outcome. ${FILE_SEND_TEXT} For a sticker, kind MUST be sticker and sticker_ref MUST be a stk_ value returned by the search_stickers capability (via execute); img_ refs MUST NOT be sent as stickers. You MUST set reply_to_message_id only to a message visible in this conversation, preferring the relevant new message; when several separate discussions are active, you SHOULD set it on every message so each reply is visibly attached to the one it answers. ${replyPolicy} Success means Telegram accepted the send; if the tool fails or reports an unknown outcome, you MUST NOT claim it was sent and MUST NOT blindly retry. One batch of new messages MAY hold several separate discussions among different people: keep one message to one discussion, calling send once per discussion you choose to answer rather than merging unrelated discussions into a single message. You SHOULD NOT split one answer across several send calls: when one answer reads better as a few short consecutive messages, or pairs a sticker or generated picture with text, you SHOULD use send_reply once instead. Repeated sends are rate limited per chat.`,
     parameters: SendInputSchema,
     executionMode: 'sequential',
-    execute: (toolCallId, input, signal) => deliver(toolCallId, input, signal, { barrier: true }),
+    execute: async (toolCallId, input, signal) => {
+      const filled = fillEmptyText(input, environment.emptyTextFallback);
+      const result = await deliver(toolCallId, filled, signal, { barrier: true });
+      if (filled === input || filled.text === undefined) {
+        return result;
+      }
+      const note = fallbackSentText(filled.text);
+      return { ...result, content: result.content.map((part) => ({ ...part, text: `${part.text}${note}` })) };
+    },
   };
   return { send, sendReply: createSendReplyTool(environment, deliver, textConstraints, replyPolicy) };
 }
@@ -126,7 +136,9 @@ export function createSendReplyTool(
     description: `Publish one reply as 2 to ${SEND_REPLY_MAX_PARTS} consecutive Telegram messages, sent in the listed order: for example a sticker and then text, a generated picture and then its explanation, or a medium-length answer that reads more naturally as a few short messages. You SHOULD use send for a single message; you MUST NOT pad an answer into parts, and MUST NOT use send_reply to merge separate discussions (answer each with its own send). Each part is one message with the same fields as send: text (kind MAY be omitted, optional parse_mode), kind:sticker with a stk_ sticker_ref, kind:image with image_generation_id and an optional caption in text, or kind:file under the same rule as send. ${textConstraints} reply_to_message_id applies to the first part only; the later parts follow it without a reply. ${replyPolicy} Every part is checked before anything is sent, so a rejection means nothing went out. Once the first part is out the rest follow without waiting for new messages. If a later part fails, the earlier ones stay published and the error lists them: you MUST NOT send those again. Each part counts against the per-chat send rate limit.`,
     parameters: SendReplyInputSchema,
     executionMode: 'sequential',
-    execute: async (toolCallId, input, signal) => {
+    execute: async (toolCallId, modelInput, signal) => {
+      const parts = modelInput.parts.map((part) => fillEmptyText(part, environment.emptyTextFallback));
+      const input = { ...modelInput, parts };
       const reject = (errorCode: string, message: string): never => {
         recordRejectedSend(environment, toolCallId, input, errorCode, 'send_reply');
         throw new Error(`Nothing was sent: ${message}`);
@@ -206,8 +218,11 @@ export function createSendReplyTool(
       finishToolCall(environment.store.orm, auditId, 'success', sentMessagesResult(environment.host, sent), null, {
         startedAt,
       });
+      const notes = parts.flatMap((part, index) =>
+        part === modelInput.parts[index] || part.text === undefined ? [] : [fallbackSentText(part.text, index + 1)],
+      );
       return {
-        content: [{ type: 'text', text: sentCountText(environment.host, sent.length, sent) }],
+        content: [{ type: 'text', text: `${sentCountText(environment.host, sent.length, sent)}${notes.join('')}` }],
         details: sentReplyDetails(environment.host, sent),
       };
     },

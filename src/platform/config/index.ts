@@ -64,6 +64,8 @@ export interface AgentRuntimeConfig extends AgentSettings {
   readonly send_barrier_enabled?: boolean;
   readonly allow_reply_message_multiple_times?: boolean;
   readonly send_duplicate_guard_enabled?: boolean;
+  readonly send_empty_text_fallback_enabled?: boolean;
+  readonly send_empty_text_fallback_texts: readonly string[];
   readonly context: {
     readonly retained_sends_target: number;
     readonly retained_sends_max: number;

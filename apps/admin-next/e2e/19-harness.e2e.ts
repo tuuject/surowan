@@ -82,6 +82,31 @@ test('Harness tuning shows the running value when a save was written but not app
   await expect(page.getByRole('status').filter({ hasText: 'Running:' })).toHaveCount(0);
 });
 
+test('Harness tuning edits the empty-text fallback as one text per line', async ({ page }) => {
+  await page.goto(await adminUrl('/harness'));
+  const enabled = page.getByRole('switch', { name: 'Fallback for sends without text' });
+  const texts = page.getByLabel('Fallback texts');
+  await expect(enabled).not.toBeChecked();
+  await expect(texts).toHaveValue('……');
+
+  await texts.fill('  \n ');
+  await expect(page.getByText('Enter at least one line')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save and apply' })).toBeDisabled();
+
+  await enabled.click();
+  await texts.fill('……\n 嗯 \n\n啊这');
+  await expect(page.getByText('2 unsaved changes')).toBeVisible();
+  await page.getByRole('button', { name: 'Save and apply' }).click();
+  await expect(page.getByText('No unsaved changes')).toBeVisible();
+  await expect(texts).toHaveValue('……\n嗯\n啊这');
+  const applied = await harnessApi(page);
+  expect(applied.saved).toMatchObject({
+    send_empty_text_fallback_enabled: true,
+    send_empty_text_fallback_texts: ['……', '嗯', '啊这'],
+  });
+  expect(applied.active).toEqual(applied.saved);
+});
+
 test('Harness tuning edits the global proactive reply defaults', async ({ page }) => {
   await page.goto(await adminUrl('/harness'));
   const enabled = page.getByRole('switch', { name: 'Schedule proactive replies' });

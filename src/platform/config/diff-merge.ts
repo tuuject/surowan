@@ -28,6 +28,8 @@ const HOT_PATHS: ReadonlySet<string> = new Set([
   'agent.send_barrier_enabled',
   'agent.allow_reply_message_multiple_times',
   'agent.send_duplicate_guard_enabled',
+  'agent.send_empty_text_fallback_enabled',
+  'agent.send_empty_text_fallback_texts',
   'agent.daily_budget',
   'agent.daily_budget.max_tokens',
   'agent.context',

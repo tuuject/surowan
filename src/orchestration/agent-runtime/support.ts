@@ -33,7 +33,7 @@ import { agentMessages, invocations } from '../../store/schema/index.ts';
 import { createZzzTool, isLowDailyTokenBudget, readDailyTokenBudget } from '../../store/sleep.ts';
 import { createToolAudit } from '../../store/tool-audit.ts';
 import type { RuntimeServices } from './types.ts';
-import { duplicateSendGuard } from '../../capabilities/send/support.ts';
+import { duplicateSendGuard, emptyTextFallback } from '../../capabilities/send/support.ts';
 
 /** The host bound to one kind of conversation, or a clear failure. */
 export function hostFor(services: RuntimeServices, kind: HostKind): ImHost {
@@ -168,6 +168,7 @@ export function buildTools(
     disallowBlankLines: config.agent.send_disallow_blank_lines === true,
     allowReplyMessageMultipleTimes: config.agent.allow_reply_message_multiple_times === true,
     ...duplicateSendGuard(config.agent.send_duplicate_guard_enabled, onDuplicateSend),
+    ...emptyTextFallback(config.agent),
     deadline,
     bot: services.bot,
     ...(holdForNewMessages === undefined ? {} : { holdForNewMessages }),

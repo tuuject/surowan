@@ -9,6 +9,7 @@ import type { Static } from 'typebox';
 import { type ImConversationRef, toSenderId } from '../../platform/im-host/identity.ts';
 import type { ImDeliveryFailure, ImMentionRequest, ImOutgoingPart } from '../../platform/im-host/delivery.ts';
 import type { ImHost } from '../../platform/im-host/index.ts';
+import type { AgentRuntimeConfig } from '../../platform/config/index.ts';
 import type { CapabilityRefResolver, InvocationContext } from '../../platform/invocation-context.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import type { SendInputSchema, SendToolInput } from './index.ts';
@@ -40,6 +41,50 @@ export const SEND_REPEAT_TEXT =
 export const SEND_BYPASS_TEXT =
   'Not sent: send_bypass. This exact message was already rejected by the reply policy in this run; omitting or changing reply_to_message_id does not make it sendable. Write something new, or stop without calling send.';
 
+/** The fields that say what one message carries; `send` and every `send_reply` part share them. */
+type SendContent = Pick<
+  Static<typeof SendInputSchema>,
+  'kind' | 'text' | 'parse_mode' | 'sticker_ref' | 'image_generation_id' | 'image_ref'
+>;
+
+/** The kind a message resolves to: text unless it names a sticker or image; `undefined` when ambiguous. */
+function inferredKind(input: SendContent): SendContent['kind'] {
+  return (
+    input.kind ??
+    (input.sticker_ref === undefined && input.image_generation_id === undefined && input.image_ref === undefined
+      ? 'text'
+      : undefined)
+  );
+}
+
+/** The option for `agent.send_empty_text_fallback_*`; absent unless explicitly enabled. */
+export function emptyTextFallback(
+  agent: Pick<AgentRuntimeConfig, 'send_empty_text_fallback_enabled' | 'send_empty_text_fallback_texts'>,
+): Pick<SendToolEnvironment, 'emptyTextFallback'> {
+  return agent.send_empty_text_fallback_enabled === true
+    ? { emptyTextFallback: agent.send_empty_text_fallback_texts }
+    : {};
+}
+
+/**
+ * Gives a text message the model left without text one of the configured
+ * fallback texts, picked at random. It runs before anything else reads the
+ * input, so every check, guard and audit row sees what is actually published.
+ * The fallback goes out as plain text: nothing escaped it for any markup.
+ */
+export function fillEmptyText<T extends SendContent>(input: T, fallback: readonly string[] | undefined): T {
+  const text = fallback?.[Math.floor(Math.random() * fallback.length)];
+  if (text === undefined || input.text !== undefined || inferredKind(input) !== 'text') {
+    return input;
+  }
+  const { parse_mode: _plain, ...rest } = input;
+  return { ...rest, text } as T;
+}
+
+/** Tells the model which words went out for a message it sent without text. */
+export const fallbackSentText = (text: string, part?: number): string =>
+  ` ${part === undefined ? 'The call' : `Part ${part}`} had no text, so the configured fallback text ${JSON.stringify(text)} was sent.`;
+
 /**
  * Resolves the kind of one message and keeps only the fields that apply to it.
  * Fields of another kind are ignored, since some models fill every optional
@@ -50,11 +95,7 @@ export const SEND_BYPASS_TEXT =
 export function narrowSendInput(
   input: Static<typeof SendInputSchema>,
 ): { readonly send: SendToolInput } | { readonly problem: string } {
-  const kind =
-    input.kind ??
-    (input.sticker_ref === undefined && input.image_generation_id === undefined && input.image_ref === undefined
-      ? 'text'
-      : undefined);
+  const kind = inferredKind(input);
   if (kind === undefined) {
     return { problem: 'kind is required when sticker_ref, image_generation_id or image_ref is set' };
   }
@@ -132,6 +173,11 @@ export interface SendToolEnvironment {
    * (`send_bypass`) report through the same hook. Absent when the guard is off.
    */
   readonly duplicateSendGuard?: { readonly onRejected: () => void };
+  /**
+   * Texts a text message without `text` is sent with instead of being
+   * rejected, one picked at random per message. Absent when the fallback is off.
+   */
+  readonly emptyTextFallback?: readonly string[];
   readonly deadline: number;
   readonly bot: { readonly id: bigint; readonly displayName: string; readonly username: string | null };
   /**
