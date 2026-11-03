@@ -1,3 +1,4 @@
+import { ToolResult } from './tool-result';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -53,7 +54,9 @@ export function AgentTranscriptTab({ invocation }: { readonly invocation: Invoca
               {row.thinking_text}
             </LazyDetails>
           ) : null}
-          {row.text.length === 0 ? (
+          {row.result_content ? (
+            <ToolResult content={row.result_content} />
+          ) : row.text.length === 0 ? (
             <p className="text-muted-foreground text-sm">{t('invocations.invocationDetail.agent.noText')}</p>
           ) : (
             <p className="text-sm break-words whitespace-pre-wrap">{row.text}</p>

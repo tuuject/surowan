@@ -54,6 +54,7 @@ export const agentMessages = sqliteTable(
     role: text('role').notNull(),
     text: text('text').notNull(),
     thinkingText: text('thinking_text').notNull().default(''),
+    toolCallId: text('tool_call_id'),
     createdAt: text('created_at').notNull(),
   },
   (t) => [
@@ -73,6 +74,7 @@ export const toolCalls = sqliteTable(
     toolName: text('tool_name').notNull(),
     argumentsJson: text('arguments_json').notNull(),
     resultText: text('result_text'),
+    resultContentJson: text('result_content_json'),
     state: text('state').notNull(),
     sideEffect: integer('side_effect', { mode: 'boolean' }).notNull(),
     errorCode: text('error_code'),

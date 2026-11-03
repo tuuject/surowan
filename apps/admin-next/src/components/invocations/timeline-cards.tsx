@@ -1,3 +1,4 @@
+import { ToolResult } from './tool-result';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -134,7 +135,11 @@ export function ToolCallCard({
         contentClassName="mt-2 space-y-2"
       >
         <JsonViewer value={tool.arguments_json} title={t('invocations.invocationDetail.toolCall.arguments')} />
-        <JsonViewer value={tool.result_text} title={t('invocations.invocationDetail.toolCall.result')} />
+        {tool.result_content ? (
+          <ToolResult content={tool.result_content} />
+        ) : (
+          <JsonViewer value={tool.result_text} title={t('invocations.invocationDetail.toolCall.result')} />
+        )}
       </LazyDetails>
     </TimelineCard>
   );
@@ -242,7 +247,9 @@ export function AgentMessageCard({ message }: { readonly message: AgentMessageEn
       }
       extra={formatTime(message.created_at)}
     >
-      {message.role === 'assistant' && message.thinking_text.length > 0 ? (
+      {message.result_content ? (
+        <ToolResult content={message.result_content} />
+      ) : message.role === 'assistant' && message.thinking_text.length > 0 ? (
         <div className="space-y-2">
           <LazyDetails
             summary={t('invocations.invocationDetail.agent.thinkingLabel')}

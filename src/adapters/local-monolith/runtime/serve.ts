@@ -224,6 +224,7 @@ export async function startServeServices(session: ServeContext, environment: Ser
   });
   memoPad.purgeExpired();
   await memoBlobs.sweep();
+  await playgroundAssets.sweep();
   const tasks = new LongTaskService(openedStore.orm, () => state.scheduler?.wake(), servedHosts);
   // Group memory is a background reader of stored messages: it only needs the
   // published configuration and the same readiness gate the scheduler uses, so

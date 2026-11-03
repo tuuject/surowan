@@ -46,6 +46,7 @@ export interface ManagedServer {
   reconnectAttempt: number;
   reconnectTimer: NodeJS.Timeout | undefined;
   stderrBytes: number;
+  payloadLimited: boolean;
   state: 'starting' | 'ready' | 'degraded' | 'stopped';
 }
 
@@ -94,8 +95,6 @@ export class CompatibleTransport implements Transport {
     }
   }
 }
-
-export class KnownToolError extends Error {}
 
 export async function resolveSecretRecord(
   record: Readonly<Record<string, SecretRef>>,

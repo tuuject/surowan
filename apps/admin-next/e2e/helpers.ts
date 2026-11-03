@@ -38,7 +38,7 @@ process.on('exit', () => {
  * the previous file's server and starts a new one. The server also exits on
  * its own when its stdin closes, so a killed worker leaves nothing behind.
  */
-async function ensureServer(): Promise<RunningServer> {
+async function ensureServer(mcpImages = false): Promise<RunningServer> {
   const file = base.info().file;
   if (current?.file === file) {
     return current;
@@ -53,6 +53,7 @@ async function ensureServer(): Promise<RunningServer> {
     cwd: root,
     stdio: ['pipe', 'pipe', 'inherit'],
     windowsHide: true,
+    env: { ...process.env, E2E_MCP_IMAGES: mcpImages ? '1' : '0' },
   });
   const baseURL = await waitForReady(child);
   serverCount += 1;
@@ -118,8 +119,8 @@ export async function e2eFetch<T>(path: string, init?: RequestInit): Promise<T> 
  * spec already did) through the real auth API; specs that change the session
  * may overwrite the file and later contexts in the same file pick that up.
  */
-export async function authStoragePath(): Promise<string> {
-  const server = await ensureServer();
+export async function authStoragePath(mcpImages = false): Promise<string> {
+  const server = await ensureServer(mcpImages);
   if (server.signedIn) {
     return server.authFile;
   }
@@ -159,10 +160,11 @@ export async function authStoragePath(): Promise<string> {
  * The suite's `test`: `test.use({ signedIn: true })` gives every context and
  * request fixture of the spec a live admin session on the spec's own server.
  */
-export const test = base.extend<{ signedIn: boolean }>({
+export const test = base.extend<{ signedIn: boolean; mcpImages: boolean }>({
   signedIn: [false, { option: true }],
-  storageState: async ({ signedIn, storageState }, use) => {
-    await use(signedIn ? await authStoragePath() : storageState);
+  mcpImages: [false, { option: true }],
+  storageState: async ({ signedIn, mcpImages, storageState }, use) => {
+    await use(signedIn ? await authStoragePath(mcpImages) : storageState);
   },
 });
 

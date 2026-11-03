@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import sharp, { type Metadata } from 'sharp';
-import { and, eq, lt, notExists } from 'drizzle-orm';
+import { and, eq, lt, notExists, sql } from 'drizzle-orm';
 import { media, playgroundAssets } from '../../store/schema/index.ts';
 import type { Orm } from '../../store/store.ts';
 
@@ -98,7 +98,8 @@ export interface PlaygroundAssetStoreOptions {
 }
 
 /**
- * Local static image assets for Playground rooms.
+ * Local static images shared by room uploads and MCP tool results.
+ * Existing table and directory names remain stable for stored installations.
  *
  * Validation happens on the bytes, storage is confined to `root`, and the row
  * is the only way back to a file: no caller may name a path.
@@ -152,6 +153,7 @@ export class PlaygroundAssetStore {
     const sha256 = createHash('sha256').update(input.bytes).digest('hex');
     const existing = this.#byContent(chatId, sha256);
     if (existing !== undefined) {
+      this.#renew(existing.id);
       this.#shared.add(existing.id);
       return { ...existing, created: false };
     }
@@ -159,9 +161,9 @@ export class PlaygroundAssetStore {
     const id = randomBytes(16).toString('hex');
     const relativePath = join(chatId.toString(), `${id}.${EXTENSIONS[sniffed]}`);
     const absolute = this.#absolute(relativePath);
-    await mkdir(dirname(absolute), { recursive: true });
+    await mkdir(dirname(absolute), { recursive: true, mode: 0o700 });
     const temporary = `${absolute}.${randomBytes(6).toString('hex')}.part`;
-    await writeFile(temporary, input.bytes, { flag: 'wx' });
+    await writeFile(temporary, input.bytes, { flag: 'wx', mode: 0o600 });
     await rename(temporary, absolute);
 
     // A concurrent upload of the same bytes may have won between the lookup
@@ -179,6 +181,7 @@ export class PlaygroundAssetStore {
         height: BigInt(height),
         storagePath: relativePath,
         state: 'staged',
+        lastUsedAt: this.#now().toISOString(),
         createdAt: this.#now().toISOString(),
       })
       .onConflictDoNothing({ target: [playgroundAssets.chatId, playgroundAssets.sha256] })
@@ -190,6 +193,7 @@ export class PlaygroundAssetStore {
       if (winner === undefined) {
         throw new Error('Concurrent image upload left no asset row');
       }
+      this.#renew(winner.id);
       this.#shared.add(winner.id);
       return { ...winner, created: false };
     }
@@ -231,6 +235,7 @@ export class PlaygroundAssetStore {
         and(
           eq(playgroundAssets.id, assetId),
           notExists(this.#orm.select({ id: media.id }).from(media).where(eq(media.localAssetId, playgroundAssets.id))),
+          noToolImageReferences(),
         ),
       )
       .run();
@@ -352,8 +357,9 @@ export class PlaygroundAssetStore {
       .from(playgroundAssets)
       .where(
         and(
-          lt(playgroundAssets.createdAt, cutoff),
+          lt(sql`COALESCE(${playgroundAssets.lastUsedAt}, ${playgroundAssets.createdAt})`, cutoff),
           notExists(this.#orm.select({ id: media.id }).from(media).where(eq(media.localAssetId, playgroundAssets.id))),
+          noToolImageReferences(),
         ),
       )
       .all();
@@ -371,6 +377,8 @@ export class PlaygroundAssetStore {
             notExists(
               this.#orm.select({ id: media.id }).from(media).where(eq(media.localAssetId, playgroundAssets.id)),
             ),
+            noToolImageReferences(),
+            lt(sql`COALESCE(${playgroundAssets.lastUsedAt}, ${playgroundAssets.createdAt})`, cutoff),
           ),
         )
         .run();
@@ -412,6 +420,15 @@ export class PlaygroundAssetStore {
       throw new LocalAssetRejected('animated', 'Animated images are not supported');
     }
     return { width, height };
+  }
+
+  /** Keep a reused staged image alive while its caller is still constructing the result. */
+  #renew(id: string): void {
+    this.#orm
+      .update(playgroundAssets)
+      .set({ lastUsedAt: this.#now().toISOString() })
+      .where(eq(playgroundAssets.id, id))
+      .run();
   }
 
   #byContent(chatId: bigint, sha256: string): LocalAsset | undefined {
@@ -518,4 +535,22 @@ export function isAnimatedPng(bytes: Uint8Array): boolean {
     offset += 12 + length;
   }
   return false;
+}
+
+/** Use the installed asset location for both uploads and tool images. */
+export function localImageAssets(orm: Orm, dataDir: string): PlaygroundAssetStore {
+  return new PlaygroundAssetStore({ orm, root: join(dataDir, 'images', 'playground') });
+}
+
+/** Audit retention must not delete bytes still referenced by canonical history. */
+function noToolImageReferences() {
+  return sql`NOT EXISTS (
+    SELECT 1 FROM context_messages cm,
+      json_each(cm.payload_json, '$.details.mcpImages.items') image
+    WHERE json_extract(image.value, '$.assetId') = ${playgroundAssets.id}
+  ) AND NOT EXISTS (
+    SELECT 1 FROM tool_calls tc,
+      json_each(tc.result_content_json, '$.details.mcpImages.items') image
+    WHERE json_extract(image.value, '$.assetId') = ${playgroundAssets.id}
+  )`;
 }

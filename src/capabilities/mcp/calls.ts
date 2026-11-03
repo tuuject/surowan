@@ -1,13 +1,13 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
 import type { InvocationContext } from '../../platform/invocation-context.ts';
-import { safeJson, truncateUtf8 } from '../../platform/truncate.ts';
+import { safeJson } from '../../platform/truncate.ts';
+import type { PlaygroundAssetStore } from '../media/local-assets.ts';
+import { convertMcpResult, type McpToolResult } from './content.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { finishToolCall, rejectToolCall, startToolCall } from '../../store/store.ts';
 import {
   ARGUMENT_MAX_BYTES,
-  KnownToolError,
-  TRUNCATION_MARKER,
   classifyMcpError,
   isTransient,
   type ManagedServer,
@@ -17,6 +17,7 @@ import {
 
 export interface McpCallDeps {
   readonly store: BusinessStore;
+  readonly assets: PlaygroundAssetStore;
   readonly servers: ReadonlyMap<string, ManagedServer>;
   setState(server: ManagedServer, state: ManagedServer['state'], errorCode: string | null): void;
   scheduleReconnect(server: ManagedServer): void;
@@ -30,7 +31,7 @@ export async function executeMcpTool(
   toolCallId: string,
   input: Record<string, unknown>,
   outerSignal?: AbortSignal,
-): Promise<{ content: { type: 'text'; text: string }[]; details: { server: string; tool: string } }> {
+): Promise<McpToolResult> {
   if (invocationDeadline <= Date.now()) {
     recordRejectedCall(deps.store, context.invocationId, toolCallId, definition, input, 'invocation_timeout');
     throw new Error('Invocation deadline reached before MCP tool call');
@@ -71,6 +72,7 @@ export async function executeMcpTool(
     });
     throw new Error('MCP tool call aborted before request');
   }
+  let received = false;
   try {
     const timeoutMs = Math.max(1, Math.min(definition.policy.timeoutMs, invocationDeadline - Date.now()));
     const signals = [AbortSignal.timeout(timeoutMs)];
@@ -79,44 +81,56 @@ export async function executeMcpTool(
     }
     const signal = AbortSignal.any(signals);
     let result: McpCallResult;
+    server.payloadLimited = false;
     try {
       result = await callMcpTool(server, definition, input, signal, timeoutMs);
     } catch (error) {
-      if (!definition.policy.readOnly || !isTransient(error) || signal.aborted) {
+      if (server.payloadLimited || !definition.policy.readOnly || !isTransient(error) || signal.aborted) {
         throw error;
       }
       await delay(100, undefined, { signal });
       result = await callMcpTool(server, definition, input, signal, timeoutMs);
     }
-    const text = truncateUtf8(JSON.stringify(result), definition.resultMaxBytes, TRUNCATION_MARKER);
-    if ('isError' in result && result.isError === true) {
-      finishToolCall(deps.store.orm, auditId, 'error', text, 'mcp_tool_error', {
+    received = true;
+    const converted = await convertMcpResult(result, definition, context, deps.assets, signal);
+    const text = converted.content
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('\n');
+    finishToolCall(
+      deps.store.orm,
+      auditId,
+      converted.isError ? 'error' : 'success',
+      text,
+      converted.isError ? 'mcp_tool_error' : null,
+      {
+        startedAt,
+        pendingOnly: true,
+        resultContentJson: JSON.stringify(converted),
+      },
+    );
+    return converted;
+  } catch (error) {
+    if (received) {
+      finishToolCall(deps.store.orm, auditId, 'error', null, 'mcp_result_processing_failed', {
         startedAt,
         pendingOnly: true,
       });
-      throw new KnownToolError(text);
-    }
-    finishToolCall(deps.store.orm, auditId, 'success', text, null, { startedAt, pendingOnly: true });
-    return {
-      content: [{ type: 'text', text }],
-      details: { server: definition.serverAlias, tool: definition.originalName },
-    };
-  } catch (error) {
-    if (error instanceof KnownToolError) {
-      throw new Error(error.message);
+      throw new Error('MCP tool executed, but its result could not be processed; do not repeat side effects');
     }
     const known =
       error instanceof McpError && error.code !== ErrorCode.ConnectionClosed && error.code !== ErrorCode.RequestTimeout;
     const state = known ? 'error' : 'outcome_unknown';
-    finishToolCall(deps.store.orm, auditId, state, null, classifyMcpError(error), {
+    const errorCode = server.payloadLimited ? 'payload_limit' : classifyMcpError(error);
+    finishToolCall(deps.store.orm, auditId, state, null, errorCode, {
       startedAt,
       pendingOnly: true,
     });
     if (!known) {
-      deps.setState(server, 'degraded', classifyMcpError(error));
+      deps.setState(server, 'degraded', errorCode);
       deps.scheduleReconnect(server);
     }
-    throw new Error(`MCP tool ${definition.exposedName} failed: ${classifyMcpError(error)}`);
+    throw new Error(`MCP tool ${definition.exposedName} failed: ${errorCode}`);
   } finally {
     release();
   }

@@ -1,3 +1,4 @@
+import { readToolImageRoute } from './tool-images.ts';
 import Type from 'typebox';
 import { Compile } from 'typebox/compile';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
@@ -295,6 +296,10 @@ export function createInspectionAdminHandler(deps: InspectionAdminDeps) {
   /** The audit listings; each returns `undefined` when the path names something else. */
   const list = async (url: URL, segments: readonly string[]): Promise<Response | undefined> => {
     const route = segments.join('/');
+    const image = await readToolImageRoute(store.orm, configStore.current().config.data_dir, url, segments);
+    if (image !== undefined) {
+      return image;
+    }
     const query = listQuery(url);
     if (route === 'overview') {
       return json(overview(store.orm));

@@ -1,3 +1,4 @@
+import type { ToolContentPart } from './invocations.ts';
 import { call, type ListFilters, listPath, type Page } from './core.ts';
 
 export interface ContextMessageEntry {
@@ -34,6 +35,7 @@ export interface ConversationContextMessageEntry {
   readonly invocation_id: string | null;
   readonly evicted_at: string | null;
   readonly created_at: string;
+  readonly result_content?: readonly ToolContentPart[] | null;
   readonly payload_preview: string;
   readonly payload_truncated: boolean;
 }

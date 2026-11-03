@@ -50,7 +50,12 @@ describe('migration 021', () => {
   test.each([19, 20])('upgrades version %i without changing canonical history, audit, or tasks', async (version) => {
     const { db, directory } = await createPre020Db();
     seedCanonicalData(db);
-    const canonical = canonicalSnapshot(db);
+    const before = canonicalSnapshot(db);
+    const canonical = {
+      ...before,
+      agentMessages: before.agentMessages.map((row) => ({ ...(row as Record<string, unknown>), tool_call_id: null })),
+      toolCalls: before.toolCalls.map((row) => ({ ...(row as Record<string, unknown>), result_content_json: null })),
+    };
     db.prepare(`
       INSERT INTO alarms(id, conversation_id, target_user_id, target_display_name, summary,
         scheduled_at, created_at, state, updated_at, created_by_user_id, invocation_id,

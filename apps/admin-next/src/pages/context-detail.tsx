@@ -1,3 +1,4 @@
+import { ToolResult } from '@/components/invocations/tool-result';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
@@ -117,6 +118,7 @@ function RetainedMessages({ context }: { readonly context: ConversationContextDe
       expandedRender={(row) => (
         <div className="space-y-2">
           <p className="text-muted-foreground text-xs">{t('invocations.contextDetail.payloadPreview')}</p>
+          {row.result_content ? <ToolResult content={row.result_content} /> : null}
           <JsonViewer value={row.payload_preview} />
           {row.payload_truncated ? (
             <p className="text-muted-foreground text-xs">{t('invocations.contextDetail.previewTruncated')}</p>

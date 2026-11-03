@@ -1,3 +1,4 @@
+import { toolContentView } from '../tool-images.ts';
 import { eq, sql } from 'drizzle-orm';
 import {
   agentMessages,
@@ -45,6 +46,7 @@ export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | n
       toolName: toolCalls.toolName,
       argumentsJson: toolCalls.argumentsJson,
       resultText: toolCalls.resultText,
+      resultContentJson: toolCalls.resultContentJson,
       state: toolCalls.state,
       sideEffect: toolCalls.sideEffect,
       errorCode: toolCalls.errorCode,
@@ -89,6 +91,7 @@ export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | n
       role: agentMessages.role,
       text: agentMessages.text,
       thinkingText: agentMessages.thinkingText,
+      toolCallId: agentMessages.toolCallId,
       createdAt: agentMessages.createdAt,
     })
     .from(agentMessages)
@@ -157,6 +160,10 @@ export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | n
       tool_name: row.toolName,
       arguments_json: row.argumentsJson,
       result_text: row.resultText,
+      result_content: toolContentView(
+        row.resultContentJson,
+        `/api/invocations/${id}/tools/${encodeURIComponent(row.toolCallId)}/images`,
+      ),
       state: row.state,
       side_effect: row.sideEffect,
       error_code: row.errorCode,
@@ -199,6 +206,14 @@ export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | n
       role: row.role,
       text: row.text,
       thinking_text: row.thinkingText,
+      tool_call_id: row.toolCallId,
+      result_content:
+        row.toolCallId === null
+          ? null
+          : toolContentView(
+              toolCallRows.find((tool) => tool.toolCallId === row.toolCallId)?.resultContentJson ?? null,
+              `/api/invocations/${id}/tools/${encodeURIComponent(row.toolCallId)}/images`,
+            ),
       created_at: row.createdAt,
     })),
     telegram_sends: sendRows.map((row) => ({

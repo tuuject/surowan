@@ -40,12 +40,23 @@ export interface InvocationListItem {
   readonly total_cost: number | null;
 }
 
+export type ToolContentPart =
+  | { readonly type: 'text'; readonly text: string }
+  | {
+      readonly type: 'image';
+      readonly url: string;
+      readonly asset_id: string;
+      readonly width: number;
+      readonly height: number;
+    };
+
 export interface ToolCallEntry {
   readonly id: string;
   readonly tool_call_id: string;
   readonly tool_name: string;
   readonly arguments_json: string;
   readonly result_text: string | null;
+  readonly result_content?: readonly ToolContentPart[] | null;
   readonly state: string;
   readonly side_effect: boolean;
   readonly error_code: string | null;
@@ -91,6 +102,8 @@ export interface AgentMessageEntry {
   readonly role: string;
   readonly text: string;
   readonly thinking_text: string;
+  readonly tool_call_id?: string | null;
+  readonly result_content?: readonly ToolContentPart[] | null;
   readonly created_at: string;
 }
 

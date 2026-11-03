@@ -1,3 +1,4 @@
+import { localImageAssets } from '../../capabilities/media/local-assets.ts';
 import { access, chmod, cp, mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -360,6 +361,7 @@ export async function backupDatabase(config: RawConfig): Promise<string> {
     source.exec('PRAGMA busy_timeout = 5000;');
     const sourceOrm = drizzle(source, { schema });
     purgeExpiredData(sourceOrm, config);
+    await localImageAssets(sourceOrm, config.data_dir).sweep();
     // Expired Memo entries are gone; drop the blob rows and files no remaining
     // detail references before the SQLite copy is taken.
     await new MemoBlobStore({

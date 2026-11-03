@@ -1,6 +1,11 @@
 import type { invocations as invocationsEn } from '../en/invocations.ts';
 
 export const invocations: typeof invocationsEn = {
+  toolImage: {
+    label: '工具图片 {{index}}',
+    enlarge: '放大工具图片 {{index}}',
+    unavailable: '工具图片 {{index}} 不可用',
+  },
   invocations: {
     columns: {
       id: 'ID',

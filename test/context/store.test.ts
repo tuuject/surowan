@@ -134,3 +134,15 @@ describe('context codec', () => {
     expect(encodeContextMessage({ role: 'user', content: 'hello', timestamp: 1 })?.role).toBe('user');
   });
 });
+
+test('legacy text-only tool history without details remains readable', () => {
+  const legacy = {
+    role: 'toolResult',
+    toolCallId: 'old-call',
+    toolName: 'local__echo',
+    content: [{ type: 'text', text: 'legacy text' }],
+    isError: false,
+    timestamp: 1,
+  };
+  expect(decodeContextMessage(JSON.stringify(legacy))).toEqual(legacy);
+});
