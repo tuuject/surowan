@@ -83,7 +83,9 @@ SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是
 - `conversation_contexts.conversation_id` 带 UNIQUE 约束：**每个 Conversation 至多一行 context**。
 - 保留窗口是半开区间 `[head_seq, next_seq)`：`next_seq` 是下一个空位，`head_seq` 是第一条保留行；`context_messages` 以 `(context_id, seq)` 为主键，`seq` 只增不减，被丢弃的行不从编号里移除。
 - `send_count_total` 是该 context 累计的成功实发 `send` 次数（一次成功的 `send_reply` 无论几条都算一次），跨 Invocation 累计，`head_seq` 前移时不清零；图片去重返回的 `replayed:true` 只落 toolResult，不增加该计数。
-- `system_prompt_hash` 是稳定系统提示的 SHA-256。打开 context 时 hash 不一致按「重建」处理：删除该 context 的全部 `context_messages` 与 `context_refs`，`head_seq`/`next_seq` 复位为 1、`send_count_total` 归零、`active_invocation_id` 清空。
+- `system_prompt_hash` 是稳定系统提示的 SHA-256。打开 context 时 hash 不一致按「重建」处理：删除该 context 的全部 `context_messages` 与 `context_refs`，`head_seq`/`next_seq` 复位为 1、`send_count_total` 归零、`active_invocation_id` 清空、`generation` 递增。
+- `context_window` / `max_output_tokens`（迁移 `052`，可空）记录构建该 transcript 时的模型预算。下一次打开时模型预算变了且保留 transcript 超过新预算，同样按重建处理；只更新预算或 transcript 仍放得下时保留历史。`NULL` 是升级前写入的旧行，首次打开只采纳当前预算，不丢弃历史。
+- `generation`（迁移 `052`）是 canonical 重置代数，在 system prompt 重建、预算重建、`/cut_topic` 与 `/rebuild_context` 时递增。`append`、`advanceHead`、`clear` 在事务内核对 header 的 generation，旧运行持过期 header 的写入被 `StaleContextError` 拒绝；`touch` 静默跳过，避免 abort 信号落地前的迟到写入复活旧 transcript。
 - `active_invocation_id` 指向当前拥有该 context 的 running Invocation，运行结束时清空；Invocation 行本身被清理时置 `NULL`。
 - `last_active_at` 在每次追加行与 `touch`（Invocation 开始/结束）时刷新；它不再用于 30 天保留清理，`last_gc_at` 记录最近一次 GC 时间。
 - `context_messages.payload_json` 保存**完整 AgentMessage JSON**（含 thinking 与 tool call 结构），可以直接解码重放，而不是从文本反推；`role` 只有 `user`/`assistant`/`toolResult`。
@@ -142,7 +144,7 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 - `read_image` 接受 `pwblob://` URI，按当前 `internalChatId` 鉴权后读取；Admin 的 blob 内容端点见 [admin-panel.md](admin-panel.md#api)。
 - `save_memo_image` 在准备图片及存储的异步边界重新检查取消信号和当前 Chat 授权；撤权后不提交 Blob 元数据、不继续续租去重行，失败只清理本次拥有的临时/最终副本，不删除并发保存者的文件。
 
-`conversation_contexts` 的三个 Memo 列（`memo_refresh_seq`、`memo_state_json`、`memo_refresh_pending`）记录短期记忆注入状态：完整列表所在 checkpoint 的实际 `seq`、已告知模型的状态快照，以及强制刷新标记。Context 重建会把三者复位；消息、序号与 Memo 状态在同一个事务中提交，失败时数据库和活 header 都不推进。刷新判据与预算见 [telegram-agent-flow.md](telegram-agent-flow.md#context)。
+`conversation_contexts` 的三个 Memo 列（`memo_refresh_seq`、`memo_state_json`、`memo_refresh_pending`）记录短期记忆注入状态：完整列表所在 checkpoint 的实际 `seq`、已告知模型的状态快照，以及强制刷新标记。Context 重建会把三者复位；消息、序号与 Memo 状态在同一个事务中提交，失败时数据库和活 header 都不推进。刷新判据与预算见 [telegram-agent-flow.md](telegram-agent-flow.md#context)。迁移 `052` 另给该表加了 `generation`（重置代数）、`context_window` 与 `max_output_tokens`（构建预算），见上一节。
 
 ### 群聊记忆（迁移 048）
 

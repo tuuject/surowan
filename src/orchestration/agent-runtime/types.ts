@@ -6,7 +6,8 @@ import type { ContextBuilder, ContextIdentity, StablePrompt } from '../../contex
 import type { ContextInjector } from '../../context/injector.ts';
 import type { MemoStateUpdate } from '../../context/memo-pad/index.ts';
 import type { ContextRefStore } from '../../context/refs.ts';
-import type { ContextHeader, ConversationContextStore } from '../../context/store.ts';
+import type { ConversationContextStore } from '../../context/store/index.ts';
+import type { ContextHeader } from '../../context/store/types.ts';
 import type { KeyedSemaphore } from '../../platform/concurrency.ts';
 import type { ActiveAgentSettings, RawConfig, ToolSchemaKeywords } from '../../platform/config/index.ts';
 import type { HostExecutionProfile } from '../../platform/host-profile.ts';

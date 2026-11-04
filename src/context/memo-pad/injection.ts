@@ -1,5 +1,5 @@
 import { escapeXml } from '../../platform/spoilers.ts';
-import type { ContextHeader } from '../store.ts';
+import type { ContextHeader } from '../store/types.ts';
 import { MEMO_INJECTION_TOKEN_RATIO, type MemoEntry, type MemoStateEntry, type MemoStateUpdate } from './index.ts';
 import type { MemoPadStore } from './store.ts';
 

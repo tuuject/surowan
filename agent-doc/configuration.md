@@ -43,7 +43,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 | `telegram.participation` 与 `telegram.chats[<id>].participation`（含全部子字段） | 参与策略时段；`ParticipationRegistry` 按发布代数即时重编译，下一次消息判定就用新时段（时段按该 Chat 的 `timezone` 解析，时区本身是 restart 字段）。可经 Admin Chats 页编辑 |
 | `telegram.proactive_reply` 与 `telegram.chats[<id>].proactive_reply`（含全部子字段） | 群聊主动回复概率；每次 Bucket 到期时读取当前发布值，下一次抽样即生效；`base_probability` / `increment` / `hard_pity` 任一变化会在下一次抽样时把该群的连续未命中计数清零（仅开关 `enabled` 或重启不清零）。全局值可经 Admin Harness tuning 页编辑，Chat 覆盖经 Chats 页编辑 |
 | `telegram.chats[<id>].group_memory`（含 `enabled`、`idle_minutes`） | 该 Chat 的群聊记忆开关与空闲阈值；增删字段或改值都热应用，下一次 sleeping 扫描使用新值。开关状态变化时先 fence 该 Chat 的全部 Conversation（期间排队的 Invocation 不启动），中止 running Invocation，等它们真正落定后才驱逐 Agent 缓存并重建全部 Conversation Context；关闭只停止后续整理并让新 Invocation 不再拿到回忆工具，已写入的记忆与原文保留 |
-| `telegram.admins` | Bot 管理员白名单（`/pause`、`/resume`、`/model`、`/cut_topic`、`/allowlist` 的唯一事实源）；运行期判定直接读运行中的配置，下一次命令执行就用新列表 |
+| `telegram.admins` | Bot 管理员白名单（`/pause`、`/resume`、`/model`、`/cut_topic`、`/rebuild_context`、`/allowlist` 的唯一事实源）；运行期判定直接读运行中的配置，下一次命令执行就用新列表 |
 | `dictionary`（整段，含 `injection_mode`） | 全局辞典注入模式；下一次 Invocation 生效 |
 | `tool_model` | 系统级辅助模型（辞典融合等）。下一次辅助调用使用新选择；运行中的调用继续用它开始时从快照取出的模型。删除该段表示继承全局 Agent 设置 |
 | `providers.<alias>`（新增、删除、改 kind）与 `providers.<alias>.*`（连接字段、模型列表） | Provider 的每个字段都热更新：reload 按新定义重建注册表。模型列表变化只替换该 Provider 的模型；连接字段变化会重新解析它的 SecretRef |
@@ -61,6 +61,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 - candidate 的 restart 字段保留当前进程的值，热字段与 outside_serve 字段取文件的值。因此组合可能不合法：文件本身合法但与待重启字段冲突时返回 `candidate_invalid`，错误信息会列出待重启路径；文件仍然留在磁盘上，重启后与那些字段一起生效。
 - 待重启字段记录在 `ConfigReloader.status().restartRequired`；之后只改热字段再应用也不会清空它。
 - 模型定义的修改或删除按热更新处理，但文件与 candidate 都必须保留有效引用（全局 agent、Chat 覆盖、vision）。例如删除待重启移除的 Chat 所引用的模型时，即使文件本身合法，candidate 仍会拒绝；先清除/切换该 Chat 覆盖或重启后再删除。运行中的 Invocation 继续用启动时的快照。
+- 修改模型的 `context_window` 或 `max_tokens` 后，下一次 Invocation 使用新值；如果已有连续 Context 的保留 transcript 超过新预算，会在该次运行开始时按 `context_window` 重建（聊天记录与 `/cut_topic` 切点保留，日志 `context_rebuilt.reason = context_window`）。不需要先执行 `/cut_topic`；也可用 `/rebuild_context` 手动立即丢弃连续 Context。
 - Provider 的重建规则：连接字段（custom 的 `base_url`/`api`/`api_key`/`headers`，builtin 的 `provider`/`api_key`）没变的 Provider 沿用进程里已有的对象，只替换模型列表，不重新解析 SecretRef；新增或连接字段变化的 Provider 按启动时的路径完整构建，重新解析它的 SecretRef。`command` 引用因此会在 reload 时执行一次进程——与重启同效；reload 由显式应用或配置写入触发，包含成员的自助忽略命令。builtin 仍然用 Pi 的 provider id 发请求，只有注册键是 alias。
 - 发布是原子的：新注册表在发布前没有任何人能看到，注册表与配置在同一个同步块里发布。已经开始的 Invocation 与运行中 attach 的 Bucket 继续用运行开始时冻结的快照（快照同时带着模型与 Provider 连接），下一次 Invocation 才用新配置；`invocations.config_hash` 在 `queued → running` 时写入该快照的 active hash。
 - vision 分析钉住它开始时的快照：`read_image` 的聊天分析与后台 Sticker 索引在开始时取一次当前配置，用那一份的模型与缓存版本（`<provider>/<model>/prompt-<prompt_version>`）完成这次分析并写入 `media_analyses`。换 vision 模型后聊天图片按新版本重新分析；已经索引的 Sticker 不会重跑，见 [telegram-agent-flow.md](telegram-agent-flow.md)。
@@ -182,7 +183,7 @@ command SecretRef：
 - `provider` / `model` / `thinking_level`（可选）是此 Chat 的按群模型覆盖：全局 `agent.provider` / `agent.model` / `agent.thinking_level` 作为默认值，缺省逐项继承（`resolveAgentSettings`）。`provider` 与 `model` 必须成对出现，只写其一会被 `check-config` 直接拒绝；`thinking_level` 可独立覆盖，不必随模型一起写。生效模型按「Chat 覆盖 → 全局默认」逐项解析，该组合必须合法：覆盖模型必须在该 Provider 下存在、支持 text，`thinking_level` 必须被解析后的生效模型接受，否则严格报错。每次 Invocation 从运行快照按此解析模型与思考档；运行中的 Invocation（含 attach 的批次）沿用启动时冻结的快照，下一次 Invocation 才用新值。Topic 共用所在 Chat 的设置，私聊同理；群迁移按已有 `resolveChatConfig` 规则解析到迁移前 Chat 的配置。
 - 修改 Topic 或其它非热字段后必须重启，并比较 `check-config` 与 `serve_started` 的 `config_hash`；新增或删除 Chat、已有 Chat 的 `instructions_file`、`provider`/`model`/`thinking_level`、`ignored_user_ids`、`group_memory`、`participation` 与 `proactive_reply` 属于热更新白名单（删除 Chat 会停跑但保留数据），见「运行时配置热更新」。
 - Chat 没有每日 Invocation 次数上限，也不设 Token 硬上限；Token 只按 Chat 归属统计，唯一硬上限是全局 `agent.daily_budget.max_tokens`。
-- `admins`（可选）是 Telegram User ID 数组，Bot 管理员白名单的唯一事实源；只有管理员能执行 `/pause`、`/resume`、`/model`、`/cut_topic`。属热更新白名单，见「运行时配置热更新」。
+- `admins`（可选）是 Telegram User ID 数组，Bot 管理员白名单的唯一事实源；只有管理员能执行 `/pause`、`/resume`、`/model`、`/cut_topic`、`/rebuild_context`。属热更新白名单，见「运行时配置热更新」。
 
 ## 定时活跃（participation）
 

@@ -3,7 +3,8 @@ import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import type { MemoEntry, MemoStateEntry } from '../../src/context/memo-pad/index.ts';
 import { renderMemoDelta, renderMemoInjection, renderMemoList } from '../../src/context/memo-pad/injection.ts';
 import { MemoPadStore } from '../../src/context/memo-pad/store.ts';
-import { type ContextHeader, ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
+import type { ContextHeader } from '../../src/context/store/types.ts';
 import type { MemoFixture } from './fixtures.ts';
 import { memoFixture, seedChat } from './fixtures.ts';
 
@@ -29,6 +30,9 @@ function header(overrides: Partial<ContextHeader> = {}): ContextHeader {
     nextSeq: 2n,
     sendCountTotal: 0n,
     systemPromptHash: 'hash',
+    generation: 1n,
+    contextWindow: null,
+    maxOutputTokens: null,
     lastGcAt: null,
     memoRefreshSeq: null,
     memoStateJson: null,

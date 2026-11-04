@@ -16,7 +16,7 @@ import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { McpManager } from '../../src/capabilities/mcp/index.ts';
 import { loadToolImages, projectCompletionsToolImages } from '../../src/capabilities/media/tool-images.ts';
 import { encodeContextMessage } from '../../src/context/codec.ts';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { previewContext } from '../../src/platform/invocation-context.ts';
 import { keyJarPath } from '../../src/platform/key-jar.ts';
 import { scrubModelRequestAuditJson } from '../../src/platform/models/request-audit.ts';

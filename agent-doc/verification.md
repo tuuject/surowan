@@ -88,7 +88,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `startup/catch-up.test.ts` | 每 Conversation 一个追赶 Invocation（同群不同 Topic 分开）、`history_messages` 上限、`ignored_user_ids` 与 `sticker_trigger_enabled` 生效、排空后切换实时 Bucket、各 Topic 发送落回自己的 Topic；积压 `/pause`/`/resume` 顺序执行与鉴权、其他命令只审计不入上下文、重复 Update 不重放；慢排空或崩溃续跑后刚排队的追赶不被启动恢复判为过期，真正排队超过 recovery 年龄的仍以 `recovery_age` 过期 |
 | `scheduler/scheduler.test.ts` | 配置 deadline、冻结快照、恢复和并发串行 |
 | `sleep.test.ts` | 5% 阈值边界与 `zzz` 可见性、跨轮次工具注册表、睡眠状态只随注入批次下发而不进入 system prompt、睡眠跳过 due/queued 会话、跨进程持久化、UTC 预算重置唤醒、并发 `zzz` 幂等 |
-| `context/store.test.ts` | 淘汰行不会因为陈旧 header 的低 `head_seq` 复活、`AgentMessage` 编解码往返与过滤、保留段结构守卫、canonical history 追加与 checkpoint/send 计数、system prompt 变化触发重建、`advanceHead` 淘汰行并回收其引用、整段清空、capability 引用按 Context 隔离与 TTL |
+| `context/store.test.ts` | 淘汰行不会因为陈旧 header 的低 `head_seq` 复活、`AgentMessage` 编解码往返与过滤、保留段结构守卫、canonical history 追加与 checkpoint/send 计数、system prompt 变化触发重建、模型预算缩小且 transcript 超预算时重建而放得下时保留、升级前无预算行只采纳预算、`generation` 拒绝重建/清空后旧 header 的 append/advanceHead/clear、`advanceHead` 淘汰行并回收其引用、整段清空、capability 引用按 Context 隔离与 TTL |
 | `context/gc.test.ts` | 丢弃式 GC 计划：send 数未超上限且无 token 压力时不动、滑到仍保留 `retained_sends_target` 次 send 的最新 checkpoint、没有可用 checkpoint 时不裁剪、Tool 多 send 少时退回 token 判据、token 压力下按 send 数选出的候选超预算时改用 token 判据、保留段会以 `toolResult` 开头时放弃 |
 | `context/hot-inject.test.ts` | 空闲等待期间到期的 Bucket 注入同一 Invocation（`invocation_buckets` 两行、一次运行两次模型调用）、`/pause` 立即打断空闲等待、`idle_grace_seconds = 0` 退回一 Bucket 一 Invocation 但 transcript 仍连续、同 Chat 另一个 Topic 不 attach、attach 未注入的 Bucket 重新排队（且不会被下一次运行重复注入）、已 closing 的运行不再接收 attach、睡眠期间到期的 Bucket 跳过而不 attach、GC 缓解 token 压力后不进入收尾、steer 的批次落库失败时重新排队、抛异常的运行驱逐 Agent 缓存、输入估算不随模型调用次数增长、复用缓存的运行里每一批注入各自锚定自己的行（`context_injected.seq` 递增，`context_refs.source_seq` 等于承载该批的 user 行）、保留窗口首行不是 `user` 时播种前先对齐到 turn 边界或整段丢弃 |
 | `context/send.test.ts` | Context 可见性、Reply capability、滑动窗口内的 `send` 速率限制与 `send_rate_limited` 审计、未知网络结果不重试、abort/过期不发送、429 等待后命中屏障不重试但允许稍后重新回复、已接受的发送在落库失败时仍为成功 |
@@ -100,6 +100,8 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `image/delivery.test.ts` / `image/delivery-runtime.test.ts` | 图片按 Conversation/generation/asset 去重、跨 Invocation/重启有效、已送成功 no-op 的审计/限流/屏障与 canonical send 计数、后续新增输出、显式重发与完成轮限制、并发 pending/未知结果保护、回执 `image_delivery` 三类互斥且未知优先、无法证明集合的旧发送整代保守拒绝、权限与过期引用；工具链先发送后注入回执的真实 Faux 回归及普通回执不受影响 |
 | `image/delivery-file.test.ts` | `send kind:file`：generation 原图以 document 组发出且不算图片交付、Bot 生成照片的 `img_` 反查回该次交付的原图（原图已清理时 `file_original_unavailable` 拒绝而不发压缩版）、其他图片原样读取并补扩展名、Sticker/未授权引用/来源歧义在副作用前拒绝、缺 `sendDocuments` 的 transport 以 `send_unsupported` 失败、grammY 单文件与 document 组映射、迁移 `049` 重建后行与索引不变 |
 | `cut/topic.test.ts` | `/cut_topic` 切点排除命令消息及更早历史、切点只前移、按 Chat 与 Forum Topic 隔离、非管理员拒绝、重建服务后仍生效、同时清空该 Conversation 的 Conversation Context、中断仍持有切点前 transcript 的运行 |
+| `cut/rebuild-context.test.ts` | `/rebuild_context` 丢弃连续 Context 但保留聊天历史与 `/cut_topic` 切点、按 Forum Topic 隔离、中止运行中 Invocation（`context_rebuild`）并拒绝其迟到写入、非管理员拒绝、重复执行安全、无 Conversation/Context 时无副作用 |
+| `config/context-window-reload.test.ts` | 热更新降低模型 `context_window` 后，下一次 Invocation 重建超预算的 Context、从持久化聊天记录恢复最近对话、不把旧 transcript 发给模型 |
 | `agent/runtime.test.ts` | 按 Conversation 播种的 Agent、Tool 循环、每批注入的 turn 预算、transcript 隔离与工具可见性审计、关闭调试报文录制时公开消息快照与正常审计仍保留 |
 | `chat/model-runtime.test.ts` | 按 Chat 解析模型覆盖（覆盖生效、缺省逐项继承全局、仅 `thinking_level` 覆盖时重绑缓存 Agent）、Topic 共用 Chat 设置、群迁移解析迁移前 Chat 配置且直接配置的新 ID 优先、跨 Provider 切换保留未变的 Context 与模型审计、queued→running 用当前快照而下一次 Invocation 才用新值、Chat 选用的 Agent 模型具备 image 能力时启用对应图片提示 |
 | `skills.test.ts` | Skill 索引注入 system prompt、原语不经 execute、`execute` search/help/call、`{text, refs}` 封套驱动 `search_stickers → send` 贴纸链路、Memo 写能力经 execute 调用而读原语直接暴露、原语/未知能力拒绝的审计、已 abort 的运行不 dispatch 能力 |
@@ -411,7 +413,9 @@ Remove-Item Env:E2E_PASSKEYS
 这一节的检查在真实群里只能靠日志与数据库对照，不能只看 Telegram 上的回复：
 
 - 同一次运行里连续回答两条消息：`invocations` 只有一行、`invocation_buckets` 有两行，两次 `context_injected` 的 `invocation_id` 相同而 `seq` 递增，`buckets` 两行都以 `completed` 收尾。
-- 在 Developer 开启调试报文记录后，重启进程并继续同一 Conversation：新 Invocation 的 `model_calls.request_json` 仍带着重启前的 transcript（含上次的 assistant 文本与 `send` 结果），`conversation_contexts.head_seq` 保持不变；`context_rebuilt` 只在 system prompt 或 Chat instructions 变化时出现，出现即表示整段上下文已重建。
+- 在 Developer 开启调试报文记录后，重启进程并继续同一 Conversation：新 Invocation 的 `model_calls.request_json` 仍带着重启前的 transcript（含上次的 assistant 文本与 `send` 结果），`conversation_contexts.head_seq` 保持不变；`context_rebuilt` 只在 system prompt/Chat instructions 变化或模型预算变化后保留 transcript 超预算时出现，出现即表示整段 canonical transcript 已重建。
+- 热更新把模型的 `context_window` 调小到保留 transcript 放不下：下一次 Invocation 日志出现 `context_rebuilt` 且 `reason = context_window`，`conversation_contexts.context_window` 等于新值，`context_messages` 里不再有旧 transcript；下一次请求仍带着持久化聊天记录里的最近消息，不需要 `/cut_topic`。
+- `/rebuild_context`：日志出现 `context_rebuilt` 且 `reason = rebuild_context`，`head_seq`/`next_seq` 复位为 1、`generation` 递增、`conversation_context_cutoffs` 不变；正在运行的 Invocation 以 `aborted` / `context_rebuild` 收尾，随后任何旧 header 的迟到 `message_end` 不会出现在 `context_messages`。下一条正常消息仍能看到最近的聊天记录与记忆。
 - 连续对话直到保留段超过 `retained_sends_max`：日志出现 `context_gc`，`target_seq` 落在 checkpoint 上、`previous_head_seq` 小于 `target_seq`、保留段仍含至少 `retained_sends_target` 次 `send`；之后请求里不再出现被淘汰的那几轮，`head_seq` 与日志一致。
 - 被 GC 淘汰的消息携带的引用立即失效：引用旧 `img_`/`stk_`/reply 的 `send` 必须被拒绝，而不是照旧发出。
 - 睡眠状态只随注入批次下发：`zzz` 暴露前后两次请求的 system prompt 逐字节相同，睡眠状态出现在注入批次的 `<runtime_state>` 里；`zzz` 结束时 Invocation 的 `completion_reason` 是 `sleep`。

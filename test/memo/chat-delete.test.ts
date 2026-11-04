@@ -1,7 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { afterEach, expect, test } from 'vitest';
 import { deleteTelegramChatData, runningInvocationIdsForTelegramChat } from '../../src/ingress/admin/chats.ts';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { diffConfig } from '../../src/platform/config/diff.ts';
 import {
   chatMigrations,

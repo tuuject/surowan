@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from 'vitest';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { ContextRefStore } from '../../src/context/refs.ts';
 import { cleanupContextStoreDirectories, conversationId, fixture, mediaId } from './store-fixtures.ts';
 

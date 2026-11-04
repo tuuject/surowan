@@ -147,7 +147,12 @@ export function createAgentRun(scope: RunScope, zzzExposed: boolean): AgentRun {
   const conversationId = identity.conversationId;
   const runtime = services.conversationRuntime;
   let entry = runtime.cachedAgent(conversationId);
-  if (entry !== undefined && (entry.header.id !== header.id || entry.systemPromptHash !== stable.systemPromptHash)) {
+  if (
+    entry !== undefined &&
+    (entry.header.id !== header.id ||
+      entry.systemPromptHash !== stable.systemPromptHash ||
+      entry.header.generation !== header.generation)
+  ) {
     runtime.forget(conversationId);
     entry = undefined;
   }

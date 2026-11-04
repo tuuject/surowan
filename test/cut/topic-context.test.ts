@@ -1,6 +1,6 @@
 import type { Update } from 'grammy/types';
 import { afterAll, describe, expect, test } from 'vitest';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 import {
   ALICE,
   BUCKET_WINDOW_MS,

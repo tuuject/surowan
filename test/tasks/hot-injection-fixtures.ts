@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
 import type { Update } from 'grammy/types';
 import { expect } from 'vitest';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
 import { AgentRuntime } from '../../src/orchestration/agent-runtime/index.ts';
 import { ConversationRuntime } from '../../src/orchestration/conversation-runtime.ts';

@@ -18,7 +18,7 @@ import { createGroupMemoryReadTools, groupMemoryReadToolDefinitions } from '../.
 import { MemoPadStore } from '../../context/memo-pad/store.ts';
 import { createMemoReadTools } from '../../context/memo-pad/tools/index.ts';
 import { createCapabilityResolver } from '../../context/refs.ts';
-import type { ContextHeader } from '../../context/store.ts';
+import type { ContextHeader } from '../../context/store/types.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
 import { resolveBucketWindowSeconds } from '../../platform/config/resolve.ts';
 import { hostExecutionProfile } from '../../platform/host-profile.ts';

@@ -1,5 +1,5 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
-import type { ContextWindowRow } from './store.ts';
+import type { ContextWindowRow } from './store/types.ts';
 
 /**
  * Discard-only Context GC. Retention is expressed as "how many `send` calls stay
@@ -10,7 +10,7 @@ import type { ContextWindowRow } from './store.ts';
  * tool chains).
  */
 
-export type { ContextWindowRow } from './store.ts';
+export type { ContextWindowRow } from './store/types.ts';
 
 export interface ContextGcOptions {
   readonly retainedSendsTarget: number;

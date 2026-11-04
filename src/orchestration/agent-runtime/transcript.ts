@@ -5,7 +5,7 @@ import { SEND_TOOL_NAMES } from '../../capabilities/send/index.ts';
 import { ContextBuilder, type ContextIdentity, type StablePrompt } from '../../context/builder/index.ts';
 import { encodeContextMessage, estimateMessageTokens } from '../../context/codec.ts';
 import { type ContextGcPlan, isRenderable, planContextGc } from '../../context/gc.ts';
-import type { ContextHeader, RetainedContextMessage } from '../../context/store.ts';
+import type { ContextHeader, RetainedContextMessage } from '../../context/store/types.ts';
 import type { ActiveAgentSettings, RawConfig } from '../../platform/config/index.ts';
 import { invocations } from '../../store/schema/index.ts';
 import type { CachedConversationAgent } from '../conversation-runtime.ts';

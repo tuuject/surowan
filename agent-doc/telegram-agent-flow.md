@@ -163,6 +163,8 @@ system prompt 拆分（文档中只在此处维护；`ContextBuilder.buildSystem
 - 历史不再被重新渲染成 `<untrusted_telegram_history>`；它由 transcript 本身承载。只有两种情况例外：该 Conversation Context 尚无历史（冷启动），以及历史区段里那些**从未进入 transcript 的消息**（例如被 participation 闸门拦下的消息）——它们仍然必须渲染，否则模型永远看不到。
 - 随 Invocation 变化的内容（当前时间、Memo Pad 列表/增量、睡眠状态、完成回执）都必须待在注入段：放进 system prompt 会让每次请求的前缀都不同，既失去前缀缓存，又违反「Context 可以稳定保留」的前提。每个 receipt 只在自己的回执轮次注入一次：新 Invocation 通过 opening Bucket，附加到运行中的 Invocation 则在该回合的热注入中单独消费；后续批次不重新附带该 receipt，canonical history 已保存这次事件，其它 receipt 仍各自独立注入。
 - system prompt 变化（`system_prompt_hash` 不同）意味着 Context 重建：丢弃全部 canonical history 重新开始。Prompt 与 Chat `instructions_file` 属于配置热更新白名单：改完文件并在 Admin「Apply config file」或 `/model` 应用之后，该 Conversation 下一次运行就按新哈希重建；运行时切换模型若改变了模板渲染结果或图片说明，同样会重建。清单见 [configuration.md](configuration.md#运行时配置热更新)。
+- **模型预算变化也会重建。** `conversation_contexts` 记录构建时的 `context_window` 与 `max_output_tokens`；下一次运行取到当前模型快照后，如果这两个值变了，且保留 transcript 的估算 Token 超过按新窗口、`max_tokens`、稳定 prompt 与 10% Tool 预留算出的输入预算，就丢弃 canonical transcript 并从持久化聊天记录重新渲染（`context_rebuilt` 日志带 `reason = context_window`）。聊天记录、`/cut_topic` 切点与记忆都不动；预算只变大或 transcript 仍放得下时保留连续性，只更新记录值。
+- **旧运行不能写回重建前的历史。** `conversation_contexts.generation` 在 system prompt 重建、预算重建、`/cut_topic` 与 `/rebuild_context` 时递增。每次 `append`、`advanceHead`、`clear` 都在事务内核对 header 的 generation，过期写入直接抛 `StaleContextError`；`touch` 这类收尾写入静默跳过。这样即使 abort 信号尚未落地，被中断的 Invocation 也无法把旧 `message_end` 或旧 `head_seq` 写进新 Context。
 
 垃圾回收（GC）是**只删不摘要**的 checkpoint 滑动窗口，挂点只有一个：`prepareNextTurnWithContext`（位于流式输出之后、Tool 批次闭合之后，是唯一安全的裁剪点）。
 
@@ -494,11 +496,11 @@ Sticker 视觉元数据通过严格 Tool Call 返回：中文描述、情绪、�
 
 ## Bot Commands
 
-`/pause`、`/resume`、`/status`、`/model` 与 `/effort` 是 Chat 级控制命令，作用于发送命令的 Chat（含 Forum 全部 Topic），不按 Topic 隔离——`/model` 与 `/effort` 读写的就是该 Chat 的模型与思考强度覆盖，Topic 共用 Chat 设置。`/cut_topic` 是 Conversation 级命令：切点与 Context 清空都只作用于命令所在的 Topic。`/allowlist` 把命令所在的 Chat 追加进 `telegram.chats` 白名单。
+`/pause`、`/resume`、`/status`、`/model` 与 `/effort` 是 Chat 级控制命令，作用于发送命令的 Chat（含 Forum 全部 Topic），不按 Topic 隔离——`/model` 与 `/effort` 读写的就是该 Chat 的模型与思考强度覆盖，Topic 共用 Chat 设置。`/cut_topic` 与 `/rebuild_context` 是 Conversation 级命令：切点与 Context 重置都只作用于命令所在的 Topic。`/allowlist` 把命令所在的 Chat 追加进 `telegram.chats` 白名单。
 
 - 判定：`message.entities` 中 offset 为 0 的 `bot_command`；命令名大小写不敏感；带 `@用户名` 后缀时必须匹配当前 Bot；Bot 发送者的消息不触发命令。未知命令与非命令消息照常入库。
-- 启动时（`getMe` 后）调用 `setMyCommands` 自动注册 `/pause`、`/resume`、`/status`、`/model`、`/effort`、`/cut_topic`、`/whoami`、`/allowlist`、`/ignoreme`、`/unignoreme` 及中文描述（`BOT_COMMANDS` 是唯一事实来源，注册前校验每个命令都能被 `parseBotCommand` 解析）；注册失败只记 `command_registration_failed`，不阻塞启动——命令菜单是便利设施，文本解析不依赖它。
-- 命令消息只写 `telegram_updates` 审计，不写入 `messages`，因此不会创建 Bucket 或进入 Agent 历史。`parseBotCommand` 返回的命令附带 `messageId`（命令消息自身的 Telegram message ID）与 `threadId`（命令所在 Forum Topic），供 `/cut_topic` 记录切点并定位要清空的 Conversation Context。`threadId` 与入库共用 `conversationThreadId` 规则：只有 forum supergroup 的 topic 消息才取 `message_thread_id`，其余一律视为 thread 0，包括私聊（开启话题模式后消息会带 `message_thread_id`）和普通 supergroup 里 Reply 链自带的 `message_thread_id`。两边规则不一致时，带这类 thread id 的 `/cut_topic` 会找不到 Conversation、只写切点不清 Context，却仍回复「已清空」。
+- 启动时（`getMe` 后）调用 `setMyCommands` 自动注册 `/pause`、`/resume`、`/status`、`/model`、`/effort`、`/cut_topic`、`/rebuild_context`、`/whoami`、`/allowlist`、`/ignoreme`、`/unignoreme` 及中文描述（`BOT_COMMANDS` 是唯一事实来源，注册前校验每个命令都能被 `parseBotCommand` 解析）；注册失败只记 `command_registration_failed`，不阻塞启动——命令菜单是便利设施，文本解析不依赖它。
+- 命令消息只写 `telegram_updates` 审计，不写入 `messages`，因此不会创建 Bucket 或进入 Agent 历史。`parseBotCommand` 返回的命令附带 `messageId`（命令消息自身的 Telegram message ID）与 `threadId`（命令所在 Forum Topic），供 `/cut_topic` 记录切点，并供 `/cut_topic`、`/rebuild_context` 定位要操作的 Conversation Context。`threadId` 与入库共用 `conversationThreadId` 规则：只有 forum supergroup 的 topic 消息才取 `message_thread_id`，其余一律视为 thread 0，包括私聊（开启话题模式后消息会带 `message_thread_id`）和普通 supergroup 里 Reply 链自带的 `message_thread_id`。两边规则不一致时，带这类 thread id 的 `/cut_topic` 会找不到 Conversation、只写切点不清 Context，却仍回复「已清空」。
 - 回复是确定性 Bot 输出（不经模型），直接通过 Bot API 发送并 Reply 原命令消息，不经过 `send` Tool；发送失败只记 `command_reply_failed` 事件，不重试。
 
 `/pause`、`/resume`、`/model` 与 `/effort` 仅对 Bot 管理员开放（`telegram.admins` 配置，见下文）；`/status` 对任何成员开放。`/whoami` 同样对任何成员开放：回复发送者的 Telegram 数字 ID，发送者身份无法识别（`message.from` 缺失）时回复「无法识别发送者。」。非管理员或匿名身份执行受限命令会收到拒绝回复，不产生任何状态变更。
@@ -527,12 +529,19 @@ Sticker 视觉元数据通过严格 Tool Call 返回：中文描述、情绪、�
 
 1. 把命令消息自身的 Telegram message ID 写入 `conversation_context_cutoffs`（每 Conversation 一行，即 Chat + Forum Topic；重复执行只会前移切点，更旧的命令不会把切点往回挪）。Forum 中切一个 Topic 不影响同群其他 Topic 的 history。该 Topic 还没有任何入库消息时（没有 Conversation 行）不写切点，因为没有可切的历史。
 2. 之后新建的 Invocation 在冻结 history 快照时排除 `telegram_message_id <= 切点` 的消息，命令消息本身也在切点上，因此不会进入下一个会话的上下文。
-3. 先中断该 Conversation 正在运行的 Invocation（`BucketScheduler.abortConversation`，abort reason `context_cut`），再清空 canonical history（`head_seq` 推进到 `next_seq`、`context_refs` 全删），并驱逐进程内的 Agent 缓存。三步都必要：运行中的那次调用把切点前的 transcript 和一份运行开始时的 `head_seq` 快照都留在内存里，不中断它就会继续按被切掉的历史回答，还可能把这份更旧的 `head_seq` 写回去覆盖切点。
+3. 先中断该 Conversation 正在运行的 Invocation（`BucketScheduler.abortConversation`，abort reason `context_cut`），再清空 canonical history（`head_seq` 推进到 `next_seq`、`context_refs` 全删、`generation` 递增），并驱逐进程内的 Agent 缓存。三步都必要：运行中的那次调用把切点前的 transcript 和一份运行开始时的 `head_seq` 快照都留在内存里，不中断它就会继续按被切掉的历史回答，还可能把这份更旧的 `head_seq` 写回去覆盖切点；`generation` 递增让它在中断信号落地前已经排好的写入直接被 `ConversationContextStore` 拒绝。
 4. 不删除任何消息、Revision 或已淘汰的 Context 行（只软标记）；被切 Conversation 之外的已排队/运行中 Invocation 不受影响，启动追赶的 `new` 消息也不受影响。
+
+`/rebuild_context` 同样仅对 Bot 管理员开放，用于**丢弃连续 Context 但不截断聊天历史**——典型场景是模型的 `context_window` 调小后，希望下一次会话按新预算重新开始，同时保留最近的聊天内容：
+
+1. 定位命令所在 Conversation（Chat + Forum Topic），先中断正在运行的 Invocation（abort reason `context_rebuild`）。
+2. 丢弃 canonical history（删除 `context_messages` 与 `context_refs`、`head_seq`/`next_seq` 复位到 1、`generation` 递增、Memo 刷新状态复位），并驱逐进程内的 Agent 缓存。`generation` 递增保证被中断的运行无法在命令返回后把旧 transcript 写回来。
+3. **不写** `conversation_context_cutoffs`，因此 `/cut_topic` 划掉的历史不会被重建带回；已存消息、Revision、Memo Pad 与群聊记忆都不动。
+4. 命令本身不触发模型回复；下一次正常 Invocation 用当前模型配置、Context Window 与 `history_messages` 规则，从持久化聊天记录重新渲染最近的 history。重复执行安全；没有 Conversation 或 Context 时直接回复无需重建。
 
 ## Bot 管理员列表
 
-`/pause`、`/resume`、`/model`、`/effort`、`/cut_topic`、`/allowlist` 的白名单是配置文件里的 `telegram.admins`（Telegram User ID 数组），Bot 全局共享，它是唯一事实源：
+`/pause`、`/resume`、`/model`、`/effort`、`/cut_topic`、`/rebuild_context`、`/allowlist` 的白名单是配置文件里的 `telegram.admins`（Telegram User ID 数组），Bot 全局共享，它是唯一事实源：
 
 - 旧版 `bot_admins` 表已删除（迁移 `026_drop_bot_admins.sql`）；旧表内容用 `scripts/migrate-admins.ts` 搬进配置（须在升级启动前运行）。
 - 权限判定在 `BotCommandService`：命令发送者的 `message.from.id` 命中运行中配置的 `telegram.admins` 才放行；`sender_chat` 匿名身份一律拒绝。

@@ -2,7 +2,7 @@ import type { Api, AssistantMessage, Model } from '@earendil-works/pi-ai';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { ContextIdentity, Injection } from '../../context/builder/index.ts';
 import type { ContextGcPlan } from '../../context/gc.ts';
-import type { ContextHeader } from '../../context/store.ts';
+import type { ContextHeader } from '../../context/store/types.ts';
 import { serializeModelRequestForAudit } from '../../platform/models/request-audit.ts';
 import { dailyUsage, modelCalls } from '../../store/schema/index.ts';
 import { type DailyTokenBudget, meteredTokens } from '../../store/sleep.ts';
@@ -45,7 +45,11 @@ export function logInvocationError(services: RuntimeServices, invocationId: bigi
   }
 }
 
-export function logContextRebuilt(identity: ContextIdentity, systemPromptHash: string): void {
+export function logContextRebuilt(
+  identity: ContextIdentity,
+  systemPromptHash: string,
+  reason: 'system_prompt' | 'context_window',
+): void {
   console.log(
     JSON.stringify({
       event: 'context_rebuilt',
@@ -53,6 +57,7 @@ export function logContextRebuilt(identity: ContextIdentity, systemPromptHash: s
       chat_id: identity.chatId.toString(),
       thread_id: identity.threadId.toString(),
       system_prompt_hash: systemPromptHash,
+      reason,
       at: new Date().toISOString(),
     }),
   );

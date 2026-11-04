@@ -142,6 +142,14 @@ export const conversationContexts = sqliteTable('conversation_contexts', {
   nextSeq: sqliteBigInt('next_seq').notNull().default(1n),
   sendCountTotal: sqliteBigInt('send_count_total').notNull().default(0n),
   systemPromptHash: text('system_prompt_hash').notNull(),
+  /**
+   * Bumped on every canonical reset. A run holding a header from before the
+   * reset must not append into the new history or move its `head_seq`.
+   */
+  generation: sqliteBigInt('generation').notNull().default(1n),
+  /** Model window the retained transcript was built under; NULL for pre-052 rows. */
+  contextWindow: sqliteBigInt('context_window'),
+  maxOutputTokens: sqliteBigInt('max_output_tokens'),
   activeInvocationId: sqliteBigInt('active_invocation_id').references(() => invocations.id, { onDelete: 'set null' }),
   lastActiveAt: text('last_active_at').notNull(),
   lastGcAt: text('last_gc_at'),

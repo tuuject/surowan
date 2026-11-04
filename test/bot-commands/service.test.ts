@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from 'vitest';
 import { BotCommandService } from '../../src/orchestration/bot-commands/index.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { ALICE, FIXED_NOW, cleanupDirectories, setup, textUpdate } from './fixtures.ts';
 
 afterAll(cleanupDirectories);

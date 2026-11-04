@@ -2,7 +2,7 @@ import { and, eq, gt, sql } from 'drizzle-orm';
 import type { CapabilityRefResolver } from '../platform/invocation-context.ts';
 import type { BusinessStore } from '../store/store.ts';
 import { contextRefs } from '../store/schema/index.ts';
-import type { ContextHeader } from './store.ts';
+import type { ContextHeader } from './store/types.ts';
 
 /**
  * Capability references for one Conversation Context.

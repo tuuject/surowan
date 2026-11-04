@@ -14,7 +14,7 @@ import type { Update } from 'grammy/types';
 import alarmPlugin from '../../src/plugins/alarm/index.ts';
 import type { ListAlarmToolDetails } from '../../src/plugins/alarm/alarm.ts';
 import { loadPlugins } from '../../src/plugins/plugin.ts';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
 import { AgentRuntime } from '../../src/orchestration/agent-runtime/index.ts';
 import { ConversationRuntime } from '../../src/orchestration/conversation-runtime.ts';

@@ -1,5 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
-import { type ConversationContextStore, listConversationContexts } from '../../context/store.ts';
+import type { ConversationContextStore } from '../../context/store/index.ts';
+import { listConversationContexts } from '../../context/store/queries.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
 import { resolveAgentSettings } from '../../platform/config/resolve.ts';
 import { isWithinActiveWindows } from '../../platform/participation.ts';

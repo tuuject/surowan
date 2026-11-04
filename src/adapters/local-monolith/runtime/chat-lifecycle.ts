@@ -1,5 +1,5 @@
 import { and, eq, inArray } from 'drizzle-orm';
-import { ConversationContextStore } from '../../../context/store.ts';
+import { ConversationContextStore } from '../../../context/store/index.ts';
 import type { RawConfig } from '../../../platform/config/index.ts';
 import { telegramChatIdentity } from '../../../store/chat-identity.ts';
 import type { LongTaskService } from '../../../store/long-tasks/index.ts';

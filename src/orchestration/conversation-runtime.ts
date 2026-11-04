@@ -10,7 +10,7 @@
  */
 
 import type { Agent } from '@earendil-works/pi-agent-core';
-import type { ContextHeader } from '../context/store.ts';
+import type { ContextHeader } from '../context/store/types.ts';
 
 export interface CachedConversationAgent {
   readonly conversationId: bigint;

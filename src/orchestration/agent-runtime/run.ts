@@ -76,13 +76,34 @@ export async function runInvocation(
             }) ?? true,
         },
   );
-  const opened = services.contexts.open(identity.conversationId, stable.systemPromptHash);
+  // The retained transcript must fit this run's model window. The tool registry
+  // is capped at 10% of the window by `validateToolRegistry`, so reserve that
+  // much alongside the stable prompt and the output budget; a hot reload that
+  // lowers either model limit then rebuilds an oversized Context on this run's
+  // first open instead of seeding a transcript the provider would reject.
+  const promptTokens = Math.ceil(stable.systemPrompt.length / 4);
+  const toolReserveTokens = Math.ceil(model.contextWindow * 0.1);
+  const maxRetainedTokens = Math.max(
+    0,
+    Math.floor(model.contextWindow * config.agent.context_stop_ratio) -
+      model.maxTokens -
+      promptTokens -
+      toolReserveTokens,
+  );
+  const opened = services.contexts.open(identity.conversationId, stable.systemPromptHash, {
+    budget: {
+      contextWindow: model.contextWindow,
+      maxOutputTokens: model.maxTokens,
+      maxRetainedTokens,
+    },
+  });
   const header = opened.header;
   if (opened.rebuilt) {
-    // A changed stable system prompt restarts the Conversation Context: the
-    // same conversation under two different prompts is not replayable.
+    // A changed stable system prompt or an oversized Context restarts the
+    // Conversation Context: the same conversation under two different prompts,
+    // or under a window its retained transcript cannot fit, is not replayable.
     services.conversationRuntime.forget(identity.conversationId);
-    logContextRebuilt(identity, stable.systemPromptHash);
+    logContextRebuilt(identity, stable.systemPromptHash, opened.reason ?? 'system_prompt');
   }
   const startedAt = Date.now();
   const deadline = startedAt + config.agent.context.max_wall_clock_seconds * 1_000;

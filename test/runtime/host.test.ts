@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { Update } from 'grammy/types';
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai';
 import { createCoreRuntime } from '../../src/orchestration/runtime.ts';
-import { listConversationContexts } from '../../src/context/store.ts';
+import { listConversationContexts } from '../../src/context/store/queries.ts';
 import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
 import { assembleRawConfig } from '../../src/platform/config/index.ts';
 import { RuntimeConfigurationStore } from '../../src/platform/runtime-config.ts';

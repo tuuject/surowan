@@ -4,7 +4,7 @@ import { eq, sql } from 'drizzle-orm';
 import { expect, test, vi } from 'vitest';
 import { convertMcpResult } from '../../src/capabilities/mcp/content.ts';
 import { loadToolImages } from '../../src/capabilities/media/tool-images.ts';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { toolImageReferences } from '../../src/platform/tool-images.ts';
 import { contextMessages, toolCalls } from '../../src/store/schema/index.ts';
 import { purgeExpiredData } from '../../src/store/store.ts';

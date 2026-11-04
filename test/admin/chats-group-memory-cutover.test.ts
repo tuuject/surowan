@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { expect, test, vi } from 'vitest';
 import { applyGroupMemoryToggles } from '../../src/adapters/local-monolith/runtime/chat-lifecycle.ts';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { contextMessages, invocations } from '../../src/store/schema/index.ts';
 import { seedChat } from '../memo/fixtures.ts';
 import { cleanup, fixture, queue, slowHandler, useLifecycleCleanup } from './chats-lifecycle-fixtures.ts';

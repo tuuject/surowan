@@ -15,7 +15,7 @@ import { parseSnapshotLines } from './format.ts';
 import { renderInjection, stickerCatalogFor } from './render.ts';
 import type { ContextInjector } from '../injector.ts';
 import type { ContextRefStore } from '../refs.ts';
-import type { ContextHeader } from '../store.ts';
+import type { ContextHeader } from '../store/types.ts';
 import { MemoPadStore } from '../memo-pad/store.ts';
 import type { MemoStateUpdate } from '../memo-pad/index.ts';
 import { activeVisionModel } from '../../platform/config/resolve.ts';

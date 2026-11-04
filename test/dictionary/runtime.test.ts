@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { fauxAssistantMessage, fauxProvider, type MutableModels } from '@earendil-works/pi-ai';
 import type { Update } from 'grammy/types';
 import { afterAll, describe, expect, test, vi } from 'vitest';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 
 import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
 import { AgentRuntime } from '../../src/orchestration/agent-runtime/index.ts';

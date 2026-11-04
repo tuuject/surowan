@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import type { Message } from 'grammy/types';
-import { ConversationContextStore } from '../../context/store.ts';
+import { ConversationContextStore } from '../../context/store/index.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
 import type { BotCommandConfigWriter } from '../../platform/config/write.ts';
 import type { AgentModelSwitcher } from '../../platform/models/switch.ts';
@@ -17,7 +17,7 @@ import {
   switchChatEffort,
   switchChatModel,
 } from './config.ts';
-import { type BotCommandSessionDeps, cutTopic, pauseChat, resumeChat } from './session.ts';
+import { type BotCommandSessionDeps, cutTopic, pauseChat, rebuildContext, resumeChat } from './session.ts';
 import { type BotCommandStatusDeps, chatStatus } from './status.ts';
 
 export interface ParsedCommand {
@@ -28,6 +28,7 @@ export interface ParsedCommand {
     | 'model'
     | 'effort'
     | 'cut_topic'
+    | 'rebuild_context'
     | 'whoami'
     | 'allowlist'
     | 'ignoreme'
@@ -91,6 +92,7 @@ const COMMAND_NAMES: Record<string, true> = {
   model: true,
   effort: true,
   cut_topic: true,
+  rebuild_context: true,
   whoami: true,
   allowlist: true,
   ignoreme: true,
@@ -114,6 +116,7 @@ export const BOT_COMMANDS: readonly BotCommandRegistration[] = [
   { command: 'model', description: '查看或切换 agent 模型（仅管理员）' },
   { command: 'effort', description: '查看或设置本群模型的思考强度（仅管理员）' },
   { command: 'cut_topic', description: '切掉此消息及更早的历史，仅对新会话生效（仅管理员）' },
+  { command: 'rebuild_context', description: '丢弃并重建此话题的连续 Context，保留聊天记录（仅管理员）' },
   { command: 'whoami', description: '查看你的 Telegram 数字 ID' },
   { command: 'allowlist', description: '将本群加入白名单，立即生效（仅管理员）' },
   { command: 'ignoreme', description: '让 Bot 忽略你在本 Chat 的消息' },
@@ -221,6 +224,10 @@ export class BotCommandService {
       case 'cut_topic':
         return this.#adminGate(sender)
           ? this.#cutTopic(telegramChatId, command.messageId, command.threadId, now)
+          : DENIED_REPLY;
+      case 'rebuild_context':
+        return this.#adminGate(sender)
+          ? rebuildContext(this.#sessionDeps(), telegramChatId, command.threadId, now)
           : DENIED_REPLY;
       case 'whoami':
         return sender === null ? '无法识别发送者。' : sender.id.toString();

@@ -3,7 +3,7 @@ import type { Api, Model } from '@earendil-works/pi-ai';
 import { ContextBuilder } from '../../context/builder/index.ts';
 import type { ContextInjector } from '../../context/injector.ts';
 import { ContextRefStore } from '../../context/refs.ts';
-import { ConversationContextStore } from '../../context/store.ts';
+import { ConversationContextStore } from '../../context/store/index.ts';
 import { KeyedSemaphore } from '../../platform/concurrency.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
 import type { HostKind } from '../../platform/im-host/identity.ts';

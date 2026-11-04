@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'vitest';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { ContextRefStore } from '../../src/context/refs.ts';
 import { ContextBuilder } from '../../src/context/builder/index.ts';
 import { resolveInvocationPolicy } from '../../src/platform/invocation-policy.ts';

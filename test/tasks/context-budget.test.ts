@@ -1,6 +1,6 @@
 import { fauxAssistantMessage, fauxToolCall, getCurrentTools } from '@earendil-works/pi-ai';
 import { expect, test } from 'vitest';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { CHAT_ID, checkpointTexts, fixture, receipt } from './context-fixtures.ts';
 
 test.each([false, true])('daily budget bypass=%s is frozen in task policy, not result data', async (bypass) => {

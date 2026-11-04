@@ -1,6 +1,8 @@
 import { afterAll, describe, expect, test } from 'vitest';
 import { encodeContextMessage } from '../../src/context/codec.ts';
-import { ConversationContextStore, listConversationContexts } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
+import { listConversationContexts } from '../../src/context/store/queries.ts';
+import { StaleContextError } from '../../src/context/store/types.ts';
 import { ContextRefStore } from '../../src/context/refs.ts';
 import { assistantText, cleanupContextStoreDirectories, conversationId, fixture, mediaId } from './store-fixtures.ts';
 
@@ -206,16 +208,33 @@ describe('conversation context store', () => {
     expect(contexts.retained(stale)).toEqual([]);
     expect(contexts.window(stale)).toEqual([]);
     expect(contexts.stats(stale).messageCount).toBe(0);
-    // A row appended after the cut is still retained by both handles: eviction, not
-    // the sequence number, is what decides.
-    contexts.append(stale, {
+    // The generation bump fences the pre-cut writer: its late message cannot
+    // append into the cleared history or move its head back.
+    expect(() =>
+      contexts.append(stale, {
+        invocationId: null,
+        isCheckpoint: true,
+        estTokens: 10,
+        json: JSON.stringify({ role: 'user', content: 'after the cut', timestamp: 9 }),
+        role: 'user',
+      }),
+    ).toThrow(StaleContextError);
+    expect(() => contexts.advanceHead(stale, 2n)).toThrow(StaleContextError);
+    expect(contexts.retained(contexts.header(conversation)!)).toEqual([]);
+    // A header reopened after the cut starts from the new generation and writes
+    // normally.
+    const reopened = contexts.header(conversation);
+    if (reopened === undefined) {
+      throw new Error('Expected a reopened context header');
+    }
+    contexts.append(reopened, {
       invocationId: null,
       isCheckpoint: true,
       estTokens: 10,
       json: JSON.stringify({ role: 'user', content: 'after the cut', timestamp: 9 }),
       role: 'user',
     });
-    expect(contexts.retained(stale).map((row) => row.seq)).toEqual([5n]);
+    expect(contexts.retained(reopened).map((row) => row.seq)).toEqual([5n]);
     store.close();
   });
 
@@ -236,6 +255,139 @@ describe('conversation context store', () => {
     expect(listed[0]?.conversationId).toBe(conversation);
     expect(listed[0]?.messageCount).toBe(1n);
     expect(listed[0]?.headSeq).toBe(1n);
+    store.close();
+  });
+
+  test('a lowered model budget rebuilds an oversized Context and keeps a fitting one', async () => {
+    const { store } = await fixture();
+    const contexts = new ConversationContextStore(store);
+    const conversation = conversationId(store);
+    const first = contexts.open(conversation, 'hash-a', {
+      budget: { contextWindow: 1_048_576, maxOutputTokens: 32_768, maxRetainedTokens: 700_000 },
+    });
+    expect(first.rebuilt).toBe(false);
+    contexts.append(first.header, {
+      invocationId: null,
+      isCheckpoint: true,
+      estTokens: 500_000,
+      json: JSON.stringify({ role: 'user', content: 'a very long history', timestamp: 1 }),
+      role: 'user',
+    });
+
+    // The hot-reloaded window is smaller and the retained transcript no longer
+    // fits: the canonical transcript goes, the persisted chat messages stay.
+    const lowered = contexts.open(conversation, 'hash-a', {
+      budget: { contextWindow: 262_144, maxOutputTokens: 32_768, maxRetainedTokens: 100_000 },
+    });
+    expect(lowered.rebuilt).toBe(true);
+    expect(lowered.reason).toBe('context_window');
+    expect(lowered.header.headSeq).toBe(1n);
+    expect(lowered.header.nextSeq).toBe(1n);
+    expect(lowered.header.contextWindow).toBe(262_144n);
+    expect(lowered.header.maxOutputTokens).toBe(32_768n);
+    expect(contexts.retained(lowered.header)).toEqual([]);
+    expect(lowered.header.generation).toBeGreaterThan(first.header.generation);
+
+    // A transcript that still fits the new budget keeps its continuity and only
+    // records the budget it now runs under.
+    contexts.append(lowered.header, {
+      invocationId: null,
+      isCheckpoint: true,
+      estTokens: 10,
+      json: JSON.stringify({ role: 'user', content: 'recent', timestamp: 2 }),
+      role: 'user',
+    });
+    const raised = contexts.open(conversation, 'hash-a', {
+      budget: { contextWindow: 300_000, maxOutputTokens: 16_384, maxRetainedTokens: 200_000 },
+    });
+    expect(raised.rebuilt).toBe(false);
+    expect(raised.reason).toBeNull();
+    expect(raised.header.contextWindow).toBe(300_000n);
+    expect(raised.header.maxOutputTokens).toBe(16_384n);
+    expect(contexts.retained(raised.header)).toHaveLength(1);
+    store.close();
+  });
+
+  test('a pre-052 Context adopts the current budget without discarding history', async () => {
+    const { store } = await fixture();
+    const contexts = new ConversationContextStore(store);
+    const conversation = conversationId(store);
+    const { header } = contexts.open(conversation, 'hash-a');
+    contexts.append(header, {
+      invocationId: null,
+      isCheckpoint: true,
+      estTokens: 10,
+      json: JSON.stringify({ role: 'user', content: 'old row', timestamp: 1 }),
+      role: 'user',
+    });
+    // Migration 052 leaves the columns NULL on rows that predate it.
+    store.db.prepare('UPDATE conversation_contexts SET context_window = NULL, max_output_tokens = NULL').run();
+
+    const adopted = contexts.open(conversation, 'hash-a', {
+      budget: { contextWindow: 262_144, maxOutputTokens: 32_768, maxRetainedTokens: 100_000 },
+    });
+    expect(adopted.rebuilt).toBe(false);
+    expect(adopted.header.contextWindow).toBe(262_144n);
+    expect(adopted.header.maxOutputTokens).toBe(32_768n);
+    expect(contexts.retained(adopted.header)).toHaveLength(1);
+
+    // The same upgrade path must still protect a window lowered before the
+    // upgrade: an oversized pre-052 transcript is rebuilt, not adopted.
+    contexts.append(adopted.header, {
+      invocationId: null,
+      isCheckpoint: false,
+      estTokens: 500_000,
+      json: JSON.stringify({ role: 'assistant', content: [{ type: 'text', text: 'huge' }], timestamp: 2 }),
+      role: 'assistant',
+    });
+    store.db.prepare('UPDATE conversation_contexts SET context_window = NULL, max_output_tokens = NULL').run();
+    const oversized = contexts.open(conversation, 'hash-a', {
+      budget: { contextWindow: 262_144, maxOutputTokens: 32_768, maxRetainedTokens: 100_000 },
+    });
+    expect(oversized.rebuilt).toBe(true);
+    expect(oversized.reason).toBe('context_window');
+    expect(contexts.retained(oversized.header)).toEqual([]);
+    store.close();
+  });
+
+  test('a rebuilt Context refuses every late write from the old header', async () => {
+    const { store } = await fixture();
+    const contexts = new ConversationContextStore(store);
+    const conversation = conversationId(store);
+    const { header } = contexts.open(conversation, 'hash-a');
+    for (let index = 0; index < 3; index += 1) {
+      contexts.append(header, {
+        invocationId: null,
+        isCheckpoint: true,
+        estTokens: 10,
+        json: JSON.stringify({ role: 'user', content: `message ${index}`, timestamp: index }),
+        role: 'user',
+      });
+    }
+    const stale = { ...header };
+    expect(contexts.rebuildForConversations([conversation])).toBe(1);
+    expect(contexts.header(conversation)?.generation).toBe(stale.generation + 1n);
+
+    expect(() =>
+      contexts.append(stale, {
+        invocationId: null,
+        isCheckpoint: true,
+        estTokens: 10,
+        json: JSON.stringify({ role: 'user', content: 'late', timestamp: 9 }),
+        role: 'user',
+      }),
+    ).toThrow(StaleContextError);
+    expect(() => contexts.advanceHead(stale, 2n)).toThrow(StaleContextError);
+    expect(() => contexts.clear(stale)).toThrow(StaleContextError);
+    // `touch` is best-effort cleanup in a dying run: it must not throw, but it
+    // must not write either.
+    contexts.touch(stale, 99n);
+    expect(
+      store.db
+        .prepare<[], { active_invocation_id: bigint | null }>('SELECT active_invocation_id FROM conversation_contexts')
+        .get()?.active_invocation_id,
+    ).toBeNull();
+    expect(contexts.retained(contexts.header(conversation)!)).toEqual([]);
     store.close();
   });
 });

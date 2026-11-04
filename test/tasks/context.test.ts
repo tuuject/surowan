@@ -3,7 +3,7 @@ import { GrammyError, HttpError } from 'grammy';
 import { expect, test } from 'vitest';
 import { createSendTool } from '../../src/capabilities/send/index.ts';
 import { ContextRefStore } from '../../src/context/refs.ts';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 import type { TelegramTransport } from '../../src/adapters/local-monolith/telegram/host.ts';
 import { invocationCapabilities, renderInvocationContext, testSendToolEnv } from '../helpers.ts';
 import { CHAT_ID, checkpointTexts, fixture, receipt, update } from './context-fixtures.ts';

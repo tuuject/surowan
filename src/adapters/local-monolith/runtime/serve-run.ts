@@ -5,7 +5,7 @@
 
 import type { Context } from 'grammy';
 import { ingestToolImage } from '../../../capabilities/media/tool-image-store.ts';
-import { ConversationContextStore } from '../../../context/store.ts';
+import { ConversationContextStore } from '../../../context/store/index.ts';
 import type { ImageService } from '../../../image/service.ts';
 import { AdminQueryError } from '../../../ingress/admin/audit/shared.ts';
 import { AdminServer } from '../../../ingress/admin/index.ts';

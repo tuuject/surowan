@@ -1,6 +1,6 @@
 import { fauxAssistantMessage } from '@earendil-works/pi-ai';
 import { afterEach, expect, test } from 'vitest';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { checkpoints, cleanupFixtures, complete, fixture, finished, receipts, send } from './hot-injection-fixtures.ts';
 
 afterEach(cleanupFixtures);

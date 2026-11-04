@@ -1,5 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm';
-import type { ConversationContextStore } from '../../context/store.ts';
+import type { ConversationContextStore } from '../../context/store/index.ts';
 import { chatPause, conversationContextCutoffs, conversations } from '../../store/schema/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import type { ConversationRuntime } from '../conversation-runtime.ts';
@@ -126,4 +126,49 @@ export function cutTopic(
     deps.conversationRuntime?.forget(conversationId);
   }
   return '已切掉此消息及更早的历史，并清空该话题的连续 Context。';
+}
+
+// Discards one Conversation's continuous Context without moving the chat
+// history cutoff. The next invocation rebuilds from the persisted messages and
+// the current model budget, so a lowered context window can be applied without
+// forgetting what was recently said and without `/cut_topic` truncating history.
+//
+// The running Invocation is aborted first, and `rebuildForConversations` bumps
+// the Context generation: a late `message_end` or GC from that run is refused
+// by the store instead of appending to or moving the head of the rebuilt
+// history.
+export function rebuildContext(
+  deps: BotCommandSessionDeps,
+  telegramChatId: bigint,
+  threadId: bigint | undefined,
+  now: Date,
+): string {
+  const chatId = deps.internalChatId(telegramChatId);
+  if (chatId === null) {
+    return '当前 Chat 尚未入库，无需重建连续 Context。';
+  }
+  const conversationId = deps.store.orm
+    .select({ id: conversations.id })
+    .from(conversations)
+    .where(and(eq(conversations.chatId, chatId), eq(conversations.messageThreadId, threadId ?? 0n)))
+    .get()?.id;
+  if (conversationId === undefined) {
+    return '当前话题还没有连续 Context，无需重建。';
+  }
+  deps.scheduler.abortConversation(conversationId, 'context_rebuild');
+  const rebuilt = deps.contexts.rebuildForConversations([conversationId], now);
+  deps.conversationRuntime?.forget(conversationId);
+  if (rebuilt === 0) {
+    return '当前话题还没有连续 Context，无需重建。';
+  }
+  console.log(
+    JSON.stringify({
+      event: 'context_rebuilt',
+      conversation_id: conversationId.toString(),
+      chat_id: telegramChatId.toString(),
+      reason: 'rebuild_context',
+      at: now.toISOString(),
+    }),
+  );
+  return '已终止当前 Invocation 并丢弃连续 Context；下一条消息会基于最近的聊天记录重新构建。';
 }

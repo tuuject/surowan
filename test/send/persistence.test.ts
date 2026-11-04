@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
 import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';

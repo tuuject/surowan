@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fauxAssistantMessage, type ToolResultMessage } from '@earendil-works/pi-ai';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { BotCommandService } from '../../src/orchestration/bot-commands/index.ts';
 import { completeAlarmTask, getAlarmTask, insertAlarmTask } from './fixtures.ts';
 import {

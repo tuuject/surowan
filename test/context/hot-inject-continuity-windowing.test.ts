@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from 'vitest';
 import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai';
 import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { cleanupFixtureDirectories, fixture, fauxAgent, update, withoutIdleWait } from './hot-inject-fixtures.ts';
 
 afterAll(cleanupFixtureDirectories);

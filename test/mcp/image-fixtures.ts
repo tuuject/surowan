@@ -4,7 +4,7 @@ import type { ToolResultMessage } from '@earendil-works/pi-ai';
 import { McpManager } from '../../src/capabilities/mcp/index.ts';
 import type { McpToolResult } from '../../src/capabilities/mcp/content.ts';
 import { localImageAssets } from '../../src/capabilities/media/local-assets.ts';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { encodeContextMessage } from '../../src/context/codec.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { fixture } from '../admin/fixtures.ts';

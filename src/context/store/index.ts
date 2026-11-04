@@ -1,9 +1,18 @@
-import type { AgentMessage } from '@earendil-works/pi-agent-core';
-import { and, desc, eq, gte, isNull, lt, type SQL, sql } from 'drizzle-orm';
-import type { BusinessStore } from '../store/store.ts';
-import { contextMessages, contextRefs, conversationContexts, invocations } from '../store/schema/index.ts';
-import { type ContextMessageRole, decodeContextMessage } from './codec.ts';
-import type { MemoStateUpdate } from './memo-pad/index.ts';
+import { and, eq, gte, isNull, lt, type SQL, sql } from 'drizzle-orm';
+import { contextMessages, contextRefs, conversationContexts } from '../../store/schema/index.ts';
+import type { BusinessStore } from '../../store/store.ts';
+import { decodeContextMessage } from '../codec.ts';
+import {
+  type ContextBudget,
+  type ContextHeader,
+  type ContextMessageInput,
+  type ContextRebuildReason,
+  type ContextStats,
+  type ContextWindowRow,
+  type OpenContextOptions,
+  type RetainedContextMessage,
+  StaleContextError,
+} from './types.ts';
 
 /**
  * Canonical Conversation Context storage.
@@ -13,63 +22,6 @@ import type { MemoStateUpdate } from './memo-pad/index.ts';
  * only writer of that history: the in-memory Pi agent is a disposable cache
  * seeded from here, never the other way around.
  */
-
-/**
- * Live handle of one Conversation Context. It is mutated by this store as the
- * history advances, so every consumer (tools, GC, attach path) observes the
- * same `head_seq` / `next_seq` without re-reading the row.
- */
-export interface ContextHeader {
-  readonly id: bigint;
-  readonly conversationId: bigint;
-  headSeq: bigint;
-  nextSeq: bigint;
-  sendCountTotal: bigint;
-  systemPromptHash: string;
-  lastGcAt: string | null;
-  /** Batch seq that carried the last full short-term Memo list. */
-  memoRefreshSeq: bigint | null;
-  /** Short-term Memo state already announced to this Context. */
-  memoStateJson: string | null;
-  /** Set when the next batch must re-render the full list regardless of seq. */
-  memoRefreshPending: boolean;
-}
-
-export interface ContextMessageInput {
-  readonly invocationId: bigint | null;
-  readonly isCheckpoint: boolean;
-  readonly estTokens: number;
-  readonly json: string;
-  readonly role: ContextMessageRole;
-  /** Set when this row is the tool result of a successful `send`. */
-  readonly countedSend?: boolean;
-  /** Announced with this checkpoint, atomically with its canonical message. */
-  readonly memoState?: MemoStateUpdate & { readonly refresh: boolean };
-}
-
-/** Light row projection used by GC and `/status`; never carries payloads. */
-export interface ContextWindowRow {
-  readonly seq: bigint;
-  readonly role: string;
-  readonly estTokens: bigint;
-  readonly isCheckpoint: boolean;
-  readonly sendSeq: bigint | null;
-}
-
-export interface RetainedContextMessage {
-  readonly seq: bigint;
-  readonly message: AgentMessage;
-}
-
-export interface ContextStats {
-  readonly headSeq: bigint;
-  readonly nextSeq: bigint;
-  readonly messageCount: number;
-  readonly retainedSends: number;
-  readonly retainedTokens: number;
-  readonly lastGcAt: string | null;
-}
-
 export class ConversationContextStore {
   readonly #store: BusinessStore;
 
@@ -78,17 +30,24 @@ export class ConversationContextStore {
   }
 
   /**
-   * Returns the Conversation Context, creating it on first use. A different
-   * `systemPromptHash` means the stable system prompt changed, which the design
-   * treats as "rebuild the context": continuity across two different prompts is
-   * not something the model can be trusted to reconcile.
+   * Returns the Conversation Context, creating it on first use.
+   *
+   * A different `systemPromptHash` means the stable system prompt changed,
+   * which the design treats as "rebuild the context": continuity across two
+   * different prompts is not something the model can be trusted to reconcile.
+   *
+   * A changed model budget (hot-reloaded `context_window` / `max_tokens`) only
+   * rebuilds when the retained transcript no longer fits it. The persisted chat
+   * history is untouched either way, so the next injection renders the recent
+   * messages again under the new budget.
    */
   open(
     conversationId: bigint,
     systemPromptHash: string,
-    now = new Date(),
-  ): { header: ContextHeader; rebuilt: boolean } {
-    const timestamp = now.toISOString();
+    options: OpenContextOptions = {},
+  ): { header: ContextHeader; rebuilt: boolean; reason: ContextRebuildReason | null } {
+    const timestamp = (options.now ?? new Date()).toISOString();
+    const budget = options.budget;
     const existing = this.#selectHeader(conversationId);
     if (existing === undefined) {
       const created = this.#store.orm
@@ -96,6 +55,12 @@ export class ConversationContextStore {
         .values({
           conversationId,
           systemPromptHash,
+          ...(budget === undefined
+            ? {}
+            : {
+                contextWindow: BigInt(budget.contextWindow),
+                maxOutputTokens: BigInt(budget.maxOutputTokens),
+              }),
           lastActiveAt: timestamp,
           createdAt: timestamp,
           updatedAt: timestamp,
@@ -105,32 +70,98 @@ export class ConversationContextStore {
       if (created === undefined) {
         throw new Error('conversation_contexts insert returned no row');
       }
-      return { header: this.#requireHeader(conversationId), rebuilt: false };
+      return { header: this.#requireHeader(conversationId), rebuilt: false, reason: null };
     }
-    if (existing.systemPromptHash === systemPromptHash) {
-      return { header: existing, rebuilt: false };
+    if (existing.systemPromptHash !== systemPromptHash) {
+      this.#reset(existing, timestamp, { systemPromptHash, ...(budget === undefined ? {} : { budget }) });
+      return { header: this.#requireHeader(conversationId), rebuilt: true, reason: 'system_prompt' };
     }
+    if (budget === undefined) {
+      return { header: existing, rebuilt: false, reason: null };
+    }
+    const storedWindow = existing.contextWindow;
+    const storedMaxOutput = existing.maxOutputTokens;
+    if (storedWindow === null || storedMaxOutput === null) {
+      // A Context written before 052 has no recorded budget. Adopt the current
+      // one without discarding continuity, unless the retained transcript
+      // already exceeds it (for example a window lowered before the upgrade).
+      if (this.stats(existing).retainedTokens > budget.maxRetainedTokens) {
+        this.#reset(existing, timestamp, { budget });
+        return { header: this.#requireHeader(conversationId), rebuilt: true, reason: 'context_window' };
+      }
+      this.#store.orm
+        .update(conversationContexts)
+        .set({
+          contextWindow: BigInt(budget.contextWindow),
+          maxOutputTokens: BigInt(budget.maxOutputTokens),
+          updatedAt: timestamp,
+        })
+        .where(eq(conversationContexts.id, existing.id))
+        .run();
+      existing.contextWindow = BigInt(budget.contextWindow);
+      existing.maxOutputTokens = BigInt(budget.maxOutputTokens);
+      return { header: existing, rebuilt: false, reason: null };
+    }
+    if (storedWindow === BigInt(budget.contextWindow) && storedMaxOutput === BigInt(budget.maxOutputTokens)) {
+      return { header: existing, rebuilt: false, reason: null };
+    }
+    if (this.stats(existing).retainedTokens > budget.maxRetainedTokens) {
+      this.#reset(existing, timestamp, { budget });
+      return { header: this.#requireHeader(conversationId), rebuilt: true, reason: 'context_window' };
+    }
+    // The retained transcript still fits; keep continuity and remember the
+    // budget it now runs under so the next open does not re-check.
+    this.#store.orm
+      .update(conversationContexts)
+      .set({
+        contextWindow: BigInt(budget.contextWindow),
+        maxOutputTokens: BigInt(budget.maxOutputTokens),
+        updatedAt: timestamp,
+      })
+      .where(eq(conversationContexts.id, existing.id))
+      .run();
+    existing.contextWindow = BigInt(budget.contextWindow);
+    existing.maxOutputTokens = BigInt(budget.maxOutputTokens);
+    return { header: existing, rebuilt: false, reason: null };
+  }
+
+  /**
+   * Drops the canonical transcript and starts the sequence space over. The
+   * generation bump fences every writer that still holds the old header.
+   */
+  #reset(
+    header: ContextHeader,
+    timestamp: string,
+    values: { readonly systemPromptHash?: string; readonly budget?: ContextBudget },
+  ): void {
+    const budget = values.budget;
     this.#store.transaction(() => {
-      this.#store.orm.delete(contextMessages).where(eq(contextMessages.contextId, existing.id)).run();
-      this.#store.orm.delete(contextRefs).where(eq(contextRefs.contextId, existing.id)).run();
+      this.#store.orm.delete(contextMessages).where(eq(contextMessages.contextId, header.id)).run();
+      this.#store.orm.delete(contextRefs).where(eq(contextRefs.contextId, header.id)).run();
       this.#store.orm
         .update(conversationContexts)
         .set({
           headSeq: 1n,
           nextSeq: 1n,
           sendCountTotal: 0n,
-          systemPromptHash,
+          ...(values.systemPromptHash === undefined ? {} : { systemPromptHash: values.systemPromptHash }),
+          ...(budget === undefined
+            ? {}
+            : {
+                contextWindow: BigInt(budget.contextWindow),
+                maxOutputTokens: BigInt(budget.maxOutputTokens),
+              }),
           activeInvocationId: null,
           lastGcAt: null,
           memoRefreshSeq: null,
           memoStateJson: null,
           memoRefreshPending: true,
+          generation: sql`${conversationContexts.generation} + 1`,
           updatedAt: timestamp,
         })
-        .where(eq(conversationContexts.id, existing.id))
+        .where(eq(conversationContexts.id, header.id))
         .run();
     });
-    return { header: this.#requireHeader(conversationId), rebuilt: true };
   }
 
   header(conversationId: bigint): ContextHeader | undefined {
@@ -151,6 +182,7 @@ export class ConversationContextStore {
           ? seq
           : (header.memoRefreshSeq ?? memoState.refreshSeq);
     this.#store.transaction(() => {
+      this.#assertGeneration(header);
       this.#store.orm
         .insert(contextMessages)
         .values({
@@ -247,6 +279,7 @@ export class ConversationContextStore {
     }
     const timestamp = now.toISOString();
     this.#store.transaction(() => {
+      this.#assertGeneration(header);
       this.#store.orm
         .update(contextMessages)
         .set({ evictedAt: timestamp })
@@ -270,6 +303,7 @@ export class ConversationContextStore {
   clear(header: ContextHeader, now = new Date()): void {
     const timestamp = now.toISOString();
     this.#store.transaction(() => {
+      this.#assertGeneration(header);
       this.#store.orm
         .update(contextMessages)
         .set({ evictedAt: timestamp })
@@ -278,11 +312,16 @@ export class ConversationContextStore {
       this.#store.orm.delete(contextRefs).where(eq(contextRefs.contextId, header.id)).run();
       this.#store.orm
         .update(conversationContexts)
-        .set({ headSeq: header.nextSeq, updatedAt: timestamp })
+        .set({
+          headSeq: header.nextSeq,
+          generation: sql`${conversationContexts.generation} + 1`,
+          updatedAt: timestamp,
+        })
         .where(eq(conversationContexts.id, header.id))
         .run();
     });
     header.headSeq = header.nextSeq;
+    header.generation += 1n;
   }
 
   /** Chat-level variant used when a configuration reload removes a Chat. */
@@ -334,6 +373,7 @@ export class ConversationContextStore {
             memoRefreshSeq: null,
             memoStateJson: null,
             memoRefreshPending: true,
+            generation: sql`${conversationContexts.generation} + 1`,
             updatedAt: timestamp,
           })
           .where(eq(conversationContexts.id, header.id))
@@ -349,7 +389,7 @@ export class ConversationContextStore {
     this.#store.orm
       .update(conversationContexts)
       .set({ activeInvocationId, lastActiveAt: now.toISOString(), updatedAt: now.toISOString() })
-      .where(eq(conversationContexts.id, header.id))
+      .where(and(eq(conversationContexts.id, header.id), eq(conversationContexts.generation, header.generation)))
       .run();
   }
 
@@ -380,6 +420,23 @@ export class ConversationContextStore {
     };
   }
 
+  /**
+   * Rejects a writer whose header predates a canonical reset. The check runs
+   * inside the write transaction, so a reset that commits just before it is
+   * observed and the stale append/head move is refused instead of resurrecting
+   * the discarded transcript.
+   */
+  #assertGeneration(header: ContextHeader): void {
+    const current = this.#store.orm
+      .select({ generation: conversationContexts.generation })
+      .from(conversationContexts)
+      .where(eq(conversationContexts.id, header.id))
+      .get();
+    if (current === undefined || current.generation !== header.generation) {
+      throw new StaleContextError(header.id);
+    }
+  }
+
   #selectHeader(conversationId: bigint): ContextHeader | undefined {
     const row = this.#store.orm
       .select({
@@ -389,6 +446,9 @@ export class ConversationContextStore {
         nextSeq: conversationContexts.nextSeq,
         sendCountTotal: conversationContexts.sendCountTotal,
         systemPromptHash: conversationContexts.systemPromptHash,
+        generation: conversationContexts.generation,
+        contextWindow: conversationContexts.contextWindow,
+        maxOutputTokens: conversationContexts.maxOutputTokens,
         lastGcAt: conversationContexts.lastGcAt,
         memoRefreshSeq: conversationContexts.memoRefreshSeq,
         memoStateJson: conversationContexts.memoStateJson,
@@ -407,85 +467,4 @@ export class ConversationContextStore {
     }
     return header;
   }
-}
-
-export interface ConversationContextSummary {
-  readonly conversationId: bigint;
-  readonly telegramChatId: bigint;
-  readonly messageThreadId: bigint;
-  readonly headSeq: bigint;
-  readonly nextSeq: bigint;
-  readonly sendCountTotal: bigint;
-  readonly messageCount: bigint;
-  readonly lastActiveAt: string;
-  readonly lastGcAt: string | null;
-  readonly activeInvocationId: bigint | null;
-}
-
-interface ConversationContextSummaryRow {
-  readonly conversation_id: bigint;
-  readonly telegram_chat_id: bigint;
-  readonly message_thread_id: bigint;
-  readonly head_seq: bigint;
-  readonly next_seq: bigint;
-  readonly send_count_total: bigint;
-  readonly message_count: bigint;
-  readonly last_active_at: string;
-  readonly last_gc_at: string | null;
-  readonly active_invocation_id: bigint | null;
-}
-
-/** Read-only projection used by `/status` and the Admin Panel. */
-export function listConversationContexts(
-  store: BusinessStore,
-  filter: { readonly conversationId?: bigint; readonly telegramChatId?: bigint; readonly limit?: number } = {},
-): ConversationContextSummary[] {
-  const conditions: SQL[] = [];
-  if (filter.conversationId !== undefined) {
-    conditions.push(sql`cc.conversation_id = ${filter.conversationId}`);
-  }
-  if (filter.telegramChatId !== undefined) {
-    conditions.push(sql`c.telegram_chat_id = ${filter.telegramChatId}`);
-  }
-  const where = conditions.length === 0 ? sql`1 = 1` : sql.join(conditions, sql` AND `);
-  return store.orm
-    .all<ConversationContextSummaryRow>(
-      sql`SELECT cc.conversation_id, c.telegram_chat_id, v.message_thread_id, cc.head_seq, cc.next_seq,
-                 cc.send_count_total, cc.last_active_at, cc.last_gc_at, cc.active_invocation_id,
-                 (SELECT COUNT(*) FROM context_messages cm
-                   WHERE cm.context_id = cc.id AND cm.seq >= cc.head_seq) AS message_count
-          FROM conversation_contexts cc
-          JOIN conversations v ON v.id = cc.conversation_id
-          JOIN chats c ON c.id = v.chat_id
-          WHERE ${where}
-          ORDER BY cc.last_active_at DESC, cc.id DESC
-          LIMIT ${BigInt(filter.limit ?? 50)}`,
-    )
-    .map((row) => ({
-      conversationId: row.conversation_id,
-      telegramChatId: row.telegram_chat_id,
-      messageThreadId: row.message_thread_id,
-      headSeq: row.head_seq,
-      nextSeq: row.next_seq,
-      sendCountTotal: row.send_count_total,
-      messageCount: row.message_count,
-      lastActiveAt: row.last_active_at,
-      lastGcAt: row.last_gc_at,
-      activeInvocationId: row.active_invocation_id,
-    }));
-}
-
-/**
- * The running invocation of a Conversation, if any. The attach path injects a
- * due bucket into it; at most one can exist (one_running_invocation_per_conversation).
- */
-export function runningInvocationForConversation(store: BusinessStore, conversationId: bigint): bigint | undefined {
-  const row = store.orm
-    .select({ id: invocations.id })
-    .from(invocations)
-    .where(and(eq(invocations.conversationId, conversationId), eq(invocations.state, 'running')))
-    .orderBy(desc(invocations.id))
-    .limit(1)
-    .get();
-  return row?.id;
 }

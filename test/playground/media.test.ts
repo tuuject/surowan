@@ -15,7 +15,7 @@ import {
   PlaygroundAssetStore,
   sniffImageMime,
 } from '../../src/capabilities/media/local-assets.ts';
-import { ConversationContextStore } from '../../src/context/store.ts';
+import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { PlaygroundIngress } from '../../src/ingress/playground.ts';
 import { KeyedSemaphore } from '../../src/platform/concurrency.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';

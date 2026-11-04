@@ -2,7 +2,7 @@ import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
 import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { ContextRefStore } from '../refs.ts';
-import type { ContextHeader } from '../store.ts';
+import type { ContextHeader } from '../store/types.ts';
 
 const Strict = { additionalProperties: false } as const;
 const RangeArraySchema = Type.Array(
