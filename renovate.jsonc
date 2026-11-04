@@ -1,0 +1,40 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+
+  // Recommended defaults: Dependency Dashboard, monorepo grouping, separate
+  // major PRs. The npm preset below adds a 3-day release-age guard.
+  "extends": ["config:recommended", "security:minimumReleaseAgeNpm"],
+
+  // This repo uses plain imperative commit subjects, not Conventional Commits.
+  "semanticCommits": "disabled",
+
+  // Renovate runs continuously; this only permits branch/PR creation on
+  // Mondays. Vulnerability fixes intentionally ignore this schedule.
+  "timezone": "Asia/Shanghai",
+  "schedule": ["* * * * 1"],
+
+  // Direct npm dependencies get OSV-backed security PRs even without
+  // Dependabot alerts. GitHub vulnerability alerts stay enabled by default.
+  "osvVulnerabilityAlerts": true,
+
+  "packageRules": [
+    {
+      // pnpm-workspace.yaml pins the patch to @rspress/core@2.0.22. Bumping
+      // the dependency without regenerating the patch makes pnpm fail with
+      // ERR_PNPM_UNUSED_PATCH. Update manually: bump the dependency,
+      // regenerate patches/@rspress__core@<version>.patch, then update
+      // patchedDependencies in pnpm-workspace.yaml.
+      "description": "Rspress is patched; update it manually with a new pnpm patch",
+      "matchPackageNames": ["@rspress/core"],
+      "enabled": false
+    },
+    {
+      // docker-compose.yml is a deployment template that deliberately follows
+      // the project's own :latest image; the Docker workflow owns those tags.
+      "description": "Do not update the project's own image in docker-compose.yml",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/tuuject/surowan"],
+      "enabled": false
+    }
+  ]
+}
