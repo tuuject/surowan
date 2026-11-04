@@ -99,14 +99,13 @@ export function replaySendReplyTool(definition: ReplayToolDefinition, state: Rep
       const silentNotes: string[] = [];
       for (const [index, part] of parts.entries()) {
         if (skipped.has(index)) {
-          const text = silentSendText(index + 1);
-          state.options.onSendOutcome?.('silent');
-          silentNotes.push(` ${text}`);
+          silentNotes.push(` ${silentSendText(index + 1)}`);
           continue;
         }
         messageIds.push(recordReplaySend(`${toolCallId}:${index + 1}`, part, state));
-        state.options.onSendOutcome?.('published');
       }
+      // One call is one breaker step, as in production.
+      state.options.onSendOutcome?.(messageIds.length === 0 ? 'silent' : 'published');
       const fallbackNotes =
         strategy === 'random_text'
           ? filled.flatMap((part, index) =>

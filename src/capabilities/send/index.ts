@@ -156,6 +156,7 @@ export function createSendReplyTool(
         parts.flatMap((part, index) => (strategy === 'silent_success' && isMissingTextSend(part) ? [index] : [])),
       );
       const outgoing = parts.filter((_part, index) => !skipped.has(index));
+      const outgoingNumbers = parts.flatMap((_part, index) => (skipped.has(index) ? [] : [index + 1]));
       const reject = (errorCode: string, message: string): never => {
         recordRejectedSend(environment, toolCallId, input, errorCode, 'send_reply');
         throw new Error(`Nothing was sent: ${message}`);
@@ -172,18 +173,9 @@ export function createSendReplyTool(
         }
         // Every part that will actually go out is checked before the first one
         // is published; a silent part publishes nothing, so it needs no check.
-        checkReplyParts(
-          environment,
-          {
-            ...input,
-            parts: outgoing.map((part, index) =>
-              index === 0 && input.reply_to_message_id !== undefined
-                ? { ...part, reply_to_message_id: input.reply_to_message_id }
-                : part,
-            ),
-          },
-          reject,
-        );
+        // The first outgoing part takes the reply target, and rejections keep
+        // the model's own part numbers.
+        checkReplyParts(environment, { ...input, parts: outgoing }, reject, outgoingNumbers);
         if (signal?.aborted === true || Date.now() >= environment.deadline) {
           reject(signal?.aborted === true ? 'aborted' : 'deadline_exceeded', 'the run was cancelled or timed out');
         }
@@ -205,13 +197,13 @@ export function createSendReplyTool(
         outgoing.length > 0,
       );
       const sent: string[] = [];
+      const sentNumbers: number[] = [];
       const silentNotes: string[] = [];
       for (const [index, part] of input.parts.entries()) {
         const partCallId = `${toolCallId}:${index + 1}`;
         if (skipped.has(index)) {
           const text = silentSendText(index + 1);
           recordSilentSend(environment, partCallId, part, text);
-          environment.onSendOutcome?.('silent');
           silentNotes.push(` ${text}`);
           continue;
         }
@@ -231,6 +223,7 @@ export function createSendReplyTool(
             throw new Error('the host reported a delivery without a message id');
           }
           sent.push(published);
+          sentNumbers.push(index + 1);
         } catch (error) {
           const failed = environment.store.orm
             .select({ errorCode: toolCalls.errorCode })
@@ -249,11 +242,20 @@ export function createSendReplyTool(
           if (sent.length === 0) {
             throw new Error(`Nothing was sent: part ${index + 1} failed. ${reason}`);
           }
+          // A silent part before this one published nothing, so name only
+          // the parts that really went out.
+          const publishedParts =
+            sentNumbers.length === index ? `Parts 1-${index} were` : `Part(s) ${sentNumbers.join(', ')} were`;
           const rest = input.parts.length - index - 1;
           throw new Error(
-            `Parts 1-${index} were published as Telegram messages ${sent.join(', ')}; do not send them again. Part ${index + 1} failed: ${reason}${rest > 0 ? ` The remaining ${rest} part(s) were not attempted.` : ''}`,
+            `${publishedParts} published as Telegram messages ${sent.join(', ')}; do not send them again. Part ${index + 1} failed: ${reason}${rest > 0 ? ` The remaining ${rest} part(s) were not attempted.` : ''}`,
           );
         }
+      }
+      // One call is one breaker step: a reply whose parts were all silent
+      // counts once, and one with any published part was already reset by it.
+      if (sent.length === 0) {
+        environment.onSendOutcome?.('silent');
       }
       const fallbackNotes =
         strategy === 'random_text'

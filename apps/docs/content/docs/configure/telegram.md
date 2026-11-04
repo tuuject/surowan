@@ -62,7 +62,7 @@ Telegram 官方 FAQ 指引开发者通过 [@BotFather](https://t.me/BotFather) �
 | 策略 | 行为 |
 | --- | --- |
 | `reject` | 退回这次发送并返回 `send_input_invalid`，模型需要补上文字再发。默认值。 |
-| `silent_success` | 工具返回成功，但明确说明没有发送任何消息；Telegram 上不会出现内容，也不占发送额度。连续三次静默成功会结束本次运行，避免模型用空发送空转。 |
+| `silent_success` | 工具返回成功，但明确说明没有发送任何消息；Telegram 上不会出现内容，也不占发送额度。连续三次静默成功的调用会结束本次运行，避免模型用空发送空转；一次多条回复里只要有一条真正发出，就不算静默。 |
 | `random_text` | 从 `send_empty_text_fallback_texts`（默认 `["……"]`）随机取一条，按纯文本实际发出。 |
 
 ```jsonc

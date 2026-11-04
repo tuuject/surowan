@@ -117,11 +117,15 @@ test('the silent strategy records no output for sends without text', async () =>
       text: 'Sent 1 Telegram messages in order: 1 Part 1 was handled without sending: it had no text, and the silent-success empty-text strategy processed it. No Telegram message was published for that part.',
     },
   ]);
+  const blank = await toolOf(replay.tools, 'send_reply').execute('blank', { parts: [{}, {}] });
+  expect(blank.details).toEqual({});
   await expect(toolOf(replay.tools, 'send').execute('sticker', { kind: 'sticker' })).rejects.toThrow(
     'kind:sticker needs sticker_ref',
   );
   expect(replay.outputs.map((output) => output.arguments)).toEqual([{ text: 'well' }]);
-  expect(outcomes).toEqual(['silent', 'silent', 'published']);
+  // Each call is one breaker step, as in production: a reply with a published
+  // part resets, and an all-silent reply counts once.
+  expect(outcomes).toEqual(['silent', 'published', 'silent']);
 });
 
 test('send rejects repeated reply targets within the scene without recording another output', async () => {

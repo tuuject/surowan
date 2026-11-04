@@ -15,11 +15,16 @@ export function checkReplyParts(
   environment: SendToolEnvironment,
   input: Static<typeof SendReplyInputSchema>,
   reject: (errorCode: string, message: string) => never,
+  /**
+   * The model's own 1-based number for each part checked, when silent parts
+   * were left out of `input.parts`, so a rejection names the part it called.
+   */
+  partNumbers?: readonly number[],
 ): void {
   const partKeys = new Set<string>();
   let previousPartKey: string | null = null;
   for (const [index, part] of input.parts.entries()) {
-    const label = `part ${index + 1}`;
+    const label = `part ${partNumbers?.[index] ?? index + 1}`;
     const narrowed = narrowSendInput(
       index === 0 && input.reply_to_message_id !== undefined
         ? { ...part, reply_to_message_id: input.reply_to_message_id }
