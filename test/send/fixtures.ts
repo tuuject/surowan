@@ -51,7 +51,7 @@ afterAll(async () => {
   );
 });
 
-interface Fixture {
+export interface Fixture {
   readonly store: SqliteStore;
   readonly config: RawConfig;
   readonly configStore: RuntimeConfigurationStore;

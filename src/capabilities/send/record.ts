@@ -167,6 +167,33 @@ export function recordOutgoingMessage(
 }
 
 /**
+ * The audit row for a send handled without publishing: the call succeeded, but
+ * no side effect happened and no host send was claimed.
+ */
+export function recordSilentSend(
+  environment: SendToolEnvironment,
+  toolCallId: string,
+  input: unknown,
+  resultText: string,
+): void {
+  const now = new Date().toISOString();
+  environment.store.orm
+    .insert(toolCalls)
+    .values({
+      invocationId: environment.context.invocationId,
+      toolCallId,
+      toolName: 'send',
+      argumentsJson: JSON.stringify(input),
+      state: 'success',
+      sideEffect: false,
+      resultText,
+      createdAt: now,
+      finishedAt: now,
+    })
+    .run();
+}
+
+/**
  * The audit row for a send that replayed an earlier delivery: the message was
  * accepted before, so nothing went out and nothing is claimed as a side effect.
  */

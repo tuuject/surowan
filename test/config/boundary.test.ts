@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { parse } from 'jsonc-parser';
 import { afterEach, expect, test } from 'vitest';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
+import { resolveAgentSection } from '../../src/platform/config/resolve.ts';
 
 import { testConfigJsonc, writeTestConfig } from '../helpers.ts';
 import { validateFileConfig } from '../../src/platform/config/validate.ts';
@@ -49,6 +50,18 @@ test('schema and secret checks do not require file access', () => {
   root.agent.system_prompt_file = 'does-not-exist.md';
   root.telegram.token = 'secret';
   expect(() => validateFileConfig(parsed)).toThrow(/plaintext secrets are not accepted/);
+});
+
+test('empty-text strategy defaults to reject and the legacy flag still means random_text', () => {
+  expect(resolveAgentSection(undefined).send_empty_text_strategy).toBe('reject');
+  expect(resolveAgentSection({ send_empty_text_fallback_enabled: false }).send_empty_text_strategy).toBe('reject');
+  expect(resolveAgentSection({ send_empty_text_fallback_enabled: true }).send_empty_text_strategy).toBe('random_text');
+  expect(
+    resolveAgentSection({
+      send_empty_text_fallback_enabled: true,
+      send_empty_text_strategy: 'silent_success',
+    }).send_empty_text_strategy,
+  ).toBe('silent_success');
 });
 
 test('invalid optional image is removed before file prompt loading', async () => {

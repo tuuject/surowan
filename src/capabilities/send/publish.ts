@@ -133,6 +133,7 @@ async function publishSend(
   if (mention !== null && completion !== null) {
     mentionedTasks.add(completion.taskId);
   }
+  environment.onSendOutcome?.('published');
   // The host has accepted the message from here on. A failure to record it
   // must not read as a failed send, or the model would send it again.
   const now = new Date().toISOString();

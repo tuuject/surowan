@@ -57,21 +57,29 @@ Telegram 官方 FAQ 指引开发者通过 [@BotFather](https://t.me/BotFather) �
 
 ## 没写文字的发送
 
-模型偶尔会调用发送却没有给出文字，例如只指定了要回复哪条消息。默认情况下这次发送会被退回，模型需要补上文字再发。把 `agent.send_empty_text_fallback_enabled` 设为 `true`（可选，默认 `false`）后，Bot 会改为发出一条兜底文本，默认是「……」：
+模型偶尔会调用发送却没有给出文字，例如只指定了要回复哪条消息。`agent.send_empty_text_strategy` 决定怎么处理这种情况（可选，默认 `reject`）：
+
+| 策略 | 行为 |
+| --- | --- |
+| `reject` | 退回这次发送并返回 `send_input_invalid`，模型需要补上文字再发。默认值。 |
+| `silent_success` | 工具返回成功，但明确说明没有发送任何消息；Telegram 上不会出现内容，也不占发送额度。连续三次静默成功的调用会结束本次运行，避免模型用空发送空转；一次多条回复里只要有一条真正发出，就不算静默。 |
+| `random_text` | 从 `send_empty_text_fallback_texts`（默认 `["……"]`）随机取一条，按纯文本实际发出。 |
 
 ```jsonc
 {
   "agent": {
-    "send_empty_text_fallback_enabled": true,
-    // 可选，默认 ["……"]：每次兜底随机选一条
+    // 可选，默认 "reject"；也可写 "silent_success" 或 "random_text"
+    "send_empty_text_strategy": "random_text",
+    // 可选，默认 ["……"]：random_text 每次随机选一条
     "send_empty_text_fallback_texts": ["……", "嗯", "啊这"]
   }
 }
 ```
 
-- 兜底文本按纯文本发送，照常遵守引用回复、文本长度、空行和重复发送等规则；同一次运行里连续兜底抽中同一条时，第二次会被当作重复发送拦下。
-- 每条必须是一行、含有非空白字符；贴纸、图片和写了文字的发送不受影响。
-- 也可以在管理面板 Harness 页面打开开关，并在「Fallback texts」里一行写一条。两项都是全局字段、无每群覆盖，属于热更新，显式应用配置后下一次 Invocation 生效。
+- `random_text` 的文本照常遵守引用回复、文本长度、空行和重复发送等规则；同一次运行里连续抽中同一条时，第二次会被当作重复发送拦下。
+- 每条兜底文本必须是一行、含有非空白字符；贴纸、图片、文件和写了文字的发送不受任何策略影响。
+- 旧字段 `agent.send_empty_text_fallback_enabled` 仍然可用：设为 `true` 时，在没有显式策略的情况下等价于 `random_text`，升级不会改变已有行为。两者同时存在时以显式策略为准。
+- 也可以在管理面板 Harness 页面用「Empty-text sends」下拉框切换策略，并在「Fallback texts」里一行写一条兜底文本。这些都是全局字段、无每群覆盖，属于热更新，显式应用配置后下一次 Invocation 生效。
 
 ## 输入状态
 

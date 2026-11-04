@@ -11,8 +11,10 @@ export interface HarnessField {
   readonly key: string;
   /** The configuration section the field lives in; `agent` when absent. */
   readonly section?: 'telegram';
-  /** `lines` edits a string list one entry per line. */
-  readonly kind: 'integer' | 'ratio' | 'boolean' | 'lines';
+  /** `lines` edits a string list one entry per line; `select` edits one enum string. */
+  readonly kind: 'integer' | 'ratio' | 'boolean' | 'lines' | 'select';
+  /** Choices for a `select`; each has a label below the field's locale key. */
+  readonly options?: readonly string[];
   readonly min?: number;
   /** Ratios exclude their lower bound. */
   readonly exclusiveMin?: number;
@@ -45,7 +47,7 @@ export const HARNESS_GROUPS: readonly HarnessGroup[] = [
       { key: 'send_barrier_enabled', kind: 'boolean' },
       { key: 'allow_reply_message_multiple_times', kind: 'boolean' },
       { key: 'send_duplicate_guard_enabled', kind: 'boolean' },
-      { key: 'send_empty_text_fallback_enabled', kind: 'boolean' },
+      { key: 'send_empty_text_strategy', kind: 'select', options: ['reject', 'silent_success', 'random_text'] },
       { key: 'send_empty_text_fallback_texts', kind: 'lines' },
     ],
   },
@@ -87,7 +89,7 @@ export type DraftValue = string | boolean;
 
 export interface DraftError {
   /** Key below `harness.errors`. */
-  readonly key: 'integer' | 'number' | 'min' | 'max' | 'greaterThan' | 'lines';
+  readonly key: 'integer' | 'number' | 'min' | 'max' | 'greaterThan' | 'lines' | 'option';
   readonly limit?: number;
 }
 
@@ -159,7 +161,16 @@ export function parseDraft(
     if (raw === undefined) {
       continue;
     }
-    const value = typeof raw === 'boolean' ? raw : field.kind === 'lines' ? parseLines(raw) : parseNumber(field, raw);
+    const value =
+      typeof raw === 'boolean'
+        ? raw
+        : field.kind === 'lines'
+          ? parseLines(raw)
+          : field.kind === 'select'
+            ? field.options?.includes(raw) === true
+              ? raw
+              : { key: 'option' }
+            : parseNumber(field, raw);
     if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
       errors[field.key] = value as DraftError;
       continue;

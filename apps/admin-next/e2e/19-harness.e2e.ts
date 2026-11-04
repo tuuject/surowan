@@ -82,18 +82,19 @@ test('Harness tuning shows the running value when a save was written but not app
   await expect(page.getByRole('status').filter({ hasText: 'Running:' })).toHaveCount(0);
 });
 
-test('Harness tuning edits the empty-text fallback as one text per line', async ({ page }) => {
+test('Harness tuning edits the empty-text strategy and fallback list', async ({ page }) => {
   await page.goto(await adminUrl('/harness'));
-  const enabled = page.getByRole('switch', { name: 'Fallback for sends without text' });
+  const strategy = page.getByRole('combobox', { name: 'Empty-text sends' });
   const texts = page.getByLabel('Fallback texts');
-  await expect(enabled).not.toBeChecked();
+  await expect(strategy).toHaveText('Reject the call');
   await expect(texts).toHaveValue('……');
 
   await texts.fill('  \n ');
   await expect(page.getByText('Enter at least one line')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save and apply' })).toBeDisabled();
 
-  await enabled.click();
+  await strategy.click();
+  await page.getByRole('option', { name: 'Send a random fallback text' }).click();
   await texts.fill('……\n 嗯 \n\n啊这');
   await expect(page.getByText('2 unsaved changes')).toBeVisible();
   await page.getByRole('button', { name: 'Save and apply' }).click();
@@ -101,7 +102,7 @@ test('Harness tuning edits the empty-text fallback as one text per line', async 
   await expect(texts).toHaveValue('……\n嗯\n啊这');
   const applied = await harnessApi(page);
   expect(applied.saved).toMatchObject({
-    send_empty_text_fallback_enabled: true,
+    send_empty_text_strategy: 'random_text',
     send_empty_text_fallback_texts: ['……', '嗯', '啊这'],
   });
   expect(applied.active).toEqual(applied.saved);

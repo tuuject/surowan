@@ -82,7 +82,7 @@ test('reports file and running values with absent optional fields resolved', asy
     send_max_text_length: 2000,
     allow_reply_message_multiple_times: false,
     send_duplicate_guard_enabled: true,
-    send_empty_text_fallback_enabled: false,
+    send_empty_text_strategy: 'reject',
     send_empty_text_fallback_texts: ['……'],
   });
   // The model selection and the prompt have their own pages.
@@ -131,25 +131,26 @@ test('a write hot-applies every changed field, including the ones that used to n
   expect(file?.provider).toBe(f.loaded.fileConfig.agent!.provider);
 });
 
-test('the empty-text fallback list is written, hot-applied and compared by content', async () => {
+test('the empty-text strategy and fallback list are written, hot-applied and compared by content', async () => {
   const f = await fixture();
   const response = await f.update(
-    { send_empty_text_fallback_enabled: true, send_empty_text_fallback_texts: ['嗯', '……'] },
+    { send_empty_text_strategy: 'random_text', send_empty_text_fallback_texts: ['嗯', '……'] },
     (await f.view()).revision,
   );
   expect(response.status).toBe(200);
   const body = (await response.json()) as HarnessSettings & { apply: { applied: string[] } };
   expect(body.apply.applied).toEqual(
-    expect.arrayContaining(['agent.send_empty_text_fallback_enabled', 'agent.send_empty_text_fallback_texts']),
+    expect.arrayContaining(['agent.send_empty_text_strategy', 'agent.send_empty_text_fallback_texts']),
   );
   expect(body.active).toEqual(body.saved);
   expect(body.saved).toMatchObject({
-    send_empty_text_fallback_enabled: true,
+    send_empty_text_strategy: 'random_text',
     send_empty_text_fallback_texts: ['嗯', '……'],
   });
   const active = f.configStore.current().config.agent;
-  expect(active.send_empty_text_fallback_enabled).toBe(true);
+  expect(active.send_empty_text_strategy).toBe('random_text');
   expect(active.send_empty_text_fallback_texts).toEqual(['嗯', '……']);
+  expect((await loadConfig(f.path)).fileConfig.agent?.send_empty_text_strategy).toBe('random_text');
   expect((await loadConfig(f.path)).fileConfig.agent?.send_empty_text_fallback_texts).toEqual(['嗯', '……']);
 
   // An equal list read back from the client is a different array, not a change.
@@ -165,6 +166,29 @@ test('the empty-text fallback list is written, hot-applied and compared by conte
   expect(Object.hasOwn((await loadConfig(f.path)).fileConfig.agent ?? {}, 'send_empty_text_fallback_texts')).toBe(
     false,
   );
+});
+
+test('a legacy fallback flag reports random_text and the first strategy save retires it', async () => {
+  const f = await fixture((config) => {
+    config.agent!.send_empty_text_fallback_enabled = true;
+  });
+  const initial = await f.view();
+  expect(initial.saved.send_empty_text_strategy).toBe('random_text');
+  expect(initial.active.send_empty_text_strategy).toBe('random_text');
+
+  const response = await f.update({ send_empty_text_strategy: 'silent_success' }, initial.revision);
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as HarnessSettings;
+  expect(body.saved.send_empty_text_strategy).toBe('silent_success');
+  expect(f.configStore.current().config.agent.send_empty_text_strategy).toBe('silent_success');
+  const file = (await loadConfig(f.path)).fileConfig.agent;
+  expect(file?.send_empty_text_strategy).toBe('silent_success');
+  expect(Object.hasOwn(file ?? {}, 'send_empty_text_fallback_enabled')).toBe(false);
+
+  // Switching back to the default removes the explicit strategy.
+  const reset = await f.update({ send_empty_text_strategy: 'reject' }, body.revision);
+  expect(((await reset.json()) as HarnessSettings).saved.send_empty_text_strategy).toBe('reject');
+  expect(Object.hasOwn((await loadConfig(f.path)).fileConfig.agent ?? {}, 'send_empty_text_strategy')).toBe(false);
 });
 
 test('a value equal to the file, or to an absent default, writes nothing', async () => {
@@ -190,6 +214,7 @@ test.each([
   [{ 'context.ref_ttl_hours': 1.5 }, 'invalid_harness_value'],
   [{ context_stop_ratio: 0.9 }, 'invalid_harness_value'],
   [{ send_nudge_enabled: 'yes' }, 'invalid_harness_value'],
+  [{ send_empty_text_strategy: 'sometimes' }, 'invalid_harness_value'],
   // Every field accepts null (remove → back to default); a wrong type is rejected.
   [{ history_messages: 'many' }, 'invalid_harness_value'],
   [{ 'proactive_reply.base_probability': 1.5 }, 'invalid_harness_value'],

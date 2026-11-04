@@ -123,6 +123,7 @@ export type StopReason =
   | 'turn_budget'
   | 'repeated_tool_failure'
   | 'duplicate_send'
+  | 'silent_send'
   | 'wall_clock'
   | 'sleep'
   | 'budget';
@@ -144,6 +145,8 @@ export interface RunState {
   barrierSpent: boolean;
   /** Sends the duplicate send guard rejected in this invocation; never reset. */
   duplicateSendRejections: number;
+  /** Silent empty-text successes since the last published message. */
+  consecutiveSilentSends: number;
   stopReason: StopReason;
 }
 

@@ -7,8 +7,8 @@ import { AdminQueryError } from './audit/shared.ts';
 import { AGENT_DEFAULTS } from '../../platform/config/resolve.ts';
 import { AgentSectionSchema, ProactiveReplySchema } from '../../platform/config/schema-sections.ts';
 
-/** A string list is a field edited one entry per line, such as the empty-text fallback. */
-export type HarnessValue = number | boolean | readonly string[] | null;
+/** A string list is a field edited one entry per line; a select is one enum string. */
+export type HarnessValue = number | boolean | string | readonly string[] | null;
 
 /** Lists compare by content: a value read back from the file is never the same array. */
 const sameValue = (left: unknown, right: unknown): boolean =>
@@ -55,7 +55,7 @@ const HARNESS_FIELDS: readonly HarnessField[] = [
   field('send_barrier_enabled', agent.send_barrier_enabled, false),
   field('allow_reply_message_multiple_times', agent.allow_reply_message_multiple_times, false),
   field('send_duplicate_guard_enabled', agent.send_duplicate_guard_enabled, true),
-  field('send_empty_text_fallback_enabled', agent.send_empty_text_fallback_enabled, false),
+  field('send_empty_text_strategy', agent.send_empty_text_strategy, AGENT_DEFAULTS.send_empty_text_strategy),
   field(
     'send_empty_text_fallback_texts',
     agent.send_empty_text_fallback_texts,
@@ -113,7 +113,23 @@ const HARNESS_FIELDS: readonly HarnessField[] = [
 
 const FIELDS_BY_KEY = new Map(HARNESS_FIELDS.map((entry) => [entry.key, entry]));
 
+const EMPTY_TEXT_STRATEGY_KEY = 'send_empty_text_strategy';
+const LEGACY_EMPTY_TEXT_FLAG_KEY = 'send_empty_text_fallback_enabled';
+
 type HarnessValues = Record<string, HarnessValue>;
+
+/**
+ * The strategy a configuration really means: an explicit strategy wins, and
+ * the deprecated boolean only supplies `random_text` when it is absent.
+ */
+function savedEmptyTextStrategy(section: unknown): string {
+  const agent = typeof section === 'object' && section !== null ? (section as Record<string, unknown>) : {};
+  const strategy = agent[EMPTY_TEXT_STRATEGY_KEY];
+  if (typeof strategy === 'string') {
+    return strategy;
+  }
+  return agent[LEGACY_EMPTY_TEXT_FLAG_KEY] === true ? 'random_text' : 'reject';
+}
 
 function rawValue(config: unknown, key: string): unknown {
   let value: unknown = config;
@@ -130,6 +146,10 @@ type HarnessSource = Pick<RawConfig, 'agent' | 'telegram'> | Pick<FileConfig, 'a
 export function harnessValues(config: HarnessSource): HarnessValues {
   const values: HarnessValues = {};
   for (const entry of HARNESS_FIELDS) {
+    if (entry.key === EMPTY_TEXT_STRATEGY_KEY) {
+      values[entry.key] = savedEmptyTextStrategy(config.agent);
+      continue;
+    }
     const value = rawValue(config[entry.section], entry.key);
     values[entry.key] = value === undefined ? (entry.absent ?? null) : (value as HarnessValue);
   }
@@ -178,6 +198,37 @@ export function harnessEdits(
   for (const [key, value] of values) {
     const entry = FIELDS_BY_KEY.get(key);
     if (entry === undefined) {
+      continue;
+    }
+    if (key === EMPTY_TEXT_STRATEGY_KEY) {
+      const section = file.agent ?? undefined;
+      const current = section?.send_empty_text_strategy;
+      const legacy = section?.send_empty_text_fallback_enabled;
+      if (value === null) {
+        if (current !== undefined) {
+          edits.push({ path: ['agent', EMPTY_TEXT_STRATEGY_KEY], value: undefined });
+        }
+        if (legacy !== undefined) {
+          edits.push({ path: ['agent', LEGACY_EMPTY_TEXT_FLAG_KEY], value: undefined });
+        }
+        continue;
+      }
+      const target = String(value);
+      const effective = current ?? (legacy === true ? 'random_text' : 'reject');
+      if (target === effective) {
+        continue;
+      }
+      if (target === 'reject') {
+        // Absence already means reject once the deprecated flag is gone.
+        if (current !== undefined) {
+          edits.push({ path: ['agent', EMPTY_TEXT_STRATEGY_KEY], value: undefined });
+        }
+      } else {
+        edits.push({ path: ['agent', EMPTY_TEXT_STRATEGY_KEY], value: target });
+      }
+      if (legacy !== undefined) {
+        edits.push({ path: ['agent', LEGACY_EMPTY_TEXT_FLAG_KEY], value: undefined });
+      }
       continue;
     }
     const current = rawValue(file[entry.section], key);

@@ -23,8 +23,9 @@ import { PREFLIGHT_FIDELITY, sceneMetadata } from './preflight.ts';
 import { prepareReplay, type ReplayPrepareDeps } from './prepare.ts';
 import {
   DUPLICATE_SEND_REJECTION_LIMIT,
+  SILENT_SEND_LIMIT,
   duplicateSendGuard,
-  emptyTextFallback,
+  emptyTextHandling,
 } from '../../capabilities/send/support.ts';
 
 const MAX_TRACE_BYTES = 1_048_576;
@@ -110,6 +111,7 @@ export async function runReplay(
   const config = snapshot.config;
   const imageLoader = deps.imageLoader;
   let duplicateSendRejections = 0;
+  let consecutiveSilentSends = 0;
   const capture = createReplayTools(registry, systemResources, {
     imageModels: publicImageModels(config),
     ...(config.agent.send_max_text_length === undefined ? {} : { maxTextLength: config.agent.send_max_text_length }),
@@ -118,7 +120,10 @@ export async function runReplay(
     ...duplicateSendGuard(config.agent.send_duplicate_guard_enabled, () => {
       duplicateSendRejections += 1;
     }),
-    ...emptyTextFallback(config.agent),
+    ...emptyTextHandling(config.agent),
+    onSendOutcome: (outcome) => {
+      consecutiveSilentSends = outcome === 'silent' ? consecutiveSilentSends + 1 : 0;
+    },
     replyMessageIds: new Set(scene.replyMessageIds),
     ...(imageLoader === undefined || !model.input.includes('image')
       ? {}
@@ -236,6 +241,10 @@ export async function runReplay(
       }
       if (duplicateSendRejections > DUPLICATE_SEND_REJECTION_LIMIT) {
         completionReason = 'duplicate_send';
+        return { action: 'end' };
+      }
+      if (consecutiveSilentSends >= SILENT_SEND_LIMIT) {
+        completionReason = 'silent_send';
         return { action: 'end' };
       }
       if (repeatedFailure.observe(turn)) {

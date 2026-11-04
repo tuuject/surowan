@@ -33,7 +33,7 @@ import { scopedSystemResources } from '../../platform/system-resources.ts';
 import { agentMessages, invocations } from '../../store/schema/index.ts';
 import { createZzzTool, isLowDailyTokenBudget, readDailyTokenBudget } from '../../store/sleep.ts';
 import { createToolAudit } from '../../store/tool-audit.ts';
-import { duplicateSendGuard, emptyTextFallback } from '../../capabilities/send/support.ts';
+import { duplicateSendGuard, emptyTextHandling } from '../../capabilities/send/support.ts';
 import type { RuntimeServices } from './types.ts';
 
 /**
@@ -178,6 +178,7 @@ export function buildTools(
   zzz?: AgentTool,
   holdForNewMessages?: () => boolean,
   onDuplicateSend?: () => void,
+  onSendOutcome?: (outcome: 'published' | 'silent') => void,
 ): readonly AgentTool[] {
   const host = hostFor(services, target.hostKind);
   const { send, sendReply } = createSendTools({
@@ -191,7 +192,8 @@ export function buildTools(
     disallowBlankLines: config.agent.send_disallow_blank_lines === true,
     allowReplyMessageMultipleTimes: config.agent.allow_reply_message_multiple_times === true,
     ...duplicateSendGuard(config.agent.send_duplicate_guard_enabled, onDuplicateSend),
-    ...emptyTextFallback(config.agent),
+    ...emptyTextHandling(config.agent),
+    ...(onSendOutcome === undefined ? {} : { onSendOutcome }),
     deadline,
     bot: services.bot,
     ...(holdForNewMessages === undefined ? {} : { holdForNewMessages }),
