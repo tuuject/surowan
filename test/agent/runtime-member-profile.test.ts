@@ -45,7 +45,8 @@ import { cleanupAgentRuntimeDirectories, directories } from './runtime-fixtures.
 afterAll(cleanupAgentRuntimeDirectories);
 
 const CHAT_ID = 123456789;
-const ALICE = 42;
+// A Telegram private chat's id is the other person's user id.
+const ALICE = CHAT_ID;
 
 test('the avatar reaches the provider as an image and stays a reference on disk', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-member-profile-'));

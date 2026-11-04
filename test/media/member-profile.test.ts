@@ -49,7 +49,9 @@ interface TelegramFixture {
   readonly wireChatId: number;
 }
 
-async function telegramFixture(options: { readonly scope?: ConversationScope } = {}): Promise<TelegramFixture> {
+async function telegramFixture(
+  options: { readonly scope?: ConversationScope; readonly alsoFrom?: number } = {},
+): Promise<TelegramFixture> {
   const scope = options.scope ?? 'group';
   const wireChatId = scope === 'private' ? PRIVATE_CHAT : GROUP_CHAT;
   const directory = await mkdtemp(join(tmpdir(), 'surowan-member-profile-'));
@@ -82,6 +84,20 @@ async function telegramFixture(options: { readonly scope?: ConversationScope } =
         text: 'hello',
       },
     },
+    ...(options.alsoFrom === undefined
+      ? []
+      : [
+          {
+            update_id: 2,
+            message: {
+              message_id: 11,
+              date: 1_700_000_001,
+              chat,
+              from: { id: options.alsoFrom, is_bot: false, first_name: 'Other' },
+              text: 'hi',
+            },
+          },
+        ]),
   ];
   for (const update of updates) {
     ingestion.ingest(update, received);
@@ -238,6 +254,55 @@ test('a private chat refuses a uid that is not the caller', async () => {
   f.store.close();
 });
 
+test('a private chat never lends its own bio or name to another member of its history', async () => {
+  // The bot's outgoing messages put its own uid in a private chat's history
+  // (any second sender stands in for it here); getChat still describes the
+  // human, so it must not be asked about anyone else.
+  const f = await telegramFixture({ scope: 'private', alsoFrom: BOB });
+  let getChatCalls = 0;
+  const tool = profileTool(
+    f,
+    {
+      getChatMember: async () => {
+        throw new Error('not available');
+      },
+      getChat: async () => {
+        getChatCalls += 1;
+        return { id: PRIVATE_CHAT, type: 'private', first_name: 'Alice', bio: 'Alice bio' } as ChatFullInfo;
+      },
+      getUserProfilePhotos: async () => ({ total_count: 0, photos: [] }),
+    },
+    { avatar: false },
+  );
+  const result = await tool.execute('call-3b', { member: `uid:${BOB}` });
+  const [text] = result.content;
+  if (text?.type !== 'text') {
+    throw new Error('Expected profile text');
+  }
+  expect(JSON.parse(text.text)).toMatchObject({ display_name: null, username: null, bio: null });
+  expect(getChatCalls).toBe(0);
+  f.store.close();
+});
+
+test('an aborted read sends no Bot API request', async () => {
+  const f = await telegramFixture();
+  let calls = 0;
+  const count = async (): Promise<never> => {
+    calls += 1;
+    throw new Error('unexpected');
+  };
+  const tool = profileTool(f, { getChatMember: count, getChat: count, getUserProfilePhotos: count }, { avatar: false });
+  const abort = new AbortController();
+  abort.abort();
+  await expect(tool.execute('call-3c', { member: `uid:${ALICE}` }, abort.signal)).rejects.toThrow(
+    'read_member_profile was aborted',
+  );
+  expect(calls).toBe(0);
+  const audited = f.store.orm.select().from(toolCalls).all().at(-1);
+  expect(audited).toMatchObject({ toolName: 'read_member_profile', state: 'error', errorCode: 'aborted' });
+  f.store.close();
+});
+
 test('a Telegram member with a hidden profile still reads, with the fields it has', async () => {
   const f = await telegramFixture();
   const tool = profileTool(
@@ -364,5 +429,10 @@ test('a room reports its own member fields and never invents an avatar', async (
   });
   // A member id from another room resolves to nothing.
   expect((await tool.execute('call-7', { member: 'member_999999' })).details).toEqual({ found: false, avatar: false });
+  // An id SQLite could never hold is a guess like any other, not a read error.
+  expect((await tool.execute('call-8', { member: 'member_9223372036854775808' })).details).toEqual({
+    found: false,
+    avatar: false,
+  });
   store.close();
 });

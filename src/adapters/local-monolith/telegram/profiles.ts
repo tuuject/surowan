@@ -22,18 +22,23 @@
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { sql } from 'drizzle-orm';
+import type { Api } from 'grammy';
 import type { ChatFullInfo, ChatMember, UserProfilePhotos } from 'grammy/types';
 import type { MediaDownloader } from '../../../capabilities/media/download.ts';
 import type { SenderId } from '../../../platform/im-host/identity.ts';
 import type { ImMemberProfile, ImMemberProfileRequest, ImMemberProfiles } from '../../../platform/im-host/profiles.ts';
 import type { BusinessStore } from '../../../store/store.ts';
 
-/** The subset of the Bot API this reader asks for, so a test can stand in for it. */
-export interface TelegramProfileApi {
-  getChatMember(chatId: string, userId: number): Promise<ChatMember>;
-  getChat(chatId: string): Promise<ChatFullInfo>;
-  getUserProfilePhotos(userId: number): Promise<UserProfilePhotos>;
-}
+/**
+ * The subset of the Bot API this reader asks for, so a test can stand in for
+ * it. The signatures are grammy's own, so a cancelled tool call cancels the
+ * request in flight instead of waiting for its timeout.
+ */
+export type TelegramProfileApi = Pick<Api, 'getChatMember' | 'getChat' | 'getUserProfilePhotos'>;
+
+/** grammY still types its abort signal as the older abort-controller shim; it forwards abort events. */
+type GrammySignal = Parameters<Api['getChat']>[1];
+const grammySignal = (signal: AbortSignal): GrammySignal => signal as unknown as GrammySignal;
 
 export interface TelegramProfileOptions {
   readonly api: TelegramProfileApi;
@@ -71,7 +76,7 @@ async function readAvatar(
 ): Promise<{ bytes: Uint8Array } | null> {
   let photos: UserProfilePhotos;
   try {
-    photos = await options.api.getUserProfilePhotos(userId);
+    photos = await options.api.getUserProfilePhotos(userId, { limit: 1 }, grammySignal(signal));
   } catch {
     // A user who hides their photos answers with an error instead of an empty
     // list on some API versions; that is a missing avatar, not a failed read.
@@ -129,22 +134,27 @@ export function createTelegramProfiles(options: TelegramProfileOptions): ImMembe
       if (!Number.isSafeInteger(userId) || !knownMember(options.store, conversation.id, senderId)) {
         return null;
       }
+      signal.throwIfAborted();
       const chatId = conversation.chatId.toString();
       let member: ChatMember | undefined;
       try {
-        member = await options.api.getChatMember(chatId, userId);
+        member = await options.api.getChatMember(chatId, userId, grammySignal(signal));
       } catch {
         signal.throwIfAborted();
       }
+      // A private chat is the other person, so its bio and names describe the
+      // requested member only when that member is the other person — the bot's
+      // own outgoing messages put the bot's uid in this history too.
       let chat: ChatFullInfo | undefined;
-      if (conversation.scope === 'private') {
+      if (conversation.scope === 'private' && chatId === senderId.toString()) {
         try {
-          chat = await options.api.getChat(chatId);
+          chat = await options.api.getChat(chatId, grammySignal(signal));
         } catch {
           signal.throwIfAborted();
         }
       }
       const avatar = await readAvatar(options, userId, signal);
+      signal.throwIfAborted();
       const privateChat = chat?.type === 'private' ? chat : undefined;
       const person = member?.user;
       return {

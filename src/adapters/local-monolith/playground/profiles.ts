@@ -14,6 +14,8 @@ import type { ImMemberProfile, ImMemberProfileRequest, ImMemberProfiles } from '
 import { roomParticipants, senders } from '../../../store/schema/index.ts';
 import type { BusinessStore } from '../../../store/store.ts';
 
+const MAX_SQLITE_ROW_ID = 9_223_372_036_854_775_807n;
+
 /**
  * A room header renders `member:member_<sender row id>`, and the tool also
  * accepts the bare `member_<id>` so the model can quote either half of that
@@ -21,7 +23,13 @@ import type { BusinessStore } from '../../../store/store.ts';
  */
 export function parseRoomSenderRef(ref: string): bigint | null {
   const match = /^(?:member:)?member_([1-9][0-9]*)$/.exec(ref);
-  return match?.[1] === undefined ? null : BigInt(match[1]);
+  if (match?.[1] === undefined) {
+    return null;
+  }
+  // A row id beyond SQLite's signed 64-bit range cannot exist, and binding one
+  // throws instead of matching nothing.
+  const id = BigInt(match[1]);
+  return id > MAX_SQLITE_ROW_ID ? null : id;
 }
 
 export interface RoomProfileOptions {
