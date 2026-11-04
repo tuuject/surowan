@@ -16,13 +16,14 @@
  */
 import type { LocalAsset, LocalAssetInput } from '../../../capabilities/media/local-assets.ts';
 import { conversationKey, type ImConversationRef } from '../../../platform/im-host/identity.ts';
+import type { ImActivity, ImHost } from '../../../platform/im-host/index.ts';
 import {
   type ImConversationPolicy,
   type ImDeliveryTarget,
   type ImSendRatePolicy,
   resolveConversationPolicy,
 } from '../../../platform/im-host/policy.ts';
-import type { ImActivity, ImHost } from '../../../platform/im-host/index.ts';
+import type { ImMemberProfiles } from '../../../platform/im-host/profiles.ts';
 import type { BusinessStore } from '../../../store/store.ts';
 import { createPlaygroundDelivery } from './delivery.ts';
 import { createRoomReaders } from './room.ts';
@@ -56,6 +57,8 @@ export interface PlaygroundHostOptions {
   readonly pictures?: PlaygroundPictures;
   /** Resolved per call: it is pure, and the configured rate can change. */
   readonly sendRate: () => ImSendRatePolicy;
+  /** The room's member-profile reader; absent when this host reads no profiles. */
+  readonly profiles?: () => ImMemberProfiles | undefined;
   readonly now?: () => Date;
 }
 
@@ -103,5 +106,11 @@ export function createPlaygroundHost(options: PlaygroundHostOptions): ImHost {
     },
   };
 
-  return { host: 'playground', policy, delivery, activity };
+  return {
+    host: 'playground',
+    policy,
+    delivery,
+    activity,
+    ...(options.profiles === undefined ? {} : { profiles: options.profiles }),
+  };
 }

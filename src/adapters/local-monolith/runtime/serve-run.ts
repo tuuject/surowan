@@ -4,32 +4,32 @@
  */
 
 import type { Context } from 'grammy';
+import { ingestToolImage } from '../../../capabilities/media/tool-image-store.ts';
+import { ConversationContextStore } from '../../../context/store.ts';
 import type { ImageService } from '../../../image/service.ts';
-import type { TelegramIngestion } from '../../../ingress/telegram-ingestion/index.ts';
 import { AdminQueryError } from '../../../ingress/admin/audit/shared.ts';
 import { AdminServer } from '../../../ingress/admin/index.ts';
+import type { TelegramIngestion } from '../../../ingress/telegram-ingestion/index.ts';
 import { BotCommandService } from '../../../orchestration/bot-commands/index.ts';
 import { ReplayError, ReplayRunner } from '../../../orchestration/replay/index.ts';
 import { type CoreRuntime, createCoreRuntime } from '../../../orchestration/runtime.ts';
 import type { ImHost } from '../../../platform/im-host/index.ts';
 import { previewContext, unavailableCapabilities } from '../../../platform/invocation-context.ts';
 import { configuredAgentModels } from '../../../platform/providers.ts';
-import { runStartupCatchUp } from '../../../startup-catch-up.ts';
+import { webSearchAvailable } from '../../../platform/web-search.ts';
+import { WEB_SEARCH_PROVIDERS } from '../../../plugins/web-search/extension.ts';
 import { runRuntimeCatchUp } from '../../../runtime-catch-up.ts';
+import { runStartupCatchUp } from '../../../startup-catch-up.ts';
 import { recordPromptVersionsFromConfig } from '../../../store/prompt-versions.ts';
-import { ConversationContextStore } from '../../../context/store.ts';
 import { activeSleepUntil } from '../../../store/sleep.ts';
 import { ConfigReloader } from '../config/reload.ts';
 import { imageDeliveryResolver } from '../host-tooling.ts';
-import { resolveTelegramTokenSource } from '../telegram/connection-token.ts';
 import { createPlaygroundHost } from '../playground/index.ts';
-import type { ServeAssembly, ServeHosts, ServeServices } from './serve.ts';
-import { ALLOWED_UPDATES, logEvent, replyToCommand, resolveConversation, type ServeContext } from './support.ts';
+import { createRoomProfiles } from '../playground/profiles.ts';
+import { resolveTelegramTokenSource } from '../telegram/connection-token.ts';
 import { createTelegramHost } from '../telegram/host.ts';
 import { forwardingTelegramTransport, TelegramConnectionIdentity } from '../telegram/instance.ts';
-import { WEB_SEARCH_PROVIDERS } from '../../../plugins/web-search/extension.ts';
-import { webSearchAvailable } from '../../../platform/web-search.ts';
-import { abortRunningInvocationsOnSearchDisable } from './web-search-availability.ts';
+import { createTelegramProfiles } from '../telegram/profiles.ts';
 import {
   addedTelegramChatIds,
   applyGroupMemoryToggles,
@@ -37,6 +37,9 @@ import {
   removedTelegramChatIds,
   stopRemovedChats,
 } from './chat-lifecycle.ts';
+import type { ServeAssembly, ServeHosts, ServeServices } from './serve.ts';
+import { ALLOWED_UPDATES, logEvent, replyToCommand, resolveConversation, type ServeContext } from './support.ts';
+import { abortRunningInvocationsOnSearchDisable } from './web-search-availability.ts';
 
 /** The wired runtime, its scheduler and the command path the panel shares. */
 export interface ServeCore {
@@ -60,6 +63,20 @@ export function connectServeHosts(session: ServeContext, services: ServeServices
   // send as `telegram_unavailable` instead of disappearing.
   const telegramHost = createTelegramHost({
     transport: forwardingTelegramTransport(services.telegram),
+    // Profiles are read through whichever instance is current: a connection
+    // that opens after this host exists makes them available, and one that
+    // stops takes them away, without rebuilding the tool registry.
+    profiles: () => {
+      const instance = services.telegram.current;
+      return instance === undefined
+        ? undefined
+        : createTelegramProfiles({
+            api: instance.api,
+            store: services.store,
+            download: services.mediaClient,
+            mediaCache: () => services.configStore.current().config.paths.media_cache,
+          });
+    },
     sendRate: () => ({
       sendsPerWindow: services.configStore.current().config.agent.rate_limits.sends_per_window,
       windowSeconds: services.configStore.current().config.agent.rate_limits.window_seconds,
@@ -70,10 +87,15 @@ export function connectServeHosts(session: ServeContext, services: ServeServices
   // reads as one bot; a process with no Telegram instance names it itself. The
   // identity is read per delivery, so a connection that opens after the room
   // host exists still names it.
+  const roomProfiles = createRoomProfiles({
+    store: services.store,
+    self: new TelegramConnectionIdentity(services.telegram),
+  });
   const playgroundHost: ImHost = createPlaygroundHost({
     store: services.store,
     self: new TelegramConnectionIdentity(services.telegram),
     pictures: services.playgroundAssets,
+    profiles: () => roomProfiles,
     sendRate: () => ({
       sendsPerWindow: services.configStore.current().config.agent.rate_limits.sends_per_window,
       windowSeconds: services.configStore.current().config.agent.rate_limits.window_seconds,
@@ -109,6 +131,7 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
     isHostReady,
     modelSwitcher,
     mcpManager,
+    playgroundAssets,
     warnings,
   } = assembly;
   const {
@@ -132,6 +155,9 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
     systemResources,
     contextInjectors: plugins.contextInjectors,
     directImageLoader: (context, signal) => media.loadDirectImages(context.directImages, signal),
+    // One storage path for every tool-obtained picture: MCP results and member
+    // avatars both land as Chat-owned local assets.
+    toolImageStore: (chatId, bytes, signal) => ingestToolImage(playgroundAssets, chatId, bytes, signal),
     mediaFiles: { read: (mediaId, signal) => media.readOriginalFile(mediaId, signal) },
     capabilityTools,
     additionalTools,

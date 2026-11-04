@@ -13,6 +13,11 @@ import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../../
 import type { SecretStore } from '../../platform/secrets.ts';
 import type { SkillVisibilityTarget, SystemResources, SystemSkill } from '../../platform/system-resources.ts';
 import type { BusinessStore } from '../../store/store.ts';
+import { ConversationRuntime } from '../conversation-runtime.ts';
+import type { InvocationOutcome } from '../scheduler/index.ts';
+import { logInvocationError } from './observability.ts';
+import { runInvocation } from './run.ts';
+import { recordAgentMessage, sceneToolDefinitions, validateAdditionalTools } from './support.ts';
 import type {
   AgentRuntimeOptions,
   CapabilityToolFactory,
@@ -20,11 +25,6 @@ import type {
   RuntimeServices,
   ToolFactory,
 } from './types.ts';
-import { logInvocationError } from './observability.ts';
-import { runInvocation } from './run.ts';
-import { recordAgentMessage, sceneToolDefinitions, validateAdditionalTools } from './support.ts';
-import { ConversationRuntime } from '../conversation-runtime.ts';
-import type { InvocationOutcome } from '../scheduler/index.ts';
 
 /**
  * One invocation-scoped runtime. The class owns the assembled dependencies and
@@ -112,6 +112,7 @@ export class AgentRuntime {
       skillVisibility: this.#skillVisibility,
       additionalTools: this.#additionalTools,
       directImageLoader: this.#directImageLoader,
+      toolImageStore: options.toolImageStore,
       modelGate: this.#modelGate,
       contextBuilder: this.#contextBuilder,
       contexts: this.#contexts,

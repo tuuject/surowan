@@ -10,15 +10,17 @@ import {
 } from '@earendil-works/pi-ai';
 import { eq, sql } from 'drizzle-orm';
 import { capability, createExecuteTool, type ExecutableCapability } from '../../capabilities/execute-tool.ts';
+import { createMemberProfileTool } from '../../capabilities/member-profile.ts';
 import { createReadTool } from '../../capabilities/read-tool.ts';
-import { createMemoReadTools } from '../../context/memo-pad/tools/index.ts';
-import { createGroupMemoryReadTools, groupMemoryReadToolDefinitions } from '../../context/group-memory/tools/read.ts';
-import { MemoPadStore } from '../../context/memo-pad/store.ts';
 import { createSendTools } from '../../capabilities/send/index.ts';
 import { createTyping } from '../../capabilities/typing-tool.ts';
+import { createGroupMemoryReadTools, groupMemoryReadToolDefinitions } from '../../context/group-memory/tools/read.ts';
+import { MemoPadStore } from '../../context/memo-pad/store.ts';
+import { createMemoReadTools } from '../../context/memo-pad/tools/index.ts';
 import { createCapabilityResolver } from '../../context/refs.ts';
 import type { ContextHeader } from '../../context/store.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
+import { resolveBucketWindowSeconds } from '../../platform/config/resolve.ts';
 import { hostExecutionProfile } from '../../platform/host-profile.ts';
 import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { ImHost } from '../../platform/im-host/index.ts';
@@ -27,13 +29,31 @@ import {
   type InvocationContext,
   unavailableCapabilities,
 } from '../../platform/invocation-context.ts';
-import { resolveBucketWindowSeconds } from '../../platform/config/resolve.ts';
 import { scopedSystemResources } from '../../platform/system-resources.ts';
 import { agentMessages, invocations } from '../../store/schema/index.ts';
 import { createZzzTool, isLowDailyTokenBudget, readDailyTokenBudget } from '../../store/sleep.ts';
 import { createToolAudit } from '../../store/tool-audit.ts';
-import type { RuntimeServices } from './types.ts';
 import { duplicateSendGuard, emptyTextFallback } from '../../capabilities/send/support.ts';
+import type { RuntimeServices } from './types.ts';
+
+/**
+ * The member-profile primitive, registered on every host.
+ *
+ * It follows `send`: the tool is always part of the surface, and one whose host
+ * has no profile reader refuses at call time with a stable error instead of
+ * vanishing from the registry between runs.
+ */
+function memberProfileTool(services: RuntimeServices, host: ImHost, context: InvocationContext): AgentTool {
+  const profiles = host.profiles;
+  const storeImage = services.toolImageStore;
+  return createMemberProfileTool({
+    store: services.store,
+    context,
+    conversation: services.conversation(context),
+    profiles: profiles ?? (() => undefined),
+    ...(storeImage === undefined ? {} : { storeImage }),
+  });
+}
 
 /** The host bound to one kind of conversation, or a clear failure. */
 export function hostFor(services: RuntimeServices, kind: HostKind): ImHost {
@@ -64,9 +84,10 @@ export function validateAdditionalTools(
   model: Model<Api>,
 ): void {
   const config = services.configStore.current().config;
+  const host = hostFor(services, context.hostKind);
   const { send, sendReply } = createSendTools({
     store: services.store,
-    host: hostFor(services, context.hostKind),
+    host,
     conversation: services.conversation(context),
     context,
     capabilities: staticCapabilities(),
@@ -82,6 +103,7 @@ export function validateAdditionalTools(
   validateToolRegistry(
     [
       createReadTool({ store: services.store, context, resources: services.systemResources }),
+      memberProfileTool(services, host, context),
       ...createMemoReadTools({ store: services.store, memoPad, context }),
       // Counted unconditionally: the preview context has no Chat, but any
       // Chat that enables group memory gets these two tools at run time.
@@ -157,9 +179,10 @@ export function buildTools(
   holdForNewMessages?: () => boolean,
   onDuplicateSend?: () => void,
 ): readonly AgentTool[] {
+  const host = hostFor(services, target.hostKind);
   const { send, sendReply } = createSendTools({
     store: services.store,
-    host: hostFor(services, target.hostKind),
+    host,
     conversation: services.conversation(target),
     context: target,
     capabilities,
@@ -185,6 +208,7 @@ export function buildTools(
   const memoPad = new MemoPadStore(services.store.orm);
   return [
     createReadTool({ store: services.store, context: target, resources }),
+    memberProfileTool(services, host, target),
     ...createMemoReadTools({ store: services.store, memoPad, context: target }),
     ...createGroupMemoryReadTools({ store: services.store, configStore: services.configStore, context: target }),
     send,

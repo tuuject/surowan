@@ -10,14 +10,6 @@
 
 import { type Api, InputFile } from 'grammy';
 import type { MessageEntity } from 'grammy/types';
-
-import { conversationKey, type ImConversationRef, type SenderId } from '../../../platform/im-host/identity.ts';
-import {
-  type ImConversationPolicy,
-  type ImDeliveryTarget,
-  type ImSendRatePolicy,
-  resolveConversationPolicy,
-} from '../../../platform/im-host/policy.ts';
 import type {
   ImComposedPart,
   ImDeliveredMessage,
@@ -27,7 +19,15 @@ import type {
   ImMentionRequest,
   ImOutgoingPart,
 } from '../../../platform/im-host/delivery.ts';
+import { conversationKey, type ImConversationRef, type SenderId } from '../../../platform/im-host/identity.ts';
 import type { ActivityLifetime, ImActivity, ImHost } from '../../../platform/im-host/index.ts';
+import {
+  type ImConversationPolicy,
+  type ImDeliveryTarget,
+  type ImSendRatePolicy,
+  resolveConversationPolicy,
+} from '../../../platform/im-host/policy.ts';
+import type { ImMemberProfiles } from '../../../platform/im-host/profiles.ts';
 import { abortedTelegramDelivery, classifyTelegramDeliveryError } from './host-failures.ts';
 
 const REFRESH_MILLISECONDS = 4_000;
@@ -264,6 +264,8 @@ export interface TelegramHostOptions {
   readonly transport: TelegramTransport;
   /** Read per call, so a configuration reload reaches the next delivery. */
   readonly sendRate: () => ImSendRatePolicy;
+  /** The profile reader of the moment; absent when this host cannot read profiles. */
+  readonly profiles?: () => ImMemberProfiles | undefined;
   /** Injectable for tests; millisecond clock. */
   readonly now?: () => number;
 }
@@ -495,6 +497,7 @@ export function createTelegramHost(options: TelegramHostOptions): TelegramHost {
     policy: policyFor,
     delivery,
     activity,
+    ...(options.profiles === undefined ? {} : { profiles: options.profiles }),
   };
 }
 

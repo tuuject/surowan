@@ -306,6 +306,7 @@ test('lets a text-only agent read a Telegram photo through read_image', async ()
   const toolsJson = presented?.tools_json ?? null;
   expect(toolsJson === null ? null : JSON.parse(toolsJson)).toEqual([
     'read',
+    'read_member_profile',
     'search_memory',
     'read_memory',
     'send',

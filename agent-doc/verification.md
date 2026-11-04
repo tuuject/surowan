@@ -135,6 +135,9 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `replay/prompt.test.ts` | 当前配置的 global/group 分层覆盖；新增首个 global 人格或清空唯一 group 人格时，临时覆盖与保存同样配置后发送给模型的 system prompt 完全一致，且重放不改数据库状态 |
 | `replay/http.test.ts` | CLI 子进程 → 回环 AdminServer → ReplayRunner → Faux Provider 真实 HTTP 链路，当前 prompt/模型与分层覆盖、合成 send/记忆/Alarm、MCP 阻断、preflight 与 active prompts 免费只读、切片 preflight/replay（`before_send_id` 在查询与 body 的校验：0/溢出/重复/未知参数 400、非法目标 409；窗口输入一次注入且生产表不变；缺少 `--confirm-paid` 时模型调用为零、连密钥使用时间都不更新）、keyword+公开消息时间搜索经 key 与 Session 结果一致、生产表不变（密钥使用时间除外）、无场景 409/非零退出、撤销 key 401 |
 | `media/media.test.ts` | 图片标准化、缓存和 Vision reasoning、换 vision 模型后按新 `analysis_version` 重新分析；下载客户端把 content-length 与流式超限统一类型化为 `MediaTooLargeError`，并在 `getFile` 挂起时立即中止而迟到响应不写文件 |
+| `media/member-profile.test.ts` | `read_member_profile` 的两端：Telegram 侧读本 Conversation 里出现过的成员（`standing`/`custom_title`、私聊 `bio`、最大尺寸头像转成工具图片并提供标记），未出现过的 uid 在任何 Bot API 调用前被拒绝；隐藏资料/`getChatMember` 无权限只降级字段不失败；头像无法规范化时报告 `unavailable (...)` 而不是整体失败；房间侧只给显示名、角色、加入时间与裸 `member_<n>` 形式，跨房间 id 与不存在的 id 都返回未找到 |
+| `agent/runtime-member-profile.test.ts` | 真实 Invocation 里原语进入模型注册表、头像在 provider 请求中成为 image block、canonical history 只留 `toolImages` 引用不留 base64；没有资料读取器的宿主仍保留该原语，调用时返回 `profile_unavailable` |
+| `schema/migrations-tool-images.test.ts` | `051` 把 050 写下的 `details.mcpImages` 与 `[MCP image …]` 就地改写成 `toolImages`/`[image …]`，升级后旧工具结果仍可解码、审计行同步改写 |
 | `media/original-file.test.ts` | `readOriginalFile`：下载字节原样交出（不归一化）、保留 document 文件名、拒绝 Sticker、下载临时目录不留残留 |
 | `stickers.test.ts` | Set 同步、结构化视觉 Tool Call、索引、搜索、发送 |
 | `media/image.test.ts` | 视频 Sticker 只按 WebM 解码（其他容器冒充时拒绝）、真实 WebM 仍能取帧、解压超过 8 MiB 的 TGS 在转换前拒绝；预取消或下载后立即取消均不启动 ffprobe/ffmpeg/Lottie；本机没有 ffmpeg/ffprobe 时仅视频取帧组跳过，TGS 与取消回归仍运行 |

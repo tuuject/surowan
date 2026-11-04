@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export const AGENT_PROMPT_VERSION = 12n;
+export const AGENT_PROMPT_VERSION = 13n;
 
 const PROMPTS_DIR = join(import.meta.dirname, 'prompts');
 

@@ -1,18 +1,16 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import type { AgentToolResult } from '@earendil-works/pi-agent-core';
 import type { InvocationContext } from '../../platform/invocation-context.ts';
 import { type ToolImageReference, toolImageMarker } from '../../platform/tool-images.ts';
 import { truncateUtf8 } from '../../platform/truncate.ts';
-import { MAX_DOWNLOAD_BYTES, normalizeImage } from '../media/image.ts';
+import { MAX_DOWNLOAD_BYTES } from '../media/image.ts';
 import { LocalAssetRejected, type PlaygroundAssetStore } from '../media/local-assets.ts';
+import { ingestToolImage } from '../media/tool-image-store.ts';
 import { type McpCallResult, type McpToolDefinition, TRUNCATION_MARKER } from './support.ts';
 
 export type McpResultDetails = {
   server: string;
   tool: string;
-  mcpImages?: { version: 1; items: ToolImageReference[] };
+  toolImages?: { version: 1; items: ToolImageReference[] };
 };
 export type McpToolResult = AgentToolResult<McpResultDetails>;
 
@@ -71,32 +69,11 @@ export async function convertMcpResult(
         if (bytes.toString('base64') !== encoded) {
           throw new LocalAssetRejected('corrupt', 'Invalid base64 image');
         }
-        await assets.validate({ bytes, declaredMime: block.mimeType });
-        signal.throwIfAborted();
-        const directory = await mkdtemp(join(tmpdir(), 'surowan-mcp-image-'));
-        try {
-          const input = join(directory, 'input');
-          await writeFile(input, bytes, { mode: 0o600, signal });
-          const normalized = await normalizeImage(input, directory, signal);
-          const normalizedBytes = await readFile(normalized.path, { signal });
-          signal.throwIfAborted();
-          const asset = await assets.ingest(context.internalChatId, {
-            bytes: normalizedBytes,
-            declaredMime: normalized.mimeType,
-          });
-          signal.throwIfAborted();
-          images.push({
-            contentIndex: content.length,
-            assetId: asset.id,
-            mimeType: asset.mime,
-            byteSize: asset.byteSize,
-            width: asset.width,
-            height: asset.height,
-          });
-          content.push({ type: 'text', text: toolImageMarker(asset.id) });
-        } finally {
-          await rm(directory, { recursive: true, force: true });
-        }
+        const image = await ingestToolImage(assets, context.internalChatId, bytes, signal, {
+          declaredMime: block.mimeType,
+        });
+        images.push({ ...image, contentIndex: content.length });
+        content.push({ type: 'text', text: toolImageMarker(image.assetId) });
       } catch (error) {
         signal.throwIfAborted();
         const reason = error instanceof LocalAssetRejected ? error.reason : 'image_processing_failed';
@@ -123,7 +100,7 @@ export async function convertMcpResult(
     text(JSON.stringify(result.structuredContent));
   }
   if (images.length > 0) {
-    details.mcpImages = { version: 1, items: images };
+    details.toolImages = { version: 1, items: images };
   }
   // Completions/Responses have no native error flag on tool output.
   if (isError) {

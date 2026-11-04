@@ -46,6 +46,7 @@ export const EXECUTE_PRIMITIVES: ReadonlySet<string> = new Set([
   'zzz',
   'search_memory',
   'read_memory',
+  'read_member_profile',
 ]);
 const SIDE_EFFECTING_PRIMITIVES: ReadonlySet<string> = new Set(['send', 'send_reply', 'zzz']);
 

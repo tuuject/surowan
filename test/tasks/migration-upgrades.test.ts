@@ -93,7 +93,7 @@ describe('migration 021', () => {
         expect(actualReceipts).toEqual(receipts);
         expect(store.db.prepare("SELECT name FROM sqlite_master WHERE name = 'internal_contexts'").all()).toEqual([]);
         expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({
-          version: 50n,
+          version: 51n,
         });
         expect(store.db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
       } finally {
@@ -112,7 +112,7 @@ describe('migration 021', () => {
       const store = await SqliteStore.open(config);
       try {
         expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({
-          version: 50n,
+          version: 51n,
         });
         expect(store.db.prepare("SELECT name FROM sqlite_master WHERE name = 'internal_contexts'").all()).toEqual([]);
       } finally {
