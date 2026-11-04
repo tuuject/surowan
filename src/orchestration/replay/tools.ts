@@ -2,6 +2,7 @@ import type { AgentTool } from '@earendil-works/pi-agent-core';
 import type { ImageContent } from '@earendil-works/pi-ai';
 import type { PublicModel } from '@surowan/image-service';
 import { createExecuteTool } from '../../capabilities/execute-tool.ts';
+import type { EmptyTextSendStrategy } from '../../capabilities/send/support.ts';
 import { isMemoActive, searchMemoEntries } from '../../context/memo-pad/search.ts';
 import { SystemResourceError, type SystemResources } from '../../platform/system-resources.ts';
 import type { ToolAudit } from '../../store/tool-audit.ts';
@@ -53,8 +54,12 @@ export interface ReplayToolOptions {
   readonly allowReplyMessageMultipleTimes?: boolean;
   /** Mirrors the production duplicate send guard within one replay scene. */
   readonly duplicateSendGuard?: { readonly onRejected: () => void };
-  /** Mirrors the production fallback for a text message sent without text. */
+  /** Mirrors the production empty-text strategy for a text message sent without text. */
+  readonly emptyTextStrategy?: EmptyTextSendStrategy;
+  /** Mirrors the production fallback texts under `random_text`. */
   readonly emptyTextFallback?: readonly string[];
+  /** Mirrors the production outcome hook, for the consecutive-silent breaker. */
+  readonly onSendOutcome?: (outcome: 'published' | 'silent') => void;
   readonly replyMessageIds?: ReadonlySet<string>;
 }
 

@@ -10,7 +10,14 @@ import type { Static } from 'typebox';
 import { SEND_REPLY_MAX_PARTS, type SendInputSchema } from '../../capabilities/send/index.ts';
 import type { ReplayState, ReplayToolDefinition } from './tools.ts';
 import { SendInputValidator, SendReplyInputValidator, replayToolBase } from './tools-spec.ts';
-import { fallbackSentText, fillEmptyText, narrowSendInput } from '../../capabilities/send/support.ts';
+import {
+  effectiveEmptyTextStrategy,
+  fallbackSentText,
+  fillEmptyText,
+  isMissingTextSend,
+  narrowSendInput,
+  silentSendText,
+} from '../../capabilities/send/support.ts';
 import { sendContentKey } from '../../capabilities/send/guards.ts';
 
 export function replaySendTool(definition: ReplayToolDefinition, state: ReplayState): AgentTool {
@@ -21,7 +28,16 @@ export function replaySendTool(definition: ReplayToolDefinition, state: ReplaySt
       if (!SendInputValidator.Check(params)) {
         throw new Error('send input does not match the tool schema');
       }
-      const input = fillEmptyText(params, state.options.emptyTextFallback);
+      const strategy = effectiveEmptyTextStrategy(state.options);
+      if (strategy === 'silent_success' && isMissingTextSend(params)) {
+        state.dispatches.push({ tool_call_id: toolCallId, tool_name: 'send', mode: 'synthetic' });
+        state.options.onSendOutcome?.('silent');
+        return {
+          content: [{ type: 'text' as const, text: silentSendText() }],
+          details: {},
+        };
+      }
+      const input = strategy === 'random_text' ? fillEmptyText(params, state.options.emptyTextFallback) : params;
       checkReplaySend(input, state, 'send');
       state.dispatches.push({ tool_call_id: toolCallId, tool_name: 'send', mode: 'synthetic' });
       checkReplayNotDuplicate([input], state);
@@ -29,6 +45,7 @@ export function replaySendTool(definition: ReplayToolDefinition, state: ReplaySt
       checkReplayNotRepeatingPrevious([input], state);
       checkReplayReplyUnused(input, state);
       const messageId = recordReplaySend(toolCallId, input, state);
+      state.options.onSendOutcome?.('published');
       return {
         content: [
           {
@@ -54,33 +71,56 @@ export function replaySendReplyTool(definition: ReplayToolDefinition, state: Rep
         throw new Error(`send_reply input does not match the tool schema (2 to ${SEND_REPLY_MAX_PARTS} parts)`);
       }
       const replyTo = typeof params.reply_to_message_id === 'string' ? params.reply_to_message_id : undefined;
-      const filled = params.parts.map((part) => fillEmptyText(part, state.options.emptyTextFallback));
+      const strategy = effectiveEmptyTextStrategy(state.options);
+      const filled = params.parts.map((part) =>
+        strategy === 'random_text' ? fillEmptyText(part, state.options.emptyTextFallback) : part,
+      );
+      const skipped = new Set(
+        filled.flatMap((part, index) => (strategy === 'silent_success' && isMissingTextSend(part) ? [index] : [])),
+      );
+      const firstOutgoing = filled.findIndex((_part, index) => !skipped.has(index));
       const parts = filled.map(
         (part, index): Static<typeof SendInputSchema> =>
-          index === 0 && replyTo !== undefined ? { ...part, reply_to_message_id: replyTo } : { ...part },
+          index === firstOutgoing && replyTo !== undefined ? { ...part, reply_to_message_id: replyTo } : { ...part },
       );
-      for (const [index, part] of parts.entries()) {
+      const outgoing = parts.flatMap((part, index) => (skipped.has(index) ? [] : [{ part, index }]));
+      for (const { part, index } of outgoing) {
         checkReplaySend(part, state, `send_reply part ${index + 1}`);
       }
       state.dispatches.push({ tool_call_id: toolCallId, tool_name: 'send_reply', mode: 'synthetic' });
-      checkReplayNotDuplicate(parts, state);
-      checkReplayNotBypassed(parts, state);
-      checkReplayNotRepeatingPrevious(parts, state);
-      if (parts[0] !== undefined) {
-        checkReplayReplyUnused(parts[0], state);
+      const outgoingParts = outgoing.map(({ part }) => part);
+      checkReplayNotDuplicate(outgoingParts, state);
+      checkReplayNotBypassed(outgoingParts, state);
+      checkReplayNotRepeatingPrevious(outgoingParts, state);
+      if (outgoingParts[0] !== undefined) {
+        checkReplayReplyUnused(outgoingParts[0], state);
       }
-      const messageIds = parts.map((part, index) => recordReplaySend(`${toolCallId}:${index + 1}`, part, state));
-      const notes = filled.flatMap((part, index) =>
-        part === params.parts[index] || part.text === undefined ? [] : [fallbackSentText(part.text, index + 1)],
-      );
+      const messageIds: string[] = [];
+      const silentNotes: string[] = [];
+      for (const [index, part] of parts.entries()) {
+        if (skipped.has(index)) {
+          const text = silentSendText(index + 1);
+          state.options.onSendOutcome?.('silent');
+          silentNotes.push(` ${text}`);
+          continue;
+        }
+        messageIds.push(recordReplaySend(`${toolCallId}:${index + 1}`, part, state));
+        state.options.onSendOutcome?.('published');
+      }
+      const fallbackNotes =
+        strategy === 'random_text'
+          ? filled.flatMap((part, index) =>
+              part === params.parts[index] || part.text === undefined ? [] : [fallbackSentText(part.text, index + 1)],
+            )
+          : [];
+      const notes = fallbackNotes.length > 0 ? fallbackNotes.join('') : silentNotes.join('');
+      const text =
+        messageIds.length === 0
+          ? `Handled without sending: no Telegram messages were published.${silentNotes.join('')}`
+          : `Sent ${messageIds.length} Telegram messages in order: ${messageIds.join(', ')}${notes}`;
       return {
-        content: [
-          {
-            type: 'text' as const,
-            text: `Sent ${messageIds.length} Telegram messages in order: ${messageIds.join(', ')}${notes.join('')}`,
-          },
-        ],
-        details: { telegramMessageIds: messageIds },
+        content: [{ type: 'text' as const, text }],
+        details: messageIds.length === 0 ? {} : { telegramMessageIds: messageIds },
       };
     },
   };

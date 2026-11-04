@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -234,6 +235,37 @@ function HarnessFieldRow({
         {t(`harness.errors.${error.key}`, { min: error.limit, max: error.limit })}
       </p>
     );
+  if (field.kind === 'select') {
+    return (
+      <div className="space-y-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+          <div className="space-y-1">
+            <Label htmlFor={id}>{label}</Label>
+            <p id={describedBy} className="text-muted-foreground text-sm">
+              {description}
+            </p>
+            {configPath}
+          </div>
+          <Select value={typeof value === 'string' ? value : ''} onValueChange={onChange}>
+            <SelectTrigger id={id} aria-label={label} aria-describedby={describedBy} className="sm:w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {field.options?.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {t(
+                    `harness.fields.${field.key}.options.${option}` as 'harness.fields.send_empty_text_strategy.options.reject',
+                  )}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {errorText}
+        {mismatch}
+      </div>
+    );
+  }
   if (field.kind === 'lines') {
     return (
       <div className="space-y-2">

@@ -70,7 +70,7 @@ export function updateDeveloperSettings(
  * Harness field values keyed by their dotted path below `agent`; `null` is an
  * unset optional field, and a string list is a field edited one entry per line.
  */
-export type HarnessValue = number | boolean | readonly string[] | null;
+export type HarnessValue = number | boolean | string | readonly string[] | null;
 export type HarnessValues = Readonly<Record<string, HarnessValue>>;
 
 export interface HarnessSettings {

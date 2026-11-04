@@ -3,7 +3,7 @@ import { activeSleepUntil, isDailyTokenBudgetReached } from '../../store/sleep.t
 import { estimateToolRegistryCharacters, recordAgentMessage } from './support.ts';
 import type { AgentRun, RoundControl, RunScope } from './types.ts';
 import { estimateInputTokens, maybeCollect } from './transcript.ts';
-import { DUPLICATE_SEND_REJECTION_LIMIT } from '../../capabilities/send/support.ts';
+import { DUPLICATE_SEND_REJECTION_LIMIT, SILENT_SEND_LIMIT } from '../../capabilities/send/support.ts';
 
 /**
  * Safety net for models that draft a group-facing reply as ordinary assistant
@@ -126,6 +126,11 @@ export function bindTurnHooks(scope: RunScope, run: AgentRun, round: RoundContro
     }
     if (state.duplicateSendRejections > DUPLICATE_SEND_REJECTION_LIMIT) {
       return stop('duplicate_send');
+    }
+    // Silent success publishes nothing, so it neither satisfies the breaker
+    // nor hides a model that keeps calling send without text.
+    if (state.consecutiveSilentSends >= SILENT_SEND_LIMIT) {
+      return stop('silent_send');
     }
     if (repeatedFailure.observe(turn)) {
       return stop('repeated_tool_failure');

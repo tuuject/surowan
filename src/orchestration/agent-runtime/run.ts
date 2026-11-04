@@ -141,6 +141,7 @@ export async function runInvocation(
     contextClosing: false,
     barrierSpent: false,
     duplicateSendRejections: 0,
+    consecutiveSilentSends: 0,
     stopReason: 'completed',
   };
   const repeatedFailure = new RepeatedToolFailure();

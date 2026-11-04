@@ -9,10 +9,12 @@ import type { Static } from 'typebox';
 import { type ImConversationRef, toSenderId } from '../../platform/im-host/identity.ts';
 import type { ImDeliveryFailure, ImMentionRequest, ImOutgoingPart } from '../../platform/im-host/delivery.ts';
 import type { ImHost } from '../../platform/im-host/index.ts';
-import type { AgentRuntimeConfig } from '../../platform/config/index.ts';
+import type { AgentRuntimeConfig, EmptyTextSendStrategy } from '../../platform/config/index.ts';
 import type { CapabilityRefResolver, InvocationContext } from '../../platform/invocation-context.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import type { SendInputSchema, SendToolInput } from './index.ts';
+
+export type { EmptyTextSendStrategy };
 
 /**
  * Tool error for a send held back by the barrier. The new batch is injected at
@@ -57,13 +59,35 @@ function inferredKind(input: SendContent): SendContent['kind'] {
   );
 }
 
-/** The option for `agent.send_empty_text_fallback_*`; absent unless explicitly enabled. */
-export function emptyTextFallback(
-  agent: Pick<AgentRuntimeConfig, 'send_empty_text_fallback_enabled' | 'send_empty_text_fallback_texts'>,
-): Pick<SendToolEnvironment, 'emptyTextFallback'> {
-  return agent.send_empty_text_fallback_enabled === true
-    ? { emptyTextFallback: agent.send_empty_text_fallback_texts }
-    : {};
+/** How many silent empty-text sends in a row end the run, matching the repeated-failure breaker. */
+export const SILENT_SEND_LIMIT = 3;
+
+/** What a silent-success result tells the model: handled, but nothing was published. */
+export const silentSendText = (part?: number): string =>
+  part === undefined
+    ? 'Handled without sending: the call had no text, and the silent-success empty-text strategy processed it. No Telegram message was published, so this is a successful fallback rather than a delivery. Do not retry the same empty call.'
+    : `Part ${part} was handled without sending: it had no text, and the silent-success empty-text strategy processed it. No Telegram message was published for that part.`;
+
+/**
+ * The strategy in force for one tool environment. A fallback list without an
+ * explicit strategy keeps the pre-strategy behavior (random text).
+ */
+export function effectiveEmptyTextStrategy(
+  environment: Pick<SendToolEnvironment, 'emptyTextStrategy' | 'emptyTextFallback'>,
+): EmptyTextSendStrategy {
+  return environment.emptyTextStrategy ?? (environment.emptyTextFallback === undefined ? 'reject' : 'random_text');
+}
+
+/** The environment option for the resolved `agent.send_empty_text_strategy`. */
+export function emptyTextHandling(
+  agent: Pick<AgentRuntimeConfig, 'send_empty_text_strategy' | 'send_empty_text_fallback_texts'>,
+): Pick<SendToolEnvironment, 'emptyTextStrategy' | 'emptyTextFallback'> {
+  return {
+    emptyTextStrategy: agent.send_empty_text_strategy,
+    ...(agent.send_empty_text_strategy === 'random_text'
+      ? { emptyTextFallback: agent.send_empty_text_fallback_texts }
+      : {}),
+  };
 }
 
 /**
@@ -94,7 +118,7 @@ export const fallbackSentText = (text: string, part?: number): string =>
  */
 export function narrowSendInput(
   input: Static<typeof SendInputSchema>,
-): { readonly send: SendToolInput } | { readonly problem: string } {
+): { readonly send: SendToolInput } | { readonly problem: string; readonly missingText?: true } {
   const kind = inferredKind(input);
   if (kind === undefined) {
     return { problem: 'kind is required when sticker_ref, image_generation_id or image_ref is set' };
@@ -110,6 +134,7 @@ export function narrowSendInput(
       return {
         problem:
           'text is missing — put the message itself in text (kind defaults to text); for a sticker or image, set kind with sticker_ref or image_generation_id. Plain assistant text is never published',
+        missingText: true,
       };
     }
     const parseMode = input.parse_mode !== undefined ? { parse_mode: input.parse_mode } : {};
@@ -148,6 +173,16 @@ export function narrowSendInput(
   };
 }
 
+/**
+ * Whether this input is exactly a text message without `text`, and would be
+ * rejected for that reason alone. Other shape errors stay errors under every
+ * strategy.
+ */
+export function isMissingTextSend(input: Static<typeof SendInputSchema>): boolean {
+  const narrowed = narrowSendInput(input);
+  return 'problem' in narrowed && narrowed.missingText === true;
+}
+
 export interface SendToolEnvironment {
   readonly store: BusinessStore;
   /** The host that carries this conversation; the only thing that speaks Telegram. */
@@ -174,10 +209,21 @@ export interface SendToolEnvironment {
    */
   readonly duplicateSendGuard?: { readonly onRejected: () => void };
   /**
-   * Texts a text message without `text` is sent with instead of being
-   * rejected, one picked at random per message. Absent when the fallback is off.
+   * What a text message without `text` does. Absent means `reject`; a
+   * fallback list without a strategy keeps the pre-strategy random behavior.
+   */
+  readonly emptyTextStrategy?: EmptyTextSendStrategy;
+  /**
+   * Texts a text message without `text` is sent with under `random_text`,
+   * one picked at random per message. Absent when no fallback texts apply.
    */
   readonly emptyTextFallback?: readonly string[];
+  /**
+   * Reports what a send tool really did: `published` for a message the host
+   * accepted, `silent` for a handled empty-text call that published nothing.
+   * The runtime counts consecutive silent outcomes to keep the circuit breaker.
+   */
+  readonly onSendOutcome?: (outcome: 'published' | 'silent') => void;
   readonly deadline: number;
   readonly bot: { readonly id: bigint; readonly displayName: string; readonly username: string | null };
   /**

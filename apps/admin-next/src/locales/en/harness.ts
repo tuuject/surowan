@@ -27,6 +27,7 @@ export const harness = {
     max: 'Must be at most {{max}}',
     greaterThan: 'Must be greater than {{min}}',
     lines: 'Enter at least one line',
+    option: 'Choose one of the listed options',
   },
   groups: {
     budget: {
@@ -97,14 +98,19 @@ export const harness = {
       description:
         'Reject a text or sticker identical to one already sent in the same invocation, or the previous message re-aimed at another reply target; stop the run after more than 3 rejections.',
     },
-    send_empty_text_fallback_enabled: {
-      label: 'Fallback for sends without text',
+    send_empty_text_strategy: {
+      label: 'Empty-text sends',
       description:
-        'When the model calls send without text, send one of the fallback texts below instead of rejecting the call. Stickers and images are not affected.',
+        'What send and send_reply do when a text message carries no text. Reject returns an error; silent success reports success without publishing anything; random text publishes one configured fallback text.',
+      options: {
+        reject: 'Reject the call',
+        silent_success: 'Succeed silently (send nothing)',
+        random_text: 'Send a random fallback text',
+      },
     },
     send_empty_text_fallback_texts: {
       label: 'Fallback texts',
-      description: 'One per line; each fallback send picks one at random. Sent as plain text.',
+      description: 'One per line; each random-text fallback picks one at random. Sent as plain text.',
     },
     'rate_limits.sends_per_window': {
       label: 'Sends per window',

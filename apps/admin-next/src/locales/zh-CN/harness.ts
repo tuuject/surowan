@@ -24,6 +24,7 @@ export const harness: typeof harnessEn = {
     max: '不能大于 {{max}}',
     greaterThan: '必须大于 {{min}}',
     lines: '至少填写一行',
+    option: '请选择列表中的选项',
   },
   groups: {
     budget: {
@@ -91,14 +92,19 @@ export const harness: typeof harnessEn = {
       description:
         '拒绝与同一 Invocation 内已发出内容完全一致的文本或贴纸，以及把上一条的内容换个引用目标重发；拒绝超过 3 次即停止本次运行。',
     },
-    send_empty_text_fallback_enabled: {
-      label: '无文本发送兜底',
+    send_empty_text_strategy: {
+      label: '无文本发送策略',
       description:
-        '模型调用 send 却没有给出文本时，改为发送下方兜底文本中的一条，而不是拒绝这次调用。贴纸与图片不受影响。',
+        'send 与 send_reply 的文本消息没有给出文本时的处理方式：拒绝返回错误；静默成功报告成功但不发送任何消息；随机文本发出一条下方配置的兜底文本。',
+      options: {
+        reject: '拒绝这次调用',
+        silent_success: '静默成功（不发送）',
+        random_text: '发送随机兜底文本',
+      },
     },
     send_empty_text_fallback_texts: {
       label: '兜底文本',
-      description: '一行一条；每次兜底随机选一条，按纯文本发送。',
+      description: '一行一条；随机文本策略每次选一条，按纯文本发送。',
     },
     'rate_limits.sends_per_window': {
       label: '窗口内发送上限',

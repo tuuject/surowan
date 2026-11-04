@@ -79,6 +79,13 @@ export const AgentRateLimitsSectionSchema = Type.Object(
   },
   Strict,
 );
+/** What a text send without `text` becomes: an error, a silent no-op, or a configured fallback text. */
+export const EmptyTextSendStrategySchema = Type.Union([
+  Type.Literal('reject'),
+  Type.Literal('silent_success'),
+  Type.Literal('random_text'),
+]);
+
 export const AgentSectionSchema = Type.Object(
   {
     provider: Type.Optional(Type.String({ minLength: 1 })),
@@ -96,6 +103,9 @@ export const AgentSectionSchema = Type.Object(
     send_barrier_enabled: Type.Optional(Type.Boolean()),
     allow_reply_message_multiple_times: Type.Optional(Type.Boolean({ default: false })),
     send_duplicate_guard_enabled: Type.Optional(Type.Boolean({ default: true })),
+    send_empty_text_strategy: Type.Optional(EmptyTextSendStrategySchema),
+    // Deprecated: `true` still means `random_text` when the strategy is absent,
+    // so configurations written before the three-way setting keep their behavior.
     send_empty_text_fallback_enabled: Type.Optional(Type.Boolean({ default: false })),
     // One line each: the panel edits the list as a one-per-line textarea, so a
     // line break inside an entry could not survive a round trip there.

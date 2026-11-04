@@ -92,6 +92,38 @@ test('the empty-text fallback fills sends without text the way production does',
   ]);
 });
 
+test('the silent strategy records no output for sends without text', async () => {
+  const outcomes: Array<'published' | 'silent'> = [];
+  const replay = createReplayTools(
+    replayInput({ tools: [definition('send', SendInputSchema), definition('send_reply', SendReplyInputSchema)] }),
+    emptySystemResources(),
+    {
+      emptyTextStrategy: 'silent_success',
+      replyMessageIds: new Set(['42']),
+      onSendOutcome: (outcome) => outcomes.push(outcome),
+    },
+  );
+  const result = await toolOf(replay.tools, 'send').execute('bare', { reply_to_message_id: '42' });
+  expect(result.content).toEqual([
+    {
+      type: 'text',
+      text: 'Handled without sending: the call had no text, and the silent-success empty-text strategy processed it. No Telegram message was published, so this is a successful fallback rather than a delivery. Do not retry the same empty call.',
+    },
+  ]);
+  const reply = await toolOf(replay.tools, 'send_reply').execute('parts', { parts: [{}, { text: 'well' }] });
+  expect(reply.content).toEqual([
+    {
+      type: 'text',
+      text: 'Sent 1 Telegram messages in order: 1 Part 1 was handled without sending: it had no text, and the silent-success empty-text strategy processed it. No Telegram message was published for that part.',
+    },
+  ]);
+  await expect(toolOf(replay.tools, 'send').execute('sticker', { kind: 'sticker' })).rejects.toThrow(
+    'kind:sticker needs sticker_ref',
+  );
+  expect(replay.outputs.map((output) => output.arguments)).toEqual([{ text: 'well' }]);
+  expect(outcomes).toEqual(['silent', 'silent', 'published']);
+});
+
 test('send rejects repeated reply targets within the scene without recording another output', async () => {
   const registry = replayInput({ tools: [definition('send', SendInputSchema)] });
   const replay = createReplayTools(registry, emptySystemResources(), { replyMessageIds: new Set(['42', '43']) });

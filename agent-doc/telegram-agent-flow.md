@@ -126,7 +126,7 @@ T+94   若期间再没有新 Bucket 到期，空闲等待耗尽，I 结束
 - **空闲等待发生在每一轮结束时，不在每个 turn 上**：该 turn 没有 Tool Call、且队列里没有待注入批次时，才等待至多 `idle_grace_seconds`。回合内的工具步骤、以及刚注入一批还没回答的 turn 都不等待，否则一轮里的每一步都要白等一个 grace（回归：一轮内两次 `send` 曾各等满 3 秒）。
 - 结束判定顺序：睡眠/暂停/每日预算触顶 → 结束；有已 attach 未注入的 Bucket → 注入后继续；一轮结束时先标记 Agent 空闲并把 collecting Bucket 的 deadline 推到至少 `本轮结束 + bucket_window_seconds`，再空闲等待至多 `idle_grace_seconds`，期间有 Bucket 到期 → 注入后继续；超过 `max_wall_clock_seconds` → 结束；其余结束。
 - **`idle_grace_seconds = 0` 是关闭开关**：不空闲等待、到期 Bucket 不 attach，退回「一次 Bucket 一次 Invocation」，但 Conversation Context 依然持久，且运行期间到达的批次仍从本轮结束起算窗口（比从消息自身起算可能晚一个窗口）。这是唯一受支持的降级方式，代码里没有第二套模式或 mode 分支。
-- 防失控靠 `agent.rate_limits`：`turns_per_injection` 限制每批注入后最多跑多少轮（注入即重置），`sends_per_window`/`window_seconds` 限制同一 Chat 滑动窗口内的 `send` 次数，`max_wall_clock_seconds` 限制单次运行总时长。per-Invocation 的 `max_turns`/`max_sends`/`timeout_seconds` 已删除。另有不可配置的重复失败熔断（`src/orchestration/repeated-tool-failure.ts`）：连续 3 个 turn 的 Tool Call 全部失败，且工具名、参数与错误文本都与上一 turn 完全相同时，以 `repeated_tool_failure` 结束（`completed`）；注入新批次时清零，重放用同一规则。原样重试一个已失败的调用只会得到同样的失败，没有它时这类循环会一直跑满 `turns_per_injection`。重复发送守卫（`agent.send_duplicate_guard_enabled`，默认开启，见 [send Tool](#send-tool)）在同一 Invocation 内累计被拒超过 3 次时以 `duplicate_send` 结束（`completed`），计数不随注入清零；同一条重复连发时通常先在第 3 次拒绝触发上面的重复失败熔断。
+- 防失控靠 `agent.rate_limits`：`turns_per_injection` 限制每批注入后最多跑多少轮（注入即重置），`sends_per_window`/`window_seconds` 限制同一 Chat 滑动窗口内的 `send` 次数，`max_wall_clock_seconds` 限制单次运行总时长。per-Invocation 的 `max_turns`/`max_sends`/`timeout_seconds` 已删除。另有不可配置的重复失败熔断（`src/orchestration/repeated-tool-failure.ts`）：连续 3 个 turn 的 Tool Call 全部失败，且工具名、参数与错误文本都与上一 turn 完全相同时，以 `repeated_tool_failure` 结束（`completed`）；注入新批次时清零，重放用同一规则。原样重试一个已失败的调用只会得到同样的失败，没有它时这类循环会一直跑满 `turns_per_injection`。重复发送守卫（`agent.send_duplicate_guard_enabled`，默认开启，见 [send Tool](#send-tool)）在同一 Invocation 内累计被拒超过 3 次时以 `duplicate_send` 结束（`completed`），计数不随注入清零；同一条重复连发时通常先在第 3 次拒绝触发上面的重复失败熔断。静默成功策略（`send_empty_text_strategy: "silent_success"`）下，连续 3 次未真正发出任何消息的静默成功以 `silent_send` 结束（`completed`）：静默计数在真正发布一条消息时清零、注入新批次不清零，避免模型用空 `send` 换取成功结果绕过熔断。
 - attach 但从未注入的 Bucket 在运行结束时重新排队成新 Invocation（`invocation_buckets.injected_at` 为 NULL），不会被丢弃。`injected_at` 在该批的 user 消息写进 canonical history（`message_end`）之后才写入，而不是 `steer` 排队时：`steer` 只是把消息放进 Agent 队列，这条消息落库失败导致运行失败时，这批仍按未注入重新排队。
 - `/pause` 会中断处于空闲等待中的 Invocation。
 
@@ -367,7 +367,13 @@ Alarm 是第一个 `plugin_id = "alarm"` 的 consumer，通过 `execute.call` �
 
 `agent.send_disallow_blank_lines` 开启（默认关闭）时，包含任何空行的文本同样在发送前被拒绝，错误码 `send_blank_lines`。
 
-`agent.send_empty_text_fallback_enabled` 开启（默认关闭）时，解析为文本（`kind: "text"` 或 kind 缺省且没有 `sticker_ref`/`image_generation_id`/`image_ref`）却没有 `text` 的一条，由 `fillEmptyText` 在 Tool 入口从 `send_empty_text_fallback_texts`（默认 `["……"]`）随机取一条补上，并去掉 `parse_mode`（兜底文本没有按 MarkdownV2 转义），而不是以 `send_input_invalid` 拒绝。补全发生在任何检查之前，所以长度/空行规则、Reply 去重、重复发送守卫与烧毁、`tool_calls.arguments_json`（`send_reply` 行与各 `:<n>` 行）看到的都是实际发出的文本：同一次运行里连续两次无文本发送抽中同一条，第二次照常以 `send_duplicate` 拒绝。Tool 结果在原文之后追加一句说明发出的是哪条兜底文本（`send_reply` 按 part 编号逐条说明），模型的 transcript 里保留的仍是它原本的调用参数。Sticker、图片、文件与带了 `text` 的发送不受影响；`text: ""` 仍被 schema 的 `minLength: 1` 拒绝，不触发兜底。Tool 描述不提及此功能；重放的合成 send 按当前配置套用同一补全。
+`agent.send_empty_text_strategy`（可选，默认 `reject`）决定解析为文本（`kind: "text"` 或 kind 缺省且没有 `sticker_ref`/`image_generation_id`/`image_ref`）却没有 `text` 的一条怎么处理；旧字段 `send_empty_text_fallback_enabled: true` 在策略缺省时等价于 `random_text`。
+
+- `reject`：以 `send_input_invalid` 拒绝，不调用 Telegram。这是默认值，也是没有该策略字段且旧开关未开启时的行为。
+- `silent_success`：Tool 入口直接返回成功，结果明确说明「已处理但没有发送任何消息」，不写 `host_sends`、不占发送额度、不触发 Reply 去重/重复发送/屏障；`tool_calls` 为 `success` 且 `side_effect = 0`。`send_reply` 逐 part 处理：缺文本的 part 跳过并各记一条成功审计，其余 part 照常发送，`reply_to_message_id` 落到第一条真正发出的 part。静默成功不视为实际发送，连续三次会以 `completion_reason = silent_send` 结束运行（与重复失败熔断同为三次）；任何真正发出的消息都会把该连续计数清零。
+- `random_text`：由 `fillEmptyText` 在 Tool 入口从 `send_empty_text_fallback_texts`（默认 `["……"]`）随机取一条补上，并去掉 `parse_mode`（兜底文本没有按 MarkdownV2 转义）。补全发生在任何检查之前，所以长度/空行规则、Reply 去重、重复发送守卫与烧毁、`tool_calls.arguments_json`（`send_reply` 行与各 `:<n>` 行）看到的都是实际发出的文本：同一次运行里连续两次无文本发送抽中同一条，第二次照常以 `send_duplicate` 拒绝。Tool 结果在原文之后追加一句说明发出的是哪条兜底文本（`send_reply` 按 part 编号逐条说明），模型的 transcript 里保留的仍是它原本的调用参数。
+
+三种策略都不影响 Sticker、图片、文件与带了 `text` 的发送；`text: ""` 仍被 schema 的 `minLength: 1` 拒绝，不视为缺少 `text`；其他参数形状错误（例如文本带 `resend: true`、Sticker 没有 `sticker_ref`）也照常拒绝。Tool 描述不提及此功能；重放的合成 send 按当前配置套用同一策略与静默熔断。
 
 `agent.allow_reply_message_multiple_times`（可选，默认 `false`）是上述「同一消息只回复一次」守卫的总开关，与 `send_*` 同级、全局生效、无 per-Chat 覆盖：`false`/省略时守卫启用，`true` 时跳过查重并允许对同一显式目标多次发送，但图片 generation/asset 交付去重与结果未知保护不受影响。它属于热更新白名单：显式应用配置后**下一次** Invocation 与重放读取新值，运行中的 Invocation 继续用启动时的快照；Tool 描述在每次运行时按该快照生成，因此同一进程里新旧运行可能看到不同的 `send` 描述。
 

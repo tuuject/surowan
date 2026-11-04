@@ -138,6 +138,9 @@ export function createAgentRun(scope: RunScope, zzzExposed: boolean): AgentRun {
       () => {
         state.duplicateSendRejections += 1;
       },
+      (outcome) => {
+        state.consecutiveSilentSends = outcome === 'silent' ? state.consecutiveSilentSends + 1 : 0;
+      },
     );
   const tools = applyToolSchemaKeywords(buildToolsFor(contextState, zzzExposed), toolSchemaKeywords);
   validateToolRegistry(tools, model.contextWindow);

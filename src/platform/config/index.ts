@@ -12,6 +12,7 @@ import type {
 import type {
   AgentSectionSchema,
   DictionaryInjectionModeSchema,
+  EmptyTextSendStrategySchema,
   ParticipationSchema,
   ParticipationWindowSchema,
   ProactiveReplySchema,
@@ -24,6 +25,7 @@ export type ModelCompatConfig = Static<typeof ModelCompatSchema>;
 export type ThinkingLevelConfig = Static<typeof ThinkingLevelSchema>;
 export type ModelFileConfig = Static<typeof ModelConfigSchema>;
 export type AgentSectionConfig = Static<typeof AgentSectionSchema>;
+export type EmptyTextSendStrategy = Static<typeof EmptyTextSendStrategySchema>;
 export type VisionSectionConfig = Static<typeof VisionSectionSchema>;
 export type FileConfig = Static<typeof ConfigSchema>;
 /** The file layer may omit the whole section; everything inside it is required as before. */
@@ -64,6 +66,9 @@ export interface AgentRuntimeConfig extends AgentSettings {
   readonly send_barrier_enabled?: boolean;
   readonly allow_reply_message_multiple_times?: boolean;
   readonly send_duplicate_guard_enabled?: boolean;
+  /** Always concrete after resolution: `reject` unless configured otherwise. */
+  readonly send_empty_text_strategy: EmptyTextSendStrategy;
+  /** Deprecated input; only read when `send_empty_text_strategy` is absent. */
   readonly send_empty_text_fallback_enabled?: boolean;
   readonly send_empty_text_fallback_texts: readonly string[];
   readonly context: {

@@ -12,7 +12,7 @@ const saved = {
   send_barrier_enabled: false,
   allow_reply_message_multiple_times: false,
   send_duplicate_guard_enabled: true,
-  send_empty_text_fallback_enabled: false,
+  send_empty_text_strategy: 'reject',
   send_empty_text_fallback_texts: ['……'],
   'rate_limits.sends_per_window': 6,
   'rate_limits.window_seconds': 300,
@@ -68,6 +68,19 @@ describe('harness draft', () => {
     expect(parseDraft(empty, saved)).toEqual({
       changes: {},
       errors: { send_empty_text_fallback_texts: { key: 'lines' } },
+    });
+  });
+
+  test('reports a select value outside its options', () => {
+    const changed = { ...draftOf(saved), send_empty_text_strategy: 'silent_success' };
+    expect(parseDraft(changed, saved)).toEqual({
+      changes: { send_empty_text_strategy: 'silent_success' },
+      errors: {},
+    });
+    const invalid = { ...draftOf(saved), send_empty_text_strategy: 'sometimes' };
+    expect(parseDraft(invalid, saved)).toEqual({
+      changes: {},
+      errors: { send_empty_text_strategy: { key: 'option' } },
     });
   });
 
