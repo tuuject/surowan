@@ -32,6 +32,7 @@ import {
 import type { HealthCheckResult, ProviderModelConfig, ProviderView } from '@/lib/api/providers.ts';
 import { restartServer } from '@/lib/api/config.ts';
 import { switchAgentModel, switchVisionModel } from '@/lib/api/models.ts';
+import type { ChatThinkingReset } from '@/lib/api/models.ts';
 
 export default function ModelsPage(): React.ReactElement {
   const { t } = useTranslation();
@@ -46,6 +47,7 @@ export default function ModelsPage(): React.ReactElement {
   const [editing, setEditing] = useState<EditingTarget | null>(null);
   const [deletingModel, setDeletingModel] = useState<DeletingModelTarget | null>(null);
   const [deletingProvider, setDeletingProvider] = useState<ProviderView | null>(null);
+  const [thinkingResets, setThinkingResets] = useState<readonly ChatThinkingReset[]>([]);
   // Health-check probes: page-local state, never persisted. The key is the same
   // `${alias}/${model.id}` row key, so a selection survives provider switches.
   const [healthSelected, setHealthSelected] = useState<ReadonlySet<string>>(new Set());
@@ -144,6 +146,7 @@ export default function ModelsPage(): React.ReactElement {
     onSuccess: (result) => {
       // Models do not share one set of levels, so the switch always resets it.
       write.succeeded(result.apply, t('models.models.page.thinkingReset', { level: result.current.thinking_level }));
+      setThinkingResets(result.chat_thinking_resets);
     },
     onError: (error) => {
       toast.error(writeErrorMessage(error));
@@ -326,6 +329,8 @@ export default function ModelsPage(): React.ReactElement {
         view={view}
         revision={revision}
         wizardOpen={wizardOpen}
+        thinkingResets={thinkingResets}
+        onThinkingResetsClose={() => setThinkingResets([])}
         onWizardClose={() => setWizardOpen(false)}
         onProviderCreated={(alias) => setSelectedAlias(alias)}
         picker={picker}

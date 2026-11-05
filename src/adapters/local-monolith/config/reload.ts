@@ -2,6 +2,7 @@ import { type Api, getSupportedThinkingLevels, type Model, type ModelThinkingLev
 import type { RawConfig } from '../../../platform/config/index.ts';
 import type {
   BotCommandConfigWriter,
+  ChatThinkingReset,
   ConfigApplyResult,
   ConfigController,
   ConfigEdit,
@@ -169,9 +170,8 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
    * rejected switch leaves the file untouched; once it is written, a failed
    * apply reports `fileWritten` instead of pretending nothing happened.
    *
-   * The switch also resets `agent.thinking_level` to the weakest level the new
-   * model accepts: models do not share one set of levels, and the level chosen
-   * for the old model may not exist on the new one.
+   * The switch resets `agent.thinking_level` to the new model's weakest level,
+   * along with incompatible thinking overrides in Chats using the global model.
    */
   setAgentModel(provider: string, model: string, expectedRevision?: string): Promise<ConfigApplyResult> {
     return this.#withLock(() => this.#setModel(provider, model, expectedRevision));
@@ -239,7 +239,8 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     } catch (error) {
       return this.#rejected('model_unusable', messageOf(error));
     }
-    const [weakest = 'off'] = getSupportedThinkingLevels(resolved);
+    const levels = getSupportedThinkingLevels(resolved);
+    const [weakest = 'off'] = levels;
     if (configuredChatId !== undefined) {
       return await writeChatSettings(this.#chatWrites(), configuredChatId, {
         provider,
@@ -247,15 +248,41 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
         thinking_level: weakest,
       });
     }
-    return await this.#writeAndApply(
-      [
-        { path: ['agent', 'provider'], value: provider },
-        { path: ['agent', 'model'], value: model },
-        { path: ['agent', 'thinking_level'], value: weakest },
-      ],
-      expectedRevision,
-      'model_switch_failed',
-    );
+    let revision: string;
+    let loaded: LoadedConfig;
+    try {
+      revision = await readConfigRevision(this.#configPath);
+      if (expectedRevision !== undefined && revision !== expectedRevision) {
+        return this.#rejected(
+          'config_conflict',
+          'The configuration file changed since it was read; reload the panel and try again',
+          'model_switch_failed',
+        );
+      }
+      loaded = await this.readPersisted();
+    } catch (error) {
+      return this.#rejected('config_invalid', messageOf(error), 'model_switch_failed');
+    }
+    const edits: ConfigEdit[] = [
+      { path: ['agent', 'provider'], value: provider },
+      { path: ['agent', 'model'], value: model },
+      { path: ['agent', 'thinking_level'], value: weakest },
+    ];
+    const chatThinkingResets: ChatThinkingReset[] = [];
+    for (const [index, chat] of (loaded.fileConfig.telegram?.chats ?? []).entries()) {
+      if (
+        chat.provider !== undefined ||
+        chat.model !== undefined ||
+        chat.thinking_level === undefined ||
+        levels.includes(chat.thinking_level)
+      ) {
+        continue;
+      }
+      edits.push({ path: ['telegram', 'chats', index, 'thinking_level'], value: weakest });
+      chatThinkingResets.push({ chatId: String(chat.id), previous: chat.thinking_level, current: weakest });
+    }
+    const result = await this.#writeAndApply(edits, revision, 'model_switch_failed');
+    return result.ok ? { ...result, chatThinkingResets } : result;
   }
 
   /** What a Chat write needs, bound to this reloader's file, store and lock. */

@@ -202,28 +202,79 @@ test.each(['model', 'provider'] as const)('a hot-removed Chat no longer protects
   }
 });
 
-test('global model changes refuse inherited thinking incompatibility and preserve Chat overrides', async () => {
+test.each([
+  { levels: ['off', 'low', 'medium', 'high'] as const, weakest: 'off' },
+  { levels: ['high', 'low'] as const, weakest: 'low' },
+])('global model changes reset incompatible inherited efforts to $weakest', async ({ levels, weakest }) => {
+  const compatibleId = -1001111111111;
+  const overrideId = -1002222222222;
+  const inheritedId = -1003333333333;
+  const addedId = -1004444444444;
   const fixture = await setup({
     transform: (config) => {
-      Object.assign(config.telegram.chats[0] ?? {}, { thinking_level: 'high' });
+      const provider = customProvider(config.providers, 'agent');
+      provider.models = [
+        model('original', { reasoning: true, thinking_levels: ['off', 'low', 'high', 'max'] }),
+        model('limited', { reasoning: true, thinking_levels: [...levels] }),
+      ];
+      Object.assign(config.agent!, { provider: 'agent', model: 'original', thinking_level: 'low' });
+      Object.assign(config.telegram.chats[0] ?? {}, { thinking_level: 'max', topic_ids: [42] });
+      config.telegram.chats.push(
+        { id: compatibleId, thinking_level: 'low' },
+        { id: overrideId, provider: 'agent', model: 'original', thinking_level: 'max' },
+        { id: inheritedId },
+      );
     },
   });
   try {
-    const original = await fixture.readText();
-    const before = fixture.configStore.current();
-    const rejected = await fixture.reloader.setAgentModel('vision', 'vision-model');
-    expect(rejected).toMatchObject({ ok: false, code: 'config_invalid', fileWritten: false });
-    expect(await fixture.readText()).toBe(original);
-    expect(fixture.configStore.current()).toBe(before);
-    expect((await fixture.reloader.setChatModel(CHAT_ID, 'faux', SECOND_MODEL)).ok).toBe(true);
-    expect((await fixture.reloader.setAgentModel('agent', 'agent-model')).ok).toBe(true);
-    const config = fixture.configStore.current().config;
-    expect(resolveAgentSettings(config, config.telegram.chats[0])).toMatchObject({
-      provider: 'faux',
-      model: SECOND_MODEL,
-      thinking_level: 'off',
+    // Use the latest file's IDs and overrides, including reordered and new Chats.
+    await fixture.patch((config) => {
+      config.telegram.chats.reverse();
+      config.telegram.chats.push({ id: addedId, thinking_level: 'max' });
     });
-    expect(config.agent!.provider).toBe('agent');
+    await fixture.writeText(`// Keep this comment\n${await fixture.readText()}`);
+    const before = fixture.configStore.beginInvocation();
+    const result = await fixture.reloader.setAgentModel('agent', 'limited', await fixture.reloader.revision());
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.message);
+    }
+    expect(result.chatThinkingResets).toEqual([
+      { chatId: String(CHAT_ID), previous: 'max', current: weakest },
+      { chatId: String(addedId), previous: 'max', current: weakest },
+    ]);
+    const written = await loadConfig(fixture.configPath);
+    const active = fixture.configStore.current().config;
+    for (const config of [written.config, active]) {
+      expect(config.agent).toMatchObject({ provider: 'agent', model: 'limited', thinking_level: weakest });
+      expect(config.telegram.chats.find((chat) => chat.id === CHAT_ID)).toMatchObject({
+        thinking_level: weakest,
+        topic_ids: [42],
+      });
+      expect(config.telegram.chats.find((chat) => chat.id === addedId)?.thinking_level).toBe(weakest);
+      expect(config.telegram.chats.find((chat) => chat.id === compatibleId)?.thinking_level).toBe('low');
+      expect(
+        resolveAgentSettings(
+          config,
+          config.telegram.chats.find((chat) => chat.id === overrideId),
+        ),
+      ).toMatchObject({
+        provider: 'agent',
+        model: 'original',
+        thinking_level: 'max',
+      });
+      expect(config.telegram.chats.find((chat) => chat.id === inheritedId)).not.toHaveProperty('thinking_level');
+    }
+    expect(before.config.telegram.chats.find((chat) => chat.id === CHAT_ID)?.thinking_level).toBe('max');
+    expect(await fixture.readText()).toContain('// Keep this comment');
+    const applied = logEvents('config_reloaded').at(-1)?.applied;
+    expect(applied).toContain(`telegram.chats[${CHAT_ID}].thinking_level`);
+    expect(applied).toContain(`telegram.chats[${addedId}]`);
+    const back = await fixture.reloader.setAgentModel('agent', 'original');
+    expect(back).toMatchObject({ ok: true, chatThinkingResets: [] });
+    expect(
+      fixture.configStore.current().config.telegram.chats.find((chat) => chat.id === CHAT_ID)?.thinking_level,
+    ).toBe(weakest);
   } finally {
     fixture.store.close();
   }

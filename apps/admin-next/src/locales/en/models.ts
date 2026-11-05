@@ -8,6 +8,10 @@ export const models = {
       agentInUse: 'Agent in use',
       visionInUse: 'Vision in use',
       thinkingReset: 'Thinking effort reset to {{level}}.',
+      chatThinkingResetTitle: 'Chat thinking effort reset',
+      chatThinkingResetClose: 'Close',
+      chatThinkingResetDescription:
+        'These chats use the global model with their own thinking effort. Their previous effort is not supported by the new model and has been reset to its weakest supported level.',
       editConflictToast:
         'config.jsonc changed while you were editing. Nothing was saved - open the model again to edit the current version.',
       restarting: 'Restarting the server…',

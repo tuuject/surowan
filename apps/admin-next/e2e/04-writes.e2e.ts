@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import { adminUrl, appliedToast, E2E_USERNAME, e2eFetch, test, toast } from './helpers.ts';
+import { ACTIVE_CHAT, editElsewhere, inherited, viewOf } from './chats-fixture.ts';
 
 /**
  * Controlled admin operations against the real backend. Every write goes
@@ -112,8 +113,10 @@ test.describe('bot admins', () => {
 });
 
 test.describe('agent model hot-switch', () => {
-  test('switch to the vision model and back through the model rows', async ({ page }) => {
+  test('resets an incompatible Chat effort with a dialog when switching the global model', async ({ page }) => {
     await page.goto(await adminUrl('/models'));
+    await editElsewhere(page, { ...inherited, thinking_level: 'high' });
+    await page.reload();
 
     await page.getByRole('button', { name: 'Provider vision' }).click();
     await page.locator('tr', { hasText: 'vision-model' }).getByRole('button', { name: 'Set as agent' }).click();
@@ -121,6 +124,21 @@ test.describe('agent model hot-switch', () => {
     await expect(appliedToast(page).first()).toBeVisible();
     // The vision model does not reason, so the switch leaves it only `off`.
     await expect(page.getByText('Thinking effort reset to off', { exact: false }).first()).toBeVisible();
+    const dialog = page.getByRole('dialog', { name: 'Chat thinking effort reset' });
+    await expect(dialog).toBeVisible();
+    await expect(
+      dialog.getByText('Their previous effort is not supported by the new model', { exact: false }),
+    ).toBeVisible();
+    await expect(dialog.getByRole('listitem')).toHaveText(`${ACTIVE_CHAT}: high → off`);
+    const chats = await viewOf(page);
+    const chat = chats.items.find((item) => item.id === ACTIVE_CHAT);
+    expect(chat?.saved).toMatchObject({ provider: null, model: null, thinking_level: 'off' });
+    expect(chat?.active).toMatchObject({ provider: null, model: null, thinking_level: 'off' });
+    const screenshotPath = test.info().outputPath('chat-thinking-reset.png');
+    await dialog.screenshot({ path: screenshotPath });
+    await test.info().attach('chat-thinking-reset', { path: screenshotPath, contentType: 'image/png' });
+    await dialog.getByRole('button', { name: 'Close', exact: true }).first().click();
+    await expect(dialog).not.toBeVisible();
     // Wait for the refreshed view before the next write: a switch has to be
     // built on the revision the previous one produced.
     await expect(page.getByRole('button', { name: 'Provider vision' }).getByText('Agent in use')).toBeVisible();
@@ -136,6 +154,8 @@ test.describe('agent model hot-switch', () => {
     await page.getByRole('button', { name: 'Provider agent' }).click();
     await page.locator('tr', { hasText: 'agent-model' }).getByRole('button', { name: 'Set as agent' }).click();
     await expect(page.getByRole('button', { name: 'Provider agent' }).getByText('Agent in use')).toBeVisible();
+    await expect(dialog).not.toBeVisible();
+    await editElsewhere(page, inherited);
 
     const restored = (await (await page.request.get(await adminUrl('/api/providers'))).json()) as {
       agent: { provider: string; model: string; thinking_level: string };
