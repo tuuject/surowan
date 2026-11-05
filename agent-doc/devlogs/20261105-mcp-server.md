@@ -128,4 +128,5 @@ git diff --check
 
 ```txt
 37e537f Add MCP server and API key permission modes
+aefff01 Allow MCP dry runs without confirmation
 ```
