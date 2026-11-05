@@ -244,7 +244,7 @@ async function callTool(
       `Permission denied: this API key has mode "${context.mode}" and lacks ${access} permission. Ask the user to open Admin Panel → API keys and enable it; do not retry or find another route.`,
     );
   }
-  if (spec.confirm !== undefined && args.confirm !== true) {
+  if (spec.confirm !== undefined && args.confirm !== true && args.dry_run !== true) {
     return toolError(
       `This operation is ${spec.confirm === 'paid' ? 'billed' : 'destructive'}. Explain the target and effect to the user, obtain explicit approval, then call again with confirm: true.`,
     );
@@ -263,6 +263,27 @@ async function callTool(
       return toolError('This tool requires a JSON body.');
     }
   }
+  const target = `/api/${path}${query.size === 0 ? '' : `?${query.toString()}`}`;
+  if (args.dry_run === true) {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(
+            {
+              method: spec.method,
+              path: target,
+              if_match: stringArg(args, 'if_match') ?? null,
+              if_match_source: spec.revision ?? null,
+              body: body ?? null,
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+    };
+  }
   const ifMatch = spec.revision === undefined ? null : await resolveIfMatch(spec, args, context);
   if (spec.revision !== undefined && ifMatch === null) {
     return toolError(
@@ -270,17 +291,6 @@ async function callTool(
         ? 'Could not read the current configuration revision; retry after reading the configuration.'
         : 'This route requires if_match from the entry or prompt you read.',
     );
-  }
-  const target = `/api/${path}${query.size === 0 ? '' : `?${query.toString()}`}`;
-  if (args.dry_run === true) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({ method: spec.method, path: target, if_match: ifMatch, body: body ?? null }, null, 2),
-        },
-      ],
-    };
   }
   const headers: Record<string, string> = { authorization: `Bearer ${context.token}` };
   if (ifMatch !== null) {
