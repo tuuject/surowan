@@ -259,16 +259,14 @@ export class McpManager {
       return transport;
     }
     const headers = await resolveSecretRecord(server.config.headers ?? {}, this.#secrets);
-    const requestHeaders = { ...headers, 'user-agent': versionUserAgent() };
+    // A configured User-Agent overrides the default; Headers matches names case-insensitively.
+    const requestHeaders = new Headers({ 'user-agent': versionUserAgent() });
+    for (const [name, value] of Object.entries(headers)) {
+      requestHeaders.set(name, value);
+    }
     const maxBytes = server.config.payload_max_bytes;
-    const boundedFetch = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
-      const mergedHeaders = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
-      mergedHeaders.set('user-agent', versionUserAgent());
-      const request = new Request(input.toString(), {
-        ...init,
-        headers: mergedHeaders,
-        redirect: 'manual',
-      });
+    const boundedFetch = async (input: string | URL, init?: RequestInit): Promise<Response> => {
+      const request = new Request(input.toString(), { ...init, redirect: 'manual' });
       if (request.body !== null) {
         const body = await request.clone().arrayBuffer();
         if (body.byteLength > maxBytes) {
