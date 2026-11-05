@@ -38,7 +38,10 @@ API key 增加权限系统，按操作的性质分为三种：
 - 既改变系统状态又消耗外部资源的操作（例如 Playground 的放行），需要同时开启 `write:all` 与 `execute:paid-operations`。
 - 这三个权限字段是系统内部实现细节，为以后更细化的权限系统预留。暴露给用户的只有四种模式，只能四选一：只读、读+改、读+耗、全部。
 - Admin Panel 新建 API key 时用下拉框选择这四种模式之一。
+- 已创建的 API key 只能修改权限（同样四选一）或 rotate。
 - API key 及其权限继续存在数据库中，不进入配置文件。已存的权限组合不合法时（例如直接改数据库造成只能写不能读），这把 key 不能工作；控制台输出警告，Admin Panel 的警告系统显示常态警告。前端需要做好抗脏数据处理，页面不能因此出错。
+- Admin API 与 MCP Server 都需要提供端点，告知当前 API key 拥有的权限。
+- 塑料碗提供的 Skill（`surowan-utils`、`surowan-mcp`，以及经 MCP with Skills 下发的 Skill）都要确保：权限不足时，Agent 主动拒绝执行，并提醒用户去 Admin Panel 开启权限。
 - 既有的 API key 迁移为开启 `read:all` 与 `execute:paid-operations`，保留原有的重放能力。
 - 账号与凭据整类排除在 API Key 可管控的范围之外：无论开启什么权限，API Key 都不能改管理员密码、管理 Passkey、新增或删除管理员账号，也不能颁发、吊销或查看 API Key。这些操作留给浏览器面板和服务端命令行 `surowan`。
 - surowan-utils 的用户名密码登录功能，以及 `setup`（首次创建管理员账号），先删除，CLI 只用 API key 鉴权；等想好怎么做再加回去。
