@@ -30,6 +30,7 @@ export const WARNING_DEFINITIONS = {
   // an incident log: the warning exists exactly while the registry says so.
   telegram_network_error: { kind: 'standing', category: 'runtime', severity: 'warning' },
   telegram_config_error: { kind: 'standing', category: 'runtime', severity: 'critical' },
+  api_key_invalid_permissions: { kind: 'standing', category: 'security', severity: 'warning' },
   invocation_failure_rate: { kind: 'event', category: 'runtime', severity: 'critical' },
   admin_login_failures: { kind: 'event', category: 'security', severity: 'warning' },
 } as const satisfies Record<string, WarningDefinition>;

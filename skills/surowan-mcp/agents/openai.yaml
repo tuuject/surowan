@@ -1,0 +1,4 @@
+interface:
+  display_name: "Surowan MCP"
+  short_description: "先读取 API key 权限，再通过 surowan_* 工具操作塑料碗"
+  default_prompt: "使用 $surowan-mcp 处理我的 Surowan 任务；先调用 surowan_key_show 确认权限，只读任务直接执行，写入与计费操作先逐项确认。"

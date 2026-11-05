@@ -17,14 +17,14 @@ Config + SecretStore
         ├─ AgentRuntime
         ├─ BucketScheduler
         ├─ BotCommandService / AgentModelSwitcher / ConfigReloader
-        ├─ AdminServer（仅 admin.enabled = true）
+        ├─ AdminServer（仅 admin.enabled = true；内含 MCP Server `/mcp`）
         ├─ LongTaskService（long_tasks / task_receipts）
         ├─ WarningService（warnings 事件警告；常态警告由 active 配置与连接状态即时推导）
         ├─ 内置 Plugin（web-search 及其服务商插件、web-fetch、image、alarm、dictionary）
         └─ ImageService（packages/image-service 核心；单 Worker 图片生成，原文件存 <data_dir>/images）
 ```
 
-启动顺序有语义：先加载并校验配置与权限，再取得单实例锁、迁移数据库、装配 Runtime 与宿主；Telegram 连接由连接管理器在 Runtime 就绪后启动，停用、网络异常或配置异常都只更新连接状态，不阻止进程继续启动；连接成功时同步 Sticker Set、排空 pending updates 并按 Conversation 创建 startup catch-up Invocation。最后启动 MCP、Scheduler 与 Admin Panel，然后等待关闭信号。启动时加载的配置是 active 配置的起点：运行期只有白名单字段可以被 `ConfigReloader` 应用到当前进程，其余字段仍要重启，见 [配置：运行时配置热更新](configuration.md#运行时配置热更新)。关闭时停止 Telegram 连接，先停 Admin Panel 再等待 Scheduler（最多 30 秒），随后停止 Image worker（在数据库连接关闭之前落地中断标记），停止 Sticker/MCP 服务，关闭数据库并释放锁。
+启动顺序有语义：先加载并校验配置与权限，再取得单实例锁、迁移数据库、装配 Runtime 与宿主；Telegram 连接由连接管理器在 Runtime 就绪后启动，停用、网络异常或配置异常都只更新连接状态，不阻止进程继续启动；连接成功时同步 Sticker Set、排空 pending updates 并按 Conversation 创建 startup catch-up Invocation。最后启动 MCP Client、Scheduler 与 Admin Panel（同一 AdminServer 同时承载 `/api` 与 `/mcp`），然后等待关闭信号。启动时加载的配置是 active 配置的起点：运行期只有白名单字段可以被 `ConfigReloader` 应用到当前进程，其余字段仍要重启，见 [配置：运行时配置热更新](configuration.md#运行时配置热更新)。关闭时停止 Telegram 连接，先停 Admin Panel/MCP 再等待 Scheduler（最多 30 秒），随后停止 Image worker（在数据库连接关闭之前落地中断标记），停止 Sticker/MCP 服务，关闭数据库并释放锁。
 
 ## Runtime 与宿主边界
 
@@ -158,6 +158,7 @@ Conversation Context 是运行时自己写下的历史，但它由模型输出�
 - `read` 只能读取 `system:///` 树内的 Markdown 文档：URI 段校验拒绝 `..`、反斜杠、百分号转义与非 Markdown 资源；Skill 内容是 runtime 文档，不是授权来源。
 - `execute` 只 dispatch 组合根注册的内部能力；`read`/`send`/`send_reply`/`execute`/`zzz` 原语与 MCP Tool 不在注册表内，无法被间接调用。`execute.call` 返回 `{text, refs}` 封套：文本截断到 32 KiB，引用只能是以 Context 级 token 形式返回的 capability 引用（如 `sticker_ref`），由 `send` 在边界处校验后消费。
 - MCP Tool 必须通过配置 allowlist、策略、超时和大小限制。
+- 外部 Agent 反向操作塑料碗只能经 AdminServer 的 `/mcp`：Bearer API key 的 `read_all`/`write_all`/`execute_paid_operations` 决定每个工具能否执行；MCP Tool 只是 Admin API 的类型化封装，账号与凭据管理不在工具面内。`/mcp` 同时支持现代（`2026-07-28`，per-request `_meta`）与 legacy initialize 会话，并通过 `io.modelcontextprotocol/skills` 扩展发布 `surowan-mcp` Skill。
 - `web_fetch` 只允许默认端口的公网 HTTP(S) GET；每次 DNS 与跳转目标都重新校验，连接固定到已校验地址，且不发送 Cookie 或认证信息。
 - 模型不能取得 Bash、任意进程、任意文件或原始 Telegram file ID 能力；模型也永远不能创建、修改或删除 Skill。
 

@@ -126,6 +126,7 @@ export const IMAGE_SPECS: readonly EndpointSpec[] = [
     method: 'POST',
     path: 'image/generations/resolve',
     body: true,
+    access: 'read',
     summary: 'Resolve a generation request into its snapshot without submitting it',
   },
   {
@@ -147,6 +148,7 @@ export const IMAGE_SPECS: readonly EndpointSpec[] = [
     method: 'POST',
     path: 'image/generations',
     body: true,
+    access: 'write+paid',
     confirm: 'paid',
     summary: 'Submit a real image generation (billed)',
   },
@@ -156,6 +158,7 @@ export const IMAGE_SPECS: readonly EndpointSpec[] = [
     path: 'image/generations/:id/retry',
     positional: [{ name: 'id', kind: 'text' }],
     body: 'optional',
+    access: 'write+paid',
     confirm: 'paid',
     summary: 'Retry a settled generation (billed)',
   },

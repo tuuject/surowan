@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { OPTIONS } from '../../../packages/cli/src/args/spec.ts';
 import { PANEL_SPECS } from '../../../packages/cli/src/panel/specs/index.ts';
-import { loginPanel, PASSWORD, panelFixture, runCli, USERNAME } from './fixtures.ts';
+import { loginPanel, panelFixture, runCli } from './fixtures.ts';
 
 describe('surowan-utils panel spec table', () => {
   it('declares every query flag a route forwards as a CLI option', () => {
@@ -19,11 +19,6 @@ describe('surowan-utils panel spec table', () => {
   it('forwards --days to the usage series', async () => {
     const fixture = await panelFixture();
     try {
-      await fetch(`${fixture.baseUrl}/api/auth/setup`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
-      });
       await loginPanel(fixture);
       const usage = await runCli(['usage', '--days', '30', '--json'], fixture);
       expect(usage.code, usage.stderr).toBe(0);

@@ -101,8 +101,13 @@ export async function readJson(response: Response): Promise<any> {
   return await response.json();
 }
 
-export async function createKey(server: AdminServer, cookie: string, name = 'eval-cli'): Promise<any> {
-  const response = await server.handle(post('/api/api-keys', { name }, { cookie }));
+export async function createKey(
+  server: AdminServer,
+  cookie: string,
+  name = 'eval-cli',
+  mode = 'read_paid',
+): Promise<any> {
+  const response = await server.handle(post('/api/api-keys', { name, mode }, { cookie }));
   expect(response.status).toBe(200);
   return await readJson(response);
 }

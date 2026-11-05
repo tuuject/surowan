@@ -1,7 +1,15 @@
 import type { SecretStore } from '../../../platform/secrets.ts';
 import type { Orm } from '../../../store/store.ts';
 import { json, readCookie, readJsonObject } from '../http.ts';
-import { createApiKey, listApiKeys, parseCreateApiKeyBody, revokeApiKey } from '../api-keys.ts';
+import {
+  createApiKey,
+  listApiKeys,
+  parseCreateApiKeyBody,
+  parseUpdateApiKeyBody,
+  revokeApiKey,
+  rotateApiKey,
+  updateApiKeyMode,
+} from '../api-keys.ts';
 import { type AdminAuth, AdminAuthError, type AdminCredentials, type AdminSession } from '../auth.ts';
 import { parseId } from '../audit/shared.ts';
 import type { AdminPasskeys } from '../passkeys.ts';
@@ -169,9 +177,22 @@ export function createAdminAuthHandler(deps: AdminAuthHandlerDeps) {
       return { kind: 'response', response: json({ items: listApiKeys(orm) }) };
     }
     if (route === 'api-keys' && request.method === 'POST') {
-      const created = createApiKey(orm, parseCreateApiKeyBody(await readJsonObject(request)));
+      const body = parseCreateApiKeyBody(await readJsonObject(request));
+      const created = createApiKey(orm, body.name, body.mode);
       secrets?.remember(created.key);
       return { kind: 'response', response: json(created) };
+    }
+    if (segments[0] === 'api-keys' && segments.length === 2 && request.method === 'PUT') {
+      const mode = parseUpdateApiKeyBody(await readJsonObject(request));
+      return {
+        kind: 'response',
+        response: json({ item: updateApiKeyMode(orm, parseId(segments[1] ?? '', 'id'), mode) }),
+      };
+    }
+    if (segments[0] === 'api-keys' && segments.length === 3 && segments[2] === 'rotate' && request.method === 'POST') {
+      const rotated = rotateApiKey(orm, parseId(segments[1] ?? '', 'id'));
+      secrets?.remember(rotated.key);
+      return { kind: 'response', response: json(rotated) };
     }
     if (segments[0] === 'api-keys' && segments.length === 2 && request.method === 'DELETE') {
       revokeApiKey(orm, parseId(segments[1] ?? '', 'id'));

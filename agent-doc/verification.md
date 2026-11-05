@@ -37,7 +37,7 @@ pnpm test test/agent/runtime.test.ts test/models/request-audit.test.ts test/runt
 pnpm test test/providers.test.ts test/models/metadata.test.ts test/tool-schema.test.ts test/token-usage.test.ts test/reconcile-daily-token-usage.test.ts
 pnpm test test/typing.test.ts
 pnpm test test/admin/developer.test.ts
-pnpm test test/admin/api-keys.test.ts test/admin/inspection.test.ts test/admin/invocation-media.test.ts
+pnpm test test/admin/api-keys.test.ts test/admin/api-keys-bearer.test.ts test/admin/mcp.test.ts test/admin/inspection.test.ts test/admin/invocation-media.test.ts
 pnpm test test/invocations/cli.test.ts test/cli/inspection.test.ts test/invocations/search.test.ts test/invocations/model-filter.test.ts test/cli/media.test.ts
 pnpm test test/cli/credentials.test.ts test/cli/login.test.ts test/cli/login-http.test.ts
 pnpm test test/npm-release.test.ts
@@ -362,8 +362,8 @@ Remove-Item Env:E2E_PASSKEYS
      跨站 Origin 的写请求返回 403 `bad_origin`。
   9. Chats：字符串 ID 安全整数边界、新增 Chat 热应用、删除 Chat 的热移除与数据清除（删除后该 Chat 的 Memo 行消失、其 Blob 内容端点 404，确认框含 Memo Pad/Blobs 警告）、修改 Topic 范围的保存/运行态分离、模型/thinking 热切与恢复继承、
      后台 refetch 不升级编辑和删除确认的原始 revision、保存后应用失败的双视图刷新与 Settings 恢复、移动端暗色布局。
-  10. API key（`14-api-keys.e2e.ts` 的 API 用例，API-only、自带登录，可单独运行）：Session 创建只返回一次明文与 `prefix`，列表不回显明文；Bearer 覆盖 invocation list/详情与 active/file 的 config view、global/group prompts，其它审计与管理路由（即使同时带 Cookie）403；撤销立即 401 且列表保留 `revoked_at`；`Authorization` 存在时不回退 Cookie；未接线的 replay 返回 503 `replay_unavailable`。
-  11. API keys 页面：`01-routes.e2e.ts` 断言 `/api-keys` 深链接渲染标题、`Create API key` 与 Name/Prefix/Created/Last used/Status/Actions 列头；`14-api-keys.e2e.ts` 的 `API key management UI`（注入上方 API 登录的 Session Cookie）断言：侧栏 Manage → API keys 进入页面；创建弹窗 Name `maxlength=80`，成功后一次性 **Save your API key** 弹窗显示可复制的明文，`Copy API key` 的复制值正确（拦截 clipboard，不写系统剪贴板），Web Storage 无 `pwk_` 明文；Done/Escape、刷新、历史导航与会话过期后 DOM 和表单 value 均无明文，刷新后行内只保留元数据（前缀、Active、Never used）；Revoke 确认框取消不发 DELETE、确认后同一 key 立即 401 且状态 Revoked、按钮消失；列表失败显示错误与 Retry 且不伪造行，空白名称不发请求，创建失败在弹窗内联显示并禁止进行中重复提交，撤销失败留在确认框（Working… 禁用两端按钮）；窄屏暗色无整页横向溢出。该套件关闭 trace、截图、视频与失败时的 ARIA 页面快照，所有密钥值断言只输出布尔结果，避免失败产物泄漏明文。
+  10. API key（`14-api-keys.e2e.ts` 的 API 用例，API-only、自带登录，可单独运行）：Session 创建只返回一次明文与 `prefix`，列表不回显明文；Bearer read key 覆盖全部 GET 审计读（含 overview、providers、playground 房间），写与账号管理路由 403；撤销/rotate 立即 401 且列表保留 `revoked_at`；`Authorization` 存在时不回退 Cookie；未接线的 replay 返回 503 `replay_unavailable`。
+  11. API keys 页面：`01-routes.e2e.ts` 断言 `/api-keys` 深链接渲染标题、`Create API key` 与 Name/Prefix/Mode/Created/Last used/Status/Actions 列头；`14-api-keys.e2e.ts` 的 `API key management UI`（注入上方 API 登录的 Session Cookie）断言：侧栏 Manage → API keys 进入页面；创建弹窗 Name `maxlength=80` 与四种模式下拉，成功后一次性 **Save your API key** 弹窗显示可复制的明文，`Copy API key` 的复制值正确（拦截 clipboard，不写系统剪贴板），Web Storage 无 `pwk_` 明文；Done/Escape、刷新、历史导航与会话过期后 DOM 和表单 value 均无明文，刷新后行内只保留元数据（前缀、Active、Never used）；Revoke 确认框取消不发 DELETE、确认后同一 key 立即 401 且状态 Revoked、按钮消失；列表失败显示错误与 Retry 且不伪造行，空白名称不发请求，创建失败在弹窗内联显示并禁止进行中重复提交，撤销失败留在确认框（Working… 禁用两端按钮）；窄屏暗色无整页横向溢出。该套件关闭 trace、截图、视频与失败时的 ARIA 页面快照，所有密钥值断言只输出布尔结果，避免失败产物泄漏明文。
 
 - 首次运行 E2E 前需要 `pnpm --filter surowan-admin-next exec playwright install chromium`；浏览器安装失败时套件无法
   执行，属于环境前置问题而非代码缺陷。
@@ -373,7 +373,7 @@ Remove-Item Env:E2E_PASSKEYS
 密钥在面板的 **Manage → API keys** 页创建与撤销；重放仍只有携带密钥的 CLI/API 入口。以下检查不需要 Telegram：
 
 1. 在 Manage → API keys 点 **Create API key**（名称 1–80 字符）→ **Create key**：**Save your API key** 弹窗是明文唯一一次出现，**Copy API key** 可复制，Done/关闭/刷新后不可再取回，`localStorage`/`sessionStorage` 里不出现 `pwk_` 明文；列表只显示 Name/Prefix/Created/Last used/Status 与操作，未使用时显示 Never used；**Revoke** 需在确认框确认，撤销后同一 key 的下一次请求立即 401，行保留并显示 Revoked。接口契约见 [admin-panel.md](admin-panel.md#程序化-api-密钥)。
-2. 用该 key 与 `surowan-utils invocation list/get` 能读到 Invocation；访问 `/api/overview`、`/api/memories`、`/api/api-keys` 等返回 403，同时带有效 Session Cookie 也不改变结果与权限面。
+2. 用该 key 与 `surowan-utils invocation list/get` 能读到 Invocation；read key 访问 `/api/overview`、`/api/memories` 返回 200，访问 `/api/api-keys`/`/api/auth/*` 返回 403；同时带有效 Session Cookie 也不会越过 key 的模式。
 3. 先免费 preflight/prompts 核对公开场景与 `source: active` 当前模板；取得目标/次数/覆盖的明确授权后，对仍保留开场公开消息的已完成 Invocation 执行 replay（真实调用模型、按 Provider 计费）：返回 `version: 2`、`scene`、当前模型与 `fidelity`；合成 send 只在 `outputs`，生产业务表、Context/refs、审计与预算不变。关闭调试录制、无源 model call 或清除调试报文都应仍可重建。
 4. 开场缺失/损坏、未完成、当前 Chat/Topic 不允许时，预检与 CLI 分别给出 `replay_scene_unavailable`/`replay_scene_invalid`/`replay_source_unfinished`/allowlist 错误且不发模型请求；不读私有 Context、`request_json` 或旧 replay payload。检查冻结历史/开场优先、后续 edit/attach 排除、保留媒体场景内按需读取与 reply 校验，图片失败或文本模型明确降级。
 5. 用 `invocation list --search '<关键词>' --at '<公开消息时间>'` 定位目标：命中项带 `matched_messages`（incoming/bot 与 bot 条目的 `telegram_send_id`），非法日历、`--at` 与 `--from/--to` 同用被拒绝，无搜索或时间过滤时响应保持 `{ items, next_cursor }` 原形状。用 bot 条目的 `telegram_send_id` 执行 `invocation preflight <id> --before-send <send id>`：`scene.slice` 与 `history_count: 0`，输入只含该发言之前的公开消息；再执行 `invocation replay <id> --before-send <send id> --confirm-paid`（真实计费），确认输入不含原 Bot 回答、更早历史与窗口外的热注入，生产业务表不变；窗口为空或目标非法分别得到 `replay_slice_empty`/`replay_slice_target_invalid` 且不发模型请求。

@@ -45,4 +45,6 @@ Skill 要求 Agent 每次任务先运行 `surowan-utils doctor --json`，使用�
 
 Skill 默认先报告审计证据；重放需要明确确认目标、次数和可选的 global/group prompt 覆盖，且不会自动重试。重放从源开场批次的冻结公开消息与当时可证明存在的历史重建场景，使用当前 Chat 的 prompt、模型与工具定义，不依赖 Developer 报文录制；global/group 两层可临时覆盖，固定协议不可覆盖。切片重放（`--before-send`）把输入收窄到某次成功 Bot 发言之前的窗口，需 `--confirm-paid` 显式确认计费。它不恢复私有推理；默认重放不加入后续热注入，切片模式只拍平可证明在目标发送前已注入的批次。合成发送成功不等于生产发送成功。查询结果（含搜索命中的 `matched_messages` 摘要）也可能包含私密消息和 prompt，不要直接公开完整输出。
 
-Skill 不随 CLI 升级自动更新：用 skills CLI 安装的运行 `npx skills update surowan-utils`；手工复制的是本地副本，同步源码仓库时一并更新（升级 CLI 命令如 `npm install -g @tuuject/surowan-utils@latest`）。宿主仍须允许命令执行和访问相应 endpoint，安装 Skill 本身不会授予权限。
+Skill 不随 CLI 升级自动更新：用 skills CLI 安装的运行 `npx skills update surowan-utils`；手工复制的是本地副本，同步源码仓库时一并更新（升级 CLI 命令如 `npm install -g @tuuject/surowan-utils@latest`）。支持 MCP 的 Harness 也可以改用 [MCP Server](../configure/mcp-server.md) 与 `skills/surowan-mcp/`：工具由 MCP Server 提供，不依赖 CLI；两条路径都按 API key 的权限模式执行。
+
+宿主仍须允许命令执行和访问相应 endpoint，安装 Skill 本身不会授予权限。

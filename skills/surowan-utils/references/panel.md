@@ -1,6 +1,6 @@
 # 面板操作与确认
 
-本指南的前提是入口的 `surowan-utils doctor --json` 已以退出码 `0` 返回 `status: "ok"`。先确认 `credential` 字段：`api_key` 只能读检查视图与重放 Invocation，执行任何面板命令都会得到 `403 forbidden`；写操作需要 `session`（由操作员用面板账号 `login --username …` 保存），Agent 不代为登录。
+本指南的前提是入口的 `surowan-utils doctor --json` 已以退出码 `0` 返回 `status: "ok"`。先读取返回的 `mode` 与 `permissions`：`read` 只能读；`read_write` 能写但不能计费；`read_paid` 能计费但不能写；`all` 全部允许。权限不足时命令返回 `403 forbidden`，停止并请操作员到 Admin Panel → API keys 调整模式；Agent 不代为登录或改凭据。
 
 ## 先读命令表，再决定用哪个
 
@@ -84,8 +84,6 @@ printf '%s' "$NEW_PROMPT" | surowan-utils prompt save global --file - --json
 | `telegram token clear` | 删除 Bot Token 并回收不再被引用的 jar 条目；Telegram 随即停用。设置新 token 用 `telegram token`，不需要 `--yes` |
 | `developer clear-payloads` | 分批清空历史模型报文，审计行保留但报文不可恢复 |
 | `warning clear` / `group-memory delete` / `memo delete` | 删除事件告警 / 群聊记忆事件 / Memo 条目及其孤立 Blob |
-| `logout` | 删除本机凭据文件 |
-| `account update` / `password delete` / `setup` | 撤销该账号**全部** Session；CLI 会把新 token 写回凭据文件，成功后再继续 |
 
 删除 Chat 前必须核对：用户是否知道 Memo 与 Blob 会一并删除；该 Chat 是否仍有迁移别名（有则返回 409 `chat_still_authorized`，数据保留）；是否仍有运行中的 Invocation（可能返回 409 `chat_delete_pending`，可用当前 revision 重试）。
 
@@ -103,20 +101,19 @@ printf '%s' "$NEW_PROMPT" | surowan-utils prompt save global --file - --json
 
 授权必须覆盖目标、次数与可选覆盖（模型/thinking/图片参数）。授权一次不代表可以批量或自动重试。
 
-## 凭据与会话
+## 凭据与授权
 
-- 凭据文件固定为 `~/.config/surowan-utils/credentials.json`（未加密），只保存一份凭据：`{endpoint, session}` 或 `{endpoint, apiKey}`。
-- `--api-key` 与 `--session`（或对应环境变量）同时给出报 `conflicting_credentials`；两者授权范围不同，不要静默择一。
-- `account update`、`password delete`、`setup` 成功后 CLI 会把服务端新签发的 token 写回文件；若服务端未返回新 token，CLI 以 `invalid_response` 失败并提示重新 `login`，因为旧 token 已失效。
-- `logout` 成功后删除凭据文件；再次使用需要操作员重新 `login`。
-- 以上写回与删除只针对凭据文件里的 Session。Session 由 `--session` 或 `SUROWAN_SESSION` 提供时，CLI 不动凭据文件；轮换后 stderr 出现 `session_not_stored` 警告，表示提供的 token 已失效、新 token 未保存，需要操作员重新 `login`。
-- 不要读取、打印或转贴凭据文件内容，也不要向聊天索要明文密码或 token。
+- 凭据文件固定为 `~/.config/surowan-utils/credentials.json`（未加密），只保存 `{endpoint, apiKey}`。
+- 权限由 API key 的模式决定；`doctor --json` 的 `mode`/`permissions` 是当前模式。权限不足时按 `forbidden` 的提示请操作员修改 key，不要寻找绕过路径。
+- 配置写命令自动读取配置 revision；Prompt 写命令使用 Prompt 的 `content_hash`；条目写命令使用条目自身 `revision`。冲突时重新读取并重新确认，不要用 `--if-match` 覆盖别人的修改。
+- 不要读取、打印或转贴凭据文件内容，也不要向聊天索要明文 key。
 
 ## 明确不在 CLI 里的能力
 
-- **Passkey 注册与 Passkey 登录**（`/api/auth/passkeys/{register,login}/{options,verify}`）需要浏览器的 WebAuthn authenticator，CLI 无法完成。可以用 `passkey list` 查看已注册的 key、用 `passkey delete` 删除，但新增或使用 passkey 必须回到面板。`passkey delete` 与 `password delete` 要求 endpoint 就是 `admin.public_url`（服务端按该 origin 全等校验 `Origin`）；返回 `bad_origin` 时说明当前 endpoint 不是这个地址，不要尝试其它绕过方式。
+- **账号与凭据管理**：管理员用户名/密码、Passkey、API key 的创建、权限修改、轮换与撤销只允许在浏览器面板完成；API key 自身永远不能管理这些。
+- **Passkey 注册与登录**需要浏览器 WebAuthn authenticator，CLI 无法完成。
 - **面板前端专属的本地偏好**（主题、语言、是否显示 config.jsonc 键名）只存在浏览器 `localStorage`，没有服务端接口。
-- 除上述之外，面板的每个 `/api` 路由都有对应命令；`surowan-utils commands` 的输出就是完整清单，两者不一致即为缺陷。
+- 除上述之外，面板的每个可授权 `/api` 路由都有对应命令；`surowan-utils commands` 的输出就是完整清单，两者不一致即为缺陷。
 
 ## 报告
 

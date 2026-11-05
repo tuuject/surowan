@@ -2,17 +2,12 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
-import { loginPanel, PASSWORD, panelFixture, runCli, USERNAME } from './fixtures.ts';
+import { loginPanel, panelFixture, runCli } from './fixtures.ts';
 
 describe('surowan-utils panel pages', () => {
   it('creates a playground room and sends a message through the same routes the page uses', async () => {
     const fixture = await panelFixture();
     try {
-      await fetch(`${fixture.baseUrl}/api/auth/setup`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
-      });
       await loginPanel(fixture);
 
       const created = await runCli(
@@ -78,11 +73,6 @@ describe('surowan-utils panel pages', () => {
   it('reads and writes memories, and exports the dictionary as text', async () => {
     const fixture = await panelFixture();
     try {
-      await fetch(`${fixture.baseUrl}/api/auth/setup`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
-      });
       await loginPanel(fixture);
 
       // A memo needs an existing `chats` row, not merely a configured Chat:
@@ -182,11 +172,6 @@ describe('surowan-utils panel pages', () => {
   it('downloads a room asset by the hexadecimal id the upload returned', async () => {
     const fixture = await panelFixture();
     try {
-      await fetch(`${fixture.baseUrl}/api/auth/setup`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
-      });
       await loginPanel(fixture);
       const created = await runCli(
         ['room', 'create', '--set', 'title=Asset room', '--set', 'request_key=cli-asset-room', '--json'],

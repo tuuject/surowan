@@ -78,12 +78,18 @@ test('API keys are managed by the session and only shown once', async ({ request
     }
   }
 
-  // It does not cover other audits, key management, or the wider session
-  // surface — not even when the request also carries the session cookie.
-  for (const path of ['/api/overview', '/api/messages', '/api/api-keys', '/api/config/status']) {
+  // Read keys reach the other audits, but never key management or writes —
+  // not even when the request also carries the session cookie.
+  for (const path of ['/api/overview', '/api/messages', '/api/config/status']) {
+    const response = await request.get(await adminUrl(path), { headers: { cookie, ...bearer(key) } });
+    expect(response.status(), path).toBe(200);
+  }
+  for (const path of ['/api/api-keys', '/api/auth/session']) {
     const response = await request.get(await adminUrl(path), { headers: { cookie, ...bearer(key) } });
     expect(response.status(), path).toBe(403);
   }
+  const write = await request.post(await adminUrl('/api/wake'), { headers: { cookie, ...bearer(key) } });
+  expect(write.status()).toBe(403);
 
   // Replay is not wired into the E2E fixture.
   const replay = await request.post(await adminUrl('/api/invocations/4001/replay'), {
@@ -114,19 +120,18 @@ test('a present Authorization header never falls back to the session cookie', as
   });
   expect(garbage.status()).toBe(401);
 
-  // A valid key plus the cookie is still restricted to inspection and invocation routes.
+  // A valid key plus the cookie still uses the key's read surface.
   const key = await createKey(request, 'e2e-boundary');
   const upgraded = await request.get(await adminUrl('/api/memories'), { headers: { cookie, ...bearer(key) } });
-  expect(upgraded.status()).toBe(403);
+  expect(upgraded.status()).toBe(200);
 
-  // Memo Pad image bytes are panel-session only: an unauthenticated request is
-  // rejected, a Bearer key is forbidden even with the cookie, and the session
-  // reaches the route (the fixture has no blob for this well-formed id).
+  // Memo Pad image bytes are readable with the key's read grant; an anonymous
+  // request is rejected and a well-formed missing blob is 404.
   const blobPath = await adminUrl(`/api/memories/blobs/blb_${'a'.repeat(32)}/content`);
   const anonymousBlob = await request.get(blobPath);
   expect(anonymousBlob.status()).toBe(401);
   const keyBlob = await request.get(blobPath, { headers: { cookie, ...bearer(key) } });
-  expect(keyBlob.status()).toBe(403);
+  expect(keyBlob.status()).toBe(404);
   const sessionBlob = await request.get(blobPath, { headers: { cookie } });
   expect(sessionBlob.status()).toBe(404);
 

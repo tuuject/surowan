@@ -15,19 +15,70 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { apiKeysQuery } from '@/lib/queries';
-import { createApiKey, revokeApiKey } from '@/lib/api/admin.ts';
-import type { AdminApiKeyItem } from '@/lib/api/admin.ts';
+import { createApiKey, revokeApiKey, rotateApiKey, updateApiKeyMode } from '@/lib/api/admin.ts';
+import type { AdminApiKeyItem, ApiKeyMode } from '@/lib/api/admin.ts';
+
+const MODES: readonly ApiKeyMode[] = ['read', 'read_write', 'read_paid', 'all'];
+
+function ModeSelect({
+  id,
+  value,
+  disabled,
+  onChange,
+}: {
+  readonly id: string;
+  readonly value: ApiKeyMode;
+  readonly disabled?: boolean;
+  readonly onChange: (mode: ApiKeyMode) => void;
+}): React.ReactElement {
+  const { t } = useTranslation();
+  return (
+    <Select
+      value={value}
+      disabled={disabled ?? false}
+      onValueChange={(next) => {
+        const selected = MODES.find((candidate) => candidate === next);
+        if (selected !== undefined) {
+          onChange(selected);
+        }
+      }}
+    >
+      <SelectTrigger id={id} className="w-full">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {MODES.map((mode) => (
+          <SelectItem key={mode} value={mode}>
+            {t(`pages.apiKeys.modes.${mode}`)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function ModeBadge({ item }: { readonly item: AdminApiKeyItem }): React.ReactElement {
+  const { t } = useTranslation();
+  const mode = MODES.find((candidate) => candidate === item.mode);
+  if (mode === undefined) {
+    return <ToneBadge tone="danger">{t('pages.apiKeys.invalidPermissions')}</ToneBadge>;
+  }
+  return <ToneBadge tone={mode === 'read' ? 'neutral' : 'success'}>{t(`pages.apiKeys.modes.${mode}`)}</ToneBadge>;
+}
 
 export default function ApiKeysPage(): React.ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const keys = useQuery(apiKeysQuery);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<AdminApiKeyItem | null>(null);
+  const [rotating, setRotating] = useState<AdminApiKeyItem | null>(null);
   const [revoking, setRevoking] = useState<AdminApiKeyItem | null>(null);
   const revoke = useMutation({
     mutationFn: revokeApiKey,
@@ -51,6 +102,11 @@ export default function ApiKeysPage(): React.ReactElement {
       key: 'prefix',
       title: t('pages.apiKeys.prefix'),
       render: (item) => <MonoValue value={`${item.prefix}…`} />,
+    },
+    {
+      key: 'mode',
+      title: t('pages.apiKeys.mode'),
+      render: (item) => <ModeBadge item={item} />,
     },
     { key: 'created', title: t('pages.apiKeys.created'), render: (item) => formatTime(item.created_at) },
     {
@@ -77,18 +133,26 @@ export default function ApiKeysPage(): React.ReactElement {
       title: t('pages.apiKeys.actions'),
       render: (item) =>
         item.revoked_at === null ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="destructive"
-            disabled={revoke.isPending}
-            onClick={() => {
-              revoke.reset();
-              setRevoking(item);
-            }}
-          >
-            {t('pages.apiKeys.revoke')}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={() => setEditing(item)}>
+              {t('pages.apiKeys.editMode')}
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => setRotating(item)}>
+              {t('pages.apiKeys.rotate')}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={revoke.isPending}
+              onClick={() => {
+                revoke.reset();
+                setRevoking(item);
+              }}
+            >
+              {t('pages.apiKeys.revoke')}
+            </Button>
+          </div>
         ) : null,
     },
   ];
@@ -130,6 +194,8 @@ export default function ApiKeysPage(): React.ReactElement {
         />
       )}
       {creating ? <CreateKeyDialog onClose={() => setCreating(false)} /> : null}
+      {editing !== null ? <EditModeDialog item={editing} onClose={() => setEditing(null)} /> : null}
+      {rotating !== null ? <RotateKeyDialog item={rotating} onClose={() => setRotating(null)} /> : null}
       <ConfirmDialog
         open={revoking !== null}
         onOpenChange={(open) => {
@@ -162,14 +228,15 @@ function CreateKeyDialog({ onClose }: { readonly onClose: () => void }): React.R
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
+  const [mode, setMode] = useState<ApiKeyMode>('read');
   const [nameError, setNameError] = useState(false);
   const [plaintext, setPlaintext] = useState<string | null>(null);
   const [copyState, setCopyState] = useState<'idle' | 'pending' | 'copied' | 'failed'>('idle');
   const create = useMutation({
     // Return nothing: mutation/query caches must never retain the one-time key.
     // Closing this dialog unmounts its local state, rather than hiding the key.
-    mutationFn: async (keyName: string): Promise<void> => {
-      const result = await createApiKey(keyName);
+    mutationFn: async (input: { readonly name: string; readonly mode: ApiKeyMode }): Promise<void> => {
+      const result = await createApiKey(input.name, input.mode);
       setPlaintext(result.key);
     },
     gcTime: 0,
@@ -203,7 +270,7 @@ function CreateKeyDialog({ onClose }: { readonly onClose: () => void }): React.R
                 return;
               }
               setNameError(false);
-              create.mutate(trimmed);
+              create.mutate({ name: trimmed, mode });
             }}
           >
             <div className="space-y-2">
@@ -227,12 +294,17 @@ function CreateKeyDialog({ onClose }: { readonly onClose: () => void }): React.R
                   {t('pages.apiKeys.invalidName')}
                 </p>
               ) : null}
-              {create.isError ? (
-                <p role="alert" className="text-destructive text-sm break-words">
-                  {errorMessage(create.error)}
-                </p>
-              ) : null}
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="api-key-mode">{t('pages.apiKeys.mode')}</Label>
+              <ModeSelect id="api-key-mode" value={mode} disabled={create.isPending} onChange={setMode} />
+              <p className="text-muted-foreground text-xs">{t(`pages.apiKeys.modeHints.${mode}`)}</p>
+            </div>
+            {create.isError ? (
+              <p role="alert" className="text-destructive text-sm break-words">
+                {errorMessage(create.error)}
+              </p>
+            ) : null}
             <DialogFooter>
               <Button type="button" variant="outline" disabled={create.isPending} onClick={onClose}>
                 {t('common.cancel')}
@@ -243,52 +315,186 @@ function CreateKeyDialog({ onClose }: { readonly onClose: () => void }): React.R
             </DialogFooter>
           </form>
         ) : (
-          <>
-            <div className="min-w-0 space-y-2">
-              <Label htmlFor="api-key-plaintext">{t('pages.apiKeys.keyLabel')}</Label>
-              <Textarea
-                id="api-key-plaintext"
-                value={plaintext}
-                readOnly
-                autoComplete="off"
-                spellCheck={false}
-                className="resize-none break-all font-mono"
-                onFocus={(event) => event.target.select()}
-              />
-              {copyState === 'failed' ? (
-                <p role="alert" className="text-destructive text-sm">
-                  {t('pages.apiKeys.copyFailed')}
-                </p>
-              ) : copyState === 'copied' ? (
-                <p role="status" className="text-success text-sm">
-                  {t('common.copied')}
-                </p>
-              ) : null}
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={copyState === 'pending'}
-                onClick={async () => {
-                  setCopyState('pending');
-                  try {
-                    await navigator.clipboard.writeText(plaintext);
-                    setCopyState('copied');
-                  } catch {
-                    setCopyState('failed');
-                  }
-                }}
-              >
-                {t('pages.apiKeys.copy')}
-              </Button>
-              <Button type="button" onClick={onClose}>
-                {t('pages.apiKeys.done')}
-              </Button>
-            </DialogFooter>
-          </>
+          <KeyReveal plaintext={plaintext} copyState={copyState} setCopyState={setCopyState} onClose={onClose} />
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function EditModeDialog({
+  item,
+  onClose,
+}: {
+  readonly item: AdminApiKeyItem;
+  readonly onClose: () => void;
+}): React.ReactElement {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [mode, setMode] = useState<ApiKeyMode>(item.mode ?? 'read');
+  const update = useMutation({
+    mutationFn: (next: ApiKeyMode) => updateApiKeyMode(item.id, next),
+    retry: false,
+    onSuccess: () => {
+      toast.success(t('pages.apiKeys.modeUpdated'));
+      onClose();
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: apiKeysQuery.queryKey });
+    },
+  });
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && !update.isPending && onClose()}>
+      <DialogContent className="min-w-0">
+        <DialogHeader>
+          <DialogTitle>{t('pages.apiKeys.editMode')}</DialogTitle>
+          <DialogDescription>{t('pages.apiKeys.editModeDescription', { name: item.name })}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="api-key-edit-mode">{t('pages.apiKeys.mode')}</Label>
+          <ModeSelect id="api-key-edit-mode" value={mode} disabled={update.isPending} onChange={setMode} />
+          <p className="text-muted-foreground text-xs">{t(`pages.apiKeys.modeHints.${mode}`)}</p>
+          {item.mode === null ? (
+            <p role="alert" className="text-destructive text-sm">
+              {t('pages.apiKeys.invalidPermissionsHint')}
+            </p>
+          ) : null}
+          {update.isError ? (
+            <p role="alert" className="text-destructive text-sm break-words">
+              {errorMessage(update.error)}
+            </p>
+          ) : null}
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" disabled={update.isPending} onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="button" disabled={update.isPending} onClick={() => update.mutate(mode)}>
+            {update.isPending ? t('common.saving') : t('common.save')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RotateKeyDialog({
+  item,
+  onClose,
+}: {
+  readonly item: AdminApiKeyItem;
+  readonly onClose: () => void;
+}): React.ReactElement {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [plaintext, setPlaintext] = useState<string | null>(null);
+  const [copyState, setCopyState] = useState<'idle' | 'pending' | 'copied' | 'failed'>('idle');
+  const rotate = useMutation({
+    mutationFn: async (): Promise<void> => {
+      const result = await rotateApiKey(item.id);
+      setPlaintext(result.key);
+    },
+    gcTime: 0,
+    retry: false,
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: apiKeysQuery.queryKey });
+    },
+  });
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && !rotate.isPending && onClose()}>
+      <DialogContent className="min-w-0 max-h-[calc(100dvh-2rem)] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {plaintext === null ? t('pages.apiKeys.rotateTitle') : t('pages.apiKeys.saveTitle')}
+          </DialogTitle>
+          <DialogDescription>
+            {plaintext === null
+              ? t('pages.apiKeys.rotateDescription', { name: item.name })
+              : t('pages.apiKeys.saveDescription')}
+          </DialogDescription>
+        </DialogHeader>
+        {plaintext === null ? (
+          <>
+            {rotate.isError ? (
+              <p role="alert" className="text-destructive text-sm break-words">
+                {errorMessage(rotate.error)}
+              </p>
+            ) : null}
+            <DialogFooter>
+              <Button type="button" variant="outline" disabled={rotate.isPending} onClick={onClose}>
+                {t('common.cancel')}
+              </Button>
+              <Button type="button" disabled={rotate.isPending} onClick={() => rotate.mutate()}>
+                {rotate.isPending ? t('common.saving') : t('pages.apiKeys.rotateConfirm')}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <KeyReveal plaintext={plaintext} copyState={copyState} setCopyState={setCopyState} onClose={onClose} />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function KeyReveal({
+  plaintext,
+  copyState,
+  setCopyState,
+  onClose,
+}: {
+  readonly plaintext: string;
+  readonly copyState: 'idle' | 'pending' | 'copied' | 'failed';
+  readonly setCopyState: (state: 'idle' | 'pending' | 'copied' | 'failed') => void;
+  readonly onClose: () => void;
+}): React.ReactElement {
+  const { t } = useTranslation();
+  return (
+    <>
+      <div className="min-w-0 space-y-2">
+        <Label htmlFor="api-key-plaintext">{t('pages.apiKeys.keyLabel')}</Label>
+        <Textarea
+          id="api-key-plaintext"
+          value={plaintext}
+          readOnly
+          autoComplete="off"
+          spellCheck={false}
+          className="resize-none break-all font-mono"
+          onFocus={(event) => event.target.select()}
+        />
+        {copyState === 'failed' ? (
+          <p role="alert" className="text-destructive text-sm">
+            {t('pages.apiKeys.copyFailed')}
+          </p>
+        ) : copyState === 'copied' ? (
+          <p role="status" className="text-success text-sm">
+            {t('common.copied')}
+          </p>
+        ) : null}
+      </div>
+      <DialogFooter>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={copyState === 'pending'}
+          onClick={async () => {
+            setCopyState('pending');
+            try {
+              await navigator.clipboard.writeText(plaintext);
+              setCopyState('copied');
+            } catch {
+              setCopyState('failed');
+            }
+          }}
+        >
+          {t('pages.apiKeys.copy')}
+        </Button>
+        <Button type="button" onClick={onClose}>
+          {t('pages.apiKeys.done')}
+        </Button>
+      </DialogFooter>
+    </>
   );
 }

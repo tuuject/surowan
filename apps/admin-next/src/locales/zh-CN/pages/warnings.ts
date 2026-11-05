@@ -18,6 +18,7 @@ export const warnings: typeof warningsEn = {
   noStanding: '当前没有常态警告。',
   noEvents: '还没有事件警告。',
   missingFields: '缺少：{{fields}}',
+  invalidApiKeys: '非法密钥：{{keys}}',
   lastFailedAt: '最近失败：{{time}}',
   createdAt: '创建于 {{time}}',
   updatedAt: '更新于 {{time}}',
@@ -32,6 +33,7 @@ export const warnings: typeof warningsEn = {
     openInvocations: '打开调用记录',
     openSettings: '打开设置',
     openTelegram: '打开 Telegram 设置',
+    openApiKeys: '打开 API 密钥',
   },
   codes: {
     developer_payload_recording: {
@@ -69,6 +71,10 @@ export const warnings: typeof warningsEn = {
         conflict: '另一个进程正在用这个 Token 收消息。请停掉它，或换一个 Token。',
         token_unreadable: '配置的 Token 来源无法解析。请检查 key.json、环境变量或命令。',
       },
+    },
+    api_key_invalid_permissions: {
+      title: 'API 密钥权限组合非法',
+      body: '数据库中有一把或多把 API 密钥的权限组合非法，它们无法通过鉴权；请到 API 密钥页保存一个合法模式修复。',
     },
     unknown: {
       title: '未知警告：{{code}}',

@@ -12,12 +12,12 @@ test('prompt save applies the next invocation, records versions, diffs and resto
     const cookie = await login(server);
     const startHash = configStore.current().hash;
 
-    // API keys never reach the prompt surface.
+    // Read keys reach the prompt views; writes stay behind write_all.
     const key = await readJson(await server.handle(post('/api/api-keys', { name: 'probe' }, cookie)));
     const bearer = await server.handle(
       request('/api/prompts/versions?scope=global', { headers: { authorization: `Bearer ${key.key as string}` } }),
     );
-    expect(bearer.status).toBe(403);
+    expect(bearer.status).toBe(200);
 
     const view = await readJson(
       await server.handle(request('/api/prompts/global?source=file', { headers: { cookie } })),
@@ -161,6 +161,25 @@ test('a hand-edited prompt file becomes a version on the next apply, comment-onl
       await server.handle(request('/api/prompts/versions?scope=global', { headers: { cookie } })),
     );
     expect(versions.items).toHaveLength(2);
+  } finally {
+    store.close();
+  }
+});
+
+test('API key reads redact the calling key even without a secret store', async () => {
+  // This fixture's AdminServer has no SecretStore, so remember(token) cannot help.
+  const { store, server, directory } = await fixture();
+  try {
+    const cookie = await login(server);
+    const key = await readJson(await server.handle(post('/api/api-keys', { name: 'probe' }, cookie)));
+    await writeFile(join(directory, 'agent-system-prompt.md'), `Never print ${key.key as string}.`);
+    const view = await server.handle(
+      request('/api/prompts/global?source=file', { headers: { authorization: `Bearer ${key.key as string}` } }),
+    );
+    expect(view.status).toBe(200);
+    const text = await view.text();
+    expect(text).not.toContain(key.key);
+    expect(text).toContain('[REDACTED]');
   } finally {
     store.close();
   }

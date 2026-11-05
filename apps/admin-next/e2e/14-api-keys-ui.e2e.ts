@@ -53,14 +53,11 @@ test.describe('API key management UI', () => {
 
     const main = page.getByRole('main');
     await expect(main.getByText('API keys', { exact: true }).first()).toBeVisible();
-    // The permission note names the inspection/export surface without granting production writes.
+    // The permission note names the four modes and keeps account management out of keys.
     const permissionNote = main.getByText(/surowan-utils CLI/);
     await expect(permissionNote).toBeVisible();
-    await expect(permissionNote).toContainText('read redacted configuration and global/group prompts');
-    await expect(permissionNote).toContainText('export snapshot-authorized media');
-    await expect(permissionNote).toContainText('temporary prompt overrides');
-    await expect(permissionNote).toContainText('cannot change production prompts or configuration, or manage keys');
-    await expect(permissionNote).toContainText('may incur charges');
+    await expect(permissionNote).toContainText('read-only, read+write, read+paid, or all');
+    await expect(permissionNote).toContainText('Account and API-key management always stay in the browser panel');
     await expect(main.getByRole('button', { name: 'Create API key' })).toBeVisible();
 
     const name = uniqueKeyName('once');
@@ -124,7 +121,7 @@ test.describe('API key management UI', () => {
     });
     expect(invocations.status()).toBe(200);
     const overview = await page.request.get(await adminUrl('/api/overview'), { headers: bearer(key) });
-    expect(overview.status()).toBe(403);
+    expect(overview.status()).toBe(200);
   });
 
   test('drops an open plaintext dialog on Escape, refresh and history navigation', async ({ page }) => {

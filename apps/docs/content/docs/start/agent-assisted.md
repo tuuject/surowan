@@ -29,6 +29,10 @@ Agent 可以帮助阅读配置、生成非敏感 Prompt、执行校验和解释�
 4. 你自己注入环境变量后，再决定是否运行 `doctor`。Doctor 会访问 Telegram、Provider 和媒体依赖，并可能消耗少量 Token。
 5. 变更前让 Agent 列出哪些字段需要重启；变更后查看 `serve_started` 或 `config_reloaded`。
 
+## 通过 MCP 操作塑料碗
+
+支持 MCP 的 Agent 可以连接服务端同一端口的 `/mcp`，用 `Authorization: Bearer pwk_<your-key>` 鉴权，不需要安装 CLI。请按任务在面板创建对应模式的 API key（只读、读+改、读+耗或全部），不要把 key 写进对话或 Skill；配置方式见 [MCP Server](../configure/mcp-server.md)。支持 MCP with Skills 的 Harness 会自动拿到 `surowan-mcp` Skill；不支持时单独安装 `skills/surowan-mcp/`。
+
 ## 不要自动化的动作
 
 - 不要让 Agent 调用交互式 `configure` 来创建首份配置；它只编辑已有可加载配置且需要 TTY。

@@ -69,7 +69,7 @@ export async function readJsonObject(request: Request, maxBytes = MAX_BODY_BYTES
  * chunked request without Content-Length could make an unauthenticated login
  * allocate without bound, and the check counted UTF-16 units, not bytes.
  */
-async function readBoundedText(request: Request, maxBytes: number): Promise<string> {
+export async function readBoundedText(request: Request, maxBytes: number): Promise<string> {
   const tooLarge = (): AdminAuthError => new AdminAuthError(413, 'body_too_large', 'Request body is too large');
   const declared = request.headers.get('content-length');
   if (declared !== null && Number(declared) > maxBytes) {

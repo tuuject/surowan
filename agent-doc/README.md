@@ -47,6 +47,7 @@
 | 修改辞典、群级术语、自动注入、导入导出与 Tool Model 融合 | [dictionary.md](dictionary.md) |
 | 本地启动、安装媒体依赖、部署或排障 | [operations.md](operations.md) |
 | 修改 Admin Panel 认证、审计 API 或前端 | [admin-panel.md](admin-panel.md) |
+| 修改 MCP Server、API key 权限、MCP with Skills 或 `surowan-mcp` Skill | [admin-panel.md](admin-panel.md#mcp-server)、[admin-panel.md](admin-panel.md#程序化-api-密钥)、[MCP Skill](../skills/surowan-mcp/SKILL.md) |
 | 修改 Models 页模型健康检查、诊断审计或批量取消 | [admin-panel.md](admin-panel.md#models-页写端点)、[verification.md](verification.md#admin-panel-浏览器-e2e) |
 | 修改 `surowan-utils` 面板命令、模型列表、临时模型重放或配套 Skill | [admin-panel.md](admin-panel.md#cli-与面板能力对齐)、[CLI 使用说明](../packages/cli/README.md)、[客户端 Skill](../skills/surowan-utils/SKILL.md) |
 | 新增或修改 Coding Agent Skill、外部 Skill 清单与安装 | [operations.md](operations.md#coding-agent-skills) |

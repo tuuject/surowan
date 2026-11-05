@@ -35,7 +35,8 @@ COPY . .
 # The image-service build is explicit: its dist/ must exist before the prod
 # prune, whose --ignore-scripts flag (in the builder stage) skips the prepare script.
 RUN pnpm --config.verify-deps-before-run=false run admin:build \
-    && pnpm --config.verify-deps-before-run=false run --filter @surowan/image-service build
+    && pnpm --config.verify-deps-before-run=false run --filter @surowan/image-service build \
+    && pnpm --config.verify-deps-before-run=false run --filter @surowan/admin-surface build
 
 # Pack the user-manual Markdown the runtime serves through its document
 # capabilities. Only content/docs and the examples enter the build context (see .dockerignore);
@@ -67,6 +68,7 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 COPY --from=assets /app/apps/admin-next/dist ./apps/admin-next/dist
 COPY --from=assets /app/packages/image-service/dist ./packages/image-service/dist
+COPY --from=assets /app/packages/admin-surface/dist ./packages/admin-surface/dist
 COPY --from=assets /app/src/manual ./src/manual
 
 # Prune devDependencies — runtime only needs production deps.
@@ -107,6 +109,9 @@ COPY --from=builder --chown=surowan:surowan /app/node_modules ./node_modules
 COPY --from=builder --chown=surowan:surowan /app/packages/image-service/package.json ./packages/image-service/package.json
 COPY --from=builder --chown=surowan:surowan /app/packages/image-service/dist ./packages/image-service/dist
 COPY --from=builder --chown=surowan:surowan /app/packages/image-service/node_modules ./packages/image-service/node_modules
+COPY --from=builder --chown=surowan:surowan /app/packages/admin-surface/package.json ./packages/admin-surface/package.json
+COPY --from=builder --chown=surowan:surowan /app/packages/admin-surface/dist ./packages/admin-surface/dist
+COPY --from=builder --chown=surowan:surowan /app/skills ./skills
 COPY --from=builder --chown=surowan:surowan /app/apps/admin-next/dist ./apps/admin-next/dist
 COPY --from=builder --chown=surowan:surowan /app/apps/admin-next/LICENSE ./apps/admin-next/LICENSE
 COPY --from=builder --chown=surowan:surowan /app/apps/admin-next/NOTICE ./apps/admin-next/NOTICE

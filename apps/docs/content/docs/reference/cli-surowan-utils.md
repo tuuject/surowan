@@ -6,12 +6,16 @@ description: 安装 Admin API 工具客户端、保存凭据并完成首次连�
 # surowan-utils 客户端
 
 
-`packages/cli` 提供工具客户端 `surowan-utils`（npm 包 `@tuuject/surowan-utils`），它有两种凭据，决定能做什么：
+`packages/cli` 提供工具客户端 `surowan-utils`（npm 包 `@tuuject/surowan-utils`）。它只接受一种凭据：在面板 **Manage → API keys** 创建并选择权限模式的 **API key**。模式四选一，决定 CLI 能做什么：
 
-- **面板 Session**：`surowan-utils login --username <name>` 用面板密码换取 Session Token，权限与浏览器面板完全相同，因此面板里能做的操作（改配置、管 Chat/模型/Prompt、Memo Pad、辞典、群聊记忆、告警、Playground 房间、图片生成）都能在命令行完成。`surowan-utils commands` 列出全部面板命令。
-- **API key**：在面板 **Manage → API keys** 创建，权限固定为只读检查与 Invocation 读/重放，不能执行面板命令。
+| 模式 | 能力 |
+| --- | --- |
+| 只读（`read`） | 全部审计读取、配置与 Prompt 脱敏视图、模型列表、Invocation 查询/媒体导出/重放预检 |
+| 读 + 改（`read_write`） | 只读能力 + 改配置、Chat、Prompt、Memo Pad、辞典、群聊记忆、告警、Playground 输入等不消耗外部资源的写操作 |
+| 读 + 耗（`read_paid`） | 只读能力 + Invocation 重放、Provider 健康检查、生图、辞典合并预览、Playground Release/Retry 等计费操作 |
+| 全部（`all`） | 以上全部；Playground Release 等同时改变状态又计费的操作需要这一档 |
 
-第一类只读与重放子命令为 `invocation list` / `get` / `prompts` / `preflight` / `media` / `replay`、`models list`、`config show` 与 `prompt get global|group`；另有 `doctor`（一次只读请求验证连通与鉴权）与 `commands`（列出面板命令表）。`login` 只保存本机凭据，不提供服务端密钥管理（密钥的创建与撤销仍只在面板进行）。Passkey 的注册与登录需要浏览器 WebAuthn，命令行无法完成。
+第一类子命令为 `invocation list` / `get` / `prompts` / `preflight` / `media` / `replay`、`models list`、`config show` 与 `prompt get global|group`；另有 `doctor`（验证连通并读取当前 key 权限）与 `commands`（列出面板命令表）。`login` 只保存本机 API key，不提供服务端密钥管理；密钥的创建、权限修改、rotate 与撤销仍只在面板进行。账号、密码与 Passkey 管理不在 CLI 内。
 
 它与服务端入口 `surowan`（`node src/cli.ts`）不同：本客户端直接访问 Admin API，不包含 `serve`、`check-config`、`backup`、`configure` 等服务命令；客户端自己的 `doctor` 也不执行服务端 Doctor 的 SQLite、媒体、Telegram、Provider 与 MCP 探针，只检查 Admin API 连通与鉴权。
 
@@ -33,18 +37,18 @@ npm install -g ./dist/npm/tuuject-surowan-utils-0.1.0.tgz   # 文件名以实际
 
 不想全局安装时，也可以直接运行构建产物：`node packages/cli/dist/bin.js …`。维护者的自动化发布、首次发布 bootstrap 与 trusted publisher 配置见仓库的 [packages/cli/RELEASING.md](https://github.com/tuuject/surowan/blob/main/packages/cli/RELEASING.md)。
 
-API key 在面板的 **Manage → API keys**（`/api-keys`）页面创建、查看与撤销，明文只在创建弹窗出现一次，关闭后不可再取回，见[使用管理面板](../configure/admin-api-keys.md#api-密钥)。密钥的能力面是只读检查（配置与 prompt 视图、可用模型列表、场景所用的当前 prompt、重放预检、媒体导出）与 Invocation 读/重放；不要把真实 key 写进命令参数、聊天或 Skill 文件，也不要手动 `export` 明文 key（会进入 shell 历史）。
+API key 在面板的 **Manage → API keys**（`/api-keys`）页面创建、修改模式、rotate 或撤销，明文只在创建/rotate 弹窗出现一次，关闭后不可再取回，见[使用管理面板](../configure/admin-api-keys.md#api-密钥)。权限不足时命令返回 `forbidden`，请操作员在面板调整 key 模式；不要把真实 key 写进命令参数、聊天或 Skill 文件，也不要手动 `export` 明文 key（会进入 shell 历史）。
 
-凭据文件只保存一份凭据：面板登录写 `session`，API key 登录写 `apiKey`，两者互斥；`--api-key` 与 `--session`（或对应环境变量）同时给出会被拒绝（`conflicting_credentials`）。
+凭据文件只保存 `{endpoint, apiKey}`；旧的 `session` 凭据不再被读取，需操作员改用 API key 重新 `login`。
 
 ## 首次使用
 
-1. 选择凭据：要执行面板里的写入操作，用面板账号登录；只做只读检查与重放，用面板创建的 API key。
-2. 由操作员在本机运行 `surowan-utils login`。要面板全部能力时加上 `--username`，密码隐藏输入；只读用途按提示输入 API key：
+1. 在面板按任务选择 API key 模式：只读排查用 `read`；需要改配置用 `read_write`；需要重放/生图用 `read_paid`；两者都要用 `all`。
+2. 由操作员在本机运行 `surowan-utils login`，显式给出 endpoint 与 key（交互输入已移除）：
 
    ```bash
-   surowan-utils login --username owner      # 面板密码，换取 Session Token
-   surowan-utils login                       # 或在面板创建 API key 后输入它
+   printf '%s' "$SECRET_KEY" | surowan-utils login --endpoint http://127.0.0.1:8787 --api-key-stdin --json
+   # 或 surowan-utils login --endpoint <url> --api-key <key> --json
    ```
 
    endpoint 与凭据成对保存在固定路径 `~/.config/surowan-utils/credentials.json`（所有平台一致；与 Bot 的 `config.jsonc`、`key.json` 无关，同一时间只保留最近一次 `login` 的一对凭据）。文件**未加密**，请当密码对待；POSIX 上目录 `0700`、文件 `0600`（更窄的权限同样接受）；Windows 不做 POSIX mode 检查，权限由用户目录 ACL 继承，工具不承诺 `chmod` 级别的保护。既有文件是符号链接、不是普通文件或权限不安全时，读写都拒绝且不自动修复或替换，需人工处理。`login` 不访问服务器，保存成功不代表鉴权已通过；序列化后超过 16384 字节会被拒绝，且写入失败（含拒绝）不会覆盖旧凭据。
@@ -54,7 +58,7 @@ API key 在面板的 **Manage → API keys**（`/api-keys`）页面创建、查�
    surowan-utils doctor --json
    ```
 
-   `doctor` 恰好发起一次 `GET /api/invocations?limit=1`，没有 replay、没有模型/Provider 调用，也不发送 Telegram 消息；成功时 stdout 为 `{"status":"ok","endpoint":…,"credential":"session|api_key","credential_sources":{"endpoint":"argument|environment|file","credential":…}}`，不输出 Invocation 正文，失败不自动重试；鉴权会在服务端更新密钥的 `last_used_at`。失败时 stderr 为 `{"error","message"}`：参数/环境变量给出的凭据缺失或不合法（`missing_endpoint`、`missing_credential`、`invalid_api_key` 等）退出码 `2`，保存文件无效（`invalid_credentials`）或请求失败退出码 `1`。
+   `doctor` 先 `GET /api/key` 读取当前模式，再发起一次 `GET /api/invocations?limit=1`；没有 replay、没有模型/Provider 调用，也不发送 Telegram 消息。成功时 stdout 为 `{"status":"ok","endpoint":…,"credential":"api_key","mode":…,"permissions":{…},"credential_sources":{…}}`，不输出 Invocation 正文，失败不自动重试；鉴权会在服务端更新密钥的 `last_used_at`。失败时 stderr 为 `{"error","message"}`：参数/环境变量给出的凭据缺失或不合法（`missing_endpoint`、`missing_credential`、`invalid_api_key` 等）退出码 `2`，保存文件无效（`invalid_credentials`）或请求失败退出码 `1`。
 4. 只读检查与查询 Invocation：
 
    ```bash
@@ -73,7 +77,7 @@ API key 在面板的 **Manage → API keys**（`/api-keys`）页面创建、查�
 
 ```bash
 # endpoint 与 key 已注入环境变量；login 读取它们并保存，不回显
-surowan-utils login --json
+surowan-utils login --endpoint "$SUROWAN_ENDPOINT" --json
 
 # 或让 key 只经标准输入进入：读到 EOF（不是读到第一行就停），累计不超过 4098 字节，
 # 读取结束后只去掉一个尾部 LF/CRLF，其余换行/空白/控制字符非法（受 --timeout-ms 约束；不是 --api-key -）

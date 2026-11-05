@@ -30,7 +30,7 @@ test('health checks reject unauthorized, invalid and unapplied targets before ca
       (await call(fixture, HEALTH_PATH, { ...init, headers: { ...init.headers, origin: 'https://evil.example' } }))
         .status,
     ).toBe(403);
-    const key = await readJson(await write(fixture, '/api/api-keys', 'POST', { name: 'health-test' }));
+    const key = await readJson(await write(fixture, '/api/api-keys', 'POST', { name: 'health-test', mode: 'read' }));
     expect(
       (await call(fixture, HEALTH_PATH, { ...init, headers: { ...init.headers, authorization: `Bearer ${key.key}` } }))
         .status,

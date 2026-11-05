@@ -87,7 +87,8 @@ describe('npm release selection', () => {
     });
     expect(manifest.bin).toEqual({ 'surowan-utils': './dist/bin.js' });
     expect(manifest.files).toEqual(['dist', 'README.md']);
-    expect(manifest.dependencies).toBeUndefined();
+    expect(manifest.dependencies).toEqual({ '@surowan/admin-surface': 'workspace:^' });
+    expect(manifest.bundledDependencies).toEqual(['@surowan/admin-surface']);
     expect(existsSync(new URL('../packages/cli/skills/', import.meta.url))).toBe(false);
     const root = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
     const image = JSON.parse(readFileSync(new URL('../packages/image-service/package.json', import.meta.url), 'utf8'));

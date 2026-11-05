@@ -262,16 +262,21 @@ test('login, doctor and reads over the real Admin API leave production state alo
     status: 'ok',
     endpoint: `${f.baseUrl}/`,
     credential: 'api_key',
+    mode: 'read_paid',
+    permissions: { read_all: true, write_all: false, execute_paid_operations: true },
     credential_sources: { endpoint: 'file', credential: 'file' },
   });
   expect(doctor.stdout).not.toContain(admin.key);
 
-  // Exactly one GET, the documented read-only probe, carrying the saved key.
-  expect(handleSpy.mock.calls).toHaveLength(1);
-  const probe = handleSpy.mock.calls[0]?.[0];
-  if (probe === undefined) {
+  // Two GETs: the key's own permissions, then the documented read-only probe.
+  expect(handleSpy.mock.calls).toHaveLength(2);
+  const identity = handleSpy.mock.calls[0]?.[0];
+  const probe = handleSpy.mock.calls[1]?.[0];
+  if (identity === undefined || probe === undefined) {
     throw new Error('doctor sent no request through the admin server');
   }
+  expect(identity.method).toBe('GET');
+  expect(new URL(identity.url).pathname).toBe('/api/key');
   expect(probe.method).toBe('GET');
   const probeUrl = new URL(probe.url);
   expect(probeUrl.pathname).toBe('/api/invocations');
@@ -300,6 +305,7 @@ test('login, doctor and reads over the real Admin API leave production state alo
   expect(JSON.parse(get.stdout)).toMatchObject({ id: f.seed.invocationA.toString(), state: 'completed' });
 
   expect(handleSpy.mock.calls.map(([request]) => `${request.method} ${new URL(request.url).pathname}`)).toEqual([
+    'GET /api/key',
     'GET /api/invocations',
     'GET /api/invocations',
     `GET /api/invocations/${f.seed.invocationA}`,

@@ -57,7 +57,7 @@ test('migration 050 preserves version-049 text history, tool audit and local ima
   const reopened = await SqliteStore.open(loaded.config);
   try {
     expect(reopened.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({
-      version: 52n,
+      version: 53n,
     });
     expect(reopened.db.prepare('SELECT tool_call_id, result_text FROM tool_calls ORDER BY id').all()).toEqual(before);
     const row = reopened.db

@@ -10,6 +10,12 @@ import { afterEach, vi } from 'vitest';
 import { runCli } from '../../packages/cli/src/run.ts';
 
 export const KEY = 'synthetic-login-key-never-print';
+export const KEY_INFO = {
+  id: '1',
+  name: 'cli',
+  mode: 'read_paid',
+  permissions: { read_all: true, write_all: false, execute_paid_operations: true },
+};
 const BIN = fileURLToPath(new URL('../../packages/cli/src/bin.ts', import.meta.url));
 const cleanup: Array<() => Promise<void>> = [];
 

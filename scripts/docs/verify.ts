@@ -74,8 +74,8 @@ const contentRoot = resolve(docsRoot, 'content');
 const pages = (await readdir(contentRoot, { recursive: true }))
   .map((path) => path.replaceAll('\\', '/'))
   .filter((path) => path.endsWith('.md') && !path.startsWith('public/'));
-const index = await read('llms.txt');
-const bundle = await read('llms-full.txt');
+const index = (await read('llms.txt')).replaceAll('\r\n', '\n');
+const bundle = (await read('llms-full.txt')).replaceAll('\r\n', '\n');
 for (const text of [index, bundle]) {
   assert(text.includes(commit), 'Missing provenance in llms output');
   assert(!/<(?:!doctype|html|script)\b/i.test(text), 'HTML leaked into llms output');
@@ -83,7 +83,7 @@ for (const text of [index, bundle]) {
 for (const page of pages) {
   const source = await readFile(resolve(contentRoot, page), 'utf8');
   assert(/^title: .+$/m.test(source) && /^description: .+$/m.test(source), `Missing frontmatter: ${page}`);
-  const markdown = await read(page);
+  const markdown = (await read(page)).replaceAll('\r\n', '\n');
   const htmlPath = page.replace(/\.md$/, '.html');
   const html = await read(htmlPath);
   assert.equal(

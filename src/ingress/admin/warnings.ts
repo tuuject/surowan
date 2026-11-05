@@ -7,6 +7,8 @@ import {
   standingWarnings,
 } from '../../platform/warning-catalog.ts';
 import type { WarningService } from '../../store/warnings.ts';
+import type { BusinessStore } from '../../store/store.ts';
+import { invalidApiKeys } from './api-keys.ts';
 import { AdminQueryError, parseId, parseLimit } from './audit/shared.ts';
 import { json } from './http.ts';
 
@@ -14,6 +16,7 @@ const LIST_PARAMS = new Set(['limit', 'cursor', 'unread']);
 
 export interface WarningsAdminDeps {
   readonly warnings: WarningService;
+  readonly store: BusinessStore;
   readonly configStore: RuntimeConfigurationStore;
   /** Live per-IM state; standing warnings follow it on every read. */
   readonly connections: Pick<ImConnectionRegistry, 'get'>;
@@ -29,7 +32,7 @@ function categoryOf(code: string): WarningCategory {
  * warnings can be marked read or cleared.
  */
 export function createWarningsAdminHandler(deps: WarningsAdminDeps) {
-  const { warnings, configStore, connections } = deps;
+  const { warnings, store, configStore, connections } = deps;
 
   const list = (url: URL): Response => {
     for (const key of url.searchParams.keys()) {
@@ -56,9 +59,26 @@ export function createWarningsAdminHandler(deps: WarningsAdminDeps) {
       unreadOnly: unreadParam === '1' || unreadParam === 'true',
     });
     const now = new Date();
+    const invalidKeys = invalidApiKeys(store.orm);
     return json({
       generated_at: now.toISOString(),
-      standing: standingWarnings(configStore.current().config, connections, now),
+      standing: [
+        ...standingWarnings(configStore.current().config, connections, now),
+        ...(invalidKeys.length === 0
+          ? []
+          : [
+              {
+                kind: 'standing',
+                code: 'api_key_invalid_permissions',
+                category: categoryOf('api_key_invalid_permissions'),
+                severity: 'warning',
+                variables: {
+                  keys: invalidKeys.map((key) => ({ id: key.id, name: key.name, prefix: key.prefix })),
+                },
+                updated_at: now.toISOString(),
+              },
+            ]),
+      ],
       items: page.items.map((item) => ({
         id: item.id.toString(),
         kind: 'event',
