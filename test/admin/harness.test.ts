@@ -212,6 +212,19 @@ test.each([
   expect(await readFile(f.path, 'utf8')).toBe(before);
 });
 
+test('cross-field rules are checked against the whole configuration', async () => {
+  const f = await fixture();
+  const before = await readFile(f.path, 'utf8');
+  const response = await f.update(
+    { 'context.retained_sends_target': f.loaded.config.agent!.context!.retained_sends_max },
+    (await f.view()).revision,
+  );
+  expect(response.status).toBe(422);
+  expect(await response.json()).toMatchObject({ error: 'config_invalid' });
+  expect(await readFile(f.path, 'utf8')).toBe(before);
+  expect(f.configStore.current().config.agent).toEqual(f.loaded.config.agent);
+});
+
 test('a stale or missing revision is refused', async () => {
   const f = await fixture();
   expect((await f.update({ history_messages: 3 }, 'stale')).status).toBe(409);

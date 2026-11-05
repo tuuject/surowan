@@ -1,7 +1,48 @@
+import { getTableConfig, SQLiteSyncDialect } from 'drizzle-orm/sqlite-core';
 import { describe, expect, test } from 'vitest';
+import { longTasks, taskReceipts } from '../../src/store/schema/index.ts';
 import { createPre020Db, loadMigrationFile, run020, seedBucketAndInvocation, seedChat } from './migration-fixtures.ts';
 
 describe('migration 020', () => {
+  test('keeps Drizzle checks and partial indexes aligned with migrated SQLite', async () => {
+    const { db } = await createPre020Db();
+    try {
+      await run020(db);
+      db.exec(await loadMigrationFile(22));
+      const dialect = new SQLiteSyncDialect();
+      const normalize = (text: string): string => text.replace(/["\s]/g, '').toLowerCase();
+      for (const table of [longTasks, taskReceipts]) {
+        const definition = getTableConfig(table);
+        const ddl = db
+          .prepare<[string], { sql: string }>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")
+          .get(definition.name)!.sql;
+        expect(definition.checks).toHaveLength(ddl.match(/\bCHECK\s*\(/gi)?.length ?? 0);
+        for (const constraint of definition.checks) {
+          expect(normalize(ddl)).toContain(normalize(`CHECK (${dialect.sqlToQuery(constraint.value).sql})`));
+        }
+        const actualIndexes = db
+          .prepare<[string], { sql: string }>(
+            "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL",
+          )
+          .all(definition.name);
+        expect(actualIndexes).toHaveLength(definition.indexes.length);
+        for (const { config } of definition.indexes) {
+          const columns = config.columns.map((column) => {
+            if (!('name' in column)) {
+              throw new Error('Task indexes must use named columns');
+            }
+            return column.name;
+          });
+          const predicate = config.where ? ` WHERE ${dialect.sqlToQuery(config.where).sql}` : '';
+          const expected = `CREATE ${config.unique ? 'UNIQUE ' : ''}INDEX ${config.name} ON ${definition.name}(${columns.join(', ')})${predicate}`;
+          expect(actualIndexes.map((index) => normalize(index.sql))).toContain(normalize(expected));
+        }
+      }
+    } finally {
+      db.close();
+    }
+  });
+
   test('migrates pending alarms to waiting timer tasks', async () => {
     const { db } = await createPre020Db();
     seedChat(db);

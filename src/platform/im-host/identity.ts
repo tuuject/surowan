@@ -50,17 +50,6 @@ export type SenderRef = string | null;
 /** How a host renders a sender for the model. */
 export type SenderRefStyle = 'uid' | 'opaque' | 'none';
 
-export function renderSenderRef(style: SenderRefStyle, id: SenderId): SenderRef {
-  switch (style) {
-    case 'uid':
-      return `uid:${id.toString()}`;
-    case 'opaque':
-      return `s${id.toString()}`;
-    case 'none':
-      return null;
-  }
-}
-
 /** One participant of one conversation, as the platform needs it. */
 export interface ImSender {
   /** Internal. Never rendered into a prompt. */

@@ -1,13 +1,10 @@
 /**
  * Frozen conversation inputs for the host-neutral instant messaging contract:
  * one Telegram supergroup, one Telegram private chat and one local playground
- * room, plus the send-rate policy every host is expected to honour.
+ * room.
  */
 
 import { toChatId, toConversationId, type ImConversationRef } from '../../src/platform/im-host/identity.ts';
-import type { ImSendRatePolicy } from '../../src/platform/im-host/policy.ts';
-
-export const PINNED_SEND_RATE: ImSendRatePolicy = { sendsPerWindow: 20, windowSeconds: 60 };
 
 /** A Telegram supergroup with forum topics enabled. */
 export const PINNED_TELEGRAM_GROUP: ImConversationRef = {

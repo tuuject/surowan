@@ -5,8 +5,8 @@
  * The Telegram half runs the whole invocation, because the interesting claims
  * are end-to-end: the tool is in the request's registry, the avatar survives the
  * persisted history as an opaque reference, and the request the provider sees
- * carries the pixels. The room half checks the platform that has no profile
- * reader at all: the tool is still served and refuses as a tool error.
+ * carries the pixels. The room half wires a host without a profile reader: the
+ * tool is still served and refuses as a tool error.
  */
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -221,6 +221,7 @@ test('a host without a profile reader still serves the tool and refuses clearly'
         throw new Error('Missing profile result');
       }
       expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toContain('Member profiles are unavailable');
       return fauxAssistantMessage('');
     },
   ]);

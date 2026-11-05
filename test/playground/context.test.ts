@@ -176,4 +176,25 @@ describe('playground context projection', () => {
     expect(rendered.userPrompt).toContain('9'.repeat(75));
     expect(rendered.userPrompt).not.toContain('0'.repeat(75));
   });
+
+  test('a room is offered no sticker catalog', async () => {
+    const { store, loaded } = await fixture();
+    const iso = '2026-10-17T10:00:00.000Z';
+    store.db
+      .prepare(
+        "INSERT INTO sticker_sets(alias, telegram_name, title, configured, sync_state, last_synced_at, updated_at) VALUES ('cats', 'CatPack', 'Cat Pack', 1, 'success', ?, ?)",
+      )
+      .run(iso, iso);
+    store.db
+      .prepare(
+        "INSERT INTO stickers(sticker_set_id, file_unique_id, file_id, emoji, format, active, index_state, updated_at) VALUES ((SELECT id FROM sticker_sets WHERE alias = 'cats'), 'uniq-1', 'file-1', '😺', 'static', 1, 'success', ?)",
+      )
+      .run(iso);
+    const room = seedPlaygroundRoom(store);
+
+    const rendered = renderInvocationContext(store, loaded.config, room.invocationId);
+
+    expect(rendered.userPrompt).not.toContain('untrusted_sticker_catalog');
+    expect(rendered.userPrompt).not.toContain('😺');
+  });
 });

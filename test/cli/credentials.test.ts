@@ -11,7 +11,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import {
@@ -109,6 +109,30 @@ function canCreateDirectoryLink(): boolean {
 const hasFileSymlinks = canCreateFileSymlink();
 const hasDirectoryLinks = canCreateDirectoryLink();
 const isPosix = process.platform !== 'win32';
+
+describe('credentialsPath', () => {
+  it('is fixed under the home directory on every platform', () => {
+    const home = join(tmpdir(), 'surowan-home-fixture');
+    expect(credentialsPath(home)).toBe(join(home, '.config', 'surowan-utils', 'credentials.json'));
+    expect(credentialsPath()).toBe(join(homedir(), '.config', 'surowan-utils', 'credentials.json'));
+  });
+
+  it('ignores XDG overrides', () => {
+    const home = join(tmpdir(), 'surowan-home-fixture');
+    const previous = process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = join(tmpdir(), 'surowan-xdg-fixture');
+    try {
+      expect(credentialsPath(home)).toBe(join(home, '.config', 'surowan-utils', 'credentials.json'));
+      expect(credentialsPath(home)).not.toContain('surowan-xdg-fixture');
+    } finally {
+      if (previous === undefined) {
+        delete process.env.XDG_CONFIG_HOME;
+      } else {
+        process.env.XDG_CONFIG_HOME = previous;
+      }
+    }
+  });
+});
 
 describe('validateApiKey', () => {
   it('accepts opaque keys, including a trailing backslash and no prefix', () => {

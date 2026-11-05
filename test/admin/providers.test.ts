@@ -13,6 +13,26 @@ import {
 
 installAdminProviderHooks();
 
+test('lists providers without leaking keys or header values', async () => {
+  const fixture = await adminFixture();
+  try {
+    const response = await call(fixture, '/api/providers');
+    expect(response.status).toBe(200);
+    const text = await response.clone().text();
+    const view = await readJson(response);
+    const agent = view.providers.find((entry: any) => entry.alias === 'agent');
+    // The provider that carries the secret header is really in the listing.
+    expect(agent.header_names).toEqual(['x-route']);
+
+    // The whole response body, not just the fields under test.
+    expect(text).not.toContain('agent-secret');
+    expect(text).not.toContain('header-secret-value');
+    expect(text).not.toContain('vision-secret');
+  } finally {
+    fixture.store.close();
+  }
+});
+
 test('offers the builtin presets the configuration may reference', async () => {
   const fixture = await adminFixture();
   try {

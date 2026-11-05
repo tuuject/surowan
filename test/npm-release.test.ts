@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -73,5 +73,26 @@ describe('npm release selection', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it('publishes only the standalone CLI package without bundling a Skill', () => {
+    const manifest = JSON.parse(readFileSync(packagePath, 'utf8'));
+    expect(manifest.name).toBe('@tuuject/surowan-utils');
+    expect(manifest.private).not.toBe(true);
+    expect(manifest.publishConfig).toEqual({ access: 'public', registry: 'https://registry.npmjs.org/' });
+    expect(manifest.repository).toEqual({
+      type: 'git',
+      url: 'git+https://github.com/tuuject/surowan.git',
+      directory: 'packages/cli',
+    });
+    expect(manifest.bin).toEqual({ 'surowan-utils': './dist/bin.js' });
+    expect(manifest.files).toEqual(['dist', 'README.md']);
+    expect(manifest.dependencies).toBeUndefined();
+    expect(existsSync(new URL('../packages/cli/skills/', import.meta.url))).toBe(false);
+    const root = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+    const image = JSON.parse(readFileSync(new URL('../packages/image-service/package.json', import.meta.url), 'utf8'));
+    expect(root.private).toBe(true);
+    expect(root.bin).toEqual({ surowan: './src/cli.ts' });
+    expect(image.private).toBe(true);
   });
 });

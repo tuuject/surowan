@@ -155,6 +155,7 @@ pnpm run skills:sync
 - Never write unit tests after you write code.
 - Highly prefer E2E tests as the sole testing mechanism. Use them to verify complex features work. At the end of E2E tests, produce a verifiable and repeatable artifact.
 - If you must test a system in isolation, first write down all the ways it could fail, then write the code.
+- 本仓库现有的 E2E 只有 Admin Panel 的 Playwright 套件（`pnpm run admin:test:e2e`，英文 locale），读不到 canonical Context、审计行、Telegram 副作用、宿主隔离与发布清单；这些属于上一条的隔离测试，按下列规则写在 vitest。
 - Bug 修复必须复现原故障并验证审计状态，不只验证返回文本。
 - 新行为测试应覆盖外部可见契约、边界、预算、恢复、状态转换和真实错误。
 - 测试中的 Provider/Telegram 一律使用现有 Faux 或 fixture 替身（E2E 与隔离测试相同）；真实外部连接由 `doctor` 和人工 Telegram 验收覆盖。

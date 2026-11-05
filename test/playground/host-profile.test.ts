@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import type { ExecutableCapability } from '../../src/capabilities/execute-tool.ts';
+import { PLAYGROUND_PROFILE, TELEGRAM_PROFILE, hostExecutionProfile } from '../../src/platform/host-profile.ts';
 import type { ContextInjector } from '../../src/context/injector.ts';
 import type { HostKind } from '../../src/platform/im-host/identity.ts';
 import type { InvocationContext } from '../../src/platform/invocation-context.ts';
@@ -54,6 +55,23 @@ function toolNames(tools: readonly ExecutableCapability[]): string[] {
 }
 
 describe('host execution profile', () => {
+  test('the Playground profile is a fixed narrow set', () => {
+    expect(hostExecutionProfile('playground')).toBe(PLAYGROUND_PROFILE);
+    expect(hostExecutionProfile('telegram')).toBe(TELEGRAM_PROFILE);
+
+    expect(PLAYGROUND_PROFILE.mediaRead).toBe(true);
+    expect(PLAYGROUND_PROFILE.stickers).toBe(false);
+    expect(PLAYGROUND_PROFILE.mcp).toBe(false);
+    expect(PLAYGROUND_PROFILE.sleep).toBe(false);
+    expect(PLAYGROUND_PROFILE.budgetScope).toBe('playground');
+    expect(PLAYGROUND_PROFILE.budgetBypass).toBe(false);
+
+    expect(TELEGRAM_PROFILE.mcp).toBe(true);
+    expect(TELEGRAM_PROFILE.sleep).toBe(true);
+    expect(TELEGRAM_PROFILE.budgetScope).toBe('chat');
+    expect(TELEGRAM_PROFILE.budgetBypass).toBe(true);
+  });
+
   test('an unlisted plugin is Telegram only', () => {
     const plugin: AgentPlugin = { id: 'unlisted' };
     expect(pluginHosts(plugin)).toEqual(['telegram']);

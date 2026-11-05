@@ -154,18 +154,6 @@ export type ImDeliveryOutcome =
     }
   | { readonly kind: 'rejected'; readonly failure: ImDeliveryFailure };
 
-/**
- * A rejected delivery that a caller may legitimately retry. An unknown outcome
- * never is, whatever its reason: the message may already be out, and sending
- * it again would publish it twice.
- */
-export function isRetryableFailure(failure: ImDeliveryFailure): boolean {
-  if (failure.outcomeUnknown) {
-    return false;
-  }
-  return failure.reason === 'rate_limited' || failure.reason === 'transient' || failure.reason === 'network';
-}
-
 export interface ImDelivery {
   /**
    * Pure preview of what one part will carry once the host has shaped it,
