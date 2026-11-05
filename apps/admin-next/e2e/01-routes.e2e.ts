@@ -39,6 +39,7 @@ test.describe('routes and deep links', () => {
     await expect(page.getByRole('main').getByText('Telegram', { exact: true })).toBeVisible();
     await expect(page.getByRole('main').getByText('Disabled', { exact: true })).toBeVisible();
     await expect(page.getByText('Invocation failure rate is above the threshold')).toBeVisible();
+    await expect(page.getByTestId('app-version')).toContainText('v');
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 

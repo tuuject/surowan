@@ -91,6 +91,21 @@ jobs:
         id: next
         run: echo "version=0.0.0-next-$(date -u +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
 
+      - name: Version
+        id: version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          NEXT_VERSION: ${{ steps.next.outputs.version }}
+        run: |
+          if [ "$REF_TYPE" = "tag" ]; then
+            echo "version=$REF_NAME" >> "$GITHUB_OUTPUT"
+            echo "channel=Release" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=v$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+            echo "channel=Staging" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Image name (lowercase)
         id: image
         run: echo "name=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
@@ -126,6 +141,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            SUROWAN_VERSION=${{ steps.version.outputs.version }}
+            SUROWAN_CHANNEL=${{ steps.version.outputs.channel }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

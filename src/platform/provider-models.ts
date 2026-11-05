@@ -1,6 +1,7 @@
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
 import type { ProviderApi } from './config/index.ts';
+import { versionUserAgent } from './version.ts';
 
 /**
  * One budget for the whole listing rather than a smaller per-page cap: an
@@ -207,7 +208,7 @@ export function planModelsEndpoint(request: {
 
 export async function fetchProviderModels(request: ProviderDiscoveryRequest): Promise<ProviderModelListing> {
   const plan = planModelsEndpoint(request);
-  const extraHeaders = new Headers({ accept: 'application/json' });
+  const extraHeaders = new Headers({ accept: 'application/json', 'user-agent': versionUserAgent() });
   for (const [name, value] of Object.entries(request.headers ?? {})) {
     extraHeaders.set(name, value);
   }

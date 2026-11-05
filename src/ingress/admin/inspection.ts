@@ -3,6 +3,7 @@ import { Compile } from 'typebox/compile';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import { isThinkingLevel } from '../../platform/thinking-levels.ts';
+import { currentVersion } from '../../platform/version.ts';
 import type { ConfigController } from '../../platform/config/write.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { listActiveTextModels } from '../../platform/models/switch.ts';
@@ -201,6 +202,12 @@ export function createInspectionAdminHandler(deps: InspectionAdminDeps) {
     }
     const route = segments.join('/');
     const inspectedJson = (value: unknown): Response => json(redactInspection(value, secrets, token));
+    if (route === 'version') {
+      if (url.searchParams.size > 0) {
+        throw new AdminQueryError('invalid_query', 'The version endpoint takes no query parameters');
+      }
+      return json(currentVersion());
+    }
     if (route === 'config/view' || route === 'prompts/global' || route === 'prompts/group') {
       const query = inspectionQuery(url, route === 'prompts/group');
       const { config, ...metadata } = await inspectConfiguration(configStore, configReloader, query.source);

@@ -112,6 +112,17 @@ COPY --from=builder --chown=surowan:surowan /app/apps/admin-next/LICENSE ./apps/
 COPY --from=builder --chown=surowan:surowan /app/apps/admin-next/NOTICE ./apps/admin-next/NOTICE
 COPY --from=builder --chown=surowan:surowan /app/package.json ./package.json
 
+# The release workflow passes the image's version and channel as build args.
+# A source build without them has no version file and the runtime falls back to
+# Git state (or the fixed Develop version when Git is unavailable).
+ARG SUROWAN_VERSION
+ARG SUROWAN_CHANNEL
+RUN if [ -n "$SUROWAN_VERSION" ]; then \
+      printf 'Version: %s\n' "$SUROWAN_VERSION" > /app/version; \
+      if [ -n "$SUROWAN_CHANNEL" ]; then printf 'Channel: %s\n' "$SUROWAN_CHANNEL" >> /app/version; fi; \
+      chown surowan:surowan /app/version; \
+    fi
+
 # Entrypoint
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh

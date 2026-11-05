@@ -102,6 +102,7 @@ export class ProviderCallError extends AppError {
 export function createOpenRouterAdapter(options: {
   fetchImpl: typeof fetch;
   endpoint?: string;
+  userAgent?: string;
 }): ImageProviderAdapter & {
   endpoint: string;
   adapterVersion: typeof ADAPTER_VERSION;
@@ -119,6 +120,7 @@ export function createOpenRouterAdapter(options: {
       response = await fetchImpl(endpoint, {
         method: 'POST',
         headers: {
+          ...(options.userAgent === undefined ? {} : { 'user-agent': options.userAgent }),
           authorization: `Bearer ${invocation.credential}`,
           'content-type': 'application/json',
           accept: 'application/json',
