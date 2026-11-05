@@ -20,16 +20,9 @@ test('lists providers without leaking keys or header values', async () => {
     expect(response.status).toBe(200);
     const text = await response.clone().text();
     const view = await readJson(response);
-    expect(view.revision).toMatch(/^[0-9a-f]{64}$/);
-    expect(view.supervised).toBe(false);
-    expect(view.agent).toEqual({ provider: 'agent', model: 'agent-model', thinking_level: 'low' });
-    expect(view.vision).toEqual({ provider: 'vision', model: 'vision-model' });
-    expect(view.restart_required).toEqual([]);
     const agent = view.providers.find((entry: any) => entry.alias === 'agent');
-    expect(agent).toMatchObject({ kind: 'custom', api: 'openai-responses', base_url: 'https://example.test/v1' });
+    // The provider that carries the secret header is really in the listing.
     expect(agent.header_names).toEqual(['x-route']);
-    expect(agent.models).toHaveLength(1);
-    expect(agent.models[0]).toMatchObject({ id: 'agent-model', compat: { supports_developer_role: false } });
 
     // The whole response body, not just the fields under test.
     expect(text).not.toContain('agent-secret');

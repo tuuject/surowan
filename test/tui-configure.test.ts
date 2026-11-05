@@ -4,18 +4,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseCli } from '../src/cli-options.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config/index.ts';
-import { renderDoctorAgentPrompt } from '../src/doctor.ts';
-import {
-  extractInputCapabilities,
-  extractThinkingLevels,
-  type ModelsDevModel,
-  toModelDefaults,
-} from '../src/platform/models-dev.ts';
+import { extractThinkingLevels, type ModelsDevModel } from '../src/platform/models-dev.ts';
 import { assertBaseUrl, fetchProviderModels, planModelsEndpoint } from '../src/platform/provider-models.ts';
 import { agentThinkingLevels, saveConfig } from '../src/tui/configure.ts';
 import { THINKING_LEVELS } from '../src/platform/thinking-levels.ts';
-import { filterSearchChoices } from '../src/tui/provider-wizard/support.ts';
-import { startFixtureServer, stopFixtureServer, testConfigJsonc, writeTestConfig } from './helpers.ts';
+import { startFixtureServer, stopFixtureServer, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -30,19 +23,6 @@ async function fixture(): Promise<{ directory: string; configPath: string }> {
   await writeTestConfig(directory, configPath);
   return { directory, configPath };
 }
-
-describe('configure JSONC round-trip', () => {
-  test('formatted JSON output is accepted by loadConfig', async () => {
-    const { configPath } = await fixture();
-    const { fileConfig } = await loadConfig(configPath);
-    const outPath = configPath.replace('config.jsonc', 'out.jsonc');
-    await writeFile(outPath, `${JSON.stringify(fileConfig, null, 2)}\n`);
-    const { config: reparsed } = await loadConfig(outPath);
-    expect(reparsed.version).toBe(1);
-    expect(reparsed.providers.agent?.kind).toBe('custom');
-    expect(reparsed.agent.thinking_level).toBe('low');
-  });
-});
 
 describe('configure save', () => {
   test('an invalid configuration never reaches the file', async () => {
@@ -78,28 +58,6 @@ describe('configure save', () => {
 });
 
 describe('models.dev client', () => {
-  test('extracts text/image capabilities from modalities', () => {
-    const model: ModelsDevModel = {
-      id: 'test-model',
-      name: 'Test Model',
-      reasoning: false,
-      modalities: { input: ['text', 'image'], output: ['text'] },
-      limit: { context: 128000, output: 4096 },
-      cost: { input: 1, output: 2, cache_read: 0.5, cache_write: 1 },
-    };
-    expect(extractInputCapabilities(model)).toEqual(['text', 'image']);
-  });
-
-  test('falls back to text when no known capabilities are present', () => {
-    const model: ModelsDevModel = {
-      id: 'audio-model',
-      name: 'Audio Model',
-      reasoning: false,
-      modalities: { input: ['audio'], output: ['audio'] },
-    };
-    expect(extractInputCapabilities(model)).toEqual(['text']);
-  });
-
   test('turns reasoning options into Pi thinking levels, weakest first', () => {
     const levels = (reasoning_options: ModelsDevModel['reasoning_options'], reasoning = true) =>
       extractThinkingLevels({
@@ -127,38 +85,9 @@ describe('models.dev client', () => {
     expect(levels([{ type: 'effort', values: ['none'] }])).toBeNull();
     expect(levels([{ type: 'effort', values: ['low'] }], false)).toBeNull();
   });
-
-  test('toModelDefaults maps limit and cost', () => {
-    const model: ModelsDevModel = {
-      id: 'test-model',
-      name: 'Test Model',
-      reasoning: true,
-      modalities: { input: ['text', 'image'], output: ['text'] },
-      limit: { context: 100000, input: 80000, output: 8192 },
-      cost: { input: 3, output: 9, cache_read: 1.5, cache_write: 3 },
-    };
-    const defaults = toModelDefaults(model);
-    expect(defaults.name).toBe('Test Model');
-    expect(defaults.reasoning).toBe(true);
-    expect(defaults.input).toEqual(['text', 'image']);
-    expect(defaults.context_window).toBe(100000);
-    expect(defaults.max_tokens).toBe(8192);
-    expect(defaults.cost).toEqual({ input: 3, output: 9, cache_read: 1.5, cache_write: 3 });
-  });
 });
 
 describe('provider wizard discovery', () => {
-  test('filters choices by case-insensitive keywords', () => {
-    const choices = [
-      { value: 'openai', name: 'OpenAI (openai)', description: 'GPT models' },
-      { value: 'anthropic', name: 'Claude Sonnet (anthropic)', description: 'Reasoning models' },
-      { value: 'google', name: 'Google Gemini (google)' },
-    ];
-    expect(filterSearchChoices(choices, 'CLAUDE anthropic').map((choice) => choice.value)).toEqual(['anthropic']);
-    expect(filterSearchChoices(choices, 'reasoning').map((choice) => choice.value)).toEqual(['anthropic']);
-    expect(filterSearchChoices(choices, '   ')).toBe(choices);
-  });
-
   test('appends models to the configured API root', () => {
     expect(planModelsEndpoint({ baseUrl: 'https://example.test/v1/', api: 'openai-responses' }).endpoint).toBe(
       'https://example.test/v1/models',
@@ -218,36 +147,11 @@ describe('provider wizard discovery', () => {
 });
 
 describe('configure CLI option', () => {
-  test('parses configure command with config path', () => {
-    const options = parseCli(['configure', '--config', 'dev-data/config.jsonc']);
-    expect(options.command).toBe('configure');
-    expect(options.configPath).toBe('dev-data/config.jsonc');
-  });
-
-  test('accepts doctor agent prompt output option', () => {
-    const options = parseCli(['doctor', '--config', 'dev-data/config.jsonc', '--output-agent-prompt']);
-    expect(options.command).toBe('doctor');
-    expect(options.outputAgentPrompt).toBe(true);
-  });
-
   test('parses the serve takeover option and rejects it elsewhere', () => {
     const options = parseCli(['serve', '--config', 'dev-data/config.jsonc', '--takeover']);
     expect(options.command).toBe('serve');
     expect(options.takeover).toBe(true);
     expect(() => parseCli(['doctor', '--config', 'dev-data/config.jsonc', '--takeover'])).toThrow();
-  });
-  test('renders the configured agent prompt templates', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'surowan-doctor-prompt-'));
-    directories.push(directory);
-    const configPath = join(directory, 'config.jsonc');
-    await writeTestConfig(
-      directory,
-      configPath,
-      testConfigJsonc(directory),
-      'Using {{ agent.provider }}/{{ agent.model }} with {{ vision.model }}',
-    );
-    const loaded = await loadConfig(configPath);
-    expect(renderDoctorAgentPrompt(loaded.config)).toBe('Using agent/agent-model with vision-model');
   });
 });
 

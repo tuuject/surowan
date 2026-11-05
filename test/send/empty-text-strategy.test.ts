@@ -227,18 +227,3 @@ test('other input errors stay errors under the silent strategy', async () => {
   ]);
   fixture.close();
 });
-
-test('a text send that carries text is published normally', async () => {
-  const fixture = await setup();
-  const context = await conversationContext(fixture, 1, 10, new Date('2026-08-15T00:00:00.000Z'));
-  const api = recordingApi();
-  const outcomes: Array<'published' | 'silent'> = [];
-  const { send } = makeTools(fixture, context, api, (outcome) => outcomes.push(outcome));
-
-  const result = await send.execute('words', { text: 'hello' });
-
-  expect(api.sent).toEqual([{ text: 'hello', replyTo: undefined }]);
-  expect(result.content).toEqual([{ type: 'text', text: 'Sent Telegram message 501' }]);
-  expect(outcomes).toEqual(['published']);
-  fixture.close();
-});

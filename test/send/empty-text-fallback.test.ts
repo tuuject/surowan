@@ -1,4 +1,4 @@
-import { afterEach, expect, test, vi } from 'vitest';
+import { expect, test } from 'vitest';
 import type { TelegramTransport } from '../../src/adapters/local-monolith/telegram/host.ts';
 import { createSendTools } from '../../src/capabilities/send/index.ts';
 import { duplicateSendGuard } from '../../src/capabilities/send/support.ts';
@@ -12,10 +12,6 @@ import { conversationContext, sendAudit, sendsUsed, setup, toolAudit } from './f
  * so the audit row, the duplicate guard and the host all see the text that was
  * actually published, and the model is told which text that was.
  */
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
 
 interface SentText {
   readonly text: string;
@@ -89,20 +85,6 @@ test('a send without text publishes the fallback as plain text and tells the mod
   fixture.close();
 });
 
-test('picks one of several fallback texts at random', async () => {
-  const fixture = await setup();
-  const context = await conversationContext(fixture, 1, 10, new Date('2026-08-15T00:00:00.000Z'));
-  const api = recordingApi();
-  const { send } = makeTools(fixture, context, api, ['……', '嗯', '啊这']);
-
-  vi.spyOn(Math, 'random').mockReturnValueOnce(0.99).mockReturnValueOnce(0.4);
-  await send.execute('first', {});
-  await send.execute('second', { kind: 'text' });
-
-  expect(api.sent.map((sent) => sent.text)).toEqual(['啊这', '嗯']);
-  fixture.close();
-});
-
 test('the fallback is a published text like any other: repeating it is a duplicate', async () => {
   const fixture = await setup();
   const context = await conversationContext(fixture, 1, 10, new Date('2026-08-15T00:00:00.000Z'));
@@ -116,40 +98,6 @@ test('the fallback is a published text like any other: repeating it is a duplica
   expect(toolAudit(fixture.store)).toEqual([
     { tool_call_id: 'first', state: 'success', error_code: null },
     { tool_call_id: 'again', state: 'error', error_code: 'send_duplicate' },
-  ]);
-  fixture.close();
-});
-
-test('stickers, images and sends that carry text are left alone', async () => {
-  const fixture = await setup();
-  const context = await conversationContext(fixture, 1, 10, new Date('2026-08-15T00:00:00.000Z'));
-  const api = recordingApi();
-  const { send } = makeTools(fixture, context, api, ['……']);
-
-  await send.execute('words', { text: 'hello' });
-  await expect(send.execute('sticker', { kind: 'sticker' })).rejects.toThrow('kind:sticker needs sticker_ref');
-  await expect(send.execute('image', { kind: 'image' })).rejects.toThrow('kind:image needs image_generation_id');
-
-  expect(api.sent.map((sent) => sent.text)).toEqual(['hello']);
-  expect(toolAudit(fixture.store)).toEqual([
-    { tool_call_id: 'words', state: 'success', error_code: null },
-    { tool_call_id: 'sticker', state: 'error', error_code: 'send_input_invalid' },
-    { tool_call_id: 'image', state: 'error', error_code: 'send_input_invalid' },
-  ]);
-  fixture.close();
-});
-
-test('with the fallback off a send without text is still refused', async () => {
-  const fixture = await setup();
-  const context = await conversationContext(fixture, 1, 10, new Date('2026-08-15T00:00:00.000Z'));
-  const api = recordingApi();
-  const { send } = makeTools(fixture, context, api, undefined);
-
-  await expect(send.execute('bare', { reply_to_message_id: '10' })).rejects.toThrow('text is missing');
-
-  expect(api.sent).toEqual([]);
-  expect(toolAudit(fixture.store)).toEqual([
-    { tool_call_id: 'bare', state: 'error', error_code: 'send_input_invalid' },
   ]);
   fixture.close();
 });

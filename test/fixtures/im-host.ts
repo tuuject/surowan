@@ -1,16 +1,10 @@
 /**
- * Frozen inputs for the host-neutral instant messaging contract.
- *
- * These are deliberately plain values, not helpers: they are the regression
- * anchor for the Telegram extraction and for the virtual host that follows it.
- * A host adapter must produce the same policy table, the same sender refs, and
- * the same failure vocabulary for these inputs, whatever it does underneath.
+ * Frozen conversation inputs for the host-neutral instant messaging contract:
+ * one Telegram supergroup, one Telegram private chat and one local playground
+ * room.
  */
 
-import { toChatId, toConversationId, toSenderId, type ImConversationRef } from '../../src/platform/im-host/identity.ts';
-import type { ImConversationPolicy, ImSendRatePolicy } from '../../src/platform/im-host/policy.ts';
-
-export const PINNED_SEND_RATE: ImSendRatePolicy = { sendsPerWindow: 20, windowSeconds: 60 };
+import { toChatId, toConversationId, type ImConversationRef } from '../../src/platform/im-host/identity.ts';
 
 /** A Telegram supergroup with forum topics enabled. */
 export const PINNED_TELEGRAM_GROUP: ImConversationRef = {
@@ -38,53 +32,3 @@ export const PINNED_PLAYGROUND_ROOM: ImConversationRef = {
   topicId: null,
   scope: 'group',
 };
-
-export const PINNED_SENDER_A = toSenderId(1001n);
-export const PINNED_SENDER_B = toSenderId(2002n);
-
-export const PINNED_TELEGRAM_GROUP_POLICY: ImConversationPolicy = {
-  delivery: {
-    reply: 'inline',
-    mention: 'entity',
-    maxTextLength: 4096,
-    maxCaptionLength: 1024,
-    albums: true,
-  },
-  activity: { kind: 'typing', refreshMs: 4000, capMs: 55000 },
-  sendRate: PINNED_SEND_RATE,
-  senderRef: 'uid',
-};
-
-export const PINNED_TELEGRAM_PRIVATE_POLICY: ImConversationPolicy = {
-  delivery: {
-    reply: 'inline',
-    mention: 'entity',
-    maxTextLength: 4096,
-    maxCaptionLength: 1024,
-    albums: true,
-  },
-  activity: { kind: 'typing', refreshMs: 4000, capMs: 55000 },
-  sendRate: PINNED_SEND_RATE,
-  senderRef: 'uid',
-};
-
-export const PINNED_PLAYGROUND_ROOM_POLICY: ImConversationPolicy = {
-  delivery: {
-    reply: 'inline',
-    mention: 'plain',
-    maxTextLength: 4096,
-    maxCaptionLength: 1024,
-    albums: true,
-  },
-  // A room shows no chat action: its working state is local and only needs to
-  // expire on its own.
-  activity: { kind: 'none', refreshMs: null, capMs: 600_000 },
-  sendRate: PINNED_SEND_RATE,
-  senderRef: 'opaque',
-};
-
-/** Sender refs the model is allowed to see, per pinned host. */
-export const PINNED_VISIBLE_SENDER_REFS = {
-  telegram: 'uid:1001',
-  playground: 's1001',
-} as const;

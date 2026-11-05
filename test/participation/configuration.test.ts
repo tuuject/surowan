@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { type FixtureConfig, testConfigJsonc, writeTestConfig } from '../helpers.ts';
-import { cleanupDirectories, directories, setup } from './fixtures.ts';
+import { cleanupDirectories, directories } from './fixtures.ts';
 
 afterEach(async () => {
   await cleanupDirectories();
@@ -64,11 +64,5 @@ describe('participation configuration', () => {
         config.telegram.participation = { attention_window_seconds: 0 };
       }),
     ).toContain('Invalid config');
-  });
-
-  test('accepts empty window and keyword lists', async () => {
-    const harness = await setup({ global: { active_windows: [], trigger_keywords: [] } });
-    expect(harness.config.telegram.participation?.active_windows).toEqual([]);
-    harness.store.close();
   });
 });

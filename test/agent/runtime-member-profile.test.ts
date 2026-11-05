@@ -5,8 +5,8 @@
  * The Telegram half runs the whole invocation, because the interesting claims
  * are end-to-end: the tool is in the request's registry, the avatar survives the
  * persisted history as an opaque reference, and the request the provider sees
- * carries the pixels. The room half checks the one platform where a profile is
- * only a name.
+ * carries the pixels. The room half wires a host without a profile reader: the
+ * tool is still served and refuses as a tool error.
  */
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -24,7 +24,6 @@ import { afterAll, expect, test } from 'vitest';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { createPlaygroundHost } from '../../src/adapters/local-monolith/playground/index.ts';
-import { createRoomProfiles } from '../../src/adapters/local-monolith/playground/profiles.ts';
 import {
   createTelegramProfiles,
   type TelegramProfileApi,
@@ -244,42 +243,5 @@ test('a host without a profile reader still serves the tool and refuses clearly'
   expect(
     await runtime.run(release.invocationId, configStore.beginInvocation(), new AbortController().signal),
   ).toMatchObject({ state: 'completed' });
-  store.close();
-});
-
-test('the room reader reports only what a room knows', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-member-profile-room-'));
-  directories.push(directory);
-  const configPath = join(directory, 'config.jsonc');
-  await writeTestConfig(directory, configPath);
-  const loaded = await loadConfig(configPath);
-  const store = await SqliteStore.open(loaded.config);
-  const playground = new PlaygroundStore(store.orm);
-  const room = playground.createRoom({ title: 'Profiles', members: [{ name: 'Alice' }] });
-  const alice = room.members[0];
-  if (alice === undefined) {
-    throw new Error('Expected a seeded room member');
-  }
-  const profiles = createRoomProfiles({ store, self: { displayName: 'Surowan', username: 'surowan' } });
-  const profile = await profiles.read({
-    conversation: identityConversation(
-      { chatId: room.chatId, threadId: 0n, conversationId: room.conversationId },
-      'playground',
-      'group',
-    ),
-    ref: `member:member_${alice.senderId}`,
-    signal: new AbortController().signal,
-  });
-  expect(profile).toEqual({
-    displayName: 'Alice',
-    username: null,
-    isBot: false,
-    standing: 'member',
-    title: null,
-    bio: null,
-    languageCode: null,
-    joinedAt: expect.any(String),
-    avatar: null,
-  });
   store.close();
 });

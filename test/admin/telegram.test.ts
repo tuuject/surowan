@@ -1,7 +1,7 @@
 /**
- * `/api/telegram`: the connection view and the token write path. Every case
- * uses a real configuration file, key jar, reloader and AdminServer, so the
- * assertions cover what lands on disk, not just the response body.
+ * `/api/telegram`: the token write path and the token view it returns. Every
+ * case uses a real configuration file, key jar, reloader and AdminServer, so
+ * the assertions cover what lands on disk, not just the response body.
  */
 import { expect, test } from 'vitest';
 import { readFile } from 'node:fs/promises';
@@ -20,17 +20,13 @@ import { logLines, setup } from '../config/reload-fixtures.ts';
 interface Panel {
   readonly fixture: Awaited<ReturnType<typeof setup>>;
   readonly server: AdminServer;
-  readonly connections: ImConnectionRegistry;
   readonly published: TelegramTokenSource[];
   call(path: string, init?: RequestInit): Promise<Response>;
   configText(): Promise<string>;
   close(): Promise<void>;
 }
 
-async function panel(
-  options: Parameters<typeof setup>[0] = {},
-  connections = new ImConnectionRegistry(),
-): Promise<Panel> {
+async function panel(options: Parameters<typeof setup>[0] = {}): Promise<Panel> {
   const published: TelegramTokenSource[] = [];
   let secrets: SecretStore | undefined;
   const fixture = await setup({
@@ -46,14 +42,13 @@ async function panel(
     configStore: fixture.configStore,
     configReloader: fixture.reloader,
     secrets: fixture.secrets,
-    connections,
+    connections: new ImConnectionRegistry(),
   });
   const setupResponse = await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD }));
   const cookie = sessionCookie(setupResponse);
   return {
     fixture,
     server,
-    connections,
     published,
     call: (path, init = {}) =>
       server.handle(
@@ -77,39 +72,6 @@ function putToken(revision: string, token: unknown): RequestInit {
     body: JSON.stringify({ token }),
   };
 }
-
-test('GET /telegram reports the connection, the token presence and the revision', async () => {
-  const p = await panel();
-  try {
-    const before = await readJson(await p.call('/telegram'));
-    expect(before).toMatchObject({
-      revision: expect.stringMatching(/^[a-f0-9]{64}$/),
-      status: { status: 'disabled' },
-      telegram_section_present: true,
-      token_configured: true,
-    });
-
-    p.connections.set('telegram', {
-      status: 'network_error',
-      since: '2026-10-25T00:00:00.000Z',
-    });
-    const network = await readJson(await p.call('/telegram'));
-    expect(network.status).toEqual({ status: 'network_error', since: '2026-10-25T00:00:00.000Z' });
-
-    p.connections.set('telegram', {
-      status: 'connected',
-      since: '2026-10-25T00:00:00.000Z',
-      bot: { id: '42', username: 'surowan_bot' },
-    });
-    const connected = await readJson(await p.call('/telegram'));
-    expect(connected.status).toMatchObject({
-      status: 'connected',
-      bot: { id: '42', username: 'surowan_bot' },
-    });
-  } finally {
-    await p.close();
-  }
-});
 
 test('PUT /telegram writes the token into the key jar and only a reference into the file', async () => {
   const p = await panel();

@@ -336,18 +336,6 @@ export function testConfigJsonc(directory: string, transform?: (config: FixtureC
 
 export const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-/**
- * The file layer's `telegram` section, asserted present. A test fixture always
- * writes one; a test that deliberately removes it reads it through the optional
- * chain instead.
- */
-export function fileTelegram(config: FileConfig): NonNullable<FileConfig['telegram']> {
-  if (config.telegram === undefined) {
-    throw new Error('expected the fixture to configure a telegram section');
-  }
-  return config.telegram;
-}
-
 /** The registry half of a configuration snapshot, as a test builds it. */
 export interface TestRegistry {
   readonly models: Models;

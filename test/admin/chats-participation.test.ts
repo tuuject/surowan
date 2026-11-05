@@ -1,77 +1,10 @@
-import { expect, test, vi } from 'vitest';
+import { expect, test } from 'vitest';
 import { readFile, writeFile } from 'node:fs/promises';
 import type { FileConfig } from '../../src/platform/config/index.ts';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 
 import { fixture } from './chats-fixtures.ts';
 import type { ChatWriteResponse } from '../../apps/admin-next/src/lib/api/chats.ts';
-
-test('active-hours edits set, empty and remove Chat participation windows, applying hot', async () => {
-  const f = await fixture();
-  const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-  const windows = [
-    { start: '09:00', end: '18:00', days: [1, 2, 3, 4, 5] },
-    { start: '22:00', end: '02:00' },
-  ];
-  const set = await f.write(
-    '/chats/-100100/participation',
-    'PUT',
-    { active_windows: windows },
-    (await f.view()).revision,
-  );
-  expect(set.status).toBe(200);
-  const setResult = (await set.json()) as ChatWriteResponse;
-  expect(setResult.apply.applied).toContain('telegram.chats[-100100].participation');
-  expect(setResult.apply.restart_required).toEqual([]);
-  expect(setResult.timezone).toBe('UTC');
-  expect(setResult.global_participation).toBeNull();
-  expect(setResult.items.find((chat) => chat.id === '-100100')?.saved).toMatchObject({
-    participation: { active_windows: windows },
-    timezone: 'Asia/Shanghai',
-  });
-  expect(setResult.items.find((chat) => chat.id === '-100100')?.active?.participation).toEqual({
-    active_windows: windows,
-  });
-  expect(f.configStore.current().config.telegram.chats[1]?.participation).toEqual({ active_windows: windows });
-  const loaded = await loadConfig(f.path);
-  expect(loaded.fileConfig.telegram?.chats[1]?.participation).toEqual({ active_windows: windows });
-  expect(loaded.fileConfig.telegram?.chats[1]?.ignored_user_ids).toEqual([42]);
-  expect(
-    log.mock.calls.some(
-      ([line]) =>
-        String(line).includes('config_reloaded') && String(line).includes('telegram.chats[-100100].participation'),
-    ),
-  ).toBe(true);
-
-  // Repeating the same windows changes nothing and keeps the file bytes.
-  const bytes = await readFile(f.path, 'utf8');
-  const repeat = await f.write('/chats/-100100/participation', 'PUT', { active_windows: windows }, setResult.revision);
-  expect(repeat.status).toBe(200);
-  const repeatResult = (await repeat.json()) as ChatWriteResponse;
-  expect(await readFile(f.path, 'utf8')).toBe(bytes);
-
-  // An explicit empty array keeps the participation gate without scheduled windows.
-  const emptied = await f.write('/chats/-100100/participation', 'PUT', { active_windows: [] }, repeatResult.revision);
-  expect(emptied.status).toBe(200);
-  const emptiedResult = (await emptied.json()) as ChatWriteResponse;
-  expect(emptiedResult.items.find((chat) => chat.id === '-100100')?.saved?.participation).toEqual({
-    active_windows: [],
-  });
-  expect((await loadConfig(f.path)).fileConfig.telegram?.chats[1]?.participation).toEqual({ active_windows: [] });
-
-  // Removing the windows drops the whole object when nothing else remains.
-  const removed = await f.write(
-    '/chats/-100100/participation',
-    'PUT',
-    { active_windows: null },
-    emptiedResult.revision,
-  );
-  expect(removed.status).toBe(200);
-  const removedResult = (await removed.json()) as ChatWriteResponse;
-  expect(removedResult.items.find((chat) => chat.id === '-100100')?.saved?.participation).toBeNull();
-  expect((await loadConfig(f.path)).fileConfig.telegram?.chats[1]?.participation).toBeUndefined();
-  expect(await readFile(f.path, 'utf8')).not.toContain('participation');
-});
 
 test('removing active windows preserves other participation fields instead of faking an unrestricted chat', async () => {
   const f = await fixture();

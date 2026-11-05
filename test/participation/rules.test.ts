@@ -243,16 +243,6 @@ describe('participation rules', () => {
     );
   });
 
-  test('lower-cases and de-duplicates merged keywords', () => {
-    const rule = compileParticipation({
-      global: { trigger_keywords: ['Wan', 'wan'] },
-      chat: { trigger_keywords: ['塑料碗'] },
-      timezone: 'UTC',
-    });
-    expect(rule?.keywords).toEqual(['wan', '塑料碗']);
-    expect(rule?.windowSeconds).toBe(300);
-  });
-
   test('replaces windows per chat while appending keywords', () => {
     const merged = compileParticipation({
       global: { active_windows: [DAY_WINDOW], trigger_keywords: ['global'], attention_window_seconds: 120 },

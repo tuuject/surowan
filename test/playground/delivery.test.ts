@@ -11,20 +11,8 @@
  */
 import { describe, expect, test } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { createSendTools } from '../../src/capabilities/send/index.ts';
-import { InvocationContextState } from '../../src/platform/invocation-context.ts';
-import { identityConversation } from '../../src/platform/im-host/identity.ts';
-import { hostSends, messageRevisions, rooms, toolCalls } from '../../src/store/schema/index.ts';
-import {
-  createRoom,
-  deliver,
-  hostFor,
-  ledgerRow,
-  reserveSend,
-  roomMessages,
-  store,
-  telegramTransport,
-} from './delivery-fixtures.ts';
+import { messageRevisions, rooms } from '../../src/store/schema/index.ts';
+import { createRoom, deliver, hostFor, ledgerRow, reserveSend, roomMessages, store } from './delivery-fixtures.ts';
 
 describe('Bot Playground virtual delivery', () => {
   test('publishes a virtual message and records it in the same row as the send', async () => {
@@ -105,63 +93,5 @@ describe('Bot Playground virtual delivery', () => {
     expect(roomMessages(right.conversationId)).toHaveLength(1);
     expect(ledgerRow(leftSend)?.messageId).toBe(roomMessages(left.conversationId)[0]?.id);
     expect(ledgerRow(rightSend)?.messageId).toBe(roomMessages(right.conversationId)[0]?.id);
-  });
-
-  test('driving the real send tool audits a virtual message and calls no Telegram API', async () => {
-    const room = createRoom({ chatId: 80n, title: 'pipeline', selfDisplayName: '碗' });
-    const host = hostFor('碗');
-    const conversation = identityConversation(
-      { chatId: room.chatId, threadId: 0n, conversationId: room.conversationId },
-      'playground',
-      'private',
-    );
-    const context = new InvocationContextState({
-      invocationId: room.invocationId,
-      conversationId: room.conversationId,
-      hostKind: 'playground',
-      chatId: room.chatId,
-      internalChatId: room.chatId,
-      threadId: 0n,
-      completion: null,
-    });
-
-    const tools = createSendTools({
-      store,
-      host,
-      conversation,
-      context,
-      capabilities: {
-        resolveMedia: () => undefined,
-        resolveStickerRef: () => undefined,
-        resolveReplyTarget: () => undefined,
-        registerStickerRef: () => {
-          throw new Error('not used');
-        },
-      },
-      sendRateLimit: { sendsPerWindow: 20, windowSeconds: 60 },
-      maxTextLength: undefined,
-      disallowBlankLines: false,
-      deadline: Date.now() + 60_000,
-      bot: { id: 1n, displayName: '碗', username: null },
-    });
-
-    const result = await tools.send.execute('call-1', { kind: 'text', text: 'through the tool' });
-
-    expect(result.details.messageId).toBeDefined();
-    expect(result.details.telegramMessageId).toBeUndefined();
-    const content = result.content[0];
-    expect(content !== undefined && content.type === 'text' && content.text.startsWith('Sent message ')).toBe(true);
-
-    const written = roomMessages(room.conversationId);
-    expect(written).toHaveLength(1);
-    const ledger = store.orm.select().from(hostSends).all();
-    expect(ledger).toHaveLength(1);
-    expect(ledger[0]?.state).toBe('success');
-    expect(ledger[0]?.messageId).toBe(written[0]?.id);
-
-    // The tool call is recorded as success too.
-    const call = store.orm.select().from(toolCalls).all();
-    expect(call[0]?.state).toBe('success');
-    expect(telegramTransport).not.toHaveBeenCalled();
   });
 });

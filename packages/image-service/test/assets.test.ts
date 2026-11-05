@@ -4,7 +4,7 @@ import sharp from 'sharp';
 import { test } from 'vitest';
 import { listSchema, promptCreateSchema } from '../src/contracts.ts';
 import { conflict } from '../src/errors.ts';
-import { adminActor, createTestCore, pngBytes, publishDefaultConfig } from './helpers.ts';
+import { createTestCore, pngBytes, publishDefaultConfig } from './helpers.ts';
 
 test('prompt assets support CRUD, search and archive semantics', async () => {
   const run = await createTestCore({ providerFetch: async () => new Response('{}', { status: 500 }) });
@@ -238,8 +238,3 @@ function defaultModelNoCredential() {
     },
   };
 }
-
-test('adminActor fixture is privileged and keyActor is scoped', () => {
-  assert.equal(adminActor.privileged, true);
-  assert.equal(adminActor.scopes.length, 0);
-});

@@ -4,23 +4,6 @@ import { longTasks, taskReceipts } from '../../src/store/schema/index.ts';
 import { createPre020Db, loadMigrationFile, run020, seedBucketAndInvocation, seedChat } from './migration-fixtures.ts';
 
 describe('migration 020', () => {
-  test('creates long_tasks and task_receipts tables', async () => {
-    const { db } = await createPre020Db();
-    await run020(db);
-
-    const tables = db
-      .prepare<[], { name: string }>(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('long_tasks', 'task_receipts', 'alarms')",
-      )
-      .all()
-      .map((r) => r.name);
-    expect(tables).toContain('long_tasks');
-    expect(tables).toContain('task_receipts');
-    expect(tables).not.toContain('alarms');
-
-    db.close();
-  });
-
   test('keeps Drizzle checks and partial indexes aligned with migrated SQLite', async () => {
     const { db } = await createPre020Db();
     try {

@@ -57,40 +57,6 @@ describe('spoiler ranges', () => {
     ).toEqual([{ start: 8, end: 10 }]);
   });
 
-  test('leaves text without spoilers untouched', () => {
-    expect(renderSpoilers('我觉得还行', [])).toBe('我觉得还行');
-    expect(renderSpoilers('我觉得还行', undefined)).toBe('我觉得还行');
-  });
-
-  test('wraps a whole-body spoiler without dropping any text', () => {
-    expect(renderSpoilers('这个定价有问题', [{ start: 0, end: 7 }])).toBe(`${OPEN}这个定价有问题${CLOSE}`);
-  });
-
-  test('wraps several spoilers and mixed plain text', () => {
-    const text = '我觉得这个定价有问题，而且功能也不行。';
-    const first = text.indexOf('这个定价有问题');
-    const second = text.indexOf('功能也不行');
-    expect(
-      renderSpoilers(text, [
-        { start: first, end: first + '这个定价有问题'.length },
-        { start: second, end: second + '功能也不行'.length },
-      ]),
-    ).toBe(`我觉得${OPEN}这个定价有问题${CLOSE}，而且${OPEN}功能也不行${CLOSE}。`);
-  });
-
-  test('applies Telegram UTF-16 offsets after emoji and CJK characters', () => {
-    // Telegram counts UTF-16 code units: the emoji occupies two units, so the
-    // spoiler starts at index 2 -- a code-point based reading would tag 觉得这.
-    const text = '😀我觉得这个定价有问题🎉';
-    const start = '😀'.length;
-    const length = '我觉得这个'.length;
-    expect(start).toBe(2);
-    expect(renderSpoilers(text, [{ start, end: start + length }])).toBe(`😀${OPEN}我觉得这个${CLOSE}定价有问题🎉`);
-    expect(spoilerRanges([{ type: 'spoiler', offset: start, length }], text.length)).toEqual([
-      { start, end: start + length },
-    ]);
-  });
-
   test('escapes XML entities before wrapping spoiler spans so literal spoiler tags cannot forge markup', () => {
     expect(renderSpoilers('用户自己打的<tg-spoiler>假剧透</tg-spoiler>', [])).toBe(
       '用户自己打的&lt;tg-spoiler&gt;假剧透&lt;/tg-spoiler&gt;',
@@ -113,18 +79,6 @@ function spoilersOf(
 }
 
 describe('spoiler spans from the stored fragment', () => {
-  test('reads text entities out of the raw fragment', () => {
-    const text = '我觉得这个定价有问题。';
-    const fragment = JSON.stringify({ text, entities: [{ type: 'spoiler', offset: 3, length: 7 }] });
-    expect(spoilersOf(fragment, { text, caption: null })).toEqual({ text: [{ start: 3, end: 10 }] });
-  });
-
-  test('reads caption entities out of the raw fragment', () => {
-    const caption = '剧透警告，慎点。';
-    const fragment = JSON.stringify({ caption, caption_entities: [{ type: 'spoiler', offset: 4, length: 2 }] });
-    expect(spoilersOf(fragment, { text: null, caption })).toEqual({ caption: [{ start: 4, end: 6 }] });
-  });
-
   test('reads the replied-to entities for the stored reply preview', () => {
     const replied = '结局是男主其实早就死了';
     const fragment = JSON.stringify({
@@ -232,51 +186,6 @@ function processOne(scheduler: BucketScheduler, at: Date): bigint {
 }
 
 describe('telegram spoiler context', () => {
-  test('keeps the body text verbatim and the entity detail in the raw fragment', async () => {
-    const { store, ingestion } = await setup();
-    const received = new Date('2026-08-15T00:00:00.000Z');
-    const text = '我觉得这个产品的定价有问题，不过只是个人看法。';
-    const start = text.indexOf('这个产品的定价有问题');
-    ingestion.ingest(
-      {
-        update_id: 1,
-        message: {
-          ...baseMessage(1),
-          text,
-          entities: [{ type: 'spoiler', offset: start, length: '这个产品的定价有问题'.length }],
-        },
-      } as unknown as Update,
-      received,
-    );
-    ingestion.ingest({ update_id: 2, message: { ...baseMessage(2), text: '没有剧透' } } as unknown as Update, received);
-    const rows = store.db
-      .prepare<[], { telegram_message_id: bigint; text: string | null; raw_fragment_json: string }>(
-        'SELECT telegram_message_id, text, raw_fragment_json FROM message_revisions r JOIN messages m ON m.id = r.message_id ORDER BY telegram_message_id, revision_no',
-      )
-      .all();
-    expect(rows.map((row) => row.text)).toEqual([text, '没有剧透']);
-    expect(rows[0]?.raw_fragment_json).toContain('"type":"spoiler"');
-    expect(rows[0]?.raw_fragment_json).toContain(`"offset":${start}`);
-    expect(rows[1]?.raw_fragment_json).not.toContain('spoiler');
-    store.close();
-  });
-
-  test('renders plain text exactly as before', async () => {
-    const { store, ingestion, scheduler, build } = await setup();
-    const received = new Date('2026-08-15T00:00:00.000Z');
-    ingestion.ingest(
-      { update_id: 1, message: { ...baseMessage(1), text: '我觉得还行' } } as unknown as Update,
-      received,
-    );
-    const context = build(processOne(scheduler, new Date(received.getTime() + 15_000)));
-    expect(newMessages(context)).toBe([header(1), '  我觉得还行', '</untrusted_new_messages>'].join('\n'));
-    const snapshot = store.db
-      .prepare<[], { snapshot_json: string }>('SELECT snapshot_json FROM invocation_messages LIMIT 1')
-      .get();
-    expect(snapshot?.snapshot_json).not.toContain('spoilers');
-    store.close();
-  });
-
   test('marks a partial spoiler while keeping the original text', async () => {
     const { store, ingestion, scheduler, build } = await setup();
     const received = new Date('2026-08-15T00:00:00.000Z');

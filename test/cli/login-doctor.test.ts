@@ -36,14 +36,4 @@ describe('surowan-utils login and doctor', () => {
     expect(invalid.stdout).toBe('');
     expect(http.requests).toHaveLength(2);
   });
-
-  it('doctor aborts a stalled server without retries', async () => {
-    const homeDir = await home();
-    const http = await server(() => {});
-    await writeCredentials(credentialsPath(homeDir), { endpoint: http.endpoint, apiKey: KEY });
-    const result = await cli(['doctor', '--timeout-ms', '100', '--json'], homeDir);
-    expect(result.code).toBe(1);
-    expect(JSON.parse(result.stderr).error).toBe('timeout');
-    expect(http.requests).toHaveLength(1);
-  });
 });

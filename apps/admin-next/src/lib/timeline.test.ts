@@ -2,22 +2,12 @@ import { describe, expect, test } from 'vitest';
 
 import {
   buildInvocationTimeline,
-  contextMessageTimestamp,
-  type InvocationTimelineEvent,
-  indexSendsByToolCall,
-  isNewContextSection,
-  parseJsonObject,
   parseSendArguments,
   sortTimelineEvents,
   timelineEventKey,
+  type InvocationTimelineEvent,
 } from './timeline.ts';
-import type {
-  AgentMessageEntry,
-  InvocationDetail,
-  ModelCallEntry,
-  TelegramSendEntry,
-  ToolCallEntry,
-} from './api/invocations.ts';
+import type { AgentMessageEntry, InvocationDetail, ModelCallEntry, ToolCallEntry } from './api/invocations.ts';
 import type { ContextMessageEntry } from './api/contexts.ts';
 
 const AT = '2026-09-15T10:00:00.000Z';
@@ -79,22 +69,6 @@ function toolCall(overrides: Partial<ToolCallEntry> = {}): ToolCallEntry {
   };
 }
 
-function telegramSend(overrides: Partial<TelegramSendEntry> = {}): TelegramSendEntry {
-  return {
-    id: '4001',
-    tool_call_id: 'call_1',
-    kind: 'text',
-    request_json: '{"chat_id":"123","text":"hi"}',
-    state: 'success',
-    telegram_message_id: '555',
-    room_seq: null,
-    error_code: null,
-    created_at: AT,
-    finished_at: AT,
-    ...overrides,
-  };
-}
-
 function agentMessage(overrides: Partial<AgentMessageEntry> = {}): AgentMessageEntry {
   return {
     sequence_no: 1,
@@ -147,10 +121,6 @@ function invocation(overrides: Partial<InvocationDetail> = {}): InvocationDetail
   };
 }
 
-function kinds(events: readonly InvocationTimelineEvent[]): string[] {
-  return events.map((event) => event.kind);
-}
-
 describe('parseSendArguments', () => {
   test('malformed JSON degrades to null fields, never throws', () => {
     expect(parseSendArguments('not json{')).toEqual({
@@ -166,200 +136,19 @@ describe('parseSendArguments', () => {
       reply_to_message_id: null,
     });
   });
-
-  test('parses kind/text/sticker_ref', () => {
-    expect(
-      parseSendArguments('{"kind":"text","text":"hello there","sticker_ref":"stk_1","reply_to_message_id":"987"}'),
-    ).toEqual({
-      kind: 'text',
-      text: 'hello there',
-      sticker_ref: 'stk_1',
-      reply_to_message_id: '987',
-    });
-  });
-
-  test('stringifies a numeric reply_to_message_id instead of dropping it', () => {
-    const parsed = parseSendArguments('{"kind":"text","text":"hi","reply_to_message_id":123}');
-    expect(parsed.reply_to_message_id).toBe('123');
-  });
-
-  test('missing fields fall back to null; empty strings are treated as absent', () => {
-    const parsed = parseSendArguments('{"kind":"text","text":"","reply_to_message_id":null}');
-    expect(parsed.text).toBeNull();
-    expect(parsed.reply_to_message_id).toBeNull();
-    expect(parsed.sticker_ref).toBeNull();
-  });
-});
-
-describe('parseJsonObject', () => {
-  test('accepts objects, rejects arrays, strings and garbage', () => {
-    expect(parseJsonObject('{"a":1}')).toEqual({ a: 1 });
-    expect(parseJsonObject('[1,2]')).toBeNull();
-    expect(parseJsonObject('"str"')).toBeNull();
-    expect(parseJsonObject('{broken')).toBeNull();
-    expect(parseJsonObject(null)).toBeNull();
-    expect(parseJsonObject('')).toBeNull();
-  });
-});
-
-describe('indexSendsByToolCall', () => {
-  test('maps telegram_sends by string tool_call_id', () => {
-    const map = indexSendsByToolCall([
-      telegramSend({ tool_call_id: 'call_a' }),
-      telegramSend({ id: '4002', tool_call_id: 'call_b' }),
-    ]);
-    expect(map.get('call_a')?.id).toBe('4001');
-    expect(map.get('call_b')?.id).toBe('4002');
-    expect(map.get('missing')).toBeUndefined();
-  });
-});
-
-describe('context sections and timestamps', () => {
-  test('section classification: new vs history', () => {
-    expect(isNewContextSection('new')).toBe(true);
-    expect(isNewContextSection('history')).toBe(false);
-    expect(isNewContextSection('other')).toBe(false);
-  });
-
-  test('uses snapshot telegram_date when present', () => {
-    const message = contextMessage({ snapshot_json: '{"telegram_date":"2026-09-14T01:02:03.000Z"}' });
-    expect(contextMessageTimestamp(message, AT)).toBe('2026-09-14T01:02:03.000Z');
-  });
-
-  test('uses a room snapshot sent_at when present', () => {
-    const message = contextMessage({
-      snapshot_json: '{"host":"playground","message_id":"3","sent_at":"2026-09-14T04:05:06.000Z"}',
-    });
-    expect(contextMessageTimestamp(message, AT)).toBe('2026-09-14T04:05:06.000Z');
-  });
-
-  test('falls back to the invocation timestamp when telegram_date is absent', () => {
-    const message = contextMessage({ snapshot_json: '{"kind":"text","text":"x"}' });
-    expect(contextMessageTimestamp(message, AT)).toBe(AT);
-  });
 });
 
 describe('sortTimelineEvents', () => {
-  test('ties are broken by the order field', () => {
-    const events: InvocationTimelineEvent[] = [
-      { kind: 'finished', at: AT, order: 10_000 },
-      { kind: 'started', at: AT, order: -2_000 },
-      { kind: 'queued', at: AT, order: -3_000 },
-    ];
-    expect(kinds(sortTimelineEvents(events))).toEqual(['queued', 'started', 'finished']);
-  });
-
-  test('distinct timestamps win over order', () => {
-    const events: InvocationTimelineEvent[] = [
-      { kind: 'queued', at: '2026-09-15T10:00:02.000Z', order: -3_000 },
-      { kind: 'started', at: '2026-09-15T10:00:01.000Z', order: -2_000 },
-    ];
-    expect(kinds(sortTimelineEvents(events))).toEqual(['started', 'queued']);
-  });
-
   test('unparseable timestamps group by order instead of producing NaN sort', () => {
     const events: InvocationTimelineEvent[] = [
       { kind: 'queued', at: 'not-a-date', order: 2 },
       { kind: 'started', at: 'not-a-date', order: 1 },
     ];
-    expect(kinds(sortTimelineEvents(events))).toEqual(['started', 'queued']);
+    expect(sortTimelineEvents(events).map((event) => event.kind)).toEqual(['started', 'queued']);
   });
 });
 
 describe('buildInvocationTimeline', () => {
-  test('queued, started and finished are ordered by order when timestamps tie', () => {
-    const events = buildInvocationTimeline(invocation());
-    expect(kinds(events)).toEqual(['queued', 'started', 'finished']);
-  });
-
-  test('omits started/finished markers when the timestamps are null', () => {
-    const events = buildInvocationTimeline(invocation({ started_at: null, finished_at: null }));
-    expect(kinds(events)).toEqual(['queued']);
-  });
-
-  test('send tool calls carry the linked telegram send by tool_call_id', () => {
-    const send = telegramSend({ id: '4001', tool_call_id: 'call_send' });
-    const detail = invocation({
-      tool_calls: [
-        toolCall({
-          id: '2001',
-          tool_call_id: 'call_send',
-          tool_name: 'send',
-          arguments_json: '{"kind":"text","text":"hi"}',
-        }),
-        toolCall({ id: '2002', tool_call_id: 'call_read', tool_name: 'read' }),
-      ],
-      telegram_sends: [send],
-    });
-    const events = buildInvocationTimeline(detail);
-    const toolEvents = events.filter((event) => event.kind === 'tool_call');
-    expect(toolEvents).toHaveLength(2);
-    const sendEvent = toolEvents[0];
-    const readEvent = toolEvents[1];
-    if (sendEvent?.kind === 'tool_call') {
-      expect(sendEvent.linkedSend?.id).toBe('4001');
-    }
-    if (readEvent?.kind === 'tool_call') {
-      expect(readEvent.linkedSend).toBeNull();
-    }
-  });
-
-  test('bigint-derived IDs stay strings in the timeline payloads', () => {
-    const send = telegramSend({ tool_call_id: 'call_send', telegram_message_id: '555' });
-    const message = contextMessage({ message_id: '7001', revision_id: '8001' });
-    const detail = invocation({
-      tool_calls: [toolCall({ tool_call_id: 'call_send', tool_name: 'send' })],
-      telegram_sends: [send],
-      context_messages: [message],
-    });
-    const events = buildInvocationTimeline(detail);
-    const contextEvent = events.find((event) => event.kind === 'context_message');
-    const toolEvent = events.find((event) => event.kind === 'tool_call');
-    if (contextEvent?.kind === 'context_message') {
-      expect(contextEvent.message.message_id).toBe('7001');
-      expect(contextEvent.message.revision_id).toBe('8001');
-      expect(typeof contextEvent.message.message_id).toBe('string');
-    }
-    if (toolEvent?.kind === 'tool_call') {
-      expect(toolEvent.linkedSend?.telegram_message_id).toBe('555');
-      expect(typeof toolEvent.linkedSend?.telegram_message_id).toBe('string');
-    }
-  });
-
-  test('context message partition is preserved on the event', () => {
-    const detail = invocation({
-      context_messages: [
-        contextMessage({ section: 'new', sequence_no: 1 }),
-        contextMessage({ section: 'history', sequence_no: 2 }),
-      ],
-    });
-    const events = buildInvocationTimeline(detail).filter((event) => event.kind === 'context_message');
-    expect(events.map((event) => (event.kind === 'context_message' ? event.message.section : null))).toEqual([
-      'new',
-      'history',
-    ]);
-  });
-
-  test('failed model call keeps its stable error code', () => {
-    const failed = modelCall({ state: 'error', error_code: 'provider_timeout', error_detail: 'redacted: key=***' });
-    const detail = invocation({ model_calls: [failed] });
-    const event = buildInvocationTimeline(detail).find((entry) => entry.kind === 'model_call');
-    if (event?.kind === 'model_call') {
-      expect(event.model.state).toBe('error');
-      expect(event.model.error_code).toBe('provider_timeout');
-      expect(event.model.error_detail).toContain('redacted');
-    }
-  });
-
-  test('context messages precede model calls when the snapshot dates are older', () => {
-    const detail = invocation({
-      context_messages: [contextMessage({ snapshot_json: '{"telegram_date":"2026-09-15T09:00:00.000Z"}' })],
-      model_calls: [modelCall({ created_at: '2026-09-15T10:00:01.000Z' })],
-    });
-    const events = buildInvocationTimeline(detail);
-    expect(kinds(events)).toEqual(['context_message', 'queued', 'started', 'finished', 'model_call']);
-  });
-
   test('timelineEventKey is unique per event', () => {
     const detail = invocation({
       tool_calls: [

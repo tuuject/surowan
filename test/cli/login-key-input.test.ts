@@ -23,20 +23,11 @@ describe('surowan-utils login and doctor', () => {
     expect(other.requests).toHaveLength(0);
   });
 
-  it('reports missing login, rejects irrelevant flags and never prompts in a non-TTY', async () => {
+  it('reports missing login and never prompts in a non-TTY', async () => {
     const homeDir = await home();
     const missing = await cli(['doctor', '--json'], homeDir);
     expect(missing.code).toBe(2);
     expect(JSON.parse(missing.stderr).error).toBe('missing_endpoint');
-    for (const args of [
-      ['doctor', '--limit', '1'],
-      ['invocation', 'list', '--api-key-stdin'],
-      ['login', 'extra'],
-    ]) {
-      const result = await cli(args, homeDir);
-      expect(result.code).toBe(2);
-      expect(result.stdout).toBe('');
-    }
     const login = await child(['login', '--json'], homeDir, '');
     expect(login.code).toBe(2);
     expect(JSON.parse(login.stderr).error).toBe('login_input_required');

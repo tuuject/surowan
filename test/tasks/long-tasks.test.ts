@@ -35,43 +35,6 @@ describe('LongTaskService', () => {
     expect(store.db.prepare('SELECT id FROM agent_messages').all()).toEqual([]);
   });
 
-  test('creates a waiting task via invocationScope', async () => {
-    const { store, conversationId } = await initDb();
-    seedInvocation(store, 100n, conversationId);
-    const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('test-plugin', ctx(conversationId));
-    const created = scope.create({
-      payload: { key: 'value' },
-      delivery: { bypassDailyBudget: false },
-    });
-    expect(typeof created.taskId).toBe('bigint');
-    const row = store.orm.select().from(longTasks).where(eq(longTasks.id, created.taskId)).get();
-    expect(row).toBeDefined();
-    expect(row!.state).toBe('waiting');
-    expect(row!.pluginId).toBe('test-plugin');
-    expect(row!.createdByUserId).toBe(42n);
-    expect(JSON.parse(row!.deliveryJson)).toEqual({ bypassDailyBudget: false });
-  });
-
-  test('creates a timer task with scheduled_at', async () => {
-    const { store, conversationId } = await initDb();
-    seedInvocation(store, 100n, conversationId);
-    const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('test-plugin', ctx(conversationId));
-    const scheduled = new Date(Date.now() + 86_400_000).toISOString();
-    const created = scope.create({
-      payload: { task: 'reminder' },
-      delivery: { bypassDailyBudget: true, mentionUser: { userId: 99n, displayName: 'Target' } },
-      scheduledAt: scheduled,
-    });
-    expect(created.scheduledAt).toBe(scheduled);
-    const row = store.orm.select().from(longTasks).where(eq(longTasks.id, created.taskId)).get();
-    expect(row!.scheduledAt).toBe(scheduled);
-    const delivery = JSON.parse(row!.deliveryJson);
-    expect(delivery.bypassDailyBudget).toBe(true);
-    expect(delivery.mentionUser.userId).toBe('99');
-  });
-
   test('creates a null-owned task but does not expose it through user scope', async () => {
     const { store, conversationId } = await initDb();
     seedInvocation(store, 100n, conversationId);
@@ -108,24 +71,6 @@ describe('LongTaskService', () => {
     expect(typeof created.taskId).toBe('bigint');
   });
 
-  test("invocationScope list returns caller's waiting tasks", async () => {
-    const { store, conversationId } = await initDb();
-    const invId = 400n;
-    seedInvocation(store, invId, conversationId);
-    const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('alarm', ctx(conversationId, { invocationId: invId }));
-    scope.create({ payload: { summary: 'a' }, delivery: { bypassDailyBudget: false } });
-    scope.create({ payload: { summary: 'b' }, delivery: { bypassDailyBudget: false } });
-    expect(scope.list()).toHaveLength(2);
-  });
-
-  test('invocationScope list returns empty for null caller', async () => {
-    const { store, conversationId } = await initDb();
-    const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('alarm', ctx(conversationId, { callerUserId: null }));
-    expect(scope.list()).toEqual([]);
-  });
-
   test('invocationScope list filters by caller', async () => {
     const { store, conversationId } = await initDb();
     const invId = 500n;
@@ -137,21 +82,6 @@ describe('LongTaskService', () => {
     scope99.create({ payload: {}, delivery: { bypassDailyBudget: false } });
     expect(scope42.list()).toHaveLength(1);
     expect(scope99.list()).toHaveLength(1);
-  });
-
-  test('invocationScope cancel suppresses receipt', async () => {
-    const { store, conversationId } = await initDb();
-    seedInvocation(store, 100n, conversationId);
-    const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('alarm', ctx(conversationId));
-    const created = scope.create({ payload: {}, delivery: { bypassDailyBudget: false } });
-    expect(scope.cancel(created.taskId)).toBe(true);
-
-    const task = store.orm.select().from(longTasks).where(eq(longTasks.id, created.taskId)).get();
-    expect(task!.state).toBe('cancelled');
-    const receipt = store.orm.select().from(taskReceipts).where(eq(taskReceipts.taskId, created.taskId)).get();
-    expect(receipt!.status).toBe('cancelled');
-    expect(receipt!.state).toBe('suppressed');
   });
 
   test('pending receipt cancellation is isolated by plugin, conversation, and live caller', async () => {

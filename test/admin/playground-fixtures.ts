@@ -105,10 +105,10 @@ export function request(path: string, init: RequestInit = {}): Request {
   return new Request(`http://127.0.0.1:8899${path}`, init);
 }
 
-export function post(path: string, body: unknown, cookie: string, origin?: string): Request {
+export function post(path: string, body: unknown, cookie: string): Request {
   return request(path, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', cookie, ...(origin === undefined ? {} : { origin }) },
+    headers: { 'content-type': 'application/json', cookie },
     body: JSON.stringify(body),
   });
 }

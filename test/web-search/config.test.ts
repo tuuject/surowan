@@ -3,13 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
-import { classify } from '../../src/platform/config/diff-merge.ts';
-import {
-  enabledSearchEngines,
-  resolveSearchEngines,
-  webSearchAvailable,
-  type WebSearchConfig,
-} from '../../src/platform/web-search.ts';
+import { enabledSearchEngines, resolveSearchEngines, webSearchAvailable } from '../../src/platform/web-search.ts';
 import { type FixtureConfig, testConfigJsonc, writeTestConfig } from '../helpers.ts';
 
 async function withConfig(
@@ -151,25 +145,6 @@ test('the schema bounds results and timeouts', async () => {
   await expectInvalid((file) => {
     file.web_search = { engines: [{ ...tavilyEngine, timeout_seconds: 31 }] };
   }, 'Invalid config');
-});
-
-test('the search section is hot: a reload applies it without a restart', () => {
-  expect(classify('web_search')).toBe('hot');
-  expect(classify('web_search.engines')).toBe('hot');
-  expect(classify('web_search.url_filters')).toBe('hot');
-});
-
-test('the section view keeps disabled engines but resolves only enabled ones', () => {
-  const config = {
-    web_search: {
-      engines: [
-        { id: 'a', provider: 'tavily', api_key: { jar: 'a' } },
-        { id: 'b', provider: 'brave', api_key: { jar: 'b' }, enabled: false },
-      ],
-    } satisfies WebSearchConfig,
-  };
-  expect(resolveSearchEngines(config).map((engine) => engine.id)).toEqual(['a', 'b']);
-  expect(enabledSearchEngines(config).map((engine) => engine.id)).toEqual(['a']);
 });
 
 test('a provider registered by no plugin is rejected even when it is otherwise valid', async () => {

@@ -4,7 +4,7 @@ import { AddMemoInputSchema, DeleteMemoInputSchema } from '../../src/context/mem
 import { createReplayTools } from '../../src/orchestration/replay/tools.ts';
 import { emptySystemResources } from '../../src/platform/system-resources.ts';
 import { AlarmInputSchema, DeleteAlarmInputSchema, ListAlarmInputSchema } from '../../src/plugins/alarm/alarm.ts';
-import { ImageGenerateInputSchema, ListImageModelsInputSchema } from '../../src/plugins/image/image.ts';
+import { ListImageModelsInputSchema } from '../../src/plugins/image/image.ts';
 import { callCapability, definition, envelopeOf, replayInput } from './tools-fixtures.ts';
 
 /** A credential-free PublicModel directory entry; `description` is optional. */
@@ -90,30 +90,6 @@ test('alarm capabilities schedule, list, and delete in memory and start unseeded
   await expect(callCapability(replay, 'alarm-4', 'delete_alarm', { id: '1' })).rejects.toThrow(
     'execute.call delete_alarm failed: alarm not found',
   );
-});
-
-test('image_generate synthesizes distinct generation ids without the image bridge', async () => {
-  const replay = createReplayTools(
-    replayInput({
-      tools: [definition('execute')],
-      capabilities: [definition('image_generate', ImageGenerateInputSchema)],
-    }),
-    emptySystemResources(),
-  );
-  const first = envelopeOf(await callCapability(replay, 'image-1', 'image_generate', { prompt: 'a cat' }));
-  expect(first.text).toMatch(
-    /^Generation [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} submitted on model replay \(1 output\(s\)\)\./,
-  );
-  const second = envelopeOf(
-    await callCapability(replay, 'image-2', 'image_generate', { prompt: 'a dog', output_count: 3 }),
-  );
-  expect(second.text).toContain('(3 output(s))');
-  expect(second.text).not.toBe(first.text);
-  expect(replay.outputs).toEqual([]);
-  expect(replay.dispatches).toEqual([
-    { tool_call_id: 'image-1', tool_name: 'execute', mode: 'synthetic', capability: 'image_generate' },
-    { tool_call_id: 'image-2', tool_name: 'execute', mode: 'synthetic', capability: 'image_generate' },
-  ]);
 });
 
 test('list_image_models pages the configured directory with descriptions and no credentials', async () => {

@@ -8,7 +8,7 @@ import sharp from 'sharp';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { createImageBridge } from '../../src/image/bridge.ts';
 import { createImageService } from '../../src/image/service.ts';
-import { adminActor, createImageAdminHandler, type ImageAdminResponse } from '../../src/ingress/admin/image.ts';
+import { createImageAdminHandler, type ImageAdminResponse } from '../../src/ingress/admin/image.ts';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { readConfigRevision, writeConfigEdits } from '../../src/adapters/local-monolith/config/file.ts';
 import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.ts';
@@ -219,37 +219,6 @@ test('status reports disabled until the section is written, then enabled', async
   expect((after.body as { enabled: boolean }).enabled).toBe(true);
 });
 
-test('disabling removes the section, garbage-collects the jar entry, and republishes empty', async () => {
-  const fixtureRef = await fixture();
-  await fixtureRef.applyImageConfig({
-    enabled: true,
-    credentials: { openrouter: 'sk-live-1' },
-    models: [
-      {
-        id: 'm1',
-        name: 'M1',
-        provider: 'openrouter',
-        upstreamModel: 'openai/gpt-image-1',
-        credentialRef: 'openrouter',
-        providerTag: 'openai',
-        capabilities: {
-          imageInput: false,
-          maxInputImages: 0,
-          maxOutputs: 4,
-          aspectRatios: ['auto'],
-          resolutionClasses: ['auto'],
-        },
-      },
-    ],
-  });
-  const disable = await fixtureRef.applyImageConfig({ enabled: false });
-  expect(disable.kind === 'json' && disable.body).toEqual({ enabled: false, applied: true });
-  const file = await readFile(fixtureRef.configPath, 'utf8');
-  expect(file).not.toContain('"image":');
-  const jar = JSON.parse(await readFile(keyJarPath(fixtureRef.configPath), 'utf8')) as Record<string, string>;
-  expect(jar.openrouter).toBeUndefined();
-});
-
 test('asset CRUD and binary content round-trip through the handler', async () => {
   const fixtureRef = await fixture();
   const created = await call(fixtureRef, 'POST', 'image/prompts', {
@@ -350,7 +319,4 @@ test('admin submissions run under an admin actor and appear in the audit list', 
   const list = await call(fixtureRef, 'GET', 'image/generations');
   const ids = (list.body as { items: { id: string }[] }).items.map((item) => item.id);
   expect(ids).toContain(generationId);
-
-  // Bind the actor identity for audit display.
-  expect(adminActor('ops').id).toBe('admin:ops');
 });

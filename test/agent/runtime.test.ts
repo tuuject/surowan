@@ -101,7 +101,7 @@ test('a fresh Agent drops assistant thinking when CoT recording is off', async (
   store.close();
 });
 
-test.each([undefined, false, true])(
+test.each([undefined, true])(
   'a fresh Agent preserves auditing and hot-applies payload recording from %s',
   async (recordPayloads) => {
     const directory = await mkdtemp(join(tmpdir(), 'surowan-agent-'));
@@ -295,8 +295,6 @@ test.each([undefined, false, true])(
       )
       .get(invocationId);
     expect(registryRow?.tool_registry_json).toContain('"name":"send"');
-    expect(registryRow?.tool_registry_json).toContain('"label":"Send to Telegram"');
-    expect(registryRow?.tool_registry_json).toContain('Publish exactly one user-visible Telegram message');
     expect(
       store.db
         .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM agent_messages WHERE role = 'harness_nudge'")

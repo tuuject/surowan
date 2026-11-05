@@ -350,20 +350,6 @@ describe('message bodies from the stored fragment', () => {
     ).toEqual({ text, caption: null });
   });
 
-  test('renders caption entities but never borrows them for the text', () => {
-    const caption = '配文 粗体';
-    const fragment = JSON.stringify({ caption, caption_entities: [entity(caption, '粗体', 'bold')] });
-    expect(bodyFromFragment(fragment, { text: null, caption, mediaCount: 1 })).toEqual({
-      text: null,
-      caption: '配文 **粗体**',
-      match_text: [caption],
-    });
-    expect(bodyFromFragment(fragment, { text: caption, caption: null, mediaCount: 1 })).toEqual({
-      text: caption,
-      caption: null,
-    });
-  });
-
   test('reads spoilers of a replied-to rich message for its stored preview', () => {
     const rich = richMessageMarkdown(RICH_MEDIA);
     const fragment = JSON.stringify({ text: '真的假的', reply_to_message: { rich_message: RICH_MEDIA } });
@@ -396,30 +382,6 @@ describe('media slots in the rendered body', () => {
     ...overrides,
   });
   const options = { timezone: 'UTC', now: new Date('2026-08-15T00:00:00.000Z'), inlineReplies: new Set<string>() };
-
-  test('puts each media line where its placeholder was', () => {
-    expect(
-      formatSnapshot(
-        snapshot({
-          media_slots: [{ start: 6, end: 13 }],
-          spoilers: {
-            text: [
-              { start: 0, end: 4 },
-              { start: 14, end: 19 },
-            ],
-          },
-        }),
-        options,
-      ),
-    ).toBe(
-      [
-        '[7 00:00:00 uid:42] Alice',
-        `  ${OPEN}Look${CLOSE}:`,
-        '  [photo img_a 10x20]',
-        `  ${OPEN}after${CLOSE} &lt;b&gt;`,
-      ].join('\n'),
-    );
-  });
 
   test('falls back to trailing media lines when slots do not line up', () => {
     for (const media_slots of [

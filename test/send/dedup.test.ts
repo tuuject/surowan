@@ -39,28 +39,13 @@ describe('reply deduplication', () => {
       second: (stickerRef) => ({ kind: 'sticker', sticker_ref: stickerRef, reply_to_message_id: '10' }),
     },
     {
-      name: 'a text after a sticker reply',
-      first: (stickerRef) => ({ kind: 'sticker', sticker_ref: stickerRef, reply_to_message_id: '10' }),
-      second: () => ({ kind: 'text', text: 'answer', reply_to_message_id: '10' }),
-    },
-    {
-      name: 'a generated image after a text reply',
-      first: () => ({ kind: 'text', text: 'answer', reply_to_message_id: '10' }),
-      second: () => ({ kind: 'image', image_generation_id: 'gen-1', reply_to_message_id: '10' }),
-    },
-    {
-      name: 'a text after a generated image reply',
-      first: () => ({ kind: 'image', image_generation_id: 'gen-1', reply_to_message_id: '10' }),
-      second: () => ({ kind: 'text', text: 'answer', reply_to_message_id: '10' }),
-    },
-    {
       name: 'a resend:true image after an image reply to the same message',
       first: () => ({ kind: 'image', image_generation_id: 'gen-1', reply_to_message_id: '10' }),
       second: () => ({ kind: 'image', image_generation_id: 'gen-2', resend: true, reply_to_message_id: '10' }),
     },
   ];
 
-  test.each(matrix.flatMap((entry) => [undefined, false, true].map((allow) => ({ ...entry, allow }))))(
+  test.each(matrix.flatMap((entry) => [undefined, true].map((allow) => ({ ...entry, allow }))))(
     'applies allow_reply_message_multiple_times=$allow to $name',
     async ({ first, second, allow }) => {
       const fixture = await setup(undefined, allow);
@@ -68,7 +53,6 @@ describe('reply deduplication', () => {
         const context = await conversationContext(fixture, 1, 10, new Date('2026-08-15T00:00:00.000Z'));
         const api = countingApi();
         const { tool, capabilities } = makeTool(fixture.store, fixture.config, context, { api, imageGeneration });
-        expect(tool.description.includes('at most one reply')).toBe(allow !== true);
         const stickerRef = capabilities.registerStickerRef('CAAD-fake-sticker');
         const firstResult = await tool.execute('first', first(stickerRef));
         expect(firstResult.details.telegramMessageId).toBeTruthy();

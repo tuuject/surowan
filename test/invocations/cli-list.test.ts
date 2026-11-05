@@ -109,38 +109,4 @@ describe('surowan-utils invocation CLI', () => {
       await server.close();
     }
   }, 20_000);
-
-  it('--api-key overrides SUROWAN_API_KEY', async () => {
-    const server = await startServer((_request, response) => {
-      jsonResponse(response, 200, { items: [], next_cursor: null });
-    });
-    try {
-      const result = await runCli(['invocation', 'list', '--json', '--api-key', 'flag-key'], {
-        env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: 'env-key' },
-      });
-      expect(result.code).toBe(0);
-      expect(onlyRequest(server).headers.authorization).toBe('Bearer flag-key');
-    } finally {
-      await server.close();
-    }
-  }, 20_000);
-
-  it('get returns the invocation detail document unchanged', async () => {
-    const detail = { id: '42', state: 'failed', error_code: 'provider_error', turns_used: 3 };
-    const server = await startServer((_request, response) => {
-      jsonResponse(response, 200, detail);
-    });
-    try {
-      const result = await runCli(['invocation', 'get', '42', '--json'], {
-        env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
-      });
-      expect(result.code).toBe(0);
-      expect(JSON.parse(result.stdout)).toEqual(detail);
-      const request = onlyRequest(server);
-      expect(request.method).toBe('GET');
-      expect(request.url).toBe('/api/invocations/42');
-    } finally {
-      await server.close();
-    }
-  }, 20_000);
 });

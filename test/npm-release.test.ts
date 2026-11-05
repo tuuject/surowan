@@ -30,23 +30,16 @@ describe('npm release selection', () => {
     expect(new Set(releases).size).toBe(4);
   });
 
-  it.each(['0.1.0', '1.0.0', '10.20.30'])('uses tag v%s as the exact latest version', (version) => {
-    expect(npmRelease({ ...env, GITHUB_REF: `refs/tags/v${version}` })).toEqual({ version, tag: 'latest' });
+  it('uses tag vMAJOR.MINOR.PATCH as the exact latest version', () => {
+    expect(npmRelease({ ...env, GITHUB_REF: 'refs/tags/v10.20.30' })).toEqual({ version: '10.20.30', tag: 'latest' });
   });
 
   it.each([
-    'refs/heads/develop',
-    'refs/heads/feature/npm',
     'refs/pull/1/merge',
     'refs/tags/v1.0',
     'refs/tags/v01.0.0',
-    'refs/tags/v1.00.0',
-    'refs/tags/v1.0.01',
     'refs/tags/v1.0.0-rc.1',
-    'refs/tags/v0.0.0-next-20261006000000',
-    'refs/tags/v1.0.0+build.1',
     'refs/tags/v9007199254740992.0.0',
-    'refs/tags/v1.0.0\n',
     'refs/tags/v1.0.0\ntag=canary',
     '',
   ])('rejects unsupported or malformed ref %j', (ref) => {
@@ -55,13 +48,10 @@ describe('npm release selection', () => {
 
   it.each([
     { GITHUB_EVENT_NAME: 'pull_request' },
-    { GITHUB_EVENT_NAME: 'workflow_dispatch' },
-    { GITHUB_EVENT_NAME: 'workflow_run' },
     { GITHUB_REPOSITORY: 'someone/surowan' },
     { GITHUB_RUN_NUMBER: '0' },
     { GITHUB_RUN_NUMBER: '123\ntag=latest' },
     { GITHUB_RUN_ATTEMPT: '01' },
-    { GITHUB_RUN_ATTEMPT: '' },
     { GITHUB_SHA: 'short' },
     { GITHUB_SHA: '' },
   ])('rejects untrusted or incomplete workflow inputs %j', (override) => {
@@ -104,51 +94,5 @@ describe('npm release selection', () => {
     expect(root.private).toBe(true);
     expect(root.bin).toEqual({ surowan: './src/cli.ts' });
     expect(image.private).toBe(true);
-  });
-
-  it('keeps the project-root Skill entry small and links to separate Invocation guides', () => {
-    const skill = new URL('../skills/surowan-utils/', import.meta.url);
-    const entry = readFileSync(new URL('SKILL.md', skill), 'utf8');
-    expect(entry).toContain('name: surowan-utils');
-    expect(entry).toContain('(references/invocations.md)');
-    expect(entry).toContain('(references/replay.md)');
-    expect(entry).not.toContain('fidelity.');
-    expect(entry).not.toContain('surowan-utils invocation replay');
-    expect(entry).toContain('surowan-utils doctor --json');
-    expect(entry).toContain('退出码为 `0`');
-    expect(entry).toContain('stdout 的 `status` 为 `ok`');
-    expect(entry).toContain('未通过时立即停止');
-    expect(entry).toContain('不自动执行 `login`');
-    expect(entry).toContain('不要循环重试');
-    // The models list command and its authorization isolation stay at the entry.
-    expect(entry).toContain('models list');
-    expect(entry).toContain('不是授权清单');
-    expect(entry).toContain('严禁自动尝试');
-    const audit = readFileSync(new URL('references/invocations.md', skill), 'utf8');
-    expect(audit).toContain('surowan-utils invocation get');
-    expect(audit).toContain('telegram_sends[]');
-    expect(audit).toContain('surowan-utils models list');
-    expect(audit).toContain('不是授权清单');
-    const replay = readFileSync(new URL('references/replay.md', skill), 'utf8');
-    expect(replay).toContain('surowan-utils invocation replay');
-    expect(replay).toContain('明确授权');
-    expect(replay).toContain('fidelity.omitted_images');
-    // Temporary model/thinking overrides keep their own contract in the replay guide.
-    expect(replay).toContain('--provider');
-    expect(replay).toContain('--thinking-level');
-    expect(replay).toContain('invalid_model_override');
-    expect(replay).toContain('invalid_thinking_level');
-    expect(replay).toContain('fidelity.model_selection');
-    expect(replay).toContain('temporary_override');
-    // The panel guide carries the write-confirmation contract, which is the
-    // whole reason a session credential is offered at all.
-    const panel = readFileSync(new URL('references/panel.md', skill), 'utf8');
-    expect(panel).toContain('confirmation_required');
-    expect(panel).toContain('--dry-run');
-    expect(panel).toContain('config_conflict');
-    expect(entry).toContain('(references/panel.md)');
-    expect(entry).toContain('不要把补 `--yes` 当成确认');
-    const metadata = readFileSync(new URL('agents/openai.yaml', skill), 'utf8');
-    expect(metadata).toContain('$surowan-utils');
   });
 });

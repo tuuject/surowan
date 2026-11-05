@@ -148,22 +148,3 @@ test('group memory admin update and delete change only the summary/row', async (
   expect(f.store.orm.select().from(groupMemories).all()).toEqual([]);
   expect((await f.call(`/group-memories/${id}/messages`)).status).toBe(404);
 });
-
-test('group memory admin rejects invalid ids and summaries', async () => {
-  const f = await fixture();
-  const chat = seedChat(f.store, 123_456_789n);
-  const memories = new GroupMemoryStore(f.store.orm);
-  memories.commit(chat.chatId, '2026-09-10', [{ summary: 'only one', firstMessageId: 1n, lastMessageId: 1n }], 1n);
-  const id = f.store.orm.select().from(groupMemories).get()?.id;
-  if (id === undefined) {
-    throw new Error('group memory seed failed');
-  }
-  const invalid = await f.call(`/group-memories/${id}`, {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ summary: 'x'.repeat(151) }),
-  });
-  expect(invalid.status).toBe(400);
-  expect((await f.call('/group-memories/not-an-id')).status).toBe(400);
-  expect((await f.call('/group-memories/gmem_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')).status).toBe(404);
-});

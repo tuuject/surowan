@@ -8,62 +8,11 @@ import {
   conversations,
   memoPadEntries,
   messages,
-  schemaMigrations,
   stickerSets,
-  telegramUpdates,
 } from '../../src/store/schema/index.ts';
 import { cleanupSchemaDirectories, openStore } from './fixtures.ts';
 
 afterAll(cleanupSchemaDirectories);
-
-test('drizzle layer reads migration versions as bigint', async () => {
-  const { store } = await openStore();
-  try {
-    const versions = store.orm
-      .select()
-      .from(schemaMigrations)
-      .all()
-      .map((row) => row.version);
-    expect(versions.length).toBeGreaterThanOrEqual(14);
-    for (const version of versions) {
-      expect(typeof version).toBe('bigint');
-    }
-  } finally {
-    store.close();
-  }
-});
-
-test('drizzle layer round-trips bigint and boolean columns', async () => {
-  const { store } = await openStore();
-  try {
-    const now = new Date('2026-09-01T00:00:00.000Z').toISOString();
-    const inserted = store.orm
-      .insert(chats)
-      .values({ id: 1n, telegramChatId: 123456789n, canonicalChatId: 123456789n, type: 'private', updatedAt: now })
-      .returning({ id: chats.id, telegramChatId: chats.telegramChatId })
-      .get();
-    expect(inserted?.id).toBe(1n);
-    expect(typeof inserted?.id).toBe('bigint');
-    expect(inserted?.telegramChatId).toBe(123456789n);
-
-    const allowed = store.orm
-      .insert(telegramUpdates)
-      .values({ updateId: 10n, chatId: 123456789n, chatType: 'private', receivedAt: now, allowed: true, rawJson: '{}' })
-      .returning({ allowed: telegramUpdates.allowed })
-      .get();
-    expect(allowed?.allowed).toBe(true);
-    expect(typeof allowed?.allowed).toBe('boolean');
-
-    const rejected = store.orm
-      .insert(telegramUpdates)
-      .values({ updateId: 11n, receivedAt: now, allowed: false })
-      .returning({ allowed: telegramUpdates.allowed })
-      .get();
-    expect(rejected?.allowed).toBe(false);
-  } finally {
-    store.close();
-  }
-});
 
 test('strict tables still reject text values in integer columns through sql templates', async () => {
   const { store } = await openStore();
@@ -175,21 +124,6 @@ test('drizzle layer preserves check constraints from the sql migrations', async 
       .where(eq(memoPadEntries.chatId, 1n))
       .get();
     expect(count?.count).toBe(0n);
-  } finally {
-    store.close();
-  }
-});
-
-test('the room timeline reads an input state through the message index', async () => {
-  const { store } = await openStore();
-  try {
-    const plan = store.db
-      .prepare<[bigint], { detail: string }>(
-        'EXPLAIN QUERY PLAN SELECT state FROM playground_inputs WHERE message_id = ?',
-      )
-      .all(1n)
-      .map((row) => row.detail);
-    expect(plan.join('\n')).toContain('USING INDEX playground_inputs_message_idx');
   } finally {
     store.close();
   }

@@ -30,7 +30,7 @@ afterEach(async () => {
   }
 });
 
-export async function fixture(allowReplyMessageMultipleTimes?: boolean) {
+export async function fixture() {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-admin-inspection-'));
   const configPath = join(directory, 'config.jsonc');
   const secret = 'inspection-secret-must-not-be-output';
@@ -40,9 +40,6 @@ export async function fixture(allowReplyMessageMultipleTimes?: boolean) {
     testConfigJsonc(directory, (config) => {
       config.admin = { enabled: true, host: '127.0.0.1', port: 8899, session_ttl_hours: 12 };
       config.telegram.chats[0]!.id = -100123456789;
-      if (allowReplyMessageMultipleTimes !== undefined) {
-        config.agent!.allow_reply_message_multiple_times = allowReplyMessageMultipleTimes;
-      }
       const agent = config.providers.agent;
       if (agent?.kind === 'custom') {
         agent.headers = { 'x-private': { env: 'SUROWAN_TEST_HEADER_SECRET' } };

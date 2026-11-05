@@ -84,15 +84,6 @@ export const LIST_ITEM = {
   ],
 };
 
-export const PLAIN_ITEM = {
-  id: '9',
-  state: 'completed',
-  created_at: '2026-10-06T12:00:00.000Z',
-  chat: { telegram_chat_id: '-100123', title: 'Inspect Group', username: null, message_thread_id: 0 },
-  total_tokens: 10,
-  total_cost: 0.001,
-};
-
 export const MODELS = {
   source: 'active',
   generation: 12,

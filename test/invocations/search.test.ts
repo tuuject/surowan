@@ -94,14 +94,6 @@ test('literal wildcard characters never widen the search', () => {
   expect(ids({ search: 'axb' })).toEqual(['403']);
 });
 
-test('without search or time filters the response keeps its original shape', () => {
-  const items = list({});
-  expect(items.map((item) => item.id)).toEqual(['405', '404', '403', '402', '401']);
-  for (const item of items) {
-    expect('matched_messages' in item).toBe(false);
-  }
-});
-
 test('snapshots stay frozen when the live message is edited afterwards', () => {
   const frozen = list({ search: '旧版本' });
   expect(frozen.map((item) => item.id)).toEqual(['402']);

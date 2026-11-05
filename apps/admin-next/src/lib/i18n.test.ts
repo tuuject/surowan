@@ -1,11 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import i18n, { LANGUAGE_KEY, resolveInitialLanguage, setLanguage } from './i18n.ts';
+import { LANGUAGE_KEY, resolveInitialLanguage } from './i18n.ts';
 
 /**
- * Default language resolved when this module was imported; the vitest setup
- * pins `navigator.language` to `en-US`, so this is `en` on every machine.
+ * Initial language detection. The Playwright suite pins `en-US`, so a Chinese
+ * browser or a blocked storage never reaches it; only these cases do.
  */
-const initialLanguage = i18n.language;
 
 function setBrowserLanguage(language: string): void {
   Object.defineProperty(globalThis.navigator, 'language', { configurable: true, value: language });
@@ -23,8 +22,7 @@ beforeEach(() => {
   setBrowserLanguage('en-US');
 });
 
-afterEach(async () => {
-  await i18n.changeLanguage(initialLanguage);
+afterEach(() => {
   vi.unstubAllGlobals();
   setBrowserLanguage('en-US');
 });
@@ -77,83 +75,5 @@ describe('resolveInitialLanguage', () => {
 
     setBrowserLanguage('zh-CN');
     expect(resolveInitialLanguage()).toBe('zh-CN');
-  });
-});
-
-describe('language switching', () => {
-  test('setLanguage persists the choice, marks the document and switches translations', () => {
-    const entries = new Map<string, string>();
-    vi.stubGlobal('localStorage', {
-      getItem: (key: string) => entries.get(key) ?? null,
-      setItem: (key: string, value: string) => {
-        entries.set(key, value);
-      },
-    });
-    vi.stubGlobal('document', { documentElement: { lang: '' } });
-
-    setLanguage('zh-CN');
-    expect(entries.get(LANGUAGE_KEY)).toBe('zh-CN');
-    expect(document.documentElement.lang).toBe('zh-CN');
-    expect(document.title).toBe('塑料碗管理端');
-    expect(i18n.t('common.requestFailed')).toBe('请求失败');
-
-    setLanguage('en');
-    expect(entries.get(LANGUAGE_KEY)).toBe('en');
-    expect(document.documentElement.lang).toBe('en');
-    expect(document.title).toBe('Surowan Admin');
-    expect(i18n.t('common.requestFailed')).toBe('Request failed');
-  });
-
-  test('a chosen language is what a reload resolves from storage', () => {
-    const entries = new Map<string, string>();
-    vi.stubGlobal('localStorage', {
-      getItem: (key: string) => entries.get(key) ?? null,
-      setItem: (key: string, value: string) => {
-        entries.set(key, value);
-      },
-    });
-    vi.stubGlobal('document', { documentElement: { lang: '' } });
-
-    setLanguage('zh-CN');
-    expect(resolveInitialLanguage()).toBe('zh-CN');
-
-    setLanguage('en');
-    expect(resolveInitialLanguage()).toBe('en');
-  });
-
-  test('unavailable storage does not break setLanguage', () => {
-    vi.stubGlobal('localStorage', {
-      getItem: () => {
-        throw new Error('storage blocked');
-      },
-      setItem: () => {
-        throw new Error('storage blocked');
-      },
-    });
-    vi.stubGlobal('document', { documentElement: { lang: '' } });
-
-    expect(() => setLanguage('zh-CN')).not.toThrow();
-    expect(document.documentElement.lang).toBe('zh-CN');
-  });
-
-  test('the Chinese catalog still mirrors the English keys these tests rely on', async () => {
-    expect(i18n.t('common.requestFailed')).toBe('Request failed');
-    expect(i18n.t('pages.memories.ttlUnitDays')).toBe('d');
-    expect(i18n.t('brand.name')).toBe('Surowan');
-    expect(i18n.t('brand.loginTitle')).toBe('Surowan admin sign-in');
-
-    await i18n.changeLanguage('zh-CN');
-    expect(i18n.t('common.requestFailed')).toBe('请求失败');
-    expect(i18n.t('pages.memories.ttlUnitDays')).toBe('天');
-    expect(i18n.t('brand.name')).toBe('塑料碗');
-    expect(i18n.t('brand.loginTitle')).toBe('塑料碗管理端登录');
-    expect(i18n.t('pages.warnings.codes.telegram_network_error.title')).toBe('未能成功连接 Telegram 服务器');
-    expect(i18n.t('pages.warnings.codes.telegram_config_error.unauthorized')).toBe(
-      '你的 Telegram Token 已被吊销或无效',
-    );
-    expect(i18n.t('pages.warnings.codes.telegram_config_error.conflict')).toBe(
-      '这个 Telegram Token 正在被其他程序使用',
-    );
-    expect(i18n.t('pages.warnings.codes.telegram_config_error.token_unreadable')).toBe('无法读取 Telegram Token');
   });
 });

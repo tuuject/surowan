@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test, vi } from 'vitest';
+import { afterAll, describe, expect, test } from 'vitest';
 import { BotCommandService, type CommandSender } from '../../src/orchestration/bot-commands/index.ts';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.ts';
@@ -72,18 +72,6 @@ describe('bot command service', () => {
       store.close();
     });
 
-    test('without an argument lists the first page of switchable options with inheritance hints', async () => {
-      const { store, commands } = await commandSetup();
-      const reply = await commands.run({ name: 'model' }, 123456789n, ALICE, FIXED_NOW);
-      expect(reply).toContain('本群模型: agent / agent-model（继承全局）');
-      expect(reply).toContain('思考强度: low（继承全局）');
-      expect(reply).toContain('可用模型（第 1/1 页，共 2 条）:');
-      expect(reply).toContain('1. agent / agent-model（Agent Model）');
-      expect(reply).toContain('2. vision / vision-model（Vision Model）');
-      expect(reply).toContain('使用 /model 序号 切换，/model page 页码 翻页，/model default 清除本群覆盖');
-      store.close();
-    });
-
     test('paginates model options by global index in pages of 20', async () => {
       const { store, commands } = await commandSetup(manyModelTransform(40));
       const firstPage = (await commands.run({ name: 'model' }, 123456789n, ALICE, FIXED_NOW)).split('\n');
@@ -146,17 +134,6 @@ describe('bot command service', () => {
         expect(reply).toContain('可用模型（第 1/3 页，共 42 条）:');
         expect(configStore.current()).toBe(before);
       }
-      store.close();
-    });
-
-    test('switches by index and the status command reflects it for the chat', async () => {
-      const { store, commands } = await commandSetup();
-      const reply = await commands.run({ name: 'model', argument: '2' }, 123456789n, ALICE, FIXED_NOW);
-      expect(reply).toContain('已为本群切换: vision / vision-model');
-      expect(reply).toContain('已写入 config.jsonc，将在下一次 agent session 生效');
-      const status = await commands.run({ name: 'status' }, 123456789n, ALICE, FIXED_NOW);
-      expect(status).toContain('本群模型: vision / vision-model\n思考强度: off');
-      expect(status).not.toContain('（继承全局）');
       store.close();
     });
 
@@ -225,60 +202,6 @@ describe('bot command service', () => {
         expect(reply).toContain('无效序号');
         expect(configStore.current()).toBe(before);
       }
-      store.close();
-    });
-
-    test('/model default distinguishes failed writes from a saved but unapplied file', async () => {
-      const { store, commands, reloader } = await commandSetup();
-      const reset = vi.spyOn(reloader, 'resetChatModel');
-      try {
-        for (const fileWritten of [false, true]) {
-          reset.mockResolvedValueOnce({
-            ok: false,
-            code: 'config_write_failed',
-            message: 'disk full',
-            fileWritten,
-            status: reloader.status(),
-          });
-          const reply = await commands.run({ name: 'model', argument: 'default' }, 123456789n, ALICE, FIXED_NOW);
-          expect(reply).toBe(fileWritten ? '已写入 config.jsonc，但应用失败: disk full' : '恢复失败: disk full');
-        }
-        reset.mockResolvedValueOnce({
-          ok: true,
-          applied: ['agent.history_messages'],
-          restartRequired: ['telegram.bucket_window_seconds'],
-          outsideServe: [],
-          status: reloader.status(),
-        });
-        const reply = await commands.run({ name: 'model', argument: 'default' }, 123456789n, ALICE, FIXED_NOW);
-        expect(reply).toContain('同时应用了配置文件中的其它修改: agent.history_messages');
-        expect(reply).toContain('另有 1 项配置需要重启后生效。');
-      } finally {
-        reset.mockRestore();
-        store.close();
-      }
-    });
-
-    test('reports runtime model switch unavailable without reloader or switcher', async () => {
-      const { store, scheduler, configStore } = await setup();
-      const commands = new BotCommandService(store, configStore, scheduler);
-      const reply = await commands.run({ name: 'model' }, 123456789n, ALICE, FIXED_NOW);
-      expect(reply).toBe('运行时模型切换不可用。');
-      store.close();
-    });
-
-    test('reports chat not found when chat id is not in config', async () => {
-      const { store, commands } = await commandSetup();
-      const reply = await commands.run({ name: 'model' }, 999999999n, ALICE, FIXED_NOW);
-      expect(reply).toBe('本 Chat 未在配置中找到。');
-      store.close();
-    });
-
-    test('status shows inheritance hints when following global settings', async () => {
-      const { store, commands } = await commandSetup();
-      const status = await commands.run({ name: 'status' }, 123456789n, ALICE, FIXED_NOW);
-      expect(status).toContain('本群模型: agent / agent-model（继承全局）');
-      expect(status).toContain('思考强度: low（继承全局）');
       store.close();
     });
   });

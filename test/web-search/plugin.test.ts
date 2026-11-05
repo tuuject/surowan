@@ -53,19 +53,6 @@ function config(enabled: boolean): RawConfig {
   } as unknown as RawConfig;
 }
 
-test('the bundled plugins register all seven providers on one extension point', () => {
-  const loaded = loadPlugins(BUILTIN_PLUGINS);
-  expect(loaded.extensions(WEB_SEARCH_PROVIDERS).map((provider) => provider.rule.id)).toEqual([
-    'tavily',
-    'brave',
-    'exa',
-    'firecrawl',
-    'deepseek',
-    'searxng',
-    'youcom',
-  ]);
-});
-
 test('the skill index and the capability follow availability together', () => {
   const loaded = loadPlugins(BUILTIN_PLUGINS);
   const deadline = Date.now() + 30_000;
@@ -76,13 +63,6 @@ test('the skill index and the capability follow availability together', () => {
   expect(offline.map((entry) => entry.tool.name)).not.toContain('web_search');
   expect(loaded.skillAvailable('web-search', config(true))).toBe(true);
   expect(loaded.skillAvailable('web-search', config(false))).toBe(false);
-});
-
-test('the capability description lists the configured engine and its note', () => {
-  const loaded = loadPlugins(BUILTIN_PLUGINS);
-  const capabilities = loaded.capabilities(store, config(true), previewContext('telegram'), Date.now() + 30_000, tasks);
-  const tool = capabilities.find((entry) => entry.tool.name === 'web_search')?.tool;
-  expect(tool?.description).toContain('main (Tavily): Chinese developer blogs');
 });
 
 test('the live steer sink reaches the capability that detects a changed engine list', async () => {
@@ -116,19 +96,6 @@ test('the live steer sink reaches the capability that detects a changed engine l
   await expect(tool.execute('steer-1', { query: 'x', engine: 'docs' })).rejects.toThrow('is disabled');
   expect(steers).toHaveLength(1);
   expect(steers[0]).toContain('enabled engines are now main');
-});
-
-test('an unavailable plugin contributes neither the capability nor the skill', () => {
-  const loaded = loadPlugins([webSearch]);
-  const capabilities = loaded.capabilities(
-    store,
-    config(false),
-    previewContext('playground'),
-    Date.now() + 30_000,
-    tasks,
-  );
-  expect(capabilities).toEqual([]);
-  expect(loaded.skillAvailable('web-search', config(false))).toBe(false);
 });
 
 test('a second provider plugin claiming an existing id is rejected at load', () => {

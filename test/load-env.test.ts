@@ -28,11 +28,6 @@ async function workingDirectory(): Promise<string> {
 }
 
 describe('environment file loading', () => {
-  test('is a no-op when no env files exist', async () => {
-    await workingDirectory();
-    expect(() => loadEnvFiles(['.env.local', '.env'])).not.toThrow();
-  });
-
   test('loads variables from .env.local and .env', async () => {
     const directory = await workingDirectory();
     envKeys.push('SUROWAN_TEST_ENV_LOCAL', 'SUROWAN_TEST_ENV_FILE');

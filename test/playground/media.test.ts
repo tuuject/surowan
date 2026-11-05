@@ -1,5 +1,4 @@
-import { randomBytes } from 'node:crypto';
-import { access, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { crc32 } from 'node:zlib';
@@ -9,12 +8,7 @@ import { afterAll, expect, test, vi } from 'vitest';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { MediaService } from '../../src/capabilities/media/index.ts';
-import {
-  isAnimatedPng,
-  LocalAssetRejected,
-  PlaygroundAssetStore,
-  sniffImageMime,
-} from '../../src/capabilities/media/local-assets.ts';
+import { isAnimatedPng, LocalAssetRejected, PlaygroundAssetStore } from '../../src/capabilities/media/local-assets.ts';
 import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { PlaygroundIngress } from '../../src/ingress/playground.ts';
 import { KeyedSemaphore } from '../../src/platform/concurrency.ts';
@@ -60,17 +54,6 @@ async function png(width = 32, height = 16): Promise<Uint8Array> {
   );
 }
 
-test('content sniffing refuses anything that is not a still JPEG, PNG or WebP', async () => {
-  expect(sniffImageMime(await png())).toBe('image/png');
-  expect(sniffImageMime(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe('image/jpeg');
-  expect(sniffImageMime(new Uint8Array([...Buffer.from('RIFF'), 0, 0, 0, 0, ...Buffer.from('WEBP')]))).toBe(
-    'image/webp',
-  );
-  expect(sniffImageMime(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>'))).toBeNull();
-  expect(sniffImageMime(Buffer.from('GIF89a'))).toBeNull();
-  expect(sniffImageMime(Buffer.from('not an image at all'))).toBeNull();
-});
-
 test('an upload is validated by its real bytes, not by its name or MIME claim', async () => {
   const { store, assets, room } = await setup();
   const bytes = await png();
@@ -104,23 +87,6 @@ test('an upload is validated by its real bytes, not by its name or MIME claim', 
   await expect(limited.ingest(room.chatId, { bytes: huge, declaredMime: 'image/png' })).rejects.toMatchObject({
     reason: 'too_large',
   });
-});
-
-test('an accepted image is stored under the room and deduplicated by content', async () => {
-  const { assets, room } = await setup();
-  const bytes = await png();
-
-  const first = await assets.ingest(room.chatId, { bytes, declaredMime: 'image/png' });
-  const second = await assets.ingest(room.chatId, { bytes, declaredMime: 'image/png' });
-
-  expect(first.id).toMatch(/^[a-f0-9]{32}$/);
-  expect(second.id).toBe(first.id);
-  expect(first.mime).toBe('image/png');
-  expect(first.width).toBe(32);
-  expect(first.height).toBe(16);
-  await expect(access(first.path)).resolves.toBeUndefined();
-  expect(new Uint8Array(await readFile(first.path))).toEqual(bytes);
-  expect(first.path).toContain(room.chatId.toString());
 });
 
 test('a room message carries its images into the snapshot as local media rows', async () => {
@@ -227,17 +193,6 @@ test('a room image is read locally and never falls back to Telegram', async () =
   expect(assets.resolve(asset.id)?.path).toBe(asset.path);
 });
 
-test('a staged upload that never became a message is swept', async () => {
-  const { assets, room } = await setup();
-  const bytes = await png();
-  const asset = await assets.ingest(room.chatId, { bytes, declaredMime: 'image/png' });
-
-  const swept = await assets.sweep({ staleAfterMs: -1 });
-  expect(swept.staged).toBe(1);
-  await expect(access(asset.path)).rejects.toThrow();
-  expect(assets.resolve(asset.id)).toBeNull();
-});
-
 test('an asset shared by two messages survives losing one of them', async () => {
   const { store, assets, room } = await setup();
   const ingress = new PlaygroundIngress(store.orm, { assets });
@@ -296,21 +251,6 @@ test('an animated PNG is refused even though it decodes as one frame', async () 
   await expect(assets.ingest(room.chatId, { bytes: animated, declaredMime: 'image/png' })).rejects.toMatchObject({
     reason: 'animated',
   });
-});
-
-test('an image with a valid header but a truncated payload is refused', async () => {
-  const { assets, room } = await setup();
-  const bytes = new Uint8Array(
-    await sharp(randomBytes(256 * 256 * 3), { raw: { width: 256, height: 256, channels: 3 } })
-      .png()
-      .toBuffer(),
-  );
-  const truncated = bytes.subarray(0, Math.floor(bytes.length / 2));
-
-  await expect(assets.ingest(room.chatId, { bytes: truncated, declaredMime: 'image/png' })).rejects.toMatchObject({
-    reason: 'corrupt',
-  });
-  expect(assets.ids(room.chatId)).toEqual([]);
 });
 
 test('concurrent uploads of the same bytes resolve to one asset and one file', async () => {

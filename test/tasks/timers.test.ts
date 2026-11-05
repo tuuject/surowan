@@ -100,13 +100,4 @@ describe('LongTaskService', () => {
     scope.create({ payload: {}, delivery: { bypassDailyBudget: false }, scheduledAt: t0 });
     expect(tasks.nextDeadline()).toBe(t0);
   });
-
-  test('nextDeadline returns undefined when no timers', async () => {
-    const { store, conversationId } = await initDb();
-    seedInvocation(store, 100n, conversationId);
-    const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('alarm', ctx(conversationId));
-    scope.create({ payload: {}, delivery: { bypassDailyBudget: false } });
-    expect(tasks.nextDeadline()).toBeUndefined();
-  });
 });

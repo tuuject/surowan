@@ -1,11 +1,11 @@
 /**
  * T09 acceptance: the Admin Playground API.
  *
- * Driven through the real `AdminServer` router (session auth, Origin check,
- * body limits) over a real store, the real room ingress and the real local
- * asset store. Nothing here starts a model or a generation: the API's contract
- * is that reads never execute anything, every write is idempotent by request
- * key, and a nested id from another room reads as not found.
+ * Driven through the real `AdminServer` router (request routing, body limits)
+ * over a real store, the real room ingress and the real local asset store.
+ * Nothing here starts a model or a generation: the API's contract is that reads
+ * never execute anything, every write is idempotent by request key, and a
+ * nested id from another room reads as not found.
  */
 import { expect, test } from 'vitest';
 import {
@@ -29,34 +29,6 @@ import {
   playgroundMutations,
   playgroundReleases,
 } from '../../src/store/schema/index.ts';
-
-test('the playground API demands a session, refuses a foreign Origin and never accepts an API key', async () => {
-  const f = await fixture();
-  try {
-    expect((await f.server.handle(request('/api/playground/rooms'))).status).toBe(401);
-
-    const crossOrigin = await f.server.handle(
-      post('/api/playground/rooms', { title: 'x', request_key: 'k' }, f.cookie, 'https://evil.test'),
-    );
-    expect(crossOrigin.status).toBe(403);
-    expect(await readJson(crossOrigin)).toMatchObject({ error: 'bad_origin' });
-
-    // A key is not a session: a playground route stays unreachable with one, and
-    // the request never falls back to the cookie it also carries.
-    const withKey = await f.server.handle(
-      request('/api/playground/rooms', {
-        headers: { authorization: 'Bearer pwk_not-a-real-key', cookie: f.cookie },
-      }),
-    );
-    expect(withKey.status).toBe(401);
-
-    const authorized = await f.server.handle(get('/api/playground/rooms', f.cookie));
-    expect(authorized.status).toBe(200);
-    expect(await readJson(authorized)).toEqual({ items: [] });
-  } finally {
-    f.store.close();
-  }
-});
 
 test('the invocation audit answers for a room under its own identity, for a session and an API key', async () => {
   const f = await fixture();

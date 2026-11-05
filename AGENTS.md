@@ -152,9 +152,13 @@ pnpm run skills:sync
 
 ## Testing Guidelines
 
+- Never write unit tests after you write code.
+- Highly prefer E2E tests as the sole testing mechanism. Use them to verify complex features work. At the end of E2E tests, produce a verifiable and repeatable artifact.
+- If you must test a system in isolation, first write down all the ways it could fail, then write the code.
+- 本仓库现有的 E2E 只有 Admin Panel 的 Playwright 套件（`pnpm run admin:test:e2e`，英文 locale），读不到 canonical Context、审计行、Telegram 副作用、宿主隔离与发布清单；这些属于上一条的隔离测试，按下列规则写在 vitest。
 - Bug 修复必须复现原故障并验证审计状态，不只验证返回文本。
 - 新行为测试应覆盖外部可见契约、边界、预算、恢复、状态转换和真实错误。
-- Provider/Telegram 单元测试使用现有 Faux 或 fixture；真实外部连接由 `doctor` 和人工 Telegram 验收覆盖。
+- 测试中的 Provider/Telegram 一律使用现有 Faux 或 fixture 替身（E2E 与隔离测试相同）；真实外部连接由 `doctor` 和人工 Telegram 验收覆盖。
 - 媒体改动至少覆盖静态图片、Sticker 结构化输出或外部转换链路中受影响的一项。
 - Context 改动至少断言 canonical history 的落盘状态（`context_messages` / `head_seq` / `context_refs`）与审计事件，不能只断言返回文本。
 - Admin Panel 前端、admin API 端点或面板可见文案（含 locale 键值）改动，提交前运行 `pnpm run admin:test:e2e`，至少覆盖受影响套件（如 `pnpm run admin:test:e2e 01-routes`）：e2e 断言各路由真实渲染与页面可见文案（英文 locale），`pnpm test` 与 `pnpm run check` 不包含这一层，漏跑只会在 CI 上暴露。

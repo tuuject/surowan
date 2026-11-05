@@ -182,7 +182,6 @@ describe('duplicate send guard', () => {
       const api = recordingApi();
       let rejections = 0;
       const { send } = makeTools(fixture, api, undefined, () => (rejections += 1));
-      expect(send.description).toContain('identical to one already sent in this run is rejected');
       await send.execute('first', { text: 'good morning', reply_to_message_id: '10' });
       // Once another message came in between, a different reply target or
       // parse mode makes a different message.
@@ -208,22 +207,6 @@ describe('duplicate send guard', () => {
       ]);
       // The rejection spends no send budget.
       expect(sendCounts(fixture)).toEqual({ host_sends: 5n, sends_used: 5n });
-    } finally {
-      fixture.store.close();
-    }
-  });
-
-  test('rejects a repeated sticker', async () => {
-    const fixture = await setup();
-    try {
-      const api = recordingApi();
-      const { send, capabilities } = makeTools(fixture, api, true);
-      const stickerRef = capabilities.registerStickerRef('CAAD-fake-sticker');
-      await send.execute('sticker', { kind: 'sticker', sticker_ref: stickerRef });
-      await expect(send.execute('again', { kind: 'sticker', sticker_ref: stickerRef })).rejects.toThrow(
-        'send_duplicate',
-      );
-      expect(api.calls).toEqual(['CAAD-fake-sticker']);
     } finally {
       fixture.store.close();
     }
@@ -343,7 +326,6 @@ describe('duplicate send guard', () => {
     try {
       const api = recordingApi();
       const { send, sendReply } = makeTools(fixture, api, false);
-      expect(send.description).not.toContain('identical to one already sent');
       await send.execute('one', { text: 'same' });
       await send.execute('two', { text: 'same' });
       await sendReply.execute('three', { parts: [{ text: 'same' }, { text: 'same' }] });

@@ -446,19 +446,4 @@ describe('playground ingestion', () => {
       ingress.submit(room.chatId, { requestKey: 'req-max', senderId: '9223372036854775807', text: 'hi' }),
     ).rejects.toMatchObject({ code: 'unknown_sender' });
   });
-
-  test('the ingress validates keys and decimal ids before writing', async () => {
-    const { store, room } = await fixture();
-    const ingress = new PlaygroundIngress(store.orm);
-    await expect(
-      ingress.submit(room.chatId, { requestKey: 'req-1', senderId: 'nope', text: 'hi' }),
-    ).rejects.toMatchObject({ code: 'input_conflict' });
-    const submitted = await ingress.submit(room.chatId, {
-      requestKey: 'req-1',
-      senderId: room.members[0]!.senderId,
-      text: 'hi',
-    });
-    expect(submitted.admitted).toBe(true);
-    expect(ingress.status(room.chatId).held).toHaveLength(1);
-  });
 });

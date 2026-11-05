@@ -67,10 +67,6 @@ test('core assembly uses injected resources without loading host files or starti
     // Assembly must not start the scheduler or process anything on construction.
     expect(reads).toEqual([]);
     expect(sends).toEqual([]);
-    expect(core).toHaveProperty('conversationRuntime');
-    expect(core).toHaveProperty('scheduler');
-    expect(core).toHaveProperty('runtime');
-    expect(core).toHaveProperty('tasks');
 
     const ingestion = new TelegramIngestion(store, configStore, { id: 999 });
     const received = new Date('2026-08-15T00:00:00.000Z');

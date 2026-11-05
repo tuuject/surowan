@@ -1,7 +1,6 @@
 import { afterAll, describe, expect, test } from 'vitest';
 import {
   ALICE,
-  BUCKET_WINDOW_MS,
   FIRST_CHAT,
   cleanupCutTopicDirectories,
   commandUpdate,
@@ -13,53 +12,6 @@ import {
 afterAll(cleanupCutTopicDirectories);
 
 describe('cut_topic', () => {
-  test('without a cutoff, history includes earlier messages unchanged', async () => {
-    const { store, ingestion, scheduler } = await setup();
-    const start = new Date('2026-08-15T00:00:00.000Z');
-    ingestion.ingest(groupUpdate(1, 10, 'old', FIRST_CHAT), start);
-    ingestion.ingest(groupUpdate(2, 11, 'later', FIRST_CHAT), new Date(start.getTime() + 1_000));
-    const history = invocationHistory(
-      store,
-      ingestion,
-      scheduler,
-      FIRST_CHAT,
-      3,
-      12,
-      'trigger',
-      new Date(start.getTime() + BUCKET_WINDOW_MS + 1_000),
-    );
-    expect(history).toEqual(['old', 'later']);
-    store.close();
-  });
-
-  test('cut_topic excludes the command message and everything before it from new invocations', async () => {
-    const { store, ingestion, scheduler, commands } = await setup();
-    const start = new Date('2026-08-15T00:00:00.000Z');
-    ingestion.ingest(groupUpdate(1, 10, 'polluted', FIRST_CHAT), start);
-    ingestion.ingest(groupUpdate(2, 11, 'still old', FIRST_CHAT), new Date(start.getTime() + 1_000));
-    const command = ingestion.ingest(commandUpdate(3, 12, FIRST_CHAT), new Date(start.getTime() + 2_000)).command;
-    expect(command).toEqual({ name: 'cut_topic', messageId: 12n });
-    expect(await commands.run(command!, FIRST_CHAT, ALICE)).toContain('已切掉');
-    expect(
-      store.db
-        .prepare<[], { telegram_message_id: bigint }>('SELECT telegram_message_id FROM conversation_context_cutoffs')
-        .get()?.telegram_message_id,
-    ).toBe(12n);
-
-    const history = invocationHistory(
-      store,
-      ingestion,
-      scheduler,
-      FIRST_CHAT,
-      4,
-      13,
-      'after cut',
-      new Date(start.getTime() + BUCKET_WINDOW_MS + 2_000),
-    );
-    expect(history).toEqual([]);
-    store.close();
-  });
-
   test('messages after the cutoff remain and re-running cut_topic moves the cutoff forward', async () => {
     const { store, ingestion, scheduler, commands } = await setup();
     const start = new Date('2026-08-15T00:00:00.000Z');

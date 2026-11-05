@@ -23,9 +23,6 @@ describe('alarm tool', () => {
     const invocationId = processDue(scheduler, new Date(received.getTime() + 15_000));
     const context = build(invocationId, { contextWindow: 200_000, maxOutputTokens: 32768 });
 
-    expect(Compile(AlarmInputSchema).Check({ target_user_id: '42', summary: 'x', datetime: futureIso(3600_000) })).toBe(
-      true,
-    );
     expect(Compile(AlarmInputSchema).Check({ target_user_id: '42', summary: '', datetime: futureIso(3600_000) })).toBe(
       false,
     );

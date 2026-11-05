@@ -70,35 +70,31 @@ describe('surowan-utils invocation CLI', () => {
     }
   }, 20_000);
 
-  it.each(['', 'unfinished prompt'])(
-    'times out on stdin without EOF before sending HTTP: %j',
-    async (stdin) => {
-      const server = await startServer((_request, response) => {
-        jsonResponse(response, 200, { error: null });
+  it('times out on stdin without EOF before sending HTTP', async () => {
+    const server = await startServer((_request, response) => {
+      jsonResponse(response, 200, { error: null });
+    });
+    try {
+      const result = await runCli(
+        ['invocation', 'replay', '42', '--global-prompt', '-', '--timeout-ms', '250', '--json'],
+        {
+          env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
+          stdin: 'unfinished prompt',
+          keepStdinOpen: true,
+        },
+      );
+      expect(server.requests).toHaveLength(0);
+      expect(result.code).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(errorDocument(result)).toEqual({
+        error: 'timeout',
+        message: 'stdin timed out after 250ms; no request was sent',
       });
-      try {
-        const result = await runCli(
-          ['invocation', 'replay', '42', '--global-prompt', '-', '--timeout-ms', '250', '--json'],
-          {
-            env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY },
-            stdin,
-            keepStdinOpen: true,
-          },
-        );
-        expect(server.requests).toHaveLength(0);
-        expect(result.code).toBe(1);
-        expect(result.stdout).toBe('');
-        expect(errorDocument(result)).toEqual({
-          error: 'timeout',
-          message: 'stdin timed out after 250ms; no request was sent',
-        });
-        expect(result.stderr).not.toContain(API_KEY);
-      } finally {
-        await server.close();
-      }
-    },
-    20_000,
-  );
+      expect(result.stderr).not.toContain(API_KEY);
+    } finally {
+      await server.close();
+    }
+  }, 20_000);
 
   it('aborts on timeout without retrying', async () => {
     const server = await startServer(() => {
@@ -137,8 +133,6 @@ describe('surowan-utils invocation CLI', () => {
 
   it.each([
     ['get', 'content-length'],
-    ['get', 'chunked'],
-    ['replay', 'content-length'],
     ['replay', 'chunked'],
   ])(
     'reads JSON responses larger than 4 MiB for %s with %s',

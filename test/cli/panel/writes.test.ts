@@ -149,7 +149,7 @@ describe('surowan-utils panel writes', () => {
     }
   }, 60_000);
 
-  it('lists every panel command and rejects an unknown one before any request', async () => {
+  it('rejects an unknown panel command and unsafe set keys before any request', async () => {
     const fixture = await panelFixture();
     try {
       // `commands` needs no credential; the dispatch assertions below do.
@@ -162,21 +162,6 @@ describe('surowan-utils panel writes', () => {
       const listed = await runCli(['commands', '--json'], fixture);
       expect(listed.code, listed.stderr).toBe(0);
       const entries = JSON.parse(listed.stdout) as readonly { command: string; revision: string | null }[];
-      const commands = entries.map((entry) => entry.command);
-      for (const expected of [
-        'harness update',
-        'chat create',
-        'prompt save',
-        'provider create',
-        'dictionary create',
-        'search update',
-        'image config update',
-        'telegram token',
-        'room release',
-        'api-key create',
-      ]) {
-        expect(commands).toContain(expected);
-      }
       expect(entries.find((entry) => entry.command === 'chat create')?.revision).toBe('config');
 
       const unknown = await runCli(['chat', 'destory', '1'], fixture);

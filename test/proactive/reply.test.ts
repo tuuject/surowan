@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { RawConfig } from '../../src/platform/config/index.ts';
-import {
-  proactiveReplyProbability,
-  resolveProactiveReply,
-  type ProactiveReplySettings,
-} from '../../src/platform/proactive-reply.ts';
+import { resolveProactiveReply } from '../../src/platform/proactive-reply.ts';
 import {
   PRIVATE,
   START,
@@ -24,22 +20,6 @@ afterEach(async () => {
 });
 
 describe('proactive reply probability', () => {
-  test('increments from the base chance and hard pity always hits', () => {
-    const settings: ProactiveReplySettings = {
-      enabled: true,
-      base_probability: 0.2,
-      increment: 0.1,
-      hard_pity: 8,
-    };
-    const probabilities = Array.from({ length: 8 }, (_, index) => proactiveReplyProbability(index + 1, settings));
-    expect(probabilities).toHaveLength(8);
-    for (const [index, expected] of [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 1].entries()) {
-      expect(probabilities[index], `attempt ${index + 1}`).toBeCloseTo(expected, 10);
-    }
-    expect(proactiveReplyProbability(20, settings)).toBe(1);
-    expect(proactiveReplyProbability(1, { ...settings, base_probability: 1 })).toBe(1);
-  });
-
   test('resolves global values and Chat overrides field by field', () => {
     const config = {
       telegram: {

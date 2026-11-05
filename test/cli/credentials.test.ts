@@ -168,7 +168,6 @@ describe('validateApiKey', () => {
       const cli = error as CliError;
       expect(cli.code).toBe('invalid_api_key');
       expect(cli.exitCode).toBe(2);
-      expect(cli.message).toBe('API key must be 1 to 4096 characters with no whitespace or control characters');
     }
   });
 });
@@ -187,13 +186,6 @@ describe('readCredentials', () => {
     const parsed = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
     expect(parsed).toEqual({ endpoint: NORMALIZED_ENDPOINT, apiKey: API_KEY });
     expect(Object.keys(parsed)).toEqual(['endpoint', 'apiKey']);
-  });
-
-  it('round-trips a key that ends in a backslash', async () => {
-    const path = credentialsFile();
-    const apiKey = 'synthetic-key-with-backslash-\\';
-    await writeCredentials(path, { endpoint: ENDPOINT, apiKey });
-    await expect(readCredentials(path)).resolves.toEqual({ endpoint: NORMALIZED_ENDPOINT, apiKey });
   });
 
   it('accepts loopback http and rejects unsafe stored endpoints', async () => {

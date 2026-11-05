@@ -244,17 +244,15 @@ export function insertAlarm(
   conversationId: bigint,
   scheduledAt: string,
   options: {
-    targetUserId?: bigint;
     displayName?: string;
     summary?: string;
     state?: string;
     invocationId?: bigint;
   } = {},
 ): bigint {
-  const targetUserId = options.targetUserId ?? 42n;
   const displayName = options.displayName ?? 'Alice';
   const payload = {
-    target_user_id: targetUserId.toString(),
+    target_user_id: '42',
     target_display_name: displayName,
     summary: options.summary ?? 'test alarm',
   };
@@ -264,7 +262,7 @@ export function insertAlarm(
       payload,
       scheduledAt,
       timerResult: payload,
-      delivery: { bypassDailyBudget: true, mentionUser: { userId: targetUserId, displayName } },
+      delivery: { bypassDailyBudget: true, mentionUser: { userId: 42n, displayName } },
     },
     new Date(createdAt),
   ).taskId;

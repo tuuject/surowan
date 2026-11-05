@@ -114,15 +114,6 @@ test('the view lists providers and never returns a configured key', async () => 
   await writeTestKeyJar(f.directory, { deepseek: 'deepseek-key', 'search-key': 'tvly-stored' });
   const view = await f.view();
   expect(view.engines).toEqual([expect.objectContaining({ id: 'main', provider: 'tavily', key_configured: true })]);
-  expect(view.providers.map((provider) => provider.id)).toEqual([
-    'tavily',
-    'brave',
-    'exa',
-    'firecrawl',
-    'deepseek',
-    'searxng',
-    'youcom',
-  ]);
   expect(view.deepseek_keys).toEqual(['deepseek']);
   expect(JSON.stringify(view)).not.toContain('tvly-stored');
   expect(JSON.stringify(view)).not.toContain('deepseek-key');

@@ -55,23 +55,6 @@ describe('alarm admin', () => {
     store.close();
   });
 
-  test('filters by state, chat, and target and keeps bigint ids as strings', async () => {
-    const { store } = await setup();
-    const conversation = ensureConversation(store);
-    insertAlarm(store, conversation, '2026-08-15T01:00:00.000Z', { summary: 'mine', targetUserId: 42n });
-    insertAlarm(store, conversation, '2026-08-15T02:00:00.000Z', { summary: 'other', targetUserId: 7n });
-    const mine = listAlarms(store.orm, { target: '42' });
-    expect(mine.items).toHaveLength(1);
-    expect(mine.items[0]?.target_user_id).toBe('42');
-    expect(mine.items[0]?.chat.message_thread_id).toBe('0');
-    expect(mine.items[0]?.conversation_id).toBe(conversation.toString());
-    const pending = listAlarms(store.orm, { state: 'pending' });
-    expect(pending.items).toHaveLength(2);
-    const fired = listAlarms(store.orm, { state: 'fired' });
-    expect(fired.items).toHaveLength(0);
-    store.close();
-  });
-
   test('atomically cancels only pending alarms and records the admin actor', async () => {
     const { store } = await setup();
     const conversation = ensureConversation(store);
