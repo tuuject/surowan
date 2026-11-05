@@ -111,6 +111,12 @@ export const AUDIT_SPECS: readonly EndpointSpec[] = [
     summary: 'Show the current API key and the permissions it holds',
   },
   {
+    command: 'version show',
+    method: 'GET',
+    path: 'version',
+    summary: 'Show the running Surowan build version and release channel',
+  },
+  {
     command: 'invocation tool image',
     method: 'GET',
     path: 'invocations/:id/tools/:tool_call_id/images/:asset_id',
