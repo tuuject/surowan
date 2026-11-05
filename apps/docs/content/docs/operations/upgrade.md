@@ -25,6 +25,8 @@ docker image inspect ghcr.io/tuuject/surowan:latest \
   --format '{{ index .Config.Labels "org.opencontainers.image.version" }}'
 ```
 
+运行中的实例在 Admin Panel 左下角显示完整版本号与 Channel：发布镜像读取构建时写入的 `version` 文件；从源码直接运行且没有该文件时，按当前 Git tag 或 commit 解析，未打 tag 的提交显示 `v0.0.0-develop-<commit>`。
+
 ## 推荐流程
 
 1. 停止或维护窗口前，运行 [备份](backup-restore.md) 并将配置、Prompt 与密钥备份策略一并确认。

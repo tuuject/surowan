@@ -2,6 +2,7 @@ import type { ModelThinkingLevel } from '@earendil-works/pi-ai';
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
 import { isThinkingLevel, THINKING_LEVELS } from './thinking-levels.ts';
+import { versionUserAgent } from './version.ts';
 
 export const MODELS_DEV_URL = 'https://models.dev/api.json';
 
@@ -108,7 +109,7 @@ export async function fetchModelsDevCatalog(
   fetchImpl: typeof fetch = fetch,
 ): Promise<ModelsDevCatalog> {
   const response = await fetchImpl(url, {
-    headers: { accept: 'application/json' },
+    headers: { accept: 'application/json', 'user-agent': versionUserAgent() },
     redirect: 'error',
     signal: AbortSignal.timeout(CATALOG_TIMEOUT_MS),
   });

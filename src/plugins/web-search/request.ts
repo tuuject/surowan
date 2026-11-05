@@ -1,4 +1,5 @@
 import type { SecretStore } from '../../platform/secrets.ts';
+import { versionUserAgent } from '../../platform/version.ts';
 import { type ResolvedSearchEngine, urlFilterMatcher } from '../../platform/web-search.ts';
 import type { ToolAudit } from '../../store/tool-audit.ts';
 import { classifyStatus, networkError, WebSearchError } from './errors.ts';
@@ -81,7 +82,7 @@ export async function executeSearch(input: {
   try {
     response = await input.fetchImpl(built.url, {
       method: built.method,
-      headers: { ...built.headers },
+      headers: { 'user-agent': versionUserAgent(), ...built.headers },
       ...(built.body === undefined ? {} : { body: built.body }),
       redirect: 'manual',
       signal,

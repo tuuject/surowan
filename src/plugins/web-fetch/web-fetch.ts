@@ -7,6 +7,7 @@ import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { Defuddle } from 'defuddle/node';
 import Type from 'typebox';
 import type { ToolAudit } from '../../store/tool-audit.ts';
+import { webFetchUserAgent } from '../../platform/version.ts';
 
 const Strict = { additionalProperties: false } as const;
 const WebFetchInputSchema = Type.Object(
@@ -300,7 +301,7 @@ function defaultRequestResolved(url: URL, address: string, accept: string, signa
         'accept-encoding': 'identity',
         connection: 'close',
         host: url.host,
-        'user-agent': 'Surowan/0.1 web_fetch',
+        'user-agent': webFetchUserAgent(),
       },
       ...(url.protocol === 'https:' && isIP(hostname) === 0 ? { servername: hostname } : {}),
     },

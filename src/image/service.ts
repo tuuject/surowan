@@ -15,6 +15,7 @@ import type Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import type { RawConfig } from '../platform/config/index.ts';
 import type { SecretStore } from '../platform/secrets.ts';
+import { versionUserAgent } from '../platform/version.ts';
 
 /**
  * Process-level assembly of the image generation core.
@@ -71,7 +72,12 @@ export function createImageService(
   const core = createImageCore({
     db,
     store: imageStore,
-    providerAdapter: options.providerAdapter ?? createOpenRouterAdapter({ fetchImpl: options.providerFetch ?? fetch }),
+    providerAdapter:
+      options.providerAdapter ??
+      createOpenRouterAdapter({
+        fetchImpl: options.providerFetch ?? fetch,
+        userAgent: versionUserAgent(),
+      }),
     // The worker starts with the process and drains on shutdown; startup
     // reconciliation (running -> interrupted, claim-less rounds -> queued)
     // runs inside worker.start() before the loop begins.

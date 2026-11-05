@@ -10,6 +10,7 @@ import { AsyncSemaphore } from '../../platform/concurrency.ts';
 import type { McpServerConfig, RawConfig } from '../../platform/config/index.ts';
 import { type InvocationContext, previewContext } from '../../platform/invocation-context.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
+import { versionUserAgent } from '../../platform/version.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { localImageAssets } from '../media/local-assets.ts';
 import type { McpResultDetails, McpToolResult } from './content.ts';
@@ -258,6 +259,11 @@ export class McpManager {
       return transport;
     }
     const headers = await resolveSecretRecord(server.config.headers ?? {}, this.#secrets);
+    // A configured User-Agent overrides the default; Headers matches names case-insensitively.
+    const requestHeaders = new Headers({ 'user-agent': versionUserAgent() });
+    for (const [name, value] of Object.entries(headers)) {
+      requestHeaders.set(name, value);
+    }
     const maxBytes = server.config.payload_max_bytes;
     const boundedFetch = async (input: string | URL, init?: RequestInit): Promise<Response> => {
       const request = new Request(input.toString(), { ...init, redirect: 'manual' });
@@ -280,7 +286,7 @@ export class McpManager {
       });
     };
     return new StreamableHTTPClientTransport(new URL(server.config.url), {
-      requestInit: { headers, redirect: 'manual' },
+      requestInit: { headers: requestHeaders, redirect: 'manual' },
       fetch: boundedFetch,
       reconnectionOptions: {
         initialReconnectionDelay: 1_000,

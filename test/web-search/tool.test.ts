@@ -31,6 +31,7 @@ test('a search freezes the engine, resolves its key and formats normalized resul
   expect(call.url).toBe('https://api.tavily.com/search');
   expect(call.init.method).toBe('POST');
   expect(new Headers(call.init.headers).get('authorization')).toBe('Bearer tvly-secret');
+  expect(new Headers(call.init.headers).get('user-agent')).toMatch(/^Surowan\/v/);
   expect(JSON.parse(String(call.init.body))).toMatchObject({ query: 'cats', max_results: 5 });
 
   expect(text).toContain('Untrusted web search results follow');

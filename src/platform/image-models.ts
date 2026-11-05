@@ -3,6 +3,7 @@ import { aspectRatios, type ModelCapability, resolutionClasses } from '@surowan/
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
 import { readBoundedText } from './provider-models.ts';
+import { versionUserAgent } from './version.ts';
 
 const CATALOG_URL = 'https://openrouter.ai/api/v1/images/models';
 const ModelId = Type.String({ pattern: '^[a-zA-Z0-9][a-zA-Z0-9_.-]*/[a-zA-Z0-9][a-zA-Z0-9_.-]*$', maxLength: 200 });
@@ -49,7 +50,7 @@ const modelIdValidator = Compile(ModelId);
 async function fetchImageMetadata(url: string): Promise<unknown> {
   // This public catalog needs no credential, including before images are enabled.
   const response = await fetch(url, {
-    headers: { accept: 'application/json' },
+    headers: { accept: 'application/json', 'user-agent': versionUserAgent() },
     redirect: 'error',
     signal: AbortSignal.timeout(10_000),
   });

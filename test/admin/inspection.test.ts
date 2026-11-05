@@ -66,6 +66,19 @@ test('configuration and prompts are explicit read projections for both keys and 
   expect(f.modelCalls()).toBe(0);
 });
 
+test('version reports the running build to sessions and API keys', async () => {
+  const f = await fixture();
+  for (const headers of [auth(f.key), { cookie: f.cookie }]) {
+    const response = await f.server.handle(request('/api/version', { headers }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      version: expect.stringMatching(/^v\d+\.\d+\.\d+/),
+      channel: expect.stringMatching(/^(Release|Staging|Develop)$/),
+    });
+  }
+  expect((await f.server.handle(request('/api/version?verbose=1', { headers: auth(f.key) }))).status).toBe(400);
+});
+
 test('file and active prompt reads never silently substitute for each other', async () => {
   const f = await fixture();
   const initialHash = f.configStore.current().hash;

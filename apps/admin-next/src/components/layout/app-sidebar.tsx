@@ -1,4 +1,5 @@
 import { Link, useLocation } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import {
   Bell,
   BookText,
@@ -40,6 +41,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar';
+import { versionQuery } from '@/lib/queries';
 
 interface NavGroup {
   label: string;
@@ -61,6 +63,7 @@ export default function AppSidebar({
 }) {
   const { pathname } = useLocation();
   const { t } = useTranslation();
+  const version = useQuery(versionQuery);
 
   // Built on render so language switches re-label the sidebar.
   const navGroups: NavGroup[] = [
@@ -169,6 +172,12 @@ export default function AppSidebar({
         ))}
       </SidebarContent>
       <SidebarFooter>
+        {version.data === undefined ? null : (
+          <div data-testid="app-version" className="px-2 pb-1 group-data-[collapsible=icon]:hidden">
+            <div className="font-mono text-[11px] leading-tight break-all">{version.data.version}</div>
+            <div className="text-muted-foreground text-[11px] leading-tight">{version.data.channel}</div>
+          </div>
+        )}
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>

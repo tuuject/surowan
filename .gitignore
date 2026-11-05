@@ -18,6 +18,7 @@ apps/docs/content/public/examples/
 apps/docs/content/public/config.schema.json
 apps/docs/content/public/build-info.json
 src/manual/
+/version
 .idea/
 .agents/skills/
 .claude/skills/

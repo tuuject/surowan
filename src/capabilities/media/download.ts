@@ -1,4 +1,5 @@
 import { open, unlink } from 'node:fs/promises';
+import { versionUserAgent } from '../../platform/version.ts';
 
 const MAX_DOWNLOAD_BYTES = 20 * 1024 * 1024;
 
@@ -68,6 +69,7 @@ export class TelegramMediaClient implements MediaDownloader {
       .map((part) => encodeURIComponent(part))
       .join('/');
     const response = await fetch(`https://api.telegram.org/file/bot${this.#token}/${encodedPath}`, {
+      headers: { 'user-agent': versionUserAgent() },
       signal,
       redirect: 'error',
     });

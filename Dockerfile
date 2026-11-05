@@ -112,6 +112,26 @@ COPY --from=builder --chown=surowan:surowan /app/apps/admin-next/LICENSE ./apps/
 COPY --from=builder --chown=surowan:surowan /app/apps/admin-next/NOTICE ./apps/admin-next/NOTICE
 COPY --from=builder --chown=surowan:surowan /app/package.json ./package.json
 
+# The release workflow passes the image's version as a build arg. The channel is
+# derived by the runtime's own parser, so the file cannot declare a channel the
+# runtime would reject, and a version it cannot parse fails the build instead of
+# silently falling back to Develop. A source build without the arg has no
+# version file and the runtime falls back to Git state (or the fixed Develop
+# version when Git is unavailable).
+ARG SUROWAN_VERSION
+RUN if [ -n "$SUROWAN_VERSION" ]; then \
+      node --input-type=module -e " \
+        import { writeFileSync } from 'node:fs'; \
+        import { parseVersion } from '/app/src/platform/version.ts'; \
+        const parsed = parseVersion(process.env.SUROWAN_VERSION); \
+        if (parsed === undefined) { \
+          console.error('Invalid SUROWAN_VERSION: ' + process.env.SUROWAN_VERSION); \
+          process.exit(1); \
+        } \
+        writeFileSync('/app/version', 'Version: ' + parsed.version + '\nChannel: ' + parsed.channel + '\n');" \
+      && chown surowan:surowan /app/version; \
+    fi
+
 # Entrypoint
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh

@@ -24,6 +24,7 @@ import { listMemories, listMemoryChats } from './api/memories.ts';
 import { listGroupMemories } from './api/group-memories.ts';
 import { listStickerSets, listStickers } from './api/stickers.ts';
 import { getTelegram } from './api/telegram.ts';
+import { getVersion } from './api/version.ts';
 import { listWarnings } from './api/warnings.ts';
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 
@@ -38,6 +39,13 @@ export const sessionQuery = queryOptions({
 export const overviewQuery = queryOptions({
   queryKey: ['overview'],
   queryFn: getOverview,
+});
+
+/** The running build cannot change without a process restart, so one fetch is enough. */
+export const versionQuery = queryOptions({
+  queryKey: ['version'],
+  queryFn: getVersion,
+  staleTime: Number.POSITIVE_INFINITY,
 });
 
 /**

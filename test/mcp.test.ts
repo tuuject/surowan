@@ -138,7 +138,7 @@ test('stdio MCP discovery, result bounds, audit, and unmetered repeat calls', as
   }
 });
 
-test('Streamable HTTP MCP preserves query parameters and static headers while rejecting redirects', async () => {
+test('Streamable HTTP MCP preserves query parameters, static headers and the User-Agent while rejecting redirects', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-mcp-http-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
@@ -156,7 +156,9 @@ test('Streamable HTTP MCP preserves query parameters and static headers while re
     sessionIdGenerator: () => crypto.randomUUID(),
   });
   await server.connect(transport);
+  const userAgents: (string | null)[] = [];
   const http = await startFixtureServer((request) => {
+    userAgents.push(request.headers.get('user-agent'));
     const url = new URL(request.url);
     if (url.searchParams.get('api_key') !== 'public-key') {
       return new Response('unauthorized', { status: 401 });
@@ -178,7 +180,7 @@ test('Streamable HTTP MCP preserves query parameters and static headers while re
           tools: ['lookup'],
           payload_max_bytes: 1048576,
           result_max_bytes: 32768,
-          headers: { Authorization: { jar: 'mcp-auth' } },
+          headers: { Authorization: { jar: 'mcp-auth' }, 'User-Agent': { jar: 'mcp-user-agent' } },
           tool_policies: [
             {
               name: 'lookup',
@@ -191,7 +193,7 @@ test('Streamable HTTP MCP preserves query parameters and static headers while re
     };
   });
   await writeTestConfig(directory, configPath, jsonc);
-  await writeTestKeyJar(directory, { 'mcp-auth': 'Bearer static-secret' });
+  await writeTestKeyJar(directory, { 'mcp-auth': 'Bearer static-secret', 'mcp-user-agent': 'Custom-MCP/1.0' });
   const loaded = await loadConfig(configPath);
   const configStore = await testConfigStore(loaded);
   const store = await SqliteStore.open(loaded.config);
@@ -235,6 +237,10 @@ test('Streamable HTTP MCP preserves query parameters and static headers while re
       throw new Error('HTTP MCP result omitted text');
     }
     expect(text.text).toContain('value:answer');
+    // A configured User-Agent replaces the version default on every request,
+    // whatever the casing of its configured name.
+    expect(userAgents.length).toBeGreaterThan(0);
+    expect(new Set(userAgents)).toEqual(new Set(['Custom-MCP/1.0']));
   } finally {
     await manager.stop();
     await stopFixtureServer(http.server);
@@ -243,7 +249,11 @@ test('Streamable HTTP MCP preserves query parameters and static headers while re
   }
 
   const redirectConfigPath = join(directory, 'redirect.jsonc');
-  const redirect = await startFixtureServer(() => Response.redirect('http://127.0.0.1/', 302));
+  const redirectUserAgents: (string | null)[] = [];
+  const redirect = await startFixtureServer((request) => {
+    redirectUserAgents.push(request.headers.get('user-agent'));
+    return Response.redirect('http://127.0.0.1/', 302);
+  });
   try {
     const redirectJsonc = testConfigJsonc(directory, (config) => {
       config.mcp = {
@@ -285,6 +295,11 @@ test('Streamable HTTP MCP preserves query parameters and static headers while re
     );
     try {
       await expect(redirectManager.start()).rejects.toThrow('Required MCP server');
+      // Without a configured User-Agent the request carries the version default.
+      expect(redirectUserAgents.length).toBeGreaterThan(0);
+      for (const userAgent of redirectUserAgents) {
+        expect(userAgent).toMatch(/^Surowan\/v\d+\.\d+\.\d+/);
+      }
     } finally {
       await redirectManager.stop();
       redirectStore.close();
