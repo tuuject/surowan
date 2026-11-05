@@ -29,8 +29,15 @@ export interface ModelApplySummary {
   readonly restart_required: readonly string[];
 }
 
+export interface ChatThinkingReset {
+  readonly chat_id: string;
+  readonly previous: ThinkingLevel;
+  readonly current: ThinkingLevel;
+}
+
 export interface ModelSwitchResponse extends ModelState {
   readonly apply: ModelApplySummary;
+  readonly chat_thinking_resets: readonly ChatThinkingReset[];
 }
 
 /** Pi's thinking levels, weakest first. */

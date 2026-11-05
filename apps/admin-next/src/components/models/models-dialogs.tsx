@@ -3,8 +3,18 @@ import { ConfirmDialog } from '@/components/business';
 import { ModelEditDialog } from '@/components/models/model-edit-dialog';
 import { ModelPickerDialog, type ModelPickerMode } from '@/components/models/model-picker-dialog';
 import { ProviderWizard } from '@/components/models/provider-wizard';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 import { modelFormFromConfig } from '@/lib/model-manager.ts';
+import type { ChatThinkingReset } from '@/lib/api/models.ts';
 import type { ProviderModelConfig, ProviderView, ProvidersView } from '@/lib/api/providers.ts';
 
 export interface PickerTarget {
@@ -46,6 +56,8 @@ export interface ConfirmState {
 export function ModelsDialogs({
   view,
   revision,
+  thinkingResets,
+  onThinkingResetsClose,
   wizardOpen,
   onWizardClose,
   onProviderCreated,
@@ -64,6 +76,8 @@ export function ModelsDialogs({
 }: {
   readonly view: ProvidersView;
   readonly revision: string;
+  readonly thinkingResets: readonly ChatThinkingReset[];
+  readonly onThinkingResetsClose: () => void;
   readonly wizardOpen: boolean;
   readonly onWizardClose: () => void;
   readonly onProviderCreated: (alias: string) => void;
@@ -83,6 +97,25 @@ export function ModelsDialogs({
   const { t } = useTranslation();
   return (
     <>
+      <Dialog open={thinkingResets.length > 0} onOpenChange={(open) => !open && onThinkingResetsClose()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('models.models.page.chatThinkingResetTitle')}</DialogTitle>
+            <DialogDescription>{t('models.models.page.chatThinkingResetDescription')}</DialogDescription>
+          </DialogHeader>
+          <ul className="max-h-64 space-y-2 overflow-y-auto text-sm">
+            {thinkingResets.map((reset) => (
+              <li key={reset.chat_id}>
+                <code>{reset.chat_id}</code>: {reset.previous} → {reset.current}
+              </li>
+            ))}
+          </ul>
+          <DialogFooter>
+            <Button onClick={onThinkingResetsClose}>{t('models.models.page.chatThinkingResetClose')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {wizardOpen ? <ProviderWizard revision={revision} onClose={onWizardClose} onCreated={onProviderCreated} /> : null}
 
       {picker === null || pickerProvider === null ? null : (

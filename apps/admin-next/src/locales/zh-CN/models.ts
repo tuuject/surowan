@@ -7,6 +7,10 @@ export const models: typeof modelsEn = {
       agentInUse: 'Agent 使用中',
       visionInUse: 'Vision 使用中',
       thinkingReset: 'Thinking 档位已重置为 {{level}}。',
+      chatThinkingResetTitle: '部分群的 Thinking 档位已重置',
+      chatThinkingResetClose: '关闭',
+      chatThinkingResetDescription:
+        '以下群使用全局模型，但单独设置了 Thinking 档位。原档位不受新模型支持，已重置为新模型支持的最弱一档。',
       editConflictToast: 'config.jsonc 在你编辑期间发生了变化。未保存任何内容 - 请重新打开该模型以编辑当前版本。',
       restarting: '正在重启服务器…',
       restartingDescription: '页面会短暂断开，并在服务器恢复后重新加载。',

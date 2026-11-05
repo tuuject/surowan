@@ -59,6 +59,12 @@ export interface ConfigStatus {
   readonly lastError: ConfigErrorDetail | null;
 }
 
+export interface ChatThinkingReset {
+  readonly chatId: string;
+  readonly previous: ModelThinkingLevel;
+  readonly current: ModelThinkingLevel;
+}
+
 export type ConfigApplyResult =
   | {
       readonly ok: true;
@@ -66,6 +72,8 @@ export type ConfigApplyResult =
       readonly restartRequired: readonly string[];
       readonly outsideServe: readonly string[];
       readonly status: ConfigStatus;
+      /** Incompatible Chat overrides reset by a global model switch. */
+      readonly chatThinkingResets?: readonly ChatThinkingReset[];
     }
   | {
       readonly ok: false;

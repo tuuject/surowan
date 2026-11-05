@@ -101,6 +101,11 @@ export function createControlAdminHandler(deps: ControlAdminDeps) {
       return json({
         ...modelState(switcher, currentOption),
         apply: { applied: result.applied, restart_required: result.restartRequired },
+        chat_thinking_resets: (result.chatThinkingResets ?? []).map(({ chatId, previous, current }) => ({
+          chat_id: chatId,
+          previous,
+          current,
+        })),
       });
     }
     return undefined;

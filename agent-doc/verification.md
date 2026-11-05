@@ -162,7 +162,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `config/boundary.test.ts` | 无文件来源的配置校验与本地文件加载结果一致；Schema 与 Secret 检查不需要文件访问；非法可选 `image` 段在读取 Prompt 文件前被剥离 |
 | `store-boundary.test.ts` | `BusinessStore` 事务原子回滚，bigint ID 跨 SQLite 重开保持精确 |
 | `config/diff.test.ts` | 热更新白名单分类（hot/restart/outside_serve）与 candidate 取值；Prompt 内容与路径变化归属到 prompt 字段；Chat 按 id 对齐，新增与删除都分类为热更新 |
-| `config/reload.test.ts` | `ConfigReloader` 外部契约：generation 与两个 hash、`config_reloaded`/`config_reload_failed`/`model_switch_failed` 日志、待重启字段撤销与只改注释后 active hash 跟上文件 hash、两遍校验与 `candidate_invalid`、`secret_unresolved` 的整次拒绝、待重启列表、运行中 Invocation 钉住模型与 Provider 连接（两个本地端点验证换地址后的下一轮仍走旧地址）、`/model` 写入文件（保留注释、`0600`、符号链接拒绝）、`invocations.config_hash` 在 `queued → running` 写入、Admin `POST /config/apply` 与 `PUT /model` 的响应体；Chat 覆盖切换按文件 ID 定位（reorder 后仍解析正确、保留其它 Chat 与全局默认、文件里缺该 Chat 时拒绝写入不落盘）、并发 Chat 切换互不覆盖、发布前对全局与每个选中 Chat 模型逐一校验（删除在用 Chat 模型被拒、全局换模型拒绝继承不兼容的 thinking）；自助忽略持久化/恢复、重复与并发增删、跨 Chat 隔离、迁移 Forum Chat、实时/追赶名单热应用、失败后的文件/运行态与重试审计 |
+| `config/reload.test.ts` | `ConfigReloader` 外部契约：generation 与两个 hash、`config_reloaded`/`config_reload_failed`/`model_switch_failed` 日志、待重启字段撤销与只改注释后 active hash 跟上文件 hash、两遍校验与 `candidate_invalid`、`secret_unresolved` 的整次拒绝、待重启列表、运行中 Invocation 钉住模型与 Provider 连接（两个本地端点验证换地址后的下一轮仍走旧地址）、`/model` 写入文件（保留注释、`0600`、符号链接拒绝）、`invocations.config_hash` 在 `queued → running` 写入、Admin `POST /config/apply` 与 `PUT /model` 的响应体；Chat 覆盖切换按文件 ID 定位（reorder 后仍解析正确、保留其它 Chat 与全局默认、文件里缺该 Chat 时拒绝写入不落盘）、并发 Chat 切换互不覆盖、发布前对全局与每个选中 Chat 模型逐一校验（删除在用 Chat 模型被拒）；全局换模型仅重置继承模型且不兼容的 thinking 覆盖，覆盖最弱档不为 off、文件重排/新增 Chat、兼容档位与独立模型保留、旧 Invocation 快照不变与落盘/运行态/日志一致；自助忽略持久化/恢复、重复与并发增删、跨 Chat 隔离、迁移 Forum Chat、实时/追赶名单热应用、失败后的文件/运行态与重试审计 |
 | `dictionary/dictionary.test.ts` | 辞典词条与别名归一化、pangu 空格折叠匹配、revision 乐观锁且不改作用域、Agent 工具只写当前群、私聊只读全局、CSV 导入导出转义 |
 | `dictionary/runtime.test.ts` | 辞典注入生命周期：命中持久化、下一批去重、缓存遗忘后从数据库重新播种、GC 后刷新；禁用词条不注入；`on_demand` 双向 pangu 空格匹配 |
 | `group-memory/day.test.ts` | Chat 时区日期、UTC/Asia-Shanghai 边界、DST 23/25 小时日、日期与下一天校验 |
@@ -184,6 +184,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `context/store-conversation.test.ts` / `memo/injection.test.ts` | checkpoint 与 Memo 状态原子回滚/重试、活 header 不提前推进；截断增量跨批次及 SQLite 重开逐步通知新增/修改/删除，不重复已输出部分 |
 | `replay/memory.test.ts` / `replay/tools-memory*.test.ts` | 到期边界、日期上界与线上一致，两个读原语 dispatch 完整；场景图片保存后读取相同字节、缺失/跨场景拒绝、两阶段 fidelity 与生产表无写入 |
 | `apps/admin-next/e2e/04-memo-expiry.e2e.ts` | 实际页面仅改文本时省略 TTL 并保持小时级/过期/同天数/永久条目的精确 expires_at |
+| `apps/admin-next/e2e/04-writes.e2e.ts` | 全局模型切换自动重置不兼容的 Chat effort，成功弹窗列出 Chat ID 与前后档位，saved/active 一致；切回兼容模型不弹窗 |
 | `apps/admin-next/e2e/09-chats-group-memory.e2e.ts` | Chats 行开关群聊记忆、idle 分钟校验、关闭后保留 idle，以及运行态立即更新 |
 | `apps/admin-next/e2e/18-group-memory.e2e.ts` | Group memory 页面审计、修改 summary、删除事件与 API 状态复核 |
 | `tasks/long-tasks.test.ts` | 任务/receipt 的 JSON 边界、终态 CAS 与唯一 receipt、plugin/Conversation/caller scope、quota（含取消记录）及外部 completion handle |
@@ -275,7 +276,7 @@ node src/cli.ts serve --config dev-data/config.jsonc
 9. Overview 的 Bot status 卡片显示 `sleeping`/`awake` 与 `sleep_until`，睡眠时 `Wake now` 带二次确认；同时列出所有 `chat_pause` Chat 与暂停时间。
 10. Alarms 页面按 state/Chat/Target 过滤，pending 优先置顶，展开显示完整诊断并链接到对应 Tool session；取消只对 pending 开放且需二次确认，对非 pending 给出 409 冲突提示。
 11. Bot admins 页面能添加/移除管理员：写回 `telegram.admins` 并热应用，命令权限无需重启即更新；列表在下次进入页面时反映文件值。
-12. Models 页面列出 Provider 与模型；切换 agent / vision 模型后 `config.jsonc` 的 `agent.provider` / `agent.model`（或 `vision.*`）被改写，页面立即反映新模型，后续 Invocation / vision 分析使用新模型，重启 `serve` 后仍然生效；Provider 增删、连接字段与模型列表的修改均热应用（在用引用仍受校验保护）。Models 页的 `PUT /api/model` 与 `PUT /api/thinking-level` 只写全局默认，保留 `telegram.chats[]` 的覆盖；未覆盖的 Chat 在 `/status` 中显示新的全局值，已覆盖的 Chat 保持自己的设置。Chat 覆盖通过 Chats 页、配置文件或 Telegram `/model` 维护。Settings 页的 `Configuration file` 卡片显示 generation、active hash 与 file hash；改一个白名单字段后点 `Apply config file`，应用列表出现该路径，改一个 restart 字段则出现在待重启列表。
+12. Models 页面列出 Provider 与模型；切换 agent / vision 模型后 `config.jsonc` 的 `agent.provider` / `agent.model`（或 `vision.*`）被改写，页面立即反映新模型，后续 Invocation / vision 分析使用新模型，重启 `serve` 后仍然生效；Provider 增删、连接字段与模型列表的修改均热应用（在用引用仍受校验保护）。`PUT /api/model` 将全局 thinking 重置为最弱档，并将继承全局模型且不兼容的 Chat thinking 覆盖在同一次写入中重置为最弱档，弹窗列出受影响 Chat 与前后值；兼容档位和独立模型覆盖保持原值，最弱档按新模型的支持列表选择（不必是 off）。`PUT /api/thinking-level` 仍只写全局 thinking，保留 Chat 覆盖。未覆盖的 Chat 在 `/status` 中显示新的全局值，Chat 覆盖也可通过 Chats 页、配置文件或 Telegram `/model` 维护。Settings 页的 `Configuration file` 卡片显示 generation、active hash 与 file hash；改一个白名单字段后点 `Apply config file`，应用列表出现该路径，改一个 restart 字段则出现在待重启列表。
 13. Conversation Contexts 页面按 chat 过滤，列表按最近活跃倒序并可用 Load more 翻页；详情显示 head/next seq、保留消息数与 capability refs，展开消息看到 `payload_preview` 与截断标记，且不出现已 GC 的行。
 14. 登出后访问深链接回落登录页；重新登录恢复访问。
 15. `admin_users.password_hash` 使用 Argon2id 格式，`admin_sessions` 只有 64 位十六进制摘要。
