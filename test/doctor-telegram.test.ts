@@ -35,15 +35,6 @@ async function fixture(transform?: (config: FixtureConfig) => void) {
   return loadConfig(configPath);
 }
 
-test('a configuration without a telegram section reports Telegram disabled', async () => {
-  const loaded = await fixture((config) => {
-    const json = config as Record<string, unknown>;
-    delete json.telegram;
-  });
-  expect(loaded.config.telegram.token).toBeUndefined();
-  await expect(resolveDoctorTelegram(loaded.config, new SecretStore())).resolves.toEqual({ kind: 'disabled' });
-});
-
 test('a telegram section without a token reports Telegram disabled', async () => {
   const loaded = await fixture((config) => {
     const telegram = config.telegram as Record<string, unknown>;

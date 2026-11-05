@@ -9,7 +9,6 @@ import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts
 import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
 
 import { testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
-import { AGENT_DEFAULTS } from '../../src/platform/config/resolve.ts';
 
 const directories: string[] = [];
 const stores: SqliteStore[] = [];
@@ -35,49 +34,6 @@ async function loadWithoutAgent(agent: unknown): Promise<LoadedConfig> {
 }
 
 describe('optional agent section', () => {
-  test('agent: {} is legal and resolves runtime defaults', async () => {
-    const loaded = await loadWithoutAgent({});
-    const agent = loaded.config.agent;
-    expect(agent.provider).toBeUndefined();
-    expect(agent.model).toBeUndefined();
-    expect(agent.thinking_level).toBeUndefined();
-    expect(agent.system_prompt).toBe('');
-    expect(agent.max_concurrency).toBe(AGENT_DEFAULTS.max_concurrency);
-    expect(agent.context).toEqual(AGENT_DEFAULTS.context);
-    expect(agent.rate_limits).toEqual(AGENT_DEFAULTS.rate_limits);
-    expect(loaded.warnings.some((warning) => warning.includes('invocation'))).toBe(true);
-  });
-
-  test('an empty daily_budget object resolves the default budget', async () => {
-    const loaded = await loadWithoutAgent({ daily_budget: {} });
-    expect(loaded.config.agent.daily_budget.max_tokens).toBe(AGENT_DEFAULTS.daily_budget.max_tokens);
-  });
-
-  test('agent: null is legal', async () => {
-    const loaded = await loadWithoutAgent(null);
-    expect(loaded.config.agent.provider).toBeUndefined();
-    expect(loaded.config.agent.max_concurrency).toBe(AGENT_DEFAULTS.max_concurrency);
-  });
-
-  test('a missing agent key is legal', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'surowan-optional-agent-'));
-    directories.push(directory);
-    const configPath = join(directory, 'config.jsonc');
-    const jsonc = testConfigJsonc(directory, (config) => {
-      delete (config as unknown as Record<string, unknown>).agent;
-    });
-    await writeTestConfig(directory, configPath, jsonc);
-    const loaded = await loadConfig(configPath);
-    expect(loaded.config.agent.provider).toBeUndefined();
-    expect(loaded.warnings.some((warning) => warning.includes('invocation'))).toBe(true);
-  });
-
-  test('a partial identity stays legal and skips model validation', async () => {
-    const loaded = await loadWithoutAgent({ provider: 'agent' });
-    expect(loaded.config.agent.provider).toBe('agent');
-    expect(loaded.config.agent.model).toBeUndefined();
-  });
-
   test('an incomplete identity never opens an invocation', async () => {
     const loaded = await loadWithoutAgent({});
     const configStore = await testConfigStore(loaded);

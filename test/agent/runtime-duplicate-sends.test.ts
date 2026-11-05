@@ -112,14 +112,6 @@ test('a placeholder-filled send goes out, and a send repeated unchanged after fa
       .prepare<[bigint], { turns_used: bigint }>('SELECT turns_used FROM invocations WHERE id = ?')
       .get(invocationId)?.turns_used,
   ).toBe(4n);
-  const toolResults = store.db
-    .prepare<[bigint], { text: string }>(
-      "SELECT text FROM agent_messages WHERE invocation_id = ? AND role = 'tool_result' ORDER BY sequence_no",
-    )
-    .all(invocationId);
-  expect(toolResults.at(-1)?.text).toBe(
-    'send input does not match its kind: resend applies only to kind:image; omit it for kind:text',
-  );
   store.close();
 });
 

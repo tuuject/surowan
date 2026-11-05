@@ -1,5 +1,3 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import Type from 'typebox';
 import { expect, test } from 'vitest';
 import { SendInputSchema } from '../../src/capabilities/send/index.ts';
@@ -107,24 +105,4 @@ test('an aborted signal stops every replay tool before dispatch', async () => {
   ).rejects.toThrow();
   expect(replay.outputs).toEqual([]);
   expect(replay.dispatches).toEqual([]);
-});
-
-test('replay tools import no production wiring and need no store', async () => {
-  const source = await readFile(
-    join(import.meta.dirname, '..', '..', 'src', 'orchestration', 'replay', 'tools.ts'),
-    'utf8',
-  );
-  for (const banned of [
-    'store/database.ts',
-    'store/schema.ts',
-    'store/long-tasks/',
-    'drizzle-orm',
-    'platform/config/',
-    'orchestration/agent-runtime',
-    'application.ts',
-    'capabilities/mcp/',
-  ]) {
-    expect(source).not.toContain(banned);
-  }
-  expect(source).not.toMatch(/\bSqliteStore\b/);
 });

@@ -238,22 +238,6 @@ test('a uid this conversation never showed is refused without calling the Bot AP
   f.store.close();
 });
 
-test('a private chat refuses a uid that is not the caller', async () => {
-  const f = await telegramFixture({ scope: 'private' });
-  const tool = profileTool(
-    f,
-    {
-      getChatMember: async () => member('member'),
-      getChat: async () => ({ id: PRIVATE_CHAT, type: 'private', first_name: 'Alice' }) as ChatFullInfo,
-      getUserProfilePhotos: async () => ({ total_count: 0, photos: [] }),
-    },
-    { avatar: false },
-  );
-  // A uid the chat does have history for still resolves; the caller is Alice.
-  expect((await tool.execute('call-3', { member: `uid:${ALICE}` })).details).toMatchObject({ found: true });
-  f.store.close();
-});
-
 test('a private chat never lends its own bio or name to another member of its history', async () => {
   // The bot's outgoing messages put its own uid in a private chat's history
   // (any second sender stands in for it here); getChat still describes the

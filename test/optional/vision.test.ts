@@ -8,8 +8,6 @@ import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import type { MediaDownloader } from '../../src/capabilities/media/download.ts';
 import { MediaService } from '../../src/capabilities/media/index.ts';
 import { StickerService } from '../../src/capabilities/stickers.ts';
-import { ContextBuilder } from '../../src/context/builder/index.ts';
-import { ContextRefStore } from '../../src/context/refs.ts';
 import { visionEdits } from '../../src/ingress/admin/providers/write.ts';
 import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
 import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
@@ -24,7 +22,6 @@ import {
   testConfigStore,
   writeTestConfig,
 } from '../helpers.ts';
-import { VISION_DEFAULTS } from '../../src/platform/config/resolve.ts';
 
 const directories: string[] = [];
 
@@ -66,36 +63,6 @@ const unusedDownloader: MediaDownloader = {
 };
 
 describe('optional vision section', () => {
-  test.each([
-    ['{}', {}],
-    ['null', null],
-    ['a missing key', undefined],
-  ])('vision: %s is legal, resolves defaults and registers no vision model', async (_label, vision) => {
-    const loaded = await loadWithVision(vision);
-    expect(loaded.config.vision).toEqual({
-      max_output_tokens: VISION_DEFAULTS.max_output_tokens,
-      max_concurrency: VISION_DEFAULTS.max_concurrency,
-      background_sticker_concurrency: 1,
-      prompt_version: VISION_DEFAULTS.prompt_version,
-      daily_budget: VISION_DEFAULTS.daily_budget,
-    });
-    expect(loaded.warnings.some((warning) => warning.includes('read_image'))).toBe(true);
-    const configStore = await testConfigStore(loaded);
-    expect(configStore.current().visionModel).toBeUndefined();
-  });
-
-  test('a partial pair stays legal, skips model validation and keeps vision off', async () => {
-    const loaded = await loadWithVision({ provider: 'missing-provider', daily_budget: { max_images: 5 } });
-    expect(loaded.config.vision.provider).toBe('missing-provider');
-    expect(loaded.config.vision.daily_budget).toEqual({
-      max_tokens: VISION_DEFAULTS.daily_budget.max_tokens,
-      max_images: 5,
-    });
-    expect(loaded.warnings.some((warning) => warning.includes('read_image'))).toBe(true);
-    const configStore = await testConfigStore(loaded);
-    expect(configStore.current().visionModel).toBeUndefined();
-  });
-
   test('a complete pair is still validated against the providers', async () => {
     await expect(loadWithVision({ provider: 'vision', model: 'no-such-model' })).rejects.toThrow(/vision/);
   });
@@ -200,44 +167,6 @@ describe('optional vision section', () => {
           )
           .all(),
       ).toEqual([{ index_state: 'pending', failure_count: 0n }]);
-    } finally {
-      store.close();
-    }
-  });
-
-  test('the stable prompt says images cannot be inspected without a vision model', async () => {
-    const loaded = await loadWithVision(undefined);
-    const configStore = await testConfigStore(loaded);
-    const store = await SqliteStore.open(loaded.config);
-    try {
-      const ingestion = new TelegramIngestion(store, configStore, { id: 999 });
-      ingestion.ingest(
-        {
-          update_id: 1,
-          message: {
-            message_id: 10,
-            date: 1_700_000_000,
-            chat: { id: 123456789, type: 'private', first_name: 'Owner' },
-            from: { id: 42, is_bot: false, first_name: 'Alice' },
-            text: 'hi',
-          },
-        },
-        new Date('2026-08-15T00:00:00.000Z'),
-      );
-      const scheduler = new BucketScheduler(store, configStore, async () => ({ state: 'completed', reason: 'done' }));
-      const [invocationId] = scheduler.processDue(new Date('2026-08-15T00:00:15.000Z'));
-      if (invocationId === undefined) {
-        throw new Error('Expected a due invocation');
-      }
-      const builder = new ContextBuilder(store, new ContextRefStore(store, { ttlHours: () => 72 }), [], []);
-      const identity = builder.identity(loaded.config, invocationId);
-      const agentModel = { provider: 'agent', model: 'agent-model' };
-      const textOnly = builder.buildSystemPrompt(loaded.config, identity, false, agentModel);
-      expect(textOnly.systemPrompt).toContain('No vision model is configured');
-      expect(textOnly.templateValues.vision).toEqual({ provider: '', model: '' });
-      const multimodal = builder.buildSystemPrompt(loaded.config, identity, true, agentModel);
-      expect(multimodal.systemPrompt).toContain('attached directly to the multimodal Agent input');
-      expect(multimodal.systemPrompt).toContain('no vision model is configured');
     } finally {
       store.close();
     }

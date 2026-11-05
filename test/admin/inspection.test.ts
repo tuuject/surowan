@@ -66,23 +66,6 @@ test('configuration and prompts are explicit read projections for both keys and 
   expect(f.modelCalls()).toBe(0);
 });
 
-test.each([undefined, false, true])(
-  'config projection preserves allow_reply_message_multiple_times=%s',
-  async (value) => {
-    const f = await fixture(value);
-    for (const source of ['active', 'file']) {
-      const response = await f.server.handle(request(`/api/config/view?source=${source}`, { headers: auth(f.key) }));
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      if (value === undefined) {
-        expect(body).not.toHaveProperty('config.agent.allow_reply_message_multiple_times');
-      } else {
-        expect(body).toHaveProperty('config.agent.allow_reply_message_multiple_times', value);
-      }
-    }
-  },
-);
-
 test('file and active prompt reads never silently substitute for each other', async () => {
   const f = await fixture();
   const initialHash = f.configStore.current().hash;

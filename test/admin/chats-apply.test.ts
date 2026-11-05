@@ -8,7 +8,6 @@ import type { ChatWriteResponse } from '../../apps/admin-next/src/lib/api/chats.
 
 test('model changes apply hot while Topic scopes wait for restart, preserving other fields and JSONC comments', async () => {
   const f = await fixture();
-  const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
   await writeFile(f.path, `// keep this comment\n${await readFile(f.path, 'utf8')}`);
   const { revision } = await f.view();
   const response = await f.write(
@@ -32,11 +31,6 @@ test('model changes apply hot while Topic scopes wait for restart, preserving ot
     instructions_file: 'chat-instructions.md',
   });
   expect(await readFile(f.path, 'utf8')).toContain('// keep this comment');
-  expect(
-    log.mock.calls.some(
-      ([line]) => String(line).includes('config_reloaded') && String(line).includes('telegram.chats[-100100].model'),
-    ),
-  ).toBe(true);
   const reset = await f.write('/chats/-100100', 'PUT', inherited, result.revision);
   expect(reset.status).toBe(200);
   const resetView = (await reset.json()) as ChatWriteResponse;

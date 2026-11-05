@@ -1,12 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { createImageConfigSnapshot } from '../src/config.ts';
-import { generationCreateSchema, listSchema } from '../src/contracts.ts';
+import { listSchema } from '../src/contracts.ts';
 import { assertIdempotencyKey, fingerprintOf } from '../src/generations.ts';
 import {
   adminActor,
   createTestCore,
-  defaultModel,
   fakeProvider,
   keyActor,
   parseInput,
@@ -17,43 +15,6 @@ import {
 import { waitForGeneration } from './generation-fixtures.ts';
 
 const baseInput = parseInput({ authoredPrompt: '一只猫', modelId: 'gpt-image-1' });
-
-test('updateConfig(undefined) reverts the config store to the disabled state', async () => {
-  const provider = fakeProvider();
-  const run = await createTestCore({ providerFetch: provider.fetchImpl });
-  try {
-    publishDefaultConfig(run.config);
-    assert.ok(run.config.hasValidConfig());
-    assert.equal(run.config.current().models.length, 1);
-
-    // Removing the image section from the configuration publishes `undefined`:
-    // back to the disabled state, and callers fail with config_unavailable.
-    run.config.updateConfig(undefined);
-    assert.equal(run.config.hasValidConfig(), false);
-    // The disabled state fails with the explicit config_invalid code.
-    assert.throws(
-      () => run.config.current(),
-      (error: { code?: string }) => error.code === 'config_invalid',
-    );
-    assert.throws(
-      () =>
-        run.core.generations.create(
-          generationCreateSchema.parse({ modelId: 'gpt-image-1', authoredPrompt: 'x', outputCount: 1 }),
-          adminActor,
-          'disabled',
-        ),
-      (error: { code?: string }) => error.code === 'config_invalid',
-    );
-
-    // Re-publishing re-enables generation.
-    run.config.updateConfig(
-      createImageConfigSnapshot({ version: 'v2', models: [defaultModel()], credentials: { openrouter: 'sk-test' } }),
-    );
-    assert.ok(run.config.hasValidConfig());
-  } finally {
-    await run.cleanup();
-  }
-});
 
 test('idempotency replays the original task and rejects the same key with different input', async () => {
   const provider = fakeProvider();

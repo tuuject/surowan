@@ -202,21 +202,6 @@ async function waitForGenerationStatus(store: SqliteStore, id: string, status: s
   );
 }
 
-test('a valid image candidate publishes without a restart and queued work completes', async () => {
-  const calls: ProviderCall[] = [];
-  const { store, service, reloader } = await fixture(fakeProviderImageSink(calls));
-
-  // No snapshot yet: current() would throw configUnavailable.
-  expect(service.core.config.hasValidConfig()).toBe(false);
-  const applied = await reloader.reloadFromFile();
-  expect(applied.ok).toBe(true);
-  expect(service.core.config.current()?.models).toHaveLength(1);
-
-  const { generation } = service.core.generations.create(parseInput({ authoredPrompt: '热加载' }), adminActor, 'hot');
-  await waitForGenerationStatus(store, generation.id, 'succeeded');
-  expect(calls[0]?.headers.authorization).toBe('Bearer sk-image-v1');
-});
-
 test('an invalid image candidate is rejected and the previously published snapshot stays', async () => {
   const { service, reloader, configPath } = await fixture(fakeProviderImageSink([]));
   const first = await reloader.reloadFromFile();

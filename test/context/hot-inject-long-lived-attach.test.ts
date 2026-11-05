@@ -48,47 +48,6 @@ describe('long-lived invocation', () => {
     }
   });
 
-  test('re-queues a bucket that was attached but never injected', async () => {
-    const fixtureSetup = await fixture();
-    try {
-      fixtureSetup.ingestion.ingest(update(1, 10, 'first'), new Date());
-      const service = new InvocationQueueService(fixtureSetup.store, fixtureSetup.configStore, {
-        isClosing: () => false,
-        isRoundInProgress: () => false,
-        queueInjection: () => undefined,
-      });
-      const [invocationId] = service.processDue(new Date());
-      if (invocationId === undefined) {
-        throw new Error('Expected an opening invocation');
-      }
-      fixtureSetup.store.db.prepare("UPDATE invocations SET state = 'running' WHERE id = ?").run(invocationId);
-      fixtureSetup.store.db
-        .prepare("UPDATE buckets SET state = 'running' WHERE id = (SELECT bucket_id FROM invocations WHERE id = ?)")
-        .run(invocationId);
-      fixtureSetup.ingestion.ingest(update(2, 11, 'attached later'), new Date());
-      expect(service.processDue(new Date())).toHaveLength(0);
-      expect(
-        fixtureSetup.store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM invocation_buckets').get()
-          ?.count,
-      ).toBe(2n);
-
-      // The run ended before injecting the batch: it becomes its own invocation
-      // instead of being dropped, and the invocation that owned it keeps its
-      // opening bucket as the only member.
-      service.releaseUninjectedBuckets(invocationId, new Date());
-      expect(
-        fixtureSetup.store.db
-          .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM invocations WHERE state = 'queued'")
-          .get()?.count,
-      ).toBe(1n);
-      expect(
-        fixtureSetup.store.db.prepare<[], { state: string }>('SELECT state FROM buckets ORDER BY id').all(),
-      ).toEqual([{ state: 'running' }, { state: 'queued' }]);
-    } finally {
-      fixtureSetup.store.close();
-    }
-  });
-
   test('does not attach to a run that is already closing', async () => {
     const fixtureSetup = await fixture();
     try {

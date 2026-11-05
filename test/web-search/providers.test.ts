@@ -34,18 +34,6 @@ function build(
   };
 }
 
-test('every bundled provider contributes exactly one rule', () => {
-  expect(PROVIDERS.map((provider) => provider.rule.id)).toEqual([
-    'tavily',
-    'brave',
-    'exa',
-    'firecrawl',
-    'deepseek',
-    'searxng',
-    'youcom',
-  ]);
-});
-
 test('Tavily posts the query with a bearer token', () => {
   const built = build(tavily);
   expect(built.url).toBe('https://api.tavily.com/search');

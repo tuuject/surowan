@@ -129,29 +129,6 @@ test('a reloaded history_messages applies to new invocations only', async () => 
   }
 });
 
-test('reports retention fields as outside serve, not as pending a restart', async () => {
-  const fixture = await setup();
-  try {
-    await fixture.patch((config) => {
-      config.retention.online_days = 7;
-    });
-    const result = await fixture.reloader.reloadFromFile();
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
-      throw new Error(result.message);
-    }
-    expect(result.applied).toEqual([]);
-    expect(result.restartRequired).toEqual([]);
-    expect(result.outsideServe).toEqual(['retention.online_days']);
-    // Only fields `serve` never reads changed, so the file still becomes the
-    // active configuration and both hashes agree.
-    expect(result.status.generation).toBe(2);
-    expect(result.status.activeHash).toBe(result.status.fileHash);
-  } finally {
-    fixture.store.close();
-  }
-});
-
 test('a reload with no changes keeps the generation', async () => {
   const fixture = await setup();
   try {

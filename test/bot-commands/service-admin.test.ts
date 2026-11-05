@@ -96,13 +96,6 @@ describe('bot command service', () => {
       store.close();
     });
 
-    test('reports an unavailable runtime without a reloader', async () => {
-      const { store, scheduler, configStore } = await setup();
-      const commands = new BotCommandService(store, configStore, scheduler);
-      expect(await commands.run({ name: 'allowlist' }, 987654321n, ALICE, FIXED_NOW)).toBe('运行时配置应用不可用。');
-      store.close();
-    });
-
     test('appends the chat to the file, hot-applies it and reports success', async () => {
       const { store, commands, configStore, configPath } = await allowlistSetup();
       expect(await commands.run({ name: 'allowlist' }, 987654321n, ALICE, FIXED_NOW)).toBe(

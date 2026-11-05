@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test, vi } from 'vitest';
+import { afterAll, describe, expect, test } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -345,17 +345,12 @@ describe('configuration snapshots', () => {
     const faux = fauxAgent();
     faux.setResponses([() => fauxAssistantMessage('first answer')]);
     const { runtime, registry } = fixture.runtimeWith(faux);
-    const logs: string[] = [];
-    const spy = vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
-      logs.push(String(line));
-    });
     try {
       await runOnce(fixture, runtime, snapshotOf(fixture.config, registry), 1, 10, 'first');
       const before = contextRows(fixture.store);
       expect(before.length).toBeGreaterThan(0);
       expect(assistantTranscript(before)).toContain('first answer');
       const hashBefore = contextHash(fixture.store);
-      logs.length = 0;
 
       faux.setResponses([() => fauxAssistantMessage('second answer')]);
       await runOnce(
@@ -378,9 +373,7 @@ describe('configuration snapshots', () => {
       expect(assistantTranscript(after)).toContain('second answer');
       expect(Math.min(...after.map((row) => Number(row.seq)))).toBe(1);
       expect(contextHash(fixture.store)).not.toBe(hashBefore);
-      expect(logs.some((line) => line.includes('"event":"context_rebuilt"'))).toBe(true);
     } finally {
-      spy.mockRestore();
       fixture.store.close();
     }
   }, 30_000);

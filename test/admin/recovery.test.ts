@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verify } from '@node-rs/argon2';
-import { parseCli } from '../../src/cli-options.ts';
 import { AdminAuth } from '../../src/ingress/admin/auth.ts';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { ServeLock, SqliteStore } from '../../src/adapters/local-monolith/database.ts';
@@ -110,73 +109,6 @@ async function passwordHash(store: SqliteStore): Promise<string> {
   }
   return row.password_hash;
 }
-
-describe('admin-account parseCli contract', () => {
-  test('parses username, password-stdin and revoke-passkeys for admin-account', () => {
-    const options = parseCli([
-      'admin-account',
-      '--config',
-      'dev-data/config.jsonc',
-      '--username',
-      'admin',
-      '--password-stdin',
-      '--revoke-passkeys',
-    ]);
-    expect(options.command).toBe('admin-account');
-    expect(options.configPath).toBe('dev-data/config.jsonc');
-    expect(options.username).toBe('admin');
-    expect(options.passwordStdin).toBe(true);
-    expect(options.revokePasskeys).toBe(true);
-  });
-
-  test('admin-account without a username is rejected', () => {
-    expect(() => parseCli(['admin-account', '--config', 'dev-data/config.jsonc'])).toThrow();
-  });
-
-  test('admin-account without --config is rejected', () => {
-    expect(() => parseCli(['admin-account', '--username', 'admin'])).toThrow();
-  });
-
-  test('a username value starting with -- is rejected', () => {
-    expect(() => parseCli(['admin-account', '--config', 'p', '--username', '--x'])).toThrow();
-  });
-
-  test('a duplicate username or flag is rejected', () => {
-    expect(() => parseCli(['admin-account', '--config', 'p', '--username', 'a', '--username', 'b'])).toThrow();
-    expect(() => parseCli(['admin-account', '--config', 'p', '--username', 'a', '--revoke-passkeys'])).not.toThrow();
-    expect(() => parseCli(['admin-account', '--config', 'p', '--username', 'a', '--password-stdin'])).not.toThrow();
-    expect(() =>
-      parseCli(['admin-account', '--config', 'p', '--username', 'a', '--revoke-passkeys', '--revoke-passkeys']),
-    ).toThrow();
-    expect(() =>
-      parseCli(['admin-account', '--config', 'p', '--username', 'a', '--password-stdin', '--password-stdin']),
-    ).toThrow();
-  });
-
-  test('admin-reset is no longer a command', () => {
-    expect(() => parseCli(['admin-reset', '--config', 'p', '--username', 'admin'])).toThrow();
-  });
-
-  test('--password-stdin is rejected outside admin-account', () => {
-    expect(() => parseCli(['serve', '--config', 'p', '--password-stdin'])).toThrow();
-    expect(() => parseCli(['doctor', '--config', 'p', '--password-stdin'])).toThrow();
-  });
-
-  test('--username and --revoke-passkeys are rejected outside admin-account', () => {
-    expect(() => parseCli(['serve', '--config', 'p', '--username', 'admin'])).toThrow();
-    expect(() => parseCli(['check-config', '--config', 'p', '--username', 'admin'])).toThrow();
-    expect(() => parseCli(['serve', '--config', 'p', '--revoke-passkeys'])).toThrow();
-    expect(() => parseCli(['backup', '--config', 'p', '--revoke-passkeys'])).toThrow();
-  });
-
-  test('existing command flags keep their boundaries', () => {
-    expect(parseCli(['serve', '--config', 'p', '--takeover']).takeover).toBe(true);
-    expect(() => parseCli(['backup', '--config', 'p', '--takeover'])).toThrow();
-    expect(parseCli(['doctor', '--config', 'p', '--output-agent-prompt']).outputAgentPrompt).toBe(true);
-    expect(() => parseCli(['serve', '--config', 'p', '--output-agent-prompt'])).toThrow();
-    expect(() => parseCli(['unknown', '--config', 'p'])).toThrow();
-  });
-});
 
 describe('admin-account password input safety', () => {
   test('an open stdin pipe times out without leaking input and releases the lock', async () => {

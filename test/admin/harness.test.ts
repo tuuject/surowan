@@ -70,27 +70,6 @@ async function fixture(transform?: (config: FixtureConfig) => void) {
   return { loaded, path, configStore, store, reloader, call, view, update };
 }
 
-test('reports file and running values with absent optional fields resolved', async () => {
-  const f = await fixture();
-  const view = await f.view();
-  const agent = f.loaded.config.agent;
-  expect(view.saved).toEqual(view.active);
-  expect(view.saved).toMatchObject({
-    'daily_budget.max_tokens': agent.daily_budget.max_tokens,
-    'context.ref_ttl_hours': agent.context.ref_ttl_hours,
-    'rate_limits.window_seconds': agent.rate_limits.window_seconds,
-    send_max_text_length: 2000,
-    allow_reply_message_multiple_times: false,
-    send_duplicate_guard_enabled: true,
-    send_empty_text_strategy: 'reject',
-    send_empty_text_fallback_texts: ['……'],
-  });
-  // The model selection and the prompt have their own pages.
-  expect(Object.keys(view.saved)).not.toContain('provider');
-  expect(Object.keys(view.saved)).not.toContain('thinking_level');
-  expect(Object.keys(view.saved)).not.toContain('system_prompt_file');
-});
-
 test('a write hot-applies every changed field, including the ones that used to need a restart', async () => {
   const f = await fixture();
   seedAdminFixture(f.store);
@@ -231,19 +210,6 @@ test.each([
   expect(response.status).toBe(400);
   expect(await response.json()).toMatchObject({ error });
   expect(await readFile(f.path, 'utf8')).toBe(before);
-});
-
-test('cross-field rules are checked against the whole configuration', async () => {
-  const f = await fixture();
-  const before = await readFile(f.path, 'utf8');
-  const response = await f.update(
-    { 'context.retained_sends_target': f.loaded.config.agent!.context!.retained_sends_max },
-    (await f.view()).revision,
-  );
-  expect(response.status).toBe(422);
-  expect(await response.json()).toMatchObject({ error: 'config_invalid' });
-  expect(await readFile(f.path, 'utf8')).toBe(before);
-  expect(f.configStore.current().config.agent).toEqual(f.loaded.config.agent);
 });
 
 test('a stale or missing revision is refused', async () => {

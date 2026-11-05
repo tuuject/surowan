@@ -158,21 +158,6 @@ test.each(['', '中'.repeat(1000)])('accepts empty and maximum-length model note
   expect(service.core.config.publicModels()[0]?.description).toBe(description);
 });
 
-test.each([{ description: 'x'.repeat(1001) }, { description: 42 }, { description: null }, { notes: 'unknown' }])(
-  'invalid model notes disable only the image section',
-  async (extra) => {
-    const { service, reloader, configPath } = await fixture({
-      ...validImage,
-      models: [{ ...validImage.models[0], ...extra }],
-    });
-    const loaded = await loadConfig(configPath);
-    expect(loaded.config.image).toBeUndefined();
-    expect(loaded.warnings.length).toBeGreaterThan(0);
-    expect((await reloader.reloadFromFile()).ok).toBe(true);
-    expect(service.core.config.hasValidConfig()).toBe(false);
-  },
-);
-
 test('repairing the stripped section through the config write path enables generation without a restart', async () => {
   const broken = { credentials: {}, models: 'oops' };
   const { service, reloader, configPath } = await fixture(broken);

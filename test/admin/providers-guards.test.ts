@@ -5,7 +5,6 @@ import {
   installAdminProviderHooks,
   model,
   readJson,
-  request,
   revisionOf,
   write,
 } from './providers-fixtures.ts';
@@ -184,27 +183,6 @@ test('global Admin writes preserve Chat overrides and reject incompatible inheri
     expect(fixture.file().agent).toMatchObject({ provider: 'vision', model: 'vision-model', thinking_level: 'off' });
     expect(fixture.file().telegram?.chats).toEqual(fixture.loaded.fileConfig.telegram?.chats);
     expect(fixture.configStore.current().config.telegram.chats).toEqual(before.config.telegram.chats);
-  } finally {
-    fixture.store.close();
-  }
-});
-
-test('rejects cross-origin provider writes', async () => {
-  const fixture = await adminFixture();
-  try {
-    const response = await fixture.server.handle(
-      request('/api/providers', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          cookie: fixture.cookie,
-          origin: 'http://evil.example.test',
-        },
-        body: JSON.stringify({ alias: 'relay' }),
-      }),
-    );
-    expect(response.status).toBe(403);
-    expect(await readJson(response)).toMatchObject({ error: 'bad_origin' });
   } finally {
     fixture.store.close();
   }

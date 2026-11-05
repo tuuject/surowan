@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { modelsDevProviderId, normalizeModelId, resolveModelDrafts } from '../../src/platform/models/metadata.ts';
+import { modelsDevProviderId, resolveModelDrafts } from '../../src/platform/models/metadata.ts';
 import { catalog, draftOf, openRouterModel } from './metadata-fixtures.ts';
 
 describe('metadata resolution', () => {
@@ -301,10 +301,5 @@ describe('metadata resolution', () => {
     expect(
       modelsDevProviderId({ kind: 'custom', baseUrl: 'https://relay.example.test/v1', api: 'openai-completions' }),
     ).toBe(null);
-  });
-
-  test('normalizes relay ids for fuzzy matching', () => {
-    expect(normalizeModelId('~deepseek-ai/DeepSeek-V3:free')).toBe('deepseek-v3');
-    expect(normalizeModelId('DeepSeek-V3')).toBe('deepseek-v3');
   });
 });

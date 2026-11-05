@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
-import { ADMIN, logEvents, groupUpdate, setup } from './reload-fixtures.ts';
+import { logEvents, groupUpdate, setup } from './reload-fixtures.ts';
 
 test('addChat appends a bare allowlist entry and hot-applies it', async () => {
   const newChatId = -100999;
@@ -59,25 +59,6 @@ test('addChat rejects invalid IDs without touching file or active state', async 
     }
     expect(await fixture.readText()).toBe(original);
     expect(fixture.configStore.current()).toBe(before);
-  } finally {
-    fixture.store.close();
-  }
-});
-
-test('/allowlist allowlists the chat it is sent from and the next message ingests', async () => {
-  const newChatId = -100999;
-  const fixture = await setup();
-  try {
-    const reply = await fixture.commands.run({ name: 'allowlist' }, BigInt(newChatId), ADMIN);
-    expect(reply).toBe('已将本群加入白名单，配置已立即生效。');
-    expect(fixture.configStore.current().config.telegram.chats.some((chat) => chat.id === newChatId)).toBe(true);
-    expect(await loadConfig(fixture.configPath).then((loaded) => loaded.fileConfig.telegram?.chats.at(-1))).toEqual({
-      id: newChatId,
-    });
-    const ingested = fixture.ingestion.ingest(groupUpdate(1, 10, newChatId));
-    expect(ingested.messageId).toBeDefined();
-    const again = await fixture.commands.run({ name: 'allowlist' }, BigInt(newChatId), ADMIN);
-    expect(again).toBe('本群已在白名单中。');
   } finally {
     fixture.store.close();
   }

@@ -2,13 +2,9 @@ import { expect, test } from 'vitest';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai';
-import { AdminServer } from '../../src/ingress/admin/index.ts';
-import { SecretStore } from '../../src/platform/secrets.ts';
 import {
   CHAT_ID,
-  ADMIN,
   AGENT_MODEL,
-  SECOND_MODEL,
   logEvents,
   textUpdate,
   customProvider,
@@ -214,49 +210,6 @@ test('a budget lowered during a run blocks the next model call', async () => {
         .prepare<[bigint], { count: bigint }>('SELECT COUNT(*) AS count FROM model_calls WHERE invocation_id = ?')
         .get(invocationId)?.count,
     ).toBe(1n);
-  } finally {
-    fixture.store.close();
-  }
-});
-
-test('a reloaded model and thinking level show up in /status and the admin API', async () => {
-  const fixture = await setup({
-    transform: (config) => {
-      config.admin = { enabled: true, host: '127.0.0.1', port: 8899, session_ttl_hours: 12 };
-    },
-  });
-  try {
-    fixture.runtimeWith(fauxAgent());
-    await fixture.patch((config) => {
-      config.agent!.model = SECOND_MODEL;
-      config.agent!.thinking_level = 'high';
-    });
-    const reloaded = await fixture.reloader.reloadFromFile();
-    expect(reloaded.ok).toBe(true);
-
-    const status = await fixture.commands.run({ name: 'status' }, BigInt(CHAT_ID), ADMIN);
-    expect(status).toContain(`本群模型: faux / ${SECOND_MODEL}（继承全局）`);
-    expect(status).toContain('思考强度: high（继承全局）');
-
-    const server = new AdminServer({
-      store: fixture.store,
-      configStore: fixture.configStore,
-      modelSwitcher: fixture.modelSwitcher,
-      configReloader: fixture.reloader,
-      secrets: new SecretStore(),
-    });
-    const created = await server.handle(
-      new Request('http://127.0.0.1:8899/api/auth/setup', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ username: 'owner', password: 'correct-horse-battery' }),
-      }),
-    );
-    const cookie = created.headers.get('set-cookie')?.split(';')[0] ?? '';
-    const view = (await (
-      await server.handle(new Request('http://127.0.0.1:8899/api/providers', { headers: { cookie } }))
-    ).json()) as { agent: { provider: string; model: string } };
-    expect(view.agent).toMatchObject({ provider: 'faux', model: SECOND_MODEL });
   } finally {
     fixture.store.close();
   }

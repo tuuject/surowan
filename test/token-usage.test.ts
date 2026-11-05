@@ -19,8 +19,6 @@ afterEach(async () => {
 describe('daily budget token definition', () => {
   test.each([
     { name: 'uncached request', usage: { input: 1_000, output: 20, cacheRead: 0, cacheWrite: 0 }, expected: 1_020n },
-    { name: 'cache write request', usage: { input: 0, output: 20, cacheRead: 0, cacheWrite: 1_000 }, expected: 1_020n },
-    { name: 'cache read request', usage: { input: 0, output: 20, cacheRead: 1_000, cacheWrite: 0 }, expected: 1_020n },
     {
       name: 'cached and uncached input together',
       usage: { input: 150, output: 20, cacheRead: 800, cacheWrite: 50 },

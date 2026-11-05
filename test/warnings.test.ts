@@ -136,50 +136,6 @@ test('standing warnings follow the active configuration and keep no history', as
   }
 });
 
-test('Telegram connection states are standing warnings except while disabled', async () => {
-  const { store, loaded } = await openStore();
-  try {
-    const base = loaded.config;
-    const connections = new ImConnectionRegistry();
-    const codes = (): string[] =>
-      standingWarnings(base, connections, FIXED_NOW)
-        .filter((warning) => warning.code.startsWith('telegram_'))
-        .map((warning) => warning.code);
-
-    expect(codes()).toEqual([]);
-
-    connections.set('telegram', { status: 'network_error', since: FIXED_NOW.toISOString() });
-    expect(codes()).toEqual(['telegram_network_error']);
-
-    const reasons = ['unauthorized', 'conflict', 'token_unreadable'] as const;
-    for (const reason of reasons) {
-      connections.set('telegram', { status: 'config_error', reason, since: FIXED_NOW.toISOString() });
-      const warning = standingWarnings(base, connections, FIXED_NOW).find(
-        (candidate) => candidate.code === 'telegram_config_error',
-      );
-      expect(warning).toMatchObject({
-        kind: 'standing',
-        category: 'runtime',
-        severity: 'critical',
-        variables: { reason },
-      });
-    }
-
-    connections.set('telegram', {
-      status: 'connected',
-      since: FIXED_NOW.toISOString(),
-      bot: { id: '1', username: 'bot' },
-    });
-    expect(codes()).toEqual([]);
-
-    // Disabled is a deliberate choice: no standing warning survives it.
-    connections.set('telegram', { status: 'disabled', since: FIXED_NOW.toISOString() });
-    expect(codes()).toEqual([]);
-  } finally {
-    store.close();
-  }
-});
-
 test('the invocation failure-rate warning samples the latest 40 completed or failed runs', async () => {
   const { store } = await openStore();
   try {

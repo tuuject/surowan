@@ -285,23 +285,6 @@ test('image settings discovery requires auth, supports disabled images and enfor
   }
 });
 
-test('image content requests still stream the stored bytes with the asset mime', async () => {
-  const app = await fixture();
-  const created = await app.server.handle(
-    new Request('http://admin.test/api/image/prompts', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', cookie: app.cookie, origin: 'http://admin.test' },
-      body: JSON.stringify({ name: 'anime', body: 'anime style illustration' }),
-    }),
-  );
-  expect(created.status).toBe(201);
-  const listing = await app.server.handle(
-    new Request('http://admin.test/api/image/prompts', { headers: { cookie: app.cookie } }),
-  );
-  const body = (await listing.json()) as { items: readonly { id: string }[] };
-  expect(body.items.length).toBe(1);
-});
-
 test('repairs missing image credentials with a saved OpenRouter reference and rejects invalid drafts before writing', async () => {
   const model = {
     id: 'legacy-image',

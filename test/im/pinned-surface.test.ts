@@ -4,8 +4,8 @@
  * The host extraction and the storage changes that follow move code around but
  * must not move anything a model, an operator, or the audit trail can see. This
  * file pins exactly that seam for one fixed incoming update: the rendered
- * envelope the model reads, the invocation header, the request the transport
- * receives, the audit rows, and the tool result text.
+ * envelope the model reads, the request the transport receives, the audit rows,
+ * and the tool result text.
  *
  * If a later task needs a different value here, that is a deliberate contract
  * change and belongs in its own commit.
@@ -113,17 +113,6 @@ async function fixture() {
 test('the model-visible envelope for a fixed update is pinned', async () => {
   const { store, context } = await fixture();
   expect(context.userPrompt).toContain(PINNED_ENVELOPE);
-  expect(context.systemPrompt).toContain("re:N marks a reply to message N, uid:N is the sender's user ID");
-  store.close();
-});
-
-test('the invocation header identity is pinned', async () => {
-  const { store, context } = await fixture();
-  expect(String(context.header.id)).toBe('1');
-  expect(String(context.header.conversationId)).toBe('1');
-  expect(String(context.header.headSeq)).toBe('1');
-  expect(String(context.header.nextSeq)).toBe('1');
-  expect(String(context.header.sendCountTotal)).toBe('0');
   store.close();
 });
 

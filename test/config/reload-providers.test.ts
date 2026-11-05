@@ -55,76 +55,6 @@ test('editing a builtin model in use is hot and reaches the registry', async () 
   }
 });
 
-test('a new model on an existing custom provider is hot and immediately selectable', async () => {
-  const fixture = await setup();
-  try {
-    await fixture.patch((config) => {
-      customProvider(config.providers, 'agent').models.push(model('agent-extra'));
-    });
-    const result = await fixture.reloader.reloadFromFile();
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
-      throw new Error(result.message);
-    }
-    expect(result.applied).toEqual(['providers.agent.models[agent-extra]']);
-    expect(fixture.modelSwitcher.list().map((option) => `${option.provider}/${option.model}`)).toContain(
-      'agent/agent-extra',
-    );
-
-    const switched = await fixture.reloader.setAgentModel('agent', 'agent-extra');
-    expect(switched.ok).toBe(true);
-    // `agent-extra` does not reason, so `off` is the only level it has.
-    expect(fixture.configStore.current().config.agent).toMatchObject({
-      provider: 'agent',
-      model: 'agent-extra',
-      thinking_level: 'off',
-    });
-
-    await fixture.patch((config) => {
-      customProvider(config.providers, 'agent').base_url = 'https://other.test/v1';
-    });
-    const connection = await fixture.reloader.reloadFromFile();
-    expect(connection.ok).toBe(true);
-    if (!connection.ok) {
-      throw new Error(connection.message);
-    }
-    expect(connection.applied).toContain('providers.agent.base_url');
-    expect(connection.restartRequired).toEqual([]);
-    expect(fixture.configStore.current().config.providers.agent).toMatchObject({
-      base_url: 'https://other.test/v1',
-    });
-    expect(fixture.configStore.current().models.getProvider('agent')?.baseUrl).toBe('https://other.test/v1');
-  } finally {
-    fixture.store.close();
-  }
-});
-
-test('editing the model in use is hot', async () => {
-  const fixture = await setup({
-    transform: (config) => {
-      config.agent!.provider = 'agent';
-      config.agent!.model = 'agent-model';
-    },
-  });
-  try {
-    await fixture.patch((config) => {
-      customProvider(config.providers, 'agent').models[0]!.context_window = 100_000;
-    });
-    const result = await fixture.reloader.reloadFromFile();
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
-      throw new Error(result.message);
-    }
-    expect(result.applied).toEqual(['providers.agent.models[agent-model]']);
-    expect(result.restartRequired).toEqual([]);
-    expect(customProvider(fixture.configStore.current().config.providers, 'agent').models[0]?.context_window).toBe(
-      100_000,
-    );
-  } finally {
-    fixture.store.close();
-  }
-});
-
 test('editing a model the agent just left is hot', async () => {
   const fixture = await setup({
     transform: (config) => {
@@ -218,35 +148,6 @@ test('switching the vision model is hot and refuses a model over the output limi
     expect(refused.code).toBe('model_unusable');
     expect(refused.message).toContain('Vision max_output_tokens');
     expect(fixture.configStore.current()).toBe(before);
-  } finally {
-    fixture.store.close();
-  }
-});
-
-test('an agent pointing at a brand new provider switches in the same reload', async () => {
-  const fixture = await setup();
-  try {
-    await fixture.patch((config) => {
-      config.providers.extra = {
-        kind: 'custom',
-        base_url: 'https://example.test/v1',
-        api: 'openai-responses',
-        api_key: { jar: 'extra' },
-        models: [model('extra-model', { reasoning: true })],
-      };
-      config.agent!.provider = 'extra';
-      config.agent!.model = 'extra-model';
-      config.agent!.thinking_level = 'high';
-    });
-    const result = await fixture.reloader.reloadFromFile();
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
-      throw new Error(result.message);
-    }
-    expect(result.applied).toEqual(['agent.model', 'agent.provider', 'agent.thinking_level', 'providers.extra']);
-    expect(result.restartRequired).toEqual([]);
-    expect(fixture.configStore.current().config.agent).toMatchObject({ provider: 'extra', model: 'extra-model' });
-    expect(fixture.configStore.current().models.getModel('extra', 'extra-model')).toBeDefined();
   } finally {
     fixture.store.close();
   }

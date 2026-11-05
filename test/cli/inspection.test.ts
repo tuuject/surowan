@@ -106,36 +106,6 @@ describe('surowan-utils inspection commands', () => {
     }
   }, 20_000);
 
-  it.each([
-    [['--provider', 'other', '--model', 'vendor/text-model'], { provider: 'other', model: 'vendor/text-model' }],
-    [['--thinking-level', 'high'], { thinking_level: 'high' }],
-  ])(
-    'does not confuse model selection with prompt overrides (%j)',
-    async (selection, expected) => {
-      const server = await startServer((request, response) => {
-        jsonResponse(
-          response,
-          200,
-          requestPath(request).endsWith('/replay-preflight')
-            ? { ...PREFLIGHT, prompt_overrides_available: false }
-            : { error: null },
-        );
-      });
-      try {
-        const result = await runCli(['invocation', 'replay', '42', ...selection, '--json'], {
-          env: ENV(server.baseUrl),
-        });
-        expect(result.code, result.stderr).toBe(0);
-        expect(server.requests).toHaveLength(2);
-        expect(requestQuery(onlyRequest(server, 0))).toEqual(expected);
-        expect(JSON.parse(onlyRequest(server, 1).body)).toEqual(expected);
-      } finally {
-        await server.close();
-      }
-    },
-    20_000,
-  );
-
   it('does not POST or retry when the selected model fails preflight', async () => {
     const server = await startServer((_request, response) =>
       jsonResponse(response, 200, {

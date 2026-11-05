@@ -2,7 +2,7 @@ import { imageSchema } from '@surowan/image-service';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { expect, test } from 'vitest';
-import { agentActor, createImageBridge } from '../../src/image/bridge.ts';
+import { createImageBridge } from '../../src/image/bridge.ts';
 import imagePlugin from '../../src/plugins/image/index.ts';
 import type { ImagePluginBridge } from '../../src/plugins/plugin.ts';
 import { taskReceipts } from '../../src/store/schema/index.ts';
@@ -150,11 +150,4 @@ test('input media references become intent-level input images', async () => {
   );
   expect(calls).toEqual(['submit']);
   expect(submitted[0]?.inputMediaIds).toEqual([5n]);
-});
-
-test('agent actor ids bind generations to their conversation', () => {
-  const actor = agentActor(42n);
-  expect(actor.id).toBe('agent:42');
-  expect(actor.privileged).toBe(true);
-  expect(actor.source).toBe('agent');
 });

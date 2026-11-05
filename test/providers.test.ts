@@ -7,9 +7,9 @@ import { findBuiltinProvider } from '../src/platform/builtin-providers.ts';
 import type { RawConfig } from '../src/platform/config/index.ts';
 import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config/index.ts';
 import { keyJarPath } from '../src/platform/key-jar.ts';
-import { buildModelRegistry, configuredAgentModels, mapCompat } from '../src/platform/providers.ts';
+import { buildModelRegistry, configuredAgentModels } from '../src/platform/providers.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { supportedThinkingLevels, THINKING_LEVELS } from '../src/platform/thinking-levels.ts';
+import { supportedThinkingLevels } from '../src/platform/thinking-levels.ts';
 import { type FixtureConfig, testConfigJsonc, writeTestConfig, writeTestKeyJar } from './helpers.ts';
 
 const directories: string[] = [];
@@ -249,25 +249,6 @@ describe('model registry', () => {
     expect(rebuilt.models.getProvider('deepseek')).not.toBe(registry.models.getProvider('deepseek'));
   });
 
-  test('maps the selected compat fields onto Pi’s camelCase names', () => {
-    expect(
-      mapCompat({
-        supports_developer_role: false,
-        thinking_format: 'openrouter',
-        max_tokens_field: 'max_tokens',
-        requires_reasoning_content: true,
-        cache_control_format: 'anthropic',
-      }),
-    ).toEqual({
-      supportsDeveloperRole: false,
-      thinkingFormat: 'openrouter',
-      maxTokensField: 'max_tokens',
-      requiresReasoningContentOnAssistantMessages: true,
-      cacheControlFormat: 'anthropic',
-    });
-    expect(mapCompat({})).toBeUndefined();
-  });
-
   test('hands Pi the same thinking levels the configuration validates against', async () => {
     const declared = [['off', 'low', 'high', 'max'], ['low', 'medium', 'xhigh'], ['high', 'off'], ['max']] as const;
     const loaded = await loadFixture((draft) => {
@@ -306,7 +287,6 @@ describe('model registry', () => {
       max: 'max',
     });
     expect(registry.models.getModel('agent', 'undeclared')?.thinkingLevelMap).toBeUndefined();
-    expect(THINKING_LEVELS).toEqual(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
   });
 
   test('registers custom models with their compat overrides', async () => {

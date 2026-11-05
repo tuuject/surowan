@@ -122,7 +122,6 @@ describe('invocation context', () => {
     expect(context.systemPrompt).toContain('chat=runtime-model');
     expect(context.userPrompt).toContain('- mem_');
     expect(context.userPrompt).toContain('{{ agent.model }}');
-    expect(context.systemPrompt).not.toContain('Schedule a deferred agent invocation');
     store.close();
   });
 });

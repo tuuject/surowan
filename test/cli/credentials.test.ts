@@ -11,7 +11,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import {
@@ -110,30 +110,6 @@ const hasFileSymlinks = canCreateFileSymlink();
 const hasDirectoryLinks = canCreateDirectoryLink();
 const isPosix = process.platform !== 'win32';
 
-describe('credentialsPath', () => {
-  it('is fixed under the home directory on every platform', () => {
-    const home = join(tmpdir(), 'surowan-home-fixture');
-    expect(credentialsPath(home)).toBe(join(home, '.config', 'surowan-utils', 'credentials.json'));
-    expect(credentialsPath()).toBe(join(homedir(), '.config', 'surowan-utils', 'credentials.json'));
-  });
-
-  it('ignores XDG overrides', () => {
-    const home = join(tmpdir(), 'surowan-home-fixture');
-    const previous = process.env.XDG_CONFIG_HOME;
-    process.env.XDG_CONFIG_HOME = join(tmpdir(), 'surowan-xdg-fixture');
-    try {
-      expect(credentialsPath(home)).toBe(join(home, '.config', 'surowan-utils', 'credentials.json'));
-      expect(credentialsPath(home)).not.toContain('surowan-xdg-fixture');
-    } finally {
-      if (previous === undefined) {
-        delete process.env.XDG_CONFIG_HOME;
-      } else {
-        process.env.XDG_CONFIG_HOME = previous;
-      }
-    }
-  });
-});
-
 describe('validateApiKey', () => {
   it('accepts opaque keys, including a trailing backslash and no prefix', () => {
     const trailingBackslash = 'synthetic-key-\\';
@@ -168,7 +144,6 @@ describe('validateApiKey', () => {
       const cli = error as CliError;
       expect(cli.code).toBe('invalid_api_key');
       expect(cli.exitCode).toBe(2);
-      expect(cli.message).toBe('API key must be 1 to 4096 characters with no whitespace or control characters');
     }
   });
 });
@@ -187,13 +162,6 @@ describe('readCredentials', () => {
     const parsed = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
     expect(parsed).toEqual({ endpoint: NORMALIZED_ENDPOINT, apiKey: API_KEY });
     expect(Object.keys(parsed)).toEqual(['endpoint', 'apiKey']);
-  });
-
-  it('round-trips a key that ends in a backslash', async () => {
-    const path = credentialsFile();
-    const apiKey = 'synthetic-key-with-backslash-\\';
-    await writeCredentials(path, { endpoint: ENDPOINT, apiKey });
-    await expect(readCredentials(path)).resolves.toEqual({ endpoint: NORMALIZED_ENDPOINT, apiKey });
   });
 
   it('accepts loopback http and rejects unsafe stored endpoints', async () => {

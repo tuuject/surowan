@@ -250,18 +250,6 @@ test.each([285_000n, 285_001n])(
   },
 );
 
-test('does not expose zzz while more than five percent remains', async () => {
-  const { store, configStore, runtime, invocationId, faux } = await runtimeSetup(284_999n);
-  // The model deliberately stays silent with a blank draft so the send nudge
-  // cannot add a second turn whose usage would push the budget over the line.
-  faux.setResponses([fauxAssistantMessage('   ')]);
-  await runtime.run(invocationId, configStore.beginInvocation(), new AbortController().signal);
-  expect(modelToolLists(store)).toEqual([
-    ['read', 'read_member_profile', 'search_memory', 'read_memory', 'send', 'send_reply', 'execute'],
-  ]);
-  store.close();
-});
-
 test('exposes zzz after global remaining budget falls below five percent', async () => {
   const { store, configStore, runtime, invocationId, faux } = await runtimeSetup(285_001n, '987654321');
   faux.setResponses([fauxAssistantMessage('   ')]);

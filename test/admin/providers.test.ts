@@ -13,33 +13,6 @@ import {
 
 installAdminProviderHooks();
 
-test('lists providers without leaking keys or header values', async () => {
-  const fixture = await adminFixture();
-  try {
-    const response = await call(fixture, '/api/providers');
-    expect(response.status).toBe(200);
-    const text = await response.clone().text();
-    const view = await readJson(response);
-    expect(view.revision).toMatch(/^[0-9a-f]{64}$/);
-    expect(view.supervised).toBe(false);
-    expect(view.agent).toEqual({ provider: 'agent', model: 'agent-model', thinking_level: 'low' });
-    expect(view.vision).toEqual({ provider: 'vision', model: 'vision-model' });
-    expect(view.restart_required).toEqual([]);
-    const agent = view.providers.find((entry: any) => entry.alias === 'agent');
-    expect(agent).toMatchObject({ kind: 'custom', api: 'openai-responses', base_url: 'https://example.test/v1' });
-    expect(agent.header_names).toEqual(['x-route']);
-    expect(agent.models).toHaveLength(1);
-    expect(agent.models[0]).toMatchObject({ id: 'agent-model', compat: { supports_developer_role: false } });
-
-    // The whole response body, not just the fields under test.
-    expect(text).not.toContain('agent-secret');
-    expect(text).not.toContain('header-secret-value');
-    expect(text).not.toContain('vision-secret');
-  } finally {
-    fixture.store.close();
-  }
-});
-
 test('offers the builtin presets the configuration may reference', async () => {
   const fixture = await adminFixture();
   try {

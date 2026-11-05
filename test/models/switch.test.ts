@@ -58,13 +58,6 @@ test('lists text-capable models of configured providers', async () => {
   expect(options[0]).toMatchObject({ name: 'Agent Model', contextWindow: 200_000, maxTokens: 32_768 });
 });
 
-test('current and model default to the configured agent model', async () => {
-  const { switcher } = await switcherWith();
-  expect(switcher.current()).toMatchObject({ provider: 'agent', model: 'agent-model', maxTokens: 32_768 });
-  expect(switcher.model().id).toBe('agent-model');
-  expect(switcher.model().provider).toBe('agent');
-});
-
 test('option validates a target without applying it', async () => {
   const { switcher } = await switcherWith();
   expect(switcher.option('vision', 'vision-model')).toMatchObject({

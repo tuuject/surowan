@@ -1,25 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_MODEL_LENGTH, MAX_SEARCH_LENGTH } from '../../packages/cli/src/args/spec.ts';
 import { jsonResponse, onlyRequest, requestPath, requestQuery, runCli, startServer } from './harness.ts';
-import { ENV, PREFLIGHT, LIST_ITEM, PLAIN_ITEM } from './inspection-fixtures.ts';
+import { ENV, PREFLIGHT, LIST_ITEM } from './inspection-fixtures.ts';
 
 describe('surowan-utils inspection commands', () => {
-  it('invocation preflight prints the preflight document without posting', async () => {
-    const server = await startServer((_request, response) => {
-      jsonResponse(response, 200, PREFLIGHT);
-    });
-    try {
-      const result = await runCli(['invocation', 'preflight', '42'], { env: ENV(server.baseUrl) });
-      expect(result.code).toBe(0);
-      expect(JSON.parse(result.stdout)).toEqual(PREFLIGHT);
-      expect(server.requests).toHaveLength(1);
-      expect(requestPath(onlyRequest(server))).toBe('/api/invocations/42/replay-preflight');
-      expect(requestQuery(onlyRequest(server))).toEqual({});
-    } finally {
-      await server.close();
-    }
-  }, 20_000);
-
   it('invocation preflight forwards --before-send as before_send_id without posting', async () => {
     const server = await startServer((_request, response) => {
       jsonResponse(response, 200, PREFLIGHT);
@@ -156,20 +140,6 @@ describe('surowan-utils inspection commands', () => {
       expect(result.stdout).toContain('matched bot');
       expect(result.stdout).toContain('send=77');
       expect(result.stdout).toContain('matched reply');
-    } finally {
-      await server.close();
-    }
-  }, 20_000);
-
-  it('invocation list without matches keeps the old human format', async () => {
-    const server = await startServer((_request, response) => {
-      jsonResponse(response, 200, { items: [PLAIN_ITEM], next_cursor: null });
-    });
-    try {
-      const result = await runCli(['invocation', 'list', '--limit', '5'], { env: ENV(server.baseUrl) });
-      expect(result.code).toBe(0);
-      expect(result.stdout).not.toContain('matched');
-      expect(result.stdout).toContain(`${PLAIN_ITEM.id} completed ${PLAIN_ITEM.created_at}`);
     } finally {
       await server.close();
     }

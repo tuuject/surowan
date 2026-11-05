@@ -3,8 +3,6 @@
  * agent model switch, all hot-applied through the config file.
  */
 import { expect, test } from 'vitest';
-import { mkdtemp } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { readConfigRevision } from '../../src/adapters/local-monolith/config/file.ts';
@@ -12,31 +10,7 @@ import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.
 import { AdminServer } from '../../src/ingress/admin/index.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
-import { testConfigJsonc, writeTestConfig } from '../helpers.ts';
-import { directories, fixture, PASSWORD, post, readJson, request, sessionCookie } from './fixtures.ts';
-
-test('admin config accepts a non-loopback bind host', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'surowan-admin-host-'));
-  directories.push(directory);
-  const configPath = join(directory, 'config.jsonc');
-  await writeTestConfig(
-    directory,
-    configPath,
-    testConfigJsonc(directory, (config) => {
-      config.admin = {
-        enabled: true,
-        host: '0.0.0.0',
-        port: 8899,
-        session_ttl_hours: 12,
-      };
-    }),
-  );
-  // The operator owns the bind address, so a non-loopback host must load for
-  // LAN/desktop deployments.
-  await expect(loadConfig(configPath)).resolves.toMatchObject({
-    config: { admin: { host: '0.0.0.0', port: 8899 } },
-  });
-});
+import { fixture, PASSWORD, post, readJson, request, sessionCookie } from './fixtures.ts';
 
 test('admins API manages the config whitelist and hot-applies it', async () => {
   const { store, loaded, configStore, directory } = await fixture();

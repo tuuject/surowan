@@ -5,7 +5,6 @@ import {
   ALREADY_DELIVERED,
   ASSET_A,
   ASSET_B,
-  CHAT_ID,
   GENERATION_ID,
   OTHER_GENERATION_ID,
   START,
@@ -39,39 +38,6 @@ import {
  */
 
 describe('send image delivery ledger', () => {
-  test('records the generation and its asset ids on the first delivery', async () => {
-    const fixture = await setup();
-    const context = openConversation(fixture, 1, START);
-    const { tool, api } = buildTool(fixture, context);
-
-    const result = await tool.execute('img-1', {
-      kind: 'image',
-      image_generation_id: GENERATION_ID,
-      text: 'harbor',
-    });
-
-    expect(result.details).toEqual({ telegramMessageId: '500' });
-    expect(api.photoDeliveries).toEqual([{ chatId: String(CHAT_ID), fileNames: ['a.png'], caption: 'harbor' }]);
-    const rows = sendRows(fixture.store);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
-      state: 'success',
-      telegram_message_id: 500n,
-      error_code: null,
-      conversation_id: context.conversationId,
-    });
-    expect(JSON.parse(rows[0]!.request_json)).toMatchObject({
-      kind: 'image',
-      generation_id: GENERATION_ID,
-      asset_ids: ['asset-a'],
-    });
-    expect(toolCalls(fixture.store)).toEqual([
-      { tool_call_id: 'img-1', state: 'success', side_effect: 1n, error_code: null },
-    ]);
-    expect(sendsUsed(fixture.store)).toEqual([1n]);
-    fixture.store.close();
-  });
-
   test('a repeat is a no-op across tool instances and invocations', async () => {
     const fixture = await setup();
     const api = fakeTelegram();

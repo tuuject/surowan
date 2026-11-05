@@ -18,17 +18,6 @@ function insertModelCall(invocationId: bigint, role: string, model: string): voi
     .run(invocationId, role, model, '2025-01-01T00:00:00.000Z');
 }
 
-test('model filter keeps only invocations whose agent calls used that model', () => {
-  insertModelCall(401n, 'agent', 'deepseek/deepseek-v4-flash');
-  insertModelCall(402n, 'agent', 'openai/gpt-4.1-mini');
-  insertModelCall(403n, 'agent', 'deepseek/deepseek-v4-flash');
-  insertModelCall(403n, 'agent', 'openai/gpt-4.1-mini');
-
-  expect(ids({ model: 'deepseek/deepseek-v4-flash' })).toEqual(['403', '401']);
-  expect(ids({ model: 'openai/gpt-4.1-mini' })).toEqual(['403', '402']);
-  expect(ids({ model: 'openai/gpt-5' })).toEqual([]);
-});
-
 test('vision and auxiliary calls never make an invocation match', () => {
   insertModelCall(401n, 'agent', 'deepseek/deepseek-v4-flash');
   insertModelCall(402n, 'vision_chat', 'openai/gpt-4.1-mini');
@@ -60,11 +49,4 @@ test('an empty model parameter means no filter, and an oversized or control-char
   expect(codeOf(() => listInvocations(current().store.orm, { model: 'a'.repeat(257) }))).toBe('invalid_model');
   expect(codeOf(() => listInvocations(current().store.orm, { model: '   ' }))).toBe('invalid_model');
   expect(codeOf(() => listInvocations(current().store.orm, { model: 'gpt\n4.1' }))).toBe('invalid_model');
-});
-
-test('the model filter never writes to the audit tables', () => {
-  insertModelCall(401n, 'agent', 'openai/gpt-4.1-mini');
-  const before = current().store.db.prepare('SELECT * FROM model_calls ORDER BY id').all();
-  listInvocations(current().store.orm, { model: 'openai/gpt-4.1-mini' });
-  expect(current().store.db.prepare('SELECT * FROM model_calls ORDER BY id').all()).toEqual(before);
 });

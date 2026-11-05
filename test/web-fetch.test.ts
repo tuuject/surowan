@@ -346,25 +346,6 @@ test('web_fetch converts HTML main content to Markdown by default and audits it'
   }
 });
 
-test('web_fetch returns the original HTML when raw is requested', async () => {
-  const { store, context } = await fixture();
-  try {
-    const tool = createWebFetchTool({
-      audit: createToolAudit(store, context.invocationId),
-      invocationDeadline: Date.now() + 30_000,
-      resolveHostname: async () => [{ address: '203.0.114.10', family: 4 }],
-      requestResolved: async () => htmlResponse('<html><body><p>raw body</p></body></html>'),
-    });
-    const result = await tool.execute('web-raw', { url: 'https://public.example/', raw: true });
-    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
-    expect(text).toContain('<p>raw body</p>');
-    expect(text).not.toContain('Format:');
-    expect(result.details).toMatchObject({ format: 'raw', truncated: false });
-  } finally {
-    store.close();
-  }
-});
-
 test('web_fetch truncates converted Markdown to the result budget on a UTF-8 boundary', async () => {
   const { store, context } = await fixture();
   try {

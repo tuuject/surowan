@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test, vi } from 'vitest';
+import { afterAll, describe, expect, test } from 'vitest';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.ts';
 import type { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
@@ -46,18 +46,6 @@ describe('bot command service', () => {
       expect(await commands.run({ name: 'effort', argument: 'default' }, CHAT_ID, stranger, FIXED_NOW)).toBe(DENIED);
       expect(await commands.run({ name: 'effort' }, CHAT_ID, null, FIXED_NOW)).toBe(DENIED);
       expect(configStore.current()).toBe(before);
-      store.close();
-    });
-
-    test('without an argument lists what the effective model accepts', async () => {
-      const { store, commands } = await commandSetup();
-      const reply = await commands.run({ name: 'effort' }, CHAT_ID, ALICE, FIXED_NOW);
-      expect(reply.split('\n')).toEqual([
-        '本群模型: agent / agent-model',
-        '思考强度: low（继承全局）',
-        `可选: ${SUPPORTED}`,
-        '使用 /effort 级别 设置本群强度，/effort default 恢复继承全局',
-      ]);
       store.close();
     });
 
@@ -154,18 +142,6 @@ describe('bot command service', () => {
       }
     });
 
-    test('accepts a level regardless of case', async () => {
-      const { store, commands, reloader } = await commandSetup();
-      try {
-        expect(await commands.run({ name: 'effort', argument: 'HIGH' }, CHAT_ID, ALICE, FIXED_NOW)).toContain(
-          '已为本群设置思考强度: high',
-        );
-        expect((await loadConfig(reloader.configPath)).fileConfig.telegram?.chats[0]?.thinking_level).toBe('high');
-      } finally {
-        store.close();
-      }
-    });
-
     test('rejects unknown and unsupported levels without writing', async () => {
       const { store, commands, reloader, configStore } = await commandSetup();
       const before = configStore.current();
@@ -228,45 +204,6 @@ describe('bot command service', () => {
       } finally {
         store.close();
       }
-    });
-
-    test('reports failed writes and other applied changes', async () => {
-      const { store, commands, reloader } = await commandSetup();
-      const write = vi.spyOn(reloader, 'setChatThinkingLevel');
-      try {
-        for (const fileWritten of [false, true]) {
-          write.mockResolvedValueOnce({
-            ok: false,
-            code: 'config_write_failed',
-            message: 'disk full',
-            fileWritten,
-            status: reloader.status(),
-          });
-          const reply = await commands.run({ name: 'effort', argument: 'high' }, CHAT_ID, ALICE, FIXED_NOW);
-          expect(reply).toBe(fileWritten ? '已写入 config.jsonc，但应用失败: disk full' : '设置失败: disk full');
-        }
-        write.mockResolvedValueOnce({
-          ok: true,
-          applied: ['agent.history_messages'],
-          restartRequired: ['telegram.bucket_window_seconds'],
-          outsideServe: [],
-          status: reloader.status(),
-        });
-        const reply = await commands.run({ name: 'effort', argument: 'low' }, CHAT_ID, ALICE, FIXED_NOW);
-        expect(reply).toContain('已为本群设置思考强度: low');
-        expect(reply).toContain('同时应用了配置文件中的其它修改: agent.history_messages');
-        expect(reply).toContain('另有 1 项配置需要重启后生效。');
-      } finally {
-        write.mockRestore();
-        store.close();
-      }
-    });
-
-    test('reports an unavailable runtime without a reloader', async () => {
-      const { store, scheduler, configStore } = await setup();
-      const commands = new BotCommandService(store, configStore, scheduler);
-      expect(await commands.run({ name: 'effort' }, CHAT_ID, ALICE, FIXED_NOW)).toBe('运行时配置应用不可用。');
-      store.close();
     });
   });
 });

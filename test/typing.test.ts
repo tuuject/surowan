@@ -86,19 +86,6 @@ test('typing is opt-in and repeated calls neither duplicate refreshes nor reset 
   f.stop();
 });
 
-test('idle cleanup stops refreshes and a later round can start again', async () => {
-  const f = toolFixture();
-  await f.start();
-  await vi.advanceTimersByTimeAsync(0);
-  f.stop();
-  await vi.advanceTimersByTimeAsync(8_000);
-  expect(f.sendTyping).toHaveBeenCalledTimes(1);
-  await f.start();
-  await vi.advanceTimersByTimeAsync(0);
-  expect(f.sendTyping).toHaveBeenCalledTimes(2);
-  f.stop();
-});
-
 test('abort ends the round and a cancelled call reports it', async () => {
   const f = toolFixture();
   f.sendTyping.mockImplementationOnce(

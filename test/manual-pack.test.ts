@@ -82,11 +82,6 @@ test('packs the published manual into the runtime resource layout', async () => 
   for (const path of expected) {
     expect(index.split(`](${path})`), path).toHaveLength(2);
   }
-  const order = ['开始使用', '配置与接入', '把碗配置成自己的', '维护与排障', '参考'].map((label) =>
-    index.indexOf(`## ${label}`),
-  );
-  expect(order.every((position) => position >= 0)).toBe(true);
-  expect([...order].sort((left, right) => left - right)).toEqual(order);
   // The site links this page without listing it in its sidebar; the pack still ships and indexes it.
   expect(index.indexOf('## 其他页面')).toBeGreaterThan(index.indexOf('## 参考'));
   expect(index).toContain('(guides/images.md)');

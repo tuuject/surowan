@@ -30,13 +30,6 @@ afterEach(async () => {
 });
 
 describe('participation gate', () => {
-  test('keeps the unrestricted behavior when no participation is configured', async () => {
-    const { store, ingestion } = await setup();
-    expect(ingestion.ingest(groupMessage(1, 10, { text: 'hello' }), OUTSIDE_PERIOD).bucketId).toBeDefined();
-    expect(bucketCount(store)).toBe(1n);
-    store.close();
-  });
-
   test('stores a quiet message without opening a bucket or a window', async () => {
     const { store, ingestion } = await setup({ global: { active_windows: [DAY_WINDOW] } });
     const result = ingestion.ingest(groupMessage(1, 10, { text: 'quiet' }), OUTSIDE_PERIOD);

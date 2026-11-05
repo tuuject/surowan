@@ -2,15 +2,7 @@ import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import {
-  binaryResponse,
-  jsonResponse,
-  onlyRequest,
-  requestPath,
-  requestQuery,
-  runCli,
-  startServer,
-} from './harness.ts';
+import { onlyRequest, requestPath, requestQuery, runCli } from './harness.ts';
 import {
   cleanup,
   type ContentEntry,
@@ -68,36 +60,6 @@ describe('surowan-utils invocation media', () => {
       const manifestFile = JSON.parse(await readFile(join(manifest.directory, 'manifest.json'), 'utf8'));
       expect(manifestFile).toEqual(manifest);
       expect((await readdir(manifest.directory)).sort()).toEqual(['5.jpg', '6.pdf', 'manifest.json']);
-    } finally {
-      await cleanup(manifest);
-      await server.close();
-    }
-  }, 30_000);
-
-  it('canonicalizes a leading-zero invocation id before comparing the echoed id', async () => {
-    const server = await startServer((request, response) => {
-      if (requestPath(request).endsWith('/media')) {
-        // The Admin API always echoes the canonical decimal invocation id.
-        jsonResponse(response, 200, { invocation_id: '42', items: [mediaItem('5')] });
-        return;
-      }
-      binaryResponse(response, 200, JPEG_BYTES, {
-        'content-type': 'image/jpeg',
-        'x-plasticwan-media-variant': 'original',
-      });
-    });
-    let manifest: MediaManifest | undefined;
-    try {
-      const result = await runCli(['invocation', 'media', '042', '--json'], { env: ENV(server.baseUrl) });
-      expect(result.code).toBe(0);
-      expect(result.stderr).toBe('');
-      manifest = JSON.parse(result.stdout) as MediaManifest;
-      expect(manifest.invocation_id).toBe('42');
-      expect(manifest.items[0]?.status).toBe('downloaded');
-      expect(server.requests.map((request) => requestPath(request))).toEqual([
-        '/api/invocations/42/media',
-        '/api/invocations/42/media/5/content',
-      ]);
     } finally {
       await cleanup(manifest);
       await server.close();

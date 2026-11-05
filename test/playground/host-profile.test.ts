@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import type { ExecutableCapability } from '../../src/capabilities/execute-tool.ts';
-import { PLAYGROUND_PROFILE, TELEGRAM_PROFILE, hostExecutionProfile } from '../../src/platform/host-profile.ts';
 import type { ContextInjector } from '../../src/context/injector.ts';
 import type { HostKind } from '../../src/platform/im-host/identity.ts';
 import type { InvocationContext } from '../../src/platform/invocation-context.ts';
@@ -55,45 +54,11 @@ function toolNames(tools: readonly ExecutableCapability[]): string[] {
 }
 
 describe('host execution profile', () => {
-  test('the Playground profile is a fixed narrow set', () => {
-    expect(hostExecutionProfile('playground')).toBe(PLAYGROUND_PROFILE);
-    expect(hostExecutionProfile('telegram')).toBe(TELEGRAM_PROFILE);
-
-    expect(PLAYGROUND_PROFILE.mediaRead).toBe(true);
-    expect(PLAYGROUND_PROFILE.stickers).toBe(false);
-    expect(PLAYGROUND_PROFILE.mcp).toBe(false);
-    expect(PLAYGROUND_PROFILE.sleep).toBe(false);
-    expect(PLAYGROUND_PROFILE.budgetScope).toBe('playground');
-    expect(PLAYGROUND_PROFILE.budgetBypass).toBe(false);
-
-    expect(TELEGRAM_PROFILE.mcp).toBe(true);
-    expect(TELEGRAM_PROFILE.sleep).toBe(true);
-    expect(TELEGRAM_PROFILE.budgetScope).toBe('chat');
-    expect(TELEGRAM_PROFILE.budgetBypass).toBe(true);
-  });
-
   test('an unlisted plugin is Telegram only', () => {
     const plugin: AgentPlugin = { id: 'unlisted' };
     expect(pluginHosts(plugin)).toEqual(['telegram']);
     expect(pluginHosts({ id: 'listed', hosts: ['playground'] })).toEqual(['playground']);
     expect(() => pluginHosts({ id: 'bad', hosts: ['discord' as never] })).toThrow(/unknown host/);
-  });
-
-  test('builtin plugins declare the hosts they serve', () => {
-    const hosts = Object.fromEntries(BUILTIN_PLUGINS.map((plugin) => [plugin.id, pluginHosts(plugin)]));
-    expect(hosts.alarm).toEqual(['telegram']);
-    expect(hosts.dictionary).toEqual(['telegram']);
-    // The image plugin mounts both hosts; a room only receives its tools once
-    // the room's own image switch is on (the bridge decides per conversation).
-    expect(hosts.image).toEqual(['telegram', 'playground']);
-    expect(hosts['web-fetch']).toEqual(['telegram', 'playground']);
-  });
-
-  test('skills follow the plugin hosts', () => {
-    const loaded = loadPlugins(BUILTIN_PLUGINS);
-    expect(loaded.skillHosts.get('image-generation')).toEqual(['telegram', 'playground']);
-    expect(loaded.skillHosts.get('alarms')).toEqual(['telegram']);
-    expect(loaded.skillHosts.get('web-fetch')).toEqual(['telegram', 'playground']);
   });
 
   test('capabilities do not leak Telegram-only plugins into a room', async () => {

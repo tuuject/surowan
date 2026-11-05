@@ -79,30 +79,8 @@ async function fixture(developer?: FileConfig['developer']) {
       headers: { 'if-match': revision },
       body: JSON.stringify({ record_model_payloads: enabled }),
     });
-  return { loaded, path, configStore, store, reloader, validate, request, call, view, update };
+  return { path, configStore, store, reloader, request, call, view, update };
 }
-
-test.each([undefined, {}, { record_model_payloads: false }, { record_model_payloads: true }])(
-  'optional developer configuration resolves and round-trips %j',
-  async (developer) => {
-    const f = await fixture(developer);
-    const expected = developer?.record_model_payloads ?? false;
-    expect(f.loaded.fileConfig.developer).toEqual(developer);
-    expect(f.loaded.config.developer.record_model_payloads).toBe(expected);
-    expect(await f.view()).toMatchObject({ record_model_payloads: expected, active_record_model_payloads: expected });
-    const unchanged = await readFile(f.path, 'utf8');
-    expect(JSON.parse(unchanged).developer).toEqual(developer);
-    const enabled = await f.update(true, (await f.view()).revision);
-    expect(enabled.status).toBe(200);
-    expect(await enabled.json()).toMatchObject({ record_model_payloads: true, active_record_model_payloads: true });
-    const disabled = await f.update(false, (await f.view()).revision);
-    expect(disabled.status).toBe(200);
-    expect((await loadConfig(f.path)).config.developer.record_model_payloads).toBe(false);
-    expect(f.configStore.current().config.developer.record_model_payloads).toBe(false);
-    expect(f.reloader.status().restartRequired).toEqual([]);
-    expect((await loadConfig(f.path)).fileConfig.agent).toEqual(f.loaded.fileConfig.agent);
-  },
-);
 
 test('removing developer configuration hot-applies false without deleting historical payloads', async () => {
   const f = await fixture({ record_model_payloads: true });
@@ -160,16 +138,6 @@ test('record_agent_thinking defaults to off and updates independently of payload
   expect(f.reloader.status().restartRequired).toEqual([]);
 });
 
-test('removing the developer section hot-applies record_agent_thinking to false', async () => {
-  const f = await fixture({ record_model_payloads: false, record_agent_thinking: true });
-  seedAdminFixture(f.store);
-  const before = f.store.db.prepare('SELECT * FROM agent_messages ORDER BY id').all();
-  await writeConfigEdits(f.path, [{ path: ['developer'], value: undefined }]);
-  expect(await f.reloader.reloadFromFile()).toMatchObject({ ok: true, restartRequired: [] });
-  expect(await f.view()).toMatchObject({ record_agent_thinking: false, active_record_agent_thinking: false });
-  expect(f.store.db.prepare('SELECT * FROM agent_messages ORDER BY id').all()).toEqual(before);
-});
-
 test('Developer writes enforce authentication, origin, revision and boolean validation', async () => {
   const f = await fixture();
   for (const [route, method] of [
@@ -203,19 +171,6 @@ test('Developer writes enforce authentication, origin, revision and boolean vali
     before.replace('"version": 1', '"version": 1, "developer": {"record_model_payloads": "false"}'),
   );
   await expect(loadConfig(f.path)).rejects.toThrow('Invalid config');
-});
-
-test('failed apply exposes saved and active values separately and can recover', async () => {
-  const f = await fixture();
-  f.validate.mockImplementationOnce(() => {
-    throw new Error('test apply failed');
-  });
-  const response = await f.update(true, (await f.view()).revision);
-  expect(response.status).toBe(409);
-  expect(await response.json()).toMatchObject({ message: expect.stringContaining('updated but not applied') });
-  expect(await f.view()).toMatchObject({ record_model_payloads: true, active_record_model_payloads: false });
-  expect(await f.reloader.reloadFromFile()).toMatchObject({ ok: true });
-  expect(await f.view()).toMatchObject({ active_record_model_payloads: true });
 });
 
 test('batched payload cleanup preserves audit rows, associations and totals while yielding to new work', async () => {

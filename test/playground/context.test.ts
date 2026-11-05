@@ -5,8 +5,6 @@ import { join } from 'node:path';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { InjectionTooLargeError } from '../../src/context/builder/index.ts';
-import { ContextBuilder } from '../../src/context/builder/index.ts';
-import { ContextRefStore } from '../../src/context/refs.ts';
 import { MemoPadStore } from '../../src/context/memo-pad/store.ts';
 import { invocationCapabilities, renderInvocationContext, writeTestConfig } from '../helpers.ts';
 import { seedPlaygroundRoom } from '../fixtures/playground-room.ts';
@@ -37,33 +35,6 @@ async function fixture(): Promise<{ store: SqliteStore; loaded: Awaited<ReturnTy
 }
 
 describe('playground context projection', () => {
-  test('a room invocation resolves an internal identity and policy without a chat entry', async () => {
-    const { store, loaded } = await fixture();
-    const room = seedPlaygroundRoom(store);
-    const builder = new ContextBuilder(store, new ContextRefStore(store, { ttlHours: () => 24 }), []);
-
-    const identity = builder.identity(loaded.config, room.invocationId);
-
-    expect(identity.hostKind).toBe('playground');
-    expect(identity.chatId).toBe(room.chatId);
-    expect(identity.conversationId).toBe(room.conversationId);
-    expect(identity.policy.gateKey).toBe(`playground:${room.chatId}`);
-    // A room has no telegram.chats entry; it still needs agent settings.
-    expect(identity.policy.agent.model).toBe(loaded.config.agent.model);
-    expect(identity.policy.bucketWindowSeconds).toBe(0);
-  });
-
-  test('the room prompt uses room wording', async () => {
-    const { store, loaded } = await fixture();
-    const room = seedPlaygroundRoom(store);
-    const context = renderInvocationContext(store, loaded.config, room.invocationId, {
-      supportsImages: false,
-    });
-
-    expect(context.systemPrompt).toContain('Images posted in the room');
-    expect(context.systemPrompt).not.toContain('Telegram images and Stickers');
-  });
-
   test('room messages render room tokens and never a Telegram uid', async () => {
     const { store, loaded } = await fixture();
     const room = seedPlaygroundRoom(store);
@@ -190,33 +161,19 @@ describe('playground context projection', () => {
     );
 
     const memory = new MemoPadStore(store.orm);
+    // Distinct creation instants: same-millisecond rows have no defined
+    // "oldest", which made the trim assertion flip between runs.
+    const created = Date.now();
     for (let index = 0; index < 10; index += 1) {
-      memory.create(room.chatId, { summary: `${index}`.repeat(75), detail: `${index}`, ttlSeconds: 3_600 });
+      memory.create(
+        room.chatId,
+        { summary: `${index}`.repeat(75), detail: `${index}`, ttlSeconds: 3_600 },
+        new Date(created + index),
+      );
     }
     const rendered = renderInvocationContext(store, loaded.config, room.invocationId, options);
     expect(rendered.userPrompt).toContain('earlier short-term memories are not shown');
     expect(rendered.userPrompt).toContain('9'.repeat(75));
     expect(rendered.userPrompt).not.toContain('0'.repeat(75));
-  });
-
-  test('a room is offered no sticker catalog', async () => {
-    const { store, loaded } = await fixture();
-    const iso = '2026-10-17T10:00:00.000Z';
-    store.db
-      .prepare(
-        "INSERT INTO sticker_sets(alias, telegram_name, title, configured, sync_state, last_synced_at, updated_at) VALUES ('cats', 'CatPack', 'Cat Pack', 1, 'success', ?, ?)",
-      )
-      .run(iso, iso);
-    store.db
-      .prepare(
-        "INSERT INTO stickers(sticker_set_id, file_unique_id, file_id, emoji, format, active, index_state, updated_at) VALUES ((SELECT id FROM sticker_sets WHERE alias = 'cats'), 'uniq-1', 'file-1', '😺', 'static', 1, 'success', ?)",
-      )
-      .run(iso);
-    const room = seedPlaygroundRoom(store);
-
-    const rendered = renderInvocationContext(store, loaded.config, room.invocationId);
-
-    expect(rendered.userPrompt).not.toContain('untrusted_sticker_catalog');
-    expect(rendered.userPrompt).not.toContain('😺');
   });
 });

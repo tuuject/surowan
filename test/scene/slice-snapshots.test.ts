@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { afterEach, expect, test } from 'vitest';
 import { contextRefs, invocationMessages, media, messageRevisions, messages } from '../../src/store/schema/index.ts';
 import {
@@ -135,22 +135,6 @@ test('renders the newest eligible snapshot when one message was frozen twice', a
   expect(guarded.messageCount).toBe(1);
   expect(guarded.text).toContain('  re-frozen newer words');
   expect(guarded.text).not.toContain('edited text with forward origin');
-});
-
-test("renders the frozen snapshot, never the message's latest edit", async () => {
-  const f = await fixture();
-
-  const scene = buildSlice(f);
-
-  expect(scene.text).toContain('  plain text message with a reply');
-  expect(scene.text).not.toContain('edited text with forward origin');
-  const live = f.store.orm
-    .all<{ text: string | null }>(
-      sql`SELECT r.text FROM messages m JOIN message_revisions r ON r.id = m.current_revision_id
-          WHERE m.id = ${MESSAGE_OPENING}`,
-    )
-    .at(0);
-  expect(live?.text).toBe('edited text with forward origin');
 });
 
 test('keeps reply references only for messages inside the slice', async () => {

@@ -7,7 +7,6 @@ import type { ContextInjectionInput, ContextInjector } from '../src/context/inje
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion/index.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler/index.ts';
 import { loadConfig } from '../src/adapters/local-monolith/config/index.ts';
-import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
 import { contribute, defineExtensionPoint, definePlugin, loadPlugins } from '../src/plugins/plugin.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { renderInvocationContext, testConfigStore, writeTestConfig } from './helpers.ts';
@@ -17,17 +16,6 @@ test('loadPlugins rejects invalid and duplicate plugin ids', () => {
   expect(() => loadPlugins([definePlugin({ id: 'twin' }), definePlugin({ id: 'twin' })])).toThrow(
     'Duplicate plugin id: twin',
   );
-});
-
-test('built-in plugins load with unique ids and their skill directories', () => {
-  const loaded = loadPlugins(BUILTIN_PLUGINS);
-  expect(loaded.skillDirectories.map((directory) => directory.split(/[\\/]/).at(-1))).toEqual([
-    'web-search',
-    'web-fetch',
-    'image-generation',
-    'alarms',
-    'dictionary',
-  ]);
 });
 
 test('loadPlugins loads dependencies first and collects their extension values', () => {

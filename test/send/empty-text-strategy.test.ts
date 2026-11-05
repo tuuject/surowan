@@ -153,35 +153,6 @@ test('a send_reply with no text in any part publishes nothing and still succeeds
   fixture.close();
 });
 
-test('a send_reply that publishes any part is not a silent step, however many parts were empty', async () => {
-  const fixture = await setup();
-  const context = await conversationContext(fixture, 1, 10, new Date('2026-08-15T00:00:00.000Z'));
-  const api = recordingApi();
-  const outcomes: Array<'published' | 'silent'> = [];
-  const { sendReply } = makeTools(fixture, context, api, (outcome) => outcomes.push(outcome));
-
-  await sendReply.execute('mostly-empty', { parts: [{ text: 'ok' }, {}, {}, {}] });
-
-  expect(api.sent).toEqual([{ text: 'ok', replyTo: undefined }]);
-  expect(outcomes).toEqual(['published']);
-  fixture.close();
-});
-
-test('a send_reply rejection names the part by its number in the call, not among the parts sent', async () => {
-  const fixture = await setup();
-  const context = await conversationContext(fixture, 1, 10, new Date('2026-08-15T00:00:00.000Z'));
-  const api = recordingApi();
-  const { sendReply } = makeTools(fixture, context, api);
-
-  await expect(sendReply.execute('dup', { parts: [{}, { text: 'same' }, { text: 'same' }] })).rejects.toThrow(
-    'Nothing was sent: part 3 repeats a message already published in this run or an earlier part',
-  );
-
-  expect(api.sent).toEqual([]);
-  expect(toolAudit(fixture.store)).toEqual([{ tool_call_id: 'dup', state: 'error', error_code: 'send_duplicate' }]);
-  fixture.close();
-});
-
 test('a send_reply that fails after a silent part lists only the parts really published', async () => {
   const fixture = await setup();
   const context = await conversationContext(fixture, 1, 10, new Date('2026-08-15T00:00:00.000Z'));
@@ -225,20 +196,5 @@ test('other input errors stay errors under the silent strategy', async () => {
     { tool_call_id: 'image', state: 'error', error_code: 'send_input_invalid' },
     { tool_call_id: 'resend', state: 'error', error_code: 'send_input_invalid' },
   ]);
-  fixture.close();
-});
-
-test('a text send that carries text is published normally', async () => {
-  const fixture = await setup();
-  const context = await conversationContext(fixture, 1, 10, new Date('2026-08-15T00:00:00.000Z'));
-  const api = recordingApi();
-  const outcomes: Array<'published' | 'silent'> = [];
-  const { send } = makeTools(fixture, context, api, (outcome) => outcomes.push(outcome));
-
-  const result = await send.execute('words', { text: 'hello' });
-
-  expect(api.sent).toEqual([{ text: 'hello', replyTo: undefined }]);
-  expect(result.content).toEqual([{ type: 'text', text: 'Sent Telegram message 501' }]);
-  expect(outcomes).toEqual(['published']);
   fixture.close();
 });

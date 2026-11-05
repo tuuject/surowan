@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from 'vitest';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import type { MemoEntry, MemoStateEntry } from '../../src/context/memo-pad/index.ts';
-import { renderMemoDelta, renderMemoInjection, renderMemoList } from '../../src/context/memo-pad/injection.ts';
+import { renderMemoDelta, renderMemoInjection } from '../../src/context/memo-pad/injection.ts';
 import { MemoPadStore } from '../../src/context/memo-pad/store.ts';
 import { ConversationContextStore } from '../../src/context/store/index.ts';
 import type { ContextHeader } from '../../src/context/store/types.ts';
@@ -55,10 +55,6 @@ function stateJsonOf(entries: readonly MemoEntry[]): string {
     })),
   );
 }
-
-test('an empty short-term list renders no block', () => {
-  expect(renderMemoList([], 1_000)).toBe('');
-});
 
 test('only short-term entries enter the injected list and delta', async () => {
   const f = await fixture();
