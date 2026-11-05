@@ -26,6 +26,8 @@ test('API keys are shown once in plaintext and stored only as a SHA-256 digest',
       created_at: expect.any(String),
       last_used_at: null,
       revoked_at: null,
+      mode: 'read_paid',
+      permissions: { read_all: true, write_all: false, execute_paid_operations: true },
     });
 
     const row = store.db
@@ -49,7 +51,9 @@ test('API keys are shown once in plaintext and stored only as a SHA-256 digest',
       'created_at',
       'id',
       'last_used_at',
+      'mode',
       'name',
+      'permissions',
       'prefix',
       'revoked_at',
     ]);

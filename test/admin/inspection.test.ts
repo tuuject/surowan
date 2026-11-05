@@ -122,13 +122,7 @@ test('inspection rejects path inputs, repeated filters, unknown routes and every
       )
     ).status,
   ).toBe(401);
-  for (const path of [
-    '/api/prompts/system',
-    '/api/config/unknown',
-    '/api/providers',
-    '/api/api-keys',
-    '/api/unknown',
-  ]) {
+  for (const path of ['/api/prompts/system', '/api/config/unknown', '/api/api-keys', '/api/unknown']) {
     expect((await f.server.handle(request(path, { headers: auth(f.key) }))).status, path).toBe(403);
   }
   for (const path of [

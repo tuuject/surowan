@@ -1,16 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
-import { errorCode, loginPanel, PASSWORD, panelFixture, runCli, storedSession, USERNAME } from './fixtures.ts';
+import { errorCode, loginPanel, panelFixture, runCli, storedApiKey } from './fixtures.ts';
 
 describe('surowan-utils panel writes', () => {
   it('writes a real configuration field, discovering the revision itself', async () => {
     const fixture = await panelFixture();
     try {
-      await fetch(`${fixture.baseUrl}/api/auth/setup`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
-      });
       await loginPanel(fixture);
 
       const harness = await runCli(['harness', 'show', '--json'], fixture);
@@ -45,11 +40,6 @@ describe('surowan-utils panel writes', () => {
   it('sends the query of a write so it reaches the Chat it names', async () => {
     const fixture = await panelFixture();
     try {
-      await fetch(`${fixture.baseUrl}/api/auth/setup`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
-      });
       await loginPanel(fixture);
 
       // Without `chat` the server would change the global mode instead.
@@ -82,11 +72,6 @@ describe('surowan-utils panel writes', () => {
   it('refuses destructive and billed actions without --yes, and never sends them', async () => {
     const fixture = await panelFixture();
     try {
-      await fetch(`${fixture.baseUrl}/api/auth/setup`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
-      });
       await loginPanel(fixture);
 
       const restart = await runCli(['restart', '--json'], fixture);
@@ -123,11 +108,6 @@ describe('surowan-utils panel writes', () => {
   it('shows the request instead of sending it with --dry-run', async () => {
     const fixture = await panelFixture();
     try {
-      await fetch(`${fixture.baseUrl}/api/auth/setup`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
-      });
       await loginPanel(fixture);
       const dry = await runCli(['chat', 'delete', '123', '--dry-run', '--json'], fixture);
       expect(dry.code, dry.stderr).toBe(0);
@@ -153,11 +133,6 @@ describe('surowan-utils panel writes', () => {
     const fixture = await panelFixture();
     try {
       // `commands` needs no credential; the dispatch assertions below do.
-      await fetch(`${fixture.baseUrl}/api/auth/setup`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
-      });
       await loginPanel(fixture);
       const listed = await runCli(['commands', '--json'], fixture);
       expect(listed.code, listed.stderr).toBe(0);
@@ -191,7 +166,7 @@ describe('surowan-utils panel writes', () => {
       }
       // Global credential flags are consumed, never treated as route params.
       const viaFlag = await runCli(
-        ['overview', '--json', '--session', storedSession(fixture), '--endpoint', fixture.baseUrl],
+        ['overview', '--json', '--api-key', storedApiKey(fixture), '--endpoint', fixture.baseUrl],
         fixture,
       );
       expect(viaFlag.code, viaFlag.stderr).toBe(0);
@@ -203,11 +178,6 @@ describe('surowan-utils panel writes', () => {
   it('restores a group prompt version, discovering its Chat and hash itself', async () => {
     const fixture = await panelFixture();
     try {
-      await fetch(`${fixture.baseUrl}/api/auth/setup`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
-      });
       await loginPanel(fixture);
       for (const text of ['First group rules.\n', 'Second group rules.\n']) {
         const saved = await runCli(

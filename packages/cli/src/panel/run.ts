@@ -4,19 +4,7 @@ import type { AdminClient } from '../client.ts';
 import { isRecord } from '../client.ts';
 import type { CommandContext } from '../commands.ts';
 import { CliError, usageError } from '../errors.ts';
-import { sessionFromSetCookie } from './login.ts';
 import type { EndpointSpec, PanelCommand, RevisionKind } from './types.ts';
-
-/**
- * What a command does to the caller's stored session. Routes that rotate it
- * answer with a new token; the CLI must store that token or the next command
- * fails with `unauthenticated`, and `logout` must delete the file's credential.
- */
-export interface SessionEffects {
-  readonly save: (token: string) => Promise<void>;
-  readonly clear: () => Promise<void>;
-  readonly currentToken: string | undefined;
-}
 
 /**
  * An export or an image is bounded so a wrong route cannot fill memory. The
@@ -39,7 +27,6 @@ export async function runPanelCommand(
   command: PanelCommand,
   context: CommandContext,
   client: AdminClient,
-  session: SessionEffects,
 ): Promise<number> {
   const { spec } = command;
   const path = fillPath(spec, command.positionals);
@@ -69,34 +56,8 @@ export async function runPanelCommand(
     spec.response === 'binary' || spec.response === 'text'
       ? await rawResponse(client, `api/${path}`, query, options, spec)
       : await client.request(spec.method, `api/${path}`, query, command.body, options);
-  await applySessionEffect(spec, client, session);
   await writeOutput(raw, spec, command, context);
   return 0;
-}
-
-/**
- * Persists or discards the credential a rotating route produced. A `save` route
- * that returns no new cookie is an error: the old token is already invalid, so
- * silently keeping it would leave the operator locked out with no explanation.
- */
-async function applySessionEffect(spec: EndpointSpec, client: AdminClient, session: SessionEffects): Promise<void> {
-  if (spec.session === undefined) {
-    return;
-  }
-  if (spec.session === 'clear') {
-    await session.clear();
-    return;
-  }
-  const token = sessionFromSetCookie(client.lastSetCookies);
-  if (token === null) {
-    throw new CliError(
-      'invalid_response',
-      `${spec.command} rotated the session but returned no new token; re-run surowan-utils login`,
-    );
-  }
-  if (token !== session.currentToken) {
-    await session.save(token);
-  }
 }
 
 /** A file or image response: bounded, and decoded only when the type is text. */

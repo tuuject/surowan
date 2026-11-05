@@ -1,8 +1,7 @@
 export const USAGE = `surowan-utils - Surowan Admin Panel 与 Admin API 工具客户端
 
 用法:
-  surowan-utils login [--endpoint <url>] [--json]
-  surowan-utils login --username <name> [--password-stdin | --password <pw>] [--endpoint <url>] [--json]
+  surowan-utils login --endpoint <url> (--api-key <key> | --api-key-stdin) [--json]
   surowan-utils doctor [--json]
   surowan-utils commands [--json]
   surowan-utils models list [--json]
@@ -18,8 +17,7 @@ export const USAGE = `surowan-utils - Surowan Admin Panel 与 Admin API 工具�
   surowan-utils <panel command> [参数] [--set k=v]... [--json]
 
 面板命令（与 Admin Panel 等价；surowan-utils commands 列出全部）:
-  session show|cancel, account update, passkey list|delete, password delete
-  api-key list|create|revoke
+  session cancel
   config apply|status, model set, vision set, thinking-level set, restart, wake
   provider list|create|update|delete|discover|lookup-metadata|health-check
   model add|update|delete, provider-preset list
@@ -37,11 +35,8 @@ export const USAGE = `surowan-utils - Surowan Admin Panel 与 Admin API 工具�
 
 全局选项:
   --endpoint <url>    Admin Panel 基地址（覆盖环境变量与登录文件）；明文 http 仅允许 loopback
-  --api-key <key>     API key（覆盖 SUROWAN_API_KEY 与登录文件）；只授权只读检查与 Invocation 重放
-  --session <token>   面板 Session Token（覆盖 SUROWAN_SESSION 与登录文件）；与面板浏览器同权限
+  --api-key <key>     API key（覆盖 SUROWAN_API_KEY 与登录文件）；权限由该 key 的模式决定
   --api-key-stdin     仅 login：读取标准输入至 EOF，接受单行 API key，不回显
-  --username <name>   仅 login：改用面板账号登录，换取 Session Token（可用 --password-stdin）
-  --password-stdin    仅 login：从标准输入读取面板密码，不回显
   --source <active|file>  config show / prompt get：读取运行时生效配置或配置文件（默认 active）
   --variant <original|preview>  仅 invocation media：下载原始文件或预览（默认 original）
   --provider <alias> --model <id>  仅 invocation preflight/replay：临时选用已启用模型，两项必须成对
@@ -70,9 +65,8 @@ export const USAGE = `surowan-utils - Surowan Admin Panel 与 Admin API 工具�
   --timeout-ms <ms>      请求/每次输入超时；默认 30000，replay 300000，不自动重试
 
 凭据与授权:
-  登录文件 ~/.config/surowan-utils/credentials.json（未加密）保存 endpoint 与一份凭据：
-  面板登录写入 Session Token，--api-key / SUROWAN_API_KEY 写入 API key。
-  API key 只能读检查视图与重放 Invocation；面板命令需要面板 Session。
+  登录文件 ~/.config/surowan-utils/credentials.json（未加密）保存 endpoint 与 API key。
+  只读、读+改、读+耗、全部四种模式由 Admin Panel 创建/修改；账号与密钥管理不经过 CLI。
   doctor 用一次只读请求验证连接与鉴权，不调用模型。
 
 其他:

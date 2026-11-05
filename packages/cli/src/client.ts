@@ -1,9 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { CliError, usageError } from './errors.ts';
 
-/** The panel session cookie the server reads; a token is sent under this name. */
-export const SESSION_COOKIE = 'plasticwan_admin';
-
 /**
  * Validates an endpoint. Plaintext http is only accepted on loopback: the API
  * key travels in a header and must not cross the network unencrypted. URL
@@ -47,8 +44,6 @@ export interface AdminClientOptions {
    * allowlist and Invocation replay.
    */
   readonly apiKey?: string;
-  /** Panel session token; authorizes everything the browser panel authorizes. */
-  readonly session?: string;
   readonly defaultTimeoutMs: number;
 }
 
@@ -85,22 +80,16 @@ export interface RequestOptions {
  * are never retried; the timeout aborts the in-flight request and the response
  * body read that follows it.
  *
- * A session token is sent as the panel cookie, because the server routes any
- * request carrying `Authorization` to the narrow API-key surface and never
- * falls back to a cookie. An API key is sent as a Bearer header.
+ * Every request authenticates with a Bearer API key.
  */
 export class AdminClient {
   readonly #baseUrl: URL;
   readonly #apiKey: string | undefined;
-  readonly #session: string | undefined;
   readonly #defaultTimeoutMs: number;
-  /** `set-cookie` headers from the most recent request, for session rotation. */
-  #setCookies: readonly string[] = [];
 
   constructor(options: AdminClientOptions) {
     this.#baseUrl = options.baseUrl;
     this.#apiKey = options.apiKey;
-    this.#session = options.session;
     this.#defaultTimeoutMs = options.defaultTimeoutMs;
   }
 
@@ -144,51 +133,9 @@ export class AdminClient {
     }
   }
 
-  /** `api_key` when a key is configured, otherwise `session` — including a client that has neither. */
-  get credentialKind(): 'api_key' | 'session' {
-    return this.#apiKey === undefined ? 'session' : 'api_key';
-  }
-
-  /**
-   * The `set-cookie` headers the last request produced. A route that rotates
-   * the session (credentials change, password removal, logout) answers with a
-   * new token, and the stored one is invalid from that moment.
-   */
-  get lastSetCookies(): readonly string[] {
-    return this.#setCookies;
-  }
-
-  /**
-   * `POST /api/auth/login` with the panel password. Returns the `set-cookie`
-   * headers, which carry the session token; no cookie jar is involved.
-   */
-  async loginWithPassword(username: string, password: string): Promise<readonly string[]> {
-    const url = this.#resolve('api/auth/login');
-    const init: RequestInit = {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ username, password }),
-      redirect: 'error',
-      signal: AbortSignal.timeout(this.#defaultTimeoutMs),
-    };
-    try {
-      const response = await fetch(url, init);
-      const text = await response.text();
-      if (!response.ok) {
-        throw responseErrorFromBody(response, text);
-      }
-      const parsed = tryParseJson(text);
-      if (!isRecord(parsed) || parsed.status !== 'ok') {
-        throw new CliError('invalid_response', 'the login response had an unexpected shape');
-      }
-      const cookies = response.headers.getSetCookie();
-      if (cookies.length === 0) {
-        throw new CliError('invalid_response', 'the login response did not set a session cookie');
-      }
-      return cookies;
-    } catch (error) {
-      throw translateFetchError(error, this.#defaultTimeoutMs);
-    }
+  /** Always `api_key`; the CLI has no other credential kind. */
+  get credentialKind(): 'api_key' {
+    return 'api_key';
   }
 
   /**
@@ -236,11 +183,6 @@ export class AdminClient {
     if (this.#apiKey !== undefined) {
       return { authorization: `Bearer ${this.#apiKey}` };
     }
-    if (this.#session !== undefined) {
-      return { cookie: `${SESSION_COOKIE}=${this.#session}` };
-    }
-    // Only the pre-session routes (`auth/setup`, `auth/login`, `auth/session`)
-    // are reachable without a credential; every other route answers 401.
     return {};
   }
 
@@ -288,7 +230,6 @@ export class AdminClient {
     }
     try {
       const response = await fetch(url, init);
-      this.#setCookies = response.headers.getSetCookie();
       // The body read belongs to the same try: a server that sends headers and
       // then stalls must hit the timeout path, not `internal_error`.
       return await readJsonResponse(response);

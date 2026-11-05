@@ -48,6 +48,7 @@ surowan/
 ├── apps/admin-next/        # Rsbuild + React + Tailwind + shadcn Admin Panel 前端（纯静态 SPA）
 ├── apps/docs/              # Rspress 中文官网与用户指南（独立静态站）
 ├── packages/image-service/ # 私有图片生成核心包：有损意图 API、provider adapter 边界、领域测试
+├── packages/admin-surface/ # Admin Panel 路由表与权限标注：CLI 命令与 MCP 工具的共同数据源
 ├── src/image/              # 图片核心的进程级装配（借宿主连接、<data_dir>/images、优雅停止）
 ├── Dockerfile              # 三阶段镜像（架构无关产物在构建机原生构建）；媒体依赖打包在内
 ├── docker-compose.yml      # Docker 部署模板（/config 与 /data 两个卷）
@@ -77,7 +78,7 @@ Telegram Update
 
 Invocation 是运行窗口而不是一次问答：`agent.context.idle_grace_seconds > 0` 时，运行期间到期的 Bucket 会被 attach 并注入同一个 Invocation（`invocation_buckets`），Conversation Context 跨 Invocation 持久化；取 0 则退回「一次 Bucket 一次 Invocation」，但 Context 依然连续。
 
-媒体与 MCP 都在 Tool 边界内：模型只能读取当前 Conversation Context 授权且未过期的媒体引用；MCP Tool 经过 allowlist、只读策略、请求/响应大小限制、超时和审计。工具面分三层——runtime 原语（`read`/`read_member_profile`/`send`/`send_reply`/`execute`/`zzz`，以及 Memo Pad 的 `search_memory`/`read_memory`）直接暴露；内部能力（`web_fetch`、`search_stickers`、`read_image`、`list_documents`/`read_document`、Memo Pad 的增删改与 `save_memo_image`、插件提供的 Alarm、辞典等，注册表见 `src/adapters/local-monolith/runtime/index.ts` 的 `capabilityTools`，其中内置插件贡献的能力来自 `src/plugins/builtin.ts`）经 `execute` 的 search/help/call 调用；MCP Tool 直接暴露。用户手册 Markdown 在构建期打包到 `src/manual/`，模型先取空间索引再按需读取页面，整本手册不进入 system prompt。通用长期任务由 `store/long-tasks/index.ts` 持久化，唯一 Scheduler 同时处理 timer 完成与完成回执投递；插件只通过绑定 plugin/Conversation 的任务服务创建、完成或取消任务。System Skills（`src/system-resources/skills/` 与插件目录下的 `skills/`）是只读文档包，system prompt 只注入索引，正文由模型用 `read` 按需加载。记忆按 Conversation 隔离，由模型通过 `add_memory`/`delete_memory` 能力维护，TTL 到期自动清理；`agents.md` 才是经过人工审核的长期知识。
+媒体与 MCP 都在 Tool 边界内：模型只能读取当前 Conversation Context 授权且未过期的媒体引用；MCP Tool 经过 allowlist、只读策略、请求/响应大小限制、超时和审计。反向 MCP Server 的每个工具都必须按 API key 的 `read_all`/`write_all`/`execute_paid_operations` 权限执行，账号与凭据管理不暴露为工具。工具面分三层——runtime 原语（`read`/`read_member_profile`/`send`/`send_reply`/`execute`/`zzz`，以及 Memo Pad 的 `search_memory`/`read_memory`）直接暴露；内部能力（`web_fetch`、`search_stickers`、`read_image`、`list_documents`/`read_document`、Memo Pad 的增删改与 `save_memo_image`、插件提供的 Alarm、辞典等，注册表见 `src/adapters/local-monolith/runtime/index.ts` 的 `capabilityTools`，其中内置插件贡献的能力来自 `src/plugins/builtin.ts`）经 `execute` 的 search/help/call 调用；MCP Tool 直接暴露。用户手册 Markdown 在构建期打包到 `src/manual/`，模型先取空间索引再按需读取页面，整本手册不进入 system prompt。通用长期任务由 `store/long-tasks/index.ts` 持久化，唯一 Scheduler 同时处理 timer 完成与完成回执投递；插件只通过绑定 plugin/Conversation 的任务服务创建、完成或取消任务。System Skills（`src/system-resources/skills/` 与插件目录下的 `skills/`）是只读文档包，system prompt 只注入索引，正文由模型用 `read` 按需加载。记忆按 Conversation 隔离，由模型通过 `add_memory`/`delete_memory` 能力维护，TTL 到期自动清理；`agents.md` 才是经过人工审核的长期知识。
 
 架构细节见 [agent-doc/architecture.md](agent-doc/architecture.md)。
 

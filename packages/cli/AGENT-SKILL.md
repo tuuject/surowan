@@ -18,4 +18,4 @@ CLI 会询问装到哪些 Agent（也可用 `-a codex` 等直接指定），Code
 
 > 使用 $surowan-utils 审计 Invocation 12345，说明为什么没有回复；先只查询，不执行重放。
 
-由操作员准备凭据：只读与重放任务注入 `SUROWAN_ENDPOINT` 与 `SUROWAN_API_KEY`；需要面板写操作时注入 `SUROWAN_SESSION`，或由操作员在本机运行 `surowan-utils login --username <name>` 保存 Session。API key 执行面板命令只会得到 `403 forbidden`，这是服务端的固定权限面。Agent 不自己读取、打印或修改凭据，也不要把 key、密码或 token 放入 Skill 或聊天。Skill 不随 CLI 升级自动更新：用 skills CLI 安装的运行 `npx skills update surowan-utils`，手工复制的在同步仓库更新时一并检查版本。是否允许注册、执行命令及访问网络，仍取决于宿主权限。
+由操作员准备凭据：注入 `SUROWAN_ENDPOINT` 与 `SUROWAN_API_KEY`，或由操作员在本机运行 `surowan-utils login --endpoint <url> --api-key-stdin` 保存 API key。key 的 `read`/`read_write`/`read_paid`/`all` 模式决定可执行的命令；权限不足时服务端返回 `403 forbidden`，请操作员到面板修改模式。Agent 不自己读取、打印或修改凭据，也不要把 key、密码或 token 放入 Skill 或聊天。Skill 不随 CLI 升级自动更新：用 skills CLI 安装的运行 `npx skills update surowan-utils`，手工复制的在同步仓库更新时一并检查版本。是否允许注册、执行命令及访问网络，仍取决于宿主权限。

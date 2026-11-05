@@ -57,6 +57,7 @@ export const PROVIDER_SPECS: readonly EndpointSpec[] = [
     method: 'POST',
     path: 'providers/health-check',
     body: true,
+    access: 'paid',
     confirm: 'paid',
     summary: 'Send one real prompt to a configured model (billed)',
   },

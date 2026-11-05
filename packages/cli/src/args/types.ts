@@ -72,9 +72,6 @@ export interface PromptGetCommand {
 export interface LoginCommand {
   readonly kind: 'login';
   readonly apiKeyStdin: boolean;
-  readonly username: string | undefined;
-  readonly password: string | undefined;
-  readonly passwordStdin: boolean;
 }
 
 export interface DoctorCommand {
@@ -107,16 +104,13 @@ export interface ParsedCli {
   readonly command: Command | undefined;
   readonly endpointRaw: string | undefined;
   readonly apiKeyRaw: string | undefined;
-  readonly sessionRaw: string | undefined;
   readonly timeoutRaw: string | undefined;
 }
 
 export interface ResolvedCli {
   readonly command: Command;
   readonly endpoint: URL;
-  /** Exactly one of these is set, matching the credential that resolved. */
   readonly apiKey: string | undefined;
-  readonly session: string | undefined;
   readonly json: boolean;
   readonly timeoutMs: number;
   readonly credentialSources: { readonly endpoint: CredentialSource; readonly credential: CredentialSource };
@@ -124,10 +118,6 @@ export interface ResolvedCli {
 
 export interface StringFlags {
   readonly 'api-key-stdin': boolean | undefined;
-  readonly 'password-stdin': boolean | undefined;
-  readonly username: string | undefined;
-  readonly password: string | undefined;
-  readonly session: string | undefined;
   readonly 'if-match': string | undefined;
   readonly 'dry-run': boolean | undefined;
   readonly yes: boolean | undefined;

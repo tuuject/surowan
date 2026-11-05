@@ -12,12 +12,12 @@ test('prompt save applies the next invocation, records versions, diffs and resto
     const cookie = await login(server);
     const startHash = configStore.current().hash;
 
-    // API keys never reach the prompt surface.
+    // Read keys reach the prompt views; writes stay behind write_all.
     const key = await readJson(await server.handle(post('/api/api-keys', { name: 'probe' }, cookie)));
     const bearer = await server.handle(
       request('/api/prompts/versions?scope=global', { headers: { authorization: `Bearer ${key.key as string}` } }),
     );
-    expect(bearer.status).toBe(403);
+    expect(bearer.status).toBe(200);
 
     const view = await readJson(
       await server.handle(request('/api/prompts/global?source=file', { headers: { cookie } })),

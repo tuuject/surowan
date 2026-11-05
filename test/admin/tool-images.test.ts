@@ -19,7 +19,7 @@ test('Admin serves real tool images only for the authenticated owning result and
   const route = `/api/invocations/${f.seed.invocationA}/tools/call_images/images/${assetId}`;
   expect((await f.server.handle(request(route))).status).toBe(401);
   const key = createApiKey(f.store.orm, 'tool-image-test');
-  expect((await f.server.handle(request(route, { headers: { authorization: `Bearer ${key.key}` } }))).status).toBe(403);
+  expect((await f.server.handle(request(route, { headers: { authorization: `Bearer ${key.key}` } }))).status).toBe(200);
   const call = (path: string) => f.server.handle(request(path, { headers: { cookie } }));
   const response = await call(route);
   expect(response.status).toBe(200);

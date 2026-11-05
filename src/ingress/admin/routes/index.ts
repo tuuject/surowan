@@ -154,7 +154,12 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       invocationPrompts: options.invocationPrompts,
       readInvocationMedia,
     }),
-    warnings: createWarningsAdminHandler({ warnings, configStore: options.configStore, connections }),
+    warnings: createWarningsAdminHandler({
+      warnings,
+      store: options.store,
+      configStore: options.configStore,
+      connections,
+    }),
     search: createSearchAdminRoutes({
       configReloader: reloader,
       secrets,

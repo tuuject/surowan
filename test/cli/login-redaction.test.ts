@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { credentialsPath, writeCredentials } from '../../packages/cli/src/credentials.ts';
-import { cli, home, json, server } from './login-fixtures.ts';
+import { KEY_INFO, cli, home, json, server } from './login-fixtures.ts';
 
 describe('surowan-utils login and doctor', () => {
   it.each(['{', '42', '"', '\\'])(
@@ -8,6 +8,10 @@ describe('surowan-utils login and doctor', () => {
     async (apiKey) => {
       const homeDir = await home();
       const http = await server((response, request) => {
+        if (request.url === '/api/key') {
+          json(response, 200, KEY_INFO);
+          return;
+        }
         if ((request.url ?? '').endsWith('/replay-preflight')) {
           json(response, 200, {
             available: true,
@@ -52,7 +56,7 @@ describe('surowan-utils login and doctor', () => {
       expect(doctor.code).toBe(0);
       expect(JSON.parse(doctor.stdout).status).toBe('ok');
       // Two replays now run a preflight GET before the POST.
-      expect(http.requests).toHaveLength(8);
+      expect(http.requests).toHaveLength(9);
     },
   );
 });

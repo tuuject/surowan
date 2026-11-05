@@ -17,11 +17,14 @@ import type { BusinessStore } from '../../store/store.ts';
 import { WarningService } from '../../store/warnings.ts';
 import { type AdminRoutes, createAdminRoutes } from './routes/index.ts';
 import { closeServer, json, parseOriginHost, redact } from './http.ts';
-import { AdminQueryError } from './audit/shared.ts';
+import { AdminQueryError, parseId } from './audit/shared.ts';
 import { AdminAuth, AdminAuthError } from './auth.ts';
 import { AdminPasskeys } from './passkeys.ts';
 import type { PlaygroundAdminDeps } from './playground/index.ts';
 import type { SearchProviderRule } from '../../platform/web-search.ts';
+import { findSurfaceSpec, specAccess } from '@surowan/admin-surface';
+import { accessAllowed, authenticateApiKey, invalidApiKeys } from './api-keys.ts';
+import { McpEndpoint } from './mcp/index.ts';
 
 export type AdminConfig = NonNullable<RawConfig['admin']>;
 
@@ -74,20 +77,25 @@ export interface AdminServerOptions {
   readonly warnings?: WarningService;
   /** Search providers registered by the loaded plugins; absent uses the bundled set. */
   readonly searchProviders?: readonly SearchProviderRule[];
+  /** Override for the MCP skill directory; tests and packaged hosts may relocate it. */
+  readonly mcpSkillRoot?: string;
 }
 
 export class AdminServer {
   readonly #admin: AdminConfig;
+  readonly #options: AdminServerOptions;
   readonly #auth: AdminAuth;
   readonly #passkeys: AdminPasskeys | undefined;
   readonly #secrets: SecretStore | undefined;
   readonly #healthAbort = new AbortController();
   readonly #healthChecks = new Set<Promise<unknown>>();
   readonly #routes: AdminRoutes;
+  readonly #mcp: McpEndpoint;
   #server: ServerType | undefined;
   #payloadClear: Promise<number> | undefined;
 
   constructor(options: AdminServerOptions) {
+    this.#options = options;
     const config = options.configStore.current().config;
     const admin = config.admin;
     this.#admin = admin;
@@ -114,6 +122,12 @@ export class AdminServer {
         },
       },
     });
+    this.#mcp = new McpEndpoint({
+      orm: options.store.orm,
+      secrets: options.secrets,
+      callAdmin: (request) => this.handle(request, 'mcp'),
+      ...(options.mcpSkillRoot === undefined ? {} : { skillRoot: options.mcpSkillRoot }),
+    });
   }
 
   async start(): Promise<{ readonly hostname: string; readonly port: number }> {
@@ -121,6 +135,17 @@ export class AdminServer {
       throw new Error('Admin server is already listening');
     }
     this.#auth.purgeExpired();
+    const invalidKeys = invalidApiKeys(this.#options.store.orm);
+    if (invalidKeys.length > 0) {
+      console.warn(
+        JSON.stringify({
+          event: 'api_key_invalid_permissions',
+          count: invalidKeys.length,
+          keys: invalidKeys.map((key) => ({ id: key.id, name: key.name, prefix: key.prefix })),
+          at: new Date().toISOString(),
+        }),
+      );
+    }
     const server = serve({
       // The socket address, not a forwarded header: a caller controls
       // X-Forwarded-For, so keying the login throttle on it let every attempt
@@ -174,6 +199,9 @@ export class AdminServer {
     const url = new URL(request.url);
     const segments = url.pathname.split('/').filter((segment) => segment.length > 0);
     try {
+      if (segments[0] === 'mcp') {
+        return await this.#mcp.handle(request);
+      }
       if (segments[0] === 'api') {
         return await this.#api(request, url, segments.slice(1), clientAddress);
       }
@@ -233,17 +261,30 @@ export class AdminServer {
       }
     }
     const routes = this.#routes;
-    // Authorization never falls back to a panel cookie. The fixed programmatic
-    // surface includes inspection reads and invocation replay, not panel writes.
+    // Authorization never falls back to a panel cookie. A key authenticates,
+    // then the route's declared access decides whether it may proceed; the
+    // same route groups serve both credentials.
     const authorization = request.headers.get('authorization');
     if (authorization !== null) {
-      return await routes.inspection.apiKeyRequest(request, url, segments, authorization);
+      return await this.#apiKeyRequest(request, url, segments, authorization);
     }
     const authenticated = await routes.auth.handle(request, url, segments, clientAddress);
     if (authenticated.kind === 'response') {
       return authenticated.response;
     }
     const username = authenticated.session.username;
+    const response = await this.#dispatchAuthenticated(request, url, segments, username);
+    return response ?? json({ error: 'not_found', message: 'Unknown admin API route' }, 404);
+  }
+
+  /** The authenticated dispatch shared by panel sessions and API keys. */
+  async #dispatchAuthenticated(
+    request: Request,
+    url: URL,
+    segments: readonly string[],
+    username: string,
+  ): Promise<Response | undefined> {
+    const routes = this.#routes;
     let response = await routes.control.handle(request, segments, username);
     response ??= await routes.tuning.handle(request, segments);
     response ??= await routes.dictionary.handle(request, url, segments);
@@ -268,9 +309,68 @@ export class AdminServer {
     }
     response = await routes.inspection.inspect(request, url, segments);
     response ??= await routes.inspection.list(url, segments);
-    if (response !== undefined) {
-      return response;
+    return response;
+  }
+
+  /**
+   * Bearer key authentication and the permission gate. Account, credential and
+   * API-key management are outside every key's reach. Unknown paths answer 403
+   * rather than 404 so a key cannot enumerate the panel.
+   */
+  async #apiKeyRequest(
+    request: Request,
+    url: URL,
+    segments: readonly string[],
+    authorization: string,
+  ): Promise<Response> {
+    const scheme = 'Bearer ';
+    const token =
+      authorization.slice(0, scheme.length).toLowerCase() === scheme.toLowerCase()
+        ? authorization.slice(scheme.length).trim()
+        : '';
+    const key = token.length === 0 ? null : authenticateApiKey(this.#options.store.orm, token);
+    if (key === null) {
+      return json({ error: 'unauthenticated', message: 'A valid API key is required' }, 401);
     }
-    return json({ error: 'not_found', message: 'Unknown admin API route' }, 404);
+    this.#secrets?.remember(token);
+    if (segments.length === 1 && segments[0] === 'key' && request.method === 'GET') {
+      return json({
+        id: key.id.toString(),
+        name: key.name,
+        mode: key.mode,
+        permissions: key.permissions,
+      });
+    }
+    if (segments[0] === 'auth' || segments[0] === 'api-keys') {
+      return json({ error: 'forbidden', message: 'API keys cannot manage accounts, credentials or API keys' }, 403);
+    }
+    const found = findSurfaceSpec(request.method, segments);
+    if (found === undefined) {
+      return json({ error: 'forbidden', message: 'API keys cannot access this route' }, 403);
+    }
+    const access = specAccess(found.spec);
+    if (!accessAllowed(key.permissions, access)) {
+      return json(
+        {
+          error: 'forbidden',
+          message: `This API key lacks ${access} permission; enable it in Admin Panel → API keys`,
+        },
+        403,
+      );
+    }
+    // Replay is a paid write that has no session route; it lives on the
+    // inspection handler and is reachable only after the permission gate.
+    if (
+      segments[0] === 'invocations' &&
+      segments.length === 3 &&
+      segments[2] === 'replay' &&
+      request.method === 'POST'
+    ) {
+      return await this.#routes.inspection.replay(request, parseId(segments[1] ?? '', 'id'));
+    }
+    return (
+      (await this.#dispatchAuthenticated(request, url, segments, `api-key:${key.id.toString()}`)) ??
+      json({ error: 'forbidden', message: 'API keys cannot access this route' }, 403)
+    );
   }
 }

@@ -8,7 +8,7 @@
 
 全局词条对所有正常会话可读；群组词条按 Telegram Chat 隔离，同群 Forum Topic 共用辞典，各 Topic 的 canonical Conversation Context 仍独立。私聊只读取全局辞典，不能通过群组写入能力维护词条。
 
-Agent 只能创建或修改当前群组的词条，不能指定任意群、写全局或通过修改作用域提升词条。工具执行边界验证所属群，词条 ID 本身不是授权。Admin 管理端点只接受面板 Session，程序化 Bearer key 不获得辞典权限。
+Agent 只能创建或修改当前群组的词条，不能指定任意群、写全局或通过修改作用域提升词条。工具执行边界验证所属群，词条 ID 本身不是授权。Admin 管理端点接受面板 Session，或带 `read`/`write` 权限的 Bearer API key（预览等计费端点另需 `execute_paid_operations`）。
 
 词条与导入文件、模型融合建议均是不可信数据，解释不能成为系统指令。自动注入写在 user 消息的不可信区块，不进入稳定 system prompt；词条内容变化不会单独重建整个 Conversation Context。
 

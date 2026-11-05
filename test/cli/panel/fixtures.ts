@@ -13,8 +13,9 @@ import type { Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, expect } from 'vitest';
+import { afterAll } from 'vitest';
 import { AdminServer } from '../../../src/ingress/admin/index.ts';
+import { createApiKey } from '../../../src/ingress/admin/api-keys.ts';
 import { ConfigReloader } from '../../../src/adapters/local-monolith/config/reload.ts';
 import { type LoadedConfig, loadConfig } from '../../../src/adapters/local-monolith/config/index.ts';
 import type { RuntimeConfigurationStore } from '../../../src/platform/runtime-config.ts';
@@ -28,8 +29,6 @@ import { PlaygroundStore } from '../../../src/store/playground/index.ts';
 import { testConfigJsonc, testConfigStore, writeTestConfig } from '../../helpers.ts';
 
 const BIN = fileURLToPath(new URL('../../../packages/cli/src/bin.ts', import.meta.url));
-export const PASSWORD = 'correct-horse-battery';
-export const USERNAME = 'owner';
 
 const directories: string[] = [];
 
@@ -234,18 +233,28 @@ export function runCli(
   return result.promise;
 }
 
-export function storedSession(fixture: PanelFixture): string {
+export function storedApiKey(fixture: PanelFixture): string {
   const path = join(fixture.home, '.config', 'surowan-utils', 'credentials.json');
-  const parsed = JSON.parse(readFileSync(path, 'utf8')) as { session: string };
-  return parsed.session;
+  const parsed = JSON.parse(readFileSync(path, 'utf8')) as { apiKey: string };
+  return parsed.apiKey;
 }
 
-export async function loginPanel(fixture: PanelFixture): Promise<void> {
-  const login = await runCli(
-    ['login', '--endpoint', fixture.baseUrl, '--username', USERNAME, '--password', PASSWORD, '--json'],
-    fixture,
+/**
+ * Panel-surface tests need a key with every grant; the real panel issues it,
+ * and the CLI stores the plaintext exactly as `login --api-key` would.
+ */
+export async function loginPanel(
+  fixture: PanelFixture,
+  mode: 'read' | 'read_write' | 'read_paid' | 'all' = 'all',
+): Promise<void> {
+  const created = createApiKey(fixture.store.orm, 'cli-panel', mode);
+  const directory = join(fixture.home, '.config', 'surowan-utils');
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  await writeFile(
+    join(directory, 'credentials.json'),
+    `${JSON.stringify({ endpoint: `${fixture.baseUrl}/`, apiKey: created.key })}\n`,
+    { mode: 0o600 },
   );
-  expect(login.code, login.stderr).toBe(0);
 }
 
 export function errorCode(result: CliResult): string {

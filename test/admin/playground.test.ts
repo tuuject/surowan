@@ -72,11 +72,11 @@ test('the invocation audit answers for a room under its own identity, for a sess
     const badHost = await f.server.handle(get('/api/invocations?host=irc', f.cookie));
     expect(badHost.status).toBe(400);
     expect(await readJson(badHost)).toMatchObject({ error: 'invalid_host' });
-    // Reading the audit is not a way into the room: its own routes stay session-only.
+    // A read key can inspect the room, but not mutate it.
     const roomWithKey = await f.server.handle(
       request(`/api/playground/rooms/${room.id}`, { headers: { authorization: `Bearer ${key}` } }),
     );
-    expect(roomWithKey.status).toBe(403);
+    expect(roomWithKey.status).toBe(200);
   } finally {
     f.store.close();
   }

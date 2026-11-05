@@ -73,10 +73,10 @@ describe('surowan-utils inspection commands', () => {
         [['config', 'show', '--if-match', 'x'], 'unexpected_option'],
         // Login input elsewhere would be ignored while the request runs with
         // the resolved credential; a request credential on login likewise.
-        [['models', 'list', '--username', 'owner'], 'unexpected_option'],
-        [['invocation', 'list', '--password', 'secret-password'], 'unexpected_option'],
-        [['chat', 'list', '--password-stdin'], 'unexpected_option'],
-        [['login', '--session', 'token'], 'unexpected_option'],
+        [['models', 'list', '--username', 'owner'], 'invalid_arguments'],
+        [['invocation', 'list', '--password', 'secret-password'], 'invalid_arguments'],
+        [['chat', 'list', '--password-stdin'], 'invalid_arguments'],
+        [['login', '--session', 'token'], 'invalid_arguments'],
       ];
       for (const [args, code] of cases) {
         const result = await runCli(args, { env });

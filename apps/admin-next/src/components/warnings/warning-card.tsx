@@ -21,6 +21,19 @@ function stringListVariable(variables: Readonly<Record<string, unknown>>, key: s
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
+function invalidApiKeyLabels(variables: Readonly<Record<string, unknown>>): readonly string[] {
+  const value = variables.keys;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((item) => {
+    if (typeof item !== 'object' || item === null || !('name' in item) || typeof item.name !== 'string') {
+      return [];
+    }
+    return [item.name];
+  });
+}
+
 function severityTone(severity: WarningSeverity): 'warning' | 'danger' {
   return severity === 'critical' ? 'danger' : 'warning';
 }
@@ -96,6 +109,19 @@ function WarningDetails({ warning }: { readonly warning: WarningItem }): React.R
           : t('pages.warnings.codes.telegram_config_error.body.unknown');
       return <p className="text-muted-foreground text-sm">{body}</p>;
     }
+    case 'api_key_invalid_permissions': {
+      const names = invalidApiKeyLabels(variables);
+      return (
+        <div className="space-y-1">
+          <p className="text-muted-foreground text-sm">{t('pages.warnings.codes.api_key_invalid_permissions.body')}</p>
+          {names.length > 0 ? (
+            <p className="text-muted-foreground font-mono text-xs">
+              {t('pages.warnings.invalidApiKeys', { keys: names.join(', ') })}
+            </p>
+          ) : null}
+        </div>
+      );
+    }
     default:
       return (
         <div className="space-y-1">
@@ -145,6 +171,12 @@ function WarningAction({ code }: { readonly code: string }): React.ReactElement 
           <Link to="/telegram">{t('pages.warnings.actions.openTelegram')}</Link>
         </Button>
       );
+    case 'api_key_invalid_permissions':
+      return (
+        <Button asChild size="sm" variant="outline">
+          <Link to="/api-keys">{t('pages.warnings.actions.openApiKeys')}</Link>
+        </Button>
+      );
     default:
       return null;
   }
@@ -166,6 +198,8 @@ function WarningTitle({ warning }: { readonly warning: WarningItem }): React.Rea
       return <>{t('pages.warnings.codes.admin_login_failures.title')}</>;
     case 'telegram_network_error':
       return <>{t('pages.warnings.codes.telegram_network_error.title')}</>;
+    case 'api_key_invalid_permissions':
+      return <>{t('pages.warnings.codes.api_key_invalid_permissions.title')}</>;
     case 'telegram_config_error': {
       const reason = stringVariable(warning.variables, 'reason');
       switch (reason) {

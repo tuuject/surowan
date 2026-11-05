@@ -3,10 +3,9 @@ import { parseCli, parseTimeout, resolveCli } from './args/index.ts';
 import type { Command, FirstClassCommand, ParsedCli } from './args/types.ts';
 import { AdminClient, isRecord, parseEndpoint } from './client.ts';
 import { type CliIo, executeCommand } from './commands.ts';
-import { clearCredentials, credentialsPath, readCredentials, writeCredentials } from './credentials.ts';
+import { credentialsPath, readCredentials, writeCredentials } from './credentials.ts';
 import { CliError, usageError } from './errors.ts';
-import { promptLoginField, readLoginKey } from './login.ts';
-import { panelLogin } from './panel/login.ts';
+import { readLoginKey } from './login.ts';
 import { runPanelCommand } from './panel/run.ts';
 import { PANEL_SPECS } from './panel/specs/index.ts';
 import { USAGE } from './usage.ts';
@@ -36,18 +35,17 @@ export async function runCli(argv: readonly string[], options: RunOptions = {}):
       return 0;
     }
     const explicitEndpoint = parsed.endpointRaw ?? env.SUROWAN_ENDPOINT;
-    const explicitCredential = parsed.apiKeyRaw ?? parsed.sessionRaw ?? env.SUROWAN_API_KEY ?? env.SUROWAN_SESSION;
+    const explicitCredential = parsed.apiKeyRaw ?? env.SUROWAN_API_KEY;
     // With both an endpoint and a credential supplied, the file is never
     // consulted, so a damaged or foreign file cannot block the command.
     const saved =
       explicitEndpoint !== undefined && explicitCredential !== undefined ? undefined : await readCredentials(path);
-    secrets.push(saved?.apiKey, saved?.session);
+    secrets.push(saved?.apiKey);
     const resolved = resolveCli(parsed, env, saved);
-    secrets.push(resolved.apiKey, resolved.session);
+    secrets.push(resolved.apiKey);
     const client = new AdminClient({
       baseUrl: resolved.endpoint,
       ...(resolved.apiKey === undefined ? {} : { apiKey: resolved.apiKey }),
-      ...(resolved.session === undefined ? {} : { session: resolved.session }),
       defaultTimeoutMs: resolved.timeoutMs,
     });
     // JSON-aware redaction decodes each string token, so it only fits a body
@@ -55,6 +53,10 @@ export async function runCli(argv: readonly string[], options: RunOptions = {}):
     // its quoted cells as JSON fails on any cell holding a backslash.
     const output = redactingIo(io, secrets, emitsJsonDocument(resolved.command, resolved.json));
     if (resolved.command.kind === 'doctor') {
+      const identity = await client.get('api/key');
+      if (!isRecord(identity) || typeof identity.mode !== 'string' || !isRecord(identity.permissions)) {
+        throw new CliError('invalid_response', 'doctor expected an API key permission response');
+      }
       const raw = await client.get('api/invocations', new URLSearchParams({ limit: '1' }));
       if (
         !isRecord(raw) ||
@@ -67,6 +69,8 @@ export async function runCli(argv: readonly string[], options: RunOptions = {}):
         status: 'ok',
         endpoint: resolved.endpoint.href,
         credential: client.credentialKind,
+        mode: identity.mode,
+        permissions: identity.permissions,
         credential_sources: resolved.credentialSources,
       };
       output.stdout(
@@ -80,10 +84,6 @@ export async function runCli(argv: readonly string[], options: RunOptions = {}):
       throw usageError('invalid_command', 'login cannot execute an invocation request');
     }
     if (resolved.command.kind === 'panel') {
-      // A token from --session or SUROWAN_SESSION is not the stored one, and
-      // the file may hold another endpoint's credential: rotating or ending
-      // that token must leave the file alone.
-      const ownsStoredCredential = resolved.credentialSources.credential === 'file';
       return await runPanelCommand(
         resolved.command,
         {
@@ -93,31 +93,6 @@ export async function runCli(argv: readonly string[], options: RunOptions = {}):
           redact: (text) => redactSecrets(text, secrets),
         },
         client,
-        {
-          currentToken: resolved.session,
-          save: async (token) => {
-            if (!ownsStoredCredential) {
-              // The new token cannot be printed (output is redacted) and the
-              // supplied one is already revoked, so the caller must log in.
-              output.stderr(
-                `${JSON.stringify({
-                  warning: 'session_not_stored',
-                  message:
-                    'the server rotated the session; the supplied token is revoked and the new one was not stored; run surowan-utils login',
-                })}\n`,
-              );
-              return;
-            }
-            // The endpoint must be the one that issued the token; `resolved`
-            // already normalized and validated it.
-            await writeCredentials(path, { endpoint: resolved.endpoint.href, session: token });
-          },
-          clear: async () => {
-            if (ownsStoredCredential) {
-              await clearCredentials(path);
-            }
-          },
-        },
       );
     }
     return await executeCommand(
@@ -146,30 +121,20 @@ async function login(
     throw usageError('invalid_command', 'expected login');
   }
   const timeoutMs = parseTimeout(parsed.timeoutRaw, false);
-  let endpointRaw = parsed.endpointRaw ?? env.SUROWAN_ENDPOINT;
+  const endpointRaw = parsed.endpointRaw ?? env.SUROWAN_ENDPOINT;
   if (endpointRaw === undefined) {
-    endpointRaw = await promptLoginField('Admin API endpoint: ', false, timeoutMs);
+    throw usageError('missing_endpoint', 'login requires --endpoint <url> or SUROWAN_ENDPOINT');
   }
   const endpoint = parseEndpoint(endpointRaw).href;
-  if (parsed.command.username !== undefined) {
-    // The credentials file holds exactly one kind; mixing them would hide
-    // which surface the operator just authorized.
-    if (parsed.apiKeyRaw !== undefined || env.SUROWAN_API_KEY !== undefined) {
-      throw usageError(
-        'conflicting_credentials',
-        'a panel login cannot be combined with an API key; the credentials file holds one credential',
-      );
-    }
-    return await panelLoginFlow(parsed, endpoint, io, path, timeoutMs, secrets);
-  }
   let apiKey = parsed.apiKeyRaw ?? env.SUROWAN_API_KEY;
   if (parsed.command.apiKeyStdin && apiKey !== undefined) {
     throw usageError('conflicting_key_input', '--api-key-stdin cannot be combined with --api-key or SUROWAN_API_KEY');
   }
   if (parsed.command.apiKeyStdin) {
     apiKey = await readLoginKey(timeoutMs);
-  } else if (apiKey === undefined) {
-    apiKey = await promptLoginField('API key (hidden): ', true, timeoutMs);
+  }
+  if (apiKey === undefined) {
+    throw usageError('missing_argument', 'login requires --api-key, --api-key-stdin or SUROWAN_API_KEY');
   }
   secrets.push(apiKey);
   await writeCredentials(path, { endpoint, apiKey });
@@ -177,43 +142,7 @@ async function login(
   output.stdout(
     parsed.json
       ? `${JSON.stringify({ status: 'saved', endpoint, credential: 'api_key', credentials_file: path })}\n`
-      : 'API key saved. It authorizes inspection and replay; run `login --username <name>` for the full panel surface.\n',
-  );
-  return 0;
-}
-
-/**
- * Panel login: the password is exchanged for a session token, which is stored
- * instead of an API key. The token authorizes exactly what the browser panel
- * authorizes, which is what makes the panel write surface reachable here.
- */
-async function panelLoginFlow(
-  parsed: ParsedCli,
-  endpoint: string,
-  io: CliIo,
-  path: string,
-  timeoutMs: number,
-  secrets: Array<string | undefined>,
-): Promise<number> {
-  if (parsed.command?.kind !== 'login' || parsed.command.username === undefined) {
-    throw usageError('invalid_command', 'expected a panel login');
-  }
-  let password = parsed.command.password;
-  if (parsed.command.passwordStdin) {
-    password = await readLoginKey(timeoutMs);
-  } else if (password === undefined) {
-    password = await promptLoginField('Panel password (hidden): ', true, timeoutMs);
-  }
-  secrets.push(password);
-  const client = new AdminClient({ baseUrl: parseEndpoint(endpoint), defaultTimeoutMs: timeoutMs });
-  const result = await panelLogin(client, { username: parsed.command.username, password });
-  secrets.push(result.session);
-  await writeCredentials(path, { endpoint, session: result.session });
-  const output = redactingIo(io, secrets, parsed.json);
-  output.stdout(
-    parsed.json
-      ? `${JSON.stringify({ status: 'saved', endpoint, credential: 'session', username: result.username, credentials_file: path })}\n`
-      : `Panel session saved for ${result.username}. Run surowan-utils doctor to verify connection and authentication.\n`,
+      : 'API key saved. Run surowan-utils doctor to verify connection and authentication.\n',
   );
   return 0;
 }

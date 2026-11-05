@@ -5,7 +5,7 @@ description: 查询、导出与重放 Invocation 的选项、请求/响应形状
 
 # surowan-utils 参考
 
-面板命令示例（需要面板 Session；`surowan-utils commands` 列出全部）：
+面板命令示例（需要对应模式的 API key；`surowan-utils commands` 列出全部）：
 
 ```bash
 surowan-utils commands --json                                  # 命令表：method/path/revision/confirm
@@ -49,8 +49,6 @@ surowan-utils invocation replay 12345 --provider openrouter --model deepseek/dee
 | --- | --- |
 | `--endpoint <url>` / `SUROWAN_ENDPOINT` | Admin Panel 基地址；解析顺序为参数 > 环境变量 > `login` 保存的凭据文件，三处都没有或显式空串/纯空白时按缺失报错（`missing_endpoint`，不回退）。明文 `http` 只允许 loopback（`127.0.0.0/8`、`::1`、`localhost`），远端必须 `https`；URL 不能带凭据、query 或 fragment；保存与比较都用 `parseEndpoint` 规范化后的 URL（trim、补尾斜杠、去默认端口） |
 | `--api-key <key>` / `SUROWAN_API_KEY` | API key：1–4096 字符，不得含空白或控制字符（参数/环境变量报 `invalid_api_key`，保存文件内的非法值报 `invalid_credentials`）；与 endpoint 同一解析顺序，命令行参数优先于环境变量，显式空串不回退。仅当解析出的 endpoint 与文件 endpoint 规范化后相同才使用文件中的 key，否则缺少显式 key 报 `missing_credential` |
-| `--session <token>` / `SUROWAN_SESSION` | 面板 Session Token：与浏览器面板同权限，可执行全部面板命令。与 `--api-key`/`SUROWAN_API_KEY` 同时给出会以 `conflicting_credentials`（退出码 2）拒绝；空串按缺失处理且不回退 |
-| `--username <name>` / `--password <pw>` / `--password-stdin` | 仅 `login`：用面板账号换取 Session Token。`--password-stdin` 从标准输入读到 EOF（不超过 4098 字节，去掉一个尾部换行），TTY 上拒绝；`--password` 与 `--password-stdin` 互斥；未提供时交互式隐藏提示 |
 | `--api-key-stdin` | 仅 `login`：把标准输入读到 EOF（不是读完一行就停），累计不超过 4098 字节，读取结束后只去掉一个尾部 LF/CRLF，剩余换行、空白或控制字符整体非法（`invalid_api_key`，退出码 2）；TTY 上拒绝；整次读取受 `--timeout-ms` 约束，超时 `timeout`（退出码 1）且不保存；不能与 `--api-key` 或 `SUROWAN_API_KEY` 同时给出；不是 `--api-key -`，其它命令不从标准输入读取 key |
 | `--source <active\|file>` | 仅 `config show` 与 `prompt get`：`active`（默认）读运行中快照，`file` 读磁盘配置；两者不会互相替代 |
 | `--variant <original\|preview>` | 仅 `invocation media`：下载原始文件（默认）或服务端规范化预览；preview 只对 photo/sticker 可用 |

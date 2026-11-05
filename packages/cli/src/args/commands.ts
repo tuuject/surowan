@@ -60,34 +60,7 @@ export function parseCommand(positionals: readonly string[], flags: StringFlags)
       rejectUnsupportedFlags(flags, LOGIN_ONLY_FLAGS);
       return { kind: 'doctor' };
     }
-    // `--session` authenticates requests; login creates a credential and
-    // would otherwise ignore it while prompting for a different one.
-    rejectUnsupportedFlags(flags, ['session']);
-    const username = flags.username;
-    const password = flags.password;
-    const passwordStdin = flags['password-stdin'] === true;
-    const panelLogin = username !== undefined || password !== undefined || passwordStdin;
-    if (panelLogin) {
-      // A panel login cannot also carry an API key: the file holds one credential.
-      if (flags['api-key-stdin'] === true) {
-        throw usageError('conflicting_key_input', '--api-key-stdin cannot be combined with panel login options');
-      }
-      if (username === undefined) {
-        throw usageError('missing_argument', 'panel login requires --username <name>');
-      }
-      if (password !== undefined && passwordStdin) {
-        throw usageError('conflicting_key_input', '--password and --password-stdin cannot be combined');
-      }
-    } else if (passwordStdin) {
-      throw usageError('missing_argument', '--password-stdin requires --username');
-    }
-    return {
-      kind: 'login',
-      apiKeyStdin: flags['api-key-stdin'] === true,
-      username,
-      password,
-      passwordStdin,
-    };
+    return { kind: 'login', apiKeyStdin: flags['api-key-stdin'] === true };
   }
   if (group === 'commands') {
     if (positionals.length !== 1) {
@@ -143,7 +116,7 @@ function toPanelFlags(flags: StringFlags): Parameters<typeof parsePanelCommand>[
   const values: Record<string, string | undefined> = {};
   const present: string[] = [];
   for (const [key, value] of Object.entries(flags)) {
-    if (value === undefined || GLOBAL_FLAGS[key] === true) {
+    if (value === undefined) {
       continue;
     }
     // Every set flag is recorded so a boolean the route does not take is
@@ -167,16 +140,8 @@ function toPanelFlags(flags: StringFlags): Parameters<typeof parsePanelCommand>[
   };
 }
 
-/**
- * The one global flag that also lives in `StringFlags`: it authenticates the
- * request, so the panel parser must not report it as a route parameter.
- */
-const GLOBAL_FLAGS: Readonly<Record<string, true>> = {
-  session: true,
-};
-
 /** Inputs to `login` itself; every other command refuses them. */
-const LOGIN_ONLY_FLAGS: readonly FlagName[] = ['api-key-stdin', 'username', 'password', 'password-stdin'];
+const LOGIN_ONLY_FLAGS: readonly FlagName[] = ['api-key-stdin'];
 
 /** Groups the `switch` below parses itself rather than through the panel table. */
 const FIRST_CLASS_GROUPS: ReadonlySet<string> = new Set(['models', 'config', 'prompt', 'invocation']);

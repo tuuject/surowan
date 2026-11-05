@@ -21,6 +21,7 @@ export const warnings = {
   noStanding: 'No standing warnings.',
   noEvents: 'No event warnings yet.',
   missingFields: 'Missing: {{fields}}',
+  invalidApiKeys: 'Invalid keys: {{keys}}',
   lastFailedAt: 'Last failure: {{time}}',
   createdAt: 'Created {{time}}',
   updatedAt: 'updated {{time}}',
@@ -35,6 +36,7 @@ export const warnings = {
     openInvocations: 'Open invocations',
     openSettings: 'Open settings',
     openTelegram: 'Open Telegram settings',
+    openApiKeys: 'Open API keys',
   },
   codes: {
     developer_payload_recording: {
@@ -73,6 +75,10 @@ export const warnings = {
         token_unreadable:
           'The configured token source could not be resolved. Check the key jar, environment variable or command.',
       },
+    },
+    api_key_invalid_permissions: {
+      title: 'API keys with invalid permissions',
+      body: 'One or more API keys have an illegal permission combination in the database. They cannot authenticate until a valid mode is saved on the API keys page.',
     },
     unknown: {
       title: 'Unknown warning: {{code}}',

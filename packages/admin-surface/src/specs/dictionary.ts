@@ -65,6 +65,7 @@ export const DICTIONARY_SPECS: readonly EndpointSpec[] = [
     method: 'POST',
     path: 'dictionary/import/preview',
     body: true,
+    access: 'read',
     summary: 'Parse an import file and report normalized drafts and conflicts',
   },
   {
@@ -87,6 +88,7 @@ export const DICTIONARY_SPECS: readonly EndpointSpec[] = [
     method: 'POST',
     path: 'dictionary/merge/preview',
     body: true,
+    access: 'paid',
     confirm: 'paid',
     summary: 'Draft a merged entry with the tool model (one billed call)',
   },

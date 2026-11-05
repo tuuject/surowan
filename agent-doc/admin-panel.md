@@ -51,41 +51,69 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 
 ## 程序化 API 密钥
 
-`src/ingress/admin/api-keys.ts` 提供供 CLI 与评估工具使用的 API 密钥。密钥管理是 **Session-only** 的：只有面板登录会话能创建、列出与撤销密钥，密钥自身不能管理密钥。前端入口是 **Manage → API keys** 独立页（`/api-keys`），复用下述现有接口，没有新增 API、迁移或配置项：表格列为 Name/Prefix/Created/Last used/Status/Actions（Active/Revoked，未使用时显示 Never used）；**Create API key** 只填 `name`（1–80 字符），明文只在随后 **Save your API key** 一次性弹窗中出现，Done/关闭/导航/刷新后不可再取回，也不写入 `localStorage`/`sessionStorage` 或查询缓存；**Copy API key** 失败时保留文字并提示手动复制；行内 **Revoke** 需确认、立即生效且保留元数据。列表失败提供 Retry，创建失败在弹窗内联显示且进行中禁止重复提交，撤销失败留在确认框。界面操作说明见[用户指南](../apps/docs/content/docs/configure/admin-api-keys.md#api-密钥)。
+`src/ingress/admin/api-keys.ts` 提供供 MCP Server、CLI 与评估工具使用的 API 密钥。密钥管理是 **Session-only** 的：只有面板登录会话能创建、列出、修改权限、轮换与撤销密钥，密钥自身永远不能管理密钥。前端入口是 **Manage → API keys** 独立页（`/api-keys`）。
+
+权限模型：三个内部布尔字段，`read_all` 是每把 key 的基础权限且必须为 1，`write_all` 与 `execute_paid_operations` 是两个互不包含的附加项。面板与 API 只暴露四种合法模式：
+
+| 模式 | read_all | write_all | execute_paid_operations |
+| --- | --- | --- | --- |
+| `read` | 1 | 0 | 0 |
+| `read_write` | 1 | 1 | 0 |
+| `read_paid` | 1 | 0 | 1 |
+| `all` | 1 | 1 | 1 |
+
+- 新建时用下拉框选择模式；已创建的 key 只能修改模式或 rotate，不能改名。
+- `GET /api/key`（仅 Bearer key）返回 `{ id, name, mode, permissions }`，MCP 的 `surowan_key_show` 是同一能力的工具封装。
+- 已有的 key 通过迁移 `053` 得到 `read_all = 1`、`write_all = 0`、`execute_paid_operations = 1`，保留原有重放能力。
+- 数据库被直接改成非法组合（`read_all = 0`）时该 key 无法鉴权：`authenticateApiKey` 返回 401；服务启动时控制台输出 `api_key_invalid_permissions` 警告；`GET /api/warnings` 的 `standing` 增加同 code 警告，列出受影响的 key；前端列表把这种行显示为 `mode: null` / “Invalid permissions”，编辑模式保存合法值即修复。列表与页面不会因脏数据抛错。
 
 | 路由 | 语义 |
 | --- | --- |
-| `GET /api/api-keys` | 返回 `{ items }`，每项为 `id`/`name`/`prefix`/`created_at`/`last_used_at`/`revoked_at`，**永不返回明文** |
-| `POST /api/api-keys` | body 严格为 `{ name }`（1–80 字符，TypeBox 拒绝多余字段）；返回 `{ key, item }`，`key` 是 `pwk_` 加 32 字节随机值的 base64url（共 47 字符），**只在这一次响应里出现**，随后注册进 `SecretStore` 供日志与错误脱敏 |
-| `DELETE /api/api-keys/:id` | 置 `revoked_at` 永久禁用（保留行与元数据以便审计）；重复撤销或不存在返回 404 `not_found`，`:id` 非法返回 400 `invalid_id` |
+| `GET /api/api-keys` | 返回 `{ items }`，每项为 `id`/`name`/`prefix`/`created_at`/`last_used_at`/`revoked_at`/`mode`/`permissions`，**永不返回明文** |
+| `POST /api/api-keys` | body `{ name, mode }`（name 1–80 字符；mode 四选一；TypeBox 拒绝多余字段）；返回 `{ key, item }`，`key` 只在这一次响应里出现 |
+| `PUT /api/api-keys/:id` | body `{ mode }`，只改权限，返回 `{ item }`；已撤销或不存在 404 |
+| `POST /api/api-keys/:id/rotate` | 为同一行签发新明文，保留 name 与权限，重置 `last_used_at`；返回 `{ key, item }` |
+| `DELETE /api/api-keys/:id` | 置 `revoked_at` 永久禁用（保留行与元数据） |
+| `GET /api/key` | 当前 Bearer key 的身份与权限；不带 key 或 key 非法返回 401 |
 
-- 数据库只存 SHA-256 摘要与展示用 `prefix`（`pwk_` 加上前 8 个 base64url 字符），明文不可恢复；遗失只能撤销后重建。
-- 撤销立即生效（下一次鉴权即 401）。`last_used_at` 在密钥通过校验时更新——**包括随后因权限面被拒绝（403）的请求**；未通过校验（401）不更新。
-- 请求带 `Authorization` 头时**完全不读取面板 Cookie**：非 `Bearer` 前缀、空值、未知或已撤销的密钥统一返回 401 `unauthenticated`（固定消息，不区分原因），Bearer 前缀大小写不敏感；无效密钥也不会回退成有效 Session，有效 Session 也不能把密钥权限升级成完整面板权限。
-- 密钥的权限面固定为 Invocation 读/重放与只读 inspection：`GET /api/invocations`、`GET /api/invocations/:id`、`GET /api/invocations/:id/prompts`、`GET /api/invocations/:id/replay-preflight`、`GET /api/invocations/:id/media`、`GET /api/invocations/:id/media/:media_id/content`、`GET /api/config/view`、`GET /api/models`、`GET /api/prompts/global`、`GET /api/prompts/group` 与 `POST /api/invocations/:id/replay`；其余一切——包括密钥管理自身、Prompt 版本历史与 diff 读取、全部 Prompt 写端点、其它审计读端点、全部面板写端点与未知路由——都返回 403 `forbidden`（未知路由不泄露 404 差异）。这些 GET 与面板 Session 共用同一条只读检查路径（见「Inspection 只读视图」）；`POST .../replay` 仍只接受 Bearer key，Session 请求落到审计分支返回 405 `method_not_allowed`。
+- 数据库只存 SHA-256 摘要与展示用 `prefix`（`pwk_` 加前 8 个 base64url 字符），明文不可恢复；遗失只能 rotate 或撤销后重建。
+- 撤销/rotate 立即生效（下一次鉴权即 401）。`last_used_at` 在密钥通过校验时更新——**包括随后因权限不足（403）的请求**；未通过校验（401）不更新。
+- 请求带 `Authorization` 头时**完全不读取面板 Cookie**：非 `Bearer` 前缀、空值、未知、已撤销或权限非法的密钥统一返回 401 `unauthenticated`；有效 Session 也不能把密钥权限升级成完整面板权限。
+- API key 的权限面由 `@surowan/admin-surface` 的 `EndpointSpec.access` 决定：`GET` 默认 `read`，非 GET 默认 `write`，只读 POST 与计费/写入+计费端点显式标注。`read` 永远可用；`write` 需要 `write_all`；`paid` 需要 `execute_paid_operations`；`write+paid` 两者都要。覆盖面包括配置、Chat、Prompt、Memo Pad、辞典、群聊记忆、告警、模型、图片、Playground 与 Invocation 读/重放。
+- **账号与凭据整类排除**：无论 key 拥有什么权限，`/api/auth/*` 与 `/api/api-keys*` 对 Bearer 请求一律 403；管理员密码、Passkey、管理员账号与 API key 只能由浏览器面板或服务端 `surowan` CLI 管理。
+- 未知路径对 Bearer 请求返回 403 而不是 404，避免枚举面板。
+
+## MCP Server
+
+AdminServer 在同一监听端口提供 `/mcp`（Streamable HTTP），使用 `Authorization: Bearer <pwk_…>` 鉴权；不配置 Telegram 时它仍随 Admin Panel 可用。实现位于 `src/ingress/admin/mcp/`：
+
+- **双 era**：`MCP-Protocol-Version: 2026-07-28`（或请求 `_meta` 声明该版本）走无状态 JSON-RPC；legacy `initialize` 交给 MCP SDK 的 WebStandard transport。两者共享同一工具目录与 Skill manifest。
+- **工具目录**：从 `@surowan/admin-surface` 的 `EndpointSpec` 生成，工具名为 `surowan_<command>`。每个工具接受路径参数、query 参数、可选 `body`、需要时的 `if_match`、破坏性/计费操作的 `confirm` 与 `dry_run`。工具执行时重新走一次 Admin API（同一 Bearer key），因此权限、Origin、body 限制与审计只有一套实现。
+- **权限**：`EndpointSpec.access` 决定工具需要 `read`/`write`/`paid`/`write+paid`；账号与 API key 管理不生成工具。权限不足返回 `isError` 文本，要求用户在 Admin Panel → API keys 修改模式，不提供绕过。
+- **权限查询**：`surowan_key_show` 映射 `GET /api/key`。
+- **MCP with Skills**：服务器 capability 声明扩展 `io.modelcontextprotocol/skills`（`directoryRead: true`），实现 `skills/list`、`skills/get`、`resources/list`、`resources/read` 与 `resources/directory/read`；Skill 源是仓库 `skills/surowan-mcp/`（Docker 运行时镜像会复制 `skills/`）。Skill 的每个文件都带 SHA-256 与字节数，客户端按 manifest 校验。
+- **`server/discover`**：返回 `supportedVersions`（两种 era）、tools/resources capabilities、扩展声明、serverInfo 与 instructions。
+- **独立 fallback**：`skills/surowan-mcp/` 可单独安装；不依赖 MCP with Skills 的 Harness 仍通过同一 MCP Server 使用工具。`surowan-utils` 保留为 CLI 客户端。
 
 ## CLI 与面板能力对齐
 
-对齐是契约，不是现状陈述：除浏览器专属硬限制外，`surowan-utils`（面板 Session）的能力面必须与 Web 面板等价——面板能做的每一件事，CLI 都必须有对应命令。目前唯一的硬限制是 WebAuthn Passkey 注册与登录（register/login 的 options/verify 需要浏览器 authenticator 参与仪式，CLI 物理上无法完成），Passkey 的管理面（`passkey list`/`passkey delete`）不受此限。硬限制的判定标准是「客户端形态上不可实现」，而非实现取舍：除此之外的任何面板能力缺席都是 parity 缺口，必须按下面的数据表规则补齐，不算可接受差异。只存于浏览器 `localStorage` 的面板偏好（主题、语言、键名显示）没有服务端能力面，不参与对齐。
+对齐是契约，不是现状陈述：除浏览器专属硬限制外，`surowan-utils` 与 MCP Server 的能力面必须与 Web 面板等价——面板能做的每一件事，客户端都必须有对应入口。账号与凭据是**有意排除**：管理员密码、Passkey 注册/登录、管理员账号与 API key 的创建、权限修改、轮换与撤销只允许浏览器面板（及服务端 `surowan` CLI），因为 API key 自身不能管理凭据，否则一把泄漏的 key 可以自我提权。
 
-`packages/cli`（`surowan-utils`）有两类凭据，决定它能到达哪一层：
+`packages/cli`（`surowan-utils`）只接受一种凭据：
 
 | 凭据 | 来源 | 服务端权限面 |
 | --- | --- | --- |
-| 面板 Session Token | `surowan-utils login --username <name>`（`POST /api/auth/login` 的 Cookie） | 与浏览器面板完全相同：全部审计读取与全部白名单写入 |
-| API key（`pwk_…`） | 面板 **Manage → API keys** | 固定窄面：inspection 只读视图与 Invocation 读/重放 |
+| API key（`pwk_…`） | 面板 **Manage → API keys**；`surowan-utils login --api-key` 保存 | 由 key 的模式决定：`read`、`read_write`、`read_paid` 或 `all`；账号与 key 管理永远 403 |
 
-Session Token 以 Cookie 头发送（`plasticwan_admin`），因为带 `Authorization` 的请求会被服务端固定路由到 API key 分支且**不回退**到 Cookie。凭据文件 `~/.config/surowan-utils/credentials.json` 只保存一份凭据（`{endpoint, session}` 或 `{endpoint, apiKey}`），互斥。
+用户名/密码登录与 `setup` 已删除；凭据文件 `~/.config/surowan-utils/credentials.json` 只保存 `{endpoint, apiKey}`。`doctor --json` 额外返回 `mode` 与 `permissions`，Skill 用它决定是否拒绝写/计费命令。带 `Authorization` 的请求固定走 API key 分支且**不回退**到面板 Cookie。
 
-面板路由与 CLI 命令是一一对应的数据表：`packages/cli/src/panel/specs/` 里每个 `EndpointSpec` 就是一条 `/api` 路由（method、path、位置参数、query 参数、是否需要 `If-Match` 及哪种 revision、是否属于破坏性/计费、响应是 JSON/二进制/文本），`surowan-utils commands` 原样输出这张表。**新增面板端点时必须同时加一行 spec**，否则该能力在 CLI 里不存在；`test/cli/panel/` 用真实 `AdminServer` 与真实 CLI 子进程验证登录、自动 revision、配置落盘、破坏性拒绝与 Session 轮换。
+面板路由与客户端命令是一一对应的数据表：`packages/admin-surface/` 里的每个 `EndpointSpec` 就是一条 `/api` 路由（method、path、位置参数、query 参数、是否需要 `If-Match` 及哪种 revision、是否属于破坏性/计费、响应类型、权限 `access`）。CLI 与 MCP 都消费这张表；`surowan-utils commands` 输出 CLI 可见的行。**新增面板端点时必须同时加一行 spec**，否则该能力在 CLI 与 MCP 里都不存在。`EndpointSpec.cli === false` 用于已有 first-class CLI 命令的 Invocation/配置视图路由；`mcp === false` 与 `auth/`/`api-keys` 前缀用于账号凭据排除。
 
-写入的乐观锁不需要手工搬运：配置写入先读 `GET /api/providers` 的 `revision`，Prompt 写入先读该 scope 的 `content_hash`（`prompt restore` 先读版本的 scope 与 `chat_id`），字典词条写入的 `revision` 只存在于调用方上次读取里，因此必须显式 `--if-match`。服务端冲突码（`config_conflict`/`prompt_conflict`/`dictionary_conflict`）原样返回，CLI 不重试也不覆盖。
+写入的乐观锁不需要手工搬运：配置写入先读 `GET /api/providers` 的 `revision`，Prompt 写入先读该 scope 的 `content_hash`（`prompt restore` 先读版本的 scope 与 `chat_id`），字典词条写入的 `revision` 只存在于调用方上次读取里，因此必须显式 `--if-match`。服务端冲突码（`config_conflict`/`prompt_conflict`/`dictionary_conflict`）原样返回，CLI 不重试也不覆盖；MCP 对 config revision 自动读取，对 prompt/entry revision 要求调用方先读。
 
-破坏性与计费路由带 `confirm` 标记：缺少 `--yes` 时 CLI 在发请求前以 `confirmation_required`（退出码 2）拒绝；同一路由上的删除若由另一条确认命令负责（spec 的 `nullClearedBy`，如 `telegram token` 不接受 `token: null`，须走 `telegram token clear`），解析阶段以 `invalid_body` 拒绝，`--dry-run` 打印 `{method, path, if_match, body}` 且不发请求。`--yes` 只是机械闸门；[客户端 Skill](../skills/surowan-utils/references/panel.md) 要求 Agent 在执行写操作前向用户逐项说明目标、字段与值、影响范围与可撤销性，并在用户明确同意后才加 `--yes`。
+破坏性与计费路由带 `confirm` 标记：缺少 `--yes`（MCP 为 `confirm: true`）时客户端在发请求前拒绝；`--dry-run`（MCP `dry_run: true`）打印 `{method, path, if_match, body}` 且不发请求。`--yes` 只是机械闸门；[客户端 Skill](../skills/surowan-utils/references/panel.md) 与 [MCP Skill](../skills/surowan-mcp/SKILL.md) 要求 Agent 在执行写操作前向用户逐项说明目标、字段与值、影响范围与可撤销性，并在用户明确同意后才确认。
 
-`POST /api/auth/credentials`、`DELETE /api/auth/password` 与 `POST /api/auth/setup` 会撤销该账号全部 Session 并签发新 Cookie，CLI 把新 token 写回凭据文件；`POST /api/auth/logout` 成功后删除凭据文件。`save` 类命令未收到新 token 时以 `invalid_response` 失败，避免保留已失效的凭据。写回与删除只在凭据来源是文件时发生（`credentialSources.credential === 'file'`）：`--session`/`SUROWAN_SESSION` 提供的 token 与文件无关，文件里可能是另一个 endpoint 的凭据，因此 `logout` 不删文件，轮换后只在 stderr 输出 `session_not_stored` 警告（新 token 会被输出脱敏，无法交给调用方）。
-
-`DELETE /api/auth/passkeys/:id` 与 `DELETE /api/auth/password` 走 `passkeyRequest`，非 GET 一律经 `AdminPasskeys.checkOrigin` 要求 `Origin` 与 `admin.public_url` 全等，缺失也拒绝（不同于其它写端点「缺失放行」）。对应 spec 带 `origin: true`，CLI 只在这两条上发送 endpoint 自身的 origin；其余写入不发 `Origin`，否则 endpoint 与 public URL 不同时会被通用 Origin 校验拒绝。
+CLI 的 `doctor` 用 `GET /api/key` + `GET /api/invocations?limit=1` 验证鉴权与读取面；`test/cli/panel/` 用真实 `AdminServer` 与真实 CLI 子进程验证权限模式、自动 revision、配置落盘与破坏性拒绝。
 
 ## API
 
@@ -120,7 +148,7 @@ Session Token 以 Cookie 头发送（`plasticwan_admin`），因为带 `Authoriz
 
 响应里不出现 `api_key`，也不出现任何 header 值，也不说明已保存的 SecretRef 是明文、`env` 还是 `command`。文件无效时返回 422 `config_invalid`（错误经过密钥脱敏）。`GET /provider-presets` 列出可配置的 builtin Provider（`id`、`name`、`api`、`base_url`），过滤规则见 [configuration.md](configuration.md#provider)。
 
-`GET /telegram` 是 Telegram 设置页的读端点（仅面板 Session，程序化 API key 请求得到 403），读磁盘上的 `config.jsonc`，返回 `{ revision, status, telegram_section_present, token_configured }`。`status` 是进程内连接状态登记处的快照（`disabled`/`connected`/`network_error`/`config_error`，`config_error` 带 `reason`，连接过时带 `bot`）；`token_configured` 只表示文件里有没有 `telegram.token`，永远是布尔值，不说明是 jar、env 还是 command，也不回显值。`ConfigReloader` 未接线时返回 503 `config_reload_unavailable`。
+`GET /telegram` 是 Telegram 设置页的读端点（面板 Session 或带 `read` 权限的 API key），读磁盘上的 `config.jsonc`，返回 `{ revision, status, telegram_section_present, token_configured }`。`status` 是进程内连接状态登记处的快照（`disabled`/`connected`/`network_error`/`config_error`，`config_error` 带 `reason`，连接过时带 `bot`）；`token_configured` 只表示文件里有没有 `telegram.token`，永远是布尔值，不说明是 jar、env 还是 command，也不回显值。`ConfigReloader` 未接线时返回 503 `config_reload_unavailable`。
 
 **写端点是白名单例外**，只有这些：
 
@@ -136,7 +164,7 @@ Session Token 以 Cookie 头发送（`plasticwan_admin`），因为带 `Authoriz
 | `POST /warnings/:id/read` / `DELETE /warnings` | 事件警告标为已读 / 手动清空全部事件警告；常态警告没有 `id`，不可标为已读，只能随其配置条件解除而消失。`DELETE` 不触碰常态警告，见「Warnings 页端点」 |
 | `PUT /harness` | 保存并热应用 `agent` 段除模型选择与 Prompt 外的字段及全局 `telegram.proactive_reply`，只写与文件不同的字段，沿用配置 revision、校验与原子写入机制，见「Harness tuning 页」 |
 | `DELETE /developer/model-payloads` | 分批置空历史 `model_calls.request_json` / `response_json`，保留所有审计行与关联；不执行 `VACUUM`，见「Developer 页」 |
-| `POST /api-keys` / `DELETE /api-keys/:id` | 仅面板 Session 可创建或撤销程序化密钥，见「程序化 API 密钥」 |
+| `POST /api-keys` / `PUT /api-keys/:id` / `POST /api-keys/:id/rotate` / `DELETE /api-keys/:id` | 仅面板 Session 可创建、修改权限、轮换或撤销程序化密钥，见「程序化 API 密钥」 |
 | `POST /wake` | 删除持久化睡眠状态并唤醒 Scheduler；幂等，重复调用保持 `awake` |
 | `POST /cancel-ongoing-sessions` | 中断所有 running Invocation（经 Scheduler abort），同时 abort queued Invocation、过期 `collecting`/`queued` Bucket 与已 attach 未注入的 Bucket，被中断的运行不会把批次重新排队；已发出的 Telegram 消息不撤回 |
 | `POST` / `PUT` / `DELETE /memories[/:id]` | Memo Pad 增改删，按 **Chat** 隔离（同群 Topic 共用，跨 Chat 不可见）。`POST` body `{ chat_id, summary, detail, ttl_seconds? }`：`chat_id` 是十进制 Telegram Chat ID，且该 Chat 必须已有 `chats` 行（否则 404 `chat_not_found`）；`ttl_seconds` 省略或 `null` 表示永久。`PUT` body `{ summary?, detail?, ttl_seconds? }` 至少要提供一项，`ttl_seconds: null` 把短期条目提升为永久，省略则保持原到期时间；detail 变化后，不再被同 Chat 任何 detail 引用的 Blob 行与文件随即清理。`DELETE` 删除条目并清理其孤立 Blob，不存在返回 404 `not_found`。id 必须是 `mem_<32hex>`，非法格式返回 400 `invalid_id` |
@@ -160,22 +188,22 @@ Session Token 以 Cookie 头发送（`plasticwan_admin`），因为带 `Authoriz
 | `POST /restart` | 界面上的 “Restart now”。部署方未声明 `PLASTICWAN_SUPERVISED=1` 时返回 409 `restart_unsupported`；磁盘配置权限或内容校验失败时返回 422 `config_invalid` 且不退出；成功返回 202 `{ status: 'restarting' }`，随后走优雅关闭并以退出码 75（`EX_TEMPFAIL`）退出，由外部监督重新拉起 |
 | `POST /config/apply` | 重新读取 `config.jsonc` 并把热更新白名单字段应用到运行中的进程。成功返回 200 `{ status: 'applied', applied, restart_required, outside_serve, generation, active_hash, file_hash }`；失败返回 422 `{ error, message }`，此时 active 配置不变，错误记录在 `GET /config/status` 的 `last_error` |
 | `DELETE /alarms/:id` | 只取消 Alarm 投影为 `pending` 的项目：waiting 任务变为 cancelled；completed+pending receipt 则只 suppress 投递、保留完成结果。`firing`（claimed）与其它终态返回 409 `alarm_not_pending`，不存在返回 404 `not_found`。取消记录当前面板管理员与 `admin_cancelled` 原因并唤醒 Scheduler |
-| `POST /invocations/:id/replay` | 用当前配置重放一次已结束的 Invocation；body 只接受 `global_prompt` / `group_prompt` 两个可替换层（每层 65536 字符上限，global 不能清空）、切片边界 `before_send_id`（正整数十进制字符串，指向本 Invocation 的成功 `telegram_sends`；body 上限 1 MiB）与可选临时模型选择 `provider` / `model` / `thinking_level`（`provider` 与 `model` 必须成对；`thinking_level` 取 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max` 之一，可单独给出），不接受 `system_prompt` 覆盖，见「Invocation 重放」。仅 Bearer API key 可调用（Session 请求返回 405） |
-| `PUT /prompts/global` / `PUT /prompts/group?chat=` | 编辑全局人格 / 按群指令：写 Prompt 文件（去 HTML 注释后的正文，原子临时文件 + rename，`0600`）、记录一个版本，再经既有热应用发布给**下一次**开始的 Invocation。`If-Match` 是 Prompt 内容（去注释后）的 SHA-256，**不是** `config.jsonc` revision——config revision 按设计不含 Prompt 文件：缺失返回 400 `revision_required`，文件被并发修改返回 409 `prompt_conflict`。群级在 Chat 尚无 `instructions_file` 时写 `prompts/chat-<id>.md` 并经配置写入器补上该字段，目标路径已有未被引用的文件返回 409 `prompt_file_exists`。仅面板 Session，见「Prompts 页端点」 |
+| `POST /invocations/:id/replay` | 用当前配置重放一次已结束的 Invocation；body 只接受 `global_prompt` / `group_prompt` 两个可替换层（每层 65536 字符上限，global 不能清空）、切片边界 `before_send_id`（正整数十进制字符串，指向本 Invocation 的成功 `telegram_sends`；body 上限 1 MiB）与可选临时模型选择 `provider` / `model` / `thinking_level`（`provider` 与 `model` 必须成对；`thinking_level` 取 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max` 之一，可单独给出），不接受 `system_prompt` 覆盖，见「Invocation 重放」。仅 Bearer API key 可调用（Session 请求返回 405），且 key 必须持有 `execute_paid_operations` |
+| `PUT /prompts/global` / `PUT /prompts/group?chat=` | 编辑全局人格 / 按群指令：写 Prompt 文件（去 HTML 注释后的正文，原子临时文件 + rename，`0600`）、记录一个版本，再经既有热应用发布给**下一次**开始的 Invocation。`If-Match` 是 Prompt 内容（去注释后）的 SHA-256，**不是** `config.jsonc` revision——config revision 按设计不含 Prompt 文件：缺失返回 400 `revision_required`，文件被并发修改返回 409 `prompt_conflict`。群级在 Chat 尚无 `instructions_file` 时写 `prompts/chat-<id>.md` 并经配置写入器补上该字段，目标路径已有未被引用的文件返回 409 `prompt_file_exists`。面板 Session 或带 `write` 权限的 API key，见「Prompts 页端点」 |
 | `POST /prompts/versions/:id/restore` | 把该版本内容写回为新版本（`source: 'rollback'`，默认 note `Restored from version N`，历史不删除），`If-Match` 与并发规则同 Prompt 写端点 |
 | `POST /prompts/cancel-running` | 只取消仍按旧 Prompt 运行的 Invocation：过期它们已 attach 未注入的 Bucket（`error_code = admin_cancel`）并 abort 运行；正在收集与已排队的 Bucket 不受影响（它们是未来的 Invocation，以新 Prompt 开始）；已发出的消息不撤回。body `{ scope: 'global' }` 或 `{ scope: 'group', chat_id }`（十进制字符串） |
-| `POST` / `PUT` / `DELETE /dictionary[/:id]` | 辞典词条的增改删。`POST` body 是 draft `{ term, definition, aliases, scope, chat_id: null\|"<telegram id>", enabled }`；`PUT` / `DELETE` 的 `If-Match` 是**词条自己的 `revision`**（不是配置 revision），过期或不存在返回 409 `dictionary_conflict`。`scope: 'group'` 必须给出 `chat_id`，`'global'` 必须为 `null`。同名/同别名不阻止写入，冲突由读端点报告。仅面板 Session，见「Dictionary 页端点」 |
+| `POST` / `PUT` / `DELETE /dictionary[/:id]` | 辞典词条的增改删。`POST` body 是 draft `{ term, definition, aliases, scope, chat_id: null\|"<telegram id>", enabled }`；`PUT` / `DELETE` 的 `If-Match` 是**词条自己的 `revision`**（不是配置 revision），过期或不存在返回 409 `dictionary_conflict`。`scope: 'group'` 必须给出 `chat_id`，`'global'` 必须为 `null`。同名/同别名不阻止写入，冲突由读端点报告。面板 Session 或带 `write` 权限的 API key，见「Dictionary 页端点」 |
 | `PUT /dictionary/settings?chat=` | 设置自动注入模式。不带 `chat` 写全局 `dictionary.injection_mode`（body 不允许 `null`）；带 `chat` 写该 Chat 的 `telegram.chats[].dictionary_injection_mode`，`null` 删除覆盖回到全局。`If-Match` 是 `config.jsonc` revision，规则同其它配置写端点；未配置的 `chat` 返回 404 `chat_unconfigured` |
 | `POST /dictionary/import/preview` / `POST /dictionary/import` | 批量导入两段式：preview 只解析并报告规范化 draft 与冲突（不写库），import 在**一个事务**里批量创建新词条，不按名称覆盖。`scope`/`chat_id` 来自请求而非文件内容 |
 | `POST /dictionary/merge/preview` / `POST /dictionary/merge` | 融合两段式：preview 调 Tool Model 生成建议（不写库，Tool Model 不可用返回 502 `tool_model_unavailable`）；merge 在一个事务里创建合并词条并按 `delete_sources` 删除来源，每个来源的 `revision` 必须仍匹配，否则整体回滚并返回 409 `dictionary_conflict` |
 | `PUT /tool-model` | 设置系统级辅助模型 `tool_model`（辞典融合等）。body 是 `{ provider, model, thinking_level }` 或 `{ inherit: true }`（删除该段，回到继承全局 Agent 设置）。写入前用注册表校验模型存在、支持 text 且接受该 thinking 级别；`If-Match` 规则同其它配置写端点。模型调用失败或未配置不影响辞典的其它功能 |
-| `/playground/...` | Playground 虚拟房间的全部端点（建房、身份、消息、Hold/Release、重试、图片上传与读取、能力开关、房间审计）。**仅面板 Session**，程序化 API key 一律 403，不用 `If-Match` 而用房间自己的 `revision`/请求 key，见「Playground 页端点」。房间的 Invocation 同时出现在宿主中立的全局 `/invocations[/:id]` 审计里（Session 与 API key 都可读），这不是进入房间的入口 |
+| `/playground/...` | Playground 虚拟房间的全部端点（建房、身份、消息、Hold/Release、重试、图片上传与读取、能力开关、房间审计）。面板 Session 或按模式授权的 API key（读端点 `read`、写端点 `write`、Release/Retry 需 `write+paid`），不用 `If-Match` 而用房间自己的 `revision`/请求 key，见「Playground 页端点」。房间的 Invocation 同时出现在宿主中立的全局 `/invocations[/:id]` 审计里（Session 与 API key 都可读），这不是进入房间的入口 |
 
 列表过滤同样只在少数端点上有效：`/alarms` 按 `state`(`pending`/`firing`/`fired`/`cancelled`)/`chat`/`target`，`/memories` 按 `chat`/`state`(`active`/`expired`/`short`/`long`)，`/group-memories` 按 `chat`/`day`/`search`，`/stickers` 按 `set`/`state`，`/contexts` 只按 `chat`。Memories 列表按 `id` 降序 keyset 分页，`cursor` 必须是 `mem_<32hex>`。Alarm 列表把 `pending` 按 `scheduled_at, id` 升序置顶，非 pending 历史按最近状态时间/id 倒序。
 
 ## Warnings 页端点
 
-`GET /api/warnings?limit=&cursor=&unread=1|true|0|false` 返回 `{ generated_at, standing, items, next_cursor, unread_count }`（仅面板 Session；Bearer API key 返回 403）：
+`GET /api/warnings?limit=&cursor=&unread=1|true|0|false` 返回 `{ generated_at, standing, items, next_cursor, unread_count }`（面板 Session 或带 `read` 权限的 API key）：
 
 - `standing` 是**按当前 active 配置与连接状态即时推导**的常态警告，不落库、没有 `id`，因此不能被标为已读；条件解除后下一次读取就消失，不保留开启/解除历史。包括 `developer_payload_recording`（`developer.record_model_payloads` 开启）、`agent_model_missing`（全局 agent 的 `provider`/`model`/`thinking_level` 未齐全）、`vision_model_missing`（`vision.provider`/`model` 未齐全）、`telegram_network_error`（连接状态 `network_error`）与 `telegram_config_error`（连接状态 `config_error`，`variables.reason` 为 `unauthorized`/`conflict`/`token_unreadable`）。Telegram 停用（`disabled`）不产生警告；连接态只在内存中，进程重启后重新推导。
 - `items` 是 `warnings` 表中的事件警告，`read_at IS NULL` 为未读；`unread=1` 只返回未读，同样受 `limit`（1–100，默认 25）与 `cursor`（`id` 降序键集）约束。`unread_count` 只数未读事件警告，不含常态警告。
@@ -196,9 +224,9 @@ Invocation 列表与详情的统计按 `invocation_id` 查询 `model_calls` / `t
 
 ## Group memory 页
 
-`/group-memories` 展示 sleeping worker 生成的事件摘要，与 Memo Pad 分开。列表按 `day DESC, first_message_id DESC, id DESC` keyset 分页，`cursor` 是 `<YYYY-MM-DD>:<message_id>:<id>`（Telegram message id 按 Chat 各自编号，不同 Chat 可能同日同起点，`id` 打破平局）；可按 Chat、日期与 summary 搜索。每行显示闭区间 Telegram message-id；`View source` 调用 `GET /api/group-memories/:id/messages` 回放仍保留的原始消息（响应文本按 20000 字符截断）。`Edit` 只改 summary；`Delete` 删除事件行但不回退 `group_memory_state` 水位，因此不会被 worker 重新生成。该页仅面板 Session，Bearer API key 不可读。
+`/group-memories` 展示 sleeping worker 生成的事件摘要，与 Memo Pad 分开。列表按 `day DESC, first_message_id DESC, id DESC` keyset 分页，`cursor` 是 `<YYYY-MM-DD>:<message_id>:<id>`（Telegram message id 按 Chat 各自编号，不同 Chat 可能同日同起点，`id` 打破平局）；可按 Chat、日期与 summary 搜索。每行显示闭区间 Telegram message-id；`View source` 调用 `GET /api/group-memories/:id/messages` 回放仍保留的原始消息（响应文本按 20000 字符截断）。`Edit` 只改 summary；`Delete` 删除事件行但不回退 `group_memory_state` 水位，因此不会被 worker 重新生成。该页读端点允许持有 `read` 权限的 API key；写端点需要 `write`。
 
-Memories 页管理 Chat 级 Memo Pad，不是按 Conversation 隔离的短期记忆。所有读写仅面板 Session；已配置的 Bearer API key 没有 `/memories` 权限（403），与其它面板写端点一致。
+Memories 页管理 Chat 级 Memo Pad，不是按 Conversation 隔离的短期记忆。读端点允许 `read`，写端点需要 `write`；Bearer key 的权限模式决定可执行的操作。
 
 `GET /api/memories?chat=<telegram_chat_id>&state=&limit=&cursor=` 返回 `{ items, next_cursor }`，按 `id` 降序做 keyset 分页（`id` 是 `mem_<32hex>`，不承担时间排序）：
 
@@ -212,7 +240,7 @@ Memories 页管理 Chat 级 Memo Pad，不是按 Conversation 隔离的短期记
 
 - `:id` 必须是 `blb_<32hex>`，否则 400 `invalid_id`；行不存在或文件缺失返回 404（不回退到任意路径）。
 - 响应头带 Blob 的 `content-type`、`content-length`、`cache-control: private, no-store` 与 `content-disposition: inline`，沿用统一安全头（含 `nosniff`）。
-- 仅面板 Session：Bearer API key 与未认证请求都拿不到字节；浏览器直接引用该同源路径，前端不接触本地文件路径。
+- 面板 Session 或带 `read` 权限的 Bearer API key 可以读取；未认证请求拿不到字节，浏览器直接引用该同源路径，前端不接触本地文件路径。
 
 详情渲染规则：detail 是 Markdown，`![alt](pwblob://blb_<32hex>)` 转成 `<img src="/api/memories/blobs/<id>/content">`，其余残留的 `pwblob://<id>` 转成指向同一内容端点的链接；整体以 React 节点渲染，禁止 `dangerouslySetInnerHTML`，因此 detail 里的 HTML/脚本不会被浏览器执行。列表只展示 summary，点击后才拉取并用详情弹窗展示 detail。
 
@@ -238,7 +266,7 @@ Playground 是产品的虚拟群聊沙盒：房间对应一个 `host_kind = 'pla
 | `PUT /rooms/:id/capabilities` | `{ image_enabled, revision }` 房间付费生图开关（记录操作者与时间）；值未变化时是 no-op（重试不会因自己造成的 revision 失败），否则 revision 不匹配返回 409 `room_revision_mismatch` |
 | `GET /rooms/:id/invocations[/:invocationId]` | scoped 房间审计：状态、错误、用量（tokens/成本）、发送用量、receipt 状态与所属 `release_id`（首跑和重试都指向同一个 Release，重试按它寻址；不由 Release 打开的运行为 null）；`invocationId` 不属于该房间返回 404 |
 
-所有路由都要求面板 Session；带 `Authorization` 的请求不会落到 Session 路径，程序化 key 的权限面保持不变（Invocation 读/重放与只读 inspection）。`GET` 从不触发运行或生成；冒烟与故障注入由测试驱动（`holdForNewMessages` 等语义见 [telegram-agent-flow.md](telegram-agent-flow.md)）。路径、查询参数与 body 里的 ID 必须是规范十进制（无符号、无前导零、不超 int64，19 位但超出 int64 的值同样在查询前 400）：`007`、`-1`、`pmsg_5`、`0x5` 一律 400，嵌套 ID 必须是该房间自己的行，否则 404 且没有任何行变化。房间图片字节由 `apps/admin-next` 的页面直接引用内容端点，浏览器不接触任何本地路径。
+所有路由都要求面板 Session 或按模式授权的 API key；带 `Authorization` 的请求不会落到 Session 路径，key 的权限由 EndpointSpec 声明。`GET` 从不触发运行或生成；冒烟与故障注入由测试驱动（`holdForNewMessages` 等语义见 [telegram-agent-flow.md](telegram-agent-flow.md)）。路径、查询参数与 body 里的 ID 必须是规范十进制（无符号、无前导零、不超 int64，19 位但超出 int64 的值同样在查询前 400）：`007`、`-1`、`pmsg_5`、`0x5` 一律 400，嵌套 ID 必须是该房间自己的行，否则 404 且没有任何行变化。房间图片字节由 `apps/admin-next` 的页面直接引用内容端点，浏览器不接触任何本地路径。
 
 ## Chats 页端点
 
@@ -272,12 +300,12 @@ Chats 的编辑与删除确认在打开时冻结数据与 revision，后台刷�
 
 ## Prompts 页端点
 
-Prompts 管理两层可编辑 Prompt：全局人格（`agent.system_prompt_file`）与每个配置 Chat 的按群指令（`telegram.chats[].instructions_file`）。面板编辑的就是配置引用的那两个文件；写入需面板 Session 与同源 Origin，且面板前端在保存或恢复后先询问是否取消仍在旧 Prompt 上运行的 Invocation（保存本身从不自动取消）。界面操作说明见[用户指南](../apps/docs/content/docs/configure/admin-prompts.md#编辑-prompt-与版本历史)。
+Prompts 管理两层可编辑 Prompt：全局人格（`agent.system_prompt_file`）与每个配置 Chat 的按群指令（`telegram.chats[].instructions_file`）。面板编辑的就是配置引用的那两个文件；写入需要面板 Session 或带 `write` 权限的 API key（浏览器面板写请求还需要同源 Origin），且面板前端在保存或恢复后先询问是否取消仍在旧 Prompt 上运行的 Invocation（保存本身从不自动取消）。界面操作说明见[用户指南](../apps/docs/content/docs/configure/admin-prompts.md#编辑-prompt-与版本历史)。
 
 - `PUT /prompts/global` 与 `PUT /prompts/group?chat=`：body 为 `{ prompt, note? }`（prompt ≤ 65536 字符，note ≤ 200）。写入的是去 HTML 注释后的模板，走与重放覆盖相同的校验边界（NUL/BOM、模板变量白名单；global 不可为空），原子替换（同目录临时文件 + rename、`0600`）后记录版本，再经既有热应用发布：**下一次**开始的 Invocation 使用新 Prompt，正在运行的 Invocation 继续用它启动时的快照。群级 Chat 未配置返回 404 `chat_unconfigured`；创建时内容为空返回 400 `prompt_empty`。
 - `If-Match` 是 Prompt 内容哈希：GET 视图的 `content_hash` 是去 HTML 注释后内容的 SHA-256，写端点要求携带同一个值，缺失返回 400 `revision_required`，不一致返回 409 `prompt_conflict`。它**不是** `config.jsonc` revision（config revision 按设计排除 Prompt 文件），因此纯注释手改既不改变哈希也不产生版本。
 - 创建按群指令：Chat 还没有 `instructions_file` 时，保存写配置文件旁的 `prompts/chat-<id>.md` 并通过配置写入器补上 `instructions_file`（热应用）；目标路径已存在未被引用的文件时返回 409 `prompt_file_exists`，绝不覆盖。
-- 版本历史：`GET /prompts/versions?scope=global` 与 `?scope=group&chat=` 返回 `{ scope, chat_id, retained, current, items }`（item 不含正文，含 `id`、`seq`、`content_hash`、`content_chars`、`source`、`note`、`created_by`、`created_at`）；`GET /prompts/versions/:id` 额外含完整 `content`；`GET /prompts/diff?from=&to=` 返回同一 scope 两个版本的 unified 风格 hunks（context/removed/added 行与两侧 1-based 行号、3 行上下文），跨 scope 返回 400 `diff_scope_mismatch`，版本不存在返回 404 `version_not_found`。这三个读端点与写端点一样仅限面板 Session。
+- 版本历史：`GET /prompts/versions?scope=global` 与 `?scope=group&chat=` 返回 `{ scope, chat_id, retained, current, items }`（item 不含正文，含 `id`、`seq`、`content_hash`、`content_chars`、`source`、`note`、`created_by`、`created_at`）；`GET /prompts/versions/:id` 额外含完整 `content`；`GET /prompts/diff?from=&to=` 返回同一 scope 两个版本的 unified 风格 hunks（context/removed/added 行与两侧 1-based 行号、3 行上下文），跨 scope 返回 400 `diff_scope_mismatch`，版本不存在返回 404 `version_not_found`。这三个读端点与其他审计读端点一样允许 `read`；写端点需要 `write`。
 - 恢复：`POST /prompts/versions/:id/restore`（body `{ note? }`）把该版本内容写回并**追加**一个 `rollback` 版本（默认 note `Restored from version N`）；历史从不删除。每个 scope 只保留最近 100 条（按 `seq` 修剪），且不随 `retention.online_days` 清理——Prompt 历史是配置，不是会话数据；见 [data-layer.md](data-layer.md#prompt-版本迁移-031)。
 - 运行中的 Invocation：保存与恢复的响应带 `affected_running`，统计 `config_hash` 与新 active hash 不同、仍在运行的 Invocation（群级只统计该 Chat 的 Conversation，同时覆盖群迁移前后的 Telegram Chat ID）与 `context_rebuild: true`（Prompt 变化在下一轮运行时重建受影响的 Conversation Context）。`POST /prompts/cancel-running`（body `{ scope: 'global' }` 或 `{ scope: 'group', chat_id }`）只取消这些运行：过期它们已 attach 未注入的 Bucket（`error_code = admin_cancel`）并 abort 运行；正在收集与已排队的 Bucket 不受影响，因为它们是未来的 Invocation、会以新 Prompt 开始；已发出的消息与已完成的副作用不撤销。响应 `{ expired_buckets, canceled_invocations }`，没有受影响运行时为 0。
 - 响应：成功为 `{ status: 'saved', version, applied, restart_required, outside_serve, active_hash, file_hash, affected_running, context_rebuild }`；内容与文件当前值（去注释后）一致时返回 `{ status: 'unchanged', version }`，不写文件、不记版本；文件已写入且版本已记录但配置没应用时返回对应配置错误码，message 以 `The prompt file was written and the version recorded, but the configuration was not applied: ` 开头并附 `version`。
@@ -368,7 +396,7 @@ Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_
 
 ## Invocation 重放
 
-`POST /api/invocations/:id/replay` 仅接受 Bearer API key，用**当前**配置重放一次已结束的 Invocation，由 `src/orchestration/replay/index.ts` 执行、`AdminServer` 只做转发（引擎未接线时 503 `replay_unavailable`）。请求体严格为 `{ global_prompt?, group_prompt?, before_send_id?, provider?, model?, thinking_level? }`，`global_prompt`/`group_prompt` 只允许替换 prompt 的两个可编辑层：省略某层表示沿用当前 active 配置值；`global_prompt` 不能为空（空串在边界返回 400 `invalid_body`，去注释后为空由引擎返回 400 `replay_prompt_empty`；含 NUL/BOM 或未知模板变量返回 400 `replay_prompt_invalid`；每层超过 65536 字符在边界返回 400 `invalid_body`），`group_prompt` 允许空串以显式丢掉群指令。`before_send_id` 是正整数十进制字符串（0、溢出或非十进制返回 400 `invalid_before_send_id`），选择切片边界；预检与重放必须使用同一值，它不是 prompt 覆盖。`provider` 与 `model` 必须成对，各为 1–256 字符、不可全为空白或含控制字符；`thinking_level` 取七档之一、可单独给出，形状非法返回 400 `invalid_body`。它们是**临时覆盖**，只影响这一次重放，不写回配置、不改生产 Context/审计/预算，但选中模型决定 prompt 变量、图片能力、context budget、Schema、Provider 连接与真实费用——给模型对而不给 thinking 时用该模型支持的最弱级别（非推理模型为 `off`），请求模型不支持的级别拒绝；未给选择时按源 Chat 配置解析。body 上限 1 MiB（超出 413 `body_too_large`），其它字段返回 400 `invalid_body`；`system_prompt` 已从契约删除且无别名，固定段与协议字段同样不可覆盖。请求的 `AbortSignal` 直接传给引擎，客户端断开或进程关停都会中止重放。
+`POST /api/invocations/:id/replay` 仅接受持有 `execute_paid_operations` 的 Bearer API key，用**当前**配置重放一次已结束的 Invocation，由 `src/orchestration/replay/index.ts` 执行、`AdminServer` 只做转发（引擎未接线时 503 `replay_unavailable`）。请求体严格为 `{ global_prompt?, group_prompt?, before_send_id?, provider?, model?, thinking_level? }`，`global_prompt`/`group_prompt` 只允许替换 prompt 的两个可编辑层：省略某层表示沿用当前 active 配置值；`global_prompt` 不能为空（空串在边界返回 400 `invalid_body`，去注释后为空由引擎返回 400 `replay_prompt_empty`；含 NUL/BOM 或未知模板变量返回 400 `replay_prompt_invalid`；每层超过 65536 字符在边界返回 400 `invalid_body`），`group_prompt` 允许空串以显式丢掉群指令。`before_send_id` 是正整数十进制字符串（0、溢出或非十进制返回 400 `invalid_before_send_id`），选择切片边界；预检与重放必须使用同一值，它不是 prompt 覆盖。`provider` 与 `model` 必须成对，各为 1–256 字符、不可全为空白或含控制字符；`thinking_level` 取七档之一、可单独给出，形状非法返回 400 `invalid_body`。它们是**临时覆盖**，只影响这一次重放，不写回配置、不改生产 Context/审计/预算，但选中模型决定 prompt 变量、图片能力、context budget、Schema、Provider 连接与真实费用——给模型对而不给 thinking 时用该模型支持的最弱级别（非推理模型为 `off`），请求模型不支持的级别拒绝；未给选择时按源 Chat 配置解析。body 上限 1 MiB（超出 413 `body_too_large`），其它字段返回 400 `invalid_body`；`system_prompt` 已从契约删除且无别名，固定段与协议字段同样不可覆盖。请求的 `AbortSignal` 直接传给引擎，客户端断开或进程关停都会中止重放。
 
 引擎行为（也是响应 `fidelity` 字段承诺的边界）：
 
@@ -466,7 +494,7 @@ Bot 管理员白名单不再是数据库表：迁移 `src/store/migrations/026_d
 
 ## 网络搜索设置
 
-`GET /search/config`（面板 Session）返回 `{ revision, enabled, active, url_filters, engines[], providers[], deepseek_keys[] }`：`enabled` 是文件里的总开关，`active` 按正在运行的配置（`configStore.current()`）计算「开关打开且至少一个引擎启用」，文件已改但尚未生效或 apply 失败时以运行态为准；`engines[]` 只说明 `key_configured` 布尔值，永远不回显密钥或 SecretRef 内容；`providers[]` 来自已加载插件贡献的规格（标识、显示名、默认地址、密钥策略、查询上限、是否支持条数），面板不自行硬编码服务商；`deepseek_keys[]` 是可用于复用的 DeepSeek 模型 Provider alias。
+`GET /search/config`（面板 Session 或带 `read` 权限的 API key）返回 `{ revision, enabled, active, url_filters, engines[], providers[], deepseek_keys[] }`：`enabled` 是文件里的总开关，`active` 按正在运行的配置（`configStore.current()`）计算「开关打开且至少一个引擎启用」，文件已改但尚未生效或 apply 失败时以运行态为准；`engines[]` 只说明 `key_configured` 布尔值，永远不回显密钥或 SecretRef 内容；`providers[]` 来自已加载插件贡献的规格（标识、显示名、默认地址、密钥策略、查询上限、是否支持条数），面板不自行硬编码服务商；`deepseek_keys[]` 是可用于复用的 DeepSeek 模型 Provider alias。
 
 `PUT /search/config` 接受 `{ enabled: boolean, url_filters: string[], engines: [{ id, provider, enabled, endpoint, results, timeout_seconds, note, api_key, keep_api_key, key_source }] }`。字段规则与 [configuration.md](configuration.md#网络搜索web_search) 一致；`api_key` 是新明文，`keep_api_key` 保留该引擎原有引用，`key_source` 只能指向 `deepseek_keys[]` 里的 alias，三者互斥。校验失败返回 400 `search_invalid`，配置 revision 冲突返回 409 `config_conflict`，其它写失败沿用配置写端点的状态码。保存后立即热应用：关闭功能或禁用所有引擎会让运行中的 Invocation 立刻停止（`web_search_disabled`），下一次消息用重建的 Context 开启新 Invocation；只禁用部分引擎不打断运行。
 

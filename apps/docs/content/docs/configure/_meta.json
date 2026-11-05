@@ -7,5 +7,6 @@
   "admin-developer",
   "admin-prompts",
   "admin-api-keys",
-  "admin-invocation-replay"
+  "admin-invocation-replay",
+  "mcp-server"
 ]

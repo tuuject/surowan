@@ -236,7 +236,7 @@ test.describe('routes and deep links', () => {
     await page.goto(await adminUrl('/api-keys'));
     await expect(page.getByRole('main').getByText('API keys', { exact: true }).first()).toBeVisible();
     await expect(page.getByRole('button', { name: 'Create API key' })).toBeVisible();
-    for (const header of ['Name', 'Prefix', 'Created', 'Last used', 'Status', 'Actions']) {
+    for (const header of ['Name', 'Prefix', 'Mode', 'Created', 'Last used', 'Status', 'Actions']) {
       await expect(page.getByRole('columnheader', { name: header, exact: true })).toBeVisible();
     }
     await expect(page.getByText('Something went wrong')).toHaveCount(0);

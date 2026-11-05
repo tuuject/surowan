@@ -9,7 +9,6 @@ import { listActiveTextModels } from '../../platform/models/switch.ts';
 import { ThinkingLevelSchema } from '../../platform/config/schema-model.ts';
 import { listAlarms } from '../../plugins/alarm/admin.ts';
 import { REPLAY_BODY_MAX_BYTES, SECURITY_HEADERS, json, listQuery, readJsonObject } from './http.ts';
-import { authenticateApiKey } from './api-keys.ts';
 import { AdminQueryError, parseId } from './audit/shared.ts';
 import { getConversationContext, listConversationContexts } from './audit/conversations.ts';
 import { getInvocation } from './audit/invocation-detail.ts';
@@ -147,47 +146,11 @@ export function createInspectionAdminHandler(deps: InspectionAdminDeps) {
   };
 
   /**
-   * The programmatic surface of an `Authorization: Bearer pwk_…` request. The
-   * key authenticates the caller, but the surface is fixed: inspection reads,
-   * invocation reads and isolated replay. Every other route is refused — including
-   * API key management and credential/config writes. A cookie never upgrades it.
+   * The programmatic surface of an `Authorization: Bearer pwk_…` request is
+   * dispatched by `AdminServer`, which authenticates the key and checks the
+   * route's permission before calling the same route groups as a session. This
+   * handler only owns the inspection routes and replay.
    */
-  const apiKeyRequest = async (
-    request: Request,
-    url: URL,
-    segments: readonly string[],
-    authorization: string,
-  ): Promise<Response> => {
-    const scheme = 'Bearer ';
-    const token =
-      authorization.slice(0, scheme.length).toLowerCase() === scheme.toLowerCase()
-        ? authorization.slice(scheme.length).trim()
-        : '';
-    if (token.length === 0 || authenticateApiKey(store.orm, token) === null) {
-      return json({ error: 'unauthenticated', message: 'A valid API key is required' }, 401);
-    }
-    secrets?.remember(token);
-    const inspection = await inspect(request, url, segments, token);
-    if (inspection !== undefined) {
-      return inspection;
-    }
-    if (segments[0] !== 'invocations') {
-      return json({ error: 'forbidden', message: 'API keys may only access inspection and invocation routes' }, 403);
-    }
-    if (segments.length === 1 && request.method === 'GET') {
-      return json(
-        redactInspection(listInvocations(store.orm, listQuery(url), configStore.current().config), secrets, token),
-      );
-    }
-    if (segments.length === 2 && request.method === 'GET') {
-      const found = getInvocation(store.orm, parseId(segments[1] ?? '', 'id'));
-      return found === null ? json({ error: 'not_found', message: 'Invocation does not exist' }, 404) : json(found);
-    }
-    if (segments.length === 3 && segments[2] === 'replay' && request.method === 'POST') {
-      return await replayInvocationRoute(request, parseId(segments[1] ?? '', 'id'));
-    }
-    return json({ error: 'forbidden', message: 'API keys may only access inspection and invocation routes' }, 403);
-  };
 
   /** Exact GET allowlist shared by sessions and keys; never dispatches panel writes. */
   const inspect = async (
@@ -347,5 +310,5 @@ export function createInspectionAdminHandler(deps: InspectionAdminDeps) {
     return undefined;
   };
 
-  return { apiKeyRequest, inspect, list };
+  return { replay: replayInvocationRoute, inspect, list };
 }

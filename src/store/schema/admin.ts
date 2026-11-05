@@ -62,6 +62,10 @@ export const adminApiKeys = sqliteTable('admin_api_keys', {
   createdAt: text('created_at').notNull(),
   lastUsedAt: text('last_used_at'),
   revokedAt: text('revoked_at'),
+  /** `read:all` is the base grant and must be 1 for the key to work. */
+  readAll: integer('read_all', { mode: 'boolean' }).notNull().default(true),
+  writeAll: integer('write_all', { mode: 'boolean' }).notNull().default(false),
+  executePaidOperations: integer('execute_paid_operations', { mode: 'boolean' }).notNull().default(false),
 });
 
 /**
