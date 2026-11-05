@@ -97,6 +97,22 @@ MCP Server 与 Admin Panel 同一监听端口；`admin.enabled = false` 时两�
 - `apps/docs` 重写 API keys 页，新增 `configure/mcp-server.md` 与 MCP Agent 接入说明；CLI README / REFERENCE / Skill 文档同步。
 - `scripts/docs/verify.ts` 在比较前统一把生成 Markdown 的 CRLF 归一为 LF，使 Windows 本地验证与 Linux CI 一致。
 
+### 8. Review 修复
+
+一轮 code review（OCR 加逐条人工核实）发现的问题，每条先写测试复现失败再修：
+
+- 计费确认：`invocation replay` spec 补上 `confirm: 'paid'`，此前它是唯一不需要 `confirm` 的计费工具。`test/admin/mcp.test.ts` 断言所有 MCP 暴露的 `paid`/`write+paid` spec 都声明 `confirm: 'paid'`。
+- `nullClearedBy`：MCP 工具执行前与 CLI 一样拒绝把字段置 `null`；此前 `surowan_telegram_token` 传 `body: { token: null }` 能绕过 `surowan_telegram_token_clear` 的确认删掉 Bot Token。
+- 二进制响应：按字节读取，图片返回 `image` content，其余 MIME 返回 base64 `resource.blob`，单文件 16 MiB 上限。此前非图片被 `response.text()` 按 UTF-8 解码后标成 Base64，WebM、TGS 等字节不可恢复。
+- 路径参数类型：`tool_call_id` 与两处 `asset_id` 改为 `text`。此前的 `decimal` 校验让 `surowan_invocation_tool_image` 与 `surowan_context_message_image` 对 `call_images`、32 位 hex 这类真实 ID 全部失败。
+- 信封上限：`/mcp` 按字节流读取，`MAX_MCP_BODY_BYTES = 32 MiB`（最大的内层 body 是 30 MB 图片上传），超限 413；legacy 分支用 `parsedBody` 把已解析 payload 交给 SDK。
+- 取消：`ToolContext.signal` 携带调用方 HTTP 请求的 signal（legacy 再合并 SDK 的 per-request signal），内部转发请求带上它，客户端断开时重放等计费路由随之中止。
+- 脱敏回归：Bearer 请求把调用方 key 显式传给 `inspect`/`list` 的 `redactInspection`；此前只靠 `SecretStore.remember`，而 `SecretStore` 可选且只缓存 64 条。
+- `resources/directory/read` 接受带尾斜杠的目录 URI，根目录正是以 `skill://surowan-mcp/` 发布的。
+- `execute_paid_operations` 的 Drizzle 默认值改为 `true`，与迁移 053 的 `DEFAULT 1` 一致；此前 ORM 插入省略该列会显式写 0，与裸 SQL 得到的权限不同。
+
+驳回 OCR 的「`/mcp` 绕过 Origin 闸门」：`/mcp` 只接受 Bearer key，没有浏览器自动携带的凭据，跨站请求带 `Authorization` 头还要过 CORS 预检，不构成 CSRF。
+
 ## 验证
 
 ```bash
@@ -122,6 +138,21 @@ git diff --check
 # clean
 ```
 
+Review 修复（`6fdf7fd`）：
+
+```bash
+pnpm exec vitest run test/admin/mcp.test.ts test/admin/api-keys.test.ts   test/admin/tool-images.test.ts test/prompts/admin-global.test.ts
+# 新增 8 条测试修复前全部失败，修复后通过
+pnpm run lint
+pnpm run check
+pnpm test
+# 364 passed | 1 skipped (365 files), 1726 passed | 8 skipped (1734 tests)
+git diff --check
+# clean
+```
+
+Review 修复没有改动前端、面板文案、文档站或配置 Schema，Admin e2e 与 docs 构建未重跑。
+
 真实 Telegram、真实 Provider 调用与 `surowan` 服务端 CLI 未在本工作树执行。
 
 ## 提交
@@ -129,4 +160,5 @@ git diff --check
 ```txt
 37e537f Add MCP server and API key permission modes
 aefff01 Allow MCP dry runs without confirmation
+6fdf7fd Fix MCP server review findings
 ```
