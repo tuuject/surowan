@@ -171,10 +171,12 @@ export function directoryResources(
   catalog: SkillCatalog,
   uri: string,
 ): readonly { readonly uri: string; readonly name: string; readonly mimeType: string }[] {
-  if (!catalog.directories.includes(uri)) {
+  // The root is published as `skill://surowan-mcp/`; both spellings name one directory.
+  const directory = uri.endsWith('/') ? uri.slice(0, -1) : uri;
+  if (!catalog.directories.includes(directory)) {
     throw new McpError(ErrorCode.InvalidParams, 'Unknown directory URI');
   }
-  const prefix = uri.endsWith('/') ? uri : `${uri}/`;
+  const prefix = `${directory}/`;
   const children = new Map<string, { uri: string; name: string; mimeType: string }>();
   for (const file of catalog.files) {
     if (!file.uri.startsWith(prefix)) {

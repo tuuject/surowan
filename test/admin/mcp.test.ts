@@ -1,4 +1,9 @@
-import { expect, test } from 'vitest';
+import { Buffer } from 'node:buffer';
+import { expect, test, vi } from 'vitest';
+import { ADMIN_SURFACE_SPECS, specAccess, specIsMcpExposed } from '@surowan/admin-surface';
+import { permissionsFromMode } from '../../src/ingress/admin/api-keys.ts';
+import { MAX_MCP_BODY_BYTES } from '../../src/ingress/admin/mcp/index.ts';
+import { TOOL_CATALOG, type ToolContext } from '../../src/ingress/admin/mcp/tools.ts';
 import {
   type Fixture,
   bearer,
@@ -9,6 +14,7 @@ import {
   request,
   setupAdmin,
 } from './api-keys-fixtures.ts';
+import { login, fixture as reloadableFixture } from '../prompts/admin-fixtures.ts';
 
 installAdminApiKeyHooks();
 
@@ -226,6 +232,161 @@ test('legacy initialize still works and shares the tool catalog', async () => {
     expect((await readJson(listed)).result.tools).toEqual(
       expect.arrayContaining([expect.objectContaining({ name: 'surowan_key_show' })]),
     );
+  } finally {
+    store.close();
+  }
+});
+
+test('every billed MCP tool needs confirm, and replay follows the caller cancellation', async () => {
+  for (const spec of ADMIN_SURFACE_SPECS.filter(specIsMcpExposed)) {
+    const access = specAccess(spec);
+    if (access === 'paid' || access === 'write+paid') {
+      expect({ command: spec.command, confirm: spec.confirm }).toEqual({ command: spec.command, confirm: 'paid' });
+    }
+  }
+
+  const seen: AbortSignal[] = [];
+  let finish!: () => void;
+  const running = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  const { store, server } = await fixture(async (_id, _input, signal) => {
+    seen.push(signal);
+    await running;
+    return { status: 'replayed' };
+  });
+  try {
+    const cookie = await setupAdmin(server);
+    const auth = bearer((await createModeKey(server, cookie, 'read_paid')).key);
+
+    const unconfirmed = await server.handle(
+      modern('tools/call', { name: 'surowan_invocation_replay', arguments: { id: '1', body: {} } }, 1, auth),
+    );
+    expect(await readJson(unconfirmed)).toMatchObject({
+      result: { isError: true, content: [{ type: 'text', text: expect.stringContaining('billed') }] },
+    });
+    expect(seen).toHaveLength(0);
+
+    const controller = new AbortController();
+    const pending = server.handle(
+      new Request(
+        modern(
+          'tools/call',
+          { name: 'surowan_invocation_replay', arguments: { id: '1', body: {}, confirm: true } },
+          2,
+          auth,
+        ),
+        { signal: controller.signal },
+      ),
+    );
+    await vi.waitFor(() => expect(seen).toHaveLength(1));
+    expect(seen[0]?.aborted).toBe(false);
+    controller.abort();
+    expect(seen[0]?.aborted).toBe(true);
+    finish();
+    expect(await readJson(await pending)).toMatchObject({ result: { structuredContent: { status: 'replayed' } } });
+  } finally {
+    store.close();
+  }
+});
+
+test('a generic body cannot null a field that only the confirmed clear tool may delete', async () => {
+  // Telegram writes need the config reloader, which only the prompts fixture wires.
+  const { store, server } = await reloadableFixture();
+  try {
+    const cookie = await login(server);
+    const auth = bearer((await createModeKey(server, cookie, 'all')).key);
+    const before = await readJson(await server.handle(request('/api/telegram', { headers: auth })));
+    expect(before).toMatchObject({ token_configured: true });
+
+    const refused = await server.handle(
+      modern(
+        'tools/call',
+        { name: 'surowan_telegram_token', arguments: { body: { token: null }, if_match: before.revision } },
+        1,
+        auth,
+      ),
+    );
+    expect(await readJson(refused)).toMatchObject({
+      result: {
+        isError: true,
+        content: [{ type: 'text', text: expect.stringContaining('surowan_telegram_token_clear') }],
+      },
+    });
+    const after = await readJson(await server.handle(request('/api/telegram', { headers: auth })));
+    expect(after).toMatchObject({ token_configured: true });
+  } finally {
+    store.close();
+  }
+});
+
+test('binary downloads keep their exact bytes and stay bounded', async () => {
+  // A WebM header followed by bytes that are not valid UTF-8.
+  const bytes = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x80, 0xff, 0x00, 0xfe, 0xc3]);
+  const requests: Request[] = [];
+  let body: Uint8Array = bytes;
+  const context: ToolContext = {
+    permissions: permissionsFromMode('read'),
+    mode: 'read',
+    token: 'pwk_test',
+    signal: new AbortController().signal,
+    callAdmin: async (outgoing) => {
+      requests.push(outgoing);
+      return new Response(body, { headers: { 'content-type': 'video/webm' } });
+    },
+  };
+  const result = await TOOL_CATALOG.call(
+    'surowan_invocation_media_content',
+    { id: '7', media_id: '9', variant: 'original' },
+    context,
+  );
+  expect(requests[0]?.url).toBe('http://surowan.local/api/invocations/7/media/9/content?variant=original');
+  expect(result.isError).toBeUndefined();
+  const [resource] = result.content;
+  expect(resource).toMatchObject({ type: 'resource', resource: { mimeType: 'video/webm' } });
+  const blob = resource?.type === 'resource' && 'blob' in resource.resource ? resource.resource.blob : '';
+  expect(Buffer.from(blob, 'base64')).toEqual(bytes);
+
+  body = new Uint8Array(16 * 1024 * 1024 + 1);
+  const oversized = await TOOL_CATALOG.call('surowan_invocation_media_content', { id: '7', media_id: '9' }, context);
+  expect(oversized).toMatchObject({
+    isError: true,
+    content: [{ type: 'text', text: expect.stringContaining('larger') }],
+  });
+});
+
+test('the MCP envelope is refused past its byte limit before it is parsed', async () => {
+  const { store, server } = await fixture();
+  try {
+    const cookie = await setupAdmin(server);
+    const auth = bearer((await createModeKey(server, cookie, 'read')).key);
+    const oversized = await server.handle(
+      post(
+        '/mcp',
+        `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"pad":"${'x'.repeat(MAX_MCP_BODY_BYTES)}"}}`,
+        { 'mcp-protocol-version': '2026-07-28', ...auth },
+      ),
+    );
+    expect(oversized.status).toBe(413);
+    expect(await readJson(oversized)).toMatchObject({ jsonrpc: '2.0', error: { message: expect.any(String) } });
+  } finally {
+    store.close();
+  }
+});
+
+test('skill directory reads accept the published trailing-slash URI', async () => {
+  const { store, server } = await fixture();
+  try {
+    const cookie = await setupAdmin(server);
+    const auth = bearer((await createModeKey(server, cookie, 'read')).key);
+    const names = async (uri: string, id: number) => {
+      const body = await readJson(await server.handle(modern('resources/directory/read', { uri }, id, auth)));
+      expect(body.error).toBeUndefined();
+      return body.result.resources.map((resource: { name: string }) => resource.name);
+    };
+    expect(await names('skill://surowan-mcp', 1)).toEqual(['agents', 'references', 'SKILL.md']);
+    expect(await names('skill://surowan-mcp/', 2)).toEqual(['agents', 'references', 'SKILL.md']);
+    expect(await names('skill://surowan-mcp/references/', 3)).toEqual(['tools.md']);
   } finally {
     store.close();
   }

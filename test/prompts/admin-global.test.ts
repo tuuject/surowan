@@ -165,3 +165,22 @@ test('a hand-edited prompt file becomes a version on the next apply, comment-onl
     store.close();
   }
 });
+
+test('API key reads redact the calling key even without a secret store', async () => {
+  // This fixture's AdminServer has no SecretStore, so remember(token) cannot help.
+  const { store, server, directory } = await fixture();
+  try {
+    const cookie = await login(server);
+    const key = await readJson(await server.handle(post('/api/api-keys', { name: 'probe' }, cookie)));
+    await writeFile(join(directory, 'agent-system-prompt.md'), `Never print ${key.key as string}.`);
+    const view = await server.handle(
+      request('/api/prompts/global?source=file', { headers: { authorization: `Bearer ${key.key as string}` } }),
+    );
+    expect(view.status).toBe(200);
+    const text = await view.text();
+    expect(text).not.toContain(key.key);
+    expect(text).toContain('[REDACTED]');
+  } finally {
+    store.close();
+  }
+});

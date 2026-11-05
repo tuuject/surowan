@@ -14,6 +14,8 @@ export interface ToolContext {
   /** Sends one request back through the Admin API with the caller's key. */
   readonly callAdmin: (request: Request) => Promise<Response>;
   readonly token: string;
+  /** The MCP caller's cancellation; billed routes stop when the client goes away. */
+  readonly signal: AbortSignal;
 }
 
 interface CatalogEntry {
@@ -30,8 +32,8 @@ export interface ToolCatalog {
   ) => Promise<CallToolResult>;
 }
 
-function toolName(spec: EndpointSpec): string {
-  const base = `surowan_${spec.command
+function toolName(command: string): string {
+  const base = `surowan_${command
     .replace(/[^A-Za-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '')
     .toLowerCase()}`;
@@ -123,10 +125,10 @@ function buildCatalog(): ToolCatalog {
     if (!specIsMcpExposed(spec)) {
       continue;
     }
-    let name = toolName(spec);
+    let name = toolName(spec.command);
     let suffix = 2;
     while (used.has(name)) {
-      name = `${toolName(spec).slice(0, TOOL_NAME_MAX - 3)}_${suffix}`;
+      name = `${toolName(spec.command).slice(0, TOOL_NAME_MAX - 3)}_${suffix}`;
       suffix += 1;
     }
     used.add(name);
@@ -205,6 +207,7 @@ async function configRevision(context: ToolContext): Promise<string | null> {
   const response = await context.callAdmin(
     new Request('http://surowan.local/api/providers', {
       headers: { authorization: `Bearer ${context.token}` },
+      signal: context.signal,
     }),
   );
   if (!response.ok) {
@@ -263,6 +266,15 @@ async function callTool(
       return toolError('This tool requires a JSON body.');
     }
   }
+  // The same guard as the CLI: a `null` here would delete data behind the
+  // confirmation that the dedicated clear tool demands.
+  for (const [field, clearCommand] of Object.entries(spec.nullClearedBy ?? {})) {
+    if (typeof body === 'object' && body !== null && Reflect.get(body, field) === null) {
+      return toolError(
+        `This tool cannot set ${field} to null. Use ${toolName(clearCommand)} with confirm: true after the user approves the deletion.`,
+      );
+    }
+  }
   const target = `/api/${path}${query.size === 0 ? '' : `?${query.toString()}`}`;
   if (args.dry_run === true) {
     return {
@@ -305,13 +317,14 @@ async function callTool(
     new Request(`http://surowan.local${target}`, {
       method: spec.method,
       headers,
+      signal: context.signal,
       ...(requestBody === undefined ? {} : { body: requestBody }),
     }),
   );
-  return await toResult(response, spec);
+  return await toResult(response, spec, target);
 }
 
-async function toResult(response: Response, spec: EndpointSpec): Promise<CallToolResult> {
+async function toResult(response: Response, spec: EndpointSpec, target: string): Promise<CallToolResult> {
   const contentType = response.headers.get('content-type') ?? '';
   if (!response.ok) {
     const text = await response.text();
@@ -320,28 +333,13 @@ async function toResult(response: Response, spec: EndpointSpec): Promise<CallToo
       content: [{ type: 'text', text: `HTTP ${response.status}: ${text.slice(0, 32_768)}` }],
     };
   }
-  if (contentType.startsWith('image/')) {
-    const bytes = Buffer.from(await response.arrayBuffer());
-    if (bytes.byteLength > MAX_BINARY_BYTES) {
-      return toolError(`Image is larger than ${MAX_BINARY_BYTES} bytes.`);
-    }
-    return {
-      content: [
-        { type: 'image', data: bytes.toString('base64'), mimeType: contentType },
-        { type: 'text', text: `Image returned by /api/${spec.path}.` },
-      ],
-    };
+  const textual = contentType.startsWith('text/') || spec.response === 'text';
+  if (!textual && (spec.response === 'binary' || !contentType.includes('json'))) {
+    return await binaryResult(response, contentType, target);
   }
   const text = await response.text();
-  if (spec.response === 'binary' || !contentType.includes('json')) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: contentType.startsWith('text/') || spec.response === 'text' ? text : `Base64 ${contentType}: ${text}`,
-        },
-      ],
-    };
+  if (textual) {
+    return { content: [{ type: 'text', text }] };
   }
   let parsed: unknown;
   try {
@@ -357,5 +355,34 @@ async function toResult(response: Response, spec: EndpointSpec): Promise<CallToo
   return {
     content: [{ type: 'text', text: pretty }],
     ...(structured === undefined ? {} : { structuredContent: structured }),
+  };
+}
+
+/** Media bytes are never decoded as text: images inline, everything else as a base64 blob. */
+async function binaryResult(response: Response, contentType: string, target: string): Promise<CallToolResult> {
+  const declared = Number(response.headers.get('content-length') ?? '0');
+  if (declared > MAX_BINARY_BYTES) {
+    await response.body?.cancel().catch(() => undefined);
+    return toolError(`The file is larger than ${MAX_BINARY_BYTES} bytes.`);
+  }
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (bytes.byteLength > MAX_BINARY_BYTES) {
+    return toolError(`The file is larger than ${MAX_BINARY_BYTES} bytes.`);
+  }
+  const mimeType = contentType.split(';')[0]?.trim() || 'application/octet-stream';
+  const data = bytes.toString('base64');
+  if (mimeType.startsWith('image/')) {
+    return {
+      content: [
+        { type: 'image', data, mimeType },
+        { type: 'text', text: `Image returned by ${target}.` },
+      ],
+    };
+  }
+  return {
+    content: [
+      { type: 'resource', resource: { uri: `surowan://admin${target}`, mimeType, blob: data } },
+      { type: 'text', text: `${mimeType} file (${bytes.byteLength} bytes) returned by ${target}.` },
+    ],
   };
 }

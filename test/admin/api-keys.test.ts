@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { expect, test } from 'vitest';
+import { adminApiKeys } from '../../src/store/schema/index.ts';
 import {
   bearer,
   createKey,
@@ -161,6 +162,37 @@ test('malformed Origin headers are a clean 4xx and Origin still guards only writ
       request('/api/invocations', { headers: { ...bearer(created.key), origin: 'not a real origin' } }),
     );
     expect(withMalformedOriginRead.status).toBe(200);
+  } finally {
+    store.close();
+  }
+});
+
+test('omitted permission columns get the same defaults through Drizzle and raw SQL', async () => {
+  const { store } = await fixture();
+  try {
+    const now = new Date().toISOString();
+    store.orm
+      .insert(adminApiKeys)
+      .values({ name: 'orm', prefix: 'pwk_orm', tokenHash: 'a'.repeat(64), createdAt: now })
+      .run();
+    store.db
+      .prepare('INSERT INTO admin_api_keys (name, prefix, token_hash, created_at) VALUES (?, ?, ?, ?)')
+      .run('sql', 'pwk_sql', 'b'.repeat(64), now);
+    const rows = store.db
+      .prepare<[], { name: string; read_all: unknown; write_all: unknown; execute_paid_operations: unknown }>(
+        'SELECT name, read_all, write_all, execute_paid_operations FROM admin_api_keys ORDER BY name',
+      )
+      .all()
+      .map((row) => ({
+        name: row.name,
+        read_all: Number(row.read_all),
+        write_all: Number(row.write_all),
+        execute_paid_operations: Number(row.execute_paid_operations),
+      }));
+    expect(rows).toEqual([
+      { name: 'orm', read_all: 1, write_all: 0, execute_paid_operations: 1 },
+      { name: 'sql', read_all: 1, write_all: 0, execute_paid_operations: 1 },
+    ]);
   } finally {
     store.close();
   }

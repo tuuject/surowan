@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { expect, test } from 'vitest';
 import { rm } from 'node:fs/promises';
 import { eq } from 'drizzle-orm';
@@ -57,4 +58,48 @@ test('Admin serves real tool images only for the authenticated owning result and
   const asset = f.assets.assetFor(f.seed.chatId, assetId)!;
   await rm(asset.path);
   expect((await call(historyUrl)).status).toBe(404);
+});
+
+test('MCP reads tool and context images by their string ids', async () => {
+  const f = await imageFixture();
+  const result = await f.tool.execute('call_images', {});
+  appendImageResult(f, result);
+  const assetId = toolImageReferences(result.details)[0]!.assetId;
+  const key = createApiKey(f.store.orm, 'mcp-tool-image', 'read');
+  const call = async (name: string, args: Record<string, unknown>): Promise<any> =>
+    await (
+      await f.server.handle(
+        request('/mcp', {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${key.key}`,
+            'content-type': 'application/json',
+            'mcp-protocol-version': '2026-07-28',
+          },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }),
+        }),
+      )
+    ).json();
+  const png = [137, 80, 78, 71, 13, 10, 26, 10];
+
+  const tool = await call('surowan_invocation_tool_image', {
+    id: String(f.seed.invocationA),
+    tool_call_id: 'call_images',
+    asset_id: assetId,
+  });
+  expect(tool.result.content[0]).toMatchObject({ type: 'image', mimeType: 'image/png' });
+  expect([...Buffer.from(tool.result.content[0].data, 'base64').subarray(0, 8)]).toEqual(png);
+
+  const context = (await (
+    await f.server.handle(
+      request(`/api/contexts/${f.seed.conversationId}`, { headers: { authorization: `Bearer ${key.key}` } }),
+    )
+  ).json()) as { messages: { result_content: { url: string }[] }[] };
+  const seq = /\/messages\/(\d+)\/images\//.exec(context.messages[0]!.result_content[1]!.url)![1]!;
+  const image = await call('surowan_context_message_image', {
+    conversation_id: String(f.seed.conversationId),
+    seq,
+    asset_id: assetId,
+  });
+  expect(image.result.content[0]).toMatchObject({ type: 'image', mimeType: 'image/png' });
 });

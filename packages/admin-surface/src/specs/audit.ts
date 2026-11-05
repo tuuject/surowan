@@ -69,6 +69,7 @@ export const AUDIT_SPECS: readonly EndpointSpec[] = [
     positional: [{ name: 'id', kind: 'decimal' }],
     body: true,
     access: 'paid',
+    confirm: 'paid',
     summary: 'Replay an invocation with the current configuration; calls a model and may incur charges',
   },
   {
@@ -116,8 +117,8 @@ export const AUDIT_SPECS: readonly EndpointSpec[] = [
     cli: false,
     positional: [
       { name: 'id', kind: 'decimal' },
-      { name: 'tool_call_id', kind: 'decimal' },
-      { name: 'asset_id', kind: 'decimal' },
+      { name: 'tool_call_id', kind: 'text' },
+      { name: 'asset_id', kind: 'text' },
     ],
     response: 'binary',
     summary: 'Read an image produced by a tool call in this invocation',
@@ -130,7 +131,7 @@ export const AUDIT_SPECS: readonly EndpointSpec[] = [
     positional: [
       { name: 'conversation_id', kind: 'decimal' },
       { name: 'seq', kind: 'decimal' },
-      { name: 'asset_id', kind: 'decimal' },
+      { name: 'asset_id', kind: 'text' },
     ],
     response: 'binary',
     summary: 'Read an image attached to a retained context message',

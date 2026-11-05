@@ -277,12 +277,17 @@ export class AdminServer {
     return response ?? json({ error: 'not_found', message: 'Unknown admin API route' }, 404);
   }
 
-  /** The authenticated dispatch shared by panel sessions and API keys. */
+  /**
+   * The authenticated dispatch shared by panel sessions and API keys. `apiKey`
+   * is the caller's own plaintext key, scrubbed from inspection output even
+   * when no SecretStore remembers it.
+   */
   async #dispatchAuthenticated(
     request: Request,
     url: URL,
     segments: readonly string[],
     username: string,
+    apiKey?: string,
   ): Promise<Response | undefined> {
     const routes = this.#routes;
     let response = await routes.control.handle(request, segments, username);
@@ -307,8 +312,8 @@ export class AdminServer {
     if (request.method !== 'GET') {
       return json({ error: 'method_not_allowed', message: 'Audit routes are read-only' }, 405);
     }
-    response = await routes.inspection.inspect(request, url, segments);
-    response ??= await routes.inspection.list(url, segments);
+    response = await routes.inspection.inspect(request, url, segments, apiKey);
+    response ??= await routes.inspection.list(url, segments, apiKey);
     return response;
   }
 
@@ -369,7 +374,7 @@ export class AdminServer {
       return await this.#routes.inspection.replay(request, parseId(segments[1] ?? '', 'id'));
     }
     return (
-      (await this.#dispatchAuthenticated(request, url, segments, `api-key:${key.id.toString()}`)) ??
+      (await this.#dispatchAuthenticated(request, url, segments, `api-key:${key.id.toString()}`, token)) ??
       json({ error: 'forbidden', message: 'API keys cannot access this route' }, 403)
     );
   }

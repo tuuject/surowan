@@ -65,7 +65,11 @@ export const adminApiKeys = sqliteTable('admin_api_keys', {
   /** `read:all` is the base grant and must be 1 for the key to work. */
   readAll: integer('read_all', { mode: 'boolean' }).notNull().default(true),
   writeAll: integer('write_all', { mode: 'boolean' }).notNull().default(false),
-  executePaidOperations: integer('execute_paid_operations', { mode: 'boolean' }).notNull().default(false),
+  /**
+   * Mirrors migration 053's `DEFAULT 1` and the `read_paid` default mode; Drizzle
+   * writes this value for an omitted column, so it must match raw SQL.
+   */
+  executePaidOperations: integer('execute_paid_operations', { mode: 'boolean' }).notNull().default(true),
 });
 
 /**

@@ -13,7 +13,8 @@ import { z } from 'zod';
 import type { Orm } from '../../../store/store.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
 import { authenticateApiKey } from '../api-keys.ts';
-import { json } from '../http.ts';
+import { AdminAuthError } from '../auth.ts';
+import { json, readBoundedText } from '../http.ts';
 import { TOOL_CATALOG, type ToolContext } from './tools.ts';
 import { type SkillCatalog, directoryResources, loadSkillCatalog, skillEntry, skillFile } from './skills.ts';
 
@@ -24,6 +25,11 @@ const LEGACY_PROTOCOL_VERSION = '2025-11-25';
 const SKILL_EXTENSION = 'io.modelcontextprotocol/skills';
 const CACHE_TTL_MS = 300_000;
 const SKILL_ROOT = join(import.meta.dirname, '../../../../skills/surowan-mcp');
+/**
+ * The envelope wraps one Admin API body, and the largest of those is the 30 MB
+ * image upload; the inner route still applies its own, tighter limit.
+ */
+export const MAX_MCP_BODY_BYTES = 32 * 1024 * 1024;
 
 const skillsListSchema = z.object({
   method: z.literal('skills/list'),
@@ -110,10 +116,24 @@ export class McpEndpoint {
         },
       );
     }
-    const payload = (await request
-      .clone()
-      .json()
-      .catch(() => null)) as unknown;
+    let text: string;
+    try {
+      text = await readBoundedText(request, MAX_MCP_BODY_BYTES);
+    } catch (error) {
+      if (error instanceof AdminAuthError) {
+        return json(
+          { jsonrpc: '2.0', error: { code: ErrorCode.InvalidRequest, message: error.message }, id: null },
+          error.status,
+        );
+      }
+      throw error;
+    }
+    let payload: unknown;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = null;
+    }
     if (payload === null || typeof payload !== 'object') {
       return json({ jsonrpc: '2.0', error: { code: ErrorCode.ParseError, message: 'Invalid JSON' }, id: null }, 400);
     }
@@ -124,7 +144,7 @@ export class McpEndpoint {
     if (modern) {
       return await this.#handleModern(payload, caller);
     }
-    return await this.#handleLegacy(request, caller);
+    return await this.#handleLegacy(request, payload, caller);
   }
 
   #authenticate(request: Request): Caller | null {
@@ -148,6 +168,7 @@ export class McpEndpoint {
         permissions: key.permissions,
         mode: key.mode,
         token,
+        signal: request.signal,
         callAdmin: this.#deps.callAdmin,
       },
     };
@@ -158,14 +179,15 @@ export class McpEndpoint {
     return this.#catalog;
   }
 
-  async #handleLegacy(request: Request, caller: Caller): Promise<Response> {
+  async #handleLegacy(request: Request, payload: object, caller: Caller): Promise<Response> {
     const transport = new WebStandardStreamableHTTPServerTransport({
       enableJsonResponse: true,
     });
     const server = await this.#createServer(caller);
     await server.connect(transport);
     try {
-      return await transport.handleRequest(request);
+      // The body stream was consumed by the bounded read above.
+      return await transport.handleRequest(request, { parsedBody: payload });
     } finally {
       await server.close().catch(() => undefined);
     }
@@ -185,12 +207,17 @@ export class McpEndpoint {
       },
     );
     server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: TOOL_CATALOG.tools }));
-    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const args =
         typeof request.params.arguments === 'object' && request.params.arguments !== null
           ? request.params.arguments
           : {};
-      return await TOOL_CATALOG.call(request.params.name, args, caller.context);
+      // A client disconnect aborts the HTTP signal; the SDK's per-request signal
+      // also fires when the transport closes underneath the call.
+      return await TOOL_CATALOG.call(request.params.name, args, {
+        ...caller.context,
+        signal: AbortSignal.any([caller.context.signal, extra.signal]),
+      });
     });
     server.setRequestHandler(ListResourcesRequestSchema, () => ({
       resources: catalog.files.map((file) => ({

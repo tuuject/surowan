@@ -11,10 +11,10 @@
 | `surowan_invocation_prompts` | read | 当前 global/group prompt 模板 |
 | `surowan_invocation_replay_preflight` | read | 免费重放预检 |
 | `surowan_invocation_media` | read | 列出快照授权媒体 |
-| `surowan_invocation_media_content` | read | 下载原始/预览媒体 |
-| `surowan_invocation_replay` | paid | 重放，真实调用模型 |
-| `surowan_invocation_tool_image` | read | 工具调用产生的图片 |
-| `surowan_context_message_image` | read | Context 消息图片 |
+| `surowan_invocation_media_content` | read | 下载原始/预览媒体；图片返回 image，其余返回 base64 `resource.blob`，上限 16 MiB |
+| `surowan_invocation_replay` | paid | 重放，真实调用模型；需 `confirm: true` |
+| `surowan_invocation_tool_image` | read | 工具调用产生的图片；`tool_call_id` 与 `asset_id` 是字符串 |
+| `surowan_context_message_image` | read | Context 消息图片；`asset_id` 是字符串 |
 | `surowan_overview` | read | 总览 |
 | `surowan_usage` | read | 用量序列 |
 | `surowan_context_list` / `surowan_context_show` | read | Conversation Context |

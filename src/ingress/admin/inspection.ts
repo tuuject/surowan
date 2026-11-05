@@ -257,7 +257,7 @@ export function createInspectionAdminHandler(deps: InspectionAdminDeps) {
   };
 
   /** The audit listings; each returns `undefined` when the path names something else. */
-  const list = async (url: URL, segments: readonly string[]): Promise<Response | undefined> => {
+  const list = async (url: URL, segments: readonly string[], token?: string): Promise<Response | undefined> => {
     const route = segments.join('/');
     const image = await readToolImageRoute(store.orm, configStore.current().config.data_dir, url, segments);
     if (image !== undefined) {
@@ -279,7 +279,7 @@ export function createInspectionAdminHandler(deps: InspectionAdminDeps) {
       return json(usage(store.orm, days));
     }
     if (route === 'invocations') {
-      return json(redactInspection(listInvocations(store.orm, query, configStore.current().config), secrets));
+      return json(redactInspection(listInvocations(store.orm, query, configStore.current().config), secrets, token));
     }
     if (segments[0] === 'invocations' && segments.length === 2) {
       const found = getInvocation(store.orm, parseId(segments[1] ?? '', 'id'));

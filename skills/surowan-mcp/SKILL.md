@@ -27,7 +27,7 @@ description: 通过 Surowan MCP Server 操作塑料碗 Admin Panel：先读取�
 
 写工具需要 `write_all`。执行前必须向用户说明目标、工具、关键字段与值、影响范围（是否热应用、是否需重启、是否影响运行中的 Invocation），得到明确同意后才调用。
 
-- 配置：`surowan_harness_update`、`surowan_model_set`、`surowan_vision_set`、`surowan_thinking_level_set`、`surowan_provider_*`、`surowan_model_add/update/delete`、`surowan_chat_*`、`surowan_search_update`、`surowan_image_config_update`、`surowan_telegram_token`、`surowan_bot_admin_*`。
+- 配置：`surowan_harness_update`、`surowan_model_set`、`surowan_vision_set`、`surowan_thinking_level_set`、`surowan_provider_*`、`surowan_model_add/update/delete`、`surowan_chat_*`、`surowan_search_update`、`surowan_image_config_update`、`surowan_telegram_token`、`surowan_bot_admin_*`。`surowan_telegram_token` 只能写入新 token；删除 token 用带 `confirm` 的 `surowan_telegram_token_clear`。
 - Prompt：`surowan_prompt_save` 的 `if_match` 必须来自刚读到的 prompt `content_hash`；`surowan_prompt_restore` 先读版本拿 scope/chat 与当前 hash。冲突时重新读取并重新确认，不要强行覆盖。
 - 配置写工具的 `if_match` 可省略：服务端会读取当前 `config.jsonc` revision。条目写工具（辞典、Memo、群聊记忆）的 `if_match` 必须来自该条目自己的 `revision`。
 - 破坏性工具（删除 Chat/模型/词条/Memo/群聊记忆、取消 Alarm、清空告警、重启、清空报文、`prompt cancel-running`）带 `confirm` 参数；只有用户明确确认对象与后果后才传 `confirm: true`。
@@ -35,7 +35,7 @@ description: 通过 Surowan MCP Server 操作塑料碗 Admin Panel：先读取�
 
 ## 计费操作
 
-需要 `execute_paid_operations`；若同时改变状态（生图、Playground Release/Retry）还需要 `write_all`。调用前说明目标、次数、模型/覆盖与可能费用，取得明确授权，且不要自动重试或批量尝试。
+需要 `execute_paid_operations`；若同时改变状态（生图、Playground Release/Retry）还需要 `write_all`。每个计费工具都带 `confirm` 参数：调用前说明目标、次数、模型/覆盖与可能费用，取得明确授权后才传 `confirm: true`，且不要自动重试或批量尝试。
 
 - `surowan_invocation_replay`：先 `surowan_invocation_replay_preflight`，确认 `available` 与场景；重放不发送 Telegram、不改生产 Context，但真实调用模型并计费。可带 `global_prompt`/`group_prompt`/`before_send_id`/临时 `provider`+`model`/`thinking_level`；切片重放仍由服务端校验。
 - `surowan_provider_health_check`、`surowan_dictionary_merge_preview`、`surowan_image_generation_create`、`surowan_image_generation_retry`、`surowan_room_release`、`surowan_room_release_retry`。

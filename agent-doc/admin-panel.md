@@ -91,7 +91,10 @@ AdminServer 在同一监听端口提供 `/mcp`（Streamable HTTP），使用 `Au
 - **工具目录**：从 `@surowan/admin-surface` 的 `EndpointSpec` 生成，工具名为 `surowan_<command>`。每个工具接受路径参数、query 参数、可选 `body`、需要时的 `if_match`、破坏性/计费操作的 `confirm` 与 `dry_run`。工具执行时重新走一次 Admin API（同一 Bearer key），因此权限、Origin、body 限制与审计只有一套实现。
 - **权限**：`EndpointSpec.access` 决定工具需要 `read`/`write`/`paid`/`write+paid`；账号与 API key 管理不生成工具。权限不足返回 `isError` 文本，要求用户在 Admin Panel → API keys 修改模式，不提供绕过。
 - **权限查询**：`surowan_key_show` 映射 `GET /api/key`。
-- **MCP with Skills**：服务器 capability 声明扩展 `io.modelcontextprotocol/skills`（`directoryRead: true`），实现 `skills/list`、`skills/get`、`resources/list`、`resources/read` 与 `resources/directory/read`；Skill 源是仓库 `skills/surowan-mcp/`（Docker 运行时镜像会复制 `skills/`）。Skill 的每个文件都带 SHA-256 与字节数，客户端按 manifest 校验。
+- **确认闸门**：`spec.confirm` 决定工具是否需要 `confirm: true`；所有 `paid`/`write+paid` 路由都必须声明 `confirm: 'paid'`（`test/admin/mcp.test.ts` 断言）。`nullClearedBy` 在 MCP 里与 CLI 同样生效：通用 body 不能把字段置 `null` 绕过对应 clear 工具的确认。
+- **请求与响应边界**：`/mcp` 信封按字节流读取，上限 32 MiB（最大的内层 body 是 30 MB 图片上传），超限 413；legacy 分支把已解析 payload 交给 SDK（`parsedBody`）。工具转发的内部请求携带调用方 HTTP 请求的取消信号（legacy 另合并 SDK 的 per-request signal；无状态模式下 `notifications/cancelled` 落在另一个请求上，不会传到这里），客户端断开时计费路由随之中止。二进制响应：图片返回 `image` content，其余 MIME 返回 base64 `resource.blob`，单个文件上限 16 MiB。
+- **脱敏**：Bearer 请求把调用方自己的 key 显式传给 inspection 的 `redactInspection`，不依赖 `SecretStore.remember` 的有界缓存。
+- **MCP with Skills**：服务器 capability 声明扩展 `io.modelcontextprotocol/skills`（`directoryRead: true`），实现 `skills/list`、`skills/get`、`resources/list`、`resources/read` 与 `resources/directory/read`（目录 URI 带不带尾斜杠等价，根目录以 `skill://surowan-mcp/` 发布）；Skill 源是仓库 `skills/surowan-mcp/`（Docker 运行时镜像会复制 `skills/`）。Skill 的每个文件都带 SHA-256 与字节数，客户端按 manifest 校验。
 - **`server/discover`**：返回 `supportedVersions`（两种 era）、tools/resources capabilities、扩展声明、serverInfo 与 instructions。
 - **独立 fallback**：`skills/surowan-mcp/` 可单独安装；不依赖 MCP with Skills 的 Harness 仍通过同一 MCP Server 使用工具。`surowan-utils` 保留为 CLI 客户端。
 
