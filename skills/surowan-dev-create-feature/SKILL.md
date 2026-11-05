@@ -1,11 +1,11 @@
 ---
 name: surowan-dev-create-feature
-description: 本仓库（surowan / Surowan）的 git worktree 工作流，覆盖两件事：一是开始任何新 feature 开发前的强制前置步骤——先从 origin/develop 拉取最新代码，再在 ../<仓库文件夹名>.worktrees/feature/<feature 分支名> 建好工作树并切过去干活；二是 review、修改、合并 PR——无论是本仓库分支还是外部贡献者 fork 的 PR，都在 ../<仓库文件夹名>.worktrees/review/pr-<N> 检出审阅，fork PR 先审执行面再装依赖跑测试，合并锁定 review 过的 head。用于 push 前的所有代码改动、修 bug、写测试、改文档；只要用户要求「开个 feature」「新开一个改动」「实现 xxx」「先拉最新 develop」「建 worktree」「review / 看看 PR #N」「合并这个 PR」「处理外部贡献」，或要动仓库里任何非只读文件，就先用这个 skill，即使用户没提 worktree 也要用。只读调查、跑测试、纯问答，以及已经位于 feature worktree 内的继续开发不需要。
+description: 本仓库（surowan / Surowan）的 git worktree 工作流，覆盖三件事：一是开始任何新 feature 开发前的强制前置步骤——先从 origin/develop 拉取最新代码，再在 ../<仓库文件夹名>.worktrees/feature/<feature 分支名> 建好工作树并切过去干活；二是实现需求时做完后的交付——验证、git commit、写 devlog、git push、用 gh 开 PR；三是 review、修改、合并 PR——无论是本仓库分支还是外部贡献者 fork 的 PR，都在 ../<仓库文件夹名>.worktrees/review/pr-<N> 检出审阅，fork PR 先审执行面再装依赖跑测试，合并锁定 review 过的 head。用于 push 前的所有代码改动、修 bug、写测试、改文档；只要用户要求「开个 feature」「新开一个改动」「实现 xxx」「先拉最新 develop」「建 worktree」「review / 看看 PR #N」「合并这个 PR」「处理外部贡献」，或要动仓库里任何非只读文件，就先用这个 skill，即使用户没提 worktree 也要用。只读调查、跑测试、纯问答，以及已经位于 feature worktree 内的继续开发不需要。
 ---
 
 # Surowan 的 Worktree 工作流：Feature 开工与 PR Review
 
-本文件的步骤是**新 feature 开工**。review、修改或合并 PR（本仓库分支与外部 fork 都算）读 [references/review-pr.md](references/review-pr.md)，它沿用这里的路径约定与查重规则。
+本文件的步骤是**新 feature 开工**；如果任务是实现一个需求，做完后接着走[实现需求：做完即交付](#实现需求做完即交付)，一直到开出 PR。review、修改或合并 PR（本仓库分支与外部 fork 都算）读 [references/review-pr.md](references/review-pr.md)，它沿用这里的路径约定与查重规则。
 
 ## 为什么
 
@@ -23,7 +23,7 @@ description: 本仓库（surowan / Surowan）的 git worktree 工作流，覆盖
 ## 不适用
 
 - 只读调查、跑测试、看代码、纯问答：不动文件，不开 worktree。（review PR 虽然不改文件，但要检出 PR 的代码，走 review 流程。）
-- 当前已经在某个 feature worktree 里开发（`git worktree list` 的输出中有当前分支）：那是本 skill 的产物，直接继续。
+- 当前已经在某个 feature worktree 里开发（`git worktree list` 的输出中有当前分支）：那是本 skill 的产物，直接继续；做完仍走「实现需求：做完即交付」。
 - 一次性的 hotfix、rebase、清理分支、发布准备：不属于「新 feature 开工」。
 
 ## 步骤
@@ -71,6 +71,71 @@ git -C "$REPO" worktree add -b "feature/<name>" "$WORKTREE_PATH" origin/develop
 
 告诉用户：worktree 路径、分支名、base commit（`git rev-parse --short HEAD`），以及本地 develop 是否领先这类需要人知道的风险，然后直接开始用户的 feature 工作，不要停下来等确认。
 
+## 实现需求：做完即交付
+
+用户要的是「实现某个需求」（新功能、修 bug、按 PRD 落地等，产出要合回 develop）时，worktree 只是开头：改完后按下面的顺序一路走到开 PR。「实现 xxx」这句话本身就授权了本节的 commit、push 与开 PR，不必逐步再问；**合并 PR 不在授权内**，仍等用户明确说。
+
+不走本节：试验或探索性改动、用户说了先别提交、`doc/design` 例外（直接在 develop 上做），以及 PR review（按 [references/review-pr.md](references/review-pr.md)）。
+
+### 1. 验证
+
+按 AGENTS.md「Testing Guidelines」跑：`git diff --check`、`pnpm run lint`、`pnpm run check`、受影响测试；跨模块改动跑完整 `pnpm test`；动了 Admin 前端、admin API 或面板文案跑对应 `pnpm run admin:test:e2e <套件>`；动了文档站或会进生成文档的 Schema/示例跑 `docs:build` 与 `docs:verify`。行为变了就同步 `agent-doc/` 对应主题文档。失败先修；修不好就停在这里报告，不要带着失败往下提交。
+
+### 2. 提交代码
+
+- 只 `git add` 本次改动的路径，不用 `git add -A`；`dev-data/`、`key.json`、SQLite、媒体缓存、备份不入库。
+- 标题是简短英文祈使句（如 `Add configurable empty-text send strategies`），结尾带当前会话要求的 commit attribution。
+- 依赖有变化时 `pnpm-lock.yaml` 一起提交。
+
+一个需求通常一个代码提交；明显独立的几块可以拆开，devlog 仍只写一篇。
+
+### 3. 对齐最新 develop
+
+`git fetch origin develop`；`origin/develop` 有新提交就 `git rebase origin/develop`，然后重跑受影响的验证。冲突拿不准怎么解就停下报告。这一步必须在写 devlog 之前：devlog 记录的是最终提交 hash，rebase 会改掉它。
+
+### 4. 写 devlog
+
+用 `write-devlog` skill 写 `agent-doc/devlogs/<YYYYMMDD>-<feature 名>.md`（日期取当天），记录背景、主要变更、验证结果（含未执行的检查）与第 2 步的提交 hash，单独提交为 `docs: add <改动简述> devlog`。不回改旧 devlog。
+
+### 5. Push
+
+```bash
+git push -u origin "feature/<name>"
+```
+
+只有分支此前推送过、且第 3 步 rebase 过时，才用 `--force-with-lease` 推这个 feature 分支；其他被拒的情况（远端有别人的提交等）报告给用户，不要 `--force`。任何情况都不直接推 `develop` 或 `main`。
+
+### 6. 开 PR
+
+先查重：`gh pr list --head "feature/<name>" --state open`。已有 PR 就只靠 push 更新，必要时 `gh pr edit` 补充说明，不再新开。否则把正文写进 scratchpad 文件再创建：
+
+```bash
+gh pr create --base develop --head "feature/<name>" --title "<代码提交标题>" --body-file <scratchpad>/pr-body.md
+```
+
+正文用中文，沿用仓库已有 PR 的结构（可参考 `gh pr view 56`）：
+
+```markdown
+## 行为变化
+
+## 配置与数据库影响
+
+## 验证
+
+（实际跑过的命令与结果；最后一行写「未执行：……」，如真实 Telegram 验收）
+
+## 提交
+
+- `<hash>` <代码提交标题>
+- `<hash>` docs: add <改动简述> devlog
+```
+
+结尾带当前会话要求的 PR attribution。正文不要写裸 `@名字`。
+
+### 7. 汇报
+
+告诉用户 PR 链接、提交列表、验证结论与未执行项。不合并、不删 worktree、不删分支。
+
 ## PR Review 速览
 
 完整步骤见 [references/review-pr.md](references/review-pr.md)。最容易出错的几条先记住：
@@ -87,6 +152,8 @@ git -C "$REPO" worktree add -b "feature/<name>" "$WORKTREE_PATH" origin/develop
 - 在主 checkout 上切分支、stash、直接改代码：违背「一个 feature 一个 worktree」的约定，也会打断主目录上其它进行中的事。
 - 绕过 worktree 在 `/tmp` 里 clone 一份或建 worktree：路径约定不一致，后续审计/清理都会漏掉它。
 - 已有 worktree 或分支占用时直接报错放弃：应该复用并继续，或者停下来问，而不是换个名字硬建。
+- 实现需求后只汇报改动就收工，留下未提交的 worktree：用户要的是一个能审的 PR。
+- 先写 devlog 再 rebase：devlog 里的提交 hash 随即失效。
 
 ## 例外情况
 
