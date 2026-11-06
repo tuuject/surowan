@@ -1,9 +1,9 @@
 import type { EndpointSpec } from '../types.ts';
 
 /**
- * Playground virtual rooms. These are session-only and use their own
- * `revision`/`request_key` bodies instead of `If-Match`, so no row here takes a
- * revision. Releasing a room runs the real agent, so it is billed.
+ * Playground virtual rooms. They use their own `revision`/`request_key` bodies
+ * instead of `If-Match`, so no row here takes a revision. Releasing a room runs
+ * the real agent, so it is billed.
  */
 export const PLAYGROUND_SPECS: readonly EndpointSpec[] = [
   {

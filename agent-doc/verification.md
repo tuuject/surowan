@@ -296,7 +296,7 @@ pnpm run admin:test:e2e 20-playground  # Playground 房间 API 与页面回归
 pnpm run admin:test:e2e 22-search-settings  # 网络搜索设置页与保存流程
 ```
 
-`20-playground.e2e.ts` 用真实 `AdminServer` + 房间写入路径驱动：Session-only 与 API key 拒绝、请求 key 幂等建房、房间之间的 ID 隔离、上传校验与内容读取（页面部分随 Playground 页面一并断言）。夹具 `e2e/server.ts` 在仿真数据里额外建两个房间并放入一条 held 消息，规格通过 `GET /__e2e/playground-seed` 取用它们的 ID，不依赖自增主键。
+`20-playground.e2e.ts` 用真实 `AdminServer` + 房间写入路径驱动：匿名与无效 key 401、只读 API key 能列房间但建房得 403、请求 key 幂等建房、房间之间的 ID 隔离、上传校验与内容读取（页面部分随 Playground 页面一并断言）。夹具 `e2e/server.ts` 在仿真数据里额外建两个房间并放入一条 held 消息，规格通过 `GET /__e2e/playground-seed` 取用它们的 ID，不依赖自增主键。
 
 Passkey 启用模式（PowerShell）：
 
