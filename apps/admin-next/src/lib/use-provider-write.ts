@@ -1,9 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-
+import { toast } from '@/lib/toast.ts';
+import type { ModelApplySummary } from './api/models.ts';
 import { applyFeedback } from './model-manager.ts';
 import { chatsQuery, configStatusQuery, developerQuery, harnessQuery, providersQuery } from './queries.ts';
-import type { ModelApplySummary } from './api/models.ts';
 
 export interface ProviderWriteFeedback {
   /** Config-backed views share one revision and must be invalidated together. */

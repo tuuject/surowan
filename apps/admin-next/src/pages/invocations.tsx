@@ -12,11 +12,10 @@ import {
   TableShell,
   TextFilter,
 } from '@/components/business';
-
+import type { InvocationListItem } from '@/lib/api/invocations.ts';
 import { formatCost, formatNumber, formatTime } from '@/lib/format';
 import { invocationsQuery } from '@/lib/queries';
 import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
-import type { InvocationListItem } from '@/lib/api/invocations.ts';
 
 const INVOCATION_STATES = [
   'queued',

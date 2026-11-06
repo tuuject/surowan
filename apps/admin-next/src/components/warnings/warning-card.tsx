@@ -3,8 +3,8 @@ import { CircleAlert, TriangleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ToneBadge } from '@/components/business';
 import { Button } from '@/components/ui/button';
-import { formatTime } from '@/lib/format';
 import type { EventWarning, WarningItem, WarningSeverity } from '@/lib/api/warnings.ts';
+import { formatTime } from '@/lib/format';
 
 function numberVariable(variables: Readonly<Record<string, unknown>>, key: string): number | null {
   const value = variables[key];

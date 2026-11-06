@@ -1,6 +1,6 @@
 # Admin Panel
 
-Admin Panel 是随 `serve` 启动的本地审计与管理界面，覆盖 Tool Session（Invocation）、收到的 Telegram 消息、媒体视觉分析、已配置 Sticker Set 的可搜索索引、Chat 级 Memo Pad（`memo_pad_entries` 与 Chat 所有的 `pwblob://` 图片附件）、群聊记忆事件（`group_memories`）、系统警告（`warnings`）、Alarm（通用长程任务的闹钟投影）以及两层可编辑 Prompt 的版本历史（`prompt_versions`）。后端路由分发在 `src/ingress/admin/index.ts`，各页处理器在 `src/ingress/admin/`，插件自有页面（辞典、Alarm）的处理器在 `src/plugins/*/admin.ts`；前端在 `apps/admin-next/`（Rsbuild + React + Tailwind 4 + shadcn/Base UI + TanStack Query + TanStack Router），构建产物是**纯静态 SPA**，由 `AdminServer` 同源托管，不依赖任何 Node/Nitro 运行时。
+Admin Panel 是随 `serve` 启动的本地审计与管理界面，覆盖 Tool Session（Invocation）、收到的 Telegram 消息、媒体视觉分析、已配置 Sticker Set 的可搜索索引、Chat 级 Memo Pad（`memo_pad_entries` 与 Chat 所有的 `pwblob://` 图片附件）、群聊记忆事件（`group_memories`）、系统警告（`warnings`）、Alarm（通用长程任务的闹钟投影）以及两层可编辑 Prompt 的版本历史（`prompt_versions`）。后端路由分发在 `src/ingress/admin/index.ts`，各页处理器在 `src/ingress/admin/`，插件自有页面（辞典、Alarm）的处理器在 `src/plugins/*/admin.ts`；前端在 `apps/admin-next/`（Vite + React + Koi 设计体系 / Panda CSS + Tailwind 4 + TanStack Query + TanStack Router，中英文 i18n），构建产物是**纯静态 SPA**，由 `AdminServer` 同源托管，不依赖任何 Node/Nitro 运行时。
 
 审计查询只读；Developer 调试配置与历史报文清除、Memo Pad 管理、Bot 管理员列表管理、Chat/Topic 白名单与按群模型管理（Chats 页）、模型与 Provider 管理（Models 页）、两层可编辑 Prompt 的编辑与版本管理（全局人格与按群指令：版本历史、恢复，以及只取消仍按旧 Prompt 运行的 Invocation）、配置文件应用、立即重启、解除睡眠、取消挂起会话与取消 pending Alarm 是受控的控制端点。管理员可以在 Memories 页按 Chat 与状态过滤、查看 summary 与 Markdown detail、增删改条目；在 Group memory 页审计 sleeping 生成的事件、查看原文区间、修改 summary 或删除事件；detail 里的 `pwblob://` 由面板转换成受控的字节端点，Markdown 以 React 节点渲染而不是原始 HTML。也可以指派/移除能执行 `/pause`、`/resume`、`/cut_topic` 等 Bot 管理员命令的 Telegram 用户（写回 `telegram.admins` 并热应用），在 Models 页维护 Provider 与模型列表（写回 `config.jsonc` 并重新加载）、切换全局 agent 与 vision 模型并设置全局 thinking 级别（Models 页端点仍是全局语义）；在 Chats 页增删 Chat、编辑 Topic 白名单与 Chat 范围的模型/thinking 覆盖（同群所有 Topic 共用，支持恢复继承全局），唤醒/取消挂起会话，取消尚未触发的 Alarm，把配置文件中的热更新白名单字段应用到运行中的进程，或在有待重启字段时直接重启 `serve`。写入只发生在 [API](#api) 白名单里的端点。配置修改经 `writeConfigEdits` 校验并原子写入后，再由 `ConfigReloader` 尝试应用；应用失败时文件保留已写入内容，运行中的配置不变。
 
@@ -429,7 +429,7 @@ Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_
 
 ```bash
 pnpm run admin:build   # 生成 apps/admin-next/dist，供 serve 托管
-pnpm run admin:dev     # Rsbuild dev server，监听 127.0.0.1:5273，/api 代理到 ADMIN_API_TARGET
+pnpm run admin:dev     # Vite dev server，监听 127.0.0.1:5273，/api 代理到 ADMIN_API_TARGET
 pnpm run admin:test:e2e  # Playwright 浏览器 E2E（真实 AdminServer + 临时 SQLite + 合成数据）
 ```
 
@@ -442,7 +442,7 @@ pnpm run admin:test:e2e  # Playwright 浏览器 E2E（真实 AdminServer + 临�
 
 | 文件 | 职责 |
 | --- | --- |
-| `src/routes/**` | 文件路由（TanStack Router 官方 Rsbuild 插件）：`__root.tsx` 是认证门（setup/login gate）与 Layout，其余文件对应一级页面与详情页；新增页面在这里加文件，`src/routeTree.gen.ts` 由构建自动生成 |
+| `src/routes/**` | 文件路由（TanStack Router 官方 Vite 插件）：`__root.tsx` 是认证门（setup/login gate）与 Koi AppShell，其余文件对应一级页面与详情页；新增页面在这里加文件，`src/routeTree.gen.ts` 由构建自动生成 |
 | `src/lib/api/` | 类型化 fetch 封装（`core.ts` 含 `ApiError`），按 API 领域分模块 |
 | `src/lib/queries.ts` | TanStack Query option 工厂（列表用 infinite query，keyset cursor 透传） |
 | `src/lib/format.ts` | 格式化与状态色映射 |

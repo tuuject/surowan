@@ -1,5 +1,5 @@
-import type { PromptVersionSource } from '@/lib/api/prompts.ts';
 import type { BadgeSemantic } from '@/components/business';
+import type { PromptVersionSource } from '@/lib/api/prompts.ts';
 
 /** What the last write reported, rendered next to the editor. */
 export type Notice =

@@ -3,7 +3,7 @@
  * Release can be observed end to end without a network, plus the scripted turns
  * a spec installs right before it releases a hold.
  */
-import { fauxAssistantMessage, fauxToolCall, type FauxProviderHandle } from '@earendil-works/pi-ai';
+import { type FauxProviderHandle, fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai';
 import type { CoreRuntime } from '../../../src/orchestration/runtime.ts';
 
 /**

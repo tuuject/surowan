@@ -164,7 +164,7 @@ if (PASSKEYS_ENABLED) {
       const dialog = sharedPage.getByRole('alertdialog');
       await expect(dialog.getByText('Delete your password?')).toBeVisible();
       await dialog.getByRole('button', { name: 'Delete password' }).click();
-      await expect(sharedPage.locator('[data-sonner-toast]').filter({ hasText: 'Password deleted' })).toBeVisible();
+      await expect(sharedPage.locator('[data-koi-toast]').filter({ hasText: 'Password deleted' })).toBeVisible();
 
       // The old session is gone and exactly one rotated session remains.
       const after = await sessionCookie();
@@ -213,7 +213,7 @@ if (PASSKEYS_ENABLED) {
       const dialog = sharedPage.getByRole('alertdialog');
       await expect(dialog.getByText('Delete passkey "E2E Laptop A"?')).toBeVisible();
       await dialog.getByRole('button', { name: 'Delete passkey' }).click();
-      await expect(sharedPage.locator('[data-sonner-toast]').filter({ hasText: 'Passkey deleted' })).toBeVisible();
+      await expect(sharedPage.locator('[data-koi-toast]').filter({ hasText: 'Passkey deleted' })).toBeVisible();
       await expect(sharedPage.locator('table tbody tr')).toHaveCount(1);
 
       // The last key is locked in the UI...
@@ -252,7 +252,7 @@ if (PASSKEYS_ENABLED) {
       await rowB.getByRole('button', { name: 'Delete' }).click();
       const dialog = sharedPage.getByRole('alertdialog');
       await dialog.getByRole('button', { name: 'Delete passkey' }).click();
-      await expect(sharedPage.locator('[data-sonner-toast]').filter({ hasText: 'Passkey deleted' })).toBeVisible();
+      await expect(sharedPage.locator('[data-koi-toast]').filter({ hasText: 'Passkey deleted' })).toBeVisible();
       await expect(sharedPage.getByText('No passkeys registered yet.')).toBeVisible();
       await expect(sharedPage.getByText('set', { exact: true })).toBeVisible();
     });

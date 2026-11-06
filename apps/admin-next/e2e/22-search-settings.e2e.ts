@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
-import { adminUrl, test, toast } from './helpers.ts';
 import type { SearchConfigView } from '../src/lib/api/search.ts';
+import { adminUrl, test, toast } from './helpers.ts';
 
 test.use({ signedIn: true });
 
@@ -107,9 +107,9 @@ test('shows a configured engine without its key and saves the switch', async ({ 
   await expect(page.getByText('Turning search off changes the capability set')).toBeVisible();
   await expect(page.getByLabel('Enable web search')).toBeChecked();
   await expect(page.getByLabel('Engine id')).toHaveValue('main');
-  await expect(page.getByLabel('Provider')).toHaveText('Tavily');
+  await expect(page.getByLabel('Provider')).toHaveValue('tavily');
   await expect(page.getByLabel('Note for the model')).toHaveValue('Chinese developer blogs');
-  await expect(page.getByLabel('Credential')).toHaveText('Keep the configured key');
+  await expect(page.getByLabel('Credential')).toHaveValue('keep');
   await expect(page.getByLabel('Enter a new key')).toHaveCount(0);
 
   await page.getByLabel('Enable web search').uncheck();
@@ -137,10 +137,9 @@ test('switching provider drops the old endpoint and configured key', async ({ pa
     await route.fulfill({ json: view({ engines: [configuredEngine] }) });
   });
   await page.goto(await adminUrl('/search-settings'));
-  await expect(page.getByLabel('Credential')).toHaveText('Keep the configured key');
-  await page.getByLabel('Provider').click();
-  await page.getByRole('option', { name: 'Brave Search' }).click();
-  await expect(page.getByLabel('Provider')).toHaveText('Brave Search');
+  await expect(page.getByLabel('Credential')).toHaveValue('keep');
+  await page.getByLabel('Provider').selectOption('brave');
+  await expect(page.getByLabel('Provider')).toHaveValue('brave');
   // The Tavily address and key belong to Tavily; Brave starts from its own default.
   await expect(page.getByLabel('Endpoint')).toHaveValue('');
   // A key must be entered, so the mode dropdown is not a choice and disappears.
@@ -233,10 +232,8 @@ test('reusing the only DeepSeek model key saves that alias', async ({ page }) =>
   });
   await page.goto(await adminUrl('/search-settings'));
   await page.getByRole('button', { name: 'Add engine' }).click();
-  await page.getByLabel('Provider').click();
-  await page.getByRole('option', { name: 'DeepSeek' }).click();
-  await page.getByLabel('Credential').click();
-  await page.getByRole('option', { name: 'Reuse a DeepSeek model key' }).click();
+  await page.getByLabel('Provider').selectOption('deepseek');
+  await page.getByLabel('Credential').selectOption('alias');
   await page.getByRole('button', { name: 'Save settings' }).click();
   await expect(toast(page, 'Web search settings saved')).toBeVisible();
   expect(writes[0]).toMatchObject({
@@ -249,7 +246,7 @@ test('renaming a configured engine asks for a credential instead of keeping one'
     await route.fulfill({ json: view({ engines: [configuredEngine] }) });
   });
   await page.goto(await adminUrl('/search-settings'));
-  await expect(page.getByLabel('Credential')).toHaveText('Keep the configured key');
+  await expect(page.getByLabel('Credential')).toHaveValue('keep');
   await page.getByLabel('Engine id').fill('renamed');
   // The server keeps keys by id, so the renamed engine has no key to keep;
   // "enter a new key" is then the only mode and its dropdown disappears.
@@ -258,8 +255,7 @@ test('renaming a configured engine asks for a credential instead of keeping one'
   await expect(page.getByRole('button', { name: 'Save settings' })).toBeDisabled();
   // Back on the stored id, keeping the configured key is offered again.
   await page.getByLabel('Engine id').fill('main');
-  await page.getByLabel('Credential').click();
-  await expect(page.getByRole('option', { name: 'Keep the configured key' })).toBeVisible();
+  await expect(page.getByLabel('Credential').locator('option[value="keep"]')).toHaveCount(1);
 });
 
 test('an invalid URL filter blocks saving with a visible message', async ({ page }) => {

@@ -2,7 +2,6 @@ import { startRegistration } from '@simplewebauthn/browser';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { type ColumnSpec, ConfirmDialog, TableShell, ToneBadge } from '@/components/business';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,13 +15,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
+import type { PasskeyItem } from '@/lib/api/auth.ts';
+import { deletePasskey, deletePassword, passkeyRegisterOptions, passkeyRegisterVerify } from '@/lib/api/auth.ts';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { isWebAuthnAvailable, passkeyErrorMessage } from '@/lib/passkeys';
 import { passkeysQuery, sessionQuery } from '@/lib/queries';
-import { deletePasskey, deletePassword, passkeyRegisterOptions, passkeyRegisterVerify } from '@/lib/api/auth.ts';
-import type { PasskeyItem } from '@/lib/api/auth.ts';
+import { toast } from '@/lib/toast.ts';
 
 /**
  * Passkey management card for the Settings page. Rendered only when the

@@ -6,11 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-
+import type { PromptDocument, PromptVersionItem } from '@/lib/api/prompts.ts';
 import { formatTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { type Notice, type PromptDraft, sourceLabelKey, sourceTone } from './prompt-draft';
-import type { PromptDocument, PromptVersionItem } from '@/lib/api/prompts.ts';
 
 /** The same limit the API enforces on a version note. */
 const MAX_NOTE_CHARS = 200;

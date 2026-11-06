@@ -1,8 +1,7 @@
 import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
-
-import { cn } from '@/lib/utils';
 import type { PromptDiffHunk, PromptDiffLine, PromptDiffView } from '@/lib/api/prompts.ts';
+import { cn } from '@/lib/utils';
 
 function diffMarker(type: PromptDiffLine['type']): string {
   return type === 'added' ? '+' : type === 'removed' ? '-' : ' ';

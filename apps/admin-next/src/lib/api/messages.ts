@@ -1,4 +1,4 @@
-import { call, type ChatSummary, type ListFilters, listPath, type Page } from './core.ts';
+import { type ChatSummary, call, type ListFilters, listPath, type Page } from './core.ts';
 
 export interface SenderSummary {
   readonly display_name: string;

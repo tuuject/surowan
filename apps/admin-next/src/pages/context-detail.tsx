@@ -1,4 +1,3 @@
-import { ToolResult } from '@/components/invocations/tool-result';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
@@ -13,16 +12,16 @@ import {
   TextValue,
   ToneBadge,
 } from '@/components/business';
+import { ToolResult } from '@/components/invocations/tool-result';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
-
-import { formatNumber, formatTime } from '@/lib/format';
-import { conversationContextQuery } from '@/lib/queries';
 import type {
   ConversationContextDetail,
   ConversationContextMessageEntry,
   ConversationContextRefEntry,
 } from '@/lib/api/contexts.ts';
+import { formatNumber, formatTime } from '@/lib/format';
+import { conversationContextQuery } from '@/lib/queries';
 
 function RoleBadge({ role }: { readonly role: string }): React.ReactElement {
   return <ToneBadge tone="neutral">{role}</ToneBadge>;

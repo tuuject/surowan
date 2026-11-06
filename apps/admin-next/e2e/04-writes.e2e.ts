@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
-import { adminUrl, appliedToast, E2E_USERNAME, e2eFetch, test, toast } from './helpers.ts';
 import { ACTIVE_CHAT, editElsewhere, inherited, viewOf } from './chats-fixture.ts';
+import { adminUrl, appliedToast, E2E_USERNAME, e2eFetch, test, toast } from './helpers.ts';
 
 /**
  * Controlled admin operations against the real backend. Every write goes
@@ -23,8 +23,7 @@ test.describe('memo pad CRUD', () => {
   test('create, view, edit to permanent, and delete a memo through the dialogs', async ({ page }) => {
     await page.goto(await adminUrl('/memories'));
     await page.getByRole('button', { name: 'New memo' }).click();
-    await page.getByLabel('Select a chat').click();
-    await page.getByRole('option', { name: /Surowan Test Group/ }).click();
+    await page.getByLabel('Select a chat').selectOption('123456789');
     await page.getByLabel('Summary').fill('E2E memo created by test');
     await page.getByLabel('Detail').fill('E2E memo detail with a [link](https://example.com).');
     await page.getByLabel('TTL in days').fill('7');
@@ -207,8 +206,7 @@ test.describe('alarm cancel + conflict path', () => {
     expect(state.cancelled_by).toBe(E2E_USERNAME);
 
     // UI reflects the new state through the state filter
-    await page.getByRole('combobox', { name: 'State' }).click();
-    await page.getByRole('option', { name: 'cancelled' }).click();
+    await page.getByRole('combobox', { name: 'State' }).selectOption('cancelled');
     const cancelledRow = page.locator('table tbody tr', { hasText: 'Remind Alice about the fixture data' });
     await expect(cancelledRow).toBeVisible();
     await expect(cancelledRow.getByText('cancelled')).toBeVisible();
@@ -236,8 +234,7 @@ test.describe('alarm cancel + conflict path', () => {
     expect(state.state).toBe('fired');
 
     await page.getByRole('button', { name: 'Dismiss' }).click();
-    await page.getByRole('combobox', { name: 'State' }).click();
-    await page.getByRole('option', { name: 'fired' }).click();
+    await page.getByRole('combobox', { name: 'State' }).selectOption('fired');
     const firedRow = page.locator('table tbody tr', { hasText: /e2e alarm 1(?!\d)/ });
     await expect(firedRow).toBeVisible();
     await expect(firedRow.getByText('fired')).toBeVisible();

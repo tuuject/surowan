@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Select } from '@tuuject/koi-react/select';
 import type React from 'react';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { ScopePicker } from '@/components/dictionary/entry-form.tsx';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,11 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-
-import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
-import { importDictionaryEntries, previewDictionaryImport } from '@/lib/api/dictionary.ts';
 import type {
   DictionaryChatOption,
   DictionaryDraft,
@@ -27,6 +23,9 @@ import type {
   DictionaryImportPreview,
   DictionaryScope,
 } from '@/lib/api/dictionary.ts';
+import { importDictionaryEntries, previewDictionaryImport } from '@/lib/api/dictionary.ts';
+import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
+import { toast } from '@/lib/toast.ts';
 
 /**
  * Import flow: pick a CSV/JSONL file or paste content, ask the server for a
@@ -127,25 +126,20 @@ export function ImportDialog({
             <div className="space-y-2">
               <Label htmlFor={`${fileId}-format`}>{t('dictionary.import.formatLabel')}</Label>
               <Select
+                id={`${fileId}-format`}
+                className="w-full"
+                aria-label={t('dictionary.import.formatLabel')}
                 value={format}
-                onValueChange={(value) => {
+                onChange={(event) => {
+                  const value = event.target.value;
                   if (value === 'csv' || value === 'jsonl') {
                     setFormat(value);
                     setPreview(null);
                   }
                 }}
               >
-                <SelectTrigger
-                  id={`${fileId}-format`}
-                  className="w-full"
-                  aria-label={t('dictionary.import.formatLabel')}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="csv">{t('dictionary.import.csv')}</SelectItem>
-                  <SelectItem value="jsonl">{t('dictionary.import.jsonl')}</SelectItem>
-                </SelectContent>
+                <option value="csv">{t('dictionary.import.csv')}</option>
+                <option value="jsonl">{t('dictionary.import.jsonl')}</option>
               </Select>
             </div>
             <div className="space-y-2">

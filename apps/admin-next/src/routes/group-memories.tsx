@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
-import GroupMemoriesPage from '@/pages/group-memories';
 import { chatSearch } from '@/lib/search-params';
+import GroupMemoriesPage from '@/pages/group-memories';
 
 export const Route = createFileRoute('/group-memories')({
   component: GroupMemoriesPage,

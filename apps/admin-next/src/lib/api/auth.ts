@@ -4,7 +4,7 @@ import type {
   PublicKeyCredentialRequestOptionsJSON,
   RegistrationResponseJSON,
 } from '@simplewebauthn/browser';
-import { call, type Credentials, postJson, type SessionState } from './core.ts';
+import { type Credentials, call, postJson, type SessionState } from './core.ts';
 
 export function getSession(): Promise<SessionState> {
   return call<SessionState>('/auth/session');

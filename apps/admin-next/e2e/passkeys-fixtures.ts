@@ -104,7 +104,7 @@ export async function registerPasskey(page: Page, name: string): Promise<void> {
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('Passkey name').fill(name);
   await dialog.getByRole('button', { name: 'Register passkey' }).click();
-  await expect(page.locator('[data-sonner-toast]').filter({ hasText: 'Passkey registered' })).toBeVisible();
+  await expect(page.locator('[data-koi-toast]').filter({ hasText: 'Passkey registered' })).toBeVisible();
   // Radix keeps the dialog mounted during the exit animation; hidden, not gone.
   await expect(dialog).toBeHidden();
 }

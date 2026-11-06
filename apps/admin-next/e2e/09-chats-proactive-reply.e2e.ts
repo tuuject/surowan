@@ -1,6 +1,6 @@
 import { expect, type Locator } from '@playwright/test';
-import { test, watchPageIssues } from './helpers.ts';
 import { chatRow, inherited, prepareChatsPage, viewOf } from './chats-fixture.ts';
+import { test, watchPageIssues } from './helpers.ts';
 
 test.use({ signedIn: true });
 

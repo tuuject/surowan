@@ -1,8 +1,8 @@
 import { useMutation } from '@tanstack/react-query';
+import { Select } from '@tuuject/koi-react/select';
 import type React from 'react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,12 +13,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
+import type { DictionaryExportFormat, DictionaryScope } from '@/lib/api/dictionary.ts';
+import { fetchDictionaryExport } from '@/lib/api/dictionary.ts';
 import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
 import { downloadTextFile } from '@/lib/download.ts';
-import { fetchDictionaryExport } from '@/lib/api/dictionary.ts';
-import type { DictionaryExportFormat, DictionaryScope } from '@/lib/api/dictionary.ts';
+import { toast } from '@/lib/toast.ts';
 
 /**
  * Export dialog for the scope the page is currently showing. The API answers
@@ -67,24 +66,19 @@ export function ExportDialog({
           <div className="space-y-2">
             <Label htmlFor="dictionary-export-format">{t('dictionary.export.formatLabel')}</Label>
             <Select
+              id="dictionary-export-format"
+              className="w-full"
+              aria-label={t('dictionary.export.formatLabel')}
               value={format}
-              onValueChange={(value) => {
+              onChange={(event) => {
+                const value = event.target.value;
                 if (value === 'csv' || value === 'jsonl') {
                   setFormat(value);
                 }
               }}
             >
-              <SelectTrigger
-                id="dictionary-export-format"
-                className="w-full"
-                aria-label={t('dictionary.export.formatLabel')}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="csv">{t('dictionary.import.csv')}</SelectItem>
-                <SelectItem value="jsonl">{t('dictionary.import.jsonl')}</SelectItem>
-              </SelectContent>
+              <option value="csv">{t('dictionary.import.csv')}</option>
+              <option value="jsonl">{t('dictionary.import.jsonl')}</option>
             </Select>
           </div>
           <p className="text-muted-foreground text-xs">{t('dictionary.export.roundTripNote')}</p>

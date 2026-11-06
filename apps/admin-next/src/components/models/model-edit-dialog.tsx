@@ -1,3 +1,4 @@
+import { Select } from '@tuuject/koi-react/select';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LazyDetails } from '@/components/business';
@@ -12,8 +13,15 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
+import type { ThinkingLevel } from '@/lib/api/models.ts';
+import { THINKING_LEVELS } from '@/lib/api/models.ts';
+import type {
+  DraftField,
+  ModelInput,
+  ModelMetadataDraft,
+  ProviderApi,
+  ProviderModelConfig,
+} from '@/lib/api/providers.ts';
 import {
   AUTO_COMPAT,
   compatFieldsForApi,
@@ -26,15 +34,6 @@ import {
   unconfirmedFields,
   validateModelForm,
 } from '@/lib/model-manager.ts';
-import type {
-  DraftField,
-  ModelInput,
-  ModelMetadataDraft,
-  ProviderApi,
-  ProviderModelConfig,
-} from '@/lib/api/providers.ts';
-import { THINKING_LEVELS } from '@/lib/api/models.ts';
-import type { ThinkingLevel } from '@/lib/api/models.ts';
 
 const INPUT_MODALITIES: readonly ModelInput[] = ['text', 'image'];
 const COST_FIELDS = ['input', 'output', 'cache_read', 'cache_write'] as const;
@@ -270,19 +269,16 @@ export function ModelEditDialog({
               {t('models.models.edit.toolSchema')}
             </Label>
             <Select
+              id="model-tool-schema"
+              className="w-full sm:w-64"
               value={form.tool_schema_keywords}
-              onValueChange={(value) => setForm((previous) => ({ ...previous, tool_schema_keywords: value }))}
+              onChange={(event) => setForm((previous) => ({ ...previous, tool_schema_keywords: event.target.value }))}
             >
-              <SelectTrigger id="model-tool-schema" className="w-full sm:w-64">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TOOL_SCHEMA_KEYWORDS_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.value === AUTO_COMPAT ? t('models.models.edit.automatic') : option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+              {TOOL_SCHEMA_KEYWORDS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.value === AUTO_COMPAT ? t('models.models.edit.automatic') : option.label}
+                </option>
+              ))}
             </Select>
             <p className="text-muted-foreground text-xs">{t('models.models.edit.toolSchemaHint')}</p>
           </div>
@@ -324,22 +320,22 @@ export function ModelEditDialog({
                       {spec.field}
                     </Label>
                     <Select
+                      id={`compat-${spec.field}`}
+                      className="w-full sm:w-64"
                       value={form.compat[spec.field] ?? AUTO_COMPAT}
-                      onValueChange={(value) =>
-                        setForm((previous) => ({ ...previous, compat: { ...previous.compat, [spec.field]: value } }))
+                      onChange={(event) =>
+                        setForm((previous) => ({
+                          ...previous,
+                          compat: { ...previous.compat, [spec.field]: event.target.value },
+                        }))
                       }
                     >
-                      <SelectTrigger id={`compat-${spec.field}`} className="w-full sm:w-64">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={AUTO_COMPAT}>{t('models.models.edit.auto')}</SelectItem>
-                        {spec.options.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
+                      <option value={AUTO_COMPAT}>{t('models.models.edit.auto')}</option>
+                      {spec.options.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
                     </Select>
                   </div>
                 ))}

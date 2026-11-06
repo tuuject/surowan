@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { ConfirmDialog, KvList, MonoValue } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { TelegramStatusBadge, TelegramStatusReason, telegramBotLabel } from '@/components/telegram/telegram-status.tsx';
@@ -13,6 +12,7 @@ import { putTelegram } from '@/lib/api/telegram.ts';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { telegramQuery } from '@/lib/queries';
+import { toast } from '@/lib/toast.ts';
 
 function BotIdentity({ state }: { readonly state: TelegramConnectionState }): React.ReactElement {
   const { t } = useTranslation();

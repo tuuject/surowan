@@ -1,16 +1,21 @@
 # Surowan Admin (Next)
 
-Surowan 的 Admin Panel 前端。构建产物是**静态 SPA**（Rsbuild + React + TanStack
-Router/Query + Tailwind 4 + shadcn/Base UI），由后端 `AdminServer`（`serve` 进程内的
-`src/ingress/admin/index.ts`）**同源托管**，不依赖任何 Node/Nitro 运行时。`dist/`
-里的 `index.html` 由后端做深链接回退（未知路径回落到 SPA）。
+Surowan 的 Admin Panel 前端。构建产物是**静态 SPA**（Vite + React + Koi 设计体系
+`@tuuject/koi-react` / Panda CSS + Tailwind 4 布局工具 + TanStack Router/Query），由后端
+`AdminServer`（`serve` 进程内的 `src/ingress/admin/index.ts`）**同源托管**，不依赖任何
+Node/Nitro 运行时。`dist/` 里的 `index.html` 由后端做深链接回退（未知路径回落到 SPA）。
+
+Koi 0.3.0 以 npm 发布版引入（不能用 `workspace:*` / `file:`）。应用壳、导航、登录、
+通用控件和主要面板按 Koi 的组件与语义 token 实现；Tailwind 保留给页面布局和既有业务
+工具类，颜色与圆角通过 `src/styles/globals.css` 映射到 Koi token，因此亮暗主题始终
+同步。`styled-system/` 由 Panda 构建生成，已 gitignore。
 
 ## 命令
 
 ```bash
 pnpm --filter surowan-admin-next run check   # TypeScript 严格检查（tsc --noEmit）
 pnpm --filter surowan-admin-next run build   # 产出 dist/（静态 SPA）
-pnpm --filter surowan-admin-next run dev     # Rsbuild dev server，监听 127.0.0.1:5273
+pnpm --filter surowan-admin-next run dev     # Vite dev server，监听 127.0.0.1:5273
 pnpm --filter surowan-admin-next run test:e2e # Playwright 浏览器 E2E（见下文）
 ```
 
@@ -23,8 +28,8 @@ pnpm --filter surowan-admin-next run test:e2e # Playwright 浏览器 E2E（见�
 
 ## 路由与代码切分
 
-路由是**文件路由**，由 TanStack Router 官方 Rsbuild 集成驱动（`rsbuild.config.ts`
-里 `tools.rspack.plugins` 的 `tanstackRouter({ target: 'react', autoCodeSplitting: true })`）：
+路由是**文件路由**，由 TanStack Router 官方 Vite 集成驱动（`vite.config.ts` 里
+`tanstackRouter({ target: 'react', autoCodeSplitting: true })`）：
 
 - `src/routes/**` 是路由文件（`__root.tsx` 是认证门与 Layout），`src/routeTree.gen.ts`
   由构建期自动生成：**已提交进仓库、被 Biome 忽略、不要手改**；新增页面 = 在
@@ -42,14 +47,21 @@ pnpm --filter surowan-admin-next run test:e2e # Playwright 浏览器 E2E（见�
 
 - 主题初始化用同源 `public/theme-boot.js`（`localStorage` 键 `admin-theme`），
   不引入内联脚本、不写 cookie、不注入 HTML。
-- 业务代码不引入 `dangerouslySetInnerHTML` / `document.cookie`；
-  `src/components/ui/**`（shadcn vendor）是仅有的窄豁免目录。
+- 业务代码不引入 `dangerouslySetInnerHTML` / `document.cookie`；`src/components/ui/**`
+  是 Koi 组件的薄适配层，不享受安全豁免。
+- 主题初始化同时写 `data-theme`（Koi/Panda 条件）和 `dark` class（JSON viewer 与既有
+  持久化键），二者由 `ThemeProvider` 保持一致。
+- 界面语言存 `localStorage['admin-language']`，支持 English / 中文；Koi 组件自带的
+  close / pagination / empty 文案由 `StringsProvider` 一并翻译。
+- 前端保留桌面壳（Electron / 安装式 PWA）预留：`viewport-fit=cover`、`env()` 安全区、
+  `env(titlebar-area-*)`、`data-app-region="drag"` 与抽屉/头部避让都在纯 Web 下退化为
+  0；应用不包含 `electron/` 目录，也不引入 Electron 运行时依赖。
 
 ## 许可与字体
 
 本前端源自 Kiranism 的开源 dashboard 模板，MIT License 全文保留在
-`LICENSE`（Copyright (c) 2025 Kiranism）。自托管字体来自 @fontsource 包
-（Inter），按 SIL Open Font License 1.1 分发；随镜像发布的三方许可说明见
+`LICENSE`（Copyright (c) 2025 Kiranism）。Koi 组件与 token 使用
+`@tuuject/koi-react` / `@tuuject/koi-tokens` 0.3.0（MIT）。随镜像发布的三方许可说明见
 `NOTICE`。
 
 ## E2E 测试
@@ -125,7 +137,7 @@ models.dev 目录缓存——`GET /providers/discover` 与 `lookup-metadata` 因
   模型接受哪些级别由 `supportedThinkingLevels` 计算，与服务端
   `src/platform/thinking-levels.ts` 是同一条规则，改一边必须改另一边。
 
-面板 UI 文案一律英文（与 Memories / Bot admins / Overview 一致）；本文档引用界面文案时用英文原文。
+面板 UI 文案全部经 i18next（English / 中文），新增可见文案必须同时补两个 catalog；本文档引用界面文案时用英文原文（E2E 固定 `en-US`）。
 
 ## 共享业务组件契约
 
@@ -215,11 +227,9 @@ inset），图表无边框，列表项不要自己的 border。`LIST_TABLE_CLASS
 - `ConfirmDialog({ open, onOpenChange, title, description?, confirmText,
   cancelText?, destructive?, pending, error, onConfirm })`，供破坏性/控制
   操作使用。
-- **确认按钮必须用 `onClick`（内部会 `preventDefault()`）**：Radix 的
-  `AlertDialogAction` 按 `Dialog.Close` 语义渲染，点击默认关闭弹窗；
-  `onSelect` 是 Select/DropdownMenu 的 API，AlertDialog Action 不消费它——
-  挂 `onSelect` 会导致点击只关弹窗、`onConfirm` 永不执行。
-  `preventDefault()` 抑制 Radix 隐式关闭，让 mutation 真正跑起来。
+- 弹窗由 Koi `Dialog`（`role="alertdialog"`）渲染，确认按钮是普通 Koi
+  `Button` + `onClick`；Koi/Base UI 不在点击时隐式关闭，`onConfirm` 一定执行。
+  `onSelect` 仍只属于 Menu/Select，不要用在确认按钮上。
 - **弹窗不自动关闭契约**：确认后由调用方在 mutation 成功/取消时设置
   `open=false`；`pending` 期间两个按钮禁用防重复提交，失败时弹窗保持打开
   并内联展示 `error`（`ApiError.code: message`）。调用方的 `onOpenChange`
@@ -268,4 +278,6 @@ inset），图表无边框，列表项不要自己的 border。`LIST_TABLE_CLASS
 
 - 共享组件不内嵌任何具体页面的业务字段；页面通过 render 函数/ColumnSpec 提供。
 - 不在共享组件里使用 `useSuspenseQuery`、不调用受保护接口、不做 mutation。
-- 不引入遗留 UI 组件库依赖；样式用 Tailwind 语义类，暗色模式同时覆盖。
+- 通用控件和页面壳使用 Koi 组件/recipes；页面布局可用 Tailwind 工具类，但颜色、
+  圆角、阴影与字体必须引用 Koi 语义 token（`globals.css` 的 Tailwind theme 映射），
+  亮暗模式由 `data-theme` 统一切换。

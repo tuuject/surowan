@@ -11,9 +11,8 @@ import {
   TextValue,
 } from '@/components/business';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
-import { formatCost, formatNumber, formatTime } from '@/lib/format';
 import type { InvocationDetail, ToolRegistryEntry } from '@/lib/api/invocations.ts';
+import { formatCost, formatNumber, formatTime } from '@/lib/format';
 
 function ToolRegistryTable({ registry }: { readonly registry: readonly ToolRegistryEntry[] }): React.ReactElement {
   const { t } = useTranslation();

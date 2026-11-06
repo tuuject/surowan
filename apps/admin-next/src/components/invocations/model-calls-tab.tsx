@@ -2,9 +2,8 @@ import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import { type ColumnSpec, JsonViewer, StateBadge, TableShell, TextValue } from '@/components/business';
 import { TabContent } from '@/components/invocations/shared';
-
-import { formatCost, formatDuration, formatNumber } from '@/lib/format';
 import type { InvocationDetail, ModelCallEntry } from '@/lib/api/invocations.ts';
+import { formatCost, formatDuration, formatNumber } from '@/lib/format';
 
 export function ModelCallsTab({ invocation }: { readonly invocation: InvocationDetail }): React.ReactNode {
   const { t } = useTranslation();

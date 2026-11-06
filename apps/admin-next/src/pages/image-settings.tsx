@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { CredentialsFields } from '@/components/image-settings/credentials-fields.tsx';
 import { ModelList } from '@/components/image-settings/model-list.tsx';
 import { ModelPicker } from '@/components/image-settings/model-picker.tsx';
@@ -9,8 +8,7 @@ import { SaveActions } from '@/components/image-settings/save-actions.tsx';
 import { type EditableCredential, type EditableModel, toModelPayload } from '@/components/image-settings/shared.ts';
 import { Panel } from '@/components/layout/panel';
 import { Button } from '@/components/ui/button';
-
-import { errorMessage } from '@/lib/errors';
+import type { ImageConfigView } from '@/lib/api/images.ts';
 import {
   getImageConfig,
   getImageModelCatalog,
@@ -18,7 +16,8 @@ import {
   getImageStatus,
   putImageConfig,
 } from '@/lib/api/images.ts';
-import type { ImageConfigView } from '@/lib/api/images.ts';
+import { errorMessage } from '@/lib/errors';
+import { toast } from '@/lib/toast.ts';
 
 export default function ImageSettingsPage() {
   const { t } = useTranslation();

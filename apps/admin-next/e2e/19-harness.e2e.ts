@@ -86,15 +86,14 @@ test('Harness tuning edits the empty-text strategy and fallback list', async ({ 
   await page.goto(await adminUrl('/harness'));
   const strategy = page.getByRole('combobox', { name: 'Empty-text sends' });
   const texts = page.getByLabel('Fallback texts');
-  await expect(strategy).toHaveText('Reject the call');
+  await expect(strategy).toHaveValue('reject');
   await expect(texts).toHaveValue('……');
 
   await texts.fill('  \n ');
   await expect(page.getByText('Enter at least one line')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save and apply' })).toBeDisabled();
 
-  await strategy.click();
-  await page.getByRole('option', { name: 'Send a random fallback text' }).click();
+  await strategy.selectOption('random_text');
   await texts.fill('……\n 嗯 \n\n啊这');
   await expect(page.getByText('2 unsaved changes')).toBeVisible();
   await page.getByRole('button', { name: 'Save and apply' }).click();

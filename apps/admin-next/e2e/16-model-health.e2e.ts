@@ -28,14 +28,14 @@ import {
   assertHealthRequestShape,
   expandedRow,
   holdHealthGate,
+  modelHealthFixture,
   modelRow,
   providersView,
-  releaseHealthGate,
   relayStats,
+  releaseHealthGate,
   resetRelayStats,
   selectProvider,
   showHealthDetails,
-  modelHealthFixture,
 } from './model-health-fixture.ts';
 import {
   E2E_HEALTH_ALIAS_A,

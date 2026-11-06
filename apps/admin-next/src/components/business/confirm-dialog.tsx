@@ -1,27 +1,16 @@
+import { Dialog } from '@tuuject/koi-react/dialog';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
 
 /**
- * Confirmation dialog for destructive / control operations. The dialog
- * never auto-closes on confirm: the action button uses `onClick` with
- * `preventDefault()` so Radix AlertDialog's implicit close (Action renders a
- * `Dialog.Close`) is suppressed, the mutation runs, and the caller closes it
- * (`open=false`) on success or cancel. `onSelect` must NOT be used here — it is
- * a Select/DropdownMenu API and Radix AlertDialog Action ignores it, which
- * silently turns the confirm button into a close-only button. `pending` disables
- * both buttons (no double submits) and `error` shows the ApiError text inline.
- * `confirmText` and the dismiss label must stay distinguishable; mismatches are
- * rejected at render time.
+ * Confirmation dialog for destructive / control operations. The dialog never
+ * auto-closes on confirm: the caller closes it (`open=false`) on success or
+ * cancel. `pending` disables both buttons (no double submits) and `error`
+ * shows the ApiError text inline.
+ *
+ * `confirmText` and the dismiss label must stay distinguishable; mismatches
+ * are rejected at render time.
  */
 export interface ConfirmDialogProps {
   readonly open: boolean;
@@ -59,27 +48,35 @@ export function ConfirmDialog({
     );
   }
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent size="sm">
-        <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          {description !== undefined ? <AlertDialogDescription>{description}</AlertDialogDescription> : null}
-        </AlertDialogHeader>
-        {error !== null ? <p className="text-destructive break-words text-sm">{error}</p> : null}
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>{dismissLabel}</AlertDialogCancel>
-          <AlertDialogAction
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && pending) {
+          return;
+        }
+        onOpenChange(next);
+      }}
+      role="alertdialog"
+      size="sm"
+      title={title}
+      {...(description !== undefined ? { description } : {})}
+      footer={
+        <>
+          <Button type="button" variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>
+            {dismissLabel}
+          </Button>
+          <Button
+            type="button"
             variant={destructive ? 'destructive' : 'default'}
             disabled={pending}
-            onClick={(event) => {
-              event.preventDefault();
-              onConfirm();
-            }}
+            onClick={onConfirm}
           >
             {pending ? t('common.working') : confirmText}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+          </Button>
+        </>
+      }
+    >
+      {error !== null ? <p className="text-destructive text-sm break-words">{error}</p> : null}
+    </Dialog>
   );
 }

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
+import { toast } from '@/lib/toast.ts';
 import { MonoValue } from './kv-list';
 
 export function CopyableValue({

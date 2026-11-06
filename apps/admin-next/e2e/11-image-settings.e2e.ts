@@ -1,7 +1,6 @@
 import { expect } from '@playwright/test';
-
-import { adminUrl, test } from './helpers.ts';
 import type { ImageConfigView } from '../src/lib/api/images.ts';
+import { adminUrl, test } from './helpers.ts';
 
 test.use({ signedIn: true });
 
@@ -379,7 +378,7 @@ test('missing credentials give a visible actionable error and do not send an inv
     'Credential openrouter has no API key configured',
   );
   await save.click();
-  await expect(page.locator('[data-sonner-toast]')).toContainText('has no API key configured');
+  await expect(page.locator('[data-koi-toast]')).toContainText('has no API key configured');
   expect(writes).toBe(0);
   await page.getByLabel('Enable image generation').uncheck();
   await save.click();

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Select } from '@tuuject/koi-react/select';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { type ColumnSpec, ConfirmDialog, MonoValue, TableShell, ToneBadge } from '@/components/business';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,14 +15,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-
+import type { AdminApiKeyItem, ApiKeyMode } from '@/lib/api/admin.ts';
+import { createApiKey, revokeApiKey, rotateApiKey, updateApiKeyMode } from '@/lib/api/admin.ts';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { apiKeysQuery } from '@/lib/queries';
-import { createApiKey, revokeApiKey, rotateApiKey, updateApiKeyMode } from '@/lib/api/admin.ts';
-import type { AdminApiKeyItem, ApiKeyMode } from '@/lib/api/admin.ts';
+import { toast } from '@/lib/toast.ts';
 
 const MODES: readonly ApiKeyMode[] = ['read', 'read_write', 'read_paid', 'all'];
 
@@ -40,25 +39,22 @@ function ModeSelect({
   const { t } = useTranslation();
   return (
     <Select
+      id={id}
+      className="w-full"
       value={value}
       disabled={disabled ?? false}
-      onValueChange={(next) => {
-        const selected = MODES.find((candidate) => candidate === next);
+      onChange={(event) => {
+        const selected = MODES.find((candidate) => candidate === event.target.value);
         if (selected !== undefined) {
           onChange(selected);
         }
       }}
     >
-      <SelectTrigger id={id} className="w-full">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {MODES.map((mode) => (
-          <SelectItem key={mode} value={mode}>
-            {t(`pages.apiKeys.modes.${mode}`)}
-          </SelectItem>
-        ))}
-      </SelectContent>
+      {MODES.map((mode) => (
+        <option key={mode} value={mode}>
+          {t(`pages.apiKeys.modes.${mode}`)}
+        </option>
+      ))}
     </Select>
   );
 }

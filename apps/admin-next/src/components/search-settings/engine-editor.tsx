@@ -1,9 +1,9 @@
+import { Select } from '@tuuject/koi-react/select';
 import { Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import type { SearchProviderView } from '@/lib/api/search.ts';
@@ -77,25 +77,22 @@ export function EngineEditor({
         <div className="space-y-1">
           <Label htmlFor={`${idPrefix}-provider`}>{t('search.fieldProvider')}</Label>
           <Select
+            id={`${idPrefix}-provider`}
+            className="w-full"
             value={draft.provider}
-            onValueChange={(value) => {
-              const next = providers.find((entry) => entry.id === value);
+            onChange={(event) => {
+              const next = providers.find((entry) => entry.id === event.target.value);
               if (next !== undefined && next.id !== draft.provider) {
                 onChange(switchProvider(next));
               }
             }}
             disabled={disabled}
           >
-            <SelectTrigger id={`${idPrefix}-provider`} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {providers.map((entry) => (
-                <SelectItem key={entry.id} value={entry.id}>
-                  {entry.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
+            {providers.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.label}
+              </option>
+            ))}
           </Select>
         </div>
         <div className="space-y-1 sm:col-span-2">
@@ -154,26 +151,24 @@ export function EngineEditor({
           <Label htmlFor={showKeyModeChoice ? `${idPrefix}-key-mode` : `${idPrefix}-key`}>{t('search.fieldKey')}</Label>
           {showKeyModeChoice ? (
             <Select
+              id={`${idPrefix}-key-mode`}
+              className="w-full sm:w-72"
               value={keyMode}
-              onValueChange={(value) =>
+              onChange={(event) => {
                 // Entering alias mode stores the alias the picker shows, so a
                 // single available alias needs no extra pick before saving.
+                const value = event.target.value;
                 onChange(
                   value === 'alias' && draft.keyAlias === ''
                     ? { keyMode: 'alias', keyAlias: deepseekKeys[0] ?? '' }
                     : { keyMode: value as KeyMode },
-                )
-              }
+                );
+              }}
               disabled={disabled}
             >
-              <SelectTrigger id={`${idPrefix}-key-mode`} className="w-full sm:w-72">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {keyModes.includes('keep') ? <SelectItem value="keep">{t('search.keyKeep')}</SelectItem> : null}
-                {keyModes.includes('new') ? <SelectItem value="new">{t('search.keyNew')}</SelectItem> : null}
-                {keyModes.includes('alias') ? <SelectItem value="alias">{t('search.keyReuse')}</SelectItem> : null}
-              </SelectContent>
+              {keyModes.includes('keep') ? <option value="keep">{t('search.keyKeep')}</option> : null}
+              {keyModes.includes('new') ? <option value="new">{t('search.keyNew')}</option> : null}
+              {keyModes.includes('alias') ? <option value="alias">{t('search.keyReuse')}</option> : null}
             </Select>
           ) : null}
           {keyMode === 'new' ? (
@@ -189,17 +184,17 @@ export function EngineEditor({
             />
           ) : null}
           {keyMode === 'alias' ? (
-            <Select value={draft.keyAlias} onValueChange={(value) => onChange({ keyAlias: value })} disabled={disabled}>
-              <SelectTrigger className="w-full sm:w-72">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {deepseekKeys.map((alias) => (
-                  <SelectItem key={alias} value={alias}>
-                    {alias}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+            <Select
+              className="w-full sm:w-72"
+              value={draft.keyAlias}
+              onChange={(event) => onChange({ keyAlias: event.target.value })}
+              disabled={disabled}
+            >
+              {deepseekKeys.map((alias) => (
+                <option key={alias} value={alias}>
+                  {alias}
+                </option>
+              ))}
             </Select>
           ) : null}
           <p className="text-muted-foreground text-xs">

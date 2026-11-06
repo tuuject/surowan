@@ -6,12 +6,17 @@ packages:
 # better-sqlite3 13.x 自带 prebuilds，禁用构建以避免 pnpm 对 binding.gyp 的隐式 node-gyp rebuild
 allowBuilds:
   '@google/genai': true
+  # Panda CSS watches its config through @parcel/watcher during dev.
+  '@parcel/watcher': true
   better-sqlite3: false
   esbuild: true
   protobufjs: true
 
 minimumReleaseAgeExclude:
   - react-hook-form@7.90.0
+  - '@tuuject/koi-core@0.3.0'
+  - '@tuuject/koi-react@0.3.0'
+  - '@tuuject/koi-tokens@0.3.0'
 
 patchedDependencies:
   '@rspress/core@2.0.22': patches/@rspress__core@2.0.22.patch

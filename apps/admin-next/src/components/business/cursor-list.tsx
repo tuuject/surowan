@@ -10,10 +10,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Skeleton } from '@/components/ui/skeleton';
-
-import { cn } from '@/lib/utils';
-import { ApiError } from '@/lib/api/core.ts';
 import type { ListFilters, Page } from '@/lib/api/core.ts';
+import { ApiError } from '@/lib/api/core.ts';
+import { cn } from '@/lib/utils';
 
 /**
  * Cursor list container shared by every list page. It owns the infinite query
