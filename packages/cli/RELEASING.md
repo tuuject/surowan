@@ -10,7 +10,7 @@
 - 严格 `vMAJOR.MINOR.PATCH` 的 tag（无前导零、无 prerelease、无 build 后缀）：tag 中的版本号即发布版本，dist-tag `latest`。
 - 版本只在 CI 的一次性 checkout 内改写（在 `packages/cli` 执行 `npm version --no-git-tag-version`），不回写、不提交源码；稳定 tag 是稳定版本的唯一来源。
 - `pnpm --filter @tuuject/surowan-utils pack` 之后，dry-run 与实际暂存使用同一个 tarball：先 `npm stage publish <tgz> --dry-run --access public --tag <dist-tag> --ignore-scripts` 检查内容，再以 `--provenance` 暂存同一文件。
-- `@surowan/admin-surface` 是 private workspace 包，由 `packages/cli/build.ts` 的 Rolldown bundle 打进 `dist/bin.js`，发布 manifest 里不出现它的名字。只要它出现在 `dependencies` 或 `bundledDependencies`，bun 就会绕过 tarball 内的副本去 registry 解析并拿到 404（bun 1.4.0 实测；`oven-sh/bun#27418`），yarn 同理。因此不要改回依赖声明，也不要单独发布它；构建必须走 `node build.ts`（仓库根目录用 `pnpm cli:build`），`tsc` 只做类型检查（`noEmit`）。
+- `@surowan/admin-surface` 是 private workspace 包，由 `packages/cli/rolldown.config.ts` 配置的 Rolldown bundle 打进 `dist/bin.js`，发布 manifest 里不出现它的名字。只要它出现在 `dependencies` 或 `bundledDependencies`，bun 就会绕过 tarball 内的副本去 registry 解析并拿到 404（bun 1.4.0 实测；`oven-sh/bun#27418`），yarn 同理。因此不要改回依赖声明，也不要单独发布它；构建在 CLI workspace 内用 `pnpm build`（`rolldown -c`，仓库根目录用 `pnpm cli:build`），`prepack` 复用同一入口，`tsc` 只做类型检查（`noEmit`）。
 - CI 只做 staged publishing：`npm stage publish` 把版本放进 registry 的待审批区，不对外可见；维护者需用 `npm stage list @tuuject/surowan-utils` 查看，`npm stage approve <stage-id>`（需 2FA）后才真正发布，或用 `npm stage reject <stage-id>` 丢弃。dist-tag 在暂存时就固定，审批时不能更改。每次 `main` push 都会暂存一个 canary，不审批就不会出现在 `canary` dist-tag 上。
 - 认证使用 GitHub OIDC（job 持有 `id-token: write`）：不使用 `NPM_TOKEN`，不依赖 GitHub Environment。跑在 Node 24 上，发布前安装 npm 11.16.0（trusted publishing 要求 npm CLI ≥ 11.5.1、Node ≥ 22.14.0）。
 - 只有 `tuuject/surowan` 的 push 能进入发布 job；版本 guard（`scripts/npm-release.ts`）再次校验事件、仓库与 ref，不支持的输入会被拒绝。

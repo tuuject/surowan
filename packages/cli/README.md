@@ -43,7 +43,7 @@ npm install -g ./dist/npm/tuuject-surowan-utils-0.1.0.tgz   # 文件名以实际
 
 不全局安装时，可在源码仓库内运行 `node packages/cli/dist/bin.js …`（先 `pnpm cli:build`）。
 
-包以单个自包含的 ESM 文件分发（Rolldown 打包，目标 Node.js 24），没有运行时依赖（只用标准库 `node:util` parseArgs 与全局 `fetch`）。源码内的相对导入带 `.ts` 后缀，打包后已内联，因此 `node_modules` 内不会出现 Node type stripping 拒绝的 `.ts` 文件，也不会留下指向其他 workspace 包的 `import`。
+包以单个自包含的 ESM 文件分发（Rolldown 打包，目标 Node.js 24），没有运行时依赖（只用标准库 `node:util` parseArgs 与全局 `fetch`）。构建配置位于 `rolldown.config.ts`，`build` 通过 `rolldown -c` 加载，`prepack` 复用 `build`；配置中的 `cleanDir` 负责清理旧产物。源码内的相对导入带 `.ts` 后缀，打包后已内联，因此 `node_modules` 内不会出现 Node type stripping 拒绝的 `.ts` 文件，也不会留下指向其他 workspace 包的 `import`。
 
 ## 用法
 

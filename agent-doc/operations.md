@@ -222,7 +222,7 @@ pnpm --filter @tuuject/surowan-utils pack --pack-destination "$PWD/dist/npm"   #
 npm install -g ./dist/npm/tuuject-surowan-utils-<version>.tgz                      # 文件名以实际输出为准
 ```
 
-`cli:build` 与 `prepack` 共用 `packages/cli/build.ts`：Rolldown 以 Node.js 24 为目标，将 CLI 与 private workspace 包 `@surowan/admin-surface` 打成单个自包含的 ESM 文件 `dist/bin.js`。发布 manifest 无运行时依赖，`cli:check` 只做类型检查。
+`cli:build` 与 `prepack` 共用 CLI workspace 的 `build` 命令（`rolldown -c`），加载 `packages/cli/rolldown.config.ts`，由 `output.cleanDir` 清理旧产物。Rolldown 以 Node.js 24 为目标，将 CLI 与 private workspace 包 `@surowan/admin-surface` 打成单个自包含的 ESM 文件 `dist/bin.js`。发布 manifest 无运行时依赖，`cli:check` 同时检查源码与构建配置，不产出 JS。
 
 ```bash
 # 首次使用：面板 Manage → API keys 创建密钥，操作员在本机保存凭据并验证连通
