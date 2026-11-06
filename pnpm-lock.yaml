@@ -398,7 +398,7 @@ importers:
   packages/admin-surface: {}
 
   packages/cli:
-    dependencies:
+    devDependencies:
       '@surowan/admin-surface':
         specifier: workspace:^
         version: link:../admin-surface

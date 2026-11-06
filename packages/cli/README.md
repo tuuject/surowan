@@ -29,6 +29,8 @@ surowan-utils --help
 
 canary 版本号形如 `0.0.0-canary.<run>.<attempt>.g<sha12>`。默认安装使用 `latest`；workflow 只把 canary 发布到独立的 `canary` 标签，不移动 `latest`，因此试用时须显式指定 `@canary`。
 
+tarball 内自带 `@surowan/admin-surface` 的编译产物副本（`bundledDependencies`），不需要 registry 上的第二个包，`npm` / `pnpm` / `bun` / `yarn` 全局安装均可。若在 bun 上看到 `GET https://registry.npmjs.org/@surowan%2fadmin-surface - 404`，说明装到的是修复该问题的版本之前的产物（≤ `0.0.0-canary.43.1`）：bun 不会优先使用 tarball 内的 bundled 副本，只要 manifest 里还有同名运行时依赖就去 registry 解析。改用 `latest` 或更新的 canary 即可。
+
 registry 上还没有该包（`npm install` 返回 404）或需要离线安装时，从源码检出打包后本地安装：
 
 ```bash
