@@ -5,13 +5,13 @@ import { type SeedPayload, roomAt, waitForRun } from './playground-fixtures.ts';
 /**
  * The Playground API as the panel uses it (T09). The UI cases live in
  * 20-playground-ui.e2e.ts; what is asserted here is the server contract: a
- * session is required, a programmatic key is not one, the seeded rooms are
- * visible with their held input, one room's ids never answer for another room,
- * and a create is idempotent by key.
+ * session or an API key whose mode grants the route is required, the seeded
+ * rooms are visible with their held input, one room's ids never answer for
+ * another room, and a create is idempotent by key.
  */
 test.use({ signedIn: true });
 
-test('the playground API is session-only and never answers an API key', async ({ request }) => {
+test('the playground API needs a session or an API key whose mode grants the route', async ({ request }) => {
   const anonymous = await request.get(await adminUrl('/api/playground/rooms'), {
     headers: { cookie: '' },
   });
@@ -22,15 +22,23 @@ test('the playground API is session-only and never answers an API key', async ({
   });
   expect(withBadKey.status()).toBe(401);
 
-  // A valid key is still not a session, even next to the session cookie.
-  const created = await request.post(await adminUrl('/api/api-keys'), { data: { name: 'e2e-playground' } });
+  // A read-only key lists rooms but cannot create one, even next to the session cookie.
+  const created = await request.post(await adminUrl('/api/api-keys'), {
+    data: { name: 'e2e-playground', mode: 'read' },
+  });
   expect(created.status()).toBe(200);
   const { key, item } = (await created.json()) as { key: string; item: { id: string } };
   try {
-    const withKey = await request.get(await adminUrl('/api/playground/rooms'), {
+    const listed = await request.get(await adminUrl('/api/playground/rooms'), {
       headers: { authorization: `Bearer ${key}` },
     });
-    expect(withKey.status()).toBe(403);
+    expect(listed.status()).toBe(200);
+    const write = await request.post(await adminUrl('/api/playground/rooms'), {
+      headers: { authorization: `Bearer ${key}` },
+      data: {},
+    });
+    expect(write.status()).toBe(403);
+    expect(await write.json()).toMatchObject({ error: 'forbidden', message: expect.stringContaining('lacks write') });
   } finally {
     expect((await request.delete(await adminUrl(`/api/api-keys/${item.id}`))).status()).toBe(200);
   }
