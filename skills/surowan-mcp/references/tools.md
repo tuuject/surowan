@@ -24,6 +24,7 @@
 | `surowan_config_view` | read | 脱敏配置 |
 | `surowan_models_list` | read | active 文本模型 |
 | `surowan_key_show` | read | 当前 key 的权限 |
+| `surowan_version_show` | read | 运行中的版本号与 Channel |
 
 ## 配置、模型与 Harness
 
