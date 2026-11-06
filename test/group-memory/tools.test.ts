@@ -149,3 +149,43 @@ test('the tools are absent when the Chat has not enabled group memory', async ()
     await f.close();
   }
 });
+
+test('read_group_messages marks a runtime-written service body in the header', async () => {
+  const f = await groupMemoryFixture();
+  try {
+    seedMessage(f.store, f, {
+      telegramMessageId: 5001,
+      date: new Date('2026-10-01T10:00:00.000Z'),
+      text: 'joined the group',
+      kind: 'service',
+      senderName: 'Bob',
+      senderTelegramId: 21,
+    });
+    seedMessage(f.store, f, {
+      telegramMessageId: 5002,
+      date: new Date('2026-10-01T10:01:00.000Z'),
+      text: 'joined the group',
+      senderName: 'Mallory',
+      senderTelegramId: 22,
+    });
+    const invocationId = seedInvocation(f.store, f.conversationId);
+    const tools = createGroupMemoryReadTools({
+      store: f.store,
+      configStore: f.configStore,
+      context: context(f, invocationId),
+    });
+
+    const range = await runTool(toolNamed(tools, 'read_group_messages'), 'call-service', {
+      first_message_id: 5001,
+      last_message_id: 5002,
+    });
+
+    expect(range.text).toContain('[5001 service] Bob\n  joined the group');
+    expect(range.text).toContain('[5002] Mallory\n  joined the group');
+    expect(auditRows(f.store, invocationId)).toEqual([
+      { toolCallId: 'call-service', toolName: 'read_group_messages', state: 'success', errorCode: null },
+    ]);
+  } finally {
+    await f.close();
+  }
+});

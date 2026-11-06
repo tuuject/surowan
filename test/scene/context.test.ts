@@ -271,4 +271,102 @@ describe('scene context', () => {
     expect(scene.text).not.toContain('edited trigger');
     store.close();
   });
+
+  test('names a payload it cannot read and describes a join instead of leaving an empty body', async () => {
+    const fixture = await setup();
+    const { store, ingestion } = fixture;
+    ingestion.ingest(
+      memberUpdate(1, 10, 0, ALICE, {
+        video: { file_id: 'video-10', file_unique_id: 'video-unique-10', width: 1280, height: 720, duration: 4 },
+      }),
+      at(0),
+    );
+    ingestion.ingest(memberUpdate(2, 11, 5, ALICE, { new_chat_members: [BOB_USER] }), at(5));
+    ingestion.ingest(memberUpdate(3, 12, 6, BOB, { new_chat_members: [BOB_USER] }), at(6));
+    ingestion.ingest(memberUpdate(4, 13, 7, ALICE, { left_chat_member: BOB_USER }), at(7));
+    ingestion.ingest(
+      memberUpdate(5, 14, 8, ALICE, { checklist: { title: 'Trip', tasks: [{ id: 1, text: 'Tickets' }] } }),
+      at(8),
+    );
+    ingestion.ingest(memberUpdate(6, 15, 9, ALICE, { new_chat_members: [ALICE_USER, CAROL_USER] }), at(9));
+    ingestion.ingest(groupUpdate(7, 16, 'joined the group', 9, { from: BOB }), at(9));
+    ingestion.ingest(groupUpdate(8, 17, 'trigger text', 10), at(10));
+    flush(fixture, 30);
+    const invocationId = latestInvocation(store, conversationIdOf(store, GROUP_CHAT, 0n));
+
+    const scene = buildSceneContext(store, fixture.loaded.config, invocationId, DEFAULT_OPTIONS);
+
+    // The model reads the field that arrived, not a bare `unsupported`.
+    expect(scene.text).toContain('[10 00:00:00 uid:42 @alice] Alice\n  [video]');
+    expect(scene.text).toContain('[14 00:00:08 uid:42 @alice] Alice\n  [checklist]');
+    // The inviter is the header; the body says who the invite brought in.
+    expect(scene.text).toContain('[11 00:00:05 service uid:42 @alice] Alice\n  added Bob to the group');
+    // Joining by link and being removed read from the joiner's own side.
+    expect(scene.text).toContain('[12 00:00:06 service uid:77 @bob] Bob\n  joined the group');
+    expect(scene.text).toContain('[13 00:00:07 service uid:42 @alice] Alice\n  removed Bob from the group');
+    // A sender among several new members does not swallow the others.
+    expect(scene.text).toContain('[15 00:00:09 service uid:42 @alice] Alice\n  added Alice and Carol to the group');
+    // The same words typed by a member carry no service mark.
+    expect(scene.text).toContain('[16 00:00:09 uid:77 @bob] Bob\n  joined the group');
+    store.close();
+  });
+
+  test('leaves an ignored member out of a membership event', async () => {
+    const fixture = await setup((config) => {
+      const chat = config.telegram.chats[0];
+      if (chat === undefined) {
+        throw new Error('fixture: expected the default chat');
+      }
+      chat.ignored_user_ids = [BOB.id];
+    });
+    const { store, ingestion } = fixture;
+    ingestion.ingest(memberUpdate(1, 10, 0, ALICE, { new_chat_members: [BOB_USER, CAROL_USER] }), at(0));
+    ingestion.ingest(memberUpdate(2, 11, 5, ALICE, { new_chat_members: [BOB_USER] }), at(5));
+    ingestion.ingest(memberUpdate(3, 12, 7, ALICE, { left_chat_member: BOB_USER }), at(7));
+    ingestion.ingest(
+      memberUpdate(4, 13, 8, ALICE, { video_chat_participants_invited: { users: [BOB_USER, CAROL_USER] } }),
+      at(8),
+    );
+    ingestion.ingest(groupUpdate(5, 14, 'trigger text', 10), at(10));
+    flush(fixture, 30);
+    const invocationId = latestInvocation(store, conversationIdOf(store, GROUP_CHAT, 0n));
+
+    const scene = buildSceneContext(store, fixture.loaded.config, invocationId, DEFAULT_OPTIONS);
+
+    expect(scene.text).toContain('[10 00:00:00 service uid:42 @alice] Alice\n  added Carol to the group');
+    // An event about the ignored member alone says nothing about them.
+    expect(scene.text).toContain('[11 00:00:05 service uid:42 @alice] Alice\n  [service]');
+    expect(scene.text).toContain('[12 00:00:07 service uid:42 @alice] Alice\n  [service]');
+    expect(scene.text).toContain('[13 00:00:08 service uid:42 @alice] Alice\n  invited Carol to a video chat');
+    expect(scene.text).not.toContain('Bob');
+    const stored = store.orm.all<{ text: string | null }>(
+      sql`SELECT r.text FROM message_revisions r JOIN messages m ON m.current_revision_id = r.id
+          WHERE r.kind = 'service' ORDER BY m.telegram_message_id`,
+    );
+    expect(stored.map((row) => row.text)).toEqual([
+      'added Carol to the group',
+      null,
+      null,
+      'invited Carol to a video chat',
+    ]);
+    store.close();
+  });
 });
+
+const ALICE_USER = { id: ALICE.id, is_bot: false, first_name: ALICE.name, username: ALICE.username };
+const BOB_USER = { id: BOB.id, is_bot: false, first_name: BOB.name, username: BOB.username };
+const CAROL_USER = { id: 88, is_bot: false, first_name: 'Carol', username: 'carol' };
+
+/** A group message from `from` carrying one payload or service field the shared builders do not cover. */
+function memberUpdate(
+  updateId: number,
+  messageId: number,
+  seconds: number,
+  from: typeof ALICE,
+  fields: Record<string, unknown>,
+): Update {
+  return {
+    update_id: updateId,
+    message: { ...telegramMessage(GROUP_CHAT, messageId, seconds, from), ...fields },
+  } as unknown as Update;
+}

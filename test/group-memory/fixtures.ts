@@ -42,6 +42,7 @@ export interface SeedMessageInput {
   readonly senderTelegramId?: number;
   readonly sentByBot?: boolean;
   readonly threadId?: bigint;
+  readonly kind?: string;
 }
 
 let nextSenderId = 700_000;
@@ -123,7 +124,7 @@ export function seedMessage(
       messageId: message.id,
       revisionNo: 1n,
       senderId,
-      kind: 'text',
+      kind: input.kind ?? 'text',
       text: input.text,
       createdAt: input.date.toISOString(),
       rawFragmentJson: '{}',

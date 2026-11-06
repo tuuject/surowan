@@ -17,6 +17,12 @@ export function formatSnapshot(snapshot: PreparedSnapshot, options: FormatOption
   if (snapshot.sent_by_bot) {
     tokens.push('you');
   }
+  // A service body such as `joined the group` is written by the runtime, yet
+  // it sits where the sender's words go; only the bracket can say so, because
+  // a member can type that same line.
+  if (snapshot.kind === 'service') {
+    tokens.push('service');
+  }
   if (snapshot.reply_to_message_id !== null) {
     tokens.push(`re:${snapshot.reply_to_message_id}`);
   }
