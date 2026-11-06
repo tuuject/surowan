@@ -55,6 +55,8 @@ test('parses release, staging and develop versions and rejects malformed channel
   expect(parseVersion('v0.0.0-next-tomorrow')).toBeUndefined();
   expect(parseVersion('v0.0.0-develop-')).toBeUndefined();
   expect(parseVersion('v1.2')).toBeUndefined();
+  expect(parseVersion('v01.2.3')).toBeUndefined();
+  expect(parseVersion('v1.0.0-01')).toBeUndefined();
 });
 
 test('orders releases by SemVer and non-release channels by their own rules', () => {
@@ -64,6 +66,24 @@ test('orders releases by SemVer and non-release channels by their own rules', ()
   expect(compareVersions('v1.0.0', 'v0.0.0-next-20261102190940')).toBeGreaterThan(0);
   expect(compareVersions('v0.0.0-next-20261102190940', 'v0.0.0-next-20261101171852')).toBeGreaterThan(0);
   expect(compareVersions('v0.0.0-develop-deadbeef', 'v0.0.0-develop-cafebabe')).toBeGreaterThan(0);
+});
+
+test('release precedence matches the SemVer specification', () => {
+  const ordered = [
+    'v1.0.0-alpha',
+    'v1.0.0-alpha.1',
+    'v1.0.0-alpha.beta',
+    'v1.0.0-beta',
+    'v1.0.0-beta.2',
+    'v1.0.0-beta.11',
+    'v1.0.0-rc.1',
+    'v1.0.0',
+  ];
+  for (let index = 1; index < ordered.length; index += 1) {
+    expect(compareVersions(ordered[index]!, ordered[index - 1]!)).toBeGreaterThan(0);
+    expect(compareVersions(ordered[index - 1]!, ordered[index]!)).toBeLessThan(0);
+  }
+  expect(compareVersions('v1.0.0+build.1', 'v1.0.0+build.2')).toBe(0);
 });
 
 test('a version file wins over Git state and accepts the documented key/value format', async () => {
