@@ -155,9 +155,12 @@ function renderMessage(row: GroupMemoryMessageRow): string {
   const who = (row.senderName ?? 'unknown').replace(/\s+/g, ' ').trim() || 'unknown';
   const username = row.senderUsername === null ? '' : ` @${row.senderUsername.replace(/\s+/g, '')}`;
   const bot = row.sentByBot ? ' you' : '';
+  // A runtime-written service body (`joined the group`) reads like chat text,
+  // so the header marks it where no member can type.
+  const service = row.kind === 'service' ? ' service' : '';
   const thread = row.threadId === 0n ? '' : ` topic:${row.threadId}`;
   const media = row.mediaKinds.length === 0 ? '' : ` [${row.mediaKinds.join(' ')}]`;
-  const header = `[${row.telegramMessageId}${bot}${thread}] ${who}${username}${media}`;
+  const header = `[${row.telegramMessageId}${bot}${service}${thread}] ${who}${username}${media}`;
   const content = row.text ?? row.caption;
   if (content === null || content.trim().length === 0) {
     return `${header}\n  [${row.kind}]`;

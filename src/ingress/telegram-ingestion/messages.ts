@@ -11,15 +11,17 @@ import { conversations, media as mediaTable, messageRevisions, messages, senders
 import type { BusinessStore } from '../../store/store.ts';
 
 /**
- * The Telegram fields that carry a message's own payload, most specific first.
- * A message carries at most one of them.
+ * The Telegram fields that carry a message's own payload, most specific first:
+ * for backward compatibility Telegram sets a plainer field beside some of them
+ * (an animation is also a document, a venue also a location), so the first
+ * match wins.
  *
  * The key is also the stored `kind`, because that string is what the panel
  * lists and what the model reads as `[kind]` when the message has no body of
  * its own: `[video]` says what arrived, `[unsupported]` only said that the
  * runtime could not use it.
  */
-const CONTENT_KEYS: Record<string, true> = {
+const CONTENT_KEYS = {
   photo: true,
   animation: true,
   video: true,
@@ -31,6 +33,7 @@ const CONTENT_KEYS: Record<string, true> = {
   paid_media: true,
   story: true,
   poll: true,
+  checklist: true,
   dice: true,
   game: true,
   venue: true,
@@ -49,7 +52,8 @@ const CONTENT_KEYS: Record<string, true> = {
   connected_website: true,
   boost_added: true,
   chat_background_set: true,
-};
+  passport_data: true,
+} satisfies Partial<Record<keyof Message, true>>;
 
 const SERVICE_KEYS: Record<string, true> = {
   new_chat_members: true,
@@ -345,7 +349,9 @@ function normalizeMessage(message: Message, service: boolean, ignoredUserIds: re
   // A join or a leave has no body of its own, so the runtime writes what
   // happened; the header already names whoever caused it.
   const body =
-    message.text ?? (rich === undefined || rich.text.length === 0 ? null : rich.text) ?? serviceText(message);
+    message.text ??
+    (rich === undefined || rich.text.length === 0 ? null : rich.text) ??
+    serviceText(message, ignoredUserIds);
   return {
     kind,
     text: body,
@@ -422,23 +428,35 @@ function contentKind(message: Message): string {
  * bracket tokens. Events outside this list keep an empty body and render as
  * `[service]`: naming an event the runtime does not describe would be worse
  * than admitting it has nothing to say.
+ *
+ * An ignored member is left out of the description, as their own messages and
+ * the replies quoting them are; an event that names only ignored members keeps
+ * an empty body.
  */
-function serviceText(message: Message): string | null {
+function serviceText(message: Message, ignoredUserIds: readonly number[]): string | null {
+  const shown = (users: readonly User[]): readonly User[] => users.filter((user) => !ignoredUserIds.includes(user.id));
+  const actor = message.from;
   const joined = message.new_chat_members;
   if (joined !== undefined) {
-    const actor = message.from;
-    return actor !== undefined && joined.some((member) => member.id === actor.id)
-      ? 'joined the group'
-      : `added ${userNames(joined)} to the group`;
+    // Only a lone joiner who is also the sender joined on their own; any
+    // other shape names every member, so none of them drops out of the line.
+    if (actor !== undefined && joined.length === 1 && joined[0]?.id === actor.id) {
+      return 'joined the group';
+    }
+    const added = shown(joined);
+    return added.length === 0 ? null : `added ${userNames(added)} to the group`;
   }
   const left = message.left_chat_member;
   if (left !== undefined) {
-    const actor = message.from;
-    return actor === undefined || actor.id === left.id ? 'left the group' : `removed ${userName(left)} from the group`;
+    if (actor === undefined || actor.id === left.id) {
+      return 'left the group';
+    }
+    return shown([left]).length === 0 ? null : `removed ${userName(left)} from the group`;
   }
   const invited = message.video_chat_participants_invited?.users;
   if (invited !== undefined) {
-    return `invited ${userNames(invited)} to a video chat`;
+    const named = shown(invited);
+    return named.length === 0 ? null : `invited ${userNames(named)} to a video chat`;
   }
   return null;
 }
