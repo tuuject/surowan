@@ -29,7 +29,7 @@ surowan-utils --help
 
 canary 版本号形如 `0.0.0-canary.<run>.<attempt>.g<sha12>`。默认安装使用 `latest`；workflow 只把 canary 发布到独立的 `canary` 标签，不移动 `latest`，因此试用时须显式指定 `@canary`。
 
-发布产物是单个自包含的 `dist/bin.js`（esbuild 打包），manifest 里没有任何 `dependencies`，`npm` / `pnpm` / `bun` / `yarn` 全局安装都不需要额外解析。内部包 `@surowan/admin-surface` 已编译进该文件，不单独发布。
+发布产物是单个自包含的 `dist/bin.js`（Rolldown 打包），manifest 里没有任何 `dependencies`，`npm` / `pnpm` / `bun` / `yarn` 全局安装都不需要额外解析。内部包 `@surowan/admin-surface` 已编译进该文件，不单独发布。
 
 若在 bun 上看到 `GET https://registry.npmjs.org/@surowan%2fadmin-surface - 404`，说明装到的是旧产物（≤ `0.0.0-canary.44.1`）：那些版本把该包名写进了发布 manifest，bun 会绕过 tarball 内的副本去 registry 解析。改用更新的 canary 即可。
 
@@ -43,7 +43,7 @@ npm install -g ./dist/npm/tuuject-surowan-utils-0.1.0.tgz   # 文件名以实际
 
 不全局安装时，可在源码仓库内运行 `node packages/cli/dist/bin.js …`（先 `pnpm cli:build`）。
 
-包以单个自包含的 ESM 文件分发（`esbuild --bundle`），没有运行时依赖（只用标准库 `node:util` parseArgs 与全局 `fetch`）。源码内的相对导入带 `.ts` 后缀，打包后已内联，因此 `node_modules` 内不会出现 Node type stripping 拒绝的 `.ts` 文件，也不会留下指向其他 workspace 包的 `import`。
+包以单个自包含的 ESM 文件分发（Rolldown 打包，目标 Node.js 24），没有运行时依赖（只用标准库 `node:util` parseArgs 与全局 `fetch`）。构建配置位于 `rolldown.config.ts`，`build` 通过 `rolldown -c` 加载，`prepack` 复用 `build`；配置中的 `cleanDir` 负责清理旧产物。源码内的相对导入带 `.ts` 后缀，打包后已内联，因此 `node_modules` 内不会出现 Node type stripping 拒绝的 `.ts` 文件，也不会留下指向其他 workspace 包的 `import`。
 
 ## 用法
 

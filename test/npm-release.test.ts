@@ -87,7 +87,7 @@ describe('npm release selection', () => {
     });
     expect(manifest.bin).toEqual({ 'surowan-utils': './dist/bin.js' });
     expect(manifest.files).toEqual(['dist', 'README.md']);
-    // admin-surface is compiled into dist/bin.js by build.ts; any dependency field
+    // admin-surface is compiled into dist/bin.js by Rolldown; any dependency field
     // naming it makes bun/yarn resolve it from the registry and fail with 404.
     expect(manifest.dependencies).toBeUndefined();
     expect(manifest.bundledDependencies).toBeUndefined();

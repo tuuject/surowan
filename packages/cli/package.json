@@ -24,11 +24,11 @@
     "README.md"
   ],
   "scripts": {
-    "build": "node build.ts",
-    "prepack": "node build.ts"
+    "build": "rolldown -c",
+    "prepack": "pnpm run build"
   },
   "devDependencies": {
     "@surowan/admin-surface": "workspace:^",
-    "esbuild": "0.28.2"
+    "rolldown": "1.2.16"
   }
 }

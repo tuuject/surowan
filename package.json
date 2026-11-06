@@ -13,7 +13,7 @@
   "scripts": {
     "check": "tsc --noEmit && pnpm run cli:check && pnpm --filter surowan-admin-next run check && pnpm run docs:check",
     "cli:check": "tsc -p packages/cli/tsconfig.json --noEmit",
-    "cli:build": "tsc -p packages/cli/tsconfig.json",
+    "cli:build": "pnpm --filter @tuuject/surowan-utils run build",
     "test": "vitest run",
     "start": "node src/cli.ts serve",
     "dev:seed": "node scripts/seed-dev-data.ts",
