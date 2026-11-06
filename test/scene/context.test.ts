@@ -271,4 +271,55 @@ describe('scene context', () => {
     expect(scene.text).not.toContain('edited trigger');
     store.close();
   });
+
+  test('names a payload it cannot read and describes a join instead of leaving an empty body', async () => {
+    const fixture = await setup();
+    const { store, ingestion } = fixture;
+    const video: Update = {
+      update_id: 1,
+      message: {
+        ...telegramMessage(GROUP_CHAT, 10, 0, ALICE),
+        video: { file_id: 'video-10', file_unique_id: 'video-unique-10', width: 1280, height: 720, duration: 4 },
+      },
+    } as unknown as Update;
+    const join: Update = {
+      update_id: 2,
+      message: {
+        ...telegramMessage(GROUP_CHAT, 11, 5, ALICE),
+        new_chat_members: [{ id: 77, is_bot: false, first_name: 'Bob', username: 'bob' }],
+      },
+    } as unknown as Update;
+    const selfJoin: Update = {
+      update_id: 3,
+      message: {
+        ...telegramMessage(GROUP_CHAT, 12, 7, BOB),
+        new_chat_members: [{ id: 77, is_bot: false, first_name: 'Bob', username: 'bob' }],
+      },
+    } as unknown as Update;
+    const removed: Update = {
+      update_id: 4,
+      message: {
+        ...telegramMessage(GROUP_CHAT, 13, 8, ALICE),
+        left_chat_member: { id: 77, is_bot: false, first_name: 'Bob', username: 'bob' },
+      },
+    } as unknown as Update;
+    ingestion.ingest(video, at(0));
+    ingestion.ingest(join, at(5));
+    ingestion.ingest(selfJoin, at(7));
+    ingestion.ingest(removed, at(8));
+    ingestion.ingest(groupUpdate(5, 14, 'trigger text', 10), at(10));
+    flush(fixture, 30);
+    const invocationId = latestInvocation(store, conversationIdOf(store, GROUP_CHAT, 0n));
+
+    const scene = buildSceneContext(store, fixture.loaded.config, invocationId, DEFAULT_OPTIONS);
+
+    // The model reads the field that arrived, not a bare `unsupported`.
+    expect(scene.text).toContain('[10 00:00:00 uid:42 @alice] Alice\n  [video]');
+    // The inviter is the header; the body says who the invite brought in.
+    expect(scene.text).toContain('[11 00:00:05 uid:42 @alice] Alice\n  added Bob to the group');
+    // Joining by link and being removed read from the joiner's own side.
+    expect(scene.text).toContain('[12 00:00:07 uid:77 @bob] Bob\n  joined the group');
+    expect(scene.text).toContain('[13 00:00:08 uid:42 @alice] Alice\n  removed Bob from the group');
+    store.close();
+  });
 });

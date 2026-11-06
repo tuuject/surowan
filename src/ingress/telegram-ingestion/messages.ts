@@ -1,5 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm';
-import type { Message } from 'grammy/types';
+import type { Message, User } from 'grammy/types';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import {
   type ImageDocument,
@@ -9,6 +9,47 @@ import {
 } from '../../platform/telegram-markdown/index.ts';
 import { conversations, media as mediaTable, messageRevisions, messages, senders } from '../../store/schema/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
+
+/**
+ * The Telegram fields that carry a message's own payload, most specific first.
+ * A message carries at most one of them.
+ *
+ * The key is also the stored `kind`, because that string is what the panel
+ * lists and what the model reads as `[kind]` when the message has no body of
+ * its own: `[video]` says what arrived, `[unsupported]` only said that the
+ * runtime could not use it.
+ */
+const CONTENT_KEYS: Record<string, true> = {
+  photo: true,
+  animation: true,
+  video: true,
+  video_note: true,
+  audio: true,
+  voice: true,
+  document: true,
+  sticker: true,
+  paid_media: true,
+  story: true,
+  poll: true,
+  dice: true,
+  game: true,
+  venue: true,
+  location: true,
+  contact: true,
+  invoice: true,
+  successful_payment: true,
+  refunded_payment: true,
+  giveaway: true,
+  giveaway_winners: true,
+  gift: true,
+  unique_gift: true,
+  users_shared: true,
+  chat_shared: true,
+  web_app_data: true,
+  connected_website: true,
+  boost_added: true,
+  chat_background_set: true,
+};
 
 const SERVICE_KEYS: Record<string, true> = {
   new_chat_members: true,
@@ -259,7 +300,7 @@ function upsertConversation(deps: TelegramMessageDeps, chatId: bigint, threadId:
 
 function normalizeMessage(message: Message, service: boolean, ignoredUserIds: readonly number[]): NormalizedMessage {
   const media: NormalizedMedia[] = [];
-  let kind = service ? 'service' : 'unsupported';
+  let kind = service ? 'service' : contentKind(message);
   if (message.text !== undefined) {
     kind = 'text';
   }
@@ -301,9 +342,13 @@ function normalizeMessage(message: Message, service: boolean, ignoredUserIds: re
   }
   const reply = message.reply_to_message;
   const visibleReply = reply !== undefined && !isIgnoredUser(reply, ignoredUserIds) ? reply : undefined;
+  // A join or a leave has no body of its own, so the runtime writes what
+  // happened; the header already names whoever caused it.
+  const body =
+    message.text ?? (rich === undefined || rich.text.length === 0 ? null : rich.text) ?? serviceText(message);
   return {
     kind,
-    text: message.text ?? (rich === undefined || rich.text.length === 0 ? null : rich.text),
+    text: body,
     caption: message.caption ?? null,
     replyToMessageId: visibleReply === undefined ? null : BigInt(visibleReply.message_id),
     replySnapshot: visibleReply === undefined ? null : JSON.stringify(compactReply(visibleReply)),
@@ -359,11 +404,61 @@ function compactReply(message: Message): Record<string, unknown> {
   return {
     message_id: String(message.message_id),
     sender: senderName,
-    content:
-      content === undefined
-        ? `[${message.photo !== undefined ? 'photo' : message.sticker !== undefined ? 'sticker' : 'message'}]`
-        : content.slice(0, 500),
+    content: content === undefined ? `[${contentKind(message)}]` : content.slice(0, 500),
   };
+}
+
+function contentKind(message: Message): string {
+  for (const key of Object.keys(CONTENT_KEYS)) {
+    if (key in message) {
+      return key;
+    }
+  }
+  return 'unsupported';
+}
+
+/**
+ * What a service event says, in the same terse voice as the runtime's other
+ * bracket tokens. Events outside this list keep an empty body and render as
+ * `[service]`: naming an event the runtime does not describe would be worse
+ * than admitting it has nothing to say.
+ */
+function serviceText(message: Message): string | null {
+  const joined = message.new_chat_members;
+  if (joined !== undefined) {
+    const actor = message.from;
+    return actor !== undefined && joined.some((member) => member.id === actor.id)
+      ? 'joined the group'
+      : `added ${userNames(joined)} to the group`;
+  }
+  const left = message.left_chat_member;
+  if (left !== undefined) {
+    const actor = message.from;
+    return actor === undefined || actor.id === left.id ? 'left the group' : `removed ${userName(left)} from the group`;
+  }
+  const invited = message.video_chat_participants_invited?.users;
+  if (invited !== undefined) {
+    return `invited ${userNames(invited)} to a video chat`;
+  }
+  return null;
+}
+
+function userNames(users: readonly User[]): string {
+  const names = users.map(userName);
+  const last = names.at(-1);
+  if (last === undefined) {
+    return 'someone';
+  }
+  return names.length === 1 ? last : `${names.slice(0, -1).join(', ')} and ${last}`;
+}
+
+/** A display name is Telegram's text, so it must stay on one line. */
+function userName(user: User): string {
+  const name = [user.first_name, user.last_name]
+    .filter((part) => part !== undefined)
+    .join(' ')
+    .trim();
+  return (name.length === 0 ? (user.username ?? String(user.id)) : name).replace(/\s+/g, ' ');
 }
 
 function isServiceMessage(message: Message): boolean {

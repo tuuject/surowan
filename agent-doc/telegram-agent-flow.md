@@ -48,6 +48,8 @@
 
 Text/Caption 原样保存 Telegram 给出的纯文本，格式 entity 只留在 `raw_fragment_json`。Rich Message（`message.rich_message`，块结构、没有 `text`）是例外：`kind = 'rich_message'`，`text` 存 `richMessageMarkdown` 拍平后的 Markdown，块里的 Photo（只取最大尺寸）与受支持的图片 Document 按文档顺序写成关联 Media，其余媒体块（视频、音频、文件、地图等）只在 Markdown 里留 `[video]`、`[document: 名称]` 这类占位文字。回复 Rich Message 时 `reply_snapshot.content` 同样取这份 Markdown。
 
+其余消息按承载内容的 Telegram 字段名记 `kind`：`video`、`animation`、`video_note`、`voice`、`audio`、非图片 `document`、`poll`、`dice`、`location`、`contact` 等（顺序见 `CONTENT_KEYS`）；没有正文时 `formatSnapshot` 渲染成 `[video]` 这样的空体标签，面板按同一字符串展示，只有真正未知的字段才退回 `unsupported`。Service 消息的 `kind` 保持 `service`（参与闸门、启动追赶与主动回复都按它排除），其中 `new_chat_members`、`left_chat_member` 与 `video_chat_participants_invited` 由 runtime 写一句 `added Bob to the group`、`joined the group`、`left the group`、`removed Bob from the group`、`invited Bob to a video chat` 存进 `text`，其余 service 事件仍渲染 `[service]`。Service 消息不触发 Bucket，只在下一个 Batch 的 Context 里可见。
+
 ## 启动追赶
 
 普通重启在启动 Scheduler 和常规 long polling 前，以非阻塞 `getUpdates` 排空 Telegram pending updates：
