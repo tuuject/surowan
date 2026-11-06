@@ -29,6 +29,6 @@
   },
   "devDependencies": {
     "@surowan/admin-surface": "workspace:^",
-    "esbuild": "0.28.2"
+    "rolldown": "1.2.16"
   }
 }
