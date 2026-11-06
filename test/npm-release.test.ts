@@ -87,11 +87,11 @@ describe('npm release selection', () => {
     });
     expect(manifest.bin).toEqual({ 'surowan-utils': './dist/bin.js' });
     expect(manifest.files).toEqual(['dist', 'README.md']);
-    // admin-surface ships inside the tarball; declaring it as a runtime dependency
-    // makes bun/yarn try to resolve it from the registry and fail with 404.
+    // admin-surface is compiled into dist/bin.js by build.ts; any dependency field
+    // naming it makes bun/yarn resolve it from the registry and fail with 404.
     expect(manifest.dependencies).toBeUndefined();
-    expect(manifest.devDependencies).toEqual({ '@surowan/admin-surface': 'workspace:^' });
-    expect(manifest.bundledDependencies).toEqual(['@surowan/admin-surface']);
+    expect(manifest.bundledDependencies).toBeUndefined();
+    expect(manifest.devDependencies['@surowan/admin-surface']).toBe('workspace:^');
     expect(existsSync(new URL('../packages/cli/skills/', import.meta.url))).toBe(false);
     const root = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
     const image = JSON.parse(readFileSync(new URL('../packages/image-service/package.json', import.meta.url), 'utf8'));

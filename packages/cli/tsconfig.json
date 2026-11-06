@@ -17,10 +17,7 @@
     "erasableSyntaxOnly": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
-    "rewriteRelativeImportExtensions": true,
-    "declaration": true,
-    "outDir": "dist",
-    "rootDir": "src"
+    "noEmit": true
   },
   "include": ["src/**/*.ts"]
 }

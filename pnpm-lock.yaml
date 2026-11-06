@@ -402,6 +402,9 @@ importers:
       '@surowan/admin-surface':
         specifier: workspace:^
         version: link:../admin-surface
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
 
   packages/image-service:
     dependencies:

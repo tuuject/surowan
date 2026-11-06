@@ -24,13 +24,11 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "prepack": "tsc -p tsconfig.json"
+    "build": "node build.ts",
+    "prepack": "node build.ts"
   },
-  "bundledDependencies": [
-    "@surowan/admin-surface"
-  ],
   "devDependencies": {
-    "@surowan/admin-surface": "workspace:^"
+    "@surowan/admin-surface": "workspace:^",
+    "esbuild": "0.28.2"
   }
 }
