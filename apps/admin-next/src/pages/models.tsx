@@ -1,9 +1,8 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { InUsePanel } from '@/components/models/in-use-panel';
-import { ModelTable, type ModelRow } from '@/components/models/model-table';
+import { type ModelRow, ModelTable } from '@/components/models/model-table';
 import {
   type DeletingModelTarget,
   type EditingTarget,
@@ -17,22 +16,22 @@ import { ProviderListPanel } from '@/components/models/provider-list';
 import { RestartBanner } from '@/components/models/restart-banner';
 import { ToolModelPanel } from '@/components/models/tool-model-panel';
 import { Card, CardContent } from '@/components/ui/card';
-
-import { errorMessage } from '@/lib/errors.ts';
-import { isConfigConflict, providerMatchesSearch, writeErrorMessage } from '@/lib/model-manager.ts';
-import { providersQuery } from '@/lib/queries.ts';
-import { waitForAdminServer } from '@/lib/restart.ts';
-import { useProviderWrite } from '@/lib/use-provider-write.ts';
+import { restartServer } from '@/lib/api/config.ts';
+import type { ChatThinkingReset } from '@/lib/api/models.ts';
+import { switchAgentModel, switchVisionModel } from '@/lib/api/models.ts';
+import type { HealthCheckResult, ProviderModelConfig, ProviderView } from '@/lib/api/providers.ts';
 import {
   deleteProvider,
   deleteProviderModel,
   healthCheckProviderModel,
   replaceProviderModel,
 } from '@/lib/api/providers.ts';
-import type { HealthCheckResult, ProviderModelConfig, ProviderView } from '@/lib/api/providers.ts';
-import { restartServer } from '@/lib/api/config.ts';
-import { switchAgentModel, switchVisionModel } from '@/lib/api/models.ts';
-import type { ChatThinkingReset } from '@/lib/api/models.ts';
+import { errorMessage } from '@/lib/errors.ts';
+import { isConfigConflict, providerMatchesSearch, writeErrorMessage } from '@/lib/model-manager.ts';
+import { providersQuery } from '@/lib/queries.ts';
+import { waitForAdminServer } from '@/lib/restart.ts';
+import { toast } from '@/lib/toast.ts';
+import { useProviderWrite } from '@/lib/use-provider-write.ts';
 
 export default function ModelsPage(): React.ReactElement {
   const { t } = useTranslation();

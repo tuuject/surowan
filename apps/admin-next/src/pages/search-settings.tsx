@@ -4,8 +4,8 @@ import { SearchSettingsForm } from '@/components/search-settings/settings-form.t
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { errorMessage } from '@/lib/errors';
 import { getSearchConfig, type SearchConfigView } from '@/lib/api/search.ts';
+import { errorMessage } from '@/lib/errors';
 
 const searchConfigQuery = {
   queryKey: ['search-config'] as const,

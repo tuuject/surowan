@@ -3,7 +3,6 @@ import { useNavigate } from '@tanstack/react-router';
 import { Download, Info, Merge, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { ConfirmDialog, FilterToolbar, TableShell, TextFilter } from '@/components/business';
 import { DictionaryConflictAlert } from '@/components/dictionary/conflict-alert.tsx';
 import { dictionaryColumns } from '@/components/dictionary/entry-columns.tsx';
@@ -25,7 +24,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-
+import type { DictionaryDraft, DictionaryEntry, DictionaryScope } from '@/lib/api/dictionary.ts';
+import { createDictionaryEntry, deleteDictionaryEntry, updateDictionaryEntry } from '@/lib/api/dictionary.ts';
 import {
   conflictedEntryIds,
   type DictionaryDraftErrors,
@@ -37,8 +37,7 @@ import {
 } from '@/lib/dictionary.ts';
 import { dictionaryChatsQuery, dictionaryQuery } from '@/lib/queries.ts';
 import { useChatScope, useChatScopeSetter } from '@/lib/search-params.ts';
-import { createDictionaryEntry, deleteDictionaryEntry, updateDictionaryEntry } from '@/lib/api/dictionary.ts';
-import type { DictionaryDraft, DictionaryEntry, DictionaryScope } from '@/lib/api/dictionary.ts';
+import { toast } from '@/lib/toast.ts';
 
 const EMPTY_DRAFT: DictionaryDraft = {
   term: '',

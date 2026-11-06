@@ -1,6 +1,5 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { ConfirmDialog } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
@@ -8,11 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { WarningCard } from '@/components/warnings/warning-card';
 import { useForegroundRefresh } from '@/hooks/use-foreground-refresh';
+import type { EventWarning } from '@/lib/api/warnings.ts';
+import { clearWarnings, markWarningRead } from '@/lib/api/warnings.ts';
 import { errorMessage } from '@/lib/errors';
 import { formatNumber } from '@/lib/format';
 import { warningsQuery } from '@/lib/queries';
-import { clearWarnings, markWarningRead } from '@/lib/api/warnings.ts';
-import type { EventWarning } from '@/lib/api/warnings.ts';
+import { toast } from '@/lib/toast.ts';
 
 export default function WarningsPage(): React.ReactElement {
   const { t } = useTranslation();

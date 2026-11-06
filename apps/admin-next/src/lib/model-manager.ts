@@ -1,6 +1,6 @@
-import i18n from './i18n.ts';
-import { errorMessage } from './errors.ts';
 import { ApiError } from './api/core.ts';
+import type { ModelApplySummary, ThinkingLevel } from './api/models.ts';
+import { THINKING_LEVELS } from './api/models.ts';
 import type {
   DraftField,
   MetadataSource,
@@ -13,8 +13,8 @@ import type {
   ProviderModelConfig,
   ProviderView,
 } from './api/providers.ts';
-import { THINKING_LEVELS } from './api/models.ts';
-import type { ModelApplySummary, ThinkingLevel } from './api/models.ts';
+import { errorMessage } from './errors.ts';
+import i18n from './i18n.ts';
 
 /**
  * Pure helpers for the Models page: metadata source labels, draft → config

@@ -3,10 +3,9 @@ import { MonoValue, ToneBadge } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-
+import type { ProvidersView, ProviderView } from '@/lib/api/providers.ts';
 import { providerUsage } from '@/lib/model-manager.ts';
 import { cn } from '@/lib/utils';
-import type { ProviderView, ProvidersView } from '@/lib/api/providers.ts';
 
 /** Which slots the provider currently serves. */
 export function ProviderBadges({

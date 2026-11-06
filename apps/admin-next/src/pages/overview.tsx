@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
+import { Tabs } from '@tuuject/koi-react/tabs';
 import { useState } from 'react';
-import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import {
   ChartPanel,
   type ChartSeries,
@@ -19,18 +20,16 @@ import { TelegramStatusBadge, TelegramStatusReason, telegramBotLabel } from '@/c
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { WarningCard } from '@/components/warnings/warning-card';
 import { useForegroundRefresh } from '@/hooks/use-foreground-refresh';
-
+import type { LabelCount, UsageEntry } from '@/lib/api/usage.ts';
+import { cancelOngoingSessions, wakeBot } from '@/lib/api/usage.ts';
+import type { EventWarning } from '@/lib/api/warnings.ts';
+import { markWarningRead } from '@/lib/api/warnings.ts';
 import { errorMessage } from '@/lib/errors';
 import { formatNumber, formatTime } from '@/lib/format';
 import { overviewQuery, telegramQuery, usageQuery, warningsSummaryQuery } from '@/lib/queries';
-import { useTranslation } from 'react-i18next';
-import { cancelOngoingSessions, wakeBot } from '@/lib/api/usage.ts';
-import type { LabelCount, UsageEntry } from '@/lib/api/usage.ts';
-import { markWarningRead } from '@/lib/api/warnings.ts';
-import type { EventWarning } from '@/lib/api/warnings.ts';
+import { toast } from '@/lib/toast.ts';
 
 function Stat({ title, value }: { readonly title: string; readonly value: React.ReactNode }): React.ReactElement {
   return (
@@ -336,12 +335,15 @@ export default function OverviewPage(): React.ReactElement {
       <Panel
         title={t('pages.overview.dailyUsage')}
         action={
-          <Tabs value={String(days)} onValueChange={(value) => setDays(Number(value))}>
-            <TabsList>
-              <TabsTrigger value="7">{t('pages.overview.range7d')}</TabsTrigger>
-              <TabsTrigger value="30">{t('pages.overview.range30d')}</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <Tabs
+            value={String(days)}
+            onChange={(value) => setDays(Number(value))}
+            label={t('pages.overview.dailyUsage')}
+            items={[
+              { value: '7', label: t('pages.overview.range7d') },
+              { value: '30', label: t('pages.overview.range30d') },
+            ]}
+          />
         }
       >
         {usagePending ? (

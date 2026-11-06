@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
-import { adminUrl, test, toast } from './helpers.ts';
 import { CHAT_ID, listView, putSettings, removeEntry, resetDictionaries, settings } from './dictionary-fixture.ts';
+import { adminUrl, test, toast } from './helpers.ts';
 
 /**
  * Dictionary scopes and injection settings against the real AdminServer + real
@@ -26,8 +26,7 @@ test.describe('dictionary page', () => {
     await dialog.getByLabel('Term', { exact: true }).fill(term);
     await dialog.getByLabel('Definition', { exact: true }).fill('Group-scoped entry');
     await dialog.getByRole('button', { name: 'Group', exact: true }).click();
-    await dialog.getByRole('combobox', { name: 'Chat' }).click();
-    await page.getByRole('option', { name: /Surowan Test Group/ }).click();
+    await dialog.getByRole('combobox', { name: 'Chat' }).selectOption(CHAT_ID);
     await dialog.getByRole('button', { name: 'Create entry' }).click();
     await expect(toast(page, 'Entry created')).toBeVisible();
 
@@ -43,11 +42,9 @@ test.describe('dictionary page', () => {
     try {
       // Switching the page scope to the group shows it; switching back to
       // global hides it again.
-      await page.getByRole('combobox', { name: 'Dictionary scope' }).click();
-      await page.getByRole('option', { name: /Group · Surowan Test Group/ }).click();
+      await page.getByRole('combobox', { name: 'Dictionary scope' }).selectOption(CHAT_ID);
       await expect(page.locator('table tbody tr', { hasText: term })).toBeVisible();
-      await page.getByRole('combobox', { name: 'Dictionary scope' }).click();
-      await page.getByRole('option', { name: 'Global dictionary' }).click();
+      await page.getByRole('combobox', { name: 'Dictionary scope' }).selectOption('__global__');
       await expect(page.locator('table tbody tr', { hasText: term })).toHaveCount(0);
     } finally {
       const current = await listView(page, { scope: 'group', chat: CHAT_ID });
@@ -65,26 +62,22 @@ test.describe('dictionary page', () => {
     // Global mode: On Demand → Off. The panel renders the effective mode from
     // the refetched settings, so waiting on that text is what proves the write
     // landed (a toast is also shown by the group override below).
-    await page.getByRole('combobox', { name: 'Global mode' }).click();
-    await page.getByRole('option', { name: 'Off' }).click();
+    await page.getByRole('combobox', { name: 'Global mode' }).selectOption('off');
     await expect(page.getByTestId('effective-mode')).toHaveText('Off');
     expect((await settings(page)).injection_mode).toBe('off');
 
     const groupBaseline = await settings(page, CHAT_ID);
     try {
-      await page.getByRole('combobox', { name: 'Dictionary scope' }).click();
-      await page.getByRole('option', { name: /Group · Surowan Test Group/ }).click();
-      await page.getByRole('combobox', { name: 'Override for this Chat' }).click();
-      await page.getByRole('option', { name: 'Aggressive', exact: true }).click();
-      await expect(page.getByRole('combobox', { name: 'Override for this Chat' })).toContainText('Aggressive');
+      await page.getByRole('combobox', { name: 'Dictionary scope' }).selectOption(CHAT_ID);
+      await page.getByRole('combobox', { name: 'Override for this Chat' }).selectOption('aggressive');
+      await expect(page.getByRole('combobox', { name: 'Override for this Chat' })).toHaveValue('aggressive');
       await expect(page.getByTestId('effective-mode')).toHaveText('Aggressive');
       const overridden = await settings(page, CHAT_ID);
       expect(overridden.override_mode).toBe('aggressive');
       expect(overridden.effective_mode).toBe('aggressive');
 
       // Clearing the override falls back to the global mode.
-      await page.getByRole('combobox', { name: 'Override for this Chat' }).click();
-      await page.getByRole('option', { name: /Inherit global/ }).click();
+      await page.getByRole('combobox', { name: 'Override for this Chat' }).selectOption('__inherit__');
       await expect(page.getByText('Group override cleared; the global mode applies again')).toBeVisible();
       await expect(page.getByTestId('effective-mode')).toHaveText('Off');
       const cleared = await settings(page, CHAT_ID);
@@ -102,10 +95,9 @@ test.describe('dictionary page', () => {
 test.describe('dictionary chat deep link', () => {
   test('the chat search param opens the group scope directly', async ({ page }) => {
     await page.goto(await adminUrl(`/dictionary?chat=${CHAT_ID}`));
-    await expect(page.getByRole('combobox', { name: 'Dictionary scope' })).toContainText('Surowan Test Group');
-    await page.getByRole('combobox', { name: 'Dictionary scope' }).click();
-    await page.getByRole('option', { name: 'Global dictionary' }).click();
+    await expect(page.getByRole('combobox', { name: 'Dictionary scope' })).toHaveValue(CHAT_ID);
+    await page.getByRole('combobox', { name: 'Dictionary scope' }).selectOption('__global__');
     await expect(page).toHaveURL(/\/dictionary$/);
-    await expect(page.getByRole('combobox', { name: 'Dictionary scope' })).toContainText('Global dictionary');
+    await expect(page.getByRole('combobox', { name: 'Dictionary scope' })).toHaveValue('__global__');
   });
 });

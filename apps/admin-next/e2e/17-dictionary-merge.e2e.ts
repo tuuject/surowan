@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test';
+import { createEntry, draft, listView, removeEntry, resetDictionaries } from './dictionary-fixture.ts';
 import { adminUrl, test } from './helpers.ts';
 import { E2E_MERGE_ALIAS, E2E_MERGE_MODEL, E2E_MERGE_SUGGESTION } from './models-fixture.ts';
-import { createEntry, draft, listView, removeEntry, resetDictionaries } from './dictionary-fixture.ts';
 
 /**
  * The two-step dictionary merge against the real AdminServer + real SQLite and

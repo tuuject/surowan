@@ -2,19 +2,19 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { Panel } from '@/components/layout/panel';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Panel } from '@/components/layout/panel';
+import { putSearchConfig, type SearchConfigView } from '@/lib/api/search.ts';
 import { errorMessage } from '@/lib/errors';
 import { isConfigConflict } from '@/lib/model-manager';
 import { configStatusQuery } from '@/lib/queries';
-import { putSearchConfig, type SearchConfigView } from '@/lib/api/search.ts';
+import { toast } from '@/lib/toast.ts';
+import { activeEngineCount, buildPayload, type EngineDraft, emptyDraft, toDraft, validate } from './draft.ts';
 import { EngineEditor } from './engine-editor.tsx';
-import { activeEngineCount, buildPayload, emptyDraft, toDraft, validate, type EngineDraft } from './draft.ts';
 import { UrlFilterEditor } from './url-filters.tsx';
 
 /** The editable form. Its identity is the revision, so a new revision remounts it. */

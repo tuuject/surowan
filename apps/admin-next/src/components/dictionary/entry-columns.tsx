@@ -2,9 +2,8 @@ import type { TFunction } from 'i18next';
 import { AlertTriangle } from 'lucide-react';
 import { type ColumnSpec, ToneBadge } from '@/components/business';
 import { Button } from '@/components/ui/button';
-
-import { formatTime } from '@/lib/format';
 import type { DictionaryChatOption, DictionaryEntry, DictionaryScope } from '@/lib/api/dictionary.ts';
+import { formatTime } from '@/lib/format';
 
 function targetLabel(
   entry: { readonly scope: DictionaryScope; readonly chat_id: string | null },

@@ -1,8 +1,8 @@
-import { useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
+import { Select } from '@tuuject/koi-react/select';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { type ColumnSpec, ConfirmDialog, MonoValue, TableShell, TextValue, ToneBadge } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { DiffView } from '@/components/prompts/diff-view';
@@ -10,16 +10,15 @@ import { type Notice, type PromptDraft, sourceLabelKey, sourceTone } from '@/com
 import { PromptEditor } from '@/components/prompts/prompt-editor';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-
+import { ApiError } from '@/lib/api/core.ts';
+import type { PromptSaveResponse, PromptScopeRef, PromptVersionItem } from '@/lib/api/prompts.ts';
+import { cancelPromptRunning, failedPromptVersion, restorePromptVersion, savePrompt } from '@/lib/api/prompts.ts';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { chatsQuery, promptDiffQuery, promptDocumentQuery, promptVersionsQuery } from '@/lib/queries';
 import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
-import { ApiError } from '@/lib/api/core.ts';
-import { cancelPromptRunning, failedPromptVersion, restorePromptVersion, savePrompt } from '@/lib/api/prompts.ts';
-import type { PromptSaveResponse, PromptScopeRef, PromptVersionItem } from '@/lib/api/prompts.ts';
+import { toast } from '@/lib/toast.ts';
 
 const GLOBAL_SCOPE_VALUE = 'global';
 const CHAT_SCOPE_PREFIX = 'chat:';
@@ -51,6 +50,11 @@ export default function PromptsPage(): React.ReactElement {
   const file = fileQuery.data;
   const applied = versions.data?.current ?? null;
   const items = versions.data?.items ?? [];
+  const chatItems = chats.data?.items ?? [];
+  // The deep-linked chat can be absent while the chat list loads, after it
+  // fails, or when the chat is unavailable. Without an option the native
+  // select would display "Global prompt" while saving to the group scope.
+  const missingChat = chat !== undefined && !chatItems.some((item) => item.id === chat);
 
   const invalidatePrompts = (): void => {
     void queryClient.invalidateQueries({ queryKey: ['prompt-document'] });
@@ -202,20 +206,22 @@ export default function PromptsPage(): React.ReactElement {
             <Label htmlFor="prompt-scope" className="text-muted-foreground text-xs">
               {t('pages.prompts.scopeLabel')}
             </Label>
-            <Select value={scopeValue} onValueChange={changeScope}>
-              <SelectTrigger id="prompt-scope" size="sm" className="w-64">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={GLOBAL_SCOPE_VALUE}>{t('pages.prompts.globalScope')}</SelectItem>
-                {(chats.data?.items ?? []).map((chat) => (
-                  <SelectItem key={chat.id} value={`${CHAT_SCOPE_PREFIX}${chat.id}`}>
-                    {chat.title === null
-                      ? t('pages.prompts.chatScope', { id: chat.id })
-                      : t('pages.prompts.chatScopeTitled', { title: chat.title, id: chat.id })}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+            <Select
+              id="prompt-scope"
+              size="sm"
+              className="w-64"
+              value={scopeValue}
+              onChange={(event) => changeScope(event.target.value)}
+            >
+              <option value={GLOBAL_SCOPE_VALUE}>{t('pages.prompts.globalScope')}</option>
+              {missingChat ? <option value={scopeValue}>{t('pages.prompts.chatScope', { id: chat })}</option> : null}
+              {chatItems.map((chatItem) => (
+                <option key={chatItem.id} value={`${CHAT_SCOPE_PREFIX}${chatItem.id}`}>
+                  {chatItem.title === null
+                    ? t('pages.prompts.chatScope', { id: chatItem.id })
+                    : t('pages.prompts.chatScopeTitled', { title: chatItem.title, id: chatItem.id })}
+                </option>
+              ))}
             </Select>
           </div>
         }
@@ -265,34 +271,36 @@ export default function PromptsPage(): React.ReactElement {
                 <Label htmlFor="prompt-compare-from" className="text-muted-foreground text-xs">
                   {t('pages.prompts.compareFrom')}
                 </Label>
-                <Select value={fromValue ?? ''} onValueChange={(value) => setFromId(value)}>
-                  <SelectTrigger id="prompt-compare-from" size="sm" className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {items.map((item) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {`v${item.seq}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+                <Select
+                  id="prompt-compare-from"
+                  size="sm"
+                  className="w-40"
+                  value={fromValue ?? ''}
+                  onChange={(event) => setFromId(event.target.value)}
+                >
+                  {items.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {`v${item.seq}`}
+                    </option>
+                  ))}
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="prompt-compare-to" className="text-muted-foreground text-xs">
                   {t('pages.prompts.compareTo')}
                 </Label>
-                <Select value={toValue ?? ''} onValueChange={(value) => setToId(value)}>
-                  <SelectTrigger id="prompt-compare-to" size="sm" className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {items.map((item) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {`v${item.seq}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+                <Select
+                  id="prompt-compare-to"
+                  size="sm"
+                  className="w-40"
+                  value={toValue ?? ''}
+                  onChange={(event) => setToId(event.target.value)}
+                >
+                  {items.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {`v${item.seq}`}
+                    </option>
+                  ))}
                 </Select>
               </div>
               <Button

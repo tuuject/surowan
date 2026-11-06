@@ -1,18 +1,17 @@
+import { Select } from '@tuuject/koi-react/select';
 import { Send, Upload } from 'lucide-react';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-
+import type { PlaygroundParticipant, PlaygroundTimelineItem } from '@/lib/api/playground.ts';
+import { toast } from '@/lib/toast.ts';
 import { TimelineRow } from './rows.tsx';
 import type { MessagePayload } from './shared.tsx';
-import type { PlaygroundParticipant, PlaygroundTimelineItem } from '@/lib/api/playground.ts';
 
 /** The server's room picture limit; a larger file is refused before it is read. */
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -110,17 +109,18 @@ export function ComposerCard({
           <div className="flex flex-wrap items-end gap-2">
             <div className="space-y-1">
               <Label htmlFor="playground-sender">{t('playground.identities.select')}</Label>
-              <Select value={shown.sender_id} onValueChange={setSenderId} disabled={composerLocked}>
-                <SelectTrigger id="playground-sender" className="w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {participants.map((member) => (
-                    <SelectItem key={member.id} value={member.id}>
-                      {member.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <Select
+                id="playground-sender"
+                className="w-48"
+                value={shown.sender_id}
+                disabled={composerLocked}
+                onChange={(event) => setSenderId(event.target.value)}
+              >
+                {participants.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
+                  </option>
+                ))}
               </Select>
             </div>
             {shown.reply_to_seq === null ? null : (

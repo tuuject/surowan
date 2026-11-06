@@ -1,14 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Select } from '@tuuject/koi-react/select';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { Panel } from '@/components/layout/panel';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
+import type { DictionaryInjectionMode } from '@/lib/api/dictionary.ts';
+import { DICTIONARY_INJECTION_MODES, getDictionarySettings, putDictionarySettings } from '@/lib/api/dictionary.ts';
 import { dictionaryErrorMessage, injectionModeHint, injectionModeLabel } from '@/lib/dictionary.ts';
 import { dictionarySettingsQuery } from '@/lib/queries.ts';
-import { DICTIONARY_INJECTION_MODES, getDictionarySettings, putDictionarySettings } from '@/lib/api/dictionary.ts';
-import type { DictionaryInjectionMode } from '@/lib/api/dictionary.ts';
+import { toast } from '@/lib/toast.ts';
 
 const INHERIT_VALUE = '__inherit__';
 
@@ -81,24 +80,22 @@ export function InjectionPanel({ chatId }: { readonly chatId: string | null }): 
           <div className="space-y-1">
             <p className="text-sm font-medium">{t('dictionary.injection.globalMode')}</p>
             <Select
+              className="w-44"
+              aria-label={t('dictionary.injection.globalMode')}
               value={globalMode}
               disabled={globalSettings.isPending || saveGlobal.isPending}
-              onValueChange={(value) => {
+              onChange={(event) => {
+                const value = event.target.value;
                 if (isInjectionMode(value) && value !== globalMode) {
                   saveGlobal.mutate(value);
                 }
               }}
             >
-              <SelectTrigger className="w-44" aria-label={t('dictionary.injection.globalMode')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DICTIONARY_INJECTION_MODES.map((mode) => (
-                  <SelectItem key={mode} value={mode}>
-                    {injectionModeLabel(mode)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+              {DICTIONARY_INJECTION_MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {injectionModeLabel(mode)}
+                </option>
+              ))}
             </Select>
             <p className="text-muted-foreground max-w-80 text-xs">{injectionModeHint(globalMode)}</p>
           </div>
@@ -107,9 +104,12 @@ export function InjectionPanel({ chatId }: { readonly chatId: string | null }): 
             <div className="space-y-1">
               <p className="text-sm font-medium">{t('dictionary.injection.groupOverride')}</p>
               <Select
+                className="w-56"
+                aria-label={t('dictionary.injection.groupOverride')}
                 value={overrideMode ?? INHERIT_VALUE}
                 disabled={groupSettings.isPending || saveOverride.isPending}
-                onValueChange={(value) => {
+                onChange={(event) => {
+                  const value = event.target.value;
                   if (value === INHERIT_VALUE) {
                     if (overrideMode !== null) {
                       saveOverride.mutate(null);
@@ -121,19 +121,14 @@ export function InjectionPanel({ chatId }: { readonly chatId: string | null }): 
                   }
                 }}
               >
-                <SelectTrigger className="w-56" aria-label={t('dictionary.injection.groupOverride')}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={INHERIT_VALUE}>
-                    {t('dictionary.injection.inheritOption', { mode: injectionModeLabel(globalMode) })}
-                  </SelectItem>
-                  {DICTIONARY_INJECTION_MODES.map((mode) => (
-                    <SelectItem key={mode} value={mode}>
-                      {injectionModeLabel(mode)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+                <option value={INHERIT_VALUE}>
+                  {t('dictionary.injection.inheritOption', { mode: injectionModeLabel(globalMode) })}
+                </option>
+                {DICTIONARY_INJECTION_MODES.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {injectionModeLabel(mode)}
+                  </option>
+                ))}
               </Select>
               <p className="text-muted-foreground max-w-80 text-xs">{t('dictionary.injection.overrideNote')}</p>
             </div>

@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { Select } from '@tuuject/koi-react/select';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MonoValue } from '@/components/business';
@@ -17,14 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-
-import { type HeaderRow, headerRowsFromNames, headerValues } from '@/lib/header-rows.ts';
-import { modelFormFromDraft, parseModelIds, requestErrorMessage } from '@/lib/model-manager.ts';
-import { providerPresetsQuery } from '@/lib/queries.ts';
-import { useProviderWrite } from '@/lib/use-provider-write.ts';
-import { createProvider, discoverProviderModels, lookupModelMetadata, PROVIDER_APIS } from '@/lib/api/providers.ts';
 import type {
   CreateProviderRequest,
   DiscoveredModel,
@@ -32,6 +26,11 @@ import type {
   ProviderKind,
   ProviderModelConfig,
 } from '@/lib/api/providers.ts';
+import { createProvider, discoverProviderModels, lookupModelMetadata, PROVIDER_APIS } from '@/lib/api/providers.ts';
+import { type HeaderRow, headerRowsFromNames, headerValues } from '@/lib/header-rows.ts';
+import { modelFormFromDraft, parseModelIds, requestErrorMessage } from '@/lib/model-manager.ts';
+import { providerPresetsQuery } from '@/lib/queries.ts';
+import { useProviderWrite } from '@/lib/use-provider-write.ts';
 
 const ALIAS_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 
@@ -182,14 +181,14 @@ export function ProviderWizard({
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="wizard-kind">{t('models.models.wizard.kind')}</Label>
-                <Select value={kind} onValueChange={(value) => setKind(value as ProviderKind)}>
-                  <SelectTrigger id="wizard-kind" className="w-full sm:w-64">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="builtin">{t('models.models.wizard.builtinKind')}</SelectItem>
-                    <SelectItem value="custom">{t('models.models.wizard.customKind')}</SelectItem>
-                  </SelectContent>
+                <Select
+                  id="wizard-kind"
+                  className="w-full sm:w-64"
+                  value={kind}
+                  onChange={(event) => setKind(event.target.value as ProviderKind)}
+                >
+                  <option value="builtin">{t('models.models.wizard.builtinKind')}</option>
+                  <option value="custom">{t('models.models.wizard.customKind')}</option>
                 </Select>
               </div>
               <div className="space-y-2">
@@ -213,17 +212,18 @@ export function ProviderWizard({
                   ) : presets.isError ? (
                     <p className="text-destructive text-sm break-words">{requestErrorMessage(presets.error)}</p>
                   ) : (
-                    <Select value={presetId} onValueChange={setPresetId}>
-                      <SelectTrigger id="wizard-preset" className="w-full">
-                        <SelectValue placeholder={t('models.models.wizard.pickPreset')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(presets.data?.presets ?? []).map((candidate) => (
-                          <SelectItem key={candidate.id} value={candidate.id}>
-                            {candidate.name} ({candidate.api})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
+                    <Select
+                      id="wizard-preset"
+                      className="w-full"
+                      value={presetId}
+                      placeholder={t('models.models.wizard.pickPreset')}
+                      onChange={(event) => setPresetId(event.target.value)}
+                    >
+                      {(presets.data?.presets ?? []).map((candidate) => (
+                        <option key={candidate.id} value={candidate.id}>
+                          {candidate.name} ({candidate.api})
+                        </option>
+                      ))}
                     </Select>
                   )}
                   {preset === null ? null : (
@@ -246,17 +246,17 @@ export function ProviderWizard({
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="wizard-api">{t('models.models.connection.api')}</Label>
-                    <Select value={api} onValueChange={(value) => setApi(value as ProviderApi)}>
-                      <SelectTrigger id="wizard-api" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PROVIDER_APIS.map((value) => (
-                          <SelectItem key={value} value={value}>
-                            {value}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
+                    <Select
+                      id="wizard-api"
+                      className="w-full"
+                      value={api}
+                      onChange={(event) => setApi(event.target.value as ProviderApi)}
+                    >
+                      {PROVIDER_APIS.map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
                     </Select>
                     {api === 'google-generative-ai' ? (
                       <p className="text-muted-foreground text-xs">{t('models.models.wizard.googleNote')}</p>

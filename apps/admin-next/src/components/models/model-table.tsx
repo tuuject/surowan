@@ -11,9 +11,6 @@ import {
 } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { Button } from '@/components/ui/button';
-
-import { formatDuration, formatNumber } from '@/lib/format.ts';
-import { isImageCapable, isTextCapable, modelUsage } from '@/lib/model-manager.ts';
 import type {
   HealthCheckResult,
   HealthCheckStatus,
@@ -21,6 +18,8 @@ import type {
   ProviderModelConfig,
   ProvidersView,
 } from '@/lib/api/providers.ts';
+import { formatDuration, formatNumber } from '@/lib/format.ts';
+import { isImageCapable, isTextCapable, modelUsage } from '@/lib/model-manager.ts';
 
 export interface ModelRow {
   readonly alias: string;

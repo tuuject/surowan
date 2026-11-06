@@ -161,14 +161,13 @@ test.describe('models page', () => {
       .click();
     await expect(page.getByText('Thinking effort reset to off', { exact: false }).first()).toBeVisible();
     await expect(inUse.getByText(`${E2E_RELAY_ALIAS} / ${E2E_RELAY_COMPLETE_MODEL}`)).toBeVisible();
-    await expect(effort).toHaveText('off');
+    await expect(effort).toHaveValue('off');
     expect(await agentOf()).toMatchObject({ model: E2E_RELAY_COMPLETE_MODEL, thinking_level: 'off' });
 
     // Only the levels the model declares are offered.
-    await effort.click();
-    await expect(page.getByRole('option')).toHaveText(['off', 'low', 'high', 'max']);
-    await page.getByRole('option', { name: 'max' }).click();
-    await expect(effort).toHaveText('max');
+    await expect(effort.locator('option')).toHaveText(['Not set', 'off', 'low', 'high', 'max']);
+    await effort.selectOption('max');
+    await expect(effort).toHaveValue('max');
     expect(await agentOf()).toMatchObject({ model: E2E_RELAY_COMPLETE_MODEL, thinking_level: 'max' });
 
     // Put the fixture agent back for the tests that follow.

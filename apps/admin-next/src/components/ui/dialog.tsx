@@ -1,36 +1,57 @@
-import { XIcon } from 'lucide-react';
-import { Dialog as DialogPrimitive } from 'radix-ui';
-import type * as React from 'react';
-import { Button } from '@/components/ui/button';
+import { Dialog as BaseDialog } from '@base-ui/react/dialog';
+import { IconButton } from '@tuuject/koi-react/button';
+import { dialog as dialogRecipe } from '@tuuject/koi-react/styled-system/recipes';
+import { X } from 'lucide-react';
+import { Children, type ComponentProps, type ReactElement, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
-function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />;
+/**
+ * Koi-styled dialog under the pre-Koi composition API. Base UI supplies the
+ * modal behaviour Koi's Dialog wraps (portal, focus trap, Esc, outside click,
+ * scroll lock, focus return); every visual slot comes from Koi's dialog
+ * recipe. The pages keep their header/body/footer structure, including forms
+ * whose submit button lives inside DialogFooter.
+ */
+interface DialogRootProps {
+  readonly open?: boolean;
+  readonly defaultOpen?: boolean;
+  readonly onOpenChange?: (open: boolean) => void;
+  readonly children: ReactNode;
 }
 
-function DialogTrigger({ ...props }: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
-  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
-}
-
-function DialogPortal({ ...props }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
-}
-
-function DialogClose({ ...props }: React.ComponentProps<typeof DialogPrimitive.Close>) {
-  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
-}
-
-function DialogOverlay({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+function Dialog({ open, defaultOpen, onOpenChange, children }: DialogRootProps): ReactElement {
   return (
-    <DialogPrimitive.Overlay
-      data-slot="dialog-overlay"
-      className={cn(
-        'fixed inset-0 z-50 bg-black/50 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0',
-        className,
-      )}
-      {...props}
-    />
+    <BaseDialog.Root open={open} defaultOpen={defaultOpen} onOpenChange={onOpenChange}>
+      {children}
+    </BaseDialog.Root>
   );
+}
+
+function DialogTrigger({
+  asChild = false,
+  children,
+  ...props
+}: {
+  readonly asChild?: boolean;
+  readonly children: ReactElement;
+} & Omit<ComponentProps<typeof BaseDialog.Trigger>, 'render' | 'children'>): ReactElement {
+  // Without asChild the trigger is its own button, so `aria-label` and the
+  // click target live on the button (the tool image uses this shape). With
+  // asChild the caller's element becomes the trigger.
+  return asChild ? (
+    <BaseDialog.Trigger {...props} render={children} />
+  ) : (
+    <BaseDialog.Trigger {...props}>{children}</BaseDialog.Trigger>
+  );
+}
+
+function DialogPortal({ children }: { readonly children: ReactNode }): ReactElement {
+  return <BaseDialog.Portal>{children}</BaseDialog.Portal>;
+}
+
+function DialogOverlay({ className }: { readonly className?: string }): ReactElement {
+  return <BaseDialog.Backdrop className={cn(dialogRecipe().backdrop, className)} />;
 }
 
 function DialogContent({
@@ -38,87 +59,68 @@ function DialogContent({
   children,
   showCloseButton = true,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content> & {
-  showCloseButton?: boolean;
-}) {
+}: {
+  readonly className?: string;
+  readonly children: ReactNode;
+  readonly showCloseButton?: boolean;
+  readonly 'aria-describedby'?: string | undefined;
+}): ReactElement {
+  const { t } = useTranslation();
   return (
-    <DialogPortal data-slot="dialog-portal">
-      <DialogOverlay />
-      <DialogPrimitive.Content
-        data-slot="dialog-content"
-        className={cn(
-          'fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg',
-          className,
-        )}
-        {...props}
-      >
-        {children}
-        {showCloseButton && (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
-          >
-            <XIcon />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        )}
-      </DialogPrimitive.Content>
-    </DialogPortal>
+    <BaseDialog.Portal>
+      <BaseDialog.Backdrop className={dialogRecipe().backdrop} />
+      <BaseDialog.Viewport className={dialogRecipe().viewport}>
+        <BaseDialog.Popup data-slot="dialog-content" className={cn(dialogRecipe().popup, className)} {...props}>
+          {children}
+          {showCloseButton ? (
+            <BaseDialog.Close
+              className={dialogRecipe().close}
+              render={
+                <IconButton
+                  label={t('layout.koi.close')}
+                  icon={<X size={18} />}
+                  size="sm"
+                  variant="ghost"
+                  color="secondary"
+                />
+              }
+            />
+          ) : null}
+        </BaseDialog.Popup>
+      </BaseDialog.Viewport>
+    </BaseDialog.Portal>
   );
 }
 
-function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
-  return (
-    <div
-      data-slot="dialog-header"
-      className={cn('flex flex-col gap-2 text-center sm:text-left', className)}
-      {...props}
-    />
-  );
+function DialogHeader({ className, ...props }: ComponentProps<'div'>): ReactElement {
+  return <div className={cn('flex flex-col gap-2 pe-8', className)} {...props} />;
 }
 
-function DialogFooter({
-  className,
-  showCloseButton = false,
-  children,
-  ...props
-}: React.ComponentProps<'div'> & {
-  showCloseButton?: boolean;
-}) {
+function DialogFooter({ className, children, ...props }: ComponentProps<'div'>): ReactElement {
   return (
-    <div
-      data-slot="dialog-footer"
-      className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)}
-      {...props}
-    >
+    <div className={cn('mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)} {...props}>
       {children}
-      {showCloseButton && (
-        <DialogPrimitive.Close asChild>
-          <Button variant="outline">Close</Button>
-        </DialogPrimitive.Close>
-      )}
     </div>
   );
 }
 
-function DialogTitle({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Title>) {
-  return (
-    <DialogPrimitive.Title
-      data-slot="dialog-title"
-      className={cn('text-lg leading-none font-semibold', className)}
-      {...props}
-    />
-  );
+function DialogTitle({ className, ...props }: ComponentProps<'h2'>): ReactElement {
+  return <BaseDialog.Title className={cn(dialogRecipe().title, className)} {...props} />;
 }
 
-function DialogDescription({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Description>) {
-  return (
-    <DialogPrimitive.Description
-      data-slot="dialog-description"
-      className={cn('text-sm text-muted-foreground', className)}
-      {...props}
-    />
-  );
+function DialogDescription({ className, ...props }: ComponentProps<'p'>): ReactElement {
+  return <BaseDialog.Description className={cn(dialogRecipe().description, className)} {...props} />;
+}
+
+function DialogClose({
+  asChild: _asChild,
+  children,
+  ...props
+}: {
+  readonly asChild?: boolean;
+  readonly children: ReactElement;
+} & Omit<ComponentProps<typeof BaseDialog.Close>, 'render' | 'children'>): ReactElement {
+  return <BaseDialog.Close {...props} render={Children.only(children)} />;
 }
 
 export {

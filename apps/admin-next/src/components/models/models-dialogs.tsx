@@ -12,10 +12,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-
-import { modelFormFromConfig } from '@/lib/model-manager.ts';
 import type { ChatThinkingReset } from '@/lib/api/models.ts';
-import type { ProviderModelConfig, ProviderView, ProvidersView } from '@/lib/api/providers.ts';
+import type { ProviderModelConfig, ProvidersView, ProviderView } from '@/lib/api/providers.ts';
+import { modelFormFromConfig } from '@/lib/model-manager.ts';
 
 export interface PickerTarget {
   readonly mode: ModelPickerMode;

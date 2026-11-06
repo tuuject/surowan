@@ -7,15 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
+import { updateCredentials } from '@/lib/api/auth.ts';
+import type { ConfigApplyResponse } from '@/lib/api/config.ts';
+import { applyConfigFile } from '@/lib/api/config.ts';
+import type { Credentials } from '@/lib/api/core.ts';
+import { ApiError } from '@/lib/api/core.ts';
 import { errorMessage } from '@/lib/errors';
 import { configStatusQuery, passkeysQuery, sessionQuery } from '@/lib/queries';
 import { useProviderWrite } from '@/lib/use-provider-write';
-import { ApiError } from '@/lib/api/core.ts';
-import type { Credentials } from '@/lib/api/core.ts';
-import { applyConfigFile } from '@/lib/api/config.ts';
-import type { ConfigApplyResponse } from '@/lib/api/config.ts';
-import { updateCredentials } from '@/lib/api/auth.ts';
 
 function shortHash(hash: string): string {
   return hash.slice(0, 12);

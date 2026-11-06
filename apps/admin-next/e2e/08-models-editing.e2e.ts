@@ -63,8 +63,7 @@ test.describe('models page', () => {
     await page.goto(await adminUrl('/models'));
     await page.getByRole('button', { name: 'New provider' }).click();
 
-    await page.locator('#wizard-kind').click();
-    await page.getByRole('option', { name: /custom/ }).click();
+    await page.locator('#wizard-kind').selectOption('custom');
     await page.locator('#wizard-alias').fill('relay2');
     await page.locator('#wizard-base-url').fill(relayBaseUrl);
     await page.getByRole('button', { name: 'Next' }).click();
@@ -116,8 +115,7 @@ test.describe('models page', () => {
     await page.goto(await adminUrl('/models'));
     await page.getByRole('button', { name: 'New provider' }).click();
 
-    await page.locator('#wizard-kind').click();
-    await page.getByRole('option', { name: /custom/ }).click();
+    await page.locator('#wizard-kind').selectOption('custom');
     await page.locator('#wizard-alias').fill('relay3');
     await page.locator('#wizard-base-url').fill(relayBaseUrl);
     await page.getByRole('button', { name: 'Next' }).click();

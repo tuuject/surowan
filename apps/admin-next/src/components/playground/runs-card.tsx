@@ -4,14 +4,13 @@ import { useTranslation } from 'react-i18next';
 import { StateBadge } from '@/components/business';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-
-import { AttemptRow } from './rows.tsx';
 import type {
   PlaygroundInvocation,
   PlaygroundReleaseDetail,
   PlaygroundRoomDetail,
   PlaygroundStatusSummary,
 } from '@/lib/api/playground.ts';
+import { AttemptRow } from './rows.tsx';
 
 interface RunsCardProps {
   readonly roomId: string;

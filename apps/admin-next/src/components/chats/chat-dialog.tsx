@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
+import { Select } from '@tuuject/koi-react/select';
 import { useState } from 'react';
-import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -12,15 +13,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
+import type { ChatEntry, ChatSettings, ChatsView } from '@/lib/api/chats.ts';
+import { createChat, updateChat } from '@/lib/api/chats.ts';
+import type { ThinkingLevel } from '@/lib/api/models.ts';
 import { errorMessage } from '@/lib/errors';
 import { isConfigConflict, isThinkingLevel } from '@/lib/model-manager';
+import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
-import { useTranslation } from 'react-i18next';
-import { createChat, updateChat } from '@/lib/api/chats.ts';
-import type { ChatEntry, ChatSettings, ChatsView } from '@/lib/api/chats.ts';
-import type { ThinkingLevel } from '@/lib/api/models.ts';
 
 function modelKey(provider: string, model: string): string {
   return JSON.stringify([provider, model]);
@@ -154,57 +153,53 @@ export function ChatDialog({
             <div className="space-y-2">
               <Label htmlFor="chat-model">{t('pages.chats.agentModelLabel')}</Label>
               <Select
+                id="chat-model"
+                className="w-full"
                 value={model}
-                onValueChange={(value) => {
+                onChange={(event) => {
+                  const value = event.target.value;
                   setModel(value);
                   const next = view.models.find((item) => modelKey(item.provider, item.model) === value);
                   setThinking(value === 'inherit' ? 'inherit' : (next?.thinking_levels[0] ?? 'off'));
                 }}
               >
-                <SelectTrigger id="chat-model" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="inherit">
-                    {t('pages.chats.globalDefaultModel', {
-                      model: `${view.defaults.provider} / ${view.defaults.model}`,
-                    })}
-                  </SelectItem>
-                  {view.models.map((item) => (
-                    <SelectItem key={modelKey(item.provider, item.model)} value={modelKey(item.provider, item.model)}>
-                      {item.provider} / {item.model}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+                <option value="inherit">
+                  {t('pages.chats.globalDefaultModel', {
+                    model: `${view.defaults.provider} / ${view.defaults.model}`,
+                  })}
+                </option>
+                {view.models.map((item) => (
+                  <option key={modelKey(item.provider, item.model)} value={modelKey(item.provider, item.model)}>
+                    {item.provider} / {item.model}
+                  </option>
+                ))}
               </Select>
               <p className="text-muted-foreground text-xs">{t('pages.chats.modelHint')}</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="chat-thinking">{t('pages.chats.thinkingLabel')}</Label>
               <Select
+                id="chat-thinking"
+                className="w-full"
                 value={thinking}
-                onValueChange={(value) => {
+                onChange={(event) => {
+                  const value = event.target.value;
                   if (value === 'inherit' || isThinkingLevel(value)) {
                     setThinking(value);
                   }
                 }}
               >
-                <SelectTrigger id="chat-thinking" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {inheritAllowed ? (
-                    <SelectItem value="inherit" disabled={!inheritSupported}>
-                      {t('pages.chats.globalDefaultLevel', { level: view.defaults.thinking_level })}
-                      {inheritSupported ? '' : t('pages.chats.unsupportedSuffix')}
-                    </SelectItem>
-                  ) : null}
-                  {levels.map((level) => (
-                    <SelectItem key={level} value={level}>
-                      {level}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+                {inheritAllowed ? (
+                  <option value="inherit" disabled={!inheritSupported}>
+                    {t('pages.chats.globalDefaultLevel', { level: view.defaults.thinking_level })}
+                    {inheritSupported ? '' : t('pages.chats.unsupportedSuffix')}
+                  </option>
+                ) : null}
+                {levels.map((level) => (
+                  <option key={level} value={level}>
+                    {level}
+                  </option>
+                ))}
               </Select>
             </div>
           </fieldset>

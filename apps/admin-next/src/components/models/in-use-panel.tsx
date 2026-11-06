@@ -1,15 +1,14 @@
 import { useMutation } from '@tanstack/react-query';
+import { Select } from '@tuuject/koi-react/select';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { KvList, MonoValue } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
-import { agentModelConfig, isThinkingLevel, supportedThinkingLevels, writeErrorMessage } from '@/lib/model-manager.ts';
-import { useProviderWrite } from '@/lib/use-provider-write.ts';
-import type { ProvidersView } from '@/lib/api/providers.ts';
-import { setAgentThinkingLevel } from '@/lib/api/models.ts';
 import type { ThinkingLevel } from '@/lib/api/models.ts';
+import { setAgentThinkingLevel } from '@/lib/api/models.ts';
+import type { ProvidersView } from '@/lib/api/providers.ts';
+import { agentModelConfig, isThinkingLevel, supportedThinkingLevels, writeErrorMessage } from '@/lib/model-manager.ts';
+import { toast } from '@/lib/toast.ts';
+import { useProviderWrite } from '@/lib/use-provider-write.ts';
 
 /**
  * What the bot runs on right now, whichever provider the page has selected:
@@ -63,24 +62,24 @@ export function InUsePanel({
             value: (
               <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <Select
+                  size="sm"
+                  className="w-32"
+                  aria-label={t('models.models.inUse.thinkingEffort')}
+                  placeholder={t('models.models.inUse.levelUnset')}
                   value={current ?? ''}
                   disabled={setLevel.isPending || levelLocked}
-                  onValueChange={(value) => {
+                  onChange={(event) => {
+                    const value = event.target.value;
                     if (isThinkingLevel(value) && value !== current) {
                       setLevel.mutate(value);
                     }
                   }}
                 >
-                  <SelectTrigger size="sm" className="w-32" aria-label={t('models.models.inUse.thinkingEffort')}>
-                    <SelectValue placeholder={t('models.models.inUse.levelUnset')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {levels.map((level) => (
-                      <SelectItem key={level} value={level}>
-                        {level}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+                  {levels.map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
                 </Select>
                 <span className="text-muted-foreground text-xs">{t('models.models.inUse.resetsNote')}</span>
               </span>

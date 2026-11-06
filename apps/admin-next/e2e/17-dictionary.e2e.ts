@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
-import { adminUrl, test, toast, watchPageIssues } from './helpers.ts';
 import { findEntry, removeEntry, resetDictionaries } from './dictionary-fixture.ts';
+import { adminUrl, test, toast, watchPageIssues } from './helpers.ts';
 
 /**
  * Dictionary page against the real AdminServer + real SQLite: rendering, entry

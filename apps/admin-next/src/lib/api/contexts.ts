@@ -1,5 +1,5 @@
-import type { ToolContentPart } from './invocations.ts';
 import { call, type ListFilters, listPath, type Page } from './core.ts';
+import type { ToolContentPart } from './invocations.ts';
 
 export interface ContextMessageEntry {
   readonly section: string;

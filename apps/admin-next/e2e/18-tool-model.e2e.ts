@@ -52,8 +52,7 @@ test.describe('tool model', () => {
     // The picker walks the same provider list the table renders; this one is a
     // reasoning model with declared levels.
     await picker.getByRole('button', { name: new RegExp(`${E2E_MERGE_ALIAS}/${E2E_MERGE_MODEL}`) }).click();
-    await picker.getByLabel('Thinking effort').click();
-    await page.getByRole('option', { name: 'high', exact: true }).click();
+    await picker.getByLabel('Thinking effort').selectOption('high');
     await picker.getByRole('button', { name: 'Save Tool Model' }).click();
     await expect(page.getByText('Tool Model saved')).toBeVisible();
 

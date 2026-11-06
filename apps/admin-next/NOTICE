@@ -5,9 +5,10 @@ This directory (apps/admin-next) is derived from the open-source "dashboard"
 template by Kiranism, distributed under the MIT License. The full template
 license text is preserved in ./LICENSE (MIT, Copyright (c) 2025 Kiranism).
 
-Bundled web fonts are self-hosted via @fontsource packages and are licensed
-under the SIL Open Font License 1.1:
+The application shell, navigation and shared controls use Koi:
 
-- @fontsource-variable/inter — Inter, Copyright 2016 The Inter Project Authors
+- @tuuject/koi-react 0.3.0 — MIT
+- @tuuject/koi-tokens 0.3.0 — MIT
 
-SIL OFL 1.1 license text: https://openfontlicense.org
+Koi itself builds on Base UI (MIT) and Panda CSS (MIT); their licenses are
+included with their npm packages and remain in effect for the bundled code.

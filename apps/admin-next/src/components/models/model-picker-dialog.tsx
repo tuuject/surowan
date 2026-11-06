@@ -18,12 +18,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-
+import type { DiscoveredModel, ProviderModelConfig, ProviderView } from '@/lib/api/providers.ts';
+import { appendProviderModels, discoverProviderModels, lookupModelMetadata } from '@/lib/api/providers.ts';
 import { type HeaderRow, headerRowsFromNames, headerValues } from '@/lib/header-rows.ts';
 import { modelFormFromDraft, parseModelIds, requestErrorMessage } from '@/lib/model-manager.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
-import { appendProviderModels, discoverProviderModels, lookupModelMetadata } from '@/lib/api/providers.ts';
-import type { DiscoveredModel, ProviderModelConfig, ProviderView } from '@/lib/api/providers.ts';
 
 export type ModelPickerMode = 'discover' | 'manual';
 

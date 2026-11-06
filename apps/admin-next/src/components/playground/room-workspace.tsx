@@ -2,21 +2,9 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-
-import { errorMessage } from '@/lib/errors';
-import {
-  playgroundInvocationsQuery,
-  playgroundMessagesQuery,
-  playgroundReleaseQuery,
-  playgroundRoomQuery,
-} from '@/lib/queries';
-import { ComposerCard } from './composer-card.tsx';
-import { IdentitiesCard, RoomHeaderCard } from './room-cards.tsx';
-import { RunsCard } from './runs-card.tsx';
-import { type MessagePayload, outcomeUnknown, usePayloadKey } from './shared.tsx';
 import { ApiError } from '@/lib/api/core.ts';
+import type { PlaygroundRoom, PlaygroundTimelineItem } from '@/lib/api/playground.ts';
 import {
   addPlaygroundParticipant,
   holdPlaygroundRoom,
@@ -25,7 +13,18 @@ import {
   submitPlaygroundMessage,
   uploadPlaygroundAsset,
 } from '@/lib/api/playground.ts';
-import type { PlaygroundRoom, PlaygroundTimelineItem } from '@/lib/api/playground.ts';
+import { errorMessage } from '@/lib/errors';
+import {
+  playgroundInvocationsQuery,
+  playgroundMessagesQuery,
+  playgroundReleaseQuery,
+  playgroundRoomQuery,
+} from '@/lib/queries';
+import { toast } from '@/lib/toast.ts';
+import { ComposerCard } from './composer-card.tsx';
+import { IdentitiesCard, RoomHeaderCard } from './room-cards.tsx';
+import { RunsCard } from './runs-card.tsx';
+import { type MessagePayload, outcomeUnknown, usePayloadKey } from './shared.tsx';
 
 export function RoomWorkspace({ roomId }: { readonly roomId: string }): React.ReactElement {
   const { t } = useTranslation();

@@ -1,27 +1,26 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
+import { ConfirmDialog } from '@/components/business';
 import { ChatDialog } from '@/components/chats/chat-dialog';
-import { GroupMemoryDialog } from '@/components/chats/group-memory-dialog';
 import { ChatTable } from '@/components/chats/chat-table';
+import { GroupMemoryDialog } from '@/components/chats/group-memory-dialog';
 import { ParticipationDialog } from '@/components/chats/participation-dialog';
 import { ProactiveReplyDialog } from '@/components/chats/proactive-reply-dialog';
-import { ConfirmDialog } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { RestartBanner } from '@/components/models/restart-banner';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-
+import type { ChatEntry, ChatsView } from '@/lib/api/chats.ts';
+import { deleteChat } from '@/lib/api/chats.ts';
+import { restartServer } from '@/lib/api/config.ts';
 import { errorMessage } from '@/lib/errors';
 import { isConfigConflict } from '@/lib/model-manager';
 import { chatsQuery } from '@/lib/queries';
 import { waitForAdminServer } from '@/lib/restart';
+import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
-import { useTranslation } from 'react-i18next';
-import { deleteChat } from '@/lib/api/chats.ts';
-import type { ChatEntry, ChatsView } from '@/lib/api/chats.ts';
-import { restartServer } from '@/lib/api/config.ts';
 
 export default function ChatsPage(): React.ReactElement {
   const { t } = useTranslation();

@@ -228,12 +228,12 @@ export function tableBodyRows(page: Page): ReturnType<Page['locator']> {
 }
 
 /**
- * A toast with `text`, scoped to Sonner's container: page content that also
+ * A toast with `text`, scoped to the Koi toast stack: page content that also
  * contains the words (a dialog, or the row the write just rendered) would
  * otherwise satisfy or break the assertion.
  */
 export function toast(page: Page, text: string): ReturnType<Page['locator']> {
-  return page.locator('[data-sonner-toast]').filter({ hasText: text });
+  return page.locator('[data-koi-toast]').filter({ hasText: text });
 }
 
 /** The "Applied" toast of a successful config write. */

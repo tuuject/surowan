@@ -1,4 +1,5 @@
-import { Link } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
+import { Menu } from '@tuuject/koi-react/menu';
 import {
   Activity,
   AlarmClock,
@@ -13,18 +14,11 @@ import {
   Speech,
   Trash2,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { type ColumnSpec, FLUSH_TABLE_CLASS, MonoValue, TableShell, ToneBadge } from '@/components/business';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-
-import { effectiveWindows, summarizeWindows } from '@/lib/participation';
-import { useTranslation } from 'react-i18next';
 import type { ChatEntry, ChatSettingsView, ChatsView, ParticipationWindow } from '@/lib/api/chats.ts';
+import { effectiveWindows, summarizeWindows } from '@/lib/participation';
 
 /** A field the file and the running process disagree on shows the running value underneath. */
 function RunningNote({ value }: { readonly value: string | null }): React.ReactElement | null {
@@ -68,6 +62,7 @@ export function ChatTable({
   readonly onRemove: (chat: ChatEntry) => void;
 }): React.ReactElement {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   // A Chat removed from the file is still running until restart: show what it runs.
   const shown = (row: ChatEntry): ChatSettingsView | null => row.saved ?? row.active;
   const topicsText = (settings: ChatSettingsView): string =>
@@ -78,6 +73,28 @@ export function ChatTable({
     `${settings.provider === null ? t('pages.chats.defaultModel') : t('pages.chats.chatOverride')} · ${t('pages.chats.thinkingShort', { level: settings.effective.thinking_level })}${
       settings.thinking_level === null ? t('pages.chats.inheritedSuffix') : ''
     }`;
+  /** A quick link keeps a real href for new-tab/middle-click/copy, and only plain left clicks become SPA navigation. */
+  const quickLink = (
+    value: string,
+    label: string,
+    icon: React.ReactNode,
+    to: string,
+    chatId: string,
+    activate: () => void,
+  ) => ({
+    value,
+    label,
+    icon,
+    href: `${to}?chat=${encodeURIComponent(chatId)}`,
+    onSelect: (_itemValue: string, _item: unknown, details: { readonly event: Event }) => {
+      const event = details.event as MouseEvent;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+        return;
+      }
+      event.preventDefault();
+      activate();
+    },
+  });
   const windowSummary = (window: ParticipationWindow): string =>
     summarizeWindows([window], {
       dayLabels: t('pages.chats.weekdaysShort').split(','),
@@ -268,8 +285,9 @@ export function ChatTable({
       render: (row) =>
         row.saved === null ? null : (
           <div className="flex items-center justify-end gap-1">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+            <Menu
+              placement="bottom-end"
+              trigger={
                 <Button
                   type="button"
                   size="icon-sm"
@@ -279,52 +297,66 @@ export function ChatTable({
                 >
                   <ExternalLink />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem asChild>
-                  <Link to="/prompts" search={{ chat: row.id }}>
-                    <Speech />
-                    {t('layout.nav.prompts')}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/dictionary" search={{ chat: row.runtime_chat_id }}>
-                    <BookOpen />
-                    {t('layout.nav.dictionary')}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/memories" search={{ chat: row.runtime_chat_id }}>
-                    <Brain />
-                    {t('layout.nav.memories')}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/group-memories" search={{ chat: row.runtime_chat_id }}>
-                    <LibraryBig />
-                    {t('layout.nav.groupMemories')}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/messages" search={{ chat: row.runtime_chat_id }}>
-                    <MessageSquareText />
-                    {t('layout.nav.messages')}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/invocations" search={{ chat: row.runtime_chat_id }}>
-                    <Activity />
-                    {t('layout.nav.toolSessions')}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/alarms" search={{ chat: row.runtime_chat_id }}>
-                    <AlarmClock />
-                    {t('layout.nav.alarms')}
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              }
+              items={[
+                quickLink(
+                  'prompts',
+                  t('layout.nav.prompts'),
+                  <Speech size={16} />,
+                  '/prompts',
+                  row.id,
+                  () => void navigate({ to: '/prompts', search: { chat: row.id } }),
+                ),
+                quickLink(
+                  'dictionary',
+                  t('layout.nav.dictionary'),
+                  <BookOpen size={16} />,
+                  '/dictionary',
+                  row.runtime_chat_id,
+                  () => void navigate({ to: '/dictionary', search: { chat: row.runtime_chat_id } }),
+                ),
+                quickLink(
+                  'memories',
+                  t('layout.nav.memories'),
+                  <Brain size={16} />,
+                  '/memories',
+                  row.runtime_chat_id,
+                  () => void navigate({ to: '/memories', search: { chat: row.runtime_chat_id } }),
+                ),
+                quickLink(
+                  'group-memories',
+                  t('layout.nav.groupMemories'),
+                  <LibraryBig size={16} />,
+                  '/group-memories',
+                  row.runtime_chat_id,
+                  () => void navigate({ to: '/group-memories', search: { chat: row.runtime_chat_id } }),
+                ),
+                quickLink(
+                  'messages',
+                  t('layout.nav.messages'),
+                  <MessageSquareText size={16} />,
+                  '/messages',
+                  row.runtime_chat_id,
+                  () => void navigate({ to: '/messages', search: { chat: row.runtime_chat_id } }),
+                ),
+                quickLink(
+                  'invocations',
+                  t('layout.nav.toolSessions'),
+                  <Activity size={16} />,
+                  '/invocations',
+                  row.runtime_chat_id,
+                  () => void navigate({ to: '/invocations', search: { chat: row.runtime_chat_id } }),
+                ),
+                quickLink(
+                  'alarms',
+                  t('layout.nav.alarms'),
+                  <AlarmClock size={16} />,
+                  '/alarms',
+                  row.runtime_chat_id,
+                  () => void navigate({ to: '/alarms', search: { chat: row.runtime_chat_id } }),
+                ),
+              ]}
+            />
             {row.id.startsWith('-') ? (
               <Button
                 type="button"

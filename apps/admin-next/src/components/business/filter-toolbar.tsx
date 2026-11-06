@@ -1,10 +1,10 @@
+import { Select } from '@tuuject/koi-react/select';
 import { Search, X } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 /**
@@ -120,25 +120,30 @@ export function SelectFilter<T extends string>({
   className,
 }: SelectFilterProps<T>): React.ReactElement {
   const { t } = useTranslation();
+  const id = useId();
   return (
-    <Select
-      value={value ?? ALL_OPTION_VALUE}
-      onValueChange={(next) => onChange(next === ALL_OPTION_VALUE ? undefined : (next as T))}
-    >
-      <SelectTrigger size="sm" className={cn('w-44', className)} aria-label={placeholder}>
-        <span className="flex min-w-0 items-center gap-1.5">
-          <span className="text-muted-foreground">{placeholder}</span>
-          <SelectValue />
-        </span>
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={ALL_OPTION_VALUE}>{t('layout.business.all')}</SelectItem>
+    <label htmlFor={id} className={cn('flex items-center gap-1.5', className)}>
+      <span aria-hidden="true" className="text-muted-foreground shrink-0 text-xs">
+        {placeholder}
+      </span>
+      <Select
+        id={id}
+        size="sm"
+        className="w-44"
+        aria-label={placeholder}
+        value={value ?? ALL_OPTION_VALUE}
+        onChange={(event) => {
+          const next = event.target.value;
+          onChange(next === ALL_OPTION_VALUE ? undefined : (next as T));
+        }}
+      >
+        <option value={ALL_OPTION_VALUE}>{t('layout.business.all')}</option>
         {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
+          <option key={option.value} value={option.value}>
             {option.label}
-          </SelectItem>
+          </option>
         ))}
-      </SelectContent>
-    </Select>
+      </Select>
+    </label>
   );
 }

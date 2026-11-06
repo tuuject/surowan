@@ -3,7 +3,6 @@ import { Info } from 'lucide-react';
 import type React from 'react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { AliasEditor, ScopePicker } from '@/components/dictionary/entry-form.tsx';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -18,15 +17,15 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-
-import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
-import { mergeDictionaryEntries, previewDictionaryMerge } from '@/lib/api/dictionary.ts';
 import type {
   DictionaryChatOption,
   DictionaryEntry,
   DictionaryMergePreview,
   DictionaryScope,
 } from '@/lib/api/dictionary.ts';
+import { mergeDictionaryEntries, previewDictionaryMerge } from '@/lib/api/dictionary.ts';
+import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
+import { toast } from '@/lib/toast.ts';
 
 type MergeStep =
   | { readonly kind: 'idle' }

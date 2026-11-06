@@ -8,11 +8,10 @@ import {
   TimelineCard,
   ToolCallCard,
 } from '@/components/invocations/timeline-cards';
-
+import type { InvocationChatSummary, InvocationDetail } from '@/lib/api/invocations.ts';
 import { formatTime } from '@/lib/format';
 import { buildInvocationTimeline, type InvocationTimelineEvent, timelineEventKey } from '@/lib/timeline';
 import { cn } from '@/lib/utils';
-import type { InvocationChatSummary, InvocationDetail } from '@/lib/api/invocations.ts';
 
 export function TimelineItem({
   chat,

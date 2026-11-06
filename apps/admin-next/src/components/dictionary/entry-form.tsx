@@ -1,15 +1,14 @@
+import { Select } from '@tuuject/koi-react/select';
 import type React from 'react';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-
+import type { DictionaryChatOption, DictionaryDraft, DictionaryScope } from '@/lib/api/dictionary.ts';
 import { aliasesEqual, formatAliasLines, parseAliasLines } from '@/lib/dictionary.ts';
 import { cn } from '@/lib/utils';
-import type { DictionaryChatOption, DictionaryDraft, DictionaryScope } from '@/lib/api/dictionary.ts';
 
 /**
  * The alias editor: exactly one textarea, one alias per line. Every keystroke
@@ -114,20 +113,19 @@ export function ScopePicker({
         <div className="space-y-1">
           <Label htmlFor={selectId}>{t('dictionary.entry.chatLabel')}</Label>
           <Select
-            {...(chatId === null ? {} : { value: chatId })}
+            id={selectId}
+            className="w-full"
+            aria-label={t('dictionary.entry.chatLabel')}
+            placeholder={t('dictionary.scope.selectChat')}
+            value={chatId ?? ''}
             disabled={disabled}
-            onValueChange={(value) => onChange('group', value)}
+            onChange={(event) => onChange('group', event.target.value)}
           >
-            <SelectTrigger id={selectId} className="w-full" aria-label={t('dictionary.entry.chatLabel')}>
-              <SelectValue placeholder={t('dictionary.scope.selectChat')} />
-            </SelectTrigger>
-            <SelectContent>
-              {chats.map((chat) => (
-                <SelectItem key={chat.id} value={chat.id}>
-                  {chat.title === null ? chat.id : `${chat.title} · ${chat.id}`}
-                </SelectItem>
-              ))}
-            </SelectContent>
+            {chats.map((chat) => (
+              <option key={chat.id} value={chat.id}>
+                {chat.title === null ? chat.id : `${chat.title} · ${chat.id}`}
+              </option>
+            ))}
           </Select>
           <p className="text-muted-foreground text-xs">{t('dictionary.entry.scopeGroupHint')}</p>
         </div>

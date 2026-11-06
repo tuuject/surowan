@@ -3,7 +3,6 @@ import { getRouteApi } from '@tanstack/react-router';
 import { MessagesSquare, Plus } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { RoomWorkspace } from '@/components/playground/room-workspace.tsx';
 import { outcomeUnknown, usePayloadKey } from '@/components/playground/shared.tsx';
 import { Button } from '@/components/ui/button';
@@ -11,10 +10,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { createPlaygroundRoom } from '@/lib/api/playground.ts';
 
 import { errorMessage } from '@/lib/errors';
 import { playgroundRoomsQuery } from '@/lib/queries';
-import { createPlaygroundRoom } from '@/lib/api/playground.ts';
+import { toast } from '@/lib/toast.ts';
 
 const route = getRouteApi('/playground');
 

@@ -32,8 +32,7 @@ test.describe('invocations list', () => {
 
   test('state filter narrows to completed rows only', async ({ page }) => {
     await page.goto(await adminUrl('/invocations'));
-    await page.getByRole('combobox', { name: 'State' }).click();
-    await page.getByRole('option', { name: 'completed' }).click();
+    await page.getByRole('combobox', { name: 'State' }).selectOption('completed');
     await expect(tableBodyRows(page)).toHaveCount(25);
     await expect(page.locator('table tbody tr').filter({ hasText: 'failed' })).toHaveCount(0);
   });
@@ -120,8 +119,7 @@ test.describe('alarms list', () => {
 
   test('state filter shows the pre-cancelled alarm', async ({ page }) => {
     await page.goto(await adminUrl('/alarms'));
-    await page.getByRole('combobox', { name: 'State' }).click();
-    await page.getByRole('option', { name: 'cancelled' }).click();
+    await page.getByRole('combobox', { name: 'State' }).selectOption('cancelled');
     await expect(tableBodyRows(page)).toHaveCount(1);
     await expect(page.getByText('e2e alarm already cancelled')).toBeVisible();
   });
@@ -139,8 +137,7 @@ test.describe('memories list', () => {
 
   test('state=expired keeps only the expired seed memo', async ({ page }) => {
     await page.goto(await adminUrl('/memories'));
-    await page.getByRole('combobox', { name: 'State' }).click();
-    await page.getByRole('option', { name: 'Expired', exact: true }).click();
+    await page.getByRole('combobox', { name: 'State' }).selectOption('expired');
     await expect(tableBodyRows(page)).toHaveCount(1);
     await expect(page.getByText('Old note that expired already.')).toBeVisible();
     await expect(page.getByText('expired', { exact: true }).first()).toBeVisible();
@@ -148,8 +145,7 @@ test.describe('memories list', () => {
 
   test('long-term filter is empty because every seed memo is short-term', async ({ page }) => {
     await page.goto(await adminUrl('/memories'));
-    await page.getByRole('combobox', { name: 'State' }).click();
-    await page.getByRole('option', { name: 'Long-term', exact: true }).click();
+    await page.getByRole('combobox', { name: 'State' }).selectOption('long');
     await expect(page.getByText('No memos match these filters.')).toBeVisible();
   });
 
@@ -177,18 +173,15 @@ test.describe('stickers list', () => {
 
   test('set filter splits the two seeded sets', async ({ page }) => {
     await page.goto(await adminUrl('/stickers'));
-    await page.getByRole('combobox', { name: 'Sticker set' }).click();
-    await page.getByRole('option', { name: 'legacy' }).click();
+    await page.getByRole('combobox', { name: 'Sticker set' }).selectOption('legacy');
     await expect(stickerRows(page)).toHaveCount(12);
-    await page.getByRole('combobox', { name: 'Sticker set' }).click();
-    await page.getByRole('option', { name: 'mascot' }).click();
+    await page.getByRole('combobox', { name: 'Sticker set' }).selectOption('mascot');
     await expect(stickerRows(page)).toHaveCount(18);
   });
 
   test('index-state filter keeps only error rows', async ({ page }) => {
     await page.goto(await adminUrl('/stickers'));
-    await page.getByRole('combobox', { name: 'Index state' }).click();
-    await page.getByRole('option', { name: 'error' }).click();
+    await page.getByRole('combobox', { name: 'Index state' }).selectOption('error');
     await expect(stickerRows(page)).toHaveCount(3);
   });
 

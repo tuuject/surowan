@@ -1,4 +1,3 @@
-import { ToolResult } from './tool-result';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -11,7 +10,14 @@ import {
 } from '@/components/business';
 import { isRoom, MessageRecordLink, RoleBadge, SectionBadge } from '@/components/invocations/shared';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-
+import type { ContextMessageEntry } from '@/lib/api/contexts.ts';
+import type {
+  AgentMessageEntry,
+  InvocationChatSummary,
+  ModelCallEntry,
+  TelegramSendEntry,
+  ToolCallEntry,
+} from '@/lib/api/invocations.ts';
 import { formatCost, formatDuration, formatNumber, formatTime } from '@/lib/format';
 import {
   objectField,
@@ -20,14 +26,7 @@ import {
   parseSendArguments,
   stringField,
 } from '@/lib/timeline';
-import type {
-  AgentMessageEntry,
-  InvocationChatSummary,
-  ModelCallEntry,
-  TelegramSendEntry,
-  ToolCallEntry,
-} from '@/lib/api/invocations.ts';
-import type { ContextMessageEntry } from '@/lib/api/contexts.ts';
+import { ToolResult } from './tool-result';
 
 export function TimelineCard({
   header,

@@ -1,8 +1,8 @@
 import { useMutation } from '@tanstack/react-query';
+import { Select } from '@tuuject/koi-react/select';
 import type React from 'react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { KvList, MonoValue } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { Button } from '@/components/ui/button';
@@ -16,8 +16,9 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
+import type { ThinkingLevel } from '@/lib/api/models.ts';
+import type { ProvidersView, ProviderView } from '@/lib/api/providers.ts';
+import { putToolModel } from '@/lib/api/tools.ts';
 import {
   isConfigConflict,
   isTextCapable,
@@ -25,10 +26,8 @@ import {
   supportedThinkingLevels,
   writeErrorMessage,
 } from '@/lib/model-manager.ts';
+import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
-import type { ProvidersView, ProviderView } from '@/lib/api/providers.ts';
-import { putToolModel } from '@/lib/api/tools.ts';
-import type { ThinkingLevel } from '@/lib/api/models.ts';
 
 interface Pick {
   readonly alias: string;
@@ -244,28 +243,22 @@ function ToolModelPicker({
           <div className="space-y-2">
             <Label htmlFor="tool-model-level">{t('models.models.toolModel.levelLabel')}</Label>
             <Select
+              id="tool-model-level"
+              className="w-44"
+              aria-label={t('models.models.toolModel.levelLabel')}
               value={level}
               disabled={pick === null || levels.length < 2}
-              onValueChange={(value) => {
-                if (isThinkingLevel(value)) {
-                  setLevel(value);
+              onChange={(event) => {
+                if (isThinkingLevel(event.target.value)) {
+                  setLevel(event.target.value);
                 }
               }}
             >
-              <SelectTrigger
-                id="tool-model-level"
-                className="w-44"
-                aria-label={t('models.models.toolModel.levelLabel')}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {levels.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+              {levels.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
             </Select>
           </div>
         </div>

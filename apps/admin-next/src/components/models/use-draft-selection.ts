@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
-
-import { draftNeedsConfirmation, modelFromDraft, modelMatchesSearch } from '@/lib/model-manager.ts';
 import type { DiscoveredModel, ProviderModelConfig } from '@/lib/api/providers.ts';
+import { draftNeedsConfirmation, modelFromDraft, modelMatchesSearch } from '@/lib/model-manager.ts';
 
 /**
  * Selection state shared by the discovery dialog and the new-provider wizard:

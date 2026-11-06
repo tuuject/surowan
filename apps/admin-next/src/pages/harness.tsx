@@ -1,15 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
+import { Select } from '@tuuject/koi-react/select';
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-
+import type { HarnessValue, HarnessValues } from '@/lib/api/config.ts';
+import { updateHarnessSettings } from '@/lib/api/config.ts';
 import { errorMessage } from '@/lib/errors';
 import {
   type DraftError,
@@ -23,8 +24,6 @@ import {
 import { useShowConfigKeys } from '@/lib/panel-preferences';
 import { harnessQuery } from '@/lib/queries';
 import { useProviderWrite } from '@/lib/use-provider-write';
-import { updateHarnessSettings } from '@/lib/api/config.ts';
-import type { HarnessValue, HarnessValues } from '@/lib/api/config.ts';
 
 function useHarnessSave() {
   const queryClient = useQueryClient();
@@ -246,19 +245,21 @@ function HarnessFieldRow({
             </p>
             {configPath}
           </div>
-          <Select value={typeof value === 'string' ? value : ''} onValueChange={onChange}>
-            <SelectTrigger id={id} aria-label={label} aria-describedby={describedBy} className="sm:w-56">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {field.options?.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {t(
-                    `harness.fields.${field.key}.options.${option}` as 'harness.fields.send_empty_text_strategy.options.reject',
-                  )}
-                </SelectItem>
-              ))}
-            </SelectContent>
+          <Select
+            id={id}
+            aria-label={label}
+            aria-describedby={describedBy}
+            className="sm:w-56"
+            value={typeof value === 'string' ? value : ''}
+            onChange={(event) => onChange(event.target.value)}
+          >
+            {field.options?.map((option) => (
+              <option key={option} value={option}>
+                {t(
+                  `harness.fields.${field.key}.options.${option}` as 'harness.fields.send_empty_text_strategy.options.reject',
+                )}
+              </option>
+            ))}
           </Select>
         </div>
         {errorText}

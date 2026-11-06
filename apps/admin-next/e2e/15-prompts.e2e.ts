@@ -79,10 +79,9 @@ test.describe('prompts page', () => {
       await page.request.get(await adminUrl('/api/prompts/group?chat=123456789&source=file'))
     ).json();
     await page.goto(await adminUrl('/prompts'));
-    await page.getByRole('combobox', { name: 'Scope' }).click();
-    await page.getByRole('option', { name: /123456789/ }).click();
+    await page.getByRole('combobox', { name: 'Scope' }).selectOption('chat:123456789');
     // The scope select commits before the editor re-seeds from the group file.
-    await expect(page.getByRole('combobox', { name: 'Scope' })).toContainText('123456789');
+    await expect(page.getByRole('combobox', { name: 'Scope' })).toHaveValue('chat:123456789');
     const editor = page.locator('#prompt-text');
     await expect(editor).toHaveValue(before.prompt);
 
@@ -97,18 +96,16 @@ test.describe('prompts page', () => {
     await expect(newest).toContainText('e2e group');
 
     // Switching back to the global scope restores its own draft and history.
-    await page.getByRole('combobox', { name: 'Scope' }).click();
-    await page.getByRole('option', { name: 'Global prompt' }).click();
+    await page.getByRole('combobox', { name: 'Scope' }).selectOption('global');
     await expect(page.locator('#prompt-text')).toHaveValue(GLOBAL_START);
     await expect(page.locator('table tbody tr')).toHaveCount(3);
   });
 
   test('the chat search param opens the group scope directly', async ({ page }) => {
     await page.goto(await adminUrl('/prompts?chat=123456789'));
-    await expect(page.getByRole('combobox', { name: 'Scope' })).toContainText('123456789');
-    await page.getByRole('combobox', { name: 'Scope' }).click();
-    await page.getByRole('option', { name: 'Global prompt' }).click();
+    await expect(page.getByRole('combobox', { name: 'Scope' })).toHaveValue('chat:123456789');
+    await page.getByRole('combobox', { name: 'Scope' }).selectOption('global');
     await expect(page).toHaveURL(/\/prompts$/);
-    await expect(page.getByRole('combobox', { name: 'Scope' })).toContainText('Global prompt');
+    await expect(page.getByRole('combobox', { name: 'Scope' })).toHaveValue('global');
   });
 });

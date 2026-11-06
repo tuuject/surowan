@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
   CursorList,
@@ -15,12 +16,10 @@ import {
 } from '@/components/business';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-
-import { formatNumber, formatTime } from '@/lib/format';
-import { stickerSetsQuery, stickersQuery } from '@/lib/queries';
-import { useTranslation } from 'react-i18next';
 import { ApiError } from '@/lib/api/core.ts';
 import type { StickerEntry, StickerSetEntry } from '@/lib/api/stickers.ts';
+import { formatNumber, formatTime } from '@/lib/format';
+import { stickerSetsQuery, stickersQuery } from '@/lib/queries';
 
 const INDEX_STATES = ['pending', 'running', 'success', 'error'] as const;
 

@@ -12,7 +12,7 @@
  * The wire contract the specs assert is pinned here: one user message with the
  * fixed prompt, no system role, no tools, streaming, output capped at 128.
  */
-import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
+import { type APIRequestContext, expect, type Locator, type Page } from '@playwright/test';
 import { adminUrl, E2E_PASSWORD, E2E_USERNAME, e2eFetch, test } from './helpers.ts';
 import {
   E2E_HEALTH_ALIAS_A,

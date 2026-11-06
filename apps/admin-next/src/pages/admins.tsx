@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Info } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { type ColumnSpec, ConfirmDialog, MonoValue, TableShell } from '@/components/business';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -15,12 +15,11 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
+import type { BotAdminEntry } from '@/lib/api/admin.ts';
+import { addBotAdmin, removeBotAdmin } from '@/lib/api/admin.ts';
 import { errorMessage } from '@/lib/errors';
 import { adminsQuery } from '@/lib/queries';
-import { useTranslation } from 'react-i18next';
-import { addBotAdmin, removeBotAdmin } from '@/lib/api/admin.ts';
-import type { BotAdminEntry } from '@/lib/api/admin.ts';
+import { toast } from '@/lib/toast.ts';
 
 const ADMIN_ID_PATTERN = /^\d{1,15}$/;
 

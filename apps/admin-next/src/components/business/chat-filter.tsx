@@ -5,10 +5,9 @@ import { useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-
+import type { MemoryChatOption } from '@/lib/api/memories.ts';
 import { memoryChatsQuery } from '@/lib/queries';
 import { cn } from '@/lib/utils';
-import type { MemoryChatOption } from '@/lib/api/memories.ts';
 
 /**
  * Chat filter with autocomplete over the stored (allowlisted) chats. Picking a

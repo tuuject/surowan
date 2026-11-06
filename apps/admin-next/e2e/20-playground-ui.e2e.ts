@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
 import { adminUrl, e2eFetch, test } from './helpers.ts';
-import { type InvocationPayload, type SeedPayload, roomAt } from './playground-fixtures.ts';
+import { type InvocationPayload, roomAt, type SeedPayload } from './playground-fixtures.ts';
 
 /**
  * The Playground page (T11): the seed's rooms, the held-input timeline, a full
@@ -80,8 +80,7 @@ test('a room is created, held, released and answered from the page alone', async
   await expect(page.getByRole('columnheader', { name: 'Room message' })).toBeVisible();
 
   await page.goto(await adminUrl('/invocations'));
-  await page.getByRole('combobox', { name: 'Host' }).click();
-  await page.getByRole('option', { name: 'Playground' }).click();
+  await page.getByRole('combobox', { name: 'Host' }).selectOption('playground');
   await expect(page.getByText(title)).toBeVisible();
 });
 
