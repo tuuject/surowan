@@ -39,6 +39,10 @@ interface ParsedVersion {
 function parseVersionParts(raw: string): ParsedVersion | undefined {
   const trimmed = raw.trim();
   const withoutPrefix = /^[vV]/.test(trimmed) ? trimmed.slice(1) : trimmed;
+  // semver.parse would otherwise accept a second `v` prefix or whitespace after ours.
+  if (!/^\d/.test(withoutPrefix)) {
+    return undefined;
+  }
   const parsed = parse(withoutPrefix);
   if (parsed === null) {
     return undefined;

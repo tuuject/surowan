@@ -57,6 +57,11 @@ test('parses release, staging and develop versions and rejects malformed channel
   expect(parseVersion('v1.2')).toBeUndefined();
   expect(parseVersion('v01.2.3')).toBeUndefined();
   expect(parseVersion('v1.0.0-01')).toBeUndefined();
+  // semver.parse itself tolerates a `v` prefix and surrounding whitespace.
+  expect(parseVersion('vv1.2.3')).toBeUndefined();
+  expect(parseVersion('Vv1.2.3')).toBeUndefined();
+  expect(parseVersion('v 1.2.3')).toBeUndefined();
+  expect(parseVersion('v\t1.2.3')).toBeUndefined();
 });
 
 test('orders releases by SemVer and non-release channels by their own rules', () => {
