@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { compare, parse, type SemVer } from 'semver';
 
 /**
  * Runtime version awareness.
@@ -30,8 +31,7 @@ const CHANNEL_PRIORITY: Readonly<Record<VersionChannel, number>> = {
 interface ParsedVersion {
   readonly version: string;
   readonly channel: VersionChannel;
-  readonly base: readonly [number, number, number];
-  readonly prerelease: readonly string[];
+  readonly semver: SemVer;
   readonly stagingTimestamp: string | undefined;
   readonly developHash: string | undefined;
 }
@@ -39,40 +39,38 @@ interface ParsedVersion {
 function parseVersionParts(raw: string): ParsedVersion | undefined {
   const trimmed = raw.trim();
   const withoutPrefix = /^[vV]/.test(trimmed) ? trimmed.slice(1) : trimmed;
-  const match = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?$/.exec(withoutPrefix);
-  if (match === null) {
+  // semver.parse would otherwise accept a second `v` prefix or whitespace after ours.
+  if (!/^\d/.test(withoutPrefix)) {
     return undefined;
   }
-  const base = [Number(match[1]), Number(match[2]), Number(match[3])] as const;
-  if (base.some((part) => !Number.isSafeInteger(part))) {
+  const parsed = parse(withoutPrefix);
+  if (parsed === null) {
     return undefined;
   }
-  const prereleaseText = match[4];
-  const prerelease = prereleaseText?.split('.') ?? [];
+  const prereleaseText = parsed.prerelease.join('.');
   let channel: VersionChannel = 'Release';
   let stagingTimestamp: string | undefined;
   let developHash: string | undefined;
-  const staging = /^next-(\d{14})$/.exec(prereleaseText ?? '');
+  const staging = /^next-(\d{14})$/.exec(prereleaseText);
   if (staging !== null) {
     channel = 'Staging';
     stagingTimestamp = staging[1];
   } else {
-    const develop = /^develop(?:-([0-9a-fA-F]{7,40}))?$/.exec(prereleaseText ?? '');
+    const develop = /^develop(?:-([0-9a-fA-F]{7,40}))?$/.exec(prereleaseText);
     if (develop !== null) {
-      if (base[0] !== 0 || base[1] !== 0 || base[2] !== 0) {
+      if (parsed.major !== 0 || parsed.minor !== 0 || parsed.patch !== 0) {
         return undefined;
       }
       channel = 'Develop';
       developHash = develop[1];
-    } else if (prereleaseText?.startsWith('next-') === true || prereleaseText?.startsWith('develop-') === true) {
+    } else if (prereleaseText.startsWith('next-') || prereleaseText.startsWith('develop-')) {
       return undefined;
     }
   }
   return {
     version: `v${withoutPrefix}`,
     channel,
-    base,
-    prerelease,
+    semver: parsed,
     stagingTimestamp,
     developHash,
   };
@@ -84,59 +82,18 @@ export function parseVersion(raw: string): SurowanVersion | undefined {
   return parsed === undefined ? undefined : { version: parsed.version, channel: parsed.channel };
 }
 
-function compareBase(left: ParsedVersion, right: ParsedVersion): number {
-  for (let index = 0; index < 3; index += 1) {
-    const difference = (left.base[index] ?? 0) - (right.base[index] ?? 0);
-    if (difference !== 0) {
-      return difference;
-    }
+function compareBase(left: SemVer, right: SemVer): number {
+  if (left.major !== right.major) {
+    return left.major - right.major;
   }
-  return 0;
-}
-
-/** SemVer precedence for Release versions, including prerelease identifiers. */
-function comparePrerelease(left: readonly string[], right: readonly string[]): number {
-  if (left.length === 0 && right.length === 0) {
-    return 0;
+  if (left.minor !== right.minor) {
+    return left.minor - right.minor;
   }
-  if (left.length === 0) {
-    return 1;
-  }
-  if (right.length === 0) {
-    return -1;
-  }
-  const length = Math.max(left.length, right.length);
-  for (let index = 0; index < length; index += 1) {
-    const leftPart = left[index];
-    const rightPart = right[index];
-    if (leftPart === undefined) {
-      return -1;
-    }
-    if (rightPart === undefined) {
-      return 1;
-    }
-    if (leftPart === rightPart) {
-      continue;
-    }
-    const leftNumeric = /^\d+$/.test(leftPart);
-    const rightNumeric = /^\d+$/.test(rightPart);
-    if (leftNumeric && rightNumeric) {
-      const difference = BigInt(leftPart) - BigInt(rightPart);
-      if (difference !== 0n) {
-        return difference > 0n ? 1 : -1;
-      }
-      continue;
-    }
-    if (leftNumeric !== rightNumeric) {
-      return leftNumeric ? -1 : 1;
-    }
-    return leftPart < rightPart ? -1 : 1;
-  }
-  return 0;
+  return left.patch - right.patch;
 }
 
 function compareParsed(left: ParsedVersion, right: ParsedVersion): number {
-  const base = compareBase(left, right);
+  const base = compareBase(left.semver, right.semver);
   if (base !== 0) {
     return base;
   }
@@ -153,7 +110,7 @@ function compareParsed(left: ParsedVersion, right: ParsedVersion): number {
       return hash === 0 ? left.version.localeCompare(right.version) : hash;
     }
     case 'Release':
-      return comparePrerelease(left.prerelease, right.prerelease);
+      return compare(left.semver, right.semver);
   }
 }
 
