@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { listQuerySearch } from '@/lib/list-query';
 import MessagesPage from '@/pages/messages';
-import { chatSearch } from '@/lib/search-params';
 
 export const Route = createFileRoute('/messages')({
   component: MessagesPage,
-  validateSearch: chatSearch,
+  validateSearch: listQuerySearch,
 });

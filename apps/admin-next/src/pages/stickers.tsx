@@ -1,32 +1,32 @@
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
   CursorList,
-  FilterToolbar,
   JsonViewer,
   LIST_TABLE_CLASS,
-  SelectFilter,
+  ListFooter,
+  ListPageHeader,
+  ListSearchForm,
+  QuerySelectField,
+  QueryTextField,
   StateBadge,
   TableShell,
-  TextFilter,
   TextValue,
   ToneBadge,
+  useClientPagination,
 } from '@/components/business';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-
-import { formatNumber, formatTime } from '@/lib/format';
-import { stickerSetsQuery, stickersQuery } from '@/lib/queries';
-import { useTranslation } from 'react-i18next';
 import { ApiError } from '@/lib/api/core.ts';
 import type { StickerEntry, StickerSetEntry } from '@/lib/api/stickers.ts';
+import { formatNumber, formatTime } from '@/lib/format';
+import { optionalQuery, useListQuery } from '@/lib/list-query';
+import { stickerSetsQuery, stickersQuery } from '@/lib/queries';
 
 const INDEX_STATES = ['pending', 'running', 'success', 'error'] as const;
-
-function nonEmpty(value: string): string | undefined {
-  return value.length > 0 ? value : undefined;
-}
+const EMPTY_FILTERS = { set: '', state: '', search: '' };
 
 const CODE = 'bg-muted rounded px-1 py-0.5 font-mono text-xs';
 
@@ -61,11 +61,14 @@ function Section({
 
 export default function StickersPage(): React.ReactElement {
   const { t } = useTranslation();
-  const [set, setSet] = useState<string | undefined>(undefined);
-  const [state, setState] = useState<string | undefined>(undefined);
-  const [search, setSearch] = useState<string | undefined>(undefined);
+  const query = useListQuery(EMPTY_FILTERS);
+  const { set, state, search } = query.value;
   const sets = useQuery(stickerSetsQuery);
-  const filters = useMemo(() => ({ set, state, search }), [set, state, search]);
+  const setPagination = useClientPagination(sets.data?.items ?? [], 'sticker-sets');
+  const filters = useMemo(
+    () => ({ set: optionalQuery(set), state: optionalQuery(state), search: optionalQuery(search) }),
+    [set, state, search],
+  );
 
   const setOptions = (sets.data?.items ?? []).map((entry) => ({ value: entry.alias, label: entry.alias }));
 
@@ -184,7 +187,8 @@ export default function StickersPage(): React.ReactElement {
   ];
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
+      <ListPageHeader title={t('layout.nav.botStickerSets')} />
       <Section
         title={t('pages.stickers.setsTitle')}
         description={
@@ -208,13 +212,21 @@ export default function StickersPage(): React.ReactElement {
           </Alert>
         ) : null}
         {!sets.isPending && !sets.isError ? (
-          <TableShell
-            columns={setColumns}
-            data={sets.data?.items ?? []}
-            rowKey={(row) => row.id}
-            emptyText={t('pages.stickers.emptySets')}
-            className={LIST_TABLE_CLASS}
-          />
+          <div>
+            <TableShell
+              columns={setColumns}
+              data={setPagination.items}
+              rowKey={(row) => row.id}
+              emptyText={t('pages.stickers.emptySets')}
+              className={LIST_TABLE_CLASS}
+            />
+            <ListFooter
+              count={setPagination.total}
+              page={setPagination.page}
+              pageCount={setPagination.pageCount}
+              onPageChange={setPagination.onPageChange}
+            />
+          </div>
         ) : null}
       </Section>
       <Section
@@ -227,36 +239,39 @@ export default function StickersPage(): React.ReactElement {
           </>
         }
       >
-        <FilterToolbar>
-          <SelectFilter
-            placeholder={t('pages.stickers.filterSet')}
-            value={set}
-            onChange={setSet}
-            options={setOptions}
-          />
-          <SelectFilter
-            placeholder={t('pages.stickers.filterState')}
-            value={state}
-            onChange={setState}
-            options={INDEX_STATES.map((value) => ({ value, label: value }))}
-          />
-          <TextFilter
-            placeholder={t('pages.stickers.filterSearch')}
-            value={search}
-            onCommit={(value) => setSearch(nonEmpty(value))}
-            onClear={() => setSearch(undefined)}
-            widthClassName="w-72"
-          />
-        </FilterToolbar>
+        <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
+          {({ draft, change }) => (
+            <>
+              <QuerySelectField
+                label={t('pages.stickers.filterSet')}
+                value={draft.set}
+                onChange={(set) => change({ set })}
+                options={setOptions}
+              />
+              <QuerySelectField
+                label={t('pages.stickers.filterState')}
+                value={draft.state}
+                onChange={(state) => change({ state })}
+                options={INDEX_STATES.map((value) => ({ value, label: value }))}
+              />
+              <QueryTextField
+                label={t('pages.stickers.filterSearch')}
+                value={draft.search}
+                onChange={(search) => change({ search })}
+              />
+            </>
+          )}
+        </ListSearchForm>
         <CursorList
           factory={stickersQuery}
           filters={filters}
-          renderItems={(items) => (
+          renderItems={(items, { loading }) => (
             <TableShell
               columns={stickerColumns}
               data={items}
               rowKey={(row) => row.id}
-              className={LIST_TABLE_CLASS}
+              loading={loading}
+              frame={false}
               expandedRender={(row) => (
                 <div className="space-y-4">
                   <div className="space-y-1">

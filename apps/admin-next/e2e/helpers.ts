@@ -3,7 +3,7 @@ import { rmSync } from 'node:fs';
 import { rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { test as base, type Page } from '@playwright/test';
+import { expect, test as base, type Page } from '@playwright/test';
 
 /** The administrator every spec signs in as (the account is created on demand). */
 export const E2E_USERNAME = 'e2e-admin';
@@ -227,13 +227,44 @@ export function tableBodyRows(page: Page): ReturnType<Page['locator']> {
   return page.locator('table tbody tr');
 }
 
+/** The "Next page" button of a list's real page controls. */
+export function nextPage(page: Page): ReturnType<Page['getByRole']> {
+  return page.getByRole('button', { name: 'Next page', exact: true });
+}
+
+/** The "Previous page" button of a list's real page controls. */
+export function previousPage(page: Page): ReturnType<Page['getByRole']> {
+  return page.getByRole('button', { name: 'Previous page', exact: true });
+}
+
+/** Applies the filter toolbar's draft conditions. */
+export async function clickSearch(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+}
+
+/** Asserts the list uses real page controls instead of a "Load more" stream. */
+export async function expectRealPagination(page: Page): Promise<void> {
+  await expect(page.getByRole('navigation', { name: 'Pagination', exact: true }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Load more', exact: true })).toHaveCount(0);
+}
+
+/** Opens a parent group when needed, then activates its real child link. */
+export async function clickNav(page: Page, group: string, label: string): Promise<void> {
+  const nav = page.getByRole('navigation', { name: 'Main navigation', exact: true });
+  const parent = nav.getByRole('button', { name: group, exact: true });
+  if ((await parent.getAttribute('aria-expanded')) !== 'true') {
+    await parent.click();
+  }
+  await nav.getByRole('link', { name: label, exact: true }).click();
+}
+
 /**
- * A toast with `text`, scoped to Sonner's container: page content that also
+ * A toast with `text`, scoped to the Koi toast stack: page content that also
  * contains the words (a dialog, or the row the write just rendered) would
  * otherwise satisfy or break the assertion.
  */
 export function toast(page: Page, text: string): ReturnType<Page['locator']> {
-  return page.locator('[data-sonner-toast]').filter({ hasText: text });
+  return page.locator('[data-koi-toast]').filter({ hasText: text });
 }
 
 /** The "Applied" toast of a successful config write. */

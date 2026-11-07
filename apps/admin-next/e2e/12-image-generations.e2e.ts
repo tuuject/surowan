@@ -1,8 +1,7 @@
 import { expect } from '@playwright/test';
 import sharp from 'sharp';
-
-import { adminUrl, test, watchPageIssues } from './helpers.ts';
 import type { ImageGenerationRecord } from '../src/lib/api/images.ts';
+import { adminUrl, test, watchPageIssues } from './helpers.ts';
 
 test.use({ signedIn: true });
 
@@ -44,6 +43,19 @@ const generation: ImageGenerationRecord = {
   error: { code: 'provider_timeout', message: 'Fixture generation failed' },
 };
 
+const history = Array.from({ length: 61 }, (_, index) =>
+  index === 0
+    ? generation
+    : {
+        ...generation,
+        id: `${generation.id}-${index}`,
+        snapshot: {
+          ...generation.snapshot,
+          authored: { ...generation.snapshot.authored, authoredPrompt: `Fixture generation ${index}` },
+        },
+      },
+);
+
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/image/**', async (route) => {
     expect(route.request().method()).toBe('GET');
@@ -51,7 +63,10 @@ test.beforeEach(async ({ page }) => {
     if (path === '/api/image/status') {
       await route.fulfill({ json: { enabled: true, models: [] } });
     } else if (path === '/api/image/generations') {
-      await route.fulfill({ json: { items: [generation], total: 1, limit: 60, offset: 0 } });
+      const url = new URL(route.request().url());
+      const offset = Number(url.searchParams.get('offset') ?? '0');
+      const limit = Number(url.searchParams.get('limit') ?? '20');
+      await route.fulfill({ json: { items: history.slice(offset, offset + limit), total: 61, limit, offset } });
     } else if (path === `/api/image/generations/${generation.id}`) {
       await route.fulfill({ json: generation });
     } else {
@@ -151,11 +166,37 @@ test('missing reference content keeps its snapshot name and the audit details vi
   expect(issues.writeApiCalls).toEqual([]);
 });
 
+test('an initial history failure does not invent an empty generation audit', async ({ page }) => {
+  await page.route('**/api/image/generations?*', (route) =>
+    route.fulfill({ status: 502, json: { error: 'internal', message: 'Synthetic generation list failure' } }),
+  );
+  await page.goto(await adminUrl('/image-generations'));
+  await expect(page.getByRole('alert').filter({ hasText: 'Synthetic generation list failure' })).toBeVisible();
+  await expect(page.locator('table')).toHaveCount(0);
+  await expect(page.getByText('No generation records', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('0 records', { exact: true })).toHaveCount(0);
+});
+
+test('history uses real offset pages instead of one oversized response', async ({ page }) => {
+  await page.goto(await adminUrl('/image-generations'));
+  const rows = page.locator('table tbody tr');
+  await expect(rows).toHaveCount(20);
+  await expect(page.getByText('61 records', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Next page', exact: true }).click();
+  await expect(rows).toHaveCount(20);
+  await expect(page.getByText('Fixture generation 20', { exact: true })).toBeVisible();
+  await expect(page.getByText('Draw a moonlit garden', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Previous page', exact: true }).click();
+  await expect(page.getByText('Draw a moonlit garden', { exact: true })).toBeVisible();
+});
+
 test('history links open the audit detail and return to the history list', async ({ page }) => {
   const finish = watchPageIssues(page);
   await page.goto(await adminUrl('/image-generations'));
   await expect(page.getByRole('heading', { name: 'Generation history', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: `${generation.id.slice(0, 8)}…`, exact: true }).click();
+  await expect(page.getByText('61 records', { exact: true })).toBeVisible();
+  await expect(page.getByText('1 records', { exact: true })).toHaveCount(0);
+  await page.getByRole('link', { name: generation.id, exact: true }).click();
   await expect(page).toHaveURL(await adminUrl(`/image-generations/${generation.id}`));
   await expect(page.getByText('Generation ID', { exact: true })).toBeVisible();
   await expect(page.getByText(generation.snapshot.finalPrompt, { exact: true })).toBeVisible();

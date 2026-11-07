@@ -1,27 +1,28 @@
 import { Link } from '@tanstack/react-router';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ChatFilter,
   type ColumnSpec,
   CursorList,
-  FilterToolbar,
-  LIST_TABLE_CLASS,
+  ListPageHeader,
+  ListSearchForm,
   TableShell,
 } from '@/components/business';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
-
-import { formatNumber, formatTime } from '@/lib/format';
-import { conversationContextsQuery } from '@/lib/queries';
+import { EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import type { ConversationContextListItem } from '@/lib/api/contexts.ts';
+import { formatNumber, formatTime } from '@/lib/format';
+import { chatQuery, useListQuery } from '@/lib/list-query';
+import { conversationContextsQuery } from '@/lib/queries';
 
 const ID_LINK =
   'decoration-border hover:decoration-foreground font-medium tabular-nums underline underline-offset-4 transition-colors';
+const EMPTY_FILTERS = { chat: '' };
 
 export default function ContextsPage(): React.ReactElement {
   const { t } = useTranslation();
-  const [chat, setChat] = useState<string | undefined>(undefined);
-  const filters = useMemo(() => ({ chat }), [chat]);
+  const query = useListQuery(EMPTY_FILTERS);
+  const filters = useMemo(() => ({ chat: chatQuery(query.value.chat) }), [query.value.chat]);
 
   const COLUMNS: readonly ColumnSpec<ConversationContextListItem>[] = [
     {
@@ -95,27 +96,27 @@ export default function ContextsPage(): React.ReactElement {
   ];
 
   return (
-    <div className="space-y-4">
-      <FilterToolbar>
-        <ChatFilter value={chat} onChange={setChat} />
-      </FilterToolbar>
+    <div className="space-y-5">
+      <ListPageHeader title={t('layout.nav.contexts')} />
+      <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
+        {({ draft, change }) => <ChatFilter value={draft.chat} onChange={(chat) => change({ chat })} />}
+      </ListSearchForm>
       <CursorList
         factory={conversationContextsQuery}
         filters={filters}
-        empty={
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>{t('invocations.contexts.empty.title')}</EmptyTitle>
-              <EmptyDescription>{t('invocations.contexts.empty.description')}</EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        }
-        renderItems={(items) => (
+        renderItems={(items, { loading }) => (
           <TableShell
             columns={COLUMNS}
             data={items}
             rowKey={(row) => row.conversation_id}
-            className={LIST_TABLE_CLASS}
+            loading={loading}
+            frame={false}
+            emptyText={
+              <div className="space-y-1 py-2">
+                <EmptyTitle>{t('invocations.contexts.empty.title')}</EmptyTitle>
+                <EmptyDescription>{t('invocations.contexts.empty.description')}</EmptyDescription>
+              </div>
+            }
           />
         )}
       />

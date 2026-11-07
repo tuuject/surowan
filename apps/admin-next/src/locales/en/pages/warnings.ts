@@ -17,7 +17,6 @@ export const warnings = {
   clearConfirm: 'Clear warnings',
   cleared: 'Cleared {{count}} warnings',
   loadFailed: 'Failed to load warnings',
-  loadMore: 'Load more',
   noStanding: 'No standing warnings.',
   noEvents: 'No event warnings yet.',
   missingFields: 'Missing: {{fields}}',

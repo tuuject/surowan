@@ -283,9 +283,10 @@ export function playgroundAssetUrl(roomId: string, assetId: string): string {
 export function listPlaygroundInvocations(
   roomId: string,
   limit = 20,
-): Promise<{ readonly items: readonly PlaygroundInvocation[] }> {
-  return call<{ readonly items: readonly PlaygroundInvocation[] }>(
-    `/playground/rooms/${encodeURIComponent(roomId)}/invocations?limit=${String(limit)}`,
+  offset = 0,
+): Promise<{ readonly items: readonly PlaygroundInvocation[]; readonly total: number }> {
+  return call<{ readonly items: readonly PlaygroundInvocation[]; readonly total: number }>(
+    `/playground/rooms/${encodeURIComponent(roomId)}/invocations?limit=${String(limit)}&offset=${String(offset)}`,
   );
 }
 

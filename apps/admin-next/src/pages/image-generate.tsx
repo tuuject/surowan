@@ -2,13 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-
-import { errorMessage } from '@/lib/errors';
+import type { ImageGenerationRecord } from '@/lib/api/images.ts';
 import {
   getImageStatus,
   imageUrl,
@@ -18,7 +16,8 @@ import {
   submitImageGeneration,
   uploadImageAsset as uploadAsset,
 } from '@/lib/api/images.ts';
-import type { ImageGenerationRecord } from '@/lib/api/images.ts';
+import { errorMessage } from '@/lib/errors';
+import { toast } from '@/lib/toast.ts';
 
 /**
  * The image workspace: compose a generation from prompt and reference

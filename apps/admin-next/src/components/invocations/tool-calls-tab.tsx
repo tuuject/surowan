@@ -1,4 +1,3 @@
-import { ToolResult } from './tool-result';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -11,10 +10,11 @@ import {
   TextValue,
 } from '@/components/business';
 import { TabContent, YesNoBadge } from '@/components/invocations/shared';
+import type { InvocationDetail, ToolCallEntry } from '@/lib/api/invocations.ts';
 
 import { formatDuration, formatTime } from '@/lib/format';
 import { parseSendArguments } from '@/lib/timeline';
-import type { InvocationDetail, ToolCallEntry } from '@/lib/api/invocations.ts';
+import { ToolResult } from './tool-result';
 
 function SendArgumentsSummary({ argumentsJson }: { readonly argumentsJson: string }): React.ReactElement {
   const { t } = useTranslation();

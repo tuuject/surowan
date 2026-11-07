@@ -1,18 +1,18 @@
+import { Select } from '@tuuject/koi-react/select';
 import { Send, Upload } from 'lucide-react';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { ListFooter } from '@/components/business';
+import { Panel } from '@/components/layout/panel';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-
+import type { PlaygroundParticipant, PlaygroundTimelineItem } from '@/lib/api/playground.ts';
+import { toast } from '@/lib/toast.ts';
 import { TimelineRow } from './rows.tsx';
 import type { MessagePayload } from './shared.tsx';
-import type { PlaygroundParticipant, PlaygroundTimelineItem } from '@/lib/api/playground.ts';
 
 /** The server's room picture limit; a larger file is refused before it is read. */
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -29,9 +29,10 @@ interface ComposerCardProps {
   readonly uploading: boolean;
   readonly attachments: readonly string[];
   readonly messages: {
-    readonly hasNextPage: boolean;
+    readonly page: number;
+    readonly pageCount: number;
     readonly isFetchingNextPage: boolean;
-    readonly fetchNextPage: () => Promise<unknown>;
+    readonly onPageChange: (page: number) => Promise<void>;
   };
   readonly submit: {
     readonly isPending: boolean;
@@ -71,11 +72,8 @@ export function ComposerCard({
 }: ComposerCardProps): React.ReactElement {
   const { t } = useTranslation();
   return (
-    <Card className="min-w-0">
-      <CardHeader>
-        <CardTitle>{t('playground.messages.heading')}</CardTitle>
-      </CardHeader>
-      <CardContent className="min-w-0 space-y-3">
+    <Panel title={t('playground.messages.heading')} className="min-w-0">
+      <div className="min-w-0 space-y-3">
         {items.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t('playground.messages.empty')}</p>
         ) : (
@@ -94,33 +92,31 @@ export function ComposerCard({
             ))}
           </ul>
         )}
-        {messages.hasNextPage === true ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void messages.fetchNextPage()}
-            disabled={messages.isFetchingNextPage}
-          >
-            {t('playground.messages.loadOlder')}
-          </Button>
-        ) : null}
+        <ListFooter
+          count={items.length}
+          cursor
+          page={messages.page}
+          pageCount={messages.pageCount}
+          busy={messages.isFetchingNextPage}
+          onPageChange={(next) => void messages.onPageChange(next)}
+        />
         <Separator />
         <div className="space-y-2">
           <div className="flex flex-wrap items-end gap-2">
             <div className="space-y-1">
               <Label htmlFor="playground-sender">{t('playground.identities.select')}</Label>
-              <Select value={shown.sender_id} onValueChange={setSenderId} disabled={composerLocked}>
-                <SelectTrigger id="playground-sender" className="w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {participants.map((member) => (
-                    <SelectItem key={member.id} value={member.id}>
-                      {member.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <Select
+                id="playground-sender"
+                className="w-48"
+                value={shown.sender_id}
+                disabled={composerLocked}
+                onChange={(event) => setSenderId(event.target.value)}
+              >
+                {participants.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
+                  </option>
+                ))}
               </Select>
             </div>
             {shown.reply_to_seq === null ? null : (
@@ -230,7 +226,7 @@ export function ComposerCard({
             </Alert>
           ) : null}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   );
 }

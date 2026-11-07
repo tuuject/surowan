@@ -1,19 +1,18 @@
 import { useMutation } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
+import { Select } from '@tuuject/koi-react/select';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { KvList, MonoValue } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { HeaderFields } from '@/components/models/header-fields';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
+import type { ProviderApi, ProviderView, UpdateProviderRequest } from '@/lib/api/providers.ts';
+import { PROVIDER_APIS, updateProvider } from '@/lib/api/providers.ts';
 import { type HeaderRow, headerPayload, headerRowsFromNames, removedHeaderNames } from '@/lib/header-rows.ts';
 import { requestErrorMessage } from '@/lib/model-manager.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
-import { PROVIDER_APIS, updateProvider } from '@/lib/api/providers.ts';
-import type { ProviderApi, ProviderView, UpdateProviderRequest } from '@/lib/api/providers.ts';
 
 const API_LABELS: Record<ProviderApi, string> = {
   'openai-completions': 'openai-completions',
@@ -167,17 +166,17 @@ export function ProviderConnectionCard({
             </div>
             <div className="space-y-2">
               <Label htmlFor="provider-api">{t('models.models.connection.api')}</Label>
-              <Select value={api} onValueChange={(value) => setApi(value as ProviderApi)}>
-                <SelectTrigger id="provider-api" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PROVIDER_APIS.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {API_LABELS[value]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <Select
+                id="provider-api"
+                className="w-full"
+                value={api}
+                onChange={(event) => setApi(event.target.value as ProviderApi)}
+              >
+                {PROVIDER_APIS.map((value) => (
+                  <option key={value} value={value}>
+                    {API_LABELS[value]}
+                  </option>
+                ))}
               </Select>
               {api === 'google-generative-ai' ? (
                 <p className="text-muted-foreground text-xs">{t('models.models.connection.googleNote')}</p>

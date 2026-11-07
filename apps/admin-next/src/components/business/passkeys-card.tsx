@@ -2,10 +2,17 @@ import { startRegistration } from '@simplewebauthn/browser';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
-import { type ColumnSpec, ConfirmDialog, TableShell, ToneBadge } from '@/components/business';
+import {
+  type ColumnSpec,
+  ConfirmDialog,
+  ListFooter,
+  ListToolbar,
+  TableShell,
+  ToneBadge,
+  useClientPagination,
+} from '@/components/business';
+import { Panel } from '@/components/layout/panel';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -16,13 +23,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
+import type { PasskeyItem } from '@/lib/api/auth.ts';
+import { deletePasskey, deletePassword, passkeyRegisterOptions, passkeyRegisterVerify } from '@/lib/api/auth.ts';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { isWebAuthnAvailable, passkeyErrorMessage } from '@/lib/passkeys';
 import { passkeysQuery, sessionQuery } from '@/lib/queries';
-import { deletePasskey, deletePassword, passkeyRegisterOptions, passkeyRegisterVerify } from '@/lib/api/auth.ts';
-import type { PasskeyItem } from '@/lib/api/auth.ts';
+import { toast } from '@/lib/toast.ts';
 
 /**
  * Passkey management card for the Settings page. Rendered only when the
@@ -42,6 +49,7 @@ export function PasskeysCard(): React.ReactElement {
 
   const hasPassword = passkeys.data?.has_password ?? false;
   const items = passkeys.data?.items ?? [];
+  const pagination = useClientPagination(items, 'passkeys');
   const usableCount = items.filter((item) => item.usable).length;
   const lastKeyWithoutPassword = usableCount === 1 && !hasPassword;
 
@@ -116,12 +124,8 @@ export function PasskeysCard(): React.ReactElement {
   ];
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('pages.passkeys.title')}</CardTitle>
-        <CardDescription>{t('pages.passkeys.description')}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <Panel title={t('pages.passkeys.title')} description={t('pages.passkeys.description')}>
+      <div className="space-y-4">
         {!webAuthnAvailable ? <p className="text-warning text-sm">{t('pages.passkeys.unsupported')}</p> : null}
         {passkeys.data?.has_password === false ? (
           <p className="text-muted-foreground text-sm">{t('pages.passkeys.noPasswordHint')}</p>
@@ -129,17 +133,9 @@ export function PasskeysCard(): React.ReactElement {
         {lastKeyWithoutPassword ? (
           <p className="text-warning text-sm">{t('pages.passkeys.deleteLastDisabled')}</p>
         ) : null}
-        <div className="flex flex-wrap gap-2">
+        <ListToolbar onRefresh={() => void passkeys.refetch()} refreshing={passkeys.isRefetching}>
           <Button type="button" disabled={!webAuthnAvailable} onClick={() => setRegistering(true)}>
             {t('pages.passkeys.add')}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={passkeys.isFetching}
-            onClick={() => void passkeys.refetch()}
-          >
-            {t('common.reload')}
           </Button>
           <Button
             type="button"
@@ -152,7 +148,7 @@ export function PasskeysCard(): React.ReactElement {
           >
             {t('pages.passkeys.passwordDelete')}
           </Button>
-        </div>
+        </ListToolbar>
         {passkeys.data !== undefined ? (
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground text-sm">{t('pages.passkeys.passwordStatus')}</span>
@@ -161,9 +157,7 @@ export function PasskeysCard(): React.ReactElement {
             </ToneBadge>
           </div>
         ) : null}
-        {passkeys.isPending ? (
-          <p className="text-muted-foreground py-4 text-center text-sm">{t('common.loading')}</p>
-        ) : passkeys.isError ? (
+        {passkeys.isError ? (
           <div className="space-y-2">
             <p role="alert" className="text-destructive text-sm break-words">
               {errorMessage(passkeys.error)}
@@ -177,16 +171,28 @@ export function PasskeysCard(): React.ReactElement {
               {t('common.retry')}
             </Button>
           </div>
-        ) : (
-          <TableShell
-            columns={columns}
-            data={items}
-            rowKey={(item) => item.id}
-            emptyText={t('pages.passkeys.empty')}
-            className="max-w-full overflow-x-auto"
-          />
-        )}
-      </CardContent>
+        ) : null}
+        {!passkeys.isError && (passkeys.isPending || passkeys.data !== undefined) ? (
+          <div>
+            <TableShell
+              columns={columns}
+              data={pagination.items}
+              rowKey={(item) => item.id}
+              loading={passkeys.isPending}
+              frame={false}
+              emptyText={t('pages.passkeys.empty')}
+            />
+            {passkeys.data === undefined ? null : (
+              <ListFooter
+                count={pagination.total}
+                page={pagination.page}
+                pageCount={pagination.pageCount}
+                onPageChange={pagination.onPageChange}
+              />
+            )}
+          </div>
+        ) : null}
+      </div>
       {registering ? <RegisterPasskeyDialog onClose={() => setRegistering(false)} /> : null}
       <ConfirmDialog
         open={deleting !== null}
@@ -232,7 +238,7 @@ export function PasskeysCard(): React.ReactElement {
           }
         }}
       />
-    </Card>
+    </Panel>
   );
 }
 

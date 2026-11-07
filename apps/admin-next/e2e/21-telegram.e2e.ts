@@ -66,7 +66,8 @@ test.describe('Telegram settings', () => {
 
     await expect(toast(page, 'Telegram token cleared')).toBeVisible();
     await expect(page.getByText('No token is configured.', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Clear token' })).toBeDisabled();
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
+    await expect(page.getByRole('main').getByRole('button', { name: 'Clear token' })).toBeDisabled();
 
     const view = (await (await page.request.get(await adminUrl('/api/telegram'))).json()) as TelegramApiView;
     expect(view.token_configured).toBe(false);

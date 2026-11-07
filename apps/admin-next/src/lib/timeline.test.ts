@@ -1,14 +1,13 @@
 import { describe, expect, test } from 'vitest';
-
+import type { ContextMessageEntry } from './api/contexts.ts';
+import type { AgentMessageEntry, InvocationDetail, ModelCallEntry, ToolCallEntry } from './api/invocations.ts';
 import {
   buildInvocationTimeline,
+  type InvocationTimelineEvent,
   parseSendArguments,
   sortTimelineEvents,
   timelineEventKey,
-  type InvocationTimelineEvent,
 } from './timeline.ts';
-import type { AgentMessageEntry, InvocationDetail, ModelCallEntry, ToolCallEntry } from './api/invocations.ts';
-import type { ContextMessageEntry } from './api/contexts.ts';
 
 const AT = '2026-09-15T10:00:00.000Z';
 

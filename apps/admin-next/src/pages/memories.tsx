@@ -1,10 +1,17 @@
-import { useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Select } from '@tuuject/koi-react/select';
 import { Info } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
-import { ChatFilter, ConfirmDialog, CursorList, FilterToolbar, SelectFilter, TableShell } from '@/components/business';
+import {
+  ChatFilter,
+  ConfirmDialog,
+  CursorList,
+  ListPageHeader,
+  ListSearchForm,
+  QuerySelectField,
+  TableShell,
+} from '@/components/business';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,11 +24,12 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-
+import type { MemoryDraft, MemoryEntry, MemoryUpdate } from '@/lib/api/memories.ts';
+import { createMemory, deleteMemory, updateMemory } from '@/lib/api/memories.ts';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
+import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import {
   daysToTtlSeconds,
   editTtlDays,
@@ -33,22 +41,20 @@ import {
   TTL_MIN_DAYS,
 } from '@/lib/memory-ttl';
 import { memoriesQuery, memoryChatsQuery } from '@/lib/queries';
-import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
-import { createMemory, deleteMemory, updateMemory } from '@/lib/api/memories.ts';
-import type { MemoryDraft, MemoryEntry, MemoryUpdate } from '@/lib/api/memories.ts';
+import { toast } from '@/lib/toast.ts';
 import { memoryColumns } from './memories-columns.tsx';
 import { MemoryDetail } from './memories-detail.tsx';
 import { EMPTY_FORM, type MemoryFormErrors, type MemoryFormValues, validateMemoryForm } from './memories-form.ts';
 import { MEMORY_STATES, MemoryStatus, STATE_LABEL_KEYS } from './memories-status.tsx';
 
+const EMPTY_FILTERS = { state: '', chat: '' };
+
 export default function MemoriesPage(): React.ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [state, setState] = useState<string | undefined>(undefined);
-  const chat = useChatScope();
-  const navigate = useNavigate({ from: '/memories' });
-  const setChat = useChatScopeSetter(navigate);
-  const filters = useMemo(() => ({ state, chat }), [state, chat]);
+  const query = useListQuery(EMPTY_FILTERS);
+  const { state, chat } = query.value;
+  const filters = useMemo(() => ({ state: optionalQuery(state), chat: chatQuery(chat) }), [state, chat]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createValues, setCreateValues] = useState<MemoryFormValues>(EMPTY_FORM);
@@ -150,7 +156,8 @@ export default function MemoriesPage(): React.ReactElement {
   const stateOptions = MEMORY_STATES.map((value) => ({ value, label: t(STATE_LABEL_KEYS[value]) }));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      <ListPageHeader title={t('layout.nav.memories')} />
       <Alert>
         <Info className="text-foreground" />
         <AlertTitle>{t('pages.memories.alertTitle')}</AlertTitle>
@@ -159,27 +166,37 @@ export default function MemoriesPage(): React.ReactElement {
         </AlertDescription>
       </Alert>
 
-      <FilterToolbar>
-        <Button type="button" onClick={() => setCreateOpen(true)}>
-          {t('pages.memories.newMemo')}
-        </Button>
-        <ChatFilter value={chat} onChange={setChat} />
-        <SelectFilter
-          placeholder={t('pages.memories.filterState')}
-          value={state}
-          onChange={setState}
-          options={stateOptions}
-        />
-      </FilterToolbar>
+      <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
+        {({ draft, change }) => (
+          <>
+            <ChatFilter value={draft.chat} onChange={(chat) => change({ chat })} />
+            <QuerySelectField
+              label={t('pages.memories.filterState')}
+              value={draft.state}
+              onChange={(state) => change({ state })}
+              options={stateOptions}
+            />
+          </>
+        )}
+      </ListSearchForm>
 
       <CursorList
         factory={memoriesQuery}
         filters={filters}
-        empty={
-          <div className="text-muted-foreground py-8 text-center text-sm">{t('pages.memories.emptyMemories')}</div>
+        actions={
+          <Button type="button" onClick={() => setCreateOpen(true)}>
+            {t('pages.memories.newMemo')}
+          </Button>
         }
-        renderItems={(items) => (
-          <TableShell columns={columns} data={items} rowKey={(row) => row.id} className="max-w-full overflow-x-auto" />
+        renderItems={(items, { loading }) => (
+          <TableShell
+            columns={columns}
+            data={items}
+            rowKey={(row) => row.id}
+            loading={loading}
+            frame={false}
+            emptyText={t('pages.memories.emptyMemories')}
+          />
         )}
       />
 
@@ -193,19 +210,18 @@ export default function MemoriesPage(): React.ReactElement {
             <div className="space-y-2">
               <Label htmlFor="memory-chat">{t('pages.memories.chatLabel')}</Label>
               <Select
-                {...(createValues.chat_id.length === 0 ? {} : { value: createValues.chat_id })}
-                onValueChange={(value) => setCreateValues((previous) => ({ ...previous, chat_id: value }))}
+                id="memory-chat"
+                className="w-full"
+                aria-label={t('pages.memories.selectChat')}
+                placeholder={t('pages.memories.selectChat')}
+                value={createValues.chat_id}
+                onChange={(event) => setCreateValues((previous) => ({ ...previous, chat_id: event.target.value }))}
               >
-                <SelectTrigger id="memory-chat" className="w-full" aria-label={t('pages.memories.selectChat')}>
-                  <SelectValue placeholder={t('pages.memories.selectChat')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {chatOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+                {chatOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </Select>
               {chats.isPending ? (
                 <p className="text-muted-foreground text-xs">{t('pages.memories.loadingChatOptions')}</p>

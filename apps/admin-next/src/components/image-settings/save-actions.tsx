@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { toast } from '@/lib/toast.ts';
 
 /**
  * Requirements summary, the save error and the save button. The button refuses to mutate while `validationError`

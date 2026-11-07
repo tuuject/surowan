@@ -83,6 +83,7 @@ export const image: typeof imageEn = {
     removeModel: '移除 {{name}}',
     remove: '移除',
     saveAndApply: '保存并应用',
+    capabilitiesTitle: '能力',
     capabilitiesInput: '最多 {{count}} 张参考图',
     capabilitiesTextOnly: '仅文字生图',
     capabilitiesOutputs: '最多 {{count}} 张输出',

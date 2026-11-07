@@ -8,6 +8,7 @@
       "!!**/dist",
       "!!**/*.tsbuildinfo",
       "!!**/routeTree.gen.ts",
+      "!!apps/admin-next/styled-system",
       "!!dev-data",
       "!!skills/**/examples",
       "!!apps/docs/content/public/examples",

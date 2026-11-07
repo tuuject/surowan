@@ -3,10 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
+import type { ImageCatalogEndpoint } from '@/lib/api/images.ts';
 import { ModelCapabilities } from './model-capabilities.tsx';
 import { type EditableCredential, selectClass } from './shared.ts';
-import type { ImageCatalogEndpoint } from '@/lib/api/images.ts';
 
 /** One catalog entry from `GET /image/models`. */
 type CatalogModel = { id: string; name: string };

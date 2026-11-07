@@ -23,6 +23,7 @@ import {
   invocationJson,
   memberJson,
   parseLimit,
+  parseOffset,
   playgroundErrorResponse,
   roomJson,
   roomStatusJson,
@@ -396,9 +397,12 @@ export function createPlaygroundAdminHandler(deps: PlaygroundAdminDeps) {
           if (method !== 'GET') {
             return jsonOk({ error: 'method_not_allowed', message: 'Invocations supports GET' }, 405);
           }
-          return jsonOk({
-            items: rooms.roomInvocations(room.chatId, parseLimit(url.searchParams.get('limit'))).map(invocationJson),
-          });
+          const page = rooms.roomInvocations(
+            room.chatId,
+            parseLimit(url.searchParams.get('limit')),
+            parseOffset(url.searchParams.get('offset')),
+          );
+          return jsonOk({ total: page.total, items: page.items.map(invocationJson) });
         }
         const invocationId = canonicalId(nestedId, 'invalid_invocation_id', 'invocation id');
         if (method !== 'GET') {

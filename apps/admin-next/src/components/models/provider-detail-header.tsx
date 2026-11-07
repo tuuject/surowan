@@ -2,9 +2,8 @@ import { Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ProviderBadges } from '@/components/models/provider-list';
 import { Button } from '@/components/ui/button';
-
+import type { ProvidersView, ProviderView } from '@/lib/api/providers.ts';
 import { providerUsage } from '@/lib/model-manager.ts';
-import type { ProviderView, ProvidersView } from '@/lib/api/providers.ts';
 
 /** The selected provider's title row, with the delete action that removes it. */
 export function ProviderDetailHeader({

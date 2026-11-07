@@ -1,10 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
-import { Download, Info, Merge, Upload } from 'lucide-react';
+import { Download, Merge, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
-import { ConfirmDialog, FilterToolbar, TableShell, TextFilter } from '@/components/business';
+import {
+  ConfirmDialog,
+  ListFooter,
+  ListPageHeader,
+  ListSearchForm,
+  ListToolbar,
+  QueryTextField,
+  TableShell,
+  useClientPagination,
+} from '@/components/business';
 import { DictionaryConflictAlert } from '@/components/dictionary/conflict-alert.tsx';
 import { dictionaryColumns } from '@/components/dictionary/entry-columns.tsx';
 import { EntryFormFields } from '@/components/dictionary/entry-form.tsx';
@@ -13,7 +20,6 @@ import { ImportDialog } from '@/components/dictionary/import-dialog.tsx';
 import { InjectionPanel } from '@/components/dictionary/injection-panel.tsx';
 import { MergeDialog } from '@/components/dictionary/merge-dialog.tsx';
 import { DictionaryScopePanel } from '@/components/dictionary/scope-panel.tsx';
-import { Panel } from '@/components/layout/panel';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,8 +30,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Skeleton } from '@/components/ui/skeleton';
-
+import type { DictionaryDraft, DictionaryEntry, DictionaryScope } from '@/lib/api/dictionary.ts';
+import { createDictionaryEntry, deleteDictionaryEntry, updateDictionaryEntry } from '@/lib/api/dictionary.ts';
+import { chatQuery, useListQuery } from '@/lib/list-query';
 import {
   conflictedEntryIds,
   type DictionaryDraftErrors,
@@ -36,10 +43,9 @@ import {
   validateDraft,
 } from '@/lib/dictionary.ts';
 import { dictionaryChatsQuery, dictionaryQuery } from '@/lib/queries.ts';
-import { useChatScope, useChatScopeSetter } from '@/lib/search-params.ts';
-import { createDictionaryEntry, deleteDictionaryEntry, updateDictionaryEntry } from '@/lib/api/dictionary.ts';
-import type { DictionaryDraft, DictionaryEntry, DictionaryScope } from '@/lib/api/dictionary.ts';
+import { toast } from '@/lib/toast.ts';
 
+const EMPTY_FILTERS = { chat: '', search: '' };
 const EMPTY_DRAFT: DictionaryDraft = {
   term: '',
   definition: '',
@@ -54,12 +60,11 @@ export default function DictionaryPage(): React.ReactElement {
   const queryClient = useQueryClient();
   const chats = useQuery(dictionaryChatsQuery);
 
-  const chat = useChatScope();
-  const navigate = useNavigate({ from: '/dictionary' });
-  const setChat = useChatScopeSetter(navigate);
+  const query = useListQuery(EMPTY_FILTERS);
+  const chat = chatQuery(query.value.chat);
   const scope: DictionaryScope = chat === undefined ? 'global' : 'group';
   const chatId: string | null = chat ?? null;
-  const [search, setSearch] = useState<string | undefined>(undefined);
+  const search = query.value.search;
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -75,12 +80,13 @@ export default function DictionaryPage(): React.ReactElement {
   const [mergeOpen, setMergeOpen] = useState(false);
 
   const target = { scope, chat: chatId };
-  const list = useQuery(dictionaryQuery(target, search ?? ''));
+  const list = useQuery(dictionaryQuery(target, search));
 
   const chatOptions = chats.data?.items ?? [];
   const conflicts = list.data?.conflicts ?? [];
   const conflicted = useMemo(() => conflictedEntryIds(conflicts), [conflicts]);
   const items = list.data?.items ?? [];
+  const pagination = useClientPagination(items, `${scope}:${chatId ?? ''}:${query.resetKey}`);
 
   // Selection only makes sense for entries that are actually listed; a search
   // or scope change drops ids no longer visible.
@@ -161,7 +167,7 @@ export default function DictionaryPage(): React.ReactElement {
     },
   });
 
-  const allVisibleSelected = items.length > 0 && items.every((entry) => selected.has(entry.id));
+  const allVisibleSelected = pagination.items.length > 0 && pagination.items.every((entry) => selected.has(entry.id));
 
   const columns = dictionaryColumns({
     t,
@@ -179,13 +185,8 @@ export default function DictionaryPage(): React.ReactElement {
   });
 
   return (
-    <div className="space-y-4">
-      <Alert>
-        <Info className="text-foreground" />
-        <AlertTitle>{t('dictionary.page.title')}</AlertTitle>
-        <AlertDescription>{t('dictionary.page.description')}</AlertDescription>
-      </Alert>
-
+    <div className="space-y-5">
+      <ListPageHeader title={t('dictionary.page.title')} description={t('dictionary.page.description')} />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
         <DictionaryScopePanel
           chatId={chatId}
@@ -194,7 +195,7 @@ export default function DictionaryPage(): React.ReactElement {
           chatsFailed={chats.isError}
           chatsError={chats.error}
           onSelect={(nextChatId) => {
-            setChat(nextChatId ?? undefined);
+            query.apply({ ...query.value, chat: nextChatId ?? '' });
             setSelected(new Set());
           }}
         />
@@ -202,7 +203,48 @@ export default function DictionaryPage(): React.ReactElement {
         <InjectionPanel chatId={chatId} />
       </div>
 
-      <FilterToolbar>
+      <ListSearchForm
+        value={query.value}
+        emptyValue={{ ...EMPTY_FILTERS, chat: query.value.chat }}
+        onSearch={query.apply}
+      >
+        {({ draft, change }) => (
+          <QueryTextField
+            label={t('dictionary.page.searchPlaceholder')}
+            value={draft.search}
+            onChange={(search) => change({ search })}
+          />
+        )}
+      </ListSearchForm>
+
+      <ListToolbar
+        onRefresh={() => void list.refetch()}
+        refreshing={list.isRefetching}
+        trailing={
+          <label className="text-muted-foreground flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              className="size-4 rounded border-input"
+              checked={allVisibleSelected}
+              disabled={pagination.items.length === 0}
+              onChange={() => {
+                setSelected((previous) => {
+                  const next = new Set(previous);
+                  for (const entry of pagination.items) {
+                    if (allVisibleSelected) {
+                      next.delete(entry.id);
+                    } else {
+                      next.add(entry.id);
+                    }
+                  }
+                  return next;
+                });
+              }}
+            />
+            {t('dictionary.page.selectAll')}
+          </label>
+        }
+      >
         <Button type="button" onClick={() => setCreateOpen(true)}>
           {t('dictionary.page.newEntry')}
         </Button>
@@ -224,13 +266,7 @@ export default function DictionaryPage(): React.ReactElement {
           <Merge />
           {t('dictionary.page.mergeSelected', { count: selectedEntries.length })}
         </Button>
-        <TextFilter
-          value={search}
-          placeholder={t('dictionary.page.searchPlaceholder')}
-          onCommit={(value) => setSearch(value.length === 0 ? undefined : value)}
-          onClear={() => setSearch(undefined)}
-        />
-      </FilterToolbar>
+      </ListToolbar>
 
       {list.isError ? (
         <Alert variant="destructive">
@@ -249,41 +285,26 @@ export default function DictionaryPage(): React.ReactElement {
         />
       ) : null}
 
-      <Panel
-        title={t('dictionary.page.title')}
-        flush
-        action={
-          <label className="text-muted-foreground flex items-center gap-2 text-xs">
-            <input
-              type="checkbox"
-              className="size-4 rounded border-input"
-              checked={allVisibleSelected}
-              disabled={items.length === 0}
-              onChange={() => {
-                setSelected(allVisibleSelected ? new Set() : new Set(items.map((entry) => entry.id)));
-              }}
-            />
-            {t('dictionary.page.selectAll')}
-          </label>
-        }
-      >
-        {list.isPending ? (
-          <div className="space-y-2 px-6 pb-4">
-            {['a', 'b', 'c', 'd'].map((key) => (
-              <Skeleton key={key} className="h-9 w-full rounded-md" />
-            ))}
-          </div>
-        ) : (
+      {list.isPending || list.data !== undefined ? (
+        <div>
           <TableShell
             columns={columns}
-            data={items}
+            data={pagination.items}
             rowKey={(entry) => entry.id}
-            className="max-w-full overflow-x-auto"
-            emptyText={search === undefined ? t('dictionary.page.emptyEntries') : t('dictionary.page.emptyFiltered')}
+            loading={list.isPending}
+            frame={false}
+            emptyText={search.length === 0 ? t('dictionary.page.emptyEntries') : t('dictionary.page.emptyFiltered')}
           />
-        )}
-        <p className="text-muted-foreground px-6 pt-3 pb-4 text-xs">{t('dictionary.page.retentionNote')}</p>
-      </Panel>
+          <ListFooter
+            count={pagination.total}
+            page={pagination.page}
+            pageCount={pagination.pageCount}
+            onPageChange={pagination.onPageChange}
+          >
+            <span className="text-muted-foreground max-w-2xl text-xs">{t('dictionary.page.retentionNote')}</span>
+          </ListFooter>
+        </div>
+      ) : null}
 
       <Dialog
         open={createOpen}

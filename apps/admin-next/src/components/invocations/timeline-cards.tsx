@@ -1,4 +1,3 @@
-import { ToolResult } from './tool-result';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -10,8 +9,14 @@ import {
   ToneBadge,
 } from '@/components/business';
 import { isRoom, MessageRecordLink, RoleBadge, SectionBadge } from '@/components/invocations/shared';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-
+import type { ContextMessageEntry } from '@/lib/api/contexts.ts';
+import type {
+  AgentMessageEntry,
+  InvocationChatSummary,
+  ModelCallEntry,
+  TelegramSendEntry,
+  ToolCallEntry,
+} from '@/lib/api/invocations.ts';
 import { formatCost, formatDuration, formatNumber, formatTime } from '@/lib/format';
 import {
   objectField,
@@ -20,14 +25,7 @@ import {
   parseSendArguments,
   stringField,
 } from '@/lib/timeline';
-import type {
-  AgentMessageEntry,
-  InvocationChatSummary,
-  ModelCallEntry,
-  TelegramSendEntry,
-  ToolCallEntry,
-} from '@/lib/api/invocations.ts';
-import type { ContextMessageEntry } from '@/lib/api/contexts.ts';
+import { ToolResult } from './tool-result';
 
 export function TimelineCard({
   header,
@@ -39,13 +37,13 @@ export function TimelineCard({
   readonly children?: React.ReactNode;
 }): React.ReactElement {
   return (
-    <Card className="gap-2 py-3">
-      <CardHeader className="flex-row flex-wrap items-start justify-between gap-2 px-3 py-0">
+    <article className="space-y-2 border-t py-3">
+      <div className="flex flex-row flex-wrap items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">{header}</div>
         {extra !== undefined ? <span className="text-muted-foreground text-xs">{extra}</span> : null}
-      </CardHeader>
-      {children !== undefined ? <CardContent className="space-y-2 px-3 py-0">{children}</CardContent> : null}
-    </Card>
+      </div>
+      {children !== undefined ? <div className="space-y-2">{children}</div> : null}
+    </article>
   );
 }
 

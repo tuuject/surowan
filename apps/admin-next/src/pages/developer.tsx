@@ -2,15 +2,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ConfirmDialog } from '@/components/business';
+import { Panel } from '@/components/layout/panel';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-
+import { clearModelPayloads, updateDeveloperSettings } from '@/lib/api/config.ts';
 import { errorMessage } from '@/lib/errors';
 import { developerQuery } from '@/lib/queries';
 import { useProviderWrite } from '@/lib/use-provider-write';
-import { clearModelPayloads, updateDeveloperSettings } from '@/lib/api/config.ts';
 
 /** The two independent switches the page mutates through the same PUT /developer endpoint. */
 type DeveloperSwitch = 'record_model_payloads' | 'record_agent_thinking';
@@ -47,12 +46,8 @@ export default function DeveloperPage(): React.ReactElement {
 
   return (
     <div className="max-w-lg space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('models.developer.debugTitle')}</CardTitle>
-          <CardDescription>{t('models.developer.debugDescription')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <Panel title={t('models.developer.debugTitle')} description={t('models.developer.debugDescription')}>
+        <div className="space-y-3">
           {settings.isPending ? (
             <p className="text-muted-foreground text-sm">{t('common.loading')}</p>
           ) : settings.isError || current === undefined ? (
@@ -118,14 +113,10 @@ export default function DeveloperPage(): React.ReactElement {
               ) : null}
             </>
           )}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('models.developer.historyTitle')}</CardTitle>
-          <CardDescription>{t('models.developer.historyDescription')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+        </div>
+      </Panel>
+      <Panel title={t('models.developer.historyTitle')} description={t('models.developer.historyDescription')}>
+        <div className="space-y-3">
           <Button
             variant="destructive"
             className="h-auto min-h-9 whitespace-normal text-left"
@@ -142,8 +133,8 @@ export default function DeveloperPage(): React.ReactElement {
               {t('models.developer.cleared', { count: clear.data.cleared_model_calls })}
             </p>
           ) : null}
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
       <ConfirmDialog
         open={confirmClear}
         onOpenChange={(open) => {

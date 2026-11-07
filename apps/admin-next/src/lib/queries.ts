@@ -1,6 +1,17 @@
-import { getDictionarySettings, listDictionary, listDictionaryChats } from './api/dictionary.ts';
-import type { DictionaryScope } from './api/dictionary.ts';
+import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
+import { listApiKeys, listBotAdmins } from './api/admin.ts';
+import { listAlarms } from './api/alarms.ts';
+import { getSession, listPasskeys } from './api/auth.ts';
 import { getChats } from './api/chats.ts';
+import { getConfigStatus, getDeveloperSettings, getHarnessSettings } from './api/config.ts';
+import { getConversationContext, listConversationContexts } from './api/contexts.ts';
+import type { ListFilters, Page } from './api/core.ts';
+import type { DictionaryScope } from './api/dictionary.ts';
+import { getDictionarySettings, listDictionary, listDictionaryChats } from './api/dictionary.ts';
+import { listGroupMemories } from './api/group-memories.ts';
+import { getInvocation, listInvocations } from './api/invocations.ts';
+import { listMemories, listMemoryChats } from './api/memories.ts';
+import { getMessage, listMessages } from './api/messages.ts';
 import {
   getPlaygroundRelease,
   getPlaygroundRoom,
@@ -8,25 +19,14 @@ import {
   listPlaygroundMessages,
   listPlaygroundRooms,
 } from './api/playground.ts';
-import { getConfigStatus, getDeveloperSettings, getHarnessSettings } from './api/config.ts';
-import { getConversationContext, listConversationContexts } from './api/contexts.ts';
-import { getInvocation, listInvocations } from './api/invocations.ts';
-import { getMessage, listMessages } from './api/messages.ts';
-import { getOverview, getUsage } from './api/usage.ts';
-import { getPromptDiff, getPromptDocument, getPromptVersions } from './api/prompts.ts';
 import type { PromptScopeRef } from './api/prompts.ts';
+import { getPromptDiff, getPromptDocument, getPromptVersions } from './api/prompts.ts';
 import { getProviderPresets, getProviders } from './api/providers.ts';
-import { getSession, listPasskeys } from './api/auth.ts';
-import type { ListFilters, Page } from './api/core.ts';
-import { listAlarms } from './api/alarms.ts';
-import { listApiKeys, listBotAdmins } from './api/admin.ts';
-import { listMemories, listMemoryChats } from './api/memories.ts';
-import { listGroupMemories } from './api/group-memories.ts';
 import { listStickerSets, listStickers } from './api/stickers.ts';
 import { getTelegram } from './api/telegram.ts';
+import { getOverview, getUsage } from './api/usage.ts';
 import { getVersion } from './api/version.ts';
 import { listWarnings } from './api/warnings.ts';
-import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 
 export const PAGE_SIZE = 25;
 
@@ -310,10 +310,10 @@ export function playgroundMessagesQuery(roomId: string) {
   });
 }
 
-export function playgroundInvocationsQuery(roomId: string) {
+export function playgroundInvocationsQuery(roomId: string, limit: number, offset: number) {
   return queryOptions({
-    queryKey: ['playground-invocations', roomId],
-    queryFn: () => listPlaygroundInvocations(roomId, 20),
+    queryKey: ['playground-invocations', roomId, limit, offset],
+    queryFn: () => listPlaygroundInvocations(roomId, limit, offset),
     enabled: roomId.length > 0,
     refetchInterval: 2_000,
   });

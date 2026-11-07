@@ -1,17 +1,15 @@
 import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createRootRouteWithContext, type ErrorComponentProps, Outlet, useNavigate } from '@tanstack/react-router';
+import { createRootRouteWithContext, type ErrorComponentProps, useNavigate } from '@tanstack/react-router';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import { Loader2 } from 'lucide-react';
-import AppSidebar from '@/components/layout/app-sidebar';
-import Header from '@/components/layout/header';
+import { useTranslation } from 'react-i18next';
+import { AppShell } from '@/components/app-shell/AppShell';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
-
+import { logout } from '@/lib/api/auth.ts';
+import type { SessionState } from '@/lib/api/core.ts';
+import { ApiError } from '@/lib/api/core.ts';
 import { sessionQuery } from '@/lib/queries';
 import { LoginForm, SetupForm } from '@/pages/auth';
-import { ApiError } from '@/lib/api/core.ts';
-import type { SessionState } from '@/lib/api/core.ts';
-import { logout } from '@/lib/api/auth.ts';
 
 const UNAUTHENTICATED_SESSION: SessionState = {
   setup_required: false,
@@ -26,34 +24,43 @@ interface RouterContext {
   readonly queryClient: QueryClient;
 }
 
+function Centered({ children }: { readonly children: React.ReactNode }) {
+  return (
+    <div className={css({ display: 'flex', minHeight: '100%', alignItems: 'center', justifyContent: 'center' })}>
+      {children}
+    </div>
+  );
+}
+
 function AuthGate(): React.ReactNode {
   const { data, isPending, error } = useQuery(sessionQuery);
+  const { t } = useTranslation();
 
   if (isPending) {
     return (
-      <div className="flex min-h-full items-center justify-center">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" />
-      </div>
+      <Centered>
+        <Loader2 className={css({ width: 'icon-lg', height: 'icon-lg', color: 'text-muted', animation: 'spin' })} />
+      </Centered>
     );
   }
 
   if (error) {
-    const message = error instanceof ApiError ? `${error.code}: ${error.message}` : 'Session check failed';
+    const message = error instanceof ApiError ? `${error.code}: ${error.message}` : t('common.requestFailed');
     return (
-      <div className="flex min-h-full items-center justify-center p-6">
-        <div className="text-center space-y-2">
-          <p className="text-destructive font-medium">Request failed</p>
-          <p className="text-muted-foreground text-sm">{message}</p>
+      <Centered>
+        <div className={css({ textAlign: 'center' })}>
+          <p className={css({ color: 'error-text', fontWeight: 'bold' })}>{t('common.requestFailed')}</p>
+          <p className={css({ textStyle: 'small', color: 'text-muted', marginTop: '2' })}>{message}</p>
         </div>
-      </div>
+      </Centered>
     );
   }
 
   if (data === undefined) {
     return (
-      <div className="flex min-h-full items-center justify-center">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" />
-      </div>
+      <Centered>
+        <Loader2 className={css({ width: 'icon-lg', height: 'icon-lg', color: 'text-muted', animation: 'spin' })} />
+      </Centered>
     );
   }
 
@@ -66,11 +73,7 @@ function AuthGate(): React.ReactNode {
     return <LoginForm passkeysEnabled={data.passkeys_enabled} />;
   }
 
-  return (
-    <SidebarProvider>
-      <AdminShell username={data.username ?? 'admin'} />
-    </SidebarProvider>
-  );
+  return <AdminShell username={data.username ?? 'admin'} />;
 }
 
 function isSessionQueryKey(queryKey: readonly unknown[]): boolean {
@@ -109,17 +112,7 @@ function AdminShell({ username }: { readonly username: string }): React.ReactEle
     },
   });
 
-  return (
-    <>
-      <AppSidebar username={username} onSignOut={() => signOut.mutate()} />
-      <SidebarInset className="min-w-0">
-        <Header />
-        <main className="flex flex-1 flex-col p-4 md:p-6">
-          <Outlet />
-        </main>
-      </SidebarInset>
-    </>
-  );
+  return <AppShell username={username} onSignOut={() => signOut.mutate()} />;
 }
 
 /**
@@ -128,22 +121,23 @@ function AdminShell({ username }: { readonly username: string }): React.ReactEle
  * lib/query-client.ts, so this only catches unexpected render/route errors.
  */
 function RouteErrorFallback({ error }: ErrorComponentProps): React.ReactElement {
+  const { t } = useTranslation();
   const message = error instanceof Error ? error.message : String(error);
   return (
-    <div className="flex min-h-full items-center justify-center p-6">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-destructive">Something went wrong</CardTitle>
-          <CardDescription>The admin panel could not render this screen.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-muted-foreground break-words text-sm">{message}</p>
+    <Centered>
+      <section className={css({ width: 'min(440px, 100%)' })}>
+        <div className={css({ marginBlockEnd: '4' })}>
+          <h2 className={css({ textStyle: 'heading-3' })}>{t('common.requestFailed')}</h2>
+          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('layout.routeError.description')}</p>
+        </div>
+        <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+          <p className={css({ textStyle: 'small', color: 'text-muted', overflowWrap: 'anywhere' })}>{message}</p>
           <Button type="button" onClick={() => window.location.reload()}>
-            Retry
+            {t('common.retry')}
           </Button>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </section>
+    </Centered>
   );
 }
 

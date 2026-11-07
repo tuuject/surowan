@@ -6,6 +6,7 @@ node_modules
 # Build outputs
 dist
 build
+styled-system
 *.tsbuildinfo
 
 # TanStack Router plugin scratch files

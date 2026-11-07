@@ -182,19 +182,31 @@ export function roomInvocation(
   return row === undefined ? undefined : invocationSummaryOf(deps, row.id);
 }
 
-export function roomInvocations(deps: PlaygroundDeps, chatId: bigint, limit: number): RoomInvocationSummary[] {
+export function roomInvocations(
+  deps: PlaygroundDeps,
+  chatId: bigint,
+  limit: number,
+  offset = 0,
+): { readonly items: readonly RoomInvocationSummary[]; readonly total: number } {
   const room = roomRow(deps, chatId);
   if (room === undefined) {
     throw new PlaygroundError('room_not_found', `room ${chatId} does not exist`);
   }
-  return deps.orm
+  const total = deps.orm
+    .select({ count: sql<bigint>`count(*)` })
+    .from(invocations)
+    .where(eq(invocations.conversationId, room.conversationId))
+    .get();
+  const items = deps.orm
     .select({ id: invocations.id })
     .from(invocations)
     .where(eq(invocations.conversationId, room.conversationId))
     .orderBy(desc(invocations.id))
     .limit(limit)
+    .offset(offset)
     .all()
     .map((row) => invocationSummaryOf(deps, row.id));
+  return { items, total: Number(total?.count ?? 0n) };
 }
 
 function invocationSummaryOf(deps: PlaygroundDeps, invocationId: bigint): RoomInvocationSummary {

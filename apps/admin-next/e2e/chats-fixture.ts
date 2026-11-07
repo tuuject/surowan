@@ -1,7 +1,6 @@
 import { expect, type Page } from '@playwright/test';
-
+import type { ChatSettings, ChatsView } from '../src/lib/api/chats.ts';
 import { adminUrl } from './helpers.ts';
-import type { ChatsView, ChatSettings } from '../src/lib/api/chats.ts';
 
 export const ACTIVE_CHAT = '123456789';
 export const inherited: ChatSettings = { topic_ids: null, provider: null, model: null, thinking_level: null };

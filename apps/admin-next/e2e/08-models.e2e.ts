@@ -20,7 +20,7 @@ test.use({ signedIn: true });
 test.describe('models page', () => {
   test('renders the provider list, the model table and the write-only key field', async ({ page }) => {
     await page.goto(await adminUrl('/models'));
-    await expect(page.getByText('Providers')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Providers', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: `Provider ${E2E_BUILTIN_ALIAS}` })).toBeVisible();
     await expect(page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` })).toBeVisible();
     await expect(page.getByText('Agent in use').first()).toBeVisible();
@@ -151,7 +151,7 @@ test.describe('models page', () => {
     // "In use" also names a table column and a provider badge, so the panel is
     // found by the one control only it has.
     const effort = page.getByRole('combobox', { name: 'Thinking effort' });
-    const inUse = page.locator('[data-slot="card"]', { has: effort });
+    const inUse = page.getByRole('region', { name: 'In use', exact: true }).filter({ has: effort });
 
     // Added by the discovery test with the levels models.dev listed.
     await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` }).click();
@@ -161,14 +161,13 @@ test.describe('models page', () => {
       .click();
     await expect(page.getByText('Thinking effort reset to off', { exact: false }).first()).toBeVisible();
     await expect(inUse.getByText(`${E2E_RELAY_ALIAS} / ${E2E_RELAY_COMPLETE_MODEL}`)).toBeVisible();
-    await expect(effort).toHaveText('off');
+    await expect(effort).toHaveValue('off');
     expect(await agentOf()).toMatchObject({ model: E2E_RELAY_COMPLETE_MODEL, thinking_level: 'off' });
 
     // Only the levels the model declares are offered.
-    await effort.click();
-    await expect(page.getByRole('option')).toHaveText(['off', 'low', 'high', 'max']);
-    await page.getByRole('option', { name: 'max' }).click();
-    await expect(effort).toHaveText('max');
+    await expect(effort.locator('option')).toHaveText(['Not set', 'off', 'low', 'high', 'max']);
+    await effort.selectOption('max');
+    await expect(effort).toHaveValue('max');
     expect(await agentOf()).toMatchObject({ model: E2E_RELAY_COMPLETE_MODEL, thinking_level: 'max' });
 
     // Put the fixture agent back for the tests that follow.

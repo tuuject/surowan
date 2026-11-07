@@ -1,21 +1,41 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import {
+  type ColumnSpec,
+  ListFooter,
+  ListSearchForm,
+  ListToolbar,
+  QueryTextField,
+  TableShell,
+  ToneBadge,
+  useClientPagination,
+} from '@/components/business';
+import { Panel } from '@/components/layout/panel';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Panel } from '@/components/layout/panel';
+import { putSearchConfig, type SearchConfigView } from '@/lib/api/search.ts';
 import { errorMessage } from '@/lib/errors';
+import { useListQuery } from '@/lib/list-query';
 import { isConfigConflict } from '@/lib/model-manager';
 import { configStatusQuery } from '@/lib/queries';
-import { putSearchConfig, type SearchConfigView } from '@/lib/api/search.ts';
+import { toast } from '@/lib/toast.ts';
+import { activeEngineCount, buildPayload, type EngineDraft, emptyDraft, toDraft, validate } from './draft.ts';
 import { EngineEditor } from './engine-editor.tsx';
-import { activeEngineCount, buildPayload, emptyDraft, toDraft, validate, type EngineDraft } from './draft.ts';
 import { UrlFilterEditor } from './url-filters.tsx';
+
+const EMPTY_FILTERS = { search: '' };
 
 /** The editable form. Its identity is the revision, so a new revision remounts it. */
 export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): React.ReactElement {
@@ -24,6 +44,10 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
   const [enabled, setEnabled] = useState(initial.enabled);
   const [engines, setEngines] = useState<EngineDraft[]>(() => initial.engines.map(toDraft));
   const [filters, setFilters] = useState(initial.url_filters.join('\n'));
+  const query = useListQuery(EMPTY_FILTERS);
+  const engineSearch = query.value.search;
+  const [editing, setEditing] = useState<{ readonly draft: EngineDraft; readonly isNew: boolean } | null>(null);
+  const [editingErrors, setEditingErrors] = useState<readonly string[]>([]);
   const providers = initial.providers;
   const providerById = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers]);
 
@@ -33,6 +57,14 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
   );
   const errors = useMemo(() => validate(payload, providers), [payload, providers]);
   const activeEngines = activeEngineCount(payload.engines);
+  const visibleEngines = engines.filter((engine) => {
+    if (engineSearch.length === 0) {
+      return true;
+    }
+    const needle = engineSearch.toLowerCase();
+    return `${engine.id} ${engine.provider} ${engine.note}`.toLowerCase().includes(needle);
+  });
+  const pagination = useClientPagination(visibleEngines, query.resetKey);
 
   const save = useMutation({
     mutationFn: () => putSearchConfig(payload, initial.revision),
@@ -43,20 +75,94 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
     },
   });
 
-  const update = (key: string, change: Partial<EngineDraft>): void => {
-    setEngines((current) => current.map((engine) => (engine.key === key ? { ...engine, ...change } : engine)));
-  };
-
   const addEngine = (): void => {
-    const provider = providers[0];
-    if (provider === undefined) {
+    if (save.isPending) {
       return;
     }
-    setEngines((current) => [...current, emptyDraft(provider, current)]);
+    const provider = providers[0];
+    if (provider !== undefined) {
+      setEditingErrors([]);
+      setEditing({ draft: emptyDraft(provider, engines), isNew: true });
+    }
   };
 
+  const closeEditor = (): void => {
+    setEditing(null);
+    setEditingErrors([]);
+  };
+
+  const saveEngine = (): void => {
+    if (editing === null || save.isPending) {
+      return;
+    }
+    const nextEngines = editing.isNew
+      ? [...engines, editing.draft]
+      : engines.map((engine) => (engine.key === editing.draft.key ? editing.draft : engine));
+    const candidate = buildPayload(enabled, nextEngines, filters, providerById);
+    const editedIndex = nextEngines.findIndex((engine) => engine.key === editing.draft.key);
+    const candidateErrors = validate(candidate, providers, editedIndex < 0 ? {} : { onlyEngineIndex: editedIndex });
+    if (candidateErrors.length > 0) {
+      setEditingErrors(candidateErrors);
+      return;
+    }
+    setEngines(nextEngines);
+    closeEditor();
+  };
+
+  const columns: readonly ColumnSpec<EngineDraft>[] = [
+    { key: 'id', title: t('search.fieldId'), render: (engine) => <span className="font-mono">{engine.id}</span> },
+    {
+      key: 'provider',
+      title: t('search.fieldProvider'),
+      render: (engine) => providerById.get(engine.provider)?.label ?? engine.provider,
+    },
+    {
+      key: 'enabled',
+      title: t('search.engineEnabled'),
+      render: (engine) => (
+        <ToneBadge tone={engine.enabled ? 'success' : 'neutral'}>
+          {engine.enabled ? t('common.enabled') : t('common.disabled')}
+        </ToneBadge>
+      ),
+    },
+    { key: 'results', title: t('search.fieldResults'), align: 'right', render: (engine) => engine.results || '—' },
+    { key: 'note', title: t('search.fieldNote'), render: (engine) => engine.note || '—' },
+    {
+      key: 'actions',
+      title: t('pages.apiKeys.actions'),
+      align: 'right',
+      render: (engine) => (
+        <div className="flex justify-end gap-1">
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`${t('common.edit')} ${engine.id}`}
+            disabled={save.isPending}
+            onClick={() => {
+              setEditingErrors([]);
+              setEditing({ draft: engine, isNew: false });
+            }}
+          >
+            <Pencil />
+          </Button>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`${t('search.removeEngine')} ${engine.id}`}
+            disabled={save.isPending}
+            onClick={() => setEngines((current) => current.filter((entry) => entry.key !== engine.key))}
+          >
+            <Trash2 />
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <Panel title={t('search.switchTitle')}>
         <p className="text-muted-foreground mb-3 text-sm">{t('search.switchDescription')}</p>
         <div className="flex items-start justify-between gap-4">
@@ -75,36 +181,46 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
         </div>
       </Panel>
 
-      <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div className="space-y-1">
-            <CardTitle>{t('search.enginesTitle')}</CardTitle>
-            <p className="text-muted-foreground text-sm">{t('search.enginesDescription')}</p>
-          </div>
-          <Button type="button" variant="outline" size="sm" onClick={addEngine}>
+      <section className="space-y-4">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">{t('search.enginesTitle')}</h2>
+          <p className="text-muted-foreground text-sm">{t('search.enginesDescription')}</p>
+        </div>
+        <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
+          {({ draft, change }) => (
+            <QueryTextField
+              label={t('search.enginesTitle')}
+              value={draft.search}
+              onChange={(search) => change({ search })}
+            />
+          )}
+        </ListSearchForm>
+        <ListToolbar>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={addEngine}
+            disabled={providers.length === 0 || save.isPending}
+          >
             <Plus aria-hidden /> {t('search.addEngine')}
           </Button>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {engines.length === 0 ? (
-            <p className="text-muted-foreground text-sm">{t('search.noEngines')}</p>
-          ) : (
-            engines.map((engine, index) => (
-              <EngineEditor
-                key={engine.key}
-                draft={engine}
-                providers={providers}
-                provider={providerById.get(engine.provider)}
-                deepseekKeys={initial.deepseek_keys}
-                disabled={save.isPending}
-                onChange={(change) => update(engine.key, change)}
-                onRemove={() => setEngines((current) => current.filter((entry) => entry.key !== engine.key))}
-                index={index}
-              />
-            ))
-          )}
-        </CardContent>
-      </Card>
+        </ListToolbar>
+        <div>
+          <TableShell
+            columns={columns}
+            data={pagination.items}
+            rowKey={(engine) => engine.key}
+            frame={false}
+            emptyText={t('search.noEngines')}
+          />
+          <ListFooter
+            count={pagination.total}
+            page={pagination.page}
+            pageCount={pagination.pageCount}
+            onPageChange={pagination.onPageChange}
+          />
+        </div>
+      </section>
 
       <UrlFilterEditor rules={filters} onRulesChange={setFilters} disabled={save.isPending} />
 
@@ -132,8 +248,6 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
         <p className="text-muted-foreground text-xs">{t('search.saveHint')}</p>
       </div>
       {save.isError && isConfigConflict(save.error) ? (
-        // The form is keyed by revision, so a refetch remounts it on the
-        // current revision; retrying with the stale one could never succeed.
         <Alert variant="destructive" role="alert">
           <AlertTitle>{t('search.conflictTitle')}</AlertTitle>
           <AlertDescription className="space-y-3">
@@ -153,6 +267,55 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
           {errorMessage(save.error)}
         </p>
       ) : null}
+
+      <Dialog
+        open={editing !== null}
+        onOpenChange={(open) => {
+          if (!open && !save.isPending) {
+            closeEditor();
+          }
+        }}
+      >
+        <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing?.isNew === true ? t('search.addEngine') : t('search.editEngine')}</DialogTitle>
+            <DialogDescription>{t('search.enginesDescription')}</DialogDescription>
+          </DialogHeader>
+          {editing === null ? null : (
+            <EngineEditor
+              draft={editing.draft}
+              providers={providers}
+              provider={providerById.get(editing.draft.provider)}
+              deepseekKeys={initial.deepseek_keys}
+              disabled={save.isPending}
+              onChange={(change) => {
+                setEditingErrors([]);
+                setEditing({ ...editing, draft: { ...editing.draft, ...change } });
+              }}
+            />
+          )}
+          {editingErrors.length === 0 ? null : (
+            <Alert variant="destructive" role="alert">
+              <AlertTitle>{t('search.invalidTitle')}</AlertTitle>
+              <AlertDescription>
+                <ul className="list-disc pl-4">
+                  {editingErrors.map((error) => (
+                    <li key={error}>{error}</li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={save.isPending} onClick={closeEditor}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="button" disabled={save.isPending} onClick={saveEngine}>
+              {t('common.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

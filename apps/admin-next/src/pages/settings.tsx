@@ -2,20 +2,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
-import { KvList, MonoValue, PasskeysCard, ToneBadge } from '@/components/business';
+import { KvList, ListPageHeader, MonoValue, PasskeysCard, ToneBadge } from '@/components/business';
+import { Panel } from '@/components/layout/panel';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
+import { updateCredentials } from '@/lib/api/auth.ts';
+import type { ConfigApplyResponse } from '@/lib/api/config.ts';
+import { applyConfigFile } from '@/lib/api/config.ts';
+import type { Credentials } from '@/lib/api/core.ts';
+import { ApiError } from '@/lib/api/core.ts';
 import { errorMessage } from '@/lib/errors';
 import { configStatusQuery, passkeysQuery, sessionQuery } from '@/lib/queries';
 import { useProviderWrite } from '@/lib/use-provider-write';
-import { ApiError } from '@/lib/api/core.ts';
-import type { Credentials } from '@/lib/api/core.ts';
-import { applyConfigFile } from '@/lib/api/config.ts';
-import type { ConfigApplyResponse } from '@/lib/api/config.ts';
-import { updateCredentials } from '@/lib/api/auth.ts';
 
 function shortHash(hash: string): string {
   return hash.slice(0, 12);
@@ -121,116 +120,108 @@ export default function SettingsPage(): React.ReactElement {
   const current = status.data;
 
   return (
-    <div className="max-w-lg space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('models.settings.adminCredentials')}</CardTitle>
-          <CardDescription>{t('models.settings.adminCredentialsDescription')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">{t('models.settings.newUsername')}</Label>
-              <Input
-                id="username"
-                autoComplete="username"
-                {...register('username', {
-                  required: t('models.settings.usernameRequired'),
-                  pattern: {
-                    value: /^[A-Za-z0-9._-]{3,32}$/,
-                    message: t('models.settings.usernamePattern'),
-                  },
-                })}
-              />
-              {errors.username && <p className="text-destructive text-sm">{errors.username.message}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">{t('models.settings.newPassword')}</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="new-password"
-                {...register('password', {
-                  required: t('models.settings.passwordRequired'),
-                  minLength: { value: 12, message: t('models.settings.passwordMin') },
-                })}
-              />
-              {errors.password && <p className="text-destructive text-sm">{errors.password.message}</p>}
-            </div>
-            {success && <p className="text-success text-sm">{t('models.settings.credentialsUpdated')}</p>}
-            {failure && <p className="text-destructive text-sm">{failure}</p>}
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? t('models.settings.updating') : t('models.settings.updateCredentials')}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+    <div className="max-w-5xl space-y-5">
+      <ListPageHeader title={t('layout.nav.settings')} />
+      <Panel
+        title={t('models.settings.adminCredentials')}
+        description={t('models.settings.adminCredentialsDescription')}
+      >
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="username">{t('models.settings.newUsername')}</Label>
+            <Input
+              id="username"
+              autoComplete="username"
+              {...register('username', {
+                required: t('models.settings.usernameRequired'),
+                pattern: {
+                  value: /^[A-Za-z0-9._-]{3,32}$/,
+                  message: t('models.settings.usernamePattern'),
+                },
+              })}
+            />
+            {errors.username && <p className="text-destructive text-sm">{errors.username.message}</p>}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="password">{t('models.settings.newPassword')}</Label>
+            <Input
+              id="password"
+              type="password"
+              autoComplete="new-password"
+              {...register('password', {
+                required: t('models.settings.passwordRequired'),
+                minLength: { value: 12, message: t('models.settings.passwordMin') },
+              })}
+            />
+            {errors.password && <p className="text-destructive text-sm">{errors.password.message}</p>}
+          </div>
+          {success && <p className="text-success text-sm">{t('models.settings.credentialsUpdated')}</p>}
+          {failure && <p className="text-destructive text-sm">{failure}</p>}
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? t('models.settings.updating') : t('models.settings.updateCredentials')}
+          </Button>
+        </form>
+      </Panel>
 
       {session.data?.passkeys_enabled === true ? <PasskeysCard /> : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('models.settings.configFile')}</CardTitle>
-          <CardDescription>{t('models.settings.configFileDescription')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {status.isPending ? (
-            <p className="text-muted-foreground text-sm">{t('common.loading')}</p>
-          ) : status.isError || current === undefined ? (
-            <p className="text-destructive text-sm break-words">{errorMessage(status.error)}</p>
-          ) : (
-            <>
-              <KvList
-                items={[
-                  { label: t('models.settings.generation'), value: current.generation },
-                  {
-                    label: t('models.settings.activeHash'),
-                    value: <MonoValue value={shortHash(current.active_hash)} />,
-                  },
-                  { label: t('models.settings.fileHash'), value: <MonoValue value={shortHash(current.file_hash)} /> },
-                  {
-                    label: t('models.settings.activeConfig'),
-                    value:
-                      current.active_hash === current.file_hash ? (
-                        <ToneBadge tone="success">{t('models.settings.matchesFile')}</ToneBadge>
-                      ) : (
-                        <ToneBadge tone="warning">{t('models.settings.fileHasChanges')}</ToneBadge>
-                      ),
-                  },
-                  {
-                    label: t('models.settings.restartRequired'),
-                    value: <PathList paths={current.restart_required} noneLabel={t('models.settings.none')} />,
-                  },
-                  {
-                    label: t('models.settings.lastError'),
-                    value:
-                      current.last_error === null ? (
-                        <span className="text-muted-foreground">{t('models.settings.none')}</span>
-                      ) : (
-                        <span className="text-destructive">
-                          {current.last_error.code}: {current.last_error.message} ({current.last_error.at})
-                        </span>
-                      ),
-                  },
-                ]}
-              />
-              <div className="mt-4">
-                <Button
-                  type="button"
-                  disabled={applyMutation.isPending}
-                  onClick={() => {
-                    applyMutation.mutate();
-                  }}
-                >
-                  {applyMutation.isPending ? t('models.settings.applying') : t('models.settings.applyConfigFile')}
-                </Button>
-              </div>
-              {applyFailure !== null && <p className="text-destructive mt-3 text-sm break-words">{applyFailure}</p>}
-              {applyResult !== null && <AppliedResult result={applyResult} />}
-            </>
-          )}
-        </CardContent>
-      </Card>
+      <Panel title={t('models.settings.configFile')} description={t('models.settings.configFileDescription')}>
+        {status.isPending ? (
+          <p className="text-muted-foreground text-sm">{t('common.loading')}</p>
+        ) : status.isError || current === undefined ? (
+          <p className="text-destructive text-sm break-words">{errorMessage(status.error)}</p>
+        ) : (
+          <>
+            <KvList
+              items={[
+                { label: t('models.settings.generation'), value: current.generation },
+                {
+                  label: t('models.settings.activeHash'),
+                  value: <MonoValue value={shortHash(current.active_hash)} />,
+                },
+                { label: t('models.settings.fileHash'), value: <MonoValue value={shortHash(current.file_hash)} /> },
+                {
+                  label: t('models.settings.activeConfig'),
+                  value:
+                    current.active_hash === current.file_hash ? (
+                      <ToneBadge tone="success">{t('models.settings.matchesFile')}</ToneBadge>
+                    ) : (
+                      <ToneBadge tone="warning">{t('models.settings.fileHasChanges')}</ToneBadge>
+                    ),
+                },
+                {
+                  label: t('models.settings.restartRequired'),
+                  value: <PathList paths={current.restart_required} noneLabel={t('models.settings.none')} />,
+                },
+                {
+                  label: t('models.settings.lastError'),
+                  value:
+                    current.last_error === null ? (
+                      <span className="text-muted-foreground">{t('models.settings.none')}</span>
+                    ) : (
+                      <span className="text-destructive">
+                        {current.last_error.code}: {current.last_error.message} ({current.last_error.at})
+                      </span>
+                    ),
+                },
+              ]}
+            />
+            <div className="mt-4">
+              <Button
+                type="button"
+                disabled={applyMutation.isPending}
+                onClick={() => {
+                  applyMutation.mutate();
+                }}
+              >
+                {applyMutation.isPending ? t('models.settings.applying') : t('models.settings.applyConfigFile')}
+              </Button>
+            </div>
+            {applyFailure !== null && <p className="text-destructive mt-3 text-sm break-words">{applyFailure}</p>}
+            {applyResult !== null && <AppliedResult result={applyResult} />}
+          </>
+        )}
+      </Panel>
     </div>
   );
 }

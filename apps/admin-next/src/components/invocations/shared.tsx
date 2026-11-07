@@ -3,9 +3,8 @@ import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import { type BadgeSemantic, ToneBadge } from '@/components/business';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
-
-import { isNewContextSection } from '@/lib/timeline';
 import type { InvocationChatSummary } from '@/lib/api/invocations.ts';
+import { isNewContextSection } from '@/lib/timeline';
 
 const ROLE_BADGE_TONES: Record<string, BadgeSemantic> = {
   assistant: 'warning',

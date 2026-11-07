@@ -1,4 +1,3 @@
-import { ToolResult } from './tool-result';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -13,11 +12,11 @@ import {
   TextValue,
 } from '@/components/business';
 import { isRoom, MessageRecordLink, RoleBadge, SectionBadge, TabContent } from '@/components/invocations/shared';
-
+import type { ContextMessageEntry } from '@/lib/api/contexts.ts';
+import type { AgentMessageEntry, InvocationDetail } from '@/lib/api/invocations.ts';
 import { formatTime } from '@/lib/format';
 import { objectField, parseJsonObject, stringField } from '@/lib/timeline';
-import type { AgentMessageEntry, InvocationDetail } from '@/lib/api/invocations.ts';
-import type { ContextMessageEntry } from '@/lib/api/contexts.ts';
+import { ToolResult } from './tool-result';
 
 export function AgentTranscriptTab({ invocation }: { readonly invocation: InvocationDetail }): React.ReactNode {
   const { t } = useTranslation();

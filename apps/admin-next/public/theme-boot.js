@@ -1,22 +1,31 @@
 (() => {
+  // Both attributes are applied before the first paint: `data-theme` drives
+  // Koi's Panda conditions, the `dark` class keeps the existing JSON viewer and
+  // stored test fixtures working. The stored mode is shared with the panel's
+  // theme switch (`admin-theme`: light / dark / system).
+  const apply = (mode) => {
+    const dark = mode === 'dark' || (mode !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.classList.toggle('dark', dark);
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  };
   try {
-    const stored = localStorage.getItem('admin-theme');
-    if (stored === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else if (stored === 'light') {
-      document.documentElement.classList.remove('dark');
-    } else {
-      // "system" or any other value falls back to system
-      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        document.documentElement.classList.add('dark');
+    const mode = localStorage.getItem('admin-theme');
+    apply(mode);
+    // Mirror the explicit Koi choice for a desktop shell's preload, which
+    // watches `koi-theme` to theme its own window chrome. A failed mirror
+    // write must not roll back the theme we already applied from `admin-theme`.
+    try {
+      if (mode === 'light' || mode === 'dark') {
+        localStorage.setItem('koi-theme', mode);
+      } else {
+        localStorage.removeItem('koi-theme');
       }
+    } catch (_) {
+      // The mirror is optional; the panel theme is already applied.
     }
   } catch (_) {
-    // localStorage unavailable — fall back to system preference
     try {
-      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        document.documentElement.classList.add('dark');
-      }
+      apply('system');
     } catch (_) {
       // nothing we can do
     }

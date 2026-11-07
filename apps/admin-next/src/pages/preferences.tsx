@@ -1,8 +1,8 @@
+import { Select } from '@tuuject/koi-react/select';
 import { useTranslation } from 'react-i18next';
+import { Panel } from '@/components/layout/panel';
 import { type ThemeMode, useTheme } from '@/components/themes/theme-provider';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { type AppLanguage, LANGUAGE_LABELS, LANGUAGES, setLanguage } from '@/lib/i18n';
 import { setShowConfigKeys, useShowConfigKeys } from '@/lib/panel-preferences';
@@ -18,40 +18,36 @@ export default function PreferencesPage(): React.ReactElement {
 
   return (
     <div className="max-w-lg space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('pages.preferences.displayTitle')}</CardTitle>
-          <CardDescription>{t('pages.preferences.displayDescription')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
+      <Panel title={t('pages.preferences.displayTitle')} description={t('pages.preferences.displayDescription')}>
+        <div className="space-y-5">
           <div className="flex items-center justify-between gap-4">
             <Label htmlFor="preference-theme">{t('pages.preferences.themeLabel')}</Label>
-            <Select value={mode} onValueChange={(value) => setMode(value as ThemeMode)}>
-              <SelectTrigger id="preference-theme" className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {THEME_MODES.map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {t(`layout.theme.${item}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+            <Select
+              id="preference-theme"
+              className="w-40"
+              value={mode}
+              onChange={(event) => setMode(event.target.value as ThemeMode)}
+            >
+              {THEME_MODES.map((item) => (
+                <option key={item} value={item}>
+                  {t(`layout.theme.${item}`)}
+                </option>
+              ))}
             </Select>
           </div>
           <div className="flex items-center justify-between gap-4">
             <Label htmlFor="preference-language">{t('pages.preferences.languageLabel')}</Label>
-            <Select value={language} onValueChange={(value) => setLanguage(value as AppLanguage)}>
-              <SelectTrigger id="preference-language" className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LANGUAGES.map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {LANGUAGE_LABELS[item]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+            <Select
+              id="preference-language"
+              className="w-40"
+              value={language}
+              onChange={(event) => setLanguage(event.target.value as AppLanguage)}
+            >
+              {LANGUAGES.map((item) => (
+                <option key={item} value={item}>
+                  {LANGUAGE_LABELS[item]}
+                </option>
+              ))}
             </Select>
           </div>
           <div className="flex items-start justify-between gap-4">
@@ -68,8 +64,8 @@ export default function PreferencesPage(): React.ReactElement {
               onCheckedChange={setShowConfigKeys}
             />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
     </div>
   );
 }

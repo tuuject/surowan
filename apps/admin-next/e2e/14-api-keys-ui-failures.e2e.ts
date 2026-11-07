@@ -65,7 +65,9 @@ test.describe('API key management UI', () => {
     await page.goto(await adminUrl('/api-keys'));
     const main = page.getByRole('main');
     await expect(main.getByText('Synthetic list failure', { exact: false })).toBeVisible();
-    await expect(main.locator('table tbody tr')).toHaveCount(0);
+    await expect(main.locator('table')).toHaveCount(0);
+    await expect(main.getByText('No API keys created yet.')).toHaveCount(0);
+    await expect(main.getByText('0 records', { exact: true })).toHaveCount(0);
 
     await main.getByRole('button', { name: 'Retry' }).click();
     const row = main.locator('table tbody tr', { hasText: 'retry-fixture' });
@@ -73,6 +75,37 @@ test.describe('API key management UI', () => {
     await expect(row.getByText('Never used', { exact: true })).toBeVisible();
     await expect(main.getByText('Synthetic list failure', { exact: false })).toHaveCount(0);
     expect(listCalls).toBeGreaterThanOrEqual(2);
+  });
+
+  test('a search without matches does not claim the inventory is empty', async ({ page }) => {
+    await page.route('**/api/api-keys**', async (route) => {
+      if (route.request().method() === 'GET' && new URL(route.request().url()).pathname.endsWith('/api/api-keys')) {
+        await route.fulfill({
+          json: {
+            items: [
+              {
+                id: '9003',
+                name: 'filter-fixture',
+                prefix: 'pwk_filterfix',
+                created_at: '2026-01-02T03:04:05.000Z',
+                last_used_at: null,
+                revoked_at: null,
+              },
+            ],
+          },
+        });
+        return;
+      }
+      await route.fallback();
+    });
+    await page.goto(await adminUrl('/api-keys'));
+    await expect(page.getByText('filter-fixture', { exact: true })).toBeVisible();
+    const search = page.getByRole('textbox', { name: 'Name', exact: true });
+    await search.fill('not-present');
+    await search.press('Enter');
+    await expect(page.getByText('No matches', { exact: true })).toBeVisible();
+    await expect(page.getByText('No API keys created yet.')).toHaveCount(0);
+    await expect(page.getByText('0 records', { exact: true })).toBeVisible();
   });
 
   test('a failed create stays inline, cannot double-submit, and retries manually', async ({ page }) => {

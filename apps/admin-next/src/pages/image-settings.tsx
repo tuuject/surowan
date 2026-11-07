@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { ListPageHeader } from '@/components/business';
 import { CredentialsFields } from '@/components/image-settings/credentials-fields.tsx';
 import { ModelList } from '@/components/image-settings/model-list.tsx';
 import { ModelPicker } from '@/components/image-settings/model-picker.tsx';
@@ -9,8 +9,7 @@ import { SaveActions } from '@/components/image-settings/save-actions.tsx';
 import { type EditableCredential, type EditableModel, toModelPayload } from '@/components/image-settings/shared.ts';
 import { Panel } from '@/components/layout/panel';
 import { Button } from '@/components/ui/button';
-
-import { errorMessage } from '@/lib/errors';
+import type { ImageConfigView } from '@/lib/api/images.ts';
 import {
   getImageConfig,
   getImageModelCatalog,
@@ -18,28 +17,27 @@ import {
   getImageStatus,
   putImageConfig,
 } from '@/lib/api/images.ts';
-import type { ImageConfigView } from '@/lib/api/images.ts';
+import { errorMessage } from '@/lib/errors';
+import { toast } from '@/lib/toast.ts';
 
 export default function ImageSettingsPage() {
   const { t } = useTranslation();
   const config = useQuery({ queryKey: ['image-config'], queryFn: getImageConfig });
   const status = useQuery({ queryKey: ['image-status'], queryFn: getImageStatus });
   return (
-    <div className="max-w-3xl space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-xl font-semibold">{t('image.settings.title')}</h1>
-        <p className="text-muted-foreground text-sm">
-          {t('image.settings.statusLine', {
-            status: status.isPending
-              ? t('common.loading')
-              : status.isError
-                ? t('image.settings.statusReadFailed')
-                : status.data.enabled
-                  ? t('common.enabled')
-                  : t('common.disabled'),
-          })}
-        </p>
-      </div>
+    <div className="space-y-5">
+      <ListPageHeader
+        title={t('image.settings.title')}
+        description={t('image.settings.statusLine', {
+          status: status.isPending
+            ? t('common.loading')
+            : status.isError
+              ? t('image.settings.statusReadFailed')
+              : status.data.enabled
+                ? t('common.enabled')
+                : t('common.disabled'),
+        })}
+      />
       {config.isPending ? (
         <p className="text-muted-foreground text-sm">{t('image.settings.readingConfig')}</p>
       ) : config.isError ? (

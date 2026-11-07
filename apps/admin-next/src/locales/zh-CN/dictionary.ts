@@ -14,7 +14,7 @@ export const dictionary: typeof dictionaryEn = {
     emptyEntries: '该辞典还没有词条。',
     emptyFiltered: '没有词条匹配这次搜索。',
     selectAria: '选择 {{term}}',
-    selectAll: '选择列表中全部词条',
+    selectAll: '选择本页词条',
     colTerm: '主词',
     colAliases: '别名',
     colDefinition: '解释',

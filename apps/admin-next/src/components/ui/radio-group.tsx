@@ -1,29 +1,64 @@
-import { CircleIcon } from 'lucide-react';
-import { RadioGroup as RadioGroupPrimitive } from 'radix-ui';
-import type * as React from 'react';
+import { Radio } from '@base-ui/react/radio';
+import { RadioGroup as BaseRadioGroup } from '@base-ui/react/radio-group';
+import { radioGroup } from '@tuuject/koi-react/styled-system/recipes';
+import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
-function RadioGroup({ className, ...props }: React.ComponentProps<typeof RadioGroupPrimitive.Root>) {
-  return <RadioGroupPrimitive.Root data-slot="radio-group" className={cn('grid gap-3', className)} {...props} />;
+/**
+ * The two Chat dialogs compose a card around each radio, so they need the
+ * RadioGroup/RadioGroupItem split rather than Koi's option-list API. Behaviour
+ * is Base UI's radio group (the same primitive Koi uses) and the visual parts
+ * come from Koi's radio-group recipe.
+ */
+function RadioGroup<T extends string>({
+  className,
+  children,
+  value,
+  defaultValue,
+  onValueChange,
+  disabled,
+  name,
+}: {
+  readonly className?: string;
+  readonly children: ReactNode;
+  readonly value?: T;
+  readonly defaultValue?: T;
+  readonly onValueChange?: (value: T) => void;
+  readonly disabled?: boolean;
+  readonly name?: string;
+}): React.ReactElement {
+  return (
+    <BaseRadioGroup
+      value={value}
+      defaultValue={defaultValue}
+      onValueChange={(next) => {
+        if (typeof next === 'string') {
+          onValueChange?.(next as T);
+        }
+      }}
+      disabled={disabled}
+      name={name}
+      className={cn(radioGroup().root, className)}
+    >
+      {children}
+    </BaseRadioGroup>
+  );
 }
 
-function RadioGroupItem({ className, ...props }: React.ComponentProps<typeof RadioGroupPrimitive.Item>) {
+function RadioGroupItem({
+  value,
+  className,
+  id,
+}: {
+  readonly value: string;
+  readonly className?: string;
+  readonly id?: string;
+}): React.ReactElement {
+  const recipe = radioGroup();
   return (
-    <RadioGroupPrimitive.Item
-      data-slot="radio-group-item"
-      className={cn(
-        'border-input text-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 aspect-square size-4 shrink-0 rounded-full border shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50',
-        className,
-      )}
-      {...props}
-    >
-      <RadioGroupPrimitive.Indicator
-        data-slot="radio-group-indicator"
-        className="relative flex items-center justify-center"
-      >
-        <CircleIcon className="fill-primary absolute top-1/2 left-1/2 size-2 -translate-x-1/2 -translate-y-1/2" />
-      </RadioGroupPrimitive.Indicator>
-    </RadioGroupPrimitive.Item>
+    <Radio.Root value={value} id={id} className={cn(recipe.control, 'shrink-0', className)}>
+      <Radio.Indicator keepMounted className={recipe.indicator} />
+    </Radio.Root>
   );
 }
 

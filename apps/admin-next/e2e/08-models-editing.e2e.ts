@@ -63,8 +63,7 @@ test.describe('models page', () => {
     await page.goto(await adminUrl('/models'));
     await page.getByRole('button', { name: 'New provider' }).click();
 
-    await page.locator('#wizard-kind').click();
-    await page.getByRole('option', { name: /custom/ }).click();
+    await page.locator('#wizard-kind').selectOption('custom');
     await page.locator('#wizard-alias').fill('relay2');
     await page.locator('#wizard-base-url').fill(relayBaseUrl);
     await page.getByRole('button', { name: 'Next' }).click();
@@ -116,8 +115,7 @@ test.describe('models page', () => {
     await page.goto(await adminUrl('/models'));
     await page.getByRole('button', { name: 'New provider' }).click();
 
-    await page.locator('#wizard-kind').click();
-    await page.getByRole('option', { name: /custom/ }).click();
+    await page.locator('#wizard-kind').selectOption('custom');
     await page.locator('#wizard-alias').fill('relay3');
     await page.locator('#wizard-base-url').fill(relayBaseUrl);
     await page.getByRole('button', { name: 'Next' }).click();
@@ -179,6 +177,29 @@ test.describe('models page', () => {
     const relay = view.providers.find((provider: { alias: string }) => provider.alias === E2E_RELAY_ALIAS);
     const model = relay.models.find((candidate: { id: string }) => candidate.id === 'relay-existing-model');
     expect(model.name).toBe('Renamed elsewhere');
+  });
+
+  test('a failed manual refresh keeps the connection draft mounted', async ({ page }) => {
+    let failRefresh = false;
+    await page.route('**/api/providers', async (route) => {
+      if (failRefresh) {
+        failRefresh = false;
+        await route.fulfill({
+          status: 502,
+          json: { error: 'internal', message: 'Synthetic provider refresh failure' },
+        });
+        return;
+      }
+      await route.fallback();
+    });
+    await page.goto(await adminUrl('/models'));
+    await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}`, exact: true }).click();
+    await page.getByLabel('API Key', { exact: true }).fill('unsaved-refresh-draft');
+
+    failRefresh = true;
+    await page.getByRole('button', { name: 'Refresh list', exact: true }).click();
+    await expect(page.getByText('Synthetic provider refresh failure', { exact: false })).toBeVisible();
+    await expect(page.getByLabel('API Key', { exact: true })).toHaveValue('unsaved-refresh-draft');
   });
 
   test('a connection edit built on an old revision cannot delete a header added meanwhile', async ({ page }) => {

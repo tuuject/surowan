@@ -86,6 +86,7 @@ export const image = {
     removeModel: 'Remove {{name}}',
     remove: 'Remove',
     saveAndApply: 'Save and apply',
+    capabilitiesTitle: 'Capabilities',
     capabilitiesInput: 'Up to {{count}} reference images',
     capabilitiesTextOnly: 'Text-to-image only',
     capabilitiesOutputs: 'Up to {{count}} output(s)',

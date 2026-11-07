@@ -23,19 +23,20 @@
  *   (toggled by the table's "Toggle row details" button).
  */
 import { expect } from '@playwright/test';
+import type { ProvidersView } from '../src/lib/api/providers.ts';
 import { adminUrl, test } from './helpers.ts';
 import {
   assertHealthRequestShape,
   expandedRow,
   holdHealthGate,
+  modelHealthFixture,
   modelRow,
   providersView,
-  releaseHealthGate,
   relayStats,
+  releaseHealthGate,
   resetRelayStats,
   selectProvider,
   showHealthDetails,
-  modelHealthFixture,
 } from './model-health-fixture.ts';
 import {
   E2E_HEALTH_ALIAS_A,
@@ -51,6 +52,41 @@ test.use({ signedIn: true });
 modelHealthFixture();
 
 test.describe('model health checks', () => {
+  test('provider-wide selection includes models beyond the current client page', async ({ page }) => {
+    await page.route('**/api/providers', async (route) => {
+      const response = await route.fetch();
+      const view = (await response.json()) as ProvidersView;
+      const providers = view.providers.map((provider) => {
+        if (provider.alias !== E2E_HEALTH_ALIAS_A) {
+          return provider;
+        }
+        const model = provider.models[0];
+        if (model === undefined) {
+          throw new Error('Expected a health fixture model');
+        }
+        return {
+          ...provider,
+          models: Array.from({ length: 11 }, (_, index) => ({
+            ...model,
+            id: `health-paged-${index}`,
+            name: `Health paged ${index}`,
+          })),
+        };
+      });
+      await route.fulfill({ response, json: { ...view, providers } });
+    });
+    await page.goto(await adminUrl('/models'));
+    await selectProvider(page, E2E_HEALTH_ALIAS_A);
+    await expect(page.locator('table').nth(1).locator('tbody tr')).toHaveCount(10);
+    const selectAll = page.getByRole('checkbox', { name: 'Select all models of this provider', exact: true });
+    await selectAll.check();
+    await expect(page.getByRole('button', { name: 'Check selected (11)', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Next page', exact: true }).last().click();
+    await expect(selectAll).toBeChecked();
+    await selectAll.uncheck();
+    await expect(page.getByRole('button', { name: 'Check selected (0)', exact: true })).toBeDisabled();
+  });
+
   test('a single check reports ok with ttfb and response, and blocks repeats while in flight', async ({ page }) => {
     await resetRelayStats();
     await page.goto(await adminUrl('/models'));

@@ -33,14 +33,22 @@ for (const scenario of ['sub-day', 'expired', 'same-days', 'permanent'] as const
     }
     try {
       await page.goto(await adminUrl('/memories'));
-      const loadMore = page.getByRole('button', { name: 'Load more' });
       await expect(page.locator('table tbody tr').first()).toBeVisible();
-      while (await loadMore.isVisible()) {
-        const count = await page.locator('table tbody tr').count();
-        await loadMore.click();
-        await expect.poll(() => page.locator('table tbody tr').count()).toBeGreaterThan(count);
+      await expect(page.locator('table').first()).not.toHaveAttribute('aria-busy', 'true');
+      const targetRow = page.locator('table tbody tr', { hasText: summary });
+      for (let pageNumber = 1; !(await targetRow.isVisible()) && pageNumber <= 10; pageNumber += 1) {
+        const next = page.getByRole('button', { name: 'Next page', exact: true });
+        if (await next.isDisabled()) {
+          break;
+        }
+        await next.click();
+        await expect(page.getByRole('button', { name: `Page ${pageNumber + 1}`, exact: true })).toHaveAttribute(
+          'aria-current',
+          'page',
+        );
       }
-      await page.locator('table tbody tr', { hasText: summary }).getByRole('button', { name: 'Edit' }).click();
+      await expect(targetRow).toBeVisible();
+      await targetRow.getByRole('button', { name: 'Edit' }).click();
       const dialog = page.getByRole('dialog');
       await dialog.getByLabel('Summary').fill(`${summary} edited`);
       await dialog.getByLabel('Detail').fill('Edited detail');

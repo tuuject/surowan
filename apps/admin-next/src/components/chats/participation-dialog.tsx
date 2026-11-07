@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { WeekWindowsChart } from '@/components/chats/week-windows-chart';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,14 +15,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-
+import type { ChatEntry, ChatsView, ParticipationView, ParticipationWindow } from '@/lib/api/chats.ts';
+import { updateChatParticipation } from '@/lib/api/chats.ts';
 import { errorMessage } from '@/lib/errors';
 import { isConfigConflict } from '@/lib/model-manager';
 import { summarizeWindows } from '@/lib/participation';
+import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
-import { useTranslation } from 'react-i18next';
-import { updateChatParticipation } from '@/lib/api/chats.ts';
-import type { ChatEntry, ChatsView, ParticipationWindow, ParticipationView } from '@/lib/api/chats.ts';
 
 type ParticipationMode = 'unrestricted' | 'none' | 'custom';
 
@@ -73,7 +72,7 @@ function ModeOption({
   readonly hint: string;
 }): React.ReactElement {
   return (
-    <Label className="has-[[data-state=checked]]:border-primary hover:bg-accent/50 flex cursor-pointer items-start gap-3 rounded-lg border p-3 font-normal transition-colors">
+    <Label className="has-[[data-checked]]:border-primary hover:bg-accent/50 flex cursor-pointer items-start gap-3 rounded-lg border p-3 font-normal transition-colors">
       <RadioGroupItem value={value} className="mt-0.5" />
       <span className="space-y-1">
         <span className="block text-sm font-medium">{title}</span>

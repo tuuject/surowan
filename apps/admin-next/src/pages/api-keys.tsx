@@ -1,10 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Select } from '@tuuject/koi-react/select';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
-import { type ColumnSpec, ConfirmDialog, MonoValue, TableShell, ToneBadge } from '@/components/business';
+import {
+  type ColumnSpec,
+  ConfirmDialog,
+  ListFooter,
+  ListPageHeader,
+  ListSearchForm,
+  ListToolbar,
+  MonoValue,
+  QueryTextField,
+  TableShell,
+  ToneBadge,
+  useClientPagination,
+} from '@/components/business';
 import { Button } from '@/components/ui/button';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -15,16 +26,17 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-
+import type { AdminApiKeyItem, ApiKeyMode } from '@/lib/api/admin.ts';
+import { createApiKey, revokeApiKey, rotateApiKey, updateApiKeyMode } from '@/lib/api/admin.ts';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
+import { useListQuery } from '@/lib/list-query';
 import { apiKeysQuery } from '@/lib/queries';
-import { createApiKey, revokeApiKey, rotateApiKey, updateApiKeyMode } from '@/lib/api/admin.ts';
-import type { AdminApiKeyItem, ApiKeyMode } from '@/lib/api/admin.ts';
+import { toast } from '@/lib/toast.ts';
 
 const MODES: readonly ApiKeyMode[] = ['read', 'read_write', 'read_paid', 'all'];
+const EMPTY_FILTERS = { search: '' };
 
 function ModeSelect({
   id,
@@ -40,25 +52,22 @@ function ModeSelect({
   const { t } = useTranslation();
   return (
     <Select
+      id={id}
+      className="w-full"
       value={value}
       disabled={disabled ?? false}
-      onValueChange={(next) => {
-        const selected = MODES.find((candidate) => candidate === next);
+      onChange={(event) => {
+        const selected = MODES.find((candidate) => candidate === event.target.value);
         if (selected !== undefined) {
           onChange(selected);
         }
       }}
     >
-      <SelectTrigger id={id} className="w-full">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {MODES.map((mode) => (
-          <SelectItem key={mode} value={mode}>
-            {t(`pages.apiKeys.modes.${mode}`)}
-          </SelectItem>
-        ))}
-      </SelectContent>
+      {MODES.map((mode) => (
+        <option key={mode} value={mode}>
+          {t(`pages.apiKeys.modes.${mode}`)}
+        </option>
+      ))}
     </Select>
   );
 }
@@ -76,6 +85,8 @@ export default function ApiKeysPage(): React.ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const keys = useQuery(apiKeysQuery);
+  const query = useListQuery(EMPTY_FILTERS);
+  const search = query.value.search;
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<AdminApiKeyItem | null>(null);
   const [rotating, setRotating] = useState<AdminApiKeyItem | null>(null);
@@ -91,6 +102,14 @@ export default function ApiKeysPage(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: apiKeysQuery.queryKey });
     },
   });
+  const filteredKeys = (keys.data?.items ?? []).filter((item) => {
+    if (search.length === 0) {
+      return true;
+    }
+    const needle = search.toLowerCase();
+    return item.name.toLowerCase().includes(needle) || item.prefix.toLowerCase().includes(needle);
+  });
+  const pagination = useClientPagination(filteredKeys, query.resetKey);
   const columns: readonly ColumnSpec<AdminApiKeyItem>[] = [
     {
       key: 'name',
@@ -158,24 +177,23 @@ export default function ApiKeysPage(): React.ReactElement {
   ];
 
   return (
-    <div className="min-w-0 space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('pages.apiKeys.title')}</CardTitle>
-          <CardDescription>{t('pages.apiKeys.description')}</CardDescription>
-        </CardHeader>
-      </Card>
-      <div className="flex flex-wrap gap-2">
+    <div className="min-w-0 space-y-5">
+      <ListPageHeader title={t('pages.apiKeys.title')} description={t('pages.apiKeys.description')} />
+      <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
+        {({ draft, change }) => (
+          <QueryTextField
+            label={t('pages.apiKeys.name')}
+            value={draft.search}
+            onChange={(search) => change({ search })}
+          />
+        )}
+      </ListSearchForm>
+      <ListToolbar onRefresh={() => void keys.refetch()} refreshing={keys.isRefetching}>
         <Button type="button" onClick={() => setCreating(true)}>
           {t('pages.apiKeys.create')}
         </Button>
-        <Button type="button" variant="outline" disabled={keys.isFetching} onClick={() => void keys.refetch()}>
-          {t('common.reload')}
-        </Button>
-      </div>
-      {keys.isPending ? (
-        <p className="text-muted-foreground py-8 text-center text-sm">{t('common.loading')}</p>
-      ) : keys.isError ? (
+      </ListToolbar>
+      {keys.isError ? (
         <div className="space-y-2">
           <p role="alert" className="text-destructive text-sm break-words">
             {errorMessage(keys.error)}
@@ -184,15 +202,27 @@ export default function ApiKeysPage(): React.ReactElement {
             {t('common.retry')}
           </Button>
         </div>
-      ) : (
-        <TableShell
-          columns={columns}
-          data={keys.data.items}
-          rowKey={(item) => item.id}
-          emptyText={t('pages.apiKeys.empty')}
-          className="max-w-full overflow-x-auto"
-        />
-      )}
+      ) : null}
+      {keys.isPending || keys.data !== undefined ? (
+        <div>
+          <TableShell
+            columns={columns}
+            data={pagination.items}
+            rowKey={(item) => item.id}
+            loading={keys.isPending}
+            frame={false}
+            emptyText={search.length === 0 ? t('pages.apiKeys.empty') : t('layout.koi.noMatches')}
+          />
+          {keys.data === undefined ? null : (
+            <ListFooter
+              count={pagination.total}
+              page={pagination.page}
+              pageCount={pagination.pageCount}
+              onPageChange={pagination.onPageChange}
+            />
+          )}
+        </div>
+      ) : null}
       {creating ? <CreateKeyDialog onClose={() => setCreating(false)} /> : null}
       {editing !== null ? <EditModeDialog item={editing} onClose={() => setEditing(null)} /> : null}
       {rotating !== null ? <RotateKeyDialog item={rotating} onClose={() => setRotating(null)} /> : null}

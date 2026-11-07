@@ -15,6 +15,7 @@ export const common = {
   delete: 'Delete',
   create: 'Create',
   edit: 'Edit',
+  view: 'View',
   submit: 'Submit',
   submitting: 'Submitting…',
   retry: 'Retry',

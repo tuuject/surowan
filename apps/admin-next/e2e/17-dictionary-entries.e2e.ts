@@ -1,6 +1,14 @@
 import { expect } from '@playwright/test';
+import {
+  CHAT_ID,
+  createEntry,
+  draft,
+  findEntry,
+  listView,
+  removeEntry,
+  resetDictionaries,
+} from './dictionary-fixture.ts';
 import { adminUrl, test } from './helpers.ts';
-import { createEntry, draft, findEntry, listView, removeEntry, resetDictionaries } from './dictionary-fixture.ts';
 
 /**
  * Dictionary page entry operations against the real AdminServer + real SQLite:
@@ -38,6 +46,32 @@ test.describe('dictionary page', () => {
       await removeEntry(page, (await findEntry(page, alpha.term)) ?? alpha);
       await removeEntry(page, beta);
     }
+  });
+
+  test('Reset clears search without leaving the selected group scope', async ({ page }) => {
+    const entry = await createEntry(page, draft(`e2e-group-reset-${Date.now()}`, { scope: 'group', chat_id: CHAT_ID }));
+    await page.goto(await adminUrl(`/dictionary?chat=${CHAT_ID}`));
+    const search = page.getByRole('textbox', { name: 'Search term or alias' });
+    await search.fill('no-matching-term');
+    await search.press('Enter');
+    await expect(page.locator('table tbody tr', { hasText: entry.term })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Reset', exact: true }).click();
+    await expect(page).toHaveURL((url) => url.pathname === '/dictionary' && url.search === `?chat=${CHAT_ID}`);
+    await expect(search).toHaveValue('');
+    await expect(page.locator('table tbody tr', { hasText: entry.term })).toBeVisible();
+  });
+
+  test('select all applies to the current page and preserves selections on other pages', async ({ page }) => {
+    const stamp = Date.now();
+    for (let index = 0; index < 11; index += 1) {
+      await createEntry(page, draft(`e2e-page-select-${stamp}-${index}`));
+    }
+    await page.goto(await adminUrl('/dictionary'));
+    await page.getByRole('checkbox', { name: 'Select entries on this page', exact: true }).check();
+    await expect(page.getByRole('button', { name: 'Merge selected (10)', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Next page', exact: true }).click();
+    await page.locator('table tbody tr').first().getByRole('checkbox').check();
+    await expect(page.getByRole('button', { name: 'Merge selected (11)', exact: true })).toBeVisible();
   });
 
   test('a duplicate term is allowed and reported as a conflict, not blocked', async ({ page }) => {

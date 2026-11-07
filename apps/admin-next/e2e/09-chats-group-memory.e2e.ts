@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
-import { test, watchPageIssues } from './helpers.ts';
 import { chatRow, inherited, prepareChatsPage, viewOf } from './chats-fixture.ts';
+import { test, watchPageIssues } from './helpers.ts';
 
 test.use({ signedIn: true });
 
@@ -32,7 +32,7 @@ test('group memory can be enabled, tuned and disabled from the Chat row', async 
 
   let dialog = page.getByRole('dialog');
   await row().getByRole('button', { name: 'Edit group memory', exact: true }).click();
-  await expect(dialog.getByRole('switch')).toHaveAttribute('data-state', 'unchecked');
+  await expect(dialog.getByRole('switch')).not.toBeChecked();
   await dialog.getByRole('switch').click();
   await dialog.getByLabel('Idle minutes before consolidating the current day').fill('45');
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();

@@ -1,73 +1,32 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
+import { Panel } from '@/components/layout/panel';
+import { ArrowRight } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import {
-  ChartPanel,
-  type ChartSeries,
   type ColumnSpec,
   ConfirmDialog,
-  FLUSH_TABLE_CLASS,
+  ListPageHeader,
   MonoValue,
   StateBadge,
   TableShell,
-  TimeSeriesChart,
   ToneBadge,
 } from '@/components/business';
-import { Panel } from '@/components/layout/panel';
 import { TelegramStatusBadge, TelegramStatusReason, telegramBotLabel } from '@/components/telegram/telegram-status.tsx';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { WarningCard } from '@/components/warnings/warning-card';
 import { useForegroundRefresh } from '@/hooks/use-foreground-refresh';
-
+import type { InvocationListItem } from '@/lib/api/invocations.ts';
+import { listInvocations } from '@/lib/api/invocations.ts';
+import { cancelOngoingSessions, wakeBot } from '@/lib/api/usage.ts';
+import type { EventWarning } from '@/lib/api/warnings.ts';
+import { markWarningRead } from '@/lib/api/warnings.ts';
 import { errorMessage } from '@/lib/errors';
 import { formatNumber, formatTime } from '@/lib/format';
-import { overviewQuery, telegramQuery, usageQuery, warningsSummaryQuery } from '@/lib/queries';
-import { useTranslation } from 'react-i18next';
-import { cancelOngoingSessions, wakeBot } from '@/lib/api/usage.ts';
-import type { LabelCount, UsageEntry } from '@/lib/api/usage.ts';
-import { markWarningRead } from '@/lib/api/warnings.ts';
-import type { EventWarning } from '@/lib/api/warnings.ts';
-
-function Stat({ title, value }: { readonly title: string; readonly value: React.ReactNode }): React.ReactElement {
-  return (
-    <div className="space-y-1">
-      <dt className="text-muted-foreground text-sm">{title}</dt>
-      <dd className="text-3xl font-semibold tabular-nums">{value}</dd>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  readonly label: string;
-  readonly children: React.ReactNode;
-}): React.ReactElement {
-  return (
-    <div className="space-y-2">
-      <dt className="text-muted-foreground text-sm">{label}</dt>
-      <dd className="flex min-h-6 flex-col justify-center">{children}</dd>
-    </div>
-  );
-}
-
-function StatsSkeleton(): React.ReactElement {
-  return (
-    <Card className="grid gap-6 px-6 sm:grid-cols-3">
-      {[0, 1, 2].map((index) => (
-        <div key={index} className="space-y-2">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-9 w-16" />
-        </div>
-      ))}
-    </Card>
-  );
-}
+import { overviewQuery, telegramQuery, warningsSummaryQuery } from '@/lib/queries';
+import { toast } from '@/lib/toast.ts';
 
 function SleepBadge({ sleeping }: { readonly sleeping: boolean }): React.ReactElement {
   const { t } = useTranslation();
@@ -78,39 +37,58 @@ function SleepBadge({ sleeping }: { readonly sleeping: boolean }): React.ReactEl
   );
 }
 
+function StatMetric({
+  label,
+  value,
+  hint,
+  loading,
+}: {
+  readonly label: string;
+  readonly value: number | undefined;
+  readonly hint: string;
+  readonly loading: boolean;
+}): React.ReactElement {
+  return (
+    <div className="border-t pt-3">
+      <p className="text-muted-foreground m-0 text-sm">{label}</p>
+      <div className="mt-1">
+        {loading ? (
+          <Skeleton className="block h-9 w-24" />
+        ) : (
+          <span className="text-3xl font-bold tabular-nums">{value === undefined ? '—' : formatNumber(value)}</span>
+        )}
+      </div>
+      <p className="text-muted-foreground m-0 mt-1 text-sm">{hint}</p>
+    </div>
+  );
+}
+
 export default function OverviewPage(): React.ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [days, setDays] = useState(7);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [wakeOpen, setWakeOpen] = useState(false);
 
-  const { data, isPending, isError, error } = useQuery(overviewQuery);
+  const overview = useQuery(overviewQuery);
   const warnings = useQuery(warningsSummaryQuery);
   const telegram = useQuery(telegramQuery);
+  const recent = useQuery({
+    queryKey: ['invocations', 'recent', 5],
+    queryFn: () => listInvocations({ limit: 5 }),
+  });
   useForegroundRefresh(() => {
     void warnings.refetch();
+    void recent.refetch();
   });
+
   const markWarningReadMutation = useMutation({
     mutationFn: (warning: EventWarning) => markWarningRead(warning.id),
     onSuccess: () => {
       toast.success(t('pages.warnings.markedRead'));
       void queryClient.invalidateQueries({ queryKey: ['warnings'] });
     },
-    onError: (mutationError) => {
-      toast.error(errorMessage(mutationError));
-    },
+    onError: (mutationError) => toast.error(errorMessage(mutationError)),
   });
-  const {
-    data: usage,
-    isPending: usagePending,
-    isError: usageError,
-    error: usageErrorValue,
-  } = useQuery({
-    ...usageQuery(days),
-    enabled: data !== undefined,
-  });
-
   const cancel = useMutation({
     mutationFn: cancelOngoingSessions,
     onSuccess: (result) => {
@@ -124,9 +102,6 @@ export default function OverviewPage(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['overview'] });
       void queryClient.invalidateQueries({ queryKey: ['invocations'] });
     },
-    onError: () => {
-      // Keep the dialog open so the failure is visible; the user closes it.
-    },
   });
   const wake = useMutation({
     mutationFn: wakeBot,
@@ -135,63 +110,161 @@ export default function OverviewPage(): React.ReactElement {
       toast.success(result.was_sleeping ? t('pages.overview.botAwake') : t('pages.overview.botAlreadyAwake'));
       void queryClient.invalidateQueries({ queryKey: ['overview'] });
     },
-    onError: () => {
-      // Keep the dialog open so the failure is visible; the user closes it.
-    },
   });
 
-  if (isPending || data === undefined) {
-    return <StatsSkeleton />;
-  }
-
-  if (isError) {
-    return (
-      <div className="p-6 text-center">
-        <p className="text-destructive font-medium">{t('pages.overview.loadFailed')}</p>
-        <p className="text-muted-foreground text-sm break-words">{errorMessage(error)}</p>
-      </div>
-    );
-  }
-
-  const totalInvocations = data.invocation_states.reduce((sum, entry) => sum + entry.count, 0);
-  const ongoingInvocations = data.invocation_states
+  const data = overview.data;
+  const totalInvocations = data?.invocation_states.reduce((sum, entry) => sum + entry.count, 0);
+  const ongoingInvocations = data?.invocation_states
     .filter((entry) => entry.label === 'running' || entry.label === 'queued')
     .reduce((sum, entry) => sum + entry.count, 0);
-  const chartData = usage?.series.map((point) => ({ ...point })) ?? [];
 
-  const tokenSeries: readonly ChartSeries[] = [
-    { dataKey: 'model_tokens', label: t('pages.overview.seriesTokens'), color: 'var(--chart-1)' },
-    { dataKey: 'vision_tokens', label: t('pages.overview.seriesVisionTokens'), color: 'var(--chart-2)' },
-  ];
-  const invocationSeries: readonly ChartSeries[] = [
-    { dataKey: 'agent_invocations', label: t('pages.overview.seriesInvocations'), color: 'var(--chart-3)' },
-  ];
-  const toolSeries: readonly ChartSeries[] = [
-    { dataKey: 'tool_calls', label: t('pages.overview.seriesToolCalls'), color: 'var(--chart-4)' },
-  ];
-  const countColumns: readonly ColumnSpec<LabelCount>[] = [
-    { key: 'label', title: t('pages.overview.colState'), render: (row) => <StateBadge state={row.label} /> },
-    { key: 'count', title: t('pages.overview.colCount'), align: 'right', render: (row) => formatNumber(row.count) },
-  ];
-  const toolColumns: readonly ColumnSpec<LabelCount>[] = [
-    { key: 'label', title: t('pages.overview.colTool'), render: (row) => row.label },
-    { key: 'count', title: t('pages.overview.colCalls'), align: 'right', render: (row) => formatNumber(row.count) },
-  ];
-  const usageColumns: readonly ColumnSpec<UsageEntry>[] = [
-    { key: 'resource', title: t('pages.overview.colResource'), render: (row) => row.resource },
-    { key: 'metric', title: t('pages.overview.colMetric'), render: (row) => row.metric },
-    { key: 'scope', title: t('pages.overview.colScope'), render: (row) => row.scope },
-    { key: 'amount', title: t('pages.overview.colAmount'), align: 'right', render: (row) => formatNumber(row.amount) },
+  const recentColumns: readonly ColumnSpec<InvocationListItem>[] = [
+    {
+      key: 'id',
+      title: t('invocations.invocations.columns.id'),
+      render: (row) => (
+        <Link
+          to="/invocations/$invocationId"
+          params={{ invocationId: row.id }}
+          className="font-medium tabular-nums underline underline-offset-4"
+        >
+          {row.id}
+        </Link>
+      ),
+    },
+    {
+      key: 'state',
+      title: t('invocations.invocations.columns.state'),
+      render: (row) => <StateBadge state={row.state} />,
+    },
+    {
+      key: 'chat',
+      title: t('invocations.invocations.columns.chat'),
+      render: (row) => (
+        <div className="min-w-40">
+          <div className="font-medium break-words">
+            {row.chat.title ?? row.chat.telegram_chat_id ?? row.chat.room_id}
+          </div>
+          <div className="text-muted-foreground text-xs">{row.chat.type}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'tools',
+      title: t('invocations.invocations.columns.tools'),
+      align: 'right',
+      render: (row) => formatNumber(row.tool_call_count),
+    },
+    {
+      key: 'tokens',
+      title: t('invocations.invocations.columns.tokens'),
+      align: 'right',
+      render: (row) => formatNumber(row.total_tokens),
+    },
+    {
+      key: 'created',
+      title: t('invocations.invocations.columns.created'),
+      render: (row) => formatTime(row.created_at),
+    },
   ];
 
   return (
     <div className="space-y-6">
+      <ListPageHeader
+        title={t('layout.nav.overview')}
+        description={
+          data === undefined
+            ? t('common.loading')
+            : t('pages.overview.generatedAt', { time: formatTime(data.generated_at) })
+        }
+        actions={
+          <>
+            {data?.runtime_status.sleeping === true ? (
+              <Button type="button" variant="outline" disabled={wake.isPending} onClick={() => setWakeOpen(true)}>
+                {t('pages.overview.wakeNow')}
+              </Button>
+            ) : null}
+            <Button type="button" variant="destructive" disabled={cancel.isPending} onClick={() => setCancelOpen(true)}>
+              {t('pages.overview.cancelOngoing')}
+            </Button>
+          </>
+        }
+      />
+
+      {overview.isError ? (
+        <div className="text-center">
+          <p className="text-destructive font-medium">{t('pages.overview.loadFailed')}</p>
+          <p className="text-muted-foreground text-sm break-words">{errorMessage(overview.error)}</p>
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
+        <StatMetric
+          label={t('pages.overview.statInvocations')}
+          value={totalInvocations}
+          hint={t('pages.overview.invocationStates')}
+          loading={overview.isPending}
+        />
+        <StatMetric
+          label={t('pages.overview.fieldOngoingInvocations')}
+          value={ongoingInvocations}
+          hint={t('pages.overview.cancelOngoingDesc')}
+          loading={overview.isPending}
+        />
+        <StatMetric
+          label={t('pages.overview.statStoredMessages')}
+          value={data?.message_count}
+          hint={t('layout.nav.messages')}
+          loading={overview.isPending}
+        />
+        <StatMetric
+          label={t('pages.overview.statCachedAnalyses')}
+          value={data?.cached_analysis_count}
+          hint={t('layout.nav.botStickerSets')}
+          loading={overview.isPending}
+        />
+        <StatMetric
+          label={t('pages.overview.warnings')}
+          value={warnings.data?.unread_count}
+          hint={t('pages.overview.warningsUnread', { count: formatNumber(warnings.data?.unread_count ?? 0) })}
+          loading={warnings.isPending}
+        />
+      </div>
+
+      <Panel
+        title={t('pages.overview.recentInvocations')}
+        action={
+          <Link to="/invocations" className="inline-flex items-center gap-1">
+            {t('pages.overview.viewAll')}
+            <ArrowRight className="inline-block size-4 align-middle" />
+          </Link>
+        }
+      >
+        {recent.isPending || recent.data !== undefined ? (
+          <TableShell
+            columns={recentColumns}
+            data={recent.data?.items ?? []}
+            rowKey={(row) => row.id}
+            loading={recent.isPending}
+            skeletonRows={5}
+            frame={false}
+            emptyText={t('common.noRecords')}
+          />
+        ) : null}
+        {recent.isError ? (
+          <p role="alert" className="text-destructive text-sm break-words">
+            {errorMessage(recent.error)}
+          </p>
+        ) : null}
+      </Panel>
+
       <Panel
         title={t('pages.overview.warnings')}
         action={
-          <Button asChild size="sm" variant="ghost">
-            <Link to="/warnings">{t('pages.overview.warningsViewAll')}</Link>
-          </Button>
+          <Link to="/warnings" className="inline-flex items-center gap-1">
+            {t('pages.overview.warningsViewAll')}
+            <ArrowRight className="inline-block size-4 align-middle" />
+          </Link>
         }
       >
         {warnings.isPending ? (
@@ -199,15 +272,14 @@ export default function OverviewPage(): React.ReactElement {
             <Skeleton className="h-16 w-full" />
             <Skeleton className="h-16 w-full" />
           </div>
-        ) : warnings.isLoadingError ? (
-          <p className="text-destructive text-sm break-words">
+        ) : warnings.data === undefined ? (
+          <p role="alert" className="text-destructive text-sm break-words">
             {t('pages.overview.warningsLoadFailed')}: {errorMessage(warnings.error)}
           </p>
         ) : (
           <div className="space-y-4">
-            {/* A failed poll keeps the last good cards on screen and reports alongside them. */}
             {warnings.isError ? (
-              <p className="text-destructive text-sm break-words">
+              <p role="alert" className="text-destructive text-sm break-words">
                 {t('pages.overview.warningsLoadFailed')}: {errorMessage(warnings.error)}
               </p>
             ) : null}
@@ -218,14 +290,6 @@ export default function OverviewPage(): React.ReactElement {
                 ))}
               </div>
             ) : null}
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <p className="text-sm font-medium">
-                {t('pages.overview.warningsUnread', { count: formatNumber(warnings.data.unread_count) })}
-              </p>
-              {warnings.data.standing.length === 0 && warnings.data.items.length === 0 ? (
-                <p className="text-muted-foreground text-sm">{t('pages.overview.warningsNone')}</p>
-              ) : null}
-            </div>
             {warnings.data.items.length > 0 ? (
               <div className="divide-y">
                 {warnings.data.items.map((warning) => (
@@ -238,177 +302,69 @@ export default function OverviewPage(): React.ReactElement {
                 ))}
               </div>
             ) : null}
+            {warnings.data.standing.length === 0 && warnings.data.items.length === 0 ? (
+              <p className="text-muted-foreground text-sm">{t('pages.overview.warningsNone')}</p>
+            ) : null}
           </div>
         )}
       </Panel>
 
-      <Card className="px-6">
-        <dl className="grid gap-6 sm:grid-cols-3">
-          <Stat title={t('pages.overview.statInvocations')} value={formatNumber(totalInvocations)} />
-          <Stat title={t('pages.overview.statStoredMessages')} value={formatNumber(data.message_count)} />
-          <Stat title={t('pages.overview.statCachedAnalyses')} value={formatNumber(data.cached_analysis_count)} />
-        </dl>
-      </Card>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Panel
-          title={t('pages.overview.botStatus')}
-          action={
-            data.runtime_status.sleeping ? (
-              <Button type="button" size="sm" disabled={wake.isPending} onClick={() => setWakeOpen(true)}>
-                {t('pages.overview.wakeNow')}
-              </Button>
-            ) : null
-          }
-        >
-          <dl className="space-y-4">
-            <Field label={t('pages.overview.fieldState')}>
-              <div className="flex flex-wrap items-center gap-2">
+      {data === undefined ? null : (
+        <Panel title={t('pages.overview.botStatus')}>
+          <dl className="grid gap-5 md:grid-cols-3">
+            <div className="space-y-2">
+              <dt className="text-muted-foreground text-sm">{t('pages.overview.fieldState')}</dt>
+              <dd className="flex flex-wrap items-center gap-2">
                 <SleepBadge sleeping={data.runtime_status.sleeping} />
-                {data.runtime_status.sleep_until !== null ? (
+                {data.runtime_status.sleep_until === null ? null : (
                   <span className="text-muted-foreground text-sm">
                     {t('pages.overview.sleepUntil', { time: formatTime(data.runtime_status.sleep_until) })}
                   </span>
-                ) : null}
-              </div>
-            </Field>
-            <Field label={t('pages.overview.fieldTelegram')}>
-              {telegram.isPending ? (
-                <span className="text-muted-foreground text-sm">{t('common.loading')}</span>
-              ) : telegram.isError ? (
-                <span className="text-destructive text-sm break-words">{errorMessage(telegram.error)}</span>
-              ) : (
-                <div className="flex flex-wrap items-center gap-2">
-                  <TelegramStatusBadge state={telegram.data.status} />
-                  <TelegramStatusReason state={telegram.data.status} />
-                  {telegram.data.status.bot === undefined ? null : (
-                    <MonoValue value={telegramBotLabel(telegram.data.status.bot)} />
-                  )}
-                </div>
-              )}
-            </Field>
-            <Field label={t('pages.overview.adminPauses')}>
-              {data.runtime_status.paused_chats.length === 0 ? (
-                <p className="text-sm opacity-60">{t('pages.overview.none')}</p>
-              ) : (
-                <ul className="space-y-2">
-                  {data.runtime_status.paused_chats.map((chat) => (
-                    <li key={chat.telegram_chat_id} className="flex flex-wrap items-baseline gap-x-2 text-sm">
-                      <span className="font-medium">
-                        {chat.title ?? (chat.username === null ? chat.telegram_chat_id : `@${chat.username}`)}
-                      </span>
-                      <span className="text-muted-foreground text-xs">
-                        {t('pages.overview.pausedSince', { time: formatTime(chat.paused_at) })}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Field>
+                )}
+              </dd>
+            </div>
+            <div className="space-y-2">
+              <dt className="text-muted-foreground text-sm">{t('pages.overview.fieldTelegram')}</dt>
+              <dd>
+                {telegram.isPending ? (
+                  <span className="text-muted-foreground text-sm">{t('common.loading')}</span>
+                ) : telegram.isError ? (
+                  <span className="text-destructive text-sm break-words">{errorMessage(telegram.error)}</span>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <TelegramStatusBadge state={telegram.data.status} />
+                    <TelegramStatusReason state={telegram.data.status} />
+                    {telegram.data.status.bot === undefined ? null : (
+                      <MonoValue value={telegramBotLabel(telegram.data.status.bot)} />
+                    )}
+                  </div>
+                )}
+              </dd>
+            </div>
+            <div className="space-y-2">
+              <dt className="text-muted-foreground text-sm">{t('pages.overview.adminPauses')}</dt>
+              <dd>
+                {data.runtime_status.paused_chats.length === 0 ? (
+                  <span className="text-muted-foreground text-sm">{t('pages.overview.none')}</span>
+                ) : (
+                  <ul className="space-y-2">
+                    {data.runtime_status.paused_chats.map((chat) => (
+                      <li key={chat.telegram_chat_id} className="text-sm">
+                        <div className="font-medium">
+                          {chat.title ?? (chat.username === null ? chat.telegram_chat_id : `@${chat.username}`)}
+                        </div>
+                        <div className="text-muted-foreground text-xs">
+                          {t('pages.overview.pausedSince', { time: formatTime(chat.paused_at) })}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </dd>
+            </div>
           </dl>
         </Panel>
-
-        <Panel
-          title={t('pages.overview.operations')}
-          action={
-            <Button
-              type="button"
-              size="sm"
-              variant="destructive"
-              disabled={cancel.isPending}
-              onClick={() => setCancelOpen(true)}
-            >
-              {t('pages.overview.cancelOngoing')}
-            </Button>
-          }
-        >
-          <dl className="space-y-4">
-            <Field label={t('pages.overview.fieldOngoingInvocations')}>
-              <p className="text-sm font-medium tabular-nums">{formatNumber(ongoingInvocations)}</p>
-            </Field>
-            <Field label={t('pages.overview.cancelOngoing')}>
-              <p className="text-sm">{t('pages.overview.cancelOngoingDesc')}</p>
-            </Field>
-          </dl>
-        </Panel>
-      </div>
-
-      <Panel
-        title={t('pages.overview.dailyUsage')}
-        action={
-          <Tabs value={String(days)} onValueChange={(value) => setDays(Number(value))}>
-            <TabsList>
-              <TabsTrigger value="7">{t('pages.overview.range7d')}</TabsTrigger>
-              <TabsTrigger value="30">{t('pages.overview.range30d')}</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        }
-      >
-        {usagePending ? (
-          <Skeleton className="h-56 w-full" />
-        ) : usageError ? (
-          <p className="text-destructive text-sm break-words">{errorMessage(usageErrorValue)}</p>
-        ) : usage === undefined || chartData.length === 0 ? (
-          <p className="text-muted-foreground py-20 text-center text-sm">{t('pages.overview.noUsageData')}</p>
-        ) : (
-          <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
-            <ChartPanel title={t('pages.overview.chartTokens')}>
-              <TimeSeriesChart data={chartData} series={tokenSeries} height={200} />
-              <p className="text-muted-foreground text-xs">{t('pages.overview.tokenHint')}</p>
-            </ChartPanel>
-            <ChartPanel title={t('pages.overview.chartInvocations')}>
-              <TimeSeriesChart data={chartData} series={invocationSeries} height={200} />
-            </ChartPanel>
-            <ChartPanel title={t('pages.overview.chartToolCalls')}>
-              <TimeSeriesChart data={chartData} series={toolSeries} height={200} />
-            </ChartPanel>
-          </div>
-        )}
-      </Panel>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Panel title={t('pages.overview.invocationStates')} flush>
-          <TableShell
-            columns={countColumns}
-            data={data.invocation_states}
-            rowKey={(row) => row.label}
-            className={FLUSH_TABLE_CLASS}
-          />
-        </Panel>
-        <Panel title={t('pages.overview.stickerIndexStates')} flush>
-          <TableShell
-            columns={countColumns}
-            data={data.sticker_index_states}
-            rowKey={(row) => row.label}
-            className={FLUSH_TABLE_CLASS}
-          />
-        </Panel>
-        <Panel title={t('pages.overview.topTools')} flush>
-          <TableShell
-            columns={toolColumns}
-            data={data.top_tools}
-            rowKey={(row) => row.label}
-            className={FLUSH_TABLE_CLASS}
-          />
-        </Panel>
-      </div>
-
-      <Panel title={t('pages.overview.todaysUsage')} flush>
-        <TableShell
-          columns={usageColumns}
-          data={data.daily_usage}
-          rowKey={(row) => `${row.resource}|${row.metric}|${row.scope}`}
-          className={FLUSH_TABLE_CLASS}
-        />
-        <p className="text-muted-foreground px-5 py-3 text-xs">
-          <code className="font-mono">model_tokens</code> {t('pages.overview.usageFootnoteModel')}{' '}
-          <code className="font-mono">vision_tokens</code> {t('pages.overview.usageFootnoteVision')}
-        </p>
-      </Panel>
-
-      <p className="text-muted-foreground text-sm">
-        {t('pages.overview.generatedAt', { time: formatTime(data.generated_at) })}
-      </p>
+      )}
 
       <ConfirmDialog
         open={cancelOpen}

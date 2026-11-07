@@ -88,6 +88,9 @@ if (PASSKEYS_ENABLED) {
         await expect(sharedPage.getByRole('alert')).toContainText('Passkey list unavailable for test');
         await expect(sharedPage.getByText('No password is set.', { exact: false })).toHaveCount(0);
         await expect(sharedPage.getByText('not set', { exact: true })).toHaveCount(0);
+        await expect(sharedPage.getByText('No passkeys registered yet.')).toHaveCount(0);
+        await expect(sharedPage.locator('table')).toHaveCount(0);
+        await expect(sharedPage.getByText('0 records', { exact: true })).toHaveCount(0);
       } finally {
         gate.resolve();
         await sharedPage.unroute('**/api/auth/passkeys');
@@ -164,7 +167,7 @@ if (PASSKEYS_ENABLED) {
       const dialog = sharedPage.getByRole('alertdialog');
       await expect(dialog.getByText('Delete your password?')).toBeVisible();
       await dialog.getByRole('button', { name: 'Delete password' }).click();
-      await expect(sharedPage.locator('[data-sonner-toast]').filter({ hasText: 'Password deleted' })).toBeVisible();
+      await expect(sharedPage.locator('[data-koi-toast]').filter({ hasText: 'Password deleted' })).toBeVisible();
 
       // The old session is gone and exactly one rotated session remains.
       const after = await sessionCookie();
@@ -184,7 +187,8 @@ if (PASSKEYS_ENABLED) {
     test('signs in with a passkey without a username', async ({ sharedPage }) => {
       const finish = watchPageIssues(sharedPage);
       await sharedPage.goto(await adminUrl('/'));
-      await sharedPage.getByText('Sign out').click();
+      await sharedPage.getByRole('button', { name: 'User menu' }).click();
+      await sharedPage.getByRole('menuitem', { name: 'Sign out' }).click();
       await expect(sharedPage.getByText('Surowan admin sign-in')).toBeVisible();
       // Username-less: the discoverable ceremony runs without touching the form.
       await expect(sharedPage.getByLabel('Username')).toHaveValue('');
@@ -213,7 +217,7 @@ if (PASSKEYS_ENABLED) {
       const dialog = sharedPage.getByRole('alertdialog');
       await expect(dialog.getByText('Delete passkey "E2E Laptop A"?')).toBeVisible();
       await dialog.getByRole('button', { name: 'Delete passkey' }).click();
-      await expect(sharedPage.locator('[data-sonner-toast]').filter({ hasText: 'Passkey deleted' })).toBeVisible();
+      await expect(sharedPage.locator('[data-koi-toast]').filter({ hasText: 'Passkey deleted' })).toBeVisible();
       await expect(sharedPage.locator('table tbody tr')).toHaveCount(1);
 
       // The last key is locked in the UI...
@@ -252,7 +256,7 @@ if (PASSKEYS_ENABLED) {
       await rowB.getByRole('button', { name: 'Delete' }).click();
       const dialog = sharedPage.getByRole('alertdialog');
       await dialog.getByRole('button', { name: 'Delete passkey' }).click();
-      await expect(sharedPage.locator('[data-sonner-toast]').filter({ hasText: 'Passkey deleted' })).toBeVisible();
+      await expect(sharedPage.locator('[data-koi-toast]').filter({ hasText: 'Passkey deleted' })).toBeVisible();
       await expect(sharedPage.getByText('No passkeys registered yet.')).toBeVisible();
       await expect(sharedPage.getByText('set', { exact: true })).toBeVisible();
     });
@@ -285,7 +289,8 @@ if (PASSKEYS_ENABLED) {
       // The virtual authenticator still holds key B from earlier tests, so
       // clear it first — the account itself has no passkeys left at this point.
       await cdp.send('WebAuthn.clearCredentials', { authenticatorId: authId });
-      await sharedPage.getByText('Sign out').click();
+      await sharedPage.getByRole('button', { name: 'User menu' }).click();
+      await sharedPage.getByRole('menuitem', { name: 'Sign out' }).click();
       await expect(sharedPage.getByText('Surowan admin sign-in')).toBeVisible();
       await sharedPage.getByRole('button', { name: 'Sign in with a passkey' }).click();
       await expect(sharedPage.getByText('Passkey request cancelled')).toBeVisible();

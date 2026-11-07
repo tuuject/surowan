@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
-import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,13 +13,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-
+import type { ChatEntry, ChatsView } from '@/lib/api/chats.ts';
+import { updateChatGroupMemory } from '@/lib/api/chats.ts';
 import { errorMessage } from '@/lib/errors';
 import { isConfigConflict } from '@/lib/model-manager';
+import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
-import { useTranslation } from 'react-i18next';
-import { updateChatGroupMemory } from '@/lib/api/chats.ts';
-import type { ChatEntry, ChatsView } from '@/lib/api/chats.ts';
 
 /**
  * The dialog captures the view when opened: a background refetch cannot upgrade

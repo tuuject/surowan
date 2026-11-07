@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
-import { adminUrl, test, toast, watchPageIssues } from './helpers.ts';
 import { findEntry, removeEntry, resetDictionaries } from './dictionary-fixture.ts';
+import { adminUrl, clickNav, test, toast, watchPageIssues } from './helpers.ts';
 
 /**
  * Dictionary page against the real AdminServer + real SQLite: rendering, entry
@@ -31,12 +31,31 @@ test.describe('dictionary page', () => {
     await expect(page.getByRole('combobox', { name: 'Global mode' })).toContainText('On Demand');
 
     await page.goto(await adminUrl('/'));
-    await page.getByRole('link', { name: 'Dictionary' }).click();
+    await clickNav(page, 'Agent data', 'Dictionary');
     await expect(page.getByText('Automatic injection')).toBeVisible();
 
     const issues = finish();
     expect(issues.pageErrors, JSON.stringify(issues.pageErrors)).toEqual([]);
     expect(issues.consoleErrors, JSON.stringify(issues.consoleErrors)).toEqual([]);
+  });
+
+  test('a failed dictionary read does not invent an empty dictionary', async ({ page }) => {
+    let failed = false;
+    await page.route('**/api/dictionary?*', async (route) => {
+      if (!failed && new URL(route.request().url()).pathname === '/api/dictionary') {
+        failed = true;
+        await route.fulfill({ status: 502, json: { error: 'internal', message: 'Synthetic dictionary failure' } });
+        return;
+      }
+      await route.fallback();
+    });
+    await page.goto(await adminUrl('/dictionary'));
+    await expect(page.getByText('Synthetic dictionary failure', { exact: false })).toBeVisible();
+    await expect(page.locator('table')).toHaveCount(0);
+    await expect(page.getByText('No entries in this dictionary yet.')).toHaveCount(0);
+    await expect(page.getByText('0 records', { exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Refresh list', exact: true }).click();
+    await expect(page.getByText('No entries in this dictionary yet.')).toBeVisible();
   });
 
   test('creates, edits, disables and deletes an entry through the UI', async ({ page }) => {

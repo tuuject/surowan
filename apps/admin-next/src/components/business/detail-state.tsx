@@ -1,9 +1,8 @@
 import { Link } from '@tanstack/react-router';
 import type React from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
-
-import { errorMessage } from '@/lib/errors';
 import { ApiError } from '@/lib/api/core.ts';
+import { errorMessage } from '@/lib/errors';
 
 /**
  * Shared detail-page state contract. The three detail pages
