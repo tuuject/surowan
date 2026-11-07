@@ -17,7 +17,7 @@ import {
   useClientPagination,
 } from '@/components/business';
 import { Alert } from '@tuuject/koi-react/alert';
-import { Skeleton } from '@tuuject/koi-react/skeleton';
+import { Panel } from '@/components/layout/panel';
 import { ApiError } from '@/lib/api/core.ts';
 import type { StickerEntry, StickerSetEntry } from '@/lib/api/stickers.ts';
 import { formatNumber, formatTime } from '@/lib/format';
@@ -28,7 +28,7 @@ import { css } from '@tuuject/koi-react/styled-system/css';
 const INDEX_STATES = ['pending', 'running', 'success', 'error'] as const;
 const EMPTY_FILTERS = { set: '', state: '', search: '' };
 
-const CODE = 'bg-muted rounded px-1 py-0.5 font-mono text-xs';
+const CODE = css({ fontFamily: 'mono' });
 
 function ConfiguredBadge({ configured }: { readonly configured: boolean }): React.ReactElement {
   const { t } = useTranslation();
@@ -39,23 +39,19 @@ function ConfiguredBadge({ configured }: { readonly configured: boolean }): Reac
   );
 }
 
-function Section({
+/** A page section heading for the list that follows it; the list itself stays on the page, not in a card. */
+function SectionHeading({
   title,
   description,
-  children,
 }: {
   readonly title: string;
   readonly description: React.ReactNode;
-  readonly children: React.ReactNode;
 }): React.ReactElement {
   return (
-    <section className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-        <h2 className={css({ textStyle: 'label' })}>{title}</h2>
-        <p className={css({ textStyle: 'body', color: 'text-muted', maxWidth: '48rem' })}>{description}</p>
-      </div>
-      {children}
-    </section>
+    <div className={css({ display: 'flex', flexDirection: 'column', gap: '1' })}>
+      <h2 className={css({ margin: '0', textStyle: 'heading-2' })}>{title}</h2>
+      <p className={css({ margin: '0', color: 'text-muted', maxWidth: 'content-max' })}>{description}</p>
+    </div>
   );
 }
 
@@ -77,10 +73,11 @@ export default function StickersPage(): React.ReactElement {
       key: 'alias',
       title: t('pages.stickers.colSet'),
       render: (row) => (
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-          <div className={css({ textStyle: 'label' })}>{row.title ?? row.alias}</div>
-          <div className={css({ textStyle: 'small', color: 'text-muted' })}>
-            {row.alias} · {row.telegram_name}
+        <div className={css({ minWidth: '0' })}>
+          <div className={css({ truncate: true })}>{row.title ?? row.alias}</div>
+          <div className={css({ display: 'flex', gap: '2', textStyle: 'small', color: 'text-muted' })}>
+            <span>{row.alias}</span>
+            <span>{row.telegram_name}</span>
           </div>
         </div>
       ),
@@ -88,47 +85,53 @@ export default function StickersPage(): React.ReactElement {
     {
       key: 'configured',
       title: t('pages.stickers.colConfigured'),
+      width: 104,
       render: (row) => <ConfiguredBadge configured={row.configured} />,
     },
-    { key: 'sync_state', title: t('pages.stickers.colSync'), render: (row) => <StateBadge state={row.sync_state} /> },
+    {
+      key: 'sync_state',
+      title: t('pages.stickers.colSync'),
+      width: 112,
+      render: (row) => <StateBadge state={row.sync_state} />,
+    },
     {
       key: 'sticker_count',
       title: t('pages.stickers.colStickers'),
       align: 'right',
-      className: 'tabular-nums',
+      width: 88,
       render: (row) => formatNumber(row.sticker_count),
     },
     {
       key: 'indexed_count',
       title: t('pages.stickers.colIndexed'),
       align: 'right',
-      className: 'tabular-nums',
+      width: 88,
       render: (row) => formatNumber(row.indexed_count),
     },
     {
       key: 'pending_count',
       title: t('pages.stickers.colPending'),
       align: 'right',
-      className: 'tabular-nums',
+      width: 88,
       render: (row) => formatNumber(row.pending_count),
     },
     {
       key: 'error_count',
       title: t('pages.stickers.colErrors'),
       align: 'right',
-      className: 'tabular-nums',
+      width: 88,
       render: (row) => formatNumber(row.error_count),
     },
     {
       key: 'error_code',
       title: t('pages.stickers.colError'),
-      className: 'ps-6',
       render: (row) => <TextValue value={row.error_code} />,
     },
     {
       key: 'last_synced_at',
       title: t('pages.stickers.colLastSynced'),
-      className: 'text-muted-foreground',
+      width: 184,
+      skeleton: '2026-01-18 10:58:15',
       render: (row) => formatTime(row.last_synced_at),
     },
   ];
@@ -138,10 +141,11 @@ export default function StickersPage(): React.ReactElement {
       key: 'emoji',
       title: t('pages.stickers.colSticker'),
       render: (row) => (
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+        <div className={css({ minWidth: '0' })}>
           <div>{row.emoji ?? <span className={css({ color: 'text-muted' })}>—</span>}</div>
-          <div className={css({ textStyle: 'small', color: 'text-muted' })}>
-            {row.set_alias} · {row.format}
+          <div className={css({ display: 'flex', gap: '2', textStyle: 'small', color: 'text-muted' })}>
+            <span>{row.set_alias}</span>
+            <span>{row.format}</span>
           </div>
         </div>
       ),
@@ -149,14 +153,14 @@ export default function StickersPage(): React.ReactElement {
     {
       key: 'index_state',
       title: t('pages.stickers.colIndexState'),
+      width: 112,
       render: (row) => <StateBadge state={row.index_state} />,
     },
     {
       key: 'description',
       title: t('pages.stickers.colDescription'),
-      className: 'min-w-64 whitespace-normal',
       render: (row) => (
-        <p className={css({ lineClamp: '2', maxWidth: '28rem', overflowWrap: 'anywhere' })}>
+        <p className={css({ margin: '0', lineClamp: '2', whiteSpace: 'normal', overflowWrap: 'anywhere' })}>
           {row.analysis?.description ?? <span className={css({ color: 'text-muted' })}>—</span>}
         </p>
       ),
@@ -175,21 +179,22 @@ export default function StickersPage(): React.ReactElement {
       key: 'failure_count',
       title: t('pages.stickers.colFailures'),
       align: 'right',
-      className: 'tabular-nums',
+      width: 96,
       render: (row) => formatNumber(row.failure_count),
     },
     {
       key: 'updated_at',
       title: t('pages.stickers.colUpdated'),
-      className: 'text-muted-foreground ps-6',
+      width: 184,
+      skeleton: '2026-01-18 10:58:15',
       render: (row) => formatTime(row.updated_at),
     },
   ];
 
   return (
-    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '8' } })}>
+    <div className={css({ '& > * + *': { marginBlockStart: '5' } })}>
       <ListPageHeader title={t('layout.nav.botStickerSets')} />
-      <Section
+      <Panel
         title={t('pages.stickers.setsTitle')}
         description={
           <>
@@ -198,7 +203,6 @@ export default function StickersPage(): React.ReactElement {
           </>
         }
       >
-        {sets.isPending ? <Skeleton className={css({ height: '128px', width: '100%', borderRadius: 'xl' })} /> : null}
         {sets.isError ? (
           <Alert tone="error" title={t('pages.stickers.loadSetsFailed')}>
             {sets.error instanceof ApiError
@@ -207,96 +211,102 @@ export default function StickersPage(): React.ReactElement {
                 ? sets.error.message
                 : t('pages.stickers.adminRequestFailed')}
           </Alert>
-        ) : null}
-        {!sets.isPending && !sets.isError ? (
+        ) : (
           <div>
             <TableShell
               columns={setColumns}
               data={setPagination.items}
               rowKey={(row) => row.id}
+              loading={sets.isPending}
+              skeletonRows={2}
+              minWidth={960}
               emptyText={t('pages.stickers.emptySets')}
             />
-            <ListFooter
-              count={setPagination.total}
-              page={setPagination.page}
-              pageCount={setPagination.pageCount}
-              onPageChange={setPagination.onPageChange}
-            />
+            {sets.isPending ? null : (
+              <ListFooter
+                count={setPagination.total}
+                page={setPagination.page}
+                pageCount={setPagination.pageCount}
+                onPageChange={setPagination.onPageChange}
+              />
+            )}
           </div>
-        ) : null}
-      </Section>
-      <Section
-        title={t('pages.stickers.indexTitle')}
-        description={
-          <>
-            {t('pages.stickers.indexDescPre')} <code className={CODE}>search_stickers</code>{' '}
-            {t('pages.stickers.indexDescMid')} <code className={CODE}>execute</code>
-            {t('pages.stickers.indexDescPost')}
-          </>
-        }
-      >
-        <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
-          {({ draft, change }) => (
+        )}
+      </Panel>
+      <div className={css({ paddingBlockStart: '6' })}>
+        <SectionHeading
+          title={t('pages.stickers.indexTitle')}
+          description={
             <>
-              <QuerySelectField
-                label={t('pages.stickers.filterSet')}
-                value={draft.set}
-                onChange={(set) => change({ set })}
-                options={setOptions}
-              />
-              <QuerySelectField
-                label={t('pages.stickers.filterState')}
-                value={draft.state}
-                onChange={(state) => change({ state })}
-                options={INDEX_STATES.map((value) => ({ value, label: value }))}
-              />
-              <QueryTextField
-                label={t('pages.stickers.filterSearch')}
-                value={draft.search}
-                onChange={(search) => change({ search })}
-              />
+              {t('pages.stickers.indexDescPre')} <code className={CODE}>search_stickers</code>{' '}
+              {t('pages.stickers.indexDescMid')} <code className={CODE}>execute</code>
+              {t('pages.stickers.indexDescPost')}
             </>
-          )}
-        </ListSearchForm>
-        <CursorList
-          factory={stickersQuery}
-          filters={filters}
-          renderItems={(items, { loading }) => (
-            <TableShell
-              columns={stickerColumns}
-              data={items}
-              rowKey={(row) => row.id}
-              loading={loading}
-              expandedRender={(row) => (
-                <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-                  <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-                    <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.stickers.nextRetry')}</p>
-                    <p>{formatTime(row.next_retry_at)}</p>
-                  </div>
-                  <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-                    <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-                      {t('pages.stickers.analysisVersion')}
-                    </p>
-                    <TextValue value={row.analysis?.analysis_version ?? null} />
-                  </div>
-                  <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-                    <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-                      {t('pages.stickers.colDescription')}
-                    </p>
-                    <p className={css({ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>
-                      {row.analysis?.description ?? '—'}
-                    </p>
-                  </div>
-                  <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-                    <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.stickers.metadata')}</p>
-                    <JsonViewer value={row.analysis?.metadata_json ?? null} />
-                  </div>
-                </div>
-              )}
-            />
-          )}
+          }
         />
-      </Section>
+      </div>
+      <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
+        {({ draft, change }) => (
+          <>
+            <QuerySelectField
+              label={t('pages.stickers.filterSet')}
+              value={draft.set}
+              onChange={(set) => change({ set })}
+              options={setOptions}
+            />
+            <QuerySelectField
+              label={t('pages.stickers.filterState')}
+              value={draft.state}
+              onChange={(state) => change({ state })}
+              options={INDEX_STATES.map((value) => ({ value, label: value }))}
+            />
+            <QueryTextField
+              label={t('pages.stickers.filterSearch')}
+              value={draft.search}
+              onChange={(search) => change({ search })}
+            />
+          </>
+        )}
+      </ListSearchForm>
+      <CursorList
+        factory={stickersQuery}
+        filters={filters}
+        renderItems={(items, { loading }) => (
+          <TableShell
+            columns={stickerColumns}
+            data={items}
+            rowKey={(row) => row.id}
+            loading={loading}
+            minWidth={1000}
+            expandedRender={(row) => (
+              <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+                <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+                  <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.stickers.nextRetry')}</p>
+                  <p>{formatTime(row.next_retry_at)}</p>
+                </div>
+                <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+                  <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+                    {t('pages.stickers.analysisVersion')}
+                  </p>
+                  <TextValue value={row.analysis?.analysis_version ?? null} />
+                </div>
+                <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+                  <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+                    {t('pages.stickers.colDescription')}
+                  </p>
+                  <p className={css({ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>
+                    {row.analysis?.description ?? '—'}
+                  </p>
+                </div>
+                <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+                  <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.stickers.metadata')}</p>
+                  <JsonViewer value={row.analysis?.metadata_json ?? null} />
+                </div>
+              </div>
+            )}
+          />
+        )}
+      />
     </div>
   );
 }

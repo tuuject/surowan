@@ -1,6 +1,7 @@
 import type { warnings as warningsEn } from '../../en/pages/warnings.ts';
 
 export const warnings: typeof warningsEn = {
+  pageDescription: '需要处理的常态警告，以及事件警告的历史记录。',
   standingTitle: '常态警告',
   eventsTitle: '事件警告',
   unreadCount: '{{count}} 条未读',

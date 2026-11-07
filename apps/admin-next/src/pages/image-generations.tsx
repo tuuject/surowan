@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -12,7 +11,8 @@ import {
   useOffsetPagination,
 } from '@/components/business';
 import { PlusIcon } from '@tuuject/koi-react/icons';
-import { ButtonLink } from '@/components/router-links';
+import { AppLink, ButtonLink } from '@/components/router-links';
+import { Alert } from '@tuuject/koi-react/alert';
 import type { ImageGenerationRecord } from '@/lib/api/images.ts';
 import { listImageGenerations } from '@/lib/api/images.ts';
 import { errorMessage } from '@/lib/errors';
@@ -44,30 +44,33 @@ function GenerationList() {
     {
       key: 'id',
       title: t('image.generations.columnGeneration'),
+      width: 128,
+      skeleton: 'a1b2c3d4…',
       render: (row) => (
-        <Link
-          to="/image-generations/$generationId"
-          params={{ generationId: row.id }}
-          aria-label={row.id}
-          className={css({
-            textStyle: 'small',
-            fontFamily: 'mono',
-            wordBreak: 'break-all',
-            textUnderlineOffset: '4px',
-            _hover: { textDecorationLine: 'underline' },
-          })}
-        >
-          {row.id.slice(0, 8)}…
-        </Link>
+        <AppLink to="/image-generations/$generationId" params={{ generationId: row.id }} aria-label={row.id}>
+          <span className={css({ fontFamily: 'mono' })}>{row.id.slice(0, 8)}…</span>
+        </AppLink>
       ),
     },
-    { key: 'status', title: t('image.generations.columnStatus'), render: (row) => <StateBadge state={row.status} /> },
-    { key: 'model', title: t('image.generations.columnModel'), render: (row) => row.snapshot.authored.modelId },
+    {
+      key: 'status',
+      title: t('image.generations.columnStatus'),
+      width: 120,
+      render: (row) => <StateBadge state={row.status} />,
+    },
+    {
+      key: 'model',
+      title: t('image.generations.columnModel'),
+      width: 200,
+      render: (row) => (
+        <span className={css({ truncate: true, display: 'block' })}>{row.snapshot.authored.modelId}</span>
+      ),
+    },
     {
       key: 'prompt',
       title: t('image.generations.columnPrompt'),
       render: (row) => (
-        <span className={css({ textStyle: 'small', lineClamp: '1', maxWidth: '288px' })}>
+        <span className={css({ truncate: true, display: 'block' })} title={row.snapshot.authored.authoredPrompt}>
           {row.snapshot.authored.authoredPrompt}
         </span>
       ),
@@ -75,25 +78,40 @@ function GenerationList() {
     {
       key: 'outputs',
       title: t('image.generations.columnOutputs'),
+      align: 'right',
+      width: 88,
       render: (row) => `${row.outputs.length}/${row.snapshot.authored.outputCount}`,
     },
     {
       key: 'source',
       title: t('image.generations.columnSource'),
-      render: (row) => `${row.source}${row.actorName === '' ? '' : ` · ${row.actorName}`}`,
+      render: (row) => (
+        <div className={css({ minWidth: '0' })}>
+          <div>{row.source}</div>
+          {row.actorName === '' ? null : (
+            <div className={css({ textStyle: 'small', color: 'text-muted', truncate: true })}>{row.actorName}</div>
+          )}
+        </div>
+      ),
     },
-    { key: 'created', title: t('image.generations.columnSubmitted'), render: (row) => formatTime(row.createdAt) },
+    {
+      key: 'created',
+      title: t('image.generations.columnSubmitted'),
+      width: 184,
+      skeleton: '2026-01-18 10:58:15',
+      render: (row) => formatTime(row.createdAt),
+    },
   ];
 
   const items = generations.data?.items ?? [];
   return (
-    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-      <ListToolbar onRefresh={() => void generations.refetch()} refreshing={generations.isRefetching} />
-      {generations.isError ? (
-        <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-          {errorMessage(generations.error)}
-        </p>
-      ) : null}
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
+      <ListToolbar onRefresh={() => void generations.refetch()} refreshing={generations.isRefetching}>
+        <ButtonLink to="/image-generate" variant="outline" iconStart={<PlusIcon />}>
+          {t('image.generations.newGeneration')}
+        </ButtonLink>
+      </ListToolbar>
+      {generations.isError ? <Alert tone="error">{errorMessage(generations.error)}</Alert> : null}
       {generations.isPending || generations.data !== undefined ? (
         <div>
           <TableShell
@@ -101,6 +119,7 @@ function GenerationList() {
             data={items}
             rowKey={(row) => row.id}
             loading={generations.isPending || generations.isPlaceholderData}
+            minWidth={1000}
             emptyText={t('image.generations.empty')}
           />
           <ListFooter
@@ -120,14 +139,7 @@ export default function ImageGenerationsPage() {
   const { t } = useTranslation();
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
-      <ListPageHeader
-        title={t('image.generations.title')}
-        actions={
-          <ButtonLink to="/image-generate" iconStart={<PlusIcon />}>
-            {t('image.generations.newGeneration')}
-          </ButtonLink>
-        }
-      />
+      <ListPageHeader title={t('image.generations.title')} />
       <GenerationList />
     </div>
   );

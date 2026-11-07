@@ -21,7 +21,6 @@ export function ModelCallsTab({ invocation }: { readonly invocation: InvocationD
     {
       key: 'tools',
       title: t('invocations.invocationDetail.modelColumns.toolsInRequest'),
-      className: 'min-w-40',
       render: (row) =>
         row.tools === null ? (
           <TextValue value={null} />

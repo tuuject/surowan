@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ConfirmDialog, ListFooter, useCursorPages } from '@/components/business';
+import { ConfirmDialog, ListFooter, ListPageHeader, useCursorPages } from '@/components/business';
+import { Alert } from '@tuuject/koi-react/alert';
 import { Panel } from '@/components/layout/panel';
 import { Button } from '@tuuject/koi-react/button';
 import { Skeleton } from '@tuuject/koi-react/skeleton';
@@ -52,12 +53,29 @@ export default function WarningsPage(): React.ReactElement {
   const unreadCount = first?.unread_count ?? 0;
 
   return (
-    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '6' } })}>
+    <div className={css({ '& > * + *': { marginBlockStart: '6' } })}>
+      <ListPageHeader
+        title={t('layout.nav.warnings')}
+        description={t('pages.warnings.pageDescription')}
+        actions={
+          <Button
+            variant="outline"
+            color="error"
+            disabled={items.length === 0 || clear.isPending}
+            onClick={() => {
+              clear.reset();
+              setClearOpen(true);
+            }}
+          >
+            {t('pages.warnings.clearHistory')}
+          </Button>
+        }
+      />
       {/* A failed poll or next page keeps the loaded cards and reports above them. */}
       {query.isError && !query.isLoadingError ? (
-        <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-          {t('pages.warnings.loadFailed')}: {errorMessage(query.error)}
-        </p>
+        <Alert tone="error" title={t('pages.warnings.loadFailed')}>
+          {errorMessage(query.error)}
+        </Alert>
       ) : null}
       <Panel title={t('pages.warnings.standingTitle')}>
         {query.isPending ? (
@@ -67,7 +85,7 @@ export default function WarningsPage(): React.ReactElement {
           </div>
         ) : query.isLoadingError ? (
           <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-            {t('pages.warnings.loadFailed')}: {errorMessage(query.error)}
+            {t('pages.warnings.loadFailed')}：{errorMessage(query.error)}
           </p>
         ) : standing.length === 0 ? (
           <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.warnings.noStanding')}</p>
@@ -82,23 +100,7 @@ export default function WarningsPage(): React.ReactElement {
 
       <Panel
         title={t('pages.warnings.eventsTitle')}
-        action={
-          <div className={css({ display: 'flex', alignItems: 'center', gap: '3' })}>
-            <span className={css({ textStyle: 'body', color: 'text-muted' })}>
-              {t('pages.warnings.unreadCount', { count: formatNumber(unreadCount) })}
-            </span>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              color="secondary"
-              disabled={items.length === 0 || clear.isPending}
-              onClick={() => setClearOpen(true)}
-            >
-              {t('pages.warnings.clearHistory')}
-            </Button>
-          </div>
-        }
+        description={t('pages.warnings.unreadCount', { count: formatNumber(unreadCount) })}
       >
         {query.isPending ? (
           <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
@@ -108,7 +110,7 @@ export default function WarningsPage(): React.ReactElement {
           </div>
         ) : query.isLoadingError ? (
           <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-            {t('pages.warnings.loadFailed')}: {errorMessage(query.error)}
+            {t('pages.warnings.loadFailed')}：{errorMessage(query.error)}
           </p>
         ) : items.length === 0 ? (
           <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.warnings.noEvents')}</p>
@@ -126,6 +128,7 @@ export default function WarningsPage(): React.ReactElement {
         )}
         {!query.isPending && !query.isLoadingError ? (
           <ListFooter
+            inset={false}
             count={items.length}
             cursor
             page={page}

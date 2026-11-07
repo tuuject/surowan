@@ -23,7 +23,6 @@ export function ModelList({
     {
       key: 'model',
       title: t('image.settings.modelsPanelTitle'),
-      className: 'min-w-48',
       render: (model) => (
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           <p className={css({ textStyle: 'label' })}>{model.name}</p>
@@ -42,7 +41,6 @@ export function ModelList({
     {
       key: 'description',
       title: t('image.settings.modelDescriptionLabel'),
-      className: 'min-w-72',
       render: (model) => (
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
           <Textarea

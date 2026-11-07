@@ -1,58 +1,54 @@
-import type React from 'react';
+import { Card } from '@tuuject/koi-react/card';
 import { css, cx } from '@tuuject/koi-react/styled-system/css';
+import type React from 'react';
 
 /**
- * A plain Koi content section with a title, optional description and action.
- * It deliberately has no Card surface, radius or floating shadow: only query
- * filters use ListFilterCard. `flush` is retained as a layout hint for tables.
+ * One area of a dashboard, settings or detail page: a Koi Card (outlined,
+ * 24px corners, no shadow) with an `h2` title, an optional one-line
+ * description and the area's own controls on the right, as the template's
+ * settings card and sectioned-form sections do. A list page's table sits on
+ * the page instead; only a table that shares the page with other areas goes
+ * in here. Never nest one Panel in another.
  */
 export function Panel({
   title,
   description,
   action,
-  flush = false,
   children,
   className,
 }: {
-  readonly title: string;
-  readonly description?: string | undefined;
+  readonly title: React.ReactNode;
+  readonly description?: React.ReactNode;
   readonly action?: React.ReactNode;
-  readonly flush?: boolean;
-  readonly children: React.ReactNode;
+  readonly children?: React.ReactNode;
   readonly className?: string;
 }): React.ReactElement {
   return (
-    <section
-      aria-label={title}
-      className={cx(
-        css({
-          '& > :not(:last-child)': { marginBlockEnd: '4' },
-          borderTopWidth: '1px',
-          borderColor: 'divider',
-          paddingBlockStart: '4',
-        }),
-        className,
-      )}
-    >
-      <div
-        className={css({
-          display: 'flex',
-          minHeight: 'control-md',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '3',
-        })}
-      >
-        <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-          <h2 className={css({ textStyle: 'heading-3', overflowWrap: 'anywhere' })}>{title}</h2>
-          {description === undefined ? null : (
-            <p className={css({ textStyle: 'body', color: 'text-muted', overflowWrap: 'anywhere' })}>{description}</p>
+    <Card className={cx(css({ minWidth: '0' }), className)}>
+      <div className={css({ display: 'flex', flexDirection: 'column', gap: '5', minWidth: '0' })}>
+        <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '3' })}>
+          <div
+            className={css({ display: 'flex', flexDirection: 'column', gap: '1', flex: '1 1 240px', minWidth: '0' })}
+          >
+            <h2 className={css({ margin: '0', textStyle: 'heading-3', color: 'text', overflowWrap: 'anywhere' })}>
+              {title}
+            </h2>
+            {description === undefined ? null : (
+              <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted', overflowWrap: 'anywhere' })}>
+                {description}
+              </p>
+            )}
+          </div>
+          {action === undefined ? null : (
+            <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2', flex: 'none' })}>
+              {action}
+            </div>
           )}
         </div>
-        {action}
+        {children === null || children === undefined || children === false ? null : (
+          <div className={css({ minWidth: '0' })}>{children}</div>
+        )}
       </div>
-      <div className={cx(flush && css({ minWidth: '0' }))}>{children}</div>
-    </section>
+    </Card>
   );
 }

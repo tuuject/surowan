@@ -105,7 +105,6 @@ function RevisionsTable({ message }: { readonly message: MessageDetail }): React
     {
       key: 'text',
       title: t('invocations.messageDetail.revisionColumns.text'),
-      className: 'min-w-72 max-w-2xl whitespace-normal',
       render: (row) => (
         <p className={css({ textStyle: 'body', maxWidth: '42rem', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>
           {row.text ?? row.caption ?? '—'}
@@ -202,7 +201,6 @@ function MediaTable({ message }: { readonly message: MessageDetail }): React.Rea
     {
       key: 'analysis',
       title: t('invocations.messageDetail.mediaColumns.analysis'),
-      className: 'min-w-56 max-w-md',
       render: (row) => <TextValue value={row.analysis_description ?? row.analysis_state} />,
     },
   ];

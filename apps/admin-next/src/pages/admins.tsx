@@ -10,6 +10,7 @@ import {
   ListToolbar,
   MonoValue,
   QueryTextField,
+  RowActions,
   TableShell,
   useClientPagination,
 } from '@/components/business';
@@ -17,7 +18,8 @@ import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
+import { Field } from '@tuuject/koi-react/field';
+import { PlusIcon } from '@tuuject/koi-react/icons';
 import type { BotAdminEntry } from '@/lib/api/admin.ts';
 import { addBotAdmin, removeBotAdmin } from '@/lib/api/admin.ts';
 import { errorMessage } from '@/lib/errors';
@@ -38,6 +40,7 @@ export default function AdminsPage(): React.ReactElement {
   const [userIdDraft, setUserIdDraft] = useState('');
   const [userIdError, setUserIdError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<BotAdminEntry | null>(null);
+  const [removeOpen, setRemoveOpen] = useState(false);
 
   const admins = useQuery(adminsQuery);
 
@@ -60,7 +63,7 @@ export default function AdminsPage(): React.ReactElement {
   const remove = useMutation({
     mutationFn: (entry: BotAdminEntry) => removeBotAdmin(entry.telegram_user_id, admins.data?.revision ?? ''),
     onSuccess: (view) => {
-      setRemoving(null);
+      setRemoveOpen(false);
       toast.success(t('pages.admins.adminRemoved'));
       queryClient.setQueryData(adminsQuery.queryKey, view);
     },
@@ -79,10 +82,23 @@ export default function AdminsPage(): React.ReactElement {
     {
       key: 'actions',
       title: t('pages.admins.colActions'),
+      align: 'right',
+      width: 104,
       render: (row) => (
-        <Button type="button" size="sm" color="error" onClick={() => setRemoving(row)}>
-          {t('pages.admins.remove')}
-        </Button>
+        <RowActions>
+          <Button
+            size="sm"
+            variant="ghost"
+            color="error"
+            onClick={() => {
+              remove.reset();
+              setRemoving(row);
+              setRemoveOpen(true);
+            }}
+          >
+            {t('pages.admins.remove')}
+          </Button>
+        </RowActions>
       ),
     },
   ];
@@ -127,16 +143,21 @@ export default function AdminsPage(): React.ReactElement {
       </ListSearchForm>
 
       <ListToolbar onRefresh={() => void admins.refetch()} refreshing={admins.isRefetching}>
-        <Button type="button" onClick={() => setAddOpen(true)}>
+        <Button
+          variant="outline"
+          iconStart={<PlusIcon />}
+          onClick={() => {
+            add.reset();
+            setUserIdDraft('');
+            setUserIdError(null);
+            setAddOpen(true);
+          }}
+        >
           {t('pages.admins.addAdmin')}
         </Button>
       </ListToolbar>
 
-      {admins.isError ? (
-        <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-          {errorMessage(admins.error)}
-        </p>
-      ) : null}
+      {admins.isError ? <Alert tone="error">{errorMessage(admins.error)}</Alert> : null}
       {admins.isPending || admins.data !== undefined ? (
         <div>
           <TableShell
@@ -157,51 +178,59 @@ export default function AdminsPage(): React.ReactElement {
 
       <Dialog
         open={addOpen}
-        onOpenChange={(open) => !open && setAddOpen(false)}
+        onOpenChange={(open) => {
+          if (!open && !add.isPending) {
+            setAddOpen(false);
+          }
+        }}
         title={t('pages.admins.addTitle')}
         description={t('pages.admins.addDescription')}
         footer={
           <>
-            <Button type="button" variant="outline" color="secondary" onClick={() => setAddOpen(false)}>
+            <Button variant="ghost" color="secondary" disabled={add.isPending} onClick={() => setAddOpen(false)}>
               {t('common.cancel')}
             </Button>
-            <Button type="button" onClick={submitAdd} disabled={add.isPending}>
-              {add.isPending ? t('pages.admins.adding') : t('pages.admins.add')}
+            <Button type="submit" form="admin-add-form" loading={add.isPending} loadingLabel={t('pages.admins.adding')}>
+              {t('pages.admins.add')}
             </Button>
           </>
         }
       >
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-          <Label htmlFor="admin-user-id">{t('pages.admins.userIdLabel')}</Label>
-          <Input
-            id="admin-user-id"
-            inputMode="numeric"
-            placeholder={t('pages.admins.userIdPlaceholder')}
-            value={userIdDraft}
-            onChange={(event) => {
-              setUserIdDraft(event.target.value);
-              setUserIdError(null);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                submitAdd();
-              }
-            }}
-          />
-          {userIdError !== null ? (
-            <p className={css({ textStyle: 'body', color: 'error-text' })}>{userIdError}</p>
-          ) : null}
+        <form
+          id="admin-add-form"
+          noValidate
+          className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}
+          onSubmit={(event) => {
+            event.preventDefault();
+            submitAdd();
+          }}
+        >
+          <Field label={t('pages.admins.userIdLabel')} error={userIdError ?? undefined}>
+            <Input
+              inputMode="numeric"
+              placeholder={t('pages.admins.userIdPlaceholder')}
+              value={userIdDraft}
+              onChange={(event) => {
+                setUserIdDraft(event.target.value);
+                setUserIdError(null);
+              }}
+            />
+          </Field>
           {add.isError ? (
-            <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+            <p role="alert" className={css({ margin: '0', color: 'error-text', overflowWrap: 'anywhere' })}>
               {errorMessage(add.error)}
             </p>
           ) : null}
-        </div>
+        </form>
       </Dialog>
 
       <ConfirmDialog
-        open={removing !== null}
-        onOpenChange={(open) => !open && setRemoving(null)}
+        open={removeOpen}
+        onOpenChange={(open) => {
+          if (!open && !remove.isPending) {
+            setRemoveOpen(false);
+          }
+        }}
         title={t('pages.admins.removeTitle', { id: removing?.telegram_user_id ?? '' })}
         description={t('pages.admins.removeDescription')}
         confirmText={t('pages.admins.removeConfirm')}

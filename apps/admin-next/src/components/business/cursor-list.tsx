@@ -124,7 +124,7 @@ export function CursorList<T, TQueryKey extends QueryKey = QueryKey>({
   );
 
   return (
-    <div className={cx(css({ '& > :not(:last-child)': { marginBlockEnd: '4' } }), className)}>
+    <div className={cx(css({ '& > :not(:last-child)': { marginBlockEnd: '5' } }), className)}>
       <ListToolbar
         onRefresh={() => {
           if (!query.isFetching) {

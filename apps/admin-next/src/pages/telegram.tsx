@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ConfirmDialog, KvList, MonoValue } from '@/components/business';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Field } from '@tuuject/koi-react/field';
+import { ConfirmDialog, KvList, ListPageHeader, MonoValue } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { TelegramStatusBadge, TelegramStatusReason, telegramBotLabel } from '@/components/telegram/telegram-status.tsx';
 import { Button } from '@tuuject/koi-react/button';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
 import type { TelegramConnectionState, TelegramView } from '@/lib/api/telegram.ts';
 import { putTelegram } from '@/lib/api/telegram.ts';
 import { errorMessage } from '@/lib/errors';
@@ -77,12 +78,7 @@ function TelegramSettings({ view }: { readonly view: TelegramView }): React.Reac
   const trimmed = token.trim();
 
   return (
-    <div className={css({ maxWidth: '48rem', '& > :not(:last-child)': { marginBlockEnd: '6' } })}>
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-        <h1 className={css({ textStyle: 'heading-2' })}>{t('pages.telegram.title')}</h1>
-        <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.telegram.description')}</p>
-      </div>
-
+    <>
       <Panel title={t('pages.telegram.connectionTitle')}>
         <KvList
           items={[
@@ -97,59 +93,73 @@ function TelegramSettings({ view }: { readonly view: TelegramView }): React.Reac
             },
             {
               label: t('pages.telegram.fieldSince'),
-              value: <span className={css({ textStyle: 'body' })}>{formatTime(view.status.since)}</span>,
+              value: formatTime(view.status.since),
             },
             { label: t('pages.telegram.fieldBot'), value: <BotIdentity state={view.status} /> },
           ]}
         />
       </Panel>
 
-      <Panel title={t('pages.telegram.tokenTitle')}>
-        <fieldset
-          disabled={pending}
-          className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '4' } })}
+      <Panel
+        title={t('pages.telegram.tokenTitle')}
+        description={view.token_configured ? t('pages.telegram.tokenConfigured') : t('pages.telegram.tokenMissing')}
+      >
+        <form
+          noValidate
+          className={css({ display: 'flex', flexDirection: 'column', gap: '4', maxWidth: '480px' })}
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (trimmed.length > 0 && !pending) {
+              save.mutate(view.revision);
+            }
+          }}
         >
-          <p className={css({ textStyle: 'body' })}>
-            {view.token_configured ? t('pages.telegram.tokenConfigured') : t('pages.telegram.tokenMissing')}
-          </p>
           {view.telegram_section_present ? null : (
-            <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.telegram.sectionMissing')}</p>
+            <p className={css({ margin: '0', color: 'text-muted' })}>{t('pages.telegram.sectionMissing')}</p>
           )}
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-            <Label htmlFor="telegram-token">{t('pages.telegram.tokenLabel')}</Label>
+          <Field label={t('pages.telegram.tokenLabel')} help={t('pages.telegram.tokenHint')}>
             <Input
-              id="telegram-token"
               type="password"
               autoComplete="new-password"
               placeholder={t('pages.telegram.tokenPlaceholder')}
               value={token}
+              disabled={pending}
               onChange={(event) => {
                 setToken(event.target.value);
               }}
             />
-            <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.telegram.tokenHint')}</p>
-          </div>
-          <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
+          </Field>
+          <div
+            className={css({
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: '2',
+              marginBlockStart: '2',
+            })}
+          >
             <Button
-              type="button"
-              disabled={trimmed.length === 0}
-              onClick={() => {
-                save.mutate(view.revision);
-              }}
+              type="submit"
+              disabled={trimmed.length === 0 || clear.isPending}
+              loading={save.isPending}
+              loadingLabel={t('pages.telegram.saving')}
             >
-              {save.isPending ? t('pages.telegram.saving') : t('pages.telegram.save')}
+              {t('pages.telegram.save')}
             </Button>
             <Button
               type="button"
-              variant="outline"
-              color="secondary"
-              disabled={!view.token_configured}
-              onClick={() => setClearOpen(true)}
+              variant="ghost"
+              color="error"
+              disabled={!view.token_configured || pending}
+              onClick={() => {
+                clear.reset();
+                setClearOpen(true);
+              }}
             >
               {t('pages.telegram.clear')}
             </Button>
           </div>
-        </fieldset>
+        </form>
       </Panel>
 
       <ConfirmDialog
@@ -167,7 +177,7 @@ function TelegramSettings({ view }: { readonly view: TelegramView }): React.Reac
         error={clear.isError ? errorMessage(clear.error) : null}
         onConfirm={() => clear.mutate(view.revision)}
       />
-    </div>
+    </>
   );
 }
 
@@ -175,39 +185,34 @@ export default function TelegramPage(): React.ReactElement {
   const { t } = useTranslation();
   const query = useQuery(telegramQuery);
 
-  if (query.isPending) {
-    return (
-      <div className={css({ maxWidth: '48rem', '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-        <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('common.loading')}</p>
-      </div>
-    );
-  }
-
-  if (query.isLoadingError || query.data === undefined) {
-    return (
-      <div className={css({ maxWidth: '48rem', '& > :not(:last-child)': { marginBlockEnd: '4' } })} role="alert">
-        <p className={css({ textStyle: 'body', color: 'error-text' })}>
-          {t('pages.telegram.readFailed')}: {errorMessage(query.error)}
-        </p>
-        <Button variant="outline" color="secondary" onClick={() => void query.refetch()}>
-          {t('common.reload')}
-        </Button>
-      </div>
-    );
-  }
-
-  // A failed poll keeps the form mounted, so a token being typed survives it.
   return (
-    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-      {query.isError ? (
-        <p
-          className={css({ textStyle: 'body', color: 'error-text', maxWidth: '48rem', overflowWrap: 'anywhere' })}
-          role="alert"
+    <div className={css({ maxWidth: '768px', marginInline: 'auto', '& > * + *': { marginBlockStart: '6' } })}>
+      <ListPageHeader title={t('pages.telegram.title')} description={t('pages.telegram.description')} />
+      {query.isPending ? (
+        <p className={css({ margin: '0', color: 'text-muted' })}>{t('common.loading')}</p>
+      ) : query.isLoadingError || query.data === undefined ? (
+        <Alert
+          tone="error"
+          title={t('pages.telegram.readFailed')}
+          action={
+            <Button size="sm" variant="ghost" color="secondary" onClick={() => void query.refetch()}>
+              {t('common.reload')}
+            </Button>
+          }
         >
-          {t('pages.telegram.readFailed')}: {errorMessage(query.error)}
-        </p>
-      ) : null}
-      <TelegramSettings view={query.data} />
+          {errorMessage(query.error)}
+        </Alert>
+      ) : (
+        <>
+          {/* A failed poll keeps the form mounted, so a token being typed survives it. */}
+          {query.isError ? (
+            <Alert tone="error" title={t('pages.telegram.readFailed')}>
+              {errorMessage(query.error)}
+            </Alert>
+          ) : null}
+          <TelegramSettings view={query.data} />
+        </>
+      )}
     </div>
   );
 }

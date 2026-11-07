@@ -1,7 +1,7 @@
 import arrowsRotate from '@iconify-icons/fa7-solid/arrows-rotate';
+import ban from '@iconify-icons/fa7-solid/ban';
 import bars from '@iconify-icons/fa7-solid/bars';
 import bell from '@iconify-icons/fa7-solid/bell';
-import bolt from '@iconify-icons/fa7-solid/bolt';
 import book from '@iconify-icons/fa7-solid/book';
 import bookBookmark from '@iconify-icons/fa7-solid/book-bookmark';
 import bookOpen from '@iconify-icons/fa7-solid/book-open';
@@ -65,10 +65,10 @@ export const MoonIcon = icon(moon);
 export const LanguageIcon = icon(language);
 export const LogoutIcon = icon(rightFromBracket);
 export const UserSettingsIcon = icon(userGear);
-export const BrandIcon = icon(bolt);
 
 // Actions.
 export const EditIcon = icon(pen);
+export const CancelIcon = icon(ban);
 export const RefreshIcon = icon(arrowsRotate);
 export const ResetIcon = icon(rotateLeft);
 export const DownloadIcon = icon(download);

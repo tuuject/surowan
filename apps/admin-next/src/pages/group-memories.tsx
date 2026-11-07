@@ -11,13 +11,14 @@ import {
   ListPageHeader,
   ListSearchForm,
   QueryTextField,
+  RowActions,
   TableShell,
 } from '@/components/business';
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button, IconButton } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
+import { Field } from '@tuuject/koi-react/field';
 import type { GroupMemoryEntry } from '@/lib/api/group-memories.ts';
 import { deleteGroupMemory, groupMemorySource, updateGroupMemory } from '@/lib/api/group-memories.ts';
 import { errorMessage } from '@/lib/errors';
@@ -39,10 +40,14 @@ export default function GroupMemoriesPage(): React.ReactElement {
     () => ({ chat: chatQuery(chat), day: optionalQuery(day), search: optionalQuery(search) }),
     [chat, day, search],
   );
+  // Each dialog keeps `open` apart from its entry, so closing never blanks the content mid-fade.
   const [editing, setEditing] = useState<GroupMemoryEntry | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const [summary, setSummary] = useState('');
   const [deleting, setDeleting] = useState<GroupMemoryEntry | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [source, setSource] = useState<GroupMemoryEntry | null>(null);
+  const [sourceOpen, setSourceOpen] = useState(false);
 
   const invalidate = (): void => {
     void queryClient.invalidateQueries({ queryKey: ['group-memories'] });
@@ -51,7 +56,7 @@ export default function GroupMemoriesPage(): React.ReactElement {
   const update = useMutation({
     mutationFn: (target: GroupMemoryEntry) => updateGroupMemory(target.id, summary.trim()),
     onSuccess: () => {
-      setEditing(null);
+      setEditOpen(false);
       toast.success(t('pages.groupMemories.updated'));
       invalidate();
     },
@@ -59,7 +64,7 @@ export default function GroupMemoriesPage(): React.ReactElement {
   const remove = useMutation({
     mutationFn: (target: GroupMemoryEntry) => deleteGroupMemory(target.id),
     onSuccess: () => {
-      setDeleting(null);
+      setDeleteOpen(false);
       toast.success(t('pages.groupMemories.deleted'));
       invalidate();
     },
@@ -67,24 +72,25 @@ export default function GroupMemoriesPage(): React.ReactElement {
   const sourceQuery = useQuery({
     queryKey: ['group-memory-source', source?.id ?? null],
     queryFn: () => groupMemorySource(source?.id ?? ''),
-    enabled: source !== null,
+    enabled: sourceOpen && source !== null,
   });
 
   const columns: readonly ColumnSpec<GroupMemoryEntry>[] = [
     {
       key: 'day',
       title: t('pages.groupMemories.colDay'),
-      render: (row) => <span className={css({ fontVariantNumeric: 'tabular-nums' })}>{row.day}</span>,
+      width: 120,
+      skeleton: '2026-01-18',
+      render: (row) => row.day,
     },
     {
       key: 'chat',
       title: t('pages.groupMemories.colChat'),
+      width: 200,
       render: (row) => (
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-          <p className={css({ textStyle: 'label' })}>{row.chat.title ?? row.chat.telegram_chat_id}</p>
-          <p className={css({ textStyle: 'small', color: 'text-muted', fontFamily: 'mono' })}>
-            {row.chat.telegram_chat_id}
-          </p>
+        <div className={css({ minWidth: '0' })}>
+          <div className={css({ truncate: true })}>{row.chat.title ?? row.chat.telegram_chat_id}</div>
+          <div className={css({ textStyle: 'small', color: 'text-muted' })}>{row.chat.telegram_chat_id}</div>
         </div>
       ),
     },
@@ -92,14 +98,17 @@ export default function GroupMemoriesPage(): React.ReactElement {
       key: 'summary',
       title: t('pages.groupMemories.colSummary'),
       render: (row) => (
-        <p className={css({ textStyle: 'body', maxWidth: '42rem', overflowWrap: 'anywhere' })}>{row.summary}</p>
+        <p className={css({ margin: '0', lineClamp: '2', whiteSpace: 'normal', overflowWrap: 'anywhere' })}>
+          {row.summary}
+        </p>
       ),
     },
     {
       key: 'range',
       title: t('pages.groupMemories.colRange'),
+      width: 136,
       render: (row) => (
-        <span className={css({ textStyle: 'small', fontFamily: 'mono', fontVariantNumeric: 'tabular-nums' })}>
+        <span className={css({ fontFamily: 'mono' })}>
           {row.first_message_id}–{row.last_message_id}
         </span>
       ),
@@ -107,41 +116,52 @@ export default function GroupMemoriesPage(): React.ReactElement {
     {
       key: 'created',
       title: t('pages.groupMemories.colCreated'),
-      render: (row) => (
-        <span className={css({ textStyle: 'small', color: 'text-muted' })}>{formatTime(row.created_at)}</span>
-      ),
+      width: 184,
+      skeleton: '2026-01-18 10:58:15',
+      render: (row) => formatTime(row.created_at),
     },
     {
       key: 'actions',
       title: t('pages.groupMemories.colActions'),
       align: 'right',
+      width: 140,
+      paddingBlock: 'none',
       render: (row) => (
-        <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '1' })}>
+        <RowActions>
           <IconButton
             variant="ghost"
             color="secondary"
-            title={t('pages.groupMemories.viewSource')}
-            onClick={() => setSource(row)}
             label={t('pages.groupMemories.viewSource')}
             icon={<EyeIcon />}
+            onClick={() => {
+              setSource(row);
+              setSourceOpen(true);
+            }}
           />
           <IconButton
             variant="ghost"
             color="secondary"
-            onClick={() => {
-              setSummary(row.summary);
-              setEditing(row);
-            }}
             label={t('common.edit')}
             icon={<EditIcon />}
+            onClick={() => {
+              update.reset();
+              setSummary(row.summary);
+              setEditing(row);
+              setEditOpen(true);
+            }}
           />
           <IconButton
             variant="ghost"
-            onClick={() => setDeleting(row)}
+            color="error"
             label={t('common.delete')}
             icon={<TrashIcon />}
+            onClick={() => {
+              remove.reset();
+              setDeleting(row);
+              setDeleteOpen(true);
+            }}
           />
-        </div>
+        </RowActions>
       ),
     },
   ];
@@ -181,54 +201,47 @@ export default function GroupMemoriesPage(): React.ReactElement {
             data={items}
             rowKey={(row) => row.id}
             loading={loading}
+            minWidth={1000}
             emptyText={t('pages.groupMemories.empty')}
           />
         )}
       />
 
       <Dialog
-        open={editing !== null}
+        open={editOpen}
         onOpenChange={(open) => {
           if (!open && !update.isPending) {
-            setEditing(null);
+            setEditOpen(false);
           }
         }}
         title={t('pages.groupMemories.editTitle')}
         description={t('pages.groupMemories.editDescription')}
         footer={
           <>
-            <Button
-              type="button"
-              variant="outline"
-              color="secondary"
-              disabled={update.isPending}
-              onClick={() => setEditing(null)}
-            >
+            <Button variant="ghost" color="secondary" disabled={update.isPending} onClick={() => setEditOpen(false)}>
               {t('common.cancel')}
             </Button>
             <Button
-              type="button"
-              disabled={update.isPending || summary.trim().length === 0}
+              disabled={summary.trim().length === 0}
+              loading={update.isPending}
+              loadingLabel={t('common.saving')}
               onClick={() => editing !== null && update.mutate(editing)}
             >
-              {update.isPending ? t('common.saving') : t('common.save')}
+              {t('common.save')}
             </Button>
           </>
         }
       >
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-          <Label htmlFor="group-memory-summary">{t('pages.groupMemories.summaryLabel')}</Label>
-          <Input
-            id="group-memory-summary"
-            maxLength={SUMMARY_MAX_LENGTH}
-            value={summary}
-            onChange={(event) => setSummary(event.target.value)}
-          />
-          <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-            {summary.length}/{SUMMARY_MAX_LENGTH}
-          </p>
+        <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+          <Field label={t('pages.groupMemories.summaryLabel')} help={`${summary.length} / ${SUMMARY_MAX_LENGTH}`}>
+            <Input
+              maxLength={SUMMARY_MAX_LENGTH}
+              value={summary}
+              onChange={(event) => setSummary(event.target.value)}
+            />
+          </Field>
           {update.isError ? (
-            <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+            <p role="alert" className={css({ margin: '0', color: 'error-text', overflowWrap: 'anywhere' })}>
               {errorMessage(update.error)}
             </p>
           ) : null}
@@ -236,10 +249,10 @@ export default function GroupMemoriesPage(): React.ReactElement {
       </Dialog>
 
       <ConfirmDialog
-        open={deleting !== null}
+        open={deleteOpen}
         onOpenChange={(open) => {
           if (!open && !remove.isPending) {
-            setDeleting(null);
+            setDeleteOpen(false);
           }
         }}
         title={t('pages.groupMemories.deleteTitle')}
@@ -256,12 +269,8 @@ export default function GroupMemoriesPage(): React.ReactElement {
       />
 
       <Dialog
-        open={source !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSource(null);
-          }
-        }}
+        open={sourceOpen}
+        onOpenChange={setSourceOpen}
         title={t('pages.groupMemories.sourceTitle')}
         description={
           source === null
@@ -272,12 +281,11 @@ export default function GroupMemoriesPage(): React.ReactElement {
               })
         }
         size="lg"
+        hideClose
         footer={
-          <>
-            <Button type="button" variant="outline" color="secondary" onClick={() => setSource(null)}>
-              {t('pages.groupMemories.close')}
-            </Button>
-          </>
+          <Button variant="ghost" color="secondary" onClick={() => setSourceOpen(false)}>
+            {t('pages.groupMemories.close')}
+          </Button>
         }
       >
         {sourceQuery.isPending ? (
@@ -289,14 +297,15 @@ export default function GroupMemoriesPage(): React.ReactElement {
         ) : (
           <pre
             className={css({
-              textStyle: 'small',
+              margin: '0',
               maxHeight: '60dvh',
               overflow: 'auto',
-              borderRadius: 'lg',
-              borderWidth: '1px',
-              borderColor: 'border',
-              padding: '3',
+              borderRadius: 'xl',
+              bg: 'surface-muted',
+              padding: '4',
+              fontFamily: 'mono',
               whiteSpace: 'pre-wrap',
+              overflowWrap: 'anywhere',
             })}
           >
             {sourceQuery.data?.text ?? ''}

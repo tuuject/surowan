@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
-import { Panel } from '@/components/layout/panel';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Card } from '@tuuject/koi-react/card';
 import { ArrowRightIcon } from '@tuuject/koi-react/icons';
+import { sizes } from '@tuuject/koi-tokens/dimensions';
+import { AppLink } from '@/components/router-links';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -38,7 +40,15 @@ function SleepBadge({ sleeping }: { readonly sleeping: boolean }): React.ReactEl
   );
 }
 
-function StatMetric({
+const statValue = css({
+  textStyle: 'heading-1',
+  fontWeight: 'bold',
+  color: 'text',
+  fontVariantNumeric: 'tabular-nums',
+});
+
+/** One dashboard figure, as on the template: label, the number, a one-line hint, each sibling the same shape. */
+function StatCard({
   label,
   value,
   hint,
@@ -50,19 +60,32 @@ function StatMetric({
   readonly loading: boolean;
 }): React.ReactElement {
   return (
-    <div className={css({ borderTopWidth: '1px', borderColor: 'divider', paddingBlockStart: '3' })}>
-      <p className={css({ textStyle: 'body', color: 'text-muted', margin: '0' })}>{label}</p>
+    <Card>
+      <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>{label}</p>
       <div className={css({ marginBlockStart: '1' })}>
         {loading ? (
-          <Skeleton className={css({ display: 'block', height: 'control-md', width: '96px' })} />
+          <Skeleton>
+            <span className={statValue}>00,000</span>
+          </Skeleton>
         ) : (
-          <span className={css({ textStyle: 'heading-1', fontVariantNumeric: 'tabular-nums' })}>
-            {value === undefined ? '—' : formatNumber(value)}
-          </span>
+          <span className={statValue}>{value === undefined ? '—' : formatNumber(value)}</span>
         )}
       </div>
-      <p className={css({ textStyle: 'body', color: 'text-muted', margin: '0', marginBlockStart: '1' })}>{hint}</p>
-    </div>
+      <p className={css({ margin: '0', marginBlockStart: '1', textStyle: 'small', color: 'text-muted' })}>{hint}</p>
+    </Card>
+  );
+}
+
+/** The card footer link to a full list, with Koi's arrow (as the template's 查看全部). */
+function ViewAllLink({ to, label }: { readonly to: '/invocations' | '/warnings'; readonly label: string }) {
+  return (
+    <AppLink to={to}>
+      {label}
+      <ArrowRightIcon
+        size={sizes['icon-sm']}
+        className={css({ display: 'inline-block', verticalAlign: 'middle', marginInlineStart: '1' })}
+      />
+    </AppLink>
   );
 }
 
@@ -125,32 +148,26 @@ export default function OverviewPage(): React.ReactElement {
     {
       key: 'id',
       title: t('invocations.invocations.columns.id'),
+      width: 96,
+      skeleton: '4127',
       render: (row) => (
-        <Link
-          to="/invocations/$invocationId"
-          params={{ invocationId: row.id }}
-          className={css({
-            textStyle: 'label',
-            fontVariantNumeric: 'tabular-nums',
-            textDecorationLine: 'underline',
-            textUnderlineOffset: '4px',
-          })}
-        >
+        <AppLink to="/invocations/$invocationId" params={{ invocationId: row.id }}>
           {row.id}
-        </Link>
+        </AppLink>
       ),
     },
     {
       key: 'state',
       title: t('invocations.invocations.columns.state'),
+      width: 128,
       render: (row) => <StateBadge state={row.state} />,
     },
     {
       key: 'chat',
       title: t('invocations.invocations.columns.chat'),
       render: (row) => (
-        <div className={css({ minWidth: '160px' })}>
-          <div className={css({ textStyle: 'label', overflowWrap: 'anywhere' })}>
+        <div className={css({ minWidth: '0' })}>
+          <div className={css({ truncate: true })}>
             {row.chat.title ?? row.chat.telegram_chat_id ?? row.chat.room_id}
           </div>
           <div className={css({ textStyle: 'small', color: 'text-muted' })}>{row.chat.type}</div>
@@ -161,23 +178,27 @@ export default function OverviewPage(): React.ReactElement {
       key: 'tools',
       title: t('invocations.invocations.columns.tools'),
       align: 'right',
+      width: 104,
       render: (row) => formatNumber(row.tool_call_count),
     },
     {
       key: 'tokens',
       title: t('invocations.invocations.columns.tokens'),
       align: 'right',
+      width: 112,
       render: (row) => formatNumber(row.total_tokens),
     },
     {
       key: 'created',
       title: t('invocations.invocations.columns.created'),
+      width: 184,
+      skeleton: '2026-01-18 10:58:15',
       render: (row) => formatTime(row.created_at),
     },
   ];
 
   return (
-    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '6' } })}>
+    <div>
       <ListPageHeader
         title={t('layout.nav.overview')}
         description={
@@ -188,17 +209,19 @@ export default function OverviewPage(): React.ReactElement {
         actions={
           <>
             {data?.runtime_status.sleeping === true ? (
-              <Button
-                type="button"
-                variant="outline"
-                color="secondary"
-                disabled={wake.isPending}
-                onClick={() => setWakeOpen(true)}
-              >
+              <Button variant="outline" color="secondary" disabled={wake.isPending} onClick={() => setWakeOpen(true)}>
                 {t('pages.overview.wakeNow')}
               </Button>
             ) : null}
-            <Button type="button" color="error" disabled={cancel.isPending} onClick={() => setCancelOpen(true)}>
+            <Button
+              variant="outline"
+              color="error"
+              disabled={cancel.isPending}
+              onClick={() => {
+                cancel.reset();
+                setCancelOpen(true);
+              }}
+            >
               {t('pages.overview.cancelOngoing')}
             </Button>
           </>
@@ -206,40 +229,37 @@ export default function OverviewPage(): React.ReactElement {
       />
 
       {overview.isError ? (
-        <div className={css({ textAlign: 'center' })}>
-          <p className={css({ textStyle: 'label', color: 'error-text' })}>{t('pages.overview.loadFailed')}</p>
-          <p className={css({ textStyle: 'body', color: 'text-muted', overflowWrap: 'anywhere' })}>
-            {errorMessage(overview.error)}
-          </p>
-        </div>
+        <Alert tone="error" title={t('pages.overview.loadFailed')} className={css({ marginBlockEnd: '6' })}>
+          {errorMessage(overview.error)}
+        </Alert>
       ) : null}
 
-      <div className={css({ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '4' })}>
-        <StatMetric
+      <div className={css({ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '4' })}>
+        <StatCard
           label={t('pages.overview.statInvocations')}
           value={totalInvocations}
-          hint={t('pages.overview.invocationStates')}
+          hint={t('pages.overview.statInvocationsHint')}
           loading={overview.isPending}
         />
-        <StatMetric
+        <StatCard
           label={t('pages.overview.fieldOngoingInvocations')}
           value={ongoingInvocations}
-          hint={t('pages.overview.cancelOngoingDesc')}
+          hint={t('pages.overview.ongoingHint')}
           loading={overview.isPending}
         />
-        <StatMetric
+        <StatCard
           label={t('pages.overview.statStoredMessages')}
           value={data?.message_count}
-          hint={t('layout.nav.messages')}
+          hint={t('pages.overview.storedMessagesHint')}
           loading={overview.isPending}
         />
-        <StatMetric
+        <StatCard
           label={t('pages.overview.statCachedAnalyses')}
           value={data?.cached_analysis_count}
-          hint={t('layout.nav.botStickerSets')}
+          hint={t('pages.overview.cachedAnalysesHint')}
           loading={overview.isPending}
         />
-        <StatMetric
+        <StatCard
           label={t('pages.overview.warnings')}
           value={warnings.data?.unread_count}
           hint={t('pages.overview.warningsUnread', { count: formatNumber(warnings.data?.unread_count ?? 0) })}
@@ -247,108 +267,99 @@ export default function OverviewPage(): React.ReactElement {
         />
       </div>
 
-      <Panel
+      <Card
         title={t('pages.overview.recentInvocations')}
-        action={
-          <Link to="/invocations" className={css({ display: 'inline-flex', alignItems: 'center', gap: '1' })}>
-            {t('pages.overview.viewAll')}
-            <ArrowRightIcon
-              className={css({ display: 'inline-block', width: 'icon', height: 'icon', verticalAlign: 'middle' })}
-            />
-          </Link>
-        }
+        className={css({ marginBlockStart: '6' })}
+        footer={<ViewAllLink to="/invocations" label={t('pages.overview.viewAll')} />}
       >
-        {recent.isPending || recent.data !== undefined ? (
+        {recent.isError ? (
+          <p role="alert" className={css({ margin: '0', color: 'error-text', overflowWrap: 'anywhere' })}>
+            {errorMessage(recent.error)}
+          </p>
+        ) : (
           <TableShell
             columns={recentColumns}
             data={recent.data?.items ?? []}
             rowKey={(row) => row.id}
             loading={recent.isPending}
             skeletonRows={5}
+            minWidth={680}
             emptyText={t('common.noRecords')}
           />
-        ) : null}
-        {recent.isError ? (
-          <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-            {errorMessage(recent.error)}
-          </p>
-        ) : null}
-      </Panel>
-
-      <Panel
-        title={t('pages.overview.warnings')}
-        action={
-          <Link to="/warnings" className={css({ display: 'inline-flex', alignItems: 'center', gap: '1' })}>
-            {t('pages.overview.warningsViewAll')}
-            <ArrowRightIcon
-              className={css({ display: 'inline-block', width: 'icon', height: 'icon', verticalAlign: 'middle' })}
-            />
-          </Link>
-        }
-      >
-        {warnings.isPending ? (
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
-            <Skeleton className={css({ height: '64px', width: '100%' })} />
-            <Skeleton className={css({ height: '64px', width: '100%' })} />
-          </div>
-        ) : warnings.data === undefined ? (
-          <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-            {t('pages.overview.warningsLoadFailed')}: {errorMessage(warnings.error)}
-          </p>
-        ) : (
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-            {warnings.isError ? (
-              <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-                {t('pages.overview.warningsLoadFailed')}: {errorMessage(warnings.error)}
-              </p>
-            ) : null}
-            {warnings.data.standing.length > 0 ? (
-              <div className={css({ '& > :not(:last-child)': { borderBottomWidth: '1px', borderColor: 'divider' } })}>
-                {warnings.data.standing.map((warning) => (
-                  <WarningCard key={warning.code} warning={warning} />
-                ))}
-              </div>
-            ) : null}
-            {warnings.data.items.length > 0 ? (
-              <div className={css({ '& > :not(:last-child)': { borderBottomWidth: '1px', borderColor: 'divider' } })}>
-                {warnings.data.items.map((warning) => (
-                  <WarningCard
-                    key={warning.id}
-                    warning={warning}
-                    pending={markWarningReadMutation.isPending}
-                    onMarkRead={(item) => markWarningReadMutation.mutate(item)}
-                  />
-                ))}
-              </div>
-            ) : null}
-            {warnings.data.standing.length === 0 && warnings.data.items.length === 0 ? (
-              <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.overview.warningsNone')}</p>
-            ) : null}
-          </div>
         )}
-      </Panel>
+      </Card>
 
-      {data === undefined ? null : (
-        <Panel title={t('pages.overview.botStatus')}>
-          <dl className={css({ display: 'grid', gap: '5', md: { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' } })}>
-            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-              <dt className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.overview.fieldState')}</dt>
-              <dd className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
+      <div
+        className={css({
+          display: 'grid',
+          gap: '6',
+          marginBlockStart: '6',
+          '@media (min-width: 1280px)': { gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 2fr)', alignItems: 'start' },
+        })}
+      >
+        <Card
+          title={t('pages.overview.warnings')}
+          footer={<ViewAllLink to="/warnings" label={t('pages.overview.warningsViewAll')} />}
+        >
+          {warnings.isPending ? (
+            <div className={css({ display: 'flex', flexDirection: 'column', gap: '3' })}>
+              <Skeleton className={css({ height: '64px' })} />
+              <Skeleton className={css({ height: '64px' })} />
+            </div>
+          ) : warnings.data === undefined ? (
+            <p role="alert" className={css({ margin: '0', color: 'error-text', overflowWrap: 'anywhere' })}>
+              {t('pages.overview.warningsLoadFailed')}：{errorMessage(warnings.error)}
+            </p>
+          ) : (
+            <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+              {warnings.isError ? (
+                <p role="alert" className={css({ margin: '0', color: 'error-text', overflowWrap: 'anywhere' })}>
+                  {t('pages.overview.warningsLoadFailed')}：{errorMessage(warnings.error)}
+                </p>
+              ) : null}
+              {warnings.data.standing.length + warnings.data.items.length > 0 ? (
+                <div className={css({ '& > :not(:last-child)': { borderBottomWidth: '1px', borderColor: 'divider' } })}>
+                  {warnings.data.standing.map((warning) => (
+                    <WarningCard key={warning.code} warning={warning} />
+                  ))}
+                  {warnings.data.items.map((warning) => (
+                    <WarningCard
+                      key={warning.id}
+                      warning={warning}
+                      pending={markWarningReadMutation.isPending}
+                      onMarkRead={(item) => markWarningReadMutation.mutate(item)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className={css({ margin: '0', color: 'text-muted' })}>{t('pages.overview.warningsNone')}</p>
+              )}
+            </div>
+          )}
+        </Card>
+
+        <Card title={t('pages.overview.botStatus')}>
+          {data === undefined ? (
+            <Skeleton className={css({ height: '96px' })} />
+          ) : (
+            <dl className={css({ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4 6', margin: '0' })}>
+              <dt className={css({ color: 'text-muted', whiteSpace: 'nowrap' })}>{t('pages.overview.fieldState')}</dt>
+              <dd className={css({ margin: '0', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
                 <SleepBadge sleeping={data.runtime_status.sleeping} />
                 {data.runtime_status.sleep_until === null ? null : (
-                  <span className={css({ textStyle: 'body', color: 'text-muted' })}>
+                  <span className={css({ color: 'text-muted' })}>
                     {t('pages.overview.sleepUntil', { time: formatTime(data.runtime_status.sleep_until) })}
                   </span>
                 )}
               </dd>
-            </div>
-            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-              <dt className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.overview.fieldTelegram')}</dt>
-              <dd>
+              <dt className={css({ color: 'text-muted', whiteSpace: 'nowrap' })}>
+                {t('pages.overview.fieldTelegram')}
+              </dt>
+              <dd className={css({ margin: '0', minWidth: '0' })}>
                 {telegram.isPending ? (
-                  <span className={css({ textStyle: 'body', color: 'text-muted' })}>{t('common.loading')}</span>
+                  <span className={css({ color: 'text-muted' })}>{t('common.loading')}</span>
                 ) : telegram.isError ? (
-                  <span className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+                  <span className={css({ color: 'error-text', overflowWrap: 'anywhere' })}>
                     {errorMessage(telegram.error)}
                   </span>
                 ) : (
@@ -361,17 +372,15 @@ export default function OverviewPage(): React.ReactElement {
                   </div>
                 )}
               </dd>
-            </div>
-            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-              <dt className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.overview.adminPauses')}</dt>
-              <dd>
+              <dt className={css({ color: 'text-muted', whiteSpace: 'nowrap' })}>{t('pages.overview.adminPauses')}</dt>
+              <dd className={css({ margin: '0', minWidth: '0' })}>
                 {data.runtime_status.paused_chats.length === 0 ? (
-                  <span className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.overview.none')}</span>
+                  <span className={css({ color: 'text-muted' })}>{t('pages.overview.none')}</span>
                 ) : (
-                  <ul className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+                  <ul className={css({ display: 'flex', flexDirection: 'column', gap: '2' })}>
                     {data.runtime_status.paused_chats.map((chat) => (
-                      <li key={chat.telegram_chat_id} className={css({ textStyle: 'body' })}>
-                        <div className={css({ textStyle: 'label' })}>
+                      <li key={chat.telegram_chat_id}>
+                        <div>
                           {chat.title ?? (chat.username === null ? chat.telegram_chat_id : `@${chat.username}`)}
                         </div>
                         <div className={css({ textStyle: 'small', color: 'text-muted' })}>
@@ -382,10 +391,10 @@ export default function OverviewPage(): React.ReactElement {
                   </ul>
                 )}
               </dd>
-            </div>
-          </dl>
-        </Panel>
-      )}
+            </dl>
+          )}
+        </Card>
+      </div>
 
       <ConfirmDialog
         open={cancelOpen}
@@ -412,7 +421,6 @@ export default function OverviewPage(): React.ReactElement {
         title={t('pages.overview.wakeDialogTitle')}
         description={t('pages.overview.wakeDialogDescription')}
         confirmText={t('pages.overview.wakeDialogConfirm')}
-        destructive
         pending={wake.isPending}
         error={wake.isError ? errorMessage(wake.error) : null}
         onConfirm={() => wake.mutate()}

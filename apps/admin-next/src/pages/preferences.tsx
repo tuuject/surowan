@@ -1,8 +1,9 @@
 import { Select } from '@tuuject/koi-react/select';
 import { useTranslation } from 'react-i18next';
+import { Field } from '@tuuject/koi-react/field';
+import { ListPageHeader, SettingRow } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { type ThemeMode, useTheme } from '@/components/themes/theme-provider';
-import { Label } from '@/components/ui/label';
 import { Switch } from '@tuuject/koi-react/switch';
 import { type AppLanguage, LANGUAGE_LABELS, LANGUAGES, setLanguage } from '@/lib/i18n';
 import { setShowConfigKeys, useShowConfigKeys } from '@/lib/panel-preferences';
@@ -18,55 +19,39 @@ export default function PreferencesPage(): React.ReactElement {
   const language: AppLanguage = i18n.language === 'zh-CN' ? 'zh-CN' : 'en';
 
   return (
-    <div className={css({ maxWidth: '32rem', '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+    <div className={css({ maxWidth: '768px', marginInline: 'auto', '& > * + *': { marginBlockStart: '6' } })}>
+      <ListPageHeader title={t('layout.nav.preferences')} />
       <Panel title={t('pages.preferences.displayTitle')} description={t('pages.preferences.displayDescription')}>
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
-          <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4' })}>
-            <Label htmlFor="preference-theme">{t('pages.preferences.themeLabel')}</Label>
-            <Select
-              id="preference-theme"
-              className={css({ width: '160px' })}
-              value={mode}
-              onChange={(event) => setMode(event.target.value as ThemeMode)}
-            >
-              {THEME_MODES.map((item) => (
-                <option key={item} value={item}>
-                  {t(`layout.theme.${item}`)}
-                </option>
-              ))}
-            </Select>
+        <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+          <div className={css({ display: 'flex', flexDirection: 'column', gap: '4', maxWidth: '480px' })}>
+            <Field label={t('pages.preferences.themeLabel')}>
+              <Select
+                value={mode}
+                onChange={(event) => setMode(event.target.value as ThemeMode)}
+                options={THEME_MODES.map((item) => ({ value: item, label: t(`layout.theme.${item}`) }))}
+              />
+            </Field>
+            <Field label={t('pages.preferences.languageLabel')}>
+              <Select
+                value={language}
+                onChange={(event) => setLanguage(event.target.value as AppLanguage)}
+                options={LANGUAGES.map((item) => ({ value: item, label: LANGUAGE_LABELS[item] }))}
+              />
+            </Field>
           </div>
-          <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4' })}>
-            <Label htmlFor="preference-language">{t('pages.preferences.languageLabel')}</Label>
-            <Select
-              id="preference-language"
-              className={css({ width: '160px' })}
-              value={language}
-              onChange={(event) => setLanguage(event.target.value as AppLanguage)}
-            >
-              {LANGUAGES.map((item) => (
-                <option key={item} value={item}>
-                  {LANGUAGE_LABELS[item]}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div
-            className={css({ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '4' })}
+          <SettingRow
+            label={t('pages.preferences.configKeysLabel')}
+            description={t('pages.preferences.configKeysDescription')}
           >
-            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-              <Label htmlFor="show-config-keys">{t('pages.preferences.configKeysLabel')}</Label>
-              <p id="show-config-keys-description" className={css({ textStyle: 'body', color: 'text-muted' })}>
-                {t('pages.preferences.configKeysDescription')}
-              </p>
-            </div>
-            <Switch
-              id="show-config-keys"
-              aria-describedby="show-config-keys-description"
-              checked={showConfigKeys}
-              onCheckedChange={setShowConfigKeys}
-            />
-          </div>
+            {({ id, describedBy }) => (
+              <Switch
+                id={id}
+                aria-describedby={describedBy}
+                checked={showConfigKeys}
+                onCheckedChange={setShowConfigKeys}
+              />
+            )}
+          </SettingRow>
         </div>
       </Panel>
     </div>

@@ -42,7 +42,6 @@ export function AgentTranscriptTab({ invocation }: { readonly invocation: Invoca
     {
       key: 'text',
       title: t('invocations.invocationDetail.agentColumns.text'),
-      className: 'min-w-64 max-w-2xl whitespace-normal',
       render: (row) => (
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           {row.thinking_text.length > 0 && row.role === 'assistant' ? (

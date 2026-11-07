@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ConfirmDialog } from '@/components/business';
+import { Alert } from '@tuuject/koi-react/alert';
+import { ConfirmDialog, ListPageHeader, SettingRow } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { Button } from '@tuuject/koi-react/button';
-import { Label } from '@/components/ui/label';
 import { Switch } from '@tuuject/koi-react/switch';
 import { clearModelPayloads, updateDeveloperSettings } from '@/lib/api/config.ts';
 import { errorMessage } from '@/lib/errors';
@@ -45,96 +45,73 @@ export default function DeveloperPage(): React.ReactElement {
   });
   const current = settings.data;
 
+  const mismatch = (active: boolean) => (
+    <Alert tone="warning">
+      {t('models.developer.stateMismatch', { status: active ? t('common.on') : t('common.off') })}
+    </Alert>
+  );
+
   return (
-    <div className={css({ maxWidth: '32rem', '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+    <div className={css({ maxWidth: '768px', marginInline: 'auto', '& > * + *': { marginBlockStart: '6' } })}>
+      <ListPageHeader title={t('layout.nav.developer')} />
       <Panel title={t('models.developer.debugTitle')} description={t('models.developer.debugDescription')}>
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
-          {settings.isPending ? (
-            <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('common.loading')}</p>
-          ) : settings.isError || current === undefined ? (
-            <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-              {errorMessage(settings.error)}
-            </p>
-          ) : (
-            <>
-              <div
-                className={css({
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  justifyContent: 'space-between',
-                  gap: '4',
-                })}
-              >
-                <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-                  <Label htmlFor="record-model-payloads">{t('models.developer.recordLabel')}</Label>
-                  <p id="payload-description" className={css({ textStyle: 'body', color: 'text-muted' })}>
-                    {t('models.developer.recordDescription')}
-                  </p>
-                </div>
+        {settings.isPending ? (
+          <p className={css({ margin: '0', color: 'text-muted' })}>{t('common.loading')}</p>
+        ) : settings.isError || current === undefined ? (
+          <Alert tone="error">{errorMessage(settings.error)}</Alert>
+        ) : (
+          <div className={css({ display: 'flex', flexDirection: 'column', gap: '5' })}>
+            <SettingRow
+              label={t('models.developer.recordLabel')}
+              description={t('models.developer.recordDescription')}
+              hint={t('models.developer.recordHint')}
+            >
+              {({ id, describedBy }) => (
                 <Switch
-                  id="record-model-payloads"
-                  aria-describedby="payload-description"
+                  id={id}
+                  aria-describedby={describedBy}
                   checked={current.record_model_payloads}
                   disabled={update.isPending}
                   onCheckedChange={(enabled) =>
                     update.mutate({ field: 'record_model_payloads', enabled, revision: current.revision })
                   }
                 />
-              </div>
-              <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('models.developer.recordHint')}</p>
-              {current.record_model_payloads !== current.active_record_model_payloads ? (
-                <p role="status" className={css({ textStyle: 'body', color: 'warning-text' })}>
-                  {t('models.developer.stateMismatch', {
-                    status: current.active_record_model_payloads ? t('common.on') : t('common.off'),
-                  })}
-                </p>
-              ) : null}
-              <div
-                className={css({
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  justifyContent: 'space-between',
-                  gap: '4',
-                })}
-              >
-                <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-                  <Label htmlFor="record-agent-thinking">{t('models.developer.thinkingLabel')}</Label>
-                  <p id="thinking-description" className={css({ textStyle: 'body', color: 'text-muted' })}>
-                    {t('models.developer.thinkingDescription')}
-                  </p>
-                </div>
+              )}
+            </SettingRow>
+            {current.record_model_payloads !== current.active_record_model_payloads
+              ? mismatch(current.active_record_model_payloads)
+              : null}
+            <SettingRow
+              label={t('models.developer.thinkingLabel')}
+              description={t('models.developer.thinkingDescription')}
+              hint={t('models.developer.thinkingHint')}
+            >
+              {({ id, describedBy }) => (
                 <Switch
-                  id="record-agent-thinking"
-                  aria-describedby="thinking-description"
+                  id={id}
+                  aria-describedby={describedBy}
                   checked={current.record_agent_thinking}
                   disabled={update.isPending}
                   onCheckedChange={(enabled) =>
                     update.mutate({ field: 'record_agent_thinking', enabled, revision: current.revision })
                   }
                 />
-              </div>
-              <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('models.developer.thinkingHint')}</p>
-              {current.record_agent_thinking !== current.active_record_agent_thinking ? (
-                <p role="status" className={css({ textStyle: 'body', color: 'warning-text' })}>
-                  {t('models.developer.stateMismatch', {
-                    status: current.active_record_agent_thinking ? t('common.on') : t('common.off'),
-                  })}
-                </p>
-              ) : null}
-              {update.isError ? (
-                <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-                  {errorMessage(update.error)}
-                </p>
-              ) : null}
-            </>
-          )}
-        </div>
+              )}
+            </SettingRow>
+            {current.record_agent_thinking !== current.active_record_agent_thinking
+              ? mismatch(current.active_record_agent_thinking)
+              : null}
+            {update.isError ? <Alert tone="error">{errorMessage(update.error)}</Alert> : null}
+          </div>
+        )}
       </Panel>
-      <Panel title={t('models.developer.historyTitle')} description={t('models.developer.historyDescription')}>
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+      <Panel
+        title={t('models.developer.historyTitle')}
+        description={t('models.developer.historyDescription')}
+        action={
           <Button
+            variant="outline"
             color="error"
-            className={css({ height: 'auto', minHeight: 'control-md', whiteSpace: 'normal', textAlign: 'start' })}
             disabled={clear.isPending}
             onClick={() => {
               clear.reset();
@@ -143,12 +120,13 @@ export default function DeveloperPage(): React.ReactElement {
           >
             {t('models.developer.clearButton')}
           </Button>
-          {clear.isSuccess ? (
-            <p role="status" className={css({ textStyle: 'body', color: 'text-brand' })}>
-              {t('models.developer.cleared', { count: clear.data.cleared_model_calls })}
-            </p>
-          ) : null}
-        </div>
+        }
+      >
+        {clear.isSuccess ? (
+          <p role="status" className={css({ margin: '0', color: 'text-brand' })}>
+            {t('models.developer.cleared', { count: clear.data.cleared_model_calls })}
+          </p>
+        ) : null}
       </Panel>
       <ConfirmDialog
         open={confirmClear}

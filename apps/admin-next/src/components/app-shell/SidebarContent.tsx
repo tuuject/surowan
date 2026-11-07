@@ -20,9 +20,7 @@ function VersionFooter(): React.ReactElement {
   }
   return (
     <div data-testid="app-version" className={css({ paddingInline: '2', paddingBlock: '1' })}>
-      <div className={css({ fontFamily: 'mono', textStyle: 'small', lineHeight: 'tight', wordBreak: 'break-all' })}>
-        {version.data.version}
-      </div>
+      <div className={css({ textStyle: 'small', color: 'text', wordBreak: 'break-all' })}>{version.data.version}</div>
       <div className={css({ textStyle: 'small', color: 'text-muted' })}>{version.data.channel}</div>
     </div>
   );

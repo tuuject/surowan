@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
-import { EyeIcon } from '@/components/icons';
+import { CancelIcon, EyeIcon } from '@/components/icons';
+import { AppLink } from '@/components/router-links';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -14,6 +14,7 @@ import {
   MonoValue,
   QuerySelectField,
   QueryTextField,
+  RowActions,
   StateBadge,
   TableShell,
   TextValue,
@@ -35,11 +36,13 @@ const EMPTY_FILTERS = { state: '', chat: '', target: '' };
 function ChatCell({ row }: { readonly row: AlarmListItem }): React.ReactElement {
   const { t } = useTranslation();
   return (
-    <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-      <div className={css({ textStyle: 'label' })}>{row.chat.title ?? row.chat.telegram_chat_id}</div>
-      <div className={css({ textStyle: 'small', color: 'text-muted' })}>
-        {row.chat.telegram_chat_id}
-        {row.chat.message_thread_id === '0' ? '' : t('pages.alarms.topicSuffix', { topic: row.chat.message_thread_id })}
+    <div className={css({ minWidth: '0' })}>
+      <div className={css({ truncate: true })}>{row.chat.title ?? row.chat.telegram_chat_id}</div>
+      <div className={css({ display: 'flex', gap: '2', textStyle: 'small', color: 'text-muted' })}>
+        <span>{row.chat.telegram_chat_id}</span>
+        {row.chat.message_thread_id === '0' ? null : (
+          <span>{t('invocations.invocations.topicLabel', { id: row.chat.message_thread_id })}</span>
+        )}
       </div>
     </div>
   );
@@ -47,8 +50,8 @@ function ChatCell({ row }: { readonly row: AlarmListItem }): React.ReactElement 
 
 function TargetCell({ row }: { readonly row: AlarmListItem }): React.ReactElement {
   return (
-    <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-      <div className={css({ textStyle: 'label' })}>{row.target_display_name}</div>
+    <div className={css({ minWidth: '0' })}>
+      <div className={css({ truncate: true })}>{row.target_display_name}</div>
       <div className={css({ textStyle: 'small', color: 'text-muted' })}>{row.target_user_id}</div>
     </div>
   );
@@ -57,19 +60,9 @@ function TargetCell({ row }: { readonly row: AlarmListItem }): React.ReactElemen
 function InvocationLink({ id }: { readonly id: string }): React.ReactElement {
   const { t } = useTranslation();
   return (
-    <Link
-      to="/invocations/$invocationId"
-      params={{ invocationId: id }}
-      className={css({
-        textStyle: 'small',
-        fontFamily: 'mono',
-        wordBreak: 'break-all',
-        textUnderlineOffset: '4px',
-        _hover: { textDecorationLine: 'underline' },
-      })}
-    >
+    <AppLink to="/invocations/$invocationId" params={{ invocationId: id }}>
       {t('pages.alarms.toolSession', { id })}
-    </Link>
+    </AppLink>
   );
 }
 
@@ -115,7 +108,9 @@ export default function AlarmsPage(): React.ReactElement {
   const query = useListQuery(EMPTY_FILTERS);
   const { state, chat, target } = query.value;
   const [viewing, setViewing] = useState<AlarmListItem | null>(null);
+  const [viewOpen, setViewOpen] = useState(false);
   const [cancelling, setCancelling] = useState<AlarmListItem | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const filters = useMemo(
     () => ({ state: optionalQuery(state), chat: chatQuery(chat), target: optionalQuery(target) }),
     [state, chat, target],
@@ -124,7 +119,7 @@ export default function AlarmsPage(): React.ReactElement {
   const cancel = useMutation({
     mutationFn: cancelAlarm,
     onSuccess: () => {
-      setCancelling(null);
+      setCancelOpen(false);
       toast.success(t('pages.alarms.alarmCancelled'));
       void queryClient.invalidateQueries({ queryKey: ['alarms'] });
     },
@@ -137,19 +132,30 @@ export default function AlarmsPage(): React.ReactElement {
   });
 
   const columns: readonly ColumnSpec<AlarmListItem>[] = [
-    { key: 'state', title: t('pages.alarms.colStatus'), render: (row) => <StateBadge state={row.state} /> },
-    { key: 'scheduled_at', title: t('pages.alarms.colScheduled'), render: (row) => formatTime(row.scheduled_at) },
+    {
+      key: 'state',
+      title: t('pages.alarms.colStatus'),
+      width: 112,
+      render: (row) => <StateBadge state={row.state} />,
+    },
+    {
+      key: 'scheduled_at',
+      title: t('pages.alarms.colScheduled'),
+      width: 184,
+      skeleton: '2026-01-18 10:58:15',
+      render: (row) => formatTime(row.scheduled_at),
+    },
     { key: 'chat', title: t('pages.alarms.colChat'), render: (row) => <ChatCell row={row} /> },
-    { key: 'target', title: t('pages.alarms.colTargetUser'), render: (row) => <TargetCell row={row} /> },
+    { key: 'target', title: t('pages.alarms.colTargetUser'), width: 160, render: (row) => <TargetCell row={row} /> },
     {
       key: 'summary',
       title: t('pages.alarms.colSummary'),
-      className: 'max-w-72 min-w-40 whitespace-normal',
-      render: (row) => <div className={css({ lineClamp: '1' })}>{row.summary}</div>,
+      render: (row) => <div className={css({ truncate: true })}>{row.summary}</div>,
     },
     {
       key: 'invocation',
       title: t('pages.alarms.colInvocation'),
+      width: 168,
       render: (row) => {
         const id = row.invocation_id ?? row.created_by_invocation_id;
         return id === null ? <span className={css({ color: 'text-muted' })}>—</span> : <InvocationLink id={id} />;
@@ -158,21 +164,35 @@ export default function AlarmsPage(): React.ReactElement {
     {
       key: 'action',
       title: t('pages.alarms.colAction'),
+      align: 'right',
+      width: 104,
+      paddingBlock: 'none',
       render: (row) => (
-        <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '1' })}>
+        <RowActions>
           <IconButton
             variant="ghost"
             color="secondary"
-            onClick={() => setViewing(row)}
+            onClick={() => {
+              setViewing(row);
+              setViewOpen(true);
+            }}
             label={t('common.view')}
             icon={<EyeIcon />}
           />
           {row.state === 'pending' ? (
-            <Button type="button" size="sm" color="error" onClick={() => setCancelling(row)}>
-              {t('common.cancel')}
-            </Button>
+            <IconButton
+              variant="ghost"
+              color="error"
+              label={t('common.cancel')}
+              icon={<CancelIcon />}
+              onClick={() => {
+                cancel.reset();
+                setCancelling(row);
+                setCancelOpen(true);
+              }}
+            />
           ) : null}
-        </div>
+        </RowActions>
       ),
     },
   ];
@@ -207,31 +227,31 @@ export default function AlarmsPage(): React.ReactElement {
             data={items}
             rowKey={(row) => row.id}
             loading={loading}
+            minWidth={1060}
             emptyText={t('pages.alarms.emptyAlarms')}
           />
         )}
       />
       <Dialog
-        open={viewing !== null}
-        onOpenChange={(open) => !open && setViewing(null)}
+        open={viewOpen}
+        onOpenChange={setViewOpen}
         title={t('pages.alarms.labelAlarmId')}
-        description={viewing?.id ?? ''}
+        description={viewing === null ? undefined : <MonoValue value={viewing.id} />}
         size="lg"
+        hideClose
         footer={
-          <>
-            <Button type="button" variant="outline" color="secondary" onClick={() => setViewing(null)}>
-              {t('common.dismiss')}
-            </Button>
-          </>
+          <Button variant="ghost" color="secondary" onClick={() => setViewOpen(false)}>
+            {t('common.dismiss')}
+          </Button>
         }
       >
         {viewing === null ? null : <AlarmDetails row={viewing} />}
       </Dialog>
       <ConfirmDialog
-        open={cancelling !== null}
+        open={cancelOpen}
         onOpenChange={(open) => {
           if (!open && !cancel.isPending) {
-            setCancelling(null);
+            setCancelOpen(false);
           }
         }}
         title={t('pages.alarms.cancelTitle')}

@@ -4,9 +4,10 @@ import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { KvList, ListPageHeader, MonoValue, PasskeysCard, ToneBadge } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
+import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
+import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
 import { updateCredentials } from '@/lib/api/auth.ts';
 import type { ConfigApplyResponse } from '@/lib/api/config.ts';
 import { applyConfigFile } from '@/lib/api/config.ts';
@@ -38,7 +39,6 @@ function AppliedResult({ result }: { readonly result: ConfigApplyResponse }): Re
   const { t } = useTranslation();
   return (
     <KvList
-      className={css({ marginBlockStart: '3' })}
       items={[
         {
           label: t('models.settings.applied'),
@@ -121,17 +121,20 @@ export default function SettingsPage(): React.ReactElement {
   const current = status.data;
 
   return (
-    <div className={css({ maxWidth: '64rem', '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
+    // A form page reads in one column, as the template's 个人设置: the header and every card share it.
+    <div className={css({ maxWidth: '768px', marginInline: 'auto', '& > * + *': { marginBlockStart: '6' } })}>
       <ListPageHeader title={t('layout.nav.settings')} />
       <Panel
         title={t('models.settings.adminCredentials')}
         description={t('models.settings.adminCredentialsDescription')}
       >
-        <form onSubmit={handleSubmit(onSubmit)} className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-            <Label htmlFor="username">{t('models.settings.newUsername')}</Label>
+        <form
+          noValidate
+          onSubmit={handleSubmit(onSubmit)}
+          className={css({ display: 'flex', flexDirection: 'column', gap: '4', maxWidth: '480px' })}
+        >
+          <Field label={t('models.settings.newUsername')} error={errors.username?.message}>
             <Input
-              id="username"
               autoComplete="username"
               {...register('username', {
                 required: t('models.settings.usernameRequired'),
@@ -141,14 +144,9 @@ export default function SettingsPage(): React.ReactElement {
                 },
               })}
             />
-            {errors.username && (
-              <p className={css({ textStyle: 'body', color: 'error-text' })}>{errors.username.message}</p>
-            )}
-          </div>
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-            <Label htmlFor="password">{t('models.settings.newPassword')}</Label>
+          </Field>
+          <Field label={t('models.settings.newPassword')} error={errors.password?.message}>
             <Input
-              id="password"
               type="password"
               autoComplete="new-password"
               {...register('password', {
@@ -156,31 +154,49 @@ export default function SettingsPage(): React.ReactElement {
                 minLength: { value: 12, message: t('models.settings.passwordMin') },
               })}
             />
-            {errors.password && (
-              <p className={css({ textStyle: 'body', color: 'error-text' })}>{errors.password.message}</p>
-            )}
+          </Field>
+          {success ? (
+            <p role="status" className={css({ margin: '0', color: 'text-brand' })}>
+              {t('models.settings.credentialsUpdated')}
+            </p>
+          ) : null}
+          {failure === null ? null : <Alert tone="error">{failure}</Alert>}
+          <div className={css({ display: 'flex', gap: '2', marginBlockStart: '2' })}>
+            <Button
+              type="submit"
+              loading={isSubmitting || mutation.isPending}
+              loadingLabel={t('models.settings.updating')}
+            >
+              {t('models.settings.updateCredentials')}
+            </Button>
           </div>
-          {success && (
-            <p className={css({ textStyle: 'body', color: 'text-brand' })}>{t('models.settings.credentialsUpdated')}</p>
-          )}
-          {failure && <p className={css({ textStyle: 'body', color: 'error-text' })}>{failure}</p>}
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? t('models.settings.updating') : t('models.settings.updateCredentials')}
-          </Button>
         </form>
       </Panel>
 
       {session.data?.passkeys_enabled === true ? <PasskeysCard /> : null}
 
-      <Panel title={t('models.settings.configFile')} description={t('models.settings.configFileDescription')}>
+      <Panel
+        title={t('models.settings.configFile')}
+        description={t('models.settings.configFileDescription')}
+        action={
+          current === undefined ? undefined : (
+            <Button
+              variant="outline"
+              loading={applyMutation.isPending}
+              loadingLabel={t('models.settings.applying')}
+              onClick={() => applyMutation.mutate()}
+            >
+              {t('models.settings.applyConfigFile')}
+            </Button>
+          )
+        }
+      >
         {status.isPending ? (
-          <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('common.loading')}</p>
+          <p className={css({ margin: '0', color: 'text-muted' })}>{t('common.loading')}</p>
         ) : status.isError || current === undefined ? (
-          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-            {errorMessage(status.error)}
-          </p>
+          <Alert tone="error">{errorMessage(status.error)}</Alert>
         ) : (
-          <>
+          <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
             <KvList
               items={[
                 { label: t('models.settings.generation'), value: current.generation },
@@ -209,37 +225,15 @@ export default function SettingsPage(): React.ReactElement {
                       <span className={css({ color: 'text-muted' })}>{t('models.settings.none')}</span>
                     ) : (
                       <span className={css({ color: 'error-text' })}>
-                        {current.last_error.code}: {current.last_error.message} ({current.last_error.at})
+                        {current.last_error.code}: {current.last_error.message}（{current.last_error.at}）
                       </span>
                     ),
                 },
               ]}
             />
-            <div className={css({ marginBlockStart: '4' })}>
-              <Button
-                type="button"
-                disabled={applyMutation.isPending}
-                onClick={() => {
-                  applyMutation.mutate();
-                }}
-              >
-                {applyMutation.isPending ? t('models.settings.applying') : t('models.settings.applyConfigFile')}
-              </Button>
-            </div>
-            {applyFailure !== null && (
-              <p
-                className={css({
-                  textStyle: 'body',
-                  color: 'error-text',
-                  marginBlockStart: '3',
-                  overflowWrap: 'anywhere',
-                })}
-              >
-                {applyFailure}
-              </p>
-            )}
-            {applyResult !== null && <AppliedResult result={applyResult} />}
-          </>
+            {applyFailure === null ? null : <Alert tone="error">{applyFailure}</Alert>}
+            {applyResult === null ? null : <AppliedResult result={applyResult} />}
+          </div>
         )}
       </Panel>
     </div>

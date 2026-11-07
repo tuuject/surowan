@@ -164,8 +164,11 @@ export function ListFooter({
   pageCount,
   onPageChange,
   busy = false,
+  inset = true,
   children,
 }: {
+  /** Under a table the 16px inset lines the count up with the cells; elsewhere it sits flush. */
+  readonly inset?: boolean;
   readonly count: number;
   readonly cursor?: boolean;
   readonly page?: number;
@@ -178,14 +181,16 @@ export function ListFooter({
   const paginated = pageCount !== undefined && onPageChange !== undefined;
   return (
     <div
-      className={css({
-        display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '3',
-        padding: '4',
-      })}
+      className={css(
+        {
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '3',
+        },
+        inset ? { padding: '4' } : { paddingBlockStart: '4' },
+      )}
     >
       <span className={css({ textStyle: 'small', color: 'text-muted', fontVariantNumeric: 'tabular-nums' })}>
         {t(cursor ? 'layout.business.cursorPageCount' : 'layout.business.totalCount', { count, page })}

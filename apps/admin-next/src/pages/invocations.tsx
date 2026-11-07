@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -16,6 +15,7 @@ import type { InvocationListItem } from '@/lib/api/invocations.ts';
 import { formatCost, formatNumber, formatTime } from '@/lib/format';
 import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { invocationsQuery } from '@/lib/queries';
+import { AppLink } from '@/components/router-links';
 import { css } from '@tuuject/koi-react/styled-system/css';
 
 const INVOCATION_STATES = [
@@ -49,42 +49,34 @@ export default function InvocationsPage(): React.ReactElement {
     {
       key: 'id',
       title: t('invocations.invocations.columns.id'),
+      width: 88,
+      skeleton: '4127',
       render: (row) => (
-        <Link
-          to="/invocations/$invocationId"
-          params={{ invocationId: row.id }}
-          className={css({
-            textStyle: 'label',
-            textDecorationColor: 'border',
-            fontVariantNumeric: 'tabular-nums',
-            textDecorationLine: 'underline',
-            textUnderlineOffset: '4px',
-            transitionProperty: 'color, background-color, border-color',
-            transitionDuration: 'fast',
-            _hover: { textDecorationColor: 'text' },
-          })}
-        >
+        <AppLink to="/invocations/$invocationId" params={{ invocationId: row.id }}>
           {row.id}
-        </Link>
+        </AppLink>
       ),
     },
     {
       key: 'state',
       title: t('invocations.invocations.columns.state'),
+      width: 140,
       render: (row) => <StateBadge state={row.state} />,
     },
     {
       key: 'chat',
       title: t('invocations.invocations.columns.chat'),
       render: (row) => (
-        <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-          <div className={css({ textStyle: 'label' })}>
+        <div className={css({ minWidth: '0' })}>
+          <div className={css({ truncate: true })}>
             {row.chat.title ?? row.chat.telegram_chat_id ?? row.chat.room_id}
           </div>
-          <div className={css({ textStyle: 'small', color: 'text-muted' })}>
-            {row.chat.host_kind === 'playground' ? `${t('invocations.invocations.hosts.playground')} · ` : ''}
-            {row.chat.type}
-            {row.chat.message_thread_id === 0 ? '' : ` · topic ${row.chat.message_thread_id}`}
+          <div className={css({ display: 'flex', gap: '2', textStyle: 'small', color: 'text-muted' })}>
+            {row.chat.host_kind === 'playground' ? <span>{t('invocations.invocations.hosts.playground')}</span> : null}
+            <span>{row.chat.type}</span>
+            {row.chat.message_thread_id === 0 ? null : (
+              <span>{t('invocations.invocations.topicLabel', { id: row.chat.message_thread_id })}</span>
+            )}
           </div>
         </div>
       ),
@@ -93,48 +85,53 @@ export default function InvocationsPage(): React.ReactElement {
       key: 'turns',
       title: t('invocations.invocations.columns.turns'),
       align: 'right',
-      className: 'tabular-nums',
+      width: 72,
       render: (row) => String(row.turns_used),
     },
     {
       key: 'tools',
       title: t('invocations.invocations.columns.tools'),
       align: 'right',
-      className: 'tabular-nums',
+      width: 96,
       render: (row) => String(row.tool_call_count),
     },
     {
       key: 'sends',
       title: t('invocations.invocations.columns.sends'),
       align: 'right',
-      className: 'tabular-nums',
+      width: 72,
       render: (row) => String(row.sends_used),
     },
     {
       key: 'tokens',
       title: t('invocations.invocations.columns.tokens'),
       align: 'right',
-      className: 'tabular-nums',
+      width: 96,
       render: (row) => formatNumber(row.total_tokens),
     },
     {
       key: 'cost',
       title: t('invocations.invocations.columns.cost'),
       align: 'right',
-      className: 'tabular-nums',
+      width: 88,
       render: (row) => formatCost(row.total_cost),
     },
     {
       key: 'side-effect',
       title: t('invocations.invocations.columns.sideEffect'),
-      className: 'ps-6',
+      width: 96,
       render: (row) =>
-        row.side_effect_started ? 'started' : <span className={css({ color: 'text-muted' })}>none</span>,
+        row.side_effect_started ? (
+          t('invocations.invocations.sideEffectStarted')
+        ) : (
+          <span className={css({ color: 'text-muted' })}>{t('invocations.invocations.sideEffectNone')}</span>
+        ),
     },
     {
       key: 'created',
       title: t('invocations.invocations.columns.created'),
-      className: 'text-muted-foreground',
+      width: 184,
+      skeleton: '2026-01-18 10:58:15',
       render: (row) => formatTime(row.created_at),
     },
   ];
@@ -170,7 +167,7 @@ export default function InvocationsPage(): React.ReactElement {
         factory={invocationsQuery}
         filters={filters}
         renderItems={(items, { loading }) => (
-          <TableShell columns={COLUMNS} data={items} rowKey={(row) => row.id} loading={loading} />
+          <TableShell columns={COLUMNS} data={items} rowKey={(row) => row.id} loading={loading} minWidth={1120} />
         )}
       />
     </div>

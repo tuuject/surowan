@@ -300,7 +300,7 @@ export const models: typeof modelsEn = {
     historyTitle: '历史报文',
     historyDescription:
       '清除已保存的模型请求与响应快照，保留 Invocation、调用记录、Token、费用、状态和错误审计。重放输入也会一并删除，受影响的历史 Invocation 将无法再重放。 SQLite 会复用释放的空间，数据库文件不一定立即缩小。',
-    clearButton: '清除此前记录的原始请求报文',
+    clearButton: '清除报文',
     cleared: '已清除 {{count}} 条模型调用的调试报文。',
     confirmTitle: '清除此前记录的原始请求报文？',
     confirmDescription:

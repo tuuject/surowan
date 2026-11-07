@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -16,10 +15,9 @@ import type { MessageListItem } from '@/lib/api/messages.ts';
 import { formatNumber, formatTime } from '@/lib/format';
 import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { messagesQuery } from '@/lib/queries';
+import { AppLink } from '@/components/router-links';
 import { css } from '@tuuject/koi-react/styled-system/css';
 
-const ID_LINK =
-  'decoration-border hover:decoration-foreground font-medium tabular-nums underline underline-offset-4 transition-colors';
 const EMPTY_FILTERS = { search: '', chat: '' };
 
 /** Text or caption; non-text kinds carry a neutral kind badge so a sticker row isn't just a dash. */
@@ -30,9 +28,11 @@ function MessageCell({ row }: { readonly row: MessageListItem }): React.ReactEle
     return <span className={css({ color: 'text-muted' })}>—</span>;
   }
   return (
-    <div className={css({ display: 'flex', maxWidth: '28rem', alignItems: 'flex-start', gap: '2' })}>
+    <div className={css({ display: 'flex', minWidth: '0', alignItems: 'flex-start', gap: '2' })}>
       {showKind ? <ToneBadge tone="neutral">{row.kind}</ToneBadge> : null}
-      {body === null ? null : <p className={css({ lineClamp: '2', overflowWrap: 'anywhere' })}>{body}</p>}
+      {body === null ? null : (
+        <p className={css({ margin: '0', lineClamp: '2', whiteSpace: 'normal', overflowWrap: 'anywhere' })}>{body}</p>
+      )}
     </div>
   );
 }
@@ -47,24 +47,25 @@ export default function MessagesPage(): React.ReactElement {
     {
       key: 'id',
       title: t('invocations.messages.columns.id'),
+      width: 88,
+      skeleton: '1024',
       render: (row) => (
-        <Link to="/messages/$messageId" params={{ messageId: row.id }} className={ID_LINK}>
+        <AppLink to="/messages/$messageId" params={{ messageId: row.id }}>
           {row.id}
-        </Link>
+        </AppLink>
       ),
     },
     {
       key: 'chat',
       title: t('invocations.messages.columns.chat'),
-      className: 'min-w-40',
       render: (row) => (
-        <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-          <div className={css({ textStyle: 'label', overflowWrap: 'anywhere' })}>
-            {row.chat.title ?? row.chat.telegram_chat_id}
-          </div>
-          <div className={css({ textStyle: 'small', color: 'text-muted' })}>
-            {row.chat.type}
-            {row.chat.message_thread_id === 0 ? '' : ` · topic ${row.chat.message_thread_id}`}
+        <div className={css({ minWidth: '0' })}>
+          <div className={css({ truncate: true })}>{row.chat.title ?? row.chat.telegram_chat_id}</div>
+          <div className={css({ display: 'flex', gap: '2', textStyle: 'small', color: 'text-muted' })}>
+            <span>{row.chat.type}</span>
+            {row.chat.message_thread_id === 0 ? null : (
+              <span>{t('invocations.invocations.topicLabel', { id: row.chat.message_thread_id })}</span>
+            )}
           </div>
         </div>
       ),
@@ -95,33 +96,33 @@ export default function MessagesPage(): React.ReactElement {
     {
       key: 'text',
       title: t('invocations.messages.columns.message'),
-      className: 'min-w-72 whitespace-normal',
       render: (row) => <MessageCell row={row} />,
     },
     {
       key: 'revision_count',
       title: t('invocations.messages.columns.revisions'),
       align: 'right',
-      className: 'tabular-nums',
+      width: 88,
       render: (row) => formatNumber(row.revision_count),
     },
     {
       key: 'media_count',
       title: t('invocations.messages.columns.media'),
       align: 'right',
-      className: 'tabular-nums',
+      width: 80,
       render: (row) => formatNumber(row.media_count),
     },
     {
       key: 'telegram_message_id',
       title: t('invocations.messages.columns.telegramId'),
-      className: 'text-muted-foreground ps-6 tabular-nums',
+      width: 136,
       render: (row) => row.telegram_message_id,
     },
     {
       key: 'received_at',
       title: t('invocations.messages.columns.received'),
-      className: 'text-muted-foreground',
+      width: 184,
+      skeleton: '2026-01-18 10:58:15',
       render: (row) => formatTime(row.received_at),
     },
   ];
@@ -150,6 +151,7 @@ export default function MessagesPage(): React.ReactElement {
             data={items}
             rowKey={(row) => row.id}
             loading={loading}
+            minWidth={1040}
             emptyText={t('invocations.messages.empty.title')}
             emptyDescription={t('invocations.messages.empty.description')}
           />

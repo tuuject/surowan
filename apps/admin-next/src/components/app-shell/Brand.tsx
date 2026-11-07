@@ -1,5 +1,4 @@
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { BrandIcon } from '@/components/icons';
 import { useTranslation } from 'react-i18next';
 
 const logo = css({
@@ -10,8 +9,10 @@ const logo = css({
   width: 'control-lg',
   height: 'control-lg',
   borderRadius: 'xl',
-  bg: 'primary-solid',
-  color: 'on-primary-solid',
+  bg: 'secondary-solid',
+  color: 'on-secondary-solid',
+  textStyle: 'heading-3',
+  fontWeight: 'bold',
 });
 
 const logoCompact = css({
@@ -22,8 +23,10 @@ const logoCompact = css({
   width: 'control-md',
   height: 'control-md',
   borderRadius: 'xl',
-  bg: 'primary-solid',
-  color: 'on-primary-solid',
+  bg: 'secondary-solid',
+  color: 'on-secondary-solid',
+  textStyle: 'body',
+  fontWeight: 'bold',
 });
 
 const title = css({ textStyle: 'heading-3', fontWeight: 'bold', color: 'text', whiteSpace: 'nowrap' });
@@ -37,8 +40,9 @@ export function Brand({ compact = false }: { compact?: boolean }) {
   const { t } = useTranslation();
   return (
     <div className={css({ display: 'flex', alignItems: 'center', gap: '3', minWidth: '0' })}>
+      {/* The same letter mark NavMenu draws in the sidebar's brand slot. */}
       <span className={compact ? logoCompact : logo} aria-hidden="true">
-        <BrandIcon size={compact ? 18 : 22} />
+        S
       </span>
       <span
         className={css({ display: 'flex', flexDirection: 'column', gap: '0.125rem', minWidth: '0' })}

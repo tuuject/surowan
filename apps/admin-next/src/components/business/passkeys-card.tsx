@@ -81,7 +81,6 @@ export function PasskeysCard(): React.ReactElement {
     {
       key: 'name',
       title: t('pages.passkeys.name'),
-      className: 'max-w-52 whitespace-normal [overflow-wrap:anywhere]',
       render: (item) => (
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           <span className={css({ display: 'block' })}>{item.name}</span>

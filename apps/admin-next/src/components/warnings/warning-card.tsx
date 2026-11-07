@@ -6,6 +6,7 @@ import { ButtonLink } from '@/components/router-links';
 import type { EventWarning, WarningItem, WarningSeverity } from '@/lib/api/warnings.ts';
 import { formatTime } from '@/lib/format';
 import { css } from '@tuuject/koi-react/styled-system/css';
+import { sizes } from '@tuuject/koi-tokens/dimensions';
 
 function numberVariable(variables: Readonly<Record<string, unknown>>, key: string): number | null {
   const value = variables[key];
@@ -269,11 +270,12 @@ export function WarningCard({
       >
         <div className={css({ display: 'flex', minWidth: '0', alignItems: 'flex-start', gap: '3' })}>
           <Icon
-            className={
-              warning.severity === 'critical'
-                ? 'mt-0.5 size-5 shrink-0 text-danger'
-                : 'mt-0.5 size-5 shrink-0 text-warning'
-            }
+            size={sizes['icon-lg']}
+            className={css({
+              flexShrink: '0',
+              marginBlockStart: '1px',
+              color: warning.severity === 'critical' ? 'error-text' : 'warning-text',
+            })}
           />
           <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
             <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
@@ -294,7 +296,6 @@ export function WarningCard({
           {unread ? (
             <Button
               type="button"
-              size="sm"
               variant="ghost"
               color="secondary"
               disabled={pending}
@@ -310,11 +311,22 @@ export function WarningCard({
         </div>
       </div>
       {event !== null ? (
-        <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-          {t('pages.warnings.createdAt', { time: formatTime(event.created_at) })}
-          {' · '}
-          {t('pages.warnings.updatedAt', { time: formatTime(event.updated_at) })}
-          {event.read_at === null ? '' : ` · ${t('pages.warnings.readAt', { time: formatTime(event.read_at) })}`}
+        <p
+          className={css({
+            display: 'flex',
+            flexWrap: 'wrap',
+            columnGap: '4',
+            rowGap: '1',
+            margin: '0',
+            textStyle: 'small',
+            color: 'text-muted',
+          })}
+        >
+          <span>{t('pages.warnings.createdAt', { time: formatTime(event.created_at) })}</span>
+          <span>{t('pages.warnings.updatedAt', { time: formatTime(event.updated_at) })}</span>
+          {event.read_at === null ? null : (
+            <span>{t('pages.warnings.readAt', { time: formatTime(event.read_at) })}</span>
+          )}
         </p>
       ) : null}
     </div>

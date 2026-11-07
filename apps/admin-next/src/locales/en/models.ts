@@ -313,7 +313,7 @@ export const models = {
     historyTitle: 'Payload history',
     historyDescription:
       'Clear saved model request and response snapshots while keeping Invocation, call records, Token, cost, status, and error audit. Replay inputs are also deleted; affected historical Invocations can no longer be replayed. SQLite reuses the freed space; the database file does not necessarily shrink immediately.',
-    clearButton: 'Clear previously recorded raw request payloads',
+    clearButton: 'Clear payloads',
     cleared: 'Cleared debug payloads for {{count}} model calls.',
     confirmTitle: 'Clear previously recorded raw request payloads?',
     confirmDescription:

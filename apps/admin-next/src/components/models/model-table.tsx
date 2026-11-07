@@ -108,7 +108,6 @@ export function ModelTable({
     {
       key: 'model',
       title: t('models.models.page.colModel'),
-      className: 'max-w-96 min-w-48 whitespace-normal',
       render: (row) => (
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           <MonoValue value={row.model.id} />
@@ -140,14 +139,12 @@ export function ModelTable({
       key: 'context',
       title: t('models.models.page.colContext'),
       align: 'right',
-      className: 'tabular-nums',
       render: (row) => formatNumber(row.model.context_window),
     },
     {
       key: 'max_tokens',
       title: t('models.models.page.colMaxOutput'),
       align: 'right',
-      className: 'tabular-nums',
       render: (row) => formatNumber(row.model.max_tokens),
     },
     {

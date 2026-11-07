@@ -40,7 +40,6 @@ function ToolRegistryTable({ registry }: { readonly registry: readonly ToolRegis
     {
       key: 'description',
       title: t('invocations.invocationDetail.toolRegistry.description'),
-      className: 'min-w-64 max-w-2xl',
       render: (row) => (
         <p className={css({ textStyle: 'body', maxWidth: '42rem', overflowWrap: 'anywhere' })}>{row.description}</p>
       ),

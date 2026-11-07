@@ -52,7 +52,6 @@ export function dictionaryColumns(options: DictionaryColumnsOptions): readonly C
     {
       key: 'term',
       title: t('dictionary.page.colTerm'),
-      className: 'whitespace-normal',
       render: (entry) => (
         <span className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1' })}>
           <span className={css({ textStyle: 'label' })}>{entry.term}</span>
@@ -68,7 +67,6 @@ export function dictionaryColumns(options: DictionaryColumnsOptions): readonly C
     {
       key: 'aliases',
       title: t('dictionary.page.colAliases'),
-      className: 'max-w-64 min-w-32 whitespace-normal',
       render: (entry) =>
         entry.aliases.length === 0 ? (
           <span className={css({ color: 'text-muted' })}>{t('dictionary.page.noAliases')}</span>
@@ -94,7 +92,6 @@ export function dictionaryColumns(options: DictionaryColumnsOptions): readonly C
     {
       key: 'definition',
       title: t('dictionary.page.colDefinition'),
-      className: 'max-w-80 min-w-48 whitespace-normal',
       render: (entry) => <div className={css({ lineClamp: '2' })}>{entry.definition}</div>,
     },
     {
