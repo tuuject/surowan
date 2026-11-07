@@ -166,9 +166,19 @@ export function AttemptRow({
           {formatTime(invocation.finished_at)}
         </span>
       </div>
-      <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-        {invocation.completion_reason ?? invocation.state}
-        {invocation.error_code === null ? '' : ` · ${invocation.error_code}`}
+      <p
+        className={css({
+          margin: '0',
+          display: 'flex',
+          flexWrap: 'wrap',
+          columnGap: '3',
+          rowGap: '1',
+          textStyle: 'small',
+          color: 'text-muted',
+        })}
+      >
+        <span>{invocation.completion_reason ?? invocation.state}</span>
+        {invocation.error_code === null ? null : <span>{invocation.error_code}</span>}
       </p>
       {canRetry ? (
         <Button

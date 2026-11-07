@@ -237,7 +237,9 @@ export function ChatFilter({
           <option
             key={chat.telegram_chat_id}
             value={chat.telegram_chat_id}
-            label={`${chat.title ?? chat.telegram_chat_id} · ${chat.type}${chat.username === null ? '' : ` · @${chat.username}`}`}
+            label={[chat.title ?? chat.telegram_chat_id, chat.type, chat.username === null ? null : `@${chat.username}`]
+              .filter((part) => part !== null)
+              .join(t('common.separator'))}
           />
         ))}
       </datalist>

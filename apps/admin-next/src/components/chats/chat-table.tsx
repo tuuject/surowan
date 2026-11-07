@@ -104,6 +104,7 @@ export function ChatTable({
     summarizeWindows([window], {
       dayLabels: t('pages.chats.weekdaysShort').split(','),
       dailyLabel: t('pages.chats.daily'),
+      separator: t('common.separator'),
     });
   const groupMemoryText = (settings: ChatSettingsView): string => {
     const memory = settings.group_memory;

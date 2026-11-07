@@ -76,7 +76,7 @@ export function GroupMemoryDialog({
       description={t('pages.chats.groupMemoryDescription')}
       footer={
         <>
-          <Button type="button" variant="outline" color="secondary" disabled={save.isPending} onClick={onClose}>
+          <Button type="button" variant="ghost" color="secondary" disabled={save.isPending} onClick={onClose}>
             {t('common.cancel')}
           </Button>
           <Button type="submit" form="group-memory-dialog-form" disabled={save.isPending}>

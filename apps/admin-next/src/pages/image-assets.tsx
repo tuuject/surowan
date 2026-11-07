@@ -53,7 +53,7 @@ function PromptEditor({ onDone }: { readonly onDone: () => void }) {
       description={t('image.assets.bodyPlaceholder')}
       footer={
         <>
-          <Button variant="outline" color="secondary" onClick={onDone} disabled={create.isPending}>
+          <Button variant="ghost" color="secondary" onClick={onDone} disabled={create.isPending}>
             {t('common.cancel')}
           </Button>
           <Button
@@ -226,29 +226,23 @@ export default function ImageAssetsPage() {
       <ListPageHeader title={t('image.assets.title')} />
       <ListToolbar
         trailing={
-          <div
-            className={css({
-              textStyle: 'body',
-              bg: 'surface-muted',
-              display: 'flex',
-              borderRadius: 'lg',
-              padding: '1',
-            })}
-          >
-            <button
-              type="button"
-              className={`rounded px-3 py-1 ${tab === 'prompts' ? 'bg-background font-medium' : ''}`}
+          <div className={css({ display: 'flex', gap: '1' })}>
+            <Button
+              variant={tab === 'prompts' ? 'soft' : 'ghost'}
+              color="secondary"
+              aria-pressed={tab === 'prompts'}
               onClick={() => setTab('prompts')}
             >
               {t('image.assets.tabPrompts')}
-            </button>
-            <button
-              type="button"
-              className={`rounded px-3 py-1 ${tab === 'images' ? 'bg-background font-medium' : ''}`}
+            </Button>
+            <Button
+              variant={tab === 'images' ? 'soft' : 'ghost'}
+              color="secondary"
+              aria-pressed={tab === 'images'}
               onClick={() => setTab('images')}
             >
               {t('image.assets.tabImages')}
-            </button>
+            </Button>
           </div>
         }
         onRefresh={() => void (tab === 'prompts' ? prompts.refetch() : assets.refetch())}

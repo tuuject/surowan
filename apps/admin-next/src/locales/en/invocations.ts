@@ -116,8 +116,8 @@ export const invocations = {
     contextMessage: {
       unknownSender: 'Unknown sender',
       mediaCount: '{{count}} media',
-      telegramMessage: 'Telegram message {{id}} · {{kind}}',
-      roomMessage: 'Room message #{{id}} · {{kind}}',
+      telegramMessage: 'Telegram message {{id}}, {{kind}}',
+      roomMessage: 'Room message #{{id}}, {{kind}}',
       openRecord: 'Open message record',
       openRoom: 'Open room',
     },

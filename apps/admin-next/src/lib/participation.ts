@@ -101,10 +101,10 @@ function runText(start: number | undefined, end: number | undefined, dayLabels: 
   return first === last ? first : `${first}–${last}`;
 }
 
-/** `Mon–Fri 09:00–18:00 · Sat 10:00–14:00`; every-day windows only show their time span with the daily label. */
+/** `Mon–Fri 09:00–18:00, Sat 10:00–14:00`; every-day windows only show their time span with the daily label. */
 export function summarizeWindows(
   windows: readonly ParticipationWindow[],
-  options: { readonly dayLabels: readonly string[]; readonly dailyLabel: string },
+  options: { readonly dayLabels: readonly string[]; readonly dailyLabel: string; readonly separator: string },
 ): string {
   return windows
     .map((window) => {
@@ -115,7 +115,7 @@ export function summarizeWindows(
           : dayListText(window.days, options.dayLabels, options.dailyLabel);
       return `${days} ${time}`;
     })
-    .join(' · ');
+    .join(options.separator);
 }
 
 const WEEKDAY_BY_SHORT_NAME: Readonly<Record<string, number>> = {

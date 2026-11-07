@@ -42,7 +42,7 @@ export const dictionary = {
   scope: {
     label: 'Dictionary scope',
     global: 'Global dictionary',
-    groupPrefix: 'Group',
+    groupOption: 'Group: {{name}}',
     chatFilterPlaceholder: 'Filter chats',
     noChats: 'No allowlisted Chat is known yet.',
     selectChat: 'Select a Chat',
@@ -184,7 +184,7 @@ export const dictionary = {
     confirm: 'Save merged entry',
     merging: 'Saving…',
     merged: 'Merged entry saved',
-    sourcesDeleted: 'Source entries deleted',
+    sourcesDeleted: 'source entries deleted',
     cancel: 'Cancel',
     conflictsWarning:
       'The suggested term or aliases already exist elsewhere; the result is still saved as a separate entry.',

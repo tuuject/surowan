@@ -44,14 +44,10 @@ export function DictionaryScopePanel({
           }}
         >
           <option value="__global__">{t('dictionary.scope.global')}</option>
-          {missingScope ? (
-            <option value={chatId}>
-              {t('dictionary.scope.groupPrefix')} · {chatId}
-            </option>
-          ) : null}
+          {missingScope ? <option value={chatId}>{t('dictionary.scope.groupOption', { name: chatId })}</option> : null}
           {chats.map((chat) => (
             <option key={chat.id} value={chat.id}>
-              {t('dictionary.scope.groupPrefix')} · {chat.title ?? chat.id}
+              {t('dictionary.scope.groupOption', { name: chat.title ?? chat.id })}
             </option>
           ))}
         </Select>

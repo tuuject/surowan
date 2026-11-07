@@ -27,7 +27,8 @@ export default function ImageSettingsPage() {
   const config = useQuery({ queryKey: ['image-config'], queryFn: getImageConfig });
   const status = useQuery({ queryKey: ['image-status'], queryFn: getImageStatus });
   return (
-    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
+    // The settings column: one width-limited form, as on Settings and Harness.
+    <div className={css({ maxWidth: '768px', marginInline: 'auto', '& > * + *': { marginBlockStart: '6' } })}>
       <ListPageHeader
         title={t('image.settings.title')}
         description={t('image.settings.statusLine', {

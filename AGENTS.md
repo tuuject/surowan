@@ -45,7 +45,7 @@ surowan/
 ├── test/                   # vitest 行为测试与 MCP fixture
 ├── scripts/                # 一次性维护脚本（直连 better-sqlite3，不属于业务层）
 ├── skills/                 # 开发本仓库用的 Coding Agent Skill 源（不是 Bot 的 System Skill）；`npx skills add tuuject/surowan` 可直接安装
-├── apps/admin-next/        # Vite + React + Koi (Panda CSS) + Tailwind Admin Panel 前端（纯静态 SPA）
+├── apps/admin-next/        # Vite + React + Koi (Panda CSS) Admin Panel 前端（纯静态 SPA）
 ├── apps/docs/              # Rspress 中文官网与用户指南（独立静态站）
 ├── packages/image-service/ # 私有图片生成核心包：有损意图 API、provider adapter 边界、领域测试
 ├── packages/admin-surface/ # Admin Panel 路由表与权限标注：CLI 命令与 MCP 工具的共同数据源

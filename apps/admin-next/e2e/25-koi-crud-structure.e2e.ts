@@ -235,6 +235,13 @@ const paginatedRoutes = [
 
 for (const entry of paginatedRoutes) {
   test(`${entry.path} has real pagination and Koi Card structure`, async ({ page }) => {
+    if (entry.path === '/image-generations') {
+      // The e2e server wires no image service, so its history read always fails;
+      // a real (empty) page keeps the check off the loading state.
+      await page.route('**/api/image/generations?*', (route) =>
+        route.fulfill({ json: { items: [], total: 0, limit: 20, offset: 0 } }),
+      );
+    }
     await page.goto(await adminUrl(entry.path));
     await expect(page.getByRole('navigation', { name: 'Pagination', exact: true }).first()).toBeVisible();
     await expectCardStructure(page, entry);

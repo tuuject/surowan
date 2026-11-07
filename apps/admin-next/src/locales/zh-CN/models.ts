@@ -71,7 +71,7 @@ export const models: typeof modelsEn = {
       healthUnexpected: '意外响应',
       healthError: '错误',
       ttfbUnavailable: '不可用',
-      healthTiming: 'TTFB {{ttfb}} · 总耗时 {{duration}}',
+      healthTiming: 'TTFB {{ttfb}}，总耗时 {{duration}}',
       healthCheckNote:
         '检查会使用固定提示词 "reply with extract content: ok" 发起一次真实模型调用，可能产生 provider 费用。TTFB 为收到 HTTP 响应头的时间，不是首个生成 Token；adapter 未报告时显示为不可用。',
     },
@@ -96,7 +96,7 @@ export const models: typeof modelsEn = {
       label: 'Tool Model',
       description: '在聊天流程之外执行系统任务的辅助模型（辞典融合）。复用上面的 Provider 与凭据。',
       inherited: '继承 Agent 模型',
-      inheritedValue: '{{provider}} / {{model}} · {{level}}',
+      inheritedValue: '{{provider}} / {{model}}，{{level}}',
       inherit: '继承 Agent 模型',
       select: '选择 Tool Model',
       pickerTitle: '选择 Tool Model',
@@ -174,9 +174,8 @@ export const models: typeof modelsEn = {
     picker: {
       discoverTitle: '拉取模型',
       manualTitle: '按 id 添加模型',
-      base: '{{alias}} · {{api}}',
-      metadataListing: ' · 元数据来自 provider 列表和 models.dev',
-      metadataOnly: ' · 仅元数据；不会调用列表端点',
+      discoverDescription: '{{alias}}（{{api}}）。元数据来自 provider 列表和 models.dev。',
+      manualDescription: '{{alias}}（{{api}}）。仅元数据，不会调用列表端点。',
       useSaved: '使用已保存的连接',
       useTemp: '使用临时模式（key 来自本表单）',
       endpointLabel: 'endpoint：',
@@ -229,7 +228,7 @@ export const models: typeof modelsEn = {
       select: '选择 {{id}}',
       emptyList: '没有匹配的模型。',
       selectedCount: '已选择 {{count}} 个',
-      unresolvedSuffix: '· {{ids}} 仍需确认字段',
+      unresolvedSuffix: '{{ids}} 仍需确认字段',
       acceptListed: '接受所列数值（{{count}}）',
     },
     feedback: {

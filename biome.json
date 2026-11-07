@@ -52,30 +52,6 @@
       }
     },
     {
-      "includes": ["apps/admin-next/src/components/ui/**"],
-      "linter": {
-        "rules": {
-          "a11y": {
-            "noLabelWithoutControl": "warn",
-            "useSemanticElements": "off",
-            "useFocusableInteractive": "off",
-            "useAriaPropsForRole": "off",
-            "useKeyWithClickEvents": "off"
-          },
-          "correctness": {
-            "useExhaustiveDependencies": "warn"
-          },
-          "suspicious": {
-            "noArrayIndexKey": "off",
-            "noDocumentCookie": "off"
-          },
-          "security": {
-            "noDangerouslySetInnerHtml": "off"
-          }
-        }
-      }
-    },
-    {
       "includes": ["test/**"],
       "linter": {
         "rules": {

@@ -56,7 +56,7 @@ export function ListPageHeader({
   return <PageHeader title={title} {...(description === undefined ? {} : { description })} actions={actions} />;
 }
 
-/** The only Card in authenticated page content: query and filter conditions. */
+/** A list page's only Card: the query and filter conditions; the table stays on the page. */
 export function ListFilterCard({
   children,
   activeCount = 0,

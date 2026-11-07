@@ -1,14 +1,15 @@
 # Surowan Admin (Next)
 
 Surowan 的 Admin Panel 前端。构建产物是**静态 SPA**（Vite + React + Koi 设计体系
-`@tuuject/koi-react` / Panda CSS + Tailwind 4 布局工具 + TanStack Router/Query），由后端
+`@tuuject/koi-react` / Panda CSS + TanStack Router/Query），由后端
 `AdminServer`（`serve` 进程内的 `src/ingress/admin/index.ts`）**同源托管**，不依赖任何
 Node/Nitro 运行时。`dist/` 里的 `index.html` 由后端做深链接回退（未知路径回落到 SPA）。
 
 Koi 0.3.0 以 npm 发布版引入（不能用 `workspace:*` / `file:`）。应用壳、导航、登录、
-通用控件和主要面板按 Koi 的组件与语义 token 实现；Tailwind 保留给页面布局和既有业务
-工具类，颜色与圆角通过 `src/styles/globals.css` 映射到 Koi token，因此亮暗主题始终
-同步。`styled-system/` 由 Panda 构建生成，已 gitignore。
+通用控件和全部页面按 Koi 的组件、recipes 与语义 token 实现，样式一律写 Panda `css()`；
+图标是 Font Awesome 7 Solid（`@iconify-icons/fa7-solid`，经 Koi `Icon` 渲染，集中在
+`src/components/icons.tsx`）。亮暗主题只由 `<html data-theme>` 切换。`styled-system/`
+由 Panda 构建生成，已 gitignore。
 
 ## 命令
 
@@ -47,10 +48,9 @@ pnpm --filter surowan-admin-next run test:e2e # Playwright 浏览器 E2E（见�
 
 - 主题初始化用同源 `public/theme-boot.js`（`localStorage` 键 `admin-theme`），
   不引入内联脚本、不写 cookie、不注入 HTML。
-- 业务代码不引入 `dangerouslySetInnerHTML` / `document.cookie`；`src/components/ui/**`
-  是 Koi 组件的薄适配层，不享受安全豁免。
-- 主题初始化同时写 `data-theme`（Koi/Panda 条件）和 `dark` class（JSON viewer 与既有
-  持久化键），二者由 `ThemeProvider` 保持一致。
+- 业务代码不引入 `dangerouslySetInnerHTML` / `document.cookie`。
+- 主题初始化只写 `<html data-theme>`（Koi/Panda 条件），`ThemeProvider` 之后接管；
+  JSON viewer 按 `useTheme()` 的解析结果选亮暗主题。
 - 界面语言存 `localStorage['admin-language']`，支持 English / 中文；Koi 组件自带的
   close / pagination / empty 文案由 `StringsProvider` 一并翻译。
 - 前端保留桌面壳（Electron / 安装式 PWA）预留：`viewport-fit=cover`、`env()` 安全区、
@@ -77,7 +77,7 @@ Playwright 套件位于 `e2e/**/*.e2e.ts`（文件名不以 `.test.ts` 结尾，
 `e2e/server.ts`：临时目录 + 临时 SQLite + `test/fixtures/admin-seed.ts` 合成数据 +
 真实 `AdminServer`（`static_dir` 指向本包 `dist`），回环随机端口，用完即关并清理；
 文件间互不共享状态，按全部 CPU 核心并行，任一套件都可单独运行。
-用例覆盖认证状态机、路由深链接、列表过滤与 Load more 游标分页、Invocation
+用例覆盖认证状态机、路由深链接、列表过滤与 Previous/Next 游标分页、Invocation
 六 Tab、记忆/管理员/模型/Chats/Developer/告警/Overview 写操作与冲突路径、只读保证与 CSP 同源
 安全断言。真实命令与契约清单见
 [agent-doc/verification.md](../../agent-doc/verification.md#admin-panel-浏览器-e2e)。
@@ -146,49 +146,62 @@ models.dev 目录缓存——`GET /providers/discover` 与 `lookup-metadata` 因
 
 ```ts
 import {
-  ChartPanel, ConfirmDialog, CursorList, FilterToolbar, JsonViewer, KvList,
-  LazyDetails, MonoValue, PrivateReasoningNote, PrivateReasoningTag,
-  SelectFilter, StateBadge, TableShell, TextValue, TimeSeriesChart, flatPages,
-  FLUSH_TABLE_CLASS, LIST_TABLE_CLASS,
-  type ColumnSpec, type CursorQueryFactory, type CursorQueryOptions,
+  ChartPanel, ConfirmDialog, CopyableValue, CursorList, DetailError, DetailSkeleton,
+  FormActionBar, JsonViewer, KvList, LazyDetails, ListFilterCard, ListFooter,
+  ListPageHeader, ListSearchForm, ListToolbar, MonoValue, RowActions, SettingRow,
+  StateBadge, TableShell, TextValue, ToneBadge, useClientPagination, useOffsetPagination,
+  type ColumnSpec, type TableSelection,
 } from '@/components/business';
 ```
 
-页面区块统一用 `@/components/layout/panel` 的 `Panel`（卡片 + 标题 + 可选尾部操作，
-`min-h-9` 让同一行的面板标题与首行内容对齐）。**一个区域一个边框**：面板里不再套第二层
-边框——表格传 `flush` 并用 `FLUSH_TABLE_CLASS`（只保留标题下那条线、首尾单元格与标题同
-inset），图表无边框，列表项不要自己的 border。`LIST_TABLE_CLASS` 只给不在面板里的独立表格。
+页面区块用 `@/components/layout/panel` 的 `Panel`：一张 Koi `Card`，`h2` 标题
+（同时作为区域名，`role="region"` + `aria-labelledby`）、可选一行说明与右侧操作。
+一张 Card 只装一件事，Card 里不再套 Card。
 
-### 游标列表容器 `cursor-list.tsx`
+### 列表页骨架 `list-page.tsx` 与 `query-form.tsx`
 
-- `CursorList<T, TQueryKey>`：props 为 `factory`（`(filters: ListFilters) =>
-  CursorQueryOptions<T>`，直接传 `lib/queries.ts` 的工厂如 `invocationsQuery`）、
-  `filters`、`renderItems(items)`，可选 `empty` / `errorTitle` /
-  `skeletonRows` / `loadMoreLabel` / `className`。
-- 组件内部调用 `useInfiniteQuery`（每页 25 条，`next_cursor` 透传），自行渲染
-  loading 骨架、错误态（`ApiError.code: message`）、空态和 “Load more” 按钮
-  （仅当 `next_cursor` 非空）。
-- **禁止**：跳页、总页数、对已加载数据的客户端排序、把 error 当空态。
-- 过滤变化 = query key 变化 = 已加载分页自动重置，页面只需把过滤值放进
-  `filters`。
-- `flatPages(query.data)` 把分页拍平成数组，详情展开等场景可单独使用。
+- 顺序固定为 `ListPageHeader`（标题、说明、页级操作）→ `ListFilterCard`（唯一的
+  筛选 Card，内放 `ListSearchForm`）→ `ListToolbar`（左侧新建等操作，右侧选择信息与
+  刷新）→ 直接放在页面上的 `TableShell` → `ListFooter`（真实计数与 Koi 分页）。
+- `ListSearchForm` 的输入只是草稿，点 Search 或回车才写进 URL；`ChatFilter` 的
+  建议项也不会直接应用查询。
+- `RowActions` 是表格行操作：`sm ghost` 按钮或 `md` IconButton，无间距、靠右并向外
+  拉 8px，危险操作用 `color="error"`。
 
-### 过滤工具栏 `filter-toolbar.tsx`
+### 分页 `cursor-list.tsx` 与 `pagination.ts`
 
-- `FilterToolbar`：flex-wrap 容器，子项自动换行。
-- `TextFilter`：受控文本过滤，提交/清除语义。props：`value`（已应用的过滤值，
-  `undefined` 表示未过滤）、`placeholder`、`onCommit(value)`（回车或搜索按钮，
-  trim 后提交）、`onClear()`（清空输入并清除已应用过滤）。**清除按钮会立即
-  重置过滤与分页**（这是相对旧面板非受控 `Input.Search` 的有意改进）。
-- `SelectFilter<T extends string>`：下拉即时生效，`onChange(value | undefined)`
-  立即回调；选项用 `FilterOption[]`（`{ value, label }`），列表里自带
-  “All” 项表示无过滤。不要拿它做延迟提交。
+- `CursorList` / `useCursorPages`：基于 keyset API 的真实 Previous/Next，只渲染当前
+  页；过滤（query key）变化立即回到第一页。`ListFooter` 的 `cursor` 模式只显示当前
+  页条数和「已知页 + 可能的下一页」，从不编造总数。
+- `useOffsetPagination` 给返回 `total` 的 offset API，`useClientPagination` 给一次性
+  返回的整个数组（每页 10 条）。
+- **禁止**：对已加载数据做客户端排序、把 error 当空态。
+
+### 表格外壳 `table-shell.tsx`
+
+- `TableShell<T>({ columns, data, rowKey, expandedRender?, isExpandable?, emptyText?,
+  emptyDescription?, emptyAction?, minWidth?, layout?, caption?, loading?, skeletonRows?,
+  selection?, activeRowKey? })`，基于 Koi `Table`；横向滚动由 Table 自带，行展开是本地
+  state（chevron 列）。
+- `ColumnSpec<T>`：`{ key, title, align?, width?, paddingBlock?, skeleton?, className?,
+  render(row) }`；图标按钮列用 `paddingBlock: 'none'`。
+- `selection` 渲染首列 Koi Checkbox（全选 + 每行），`activeRowKey` 给当前行选中底色与
+  `aria-current`。无跳页、无排序。
+
+### 设置类表单 `setting-row.tsx` 与 `form-action-bar.tsx`
+
+- 设置页是限宽 768px 的一栏，每组设置一张 `Panel`；控件用 Koi `Field` 包裹，即时
+  生效的开关用 `Switch`，保存后才生效的选择用 `Checkbox`。
+- `SettingRow({ label, description?, hint?, children })`：左侧标签与说明、右侧控件，
+  `children` 拿到 `{ id, describedBy }` 接线。
+- `FormActionBar`：长表单底部的粘性保存条（玻璃底 + `float` 阴影）；`status` 常驻
+  `role="status"`，`statusId` 让提交按钮由它描述，`error` 以 `role="alert"` 显示。
 
 ### 状态徽章 `state-badge.tsx`
 
 - `StateBadge({ state })`：state → `stateColor`（`lib/format.ts` 的状态色表）
   → 语义变体（success/info/warning/danger/neutral）。未知状态与未知颜色一律
-  兜底 neutral；`null`/空串渲染为 `—`。
+  兜底 neutral；`null`/空串渲染为 `—`。`ToneBadge` 直接按语义着色。
 - `stateBadgeSemantic(state)`：纯函数，测试/样式复用。
 
 ### JSON 查看器 `json-viewer.tsx`
@@ -202,16 +215,16 @@ inset），图表无边框，列表项不要自己的 border。`LIST_TABLE_CLASS
 
 ### 懒挂载折叠区 `lazy-details.tsx`
 
-- `LazyDetails({ summary, children, className?, summaryClassName?,
-  contentClassName? })`：原生 `<details>` 语义 + **展开前不挂载 children**。
-  原生 `<details>` 只是把子树隐藏起来，仍然会渲染 DOM——重内容（`JsonViewer`
-  树、tool registry 表格、长文本）必须用它包一层。
+- `LazyDetails({ summary, children, className? })`：原生 `<details>` 语义 +
+  **展开前不挂载 children**。原生 `<details>` 只是把子树隐藏起来，仍然会渲染
+  DOM——重内容（`JsonViewer` 树、tool registry 表格、长文本）必须用它包一层。
 - 首次展开后 children 常驻，折叠不清空查看器内部状态（树/文本模式、节点展开）。
-- 需要多段内容的折叠区用 `contentClassName` 承担原先内层 `<div>` 的间距类。
+  summary 自带旋转的 chevron，样式由组件统一，调用方只传内容。
 
 ### 键值明细与文本 `kv-list.tsx`
 
-- `KvList({ items: { label, value }[] })`：详情页诊断字段网格，多列自适应。
+- `KvList({ items: { label, value }[] })`：详情页诊断字段网格，按容器宽度自适应
+  1–3 列。
 - `TextValue({ value })`：可空文本，空值显示 `—`。
 - `MonoValue({ value })`：可空等宽 ID（bigint 字符串字段保持字符串，不要
   转 `Number`）。
@@ -227,9 +240,10 @@ inset），图表无边框，列表项不要自己的 border。`LIST_TABLE_CLASS
 - `ConfirmDialog({ open, onOpenChange, title, description?, confirmText,
   cancelText?, destructive?, pending, error, onConfirm })`，供破坏性/控制
   操作使用。
-- 弹窗由 Koi `Dialog`（`role="alertdialog"`）渲染，确认按钮是普通 Koi
-  `Button` + `onClick`；Koi/Base UI 不在点击时隐式关闭，`onConfirm` 一定执行。
-  `onSelect` 仍只属于 Menu/Select，不要用在确认按钮上。
+- 弹窗由 Koi `Dialog`（`role="alertdialog"`）渲染：取消是 `ghost secondary`，确认是
+  实心按钮（`destructive` 时 `color="error"`），pending 时显示 loading。Koi/Base UI
+  不在点击时隐式关闭，`onConfirm` 一定执行。`onSelect` 仍只属于 Menu/Select，不要用在
+  确认按钮上。
 - **弹窗不自动关闭契约**：确认后由调用方在 mutation 成功/取消时设置
   `open=false`；`pending` 期间两个按钮禁用防重复提交，失败时弹窗保持打开
   并内联展示 `error`（`ApiError.code: message`）。调用方的 `onOpenChange`
@@ -238,16 +252,6 @@ inset），图表无边框，列表项不要自己的 border。`LIST_TABLE_CLASS
   `Delete memory`），且必须与 dismiss 文案可区分——组件在渲染时校验
   `confirmText !== cancelText`，两者相同会直接抛错；默认 dismiss 文案为
   `Dismiss`，不要再把 dismiss 写成 `Cancel` 与确认动作混淆。
-
-### 表格外壳 `table-shell.tsx`
-
-- `TableShell<T>({ columns: ColumnSpec<T>[], data, rowKey, expandedRender?,
-  isExpandable?, emptyText?, className? })`，基于 `ui/table`；横向滚动由
-  Table 自带。行展开是本地 state（chevron 列）。
-- `ColumnSpec<T>`：`{ key, title, align?, width?, className?, render(row) }`；
-  长文本列记得加 `className: 'whitespace-normal min-w-… max-w-…'` 覆盖
-  `TableCell` 的 `whitespace-nowrap`。
-- 无跳页、无排序、无批量选择。
 
 ### 图表卡片 `chart-card.tsx`
 
@@ -267,17 +271,19 @@ inset），图表无边框，列表项不要自己的 border。`LIST_TABLE_CLASS
 
 - `DetailSkeleton()`：详情页统一的 loading 骨架（两个大块占位）。
 - `DetailError({ error, notFoundTitle, failedTitle, backTo, backLabel })`：
-  详情页错误态——404 显示 `notFoundTitle`，其余失败显示 `failedTitle`，
-  消息行用 `lib/errors.ts` 的 `errorMessage`（`ApiError.code: message`），
-  底部是回到列表的链接。
-- 三个详情页（invocation / context / message）共用这两个组件，页面自身只
-  保留 `isPending / isError / data === undefined` 的控制流和第三态（数据）
-  渲染；`useSuspenseQuery` 依旧禁用。
+  详情页错误态，用 Koi `Empty` 渲染——404 显示 `notFoundTitle`，其余失败显示
+  `failedTitle`，说明行用 `lib/errors.ts` 的 `errorMessage`（`ApiError.code: message`），
+  操作是回到列表的按钮链接。
+- 详情页结构：`ListPageHeader`（面包屑负责返回）→ 「Summary」`Panel`（`KvList`）→
+  其余各区一张 `Panel`。四个详情页（invocation / context / message / image generation）
+  共用这两个状态组件，页面自身只保留 `isPending / isError / data === undefined`
+  的控制流和第三态（数据）渲染；`useSuspenseQuery` 依旧禁用。
 
 ### 契约禁止事项
 
 - 共享组件不内嵌任何具体页面的业务字段；页面通过 render 函数/ColumnSpec 提供。
 - 不在共享组件里使用 `useSuspenseQuery`、不调用受保护接口、不做 mutation。
-- 通用控件和页面壳使用 Koi 组件/recipes；页面布局可用 Tailwind 工具类，但颜色、
-  圆角、阴影与字体必须引用 Koi 语义 token（`globals.css` 的 Tailwind theme 映射），
-  亮暗模式由 `data-theme` 统一切换。
+- 通用控件和页面壳使用 Koi 组件/recipes；布局用 Panda `css()`，颜色、圆角、阴影与
+  字体只引用 Koi 语义 token 与 text style，亮暗模式由 `data-theme` 统一切换。
+- Card 按 Koi 管理模板使用：列表页的表格直接放在页面上，只有筛选条件进 Card；概览的
+  统计与最近记录、设置类表单（限宽 768px）放在 Card 里；Card 不嵌套。

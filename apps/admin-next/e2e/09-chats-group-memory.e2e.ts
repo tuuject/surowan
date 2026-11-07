@@ -41,7 +41,7 @@ test('group memory can be enabled, tuned and disabled from the Chat row', async 
     enabled: true,
     idle_minutes: 45,
   });
-  await expect(row().getByRole('cell').nth(5)).toContainText('On · idle 45 min');
+  await expect(row().getByRole('cell').nth(5)).toContainText('On, idle 45 min');
 
   await openChatAction(page, row(), 'Edit group memory');
   dialog = page.getByRole('dialog');

@@ -90,7 +90,7 @@ export function MergeDialog({
     onSuccess: () => {
       toast.success(
         deleteSources
-          ? `${t('dictionary.merge.merged')} · ${t('dictionary.merge.sourcesDeleted')}`
+          ? `${t('dictionary.merge.merged')}${t('common.separator')}${t('dictionary.merge.sourcesDeleted')}`
           : t('dictionary.merge.merged'),
       );
       void queryClient.invalidateQueries({ queryKey: ['dictionary'] });
@@ -168,7 +168,9 @@ export function MergeDialog({
               >
                 <span className={css({ textStyle: 'label' })}>{entry.term}</span>
                 {entry.aliases.length === 0 ? null : (
-                  <span className={css({ color: 'text-muted' })}> · {entry.aliases.join(', ')}</span>
+                  <span className={css({ color: 'text-muted', marginInlineStart: '2' })}>
+                    {entry.aliases.join(', ')}
+                  </span>
                 )}
                 <span className={css({ textStyle: 'small', color: 'text-muted', display: 'block' })}>
                   {entry.scope === 'global'

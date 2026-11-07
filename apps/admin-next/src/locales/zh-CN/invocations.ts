@@ -112,8 +112,8 @@ export const invocations: typeof invocationsEn = {
     contextMessage: {
       unknownSender: '未知发送者',
       mediaCount: '{{count}} 个媒体',
-      telegramMessage: 'Telegram 消息 {{id}} · {{kind}}',
-      roomMessage: '房间消息 #{{id}} · {{kind}}',
+      telegramMessage: 'Telegram 消息 {{id}}，{{kind}}',
+      roomMessage: '房间消息 #{{id}}，{{kind}}',
       openRecord: '打开消息记录',
       openRoom: '打开房间',
     },

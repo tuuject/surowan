@@ -74,7 +74,7 @@ export function ParticipationDialog({
   const dayLabels = t('pages.chats.weekdaysShort').split(',');
   const dailyLabel = t('pages.chats.daily');
   const summarize = (windows: readonly ParticipationWindow[]): string =>
-    summarizeWindows(windows, { dayLabels, dailyLabel });
+    summarizeWindows(windows, { dayLabels, dailyLabel, separator: t('common.separator') });
   const globalWindows = view.global_participation?.active_windows ?? [];
   const [mode, setMode] = useState<ParticipationMode>(initialMode(participation));
   const [drafts, setDrafts] = useState<WindowDraft[]>(() =>
@@ -139,7 +139,7 @@ export function ParticipationDialog({
       description={t('pages.chats.activeHoursDescription')}
       footer={
         <>
-          <Button type="button" variant="outline" color="secondary" disabled={save.isPending} onClick={onClose}>
+          <Button type="button" variant="ghost" color="secondary" disabled={save.isPending} onClick={onClose}>
             {t('common.cancel')}
           </Button>
           <Button type="submit" form="participation-dialog-form" disabled={save.isPending}>

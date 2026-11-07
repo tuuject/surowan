@@ -38,7 +38,7 @@ export const dictionary: typeof dictionaryEn = {
   scope: {
     label: '辞典作用域',
     global: '全局辞典',
-    groupPrefix: '群组',
+    groupOption: '群组：{{name}}',
     chatFilterPlaceholder: '过滤 Chat',
     noChats: '还没有已知的白名单 Chat。',
     selectChat: '选择一个 Chat',

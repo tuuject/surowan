@@ -116,7 +116,7 @@ export function ChatDialog({
       description={t('pages.chats.dialogDescription')}
       footer={
         <>
-          <Button type="button" variant="outline" color="secondary" disabled={save.isPending} onClick={onClose}>
+          <Button type="button" variant="ghost" color="secondary" disabled={save.isPending} onClick={onClose}>
             {t('common.cancel')}
           </Button>
           <Button type="submit" form="chat-dialog-form" disabled={save.isPending}>

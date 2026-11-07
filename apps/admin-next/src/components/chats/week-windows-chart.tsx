@@ -118,6 +118,7 @@ export function WeekWindowsChart({
                     title={summarizeWindows([segment.window], {
                       dayLabels,
                       dailyLabel: t('pages.chats.daily'),
+                      separator: t('common.separator'),
                     })}
                   />
                 ))}

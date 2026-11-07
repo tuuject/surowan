@@ -28,8 +28,6 @@ const IGNORED = [
   '**/*.gen.ts',
   // `pnpm patch-commit` output.
   'patches/*.patch',
-  // Components vendored by the shadcn CLI.
-  'apps/admin-next/src/components/ui/**',
   // Maintainer decision: Markdown has no size limit, so prose is never split for this hook.
   '**/*.md',
   '**/*.mdx',

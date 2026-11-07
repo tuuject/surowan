@@ -129,16 +129,14 @@ export function ModelPickerDialog({
           }
         }}
         title={mode === 'discover' ? t('models.models.picker.discoverTitle') : t('models.models.picker.manualTitle')}
-        description={
-          <>
-            {t('models.models.picker.base', { alias: provider.alias, api: provider.api })}
-            {mode === 'discover' ? t('models.models.picker.metadataListing') : t('models.models.picker.metadataOnly')}
-          </>
-        }
+        description={t(
+          mode === 'discover' ? 'models.models.picker.discoverDescription' : 'models.models.picker.manualDescription',
+          { alias: provider.alias, api: provider.api },
+        )}
         size="lg"
         footer={
           <>
-            <Button type="button" variant="outline" color="secondary" disabled={append.isPending} onClick={onClose}>
+            <Button type="button" variant="ghost" color="secondary" disabled={append.isPending} onClick={onClose}>
               {t('common.cancel')}
             </Button>
             <Button
@@ -269,12 +267,16 @@ export function ModelPickerDialog({
                 emptyText={t('models.models.shared.emptyList')}
               />
               <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
-                <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+                <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>
                   {t('models.models.shared.selectedCount', { count: selection.selectedCount })}
-                  {selection.unresolved.length === 0
-                    ? ''
-                    : ` · ${t('models.models.shared.unresolvedSuffix', { ids: selection.unresolved.map((draft) => draft.id).join(', ') })}`}
                 </p>
+                {selection.unresolved.length === 0 ? null : (
+                  <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>
+                    {t('models.models.shared.unresolvedSuffix', {
+                      ids: selection.unresolved.map((draft) => draft.id).join(', '),
+                    })}
+                  </p>
+                )}
                 {selection.confirmable === 0 ? null : (
                   <Button
                     type="button"

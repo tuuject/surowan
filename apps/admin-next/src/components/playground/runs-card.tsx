@@ -123,10 +123,23 @@ function ReleaseDetails({ detail }: { readonly detail: PlaygroundReleaseDetail }
         paddingInlineStart: '3',
       })}
     >
-      <p className={css({ textStyle: 'small' })}>
-        {t('playground.runs.detail')} #{detail.release.id} ·{' '}
-        {t('playground.runs.throughSeq', { seq: detail.release.through_seq })}
-        {detail.release.bucket_id === null ? '' : ` · ${t('playground.runs.bucket', { id: detail.release.bucket_id })}`}
+      <p
+        className={css({
+          margin: '0',
+          display: 'flex',
+          flexWrap: 'wrap',
+          columnGap: '3',
+          rowGap: '1',
+          textStyle: 'small',
+        })}
+      >
+        <span>
+          {t('playground.runs.detail')} #{detail.release.id}
+        </span>
+        <span>{t('playground.runs.throughSeq', { seq: detail.release.through_seq })}</span>
+        {detail.release.bucket_id === null ? null : (
+          <span>{t('playground.runs.bucket', { id: detail.release.bucket_id })}</span>
+        )}
       </p>
       <ul>
         {detail.attempts.map((attempt) => (

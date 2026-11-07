@@ -277,7 +277,7 @@ node src/cli.ts serve --config dev-data/config.jsonc
 10. Alarms 页面按 state/Chat/Target 过滤，pending 优先置顶，展开显示完整诊断并链接到对应 Tool session；取消只对 pending 开放且需二次确认，对非 pending 给出 409 冲突提示。
 11. Bot admins 页面能添加/移除管理员：写回 `telegram.admins` 并热应用，命令权限无需重启即更新；列表在下次进入页面时反映文件值。
 12. Models 页面列出 Provider 与模型；切换 agent / vision 模型后 `config.jsonc` 的 `agent.provider` / `agent.model`（或 `vision.*`）被改写，页面立即反映新模型，后续 Invocation / vision 分析使用新模型，重启 `serve` 后仍然生效；Provider 增删、连接字段与模型列表的修改均热应用（在用引用仍受校验保护）。`PUT /api/model` 将全局 thinking 重置为最弱档，并将继承全局模型且不兼容的 Chat thinking 覆盖在同一次写入中重置为最弱档，弹窗列出受影响 Chat 与前后值；兼容档位和独立模型覆盖保持原值，最弱档按新模型的支持列表选择（不必是 off）。`PUT /api/thinking-level` 仍只写全局 thinking，保留 Chat 覆盖。未覆盖的 Chat 在 `/status` 中显示新的全局值，Chat 覆盖也可通过 Chats 页、配置文件或 Telegram `/model` 维护。Settings 页的 `Configuration file` 卡片显示 generation、active hash 与 file hash；改一个白名单字段后点 `Apply config file`，应用列表出现该路径，改一个 restart 字段则出现在待重启列表。
-13. Conversation Contexts 页面按 chat 过滤，列表按最近活跃倒序并可用 Load more 翻页；详情显示 head/next seq、保留消息数与 capability refs，展开消息看到 `payload_preview` 与截断标记，且不出现已 GC 的行。
+13. Conversation Contexts 页面按 chat 过滤，列表按最近活跃倒序并用 Previous/Next 翻页；详情显示 head/next seq、保留消息数与 capability refs，展开消息看到 `payload_preview` 与截断标记，且不出现已 GC 的行。
 14. 登出后访问深链接回落登录页；重新登录恢复访问。
 15. `admin_users.password_hash` 使用 Argon2id 格式，`admin_sessions` 只有 64 位十六进制摘要。
 16. Manage → Chats 并排显示 Saved settings 与 Running settings：新增 Chat 后文件保存且运行态立即生效（状态为 Active，无待重启项）；删除 Chat 后文件保存且运行态立即移除、该 Chat 的运行与任务被停止，确认框明确提示 Memo Pad 与 Blobs 一并删除；修改 Topic 白名单后文件已保存但运行态不变；已有 active Chat 切换模型/thinking 后运行列同步，恢复 Global default 清除两种覆盖。删除需确认且保留其它 Chat 的历史，最后一个配置 Chat 禁止删除。并发编辑/删除冲突不能覆盖新文件；保存后应用失败要显示两种状态，Settings 应用成功后刷新 Chats。待重启横幅列出字段，只在有 supervisor 时提供 Restart now。

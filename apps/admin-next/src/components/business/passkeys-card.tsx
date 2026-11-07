@@ -275,7 +275,7 @@ function RegisterPasskeyDialog({ onClose }: { readonly onClose: () => void }): R
       description={t('pages.passkeys.registerDescription')}
       footer={
         <>
-          <Button type="button" variant="outline" color="secondary" disabled={register.isPending} onClick={onClose}>
+          <Button type="button" variant="ghost" color="secondary" disabled={register.isPending} onClick={onClose}>
             {t('common.cancel')}
           </Button>
           <Button type="submit" form="passkeys-card-form" disabled={register.isPending}>

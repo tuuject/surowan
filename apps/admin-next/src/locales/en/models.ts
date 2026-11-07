@@ -73,7 +73,7 @@ export const models = {
       healthUnexpected: 'Unexpected response',
       healthError: 'Error',
       ttfbUnavailable: 'unavailable',
-      healthTiming: 'TTFB {{ttfb}} · Total {{duration}}',
+      healthTiming: 'TTFB {{ttfb}}, total {{duration}}',
       healthCheckNote:
         'A check sends one real model call with the fixed prompt "reply with extract content: ok" and may incur provider charges. TTFB measures time until HTTP response headers, not the first generated token; unavailable when the adapter does not report it.',
     },
@@ -100,7 +100,7 @@ export const models = {
       description:
         'The auxiliary model that runs system tasks outside the chat flow (Dictionary merge). It reuses the provider list and credentials above.',
       inherited: 'Inherited from the Agent model',
-      inheritedValue: '{{provider}} / {{model}} · {{level}}',
+      inheritedValue: '{{provider}} / {{model}}, {{level}}',
       inherit: 'Inherit Agent model',
       select: 'Select a Tool Model',
       pickerTitle: 'Choose the Tool Model',
@@ -182,9 +182,8 @@ export const models = {
     picker: {
       discoverTitle: 'Fetch models',
       manualTitle: 'Add models by id',
-      base: '{{alias}} · {{api}}',
-      metadataListing: ' · metadata from the provider listing and models.dev',
-      metadataOnly: ' · metadata only; the listing endpoint is not called',
+      discoverDescription: '{{alias}} ({{api}}). Metadata comes from the provider listing and models.dev.',
+      manualDescription: '{{alias}} ({{api}}). Metadata only; the listing endpoint is not called.',
       useSaved: 'Use the saved connection',
       useTemp: 'Use temporary mode (key from this form)',
       endpointLabel: 'endpoint: ',
@@ -240,7 +239,7 @@ export const models = {
       select: 'Select {{id}}',
       emptyList: 'No matching models.',
       selectedCount: '{{count}} selected',
-      unresolvedSuffix: '· {{ids}} still need fields confirmed',
+      unresolvedSuffix: '{{ids}} still need fields confirmed',
       acceptListed: 'Accept listed values ({{count}})',
     },
     feedback: {

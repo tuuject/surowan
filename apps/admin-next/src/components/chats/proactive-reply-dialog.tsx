@@ -102,7 +102,7 @@ export function ProactiveReplyDialog({
       description={t('pages.chats.proactiveDescription')}
       footer={
         <>
-          <Button type="button" variant="outline" color="secondary" disabled={save.isPending} onClick={onClose}>
+          <Button type="button" variant="ghost" color="secondary" disabled={save.isPending} onClick={onClose}>
             {t('common.cancel')}
           </Button>
           <Button

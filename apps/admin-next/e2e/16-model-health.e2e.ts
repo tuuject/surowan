@@ -18,7 +18,7 @@
  * - the row checkbox is labelled `Select {{model}} for a health check`;
  * - the per-row button is "Check health" (aria `Check health of {{model}}`);
  * - the batch button reads `Check selected (N)`;
- * - the health cell shows a status badge and `TTFB … · … ms`;
+ * - the health cell shows a status badge and `TTFB …, total … ms`;
  * - response text and error text render in the expandable row details
  *   (toggled by the table's "Toggle row details" button).
  */
