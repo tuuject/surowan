@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { UploadIcon } from '@tuuject/koi-react/icons';
+import { PlusIcon, UploadIcon } from '@tuuject/koi-react/icons';
 import { DownloadIcon, MergeIcon } from '@/components/icons';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -162,15 +162,11 @@ export default function DictionaryPage(): React.ReactElement {
     },
   });
 
-  const allVisibleSelected = pagination.items.length > 0 && pagination.items.every((entry) => selected.has(entry.id));
-
   const columns = dictionaryColumns({
     t,
     chats: chatOptions,
     conflicted,
-    selected,
     toggleEnabledPending: toggleEnabled.isPending,
-    onToggleSelected: toggleSelected,
     onToggleEnabled: (entry) => toggleEnabled.mutate(entry),
     onEdit: (entry) => {
       setEditErrors({});
@@ -222,39 +218,14 @@ export default function DictionaryPage(): React.ReactElement {
         onRefresh={() => void list.refetch()}
         refreshing={list.isRefetching}
         trailing={
-          <label
-            className={css({
-              textStyle: 'small',
-              color: 'text-muted',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '2',
-            })}
-          >
-            <input
-              type="checkbox"
-              className={css({ width: 'icon', height: 'icon', borderRadius: 'lg', borderColor: 'border-control' })}
-              checked={allVisibleSelected}
-              disabled={pagination.items.length === 0}
-              onChange={() => {
-                setSelected((previous) => {
-                  const next = new Set(previous);
-                  for (const entry of pagination.items) {
-                    if (allVisibleSelected) {
-                      next.delete(entry.id);
-                    } else {
-                      next.add(entry.id);
-                    }
-                  }
-                  return next;
-                });
-              }}
-            />
-            {t('dictionary.page.selectAll')}
-          </label>
+          selectedEntries.length > 0 ? (
+            <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+              {t('dictionary.page.selectedCount', { count: selectedEntries.length })}
+            </span>
+          ) : null
         }
       >
-        <Button type="button" onClick={() => setCreateOpen(true)}>
+        <Button variant="outline" iconStart={<PlusIcon />} onClick={() => setCreateOpen(true)}>
           {t('dictionary.page.newEntry')}
         </Button>
         <Button
@@ -311,6 +282,25 @@ export default function DictionaryPage(): React.ReactElement {
             data={pagination.items}
             rowKey={(entry) => entry.id}
             loading={list.isPending}
+            minWidth={1100}
+            selection={{
+              selected,
+              onToggle: (entry) => toggleSelected(entry.id),
+              onToggleAll: (checked) =>
+                setSelected((previous) => {
+                  const next = new Set(previous);
+                  for (const entry of pagination.items) {
+                    if (checked) {
+                      next.add(entry.id);
+                    } else {
+                      next.delete(entry.id);
+                    }
+                  }
+                  return next;
+                }),
+              allLabel: t('dictionary.page.selectAll'),
+              rowLabel: (entry) => t('dictionary.page.selectAria', { term: entry.term }),
+            }}
             emptyText={search.length === 0 ? t('dictionary.page.emptyEntries') : t('dictionary.page.emptyFiltered')}
           />
           <ListFooter
@@ -339,18 +329,12 @@ export default function DictionaryPage(): React.ReactElement {
         size="md"
         footer={
           <>
-            <Button
-              type="button"
-              variant="outline"
-              color="secondary"
-              disabled={create.isPending}
-              onClick={() => setCreateOpen(false)}
-            >
+            <Button variant="ghost" color="secondary" disabled={create.isPending} onClick={() => setCreateOpen(false)}>
               {t('common.cancel')}
             </Button>
             <Button
-              type="button"
-              disabled={create.isPending}
+              loading={create.isPending}
+              loadingLabel={t('common.saving')}
               onClick={() => {
                 const errors = validateDraft(createDraft);
                 setCreateErrors(errors);
@@ -359,7 +343,7 @@ export default function DictionaryPage(): React.ReactElement {
                 }
               }}
             >
-              {create.isPending ? t('common.saving') : t('dictionary.entry.create')}
+              {t('dictionary.entry.create')}
             </Button>
           </>
         }
@@ -394,18 +378,12 @@ export default function DictionaryPage(): React.ReactElement {
         size="md"
         footer={
           <>
-            <Button
-              type="button"
-              variant="outline"
-              color="secondary"
-              disabled={update.isPending}
-              onClick={() => setEditing(null)}
-            >
+            <Button variant="ghost" color="secondary" disabled={update.isPending} onClick={() => setEditing(null)}>
               {t('common.cancel')}
             </Button>
             <Button
-              type="button"
-              disabled={update.isPending}
+              loading={update.isPending}
+              loadingLabel={t('common.saving')}
               onClick={() => {
                 if (editing === null) {
                   return;
@@ -417,7 +395,7 @@ export default function DictionaryPage(): React.ReactElement {
                 }
               }}
             >
-              {update.isPending ? t('common.saving') : t('dictionary.entry.save')}
+              {t('dictionary.entry.save')}
             </Button>
           </>
         }

@@ -1,13 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Select } from '@tuuject/koi-react/select';
 import type React from 'react';
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScopePicker } from '@/components/dictionary/entry-form.tsx';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
-import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
+import { DropZone } from '@tuuject/koi-react/drop-zone';
+import { Field } from '@tuuject/koi-react/field';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import type {
   DictionaryChatOption,
@@ -45,8 +45,6 @@ export function ImportDialog({
 }): React.ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const fileId = useId();
-  const contentId = useId();
   const [format, setFormat] = useState<DictionaryExportFormat>('csv');
   const [scope, setScope] = useState<DictionaryScope>(defaultScope);
   const [chatId, setChatId] = useState<string | null>(defaultChatId);
@@ -149,81 +147,70 @@ export function ImportDialog({
         </>
       }
     >
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-        <div className={css({ display: 'grid', gap: '3', md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } })}>
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-            <Label htmlFor={`${fileId}-format`}>{t('dictionary.import.formatLabel')}</Label>
-            <Select
-              id={`${fileId}-format`}
-              className={css({ width: '100%' })}
-              aria-label={t('dictionary.import.formatLabel')}
-              value={format}
-              onChange={(event) => {
-                const value = event.target.value;
-                if (value === 'csv' || value === 'jsonl') {
-                  setFormat(value);
-                  setPreview(null);
-                }
-              }}
-            >
-              <option value="csv">{t('dictionary.import.csv')}</option>
-              <option value="jsonl">{t('dictionary.import.jsonl')}</option>
-            </Select>
-          </div>
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-            <Label htmlFor={fileId}>{t('dictionary.import.fileLabel')}</Label>
-            <Input
-              id={fileId}
-              type="file"
-              accept={format === 'csv' ? '.csv,text/csv' : '.jsonl,.json,application/jsonl'}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file === undefined) {
-                  return;
-                }
-                setReadError(null);
+      <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+        <Field label={t('dictionary.import.formatLabel')}>
+          <Select
+            value={format}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (value === 'csv' || value === 'jsonl') {
+                setFormat(value);
                 setPreview(null);
-                void file
-                  .text()
-                  .then((text) => {
-                    setContent(text);
-                    setFileName(file.name);
-                  })
-                  .catch(() => {
-                    setReadError(t('dictionary.import.fileFailed'));
-                  });
-              }}
-            />
-            {fileName !== null ? (
-              <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-                {t('dictionary.import.fileLoaded', { name: fileName, chars: String(content.length) })}
-              </p>
-            ) : null}
-            {readError !== null ? <p className={css({ textStyle: 'body', color: 'error-text' })}>{readError}</p> : null}
-          </div>
-        </div>
-
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-          <Label>{t('dictionary.import.scopeLabel')}</Label>
-          <ScopePicker
-            scope={scope}
-            chatId={chatId}
-            chats={chats}
-            idPrefix={`${fileId}-scope`}
-            onChange={(nextScope, nextChatId) => {
-              setScope(nextScope);
-              setChatId(nextChatId);
+              }
+            }}
+            options={[
+              { value: 'csv', label: t('dictionary.import.csv') },
+              { value: 'jsonl', label: t('dictionary.import.jsonl') },
+            ]}
+          />
+        </Field>
+        <Field
+          label={t('dictionary.import.fileLabel')}
+          error={readError ?? undefined}
+          {...(fileName === null
+            ? {}
+            : { help: t('dictionary.import.fileLoaded', { name: fileName, chars: String(content.length) }) })}
+        >
+          <DropZone
+            multiple={false}
+            accept={format === 'csv' ? '.csv,text/csv' : '.jsonl,.json,application/jsonl'}
+            description={format === 'csv' ? t('dictionary.import.csv') : t('dictionary.import.jsonl')}
+            onFiles={(files) => {
+              const file = files[0];
+              if (file === undefined) {
+                return;
+              }
+              setReadError(null);
               setPreview(null);
+              void file
+                .text()
+                .then((text) => {
+                  setContent(text);
+                  setFileName(file.name);
+                })
+                .catch(() => {
+                  setReadError(t('dictionary.import.fileFailed'));
+                });
             }}
           />
-        </div>
+        </Field>
 
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-          <Label htmlFor={contentId}>{t('dictionary.import.pasteLabel')}</Label>
+        <ScopePicker
+          label={t('dictionary.import.scopeLabel')}
+          scope={scope}
+          chatId={chatId}
+          chats={chats}
+          onChange={(nextScope, nextChatId) => {
+            setScope(nextScope);
+            setChatId(nextChatId);
+            setPreview(null);
+          }}
+        />
+
+        <Field label={t('dictionary.import.pasteLabel')}>
           <Textarea
-            id={contentId}
             rows={5}
-            className={css({ textStyle: 'small', fontFamily: 'mono' })}
+            className={css({ fontFamily: 'mono' })}
             value={content}
             onChange={(event) => {
               setContent(event.target.value);
@@ -231,14 +218,14 @@ export function ImportDialog({
               setPreview(null);
             }}
           />
-        </div>
+        </Field>
 
         {content.trim().length === 0 ? (
           <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('dictionary.import.contentRequired')}</p>
         ) : null}
         {previewMutation.isError ? (
           <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-            {t('dictionary.import.previewFailed')}: {dictionaryErrorMessage(previewMutation.error)}
+            {t('dictionary.import.previewFailed')}：{dictionaryErrorMessage(previewMutation.error)}
           </p>
         ) : null}
 

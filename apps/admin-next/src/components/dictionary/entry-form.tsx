@@ -1,14 +1,15 @@
 import { Select } from '@tuuject/koi-react/select';
 import type React from 'react';
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@tuuject/koi-react/button';
+import { Checkbox } from '@tuuject/koi-react/checkbox';
+import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
+import { RadioGroup } from '@tuuject/koi-react/radio-group';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import type { DictionaryChatOption, DictionaryDraft, DictionaryScope } from '@/lib/api/dictionary.ts';
 import { aliasesEqual, formatAliasLines, parseAliasLines } from '@/lib/dictionary.ts';
-import { css, cx } from '@tuuject/koi-react/styled-system/css';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * The alias editor: exactly one textarea, one alias per line. Every keystroke
@@ -33,10 +34,9 @@ export function AliasEditor({
   readonly aliases: readonly string[];
   readonly onChange: (aliases: readonly string[]) => void;
   readonly disabled?: boolean;
-  readonly idPrefix: string;
+  readonly idPrefix?: string;
 }): React.ReactElement {
   const { t } = useTranslation();
-  const textareaId = `${idPrefix}-aliases`;
   const [raw, setRaw] = useState<string>(() => formatAliasLines(aliases));
   // The list `raw` last produced; when the incoming prop differs from it, the
   // aliases changed elsewhere and the textarea adopts the new value.
@@ -49,13 +49,12 @@ export function AliasEditor({
 
   return (
     <Textarea
-      id={textareaId}
+      {...(idPrefix === undefined ? {} : { id: `${idPrefix}-aliases` })}
       rows={4}
       value={raw}
       disabled={disabled}
       className={css({ fontFamily: 'mono' })}
       placeholder={t('dictionary.entry.aliasPlaceholder')}
-      aria-label={t('dictionary.entry.aliasesLabel')}
       onChange={(event) => {
         const next = event.target.value;
         const parsed = parseAliasLines(next);
@@ -72,7 +71,9 @@ export interface ScopePickerProps {
   readonly chatId: string | null;
   readonly chats: readonly DictionaryChatOption[];
   readonly disabled?: boolean;
-  readonly idPrefix: string;
+  readonly error?: string | undefined;
+  /** The radio group's Field label; defaults to the entry's scope. */
+  readonly label?: string;
   readonly onChange: (scope: DictionaryScope, chatId: string | null) => void;
 }
 
@@ -82,56 +83,43 @@ export function ScopePicker({
   chatId,
   chats,
   disabled = false,
-  idPrefix,
+  error,
+  label,
   onChange,
 }: ScopePickerProps): React.ReactElement {
   const { t } = useTranslation();
-  const selectId = `${idPrefix}-chat`;
-  const options: readonly { readonly value: DictionaryScope; readonly label: string }[] = [
-    { value: 'global', label: t('dictionary.entry.scopeGlobal') },
-    { value: 'group', label: t('dictionary.entry.scopeGroup') },
-  ];
-
   return (
-    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-      <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1' })}>
-        {options.map((option) => (
-          <Button
-            key={option.value}
-            type="button"
-            size="sm"
-            variant={scope === option.value ? 'solid' : 'outline'}
-            color={scope === option.value ? 'primary' : 'secondary'}
-            disabled={disabled}
-            aria-pressed={scope === option.value}
-            onClick={() => onChange(option.value, option.value === 'global' ? null : (chatId ?? chats[0]?.id ?? null))}
-          >
-            {option.label}
-          </Button>
-        ))}
-      </div>
+    <>
+      <Field label={label ?? t('dictionary.entry.scopeLabel')}>
+        <RadioGroup
+          orientation="horizontal"
+          value={scope}
+          disabled={disabled}
+          onChange={(value) => {
+            const next: DictionaryScope = value === 'group' ? 'group' : 'global';
+            onChange(next, next === 'global' ? null : (chatId ?? chats[0]?.id ?? null));
+          }}
+          options={[
+            { value: 'global', label: t('dictionary.entry.scopeGlobal') },
+            { value: 'group', label: t('dictionary.entry.scopeGroup') },
+          ]}
+        />
+      </Field>
       {scope === 'group' ? (
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-          <Label htmlFor={selectId}>{t('dictionary.entry.chatLabel')}</Label>
+        <Field label={t('dictionary.entry.chatLabel')} help={t('dictionary.entry.scopeGroupHint')} error={error}>
           <Select
-            id={selectId}
-            className={css({ width: '100%' })}
-            aria-label={t('dictionary.entry.chatLabel')}
             placeholder={t('dictionary.scope.selectChat')}
             value={chatId ?? ''}
             disabled={disabled}
             onChange={(event) => onChange('group', event.target.value)}
-          >
-            {chats.map((chat) => (
-              <option key={chat.id} value={chat.id}>
-                {chat.title === null ? chat.id : `${chat.title} · ${chat.id}`}
-              </option>
-            ))}
-          </Select>
-          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('dictionary.entry.scopeGroupHint')}</p>
-        </div>
+            options={chats.map((chat) => ({
+              value: chat.id,
+              label: chat.title === null ? chat.id : `${chat.title}（${chat.id}）`,
+            }))}
+          />
+        </Field>
       ) : null}
-    </div>
+    </>
   );
 }
 
@@ -142,84 +130,57 @@ export function EntryFormFields({
   chats,
   errors,
   disabled,
-  idPrefix,
 }: {
   readonly draft: DictionaryDraft;
   readonly onChange: (draft: DictionaryDraft) => void;
   readonly chats: readonly DictionaryChatOption[];
   readonly errors: { readonly term?: string; readonly definition?: string; readonly chat_id?: string };
   readonly disabled: boolean;
-  readonly idPrefix: string;
+  readonly idPrefix?: string;
 }): React.ReactElement {
   const { t } = useTranslation();
-  const termId = useId();
-  const definitionId = useId();
 
   return (
-    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-        <Label htmlFor={termId}>{t('dictionary.entry.termLabel')}</Label>
+    <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+      <Field label={t('dictionary.entry.termLabel')} error={errors.term}>
         <Input
-          id={termId}
           value={draft.term}
           disabled={disabled}
           placeholder={t('dictionary.entry.termPlaceholder')}
           onChange={(event) => onChange({ ...draft, term: event.target.value })}
         />
-        {errors.term !== undefined ? (
-          <p className={css({ textStyle: 'body', color: 'error-text' })}>{errors.term}</p>
-        ) : null}
-      </div>
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-        <Label htmlFor={definitionId}>{t('dictionary.entry.definitionLabel')}</Label>
+      </Field>
+      <Field label={t('dictionary.entry.definitionLabel')} error={errors.definition}>
         <Textarea
-          id={definitionId}
           rows={4}
           value={draft.definition}
           disabled={disabled}
           placeholder={t('dictionary.entry.definitionPlaceholder')}
           onChange={(event) => onChange({ ...draft, definition: event.target.value })}
         />
-        {errors.definition !== undefined ? (
-          <p className={css({ textStyle: 'body', color: 'error-text' })}>{errors.definition}</p>
-        ) : null}
-      </div>
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-        <Label>{t('dictionary.entry.aliasesLabel')}</Label>
+      </Field>
+      <Field label={t('dictionary.entry.aliasesLabel')} help={t('dictionary.entry.aliasesHint')}>
         <AliasEditor
           aliases={draft.aliases}
           disabled={disabled}
-          idPrefix={idPrefix}
           onChange={(aliases) => onChange({ ...draft, aliases })}
         />
-        <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('dictionary.entry.aliasesHint')}</p>
-      </div>
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-        <Label>{t('dictionary.entry.scopeLabel')}</Label>
-        <ScopePicker
-          scope={draft.scope}
-          chatId={draft.chat_id}
-          chats={chats}
-          disabled={disabled}
-          idPrefix={idPrefix}
-          onChange={(scope, chatId) => onChange({ ...draft, scope, chat_id: chatId })}
-        />
-        {errors.chat_id !== undefined ? (
-          <p className={css({ textStyle: 'body', color: 'error-text' })}>{errors.chat_id}</p>
-        ) : null}
-      </div>
-      <div className={css({ display: 'flex', alignItems: 'center', gap: '2' })}>
-        <input
-          id={`${idPrefix}-enabled`}
-          type="checkbox"
-          className={css({ width: 'icon', height: 'icon', borderRadius: 'lg', borderColor: 'border-control' })}
-          checked={draft.enabled}
-          disabled={disabled}
-          onChange={(event) => onChange({ ...draft, enabled: event.target.checked })}
-        />
-        <Label htmlFor={`${idPrefix}-enabled`}>{t('dictionary.entry.enabledLabel')}</Label>
-      </div>
-      <p className={cx(css({ textStyle: 'small', color: 'text-muted' }))}>{t('dictionary.entry.enabledHint')}</p>
+      </Field>
+      <ScopePicker
+        scope={draft.scope}
+        chatId={draft.chat_id}
+        chats={chats}
+        disabled={disabled}
+        error={errors.chat_id}
+        onChange={(scope, chatId) => onChange({ ...draft, scope, chat_id: chatId })}
+      />
+      <Checkbox
+        label={t('dictionary.entry.enabledLabel')}
+        description={t('dictionary.entry.enabledHint')}
+        checked={draft.enabled}
+        disabled={disabled}
+        onCheckedChange={(enabled) => onChange({ ...draft, enabled })}
+      />
     </div>
   );
 }

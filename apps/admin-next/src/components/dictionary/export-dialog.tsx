@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
-import { Label } from '@/components/ui/label';
+import { Field } from '@tuuject/koi-react/field';
 import type { DictionaryExportFormat, DictionaryScope } from '@/lib/api/dictionary.ts';
 import { fetchDictionaryExport } from '@/lib/api/dictionary.ts';
 import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
@@ -69,13 +69,9 @@ export function ExportDialog({
         </>
       }
     >
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-          <Label htmlFor="dictionary-export-format">{t('dictionary.export.formatLabel')}</Label>
+      <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+        <Field label={t('dictionary.export.formatLabel')} help={t('dictionary.export.roundTripNote')}>
           <Select
-            id="dictionary-export-format"
-            className={css({ width: '100%' })}
-            aria-label={t('dictionary.export.formatLabel')}
             value={format}
             onChange={(event) => {
               const value = event.target.value;
@@ -83,15 +79,15 @@ export function ExportDialog({
                 setFormat(value);
               }
             }}
-          >
-            <option value="csv">{t('dictionary.import.csv')}</option>
-            <option value="jsonl">{t('dictionary.import.jsonl')}</option>
-          </Select>
-        </div>
-        <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('dictionary.export.roundTripNote')}</p>
+            options={[
+              { value: 'csv', label: t('dictionary.import.csv') },
+              { value: 'jsonl', label: t('dictionary.import.jsonl') },
+            ]}
+          />
+        </Field>
         {download.isError ? (
           <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-            {t('dictionary.export.failed')}: {dictionaryErrorMessage(download.error)}
+            {t('dictionary.export.failed')}：{dictionaryErrorMessage(download.error)}
           </p>
         ) : null}
       </div>

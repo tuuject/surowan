@@ -25,7 +25,7 @@ test.describe('dictionary page', () => {
     await page.getByRole('button', { name: 'New entry' }).click();
     await dialog.getByLabel('Term', { exact: true }).fill(term);
     await dialog.getByLabel('Definition', { exact: true }).fill('Group-scoped entry');
-    await dialog.getByRole('button', { name: 'Group', exact: true }).click();
+    await dialog.getByRole('radio', { name: 'Group', exact: true }).click();
     await dialog.getByRole('combobox', { name: 'Chat' }).selectOption(CHAT_ID);
     await dialog.getByRole('button', { name: 'Create entry' }).click();
     await expect(toast(page, 'Entry created')).toBeVisible();

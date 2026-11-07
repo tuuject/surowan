@@ -40,4 +40,4 @@ export {
 } from './query-form';
 export { SettingRow } from './setting-row';
 export { type BadgeSemantic, StateBadge, stateBadgeSemantic, ToneBadge } from './state-badge';
-export { type ColumnSpec, TableShell, type TableShellProps } from './table-shell';
+export { type ColumnSpec, type TableSelection, TableShell, type TableShellProps } from './table-shell';

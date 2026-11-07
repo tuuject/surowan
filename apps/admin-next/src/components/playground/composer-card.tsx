@@ -188,6 +188,7 @@ export function ComposerCard({
             </Button>
             <input
               ref={fileInput}
+              id="playground-attachment"
               type="file"
               accept="image/png,image/jpeg,image/webp"
               hidden

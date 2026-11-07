@@ -1,4 +1,5 @@
 import { IconButton } from '@tuuject/koi-react/button';
+import { Checkbox } from '@tuuject/koi-react/checkbox';
 import { ChevronDownIcon, ChevronRightIcon } from '@tuuject/koi-react/icons';
 import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { css } from '@tuuject/koi-react/styled-system/css';
@@ -35,6 +36,17 @@ export interface ColumnSpec<T> {
   readonly render: (row: T) => React.ReactNode;
 }
 
+/** Row selection, drawn as the template's leading Checkbox column (DataTable deliberately leaves it out). */
+export interface TableSelection<T> {
+  readonly selected: ReadonlySet<string>;
+  readonly onToggle: (row: T, checked: boolean) => void;
+  readonly onToggleAll: (checked: boolean) => void;
+  /** Accessible names: the header box and each row's box. */
+  readonly allLabel: string;
+  readonly rowLabel: (row: T) => string;
+  readonly isSelectable?: (row: T) => boolean;
+}
+
 export interface TableShellProps<T> {
   readonly columns: readonly ColumnSpec<T>[];
   readonly data: readonly T[];
@@ -52,6 +64,7 @@ export interface TableShellProps<T> {
   readonly caption?: string;
   readonly loading?: boolean;
   readonly skeletonRows?: number;
+  readonly selection?: TableSelection<T>;
 }
 
 const ALIGN = { left: 'start', center: 'center', right: 'end' } as const;
@@ -79,6 +92,7 @@ export function TableShell<T>({
   caption,
   loading = false,
   skeletonRows = 6,
+  selection,
 }: TableShellProps<T>): React.ReactElement {
   const { t } = useTranslation();
   const [expandedKeys, setExpandedKeys] = useState<ReadonlySet<string>>(new Set());
@@ -96,7 +110,11 @@ export function TableShell<T>({
   };
 
   const hasExpand = expandedRender !== undefined;
-  const columnCount = columns.length + (hasExpand ? 1 : 0);
+  const hasSelection = selection !== undefined;
+  const columnCount = columns.length + (hasExpand ? 1 : 0) + (hasSelection ? 1 : 0);
+  const selectable = selection === undefined ? [] : data.filter((row) => selection.isSelectable?.(row) ?? true);
+  const allSelected =
+    selection !== undefined && selectable.length > 0 && selectable.every((row) => selection.selected.has(rowKey(row)));
   const align = (column: ColumnSpec<T>) => (column.align === undefined ? {} : { align: ALIGN[column.align] });
 
   return (
@@ -109,6 +127,16 @@ export function TableShell<T>({
       {caption === undefined ? null : <TableCaption>{caption}</TableCaption>}
       <TableHeader>
         <TableRow>
+          {selection === undefined ? null : (
+            <TableHeaderCell align="center" style={{ width: 48 }}>
+              <Checkbox
+                checked={allSelected}
+                disabled={loading || selectable.length === 0}
+                onCheckedChange={(checked) => selection.onToggleAll(checked)}
+                aria-label={selection.allLabel}
+              />
+            </TableHeaderCell>
+          )}
           {hasExpand ? (
             <TableHeaderCell style={{ width: 52 }}>
               <span className={css({ srOnly: true })}>{t('layout.business.rowDetails')}</span>
@@ -130,6 +158,7 @@ export function TableShell<T>({
           Array.from({ length: skeletonRows }, (_, index) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: static placeholder rows never reorder
             <TableRow key={index}>
+              {hasSelection ? <TableCell /> : null}
               {hasExpand ? <TableCell /> : null}
               {columns.map((column) => (
                 <TableCell key={column.key} {...align(column)}>
@@ -155,7 +184,18 @@ export function TableShell<T>({
             const open = expandable && expandedKeys.has(key);
             return (
               <Fragment key={key}>
-                <TableRow selected={open}>
+                <TableRow selected={open || (selection?.selected.has(key) ?? false)}>
+                  {selection === undefined ? null : (
+                    <TableCell align="center">
+                      {(selection.isSelectable?.(row) ?? true) ? (
+                        <Checkbox
+                          checked={selection.selected.has(key)}
+                          onCheckedChange={(checked) => selection.onToggle(row, checked)}
+                          aria-label={selection.rowLabel(row)}
+                        />
+                      ) : null}
+                    </TableCell>
+                  )}
                   {hasExpand ? (
                     <TableCell paddingBlock="none">
                       {expandable ? (

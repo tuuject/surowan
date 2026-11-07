@@ -90,8 +90,9 @@ test.describe('dictionary page', () => {
     expect((await findEntry(page, term))?.aliases).toEqual([]);
 
     // disable - a plain toggle write, still revision-checked
-    await page.locator('table tbody tr', { hasText: term }).getByRole('button', { name: 'Enabled' }).click();
-    await expect(page.locator('table tbody tr', { hasText: term })).toContainText('Disabled');
+    const enabled = page.locator('table tbody tr', { hasText: term }).getByRole('switch', { name: `Enable ${term}` });
+    await enabled.click();
+    await expect(enabled).not.toBeChecked();
     const disabled = await findEntry(page, term);
     expect(disabled?.enabled).toBe(false);
 

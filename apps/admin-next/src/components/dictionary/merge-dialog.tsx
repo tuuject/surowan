@@ -7,7 +7,8 @@ import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
+import { Checkbox } from '@tuuject/koi-react/checkbox';
+import { Field } from '@tuuject/koi-react/field';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import type {
   DictionaryChatOption,
@@ -201,56 +202,31 @@ export function MergeDialog({
             <Alert tone="info" title={t('dictionary.merge.suggestion')}>
               {t('dictionary.merge.suggestionHint')}
             </Alert>
-            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-              <Label htmlFor="merge-term">{t('dictionary.merge.termLabel')}</Label>
-              <Input id="merge-term" value={term} onChange={(event) => setTerm(event.target.value)} />
-            </div>
-            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-              <Label htmlFor="merge-definition">{t('dictionary.merge.definitionLabel')}</Label>
-              <Textarea
-                id="merge-definition"
-                rows={4}
-                value={definition}
-                onChange={(event) => setDefinition(event.target.value)}
-              />
-            </div>
-            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-              <Label>{t('dictionary.merge.aliasesLabel')}</Label>
-              <AliasEditor aliases={aliases} onChange={setAliases} idPrefix="merge" />
-            </div>
-            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-              <Label>{t('dictionary.merge.targetScopeLabel')}</Label>
-              <ScopePicker
-                scope={scope}
-                chatId={chatId}
-                chats={chats}
-                idPrefix="merge-scope"
-                onChange={(nextScope, nextChatId) => {
-                  setScope(nextScope);
-                  setChatId(nextChatId);
-                }}
-              />
-            </div>
-            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-              <div className={css({ display: 'flex', alignItems: 'center', gap: '2' })}>
-                <input
-                  id="merge-delete-sources"
-                  type="checkbox"
-                  className={css({
-                    width: 'icon',
-                    height: 'icon',
-                    borderRadius: 'lg',
-                    borderColor: 'border-control',
-                  })}
-                  checked={deleteSources}
-                  onChange={(event) => setDeleteSources(event.target.checked)}
-                />
-                <Label htmlFor="merge-delete-sources">{t('dictionary.merge.deleteSources')}</Label>
-              </div>
-              <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-                {t('dictionary.merge.deleteSourcesHint')}
-              </p>
-            </div>
+            <Field label={t('dictionary.merge.termLabel')}>
+              <Input value={term} onChange={(event) => setTerm(event.target.value)} />
+            </Field>
+            <Field label={t('dictionary.merge.definitionLabel')}>
+              <Textarea rows={4} value={definition} onChange={(event) => setDefinition(event.target.value)} />
+            </Field>
+            <Field label={t('dictionary.merge.aliasesLabel')}>
+              <AliasEditor aliases={aliases} onChange={setAliases} />
+            </Field>
+            <ScopePicker
+              label={t('dictionary.merge.targetScopeLabel')}
+              scope={scope}
+              chatId={chatId}
+              chats={chats}
+              onChange={(nextScope, nextChatId) => {
+                setScope(nextScope);
+                setChatId(nextChatId);
+              }}
+            />
+            <Checkbox
+              label={t('dictionary.merge.deleteSources')}
+              description={t('dictionary.merge.deleteSourcesHint')}
+              checked={deleteSources}
+              onCheckedChange={setDeleteSources}
+            />
             <Button type="button" variant="outline" color="secondary" onClick={() => suggestion.mutate()}>
               {t('dictionary.merge.regenerate')}
             </Button>
