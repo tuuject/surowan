@@ -11,7 +11,7 @@ export const prompts = {
   editorHint: 'Applies from the next invocation; affected Conversation Contexts rebuild on their next run.',
   promptLabel: 'Prompt',
   promptPlaceholder: 'Write the prompt…',
-  noteLabel: 'Note (optional)',
+  noteLabel: 'Note',
   notePlaceholder: 'Why this change?',
   noteHint: 'At most {{count}} characters; stored with the version.',
   save: 'Save and apply',

@@ -16,6 +16,7 @@ export {
   useCursorPages,
 } from './cursor-list';
 export { DetailError, type DetailErrorProps, DetailSkeleton } from './detail-state';
+export { FormActionBar } from './form-action-bar';
 export { JsonViewer, type JsonViewerProps } from './json-viewer';
 export { type KvItem, KvList, MonoValue, TextValue } from './kv-list';
 export { LazyDetails, type LazyDetailsProps } from './lazy-details';

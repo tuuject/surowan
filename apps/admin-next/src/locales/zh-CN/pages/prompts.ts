@@ -10,7 +10,7 @@ export const prompts: typeof promptsEn = {
   editorHint: '从下一次 Invocation 起生效；受影响的 Conversation Context 会在下次运行时重建。',
   promptLabel: 'Prompt',
   promptPlaceholder: '编写 Prompt…',
-  noteLabel: '备注（可选）',
+  noteLabel: '备注',
   notePlaceholder: '为什么做这次修改？',
   noteHint: '最多 {{count}} 个字符，与该版本一起保存。',
   save: '保存并应用',

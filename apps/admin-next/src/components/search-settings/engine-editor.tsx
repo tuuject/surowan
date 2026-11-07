@@ -1,13 +1,13 @@
 import { Select } from '@tuuject/koi-react/select';
 import { useTranslation } from 'react-i18next';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
+import { field } from '@tuuject/koi-react/styled-system/recipes';
 import { Field } from '@tuuject/koi-react/field';
 import { Switch } from '@tuuject/koi-react/switch';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import type { SearchProviderView } from '@/lib/api/search.ts';
 import { canKeepKey, type EngineDraft, type KeyMode, renameEngine, switchProvider } from './draft.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * One engine's fields. The key control is a source choice rather than a value:
@@ -39,20 +39,16 @@ export function EngineEditor({
   const keyMode: KeyMode = keyModes.includes(draft.keyMode) ? draft.keyMode : (keyModes[0] ?? 'new');
   // Only "new" available means no choice to make: show the paste field alone.
   const showKeyModeChoice = keyModes.length > 1;
+  const keyField = field();
   return (
-    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-      <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '3' })}>
-        <Label htmlFor={`${idPrefix}-enabled`} className={css({ textStyle: 'small', color: 'text-muted' })}>
-          {t('search.engineEnabled')}
-        </Label>
-        <Switch
-          id={`${idPrefix}-enabled`}
-          checked={draft.enabled}
-          onCheckedChange={(next) => onChange({ enabled: next })}
-          disabled={disabled}
-        />
-      </div>
-      <div className={css({ display: 'grid', gap: '3', md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } })}>
+    <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+      <Switch
+        label={t('search.engineEnabled')}
+        checked={draft.enabled}
+        onCheckedChange={(next) => onChange({ enabled: next })}
+        disabled={disabled}
+      />
+      <div className={css({ display: 'grid', gap: '4', md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } })}>
         <Field label={t('search.fieldId')} help={t('search.fieldIdHint')}>
           <Input
             value={draft.id}
@@ -122,10 +118,11 @@ export function EngineEditor({
             disabled={disabled}
           />
         </Field>
-        <div
-          className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' }, md: { gridColumn: 'span 2 / span 2' } })}
-        >
-          <Label htmlFor={showKeyModeChoice ? `${idPrefix}-key-mode` : `${idPrefix}-key`}>{t('search.fieldKey')}</Label>
+        {/* A mode picker plus the field it unlocks under one label: borrows Field's parts instead of nesting Fields. */}
+        <div className={cx(keyField.root, css({ md: { gridColumn: '1 / -1' } }))}>
+          <label htmlFor={showKeyModeChoice ? `${idPrefix}-key-mode` : `${idPrefix}-key`} className={keyField.label}>
+            {t('search.fieldKey')}
+          </label>
           {showKeyModeChoice ? (
             <Select
               id={`${idPrefix}-key-mode`}
@@ -174,7 +171,7 @@ export function EngineEditor({
               ))}
             </Select>
           ) : null}
-          <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+          <p className={keyField.help}>
             {provider?.key === 'forbidden'
               ? t('search.keyForbidden')
               : provider?.key === 'optional'

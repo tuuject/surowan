@@ -10,6 +10,7 @@ import {
   ListToolbar,
   MonoValue,
   QuerySelectField,
+  RowActions,
   TableShell,
   TextValue,
   ToneBadge,
@@ -29,6 +30,7 @@ import { formatTime } from '@/lib/format';
 import { chatQuery, useListQuery } from '@/lib/list-query';
 import { chatsQuery, promptDiffQuery, promptDocumentQuery, promptVersionsQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
+import { Alert } from '@tuuject/koi-react/alert';
 import { css } from '@tuuject/koi-react/styled-system/css';
 
 const GLOBAL_SCOPE_VALUE = 'global';
@@ -161,6 +163,7 @@ export default function PromptsPage(): React.ReactElement {
     {
       key: 'version',
       title: t('pages.prompts.colVersion'),
+      width: 136,
       render: (row) => (
         <span className={css({ display: 'inline-flex', alignItems: 'center', gap: '2' })}>
           <MonoValue value={`v${row.seq}`} />
@@ -171,13 +174,14 @@ export default function PromptsPage(): React.ReactElement {
     {
       key: 'created',
       title: t('pages.prompts.colCreated'),
-      render: (row) => (
-        <span className={css({ fontVariantNumeric: 'tabular-nums' })}>{formatTime(row.created_at)}</span>
-      ),
+      width: 184,
+      skeleton: '2026-01-18 10:58:15',
+      render: (row) => formatTime(row.created_at),
     },
     {
       key: 'source',
       title: t('pages.prompts.colSource'),
+      width: 112,
       render: (row) => <ToneBadge tone={sourceTone(row.source)}>{t(sourceLabelKey(row.source))}</ToneBadge>,
     },
     {
@@ -194,21 +198,23 @@ export default function PromptsPage(): React.ReactElement {
       key: 'actions',
       title: t('pages.prompts.colActions'),
       align: 'right',
+      width: 104,
       render: (row) =>
         row.id === applied?.id ? null : (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            color="secondary"
-            disabled={file === undefined || restore.isPending}
-            onClick={() => {
-              restore.reset();
-              setRestoreTarget(row);
-            }}
-          >
-            {t('pages.prompts.restore')}
-          </Button>
+          <RowActions>
+            <Button
+              size="sm"
+              variant="ghost"
+              color="secondary"
+              disabled={file === undefined || restore.isPending}
+              onClick={() => {
+                restore.reset();
+                setRestoreTarget(row);
+              }}
+            >
+              {t('pages.prompts.restore')}
+            </Button>
+          </RowActions>
         ),
     },
   ];
@@ -242,14 +248,16 @@ export default function PromptsPage(): React.ReactElement {
         {fileQuery.isPending ? (
           <Skeleton className={css({ height: '256px', width: '100%', borderRadius: 'xl' })} />
         ) : fileQuery.isError || file === undefined ? (
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
-            <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-              {errorMessage(fileQuery.error)}
-            </p>
-            <Button variant="outline" color="secondary" onClick={() => void fileQuery.refetch()}>
-              {t('common.retry')}
-            </Button>
-          </div>
+          <Alert
+            tone="error"
+            action={
+              <Button size="sm" variant="ghost" color="secondary" onClick={() => void fileQuery.refetch()}>
+                {t('common.retry')}
+              </Button>
+            }
+          >
+            {errorMessage(fileQuery.error)}
+          </Alert>
         ) : (
           <PromptEditor
             // Remount when the applied version moves (save, restore, an
@@ -265,8 +273,8 @@ export default function PromptsPage(): React.ReactElement {
           />
         )}
       </Panel>
-      <section className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-        <h2 className={css({ textStyle: 'heading-3' })}>{t('pages.prompts.historyTitle')}</h2>
+      <section className={css({ paddingBlockStart: '6', '& > * + *': { marginBlockStart: '5' } })}>
+        <h2 className={css({ margin: '0', textStyle: 'heading-2' })}>{t('pages.prompts.historyTitle')}</h2>
         <ListSearchForm
           key={scopeValue}
           value={compare ?? EMPTY_COMPARE}
@@ -299,14 +307,16 @@ export default function PromptsPage(): React.ReactElement {
         </ListSearchForm>
         <ListToolbar onRefresh={() => void versions.refetch()} refreshing={versions.isRefetching} />
         {versions.isError ? (
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
-            <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-              {errorMessage(versions.error)}
-            </p>
-            <Button variant="outline" color="secondary" onClick={() => void versions.refetch()}>
-              {t('common.retry')}
-            </Button>
-          </div>
+          <Alert
+            tone="error"
+            action={
+              <Button size="sm" variant="ghost" color="secondary" onClick={() => void versions.refetch()}>
+                {t('common.retry')}
+              </Button>
+            }
+          >
+            {errorMessage(versions.error)}
+          </Alert>
         ) : null}
         {versions.isPending || versions.data !== undefined ? (
           <div>
@@ -315,6 +325,7 @@ export default function PromptsPage(): React.ReactElement {
               data={pagination.items}
               rowKey={(row) => row.id}
               loading={versions.isPending}
+              minWidth={880}
               emptyText={t('pages.prompts.emptyVersions')}
             />
             <ListFooter
@@ -334,9 +345,7 @@ export default function PromptsPage(): React.ReactElement {
         {compare === null ? null : diff.isPending ? (
           <Skeleton className={css({ height: '160px', width: '100%', borderRadius: 'xl' })} />
         ) : diff.isError || diff.data === undefined ? (
-          <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-            {errorMessage(diff.error)}
-          </p>
+          <Alert tone="error">{errorMessage(diff.error)}</Alert>
         ) : diff.data.hunks.length === 0 ? (
           <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.prompts.noDifferences')}</p>
         ) : (

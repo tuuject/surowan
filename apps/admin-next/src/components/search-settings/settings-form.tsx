@@ -9,6 +9,8 @@ import {
   ListSearchForm,
   ListToolbar,
   QueryTextField,
+  RowActions,
+  SettingRow,
   TableShell,
   ToneBadge,
   useClientPagination,
@@ -17,7 +19,6 @@ import { Panel } from '@/components/layout/panel';
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button, IconButton } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
-import { Label } from '@/components/ui/label';
 import { Switch } from '@tuuject/koi-react/switch';
 import { putSearchConfig, type SearchConfigView } from '@/lib/api/search.ts';
 import { errorMessage } from '@/lib/errors';
@@ -108,30 +109,41 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
     {
       key: 'id',
       title: t('search.fieldId'),
+      width: 200,
       render: (engine) => <span className={css({ fontFamily: 'mono' })}>{engine.id}</span>,
     },
     {
       key: 'provider',
       title: t('search.fieldProvider'),
+      width: 160,
       render: (engine) => providerById.get(engine.provider)?.label ?? engine.provider,
     },
     {
       key: 'enabled',
       title: t('search.engineEnabled'),
+      width: 104,
       render: (engine) => (
         <ToneBadge tone={engine.enabled ? 'success' : 'neutral'}>
           {engine.enabled ? t('common.enabled') : t('common.disabled')}
         </ToneBadge>
       ),
     },
-    { key: 'results', title: t('search.fieldResults'), align: 'right', render: (engine) => engine.results || '—' },
+    {
+      key: 'results',
+      title: t('search.fieldResults'),
+      align: 'right',
+      width: 104,
+      render: (engine) => engine.results || '—',
+    },
     { key: 'note', title: t('search.fieldNote'), render: (engine) => engine.note || '—' },
     {
       key: 'actions',
       title: t('pages.apiKeys.actions'),
       align: 'right',
+      width: 104,
+      paddingBlock: 'none',
       render: (engine) => (
-        <div className={css({ display: 'flex', justifyContent: 'flex-end', gap: '1' })}>
+        <RowActions>
           <IconButton
             variant="ghost"
             color="secondary"
@@ -145,42 +157,40 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
           />
           <IconButton
             variant="ghost"
+            color="error"
             disabled={save.isPending}
             onClick={() => setEngines((current) => current.filter((entry) => entry.key !== engine.key))}
             label={`${t('search.removeEngine')} ${engine.id}`}
             icon={<TrashIcon />}
           />
-        </div>
+        </RowActions>
       ),
     },
   ];
 
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
-      <Panel title={t('search.switchTitle')}>
-        <p className={css({ textStyle: 'body', color: 'text-muted', marginBlockEnd: '3' })}>
-          {t('search.switchDescription')}
-        </p>
-        <div className={css({ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '4' })}>
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-            <Label htmlFor="search-enabled">{t('search.switchLabel')}</Label>
-            <p className={css({ textStyle: 'body', color: 'text-muted' })}>
-              {enabled && activeEngines > 0 ? t('search.switchActive') : t('search.switchInactive')}
-            </p>
-          </div>
-          <Switch
-            id="search-enabled"
-            checked={enabled}
-            onCheckedChange={(next) => setEnabled(next)}
-            disabled={save.isPending}
-          />
-        </div>
+      <Panel title={t('search.switchTitle')} description={t('search.switchDescription')}>
+        <SettingRow
+          label={t('search.switchLabel')}
+          description={enabled && activeEngines > 0 ? t('search.switchActive') : t('search.switchInactive')}
+        >
+          {({ id, describedBy }) => (
+            <Switch
+              id={id}
+              aria-describedby={describedBy}
+              checked={enabled}
+              onCheckedChange={(next) => setEnabled(next)}
+              disabled={save.isPending}
+            />
+          )}
+        </SettingRow>
       </Panel>
 
-      <section className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-          <h2 className={css({ textStyle: 'heading-3' })}>{t('search.enginesTitle')}</h2>
-          <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('search.enginesDescription')}</p>
+      <section className={css({ paddingBlockStart: '6', '& > * + *': { marginBlockStart: '5' } })}>
+        <div className={css({ display: 'flex', flexDirection: 'column', gap: '1' })}>
+          <h2 className={css({ margin: '0', textStyle: 'heading-2' })}>{t('search.enginesTitle')}</h2>
+          <p className={css({ margin: '0', color: 'text-muted' })}>{t('search.enginesDescription')}</p>
         </div>
         <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
           {({ draft, change }) => (
@@ -193,12 +203,10 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
         </ListSearchForm>
         <ListToolbar>
           <Button
-            type="button"
             variant="outline"
-            color="secondary"
             onClick={addEngine}
             disabled={providers.length === 0 || save.isPending}
-            iconStart={<PlusIcon aria-hidden />}
+            iconStart={<PlusIcon />}
           >
             {t('search.addEngine')}
           </Button>
@@ -208,6 +216,7 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
             columns={columns}
             data={pagination.items}
             rowKey={(engine) => engine.key}
+            minWidth={880}
             emptyText={t('search.noEngines')}
           />
           <ListFooter
@@ -231,34 +240,38 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
         </Alert>
       ) : null}
 
-      <div className={css({ display: 'flex', alignItems: 'center', gap: '3' })}>
-        <Button
-          type="button"
-          disabled={save.isPending || errors.length > 0 || (save.isError && isConfigConflict(save.error))}
-          onClick={() => save.mutate()}
-        >
-          {save.isPending ? t('search.saving') : t('search.save')}
-        </Button>
-        <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('search.saveHint')}</p>
-      </div>
       {save.isError && isConfigConflict(save.error) ? (
-        <Alert tone="error" title={t('search.conflictTitle')} role="alert">
-          <p>{t('search.conflictBody')}</p>
-          <Button
-            type="button"
-            variant="outline"
-            color="secondary"
-            size="sm"
-            onClick={() => void queryClient.invalidateQueries({ queryKey: ['search-config'] })}
-          >
-            {t('common.reload')}
-          </Button>
+        <Alert
+          tone="error"
+          title={t('search.conflictTitle')}
+          role="alert"
+          action={
+            <Button
+              size="sm"
+              variant="ghost"
+              color="secondary"
+              onClick={() => void queryClient.invalidateQueries({ queryKey: ['search-config'] })}
+            >
+              {t('common.reload')}
+            </Button>
+          }
+        >
+          {t('search.conflictBody')}
         </Alert>
       ) : save.isError ? (
-        <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-          {errorMessage(save.error)}
-        </p>
+        <Alert tone="error">{errorMessage(save.error)}</Alert>
       ) : null}
+      <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '3' })}>
+        <Button
+          disabled={errors.length > 0 || (save.isError && isConfigConflict(save.error))}
+          loading={save.isPending}
+          loadingLabel={t('search.saving')}
+          onClick={() => save.mutate()}
+        >
+          {t('search.save')}
+        </Button>
+        <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>{t('search.saveHint')}</p>
+      </div>
 
       <Dialog
         open={editing !== null}
@@ -272,7 +285,7 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
         size="lg"
         footer={
           <>
-            <Button type="button" variant="outline" color="secondary" disabled={save.isPending} onClick={closeEditor}>
+            <Button variant="ghost" color="secondary" disabled={save.isPending} onClick={closeEditor}>
               {t('common.cancel')}
             </Button>
             <Button type="button" disabled={save.isPending} onClick={saveEngine}>

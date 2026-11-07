@@ -9,7 +9,9 @@ import { Textarea } from '@tuuject/koi-react/textarea';
 import type { PromptDocument, PromptVersionItem } from '@/lib/api/prompts.ts';
 import { formatTime } from '@/lib/format';
 import { type Notice, type PromptDraft, sourceLabelKey, sourceTone } from './prompt-draft';
-import { css, cx } from '@tuuject/koi-react/styled-system/css';
+import { SuccessIcon, WarningIcon } from '@tuuject/koi-react/icons';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { sizes } from '@tuuject/koi-tokens/dimensions';
 
 /** The same limit the API enforces on a version note. */
 const MAX_NOTE_CHARS = 200;
@@ -89,7 +91,11 @@ export function PromptEditor({
           onChange={(event) => setDraft({ hash: file.content_hash, text: event.target.value, note: current.note })}
         />
       </Field>
-      <Field label={t('pages.prompts.noteLabel')} help={t('pages.prompts.noteHint', { count: MAX_NOTE_CHARS })}>
+      <Field
+        label={t('pages.prompts.noteLabel')}
+        optional
+        help={t('pages.prompts.noteHint', { count: MAX_NOTE_CHARS })}
+      >
         <Input
           value={current.note}
           maxLength={MAX_NOTE_CHARS}
@@ -97,17 +103,9 @@ export function PromptEditor({
           onChange={(event) => setDraft({ hash: file.content_hash, text: current.text, note: event.target.value })}
         />
       </Field>
-      <div
-        className={css({
-          bg: 'surface-muted',
-          '& > :not(:last-child)': { marginBlockEnd: '2' },
-          borderRadius: 'xl',
-          borderWidth: '1px',
-          borderColor: 'border',
-          padding: '3',
-        })}
-      >
-        <div className={css({ textStyle: 'body', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
+      {/* Plain status lines: the editor already sits in a card, so no second frame around them. */}
+      <div className={css({ display: 'flex', flexDirection: 'column', gap: '1' })}>
+        <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
           <span className={css({ color: 'text-muted' })}>{t('pages.prompts.appliedVersion')}</span>
           {applied === null ? (
             <span className={css({ color: 'text-muted' })}>{t('pages.prompts.noVersions')}</span>
@@ -115,9 +113,7 @@ export function PromptEditor({
             <>
               <MonoValue value={`v${applied.seq}`} />
               <ToneBadge tone={sourceTone(applied.source)}>{t(sourceLabelKey(applied.source))}</ToneBadge>
-              <span className={css({ textStyle: 'small', color: 'text-muted', fontVariantNumeric: 'tabular-nums' })}>
-                {formatTime(applied.created_at)}
-              </span>
+              <span className={css({ textStyle: 'small', color: 'text-muted' })}>{formatTime(applied.created_at)}</span>
               {applied.created_by === null ? null : (
                 <span className={css({ textStyle: 'small', color: 'text-muted' })}>{applied.created_by}</span>
               )}
@@ -126,11 +122,12 @@ export function PromptEditor({
         </div>
         {applied === null ? null : (
           <p
-            className={cx(
-              css({ textStyle: 'small' }),
-              matches ? css({ color: 'text-brand' }) : css({ color: 'warning-text' }),
+            className={css(
+              { margin: '0', display: 'flex', alignItems: 'center', gap: '1', textStyle: 'small' },
+              matches ? { color: 'text-brand' } : { color: 'warning-text' },
             )}
           >
+            {matches ? <SuccessIcon size={sizes['icon-xs']} /> : <WarningIcon size={sizes['icon-xs']} />}
             {matches ? t('pages.prompts.fileMatches') : t('pages.prompts.fileDiffers')}
           </p>
         )}
@@ -139,9 +136,11 @@ export function PromptEditor({
         <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.prompts.groupCreationHint')}</p>
       ) : null}
       <WriteNotice notice={notice} />
-      <Button type="button" disabled={saving} onClick={() => onSave(current)}>
-        {saving ? t('pages.prompts.saving') : t('pages.prompts.save')}
-      </Button>
+      <div>
+        <Button loading={saving} loadingLabel={t('pages.prompts.saving')} onClick={() => onSave(current)}>
+          {t('pages.prompts.save')}
+        </Button>
+      </div>
     </div>
   );
 }

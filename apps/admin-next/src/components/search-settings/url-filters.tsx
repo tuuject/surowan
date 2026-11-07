@@ -2,7 +2,6 @@ import { RE2JS } from 're2js';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Panel } from '@/components/layout/panel';
-import { Label } from '@/components/ui/label';
 import { Field } from '@tuuject/koi-react/field';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import { splitLines } from './draft.ts';
@@ -39,29 +38,30 @@ export function UrlFilterEditor({
   }));
   return (
     <Panel title={t('search.filtersTitle')} description={t('search.filtersDescription')}>
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-          <Label htmlFor="search-url-filters">{t('search.filtersLabel')}</Label>
+      <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+        <Field
+          label={t('search.filtersLabel')}
+          help={t('search.filtersHint')}
+          error={
+            compiled.some((entry) => entry.pattern === null)
+              ? t('search.filtersInvalid', {
+                  rules: compiled
+                    .filter((entry) => entry.pattern === null)
+                    .map((entry) => entry.rule)
+                    .join(', '),
+                })
+              : undefined
+          }
+        >
           <Textarea
-            id="search-url-filters"
             rows={4}
             value={rules}
             onChange={(event) => onRulesChange(event.target.value)}
             placeholder={'csdn\nspam\\.example'}
             disabled={disabled}
+            className={css({ fontFamily: 'mono' })}
           />
-          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('search.filtersHint')}</p>
-          {compiled.some((entry) => entry.pattern === null) ? (
-            <p role="alert" className={css({ textStyle: 'small', color: 'error-text' })}>
-              {t('search.filtersInvalid', {
-                rules: compiled
-                  .filter((entry) => entry.pattern === null)
-                  .map((entry) => entry.rule)
-                  .join(', '),
-              })}
-            </p>
-          ) : null}
-        </div>
+        </Field>
         <Field label={t('search.filterTestLabel')} help={t('search.filterTestHint')}>
           <Textarea
             rows={3}

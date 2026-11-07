@@ -50,7 +50,7 @@ export function ListPageHeader({
   actions,
 }: {
   readonly title: string;
-  readonly description?: string;
+  readonly description?: ReactNode;
   readonly actions?: ReactNode;
 }): React.ReactElement {
   return <PageHeader title={title} {...(description === undefined ? {} : { description })} actions={actions} />;

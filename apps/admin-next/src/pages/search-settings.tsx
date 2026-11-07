@@ -26,12 +26,16 @@ export default function SearchSettingsPage(): React.ReactElement {
       {config.isPending ? (
         <Skeleton className={css({ height: '256px', width: '100%' })} />
       ) : config.isError ? (
-        <div role="alert" className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
-          <p className={css({ textStyle: 'body', color: 'error-text' })}>{errorMessage(config.error)}</p>
-          <Button variant="outline" color="secondary" onClick={() => void config.refetch()}>
-            {t('common.reload')}
-          </Button>
-        </div>
+        <Alert
+          tone="error"
+          action={
+            <Button size="sm" variant="ghost" color="secondary" onClick={() => void config.refetch()}>
+              {t('common.reload')}
+            </Button>
+          }
+        >
+          {errorMessage(config.error)}
+        </Alert>
       ) : (
         <SearchSettingsForm key={config.data.revision} initial={config.data as SearchConfigView} />
       )}
