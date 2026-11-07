@@ -1,7 +1,7 @@
 import { Select } from '@tuuject/koi-react/select';
 import { useTranslation } from 'react-i18next';
+import { Panel } from '@/components/layout/panel';
 import { type ThemeMode, useTheme } from '@/components/themes/theme-provider';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { type AppLanguage, LANGUAGE_LABELS, LANGUAGES, setLanguage } from '@/lib/i18n';
@@ -18,12 +18,8 @@ export default function PreferencesPage(): React.ReactElement {
 
   return (
     <div className="max-w-lg space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('pages.preferences.displayTitle')}</CardTitle>
-          <CardDescription>{t('pages.preferences.displayDescription')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
+      <Panel title={t('pages.preferences.displayTitle')} description={t('pages.preferences.displayDescription')}>
+        <div className="space-y-5">
           <div className="flex items-center justify-between gap-4">
             <Label htmlFor="preference-theme">{t('pages.preferences.themeLabel')}</Label>
             <Select
@@ -68,8 +64,8 @@ export default function PreferencesPage(): React.ReactElement {
               onCheckedChange={setShowConfigKeys}
             />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
     </div>
   );
 }

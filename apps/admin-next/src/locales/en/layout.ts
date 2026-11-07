@@ -101,6 +101,12 @@ export const layout = {
     tooltip: 'Theme: {{mode}}',
   },
   business: {
+    filters: 'Filters',
+    appliedFilters: '{{count}} applied',
+    refreshList: 'Refresh list',
+    reset: 'Reset',
+    cursorPageCount: 'Page {{page}} · {{count}} records',
+    totalCount: '{{count}} records',
     rowDetails: 'Row details',
     toggleRowDetails: 'Toggle row details',
     applyFilter: 'Apply filter',

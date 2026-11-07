@@ -2,13 +2,20 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ConfirmDialog } from '@/components/business';
+import {
+  ConfirmDialog,
+  ListFooter,
+  ListPageHeader,
+  ListSearchForm,
+  ListToolbar,
+  QueryTextField,
+  useClientPagination,
+} from '@/components/business';
 import { ChatDialog } from '@/components/chats/chat-dialog';
 import { ChatTable } from '@/components/chats/chat-table';
 import { GroupMemoryDialog } from '@/components/chats/group-memory-dialog';
 import { ParticipationDialog } from '@/components/chats/participation-dialog';
 import { ProactiveReplyDialog } from '@/components/chats/proactive-reply-dialog';
-import { Panel } from '@/components/layout/panel';
 import { RestartBanner } from '@/components/models/restart-banner';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -16,15 +23,20 @@ import type { ChatEntry, ChatsView } from '@/lib/api/chats.ts';
 import { deleteChat } from '@/lib/api/chats.ts';
 import { restartServer } from '@/lib/api/config.ts';
 import { errorMessage } from '@/lib/errors';
+import { useListQuery } from '@/lib/list-query';
 import { isConfigConflict } from '@/lib/model-manager';
 import { chatsQuery } from '@/lib/queries';
 import { waitForAdminServer } from '@/lib/restart';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
 
+const EMPTY_FILTERS = { search: '' };
+
 export default function ChatsPage(): React.ReactElement {
   const { t } = useTranslation();
   const query = useQuery(chatsQuery);
+  const listQuery = useListQuery(EMPTY_FILTERS);
+  const search = listQuery.value.search;
   const write = useProviderWrite();
   const [editing, setEditing] = useState<{ readonly view: ChatsView; readonly chat: ChatEntry | null } | null>(null);
   const [scheduling, setScheduling] = useState<{ readonly view: ChatsView; readonly chat: ChatEntry } | null>(null);
@@ -60,12 +72,26 @@ export default function ChatsPage(): React.ReactElement {
     },
     onError: (error) => toast.error(errorMessage(error)),
   });
+  const filteredChats = (query.data?.items ?? []).filter((chatEntry) => {
+    if (search.length === 0) {
+      return true;
+    }
+    const needle = search.toLowerCase();
+    return chatEntry.id.includes(needle) || (chatEntry.title ?? '').toLowerCase().includes(needle);
+  });
+  const pagination = useClientPagination(filteredChats, listQuery.resetKey);
   if (query.isPending) {
-    return <Skeleton className="h-64 w-full rounded-xl" />;
+    return (
+      <div className="space-y-5">
+        <ListPageHeader title={t('pages.chats.allowlistTitle')} />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
+    );
   }
   if (query.isError) {
     return (
       <div className="space-y-3">
+        <ListPageHeader title={t('pages.chats.allowlistTitle')} />
         <p role="alert" className="text-destructive text-sm">
           {errorMessage(query.error)}
         </p>
@@ -77,25 +103,33 @@ export default function ChatsPage(): React.ReactElement {
   }
   const view = query.data;
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      <ListPageHeader title={t('pages.chats.allowlistTitle')} description={t('pages.chats.dialogDescription')} />
       <RestartBanner
         paths={view.restart_required}
         supervised={view.supervised}
         pending={restart.isPending}
         onRestart={() => restart.mutate()}
       />
-      <Panel
-        title={t('pages.chats.allowlistTitle')}
-        flush
-        action={
-          <Button size="sm" onClick={() => setEditing({ view, chat: null })}>
-            <Plus />
-            {t('pages.chats.addChat')}
-          </Button>
-        }
-      >
+      <ListSearchForm value={listQuery.value} emptyValue={EMPTY_FILTERS} onSearch={listQuery.apply}>
+        {({ draft, change }) => (
+          <QueryTextField
+            label={t('pages.chats.colChat')}
+            value={draft.search}
+            onChange={(search) => change({ search })}
+          />
+        )}
+      </ListSearchForm>
+      <ListToolbar onRefresh={() => void query.refetch()} refreshing={query.isRefetching}>
+        <Button onClick={() => setEditing({ view, chat: null })}>
+          <Plus />
+          {t('pages.chats.addChat')}
+        </Button>
+      </ListToolbar>
+      <div>
         <ChatTable
           view={view}
+          items={pagination.items}
           onEdit={(chat) => setEditing({ view, chat })}
           onSchedule={(chat) => setScheduling({ view, chat })}
           onProactive={(chat) => setProactive({ view, chat })}
@@ -105,7 +139,13 @@ export default function ChatsPage(): React.ReactElement {
             setRemoving({ chat, revision: view.revision });
           }}
         />
-      </Panel>
+        <ListFooter
+          count={pagination.total}
+          page={pagination.page}
+          pageCount={pagination.pageCount}
+          onPageChange={pagination.onPageChange}
+        />
+      </div>
       {editing !== null ? (
         <ChatDialog view={editing.view} chat={editing.chat} onClose={() => setEditing(null)} />
       ) : null}

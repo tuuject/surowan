@@ -269,7 +269,7 @@ Playground 是产品的虚拟群聊沙盒：房间对应一个 `host_kind = 'pla
 | `POST /rooms/:id/assets` | `{ content_base64, mime, name? }` 上传静态图片：按真实内容嗅探并完整解码，只接受 JPEG/PNG/WebP、≤10 MiB、≤40 MP、非动画；与已存在的同内容资产去重。拒绝返回 422 `upload_<reason>`，且不写行、不落文件 |
 | `GET /rooms/:id/assets/:assetId/content` | 带认证读取房间图片字节；跨房间的资产 ID 一律 404 |
 | `PUT /rooms/:id/capabilities` | `{ image_enabled, revision }` 房间付费生图开关（记录操作者与时间）；值未变化时是 no-op（重试不会因自己造成的 revision 失败），否则 revision 不匹配返回 409 `room_revision_mismatch` |
-| `GET /rooms/:id/invocations[/:invocationId]` | scoped 房间审计：状态、错误、用量（tokens/成本）、发送用量、receipt 状态与所属 `release_id`（首跑和重试都指向同一个 Release，重试按它寻址；不由 Release 打开的运行为 null）；`invocationId` 不属于该房间返回 404 |
+| `GET /rooms/:id/invocations[/:invocationId]` | scoped 房间审计：状态、错误、用量（tokens/成本）、发送用量、receipt 状态与所属 `release_id`（首跑和重试都指向同一个 Release，重试按它寻址；不由 Release 打开的运行为 null）。集合支持 `limit`（1–200，默认 50）与非负十进制 `offset`（默认 0），返回当前 `items` 与真实 `total`；非法分页参数返回 400 `invalid_limit` / `invalid_offset`。`invocationId` 不属于该房间返回 404 |
 
 所有路由都要求面板 Session 或按模式授权的 API key；带 `Authorization` 的请求不会落到 Session 路径，key 的权限由 EndpointSpec 声明。`GET` 从不触发运行或生成；冒烟与故障注入由测试驱动（`holdForNewMessages` 等语义见 [telegram-agent-flow.md](telegram-agent-flow.md)）。路径、查询参数与 body 里的 ID 必须是规范十进制（无符号、无前导零、不超 int64，19 位但超出 int64 的值同样在查询前 400）：`007`、`-1`、`pmsg_5`、`0x5` 一律 400，嵌套 ID 必须是该房间自己的行，否则 404 且没有任何行变化。房间图片字节由 `apps/admin-next` 的页面直接引用内容端点，浏览器不接触任何本地路径。
 

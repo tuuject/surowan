@@ -3,26 +3,16 @@ import type React from 'react';
 import { Fragment, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
-/**
- * Table shell on top of the shadcn table primitives: horizontal scroll is
- * built into the `Table` wrapper, rows can expand inline (chevron column) and
- * an empty state renders inside the table body. No pagination, no sorting —
- * the API contract is keyset cursors only.
- */
-
-/** Standalone list-page table: a card surface whose cell insets match the card edge. */
-/**
- * A table inside a flush `Panel`: no frame of its own, only the rule under the
- * panel header, with its first and last cells aligned to the header inset.
- */
+/** Plain Koi table spacing; list content never gets a floating Card frame. */
 export const FLUSH_TABLE_CLASS =
-  'rounded-none border-x-0 border-b-0 [&_td:first-child]:ps-6 [&_td:last-child]:pe-6 [&_th:first-child]:ps-6 [&_th:last-child]:pe-6';
+  '[&_td:first-child]:ps-6 [&_td:last-child]:pe-6 [&_th:first-child]:ps-6 [&_th:last-child]:pe-6';
 
 export const LIST_TABLE_CLASS =
-  'bg-card rounded-xl shadow-xs [&_td:first-child]:ps-4 [&_td:last-child]:pe-4 [&_th]:text-muted-foreground [&_th:first-child]:ps-4 [&_th:last-child]:pe-4';
+  '[&_td:first-child]:ps-4 [&_td:last-child]:pe-4 [&_th]:text-muted-foreground [&_th:first-child]:ps-4 [&_th:last-child]:pe-4';
 
 export interface ColumnSpec<T> {
   readonly key: string;
@@ -41,8 +31,17 @@ export interface TableShellProps<T> {
   readonly isExpandable?: (row: T) => boolean;
   readonly emptyText?: React.ReactNode;
   readonly className?: string;
+  readonly frame?: boolean;
+  readonly caption?: string;
+  readonly loading?: boolean;
+  readonly skeletonRows?: number;
 }
 
+/**
+ * Koi's order-table structure with the panel's existing optional inline detail
+ * rows. Loading and empty states stay inside the table, so the header and the
+ * real column hierarchy never disappear between queries.
+ */
 export function TableShell<T>({
   columns,
   data,
@@ -51,9 +50,13 @@ export function TableShell<T>({
   isExpandable,
   emptyText,
   className,
+  frame = true,
+  caption,
+  loading = false,
+  skeletonRows = 6,
 }: TableShellProps<T>): React.ReactElement {
   const { t } = useTranslation();
-  const empty = emptyText ?? t('common.noRecords');
+  const empty = emptyText ?? t('invocations.business.cursorList.noRecordsDescription');
   const [expandedKeys, setExpandedKeys] = useState<ReadonlySet<string>>(new Set());
 
   const toggleRow = (key: string): void => {
@@ -70,10 +73,12 @@ export function TableShell<T>({
 
   const hasExpand = expandedRender !== undefined;
   const columnCount = columns.length + (hasExpand ? 1 : 0);
+  const skeleton = Array.from({ length: skeletonRows }, (_, index) => index);
 
   return (
-    <div className={cn('rounded-lg border', className)}>
-      <Table>
+    <div className={cn('overflow-x-auto', frame && 'border-y', className)}>
+      <Table aria-busy={loading || undefined}>
+        {caption === undefined ? null : <TableCaption>{caption}</TableCaption>}
         <TableHeader>
           <TableRow>
             {hasExpand ? <TableHead className="w-9" aria-label={t('layout.business.rowDetails')} /> : null}
@@ -89,9 +94,24 @@ export function TableShell<T>({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data.length === 0 ? (
+          {loading ? (
+            skeleton.map((key) => (
+              <TableRow key={key}>
+                {hasExpand ? (
+                  <TableCell className="w-9">
+                    <Skeleton className="block size-4" />
+                  </TableCell>
+                ) : null}
+                {columns.map((column) => (
+                  <TableCell key={column.key} className={cn(column.align === 'right' && 'text-right')}>
+                    <Skeleton className="block h-4 w-24 max-w-full" />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))
+          ) : data.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={columnCount} className="text-muted-foreground h-16 text-center">
+              <TableCell colSpan={columnCount} className="text-muted-foreground h-24 text-center">
                 {empty}
               </TableCell>
             </TableRow>

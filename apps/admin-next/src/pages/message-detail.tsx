@@ -13,7 +13,7 @@ import {
   TextValue,
   ToneBadge,
 } from '@/components/business';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Panel } from '@/components/layout/panel';
 import type { MediaEntry, MessageDetail, RevisionEntry } from '@/lib/api/messages.ts';
 import { formatNumber, formatTime } from '@/lib/format';
 import { messageQuery } from '@/lib/queries';
@@ -30,16 +30,15 @@ function YesNoBadge({ value }: { readonly value: boolean }): React.ReactElement 
 function DetailHeader({ message }: { readonly message: MessageDetail }): React.ReactElement {
   const { t } = useTranslation();
   return (
-    <Card className="gap-4 py-5">
-      <CardHeader className="flex-row items-start justify-between gap-4 px-5 py-0">
-        <CardTitle className="font-mono text-base break-all">
-          {t('invocations.messageDetail.title', { id: message.id })}
-        </CardTitle>
+    <Panel
+      title={t('invocations.messageDetail.title', { id: message.id })}
+      action={
         <Link to="/messages" className="text-primary shrink-0 text-sm underline-offset-4 hover:underline">
           {t('invocations.messageDetail.backToList')}
         </Link>
-      </CardHeader>
-      <CardContent className="space-y-4 px-5 py-0">
+      }
+    >
+      <div className="space-y-4">
         <KvList
           items={[
             {
@@ -62,8 +61,8 @@ function DetailHeader({ message }: { readonly message: MessageDetail }): React.R
             { label: t('invocations.messageDetail.kv.received'), value: formatTime(message.received_at) },
           ]}
         />
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   );
 }
 
@@ -220,22 +219,16 @@ export function MessageDetailView({ id }: { readonly id: string }): React.ReactE
   return (
     <div className="space-y-4">
       <DetailHeader message={data} />
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('invocations.messageDetail.revisionsTitle', { count: data.revisions.length })}</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Panel title={t('invocations.messageDetail.revisionsTitle', { count: data.revisions.length })}>
+        <div>
           <RevisionsTable message={data} />
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('invocations.messageDetail.mediaTitle', { count: data.media.length })}</CardTitle>
-        </CardHeader>
-        <CardContent>
+        </div>
+      </Panel>
+      <Panel title={t('invocations.messageDetail.mediaTitle', { count: data.media.length })}>
+        <div>
           <MediaTable message={data} />
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
     </div>
   );
 }

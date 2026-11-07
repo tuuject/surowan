@@ -141,56 +141,93 @@ function parseInteger(value: string): number | null {
   return trimmed.length === 0 ? null : Number(trimmed);
 }
 
+export interface ValidateOptions {
+  /**
+   * Limit field validation to one engine draft. Cross-engine id collisions and
+   * the selected engine's own provider rules still apply, while unrelated
+   * URL filters and other engines' pending edits do not block the dialog.
+   */
+  readonly onlyEngineIndex?: number;
+}
+
 /** Mirrors the server's rules so the save button never starts a doomed write. */
-export function validate(input: SearchConfigInput, providers: readonly SearchProviderView[]): readonly string[] {
+export function validate(
+  input: SearchConfigInput,
+  providers: readonly SearchProviderView[],
+  options: ValidateOptions = {},
+): readonly string[] {
   const byId = new Map(providers.map((provider) => [provider.id, provider]));
   const errors: string[] = [];
-  for (const [index, rule] of input.url_filters.entries()) {
-    try {
-      RE2JS.compile(rule);
-    } catch {
-      errors.push(`URL filter #${index + 1} is not a valid regular expression`);
+  const only = options.onlyEngineIndex;
+  if (only === undefined) {
+    for (const [index, rule] of input.url_filters.entries()) {
+      try {
+        RE2JS.compile(rule);
+      } catch {
+        errors.push(`URL filter #${index + 1} is not a valid regular expression`);
+      }
+    }
+  }
+  const duplicateIds = new Set<string>();
+  if (only !== undefined) {
+    const counts = new Map<string, number>();
+    for (const engine of input.engines) {
+      const count = (counts.get(engine.id) ?? 0) + 1;
+      counts.set(engine.id, count);
+      if (count > 1) {
+        duplicateIds.add(engine.id);
+      }
     }
   }
   const ids = new Set<string>();
   for (const [index, engine] of input.engines.entries()) {
-    const label = `#${index + 1}`;
-    if (!/^[a-z][a-z0-9-]{0,31}$/.test(engine.id)) {
-      errors.push(`${label}: id must be lowercase letters, digits and dashes`);
-    }
-    if (ids.has(engine.id)) {
-      errors.push(`${label}: duplicate id ${engine.id}`);
-    }
-    ids.add(engine.id);
-    const provider = byId.get(engine.provider);
-    if (provider === undefined) {
-      errors.push(`${label}: unknown provider ${engine.provider}`);
+    if (only !== undefined && index !== only) {
       continue;
     }
-    if (engine.endpoint === null && provider.default_endpoint === null) {
-      errors.push(`${label}: an endpoint is required`);
-    }
-    if (!provider.supports_count && engine.results !== null) {
-      errors.push(`${label}: this provider does not accept a result count`);
-    }
-    if (engine.results !== null && (!Number.isInteger(engine.results) || engine.results < 1 || engine.results > 10)) {
-      errors.push(`${label}: results must be between 1 and 10`);
-    }
-    if (
-      engine.timeout_seconds !== null &&
-      (!Number.isInteger(engine.timeout_seconds) || engine.timeout_seconds < 5 || engine.timeout_seconds > 30)
-    ) {
-      errors.push(`${label}: timeout must be between 5 and 30 seconds`);
-    }
-    if (provider.key === 'required' && engine.api_key === null && !engine.keep_api_key && engine.key_source === null) {
-      errors.push(`${label}: an api key is required`);
-    }
-    if (
-      provider.key === 'forbidden' &&
-      (engine.api_key !== null || engine.key_source !== null || engine.keep_api_key)
-    ) {
-      errors.push(`${label}: this provider does not accept an api key`);
-    }
+    const duplicate = only === undefined ? ids.has(engine.id) : duplicateIds.has(engine.id);
+    errors.push(...validateEngine(engine, `#${index + 1}`, byId.get(engine.provider), duplicate));
+    ids.add(engine.id);
+  }
+  return errors;
+}
+
+function validateEngine(
+  engine: SearchEngineInput,
+  label: string,
+  provider: SearchProviderView | undefined,
+  duplicate: boolean,
+): readonly string[] {
+  const errors: string[] = [];
+  if (!/^[a-z][a-z0-9-]{0,31}$/.test(engine.id)) {
+    errors.push(`${label}: id must be lowercase letters, digits and dashes`);
+  }
+  if (duplicate) {
+    errors.push(`${label}: duplicate id ${engine.id}`);
+  }
+  if (provider === undefined) {
+    errors.push(`${label}: unknown provider ${engine.provider}`);
+    return errors;
+  }
+  if (engine.endpoint === null && provider.default_endpoint === null) {
+    errors.push(`${label}: an endpoint is required`);
+  }
+  if (!provider.supports_count && engine.results !== null) {
+    errors.push(`${label}: this provider does not accept a result count`);
+  }
+  if (engine.results !== null && (!Number.isInteger(engine.results) || engine.results < 1 || engine.results > 10)) {
+    errors.push(`${label}: results must be between 1 and 10`);
+  }
+  if (
+    engine.timeout_seconds !== null &&
+    (!Number.isInteger(engine.timeout_seconds) || engine.timeout_seconds < 5 || engine.timeout_seconds > 30)
+  ) {
+    errors.push(`${label}: timeout must be between 5 and 30 seconds`);
+  }
+  if (provider.key === 'required' && engine.api_key === null && !engine.keep_api_key && engine.key_source === null) {
+    errors.push(`${label}: an api key is required`);
+  }
+  if (provider.key === 'forbidden' && (engine.api_key !== null || engine.key_source !== null || engine.keep_api_key)) {
+    errors.push(`${label}: this provider does not accept an api key`);
   }
   return errors;
 }

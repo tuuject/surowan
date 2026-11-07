@@ -13,6 +13,9 @@ import {
   type LucideIcon,
   MessageSquare,
   MessagesSquare,
+  Monitor,
+  History,
+  Database,
   Play,
   ScrollText,
   Search,
@@ -67,6 +70,7 @@ export interface NavItemDefinition {
 
 export interface NavGroupDefinition {
   readonly labelKey: NavGroupKey;
+  readonly icon: LucideIcon;
   readonly items: readonly NavItemDefinition[];
 }
 
@@ -79,6 +83,7 @@ export interface NavGroupDefinition {
 export const NAV_GROUPS: readonly NavGroupDefinition[] = [
   {
     labelKey: 'monitor',
+    icon: Monitor,
     items: [
       { titleKey: 'overview', to: '/', icon: LayoutDashboard },
       { titleKey: 'warnings', to: '/warnings', icon: TriangleAlert },
@@ -86,6 +91,7 @@ export const NAV_GROUPS: readonly NavGroupDefinition[] = [
   },
   {
     labelKey: 'activity',
+    icon: History,
     items: [
       { titleKey: 'toolSessions', to: '/invocations', icon: Zap },
       { titleKey: 'contexts', to: '/contexts', icon: MessageSquare },
@@ -95,6 +101,7 @@ export const NAV_GROUPS: readonly NavGroupDefinition[] = [
   },
   {
     labelKey: 'agentData',
+    icon: Database,
     items: [
       { titleKey: 'memories', to: '/memories', icon: Brain },
       { titleKey: 'groupMemories', to: '/group-memories', icon: LibraryBig },
@@ -104,6 +111,7 @@ export const NAV_GROUPS: readonly NavGroupDefinition[] = [
   },
   {
     labelKey: 'media',
+    icon: Images,
     items: [
       { titleKey: 'botStickerSets', to: '/stickers', icon: Sticker },
       { titleKey: 'imageGenerate', to: '/image-generate', icon: ImagePlus },
@@ -113,6 +121,7 @@ export const NAV_GROUPS: readonly NavGroupDefinition[] = [
   },
   {
     labelKey: 'agentSetup',
+    icon: SlidersHorizontal,
     items: [
       { titleKey: 'models', to: '/models', icon: Cpu },
       { titleKey: 'prompts', to: '/prompts', icon: ScrollText },
@@ -122,6 +131,7 @@ export const NAV_GROUPS: readonly NavGroupDefinition[] = [
   },
   {
     labelKey: 'telegram',
+    icon: Send,
     items: [
       { titleKey: 'telegram', to: '/telegram', icon: Send },
       { titleKey: 'chats', to: '/chats', icon: MessagesSquare },
@@ -130,6 +140,7 @@ export const NAV_GROUPS: readonly NavGroupDefinition[] = [
   },
   {
     labelKey: 'system',
+    icon: Settings,
     items: [
       { titleKey: 'apiKeys', to: '/api-keys', icon: KeyRound },
       { titleKey: 'developer', to: '/developer', icon: Bug },

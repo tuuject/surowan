@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
 import { Eye, Info, Pencil, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
@@ -8,9 +7,10 @@ import {
   type ColumnSpec,
   ConfirmDialog,
   CursorList,
-  FilterToolbar,
+  ListPageHeader,
+  ListSearchForm,
+  QueryTextField,
   TableShell,
-  TextFilter,
 } from '@/components/business';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -28,21 +28,22 @@ import type { GroupMemoryEntry } from '@/lib/api/group-memories.ts';
 import { deleteGroupMemory, groupMemorySource, updateGroupMemory } from '@/lib/api/group-memories.ts';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
+import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { groupMemoriesQuery } from '@/lib/queries';
-import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
 import { toast } from '@/lib/toast.ts';
 
 const SUMMARY_MAX_LENGTH = 150;
+const EMPTY_FILTERS = { chat: '', day: '', search: '' };
 
 export default function GroupMemoriesPage(): React.ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const chat = useChatScope();
-  const navigate = useNavigate({ from: '/group-memories' });
-  const setChat = useChatScopeSetter(navigate);
-  const [day, setDay] = useState<string | undefined>(undefined);
-  const [search, setSearch] = useState<string | undefined>(undefined);
-  const filters = useMemo(() => ({ chat, day, search }), [chat, day, search]);
+  const query = useListQuery(EMPTY_FILTERS);
+  const { chat, day, search } = query.value;
+  const filters = useMemo(
+    () => ({ chat: chatQuery(chat), day: optionalQuery(day), search: optionalQuery(search) }),
+    [chat, day, search],
+  );
   const [editing, setEditing] = useState<GroupMemoryEntry | null>(null);
   const [summary, setSummary] = useState('');
   const [deleting, setDeleting] = useState<GroupMemoryEntry | null>(null);
@@ -153,7 +154,8 @@ export default function GroupMemoriesPage(): React.ReactElement {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      <ListPageHeader title={t('layout.nav.groupMemories')} />
       <Alert>
         <Info className="text-foreground" />
         <AlertTitle>{t('pages.groupMemories.alertTitle')}</AlertTitle>
@@ -162,29 +164,37 @@ export default function GroupMemoriesPage(): React.ReactElement {
         </AlertDescription>
       </Alert>
 
-      <FilterToolbar>
-        <ChatFilter value={chat} onChange={setChat} />
-        <TextFilter
-          value={search}
-          placeholder={t('pages.groupMemories.searchPlaceholder')}
-          onCommit={(value) => setSearch(value.length === 0 ? undefined : value)}
-          onClear={() => setSearch(undefined)}
-        />
-        <Input
-          type="date"
-          aria-label={t('pages.groupMemories.dayFilter')}
-          className="h-8 w-40"
-          value={day ?? ''}
-          onChange={(event) => setDay(event.target.value.length === 0 ? undefined : event.target.value)}
-        />
-      </FilterToolbar>
+      <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
+        {({ draft, change }) => (
+          <>
+            <ChatFilter value={draft.chat} onChange={(chat) => change({ chat })} />
+            <QueryTextField
+              label={t('pages.groupMemories.searchPlaceholder')}
+              value={draft.search}
+              onChange={(search) => change({ search })}
+            />
+            <QueryTextField
+              type="date"
+              label={t('pages.groupMemories.dayFilter')}
+              value={draft.day}
+              onChange={(day) => change({ day })}
+            />
+          </>
+        )}
+      </ListSearchForm>
 
       <CursorList
         factory={groupMemoriesQuery}
         filters={filters}
-        empty={<div className="text-muted-foreground py-8 text-center text-sm">{t('pages.groupMemories.empty')}</div>}
-        renderItems={(items) => (
-          <TableShell columns={columns} data={items} rowKey={(row) => row.id} className="max-w-full overflow-x-auto" />
+        renderItems={(items, { loading }) => (
+          <TableShell
+            columns={columns}
+            data={items}
+            rowKey={(row) => row.id}
+            loading={loading}
+            frame={false}
+            emptyText={t('pages.groupMemories.empty')}
+          />
         )}
       />
 

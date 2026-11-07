@@ -1,7 +1,5 @@
 import { Select } from '@tuuject/koi-react/select';
-import { Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -20,8 +18,6 @@ export function EngineEditor({
   deepseekKeys,
   disabled,
   onChange,
-  onRemove,
-  index,
 }: {
   readonly draft: EngineDraft;
   readonly providers: readonly SearchProviderView[];
@@ -29,8 +25,6 @@ export function EngineEditor({
   readonly deepseekKeys: readonly string[];
   readonly disabled: boolean;
   readonly onChange: (change: Partial<EngineDraft>) => void;
-  readonly onRemove: () => void;
-  readonly index: number;
 }): React.ReactElement {
   const { t } = useTranslation();
   const idPrefix = `search-engine-${draft.key}`;
@@ -44,23 +38,17 @@ export function EngineEditor({
   // Only "new" available means no choice to make: show the paste field alone.
   const showKeyModeChoice = keyModes.length > 1;
   return (
-    <div className="space-y-3 rounded-md border p-3">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium">{t('search.engineHeading', { index: index + 1 })}</p>
-        <div className="flex items-center gap-3">
-          <Label htmlFor={`${idPrefix}-enabled`} className="text-muted-foreground text-xs">
-            {t('search.engineEnabled')}
-          </Label>
-          <Switch
-            id={`${idPrefix}-enabled`}
-            checked={draft.enabled}
-            onCheckedChange={(next) => onChange({ enabled: next })}
-            disabled={disabled}
-          />
-          <Button type="button" variant="ghost" size="sm" onClick={onRemove} disabled={disabled}>
-            <Trash2 aria-hidden /> {t('search.removeEngine')}
-          </Button>
-        </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-end gap-3">
+        <Label htmlFor={`${idPrefix}-enabled`} className="text-muted-foreground text-xs">
+          {t('search.engineEnabled')}
+        </Label>
+        <Switch
+          id={`${idPrefix}-enabled`}
+          checked={draft.enabled}
+          onCheckedChange={(next) => onChange({ enabled: next })}
+          disabled={disabled}
+        />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">

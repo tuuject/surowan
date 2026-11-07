@@ -4,12 +4,13 @@ import { useTranslation } from 'react-i18next';
 import {
   type BadgeSemantic,
   type ColumnSpec,
-  FLUSH_TABLE_CLASS,
+  ListFooter,
+  ListToolbar,
   MonoValue,
   TableShell,
   ToneBadge,
+  useClientPagination,
 } from '@/components/business';
-import { Panel } from '@/components/layout/panel';
 import { Button } from '@/components/ui/button';
 import type {
   HealthCheckResult,
@@ -70,6 +71,7 @@ export function ModelTable({
   readonly onAddById: () => void;
 }): React.ReactElement {
   const { t } = useTranslation();
+  const pagination = useClientPagination(rows, rows[0]?.alias ?? 'no-provider');
   const rowKey = (row: ModelRow): string => `${row.alias}/${row.model.id}`;
   const allSelected = rows.length > 0 && rows.every((row) => healthSelected.has(rowKey(row)));
 
@@ -259,95 +261,97 @@ export function ModelTable({
   ];
 
   return (
-    <Panel
-      title={t('models.models.page.modelsTitle')}
-      flush
-      action={
-        <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={onFetchModels}>
-            {t('models.models.page.fetchModels')}
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={onAddById}>
-            {t('models.models.page.addById')}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={runnableSelected.length === 0 || running}
-            onClick={() => void onRunHealthChecks(runnableSelected)}
-          >
-            {t('models.models.page.checkSelected', { count: runnableSelected.length })}
-          </Button>
-        </div>
-      }
-    >
-      {/* Flush: the panel is the frame, so the table only keeps the
-          rule under the header. */}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-6 pb-3">
-        <p className="text-muted-foreground min-w-0 text-xs">{t('models.models.page.healthCheckNote')}</p>
-        <label className="text-muted-foreground flex shrink-0 cursor-pointer items-center gap-2 text-xs">
-          <input
-            type="checkbox"
-            className="size-4 rounded border-input"
-            ref={(element) => {
-              if (element !== null) {
-                element.indeterminate = !allSelected && rows.some((row) => healthSelected.has(rowKey(row)));
-              }
-            }}
-            checked={allSelected}
-            disabled={running || rows.length === 0}
-            onChange={() => {
-              onHealthSelectedChange((previous) => {
-                const next = new Set(previous);
-                for (const row of rows) {
-                  const key = rowKey(row);
-                  if (allSelected) {
-                    next.delete(key);
-                  } else {
-                    next.add(key);
-                  }
+    <section className="space-y-4">
+      <h2 className="text-lg font-semibold">{t('models.models.page.modelsTitle')}</h2>
+      <ListToolbar
+        trailing={
+          <label className="text-muted-foreground flex shrink-0 cursor-pointer items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              className="size-4 rounded border-input"
+              ref={(element) => {
+                if (element !== null) {
+                  element.indeterminate = !allSelected && rows.some((row) => healthSelected.has(rowKey(row)));
                 }
-                return next;
-              });
-            }}
-          />
-          {t('models.models.page.selectAllForHealth')}
-        </label>
+              }}
+              checked={allSelected}
+              disabled={running || rows.length === 0}
+              onChange={() => {
+                onHealthSelectedChange((previous) => {
+                  const next = new Set(previous);
+                  for (const row of rows) {
+                    const key = rowKey(row);
+                    if (allSelected) {
+                      next.delete(key);
+                    } else {
+                      next.add(key);
+                    }
+                  }
+                  return next;
+                });
+              }}
+            />
+            {t('models.models.page.selectAllForHealth')}
+          </label>
+        }
+      >
+        <Button type="button" variant="outline" onClick={onFetchModels}>
+          {t('models.models.page.fetchModels')}
+        </Button>
+        <Button type="button" variant="outline" onClick={onAddById}>
+          {t('models.models.page.addById')}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={runnableSelected.length === 0 || running}
+          onClick={() => void onRunHealthChecks(runnableSelected)}
+        >
+          {t('models.models.page.checkSelected', { count: runnableSelected.length })}
+        </Button>
+      </ListToolbar>
+      <p className="text-muted-foreground max-w-5xl text-xs">{t('models.models.page.healthCheckNote')}</p>
+      <div>
+        <TableShell
+          columns={columns}
+          data={pagination.items}
+          rowKey={rowKey}
+          frame={false}
+          emptyText={t('models.models.page.emptyModels')}
+          expandedRender={(row) => {
+            const entry = health[rowKey(row)];
+            if (entry === undefined || entry === 'checking') {
+              return null;
+            }
+            const error = entry.error !== null && entry.error.length > 0 ? entry.error : null;
+            const text = entry.response_text.length > 0 ? entry.response_text : null;
+            if (error === null && text === null) {
+              return null;
+            }
+            return (
+              <div className="max-h-64 max-w-3xl space-y-2 overflow-auto whitespace-normal">
+                {error === null ? null : <p className="text-destructive text-sm break-words">{error}</p>}
+                {text === null ? null : (
+                  <p className="text-muted-foreground text-sm break-words whitespace-pre-wrap">{text}</p>
+                )}
+              </div>
+            );
+          }}
+          isExpandable={(row) => {
+            const entry = health[rowKey(row)];
+            if (entry === undefined || entry === 'checking') {
+              return false;
+            }
+            return (entry.error !== null && entry.error.length > 0) || entry.response_text.length > 0;
+          }}
+        />
+        <ListFooter
+          count={pagination.total}
+          page={pagination.page}
+          pageCount={pagination.pageCount}
+          onPageChange={pagination.onPageChange}
+        />
       </div>
-      <TableShell
-        columns={columns}
-        data={rows}
-        rowKey={rowKey}
-        className={FLUSH_TABLE_CLASS}
-        emptyText={t('models.models.page.emptyModels')}
-        expandedRender={(row) => {
-          const entry = health[rowKey(row)];
-          if (entry === undefined || entry === 'checking') {
-            return null;
-          }
-          const error = entry.error !== null && entry.error.length > 0 ? entry.error : null;
-          const text = entry.response_text.length > 0 ? entry.response_text : null;
-          if (error === null && text === null) {
-            return null;
-          }
-          return (
-            <div className="max-h-64 max-w-3xl space-y-2 overflow-auto whitespace-normal">
-              {error === null ? null : <p className="text-destructive text-sm break-words">{error}</p>}
-              {text === null ? null : (
-                <p className="text-muted-foreground text-sm break-words whitespace-pre-wrap">{text}</p>
-              )}
-            </div>
-          );
-        }}
-        isExpandable={(row) => {
-          const entry = health[rowKey(row)];
-          if (entry === undefined || entry === 'checking') {
-            return false;
-          }
-          return (entry.error !== null && entry.error.length > 0) || entry.response_text.length > 0;
-        }}
-      />
-    </Panel>
+    </section>
   );
 }

@@ -1,25 +1,26 @@
-import { Link, useNavigate } from '@tanstack/react-router';
-import { useMemo, useState } from 'react';
+import { Link } from '@tanstack/react-router';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ChatFilter,
   type ColumnSpec,
   CopyableValue,
   CursorList,
-  FilterToolbar,
-  LIST_TABLE_CLASS,
+  ListPageHeader,
+  ListSearchForm,
+  QueryTextField,
   TableShell,
-  TextFilter,
   ToneBadge,
 } from '@/components/business';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import type { MessageListItem } from '@/lib/api/messages.ts';
 import { formatNumber, formatTime } from '@/lib/format';
+import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { messagesQuery } from '@/lib/queries';
-import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
 
 const ID_LINK =
   'decoration-border hover:decoration-foreground font-medium tabular-nums underline underline-offset-4 transition-colors';
+const EMPTY_FILTERS = { search: '', chat: '' };
 
 /** Text or caption; non-text kinds carry a neutral kind badge so a sticker row isn't just a dash. */
 function MessageCell({ row }: { readonly row: MessageListItem }): React.ReactElement {
@@ -38,11 +39,9 @@ function MessageCell({ row }: { readonly row: MessageListItem }): React.ReactEle
 
 export default function MessagesPage(): React.ReactElement {
   const { t } = useTranslation();
-  const [search, setSearch] = useState<string | undefined>(undefined);
-  const chat = useChatScope();
-  const navigate = useNavigate({ from: '/messages' });
-  const setChat = useChatScopeSetter(navigate);
-  const filters = useMemo(() => ({ search, chat }), [search, chat]);
+  const query = useListQuery(EMPTY_FILTERS);
+  const { search, chat } = query.value;
+  const filters = useMemo(() => ({ search: optionalQuery(search), chat: chatQuery(chat) }), [search, chat]);
 
   const COLUMNS: readonly ColumnSpec<MessageListItem>[] = [
     {
@@ -126,30 +125,37 @@ export default function MessagesPage(): React.ReactElement {
   ];
 
   return (
-    <div className="space-y-4">
-      <FilterToolbar>
-        <TextFilter
-          placeholder={t('invocations.messages.searchPlaceholder')}
-          value={search}
-          onCommit={(value) => setSearch(value.length > 0 ? value : undefined)}
-          onClear={() => setSearch(undefined)}
-          widthClassName="w-72"
-        />
-        <ChatFilter value={chat} onChange={setChat} />
-      </FilterToolbar>
+    <div className="space-y-5">
+      <ListPageHeader title={t('layout.nav.messages')} />
+      <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
+        {({ draft, change }) => (
+          <>
+            <QueryTextField
+              label={t('invocations.messages.searchPlaceholder')}
+              value={draft.search}
+              onChange={(search) => change({ search })}
+            />
+            <ChatFilter value={draft.chat} onChange={(chat) => change({ chat })} />
+          </>
+        )}
+      </ListSearchForm>
       <CursorList
         factory={messagesQuery}
         filters={filters}
-        empty={
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>{t('invocations.messages.empty.title')}</EmptyTitle>
-              <EmptyDescription>{t('invocations.messages.empty.description')}</EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        }
-        renderItems={(items) => (
-          <TableShell columns={COLUMNS} data={items} rowKey={(row) => row.id} className={LIST_TABLE_CLASS} />
+        renderItems={(items, { loading }) => (
+          <TableShell
+            columns={COLUMNS}
+            data={items}
+            rowKey={(row) => row.id}
+            loading={loading}
+            frame={false}
+            emptyText={
+              <div className="space-y-1 py-2">
+                <EmptyTitle>{t('invocations.messages.empty.title')}</EmptyTitle>
+                <EmptyDescription>{t('invocations.messages.empty.description')}</EmptyDescription>
+              </div>
+            }
+          />
         )}
       />
     </div>

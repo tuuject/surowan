@@ -106,11 +106,13 @@ test('shows a configured engine without its key and saves the switch', async ({ 
   await expect(page.getByRole('heading', { name: 'Web search' })).toBeVisible();
   await expect(page.getByText('Turning search off changes the capability set')).toBeVisible();
   await expect(page.getByLabel('Enable web search')).toBeChecked();
+  await page.getByRole('button', { name: 'Edit main', exact: true }).click();
   await expect(page.getByLabel('Engine id')).toHaveValue('main');
   await expect(page.getByLabel('Provider')).toHaveValue('tavily');
   await expect(page.getByLabel('Note for the model')).toHaveValue('Chinese developer blogs');
   await expect(page.getByLabel('Credential')).toHaveValue('keep');
   await expect(page.getByLabel('Enter a new key')).toHaveCount(0);
+  await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click();
 
   await page.getByLabel('Enable web search').uncheck();
   await page.getByRole('button', { name: 'Save settings' }).click();
@@ -137,6 +139,7 @@ test('switching provider drops the old endpoint and configured key', async ({ pa
     await route.fulfill({ json: view({ engines: [configuredEngine] }) });
   });
   await page.goto(await adminUrl('/search-settings'));
+  await page.getByRole('button', { name: 'Edit main', exact: true }).click();
   await expect(page.getByLabel('Credential')).toHaveValue('keep');
   await page.getByLabel('Provider').selectOption('brave');
   await expect(page.getByLabel('Provider')).toHaveValue('brave');
@@ -145,7 +148,12 @@ test('switching provider drops the old endpoint and configured key', async ({ pa
   // A key must be entered, so the mode dropdown is not a choice and disappears.
   await expect(page.getByRole('combobox', { name: 'Credential' })).toHaveCount(0);
   await expect(page.getByLabel('Enter a new key')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Save settings' })).toBeDisabled();
+  await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('dialog').getByText(/an api key is required/i)).toBeVisible();
+  await page.getByLabel('Enter a new key').fill('brave-replacement-secret');
+  await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save settings' })).toBeEnabled();
 });
 
 test('adds an engine with a new key and previews URL filter matches', async ({ page }) => {
@@ -169,6 +177,7 @@ test('adds an engine with a new key and previews URL filter matches', async ({ p
   await expect(page.getByRole('combobox', { name: 'Credential' })).toHaveCount(0);
   await page.getByLabel('Enter a new key').fill('e2e-search-key');
   await page.getByLabel('Note for the model').fill('Chinese developer blogs');
+  await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click();
 
   // The preview never sends a request: it only marks what the rules drop.
   await page.getByLabel('Rules').fill('csdn');
@@ -185,6 +194,48 @@ test('adds an engine with a new key and previews URL filter matches', async ({ p
     url_filters: ['csdn'],
     engines: [{ id: 'tavily-1', provider: 'tavily', api_key: 'e2e-search-key', note: 'Chinese developer blogs' }],
   });
+});
+
+test('engine edits stay locked while a settings save is in flight', async ({ page }) => {
+  const gate = Promise.withResolvers<void>();
+  const writes: Array<{ engines: unknown[] }> = [];
+  await page.route('**/api/search/config', async (route) => {
+    if (route.request().method() === 'PUT') {
+      writes.push(route.request().postDataJSON());
+      await gate.promise;
+      await route.fulfill({
+        json: {
+          ...view({ revision: 'rev-2', enabled: false, active: false }),
+          apply: { applied: [], restart_required: [] },
+        },
+      });
+      return;
+    }
+    await route.fulfill({ json: view({ enabled: false, active: false }) });
+  });
+  await page.goto(await adminUrl('/search-settings'));
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  await expect.poll(() => writes.length).toBe(1);
+  await expect(page.getByRole('button', { name: 'Add engine', exact: true })).toBeDisabled();
+  gate.resolve();
+  await expect(toast(page, 'Web search settings saved')).toBeVisible();
+  expect(writes[0]?.engines).toEqual([]);
+});
+
+test('an unrelated invalid URL filter does not trap engine edits in the dialog', async ({ page }) => {
+  await page.route('**/api/search/config', async (route) => {
+    await route.fulfill({ json: view({ engines: [configuredEngine] }) });
+  });
+  await page.goto(await adminUrl('/search-settings'));
+  await page.getByLabel('Rules').fill('[');
+  await expect(page.getByRole('button', { name: 'Save settings' })).toBeDisabled();
+
+  await page.getByRole('button', { name: 'Edit main', exact: true }).click();
+  await page.getByLabel('Note for the model').fill('Edited while the filter is invalid');
+  await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByText('URL filter #1 is not a valid regular expression')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save settings' })).toBeDisabled();
 });
 
 test('a save conflict offers a reload onto the current revision', async ({ page }) => {
@@ -234,6 +285,7 @@ test('reusing the only DeepSeek model key saves that alias', async ({ page }) =>
   await page.getByRole('button', { name: 'Add engine' }).click();
   await page.getByLabel('Provider').selectOption('deepseek');
   await page.getByLabel('Credential').selectOption('alias');
+  await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click();
   await page.getByRole('button', { name: 'Save settings' }).click();
   await expect(toast(page, 'Web search settings saved')).toBeVisible();
   expect(writes[0]).toMatchObject({
@@ -246,14 +298,22 @@ test('renaming a configured engine asks for a credential instead of keeping one'
     await route.fulfill({ json: view({ engines: [configuredEngine] }) });
   });
   await page.goto(await adminUrl('/search-settings'));
+  await page.getByRole('button', { name: 'Edit main', exact: true }).click();
   await expect(page.getByLabel('Credential')).toHaveValue('keep');
   await page.getByLabel('Engine id').fill('renamed');
   // The server keeps keys by id, so the renamed engine has no key to keep;
   // "enter a new key" is then the only mode and its dropdown disappears.
   await expect(page.getByRole('combobox', { name: 'Credential' })).toHaveCount(0);
   await expect(page.getByLabel('Enter a new key')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Save settings' })).toBeDisabled();
+  await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('dialog').getByText(/an api key is required/i)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save settings', includeHidden: true })).toBeEnabled();
+  await page.getByLabel('Enter a new key').fill('replacement-secret');
+  await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   // Back on the stored id, keeping the configured key is offered again.
+  await page.getByRole('button', { name: 'Edit renamed', exact: true }).click();
   await page.getByLabel('Engine id').fill('main');
   await expect(page.getByLabel('Credential').locator('option[value="keep"]')).toHaveCount(1);
 });

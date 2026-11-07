@@ -5,7 +5,6 @@ import { Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { AppShell } from '@/components/app-shell/AppShell';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { logout } from '@/lib/api/auth.ts';
 import type { SessionState } from '@/lib/api/core.ts';
 import { ApiError } from '@/lib/api/core.ts';
@@ -126,18 +125,18 @@ function RouteErrorFallback({ error }: ErrorComponentProps): React.ReactElement 
   const message = error instanceof Error ? error.message : String(error);
   return (
     <Centered>
-      <Card className={css({ width: 'min(440px, 100%)' })}>
-        <CardHeader>
-          <CardTitle>{t('common.requestFailed')}</CardTitle>
-          <CardDescription>{t('layout.routeError.description')}</CardDescription>
-        </CardHeader>
-        <CardContent className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+      <section className={css({ width: 'min(440px, 100%)' })}>
+        <div className={css({ marginBlockEnd: '4' })}>
+          <h2 className={css({ textStyle: 'heading-3' })}>{t('common.requestFailed')}</h2>
+          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('layout.routeError.description')}</p>
+        </div>
+        <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
           <p className={css({ textStyle: 'small', color: 'text-muted', overflowWrap: 'anywhere' })}>{message}</p>
           <Button type="button" onClick={() => window.location.reload()}>
             {t('common.retry')}
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </Centered>
   );
 }

@@ -2,9 +2,10 @@ import { Select } from '@tuuject/koi-react/select';
 import { Send, Upload } from 'lucide-react';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
+import { ListFooter } from '@/components/business';
+import { Panel } from '@/components/layout/panel';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
@@ -28,9 +29,10 @@ interface ComposerCardProps {
   readonly uploading: boolean;
   readonly attachments: readonly string[];
   readonly messages: {
-    readonly hasNextPage: boolean;
+    readonly page: number;
+    readonly pageCount: number;
     readonly isFetchingNextPage: boolean;
-    readonly fetchNextPage: () => Promise<unknown>;
+    readonly onPageChange: (page: number) => Promise<void>;
   };
   readonly submit: {
     readonly isPending: boolean;
@@ -70,11 +72,8 @@ export function ComposerCard({
 }: ComposerCardProps): React.ReactElement {
   const { t } = useTranslation();
   return (
-    <Card className="min-w-0">
-      <CardHeader>
-        <CardTitle>{t('playground.messages.heading')}</CardTitle>
-      </CardHeader>
-      <CardContent className="min-w-0 space-y-3">
+    <Panel title={t('playground.messages.heading')} className="min-w-0">
+      <div className="min-w-0 space-y-3">
         {items.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t('playground.messages.empty')}</p>
         ) : (
@@ -93,17 +92,14 @@ export function ComposerCard({
             ))}
           </ul>
         )}
-        {messages.hasNextPage === true ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void messages.fetchNextPage()}
-            disabled={messages.isFetchingNextPage}
-          >
-            {t('playground.messages.loadOlder')}
-          </Button>
-        ) : null}
+        <ListFooter
+          count={items.length}
+          cursor
+          page={messages.page}
+          pageCount={messages.pageCount}
+          busy={messages.isFetchingNextPage}
+          onPageChange={(next) => void messages.onPageChange(next)}
+        />
         <Separator />
         <div className="space-y-2">
           <div className="flex flex-wrap items-end gap-2">
@@ -230,7 +226,7 @@ export function ComposerCard({
             </Alert>
           ) : null}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   );
 }

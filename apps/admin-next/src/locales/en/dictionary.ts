@@ -18,7 +18,7 @@ export const dictionary = {
     emptyEntries: 'No entries in this dictionary yet.',
     emptyFiltered: 'No entry matches this search.',
     selectAria: 'Select {{term}}',
-    selectAll: 'Select every listed entry',
+    selectAll: 'Select entries on this page',
     colTerm: 'Term',
     colAliases: 'Aliases',
     colDefinition: 'Definition',

@@ -1,11 +1,15 @@
 import { useTranslation } from 'react-i18next';
-import { MonoValue, ToneBadge } from '@/components/business';
-import { Panel } from '@/components/layout/panel';
+import {
+  type ColumnSpec,
+  ListFooter,
+  MonoValue,
+  TableShell,
+  ToneBadge,
+  useClientPagination,
+} from '@/components/business';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import type { ProvidersView, ProviderView } from '@/lib/api/providers.ts';
 import { providerUsage } from '@/lib/model-manager.ts';
-import { cn } from '@/lib/utils';
 
 /** Which slots the provider currently serves. */
 export function ProviderBadges({
@@ -25,89 +29,83 @@ export function ProviderBadges({
   );
 }
 
-/** The provider sidebar: a search box over the providers the config declares. */
+/** Providers use the same table hierarchy as the other configuration lists. */
 export function ProviderListPanel({
   view,
   listed,
   selected,
-  search,
-  onSearchChange,
+  resetKey,
   onSelect,
-  onNewProvider,
 }: {
   readonly view: ProvidersView;
   readonly listed: readonly ProviderView[];
   readonly selected: ProviderView | null;
-  readonly search: string;
-  readonly onSearchChange: (value: string) => void;
+  readonly resetKey: string;
   readonly onSelect: (alias: string) => void;
-  readonly onNewProvider: () => void;
 }): React.ReactElement {
   const { t } = useTranslation();
-  return (
-    <Panel
-      title={t('models.models.page.providersTitle')}
-      className="self-start"
-      action={
-        <Button type="button" size="sm" onClick={onNewProvider}>
-          {t('models.models.page.newProvider')}
-        </Button>
-      }
-    >
-      <div className="space-y-3">
-        <Input
-          aria-label={t('models.models.page.searchProviders')}
-          placeholder={t('models.models.page.searchProviders')}
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-        />
-        {view.providers.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t('models.models.page.noProviders')}</p>
-        ) : listed.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t('models.models.page.noMatchingProviders')}</p>
-        ) : (
-          <ul className="space-y-0.5">
-            {listed.map((provider) => {
-              const active = selected !== null && selected.alias === provider.alias;
-              return (
-                <li key={provider.alias}>
-                  {/* No border: the panel is already the frame, and a box per
-                      row would nest one inside it. */}
-                  <button
-                    type="button"
-                    aria-label={t('models.models.page.providerAria', { alias: provider.alias })}
-                    aria-current={active ? 'true' : undefined}
-                    className={cn(
-                      'w-full space-y-1 rounded-lg px-3 py-2 text-left transition-colors',
-                      active ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50',
-                    )}
-                    onClick={() => onSelect(provider.alias)}
-                  >
-                    <span className="flex items-baseline justify-between gap-2">
-                      <MonoValue value={provider.alias} />
-                      <span className="text-muted-foreground text-xs">{provider.kind}</span>
-                    </span>
-                    <span className="text-muted-foreground block truncate text-xs">
-                      {provider.provider ?? provider.base_url}
-                    </span>
-                    <span className="flex flex-wrap items-center gap-1.5">
-                      <ProviderBadges view={view} provider={provider} />
-                      <span className="text-muted-foreground text-xs tabular-nums">
-                        {t(
-                          provider.models.length === 1
-                            ? 'models.models.page.oneModel'
-                            : 'models.models.page.manyModels',
-                          { count: provider.models.length },
-                        )}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              );
+  const pagination = useClientPagination(listed, resetKey);
+  const columns: readonly ColumnSpec<ProviderView>[] = [
+    {
+      key: 'provider',
+      title: t('models.models.page.providerColumn'),
+      render: (provider) => {
+        const active = selected !== null && selected.alias === provider.alias;
+        return (
+          <Button
+            type="button"
+            variant={active ? 'secondary' : 'ghost'}
+            size="sm"
+            aria-label={t('models.models.page.providerAria', { alias: provider.alias })}
+            aria-current={active ? 'true' : undefined}
+            onClick={() => onSelect(provider.alias)}
+          >
+            <MonoValue value={provider.alias} />
+          </Button>
+        );
+      },
+    },
+    { key: 'kind', title: t('models.models.page.colType'), render: (provider) => provider.kind },
+    {
+      key: 'endpoint',
+      title: t('models.models.page.colEndpoint'),
+      render: (provider) => <MonoValue value={provider.provider ?? provider.base_url} />,
+    },
+    {
+      key: 'usage',
+      title: t('models.models.page.colInUse'),
+      render: (provider) => (
+        <div className="flex flex-wrap items-center gap-2">
+          <ProviderBadges view={view} provider={provider} />
+          <span className="text-muted-foreground text-xs tabular-nums">
+            {t(provider.models.length === 1 ? 'models.models.page.oneModel' : 'models.models.page.manyModels', {
+              count: provider.models.length,
             })}
-          </ul>
-        )}
-      </div>
-    </Panel>
+          </span>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <>
+      <TableShell
+        columns={columns}
+        data={pagination.items}
+        rowKey={(provider) => provider.alias}
+        frame={false}
+        emptyText={
+          view.providers.length === 0
+            ? t('models.models.page.noProviders')
+            : t('models.models.page.noMatchingProviders')
+        }
+      />
+      <ListFooter
+        count={pagination.total}
+        page={pagination.page}
+        pageCount={pagination.pageCount}
+        onPageChange={pagination.onPageChange}
+      />
+    </>
   );
 }

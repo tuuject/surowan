@@ -3,8 +3,8 @@ import { Link } from '@tanstack/react-router';
 import { Select } from '@tuuject/koi-react/select';
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { Panel } from '@/components/layout/panel';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -113,12 +113,12 @@ function HarnessForm({
     >
       <fieldset disabled={save.isPending} className="space-y-4">
         {HARNESS_GROUPS.map((group) => (
-          <Card key={group.id}>
-            <CardHeader>
-              <CardTitle>{t(`harness.groups.${group.id}.title`)}</CardTitle>
-              <CardDescription>{t(`harness.groups.${group.id}.description`)}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
+          <Panel
+            key={group.id}
+            title={t(`harness.groups.${group.id}.title`)}
+            description={t(`harness.groups.${group.id}.description`)}
+          >
+            <div className="space-y-5">
               {group.fields.map((field) => (
                 <HarnessFieldRow
                   key={field.key}
@@ -130,8 +130,8 @@ function HarnessForm({
                   onChange={(value) => setDraft((previous) => ({ ...previous, [field.key]: value }))}
                 />
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </Panel>
         ))}
       </fieldset>
       <div className="bg-background/95 sticky bottom-0 flex flex-wrap items-center gap-3 border-t py-3 backdrop-blur">

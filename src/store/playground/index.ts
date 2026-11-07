@@ -421,9 +421,13 @@ export class PlaygroundStore {
     return roomInvocation(this.#deps, chatId, invocationId);
   }
 
-  /** The room's invocations, newest first, with their usage and receipt state. */
-  roomInvocations(chatId: bigint, limit: number): RoomInvocationSummary[] {
-    return roomInvocations(this.#deps, chatId, limit);
+  /** One offset page of the room's invocations plus the unbounded total. */
+  roomInvocations(
+    chatId: bigint,
+    limit: number,
+    offset = 0,
+  ): { readonly items: readonly RoomInvocationSummary[]; readonly total: number } {
+    return roomInvocations(this.#deps, chatId, limit, offset);
   }
 
   /**

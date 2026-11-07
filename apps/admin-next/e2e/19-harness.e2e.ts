@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { adminUrl, e2eFetch, test } from './helpers.ts';
+import { adminUrl, clickNav, e2eFetch, test } from './helpers.ts';
 
 test.use({ signedIn: true });
 
@@ -12,7 +12,7 @@ async function harnessApi(page: import('@playwright/test').Page) {
 
 test('Harness tuning saves several fields at once and hot-applies them', async ({ page }, testInfo) => {
   await page.goto(await adminUrl('/'));
-  await page.getByRole('link', { name: 'Harness tuning', exact: true }).click();
+  await clickNav(page, 'Agent setup', 'Harness tuning');
   const ttl = page.getByLabel('Reference TTL (hours)');
   const cache = page.getByLabel('Agent cache size');
   const nudge = page.getByRole('switch', { name: 'Send nudge' });
@@ -75,10 +75,10 @@ test('Harness tuning shows the running value when a save was written but not app
   await expect(page.getByLabel('History messages')).toHaveValue('9');
   await expect(page.getByRole('status').filter({ hasText: 'Running: 20' })).toBeVisible();
 
-  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await clickNav(page, 'System', 'Settings');
   await page.getByRole('button', { name: 'Apply config file' }).click();
   await expect(page.getByText('agent.history_messages', { exact: false })).toBeVisible();
-  await page.getByRole('link', { name: 'Harness tuning', exact: true }).click();
+  await clickNav(page, 'Agent setup', 'Harness tuning');
   await expect(page.getByRole('status').filter({ hasText: 'Running:' })).toHaveCount(0);
 });
 
@@ -142,7 +142,7 @@ test('Panel preferences toggle config key names for this browser only', async ({
   await expect(page.getByLabel('Reference TTL (hours)')).toBeVisible();
   await expect(page.getByText('agent.context.ref_ttl_hours', { exact: true })).toHaveCount(0);
 
-  await page.getByRole('link', { name: 'Panel preferences', exact: true }).click();
+  await clickNav(page, 'System', 'Panel preferences');
   const keys = page.getByRole('switch', { name: 'Show config.jsonc key names' });
   await expect(keys).not.toBeChecked();
   await keys.click();
@@ -151,7 +151,7 @@ test('Panel preferences toggle config key names for this browser only', async ({
   await expect(keys).toBeChecked();
   expect(await page.evaluate(() => localStorage.getItem('admin-show-config-keys'))).toBe('true');
 
-  await page.getByRole('link', { name: 'Harness tuning', exact: true }).click();
+  await clickNav(page, 'Agent setup', 'Harness tuning');
   await expect(page.getByText('agent.context.ref_ttl_hours', { exact: true })).toBeVisible();
   await expect(page.getByText('agent.rate_limits.window_seconds', { exact: true })).toBeVisible();
   await expect(page.getByText('telegram.proactive_reply.enabled', { exact: true })).toBeVisible();
@@ -172,7 +172,7 @@ test('Panel preferences toggle config key names for this browser only', async ({
   await expect(otherPage.getByText('agent.context.ref_ttl_hours', { exact: true })).toHaveCount(0);
   await other.close();
 
-  await page.getByRole('link', { name: 'Panel preferences', exact: true }).click();
+  await clickNav(page, 'System', 'Panel preferences');
   await keys.click();
   await expect(keys).not.toBeChecked();
   expect(await page.evaluate(() => localStorage.getItem('admin-show-config-keys'))).toBeNull();

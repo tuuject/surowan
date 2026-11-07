@@ -1,7 +1,7 @@
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ConfirmDialog } from '@/components/business';
+import { ConfirmDialog, ListFooter, useCursorPages } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,7 +18,7 @@ export default function WarningsPage(): React.ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [clearOpen, setClearOpen] = useState(false);
-  const query = useInfiniteQuery(warningsQuery());
+  const { query, pages, items, page, pageCount, onPageChange } = useCursorPages(warningsQuery());
   useForegroundRefresh(() => {
     void query.refetch();
   });
@@ -46,8 +46,7 @@ export default function WarningsPage(): React.ReactElement {
     },
   });
 
-  const first = query.data?.pages[0];
-  const items = query.data?.pages.flatMap((page) => page.items) ?? [];
+  const first = pages[0];
   const standing = first?.standing ?? [];
   const unreadCount = first?.unread_count ?? 0;
 
@@ -123,17 +122,15 @@ export default function WarningsPage(): React.ReactElement {
             ))}
           </div>
         )}
-        {query.hasNextPage ? (
-          <div className="flex justify-center pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={query.isFetchingNextPage}
-              onClick={() => void query.fetchNextPage()}
-            >
-              {t('pages.warnings.loadMore')}
-            </Button>
-          </div>
+        {!query.isPending && !query.isLoadingError ? (
+          <ListFooter
+            count={items.length}
+            cursor
+            page={page}
+            pageCount={pageCount}
+            busy={query.isFetchingNextPage}
+            onPageChange={(next) => void onPageChange(next)}
+          />
         ) : null}
       </Panel>
 

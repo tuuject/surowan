@@ -14,6 +14,7 @@ export const search: typeof searchEn = {
   enginesTitle: '搜索引擎',
   enginesDescription: '每个引擎对应一家服务商，各自配置密钥、地址和备注。备注会展示给模型，帮助它按查询内容选择引擎。',
   addEngine: '添加引擎',
+  editEngine: '编辑引擎',
   noEngines: '还没有配置引擎。添加一个后搜索才可用。',
   engineHeading: '引擎 {{index}}',
   engineEnabled: '启用',

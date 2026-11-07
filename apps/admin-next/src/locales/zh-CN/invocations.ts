@@ -340,8 +340,6 @@ export const invocations: typeof invocationsEn = {
     },
     cursorList: {
       noRecordsDescription: '没有符合当前筛选条件的记录。',
-      loadMore: '加载更多',
-      loadingMore: '加载中…',
       adminRequestFailed: '管理端请求失败',
     },
   },

@@ -9,7 +9,7 @@ import {
   saveDialog,
   viewOf,
 } from './chats-fixture.ts';
-import { adminUrl, e2eFetch, test, watchPageIssues } from './helpers.ts';
+import { adminUrl, clickNav, e2eFetch, test, watchPageIssues } from './helpers.ts';
 
 test.use({ signedIn: true });
 
@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
 
 test('navigation, exact string IDs and hot add work; removal is immediate', async ({ page }) => {
   const finish = watchPageIssues(page);
-  await page.getByRole('link', { name: 'Chats', exact: true }).click();
+  await clickNav(page, 'Telegram', 'Chats');
   await page.getByRole('button', { name: 'Add Chat', exact: true }).click();
   await page.getByLabel('Telegram Chat ID').fill('9007199254740992');
   await page.getByRole('button', { name: 'Save Chat' }).click();
@@ -162,10 +162,10 @@ test('saved-but-not-applied errors refresh both views and Settings can apply the
   expect(failed.items.find((chat) => chat.id === ACTIVE_CHAT)?.active).toEqual(
     before.items.find((chat) => chat.id === ACTIVE_CHAT)?.active,
   );
-  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await clickNav(page, 'System', 'Settings');
   await page.getByRole('button', { name: 'Apply config file' }).click();
   await expect(page.getByText(`telegram.chats[${ACTIVE_CHAT}].thinking_level`, { exact: false })).toBeVisible();
-  await page.getByRole('link', { name: 'Chats', exact: true }).click();
+  await clickNav(page, 'Telegram', 'Chats');
   await expect(chatRow(page).getByRole('cell').nth(2)).toContainText('high');
   await expect(chatRow(page).getByText('Active', { exact: true })).toBeVisible();
 });

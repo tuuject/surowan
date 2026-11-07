@@ -3,10 +3,19 @@ import { getRouteApi } from '@tanstack/react-router';
 import { MessagesSquare, Plus } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ListFooter, ListPageHeader, ListToolbar, useClientPagination } from '@/components/business';
+import { Panel } from '@/components/layout/panel';
 import { RoomWorkspace } from '@/components/playground/room-workspace.tsx';
 import { outcomeUnknown, usePayloadKey } from '@/components/playground/shared.tsx';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,6 +33,7 @@ export default function PlaygroundPage(): React.ReactElement {
   const { room: roomParam } = route.useSearch();
   const queryClient = useQueryClient();
   const rooms = useQuery(playgroundRoomsQuery);
+  const pagination = useClientPagination(rooms.data?.items ?? [], 'playground-rooms');
   const roomId = roomParam ?? '';
   const roomKey = usePayloadKey('room');
 
@@ -72,32 +82,30 @@ export default function PlaygroundPage(): React.ReactElement {
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-4 p-4 md:p-6">
-      <div className="flex min-w-0 flex-col gap-1">
-        <h1 className="text-lg font-semibold">{t('playground.title')}</h1>
-        <p className="text-muted-foreground max-w-3xl text-sm">{t('playground.intro')}</p>
-      </div>
+    <div className="flex min-w-0 flex-col gap-5">
+      <ListPageHeader title={t('playground.title')} description={t('playground.intro')} />
+      <ListToolbar onRefresh={() => void rooms.refetch()} refreshing={rooms.isRefetching}>
+        <Button type="button" variant="outline" onClick={() => setCreateOpen(true)}>
+          <Plus className="size-4" />
+          {t('playground.rooms.create')}
+        </Button>
+      </ListToolbar>
 
       <div className="grid min-w-0 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <Card className="min-w-0">
-          <CardHeader className="flex-row items-center justify-between gap-2">
-            <div>
-              <CardTitle>{t('playground.rooms.heading')}</CardTitle>
-              <CardDescription>{t('playground.rooms.select')}</CardDescription>
-            </div>
-            <Button type="button" size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
-              <Plus className="size-4" />
-              {t('playground.rooms.create')}
-            </Button>
-          </CardHeader>
-          <CardContent className="min-w-0 space-y-2">
+        <Panel
+          title={t('playground.rooms.heading')}
+          description={t('playground.rooms.select')}
+          action={<span className="text-muted-foreground text-xs tabular-nums">{pagination.total}</span>}
+          className="min-w-0"
+        >
+          <div className="min-w-0 space-y-2">
             {rooms.isPending ? <p className="text-muted-foreground text-sm">{t('common.loading')}</p> : null}
             {rooms.isError ? <p className="text-destructive text-sm">{t('playground.rooms.loadFailed')}</p> : null}
             {rooms.data?.items.length === 0 ? (
               <p className="text-muted-foreground text-sm">{t('playground.rooms.empty')}</p>
             ) : null}
             <ul className="min-w-0 space-y-1">
-              {(rooms.data?.items ?? []).map((entry) => (
+              {pagination.items.map((entry) => (
                 <li key={entry.id}>
                   <Button
                     type="button"
@@ -114,24 +122,28 @@ export default function PlaygroundPage(): React.ReactElement {
                 </li>
               ))}
             </ul>
-          </CardContent>
-        </Card>
+            <ListFooter
+              count={pagination.total}
+              page={pagination.page}
+              pageCount={pagination.pageCount}
+              onPageChange={pagination.onPageChange}
+            />
+          </div>
+        </Panel>
 
         <div className="flex min-w-0 flex-col gap-4">
           {roomId.length === 0 ? (
-            <Card>
-              <CardContent>
-                <Empty>
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <MessagesSquare />
-                    </EmptyMedia>
-                    <EmptyTitle>{t('playground.rooms.empty')}</EmptyTitle>
-                    <EmptyDescription>{t('playground.rooms.createHint')}</EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
-              </CardContent>
-            </Card>
+            <div className="border-t py-6">
+              <Empty>
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <MessagesSquare />
+                  </EmptyMedia>
+                  <EmptyTitle>{t('playground.rooms.empty')}</EmptyTitle>
+                  <EmptyDescription>{t('playground.rooms.createHint')}</EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            </div>
           ) : (
             // Keyed by room: every draft, selection, pending upload and key
             // belongs to one room, however the URL changed (a click, Back or
@@ -142,13 +154,13 @@ export default function PlaygroundPage(): React.ReactElement {
         </div>
       </div>
 
-      {createOpen ? (
-        <Card className="min-w-0">
-          <CardHeader>
-            <CardTitle>{t('playground.rooms.create')}</CardTitle>
-            <CardDescription>{t('playground.rooms.createHint')}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
+      <Dialog open={createOpen} onOpenChange={(open) => !open && !createRoom.isPending && setCreateOpen(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('playground.rooms.create')}</DialogTitle>
+            <DialogDescription>{t('playground.rooms.createHint')}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
             <div className="space-y-1">
               <Label htmlFor="playground-room-title">{t('playground.rooms.createTitle')}</Label>
               <Input
@@ -166,17 +178,27 @@ export default function PlaygroundPage(): React.ReactElement {
                 placeholder="Ada, Bo"
               />
             </div>
-            <div className="flex gap-2">
-              <Button type="button" onClick={submitCreate} disabled={createRoom.isPending}>
-                {t('common.create')}
-              </Button>
-              <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>
-                {t('common.cancel')}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
+          </div>
+          {createRoom.isError ? (
+            <p role="alert" className="text-destructive text-sm break-words">
+              {t('playground.errors.failed', { message: errorMessage(createRoom.error) })}
+            </p>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={createRoom.isPending}
+              onClick={() => setCreateOpen(false)}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button type="button" onClick={submitCreate} disabled={createRoom.isPending}>
+              {createRoom.isPending ? t('common.submitting') : t('common.create')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

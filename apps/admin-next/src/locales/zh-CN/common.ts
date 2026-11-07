@@ -13,6 +13,7 @@ export const common: typeof commonEn = {
   delete: '删除',
   create: '创建',
   edit: '编辑',
+  view: '查看',
   submit: '提交',
   submitting: '提交中…',
   retry: '重试',

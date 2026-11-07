@@ -345,8 +345,6 @@ export const invocations = {
     },
     cursorList: {
       noRecordsDescription: 'No records match the current filters.',
-      loadMore: 'Load more',
-      loadingMore: 'Loading more…',
       adminRequestFailed: 'Admin request failed',
     },
   },

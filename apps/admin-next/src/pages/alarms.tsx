@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { Link } from '@tanstack/react-router';
+import { Eye } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -7,25 +8,35 @@ import {
   type ColumnSpec,
   ConfirmDialog,
   CursorList,
-  FilterToolbar,
   KvList,
+  ListPageHeader,
+  ListSearchForm,
   MonoValue,
-  SelectFilter,
+  QuerySelectField,
+  QueryTextField,
   StateBadge,
   TableShell,
-  TextFilter,
   TextValue,
 } from '@/components/business';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import type { AlarmListItem } from '@/lib/api/alarms.ts';
 import { cancelAlarm } from '@/lib/api/alarms.ts';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
+import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { alarmsQuery } from '@/lib/queries';
-import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
 import { toast } from '@/lib/toast.ts';
 
 const ALARM_STATES = ['pending', 'firing', 'fired', 'cancelled'] as const;
+const EMPTY_FILTERS = { state: '', chat: '', target: '' };
 
 function ChatCell({ row }: { readonly row: AlarmListItem }): React.ReactElement {
   const { t } = useTranslation();
@@ -101,13 +112,14 @@ function AlarmDetails({ row }: { readonly row: AlarmListItem }): React.ReactElem
 export default function AlarmsPage(): React.ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [state, setState] = useState<string | undefined>(undefined);
-  const chat = useChatScope();
-  const navigate = useNavigate({ from: '/alarms' });
-  const setChat = useChatScopeSetter(navigate);
-  const [target, setTarget] = useState<string | undefined>(undefined);
+  const query = useListQuery(EMPTY_FILTERS);
+  const { state, chat, target } = query.value;
+  const [viewing, setViewing] = useState<AlarmListItem | null>(null);
   const [cancelling, setCancelling] = useState<AlarmListItem | null>(null);
-  const filters = useMemo(() => ({ state, chat, target }), [state, chat, target]);
+  const filters = useMemo(
+    () => ({ state: optionalQuery(state), chat: chatQuery(chat), target: optionalQuery(target) }),
+    [state, chat, target],
+  );
 
   const cancel = useMutation({
     mutationFn: cancelAlarm,
@@ -146,48 +158,76 @@ export default function AlarmsPage(): React.ReactElement {
     {
       key: 'action',
       title: t('pages.alarms.colAction'),
-      render: (row) =>
-        row.state === 'pending' ? (
-          <Button type="button" size="sm" variant="destructive" onClick={() => setCancelling(row)}>
-            {t('common.cancel')}
+      render: (row) => (
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label={t('common.view')}
+            onClick={() => setViewing(row)}
+          >
+            <Eye />
           </Button>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        ),
+          {row.state === 'pending' ? (
+            <Button type="button" size="sm" variant="destructive" onClick={() => setCancelling(row)}>
+              {t('common.cancel')}
+            </Button>
+          ) : null}
+        </div>
+      ),
     },
   ];
 
   return (
-    <div className="space-y-4">
-      <FilterToolbar>
-        <SelectFilter
-          placeholder={t('pages.alarms.filterState')}
-          value={state}
-          onChange={setState}
-          options={ALARM_STATES.map((value) => ({ value, label: value }))}
-        />
-        <ChatFilter value={chat} onChange={setChat} />
-        <TextFilter
-          placeholder={t('pages.alarms.filterTargetUserId')}
-          value={target}
-          onCommit={setTarget}
-          onClear={() => setTarget(undefined)}
-        />
-      </FilterToolbar>
+    <div className="space-y-5">
+      <ListPageHeader title={t('layout.nav.alarms')} />
+      <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
+        {({ draft, change }) => (
+          <>
+            <QuerySelectField
+              label={t('pages.alarms.filterState')}
+              value={draft.state}
+              onChange={(state) => change({ state })}
+              options={ALARM_STATES.map((value) => ({ value, label: value }))}
+            />
+            <ChatFilter value={draft.chat} onChange={(chat) => change({ chat })} />
+            <QueryTextField
+              label={t('pages.alarms.filterTargetUserId')}
+              value={draft.target}
+              onChange={(target) => change({ target })}
+            />
+          </>
+        )}
+      </ListSearchForm>
       <CursorList
         factory={alarmsQuery}
         filters={filters}
-        empty={<div className="text-muted-foreground py-8 text-center text-sm">{t('pages.alarms.emptyAlarms')}</div>}
-        renderItems={(items) => (
+        renderItems={(items, { loading }) => (
           <TableShell
             columns={columns}
             data={items}
             rowKey={(row) => row.id}
-            expandedRender={(row) => <AlarmDetails row={row} />}
-            className="max-w-full overflow-x-auto"
+            loading={loading}
+            frame={false}
+            emptyText={t('pages.alarms.emptyAlarms')}
           />
         )}
       />
+      <Dialog open={viewing !== null} onOpenChange={(open) => !open && setViewing(null)}>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t('pages.alarms.labelAlarmId')}</DialogTitle>
+            <DialogDescription>{viewing?.id ?? ''}</DialogDescription>
+          </DialogHeader>
+          {viewing === null ? null : <AlarmDetails row={viewing} />}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setViewing(null)}>
+              {t('common.dismiss')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <ConfirmDialog
         open={cancelling !== null}
         onOpenChange={(open) => {

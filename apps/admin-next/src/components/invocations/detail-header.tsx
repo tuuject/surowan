@@ -10,7 +10,7 @@ import {
   TableShell,
   TextValue,
 } from '@/components/business';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Panel } from '@/components/layout/panel';
 import type { InvocationDetail, ToolRegistryEntry } from '@/lib/api/invocations.ts';
 import { formatCost, formatNumber, formatTime } from '@/lib/format';
 
@@ -49,16 +49,15 @@ function ToolRegistryTable({ registry }: { readonly registry: readonly ToolRegis
 export function DetailHeader({ invocation }: { readonly invocation: InvocationDetail }): React.ReactElement {
   const { t } = useTranslation();
   return (
-    <Card className="gap-4 py-5">
-      <CardHeader className="flex-row items-start justify-between gap-4 px-5 py-0">
-        <CardTitle className="font-mono text-base break-all">
-          {t('invocations.invocationDetail.title', { id: invocation.id })}
-        </CardTitle>
+    <Panel
+      title={t('invocations.invocationDetail.title', { id: invocation.id })}
+      action={
         <Link to="/invocations" className="text-primary shrink-0 text-sm underline-offset-4 hover:underline">
           {t('invocations.invocationDetail.backToList')}
         </Link>
-      </CardHeader>
-      <CardContent className="space-y-4 px-5 py-0">
+      }
+    >
+      <div className="space-y-4">
         <KvList
           items={[
             { label: t('invocations.invocationDetail.kv.state'), value: <StateBadge state={invocation.state} /> },
@@ -124,7 +123,7 @@ export function DetailHeader({ invocation }: { readonly invocation: InvocationDe
         {invocation.tool_registry !== null && invocation.tool_registry.length > 0 ? (
           <ToolRegistryTable registry={invocation.tool_registry} />
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   );
 }
