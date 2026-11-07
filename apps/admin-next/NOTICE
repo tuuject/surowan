@@ -12,3 +12,8 @@ The application shell, navigation and shared controls use Koi:
 
 Koi itself builds on Base UI (MIT) and Panda CSS (MIT); their licenses are
 included with their npm packages and remain in effect for the bundled code.
+
+Icons are Font Awesome Free 7 Solid by Fonticons, Inc., bundled as Iconify
+data through @iconify-icons/fa7-solid 2.0.0. The icons are licensed under
+CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/); see
+https://fontawesome.com/license/free.
