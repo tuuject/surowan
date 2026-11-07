@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
+import { SettingRow } from '@/components/business';
+import { Field } from '@tuuject/koi-react/field';
 import { Switch } from '@tuuject/koi-react/switch';
 import type { ChatEntry, ChatsView } from '@/lib/api/chats.ts';
 import { updateChatGroupMemory } from '@/lib/api/chats.ts';
@@ -94,30 +95,21 @@ export function GroupMemoryDialog({
         }}
       >
         <fieldset disabled={save.isPending} className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-          <div
-            className={css({
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'space-between',
-              gap: '4',
-              borderRadius: 'xl',
-              borderWidth: '1px',
-              borderColor: 'border',
-              padding: '3',
-            })}
+          <SettingRow label={t('pages.chats.groupMemoryEnable')} description={t('pages.chats.groupMemoryEnableHint')}>
+            {({ id, describedBy }) => (
+              <Switch id={id} aria-describedby={describedBy} checked={enabled} onCheckedChange={setEnabled} />
+            )}
+          </SettingRow>
+          <Field
+            label={t('pages.chats.groupMemoryIdle')}
+            help={
+              <>
+                <span className={css({ display: 'block' })}>{t('pages.chats.groupMemoryIdleHint')}</span>
+                <span className={css({ display: 'block' })}>{t('pages.chats.groupMemoryCutover')}</span>
+              </>
+            }
           >
-            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-              <Label htmlFor="group-memory-enabled">{t('pages.chats.groupMemoryEnable')}</Label>
-              <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-                {t('pages.chats.groupMemoryEnableHint')}
-              </p>
-            </div>
-            <Switch id="group-memory-enabled" checked={enabled} onCheckedChange={setEnabled} />
-          </div>
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-            <Label htmlFor="group-memory-idle">{t('pages.chats.groupMemoryIdle')}</Label>
             <Input
-              id="group-memory-idle"
               type="number"
               min={1}
               max={1_440}
@@ -126,9 +118,7 @@ export function GroupMemoryDialog({
               value={idleMinutes}
               onChange={(event) => setIdleMinutes(event.target.value)}
             />
-            <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.groupMemoryIdleHint')}</p>
-          </div>
-          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.groupMemoryCutover')}</p>
+          </Field>
         </fieldset>
         {validation !== null ? (
           <p role="alert" className={css({ textStyle: 'body', color: 'error-text' })}>

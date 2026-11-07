@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { chatRow, inherited, prepareChatsPage, viewOf } from './chats-fixture.ts';
+import { chatRow, inherited, openChatAction, prepareChatsPage, viewOf } from './chats-fixture.ts';
 import { test, watchPageIssues } from './helpers.ts';
 
 test.use({ signedIn: true });
@@ -31,7 +31,7 @@ test('group memory can be enabled, tuned and disabled from the Chat row', async 
   await expect(row().getByRole('cell').nth(5)).toHaveText('Off');
 
   let dialog = page.getByRole('dialog');
-  await row().getByRole('button', { name: 'Edit group memory', exact: true }).click();
+  await openChatAction(page, row(), 'Edit group memory');
   await expect(dialog.getByRole('switch')).not.toBeChecked();
   await dialog.getByRole('switch').click();
   await dialog.getByLabel('Idle minutes before consolidating the current day').fill('45');
@@ -43,7 +43,7 @@ test('group memory can be enabled, tuned and disabled from the Chat row', async 
   });
   await expect(row().getByRole('cell').nth(5)).toContainText('On · idle 45 min');
 
-  await row().getByRole('button', { name: 'Edit group memory', exact: true }).click();
+  await openChatAction(page, row(), 'Edit group memory');
   dialog = page.getByRole('dialog');
   await dialog.getByLabel('Idle minutes before consolidating the current day').fill('0');
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Panel } from '@/components/layout/panel';
 import { Label } from '@/components/ui/label';
+import { Field } from '@tuuject/koi-react/field';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import { splitLines } from './draft.ts';
 import { css, cx } from '@tuuject/koi-react/styled-system/css';
@@ -61,17 +62,14 @@ export function UrlFilterEditor({
             </p>
           ) : null}
         </div>
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-          <Label htmlFor="search-url-filter-test">{t('search.filterTestLabel')}</Label>
+        <Field label={t('search.filterTestLabel')} help={t('search.filterTestHint')}>
           <Textarea
-            id="search-url-filter-test"
             rows={3}
             value={testText}
             onChange={(event) => setTestText(event.target.value)}
             placeholder={'https://blog.csdn.net/article/1\nhttps://example.com/page'}
           />
-          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('search.filterTestHint')}</p>
-        </div>
+        </Field>
         {results.length > 0 ? (
           <ul
             className={css({ textStyle: 'body', '& > :not(:last-child)': { marginBlockEnd: '1' } })}

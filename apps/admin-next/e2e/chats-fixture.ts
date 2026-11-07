@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import type { ChatSettings, ChatsView } from '../src/lib/api/chats.ts';
 import { adminUrl } from './helpers.ts';
 
@@ -83,6 +83,21 @@ async function restoreBaseline(page: Page): Promise<void> {
 
 export function chatRow(page: Page, id = ACTIVE_CHAT) {
   return page.locator('table tbody tr').filter({ has: page.getByText(id, { exact: true }) });
+}
+
+/** Per-chat settings live in the row's "More actions" menu, next to the quick links. */
+export async function openChatAction(page: Page, row: Locator, name: string): Promise<void> {
+  await row.getByRole('button', { name: 'More actions', exact: true }).click();
+  await page.getByRole('menuitem', { name, exact: true }).click();
+}
+
+/** Private chats never gate, so their menu has no settings entries. */
+export async function expectNoChatAction(page: Page, row: Locator, name: string): Promise<void> {
+  await row.getByRole('button', { name: 'More actions', exact: true }).click();
+  await expect(page.getByRole('menu')).toBeVisible();
+  await expect(page.getByRole('menuitem', { name, exact: true })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu')).toHaveCount(0);
 }
 
 export async function saveDialog(page: Page): Promise<void> {

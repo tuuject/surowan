@@ -6,6 +6,7 @@ import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
+import { Field } from '@tuuject/koi-react/field';
 import type { ThinkingLevel } from '@/lib/api/models.ts';
 import { THINKING_LEVELS } from '@/lib/api/models.ts';
 import type {
@@ -322,12 +323,8 @@ export function ModelEditDialog({
           </div>
         ) : null}
 
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-          <Label htmlFor="model-tool-schema" className={css({ textStyle: 'small', fontFamily: 'mono' })}>
-            {t('models.models.edit.toolSchema')}
-          </Label>
+        <Field label={t('models.models.edit.toolSchema')} help={t('models.models.edit.toolSchemaHint')}>
           <Select
-            id="model-tool-schema"
             className={css({ width: '100%', md: { width: '256px' } })}
             value={form.tool_schema_keywords}
             onChange={(event) => setForm((previous) => ({ ...previous, tool_schema_keywords: event.target.value }))}
@@ -338,8 +335,7 @@ export function ModelEditDialog({
               </option>
             ))}
           </Select>
-          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('models.models.edit.toolSchemaHint')}</p>
-        </div>
+        </Field>
 
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
           <FieldLabel htmlFor="model-cost-input" label={t('models.models.edit.cost')} draft={draft} field="cost" />

@@ -8,7 +8,7 @@ import { ListFooter } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
-import { Label } from '@/components/ui/label';
+import { Field } from '@tuuject/koi-react/field';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import type { PlaygroundParticipant, PlaygroundTimelineItem } from '@/lib/api/playground.ts';
@@ -107,10 +107,8 @@ export function ComposerCard({
         <Separator />
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
           <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '2' })}>
-            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-              <Label htmlFor="playground-sender">{t('playground.identities.select')}</Label>
+            <Field label={t('playground.identities.select')}>
               <Select
-                id="playground-sender"
                 className={css({ width: '192px' })}
                 value={shown.sender_id}
                 disabled={composerLocked}
@@ -122,7 +120,7 @@ export function ComposerCard({
                   </option>
                 ))}
               </Select>
-            </div>
+            </Field>
             {shown.reply_to_seq === null ? null : (
               <div className={css({ display: 'flex', alignItems: 'center', gap: '2' })}>
                 <span className={css({ textStyle: 'small', color: 'text-muted' })}>
@@ -141,17 +139,15 @@ export function ComposerCard({
               </div>
             )}
           </div>
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-            <Label htmlFor="playground-text">{t('playground.messages.composer')}</Label>
+          <Field label={t('playground.messages.composer')}>
             <Textarea
-              id="playground-text"
               value={shown.text}
               onChange={(event) => setDraft(event.target.value)}
               placeholder={t('playground.messages.composerPlaceholder')}
               readOnly={composerLocked}
               rows={3}
             />
-          </div>
+          </Field>
           {unresolved === null ? null : (
             <Alert tone="info" title={t('playground.messages.unresolved')}>
               {t('playground.messages.unresolvedHint')}

@@ -12,7 +12,7 @@ import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Empty } from '@tuuject/koi-react/empty';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
+import { Field } from '@tuuject/koi-react/field';
 import { createPlaygroundRoom } from '@/lib/api/playground.ts';
 
 import { errorMessage } from '@/lib/errors';
@@ -189,19 +189,12 @@ export default function PlaygroundPage(): React.ReactElement {
         }
       >
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-            <Label htmlFor="playground-room-title">{t('playground.rooms.createTitle')}</Label>
+          <Field label={t('playground.rooms.createTitle')}>
             <Input id="playground-room-title" value={newTitle} onChange={(event) => setNewTitle(event.target.value)} />
-          </div>
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-            <Label htmlFor="playground-room-members">{t('playground.rooms.createMembers')}</Label>
-            <Input
-              id="playground-room-members"
-              value={newMembers}
-              onChange={(event) => setNewMembers(event.target.value)}
-              placeholder="Ada, Bo"
-            />
-          </div>
+          </Field>
+          <Field label={t('playground.rooms.createMembers')}>
+            <Input value={newMembers} onChange={(event) => setNewMembers(event.target.value)} placeholder="Ada, Bo" />
+          </Field>
         </div>
         {createRoom.isError ? (
           <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
+import { Field } from '@tuuject/koi-react/field';
 import type { ChatEntry, ChatSettings, ChatsView } from '@/lib/api/chats.ts';
 import { createChat, updateChat } from '@/lib/api/chats.ts';
 import type { ThinkingLevel } from '@/lib/api/models.ts';
@@ -134,32 +134,23 @@ export function ChatDialog({
         }}
       >
         <fieldset disabled={save.isPending} className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-            <Label htmlFor="chat-id">{t('pages.chats.chatIdLabel')}</Label>
+          <Field label={t('pages.chats.chatIdLabel')} help={t('pages.chats.chatIdHint')}>
             <Input
-              id="chat-id"
               value={id}
               readOnly={chat !== null}
               placeholder={t('pages.chats.chatIdPlaceholder')}
               onChange={(event) => setId(event.target.value)}
             />
-            <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.chatIdHint')}</p>
-          </div>
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-            <Label htmlFor="chat-topics">{t('pages.chats.topicIdsLabel')}</Label>
+          </Field>
+          <Field label={t('pages.chats.topicIdsLabel')} help={t('pages.chats.topicIdsHint')}>
             <Input
-              id="chat-topics"
               value={topics}
               placeholder={t('pages.chats.allTopics')}
               onChange={(event) => setTopics(event.target.value)}
             />
-            <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.topicIdsHint')}</p>
-          </div>
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-            <Label htmlFor="chat-model">{t('pages.chats.agentModelLabel')}</Label>
+          </Field>
+          <Field label={t('pages.chats.agentModelLabel')} help={t('pages.chats.modelHint')}>
             <Select
-              id="chat-model"
-              className={css({ width: '100%' })}
               value={model}
               onChange={(event) => {
                 const value = event.target.value;
@@ -179,13 +170,9 @@ export function ChatDialog({
                 </option>
               ))}
             </Select>
-            <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.modelHint')}</p>
-          </div>
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-            <Label htmlFor="chat-thinking">{t('pages.chats.thinkingLabel')}</Label>
+          </Field>
+          <Field label={t('pages.chats.thinkingLabel')}>
             <Select
-              id="chat-thinking"
-              className={css({ width: '100%' })}
               value={thinking}
               onChange={(event) => {
                 const value = event.target.value;
@@ -206,7 +193,7 @@ export function ChatDialog({
                 </option>
               ))}
             </Select>
-          </div>
+          </Field>
         </fieldset>
         {validation !== null ? (
           <p role="alert" className={css({ textStyle: 'body', color: 'error-text' })}>

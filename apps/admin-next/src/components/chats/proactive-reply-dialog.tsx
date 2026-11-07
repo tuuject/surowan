@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Field } from '@tuuject/koi-react/field';
+import { RadioGroup } from '@tuuject/koi-react/radio-group';
 import type { ChatEntry, ChatsView, ProactiveReplyWrite } from '@/lib/api/chats.ts';
 import { updateChatProactiveReply } from '@/lib/api/chats.ts';
 import { errorMessage } from '@/lib/errors';
@@ -22,37 +22,6 @@ function initialMode(chat: ChatEntry): ProactiveMode {
     return 'inherit';
   }
   return override.enabled === false ? 'off' : 'custom';
-}
-
-function ModeOption({
-  value,
-  title,
-  hint,
-}: {
-  readonly value: ProactiveMode;
-  readonly title: string;
-  readonly hint: string;
-}): React.ReactElement {
-  const id = `proactive-mode-${value}`;
-  return (
-    <div
-      className={css({
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '3',
-        borderRadius: 'xl',
-        borderWidth: '1px',
-        borderColor: 'border',
-        padding: '3',
-      })}
-    >
-      <RadioGroupItem value={value} id={id} className={css({ marginBlockStart: '1' })} />
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-        <Label htmlFor={id}>{title}</Label>
-        <p className={css({ textStyle: 'small', color: 'text-muted' })}>{hint}</p>
-      </div>
-    </div>
-  );
 }
 
 /** The dialog captures the view when opened: a background refetch cannot upgrade a stale form's revision. */
@@ -136,8 +105,13 @@ export function ProactiveReplyDialog({
           <Button type="button" variant="outline" color="secondary" disabled={save.isPending} onClick={onClose}>
             {t('common.cancel')}
           </Button>
-          <Button type="submit" form="proactive-reply-dialog-form" disabled={save.isPending}>
-            {save.isPending ? t('common.saving') : t('common.save')}
+          <Button
+            type="submit"
+            form="proactive-reply-dialog-form"
+            loading={save.isPending}
+            loadingLabel={t('common.saving')}
+          >
+            {t('common.save')}
           </Button>
         </>
       }
@@ -153,45 +127,34 @@ export function ProactiveReplyDialog({
       >
         <fieldset disabled={save.isPending} className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
           <RadioGroup
+            label={t('pages.chats.colProactive')}
             value={mode}
-            onValueChange={(next) => {
+            onChange={(next) => {
               if (next === 'inherit' || next === 'off' || next === 'custom') {
                 setMode(next);
                 setValidation(null);
               }
             }}
-            className={css({ gap: '2' })}
-          >
-            <ModeOption
-              value="inherit"
-              title={t('pages.chats.proactiveInherit')}
-              hint={
-                globalSettings.enabled
+            options={[
+              {
+                value: 'inherit',
+                label: t('pages.chats.proactiveInherit'),
+                description: globalSettings.enabled
                   ? t('pages.chats.proactiveInheritHint', { summary: globalSummary })
-                  : t('pages.chats.proactiveInheritOffHint')
-              }
-            />
-            <ModeOption value="off" title={t('pages.chats.proactiveOff')} hint={t('pages.chats.proactiveOffHint')} />
-            <ModeOption
-              value="custom"
-              title={t('pages.chats.proactiveCustom')}
-              hint={t('pages.chats.proactiveCustomHint')}
-            />
-          </RadioGroup>
+                  : t('pages.chats.proactiveInheritOffHint'),
+              },
+              { value: 'off', label: t('pages.chats.proactiveOff'), description: t('pages.chats.proactiveOffHint') },
+              {
+                value: 'custom',
+                label: t('pages.chats.proactiveCustom'),
+                description: t('pages.chats.proactiveCustomHint'),
+              },
+            ]}
+          />
           {mode === 'custom' ? (
-            <div
-              className={css({
-                '& > :not(:last-child)': { marginBlockEnd: '4' },
-                borderRadius: 'xl',
-                borderWidth: '1px',
-                borderColor: 'border',
-                padding: '3',
-              })}
-            >
-              <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-                <Label htmlFor="proactive-base">{t('pages.chats.proactiveBase')}</Label>
+            <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+              <Field label={t('pages.chats.proactiveBase')}>
                 <Input
-                  id="proactive-base"
                   type="number"
                   min={0}
                   max={100}
@@ -199,11 +162,9 @@ export function ProactiveReplyDialog({
                   value={base}
                   onChange={(event) => setBase(event.target.value)}
                 />
-              </div>
-              <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-                <Label htmlFor="proactive-increment">{t('pages.chats.proactiveIncrement')}</Label>
+              </Field>
+              <Field label={t('pages.chats.proactiveIncrement')}>
                 <Input
-                  id="proactive-increment"
                   type="number"
                   min={0}
                   max={100}
@@ -211,11 +172,9 @@ export function ProactiveReplyDialog({
                   value={increment}
                   onChange={(event) => setIncrement(event.target.value)}
                 />
-              </div>
-              <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-                <Label htmlFor="proactive-pity">{t('pages.chats.proactivePity')}</Label>
+              </Field>
+              <Field label={t('pages.chats.proactivePity')}>
                 <Input
-                  id="proactive-pity"
                   type="number"
                   min={1}
                   max={100}
@@ -223,7 +182,7 @@ export function ProactiveReplyDialog({
                   value={pity}
                   onChange={(event) => setPity(event.target.value)}
                 />
-              </div>
+              </Field>
               <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.proactiveMathHint')}</p>
             </div>
           ) : null}

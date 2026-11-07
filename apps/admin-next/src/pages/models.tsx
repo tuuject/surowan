@@ -34,6 +34,9 @@ import { providersQuery } from '@/lib/queries.ts';
 import { waitForAdminServer } from '@/lib/restart.ts';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Empty } from '@tuuject/koi-react/empty';
+import { PlusIcon } from '@tuuject/koi-react/icons';
 import { css } from '@tuuject/koi-react/styled-system/css';
 
 const EMPTY_FILTERS = { search: '' };
@@ -266,17 +269,24 @@ export default function ModelsPage(): React.ReactElement {
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader title={t('models.models.page.providersTitle')} />
-      {providers.isError ? (
-        <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-          {errorMessage(providers.error)}
-        </p>
-      ) : null}
+      {providers.isError ? <Alert tone="error">{errorMessage(providers.error)}</Alert> : null}
       <RestartBanner
         paths={restartPaths}
         supervised={view.supervised}
         pending={restart.isPending}
         onRestart={() => restart.mutate()}
       />
+      {/* What the bot runs on now: two summary cards side by side above the provider registry. */}
+      <div
+        className={css({
+          display: 'grid',
+          gap: '5',
+          '@media (min-width: 1280px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', alignItems: 'start' },
+        })}
+      >
+        <InUsePanel view={view} revision={revision} />
+        <ToolModelPanel key={`${view.tool_model.provider}/${view.tool_model.model}`} view={view} revision={revision} />
+      </div>
 
       <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
         {({ draft, change }) => (
@@ -288,7 +298,7 @@ export default function ModelsPage(): React.ReactElement {
         )}
       </ListSearchForm>
       <ListToolbar onRefresh={() => void providers.refetch()} refreshing={providers.isRefetching}>
-        <Button type="button" onClick={() => setWizardOpen(true)}>
+        <Button variant="outline" iconStart={<PlusIcon />} onClick={() => setWizardOpen(true)}>
           {t('models.models.page.newProvider')}
         </Button>
       </ListToolbar>
@@ -302,24 +312,10 @@ export default function ModelsPage(): React.ReactElement {
         />
       </div>
 
-      <InUsePanel view={view} revision={revision} />
-      <ToolModelPanel key={`${view.tool_model.provider}/${view.tool_model.model}`} view={view} revision={revision} />
-
       {selected === null ? (
-        <p
-          className={css({
-            textStyle: 'body',
-            color: 'text-muted',
-            borderTopWidth: '1px',
-            borderColor: 'divider',
-            paddingBlock: '8',
-            textAlign: 'center',
-          })}
-        >
-          {t('models.models.page.emptyState')}
-        </p>
+        <Empty title={t('models.models.page.emptyState')} />
       ) : (
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
+        <div className={css({ paddingBlockStart: '6', '& > * + *': { marginBlockStart: '5' } })}>
           <ProviderDetailHeader view={view} provider={selected} onDelete={() => setDeletingProvider(selected)} />
           <ProviderConnectionCard
             key={selected.alias}

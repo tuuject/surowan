@@ -71,8 +71,7 @@ export function InUsePanel({
                 })}
               >
                 <Select
-                  size="sm"
-                  className={css({ width: '128px' })}
+                  className={css({ width: '144px' })}
                   aria-label={t('models.models.inUse.thinkingEffort')}
                   placeholder={t('models.models.inUse.levelUnset')}
                   value={current ?? ''}

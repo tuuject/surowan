@@ -45,6 +45,8 @@ export interface TableSelection<T> {
   readonly allLabel: string;
   readonly rowLabel: (row: T) => string;
   readonly isSelectable?: (row: T) => boolean;
+  /** Freezes every box, e.g. while a batch run reads the current selection. */
+  readonly disabled?: boolean;
 }
 
 export interface TableShellProps<T> {
@@ -65,6 +67,8 @@ export interface TableShellProps<T> {
   readonly loading?: boolean;
   readonly skeletonRows?: number;
   readonly selection?: TableSelection<T>;
+  /** The row the rest of the page is showing (a master-detail pick): filled like a selected row. */
+  readonly activeRowKey?: string | null;
 }
 
 const ALIGN = { left: 'start', center: 'center', right: 'end' } as const;
@@ -93,6 +97,7 @@ export function TableShell<T>({
   loading = false,
   skeletonRows = 6,
   selection,
+  activeRowKey = null,
 }: TableShellProps<T>): React.ReactElement {
   const { t } = useTranslation();
   const [expandedKeys, setExpandedKeys] = useState<ReadonlySet<string>>(new Set());
@@ -131,7 +136,7 @@ export function TableShell<T>({
             <TableHeaderCell align="center" style={{ width: 48 }}>
               <Checkbox
                 checked={allSelected}
-                disabled={loading || selectable.length === 0}
+                disabled={loading || selectable.length === 0 || selection.disabled === true}
                 onCheckedChange={(checked) => selection.onToggleAll(checked)}
                 aria-label={selection.allLabel}
               />
@@ -184,12 +189,16 @@ export function TableShell<T>({
             const open = expandable && expandedKeys.has(key);
             return (
               <Fragment key={key}>
-                <TableRow selected={open || (selection?.selected.has(key) ?? false)}>
+                <TableRow
+                  selected={open || key === activeRowKey || (selection?.selected.has(key) ?? false)}
+                  {...(key === activeRowKey ? { 'aria-current': 'true' as const } : {})}
+                >
                   {selection === undefined ? null : (
                     <TableCell align="center">
                       {(selection.isSelectable?.(row) ?? true) ? (
                         <Checkbox
                           checked={selection.selected.has(key)}
+                          disabled={selection.disabled === true}
                           onCheckedChange={(checked) => selection.onToggle(row, checked)}
                           aria-label={selection.rowLabel(row)}
                         />

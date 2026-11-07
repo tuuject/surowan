@@ -1,3 +1,4 @@
+import { setAsAgent } from './models-fixture.ts';
 import { expect } from '@playwright/test';
 import { ACTIVE_CHAT, editElsewhere, inherited, viewOf } from './chats-fixture.ts';
 import { adminUrl, appliedToast, E2E_USERNAME, e2eFetch, test, toast } from './helpers.ts';
@@ -145,7 +146,7 @@ test.describe('agent model hot-switch', () => {
     await page.reload();
 
     await page.getByRole('button', { name: 'Provider vision' }).click();
-    await page.locator('tr', { hasText: 'vision-model' }).getByRole('button', { name: 'Set as agent' }).click();
+    await setAsAgent(page, page.locator('tr', { hasText: 'vision-model' }));
     // The toast only appears once the write and the reload succeeded.
     await expect(appliedToast(page).first()).toBeVisible();
     // The vision model does not reason, so the switch leaves it only `off`.
@@ -183,7 +184,7 @@ test.describe('agent model hot-switch', () => {
 
     // There is no default to restore: the way back is another switch.
     await page.getByRole('button', { name: 'Provider agent' }).click();
-    await page.locator('tr', { hasText: 'agent-model' }).getByRole('button', { name: 'Set as agent' }).click();
+    await setAsAgent(page, page.locator('tr', { hasText: 'agent-model' }));
     await expect(
       page
         .locator('table tbody tr')

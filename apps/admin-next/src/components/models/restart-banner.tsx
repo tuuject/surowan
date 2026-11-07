@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
+import { Tag } from '@tuuject/koi-react/tag';
 import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
@@ -29,36 +30,38 @@ export function RestartBanner({
       title={t(paths.length === 1 ? 'models.models.restart.onePending' : 'models.models.restart.manyPending', {
         count: paths.length,
       })}
+      {...(supervised
+        ? {
+            action: (
+              <Button
+                size="sm"
+                variant="ghost"
+                color="warning"
+                loading={pending}
+                loadingLabel={t('models.models.restart.restarting')}
+                onClick={onRestart}
+              >
+                {t('models.models.restart.restartNow')}
+              </Button>
+            ),
+          }
+        : {})}
     >
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-        <p className={css({ textStyle: 'small' })}>{t('models.models.restart.writtenNote')}</p>
-        {/* One chip per path: a long joined line wraps into an unreadable
-              paragraph as soon as a few fields are waiting. */}
+      <div className={css({ display: 'flex', flexDirection: 'column', gap: '2' })}>
+        <p className={css({ margin: '0' })}>
+          {t('models.models.restart.writtenNote')}
+          {supervised ? null : ` ${t('models.models.restart.noSupervisor')}`}
+        </p>
+        {/* One tag per path: a long joined line wraps into an unreadable paragraph once a few fields wait. */}
         <ul className={css({ display: 'flex', flexWrap: 'wrap', gap: '2' })}>
           {paths.map((path) => (
-            <li
-              key={path}
-              className={css({
-                textStyle: 'small',
-                bg: 'surface-muted',
-                color: 'text-muted',
-                borderRadius: 'lg',
-                paddingInline: '2',
-                paddingBlock: '1',
-                fontFamily: 'mono',
-              })}
-            >
-              {path}
+            <li key={path}>
+              <Tag>
+                <span className={css({ fontFamily: 'mono' })}>{path}</span>
+              </Tag>
             </li>
           ))}
         </ul>
-        {supervised ? (
-          <Button type="button" size="sm" disabled={pending} onClick={onRestart}>
-            {pending ? t('models.models.restart.restarting') : t('models.models.restart.restartNow')}
-          </Button>
-        ) : (
-          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('models.models.restart.noSupervisor')}</p>
-        )}
       </div>
     </Alert>
   );

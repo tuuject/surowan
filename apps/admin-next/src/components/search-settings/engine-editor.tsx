@@ -2,6 +2,7 @@ import { Select } from '@tuuject/koi-react/select';
 import { useTranslation } from 'react-i18next';
 import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
+import { Field } from '@tuuject/koi-react/field';
 import { Switch } from '@tuuject/koi-react/switch';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import type { SearchProviderView } from '@/lib/api/search.ts';
@@ -52,22 +53,16 @@ export function EngineEditor({
         />
       </div>
       <div className={css({ display: 'grid', gap: '3', md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } })}>
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-          <Label htmlFor={`${idPrefix}-id`}>{t('search.fieldId')}</Label>
+        <Field label={t('search.fieldId')} help={t('search.fieldIdHint')}>
           <Input
-            id={`${idPrefix}-id`}
             value={draft.id}
             onChange={(event) => onChange(renameEngine(draft, event.target.value))}
             placeholder="tavily-main"
             disabled={disabled}
           />
-          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('search.fieldIdHint')}</p>
-        </div>
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-          <Label htmlFor={`${idPrefix}-provider`}>{t('search.fieldProvider')}</Label>
+        </Field>
+        <Field label={t('search.fieldProvider')}>
           <Select
-            id={`${idPrefix}-provider`}
-            className={css({ width: '100%' })}
             value={draft.provider}
             onChange={(event) => {
               const next = providers.find((entry) => entry.id === event.target.value);
@@ -83,26 +78,23 @@ export function EngineEditor({
               </option>
             ))}
           </Select>
-        </div>
-        <div
-          className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' }, md: { gridColumn: 'span 2 / span 2' } })}
+        </Field>
+        <Field
+          label={t('search.fieldEndpoint')}
+          help={provider?.default_endpoint === null ? t('search.endpointRequiredHint') : t('search.endpointHint')}
         >
-          <Label htmlFor={`${idPrefix}-endpoint`}>{t('search.fieldEndpoint')}</Label>
           <Input
-            id={`${idPrefix}-endpoint`}
             value={draft.endpoint}
             onChange={(event) => onChange({ endpoint: event.target.value })}
             placeholder={provider?.default_endpoint ?? t('search.endpointRequired')}
             disabled={disabled}
           />
-          <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-            {provider?.default_endpoint === null ? t('search.endpointRequiredHint') : t('search.endpointHint')}
-          </p>
-        </div>
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-          <Label htmlFor={`${idPrefix}-results`}>{t('search.fieldResults')}</Label>
+        </Field>
+        <Field
+          label={t('search.fieldResults')}
+          help={provider?.supports_count === false ? t('search.resultsUnsupported') : t('search.resultsHint')}
+        >
           <Input
-            id={`${idPrefix}-results`}
             type="number"
             min={1}
             max={10}
@@ -110,14 +102,9 @@ export function EngineEditor({
             onChange={(event) => onChange({ results: event.target.value })}
             disabled={disabled || provider?.supports_count === false}
           />
-          <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-            {provider?.supports_count === false ? t('search.resultsUnsupported') : t('search.resultsHint')}
-          </p>
-        </div>
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-          <Label htmlFor={`${idPrefix}-timeout`}>{t('search.fieldTimeout')}</Label>
+        </Field>
+        <Field label={t('search.fieldTimeout')}>
           <Input
-            id={`${idPrefix}-timeout`}
             type="number"
             min={5}
             max={30}
@@ -125,21 +112,16 @@ export function EngineEditor({
             onChange={(event) => onChange({ timeout: event.target.value })}
             disabled={disabled}
           />
-        </div>
-        <div
-          className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' }, md: { gridColumn: 'span 2 / span 2' } })}
-        >
-          <Label htmlFor={`${idPrefix}-note`}>{t('search.fieldNote')}</Label>
+        </Field>
+        <Field label={t('search.fieldNote')} help={t('search.noteHint')}>
           <Textarea
-            id={`${idPrefix}-note`}
             rows={2}
             value={draft.note}
             onChange={(event) => onChange({ note: event.target.value })}
             placeholder={t('search.notePlaceholder')}
             disabled={disabled}
           />
-          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('search.noteHint')}</p>
-        </div>
+        </Field>
         <div
           className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' }, md: { gridColumn: 'span 2 / span 2' } })}
         >

@@ -1,5 +1,5 @@
 import { expect, type Locator } from '@playwright/test';
-import { chatRow, inherited, prepareChatsPage, viewOf } from './chats-fixture.ts';
+import { chatRow, expectNoChatAction, inherited, openChatAction, prepareChatsPage, viewOf } from './chats-fixture.ts';
 import { test, watchPageIssues } from './helpers.ts';
 
 test.use({ signedIn: true });
@@ -32,11 +32,11 @@ test('proactive-reply editing follows inherit, off and custom values per group',
   await expect(groupRow().getByRole('cell').nth(4)).toContainText('Off');
 
   const openDialog = async (): Promise<Locator> => {
-    await groupRow().getByRole('button', { name: 'Edit proactive reply chance', exact: true }).click();
+    await openChatAction(page, groupRow(), 'Edit proactive reply chance');
     return page.getByRole('dialog');
   };
   // Private chats never schedule proactive replies.
-  await expect(chatRow(page).getByRole('button', { name: 'Edit proactive reply chance', exact: true })).toHaveCount(0);
+  await expectNoChatAction(page, chatRow(page), 'Edit proactive reply chance');
 
   let dialog = await openDialog();
   await expect(dialog.getByRole('radio', { name: /Follow the global setting/ })).toBeChecked();

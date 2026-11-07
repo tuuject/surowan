@@ -4,6 +4,8 @@
  */
 export const chats = {
   allTopics: 'All topics',
+  moreActions: 'More actions',
+  settingsGroup: 'Chat settings',
   quickLinks: 'Open related pages',
   defaultModel: 'Default model',
   chatOverride: 'Chat override',

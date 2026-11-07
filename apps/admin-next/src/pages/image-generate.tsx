@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@tuuject/koi-react/button';
 import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
+import { Field } from '@tuuject/koi-react/field';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import type { ImageGenerationRecord } from '@/lib/api/images.ts';
 import {
@@ -211,10 +212,8 @@ export default function ImageGeneratePage() {
       })}
     >
       <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-          <Label htmlFor="image-prompt">{t('image.generate.promptLabel')}</Label>
+        <Field label={t('image.generate.promptLabel')}>
           <Textarea
-            id="image-prompt"
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
             rows={6}
@@ -223,7 +222,7 @@ export default function ImageGeneratePage() {
               imageRef: '{{image:…}}',
             })}
           />
-        </div>
+        </Field>
         <div
           className={css({
             display: 'grid',
@@ -302,8 +301,7 @@ export default function ImageGeneratePage() {
               ))}
             </select>
           </div>
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-            <Label>{t('image.generate.count')}</Label>
+          <Field label={t('image.generate.count')}>
             <Input
               type="number"
               min={1}
@@ -311,7 +309,7 @@ export default function ImageGeneratePage() {
               value={outputCount}
               onChange={(event) => setOutputCount(Math.min(4, Math.max(1, Number(event.target.value) || 1)))}
             />
-          </div>
+          </Field>
         </div>
         <div
           className={css({

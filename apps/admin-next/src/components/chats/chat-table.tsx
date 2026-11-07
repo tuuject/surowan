@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { Menu } from '@tuuject/koi-react/menu';
-import { ExternalIcon, TrashIcon } from '@tuuject/koi-react/icons';
+import { TrashIcon } from '@tuuject/koi-react/icons';
 import {
   AlarmIcon,
   BookOpenIcon,
@@ -9,12 +9,13 @@ import {
   ClockIcon,
   EditIcon,
   LibraryIcon,
+  MoreIcon,
   PulseIcon,
   ScrollIcon,
   SparklesIcon,
 } from '@/components/icons';
 import { useTranslation } from 'react-i18next';
-import { type ColumnSpec, MonoValue, TableShell, ToneBadge } from '@/components/business';
+import { type ColumnSpec, MonoValue, RowActions, TableShell, ToneBadge } from '@/components/business';
 import { IconButton } from '@tuuject/koi-react/button';
 import type { ChatEntry, ChatSettingsView, ChatsView, ParticipationWindow } from '@/lib/api/chats.ts';
 import { effectiveWindows, summarizeWindows } from '@/lib/participation';
@@ -74,7 +75,7 @@ export function ChatTable({
   const modelText = (settings: ChatSettingsView): string =>
     `${settings.effective.provider} / ${settings.effective.model}`;
   const modelSource = (settings: ChatSettingsView): string =>
-    `${settings.provider === null ? t('pages.chats.defaultModel') : t('pages.chats.chatOverride')} · ${t('pages.chats.thinkingShort', { level: settings.effective.thinking_level })}${
+    `${settings.provider === null ? t('pages.chats.defaultModel') : t('pages.chats.chatOverride')}${t('common.separator')}${t('pages.chats.thinkingShort', { level: settings.effective.thinking_level })}${
       settings.thinking_level === null ? t('pages.chats.inheritedSuffix') : ''
     }`;
   /** A quick link keeps a real href for new-tab/middle-click/copy, and only plain left clicks become SPA navigation. */
@@ -168,13 +169,13 @@ export function ChatTable({
       key: 'chat',
       title: t('pages.chats.colChat'),
       render: (row) => (
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-          <p className={row.title === null ? 'text-muted-foreground font-medium' : 'font-medium'}>
+        <div className={css({ minWidth: '0' })}>
+          <p className={css({ margin: '0', truncate: true }, row.title === null ? { color: 'text-muted' } : {})}>
             {row.title ?? t('pages.chats.unknownChat')}
           </p>
-          <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-            <span className={css({ fontFamily: 'mono' })}>{row.id}</span> ·{' '}
-            {row.type ?? (row.id.startsWith('-') ? t('pages.chats.group') : t('pages.chats.private'))}
+          <p className={css({ margin: '0', display: 'flex', gap: '2', textStyle: 'small', color: 'text-muted' })}>
+            <span className={css({ fontFamily: 'mono' })}>{row.id}</span>
+            <span>{row.type ?? (row.id.startsWith('-') ? t('pages.chats.group') : t('pages.chats.private'))}</span>
           </p>
           {row.runtime_chat_id !== row.id ? (
             <p className={css({ textStyle: 'small', color: 'text-muted' })}>
@@ -187,11 +188,12 @@ export function ChatTable({
     {
       key: 'topics',
       title: t('pages.chats.colTopics'),
+      width: 112,
       render: (row) => {
         const settings = shown(row);
         return settings === null ? null : (
           <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-            <p className={settings.topic_ids === null ? 'text-muted-foreground' : 'tabular-nums'}>
+            <p className={css({ margin: '0' }, settings.topic_ids === null ? { color: 'text-muted' } : {})}>
               {topicsText(settings)}
             </p>
             <RunningNote value={runningDiff(row, topicsText)} />
@@ -212,7 +214,7 @@ export function ChatTable({
               value={runningDiff(
                 row,
                 (item) =>
-                  `${modelText(item)} · ${t('pages.chats.thinkingShort', { level: item.effective.thinking_level })}`,
+                  `${modelText(item)}${t('common.separator')}${t('pages.chats.thinkingShort', { level: item.effective.thinking_level })}`,
               )}
             />
           </div>
@@ -222,6 +224,7 @@ export function ChatTable({
     {
       key: 'activeHours',
       title: t('pages.chats.colActiveHours'),
+      className: css({ whiteSpace: 'normal' }),
       // Private chats never gate, so they have no schedule to show or edit.
       render: (row) => {
         const settings = shown(row);
@@ -236,7 +239,7 @@ export function ChatTable({
               value={runningDiff(row, (item) =>
                 activeHoursLines(item)
                   .map((line) => line.text)
-                  .join(' · '),
+                  .join(t('common.separator')),
               )}
             />
           </div>
@@ -246,6 +249,7 @@ export function ChatTable({
     {
       key: 'proactive',
       title: t('pages.chats.colProactive'),
+      className: css({ whiteSpace: 'normal' }),
       // Private chats have no proactive path: every message is already directed at the bot.
       render: (row) => {
         const settings = shown(row);
@@ -260,6 +264,8 @@ export function ChatTable({
     {
       key: 'groupMemory',
       title: t('pages.chats.colGroupMemory'),
+      width: 144,
+      className: css({ whiteSpace: 'normal' }),
       render: (row) => {
         const settings = shown(row);
         return settings === null || !row.id.startsWith('-') ? null : (
@@ -273,6 +279,7 @@ export function ChatTable({
     {
       key: 'status',
       title: t('pages.chats.colStatus'),
+      width: 112,
       render: (row) =>
         row.saved === null ? (
           <ToneBadge tone="warning">{t('pages.chats.removalPending')}</ToneBadge>
@@ -288,109 +295,11 @@ export function ChatTable({
       key: 'actions',
       title: t('pages.chats.colActions'),
       align: 'right',
+      width: 140,
+      paddingBlock: 'none',
       render: (row) =>
         row.saved === null ? null : (
-          <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '1' })}>
-            <Menu
-              placement="bottom-end"
-              trigger={
-                <IconButton
-                  variant="ghost"
-                  color="secondary"
-                  title={t('pages.chats.quickLinks')}
-                  label={t('pages.chats.quickLinks')}
-                  icon={<ExternalIcon />}
-                />
-              }
-              items={[
-                quickLink(
-                  'prompts',
-                  t('layout.nav.prompts'),
-                  <ScrollIcon size={16} />,
-                  '/prompts',
-                  row.id,
-                  () => void navigate({ to: '/prompts', search: { chat: row.id } }),
-                ),
-                quickLink(
-                  'dictionary',
-                  t('layout.nav.dictionary'),
-                  <BookOpenIcon size={16} />,
-                  '/dictionary',
-                  row.runtime_chat_id,
-                  () => void navigate({ to: '/dictionary', search: { chat: row.runtime_chat_id } }),
-                ),
-                quickLink(
-                  'memories',
-                  t('layout.nav.memories'),
-                  <BrainIcon size={16} />,
-                  '/memories',
-                  row.runtime_chat_id,
-                  () => void navigate({ to: '/memories', search: { chat: row.runtime_chat_id } }),
-                ),
-                quickLink(
-                  'group-memories',
-                  t('layout.nav.groupMemories'),
-                  <LibraryIcon size={16} />,
-                  '/group-memories',
-                  row.runtime_chat_id,
-                  () => void navigate({ to: '/group-memories', search: { chat: row.runtime_chat_id } }),
-                ),
-                quickLink(
-                  'messages',
-                  t('layout.nav.messages'),
-                  <ChatTextIcon size={16} />,
-                  '/messages',
-                  row.runtime_chat_id,
-                  () => void navigate({ to: '/messages', search: { chat: row.runtime_chat_id } }),
-                ),
-                quickLink(
-                  'invocations',
-                  t('layout.nav.toolSessions'),
-                  <PulseIcon size={16} />,
-                  '/invocations',
-                  row.runtime_chat_id,
-                  () => void navigate({ to: '/invocations', search: { chat: row.runtime_chat_id } }),
-                ),
-                quickLink(
-                  'alarms',
-                  t('layout.nav.alarms'),
-                  <AlarmIcon size={16} />,
-                  '/alarms',
-                  row.runtime_chat_id,
-                  () => void navigate({ to: '/alarms', search: { chat: row.runtime_chat_id } }),
-                ),
-              ]}
-            />
-            {row.id.startsWith('-') ? (
-              <IconButton
-                variant="ghost"
-                color="secondary"
-                title={t('pages.chats.editActiveHours')}
-                onClick={() => onSchedule(row)}
-                label={t('pages.chats.editActiveHours')}
-                icon={<ClockIcon />}
-              />
-            ) : null}
-            {row.id.startsWith('-') ? (
-              <IconButton
-                variant="ghost"
-                color="secondary"
-                title={t('pages.chats.editProactiveReply')}
-                onClick={() => onProactive(row)}
-                label={t('pages.chats.editProactiveReply')}
-                icon={<SparklesIcon />}
-              />
-            ) : null}
-            {row.id.startsWith('-') ? (
-              <IconButton
-                variant="ghost"
-                color="secondary"
-                title={t('pages.chats.editGroupMemory')}
-                onClick={() => onGroupMemory(row)}
-                label={t('pages.chats.editGroupMemory')}
-                icon={<LibraryIcon />}
-              />
-            ) : null}
+          <RowActions>
             <IconButton
               variant="ghost"
               color="secondary"
@@ -398,14 +307,117 @@ export function ChatTable({
               label={t('common.edit')}
               icon={<EditIcon />}
             />
+            <Menu
+              placement="bottom-end"
+              trigger={
+                <IconButton
+                  variant="ghost"
+                  color="secondary"
+                  label={t('pages.chats.moreActions')}
+                  icon={<MoreIcon />}
+                />
+              }
+              items={[
+                ...(row.id.startsWith('-')
+                  ? [
+                      {
+                        label: t('pages.chats.settingsGroup'),
+                        items: [
+                          {
+                            value: 'active-hours',
+                            label: t('pages.chats.editActiveHours'),
+                            icon: <ClockIcon />,
+                            onSelect: () => onSchedule(row),
+                          },
+                          {
+                            value: 'proactive',
+                            label: t('pages.chats.editProactiveReply'),
+                            icon: <SparklesIcon />,
+                            onSelect: () => onProactive(row),
+                          },
+                          {
+                            value: 'group-memory',
+                            label: t('pages.chats.editGroupMemory'),
+                            icon: <LibraryIcon />,
+                            onSelect: () => onGroupMemory(row),
+                          },
+                        ],
+                      },
+                      'separator' as const,
+                    ]
+                  : []),
+                {
+                  label: t('pages.chats.quickLinks'),
+                  items: [
+                    quickLink(
+                      'prompts',
+                      t('layout.nav.prompts'),
+                      <ScrollIcon />,
+                      '/prompts',
+                      row.id,
+                      () => void navigate({ to: '/prompts', search: { chat: row.id } }),
+                    ),
+                    quickLink(
+                      'dictionary',
+                      t('layout.nav.dictionary'),
+                      <BookOpenIcon />,
+                      '/dictionary',
+                      row.runtime_chat_id,
+                      () => void navigate({ to: '/dictionary', search: { chat: row.runtime_chat_id } }),
+                    ),
+                    quickLink(
+                      'memories',
+                      t('layout.nav.memories'),
+                      <BrainIcon />,
+                      '/memories',
+                      row.runtime_chat_id,
+                      () => void navigate({ to: '/memories', search: { chat: row.runtime_chat_id } }),
+                    ),
+                    quickLink(
+                      'group-memories',
+                      t('layout.nav.groupMemories'),
+                      <LibraryIcon />,
+                      '/group-memories',
+                      row.runtime_chat_id,
+                      () => void navigate({ to: '/group-memories', search: { chat: row.runtime_chat_id } }),
+                    ),
+                    quickLink(
+                      'messages',
+                      t('layout.nav.messages'),
+                      <ChatTextIcon />,
+                      '/messages',
+                      row.runtime_chat_id,
+                      () => void navigate({ to: '/messages', search: { chat: row.runtime_chat_id } }),
+                    ),
+                    quickLink(
+                      'invocations',
+                      t('layout.nav.toolSessions'),
+                      <PulseIcon />,
+                      '/invocations',
+                      row.runtime_chat_id,
+                      () => void navigate({ to: '/invocations', search: { chat: row.runtime_chat_id } }),
+                    ),
+                    quickLink(
+                      'alarms',
+                      t('layout.nav.alarms'),
+                      <AlarmIcon />,
+                      '/alarms',
+                      row.runtime_chat_id,
+                      () => void navigate({ to: '/alarms', search: { chat: row.runtime_chat_id } }),
+                    ),
+                  ],
+                },
+              ]}
+            />
             <IconButton
               variant="ghost"
+              color="error"
               disabled={view.items.filter((item) => item.saved !== null).length <= 1}
               onClick={() => onRemove(row)}
               label={t('pages.chats.remove')}
               icon={<TrashIcon />}
             />
-          </div>
+          </RowActions>
         ),
     },
   ];
@@ -415,6 +427,7 @@ export function ChatTable({
       data={items}
       rowKey={(row) => row.id}
       loading={loading}
+      minWidth={1040}
       emptyText={t('pages.chats.emptyChats')}
     />
   );

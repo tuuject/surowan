@@ -1,3 +1,5 @@
+import type { Locator, Page } from '@playwright/test';
+
 /**
  * Shared fixture data for the Models page E2E: the provider secrets that must
  * never reach the DOM, the relay model ids the local upstream serves, and the
@@ -90,3 +92,9 @@ export const E2E_MODELS_DEV_CATALOG = {
     },
   },
 } as const;
+
+/** "Set as agent" sits in each model row's "More actions" menu. */
+export async function setAsAgent(page: Page, row: Locator): Promise<void> {
+  await row.getByRole('button', { name: /^More actions for / }).click();
+  await page.getByRole('menuitem', { name: 'Set as agent', exact: true }).click();
+}

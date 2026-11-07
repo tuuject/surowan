@@ -1,6 +1,12 @@
 import { expect } from '@playwright/test';
 import { adminUrl, appliedToast, test } from './helpers.ts';
-import { E2E_RELAY_ALIAS, E2E_RELAY_COMPLETE_MODEL, E2E_RELAY_MANUAL_MODEL, E2E_SECRETS } from './models-fixture.ts';
+import {
+  E2E_RELAY_ALIAS,
+  E2E_RELAY_COMPLETE_MODEL,
+  E2E_RELAY_MANUAL_MODEL,
+  E2E_SECRETS,
+  setAsAgent,
+} from './models-fixture.ts';
 
 /**
  * The Models page against the real `AdminServer`, write side: declaring
@@ -93,10 +99,7 @@ test.describe('models page', () => {
     await page.getByRole('button', { name: 'Cancel' }).click();
 
     // The fetched model can be set as the agent model right away.
-    await page
-      .locator('tr', { hasText: E2E_RELAY_COMPLETE_MODEL })
-      .getByRole('button', { name: 'Set as agent' })
-      .click();
+    await setAsAgent(page, page.locator('tr', { hasText: E2E_RELAY_COMPLETE_MODEL }));
     await expect(page.getByText('Thinking effort reset to off', { exact: false }).first()).toBeVisible();
 
     const after = await (await page.request.get(await adminUrl('/api/providers'))).json();

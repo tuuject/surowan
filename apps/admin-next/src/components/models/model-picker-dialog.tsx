@@ -9,7 +9,7 @@ import { useDraftSelection } from '@/components/models/use-draft-selection';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
+import { Field } from '@tuuject/koi-react/field';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import type { DiscoveredModel, ProviderModelConfig, ProviderView } from '@/lib/api/providers.ts';
 import { appendProviderModels, discoverProviderModels, lookupModelMetadata } from '@/lib/api/providers.ts';
@@ -189,16 +189,14 @@ export function ModelPickerDialog({
                     padding: '3',
                   })}
                 >
-                  <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-                    <Label htmlFor="picker-api-key">{t('models.models.connection.apiKey')}</Label>
+                  <Field label={t('models.models.connection.apiKey')}>
                     <Input
-                      id="picker-api-key"
                       type="password"
                       autoComplete="new-password"
                       value={apiKey}
                       onChange={(event) => setApiKey(event.target.value)}
                     />
-                  </div>
+                  </Field>
                   {provider.kind === 'custom' && provider.header_names.length > 0 ? (
                     <HeaderFields rows={headers} onChange={setHeaders} valuesRequired={false} idPrefix="picker" />
                   ) : null}
@@ -223,16 +221,14 @@ export function ModelPickerDialog({
             </div>
           ) : (
             <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
-              <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-                <Label htmlFor="picker-ids">{t('models.models.picker.idsLabel')}</Label>
+              <Field label={t('models.models.picker.idsLabel')}>
                 <Textarea
-                  id="picker-ids"
                   rows={3}
                   value={ids}
                   onChange={(event) => setIds(event.target.value)}
                   placeholder={'deepseek/deepseek-v4-flash\nqwen/qwen3-max'}
                 />
-              </div>
+              </Field>
               <Button
                 type="button"
                 size="sm"

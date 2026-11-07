@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@tuuject/koi-react/button';
 import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
+import { Field } from '@tuuject/koi-react/field';
 import type { ImageCatalogEndpoint } from '@/lib/api/images.ts';
 import { ModelCapabilities } from './model-capabilities.tsx';
 import { type EditableCredential, selectClass } from './shared.ts';
@@ -65,15 +66,13 @@ export function ModelPicker({
           {t('image.settings.catalogError', { error: catalogErrorText })}
         </p>
       )}
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-        <Label htmlFor="image-model-search">{t('image.settings.searchModels')}</Label>
+      <Field label={t('image.settings.searchModels')}>
         <Input
-          id="image-model-search"
           placeholder={t('image.settings.searchPlaceholder')}
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
         />
-      </div>
+      </Field>
       <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
         <Label htmlFor="image-model-select">{t('image.settings.modelSelectLabel')}</Label>
         <select

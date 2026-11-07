@@ -5,6 +5,7 @@ import { Panel } from '@/components/layout/panel';
 import { Button } from '@tuuject/koi-react/button';
 import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
+import { Field } from '@tuuject/koi-react/field';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@tuuject/koi-react/switch';
 import type { PlaygroundParticipant, PlaygroundRoom, PlaygroundRoomDetail } from '@/lib/api/playground.ts';
@@ -190,15 +191,13 @@ export function IdentitiesCard({
           onPageChange={pagination.onPageChange}
         />
         <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '2' })}>
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-            <Label htmlFor="playground-participant-name">{t('playground.identities.name')}</Label>
+          <Field label={t('playground.identities.name')}>
             <Input
-              id="playground-participant-name"
               value={participantName}
               onChange={(event) => setParticipantName(event.target.value)}
               className={css({ width: '192px' })}
             />
-          </div>
+          </Field>
           <Button
             type="button"
             variant="outline"

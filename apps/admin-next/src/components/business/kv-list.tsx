@@ -20,25 +20,29 @@ export function KvList({
   readonly className?: string;
 }): React.ReactElement {
   return (
-    <dl
-      className={cx(
-        css({
-          display: 'grid',
-          columnGap: '6',
-          rowGap: '3',
-          md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
-          '@media (min-width: 1024px)': { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' },
-        }),
-        className,
-      )}
-    >
-      {items.map((item) => (
-        <div key={item.label} className={css({ minWidth: '0' })}>
-          <dt className={css({ textStyle: 'small', color: 'text-muted' })}>{item.label}</dt>
-          <dd className={css({ textStyle: 'body', marginBlockStart: '1', overflowWrap: 'anywhere' })}>{item.value}</dd>
-        </div>
-      ))}
-    </dl>
+    <div className={css({ containerType: 'inline-size', minWidth: '0' })}>
+      <dl
+        className={cx(
+          css({
+            display: 'grid',
+            columnGap: '6',
+            rowGap: '4',
+            margin: '0',
+            // Columns follow the list's own width, so a half-width card doesn't squeeze three columns in.
+            '@container (min-width: 480px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
+            '@container (min-width: 720px)': { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' },
+          }),
+          className,
+        )}
+      >
+        {items.map((item) => (
+          <div key={item.label} className={css({ minWidth: '0' })}>
+            <dt className={css({ textStyle: 'small', color: 'text-muted' })}>{item.label}</dt>
+            <dd className={css({ margin: '0', marginBlockStart: '1', overflowWrap: 'anywhere' })}>{item.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -72,7 +76,7 @@ export function MonoValue({
       className={cx(
         // Plain fixed-width text in the surrounding size and color: a filled chip on every ID turns a
         // table into a field of pills.
-        css({ fontFamily: 'mono', wordBreak: 'break-all' }),
+        css({ fontFamily: 'mono', overflowWrap: 'anywhere' }),
         className,
       )}
     >

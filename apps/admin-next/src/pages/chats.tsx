@@ -17,6 +17,7 @@ import { GroupMemoryDialog } from '@/components/chats/group-memory-dialog';
 import { ParticipationDialog } from '@/components/chats/participation-dialog';
 import { ProactiveReplyDialog } from '@/components/chats/proactive-reply-dialog';
 import { RestartBanner } from '@/components/models/restart-banner';
+import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { Skeleton } from '@tuuject/koi-react/skeleton';
 import type { ChatEntry, ChatsView } from '@/lib/api/chats.ts';
@@ -93,12 +94,16 @@ export default function ChatsPage(): React.ReactElement {
     return (
       <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
         <ListPageHeader title={t('pages.chats.allowlistTitle')} />
-        <p role="alert" className={css({ textStyle: 'body', color: 'error-text' })}>
+        <Alert
+          tone="error"
+          action={
+            <Button size="sm" variant="ghost" color="secondary" onClick={() => void query.refetch()}>
+              {t('common.retry')}
+            </Button>
+          }
+        >
           {errorMessage(query.error)}
-        </p>
-        <Button variant="outline" color="secondary" onClick={() => void query.refetch()}>
-          {t('common.retry')}
-        </Button>
+        </Alert>
       </div>
     );
   }
@@ -122,7 +127,7 @@ export default function ChatsPage(): React.ReactElement {
         )}
       </ListSearchForm>
       <ListToolbar onRefresh={() => void query.refetch()} refreshing={query.isRefetching}>
-        <Button onClick={() => setEditing({ view, chat: null })} iconStart={<PlusIcon />}>
+        <Button variant="outline" onClick={() => setEditing({ view, chat: null })} iconStart={<PlusIcon />}>
           {t('pages.chats.addChat')}
         </Button>
       </ListToolbar>

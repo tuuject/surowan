@@ -7,7 +7,8 @@ import { Panel } from '@/components/layout/panel';
 import { HeaderFields } from '@/components/models/header-fields';
 import { Button } from '@tuuject/koi-react/button';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Field } from '@tuuject/koi-react/field';
 import type { ProviderApi, ProviderView, UpdateProviderRequest } from '@/lib/api/providers.ts';
 import { PROVIDER_APIS, updateProvider } from '@/lib/api/providers.ts';
 import { type HeaderRow, headerPayload, headerRowsFromNames, removedHeaderNames } from '@/lib/header-rows.ts';
@@ -141,50 +142,43 @@ export function ProviderConnectionCard({
     <Panel
       title={t('models.models.connection.title')}
       action={
-        <div className={css({ display: 'flex', alignItems: 'center', gap: '2' })}>
-          <Button type="button" size="sm" variant="outline" color="secondary" onClick={onDetect}>
+        <>
+          <Button variant="outline" color="secondary" onClick={onDetect}>
             {t('models.models.connection.test')}
           </Button>
-          <Button type="button" size="sm" disabled={!dirty || stale || save.isPending} onClick={submit}>
-            {save.isPending ? t('common.saving') : t('common.save')}
+          <Button
+            disabled={!dirty || stale}
+            loading={save.isPending}
+            loadingLabel={t('common.saving')}
+            onClick={submit}
+          >
+            {t('common.save')}
           </Button>
-        </div>
+        </>
       }
     >
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+      <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
         {custom ? (
           <div className={css({ display: 'grid', gap: '4', md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } })}>
-            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-              <Label htmlFor="provider-base-url">{t('models.models.connection.baseUrl')}</Label>
+            <Field label={t('models.models.connection.baseUrl')}>
               <Input
-                id="provider-base-url"
                 value={baseUrl}
                 onChange={(event) => {
                   setBaseUrl(event.target.value);
                   setLocalError(null);
                 }}
               />
-            </div>
-            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-              <Label htmlFor="provider-api">{t('models.models.connection.api')}</Label>
+            </Field>
+            <Field
+              label={t('models.models.connection.api')}
+              {...(api === 'google-generative-ai' ? { help: t('models.models.connection.googleNote') } : {})}
+            >
               <Select
-                id="provider-api"
-                className={css({ width: '100%' })}
                 value={api}
                 onChange={(event) => setApi(event.target.value as ProviderApi)}
-              >
-                {PROVIDER_APIS.map((value) => (
-                  <option key={value} value={value}>
-                    {API_LABELS[value]}
-                  </option>
-                ))}
-              </Select>
-              {api === 'google-generative-ai' ? (
-                <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-                  {t('models.models.connection.googleNote')}
-                </p>
-              ) : null}
-            </div>
+                options={PROVIDER_APIS.map((value) => ({ value, label: API_LABELS[value] }))}
+              />
+            </Field>
           </div>
         ) : (
           <KvList
@@ -200,10 +194,15 @@ export function ProviderConnectionCard({
         )}
 
         <div className={css({ display: 'grid', gap: '4', md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } })}>
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-            <Label htmlFor="provider-api-key">{t('models.models.connection.apiKey')}</Label>
+          <Field
+            label={t('models.models.connection.apiKey')}
+            help={
+              baseUrlChanged
+                ? `${t('models.models.connection.keepHint')}${t('common.separator')}${t('models.models.connection.keepHintChanged')}`
+                : t('models.models.connection.keepHint')
+            }
+          >
             <Input
-              id="provider-api-key"
               type="password"
               autoComplete="new-password"
               value={apiKey}
@@ -212,16 +211,12 @@ export function ProviderConnectionCard({
                 setLocalError(null);
               }}
             />
-            <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-              {t('models.models.connection.keepHint')}
-              {baseUrlChanged ? t('models.models.connection.keepHintChanged') : ''}
-            </p>
-          </div>
+          </Field>
         </div>
 
         {custom ? (
-          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-            <p className={css({ textStyle: 'label' })}>{t('models.models.connection.headersTitle')}</p>
+          <div className={css({ display: 'flex', flexDirection: 'column', gap: '2' })}>
+            <h3 className={css({ margin: '0', textStyle: 'label' })}>{t('models.models.connection.headersTitle')}</h3>
             <HeaderFields
               rows={headers}
               onChange={(rows) => {
@@ -234,30 +229,20 @@ export function ProviderConnectionCard({
           </div>
         ) : null}
 
-        {baseUrlChanged ? (
-          <p className={css({ textStyle: 'small', color: 'warning-text' })}>
-            {t('models.models.connection.changedWarning')}
-          </p>
-        ) : null}
+        {baseUrlChanged ? <Alert tone="warning">{t('models.models.connection.changedWarning')}</Alert> : null}
         {stale && dirty ? (
-          <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
-            <p className={css({ textStyle: 'body', color: 'warning-text', overflowWrap: 'anywhere' })}>
-              {t('models.models.connection.staleWarning')}
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              color="secondary"
-              onClick={() => resetDrafts(provider, revision)}
-            >
-              {t('common.reload')}
-            </Button>
-          </div>
+          <Alert
+            tone="warning"
+            action={
+              <Button size="sm" variant="ghost" color="secondary" onClick={() => resetDrafts(provider, revision)}>
+                {t('common.reload')}
+              </Button>
+            }
+          >
+            {t('models.models.connection.staleWarning')}
+          </Alert>
         ) : null}
-        {error !== null ? (
-          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>{error}</p>
-        ) : null}
+        {error !== null ? <Alert tone="error">{error}</Alert> : null}
       </div>
     </Panel>
   );

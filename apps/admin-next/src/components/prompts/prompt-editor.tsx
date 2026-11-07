@@ -4,7 +4,7 @@ import { MonoValue, ToneBadge } from '@/components/business';
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
+import { Field } from '@tuuject/koi-react/field';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import type { PromptDocument, PromptVersionItem } from '@/lib/api/prompts.ts';
 import { formatTime } from '@/lib/format';
@@ -80,31 +80,23 @@ export function PromptEditor({
   const matches = applied !== null && applied.content_hash === file.content_hash;
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-        <Label htmlFor="prompt-text">{t('pages.prompts.promptLabel')}</Label>
+      <Field label={t('pages.prompts.promptLabel')} help={t('pages.prompts.editorHint')}>
         <Textarea
-          id="prompt-text"
           value={current.text}
           spellCheck={false}
           placeholder={t('pages.prompts.promptPlaceholder')}
           className={css({ textStyle: 'small', minHeight: '384px', fontFamily: 'mono' })}
           onChange={(event) => setDraft({ hash: file.content_hash, text: event.target.value, note: current.note })}
         />
-        <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.prompts.editorHint')}</p>
-      </div>
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-        <Label htmlFor="prompt-note">{t('pages.prompts.noteLabel')}</Label>
+      </Field>
+      <Field label={t('pages.prompts.noteLabel')} help={t('pages.prompts.noteHint', { count: MAX_NOTE_CHARS })}>
         <Input
-          id="prompt-note"
           value={current.note}
           maxLength={MAX_NOTE_CHARS}
           placeholder={t('pages.prompts.notePlaceholder')}
           onChange={(event) => setDraft({ hash: file.content_hash, text: current.text, note: event.target.value })}
         />
-        <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-          {t('pages.prompts.noteHint', { count: MAX_NOTE_CHARS })}
-        </p>
-      </div>
+      </Field>
       <div
         className={css({
           bg: 'surface-muted',

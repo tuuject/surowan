@@ -1,5 +1,6 @@
 import { TrashIcon } from '@tuuject/koi-react/icons';
-import { EditIcon, EyeIcon, LightbulbIcon } from '@/components/icons';
+import { Menu } from '@tuuject/koi-react/menu';
+import { EditIcon, EyeIcon, HealthIcon, LightbulbIcon, MoreIcon } from '@/components/icons';
 import type { Dispatch, SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -8,6 +9,7 @@ import {
   ListFooter,
   ListToolbar,
   MonoValue,
+  RowActions,
   TableShell,
   ToneBadge,
   useClientPagination,
@@ -75,60 +77,37 @@ export function ModelTable({
   const { t } = useTranslation();
   const pagination = useClientPagination(rows, rows[0]?.alias ?? 'no-provider');
   const rowKey = (row: ModelRow): string => `${row.alias}/${row.model.id}`;
-  const allSelected = rows.length > 0 && rows.every((row) => healthSelected.has(rowKey(row)));
 
   const columns: readonly ColumnSpec<ModelRow>[] = [
-    {
-      key: 'select',
-      title: '',
-      render: (row) => {
-        const key = rowKey(row);
-        return (
-          <input
-            type="checkbox"
-            className={css({ width: 'icon', height: 'icon', borderRadius: 'lg', borderColor: 'border-control' })}
-            aria-label={t('models.models.page.selectForHealthAria', { model: row.model.id })}
-            checked={healthSelected.has(key)}
-            disabled={running}
-            onChange={() => {
-              onHealthSelectedChange((previous) => {
-                const next = new Set(previous);
-                if (next.has(key)) {
-                  next.delete(key);
-                } else {
-                  next.add(key);
-                }
-                return next;
-              });
-            }}
-          />
-        );
-      },
-    },
     {
       key: 'model',
       title: t('models.models.page.colModel'),
       render: (row) => (
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-          <MonoValue value={row.model.id} />
-          <p className={css({ textStyle: 'small', color: 'text-muted', truncate: true })}>{row.model.name ?? '—'}</p>
+        <div className={css({ minWidth: '0' })}>
+          <div className={css({ truncate: true })}>
+            <MonoValue value={row.model.id} />
+          </div>
+          <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted', truncate: true })}>
+            {row.model.name ?? '—'}
+          </p>
         </div>
       ),
     },
     {
       key: 'flags',
       title: t('models.models.page.colFlags'),
+      width: 88,
       render: (row) => (
         <span className={css({ color: 'text-muted', display: 'flex', alignItems: 'center', gap: '2' })}>
           {isImageCapable(row.model) ? (
             <>
-              <EyeIcon className={css({ width: '1.15em', height: '1.15em' })} aria-hidden="true" />
+              <EyeIcon aria-hidden="true" />
               <span className={css({ srOnly: true })}>{t('models.models.page.srOnlyImage')}</span>
             </>
           ) : null}
           {row.model.reasoning ? (
             <>
-              <LightbulbIcon className={css({ width: '1.15em', height: '1.15em' })} aria-hidden="true" />
+              <LightbulbIcon aria-hidden="true" />
               <span className={css({ srOnly: true })}>{t('models.models.page.srOnlyReasoning')}</span>
             </>
           ) : null}
@@ -139,17 +118,20 @@ export function ModelTable({
       key: 'context',
       title: t('models.models.page.colContext'),
       align: 'right',
+      width: 104,
       render: (row) => formatNumber(row.model.context_window),
     },
     {
       key: 'max_tokens',
       title: t('models.models.page.colMaxOutput'),
       align: 'right',
+      width: 112,
       render: (row) => formatNumber(row.model.max_tokens),
     },
     {
       key: 'usage',
       title: t('models.models.page.colInUse'),
+      width: 136,
       render: (row) => {
         const usage = modelUsage(view, row.alias, row.model.id);
         if (usage === null) {
@@ -170,6 +152,7 @@ export function ModelTable({
     {
       key: 'health',
       title: t('models.models.page.colHealth'),
+      width: 168,
       render: (row) => {
         const entry = health[rowKey(row)];
         if (entry === undefined) {
@@ -187,7 +170,7 @@ export function ModelTable({
         return (
           <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
             <ToneBadge tone={HEALTH_TONES[entry.status]}>{label}</ToneBadge>
-            <p className={css({ textStyle: 'small', color: 'text-muted', fontVariantNumeric: 'tabular-nums' })}>
+            <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>
               {t('models.models.page.healthTiming', {
                 ttfb: entry.ttfb_ms === null ? t('models.models.page.ttfbUnavailable') : formatDuration(entry.ttfb_ms),
                 duration: formatDuration(entry.duration_ms),
@@ -201,41 +184,45 @@ export function ModelTable({
       key: 'actions',
       title: t('models.models.page.colActions'),
       align: 'right',
+      width: 176,
+      paddingBlock: 'none',
       render: (row) => {
         const usage = modelUsage(view, row.alias, row.model.id);
         return (
-          <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '1' })}>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              color="secondary"
-              disabled={!isTextCapable(row.model) || usage === 'agent' || usage === 'both' || agentPending}
-              onClick={() => onSetAgent(row.alias, row.model.id)}
-            >
-              {t('models.models.page.setAsAgent')}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              color="secondary"
-              disabled={!isImageCapable(row.model) || usage === 'vision' || usage === 'both' || visionPending}
-              onClick={() => onSetVision(row.alias, row.model.id)}
-            >
-              {t('models.models.page.setAsVision')}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
+          <RowActions>
+            <IconButton
               variant="ghost"
               color="secondary"
               disabled={running}
-              aria-label={t('models.models.page.checkHealthAria', { model: row.model.id })}
+              label={t('models.models.page.checkHealthAria', { model: row.model.id })}
+              icon={<HealthIcon />}
               onClick={() => void onRunHealthChecks([rowKey(row)])}
-            >
-              {t('models.models.page.checkHealth')}
-            </Button>
+            />
+            <Menu
+              placement="bottom-end"
+              trigger={
+                <IconButton
+                  variant="ghost"
+                  color="secondary"
+                  label={t('models.models.page.moreActionsAria', { model: row.model.id })}
+                  icon={<MoreIcon />}
+                />
+              }
+              items={[
+                {
+                  value: 'agent',
+                  label: t('models.models.page.setAsAgent'),
+                  disabled: !isTextCapable(row.model) || usage === 'agent' || usage === 'both' || agentPending,
+                  onSelect: () => onSetAgent(row.alias, row.model.id),
+                },
+                {
+                  value: 'vision',
+                  label: t('models.models.page.setAsVision'),
+                  disabled: !isImageCapable(row.model) || usage === 'vision' || usage === 'both' || visionPending,
+                  onSelect: () => onSetVision(row.alias, row.model.id),
+                },
+              ]}
+            />
             <IconButton
               variant="ghost"
               color="secondary"
@@ -245,86 +232,85 @@ export function ModelTable({
             />
             <IconButton
               variant="ghost"
+              color="error"
               disabled={usage !== null}
               onClick={() => onDeleteModel(row.alias, row.model.id)}
               label={t('models.models.page.deleteModelAria', { model: row.model.id })}
               icon={<TrashIcon />}
             />
-          </div>
+          </RowActions>
         );
       },
     },
   ];
 
   return (
-    <section className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-      <h2 className={css({ textStyle: 'heading-3' })}>{t('models.models.page.modelsTitle')}</h2>
+    <section className={css({ '& > * + *': { marginBlockStart: '5' } })}>
+      <div className={css({ display: 'flex', flexDirection: 'column', gap: '1' })}>
+        <h2 className={css({ margin: '0', textStyle: 'heading-2' })}>{t('models.models.page.modelsTitle')}</h2>
+        <p className={css({ margin: '0', color: 'text-muted', maxWidth: 'content-max' })}>
+          {t('models.models.page.healthCheckNote')}
+        </p>
+      </div>
       <ListToolbar
         trailing={
-          <label
-            className={css({
-              textStyle: 'small',
-              color: 'text-muted',
-              display: 'flex',
-              flexShrink: '0',
-              cursor: 'pointer',
-              alignItems: 'center',
-              gap: '2',
-            })}
-          >
-            <input
-              type="checkbox"
-              className={css({ width: 'icon', height: 'icon', borderRadius: 'lg', borderColor: 'border-control' })}
-              ref={(element) => {
-                if (element !== null) {
-                  element.indeterminate = !allSelected && rows.some((row) => healthSelected.has(rowKey(row)));
-                }
-              }}
-              checked={allSelected}
-              disabled={running || rows.length === 0}
-              onChange={() => {
-                onHealthSelectedChange((previous) => {
-                  const next = new Set(previous);
-                  for (const row of rows) {
-                    const key = rowKey(row);
-                    if (allSelected) {
-                      next.delete(key);
-                    } else {
-                      next.add(key);
-                    }
-                  }
-                  return next;
-                });
-              }}
-            />
-            {t('models.models.page.selectAllForHealth')}
-          </label>
+          healthSelected.size > 0 ? (
+            <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+              {t('models.models.page.selectedCount', { count: runnableSelected.length })}
+            </span>
+          ) : null
         }
       >
-        <Button type="button" variant="outline" color="secondary" onClick={onFetchModels}>
+        <Button variant="outline" color="secondary" onClick={onFetchModels}>
           {t('models.models.page.fetchModels')}
         </Button>
-        <Button type="button" variant="outline" color="secondary" onClick={onAddById}>
+        <Button variant="outline" color="secondary" onClick={onAddById}>
           {t('models.models.page.addById')}
         </Button>
         <Button
-          type="button"
           variant="outline"
           color="secondary"
+          iconStart={<HealthIcon />}
           disabled={runnableSelected.length === 0 || running}
           onClick={() => void onRunHealthChecks(runnableSelected)}
         >
           {t('models.models.page.checkSelected', { count: runnableSelected.length })}
         </Button>
       </ListToolbar>
-      <p className={css({ textStyle: 'small', color: 'text-muted', maxWidth: '64rem' })}>
-        {t('models.models.page.healthCheckNote')}
-      </p>
       <div>
         <TableShell
           columns={columns}
           data={pagination.items}
           rowKey={rowKey}
+          minWidth={1040}
+          selection={{
+            selected: healthSelected,
+            disabled: running,
+            onToggle: (row, checked) =>
+              onHealthSelectedChange((previous) => {
+                const next = new Set(previous);
+                if (checked) {
+                  next.add(rowKey(row));
+                } else {
+                  next.delete(rowKey(row));
+                }
+                return next;
+              }),
+            onToggleAll: (checked) =>
+              onHealthSelectedChange((previous) => {
+                const next = new Set(previous);
+                for (const row of rows) {
+                  if (checked) {
+                    next.add(rowKey(row));
+                  } else {
+                    next.delete(rowKey(row));
+                  }
+                }
+                return next;
+              }),
+            allLabel: t('models.models.page.selectAllForHealth'),
+            rowLabel: (row) => t('models.models.page.selectForHealthAria', { model: row.model.id }),
+          }}
           emptyText={t('models.models.page.emptyModels')}
           expandedRender={(row) => {
             const entry = health[rowKey(row)];

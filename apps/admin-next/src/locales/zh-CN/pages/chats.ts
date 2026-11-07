@@ -4,6 +4,8 @@ import { brand } from '../brand.ts';
 /** Mirrors `en/pages/chats.ts` key for key; the annotation fails the build on drift. */
 export const chats: typeof chatsEn = {
   allTopics: '所有话题',
+  moreActions: '更多操作',
+  settingsGroup: '会话设置',
   quickLinks: '打开相关页面',
   defaultModel: '默认模型',
   chatOverride: '会话覆盖',

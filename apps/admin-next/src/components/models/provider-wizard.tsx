@@ -11,6 +11,7 @@ import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
+import { Field } from '@tuuject/koi-react/field';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import type {
   CreateProviderRequest,
@@ -197,10 +198,8 @@ export function ProviderWizard({
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
           {step === 'connection' ? (
             <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-              <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-                <Label htmlFor="wizard-kind">{t('models.models.wizard.kind')}</Label>
+              <Field label={t('models.models.wizard.kind')}>
                 <Select
-                  id="wizard-kind"
                   className={css({ width: '100%', md: { width: '256px' } })}
                   value={kind}
                   onChange={(event) => setKind(event.target.value as ProviderKind)}
@@ -208,7 +207,7 @@ export function ProviderWizard({
                   <option value="builtin">{t('models.models.wizard.builtinKind')}</option>
                   <option value="custom">{t('models.models.wizard.customKind')}</option>
                 </Select>
-              </div>
+              </Field>
               <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                 <Label htmlFor="wizard-alias">{t('models.models.wizard.alias')}</Label>
                 <Input
@@ -267,15 +266,13 @@ export function ProviderWizard({
                     md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
                   })}
                 >
-                  <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-                    <Label htmlFor="wizard-base-url">{t('models.models.connection.baseUrl')}</Label>
+                  <Field label={t('models.models.connection.baseUrl')}>
                     <Input
-                      id="wizard-base-url"
                       value={baseUrl}
                       placeholder="https://example.com/v1"
                       onChange={(event) => setBaseUrl(event.target.value)}
                     />
-                  </div>
+                  </Field>
                   <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                     <Label htmlFor="wizard-api">{t('models.models.connection.api')}</Label>
                     <Select
@@ -303,19 +300,14 @@ export function ProviderWizard({
 
           {step === 'credentials' ? (
             <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-              <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-                <Label htmlFor="wizard-api-key">{t('models.models.connection.apiKey')}</Label>
+              <Field label={t('models.models.connection.apiKey')} help={t('models.models.wizard.apiKeyHint')}>
                 <Input
-                  id="wizard-api-key"
                   type="password"
                   autoComplete="new-password"
                   value={apiKey}
                   onChange={(event) => setApiKey(event.target.value)}
                 />
-                <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-                  {t('models.models.wizard.apiKeyHint')}
-                </p>
-              </div>
+              </Field>
               {kind === 'custom' ? (
                 <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                   <p className={css({ textStyle: 'label' })}>{t('models.models.wizard.headersOptional')}</p>

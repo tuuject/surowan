@@ -17,29 +17,26 @@ export function ProviderDetailHeader({
   readonly onDelete: () => void;
 }): React.ReactElement {
   const { t } = useTranslation();
+  const usage = providerUsage(view, provider.alias);
   return (
     <div
       className={css({
         display: 'flex',
-        minHeight: 'control-md',
         flexWrap: 'wrap',
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: '3',
       })}
     >
-      <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
-        <h2 className={css({ textStyle: 'heading-3', fontFamily: 'mono' })}>{provider.alias}</h2>
-        <span className={css({ textStyle: 'small', color: 'text-muted' })}>{provider.kind}</span>
+      <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '3', minWidth: '0' })}>
+        <h2 className={css({ margin: '0', textStyle: 'heading-2', overflowWrap: 'anywhere' })}>{provider.alias}</h2>
+        <span className={css({ color: 'text-muted' })}>{provider.kind}</span>
         <ProviderBadges view={view} provider={provider} />
       </div>
       <Button
-        type="button"
-        size="sm"
         variant="ghost"
-        color="secondary"
-        className={css({ color: 'text-muted', _hover: { color: 'error-text' } })}
-        disabled={providerUsage(view, provider.alias).agent || providerUsage(view, provider.alias).vision}
+        color="error"
+        disabled={usage.agent || usage.vision}
         onClick={onDelete}
         iconStart={<TrashIcon />}
       >

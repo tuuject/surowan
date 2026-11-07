@@ -6,6 +6,7 @@ import {
   E2E_RELAY_COMPLETE_MODEL,
   E2E_RELAY_INCOMPLETE_MODEL,
   E2E_SECRETS,
+  setAsAgent,
 } from './models-fixture.ts';
 
 /**
@@ -155,10 +156,7 @@ test.describe('models page', () => {
 
     // Added by the discovery test with the levels models.dev listed.
     await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` }).click();
-    await page
-      .locator('tr', { hasText: E2E_RELAY_COMPLETE_MODEL })
-      .getByRole('button', { name: 'Set as agent' })
-      .click();
+    await setAsAgent(page, page.locator('tr', { hasText: E2E_RELAY_COMPLETE_MODEL }));
     await expect(page.getByText('Thinking effort reset to off', { exact: false }).first()).toBeVisible();
     await expect(inUse.getByText(`${E2E_RELAY_ALIAS} / ${E2E_RELAY_COMPLETE_MODEL}`)).toBeVisible();
     await expect(effort).toHaveValue('off');
@@ -172,7 +170,7 @@ test.describe('models page', () => {
 
     // Put the fixture agent back for the tests that follow.
     await page.getByRole('button', { name: 'Provider agent' }).click();
-    await page.locator('tr', { hasText: 'agent-model' }).getByRole('button', { name: 'Set as agent' }).click();
+    await setAsAgent(page, page.locator('tr', { hasText: 'agent-model' }));
     await expect(inUse.getByText('agent / agent-model')).toBeVisible();
     expect(await agentOf()).toMatchObject({ provider: 'agent', model: 'agent-model', thinking_level: 'off' });
   });

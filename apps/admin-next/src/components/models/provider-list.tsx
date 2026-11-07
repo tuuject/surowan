@@ -3,6 +3,7 @@ import {
   type ColumnSpec,
   ListFooter,
   MonoValue,
+  RowActions,
   TableShell,
   ToneBadge,
   useClientPagination,
@@ -24,8 +25,9 @@ export function ProviderBadges({
   const usage = providerUsage(view, provider.alias);
   return (
     <span className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1' })}>
-      {usage.agent ? <ToneBadge tone="success">{t('models.models.page.agentInUse')}</ToneBadge> : null}
-      {usage.vision ? <ToneBadge tone="info">{t('models.models.page.visionInUse')}</ToneBadge> : null}
+      {/* Neutral, not primary: the provider rows can be the active row, whose fill would swallow a primary badge. */}
+      {usage.agent ? <ToneBadge tone="neutral">{t('models.models.page.agentInUse')}</ToneBadge> : null}
+      {usage.vision ? <ToneBadge tone="neutral">{t('models.models.page.visionInUse')}</ToneBadge> : null}
     </span>
   );
 }
@@ -50,28 +52,18 @@ export function ProviderListPanel({
     {
       key: 'provider',
       title: t('models.models.page.providerColumn'),
-      render: (provider) => {
-        const active = selected !== null && selected.alias === provider.alias;
-        return (
-          <Button
-            type="button"
-            variant={active ? 'soft' : 'ghost'}
-            color="secondary"
-            size="sm"
-            aria-label={t('models.models.page.providerAria', { alias: provider.alias })}
-            aria-current={active ? 'true' : undefined}
-            onClick={() => onSelect(provider.alias)}
-          >
-            <MonoValue value={provider.alias} />
-          </Button>
-        );
-      },
+      width: 200,
+      render: (provider) => <MonoValue value={provider.alias} />,
     },
-    { key: 'kind', title: t('models.models.page.colType'), render: (provider) => provider.kind },
+    { key: 'kind', title: t('models.models.page.colType'), width: 104, render: (provider) => provider.kind },
     {
       key: 'endpoint',
       title: t('models.models.page.colEndpoint'),
-      render: (provider) => <MonoValue value={provider.provider ?? provider.base_url} />,
+      render: (provider) => (
+        <span className={css({ display: 'block', truncate: true })}>
+          <MonoValue value={provider.provider ?? provider.base_url} />
+        </span>
+      ),
     },
     {
       key: 'usage',
@@ -79,13 +71,36 @@ export function ProviderListPanel({
       render: (provider) => (
         <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
           <ProviderBadges view={view} provider={provider} />
-          <span className={css({ textStyle: 'small', color: 'text-muted', fontVariantNumeric: 'tabular-nums' })}>
+          <span className={css({ textStyle: 'small', color: 'text-muted' })}>
             {t(provider.models.length === 1 ? 'models.models.page.oneModel' : 'models.models.page.manyModels', {
               count: provider.models.length,
             })}
           </span>
         </div>
       ),
+    },
+    {
+      key: 'actions',
+      title: t('models.models.page.colActions'),
+      align: 'right',
+      width: 104,
+      render: (provider) => {
+        const active = selected !== null && selected.alias === provider.alias;
+        return (
+          <RowActions>
+            <Button
+              size="sm"
+              variant="ghost"
+              color={active ? 'primary' : 'secondary'}
+              aria-label={t('models.models.page.providerAria', { alias: provider.alias })}
+              aria-pressed={active}
+              onClick={() => onSelect(provider.alias)}
+            >
+              {t('models.models.page.manageProvider')}
+            </Button>
+          </RowActions>
+        );
+      },
     },
   ];
 
@@ -95,6 +110,8 @@ export function ProviderListPanel({
         columns={columns}
         data={pagination.items}
         rowKey={(provider) => provider.alias}
+        activeRowKey={selected?.alias ?? null}
+        minWidth={880}
         emptyText={
           view.providers.length === 0
             ? t('models.models.page.noProviders')

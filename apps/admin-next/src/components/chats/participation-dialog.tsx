@@ -6,8 +6,8 @@ import { WeekWindowsChart } from '@/components/chats/week-windows-chart';
 import { Button, IconButton } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Card } from '@tuuject/koi-react/card';
+import { RadioGroup } from '@tuuject/koi-react/radio-group';
 import type { ChatEntry, ChatsView, ParticipationView, ParticipationWindow } from '@/lib/api/chats.ts';
 import { updateChatParticipation } from '@/lib/api/chats.ts';
 import { errorMessage } from '@/lib/errors';
@@ -54,41 +54,6 @@ function initialMode(participation: ParticipationView | null): ParticipationMode
     return 'unrestricted';
   }
   return windows.length === 0 ? 'none' : 'custom';
-}
-
-function ModeOption({
-  value,
-  title,
-  hint,
-}: {
-  readonly value: ParticipationMode;
-  readonly title: string;
-  readonly hint: string;
-}): React.ReactElement {
-  return (
-    <Label
-      className={css({
-        '&:has([data-checked])': { borderColor: 'action' },
-        _hover: { bg: 'surface-muted' },
-        display: 'flex',
-        cursor: 'pointer',
-        alignItems: 'flex-start',
-        gap: '3',
-        borderRadius: 'xl',
-        borderWidth: '1px',
-        borderColor: 'border',
-        padding: '3',
-        transitionProperty: 'color, background-color, border-color',
-        transitionDuration: 'fast',
-      })}
-    >
-      <RadioGroupItem value={value} className={css({ marginBlockStart: '1' })} />
-      <span className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-        <span className={css({ textStyle: 'label', display: 'block' })}>{title}</span>
-        <span className={css({ textStyle: 'small', color: 'text-muted', display: 'block' })}>{hint}</span>
-      </span>
-    </Label>
-  );
 }
 
 /** The dialog captures the view when opened: a background refetch cannot upgrade a stale form's revision. */
@@ -192,29 +157,37 @@ export function ParticipationDialog({
         }}
       >
         <fieldset disabled={save.isPending} className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
-          <RadioGroup value={mode} onValueChange={switchMode} className={css({ gap: '2' })}>
-            <ModeOption
-              value="unrestricted"
-              title={t('pages.chats.modeUnrestricted')}
-              hint={
-                globalWindows.length === 0
-                  ? t('pages.chats.modeUnrestrictedHint')
-                  : t('pages.chats.modeUnrestrictedHintGlobal', { windows: summarize(globalWindows) })
+          <RadioGroup
+            label={t('pages.chats.colActiveHours')}
+            value={mode}
+            onChange={(value) => {
+              if (value === 'unrestricted' || value === 'none' || value === 'custom') {
+                switchMode(value);
               }
-            />
-            <ModeOption value="none" title={t('pages.chats.modeNone')} hint={t('pages.chats.modeNoneHint')} />
-            <ModeOption value="custom" title={t('pages.chats.modeCustom')} hint={t('pages.chats.modeCustomHint')} />
-          </RadioGroup>
+            }}
+            options={[
+              {
+                value: 'unrestricted',
+                label: t('pages.chats.modeUnrestricted'),
+                description:
+                  globalWindows.length === 0
+                    ? t('pages.chats.modeUnrestrictedHint')
+                    : t('pages.chats.modeUnrestrictedHintGlobal', { windows: summarize(globalWindows) }),
+              },
+              { value: 'none', label: t('pages.chats.modeNone'), description: t('pages.chats.modeNoneHint') },
+              { value: 'custom', label: t('pages.chats.modeCustom'), description: t('pages.chats.modeCustomHint') },
+            ]}
+          />
           {mode !== 'unrestricted' ? <WeekWindowsChart windows={previewWindows} timezone={timezone} /> : null}
           {mode === 'custom' ? (
-            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
-              <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between' })}>
-                <Label>{t('pages.chats.windowsLabel')}</Label>
+            <div className={css({ display: 'flex', flexDirection: 'column', gap: '3' })}>
+              <div
+                className={css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '3' })}
+              >
+                <h3 className={css({ margin: '0', textStyle: 'label' })}>{t('pages.chats.windowsLabel')}</h3>
                 <Button
                   type="button"
-                  size="sm"
                   variant="outline"
-                  color="secondary"
                   onClick={() =>
                     setDrafts((current) => [
                       ...current,
@@ -236,16 +209,7 @@ export function ParticipationDialog({
                 <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.windowsEmpty')}</p>
               ) : null}
               {drafts.map((draft, index) => (
-                <div
-                  key={draft.key}
-                  className={css({
-                    '& > :not(:last-child)': { marginBlockEnd: '2' },
-                    borderRadius: 'xl',
-                    borderWidth: '1px',
-                    borderColor: 'border',
-                    padding: '3',
-                  })}
-                >
+                <Card key={draft.key} variant="filled" className={css({ gap: '3' })}>
                   <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
                     <Input
                       type="time"
@@ -269,7 +233,6 @@ export function ParticipationDialog({
                     />
                     <Button
                       type="button"
-                      size="sm"
                       variant={draft.endMidnight ? 'soft' : 'outline'}
                       color="secondary"
                       aria-pressed={draft.endMidnight}
@@ -280,20 +243,27 @@ export function ParticipationDialog({
                     >
                       24:00
                     </Button>
-                    <IconButton
-                      variant="ghost"
-                      onClick={() => setDrafts((current) => current.filter((item) => item.key !== draft.key))}
-                      label={t('pages.chats.removeWindow')}
-                      icon={<TrashIcon />}
-                    />
+                    <span className={css({ marginInlineStart: 'auto' })}>
+                      <IconButton
+                        variant="ghost"
+                        color="error"
+                        onClick={() => setDrafts((current) => current.filter((item) => item.key !== draft.key))}
+                        label={t('pages.chats.removeWindow')}
+                        icon={<TrashIcon />}
+                      />
+                    </span>
                   </div>
-                  <div className={css({ display: 'flex', flexWrap: 'wrap', gap: '1' })}>
+                  <div className={css({ display: 'flex', flexWrap: 'wrap', gap: '2' })}>
                     {dayLabels.map((label, dayIndex) => {
                       const on = draft.days[dayIndex] ?? false;
                       return (
-                        <button
+                        <Button
                           key={label}
                           type="button"
+                          size="sm"
+                          shape="pill"
+                          variant={on ? 'soft' : 'outline'}
+                          color={on ? 'primary' : 'secondary'}
                           aria-pressed={on}
                           onClick={() =>
                             setDraft(draft.key, (current) => ({
@@ -301,18 +271,13 @@ export function ParticipationDialog({
                               days: current.days.map((value, position) => (position === dayIndex ? !value : value)),
                             }))
                           }
-                          className={
-                            on
-                              ? 'border-primary bg-primary/10 text-primary rounded-full border px-2.5 py-0.5 text-xs transition-colors'
-                              : 'text-muted-foreground hover:border-primary/50 rounded-full border px-2.5 py-0.5 text-xs transition-colors'
-                          }
                         >
                           {label}
-                        </button>
+                        </Button>
                       );
                     })}
                   </div>
-                </div>
+                </Card>
               ))}
             </div>
           ) : null}

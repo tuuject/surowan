@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@tuuject/koi-react/button';
 import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
+import { Field } from '@tuuject/koi-react/field';
 import { type EditableCredential, type EditableModel, selectClass } from './shared.ts';
 import { css } from '@tuuject/koi-react/styled-system/css';
 
@@ -50,10 +51,8 @@ export function CredentialsFields({
               key={entry.key}
               className={css({ display: 'grid', gap: '3', md: { gridTemplateColumns: '160px 1fr' } })}
             >
-              <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-                <Label htmlFor={`credential-name-${index}`}>{t('image.settings.credentialName')}</Label>
+              <Field label={t('image.settings.credentialName')}>
                 <Input
-                  id={`credential-name-${index}`}
                   value={entry.name}
                   disabled={entry.saved || models.some((model) => model.credentialRef === entry.name)}
                   onChange={(event) =>
@@ -62,7 +61,7 @@ export function CredentialsFields({
                     )
                   }
                 />
-              </div>
+              </Field>
               <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                 {!entry.saved && credentialProviders.length > 0 && (
                   <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>

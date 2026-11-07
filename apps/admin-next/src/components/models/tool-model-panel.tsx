@@ -5,10 +5,12 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { KvList, MonoValue } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
+import { Badge } from '@tuuject/koi-react/badge';
 import { Button } from '@tuuject/koi-react/button';
+import { CheckIcon } from '@tuuject/koi-react/icons';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
+import { Field } from '@tuuject/koi-react/field';
 import type { ThinkingLevel } from '@/lib/api/models.ts';
 import type { ProvidersView, ProviderView } from '@/lib/api/providers.ts';
 import { putToolModel } from '@/lib/api/tools.ts';
@@ -77,13 +79,12 @@ export function ToolModelPanel({
   return (
     <Panel
       title={t('models.models.toolModel.label')}
+      description={t('models.models.toolModel.description')}
       action={
-        <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
+        <>
           {tool.inherited ? null : (
             <Button
-              type="button"
-              size="sm"
-              variant="outline"
+              variant="ghost"
               color="secondary"
               disabled={save.isPending}
               onClick={() => save.mutate({ inherit: true })}
@@ -91,10 +92,10 @@ export function ToolModelPanel({
               {t('models.models.toolModel.inherit')}
             </Button>
           )}
-          <Button type="button" size="sm" disabled={save.isPending} onClick={() => setPickerOpen(true)}>
+          <Button variant="outline" disabled={save.isPending} onClick={() => setPickerOpen(true)}>
             {t('models.models.toolModel.select')}
           </Button>
-        </div>
+        </>
       }
     >
       <KvList
@@ -103,7 +104,8 @@ export function ToolModelPanel({
             label: t('models.models.toolModel.label'),
             value: (
               <span className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
-                <MonoValue value={`${tool.provider} / ${tool.model} · ${tool.thinking_level}`} />
+                <MonoValue value={`${tool.provider} / ${tool.model}`} />
+                <Badge>{tool.thinking_level}</Badge>
                 {tool.inherited ? (
                   <span className={css({ textStyle: 'small', color: 'text-muted' })}>
                     {t('models.models.toolModel.inherited')}
@@ -114,9 +116,6 @@ export function ToolModelPanel({
           },
         ]}
       />
-      <p className={css({ textStyle: 'small', color: 'text-muted', marginBlockStart: '2' })}>
-        {t('models.models.toolModel.description')}
-      </p>
       {save.isError && !isConfigConflict(save.error) ? (
         <p className={css({ textStyle: 'body', color: 'error-text', marginBlockStart: '2', overflowWrap: 'anywhere' })}>
           {writeErrorMessage(save.error)}
@@ -202,41 +201,46 @@ function ToolModelPicker({
       size="md"
       footer={
         <>
-          <Button type="button" variant="outline" color="secondary" disabled={pending} onClick={onClose}>
+          <Button variant="ghost" color="secondary" disabled={pending} onClick={onClose}>
             {t('common.cancel')}
           </Button>
           <Button
-            type="button"
-            disabled={pick === null || !pick.levels.includes(level) || pending}
+            disabled={pick === null || !pick.levels.includes(level)}
+            loading={pending}
+            loadingLabel={t('models.models.toolModel.saving')}
             onClick={() => {
               if (pick !== null) {
                 onSubmit(pick.alias, pick.model, level);
               }
             }}
           >
-            {pending ? t('models.models.toolModel.saving') : t('models.models.toolModel.save')}
+            {t('models.models.toolModel.save')}
           </Button>
         </>
       }
     >
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+      <div className={css({ display: 'flex', flexDirection: 'column', gap: '3' })}>
         <Input
+          type="search"
           aria-label={t('models.models.toolModel.pickerSearch')}
           placeholder={t('models.models.toolModel.pickerSearch')}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
+        {/* Drawn like SelectPanel's list: a quiet framed panel of 36px option rows. */}
         <div
           className={css({
             maxHeight: '256px',
             overflow: 'auto',
-            borderRadius: 'lg',
+            borderRadius: 'xl',
             borderWidth: '1px',
             borderColor: 'border',
+            bg: 'surface',
+            padding: '1',
           })}
         >
           {options.length === 0 ? (
-            <p className={css({ textStyle: 'body', color: 'text-muted', padding: '3' })}>
+            <p className={css({ margin: '0', color: 'text-muted', paddingInline: '3', paddingBlock: '2' })}>
               {t('models.models.toolModel.pickerEmpty')}
             </p>
           ) : (
@@ -249,17 +253,37 @@ function ToolModelPicker({
                     <button
                       type="button"
                       aria-pressed={active}
-                      className={
+                      className={css(
+                        {
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '2',
+                          width: '100%',
+                          minHeight: 'control-md',
+                          paddingInline: '3',
+                          borderRadius: 'lg',
+                          border: 'none',
+                          bg: 'transparent',
+                          color: 'text',
+                          textAlign: 'start',
+                          cursor: 'pointer',
+                          transitionProperty: 'background-color',
+                          transitionDuration: 'fast',
+                          _hover: { bg: 'surface-muted' },
+                          _focusVisible: { outline: '2px solid', outlineColor: 'focus-ring', outlineOffset: '-2px' },
+                        },
                         active
-                          ? 'bg-accent text-accent-foreground w-full px-3 py-2 text-left text-sm'
-                          : 'hover:bg-accent/50 w-full px-3 py-2 text-left text-sm'
-                      }
+                          ? { bg: 'action-subtle', color: 'on-action-subtle', _hover: { bg: 'action-subtle' } }
+                          : {},
+                      )}
                       onClick={() => {
                         setPick({ alias: option.provider.alias, model: option.id, levels: option.levels });
                         setLevel(option.levels[0] ?? 'off');
                       }}
                     >
-                      <span className={css({ fontFamily: 'mono' })}>{key}</span>
+                      <span className={css({ fontFamily: 'mono', truncate: true })}>{key}</span>
+                      {active ? <CheckIcon className={css({ flexShrink: '0' })} /> : null}
                     </button>
                   </li>
                 );
@@ -267,12 +291,8 @@ function ToolModelPicker({
             </ul>
           )}
         </div>
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-          <Label htmlFor="tool-model-level">{t('models.models.toolModel.levelLabel')}</Label>
+        <Field label={t('models.models.toolModel.levelLabel')}>
           <Select
-            id="tool-model-level"
-            className={css({ width: '176px' })}
-            aria-label={t('models.models.toolModel.levelLabel')}
             value={level}
             disabled={pick === null || levels.length < 2}
             onChange={(event) => {
@@ -287,7 +307,7 @@ function ToolModelPicker({
               </option>
             ))}
           </Select>
-        </div>
+        </Field>
       </div>
     </Dialog>
   );

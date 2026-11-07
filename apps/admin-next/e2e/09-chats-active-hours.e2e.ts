@@ -1,5 +1,5 @@
 import { expect, type Locator } from '@playwright/test';
-import { chatRow, inherited, prepareChatsPage, viewOf } from './chats-fixture.ts';
+import { chatRow, expectNoChatAction, inherited, openChatAction, prepareChatsPage, viewOf } from './chats-fixture.ts';
 import { test, watchPageIssues } from './helpers.ts';
 
 test.use({ signedIn: true });
@@ -32,11 +32,11 @@ test('active-hours editing sets custom periods, an empty schedule and back to un
   await page.reload();
   await expect(groupRow()).toBeVisible();
   const openDialog = async (): Promise<Locator> => {
-    await groupRow().getByRole('button', { name: 'Edit active hours', exact: true }).click();
+    await openChatAction(page, groupRow(), 'Edit active hours');
     return page.getByRole('dialog');
   };
   // Private chats never gate: no editor entry, no summary.
-  await expect(chatRow(page).getByRole('button', { name: 'Edit active hours', exact: true })).toHaveCount(0);
+  await expectNoChatAction(page, chatRow(page), 'Edit active hours');
   await expect(chatRow(page).getByRole('cell').nth(3)).toHaveText('');
 
   // The hot-added group starts unrestricted.
