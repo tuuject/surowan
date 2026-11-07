@@ -55,9 +55,9 @@ export const layout: typeof layoutEn = {
   navGroups: {
     monitor: '监控',
     activity: '运行记录',
-    agentData: 'Agent 数据',
+    agentData: '数据',
     media: '媒体',
-    agentSetup: 'Agent 配置',
+    agentSetup: 'Agent',
     telegram: 'Telegram',
     system: '系统',
   },

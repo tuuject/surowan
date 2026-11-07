@@ -48,7 +48,7 @@ const EN_GROUPS: readonly NavGroup[] = [
   },
 ] as const;
 
-const ZH_GROUP_LABELS = ['监控', '运行记录', 'Agent 数据', '媒体', 'Agent 配置', 'Telegram', '系统'] as const;
+const ZH_GROUP_LABELS = ['监控', '运行记录', '数据', '媒体', 'Agent', 'Telegram', '系统'] as const;
 const ZH_LABELS = [
   '概览',
   '警告',
