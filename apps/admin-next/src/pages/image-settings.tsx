@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListPageHeader } from '@/components/business';
+import { FormActionBar, ListPageHeader } from '@/components/business';
+import { RefreshIcon } from '@/components/icons';
+import { Alert } from '@tuuject/koi-react/alert';
 import { CredentialsFields } from '@/components/image-settings/credentials-fields.tsx';
 import { ModelList } from '@/components/image-settings/model-list.tsx';
 import { ModelPicker } from '@/components/image-settings/model-picker.tsx';
-import { SaveActions } from '@/components/image-settings/save-actions.tsx';
 import { type EditableCredential, type EditableModel, toModelPayload } from '@/components/image-settings/shared.ts';
 import { Panel } from '@/components/layout/panel';
 import { Button } from '@tuuject/koi-react/button';
@@ -42,12 +43,16 @@ export default function ImageSettingsPage() {
       {config.isPending ? (
         <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('image.settings.readingConfig')}</p>
       ) : config.isError ? (
-        <div role="alert" className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
-          <p className={css({ textStyle: 'body', color: 'error-text' })}>{errorMessage(config.error)}</p>
-          <Button variant="outline" color="secondary" onClick={() => void config.refetch()}>
-            {t('common.reload')}
-          </Button>
-        </div>
+        <Alert
+          tone="error"
+          action={
+            <Button size="sm" variant="ghost" color="secondary" onClick={() => void config.refetch()}>
+              {t('common.reload')}
+            </Button>
+          }
+        >
+          {errorMessage(config.error)}
+        </Alert>
       ) : (
         <ImageSettingsForm key={config.data.revision} initial={config.data} />
       )}
@@ -214,11 +219,11 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
   }
 
   return (
-    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '6' } })}>
+    <div className={css({ '& > * + *': { marginBlockStart: '6' } })}>
       <Panel title={t('image.settings.enablePanelTitle')}>
         <fieldset
           disabled={save.isPending}
-          className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '5' } })}
+          className={css({ minWidth: '0', display: 'flex', flexDirection: 'column', gap: '5' })}
         >
           <CredentialsFields
             enabled={enabled}
@@ -234,12 +239,15 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
       {enabled && (
         <Panel
           title={t('image.settings.modelsPanelTitle')}
+          description={t('image.settings.modelsHint')}
           action={
             <Button
-              size="sm"
               variant="outline"
               color="secondary"
-              disabled={catalog.isFetching || save.isPending}
+              iconStart={<RefreshIcon />}
+              disabled={save.isPending}
+              loading={catalog.isFetching}
+              loadingLabel={t('image.settings.fetchingModels')}
               onClick={() => {
                 void catalog.refetch();
                 if (modelId) {
@@ -247,13 +255,13 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
                 }
               }}
             >
-              {catalog.isFetching ? t('image.settings.fetchingModels') : t('image.settings.refreshModels')}
+              {t('image.settings.refreshModels')}
             </Button>
           }
         >
           <fieldset
             disabled={save.isPending}
-            className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '5' } })}
+            className={css({ minWidth: '0', display: 'flex', flexDirection: 'column', gap: '5' })}
           >
             <ModelPicker
               catalogPending={catalog.isPending}
@@ -283,11 +291,20 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
           </fieldset>
         </Panel>
       )}
-      <SaveActions
-        validationError={validationError}
-        saveErrorText={save.isError && validationError === null ? errorMessage(save.error) : null}
-        savePending={save.isPending}
-        onSave={() => save.mutate()}
+      <FormActionBar
+        status={validationError ?? t('image.settings.readyToSave')}
+        error={save.isError && validationError === null ? errorMessage(save.error) : null}
+        submitType="button"
+        submitLabel={t('image.settings.saveAndApply')}
+        submittingLabel={t('common.saving')}
+        submitting={save.isPending}
+        onSubmit={() => {
+          if (validationError !== null) {
+            toast.error(validationError);
+            return;
+          }
+          save.mutate();
+        }}
       />
     </div>
   );

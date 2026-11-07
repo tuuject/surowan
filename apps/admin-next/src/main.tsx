@@ -5,7 +5,7 @@ import { type ReactNode, StrictMode, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useTranslation } from 'react-i18next';
 import { ThemeProvider } from '@/components/themes/theme-provider';
-import { Toaster } from '@/components/ui/toaster';
+import { Toaster } from '@/components/toaster';
 import { getQueryClient } from '@/lib/query-client';
 import { useUiStore } from '@/stores/ui';
 import { routeTree } from './routeTree.gen';

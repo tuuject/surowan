@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { type ColumnSpec, ListFooter, TableShell, useClientPagination } from '@/components/business';
+import { type ColumnSpec, ListFooter, RowActions, TableShell, useClientPagination } from '@/components/business';
+import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import { ModelCapabilities } from './model-capabilities.tsx';
@@ -24,11 +25,22 @@ export function ModelList({
       key: 'model',
       title: t('image.settings.modelsPanelTitle'),
       render: (model) => (
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-          <p className={css({ textStyle: 'label' })}>{model.name}</p>
-          <p className={css({ textStyle: 'small', color: 'text-muted', wordBreak: 'break-all' })}>
-            {model.upstreamModel} · {model.providerTag} ·{' '}
-            {t('image.settings.credentialRef', { name: model.credentialRef })}
+        <div className={css({ minWidth: '0', whiteSpace: 'normal' })}>
+          <p className={css({ margin: '0' })}>{model.name}</p>
+          <p
+            className={css({
+              margin: '0',
+              display: 'flex',
+              flexWrap: 'wrap',
+              columnGap: '2',
+              textStyle: 'small',
+              color: 'text-muted',
+              overflowWrap: 'anywhere',
+            })}
+          >
+            <span>{model.upstreamModel}</span>
+            <span>{model.providerTag}</span>
+            <span>{t('image.settings.credentialRef', { name: model.credentialRef })}</span>
           </p>
         </div>
       ),
@@ -36,13 +48,15 @@ export function ModelList({
     {
       key: 'capabilities',
       title: t('image.settings.capabilitiesTitle'),
+      className: css({ whiteSpace: 'normal' }),
       render: (model) => <ModelCapabilities capabilities={model.capabilities} />,
     },
     {
       key: 'description',
       title: t('image.settings.modelDescriptionLabel'),
+      className: css({ whiteSpace: 'normal' }),
       render: (model) => (
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+        <div className={css({ display: 'flex', flexDirection: 'column', gap: '1', paddingBlock: '2' })}>
           <Textarea
             id={`model-description-${model.key}`}
             aria-label={t('image.settings.modelDescriptionLabel')}
@@ -64,16 +78,19 @@ export function ModelList({
       key: 'actions',
       title: t('pages.apiKeys.actions'),
       align: 'right',
+      width: 88,
       render: (model) => (
-        <Button
-          size="sm"
-          variant="ghost"
-          color="secondary"
-          aria-label={t('image.settings.removeModel', { name: model.name })}
-          onClick={() => setModels((current) => current.filter((item) => item.key !== model.key))}
-        >
-          {t('image.settings.remove')}
-        </Button>
+        <RowActions>
+          <Button
+            size="sm"
+            variant="ghost"
+            color="error"
+            aria-label={t('image.settings.removeModel', { name: model.name })}
+            onClick={() => setModels((current) => current.filter((item) => item.key !== model.key))}
+          >
+            {t('image.settings.remove')}
+          </Button>
+        </RowActions>
       ),
     },
   ];
@@ -81,9 +98,7 @@ export function ModelList({
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
       {mergedDuplicates > 0 ? (
-        <p className={css({ textStyle: 'body', color: 'text-muted' })}>
-          {t('image.settings.mergedDuplicates', { count: mergedDuplicates })}
-        </p>
+        <Alert tone="info">{t('image.settings.mergedDuplicates', { count: mergedDuplicates })}</Alert>
       ) : null}
       <div>
         <TableShell

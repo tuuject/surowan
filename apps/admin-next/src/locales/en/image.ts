@@ -85,6 +85,7 @@ export const image = {
     credentialRef: 'credential {{name}}',
     removeModel: 'Remove {{name}}',
     remove: 'Remove',
+    readyToSave: 'Ready to save.',
     saveAndApply: 'Save and apply',
     capabilitiesTitle: 'Capabilities',
     capabilitiesInput: 'Up to {{count}} reference images',

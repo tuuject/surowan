@@ -9,7 +9,7 @@ import { Panel } from '@/components/layout/panel';
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { Field } from '@tuuject/koi-react/field';
-import { Separator } from '@/components/ui/separator';
+import { Divider } from '@tuuject/koi-react/divider';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import type { PlaygroundParticipant, PlaygroundTimelineItem } from '@/lib/api/playground.ts';
 import { toast } from '@/lib/toast.ts';
@@ -104,12 +104,12 @@ export function ComposerCard({
           busy={messages.isFetchingNextPage}
           onPageChange={(next) => void messages.onPageChange(next)}
         />
-        <Separator />
+        <Divider />
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
           <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '2' })}>
             <Field label={t('playground.identities.select')}>
               <Select
-                className={css({ width: '192px' })}
+                className={css({ minWidth: '192px' })}
                 value={shown.sender_id}
                 disabled={composerLocked}
                 onChange={(event) => setSenderId(event.target.value)}
@@ -149,25 +149,29 @@ export function ComposerCard({
             />
           </Field>
           {unresolved === null ? null : (
-            <Alert tone="info" title={t('playground.messages.unresolved')}>
+            <Alert
+              tone="info"
+              title={t('playground.messages.unresolved')}
+              action={
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  color="secondary"
+                  // While a replay is in flight its key must survive: if that
+                  // response is lost too, the next send has to reuse it.
+                  disabled={submit.isPending}
+                  onClick={() => {
+                    // The user takes the risk explicitly: the earlier send
+                    // may be in the room, and the draft becomes a new message.
+                    messageKey.settle();
+                    setUnresolved(null);
+                  }}
+                >
+                  {t('playground.messages.unresolvedEdit')}
+                </Button>
+              }
+            >
               {t('playground.messages.unresolvedHint')}
-              <Button
-                type="button"
-                variant="outline"
-                color="secondary"
-                size="sm"
-                // While a replay is in flight its key must survive: if that
-                // response is lost too, the next SendIcon has to reuse it.
-                disabled={submit.isPending}
-                onClick={() => {
-                  // The user takes the risk explicitly: the earlier send
-                  // may be in the room, and the draft becomes a new message.
-                  messageKey.settle();
-                  setUnresolved(null);
-                }}
-              >
-                {t('playground.messages.unresolvedEdit')}
-              </Button>
             </Alert>
           )}
           <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>

@@ -1,8 +1,5 @@
 import type { ImageModelConfig } from '@/lib/api/images.ts';
 
-export const selectClass =
-  'h-10 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm transition-colors focus-visible:outline-ring disabled:opacity-50';
-
 /** Model row in the form: `key` is a stable React key, `description` is normalized to a string. */
 export type EditableModel = ImageModelConfig & { key: string; description: string };
 

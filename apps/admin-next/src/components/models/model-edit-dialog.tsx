@@ -5,7 +5,7 @@ import { LazyDetails } from '@/components/business';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
+import { field } from '@tuuject/koi-react/styled-system/recipes';
 import { Field } from '@tuuject/koi-react/field';
 import type { ThinkingLevel } from '@/lib/api/models.ts';
 import { THINKING_LEVELS } from '@/lib/api/models.ts';
@@ -28,7 +28,11 @@ import {
   unconfirmedFields,
   validateModelForm,
 } from '@/lib/model-manager.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
+import { Checkbox } from '@tuuject/koi-react/checkbox';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
+
+/** Koi Field's label, for the few controls that share one label with a status line or a second control. */
+const fieldLabel = field().label;
 
 const INPUT_MODALITIES: readonly ModelInput[] = ['text', 'image'];
 const COST_FIELDS = ['input', 'output', 'cache_read', 'cache_write'] as const;
@@ -51,7 +55,9 @@ function FieldLabel({
   const { t } = useTranslation();
   return (
     <span className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
-      <Label htmlFor={htmlFor}>{label}</Label>
+      <label htmlFor={htmlFor} className={fieldLabel}>
+        {label}
+      </label>
       {draft === null ? null : (
         <>
           <span className={css({ textStyle: 'small', color: 'text-muted' })}>{fieldSourceLabel(draft, field)}</span>
@@ -234,39 +240,19 @@ export function ModelEditDialog({
           <FieldLabel htmlFor="model-input-text" label={t('models.models.edit.input')} draft={draft} field="input" />
           <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4' })}>
             {INPUT_MODALITIES.map((modality) => (
-              <label
+              <Checkbox
                 key={modality}
-                className={css({ textStyle: 'body', display: 'flex', alignItems: 'center', gap: '2' })}
-                htmlFor={`model-input-${modality}`}
-              >
-                <input
-                  id={`model-input-${modality}`}
-                  type="checkbox"
-                  className={css({
-                    width: 'icon',
-                    height: 'icon',
-                    borderRadius: 'lg',
-                    borderColor: 'border-control',
-                  })}
-                  checked={form.input.includes(modality)}
-                  onChange={() => toggleInput(modality)}
-                />
-                {modality}
-              </label>
-            ))}
-            <label
-              className={css({ textStyle: 'body', display: 'flex', alignItems: 'center', gap: '2' })}
-              htmlFor="model-reasoning"
-            >
-              <input
-                id="model-reasoning"
-                type="checkbox"
-                className={css({ width: 'icon', height: 'icon', borderRadius: 'lg', borderColor: 'border-control' })}
-                checked={form.reasoning}
-                onChange={(event) => setForm((previous) => ({ ...previous, reasoning: event.target.checked }))}
+                {...(modality === 'text' ? { id: 'model-input-text' } : {})}
+                label={modality}
+                checked={form.input.includes(modality)}
+                onCheckedChange={() => toggleInput(modality)}
               />
-              {t('models.models.edit.reasoning')}
-            </label>
+            ))}
+            <Checkbox
+              label={t('models.models.edit.reasoning')}
+              checked={form.reasoning}
+              onCheckedChange={(checked) => setForm((previous) => ({ ...previous, reasoning: checked }))}
+            />
             {draft === null ? null : (
               <span className={css({ textStyle: 'small', color: 'text-muted' })}>
                 {fieldSourceLabel(draft, 'reasoning')}
@@ -298,25 +284,13 @@ export function ModelEditDialog({
               })}
             >
               {THINKING_LEVELS.map((level) => (
-                <label
+                <Checkbox
                   key={level}
-                  className={css({ textStyle: 'body', display: 'flex', alignItems: 'center', gap: '2' })}
-                  htmlFor={`model-thinking-${level}`}
-                >
-                  <input
-                    id={`model-thinking-${level}`}
-                    type="checkbox"
-                    className={css({
-                      width: 'icon',
-                      height: 'icon',
-                      borderRadius: 'lg',
-                      borderColor: 'border-control',
-                    })}
-                    checked={form.thinking_levels.includes(level)}
-                    onChange={() => toggleThinkingLevel(level)}
-                  />
-                  {level}
-                </label>
+                  {...(level === 'off' ? { id: 'model-thinking-off' } : {})}
+                  label={level}
+                  checked={form.thinking_levels.includes(level)}
+                  onCheckedChange={() => toggleThinkingLevel(level)}
+                />
               ))}
             </div>
             <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('models.models.edit.thinkingHint')}</p>
@@ -342,9 +316,9 @@ export function ModelEditDialog({
           <div className={css({ display: 'grid', gap: '2', md: { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' } })}>
             {COST_FIELDS.map((field) => (
               <div key={field} className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-                <Label htmlFor={`model-cost-${field}`} className={css({ textStyle: 'small', color: 'text-muted' })}>
+                <label htmlFor={`model-cost-${field}`} className={fieldLabel}>
                   {field}
-                </Label>
+                </label>
                 <Input
                   id={`model-cost-${field}`}
                   type="number"
@@ -374,9 +348,9 @@ export function ModelEditDialog({
               </p>
               {compatFields.map((spec) => (
                 <div key={spec.field} className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-                  <Label htmlFor={`compat-${spec.field}`} className={css({ textStyle: 'small', fontFamily: 'mono' })}>
+                  <label htmlFor={`compat-${spec.field}`} className={cx(fieldLabel, css({ fontFamily: 'mono' }))}>
                     {spec.field}
-                  </Label>
+                  </label>
                   <Select
                     id={`compat-${spec.field}`}
                     className={css({ width: '100%', md: { width: '256px' } })}

@@ -82,6 +82,7 @@ export const image: typeof imageEn = {
     credentialRef: '凭据 {{name}}',
     removeModel: '移除 {{name}}',
     remove: '移除',
+    readyToSave: '可以保存。',
     saveAndApply: '保存并应用',
     capabilitiesTitle: '能力',
     capabilitiesInput: '最多 {{count}} 张参考图',

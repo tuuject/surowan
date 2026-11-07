@@ -10,7 +10,7 @@ import { useDraftSelection } from '@/components/models/use-draft-selection';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
+import { field } from '@tuuject/koi-react/styled-system/recipes';
 import { Field } from '@tuuject/koi-react/field';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import type {
@@ -26,6 +26,9 @@ import { modelFormFromDraft, parseModelIds, requestErrorMessage } from '@/lib/mo
 import { providerPresetsQuery } from '@/lib/queries.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
 import { css } from '@tuuject/koi-react/styled-system/css';
+
+/** Koi Field's label, for the few controls that share one label with a status line or a second control. */
+const fieldLabel = field().label;
 
 const ALIAS_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 
@@ -209,7 +212,9 @@ export function ProviderWizard({
                 </Select>
               </Field>
               <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-                <Label htmlFor="wizard-alias">{t('models.models.wizard.alias')}</Label>
+                <label htmlFor="wizard-alias" className={fieldLabel}>
+                  {t('models.models.wizard.alias')}
+                </label>
                 <Input
                   id="wizard-alias"
                   value={alias}
@@ -227,7 +232,9 @@ export function ProviderWizard({
               </div>
               {kind === 'builtin' ? (
                 <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-                  <Label htmlFor="wizard-preset">{t('models.models.wizard.piProvider')}</Label>
+                  <label htmlFor="wizard-preset" className={fieldLabel}>
+                    {t('models.models.wizard.piProvider')}
+                  </label>
                   {presets.isPending ? (
                     <p className={css({ textStyle: 'body', color: 'text-muted' })}>
                       {t('models.models.wizard.loadingPresets')}
@@ -274,7 +281,9 @@ export function ProviderWizard({
                     />
                   </Field>
                   <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-                    <Label htmlFor="wizard-api">{t('models.models.connection.api')}</Label>
+                    <label htmlFor="wizard-api" className={fieldLabel}>
+                      {t('models.models.connection.api')}
+                    </label>
                     <Select
                       id="wizard-api"
                       className={css({ width: '100%' })}
@@ -337,7 +346,9 @@ export function ProviderWizard({
                 </Button>
               </div>
               <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-                <Label htmlFor="wizard-ids">{t('models.models.wizard.idsLabel')}</Label>
+                <label htmlFor="wizard-ids" className={fieldLabel}>
+                  {t('models.models.wizard.idsLabel')}
+                </label>
                 <Textarea id="wizard-ids" rows={2} value={ids} onChange={(event) => setIds(event.target.value)} />
                 <Button
                   type="button"

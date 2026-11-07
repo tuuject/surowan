@@ -6,6 +6,7 @@ import { Input } from '@tuuject/koi-react/input';
 import type { DiscoveredModel, ProviderModelConfig } from '@/lib/api/providers.ts';
 import { formatNumber } from '@/lib/format.ts';
 import { draftNeedsConfirmation, matchLabel, unconfirmedFields } from '@/lib/model-manager.ts';
+import { Checkbox } from '@tuuject/koi-react/checkbox';
 import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
@@ -76,21 +77,14 @@ export function ModelDraftList({
             const needsConfirmation = draftNeedsConfirmation(draft) && !confirmed;
             return (
               <li key={draft.id} className={css({ display: 'flex', alignItems: 'flex-start', gap: '3', padding: '3' })}>
-                <input
-                  type="checkbox"
-                  className={css({
-                    marginBlockStart: '2',
-                    width: 'icon',
-                    height: 'icon',
-                    flexShrink: '0',
-                    borderRadius: 'lg',
-                    borderColor: 'border-control',
-                  })}
-                  aria-label={t('models.models.shared.select', { id: draft.id })}
-                  checked={selected.has(draft.id)}
-                  disabled={draft.configured}
-                  onChange={() => onToggle(draft.id)}
-                />
+                <span className={css({ flexShrink: '0', paddingBlockStart: '1' })}>
+                  <Checkbox
+                    aria-label={t('models.models.shared.select', { id: draft.id })}
+                    checked={selected.has(draft.id)}
+                    disabled={draft.configured}
+                    onCheckedChange={() => onToggle(draft.id)}
+                  />
+                </span>
                 <div
                   className={css({ minWidth: '0', flex: '1 1 0%', '& > :not(:last-child)': { marginBlockEnd: '2' } })}
                 >

@@ -15,7 +15,7 @@ import { Panel } from '@/components/layout/panel';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
+import { field } from '@tuuject/koi-react/styled-system/recipes';
 import type { PasskeyItem } from '@/lib/api/auth.ts';
 import { deletePasskey, deletePassword, passkeyRegisterOptions, passkeyRegisterVerify } from '@/lib/api/auth.ts';
 import { errorMessage } from '@/lib/errors';
@@ -24,6 +24,9 @@ import { isWebAuthnAvailable, passkeyErrorMessage } from '@/lib/passkeys';
 import { passkeysQuery, sessionQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
 import { css } from '@tuuject/koi-react/styled-system/css';
+
+/** Koi Field's label, for the few controls that share one label with a status line or a second control. */
+const fieldLabel = field().label;
 
 /**
  * Passkey management card for the Settings page. Rendered only when the
@@ -299,7 +302,9 @@ function RegisterPasskeyDialog({ onClose }: { readonly onClose: () => void }): R
         }}
       >
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-          <Label htmlFor="passkey-name">{t('pages.passkeys.nameLabel')}</Label>
+          <label htmlFor="passkey-name" className={fieldLabel}>
+            {t('pages.passkeys.nameLabel')}
+          </label>
           <Input
             id="passkey-name"
             value={name}

@@ -1,12 +1,12 @@
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListFooter, ToneBadge, useClientPagination } from '@/components/business';
+import { ListFooter, SettingRow, ToneBadge, useClientPagination } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { Button } from '@tuuject/koi-react/button';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
 import { Field } from '@tuuject/koi-react/field';
-import { Separator } from '@/components/ui/separator';
+import { Divider } from '@tuuject/koi-react/divider';
+import { Tag } from '@tuuject/koi-react/tag';
 import { Switch } from '@tuuject/koi-react/switch';
 import type { PlaygroundParticipant, PlaygroundRoom, PlaygroundRoomDetail } from '@/lib/api/playground.ts';
 import { StatusPill } from './shared.tsx';
@@ -101,7 +101,7 @@ export function RoomHeaderCard({
             value={room?.running_invocations ?? 0}
           />
         </div>
-        <Separator />
+        <Divider />
         <div
           className={css({
             display: 'flex',
@@ -111,25 +111,29 @@ export function RoomHeaderCard({
             gap: '3',
           })}
         >
-          <div className={css({ display: 'flex', alignItems: 'center', gap: '3' })}>
-            <Switch
-              id="playground-image-switch"
-              checked={room?.image_enabled === true}
-              onCheckedChange={(checked) => capabilities.mutate(checked)}
-              disabled={room === undefined || capabilities.isPending}
-              aria-label={t('playground.capabilities.image')}
-            />
-            <div className={css({ minWidth: '0' })}>
-              <Label htmlFor="playground-image-switch">{t('playground.capabilities.image')}</Label>
-              <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-                {room?.image_enabled === true
+          <div className={css({ flex: '1 1 320px', minWidth: '0' })}>
+            <SettingRow
+              label={t('playground.capabilities.image')}
+              description={`${
+                room?.image_enabled === true
                   ? t('playground.capabilities.imageOn')
-                  : t('playground.capabilities.imageOff')}
-                {room?.image_enabled_by === null || room?.image_enabled_by === undefined
+                  : t('playground.capabilities.imageOff')
+              }${
+                room?.image_enabled_by === null || room?.image_enabled_by === undefined
                   ? ''
-                  : ` · ${t('playground.capabilities.imageEnabledBy', { actor: room.image_enabled_by })}`}
-              </p>
-            </div>
+                  : `${t('common.separator')}${t('playground.capabilities.imageEnabledBy', { actor: room.image_enabled_by })}`
+              }`}
+            >
+              {({ id, describedBy }) => (
+                <Switch
+                  id={id}
+                  aria-describedby={describedBy}
+                  checked={room?.image_enabled === true}
+                  onCheckedChange={(checked) => capabilities.mutate(checked)}
+                  disabled={room === undefined || capabilities.isPending}
+                />
+              )}
+            </SettingRow>
           </div>
           {(detail.data?.staged_assets.length ?? 0) > 0 ? (
             <span className={css({ textStyle: 'small', color: 'text-muted' })}>
@@ -164,23 +168,13 @@ export function IdentitiesCard({
       <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
         <ul className={css({ display: 'flex', flexWrap: 'wrap', gap: '2' })}>
           {pagination.items.map((member) => (
-            <li
-              key={member.id}
-              className={css({
-                display: 'flex',
-                alignItems: 'center',
-                gap: '2',
-                borderRadius: 'lg',
-                borderWidth: '1px',
-                borderColor: 'border',
-                paddingInline: '2',
-                paddingBlock: '1',
-              })}
-            >
-              <span className={css({ textStyle: 'body' })}>{member.name}</span>
-              <span className={css({ textStyle: 'small', color: 'text-muted' })}>
-                {t(`playground.identities.${member.role}`)}
-              </span>
+            <li key={member.id}>
+              <Tag>
+                {member.name}
+                <span className={css({ color: 'text-muted', marginInlineStart: '1' })}>
+                  {t(`playground.identities.${member.role}`)}
+                </span>
+              </Tag>
             </li>
           ))}
         </ul>
@@ -191,12 +185,8 @@ export function IdentitiesCard({
           onPageChange={pagination.onPageChange}
         />
         <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '2' })}>
-          <Field label={t('playground.identities.name')}>
-            <Input
-              value={participantName}
-              onChange={(event) => setParticipantName(event.target.value)}
-              className={css({ width: '192px' })}
-            />
+          <Field label={t('playground.identities.name')} className={css({ flex: '1 1 192px', maxWidth: '320px' })}>
+            <Input value={participantName} onChange={(event) => setParticipantName(event.target.value)} />
           </Field>
           <Button
             type="button"

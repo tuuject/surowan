@@ -2,9 +2,11 @@ import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@tuuject/koi-react/button';
 import { Input } from '@tuuject/koi-react/input';
-import { Label } from '@/components/ui/label';
+import { Checkbox } from '@tuuject/koi-react/checkbox';
+import { PlusIcon, TrashIcon } from '@tuuject/koi-react/icons';
+import { Select } from '@tuuject/koi-react/select';
 import { Field } from '@tuuject/koi-react/field';
-import { type EditableCredential, type EditableModel, selectClass } from './shared.ts';
+import type { EditableCredential, EditableModel } from './shared.ts';
 import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
@@ -33,23 +35,19 @@ export function CredentialsFields({
   const { t } = useTranslation();
   return (
     <>
-      <div className={css({ display: 'flex', alignItems: 'center', gap: '3' })}>
-        <input
-          id="image-enabled"
-          type="checkbox"
-          checked={enabled}
-          onChange={(event) => onEnabledChange(event.target.checked)}
-          className={css({ width: 'icon', height: 'icon' })}
-        />
-        <Label htmlFor="image-enabled">{t('image.settings.enableLabel')}</Label>
-      </div>
+      {/* Applied by Save and apply, so a Checkbox rather than a Switch (Koi component choice). */}
+      <Checkbox
+        label={t('image.settings.enableLabel')}
+        {...(enabled ? { description: t('image.settings.credentialsHint') } : {})}
+        checked={enabled}
+        onCheckedChange={onEnabledChange}
+      />
       {enabled && (
         <>
-          <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('image.settings.credentialsHint')}</p>
-          {credentials.map((entry, index) => (
+          {credentials.map((entry) => (
             <div
               key={entry.key}
-              className={css({ display: 'grid', gap: '3', md: { gridTemplateColumns: '160px 1fr' } })}
+              className={css({ display: 'grid', gap: '4', md: { gridTemplateColumns: '200px 1fr' } })}
             >
               <Field label={t('image.settings.credentialName')}>
                 <Input
@@ -62,13 +60,10 @@ export function CredentialsFields({
                   }
                 />
               </Field>
-              <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+              <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
                 {!entry.saved && credentialProviders.length > 0 && (
-                  <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-                    <Label htmlFor={`credential-source-${index}`}>{t('image.settings.keySource')}</Label>
-                    <select
-                      id={`credential-source-${index}`}
-                      className={selectClass}
+                  <Field label={t('image.settings.keySource')}>
+                    <Select
                       value={entry.source}
                       onChange={(event) =>
                         setCredentials((current) =>
@@ -77,21 +72,19 @@ export function CredentialsFields({
                           ),
                         )
                       }
-                    >
-                      <option value="">{t('image.settings.newKeyOption')}</option>
-                      {credentialProviders.map((alias) => (
-                        <option key={alias} value={alias}>
-                          {t('image.settings.savedCredentialOption', { alias })}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      options={[
+                        { value: '', label: t('image.settings.newKeyOption') },
+                        ...credentialProviders.map((alias) => ({
+                          value: alias,
+                          label: t('image.settings.savedCredentialOption', { alias }),
+                        })),
+                      ]}
+                    />
+                  </Field>
                 )}
                 {entry.source === '' && (
-                  <>
-                    <Label htmlFor={`credential-key-${index}`}>{t('image.settings.apiKeyLabel')}</Label>
+                  <Field label={t('image.settings.apiKeyLabel')}>
                     <Input
-                      id={`credential-key-${index}`}
                       type="password"
                       autoComplete="new-password"
                       placeholder={
@@ -108,15 +101,15 @@ export function CredentialsFields({
                         )
                       }
                     />
-                  </>
+                  </Field>
                 )}
               </div>
               {!entry.saved && credentials.length > 1 && (
                 <Button
-                  size="sm"
                   variant="ghost"
-                  color="secondary"
-                  className={css({ md: { gridColumn: 'span 2 / span 2', justifySelf: 'start' } })}
+                  color="error"
+                  iconStart={<TrashIcon />}
+                  className={css({ md: { gridColumn: '1 / -1', justifySelf: 'start' } })}
                   disabled={models.some((model) => model.credentialRef === entry.name)}
                   onClick={() => setCredentials((current) => current.filter((item) => item.key !== entry.key))}
                 >
@@ -126,9 +119,10 @@ export function CredentialsFields({
             </div>
           ))}
           <Button
-            size="sm"
-            variant="ghost"
+            variant="outline"
             color="secondary"
+            iconStart={<PlusIcon />}
+            className={css({ alignSelf: 'flex-start' })}
             onClick={() =>
               setCredentials((current) => [
                 ...current,
