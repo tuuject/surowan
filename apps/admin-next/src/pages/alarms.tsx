@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Eye } from 'lucide-react';
+import { EyeIcon } from '@/components/icons';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -18,15 +18,8 @@ import {
   TableShell,
   TextValue,
 } from '@/components/business';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Button, IconButton } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
 import type { AlarmListItem } from '@/lib/api/alarms.ts';
 import { cancelAlarm } from '@/lib/api/alarms.ts';
 import { errorMessage } from '@/lib/errors';
@@ -34,6 +27,7 @@ import { formatTime } from '@/lib/format';
 import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { alarmsQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 const ALARM_STATES = ['pending', 'firing', 'fired', 'cancelled'] as const;
 const EMPTY_FILTERS = { state: '', chat: '', target: '' };
@@ -41,9 +35,9 @@ const EMPTY_FILTERS = { state: '', chat: '', target: '' };
 function ChatCell({ row }: { readonly row: AlarmListItem }): React.ReactElement {
   const { t } = useTranslation();
   return (
-    <div className="min-w-0 space-y-0.5">
-      <div className="font-medium">{row.chat.title ?? row.chat.telegram_chat_id}</div>
-      <div className="text-muted-foreground text-xs">
+    <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+      <div className={css({ textStyle: 'label' })}>{row.chat.title ?? row.chat.telegram_chat_id}</div>
+      <div className={css({ textStyle: 'small', color: 'text-muted' })}>
         {row.chat.telegram_chat_id}
         {row.chat.message_thread_id === '0' ? '' : t('pages.alarms.topicSuffix', { topic: row.chat.message_thread_id })}
       </div>
@@ -53,9 +47,9 @@ function ChatCell({ row }: { readonly row: AlarmListItem }): React.ReactElement 
 
 function TargetCell({ row }: { readonly row: AlarmListItem }): React.ReactElement {
   return (
-    <div className="min-w-0 space-y-0.5">
-      <div className="font-medium">{row.target_display_name}</div>
-      <div className="text-muted-foreground text-xs">{row.target_user_id}</div>
+    <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+      <div className={css({ textStyle: 'label' })}>{row.target_display_name}</div>
+      <div className={css({ textStyle: 'small', color: 'text-muted' })}>{row.target_user_id}</div>
     </div>
   );
 }
@@ -66,7 +60,13 @@ function InvocationLink({ id }: { readonly id: string }): React.ReactElement {
     <Link
       to="/invocations/$invocationId"
       params={{ invocationId: id }}
-      className="font-mono text-xs break-all underline-offset-4 hover:underline"
+      className={css({
+        textStyle: 'small',
+        fontFamily: 'mono',
+        wordBreak: 'break-all',
+        textUnderlineOffset: '4px',
+        _hover: { textDecorationLine: 'underline' },
+      })}
     >
       {t('pages.alarms.toolSession', { id })}
     </Link>
@@ -91,7 +91,7 @@ function AlarmDetails({ row }: { readonly row: AlarmListItem }): React.ReactElem
         { label: t('pages.alarms.labelTargetUserId'), value: <MonoValue value={row.target_user_id} /> },
         {
           label: t('pages.alarms.labelSummary'),
-          value: <span className="text-wrap whitespace-pre-wrap">{row.summary}</span>,
+          value: <span className={css({ textWrap: 'wrap', whiteSpace: 'pre-wrap' })}>{row.summary}</span>,
         },
         {
           label: t('pages.alarms.labelCreated'),
@@ -145,32 +145,30 @@ export default function AlarmsPage(): React.ReactElement {
       key: 'summary',
       title: t('pages.alarms.colSummary'),
       className: 'max-w-72 min-w-40 whitespace-normal',
-      render: (row) => <div className="line-clamp-1">{row.summary}</div>,
+      render: (row) => <div className={css({ lineClamp: '1' })}>{row.summary}</div>,
     },
     {
       key: 'invocation',
       title: t('pages.alarms.colInvocation'),
       render: (row) => {
         const id = row.invocation_id ?? row.created_by_invocation_id;
-        return id === null ? <span className="text-muted-foreground">—</span> : <InvocationLink id={id} />;
+        return id === null ? <span className={css({ color: 'text-muted' })}>—</span> : <InvocationLink id={id} />;
       },
     },
     {
       key: 'action',
       title: t('pages.alarms.colAction'),
       render: (row) => (
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            type="button"
-            size="icon-sm"
+        <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '1' })}>
+          <IconButton
             variant="ghost"
-            aria-label={t('common.view')}
+            color="secondary"
             onClick={() => setViewing(row)}
-          >
-            <Eye />
-          </Button>
+            label={t('common.view')}
+            icon={<EyeIcon />}
+          />
           {row.state === 'pending' ? (
-            <Button type="button" size="sm" variant="destructive" onClick={() => setCancelling(row)}>
+            <Button type="button" size="sm" color="error" onClick={() => setCancelling(row)}>
               {t('common.cancel')}
             </Button>
           ) : null}
@@ -180,7 +178,7 @@ export default function AlarmsPage(): React.ReactElement {
   ];
 
   return (
-    <div className="space-y-5">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader title={t('layout.nav.alarms')} />
       <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
         {({ draft, change }) => (
@@ -209,24 +207,25 @@ export default function AlarmsPage(): React.ReactElement {
             data={items}
             rowKey={(row) => row.id}
             loading={loading}
-            frame={false}
             emptyText={t('pages.alarms.emptyAlarms')}
           />
         )}
       />
-      <Dialog open={viewing !== null} onOpenChange={(open) => !open && setViewing(null)}>
-        <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-2xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t('pages.alarms.labelAlarmId')}</DialogTitle>
-            <DialogDescription>{viewing?.id ?? ''}</DialogDescription>
-          </DialogHeader>
-          {viewing === null ? null : <AlarmDetails row={viewing} />}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setViewing(null)}>
+      <Dialog
+        open={viewing !== null}
+        onOpenChange={(open) => !open && setViewing(null)}
+        title={t('pages.alarms.labelAlarmId')}
+        description={viewing?.id ?? ''}
+        size="lg"
+        footer={
+          <>
+            <Button type="button" variant="outline" color="secondary" onClick={() => setViewing(null)}>
               {t('common.dismiss')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        {viewing === null ? null : <AlarmDetails row={viewing} />}
       </Dialog>
       <ConfirmDialog
         open={cancelling !== null}

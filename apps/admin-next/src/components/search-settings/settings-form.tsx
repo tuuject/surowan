@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { PlusIcon, TrashIcon } from '@tuuject/koi-react/icons';
+import { EditIcon } from '@/components/icons';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -13,18 +14,11 @@ import {
   useClientPagination,
 } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button, IconButton } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
+import { Switch } from '@tuuject/koi-react/switch';
 import { putSearchConfig, type SearchConfigView } from '@/lib/api/search.ts';
 import { errorMessage } from '@/lib/errors';
 import { useListQuery } from '@/lib/list-query';
@@ -34,6 +28,7 @@ import { toast } from '@/lib/toast.ts';
 import { activeEngineCount, buildPayload, type EngineDraft, emptyDraft, toDraft, validate } from './draft.ts';
 import { EngineEditor } from './engine-editor.tsx';
 import { UrlFilterEditor } from './url-filters.tsx';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 const EMPTY_FILTERS = { search: '' };
 
@@ -110,7 +105,11 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
   };
 
   const columns: readonly ColumnSpec<EngineDraft>[] = [
-    { key: 'id', title: t('search.fieldId'), render: (engine) => <span className="font-mono">{engine.id}</span> },
+    {
+      key: 'id',
+      title: t('search.fieldId'),
+      render: (engine) => <span className={css({ fontFamily: 'mono' })}>{engine.id}</span>,
+    },
     {
       key: 'provider',
       title: t('search.fieldProvider'),
@@ -132,43 +131,40 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
       title: t('pages.apiKeys.actions'),
       align: 'right',
       render: (engine) => (
-        <div className="flex justify-end gap-1">
-          <Button
-            type="button"
-            size="icon-sm"
+        <div className={css({ display: 'flex', justifyContent: 'flex-end', gap: '1' })}>
+          <IconButton
             variant="ghost"
-            aria-label={`${t('common.edit')} ${engine.id}`}
+            color="secondary"
             disabled={save.isPending}
             onClick={() => {
               setEditingErrors([]);
               setEditing({ draft: engine, isNew: false });
             }}
-          >
-            <Pencil />
-          </Button>
-          <Button
-            type="button"
-            size="icon-sm"
+            label={`${t('common.edit')} ${engine.id}`}
+            icon={<EditIcon />}
+          />
+          <IconButton
             variant="ghost"
-            aria-label={`${t('search.removeEngine')} ${engine.id}`}
             disabled={save.isPending}
             onClick={() => setEngines((current) => current.filter((entry) => entry.key !== engine.key))}
-          >
-            <Trash2 />
-          </Button>
+            label={`${t('search.removeEngine')} ${engine.id}`}
+            icon={<TrashIcon />}
+          />
         </div>
       ),
     },
   ];
 
   return (
-    <div className="space-y-5">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <Panel title={t('search.switchTitle')}>
-        <p className="text-muted-foreground mb-3 text-sm">{t('search.switchDescription')}</p>
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
+        <p className={css({ textStyle: 'body', color: 'text-muted', marginBlockEnd: '3' })}>
+          {t('search.switchDescription')}
+        </p>
+        <div className={css({ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '4' })}>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
             <Label htmlFor="search-enabled">{t('search.switchLabel')}</Label>
-            <p className="text-muted-foreground text-sm">
+            <p className={css({ textStyle: 'body', color: 'text-muted' })}>
               {enabled && activeEngines > 0 ? t('search.switchActive') : t('search.switchInactive')}
             </p>
           </div>
@@ -181,10 +177,10 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
         </div>
       </Panel>
 
-      <section className="space-y-4">
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold">{t('search.enginesTitle')}</h2>
-          <p className="text-muted-foreground text-sm">{t('search.enginesDescription')}</p>
+      <section className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <h2 className={css({ textStyle: 'heading-3' })}>{t('search.enginesTitle')}</h2>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('search.enginesDescription')}</p>
         </div>
         <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
           {({ draft, change }) => (
@@ -199,10 +195,12 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
           <Button
             type="button"
             variant="outline"
+            color="secondary"
             onClick={addEngine}
             disabled={providers.length === 0 || save.isPending}
+            iconStart={<PlusIcon aria-hidden />}
           >
-            <Plus aria-hidden /> {t('search.addEngine')}
+            {t('search.addEngine')}
           </Button>
         </ListToolbar>
         <div>
@@ -210,7 +208,6 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
             columns={columns}
             data={pagination.items}
             rowKey={(engine) => engine.key}
-            frame={false}
             emptyText={t('search.noEngines')}
           />
           <ListFooter
@@ -225,19 +222,16 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
       <UrlFilterEditor rules={filters} onRulesChange={setFilters} disabled={save.isPending} />
 
       {errors.length > 0 ? (
-        <Alert variant="destructive" role="alert">
-          <AlertTitle>{t('search.invalidTitle')}</AlertTitle>
-          <AlertDescription>
-            <ul className="list-disc pl-4">
-              {errors.map((error) => (
-                <li key={error}>{error}</li>
-              ))}
-            </ul>
-          </AlertDescription>
+        <Alert tone="error" title={t('search.invalidTitle')} role="alert">
+          <ul className={css({ listStyleType: 'disc', paddingInlineStart: '4' })}>
+            {errors.map((error) => (
+              <li key={error}>{error}</li>
+            ))}
+          </ul>
         </Alert>
       ) : null}
 
-      <div className="flex items-center gap-3">
+      <div className={css({ display: 'flex', alignItems: 'center', gap: '3' })}>
         <Button
           type="button"
           disabled={save.isPending || errors.length > 0 || (save.isError && isConfigConflict(save.error))}
@@ -245,25 +239,23 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
         >
           {save.isPending ? t('search.saving') : t('search.save')}
         </Button>
-        <p className="text-muted-foreground text-xs">{t('search.saveHint')}</p>
+        <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('search.saveHint')}</p>
       </div>
       {save.isError && isConfigConflict(save.error) ? (
-        <Alert variant="destructive" role="alert">
-          <AlertTitle>{t('search.conflictTitle')}</AlertTitle>
-          <AlertDescription className="space-y-3">
-            <p>{t('search.conflictBody')}</p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void queryClient.invalidateQueries({ queryKey: ['search-config'] })}
-            >
-              {t('common.reload')}
-            </Button>
-          </AlertDescription>
+        <Alert tone="error" title={t('search.conflictTitle')} role="alert">
+          <p>{t('search.conflictBody')}</p>
+          <Button
+            type="button"
+            variant="outline"
+            color="secondary"
+            size="sm"
+            onClick={() => void queryClient.invalidateQueries({ queryKey: ['search-config'] })}
+          >
+            {t('common.reload')}
+          </Button>
         </Alert>
       ) : save.isError ? (
-        <p role="alert" className="text-destructive text-sm break-words">
+        <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
           {errorMessage(save.error)}
         </p>
       ) : null}
@@ -275,46 +267,42 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
             closeEditor();
           }
         }}
-      >
-        <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editing?.isNew === true ? t('search.addEngine') : t('search.editEngine')}</DialogTitle>
-            <DialogDescription>{t('search.enginesDescription')}</DialogDescription>
-          </DialogHeader>
-          {editing === null ? null : (
-            <EngineEditor
-              draft={editing.draft}
-              providers={providers}
-              provider={providerById.get(editing.draft.provider)}
-              deepseekKeys={initial.deepseek_keys}
-              disabled={save.isPending}
-              onChange={(change) => {
-                setEditingErrors([]);
-                setEditing({ ...editing, draft: { ...editing.draft, ...change } });
-              }}
-            />
-          )}
-          {editingErrors.length === 0 ? null : (
-            <Alert variant="destructive" role="alert">
-              <AlertTitle>{t('search.invalidTitle')}</AlertTitle>
-              <AlertDescription>
-                <ul className="list-disc pl-4">
-                  {editingErrors.map((error) => (
-                    <li key={error}>{error}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={save.isPending} onClick={closeEditor}>
+        title={editing?.isNew === true ? t('search.addEngine') : t('search.editEngine')}
+        description={t('search.enginesDescription')}
+        size="lg"
+        footer={
+          <>
+            <Button type="button" variant="outline" color="secondary" disabled={save.isPending} onClick={closeEditor}>
               {t('common.cancel')}
             </Button>
             <Button type="button" disabled={save.isPending} onClick={saveEngine}>
               {t('common.save')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        {editing === null ? null : (
+          <EngineEditor
+            draft={editing.draft}
+            providers={providers}
+            provider={providerById.get(editing.draft.provider)}
+            deepseekKeys={initial.deepseek_keys}
+            disabled={save.isPending}
+            onChange={(change) => {
+              setEditingErrors([]);
+              setEditing({ ...editing, draft: { ...editing.draft, ...change } });
+            }}
+          />
+        )}
+        {editingErrors.length === 0 ? null : (
+          <Alert tone="error" title={t('search.invalidTitle')} role="alert">
+            <ul className={css({ listStyleType: 'disc', paddingInlineStart: '4' })}>
+              {editingErrors.map((error) => (
+                <li key={error}>{error}</li>
+              ))}
+            </ul>
+          </Alert>
+        )}
       </Dialog>
     </div>
   );

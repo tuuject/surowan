@@ -5,16 +5,9 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { KvList, MonoValue } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
 import type { ThinkingLevel } from '@/lib/api/models.ts';
 import type { ProvidersView, ProviderView } from '@/lib/api/providers.ts';
@@ -28,6 +21,7 @@ import {
 } from '@/lib/model-manager.ts';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 interface Pick {
   readonly alias: string;
@@ -84,12 +78,13 @@ export function ToolModelPanel({
     <Panel
       title={t('models.models.toolModel.label')}
       action={
-        <div className="flex flex-wrap items-center gap-2">
+        <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
           {tool.inherited ? null : (
             <Button
               type="button"
               size="sm"
               variant="outline"
+              color="secondary"
               disabled={save.isPending}
               onClick={() => save.mutate({ inherit: true })}
             >
@@ -107,19 +102,25 @@ export function ToolModelPanel({
           {
             label: t('models.models.toolModel.label'),
             value: (
-              <span className="flex flex-wrap items-center gap-2">
+              <span className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
                 <MonoValue value={`${tool.provider} / ${tool.model} · ${tool.thinking_level}`} />
                 {tool.inherited ? (
-                  <span className="text-muted-foreground text-xs">{t('models.models.toolModel.inherited')}</span>
+                  <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+                    {t('models.models.toolModel.inherited')}
+                  </span>
                 ) : null}
               </span>
             ),
           },
         ]}
       />
-      <p className="text-muted-foreground mt-2 text-xs">{t('models.models.toolModel.description')}</p>
+      <p className={css({ textStyle: 'small', color: 'text-muted', marginBlockStart: '2' })}>
+        {t('models.models.toolModel.description')}
+      </p>
       {save.isError && !isConfigConflict(save.error) ? (
-        <p className="text-destructive mt-2 text-sm break-words">{writeErrorMessage(save.error)}</p>
+        <p className={css({ textStyle: 'body', color: 'error-text', marginBlockStart: '2', overflowWrap: 'anywhere' })}>
+          {writeErrorMessage(save.error)}
+        </p>
       ) : null}
       {pickerOpen ? (
         <ToolModelPicker
@@ -196,74 +197,12 @@ function ToolModelPicker({
           onClose();
         }
       }}
-    >
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{t('models.models.toolModel.pickerTitle')}</DialogTitle>
-          <DialogDescription>{t('models.models.toolModel.pickerDescription')}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <Input
-            aria-label={t('models.models.toolModel.pickerSearch')}
-            placeholder={t('models.models.toolModel.pickerSearch')}
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-          <div className="max-h-64 overflow-auto rounded-md border">
-            {options.length === 0 ? (
-              <p className="text-muted-foreground p-3 text-sm">{t('models.models.toolModel.pickerEmpty')}</p>
-            ) : (
-              <ul>
-                {options.map((option) => {
-                  const active = pick !== null && pick.alias === option.provider.alias && pick.model === option.id;
-                  const key = `${option.provider.alias}/${option.id}`;
-                  return (
-                    <li key={key}>
-                      <button
-                        type="button"
-                        aria-pressed={active}
-                        className={
-                          active
-                            ? 'bg-accent text-accent-foreground w-full px-3 py-2 text-left text-sm'
-                            : 'hover:bg-accent/50 w-full px-3 py-2 text-left text-sm'
-                        }
-                        onClick={() => {
-                          setPick({ alias: option.provider.alias, model: option.id, levels: option.levels });
-                          setLevel(option.levels[0] ?? 'off');
-                        }}
-                      >
-                        <span className="font-mono">{key}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="tool-model-level">{t('models.models.toolModel.levelLabel')}</Label>
-            <Select
-              id="tool-model-level"
-              className="w-44"
-              aria-label={t('models.models.toolModel.levelLabel')}
-              value={level}
-              disabled={pick === null || levels.length < 2}
-              onChange={(event) => {
-                if (isThinkingLevel(event.target.value)) {
-                  setLevel(event.target.value);
-                }
-              }}
-            >
-              {levels.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </Select>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" disabled={pending} onClick={onClose}>
+      title={t('models.models.toolModel.pickerTitle')}
+      description={t('models.models.toolModel.pickerDescription')}
+      size="md"
+      footer={
+        <>
+          <Button type="button" variant="outline" color="secondary" disabled={pending} onClick={onClose}>
             {t('common.cancel')}
           </Button>
           <Button
@@ -277,8 +216,79 @@ function ToolModelPicker({
           >
             {pending ? t('models.models.toolModel.saving') : t('models.models.toolModel.save')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        </>
+      }
+    >
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+        <Input
+          aria-label={t('models.models.toolModel.pickerSearch')}
+          placeholder={t('models.models.toolModel.pickerSearch')}
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+        <div
+          className={css({
+            maxHeight: '256px',
+            overflow: 'auto',
+            borderRadius: 'lg',
+            borderWidth: '1px',
+            borderColor: 'border',
+          })}
+        >
+          {options.length === 0 ? (
+            <p className={css({ textStyle: 'body', color: 'text-muted', padding: '3' })}>
+              {t('models.models.toolModel.pickerEmpty')}
+            </p>
+          ) : (
+            <ul>
+              {options.map((option) => {
+                const active = pick !== null && pick.alias === option.provider.alias && pick.model === option.id;
+                const key = `${option.provider.alias}/${option.id}`;
+                return (
+                  <li key={key}>
+                    <button
+                      type="button"
+                      aria-pressed={active}
+                      className={
+                        active
+                          ? 'bg-accent text-accent-foreground w-full px-3 py-2 text-left text-sm'
+                          : 'hover:bg-accent/50 w-full px-3 py-2 text-left text-sm'
+                      }
+                      onClick={() => {
+                        setPick({ alias: option.provider.alias, model: option.id, levels: option.levels });
+                        setLevel(option.levels[0] ?? 'off');
+                      }}
+                    >
+                      <span className={css({ fontFamily: 'mono' })}>{key}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+          <Label htmlFor="tool-model-level">{t('models.models.toolModel.levelLabel')}</Label>
+          <Select
+            id="tool-model-level"
+            className={css({ width: '176px' })}
+            aria-label={t('models.models.toolModel.levelLabel')}
+            value={level}
+            disabled={pick === null || levels.length < 2}
+            onChange={(event) => {
+              if (isThinkingLevel(event.target.value)) {
+                setLevel(event.target.value);
+              }
+            }}
+          >
+            {levels.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
     </Dialog>
   );
 }

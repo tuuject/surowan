@@ -1,6 +1,6 @@
 import { IconButton } from '@tuuject/koi-react/button';
 import { Tooltip } from '@tuuject/koi-react/tooltip';
-import { Languages } from 'lucide-react';
+import { LanguageIcon } from '@/components/icons';
 import { useTranslation } from 'react-i18next';
 import { type AppLanguage, LANGUAGE_LABELS, setLanguage } from '@/lib/i18n';
 
@@ -17,7 +17,7 @@ export function LanguageToggle() {
     <Tooltip content={LANGUAGE_LABELS[current]}>
       <IconButton
         size="sm"
-        icon={<Languages size={16} />}
+        icon={<LanguageIcon size={16} />}
         label={t('layout.switchLanguage')}
         onClick={() => setLanguage(NEXT[current])}
       />

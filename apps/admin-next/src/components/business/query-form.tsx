@@ -5,7 +5,7 @@ import { SearchIcon } from '@tuuject/koi-react/icons';
 import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { RotateCcw } from 'lucide-react';
+import { ResetIcon } from '@/components/icons';
 import { useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -129,7 +129,7 @@ export function ListSearchForm<T extends QueryFormValues>({
             type="button"
             variant="ghost"
             color="secondary"
-            iconStart={<RotateCcw />}
+            iconStart={<ResetIcon />}
             onClick={() => apply(emptyValue)}
           >
             {t('layout.business.reset')}

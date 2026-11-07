@@ -1,7 +1,8 @@
 import { Dialog } from '@tuuject/koi-react/dialog';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
+import { Button } from '@tuuject/koi-react/button';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * Confirmation dialog for destructive / control operations. The dialog never
@@ -60,23 +61,33 @@ export function ConfirmDialog({
       size="sm"
       title={title}
       {...(description !== undefined ? { description } : {})}
+      hideClose
       footer={
         <>
-          <Button type="button" variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="ghost"
+            color="secondary"
+            disabled={pending}
+            onClick={() => onOpenChange(false)}
+          >
             {dismissLabel}
           </Button>
           <Button
             type="button"
-            variant={destructive ? 'destructive' : 'default'}
-            disabled={pending}
+            color={destructive ? 'error' : 'primary'}
+            loading={pending}
+            loadingLabel={t('common.working')}
             onClick={onConfirm}
           >
-            {pending ? t('common.working') : confirmText}
+            {confirmText}
           </Button>
         </>
       }
     >
-      {error !== null ? <p className="text-destructive text-sm break-words">{error}</p> : null}
+      {error !== null ? (
+        <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>{error}</p>
+      ) : null}
     </Dialog>
   );
 }

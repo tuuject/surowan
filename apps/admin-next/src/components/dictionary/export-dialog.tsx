@@ -3,21 +3,15 @@ import { Select } from '@tuuject/koi-react/select';
 import type React from 'react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
 import { Label } from '@/components/ui/label';
 import type { DictionaryExportFormat, DictionaryScope } from '@/lib/api/dictionary.ts';
 import { fetchDictionaryExport } from '@/lib/api/dictionary.ts';
 import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
 import { downloadTextFile } from '@/lib/download.ts';
 import { toast } from '@/lib/toast.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * Export dialog for the scope the page is currently showing. The API answers
@@ -56,47 +50,51 @@ export function ExportDialog({
         }
         onOpenChange(next);
       }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('dictionary.export.title')}</DialogTitle>
-          <DialogDescription>{t('dictionary.export.description')}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="dictionary-export-format">{t('dictionary.export.formatLabel')}</Label>
-            <Select
-              id="dictionary-export-format"
-              className="w-full"
-              aria-label={t('dictionary.export.formatLabel')}
-              value={format}
-              onChange={(event) => {
-                const value = event.target.value;
-                if (value === 'csv' || value === 'jsonl') {
-                  setFormat(value);
-                }
-              }}
-            >
-              <option value="csv">{t('dictionary.import.csv')}</option>
-              <option value="jsonl">{t('dictionary.import.jsonl')}</option>
-            </Select>
-          </div>
-          <p className="text-muted-foreground text-xs">{t('dictionary.export.roundTripNote')}</p>
-          {download.isError ? (
-            <p className="text-destructive text-sm break-words">
-              {t('dictionary.export.failed')}: {dictionaryErrorMessage(download.error)}
-            </p>
-          ) : null}
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" disabled={download.isPending} onClick={() => onOpenChange(false)}>
+      title={t('dictionary.export.title')}
+      description={t('dictionary.export.description')}
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            color="secondary"
+            disabled={download.isPending}
+            onClick={() => onOpenChange(false)}
+          >
             {t('common.cancel')}
           </Button>
           <Button type="button" disabled={download.isPending} onClick={() => download.mutate()}>
             {download.isPending ? t('common.working') : t('dictionary.export.download')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        </>
+      }
+    >
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+          <Label htmlFor="dictionary-export-format">{t('dictionary.export.formatLabel')}</Label>
+          <Select
+            id="dictionary-export-format"
+            className={css({ width: '100%' })}
+            aria-label={t('dictionary.export.formatLabel')}
+            value={format}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (value === 'csv' || value === 'jsonl') {
+                setFormat(value);
+              }
+            }}
+          >
+            <option value="csv">{t('dictionary.import.csv')}</option>
+            <option value="jsonl">{t('dictionary.import.jsonl')}</option>
+          </Select>
+        </div>
+        <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('dictionary.export.roundTripNote')}</p>
+        {download.isError ? (
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+            {t('dictionary.export.failed')}: {dictionaryErrorMessage(download.error)}
+          </p>
+        ) : null}
+      </div>
     </Dialog>
   );
 }

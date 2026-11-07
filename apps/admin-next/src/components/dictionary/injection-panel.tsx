@@ -8,6 +8,7 @@ import { DICTIONARY_INJECTION_MODES, getDictionarySettings, putDictionarySetting
 import { dictionaryErrorMessage, injectionModeHint, injectionModeLabel } from '@/lib/dictionary.ts';
 import { dictionarySettingsQuery } from '@/lib/queries.ts';
 import { toast } from '@/lib/toast.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 const INHERIT_VALUE = '__inherit__';
 
@@ -67,20 +68,20 @@ export function InjectionPanel({ chatId }: { readonly chatId: string | null }): 
 
   return (
     <Panel title={t('dictionary.injection.title')}>
-      <div className="space-y-4">
-        <p className="text-muted-foreground text-sm">{t('dictionary.injection.description')}</p>
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+        <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('dictionary.injection.description')}</p>
 
         {globalSettings.isError ? (
-          <p className="text-destructive text-sm break-words">
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
             {t('dictionary.injection.settingsFailed')}: {dictionaryErrorMessage(globalSettings.error)}
           </p>
         ) : null}
 
-        <div className="flex flex-wrap items-start gap-6">
-          <div className="space-y-1">
-            <p className="text-sm font-medium">{t('dictionary.injection.globalMode')}</p>
+        <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '6' })}>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+            <p className={css({ textStyle: 'label' })}>{t('dictionary.injection.globalMode')}</p>
             <Select
-              className="w-44"
+              className={css({ width: '176px' })}
               aria-label={t('dictionary.injection.globalMode')}
               value={globalMode}
               disabled={globalSettings.isPending || saveGlobal.isPending}
@@ -97,14 +98,16 @@ export function InjectionPanel({ chatId }: { readonly chatId: string | null }): 
                 </option>
               ))}
             </Select>
-            <p className="text-muted-foreground max-w-80 text-xs">{injectionModeHint(globalMode)}</p>
+            <p className={css({ textStyle: 'small', color: 'text-muted', maxWidth: '320px' })}>
+              {injectionModeHint(globalMode)}
+            </p>
           </div>
 
           {chatId === null ? null : (
-            <div className="space-y-1">
-              <p className="text-sm font-medium">{t('dictionary.injection.groupOverride')}</p>
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+              <p className={css({ textStyle: 'label' })}>{t('dictionary.injection.groupOverride')}</p>
               <Select
-                className="w-56"
+                className={css({ width: '224px' })}
                 aria-label={t('dictionary.injection.groupOverride')}
                 value={overrideMode ?? INHERIT_VALUE}
                 disabled={groupSettings.isPending || saveOverride.isPending}
@@ -130,25 +133,27 @@ export function InjectionPanel({ chatId }: { readonly chatId: string | null }): 
                   </option>
                 ))}
               </Select>
-              <p className="text-muted-foreground max-w-80 text-xs">{t('dictionary.injection.overrideNote')}</p>
+              <p className={css({ textStyle: 'small', color: 'text-muted', maxWidth: '320px' })}>
+                {t('dictionary.injection.overrideNote')}
+              </p>
             </div>
           )}
 
-          <div className="space-y-1">
-            <p className="text-sm font-medium">{t('dictionary.injection.effective')}</p>
-            <p data-testid="effective-mode" className="text-sm">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+            <p className={css({ textStyle: 'label' })}>{t('dictionary.injection.effective')}</p>
+            <p data-testid="effective-mode" className={css({ textStyle: 'body' })}>
               {effective === undefined ? '—' : injectionModeLabel(effective)}
             </p>
           </div>
         </div>
 
         {saveGlobal.isError || saveOverride.isError ? (
-          <p className="text-destructive text-sm break-words">
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
             {dictionaryErrorMessage(saveGlobal.error ?? saveOverride.error)}
           </p>
         ) : null}
 
-        <p className="text-muted-foreground text-xs">{t('dictionary.injection.dedupeNote')}</p>
+        <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('dictionary.injection.dedupeNote')}</p>
       </div>
     </Panel>
   );

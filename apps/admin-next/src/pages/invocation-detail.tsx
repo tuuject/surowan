@@ -11,6 +11,7 @@ import { isRoom } from '@/components/invocations/shared';
 import { ToolCallsTab } from '@/components/invocations/tool-calls-tab';
 import { AgentTranscriptTab, FrozenContextTab } from '@/components/invocations/transcripts-tab';
 import { invocationQuery } from '@/lib/queries';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 export function InvocationDetailView({ id }: { readonly id: string }): React.ReactElement {
   const { t } = useTranslation();
@@ -43,9 +44,9 @@ export function InvocationDetailView({ id }: { readonly id: string }): React.Rea
   }
 
   return (
-    <div className="space-y-4">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
       <DetailHeader invocation={data} />
-      <section className="border-t pt-4">
+      <section className={css({ borderTopWidth: '1px', borderColor: 'divider', paddingBlockStart: '4' })}>
         <Tabs
           defaultValue="overview"
           label={t('invocations.invocationDetail.tabs.overview')}

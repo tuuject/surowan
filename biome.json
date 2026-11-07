@@ -42,11 +42,6 @@
       "trailingCommas": "all"
     }
   },
-  "css": {
-    "parser": {
-      "tailwindDirectives": true
-    }
-  },
   "overrides": [
     {
       "includes": ["apps/admin-next/**", "apps/docs/theme/**"],

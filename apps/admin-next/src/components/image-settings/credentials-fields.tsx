@@ -1,9 +1,10 @@
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from '@tuuject/koi-react/button';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
 import { type EditableCredential, type EditableModel, selectClass } from './shared.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * Enable toggle plus the credential rows it reveals: name, key source and the key itself. Rows are controlled by the
@@ -31,22 +32,25 @@ export function CredentialsFields({
   const { t } = useTranslation();
   return (
     <>
-      <div className="flex items-center gap-3">
+      <div className={css({ display: 'flex', alignItems: 'center', gap: '3' })}>
         <input
           id="image-enabled"
           type="checkbox"
           checked={enabled}
           onChange={(event) => onEnabledChange(event.target.checked)}
-          className="size-4"
+          className={css({ width: 'icon', height: 'icon' })}
         />
         <Label htmlFor="image-enabled">{t('image.settings.enableLabel')}</Label>
       </div>
       {enabled && (
         <>
-          <p className="text-muted-foreground text-sm">{t('image.settings.credentialsHint')}</p>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('image.settings.credentialsHint')}</p>
           {credentials.map((entry, index) => (
-            <div key={entry.key} className="grid gap-3 sm:grid-cols-[160px_1fr]">
-              <div className="space-y-2">
+            <div
+              key={entry.key}
+              className={css({ display: 'grid', gap: '3', md: { gridTemplateColumns: '160px 1fr' } })}
+            >
+              <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                 <Label htmlFor={`credential-name-${index}`}>{t('image.settings.credentialName')}</Label>
                 <Input
                   id={`credential-name-${index}`}
@@ -59,9 +63,9 @@ export function CredentialsFields({
                   }
                 />
               </div>
-              <div className="space-y-2">
+              <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                 {!entry.saved && credentialProviders.length > 0 && (
-                  <div className="space-y-2">
+                  <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                     <Label htmlFor={`credential-source-${index}`}>{t('image.settings.keySource')}</Label>
                     <select
                       id={`credential-source-${index}`}
@@ -112,7 +116,8 @@ export function CredentialsFields({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="sm:col-span-2 sm:justify-self-start"
+                  color="secondary"
+                  className={css({ md: { gridColumn: 'span 2 / span 2', justifySelf: 'start' } })}
                   disabled={models.some((model) => model.credentialRef === entry.name)}
                   onClick={() => setCredentials((current) => current.filter((item) => item.key !== entry.key))}
                 >
@@ -124,6 +129,7 @@ export function CredentialsFields({
           <Button
             size="sm"
             variant="ghost"
+            color="secondary"
             onClick={() =>
               setCredentials((current) => [
                 ...current,

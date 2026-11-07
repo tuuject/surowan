@@ -2,7 +2,8 @@ import { useNavigate } from '@tanstack/react-router';
 import { Avatar } from '@tuuject/koi-react/avatar';
 import { Menu } from '@tuuject/koi-react/menu';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { ChevronDown, LogOut, SlidersVertical } from 'lucide-react';
+import { ChevronDownIcon } from '@tuuject/koi-react/icons';
+import { LogoutIcon, SlidersIcon } from '@/components/icons';
 import { useTranslation } from 'react-i18next';
 import { focusRing } from './shared';
 
@@ -49,7 +50,7 @@ export function UserMenu({ username, onSignOut }: { readonly username: string; r
           >
             {username}
           </span>
-          <ChevronDown
+          <ChevronDownIcon
             size={14}
             className={css({
               color: 'text-muted',
@@ -67,8 +68,8 @@ export function UserMenu({ username, onSignOut }: { readonly username: string; r
         </div>
       }
       items={[
-        { value: 'settings', label: t('layout.nav.settings'), icon: <SlidersVertical size={16} /> },
-        { value: 'logout', label: t('layout.misc.signOut'), icon: <LogOut size={16} /> },
+        { value: 'settings', label: t('layout.nav.settings'), icon: <SlidersIcon size={16} /> },
+        { value: 'logout', label: t('layout.misc.signOut'), icon: <LogoutIcon size={16} /> },
       ]}
       onSelect={(value) => {
         if (value === 'settings') {

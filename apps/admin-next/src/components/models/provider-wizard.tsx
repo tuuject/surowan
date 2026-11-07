@@ -7,18 +7,11 @@ import { HeaderFields } from '@/components/models/header-fields';
 import { ModelDraftList } from '@/components/models/model-draft-list';
 import { ModelEditDialog } from '@/components/models/model-edit-dialog';
 import { useDraftSelection } from '@/components/models/use-draft-selection';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Textarea } from '@tuuject/koi-react/textarea';
 import type {
   CreateProviderRequest,
   DiscoveredModel,
@@ -31,6 +24,7 @@ import { type HeaderRow, headerRowsFromNames, headerValues } from '@/lib/header-
 import { modelFormFromDraft, parseModelIds, requestErrorMessage } from '@/lib/model-manager.ts';
 import { providerPresetsQuery } from '@/lib/queries.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 const ALIAS_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 
@@ -162,28 +156,52 @@ export function ProviderWizard({
   const fetchPending = discover.isPending || lookup.isPending;
 
   return (
-    <Dialog
-      open
-      onOpenChange={(next) => {
-        if (!next) {
-          onClose();
+    <>
+      <Dialog
+        open
+        onOpenChange={(next) => {
+          if (!next) {
+            onClose();
+          }
+        }}
+        title={t('models.models.wizard.title', { step: stepTitles[step] })}
+        description={t('models.models.wizard.description')}
+        size="lg"
+        footer={
+          <>
+            <Button type="button" variant="outline" color="secondary" disabled={create.isPending} onClick={onClose}>
+              {t('common.cancel')}
+            </Button>
+            {step === 'connection' ? (
+              <Button
+                type="button"
+                disabled={!aliasValid || (kind === 'builtin' ? presetId.length === 0 : baseUrl.trim().length === 0)}
+                onClick={() => setStep('credentials')}
+              >
+                {t('models.models.wizard.next')}
+              </Button>
+            ) : null}
+            {step === 'credentials' ? (
+              <Button type="button" disabled={apiKey.length === 0} onClick={() => setStep('models')}>
+                {t('models.models.wizard.next')}
+              </Button>
+            ) : null}
+            {step === 'models' ? (
+              <Button type="button" disabled={create.isPending || selection.models === null} onClick={submit}>
+                {create.isPending ? t('common.saving') : t('models.models.wizard.createProvider')}
+              </Button>
+            ) : null}
+          </>
         }
-      }}
-    >
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{t('models.models.wizard.title', { step: stepTitles[step] })}</DialogTitle>
-          <DialogDescription>{t('models.models.wizard.description')}</DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
+      >
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
           {step === 'connection' ? (
-            <div className="space-y-4">
-              <div className="space-y-2">
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+              <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                 <Label htmlFor="wizard-kind">{t('models.models.wizard.kind')}</Label>
                 <Select
                   id="wizard-kind"
-                  className="w-full sm:w-64"
+                  className={css({ width: '100%', md: { width: '256px' } })}
                   value={kind}
                   onChange={(event) => setKind(event.target.value as ProviderKind)}
                 >
@@ -191,7 +209,7 @@ export function ProviderWizard({
                   <option value="custom">{t('models.models.wizard.customKind')}</option>
                 </Select>
               </div>
-              <div className="space-y-2">
+              <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                 <Label htmlFor="wizard-alias">{t('models.models.wizard.alias')}</Label>
                 <Input
                   id="wizard-alias"
@@ -199,22 +217,30 @@ export function ProviderWizard({
                   placeholder="openrouter"
                   onChange={(event) => setAlias(event.target.value)}
                 />
-                <p className="text-muted-foreground text-xs">{t('models.models.wizard.aliasHint')}</p>
+                <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+                  {t('models.models.wizard.aliasHint')}
+                </p>
                 {alias.length > 0 && !aliasValid ? (
-                  <p className="text-destructive text-sm">{t('models.models.wizard.aliasInvalid')}</p>
+                  <p className={css({ textStyle: 'body', color: 'error-text' })}>
+                    {t('models.models.wizard.aliasInvalid')}
+                  </p>
                 ) : null}
               </div>
               {kind === 'builtin' ? (
-                <div className="space-y-2">
+                <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                   <Label htmlFor="wizard-preset">{t('models.models.wizard.piProvider')}</Label>
                   {presets.isPending ? (
-                    <p className="text-muted-foreground text-sm">{t('models.models.wizard.loadingPresets')}</p>
+                    <p className={css({ textStyle: 'body', color: 'text-muted' })}>
+                      {t('models.models.wizard.loadingPresets')}
+                    </p>
                   ) : presets.isError ? (
-                    <p className="text-destructive text-sm break-words">{requestErrorMessage(presets.error)}</p>
+                    <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+                      {requestErrorMessage(presets.error)}
+                    </p>
                   ) : (
                     <Select
                       id="wizard-preset"
-                      className="w-full"
+                      className={css({ width: '100%' })}
                       value={presetId}
                       placeholder={t('models.models.wizard.pickPreset')}
                       onChange={(event) => setPresetId(event.target.value)}
@@ -227,15 +253,21 @@ export function ProviderWizard({
                     </Select>
                   )}
                   {preset === null ? null : (
-                    <p className="text-muted-foreground text-xs">
+                    <p className={css({ textStyle: 'small', color: 'text-muted' })}>
                       {t('models.models.wizard.presetBaseUrl')}
                       <MonoValue value={preset.base_url} />
                     </p>
                   )}
                 </div>
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
+                <div
+                  className={css({
+                    display: 'grid',
+                    gap: '4',
+                    md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
+                  })}
+                >
+                  <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                     <Label htmlFor="wizard-base-url">{t('models.models.connection.baseUrl')}</Label>
                     <Input
                       id="wizard-base-url"
@@ -244,11 +276,11 @@ export function ProviderWizard({
                       onChange={(event) => setBaseUrl(event.target.value)}
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                     <Label htmlFor="wizard-api">{t('models.models.connection.api')}</Label>
                     <Select
                       id="wizard-api"
-                      className="w-full"
+                      className={css({ width: '100%' })}
                       value={api}
                       onChange={(event) => setApi(event.target.value as ProviderApi)}
                     >
@@ -259,7 +291,9 @@ export function ProviderWizard({
                       ))}
                     </Select>
                     {api === 'google-generative-ai' ? (
-                      <p className="text-muted-foreground text-xs">{t('models.models.wizard.googleNote')}</p>
+                      <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+                        {t('models.models.wizard.googleNote')}
+                      </p>
                     ) : null}
                   </div>
                 </div>
@@ -268,8 +302,8 @@ export function ProviderWizard({
           ) : null}
 
           {step === 'credentials' ? (
-            <div className="space-y-4">
-              <div className="space-y-2">
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+              <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                 <Label htmlFor="wizard-api-key">{t('models.models.connection.apiKey')}</Label>
                 <Input
                   id="wizard-api-key"
@@ -278,11 +312,13 @@ export function ProviderWizard({
                   value={apiKey}
                   onChange={(event) => setApiKey(event.target.value)}
                 />
-                <p className="text-muted-foreground text-xs">{t('models.models.wizard.apiKeyHint')}</p>
+                <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+                  {t('models.models.wizard.apiKeyHint')}
+                </p>
               </div>
               {kind === 'custom' ? (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">{t('models.models.wizard.headersOptional')}</p>
+                <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+                  <p className={css({ textStyle: 'label' })}>{t('models.models.wizard.headersOptional')}</p>
                   <HeaderFields rows={headers} onChange={setHeaders} valuesRequired={false} idPrefix="wizard" />
                 </div>
               ) : null}
@@ -290,12 +326,15 @@ export function ProviderWizard({
           ) : null}
 
           {step === 'models' ? (
-            <div className="space-y-4">
-              <p className="text-muted-foreground text-xs">{t('models.models.wizard.tempModeNote')}</p>
-              <div className="flex flex-wrap gap-2">
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+              <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+                {t('models.models.wizard.tempModeNote')}
+              </p>
+              <div className={css({ display: 'flex', flexWrap: 'wrap', gap: '2' })}>
                 <Button
                   type="button"
                   variant="outline"
+                  color="secondary"
                   size="sm"
                   disabled={fetchPending}
                   onClick={() => {
@@ -305,12 +344,13 @@ export function ProviderWizard({
                   {fetchPending ? t('models.models.picker.fetching') : t('models.models.wizard.fetch')}
                 </Button>
               </div>
-              <div className="space-y-2">
+              <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                 <Label htmlFor="wizard-ids">{t('models.models.wizard.idsLabel')}</Label>
                 <Textarea id="wizard-ids" rows={2} value={ids} onChange={(event) => setIds(event.target.value)} />
                 <Button
                   type="button"
                   variant="outline"
+                  color="secondary"
                   size="sm"
                   disabled={fetchPending}
                   onClick={() => {
@@ -321,7 +361,9 @@ export function ProviderWizard({
                 </Button>
               </div>
               {fetchError === null ? null : (
-                <p className="text-destructive text-sm break-words">{requestErrorMessage(fetchError)}</p>
+                <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+                  {requestErrorMessage(fetchError)}
+                </p>
               )}
               {selection.drafts.length === 0 ? null : (
                 <>
@@ -335,15 +377,21 @@ export function ProviderWizard({
                     onSearchChange={selection.setSearch}
                     emptyText={t('models.models.shared.emptyList')}
                   />
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-muted-foreground text-xs">
+                  <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
+                    <p className={css({ textStyle: 'small', color: 'text-muted' })}>
                       {t('models.models.shared.selectedCount', { count: selection.selectedCount })}
                       {selection.unresolved.length === 0
                         ? ''
                         : ` · ${t('models.models.shared.unresolvedSuffix', { ids: selection.unresolved.map((draft) => draft.id).join(', ') })}`}
                     </p>
                     {selection.confirmable === 0 ? null : (
-                      <Button type="button" variant="outline" size="sm" onClick={selection.confirmSelected}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        color="secondary"
+                        size="sm"
+                        onClick={selection.confirmSelected}
+                      >
                         {t('models.models.shared.acceptListed', { count: selection.confirmable })}
                       </Button>
                     )}
@@ -353,35 +401,11 @@ export function ProviderWizard({
             </div>
           ) : null}
 
-          {createError === null ? null : <p className="text-destructive text-sm break-words">{createError}</p>}
+          {createError === null ? null : (
+            <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>{createError}</p>
+          )}
         </div>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" disabled={create.isPending} onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          {step === 'connection' ? (
-            <Button
-              type="button"
-              disabled={!aliasValid || (kind === 'builtin' ? presetId.length === 0 : baseUrl.trim().length === 0)}
-              onClick={() => setStep('credentials')}
-            >
-              {t('models.models.wizard.next')}
-            </Button>
-          ) : null}
-          {step === 'credentials' ? (
-            <Button type="button" disabled={apiKey.length === 0} onClick={() => setStep('models')}>
-              {t('models.models.wizard.next')}
-            </Button>
-          ) : null}
-          {step === 'models' ? (
-            <Button type="button" disabled={create.isPending || selection.models === null} onClick={submit}>
-              {create.isPending ? t('common.saving') : t('models.models.wizard.createProvider')}
-            </Button>
-          ) : null}
-        </DialogFooter>
-      </DialogContent>
-
+      </Dialog>
       {editing === null ? null : (
         <ModelEditDialog
           key={`confirm-${editing.id}`}
@@ -405,6 +429,6 @@ export function ProviderWizard({
           }}
         />
       )}
-    </Dialog>
+    </>
   );
 }

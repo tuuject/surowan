@@ -1,7 +1,8 @@
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
+import { Button } from '@tuuject/koi-react/button';
 import { toast } from '@/lib/toast.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * Requirements summary, the save error and the save button. The button refuses to mutate while `validationError`
@@ -22,12 +23,12 @@ export function SaveActions({
   return (
     <>
       {validationError && (
-        <p id="image-save-requirements" role="status" className="text-sm text-muted-foreground">
+        <p id="image-save-requirements" role="status" className={css({ textStyle: 'body', color: 'text-muted' })}>
           {validationError}
         </p>
       )}
       {saveErrorText !== null && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className={css({ textStyle: 'body', color: 'error-text' })}>
           {saveErrorText}
         </p>
       )}

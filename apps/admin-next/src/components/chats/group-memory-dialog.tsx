@@ -1,24 +1,18 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
+import { Switch } from '@tuuject/koi-react/switch';
 import type { ChatEntry, ChatsView } from '@/lib/api/chats.ts';
 import { updateChatGroupMemory } from '@/lib/api/chats.ts';
 import { errorMessage } from '@/lib/errors';
 import { isConfigConflict } from '@/lib/model-manager';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * The dialog captures the view when opened: a background refetch cannot upgrade
@@ -74,64 +68,79 @@ export function GroupMemoryDialog({
     save.mutate(minutes);
   };
   return (
-    <Dialog open onOpenChange={(open) => !open && !save.isPending && onClose()}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{t('pages.chats.groupMemoryTitle')}</DialogTitle>
-          <DialogDescription>{t('pages.chats.groupMemoryDescription')}</DialogDescription>
-        </DialogHeader>
-        <form
-          noValidate
-          className="space-y-5"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submit();
-          }}
-        >
-          <fieldset disabled={save.isPending} className="space-y-4">
-            <div className="flex items-start justify-between gap-4 rounded-lg border p-3">
-              <div className="space-y-1">
-                <Label htmlFor="group-memory-enabled">{t('pages.chats.groupMemoryEnable')}</Label>
-                <p className="text-muted-foreground text-xs">{t('pages.chats.groupMemoryEnableHint')}</p>
-              </div>
-              <Switch id="group-memory-enabled" checked={enabled} onCheckedChange={setEnabled} />
+    <Dialog
+      open
+      onOpenChange={(open) => !open && !save.isPending && onClose()}
+      title={t('pages.chats.groupMemoryTitle')}
+      description={t('pages.chats.groupMemoryDescription')}
+      footer={
+        <>
+          <Button type="button" variant="outline" color="secondary" disabled={save.isPending} onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" form="group-memory-dialog-form" disabled={save.isPending}>
+            {save.isPending ? t('common.saving') : t('common.save')}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="group-memory-dialog-form"
+        noValidate
+        className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        <fieldset disabled={save.isPending} className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+          <div
+            className={css({
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: '4',
+              borderRadius: 'xl',
+              borderWidth: '1px',
+              borderColor: 'border',
+              padding: '3',
+            })}
+          >
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+              <Label htmlFor="group-memory-enabled">{t('pages.chats.groupMemoryEnable')}</Label>
+              <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+                {t('pages.chats.groupMemoryEnableHint')}
+              </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="group-memory-idle">{t('pages.chats.groupMemoryIdle')}</Label>
-              <Input
-                id="group-memory-idle"
-                type="number"
-                min={1}
-                max={1_440}
-                step={1}
-                disabled={!enabled}
-                value={idleMinutes}
-                onChange={(event) => setIdleMinutes(event.target.value)}
-              />
-              <p className="text-muted-foreground text-xs">{t('pages.chats.groupMemoryIdleHint')}</p>
-            </div>
-            <p className="text-muted-foreground text-xs">{t('pages.chats.groupMemoryCutover')}</p>
-          </fieldset>
-          {validation !== null ? (
-            <p role="alert" className="text-destructive text-sm">
-              {validation}
-            </p>
-          ) : null}
-          {save.isError ? (
-            <p role="alert" className="text-destructive text-sm break-words">
-              {errorMessage(save.error)}
-            </p>
-          ) : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={save.isPending} onClick={onClose}>
-              {t('common.cancel')}
-            </Button>
-            <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? t('common.saving') : t('common.save')}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
+            <Switch id="group-memory-enabled" checked={enabled} onCheckedChange={setEnabled} />
+          </div>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+            <Label htmlFor="group-memory-idle">{t('pages.chats.groupMemoryIdle')}</Label>
+            <Input
+              id="group-memory-idle"
+              type="number"
+              min={1}
+              max={1_440}
+              step={1}
+              disabled={!enabled}
+              value={idleMinutes}
+              onChange={(event) => setIdleMinutes(event.target.value)}
+            />
+            <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.groupMemoryIdleHint')}</p>
+          </div>
+          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.groupMemoryCutover')}</p>
+        </fieldset>
+        {validation !== null ? (
+          <p role="alert" className={css({ textStyle: 'body', color: 'error-text' })}>
+            {validation}
+          </p>
+        ) : null}
+        {save.isError ? (
+          <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+            {errorMessage(save.error)}
+          </p>
+        ) : null}
+      </form>
     </Dialog>
   );
 }

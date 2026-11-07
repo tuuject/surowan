@@ -1,5 +1,5 @@
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { Zap } from 'lucide-react';
+import { BrandIcon } from '@/components/icons';
 import { useTranslation } from 'react-i18next';
 
 const logo = css({
@@ -38,7 +38,7 @@ export function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className={css({ display: 'flex', alignItems: 'center', gap: '3', minWidth: '0' })}>
       <span className={compact ? logoCompact : logo} aria-hidden="true">
-        <Zap size={compact ? 18 : 22} />
+        <BrandIcon size={compact ? 18 : 22} />
       </span>
       <span
         className={css({ display: 'flex', flexDirection: 'column', gap: '0.125rem', minWidth: '0' })}

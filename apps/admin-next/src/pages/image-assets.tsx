@@ -10,17 +10,10 @@ import {
   TableShell,
   useOffsetPagination,
 } from '@/components/business';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Input } from '@tuuject/koi-react/input';
+import { Textarea } from '@tuuject/koi-react/textarea';
 import type { ImageAssetInfo, ImagePromptAsset } from '@/lib/api/images.ts';
 import {
   archiveImageAsset,
@@ -34,6 +27,7 @@ import {
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { toast } from '@/lib/toast.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /** Asset management: prompt templates and reference images, with upload and archive. */
 
@@ -52,29 +46,14 @@ function PromptEditor({ onDone }: { readonly onDone: () => void }) {
     },
   });
   return (
-    <Dialog open onOpenChange={(open) => !open && !create.isPending && onDone()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('image.assets.newAsset')}</DialogTitle>
-          <DialogDescription>{t('image.assets.bodyPlaceholder')}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <Input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder={t('image.assets.namePlaceholder')}
-            aria-label={t('image.assets.namePlaceholder')}
-          />
-          <Textarea
-            value={body}
-            onChange={(event) => setBody(event.target.value)}
-            rows={4}
-            placeholder={t('image.assets.bodyPlaceholder')}
-            aria-label={t('image.assets.bodyPlaceholder')}
-          />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onDone} disabled={create.isPending}>
+    <Dialog
+      open
+      onOpenChange={(open) => !open && !create.isPending && onDone()}
+      title={t('image.assets.newAsset')}
+      description={t('image.assets.bodyPlaceholder')}
+      footer={
+        <>
+          <Button variant="outline" color="secondary" onClick={onDone} disabled={create.isPending}>
             {t('common.cancel')}
           </Button>
           <Button
@@ -83,8 +62,24 @@ function PromptEditor({ onDone }: { readonly onDone: () => void }) {
           >
             {create.isPending ? t('common.submitting') : t('common.create')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        </>
+      }
+    >
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+        <Input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder={t('image.assets.namePlaceholder')}
+          aria-label={t('image.assets.namePlaceholder')}
+        />
+        <Textarea
+          value={body}
+          onChange={(event) => setBody(event.target.value)}
+          rows={4}
+          placeholder={t('image.assets.bodyPlaceholder')}
+          aria-label={t('image.assets.bodyPlaceholder')}
+        />
+      </div>
     </Dialog>
   );
 }
@@ -164,7 +159,7 @@ export default function ImageAssetsPage() {
     {
       key: 'name',
       title: t('image.assets.columnName'),
-      render: (row) => <span className="font-medium">{row.name}</span>,
+      render: (row) => <span className={css({ textStyle: 'label' })}>{row.name}</span>,
     },
     { key: 'category', title: t('image.assets.columnCategory'), render: (row) => row.category },
     { key: 'updated', title: t('image.assets.columnUpdated'), render: (row) => formatTime(row.updated_at) },
@@ -173,7 +168,12 @@ export default function ImageAssetsPage() {
       title: t('pages.apiKeys.actions'),
       align: 'right',
       render: (row) => (
-        <Button size="sm" variant="ghost" onClick={() => setArchiving({ kind: 'prompt', id: row.id, name: row.name })}>
+        <Button
+          size="sm"
+          variant="ghost"
+          color="secondary"
+          onClick={() => setArchiving({ kind: 'prompt', id: row.id, name: row.name })}
+        >
           {t('image.assets.archive')}
         </Button>
       ),
@@ -184,13 +184,23 @@ export default function ImageAssetsPage() {
       key: 'preview',
       title: t('image.assets.columnPreview'),
       render: (row) => (
-        <img src={imageUrl(row.id)} alt={row.name} className="bg-muted h-10 w-10 rounded object-cover" />
+        <img
+          src={imageUrl(row.id)}
+          alt={row.name}
+          className={css({
+            bg: 'surface-muted',
+            height: '40px',
+            width: '40px',
+            borderRadius: 'lg',
+            objectFit: 'cover',
+          })}
+        />
       ),
     },
     {
       key: 'name',
       title: t('image.assets.columnName'),
-      render: (row) => <span className="font-medium">{row.name}</span>,
+      render: (row) => <span className={css({ textStyle: 'label' })}>{row.name}</span>,
     },
     { key: 'source', title: t('image.assets.columnSource'), render: (row) => row.source },
     { key: 'created', title: t('image.assets.columnCreated'), render: (row) => formatTime(row.created_at) },
@@ -199,7 +209,12 @@ export default function ImageAssetsPage() {
       title: t('pages.apiKeys.actions'),
       align: 'right',
       render: (row) => (
-        <Button size="sm" variant="ghost" onClick={() => setArchiving({ kind: 'image', id: row.id, name: row.name })}>
+        <Button
+          size="sm"
+          variant="ghost"
+          color="secondary"
+          onClick={() => setArchiving({ kind: 'image', id: row.id, name: row.name })}
+        >
           {t('image.assets.archive')}
         </Button>
       ),
@@ -207,11 +222,19 @@ export default function ImageAssetsPage() {
   ];
 
   return (
-    <div className="space-y-5">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader title={t('image.assets.title')} />
       <ListToolbar
         trailing={
-          <div className="bg-muted flex rounded p-0.5 text-sm">
+          <div
+            className={css({
+              textStyle: 'body',
+              bg: 'surface-muted',
+              display: 'flex',
+              borderRadius: 'lg',
+              padding: '1',
+            })}
+          >
             <button
               type="button"
               className={`rounded px-3 py-1 ${tab === 'prompts' ? 'bg-background font-medium' : ''}`}
@@ -237,7 +260,7 @@ export default function ImageAssetsPage() {
               ref={fileInput}
               type="file"
               accept="image/png,image/jpeg,image/webp"
-              className="hidden"
+              className={css({ display: 'none' })}
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (file !== undefined) {
@@ -246,12 +269,17 @@ export default function ImageAssetsPage() {
                 }
               }}
             />
-            <Button variant="outline" onClick={() => fileInput.current?.click()} disabled={upload.isPending}>
+            <Button
+              variant="outline"
+              color="secondary"
+              onClick={() => fileInput.current?.click()}
+              disabled={upload.isPending}
+            >
               {upload.isPending ? t('common.uploading') : t('image.assets.uploadImage')}
             </Button>
           </>
         ) : (
-          <Button variant="outline" onClick={() => setCreating(true)}>
+          <Button variant="outline" color="secondary" onClick={() => setCreating(true)}>
             {t('image.assets.newAsset')}
           </Button>
         )}
@@ -267,12 +295,12 @@ export default function ImageAssetsPage() {
       ) : null}
 
       {tab === 'prompts' && prompts.isError ? (
-        <p role="alert" className="text-destructive text-sm break-words">
+        <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
           {errorMessage(prompts.error)}
         </p>
       ) : null}
       {tab === 'images' && assets.isError ? (
-        <p role="alert" className="text-destructive text-sm break-words">
+        <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
           {errorMessage(assets.error)}
         </p>
       ) : null}
@@ -285,7 +313,6 @@ export default function ImageAssetsPage() {
                 data={prompts.data?.items ?? []}
                 rowKey={(row) => row.id}
                 loading={prompts.isPending || prompts.isPlaceholderData}
-                frame={false}
                 emptyText={t('image.assets.emptyPrompts')}
               />
               <ListFooter
@@ -304,7 +331,6 @@ export default function ImageAssetsPage() {
               data={assets.data?.items ?? []}
               rowKey={(row) => row.id}
               loading={assets.isPending || assets.isPlaceholderData}
-              frame={false}
               emptyText={t('image.assets.emptyImages')}
             />
             <ListFooter

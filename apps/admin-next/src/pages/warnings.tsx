@@ -3,8 +3,8 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ConfirmDialog, ListFooter, useCursorPages } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@tuuject/koi-react/button';
+import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { WarningCard } from '@/components/warnings/warning-card';
 import { useForegroundRefresh } from '@/hooks/use-foreground-refresh';
 import type { EventWarning } from '@/lib/api/warnings.ts';
@@ -13,6 +13,7 @@ import { errorMessage } from '@/lib/errors';
 import { formatNumber } from '@/lib/format';
 import { warningsQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 export default function WarningsPage(): React.ReactElement {
   const { t } = useTranslation();
@@ -51,27 +52,27 @@ export default function WarningsPage(): React.ReactElement {
   const unreadCount = first?.unread_count ?? 0;
 
   return (
-    <div className="space-y-6">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '6' } })}>
       {/* A failed poll or next page keeps the loaded cards and reports above them. */}
       {query.isError && !query.isLoadingError ? (
-        <p className="text-destructive text-sm break-words">
+        <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
           {t('pages.warnings.loadFailed')}: {errorMessage(query.error)}
         </p>
       ) : null}
       <Panel title={t('pages.warnings.standingTitle')}>
         {query.isPending ? (
-          <div className="space-y-3">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+            <Skeleton className={css({ height: '64px', width: '100%' })} />
+            <Skeleton className={css({ height: '64px', width: '100%' })} />
           </div>
         ) : query.isLoadingError ? (
-          <p className="text-destructive text-sm break-words">
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
             {t('pages.warnings.loadFailed')}: {errorMessage(query.error)}
           </p>
         ) : standing.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t('pages.warnings.noStanding')}</p>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.warnings.noStanding')}</p>
         ) : (
-          <div className="divide-y">
+          <div className={css({ '& > :not(:last-child)': { borderBottomWidth: '1px', borderColor: 'divider' } })}>
             {standing.map((warning) => (
               <WarningCard key={warning.code} warning={warning} />
             ))}
@@ -82,14 +83,15 @@ export default function WarningsPage(): React.ReactElement {
       <Panel
         title={t('pages.warnings.eventsTitle')}
         action={
-          <div className="flex items-center gap-3">
-            <span className="text-muted-foreground text-sm">
+          <div className={css({ display: 'flex', alignItems: 'center', gap: '3' })}>
+            <span className={css({ textStyle: 'body', color: 'text-muted' })}>
               {t('pages.warnings.unreadCount', { count: formatNumber(unreadCount) })}
             </span>
             <Button
               type="button"
               size="sm"
               variant="outline"
+              color="secondary"
               disabled={items.length === 0 || clear.isPending}
               onClick={() => setClearOpen(true)}
             >
@@ -99,19 +101,19 @@ export default function WarningsPage(): React.ReactElement {
         }
       >
         {query.isPending ? (
-          <div className="space-y-3">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+            <Skeleton className={css({ height: '64px', width: '100%' })} />
+            <Skeleton className={css({ height: '64px', width: '100%' })} />
+            <Skeleton className={css({ height: '64px', width: '100%' })} />
           </div>
         ) : query.isLoadingError ? (
-          <p className="text-destructive text-sm break-words">
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
             {t('pages.warnings.loadFailed')}: {errorMessage(query.error)}
           </p>
         ) : items.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t('pages.warnings.noEvents')}</p>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.warnings.noEvents')}</p>
         ) : (
-          <div className="divide-y">
+          <div className={css({ '& > :not(:last-child)': { borderBottomWidth: '1px', borderColor: 'divider' } })}>
             {items.map((warning) => (
               <WarningCard
                 key={warning.id}

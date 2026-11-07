@@ -4,18 +4,11 @@ import type React from 'react';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScopePicker } from '@/components/dictionary/entry-form.tsx';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Textarea } from '@tuuject/koi-react/textarea';
 import type {
   DictionaryChatOption,
   DictionaryDraft,
@@ -26,6 +19,7 @@ import type {
 import { importDictionaryEntries, previewDictionaryImport } from '@/lib/api/dictionary.ts';
 import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
 import { toast } from '@/lib/toast.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * Import flow: pick a CSV/JSONL file or paste content, ask the server for a
@@ -115,165 +109,15 @@ export function ImportDialog({
         }
         onOpenChange(next);
       }}
-    >
-      <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{t('dictionary.import.title')}</DialogTitle>
-          <DialogDescription>{t('dictionary.import.description')}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor={`${fileId}-format`}>{t('dictionary.import.formatLabel')}</Label>
-              <Select
-                id={`${fileId}-format`}
-                className="w-full"
-                aria-label={t('dictionary.import.formatLabel')}
-                value={format}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  if (value === 'csv' || value === 'jsonl') {
-                    setFormat(value);
-                    setPreview(null);
-                  }
-                }}
-              >
-                <option value="csv">{t('dictionary.import.csv')}</option>
-                <option value="jsonl">{t('dictionary.import.jsonl')}</option>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={fileId}>{t('dictionary.import.fileLabel')}</Label>
-              <Input
-                id={fileId}
-                type="file"
-                accept={format === 'csv' ? '.csv,text/csv' : '.jsonl,.json,application/jsonl'}
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file === undefined) {
-                    return;
-                  }
-                  setReadError(null);
-                  setPreview(null);
-                  void file
-                    .text()
-                    .then((text) => {
-                      setContent(text);
-                      setFileName(file.name);
-                    })
-                    .catch(() => {
-                      setReadError(t('dictionary.import.fileFailed'));
-                    });
-                }}
-              />
-              {fileName !== null ? (
-                <p className="text-muted-foreground text-xs">
-                  {t('dictionary.import.fileLoaded', { name: fileName, chars: String(content.length) })}
-                </p>
-              ) : null}
-              {readError !== null ? <p className="text-destructive text-sm">{readError}</p> : null}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>{t('dictionary.import.scopeLabel')}</Label>
-            <ScopePicker
-              scope={scope}
-              chatId={chatId}
-              chats={chats}
-              idPrefix={`${fileId}-scope`}
-              onChange={(nextScope, nextChatId) => {
-                setScope(nextScope);
-                setChatId(nextChatId);
-                setPreview(null);
-              }}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor={contentId}>{t('dictionary.import.pasteLabel')}</Label>
-            <Textarea
-              id={contentId}
-              rows={5}
-              className="font-mono text-xs"
-              value={content}
-              onChange={(event) => {
-                setContent(event.target.value);
-                setFileName(null);
-                setPreview(null);
-              }}
-            />
-          </div>
-
-          {content.trim().length === 0 ? (
-            <p className="text-muted-foreground text-sm">{t('dictionary.import.contentRequired')}</p>
-          ) : null}
-          {previewMutation.isError ? (
-            <p className="text-destructive text-sm break-words">
-              {t('dictionary.import.previewFailed')}: {dictionaryErrorMessage(previewMutation.error)}
-            </p>
-          ) : null}
-
-          {preview !== null ? (
-            <div className="space-y-3">
-              <p className="font-medium">{t('dictionary.import.previewTitle', { count: preview.entries.length })}</p>
-              {preview.entries.length === 0 ? (
-                <p className="text-muted-foreground text-sm">{t('dictionary.import.previewEmpty')}</p>
-              ) : (
-                <div className="max-h-64 overflow-auto rounded-md border">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/50 text-muted-foreground">
-                      <tr>
-                        <th className="px-2 py-1 text-left font-medium">{t('dictionary.page.colTerm')}</th>
-                        <th className="px-2 py-1 text-left font-medium">{t('dictionary.page.colDefinition')}</th>
-                        <th className="px-2 py-1 text-left font-medium">{t('dictionary.page.colAliases')}</th>
-                        <th className="px-2 py-1 text-left font-medium">{t('dictionary.page.colEnabled')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {preview.entries.map((entry, index) => (
-                        <tr key={`${entry.term}-${String(index)}`} className="border-t align-top">
-                          <td className="px-2 py-1 font-medium">{entry.term}</td>
-                          <td className="max-w-80 px-2 py-1 whitespace-normal">{entry.definition}</td>
-                          <td className="px-2 py-1">{entry.aliases.length === 0 ? '—' : entry.aliases.join(' | ')}</td>
-                          <td className="px-2 py-1">
-                            {entry.enabled ? t('dictionary.page.enabledOn') : t('dictionary.page.enabledOff')}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              <div className="space-y-1">
-                <p className="font-medium">
-                  {t('dictionary.import.conflictsTitle', { count: preview.conflicts.length })}
-                </p>
-                {preview.conflicts.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">{t('dictionary.import.conflictsNone')}</p>
-                ) : (
-                  <ul className="text-sm">
-                    {preview.conflicts.map((conflict) => (
-                      <li key={conflict.value} className="font-mono text-xs break-all">
-                        {conflict.value}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <p className="text-muted-foreground text-xs">{t('dictionary.import.conflictsNote')}</p>
-              </div>
-              <p className="text-muted-foreground text-xs">{t('dictionary.import.previewNote')}</p>
-            </div>
-          ) : null}
-
-          {importMutation.isError ? (
-            <p className="text-destructive text-sm break-words">{dictionaryErrorMessage(importMutation.error)}</p>
-          ) : null}
-        </div>
-        <DialogFooter>
+      title={t('dictionary.import.title')}
+      description={t('dictionary.import.description')}
+      size="lg"
+      footer={
+        <>
           <Button
             type="button"
             variant="outline"
+            color="secondary"
             disabled={importMutation.isPending || previewMutation.isPending}
             onClick={() => {
               reset();
@@ -285,6 +129,7 @@ export function ImportDialog({
           <Button
             type="button"
             variant="outline"
+            color="secondary"
             disabled={content.trim().length === 0 || previewMutation.isPending || importMutation.isPending}
             onClick={() => previewMutation.mutate()}
           >
@@ -301,8 +146,227 @@ export function ImportDialog({
               ? t('dictionary.import.importing')
               : t('dictionary.import.confirm', { count: draftEntries.length })}
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        </>
+      }
+    >
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+        <div className={css({ display: 'grid', gap: '3', md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } })}>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+            <Label htmlFor={`${fileId}-format`}>{t('dictionary.import.formatLabel')}</Label>
+            <Select
+              id={`${fileId}-format`}
+              className={css({ width: '100%' })}
+              aria-label={t('dictionary.import.formatLabel')}
+              value={format}
+              onChange={(event) => {
+                const value = event.target.value;
+                if (value === 'csv' || value === 'jsonl') {
+                  setFormat(value);
+                  setPreview(null);
+                }
+              }}
+            >
+              <option value="csv">{t('dictionary.import.csv')}</option>
+              <option value="jsonl">{t('dictionary.import.jsonl')}</option>
+            </Select>
+          </div>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+            <Label htmlFor={fileId}>{t('dictionary.import.fileLabel')}</Label>
+            <Input
+              id={fileId}
+              type="file"
+              accept={format === 'csv' ? '.csv,text/csv' : '.jsonl,.json,application/jsonl'}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file === undefined) {
+                  return;
+                }
+                setReadError(null);
+                setPreview(null);
+                void file
+                  .text()
+                  .then((text) => {
+                    setContent(text);
+                    setFileName(file.name);
+                  })
+                  .catch(() => {
+                    setReadError(t('dictionary.import.fileFailed'));
+                  });
+              }}
+            />
+            {fileName !== null ? (
+              <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+                {t('dictionary.import.fileLoaded', { name: fileName, chars: String(content.length) })}
+              </p>
+            ) : null}
+            {readError !== null ? <p className={css({ textStyle: 'body', color: 'error-text' })}>{readError}</p> : null}
+          </div>
+        </div>
+
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+          <Label>{t('dictionary.import.scopeLabel')}</Label>
+          <ScopePicker
+            scope={scope}
+            chatId={chatId}
+            chats={chats}
+            idPrefix={`${fileId}-scope`}
+            onChange={(nextScope, nextChatId) => {
+              setScope(nextScope);
+              setChatId(nextChatId);
+              setPreview(null);
+            }}
+          />
+        </div>
+
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+          <Label htmlFor={contentId}>{t('dictionary.import.pasteLabel')}</Label>
+          <Textarea
+            id={contentId}
+            rows={5}
+            className={css({ textStyle: 'small', fontFamily: 'mono' })}
+            value={content}
+            onChange={(event) => {
+              setContent(event.target.value);
+              setFileName(null);
+              setPreview(null);
+            }}
+          />
+        </div>
+
+        {content.trim().length === 0 ? (
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('dictionary.import.contentRequired')}</p>
+        ) : null}
+        {previewMutation.isError ? (
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+            {t('dictionary.import.previewFailed')}: {dictionaryErrorMessage(previewMutation.error)}
+          </p>
+        ) : null}
+
+        {preview !== null ? (
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+            <p className={css({ textStyle: 'label' })}>
+              {t('dictionary.import.previewTitle', { count: preview.entries.length })}
+            </p>
+            {preview.entries.length === 0 ? (
+              <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('dictionary.import.previewEmpty')}</p>
+            ) : (
+              <div
+                className={css({
+                  maxHeight: '256px',
+                  overflow: 'auto',
+                  borderRadius: 'lg',
+                  borderWidth: '1px',
+                  borderColor: 'border',
+                })}
+              >
+                <table className={css({ textStyle: 'body', width: '100%' })}>
+                  <thead className={css({ bg: 'surface-muted', color: 'text-muted' })}>
+                    <tr>
+                      <th
+                        className={css({
+                          textStyle: 'label',
+                          paddingInline: '2',
+                          paddingBlock: '1',
+                          textAlign: 'start',
+                        })}
+                      >
+                        {t('dictionary.page.colTerm')}
+                      </th>
+                      <th
+                        className={css({
+                          textStyle: 'label',
+                          paddingInline: '2',
+                          paddingBlock: '1',
+                          textAlign: 'start',
+                        })}
+                      >
+                        {t('dictionary.page.colDefinition')}
+                      </th>
+                      <th
+                        className={css({
+                          textStyle: 'label',
+                          paddingInline: '2',
+                          paddingBlock: '1',
+                          textAlign: 'start',
+                        })}
+                      >
+                        {t('dictionary.page.colAliases')}
+                      </th>
+                      <th
+                        className={css({
+                          textStyle: 'label',
+                          paddingInline: '2',
+                          paddingBlock: '1',
+                          textAlign: 'start',
+                        })}
+                      >
+                        {t('dictionary.page.colEnabled')}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.entries.map((entry, index) => (
+                      <tr
+                        key={`${entry.term}-${String(index)}`}
+                        className={css({ borderTopWidth: '1px', borderColor: 'divider', verticalAlign: 'top' })}
+                      >
+                        <td className={css({ textStyle: 'label', paddingInline: '2', paddingBlock: '1' })}>
+                          {entry.term}
+                        </td>
+                        <td
+                          className={css({
+                            maxWidth: '320px',
+                            paddingInline: '2',
+                            paddingBlock: '1',
+                            whiteSpace: 'normal',
+                          })}
+                        >
+                          {entry.definition}
+                        </td>
+                        <td className={css({ paddingInline: '2', paddingBlock: '1' })}>
+                          {entry.aliases.length === 0 ? '—' : entry.aliases.join(' | ')}
+                        </td>
+                        <td className={css({ paddingInline: '2', paddingBlock: '1' })}>
+                          {entry.enabled ? t('dictionary.page.enabledOn') : t('dictionary.page.enabledOff')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+              <p className={css({ textStyle: 'label' })}>
+                {t('dictionary.import.conflictsTitle', { count: preview.conflicts.length })}
+              </p>
+              {preview.conflicts.length === 0 ? (
+                <p className={css({ textStyle: 'body', color: 'text-muted' })}>
+                  {t('dictionary.import.conflictsNone')}
+                </p>
+              ) : (
+                <ul className={css({ textStyle: 'body' })}>
+                  {preview.conflicts.map((conflict) => (
+                    <li
+                      key={conflict.value}
+                      className={css({ textStyle: 'small', fontFamily: 'mono', wordBreak: 'break-all' })}
+                    >
+                      {conflict.value}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('dictionary.import.conflictsNote')}</p>
+            </div>
+            <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('dictionary.import.previewNote')}</p>
+          </div>
+        ) : null}
+
+        {importMutation.isError ? (
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+            {dictionaryErrorMessage(importMutation.error)}
+          </p>
+        ) : null}
+      </div>
     </Dialog>
   );
 }

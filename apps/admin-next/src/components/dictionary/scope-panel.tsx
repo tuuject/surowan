@@ -2,9 +2,10 @@ import { Select } from '@tuuject/koi-react/select';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Panel } from '@/components/layout/panel';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from '@tuuject/koi-react/skeleton';
 import type { DictionaryChatOption } from '@/lib/api/dictionary.ts';
 import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 export interface DictionaryScopePanelProps {
   readonly chatId: string | null;
@@ -31,10 +32,10 @@ export function DictionaryScopePanel({
   const missingScope = chatId !== null && !chats.some((chat) => chat.id === chatId);
 
   return (
-    <Panel title={t('dictionary.scope.label')} className="self-start">
-      <div className="space-y-3">
+    <Panel title={t('dictionary.scope.label')} className={css({ alignSelf: 'flex-start' })}>
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
         <Select
-          className="w-full"
+          className={css({ width: '100%' })}
           aria-label={t('dictionary.scope.label')}
           value={chatId ?? '__global__'}
           onChange={(event) => {
@@ -54,10 +55,12 @@ export function DictionaryScopePanel({
             </option>
           ))}
         </Select>
-        <p className="text-muted-foreground text-xs">{t('dictionary.scope.groupHint')}</p>
-        {chatsPending ? <Skeleton className="h-8 w-full" /> : null}
+        <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('dictionary.scope.groupHint')}</p>
+        {chatsPending ? <Skeleton className={css({ height: '32px', width: '100%' })} /> : null}
         {chatsFailed ? (
-          <p className="text-destructive text-sm break-words">{dictionaryErrorMessage(chatsError)}</p>
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+            {dictionaryErrorMessage(chatsError)}
+          </p>
         ) : null}
       </div>
     </Panel>

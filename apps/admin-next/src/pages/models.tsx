@@ -16,7 +16,7 @@ import { ProviderDetailHeader } from '@/components/models/provider-detail-header
 import { ProviderListPanel } from '@/components/models/provider-list';
 import { RestartBanner } from '@/components/models/restart-banner';
 import { ToolModelPanel } from '@/components/models/tool-model-panel';
-import { Button } from '@/components/ui/button';
+import { Button } from '@tuuject/koi-react/button';
 import { restartServer } from '@/lib/api/config.ts';
 import type { ChatThinkingReset } from '@/lib/api/models.ts';
 import { switchAgentModel, switchVisionModel } from '@/lib/api/models.ts';
@@ -34,6 +34,7 @@ import { providersQuery } from '@/lib/queries.ts';
 import { waitForAdminServer } from '@/lib/restart.ts';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 const EMPTY_FILTERS = { search: '' };
 
@@ -263,10 +264,10 @@ export default function ModelsPage(): React.ReactElement {
   };
 
   return (
-    <div className="space-y-5">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader title={t('models.models.page.providersTitle')} />
       {providers.isError ? (
-        <p role="alert" className="text-destructive text-sm break-words">
+        <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
           {errorMessage(providers.error)}
         </p>
       ) : null}
@@ -305,9 +306,20 @@ export default function ModelsPage(): React.ReactElement {
       <ToolModelPanel key={`${view.tool_model.provider}/${view.tool_model.model}`} view={view} revision={revision} />
 
       {selected === null ? (
-        <p className="text-muted-foreground border-t py-8 text-center text-sm">{t('models.models.page.emptyState')}</p>
+        <p
+          className={css({
+            textStyle: 'body',
+            color: 'text-muted',
+            borderTopWidth: '1px',
+            borderColor: 'divider',
+            paddingBlock: '8',
+            textAlign: 'center',
+          })}
+        >
+          {t('models.models.page.emptyState')}
+        </p>
       ) : (
-        <div className="space-y-5">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
           <ProviderDetailHeader view={view} provider={selected} onDelete={() => setDeletingProvider(selected)} />
           <ProviderConnectionCard
             key={selected.alias}

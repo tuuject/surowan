@@ -105,7 +105,7 @@ export const layout = {
     appliedFilters: '{{count}} applied',
     refreshList: 'Refresh list',
     reset: 'Reset',
-    cursorPageCount: 'Page {{page}} · {{count}} records',
+    cursorPageCount: 'Page {{page}}, {{count}} records',
     totalCount: '{{count}} records',
     rowDetails: 'Row details',
     toggleRowDetails: 'Toggle row details',

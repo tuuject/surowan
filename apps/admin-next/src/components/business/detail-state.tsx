@@ -1,8 +1,9 @@
 import { Link } from '@tanstack/react-router';
 import type React from 'react';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { ApiError } from '@/lib/api/core.ts';
 import { errorMessage } from '@/lib/errors';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * Shared detail-page state contract. The three detail pages
@@ -20,9 +21,9 @@ import { errorMessage } from '@/lib/errors';
 
 export function DetailSkeleton(): React.ReactElement {
   return (
-    <div className="space-y-4">
-      <Skeleton className="h-40 w-full rounded-xl" />
-      <Skeleton className="h-80 w-full rounded-xl" />
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+      <Skeleton className={css({ height: '160px', width: '100%', borderRadius: 'xl' })} />
+      <Skeleton className={css({ height: '320px', width: '100%', borderRadius: 'xl' })} />
     </div>
   );
 }
@@ -45,10 +46,19 @@ export function DetailError({
   const apiError = error instanceof ApiError ? error : null;
   const notFound = apiError?.status === 404;
   return (
-    <div className="space-y-2 p-6 text-center">
-      <p className="text-destructive font-medium">{notFound ? notFoundTitle : failedTitle}</p>
-      <p className="text-muted-foreground text-sm break-words">{errorMessage(error)}</p>
-      <Link to={backTo} className="text-primary inline-block text-sm underline-offset-4 hover:underline">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' }, padding: '6', textAlign: 'center' })}>
+      <p className={css({ textStyle: 'label', color: 'error-text' })}>{notFound ? notFoundTitle : failedTitle}</p>
+      <p className={css({ textStyle: 'body', color: 'text-muted', overflowWrap: 'anywhere' })}>{errorMessage(error)}</p>
+      <Link
+        to={backTo}
+        className={css({
+          textStyle: 'body',
+          color: 'text-brand',
+          display: 'inline-block',
+          textUnderlineOffset: '4px',
+          _hover: { textDecorationLine: 'underline' },
+        })}
+      >
         {backLabel}
       </Link>
     </div>

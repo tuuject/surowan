@@ -2,13 +2,23 @@ import { defineConfig } from '@pandacss/dev';
 
 /**
  * Koi ships its design system as a Panda preset plus build info; this app only
- * needs to point Panda at it. `include` covers our own `css()` calls in the
- * shell and shared layout components — the library's generated build info
- * already contains every utility its recipes can emit.
+ * points Panda at it. `include` covers every `css()` call in the app.
  */
 export default defineConfig({
   preflight: true,
   designSystem: '@tuuject/koi-react',
   include: ['./src/**/*.{ts,tsx}'],
   outdir: 'styled-system',
+  theme: {
+    extend: {
+      tokens: {
+        fonts: {
+          // Koi has only the `sans` family. The panel shows raw IDs, hashes, JSON
+          // and diffs that need fixed-width glyphs, so it adds one app token
+          // instead of writing a font stack at each call site.
+          mono: { value: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace' },
+        },
+      },
+    },
+  },
 });

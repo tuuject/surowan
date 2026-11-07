@@ -26,7 +26,7 @@ test('system color scheme change updates the theme context value', async ({ page
 
   await page.emulateMedia({ colorScheme: 'dark' });
 
-  await expect(page.locator('html')).toHaveClass(/dark/);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect.poll(() => tree.getAttribute('style')).not.toBe(lightStyle);
 });
 
@@ -36,7 +36,7 @@ test('Panel preferences set theme and language alongside the header toggles', as
   const theme = page.getByRole('combobox', { name: 'Theme' });
   await expect(theme).toHaveValue('system');
   await theme.selectOption({ label: 'Dark' });
-  await expect(page.locator('html')).toHaveClass(/dark/);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   // The header toggle stays and reads the same mode.
   await expect(page.getByRole('button', { name: 'Toggle theme: Dark' })).toBeVisible();
 
@@ -44,7 +44,7 @@ test('Panel preferences set theme and language alongside the header toggles', as
   await expect(page.getByRole('link', { name: '面板偏好', exact: true }).first()).toBeVisible();
   await expect(page.getByRole('combobox', { name: '主题' })).toHaveValue('dark');
   await page.reload();
-  await expect(page.locator('html')).toHaveClass(/dark/);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.getByRole('combobox', { name: '语言' })).toHaveValue('zh-CN');
 
   // The header language toggle still switches, and the page follows it.

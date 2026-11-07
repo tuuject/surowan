@@ -1,6 +1,6 @@
 import { IconButton } from '@tuuject/koi-react/button';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { Menu, PanelLeft, Rows3 } from 'lucide-react';
+import { MenuIcon, PanelLeftIcon, RowsIcon } from '@/components/icons';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '@/stores/ui';
 import { Brand } from './Brand';
@@ -52,7 +52,7 @@ export function Topbar({ username, onSignOut }: { readonly username: string; rea
         })}
       >
         <IconButton
-          icon={<Menu size={16} />}
+          icon={<MenuIcon size={16} />}
           label={t('layout.openNavigation')}
           size="sm"
           className={css({ display: 'flex', md: { display: 'none' } })}
@@ -78,7 +78,7 @@ export function Topbar({ username, onSignOut }: { readonly username: string; rea
           </>
         ) : (
           <IconButton
-            icon={<PanelLeft size={16} />}
+            icon={<PanelLeftIcon size={16} />}
             label={sidebarCollapsed ? t('layout.expandSidebar') : t('layout.collapseSidebar')}
             size="sm"
             aria-expanded={!sidebarCollapsed}
@@ -91,7 +91,7 @@ export function Topbar({ username, onSignOut }: { readonly username: string; rea
         <LanguageToggle />
         <ThemeToggle />
         <IconButton
-          icon={horizontal ? <PanelLeft size={16} /> : <Rows3 size={16} />}
+          icon={horizontal ? <PanelLeftIcon size={16} /> : <RowsIcon size={16} />}
           label={horizontal ? t('layout.useSidebar') : t('layout.useHorizontalNav')}
           size="sm"
           className={css({ display: 'none', md: { display: 'flex' } })}

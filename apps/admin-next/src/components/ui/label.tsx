@@ -1,6 +1,5 @@
-import { css } from '@tuuject/koi-react/styled-system/css';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import type * as React from 'react';
-import { cn } from '@/lib/utils';
 
 const labelClass = css({
   display: 'flex',
@@ -17,7 +16,7 @@ const labelClass = css({
 function Label({ className, ...props }: React.ComponentProps<'label'>): React.ReactElement {
   // Some call sites wrap their radio/checkbox directly; the linter can't see that association.
   // biome-ignore lint/a11y/noLabelWithoutControl: a wrapped control is a valid label association
-  return <label className={cn(labelClass, className)} {...props} />;
+  return <label className={cx(labelClass, className)} {...props} />;
 }
 
 export { Label };

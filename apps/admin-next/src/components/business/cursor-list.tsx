@@ -8,10 +8,10 @@ import type React from 'react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListFooter, ListToolbar } from '@/components/business/list-page';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert } from '@tuuject/koi-react/alert';
 import type { ListFilters, Page } from '@/lib/api/core.ts';
 import { ApiError } from '@/lib/api/core.ts';
-import { cn } from '@/lib/utils';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 
 export type CursorQueryOptions<T, TQueryKey extends QueryKey = QueryKey> = UndefinedInitialDataInfiniteOptions<
   Page<T>,
@@ -104,9 +104,8 @@ function CursorListError({ error, title }: { readonly error: unknown; readonly t
         ? error.message
         : t('invocations.business.cursorList.adminRequestFailed');
   return (
-    <Alert variant="destructive">
-      <AlertTitle>{title}</AlertTitle>
-      <AlertDescription>{message}</AlertDescription>
+    <Alert tone="error" title={title}>
+      {message}
     </Alert>
   );
 }
@@ -125,7 +124,7 @@ export function CursorList<T, TQueryKey extends QueryKey = QueryKey>({
   );
 
   return (
-    <div className={cn('space-y-4', className)}>
+    <div className={cx(css({ '& > :not(:last-child)': { marginBlockEnd: '4' } }), className)}>
       <ListToolbar
         onRefresh={() => {
           if (!query.isFetching) {

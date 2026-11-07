@@ -9,11 +9,11 @@ import {
   ListSearchForm,
   TableShell,
 } from '@/components/business';
-import { EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import type { ConversationContextListItem } from '@/lib/api/contexts.ts';
 import { formatNumber, formatTime } from '@/lib/format';
 import { chatQuery, useListQuery } from '@/lib/list-query';
 import { conversationContextsQuery } from '@/lib/queries';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 const ID_LINK =
   'decoration-border hover:decoration-foreground font-medium tabular-nums underline underline-offset-4 transition-colors';
@@ -39,9 +39,11 @@ export default function ContextsPage(): React.ReactElement {
       title: t('invocations.contexts.columns.chat'),
       className: 'min-w-48',
       render: (row) => (
-        <div className="min-w-0 space-y-0.5">
-          <div className="font-medium break-words">{row.chat_title ?? row.telegram_chat_id}</div>
-          <div className="text-muted-foreground text-xs">
+        <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <div className={css({ textStyle: 'label', overflowWrap: 'anywhere' })}>
+            {row.chat_title ?? row.telegram_chat_id}
+          </div>
+          <div className={css({ textStyle: 'small', color: 'text-muted' })}>
             {row.chat_type}
             {row.message_thread_id === 0 ? '' : ` · topic ${row.message_thread_id}`}
           </div>
@@ -74,7 +76,7 @@ export default function ContextsPage(): React.ReactElement {
       className: 'ps-6',
       render: (row) =>
         row.active_invocation_id === null ? (
-          <span className="text-muted-foreground">—</span>
+          <span className={css({ color: 'text-muted' })}>—</span>
         ) : (
           <Link to="/invocations/$invocationId" params={{ invocationId: row.active_invocation_id }} className={ID_LINK}>
             {row.active_invocation_id}
@@ -96,7 +98,7 @@ export default function ContextsPage(): React.ReactElement {
   ];
 
   return (
-    <div className="space-y-5">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader title={t('layout.nav.contexts')} />
       <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
         {({ draft, change }) => <ChatFilter value={draft.chat} onChange={(chat) => change({ chat })} />}
@@ -110,13 +112,8 @@ export default function ContextsPage(): React.ReactElement {
             data={items}
             rowKey={(row) => row.conversation_id}
             loading={loading}
-            frame={false}
-            emptyText={
-              <div className="space-y-1 py-2">
-                <EmptyTitle>{t('invocations.contexts.empty.title')}</EmptyTitle>
-                <EmptyDescription>{t('invocations.contexts.empty.description')}</EmptyDescription>
-              </div>
-            }
+            emptyText={t('invocations.contexts.empty.title')}
+            emptyDescription={t('invocations.contexts.empty.description')}
           />
         )}
       />

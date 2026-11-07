@@ -1,10 +1,10 @@
 import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createRootRouteWithContext, type ErrorComponentProps, useNavigate } from '@tanstack/react-router';
+import { Spinner } from '@tuuject/koi-react/spinner';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { AppShell } from '@/components/app-shell/AppShell';
-import { Button } from '@/components/ui/button';
+import { Button } from '@tuuject/koi-react/button';
 import { logout } from '@/lib/api/auth.ts';
 import type { SessionState } from '@/lib/api/core.ts';
 import { ApiError } from '@/lib/api/core.ts';
@@ -39,7 +39,7 @@ function AuthGate(): React.ReactNode {
   if (isPending) {
     return (
       <Centered>
-        <Loader2 className={css({ width: 'icon-lg', height: 'icon-lg', color: 'text-muted', animation: 'spin' })} />
+        <Spinner label={t('common.loading')} />
       </Centered>
     );
   }
@@ -59,7 +59,7 @@ function AuthGate(): React.ReactNode {
   if (data === undefined) {
     return (
       <Centered>
-        <Loader2 className={css({ width: 'icon-lg', height: 'icon-lg', color: 'text-muted', animation: 'spin' })} />
+        <Spinner label={t('common.loading')} />
       </Centered>
     );
   }

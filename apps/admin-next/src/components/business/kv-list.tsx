@@ -1,5 +1,5 @@
 import type React from 'react';
-import { cn } from '@/lib/utils';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * Key/value detail list for detail-page diagnostic fields. Null or empty
@@ -20,11 +20,22 @@ export function KvList({
   readonly className?: string;
 }): React.ReactElement {
   return (
-    <dl className={cn('grid gap-x-6 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3', className)}>
+    <dl
+      className={cx(
+        css({
+          display: 'grid',
+          columnGap: '6',
+          rowGap: '3',
+          md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
+          '@media (min-width: 1024px)': { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' },
+        }),
+        className,
+      )}
+    >
       {items.map((item) => (
-        <div key={item.label} className="min-w-0">
-          <dt className="text-muted-foreground text-xs">{item.label}</dt>
-          <dd className="mt-0.5 text-sm break-words">{item.value}</dd>
+        <div key={item.label} className={css({ minWidth: '0' })}>
+          <dt className={css({ textStyle: 'small', color: 'text-muted' })}>{item.label}</dt>
+          <dd className={css({ textStyle: 'body', marginBlockStart: '1', overflowWrap: 'anywhere' })}>{item.value}</dd>
         </div>
       ))}
     </dl>
@@ -40,9 +51,9 @@ export function TextValue({
   readonly className?: string;
 }): React.ReactElement {
   if (value === null || value.length === 0) {
-    return <span className="text-muted-foreground">—</span>;
+    return <span className={css({ color: 'text-muted' })}>—</span>;
   }
-  return <span className={cn('break-words', className)}>{value}</span>;
+  return <span className={cx(css({ overflowWrap: 'anywhere' }), className)}>{value}</span>;
 }
 
 /** Nullable monospace ID text (bigint-string fields stay strings). */
@@ -54,7 +65,18 @@ export function MonoValue({
   readonly className?: string;
 }): React.ReactElement {
   if (value === null || value.length === 0) {
-    return <span className="text-muted-foreground">—</span>;
+    return <span className={css({ color: 'text-muted' })}>—</span>;
   }
-  return <code className={cn('rounded bg-muted px-1 py-0.5 font-mono text-xs break-all', className)}>{value}</code>;
+  return (
+    <code
+      className={cx(
+        // Plain fixed-width text in the surrounding size and color: a filled chip on every ID turns a
+        // table into a field of pills.
+        css({ fontFamily: 'mono', wordBreak: 'break-all' }),
+        className,
+      )}
+    >
+      {value}
+    </code>
+  );
 }

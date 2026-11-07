@@ -11,14 +11,9 @@ function resolveTheme(mode: ThemeMode): 'light' | 'dark' {
   return mode;
 }
 
-/**
- * Applies both theme spellings the panel uses: Koi's Panda conditions read
- * `data-theme`, while the JSON viewer and existing persisted tooling read the
- * `dark` class. They always move together.
- */
-function applyThemeClass(resolved: 'light' | 'dark') {
+/** Koi's Panda conditions read `data-theme`; `color-scheme` keeps native controls in step. */
+function applyTheme(resolved: 'light' | 'dark') {
   const root = document.documentElement;
-  root.classList.toggle('dark', resolved === 'dark');
   root.setAttribute('data-theme', resolved);
   root.style.colorScheme = resolved;
 }
@@ -63,13 +58,13 @@ export function ThemeProvider({ children }: { readonly children: ReactNode }) {
     }
     const nextResolved = resolveTheme(next);
     setResolved(nextResolved);
-    applyThemeClass(nextResolved);
+    applyTheme(nextResolved);
   }, []);
 
   // Keep the attributes in sync with `resolved`: it changes with the mode and,
   // in "system" mode, with the OS scheme.
   useEffect(() => {
-    applyThemeClass(resolved);
+    applyTheme(resolved);
   }, [resolved]);
 
   // Optional host bridge: a desktop shell can call the Koi-native setter, and
@@ -91,7 +86,7 @@ export function ThemeProvider({ children }: { readonly children: ReactNode }) {
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = () => {
       const next = media.matches ? 'dark' : 'light';
-      applyThemeClass(next);
+      applyTheme(next);
       setResolved(next);
     };
     media.addEventListener('change', handler);

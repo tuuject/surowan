@@ -9,6 +9,7 @@ import type { ProvidersView } from '@/lib/api/providers.ts';
 import { agentModelConfig, isThinkingLevel, supportedThinkingLevels, writeErrorMessage } from '@/lib/model-manager.ts';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * What the bot runs on right now, whichever provider the page has selected:
@@ -52,7 +53,7 @@ export function InUsePanel({
             label: t('models.models.inUse.agentModel'),
             value:
               view.agent.provider === null || view.agent.model === null ? (
-                <span className="text-muted-foreground">{t('models.models.inUse.notConfigured')}</span>
+                <span className={css({ color: 'text-muted' })}>{t('models.models.inUse.notConfigured')}</span>
               ) : (
                 <MonoValue value={`${view.agent.provider} / ${view.agent.model}`} />
               ),
@@ -60,10 +61,18 @@ export function InUsePanel({
           {
             label: t('models.models.inUse.thinkingEffort'),
             value: (
-              <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span
+                className={css({
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  columnGap: '3',
+                  rowGap: '1',
+                })}
+              >
                 <Select
                   size="sm"
-                  className="w-32"
+                  className={css({ width: '128px' })}
                   aria-label={t('models.models.inUse.thinkingEffort')}
                   placeholder={t('models.models.inUse.levelUnset')}
                   value={current ?? ''}
@@ -81,7 +90,9 @@ export function InUsePanel({
                     </option>
                   ))}
                 </Select>
-                <span className="text-muted-foreground text-xs">{t('models.models.inUse.resetsNote')}</span>
+                <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+                  {t('models.models.inUse.resetsNote')}
+                </span>
               </span>
             ),
           },
@@ -89,7 +100,7 @@ export function InUsePanel({
             label: t('models.models.inUse.visionModel'),
             value:
               view.vision.provider === null || view.vision.model === null ? (
-                <span className="text-muted-foreground">{t('models.models.inUse.notConfigured')}</span>
+                <span className={css({ color: 'text-muted' })}>{t('models.models.inUse.notConfigured')}</span>
               ) : (
                 <MonoValue value={`${view.vision.provider} / ${view.vision.model}`} />
               ),

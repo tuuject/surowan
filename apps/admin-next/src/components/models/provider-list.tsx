@@ -7,9 +7,10 @@ import {
   ToneBadge,
   useClientPagination,
 } from '@/components/business';
-import { Button } from '@/components/ui/button';
+import { Button } from '@tuuject/koi-react/button';
 import type { ProvidersView, ProviderView } from '@/lib/api/providers.ts';
 import { providerUsage } from '@/lib/model-manager.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /** Which slots the provider currently serves. */
 export function ProviderBadges({
@@ -22,7 +23,7 @@ export function ProviderBadges({
   const { t } = useTranslation();
   const usage = providerUsage(view, provider.alias);
   return (
-    <span className="flex flex-wrap items-center gap-1">
+    <span className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1' })}>
       {usage.agent ? <ToneBadge tone="success">{t('models.models.page.agentInUse')}</ToneBadge> : null}
       {usage.vision ? <ToneBadge tone="info">{t('models.models.page.visionInUse')}</ToneBadge> : null}
     </span>
@@ -54,7 +55,8 @@ export function ProviderListPanel({
         return (
           <Button
             type="button"
-            variant={active ? 'secondary' : 'ghost'}
+            variant={active ? 'soft' : 'ghost'}
+            color="secondary"
             size="sm"
             aria-label={t('models.models.page.providerAria', { alias: provider.alias })}
             aria-current={active ? 'true' : undefined}
@@ -75,9 +77,9 @@ export function ProviderListPanel({
       key: 'usage',
       title: t('models.models.page.colInUse'),
       render: (provider) => (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
           <ProviderBadges view={view} provider={provider} />
-          <span className="text-muted-foreground text-xs tabular-nums">
+          <span className={css({ textStyle: 'small', color: 'text-muted', fontVariantNumeric: 'tabular-nums' })}>
             {t(provider.models.length === 1 ? 'models.models.page.oneModel' : 'models.models.page.manyModels', {
               count: provider.models.length,
             })}
@@ -93,7 +95,6 @@ export function ProviderListPanel({
         columns={columns}
         data={pagination.items}
         rowKey={(provider) => provider.alias}
-        frame={false}
         emptyText={
           view.providers.length === 0
             ? t('models.models.page.noProviders')

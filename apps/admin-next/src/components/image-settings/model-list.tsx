@@ -1,10 +1,11 @@
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import { type ColumnSpec, ListFooter, TableShell, useClientPagination } from '@/components/business';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@tuuject/koi-react/button';
+import { Textarea } from '@tuuject/koi-react/textarea';
 import { ModelCapabilities } from './model-capabilities.tsx';
 import type { EditableModel } from './shared.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /** The models that will be saved, with editable descriptions kept visible in each row. */
 export function ModelList({
@@ -24,9 +25,9 @@ export function ModelList({
       title: t('image.settings.modelsPanelTitle'),
       className: 'min-w-48',
       render: (model) => (
-        <div className="space-y-1">
-          <p className="text-sm font-medium">{model.name}</p>
-          <p className="text-muted-foreground break-all text-xs">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <p className={css({ textStyle: 'label' })}>{model.name}</p>
+          <p className={css({ textStyle: 'small', color: 'text-muted', wordBreak: 'break-all' })}>
             {model.upstreamModel} · {model.providerTag} ·{' '}
             {t('image.settings.credentialRef', { name: model.credentialRef })}
           </p>
@@ -43,7 +44,7 @@ export function ModelList({
       title: t('image.settings.modelDescriptionLabel'),
       className: 'min-w-72',
       render: (model) => (
-        <div className="space-y-2">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
           <Textarea
             id={`model-description-${model.key}`}
             aria-label={t('image.settings.modelDescriptionLabel')}
@@ -57,7 +58,7 @@ export function ModelList({
               )
             }
           />
-          <p className="text-muted-foreground text-xs">{t('image.settings.modelDescriptionHint')}</p>
+          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('image.settings.modelDescriptionHint')}</p>
         </div>
       ),
     },
@@ -69,6 +70,7 @@ export function ModelList({
         <Button
           size="sm"
           variant="ghost"
+          color="secondary"
           aria-label={t('image.settings.removeModel', { name: model.name })}
           onClick={() => setModels((current) => current.filter((item) => item.key !== model.key))}
         >
@@ -79,9 +81,9 @@ export function ModelList({
   ];
 
   return (
-    <div className="space-y-3">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
       {mergedDuplicates > 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className={css({ textStyle: 'body', color: 'text-muted' })}>
           {t('image.settings.mergedDuplicates', { count: mergedDuplicates })}
         </p>
       ) : null}
@@ -90,7 +92,6 @@ export function ModelList({
           columns={columns}
           data={pagination.items}
           rowKey={(model) => model.key}
-          frame={false}
           emptyText={t('image.settings.noModelsYet')}
         />
         <ListFooter

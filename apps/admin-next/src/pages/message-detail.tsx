@@ -17,6 +17,7 @@ import { Panel } from '@/components/layout/panel';
 import type { MediaEntry, MessageDetail, RevisionEntry } from '@/lib/api/messages.ts';
 import { formatNumber, formatTime } from '@/lib/format';
 import { messageQuery } from '@/lib/queries';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 function YesNoBadge({ value }: { readonly value: boolean }): React.ReactElement {
   const { t } = useTranslation();
@@ -33,12 +34,21 @@ function DetailHeader({ message }: { readonly message: MessageDetail }): React.R
     <Panel
       title={t('invocations.messageDetail.title', { id: message.id })}
       action={
-        <Link to="/messages" className="text-primary shrink-0 text-sm underline-offset-4 hover:underline">
+        <Link
+          to="/messages"
+          className={css({
+            textStyle: 'body',
+            color: 'text-brand',
+            flexShrink: '0',
+            textUnderlineOffset: '4px',
+            _hover: { textDecorationLine: 'underline' },
+          })}
+        >
           {t('invocations.messageDetail.backToList')}
         </Link>
       }
     >
-      <div className="space-y-4">
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
         <KvList
           items={[
             {
@@ -81,7 +91,7 @@ function RevisionsTable({ message }: { readonly message: MessageDetail }): React
       key: 'sender',
       title: t('invocations.messageDetail.revisionColumns.sender'),
       render: (row) => (
-        <div className="min-w-0 space-y-0.5">
+        <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           <TextValue value={row.sender?.display_name ?? null} />
           {row.sender === null ? null : (
             <CopyableValue
@@ -97,7 +107,9 @@ function RevisionsTable({ message }: { readonly message: MessageDetail }): React
       title: t('invocations.messageDetail.revisionColumns.text'),
       className: 'min-w-72 max-w-2xl whitespace-normal',
       render: (row) => (
-        <p className="max-w-2xl text-sm break-words whitespace-pre-wrap">{row.text ?? row.caption ?? '—'}</p>
+        <p className={css({ textStyle: 'body', maxWidth: '42rem', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>
+          {row.text ?? row.caption ?? '—'}
+        </p>
       ),
     },
     {
@@ -118,17 +130,23 @@ function RevisionsTable({ message }: { readonly message: MessageDetail }): React
       rowKey={(row) => row.id}
       emptyText={t('invocations.messageDetail.noRevisions')}
       expandedRender={(row) => (
-        <div className="space-y-2">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
           <div>
-            <p className="text-muted-foreground mb-1 text-xs">{t('invocations.messageDetail.replySnapshot')}</p>
+            <p className={css({ textStyle: 'small', color: 'text-muted', marginBlockEnd: '1' })}>
+              {t('invocations.messageDetail.replySnapshot')}
+            </p>
             <JsonViewer value={row.reply_snapshot_json} />
           </div>
           <div>
-            <p className="text-muted-foreground mb-1 text-xs">{t('invocations.messageDetail.forwardOrigin')}</p>
+            <p className={css({ textStyle: 'small', color: 'text-muted', marginBlockEnd: '1' })}>
+              {t('invocations.messageDetail.forwardOrigin')}
+            </p>
             <JsonViewer value={row.forward_origin_json} />
           </div>
           <div>
-            <p className="text-muted-foreground mb-1 text-xs">{t('invocations.messageDetail.servicePayload')}</p>
+            <p className={css({ textStyle: 'small', color: 'text-muted', marginBlockEnd: '1' })}>
+              {t('invocations.messageDetail.servicePayload')}
+            </p>
             <JsonViewer value={row.service_json} />
           </div>
         </div>
@@ -145,7 +163,19 @@ function MediaTable({ message }: { readonly message: MessageDetail }): React.Rea
       key: 'file_unique_id',
       title: t('invocations.messageDetail.mediaColumns.fileUniqueId'),
       render: (row) => (
-        <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs break-all">{row.file_unique_id}</code>
+        <code
+          className={css({
+            textStyle: 'small',
+            borderRadius: 'lg',
+            bg: 'surface-muted',
+            paddingInline: '1',
+            paddingBlock: '1',
+            fontFamily: 'mono',
+            wordBreak: 'break-all',
+          })}
+        >
+          {row.file_unique_id}
+        </code>
       ),
     },
     {
@@ -164,7 +194,7 @@ function MediaTable({ message }: { readonly message: MessageDetail }): React.Rea
       title: t('invocations.messageDetail.mediaColumns.dimensions'),
       render: (row) =>
         row.width === null || row.height === null ? (
-          <span className="text-muted-foreground">—</span>
+          <span className={css({ color: 'text-muted' })}>—</span>
         ) : (
           `${row.width}×${row.height}`
         ),
@@ -217,7 +247,7 @@ export function MessageDetailView({ id }: { readonly id: string }): React.ReactE
   }
 
   return (
-    <div className="space-y-4">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
       <DetailHeader message={data} />
       <Panel title={t('invocations.messageDetail.revisionsTitle', { count: data.revisions.length })}>
         <div>

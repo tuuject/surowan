@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { ToneBadge } from '@/components/business';
 import type { TelegramBot, TelegramConnectionState, TelegramConnectionStatus } from '@/lib/api/telegram.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 const STATUS_TONE: Record<TelegramConnectionStatus, 'success' | 'warning' | 'danger' | 'neutral'> = {
   connected: 'success',
@@ -25,7 +26,11 @@ export function TelegramStatusReason({
   if (state.status !== 'config_error') {
     return null;
   }
-  return <span className="text-muted-foreground text-sm">{t(`pages.telegram.reason.${state.reason}`)}</span>;
+  return (
+    <span className={css({ textStyle: 'body', color: 'text-muted' })}>
+      {t(`pages.telegram.reason.${state.reason}`)}
+    </span>
+  );
 }
 
 /** `@name` when Telegram reported one, the numeric id while only that is known. */

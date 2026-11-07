@@ -1,11 +1,12 @@
-import { Pencil } from 'lucide-react';
+import { EditIcon } from '@/components/icons';
 import { useTranslation } from 'react-i18next';
 import { MonoValue, ToneBadge } from '@/components/business';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from '@tuuject/koi-react/button';
+import { Input } from '@tuuject/koi-react/input';
 import type { DiscoveredModel, ProviderModelConfig } from '@/lib/api/providers.ts';
 import { formatNumber } from '@/lib/format.ts';
 import { draftNeedsConfirmation, matchLabel, unconfirmedFields } from '@/lib/model-manager.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * One drafted value; a field nobody could fill reads `—`. The label stays
@@ -15,8 +16,8 @@ import { draftNeedsConfirmation, matchLabel, unconfirmedFields } from '@/lib/mod
  */
 function Metric({ label, value }: { readonly label: string; readonly value: React.ReactNode }): React.ReactElement {
   return (
-    <span className="whitespace-nowrap">
-      {label} <span className="text-foreground/80">{value}</span>
+    <span className={css({ whiteSpace: 'nowrap' })}>
+      {label} <span className={css({ color: 'text' })}>{value}</span>
     </span>
   );
 }
@@ -48,7 +49,7 @@ export function ModelDraftList({
 }): React.ReactElement {
   const { t } = useTranslation();
   return (
-    <div className="space-y-3">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
       <Input
         aria-label={t('models.models.drafts.search')}
         placeholder={t('models.models.drafts.search')}
@@ -56,27 +57,49 @@ export function ModelDraftList({
         onChange={(event) => onSearchChange(event.target.value)}
       />
       {drafts.length === 0 ? (
-        <p className="text-muted-foreground py-6 text-center text-sm">{emptyText}</p>
+        <p className={css({ textStyle: 'body', color: 'text-muted', paddingBlock: '6', textAlign: 'center' })}>
+          {emptyText}
+        </p>
       ) : (
-        <ul className="divide-border max-h-80 divide-y overflow-y-auto rounded-md border">
+        <ul
+          className={css({
+            maxHeight: '320px',
+            '& > :not(:last-child)': { borderBottomWidth: '1px', borderColor: 'divider' },
+            overflowY: 'auto',
+            borderRadius: 'lg',
+            borderWidth: '1px',
+            borderColor: 'border',
+          })}
+        >
           {drafts.map((draft) => {
             const confirmed = resolved[draft.id] !== undefined;
             const needsConfirmation = draftNeedsConfirmation(draft) && !confirmed;
             return (
-              <li key={draft.id} className="flex items-start gap-3 p-3">
+              <li key={draft.id} className={css({ display: 'flex', alignItems: 'flex-start', gap: '3', padding: '3' })}>
                 <input
                   type="checkbox"
-                  className="mt-1.5 size-4 shrink-0 rounded border-input"
+                  className={css({
+                    marginBlockStart: '2',
+                    width: 'icon',
+                    height: 'icon',
+                    flexShrink: '0',
+                    borderRadius: 'lg',
+                    borderColor: 'border-control',
+                  })}
                   aria-label={t('models.models.shared.select', { id: draft.id })}
                   checked={selected.has(draft.id)}
                   disabled={draft.configured}
                   onChange={() => onToggle(draft.id)}
                 />
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2">
+                <div
+                  className={css({ minWidth: '0', flex: '1 1 0%', '& > :not(:last-child)': { marginBlockEnd: '2' } })}
+                >
+                  <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
                     <MonoValue value={draft.id} />
                     {draft.name === null ? null : (
-                      <span className="text-muted-foreground truncate text-xs">{draft.name}</span>
+                      <span className={css({ textStyle: 'small', color: 'text-muted', truncate: true })}>
+                        {draft.name}
+                      </span>
                     )}
                     {draft.configured ? (
                       <ToneBadge tone="neutral">{t('models.models.drafts.configured')}</ToneBadge>
@@ -88,7 +111,16 @@ export function ModelDraftList({
                       </ToneBadge>
                     ) : null}
                   </div>
-                  <p className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                  <p
+                    className={css({
+                      textStyle: 'small',
+                      color: 'text-muted',
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      columnGap: '3',
+                      rowGap: '1',
+                    })}
+                  >
                     <Metric
                       label={t('models.models.drafts.context')}
                       value={draft.context_window === null ? '—' : formatNumber(draft.context_window)}
@@ -127,11 +159,19 @@ export function ModelDraftList({
                       truncates: a dialog's grid track sizes to max-content, so
                       one unbreakable sentence would widen the whole dialog. */}
                   {matchLabel(draft.match) === null ? null : (
-                    <p className="text-muted-foreground text-xs opacity-60">{matchLabel(draft.match)}</p>
+                    <p className={css({ textStyle: 'small', color: 'text-muted', opacity: '0.6' })}>
+                      {matchLabel(draft.match)}
+                    </p>
                   )}
                 </div>
-                <Button type="button" variant="ghost" size="xs" onClick={() => onEdit(draft)}>
-                  <Pencil />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  color="secondary"
+                  size="sm"
+                  onClick={() => onEdit(draft)}
+                  iconStart={<EditIcon />}
+                >
                   {t('common.edit')}
                 </Button>
               </li>

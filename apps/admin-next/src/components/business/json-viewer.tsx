@@ -5,11 +5,11 @@ import type React from 'react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/components/themes/theme-provider';
-import { Button } from '@/components/ui/button';
+import { Button } from '@tuuject/koi-react/button';
 import { downloadTextFile } from '@/lib/download.ts';
 import { prettyJson } from '@/lib/format';
-import { cn } from '@/lib/utils';
 import { LazyDetails } from './lazy-details';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * JSON viewer with a Tree / Text toggle. The tree is `@uiw/react-json-view`
@@ -90,7 +90,7 @@ export function JsonViewer({
   const [mode, setMode] = useState<'tree' | 'text'>(defaultMode);
   const text = prettyJson(value);
   if (text === null) {
-    return <span className="text-muted-foreground">—</span>;
+    return <span className={css({ color: 'text-muted' })}>—</span>;
   }
   const parsed = parseJsonValue(value);
   const canTree = isTree(parsed);
@@ -98,27 +98,38 @@ export function JsonViewer({
   const collapsed = initiallyCollapsed || large;
 
   return (
-    <div className={cn('space-y-1.5', className)}>
-      <div className="flex flex-wrap items-center gap-1">
+    <div className={cx(css({ '& > :not(:last-child)': { marginBlockEnd: '2' } }), className)}>
+      <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1' })}>
         <Button
-          size="xs"
-          variant={mode === 'tree' ? 'secondary' : 'ghost'}
+          size="sm"
+          variant={mode === 'tree' ? 'soft' : 'ghost'}
+          color="secondary"
+          aria-pressed={mode === 'tree'}
           disabled={!canTree}
           onClick={() => setMode('tree')}
         >
           {t('layout.business.tree')}
         </Button>
-        <Button size="xs" variant={mode === 'text' ? 'secondary' : 'ghost'} onClick={() => setMode('text')}>
+        <Button
+          size="sm"
+          variant={mode === 'text' ? 'soft' : 'ghost'}
+          color="secondary"
+          aria-pressed={mode === 'text'}
+          onClick={() => setMode('text')}
+        >
           {t('layout.business.text')}
         </Button>
-        {title !== undefined ? <span className="text-muted-foreground text-xs">{title}</span> : null}
+        {title !== undefined ? <span className={css({ textStyle: 'small', color: 'text-muted' })}>{title}</span> : null}
         {collapsed ? (
-          <span className="text-muted-foreground text-xs">{t('layout.business.chars', { n: text.length })}</span>
+          <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+            {t('layout.business.chars', { n: text.length })}
+          </span>
         ) : null}
         {downloadFileName !== undefined ? (
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
+            color="secondary"
             onClick={() => downloadTextFile(downloadFileName, text, 'application/json;charset=utf-8')}
           >
             {t('layout.business.downloadJson')}
@@ -130,7 +141,7 @@ export function JsonViewer({
           <LazyDetails
             summary={t('layout.business.payloadSummary', { n: text.length })}
             summaryClassName="text-muted-foreground hover:bg-muted cursor-pointer rounded px-1 py-0.5 text-xs transition-colors"
-            contentClassName={cn('mt-1', BOX)}
+            contentClassName={cx(css({ marginBlockStart: '1' }), BOX)}
           >
             <JsonTree value={parsed} />
           </LazyDetails>
@@ -140,7 +151,7 @@ export function JsonViewer({
           </div>
         )
       ) : (
-        <pre className={cn(BOX, 'break-all whitespace-pre-wrap')}>{text}</pre>
+        <pre className={cx(BOX, css({ wordBreak: 'break-all', whiteSpace: 'pre-wrap' }))}>{text}</pre>
       )}
     </div>
   );

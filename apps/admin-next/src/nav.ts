@@ -1,34 +1,13 @@
+import type { ComponentType } from 'react';
 import {
-  Bell,
-  BookText,
-  Brain,
-  Bug,
-  Cpu,
-  FileText,
-  ImagePlus,
-  Images,
-  KeyRound,
-  LayoutDashboard,
-  LibraryBig,
-  type LucideIcon,
-  MessageSquare,
-  MessagesSquare,
-  Monitor,
-  History,
-  Database,
-  Play,
-  ScrollText,
-  Search,
-  Send,
-  Settings,
-  Shield,
-  SlidersHorizontal,
-  SlidersVertical,
-  Sticker,
-  TriangleAlert,
-  UserCog,
-  Zap,
-} from 'lucide-react';
+  ActivityIcon,
+  DatabaseIcon,
+  MediaIcon,
+  MonitorIcon,
+  SettingsIcon,
+  SlidersIcon,
+  TelegramIcon,
+} from '@/components/icons';
 import type { layout as layoutEn } from '@/locales/en/layout.ts';
 
 /** Every destination in the panel navigation. Kept literal so TanStack Router's typed navigation stays checked. */
@@ -62,15 +41,16 @@ export type NavTo =
 export type NavGroupKey = keyof typeof layoutEn.navGroups;
 export type NavItemKey = keyof typeof layoutEn.nav;
 
+/** A page. Children drop the icon and indent under their group instead (Koi NavMenu spec). */
 export interface NavItemDefinition {
   readonly titleKey: NavItemKey;
   readonly to: NavTo;
-  readonly icon: LucideIcon;
 }
 
 export interface NavGroupDefinition {
   readonly labelKey: NavGroupKey;
-  readonly icon: LucideIcon;
+  /** A 16px Font Awesome Solid icon in `currentColor`. */
+  readonly icon: ComponentType<{ size?: number }>;
   readonly items: readonly NavItemDefinition[];
 }
 
@@ -83,69 +63,69 @@ export interface NavGroupDefinition {
 export const NAV_GROUPS: readonly NavGroupDefinition[] = [
   {
     labelKey: 'monitor',
-    icon: Monitor,
+    icon: MonitorIcon,
     items: [
-      { titleKey: 'overview', to: '/', icon: LayoutDashboard },
-      { titleKey: 'warnings', to: '/warnings', icon: TriangleAlert },
+      { titleKey: 'overview', to: '/' },
+      { titleKey: 'warnings', to: '/warnings' },
     ],
   },
   {
     labelKey: 'activity',
-    icon: History,
+    icon: ActivityIcon,
     items: [
-      { titleKey: 'toolSessions', to: '/invocations', icon: Zap },
-      { titleKey: 'contexts', to: '/contexts', icon: MessageSquare },
-      { titleKey: 'messages', to: '/messages', icon: FileText },
-      { titleKey: 'playground', to: '/playground', icon: Play },
+      { titleKey: 'toolSessions', to: '/invocations' },
+      { titleKey: 'contexts', to: '/contexts' },
+      { titleKey: 'messages', to: '/messages' },
+      { titleKey: 'playground', to: '/playground' },
     ],
   },
   {
     labelKey: 'agentData',
-    icon: Database,
+    icon: DatabaseIcon,
     items: [
-      { titleKey: 'memories', to: '/memories', icon: Brain },
-      { titleKey: 'groupMemories', to: '/group-memories', icon: LibraryBig },
-      { titleKey: 'dictionary', to: '/dictionary', icon: BookText },
-      { titleKey: 'alarms', to: '/alarms', icon: Bell },
+      { titleKey: 'memories', to: '/memories' },
+      { titleKey: 'groupMemories', to: '/group-memories' },
+      { titleKey: 'dictionary', to: '/dictionary' },
+      { titleKey: 'alarms', to: '/alarms' },
     ],
   },
   {
     labelKey: 'media',
-    icon: Images,
+    icon: MediaIcon,
     items: [
-      { titleKey: 'botStickerSets', to: '/stickers', icon: Sticker },
-      { titleKey: 'imageGenerate', to: '/image-generate', icon: ImagePlus },
-      { titleKey: 'imageGenerations', to: '/image-generations', icon: Images },
-      { titleKey: 'imageSettings', to: '/image-settings', icon: Settings },
+      { titleKey: 'botStickerSets', to: '/stickers' },
+      { titleKey: 'imageGenerate', to: '/image-generate' },
+      { titleKey: 'imageGenerations', to: '/image-generations' },
+      { titleKey: 'imageSettings', to: '/image-settings' },
     ],
   },
   {
     labelKey: 'agentSetup',
-    icon: SlidersHorizontal,
+    icon: SlidersIcon,
     items: [
-      { titleKey: 'models', to: '/models', icon: Cpu },
-      { titleKey: 'prompts', to: '/prompts', icon: ScrollText },
-      { titleKey: 'harness', to: '/harness', icon: SlidersHorizontal },
-      { titleKey: 'searchSettings', to: '/search-settings', icon: Search },
+      { titleKey: 'models', to: '/models' },
+      { titleKey: 'prompts', to: '/prompts' },
+      { titleKey: 'harness', to: '/harness' },
+      { titleKey: 'searchSettings', to: '/search-settings' },
     ],
   },
   {
     labelKey: 'telegram',
-    icon: Send,
+    icon: TelegramIcon,
     items: [
-      { titleKey: 'telegram', to: '/telegram', icon: Send },
-      { titleKey: 'chats', to: '/chats', icon: MessagesSquare },
-      { titleKey: 'botAdmins', to: '/admins', icon: Shield },
+      { titleKey: 'telegram', to: '/telegram' },
+      { titleKey: 'chats', to: '/chats' },
+      { titleKey: 'botAdmins', to: '/admins' },
     ],
   },
   {
     labelKey: 'system',
-    icon: Settings,
+    icon: SettingsIcon,
     items: [
-      { titleKey: 'apiKeys', to: '/api-keys', icon: KeyRound },
-      { titleKey: 'developer', to: '/developer', icon: Bug },
-      { titleKey: 'settings', to: '/settings', icon: UserCog },
-      { titleKey: 'preferences', to: '/preferences', icon: SlidersVertical },
+      { titleKey: 'apiKeys', to: '/api-keys' },
+      { titleKey: 'developer', to: '/developer' },
+      { titleKey: 'settings', to: '/settings' },
+      { titleKey: 'preferences', to: '/preferences' },
     ],
   },
 ];

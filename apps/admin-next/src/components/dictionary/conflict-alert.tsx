@@ -1,9 +1,9 @@
-import { AlertTriangle } from 'lucide-react';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
 import type { DictionaryConflict } from '@/lib/api/dictionary.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 export interface DictionaryConflictAlertProps {
   readonly conflicts: readonly DictionaryConflict[];
@@ -18,25 +18,30 @@ export function DictionaryConflictAlert({
   const { t } = useTranslation();
 
   return (
-    <Alert>
-      <AlertTriangle className="text-warning" />
-      <AlertTitle>{t('dictionary.conflicts.title')}</AlertTitle>
-      <AlertDescription>
-        <p>{t('dictionary.conflicts.description')}</p>
-        <ul className="mt-2 space-y-1">
-          {conflicts.map((conflict) => (
-            <li key={conflict.value} className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-xs">{conflict.value}</span>
-              <span className="text-muted-foreground text-xs">
-                {t('dictionary.conflicts.entries', { count: conflict.entry_ids.length })}
-              </span>
-              <Button type="button" size="xs" variant="outline" onClick={() => onSelectEntries(conflict.entry_ids)}>
-                {t('dictionary.conflicts.mergeThis')}
-              </Button>
-            </li>
-          ))}
-        </ul>
-      </AlertDescription>
+    <Alert tone="warning" title={t('dictionary.conflicts.title')}>
+      <p>{t('dictionary.conflicts.description')}</p>
+      <ul className={css({ marginBlockStart: '2', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+        {conflicts.map((conflict) => (
+          <li
+            key={conflict.value}
+            className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}
+          >
+            <span className={css({ textStyle: 'small', fontFamily: 'mono' })}>{conflict.value}</span>
+            <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+              {t('dictionary.conflicts.entries', { count: conflict.entry_ids.length })}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              color="secondary"
+              onClick={() => onSelectEntries(conflict.entry_ids)}
+            >
+              {t('dictionary.conflicts.mergeThis')}
+            </Button>
+          </li>
+        ))}
+      </ul>
     </Alert>
   );
 }

@@ -3,18 +3,12 @@ import { ConfirmDialog } from '@/components/business';
 import { ModelEditDialog } from '@/components/models/model-edit-dialog';
 import { ModelPickerDialog, type ModelPickerMode } from '@/components/models/model-picker-dialog';
 import { ProviderWizard } from '@/components/models/provider-wizard';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
 import type { ChatThinkingReset } from '@/lib/api/models.ts';
 import type { ProviderModelConfig, ProvidersView, ProviderView } from '@/lib/api/providers.ts';
 import { modelFormFromConfig } from '@/lib/model-manager.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 export interface PickerTarget {
   readonly mode: ModelPickerMode;
@@ -96,23 +90,31 @@ export function ModelsDialogs({
   const { t } = useTranslation();
   return (
     <>
-      <Dialog open={thinkingResets.length > 0} onOpenChange={(open) => !open && onThinkingResetsClose()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('models.models.page.chatThinkingResetTitle')}</DialogTitle>
-            <DialogDescription>{t('models.models.page.chatThinkingResetDescription')}</DialogDescription>
-          </DialogHeader>
-          <ul className="max-h-64 space-y-2 overflow-y-auto text-sm">
-            {thinkingResets.map((reset) => (
-              <li key={reset.chat_id}>
-                <code>{reset.chat_id}</code>: {reset.previous} → {reset.current}
-              </li>
-            ))}
-          </ul>
-          <DialogFooter>
+      <Dialog
+        open={thinkingResets.length > 0}
+        onOpenChange={(open) => !open && onThinkingResetsClose()}
+        title={t('models.models.page.chatThinkingResetTitle')}
+        description={t('models.models.page.chatThinkingResetDescription')}
+        footer={
+          <>
             <Button onClick={onThinkingResetsClose}>{t('models.models.page.chatThinkingResetClose')}</Button>
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        <ul
+          className={css({
+            textStyle: 'body',
+            maxHeight: '256px',
+            '& > :not(:last-child)': { marginBlockEnd: '2' },
+            overflowY: 'auto',
+          })}
+        >
+          {thinkingResets.map((reset) => (
+            <li key={reset.chat_id}>
+              <code>{reset.chat_id}</code>: {reset.previous} → {reset.current}
+            </li>
+          ))}
+        </ul>
       </Dialog>
 
       {wizardOpen ? <ProviderWizard revision={revision} onClose={onWizardClose} onCreated={onProviderCreated} /> : null}

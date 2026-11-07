@@ -19,7 +19,7 @@ export { DetailError, type DetailErrorProps, DetailSkeleton } from './detail-sta
 export { JsonViewer, type JsonViewerProps } from './json-viewer';
 export { type KvItem, KvList, MonoValue, TextValue } from './kv-list';
 export { LazyDetails, type LazyDetailsProps } from './lazy-details';
-export { ListFilterCard, ListFooter, ListPageHeader, ListToolbar } from './list-page';
+export { ListFilterCard, ListFooter, ListPageHeader, ListToolbar, RowActions } from './list-page';
 export {
   CLIENT_PAGE_SIZE,
   type ClientPagination,
@@ -39,4 +39,4 @@ export {
   QueryTextField,
 } from './query-form';
 export { type BadgeSemantic, StateBadge, stateBadgeSemantic, ToneBadge } from './state-badge';
-export { type ColumnSpec, FLUSH_TABLE_CLASS, LIST_TABLE_CLASS, TableShell, type TableShellProps } from './table-shell';
+export { type ColumnSpec, TableShell, type TableShellProps } from './table-shell';

@@ -1,9 +1,11 @@
+import { IconButton } from '@tuuject/koi-react/button';
+import { TrashIcon } from '@tuuject/koi-react/icons';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import type { TFunction } from 'i18next';
-import { type ColumnSpec, MonoValue } from '@/components/business';
-import { Button } from '@/components/ui/button';
+import { type ColumnSpec, MonoValue, RowActions } from '@/components/business';
+import { EditIcon, EyeIcon } from '@/components/icons';
 import type { MemoryEntry } from '@/lib/api/memories.ts';
 import { formatTime } from '@/lib/format';
-import { formatTtl } from '@/lib/memory-ttl';
 import { MemoryStatus } from './memories-status.tsx';
 
 export interface MemoryColumnActions {
@@ -12,52 +14,88 @@ export interface MemoryColumnActions {
   readonly onDelete: (row: MemoryEntry) => void;
 }
 
+const secondaryLine = css({ textStyle: 'small', color: 'text-muted', truncate: true });
+
+/**
+ * Summary and chat are the two free-text columns that share the spare width;
+ * the memo ID rides under its summary instead of taking a 300px column of its own.
+ */
 export function memoryColumns(t: TFunction, actions: MemoryColumnActions): readonly ColumnSpec<MemoryEntry>[] {
   return [
-    { key: 'id', title: t('pages.memories.colId'), render: (row) => <MonoValue value={row.id} /> },
     {
-      key: 'chat',
-      title: t('pages.memories.colChat'),
+      key: 'summary',
+      title: t('pages.memories.colSummary'),
       render: (row) => (
-        <div className="min-w-0 space-y-0.5">
-          <div className="font-medium">{row.chat.title ?? row.chat.telegram_chat_id}</div>
-          <div className="text-muted-foreground text-xs">{row.chat.telegram_chat_id}</div>
+        <div className={css({ minWidth: '0' })}>
+          <div className={css({ truncate: true })} title={row.summary}>
+            {row.summary}
+          </div>
+          <div className={secondaryLine}>
+            <MonoValue value={row.id} />
+          </div>
         </div>
       ),
     },
     {
-      key: 'summary',
-      title: t('pages.memories.colSummary'),
-      className: 'max-w-80 min-w-40 whitespace-normal',
-      render: (row) => <div className="line-clamp-2 whitespace-normal">{row.summary}</div>,
+      key: 'chat',
+      title: t('pages.memories.colChat'),
+      render: (row) => (
+        <div className={css({ minWidth: '0' })}>
+          <div className={css({ truncate: true })}>{row.chat.title ?? row.chat.telegram_chat_id}</div>
+          <div className={secondaryLine}>{row.chat.telegram_chat_id}</div>
+        </div>
+      ),
     },
-    { key: 'created_at', title: t('pages.memories.colCreated'), render: (row) => formatTime(row.created_at) },
+    {
+      key: 'status',
+      title: t('pages.memories.colStatus'),
+      width: 104,
+      render: (row) => <MemoryStatus row={row} />,
+    },
     {
       key: 'expires_at',
       title: t('pages.memories.colExpires'),
+      width: 184,
+      skeleton: '2026-01-18 10:58:15',
       render: (row) => (row.expires_at === null ? t('pages.memories.permanent') : formatTime(row.expires_at)),
     },
     {
-      key: 'ttl',
-      title: t('pages.memories.colTtl'),
-      render: (row) => (row.ttl_seconds === null ? t('pages.memories.permanent') : formatTtl(row.ttl_seconds)),
+      key: 'created_at',
+      title: t('pages.memories.colCreated'),
+      width: 184,
+      skeleton: '2026-01-18 10:58:15',
+      render: (row) => formatTime(row.created_at),
     },
-    { key: 'status', title: t('pages.memories.colStatus'), render: (row) => <MemoryStatus row={row} /> },
     {
       key: 'actions',
       title: t('pages.memories.colActions'),
+      align: 'right',
+      width: 140,
+      paddingBlock: 'none',
       render: (row) => (
-        <div className="flex items-center gap-1">
-          <Button type="button" size="sm" variant="ghost" onClick={() => actions.onView(row)}>
-            {t('pages.memories.view')}
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => actions.onEdit(row)}>
-            {t('common.edit')}
-          </Button>
-          <Button type="button" size="sm" variant="destructive" onClick={() => actions.onDelete(row)}>
-            {t('common.delete')}
-          </Button>
-        </div>
+        <RowActions>
+          <IconButton
+            variant="ghost"
+            color="secondary"
+            label={t('pages.memories.view')}
+            icon={<EyeIcon />}
+            onClick={() => actions.onView(row)}
+          />
+          <IconButton
+            variant="ghost"
+            color="secondary"
+            label={t('common.edit')}
+            icon={<EditIcon />}
+            onClick={() => actions.onEdit(row)}
+          />
+          <IconButton
+            variant="ghost"
+            color="error"
+            label={t('common.delete')}
+            icon={<TrashIcon />}
+            onClick={() => actions.onDelete(row)}
+          />
+        </RowActions>
       ),
     },
   ];

@@ -13,6 +13,7 @@ import {
 import { Panel } from '@/components/layout/panel';
 import type { InvocationDetail, ToolRegistryEntry } from '@/lib/api/invocations.ts';
 import { formatCost, formatNumber, formatTime } from '@/lib/format';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 function ToolRegistryTable({ registry }: { readonly registry: readonly ToolRegistryEntry[] }): React.ReactElement {
   const { t } = useTranslation();
@@ -20,14 +21,29 @@ function ToolRegistryTable({ registry }: { readonly registry: readonly ToolRegis
     {
       key: 'name',
       title: t('invocations.invocationDetail.toolRegistry.name'),
-      render: (row) => <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{row.name}</code>,
+      render: (row) => (
+        <code
+          className={css({
+            textStyle: 'small',
+            borderRadius: 'lg',
+            bg: 'surface-muted',
+            paddingInline: '1',
+            paddingBlock: '1',
+            fontFamily: 'mono',
+          })}
+        >
+          {row.name}
+        </code>
+      ),
     },
     { key: 'label', title: t('invocations.invocationDetail.toolRegistry.label'), render: (row) => row.label },
     {
       key: 'description',
       title: t('invocations.invocationDetail.toolRegistry.description'),
       className: 'min-w-64 max-w-2xl',
-      render: (row) => <p className="max-w-2xl text-sm break-words">{row.description}</p>,
+      render: (row) => (
+        <p className={css({ textStyle: 'body', maxWidth: '42rem', overflowWrap: 'anywhere' })}>{row.description}</p>
+      ),
     },
   ];
   return (
@@ -37,7 +53,7 @@ function ToolRegistryTable({ registry }: { readonly registry: readonly ToolRegis
       summary={
         <>
           {t('invocations.invocationDetail.toolRegistry.title')}
-          <span className="text-xs">{t('invocations.invocationDetail.toolRegistry.subtitle')}</span>
+          <span className={css({ textStyle: 'small' })}>{t('invocations.invocationDetail.toolRegistry.subtitle')}</span>
         </>
       }
     >
@@ -52,12 +68,21 @@ export function DetailHeader({ invocation }: { readonly invocation: InvocationDe
     <Panel
       title={t('invocations.invocationDetail.title', { id: invocation.id })}
       action={
-        <Link to="/invocations" className="text-primary shrink-0 text-sm underline-offset-4 hover:underline">
+        <Link
+          to="/invocations"
+          className={css({
+            textStyle: 'body',
+            color: 'text-brand',
+            flexShrink: '0',
+            textUnderlineOffset: '4px',
+            _hover: { textDecorationLine: 'underline' },
+          })}
+        >
           {t('invocations.invocationDetail.backToList')}
         </Link>
       }
     >
-      <div className="space-y-4">
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
         <KvList
           items={[
             { label: t('invocations.invocationDetail.kv.state'), value: <StateBadge state={invocation.state} /> },
@@ -88,7 +113,13 @@ export function DetailHeader({ invocation }: { readonly invocation: InvocationDe
                     <Link
                       to="/playground"
                       search={{ room: invocation.chat.room_id }}
-                      className="text-primary font-mono text-xs underline-offset-4 hover:underline"
+                      className={css({
+                        textStyle: 'small',
+                        color: 'text-brand',
+                        fontFamily: 'mono',
+                        textUnderlineOffset: '4px',
+                        _hover: { textDecorationLine: 'underline' },
+                      })}
                     >
                       {invocation.chat.room_id}
                     </Link>

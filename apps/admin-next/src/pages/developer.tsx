@@ -3,13 +3,14 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ConfirmDialog } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
-import { Button } from '@/components/ui/button';
+import { Button } from '@tuuject/koi-react/button';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
+import { Switch } from '@tuuject/koi-react/switch';
 import { clearModelPayloads, updateDeveloperSettings } from '@/lib/api/config.ts';
 import { errorMessage } from '@/lib/errors';
 import { developerQuery } from '@/lib/queries';
 import { useProviderWrite } from '@/lib/use-provider-write';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /** The two independent switches the page mutates through the same PUT /developer endpoint. */
 type DeveloperSwitch = 'record_model_payloads' | 'record_agent_thinking';
@@ -45,21 +46,28 @@ export default function DeveloperPage(): React.ReactElement {
   const current = settings.data;
 
   return (
-    <div className="max-w-lg space-y-4">
+    <div className={css({ maxWidth: '32rem', '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
       <Panel title={t('models.developer.debugTitle')} description={t('models.developer.debugDescription')}>
-        <div className="space-y-3">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
           {settings.isPending ? (
-            <p className="text-muted-foreground text-sm">{t('common.loading')}</p>
+            <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('common.loading')}</p>
           ) : settings.isError || current === undefined ? (
-            <p role="alert" className="text-destructive text-sm break-words">
+            <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
               {errorMessage(settings.error)}
             </p>
           ) : (
             <>
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-2">
+              <div
+                className={css({
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: '4',
+                })}
+              >
+                <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                   <Label htmlFor="record-model-payloads">{t('models.developer.recordLabel')}</Label>
-                  <p id="payload-description" className="text-muted-foreground text-sm">
+                  <p id="payload-description" className={css({ textStyle: 'body', color: 'text-muted' })}>
                     {t('models.developer.recordDescription')}
                   </p>
                 </div>
@@ -73,18 +81,25 @@ export default function DeveloperPage(): React.ReactElement {
                   }
                 />
               </div>
-              <p className="text-muted-foreground text-xs">{t('models.developer.recordHint')}</p>
+              <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('models.developer.recordHint')}</p>
               {current.record_model_payloads !== current.active_record_model_payloads ? (
-                <p role="status" className="text-warning text-sm">
+                <p role="status" className={css({ textStyle: 'body', color: 'warning-text' })}>
                   {t('models.developer.stateMismatch', {
                     status: current.active_record_model_payloads ? t('common.on') : t('common.off'),
                   })}
                 </p>
               ) : null}
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-2">
+              <div
+                className={css({
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: '4',
+                })}
+              >
+                <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                   <Label htmlFor="record-agent-thinking">{t('models.developer.thinkingLabel')}</Label>
-                  <p id="thinking-description" className="text-muted-foreground text-sm">
+                  <p id="thinking-description" className={css({ textStyle: 'body', color: 'text-muted' })}>
                     {t('models.developer.thinkingDescription')}
                   </p>
                 </div>
@@ -98,16 +113,16 @@ export default function DeveloperPage(): React.ReactElement {
                   }
                 />
               </div>
-              <p className="text-muted-foreground text-xs">{t('models.developer.thinkingHint')}</p>
+              <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('models.developer.thinkingHint')}</p>
               {current.record_agent_thinking !== current.active_record_agent_thinking ? (
-                <p role="status" className="text-warning text-sm">
+                <p role="status" className={css({ textStyle: 'body', color: 'warning-text' })}>
                   {t('models.developer.stateMismatch', {
                     status: current.active_record_agent_thinking ? t('common.on') : t('common.off'),
                   })}
                 </p>
               ) : null}
               {update.isError ? (
-                <p role="alert" className="text-destructive text-sm break-words">
+                <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
                   {errorMessage(update.error)}
                 </p>
               ) : null}
@@ -116,10 +131,10 @@ export default function DeveloperPage(): React.ReactElement {
         </div>
       </Panel>
       <Panel title={t('models.developer.historyTitle')} description={t('models.developer.historyDescription')}>
-        <div className="space-y-3">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
           <Button
-            variant="destructive"
-            className="h-auto min-h-9 whitespace-normal text-left"
+            color="error"
+            className={css({ height: 'auto', minHeight: 'control-md', whiteSpace: 'normal', textAlign: 'start' })}
             disabled={clear.isPending}
             onClick={() => {
               clear.reset();
@@ -129,7 +144,7 @@ export default function DeveloperPage(): React.ReactElement {
             {t('models.developer.clearButton')}
           </Button>
           {clear.isSuccess ? (
-            <p role="status" className="text-success text-sm">
+            <p role="status" className={css({ textStyle: 'body', color: 'text-brand' })}>
               {t('models.developer.cleared', { count: clear.data.cleared_model_calls })}
             </p>
           ) : null}

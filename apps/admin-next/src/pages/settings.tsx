@@ -4,8 +4,8 @@ import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { KvList, ListPageHeader, MonoValue, PasskeysCard, ToneBadge } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from '@tuuject/koi-react/button';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
 import { updateCredentials } from '@/lib/api/auth.ts';
 import type { ConfigApplyResponse } from '@/lib/api/config.ts';
@@ -15,6 +15,7 @@ import { ApiError } from '@/lib/api/core.ts';
 import { errorMessage } from '@/lib/errors';
 import { configStatusQuery, passkeysQuery, sessionQuery } from '@/lib/queries';
 import { useProviderWrite } from '@/lib/use-provider-write';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 function shortHash(hash: string): string {
   return hash.slice(0, 12);
@@ -28,7 +29,7 @@ function PathList({
   readonly noneLabel: string;
 }): React.ReactElement {
   if (paths.length === 0) {
-    return <span className="text-muted-foreground">{noneLabel}</span>;
+    return <span className={css({ color: 'text-muted' })}>{noneLabel}</span>;
   }
   return <MonoValue value={paths.join(', ')} />;
 }
@@ -37,7 +38,7 @@ function AppliedResult({ result }: { readonly result: ConfigApplyResponse }): Re
   const { t } = useTranslation();
   return (
     <KvList
-      className="mt-3"
+      className={css({ marginBlockStart: '3' })}
       items={[
         {
           label: t('models.settings.applied'),
@@ -120,14 +121,14 @@ export default function SettingsPage(): React.ReactElement {
   const current = status.data;
 
   return (
-    <div className="max-w-5xl space-y-5">
+    <div className={css({ maxWidth: '64rem', '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader title={t('layout.nav.settings')} />
       <Panel
         title={t('models.settings.adminCredentials')}
         description={t('models.settings.adminCredentialsDescription')}
       >
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-2">
+        <form onSubmit={handleSubmit(onSubmit)} className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
             <Label htmlFor="username">{t('models.settings.newUsername')}</Label>
             <Input
               id="username"
@@ -140,9 +141,11 @@ export default function SettingsPage(): React.ReactElement {
                 },
               })}
             />
-            {errors.username && <p className="text-destructive text-sm">{errors.username.message}</p>}
+            {errors.username && (
+              <p className={css({ textStyle: 'body', color: 'error-text' })}>{errors.username.message}</p>
+            )}
           </div>
-          <div className="space-y-2">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
             <Label htmlFor="password">{t('models.settings.newPassword')}</Label>
             <Input
               id="password"
@@ -153,10 +156,14 @@ export default function SettingsPage(): React.ReactElement {
                 minLength: { value: 12, message: t('models.settings.passwordMin') },
               })}
             />
-            {errors.password && <p className="text-destructive text-sm">{errors.password.message}</p>}
+            {errors.password && (
+              <p className={css({ textStyle: 'body', color: 'error-text' })}>{errors.password.message}</p>
+            )}
           </div>
-          {success && <p className="text-success text-sm">{t('models.settings.credentialsUpdated')}</p>}
-          {failure && <p className="text-destructive text-sm">{failure}</p>}
+          {success && (
+            <p className={css({ textStyle: 'body', color: 'text-brand' })}>{t('models.settings.credentialsUpdated')}</p>
+          )}
+          {failure && <p className={css({ textStyle: 'body', color: 'error-text' })}>{failure}</p>}
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? t('models.settings.updating') : t('models.settings.updateCredentials')}
           </Button>
@@ -167,9 +174,11 @@ export default function SettingsPage(): React.ReactElement {
 
       <Panel title={t('models.settings.configFile')} description={t('models.settings.configFileDescription')}>
         {status.isPending ? (
-          <p className="text-muted-foreground text-sm">{t('common.loading')}</p>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('common.loading')}</p>
         ) : status.isError || current === undefined ? (
-          <p className="text-destructive text-sm break-words">{errorMessage(status.error)}</p>
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+            {errorMessage(status.error)}
+          </p>
         ) : (
           <>
             <KvList
@@ -197,16 +206,16 @@ export default function SettingsPage(): React.ReactElement {
                   label: t('models.settings.lastError'),
                   value:
                     current.last_error === null ? (
-                      <span className="text-muted-foreground">{t('models.settings.none')}</span>
+                      <span className={css({ color: 'text-muted' })}>{t('models.settings.none')}</span>
                     ) : (
-                      <span className="text-destructive">
+                      <span className={css({ color: 'error-text' })}>
                         {current.last_error.code}: {current.last_error.message} ({current.last_error.at})
                       </span>
                     ),
                 },
               ]}
             />
-            <div className="mt-4">
+            <div className={css({ marginBlockStart: '4' })}>
               <Button
                 type="button"
                 disabled={applyMutation.isPending}
@@ -217,7 +226,18 @@ export default function SettingsPage(): React.ReactElement {
                 {applyMutation.isPending ? t('models.settings.applying') : t('models.settings.applyConfigFile')}
               </Button>
             </div>
-            {applyFailure !== null && <p className="text-destructive mt-3 text-sm break-words">{applyFailure}</p>}
+            {applyFailure !== null && (
+              <p
+                className={css({
+                  textStyle: 'body',
+                  color: 'error-text',
+                  marginBlockStart: '3',
+                  overflowWrap: 'anywhere',
+                })}
+              >
+                {applyFailure}
+              </p>
+            )}
             {applyResult !== null && <AppliedResult result={applyResult} />}
           </>
         )}

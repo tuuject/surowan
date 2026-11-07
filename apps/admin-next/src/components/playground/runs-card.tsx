@@ -3,7 +3,7 @@ import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListFooter, type OffsetPagination, StateBadge, useClientPagination } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
-import { Button } from '@/components/ui/button';
+import { Button } from '@tuuject/koi-react/button';
 import type {
   PlaygroundInvocation,
   PlaygroundReleaseDetail,
@@ -11,6 +11,7 @@ import type {
   PlaygroundStatusSummary,
 } from '@/lib/api/playground.ts';
 import { AttemptRow } from './rows.tsx';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 interface RunsCardProps {
   readonly roomId: string;
@@ -45,13 +46,13 @@ export function RunsCard({
     <Panel
       title={t('playground.runs.heading')}
       description={status === undefined ? undefined : t('playground.room.statusSummary', { revision, pending })}
-      className="min-w-0"
+      className={css({ minWidth: '0' })}
     >
-      <div className="min-w-0 space-y-3">
+      <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
         {runs.data?.items.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t('playground.runs.empty')}</p>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('playground.runs.empty')}</p>
         ) : null}
-        <ul className="min-w-0">
+        <ul className={css({ minWidth: '0' })}>
           {(runs.data?.items ?? []).map((invocation) => (
             <AttemptRow
               key={invocation.id}
@@ -75,12 +76,13 @@ export function RunsCard({
         )}
         {(detail.data?.releases ?? []).length === 0 ? null : (
           <div>
-            <div className="flex flex-wrap gap-2">
+            <div className={css({ display: 'flex', flexWrap: 'wrap', gap: '2' })}>
               {releasePagination.items.map((entry) => (
                 <Button
                   key={entry.id}
                   type="button"
                   variant="outline"
+                  color="secondary"
                   size="sm"
                   onClick={() => {
                     setOpenRelease(entry.id);
@@ -102,7 +104,7 @@ export function RunsCard({
         )}
         {releaseDetail.data === undefined ? null : <ReleaseDetails detail={releaseDetail.data} />}
         {runs.data?.items.some((entry) => entry.state === 'completed' && entry.sends_used === 0) === true ? (
-          <p className="text-muted-foreground text-xs">{t('playground.runs.noSend')}</p>
+          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('playground.runs.noSend')}</p>
         ) : null}
       </div>
     </Panel>
@@ -112,22 +114,33 @@ export function RunsCard({
 function ReleaseDetails({ detail }: { readonly detail: PlaygroundReleaseDetail }): React.ReactElement {
   const { t } = useTranslation();
   return (
-    <div className="space-y-2 border-l py-2 pl-3">
-      <p className="text-xs">
+    <div
+      className={css({
+        '& > :not(:last-child)': { marginBlockEnd: '2' },
+        borderInlineStartWidth: '1px',
+        borderColor: 'divider',
+        paddingBlock: '2',
+        paddingInlineStart: '3',
+      })}
+    >
+      <p className={css({ textStyle: 'small' })}>
         {t('playground.runs.detail')} #{detail.release.id} ·{' '}
         {t('playground.runs.throughSeq', { seq: detail.release.through_seq })}
         {detail.release.bucket_id === null ? '' : ` · ${t('playground.runs.bucket', { id: detail.release.bucket_id })}`}
       </p>
       <ul>
         {detail.attempts.map((attempt) => (
-          <li key={attempt.id} className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="font-mono">{attempt.id}</span>
+          <li
+            key={attempt.id}
+            className={css({ textStyle: 'small', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}
+          >
+            <span className={css({ fontFamily: 'mono' })}>{attempt.id}</span>
             <StateBadge state={attempt.state} />
-            <span className="text-muted-foreground">
+            <span className={css({ color: 'text-muted' })}>
               {t('playground.runs.usage', { tokens: attempt.total_tokens, cost: attempt.total_cost ?? 0 })}
             </span>
             {attempt.receipt_state === null ? null : (
-              <span className="text-muted-foreground">
+              <span className={css({ color: 'text-muted' })}>
                 {t('playground.runs.receipt', { state: attempt.receipt_state })}
               </span>
             )}
@@ -135,14 +148,25 @@ function ReleaseDetails({ detail }: { readonly detail: PlaygroundReleaseDetail }
         ))}
       </ul>
       {detail.sends.length === 0 ? null : (
-        <div className="space-y-1">
-          <p className="text-xs font-medium">{t('playground.runs.sends')}</p>
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <p className={css({ textStyle: 'small' })}>{t('playground.runs.sends')}</p>
           <ul>
             {detail.sends.map((send) => (
-              <li key={send.id} className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="font-mono">{send.kind}</span>
+              <li
+                key={send.id}
+                className={css({
+                  textStyle: 'small',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  gap: '2',
+                })}
+              >
+                <span className={css({ fontFamily: 'mono' })}>{send.kind}</span>
                 <StateBadge state={send.state} />
-                <span className="text-muted-foreground">{send.message_id === null ? '' : `#${send.message_id}`}</span>
+                <span className={css({ color: 'text-muted' })}>
+                  {send.message_id === null ? '' : `#${send.message_id}`}
+                </span>
               </li>
             ))}
           </ul>

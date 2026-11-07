@@ -5,14 +5,15 @@ import { useTranslation } from 'react-i18next';
 import { KvList, MonoValue } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { HeaderFields } from '@/components/models/header-fields';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from '@tuuject/koi-react/button';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
 import type { ProviderApi, ProviderView, UpdateProviderRequest } from '@/lib/api/providers.ts';
 import { PROVIDER_APIS, updateProvider } from '@/lib/api/providers.ts';
 import { type HeaderRow, headerPayload, headerRowsFromNames, removedHeaderNames } from '@/lib/header-rows.ts';
 import { requestErrorMessage } from '@/lib/model-manager.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 const API_LABELS: Record<ProviderApi, string> = {
   'openai-completions': 'openai-completions',
@@ -140,8 +141,8 @@ export function ProviderConnectionCard({
     <Panel
       title={t('models.models.connection.title')}
       action={
-        <div className="flex items-center gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={onDetect}>
+        <div className={css({ display: 'flex', alignItems: 'center', gap: '2' })}>
+          <Button type="button" size="sm" variant="outline" color="secondary" onClick={onDetect}>
             {t('models.models.connection.test')}
           </Button>
           <Button type="button" size="sm" disabled={!dirty || stale || save.isPending} onClick={submit}>
@@ -150,10 +151,10 @@ export function ProviderConnectionCard({
         </div>
       }
     >
-      <div className="space-y-4">
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
         {custom ? (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
+          <div className={css({ display: 'grid', gap: '4', md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } })}>
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
               <Label htmlFor="provider-base-url">{t('models.models.connection.baseUrl')}</Label>
               <Input
                 id="provider-base-url"
@@ -164,11 +165,11 @@ export function ProviderConnectionCard({
                 }}
               />
             </div>
-            <div className="space-y-2">
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
               <Label htmlFor="provider-api">{t('models.models.connection.api')}</Label>
               <Select
                 id="provider-api"
-                className="w-full"
+                className={css({ width: '100%' })}
                 value={api}
                 onChange={(event) => setApi(event.target.value as ProviderApi)}
               >
@@ -179,7 +180,9 @@ export function ProviderConnectionCard({
                 ))}
               </Select>
               {api === 'google-generative-ai' ? (
-                <p className="text-muted-foreground text-xs">{t('models.models.connection.googleNote')}</p>
+                <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+                  {t('models.models.connection.googleNote')}
+                </p>
               ) : null}
             </div>
           </div>
@@ -196,8 +199,8 @@ export function ProviderConnectionCard({
           />
         )}
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
+        <div className={css({ display: 'grid', gap: '4', md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } })}>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
             <Label htmlFor="provider-api-key">{t('models.models.connection.apiKey')}</Label>
             <Input
               id="provider-api-key"
@@ -209,7 +212,7 @@ export function ProviderConnectionCard({
                 setLocalError(null);
               }}
             />
-            <p className="text-muted-foreground text-xs">
+            <p className={css({ textStyle: 'small', color: 'text-muted' })}>
               {t('models.models.connection.keepHint')}
               {baseUrlChanged ? t('models.models.connection.keepHintChanged') : ''}
             </p>
@@ -217,8 +220,8 @@ export function ProviderConnectionCard({
         </div>
 
         {custom ? (
-          <div className="space-y-2">
-            <p className="text-sm font-medium">{t('models.models.connection.headersTitle')}</p>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+            <p className={css({ textStyle: 'label' })}>{t('models.models.connection.headersTitle')}</p>
             <HeaderFields
               rows={headers}
               onChange={(rows) => {
@@ -231,16 +234,30 @@ export function ProviderConnectionCard({
           </div>
         ) : null}
 
-        {baseUrlChanged ? <p className="text-warning text-xs">{t('models.models.connection.changedWarning')}</p> : null}
+        {baseUrlChanged ? (
+          <p className={css({ textStyle: 'small', color: 'warning-text' })}>
+            {t('models.models.connection.changedWarning')}
+          </p>
+        ) : null}
         {stale && dirty ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-warning text-sm break-words">{t('models.models.connection.staleWarning')}</p>
-            <Button type="button" size="sm" variant="outline" onClick={() => resetDrafts(provider, revision)}>
+          <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
+            <p className={css({ textStyle: 'body', color: 'warning-text', overflowWrap: 'anywhere' })}>
+              {t('models.models.connection.staleWarning')}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              color="secondary"
+              onClick={() => resetDrafts(provider, revision)}
+            >
               {t('common.reload')}
             </Button>
           </div>
         ) : null}
-        {error !== null ? <p className="text-destructive text-sm break-words">{error}</p> : null}
+        {error !== null ? (
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>{error}</p>
+        ) : null}
       </div>
     </Panel>
   );

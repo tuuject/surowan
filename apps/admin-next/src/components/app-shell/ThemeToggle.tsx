@@ -1,5 +1,5 @@
 import { IconButton } from '@tuuject/koi-react/button';
-import { Monitor, Moon, Sun } from 'lucide-react';
+import { MonitorIcon, MoonIcon, SunIcon } from '@/components/icons';
 import { useTranslation } from 'react-i18next';
 import { type ThemeMode, useTheme } from '@/components/themes/theme-provider';
 
@@ -9,7 +9,7 @@ const NEXT: Record<ThemeMode, ThemeMode> = {
   system: 'light',
 };
 
-const ICON = { light: Sun, dark: Moon, system: Monitor } as const;
+const ICON = { light: SunIcon, dark: MoonIcon, system: MonitorIcon } as const;
 
 const LABEL = {
   light: 'layout.theme.light',

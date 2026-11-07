@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { PlusIcon } from '@tuuject/koi-react/icons';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -17,8 +17,8 @@ import { GroupMemoryDialog } from '@/components/chats/group-memory-dialog';
 import { ParticipationDialog } from '@/components/chats/participation-dialog';
 import { ProactiveReplyDialog } from '@/components/chats/proactive-reply-dialog';
 import { RestartBanner } from '@/components/models/restart-banner';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@tuuject/koi-react/button';
+import { Skeleton } from '@tuuject/koi-react/skeleton';
 import type { ChatEntry, ChatsView } from '@/lib/api/chats.ts';
 import { deleteChat } from '@/lib/api/chats.ts';
 import { restartServer } from '@/lib/api/config.ts';
@@ -29,6 +29,7 @@ import { chatsQuery } from '@/lib/queries';
 import { waitForAdminServer } from '@/lib/restart';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 const EMPTY_FILTERS = { search: '' };
 
@@ -82,20 +83,20 @@ export default function ChatsPage(): React.ReactElement {
   const pagination = useClientPagination(filteredChats, listQuery.resetKey);
   if (query.isPending) {
     return (
-      <div className="space-y-5">
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
         <ListPageHeader title={t('pages.chats.allowlistTitle')} />
-        <Skeleton className="h-64 w-full rounded-xl" />
+        <Skeleton className={css({ height: '256px', width: '100%', borderRadius: 'xl' })} />
       </div>
     );
   }
   if (query.isError) {
     return (
-      <div className="space-y-3">
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
         <ListPageHeader title={t('pages.chats.allowlistTitle')} />
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className={css({ textStyle: 'body', color: 'error-text' })}>
           {errorMessage(query.error)}
         </p>
-        <Button variant="outline" onClick={() => void query.refetch()}>
+        <Button variant="outline" color="secondary" onClick={() => void query.refetch()}>
           {t('common.retry')}
         </Button>
       </div>
@@ -103,7 +104,7 @@ export default function ChatsPage(): React.ReactElement {
   }
   const view = query.data;
   return (
-    <div className="space-y-5">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader title={t('pages.chats.allowlistTitle')} description={t('pages.chats.dialogDescription')} />
       <RestartBanner
         paths={view.restart_required}
@@ -121,8 +122,7 @@ export default function ChatsPage(): React.ReactElement {
         )}
       </ListSearchForm>
       <ListToolbar onRefresh={() => void query.refetch()} refreshing={query.isRefetching}>
-        <Button onClick={() => setEditing({ view, chat: null })}>
-          <Plus />
+        <Button onClick={() => setEditing({ view, chat: null })} iconStart={<PlusIcon />}>
           {t('pages.chats.addChat')}
         </Button>
       </ListToolbar>

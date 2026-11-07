@@ -11,11 +11,13 @@ import {
   TableShell,
   useOffsetPagination,
 } from '@/components/business';
-import { Button } from '@/components/ui/button';
+import { PlusIcon } from '@tuuject/koi-react/icons';
+import { ButtonLink } from '@/components/router-links';
 import type { ImageGenerationRecord } from '@/lib/api/images.ts';
 import { listImageGenerations } from '@/lib/api/images.ts';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /** Generation audit list: every generation submitted from the panel or the agent. */
 
@@ -47,7 +49,13 @@ function GenerationList() {
           to="/image-generations/$generationId"
           params={{ generationId: row.id }}
           aria-label={row.id}
-          className="font-mono text-xs break-all underline-offset-4 hover:underline"
+          className={css({
+            textStyle: 'small',
+            fontFamily: 'mono',
+            wordBreak: 'break-all',
+            textUnderlineOffset: '4px',
+            _hover: { textDecorationLine: 'underline' },
+          })}
         >
           {row.id.slice(0, 8)}…
         </Link>
@@ -58,7 +66,11 @@ function GenerationList() {
     {
       key: 'prompt',
       title: t('image.generations.columnPrompt'),
-      render: (row) => <span className="line-clamp-1 max-w-72 text-xs">{row.snapshot.authored.authoredPrompt}</span>,
+      render: (row) => (
+        <span className={css({ textStyle: 'small', lineClamp: '1', maxWidth: '288px' })}>
+          {row.snapshot.authored.authoredPrompt}
+        </span>
+      ),
     },
     {
       key: 'outputs',
@@ -75,10 +87,10 @@ function GenerationList() {
 
   const items = generations.data?.items ?? [];
   return (
-    <div className="space-y-4">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
       <ListToolbar onRefresh={() => void generations.refetch()} refreshing={generations.isRefetching} />
       {generations.isError ? (
-        <p role="alert" className="text-destructive text-sm break-words">
+        <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
           {errorMessage(generations.error)}
         </p>
       ) : null}
@@ -89,7 +101,6 @@ function GenerationList() {
             data={items}
             rowKey={(row) => row.id}
             loading={generations.isPending || generations.isPlaceholderData}
-            frame={false}
             emptyText={t('image.generations.empty')}
           />
           <ListFooter
@@ -108,13 +119,13 @@ function GenerationList() {
 export default function ImageGenerationsPage() {
   const { t } = useTranslation();
   return (
-    <div className="space-y-5">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader
         title={t('image.generations.title')}
         actions={
-          <Button asChild variant="outline">
-            <Link to="/image-generate">{t('image.generations.newGeneration')}</Link>
-          </Button>
+          <ButtonLink to="/image-generate" iconStart={<PlusIcon />}>
+            {t('image.generations.newGeneration')}
+          </ButtonLink>
         }
       />
       <GenerationList />

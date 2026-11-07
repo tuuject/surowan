@@ -5,7 +5,6 @@ import {
   type ColumnSpec,
   CursorList,
   JsonViewer,
-  LIST_TABLE_CLASS,
   ListFooter,
   ListPageHeader,
   ListSearchForm,
@@ -17,13 +16,14 @@ import {
   ToneBadge,
   useClientPagination,
 } from '@/components/business';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { ApiError } from '@/lib/api/core.ts';
 import type { StickerEntry, StickerSetEntry } from '@/lib/api/stickers.ts';
 import { formatNumber, formatTime } from '@/lib/format';
 import { optionalQuery, useListQuery } from '@/lib/list-query';
 import { stickerSetsQuery, stickersQuery } from '@/lib/queries';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 const INDEX_STATES = ['pending', 'running', 'success', 'error'] as const;
 const EMPTY_FILTERS = { set: '', state: '', search: '' };
@@ -49,10 +49,10 @@ function Section({
   readonly children: React.ReactNode;
 }): React.ReactElement {
   return (
-    <section className="space-y-4">
-      <div className="space-y-1">
-        <h2 className="font-semibold">{title}</h2>
-        <p className="text-muted-foreground max-w-3xl text-sm">{description}</p>
+    <section className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+        <h2 className={css({ textStyle: 'label' })}>{title}</h2>
+        <p className={css({ textStyle: 'body', color: 'text-muted', maxWidth: '48rem' })}>{description}</p>
       </div>
       {children}
     </section>
@@ -77,9 +77,9 @@ export default function StickersPage(): React.ReactElement {
       key: 'alias',
       title: t('pages.stickers.colSet'),
       render: (row) => (
-        <div className="space-y-0.5">
-          <div className="font-medium">{row.title ?? row.alias}</div>
-          <div className="text-muted-foreground text-xs">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <div className={css({ textStyle: 'label' })}>{row.title ?? row.alias}</div>
+          <div className={css({ textStyle: 'small', color: 'text-muted' })}>
             {row.alias} · {row.telegram_name}
           </div>
         </div>
@@ -138,9 +138,9 @@ export default function StickersPage(): React.ReactElement {
       key: 'emoji',
       title: t('pages.stickers.colSticker'),
       render: (row) => (
-        <div className="space-y-0.5">
-          <div>{row.emoji ?? <span className="text-muted-foreground">—</span>}</div>
-          <div className="text-muted-foreground text-xs">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <div>{row.emoji ?? <span className={css({ color: 'text-muted' })}>—</span>}</div>
+          <div className={css({ textStyle: 'small', color: 'text-muted' })}>
             {row.set_alias} · {row.format}
           </div>
         </div>
@@ -156,8 +156,8 @@ export default function StickersPage(): React.ReactElement {
       title: t('pages.stickers.colDescription'),
       className: 'min-w-64 whitespace-normal',
       render: (row) => (
-        <p className="line-clamp-2 max-w-md break-words">
-          {row.analysis?.description ?? <span className="text-muted-foreground">—</span>}
+        <p className={css({ lineClamp: '2', maxWidth: '28rem', overflowWrap: 'anywhere' })}>
+          {row.analysis?.description ?? <span className={css({ color: 'text-muted' })}>—</span>}
         </p>
       ),
     },
@@ -166,7 +166,7 @@ export default function StickersPage(): React.ReactElement {
       title: t('pages.stickers.colModel'),
       render: (row) =>
         row.analysis === null ? (
-          <span className="text-muted-foreground">—</span>
+          <span className={css({ color: 'text-muted' })}>—</span>
         ) : (
           `${row.analysis.provider ?? '?'}/${row.analysis.model ?? '?'}`
         ),
@@ -187,7 +187,7 @@ export default function StickersPage(): React.ReactElement {
   ];
 
   return (
-    <div className="space-y-8">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '8' } })}>
       <ListPageHeader title={t('layout.nav.botStickerSets')} />
       <Section
         title={t('pages.stickers.setsTitle')}
@@ -198,17 +198,14 @@ export default function StickersPage(): React.ReactElement {
           </>
         }
       >
-        {sets.isPending ? <Skeleton className="h-32 w-full rounded-xl" /> : null}
+        {sets.isPending ? <Skeleton className={css({ height: '128px', width: '100%', borderRadius: 'xl' })} /> : null}
         {sets.isError ? (
-          <Alert variant="destructive">
-            <AlertTitle>{t('pages.stickers.loadSetsFailed')}</AlertTitle>
-            <AlertDescription>
-              {sets.error instanceof ApiError
-                ? `${sets.error.code}: ${sets.error.message}`
-                : sets.error instanceof Error
-                  ? sets.error.message
-                  : t('pages.stickers.adminRequestFailed')}
-            </AlertDescription>
+          <Alert tone="error" title={t('pages.stickers.loadSetsFailed')}>
+            {sets.error instanceof ApiError
+              ? `${sets.error.code}: ${sets.error.message}`
+              : sets.error instanceof Error
+                ? sets.error.message
+                : t('pages.stickers.adminRequestFailed')}
           </Alert>
         ) : null}
         {!sets.isPending && !sets.isError ? (
@@ -218,7 +215,6 @@ export default function StickersPage(): React.ReactElement {
               data={setPagination.items}
               rowKey={(row) => row.id}
               emptyText={t('pages.stickers.emptySets')}
-              className={LIST_TABLE_CLASS}
             />
             <ListFooter
               count={setPagination.total}
@@ -271,23 +267,28 @@ export default function StickersPage(): React.ReactElement {
               data={items}
               rowKey={(row) => row.id}
               loading={loading}
-              frame={false}
               expandedRender={(row) => (
-                <div className="space-y-4">
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground text-xs">{t('pages.stickers.nextRetry')}</p>
+                <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+                  <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+                    <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.stickers.nextRetry')}</p>
                     <p>{formatTime(row.next_retry_at)}</p>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground text-xs">{t('pages.stickers.analysisVersion')}</p>
+                  <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+                    <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+                      {t('pages.stickers.analysisVersion')}
+                    </p>
                     <TextValue value={row.analysis?.analysis_version ?? null} />
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground text-xs">{t('pages.stickers.colDescription')}</p>
-                    <p className="break-words whitespace-pre-wrap">{row.analysis?.description ?? '—'}</p>
+                  <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+                    <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+                      {t('pages.stickers.colDescription')}
+                    </p>
+                    <p className={css({ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>
+                      {row.analysis?.description ?? '—'}
+                    </p>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground text-xs">{t('pages.stickers.metadata')}</p>
+                  <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+                    <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.stickers.metadata')}</p>
                     <JsonViewer value={row.analysis?.metadata_json ?? null} />
                   </div>
                 </div>

@@ -12,11 +12,11 @@ import {
   TableShell,
   ToneBadge,
 } from '@/components/business';
-import { EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import type { MessageListItem } from '@/lib/api/messages.ts';
 import { formatNumber, formatTime } from '@/lib/format';
 import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { messagesQuery } from '@/lib/queries';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 const ID_LINK =
   'decoration-border hover:decoration-foreground font-medium tabular-nums underline underline-offset-4 transition-colors';
@@ -27,12 +27,12 @@ function MessageCell({ row }: { readonly row: MessageListItem }): React.ReactEle
   const body = row.text ?? row.caption;
   const showKind = row.kind !== null && row.kind !== 'text';
   if (body === null && !showKind) {
-    return <span className="text-muted-foreground">—</span>;
+    return <span className={css({ color: 'text-muted' })}>—</span>;
   }
   return (
-    <div className="flex max-w-md items-start gap-2">
+    <div className={css({ display: 'flex', maxWidth: '28rem', alignItems: 'flex-start', gap: '2' })}>
       {showKind ? <ToneBadge tone="neutral">{row.kind}</ToneBadge> : null}
-      {body === null ? null : <p className="line-clamp-2 break-words">{body}</p>}
+      {body === null ? null : <p className={css({ lineClamp: '2', overflowWrap: 'anywhere' })}>{body}</p>}
     </div>
   );
 }
@@ -58,9 +58,11 @@ export default function MessagesPage(): React.ReactElement {
       title: t('invocations.messages.columns.chat'),
       className: 'min-w-40',
       render: (row) => (
-        <div className="min-w-0 space-y-0.5">
-          <div className="font-medium break-words">{row.chat.title ?? row.chat.telegram_chat_id}</div>
-          <div className="text-muted-foreground text-xs">
+        <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <div className={css({ textStyle: 'label', overflowWrap: 'anywhere' })}>
+            {row.chat.title ?? row.chat.telegram_chat_id}
+          </div>
+          <div className={css({ textStyle: 'small', color: 'text-muted' })}>
             {row.chat.type}
             {row.chat.message_thread_id === 0 ? '' : ` · topic ${row.chat.message_thread_id}`}
           </div>
@@ -75,12 +77,12 @@ export default function MessagesPage(): React.ReactElement {
           row.sent_by_bot ? (
             <ToneBadge tone="neutral">bot</ToneBadge>
           ) : (
-            <span className="text-muted-foreground">—</span>
+            <span className={css({ color: 'text-muted' })}>—</span>
           )
         ) : (
-          <div className="min-w-0 space-y-0.5">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="break-words">{row.sender.display_name}</span>
+          <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+            <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
+              <span className={css({ overflowWrap: 'anywhere' })}>{row.sender.display_name}</span>
               {row.sender.is_bot === true ? <ToneBadge tone="neutral">bot</ToneBadge> : null}
             </div>
             <CopyableValue
@@ -125,7 +127,7 @@ export default function MessagesPage(): React.ReactElement {
   ];
 
   return (
-    <div className="space-y-5">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader title={t('layout.nav.messages')} />
       <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
         {({ draft, change }) => (
@@ -148,13 +150,8 @@ export default function MessagesPage(): React.ReactElement {
             data={items}
             rowKey={(row) => row.id}
             loading={loading}
-            frame={false}
-            emptyText={
-              <div className="space-y-1 py-2">
-                <EmptyTitle>{t('invocations.messages.empty.title')}</EmptyTitle>
-                <EmptyDescription>{t('invocations.messages.empty.description')}</EmptyDescription>
-              </div>
-            }
+            emptyText={t('invocations.messages.empty.title')}
+            emptyDescription={t('invocations.messages.empty.description')}
           />
         )}
       />

@@ -14,7 +14,7 @@ import {
 } from '@/components/business';
 import { ToolResult } from '@/components/invocations/tool-result';
 import { Panel } from '@/components/layout/panel';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Empty } from '@tuuject/koi-react/empty';
 import type {
   ConversationContextDetail,
   ConversationContextMessageEntry,
@@ -22,6 +22,7 @@ import type {
 } from '@/lib/api/contexts.ts';
 import { formatNumber, formatTime } from '@/lib/format';
 import { conversationContextQuery } from '@/lib/queries';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 function RoleBadge({ role }: { readonly role: string }): React.ReactElement {
   return <ToneBadge tone="neutral">{role}</ToneBadge>;
@@ -30,20 +31,26 @@ function RoleBadge({ role }: { readonly role: string }): React.ReactElement {
 function CheckpointBadge({ isCheckpoint }: { readonly isCheckpoint: boolean }): React.ReactElement {
   const { t } = useTranslation();
   if (!isCheckpoint) {
-    return <span className="text-muted-foreground">—</span>;
+    return <span className={css({ color: 'text-muted' })}>—</span>;
   }
   return <ToneBadge tone="info">{t('invocations.contextDetail.checkpoint')}</ToneBadge>;
 }
 
 function InvocationLink({ id }: { readonly id: string | null }): React.ReactElement {
   if (id === null) {
-    return <span className="text-muted-foreground">—</span>;
+    return <span className={css({ color: 'text-muted' })}>—</span>;
   }
   return (
     <Link
       to="/invocations/$invocationId"
       params={{ invocationId: id }}
-      className="font-mono text-xs break-all underline-offset-4 hover:underline"
+      className={css({
+        textStyle: 'small',
+        fontFamily: 'mono',
+        wordBreak: 'break-all',
+        textUnderlineOffset: '4px',
+        _hover: { textDecorationLine: 'underline' },
+      })}
     >
       {id}
     </Link>
@@ -54,12 +61,11 @@ function RetainedMessages({ context }: { readonly context: ConversationContextDe
   const { t } = useTranslation();
   if (context.messages.length === 0) {
     return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyTitle>{t('invocations.contextDetail.emptyMessages.title')}</EmptyTitle>
-          <EmptyDescription>{t('invocations.contextDetail.emptyMessages.description')}</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      <Empty
+        variant="plain"
+        title={t('invocations.contextDetail.emptyMessages.title')}
+        description={t('invocations.contextDetail.emptyMessages.description')}
+      />
     );
   }
   const MESSAGE_COLUMNS: readonly ColumnSpec<ConversationContextMessageEntry>[] = [
@@ -85,7 +91,7 @@ function RetainedMessages({ context }: { readonly context: ConversationContextDe
       title: t('invocations.contextDetail.messageColumns.sendSeq'),
       align: 'right',
       render: (row) =>
-        row.send_seq === null ? <span className="text-muted-foreground">—</span> : String(row.send_seq),
+        row.send_seq === null ? <span className={css({ color: 'text-muted' })}>—</span> : String(row.send_seq),
     },
     {
       key: 'est_tokens',
@@ -115,12 +121,16 @@ function RetainedMessages({ context }: { readonly context: ConversationContextDe
       data={context.messages}
       rowKey={(row) => String(row.seq)}
       expandedRender={(row) => (
-        <div className="space-y-2">
-          <p className="text-muted-foreground text-xs">{t('invocations.contextDetail.payloadPreview')}</p>
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+          <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+            {t('invocations.contextDetail.payloadPreview')}
+          </p>
           {row.result_content ? <ToolResult content={row.result_content} /> : null}
           <JsonViewer value={row.payload_preview} />
           {row.payload_truncated ? (
-            <p className="text-muted-foreground text-xs">{t('invocations.contextDetail.previewTruncated')}</p>
+            <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+              {t('invocations.contextDetail.previewTruncated')}
+            </p>
           ) : null}
         </div>
       )}
@@ -132,19 +142,32 @@ function CapabilityRefs({ context }: { readonly context: ConversationContextDeta
   const { t } = useTranslation();
   if (context.refs.length === 0) {
     return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyTitle>{t('invocations.contextDetail.emptyRefs.title')}</EmptyTitle>
-          <EmptyDescription>{t('invocations.contextDetail.emptyRefs.description')}</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      <Empty
+        variant="plain"
+        title={t('invocations.contextDetail.emptyRefs.title')}
+        description={t('invocations.contextDetail.emptyRefs.description')}
+      />
     );
   }
   const REF_COLUMNS: readonly ColumnSpec<ConversationContextRefEntry>[] = [
     {
       key: 'ref',
       title: t('invocations.contextDetail.refColumns.ref'),
-      render: (row) => <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs break-all">{row.ref}</code>,
+      render: (row) => (
+        <code
+          className={css({
+            textStyle: 'small',
+            borderRadius: 'lg',
+            bg: 'surface-muted',
+            paddingInline: '1',
+            paddingBlock: '1',
+            fontFamily: 'mono',
+            wordBreak: 'break-all',
+          })}
+        >
+          {row.ref}
+        </code>
+      ),
     },
     {
       key: 'kind',
@@ -197,16 +220,25 @@ export function ContextDetailView({ id }: { readonly id: string }): React.ReactE
   }
 
   return (
-    <div className="space-y-4">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
       <Panel
         title={t('invocations.contextDetail.title', { id: data.conversation_id })}
         action={
-          <Link to="/contexts" className="text-primary shrink-0 text-sm underline-offset-4 hover:underline">
+          <Link
+            to="/contexts"
+            className={css({
+              textStyle: 'body',
+              color: 'text-brand',
+              flexShrink: '0',
+              textUnderlineOffset: '4px',
+              _hover: { textDecorationLine: 'underline' },
+            })}
+          >
             {t('invocations.contextDetail.backToList')}
           </Link>
         }
       >
-        <div className="space-y-4">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
           <KvList
             items={[
               {

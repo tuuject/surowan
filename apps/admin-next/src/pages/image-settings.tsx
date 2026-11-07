@@ -8,7 +8,7 @@ import { ModelPicker } from '@/components/image-settings/model-picker.tsx';
 import { SaveActions } from '@/components/image-settings/save-actions.tsx';
 import { type EditableCredential, type EditableModel, toModelPayload } from '@/components/image-settings/shared.ts';
 import { Panel } from '@/components/layout/panel';
-import { Button } from '@/components/ui/button';
+import { Button } from '@tuuject/koi-react/button';
 import type { ImageConfigView } from '@/lib/api/images.ts';
 import {
   getImageConfig,
@@ -19,13 +19,14 @@ import {
 } from '@/lib/api/images.ts';
 import { errorMessage } from '@/lib/errors';
 import { toast } from '@/lib/toast.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 export default function ImageSettingsPage() {
   const { t } = useTranslation();
   const config = useQuery({ queryKey: ['image-config'], queryFn: getImageConfig });
   const status = useQuery({ queryKey: ['image-status'], queryFn: getImageStatus });
   return (
-    <div className="space-y-5">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader
         title={t('image.settings.title')}
         description={t('image.settings.statusLine', {
@@ -39,11 +40,11 @@ export default function ImageSettingsPage() {
         })}
       />
       {config.isPending ? (
-        <p className="text-muted-foreground text-sm">{t('image.settings.readingConfig')}</p>
+        <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('image.settings.readingConfig')}</p>
       ) : config.isError ? (
-        <div role="alert" className="space-y-3">
-          <p className="text-destructive text-sm">{errorMessage(config.error)}</p>
-          <Button variant="outline" onClick={() => void config.refetch()}>
+        <div role="alert" className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+          <p className={css({ textStyle: 'body', color: 'error-text' })}>{errorMessage(config.error)}</p>
+          <Button variant="outline" color="secondary" onClick={() => void config.refetch()}>
             {t('common.reload')}
           </Button>
         </div>
@@ -213,9 +214,12 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '6' } })}>
       <Panel title={t('image.settings.enablePanelTitle')}>
-        <fieldset disabled={save.isPending} className="min-w-0 space-y-5">
+        <fieldset
+          disabled={save.isPending}
+          className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '5' } })}
+        >
           <CredentialsFields
             enabled={enabled}
             onEnabledChange={setEnabled}
@@ -234,6 +238,7 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
             <Button
               size="sm"
               variant="outline"
+              color="secondary"
               disabled={catalog.isFetching || save.isPending}
               onClick={() => {
                 void catalog.refetch();
@@ -246,7 +251,10 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
             </Button>
           }
         >
-          <fieldset disabled={save.isPending} className="min-w-0 space-y-5">
+          <fieldset
+            disabled={save.isPending}
+            className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '5' } })}
+          >
             <ModelPicker
               catalogPending={catalog.isPending}
               catalogErrorText={catalogErrorText}

@@ -1,11 +1,9 @@
 (() => {
-  // Both attributes are applied before the first paint: `data-theme` drives
-  // Koi's Panda conditions, the `dark` class keeps the existing JSON viewer and
-  // stored test fixtures working. The stored mode is shared with the panel's
+  // `data-theme` is applied before the first paint so Koi's Panda conditions
+  // never flash the wrong theme. The stored mode is shared with the panel's
   // theme switch (`admin-theme`: light / dark / system).
   const apply = (mode) => {
     const dark = mode === 'dark' || (mode !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    document.documentElement.classList.toggle('dark', dark);
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
   };
   try {

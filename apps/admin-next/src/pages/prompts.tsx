@@ -19,8 +19,8 @@ import { Panel } from '@/components/layout/panel';
 import { DiffView } from '@/components/prompts/diff-view';
 import { type Notice, type PromptDraft, sourceLabelKey, sourceTone } from '@/components/prompts/prompt-draft';
 import { PromptEditor } from '@/components/prompts/prompt-editor';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@tuuject/koi-react/button';
+import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { ApiError } from '@/lib/api/core.ts';
 import type { PromptSaveResponse, PromptScopeRef, PromptVersionItem } from '@/lib/api/prompts.ts';
 import { cancelPromptRunning, failedPromptVersion, restorePromptVersion, savePrompt } from '@/lib/api/prompts.ts';
@@ -29,6 +29,7 @@ import { formatTime } from '@/lib/format';
 import { chatQuery, useListQuery } from '@/lib/list-query';
 import { chatsQuery, promptDiffQuery, promptDocumentQuery, promptVersionsQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 const GLOBAL_SCOPE_VALUE = 'global';
 const CHAT_SCOPE_PREFIX = 'chat:';
@@ -161,7 +162,7 @@ export default function PromptsPage(): React.ReactElement {
       key: 'version',
       title: t('pages.prompts.colVersion'),
       render: (row) => (
-        <span className="inline-flex items-center gap-2">
+        <span className={css({ display: 'inline-flex', alignItems: 'center', gap: '2' })}>
           <MonoValue value={`v${row.seq}`} />
           {row.id === applied?.id ? <ToneBadge tone="success">{t('pages.prompts.currentBadge')}</ToneBadge> : null}
         </span>
@@ -170,7 +171,9 @@ export default function PromptsPage(): React.ReactElement {
     {
       key: 'created',
       title: t('pages.prompts.colCreated'),
-      render: (row) => <span className="tabular-nums">{formatTime(row.created_at)}</span>,
+      render: (row) => (
+        <span className={css({ fontVariantNumeric: 'tabular-nums' })}>{formatTime(row.created_at)}</span>
+      ),
     },
     {
       key: 'source',
@@ -197,6 +200,7 @@ export default function PromptsPage(): React.ReactElement {
             type="button"
             size="sm"
             variant="outline"
+            color="secondary"
             disabled={file === undefined || restore.isPending}
             onClick={() => {
               restore.reset();
@@ -209,7 +213,7 @@ export default function PromptsPage(): React.ReactElement {
     },
   ];
   return (
-    <div className="space-y-5">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader title={t('layout.nav.prompts')} />
       <ListSearchForm value={query.value} emptyValue={EMPTY_SCOPE} onSearch={changeScope}>
         {({ draft, change }) => (
@@ -236,13 +240,13 @@ export default function PromptsPage(): React.ReactElement {
       </ListSearchForm>
       <Panel title={t('pages.prompts.editorTitle')}>
         {fileQuery.isPending ? (
-          <Skeleton className="h-64 w-full rounded-xl" />
+          <Skeleton className={css({ height: '256px', width: '100%', borderRadius: 'xl' })} />
         ) : fileQuery.isError || file === undefined ? (
-          <div className="space-y-3">
-            <p role="alert" className="text-destructive text-sm break-words">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+            <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
               {errorMessage(fileQuery.error)}
             </p>
-            <Button variant="outline" onClick={() => void fileQuery.refetch()}>
+            <Button variant="outline" color="secondary" onClick={() => void fileQuery.refetch()}>
               {t('common.retry')}
             </Button>
           </div>
@@ -261,8 +265,8 @@ export default function PromptsPage(): React.ReactElement {
           />
         )}
       </Panel>
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold">{t('pages.prompts.historyTitle')}</h2>
+      <section className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+        <h2 className={css({ textStyle: 'heading-3' })}>{t('pages.prompts.historyTitle')}</h2>
         <ListSearchForm
           key={scopeValue}
           value={compare ?? EMPTY_COMPARE}
@@ -295,11 +299,11 @@ export default function PromptsPage(): React.ReactElement {
         </ListSearchForm>
         <ListToolbar onRefresh={() => void versions.refetch()} refreshing={versions.isRefetching} />
         {versions.isError ? (
-          <div className="space-y-3">
-            <p role="alert" className="text-destructive text-sm break-words">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+            <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
               {errorMessage(versions.error)}
             </p>
-            <Button variant="outline" onClick={() => void versions.refetch()}>
+            <Button variant="outline" color="secondary" onClick={() => void versions.refetch()}>
               {t('common.retry')}
             </Button>
           </div>
@@ -311,7 +315,6 @@ export default function PromptsPage(): React.ReactElement {
               data={pagination.items}
               rowKey={(row) => row.id}
               loading={versions.isPending}
-              frame={false}
               emptyText={t('pages.prompts.emptyVersions')}
             />
             <ListFooter
@@ -321,7 +324,7 @@ export default function PromptsPage(): React.ReactElement {
               onPageChange={pagination.onPageChange}
             >
               {versions.data === undefined ? null : (
-                <span className="text-muted-foreground text-xs">
+                <span className={css({ textStyle: 'small', color: 'text-muted' })}>
                   {t('pages.prompts.retention', { count: versions.data.retained })}
                 </span>
               )}
@@ -329,13 +332,13 @@ export default function PromptsPage(): React.ReactElement {
           </div>
         ) : null}
         {compare === null ? null : diff.isPending ? (
-          <Skeleton className="h-40 w-full rounded-xl" />
+          <Skeleton className={css({ height: '160px', width: '100%', borderRadius: 'xl' })} />
         ) : diff.isError || diff.data === undefined ? (
-          <p role="alert" className="text-destructive text-sm break-words">
+          <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
             {errorMessage(diff.error)}
           </p>
         ) : diff.data.hunks.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t('pages.prompts.noDifferences')}</p>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.prompts.noDifferences')}</p>
         ) : (
           <DiffView diff={diff.data} />
         )}

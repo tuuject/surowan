@@ -3,9 +3,9 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Panel } from '@/components/layout/panel';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { cn } from '@/lib/utils';
+import { Textarea } from '@tuuject/koi-react/textarea';
 import { splitLines } from './draft.ts';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * URL rules plus a preview. The preview compiles the same expressions the
@@ -38,8 +38,8 @@ export function UrlFilterEditor({
   }));
   return (
     <Panel title={t('search.filtersTitle')} description={t('search.filtersDescription')}>
-      <div className="space-y-4">
-        <div className="space-y-1">
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           <Label htmlFor="search-url-filters">{t('search.filtersLabel')}</Label>
           <Textarea
             id="search-url-filters"
@@ -49,9 +49,9 @@ export function UrlFilterEditor({
             placeholder={'csdn\nspam\\.example'}
             disabled={disabled}
           />
-          <p className="text-muted-foreground text-xs">{t('search.filtersHint')}</p>
+          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('search.filtersHint')}</p>
           {compiled.some((entry) => entry.pattern === null) ? (
-            <p role="alert" className="text-destructive text-xs">
+            <p role="alert" className={css({ textStyle: 'small', color: 'error-text' })}>
               {t('search.filtersInvalid', {
                 rules: compiled
                   .filter((entry) => entry.pattern === null)
@@ -61,7 +61,7 @@ export function UrlFilterEditor({
             </p>
           ) : null}
         </div>
-        <div className="space-y-1">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           <Label htmlFor="search-url-filter-test">{t('search.filterTestLabel')}</Label>
           <Textarea
             id="search-url-filter-test"
@@ -70,21 +70,28 @@ export function UrlFilterEditor({
             onChange={(event) => setTestText(event.target.value)}
             placeholder={'https://blog.csdn.net/article/1\nhttps://example.com/page'}
           />
-          <p className="text-muted-foreground text-xs">{t('search.filterTestHint')}</p>
+          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('search.filterTestHint')}</p>
         </div>
         {results.length > 0 ? (
-          <ul className="space-y-1 text-sm" aria-live="polite">
+          <ul
+            className={css({ textStyle: 'body', '& > :not(:last-child)': { marginBlockEnd: '1' } })}
+            aria-live="polite"
+          >
             {results.map((result) => (
-              <li key={result.url} className="flex flex-wrap items-center gap-2">
+              <li
+                key={result.url}
+                className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}
+              >
                 <span
-                  className={cn(
-                    'break-all',
-                    result.matchedBy.length > 0 && 'bg-destructive/15 text-destructive line-through',
+                  className={cx(
+                    css({ wordBreak: 'break-all' }),
+                    result.matchedBy.length > 0 &&
+                      css({ bg: 'error-surface', color: 'error-text', textDecorationLine: 'line-through' }),
                   )}
                 >
                   {result.url}
                 </span>
-                <span className="text-muted-foreground text-xs">
+                <span className={css({ textStyle: 'small', color: 'text-muted' })}>
                   {result.matchedBy.length > 0
                     ? t('search.filterMatched', { rules: result.matchedBy.join(', ') })
                     : t('search.filterKept')}

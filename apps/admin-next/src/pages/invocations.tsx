@@ -16,6 +16,7 @@ import type { InvocationListItem } from '@/lib/api/invocations.ts';
 import { formatCost, formatNumber, formatTime } from '@/lib/format';
 import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { invocationsQuery } from '@/lib/queries';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 const INVOCATION_STATES = [
   'queued',
@@ -52,7 +53,16 @@ export default function InvocationsPage(): React.ReactElement {
         <Link
           to="/invocations/$invocationId"
           params={{ invocationId: row.id }}
-          className="decoration-border hover:decoration-foreground font-medium tabular-nums underline underline-offset-4 transition-colors"
+          className={css({
+            textStyle: 'label',
+            textDecorationColor: 'border',
+            fontVariantNumeric: 'tabular-nums',
+            textDecorationLine: 'underline',
+            textUnderlineOffset: '4px',
+            transitionProperty: 'color, background-color, border-color',
+            transitionDuration: 'fast',
+            _hover: { textDecorationColor: 'text' },
+          })}
         >
           {row.id}
         </Link>
@@ -67,9 +77,11 @@ export default function InvocationsPage(): React.ReactElement {
       key: 'chat',
       title: t('invocations.invocations.columns.chat'),
       render: (row) => (
-        <div className="min-w-0 space-y-0.5">
-          <div className="font-medium">{row.chat.title ?? row.chat.telegram_chat_id ?? row.chat.room_id}</div>
-          <div className="text-muted-foreground text-xs">
+        <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <div className={css({ textStyle: 'label' })}>
+            {row.chat.title ?? row.chat.telegram_chat_id ?? row.chat.room_id}
+          </div>
+          <div className={css({ textStyle: 'small', color: 'text-muted' })}>
             {row.chat.host_kind === 'playground' ? `${t('invocations.invocations.hosts.playground')} · ` : ''}
             {row.chat.type}
             {row.chat.message_thread_id === 0 ? '' : ` · topic ${row.chat.message_thread_id}`}
@@ -116,7 +128,8 @@ export default function InvocationsPage(): React.ReactElement {
       key: 'side-effect',
       title: t('invocations.invocations.columns.sideEffect'),
       className: 'ps-6',
-      render: (row) => (row.side_effect_started ? 'started' : <span className="text-muted-foreground">none</span>),
+      render: (row) =>
+        row.side_effect_started ? 'started' : <span className={css({ color: 'text-muted' })}>none</span>,
     },
     {
       key: 'created',
@@ -127,7 +140,7 @@ export default function InvocationsPage(): React.ReactElement {
   ];
 
   return (
-    <div className="space-y-5">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader title={t('layout.nav.toolSessions')} description={t('invocations.invocations.tokensNote')} />
       <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
         {({ draft, change }) => (
@@ -157,7 +170,7 @@ export default function InvocationsPage(): React.ReactElement {
         factory={invocationsQuery}
         filters={filters}
         renderItems={(items, { loading }) => (
-          <TableShell columns={COLUMNS} data={items} rowKey={(row) => row.id} loading={loading} frame={false} />
+          <TableShell columns={COLUMNS} data={items} rowKey={(row) => row.id} loading={loading} />
         )}
       />
     </div>

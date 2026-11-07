@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { ConfirmDialog, KvList, MonoValue } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { TelegramStatusBadge, TelegramStatusReason, telegramBotLabel } from '@/components/telegram/telegram-status.tsx';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from '@tuuject/koi-react/button';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
 import type { TelegramConnectionState, TelegramView } from '@/lib/api/telegram.ts';
 import { putTelegram } from '@/lib/api/telegram.ts';
@@ -13,17 +13,20 @@ import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { telegramQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 function BotIdentity({ state }: { readonly state: TelegramConnectionState }): React.ReactElement {
   const { t } = useTranslation();
   const bot = state.bot;
   if (bot === undefined) {
-    return <span className="text-muted-foreground text-sm">{t('pages.telegram.noBot')}</span>;
+    return <span className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.telegram.noBot')}</span>;
   }
   return (
-    <span className="flex flex-wrap items-baseline gap-2">
+    <span className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '2' })}>
       <MonoValue value={telegramBotLabel(bot)} />
-      {bot.username === null ? null : <span className="text-muted-foreground text-xs">{bot.id}</span>}
+      {bot.username === null ? null : (
+        <span className={css({ textStyle: 'small', color: 'text-muted' })}>{bot.id}</span>
+      )}
     </span>
   );
 }
@@ -74,10 +77,10 @@ function TelegramSettings({ view }: { readonly view: TelegramView }): React.Reac
   const trimmed = token.trim();
 
   return (
-    <div className="max-w-3xl space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-xl font-semibold">{t('pages.telegram.title')}</h1>
-        <p className="text-muted-foreground text-sm">{t('pages.telegram.description')}</p>
+    <div className={css({ maxWidth: '48rem', '& > :not(:last-child)': { marginBlockEnd: '6' } })}>
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+        <h1 className={css({ textStyle: 'heading-2' })}>{t('pages.telegram.title')}</h1>
+        <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.telegram.description')}</p>
       </div>
 
       <Panel title={t('pages.telegram.connectionTitle')}>
@@ -86,7 +89,7 @@ function TelegramSettings({ view }: { readonly view: TelegramView }): React.Reac
             {
               label: t('pages.telegram.fieldStatus'),
               value: (
-                <span className="flex flex-wrap items-center gap-2">
+                <span className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
                   <TelegramStatusBadge state={view.status} />
                   <TelegramStatusReason state={view.status} />
                 </span>
@@ -94,7 +97,7 @@ function TelegramSettings({ view }: { readonly view: TelegramView }): React.Reac
             },
             {
               label: t('pages.telegram.fieldSince'),
-              value: <span className="text-sm">{formatTime(view.status.since)}</span>,
+              value: <span className={css({ textStyle: 'body' })}>{formatTime(view.status.since)}</span>,
             },
             { label: t('pages.telegram.fieldBot'), value: <BotIdentity state={view.status} /> },
           ]}
@@ -102,14 +105,17 @@ function TelegramSettings({ view }: { readonly view: TelegramView }): React.Reac
       </Panel>
 
       <Panel title={t('pages.telegram.tokenTitle')}>
-        <fieldset disabled={pending} className="min-w-0 space-y-4">
-          <p className="text-sm">
+        <fieldset
+          disabled={pending}
+          className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '4' } })}
+        >
+          <p className={css({ textStyle: 'body' })}>
             {view.token_configured ? t('pages.telegram.tokenConfigured') : t('pages.telegram.tokenMissing')}
           </p>
           {view.telegram_section_present ? null : (
-            <p className="text-muted-foreground text-sm">{t('pages.telegram.sectionMissing')}</p>
+            <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.telegram.sectionMissing')}</p>
           )}
-          <div className="space-y-2">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
             <Label htmlFor="telegram-token">{t('pages.telegram.tokenLabel')}</Label>
             <Input
               id="telegram-token"
@@ -121,9 +127,9 @@ function TelegramSettings({ view }: { readonly view: TelegramView }): React.Reac
                 setToken(event.target.value);
               }}
             />
-            <p className="text-muted-foreground text-xs">{t('pages.telegram.tokenHint')}</p>
+            <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.telegram.tokenHint')}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
             <Button
               type="button"
               disabled={trimmed.length === 0}
@@ -136,6 +142,7 @@ function TelegramSettings({ view }: { readonly view: TelegramView }): React.Reac
             <Button
               type="button"
               variant="outline"
+              color="secondary"
               disabled={!view.token_configured}
               onClick={() => setClearOpen(true)}
             >
@@ -170,19 +177,19 @@ export default function TelegramPage(): React.ReactElement {
 
   if (query.isPending) {
     return (
-      <div className="max-w-3xl space-y-4">
-        <p className="text-muted-foreground text-sm">{t('common.loading')}</p>
+      <div className={css({ maxWidth: '48rem', '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+        <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('common.loading')}</p>
       </div>
     );
   }
 
   if (query.isLoadingError || query.data === undefined) {
     return (
-      <div className="max-w-3xl space-y-4" role="alert">
-        <p className="text-destructive text-sm">
+      <div className={css({ maxWidth: '48rem', '& > :not(:last-child)': { marginBlockEnd: '4' } })} role="alert">
+        <p className={css({ textStyle: 'body', color: 'error-text' })}>
           {t('pages.telegram.readFailed')}: {errorMessage(query.error)}
         </p>
-        <Button variant="outline" onClick={() => void query.refetch()}>
+        <Button variant="outline" color="secondary" onClick={() => void query.refetch()}>
           {t('common.reload')}
         </Button>
       </div>
@@ -191,9 +198,12 @@ export default function TelegramPage(): React.ReactElement {
 
   // A failed poll keeps the form mounted, so a token being typed survives it.
   return (
-    <div className="space-y-4">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
       {query.isError ? (
-        <p className="text-destructive max-w-3xl text-sm break-words" role="alert">
+        <p
+          className={css({ textStyle: 'body', color: 'error-text', maxWidth: '48rem', overflowWrap: 'anywhere' })}
+          role="alert"
+        >
           {t('pages.telegram.readFailed')}: {errorMessage(query.error)}
         </p>
       ) : null}

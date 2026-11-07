@@ -6,7 +6,7 @@ import { PageHeader } from '@tuuject/koi-react/page-header';
 import { Pagination } from '@tuuject/koi-react/pagination';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { sizes } from '@tuuject/koi-tokens/dimensions';
-import { RefreshCw } from 'lucide-react';
+import { RefreshIcon } from '@/components/icons';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -127,14 +127,22 @@ export function ListToolbar({
 }): React.ReactElement {
   const { t } = useTranslation();
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex flex-wrap items-center gap-2">{children}</div>
-      <div className="flex flex-wrap items-center gap-3">
+    <div
+      className={css({
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '3',
+      })}
+    >
+      <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>{children}</div>
+      <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '3' })}>
         {trailing}
         {onRefresh === undefined ? null : (
           <IconButton
             label={t('layout.business.refreshList')}
-            icon={<RefreshCw size={18} />}
+            icon={<RefreshIcon />}
             disabled={refreshing}
             onClick={onRefresh}
           />
@@ -169,11 +177,20 @@ export function ListFooter({
   const { t } = useTranslation();
   const paginated = pageCount !== undefined && onPageChange !== undefined;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t py-3">
-      <span className="text-muted-foreground text-sm tabular-nums">
+    <div
+      className={css({
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '3',
+        padding: '4',
+      })}
+    >
+      <span className={css({ textStyle: 'small', color: 'text-muted', fontVariantNumeric: 'tabular-nums' })}>
         {t(cursor ? 'layout.business.cursorPageCount' : 'layout.business.totalCount', { count, page })}
       </span>
-      <div className="flex flex-wrap items-center gap-3">
+      <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '3' })}>
         {children}
         {paginated ? (
           <Pagination
@@ -191,5 +208,18 @@ export function ListFooter({
         ) : null}
       </div>
     </div>
+  );
+}
+
+/**
+ * A table row's actions, per the Koi Table spec: no gap between the `sm ghost`
+ * buttons (or `md` IconButtons in a `paddingBlock: 'none'` cell), end-aligned
+ * and pulled 8px outward so the last label lines up with the header.
+ */
+export function RowActions({ children }: { readonly children: ReactNode }): React.ReactElement {
+  return (
+    <span className={css({ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginInlineEnd: '-2' })}>
+      {children}
+    </span>
   );
 }

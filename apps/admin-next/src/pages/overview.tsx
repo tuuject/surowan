@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { Panel } from '@/components/layout/panel';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRightIcon } from '@tuuject/koi-react/icons';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -14,8 +14,8 @@ import {
   ToneBadge,
 } from '@/components/business';
 import { TelegramStatusBadge, TelegramStatusReason, telegramBotLabel } from '@/components/telegram/telegram-status.tsx';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@tuuject/koi-react/button';
+import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { WarningCard } from '@/components/warnings/warning-card';
 import { useForegroundRefresh } from '@/hooks/use-foreground-refresh';
 import type { InvocationListItem } from '@/lib/api/invocations.ts';
@@ -27,6 +27,7 @@ import { errorMessage } from '@/lib/errors';
 import { formatNumber, formatTime } from '@/lib/format';
 import { overviewQuery, telegramQuery, warningsSummaryQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 function SleepBadge({ sleeping }: { readonly sleeping: boolean }): React.ReactElement {
   const { t } = useTranslation();
@@ -49,16 +50,18 @@ function StatMetric({
   readonly loading: boolean;
 }): React.ReactElement {
   return (
-    <div className="border-t pt-3">
-      <p className="text-muted-foreground m-0 text-sm">{label}</p>
-      <div className="mt-1">
+    <div className={css({ borderTopWidth: '1px', borderColor: 'divider', paddingBlockStart: '3' })}>
+      <p className={css({ textStyle: 'body', color: 'text-muted', margin: '0' })}>{label}</p>
+      <div className={css({ marginBlockStart: '1' })}>
         {loading ? (
-          <Skeleton className="block h-9 w-24" />
+          <Skeleton className={css({ display: 'block', height: 'control-md', width: '96px' })} />
         ) : (
-          <span className="text-3xl font-bold tabular-nums">{value === undefined ? '—' : formatNumber(value)}</span>
+          <span className={css({ textStyle: 'heading-1', fontVariantNumeric: 'tabular-nums' })}>
+            {value === undefined ? '—' : formatNumber(value)}
+          </span>
         )}
       </div>
-      <p className="text-muted-foreground m-0 mt-1 text-sm">{hint}</p>
+      <p className={css({ textStyle: 'body', color: 'text-muted', margin: '0', marginBlockStart: '1' })}>{hint}</p>
     </div>
   );
 }
@@ -126,7 +129,12 @@ export default function OverviewPage(): React.ReactElement {
         <Link
           to="/invocations/$invocationId"
           params={{ invocationId: row.id }}
-          className="font-medium tabular-nums underline underline-offset-4"
+          className={css({
+            textStyle: 'label',
+            fontVariantNumeric: 'tabular-nums',
+            textDecorationLine: 'underline',
+            textUnderlineOffset: '4px',
+          })}
         >
           {row.id}
         </Link>
@@ -141,11 +149,11 @@ export default function OverviewPage(): React.ReactElement {
       key: 'chat',
       title: t('invocations.invocations.columns.chat'),
       render: (row) => (
-        <div className="min-w-40">
-          <div className="font-medium break-words">
+        <div className={css({ minWidth: '160px' })}>
+          <div className={css({ textStyle: 'label', overflowWrap: 'anywhere' })}>
             {row.chat.title ?? row.chat.telegram_chat_id ?? row.chat.room_id}
           </div>
-          <div className="text-muted-foreground text-xs">{row.chat.type}</div>
+          <div className={css({ textStyle: 'small', color: 'text-muted' })}>{row.chat.type}</div>
         </div>
       ),
     },
@@ -169,7 +177,7 @@ export default function OverviewPage(): React.ReactElement {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '6' } })}>
       <ListPageHeader
         title={t('layout.nav.overview')}
         description={
@@ -180,11 +188,17 @@ export default function OverviewPage(): React.ReactElement {
         actions={
           <>
             {data?.runtime_status.sleeping === true ? (
-              <Button type="button" variant="outline" disabled={wake.isPending} onClick={() => setWakeOpen(true)}>
+              <Button
+                type="button"
+                variant="outline"
+                color="secondary"
+                disabled={wake.isPending}
+                onClick={() => setWakeOpen(true)}
+              >
                 {t('pages.overview.wakeNow')}
               </Button>
             ) : null}
-            <Button type="button" variant="destructive" disabled={cancel.isPending} onClick={() => setCancelOpen(true)}>
+            <Button type="button" color="error" disabled={cancel.isPending} onClick={() => setCancelOpen(true)}>
               {t('pages.overview.cancelOngoing')}
             </Button>
           </>
@@ -192,13 +206,15 @@ export default function OverviewPage(): React.ReactElement {
       />
 
       {overview.isError ? (
-        <div className="text-center">
-          <p className="text-destructive font-medium">{t('pages.overview.loadFailed')}</p>
-          <p className="text-muted-foreground text-sm break-words">{errorMessage(overview.error)}</p>
+        <div className={css({ textAlign: 'center' })}>
+          <p className={css({ textStyle: 'label', color: 'error-text' })}>{t('pages.overview.loadFailed')}</p>
+          <p className={css({ textStyle: 'body', color: 'text-muted', overflowWrap: 'anywhere' })}>
+            {errorMessage(overview.error)}
+          </p>
         </div>
       ) : null}
 
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
+      <div className={css({ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '4' })}>
         <StatMetric
           label={t('pages.overview.statInvocations')}
           value={totalInvocations}
@@ -234,9 +250,11 @@ export default function OverviewPage(): React.ReactElement {
       <Panel
         title={t('pages.overview.recentInvocations')}
         action={
-          <Link to="/invocations" className="inline-flex items-center gap-1">
+          <Link to="/invocations" className={css({ display: 'inline-flex', alignItems: 'center', gap: '1' })}>
             {t('pages.overview.viewAll')}
-            <ArrowRight className="inline-block size-4 align-middle" />
+            <ArrowRightIcon
+              className={css({ display: 'inline-block', width: 'icon', height: 'icon', verticalAlign: 'middle' })}
+            />
           </Link>
         }
       >
@@ -247,12 +265,11 @@ export default function OverviewPage(): React.ReactElement {
             rowKey={(row) => row.id}
             loading={recent.isPending}
             skeletonRows={5}
-            frame={false}
             emptyText={t('common.noRecords')}
           />
         ) : null}
         {recent.isError ? (
-          <p role="alert" className="text-destructive text-sm break-words">
+          <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
             {errorMessage(recent.error)}
           </p>
         ) : null}
@@ -261,37 +278,39 @@ export default function OverviewPage(): React.ReactElement {
       <Panel
         title={t('pages.overview.warnings')}
         action={
-          <Link to="/warnings" className="inline-flex items-center gap-1">
+          <Link to="/warnings" className={css({ display: 'inline-flex', alignItems: 'center', gap: '1' })}>
             {t('pages.overview.warningsViewAll')}
-            <ArrowRight className="inline-block size-4 align-middle" />
+            <ArrowRightIcon
+              className={css({ display: 'inline-block', width: 'icon', height: 'icon', verticalAlign: 'middle' })}
+            />
           </Link>
         }
       >
         {warnings.isPending ? (
-          <div className="space-y-3">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+            <Skeleton className={css({ height: '64px', width: '100%' })} />
+            <Skeleton className={css({ height: '64px', width: '100%' })} />
           </div>
         ) : warnings.data === undefined ? (
-          <p role="alert" className="text-destructive text-sm break-words">
+          <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
             {t('pages.overview.warningsLoadFailed')}: {errorMessage(warnings.error)}
           </p>
         ) : (
-          <div className="space-y-4">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
             {warnings.isError ? (
-              <p role="alert" className="text-destructive text-sm break-words">
+              <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
                 {t('pages.overview.warningsLoadFailed')}: {errorMessage(warnings.error)}
               </p>
             ) : null}
             {warnings.data.standing.length > 0 ? (
-              <div className="divide-y">
+              <div className={css({ '& > :not(:last-child)': { borderBottomWidth: '1px', borderColor: 'divider' } })}>
                 {warnings.data.standing.map((warning) => (
                   <WarningCard key={warning.code} warning={warning} />
                 ))}
               </div>
             ) : null}
             {warnings.data.items.length > 0 ? (
-              <div className="divide-y">
+              <div className={css({ '& > :not(:last-child)': { borderBottomWidth: '1px', borderColor: 'divider' } })}>
                 {warnings.data.items.map((warning) => (
                   <WarningCard
                     key={warning.id}
@@ -303,7 +322,7 @@ export default function OverviewPage(): React.ReactElement {
               </div>
             ) : null}
             {warnings.data.standing.length === 0 && warnings.data.items.length === 0 ? (
-              <p className="text-muted-foreground text-sm">{t('pages.overview.warningsNone')}</p>
+              <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.overview.warningsNone')}</p>
             ) : null}
           </div>
         )}
@@ -311,27 +330,29 @@ export default function OverviewPage(): React.ReactElement {
 
       {data === undefined ? null : (
         <Panel title={t('pages.overview.botStatus')}>
-          <dl className="grid gap-5 md:grid-cols-3">
-            <div className="space-y-2">
-              <dt className="text-muted-foreground text-sm">{t('pages.overview.fieldState')}</dt>
-              <dd className="flex flex-wrap items-center gap-2">
+          <dl className={css({ display: 'grid', gap: '5', md: { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' } })}>
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+              <dt className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.overview.fieldState')}</dt>
+              <dd className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
                 <SleepBadge sleeping={data.runtime_status.sleeping} />
                 {data.runtime_status.sleep_until === null ? null : (
-                  <span className="text-muted-foreground text-sm">
+                  <span className={css({ textStyle: 'body', color: 'text-muted' })}>
                     {t('pages.overview.sleepUntil', { time: formatTime(data.runtime_status.sleep_until) })}
                   </span>
                 )}
               </dd>
             </div>
-            <div className="space-y-2">
-              <dt className="text-muted-foreground text-sm">{t('pages.overview.fieldTelegram')}</dt>
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+              <dt className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.overview.fieldTelegram')}</dt>
               <dd>
                 {telegram.isPending ? (
-                  <span className="text-muted-foreground text-sm">{t('common.loading')}</span>
+                  <span className={css({ textStyle: 'body', color: 'text-muted' })}>{t('common.loading')}</span>
                 ) : telegram.isError ? (
-                  <span className="text-destructive text-sm break-words">{errorMessage(telegram.error)}</span>
+                  <span className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+                    {errorMessage(telegram.error)}
+                  </span>
                 ) : (
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
                     <TelegramStatusBadge state={telegram.data.status} />
                     <TelegramStatusReason state={telegram.data.status} />
                     {telegram.data.status.bot === undefined ? null : (
@@ -341,19 +362,19 @@ export default function OverviewPage(): React.ReactElement {
                 )}
               </dd>
             </div>
-            <div className="space-y-2">
-              <dt className="text-muted-foreground text-sm">{t('pages.overview.adminPauses')}</dt>
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+              <dt className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.overview.adminPauses')}</dt>
               <dd>
                 {data.runtime_status.paused_chats.length === 0 ? (
-                  <span className="text-muted-foreground text-sm">{t('pages.overview.none')}</span>
+                  <span className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.overview.none')}</span>
                 ) : (
-                  <ul className="space-y-2">
+                  <ul className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                     {data.runtime_status.paused_chats.map((chat) => (
-                      <li key={chat.telegram_chat_id} className="text-sm">
-                        <div className="font-medium">
+                      <li key={chat.telegram_chat_id} className={css({ textStyle: 'body' })}>
+                        <div className={css({ textStyle: 'label' })}>
                           {chat.title ?? (chat.username === null ? chat.telegram_chat_id : `@${chat.username}`)}
                         </div>
-                        <div className="text-muted-foreground text-xs">
+                        <div className={css({ textStyle: 'small', color: 'text-muted' })}>
                           {t('pages.overview.pausedSince', { time: formatTime(chat.paused_at) })}
                         </div>
                       </li>

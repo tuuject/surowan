@@ -196,7 +196,7 @@ for (const entry of pages) {
     await expect(page.locator('table').first()).toBeVisible();
     await expect(page.locator('table').first()).not.toHaveAttribute('aria-busy', 'true');
     await expect(
-      page.getByText(entry.count === 'cursor' ? /Page 1 · \d+ records/ : /\d+ records/).first(),
+      page.getByText(entry.count === 'cursor' ? /Page 1, \d+ records/ : /\d+ records/).first(),
     ).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Pagination', exact: true })).toHaveCount(
       entry.path === '/models' ? 2 : 1,

@@ -16,12 +16,12 @@ test.describe('invocations list', () => {
     await expect(rows).toHaveCount(5);
     const secondPageIds = await rows.locator('td:first-child').allTextContents();
     expect(secondPageIds).not.toEqual(firstPageIds);
-    await expect(page.getByText('Page 2 · 5 records', { exact: true })).toBeVisible();
+    await expect(page.getByText('Page 2, 5 records', { exact: true })).toBeVisible();
 
     await previousPage(page).click();
     await expect(rows).toHaveCount(25);
     expect(await rows.locator('td:first-child').allTextContents()).toEqual(firstPageIds);
-    await expect(page.getByText('Page 1 · 25 records', { exact: true })).toBeVisible();
+    await expect(page.getByText('Page 1, 25 records', { exact: true })).toBeVisible();
 
     await nextPage(page).click();
     await expect(rows).toHaveCount(5);
@@ -29,13 +29,13 @@ test.describe('invocations list', () => {
     await model.fill('gpt-4.1-mini');
     await model.press('Enter');
     await expect(rows).toHaveCount(2);
-    await expect(page.getByText('Page 1 · 2 records', { exact: true })).toBeVisible();
+    await expect(page.getByText('Page 1, 2 records', { exact: true })).toBeVisible();
     await expect(previousPage(page)).toBeDisabled();
 
     // Returning to the unfiltered query must not resurrect its old second page.
     await page.getByRole('button', { name: 'Reset', exact: true }).click();
     await expect(rows).toHaveCount(25);
-    await expect(page.getByText('Page 1 · 25 records', { exact: true })).toBeVisible();
+    await expect(page.getByText('Page 1, 25 records', { exact: true })).toBeVisible();
     await expect(previousPage(page)).toBeDisabled();
   });
 
@@ -120,7 +120,7 @@ test.describe('invocations list', () => {
     thirdPageGate.resolve();
     await thirdResponse;
     await expect(page.getByRole('button', { name: 'Refresh list', exact: true })).toBeEnabled();
-    await expect(page.getByText('Page 1 · 25 records', { exact: true })).toBeVisible();
+    await expect(page.getByText('Page 1, 25 records', { exact: true })).toBeVisible();
     expect(await rows.locator('td:first-child').allTextContents()).toEqual(firstPageIds);
   });
 
@@ -137,7 +137,7 @@ test.describe('invocations list', () => {
     await page.goto(await adminUrl('/invocations'));
     await expect(page.getByRole('alert').filter({ hasText: 'Synthetic cursor failure' })).toBeVisible();
     await expect(page.locator('table')).toHaveCount(0);
-    await expect(page.getByText('Page 1 · 0 records', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Page 1, 0 records', { exact: true })).toHaveCount(0);
     await expect(page.getByText('No records match the current filters.')).toHaveCount(0);
     await page.getByRole('button', { name: 'Refresh list', exact: true }).click();
     await expect(tableBodyRows(page)).toHaveCount(25);

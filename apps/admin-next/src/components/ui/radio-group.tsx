@@ -2,7 +2,7 @@ import { Radio } from '@base-ui/react/radio';
 import { RadioGroup as BaseRadioGroup } from '@base-ui/react/radio-group';
 import { radioGroup } from '@tuuject/koi-react/styled-system/recipes';
 import type { ReactNode } from 'react';
-import { cn } from '@/lib/utils';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * The two Chat dialogs compose a card around each radio, so they need the
@@ -38,7 +38,7 @@ function RadioGroup<T extends string>({
       }}
       disabled={disabled}
       name={name}
-      className={cn(radioGroup().root, className)}
+      className={cx(radioGroup().root, className)}
     >
       {children}
     </BaseRadioGroup>
@@ -56,7 +56,7 @@ function RadioGroupItem({
 }): React.ReactElement {
   const recipe = radioGroup();
   return (
-    <Radio.Root value={value} id={id} className={cn(recipe.control, 'shrink-0', className)}>
+    <Radio.Root value={value} id={id} className={cx(recipe.control, css({ flexShrink: '0' }), className)}>
       <Radio.Indicator keepMounted className={recipe.indicator} />
     </Radio.Root>
   );

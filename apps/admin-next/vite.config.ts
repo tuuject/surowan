@@ -26,7 +26,9 @@ export default defineConfig({
     port: 5273,
     host: '127.0.0.1',
     proxy: {
-      '/api': {
+      // `/api/` with the slash: a bare `/api` prefix also swallows the
+      // `/api-keys` page route and serves the backend's 404 instead of the SPA.
+      '/api/': {
         target: ADMIN_API_TARGET,
         // Forward the request with the target's host so Host and Origin agree.
         changeOrigin: true,

@@ -1,18 +1,11 @@
 import { useMutation } from '@tanstack/react-query';
-import { Plus, Trash2 } from 'lucide-react';
+import { PlusIcon, TrashIcon } from '@tuuject/koi-react/icons';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { WeekWindowsChart } from '@/components/chats/week-windows-chart';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { Button, IconButton } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import type { ChatEntry, ChatsView, ParticipationView, ParticipationWindow } from '@/lib/api/chats.ts';
@@ -22,6 +15,7 @@ import { isConfigConflict } from '@/lib/model-manager';
 import { summarizeWindows } from '@/lib/participation';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 type ParticipationMode = 'unrestricted' | 'none' | 'custom';
 
@@ -72,11 +66,26 @@ function ModeOption({
   readonly hint: string;
 }): React.ReactElement {
   return (
-    <Label className="has-[[data-checked]]:border-primary hover:bg-accent/50 flex cursor-pointer items-start gap-3 rounded-lg border p-3 font-normal transition-colors">
-      <RadioGroupItem value={value} className="mt-0.5" />
-      <span className="space-y-1">
-        <span className="block text-sm font-medium">{title}</span>
-        <span className="text-muted-foreground block text-xs">{hint}</span>
+    <Label
+      className={css({
+        '&:has([data-checked])': { borderColor: 'action' },
+        _hover: { bg: 'surface-muted' },
+        display: 'flex',
+        cursor: 'pointer',
+        alignItems: 'flex-start',
+        gap: '3',
+        borderRadius: 'xl',
+        borderWidth: '1px',
+        borderColor: 'border',
+        padding: '3',
+        transitionProperty: 'color, background-color, border-color',
+        transitionDuration: 'fast',
+      })}
+    >
+      <RadioGroupItem value={value} className={css({ marginBlockStart: '1' })} />
+      <span className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+        <span className={css({ textStyle: 'label', display: 'block' })}>{title}</span>
+        <span className={css({ textStyle: 'small', color: 'text-muted', display: 'block' })}>{hint}</span>
       </span>
     </Label>
   );
@@ -158,167 +167,174 @@ export function ParticipationDialog({
       ? (drafts.map(windowFromDraft).filter((window) => window !== undefined) as ParticipationWindow[])
       : [];
   return (
-    <Dialog open onOpenChange={(open) => !open && !save.isPending && onClose()}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{t('pages.chats.activeHoursTitle')}</DialogTitle>
-          <DialogDescription>{t('pages.chats.activeHoursDescription')}</DialogDescription>
-        </DialogHeader>
-        <form
-          className="space-y-5"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submit();
-          }}
-        >
-          <fieldset disabled={save.isPending} className="space-y-5">
-            <RadioGroup value={mode} onValueChange={switchMode} className="gap-2">
-              <ModeOption
-                value="unrestricted"
-                title={t('pages.chats.modeUnrestricted')}
-                hint={
-                  globalWindows.length === 0
-                    ? t('pages.chats.modeUnrestrictedHint')
-                    : t('pages.chats.modeUnrestrictedHintGlobal', { windows: summarize(globalWindows) })
-                }
-              />
-              <ModeOption value="none" title={t('pages.chats.modeNone')} hint={t('pages.chats.modeNoneHint')} />
-              <ModeOption value="custom" title={t('pages.chats.modeCustom')} hint={t('pages.chats.modeCustomHint')} />
-            </RadioGroup>
-            {mode !== 'unrestricted' ? <WeekWindowsChart windows={previewWindows} timezone={timezone} /> : null}
-            {mode === 'custom' ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>{t('pages.chats.windowsLabel')}</Label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      setDrafts((current) => [
-                        ...current,
-                        {
-                          key: draftKey++,
-                          start: '09:00',
-                          end: '18:00',
-                          endMidnight: false,
-                          days: [true, true, true, true, true, true, true],
-                        },
-                      ])
-                    }
-                  >
-                    <Plus />
-                    {t('pages.chats.addWindow')}
-                  </Button>
-                </div>
-                {drafts.length === 0 ? (
-                  <p className="text-muted-foreground text-xs">{t('pages.chats.windowsEmpty')}</p>
-                ) : null}
-                {drafts.map((draft, index) => (
-                  <div key={draft.key} className="space-y-2 rounded-lg border p-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Input
-                        type="time"
-                        value={draft.start}
-                        aria-label={`${t('pages.chats.startLabel')} ${index + 1}`}
-                        onChange={(event) =>
-                          setDraft(draft.key, (current) => ({ ...current, start: event.target.value }))
-                        }
-                        className="w-27"
-                      />
-                      <span className="text-muted-foreground" aria-hidden="true">
-                        –
-                      </span>
-                      <Input
-                        type="time"
-                        value={draft.end}
-                        disabled={draft.endMidnight}
-                        aria-label={`${t('pages.chats.endLabel')} ${index + 1}`}
-                        onChange={(event) =>
-                          setDraft(draft.key, (current) => ({ ...current, end: event.target.value }))
-                        }
-                        className="w-27"
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={draft.endMidnight ? 'secondary' : 'outline'}
-                        aria-pressed={draft.endMidnight}
-                        title={t('pages.chats.endMidnight')}
-                        onClick={() =>
-                          setDraft(draft.key, (current) => ({ ...current, endMidnight: !current.endMidnight }))
-                        }
-                      >
-                        24:00
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon-sm"
-                        variant="ghost"
-                        className="text-muted-foreground hover:text-destructive ms-auto"
-                        aria-label={t('pages.chats.removeWindow')}
-                        onClick={() => setDrafts((current) => current.filter((item) => item.key !== draft.key))}
-                      >
-                        <Trash2 />
-                      </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {dayLabels.map((label, dayIndex) => {
-                        const on = draft.days[dayIndex] ?? false;
-                        return (
-                          <button
-                            key={label}
-                            type="button"
-                            aria-pressed={on}
-                            onClick={() =>
-                              setDraft(draft.key, (current) => ({
-                                ...current,
-                                days: current.days.map((value, position) => (position === dayIndex ? !value : value)),
-                              }))
-                            }
-                            className={
-                              on
-                                ? 'border-primary bg-primary/10 text-primary rounded-full border px-2.5 py-0.5 text-xs transition-colors'
-                                : 'text-muted-foreground hover:border-primary/50 rounded-full border px-2.5 py-0.5 text-xs transition-colors'
-                            }
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
+    <Dialog
+      open
+      onOpenChange={(open) => !open && !save.isPending && onClose()}
+      title={t('pages.chats.activeHoursTitle')}
+      description={t('pages.chats.activeHoursDescription')}
+      footer={
+        <>
+          <Button type="button" variant="outline" color="secondary" disabled={save.isPending} onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" form="participation-dialog-form" disabled={save.isPending}>
+            {save.isPending ? t('common.saving') : t('common.save')}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="participation-dialog-form"
+        className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        <fieldset disabled={save.isPending} className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
+          <RadioGroup value={mode} onValueChange={switchMode} className={css({ gap: '2' })}>
+            <ModeOption
+              value="unrestricted"
+              title={t('pages.chats.modeUnrestricted')}
+              hint={
+                globalWindows.length === 0
+                  ? t('pages.chats.modeUnrestrictedHint')
+                  : t('pages.chats.modeUnrestrictedHintGlobal', { windows: summarize(globalWindows) })
+              }
+            />
+            <ModeOption value="none" title={t('pages.chats.modeNone')} hint={t('pages.chats.modeNoneHint')} />
+            <ModeOption value="custom" title={t('pages.chats.modeCustom')} hint={t('pages.chats.modeCustomHint')} />
+          </RadioGroup>
+          {mode !== 'unrestricted' ? <WeekWindowsChart windows={previewWindows} timezone={timezone} /> : null}
+          {mode === 'custom' ? (
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+              <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between' })}>
+                <Label>{t('pages.chats.windowsLabel')}</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  color="secondary"
+                  onClick={() =>
+                    setDrafts((current) => [
+                      ...current,
+                      {
+                        key: draftKey++,
+                        start: '09:00',
+                        end: '18:00',
+                        endMidnight: false,
+                        days: [true, true, true, true, true, true, true],
+                      },
+                    ])
+                  }
+                  iconStart={<PlusIcon />}
+                >
+                  {t('pages.chats.addWindow')}
+                </Button>
               </div>
-            ) : null}
-            {(keywords > 0 || attention !== undefined) && (
-              <p className="text-muted-foreground text-xs">
-                {keywords > 0 ? t('pages.chats.keywordsPreserved', { count: keywords }) : null}
-                {keywords > 0 && attention !== undefined ? ' ' : null}
-                {attention !== undefined ? t('pages.chats.attentionPreserved', { seconds: attention }) : null}
-              </p>
-            )}
-          </fieldset>
-          {validation !== null ? (
-            <p role="alert" className="text-destructive text-sm">
-              {validation}
-            </p>
+              {drafts.length === 0 ? (
+                <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.windowsEmpty')}</p>
+              ) : null}
+              {drafts.map((draft, index) => (
+                <div
+                  key={draft.key}
+                  className={css({
+                    '& > :not(:last-child)': { marginBlockEnd: '2' },
+                    borderRadius: 'xl',
+                    borderWidth: '1px',
+                    borderColor: 'border',
+                    padding: '3',
+                  })}
+                >
+                  <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
+                    <Input
+                      type="time"
+                      value={draft.start}
+                      aria-label={`${t('pages.chats.startLabel')} ${index + 1}`}
+                      onChange={(event) =>
+                        setDraft(draft.key, (current) => ({ ...current, start: event.target.value }))
+                      }
+                      className={css({ width: '108px' })}
+                    />
+                    <span className={css({ color: 'text-muted' })} aria-hidden="true">
+                      –
+                    </span>
+                    <Input
+                      type="time"
+                      value={draft.end}
+                      disabled={draft.endMidnight}
+                      aria-label={`${t('pages.chats.endLabel')} ${index + 1}`}
+                      onChange={(event) => setDraft(draft.key, (current) => ({ ...current, end: event.target.value }))}
+                      className={css({ width: '108px' })}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={draft.endMidnight ? 'soft' : 'outline'}
+                      color="secondary"
+                      aria-pressed={draft.endMidnight}
+                      title={t('pages.chats.endMidnight')}
+                      onClick={() =>
+                        setDraft(draft.key, (current) => ({ ...current, endMidnight: !current.endMidnight }))
+                      }
+                    >
+                      24:00
+                    </Button>
+                    <IconButton
+                      variant="ghost"
+                      onClick={() => setDrafts((current) => current.filter((item) => item.key !== draft.key))}
+                      label={t('pages.chats.removeWindow')}
+                      icon={<TrashIcon />}
+                    />
+                  </div>
+                  <div className={css({ display: 'flex', flexWrap: 'wrap', gap: '1' })}>
+                    {dayLabels.map((label, dayIndex) => {
+                      const on = draft.days[dayIndex] ?? false;
+                      return (
+                        <button
+                          key={label}
+                          type="button"
+                          aria-pressed={on}
+                          onClick={() =>
+                            setDraft(draft.key, (current) => ({
+                              ...current,
+                              days: current.days.map((value, position) => (position === dayIndex ? !value : value)),
+                            }))
+                          }
+                          className={
+                            on
+                              ? 'border-primary bg-primary/10 text-primary rounded-full border px-2.5 py-0.5 text-xs transition-colors'
+                              : 'text-muted-foreground hover:border-primary/50 rounded-full border px-2.5 py-0.5 text-xs transition-colors'
+                          }
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : null}
-          {save.isError ? (
-            <p role="alert" className="text-destructive text-sm break-words">
-              {errorMessage(save.error)}
+          {(keywords > 0 || attention !== undefined) && (
+            <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+              {keywords > 0 ? t('pages.chats.keywordsPreserved', { count: keywords }) : null}
+              {keywords > 0 && attention !== undefined ? ' ' : null}
+              {attention !== undefined ? t('pages.chats.attentionPreserved', { seconds: attention }) : null}
             </p>
-          ) : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={save.isPending} onClick={onClose}>
-              {t('common.cancel')}
-            </Button>
-            <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? t('common.saving') : t('common.save')}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
+          )}
+        </fieldset>
+        {validation !== null ? (
+          <p role="alert" className={css({ textStyle: 'body', color: 'error-text' })}>
+            {validation}
+          </p>
+        ) : null}
+        {save.isError ? (
+          <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+            {errorMessage(save.error)}
+          </p>
+        ) : null}
+      </form>
     </Dialog>
   );
 }

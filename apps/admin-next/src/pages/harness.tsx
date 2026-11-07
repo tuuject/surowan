@@ -4,11 +4,11 @@ import { Select } from '@tuuject/koi-react/select';
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Panel } from '@/components/layout/panel';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from '@tuuject/koi-react/button';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@tuuject/koi-react/switch';
+import { Textarea } from '@tuuject/koi-react/textarea';
 import type { HarnessValue, HarnessValues } from '@/lib/api/config.ts';
 import { updateHarnessSettings } from '@/lib/api/config.ts';
 import { errorMessage } from '@/lib/errors';
@@ -24,6 +24,7 @@ import {
 import { useShowConfigKeys } from '@/lib/panel-preferences';
 import { harnessQuery } from '@/lib/queries';
 import { useProviderWrite } from '@/lib/use-provider-write';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 function useHarnessSave() {
   const queryClient = useQueryClient();
@@ -52,23 +53,35 @@ export default function HarnessPage(): React.ReactElement {
   const current = settings.data;
 
   return (
-    <div className="max-w-3xl space-y-4">
-      <div className="text-muted-foreground space-y-1 text-sm">
+    <div className={css({ maxWidth: '48rem', '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+      <div
+        className={css({ textStyle: 'body', color: 'text-muted', '& > :not(:last-child)': { marginBlockEnd: '1' } })}
+      >
         <p>{t('harness.description')}</p>
         <p>
           <Trans
             i18nKey="harness.elsewhere"
             components={{
-              models: <Link to="/models" className="text-foreground underline underline-offset-4" />,
-              prompts: <Link to="/prompts" className="text-foreground underline underline-offset-4" />,
+              models: (
+                <Link
+                  to="/models"
+                  className={css({ color: 'text', textDecorationLine: 'underline', textUnderlineOffset: '4px' })}
+                />
+              ),
+              prompts: (
+                <Link
+                  to="/prompts"
+                  className={css({ color: 'text', textDecorationLine: 'underline', textUnderlineOffset: '4px' })}
+                />
+              ),
             }}
           />
         </p>
       </div>
       {settings.isPending ? (
-        <p className="text-muted-foreground text-sm">{t('common.loading')}</p>
+        <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('common.loading')}</p>
       ) : settings.isError || current === undefined ? (
-        <p role="alert" className="text-destructive text-sm break-words">
+        <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
           {t('harness.loadFailed')}: {errorMessage(settings.error)}
         </p>
       ) : (
@@ -103,7 +116,7 @@ function HarnessForm({
   const invalid = Object.keys(parsed.errors).length > 0;
   return (
     <form
-      className="space-y-4"
+      className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}
       onSubmit={(event) => {
         event.preventDefault();
         if (changed > 0 && !invalid) {
@@ -111,14 +124,14 @@ function HarnessForm({
         }
       }}
     >
-      <fieldset disabled={save.isPending} className="space-y-4">
+      <fieldset disabled={save.isPending} className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
         {HARNESS_GROUPS.map((group) => (
           <Panel
             key={group.id}
             title={t(`harness.groups.${group.id}.title`)}
             description={t(`harness.groups.${group.id}.description`)}
           >
-            <div className="space-y-5">
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
               {group.fields.map((field) => (
                 <HarnessFieldRow
                   key={field.key}
@@ -134,13 +147,27 @@ function HarnessForm({
           </Panel>
         ))}
       </fieldset>
-      <div className="bg-background/95 sticky bottom-0 flex flex-wrap items-center gap-3 border-t py-3 backdrop-blur">
+      <div
+        className={css({
+          bg: 'surface',
+          position: 'sticky',
+          bottom: '0',
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: '3',
+          borderTopWidth: '1px',
+          borderColor: 'divider',
+          paddingBlock: '3',
+        })}
+      >
         <Button type="submit" disabled={save.isPending || changed === 0 || invalid}>
           {save.isPending ? t('harness.saving') : t('harness.save')}
         </Button>
         <Button
           type="button"
           variant="outline"
+          color="secondary"
           disabled={save.isPending || changed === 0}
           onClick={() => {
             save.reset();
@@ -149,7 +176,7 @@ function HarnessForm({
         >
           {t('harness.discard')}
         </Button>
-        <p className="text-muted-foreground text-sm">
+        <p className={css({ textStyle: 'body', color: 'text-muted' })}>
           {invalid
             ? t('harness.invalid')
             : changed === 0
@@ -157,7 +184,10 @@ function HarnessForm({
               : t('harness.pending', { count: changed })}
         </p>
         {save.isError ? (
-          <p role="alert" className="text-destructive w-full text-sm break-words">
+          <p
+            role="alert"
+            className={css({ textStyle: 'body', color: 'error-text', width: '100%', overflowWrap: 'anywhere' })}
+          >
             {errorMessage(save.error)}
           </p>
         ) : null}
@@ -193,7 +223,7 @@ function HarnessFieldRow({
           ? shown.join(' / ')
           : String(shown);
   const mismatch = sameHarnessValue(saved, active) ? null : (
-    <p role="status" className="text-warning text-sm">
+    <p role="status" className={css({ textStyle: 'body', color: 'warning-text' })}>
       {t('harness.running', { value: display(active) })}
     </p>
   );
@@ -201,18 +231,18 @@ function HarnessFieldRow({
   const description = t(`harness.fields.${field.key}.description` as 'harness.fields.max_concurrency.description');
   const showConfigKeys = useShowConfigKeys();
   const configPath = showConfigKeys ? (
-    <code className="text-muted-foreground block font-mono text-xs">
+    <code className={css({ textStyle: 'small', color: 'text-muted', display: 'block', fontFamily: 'mono' })}>
       {field.section ?? 'agent'}.{field.key}
     </code>
   ) : null;
 
   if (field.kind === 'boolean') {
     return (
-      <div className="space-y-1">
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+        <div className={css({ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '4' })}>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
             <Label htmlFor={id}>{label}</Label>
-            <p id={describedBy} className="text-muted-foreground text-sm">
+            <p id={describedBy} className={css({ textStyle: 'body', color: 'text-muted' })}>
               {description}
             </p>
             {configPath}
@@ -230,17 +260,24 @@ function HarnessFieldRow({
   }
   const errorText =
     error === undefined ? null : (
-      <p className="text-destructive text-sm">
+      <p className={css({ textStyle: 'body', color: 'error-text' })}>
         {t(`harness.errors.${error.key}`, { min: error.limit, max: error.limit })}
       </p>
     );
   if (field.kind === 'select') {
     return (
-      <div className="space-y-2">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-          <div className="space-y-1">
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+        <div
+          className={css({
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '2',
+            md: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: '6' },
+          })}
+        >
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
             <Label htmlFor={id}>{label}</Label>
-            <p id={describedBy} className="text-muted-foreground text-sm">
+            <p id={describedBy} className={css({ textStyle: 'body', color: 'text-muted' })}>
               {description}
             </p>
             {configPath}
@@ -249,7 +286,7 @@ function HarnessFieldRow({
             id={id}
             aria-label={label}
             aria-describedby={describedBy}
-            className="sm:w-56"
+            className={css({ md: { width: '224px' } })}
             value={typeof value === 'string' ? value : ''}
             onChange={(event) => onChange(event.target.value)}
           >
@@ -269,10 +306,10 @@ function HarnessFieldRow({
   }
   if (field.kind === 'lines') {
     return (
-      <div className="space-y-2">
-        <div className="space-y-1">
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           <Label htmlFor={id}>{label}</Label>
-          <p id={describedBy} className="text-muted-foreground text-sm">
+          <p id={describedBy} className={css({ textStyle: 'body', color: 'text-muted' })}>
             {description}
           </p>
           {configPath}
@@ -290,18 +327,25 @@ function HarnessFieldRow({
     );
   }
   return (
-    <div className="space-y-2">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-        <div className="space-y-1">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+      <div
+        className={css({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2',
+          md: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: '6' },
+        })}
+      >
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           <Label htmlFor={id}>{label}</Label>
-          <p id={describedBy} className="text-muted-foreground text-sm">
+          <p id={describedBy} className={css({ textStyle: 'body', color: 'text-muted' })}>
             {description}
           </p>
           {configPath}
         </div>
         <Input
           id={id}
-          className="sm:w-44 sm:shrink-0"
+          className={css({ md: { width: '176px', flexShrink: '0' } })}
           inputMode={field.kind === 'ratio' ? 'decimal' : 'numeric'}
           aria-describedby={describedBy}
           aria-invalid={error !== undefined}

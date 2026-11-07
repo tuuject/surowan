@@ -1,9 +1,10 @@
 import type { TFunction } from 'i18next';
-import { AlertTriangle } from 'lucide-react';
+import { WarningIcon } from '@tuuject/koi-react/icons';
 import { type ColumnSpec, ToneBadge } from '@/components/business';
-import { Button } from '@/components/ui/button';
+import { Button } from '@tuuject/koi-react/button';
 import type { DictionaryChatOption, DictionaryEntry, DictionaryScope } from '@/lib/api/dictionary.ts';
 import { formatTime } from '@/lib/format';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 function targetLabel(
   entry: { readonly scope: DictionaryScope; readonly chat_id: string | null },
@@ -41,7 +42,7 @@ export function dictionaryColumns(options: DictionaryColumnsOptions): readonly C
       render: (entry) => (
         <input
           type="checkbox"
-          className="size-4 rounded border-input"
+          className={css({ width: 'icon', height: 'icon', borderRadius: 'lg', borderColor: 'border-control' })}
           aria-label={t('dictionary.page.selectAria', { term: entry.term })}
           checked={selected.has(entry.id)}
           onChange={() => onToggleSelected(entry.id)}
@@ -53,11 +54,11 @@ export function dictionaryColumns(options: DictionaryColumnsOptions): readonly C
       title: t('dictionary.page.colTerm'),
       className: 'whitespace-normal',
       render: (entry) => (
-        <span className="flex flex-wrap items-center gap-1">
-          <span className="font-medium">{entry.term}</span>
+        <span className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1' })}>
+          <span className={css({ textStyle: 'label' })}>{entry.term}</span>
           {conflicted.has(entry.id) ? (
             <ToneBadge tone="warning">
-              <AlertTriangle className="size-3" />
+              <WarningIcon className={css({ width: 'icon-xs', height: 'icon-xs' })} />
               {t('dictionary.conflicts.title')}
             </ToneBadge>
           ) : null}
@@ -70,11 +71,20 @@ export function dictionaryColumns(options: DictionaryColumnsOptions): readonly C
       className: 'max-w-64 min-w-32 whitespace-normal',
       render: (entry) =>
         entry.aliases.length === 0 ? (
-          <span className="text-muted-foreground">{t('dictionary.page.noAliases')}</span>
+          <span className={css({ color: 'text-muted' })}>{t('dictionary.page.noAliases')}</span>
         ) : (
-          <span className="flex flex-wrap items-center gap-1">
+          <span className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1' })}>
             {entry.aliases.map((alias) => (
-              <span key={alias} className="bg-muted rounded px-1.5 py-0.5 text-xs">
+              <span
+                key={alias}
+                className={css({
+                  textStyle: 'small',
+                  bg: 'surface-muted',
+                  borderRadius: 'lg',
+                  paddingInline: '2',
+                  paddingBlock: '1',
+                })}
+              >
                 {alias}
               </span>
             ))}
@@ -85,12 +95,12 @@ export function dictionaryColumns(options: DictionaryColumnsOptions): readonly C
       key: 'definition',
       title: t('dictionary.page.colDefinition'),
       className: 'max-w-80 min-w-48 whitespace-normal',
-      render: (entry) => <div className="line-clamp-2">{entry.definition}</div>,
+      render: (entry) => <div className={css({ lineClamp: '2' })}>{entry.definition}</div>,
     },
     {
       key: 'scope',
       title: t('dictionary.page.colScope'),
-      render: (entry) => <span className="text-sm">{targetLabel(entry, chats, t)}</span>,
+      render: (entry) => <span className={css({ textStyle: 'body' })}>{targetLabel(entry, chats, t)}</span>,
     },
     {
       key: 'enabled',
@@ -98,7 +108,11 @@ export function dictionaryColumns(options: DictionaryColumnsOptions): readonly C
       render: (entry) => (
         <button
           type="button"
-          className="text-sm underline-offset-4 hover:underline"
+          className={css({
+            textStyle: 'body',
+            textUnderlineOffset: '4px',
+            _hover: { textDecorationLine: 'underline' },
+          })}
           disabled={toggleEnabledPending}
           onClick={() => onToggleEnabled(entry)}
         >
@@ -111,11 +125,12 @@ export function dictionaryColumns(options: DictionaryColumnsOptions): readonly C
       key: 'actions',
       title: t('dictionary.page.colActions'),
       render: (entry) => (
-        <div className="flex items-center gap-1">
+        <div className={css({ display: 'flex', alignItems: 'center', gap: '1' })}>
           <Button
             type="button"
             size="sm"
             variant="outline"
+            color="secondary"
             aria-label={t('dictionary.page.editAria', { term: entry.term })}
             onClick={() => onEdit(entry)}
           >
@@ -124,7 +139,7 @@ export function dictionaryColumns(options: DictionaryColumnsOptions): readonly C
           <Button
             type="button"
             size="sm"
-            variant="destructive"
+            color="error"
             aria-label={t('dictionary.page.deleteAria', { term: entry.term })}
             onClick={() => onDelete(entry)}
           >

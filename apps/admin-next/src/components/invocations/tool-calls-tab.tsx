@@ -15,15 +15,21 @@ import type { InvocationDetail, ToolCallEntry } from '@/lib/api/invocations.ts';
 import { formatDuration, formatTime } from '@/lib/format';
 import { parseSendArguments } from '@/lib/timeline';
 import { ToolResult } from './tool-result';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 function SendArgumentsSummary({ argumentsJson }: { readonly argumentsJson: string }): React.ReactElement {
   const { t } = useTranslation();
   const parsed = parseSendArguments(argumentsJson);
   return (
-    <div className="mb-2">
-      <p className="text-muted-foreground mb-1 text-xs">{t('invocations.invocationDetail.sendArguments.title')}</p>
+    <div className={css({ marginBlockEnd: '2' })}>
+      <p className={css({ textStyle: 'small', color: 'text-muted', marginBlockEnd: '1' })}>
+        {t('invocations.invocationDetail.sendArguments.title')}
+      </p>
       <KvList
-        className="sm:grid-cols-2 lg:grid-cols-4"
+        className={css({
+          md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
+          '@media (min-width: 1024px)': { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' },
+        })}
         items={[
           { label: t('invocations.invocationDetail.sendArguments.kind'), value: <TextValue value={parsed.kind} /> },
           { label: t('invocations.invocationDetail.sendArguments.text'), value: <TextValue value={parsed.text} /> },
@@ -47,7 +53,20 @@ export function ToolCallsTab({ invocation }: { readonly invocation: InvocationDe
     {
       key: 'tool',
       title: t('invocations.invocationDetail.toolColumns.tool'),
-      render: (row) => <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{row.tool_name}</code>,
+      render: (row) => (
+        <code
+          className={css({
+            textStyle: 'small',
+            borderRadius: 'lg',
+            bg: 'surface-muted',
+            paddingInline: '1',
+            paddingBlock: '1',
+            fontFamily: 'mono',
+          })}
+        >
+          {row.tool_name}
+        </code>
+      ),
     },
     {
       key: 'call-id',
@@ -88,16 +107,18 @@ export function ToolCallsTab({ invocation }: { readonly invocation: InvocationDe
         data={invocation.tool_calls}
         rowKey={(row) => row.id}
         expandedRender={(row) => (
-          <div className="space-y-3">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
             {row.tool_name === 'send' ? <SendArgumentsSummary argumentsJson={row.arguments_json} /> : null}
             <div>
-              <p className="text-muted-foreground mb-1 text-xs">
+              <p className={css({ textStyle: 'small', color: 'text-muted', marginBlockEnd: '1' })}>
                 {t('invocations.invocationDetail.toolCall.arguments')}
               </p>
               <JsonViewer value={row.arguments_json} />
             </div>
             <div>
-              <p className="text-muted-foreground mb-1 text-xs">{t('invocations.invocationDetail.toolCall.result')}</p>
+              <p className={css({ textStyle: 'small', color: 'text-muted', marginBlockEnd: '1' })}>
+                {t('invocations.invocationDetail.toolCall.result')}
+              </p>
               {row.result_content ? (
                 <ToolResult content={row.result_content} />
               ) : (

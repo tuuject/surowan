@@ -1,15 +1,23 @@
 import { useTranslation } from 'react-i18next';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { errorMessage } from '@/lib/errors.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /** Placeholder while the provider view loads. */
 export function ModelsPageLoading(): React.ReactElement {
   return (
-    <div className="space-y-6">
-      <Skeleton className="h-20 w-full rounded-xl" />
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
-        <Skeleton className="h-64 w-full rounded-xl" />
-        <Skeleton className="h-64 w-full rounded-xl" />
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '6' } })}>
+      <Skeleton className={css({ height: '80px', width: '100%', borderRadius: 'xl' })} />
+      <div
+        className={css({
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr)',
+          gap: '6',
+          '@media (min-width: 1024px)': { gridTemplateColumns: 'minmax(0,18rem) minmax(0,1fr)' },
+        })}
+      >
+        <Skeleton className={css({ height: '256px', width: '100%', borderRadius: 'xl' })} />
+        <Skeleton className={css({ height: '256px', width: '100%', borderRadius: 'xl' })} />
       </div>
     </div>
   );
@@ -19,9 +27,9 @@ export function ModelsPageLoading(): React.ReactElement {
 export function ModelsPageError({ error }: { readonly error: unknown }): React.ReactElement {
   const { t } = useTranslation();
   return (
-    <div className="p-6 text-center">
-      <p className="text-destructive font-medium">{t('models.models.page.loadFailed')}</p>
-      <p className="text-muted-foreground text-sm break-words">{errorMessage(error)}</p>
+    <div className={css({ padding: '6', textAlign: 'center' })}>
+      <p className={css({ textStyle: 'label', color: 'error-text' })}>{t('models.models.page.loadFailed')}</p>
+      <p className={css({ textStyle: 'body', color: 'text-muted', overflowWrap: 'anywhere' })}>{errorMessage(error)}</p>
     </div>
   );
 }

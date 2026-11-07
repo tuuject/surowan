@@ -2,13 +2,14 @@ import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListFooter, ToneBadge, useClientPagination } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from '@tuuject/koi-react/button';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
+import { Switch } from '@tuuject/koi-react/switch';
 import type { PlaygroundParticipant, PlaygroundRoom, PlaygroundRoomDetail } from '@/lib/api/playground.ts';
 import { StatusPill } from './shared.tsx';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 interface RoomReleaseControl {
   readonly isPending: boolean;
@@ -52,19 +53,21 @@ export function RoomHeaderCard({
     <Panel
       title={room?.title ?? t('common.loading')}
       description={t('playground.room.releaseHint')}
-      className="min-w-0"
+      className={css({ minWidth: '0' })}
     >
-      <div className="min-w-0 space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-muted-foreground text-xs">{t('playground.room.revision', { revision })}</span>
+      <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+        <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
+          <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+            {t('playground.room.revision', { revision })}
+          </span>
           <ToneBadge tone={room?.hold === true ? 'warning' : 'neutral'}>
             {room?.hold === true ? t('playground.room.holdOn') : t('playground.room.holdOff')}
           </ToneBadge>
-          <span className="text-muted-foreground text-xs">
+          <span className={css({ textStyle: 'small', color: 'text-muted' })}>
             {pending === 0 ? t('playground.room.noPending') : t('playground.room.pending', { count: pending })}
           </span>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
           <Button
             type="button"
             onClick={() => release.mutate({ revision, throughSeq: latestInputSeq, count: pending })}
@@ -78,18 +81,19 @@ export function RoomHeaderCard({
           <Button
             type="button"
             variant="outline"
+            color="secondary"
             onClick={() => hold.mutate()}
             disabled={hold.isPending || room?.hold === true}
           >
             {t('playground.room.openHold')}
           </Button>
           {(room?.expired_inputs ?? 0) > 0 ? (
-            <span className="text-muted-foreground text-xs">
+            <span className={css({ textStyle: 'small', color: 'text-muted' })}>
               {t('playground.room.expiredInputs', { count: room?.expired_inputs ?? 0 })}
             </span>
           ) : null}
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '3' })}>
           <StatusPill label={t('playground.room.queued', { count: '' }).trim()} value={room?.queued_invocations ?? 0} />
           <StatusPill
             label={t('playground.room.running', { count: '' }).trim()}
@@ -97,8 +101,16 @@ export function RoomHeaderCard({
           />
         </div>
         <Separator />
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+        <div
+          className={css({
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '3',
+          })}
+        >
+          <div className={css({ display: 'flex', alignItems: 'center', gap: '3' })}>
             <Switch
               id="playground-image-switch"
               checked={room?.image_enabled === true}
@@ -106,9 +118,9 @@ export function RoomHeaderCard({
               disabled={room === undefined || capabilities.isPending}
               aria-label={t('playground.capabilities.image')}
             />
-            <div className="min-w-0">
+            <div className={css({ minWidth: '0' })}>
               <Label htmlFor="playground-image-switch">{t('playground.capabilities.image')}</Label>
-              <p className="text-muted-foreground text-xs">
+              <p className={css({ textStyle: 'small', color: 'text-muted' })}>
                 {room?.image_enabled === true
                   ? t('playground.capabilities.imageOn')
                   : t('playground.capabilities.imageOff')}
@@ -119,11 +131,13 @@ export function RoomHeaderCard({
             </div>
           </div>
           {(detail.data?.staged_assets.length ?? 0) > 0 ? (
-            <span className="text-muted-foreground text-xs">
+            <span className={css({ textStyle: 'small', color: 'text-muted' })}>
               {t('playground.capabilities.stagedAssets', { count: detail.data?.staged_assets.length ?? 0 })}
             </span>
           ) : (
-            <span className="text-muted-foreground text-xs">{t('playground.capabilities.imageHint')}</span>
+            <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+              {t('playground.capabilities.imageHint')}
+            </span>
           )}
         </div>
       </div>
@@ -144,14 +158,28 @@ export function IdentitiesCard({
     <Panel
       title={t('playground.identities.heading')}
       description={t('playground.identities.addHint')}
-      className="min-w-0"
+      className={css({ minWidth: '0' })}
     >
-      <div className="min-w-0 space-y-3">
-        <ul className="flex flex-wrap gap-2">
+      <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+        <ul className={css({ display: 'flex', flexWrap: 'wrap', gap: '2' })}>
           {pagination.items.map((member) => (
-            <li key={member.id} className="flex items-center gap-2 rounded-md border px-2 py-1">
-              <span className="text-sm">{member.name}</span>
-              <span className="text-muted-foreground text-xs">{t(`playground.identities.${member.role}`)}</span>
+            <li
+              key={member.id}
+              className={css({
+                display: 'flex',
+                alignItems: 'center',
+                gap: '2',
+                borderRadius: 'lg',
+                borderWidth: '1px',
+                borderColor: 'border',
+                paddingInline: '2',
+                paddingBlock: '1',
+              })}
+            >
+              <span className={css({ textStyle: 'body' })}>{member.name}</span>
+              <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+                {t(`playground.identities.${member.role}`)}
+              </span>
             </li>
           ))}
         </ul>
@@ -161,19 +189,20 @@ export function IdentitiesCard({
           pageCount={pagination.pageCount}
           onPageChange={pagination.onPageChange}
         />
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="space-y-1">
+        <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '2' })}>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
             <Label htmlFor="playground-participant-name">{t('playground.identities.name')}</Label>
             <Input
               id="playground-participant-name"
               value={participantName}
               onChange={(event) => setParticipantName(event.target.value)}
-              className="w-48"
+              className={css({ width: '192px' })}
             />
           </div>
           <Button
             type="button"
             variant="outline"
+            color="secondary"
             onClick={() => {
               const payload = { name: participantName.trim() };
               addIdentity.mutate({ ...payload, request_key: participantKey.keyFor(payload) });

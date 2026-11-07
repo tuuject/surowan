@@ -1,6 +1,7 @@
 import { Badge } from '@tuuject/koi-react/badge';
 import type React from 'react';
 import { stateColor } from '@/lib/format';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * State badge: maps the Ant Design color names emitted by `stateColor`
@@ -62,7 +63,7 @@ export function StateBadge({
   readonly className?: string;
 }): React.ReactElement {
   if (state === null || state.length === 0) {
-    return <span className="text-muted-foreground">—</span>;
+    return <span className={css({ color: 'text-muted' })}>—</span>;
   }
   return (
     <ToneBadge tone={stateBadgeSemantic(state)} {...(className !== undefined ? { className } : {})}>

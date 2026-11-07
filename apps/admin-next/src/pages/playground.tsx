@@ -1,29 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getRouteApi } from '@tanstack/react-router';
-import { MessagesSquare, Plus } from 'lucide-react';
+import { PlusIcon } from '@tuuject/koi-react/icons';
+import { ChatIcon } from '@/components/icons';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListFooter, ListPageHeader, ListToolbar, useClientPagination } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { RoomWorkspace } from '@/components/playground/room-workspace.tsx';
 import { outcomeUnknown, usePayloadKey } from '@/components/playground/shared.tsx';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { Input } from '@/components/ui/input';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Empty } from '@tuuject/koi-react/empty';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
 import { createPlaygroundRoom } from '@/lib/api/playground.ts';
 
 import { errorMessage } from '@/lib/errors';
 import { playgroundRoomsQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 const route = getRouteApi('/playground');
 
@@ -82,40 +77,61 @@ export default function PlaygroundPage(): React.ReactElement {
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-5">
+    <div className={css({ display: 'flex', minWidth: '0', flexDirection: 'column', gap: '5' })}>
       <ListPageHeader title={t('playground.title')} description={t('playground.intro')} />
       <ListToolbar onRefresh={() => void rooms.refetch()} refreshing={rooms.isRefetching}>
-        <Button type="button" variant="outline" onClick={() => setCreateOpen(true)}>
-          <Plus className="size-4" />
+        <Button
+          type="button"
+          variant="outline"
+          color="secondary"
+          onClick={() => setCreateOpen(true)}
+          iconStart={<PlusIcon className={css({ width: 'icon', height: 'icon' })} />}
+        >
           {t('playground.rooms.create')}
         </Button>
       </ListToolbar>
 
-      <div className="grid min-w-0 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+      <div
+        className={css({
+          display: 'grid',
+          minWidth: '0',
+          gap: '4',
+          '@media (min-width: 1024px)': { gridTemplateColumns: '320px minmax(0,1fr)' },
+        })}
+      >
         <Panel
           title={t('playground.rooms.heading')}
           description={t('playground.rooms.select')}
-          action={<span className="text-muted-foreground text-xs tabular-nums">{pagination.total}</span>}
-          className="min-w-0"
+          action={
+            <span className={css({ textStyle: 'small', color: 'text-muted', fontVariantNumeric: 'tabular-nums' })}>
+              {pagination.total}
+            </span>
+          }
+          className={css({ minWidth: '0' })}
         >
-          <div className="min-w-0 space-y-2">
-            {rooms.isPending ? <p className="text-muted-foreground text-sm">{t('common.loading')}</p> : null}
-            {rooms.isError ? <p className="text-destructive text-sm">{t('playground.rooms.loadFailed')}</p> : null}
-            {rooms.data?.items.length === 0 ? (
-              <p className="text-muted-foreground text-sm">{t('playground.rooms.empty')}</p>
+          <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+            {rooms.isPending ? (
+              <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('common.loading')}</p>
             ) : null}
-            <ul className="min-w-0 space-y-1">
+            {rooms.isError ? (
+              <p className={css({ textStyle: 'body', color: 'error-text' })}>{t('playground.rooms.loadFailed')}</p>
+            ) : null}
+            {rooms.data?.items.length === 0 ? (
+              <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('playground.rooms.empty')}</p>
+            ) : null}
+            <ul className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
               {pagination.items.map((entry) => (
                 <li key={entry.id}>
                   <Button
                     type="button"
-                    variant={entry.id === roomId ? 'secondary' : 'ghost'}
-                    className="w-full justify-start"
+                    variant={entry.id === roomId ? 'soft' : 'ghost'}
+                    color="secondary"
+                    className={css({ width: '100%', justifyContent: 'flex-start' })}
                     onClick={() => selectRoom(entry.id)}
                     aria-current={entry.id === roomId ? 'true' : undefined}
                   >
-                    <span className="truncate">{entry.title}</span>
-                    <span className="text-muted-foreground ml-auto text-xs">
+                    <span className={css({ truncate: true })}>{entry.title}</span>
+                    <span className={css({ textStyle: 'small', color: 'text-muted', marginInlineStart: 'auto' })}>
                       {t('playground.room.pending', { count: entry.held_count ?? 0 })}
                     </span>
                   </Button>
@@ -131,18 +147,14 @@ export default function PlaygroundPage(): React.ReactElement {
           </div>
         </Panel>
 
-        <div className="flex min-w-0 flex-col gap-4">
+        <div className={css({ display: 'flex', minWidth: '0', flexDirection: 'column', gap: '4' })}>
           {roomId.length === 0 ? (
-            <div className="border-t py-6">
-              <Empty>
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <MessagesSquare />
-                  </EmptyMedia>
-                  <EmptyTitle>{t('playground.rooms.empty')}</EmptyTitle>
-                  <EmptyDescription>{t('playground.rooms.createHint')}</EmptyDescription>
-                </EmptyHeader>
-              </Empty>
+            <div className={css({ borderTopWidth: '1px', borderColor: 'divider', paddingBlock: '6' })}>
+              <Empty
+                icon={<ChatIcon />}
+                title={t('playground.rooms.empty')}
+                description={t('playground.rooms.createHint')}
+              />
             </div>
           ) : (
             // Keyed by room: every draft, selection, pending upload and key
@@ -154,40 +166,17 @@ export default function PlaygroundPage(): React.ReactElement {
         </div>
       </div>
 
-      <Dialog open={createOpen} onOpenChange={(open) => !open && !createRoom.isPending && setCreateOpen(false)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('playground.rooms.create')}</DialogTitle>
-            <DialogDescription>{t('playground.rooms.createHint')}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="playground-room-title">{t('playground.rooms.createTitle')}</Label>
-              <Input
-                id="playground-room-title"
-                value={newTitle}
-                onChange={(event) => setNewTitle(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="playground-room-members">{t('playground.rooms.createMembers')}</Label>
-              <Input
-                id="playground-room-members"
-                value={newMembers}
-                onChange={(event) => setNewMembers(event.target.value)}
-                placeholder="Ada, Bo"
-              />
-            </div>
-          </div>
-          {createRoom.isError ? (
-            <p role="alert" className="text-destructive text-sm break-words">
-              {t('playground.errors.failed', { message: errorMessage(createRoom.error) })}
-            </p>
-          ) : null}
-          <DialogFooter>
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => !open && !createRoom.isPending && setCreateOpen(false)}
+        title={t('playground.rooms.create')}
+        description={t('playground.rooms.createHint')}
+        footer={
+          <>
             <Button
               type="button"
               variant="outline"
+              color="secondary"
               disabled={createRoom.isPending}
               onClick={() => setCreateOpen(false)}
             >
@@ -196,8 +185,29 @@ export default function PlaygroundPage(): React.ReactElement {
             <Button type="button" onClick={submitCreate} disabled={createRoom.isPending}>
               {createRoom.isPending ? t('common.submitting') : t('common.create')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+            <Label htmlFor="playground-room-title">{t('playground.rooms.createTitle')}</Label>
+            <Input id="playground-room-title" value={newTitle} onChange={(event) => setNewTitle(event.target.value)} />
+          </div>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+            <Label htmlFor="playground-room-members">{t('playground.rooms.createMembers')}</Label>
+            <Input
+              id="playground-room-members"
+              value={newMembers}
+              onChange={(event) => setNewMembers(event.target.value)}
+              placeholder="Ada, Bo"
+            />
+          </div>
+        </div>
+        {createRoom.isError ? (
+          <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+            {t('playground.errors.failed', { message: errorMessage(createRoom.error) })}
+          </p>
+        ) : null}
       </Dialog>
     </div>
   );

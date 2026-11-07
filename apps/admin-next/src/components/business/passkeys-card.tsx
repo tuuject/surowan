@@ -12,16 +12,9 @@ import {
   useClientPagination,
 } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
 import type { PasskeyItem } from '@/lib/api/auth.ts';
 import { deletePasskey, deletePassword, passkeyRegisterOptions, passkeyRegisterVerify } from '@/lib/api/auth.ts';
@@ -30,6 +23,7 @@ import { formatTime } from '@/lib/format';
 import { isWebAuthnAvailable, passkeyErrorMessage } from '@/lib/passkeys';
 import { passkeysQuery, sessionQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * Passkey management card for the Settings page. Rendered only when the
@@ -89,10 +83,12 @@ export function PasskeysCard(): React.ReactElement {
       title: t('pages.passkeys.name'),
       className: 'max-w-52 whitespace-normal [overflow-wrap:anywhere]',
       render: (item) => (
-        <div className="space-y-0.5">
-          <span className="block">{item.name}</span>
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <span className={css({ display: 'block' })}>{item.name}</span>
           {!item.usable ? (
-            <span className="text-muted-foreground block text-xs">{t('pages.passkeys.unusable')}</span>
+            <span className={css({ textStyle: 'small', color: 'text-muted', display: 'block' })}>
+              {t('pages.passkeys.unusable')}
+            </span>
           ) : null}
         </div>
       ),
@@ -110,7 +106,7 @@ export function PasskeysCard(): React.ReactElement {
         <Button
           type="button"
           size="sm"
-          variant="destructive"
+          color="error"
           disabled={remove.isPending || (!hasPassword && usableCount - (item.usable ? 1 : 0) === 0)}
           onClick={() => {
             remove.reset();
@@ -125,13 +121,15 @@ export function PasskeysCard(): React.ReactElement {
 
   return (
     <Panel title={t('pages.passkeys.title')} description={t('pages.passkeys.description')}>
-      <div className="space-y-4">
-        {!webAuthnAvailable ? <p className="text-warning text-sm">{t('pages.passkeys.unsupported')}</p> : null}
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+        {!webAuthnAvailable ? (
+          <p className={css({ textStyle: 'body', color: 'warning-text' })}>{t('pages.passkeys.unsupported')}</p>
+        ) : null}
         {passkeys.data?.has_password === false ? (
-          <p className="text-muted-foreground text-sm">{t('pages.passkeys.noPasswordHint')}</p>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.passkeys.noPasswordHint')}</p>
         ) : null}
         {lastKeyWithoutPassword ? (
-          <p className="text-warning text-sm">{t('pages.passkeys.deleteLastDisabled')}</p>
+          <p className={css({ textStyle: 'body', color: 'warning-text' })}>{t('pages.passkeys.deleteLastDisabled')}</p>
         ) : null}
         <ListToolbar onRefresh={() => void passkeys.refetch()} refreshing={passkeys.isRefetching}>
           <Button type="button" disabled={!webAuthnAvailable} onClick={() => setRegistering(true)}>
@@ -139,7 +137,7 @@ export function PasskeysCard(): React.ReactElement {
           </Button>
           <Button
             type="button"
-            variant="destructive"
+            color="error"
             disabled={!hasPassword || usableCount === 0 || passwordDelete.isPending}
             onClick={() => {
               passwordDelete.reset();
@@ -150,21 +148,24 @@ export function PasskeysCard(): React.ReactElement {
           </Button>
         </ListToolbar>
         {passkeys.data !== undefined ? (
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground text-sm">{t('pages.passkeys.passwordStatus')}</span>
+          <div className={css({ display: 'flex', alignItems: 'center', gap: '2' })}>
+            <span className={css({ textStyle: 'body', color: 'text-muted' })}>
+              {t('pages.passkeys.passwordStatus')}
+            </span>
             <ToneBadge tone={hasPassword ? 'success' : 'neutral'}>
               {hasPassword ? t('pages.passkeys.passwordSet') : t('pages.passkeys.passwordNotSet')}
             </ToneBadge>
           </div>
         ) : null}
         {passkeys.isError ? (
-          <div className="space-y-2">
-            <p role="alert" className="text-destructive text-sm break-words">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+            <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
               {errorMessage(passkeys.error)}
             </p>
             <Button
               type="button"
               variant="outline"
+              color="secondary"
               disabled={passkeys.isFetching}
               onClick={() => void passkeys.refetch()}
             >
@@ -179,7 +180,6 @@ export function PasskeysCard(): React.ReactElement {
               data={pagination.items}
               rowKey={(item) => item.id}
               loading={passkeys.isPending}
-              frame={false}
               emptyText={t('pages.passkeys.empty')}
             />
             {passkeys.data === undefined ? null : (
@@ -203,7 +203,7 @@ export function PasskeysCard(): React.ReactElement {
         }}
         title={t('pages.passkeys.deleteTitle', { name: deleting?.name ?? '' })}
         description={
-          <span className="[overflow-wrap:anywhere]">
+          <span className={css({ overflowWrap: 'anywhere' })}>
             {t('pages.passkeys.deleteDescription', { name: deleting?.name ?? '' })}
           </span>
         }
@@ -266,68 +266,67 @@ function RegisterPasskeyDialog({ onClose }: { readonly onClose: () => void }): R
   });
 
   return (
-    <Dialog open onOpenChange={(open) => !open && !register.isPending && onClose()}>
-      <DialogContent
-        className="min-w-0 max-h-[calc(100dvh-2rem)] overflow-y-auto"
-        showCloseButton={!register.isPending}
+    <Dialog
+      open
+      onOpenChange={(open) => !open && !register.isPending && onClose()}
+      title={t('pages.passkeys.registerTitle')}
+      description={t('pages.passkeys.registerDescription')}
+      footer={
+        <>
+          <Button type="button" variant="outline" color="secondary" disabled={register.isPending} onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" form="passkeys-card-form" disabled={register.isPending}>
+            {register.isPending ? t('pages.passkeys.registering') : t('pages.passkeys.registerConfirm')}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="passkeys-card-form"
+        className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (register.isPending) {
+            return;
+          }
+          const trimmed = name.trim();
+          if (trimmed.length === 0 || trimmed.length > 80) {
+            setNameError(true);
+            return;
+          }
+          setNameError(false);
+          register.mutate(trimmed);
+        }}
       >
-        <DialogHeader>
-          <DialogTitle>{t('pages.passkeys.registerTitle')}</DialogTitle>
-          <DialogDescription>{t('pages.passkeys.registerDescription')}</DialogDescription>
-        </DialogHeader>
-        <form
-          className="space-y-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (register.isPending) {
-              return;
-            }
-            const trimmed = name.trim();
-            if (trimmed.length === 0 || trimmed.length > 80) {
-              setNameError(true);
-              return;
-            }
-            setNameError(false);
-            register.mutate(trimmed);
-          }}
-        >
-          <div className="space-y-2">
-            <Label htmlFor="passkey-name">{t('pages.passkeys.nameLabel')}</Label>
-            <Input
-              id="passkey-name"
-              value={name}
-              maxLength={80}
-              autoComplete="off"
-              placeholder={t('pages.passkeys.namePlaceholder')}
-              disabled={register.isPending}
-              aria-invalid={nameError}
-              aria-describedby={nameError ? 'passkey-name-error' : undefined}
-              onChange={(event) => {
-                setName(event.target.value);
-                setNameError(false);
-              }}
-            />
-            {nameError ? (
-              <p id="passkey-name-error" role="alert" className="text-destructive text-sm">
-                {t('pages.passkeys.invalidName')}
-              </p>
-            ) : null}
-            {register.isError ? (
-              <p role="alert" className="text-destructive text-sm break-words">
-                {passkeyErrorMessage(register.error)}
-              </p>
-            ) : null}
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={register.isPending} onClick={onClose}>
-              {t('common.cancel')}
-            </Button>
-            <Button type="submit" disabled={register.isPending}>
-              {register.isPending ? t('pages.passkeys.registering') : t('pages.passkeys.registerConfirm')}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+          <Label htmlFor="passkey-name">{t('pages.passkeys.nameLabel')}</Label>
+          <Input
+            id="passkey-name"
+            value={name}
+            maxLength={80}
+            autoComplete="off"
+            placeholder={t('pages.passkeys.namePlaceholder')}
+            disabled={register.isPending}
+            aria-invalid={nameError}
+            aria-describedby={nameError ? 'passkey-name-error' : undefined}
+            onChange={(event) => {
+              setName(event.target.value);
+              setNameError(false);
+            }}
+          />
+          {nameError ? (
+            <p id="passkey-name-error" role="alert" className={css({ textStyle: 'body', color: 'error-text' })}>
+              {t('pages.passkeys.invalidName')}
+            </p>
+          ) : null}
+          {register.isError ? (
+            <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+              {passkeyErrorMessage(register.error)}
+            </p>
+          ) : null}
+        </div>
+      </form>
     </Dialog>
   );
 }

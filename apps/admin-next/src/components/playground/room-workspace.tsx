@@ -3,7 +3,7 @@ import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CLIENT_PAGE_SIZE, useCursorPages, useOffsetPagination } from '@/components/business';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert } from '@tuuject/koi-react/alert';
 import { ApiError } from '@/lib/api/core.ts';
 import type { PlaygroundRoom } from '@/lib/api/playground.ts';
 import {
@@ -270,9 +270,8 @@ export function RoomWorkspace({ roomId }: { readonly roomId: string }): React.Re
         setOpenRelease={setOpenRelease}
       />
       {detail.isError ? (
-        <Alert variant="destructive">
-          <AlertTitle>{t('common.requestFailed')}</AlertTitle>
-          <AlertDescription>{errorMessage(detail.error)}</AlertDescription>
+        <Alert tone="error" title={t('common.requestFailed')}>
+          {errorMessage(detail.error)}
         </Alert>
       ) : null}
     </>

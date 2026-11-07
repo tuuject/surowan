@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ImageModelConfig } from '@/lib/api/images.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /** Read-only summary of what one endpoint accepts and returns. */
 export function ModelCapabilities({
@@ -16,7 +17,7 @@ export function ModelCapabilities({
     high: t('image.settings.enumHigh'),
   };
   return (
-    <p className="text-muted-foreground text-xs leading-relaxed">
+    <p className={css({ textStyle: 'small', color: 'text-muted' })}>
       {capabilities.imageInput
         ? t('image.settings.capabilitiesInput', { count: capabilities.maxInputImages })
         : t('image.settings.capabilitiesTextOnly')}{' '}

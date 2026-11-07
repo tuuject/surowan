@@ -17,6 +17,7 @@ import type { AgentMessageEntry, InvocationDetail } from '@/lib/api/invocations.
 import { formatTime } from '@/lib/format';
 import { objectField, parseJsonObject, stringField } from '@/lib/timeline';
 import { ToolResult } from './tool-result';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 export function AgentTranscriptTab({ invocation }: { readonly invocation: InvocationDetail }): React.ReactNode {
   const { t } = useTranslation();
@@ -32,7 +33,7 @@ export function AgentTranscriptTab({ invocation }: { readonly invocation: Invoca
       key: 'role',
       title: t('invocations.invocationDetail.agentColumns.role'),
       render: (row) => (
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
           <RoleBadge role={row.role} />
           {row.role === 'assistant' ? <PrivateReasoningTag /> : null}
         </div>
@@ -43,7 +44,7 @@ export function AgentTranscriptTab({ invocation }: { readonly invocation: Invoca
       title: t('invocations.invocationDetail.agentColumns.text'),
       className: 'min-w-64 max-w-2xl whitespace-normal',
       render: (row) => (
-        <div className="space-y-1">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           {row.thinking_text.length > 0 && row.role === 'assistant' ? (
             <LazyDetails
               summary={t('invocations.invocationDetail.agent.thinkingLabel')}
@@ -56,9 +57,11 @@ export function AgentTranscriptTab({ invocation }: { readonly invocation: Invoca
           {row.result_content ? (
             <ToolResult content={row.result_content} />
           ) : row.text.length === 0 ? (
-            <p className="text-muted-foreground text-sm">{t('invocations.invocationDetail.agent.noText')}</p>
+            <p className={css({ textStyle: 'body', color: 'text-muted' })}>
+              {t('invocations.invocationDetail.agent.noText')}
+            </p>
           ) : (
-            <p className="text-sm break-words whitespace-pre-wrap">{row.text}</p>
+            <p className={css({ textStyle: 'body', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>{row.text}</p>
           )}
         </div>
       ),
@@ -70,7 +73,7 @@ export function AgentTranscriptTab({ invocation }: { readonly invocation: Invoca
     },
   ];
   return (
-    <div className="space-y-3">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
       <PrivateReasoningNote />
       <TabContent
         count={invocation.agent_messages.length}
@@ -108,7 +111,13 @@ export function FrozenContextTab({ invocation }: { readonly invocation: Invocati
         <MessageRecordLink
           chat={invocation.chat}
           messageId={row.message_id}
-          className="font-mono text-xs break-all underline-offset-4 hover:underline"
+          className={css({
+            textStyle: 'small',
+            fontFamily: 'mono',
+            wordBreak: 'break-all',
+            textUnderlineOffset: '4px',
+            _hover: { textDecorationLine: 'underline' },
+          })}
         >
           {row.message_id}
         </MessageRecordLink>
@@ -125,7 +134,7 @@ export function FrozenContextTab({ invocation }: { readonly invocation: Invocati
       render: (row) => {
         const sender = objectField(parseJsonObject(row.snapshot_json), 'sender');
         return (
-          <div className="min-w-0 space-y-0.5">
+          <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
             <TextValue value={stringField(sender, 'name') ?? stringField(sender, 'username')} />
             {isRoom(invocation.chat) ? (
               <CopyableValue
@@ -157,7 +166,9 @@ export function FrozenContextTab({ invocation }: { readonly invocation: Invocati
         rowKey={(row) => `${row.section}-${row.sequence_no}`}
         expandedRender={(row) => (
           <div>
-            <p className="text-muted-foreground mb-1 text-xs">{t('invocations.invocationDetail.snapshot')}</p>
+            <p className={css({ textStyle: 'small', color: 'text-muted', marginBlockEnd: '1' })}>
+              {t('invocations.invocationDetail.snapshot')}
+            </p>
             <JsonViewer value={row.snapshot_json} />
           </div>
         )}

@@ -1,11 +1,12 @@
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from '@tuuject/koi-react/button';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
 import type { ImageCatalogEndpoint } from '@/lib/api/images.ts';
 import { ModelCapabilities } from './model-capabilities.tsx';
 import { type EditableCredential, selectClass } from './shared.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /** One catalog entry from `GET /image/models`. */
 type CatalogModel = { id: string; name: string };
@@ -58,13 +59,13 @@ export function ModelPicker({
   const { t } = useTranslation();
   return (
     <>
-      <p className="text-muted-foreground text-sm">{t('image.settings.modelsHint')}</p>
+      <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('image.settings.modelsHint')}</p>
       {catalogErrorText !== null && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className={css({ textStyle: 'body', color: 'error-text' })}>
           {t('image.settings.catalogError', { error: catalogErrorText })}
         </p>
       )}
-      <div className="space-y-2">
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
         <Label htmlFor="image-model-search">{t('image.settings.searchModels')}</Label>
         <Input
           id="image-model-search"
@@ -73,7 +74,7 @@ export function ModelPicker({
           onChange={(event) => onSearchChange(event.target.value)}
         />
       </div>
-      <div className="space-y-2">
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
         <Label htmlFor="image-model-select">{t('image.settings.modelSelectLabel')}</Label>
         <select
           id="image-model-select"
@@ -97,23 +98,23 @@ export function ModelPicker({
         </select>
       </div>
       {modelId && (
-        <div className="space-y-3">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
           {endpointsPending ? (
-            <p role="status" className="text-muted-foreground text-sm">
+            <p role="status" className={css({ textStyle: 'body', color: 'text-muted' })}>
               {t('image.settings.readingEndpoints')}
             </p>
           ) : endpointsErrorText !== null ? (
-            <div role="alert" className="space-y-2">
-              <p className="text-destructive text-sm">
+            <div role="alert" className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+              <p className={css({ textStyle: 'body', color: 'error-text' })}>
                 {t('image.settings.endpointsError', { error: endpointsErrorText })}
               </p>
-              <Button size="sm" variant="outline" onClick={onRetryEndpoints}>
+              <Button size="sm" variant="outline" color="secondary" onClick={onRetryEndpoints}>
                 {t('image.settings.retryProviders')}
               </Button>
             </div>
           ) : (
             <>
-              <div className="space-y-2">
+              <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                 <Label htmlFor="image-provider-select">{t('image.settings.provider')}</Label>
                 <select
                   id="image-provider-select"
@@ -136,14 +137,14 @@ export function ModelPicker({
               {selectedEndpoint ? (
                 <ModelCapabilities capabilities={selectedEndpoint.capabilities} />
               ) : (
-                <p role="status" className="text-muted-foreground text-sm">
+                <p role="status" className={css({ textStyle: 'body', color: 'text-muted' })}>
                   {availableEndpoints[0]?.unavailableReason ?? t('image.settings.noAvailableProvider')}
                 </p>
               )}
             </>
           )}
           {credentials.length > 1 && (
-            <div className="space-y-2">
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
               <Label htmlFor="image-credential-select">{t('image.settings.useCredential')}</Label>
               <select
                 id="image-credential-select"
@@ -161,7 +162,7 @@ export function ModelPicker({
           )}
         </div>
       )}
-      <Button variant="outline" disabled={!canAdd} onClick={onAddModel}>
+      <Button variant="outline" color="secondary" disabled={!canAdd} onClick={onAddModel}>
         {alreadyAdded ? t('image.settings.alreadyAdded') : t('image.settings.addModel')}
       </Button>
     </>

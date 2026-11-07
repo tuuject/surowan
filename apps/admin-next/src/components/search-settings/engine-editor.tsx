@@ -1,11 +1,12 @@
 import { Select } from '@tuuject/koi-react/select';
 import { useTranslation } from 'react-i18next';
-import { Input } from '@/components/ui/input';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@tuuject/koi-react/switch';
+import { Textarea } from '@tuuject/koi-react/textarea';
 import type { SearchProviderView } from '@/lib/api/search.ts';
 import { canKeepKey, type EngineDraft, type KeyMode, renameEngine, switchProvider } from './draft.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * One engine's fields. The key control is a source choice rather than a value:
@@ -38,9 +39,9 @@ export function EngineEditor({
   // Only "new" available means no choice to make: show the paste field alone.
   const showKeyModeChoice = keyModes.length > 1;
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-end gap-3">
-        <Label htmlFor={`${idPrefix}-enabled`} className="text-muted-foreground text-xs">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+      <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '3' })}>
+        <Label htmlFor={`${idPrefix}-enabled`} className={css({ textStyle: 'small', color: 'text-muted' })}>
           {t('search.engineEnabled')}
         </Label>
         <Switch
@@ -50,8 +51,8 @@ export function EngineEditor({
           disabled={disabled}
         />
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1">
+      <div className={css({ display: 'grid', gap: '3', md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } })}>
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           <Label htmlFor={`${idPrefix}-id`}>{t('search.fieldId')}</Label>
           <Input
             id={`${idPrefix}-id`}
@@ -60,13 +61,13 @@ export function EngineEditor({
             placeholder="tavily-main"
             disabled={disabled}
           />
-          <p className="text-muted-foreground text-xs">{t('search.fieldIdHint')}</p>
+          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('search.fieldIdHint')}</p>
         </div>
-        <div className="space-y-1">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           <Label htmlFor={`${idPrefix}-provider`}>{t('search.fieldProvider')}</Label>
           <Select
             id={`${idPrefix}-provider`}
-            className="w-full"
+            className={css({ width: '100%' })}
             value={draft.provider}
             onChange={(event) => {
               const next = providers.find((entry) => entry.id === event.target.value);
@@ -83,7 +84,9 @@ export function EngineEditor({
             ))}
           </Select>
         </div>
-        <div className="space-y-1 sm:col-span-2">
+        <div
+          className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' }, md: { gridColumn: 'span 2 / span 2' } })}
+        >
           <Label htmlFor={`${idPrefix}-endpoint`}>{t('search.fieldEndpoint')}</Label>
           <Input
             id={`${idPrefix}-endpoint`}
@@ -92,11 +95,11 @@ export function EngineEditor({
             placeholder={provider?.default_endpoint ?? t('search.endpointRequired')}
             disabled={disabled}
           />
-          <p className="text-muted-foreground text-xs">
+          <p className={css({ textStyle: 'small', color: 'text-muted' })}>
             {provider?.default_endpoint === null ? t('search.endpointRequiredHint') : t('search.endpointHint')}
           </p>
         </div>
-        <div className="space-y-1">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           <Label htmlFor={`${idPrefix}-results`}>{t('search.fieldResults')}</Label>
           <Input
             id={`${idPrefix}-results`}
@@ -107,11 +110,11 @@ export function EngineEditor({
             onChange={(event) => onChange({ results: event.target.value })}
             disabled={disabled || provider?.supports_count === false}
           />
-          <p className="text-muted-foreground text-xs">
+          <p className={css({ textStyle: 'small', color: 'text-muted' })}>
             {provider?.supports_count === false ? t('search.resultsUnsupported') : t('search.resultsHint')}
           </p>
         </div>
-        <div className="space-y-1">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           <Label htmlFor={`${idPrefix}-timeout`}>{t('search.fieldTimeout')}</Label>
           <Input
             id={`${idPrefix}-timeout`}
@@ -123,7 +126,9 @@ export function EngineEditor({
             disabled={disabled}
           />
         </div>
-        <div className="space-y-1 sm:col-span-2">
+        <div
+          className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' }, md: { gridColumn: 'span 2 / span 2' } })}
+        >
           <Label htmlFor={`${idPrefix}-note`}>{t('search.fieldNote')}</Label>
           <Textarea
             id={`${idPrefix}-note`}
@@ -133,14 +138,16 @@ export function EngineEditor({
             placeholder={t('search.notePlaceholder')}
             disabled={disabled}
           />
-          <p className="text-muted-foreground text-xs">{t('search.noteHint')}</p>
+          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('search.noteHint')}</p>
         </div>
-        <div className="space-y-1 sm:col-span-2">
+        <div
+          className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' }, md: { gridColumn: 'span 2 / span 2' } })}
+        >
           <Label htmlFor={showKeyModeChoice ? `${idPrefix}-key-mode` : `${idPrefix}-key`}>{t('search.fieldKey')}</Label>
           {showKeyModeChoice ? (
             <Select
               id={`${idPrefix}-key-mode`}
-              className="w-full sm:w-72"
+              className={css({ width: '100%', md: { width: '288px' } })}
               value={keyMode}
               onChange={(event) => {
                 // Entering alias mode stores the alias the picker shows, so a
@@ -173,7 +180,7 @@ export function EngineEditor({
           ) : null}
           {keyMode === 'alias' ? (
             <Select
-              className="w-full sm:w-72"
+              className={css({ width: '100%', md: { width: '288px' } })}
               value={draft.keyAlias}
               onChange={(event) => onChange({ keyAlias: event.target.value })}
               disabled={disabled}
@@ -185,7 +192,7 @@ export function EngineEditor({
               ))}
             </Select>
           ) : null}
-          <p className="text-muted-foreground text-xs">
+          <p className={css({ textStyle: 'small', color: 'text-muted' })}>
             {provider?.key === 'forbidden'
               ? t('search.keyForbidden')
               : provider?.key === 'optional'

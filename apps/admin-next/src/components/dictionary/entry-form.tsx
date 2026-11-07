@@ -2,13 +2,13 @@ import { Select } from '@tuuject/koi-react/select';
 import type React from 'react';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from '@tuuject/koi-react/button';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Textarea } from '@tuuject/koi-react/textarea';
 import type { DictionaryChatOption, DictionaryDraft, DictionaryScope } from '@/lib/api/dictionary.ts';
 import { aliasesEqual, formatAliasLines, parseAliasLines } from '@/lib/dictionary.ts';
-import { cn } from '@/lib/utils';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * The alias editor: exactly one textarea, one alias per line. Every keystroke
@@ -53,7 +53,7 @@ export function AliasEditor({
       rows={4}
       value={raw}
       disabled={disabled}
-      className="font-mono"
+      className={css({ fontFamily: 'mono' })}
       placeholder={t('dictionary.entry.aliasPlaceholder')}
       aria-label={t('dictionary.entry.aliasesLabel')}
       onChange={(event) => {
@@ -93,14 +93,15 @@ export function ScopePicker({
   ];
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-1">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+      <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1' })}>
         {options.map((option) => (
           <Button
             key={option.value}
             type="button"
             size="sm"
-            variant={scope === option.value ? 'default' : 'outline'}
+            variant={scope === option.value ? 'solid' : 'outline'}
+            color={scope === option.value ? 'primary' : 'secondary'}
             disabled={disabled}
             aria-pressed={scope === option.value}
             onClick={() => onChange(option.value, option.value === 'global' ? null : (chatId ?? chats[0]?.id ?? null))}
@@ -110,11 +111,11 @@ export function ScopePicker({
         ))}
       </div>
       {scope === 'group' ? (
-        <div className="space-y-1">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           <Label htmlFor={selectId}>{t('dictionary.entry.chatLabel')}</Label>
           <Select
             id={selectId}
-            className="w-full"
+            className={css({ width: '100%' })}
             aria-label={t('dictionary.entry.chatLabel')}
             placeholder={t('dictionary.scope.selectChat')}
             value={chatId ?? ''}
@@ -127,7 +128,7 @@ export function ScopePicker({
               </option>
             ))}
           </Select>
-          <p className="text-muted-foreground text-xs">{t('dictionary.entry.scopeGroupHint')}</p>
+          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('dictionary.entry.scopeGroupHint')}</p>
         </div>
       ) : null}
     </div>
@@ -155,8 +156,8 @@ export function EntryFormFields({
   const definitionId = useId();
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
         <Label htmlFor={termId}>{t('dictionary.entry.termLabel')}</Label>
         <Input
           id={termId}
@@ -165,9 +166,11 @@ export function EntryFormFields({
           placeholder={t('dictionary.entry.termPlaceholder')}
           onChange={(event) => onChange({ ...draft, term: event.target.value })}
         />
-        {errors.term !== undefined ? <p className="text-destructive text-sm">{errors.term}</p> : null}
+        {errors.term !== undefined ? (
+          <p className={css({ textStyle: 'body', color: 'error-text' })}>{errors.term}</p>
+        ) : null}
       </div>
-      <div className="space-y-2">
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
         <Label htmlFor={definitionId}>{t('dictionary.entry.definitionLabel')}</Label>
         <Textarea
           id={definitionId}
@@ -177,9 +180,11 @@ export function EntryFormFields({
           placeholder={t('dictionary.entry.definitionPlaceholder')}
           onChange={(event) => onChange({ ...draft, definition: event.target.value })}
         />
-        {errors.definition !== undefined ? <p className="text-destructive text-sm">{errors.definition}</p> : null}
+        {errors.definition !== undefined ? (
+          <p className={css({ textStyle: 'body', color: 'error-text' })}>{errors.definition}</p>
+        ) : null}
       </div>
-      <div className="space-y-2">
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
         <Label>{t('dictionary.entry.aliasesLabel')}</Label>
         <AliasEditor
           aliases={draft.aliases}
@@ -187,9 +192,9 @@ export function EntryFormFields({
           idPrefix={idPrefix}
           onChange={(aliases) => onChange({ ...draft, aliases })}
         />
-        <p className="text-muted-foreground text-xs">{t('dictionary.entry.aliasesHint')}</p>
+        <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('dictionary.entry.aliasesHint')}</p>
       </div>
-      <div className="space-y-2">
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
         <Label>{t('dictionary.entry.scopeLabel')}</Label>
         <ScopePicker
           scope={draft.scope}
@@ -199,22 +204,22 @@ export function EntryFormFields({
           idPrefix={idPrefix}
           onChange={(scope, chatId) => onChange({ ...draft, scope, chat_id: chatId })}
         />
-        {errors.chat_id !== undefined ? <p className="text-destructive text-sm">{errors.chat_id}</p> : null}
+        {errors.chat_id !== undefined ? (
+          <p className={css({ textStyle: 'body', color: 'error-text' })}>{errors.chat_id}</p>
+        ) : null}
       </div>
-      <div className="flex items-center gap-2">
+      <div className={css({ display: 'flex', alignItems: 'center', gap: '2' })}>
         <input
           id={`${idPrefix}-enabled`}
           type="checkbox"
-          className="size-4 rounded border-input"
+          className={css({ width: 'icon', height: 'icon', borderRadius: 'lg', borderColor: 'border-control' })}
           checked={draft.enabled}
           disabled={disabled}
           onChange={(event) => onChange({ ...draft, enabled: event.target.checked })}
         />
-        <Label htmlFor={`${idPrefix}-enabled`} className="font-normal">
-          {t('dictionary.entry.enabledLabel')}
-        </Label>
+        <Label htmlFor={`${idPrefix}-enabled`}>{t('dictionary.entry.enabledLabel')}</Label>
       </div>
-      <p className={cn('text-muted-foreground text-xs')}>{t('dictionary.entry.enabledHint')}</p>
+      <p className={cx(css({ textStyle: 'small', color: 'text-muted' }))}>{t('dictionary.entry.enabledHint')}</p>
     </div>
   );
 }

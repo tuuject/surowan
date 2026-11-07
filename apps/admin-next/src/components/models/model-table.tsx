@@ -1,4 +1,5 @@
-import { Eye, Lightbulb, Pencil, Trash2 } from 'lucide-react';
+import { TrashIcon } from '@tuuject/koi-react/icons';
+import { EditIcon, EyeIcon, LightbulbIcon } from '@/components/icons';
 import type { Dispatch, SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -11,7 +12,7 @@ import {
   ToneBadge,
   useClientPagination,
 } from '@/components/business';
-import { Button } from '@/components/ui/button';
+import { Button, IconButton } from '@tuuject/koi-react/button';
 import type {
   HealthCheckResult,
   HealthCheckStatus,
@@ -21,6 +22,7 @@ import type {
 } from '@/lib/api/providers.ts';
 import { formatDuration, formatNumber } from '@/lib/format.ts';
 import { isImageCapable, isTextCapable, modelUsage } from '@/lib/model-manager.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 export interface ModelRow {
   readonly alias: string;
@@ -84,7 +86,7 @@ export function ModelTable({
         return (
           <input
             type="checkbox"
-            className="size-4 rounded border-input"
+            className={css({ width: 'icon', height: 'icon', borderRadius: 'lg', borderColor: 'border-control' })}
             aria-label={t('models.models.page.selectForHealthAria', { model: row.model.id })}
             checked={healthSelected.has(key)}
             disabled={running}
@@ -108,9 +110,9 @@ export function ModelTable({
       title: t('models.models.page.colModel'),
       className: 'max-w-96 min-w-48 whitespace-normal',
       render: (row) => (
-        <div className="space-y-0.5">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           <MonoValue value={row.model.id} />
-          <p className="text-muted-foreground truncate text-xs">{row.model.name ?? '—'}</p>
+          <p className={css({ textStyle: 'small', color: 'text-muted', truncate: true })}>{row.model.name ?? '—'}</p>
         </div>
       ),
     },
@@ -118,17 +120,17 @@ export function ModelTable({
       key: 'flags',
       title: t('models.models.page.colFlags'),
       render: (row) => (
-        <span className="text-muted-foreground flex items-center gap-1.5">
+        <span className={css({ color: 'text-muted', display: 'flex', alignItems: 'center', gap: '2' })}>
           {isImageCapable(row.model) ? (
             <>
-              <Eye className="size-[1.15em]" aria-hidden="true" />
-              <span className="sr-only">{t('models.models.page.srOnlyImage')}</span>
+              <EyeIcon className={css({ width: '1.15em', height: '1.15em' })} aria-hidden="true" />
+              <span className={css({ srOnly: true })}>{t('models.models.page.srOnlyImage')}</span>
             </>
           ) : null}
           {row.model.reasoning ? (
             <>
-              <Lightbulb className="size-[1.15em]" aria-hidden="true" />
-              <span className="sr-only">{t('models.models.page.srOnlyReasoning')}</span>
+              <LightbulbIcon className={css({ width: '1.15em', height: '1.15em' })} aria-hidden="true" />
+              <span className={css({ srOnly: true })}>{t('models.models.page.srOnlyReasoning')}</span>
             </>
           ) : null}
         </span>
@@ -154,10 +156,10 @@ export function ModelTable({
       render: (row) => {
         const usage = modelUsage(view, row.alias, row.model.id);
         if (usage === null) {
-          return <span className="text-muted-foreground">—</span>;
+          return <span className={css({ color: 'text-muted' })}>—</span>;
         }
         return (
-          <span className="flex flex-wrap items-center gap-1">
+          <span className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1' })}>
             {usage === 'agent' || usage === 'both' ? (
               <ToneBadge tone="success">{t('models.models.page.agentBadge')}</ToneBadge>
             ) : null}
@@ -174,7 +176,7 @@ export function ModelTable({
       render: (row) => {
         const entry = health[rowKey(row)];
         if (entry === undefined) {
-          return <span className="text-muted-foreground">—</span>;
+          return <span className={css({ color: 'text-muted' })}>—</span>;
         }
         if (entry === 'checking') {
           return <ToneBadge tone="info">{t('models.models.page.checking')}</ToneBadge>;
@@ -186,9 +188,9 @@ export function ModelTable({
               ? t('models.models.page.healthUnexpected')
               : t('models.models.page.healthError');
         return (
-          <div className="space-y-1">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
             <ToneBadge tone={HEALTH_TONES[entry.status]}>{label}</ToneBadge>
-            <p className="text-muted-foreground text-xs tabular-nums">
+            <p className={css({ textStyle: 'small', color: 'text-muted', fontVariantNumeric: 'tabular-nums' })}>
               {t('models.models.page.healthTiming', {
                 ttfb: entry.ttfb_ms === null ? t('models.models.page.ttfbUnavailable') : formatDuration(entry.ttfb_ms),
                 duration: formatDuration(entry.duration_ms),
@@ -205,11 +207,12 @@ export function ModelTable({
       render: (row) => {
         const usage = modelUsage(view, row.alias, row.model.id);
         return (
-          <div className="flex items-center justify-end gap-1">
+          <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '1' })}>
             <Button
               type="button"
-              size="xs"
+              size="sm"
               variant="ghost"
+              color="secondary"
               disabled={!isTextCapable(row.model) || usage === 'agent' || usage === 'both' || agentPending}
               onClick={() => onSetAgent(row.alias, row.model.id)}
             >
@@ -217,8 +220,9 @@ export function ModelTable({
             </Button>
             <Button
               type="button"
-              size="xs"
+              size="sm"
               variant="ghost"
+              color="secondary"
               disabled={!isImageCapable(row.model) || usage === 'vision' || usage === 'both' || visionPending}
               onClick={() => onSetVision(row.alias, row.model.id)}
             >
@@ -226,34 +230,29 @@ export function ModelTable({
             </Button>
             <Button
               type="button"
-              size="xs"
+              size="sm"
               variant="ghost"
+              color="secondary"
               disabled={running}
               aria-label={t('models.models.page.checkHealthAria', { model: row.model.id })}
               onClick={() => void onRunHealthChecks([rowKey(row)])}
             >
               {t('models.models.page.checkHealth')}
             </Button>
-            <Button
-              type="button"
-              size="icon-sm"
+            <IconButton
               variant="ghost"
-              aria-label={t('models.models.page.editModelAria', { model: row.model.id })}
+              color="secondary"
               onClick={() => onEdit(row.alias, row.model)}
-            >
-              <Pencil />
-            </Button>
-            <Button
-              type="button"
-              size="icon-sm"
+              label={t('models.models.page.editModelAria', { model: row.model.id })}
+              icon={<EditIcon />}
+            />
+            <IconButton
               variant="ghost"
-              className="text-muted-foreground hover:text-destructive"
-              aria-label={t('models.models.page.deleteModelAria', { model: row.model.id })}
               disabled={usage !== null}
               onClick={() => onDeleteModel(row.alias, row.model.id)}
-            >
-              <Trash2 />
-            </Button>
+              label={t('models.models.page.deleteModelAria', { model: row.model.id })}
+              icon={<TrashIcon />}
+            />
           </div>
         );
       },
@@ -261,14 +260,24 @@ export function ModelTable({
   ];
 
   return (
-    <section className="space-y-4">
-      <h2 className="text-lg font-semibold">{t('models.models.page.modelsTitle')}</h2>
+    <section className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+      <h2 className={css({ textStyle: 'heading-3' })}>{t('models.models.page.modelsTitle')}</h2>
       <ListToolbar
         trailing={
-          <label className="text-muted-foreground flex shrink-0 cursor-pointer items-center gap-2 text-xs">
+          <label
+            className={css({
+              textStyle: 'small',
+              color: 'text-muted',
+              display: 'flex',
+              flexShrink: '0',
+              cursor: 'pointer',
+              alignItems: 'center',
+              gap: '2',
+            })}
+          >
             <input
               type="checkbox"
-              className="size-4 rounded border-input"
+              className={css({ width: 'icon', height: 'icon', borderRadius: 'lg', borderColor: 'border-control' })}
               ref={(element) => {
                 if (element !== null) {
                   element.indeterminate = !allSelected && rows.some((row) => healthSelected.has(rowKey(row)));
@@ -295,28 +304,30 @@ export function ModelTable({
           </label>
         }
       >
-        <Button type="button" variant="outline" onClick={onFetchModels}>
+        <Button type="button" variant="outline" color="secondary" onClick={onFetchModels}>
           {t('models.models.page.fetchModels')}
         </Button>
-        <Button type="button" variant="outline" onClick={onAddById}>
+        <Button type="button" variant="outline" color="secondary" onClick={onAddById}>
           {t('models.models.page.addById')}
         </Button>
         <Button
           type="button"
           variant="outline"
+          color="secondary"
           disabled={runnableSelected.length === 0 || running}
           onClick={() => void onRunHealthChecks(runnableSelected)}
         >
           {t('models.models.page.checkSelected', { count: runnableSelected.length })}
         </Button>
       </ListToolbar>
-      <p className="text-muted-foreground max-w-5xl text-xs">{t('models.models.page.healthCheckNote')}</p>
+      <p className={css({ textStyle: 'small', color: 'text-muted', maxWidth: '64rem' })}>
+        {t('models.models.page.healthCheckNote')}
+      </p>
       <div>
         <TableShell
           columns={columns}
           data={pagination.items}
           rowKey={rowKey}
-          frame={false}
           emptyText={t('models.models.page.emptyModels')}
           expandedRender={(row) => {
             const entry = health[rowKey(row)];
@@ -329,10 +340,29 @@ export function ModelTable({
               return null;
             }
             return (
-              <div className="max-h-64 max-w-3xl space-y-2 overflow-auto whitespace-normal">
-                {error === null ? null : <p className="text-destructive text-sm break-words">{error}</p>}
+              <div
+                className={css({
+                  maxHeight: '256px',
+                  maxWidth: '48rem',
+                  '& > :not(:last-child)': { marginBlockEnd: '2' },
+                  overflow: 'auto',
+                  whiteSpace: 'normal',
+                })}
+              >
+                {error === null ? null : (
+                  <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>{error}</p>
+                )}
                 {text === null ? null : (
-                  <p className="text-muted-foreground text-sm break-words whitespace-pre-wrap">{text}</p>
+                  <p
+                    className={css({
+                      textStyle: 'body',
+                      color: 'text-muted',
+                      overflowWrap: 'anywhere',
+                      whiteSpace: 'pre-wrap',
+                    })}
+                  >
+                    {text}
+                  </p>
                 )}
               </div>
             );

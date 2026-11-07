@@ -1,7 +1,7 @@
-import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * Pending-restart banner. `serve` has to be restarted by something outside the
@@ -24,34 +24,42 @@ export function RestartBanner({
     return null;
   }
   return (
-    <Alert>
-      <AlertTriangle className="text-warning" />
-      <AlertTitle>
-        {t(paths.length === 1 ? 'models.models.restart.onePending' : 'models.models.restart.manyPending', {
-          count: paths.length,
-        })}
-      </AlertTitle>
-      <AlertDescription>
-        <div className="space-y-2">
-          <p className="text-xs">{t('models.models.restart.writtenNote')}</p>
-          {/* One chip per path: a long joined line wraps into an unreadable
+    <Alert
+      tone="warning"
+      title={t(paths.length === 1 ? 'models.models.restart.onePending' : 'models.models.restart.manyPending', {
+        count: paths.length,
+      })}
+    >
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+        <p className={css({ textStyle: 'small' })}>{t('models.models.restart.writtenNote')}</p>
+        {/* One chip per path: a long joined line wraps into an unreadable
               paragraph as soon as a few fields are waiting. */}
-          <ul className="flex flex-wrap gap-1.5">
-            {paths.map((path) => (
-              <li key={path} className="bg-muted text-muted-foreground rounded-md px-2 py-0.5 font-mono text-xs">
-                {path}
-              </li>
-            ))}
-          </ul>
-          {supervised ? (
-            <Button type="button" size="sm" disabled={pending} onClick={onRestart}>
-              {pending ? t('models.models.restart.restarting') : t('models.models.restart.restartNow')}
-            </Button>
-          ) : (
-            <p className="text-muted-foreground text-xs">{t('models.models.restart.noSupervisor')}</p>
-          )}
-        </div>
-      </AlertDescription>
+        <ul className={css({ display: 'flex', flexWrap: 'wrap', gap: '2' })}>
+          {paths.map((path) => (
+            <li
+              key={path}
+              className={css({
+                textStyle: 'small',
+                bg: 'surface-muted',
+                color: 'text-muted',
+                borderRadius: 'lg',
+                paddingInline: '2',
+                paddingBlock: '1',
+                fontFamily: 'mono',
+              })}
+            >
+              {path}
+            </li>
+          ))}
+        </ul>
+        {supervised ? (
+          <Button type="button" size="sm" disabled={pending} onClick={onRestart}>
+            {pending ? t('models.models.restart.restarting') : t('models.models.restart.restartNow')}
+          </Button>
+        ) : (
+          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('models.models.restart.noSupervisor')}</p>
+        )}
+      </div>
     </Alert>
   );
 }

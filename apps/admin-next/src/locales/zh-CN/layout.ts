@@ -100,7 +100,7 @@ export const layout: typeof layoutEn = {
     appliedFilters: '已筛选 {{count}} 项',
     refreshList: '刷新列表',
     reset: '重置',
-    cursorPageCount: '第 {{page}} 页 · {{count}} 条记录',
+    cursorPageCount: '第 {{page}} 页，{{count}} 条记录',
     totalCount: '共 {{count}} 条',
     rowDetails: '行详情',
     toggleRowDetails: '展开或收起行详情',

@@ -1,8 +1,9 @@
-import { Plus, Trash2 } from 'lucide-react';
+import { PlusIcon, TrashIcon } from '@tuuject/koi-react/icons';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button, IconButton } from '@tuuject/koi-react/button';
+import { Input } from '@tuuject/koi-react/input';
 import { type HeaderRow, newRowId } from '@/lib/header-rows.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * Header editing for a custom provider. Values are write-only — the API returns
@@ -27,11 +28,14 @@ export function HeaderFields({
   };
 
   return (
-    <div className="space-y-2">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
       {rows.map((row, index) => (
-        <div key={row.id} className="flex flex-wrap items-end gap-2">
-          <div className="min-w-40 flex-1 space-y-1">
-            <label className="text-muted-foreground text-xs" htmlFor={`${idPrefix}-header-name-${String(index)}`}>
+        <div key={row.id} className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '2' })}>
+          <div className={css({ minWidth: '160px', flex: '1 1 0%', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+            <label
+              className={css({ textStyle: 'small', color: 'text-muted' })}
+              htmlFor={`${idPrefix}-header-name-${String(index)}`}
+            >
               {t('models.models.headers.header')}
             </label>
             <Input
@@ -42,8 +46,11 @@ export function HeaderFields({
               onChange={(event) => update(index, { name: event.target.value })}
             />
           </div>
-          <div className="min-w-48 flex-1 space-y-1">
-            <label className="text-muted-foreground text-xs" htmlFor={`${idPrefix}-header-value-${String(index)}`}>
+          <div className={css({ minWidth: '192px', flex: '1 1 0%', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+            <label
+              className={css({ textStyle: 'small', color: 'text-muted' })}
+              htmlFor={`${idPrefix}-header-value-${String(index)}`}
+            >
               {t('models.models.headers.value')}
             </label>
             <Input
@@ -55,31 +62,31 @@ export function HeaderFields({
               onChange={(event) => update(index, { value: event.target.value })}
             />
           </div>
-          <Button
-            type="button"
+          <IconButton
             variant="outline"
-            size="icon"
-            aria-label={
+            onClick={() => onChange(rows.filter((_, position) => position !== index))}
+            label={
               row.existing
                 ? t('models.models.headers.deleteAria', { name: row.name })
                 : t('models.models.headers.removeAria')
             }
-            onClick={() => onChange(rows.filter((_, position) => position !== index))}
-          >
-            <Trash2 className="size-4" />
-          </Button>
+            icon={<TrashIcon />}
+          />
         </div>
       ))}
       {valuesRequired && rows.some((row) => row.existing && row.value.length === 0) ? (
-        <p className="text-warning text-xs">{t('models.models.headers.valuesRequired')}</p>
+        <p className={css({ textStyle: 'small', color: 'warning-text' })}>
+          {t('models.models.headers.valuesRequired')}
+        </p>
       ) : null}
       <Button
         type="button"
         variant="outline"
+        color="secondary"
         size="sm"
         onClick={() => onChange([...rows, { id: newRowId(), name: '', value: '', existing: false }])}
+        iconStart={<PlusIcon className={css({ width: 'icon', height: 'icon' })} />}
       >
-        <Plus className="size-4" />
         {t('models.models.headers.add')}
       </Button>
     </div>

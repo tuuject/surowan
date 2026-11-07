@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import { type BadgeSemantic, ToneBadge } from '@/components/business';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Empty } from '@tuuject/koi-react/empty';
 import type { InvocationChatSummary } from '@/lib/api/invocations.ts';
 import { isNewContextSection } from '@/lib/timeline';
 
@@ -69,14 +69,7 @@ export function YesNoBadge({ value }: { readonly value: boolean }): React.ReactE
 
 export function TabEmpty({ message }: { readonly message: string }): React.ReactElement {
   const { t } = useTranslation();
-  return (
-    <Empty>
-      <EmptyHeader>
-        <EmptyTitle>{t('invocations.invocationDetail.nothingHere')}</EmptyTitle>
-        <EmptyDescription>{message}</EmptyDescription>
-      </EmptyHeader>
-    </Empty>
-  );
+  return <Empty variant="plain" title={t('invocations.invocationDetail.nothingHere')} description={message} />;
 }
 
 export function TabContent({

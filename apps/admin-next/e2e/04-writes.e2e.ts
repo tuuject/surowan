@@ -23,11 +23,12 @@ test.describe('memo pad CRUD', () => {
   test('create, view, edit to permanent, and delete a memo through the dialogs', async ({ page }) => {
     await page.goto(await adminUrl('/memories'));
     await page.getByRole('button', { name: 'New memo' }).click();
-    await page.getByLabel('Select a chat').selectOption('123456789');
-    await page.getByLabel('Summary').fill('E2E memo created by test');
-    await page.getByLabel('Detail').fill('E2E memo detail with a [link](https://example.com).');
-    await page.getByLabel('TTL in days').fill('7');
-    await page.getByRole('button', { name: 'Create', exact: true }).click();
+    const createDialog = page.getByRole('dialog');
+    await createDialog.getByLabel('Chat', { exact: true }).selectOption('123456789');
+    await createDialog.getByLabel('Summary').fill('E2E memo created by test');
+    await createDialog.getByLabel('Detail').fill('E2E memo detail with a [link](https://example.com).');
+    await createDialog.getByLabel('TTL in days').fill('7');
+    await createDialog.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(toast(page, 'Memo created')).toBeVisible();
 
     // server state: summary/detail and a short-term expiry

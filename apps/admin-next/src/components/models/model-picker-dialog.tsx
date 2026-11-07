@@ -6,23 +6,17 @@ import { HeaderFields } from '@/components/models/header-fields';
 import { ModelDraftList } from '@/components/models/model-draft-list';
 import { ModelEditDialog } from '@/components/models/model-edit-dialog';
 import { useDraftSelection } from '@/components/models/use-draft-selection';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Textarea } from '@tuuject/koi-react/textarea';
 import type { DiscoveredModel, ProviderModelConfig, ProviderView } from '@/lib/api/providers.ts';
 import { appendProviderModels, discoverProviderModels, lookupModelMetadata } from '@/lib/api/providers.ts';
 import { type HeaderRow, headerRowsFromNames, headerValues } from '@/lib/header-rows.ts';
 import { modelFormFromDraft, parseModelIds, requestErrorMessage } from '@/lib/model-manager.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 export type ModelPickerMode = 'discover' | 'manual';
 
@@ -126,42 +120,76 @@ export function ModelPickerDialog({
   const blocked = selection.selectedCount === 0 || selection.models === null;
 
   return (
-    <Dialog
-      open
-      onOpenChange={(next) => {
-        if (!next) {
-          onClose();
-        }
-      }}
-    >
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>
-            {mode === 'discover' ? t('models.models.picker.discoverTitle') : t('models.models.picker.manualTitle')}
-          </DialogTitle>
-          <DialogDescription>
+    <>
+      <Dialog
+        open
+        onOpenChange={(next) => {
+          if (!next) {
+            onClose();
+          }
+        }}
+        title={mode === 'discover' ? t('models.models.picker.discoverTitle') : t('models.models.picker.manualTitle')}
+        description={
+          <>
             {t('models.models.picker.base', { alias: provider.alias, api: provider.api })}
             {mode === 'discover' ? t('models.models.picker.metadataListing') : t('models.models.picker.metadataOnly')}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
+          </>
+        }
+        size="lg"
+        footer={
+          <>
+            <Button type="button" variant="outline" color="secondary" disabled={append.isPending} onClick={onClose}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              disabled={append.isPending || blocked}
+              onClick={() => {
+                if (selection.models !== null) {
+                  append.mutate(selection.models);
+                }
+              }}
+            >
+              {append.isPending
+                ? t('models.models.picker.adding')
+                : t(selection.selectedCount === 1 ? 'models.models.picker.addOne' : 'models.models.picker.addMany', {
+                    count: selection.selectedCount,
+                  })}
+            </Button>
+          </>
+        }
+      >
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
           {mode === 'discover' ? (
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="ghost" size="sm" onClick={() => setTempMode((previous) => !previous)}>
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+              <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  color="secondary"
+                  size="sm"
+                  onClick={() => setTempMode((previous) => !previous)}
+                >
                   {tempMode ? t('models.models.picker.useSaved') : t('models.models.picker.useTemp')}
                 </Button>
                 {endpoint === null ? null : (
-                  <span className="text-muted-foreground text-xs">
+                  <span className={css({ textStyle: 'small', color: 'text-muted' })}>
                     {t('models.models.picker.endpointLabel')}
                     <MonoValue value={endpoint} />
                   </span>
                 )}
               </div>
               {tempMode ? (
-                <div className="space-y-3 rounded-md border p-3">
-                  <div className="space-y-1">
+                <div
+                  className={css({
+                    '& > :not(:last-child)': { marginBlockEnd: '3' },
+                    borderRadius: 'lg',
+                    borderWidth: '1px',
+                    borderColor: 'border',
+                    padding: '3',
+                  })}
+                >
+                  <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
                     <Label htmlFor="picker-api-key">{t('models.models.connection.apiKey')}</Label>
                     <Input
                       id="picker-api-key"
@@ -180,6 +208,7 @@ export function ModelPickerDialog({
                 type="button"
                 size="sm"
                 variant="outline"
+                color="secondary"
                 disabled={fetchPending}
                 onClick={() => {
                   discover.mutate();
@@ -193,8 +222,8 @@ export function ModelPickerDialog({
               </Button>
             </div>
           ) : (
-            <div className="space-y-3">
-              <div className="space-y-1">
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+              <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
                 <Label htmlFor="picker-ids">{t('models.models.picker.idsLabel')}</Label>
                 <Textarea
                   id="picker-ids"
@@ -208,6 +237,7 @@ export function ModelPickerDialog({
                 type="button"
                 size="sm"
                 variant="outline"
+                color="secondary"
                 disabled={fetchPending}
                 onClick={() => {
                   lookup.mutate();
@@ -219,11 +249,13 @@ export function ModelPickerDialog({
           )}
 
           {fetchError === null ? null : (
-            <p className="text-destructive text-sm break-words">{requestErrorMessage(fetchError)}</p>
+            <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+              {requestErrorMessage(fetchError)}
+            </p>
           )}
 
           {metadataError === null ? null : (
-            <p className="text-muted-foreground text-xs break-words">
+            <p className={css({ textStyle: 'small', color: 'text-muted', overflowWrap: 'anywhere' })}>
               {t('models.models.picker.metadataUnavailable', { error: metadataError })}
             </p>
           )}
@@ -240,15 +272,21 @@ export function ModelPickerDialog({
                 onSearchChange={selection.setSearch}
                 emptyText={t('models.models.shared.emptyList')}
               />
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-muted-foreground text-xs">
+              <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
+                <p className={css({ textStyle: 'small', color: 'text-muted' })}>
                   {t('models.models.shared.selectedCount', { count: selection.selectedCount })}
                   {selection.unresolved.length === 0
                     ? ''
                     : ` · ${t('models.models.shared.unresolvedSuffix', { ids: selection.unresolved.map((draft) => draft.id).join(', ') })}`}
                 </p>
                 {selection.confirmable === 0 ? null : (
-                  <Button type="button" variant="outline" size="sm" onClick={selection.confirmSelected}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    color="secondary"
+                    size="sm"
+                    onClick={selection.confirmSelected}
+                  >
                     {t('models.models.shared.acceptListed', { count: selection.confirmable })}
                   </Button>
                 )}
@@ -256,32 +294,12 @@ export function ModelPickerDialog({
             </>
           )}
           {append.isError ? (
-            <p className="text-destructive text-sm break-words">{requestErrorMessage(append.error)}</p>
+            <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+              {requestErrorMessage(append.error)}
+            </p>
           ) : null}
         </div>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" disabled={append.isPending} onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            type="button"
-            disabled={append.isPending || blocked}
-            onClick={() => {
-              if (selection.models !== null) {
-                append.mutate(selection.models);
-              }
-            }}
-          >
-            {append.isPending
-              ? t('models.models.picker.adding')
-              : t(selection.selectedCount === 1 ? 'models.models.picker.addOne' : 'models.models.picker.addMany', {
-                  count: selection.selectedCount,
-                })}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-
+      </Dialog>
       {editing === null ? null : (
         <ModelEditDialog
           key={`confirm-${editing.id}`}
@@ -305,6 +323,6 @@ export function ModelPickerDialog({
           }}
         />
       )}
-    </Dialog>
+    </>
   );
 }

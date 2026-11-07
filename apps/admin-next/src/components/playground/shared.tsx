@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useRef } from 'react';
 import { ApiError } from '@/lib/api/core.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * One request key per payload. Sending the same payload again reuses its key,
@@ -40,8 +41,8 @@ export function StatusPill({
   readonly value: string | number;
 }): React.ReactElement {
   return (
-    <span className="text-muted-foreground text-xs">
-      {label}: <span className="text-foreground font-medium">{value}</span>
+    <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+      {label}: <span className={css({ textStyle: 'label', color: 'text' })}>{value}</span>
     </span>
   );
 }

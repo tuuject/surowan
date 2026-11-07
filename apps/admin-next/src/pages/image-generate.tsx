@@ -2,10 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from '@tuuject/koi-react/button';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Textarea } from '@tuuject/koi-react/textarea';
 import type { ImageGenerationRecord } from '@/lib/api/images.ts';
 import {
   getImageStatus,
@@ -18,6 +18,7 @@ import {
 } from '@/lib/api/images.ts';
 import { errorMessage } from '@/lib/errors';
 import { toast } from '@/lib/toast.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * The image workspace: compose a generation from prompt and reference
@@ -41,15 +42,22 @@ function SelectedRefs({
     return null;
   }
   return (
-    <div className="space-y-1">
-      <div className="text-muted-foreground text-xs">{title}</div>
-      <div className="flex flex-wrap gap-1.5">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+      <div className={css({ textStyle: 'small', color: 'text-muted' })}>{title}</div>
+      <div className={css({ display: 'flex', flexWrap: 'wrap', gap: '2' })}>
         {refs.map((reference) => (
           <button
             key={reference.id}
             type="button"
             onClick={() => onRemove(reference.id)}
-            className="bg-secondary hover:bg-secondary/80 rounded px-2 py-0.5 text-xs"
+            className={css({
+              textStyle: 'small',
+              bg: 'surface-muted',
+              borderRadius: 'lg',
+              paddingInline: '2',
+              paddingBlock: '1',
+              _hover: { bg: 'surface-muted' },
+            })}
           >
             {reference.label} ✕
           </button>
@@ -64,15 +72,36 @@ function OutputGrid({ generation }: { readonly generation: ImageGenerationRecord
     return null;
   }
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+    <div
+      className={css({
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+        gap: '2',
+        md: { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' },
+      })}
+    >
       {generation.outputs.map((output) => (
-        <a key={output.id} href={imageUrl(output.id)} target="_blank" rel="noreferrer" className="group block">
+        <a
+          key={output.id}
+          href={imageUrl(output.id)}
+          target="_blank"
+          rel="noreferrer"
+          className={css({ display: 'block' })}
+        >
           <img
             src={imageUrl(output.id)}
             alt={output.name}
-            className="bg-muted aspect-square w-full rounded object-cover"
+            className={css({
+              bg: 'surface-muted',
+              aspectRatio: 'square',
+              width: '100%',
+              borderRadius: 'lg',
+              objectFit: 'cover',
+            })}
           />
-          <div className="text-muted-foreground mt-1 truncate text-xs">{output.name}</div>
+          <div className={css({ textStyle: 'small', color: 'text-muted', marginBlockStart: '1', truncate: true })}>
+            {output.name}
+          </div>
         </a>
       ))}
     </div>
@@ -160,11 +189,11 @@ export default function ImageGeneratePage() {
 
   if (status.data !== undefined && !status.data.enabled) {
     return (
-      <div className="space-y-3">
-        <h1 className="text-xl font-semibold">{t('image.generate.title')}</h1>
-        <p className="text-muted-foreground text-sm">
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+        <h1 className={css({ textStyle: 'heading-2' })}>{t('image.generate.title')}</h1>
+        <p className={css({ textStyle: 'body', color: 'text-muted' })}>
           {t('image.generate.disabledIntro')}
-          <Link to="/image-settings" className="underline">
+          <Link to="/image-settings" className={css({ textDecorationLine: 'underline' })}>
             {t('image.generate.disabledLink')}
           </Link>
           .
@@ -174,9 +203,15 @@ export default function ImageGeneratePage() {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="space-y-4">
-        <div className="space-y-2">
+    <div
+      className={css({
+        display: 'grid',
+        gap: '4',
+        '@media (min-width: 1024px)': { gridTemplateColumns: 'minmax(0,1fr) 360px' },
+      })}
+    >
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
           <Label htmlFor="image-prompt">{t('image.generate.promptLabel')}</Label>
           <Textarea
             id="image-prompt"
@@ -189,11 +224,27 @@ export default function ImageGeneratePage() {
             })}
           />
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="space-y-1">
+        <div
+          className={css({
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: '3',
+            md: { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' },
+          })}
+        >
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
             <Label>{t('image.generate.model')}</Label>
             <select
-              className="border-input bg-background w-full rounded border px-2 py-1.5 text-sm"
+              className={css({
+                textStyle: 'body',
+                borderColor: 'border',
+                bg: 'surface',
+                width: '100%',
+                borderRadius: 'lg',
+                borderWidth: '1px',
+                paddingInline: '2',
+                paddingBlock: '2',
+              })}
               value={modelId}
               onChange={(event) => setModelId(event.target.value)}
             >
@@ -205,10 +256,19 @@ export default function ImageGeneratePage() {
               ))}
             </select>
           </div>
-          <div className="space-y-1">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
             <Label>{t('image.generate.aspectRatio')}</Label>
             <select
-              className="border-input bg-background w-full rounded border px-2 py-1.5 text-sm"
+              className={css({
+                textStyle: 'body',
+                borderColor: 'border',
+                bg: 'surface',
+                width: '100%',
+                borderRadius: 'lg',
+                borderWidth: '1px',
+                paddingInline: '2',
+                paddingBlock: '2',
+              })}
               value={aspectRatio}
               onChange={(event) => setAspectRatio(event.target.value)}
             >
@@ -219,10 +279,19 @@ export default function ImageGeneratePage() {
               ))}
             </select>
           </div>
-          <div className="space-y-1">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
             <Label>{t('image.generate.quality')}</Label>
             <select
-              className="border-input bg-background w-full rounded border px-2 py-1.5 text-sm"
+              className={css({
+                textStyle: 'body',
+                borderColor: 'border',
+                bg: 'surface',
+                width: '100%',
+                borderRadius: 'lg',
+                borderWidth: '1px',
+                paddingInline: '2',
+                paddingBlock: '2',
+              })}
               value={resolution}
               onChange={(event) => setResolution(event.target.value)}
             >
@@ -233,7 +302,7 @@ export default function ImageGeneratePage() {
               ))}
             </select>
           </div>
-          <div className="space-y-1">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
             <Label>{t('image.generate.count')}</Label>
             <Input
               type="number"
@@ -244,7 +313,15 @@ export default function ImageGeneratePage() {
             />
           </div>
         </div>
-        <div className="space-y-3 rounded border p-3">
+        <div
+          className={css({
+            '& > :not(:last-child)': { marginBlockEnd: '3' },
+            borderRadius: 'lg',
+            borderWidth: '1px',
+            borderColor: 'border',
+            padding: '3',
+          })}
+        >
           <SelectedRefs
             title={t('image.generate.selectedPromptRefs')}
             refs={promptRefs}
@@ -255,15 +332,24 @@ export default function ImageGeneratePage() {
             refs={imageRefs}
             onRemove={(id) => setImageRefs((current) => current.filter((entry) => entry.id !== id))}
           />
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div className="space-y-1">
-              <div className="text-muted-foreground text-xs">{t('image.generate.promptAssets')}</div>
-              <div className="flex max-h-28 flex-wrap gap-1 overflow-y-auto">
+          <div className={css({ display: 'grid', gap: '2', md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } })}>
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+              <div className={css({ textStyle: 'small', color: 'text-muted' })}>{t('image.generate.promptAssets')}</div>
+              <div
+                className={css({ display: 'flex', maxHeight: '112px', flexWrap: 'wrap', gap: '1', overflowY: 'auto' })}
+              >
                 {prompts.data?.items.map((entry) => (
                   <button
                     key={entry.id}
                     type="button"
-                    className="bg-secondary hover:bg-secondary/80 rounded px-2 py-0.5 text-xs"
+                    className={css({
+                      textStyle: 'small',
+                      bg: 'surface-muted',
+                      borderRadius: 'lg',
+                      paddingInline: '2',
+                      paddingBlock: '1',
+                      _hover: { bg: 'surface-muted' },
+                    })}
                     onClick={() =>
                       setPromptRefs((current) =>
                         current.some((reference) => reference.id === entry.id)
@@ -277,15 +363,17 @@ export default function ImageGeneratePage() {
                 ))}
               </div>
             </div>
-            <div className="space-y-1">
-              <div className="text-muted-foreground text-xs">{t('image.generate.referenceImages')}</div>
-              <div className="flex flex-wrap gap-2">
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+              <div className={css({ textStyle: 'small', color: 'text-muted' })}>
+                {t('image.generate.referenceImages')}
+              </div>
+              <div className={css({ display: 'flex', flexWrap: 'wrap', gap: '2' })}>
                 {assets.data?.items.slice(0, 8).map((entry) => (
                   <button
                     key={entry.id}
                     type="button"
                     title={t('image.generate.addAssetRef', { name: entry.name })}
-                    className="hover:ring-primary rounded ring-offset-2"
+                    className={css({ _hover: { outline: '2px solid', outlineColor: 'action' }, borderRadius: 'lg' })}
                     onClick={() =>
                       setImageRefs((current) =>
                         current.some((reference) => reference.id === entry.id)
@@ -297,7 +385,13 @@ export default function ImageGeneratePage() {
                     <img
                       src={imageUrl(entry.id)}
                       alt={entry.name}
-                      className="bg-muted h-10 w-10 rounded object-cover"
+                      className={css({
+                        bg: 'surface-muted',
+                        height: '40px',
+                        width: '40px',
+                        borderRadius: 'lg',
+                        objectFit: 'cover',
+                      })}
                     />
                   </button>
                 ))}
@@ -307,7 +401,7 @@ export default function ImageGeneratePage() {
                   ref={fileInput}
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
-                  className="hidden"
+                  className={css({ display: 'none' })}
                   onChange={(event) => {
                     const file = event.target.files?.[0];
                     if (file !== undefined) {
@@ -319,6 +413,7 @@ export default function ImageGeneratePage() {
                 <Button
                   type="button"
                   variant="outline"
+                  color="secondary"
                   size="sm"
                   onClick={() => fileInput.current?.click()}
                   disabled={upload.isPending}
@@ -329,13 +424,14 @@ export default function ImageGeneratePage() {
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className={css({ display: 'flex', gap: '2' })}>
           <Button type="button" onClick={() => submit.mutate()} disabled={submit.isPending || prompt.trim() === ''}>
             {submit.isPending ? t('common.submitting') : t('image.generate.generate')}
           </Button>
           <Button
             type="button"
             variant="outline"
+            color="secondary"
             onClick={() => resolvePreview.mutate()}
             disabled={resolvePreview.isPending || prompt.trim() === ''}
           >
@@ -343,27 +439,36 @@ export default function ImageGeneratePage() {
           </Button>
         </div>
         {resolved !== null && (
-          <div className="bg-muted space-y-1 rounded p-3">
-            <div className="text-muted-foreground text-xs">{t('image.generate.resolvedPromptLabel')}</div>
-            <pre className="text-xs whitespace-pre-wrap">{resolved}</pre>
+          <div
+            className={css({
+              bg: 'surface-muted',
+              '& > :not(:last-child)': { marginBlockEnd: '1' },
+              borderRadius: 'lg',
+              padding: '3',
+            })}
+          >
+            <div className={css({ textStyle: 'small', color: 'text-muted' })}>
+              {t('image.generate.resolvedPromptLabel')}
+            </div>
+            <pre className={css({ textStyle: 'small', whiteSpace: 'pre-wrap' })}>{resolved}</pre>
           </div>
         )}
       </div>
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium">{t('image.generate.outputsTitle')}</h2>
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+        <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between' })}>
+          <h2 className={css({ textStyle: 'label' })}>{t('image.generate.outputsTitle')}</h2>
           {pending !== null && (
             <Link
               to="/image-generations/$generationId"
               params={{ generationId: pending.id }}
-              className="text-xs underline"
+              className={css({ textStyle: 'small', textDecorationLine: 'underline' })}
             >
               {t('image.generate.auditDetail')}
             </Link>
           )}
         </div>
         {pending === null ? (
-          <p className="text-muted-foreground text-sm">{t('image.generate.outputsPlaceholder')}</p>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('image.generate.outputsPlaceholder')}</p>
         ) : (
           <OutputGrid generation={pending} />
         )}

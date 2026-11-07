@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Info } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -14,17 +13,10 @@ import {
   TableShell,
   useClientPagination,
 } from '@/components/business';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Input } from '@tuuject/koi-react/input';
 import { Label } from '@/components/ui/label';
 import type { BotAdminEntry } from '@/lib/api/admin.ts';
 import { addBotAdmin, removeBotAdmin } from '@/lib/api/admin.ts';
@@ -32,6 +24,7 @@ import { errorMessage } from '@/lib/errors';
 import { useListQuery } from '@/lib/list-query';
 import { adminsQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 const ADMIN_ID_PATTERN = /^\d{1,15}$/;
 const EMPTY_FILTERS = { search: '' };
@@ -87,7 +80,7 @@ export default function AdminsPage(): React.ReactElement {
       key: 'actions',
       title: t('pages.admins.colActions'),
       render: (row) => (
-        <Button type="button" size="sm" variant="destructive" onClick={() => setRemoving(row)}>
+        <Button type="button" size="sm" color="error" onClick={() => setRemoving(row)}>
           {t('pages.admins.remove')}
         </Button>
       ),
@@ -110,16 +103,17 @@ export default function AdminsPage(): React.ReactElement {
   };
 
   return (
-    <div className="space-y-5">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader title={t('layout.nav.botAdmins')} />
-      <Alert>
-        <Info className="text-foreground" />
-        <AlertTitle>{t('pages.admins.alertTitle')}</AlertTitle>
-        <AlertDescription>
-          {t('pages.admins.alertDesc1')} <code>/pause</code> {t('pages.admins.alertDesc2')} <code>/resume</code>{' '}
-          {t('pages.admins.alertDesc3')} <code>@userinfobot</code>
-          {t('pages.admins.alertDesc4')} <code>telegram.admins</code> {t('pages.admins.alertDesc5')}
-        </AlertDescription>
+      <Alert tone="info" title={t('pages.admins.alertTitle')}>
+        {t('pages.admins.alertDesc1')}
+        <code>/pause</code>
+        {t('pages.admins.alertDesc2')}
+        <code>/resume</code> {t('pages.admins.alertDesc3')}
+        <code>@userinfobot</code>
+        {t('pages.admins.alertDesc4')}
+        <code>telegram.admins</code>
+        {t('pages.admins.alertDesc5')}
       </Alert>
 
       <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
@@ -139,7 +133,7 @@ export default function AdminsPage(): React.ReactElement {
       </ListToolbar>
 
       {admins.isError ? (
-        <p role="alert" className="text-destructive text-sm break-words">
+        <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
           {errorMessage(admins.error)}
         </p>
       ) : null}
@@ -150,7 +144,6 @@ export default function AdminsPage(): React.ReactElement {
             data={pagination.items}
             rowKey={(row) => row.telegram_user_id}
             loading={admins.isPending}
-            frame={false}
             emptyText={search.length === 0 ? t('pages.admins.emptyAdmins') : t('layout.koi.noMatches')}
           />
           <ListFooter
@@ -162,41 +155,48 @@ export default function AdminsPage(): React.ReactElement {
         </div>
       ) : null}
 
-      <Dialog open={addOpen} onOpenChange={(open) => !open && setAddOpen(false)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('pages.admins.addTitle')}</DialogTitle>
-            <DialogDescription>{t('pages.admins.addDescription')}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="admin-user-id">{t('pages.admins.userIdLabel')}</Label>
-            <Input
-              id="admin-user-id"
-              inputMode="numeric"
-              placeholder={t('pages.admins.userIdPlaceholder')}
-              value={userIdDraft}
-              onChange={(event) => {
-                setUserIdDraft(event.target.value);
-                setUserIdError(null);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  submitAdd();
-                }
-              }}
-            />
-            {userIdError !== null ? <p className="text-destructive text-sm">{userIdError}</p> : null}
-            {add.isError ? <p className="text-destructive text-sm break-words">{errorMessage(add.error)}</p> : null}
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>
+      <Dialog
+        open={addOpen}
+        onOpenChange={(open) => !open && setAddOpen(false)}
+        title={t('pages.admins.addTitle')}
+        description={t('pages.admins.addDescription')}
+        footer={
+          <>
+            <Button type="button" variant="outline" color="secondary" onClick={() => setAddOpen(false)}>
               {t('common.cancel')}
             </Button>
             <Button type="button" onClick={submitAdd} disabled={add.isPending}>
               {add.isPending ? t('pages.admins.adding') : t('pages.admins.add')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+          <Label htmlFor="admin-user-id">{t('pages.admins.userIdLabel')}</Label>
+          <Input
+            id="admin-user-id"
+            inputMode="numeric"
+            placeholder={t('pages.admins.userIdPlaceholder')}
+            value={userIdDraft}
+            onChange={(event) => {
+              setUserIdDraft(event.target.value);
+              setUserIdError(null);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                submitAdd();
+              }
+            }}
+          />
+          {userIdError !== null ? (
+            <p className={css({ textStyle: 'body', color: 'error-text' })}>{userIdError}</p>
+          ) : null}
+          {add.isError ? (
+            <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+              {errorMessage(add.error)}
+            </p>
+          ) : null}
+        </div>
       </Dialog>
 
       <ConfirmDialog

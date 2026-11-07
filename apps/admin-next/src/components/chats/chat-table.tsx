@@ -1,30 +1,30 @@
 import { useNavigate } from '@tanstack/react-router';
 import { Menu } from '@tuuject/koi-react/menu';
+import { ExternalIcon, TrashIcon } from '@tuuject/koi-react/icons';
 import {
-  Activity,
-  AlarmClock,
-  BookOpen,
-  Brain,
-  Clock,
-  ExternalLink,
-  LibraryBig,
-  MessageSquareText,
-  Pencil,
-  Sparkles,
-  Speech,
-  Trash2,
-} from 'lucide-react';
+  AlarmIcon,
+  BookOpenIcon,
+  BrainIcon,
+  ChatTextIcon,
+  ClockIcon,
+  EditIcon,
+  LibraryIcon,
+  PulseIcon,
+  ScrollIcon,
+  SparklesIcon,
+} from '@/components/icons';
 import { useTranslation } from 'react-i18next';
 import { type ColumnSpec, MonoValue, TableShell, ToneBadge } from '@/components/business';
-import { Button } from '@/components/ui/button';
+import { IconButton } from '@tuuject/koi-react/button';
 import type { ChatEntry, ChatSettingsView, ChatsView, ParticipationWindow } from '@/lib/api/chats.ts';
 import { effectiveWindows, summarizeWindows } from '@/lib/participation';
+import { css } from '@tuuject/koi-react/styled-system/css';
 
 /** A field the file and the running process disagree on shows the running value underneath. */
 function RunningNote({ value }: { readonly value: string | null }): React.ReactElement | null {
   const { t } = useTranslation();
   return value === null ? null : (
-    <p className="text-muted-foreground text-xs">{t('pages.chats.runningNote', { value })}</p>
+    <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.runningNote', { value })}</p>
   );
 }
 
@@ -168,16 +168,18 @@ export function ChatTable({
       key: 'chat',
       title: t('pages.chats.colChat'),
       render: (row) => (
-        <div className="space-y-1">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           <p className={row.title === null ? 'text-muted-foreground font-medium' : 'font-medium'}>
             {row.title ?? t('pages.chats.unknownChat')}
           </p>
-          <p className="text-muted-foreground text-xs">
-            <span className="font-mono">{row.id}</span> ·{' '}
+          <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+            <span className={css({ fontFamily: 'mono' })}>{row.id}</span> ·{' '}
             {row.type ?? (row.id.startsWith('-') ? t('pages.chats.group') : t('pages.chats.private'))}
           </p>
           {row.runtime_chat_id !== row.id ? (
-            <p className="text-muted-foreground text-xs">{t('pages.chats.migratedTo', { id: row.runtime_chat_id })}</p>
+            <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+              {t('pages.chats.migratedTo', { id: row.runtime_chat_id })}
+            </p>
           ) : null}
         </div>
       ),
@@ -188,7 +190,7 @@ export function ChatTable({
       render: (row) => {
         const settings = shown(row);
         return settings === null ? null : (
-          <div className="space-y-1">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
             <p className={settings.topic_ids === null ? 'text-muted-foreground' : 'tabular-nums'}>
               {topicsText(settings)}
             </p>
@@ -203,9 +205,9 @@ export function ChatTable({
       render: (row) => {
         const settings = shown(row);
         return settings === null ? null : (
-          <div className="space-y-1">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
             <MonoValue value={modelText(settings)} />
-            <p className="text-muted-foreground text-xs">{modelSource(settings)}</p>
+            <p className={css({ textStyle: 'small', color: 'text-muted' })}>{modelSource(settings)}</p>
             <RunningNote
               value={runningDiff(
                 row,
@@ -224,9 +226,9 @@ export function ChatTable({
       render: (row) => {
         const settings = shown(row);
         return settings === null || !row.id.startsWith('-') ? null : (
-          <div className="space-y-1">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
             {activeHoursLines(settings).map((line) => (
-              <p key={line.key} className="text-sm">
+              <p key={line.key} className={css({ textStyle: 'body' })}>
                 {line.text}
               </p>
             ))}
@@ -248,8 +250,8 @@ export function ChatTable({
       render: (row) => {
         const settings = shown(row);
         return settings === null || !row.id.startsWith('-') ? null : (
-          <div className="space-y-1">
-            <p className="text-sm">{proactiveText(settings)}</p>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+            <p className={css({ textStyle: 'body' })}>{proactiveText(settings)}</p>
             <RunningNote value={runningDiff(row, proactiveText)} />
           </div>
         );
@@ -261,8 +263,8 @@ export function ChatTable({
       render: (row) => {
         const settings = shown(row);
         return settings === null || !row.id.startsWith('-') ? null : (
-          <div className="space-y-1">
-            <p className="text-sm">{groupMemoryText(settings)}</p>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+            <p className={css({ textStyle: 'body' })}>{groupMemoryText(settings)}</p>
             <RunningNote value={runningDiff(row, groupMemoryText)} />
           </div>
         );
@@ -288,25 +290,23 @@ export function ChatTable({
       align: 'right',
       render: (row) =>
         row.saved === null ? null : (
-          <div className="flex items-center justify-end gap-1">
+          <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '1' })}>
             <Menu
               placement="bottom-end"
               trigger={
-                <Button
-                  type="button"
-                  size="icon-sm"
+                <IconButton
                   variant="ghost"
-                  aria-label={t('pages.chats.quickLinks')}
+                  color="secondary"
                   title={t('pages.chats.quickLinks')}
-                >
-                  <ExternalLink />
-                </Button>
+                  label={t('pages.chats.quickLinks')}
+                  icon={<ExternalIcon />}
+                />
               }
               items={[
                 quickLink(
                   'prompts',
                   t('layout.nav.prompts'),
-                  <Speech size={16} />,
+                  <ScrollIcon size={16} />,
                   '/prompts',
                   row.id,
                   () => void navigate({ to: '/prompts', search: { chat: row.id } }),
@@ -314,7 +314,7 @@ export function ChatTable({
                 quickLink(
                   'dictionary',
                   t('layout.nav.dictionary'),
-                  <BookOpen size={16} />,
+                  <BookOpenIcon size={16} />,
                   '/dictionary',
                   row.runtime_chat_id,
                   () => void navigate({ to: '/dictionary', search: { chat: row.runtime_chat_id } }),
@@ -322,7 +322,7 @@ export function ChatTable({
                 quickLink(
                   'memories',
                   t('layout.nav.memories'),
-                  <Brain size={16} />,
+                  <BrainIcon size={16} />,
                   '/memories',
                   row.runtime_chat_id,
                   () => void navigate({ to: '/memories', search: { chat: row.runtime_chat_id } }),
@@ -330,7 +330,7 @@ export function ChatTable({
                 quickLink(
                   'group-memories',
                   t('layout.nav.groupMemories'),
-                  <LibraryBig size={16} />,
+                  <LibraryIcon size={16} />,
                   '/group-memories',
                   row.runtime_chat_id,
                   () => void navigate({ to: '/group-memories', search: { chat: row.runtime_chat_id } }),
@@ -338,7 +338,7 @@ export function ChatTable({
                 quickLink(
                   'messages',
                   t('layout.nav.messages'),
-                  <MessageSquareText size={16} />,
+                  <ChatTextIcon size={16} />,
                   '/messages',
                   row.runtime_chat_id,
                   () => void navigate({ to: '/messages', search: { chat: row.runtime_chat_id } }),
@@ -346,7 +346,7 @@ export function ChatTable({
                 quickLink(
                   'invocations',
                   t('layout.nav.toolSessions'),
-                  <Activity size={16} />,
+                  <PulseIcon size={16} />,
                   '/invocations',
                   row.runtime_chat_id,
                   () => void navigate({ to: '/invocations', search: { chat: row.runtime_chat_id } }),
@@ -354,7 +354,7 @@ export function ChatTable({
                 quickLink(
                   'alarms',
                   t('layout.nav.alarms'),
-                  <AlarmClock size={16} />,
+                  <AlarmIcon size={16} />,
                   '/alarms',
                   row.runtime_chat_id,
                   () => void navigate({ to: '/alarms', search: { chat: row.runtime_chat_id } }),
@@ -362,61 +362,49 @@ export function ChatTable({
               ]}
             />
             {row.id.startsWith('-') ? (
-              <Button
-                type="button"
-                size="icon-sm"
+              <IconButton
                 variant="ghost"
-                aria-label={t('pages.chats.editActiveHours')}
+                color="secondary"
                 title={t('pages.chats.editActiveHours')}
                 onClick={() => onSchedule(row)}
-              >
-                <Clock />
-              </Button>
+                label={t('pages.chats.editActiveHours')}
+                icon={<ClockIcon />}
+              />
             ) : null}
             {row.id.startsWith('-') ? (
-              <Button
-                type="button"
-                size="icon-sm"
+              <IconButton
                 variant="ghost"
-                aria-label={t('pages.chats.editProactiveReply')}
+                color="secondary"
                 title={t('pages.chats.editProactiveReply')}
                 onClick={() => onProactive(row)}
-              >
-                <Sparkles />
-              </Button>
+                label={t('pages.chats.editProactiveReply')}
+                icon={<SparklesIcon />}
+              />
             ) : null}
             {row.id.startsWith('-') ? (
-              <Button
-                type="button"
-                size="icon-sm"
+              <IconButton
                 variant="ghost"
-                aria-label={t('pages.chats.editGroupMemory')}
+                color="secondary"
                 title={t('pages.chats.editGroupMemory')}
                 onClick={() => onGroupMemory(row)}
-              >
-                <LibraryBig />
-              </Button>
+                label={t('pages.chats.editGroupMemory')}
+                icon={<LibraryIcon />}
+              />
             ) : null}
-            <Button
-              type="button"
-              size="icon-sm"
+            <IconButton
               variant="ghost"
-              aria-label={t('common.edit')}
+              color="secondary"
               onClick={() => onEdit(row)}
-            >
-              <Pencil />
-            </Button>
-            <Button
-              type="button"
-              size="icon-sm"
+              label={t('common.edit')}
+              icon={<EditIcon />}
+            />
+            <IconButton
               variant="ghost"
-              className="text-muted-foreground hover:text-destructive"
-              aria-label={t('pages.chats.remove')}
               disabled={view.items.filter((item) => item.saved !== null).length <= 1}
               onClick={() => onRemove(row)}
-            >
-              <Trash2 />
-            </Button>
+              label={t('pages.chats.remove')}
+              icon={<TrashIcon />}
+            />
           </div>
         ),
     },
@@ -427,7 +415,6 @@ export function ChatTable({
       data={items}
       rowKey={(row) => row.id}
       loading={loading}
-      frame={false}
       emptyText={t('pages.chats.emptyChats')}
     />
   );
