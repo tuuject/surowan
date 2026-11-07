@@ -185,7 +185,15 @@ export function MemoryViewDialog({
     >
       {entry === null ? null : (
         <div className={css({ display: 'flex', flexDirection: 'column', gap: '5' })}>
-          <dl className={css({ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '2 6', margin: '0' })}>
+          <dl
+            className={css({
+              display: 'grid',
+              gridTemplateColumns: 'auto 1fr',
+              rowGap: '2',
+              columnGap: '6',
+              margin: '0',
+            })}
+          >
             <dt className={s.detailLabel}>{t('pages.memories.colChat')}</dt>
             <dd className={s.detailValue}>
               {entry.chat.title ?? entry.chat.telegram_chat_id}（{entry.chat.telegram_chat_id}）

@@ -342,7 +342,15 @@ export default function OverviewPage(): React.ReactElement {
           {data === undefined ? (
             <Skeleton className={css({ height: '96px' })} />
           ) : (
-            <dl className={css({ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4 6', margin: '0' })}>
+            <dl
+              className={css({
+                display: 'grid',
+                gridTemplateColumns: 'auto 1fr',
+                rowGap: '3',
+                columnGap: '6',
+                margin: '0',
+              })}
+            >
               <dt className={css({ color: 'text-muted', whiteSpace: 'nowrap' })}>{t('pages.overview.fieldState')}</dt>
               <dd className={css({ margin: '0', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
                 <SleepBadge sleeping={data.runtime_status.sleeping} />

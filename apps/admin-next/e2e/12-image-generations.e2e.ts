@@ -195,7 +195,7 @@ test('history links open the audit detail and return to the history list', async
   await page.goto(await adminUrl('/image-generations'));
   await expect(page.getByRole('heading', { name: 'Generation history', exact: true })).toBeVisible();
   await expect(page.getByText('61 records', { exact: true })).toBeVisible();
-  await expect(page.getByText('1 records', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('1 record', { exact: true })).toHaveCount(0);
   await page.getByRole('link', { name: generation.id, exact: true }).click();
   await expect(page).toHaveURL(await adminUrl(`/image-generations/${generation.id}`));
   await expect(page.getByText('Generation ID', { exact: true })).toBeVisible();

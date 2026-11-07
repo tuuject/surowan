@@ -170,7 +170,7 @@ test.describe('whole-response admin list', () => {
     await filter.fill(items[11]?.telegram_user_id ?? '');
     await filter.press('Enter');
     await expect(rows).toHaveCount(1);
-    await expect(page.getByText('1 records', { exact: true })).toBeVisible();
+    await expect(page.getByText('1 record', { exact: true })).toBeVisible();
     await expect(previousPage(page)).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Page 1', exact: true })).toHaveAttribute('aria-current', 'page');
 
