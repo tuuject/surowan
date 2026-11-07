@@ -17,8 +17,7 @@ export function Toaster() {
   const toasts = useToasts();
 
   return (
-    <div
-      role="region"
+    <section
       aria-label={t('layout.koi.notifications')}
       className={css({
         position: 'fixed',
@@ -43,6 +42,6 @@ export function Toaster() {
           />
         </div>
       ))}
-    </div>
+    </section>
   );
 }

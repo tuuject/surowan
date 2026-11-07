@@ -1,15 +1,15 @@
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { Field } from '@tuuject/koi-react/field';
+import { PlusIcon } from '@tuuject/koi-react/icons';
+import { Input } from '@tuuject/koi-react/input';
+import { Select } from '@tuuject/koi-react/select';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@tuuject/koi-react/button';
-import { Input } from '@tuuject/koi-react/input';
-import { Alert } from '@tuuject/koi-react/alert';
-import { PlusIcon } from '@tuuject/koi-react/icons';
-import { Select } from '@tuuject/koi-react/select';
-import { Field } from '@tuuject/koi-react/field';
 import type { ImageCatalogEndpoint } from '@/lib/api/images.ts';
 import { ModelCapabilities } from './model-capabilities.tsx';
 import type { EditableCredential } from './shared.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 /** One catalog entry from `GET /image/models`. */
 type CatalogModel = { id: string; name: string };

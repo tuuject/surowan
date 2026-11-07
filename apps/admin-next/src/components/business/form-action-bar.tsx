@@ -15,6 +15,7 @@ const STICKY_Z_INDEX = 30;
  */
 export function FormActionBar({
   status,
+  statusId,
   error,
   submitLabel,
   submittingLabel,
@@ -28,6 +29,8 @@ export function FormActionBar({
 }: {
   /** What is pending: "3 unsaved changes", "Nothing to save", a validation hint. */
   readonly status: ReactNode;
+  /** Names the status so the submit button can be described by it (what blocks or awaits the save). */
+  readonly statusId?: string;
   /** Why the last save failed; the edits stay in the form. */
   readonly error?: ReactNode;
   readonly submitLabel: string;
@@ -60,7 +63,7 @@ export function FormActionBar({
     >
       <div className={css({ flex: '1 1 auto', minWidth: '0', paddingInline: '4' })}>
         {/* Always mounted, so screen readers hear the status change. */}
-        <span role="status" className={css({ color: 'text-muted' })}>
+        <span role="status" id={statusId} className={css({ color: 'text-muted' })}>
           {status}
         </span>
         {error === undefined || error === null ? null : (
@@ -80,6 +83,7 @@ export function FormActionBar({
           loading={submitting}
           {...(submittingLabel === undefined ? {} : { loadingLabel: submittingLabel })}
           disabled={submitDisabled}
+          aria-describedby={statusId}
           {...(onSubmit === undefined ? {} : { onClick: onSubmit })}
         >
           {submitLabel}

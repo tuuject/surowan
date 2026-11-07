@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -11,9 +11,9 @@ import {
   TextValue,
 } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
+import { AppLink } from '@/components/router-links';
 import type { InvocationDetail, ToolRegistryEntry } from '@/lib/api/invocations.ts';
 import { formatCost, formatNumber, formatTime } from '@/lib/format';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 function ToolRegistryTable({ registry }: { readonly registry: readonly ToolRegistryEntry[] }): React.ReactElement {
   const { t } = useTranslation();
@@ -21,34 +21,25 @@ function ToolRegistryTable({ registry }: { readonly registry: readonly ToolRegis
     {
       key: 'name',
       title: t('invocations.invocationDetail.toolRegistry.name'),
-      render: (row) => (
-        <code
-          className={css({
-            textStyle: 'small',
-            borderRadius: 'lg',
-            bg: 'surface-muted',
-            paddingInline: '1',
-            paddingBlock: '1',
-            fontFamily: 'mono',
-          })}
-        >
-          {row.name}
-        </code>
-      ),
+      width: 240,
+      render: (row) => <MonoValue value={row.name} />,
     },
-    { key: 'label', title: t('invocations.invocationDetail.toolRegistry.label'), render: (row) => row.label },
+    {
+      key: 'label',
+      title: t('invocations.invocationDetail.toolRegistry.label'),
+      width: 200,
+      render: (row) => row.label,
+    },
     {
       key: 'description',
       title: t('invocations.invocationDetail.toolRegistry.description'),
       render: (row) => (
-        <p className={css({ textStyle: 'body', maxWidth: '42rem', overflowWrap: 'anywhere' })}>{row.description}</p>
+        <p className={css({ margin: '0', whiteSpace: 'normal', overflowWrap: 'anywhere' })}>{row.description}</p>
       ),
     },
   ];
   return (
     <LazyDetails
-      summaryClassName="text-muted-foreground flex cursor-pointer items-center gap-2 text-sm"
-      contentClassName="mt-2"
       summary={
         <>
           {t('invocations.invocationDetail.toolRegistry.title')}
@@ -64,24 +55,8 @@ function ToolRegistryTable({ registry }: { readonly registry: readonly ToolRegis
 export function DetailHeader({ invocation }: { readonly invocation: InvocationDetail }): React.ReactElement {
   const { t } = useTranslation();
   return (
-    <Panel
-      title={t('invocations.invocationDetail.title', { id: invocation.id })}
-      action={
-        <Link
-          to="/invocations"
-          className={css({
-            textStyle: 'body',
-            color: 'text-brand',
-            flexShrink: '0',
-            textUnderlineOffset: '4px',
-            _hover: { textDecorationLine: 'underline' },
-          })}
-        >
-          {t('invocations.invocationDetail.backToList')}
-        </Link>
-      }
-    >
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+    <Panel title={t('invocations.invocationDetail.summary')}>
+      <div className={css({ display: 'flex', flexDirection: 'column', gap: '5' })}>
         <KvList
           items={[
             { label: t('invocations.invocationDetail.kv.state'), value: <StateBadge state={invocation.state} /> },
@@ -109,19 +84,9 @@ export function DetailHeader({ invocation }: { readonly invocation: InvocationDe
               : {
                   label: t('invocations.invocationDetail.kv.room'),
                   value: (
-                    <Link
-                      to="/playground"
-                      search={{ room: invocation.chat.room_id }}
-                      className={css({
-                        textStyle: 'small',
-                        color: 'text-brand',
-                        fontFamily: 'mono',
-                        textUnderlineOffset: '4px',
-                        _hover: { textDecorationLine: 'underline' },
-                      })}
-                    >
+                    <AppLink to="/playground" search={{ room: invocation.chat.room_id }}>
                       {invocation.chat.room_id}
-                    </Link>
+                    </AppLink>
                   ),
                 },
             { label: t('invocations.invocationDetail.kv.topic'), value: String(invocation.chat.message_thread_id) },

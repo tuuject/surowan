@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
-import { ListPageHeader } from '@/components/business';
-import { SearchSettingsForm } from '@/components/search-settings/settings-form.tsx';
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { Skeleton } from '@tuuject/koi-react/skeleton';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { useTranslation } from 'react-i18next';
+import { ListPageHeader } from '@/components/business';
+import { SearchSettingsForm } from '@/components/search-settings/settings-form.tsx';
 import { getSearchConfig, type SearchConfigView } from '@/lib/api/search.ts';
 import { errorMessage } from '@/lib/errors';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 const searchConfigQuery = {
   queryKey: ['search-config'] as const,

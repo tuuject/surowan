@@ -188,7 +188,7 @@ test.describe('API key management UI', () => {
       localStorage.setItem('admin-theme', 'dark');
     });
     await page.goto(await adminUrl('/api-keys'));
-    await expect(page.locator('html')).toHaveClass(/dark/);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     const main = page.getByRole('main');
     await expect(main.getByText('API keys', { exact: true }).first()).toBeVisible();
     await main.getByRole('button', { name: 'Create API key' }).click();

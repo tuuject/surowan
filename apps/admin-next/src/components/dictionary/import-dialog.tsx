@@ -1,14 +1,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Select } from '@tuuject/koi-react/select';
-import type React from 'react';
-import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { ScopePicker } from '@/components/dictionary/entry-form.tsx';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { DropZone } from '@tuuject/koi-react/drop-zone';
 import { Field } from '@tuuject/koi-react/field';
+import { Select } from '@tuuject/koi-react/select';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
+import type React from 'react';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { ScopePicker } from '@/components/dictionary/entry-form.tsx';
 import type {
   DictionaryChatOption,
   DictionaryDraft,
@@ -19,7 +20,6 @@ import type {
 import { importDictionaryEntries, previewDictionaryImport } from '@/lib/api/dictionary.ts';
 import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
 import { toast } from '@/lib/toast.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * Import flow: pick a CSV/JSONL file or paste content, ask the server for a

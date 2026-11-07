@@ -1,9 +1,9 @@
-import { PlusIcon, TrashIcon } from '@tuuject/koi-react/icons';
-import { useTranslation } from 'react-i18next';
 import { Button, IconButton } from '@tuuject/koi-react/button';
+import { PlusIcon, TrashIcon } from '@tuuject/koi-react/icons';
 import { Input } from '@tuuject/koi-react/input';
-import { type HeaderRow, newRowId } from '@/lib/header-rows.ts';
 import { css } from '@tuuject/koi-react/styled-system/css';
+import { useTranslation } from 'react-i18next';
+import { type HeaderRow, newRowId } from '@/lib/header-rows.ts';
 
 /**
  * Header editing for a custom provider. Values are write-only — the API returns

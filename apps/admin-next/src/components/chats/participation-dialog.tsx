@@ -1,13 +1,14 @@
 import { useMutation } from '@tanstack/react-query';
+import { Button, IconButton } from '@tuuject/koi-react/button';
+import { Card } from '@tuuject/koi-react/card';
+import { Dialog } from '@tuuject/koi-react/dialog';
 import { PlusIcon, TrashIcon } from '@tuuject/koi-react/icons';
+import { Input } from '@tuuject/koi-react/input';
+import { RadioGroup } from '@tuuject/koi-react/radio-group';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { WeekWindowsChart } from '@/components/chats/week-windows-chart';
-import { Button, IconButton } from '@tuuject/koi-react/button';
-import { Dialog } from '@tuuject/koi-react/dialog';
-import { Input } from '@tuuject/koi-react/input';
-import { Card } from '@tuuject/koi-react/card';
-import { RadioGroup } from '@tuuject/koi-react/radio-group';
 import type { ChatEntry, ChatsView, ParticipationView, ParticipationWindow } from '@/lib/api/chats.ts';
 import { updateChatParticipation } from '@/lib/api/chats.ts';
 import { errorMessage } from '@/lib/errors';
@@ -15,7 +16,6 @@ import { isConfigConflict } from '@/lib/model-manager';
 import { summarizeWindows } from '@/lib/participation';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 type ParticipationMode = 'unrestricted' | 'none' | 'custom';
 

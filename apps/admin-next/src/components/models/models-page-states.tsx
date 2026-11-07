@@ -1,7 +1,7 @@
-import { useTranslation } from 'react-i18next';
 import { Skeleton } from '@tuuject/koi-react/skeleton';
-import { errorMessage } from '@/lib/errors.ts';
 import { css } from '@tuuject/koi-react/styled-system/css';
+import { useTranslation } from 'react-i18next';
+import { errorMessage } from '@/lib/errors.ts';
 
 /** Placeholder while the provider view loads. */
 export function ModelsPageLoading(): React.ReactElement {

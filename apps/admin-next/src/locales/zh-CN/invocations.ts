@@ -33,7 +33,7 @@ export const invocations: typeof invocationsEn = {
       'Token 统计模型调用涉及的全部 Token，含缓存读取与写入 —— 与每日预算口径一致。单次调用的明细见 Invocation 详情页。',
   },
   invocationDetail: {
-    backToList: '返回列表',
+    summary: '概要',
     title: 'Invocation {{id}}',
     notFound: 'Invocation 不存在',
     loadFailed: 'Invocation 加载失败',
@@ -222,7 +222,6 @@ export const invocations: typeof invocationsEn = {
     },
   },
   messageDetail: {
-    backToList: '返回列表',
     title: '消息 {{id}}',
     notFound: '消息不存在',
     loadFailed: '消息加载失败',
@@ -282,7 +281,6 @@ export const invocations: typeof invocationsEn = {
     },
   },
   contextDetail: {
-    backToList: '返回列表',
     title: '会话上下文 {{id}}',
     notFound: '会话上下文不存在',
     loadFailed: '会话上下文加载失败',

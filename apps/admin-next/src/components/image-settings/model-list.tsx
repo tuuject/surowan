@@ -1,12 +1,12 @@
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { Textarea } from '@tuuject/koi-react/textarea';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import { type ColumnSpec, ListFooter, RowActions, TableShell, useClientPagination } from '@/components/business';
-import { Alert } from '@tuuject/koi-react/alert';
-import { Button } from '@tuuject/koi-react/button';
-import { Textarea } from '@tuuject/koi-react/textarea';
 import { ModelCapabilities } from './model-capabilities.tsx';
 import type { EditableModel } from './shared.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 /** The models that will be saved, with editable descriptions kept visible in each row. */
 export function ModelList({

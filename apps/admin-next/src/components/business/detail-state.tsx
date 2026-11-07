@@ -1,9 +1,11 @@
-import { Link } from '@tanstack/react-router';
-import type React from 'react';
+import { Empty } from '@tuuject/koi-react/empty';
+import { ErrorIcon, SearchIcon } from '@tuuject/koi-react/icons';
 import { Skeleton } from '@tuuject/koi-react/skeleton';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import type React from 'react';
+import { ButtonLink } from '@/components/router-links';
 import { ApiError } from '@/lib/api/core.ts';
 import { errorMessage } from '@/lib/errors';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * Shared detail-page state contract. The three detail pages
@@ -46,21 +48,15 @@ export function DetailError({
   const apiError = error instanceof ApiError ? error : null;
   const notFound = apiError?.status === 404;
   return (
-    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' }, padding: '6', textAlign: 'center' })}>
-      <p className={css({ textStyle: 'label', color: 'error-text' })}>{notFound ? notFoundTitle : failedTitle}</p>
-      <p className={css({ textStyle: 'body', color: 'text-muted', overflowWrap: 'anywhere' })}>{errorMessage(error)}</p>
-      <Link
-        to={backTo}
-        className={css({
-          textStyle: 'body',
-          color: 'text-brand',
-          display: 'inline-block',
-          textUnderlineOffset: '4px',
-          _hover: { textDecorationLine: 'underline' },
-        })}
-      >
-        {backLabel}
-      </Link>
-    </div>
+    <Empty
+      icon={notFound ? <SearchIcon /> : <ErrorIcon />}
+      title={notFound ? notFoundTitle : failedTitle}
+      description={<span className={css({ overflowWrap: 'anywhere' })}>{errorMessage(error)}</span>}
+      action={
+        <ButtonLink to={backTo} variant="outline" color="secondary">
+          {backLabel}
+        </ButtonLink>
+      }
+    />
   );
 }

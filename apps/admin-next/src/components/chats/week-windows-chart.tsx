@@ -1,8 +1,8 @@
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ParticipationWindow } from '@/lib/api/chats.ts';
 import { daySegments, formatZonedTime, summarizeWindows, zonedClock } from '@/lib/participation';
-import { css, cx } from '@tuuject/koi-react/styled-system/css';
 
 const HOUR_TICKS = [0, 6, 12, 18, 24];
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7];

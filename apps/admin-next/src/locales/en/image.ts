@@ -152,8 +152,8 @@ export const image = {
     noReferenceImages: 'This generation used no reference images',
     orderingHint: 'Ordered as submitted to the model; click an image to view the original',
     attemptsTitle: 'Attempt log',
+    attemptRound: 'Round {{round}}, item {{item}}',
     noAttempts: 'No attempts yet.',
     finalPromptLabel: 'Final prompt (references expanded)',
-    backToList: '← Back to list',
   },
 };

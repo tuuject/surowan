@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
 import { PlusIcon, UploadIcon } from '@tuuject/koi-react/icons';
-import { DownloadIcon, MergeIcon } from '@/components/icons';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -21,12 +24,9 @@ import { ImportDialog } from '@/components/dictionary/import-dialog.tsx';
 import { InjectionPanel } from '@/components/dictionary/injection-panel.tsx';
 import { MergeDialog } from '@/components/dictionary/merge-dialog.tsx';
 import { DictionaryScopePanel } from '@/components/dictionary/scope-panel.tsx';
-import { Alert } from '@tuuject/koi-react/alert';
-import { Button } from '@tuuject/koi-react/button';
-import { Dialog } from '@tuuject/koi-react/dialog';
+import { DownloadIcon, MergeIcon } from '@/components/icons';
 import type { DictionaryDraft, DictionaryEntry, DictionaryScope } from '@/lib/api/dictionary.ts';
 import { createDictionaryEntry, deleteDictionaryEntry, updateDictionaryEntry } from '@/lib/api/dictionary.ts';
-import { chatQuery, useListQuery } from '@/lib/list-query';
 import {
   conflictedEntryIds,
   type DictionaryDraftErrors,
@@ -36,9 +36,9 @@ import {
   normalizeDraft,
   validateDraft,
 } from '@/lib/dictionary.ts';
+import { chatQuery, useListQuery } from '@/lib/list-query';
 import { dictionaryChatsQuery, dictionaryQuery } from '@/lib/queries.ts';
 import { toast } from '@/lib/toast.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 const EMPTY_FILTERS = { chat: '', search: '' };
 const EMPTY_DRAFT: DictionaryDraft = {

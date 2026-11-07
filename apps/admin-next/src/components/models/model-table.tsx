@@ -1,6 +1,7 @@
+import { Button, IconButton } from '@tuuject/koi-react/button';
 import { TrashIcon } from '@tuuject/koi-react/icons';
 import { Menu } from '@tuuject/koi-react/menu';
-import { EditIcon, EyeIcon, HealthIcon, LightbulbIcon, MoreIcon } from '@/components/icons';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import type { Dispatch, SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -14,7 +15,7 @@ import {
   ToneBadge,
   useClientPagination,
 } from '@/components/business';
-import { Button, IconButton } from '@tuuject/koi-react/button';
+import { EditIcon, EyeIcon, HealthIcon, LightbulbIcon, MoreIcon } from '@/components/icons';
 import type {
   HealthCheckResult,
   HealthCheckStatus,
@@ -24,7 +25,6 @@ import type {
 } from '@/lib/api/providers.ts';
 import { formatDuration, formatNumber } from '@/lib/format.ts';
 import { isImageCapable, isTextCapable, modelUsage } from '@/lib/model-manager.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 export interface ModelRow {
   readonly alias: string;

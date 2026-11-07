@@ -23,10 +23,11 @@ test.describe('models page', () => {
     await page.getByRole('button', { name: 'Edit relay-existing-model' }).click();
 
     // Not a reasoning model: there are no levels to declare.
-    await expect(page.locator('#model-thinking-off')).toHaveCount(0);
-    await page.locator('#model-reasoning').check();
-    await page.locator('#model-thinking-low').check();
-    await page.locator('#model-thinking-xhigh').check();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('checkbox', { name: 'off', exact: true })).toHaveCount(0);
+    await dialog.getByRole('checkbox', { name: 'reasoning', exact: true }).check();
+    await dialog.getByRole('checkbox', { name: 'low', exact: true }).check();
+    await dialog.getByRole('checkbox', { name: 'xhigh', exact: true }).check();
     await page.getByRole('button', { name: 'Save' }).click();
     // The toast only appears once the write and the reload succeeded.
     await expect(appliedToast(page).first()).toBeVisible();

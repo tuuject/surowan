@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Select } from '@tuuject/koi-react/select';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Panel } from '@/components/layout/panel';
@@ -8,7 +9,6 @@ import { DICTIONARY_INJECTION_MODES, getDictionarySettings, putDictionarySetting
 import { dictionaryErrorMessage, injectionModeHint, injectionModeLabel } from '@/lib/dictionary.ts';
 import { dictionarySettingsQuery } from '@/lib/queries.ts';
 import { toast } from '@/lib/toast.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 const INHERIT_VALUE = '__inherit__';
 

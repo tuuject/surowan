@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { Select } from '@tuuject/koi-react/select';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import { useTranslation } from 'react-i18next';
 import { KvList, MonoValue } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
@@ -9,7 +10,6 @@ import type { ProvidersView } from '@/lib/api/providers.ts';
 import { agentModelConfig, isThinkingLevel, supportedThinkingLevels, writeErrorMessage } from '@/lib/model-manager.ts';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * What the bot runs on right now, whichever provider the page has selected:

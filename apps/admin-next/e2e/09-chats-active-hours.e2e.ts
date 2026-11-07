@@ -104,10 +104,11 @@ test('active-hours editing sets custom periods, an empty schedule and back to un
   await dialog.getByRole('button', { name: 'Add period', exact: true }).click();
   await expect(dialog.getByText(/Times shown in/)).toBeVisible();
   expect(
-    await page.evaluate(() => {
-      const content = document.querySelector('[data-slot="dialog-content"]');
-      return content instanceof HTMLElement && content.scrollWidth <= content.clientWidth + 1;
-    }),
+    await dialog.evaluate((root) =>
+      [root, ...root.querySelectorAll('[class*="koi-dialog__body"]')].every(
+        (node) => node.scrollWidth <= node.clientWidth + 1,
+      ),
+    ),
   ).toBe(true);
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);

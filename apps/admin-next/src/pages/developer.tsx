@@ -1,16 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { Switch } from '@tuuject/koi-react/switch';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert } from '@tuuject/koi-react/alert';
 import { ConfirmDialog, ListPageHeader, SettingRow } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
-import { Button } from '@tuuject/koi-react/button';
-import { Switch } from '@tuuject/koi-react/switch';
 import { clearModelPayloads, updateDeveloperSettings } from '@/lib/api/config.ts';
 import { errorMessage } from '@/lib/errors';
 import { developerQuery } from '@/lib/queries';
 import { useProviderWrite } from '@/lib/use-provider-write';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 /** The two independent switches the page mutates through the same PUT /developer endpoint. */
 type DeveloperSwitch = 'record_model_payloads' | 'record_agent_thinking';

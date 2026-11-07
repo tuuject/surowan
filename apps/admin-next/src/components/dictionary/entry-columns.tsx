@@ -1,14 +1,14 @@
-import type { TFunction } from 'i18next';
 import { Badge } from '@tuuject/koi-react/badge';
 import { IconButton } from '@tuuject/koi-react/button';
 import { TrashIcon } from '@tuuject/koi-react/icons';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import { Switch } from '@tuuject/koi-react/switch';
 import { Tag } from '@tuuject/koi-react/tag';
+import type { TFunction } from 'i18next';
 import { type ColumnSpec, RowActions } from '@/components/business';
 import { EditIcon } from '@/components/icons';
 import type { DictionaryChatOption, DictionaryEntry } from '@/lib/api/dictionary.ts';
 import { formatTime } from '@/lib/format';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 export interface DictionaryColumnsOptions {
   readonly t: TFunction;

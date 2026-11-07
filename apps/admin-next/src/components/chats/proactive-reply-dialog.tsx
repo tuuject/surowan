@@ -1,18 +1,18 @@
 import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
-import { Input } from '@tuuject/koi-react/input';
 import { Field } from '@tuuject/koi-react/field';
+import { Input } from '@tuuject/koi-react/input';
 import { RadioGroup } from '@tuuject/koi-react/radio-group';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ChatEntry, ChatsView, ProactiveReplyWrite } from '@/lib/api/chats.ts';
 import { updateChatProactiveReply } from '@/lib/api/chats.ts';
 import { errorMessage } from '@/lib/errors';
 import { isConfigConflict } from '@/lib/model-manager';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 type ProactiveMode = 'inherit' | 'off' | 'custom';
 

@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import { Tabs } from '@tuuject/koi-react/tabs';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { DetailError, DetailSkeleton } from '@/components/business';
+import { DetailError, DetailSkeleton, ListPageHeader } from '@/components/business';
 import { DetailHeader } from '@/components/invocations/detail-header';
 import { ModelCallsTab } from '@/components/invocations/model-calls-tab';
 import { OverviewTab } from '@/components/invocations/overview-tab';
@@ -11,7 +12,6 @@ import { isRoom } from '@/components/invocations/shared';
 import { ToolCallsTab } from '@/components/invocations/tool-calls-tab';
 import { AgentTranscriptTab, FrozenContextTab } from '@/components/invocations/transcripts-tab';
 import { invocationQuery } from '@/lib/queries';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 export function InvocationDetailView({ id }: { readonly id: string }): React.ReactElement {
   const { t } = useTranslation();
@@ -44,9 +44,10 @@ export function InvocationDetailView({ id }: { readonly id: string }): React.Rea
   }
 
   return (
-    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+    <div className={css({ '& > * + *': { marginBlockStart: '6' } })}>
+      <ListPageHeader title={t('invocations.invocationDetail.title', { id: data.id })} />
       <DetailHeader invocation={data} />
-      <section className={css({ borderTopWidth: '1px', borderColor: 'divider', paddingBlockStart: '4' })}>
+      <section>
         <Tabs
           defaultValue="overview"
           label={t('invocations.invocationDetail.tabs.overview')}

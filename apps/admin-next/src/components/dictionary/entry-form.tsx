@@ -1,15 +1,15 @@
-import { Select } from '@tuuject/koi-react/select';
-import type React from 'react';
-import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Checkbox } from '@tuuject/koi-react/checkbox';
 import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
 import { RadioGroup } from '@tuuject/koi-react/radio-group';
+import { Select } from '@tuuject/koi-react/select';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
+import type React from 'react';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { DictionaryChatOption, DictionaryDraft, DictionaryScope } from '@/lib/api/dictionary.ts';
 import { aliasesEqual, formatAliasLines, parseAliasLines } from '@/lib/dictionary.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * The alias editor: exactly one textarea, one alias per line. Every keystroke

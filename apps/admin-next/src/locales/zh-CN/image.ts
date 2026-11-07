@@ -148,8 +148,8 @@ export const image: typeof imageEn = {
     noReferenceImages: '本次生成未使用参考图',
     orderingHint: '按当时提交给模型的顺序排列，点击图片查看原图',
     attemptsTitle: 'Attempt 记录',
+    attemptRound: '第 {{round}} 轮，第 {{item}} 项',
     noAttempts: '尚无 attempt。',
     finalPromptLabel: '最终 Prompt（已展开引用）',
-    backToList: '← 返回列表',
   },
 };

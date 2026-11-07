@@ -3,7 +3,7 @@ import { rmSync } from 'node:fs';
 import { rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { expect, test as base, type Page } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
 
 /** The administrator every spec signs in as (the account is created on demand). */
 export const E2E_USERNAME = 'e2e-admin';

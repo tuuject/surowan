@@ -1,13 +1,13 @@
-import { Select } from '@tuuject/koi-react/select';
-import { useTranslation } from 'react-i18next';
 import { Field } from '@tuuject/koi-react/field';
+import { Select } from '@tuuject/koi-react/select';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { Switch } from '@tuuject/koi-react/switch';
+import { useTranslation } from 'react-i18next';
 import { ListPageHeader, SettingRow } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { type ThemeMode, useTheme } from '@/components/themes/theme-provider';
-import { Switch } from '@tuuject/koi-react/switch';
 import { type AppLanguage, LANGUAGE_LABELS, LANGUAGES, setLanguage } from '@/lib/i18n';
 import { setShowConfigKeys, useShowConfigKeys } from '@/lib/panel-preferences';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 const THEME_MODES: readonly ThemeMode[] = ['light', 'dark', 'system'];
 

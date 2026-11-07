@@ -1,3 +1,4 @@
+import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -26,7 +27,6 @@ import {
   stringField,
 } from '@/lib/timeline';
 import { ToolResult } from './tool-result';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 export function TimelineCard({
   header,
@@ -177,11 +177,7 @@ export function ToolCallCard({
           </span>
         ) : null}
       </div>
-      <LazyDetails
-        summary={t('invocations.invocationDetail.toolCall.argumentsAndResult')}
-        summaryClassName="text-muted-foreground cursor-pointer text-xs"
-        contentClassName="mt-2 space-y-2"
-      >
+      <LazyDetails summary={t('invocations.invocationDetail.toolCall.argumentsAndResult')}>
         <JsonViewer value={tool.arguments_json} title={t('invocations.invocationDetail.toolCall.arguments')} />
         {tool.result_content ? (
           <ToolResult content={tool.result_content} />
@@ -314,11 +310,7 @@ export function AgentMessageCard({ message }: { readonly message: AgentMessageEn
         <ToolResult content={message.result_content} />
       ) : message.role === 'assistant' && message.thinking_text.length > 0 ? (
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-          <LazyDetails
-            summary={t('invocations.invocationDetail.agent.thinkingLabel')}
-            summaryClassName="text-muted-foreground cursor-pointer text-xs"
-            contentClassName="mt-1 text-sm break-words whitespace-pre-wrap"
-          >
+          <LazyDetails summary={t('invocations.invocationDetail.agent.thinkingLabel')}>
             {message.thinking_text}
           </LazyDetails>
           {message.text.length === 0 ? (
@@ -336,13 +328,7 @@ export function AgentMessageCard({ message }: { readonly message: AgentMessageEn
           {t('invocations.invocationDetail.agent.noText')}
         </p>
       ) : message.role === 'tool_result' ? (
-        <LazyDetails
-          summary={t('invocations.invocationDetail.agent.viewToolResult')}
-          summaryClassName="text-muted-foreground cursor-pointer text-xs"
-          contentClassName="mt-1 text-sm break-words whitespace-pre-wrap"
-        >
-          {message.text}
-        </LazyDetails>
+        <LazyDetails summary={t('invocations.invocationDetail.agent.viewToolResult')}>{message.text}</LazyDetails>
       ) : (
         <p className={css({ textStyle: 'body', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>{message.text}</p>
       )}
@@ -395,11 +381,7 @@ export function ModelCallCard({ model }: { readonly model: ModelCallEntry }): Re
         ) : null}
       </div>
       {hasDetails ? (
-        <LazyDetails
-          summary={t('invocations.invocationDetail.modelCall.viewDetails')}
-          summaryClassName="text-muted-foreground cursor-pointer text-xs"
-          contentClassName="mt-2 space-y-2"
-        >
+        <LazyDetails summary={t('invocations.invocationDetail.modelCall.viewDetails')}>
           {model.error_detail !== null ? (
             <div>
               <p className={css({ textStyle: 'small', color: 'text-muted' })}>

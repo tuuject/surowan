@@ -1,5 +1,5 @@
-import { memoryBlobContentPath } from '@/lib/api/memories.ts';
 import { css } from '@tuuject/koi-react/styled-system/css';
+import { memoryBlobContentPath } from '@/lib/api/memories.ts';
 
 type DetailPart = { readonly key: string } & (
   | { readonly kind: 'text'; readonly text: string }

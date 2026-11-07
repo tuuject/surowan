@@ -1,3 +1,4 @@
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import {
   CartesianGrid,
@@ -10,7 +11,6 @@ import {
   YAxis,
 } from 'recharts';
 import { formatNumber } from '@/lib/format';
-import { css, cx } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * Time-series chart panel for Overview / Usage. A thin recharts wrapper: one

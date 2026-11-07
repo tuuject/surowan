@@ -1,7 +1,7 @@
 import { Badge } from '@tuuject/koi-react/badge';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import { stateColor } from '@/lib/format';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * State badge: maps the Ant Design color names emitted by `stateColor`

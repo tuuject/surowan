@@ -1,3 +1,4 @@
+import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -11,11 +12,9 @@ import {
 } from '@/components/business';
 import { TabContent, YesNoBadge } from '@/components/invocations/shared';
 import type { InvocationDetail, ToolCallEntry } from '@/lib/api/invocations.ts';
-
 import { formatDuration, formatTime } from '@/lib/format';
 import { parseSendArguments } from '@/lib/timeline';
 import { ToolResult } from './tool-result';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 function SendArgumentsSummary({ argumentsJson }: { readonly argumentsJson: string }): React.ReactElement {
   const { t } = useTranslation();

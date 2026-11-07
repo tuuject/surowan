@@ -1,13 +1,13 @@
+import { Button } from '@tuuject/koi-react/button';
+import { Checkbox } from '@tuuject/koi-react/checkbox';
+import { Field } from '@tuuject/koi-react/field';
+import { PlusIcon, TrashIcon } from '@tuuject/koi-react/icons';
+import { Input } from '@tuuject/koi-react/input';
+import { Select } from '@tuuject/koi-react/select';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@tuuject/koi-react/button';
-import { Input } from '@tuuject/koi-react/input';
-import { Checkbox } from '@tuuject/koi-react/checkbox';
-import { PlusIcon, TrashIcon } from '@tuuject/koi-react/icons';
-import { Select } from '@tuuject/koi-react/select';
-import { Field } from '@tuuject/koi-react/field';
 import type { EditableCredential, EditableModel } from './shared.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * Enable toggle plus the credential rows it reveals: name, key source and the key itself. Rows are controlled by the

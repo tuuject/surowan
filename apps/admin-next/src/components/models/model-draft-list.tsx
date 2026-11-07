@@ -1,13 +1,13 @@
-import { EditIcon } from '@/components/icons';
+import { Button } from '@tuuject/koi-react/button';
+import { Checkbox } from '@tuuject/koi-react/checkbox';
+import { Input } from '@tuuject/koi-react/input';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import { useTranslation } from 'react-i18next';
 import { MonoValue, ToneBadge } from '@/components/business';
-import { Button } from '@tuuject/koi-react/button';
-import { Input } from '@tuuject/koi-react/input';
+import { EditIcon } from '@/components/icons';
 import type { DiscoveredModel, ProviderModelConfig } from '@/lib/api/providers.ts';
 import { formatNumber } from '@/lib/format.ts';
 import { draftNeedsConfirmation, matchLabel, unconfirmedFields } from '@/lib/model-manager.ts';
-import { Checkbox } from '@tuuject/koi-react/checkbox';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * One drafted value; a field nobody could fill reads `—`. The label stays

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
@@ -8,6 +8,7 @@ import {
   DetailSkeleton,
   JsonViewer,
   KvList,
+  ListPageHeader,
   MonoValue,
   TableShell,
   TextValue,
@@ -17,7 +18,6 @@ import { Panel } from '@/components/layout/panel';
 import type { MediaEntry, MessageDetail, RevisionEntry } from '@/lib/api/messages.ts';
 import { formatNumber, formatTime } from '@/lib/format';
 import { messageQuery } from '@/lib/queries';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 function YesNoBadge({ value }: { readonly value: boolean }): React.ReactElement {
   const { t } = useTranslation();
@@ -31,24 +31,8 @@ function YesNoBadge({ value }: { readonly value: boolean }): React.ReactElement 
 function DetailHeader({ message }: { readonly message: MessageDetail }): React.ReactElement {
   const { t } = useTranslation();
   return (
-    <Panel
-      title={t('invocations.messageDetail.title', { id: message.id })}
-      action={
-        <Link
-          to="/messages"
-          className={css({
-            textStyle: 'body',
-            color: 'text-brand',
-            flexShrink: '0',
-            textUnderlineOffset: '4px',
-            _hover: { textDecorationLine: 'underline' },
-          })}
-        >
-          {t('invocations.messageDetail.backToList')}
-        </Link>
-      }
-    >
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+    <Panel title={t('invocations.invocationDetail.summary')}>
+      <div className={css({ display: 'flex', flexDirection: 'column', gap: '5' })}>
         <KvList
           items={[
             {
@@ -129,21 +113,21 @@ function RevisionsTable({ message }: { readonly message: MessageDetail }): React
       rowKey={(row) => row.id}
       emptyText={t('invocations.messageDetail.noRevisions')}
       expandedRender={(row) => (
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+        <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
           <div>
-            <p className={css({ textStyle: 'small', color: 'text-muted', marginBlockEnd: '1' })}>
+            <p className={css({ margin: '0', marginBlockEnd: '1', textStyle: 'label' })}>
               {t('invocations.messageDetail.replySnapshot')}
             </p>
             <JsonViewer value={row.reply_snapshot_json} />
           </div>
           <div>
-            <p className={css({ textStyle: 'small', color: 'text-muted', marginBlockEnd: '1' })}>
+            <p className={css({ margin: '0', marginBlockEnd: '1', textStyle: 'label' })}>
               {t('invocations.messageDetail.forwardOrigin')}
             </p>
             <JsonViewer value={row.forward_origin_json} />
           </div>
           <div>
-            <p className={css({ textStyle: 'small', color: 'text-muted', marginBlockEnd: '1' })}>
+            <p className={css({ margin: '0', marginBlockEnd: '1', textStyle: 'label' })}>
               {t('invocations.messageDetail.servicePayload')}
             </p>
             <JsonViewer value={row.service_json} />
@@ -161,21 +145,7 @@ function MediaTable({ message }: { readonly message: MessageDetail }): React.Rea
     {
       key: 'file_unique_id',
       title: t('invocations.messageDetail.mediaColumns.fileUniqueId'),
-      render: (row) => (
-        <code
-          className={css({
-            textStyle: 'small',
-            borderRadius: 'lg',
-            bg: 'surface-muted',
-            paddingInline: '1',
-            paddingBlock: '1',
-            fontFamily: 'mono',
-            wordBreak: 'break-all',
-          })}
-        >
-          {row.file_unique_id}
-        </code>
-      ),
+      render: (row) => <MonoValue value={row.file_unique_id} />,
     },
     {
       key: 'mime_type',
@@ -245,17 +215,14 @@ export function MessageDetailView({ id }: { readonly id: string }): React.ReactE
   }
 
   return (
-    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+    <div className={css({ '& > * + *': { marginBlockStart: '6' } })}>
+      <ListPageHeader title={t('invocations.messageDetail.title', { id: data.id })} />
       <DetailHeader message={data} />
       <Panel title={t('invocations.messageDetail.revisionsTitle', { count: data.revisions.length })}>
-        <div>
-          <RevisionsTable message={data} />
-        </div>
+        <RevisionsTable message={data} />
       </Panel>
       <Panel title={t('invocations.messageDetail.mediaTitle', { count: data.media.length })}>
-        <div>
-          <MediaTable message={data} />
-        </div>
+        <MediaTable message={data} />
       </Panel>
     </div>
   );

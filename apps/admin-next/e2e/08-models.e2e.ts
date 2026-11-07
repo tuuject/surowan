@@ -33,7 +33,7 @@ test.describe('models page', () => {
     await expect(keyInput).toHaveAttribute('type', 'password');
     await expect(keyInput).toHaveAttribute('autocomplete', 'new-password');
     await expect(keyInput).toHaveValue('');
-    await expect(page.getByText('Set - leave empty to keep it')).toBeVisible();
+    await expect(page.getByText('Saved; leave empty to keep it')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Test' })).toBeVisible();
     await expect(page.locator('table tbody tr').first()).toBeVisible();
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
@@ -123,7 +123,10 @@ test.describe('models page', () => {
     await expect(page.getByText('Confirm or fill in:', { exact: false })).toBeVisible();
     await page.locator('#model-context').fill('64000');
     await page.locator('#model-max-tokens').fill('8192');
-    await page.locator('#model-input-text').check();
+    await page
+      .getByRole('dialog', { name: `Confirm ${E2E_RELAY_INCOMPLETE_MODEL}` })
+      .getByRole('checkbox', { name: 'text', exact: true })
+      .check();
     await page.locator('#model-cost-input').fill('0.1');
     await page.locator('#model-cost-output').fill('0.2');
     await page.locator('#model-cost-cache_read').fill('0');

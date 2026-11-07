@@ -1,3 +1,5 @@
+import { Button } from '@tuuject/koi-react/button';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import JsonView from '@uiw/react-json-view';
 import { darkTheme } from '@uiw/react-json-view/dark';
 import { lightTheme } from '@uiw/react-json-view/light';
@@ -5,11 +7,9 @@ import type React from 'react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/components/themes/theme-provider';
-import { Button } from '@tuuject/koi-react/button';
 import { downloadTextFile } from '@/lib/download.ts';
 import { prettyJson } from '@/lib/format';
 import { LazyDetails } from './lazy-details';
-import { css, cx } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * JSON viewer with a Tree / Text toggle. The tree is `@uiw/react-json-view`
@@ -37,7 +37,16 @@ function isTree(value: unknown): value is object {
   return typeof value === 'object' && value !== null;
 }
 
-const BOX = 'bg-muted/50 max-h-96 overflow-auto rounded-md px-3 py-2 font-mono text-xs leading-normal';
+const BOX = css({
+  maxHeight: '384px',
+  overflow: 'auto',
+  borderRadius: 'xl',
+  bg: 'surface-muted',
+  paddingInline: '3',
+  paddingBlock: '2',
+  fontFamily: 'mono',
+  textStyle: 'small',
+});
 
 function JsonTree({ value }: { readonly value: object }): React.ReactElement {
   const { resolved } = useTheme();
@@ -138,12 +147,10 @@ export function JsonViewer({
       </div>
       {mode === 'tree' && canTree ? (
         collapsed ? (
-          <LazyDetails
-            summary={t('layout.business.payloadSummary', { n: text.length })}
-            summaryClassName="text-muted-foreground hover:bg-muted cursor-pointer rounded px-1 py-0.5 text-xs transition-colors"
-            contentClassName={cx(css({ marginBlockStart: '1' }), BOX)}
-          >
-            <JsonTree value={parsed} />
+          <LazyDetails summary={t('layout.business.payloadSummary', { n: text.length })}>
+            <div className={BOX}>
+              <JsonTree value={parsed} />
+            </div>
           </LazyDetails>
         ) : (
           <div className={BOX}>

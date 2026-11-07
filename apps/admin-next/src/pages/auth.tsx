@@ -2,6 +2,7 @@ import { startAuthentication } from '@simplewebauthn/browser';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
+import { Card } from '@tuuject/koi-react/card';
 import { Divider } from '@tuuject/koi-react/divider';
 import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
@@ -35,9 +36,9 @@ const pageClass = css({
   paddingInlineStart: `max(token(spacing.4), ${SAFE_LEFT})`,
 });
 
-const cardClass = css({ width: 'min(420px, 100%)', boxSizing: 'border-box' });
+const cardClass = css({ width: 'min(400px, 100%)', boxSizing: 'border-box' });
 
-const brandRow = css({ display: 'flex', alignItems: 'center', gap: '3', marginBlockEnd: '5' });
+const brandRow = css({ display: 'flex', alignItems: 'center', gap: '3', marginBlockEnd: '6' });
 const logoClass = css({
   display: 'flex',
   alignItems: 'center',
@@ -45,8 +46,8 @@ const logoClass = css({
   width: 'control-lg',
   height: 'control-lg',
   borderRadius: 'xl',
-  bg: 'primary-solid',
-  color: 'on-primary-solid',
+  bg: 'secondary-solid',
+  color: 'on-secondary-solid',
   textStyle: 'heading-3',
   fontWeight: 'bold',
   flexShrink: '0',
@@ -85,21 +86,20 @@ function AuthLayout({
         <LanguageToggle />
         <ThemeToggle />
       </div>
-      <section className={cardClass}>
+      {/* The template's sign-in card: one Card, the product mark, then the form. */}
+      <Card className={cardClass}>
         <div className={brandRow}>
           <span className={logoClass} aria-hidden="true">
             S
           </span>
           <div>
+            <h1 className={css({ margin: '0', textStyle: 'heading-2', color: 'text' })}>{title}</h1>
             <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>{t('brand.name')}</p>
-            <h1 className={css({ margin: '0', textStyle: 'heading-2' })}>{title}</h1>
           </div>
         </div>
-        <p className={css({ margin: '0', marginBlockEnd: '5', textStyle: 'body', color: 'text-muted' })}>
-          {description}
-        </p>
+        <p className={css({ margin: '0', marginBlockEnd: '5', color: 'text-muted' })}>{description}</p>
         {children}
-      </section>
+      </Card>
     </div>
   );
 }
@@ -171,8 +171,8 @@ export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boole
           />
         </Field>
         {loginMutation.isError && failure !== null ? <Alert tone="error">{failure}</Alert> : null}
-        <Button type="submit" fullWidth loading={isSubmitting}>
-          {isSubmitting ? t('pages.auth.signingIn') : t('pages.auth.signIn')}
+        <Button type="submit" size="lg" fullWidth loading={isSubmitting} loadingLabel={t('pages.auth.signingIn')}>
+          {t('pages.auth.signIn')}
         </Button>
       </form>
       {passkeysEnabled ? (
@@ -184,14 +184,16 @@ export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boole
                 type="button"
                 variant="outline"
                 color="secondary"
+                size="lg"
                 fullWidth
                 loading={passkeyMutation.isPending}
+                loadingLabel={t('pages.auth.passkeySigningIn')}
                 onClick={() => {
                   setFailure(null);
                   passkeyMutation.mutate();
                 }}
               >
-                {passkeyMutation.isPending ? t('pages.auth.passkeySigningIn') : t('pages.auth.passkeySignIn')}
+                {t('pages.auth.passkeySignIn')}
               </Button>
               {passkeyMutation.isError && failure !== null ? <Alert tone="error">{failure}</Alert> : null}
             </>
@@ -259,8 +261,8 @@ export function SetupForm(): React.ReactElement {
           />
         </Field>
         {failure ? <Alert tone="error">{failure}</Alert> : null}
-        <Button type="submit" fullWidth loading={isSubmitting}>
-          {isSubmitting ? t('pages.auth.creating') : t('pages.auth.createAccount')}
+        <Button type="submit" size="lg" fullWidth loading={isSubmitting} loadingLabel={t('pages.auth.creating')}>
+          {t('pages.auth.createAccount')}
         </Button>
       </form>
     </AuthLayout>

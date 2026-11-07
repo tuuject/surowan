@@ -1,8 +1,8 @@
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Dialog } from '@tuuject/koi-react/dialog';
 import type { ToolContentPart } from '@/lib/api/invocations.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 function ResultImage({
   part,

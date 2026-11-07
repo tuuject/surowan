@@ -1,3 +1,4 @@
+import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -17,7 +18,6 @@ import type { AgentMessageEntry, InvocationDetail } from '@/lib/api/invocations.
 import { formatTime } from '@/lib/format';
 import { objectField, parseJsonObject, stringField } from '@/lib/timeline';
 import { ToolResult } from './tool-result';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 export function AgentTranscriptTab({ invocation }: { readonly invocation: InvocationDetail }): React.ReactNode {
   const { t } = useTranslation();
@@ -45,11 +45,7 @@ export function AgentTranscriptTab({ invocation }: { readonly invocation: Invoca
       render: (row) => (
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           {row.thinking_text.length > 0 && row.role === 'assistant' ? (
-            <LazyDetails
-              summary={t('invocations.invocationDetail.agent.thinkingLabel')}
-              summaryClassName="text-muted-foreground cursor-pointer text-xs"
-              contentClassName="text-sm break-words whitespace-pre-wrap"
-            >
+            <LazyDetails summary={t('invocations.invocationDetail.agent.thinkingLabel')}>
               {row.thinking_text}
             </LazyDetails>
           ) : null}

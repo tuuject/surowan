@@ -1,10 +1,10 @@
+import { IconButton } from '@tuuject/koi-react/button';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CopyIcon } from '@/components/icons';
-import { IconButton } from '@tuuject/koi-react/button';
 import { toast } from '@/lib/toast.ts';
 import { MonoValue } from './kv-list';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 export function CopyableValue({
   label,

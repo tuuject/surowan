@@ -119,7 +119,7 @@ test('reference previews use the frozen names and order, load the original asset
   );
   await page.goto(await adminUrl(`/image-generations/${generation.id}`));
   const gallery = page.getByRole('region', { name: 'Reference images', exact: true });
-  await expect(gallery.locator('figcaption')).toHaveText(['1 · Garden at submission', '2 · Character at submission']);
+  await expect(gallery.locator('figcaption')).toHaveText(['1. Garden at submission', '2. Character at submission']);
   for (const reference of references) {
     const preview = gallery.getByRole('img', { name: reference.name, exact: true });
     await expect(preview).toHaveAttribute('src', `/api/image/images/${reference.id}/content`);
@@ -158,7 +158,7 @@ test('missing reference content keeps its snapshot name and the audit details vi
       exact: true,
     }),
   ).toBeVisible();
-  await expect(gallery.locator('figcaption')).toHaveText('1 · Original reference');
+  await expect(gallery.locator('figcaption')).toHaveText('1. Original reference');
   await expect(gallery.getByRole('img')).toHaveCount(0);
   await expect(page.getByText(generation.snapshot.finalPrompt, { exact: true })).toBeVisible();
   const issues = finish();
@@ -201,7 +201,10 @@ test('history links open the audit detail and return to the history list', async
   await expect(page.getByText('Generation ID', { exact: true })).toBeVisible();
   await expect(page.getByText(generation.snapshot.finalPrompt, { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Generation history', exact: true })).toHaveCount(0);
-  await page.getByRole('link', { name: '← Back to list', exact: true }).click();
+  await page
+    .getByRole('navigation', { name: 'Breadcrumb' })
+    .getByRole('link', { name: 'Image generations', exact: true })
+    .click();
   await expect(page).toHaveURL(await adminUrl('/image-generations'));
   await expect(page.getByRole('heading', { name: 'Generation history', exact: true })).toBeVisible();
   await expect(page.getByText('Generation ID', { exact: true })).toHaveCount(0);

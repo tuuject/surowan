@@ -54,9 +54,9 @@ test('Developer reports saved-but-not-applied settings and recovers through Sett
   await expect(recording).not.toBeChecked();
   await e2eFetch('/fail-next-config-apply', { method: 'POST' });
   await recording.click();
-  await expect(page.getByRole('alert')).toContainText('updated but not applied');
+  await expect(page.getByRole('alert').filter({ hasText: 'updated but not applied' })).toBeVisible();
   await expect(recording).toBeChecked();
-  await expect(page.getByRole('status').filter({ hasText: 'Current running state: Off' })).toBeVisible();
+  await expect(page.getByRole('alert').filter({ hasText: 'Current running state: Off' })).toBeVisible();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: 'Apply config file' }).click();
   await expect(page.getByText('developer.record_model_payloads', { exact: false })).toBeVisible();

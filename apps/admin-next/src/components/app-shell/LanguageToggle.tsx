@@ -1,7 +1,7 @@
 import { IconButton } from '@tuuject/koi-react/button';
 import { Tooltip } from '@tuuject/koi-react/tooltip';
-import { LanguageIcon } from '@/components/icons';
 import { useTranslation } from 'react-i18next';
+import { LanguageIcon } from '@/components/icons';
 import { type AppLanguage, LANGUAGE_LABELS, setLanguage } from '@/lib/i18n';
 
 const NEXT: Record<AppLanguage, AppLanguage> = {

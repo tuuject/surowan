@@ -1,6 +1,10 @@
 import { useNavigate } from '@tanstack/react-router';
-import { Menu } from '@tuuject/koi-react/menu';
+import { IconButton } from '@tuuject/koi-react/button';
 import { TrashIcon } from '@tuuject/koi-react/icons';
+import { Menu } from '@tuuject/koi-react/menu';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { useTranslation } from 'react-i18next';
+import { type ColumnSpec, MonoValue, RowActions, TableShell, ToneBadge } from '@/components/business';
 import {
   AlarmIcon,
   BookOpenIcon,
@@ -14,12 +18,8 @@ import {
   ScrollIcon,
   SparklesIcon,
 } from '@/components/icons';
-import { useTranslation } from 'react-i18next';
-import { type ColumnSpec, MonoValue, RowActions, TableShell, ToneBadge } from '@/components/business';
-import { IconButton } from '@tuuject/koi-react/button';
 import type { ChatEntry, ChatSettingsView, ChatsView, ParticipationWindow } from '@/lib/api/chats.ts';
 import { effectiveWindows, summarizeWindows } from '@/lib/participation';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 /** A field the file and the running process disagree on shows the running value underneath. */
 function RunningNote({ value }: { readonly value: string | null }): React.ReactElement | null {

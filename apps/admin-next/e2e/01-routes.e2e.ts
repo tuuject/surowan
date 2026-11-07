@@ -210,9 +210,7 @@ test.describe('routes and deep links', () => {
   test('/developer renders the recording switch and cleanup action', async ({ page }) => {
     await page.goto(await adminUrl('/developer'));
     await expect(page.getByRole('switch', { name: 'Record raw request payloads for debugging' })).not.toBeChecked();
-    await expect(
-      page.getByRole('button', { name: 'Clear previously recorded raw request payloads', exact: true }),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Clear payloads', exact: true })).toBeVisible();
   });
 
   test('/harness renders the grouped agent settings', async ({ page }) => {

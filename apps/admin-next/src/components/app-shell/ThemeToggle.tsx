@@ -1,6 +1,6 @@
 import { IconButton } from '@tuuject/koi-react/button';
-import { MonitorIcon, MoonIcon, SunIcon } from '@/components/icons';
 import { useTranslation } from 'react-i18next';
+import { MonitorIcon, MoonIcon, SunIcon } from '@/components/icons';
 import { type ThemeMode, useTheme } from '@/components/themes/theme-provider';
 
 const NEXT: Record<ThemeMode, ThemeMode> = {

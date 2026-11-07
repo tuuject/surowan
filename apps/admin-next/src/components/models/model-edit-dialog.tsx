@@ -1,12 +1,14 @@
+import { Button } from '@tuuject/koi-react/button';
+import { Checkbox } from '@tuuject/koi-react/checkbox';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Field } from '@tuuject/koi-react/field';
+import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
+import { field } from '@tuuject/koi-react/styled-system/recipes';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LazyDetails } from '@/components/business';
-import { Button } from '@tuuject/koi-react/button';
-import { Dialog } from '@tuuject/koi-react/dialog';
-import { Input } from '@tuuject/koi-react/input';
-import { field } from '@tuuject/koi-react/styled-system/recipes';
-import { Field } from '@tuuject/koi-react/field';
 import type { ThinkingLevel } from '@/lib/api/models.ts';
 import { THINKING_LEVELS } from '@/lib/api/models.ts';
 import type {
@@ -28,8 +30,6 @@ import {
   unconfirmedFields,
   validateModelForm,
 } from '@/lib/model-manager.ts';
-import { Checkbox } from '@tuuject/koi-react/checkbox';
-import { css, cx } from '@tuuject/koi-react/styled-system/css';
 
 /** Koi Field's label, for the few controls that share one label with a status line or a second control. */
 const fieldLabel = field().label;

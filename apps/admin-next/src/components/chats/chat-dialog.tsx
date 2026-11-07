@@ -1,11 +1,12 @@
 import { useMutation } from '@tanstack/react-query';
-import { Select } from '@tuuject/koi-react/select';
-import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
-import { Input } from '@tuuject/koi-react/input';
 import { Field } from '@tuuject/koi-react/field';
+import { Input } from '@tuuject/koi-react/input';
+import { Select } from '@tuuject/koi-react/select';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ChatEntry, ChatSettings, ChatsView } from '@/lib/api/chats.ts';
 import { createChat, updateChat } from '@/lib/api/chats.ts';
 import type { ThinkingLevel } from '@/lib/api/models.ts';
@@ -13,7 +14,6 @@ import { errorMessage } from '@/lib/errors';
 import { isConfigConflict, isThinkingLevel } from '@/lib/model-manager';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 function modelKey(provider: string, model: string): string {
   return JSON.stringify([provider, model]);
@@ -171,7 +171,7 @@ export function ChatDialog({
               ))}
             </Select>
           </Field>
-          <Field label={t('pages.chats.thinkingLabel')}>
+          <Field id="chat-thinking" label={t('pages.chats.thinkingLabel')}>
             <Select
               value={thinking}
               onChange={(event) => {

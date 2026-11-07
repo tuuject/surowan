@@ -1,4 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { Skeleton } from '@tuuject/koi-react/skeleton';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -20,8 +24,6 @@ import { Panel } from '@/components/layout/panel';
 import { DiffView } from '@/components/prompts/diff-view';
 import { type Notice, type PromptDraft, sourceLabelKey, sourceTone } from '@/components/prompts/prompt-draft';
 import { PromptEditor } from '@/components/prompts/prompt-editor';
-import { Button } from '@tuuject/koi-react/button';
-import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { ApiError } from '@/lib/api/core.ts';
 import type { PromptSaveResponse, PromptScopeRef, PromptVersionItem } from '@/lib/api/prompts.ts';
 import { cancelPromptRunning, failedPromptVersion, restorePromptVersion, savePrompt } from '@/lib/api/prompts.ts';
@@ -30,8 +32,6 @@ import { formatTime } from '@/lib/format';
 import { chatQuery, useListQuery } from '@/lib/list-query';
 import { chatsQuery, promptDiffQuery, promptDocumentQuery, promptVersionsQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
-import { Alert } from '@tuuject/koi-react/alert';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 const GLOBAL_SCOPE_VALUE = 'global';
 const CHAT_SCOPE_PREFIX = 'chat:';

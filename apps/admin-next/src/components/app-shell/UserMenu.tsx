@@ -1,10 +1,10 @@
 import { useNavigate } from '@tanstack/react-router';
 import { Avatar } from '@tuuject/koi-react/avatar';
+import { ChevronDownIcon } from '@tuuject/koi-react/icons';
 import { Menu } from '@tuuject/koi-react/menu';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { ChevronDownIcon } from '@tuuject/koi-react/icons';
-import { LogoutIcon, SlidersIcon } from '@/components/icons';
 import { useTranslation } from 'react-i18next';
+import { LogoutIcon, SlidersIcon } from '@/components/icons';
 import { focusRing } from './shared';
 
 /**

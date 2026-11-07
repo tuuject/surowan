@@ -1,8 +1,8 @@
-import { EyeOffIcon } from '@/components/icons';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
+import { EyeOffIcon } from '@/components/icons';
 import { ToneBadge } from './state-badge';
-import { css, cx } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * Marks assistant ordinary text as private reasoning. Assistant messages are

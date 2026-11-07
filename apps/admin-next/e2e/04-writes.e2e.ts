@@ -1,7 +1,7 @@
-import { setAsAgent } from './models-fixture.ts';
 import { expect } from '@playwright/test';
 import { ACTIVE_CHAT, editElsewhere, inherited, viewOf } from './chats-fixture.ts';
 import { adminUrl, appliedToast, E2E_USERNAME, e2eFetch, test, toast } from './helpers.ts';
+import { setAsAgent } from './models-fixture.ts';
 
 /**
  * Controlled admin operations against the real backend. Every write goes

@@ -1,17 +1,17 @@
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { Field } from '@tuuject/koi-react/field';
+import { SuccessIcon, WarningIcon } from '@tuuject/koi-react/icons';
+import { Input } from '@tuuject/koi-react/input';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { Textarea } from '@tuuject/koi-react/textarea';
+import { sizes } from '@tuuject/koi-tokens/dimensions';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MonoValue, ToneBadge } from '@/components/business';
-import { Alert } from '@tuuject/koi-react/alert';
-import { Button } from '@tuuject/koi-react/button';
-import { Input } from '@tuuject/koi-react/input';
-import { Field } from '@tuuject/koi-react/field';
-import { Textarea } from '@tuuject/koi-react/textarea';
 import type { PromptDocument, PromptVersionItem } from '@/lib/api/prompts.ts';
 import { formatTime } from '@/lib/format';
 import { type Notice, type PromptDraft, sourceLabelKey, sourceTone } from './prompt-draft';
-import { SuccessIcon, WarningIcon } from '@tuuject/koi-react/icons';
-import { css } from '@tuuject/koi-react/styled-system/css';
-import { sizes } from '@tuuject/koi-tokens/dimensions';
 
 /** The same limit the API enforces on a version note. */
 const MAX_NOTE_CHARS = 200;
@@ -82,7 +82,7 @@ export function PromptEditor({
   const matches = applied !== null && applied.content_hash === file.content_hash;
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-      <Field label={t('pages.prompts.promptLabel')} help={t('pages.prompts.editorHint')}>
+      <Field id="prompt-text" label={t('pages.prompts.promptLabel')} help={t('pages.prompts.editorHint')}>
         <Textarea
           value={current.text}
           spellCheck={false}
@@ -92,6 +92,7 @@ export function PromptEditor({
         />
       </Field>
       <Field
+        id="prompt-note"
         label={t('pages.prompts.noteLabel')}
         optional
         help={t('pages.prompts.noteHint', { count: MAX_NOTE_CHARS })}

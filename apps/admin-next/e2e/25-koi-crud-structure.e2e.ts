@@ -4,15 +4,26 @@ import { adminUrl, clickNav, test } from './helpers.ts';
 /** Structural acceptance for the order-page hierarchy, backed by the real fixture APIs. */
 test.use({ signedIn: true });
 
-async function expectOnlyFilterCards(page: Page, filterCount: number): Promise<void> {
+/**
+ * The Koi admin template's Card rules: a Card holds one thing and never another
+ * Card; a list page keeps its table on the page and gives only the filter
+ * conditions a Card; secondary tables (the overview's recent invocations, the
+ * configured sticker sets) sit in their own Card.
+ */
+async function expectCardStructure(
+  page: Page,
+  { filters, cardTables = 0 }: { readonly filters: number; readonly cardTables?: number },
+): Promise<void> {
   const main = page.getByRole('main');
-  await expect(main.locator('[data-slot="card"]')).toHaveCount(0);
-  await expect(main.locator('.koi-card__root:not([data-list-filter])')).toHaveCount(0);
-  await expect(main.locator('[data-list-filter]')).toHaveCount(filterCount);
+  await expect(main.locator('.koi-card__root .koi-card__root')).toHaveCount(0);
+  await expect(main.locator('[data-list-filter]')).toHaveCount(filters);
+  await expect(main.locator('.koi-card__root table')).toHaveCount(cardTables);
   await expect(page.getByRole('button', { name: 'Load more', exact: true })).toHaveCount(0);
 }
 
-test('overview uses plain stat metrics and a recent-invocation table linked to the audit list', async ({ page }) => {
+test('overview puts stat metrics and the recent-invocation table in Cards linked to the audit list', async ({
+  page,
+}) => {
   await page.goto(await adminUrl('/'));
   await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
   for (const label of ['Invocations', 'Ongoing invocations', 'Stored messages', 'Cached media analyses', 'Warnings']) {
@@ -24,7 +35,11 @@ test('overview uses plain stat metrics and a recent-invocation table linked to t
   await expect(viewAll).toHaveAttribute('href', '/invocations');
   await expect(page.getByText('Bot status', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Cancel ongoing', exact: true })).toBeVisible();
-  await expectOnlyFilterCards(page, 0);
+  const main = page.getByRole('main');
+  for (const label of ['Invocations', 'Ongoing invocations', 'Stored messages', 'Cached media analyses']) {
+    await expect(main.locator('.koi-card__root').filter({ hasText: label }).first()).toBeVisible();
+  }
+  await expectCardStructure(page, { filters: 0, cardTables: 1 });
 });
 
 test('a failed warning poll keeps cached warnings and their actions visible', async ({ page }) => {
@@ -182,7 +197,7 @@ const pages = [
 ] as const;
 
 for (const entry of pages) {
-  test(`${entry.path} keeps filter-only Cards, a plain table and real pagination`, async ({ page }) => {
+  test(`${entry.path} keeps its table outside Cards with real pagination`, async ({ page }) => {
     await page.goto(await adminUrl('/'));
     const listResponse = page.waitForResponse(
       (response) => response.request().method() === 'GET' && new URL(response.url()).pathname === entry.api,
@@ -201,42 +216,46 @@ for (const entry of pages) {
     await expect(page.getByRole('navigation', { name: 'Pagination', exact: true })).toHaveCount(
       entry.path === '/models' ? 2 : 1,
     );
-    await expectOnlyFilterCards(page, entry.path === '/prompts' ? 2 : 1);
+    await expectCardStructure(page, { filters: entry.path === '/prompts' ? 2 : 1 });
     await expect(page.getByRole('alert').filter({ hasText: 'Request failed' })).toHaveCount(0);
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 }
 
 const paginatedRoutes = [
-  { path: '/warnings', filters: 0 },
-  { path: '/invocations', filters: 1 },
-  { path: '/messages', filters: 1 },
-  { path: '/contexts', filters: 1 },
-  { path: '/stickers', filters: 1 },
-  { path: '/image-generations', filters: 0 },
-  { path: '/playground', filters: 0 },
+  { path: '/warnings', filters: 0, cardTables: 0 },
+  { path: '/invocations', filters: 1, cardTables: 0 },
+  { path: '/messages', filters: 1, cardTables: 0 },
+  { path: '/contexts', filters: 1, cardTables: 0 },
+  // The configured sets are a short secondary table in their own Card; the index stays on the page.
+  { path: '/stickers', filters: 1, cardTables: 1 },
+  { path: '/image-generations', filters: 0, cardTables: 0 },
+  { path: '/playground', filters: 0, cardTables: 0 },
 ] as const;
 
 for (const entry of paginatedRoutes) {
-  test(`${entry.path} has real pagination and no non-query Card`, async ({ page }) => {
+  test(`${entry.path} has real pagination and Koi Card structure`, async ({ page }) => {
     await page.goto(await adminUrl(entry.path));
     await expect(page.getByRole('navigation', { name: 'Pagination', exact: true }).first()).toBeVisible();
-    await expectOnlyFilterCards(page, entry.filters);
+    await expectCardStructure(page, entry);
   });
 }
 
-const plainSectionRoutes = [
-  { path: '/settings', ready: 'Admin credentials' },
-  { path: '/preferences', ready: 'Display' },
-  { path: '/developer', ready: 'Debug payloads' },
-  { path: '/image-settings', ready: 'Image generation settings' },
+const settingsRoutes = [
+  { path: '/settings', section: 'Admin credentials' },
+  { path: '/preferences', section: 'Display' },
+  { path: '/developer', section: 'Debug payloads' },
+  { path: '/image-settings', section: 'Enable & credentials' },
 ] as const;
 
-for (const entry of plainSectionRoutes) {
-  test(`${entry.path} renders settings as plain sections rather than Cards`, async ({ page }) => {
+for (const entry of settingsRoutes) {
+  test(`${entry.path} groups its settings form in Cards`, async ({ page }) => {
     await page.goto(await adminUrl(entry.path));
-    await expect(page.getByText(entry.ready, { exact: true }).first()).toBeVisible();
-    await expectOnlyFilterCards(page, 0);
+    const main = page.getByRole('main');
+    await expect(
+      main.locator('.koi-card__root').filter({ has: page.getByRole('heading', { name: entry.section, exact: true }) }),
+    ).toBeVisible();
+    await expectCardStructure(page, { filters: 0 });
   });
 }
 

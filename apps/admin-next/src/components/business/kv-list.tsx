@@ -1,5 +1,5 @@
-import type React from 'react';
 import { css, cx } from '@tuuject/koi-react/styled-system/css';
+import type React from 'react';
 
 /**
  * Key/value detail list for detail-page diagnostic fields. Null or empty

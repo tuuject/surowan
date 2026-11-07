@@ -1,4 +1,10 @@
 import { useMutation } from '@tanstack/react-query';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Field } from '@tuuject/koi-react/field';
+import { Input } from '@tuuject/koi-react/input';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { Textarea } from '@tuuject/koi-react/textarea';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MonoValue } from '@/components/business';
@@ -6,17 +12,11 @@ import { HeaderFields } from '@/components/models/header-fields';
 import { ModelDraftList } from '@/components/models/model-draft-list';
 import { ModelEditDialog } from '@/components/models/model-edit-dialog';
 import { useDraftSelection } from '@/components/models/use-draft-selection';
-import { Button } from '@tuuject/koi-react/button';
-import { Dialog } from '@tuuject/koi-react/dialog';
-import { Input } from '@tuuject/koi-react/input';
-import { Field } from '@tuuject/koi-react/field';
-import { Textarea } from '@tuuject/koi-react/textarea';
 import type { DiscoveredModel, ProviderModelConfig, ProviderView } from '@/lib/api/providers.ts';
 import { appendProviderModels, discoverProviderModels, lookupModelMetadata } from '@/lib/api/providers.ts';
 import { type HeaderRow, headerRowsFromNames, headerValues } from '@/lib/header-rows.ts';
 import { modelFormFromDraft, parseModelIds, requestErrorMessage } from '@/lib/model-manager.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 export type ModelPickerMode = 'discover' | 'manual';
 
@@ -189,7 +189,7 @@ export function ModelPickerDialog({
                     padding: '3',
                   })}
                 >
-                  <Field label={t('models.models.connection.apiKey')}>
+                  <Field id="picker-api-key" label={t('models.models.connection.apiKey')}>
                     <Input
                       type="password"
                       autoComplete="new-password"

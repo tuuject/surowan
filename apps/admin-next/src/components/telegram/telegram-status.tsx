@@ -1,7 +1,7 @@
+import { css } from '@tuuject/koi-react/styled-system/css';
 import { useTranslation } from 'react-i18next';
 import { ToneBadge } from '@/components/business';
 import type { TelegramBot, TelegramConnectionState, TelegramConnectionStatus } from '@/lib/api/telegram.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 const STATUS_TONE: Record<TelegramConnectionStatus, 'success' | 'warning' | 'danger' | 'neutral'> = {
   connected: 'success',

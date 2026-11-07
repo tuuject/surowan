@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { Empty } from '@tuuject/koi-react/empty';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
@@ -7,6 +8,7 @@ import {
   DetailSkeleton,
   JsonViewer,
   KvList,
+  ListPageHeader,
   MonoValue,
   TableShell,
   TextValue,
@@ -14,7 +16,7 @@ import {
 } from '@/components/business';
 import { ToolResult } from '@/components/invocations/tool-result';
 import { Panel } from '@/components/layout/panel';
-import { Empty } from '@tuuject/koi-react/empty';
+import { AppLink } from '@/components/router-links';
 import type {
   ConversationContextDetail,
   ConversationContextMessageEntry,
@@ -22,7 +24,6 @@ import type {
 } from '@/lib/api/contexts.ts';
 import { formatNumber, formatTime } from '@/lib/format';
 import { conversationContextQuery } from '@/lib/queries';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 function RoleBadge({ role }: { readonly role: string }): React.ReactElement {
   return <ToneBadge tone="neutral">{role}</ToneBadge>;
@@ -41,19 +42,9 @@ function InvocationLink({ id }: { readonly id: string | null }): React.ReactElem
     return <span className={css({ color: 'text-muted' })}>—</span>;
   }
   return (
-    <Link
-      to="/invocations/$invocationId"
-      params={{ invocationId: id }}
-      className={css({
-        textStyle: 'small',
-        fontFamily: 'mono',
-        wordBreak: 'break-all',
-        textUnderlineOffset: '4px',
-        _hover: { textDecorationLine: 'underline' },
-      })}
-    >
+    <AppLink to="/invocations/$invocationId" params={{ invocationId: id }}>
       {id}
-    </Link>
+    </AppLink>
   );
 }
 
@@ -153,21 +144,7 @@ function CapabilityRefs({ context }: { readonly context: ConversationContextDeta
     {
       key: 'ref',
       title: t('invocations.contextDetail.refColumns.ref'),
-      render: (row) => (
-        <code
-          className={css({
-            textStyle: 'small',
-            borderRadius: 'lg',
-            bg: 'surface-muted',
-            paddingInline: '1',
-            paddingBlock: '1',
-            fontFamily: 'mono',
-            wordBreak: 'break-all',
-          })}
-        >
-          {row.ref}
-        </code>
-      ),
+      render: (row) => <MonoValue value={row.ref} />,
     },
     {
       key: 'kind',
@@ -220,25 +197,10 @@ export function ContextDetailView({ id }: { readonly id: string }): React.ReactE
   }
 
   return (
-    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-      <Panel
-        title={t('invocations.contextDetail.title', { id: data.conversation_id })}
-        action={
-          <Link
-            to="/contexts"
-            className={css({
-              textStyle: 'body',
-              color: 'text-brand',
-              flexShrink: '0',
-              textUnderlineOffset: '4px',
-              _hover: { textDecorationLine: 'underline' },
-            })}
-          >
-            {t('invocations.contextDetail.backToList')}
-          </Link>
-        }
-      >
-        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+    <div className={css({ '& > * + *': { marginBlockStart: '6' } })}>
+      <ListPageHeader title={t('invocations.contextDetail.title', { id: data.conversation_id })} />
+      <Panel title={t('invocations.invocationDetail.summary')}>
+        <div>
           <KvList
             items={[
               {
@@ -273,14 +235,10 @@ export function ContextDetailView({ id }: { readonly id: string }): React.ReactE
         </div>
       </Panel>
       <Panel title={t('invocations.contextDetail.messagesTitle', { count: data.messages.length })}>
-        <div>
-          <RetainedMessages context={data} />
-        </div>
+        <RetainedMessages context={data} />
       </Panel>
       <Panel title={t('invocations.contextDetail.refsTitle', { count: data.refs.length })}>
-        <div>
-          <CapabilityRefs context={data} />
-        </div>
+        <CapabilityRefs context={data} />
       </Panel>
     </div>
   );

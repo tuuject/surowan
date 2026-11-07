@@ -1,7 +1,7 @@
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PromptDiffHunk, PromptDiffLine, PromptDiffView } from '@/lib/api/prompts.ts';
-import { css, cx } from '@tuuject/koi-react/styled-system/css';
 
 function diffMarker(type: PromptDiffLine['type']): string {
   return type === 'added' ? '+' : type === 'removed' ? '-' : ' ';

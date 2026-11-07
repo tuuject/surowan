@@ -1,11 +1,11 @@
 import { Select } from '@tuuject/koi-react/select';
+import { Skeleton } from '@tuuject/koi-react/skeleton';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Panel } from '@/components/layout/panel';
-import { Skeleton } from '@tuuject/koi-react/skeleton';
 import type { DictionaryChatOption } from '@/lib/api/dictionary.ts';
 import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 export interface DictionaryScopePanelProps {
   readonly chatId: string | null;

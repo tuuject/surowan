@@ -1,15 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FormActionBar, ListPageHeader } from '@/components/business';
 import { RefreshIcon } from '@/components/icons';
-import { Alert } from '@tuuject/koi-react/alert';
 import { CredentialsFields } from '@/components/image-settings/credentials-fields.tsx';
 import { ModelList } from '@/components/image-settings/model-list.tsx';
 import { ModelPicker } from '@/components/image-settings/model-picker.tsx';
 import { type EditableCredential, type EditableModel, toModelPayload } from '@/components/image-settings/shared.ts';
 import { Panel } from '@/components/layout/panel';
-import { Button } from '@tuuject/koi-react/button';
 import type { ImageConfigView } from '@/lib/api/images.ts';
 import {
   getImageConfig,
@@ -20,7 +21,6 @@ import {
 } from '@/lib/api/images.ts';
 import { errorMessage } from '@/lib/errors';
 import { toast } from '@/lib/toast.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 export default function ImageSettingsPage() {
   const { t } = useTranslation();
@@ -293,6 +293,7 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
       )}
       <FormActionBar
         status={validationError ?? t('image.settings.readyToSave')}
+        statusId="image-save-requirements"
         error={save.isError && validationError === null ? errorMessage(save.error) : null}
         submitType="button"
         submitLabel={t('image.settings.saveAndApply')}

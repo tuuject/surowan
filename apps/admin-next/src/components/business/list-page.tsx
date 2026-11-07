@@ -6,11 +6,11 @@ import { PageHeader } from '@tuuject/koi-react/page-header';
 import { Pagination } from '@tuuject/koi-react/pagination';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { sizes } from '@tuuject/koi-tokens/dimensions';
-import { RefreshIcon } from '@/components/icons';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { focusRing } from '@/components/app-shell/shared';
+import { RefreshIcon } from '@/components/icons';
 import { useMediaQuery } from '@/hooks/use-media-query';
 
 const toggleClass = css({

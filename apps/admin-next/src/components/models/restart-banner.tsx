@@ -1,8 +1,8 @@
-import { useTranslation } from 'react-i18next';
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
-import { Tag } from '@tuuject/koi-react/tag';
 import { css } from '@tuuject/koi-react/styled-system/css';
+import { Tag } from '@tuuject/koi-react/tag';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Pending-restart banner. `serve` has to be restarted by something outside the

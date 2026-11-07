@@ -1,19 +1,19 @@
 import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
-import { Input } from '@tuuject/koi-react/input';
-import { SettingRow } from '@/components/business';
 import { Field } from '@tuuject/koi-react/field';
+import { Input } from '@tuuject/koi-react/input';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import { Switch } from '@tuuject/koi-react/switch';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { SettingRow } from '@/components/business';
 import type { ChatEntry, ChatsView } from '@/lib/api/chats.ts';
 import { updateChatGroupMemory } from '@/lib/api/chats.ts';
 import { errorMessage } from '@/lib/errors';
 import { isConfigConflict } from '@/lib/model-manager';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * The dialog captures the view when opened: a background refetch cannot upgrade

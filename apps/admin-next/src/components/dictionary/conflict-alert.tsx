@@ -1,9 +1,9 @@
-import type React from 'react';
-import { useTranslation } from 'react-i18next';
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
-import type { DictionaryConflict } from '@/lib/api/dictionary.ts';
 import { css } from '@tuuject/koi-react/styled-system/css';
+import type React from 'react';
+import { useTranslation } from 'react-i18next';
+import type { DictionaryConflict } from '@/lib/api/dictionary.ts';
 
 export interface DictionaryConflictAlertProps {
   readonly conflicts: readonly DictionaryConflict[];

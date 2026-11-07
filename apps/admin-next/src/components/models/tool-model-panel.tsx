@@ -1,16 +1,17 @@
 import { useMutation } from '@tanstack/react-query';
+import { Badge } from '@tuuject/koi-react/badge';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Field } from '@tuuject/koi-react/field';
+import { CheckIcon } from '@tuuject/koi-react/icons';
+import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { KvList, MonoValue } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
-import { Badge } from '@tuuject/koi-react/badge';
-import { Button } from '@tuuject/koi-react/button';
-import { CheckIcon } from '@tuuject/koi-react/icons';
-import { Dialog } from '@tuuject/koi-react/dialog';
-import { Input } from '@tuuject/koi-react/input';
-import { Field } from '@tuuject/koi-react/field';
 import type { ThinkingLevel } from '@/lib/api/models.ts';
 import type { ProvidersView, ProviderView } from '@/lib/api/providers.ts';
 import { putToolModel } from '@/lib/api/tools.ts';
@@ -23,7 +24,6 @@ import {
 } from '@/lib/model-manager.ts';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 interface Pick {
   readonly alias: string;

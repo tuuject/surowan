@@ -1,15 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { Checkbox } from '@tuuject/koi-react/checkbox';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Field } from '@tuuject/koi-react/field';
+import { Input } from '@tuuject/koi-react/input';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { Textarea } from '@tuuject/koi-react/textarea';
 import type React from 'react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AliasEditor, ScopePicker } from '@/components/dictionary/entry-form.tsx';
-import { Alert } from '@tuuject/koi-react/alert';
-import { Button } from '@tuuject/koi-react/button';
-import { Dialog } from '@tuuject/koi-react/dialog';
-import { Input } from '@tuuject/koi-react/input';
-import { Checkbox } from '@tuuject/koi-react/checkbox';
-import { Field } from '@tuuject/koi-react/field';
-import { Textarea } from '@tuuject/koi-react/textarea';
 import type {
   DictionaryChatOption,
   DictionaryEntry,
@@ -19,7 +20,6 @@ import type {
 import { mergeDictionaryEntries, previewDictionaryMerge } from '@/lib/api/dictionary.ts';
 import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
 import { toast } from '@/lib/toast.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 type MergeStep =
   | { readonly kind: 'idle' }
@@ -202,10 +202,10 @@ export function MergeDialog({
             <Alert tone="info" title={t('dictionary.merge.suggestion')}>
               {t('dictionary.merge.suggestionHint')}
             </Alert>
-            <Field label={t('dictionary.merge.termLabel')}>
+            <Field id="merge-term" label={t('dictionary.merge.termLabel')}>
               <Input value={term} onChange={(event) => setTerm(event.target.value)} />
             </Field>
-            <Field label={t('dictionary.merge.definitionLabel')}>
+            <Field id="merge-definition" label={t('dictionary.merge.definitionLabel')}>
               <Textarea rows={4} value={definition} onChange={(event) => setDefinition(event.target.value)} />
             </Field>
             <Field label={t('dictionary.merge.aliasesLabel')}>

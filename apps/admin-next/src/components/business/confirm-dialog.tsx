@@ -1,8 +1,8 @@
+import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@tuuject/koi-react/button';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 /**
  * Confirmation dialog for destructive / control operations. The dialog never

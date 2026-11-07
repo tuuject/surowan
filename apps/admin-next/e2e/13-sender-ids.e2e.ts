@@ -90,7 +90,7 @@ test('sender ID controls remain readable in a narrow dark invocation view', asyn
     localStorage.setItem('admin-theme', 'dark');
   });
   await page.goto(await adminUrl('/invocations/4001'));
-  await expect(page.locator('html')).toHaveClass(/dark/);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   const overview = page.getByRole('tabpanel', { name: /Overview/ });
   await expect(overview.getByText('Telegram sender ID:', { exact: true }).first()).toBeVisible();
   await overview.getByRole('button', { name: 'Copy Telegram sender ID 42', exact: true }).first().click();

@@ -1,5 +1,12 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Field } from '@tuuject/koi-react/field';
+import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { field } from '@tuuject/koi-react/styled-system/recipes';
+import { Textarea } from '@tuuject/koi-react/textarea';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MonoValue } from '@/components/business';
@@ -7,12 +14,6 @@ import { HeaderFields } from '@/components/models/header-fields';
 import { ModelDraftList } from '@/components/models/model-draft-list';
 import { ModelEditDialog } from '@/components/models/model-edit-dialog';
 import { useDraftSelection } from '@/components/models/use-draft-selection';
-import { Button } from '@tuuject/koi-react/button';
-import { Dialog } from '@tuuject/koi-react/dialog';
-import { Input } from '@tuuject/koi-react/input';
-import { field } from '@tuuject/koi-react/styled-system/recipes';
-import { Field } from '@tuuject/koi-react/field';
-import { Textarea } from '@tuuject/koi-react/textarea';
 import type {
   CreateProviderRequest,
   DiscoveredModel,
@@ -25,7 +26,6 @@ import { type HeaderRow, headerRowsFromNames, headerValues } from '@/lib/header-
 import { modelFormFromDraft, parseModelIds, requestErrorMessage } from '@/lib/model-manager.ts';
 import { providerPresetsQuery } from '@/lib/queries.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
-import { css } from '@tuuject/koi-react/styled-system/css';
 
 /** Koi Field's label, for the few controls that share one label with a status line or a second control. */
 const fieldLabel = field().label;
@@ -201,7 +201,7 @@ export function ProviderWizard({
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
           {step === 'connection' ? (
             <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-              <Field label={t('models.models.wizard.kind')}>
+              <Field id="wizard-kind" label={t('models.models.wizard.kind')}>
                 <Select
                   className={css({ width: '100%', md: { width: '256px' } })}
                   value={kind}
@@ -273,7 +273,7 @@ export function ProviderWizard({
                     md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
                   })}
                 >
-                  <Field label={t('models.models.connection.baseUrl')}>
+                  <Field id="wizard-base-url" label={t('models.models.connection.baseUrl')}>
                     <Input
                       value={baseUrl}
                       placeholder="https://example.com/v1"
@@ -309,7 +309,11 @@ export function ProviderWizard({
 
           {step === 'credentials' ? (
             <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-              <Field label={t('models.models.connection.apiKey')} help={t('models.models.wizard.apiKeyHint')}>
+              <Field
+                id="wizard-api-key"
+                label={t('models.models.connection.apiKey')}
+                help={t('models.models.wizard.apiKeyHint')}
+              >
                 <Input
                   type="password"
                   autoComplete="new-password"
