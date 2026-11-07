@@ -18,17 +18,15 @@ import type {
   ProviderApi,
   ProviderModelConfig,
 } from '@/lib/api/providers.ts';
+import { type ModelFormState, modelFormToConfig, validateModelForm } from '@/lib/model-form.ts';
 import {
   AUTO_COMPAT,
   compatFieldsForApi,
   fieldSourceLabel,
   isDraftFieldUnconfirmed,
-  type ModelFormState,
   matchLabel,
-  modelFormToConfig,
   TOOL_SCHEMA_KEYWORDS_OPTIONS,
   unconfirmedFields,
-  validateModelForm,
 } from '@/lib/model-manager.ts';
 
 /** Koi Field's label, for the few controls that share one label with a status line or a second control. */

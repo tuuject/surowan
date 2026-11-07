@@ -2,13 +2,13 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { Empty } from '@tuuject/koi-react/empty';
-import { PlusIcon } from '@tuuject/koi-react/icons';
+import { TrashIcon } from '@tuuject/koi-react/icons';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListPageHeader, ListSearchForm, ListToolbar, QueryTextField } from '@/components/business';
-import { InUsePanel } from '@/components/models/in-use-panel';
-import { type ModelRow, ModelTable } from '@/components/models/model-table';
+import { ListPageHeader } from '@/components/business';
+import { CurrentModelsPanel } from '@/components/models/current-models-panel';
+import { ModelList, type ModelRow } from '@/components/models/model-list';
 import {
   type DeletingModelTarget,
   type EditingTarget,
@@ -18,9 +18,8 @@ import {
 import { ModelsPageError, ModelsPageLoading } from '@/components/models/models-page-states';
 import { ProviderConnectionCard } from '@/components/models/provider-connection-card';
 import { ProviderDetailHeader } from '@/components/models/provider-detail-header';
-import { ProviderListPanel } from '@/components/models/provider-list';
+import { ProviderRail } from '@/components/models/provider-list';
 import { RestartBanner } from '@/components/models/restart-banner';
-import { ToolModelPanel } from '@/components/models/tool-model-panel';
 import { restartServer } from '@/lib/api/config.ts';
 import type { ChatThinkingReset } from '@/lib/api/models.ts';
 import { switchAgentModel, switchVisionModel } from '@/lib/api/models.ts';
@@ -33,7 +32,7 @@ import {
 } from '@/lib/api/providers.ts';
 import { errorMessage } from '@/lib/errors.ts';
 import { useListQuery } from '@/lib/list-query';
-import { isConfigConflict, providerMatchesSearch, writeErrorMessage } from '@/lib/model-manager.ts';
+import { isConfigConflict, providerMatchesSearch, providerUsage, writeErrorMessage } from '@/lib/model-manager.ts';
 import { providersQuery } from '@/lib/queries.ts';
 import { waitForAdminServer } from '@/lib/restart.ts';
 import { toast } from '@/lib/toast.ts';
@@ -254,6 +253,7 @@ export default function ModelsPage(): React.ReactElement {
   const listed = view.providers.filter((provider) => providerMatchesSearch(provider, search));
   const selected =
     view.providers.find((provider) => provider.alias === selectedAlias) ?? listed[0] ?? view.providers[0] ?? null;
+  const selectedUsage = selected === null ? null : providerUsage(view, selected.alias);
 
   const rows: readonly ModelRow[] =
     selected === null ? [] : selected.models.map((model) => ({ alias: selected.alias, api: selected.api, model }));
@@ -276,73 +276,92 @@ export default function ModelsPage(): React.ReactElement {
         pending={restart.isPending}
         onRestart={() => restart.mutate()}
       />
-      {/* What the bot runs on now: two summary cards side by side above the provider registry. */}
+      <CurrentModelsPanel view={view} revision={revision} />
+
       <div
         className={css({
           display: 'grid',
           gap: '5',
-          '@media (min-width: 1280px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', alignItems: 'start' },
+          alignItems: 'start',
+          '@media (min-width: 1200px)': { gridTemplateColumns: '300px minmax(0, 1fr)' },
         })}
       >
-        <InUsePanel view={view} revision={revision} />
-        <ToolModelPanel key={`${view.tool_model.provider}/${view.tool_model.model}`} view={view} revision={revision} />
-      </div>
-
-      <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
-        {({ draft, change }) => (
-          <QueryTextField
-            label={t('models.models.page.searchProviders')}
-            value={draft.search}
-            onChange={(search) => change({ search })}
-          />
-        )}
-      </ListSearchForm>
-      <ListToolbar onRefresh={() => void providers.refetch()} refreshing={providers.isRefetching}>
-        <Button variant="outline" iconStart={<PlusIcon />} onClick={() => setWizardOpen(true)}>
-          {t('models.models.page.newProvider')}
-        </Button>
-      </ListToolbar>
-      <div>
-        <ProviderListPanel
-          view={view}
-          listed={listed}
-          selected={selected}
-          resetKey={query.resetKey}
-          onSelect={setSelectedAlias}
-        />
-      </div>
-
-      {selected === null ? (
-        <Empty title={t('models.models.page.emptyState')} />
-      ) : (
-        <div className={css({ paddingBlockStart: '6', '& > * + *': { marginBlockStart: '5' } })}>
-          <ProviderDetailHeader view={view} provider={selected} onDelete={() => setDeletingProvider(selected)} />
-          <ProviderConnectionCard
-            key={selected.alias}
-            provider={selected}
-            revision={revision}
-            onDetect={() => setPicker({ mode: 'discover', alias: selected.alias, nonce: Date.now() })}
-          />
-          <ModelTable
+        <aside
+          className={css({
+            minWidth: '0',
+            alignSelf: 'start',
+            '@media (min-width: 1200px)': {
+              position: 'sticky',
+              top: 'var(--app-header-offset)',
+              maxHeight: 'calc(100dvh - var(--app-header-offset) - 24px)',
+              overflowY: 'auto',
+            },
+          })}
+        >
+          <ProviderRail
             view={view}
-            rows={rows}
-            health={health}
-            healthSelected={healthSelected}
-            onHealthSelectedChange={setHealthSelected}
-            running={running}
-            onRunHealthChecks={runHealthChecks}
-            runnableSelected={runnableSelected}
-            agentPending={switchAgent.isPending}
-            visionPending={switchVision.isPending}
-            onSetAgent={(alias, model) => switchAgent.mutate({ alias, model })}
-            onSetVision={(alias, model) => switchVision.mutate({ alias, model })}
-            onEdit={(alias, model) => setEditing({ alias, model, revision })}
-            onDeleteModel={(alias, model) => setDeletingModel({ alias, model })}
-            onFetchModels={() => setPicker({ mode: 'discover', alias: selected.alias, nonce: Date.now() })}
-            onAddById={() => setPicker({ mode: 'manual', alias: selected.alias, nonce: Date.now() })}
+            listed={listed}
+            selected={selected}
+            search={search}
+            onSearch={(next) => query.apply({ search: next })}
+            onSelect={setSelectedAlias}
+            onNewProvider={() => setWizardOpen(true)}
+            onRefresh={() => void providers.refetch()}
+            refreshing={providers.isRefetching}
           />
+        </aside>
+
+        <div
+          key={selected?.alias ?? 'empty'}
+          className={css({ display: 'flex', flexDirection: 'column', gap: '5', minWidth: '0' })}
+        >
+          {selected === null ? (
+            <Empty title={t('models.models.page.emptyState')} />
+          ) : (
+            <>
+              <ProviderDetailHeader view={view} provider={selected} />
+              <ProviderConnectionCard
+                key={selected.alias}
+                provider={selected}
+                revision={revision}
+                onDetect={() => setPicker({ mode: 'discover', alias: selected.alias, nonce: Date.now() })}
+              />
+              <ModelList
+                key={selected.alias}
+                view={view}
+                rows={rows}
+                health={health}
+                healthSelected={healthSelected}
+                onHealthSelectedChange={setHealthSelected}
+                running={running}
+                onRunHealthChecks={runHealthChecks}
+                runnableSelected={runnableSelected}
+                agentPending={switchAgent.isPending}
+                visionPending={switchVision.isPending}
+                onSetAgent={(alias, model) => switchAgent.mutate({ alias, model })}
+                onSetVision={(alias, model) => switchVision.mutate({ alias, model })}
+                onEdit={(alias, model) => setEditing({ alias, model, revision })}
+                onDeleteModel={(alias, model) => setDeletingModel({ alias, model })}
+                onFetchModels={() => setPicker({ mode: 'discover', alias: selected.alias, nonce: Date.now() })}
+                onAddById={() => setPicker({ mode: 'manual', alias: selected.alias, nonce: Date.now() })}
+              />
+              <div className={css({ display: 'flex', justifyContent: 'flex-end' })}>
+                <Button
+                  variant="ghost"
+                  color="error"
+                  disabled={
+                    selectedUsage?.agent === true || selectedUsage?.vision === true || selectedUsage?.tool === true
+                  }
+                  onClick={() => setDeletingProvider(selected)}
+                  iconStart={<TrashIcon />}
+                >
+                  {t('models.models.page.deleteProvider')}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
-      )}
+      </div>
 
       <ModelsDialogs
         view={view}

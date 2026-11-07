@@ -18,9 +18,9 @@
  * - the row checkbox is labelled `Select {{model}} for a health check`;
  * - the per-row button is "Check health" (aria `Check health of {{model}}`);
  * - the batch button reads `Check selected (N)`;
- * - the health cell shows a status badge and `TTFB …, total … ms`;
- * - response text and error text render in the expandable row details
- *   (toggled by the table's "Toggle row details" button).
+ * - the health row shows a status badge and `TTFB …, total … ms`;
+ * - response text and error text render in the row's expandable details
+ *   (toggled by the row's "Toggle row details" button).
  */
 import { expect } from '@playwright/test';
 import type { ProvidersView } from '../src/lib/api/providers.ts';
@@ -77,7 +77,7 @@ test.describe('model health checks', () => {
     });
     await page.goto(await adminUrl('/models'));
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
-    await expect(page.locator('table').nth(1).locator('tbody tr')).toHaveCount(10);
+    await expect(page.locator('[data-model-list] > li')).toHaveCount(10);
     const selectAll = page.getByRole('checkbox', { name: 'Select all models of this provider', exact: true });
     await selectAll.check();
     await expect(page.getByRole('button', { name: 'Check selected (11)', exact: true })).toBeVisible();
@@ -105,7 +105,7 @@ test.describe('model health checks', () => {
     await expect.poll(async () => (await relayStats()).total).toBe(1);
 
     // The result renders in the row: the status badge and ttfb/duration in ms.
-    await expect(row.getByText(/^ok$/i)).toBeVisible();
+    await expect(row.getByText('OK', { exact: true })).toBeVisible();
     await expect(row.getByText(/ms/)).toBeVisible();
     await expect(check).toBeEnabled();
 
@@ -179,8 +179,8 @@ test.describe('model health checks', () => {
 
     // Each outcome is displayed on its own row; the unexpected reply and the
     // upstream error are readable in the expandable details.
-    await expect(modelRow(page, E2E_HEALTH_OK_MODEL).getByText(/^ok$/i)).toBeVisible();
-    await expect(modelRow(page, E2E_HEALTH_OK_2_MODEL).getByText(/^ok$/i)).toBeVisible();
+    await expect(modelRow(page, E2E_HEALTH_OK_MODEL).getByText('OK', { exact: true })).toBeVisible();
+    await expect(modelRow(page, E2E_HEALTH_OK_2_MODEL).getByText('OK', { exact: true })).toBeVisible();
     await expect(modelRow(page, E2E_HEALTH_UNEXPECTED_MODEL).getByText('Unexpected response')).toBeVisible();
     await showHealthDetails(page, E2E_HEALTH_UNEXPECTED_MODEL);
     await expect(expandedRow(page, E2E_HEALTH_UNEXPECTED_MODEL).getByText('hello')).toBeVisible();
@@ -217,7 +217,7 @@ test.describe('model health checks', () => {
       // still in flight — a finished and a running check coexist row by row.
       const fast = modelRow(page, E2E_HEALTH_OK_MODEL);
       const slow = modelRow(page, E2E_HEALTH_UNEXPECTED_MODEL);
-      await expect(fast.getByText(/^ok$/i)).toBeVisible();
+      await expect(fast.getByText('OK', { exact: true })).toBeVisible();
       await expect(fast.getByText(/TTFB/)).toBeVisible();
       await expect(slow.getByText('Checking…')).toBeVisible();
 
@@ -238,10 +238,10 @@ test.describe('model health checks', () => {
 
     const row = modelRow(page, E2E_HEALTH_OK_MODEL);
     await row.getByRole('button', { name: /check health/i }).click();
-    await expect(row.getByText(/^ok$/i)).toBeVisible();
+    await expect(row.getByText('OK', { exact: true })).toBeVisible();
     await expect(row.getByText(/ms/)).toBeVisible();
 
-    // The page itself must not scroll sideways; the table scrolls internally.
+    // The page itself must not scroll sideways; the list rows wrap instead.
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );

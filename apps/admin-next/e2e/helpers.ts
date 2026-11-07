@@ -3,7 +3,7 @@ import { rmSync } from 'node:fs';
 import { rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { test as base, expect, type Page } from '@playwright/test';
+import { test as base, expect, type Locator, type Page } from '@playwright/test';
 
 /** The administrator every spec signs in as (the account is created on demand). */
 export const E2E_USERNAME = 'e2e-admin';
@@ -225,6 +225,11 @@ export function watchPageIssues(page: Page): () => PageIssues {
 /** Counts rendered body rows of the first table on the page. */
 export function tableBodyRows(page: Page): ReturnType<Page['locator']> {
   return page.locator('table tbody tr');
+}
+
+/** The vertical model list's row whose id is exactly `modelId`. */
+export function modelListRow(page: Page, modelId: string): Locator {
+  return page.locator('[data-model-list] li').filter({ has: page.getByText(modelId, { exact: true }) });
 }
 
 /** The "Next page" button of a list's real page controls. */

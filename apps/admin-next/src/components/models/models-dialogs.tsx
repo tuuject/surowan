@@ -8,7 +8,7 @@ import { ModelPickerDialog, type ModelPickerMode } from '@/components/models/mod
 import { ProviderWizard } from '@/components/models/provider-wizard';
 import type { ChatThinkingReset } from '@/lib/api/models.ts';
 import type { ProviderModelConfig, ProvidersView, ProviderView } from '@/lib/api/providers.ts';
-import { modelFormFromConfig } from '@/lib/model-manager.ts';
+import { modelFormFromConfig } from '@/lib/model-form.ts';
 
 export interface PickerTarget {
   readonly mode: ModelPickerMode;

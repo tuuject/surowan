@@ -186,7 +186,7 @@ test.describe('routes and deep links', () => {
     await expect(page.getByRole('button', { name: 'Provider agent' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Fetch models' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add by id' })).toBeVisible();
-    await expect(page.locator('table tbody tr').first()).toBeVisible();
+    await expect(page.locator('[data-model-list] li').first()).toBeVisible();
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 

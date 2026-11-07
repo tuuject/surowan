@@ -96,7 +96,7 @@ test.describe('model health checks', () => {
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
     const row = modelRow(page, E2E_HEALTH_OK_MODEL);
     await row.getByRole('button', { name: /check health/i }).click();
-    await expect(row.getByText(/^ok$/i)).toBeVisible();
+    await expect(row.getByText('OK', { exact: true })).toBeVisible();
     await expect(row.getByText(/TTFB/)).toBeVisible();
     const after = await relayStats();
     expect(after.total).toBe(4);
@@ -119,7 +119,7 @@ test.describe('model health checks', () => {
 
     const row = modelRow(page, E2E_HEALTH_OK_MODEL);
     await row.getByRole('button', { name: /check health/i }).click();
-    await expect(row.getByText(/^ok$/i)).toBeVisible();
+    await expect(row.getByText('OK', { exact: true })).toBeVisible();
 
     // Health state is page-local: after a full reload the row starts clean
     // again instead of replaying a stale result.
@@ -127,6 +127,6 @@ test.describe('model health checks', () => {
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
     const check = modelRow(page, E2E_HEALTH_OK_MODEL).getByRole('button', { name: /check health/i });
     await expect(check).toBeVisible();
-    await expect(modelRow(page, E2E_HEALTH_OK_MODEL).getByText(/^ok$/i)).toHaveCount(0);
+    await expect(modelRow(page, E2E_HEALTH_OK_MODEL).getByText('OK', { exact: true })).toHaveCount(0);
   });
 });

@@ -159,7 +159,7 @@ export function ProviderConnectionCard({
     >
       <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
         {custom ? (
-          <div className={css({ display: 'grid', gap: '4', md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } })}>
+          <>
             <Field label={t('models.models.connection.baseUrl')}>
               <Input
                 value={baseUrl}
@@ -179,9 +179,10 @@ export function ProviderConnectionCard({
                 options={PROVIDER_APIS.map((value) => ({ value, label: API_LABELS[value] }))}
               />
             </Field>
-          </div>
+          </>
         ) : (
           <KvList
+            columns={1}
             items={[
               {
                 label: t('models.models.connection.builtinProvider'),
@@ -193,26 +194,24 @@ export function ProviderConnectionCard({
           />
         )}
 
-        <div className={css({ display: 'grid', gap: '4', md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } })}>
-          <Field
-            label={t('models.models.connection.apiKey')}
-            help={
-              baseUrlChanged
-                ? `${t('models.models.connection.keepHint')}${t('common.separator')}${t('models.models.connection.keepHintChanged')}`
-                : t('models.models.connection.keepHint')
-            }
-          >
-            <Input
-              type="password"
-              autoComplete="new-password"
-              value={apiKey}
-              onChange={(event) => {
-                setApiKey(event.target.value);
-                setLocalError(null);
-              }}
-            />
-          </Field>
-        </div>
+        <Field
+          label={t('models.models.connection.apiKey')}
+          help={
+            baseUrlChanged
+              ? `${t('models.models.connection.keepHint')}${t('common.separator')}${t('models.models.connection.keepHintChanged')}`
+              : t('models.models.connection.keepHint')
+          }
+        >
+          <Input
+            type="password"
+            autoComplete="new-password"
+            value={apiKey}
+            onChange={(event) => {
+              setApiKey(event.target.value);
+              setLocalError(null);
+            }}
+          />
+        </Field>
 
         {custom ? (
           <div className={css({ display: 'flex', flexDirection: 'column', gap: '2' })}>

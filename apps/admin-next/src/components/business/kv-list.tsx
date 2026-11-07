@@ -15,9 +15,12 @@ export interface KvItem {
 export function KvList({
   items,
   className,
+  columns = 'auto',
 }: {
   readonly items: readonly KvItem[];
   readonly className?: string;
+  /** `1` stacks every item, for a vertical settings form. */
+  readonly columns?: 1 | 'auto';
 }): React.ReactElement {
   return (
     <div className={css({ containerType: 'inline-size', minWidth: '0' })}>
@@ -29,8 +32,12 @@ export function KvList({
             rowGap: '4',
             margin: '0',
             // Columns follow the list's own width, so a half-width card doesn't squeeze three columns in.
-            '@container (min-width: 480px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
-            '@container (min-width: 720px)': { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' },
+            ...(columns === 'auto'
+              ? {
+                  '@container (min-width: 480px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
+                  '@container (min-width: 720px)': { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' },
+                }
+              : {}),
           }),
           className,
         )}

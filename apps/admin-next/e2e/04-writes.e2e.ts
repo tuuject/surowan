@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
 import { ACTIVE_CHAT, editElsewhere, inherited, viewOf } from './chats-fixture.ts';
-import { adminUrl, appliedToast, E2E_USERNAME, e2eFetch, test, toast } from './helpers.ts';
+import { adminUrl, appliedToast, E2E_USERNAME, e2eFetch, modelListRow, test, toast } from './helpers.ts';
 import { setAsAgent } from './models-fixture.ts';
 
 /**
@@ -146,7 +146,7 @@ test.describe('agent model hot-switch', () => {
     await page.reload();
 
     await page.getByRole('button', { name: 'Provider vision' }).click();
-    await setAsAgent(page, page.locator('tr', { hasText: 'vision-model' }));
+    await setAsAgent(page, modelListRow(page, 'vision-model'));
     // The toast only appears once the write and the reload succeeded.
     await expect(appliedToast(page).first()).toBeVisible();
     // The vision model does not reason, so the switch leaves it only `off`.
@@ -168,12 +168,7 @@ test.describe('agent model hot-switch', () => {
     await expect(dialog).not.toBeVisible();
     // Wait for the refreshed view before the next write: a switch has to be
     // built on the revision the previous one produced.
-    await expect(
-      page
-        .locator('table tbody tr')
-        .filter({ has: page.getByRole('button', { name: 'Provider vision', exact: true }) })
-        .getByText('Agent in use'),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Provider vision' })).toHaveAccessibleDescription(/Agent in use/);
 
     // `GET /model` is gone with the old Model page; the live model is read back
     // from the provider view, which is what the page itself renders.
@@ -184,13 +179,8 @@ test.describe('agent model hot-switch', () => {
 
     // There is no default to restore: the way back is another switch.
     await page.getByRole('button', { name: 'Provider agent' }).click();
-    await setAsAgent(page, page.locator('tr', { hasText: 'agent-model' }));
-    await expect(
-      page
-        .locator('table tbody tr')
-        .filter({ has: page.getByRole('button', { name: 'Provider agent', exact: true }) })
-        .getByText('Agent in use'),
-    ).toBeVisible();
+    await setAsAgent(page, modelListRow(page, 'agent-model'));
+    await expect(page.getByRole('button', { name: 'Provider agent' })).toHaveAccessibleDescription(/Agent in use/);
     await expect(dialog).not.toBeVisible();
     await editElsewhere(page, inherited);
 

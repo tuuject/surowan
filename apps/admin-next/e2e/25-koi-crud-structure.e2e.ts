@@ -159,15 +159,6 @@ const pages = [
     count: 'records',
   },
   {
-    path: '/models',
-    api: '/api/providers',
-    group: 'Agent setup',
-    label: 'Models',
-    heading: 'Providers',
-    action: 'New provider',
-    count: 'records',
-  },
-  {
     path: '/prompts',
     api: '/api/prompts/versions',
     group: 'Agent setup',
@@ -213,14 +204,28 @@ for (const entry of pages) {
     await expect(
       page.getByText(entry.count === 'cursor' ? /Page 1, \d+ records?/ : /\d+ records?/).first(),
     ).toBeVisible();
-    await expect(page.getByRole('navigation', { name: 'Pagination', exact: true })).toHaveCount(
-      entry.path === '/models' ? 2 : 1,
-    );
+    await expect(page.getByRole('navigation', { name: 'Pagination', exact: true })).toHaveCount(1);
     await expectCardStructure(page, { filters: entry.path === '/prompts' ? 2 : 1 });
     await expect(page.getByRole('alert').filter({ hasText: 'Request failed' })).toHaveCount(0);
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 }
+
+test('/models is a provider rail beside the selected provider detail', async ({ page }) => {
+  await page.goto(await adminUrl('/models'));
+  await expect(page.getByRole('heading', { name: 'Providers', exact: true })).toBeVisible();
+  const rail = page.getByRole('navigation', { name: 'Providers', exact: true });
+  await expect(rail.getByRole('button', { name: 'Provider agent', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'New provider', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Fetch models', exact: true })).toBeVisible();
+  await expect(page.locator('[data-model-list] li').first()).toBeVisible();
+
+  // A settings-style master-detail: no filter Card and no table on the page.
+  await expect(page.locator('[data-list-filter]')).toHaveCount(0);
+  const main = page.getByRole('main');
+  await expect(main.locator('table')).toHaveCount(0);
+  await expect(main.locator('.koi-card__root .koi-card__root')).toHaveCount(0);
+});
 
 const paginatedRoutes = [
   { path: '/warnings', filters: 0, cardTables: 0 },

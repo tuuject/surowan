@@ -1,5 +1,3 @@
-import { useMutation } from '@tanstack/react-query';
-import { Badge } from '@tuuject/koi-react/badge';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Field } from '@tuuject/koi-react/field';
@@ -7,23 +5,11 @@ import { CheckIcon } from '@tuuject/koi-react/icons';
 import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import type React from 'react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { KvList, MonoValue } from '@/components/business';
-import { Panel } from '@/components/layout/panel';
 import type { ThinkingLevel } from '@/lib/api/models.ts';
 import type { ProvidersView, ProviderView } from '@/lib/api/providers.ts';
-import { putToolModel } from '@/lib/api/tools.ts';
-import {
-  isConfigConflict,
-  isTextCapable,
-  isThinkingLevel,
-  supportedThinkingLevels,
-  writeErrorMessage,
-} from '@/lib/model-manager.ts';
-import { toast } from '@/lib/toast.ts';
-import { useProviderWrite } from '@/lib/use-provider-write.ts';
+import { isTextCapable, isThinkingLevel, supportedThinkingLevels } from '@/lib/model-manager.ts';
 
 interface Pick {
   readonly alias: string;
@@ -31,115 +17,8 @@ interface Pick {
   readonly levels: readonly ThinkingLevel[];
 }
 
-/**
- * The system-wide auxiliary model. It reuses the provider registry above: the
- * picker walks the same provider/model list the table shows, and the thinking
- * levels come from the model that is picked. `inherit` writes nothing but an
- * explicit fallback marker, so an agent-model switch keeps moving the tool
- * model with it.
- */
-export function ToolModelPanel({
-  view,
-  revision,
-}: {
-  readonly view: ProvidersView;
-  readonly revision: string;
-}): React.ReactElement {
-  const { t } = useTranslation();
-  const write = useProviderWrite();
-  const [pickerOpen, setPickerOpen] = useState(false);
-
-  const tool = view.tool_model;
-
-  const save = useMutation({
-    mutationFn: (
-      target:
-        | { readonly inherit: true }
-        | { readonly alias: string; readonly model: string; readonly level: ThinkingLevel },
-    ) =>
-      'inherit' in target
-        ? putToolModel({ inherit: true }, revision)
-        : putToolModel({ provider: target.alias, model: target.model, thinking_level: target.level }, revision),
-    onSuccess: (result, target) => {
-      setPickerOpen(false);
-      write.succeeded(result.apply);
-      toast.success(
-        'inherit' in target ? t('models.models.toolModel.savedInherited') : t('models.models.toolModel.saved'),
-      );
-    },
-    onError: (error) => {
-      write.failed(error);
-      if (isConfigConflict(error)) {
-        setPickerOpen(false);
-        toast.error(t('models.models.toolModel.conflict'));
-      }
-    },
-  });
-
-  return (
-    <Panel
-      title={t('models.models.toolModel.label')}
-      description={t('models.models.toolModel.description')}
-      action={
-        <>
-          {tool.inherited ? null : (
-            <Button
-              variant="ghost"
-              color="secondary"
-              disabled={save.isPending}
-              onClick={() => save.mutate({ inherit: true })}
-            >
-              {t('models.models.toolModel.inherit')}
-            </Button>
-          )}
-          <Button variant="outline" disabled={save.isPending} onClick={() => setPickerOpen(true)}>
-            {t('models.models.toolModel.select')}
-          </Button>
-        </>
-      }
-    >
-      <KvList
-        items={[
-          {
-            label: t('models.models.toolModel.label'),
-            value: (
-              <span className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
-                <MonoValue value={`${tool.provider} / ${tool.model}`} />
-                <Badge>{tool.thinking_level}</Badge>
-                {tool.inherited ? (
-                  <span className={css({ textStyle: 'small', color: 'text-muted' })}>
-                    {t('models.models.toolModel.inherited')}
-                  </span>
-                ) : null}
-              </span>
-            ),
-          },
-        ]}
-      />
-      {save.isError && !isConfigConflict(save.error) ? (
-        <p className={css({ textStyle: 'body', color: 'error-text', marginBlockStart: '2', overflowWrap: 'anywhere' })}>
-          {writeErrorMessage(save.error)}
-        </p>
-      ) : null}
-      {pickerOpen ? (
-        <ToolModelPicker
-          open
-          view={view}
-          pending={save.isPending}
-          current={tool}
-          onClose={() => {
-            if (!save.isPending) {
-              setPickerOpen(false);
-            }
-          }}
-          onSubmit={(alias, model, level) => save.mutate({ alias, model, level })}
-        />
-      ) : null}
-    </Panel>
-  );
-}
-
-function ToolModelPicker({
+/** The Tool Model picker: the same provider/model list the page renders, with its levels. */
+export function ToolModelPicker({
   open,
   view,
   pending,

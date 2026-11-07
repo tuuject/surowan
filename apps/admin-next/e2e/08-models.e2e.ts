@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { adminUrl, appliedToast, test } from './helpers.ts';
+import { adminUrl, appliedToast, modelListRow, test } from './helpers.ts';
 import {
   E2E_BUILTIN_ALIAS,
   E2E_RELAY_ALIAS,
@@ -19,7 +19,7 @@ import {
 test.use({ signedIn: true });
 
 test.describe('models page', () => {
-  test('renders the provider list, the model table and the write-only key field', async ({ page }) => {
+  test('renders the provider rail, the model list and the write-only key field', async ({ page }) => {
     await page.goto(await adminUrl('/models'));
     await expect(page.getByRole('heading', { name: 'Providers', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: `Provider ${E2E_BUILTIN_ALIAS}` })).toBeVisible();
@@ -35,7 +35,7 @@ test.describe('models page', () => {
     await expect(keyInput).toHaveValue('');
     await expect(page.getByText('Saved; leave empty to keep it')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Test' })).toBeVisible();
-    await expect(page.locator('table tbody tr').first()).toBeVisible();
+    await expect(page.locator('[data-model-list] li').first()).toBeVisible();
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 
@@ -145,23 +145,22 @@ test.describe('models page', () => {
     );
     const complete = relay.models.find((model: { id: string }) => model.id === E2E_RELAY_COMPLETE_MODEL);
     expect(complete.thinking_levels).toEqual(['off', 'low', 'high', 'max']);
-    await expect(page.locator('table tbody tr', { hasText: E2E_RELAY_COMPLETE_MODEL })).toBeVisible();
+    await expect(modelListRow(page, E2E_RELAY_COMPLETE_MODEL)).toBeVisible();
   });
 
-  test('switching the agent resets its thinking effort, which the In use panel then sets', async ({ page }) => {
+  test('switching the agent resets its thinking effort, which the Current models panel then sets', async ({ page }) => {
     const agentOf = async (): Promise<{ provider: string; model: string; thinking_level: string }> =>
       (await (await page.request.get(await adminUrl('/api/providers'))).json()).agent;
     await page.goto(await adminUrl('/models'));
-    // "In use" also names a table column and a provider badge, so the panel is
-    // found by the one control only it has.
+    // The panel is the only region with the effort select.
     const effort = page.getByRole('combobox', { name: 'Thinking effort' });
-    const inUse = page.getByRole('region', { name: 'In use', exact: true }).filter({ has: effort });
+    const inUse = page.getByRole('region', { name: 'Current models', exact: true }).filter({ has: effort });
 
     // Added by the discovery test with the levels models.dev listed.
     await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` }).click();
-    await setAsAgent(page, page.locator('tr', { hasText: E2E_RELAY_COMPLETE_MODEL }));
+    await setAsAgent(page, modelListRow(page, E2E_RELAY_COMPLETE_MODEL));
     await expect(page.getByText('Thinking effort reset to off', { exact: false }).first()).toBeVisible();
-    await expect(inUse.getByText(`${E2E_RELAY_ALIAS} / ${E2E_RELAY_COMPLETE_MODEL}`)).toBeVisible();
+    await expect(inUse.getByText(`${E2E_RELAY_ALIAS} / ${E2E_RELAY_COMPLETE_MODEL}`).first()).toBeVisible();
     await expect(effort).toHaveValue('off');
     expect(await agentOf()).toMatchObject({ model: E2E_RELAY_COMPLETE_MODEL, thinking_level: 'off' });
 
@@ -173,8 +172,8 @@ test.describe('models page', () => {
 
     // Put the fixture agent back for the tests that follow.
     await page.getByRole('button', { name: 'Provider agent' }).click();
-    await setAsAgent(page, page.locator('tr', { hasText: 'agent-model' }));
-    await expect(inUse.getByText('agent / agent-model')).toBeVisible();
+    await setAsAgent(page, modelListRow(page, 'agent-model'));
+    await expect(inUse.getByText('agent / agent-model').first()).toBeVisible();
     expect(await agentOf()).toMatchObject({ provider: 'agent', model: 'agent-model', thinking_level: 'off' });
   });
 });

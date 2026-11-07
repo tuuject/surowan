@@ -173,7 +173,7 @@ test('language switch re-labels parents and children immediately and persists', 
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
 
   await page.reload();
-  await expect(mainNav(page, '主导航').getByRole('button', { name: 'Agent 数据', exact: true })).toBeVisible();
+  await expect(mainNav(page, '主导航').getByRole('button', { name: '数据', exact: true })).toBeVisible();
   for (const [index, label] of ZH_GROUP_LABELS.entries()) {
     const group = EN_GROUPS[index];
     if (group === undefined) {
@@ -232,7 +232,7 @@ test('collapsed rail keeps parent flyouts and localized children', async ({ page
   await expect(page).toHaveURL(/\/dictionary$/);
 
   await page.getByRole('button', { name: 'Switch language' }).click();
-  await mainNav(page, '主导航').getByRole('button', { name: 'Agent 数据', exact: true }).click();
+  await mainNav(page, '主导航').getByRole('button', { name: '数据', exact: true }).click();
   await expect(page.getByRole('menuitem', { name: '辞典', exact: true })).toBeVisible();
 });
 

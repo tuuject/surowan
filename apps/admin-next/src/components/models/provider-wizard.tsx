@@ -23,7 +23,8 @@ import type {
 } from '@/lib/api/providers.ts';
 import { createProvider, discoverProviderModels, lookupModelMetadata, PROVIDER_APIS } from '@/lib/api/providers.ts';
 import { type HeaderRow, headerRowsFromNames, headerValues } from '@/lib/header-rows.ts';
-import { modelFormFromDraft, parseModelIds, requestErrorMessage } from '@/lib/model-manager.ts';
+import { modelFormFromDraft } from '@/lib/model-form.ts';
+import { parseModelIds, requestErrorMessage } from '@/lib/model-manager.ts';
 import { providerPresetsQuery } from '@/lib/queries.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
 

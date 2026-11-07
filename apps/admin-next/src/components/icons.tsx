@@ -38,6 +38,7 @@ import tableColumns from '@iconify-icons/fa7-solid/table-columns';
 import userGear from '@iconify-icons/fa7-solid/user-gear';
 import wandMagicSparkles from '@iconify-icons/fa7-solid/wand-magic-sparkles';
 import waveSquare from '@iconify-icons/fa7-solid/wave-square';
+import wrench from '@iconify-icons/fa7-solid/wrench';
 import { type BuiltinIconProps, Icon, type IconData } from '@tuuject/koi-react/icons';
 
 // Business icons from Font Awesome Free Solid, rendered by Koi's Icon in currentColor like Koi's own. Koi's
@@ -73,6 +74,7 @@ export const EditIcon = icon(pen);
 export const CancelIcon = icon(ban);
 export const MoreIcon = icon(ellipsis);
 export const HealthIcon = icon(heartPulse);
+export const WrenchIcon = icon(wrench);
 export const RefreshIcon = icon(arrowsRotate);
 export const ResetIcon = icon(rotateLeft);
 export const DownloadIcon = icon(download);

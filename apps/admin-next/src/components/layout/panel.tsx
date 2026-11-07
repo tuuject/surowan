@@ -46,7 +46,16 @@ export function Panel({
             )}
           </div>
           {action === undefined ? null : (
-            <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2', flex: 'none' })}>
+            <div
+              className={css({
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                gap: '2',
+                flex: '0 1 auto',
+                minWidth: '0',
+              })}
+            >
               {action}
             </div>
           )}
