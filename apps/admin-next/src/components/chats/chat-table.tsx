@@ -15,7 +15,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { type ColumnSpec, FLUSH_TABLE_CLASS, MonoValue, TableShell, ToneBadge } from '@/components/business';
+import { type ColumnSpec, MonoValue, TableShell, ToneBadge } from '@/components/business';
 import { Button } from '@/components/ui/button';
 import type { ChatEntry, ChatSettingsView, ChatsView, ParticipationWindow } from '@/lib/api/chats.ts';
 import { effectiveWindows, summarizeWindows } from '@/lib/participation';
@@ -48,6 +48,8 @@ interface ActiveHoursLine {
 
 export function ChatTable({
   view,
+  items = view.items,
+  loading = false,
   onEdit,
   onSchedule,
   onProactive,
@@ -55,6 +57,8 @@ export function ChatTable({
   onRemove,
 }: {
   readonly view: ChatsView;
+  readonly items?: readonly ChatEntry[];
+  readonly loading?: boolean;
   readonly onEdit: (chat: ChatEntry) => void;
   readonly onSchedule: (chat: ChatEntry) => void;
   readonly onProactive: (chat: ChatEntry) => void;
@@ -420,9 +424,10 @@ export function ChatTable({
   return (
     <TableShell
       columns={columns}
-      data={view.items}
+      data={items}
       rowKey={(row) => row.id}
-      className={FLUSH_TABLE_CLASS}
+      loading={loading}
+      frame={false}
       emptyText={t('pages.chats.emptyChats')}
     />
   );

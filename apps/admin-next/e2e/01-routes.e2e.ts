@@ -35,6 +35,8 @@ test.describe('routes and deep links', () => {
     await page.goto(await adminUrl('/'));
     await expect(page.getByText('Stored messages')).toBeVisible();
     await expect(page.getByText('Cached media analyses')).toBeVisible();
+    await expect(page.getByText('Recent invocations')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'View all', exact: true })).toHaveAttribute('href', '/invocations');
     await expect(page.getByText('Bot status')).toBeVisible();
     await expect(page.getByRole('main').getByText('Telegram', { exact: true })).toBeVisible();
     await expect(page.getByRole('main').getByText('Disabled', { exact: true })).toBeVisible();
@@ -53,10 +55,11 @@ test.describe('routes and deep links', () => {
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 
-  test('/invocations lists tool sessions and offers Load more', async ({ page }) => {
+  test('/invocations lists tool sessions with real pagination', async ({ page }) => {
     await page.goto(await adminUrl('/invocations'));
     await expect(page.locator('table tbody tr').first()).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Load more' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Pagination', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Load more', exact: true })).toHaveCount(0);
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 
@@ -79,7 +82,8 @@ test.describe('routes and deep links', () => {
   test('/contexts lists conversation contexts', async ({ page }) => {
     await page.goto(await adminUrl('/contexts'));
     await expect(page.locator('table tbody tr').first()).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Load more' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Pagination', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Load more', exact: true })).toHaveCount(0);
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 
@@ -102,7 +106,8 @@ test.describe('routes and deep links', () => {
   test('/messages lists messages with search and pagination controls', async ({ page }) => {
     await page.goto(await adminUrl('/messages'));
     await expect(page.locator('table tbody tr').first()).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Load more' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Pagination', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Load more', exact: true })).toHaveCount(0);
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 
@@ -177,7 +182,7 @@ test.describe('routes and deep links', () => {
 
   test('/models lists providers, their models and the discovery actions', async ({ page }) => {
     await page.goto(await adminUrl('/models'));
-    await expect(page.getByText('Providers')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Providers', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Provider agent' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Fetch models' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add by id' })).toBeVisible();

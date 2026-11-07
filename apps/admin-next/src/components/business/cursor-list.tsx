@@ -5,28 +5,14 @@ import {
   useInfiniteQuery,
 } from '@tanstack/react-query';
 import type React from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ListFooter, ListToolbar } from '@/components/business/list-page';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
-import { Skeleton } from '@/components/ui/skeleton';
 import type { ListFilters, Page } from '@/lib/api/core.ts';
 import { ApiError } from '@/lib/api/core.ts';
 import { cn } from '@/lib/utils';
 
-/**
- * Cursor list container shared by every list page. It owns the infinite query
- * lifecycle (page size is fixed by `lib/queries.ts`'s PAGE_SIZE = 25, cursors
- * come from the API), and renders loading skeleton / error / empty / Load more
- * states. Pages only supply the query factory, the filter values and a
- * renderer for the loaded items.
- *
- * Contract rules:
- * - Never expose jump-to-page, total-page counts, or client-side sorting over
- *   the full dataset: the API is keyset-cursor only.
- * - Changing `filters` changes the query key, which resets accumulated pages.
- * - "Load more" appears only while `next_cursor` is non-null.
- */
 export type CursorQueryOptions<T, TQueryKey extends QueryKey = QueryKey> = UndefinedInitialDataInfiniteOptions<
   Page<T>,
   Error,
@@ -37,32 +23,76 @@ export type CursorQueryOptions<T, TQueryKey extends QueryKey = QueryKey> = Undef
 
 export type CursorQueryFactory<T> = (filters: ListFilters) => CursorQueryOptions<T>;
 
-export function flatPages<T>(
-  data: { readonly pages: ReadonlyArray<{ readonly items: readonly T[] }> } | undefined,
-): T[] {
-  return data === undefined ? [] : data.pages.flatMap((page) => [...page.items]);
+export interface CursorRenderState {
+  readonly loading: boolean;
 }
 
 export interface CursorListProps<T, TQueryKey extends QueryKey = QueryKey> {
   readonly factory: (filters: ListFilters) => CursorQueryOptions<T, TQueryKey>;
   readonly filters: ListFilters;
-  readonly renderItems: (items: readonly T[]) => React.ReactNode;
-  readonly empty?: React.ReactNode;
+  readonly renderItems: (items: readonly T[], state: CursorRenderState) => React.ReactNode;
+  readonly actions?: React.ReactNode;
   readonly errorTitle?: string;
-  readonly skeletonRows?: number;
-  readonly loadMoreLabel?: string;
   readonly className?: string;
 }
 
-function CursorListSkeleton({ rows }: { readonly rows: number }): React.ReactElement {
-  const keys = Array.from({ length: rows }, (_, index) => `row-${index}`);
-  return (
-    <div className="space-y-2">
-      {keys.map((key) => (
-        <Skeleton key={key} className="h-9 w-full rounded-md" />
-      ))}
-    </div>
-  );
+interface CursorPosition {
+  readonly queryKey: string;
+  readonly pageIndex: number;
+}
+
+/**
+ * Real Previous/Next state over a keyset API. TanStack may retain fetched pages
+ * for cache/back navigation, but only the current page is ever returned for
+ * rendering. A filter/query-key change resets to the first cursor immediately.
+ */
+export function useCursorPages<
+  TPage extends { readonly items: readonly unknown[] },
+  TQueryKey extends QueryKey = QueryKey,
+  TPageParam = unknown,
+>(options: UndefinedInitialDataInfiniteOptions<TPage, Error, InfiniteData<TPage>, TQueryKey, TPageParam>) {
+  const query = useInfiniteQuery(options);
+  const queryKey = JSON.stringify(options.queryKey);
+  const [position, setPosition] = useState<CursorPosition>({ queryKey, pageIndex: 0 });
+  const navigation = useRef(0);
+  const pages = query.data?.pages ?? [];
+  const pageIndex = position.queryKey === queryKey ? Math.min(position.pageIndex, Math.max(0, pages.length - 1)) : 0;
+  if (position.queryKey !== queryKey) {
+    navigation.current += 1;
+    setPosition({ queryKey, pageIndex: 0 });
+  } else if (position.pageIndex !== pageIndex) {
+    setPosition({ queryKey, pageIndex });
+  }
+  const currentPage = pages[pageIndex];
+  const items: TPage['items'] = currentPage?.items ?? [];
+  const pageCount = Math.max(1, pages.length + (query.hasNextPage ? 1 : 0));
+
+  const onPageChange = async (oneBasedPage: number): Promise<void> => {
+    const nextIndex = Math.max(0, Math.trunc(oneBasedPage) - 1);
+    if (nextIndex < pages.length) {
+      navigation.current += 1;
+      setPosition({ queryKey, pageIndex: nextIndex });
+      return;
+    }
+    if (nextIndex !== pages.length || !query.hasNextPage || query.isFetchingNextPage) {
+      return;
+    }
+    const request = ++navigation.current;
+    const result = await query.fetchNextPage();
+    if (navigation.current === request && result.data?.pages[nextIndex] !== undefined) {
+      setPosition({ queryKey, pageIndex: nextIndex });
+    }
+  };
+
+  return {
+    query,
+    pages,
+    currentPage,
+    items,
+    page: pageIndex + 1,
+    pageCount,
+    onPageChange,
+  };
 }
 
 function CursorListError({ error, title }: { readonly error: unknown; readonly title: string }): React.ReactElement {
@@ -85,50 +115,41 @@ export function CursorList<T, TQueryKey extends QueryKey = QueryKey>({
   factory,
   filters,
   renderItems,
-  empty,
+  actions,
   errorTitle,
-  skeletonRows = 6,
-  loadMoreLabel,
   className,
 }: CursorListProps<T, TQueryKey>): React.ReactNode {
   const { t } = useTranslation();
-  const query = useInfiniteQuery(factory(filters));
-  const items = flatPages(query.data);
+  const { query, items, page, pageCount, onPageChange } = useCursorPages<Page<T>, TQueryKey, string | null>(
+    factory(filters),
+  );
 
-  if (query.isPending) {
-    return <CursorListSkeleton rows={skeletonRows} />;
-  }
-  if (query.isError) {
-    return <CursorListError error={query.error} title={errorTitle ?? t('common.requestFailed')} />;
-  }
-  if (items.length === 0) {
-    return (
-      empty ?? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>{t('common.noRecords')}</EmptyTitle>
-            <EmptyDescription>{t('invocations.business.cursorList.noRecordsDescription')}</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      )
-    );
-  }
   return (
-    <div className={cn('space-y-3', className)}>
-      {renderItems(items)}
-      {query.hasNextPage ? (
-        <div className="flex justify-center">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={query.isFetchingNextPage}
-            onClick={() => void query.fetchNextPage()}
-          >
-            {query.isFetchingNextPage
-              ? t('invocations.business.cursorList.loadingMore')
-              : (loadMoreLabel ?? t('invocations.business.cursorList.loadMore'))}
-          </Button>
+    <div className={cn('space-y-4', className)}>
+      <ListToolbar
+        onRefresh={() => {
+          if (!query.isFetching) {
+            void query.refetch();
+          }
+        }}
+        refreshing={query.isFetching}
+      >
+        {actions}
+      </ListToolbar>
+      {query.isError ? <CursorListError error={query.error} title={errorTitle ?? t('common.requestFailed')} /> : null}
+      {query.isPending || query.data !== undefined ? (
+        <div>
+          {renderItems(items, { loading: query.isPending })}
+          {query.data === undefined ? null : (
+            <ListFooter
+              count={items.length}
+              cursor
+              page={page}
+              pageCount={pageCount}
+              busy={query.isFetching}
+              onPageChange={(next) => void onPageChange(next)}
+            />
+          )}
         </div>
       ) : null}
     </div>

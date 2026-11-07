@@ -22,6 +22,8 @@ export const overview = {
   botAlreadyAwake: 'Bot was already awake',
   loadFailed: 'Failed to load overview',
   warnings: 'Warnings',
+  recentInvocations: 'Recent invocations',
+  viewAll: 'View all',
   warningsViewAll: 'View all warnings',
   warningsUnread: '{{count}} unread event warnings',
   warningsNone: 'No warnings need attention.',

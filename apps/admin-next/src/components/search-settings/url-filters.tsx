@@ -1,7 +1,7 @@
 import { RE2JS } from 're2js';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Panel } from '@/components/layout/panel';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -37,12 +37,8 @@ export function UrlFilterEditor({
     matchedBy: compiled.filter((entry) => entry.pattern?.test(url) === true).map((entry) => entry.rule),
   }));
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('search.filtersTitle')}</CardTitle>
-        <p className="text-muted-foreground text-sm">{t('search.filtersDescription')}</p>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <Panel title={t('search.filtersTitle')} description={t('search.filtersDescription')}>
+      <div className="space-y-4">
         <div className="space-y-1">
           <Label htmlFor="search-url-filters">{t('search.filtersLabel')}</Label>
           <Textarea
@@ -97,7 +93,7 @@ export function UrlFilterEditor({
             ))}
           </ul>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   );
 }

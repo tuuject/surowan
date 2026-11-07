@@ -2,7 +2,6 @@ import { startAuthentication } from '@simplewebauthn/browser';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
-import { Card } from '@tuuject/koi-react/card';
 import { Divider } from '@tuuject/koi-react/divider';
 import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
@@ -86,7 +85,7 @@ function AuthLayout({
         <LanguageToggle />
         <ThemeToggle />
       </div>
-      <Card className={cardClass}>
+      <section className={cardClass}>
         <div className={brandRow}>
           <span className={logoClass} aria-hidden="true">
             S
@@ -100,7 +99,7 @@ function AuthLayout({
           {description}
         </p>
         {children}
-      </Card>
+      </section>
     </div>
   );
 }

@@ -18,6 +18,7 @@ export const search = {
   enginesDescription:
     'Each engine is one provider with its own credential, endpoint and note. The note is shown to the model so it can choose the right engine for a query.',
   addEngine: 'Add engine',
+  editEngine: 'Edit engine',
   noEngines: 'No engine configured. Add one to make search available.',
   engineHeading: 'Engine {{index}}',
   engineEnabled: 'Enabled',

@@ -1,9 +1,9 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { StateBadge } from '@/components/business';
+import { ListFooter, type OffsetPagination, StateBadge, useClientPagination } from '@/components/business';
+import { Panel } from '@/components/layout/panel';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type {
   PlaygroundInvocation,
   PlaygroundReleaseDetail,
@@ -17,7 +17,10 @@ interface RunsCardProps {
   readonly status: PlaygroundStatusSummary | undefined;
   readonly revision: string;
   readonly pending: number;
-  readonly runs: { readonly data: { readonly items: readonly PlaygroundInvocation[] } | undefined };
+  readonly runs: {
+    readonly data: { readonly items: readonly PlaygroundInvocation[]; readonly total: number } | undefined;
+  };
+  readonly pagination: OffsetPagination;
   readonly detail: { readonly data: PlaygroundRoomDetail | undefined };
   readonly releaseDetail: { readonly data: PlaygroundReleaseDetail | undefined };
   readonly queryClient: QueryClient;
@@ -30,21 +33,21 @@ export function RunsCard({
   revision,
   pending,
   runs,
+  pagination: runPagination,
   detail,
   releaseDetail,
   queryClient,
   setOpenRelease,
 }: RunsCardProps): React.ReactElement {
   const { t } = useTranslation();
+  const releasePagination = useClientPagination(detail.data?.releases ?? [], `${roomId}:releases`);
   return (
-    <Card className="min-w-0">
-      <CardHeader>
-        <CardTitle>{t('playground.runs.heading')}</CardTitle>
-        <CardDescription>
-          {status === undefined ? '' : t('playground.room.statusSummary', { revision, pending })}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="min-w-0 space-y-3">
+    <Panel
+      title={t('playground.runs.heading')}
+      description={status === undefined ? undefined : t('playground.room.statusSummary', { revision, pending })}
+      className="min-w-0"
+    >
+      <div className="min-w-0 space-y-3">
         {runs.data?.items.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t('playground.runs.empty')}</p>
         ) : null}
@@ -62,38 +65,54 @@ export function RunsCard({
             />
           ))}
         </ul>
+        {runs.data === undefined ? null : (
+          <ListFooter
+            count={runs.data.total}
+            page={runPagination.page}
+            pageCount={runPagination.pageCount(runs.data.total)}
+            onPageChange={runPagination.onPageChange}
+          />
+        )}
         {(detail.data?.releases ?? []).length === 0 ? null : (
-          <div className="flex flex-wrap gap-2">
-            {(detail.data?.releases ?? []).map((entry) => (
-              <Button
-                key={entry.id}
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setOpenRelease(entry.id);
-                  // Re-opening the same Release asks for its current state.
-                  void queryClient.invalidateQueries({ queryKey: ['playground-release', roomId, entry.id] });
-                }}
-              >
-                {t('playground.runs.detail')} #{entry.id}
-              </Button>
-            ))}
+          <div>
+            <div className="flex flex-wrap gap-2">
+              {releasePagination.items.map((entry) => (
+                <Button
+                  key={entry.id}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setOpenRelease(entry.id);
+                    // Re-opening the same Release asks for its current state.
+                    void queryClient.invalidateQueries({ queryKey: ['playground-release', roomId, entry.id] });
+                  }}
+                >
+                  {t('playground.runs.detail')} #{entry.id}
+                </Button>
+              ))}
+            </div>
+            <ListFooter
+              count={releasePagination.total}
+              page={releasePagination.page}
+              pageCount={releasePagination.pageCount}
+              onPageChange={releasePagination.onPageChange}
+            />
           </div>
         )}
         {releaseDetail.data === undefined ? null : <ReleaseDetails detail={releaseDetail.data} />}
         {runs.data?.items.some((entry) => entry.state === 'completed' && entry.sends_used === 0) === true ? (
           <p className="text-muted-foreground text-xs">{t('playground.runs.noSend')}</p>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   );
 }
 
 function ReleaseDetails({ detail }: { readonly detail: PlaygroundReleaseDetail }): React.ReactElement {
   const { t } = useTranslation();
   return (
-    <div className="bg-muted/40 space-y-2 rounded-md p-3">
+    <div className="space-y-2 border-l py-2 pl-3">
       <p className="text-xs">
         {t('playground.runs.detail')} #{detail.release.id} ·{' '}
         {t('playground.runs.throughSeq', { seq: detail.release.through_seq })}

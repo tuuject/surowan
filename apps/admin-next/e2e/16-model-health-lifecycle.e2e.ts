@@ -11,7 +11,7 @@
  * `16-model-health.e2e.ts`.
  */
 import { expect } from '@playwright/test';
-import { adminUrl, test } from './helpers.ts';
+import { adminUrl, clickNav, test } from './helpers.ts';
 import {
   holdHealthGate,
   modelHealthFixture,
@@ -68,10 +68,7 @@ test.describe('model health checks', () => {
 
       // SPA navigation unmounts the Models page; the cleanup must abort the
       // batch instead of letting the queued check charge in the background.
-      await page
-        .getByRole('navigation', { name: 'Main navigation' })
-        .getByRole('link', { name: 'Overview', exact: true })
-        .click();
+      await clickNav(page, 'Monitor', 'Overview');
       await page.waitForURL((url) => url.pathname === '/');
       await expect(page.getByText('Bot status')).toBeVisible();
 

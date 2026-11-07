@@ -1,8 +1,8 @@
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ToneBadge } from '@/components/business';
+import { ListFooter, ToneBadge, useClientPagination } from '@/components/business';
+import { Panel } from '@/components/layout/panel';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -49,10 +49,13 @@ export function RoomHeaderCard({
 }: RoomHeaderCardProps): React.ReactElement {
   const { t } = useTranslation();
   return (
-    <Card className="min-w-0">
-      <CardHeader>
+    <Panel
+      title={room?.title ?? t('common.loading')}
+      description={t('playground.room.releaseHint')}
+      className="min-w-0"
+    >
+      <div className="min-w-0 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <CardTitle>{room?.title ?? t('common.loading')}</CardTitle>
           <span className="text-muted-foreground text-xs">{t('playground.room.revision', { revision })}</span>
           <ToneBadge tone={room?.hold === true ? 'warning' : 'neutral'}>
             {room?.hold === true ? t('playground.room.holdOn') : t('playground.room.holdOff')}
@@ -61,9 +64,6 @@ export function RoomHeaderCard({
             {pending === 0 ? t('playground.room.noPending') : t('playground.room.pending', { count: pending })}
           </span>
         </div>
-        <CardDescription>{t('playground.room.releaseHint')}</CardDescription>
-      </CardHeader>
-      <CardContent className="min-w-0 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
@@ -126,8 +126,8 @@ export function RoomHeaderCard({
             <span className="text-muted-foreground text-xs">{t('playground.capabilities.imageHint')}</span>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   );
 }
 
@@ -139,21 +139,28 @@ export function IdentitiesCard({
   addIdentity,
 }: IdentitiesCardProps): React.ReactElement {
   const { t } = useTranslation();
+  const pagination = useClientPagination(participants, 'playground-identities');
   return (
-    <Card className="min-w-0">
-      <CardHeader>
-        <CardTitle>{t('playground.identities.heading')}</CardTitle>
-        <CardDescription>{t('playground.identities.addHint')}</CardDescription>
-      </CardHeader>
-      <CardContent className="min-w-0 space-y-3">
+    <Panel
+      title={t('playground.identities.heading')}
+      description={t('playground.identities.addHint')}
+      className="min-w-0"
+    >
+      <div className="min-w-0 space-y-3">
         <ul className="flex flex-wrap gap-2">
-          {participants.map((member) => (
+          {pagination.items.map((member) => (
             <li key={member.id} className="flex items-center gap-2 rounded-md border px-2 py-1">
               <span className="text-sm">{member.name}</span>
               <span className="text-muted-foreground text-xs">{t(`playground.identities.${member.role}`)}</span>
             </li>
           ))}
         </ul>
+        <ListFooter
+          count={pagination.total}
+          page={pagination.page}
+          pageCount={pagination.pageCount}
+          onPageChange={pagination.onPageChange}
+        />
         <div className="flex flex-wrap items-end gap-2">
           <div className="space-y-1">
             <Label htmlFor="playground-participant-name">{t('playground.identities.name')}</Label>
@@ -176,7 +183,7 @@ export function IdentitiesCard({
             {t('playground.identities.add')}
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   );
 }

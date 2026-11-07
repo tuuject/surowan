@@ -1,10 +1,11 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { CLIENT_PAGE_SIZE, useCursorPages, useOffsetPagination } from '@/components/business';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ApiError } from '@/lib/api/core.ts';
-import type { PlaygroundRoom, PlaygroundTimelineItem } from '@/lib/api/playground.ts';
+import type { PlaygroundRoom } from '@/lib/api/playground.ts';
 import {
   addPlaygroundParticipant,
   holdPlaygroundRoom,
@@ -30,8 +31,10 @@ export function RoomWorkspace({ roomId }: { readonly roomId: string }): React.Re
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const detail = useQuery(playgroundRoomQuery(roomId));
-  const messages = useInfiniteQuery(playgroundMessagesQuery(roomId));
-  const runs = useQuery(playgroundInvocationsQuery(roomId));
+  const messagePages = useCursorPages(playgroundMessagesQuery(roomId));
+  const runPagination = useOffsetPagination(roomId, CLIENT_PAGE_SIZE);
+  const runs = useQuery(playgroundInvocationsQuery(roomId, runPagination.pageSize, runPagination.offset));
+  const runPageCount = runPagination.pageCount(runs.data?.total);
   const messageKey = usePayloadKey('message');
   const participantKey = usePayloadKey('participant');
 
@@ -56,6 +59,12 @@ export function RoomWorkspace({ roomId }: { readonly roomId: string }): React.Re
       setSenderId(participants[0]?.id ?? '');
     }
   }, [participants, senderId]);
+
+  useEffect(() => {
+    if (runs.data !== undefined && runPagination.page > runPageCount) {
+      runPagination.onPageChange(runPageCount);
+    }
+  }, [runPageCount, runPagination, runs.data]);
 
   const addIdentity = useMutation({
     mutationFn: (body: Parameters<typeof addPlaygroundParticipant>[1]) => addPlaygroundParticipant(roomId, body),
@@ -178,23 +187,12 @@ export function RoomWorkspace({ roomId }: { readonly roomId: string }): React.Re
 
   const releaseDetail = useQuery(playgroundReleaseQuery(roomId, openRelease ?? ''));
 
-  const pages = messages.data?.pages ?? [];
+  const { pages, items: currentItems, page, pageCount, onPageChange } = messagePages;
   const items = useMemo(() => {
-    const seen = new Set<string>();
-    const ordered: PlaygroundTimelineItem[] = [];
-    // Pages come newest-first; later pages are older, so a simple two-axis
-    // dedup keeps the list stable while polling replaces the first page.
-    for (const page of pages) {
-      for (const item of page.items) {
-        if (seen.has(item.message_id)) {
-          continue;
-        }
-        seen.add(item.message_id);
-        ordered.push(item);
-      }
-    }
-    return ordered.sort((left, right) => Number(right.seq) - Number(left.seq));
-  }, [pages]);
+    // Only the current cursor page is visible. It arrives newest-first and is
+    // sorted locally without ever concatenating older pages into the view.
+    return [...currentItems].sort((left, right) => Number(right.seq) - Number(left.seq));
+  }, [currentItems]);
   const status = pages[0]?.status;
   const pending = room?.pending ?? status?.pending ?? 0;
   const revision = room?.revision ?? status?.revision ?? '0';
@@ -243,9 +241,10 @@ export function RoomWorkspace({ roomId }: { readonly roomId: string }): React.Re
         uploading={uploading}
         attachments={attachments}
         messages={{
-          hasNextPage: messages.hasNextPage,
-          isFetchingNextPage: messages.isFetchingNextPage,
-          fetchNextPage: () => messages.fetchNextPage(),
+          page,
+          pageCount,
+          isFetchingNextPage: messagePages.query.isFetchingNextPage,
+          onPageChange,
         }}
         submit={submit}
         upload={{
@@ -264,6 +263,7 @@ export function RoomWorkspace({ roomId }: { readonly roomId: string }): React.Re
         revision={revision}
         pending={pending}
         runs={runs}
+        pagination={runPagination}
         detail={detail}
         releaseDetail={releaseDetail}
         queryClient={queryClient}

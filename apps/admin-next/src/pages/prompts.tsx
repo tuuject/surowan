@@ -1,28 +1,40 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
-import { Select } from '@tuuject/koi-react/select';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { type ColumnSpec, ConfirmDialog, MonoValue, TableShell, TextValue, ToneBadge } from '@/components/business';
+import {
+  type ColumnSpec,
+  ConfirmDialog,
+  ListFooter,
+  ListPageHeader,
+  ListSearchForm,
+  ListToolbar,
+  MonoValue,
+  QuerySelectField,
+  TableShell,
+  TextValue,
+  ToneBadge,
+  useClientPagination,
+} from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { DiffView } from '@/components/prompts/diff-view';
 import { type Notice, type PromptDraft, sourceLabelKey, sourceTone } from '@/components/prompts/prompt-draft';
 import { PromptEditor } from '@/components/prompts/prompt-editor';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ApiError } from '@/lib/api/core.ts';
 import type { PromptSaveResponse, PromptScopeRef, PromptVersionItem } from '@/lib/api/prompts.ts';
 import { cancelPromptRunning, failedPromptVersion, restorePromptVersion, savePrompt } from '@/lib/api/prompts.ts';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
+import { chatQuery, useListQuery } from '@/lib/list-query';
 import { chatsQuery, promptDiffQuery, promptDocumentQuery, promptVersionsQuery } from '@/lib/queries';
-import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
 import { toast } from '@/lib/toast.ts';
 
 const GLOBAL_SCOPE_VALUE = 'global';
 const CHAT_SCOPE_PREFIX = 'chat:';
 const PROMPT_CONFLICT_CODE = 'prompt_conflict';
+const EMPTY_SCOPE = { chat: '' };
+const EMPTY_COMPARE = { from: '', to: '' };
 
 function scopeOfValue(value: string): PromptScopeRef {
   return value.startsWith(CHAT_SCOPE_PREFIX)
@@ -34,9 +46,8 @@ export default function PromptsPage(): React.ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const chats = useQuery(chatsQuery);
-  const chat = useChatScope();
-  const navigate = useNavigate({ from: '/prompts' });
-  const setChat = useChatScopeSetter(navigate);
+  const query = useListQuery(EMPTY_SCOPE);
+  const chat = chatQuery(query.value.chat);
   const scopeValue = chat === undefined ? GLOBAL_SCOPE_VALUE : `${CHAT_SCOPE_PREFIX}${chat}`;
   const scope = scopeOfValue(scopeValue);
   const fileQuery = useQuery(promptDocumentQuery(scope));
@@ -45,11 +56,17 @@ export default function PromptsPage(): React.ReactElement {
   const [cancelTarget, setCancelTarget] = useState<number | null>(null);
   const [restoreTarget, setRestoreTarget] = useState<PromptVersionItem | null>(null);
   const [compare, setCompare] = useState<{ readonly from: string; readonly to: string } | null>(null);
-  const [fromId, setFromId] = useState<string | null>(null);
-  const [toId, setToId] = useState<string | null>(null);
+  const [compareScope, setCompareScope] = useState(scopeValue);
+  if (compareScope !== scopeValue) {
+    // Browser navigation changes scope without calling changeScope. Neither an
+    // applied diff nor an unsubmitted draft may leak into the new scope.
+    setCompareScope(scopeValue);
+    setCompare(null);
+  }
   const file = fileQuery.data;
   const applied = versions.data?.current ?? null;
   const items = versions.data?.items ?? [];
+  const pagination = useClientPagination(items, scopeValue);
   const chatItems = chats.data?.items ?? [];
   // The deep-linked chat can be absent while the chat list loads, after it
   // fails, or when the chat is unavailable. Without an option the native
@@ -130,19 +147,13 @@ export default function PromptsPage(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['prompt-versions'] });
     },
   });
-  const changeScope = (value: string): void => {
-    setChat(value === GLOBAL_SCOPE_VALUE ? undefined : value.slice(CHAT_SCOPE_PREFIX.length));
+  const changeScope = (next: { readonly chat: string }): void => {
+    query.apply(next);
     setNotice(null);
     setCancelTarget(null);
     setRestoreTarget(null);
     setCompare(null);
-    setFromId(null);
-    setToId(null);
   };
-  const selectable = (id: string | null, fallback: string | null): string | null =>
-    id !== null && items.some((item) => item.id === id) ? id : fallback;
-  const fromValue = selectable(fromId, items.at(1)?.id ?? null);
-  const toValue = selectable(toId, items.at(0)?.id ?? null);
   const diffSelection = compare ?? { from: '', to: '' };
   const diff = useQuery({ ...promptDiffQuery(diffSelection.from, diffSelection.to), enabled: compare !== null });
   const columns: readonly ColumnSpec<PromptVersionItem>[] = [
@@ -198,34 +209,32 @@ export default function PromptsPage(): React.ReactElement {
     },
   ];
   return (
-    <div className="space-y-6">
-      <Panel
-        title={t('pages.prompts.editorTitle')}
-        action={
-          <div className="flex items-center gap-2">
-            <Label htmlFor="prompt-scope" className="text-muted-foreground text-xs">
-              {t('pages.prompts.scopeLabel')}
-            </Label>
-            <Select
-              id="prompt-scope"
-              size="sm"
-              className="w-64"
-              value={scopeValue}
-              onChange={(event) => changeScope(event.target.value)}
-            >
-              <option value={GLOBAL_SCOPE_VALUE}>{t('pages.prompts.globalScope')}</option>
-              {missingChat ? <option value={scopeValue}>{t('pages.prompts.chatScope', { id: chat })}</option> : null}
-              {chatItems.map((chatItem) => (
-                <option key={chatItem.id} value={`${CHAT_SCOPE_PREFIX}${chatItem.id}`}>
-                  {chatItem.title === null
+    <div className="space-y-5">
+      <ListPageHeader title={t('layout.nav.prompts')} />
+      <ListSearchForm value={query.value} emptyValue={EMPTY_SCOPE} onSearch={changeScope}>
+        {({ draft, change }) => (
+          <QuerySelectField
+            label={t('pages.prompts.scopeLabel')}
+            showAll={false}
+            value={chatQuery(draft.chat) === undefined ? GLOBAL_SCOPE_VALUE : `${CHAT_SCOPE_PREFIX}${draft.chat}`}
+            onChange={(value) =>
+              change({ chat: value === GLOBAL_SCOPE_VALUE ? '' : value.slice(CHAT_SCOPE_PREFIX.length) })
+            }
+            options={[
+              { value: GLOBAL_SCOPE_VALUE, label: t('pages.prompts.globalScope') },
+              ...(missingChat ? [{ value: scopeValue, label: t('pages.prompts.chatScope', { id: chat }) }] : []),
+              ...chatItems.map((chatItem) => ({
+                value: `${CHAT_SCOPE_PREFIX}${chatItem.id}`,
+                label:
+                  chatItem.title === null
                     ? t('pages.prompts.chatScope', { id: chatItem.id })
-                    : t('pages.prompts.chatScopeTitled', { title: chatItem.title, id: chatItem.id })}
-                </option>
-              ))}
-            </Select>
-          </div>
-        }
-      >
+                    : t('pages.prompts.chatScopeTitled', { title: chatItem.title, id: chatItem.id }),
+              })),
+            ]}
+          />
+        )}
+      </ListSearchForm>
+      <Panel title={t('pages.prompts.editorTitle')}>
         {fileQuery.isPending ? (
           <Skeleton className="h-64 w-full rounded-xl" />
         ) : fileQuery.isError || file === undefined ? (
@@ -252,10 +261,40 @@ export default function PromptsPage(): React.ReactElement {
           />
         )}
       </Panel>
-      <Panel title={t('pages.prompts.historyTitle')}>
-        {versions.isPending ? (
-          <Skeleton className="h-40 w-full rounded-xl" />
-        ) : versions.isError ? (
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold">{t('pages.prompts.historyTitle')}</h2>
+        <ListSearchForm
+          key={scopeValue}
+          value={compare ?? EMPTY_COMPARE}
+          emptyValue={EMPTY_COMPARE}
+          activeCount={compare === null ? 0 : 2}
+          onSearch={(next) => {
+            const valid =
+              next.from !== next.to &&
+              items.some((item) => item.id === next.from) &&
+              items.some((item) => item.id === next.to);
+            setCompare(valid ? next : null);
+          }}
+        >
+          {({ draft, change }) => (
+            <>
+              <QuerySelectField
+                label={t('pages.prompts.compareFrom')}
+                value={draft.from}
+                onChange={(from) => change({ from })}
+                options={items.map((item) => ({ value: item.id, label: `v${item.seq}` }))}
+              />
+              <QuerySelectField
+                label={t('pages.prompts.compareTo')}
+                value={draft.to}
+                onChange={(to) => change({ to })}
+                options={items.map((item) => ({ value: item.id, label: `v${item.seq}` }))}
+              />
+            </>
+          )}
+        </ListSearchForm>
+        <ListToolbar onRefresh={() => void versions.refetch()} refreshing={versions.isRefetching} />
+        {versions.isError ? (
           <div className="space-y-3">
             <p role="alert" className="text-destructive text-sm break-words">
               {errorMessage(versions.error)}
@@ -264,84 +303,43 @@ export default function PromptsPage(): React.ReactElement {
               {t('common.retry')}
             </Button>
           </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="prompt-compare-from" className="text-muted-foreground text-xs">
-                  {t('pages.prompts.compareFrom')}
-                </Label>
-                <Select
-                  id="prompt-compare-from"
-                  size="sm"
-                  className="w-40"
-                  value={fromValue ?? ''}
-                  onChange={(event) => setFromId(event.target.value)}
-                >
-                  {items.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {`v${item.seq}`}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="prompt-compare-to" className="text-muted-foreground text-xs">
-                  {t('pages.prompts.compareTo')}
-                </Label>
-                <Select
-                  id="prompt-compare-to"
-                  size="sm"
-                  className="w-40"
-                  value={toValue ?? ''}
-                  onChange={(event) => setToId(event.target.value)}
-                >
-                  {items.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {`v${item.seq}`}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={fromValue === null || toValue === null || fromValue === toValue}
-                onClick={() => {
-                  if (fromValue !== null && toValue !== null) {
-                    setCompare({ from: fromValue, to: toValue });
-                  }
-                }}
-              >
-                {t('pages.prompts.compare')}
-              </Button>
-            </div>
+        ) : null}
+        {versions.isPending || versions.data !== undefined ? (
+          <div>
             <TableShell
               columns={columns}
-              data={items}
+              data={pagination.items}
               rowKey={(row) => row.id}
+              loading={versions.isPending}
+              frame={false}
               emptyText={t('pages.prompts.emptyVersions')}
             />
-            {versions.data === undefined ? null : (
-              <p className="text-muted-foreground text-xs">
-                {t('pages.prompts.retention', { count: versions.data.retained })}
-              </p>
-            )}
-            {compare === null ? null : diff.isPending ? (
-              <Skeleton className="h-40 w-full rounded-xl" />
-            ) : diff.isError || diff.data === undefined ? (
-              <p role="alert" className="text-destructive text-sm break-words">
-                {errorMessage(diff.error)}
-              </p>
-            ) : diff.data.hunks.length === 0 ? (
-              <p className="text-muted-foreground text-sm">{t('pages.prompts.noDifferences')}</p>
-            ) : (
-              <DiffView diff={diff.data} />
-            )}
+            <ListFooter
+              count={pagination.total}
+              page={pagination.page}
+              pageCount={pagination.pageCount}
+              onPageChange={pagination.onPageChange}
+            >
+              {versions.data === undefined ? null : (
+                <span className="text-muted-foreground text-xs">
+                  {t('pages.prompts.retention', { count: versions.data.retained })}
+                </span>
+              )}
+            </ListFooter>
           </div>
+        ) : null}
+        {compare === null ? null : diff.isPending ? (
+          <Skeleton className="h-40 w-full rounded-xl" />
+        ) : diff.isError || diff.data === undefined ? (
+          <p role="alert" className="text-destructive text-sm break-words">
+            {errorMessage(diff.error)}
+          </p>
+        ) : diff.data.hunks.length === 0 ? (
+          <p className="text-muted-foreground text-sm">{t('pages.prompts.noDifferences')}</p>
+        ) : (
+          <DiffView diff={diff.data} />
         )}
-      </Panel>
+      </section>
       <ConfirmDialog
         open={cancelTarget !== null}
         onOpenChange={(open) => {

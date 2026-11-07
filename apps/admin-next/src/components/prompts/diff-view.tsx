@@ -15,7 +15,7 @@ function hunkHeader(hunk: PromptDiffHunk): string {
 export function DiffView({ diff }: { readonly diff: PromptDiffView }): React.ReactElement {
   const { t } = useTranslation();
   return (
-    <div className="overflow-hidden rounded-lg border">
+    <div className="overflow-x-auto border-y">
       <div className="bg-muted/40 border-b px-3 py-2 font-mono text-xs">
         {t('pages.prompts.diffTitle', { from: diff.from.seq, to: diff.to.seq })}
       </div>

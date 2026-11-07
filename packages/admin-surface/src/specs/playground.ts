@@ -130,8 +130,8 @@ export const PLAYGROUND_SPECS: readonly EndpointSpec[] = [
     method: 'GET',
     path: 'playground/rooms/:id/invocations',
     positional: [{ name: 'id', kind: 'decimal' }],
-    params: ['limit'],
-    summary: 'List the Invocations scoped to one room',
+    params: ['limit', 'offset'],
+    summary: 'List one offset page of Invocations scoped to one room',
   },
   {
     command: 'room invocation show',

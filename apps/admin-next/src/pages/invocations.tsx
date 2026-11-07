@@ -1,21 +1,21 @@
-import { Link, useNavigate } from '@tanstack/react-router';
-import { useMemo, useState } from 'react';
+import { Link } from '@tanstack/react-router';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ChatFilter,
   type ColumnSpec,
   CursorList,
-  FilterToolbar,
-  LIST_TABLE_CLASS,
-  SelectFilter,
+  ListPageHeader,
+  ListSearchForm,
+  QuerySelectField,
+  QueryTextField,
   StateBadge,
   TableShell,
-  TextFilter,
 } from '@/components/business';
 import type { InvocationListItem } from '@/lib/api/invocations.ts';
 import { formatCost, formatNumber, formatTime } from '@/lib/format';
+import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { invocationsQuery } from '@/lib/queries';
-import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
 
 const INVOCATION_STATES = [
   'queued',
@@ -28,16 +28,21 @@ const INVOCATION_STATES = [
 ] as const;
 
 const INVOCATION_HOSTS = ['telegram', 'playground'] as const;
+const EMPTY_FILTERS = { state: '', host: '', chat: '', model: '' };
 
 export default function InvocationsPage(): React.ReactElement {
   const { t } = useTranslation();
-  const [state, setState] = useState<string | undefined>(undefined);
-  const [host, setHost] = useState<string | undefined>(undefined);
-  const [model, setModel] = useState<string | undefined>(undefined);
-  const chat = useChatScope();
-  const navigate = useNavigate({ from: '/invocations' });
-  const setChat = useChatScopeSetter(navigate);
-  const filters = useMemo(() => ({ state, host, chat, model }), [state, host, chat, model]);
+  const query = useListQuery(EMPTY_FILTERS);
+  const { state, host, chat, model } = query.value;
+  const filters = useMemo(
+    () => ({
+      state: optionalQuery(state),
+      host: optionalQuery(host),
+      chat: chatQuery(chat),
+      model: optionalQuery(model),
+    }),
+    [state, host, chat, model],
+  );
 
   const COLUMNS: readonly ColumnSpec<InvocationListItem>[] = [
     {
@@ -122,35 +127,37 @@ export default function InvocationsPage(): React.ReactElement {
   ];
 
   return (
-    <div className="space-y-4">
-      <FilterToolbar>
-        <SelectFilter
-          placeholder={t('invocations.invocations.statePlaceholder')}
-          value={state}
-          onChange={setState}
-          options={INVOCATION_STATES.map((value) => ({ value, label: value }))}
-        />
-        <SelectFilter
-          placeholder={t('invocations.invocations.hostPlaceholder')}
-          value={host}
-          onChange={setHost}
-          options={INVOCATION_HOSTS.map((value) => ({ value, label: t(`invocations.invocations.hosts.${value}`) }))}
-        />
-        <ChatFilter value={chat} onChange={setChat} />
-        <TextFilter
-          placeholder={t('invocations.invocations.modelPlaceholder')}
-          value={model}
-          onCommit={(value) => setModel(value.length > 0 ? value : undefined)}
-          onClear={() => setModel(undefined)}
-          widthClassName="w-56"
-        />
-      </FilterToolbar>
-      <p className="text-muted-foreground text-xs">{t('invocations.invocations.tokensNote')}</p>
+    <div className="space-y-5">
+      <ListPageHeader title={t('layout.nav.toolSessions')} description={t('invocations.invocations.tokensNote')} />
+      <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
+        {({ draft, change }) => (
+          <>
+            <QuerySelectField
+              label={t('invocations.invocations.statePlaceholder')}
+              value={draft.state}
+              onChange={(state) => change({ state })}
+              options={INVOCATION_STATES.map((value) => ({ value, label: value }))}
+            />
+            <QuerySelectField
+              label={t('invocations.invocations.hostPlaceholder')}
+              value={draft.host}
+              onChange={(host) => change({ host })}
+              options={INVOCATION_HOSTS.map((value) => ({ value, label: t(`invocations.invocations.hosts.${value}`) }))}
+            />
+            <ChatFilter value={draft.chat} onChange={(chat) => change({ chat })} />
+            <QueryTextField
+              label={t('invocations.invocations.modelPlaceholder')}
+              value={draft.model}
+              onChange={(model) => change({ model })}
+            />
+          </>
+        )}
+      </ListSearchForm>
       <CursorList
         factory={invocationsQuery}
         filters={filters}
-        renderItems={(items) => (
-          <TableShell columns={COLUMNS} data={items} rowKey={(row) => row.id} className={LIST_TABLE_CLASS} />
+        renderItems={(items, { loading }) => (
+          <TableShell columns={COLUMNS} data={items} rowKey={(row) => row.id} loading={loading} frame={false} />
         )}
       />
     </div>

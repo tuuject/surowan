@@ -21,6 +21,8 @@ export const overview: typeof overviewEn = {
   botAlreadyAwake: 'Bot 本来就是唤醒状态',
   loadFailed: '加载总览失败',
   warnings: '警告',
+  recentInvocations: '最近 Invocation',
+  viewAll: '查看全部',
   warningsViewAll: '查看全部警告',
   warningsUnread: '{{count}} 条未读事件警告',
   warningsNone: '没有需要关注的警告。',

@@ -13,7 +13,7 @@ import {
   ToneBadge,
 } from '@/components/business';
 import { ToolResult } from '@/components/invocations/tool-result';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Panel } from '@/components/layout/panel';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import type {
   ConversationContextDetail,
@@ -198,16 +198,15 @@ export function ContextDetailView({ id }: { readonly id: string }): React.ReactE
 
   return (
     <div className="space-y-4">
-      <Card className="gap-4 py-5">
-        <CardHeader className="flex-row items-start justify-between gap-4 px-5 py-0">
-          <CardTitle className="font-mono text-base break-all">
-            {t('invocations.contextDetail.title', { id: data.conversation_id })}
-          </CardTitle>
+      <Panel
+        title={t('invocations.contextDetail.title', { id: data.conversation_id })}
+        action={
           <Link to="/contexts" className="text-primary shrink-0 text-sm underline-offset-4 hover:underline">
             {t('invocations.contextDetail.backToList')}
           </Link>
-        </CardHeader>
-        <CardContent className="space-y-4 px-5 py-0">
+        }
+      >
+        <div className="space-y-4">
           <KvList
             items={[
               {
@@ -239,24 +238,18 @@ export function ContextDetailView({ id }: { readonly id: string }): React.ReactE
               { label: t('invocations.contextDetail.kv.updated'), value: formatTime(data.updated_at) },
             ]}
           />
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('invocations.contextDetail.messagesTitle', { count: data.messages.length })}</CardTitle>
-        </CardHeader>
-        <CardContent>
+        </div>
+      </Panel>
+      <Panel title={t('invocations.contextDetail.messagesTitle', { count: data.messages.length })}>
+        <div>
           <RetainedMessages context={data} />
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('invocations.contextDetail.refsTitle', { count: data.refs.length })}</CardTitle>
-        </CardHeader>
-        <CardContent>
+        </div>
+      </Panel>
+      <Panel title={t('invocations.contextDetail.refsTitle', { count: data.refs.length })}>
+        <div>
           <CapabilityRefs context={data} />
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
     </div>
   );
 }

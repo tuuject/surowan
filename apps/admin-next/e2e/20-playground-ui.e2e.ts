@@ -81,6 +81,7 @@ test('a room is created, held, released and answered from the page alone', async
 
   await page.goto(await adminUrl('/invocations'));
   await page.getByRole('combobox', { name: 'Host' }).selectOption('playground');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page.getByText(title)).toBeVisible();
 });
 
@@ -285,6 +286,7 @@ test('a refused room creation shows the server reason', async ({ page }) => {
   // Titles are capped at 120 characters; the page leaves the check to the server.
   await page.getByLabel('Room title').fill('x'.repeat(121));
   await page.getByRole('button', { name: 'Create', exact: true }).click();
-  await expect(page.getByText(/Request failed: invalid_body/)).toBeVisible();
-  await expect(page.getByLabel('Room title')).toHaveValue('x'.repeat(121));
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('alert')).toContainText('Request failed: invalid_body');
+  await expect(dialog.getByLabel('Room title')).toHaveValue('x'.repeat(121));
 });

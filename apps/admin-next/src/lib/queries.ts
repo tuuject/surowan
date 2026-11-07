@@ -310,10 +310,10 @@ export function playgroundMessagesQuery(roomId: string) {
   });
 }
 
-export function playgroundInvocationsQuery(roomId: string) {
+export function playgroundInvocationsQuery(roomId: string, limit: number, offset: number) {
   return queryOptions({
-    queryKey: ['playground-invocations', roomId],
-    queryFn: () => listPlaygroundInvocations(roomId, 20),
+    queryKey: ['playground-invocations', roomId, limit, offset],
+    queryFn: () => listPlaygroundInvocations(roomId, limit, offset),
     enabled: roomId.length > 0,
     refetchInterval: 2_000,
   });

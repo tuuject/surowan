@@ -9,25 +9,30 @@ import { NAV_GROUPS, type NavTo } from '@/nav';
 const ROUTES = new Set<string>(NAV_GROUPS.flatMap((group) => group.items.map((item) => item.to)));
 
 /**
- * `NAV_GROUPS` as NavMenu's sections: the group title is the section heading
- * and every row stays a leaf link, exactly the two-level hierarchy the panel
- * had before the Koi shell. Rebuilt per language so labels follow i18n.
+ * Koi's parent/children tree: each former section heading is now a real
+ * top-level parent with an icon and expandable pages. Values are stable across
+ * languages, while labels rebuild with i18n. NavMenu automatically expands the
+ * active page's ancestors and marks that parent as being on the current path.
  */
 export function useNavMenu(onNavigate?: () => void) {
   const navigate = useNavigate();
   const { t } = useTranslation();
 
   const sections = useMemo<NavSection[]>(
-    () =>
-      NAV_GROUPS.map((group) => ({
-        label: t(`layout.navGroups.${group.labelKey}`),
-        items: group.items.map<NavItem>((item) => ({
-          value: item.to,
-          label: t(`layout.nav.${item.titleKey}`),
-          href: item.to,
-          icon: <item.icon size={sizes.icon} />,
+    () => [
+      {
+        items: NAV_GROUPS.map<NavItem>((group) => ({
+          value: `group:${group.labelKey}`,
+          label: t(`layout.navGroups.${group.labelKey}`),
+          icon: <group.icon size={sizes.icon} />,
+          children: group.items.map((item) => ({
+            value: item.to,
+            label: t(`layout.nav.${item.titleKey}`),
+            href: item.to,
+          })),
         })),
-      })),
+      },
+    ],
     // react-i18next gives `t` a new identity on a language change.
     [t],
   );

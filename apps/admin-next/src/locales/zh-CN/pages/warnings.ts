@@ -14,7 +14,6 @@ export const warnings: typeof warningsEn = {
   clearConfirm: '清空警告',
   cleared: '已清空 {{count}} 条警告',
   loadFailed: '加载警告失败',
-  loadMore: '加载更多',
   noStanding: '当前没有常态警告。',
   noEvents: '还没有事件警告。',
   missingFields: '缺少：{{fields}}',

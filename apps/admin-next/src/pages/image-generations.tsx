@@ -1,23 +1,42 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { type ColumnSpec, StateBadge, TableShell } from '@/components/business';
+import {
+  type ColumnSpec,
+  ListFooter,
+  ListPageHeader,
+  ListToolbar,
+  StateBadge,
+  TableShell,
+  useOffsetPagination,
+} from '@/components/business';
+import { Button } from '@/components/ui/button';
 import type { ImageGenerationRecord } from '@/lib/api/images.ts';
 import { listImageGenerations } from '@/lib/api/images.ts';
+import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 
 /** Generation audit list: every generation submitted from the panel or the agent. */
 
 function GenerationList() {
   const { t } = useTranslation();
+  const pagination = useOffsetPagination('image-generations');
   const generations = useQuery({
-    queryKey: ['image-generations'],
-    queryFn: () => listImageGenerations({ limit: 60 }),
+    queryKey: ['image-generations', pagination.pageSize, pagination.offset],
+    queryFn: () => listImageGenerations({ limit: pagination.pageSize, offset: pagination.offset }),
+    placeholderData: (previous) => previous,
     refetchInterval: (query) => {
       const statuses = query.state.data?.items.map((entry) => entry.status) ?? [];
       return statuses.some((status) => status === 'queued' || status === 'running') ? 3000 : false;
     },
   });
+  const pageCount = pagination.pageCount(generations.data?.total);
+  useEffect(() => {
+    if (generations.data !== undefined && !generations.isPlaceholderData && pagination.page > pageCount) {
+      pagination.onPageChange(pageCount);
+    }
+  }, [generations.data, generations.isPlaceholderData, pageCount, pagination]);
 
   const columns: readonly ColumnSpec<ImageGenerationRecord>[] = [
     {
@@ -27,6 +46,7 @@ function GenerationList() {
         <Link
           to="/image-generations/$generationId"
           params={{ generationId: row.id }}
+          aria-label={row.id}
           className="font-mono text-xs break-all underline-offset-4 hover:underline"
         >
           {row.id.slice(0, 8)}…
@@ -53,26 +73,50 @@ function GenerationList() {
     { key: 'created', title: t('image.generations.columnSubmitted'), render: (row) => formatTime(row.createdAt) },
   ];
 
+  const items = generations.data?.items ?? [];
   return (
-    <TableShell
-      columns={columns}
-      data={generations.data?.items ?? []}
-      rowKey={(row) => row.id}
-      emptyText={generations.isLoading ? t('common.loading') : t('image.generations.empty')}
-    />
+    <div className="space-y-4">
+      <ListToolbar onRefresh={() => void generations.refetch()} refreshing={generations.isRefetching} />
+      {generations.isError ? (
+        <p role="alert" className="text-destructive text-sm break-words">
+          {errorMessage(generations.error)}
+        </p>
+      ) : null}
+      {generations.isPending || generations.data !== undefined ? (
+        <div>
+          <TableShell
+            columns={columns}
+            data={items}
+            rowKey={(row) => row.id}
+            loading={generations.isPending || generations.isPlaceholderData}
+            frame={false}
+            emptyText={t('image.generations.empty')}
+          />
+          <ListFooter
+            count={generations.data?.total ?? 0}
+            page={pagination.page}
+            pageCount={pageCount}
+            busy={generations.isPlaceholderData}
+            onPageChange={pagination.onPageChange}
+          />
+        </div>
+      ) : null}
+    </div>
   );
 }
 
 export default function ImageGenerationsPage() {
   const { t } = useTranslation();
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{t('image.generations.title')}</h1>
-        <Link to="/image-generate" className="text-sm underline">
-          {t('image.generations.newGeneration')}
-        </Link>
-      </div>
+    <div className="space-y-5">
+      <ListPageHeader
+        title={t('image.generations.title')}
+        actions={
+          <Button asChild variant="outline">
+            <Link to="/image-generate">{t('image.generations.newGeneration')}</Link>
+          </Button>
+        }
+      />
       <GenerationList />
     </div>
   );

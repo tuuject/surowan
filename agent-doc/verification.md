@@ -326,7 +326,7 @@ Remove-Item Env:E2E_PASSKEYS
 - 用例文件名以 `.e2e.ts` 结尾、目录独立，Playwright `testMatch` 单独声明，**不会**被
   vitest 与 `pnpm test` 发现；`workers` 取 `availableParallelism()`，文件间并行、文件内串行，
   端口随机，不与固定端口冲突。依赖 CPU 时序的断言在满核负载下会暴露竞态：在途状态用
-  `/__e2e/health-gate` 等显式钩子控制，toast 断言用 `toast()` 限定在 Sonner 容器内。
+  `/__e2e/health-gate` 等显式钩子控制，toast 断言用 `toast()` 限定在 `[data-koi-toast]` 容器内。
 - `01-routes.e2e.ts` 与多个套件按路由断言可见文案（英文 locale）：修改面板文案或
   locale 键值时必须同步这些断言，并运行受影响套件（如 `pnpm run admin:test:e2e 01-routes`，任一套件都可单独运行）——
   `pnpm test` 与 `pnpm run check` 都不覆盖浏览器层。
@@ -335,11 +335,13 @@ Remove-Item Env:E2E_PASSKEYS
   1. 认证：setup → shell；错误密码表单内显示 `invalid_credentials` 且 URL 不变；
      登出回登录页；会话撤销后受保护请求 401 → 登录页且无错误屏。
   2. `apps/admin-next/src/routes/**` 声明的全部路由与深链接直接访问渲染真实内容（非错误边界、非空白）。
-  3. 列表过滤与游标分页：Invocations、Messages、Contexts、Alarms、Memories、Group memory、Stickers
+  3. 列表过滤与分页：Invocations、Messages、Contexts、Alarms、Memories、Group memory、Stickers
      的过滤器真正改变结果集（Memories 的 Active / Expired / Short-term / Long-term 状态过滤；
-     各页可用过滤器以页面与 `02-lists-filters.e2e.ts` 为准）；
-     `seedAdminBulkRows`（`test/fixtures/admin-seed.ts`）让每张列表的种子行数都超过
-     默认每页 25 行，因此都会出现 `Load more` 并加载下一页；无跳页/总页数控件。
+     各页可用过滤器以页面与 `02-lists-filters-invocations.e2e.ts` / `02-lists-filters-resources.e2e.ts` 为准）。
+     查询条件先编辑 draft，只有 Search / Enter 才提交并回到第 1 页，Reset 与浏览器 Back/Forward 恢复已应用条件。
+     Keyset 列表只显示当前 cursor 页，Previous/Next 可往返且没有伪造 total；全量响应用真实数组切片分页，
+     offset API 使用真实 offset/total。`seedAdminBulkRows`（`test/fixtures/admin-seed.ts`）让种子行数超过
+     相应默认页大小，因此能实际跨页；不再使用 `Load more` 或无限拼接。
      `13-sender-ids.e2e.ts` 验证 Messages、Revision、Invocation Overview/Frozen context 的发送者 ID 与真实剪贴板内容，覆盖无 username、匿名频道、缺失/旧快照、复制失败与窄屏暗色布局，确认复制不发写请求。
   4. Invocation 详情六个 Tab（Overview / Tool calls / Model calls / Telegram sends /
      Agent transcript / Frozen context）切换并渲染期望字段；失败调用显示稳定错误码

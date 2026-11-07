@@ -2,7 +2,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Info } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { type ColumnSpec, ConfirmDialog, MonoValue, TableShell } from '@/components/business';
+import {
+  type ColumnSpec,
+  ConfirmDialog,
+  ListFooter,
+  ListPageHeader,
+  ListSearchForm,
+  ListToolbar,
+  MonoValue,
+  QueryTextField,
+  TableShell,
+  useClientPagination,
+} from '@/components/business';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,14 +29,18 @@ import { Label } from '@/components/ui/label';
 import type { BotAdminEntry } from '@/lib/api/admin.ts';
 import { addBotAdmin, removeBotAdmin } from '@/lib/api/admin.ts';
 import { errorMessage } from '@/lib/errors';
+import { useListQuery } from '@/lib/list-query';
 import { adminsQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
 
 const ADMIN_ID_PATTERN = /^\d{1,15}$/;
+const EMPTY_FILTERS = { search: '' };
 
 export default function AdminsPage(): React.ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const query = useListQuery(EMPTY_FILTERS);
+  const search = query.value.search;
   const [addOpen, setAddOpen] = useState(false);
   const [userIdDraft, setUserIdDraft] = useState('');
   const [userIdError, setUserIdError] = useState<string | null>(null);
@@ -79,6 +94,11 @@ export default function AdminsPage(): React.ReactElement {
     },
   ];
 
+  const filteredAdmins = (admins.data?.items ?? []).filter((entry) =>
+    search.length === 0 ? true : entry.telegram_user_id.includes(search),
+  );
+  const pagination = useClientPagination(filteredAdmins, query.resetKey);
+
   const submitAdd = (): void => {
     const trimmed = userIdDraft.trim();
     if (!ADMIN_ID_PATTERN.test(trimmed)) {
@@ -90,7 +110,8 @@ export default function AdminsPage(): React.ReactElement {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      <ListPageHeader title={t('layout.nav.botAdmins')} />
       <Alert>
         <Info className="text-foreground" />
         <AlertTitle>{t('pages.admins.alertTitle')}</AlertTitle>
@@ -101,25 +122,45 @@ export default function AdminsPage(): React.ReactElement {
         </AlertDescription>
       </Alert>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
+        {({ draft, change }) => (
+          <QueryTextField
+            label={t('pages.admins.userIdLabel')}
+            value={draft.search}
+            onChange={(search) => change({ search })}
+          />
+        )}
+      </ListSearchForm>
+
+      <ListToolbar onRefresh={() => void admins.refetch()} refreshing={admins.isRefetching}>
         <Button type="button" onClick={() => setAddOpen(true)}>
           {t('pages.admins.addAdmin')}
         </Button>
-      </div>
+      </ListToolbar>
 
-      {admins.isPending ? (
-        <div className="text-muted-foreground py-8 text-center text-sm">{t('pages.admins.loadingAdmins')}</div>
-      ) : admins.isError ? (
-        <p className="text-destructive text-sm break-words">{errorMessage(admins.error)}</p>
-      ) : (
-        <TableShell
-          columns={columns}
-          data={admins.data.items}
-          rowKey={(row) => row.telegram_user_id}
-          emptyText={t('pages.admins.emptyAdmins')}
-          className="max-w-full overflow-x-auto"
-        />
-      )}
+      {admins.isError ? (
+        <p role="alert" className="text-destructive text-sm break-words">
+          {errorMessage(admins.error)}
+        </p>
+      ) : null}
+      {admins.isPending || admins.data !== undefined ? (
+        <div>
+          <TableShell
+            columns={columns}
+            data={pagination.items}
+            rowKey={(row) => row.telegram_user_id}
+            loading={admins.isPending}
+            frame={false}
+            emptyText={search.length === 0 ? t('pages.admins.emptyAdmins') : t('layout.koi.noMatches')}
+          />
+          <ListFooter
+            count={pagination.total}
+            page={pagination.page}
+            pageCount={pagination.pageCount}
+            onPageChange={pagination.onPageChange}
+          />
+        </div>
+      ) : null}
 
       <Dialog open={addOpen} onOpenChange={(open) => !open && setAddOpen(false)}>
         <DialogContent>
