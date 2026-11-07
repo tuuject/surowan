@@ -154,8 +154,11 @@ import {
 } from '@/components/business';
 ```
 
-页面区块用 `@/components/layout/panel` 的 `Panel`：一张 Koi `Card`，`h2` 标题
+页面区块复用 `@/components/layout/panel` 的 `Panel`：默认是 Koi `Card`，
+`variant="plain"` 则是直接铺在页面上的 `section`。两者都有 `h2` 标题
 （同时作为区域名，`role="region"` + `aria-labelledby`）、可选一行说明与右侧操作。
+独立摘要和设置组可用 Card；同一工作区里的连续分区用 plain，以留白和分隔线建立层级。
+Models 页只给 Current models 摘要保留 Card，Provider 导航、Connection 与 Models 都不包卡。
 一张 Card 只装一件事，Card 里不再套 Card。
 
 ### 列表页骨架 `list-page.tsx` 与 `query-form.tsx`

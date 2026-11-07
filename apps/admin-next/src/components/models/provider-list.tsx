@@ -1,5 +1,4 @@
 import { Button, IconButton } from '@tuuject/koi-react/button';
-import { Card } from '@tuuject/koi-react/card';
 import { PlusIcon, SearchIcon } from '@tuuject/koi-react/icons';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
@@ -84,20 +83,9 @@ export function ProviderRail({
   const idle = listed.filter((provider) => !servesASlot(view, provider.alias));
 
   return (
-    <Card padding="none" className={css({ overflow: 'hidden' })}>
-      <div
-        className={css({
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '3',
-          padding: '4',
-          borderBottomWidth: '1px',
-          borderColor: 'divider',
-        })}
-      >
-        <ProviderSearch search={search} onSearch={onSearch} onRefresh={onRefresh} refreshing={refreshing} />
-      </div>
-      <nav aria-label={t('models.models.page.providersTitle')} className={css({ paddingBlock: '2' })}>
+    <div className={css({ display: 'flex', flexDirection: 'column', gap: '4', minWidth: '0' })}>
+      <ProviderSearch search={search} onSearch={onSearch} onRefresh={onRefresh} refreshing={refreshing} />
+      <nav aria-label={t('models.models.page.providersTitle')}>
         {listed.length === 0 ? (
           <p className={css({ margin: '0', paddingInline: '4', paddingBlock: '3', color: 'text-muted' })}>
             {view.providers.length === 0
@@ -135,12 +123,10 @@ export function ProviderRail({
           </>
         )}
       </nav>
-      <div className={css({ padding: '3', borderTopWidth: '1px', borderColor: 'divider' })}>
-        <Button variant="outline" iconStart={<PlusIcon />} onClick={onNewProvider} className={css({ width: '100%' })}>
-          {t('models.models.page.newProvider')}
-        </Button>
-      </div>
-    </Card>
+      <Button variant="outline" iconStart={<PlusIcon />} onClick={onNewProvider} className={css({ width: '100%' })}>
+        {t('models.models.page.newProvider')}
+      </Button>
+    </div>
   );
 }
 
@@ -226,7 +212,7 @@ function ProviderGroup({
           justifyContent: 'space-between',
           gap: '2',
           margin: '0',
-          paddingInline: '4',
+          paddingInline: '3',
           paddingBlock: '1',
           textStyle: 'small',
           color: 'text-muted',
@@ -264,7 +250,7 @@ function ProviderRow({
     .join(', ');
   const usageId = useId();
   return (
-    <li className={css({ paddingInline: '2', listStyle: 'none' })}>
+    <li className={css({ listStyle: 'none' })}>
       <button
         type="button"
         aria-label={t('models.models.page.providerAria', { alias: provider.alias })}

@@ -28,7 +28,7 @@ const API_LABELS: Record<ProviderApi, string> = {
  * adapter (read-only); only their key can change. Secrets are write-only: the
  * panel shows an empty password field, never a value and never a reveal button.
  */
-export function ProviderConnectionCard({
+export function ProviderConnectionSection({
   provider,
   revision,
   onDetect,
@@ -140,6 +140,7 @@ export function ProviderConnectionCard({
 
   return (
     <Panel
+      variant="plain"
       title={t('models.models.connection.title')}
       action={
         <>

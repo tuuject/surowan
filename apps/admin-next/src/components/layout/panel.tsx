@@ -4,13 +4,10 @@ import type React from 'react';
 import { useId } from 'react';
 
 /**
- * One area of a dashboard, settings or detail page: a Koi Card (outlined,
- * 24px corners, no shadow) with an `h2` title, an optional one-line
- * description and the area's own controls on the right, as the template's
- * settings card and sectioned-form sections do. A list page's table sits on
- * the page instead; only a table that shares the page with other areas goes
- * in here. Never nest one Panel in another. The title names the Card as a
- * region, so assistive tech can jump between areas.
+ * One named area of a dashboard, settings or detail page. Independent summaries
+ * and settings groups use a Koi Card; sections of one continuous workspace use
+ * the plain variant and let spacing or dividers establish their hierarchy.
+ * Never nest Cards. The title names the region for assistive navigation.
  */
 export function Panel({
   title,
@@ -18,16 +15,19 @@ export function Panel({
   action,
   children,
   className,
+  variant = 'card',
 }: {
   readonly title: React.ReactNode;
   readonly description?: React.ReactNode;
   readonly action?: React.ReactNode;
   readonly children?: React.ReactNode;
   readonly className?: string;
+  readonly variant?: 'card' | 'plain';
 }): React.ReactElement {
   const titleId = useId();
+  const Root = variant === 'plain' ? 'section' : Card;
   return (
-    <Card role="region" aria-labelledby={titleId} className={cx(css({ minWidth: '0' }), className)}>
+    <Root role="region" aria-labelledby={titleId} className={cx(css({ minWidth: '0' }), className)}>
       <div className={css({ display: 'flex', flexDirection: 'column', gap: '5', minWidth: '0' })}>
         <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '3' })}>
           <div
@@ -64,6 +64,6 @@ export function Panel({
           <div className={css({ minWidth: '0' })}>{children}</div>
         )}
       </div>
-    </Card>
+    </Root>
   );
 }

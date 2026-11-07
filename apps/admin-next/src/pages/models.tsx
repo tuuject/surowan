@@ -16,7 +16,7 @@ import {
   type PickerTarget,
 } from '@/components/models/models-dialogs';
 import { ModelsPageError, ModelsPageLoading } from '@/components/models/models-page-states';
-import { ProviderConnectionCard } from '@/components/models/provider-connection-card';
+import { ProviderConnectionSection } from '@/components/models/provider-connection-section';
 import { ProviderDetailHeader } from '@/components/models/provider-detail-header';
 import { ProviderRail } from '@/components/models/provider-list';
 import { RestartBanner } from '@/components/models/restart-banner';
@@ -267,7 +267,7 @@ export default function ModelsPage(): React.ReactElement {
   };
 
   return (
-    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '8' } })}>
       <ListPageHeader title={t('models.models.page.providersTitle')} />
       {providers.isError ? <Alert tone="error">{errorMessage(providers.error)}</Alert> : null}
       <RestartBanner
@@ -281,7 +281,7 @@ export default function ModelsPage(): React.ReactElement {
       <div
         className={css({
           display: 'grid',
-          gap: '5',
+          gap: '8',
           alignItems: 'start',
           '@media (min-width: 1200px)': { gridTemplateColumns: '300px minmax(0, 1fr)' },
         })}
@@ -313,14 +313,14 @@ export default function ModelsPage(): React.ReactElement {
 
         <div
           key={selected?.alias ?? 'empty'}
-          className={css({ display: 'flex', flexDirection: 'column', gap: '5', minWidth: '0' })}
+          className={css({ display: 'flex', flexDirection: 'column', gap: '8', minWidth: '0' })}
         >
           {selected === null ? (
             <Empty title={t('models.models.page.emptyState')} />
           ) : (
             <>
               <ProviderDetailHeader view={view} provider={selected} />
-              <ProviderConnectionCard
+              <ProviderConnectionSection
                 key={selected.alias}
                 provider={selected}
                 revision={revision}

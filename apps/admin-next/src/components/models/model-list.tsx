@@ -111,6 +111,8 @@ export function ModelList({
 
   return (
     <Panel
+      variant="plain"
+      className={css({ borderTopWidth: '1px', borderColor: 'divider', paddingBlockStart: '8' })}
       title={t('models.models.page.modelsTitle')}
       description={t('models.models.page.healthCheckNote')}
       action={
