@@ -1,243 +1,258 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Field } from '@tuuject/koi-react/field';
+import { SuccessIcon } from '@tuuject/koi-react/icons';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { sizes } from '@tuuject/koi-tokens/dimensions';
-import type { ComponentType, ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BrainIcon, EyeIcon, WrenchIcon } from '@/components/icons';
+import { FormActionBar } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
-import type { ThinkingLevel } from '@/lib/api/models.ts';
+import type { ChatThinkingReset, ThinkingLevel } from '@/lib/api/models.ts';
 import type { ProvidersView } from '@/lib/api/providers.ts';
-import { agentModelConfig, isThinkingLevel, modelConfigFor, supportedThinkingLevels } from '@/lib/model-manager.ts';
-import { configuredPlaceholder, ModelSelect, modelKey } from './model-select.tsx';
-import { toolLevelFor, type useModelRoleWrites } from './writes.ts';
-
-type RoleWrites = ReturnType<typeof useModelRoleWrites>;
-
-// Model option values always contain a slash, so this one can never collide.
-const INHERIT = 'inherit';
+import { applyFeedback, isThinkingLevel, supportedThinkingLevels, writeErrorMessage } from '@/lib/model-manager.ts';
+import { providersQuery } from '@/lib/queries.ts';
+import { toast } from '@/lib/toast.ts';
+import { useProviderWrite } from '@/lib/use-provider-write.ts';
+import {
+  changeCount,
+  changedRoles,
+  draftRoles,
+  editLevel,
+  editModel,
+  INHERIT,
+  modelForKey,
+  type RoleEdits,
+  type RolesDraft,
+} from './draft.ts';
+import { configuredPlaceholder, ModelSelect } from './model-select.tsx';
+import { RolesSaveError, type RolesSaveResult, saveRoles } from './save.ts';
+import { ThinkingResetDialog } from './thinking-reset-dialog.tsx';
+import type { ModelRole } from './writes.ts';
 
 /**
- * The Models page body: one card per job the bot gives a model. Each card
- * picks the model and, beside it, the thinking effort that model runs at;
- * both save on change. Providers and their model lists live on the Providers
- * page, which this page only reads.
+ * The Models page form, laid out like the Koi admin template's settings pages:
+ * one Card per job the bot gives a model (Agent, Vision, Tool), its fields
+ * stacked label-above, and a sticky action bar that counts the unsaved changes
+ * and saves them together. Changes stay a draft until saved; the Providers
+ * page's "Use as" toggles are the one-click path.
  */
-export function RoleCards({
-  view,
-  writes,
-}: {
-  readonly view: ProvidersView;
-  readonly writes: RoleWrites;
-}): React.ReactElement {
-  return (
-    <div className={css({ display: 'flex', flexDirection: 'column', gap: '6' })}>
-      <AgentCard view={view} writes={writes} />
-      <VisionCard view={view} writes={writes} />
-      <ToolCard view={view} writes={writes} />
-    </div>
-  );
-}
-
-function AgentCard({ view, writes }: { readonly view: ProvidersView; readonly writes: RoleWrites }) {
+export function RolesForm({ view }: { readonly view: ProvidersView }): React.ReactElement {
   const { t } = useTranslation();
-  const config = agentModelConfig(view);
-  const current = view.agent.thinking_level;
-  const pendingModel = writes.agent.isPending ? writes.agent.variables : undefined;
-  const value =
-    pendingModel !== undefined
-      ? modelKey(pendingModel.alias, pendingModel.model)
-      : view.agent.provider === null || view.agent.model === null
-        ? null
-        : modelKey(view.agent.provider, view.agent.model);
-  // Without a resolvable model the current level, if any, is the only one this
-  // page can vouch for.
-  const levels = config !== null ? supportedThinkingLevels(config) : current === null ? [] : [current];
-  return (
-    <RoleCard
-      icon={BrainIcon}
-      title={t('models.models.roles.agent.title')}
-      description={t('models.models.roles.agent.description')}
-      model={
-        <ModelSelect
-          view={view}
-          accepts="text"
-          value={value}
-          placeholder={configuredPlaceholder(view.agent.provider, view.agent.model, t('models.models.roles.unset'))}
-          disabled={writes.pending.agent}
-          onPick={(choice) => {
-            if (choice.ref !== null) {
-              writes.agent.mutate({ alias: choice.ref.alias, model: choice.ref.config.id });
-            }
-          }}
-        />
+  const queryClient = useQueryClient();
+  const write = useProviderWrite();
+  const [edits, setEdits] = useState<RoleEdits>({});
+  const [resets, setResets] = useState<readonly ChatThinkingReset[]>([]);
+  const draft = draftRoles(view, edits);
+  const count = changeCount(view, draft);
+  const changed = new Set(changedRoles(view, draft));
+
+  // The edits of the roles that went through give way to the file only once
+  // the refreshed view is in, so the controls never flash the old values.
+  const settle = async (result: RolesSaveResult): Promise<void> => {
+    await queryClient.refetchQueries({ queryKey: providersQuery.queryKey }, { cancelRefetch: false });
+    setEdits((previous) => {
+      const next = { ...previous };
+      for (const role of result.saved) {
+        delete next[role];
       }
-      thinking={
-        <ThinkingSelect
-          levels={levels}
-          value={(writes.agentLevel.isPending ? writes.agentLevel.variables : current) ?? null}
-          // An unset level must stay pickable even when the model offers just one.
-          locked={levels.length === 0 || (levels.length < 2 && current !== null)}
-          disabled={writes.pending.agent}
-          help={
-            config !== null && !config.reasoning
-              ? t('models.models.roles.notReasoning')
-              : t('models.models.roles.agent.resetsNote')
+      return next;
+    });
+    setResets(result.resets);
+  };
+
+  const save = useMutation({
+    mutationFn: ({ snapshot, target }: { readonly snapshot: ProvidersView; readonly target: RolesDraft }) =>
+      saveRoles(snapshot, target),
+    onSuccess: async (result) => {
+      const feedback = applyFeedback(result.apply);
+      toast.success(feedback.title, { description: feedback.description });
+      write.refresh();
+      await settle(result);
+    },
+    onError: async (error) => {
+      write.failed(error);
+      if (error instanceof RolesSaveError) {
+        await settle(error.result);
+      }
+    },
+  });
+
+  const saveError = !save.isError
+    ? null
+    : save.error instanceof RolesSaveError && save.error.result.saved.size > 0
+      ? t('models.models.roles.form.partial', { message: writeErrorMessage(save.error.cause) })
+      : writeErrorMessage(save.error instanceof RolesSaveError ? save.error.cause : save.error);
+
+  const status =
+    count > 0 ? (
+      t('models.models.roles.form.pending', { count })
+    ) : save.isSuccess ? (
+      <span className={css({ display: 'inline-flex', alignItems: 'center', gap: '2' })}>
+        <SuccessIcon size={sizes['icon-sm']} className={css({ flex: 'none', color: 'text-brand' })} />
+        {t('models.models.roles.form.saved')}
+      </span>
+    ) : (
+      t('models.models.roles.form.unchanged')
+    );
+
+  const pickModel = (role: ModelRole, model: string): void =>
+    setEdits((previous) => editModel(view, previous, role, model));
+  const pickLevel = (role: ModelRole, level: ThinkingLevel): void =>
+    setEdits((previous) => editLevel(previous, role, level));
+
+  return (
+    <form
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (count > 0 && !save.isPending) {
+          save.mutate({ snapshot: view, target: draft });
+        }
+      }}
+    >
+      <fieldset
+        disabled={save.isPending}
+        className={css({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '6',
+          minWidth: '0',
+          margin: '0',
+          padding: '0',
+          border: 'none',
+        })}
+      >
+        <RoleCard
+          title={t('models.models.roles.agent.title')}
+          description={t('models.models.roles.agent.description')}
+          changed={changed.has('agent')}
+          model={
+            <ModelSelect
+              view={view}
+              accepts="text"
+              value={draft.agent.model}
+              placeholder={configuredPlaceholder(view.agent.provider, view.agent.model, t('models.models.roles.unset'))}
+              disabled={save.isPending}
+              onPick={(choice) => pickModel('agent', choice.value)}
+            />
           }
-          onChange={(level) => {
-            if (level !== current) {
-              writes.agentLevel.mutate(level);
-            }
-          }}
-        />
-      }
-    />
-  );
-}
-
-function VisionCard({ view, writes }: { readonly view: ProvidersView; readonly writes: RoleWrites }) {
-  const { t } = useTranslation();
-  const { provider, model } = view.vision;
-  const config = modelConfigFor(view, provider, model);
-  const pending = writes.vision.isPending ? writes.vision.variables : undefined;
-  const value =
-    pending !== undefined
-      ? modelKey(pending.alias, pending.model)
-      : provider === null || model === null
-        ? null
-        : modelKey(provider, model);
-  const current = view.vision.thinking_level;
-  const levels = config !== null ? supportedThinkingLevels(config) : current === null ? [] : [current];
-  return (
-    <RoleCard
-      icon={EyeIcon}
-      title={t('models.models.roles.vision.title')}
-      description={t('models.models.roles.vision.description')}
-      model={
-        <ModelSelect
-          view={view}
-          accepts="image"
-          value={value}
-          placeholder={configuredPlaceholder(provider, model, t('models.models.roles.unset'))}
-          disabled={writes.pending.vision}
-          onPick={(choice) => {
-            if (choice.ref !== null) {
-              // No level: the server keeps the stored one while the new model
-              // accepts it, and falls back to the model's default otherwise.
-              writes.vision.mutate({ alias: choice.ref.alias, model: choice.ref.config.id });
-            }
-          }}
-        />
-      }
-      thinking={
-        <ThinkingSelect
-          levels={levels}
-          value={pending?.level ?? current}
-          locked={provider === null || model === null || levels.length < 2}
-          disabled={writes.pending.vision}
-          help={config !== null && !config.reasoning ? t('models.models.roles.notReasoning') : undefined}
-          onChange={(level) => {
-            if (provider !== null && model !== null && level !== current) {
-              writes.vision.mutate({ alias: provider, model, level });
-            }
-          }}
-        />
-      }
-    />
-  );
-}
-
-function ToolCard({ view, writes }: { readonly view: ProvidersView; readonly writes: RoleWrites }) {
-  const { t } = useTranslation();
-  const tool = view.tool_model;
-  // While a save is in flight the controls show where it is going, not where
-  // the file still is; the refetch that follows makes it the real value.
-  const pending = writes.tool.isPending ? writes.tool.variables : undefined;
-  const value =
-    pending !== undefined
-      ? 'inherit' in pending
-        ? INHERIT
-        : modelKey(pending.alias, pending.model)
-      : tool.inherited
-        ? INHERIT
-        : tool.provider === null || tool.model === null
-          ? null
-          : modelKey(tool.provider, tool.model);
-  const inherited = value === INHERIT;
-  const level = pending !== undefined && !('inherit' in pending) ? pending.level : tool.thinking_level;
-  const config = modelConfigFor(view, tool.provider, tool.model);
-  const levels = config !== null && !inherited ? supportedThinkingLevels(config) : level === null ? [] : [level];
-  return (
-    <RoleCard
-      icon={WrenchIcon}
-      title={t('models.models.roles.tool.title')}
-      description={t('models.models.roles.tool.description')}
-      model={
-        <ModelSelect
-          view={view}
-          accepts="text"
-          value={value}
-          leading={{
-            label: t('models.models.roles.tool.defaultGroup'),
-            items: [{ value: INHERIT, label: t('models.models.roles.tool.inherit'), ref: null }],
-          }}
-          placeholder={configuredPlaceholder(tool.provider, tool.model, t('models.models.roles.unset'))}
-          disabled={writes.pending.tool}
-          onPick={(choice) => {
-            if (choice.ref === null) {
-              writes.tool.mutate({ inherit: true });
-            } else {
-              writes.tool.mutate({
-                alias: choice.ref.alias,
-                model: choice.ref.config.id,
-                level: toolLevelFor(view, choice.ref.config),
-              });
-            }
-          }}
-        />
-      }
-      thinking={
-        <ThinkingSelect
-          levels={levels}
-          value={level}
-          // An inherited level belongs to the Agent card; changing it here
-          // would silently pin the Tool Model.
-          locked={inherited || levels.length < 2}
-          disabled={writes.pending.tool}
-          help={
-            inherited
-              ? t('models.models.roles.tool.levelInherited')
-              : config !== null && !config.reasoning
-                ? t('models.models.roles.notReasoning')
-                : undefined
+          thinking={
+            <ThinkingField
+              view={view}
+              slot={draft.agent}
+              // An unset level must stay pickable even when the model offers just one.
+              allowSingle={draft.agent.level === null}
+              help={(reasoning) =>
+                reasoning ? t('models.models.roles.agent.resetsNote') : t('models.models.roles.notReasoning')
+              }
+              onChange={(level) => pickLevel('agent', level)}
+            />
           }
-          onChange={(next) => {
-            if (next !== tool.thinking_level && tool.provider !== null && tool.model !== null) {
-              writes.tool.mutate({ alias: tool.provider, model: tool.model, level: next });
-            }
-          }}
         />
-      }
-    />
+        <RoleCard
+          title={t('models.models.roles.vision.title')}
+          description={t('models.models.roles.vision.description')}
+          changed={changed.has('vision')}
+          model={
+            <ModelSelect
+              view={view}
+              accepts="image"
+              value={draft.vision.model}
+              placeholder={configuredPlaceholder(
+                view.vision.provider,
+                view.vision.model,
+                t('models.models.roles.unset'),
+              )}
+              disabled={save.isPending}
+              onPick={(choice) => pickModel('vision', choice.value)}
+            />
+          }
+          thinking={
+            <ThinkingField
+              view={view}
+              slot={draft.vision}
+              help={(reasoning) => (reasoning ? undefined : t('models.models.roles.notReasoning'))}
+              onChange={(level) => pickLevel('vision', level)}
+            />
+          }
+        />
+        <RoleCard
+          title={t('models.models.roles.tool.title')}
+          description={t('models.models.roles.tool.description')}
+          changed={changed.has('tool')}
+          model={
+            <ModelSelect
+              view={view}
+              accepts="text"
+              value={draft.tool.model}
+              leading={{
+                label: t('models.models.roles.tool.defaultGroup'),
+                items: [{ value: INHERIT, label: t('models.models.roles.tool.inherit'), ref: null }],
+              }}
+              placeholder={configuredPlaceholder(
+                view.tool_model.provider,
+                view.tool_model.model,
+                t('models.models.roles.unset'),
+              )}
+              disabled={save.isPending}
+              onPick={(choice) => pickModel('tool', choice.value)}
+            />
+          }
+          thinking={
+            <ThinkingField
+              view={view}
+              slot={draft.tool}
+              // An inherited level belongs to the Agent card; changing it here
+              // would silently pin the Tool Model.
+              locked={draft.tool.model === INHERIT}
+              help={(reasoning) =>
+                draft.tool.model === INHERIT
+                  ? t('models.models.roles.tool.levelInherited')
+                  : reasoning
+                    ? undefined
+                    : t('models.models.roles.notReasoning')
+              }
+              onChange={(level) => pickLevel('tool', level)}
+            />
+          }
+        />
+      </fieldset>
+      <FormActionBar
+        status={status}
+        error={saveError}
+        submitLabel={t('models.models.roles.form.save')}
+        submittingLabel={t('models.models.roles.form.saving')}
+        submitting={save.isPending}
+        submitDisabled={count === 0}
+        discardLabel={t('models.models.roles.form.discard')}
+        discardDisabled={count === 0}
+        onDiscard={() => {
+          save.reset();
+          setEdits({});
+        }}
+      />
+      <ThinkingResetDialog resets={resets} onClose={() => setResets([])} />
+    </form>
   );
 }
 
 /**
- * One role: what the job is, then its model and thinking effort side by side,
- * so the effort reads as a setting of that model. The two columns stack on a
- * narrow card. The controls take their names from the Field labels; the card's
- * region name tells the three "Model" fields apart.
+ * One job: its name and what it is for, then the model and, under it, the
+ * effort that model runs at. A brand dot beside the title marks a card with
+ * unsaved changes, as the template's section list does; screen readers get
+ * the words in the body instead, so the region keeps its name.
  */
 function RoleCard({
-  icon: Icon,
   title,
   description,
+  changed,
   model,
   thinking,
 }: {
-  readonly icon: ComponentType<{ size?: number }>;
   readonly title: string;
   readonly description: string;
+  readonly changed: boolean;
   readonly model: ReactNode;
   readonly thinking: ReactNode;
 }): React.ReactElement {
@@ -246,22 +261,20 @@ function RoleCard({
     <Panel
       title={
         <span className={css({ display: 'inline-flex', alignItems: 'center', gap: '2' })}>
-          <span aria-hidden className={css({ display: 'inline-flex', color: 'text-muted' })}>
-            <Icon size={sizes.icon} />
-          </span>
           {title}
+          {changed ? (
+            <span
+              aria-hidden="true"
+              className={css({ flex: 'none', width: '6px', height: '6px', borderRadius: 'full', bg: 'text-brand' })}
+            />
+          ) : null}
         </span>
       }
       description={description}
     >
-      <div
-        className={css({
-          display: 'grid',
-          gap: '4',
-          alignItems: 'start',
-          '@media (min-width: 640px)': { gridTemplateColumns: 'minmax(0, 1fr) 200px' },
-        })}
-      >
+      <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+        {/* Read after the heading, not in it: the card's name stays the same while it is edited. */}
+        {changed ? <span className={css({ srOnly: true })}>{t('models.models.roles.form.cardChanged')}</span> : null}
         <Field label={t('models.models.roles.modelLabel')}>{model}</Field>
         {thinking}
       </div>
@@ -269,31 +282,37 @@ function RoleCard({
   );
 }
 
-function ThinkingSelect({
-  levels,
-  value,
-  locked,
-  disabled,
+function ThinkingField({
+  view,
+  slot,
+  locked = false,
+  allowSingle = false,
   help,
   onChange,
 }: {
-  readonly levels: readonly ThinkingLevel[];
-  readonly value: ThinkingLevel | null;
-  /** Nothing to choose between: the model offers one level, or there is no model. */
-  readonly locked: boolean;
-  readonly disabled: boolean;
-  readonly help: string | undefined;
+  readonly view: ProvidersView;
+  readonly slot: RolesDraft[ModelRole];
+  /** Shown but not editable (an inherited level). */
+  readonly locked?: boolean;
+  /** Keep a lone level pickable, for a role whose level is still unset. */
+  readonly allowSingle?: boolean;
+  /** The note under the control; told whether the model reasons. */
+  readonly help: (reasoning: boolean) => string | undefined;
   readonly onChange: (level: ThinkingLevel) => void;
 }): React.ReactElement {
   const { t } = useTranslation();
+  const config = modelForKey(view, slot.model)?.config ?? null;
+  const levels = config === null ? [] : supportedThinkingLevels(config);
   // The value in use stays listed even when the model no longer declares it.
-  const options = value === null || levels.includes(value) ? levels : [...levels, value];
+  const options = slot.level === null || levels.includes(slot.level) ? levels : [...levels, slot.level];
+  const note = help(config === null || config.reasoning);
   return (
-    <Field label={t('models.models.roles.thinkingLabel')} {...(help === undefined ? {} : { help })}>
+    <Field label={t('models.models.roles.thinkingLabel')} {...(note === undefined ? {} : { help: note })}>
       <Select
+        className={css({ maxWidth: '240px' })}
         placeholder={t('models.models.roles.levelUnset')}
-        value={value ?? ''}
-        disabled={disabled || locked}
+        value={slot.level ?? ''}
+        disabled={locked || config === null || (options.length < 2 && !allowSingle)}
         onChange={(event) => {
           const next = event.target.value;
           if (isThinkingLevel(next)) {

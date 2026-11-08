@@ -74,7 +74,19 @@ export const models = {
         'This deployment does not declare a supervisor (PLASTICWAN_SUPERVISED=1), so there is no restart button - restart the server by hand.',
     },
     roles: {
-      pageDescription: "Choose the model for each of the bot's jobs and how hard it thinks. Changes apply right away.",
+      pageDescription:
+        "Choose the model for each of the bot's jobs and how hard it thinks. Saved changes apply right away.",
+      form: {
+        pending_one: '{{count}} unsaved change',
+        pending_other: '{{count}} unsaved changes',
+        unchanged: 'No unsaved changes',
+        saved: 'All changes saved',
+        save: 'Save',
+        saving: 'Saving…',
+        discard: 'Discard changes',
+        partial: 'Saved in part. {{message}} The rest of your changes are still here.',
+        cardChanged: 'Unsaved changes',
+      },
       manageProviders: 'Manage providers',
       addProvider: 'Add a provider',
       noProvidersTitle: 'No providers yet',

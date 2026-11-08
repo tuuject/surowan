@@ -4,11 +4,12 @@ import { E2E_MERGE_ALIAS, E2E_MERGE_MODEL, roleToggle } from './models-fixture.t
 
 /**
  * The split between the Models page (which model does each job, at what
- * thinking effort) and the Providers page (the registry, plus a one-click
- * "Use as" toggle per role on every model row), against the real AdminServer.
- * The Vision card's effort is the new `vision.thinking_level`: every write goes
- * through the UI and is checked against `GET /api/providers`, which reads the
- * file. Screenshots of both pages are attached as the run's artifacts.
+ * thinking effort, edited as a draft and saved from the action bar) and the
+ * Providers page (the registry, plus a one-click "Use as" toggle per role on
+ * every model row), against the real AdminServer. The Vision card's effort is
+ * `vision.thinking_level`: every write goes through the UI and is checked
+ * against `GET /api/providers`, which reads the file. Screenshots of both
+ * pages are attached as the run's artifacts.
  */
 test.use({ signedIn: true });
 
@@ -37,7 +38,7 @@ async function attachScreenshot(page: Page, name: string): Promise<void> {
 }
 
 test.describe('model roles', () => {
-  test('the Vision card switches its model and sets its thinking effort', async ({ page }) => {
+  test('the Vision card drafts a model and its effort, and Save writes both', async ({ page }) => {
     const finish = watchPageIssues(page);
     await page.goto(await adminUrl('/models'));
     const card = page.getByRole('region', { name: 'Vision model', exact: true });
@@ -59,25 +60,52 @@ test.describe('model roles', () => {
     await picker.click();
     await expect(page.getByRole('option', { name: new RegExp(E2E_MERGE_MODEL) })).toHaveCount(0);
     await page.getByRole('option', { name: /agent-model/ }).click();
-    await expect(appliedToast(page).first()).toBeVisible();
     await expect(picker).toHaveText(/agent \/ agent-model/);
-    // A reasoning model without a stored effort runs at its default, `low`.
+    // After a model that does not reason, the new one starts at its default,
+    // `low`, rather than keeping a meaningless `off`.
     await expect(effort).toBeEnabled();
     await expect(effort).toHaveValue('low');
+    await effort.selectOption('high');
+    // Model and effort are two unsaved changes; the card is marked, the file is not touched.
+    await expect(page.getByRole('status').filter({ hasText: '2 unsaved changes' })).toBeVisible();
+    await expect(card.getByText('Unsaved changes', { exact: true })).toHaveCount(1);
+    expect((await providersView(page)).vision).toEqual({
+      provider: 'vision',
+      model: 'vision-model',
+      thinking_level: 'off',
+    });
+
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'All changes saved' })).toBeVisible();
+    await expect(appliedToast(page).first()).toBeVisible();
     expect((await providersView(page)).vision).toEqual({
       provider: 'agent',
       model: 'agent-model',
-      thinking_level: 'low',
+      thinking_level: 'high',
     });
-
-    await effort.selectOption('high');
-    await expect.poll(async () => (await providersView(page)).vision.thinking_level).toBe('high');
     await expect(effort).toHaveValue('high');
+    await expect(card.getByText('Unsaved changes', { exact: true })).toHaveCount(0);
     await attachScreenshot(page, 'models-page');
 
     const issues = finish();
     expect(issues.pageErrors, JSON.stringify(issues.pageErrors)).toEqual([]);
     expect(issues.consoleErrors, JSON.stringify(issues.consoleErrors)).toEqual([]);
+  });
+
+  test('discarding puts every card back to the saved file', async ({ page }) => {
+    const before = await providersView(page);
+    await page.goto(await adminUrl('/models'));
+    const agentCard = page.getByRole('region', { name: 'Agent model', exact: true });
+    const effort = agentCard.getByRole('combobox', { name: 'Thinking effort', exact: true });
+    const saved = await effort.inputValue();
+    await effort.selectOption(saved === 'high' ? 'medium' : 'high');
+    await expect(page.getByRole('status').filter({ hasText: '1 unsaved change' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'No unsaved changes' })).toBeVisible();
+    await expect(effort).toHaveValue(saved);
+    await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+    expect((await providersView(page)).agent).toEqual(before.agent);
   });
 
   test('a model row hands out each role in one click', async ({ page }) => {

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { MonoValue } from '@/components/business';
 import type { ProviderModelConfig, ProvidersView } from '@/lib/api/providers.ts';
 import { isImageCapable, isTextCapable } from '@/lib/model-manager.ts';
+import { modelKey } from './draft.ts';
 
 /** One row of the picker: a provider model, or a caller-supplied choice such as "Inherit". */
 export interface ModelChoice {
@@ -20,18 +21,10 @@ interface ChoiceGroup {
 }
 
 /**
- * The option value of one provider model. It always contains a slash, so a
- * caller's own slash-free values (such as `inherit`) can never collide with it.
- */
-export function modelKey(alias: string, modelId: string): string {
-  return `${alias}/${modelId}`;
-}
-
-/**
  * A searchable model picker over every configured provider, grouped by
  * provider and limited to the models that can do the job (`text` for the
- * Agent and Tool models, `image` for Vision). Picking saves right away: the
- * caller's `onPick` runs the write.
+ * Agent and Tool models, `image` for Vision). `onPick` reports the choice; the
+ * caller decides whether it saves at once or goes into a draft.
  */
 export function ModelSelect({
   view,
@@ -75,7 +68,8 @@ export function ModelSelect({
 
   return (
     <SelectPanel
-      className={css({ width: '100%' })}
+      // The template's settings forms cap a field at 480px; the panel keeps its own width.
+      className={css({ width: '100%', maxWidth: '480px' })}
       items={groups}
       value={value}
       disabled={disabled}

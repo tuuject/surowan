@@ -8,9 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { ListPageHeader } from '@/components/business';
 import { ModelsPageError } from '@/components/models/models-page-states';
 import { ProvidersRestartBanner } from '@/components/models/restart-banner';
-import { RoleCards } from '@/components/models/roles/cards';
-import { ThinkingResetDialog } from '@/components/models/roles/thinking-reset-dialog';
-import { useModelRoleWrites } from '@/components/models/roles/writes';
+import { RolesForm } from '@/components/models/roles/cards';
 import { ButtonLink } from '@/components/router-links';
 import { errorMessage } from '@/lib/errors.ts';
 import { providersQuery } from '@/lib/queries.ts';
@@ -24,7 +22,6 @@ export default function ModelsPage(): React.ReactElement {
   const { t } = useTranslation();
   const providers = useQuery(providersQuery);
   const view = providers.data;
-  const writes = useModelRoleWrites(view);
 
   const manageProviders = (
     <ButtonLink to="/providers" variant="outline" color="secondary">
@@ -62,9 +59,8 @@ export default function ModelsPage(): React.ReactElement {
               }
             />
           ) : (
-            <RoleCards view={view} writes={writes} />
+            <RolesForm view={view} />
           )}
-          <ThinkingResetDialog resets={writes.thinkingResets} onClose={writes.closeThinkingResets} />
         </>
       )}
     </div>

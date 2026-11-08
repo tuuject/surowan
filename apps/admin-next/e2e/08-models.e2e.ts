@@ -151,7 +151,7 @@ test.describe('providers page', () => {
     await expect(modelListRow(page, E2E_RELAY_COMPLETE_MODEL)).toBeVisible();
   });
 
-  test('a row toggle switches the agent and resets its effort, which the Models page then sets', async ({ page }) => {
+  test('a row toggle switches the agent and resets its effort, which the Models page then saves', async ({ page }) => {
     const agentOf = async (): Promise<{ provider: string; model: string; thinking_level: string }> =>
       (await (await page.request.get(await adminUrl('/api/providers'))).json()).agent;
     await page.goto(await adminUrl('/providers'));
@@ -178,8 +178,13 @@ test.describe('providers page', () => {
     await expect(effort).toHaveValue('off');
     // Only the levels the model declares are offered.
     await expect(effort.locator('option')).toHaveText(['Not set', 'off', 'low', 'high', 'max']);
+    // A draft until saved: the file keeps `off` until the action bar's Save.
     await effort.selectOption('max');
     await expect(effort).toHaveValue('max');
+    await expect(page.getByRole('status').filter({ hasText: '1 unsaved change' })).toBeVisible();
+    expect(await agentOf()).toMatchObject({ thinking_level: 'off' });
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'All changes saved' })).toBeVisible();
     await expect.poll(agentOf).toMatchObject({ model: E2E_RELAY_COMPLETE_MODEL, thinking_level: 'max' });
 
     // Put the fixture agent back for the tests that follow.

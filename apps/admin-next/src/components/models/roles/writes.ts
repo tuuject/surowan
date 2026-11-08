@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ChatThinkingReset, ThinkingLevel } from '@/lib/api/models.ts';
-import { setAgentThinkingLevel, switchAgentModel, switchVisionModel } from '@/lib/api/models.ts';
+import { switchAgentModel, switchVisionModel } from '@/lib/api/models.ts';
 import type { ProviderModelConfig, ProvidersView } from '@/lib/api/providers.ts';
 import { putToolModel } from '@/lib/api/tools.ts';
 import { isConfigConflict, supportedThinkingLevels, writeErrorMessage } from '@/lib/model-manager.ts';
@@ -45,11 +45,10 @@ export function toolLevelFor(view: ProvidersView, config: ProviderModelConfig): 
 }
 
 /**
- * Every write that gives a model a role or changes a role's thinking effort.
- * The Models page drives them from its role cards, the Providers page from the
- * role buttons on each model row, so both report the same way: an Agent switch
- * resets its effort and may reset per-Chat efforts, which the caller lists in
- * `ThinkingResetDialog`.
+ * The one-click role writes behind the Providers page's "Use as" toggles: each
+ * saves at once. An Agent switch resets its effort and may reset per-Chat
+ * efforts, which the caller lists in `ThinkingResetDialog`. The Models page
+ * edits a draft instead and saves it through `saveRoles`.
  */
 export function useModelRoleWrites(view: ProvidersView | undefined) {
   const { t } = useTranslation();
@@ -69,12 +68,6 @@ export function useModelRoleWrites(view: ProvidersView | undefined) {
       write.succeeded(result.apply, t('models.models.page.thinkingReset', { level: result.current.thinking_level }));
       setThinkingResets(result.chat_thinking_resets);
     },
-    onError: failed,
-  });
-
-  const agentLevel = useMutation({
-    mutationFn: (level: ThinkingLevel) => setAgentThinkingLevel(level, revision),
-    onSuccess: (result) => write.succeeded(result.apply),
     onError: failed,
   });
 
@@ -131,16 +124,12 @@ export function useModelRoleWrites(view: ProvidersView | undefined) {
   };
 
   const pending: Readonly<Record<ModelRole, boolean>> = {
-    agent: agent.isPending || agentLevel.isPending,
+    agent: agent.isPending,
     vision: vision.isPending,
     tool: tool.isPending,
   };
 
   return {
-    agent,
-    agentLevel,
-    vision,
-    tool,
     assign,
     pending,
     thinkingResets,

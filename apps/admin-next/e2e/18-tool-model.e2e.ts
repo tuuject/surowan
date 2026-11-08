@@ -4,9 +4,9 @@ import { E2E_MERGE_ALIAS, E2E_MERGE_MODEL } from './models-fixture.ts';
 
 /**
  * The Models page's Tool Model card against the real AdminServer: it still
- * inherits the agent model by default, picking a model on the card saves the
- * provider/model/thinking triple on the spot, its own thinking select changes
- * just the level, and the "Inherit Agent model" option restores the fallback.
+ * inherits the agent model by default, picking a model and a level on the card
+ * stays a draft until the action bar saves the provider/model/thinking triple,
+ * and the "Inherit Agent model" option restores the fallback the same way.
  * The Dictionary merge flow that consumes it lives in `17-dictionary.e2e.ts`.
  */
 test.use({ signedIn: true });
@@ -59,7 +59,7 @@ test.describe('tool model', () => {
     expect(issues.consoleErrors, JSON.stringify(issues.consoleErrors)).toEqual([]);
   });
 
-  test('picking a model saves it inline, then its own thinking select sets the level', async ({ page }) => {
+  test('a picked model and level stay a draft until Save writes them together', async ({ page }) => {
     const before = await providersView(page);
     await page.goto(await adminUrl('/models'));
     await toolPicker(page).click();
@@ -67,17 +67,19 @@ test.describe('tool model', () => {
     // one is a reasoning model with declared levels, found through the search box.
     await page.getByPlaceholder('Search models').fill(E2E_MERGE_MODEL);
     await page.getByRole('option', { name: new RegExp(E2E_MERGE_MODEL) }).click();
-    await expect(page.getByText('Tool Model switched', { exact: false }).first()).toBeVisible();
     await expect(toolPicker(page)).toHaveText(new RegExp(`${E2E_MERGE_ALIAS} / ${E2E_MERGE_MODEL}`));
 
-    const picked = await providersView(page);
-    expect(picked.tool_model).toMatchObject({ provider: E2E_MERGE_ALIAS, model: E2E_MERGE_MODEL, inherited: false });
-
+    // The inherited `low` is one the merge model accepts, so the draft keeps it.
     const thinking = toolThinking(page);
     await expect(thinking).toBeEnabled();
+    await expect(thinking).toHaveValue('low');
     await thinking.selectOption('high');
+    await expect(page.getByRole('status').filter({ hasText: '2 unsaved changes' })).toBeVisible();
+    expect((await providersView(page)).tool_model.inherited).toBe(true);
+
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'All changes saved' })).toBeVisible();
     await expect(thinking).toHaveValue('high');
-    await expect.poll(async () => (await providersView(page)).tool_model.thinking_level).toBe('high');
 
     const after = await providersView(page);
     expect(after.tool_model.provider).toBe(E2E_MERGE_ALIAS);
@@ -105,8 +107,12 @@ test.describe('tool model', () => {
     await expect(toolCard(page).getByText('Follows the Agent model', { exact: true })).toHaveCount(0);
     await toolPicker(page).click();
     await page.getByRole('option', { name: 'Inherit Agent model' }).click();
-    await expect(page.getByText('Tool Model now inherits the Agent model', { exact: false }).first()).toBeVisible();
     await expect(toolPicker(page)).toHaveText(/Inherit Agent model/);
+    // The inherited level is shown, and it is the Agent's: not an edit of its own.
+    await expect(toolCard(page).getByText('Follows the Agent model', { exact: true })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: '1 unsaved change' })).toBeVisible();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'All changes saved' })).toBeVisible();
 
     const after = await providersView(page);
     expect(after.tool_model.inherited).toBe(true);
