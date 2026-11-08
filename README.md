@@ -222,4 +222,4 @@ docker compose logs -f plasticwan
 
 ## 许可证
 
-项目采用 [Apache License 2.0](LICENSE)，管理面板单独采用 [MIT License](apps/admin-next/LICENSE)。本页使用的 Logo、主题插画与心得截图均由我提供。
+项目采用 [Apache License 2.0](LICENSE)。本页使用的 Logo、主题插画与心得截图均由我提供。
