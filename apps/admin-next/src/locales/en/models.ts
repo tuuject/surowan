@@ -68,8 +68,6 @@ export const models = {
       healthError: 'Error',
       ttfbUnavailable: 'unavailable',
       healthTiming: 'TTFB {{ttfb}}, total {{duration}}',
-      healthCheckNote:
-        'A check sends one real model call with the fixed prompt "reply with extract content: ok" and may incur provider charges. TTFB measures time until HTTP response headers, not the first generated token; unavailable when the adapter does not report it.',
     },
     restart: {
       onePending: '{{count}} setting is waiting for a restart',
@@ -108,8 +106,6 @@ export const models = {
       header: 'Header',
       value: 'Value',
       keepPlaceholder: 'Set - leave empty to keep',
-      deleteAria: 'Delete header {{name}}',
-      removeAria: 'Remove header row',
       valuesRequired: 'Changing base_url requires every header value again',
       add: 'Add header',
       needsName: 'Every header needs a name',
@@ -121,7 +117,6 @@ export const models = {
       test: 'Test',
       baseUrl: 'base_url',
       api: 'api',
-      googleNote: 'base_url must already carry the version path, for example end with /v1beta.',
       builtinProvider: 'Built-in provider',
       apiKey: 'API Key',
       keepHint: 'Saved; leave empty to keep it',

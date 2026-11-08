@@ -125,8 +125,9 @@ test.describe('models page', () => {
     await page.getByRole('button', { name: 'Next' }).click();
 
     await page.locator('#wizard-api-key').fill(E2E_SECRETS.wizard);
+    const dialog = page.getByRole('dialog');
     await page.getByRole('button', { name: 'Add header' }).click();
-    await page.locator('#wizard-header-name-0').fill('x-extra');
+    await dialog.getByLabel('Header', { exact: true }).first().fill('x-extra');
     await page.getByRole('button', { name: 'Next' }).click();
 
     // Metadata lookup never sends headers, so the incomplete row survives until
@@ -148,8 +149,12 @@ test.describe('models page', () => {
     await page.getByRole('button', { name: 'Add header' }).click();
     // The row used to be keyed by its own name, so every keystroke remounted it
     // and dropped the focus after the first character.
-    await page.locator('#provider-header-name-1').pressSequentially('x-typed');
-    await expect(page.locator('#provider-header-name-1')).toHaveValue('x-typed');
+    const connection = page.getByRole('region', { name: 'Connection', exact: true });
+    // Rows are a Koi MapEditor without drag: order carries no meaning here.
+    await expect(connection.getByRole('button', { name: 'Drag to reorder' })).toHaveCount(0);
+    const newName = connection.getByLabel('Header', { exact: true }).nth(1);
+    await newName.pressSequentially('x-typed');
+    await expect(newName).toHaveValue('x-typed');
   });
 
   test('a model edit that loses a revision race is closed instead of overwriting', async ({ page }) => {
@@ -230,7 +235,8 @@ test.describe('models page', () => {
     await expect(page.getByText('config.jsonc changed since you started editing')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
     await page.getByRole('button', { name: 'Reload' }).click();
-    await expect(page.locator('#provider-header-name-1')).toHaveValue('x-added-elsewhere');
+    const connection = page.getByRole('region', { name: 'Connection', exact: true });
+    await expect(connection.getByLabel('Header', { exact: true }).nth(1)).toHaveValue('x-added-elsewhere');
 
     const view = await (await page.request.get(await adminUrl('/api/providers'))).json();
     const relay = view.providers.find((provider: { alias: string }) => provider.alias === E2E_RELAY_ALIAS);

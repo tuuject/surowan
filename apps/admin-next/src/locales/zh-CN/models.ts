@@ -66,8 +66,6 @@ export const models: typeof modelsEn = {
       healthError: '错误',
       ttfbUnavailable: '不可用',
       healthTiming: 'TTFB {{ttfb}}，总耗时 {{duration}}',
-      healthCheckNote:
-        '检查会使用固定提示词 "reply with extract content: ok" 发起一次真实模型调用，可能产生 provider 费用。TTFB 为收到 HTTP 响应头的时间，不是首个生成 Token；adapter 未报告时显示为不可用。',
     },
     restart: {
       onePending: '{{count}} 项设置正在等待重启',
@@ -104,8 +102,6 @@ export const models: typeof modelsEn = {
       header: 'Header',
       value: '值',
       keepPlaceholder: '已保存 - 留空保持不变',
-      deleteAria: '删除 header {{name}}',
-      removeAria: '移除 header 行',
       valuesRequired: '修改 base_url 后需要重新填写每个 header 值',
       add: '添加 header',
       needsName: '每个 header 都需要名称',
@@ -117,7 +113,6 @@ export const models: typeof modelsEn = {
       test: '测试',
       baseUrl: 'base_url',
       api: 'api',
-      googleNote: 'base_url 必须已包含版本路径，例如以 /v1beta 结尾。',
       builtinProvider: '内置 provider',
       apiKey: 'API Key',
       keepHint: '已保存，留空保持不变',

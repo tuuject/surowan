@@ -320,12 +320,7 @@ export default function ModelsPage(): React.ReactElement {
           ) : (
             <>
               <ProviderDetailHeader view={view} provider={selected} />
-              <ProviderConnectionSection
-                key={selected.alias}
-                provider={selected}
-                revision={revision}
-                onDetect={() => setPicker({ mode: 'discover', alias: selected.alias, nonce: Date.now() })}
-              />
+              <ProviderConnectionSection key={selected.alias} provider={selected} revision={revision} />
               <ModelList
                 key={selected.alias}
                 view={view}

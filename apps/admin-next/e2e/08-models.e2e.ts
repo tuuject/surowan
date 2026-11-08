@@ -28,13 +28,14 @@ test.describe('models page', () => {
 
     // Builtin providers show Pi's address read-only and only allow the key to change.
     await page.getByRole('button', { name: `Provider ${E2E_BUILTIN_ALIAS}` }).click();
-    await expect(page.getByText('https://openrouter.ai/api/v1')).toBeVisible();
+    const connection = page.getByRole('region', { name: 'Connection', exact: true });
+    await expect(connection.getByLabel('base_url', { exact: true })).toHaveValue('https://openrouter.ai/api/v1');
     const keyInput = page.getByLabel('API Key', { exact: true });
     await expect(keyInput).toHaveAttribute('type', 'password');
     await expect(keyInput).toHaveAttribute('autocomplete', 'new-password');
     await expect(keyInput).toHaveValue('');
     await expect(page.getByText('Saved; leave empty to keep it')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Test' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Fetch models', exact: true })).toBeVisible();
     await expect(page.locator('[data-model-list] li').first()).toBeVisible();
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
@@ -53,8 +54,9 @@ test.describe('models page', () => {
 
     // Header names are shown; header values never are.
     await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` }).click();
-    await expect(page.locator('#provider-header-name-0')).toHaveValue('x-relay-token');
-    await expect(page.locator('#provider-header-value-0')).toHaveValue('');
+    const connection = page.getByRole('region', { name: 'Connection', exact: true });
+    await expect(connection.getByLabel('Header', { exact: true }).first()).toHaveValue('x-relay-token');
+    await expect(connection.getByLabel('Value', { exact: true }).first()).toHaveValue('');
 
     const view = await (await page.request.get(await adminUrl('/api/providers'))).json();
     const serialized = JSON.stringify(view);

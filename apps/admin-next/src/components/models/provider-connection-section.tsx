@@ -5,9 +5,8 @@ import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useEffect, useState } from 'react';
+import { type ReactElement, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { KvList, MonoValue } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { HeaderFields } from '@/components/models/header-fields';
 import type { ProviderApi, ProviderView, UpdateProviderRequest } from '@/lib/api/providers.ts';
@@ -31,12 +30,10 @@ const API_LABELS: Record<ProviderApi, string> = {
 export function ProviderConnectionSection({
   provider,
   revision,
-  onDetect,
 }: {
   readonly provider: ProviderView;
   readonly revision: string;
-  readonly onDetect: () => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const write = useProviderWrite();
   // The provider and revision the drafts below were built from. Every comparison
@@ -143,76 +140,50 @@ export function ProviderConnectionSection({
       variant="plain"
       title={t('models.models.connection.title')}
       action={
-        <>
-          <Button variant="outline" color="secondary" onClick={onDetect}>
-            {t('models.models.connection.test')}
-          </Button>
-          <Button
-            disabled={!dirty || stale}
-            loading={save.isPending}
-            loadingLabel={t('common.saving')}
-            onClick={submit}
-          >
-            {t('common.save')}
-          </Button>
-        </>
+        <Button disabled={!dirty || stale} loading={save.isPending} loadingLabel={t('common.saving')} onClick={submit}>
+          {t('common.save')}
+        </Button>
       }
     >
       <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
-        {custom ? (
-          <>
-            <Field label={t('models.models.connection.baseUrl')}>
-              <Input
-                value={baseUrl}
-                onChange={(event) => {
-                  setBaseUrl(event.target.value);
-                  setLocalError(null);
-                }}
-              />
-            </Field>
-            <Field
-              label={t('models.models.connection.api')}
-              {...(api === 'google-generative-ai' ? { help: t('models.models.connection.googleNote') } : {})}
-            >
-              <Select
-                value={api}
-                onChange={(event) => setApi(event.target.value as ProviderApi)}
-                options={PROVIDER_APIS.map((value) => ({ value, label: API_LABELS[value] }))}
-              />
-            </Field>
-          </>
-        ) : (
-          <KvList
-            columns={1}
-            items={[
-              {
-                label: t('models.models.connection.builtinProvider'),
-                value: <MonoValue value={provider.provider ?? ''} />,
-              },
-              { label: t('models.models.connection.baseUrl'), value: <MonoValue value={provider.base_url} /> },
-              { label: t('models.models.connection.api'), value: <MonoValue value={provider.api} /> },
-            ]}
-          />
-        )}
-
-        <Field
-          label={t('models.models.connection.apiKey')}
-          help={
-            baseUrlChanged
-              ? `${t('models.models.connection.keepHint')}${t('common.separator')}${t('models.models.connection.keepHintChanged')}`
-              : t('models.models.connection.keepHint')
-          }
-        >
-          <Input
-            type="password"
-            autoComplete="new-password"
-            value={apiKey}
-            onChange={(event) => {
-              setApiKey(event.target.value);
-              setLocalError(null);
-            }}
-          />
-        </Field>
+        <div className={css({ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4' })}>
+          <Field label={t('models.models.connection.baseUrl')}>
+            <Input
+              value={baseUrl}
+              disabled={!custom}
+              onChange={(event) => {
+                setBaseUrl(event.target.value);
+                setLocalError(null);
+              }}
+            />
+          </Field>
+          <Field label={t('models.models.connection.api')}>
+            <Select
+              value={api}
+              disabled={!custom}
+              onChange={(event) => setApi(event.target.value as ProviderApi)}
+              options={PROVIDER_APIS.map((value) => ({ value, label: API_LABELS[value] }))}
+            />
+          </Field>
+          <Field
+            label={t('models.models.connection.apiKey')}
+            help={
+              baseUrlChanged
+                ? `${t('models.models.connection.keepHint')}${t('common.separator')}${t('models.models.connection.keepHintChanged')}`
+                : t('models.models.connection.keepHint')
+            }
+          >
+            <Input
+              type="password"
+              autoComplete="new-password"
+              value={apiKey}
+              onChange={(event) => {
+                setApiKey(event.target.value);
+                setLocalError(null);
+              }}
+            />
+          </Field>
+        </div>
 
         {custom ? (
           <div className={css({ display: 'flex', flexDirection: 'column', gap: '2' })}>
@@ -224,7 +195,6 @@ export function ProviderConnectionSection({
                 setLocalError(null);
               }}
               valuesRequired={baseUrlChanged}
-              idPrefix="provider"
             />
           </div>
         ) : null}

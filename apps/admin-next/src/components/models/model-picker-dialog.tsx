@@ -197,7 +197,7 @@ export function ModelPickerDialog({
                     />
                   </Field>
                   {provider.kind === 'custom' && provider.header_names.length > 0 ? (
-                    <HeaderFields rows={headers} onChange={setHeaders} valuesRequired={false} idPrefix="picker" />
+                    <HeaderFields rows={headers} onChange={setHeaders} valuesRequired={false} />
                   ) : null}
                 </div>
               ) : null}

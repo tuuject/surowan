@@ -5,23 +5,14 @@
 import i18n from './i18n.ts';
 
 export interface HeaderRow {
-  /** Stable React key: the name is editable, so it cannot identify the row. */
-  readonly id: string;
   readonly name: string;
   readonly value: string;
   /** Saved headers cannot be renamed; renaming is delete + add. */
   readonly existing: boolean;
 }
 
-let nextRowId = 0;
-
-export function newRowId(): string {
-  nextRowId += 1;
-  return `header-row-${String(nextRowId)}`;
-}
-
 export function headerRowsFromNames(names: readonly string[]): readonly HeaderRow[] {
-  return names.map((name) => ({ id: newRowId(), name, value: '', existing: true }));
+  return names.map((name) => ({ name, value: '', existing: true }));
 }
 
 /** Turns the rows into the `headers` object of a write request: saved rows keep

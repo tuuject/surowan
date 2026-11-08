@@ -325,7 +325,7 @@ export function ProviderWizard({
               {kind === 'custom' ? (
                 <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                   <p className={css({ textStyle: 'label' })}>{t('models.models.wizard.headersOptional')}</p>
-                  <HeaderFields rows={headers} onChange={setHeaders} valuesRequired={false} idPrefix="wizard" />
+                  <HeaderFields rows={headers} onChange={setHeaders} valuesRequired={false} />
                 </div>
               ) : null}
             </div>
