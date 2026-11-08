@@ -152,8 +152,8 @@ test.describe('models page', () => {
     const agentOf = async (): Promise<{ provider: string; model: string; thinking_level: string }> =>
       (await (await page.request.get(await adminUrl('/api/providers'))).json()).agent;
     await page.goto(await adminUrl('/models'));
-    // The panel is the only region with the effort select.
-    const effort = page.getByRole('combobox', { name: 'Thinking effort' });
+    // The panel is the only region with the agent's effort select.
+    const effort = page.getByRole('combobox', { name: 'Agent model thinking effort' });
     const inUse = page.getByRole('region', { name: 'Current models', exact: true }).filter({ has: effort });
 
     // Added by the discovery test with the levels models.dev listed.
@@ -168,7 +168,7 @@ test.describe('models page', () => {
     await expect(effort.locator('option')).toHaveText(['Not set', 'off', 'low', 'high', 'max']);
     await effort.selectOption('max');
     await expect(effort).toHaveValue('max');
-    expect(await agentOf()).toMatchObject({ model: E2E_RELAY_COMPLETE_MODEL, thinking_level: 'max' });
+    await expect.poll(agentOf).toMatchObject({ model: E2E_RELAY_COMPLETE_MODEL, thinking_level: 'max' });
 
     // Put the fixture agent back for the tests that follow.
     await page.getByRole('button', { name: 'Provider agent' }).click();

@@ -4,9 +4,10 @@ import { E2E_MERGE_ALIAS, E2E_MERGE_MODEL } from './models-fixture.ts';
 
 /**
  * The Models page's Tool Model setting against the real AdminServer: it still
- * inherits the agent model by default, switching to an explicit pick writes the
- * provider/model/thinking triple, and "Inherit Agent model" restores the
- * fallback. The Dictionary merge flow that consumes it lives in
+ * inherits the agent model by default, picking a model in the Current models
+ * panel saves the provider/model/thinking triple on the spot, its own thinking
+ * select changes just the level, and the "Inherit Agent model" option restores
+ * the fallback. The Dictionary merge flow that consumes it lives in
  * `17-dictionary.e2e.ts`.
  */
 test.use({ signedIn: true });
@@ -30,36 +31,54 @@ async function providersView(page: import('@playwright/test').Page): Promise<Pro
   return (await response.json()) as ProvidersView;
 }
 
+/** The Tool Model trigger in the Current models panel. */
+function toolPicker(page: import('@playwright/test').Page): import('@playwright/test').Locator {
+  return page.getByRole('combobox', { name: 'Tool Model', exact: true });
+}
+
+function toolThinking(page: import('@playwright/test').Page): import('@playwright/test').Locator {
+  return page.getByRole('combobox', { name: 'Tool Model thinking effort' });
+}
+
 test.describe('tool model', () => {
-  test('shows the inherited agent settings and the picker', async ({ page }) => {
+  test('shows the inherited agent settings inline', async ({ page }) => {
     const finish = watchPageIssues(page);
     await page.goto(await adminUrl('/models'));
-    await expect(page.getByText('Tool Model').first()).toBeVisible();
-    // The fixture config never sets a Tool Model, so it starts inherited.
-    await expect(page.getByText('Inherited from the Agent model')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Select a Tool Model' })).toBeVisible();
+    // The fixture config never sets a Tool Model, so it starts inherited, and
+    // the inherited level belongs to the Agent row.
+    await expect(toolPicker(page)).toHaveText(/Inherit Agent model/);
+    await expect(page.getByText('Follows the Agent model', { exact: true })).toBeVisible();
+    await expect(toolThinking(page)).toBeDisabled();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
 
     const issues = finish();
     expect(issues.pageErrors, JSON.stringify(issues.pageErrors)).toEqual([]);
     expect(issues.consoleErrors, JSON.stringify(issues.consoleErrors)).toEqual([]);
   });
 
-  test('picking a model with an explicit thinking level writes all three fields', async ({ page }) => {
+  test('picking a model saves it inline, then its own thinking select sets the level', async ({ page }) => {
     const before = await providersView(page);
     await page.goto(await adminUrl('/models'));
-    await page.getByRole('button', { name: 'Select a Tool Model' }).click();
-    const picker = page.getByRole('dialog');
-    // The picker walks the same provider list the table renders; this one is a
-    // reasoning model with declared levels.
-    await picker.getByRole('button', { name: new RegExp(`${E2E_MERGE_ALIAS}/${E2E_MERGE_MODEL}`) }).click();
-    await picker.getByLabel('Thinking effort').selectOption('high');
-    await picker.getByRole('button', { name: 'Save Tool Model' }).click();
-    await expect(page.getByText('Tool Model saved')).toBeVisible();
+    await toolPicker(page).click();
+    // The panel walks the same provider list the page renders; this one is a
+    // reasoning model with declared levels, found through the search box.
+    await page.getByRole('combobox', { name: 'Search models' }).fill(E2E_MERGE_MODEL);
+    await page.getByRole('option', { name: new RegExp(E2E_MERGE_MODEL) }).click();
+    await expect(page.getByText('Tool Model switched', { exact: false }).first()).toBeVisible();
+    await expect(toolPicker(page)).toHaveText(new RegExp(`${E2E_MERGE_ALIAS} / ${E2E_MERGE_MODEL}`));
+
+    const picked = await providersView(page);
+    expect(picked.tool_model).toMatchObject({ provider: E2E_MERGE_ALIAS, model: E2E_MERGE_MODEL, inherited: false });
+
+    const thinking = toolThinking(page);
+    await expect(thinking).toBeEnabled();
+    await thinking.selectOption('high');
+    await expect(thinking).toHaveValue('high');
+    await expect.poll(async () => (await providersView(page)).tool_model.thinking_level).toBe('high');
 
     const after = await providersView(page);
     expect(after.tool_model.provider).toBe(E2E_MERGE_ALIAS);
     expect(after.tool_model.model).toBe(E2E_MERGE_MODEL);
-    expect(after.tool_model.thinking_level).toBe('high');
     expect(after.tool_model.inherited).toBe(false);
 
     // Restore the fixture baseline for the rest of the suite.
@@ -80,9 +99,11 @@ test.describe('tool model', () => {
     expect(explicit.ok()).toBe(true);
 
     await page.goto(await adminUrl('/models'));
-    await expect(page.getByText('Inherited from the Agent model')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Inherit Agent model' }).click();
-    await expect(page.getByText('Tool Model now inherits the Agent model')).toBeVisible();
+    await expect(page.getByText('Follows the Agent model', { exact: true })).toHaveCount(0);
+    await toolPicker(page).click();
+    await page.getByRole('option', { name: 'Inherit Agent model' }).click();
+    await expect(page.getByText('Tool Model now inherits the Agent model', { exact: false }).first()).toBeVisible();
+    await expect(toolPicker(page)).toHaveText(/Inherit Agent model/);
 
     const after = await providersView(page);
     expect(after.tool_model.inherited).toBe(true);
