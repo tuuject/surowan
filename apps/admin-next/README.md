@@ -59,10 +59,7 @@ pnpm --filter surowan-admin-next run test:e2e # Playwright 浏览器 E2E（见�
 
 ## 许可与字体
 
-本前端源自 Kiranism 的开源 dashboard 模板，MIT License 全文保留在
-`LICENSE`（Copyright (c) 2025 Kiranism）。Koi 组件与 token 使用
-`@tuuject/koi-react` / `@tuuject/koi-tokens` 0.3.0（MIT）。随镜像发布的三方许可说明见
-`NOTICE`。
+Koi 组件与 token 使用 `@tuuject/koi-react` / `@tuuject/koi-tokens` 0.3.0（MIT）。
 
 ## E2E 测试
 
