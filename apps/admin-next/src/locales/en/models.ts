@@ -51,7 +51,7 @@ export const models = {
       deleteProviderDescription: '{{alias}} and all its models will be removed from the configuration.',
       deleteProviderConfirm: 'Delete provider',
       selectForHealthAria: 'Select {{model}} for testing',
-      selectAllForHealth: 'Select all models of this provider',
+      selectAllForHealth: 'Select all',
       checkHealth: 'Test',
       selectedCount: '{{count}} selected',
       checkHealthAria: 'Test whether {{model}} replies',

@@ -49,7 +49,7 @@ export const models: typeof modelsEn = {
       deleteProviderDescription: '{{alias}} 和它的所有模型都会从配置中删除。',
       deleteProviderConfirm: '删除供应商',
       selectForHealthAria: '选中 {{model}} 进行测试',
-      selectAllForHealth: '全选该供应商的所有模型',
+      selectAllForHealth: '全选',
       checkHealth: '测试',
       selectedCount: '已选 {{count}} 个',
       checkHealthAria: '测试 {{model}} 能否正常回复',

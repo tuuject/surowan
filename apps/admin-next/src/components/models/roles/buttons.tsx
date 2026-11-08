@@ -60,7 +60,7 @@ export function RoleButtons({
         border: 'none',
       })}
     >
-      <span id={labelId} className={css({ textStyle: 'small', color: 'text-muted' })}>
+      <span id={labelId} className={css({ textStyle: 'small', color: 'text-muted', paddingInlineEnd: 2 })}>
         <span aria-hidden>{t('models.models.roles.useAs')}</span>
         <span className={css({ srOnly: true })}>{t('models.models.roles.useAsAria', { model: config.id })}</span>
       </span>
@@ -71,7 +71,7 @@ export function RoleButtons({
           <Button
             key={role}
             size="sm"
-            variant={active ? 'soft' : 'outline'}
+            variant={active ? 'soft' : 'ghost'}
             color={active ? 'primary' : 'secondary'}
             aria-pressed={active}
             disabled={!active && pending[role]}

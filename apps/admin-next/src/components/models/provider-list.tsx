@@ -26,7 +26,7 @@ export function ProviderBadges({
   const usage = providerUsage(view, provider.alias);
   if (variant === 'icons') {
     return (
-      <span aria-hidden="true" className={css({ display: 'flex', alignItems: 'center', gap: '1', color: 'text' })}>
+      <span aria-hidden="true" className={css({ display: 'flex', alignItems: 'center', gap: '2', color: 'text' })}>
         {usage.agent ? <RobotIcon size={sizes.icon} /> : null}
         {usage.vision ? <EyeIcon size={sizes.icon} /> : null}
         {usage.tool ? <WrenchIcon size={sizes.icon} /> : null}
@@ -34,7 +34,7 @@ export function ProviderBadges({
     );
   }
   return (
-    <span className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1' })}>
+    <span className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
       {/* Neutral, not primary: the provider rows can be the active row, whose fill would swallow a primary badge. */}
       {usage.agent ? <ToneBadge tone="neutral">{t('models.models.page.agentInUse')}</ToneBadge> : null}
       {usage.vision ? <ToneBadge tone="neutral">{t('models.models.page.visionInUse')}</ToneBadge> : null}

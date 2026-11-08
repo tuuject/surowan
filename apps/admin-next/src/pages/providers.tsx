@@ -243,7 +243,7 @@ export default function ProvidersPage(): ReactElement {
           display: 'grid',
           gap: '8',
           alignItems: 'start',
-          // 332px = the rail's 300px plus its 32px gutter to the hairline.
+          // 332px = the rail's 308px plus its 24px gutter to the hairline.
           '@media (min-width: 1200px)': { gridTemplateColumns: '332px minmax(0, 1fr)', columnGap: '0' },
         })}
       >

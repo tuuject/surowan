@@ -113,11 +113,11 @@ export function ModelList({
       title={t('models.models.page.modelsTitle')}
       action={
         <>
-          <Button variant="outline" color="secondary" onClick={onFetchModels}>
-            {t('models.models.page.fetchModels')}
-          </Button>
-          <Button variant="outline" color="secondary" onClick={onAddById}>
+          <Button color="secondary" onClick={onAddById}>
             {t('models.models.page.addById')}
+          </Button>
+          <Button color="primary" onClick={onFetchModels}>
+            {t('models.models.page.fetchModels')}
           </Button>
         </>
       }
@@ -161,11 +161,11 @@ export function ModelList({
               </span>
             )}
             <Button
-              variant="outline"
               color="secondary"
               iconStart={<HealthIcon />}
               disabled={runnableSelected.length === 0 || running}
               onClick={() => void onRunHealthChecks(runnableSelected)}
+              className={css({ fontVariantNumeric: 'tabular-nums' })}
             >
               {t('models.models.page.checkSelected', { count: runnableSelected.length })}
             </Button>
