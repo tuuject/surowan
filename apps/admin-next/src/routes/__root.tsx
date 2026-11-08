@@ -83,6 +83,7 @@ function isSessionQueryKey(queryKey: readonly unknown[]): boolean {
 function AdminShell({ username }: { readonly username: string }): React.ReactElement {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+
   const signOut = useMutation({
     mutationFn: logout,
     onSuccess: async () => {
@@ -93,7 +94,7 @@ function AdminShell({ username }: { readonly username: string }): React.ReactEle
       // back to the root. clear()+setQueryData alone does not reliably
       // re-render the gate (the removed query's observer is not re-notified
       // by setQueryData), which is why the refetch is driven explicitly.
-      queryClient.cancelQueries();
+      await queryClient.cancelQueries();
       queryClient.removeQueries({ predicate: (query) => !isSessionQueryKey(query.queryKey) });
       queryClient.setQueryData(sessionQuery.queryKey, UNAUTHENTICATED_SESSION);
       await queryClient.invalidateQueries({ queryKey: sessionQuery.queryKey });
@@ -105,7 +106,7 @@ function AdminShell({ username }: { readonly username: string }): React.ReactEle
       // data and set the (still-live) session query to unauthenticated so the
       // AuthGate renders the login form immediately, without needing another
       // network round-trip.
-      queryClient.cancelQueries();
+      await queryClient.cancelQueries();
       queryClient.removeQueries({ predicate: (query) => !isSessionQueryKey(query.queryKey) });
       queryClient.setQueryData(sessionQuery.queryKey, UNAUTHENTICATED_SESSION);
       await navigate({ to: '/' });
