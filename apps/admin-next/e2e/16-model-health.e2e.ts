@@ -78,7 +78,7 @@ test.describe('model health checks', () => {
     await page.goto(await adminUrl('/providers'));
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
     await expect(page.locator('[data-model-list] > li')).toHaveCount(10);
-    const selectAll = page.getByRole('checkbox', { name: 'Select all models of this provider', exact: true });
+    const selectAll = page.getByRole('checkbox', { name: 'Select all', exact: true });
     await selectAll.check();
     await expect(page.getByRole('button', { name: 'Test selected (11)', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Next page', exact: true }).last().click();

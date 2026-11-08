@@ -1,4 +1,4 @@
-import { expect } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import type { PromptVersionsView } from '../src/lib/api/prompts.ts';
 import { adminUrl, clickNav, test, watchPageIssues } from './helpers.ts';
 
@@ -6,7 +6,9 @@ import { adminUrl, clickNav, test, watchPageIssues } from './helpers.ts';
  * The Prompts page drives the versioned prompt API against the real config
  * files: edit → save/apply, version history, unified diff and restore. The
  * seeded config starts with the helper defaults: global prompt
- * "Participate safely." and chat 123456789 instructions "private".
+ * "Participate safely." and chat 123456789 instructions "private". The scope
+ * rail on the left selects the global prompt or one Chat's instructions; the
+ * editor and its history sit beside it.
  */
 test.use({ signedIn: true });
 
@@ -14,8 +16,15 @@ const GLOBAL_START = 'Participate safely.';
 const SAVED_MESSAGE =
   'The prompt applies from the next invocation; affected Conversation Contexts rebuild on their next run.';
 
+const CHAT_ID = '123456789';
+const CHAT_TITLE = 'Surowan Test Group';
+
+function rail(page: Page) {
+  return page.getByRole('navigation', { name: 'Prompt scopes', exact: true });
+}
+
 test.describe('prompts page', () => {
-  test('renders the editor, the starting external version and the sidebar entry', async ({ page }) => {
+  test('renders the editor, the starting external version and the scope rail', async ({ page }) => {
     const finish = watchPageIssues(page);
     await page.goto(await adminUrl('/prompts'));
     await expect(page.getByText('Prompt editor')).toBeVisible();
@@ -29,6 +38,16 @@ test.describe('prompts page', () => {
     const row = page.locator('table tbody tr').first();
     await expect(row).toContainText('v1');
     await expect(row).toContainText('External');
+
+    // The rail lists the global prompt above every configured Chat, and the
+    // global scope starts selected.
+    const scopeRail = rail(page);
+    await expect(scopeRail.getByText('Global prompt', { exact: true })).toBeVisible();
+    await expect(scopeRail.getByText(CHAT_TITLE, { exact: true })).toBeVisible();
+    await expect(scopeRail.getByRole('button').filter({ hasText: 'Global prompt' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
 
     // The sidebar entry leads back to the page.
     await page.goto(await adminUrl('/'));
@@ -58,9 +77,9 @@ test.describe('prompts page', () => {
     await expect(page.locator('table tbody tr').first()).toContainText('v1');
   });
 
-  test('changing scope clears an unsubmitted comparison and rejects stale version ids', async ({ page }) => {
+  test('the scope rail clears an unsubmitted comparison and rejects stale version ids', async ({ page }) => {
     const versions = (scope: 'global' | 'group', firstId: string): PromptVersionsView => {
-      const chatId = scope === 'group' ? '123456789' : null;
+      const chatId = scope === 'group' ? CHAT_ID : null;
       const items = [2, 1].map((seq) => ({
         id: String(Number(firstId) + seq - 1),
         scope,
@@ -90,14 +109,13 @@ test.describe('prompts page', () => {
     await page.goto(await adminUrl('/prompts'));
     await page.getByRole('combobox', { name: 'From (older)' }).selectOption({ label: 'v1' });
     await page.getByRole('combobox', { name: 'To (newer)' }).selectOption({ label: 'v2' });
-    await page.getByRole('combobox', { name: 'Scope' }).selectOption('chat:123456789');
-    await page.getByRole('button', { name: 'Search', exact: true }).first().click();
+    await rail(page).getByText(CHAT_TITLE, { exact: true }).click();
     await expect(page.getByRole('combobox', { name: 'From (older)' })).toHaveValue('');
 
     // Selecting only one new id leaves the other side empty; no old-scope pair
     // may survive invisibly in the draft and trigger a diff request.
     await page.getByRole('combobox', { name: 'From (older)' }).selectOption({ label: 'v1' });
-    await page.getByRole('button', { name: 'Search', exact: true }).last().click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
     const refreshed = page.waitForResponse(
       (response) =>
         new URL(response.url()).pathname === '/api/prompts/versions' &&
@@ -125,7 +143,7 @@ test.describe('prompts page', () => {
     // Comparing is also an explicit query: choose previous → newest, then Search.
     await page.getByRole('combobox', { name: 'From (older)' }).selectOption({ label: 'v1' });
     await page.getByRole('combobox', { name: 'To (newer)' }).selectOption({ label: 'v2' });
-    await page.getByRole('button', { name: 'Search', exact: true }).last().click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect(page.getByText('v1 → v2')).toBeVisible();
     // A diff row renders both line-number gutters and the +/- marker around
     // the text, so assert containment instead of the exact text.
@@ -148,14 +166,11 @@ test.describe('prompts page', () => {
     // Earlier specs rebuild the baseline Chat without instructions, so the
     // group prompt may legitimately start empty; assert relative to that.
     const before = await (
-      await page.request.get(await adminUrl('/api/prompts/group?chat=123456789&source=file'))
+      await page.request.get(await adminUrl(`/api/prompts/group?chat=${CHAT_ID}&source=file`))
     ).json();
     await page.goto(await adminUrl('/prompts'));
-    await page.getByRole('combobox', { name: 'Scope' }).selectOption('chat:123456789');
-    await expect(page.locator('#prompt-text')).toHaveValue(GLOBAL_START);
-    await page.getByRole('button', { name: 'Search', exact: true }).first().click();
-    // Search applies the scope before the editor re-seeds from the group file.
-    await expect(page.getByRole('combobox', { name: 'Scope' })).toHaveValue('chat:123456789');
+    await rail(page).getByText(CHAT_TITLE, { exact: true }).click();
+    await expect(page.getByRole('heading', { name: CHAT_TITLE, exact: true })).toBeVisible();
     const editor = page.locator('#prompt-text');
     await expect(editor).toHaveValue(before.prompt);
 
@@ -170,18 +185,32 @@ test.describe('prompts page', () => {
     await expect(newest).toContainText('e2e group');
 
     // Switching back to the global scope restores its own draft and history.
-    await page.getByRole('combobox', { name: 'Scope' }).selectOption('global');
-    await page.getByRole('button', { name: 'Search', exact: true }).first().click();
-    await expect(page.locator('#prompt-text')).toHaveValue(GLOBAL_START);
+    await rail(page).getByText('Global prompt', { exact: true }).click();
+    await expect(editor).toHaveValue(GLOBAL_START);
     await expect(page.locator('table tbody tr')).toHaveCount(3);
   });
 
   test('the chat search param opens the group scope directly', async ({ page }) => {
-    await page.goto(await adminUrl('/prompts?chat=123456789'));
-    await expect(page.getByRole('combobox', { name: 'Scope' })).toHaveValue('chat:123456789');
-    await page.getByRole('combobox', { name: 'Scope' }).selectOption('global');
-    await page.getByRole('button', { name: 'Search', exact: true }).first().click();
+    await page.goto(await adminUrl(`/prompts?chat=${CHAT_ID}`));
+    const scopeRail = rail(page);
+    await expect(scopeRail.getByRole('button').filter({ hasText: CHAT_TITLE })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('heading', { name: CHAT_TITLE, exact: true })).toBeVisible();
+    await scopeRail.getByText('Global prompt', { exact: true }).click();
     await expect(page).toHaveURL(/\/prompts$/);
-    await expect(page.getByRole('combobox', { name: 'Scope' })).toHaveValue('global');
+    await expect(page.getByRole('heading', { name: 'Global prompt', exact: true })).toBeVisible();
+  });
+
+  test('the scope rail narrows to matching Chats', async ({ page }) => {
+    await page.goto(await adminUrl('/prompts'));
+    const scopeRail = rail(page);
+    await page.getByLabel('Search Chats', { exact: true }).fill('nothing-matches');
+    await page.getByLabel('Search Chats', { exact: true }).press('Enter');
+    await expect(page).toHaveURL(/[?&]search=nothing-matches$/);
+    await expect(scopeRail.getByText(CHAT_TITLE, { exact: true })).toHaveCount(0);
+    await expect(scopeRail.getByText('No matching Chats.')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Clear filter', exact: true }).click();
+    await expect(page).toHaveURL(/\/prompts$/);
+    await expect(scopeRail.getByText(CHAT_TITLE, { exact: true })).toBeVisible();
   });
 });

@@ -193,5 +193,6 @@ test('quick links open chat-scoped pages', async ({ page }) => {
   await page.goto(await adminUrl('/chats'));
   await openChatAction(page, chatRow(page), 'Prompts');
   await expect(page).toHaveURL(/\/prompts\?chat=123456789$/);
-  await expect(page.getByRole('combobox', { name: 'Scope' })).toHaveValue('chat:123456789');
+  const scopeRail = page.getByRole('navigation', { name: 'Prompt scopes', exact: true });
+  await expect(scopeRail.getByRole('button').filter({ hasText: '123456789' })).toHaveAttribute('aria-pressed', 'true');
 });

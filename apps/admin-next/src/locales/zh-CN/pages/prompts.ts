@@ -2,10 +2,13 @@ import type { prompts as promptsEn } from '../../en/pages/prompts.ts';
 
 /** Mirrors `en/pages/prompts.ts` key for key; the annotation fails the build on drift. */
 export const prompts: typeof promptsEn = {
-  scopeLabel: '范围',
   globalScope: '全局 Prompt',
+  globalScopeSummary: '所有会话',
   chatScope: '会话 {{id}}',
-  chatScopeTitled: '{{title}}（{{id}}）',
+  railLabel: 'Prompt 范围',
+  searchScopes: '搜索会话',
+  refreshChats: '刷新会话',
+  noMatchingChats: '没有匹配的会话。',
   editorTitle: 'Prompt 编辑器',
   editorHint: '从下一次 Invocation 起生效；受影响的 Conversation Context 会在下次运行时重建。',
   promptLabel: 'Prompt',
@@ -45,7 +48,7 @@ export const prompts: typeof promptsEn = {
   restoreNote: '从版本 {{seq}} 恢复',
   compareFrom: '从（较旧）',
   compareTo: '到（较新）',
-  compare: '对比',
+  compare: '比较',
   diffTitle: 'v{{from}} → v{{to}}',
   noDifferences: '这两个版本内容相同。',
   affectedTitle: '新 Prompt 已应用',

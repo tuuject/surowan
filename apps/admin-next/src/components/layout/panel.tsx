@@ -29,7 +29,7 @@ export function Panel({
   return (
     <Root role="region" aria-labelledby={titleId} className={cx(css({ minWidth: '0' }), className)}>
       <div className={css({ display: 'flex', flexDirection: 'column', gap: '5', minWidth: '0' })}>
-        <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '3' })}>
+        <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '3' })}>
           <div
             className={css({ display: 'flex', flexDirection: 'column', gap: '1', flex: '1 1 240px', minWidth: '0' })}
           >

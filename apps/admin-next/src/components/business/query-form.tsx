@@ -26,6 +26,7 @@ interface ListSearchFormProps<T extends QueryFormValues> {
   readonly onSearch: (value: T) => void;
   readonly activeCount?: number;
   readonly children: (state: QueryFormRender<T>) => ReactNode;
+  readonly renderSubmitAndResetButton?: ({ onReset }: { onReset: () => void }) => ReactNode;
 }
 
 function normalizeValues<T extends QueryFormValues>(value: T): T {
@@ -47,6 +48,7 @@ export function ListSearchForm<T extends QueryFormValues>({
   onSearch,
   activeCount,
   children,
+  renderSubmitAndResetButton,
 }: ListSearchFormProps<T>): ReactElement {
   const { t } = useTranslation();
   const normalizedValue = normalizeValues(value);
@@ -73,6 +75,8 @@ export function ListSearchForm<T extends QueryFormValues>({
   };
 
   const count = activeCount ?? Object.values(normalizedValue).filter((item) => item.length > 0).length;
+
+  const onReset = () => apply(emptyValue);
 
   return (
     <ListFilterCard activeCount={count}>
@@ -122,18 +126,18 @@ export function ListSearchForm<T extends QueryFormValues>({
             paddingTop: '26px',
           })}
         >
-          <Button type="submit" iconStart={<SearchIcon />}>
-            {t('layout.koi.search')}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            color="secondary"
-            iconStart={<ResetIcon />}
-            onClick={() => apply(emptyValue)}
-          >
-            {t('layout.business.reset')}
-          </Button>
+          {renderSubmitAndResetButton ? (
+            renderSubmitAndResetButton({ onReset })
+          ) : (
+            <>
+              <Button type="submit" iconStart={<SearchIcon />}>
+                {t('layout.koi.search')}
+              </Button>
+              <Button type="button" variant="ghost" color="secondary" iconStart={<ResetIcon />} onClick={onReset}>
+                {t('layout.business.reset')}
+              </Button>
+            </>
+          )}
         </div>
       </form>
     </ListFilterCard>

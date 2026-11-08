@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from '@tuuject/koi-react/alert';
-import { Button } from '@tuuject/koi-react/button';
+import { Button, IconButton } from '@tuuject/koi-react/button';
+import { SearchIcon } from '@tuuject/koi-react/icons';
 import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { type ReactElement, useState } from 'react';
@@ -11,7 +12,6 @@ import {
   ListFooter,
   ListPageHeader,
   ListSearchForm,
-  ListToolbar,
   MonoValue,
   QuerySelectField,
   RowActions,
@@ -20,10 +20,12 @@ import {
   ToneBadge,
   useClientPagination,
 } from '@/components/business';
+import { RefreshIcon } from '@/components/icons';
 import { Panel } from '@/components/layout/panel';
 import { DiffView } from '@/components/prompts/diff-view';
 import { type Notice, type PromptDraft, sourceLabelKey, sourceTone } from '@/components/prompts/prompt-draft';
 import { PromptEditor } from '@/components/prompts/prompt-editor';
+import { PromptScopeRail } from '@/components/prompts/prompt-scope-rail';
 import { ApiError } from '@/lib/api/core.ts';
 import type { PromptSaveResponse, PromptScopeRef, PromptVersionItem } from '@/lib/api/prompts.ts';
 import { cancelPromptRunning, failedPromptVersion, restorePromptVersion, savePrompt } from '@/lib/api/prompts.ts';
@@ -36,7 +38,7 @@ import { toast } from '@/lib/toast.ts';
 const GLOBAL_SCOPE_VALUE = 'global';
 const CHAT_SCOPE_PREFIX = 'chat:';
 const PROMPT_CONFLICT_CODE = 'prompt_conflict';
-const EMPTY_SCOPE = { chat: '' };
+const EMPTY_SCOPE = { chat: '', search: '' };
 const EMPTY_COMPARE = { from: '', to: '' };
 
 function scopeOfValue(value: string): PromptScopeRef {
@@ -71,10 +73,11 @@ export default function PromptsPage(): ReactElement {
   const items = versions.data?.items ?? [];
   const pagination = useClientPagination(items, scopeValue);
   const chatItems = chats.data?.items ?? [];
-  // The deep-linked chat can be absent while the chat list loads, after it
-  // fails, or when the chat is unavailable. Without an option the native
-  // select would display "Global prompt" while saving to the group scope.
-  const missingChat = chat !== undefined && !chatItems.some((item) => item.id === chat);
+  const selectedChat = chat === undefined ? null : (chatItems.find((item) => item.id === chat) ?? null);
+  const scopeTitle =
+    chat === undefined
+      ? t('pages.prompts.globalScope')
+      : (selectedChat?.title ?? t('pages.prompts.chatScope', { id: chat }));
 
   const invalidatePrompts = (): void => {
     void queryClient.invalidateQueries({ queryKey: ['prompt-document'] });
@@ -151,7 +154,9 @@ export default function PromptsPage(): ReactElement {
     },
   });
   const changeScope = (next: { readonly chat: string }): void => {
-    query.apply(next);
+    // The rail's search is a view filter, not part of the scope; switching
+    // scopes keeps it so the next list is already narrowed.
+    query.apply({ chat: next.chat, search: query.value.search });
     setNotice(null);
     setCancelTarget(null);
     setRestoreTarget(null);
@@ -219,139 +224,206 @@ export default function PromptsPage(): ReactElement {
     },
   ];
   return (
-    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '6' } })}>
       <ListPageHeader title={t('layout.nav.prompts')} />
-      <ListSearchForm value={query.value} emptyValue={EMPTY_SCOPE} onSearch={changeScope}>
-        {({ draft, change }) => (
-          <QuerySelectField
-            label={t('pages.prompts.scopeLabel')}
-            showAll={false}
-            value={chatQuery(draft.chat) === undefined ? GLOBAL_SCOPE_VALUE : `${CHAT_SCOPE_PREFIX}${draft.chat}`}
-            onChange={(value) =>
-              change({ chat: value === GLOBAL_SCOPE_VALUE ? '' : value.slice(CHAT_SCOPE_PREFIX.length) })
-            }
-            options={[
-              { value: GLOBAL_SCOPE_VALUE, label: t('pages.prompts.globalScope') },
-              ...(missingChat ? [{ value: scopeValue, label: t('pages.prompts.chatScope', { id: chat }) }] : []),
-              ...chatItems.map((chatItem) => ({
-                value: `${CHAT_SCOPE_PREFIX}${chatItem.id}`,
-                label:
-                  chatItem.title === null
-                    ? t('pages.prompts.chatScope', { id: chatItem.id })
-                    : t('pages.prompts.chatScopeTitled', { title: chatItem.title, id: chatItem.id }),
-              })),
-            ]}
-          />
-        )}
-      </ListSearchForm>
-      <Panel title={t('pages.prompts.editorTitle')}>
-        {fileQuery.isPending ? (
-          <Skeleton className={css({ height: '256px', width: '100%', borderRadius: 'xl' })} />
-        ) : fileQuery.isError || file === undefined ? (
-          <Alert
-            tone="error"
-            action={
-              <Button size="sm" variant="ghost" color="secondary" onClick={() => void fileQuery.refetch()}>
-                {t('common.retry')}
-              </Button>
-            }
-          >
-            {errorMessage(fileQuery.error)}
-          </Alert>
-        ) : (
-          <PromptEditor
-            // Remount when the applied version moves (save, restore, an
-            // external apply picked up on refetch): a restore can return the
-            // file to the hash the draft was pinned to, and only a fresh
-            // editor reliably re-seeds from the file view.
-            key={applied?.id ?? 'no-applied-version'}
-            file={file}
-            applied={applied}
-            notice={notice}
-            saving={save.isPending}
-            onSave={(draft) => save.mutate(draft)}
-          />
-        )}
-      </Panel>
-      <section className={css({ paddingBlockStart: '6', '& > * + *': { marginBlockStart: '5' } })}>
-        <h2 className={css({ margin: '0', textStyle: 'heading-2' })}>{t('pages.prompts.historyTitle')}</h2>
-        <ListSearchForm
-          key={scopeValue}
-          value={compare ?? EMPTY_COMPARE}
-          emptyValue={EMPTY_COMPARE}
-          activeCount={compare === null ? 0 : 2}
-          onSearch={(next) => {
-            const valid =
-              next.from !== next.to &&
-              items.some((item) => item.id === next.from) &&
-              items.some((item) => item.id === next.to);
-            setCompare(valid ? next : null);
-          }}
+      {chats.isError ? (
+        <Alert
+          tone="error"
+          action={
+            <Button size="sm" variant="ghost" color="secondary" onClick={() => void chats.refetch()}>
+              {t('common.retry')}
+            </Button>
+          }
         >
-          {({ draft, change }) => (
-            <>
-              <QuerySelectField
-                label={t('pages.prompts.compareFrom')}
-                value={draft.from}
-                onChange={(from) => change({ from })}
-                options={items.map((item) => ({ value: item.id, label: `v${item.seq}` }))}
+          {errorMessage(chats.error)}
+        </Alert>
+      ) : null}
+
+      {/* Master and detail split by one hairline (above the detail when stacked, beside it when wide), as on the Providers page. */}
+      <div
+        className={css({
+          display: 'grid',
+          gap: '6',
+          alignItems: 'start',
+          // 332px = the rail's 308px plus its 24px gutter to the hairline.
+          '@media (min-width: 1200px)': { gridTemplateColumns: '332px minmax(0, 1fr)', columnGap: '0' },
+        })}
+      >
+        <aside
+          className={css({
+            minWidth: '0',
+            alignSelf: 'start',
+            '@media (min-width: 1200px)': {
+              paddingInlineEnd: '6',
+              position: 'sticky',
+              // The same air under the header and above the window edge; past that the rail's list scrolls on its own.
+              top: 'calc(var(--app-header-offset) + token(spacing.6))',
+              maxHeight: 'calc(100dvh - var(--app-header-offset) - token(spacing.6) * 2)',
+              display: 'flex',
+              flexDirection: 'column',
+            },
+          })}
+        >
+          <PromptScopeRail
+            chats={chatItems}
+            selectedChat={chat ?? null}
+            search={query.value.search}
+            onSearch={(next) => query.apply({ chat: query.value.chat, search: next })}
+            onSelect={(chatId) => changeScope({ chat: chatId ?? '' })}
+            onRefresh={() => void chats.refetch()}
+            refreshing={chats.isRefetching}
+            loading={chats.isPending}
+          />
+        </aside>
+
+        <div
+          key={scopeValue}
+          className={css({
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6',
+            minWidth: '0',
+            paddingBlockStart: '6',
+            borderTopWidth: '1px',
+            borderColor: 'divider',
+            '@media (min-width: 1200px)': {
+              // Stretch so the hairline runs the full height even when the rail is the taller column.
+              alignSelf: 'stretch',
+              paddingBlockStart: '0',
+              paddingInlineStart: '6',
+              borderTopWidth: '0',
+              borderInlineStartWidth: '1px',
+            },
+          })}
+        >
+          <Panel variant="plain" title={scopeTitle}>
+            {fileQuery.isPending ? (
+              <Skeleton className={css({ height: '256px', width: '100%', borderRadius: 'xl' })} />
+            ) : fileQuery.isError || file === undefined ? (
+              <Alert
+                tone="error"
+                action={
+                  <Button size="sm" variant="ghost" color="secondary" onClick={() => void fileQuery.refetch()}>
+                    {t('common.retry')}
+                  </Button>
+                }
+              >
+                {errorMessage(fileQuery.error)}
+              </Alert>
+            ) : (
+              <PromptEditor
+                // Remount when the applied version moves (save, restore, an
+                // external apply picked up on refetch): a restore can return the
+                // file to the hash the draft was pinned to, and only a fresh
+                // editor reliably re-seeds from the file view.
+                key={applied?.id ?? 'no-applied-version'}
+                file={file}
+                applied={applied}
+                notice={notice}
+                saving={save.isPending}
+                onSave={(draft) => save.mutate(draft)}
               />
-              <QuerySelectField
-                label={t('pages.prompts.compareTo')}
-                value={draft.to}
-                onChange={(to) => change({ to })}
-                options={items.map((item) => ({ value: item.id, label: `v${item.seq}` }))}
-              />
-            </>
-          )}
-        </ListSearchForm>
-        <ListToolbar onRefresh={() => void versions.refetch()} refreshing={versions.isRefetching} />
-        {versions.isError ? (
-          <Alert
-            tone="error"
+            )}
+          </Panel>
+          <Panel
+            variant="plain"
+            className={css({ borderTopWidth: '1px', borderColor: 'divider', paddingBlockStart: '6' })}
+            title={t('pages.prompts.historyTitle')}
             action={
-              <Button size="sm" variant="ghost" color="secondary" onClick={() => void versions.refetch()}>
-                {t('common.retry')}
-              </Button>
+              <IconButton
+                variant="ghost"
+                color="secondary"
+                label={t('layout.business.refreshList')}
+                icon={<RefreshIcon />}
+                disabled={versions.isRefetching}
+                onClick={() => void versions.refetch()}
+              />
             }
           >
-            {errorMessage(versions.error)}
-          </Alert>
-        ) : null}
-        {versions.isPending || versions.data !== undefined ? (
-          <div>
-            <TableShell
-              columns={columns}
-              data={pagination.items}
-              rowKey={(row) => row.id}
-              loading={versions.isPending}
-              minWidth={880}
-              emptyText={t('pages.prompts.emptyVersions')}
-            />
-            <ListFooter
-              count={pagination.total}
-              page={pagination.page}
-              pageCount={pagination.pageCount}
-              onPageChange={pagination.onPageChange}
-            >
-              {versions.data === undefined ? null : (
-                <span className={css({ textStyle: 'small', color: 'text-muted' })}>
-                  {t('pages.prompts.retention', { count: versions.data.retained })}
-                </span>
+            <div className={css({ display: 'flex', flexDirection: 'column', gap: '6' })}>
+              <ListSearchForm
+                value={compare ?? EMPTY_COMPARE}
+                emptyValue={EMPTY_COMPARE}
+                activeCount={compare === null ? 0 : 2}
+                onSearch={(next) => {
+                  const valid =
+                    next.from !== next.to &&
+                    items.some((item) => item.id === next.from) &&
+                    items.some((item) => item.id === next.to);
+                  setCompare(valid ? next : null);
+                }}
+                renderSubmitAndResetButton={() => (
+                  <Button type="submit" iconStart={<SearchIcon />}>
+                    {t('pages.prompts.compare')}
+                  </Button>
+                )}
+              >
+                {({ draft, change }) => (
+                  <>
+                    <QuerySelectField
+                      label={t('pages.prompts.compareFrom')}
+                      value={draft.from}
+                      onChange={(from) => change({ from })}
+                      options={items.map((item) => ({ value: item.id, label: `v${item.seq}` }))}
+                    />
+                    <QuerySelectField
+                      label={t('pages.prompts.compareTo')}
+                      value={draft.to}
+                      onChange={(to) => change({ to })}
+                      options={items.map((item) => ({ value: item.id, label: `v${item.seq}` }))}
+                    />
+                  </>
+                )}
+              </ListSearchForm>
+              {versions.isError ? (
+                <Alert
+                  tone="error"
+                  action={
+                    <Button size="sm" variant="ghost" color="secondary" onClick={() => void versions.refetch()}>
+                      {t('common.retry')}
+                    </Button>
+                  }
+                >
+                  {errorMessage(versions.error)}
+                </Alert>
+              ) : null}
+              {versions.isPending || versions.data !== undefined ? (
+                <div>
+                  <TableShell
+                    columns={columns}
+                    data={pagination.items}
+                    rowKey={(row) => row.id}
+                    loading={versions.isPending}
+                    minWidth={880}
+                    emptyText={t('pages.prompts.emptyVersions')}
+                  />
+                  <ListFooter
+                    count={pagination.total}
+                    page={pagination.page}
+                    pageCount={pagination.pageCount}
+                    onPageChange={pagination.onPageChange}
+                  >
+                    {versions.data === undefined ? null : (
+                      <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+                        {t('pages.prompts.retention', { count: versions.data.retained })}
+                      </span>
+                    )}
+                  </ListFooter>
+                </div>
+              ) : null}
+              {compare === null ? null : diff.isPending ? (
+                <Skeleton className={css({ height: '160px', width: '100%', borderRadius: 'xl' })} />
+              ) : diff.isError || diff.data === undefined ? (
+                <Alert tone="error">{errorMessage(diff.error)}</Alert>
+              ) : diff.data.hunks.length === 0 ? (
+                <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.prompts.noDifferences')}</p>
+              ) : (
+                <DiffView diff={diff.data} />
               )}
-            </ListFooter>
-          </div>
-        ) : null}
-        {compare === null ? null : diff.isPending ? (
-          <Skeleton className={css({ height: '160px', width: '100%', borderRadius: 'xl' })} />
-        ) : diff.isError || diff.data === undefined ? (
-          <Alert tone="error">{errorMessage(diff.error)}</Alert>
-        ) : diff.data.hunks.length === 0 ? (
-          <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.prompts.noDifferences')}</p>
-        ) : (
-          <DiffView diff={diff.data} />
-        )}
-      </section>
+            </div>
+          </Panel>
+        </div>
+      </div>
       <ConfirmDialog
         open={cancelTarget !== null}
         onOpenChange={(open) => {

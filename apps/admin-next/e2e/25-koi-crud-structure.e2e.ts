@@ -205,7 +205,7 @@ for (const entry of pages) {
       page.getByText(entry.count === 'cursor' ? /Page 1, \d+ records?/ : /\d+ records?/).first(),
     ).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Pagination', exact: true })).toHaveCount(1);
-    await expectCardStructure(page, { filters: entry.path === '/prompts' ? 2 : 1 });
+    await expectCardStructure(page, { filters: 1 });
     await expect(page.getByRole('alert').filter({ hasText: 'Request failed' })).toHaveCount(0);
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
