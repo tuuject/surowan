@@ -32,11 +32,13 @@ export interface ModelSaveState {
   readonly onSubmit: (model: ProviderModelConfig) => void;
 }
 
-/** A write a confirmation dialog drives; the page owns the mutation. */
+/** A write a confirmation dialog drives; the page owns the mutation and whether the dialog shows. */
 export interface ConfirmState {
+  readonly open: boolean;
   readonly pending: boolean;
   readonly error: string | null;
   readonly onConfirm: () => void;
+  readonly onClose: () => void;
 }
 
 /**
@@ -56,10 +58,8 @@ export function ModelsDialogs({
   onEditingClose,
   save,
   deletingModel,
-  onDeletingModelClose,
   removeModel,
   deletingProvider,
-  onDeletingProviderClose,
   removeProvider,
 }: {
   readonly view: ProvidersView;
@@ -74,10 +74,8 @@ export function ModelsDialogs({
   readonly onEditingClose: () => void;
   readonly save: ModelSaveState;
   readonly deletingModel: DeletingModelTarget | null;
-  readonly onDeletingModelClose: () => void;
   readonly removeModel: ConfirmState;
   readonly deletingProvider: ProviderView | null;
-  readonly onDeletingProviderClose: () => void;
   readonly removeProvider: ConfirmState;
 }): ReactElement {
   const { t } = useTranslation();
@@ -119,11 +117,12 @@ export function ModelsDialogs({
         />
       )}
 
+      {/* `open` stays apart from the target so the text doesn't blank out while the exit fade plays. */}
       <ConfirmDialog
-        open={deletingModel !== null}
+        open={removeModel.open}
         onOpenChange={(open) => {
           if (!open && !removeModel.pending) {
-            onDeletingModelClose();
+            removeModel.onClose();
           }
         }}
         title={t('models.models.page.deleteModelTitle')}
@@ -140,10 +139,10 @@ export function ModelsDialogs({
       />
 
       <ConfirmDialog
-        open={deletingProvider !== null}
+        open={removeProvider.open}
         onOpenChange={(open) => {
           if (!open && !removeProvider.pending) {
-            onDeletingProviderClose();
+            removeProvider.onClose();
           }
         }}
         title={t('models.models.page.deleteProviderTitle')}

@@ -55,8 +55,11 @@ export default function ProvidersPage(): ReactElement {
   // The revision travels with the snapshot the edit form starts from, so a save
   // can never pass the concurrency check with a form built from older data.
   const [editing, setEditing] = useState<EditingTarget | null>(null);
+  // Each confirmation keeps `open` apart from its target, so closing never blanks the text mid-fade.
   const [deletingModel, setDeletingModel] = useState<DeletingModelTarget | null>(null);
+  const [deleteModelOpen, setDeleteModelOpen] = useState(false);
   const [deletingProvider, setDeletingProvider] = useState<ProviderView | null>(null);
+  const [deleteProviderOpen, setDeleteProviderOpen] = useState(false);
   // Health-check probes: page-local state, never persisted. The key is the same
   // `${alias}/${model.id}` row key, so a selection survives provider switches.
   const [healthSelected, setHealthSelected] = useState<ReadonlySet<string>>(new Set());
@@ -179,7 +182,7 @@ export default function ProvidersPage(): ReactElement {
     mutationFn: ({ alias, model }: { readonly alias: string; readonly model: string }) =>
       deleteProviderModel(alias, model, revision),
     onSuccess: (result) => {
-      setDeletingModel(null);
+      setDeleteModelOpen(false);
       write.succeeded(result.apply);
     },
     onError: (error) => {
@@ -190,7 +193,7 @@ export default function ProvidersPage(): ReactElement {
   const removeProvider = useMutation({
     mutationFn: (alias: string) => deleteProvider(alias, revision),
     onSuccess: (result) => {
-      setDeletingProvider(null);
+      setDeleteProviderOpen(false);
       setSelectedAlias(null);
       write.succeeded(result.apply);
     },
@@ -276,7 +279,28 @@ export default function ProvidersPage(): ReactElement {
           ) : (
             <>
               <ProviderDetailHeader view={view} provider={selected} />
-              <ProviderConnectionSection key={selected.alias} provider={selected} revision={revision} />
+              <ProviderConnectionSection
+                key={selected.alias}
+                provider={selected}
+                revision={revision}
+                secondaryAction={
+                  <Button
+                    variant="ghost"
+                    color="error"
+                    disabled={
+                      selectedUsage?.agent === true || selectedUsage?.vision === true || selectedUsage?.tool === true
+                    }
+                    onClick={() => {
+                      removeProvider.reset();
+                      setDeletingProvider(selected);
+                      setDeleteProviderOpen(true);
+                    }}
+                    iconStart={<TrashIcon />}
+                  >
+                    {t('models.models.page.deleteProvider')}
+                  </Button>
+                }
+              />
               <ModelList
                 key={selected.alias}
                 view={view}
@@ -290,23 +314,14 @@ export default function ProvidersPage(): ReactElement {
                 rolePending={roles.pending}
                 onAssignRole={roles.assign}
                 onEdit={(alias, model) => setEditing({ alias, model, revision })}
-                onDeleteModel={(alias, model) => setDeletingModel({ alias, model })}
+                onDeleteModel={(alias, model) => {
+                  removeModel.reset();
+                  setDeletingModel({ alias, model });
+                  setDeleteModelOpen(true);
+                }}
                 onFetchModels={() => setPicker({ mode: 'discover', alias: selected.alias, nonce: Date.now() })}
                 onAddById={() => setPicker({ mode: 'manual', alias: selected.alias, nonce: Date.now() })}
               />
-              <div className={css({ display: 'flex', justifyContent: 'flex-end' })}>
-                <Button
-                  variant="ghost"
-                  color="error"
-                  disabled={
-                    selectedUsage?.agent === true || selectedUsage?.vision === true || selectedUsage?.tool === true
-                  }
-                  onClick={() => setDeletingProvider(selected)}
-                  iconStart={<TrashIcon />}
-                >
-                  {t('models.models.page.deleteProvider')}
-                </Button>
-              </div>
             </>
           )}
         </div>
@@ -329,8 +344,8 @@ export default function ProvidersPage(): ReactElement {
           onSubmit: saveEdit,
         }}
         deletingModel={deletingModel}
-        onDeletingModelClose={() => setDeletingModel(null)}
         removeModel={{
+          open: deleteModelOpen,
           pending: removeModel.isPending,
           error: removeModel.isError ? writeErrorMessage(removeModel.error) : null,
           onConfirm: () => {
@@ -338,10 +353,11 @@ export default function ProvidersPage(): ReactElement {
               removeModel.mutate(deletingModel);
             }
           },
+          onClose: () => setDeleteModelOpen(false),
         }}
         deletingProvider={deletingProvider}
-        onDeletingProviderClose={() => setDeletingProvider(null)}
         removeProvider={{
+          open: deleteProviderOpen,
           pending: removeProvider.isPending,
           error: removeProvider.isError ? writeErrorMessage(removeProvider.error) : null,
           onConfirm: () => {
@@ -349,6 +365,7 @@ export default function ProvidersPage(): ReactElement {
               removeProvider.mutate(deletingProvider.alias);
             }
           },
+          onClose: () => setDeleteProviderOpen(false),
         }}
       />
       <ThinkingResetDialog resets={roles.thinkingResets} onClose={roles.closeThinkingResets} />

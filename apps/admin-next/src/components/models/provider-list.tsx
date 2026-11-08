@@ -7,7 +7,7 @@ import { type ReactElement, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { focusRing } from '@/components/app-shell/shared';
 import { MonoValue, ToneBadge } from '@/components/business';
-import { BrainIcon, EyeIcon, RefreshIcon, ResetIcon, WrenchIcon } from '@/components/icons';
+import { EyeIcon, RefreshIcon, ResetIcon, RobotIcon, WrenchIcon } from '@/components/icons';
 import type { ProvidersView, ProviderView } from '@/lib/api/providers.ts';
 import { providerUsage } from '@/lib/model-manager.ts';
 
@@ -27,7 +27,7 @@ export function ProviderBadges({
   if (variant === 'icons') {
     return (
       <span aria-hidden="true" className={css({ display: 'flex', alignItems: 'center', gap: '1', color: 'text' })}>
-        {usage.agent ? <BrainIcon size={sizes.icon} /> : null}
+        {usage.agent ? <RobotIcon size={sizes.icon} /> : null}
         {usage.vision ? <EyeIcon size={sizes.icon} /> : null}
         {usage.tool ? <WrenchIcon size={sizes.icon} /> : null}
       </span>

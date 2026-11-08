@@ -24,11 +24,7 @@ export default function ModelsPage(): ReactElement {
   const providers = useQuery(providersQuery);
   const view = providers.data;
 
-  const manageProviders = (
-    <ButtonLink to="/providers" variant="outline" color="secondary">
-      {t('models.models.roles.manageProviders')}
-    </ButtonLink>
-  );
+  const manageProviders = <ButtonLink to="/providers">{t('models.models.roles.manageProviders')}</ButtonLink>;
 
   return (
     <div className={css({ maxWidth: '768px', marginInline: 'auto', '& > * + *': { marginBlockStart: '6' } })}>

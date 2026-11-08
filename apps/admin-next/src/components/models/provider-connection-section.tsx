@@ -5,6 +5,7 @@ import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
+import type React from 'react';
 import { type ReactElement, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Panel } from '@/components/layout/panel';
@@ -30,9 +31,11 @@ const API_LABELS: Record<ProviderApi, string> = {
 export function ProviderConnectionSection({
   provider,
   revision,
+  secondaryAction,
 }: {
   readonly provider: ProviderView;
   readonly revision: string;
+  readonly secondaryAction?: React.ReactNode;
 }): ReactElement {
   const { t } = useTranslation();
   const write = useProviderWrite();
@@ -140,9 +143,17 @@ export function ProviderConnectionSection({
       variant="plain"
       title={t('models.models.connection.title')}
       action={
-        <Button disabled={!dirty || stale} loading={save.isPending} loadingLabel={t('common.saving')} onClick={submit}>
-          {t('common.save')}
-        </Button>
+        <>
+          {secondaryAction}
+          <Button
+            disabled={!dirty || stale}
+            loading={save.isPending}
+            loadingLabel={t('common.saving')}
+            onClick={submit}
+          >
+            {t('common.save')}
+          </Button>
+        </>
       }
     >
       <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>

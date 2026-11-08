@@ -81,7 +81,7 @@ export function ModelSelect({
         option.ref === null ? (
           option.label
         ) : (
-          <ModelChoiceLabel alias={option.ref.alias} config={option.ref.config} withAlias />
+          <ModelChoiceLabel alias={option.ref.alias} config={option.ref.config} withAlias isSimple />
         )
       }
       onChange={(next) => {
@@ -118,16 +118,42 @@ function ModelChoiceLabel({
   alias,
   config,
   withAlias = false,
+  isSimple = false,
 }: {
   readonly alias: string;
   readonly config: ProviderModelConfig;
   readonly withAlias?: boolean;
+  readonly isSimple?: boolean;
 }): ReactElement {
   const hasName = config.name !== undefined && config.name.length > 0;
+
+  if (isSimple) {
+    return (
+      <span className={css({ display: 'flex', flexDirection: 'column', gap: '2', minWidth: '0' })}>
+        {hasName ? (
+          <span className={css({ flexShrink: '0' })}>{config.name}</span>
+        ) : (
+          <span
+            className={css({
+              minWidth: '0',
+              truncate: true,
+              color: hasName ? 'text-muted' : 'text',
+              fontSize: 'small',
+            })}
+          >
+            <MonoValue value={withAlias ? `${alias} / ${config.id}` : config.id} />
+          </span>
+        )}
+      </span>
+    );
+  }
+
   return (
-    <span className={css({ display: 'flex', alignItems: 'baseline', gap: '2', minWidth: '0' })}>
+    <span className={css({ display: 'flex', flexDirection: 'column', gap: '1', minWidth: '0', lineHeight: '1.5' })}>
       {hasName ? <span className={css({ flexShrink: '0' })}>{config.name}</span> : null}
-      <span className={css({ minWidth: '0', truncate: true, color: hasName ? 'text-muted' : 'text' })}>
+      <span
+        className={css({ minWidth: '0', truncate: true, color: hasName ? 'text-muted' : 'text', fontSize: 'smaller' })}
+      >
         <MonoValue value={withAlias ? `${alias} / ${config.id}` : config.id} />
       </span>
     </span>
