@@ -5,9 +5,11 @@ import type {
   DraftField,
   MetadataSource,
   ModelCompatConfig,
+  ModelInput,
   ModelMetadataDraft,
   ModelsDevMatch,
   ProviderApi,
+  ProviderKind,
   ProviderModelConfig,
   ProviderView,
 } from './api/providers.ts';
@@ -50,6 +52,46 @@ const SOURCE_LABELS: Record<MetadataSource, string | null> = {
 /** Sources that are a lead rather than an answer, so the field needs confirming. */
 const GUESSED_SOURCES: readonly MetadataSource[] = ['models.dev-cross-provider', 'models.dev-fuzzy'];
 
+export function providerApiLabel(api: ProviderApi): string {
+  switch (api) {
+    case 'openai-completions':
+      return i18n.t('models.models.apiFormat.openaiCompletions');
+    case 'openai-responses':
+      return i18n.t('models.models.apiFormat.openaiResponses');
+    case 'anthropic-messages':
+      return i18n.t('models.models.apiFormat.anthropicMessages');
+    case 'google-generative-ai':
+      return i18n.t('models.models.apiFormat.googleGenerativeAi');
+  }
+}
+
+export function providerKindLabel(kind: ProviderKind): string {
+  return kind === 'builtin' ? i18n.t('models.models.kind.builtin') : i18n.t('models.models.kind.custom');
+}
+
+export function modalityLabel(modality: ModelInput): string {
+  return modality === 'text' ? i18n.t('models.models.modality.text') : i18n.t('models.models.modality.image');
+}
+
+export function draftFieldLabel(field: DraftField): string {
+  switch (field) {
+    case 'name':
+      return i18n.t('models.models.edit.name');
+    case 'reasoning':
+      return i18n.t('models.models.edit.reasoning');
+    case 'thinking_levels':
+      return i18n.t('models.models.edit.thinkingLevels');
+    case 'input':
+      return i18n.t('models.models.edit.input');
+    case 'context_window':
+      return i18n.t('models.models.edit.contextWindow');
+    case 'max_tokens':
+      return i18n.t('models.models.edit.maxTokens');
+    case 'cost':
+      return i18n.t('models.models.edit.cost');
+  }
+}
+
 export function metadataSourceLabel(source: MetadataSource): string {
   const fixed = SOURCE_LABELS[source];
   if (fixed !== null) {
@@ -64,7 +106,11 @@ export function metadataSourceLabel(source: MetadataSource): string {
 }
 
 export function fieldSourceLabel(draft: ModelMetadataDraft, field: DraftField): string {
-  return metadataSourceLabel(draft.sources[field]);
+  const source = draft.sources[field];
+  if (source === 'missing') {
+    return i18n.t('models.models.source.missing');
+  }
+  return i18n.t('models.models.source.from', { source: metadataSourceLabel(source) });
 }
 
 /**
@@ -191,19 +237,20 @@ export const AUTO_COMPAT = 'auto';
 
 export interface CompatOption {
   readonly value: string;
-  readonly label: string;
+  readonly label: () => string;
 }
 
 export interface CompatFieldSpec {
   readonly field: keyof ModelCompatConfig;
+  readonly label: () => string;
   /** `boolean` fields are on/off; `enum` fields offer their concrete values. */
   readonly kind: 'boolean' | 'enum';
   readonly options: readonly CompatOption[];
 }
 
 const BOOLEAN_OPTIONS: readonly CompatOption[] = [
-  { value: 'on', label: 'On' },
-  { value: 'off', label: 'Off' },
+  { value: 'on', label: () => i18n.t('models.models.compat.on') },
+  { value: 'off', label: () => i18n.t('models.models.compat.off') },
 ];
 
 /**
@@ -213,32 +260,56 @@ const BOOLEAN_OPTIONS: readonly CompatOption[] = [
  */
 const COMPAT_FIELDS_BY_API: Record<ProviderApi, readonly CompatFieldSpec[]> = {
   'openai-completions': [
-    { field: 'supports_developer_role', kind: 'boolean', options: BOOLEAN_OPTIONS },
+    {
+      field: 'supports_developer_role',
+      label: () => i18n.t('models.models.compat.supportsDeveloperRole'),
+      kind: 'boolean',
+      options: BOOLEAN_OPTIONS,
+    },
     {
       field: 'thinking_format',
+      label: () => i18n.t('models.models.compat.thinkingFormat'),
       kind: 'enum',
       options: [
-        { value: 'openai', label: 'openai' },
-        { value: 'openrouter', label: 'openrouter' },
-        { value: 'deepseek', label: 'deepseek' },
-        { value: 'together', label: 'together' },
-        { value: 'zai', label: 'zai' },
-        { value: 'qwen', label: 'qwen' },
-        { value: 'string-thinking', label: 'string-thinking' },
+        { value: 'openai', label: () => i18n.t('models.models.compat.openai') },
+        { value: 'openrouter', label: () => i18n.t('models.models.compat.openrouter') },
+        { value: 'deepseek', label: () => i18n.t('models.models.compat.deepseek') },
+        { value: 'together', label: () => i18n.t('models.models.compat.together') },
+        { value: 'zai', label: () => i18n.t('models.models.compat.zai') },
+        { value: 'qwen', label: () => i18n.t('models.models.compat.qwen') },
+        { value: 'string-thinking', label: () => i18n.t('models.models.compat.stringThinking') },
       ],
     },
     {
       field: 'max_tokens_field',
+      label: () => i18n.t('models.models.compat.maxTokensField'),
       kind: 'enum',
       options: [
-        { value: 'max_completion_tokens', label: 'max_completion_tokens' },
-        { value: 'max_tokens', label: 'max_tokens' },
+        { value: 'max_completion_tokens', label: () => i18n.t('models.models.compat.maxCompletionTokens') },
+        { value: 'max_tokens', label: () => i18n.t('models.models.compat.maxTokens') },
       ],
     },
-    { field: 'requires_reasoning_content', kind: 'boolean', options: BOOLEAN_OPTIONS },
-    { field: 'cache_control_format', kind: 'enum', options: [{ value: 'anthropic', label: 'anthropic' }] },
+    {
+      field: 'requires_reasoning_content',
+      label: () => i18n.t('models.models.compat.requiresReasoningContent'),
+      kind: 'boolean',
+      options: BOOLEAN_OPTIONS,
+    },
+    {
+      field: 'cache_control_format',
+      label: () => i18n.t('models.models.compat.cacheControlFormat'),
+      kind: 'enum',
+      options: [{ value: 'anthropic', label: () => i18n.t('models.models.compat.anthropic') }],
+    },
   ],
-  'openai-responses': [{ field: 'supports_developer_role', kind: 'boolean', options: BOOLEAN_OPTIONS }],
+  'openai-responses': [
+    {
+      field: 'supports_developer_role',
+      label: () => i18n.t('models.models.compat.supportsDeveloperRole'),
+      kind: 'boolean',
+      options: BOOLEAN_OPTIONS,
+    },
+  ],
   'anthropic-messages': [],
   'google-generative-ai': [],
 };
@@ -288,8 +359,8 @@ export function compatConfigFromState(
  * schema the runtime builds.
  */
 export const TOOL_SCHEMA_KEYWORDS_OPTIONS: readonly CompatOption[] = [
-  { value: AUTO_COMPAT, label: 'Automatic' },
-  { value: 'minimal', label: 'minimal' },
+  { value: AUTO_COMPAT, label: () => i18n.t('models.models.edit.automatic') },
+  { value: 'minimal', label: () => i18n.t('models.models.edit.toolSchemaMinimal') },
 ];
 
 export function toolSchemaKeywordsFromState(state: string): ProviderModelConfig['tool_schema_keywords'] {
@@ -395,9 +466,15 @@ export function providerMatchesSearch(provider: ProviderView, query: string): bo
   if (needle.length === 0) {
     return true;
   }
-  return [provider.alias, provider.provider ?? '', provider.api, provider.base_url, provider.kind].some((value) =>
-    value.toLowerCase().includes(needle),
-  );
+  return [
+    provider.alias,
+    provider.provider ?? '',
+    provider.api,
+    provider.base_url,
+    provider.kind,
+    providerKindLabel(provider.kind),
+    providerApiLabel(provider.api),
+  ].some((value) => value.toLowerCase().includes(needle));
 }
 
 export function modelMatchesSearch(

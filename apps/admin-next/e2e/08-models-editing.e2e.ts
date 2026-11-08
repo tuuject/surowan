@@ -25,7 +25,7 @@ test.describe('providers page editing', () => {
     // Not a reasoning model: there are no levels to declare.
     const dialog = page.getByRole('dialog');
     await expect(dialog.getByRole('checkbox', { name: 'off', exact: true })).toHaveCount(0);
-    await dialog.getByRole('checkbox', { name: 'reasoning', exact: true }).check();
+    await dialog.getByRole('checkbox', { name: 'Supports thinking', exact: true }).check();
     await dialog.getByRole('checkbox', { name: 'low', exact: true }).check();
     await dialog.getByRole('checkbox', { name: 'xhigh', exact: true }).check();
     await page.getByRole('button', { name: 'Save' }).click();
@@ -41,9 +41,9 @@ test.describe('providers page editing', () => {
   test('adds a model by id through lookup-metadata', async ({ page }) => {
     await page.goto(await adminUrl('/providers'));
     await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` }).click();
-    await page.getByRole('button', { name: 'Add by id' }).click();
-    await page.getByLabel('Model ids (one per line, or comma separated)').fill(E2E_RELAY_MANUAL_MODEL);
-    await page.getByRole('button', { name: 'Look up metadata' }).click();
+    await page.getByRole('button', { name: 'Add manually' }).click();
+    await page.getByLabel('Model IDs (one per line, or separated by commas)').fill(E2E_RELAY_MANUAL_MODEL);
+    await page.getByRole('button', { name: 'Look up model details' }).click();
 
     // A single id opens the edit dialog straight away: the metadata comes from
     // models.dev and is confirmed there before anything is written.
@@ -84,7 +84,7 @@ test.describe('providers page editing', () => {
     const row = page.locator('li').filter({ hasText: E2E_RELAY_COMPLETE_MODEL });
     await expect(row).toBeVisible();
     await page.getByLabel(`Select ${E2E_RELAY_COMPLETE_MODEL}`).check();
-    await page.getByRole('button', { name: 'Accept listed values (1)' }).click();
+    await page.getByRole('button', { name: 'Accept these values (1)' }).click();
     await page.getByRole('button', { name: 'Create provider' }).click();
 
     // A create is applied immediately like every other write: the wizard closes
@@ -96,7 +96,7 @@ test.describe('providers page editing', () => {
     // discovery fetches the listing without asking for the key again.
     await page.getByRole('button', { name: 'Fetch models' }).click();
     await page.getByRole('button', { name: 'Fetch', exact: true }).click();
-    await expect(page.getByText('endpoint:')).toBeVisible();
+    await expect(page.getByText('Requested from:')).toBeVisible();
     await page.getByRole('button', { name: 'Cancel' }).click();
 
     // The fetched model can be set as the agent model right away.
@@ -127,15 +127,17 @@ test.describe('providers page editing', () => {
     await page.locator('#wizard-api-key').fill(E2E_SECRETS.wizard);
     const dialog = page.getByRole('dialog');
     await page.getByRole('button', { name: 'Add header' }).click();
-    await dialog.getByLabel('Header', { exact: true }).first().fill('x-extra');
+    await dialog.getByLabel('Header name', { exact: true }).first().fill('x-extra');
     await page.getByRole('button', { name: 'Next' }).click();
 
     // Metadata lookup never sends headers, so the incomplete row survives until
     // the submit — where it must be reported instead of silently dropped.
-    await page.getByLabel('Or enter model ids by hand (one per line, or comma separated)').fill(E2E_RELAY_MANUAL_MODEL);
-    await page.getByRole('button', { name: 'Look up metadata' }).click();
+    await page
+      .getByLabel('Or enter model IDs by hand (one per line, or separated by commas)')
+      .fill(E2E_RELAY_MANUAL_MODEL);
+    await page.getByRole('button', { name: 'Look up model details' }).click();
     await page.getByLabel(`Select ${E2E_RELAY_MANUAL_MODEL}`).check();
-    await page.getByRole('button', { name: 'Accept listed values (1)' }).click();
+    await page.getByRole('button', { name: 'Accept these values (1)' }).click();
     await page.getByRole('button', { name: 'Create provider' }).click();
 
     await expect(page.getByText('Header x-extra needs a value')).toBeVisible();
@@ -152,7 +154,7 @@ test.describe('providers page editing', () => {
     const connection = page.getByRole('region', { name: 'Connection', exact: true });
     // Rows are a Koi MapEditor without drag: order carries no meaning here.
     await expect(connection.getByRole('button', { name: 'Drag to reorder' })).toHaveCount(0);
-    const newName = connection.getByLabel('Header', { exact: true }).nth(1);
+    const newName = connection.getByLabel('Header name', { exact: true }).nth(1);
     await newName.pressSequentially('x-typed');
     await expect(newName).toHaveValue('x-typed');
   });
@@ -179,7 +181,7 @@ test.describe('providers page editing', () => {
     }, E2E_RELAY_ALIAS);
 
     await page.getByRole('button', { name: 'Save' }).click();
-    await expect(page.getByText('Nothing was saved - open the model again')).toBeVisible();
+    await expect(page.getByText('nothing was saved. Open the model again')).toBeVisible();
     await expect(page.locator('#model-context')).toHaveCount(0);
 
     const view = await (await page.request.get(await adminUrl('/api/providers'))).json();
@@ -232,11 +234,11 @@ test.describe('providers page editing', () => {
     // The save is refused on its old revision; the refresh then marks the draft
     // stale and blocks another attempt until it is reloaded.
     await page.getByRole('button', { name: 'Save' }).click();
-    await expect(page.getByText('config.jsonc changed since you started editing')).toBeVisible();
+    await expect(page.getByText('The configuration changed since you started editing')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
     await page.getByRole('button', { name: 'Reload' }).click();
     const connection = page.getByRole('region', { name: 'Connection', exact: true });
-    await expect(connection.getByLabel('Header', { exact: true }).nth(1)).toHaveValue('x-added-elsewhere');
+    await expect(connection.getByLabel('Header name', { exact: true }).nth(1)).toHaveValue('x-added-elsewhere');
 
     const view = await (await page.request.get(await adminUrl('/api/providers'))).json();
     const relay = view.providers.find((provider: { alias: string }) => provider.alias === E2E_RELAY_ALIAS);

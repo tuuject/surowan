@@ -13,15 +13,8 @@ import { HeaderFields } from '@/components/models/header-fields';
 import type { ProviderApi, ProviderView, UpdateProviderRequest } from '@/lib/api/providers.ts';
 import { PROVIDER_APIS, updateProvider } from '@/lib/api/providers.ts';
 import { type HeaderRow, headerPayload, headerRowsFromNames, removedHeaderNames } from '@/lib/header-rows.ts';
-import { requestErrorMessage } from '@/lib/model-manager.ts';
+import { providerApiLabel, requestErrorMessage } from '@/lib/model-manager.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
-
-const API_LABELS: Record<ProviderApi, string> = {
-  'openai-completions': 'openai-completions',
-  'openai-responses': 'openai-responses',
-  'anthropic-messages': 'anthropic-messages',
-  'google-generative-ai': 'google-generative-ai',
-};
 
 /**
  * Connection fields of one provider. Builtin providers keep Pi's address and
@@ -157,6 +150,9 @@ export function ProviderConnectionSection({
       }
     >
       <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+        {custom && api === 'openai-responses' ? (
+          <Alert tone="warning">{t('models.models.connection.responsesWarning')}</Alert>
+        ) : null}
         <div
           className={css({
             display: 'grid',
@@ -165,7 +161,10 @@ export function ProviderConnectionSection({
             '@media (min-width: 640px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
           })}
         >
-          <Field label={t('models.models.connection.baseUrl')}>
+          <Field
+            label={t('models.models.connection.baseUrl')}
+            help={custom ? t('models.models.connection.baseUrlHint') : t('models.models.connection.builtinHint')}
+          >
             <Input
               value={baseUrl}
               disabled={!custom}
@@ -180,7 +179,7 @@ export function ProviderConnectionSection({
               value={api}
               disabled={!custom}
               onChange={(event) => setApi(event.target.value as ProviderApi)}
-              options={PROVIDER_APIS.map((value) => ({ value, label: API_LABELS[value] }))}
+              options={PROVIDER_APIS.map((value) => ({ value, label: providerApiLabel(value) }))}
             />
           </Field>
           <Field
@@ -206,6 +205,9 @@ export function ProviderConnectionSection({
         {custom ? (
           <div className={css({ display: 'flex', flexDirection: 'column', gap: '2' })}>
             <h3 className={css({ margin: '0', textStyle: 'label' })}>{t('models.models.connection.headersTitle')}</h3>
+            <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>
+              {t('models.models.connection.headersHint')}
+            </p>
             <HeaderFields
               rows={headers}
               onChange={(rows) => {

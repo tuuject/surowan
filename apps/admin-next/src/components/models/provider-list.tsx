@@ -9,7 +9,7 @@ import { focusRing } from '@/components/app-shell/shared';
 import { MonoValue, ToneBadge } from '@/components/business';
 import { EyeIcon, RefreshIcon, ResetIcon, RobotIcon, WrenchIcon } from '@/components/icons';
 import type { ProvidersView, ProviderView } from '@/lib/api/providers.ts';
-import { providerUsage } from '@/lib/model-manager.ts';
+import { providerKindLabel, providerUsage } from '@/lib/model-manager.ts';
 
 /** Which slots the provider currently serves, as text badges or bare status icons. */
 export function ProviderBadges({
@@ -294,7 +294,7 @@ function ProviderRow({
             color: 'text-muted',
           })}
         >
-          <span>{provider.kind}</span>
+          <span>{providerKindLabel(provider.kind)}</span>
           <span>
             {t(provider.models.length === 1 ? 'models.models.page.oneModel' : 'models.models.page.manyModels', {
               count: provider.models.length,

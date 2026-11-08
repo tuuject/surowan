@@ -46,13 +46,13 @@ test.describe('model health checks', () => {
       // Queue four checks so three run and one waits behind them: the three
       // slow models fill the concurrency slots and the fast one is picked up
       // last (and never reaches the upstream).
-      await page.getByLabel(`Select ${E2E_HEALTH_OK_2_MODEL} for a health check`).check();
-      await page.getByLabel(`Select ${E2E_HEALTH_UNEXPECTED_MODEL} for a health check`).check();
+      await page.getByLabel(`Select ${E2E_HEALTH_OK_2_MODEL} for testing`).check();
+      await page.getByLabel(`Select ${E2E_HEALTH_UNEXPECTED_MODEL} for testing`).check();
       await selectProvider(page, E2E_HEALTH_ALIAS_B);
-      await page.getByLabel(`Select ${E2E_HEALTH_FAIL_MODEL} for a health check`).check();
+      await page.getByLabel(`Select ${E2E_HEALTH_FAIL_MODEL} for testing`).check();
       await selectProvider(page, E2E_HEALTH_ALIAS_A);
-      await page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL} for a health check`).check();
-      await page.getByRole('button', { name: /^Check selected \(\d+\)$/ }).click();
+      await page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL} for testing`).check();
+      await page.getByRole('button', { name: /^Test selected \(\d+\)$/ }).click();
 
       // All three concurrency slots are busy upstream (held) — including the
       // HTTP-500 model, which counts toward in-flight like any other request —
@@ -98,9 +98,9 @@ test.describe('model health checks', () => {
     await page.waitForURL((url) => url.pathname === '/providers');
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
     const row = modelRow(page, E2E_HEALTH_OK_MODEL);
-    await row.getByRole('button', { name: /check health/i }).click();
+    await row.getByRole('button', { name: /test whether/i }).click();
     await expect(row.getByText('OK', { exact: true })).toBeVisible();
-    await expect(row.getByText(/TTFB/)).toBeVisible();
+    await expect(row.getByText(/First response/)).toBeVisible();
     const after = await relayStats();
     expect(after.total).toBe(4);
     expect(after.by_model).toEqual({
@@ -121,14 +121,14 @@ test.describe('model health checks', () => {
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
 
     const row = modelRow(page, E2E_HEALTH_OK_MODEL);
-    await row.getByRole('button', { name: /check health/i }).click();
+    await row.getByRole('button', { name: /test whether/i }).click();
     await expect(row.getByText('OK', { exact: true })).toBeVisible();
 
     // Health state is page-local: after a full reload the row starts clean
     // again instead of replaying a stale result.
     await page.reload();
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
-    const check = modelRow(page, E2E_HEALTH_OK_MODEL).getByRole('button', { name: /check health/i });
+    const check = modelRow(page, E2E_HEALTH_OK_MODEL).getByRole('button', { name: /test whether/i });
     await expect(check).toBeVisible();
     await expect(modelRow(page, E2E_HEALTH_OK_MODEL).getByText('OK', { exact: true })).toHaveCount(0);
   });

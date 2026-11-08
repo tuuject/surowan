@@ -375,7 +375,7 @@ Admin Panel 从 models.dev 的 `reasoning_options` 预填级别（`src/platform/
 
 ### 模型 compat
 
-「OpenAI 兼容接口」在细节上各有方言，`compat` 是 Pi 自动检测的覆盖开关。每个字段都可以省略，省略即「自动」（由 Pi 按 provider id 与 baseUrl 检测），因此升级 Pi 后检测改进会自动生效；写死一个值等于冻结它。
+OpenAI (Chat Completions) 在细节上各有方言，`compat` 是 Pi 自动检测的覆盖开关。每个字段都可以省略，省略即「自动」（由 Pi 按 provider id 与 baseUrl 检测），因此升级 Pi 后检测改进会自动生效；写死一个值等于冻结它。
 
 | 配置字段 | Pi 字段 | 适用 API | 取值（省略即「自动」） |
 | --- | --- | --- | --- |

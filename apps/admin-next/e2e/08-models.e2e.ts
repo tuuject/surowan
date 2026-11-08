@@ -30,7 +30,7 @@ test.describe('providers page', () => {
     // Builtin providers show Pi's address read-only and only allow the key to change.
     await page.getByRole('button', { name: `Provider ${E2E_BUILTIN_ALIAS}` }).click();
     const connection = page.getByRole('region', { name: 'Connection', exact: true });
-    await expect(connection.getByLabel('base_url', { exact: true })).toHaveValue('https://openrouter.ai/api/v1');
+    await expect(connection.getByLabel('API address', { exact: true })).toHaveValue('https://openrouter.ai/api/v1');
     const keyInput = page.getByLabel('API Key', { exact: true });
     await expect(keyInput).toHaveAttribute('type', 'password');
     await expect(keyInput).toHaveAttribute('autocomplete', 'new-password');
@@ -56,7 +56,7 @@ test.describe('providers page', () => {
     // Header names are shown; header values never are.
     await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` }).click();
     const connection = page.getByRole('region', { name: 'Connection', exact: true });
-    await expect(connection.getByLabel('Header', { exact: true }).first()).toHaveValue('x-relay-token');
+    await expect(connection.getByLabel('Header name', { exact: true }).first()).toHaveValue('x-relay-token');
     await expect(connection.getByLabel('Value', { exact: true }).first()).toHaveValue('');
 
     const view = await (await page.request.get(await adminUrl('/api/providers'))).json();
@@ -86,7 +86,7 @@ test.describe('providers page', () => {
     // The applied connection is live in the running registry, so the discovery
     // dialog opens in saved mode instead of demanding the key again.
     await page.getByRole('button', { name: 'Fetch models' }).click();
-    await expect(page.getByRole('button', { name: 'Use temporary mode (key from this form)' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Use a different API key' })).toBeVisible();
     await expect(page.locator('#picker-api-key')).toHaveCount(0);
     await page.getByRole('button', { name: 'Cancel' }).click();
   });
@@ -98,7 +98,7 @@ test.describe('providers page', () => {
 
     // Saved mode: the running registry's connection, which points at the loopback upstream.
     await page.getByRole('button', { name: 'Fetch', exact: true }).click();
-    await expect(page.getByText('endpoint:')).toBeVisible();
+    await expect(page.getByText('Requested from:')).toBeVisible();
 
     const completeRow = page.locator('li').filter({ hasText: E2E_RELAY_COMPLETE_MODEL });
     const incompleteRow = page.locator('li').filter({ hasText: E2E_RELAY_INCOMPLETE_MODEL });
@@ -118,7 +118,7 @@ test.describe('providers page', () => {
 
     // Accepting the listed values covers the draft that has them all; the one
     // with empty fields still has to go through the dialog.
-    await page.getByRole('button', { name: 'Accept listed values (1)' }).click();
+    await page.getByRole('button', { name: 'Accept these values (1)' }).click();
     await expect(completeRow.getByText('Confirmed')).toBeVisible();
     await expect(page.getByRole('button', { name: /Add \d+ models/ })).toBeDisabled();
 
@@ -128,7 +128,7 @@ test.describe('providers page', () => {
     await page.locator('#model-max-tokens').fill('8192');
     await page
       .getByRole('dialog', { name: `Confirm ${E2E_RELAY_INCOMPLETE_MODEL}` })
-      .getByRole('checkbox', { name: 'text', exact: true })
+      .getByRole('checkbox', { name: 'Text', exact: true })
       .check();
     await page.locator('#model-cost-input').fill('0.1');
     await page.locator('#model-cost-output').fill('0.2');

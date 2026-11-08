@@ -4,7 +4,7 @@ import { Dialog } from '@tuuject/koi-react/dialog';
 import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
-import { css, cx } from '@tuuject/koi-react/styled-system/css';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import { field } from '@tuuject/koi-react/styled-system/recipes';
 import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,13 +18,16 @@ import type {
   ProviderApi,
   ProviderModelConfig,
 } from '@/lib/api/providers.ts';
+import i18n from '@/lib/i18n.ts';
 import { type ModelFormState, modelFormToConfig, validateModelForm } from '@/lib/model-form.ts';
 import {
   AUTO_COMPAT,
   compatFieldsForApi,
+  draftFieldLabel,
   fieldSourceLabel,
   isDraftFieldUnconfirmed,
   matchLabel,
+  modalityLabel,
   TOOL_SCHEMA_KEYWORDS_OPTIONS,
   unconfirmedFields,
 } from '@/lib/model-manager.ts';
@@ -34,6 +37,18 @@ const fieldLabel = field().label;
 
 const INPUT_MODALITIES: readonly ModelInput[] = ['text', 'image'];
 const COST_FIELDS = ['input', 'output', 'cache_read', 'cache_write'] as const;
+function costFieldLabel(field: (typeof COST_FIELDS)[number]): string {
+  switch (field) {
+    case 'input':
+      return i18n.t('models.models.edit.costInput');
+    case 'output':
+      return i18n.t('models.models.edit.costOutput');
+    case 'cache_read':
+      return i18n.t('models.models.edit.costCacheRead');
+    case 'cache_write':
+      return i18n.t('models.models.edit.costCacheWrite');
+  }
+}
 
 /**
  * One field label with its provenance: the metadata source the value came from,
@@ -167,7 +182,9 @@ export function ModelEditDialog({
       <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
         {confirmations.length > 0 ? (
           <p className={css({ textStyle: 'small', color: 'warning-text' })}>
-            {t('models.models.edit.confirmIntro', { fields: confirmations.join(', ') })}
+            {t('models.models.edit.confirmIntro', {
+              fields: confirmations.map(draftFieldLabel).join(t('common.separator')),
+            })}
           </p>
         ) : null}
         {/* Naming the match makes "confirm" actionable: a cross-provider or
@@ -241,7 +258,7 @@ export function ModelEditDialog({
               <Checkbox
                 key={modality}
                 {...(modality === 'text' ? { id: 'model-input-text' } : {})}
-                label={modality}
+                label={modalityLabel(modality)}
                 checked={form.input.includes(modality)}
                 onCheckedChange={() => toggleInput(modality)}
               />
@@ -303,7 +320,7 @@ export function ModelEditDialog({
           >
             {TOOL_SCHEMA_KEYWORDS_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.value === AUTO_COMPAT ? t('models.models.edit.automatic') : option.label}
+                {option.label()}
               </option>
             ))}
           </Select>
@@ -315,7 +332,7 @@ export function ModelEditDialog({
             {COST_FIELDS.map((field) => (
               <div key={field} className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
                 <label htmlFor={`model-cost-${field}`} className={fieldLabel}>
-                  {field}
+                  {costFieldLabel(field)}
                 </label>
                 <Input
                   id={`model-cost-${field}`}
@@ -341,13 +358,11 @@ export function ModelEditDialog({
         {showAdvanced ? (
           <LazyDetails summary={t('models.models.edit.advanced')} className={css({ textStyle: 'body' })}>
             <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' }, paddingBlockStart: '3' })}>
-              <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-                {t('models.models.edit.advancedHint', { api })}
-              </p>
+              <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('models.models.edit.advancedHint')}</p>
               {compatFields.map((spec) => (
                 <div key={spec.field} className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-                  <label htmlFor={`compat-${spec.field}`} className={cx(fieldLabel, css({ fontFamily: 'mono' }))}>
-                    {spec.field}
+                  <label htmlFor={`compat-${spec.field}`} className={fieldLabel}>
+                    {spec.label()}
                   </label>
                   <Select
                     id={`compat-${spec.field}`}
@@ -363,7 +378,7 @@ export function ModelEditDialog({
                     <option value={AUTO_COMPAT}>{t('models.models.edit.auto')}</option>
                     {spec.options.map((option) => (
                       <option key={option.value} value={option.value}>
-                        {option.label}
+                        {option.label()}
                       </option>
                     ))}
                   </Select>

@@ -271,13 +271,13 @@ export function ModelList({
                       {isImageCapable(row.model) ? (
                         <span className={css({ display: 'flex', alignItems: 'center', gap: '1' })}>
                           <EyeIcon aria-hidden="true" />
-                          <span className={css({ srOnly: true })}>{t('models.models.page.srOnlyImage')}</span>
+                          {t('models.models.page.imageInput')}
                         </span>
                       ) : null}
                       {row.model.reasoning ? (
                         <span className={css({ display: 'flex', alignItems: 'center', gap: '1' })}>
                           <LightbulbIcon aria-hidden="true" />
-                          <span className={css({ srOnly: true })}>{t('models.models.page.srOnlyReasoning')}</span>
+                          {t('models.models.page.reasoningCapable')}
                         </span>
                       ) : null}
                     </p>

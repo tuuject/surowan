@@ -132,7 +132,7 @@ export function ModelPickerDialog({
         title={mode === 'discover' ? t('models.models.picker.discoverTitle') : t('models.models.picker.manualTitle')}
         description={t(
           mode === 'discover' ? 'models.models.picker.discoverDescription' : 'models.models.picker.manualDescription',
-          { alias: provider.alias, api: provider.api },
+          { alias: provider.alias },
         )}
         size="lg"
         footer={

@@ -8,7 +8,7 @@ import { MonoValue, ToneBadge } from '@/components/business';
 import { EditIcon } from '@/components/icons';
 import type { DiscoveredModel, ProviderModelConfig } from '@/lib/api/providers.ts';
 import { formatNumber } from '@/lib/format.ts';
-import { draftNeedsConfirmation, matchLabel, unconfirmedFields } from '@/lib/model-manager.ts';
+import { draftNeedsConfirmation, matchLabel, modalityLabel, unconfirmedFields } from '@/lib/model-manager.ts';
 
 /**
  * One drafted value; a field nobody could fill reads `—`. The label stays
@@ -126,7 +126,7 @@ export function ModelDraftList({
                     />
                     <Metric
                       label={t('models.models.drafts.input')}
-                      value={draft.input === null ? '—' : draft.input.join('+')}
+                      value={draft.input === null ? '—' : draft.input.map(modalityLabel).join(' + ')}
                     />
                     <Metric
                       label={t('models.models.drafts.reasoning')}

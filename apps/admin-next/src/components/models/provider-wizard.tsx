@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Field } from '@tuuject/koi-react/field';
@@ -24,7 +25,7 @@ import type {
 import { createProvider, discoverProviderModels, lookupModelMetadata, PROVIDER_APIS } from '@/lib/api/providers.ts';
 import { type HeaderRow, headerRowsFromNames, headerValues } from '@/lib/header-rows.ts';
 import { modelFormFromDraft } from '@/lib/model-form.ts';
-import { parseModelIds, requestErrorMessage } from '@/lib/model-manager.ts';
+import { parseModelIds, providerApiLabel, requestErrorMessage } from '@/lib/model-manager.ts';
 import { providerPresetsQuery } from '@/lib/queries.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
 
@@ -204,7 +205,7 @@ export function ProviderWizard({
             <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
               <Field id="wizard-kind" label={t('models.models.wizard.kind')}>
                 <Select
-                  className={css({ width: '100%', md: { width: '256px' } })}
+                  className={css({ width: '100%' })}
                   value={kind}
                   onChange={(event) => setKind(event.target.value as ProviderKind)}
                 >
@@ -254,7 +255,7 @@ export function ProviderWizard({
                     >
                       {(presets.data?.presets ?? []).map((candidate) => (
                         <option key={candidate.id} value={candidate.id}>
-                          {candidate.name} ({candidate.api})
+                          {candidate.name}
                         </option>
                       ))}
                     </Select>
@@ -274,7 +275,11 @@ export function ProviderWizard({
                     md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
                   })}
                 >
-                  <Field id="wizard-base-url" label={t('models.models.connection.baseUrl')}>
+                  <Field
+                    id="wizard-base-url"
+                    label={t('models.models.connection.baseUrl')}
+                    help={t('models.models.connection.baseUrlHint')}
+                  >
                     <Input
                       value={baseUrl}
                       placeholder="https://example.com/v1"
@@ -293,16 +298,26 @@ export function ProviderWizard({
                     >
                       {PROVIDER_APIS.map((value) => (
                         <option key={value} value={value}>
-                          {value}
+                          {providerApiLabel(value)}
                         </option>
                       ))}
                     </Select>
+                    {api === 'openai-responses' ? null : (
+                      <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+                        {t('models.models.connection.apiHint')}
+                      </p>
+                    )}
                     {api === 'google-generative-ai' ? (
                       <p className={css({ textStyle: 'small', color: 'text-muted' })}>
                         {t('models.models.wizard.googleNote')}
                       </p>
                     ) : null}
                   </div>
+                  {api === 'openai-responses' ? (
+                    <Alert tone="warning" className={css({ gridColumn: '1 / -1' })}>
+                      {t('models.models.connection.responsesWarning')}
+                    </Alert>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -325,6 +340,9 @@ export function ProviderWizard({
               {kind === 'custom' ? (
                 <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
                   <p className={css({ textStyle: 'label' })}>{t('models.models.wizard.headersOptional')}</p>
+                  <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>
+                    {t('models.models.connection.headersHint')}
+                  </p>
                   <HeaderFields rows={headers} onChange={setHeaders} valuesRequired={false} />
                 </div>
               ) : null}
