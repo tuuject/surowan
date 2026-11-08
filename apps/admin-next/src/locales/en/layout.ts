@@ -83,6 +83,7 @@ export const layout = {
     botAdmins: 'Bot admins',
     apiKeys: 'API keys',
     models: 'Models',
+    providers: 'Providers',
     imageSettings: 'Image settings',
     searchSettings: 'Web search',
     telegram: 'Telegram',

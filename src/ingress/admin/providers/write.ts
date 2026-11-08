@@ -12,7 +12,7 @@ import { type ConfigEdit, secretEdit } from '../../../platform/config/write.ts';
 import { newKeyJarName } from '../../../platform/key-jar.ts';
 import { supportedThinkingLevels } from '../../../platform/thinking-levels.ts';
 import { AdminQueryError } from '../audit/shared.ts';
-import type { CreateProviderBody, ProviderWriteContext, UpdateProviderBody } from './index.ts';
+import type { CreateProviderBody, ProviderWriteContext, UpdateProviderBody, VisionBody } from './index.ts';
 import { checkModel, modelApi, providerOf, registerSecrets } from './read.ts';
 import { resolveVisionSection } from '../../../platform/config/resolve.ts';
 
@@ -251,11 +251,13 @@ export function deleteModel(context: ProviderWriteContext, alias: string, modelI
  * `vision.*` is validated only when the model registry is built, so a bad choice
  * would stop the next startup. The precheck runs against the file configuration,
  * which is what that startup will read.
+ *
+ * A body with `thinking_level` sets the effort too. Without one the stored
+ * effort stays when the model accepts it; otherwise it is removed, so the
+ * switch falls back to the model's default instead of leaving an effort the
+ * new model rejects.
  */
-export function visionEdits(
-  context: ProviderWriteContext,
-  body: { readonly provider: string; readonly model: string },
-): ConfigEdit[] {
+export function visionEdits(context: ProviderWriteContext, body: VisionBody): ConfigEdit[] {
   const provider = context.file.providers[body.provider];
   if (provider === undefined) {
     throw new AdminQueryError('unknown_provider', `Provider ${body.provider} is not configured`);
@@ -274,10 +276,27 @@ export function visionEdits(
       `vision.max_output_tokens (${maxOutputTokens}) exceeds the model limit (${model.max_tokens})`,
     );
   }
-  return [
+  const supported = supportedThinkingLevels(model);
+  const edits: ConfigEdit[] = [
     { path: ['vision', 'provider'], value: body.provider },
     { path: ['vision', 'model'], value: body.model },
   ];
+  if (body.thinking_level !== undefined) {
+    if (!supported.includes(body.thinking_level)) {
+      throw new AdminQueryError(
+        'unsupported_thinking_level',
+        `${body.provider}/${body.model} does not accept thinking level ${body.thinking_level} (supported: ${supported.join(', ')})`,
+        422,
+      );
+    }
+    edits.push({ path: ['vision', 'thinking_level'], value: body.thinking_level });
+  } else {
+    const stored = context.file.vision?.thinking_level;
+    if (stored !== undefined && !supported.includes(stored)) {
+      edits.push({ path: ['vision', 'thinking_level'], value: undefined });
+    }
+  }
+  return edits;
 }
 
 /**

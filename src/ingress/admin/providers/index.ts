@@ -78,7 +78,11 @@ const LookupMetadataBodySchema = Type.Object(
 );
 
 const VisionBodySchema = Type.Object(
-  { provider: Type.String({ minLength: 1 }), model: Type.String({ minLength: 1 }) },
+  {
+    provider: Type.String({ minLength: 1 }),
+    model: Type.String({ minLength: 1 }),
+    thinking_level: Type.Optional(ThinkingLevelSchema),
+  },
   Strict,
 );
 const ThinkingLevelBodySchema = Type.Object({ thinking_level: ThinkingLevelSchema }, Strict);
@@ -108,8 +112,17 @@ export interface ProvidersView {
     readonly model: string | null;
     readonly thinking_level: ThinkingLevelConfig | null;
   };
-  /** Null fields mean no vision model is configured: read_image and sticker indexing are unavailable. */
-  readonly vision: { readonly provider: string | null; readonly model: string | null };
+  /**
+   * Null fields mean no vision model is configured: read_image and sticker
+   * indexing are unavailable. `thinking_level` is the effort analyses run at:
+   * the configured one, or the default derived from the model (`low` where
+   * offered, `off` for a model that does not reason).
+   */
+  readonly vision: {
+    readonly provider: string | null;
+    readonly model: string | null;
+    readonly thinking_level: ThinkingLevelConfig | null;
+  };
   /**
    * The system-wide auxiliary model. `inherited` means no dedicated config
    * exists and the three fields describe the global agent settings it follows;
@@ -205,7 +218,9 @@ export function parseLookupMetadataBody(value: unknown): LookupMetadataBody {
   return parseWith(lookupValidator, value);
 }
 
-export function parseVisionBody(value: unknown): { readonly provider: string; readonly model: string } {
+export type VisionBody = Static<typeof VisionBodySchema>;
+
+export function parseVisionBody(value: unknown): VisionBody {
   return parseWith(visionValidator, value);
 }
 

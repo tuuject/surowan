@@ -3,7 +3,7 @@ import type { harness as harnessEn } from '../en/harness.ts';
 export const harness: typeof harnessEn = {
   description:
     'Agent harness 的运行上限与发送行为。保存会写入 config.jsonc 并立即应用：之后开始的 Invocation 使用新值，运行中的 Invocation 继续用启动时的值。',
-  elsewhere: 'Agent 模型与 thinking 档位在 <models>Models</models> 页；系统提示在 <prompts>Prompts</prompts> 页。',
+  elsewhere: 'Agent 模型与思考强度在<models>模型</models>页；系统提示在 <prompts>Prompts</prompts> 页。',
   loadFailed: '加载 Harness 设置失败',
   save: '保存并应用',
   saving: '保存中…',

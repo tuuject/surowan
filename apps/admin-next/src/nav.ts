@@ -27,6 +27,7 @@ export type NavTo =
   | '/image-generations'
   | '/image-settings'
   | '/models'
+  | '/providers'
   | '/prompts'
   | '/harness'
   | '/search-settings'
@@ -104,6 +105,7 @@ export const NAV_GROUPS: readonly NavGroupDefinition[] = [
     icon: SlidersIcon,
     items: [
       { titleKey: 'models', to: '/models' },
+      { titleKey: 'providers', to: '/providers' },
       { titleKey: 'prompts', to: '/prompts' },
       { titleKey: 'harness', to: '/harness' },
       { titleKey: 'searchSettings', to: '/search-settings' },

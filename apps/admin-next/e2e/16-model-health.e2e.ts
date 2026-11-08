@@ -14,7 +14,7 @@
  * open, come from `model-health-fixture.ts`; the page-lifetime behavior lives
  * in `16-model-health-lifecycle.e2e.ts`.
  *
- * UI contract assumed (matches the Models page health-check work):
+ * UI contract assumed (matches the Providers page health-check work):
  * - the row checkbox is labelled `Select {{model}} for a health check`;
  * - the per-row button is "Check health" (aria `Check health of {{model}}`);
  * - the batch button reads `Check selected (N)`;
@@ -75,7 +75,7 @@ test.describe('model health checks', () => {
       });
       await route.fulfill({ response, json: { ...view, providers } });
     });
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
     await expect(page.locator('[data-model-list] > li')).toHaveCount(10);
     const selectAll = page.getByRole('checkbox', { name: 'Select all models of this provider', exact: true });
@@ -89,7 +89,7 @@ test.describe('model health checks', () => {
 
   test('a single check reports ok with ttfb and response, and blocks repeats while in flight', async ({ page }) => {
     await resetRelayStats();
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
 
     // Loading the page and selecting the provider fires no health request.
@@ -135,7 +135,7 @@ test.describe('model health checks', () => {
     page,
   }) => {
     await resetRelayStats();
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
     await page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL} for a health check`).check();
     await page.getByLabel(`Select ${E2E_HEALTH_OK_2_MODEL} for a health check`).check();
@@ -200,7 +200,7 @@ test.describe('model health checks', () => {
 
   test('a fast check settles visibly while a slow one is still checking', async ({ page }) => {
     await resetRelayStats();
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
 
     // Hold the slow model upstream before the batch starts, so the fast result
@@ -232,7 +232,7 @@ test.describe('model health checks', () => {
   test('a checked model with its result fits a narrow phone screen', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await resetRelayStats();
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
 
     const row = modelRow(page, E2E_HEALTH_OK_MODEL);

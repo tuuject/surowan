@@ -146,7 +146,14 @@ export function ProviderConnectionSection({
       }
     >
       <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
-        <div className={css({ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4' })}>
+        <div
+          className={css({
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr)',
+            gap: '4',
+            '@media (min-width: 640px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
+          })}
+        >
           <Field label={t('models.models.connection.baseUrl')}>
             <Input
               value={baseUrl}

@@ -1,8 +1,47 @@
+import { useMutation } from '@tanstack/react-query';
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Tag } from '@tuuject/koi-react/tag';
 import { useTranslation } from 'react-i18next';
+import { restartServer } from '@/lib/api/config.ts';
+import type { ProvidersView } from '@/lib/api/providers.ts';
+import { writeErrorMessage } from '@/lib/model-manager.ts';
+import { waitForAdminServer } from '@/lib/restart.ts';
+import { toast } from '@/lib/toast.ts';
+import { useProviderWrite } from '@/lib/use-provider-write.ts';
+
+/** The Models and Providers pages' banner: the file view's pending paths and the restart write. */
+export function ProvidersRestartBanner({ view }: { readonly view: ProvidersView }): React.ReactElement | null {
+  const { t } = useTranslation();
+  const write = useProviderWrite();
+  const restart = useMutation({
+    mutationFn: restartServer,
+    onSuccess: async () => {
+      toast.info(t('models.models.page.restarting'), {
+        description: t('models.models.page.restartingDescription'),
+      });
+      const recovered = await waitForAdminServer();
+      write.refresh();
+      if (recovered) {
+        toast.success(t('models.models.page.serverBack'));
+      } else {
+        toast.error(t('models.models.page.restartTimeout'));
+      }
+    },
+    onError: (error) => {
+      toast.error(writeErrorMessage(error));
+    },
+  });
+  return (
+    <RestartBanner
+      paths={view.restart_required}
+      supervised={view.supervised}
+      pending={restart.isPending}
+      onRestart={() => restart.mutate()}
+    />
+  );
+}
 
 /**
  * Pending-restart banner. `serve` has to be restarted by something outside the

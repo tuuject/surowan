@@ -106,6 +106,11 @@ export interface VisionModelReference {
   /** Null when no vision model is configured: read_image and sticker indexing are unavailable. */
   readonly provider: string | null;
   readonly model: string | null;
+  /**
+   * The effort analyses run at: the configured one, or the default the server
+   * derives from the model (`low` where offered; `off` when it does not reason).
+   */
+  readonly thinking_level: ThinkingLevel | null;
 }
 
 export interface ProvidersView {

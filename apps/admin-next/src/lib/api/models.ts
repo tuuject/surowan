@@ -62,7 +62,14 @@ export function setAgentThinkingLevel(thinkingLevel: ThinkingLevel, revision: st
   });
 }
 
-export function switchVisionModel(request: ModelSwitchRequest, revision: string): Promise<ProviderWriteResponse> {
+/**
+ * Without `thinking_level` the stored effort stays while the new model accepts
+ * it; otherwise the server drops it and the model's default applies.
+ */
+export function switchVisionModel(
+  request: ModelSwitchRequest & { readonly thinking_level?: ThinkingLevel },
+  revision: string,
+): Promise<ProviderWriteResponse> {
   return call<ProviderWriteResponse>('/vision', {
     method: 'PUT',
     headers: writeHeaders(revision),

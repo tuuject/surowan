@@ -40,6 +40,7 @@ const HOT_PATHS: ReadonlySet<string> = new Set([
   'agent.memory_ttl_warning_days',
   'vision.provider',
   'vision.model',
+  'vision.thinking_level',
   'vision.max_output_tokens',
   'image',
   'dictionary',

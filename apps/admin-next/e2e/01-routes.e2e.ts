@@ -180,8 +180,24 @@ test.describe('routes and deep links', () => {
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 
-  test('/models lists providers, their models and the discovery actions', async ({ page }) => {
+  test('/models shows one card per role with its model and thinking effort', async ({ page }) => {
     await page.goto(await adminUrl('/models'));
+    await expect(page.getByRole('heading', { name: 'Models', exact: true, level: 1 })).toBeVisible();
+    for (const [role, model] of [
+      ['Agent model', 'agent / agent-model'],
+      ['Vision model', 'vision / vision-model'],
+      ['Tool Model', 'Inherit Agent model'],
+    ] as const) {
+      const card = page.getByRole('region', { name: role, exact: true });
+      await expect(card.getByRole('combobox', { name: 'Model', exact: true })).toHaveText(new RegExp(model));
+      await expect(card.getByRole('combobox', { name: 'Thinking effort', exact: true })).toBeVisible();
+    }
+    await expect(page.getByRole('link', { name: 'Manage providers' })).toHaveAttribute('href', '/providers');
+    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+  });
+
+  test('/providers lists providers, their models and the discovery actions', async ({ page }) => {
+    await page.goto(await adminUrl('/providers'));
     await expect(page.getByRole('heading', { name: 'Providers', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Provider agent' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Fetch models' })).toBeVisible();

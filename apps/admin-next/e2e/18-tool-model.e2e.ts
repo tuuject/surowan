@@ -3,12 +3,11 @@ import { adminUrl, test, watchPageIssues } from './helpers.ts';
 import { E2E_MERGE_ALIAS, E2E_MERGE_MODEL } from './models-fixture.ts';
 
 /**
- * The Models page's Tool Model setting against the real AdminServer: it still
- * inherits the agent model by default, picking a model in the Current models
- * panel saves the provider/model/thinking triple on the spot, its own thinking
- * select changes just the level, and the "Inherit Agent model" option restores
- * the fallback. The Dictionary merge flow that consumes it lives in
- * `17-dictionary.e2e.ts`.
+ * The Models page's Tool Model card against the real AdminServer: it still
+ * inherits the agent model by default, picking a model on the card saves the
+ * provider/model/thinking triple on the spot, its own thinking select changes
+ * just the level, and the "Inherit Agent model" option restores the fallback.
+ * The Dictionary merge flow that consumes it lives in `17-dictionary.e2e.ts`.
  */
 test.use({ signedIn: true });
 
@@ -31,13 +30,17 @@ async function providersView(page: import('@playwright/test').Page): Promise<Pro
   return (await response.json()) as ProvidersView;
 }
 
-/** The Tool Model trigger in the Current models panel. */
+/** The Tool Model card; its fields are named by their Field labels. */
+function toolCard(page: import('@playwright/test').Page): import('@playwright/test').Locator {
+  return page.getByRole('region', { name: 'Tool Model', exact: true });
+}
+
 function toolPicker(page: import('@playwright/test').Page): import('@playwright/test').Locator {
-  return page.getByRole('combobox', { name: 'Tool Model', exact: true });
+  return toolCard(page).getByRole('combobox', { name: 'Model', exact: true });
 }
 
 function toolThinking(page: import('@playwright/test').Page): import('@playwright/test').Locator {
-  return page.getByRole('combobox', { name: 'Tool Model thinking effort' });
+  return toolCard(page).getByRole('combobox', { name: 'Thinking effort', exact: true });
 }
 
 test.describe('tool model', () => {
@@ -45,9 +48,9 @@ test.describe('tool model', () => {
     const finish = watchPageIssues(page);
     await page.goto(await adminUrl('/models'));
     // The fixture config never sets a Tool Model, so it starts inherited, and
-    // the inherited level belongs to the Agent row.
+    // the inherited level belongs to the Agent card.
     await expect(toolPicker(page)).toHaveText(/Inherit Agent model/);
-    await expect(page.getByText('Follows the Agent model', { exact: true })).toBeVisible();
+    await expect(toolCard(page).getByText('Follows the Agent model', { exact: true })).toBeVisible();
     await expect(toolThinking(page)).toBeDisabled();
     await expect(page.getByRole('dialog')).toHaveCount(0);
 
@@ -60,9 +63,9 @@ test.describe('tool model', () => {
     const before = await providersView(page);
     await page.goto(await adminUrl('/models'));
     await toolPicker(page).click();
-    // The panel walks the same provider list the page renders; this one is a
-    // reasoning model with declared levels, found through the search box.
-    await page.getByRole('combobox', { name: 'Search models' }).fill(E2E_MERGE_MODEL);
+    // The picker walks the same provider list the Providers page renders; this
+    // one is a reasoning model with declared levels, found through the search box.
+    await page.getByPlaceholder('Search models').fill(E2E_MERGE_MODEL);
     await page.getByRole('option', { name: new RegExp(E2E_MERGE_MODEL) }).click();
     await expect(page.getByText('Tool Model switched', { exact: false }).first()).toBeVisible();
     await expect(toolPicker(page)).toHaveText(new RegExp(`${E2E_MERGE_ALIAS} / ${E2E_MERGE_MODEL}`));
@@ -99,7 +102,7 @@ test.describe('tool model', () => {
     expect(explicit.ok()).toBe(true);
 
     await page.goto(await adminUrl('/models'));
-    await expect(page.getByText('Follows the Agent model', { exact: true })).toHaveCount(0);
+    await expect(toolCard(page).getByText('Follows the Agent model', { exact: true })).toHaveCount(0);
     await toolPicker(page).click();
     await page.getByRole('option', { name: 'Inherit Agent model' }).click();
     await expect(page.getByText('Tool Model now inherits the Agent model', { exact: false }).first()).toBeVisible();

@@ -141,12 +141,12 @@ test.describe('bot admins', () => {
 
 test.describe('agent model hot-switch', () => {
   test('resets an incompatible Chat effort with a dialog when switching the global model', async ({ page }) => {
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await editElsewhere(page, { ...inherited, thinking_level: 'high' });
     await page.reload();
 
     await page.getByRole('button', { name: 'Provider vision' }).click();
-    await setAsAgent(page, modelListRow(page, 'vision-model'));
+    await setAsAgent(modelListRow(page, 'vision-model'));
     // The toast only appears once the write and the reload succeeded.
     await expect(appliedToast(page).first()).toBeVisible();
     // The vision model does not reason, so the switch leaves it only `off`.
@@ -179,7 +179,7 @@ test.describe('agent model hot-switch', () => {
 
     // There is no default to restore: the way back is another switch.
     await page.getByRole('button', { name: 'Provider agent' }).click();
-    await setAsAgent(page, modelListRow(page, 'agent-model'));
+    await setAsAgent(modelListRow(page, 'agent-model'));
     await expect(page.getByRole('button', { name: 'Provider agent' })).toHaveAccessibleDescription(/Agent in use/);
     await expect(dialog).not.toBeVisible();
     await editElsewhere(page, inherited);

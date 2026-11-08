@@ -150,12 +150,12 @@ export const dictionary: typeof dictionaryEn = {
   },
   merge: {
     title: 'AI 融合',
-    description: 'Tool Model 把所选词条合并成一条建议。在你确认之前不会写入任何内容，来源词条在此之前保持不变。',
+    description: '工具模型把所选词条合并成一条建议。在你确认之前不会写入任何内容，来源词条在此之前保持不变。',
     sources: '来源（{{count}}）',
     generating: '正在生成建议…',
     generate: '生成建议',
     regenerate: '重新生成',
-    generateFailed: 'Tool Model 未能生成建议',
+    generateFailed: '工具模型未能生成建议',
     suggestion: '建议',
     suggestionHint: '模型写得不对的地方可以直接改。建议本身永远不会被原样保存。',
     termLabel: '主词',
@@ -178,7 +178,7 @@ export const dictionary: typeof dictionaryEn = {
     conflictsWarning: '建议的主词或别名在别处已存在；结果仍会作为独立词条保存。',
   },
   toolModel: {
-    missing: '还没有可用的 Tool Model：请到 Models 页配置，或确认已设置全局 Agent 模型。',
-    unavailableNote: '在能解析到 Tool Model 之前融合不可用；辞典的其它功能不受影响。',
+    missing: '还没有可用的工具模型：请到「模型」页配置，或确认已设置全局 Agent 模型。',
+    unavailableNote: '在能解析到工具模型之前融合不可用；辞典的其它功能不受影响。',
   },
 };

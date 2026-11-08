@@ -276,7 +276,7 @@ node src/cli.ts serve --config dev-data/config.jsonc
 9. Overview 的 Bot status 卡片显示 `sleeping`/`awake` 与 `sleep_until`，睡眠时 `Wake now` 带二次确认；同时列出所有 `chat_pause` Chat 与暂停时间。
 10. Alarms 页面按 state/Chat/Target 过滤，pending 优先置顶，展开显示完整诊断并链接到对应 Tool session；取消只对 pending 开放且需二次确认，对非 pending 给出 409 冲突提示。
 11. Bot admins 页面能添加/移除管理员：写回 `telegram.admins` 并热应用，命令权限无需重启即更新；列表在下次进入页面时反映文件值。
-12. Models 页面列出 Provider 与模型；切换 agent / vision 模型后 `config.jsonc` 的 `agent.provider` / `agent.model`（或 `vision.*`）被改写，页面立即反映新模型，后续 Invocation / vision 分析使用新模型，重启 `serve` 后仍然生效；Provider 增删、连接字段与模型列表的修改均热应用（在用引用仍受校验保护）。`PUT /api/model` 将全局 thinking 重置为最弱档，并将继承全局模型且不兼容的 Chat thinking 覆盖在同一次写入中重置为最弱档，弹窗列出受影响 Chat 与前后值；兼容档位和独立模型覆盖保持原值，最弱档按新模型的支持列表选择（不必是 off）。`PUT /api/thinking-level` 仍只写全局 thinking，保留 Chat 覆盖。未覆盖的 Chat 在 `/status` 中显示新的全局值，Chat 覆盖也可通过 Chats 页、配置文件或 Telegram `/model` 维护。Settings 页的 `Configuration file` 卡片显示 generation、active hash 与 file hash；改一个白名单字段后点 `Apply config file`，应用列表出现该路径，改一个 restart 字段则出现在待重启列表。
+12. Providers 页面列出 Provider 与模型，Models 页面按 Agent / Vision / Tool 三张卡片显示当前模型与思考强度；在 Models 页或 Providers 页模型行的 “Use as” 切换 agent / vision 模型后 `config.jsonc` 的 `agent.provider` / `agent.model`（或 `vision.*`）被改写，页面立即反映新模型，后续 Invocation / vision 分析使用新模型，重启 `serve` 后仍然生效；Provider 增删、连接字段与模型列表的修改均热应用（在用引用仍受校验保护）。`PUT /api/model` 将全局 thinking 重置为最弱档，并将继承全局模型且不兼容的 Chat thinking 覆盖在同一次写入中重置为最弱档，弹窗列出受影响 Chat 与前后值；兼容档位和独立模型覆盖保持原值，最弱档按新模型的支持列表选择（不必是 off）。`PUT /api/thinking-level` 仍只写全局 thinking，保留 Chat 覆盖。未覆盖的 Chat 在 `/status` 中显示新的全局值，Chat 覆盖也可通过 Chats 页、配置文件或 Telegram `/model` 维护。Settings 页的 `Configuration file` 卡片显示 generation、active hash 与 file hash；改一个白名单字段后点 `Apply config file`，应用列表出现该路径，改一个 restart 字段则出现在待重启列表。
 13. Conversation Contexts 页面按 chat 过滤，列表按最近活跃倒序并用 Previous/Next 翻页；详情显示 head/next seq、保留消息数与 capability refs，展开消息看到 `payload_preview` 与截断标记，且不出现已 GC 的行。
 14. 登出后访问深链接回落登录页；重新登录恢复访问。
 15. `admin_users.password_hash` 使用 Argon2id 格式，`admin_sessions` 只有 64 位十六进制摘要。
@@ -290,7 +290,7 @@ node src/cli.ts serve --config dev-data/config.jsonc
 pnpm run admin:build        # 前置：E2E 驱动已构建的 dist（真实静态托管）
 pnpm --filter surowan-admin-next exec playwright install chromium   # 首次运行前安装 Chromium（Linux CI 用 --with-deps）
 pnpm run admin:test:e2e     # Playwright 套件（apps/admin-next/e2e/**/*.e2e.ts）
-pnpm run admin:test:e2e 08-models 16-model-health  # 模型管理与健康检查回归
+pnpm run admin:test:e2e 08-models 16-model-health 18-tool-model 27-model-roles  # 模型分配、Provider 管理与健康检查回归
 pnpm run admin:test:e2e 17-dictionary 18-tool-model  # 辞典页与 Tool Model 回归
 pnpm run admin:test:e2e 20-playground  # Playground 房间 API 与页面回归
 pnpm run admin:test:e2e 22-search-settings  # 网络搜索设置页与保存流程

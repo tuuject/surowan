@@ -2,7 +2,6 @@ import { Button, IconButton } from '@tuuject/koi-react/button';
 import { Checkbox } from '@tuuject/koi-react/checkbox';
 import { Empty } from '@tuuject/koi-react/empty';
 import { ChevronDownIcon, ChevronRightIcon, TrashIcon } from '@tuuject/koi-react/icons';
-import { Menu } from '@tuuject/koi-react/menu';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type { Dispatch, SetStateAction } from 'react';
 import { useState } from 'react';
@@ -15,8 +14,10 @@ import {
   ToneBadge,
   useClientPagination,
 } from '@/components/business';
-import { EditIcon, EyeIcon, HealthIcon, LightbulbIcon, MoreIcon } from '@/components/icons';
+import { EditIcon, EyeIcon, HealthIcon, LightbulbIcon } from '@/components/icons';
 import { Panel } from '@/components/layout/panel';
+import { RoleButtons } from '@/components/models/roles/buttons';
+import { type ModelRole, modelRoles } from '@/components/models/roles/writes';
 import type {
   HealthCheckResult,
   HealthCheckStatus,
@@ -25,7 +26,7 @@ import type {
   ProvidersView,
 } from '@/lib/api/providers.ts';
 import { formatDuration, formatNumber } from '@/lib/format.ts';
-import { isImageCapable, isTextCapable, modelUsage } from '@/lib/model-manager.ts';
+import { isImageCapable } from '@/lib/model-manager.ts';
 
 export interface ModelRow {
   readonly alias: string;
@@ -49,10 +50,10 @@ function Metric({ label, value }: { readonly label: string; readonly value: Reac
 }
 
 /**
- * The selected provider's models as a vertical list: identity and capability
- * on the first line, the numbers on the second, health and row actions beside
- * them. The list is the provider detail's main area, so it stacks instead of
- * spreading six columns across the pane.
+ * The selected provider's models as a vertical list: identity and health on
+ * the first line, the numbers on the second, the "Use as" role toggles on the
+ * third, and the row actions beside them. The list is the provider detail's
+ * main area, so it stacks instead of spreading six columns across the pane.
  */
 export function ModelList({
   view,
@@ -63,10 +64,8 @@ export function ModelList({
   running,
   onRunHealthChecks,
   runnableSelected,
-  agentPending,
-  visionPending,
-  onSetAgent,
-  onSetVision,
+  rolePending,
+  onAssignRole,
   onEdit,
   onDeleteModel,
   onFetchModels,
@@ -80,10 +79,8 @@ export function ModelList({
   readonly running: boolean;
   readonly onRunHealthChecks: (keys: readonly string[]) => Promise<void>;
   readonly runnableSelected: readonly string[];
-  readonly agentPending: boolean;
-  readonly visionPending: boolean;
-  readonly onSetAgent: (alias: string, model: string) => void;
-  readonly onSetVision: (alias: string, model: string) => void;
+  readonly rolePending: Readonly<Record<ModelRole, boolean>>;
+  readonly onAssignRole: (role: ModelRole, alias: string, model: ProviderModelConfig) => void;
   readonly onEdit: (alias: string, model: ProviderModelConfig) => void;
   readonly onDeleteModel: (alias: string, model: string) => void;
   readonly onFetchModels: () => void;
@@ -184,7 +181,7 @@ export function ModelList({
           >
             {pagination.items.map((row) => {
               const key = rowKey(row);
-              const usage = modelUsage(view, row.alias, row.model.id);
+              const roles = modelRoles(view, row.alias, row.model.id);
               const entry = health[key];
               const result = entry === undefined || entry === 'checking' ? null : entry;
               const open = expanded.has(key);
@@ -230,12 +227,6 @@ export function ModelList({
                           {row.model.name}
                         </span>
                       )}
-                      {usage === 'agent' || usage === 'both' ? (
-                        <ToneBadge tone="success">{t('models.models.page.agentBadge')}</ToneBadge>
-                      ) : null}
-                      {usage === 'vision' || usage === 'both' ? (
-                        <ToneBadge tone="info">{t('models.models.page.visionBadge')}</ToneBadge>
-                      ) : null}
                       {entry === 'checking' ? (
                         <ToneBadge tone="info">{t('models.models.page.checking')}</ToneBadge>
                       ) : result === null ? null : (
@@ -290,6 +281,15 @@ export function ModelList({
                         </span>
                       ) : null}
                     </p>
+                    <div className={css({ paddingBlockStart: '2' })}>
+                      <RoleButtons
+                        view={view}
+                        alias={row.alias}
+                        config={row.model}
+                        pending={rolePending}
+                        onAssign={onAssignRole}
+                      />
+                    </div>
                     {result === null ? null : (
                       <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>
                         {t('models.models.page.healthTiming', {
@@ -336,32 +336,6 @@ export function ModelList({
                       icon={<HealthIcon />}
                       onClick={() => void onRunHealthChecks([key])}
                     />
-                    <Menu
-                      placement="bottom-end"
-                      trigger={
-                        <IconButton
-                          variant="ghost"
-                          color="secondary"
-                          label={t('models.models.page.moreActionsAria', { model: row.model.id })}
-                          icon={<MoreIcon />}
-                        />
-                      }
-                      items={[
-                        {
-                          value: 'agent',
-                          label: t('models.models.page.setAsAgent'),
-                          disabled: !isTextCapable(row.model) || usage === 'agent' || usage === 'both' || agentPending,
-                          onSelect: () => onSetAgent(row.alias, row.model.id),
-                        },
-                        {
-                          value: 'vision',
-                          label: t('models.models.page.setAsVision'),
-                          disabled:
-                            !isImageCapable(row.model) || usage === 'vision' || usage === 'both' || visionPending,
-                          onSelect: () => onSetVision(row.alias, row.model.id),
-                        },
-                      ]}
-                    />
                     <IconButton
                       variant="ghost"
                       color="secondary"
@@ -372,7 +346,8 @@ export function ModelList({
                     <IconButton
                       variant="ghost"
                       color="error"
-                      disabled={usage !== null}
+                      // The server refuses to delete a model a role or a Chat still uses.
+                      disabled={roles.agent || roles.vision || roles.tool}
                       onClick={() => onDeleteModel(row.alias, row.model.id)}
                       label={t('models.models.page.deleteModelAria', { model: row.model.id })}
                       icon={<TrashIcon />}

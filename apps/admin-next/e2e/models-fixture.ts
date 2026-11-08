@@ -1,4 +1,4 @@
-import type { Locator, Page } from '@playwright/test';
+import type { Locator } from '@playwright/test';
 
 /**
  * Shared fixture data for the Models page E2E: the provider secrets that must
@@ -93,8 +93,14 @@ export const E2E_MODELS_DEV_CATALOG = {
   },
 } as const;
 
-/** "Set as agent" sits in each model row's "More actions" menu. */
-export async function setAsAgent(page: Page, row: Locator): Promise<void> {
-  await row.getByRole('button', { name: /^More actions for / }).click();
-  await page.getByRole('menuitem', { name: 'Set as agent', exact: true }).click();
+/**
+ * One click on a model row's "Use as" toggle hands that role to the model; a
+ * pressed toggle is the role it already fills.
+ */
+export function roleToggle(row: Locator, role: 'Agent' | 'Vision' | 'Tool'): Locator {
+  return row.getByRole('group', { name: /^Use .+ as$/ }).getByRole('button', { name: role, exact: true });
+}
+
+export async function setAsAgent(row: Locator): Promise<void> {
+  await roleToggle(row, 'Agent').click();
 }

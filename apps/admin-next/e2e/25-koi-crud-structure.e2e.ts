@@ -211,8 +211,21 @@ for (const entry of pages) {
   });
 }
 
-test('/models is a provider rail beside the selected provider detail', async ({ page }) => {
+test('/models is one Card per role and nothing else', async ({ page }) => {
   await page.goto(await adminUrl('/models'));
+  const main = page.getByRole('main');
+  // Three independent settings groups: each is its own Card, never nested.
+  await expect(main.locator('.koi-card__root')).toHaveCount(3);
+  for (const name of ['Agent model', 'Vision model', 'Tool Model']) {
+    await expect(page.getByRole('region', { name, exact: true })).toHaveClass(/koi-card__root/);
+  }
+  await expect(main.locator('.koi-card__root .koi-card__root')).toHaveCount(0);
+  await expect(main.locator('[data-model-list]')).toHaveCount(0);
+  await expect(main.locator('table')).toHaveCount(0);
+});
+
+test('/providers is a provider rail beside the selected provider detail', async ({ page }) => {
+  await page.goto(await adminUrl('/providers'));
   await expect(page.getByRole('heading', { name: 'Providers', exact: true })).toBeVisible();
   const rail = page.getByRole('navigation', { name: 'Providers', exact: true });
   await expect(rail.getByRole('button', { name: 'Provider agent', exact: true })).toBeVisible();
@@ -220,17 +233,14 @@ test('/models is a provider rail beside the selected provider detail', async ({ 
   await expect(page.getByRole('button', { name: 'Fetch models', exact: true })).toBeVisible();
   await expect(page.locator('[data-model-list] li').first()).toBeVisible();
 
-  // Only the independent current-model summary needs a Card; the workspace stays open.
+  // One continuous workspace: no Card at all, the sections stay open.
   await expect(page.locator('[data-list-filter]')).toHaveCount(0);
   const main = page.getByRole('main');
-  const summary = page.getByRole('region', { name: 'Current models', exact: true });
-  await expect(main.locator('.koi-card__root')).toHaveCount(1);
-  await expect(summary).toHaveClass(/koi-card__root/);
+  await expect(main.locator('.koi-card__root')).toHaveCount(0);
   for (const name of ['Connection', 'Models']) {
     await expect(page.getByRole('region', { name, exact: true })).not.toHaveClass(/koi-card__root/);
   }
   await expect(main.locator('table')).toHaveCount(0);
-  await expect(main.locator('.koi-card__root .koi-card__root')).toHaveCount(0);
 });
 
 const paginatedRoutes = [

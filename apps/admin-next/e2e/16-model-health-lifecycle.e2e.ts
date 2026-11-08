@@ -1,5 +1,5 @@
 /**
- * Model health check lifetime: results are page-local. Unmounting the Models
+ * Model health check lifetime: results are page-local. Unmounting the Providers
  * page must abort the queued and in-flight batch (proven by a test-only
  * upstream gate: requests are held open until the spec releases them, so a drop
  * to zero in-flight while still held can only be a real abort) and a fresh
@@ -36,7 +36,7 @@ modelHealthFixture();
 test.describe('model health checks', () => {
   test('leaving the page aborts the queued and in-flight batch', async ({ page }) => {
     await resetRelayStats();
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
 
     // Hold every model upstream before the batch starts: no request can settle
@@ -66,7 +66,7 @@ test.describe('model health checks', () => {
         [E2E_HEALTH_FAIL_MODEL]: 1,
       });
 
-      // SPA navigation unmounts the Models page; the cleanup must abort the
+      // SPA navigation unmounts the Providers page; the cleanup must abort the
       // batch instead of letting the queued check charge in the background.
       await clickNav(page, 'Monitor', 'Overview');
       await page.waitForURL((url) => url.pathname === '/');
@@ -88,11 +88,14 @@ test.describe('model health checks', () => {
       await releaseHealthGate();
     }
 
-    // Back on the Models page a fresh check lands in a freed backend slot and
+    // Back on the Providers page a fresh check lands in a freed backend slot and
     // completes normally: the queued fourth never sneaked in behind the page's
     // lifetime (health-ok was absent from the cancelled batch).
-    await page.getByRole('link', { name: 'Models' }).click();
-    await page.waitForURL((url) => url.pathname === '/models');
+    await page
+      .getByRole('navigation', { name: 'Main navigation' })
+      .getByRole('link', { name: 'Providers', exact: true })
+      .click();
+    await page.waitForURL((url) => url.pathname === '/providers');
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
     const row = modelRow(page, E2E_HEALTH_OK_MODEL);
     await row.getByRole('button', { name: /check health/i }).click();
@@ -114,7 +117,7 @@ test.describe('model health checks', () => {
 
   test('a reload clears the page-local health results', async ({ page }) => {
     await resetRelayStats();
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
 
     const row = modelRow(page, E2E_HEALTH_OK_MODEL);

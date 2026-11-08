@@ -78,6 +78,7 @@ export const layout: typeof layoutEn = {
     botAdmins: 'Bot 管理员',
     apiKeys: 'API 密钥',
     models: '模型',
+    providers: '供应商',
     imageSettings: '图片设置',
     searchSettings: '网络搜索',
     telegram: 'Telegram',

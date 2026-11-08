@@ -6,21 +6,22 @@ import {
   E2E_RELAY_COMPLETE_MODEL,
   E2E_RELAY_INCOMPLETE_MODEL,
   E2E_SECRETS,
+  roleToggle,
   setAsAgent,
 } from './models-fixture.ts';
 
 /**
- * The Models page against the real `AdminServer`: provider list and detail,
+ * The Providers page against the real `AdminServer`: provider list and detail,
  * write-only credentials, applying a builtin key without a restart, and the
  * discovery dialog (saved mode against a loopback upstream started by
- * `e2e/server.ts`) plus the thinking effort it enables. Every write goes
- * through the UI and is verified against the API afterwards.
+ * `e2e/server.ts`) plus the thinking effort it enables on the Models page.
+ * Every write goes through the UI and is verified against the API afterwards.
  */
 test.use({ signedIn: true });
 
-test.describe('models page', () => {
+test.describe('providers page', () => {
   test('renders the provider rail, the model list and the write-only key field', async ({ page }) => {
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await expect(page.getByRole('heading', { name: 'Providers', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: `Provider ${E2E_BUILTIN_ALIAS}` })).toBeVisible();
     await expect(page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` })).toBeVisible();
@@ -41,7 +42,7 @@ test.describe('models page', () => {
   });
 
   test('never renders a configured secret, and the API never returns one', async ({ page }) => {
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     const secrets = [...Object.values(E2E_SECRETS), 'telegram-secret', 'agent-secret', 'vision-secret'];
     for (const alias of [E2E_BUILTIN_ALIAS, E2E_RELAY_ALIAS, 'agent', 'vision']) {
       await page.getByRole('button', { name: `Provider ${alias}` }).click();
@@ -67,7 +68,7 @@ test.describe('models page', () => {
   });
 
   test('saving a builtin key applies it without a restart', async ({ page }) => {
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await page.getByRole('button', { name: `Provider ${E2E_BUILTIN_ALIAS}` }).click();
     await page.getByLabel('API Key', { exact: true }).fill('e2e-rotated-builtin-key');
     await page.getByRole('button', { name: 'Save' }).click();
@@ -91,7 +92,7 @@ test.describe('models page', () => {
   });
 
   test('discovery resolves metadata from the local upstream and blocks unconfirmed drafts', async ({ page }) => {
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` }).click();
     await page.getByRole('button', { name: 'Fetch models' }).click();
 
@@ -150,22 +151,31 @@ test.describe('models page', () => {
     await expect(modelListRow(page, E2E_RELAY_COMPLETE_MODEL)).toBeVisible();
   });
 
-  test('switching the agent resets its thinking effort, which the Current models panel then sets', async ({ page }) => {
+  test('a row toggle switches the agent and resets its effort, which the Models page then sets', async ({ page }) => {
     const agentOf = async (): Promise<{ provider: string; model: string; thinking_level: string }> =>
       (await (await page.request.get(await adminUrl('/api/providers'))).json()).agent;
-    await page.goto(await adminUrl('/models'));
-    // The panel is the only region with the agent's effort select.
-    const effort = page.getByRole('combobox', { name: 'Agent model thinking effort' });
-    const inUse = page.getByRole('region', { name: 'Current models', exact: true }).filter({ has: effort });
+    await page.goto(await adminUrl('/providers'));
 
     // Added by the discovery test with the levels models.dev listed.
     await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` }).click();
-    await setAsAgent(page, modelListRow(page, E2E_RELAY_COMPLETE_MODEL));
+    const row = modelListRow(page, E2E_RELAY_COMPLETE_MODEL);
+    await expect(roleToggle(row, 'Agent')).toHaveAttribute('aria-pressed', 'false');
+    await setAsAgent(row);
     await expect(page.getByText('Thinking effort reset to off', { exact: false }).first()).toBeVisible();
-    await expect(inUse.getByText(`${E2E_RELAY_ALIAS} / ${E2E_RELAY_COMPLETE_MODEL}`).first()).toBeVisible();
-    await expect(effort).toHaveValue('off');
+    await expect(roleToggle(row, 'Agent')).toHaveAttribute('aria-pressed', 'true');
     expect(await agentOf()).toMatchObject({ model: E2E_RELAY_COMPLETE_MODEL, thinking_level: 'off' });
 
+    // The effort is a setting of the model, so it lives on the Models page's Agent card.
+    await page
+      .getByRole('navigation', { name: 'Main navigation' })
+      .getByRole('link', { name: 'Models', exact: true })
+      .click();
+    const agentCard = page.getByRole('region', { name: 'Agent model', exact: true });
+    await expect(agentCard.getByRole('combobox', { name: 'Model', exact: true })).toHaveText(
+      new RegExp(`${E2E_RELAY_ALIAS} / ${E2E_RELAY_COMPLETE_MODEL}`),
+    );
+    const effort = agentCard.getByRole('combobox', { name: 'Thinking effort', exact: true });
+    await expect(effort).toHaveValue('off');
     // Only the levels the model declares are offered.
     await expect(effort.locator('option')).toHaveText(['Not set', 'off', 'low', 'high', 'max']);
     await effort.selectOption('max');
@@ -173,9 +183,13 @@ test.describe('models page', () => {
     await expect.poll(agentOf).toMatchObject({ model: E2E_RELAY_COMPLETE_MODEL, thinking_level: 'max' });
 
     // Put the fixture agent back for the tests that follow.
+    await page
+      .getByRole('navigation', { name: 'Main navigation' })
+      .getByRole('link', { name: 'Providers', exact: true })
+      .click();
     await page.getByRole('button', { name: 'Provider agent' }).click();
-    await setAsAgent(page, modelListRow(page, 'agent-model'));
-    await expect(inUse.getByText('agent / agent-model').first()).toBeVisible();
+    await setAsAgent(modelListRow(page, 'agent-model'));
+    await expect(roleToggle(modelListRow(page, 'agent-model'), 'Agent')).toHaveAttribute('aria-pressed', 'true');
     expect(await agentOf()).toMatchObject({ provider: 'agent', model: 'agent-model', thinking_level: 'off' });
   });
 });

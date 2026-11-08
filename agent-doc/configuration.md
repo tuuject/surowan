@@ -47,7 +47,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 | `dictionary`（整段，含 `injection_mode`） | 全局辞典注入模式；下一次 Invocation 生效 |
 | `tool_model` | 系统级辅助模型（辞典融合等）。下一次辅助调用使用新选择；运行中的调用继续用它开始时从快照取出的模型。删除该段表示继承全局 Agent 设置 |
 | `providers.<alias>`（新增、删除、改 kind）与 `providers.<alias>.*`（连接字段、模型列表） | Provider 的每个字段都热更新：reload 按新定义重建注册表。模型列表变化只替换该 Provider 的模型；连接字段变化会重新解析它的 SecretRef |
-| `vision.provider`、`vision.model`、`vision.max_output_tokens` | 下一次 vision 分析使用新模型；`max_output_tokens` 在构建注册表时与新模型的上限一起校验，并和模型一起在分析开始时从同一份快照取出，等待中发布的新值只影响之后的分析 |
+| `vision.provider`、`vision.model`、`vision.thinking_level`、`vision.max_output_tokens` | 下一次 vision 分析使用新模型与级别；`max_output_tokens` 在构建注册表时与新模型的上限一起校验，并和模型一起在分析开始时从同一份快照取出，等待中发布的新值只影响之后的分析 |
 | `image`（整段：存在性、`credentials`、`models` 及所有子字段） | 图片功能启停与配置都热应用：reload 重新解析 image SecretRef 并原子发布新的图片快照，下一次提交生效；进行中的生成继续用它开始时的凭据快照。段被剥离（结构不合法）或删除都等于禁用，Agent 与 Admin 同步失去图片工具与页面能力，不需要重启 |
 | `web_search`（整段：`enabled`、`engines`、`url_filters`） | 搜索能力与 Skill 的可见性、每次请求读取的配置都在下一次 Invocation / 下一次搜索调用生效。关闭整个功能或禁用所有引擎会立刻 abort 所有运行中的 Invocation（原因 `web_search_disabled`），接下来的消息用重建的 Context 开启新 Invocation；只禁用部分引擎不打断运行，运行中的 Invocation 请求已禁用引擎时由 Tool 通过 steer 提醒模型重新读取引擎列表。每次请求开始即冻结本次引擎、地址、密钥、条数与超时，进行中的请求不受后续修改影响 |
 
@@ -127,7 +127,7 @@ command SecretRef：
 | `telegram` | 可选段：Token、Bucket 窗口、Chat/Topic allowlist、Sticker Set。整段省略或没有 token 时 Telegram 停用，只运行 Admin Panel 与 Playground 虚拟房间；段内 `chats` 可为空数组 |
 | `providers` | 内置或自定义 Provider 别名 |
 | `agent` | 可选段：对话模型、Prompt、并发与限流、上下文保留策略、全局 Token 预算；整段可省略 |
-| `vision` | 可选段：Sticker 视觉模型、并发、Prompt 版本和预算 |
+| `vision` | 可选段：Sticker 视觉模型、thinking 级别、并发、Prompt 版本和预算 |
 | `dictionary` | 可选的辞典自动注入模式（`injection_mode`） |
 | `tool_model` | 可选的系统级辅助模型（辞典融合等）；缺省继承全局 Agent 设置 |
 | `mcp` | 可选的 stdio/Streamable HTTP Server |
@@ -366,6 +366,8 @@ Provider alias 必须匹配 `^[A-Za-z][A-Za-z0-9_-]{0,63}$`：它出现在 Admin
 注册模型时声明的列表转成 Pi 的 `thinkingLevelMap`（`src/platform/thinking-levels.ts`）：没列的级别映射为 `null`，`xhigh` / `max` 映射为同名值，其余列出的级别不写映射，由各 API 适配器发送自己的取值（例如 Gemini 的 `LOW`）。这样 Pi 的 `getSupportedThinkingLevels` 与配置校验得到的是同一张表。
 
 `agent.thinking_level` 必须是 agent 模型接受的级别，否则 `validateSemantics` 拒绝（`agent.thinking_level … is not supported by … (supported: …)`）。因此把 agent 模型的级别列表改得不再包含当前级别，会在写入前被拒绝：要先调整 `thinking_level`，再改模型。Chat 的 `thinking_level` 覆盖按同样的规则对照该 Chat 解析后的生效模型校验（`chat <id>.thinking_level … is not supported by …`）。
+
+`vision.thinking_level`（可选）是 vision 分析的级别，写了就按同样的规则对照 vision 模型校验（`vision.thinking_level … is not supported by …`）。不写时由 `defaultVisionThinkingLevel`（`src/platform/thinking-levels.ts`）按模型推导：接受 `low` 就用 `low`，否则用最弱的非 `off` 级别；不推理的模型只有 `off`，不发送任何 reasoning 参数，`off` 同样不发送。Admin 的 `PUT /vision` 只换模型时会删掉新模型不接受的已存级别，见 [admin-panel.md](admin-panel.md#api)。
 
 Admin Panel 从 models.dev 的 `reasoning_options` 预填级别（`src/platform/models-dev.ts` 的 `extractThinkingLevels`）：`effort` 的取值直接对应 Pi 级别，其中 `none` 是 `off`；`toggle` 额外提供 `off`；只有 `budget_tokens` 时取 Pi 能换算成预算的 `minimal`–`high`，预算本身不代表能关闭。models.dev 没有给出可选级别时（没有 `reasoning_options`、空列表即始终推理、只有开关）不预填，模型沿用 Pi 默认。与其它元数据一样，跨 Provider 或模糊匹配得来的级别需要管理员确认；缺失的级别不需要确认。
 

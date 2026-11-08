@@ -9,16 +9,16 @@ import {
 } from './models-fixture.ts';
 
 /**
- * The Models page against the real `AdminServer`, write side: declaring
+ * The Providers page against the real `AdminServer`, write side: declaring
  * thinking levels on a model, adding models by id, the new-provider wizard
  * with its header validation, and the two stale-revision conflicts. Every
  * write goes through the UI and is verified against the API afterwards.
  */
 test.use({ signedIn: true });
 
-test.describe('models page', () => {
+test.describe('providers page editing', () => {
   test('declares thinking levels in the edit dialog only for a reasoning model', async ({ page }) => {
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` }).click();
     await page.getByRole('button', { name: 'Edit relay-existing-model' }).click();
 
@@ -39,7 +39,7 @@ test.describe('models page', () => {
   });
 
   test('adds a model by id through lookup-metadata', async ({ page }) => {
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` }).click();
     await page.getByRole('button', { name: 'Add by id' }).click();
     await page.getByLabel('Model ids (one per line, or comma separated)').fill(E2E_RELAY_MANUAL_MODEL);
@@ -67,7 +67,7 @@ test.describe('models page', () => {
     const relayBaseUrl = before.providers.find((provider: { alias: string }) => provider.alias === E2E_RELAY_ALIAS)
       .base_url as string;
 
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await page.getByRole('button', { name: 'New provider' }).click();
 
     await page.locator('#wizard-kind').selectOption('custom');
@@ -100,7 +100,7 @@ test.describe('models page', () => {
     await page.getByRole('button', { name: 'Cancel' }).click();
 
     // The fetched model can be set as the agent model right away.
-    await setAsAgent(page, modelListRow(page, E2E_RELAY_COMPLETE_MODEL));
+    await setAsAgent(modelListRow(page, E2E_RELAY_COMPLETE_MODEL));
     await expect(page.getByText('Thinking effort reset to off', { exact: false }).first()).toBeVisible();
 
     const after = await (await page.request.get(await adminUrl('/api/providers'))).json();
@@ -116,7 +116,7 @@ test.describe('models page', () => {
     const relayBaseUrl = before.providers.find((provider: { alias: string }) => provider.alias === E2E_RELAY_ALIAS)
       .base_url as string;
 
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await page.getByRole('button', { name: 'New provider' }).click();
 
     await page.locator('#wizard-kind').selectOption('custom');
@@ -144,7 +144,7 @@ test.describe('models page', () => {
   });
 
   test('a header name can be typed key by key without losing focus', async ({ page }) => {
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}`, exact: true }).click();
     await page.getByRole('button', { name: 'Add header' }).click();
     // The row used to be keyed by its own name, so every keystroke remounted it
@@ -158,7 +158,7 @@ test.describe('models page', () => {
   });
 
   test('a model edit that loses a revision race is closed instead of overwriting', async ({ page }) => {
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}`, exact: true }).click();
     await page.getByRole('button', { name: 'Edit relay-existing-model' }).click();
     await expect(page.locator('#model-context')).toBeVisible();
@@ -201,7 +201,7 @@ test.describe('models page', () => {
       }
       await route.fallback();
     });
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}`, exact: true }).click();
     await page.getByLabel('API Key', { exact: true }).fill('unsaved-refresh-draft');
 
@@ -212,7 +212,7 @@ test.describe('models page', () => {
   });
 
   test('a connection edit built on an old revision cannot delete a header added meanwhile', async ({ page }) => {
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}`, exact: true }).click();
     await page.getByLabel('API Key', { exact: true }).fill('e2e-stale-draft-key');
 

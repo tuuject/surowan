@@ -47,7 +47,7 @@ description: 配置 Chat 或 Topic allowlist、每群模型覆盖，以及恢复
 3. 保存后查看反馈：模型/thinking 覆盖可热应用；新增/删除 Chat 或改变 Topic 范围需要重启。
 4. 要恢复继承全局，清除该 Chat 的 Provider、模型和 thinking 覆盖。
 
-全局模型请在 **Models** 页切换；全局切换不会覆盖已有 Chat 的局部模型。Admin 的全局 **Set as agent** 或模型切换仍只改 `agent.*`。
+全局模型请在 **模型 / Models** 页切换；全局切换不会覆盖已有 Chat 的局部模型。**供应商 / Providers** 页模型行的「用作 Agent」或模型页的切换都只改 `agent.*`。
 
 ## 何时生效
 

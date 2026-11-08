@@ -33,8 +33,8 @@ const EN_GROUPS: readonly NavGroup[] = [
   },
   {
     label: 'Agent setup',
-    routes: ['/models', '/prompts', '/harness', '/search-settings'],
-    labels: ['Models', 'Prompts', 'Harness tuning', 'Web search'],
+    routes: ['/models', '/providers', '/prompts', '/harness', '/search-settings'],
+    labels: ['Models', 'Providers', 'Prompts', 'Harness tuning', 'Web search'],
   },
   {
     label: 'Telegram',
@@ -65,6 +65,7 @@ const ZH_LABELS = [
   '生图记录',
   '图片设置',
   '模型',
+  '供应商',
   'Prompt',
   'Harness 微调',
   '网络搜索',
@@ -115,7 +116,7 @@ test('seven parent groups collapse, expand, preserve order and open the current 
   });
   await expect(parents).toHaveCount(7);
   await expect(parents).toHaveText(EN_GROUPS.map((group) => group.label));
-  expect(EN_GROUPS.flatMap((group) => group.routes)).toHaveLength(25);
+  expect(EN_GROUPS.flatMap((group) => group.routes)).toHaveLength(26);
   await expect(nav.getByRole('button', { name: 'Agent data', exact: true }).locator('svg').first()).toBeVisible();
 
   const current = nav.getByRole('button', { name: 'Agent data', exact: true });
@@ -136,7 +137,7 @@ test('seven parent groups collapse, expand, preserve order and open the current 
     await expect(trigger).toHaveAttribute('aria-expanded', 'true');
     await expectGroupRoutes(page, group);
   }
-  await expect(nav.getByRole('link')).toHaveCount(25);
+  await expect(nav.getByRole('link')).toHaveCount(26);
 });
 
 test('language switch re-labels parents and children immediately and persists', async ({ page }) => {

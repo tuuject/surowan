@@ -29,6 +29,7 @@ import { Route as ModelsRouteImport } from './routes/models'
 import { Route as PlaygroundRouteImport } from './routes/playground'
 import { Route as PreferencesRouteImport } from './routes/preferences'
 import { Route as PromptsRouteImport } from './routes/prompts'
+import { Route as ProvidersRouteImport } from './routes/providers'
 import { Route as SearchSettingsRouteImport } from './routes/search-settings'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StickersRouteImport } from './routes/stickers'
@@ -139,6 +140,11 @@ const PromptsRoute = PromptsRouteImport.update({
   path: '/prompts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProvidersRoute = ProvidersRouteImport.update({
+  id: '/providers',
+  path: '/providers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SearchSettingsRoute = SearchSettingsRouteImport.update({
   id: '/search-settings',
   path: '/search-settings',
@@ -207,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/playground': typeof PlaygroundRoute
   '/preferences': typeof PreferencesRoute
   '/prompts': typeof PromptsRoute
+  '/providers': typeof ProvidersRoute
   '/search-settings': typeof SearchSettingsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
@@ -238,6 +245,7 @@ export interface FileRoutesByTo {
   '/playground': typeof PlaygroundRoute
   '/preferences': typeof PreferencesRoute
   '/prompts': typeof PromptsRoute
+  '/providers': typeof ProvidersRoute
   '/search-settings': typeof SearchSettingsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
@@ -270,6 +278,7 @@ export interface FileRoutesById {
   '/playground': typeof PlaygroundRoute
   '/preferences': typeof PreferencesRoute
   '/prompts': typeof PromptsRoute
+  '/providers': typeof ProvidersRoute
   '/search-settings': typeof SearchSettingsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
@@ -303,6 +312,7 @@ export interface FileRouteTypes {
     | '/playground'
     | '/preferences'
     | '/prompts'
+    | '/providers'
     | '/search-settings'
     | '/settings'
     | '/stickers'
@@ -334,6 +344,7 @@ export interface FileRouteTypes {
     | '/playground'
     | '/preferences'
     | '/prompts'
+    | '/providers'
     | '/search-settings'
     | '/settings'
     | '/stickers'
@@ -365,6 +376,7 @@ export interface FileRouteTypes {
     | '/playground'
     | '/preferences'
     | '/prompts'
+    | '/providers'
     | '/search-settings'
     | '/settings'
     | '/stickers'
@@ -397,6 +409,7 @@ export interface RootRouteChildren {
   PlaygroundRoute: typeof PlaygroundRoute
   PreferencesRoute: typeof PreferencesRoute
   PromptsRoute: typeof PromptsRoute
+  ProvidersRoute: typeof ProvidersRoute
   SearchSettingsRoute: typeof SearchSettingsRoute
   SettingsRoute: typeof SettingsRoute
   StickersRoute: typeof StickersRoute
@@ -550,6 +563,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PromptsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/providers': {
+      id: '/providers'
+      path: '/providers'
+      fullPath: '/providers'
+      preLoaderRoute: typeof ProvidersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/search-settings': {
       id: '/search-settings'
       path: '/search-settings'
@@ -637,6 +657,7 @@ const rootRouteChildren: RootRouteChildren = {
   PlaygroundRoute: PlaygroundRoute,
   PreferencesRoute: PreferencesRoute,
   PromptsRoute: PromptsRoute,
+  ProvidersRoute: ProvidersRoute,
   SearchSettingsRoute: SearchSettingsRoute,
   SettingsRoute: SettingsRoute,
   StickersRoute: StickersRoute,

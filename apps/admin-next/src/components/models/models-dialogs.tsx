@@ -1,12 +1,8 @@
-import { Button } from '@tuuject/koi-react/button';
-import { Dialog } from '@tuuject/koi-react/dialog';
-import { css } from '@tuuject/koi-react/styled-system/css';
 import { useTranslation } from 'react-i18next';
 import { ConfirmDialog } from '@/components/business';
 import { ModelEditDialog } from '@/components/models/model-edit-dialog';
 import { ModelPickerDialog, type ModelPickerMode } from '@/components/models/model-picker-dialog';
 import { ProviderWizard } from '@/components/models/provider-wizard';
-import type { ChatThinkingReset } from '@/lib/api/models.ts';
 import type { ProviderModelConfig, ProvidersView, ProviderView } from '@/lib/api/providers.ts';
 import { modelFormFromConfig } from '@/lib/model-form.ts';
 
@@ -43,14 +39,12 @@ export interface ConfirmState {
 }
 
 /**
- * Every overlay the page can show: the provider wizard, the model picker, the
- * model edit form and the two delete confirmations.
+ * Every overlay the Providers page can show: the provider wizard, the model
+ * picker, the model edit form and the two delete confirmations.
  */
 export function ModelsDialogs({
   view,
   revision,
-  thinkingResets,
-  onThinkingResetsClose,
   wizardOpen,
   onWizardClose,
   onProviderCreated,
@@ -69,8 +63,6 @@ export function ModelsDialogs({
 }: {
   readonly view: ProvidersView;
   readonly revision: string;
-  readonly thinkingResets: readonly ChatThinkingReset[];
-  readonly onThinkingResetsClose: () => void;
   readonly wizardOpen: boolean;
   readonly onWizardClose: () => void;
   readonly onProviderCreated: (alias: string) => void;
@@ -90,29 +82,6 @@ export function ModelsDialogs({
   const { t } = useTranslation();
   return (
     <>
-      <Dialog
-        open={thinkingResets.length > 0}
-        onOpenChange={(open) => !open && onThinkingResetsClose()}
-        title={t('models.models.page.chatThinkingResetTitle')}
-        description={t('models.models.page.chatThinkingResetDescription')}
-        footer={<Button onClick={onThinkingResetsClose}>{t('models.models.page.chatThinkingResetClose')}</Button>}
-      >
-        <ul
-          className={css({
-            textStyle: 'body',
-            maxHeight: '256px',
-            '& > :not(:last-child)': { marginBlockEnd: '2' },
-            overflowY: 'auto',
-          })}
-        >
-          {thinkingResets.map((reset) => (
-            <li key={reset.chat_id}>
-              <code>{reset.chat_id}</code>: {reset.previous} → {reset.current}
-            </li>
-          ))}
-        </ul>
-      </Dialog>
-
       {wizardOpen ? <ProviderWizard revision={revision} onClose={onWizardClose} onCreated={onProviderCreated} /> : null}
 
       {picker === null || pickerProvider === null ? null : (

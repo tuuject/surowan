@@ -76,6 +76,7 @@ export class MediaService {
       analysisVersion: `${model.provider}/${model.id}/prompt-${this.#visionPromptVersion}`,
       maxOutputTokens: snapshot.config.vision.max_output_tokens,
       toolSchemaKeywords: configuredToolSchemaKeywords(snapshot.config, model.provider, model.id),
+      thinkingLevel: snapshot.config.vision.thinking_level,
     };
   }
 

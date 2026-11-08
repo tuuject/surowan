@@ -103,6 +103,8 @@ export interface VisionModelReference {
 export interface VisionRuntimeConfig {
   provider?: string;
   model?: string;
+  /** Absent means `defaultVisionThinkingLevel` of the model; only a reasoning model is sent an effort. */
+  thinking_level?: ThinkingLevelConfig;
   max_output_tokens: number;
   max_concurrency: number;
   background_sticker_concurrency: 1;
