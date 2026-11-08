@@ -122,7 +122,8 @@ export function ModelList({
         </>
       }
     >
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+      <div>
+        {/* The list's header row, ruled off like a Koi Table header so the rows below read as one list. */}
         <div
           className={css({
             display: 'flex',
@@ -130,6 +131,9 @@ export function ModelList({
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: '3',
+            paddingBlockEnd: '3',
+            borderBottomWidth: '1px',
+            borderColor: 'divider',
           })}
         >
           <Checkbox
@@ -169,14 +173,16 @@ export function ModelList({
         </div>
 
         {rows.length === 0 ? (
-          <Empty title={t('models.models.page.emptyModels')} />
+          <div className={css({ paddingBlock: '4' })}>
+            <Empty title={t('models.models.page.emptyModels')} />
+          </div>
         ) : (
           <ul
             data-model-list
             className={css({
               margin: '0',
               padding: '0',
-              '& > li:not(:last-child)': { borderBottomWidth: '1px', borderColor: 'divider' },
+              '& > li': { borderBottomWidth: '1px', borderColor: 'divider' },
             })}
           >
             {pagination.items.map((row) => {
@@ -358,13 +364,15 @@ export function ModelList({
             })}
           </ul>
         )}
-        <ListFooter
-          inset={false}
-          count={pagination.total}
-          page={pagination.page}
-          pageCount={pagination.pageCount}
-          onPageChange={pagination.onPageChange}
-        />
+        <div className={css({ marginBlockStart: '4' })}>
+          <ListFooter
+            inset={false}
+            count={pagination.total}
+            page={pagination.page}
+            pageCount={pagination.pageCount}
+            onPageChange={pagination.onPageChange}
+          />
+        </div>
       </div>
     </Panel>
   );

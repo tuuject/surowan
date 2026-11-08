@@ -83,9 +83,42 @@ export function ProviderRail({
   const idle = listed.filter((provider) => !servesASlot(view, provider.alias));
 
   return (
-    <div className={css({ display: 'flex', flexDirection: 'column', gap: '4', minWidth: '0' })}>
+    <div
+      className={css({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4',
+        flex: '1 1 auto',
+        minWidth: '0',
+        minHeight: '0',
+      })}
+    >
       <ProviderSearch search={search} onSearch={onSearch} onRefresh={onRefresh} refreshing={refreshing} />
-      <nav aria-label={t('models.models.page.providersTitle')}>
+      {/*
+       * When the parent caps the rail's height (the sticky desktop column), only
+       * the list scrolls: search and New provider stay put. The 4px padding,
+       * cancelled by the margin, keeps the rows' focus outline inside the clip.
+       * A hairline marks an edge only while rows are hidden past it: the lines
+       * stay with the box (`scroll`), and page-colored covers that scroll with
+       * the content (`local`) hide them whenever the list rests at that end.
+       */}
+      <nav
+        aria-label={t('models.models.page.providersTitle')}
+        className={css({
+          flex: '1 1 auto',
+          minHeight: '0',
+          overflowY: 'auto',
+          padding: '1',
+          margin: '-1',
+          // One literal: Panda extracts styles statically and drops computed values.
+          backgroundImage:
+            'linear-gradient(token(colors.page-bg), token(colors.page-bg)), linear-gradient(token(colors.page-bg), token(colors.page-bg)), linear-gradient(token(colors.divider), token(colors.divider)), linear-gradient(token(colors.divider), token(colors.divider))',
+          backgroundSize: '100% 4px, 100% 4px, 100% 1px, 100% 1px',
+          backgroundPosition: 'top, bottom, top, bottom',
+          backgroundRepeat: 'no-repeat',
+          backgroundAttachment: 'local, local, scroll, scroll',
+        })}
+      >
         {listed.length === 0 ? (
           <p className={css({ margin: '0', paddingInline: '4', paddingBlock: '3', color: 'text-muted' })}>
             {view.providers.length === 0
@@ -123,7 +156,12 @@ export function ProviderRail({
           </>
         )}
       </nav>
-      <Button variant="outline" iconStart={<PlusIcon />} onClick={onNewProvider} className={css({ width: '100%' })}>
+      <Button
+        variant="outline"
+        iconStart={<PlusIcon />}
+        onClick={onNewProvider}
+        className={css({ flexShrink: '0', width: '100%' })}
+      >
         {t('models.models.page.newProvider')}
       </Button>
     </div>
@@ -152,7 +190,7 @@ function ProviderSearch({
 
   return (
     <form
-      className={css({ display: 'flex', alignItems: 'center', gap: '2' })}
+      className={css({ display: 'flex', flexShrink: '0', alignItems: 'center', gap: '2' })}
       onSubmit={(event) => {
         event.preventDefault();
         onSearch(draft);

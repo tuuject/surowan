@@ -19,9 +19,9 @@ import { ProviderConnectionSection } from '@/components/models/provider-connecti
 import { ProviderDetailHeader } from '@/components/models/provider-detail-header';
 import { ProviderRail } from '@/components/models/provider-list';
 import { ProvidersRestartBanner } from '@/components/models/restart-banner';
-import { AppLink } from '@/components/router-links';
 import { ThinkingResetDialog } from '@/components/models/roles/thinking-reset-dialog';
 import { useModelRoleWrites } from '@/components/models/roles/writes';
+import { AppLink } from '@/components/router-links';
 import type { HealthCheckResult, ProviderModelConfig, ProviderView } from '@/lib/api/providers.ts';
 import {
   deleteProvider,
@@ -237,12 +237,14 @@ export default function ProvidersPage(): ReactElement {
       {providers.isError ? <Alert tone="error">{errorMessage(providers.error)}</Alert> : null}
       <ProvidersRestartBanner view={view} />
 
+      {/* Master and detail split by one hairline (above the detail when stacked, beside it when wide), not by frames. */}
       <div
         className={css({
           display: 'grid',
           gap: '8',
           alignItems: 'start',
-          '@media (min-width: 1200px)': { gridTemplateColumns: '300px minmax(0, 1fr)' },
+          // 332px = the rail's 300px plus its 32px gutter to the hairline.
+          '@media (min-width: 1200px)': { gridTemplateColumns: '332px minmax(0, 1fr)', columnGap: '0' },
         })}
       >
         <aside
@@ -250,10 +252,13 @@ export default function ProvidersPage(): ReactElement {
             minWidth: '0',
             alignSelf: 'start',
             '@media (min-width: 1200px)': {
+              paddingInlineEnd: '6',
               position: 'sticky',
-              top: 'var(--app-header-offset)',
-              maxHeight: 'calc(100dvh - var(--app-header-offset) - 24px)',
-              overflowY: 'auto',
+              // The same air under the header and above the window edge; past that the rail's list scrolls on its own.
+              top: 'calc(var(--app-header-offset) + token(spacing.6))',
+              maxHeight: 'calc(100dvh - var(--app-header-offset) - token(spacing.6) * 2)',
+              display: 'flex',
+              flexDirection: 'column',
             },
           })}
         >
@@ -272,18 +277,32 @@ export default function ProvidersPage(): ReactElement {
 
         <div
           key={selected?.alias ?? 'empty'}
-          className={css({ display: 'flex', flexDirection: 'column', gap: '8', minWidth: '0' })}
+          className={css({
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8',
+            minWidth: '0',
+            paddingBlockStart: '6',
+            borderTopWidth: '1px',
+            borderColor: 'divider',
+            '@media (min-width: 1200px)': {
+              // Stretch so the hairline runs the full height even when the rail is the taller column.
+              alignSelf: 'stretch',
+              paddingBlockStart: '0',
+              paddingInlineStart: '6',
+              borderTopWidth: '0',
+              borderInlineStartWidth: '1px',
+            },
+          })}
         >
           {selected === null ? (
             <Empty title={t('models.models.page.emptyState')} />
           ) : (
             <>
-              <ProviderDetailHeader view={view} provider={selected} />
-              <ProviderConnectionSection
-                key={selected.alias}
+              <ProviderDetailHeader
+                view={view}
                 provider={selected}
-                revision={revision}
-                secondaryAction={
+                action={
                   <Button
                     variant="ghost"
                     color="error"
@@ -301,6 +320,7 @@ export default function ProvidersPage(): ReactElement {
                   </Button>
                 }
               />
+              <ProviderConnectionSection key={selected.alias} provider={selected} revision={revision} />
               <ModelList
                 key={selected.alias}
                 view={view}
