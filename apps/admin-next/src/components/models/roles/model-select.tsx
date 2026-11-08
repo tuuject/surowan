@@ -78,11 +78,7 @@ export function ModelSelect({
       emptyText={t('models.models.roles.noMatchingModels')}
       placeholder={placeholder}
       renderValue={(option) =>
-        option.ref === null ? (
-          option.label
-        ) : (
-          <ModelChoiceLabel alias={option.ref.alias} config={option.ref.config} withAlias isSimple />
-        )
+        option.ref === null ? option.label : <ModelValueLabel alias={option.ref.alias} config={option.ref.config} />
       }
       onChange={(next) => {
         if (next === null || next === value) {
@@ -99,11 +95,7 @@ export function ModelSelect({
           <SelectGroup key={group.label} label={group.label}>
             {group.items.map((option) => (
               <SelectItem key={option.value} value={option.value} label={option.label}>
-                {option.ref === null ? (
-                  option.label
-                ) : (
-                  <ModelChoiceLabel alias={option.ref.alias} config={option.ref.config} />
-                )}
+                {option.ref === null ? option.label : <ModelChoiceLabel config={option.ref.config} />}
               </SelectItem>
             ))}
           </SelectGroup>
@@ -113,48 +105,44 @@ export function ModelSelect({
   );
 }
 
-/** A model option: its readable name, then the exact id (with the alias in the trigger). */
-function ModelChoiceLabel({
+function hasDisplayName(config: ProviderModelConfig): boolean {
+  return config.name !== undefined && config.name.length > 0;
+}
+
+/** The trigger's one line: a named model by its name alone, an unnamed one by its exact `alias / id`. */
+function ModelValueLabel({
   alias,
   config,
-  withAlias = false,
-  isSimple = false,
 }: {
   readonly alias: string;
   readonly config: ProviderModelConfig;
-  readonly withAlias?: boolean;
-  readonly isSimple?: boolean;
 }): ReactElement {
-  const hasName = config.name !== undefined && config.name.length > 0;
-
-  if (isSimple) {
-    return (
-      <span className={css({ display: 'flex', flexDirection: 'column', gap: '2', minWidth: '0' })}>
-        {hasName ? (
-          <span className={css({ flexShrink: '0' })}>{config.name}</span>
-        ) : (
-          <span
-            className={css({
-              minWidth: '0',
-              truncate: true,
-              color: hasName ? 'text-muted' : 'text',
-              fontSize: 'small',
-            })}
-          >
-            <MonoValue value={withAlias ? `${alias} / ${config.id}` : config.id} />
-          </span>
-        )}
-      </span>
-    );
-  }
-
   return (
-    <span className={css({ display: 'flex', flexDirection: 'column', gap: '1', minWidth: '0', lineHeight: '1.5' })}>
-      {hasName ? <span className={css({ flexShrink: '0' })}>{config.name}</span> : null}
+    <span className={css({ minWidth: '0', truncate: true })}>
+      {hasDisplayName(config) ? config.name : <MonoValue value={`${alias} / ${config.id}`} />}
+    </span>
+  );
+}
+
+/**
+ * A menu option: the readable name, then the exact id as a muted second line,
+ * like the provider rail's rows. Without a name the id is the only line, so it
+ * keeps the label's size and color. The group heading already names the provider.
+ */
+function ModelChoiceLabel({ config }: { readonly config: ProviderModelConfig }): ReactElement {
+  const named = hasDisplayName(config);
+  return (
+    <span className={css({ display: 'flex', flexDirection: 'column', gap: '1', minWidth: '0' })}>
+      {named ? <span>{config.name}</span> : null}
       <span
-        className={css({ minWidth: '0', truncate: true, color: hasName ? 'text-muted' : 'text', fontSize: 'smaller' })}
+        className={css({
+          minWidth: '0',
+          truncate: true,
+          textStyle: named ? 'small' : 'body',
+          color: named ? 'text-muted' : 'text',
+        })}
       >
-        <MonoValue value={withAlias ? `${alias} / ${config.id}` : config.id} />
+        <MonoValue value={config.id} />
       </span>
     </span>
   );
