@@ -1,5 +1,6 @@
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   CopyableValue,
@@ -36,7 +37,7 @@ export function TimelineCard({
   readonly header: React.ReactNode;
   readonly extra?: string;
   readonly children?: React.ReactNode;
-}): React.ReactElement {
+}): ReactElement {
   return (
     <article
       className={css({
@@ -74,7 +75,7 @@ function SendContent({
   readonly chat: InvocationChatSummary;
   readonly parsed: ParsedSendArguments;
   readonly send: TelegramSendEntry | null;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const room = isRoom(chat);
   const content =
@@ -134,7 +135,7 @@ export function ToolCallCard({
   readonly chat: InvocationChatSummary;
   readonly tool: ToolCallEntry;
   readonly send: TelegramSendEntry | null;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const parsed = parseSendArguments(tool.arguments_json);
   return (
@@ -195,7 +196,7 @@ export function ContextMessageCard({
 }: {
   readonly chat: InvocationChatSummary;
   readonly message: ContextMessageEntry;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const room = isRoom(chat);
   const snapshot = parseJsonObject(message.snapshot_json);
@@ -278,7 +279,7 @@ export function ContextMessageCard({
   );
 }
 
-export function AgentMessageCard({ message }: { readonly message: AgentMessageEntry }): React.ReactElement {
+export function AgentMessageCard({ message }: { readonly message: AgentMessageEntry }): ReactElement {
   const { t } = useTranslation();
   const AGENT_ROLE_LABELS: Record<string, { readonly label: string; readonly note: string | null }> = {
     assistant: {
@@ -336,7 +337,7 @@ export function AgentMessageCard({ message }: { readonly message: AgentMessageEn
   );
 }
 
-export function ModelCallCard({ model }: { readonly model: ModelCallEntry }): React.ReactElement {
+export function ModelCallCard({ model }: { readonly model: ModelCallEntry }): ReactElement {
   const { t } = useTranslation();
   const hasDetails = model.error_detail !== null || model.request_json !== null || model.response_json !== null;
   return (

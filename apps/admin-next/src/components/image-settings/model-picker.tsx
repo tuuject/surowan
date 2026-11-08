@@ -5,7 +5,7 @@ import { PlusIcon } from '@tuuject/koi-react/icons';
 import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ImageCatalogEndpoint } from '@/lib/api/images.ts';
 import { ModelCapabilities } from './model-capabilities.tsx';
@@ -58,7 +58,7 @@ export function ModelPicker({
   readonly alreadyAdded: boolean;
   readonly canAdd: boolean;
   readonly onAddModel: () => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   return (
     <>

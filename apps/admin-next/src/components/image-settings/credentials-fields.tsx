@@ -6,6 +6,7 @@ import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { EditableCredential, EditableModel } from './shared.ts';
 
@@ -31,7 +32,7 @@ export function CredentialsFields({
   readonly savedNames: readonly string[];
   /** Aliases the server can supply keys from. */
   readonly credentialProviders: readonly string[];
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   return (
     <>

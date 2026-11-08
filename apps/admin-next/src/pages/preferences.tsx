@@ -2,6 +2,7 @@ import { Field } from '@tuuject/koi-react/field';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Switch } from '@tuuject/koi-react/switch';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListPageHeader, SettingRow } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
@@ -12,7 +13,7 @@ import { setShowConfigKeys, useShowConfigKeys } from '@/lib/panel-preferences';
 const THEME_MODES: readonly ThemeMode[] = ['light', 'dark', 'system'];
 
 /** Browser-local display preferences; theme and language are also on the header toggles. */
-export default function PreferencesPage(): React.ReactElement {
+export default function PreferencesPage(): ReactElement {
   const { t, i18n } = useTranslation();
   const { mode, setMode } = useTheme();
   const showConfigKeys = useShowConfigKeys();

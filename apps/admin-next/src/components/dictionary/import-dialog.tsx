@@ -6,8 +6,7 @@ import { Field } from '@tuuject/koi-react/field';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
-import type React from 'react';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScopePicker } from '@/components/dictionary/entry-form.tsx';
 import type {
@@ -42,7 +41,7 @@ export function ImportDialog({
   readonly defaultScope: DictionaryScope;
   readonly defaultChatId: string | null;
   readonly onImported: () => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [format, setFormat] = useState<DictionaryExportFormat>('csv');

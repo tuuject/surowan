@@ -6,7 +6,7 @@ import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Switch } from '@tuuject/koi-react/switch';
 import { Textarea } from '@tuuject/koi-react/textarea';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { FormActionBar, ListPageHeader, SettingRow } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
@@ -45,7 +45,7 @@ function useHarnessSave() {
   });
 }
 
-export default function HarnessPage(): React.ReactElement {
+export default function HarnessPage(): ReactElement {
   const { t } = useTranslation();
   const settings = useQuery(harnessQuery);
   // Owned above the form: a save that wrote the file but failed to apply moves
@@ -97,7 +97,7 @@ function HarnessForm({
   readonly saved: HarnessValues;
   readonly active: HarnessValues;
   readonly save: ReturnType<typeof useHarnessSave>;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const [draft, setDraft] = useState<Record<string, DraftValue>>(() => draftOf(saved));
   const parsed = parseDraft(draft, saved);
@@ -174,7 +174,7 @@ function HarnessFieldRow({
   readonly active: HarnessValue;
   readonly saved: HarnessValue;
   readonly onChange: (value: DraftValue) => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const display = (shown: HarnessValue): string =>
     shown === null

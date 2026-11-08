@@ -3,6 +3,7 @@ import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Tag } from '@tuuject/koi-react/tag';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { restartServer } from '@/lib/api/config.ts';
 import type { ProvidersView } from '@/lib/api/providers.ts';
@@ -12,7 +13,7 @@ import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
 
 /** The Models and Providers pages' banner: the file view's pending paths and the restart write. */
-export function ProvidersRestartBanner({ view }: { readonly view: ProvidersView }): React.ReactElement | null {
+export function ProvidersRestartBanner({ view }: { readonly view: ProvidersView }): ReactElement | null {
   const { t } = useTranslation();
   const write = useProviderWrite();
   const restart = useMutation({
@@ -58,7 +59,7 @@ export function RestartBanner({
   readonly supervised: boolean;
   readonly pending: boolean;
   readonly onRestart: () => void;
-}): React.ReactElement | null {
+}): ReactElement | null {
   const { t } = useTranslation();
   if (paths.length === 0) {
     return null;

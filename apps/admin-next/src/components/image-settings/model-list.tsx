@@ -3,6 +3,7 @@ import { Button } from '@tuuject/koi-react/button';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { type ColumnSpec, ListFooter, RowActions, TableShell, useClientPagination } from '@/components/business';
 import { ModelCapabilities } from './model-capabilities.tsx';
@@ -17,7 +18,7 @@ export function ModelList({
   readonly models: readonly EditableModel[];
   readonly setModels: React.Dispatch<React.SetStateAction<EditableModel[]>>;
   readonly mergedDuplicates: number;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const pagination = useClientPagination(models, 'image-settings-models');
   const columns: readonly ColumnSpec<EditableModel>[] = [

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { NavMenu } from '@tuuject/koi-react/nav-menu';
 import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { versionQuery } from '@/lib/queries';
 import { activeNavValue } from '@/nav';
@@ -13,7 +14,7 @@ interface SidebarContentProps {
   readonly onNavigate?: () => void;
 }
 
-function VersionFooter(): React.ReactElement {
+function VersionFooter(): ReactElement {
   const version = useQuery(versionQuery);
   if (version.data === undefined) {
     return <div />;

@@ -5,7 +5,7 @@ import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
 import { RadioGroup } from '@tuuject/koi-react/radio-group';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ChatEntry, ChatsView, ProactiveReplyWrite } from '@/lib/api/chats.ts';
 import { updateChatProactiveReply } from '@/lib/api/chats.ts';
@@ -33,7 +33,7 @@ export function ProactiveReplyDialog({
   readonly view: ChatsView;
   readonly chat: ChatEntry;
   readonly onClose: () => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const write = useProviderWrite();
   const saved = chat.saved ?? chat.active;

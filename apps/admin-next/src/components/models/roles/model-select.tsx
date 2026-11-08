@@ -1,6 +1,6 @@
 import { SelectGroup, SelectItem, SelectPanel } from '@tuuject/koi-react/select-panel';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MonoValue } from '@/components/business';
 import type { ProviderModelConfig, ProvidersView } from '@/lib/api/providers.ts';
@@ -44,7 +44,7 @@ export function ModelSelect({
   readonly placeholder: ReactNode;
   readonly disabled: boolean;
   readonly onPick: (choice: ModelChoice) => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   // Rebuilt per render: a few providers' model lists, cheaper than keeping a memo in sync.
   const groups: ChoiceGroup[] = leading === undefined ? [] : [leading];
@@ -122,7 +122,7 @@ function ModelChoiceLabel({
   readonly alias: string;
   readonly config: ProviderModelConfig;
   readonly withAlias?: boolean;
-}): React.ReactElement {
+}): ReactElement {
   const hasName = config.name !== undefined && config.name.length > 0;
   return (
     <span className={css({ display: 'flex', alignItems: 'baseline', gap: '2', minWidth: '0' })}>

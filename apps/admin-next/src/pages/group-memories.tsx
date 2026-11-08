@@ -6,7 +6,7 @@ import { Field } from '@tuuject/koi-react/field';
 import { TrashIcon } from '@tuuject/koi-react/icons';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useMemo, useState } from 'react';
+import { type ReactElement, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import {
   ChatFilter,
@@ -31,7 +31,7 @@ import { toast } from '@/lib/toast.ts';
 const SUMMARY_MAX_LENGTH = 150;
 const EMPTY_FILTERS = { chat: '', day: '', search: '' };
 
-export default function GroupMemoriesPage(): React.ReactElement {
+export default function GroupMemoriesPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const query = useListQuery(EMPTY_FILTERS);

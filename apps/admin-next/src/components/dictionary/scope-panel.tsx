@@ -1,7 +1,7 @@
 import { Select } from '@tuuject/koi-react/select';
 import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Panel } from '@/components/layout/panel';
 import type { DictionaryChatOption } from '@/lib/api/dictionary.ts';
@@ -24,7 +24,7 @@ export function DictionaryScopePanel({
   chatsFailed,
   chatsError,
   onSelect,
-}: DictionaryScopePanelProps): React.ReactElement {
+}: DictionaryScopePanelProps): ReactElement {
   const { t } = useTranslation();
   // A deep-linked chat can be absent while the chat list loads, after it fails,
   // or when the chat is no longer available. Keep it visible so the selector

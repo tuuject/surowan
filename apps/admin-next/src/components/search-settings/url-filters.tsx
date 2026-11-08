@@ -2,7 +2,7 @@ import { Field } from '@tuuject/koi-react/field';
 import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import { RE2JS } from 're2js';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Panel } from '@/components/layout/panel';
 import { splitLines } from './draft.ts';
@@ -20,7 +20,7 @@ export function UrlFilterEditor({
   readonly rules: string;
   readonly onRulesChange: (value: string) => void;
   readonly disabled: boolean;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const [testText, setTestText] = useState('');
   const compiled = splitLines(rules).map((rule) => {

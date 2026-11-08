@@ -4,7 +4,7 @@ import { Button } from '@tuuject/koi-react/button';
 import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ConfirmDialog, KvList, ListPageHeader, MonoValue } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
@@ -16,7 +16,7 @@ import { formatTime } from '@/lib/format';
 import { telegramQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
 
-function BotIdentity({ state }: { readonly state: TelegramConnectionState }): React.ReactElement {
+function BotIdentity({ state }: { readonly state: TelegramConnectionState }): ReactElement {
   const { t } = useTranslation();
   const bot = state.bot;
   if (bot === undefined) {
@@ -32,7 +32,7 @@ function BotIdentity({ state }: { readonly state: TelegramConnectionState }): Re
   );
 }
 
-function TelegramSettings({ view }: { readonly view: TelegramView }): React.ReactElement {
+function TelegramSettings({ view }: { readonly view: TelegramView }): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [token, setToken] = useState('');
@@ -181,7 +181,7 @@ function TelegramSettings({ view }: { readonly view: TelegramView }): React.Reac
   );
 }
 
-export default function TelegramPage(): React.ReactElement {
+export default function TelegramPage(): ReactElement {
   const { t } = useTranslation();
   const query = useQuery(telegramQuery);
 

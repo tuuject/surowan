@@ -3,7 +3,7 @@ import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { PlusIcon } from '@tuuject/koi-react/icons';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
@@ -30,7 +30,7 @@ import { CreateKeyDialog, EditModeDialog, MODES, RotateKeyDialog } from './api-k
 
 const EMPTY_FILTERS = { search: '' };
 
-function ModeBadge({ item }: { readonly item: AdminApiKeyItem }): React.ReactElement {
+function ModeBadge({ item }: { readonly item: AdminApiKeyItem }): ReactElement {
   const { t } = useTranslation();
   const mode = MODES.find((candidate) => candidate === item.mode);
   if (mode === undefined) {
@@ -39,7 +39,7 @@ function ModeBadge({ item }: { readonly item: AdminApiKeyItem }): React.ReactEle
   return <ToneBadge tone={mode === 'read' ? 'neutral' : 'success'}>{t(`pages.apiKeys.modes.${mode}`)}</ToneBadge>;
 }
 
-export default function ApiKeysPage(): React.ReactElement {
+export default function ApiKeysPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const keys = useQuery(apiKeysQuery);

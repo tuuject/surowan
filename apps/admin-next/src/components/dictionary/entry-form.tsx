@@ -5,8 +5,7 @@ import { RadioGroup } from '@tuuject/koi-react/radio-group';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
-import type React from 'react';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DictionaryChatOption, DictionaryDraft, DictionaryScope } from '@/lib/api/dictionary.ts';
 import { aliasesEqual, formatAliasLines, parseAliasLines } from '@/lib/dictionary.ts';
@@ -35,7 +34,7 @@ export function AliasEditor({
   readonly onChange: (aliases: readonly string[]) => void;
   readonly disabled?: boolean;
   readonly idPrefix?: string;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const [raw, setRaw] = useState<string>(() => formatAliasLines(aliases));
   // The list `raw` last produced; when the incoming prop differs from it, the
@@ -86,7 +85,7 @@ export function ScopePicker({
   error,
   label,
   onChange,
-}: ScopePickerProps): React.ReactElement {
+}: ScopePickerProps): ReactElement {
   const { t } = useTranslation();
   return (
     <>
@@ -137,7 +136,7 @@ export function EntryFormFields({
   readonly errors: { readonly term?: string; readonly definition?: string; readonly chat_id?: string };
   readonly disabled: boolean;
   readonly idPrefix?: string;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
 
   return (

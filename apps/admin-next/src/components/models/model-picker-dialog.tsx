@@ -5,7 +5,7 @@ import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MonoValue } from '@/components/business';
 import { HeaderFields } from '@/components/models/header-fields';
@@ -37,7 +37,7 @@ export function ModelPickerDialog({
   readonly provider: ProviderView;
   readonly revision: string;
   readonly onClose: () => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const write = useProviderWrite();
   const selection = useDraftSelection();

@@ -1,5 +1,5 @@
 import { css } from '@tuuject/koi-react/styled-system/css';
-import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ImageModelConfig } from '@/lib/api/images.ts';
 
@@ -8,7 +8,7 @@ export function ModelCapabilities({
   capabilities,
 }: {
   readonly capabilities: ImageModelConfig['capabilities'];
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const qualityNames: Record<string, string> = {
     auto: t('image.settings.enumAuto'),

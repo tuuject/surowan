@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ConfirmDialog } from '@/components/business';
 import { ModelEditDialog } from '@/components/models/model-edit-dialog';
@@ -78,7 +79,7 @@ export function ModelsDialogs({
   readonly deletingProvider: ProviderView | null;
   readonly onDeletingProviderClose: () => void;
   readonly removeProvider: ConfirmState;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   return (
     <>

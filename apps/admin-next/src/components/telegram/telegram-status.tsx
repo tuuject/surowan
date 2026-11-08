@@ -1,4 +1,5 @@
 import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ToneBadge } from '@/components/business';
 import type { TelegramBot, TelegramConnectionState, TelegramConnectionStatus } from '@/lib/api/telegram.ts';
@@ -11,17 +12,13 @@ const STATUS_TONE: Record<TelegramConnectionStatus, 'success' | 'warning' | 'dan
 };
 
 /** The status label is shared by the settings page and the overview card. */
-export function TelegramStatusBadge({ state }: { readonly state: TelegramConnectionState }): React.ReactElement {
+export function TelegramStatusBadge({ state }: { readonly state: TelegramConnectionState }): ReactElement {
   const { t } = useTranslation();
   return <ToneBadge tone={STATUS_TONE[state.status]}>{t(`pages.telegram.status.${state.status}`)}</ToneBadge>;
 }
 
 /** A config error's reason is the actionable half; other states have no extra label. */
-export function TelegramStatusReason({
-  state,
-}: {
-  readonly state: TelegramConnectionState;
-}): React.ReactElement | null {
+export function TelegramStatusReason({ state }: { readonly state: TelegramConnectionState }): ReactElement | null {
   const { t } = useTranslation();
   if (state.status !== 'config_error') {
     return null;

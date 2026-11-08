@@ -1,10 +1,11 @@
 import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { errorMessage } from '@/lib/errors.ts';
 
 /** Placeholder while the provider view loads. */
-export function ModelsPageLoading(): React.ReactElement {
+export function ModelsPageLoading(): ReactElement {
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '6' } })}>
       <Skeleton className={css({ height: '80px', width: '100%', borderRadius: 'xl' })} />
@@ -24,7 +25,7 @@ export function ModelsPageLoading(): React.ReactElement {
 }
 
 /** The provider view could not be read. */
-export function ModelsPageError({ error }: { readonly error: unknown }): React.ReactElement {
+export function ModelsPageError({ error }: { readonly error: unknown }): ReactElement {
   const { t } = useTranslation();
   return (
     <div className={css({ padding: '6', textAlign: 'center' })}>

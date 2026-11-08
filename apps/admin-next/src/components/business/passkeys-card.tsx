@@ -5,7 +5,7 @@ import { Dialog } from '@tuuject/koi-react/dialog';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { field } from '@tuuject/koi-react/styled-system/recipes';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
@@ -34,7 +34,7 @@ const fieldLabel = field().label;
  * browser via @simplewebauthn/browser and never exposes credentials to the
  * panel's own storage.
  */
-export function PasskeysCard(): React.ReactElement {
+export function PasskeysCard(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const webAuthnAvailable = isWebAuthnAvailable();
@@ -244,7 +244,7 @@ export function PasskeysCard(): React.ReactElement {
   );
 }
 
-function RegisterPasskeyDialog({ onClose }: { readonly onClose: () => void }): React.ReactElement {
+function RegisterPasskeyDialog({ onClose }: { readonly onClose: () => void }): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [name, setName] = useState('');

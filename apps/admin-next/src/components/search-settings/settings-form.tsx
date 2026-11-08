@@ -5,7 +5,7 @@ import { Dialog } from '@tuuject/koi-react/dialog';
 import { PlusIcon, TrashIcon } from '@tuuject/koi-react/icons';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Switch } from '@tuuject/koi-react/switch';
-import { useMemo, useState } from 'react';
+import { type ReactElement, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
@@ -34,7 +34,7 @@ import { UrlFilterEditor } from './url-filters.tsx';
 const EMPTY_FILTERS = { search: '' };
 
 /** The editable form. Its identity is the revision, so a new revision remounts it. */
-export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): React.ReactElement {
+export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [enabled, setEnabled] = useState(initial.enabled);

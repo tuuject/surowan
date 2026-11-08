@@ -1,5 +1,6 @@
 import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
+import type { ReactElement } from 'react';
 
 /**
  * Key/value detail list for detail-page diagnostic fields. Null or empty
@@ -21,7 +22,7 @@ export function KvList({
   readonly className?: string;
   /** `1` stacks every item, for a vertical settings form. */
   readonly columns?: 1 | 'auto';
-}): React.ReactElement {
+}): ReactElement {
   return (
     <div className={css({ containerType: 'inline-size', minWidth: '0' })}>
       <dl
@@ -60,7 +61,7 @@ export function TextValue({
 }: {
   readonly value: string | null;
   readonly className?: string;
-}): React.ReactElement {
+}): ReactElement {
   if (value === null || value.length === 0) {
     return <span className={css({ color: 'text-muted' })}>—</span>;
   }
@@ -74,7 +75,7 @@ export function MonoValue({
 }: {
   readonly value: string | null;
   readonly className?: string;
-}): React.ReactElement {
+}): ReactElement {
   if (value === null || value.length === 0) {
     return <span className={css({ color: 'text-muted' })}>—</span>;
   }

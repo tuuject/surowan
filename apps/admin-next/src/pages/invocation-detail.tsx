@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Tabs } from '@tuuject/koi-react/tabs';
-import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DetailError, DetailSkeleton, ListPageHeader } from '@/components/business';
 import { DetailHeader } from '@/components/invocations/detail-header';
@@ -13,7 +13,7 @@ import { ToolCallsTab } from '@/components/invocations/tool-calls-tab';
 import { AgentTranscriptTab, FrozenContextTab } from '@/components/invocations/transcripts-tab';
 import { invocationQuery } from '@/lib/queries';
 
-export function InvocationDetailView({ id }: { readonly id: string }): React.ReactElement {
+export function InvocationDetailView({ id }: { readonly id: string }): ReactElement {
   const { t } = useTranslation();
   const { data, isPending, isError, error } = useQuery(invocationQuery(id));
 

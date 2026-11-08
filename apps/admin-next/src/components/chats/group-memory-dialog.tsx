@@ -5,7 +5,7 @@ import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Switch } from '@tuuject/koi-react/switch';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SettingRow } from '@/components/business';
 import type { ChatEntry, ChatsView } from '@/lib/api/chats.ts';
@@ -28,7 +28,7 @@ export function GroupMemoryDialog({
   readonly view: ChatsView;
   readonly chat: ChatEntry;
   readonly onClose: () => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const write = useProviderWrite();
   const saved = chat.saved?.group_memory ?? null;

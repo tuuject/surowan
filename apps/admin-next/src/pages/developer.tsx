@@ -3,7 +3,7 @@ import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Switch } from '@tuuject/koi-react/switch';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ConfirmDialog, ListPageHeader, SettingRow } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
@@ -15,7 +15,7 @@ import { useProviderWrite } from '@/lib/use-provider-write';
 /** The two independent switches the page mutates through the same PUT /developer endpoint. */
 type DeveloperSwitch = 'record_model_payloads' | 'record_agent_thinking';
 
-export default function DeveloperPage(): React.ReactElement {
+export default function DeveloperPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const settings = useQuery(developerQuery);

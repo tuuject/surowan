@@ -1,5 +1,5 @@
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useMemo } from 'react';
+import { type ReactElement, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ChatFilter,
@@ -31,7 +31,7 @@ const INVOCATION_STATES = [
 const INVOCATION_HOSTS = ['telegram', 'playground'] as const;
 const EMPTY_FILTERS = { state: '', host: '', chat: '', model: '' };
 
-export default function InvocationsPage(): React.ReactElement {
+export default function InvocationsPage(): ReactElement {
   const { t } = useTranslation();
   const query = useListQuery(EMPTY_FILTERS);
   const { state, host, chat, model } = query.value;

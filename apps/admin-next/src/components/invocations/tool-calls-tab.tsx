@@ -1,5 +1,6 @@
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
@@ -16,7 +17,7 @@ import { formatDuration, formatTime } from '@/lib/format';
 import { parseSendArguments } from '@/lib/timeline';
 import { ToolResult } from './tool-result';
 
-function SendArgumentsSummary({ argumentsJson }: { readonly argumentsJson: string }): React.ReactElement {
+function SendArgumentsSummary({ argumentsJson }: { readonly argumentsJson: string }): ReactElement {
   const { t } = useTranslation();
   const parsed = parseSendArguments(argumentsJson);
   return (

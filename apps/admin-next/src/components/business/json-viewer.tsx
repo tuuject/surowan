@@ -4,7 +4,7 @@ import JsonView from '@uiw/react-json-view';
 import { darkTheme } from '@uiw/react-json-view/dark';
 import { lightTheme } from '@uiw/react-json-view/light';
 import type React from 'react';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/components/themes/theme-provider';
 import { downloadTextFile } from '@/lib/download.ts';
@@ -48,7 +48,7 @@ const BOX = css({
   textStyle: 'small',
 });
 
-function JsonTree({ value }: { readonly value: object }): React.ReactElement {
+function JsonTree({ value }: { readonly value: object }): ReactElement {
   const { resolved } = useTheme();
   return (
     <JsonView
@@ -94,7 +94,7 @@ export function JsonViewer({
   collapseThresholdChars = DEFAULT_COLLAPSE_THRESHOLD_CHARS,
   downloadFileName,
   className,
-}: JsonViewerProps): React.ReactElement {
+}: JsonViewerProps): ReactElement {
   const { t } = useTranslation();
   const [mode, setMode] = useState<'tree' | 'text'>(defaultMode);
   const text = prettyJson(value);

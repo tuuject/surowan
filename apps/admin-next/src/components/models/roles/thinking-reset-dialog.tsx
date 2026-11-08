@@ -1,6 +1,7 @@
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ChatThinkingReset } from '@/lib/api/models.ts';
 
@@ -11,7 +12,7 @@ export function ThinkingResetDialog({
 }: {
   readonly resets: readonly ChatThinkingReset[];
   readonly onClose: () => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   return (
     <Dialog

@@ -3,7 +3,7 @@ import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
@@ -45,7 +45,7 @@ function scopeOfValue(value: string): PromptScopeRef {
     : { scope: 'global' };
 }
 
-export default function PromptsPage(): React.ReactElement {
+export default function PromptsPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const chats = useQuery(chatsQuery);

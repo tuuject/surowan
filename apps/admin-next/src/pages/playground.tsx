@@ -8,7 +8,7 @@ import { Field } from '@tuuject/koi-react/field';
 import { PlusIcon } from '@tuuject/koi-react/icons';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useCallback, useState } from 'react';
+import { type ReactElement, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListFooter, ListPageHeader, ListToolbar, useClientPagination } from '@/components/business';
 import { ChatIcon } from '@/components/icons';
@@ -22,7 +22,7 @@ import { toast } from '@/lib/toast.ts';
 
 const route = getRouteApi('/playground');
 
-export default function PlaygroundPage(): React.ReactElement {
+export default function PlaygroundPage(): ReactElement {
   const { t } = useTranslation();
   const navigate = route.useNavigate();
   const { room: roomParam } = route.useSearch();

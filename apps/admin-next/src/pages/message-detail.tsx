@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
@@ -19,7 +20,7 @@ import type { MediaEntry, MessageDetail, RevisionEntry } from '@/lib/api/message
 import { formatNumber, formatTime } from '@/lib/format';
 import { messageQuery } from '@/lib/queries';
 
-function YesNoBadge({ value }: { readonly value: boolean }): React.ReactElement {
+function YesNoBadge({ value }: { readonly value: boolean }): ReactElement {
   const { t } = useTranslation();
   return value ? (
     <ToneBadge tone="success">{t('invocations.messageDetail.yes')}</ToneBadge>
@@ -28,7 +29,7 @@ function YesNoBadge({ value }: { readonly value: boolean }): React.ReactElement 
   );
 }
 
-function DetailHeader({ message }: { readonly message: MessageDetail }): React.ReactElement {
+function DetailHeader({ message }: { readonly message: MessageDetail }): ReactElement {
   const { t } = useTranslation();
   return (
     <Panel title={t('invocations.invocationDetail.summary')}>
@@ -60,7 +61,7 @@ function DetailHeader({ message }: { readonly message: MessageDetail }): React.R
   );
 }
 
-function RevisionsTable({ message }: { readonly message: MessageDetail }): React.ReactElement {
+function RevisionsTable({ message }: { readonly message: MessageDetail }): ReactElement {
   const { t } = useTranslation();
   const REVISION_COLUMNS: readonly ColumnSpec<RevisionEntry>[] = [
     {
@@ -138,7 +139,7 @@ function RevisionsTable({ message }: { readonly message: MessageDetail }): React
   );
 }
 
-function MediaTable({ message }: { readonly message: MessageDetail }): React.ReactElement {
+function MediaTable({ message }: { readonly message: MessageDetail }): ReactElement {
   const { t } = useTranslation();
   const MEDIA_COLUMNS: readonly ColumnSpec<MediaEntry>[] = [
     { key: 'kind', title: t('invocations.messageDetail.mediaColumns.kind'), render: (row) => row.kind },
@@ -184,7 +185,7 @@ function MediaTable({ message }: { readonly message: MessageDetail }): React.Rea
   );
 }
 
-export function MessageDetailView({ id }: { readonly id: string }): React.ReactElement {
+export function MessageDetailView({ id }: { readonly id: string }): ReactElement {
   const { t } = useTranslation();
   const { data, isPending, isError, error } = useQuery(messageQuery(id));
 

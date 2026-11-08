@@ -3,7 +3,7 @@ import { PlusIcon, SearchIcon } from '@tuuject/koi-react/icons';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { sizes } from '@tuuject/koi-tokens/dimensions';
-import { useId, useState } from 'react';
+import { type ReactElement, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { focusRing } from '@/components/app-shell/shared';
 import { MonoValue, ToneBadge } from '@/components/business';
@@ -21,7 +21,7 @@ export function ProviderBadges({
   readonly provider: ProviderView;
   /** `icons` keeps the provider rail compact; the row's description carries the words. */
   readonly variant?: 'text' | 'icons';
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const usage = providerUsage(view, provider.alias);
   if (variant === 'icons') {
@@ -77,7 +77,7 @@ export function ProviderRail({
   readonly onNewProvider: () => void;
   readonly onRefresh: () => void;
   readonly refreshing: boolean;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const serving = listed.filter((provider) => servesASlot(view, provider.alias));
   const idle = listed.filter((provider) => !servesASlot(view, provider.alias));
@@ -141,7 +141,7 @@ function ProviderSearch({
   readonly onSearch: (search: string) => void;
   readonly onRefresh: () => void;
   readonly refreshing: boolean;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const [draft, setDraft] = useState(search);
   const [seen, setSeen] = useState(search);
@@ -200,7 +200,7 @@ function ProviderGroup({
   readonly label: string;
   readonly count: number;
   readonly children: React.ReactNode;
-}): React.ReactElement {
+}): ReactElement {
   const id = useId();
   return (
     <section aria-labelledby={id} className={css({ paddingBlock: '1' })}>
@@ -238,7 +238,7 @@ function ProviderRow({
   readonly provider: ProviderView;
   readonly selected: boolean;
   readonly onSelect: (alias: string) => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const usage = providerUsage(view, provider.alias);
   const usageText = [

@@ -1,5 +1,5 @@
 import { css } from '@tuuject/koi-react/styled-system/css';
-import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
@@ -15,7 +15,7 @@ import { AppLink } from '@/components/router-links';
 import type { InvocationDetail, ToolRegistryEntry } from '@/lib/api/invocations.ts';
 import { formatCost, formatNumber, formatTime } from '@/lib/format';
 
-function ToolRegistryTable({ registry }: { readonly registry: readonly ToolRegistryEntry[] }): React.ReactElement {
+function ToolRegistryTable({ registry }: { readonly registry: readonly ToolRegistryEntry[] }): ReactElement {
   const { t } = useTranslation();
   const columns: readonly ColumnSpec<ToolRegistryEntry>[] = [
     {
@@ -52,7 +52,7 @@ function ToolRegistryTable({ registry }: { readonly registry: readonly ToolRegis
   );
 }
 
-export function DetailHeader({ invocation }: { readonly invocation: InvocationDetail }): React.ReactElement {
+export function DetailHeader({ invocation }: { readonly invocation: InvocationDetail }): ReactElement {
   const { t } = useTranslation();
   return (
     <Panel title={t('invocations.invocationDetail.summary')}>

@@ -7,7 +7,7 @@ import {
 import { Alert } from '@tuuject/koi-react/alert';
 import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
-import { useRef, useState } from 'react';
+import { type ReactElement, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListFooter, ListToolbar } from '@/components/business/list-page';
 import type { ListFilters, Page } from '@/lib/api/core.ts';
@@ -95,7 +95,7 @@ export function useCursorPages<
   };
 }
 
-function CursorListError({ error, title }: { readonly error: unknown; readonly title: string }): React.ReactElement {
+function CursorListError({ error, title }: { readonly error: unknown; readonly title: string }): ReactElement {
   const { t } = useTranslation();
   const message =
     error instanceof ApiError

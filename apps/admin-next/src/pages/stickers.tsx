@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Alert } from '@tuuject/koi-react/alert';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useMemo } from 'react';
+import { type ReactElement, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
@@ -30,7 +30,7 @@ const EMPTY_FILTERS = { set: '', state: '', search: '' };
 
 const CODE = css({ fontFamily: 'mono' });
 
-function ConfiguredBadge({ configured }: { readonly configured: boolean }): React.ReactElement {
+function ConfiguredBadge({ configured }: { readonly configured: boolean }): ReactElement {
   const { t } = useTranslation();
   return configured ? (
     <ToneBadge tone="success">{t('pages.stickers.yes')}</ToneBadge>
@@ -46,7 +46,7 @@ function SectionHeading({
 }: {
   readonly title: string;
   readonly description: React.ReactNode;
-}): React.ReactElement {
+}): ReactElement {
   return (
     <div className={css({ display: 'flex', flexDirection: 'column', gap: '1' })}>
       <h2 className={css({ margin: '0', textStyle: 'heading-2' })}>{title}</h2>
@@ -55,7 +55,7 @@ function SectionHeading({
   );
 }
 
-export default function StickersPage(): React.ReactElement {
+export default function StickersPage(): ReactElement {
   const { t } = useTranslation();
   const query = useListQuery(EMPTY_FILTERS);
   const { set, state, search } = query.value;

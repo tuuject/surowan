@@ -1,4 +1,5 @@
 import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { ProviderBadges } from '@/components/models/provider-list';
 import type { ProvidersView, ProviderView } from '@/lib/api/providers.ts';
 
@@ -9,7 +10,7 @@ export function ProviderDetailHeader({
 }: {
   readonly view: ProvidersView;
   readonly provider: ProviderView;
-}): React.ReactElement {
+}): ReactElement {
   return (
     <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '3', minWidth: '0' })}>
       <h2 className={css({ margin: '0', textStyle: 'heading-2', overflowWrap: 'anywhere' })}>{provider.alias}</h2>

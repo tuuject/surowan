@@ -1,5 +1,5 @@
 import { css, cx } from '@tuuject/koi-react/styled-system/css';
-import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TabEmpty } from '@/components/invocations/shared';
 import {
@@ -19,7 +19,7 @@ export function TimelineItem({
 }: {
   readonly chat: InvocationChatSummary;
   readonly event: InvocationTimelineEvent;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   switch (event.kind) {
     case 'queued':
@@ -66,7 +66,7 @@ export function TimelineItem({
   }
 }
 
-export function OverviewTab({ invocation }: { readonly invocation: InvocationDetail }): React.ReactElement {
+export function OverviewTab({ invocation }: { readonly invocation: InvocationDetail }): ReactElement {
   const { t } = useTranslation();
   const events = buildInvocationTimeline(invocation);
   if (events.length === 0) {

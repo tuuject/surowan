@@ -4,7 +4,7 @@ import { Button } from '@tuuject/koi-react/button';
 import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { KvList, ListPageHeader, MonoValue, PasskeysCard, ToneBadge } from '@/components/business';
@@ -28,14 +28,14 @@ function PathList({
 }: {
   readonly paths: readonly string[];
   readonly noneLabel: string;
-}): React.ReactElement {
+}): ReactElement {
   if (paths.length === 0) {
     return <span className={css({ color: 'text-muted' })}>{noneLabel}</span>;
   }
   return <MonoValue value={paths.join(', ')} />;
 }
 
-function AppliedResult({ result }: { readonly result: ConfigApplyResponse }): React.ReactElement {
+function AppliedResult({ result }: { readonly result: ConfigApplyResponse }): ReactElement {
   const { t } = useTranslation();
   return (
     <KvList
@@ -57,7 +57,7 @@ function AppliedResult({ result }: { readonly result: ConfigApplyResponse }): Re
   );
 }
 
-export default function SettingsPage(): React.ReactElement {
+export default function SettingsPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const write = useProviderWrite();

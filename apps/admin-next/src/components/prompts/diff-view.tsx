@@ -1,5 +1,5 @@
 import { css, cx } from '@tuuject/koi-react/styled-system/css';
-import { Fragment } from 'react';
+import { Fragment, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PromptDiffHunk, PromptDiffLine, PromptDiffView } from '@/lib/api/prompts.ts';
 
@@ -12,7 +12,7 @@ function hunkHeader(hunk: PromptDiffHunk): string {
   return `@@ -${hunk.fromStart},${hunk.fromCount} +${hunk.toStart},${hunk.toCount} @@`;
 }
 
-export function DiffView({ diff }: { readonly diff: PromptDiffView }): React.ReactElement {
+export function DiffView({ diff }: { readonly diff: PromptDiffView }): ReactElement {
   const { t } = useTranslation();
   return (
     <div className={css({ overflowX: 'auto', borderBlockWidth: '1px', borderColor: 'divider' })}>

@@ -6,7 +6,7 @@ import { ArrowRightIcon } from '@tuuject/koi-react/icons';
 import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { sizes } from '@tuuject/koi-tokens/dimensions';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
@@ -31,7 +31,7 @@ import { formatNumber, formatTime } from '@/lib/format';
 import { overviewQuery, telegramQuery, warningsSummaryQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
 
-function SleepBadge({ sleeping }: { readonly sleeping: boolean }): React.ReactElement {
+function SleepBadge({ sleeping }: { readonly sleeping: boolean }): ReactElement {
   const { t } = useTranslation();
   return sleeping ? (
     <ToneBadge tone="warning">{t('pages.overview.sleeping')}</ToneBadge>
@@ -58,7 +58,7 @@ function StatCard({
   readonly value: number | undefined;
   readonly hint: string;
   readonly loading: boolean;
-}): React.ReactElement {
+}): ReactElement {
   return (
     <Card>
       <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>{label}</p>
@@ -89,7 +89,7 @@ function ViewAllLink({ to, label }: { readonly to: '/invocations' | '/warnings';
   );
 }
 
-export default function OverviewPage(): React.ReactElement {
+export default function OverviewPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [cancelOpen, setCancelOpen] = useState(false);

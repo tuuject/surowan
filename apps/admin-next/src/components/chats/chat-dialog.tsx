@@ -5,7 +5,7 @@ import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ChatEntry, ChatSettings, ChatsView } from '@/lib/api/chats.ts';
 import { createChat, updateChat } from '@/lib/api/chats.ts';
@@ -36,7 +36,7 @@ export function ChatDialog({
   readonly view: ChatsView;
   readonly chat: ChatEntry | null;
   readonly onClose: () => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const write = useProviderWrite();
   const [id, setId] = useState(chat?.id ?? '');

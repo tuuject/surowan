@@ -6,7 +6,7 @@ import { PlusIcon, TrashIcon } from '@tuuject/koi-react/icons';
 import { Input } from '@tuuject/koi-react/input';
 import { RadioGroup } from '@tuuject/koi-react/radio-group';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { WeekWindowsChart } from '@/components/chats/week-windows-chart';
 import type { ChatEntry, ChatsView, ParticipationView, ParticipationWindow } from '@/lib/api/chats.ts';
@@ -65,7 +65,7 @@ export function ParticipationDialog({
   readonly view: ChatsView;
   readonly chat: ChatEntry;
   readonly onClose: () => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const write = useProviderWrite();
   const saved = chat.saved ?? chat.active;

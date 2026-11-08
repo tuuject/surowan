@@ -2,7 +2,7 @@ import { Empty } from '@tuuject/koi-react/empty';
 import { ErrorIcon, SearchIcon } from '@tuuject/koi-react/icons';
 import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import type React from 'react';
+import type { ReactElement } from 'react';
 import { ButtonLink } from '@/components/router-links';
 import { ApiError } from '@/lib/api/core.ts';
 import { errorMessage } from '@/lib/errors';
@@ -21,7 +21,7 @@ import { errorMessage } from '@/lib/errors';
  *   else       -> page content
  */
 
-export function DetailSkeleton(): React.ReactElement {
+export function DetailSkeleton(): ReactElement {
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
       <Skeleton className={css({ height: '160px', width: '100%', borderRadius: 'xl' })} />
@@ -38,13 +38,7 @@ export interface DetailErrorProps {
   readonly backLabel: string;
 }
 
-export function DetailError({
-  error,
-  notFoundTitle,
-  failedTitle,
-  backTo,
-  backLabel,
-}: DetailErrorProps): React.ReactElement {
+export function DetailError({ error, notFoundTitle, failedTitle, backTo, backLabel }: DetailErrorProps): ReactElement {
   const apiError = error instanceof ApiError ? error : null;
   const notFound = apiError?.status === 404;
   return (

@@ -6,7 +6,7 @@ import { PageHeader } from '@tuuject/koi-react/page-header';
 import { Pagination } from '@tuuject/koi-react/pagination';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { sizes } from '@tuuject/koi-tokens/dimensions';
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { focusRing } from '@/components/app-shell/shared';
@@ -52,7 +52,7 @@ export function ListPageHeader({
   readonly title: string;
   readonly description?: ReactNode;
   readonly actions?: ReactNode;
-}): React.ReactElement {
+}): ReactElement {
   return <PageHeader title={title} {...(description === undefined ? {} : { description })} actions={actions} />;
 }
 
@@ -63,7 +63,7 @@ export function ListFilterCard({
 }: {
   readonly children: ReactNode;
   readonly activeCount?: number;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const desktop = useMediaQuery('(min-width: 768px)');
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -124,7 +124,7 @@ export function ListToolbar({
   readonly trailing?: ReactNode;
   readonly onRefresh?: () => void;
   readonly refreshing?: boolean;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   return (
     <div
@@ -176,7 +176,7 @@ export function ListFooter({
   readonly onPageChange?: (page: number) => void;
   readonly busy?: boolean;
   readonly children?: ReactNode;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const paginated = pageCount !== undefined && onPageChange !== undefined;
   return (
@@ -221,7 +221,7 @@ export function ListFooter({
  * buttons (or `md` IconButtons in a `paddingBlock: 'none'` cell), end-aligned
  * and pulled 8px outward so the last label lines up with the header.
  */
-export function RowActions({ children }: { readonly children: ReactNode }): React.ReactElement {
+export function RowActions({ children }: { readonly children: ReactNode }): ReactElement {
   return (
     <span className={css({ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginInlineEnd: '-2' })}>
       {children}

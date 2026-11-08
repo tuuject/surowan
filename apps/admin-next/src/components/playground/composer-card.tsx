@@ -6,8 +6,7 @@ import { UploadIcon } from '@tuuject/koi-react/icons';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
-import type React from 'react';
-import { useRef } from 'react';
+import { type ReactElement, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListFooter } from '@/components/business';
 import { SendIcon } from '@/components/icons';
@@ -72,7 +71,7 @@ export function ComposerCard({
   setSenderId,
   setReplySeq,
   setUnresolved,
-}: ComposerCardProps): React.ReactElement {
+}: ComposerCardProps): ReactElement {
   const fileInput = useRef<HTMLInputElement>(null);
   const { t } = useTranslation();
   return (

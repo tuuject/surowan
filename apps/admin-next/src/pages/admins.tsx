@@ -6,7 +6,7 @@ import { Field } from '@tuuject/koi-react/field';
 import { PlusIcon } from '@tuuject/koi-react/icons';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
@@ -31,7 +31,7 @@ import { toast } from '@/lib/toast.ts';
 const ADMIN_ID_PATTERN = /^\d{1,15}$/;
 const EMPTY_FILTERS = { search: '' };
 
-export default function AdminsPage(): React.ReactElement {
+export default function AdminsPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const query = useListQuery(EMPTY_FILTERS);

@@ -7,7 +7,7 @@ import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { field } from '@tuuject/koi-react/styled-system/recipes';
 import { Textarea } from '@tuuject/koi-react/textarea';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MonoValue } from '@/components/business';
 import { HeaderFields } from '@/components/models/header-fields';
@@ -49,7 +49,7 @@ export function ProviderWizard({
   readonly onClose: () => void;
   /** Runs after a successful create, so the page can select the new provider. */
   readonly onCreated: (alias: string) => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const write = useProviderWrite();
   const presets = useQuery(providerPresetsQuery);

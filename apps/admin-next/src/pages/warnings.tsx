@@ -3,7 +3,7 @@ import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ConfirmDialog, ListFooter, ListPageHeader, useCursorPages } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
@@ -16,7 +16,7 @@ import { formatNumber } from '@/lib/format';
 import { warningsQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
 
-export default function WarningsPage(): React.ReactElement {
+export default function WarningsPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [clearOpen, setClearOpen] = useState(false);

@@ -6,7 +6,7 @@ import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
 import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import { field } from '@tuuject/koi-react/styled-system/recipes';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LazyDetails } from '@/components/business';
 import type { ThinkingLevel } from '@/lib/api/models.ts';
@@ -49,7 +49,7 @@ function FieldLabel({
   readonly label: string;
   readonly draft: ModelMetadataDraft | null;
   readonly field: DraftField;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   return (
     <span className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
@@ -97,7 +97,7 @@ export function ModelEditDialog({
   pending,
   error,
   onSubmit,
-}: ModelEditDialogProps): React.ReactElement {
+}: ModelEditDialogProps): ReactElement {
   const { t } = useTranslation();
   // The form is initialized once, at mount: every caller renders this dialog
   // only while it has a target and remounts it (a fresh `key`) for the next one,

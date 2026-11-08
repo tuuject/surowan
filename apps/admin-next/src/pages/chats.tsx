@@ -4,7 +4,7 @@ import { Button } from '@tuuject/koi-react/button';
 import { PlusIcon } from '@tuuject/koi-react/icons';
 import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ConfirmDialog,
@@ -34,7 +34,7 @@ import { useProviderWrite } from '@/lib/use-provider-write';
 
 const EMPTY_FILTERS = { search: '' };
 
-export default function ChatsPage(): React.ReactElement {
+export default function ChatsPage(): ReactElement {
   const { t } = useTranslation();
   const query = useQuery(chatsQuery);
   const listQuery = useListQuery(EMPTY_FILTERS);

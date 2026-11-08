@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Empty } from '@tuuject/koi-react/empty';
 import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
@@ -25,11 +26,11 @@ import type {
 import { formatNumber, formatTime } from '@/lib/format';
 import { conversationContextQuery } from '@/lib/queries';
 
-function RoleBadge({ role }: { readonly role: string }): React.ReactElement {
+function RoleBadge({ role }: { readonly role: string }): ReactElement {
   return <ToneBadge tone="neutral">{role}</ToneBadge>;
 }
 
-function CheckpointBadge({ isCheckpoint }: { readonly isCheckpoint: boolean }): React.ReactElement {
+function CheckpointBadge({ isCheckpoint }: { readonly isCheckpoint: boolean }): ReactElement {
   const { t } = useTranslation();
   if (!isCheckpoint) {
     return <span className={css({ color: 'text-muted' })}>—</span>;
@@ -37,7 +38,7 @@ function CheckpointBadge({ isCheckpoint }: { readonly isCheckpoint: boolean }): 
   return <ToneBadge tone="info">{t('invocations.contextDetail.checkpoint')}</ToneBadge>;
 }
 
-function InvocationLink({ id }: { readonly id: string | null }): React.ReactElement {
+function InvocationLink({ id }: { readonly id: string | null }): ReactElement {
   if (id === null) {
     return <span className={css({ color: 'text-muted' })}>—</span>;
   }
@@ -48,7 +49,7 @@ function InvocationLink({ id }: { readonly id: string | null }): React.ReactElem
   );
 }
 
-function RetainedMessages({ context }: { readonly context: ConversationContextDetail }): React.ReactElement {
+function RetainedMessages({ context }: { readonly context: ConversationContextDetail }): ReactElement {
   const { t } = useTranslation();
   if (context.messages.length === 0) {
     return (
@@ -129,7 +130,7 @@ function RetainedMessages({ context }: { readonly context: ConversationContextDe
   );
 }
 
-function CapabilityRefs({ context }: { readonly context: ConversationContextDetail }): React.ReactElement {
+function CapabilityRefs({ context }: { readonly context: ConversationContextDetail }): ReactElement {
   const { t } = useTranslation();
   if (context.refs.length === 0) {
     return (
@@ -166,7 +167,7 @@ function CapabilityRefs({ context }: { readonly context: ConversationContextDeta
   return <TableShell columns={REF_COLUMNS} data={context.refs} rowKey={(row) => row.ref} />;
 }
 
-export function ContextDetailView({ id }: { readonly id: string }): React.ReactElement {
+export function ContextDetailView({ id }: { readonly id: string }): ReactElement {
   const { t } = useTranslation();
   const { data, isPending, isError, error } = useQuery(conversationContextQuery(id));
 

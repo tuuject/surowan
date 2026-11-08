@@ -7,8 +7,7 @@ import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
-import type React from 'react';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AliasEditor, ScopePicker } from '@/components/dictionary/entry-form.tsx';
 import type {
@@ -50,7 +49,7 @@ export function MergeDialog({
   readonly defaultScope: DictionaryScope;
   readonly defaultChatId: string | null;
   readonly onMerged: () => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [step, setStep] = useState<MergeStep>({ kind: 'idle' });

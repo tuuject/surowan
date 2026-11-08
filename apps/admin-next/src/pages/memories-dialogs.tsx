@@ -6,6 +6,7 @@ import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MonoValue } from '@/components/business';
 import type { MemoryEntry } from '@/lib/api/memories.ts';
@@ -56,7 +57,7 @@ export function MemoryFormDialog({
   readonly onOpenChange: (open: boolean) => void;
   readonly onChange: (patch: Partial<MemoryFormValues>) => void;
   readonly onSubmit: () => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const chats = useQuery({ ...memoryChatsQuery, enabled: open && editing === null });
   const chatOptions = (chats.data?.items ?? []).map((chat) => ({
@@ -167,7 +168,7 @@ export function MemoryViewDialog({
   readonly open: boolean;
   readonly entry: MemoryEntry | null;
   readonly onOpenChange: (open: boolean) => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   return (
     <Dialog

@@ -1,5 +1,5 @@
 import { css, cx } from '@tuuject/koi-react/styled-system/css';
-import { useMemo } from 'react';
+import { type ReactElement, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ParticipationWindow } from '@/lib/api/chats.ts';
 import { daySegments, formatZonedTime, summarizeWindows, zonedClock } from '@/lib/participation';
@@ -18,7 +18,7 @@ export function WeekWindowsChart({
 }: {
   readonly windows: readonly ParticipationWindow[];
   readonly timezone: string;
-}): React.ReactElement {
+}): ReactElement {
   const { t, i18n } = useTranslation();
   const dayLabels = t('pages.chats.weekdaysShort').split(',');
   const now = useMemo(() => new Date(), []);

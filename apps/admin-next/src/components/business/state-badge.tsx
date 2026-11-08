@@ -1,6 +1,7 @@
 import { Badge } from '@tuuject/koi-react/badge';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
+import type { ReactElement } from 'react';
 import { stateColor } from '@/lib/format';
 
 /**
@@ -47,7 +48,7 @@ export function ToneBadge({
   readonly tone: BadgeSemantic;
   readonly children: React.ReactNode;
   readonly className?: string;
-}): React.ReactElement {
+}): ReactElement {
   return (
     <Badge tone={KOI_TONE[tone]} {...(className === undefined ? {} : { className })}>
       {children}
@@ -61,7 +62,7 @@ export function StateBadge({
 }: {
   readonly state: string | null;
   readonly className?: string;
-}): React.ReactElement {
+}): ReactElement {
   if (state === null || state.length === 0) {
     return <span className={css({ color: 'text-muted' })}>—</span>;
   }

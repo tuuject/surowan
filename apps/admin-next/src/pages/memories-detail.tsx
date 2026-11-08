@@ -1,4 +1,5 @@
 import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { memoryBlobContentPath } from '@/lib/api/memories.ts';
 
 type DetailPart = { readonly key: string } & (
@@ -39,7 +40,7 @@ function splitDetail(detail: string): readonly DetailPart[] {
   return parts;
 }
 
-export function MemoryDetail({ detail }: { readonly detail: string }): React.ReactElement {
+export function MemoryDetail({ detail }: { readonly detail: string }): ReactElement {
   return (
     <div
       className={css({

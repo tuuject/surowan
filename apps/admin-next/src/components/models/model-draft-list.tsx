@@ -2,6 +2,7 @@ import { Button } from '@tuuject/koi-react/button';
 import { Checkbox } from '@tuuject/koi-react/checkbox';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MonoValue, ToneBadge } from '@/components/business';
 import { EditIcon } from '@/components/icons';
@@ -15,7 +16,7 @@ import { draftNeedsConfirmation, matchLabel, unconfirmedFields } from '@/lib/mod
  * them would colour the whole line and mark nothing. The badge carries the
  * count, and the edit dialog names the fields.
  */
-function Metric({ label, value }: { readonly label: string; readonly value: React.ReactNode }): React.ReactElement {
+function Metric({ label, value }: { readonly label: string; readonly value: React.ReactNode }): ReactElement {
   return (
     <span className={css({ whiteSpace: 'nowrap' })}>
       {label} <span className={css({ color: 'text' })}>{value}</span>
@@ -47,7 +48,7 @@ export function ModelDraftList({
   readonly search: string;
   readonly onSearchChange: (value: string) => void;
   readonly emptyText: string;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>

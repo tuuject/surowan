@@ -2,7 +2,7 @@ import { ChevronRightIcon } from '@tuuject/koi-react/icons';
 import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import { sizes } from '@tuuject/koi-tokens/dimensions';
 import type React from 'react';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 
 /**
  * Native `<details>` disclosure whose children are mounted only after the first
@@ -21,7 +21,7 @@ export interface LazyDetailsProps {
   readonly className?: string;
 }
 
-export function LazyDetails({ summary, children, className }: LazyDetailsProps): React.ReactElement {
+export function LazyDetails({ summary, children, className }: LazyDetailsProps): ReactElement {
   const [opened, setOpened] = useState(false);
 
   return (

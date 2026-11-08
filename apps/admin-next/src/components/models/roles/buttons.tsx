@@ -1,7 +1,7 @@
 import { Button } from '@tuuject/koi-react/button';
 import { CheckIcon } from '@tuuject/koi-react/icons';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useId } from 'react';
+import { type ReactElement, useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BrainIcon, EyeIcon, WrenchIcon } from '@/components/icons';
 import type { ProviderModelConfig, ProvidersView } from '@/lib/api/providers.ts';
@@ -31,7 +31,7 @@ export function RoleButtons({
   readonly config: ProviderModelConfig;
   readonly pending: Readonly<Record<ModelRole, boolean>>;
   readonly onAssign: (role: ModelRole, alias: string, config: ProviderModelConfig) => void;
-}): React.ReactElement | null {
+}): ReactElement | null {
   const { t } = useTranslation();
   const labelId = useId();
   const roles = modelRoles(view, alias, config.id);

@@ -5,7 +5,7 @@ import { SearchIcon } from '@tuuject/koi-react/icons';
 import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListFilterCard } from '@/components/business/list-page';
@@ -47,7 +47,7 @@ export function ListSearchForm<T extends QueryFormValues>({
   onSearch,
   activeCount,
   children,
-}: ListSearchFormProps<T>): React.ReactElement {
+}: ListSearchFormProps<T>): ReactElement {
   const { t } = useTranslation();
   const normalizedValue = normalizeValues(value);
   const [draft, setDraft] = useState<T>(normalizedValue);
@@ -156,7 +156,7 @@ export function QueryTextField({
   placeholder,
   type = 'text',
   inputMode,
-}: QueryTextFieldProps): React.ReactElement {
+}: QueryTextFieldProps): ReactElement {
   return (
     <Field label={label} className={css({ minWidth: '0' })}>
       <Input
@@ -190,7 +190,7 @@ export function QuerySelectField({
   readonly options?: readonly QuerySelectOption[];
   readonly children?: ReactNode;
   readonly showAll?: boolean;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   return (
     <Field label={label} className={css({ minWidth: '0' })}>
@@ -214,7 +214,7 @@ export function ChatFilter({
 }: {
   readonly value: string;
   readonly onChange: (value: string) => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const listId = useId();
   const chats = useQuery(memoryChatsQuery);

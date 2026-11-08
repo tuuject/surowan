@@ -3,7 +3,7 @@ import { Checkbox } from '@tuuject/koi-react/checkbox';
 import { Empty } from '@tuuject/koi-react/empty';
 import { ChevronDownIcon, ChevronRightIcon, TrashIcon } from '@tuuject/koi-react/icons';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import type { Dispatch, SetStateAction } from 'react';
+import type { Dispatch, ReactElement, SetStateAction } from 'react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -41,7 +41,7 @@ const HEALTH_TONES: Record<HealthCheckStatus, BadgeSemantic> = {
 };
 
 /** One value in the metadata line; the label stays muted, the value carries the contrast. */
-function Metric({ label, value }: { readonly label: string; readonly value: React.ReactNode }): React.ReactElement {
+function Metric({ label, value }: { readonly label: string; readonly value: React.ReactNode }): ReactElement {
   return (
     <span className={css({ whiteSpace: 'nowrap' })}>
       {label} <span className={css({ color: 'text' })}>{value}</span>
@@ -85,7 +85,7 @@ export function ModelList({
   readonly onDeleteModel: (alias: string, model: string) => void;
   readonly onFetchModels: () => void;
   readonly onAddById: () => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const pagination = useClientPagination(rows, rows[0]?.alias ?? 'no-provider');
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());

@@ -14,7 +14,7 @@ import {
   TableRow,
 } from '@tuuject/koi-react/table';
 import type React from 'react';
-import { Fragment, useState } from 'react';
+import { Fragment, type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 export interface ColumnSpec<T> {
@@ -98,7 +98,7 @@ export function TableShell<T>({
   skeletonRows = 6,
   selection,
   activeRowKey = null,
-}: TableShellProps<T>): React.ReactElement {
+}: TableShellProps<T>): ReactElement {
   const { t } = useTranslation();
   const [expandedKeys, setExpandedKeys] = useState<ReadonlySet<string>>(new Set());
 

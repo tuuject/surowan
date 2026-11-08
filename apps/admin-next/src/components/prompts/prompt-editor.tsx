@@ -6,7 +6,7 @@ import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import { sizes } from '@tuuject/koi-tokens/dimensions';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MonoValue, ToneBadge } from '@/components/business';
 import type { PromptDocument, PromptVersionItem } from '@/lib/api/prompts.ts';
@@ -17,7 +17,7 @@ import { type Notice, type PromptDraft, sourceLabelKey, sourceTone } from './pro
 const MAX_NOTE_CHARS = 200;
 
 /** Save outcomes: a recorded/applied prompt, a no-op, or one of the write failures. */
-function WriteNotice({ notice }: { readonly notice: Notice | null }): React.ReactElement | null {
+function WriteNotice({ notice }: { readonly notice: Notice | null }): ReactElement | null {
   const { t } = useTranslation();
   switch (notice?.kind) {
     case undefined:
@@ -72,7 +72,7 @@ export function PromptEditor({
   readonly notice: Notice | null;
   readonly saving: boolean;
   readonly onSave: (draft: PromptDraft) => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const [draft, setDraft] = useState<PromptDraft | null>(null);
   const current =

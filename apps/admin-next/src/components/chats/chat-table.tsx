@@ -3,6 +3,7 @@ import { IconButton } from '@tuuject/koi-react/button';
 import { TrashIcon } from '@tuuject/koi-react/icons';
 import { Menu } from '@tuuject/koi-react/menu';
 import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { type ColumnSpec, MonoValue, RowActions, TableShell, ToneBadge } from '@/components/business';
 import {
@@ -22,7 +23,7 @@ import type { ChatEntry, ChatSettingsView, ChatsView, ParticipationWindow } from
 import { effectiveWindows, summarizeWindows } from '@/lib/participation';
 
 /** A field the file and the running process disagree on shows the running value underneath. */
-function RunningNote({ value }: { readonly value: string | null }): React.ReactElement | null {
+function RunningNote({ value }: { readonly value: string | null }): ReactElement | null {
   const { t } = useTranslation();
   return value === null ? null : (
     <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.runningNote', { value })}</p>
@@ -65,7 +66,7 @@ export function ChatTable({
   readonly onProactive: (chat: ChatEntry) => void;
   readonly onGroupMemory: (chat: ChatEntry) => void;
   readonly onRemove: (chat: ChatEntry) => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const navigate = useNavigate();
   // A Chat removed from the file is still running until restart: show what it runs.

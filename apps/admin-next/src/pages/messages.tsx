@@ -1,5 +1,5 @@
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useMemo } from 'react';
+import { type ReactElement, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ChatFilter,
@@ -21,7 +21,7 @@ import { messagesQuery } from '@/lib/queries';
 const EMPTY_FILTERS = { search: '', chat: '' };
 
 /** Text or caption; non-text kinds carry a neutral kind badge so a sticker row isn't just a dash. */
-function MessageCell({ row }: { readonly row: MessageListItem }): React.ReactElement {
+function MessageCell({ row }: { readonly row: MessageListItem }): ReactElement {
   const body = row.text ?? row.caption;
   const showKind = row.kind !== null && row.kind !== 'text';
   if (body === null && !showKind) {
@@ -37,7 +37,7 @@ function MessageCell({ row }: { readonly row: MessageListItem }): React.ReactEle
   );
 }
 
-export default function MessagesPage(): React.ReactElement {
+export default function MessagesPage(): ReactElement {
   const { t } = useTranslation();
   const query = useListQuery(EMPTY_FILTERS);
   const { search, chat } = query.value;

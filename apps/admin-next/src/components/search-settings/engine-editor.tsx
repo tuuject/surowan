@@ -5,6 +5,7 @@ import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import { field } from '@tuuject/koi-react/styled-system/recipes';
 import { Switch } from '@tuuject/koi-react/switch';
 import { Textarea } from '@tuuject/koi-react/textarea';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SearchProviderView } from '@/lib/api/search.ts';
 import { canKeepKey, type EngineDraft, type KeyMode, renameEngine, switchProvider } from './draft.ts';
@@ -27,7 +28,7 @@ export function EngineEditor({
   readonly deepseekKeys: readonly string[];
   readonly disabled: boolean;
   readonly onChange: (change: Partial<EngineDraft>) => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const idPrefix = `search-engine-${draft.key}`;
   const canReuseModelKey = provider?.id === 'deepseek' && deepseekKeys.length > 0;

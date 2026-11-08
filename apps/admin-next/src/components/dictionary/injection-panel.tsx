@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Panel } from '@/components/layout/panel';
 import type { DictionaryInjectionMode } from '@/lib/api/dictionary.ts';
@@ -24,7 +24,7 @@ function isInjectionMode(value: string): value is DictionaryInjectionMode {
  * that every group read was holding — a revision captured at render time would
  * race the panel's own refresh and fail with `config_conflict`.
  */
-export function InjectionPanel({ chatId }: { readonly chatId: string | null }): React.ReactElement {
+export function InjectionPanel({ chatId }: { readonly chatId: string | null }): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const globalSettings = useQuery(dictionarySettingsQuery(null));

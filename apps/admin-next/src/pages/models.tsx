@@ -4,6 +4,7 @@ import { Empty } from '@tuuject/koi-react/empty';
 import { PlusIcon } from '@tuuject/koi-react/icons';
 import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListPageHeader } from '@/components/business';
 import { ModelsPageError } from '@/components/models/models-page-states';
@@ -18,7 +19,7 @@ import { providersQuery } from '@/lib/queries.ts';
  * Tool) and the thinking effort it runs at. It only reads the provider list;
  * adding providers and models happens on the Providers page.
  */
-export default function ModelsPage(): React.ReactElement {
+export default function ModelsPage(): ReactElement {
   const { t } = useTranslation();
   const providers = useQuery(providersQuery);
   const view = providers.data;

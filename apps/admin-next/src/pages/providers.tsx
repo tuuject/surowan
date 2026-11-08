@@ -4,7 +4,7 @@ import { Button } from '@tuuject/koi-react/button';
 import { Empty } from '@tuuject/koi-react/empty';
 import { TrashIcon } from '@tuuject/koi-react/icons';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { ListPageHeader } from '@/components/business';
 import { ModelList, type ModelRow } from '@/components/models/model-list';
@@ -43,7 +43,7 @@ const EMPTY_FILTERS = { search: '' };
  * health checks, and one-click role assignment from every model row. Which
  * model fills each role, and at what effort, is the Models page's job.
  */
-export default function ProvidersPage(): React.ReactElement {
+export default function ProvidersPage(): ReactElement {
   const { t } = useTranslation();
   const write = useProviderWrite();
   const providers = useQuery(providersQuery);

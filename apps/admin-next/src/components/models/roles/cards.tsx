@@ -4,7 +4,7 @@ import { SuccessIcon } from '@tuuject/koi-react/icons';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { sizes } from '@tuuject/koi-tokens/dimensions';
-import { type ReactNode, useState } from 'react';
+import { type ReactElement, type ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FormActionBar } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
@@ -37,7 +37,7 @@ import type { ModelRole } from './writes.ts';
  * and saves them together. Changes stay a draft until saved; the Providers
  * page's "Use as" toggles are the one-click path.
  */
-export function RolesForm({ view }: { readonly view: ProvidersView }): React.ReactElement {
+export function RolesForm({ view }: { readonly view: ProvidersView }): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const write = useProviderWrite();
@@ -255,7 +255,7 @@ function RoleCard({
   readonly changed: boolean;
   readonly model: ReactNode;
   readonly thinking: ReactNode;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   return (
     <Panel
@@ -299,7 +299,7 @@ function ThinkingField({
   /** The note under the control; told whether the model reasons. */
   readonly help: (reasoning: boolean) => string | undefined;
   readonly onChange: (level: ThinkingLevel) => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const config = modelForKey(view, slot.model)?.config ?? null;
   const levels = config === null ? [] : supportedThinkingLevels(config);

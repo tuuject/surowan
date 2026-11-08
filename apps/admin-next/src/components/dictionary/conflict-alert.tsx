@@ -1,7 +1,7 @@
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DictionaryConflict } from '@/lib/api/dictionary.ts';
 
@@ -11,10 +11,7 @@ export interface DictionaryConflictAlertProps {
 }
 
 /** Duplicate Term/Alias report; each conflict can be selected for merging. */
-export function DictionaryConflictAlert({
-  conflicts,
-  onSelectEntries,
-}: DictionaryConflictAlertProps): React.ReactElement {
+export function DictionaryConflictAlert({ conflicts, onSelectEntries }: DictionaryConflictAlertProps): ReactElement {
   const { t } = useTranslation();
 
   return (

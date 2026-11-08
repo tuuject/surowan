@@ -1,5 +1,5 @@
 import { css, cx } from '@tuuject/koi-react/styled-system/css';
-import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EyeOffIcon } from '@/components/icons';
 import { ToneBadge } from './state-badge';
@@ -10,7 +10,7 @@ import { ToneBadge } from './state-badge';
  * call publishes a message. Used in the Agent transcript tab and the timeline.
  */
 
-export function PrivateReasoningTag({ className }: { readonly className?: string }): React.ReactElement {
+export function PrivateReasoningTag({ className }: { readonly className?: string }): ReactElement {
   const { t } = useTranslation();
   return (
     <ToneBadge tone="warning" {...(className !== undefined ? { className } : {})}>
@@ -20,7 +20,7 @@ export function PrivateReasoningTag({ className }: { readonly className?: string
   );
 }
 
-export function PrivateReasoningNote({ className }: { readonly className?: string }): React.ReactElement {
+export function PrivateReasoningNote({ className }: { readonly className?: string }): ReactElement {
   const { t } = useTranslation();
   return (
     <p className={cx(css({ textStyle: 'small', color: 'text-muted' }), className)}>

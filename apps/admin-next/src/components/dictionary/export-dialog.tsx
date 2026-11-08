@@ -4,8 +4,7 @@ import { Dialog } from '@tuuject/koi-react/dialog';
 import { Field } from '@tuuject/koi-react/field';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import type React from 'react';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DictionaryExportFormat, DictionaryScope } from '@/lib/api/dictionary.ts';
 import { fetchDictionaryExport } from '@/lib/api/dictionary.ts';
@@ -28,7 +27,7 @@ export function ExportDialog({
   readonly onOpenChange: (open: boolean) => void;
   readonly scope: DictionaryScope;
   readonly chatId: string | null;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const [format, setFormat] = useState<DictionaryExportFormat>('csv');
 

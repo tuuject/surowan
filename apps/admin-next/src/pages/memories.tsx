@@ -3,7 +3,7 @@ import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { PlusIcon } from '@tuuject/koi-react/icons';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useMemo, useState } from 'react';
+import { type ReactElement, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import {
   ChatFilter,
@@ -28,7 +28,7 @@ import { MEMORY_STATES, STATE_LABEL_KEYS } from './memories-status.tsx';
 
 const EMPTY_FILTERS = { state: '', chat: '' };
 
-export default function MemoriesPage(): React.ReactElement {
+export default function MemoriesPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const query = useListQuery(EMPTY_FILTERS);

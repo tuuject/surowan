@@ -6,7 +6,7 @@ import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AdminApiKeyItem, ApiKeyMode } from '@/lib/api/admin.ts';
 import { createApiKey, rotateApiKey, updateApiKeyMode } from '@/lib/api/admin.ts';
@@ -28,7 +28,7 @@ function ModeSelect({
   readonly value: ApiKeyMode;
   readonly disabled?: boolean;
   readonly onChange: (mode: ApiKeyMode) => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   return (
     <Select
@@ -45,7 +45,7 @@ function ModeSelect({
   );
 }
 
-function RequestError({ error }: { readonly error: unknown }): React.ReactElement {
+function RequestError({ error }: { readonly error: unknown }): ReactElement {
   return (
     <p role="alert" className={css({ color: 'error-text', overflowWrap: 'anywhere' })}>
       {errorMessage(error)}
@@ -83,7 +83,7 @@ function KeyRevealFooter({
   readonly copyState: CopyState;
   readonly setCopyState: (state: CopyState) => void;
   readonly onClose: () => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   return (
     <>
@@ -111,7 +111,7 @@ function KeyRevealFooter({
 /**
  * Mounted only while open: closing drops the component, and the one-time key with it, instead of hiding it.
  */
-export function CreateKeyDialog({ onClose }: { readonly onClose: () => void }): React.ReactElement {
+export function CreateKeyDialog({ onClose }: { readonly onClose: () => void }): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
@@ -209,7 +209,7 @@ export function EditModeDialog({
 }: {
   readonly item: AdminApiKeyItem;
   readonly onClose: () => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<ApiKeyMode>(item.mode ?? 'read');
@@ -262,7 +262,7 @@ export function RotateKeyDialog({
 }: {
   readonly item: AdminApiKeyItem;
   readonly onClose: () => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [plaintext, setPlaintext] = useState<string | null>(null);

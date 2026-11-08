@@ -2,6 +2,7 @@ import { Button } from '@tuuject/koi-react/button';
 import { ErrorIcon, WarningIcon } from '@tuuject/koi-react/icons';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { sizes } from '@tuuject/koi-tokens/dimensions';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ToneBadge } from '@/components/business';
 import { ButtonLink } from '@/components/router-links';
@@ -40,7 +41,7 @@ function severityTone(severity: WarningSeverity): 'warning' | 'danger' {
   return severity === 'critical' ? 'danger' : 'warning';
 }
 
-function WarningDetails({ warning }: { readonly warning: WarningItem }): React.ReactElement {
+function WarningDetails({ warning }: { readonly warning: WarningItem }): ReactElement {
   const { t } = useTranslation();
   const { variables } = warning;
   const lastFailedAt = stringVariable(variables, 'last_failed_at');
@@ -158,7 +159,7 @@ function WarningDetails({ warning }: { readonly warning: WarningItem }): React.R
   }
 }
 
-function WarningAction({ code }: { readonly code: string }): React.ReactElement | null {
+function WarningAction({ code }: { readonly code: string }): ReactElement | null {
   const { t } = useTranslation();
   switch (code) {
     case 'developer_payload_recording':
@@ -205,7 +206,7 @@ function WarningAction({ code }: { readonly code: string }): React.ReactElement 
 }
 
 /** Explicit cases keep the typed i18n catalog honest; unknown codes fall back to their raw variables. */
-function WarningTitle({ warning }: { readonly warning: WarningItem }): React.ReactElement {
+function WarningTitle({ warning }: { readonly warning: WarningItem }): ReactElement {
   const { t } = useTranslation();
   switch (warning.code) {
     case 'developer_payload_recording':
@@ -252,7 +253,7 @@ export function WarningCard({
   readonly warning: WarningItem;
   readonly onMarkRead?: (warning: EventWarning) => void;
   readonly pending?: boolean;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const Icon = warning.severity === 'critical' ? ErrorIcon : WarningIcon;
   const event = warning.kind === 'event' ? warning : null;

@@ -2,6 +2,7 @@ import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -37,7 +38,7 @@ export function ConfirmDialog({
   pending,
   error,
   onConfirm,
-}: ConfirmDialogProps): React.ReactElement {
+}: ConfirmDialogProps): ReactElement {
   const { t } = useTranslation();
   const dismissLabel = cancelText ?? t('common.dismiss');
   if (confirmText.trim().length === 0 || dismissLabel.trim().length === 0) {

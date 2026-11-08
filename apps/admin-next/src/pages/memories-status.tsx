@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ToneBadge } from '@/components/business';
 import type { MemoryEntry } from '@/lib/api/memories.ts';
@@ -11,7 +12,7 @@ export const STATE_LABEL_KEYS = {
   long: 'pages.memories.filterLong',
 } as const satisfies Record<(typeof MEMORY_STATES)[number], string>;
 
-export function MemoryStatus({ row }: { readonly row: MemoryEntry }): React.ReactElement {
+export function MemoryStatus({ row }: { readonly row: MemoryEntry }): ReactElement {
   const { t } = useTranslation();
   if (row.expired) {
     return <ToneBadge tone="neutral">{t('pages.memories.expired')}</ToneBadge>;

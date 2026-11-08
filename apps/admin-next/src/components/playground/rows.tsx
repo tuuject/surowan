@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { Button } from '@tuuject/koi-react/button';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StateBadge, ToneBadge } from '@/components/business';
 import type { PlaygroundInvocation, PlaygroundTimelineItem } from '@/lib/api/playground.ts';
@@ -20,7 +20,7 @@ export function TimelineRow({
   readonly roomId: string;
   readonly item: PlaygroundTimelineItem;
   readonly onReply: (seq: string) => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const state = item.sent_by_bot ? item.send_state : item.input_state;
   const stateLabel = state === null ? null : (t(`playground.states.${state}`, { defaultValue: state }) as string);
@@ -114,7 +114,7 @@ export function AttemptRow({
   readonly roomId: string;
   readonly invocation: PlaygroundInvocation;
   readonly onRetried: (releaseId: string) => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const retry = useMutation({
     // A retry is addressed by the attempt's Release. The key names the attempt

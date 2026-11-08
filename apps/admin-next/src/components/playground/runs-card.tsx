@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { Button } from '@tuuject/koi-react/button';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListFooter, type OffsetPagination, StateBadge, useClientPagination } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
@@ -39,7 +39,7 @@ export function RunsCard({
   releaseDetail,
   queryClient,
   setOpenRelease,
-}: RunsCardProps): React.ReactElement {
+}: RunsCardProps): ReactElement {
   const { t } = useTranslation();
   const releasePagination = useClientPagination(detail.data?.releases ?? [], `${roomId}:releases`);
   return (
@@ -111,7 +111,7 @@ export function RunsCard({
   );
 }
 
-function ReleaseDetails({ detail }: { readonly detail: PlaygroundReleaseDetail }): React.ReactElement {
+function ReleaseDetails({ detail }: { readonly detail: PlaygroundReleaseDetail }): ReactElement {
   const { t } = useTranslation();
   return (
     <div

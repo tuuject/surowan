@@ -4,7 +4,7 @@ import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { PlusIcon, UploadIcon } from '@tuuject/koi-react/icons';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useMemo, useState } from 'react';
+import { type ReactElement, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ConfirmDialog,
@@ -50,7 +50,7 @@ const EMPTY_DRAFT: DictionaryDraft = {
   enabled: true,
 };
 
-export default function DictionaryPage(): React.ReactElement {
+export default function DictionaryPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const chats = useQuery(dictionaryChatsQuery);

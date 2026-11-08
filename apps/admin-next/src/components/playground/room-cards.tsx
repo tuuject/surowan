@@ -5,7 +5,7 @@ import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Switch } from '@tuuject/koi-react/switch';
 import { Tag } from '@tuuject/koi-react/tag';
-import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListFooter, SettingRow, ToneBadge, useClientPagination } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
@@ -48,7 +48,7 @@ export function RoomHeaderCard({
   release,
   hold,
   capabilities,
-}: RoomHeaderCardProps): React.ReactElement {
+}: RoomHeaderCardProps): ReactElement {
   const { t } = useTranslation();
   return (
     <Panel
@@ -156,7 +156,7 @@ export function IdentitiesCard({
   setParticipantName,
   participantKey,
   addIdentity,
-}: IdentitiesCardProps): React.ReactElement {
+}: IdentitiesCardProps): ReactElement {
   const { t } = useTranslation();
   const pagination = useClientPagination(participants, 'playground-identities');
   return (

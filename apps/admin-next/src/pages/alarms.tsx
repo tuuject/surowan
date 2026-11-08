@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, IconButton } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useMemo, useState } from 'react';
+import { type ReactElement, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ChatFilter,
@@ -33,7 +33,7 @@ import { toast } from '@/lib/toast.ts';
 const ALARM_STATES = ['pending', 'firing', 'fired', 'cancelled'] as const;
 const EMPTY_FILTERS = { state: '', chat: '', target: '' };
 
-function ChatCell({ row }: { readonly row: AlarmListItem }): React.ReactElement {
+function ChatCell({ row }: { readonly row: AlarmListItem }): ReactElement {
   const { t } = useTranslation();
   return (
     <div className={css({ minWidth: '0' })}>
@@ -48,7 +48,7 @@ function ChatCell({ row }: { readonly row: AlarmListItem }): React.ReactElement 
   );
 }
 
-function TargetCell({ row }: { readonly row: AlarmListItem }): React.ReactElement {
+function TargetCell({ row }: { readonly row: AlarmListItem }): ReactElement {
   return (
     <div className={css({ minWidth: '0' })}>
       <div className={css({ truncate: true })}>{row.target_display_name}</div>
@@ -57,7 +57,7 @@ function TargetCell({ row }: { readonly row: AlarmListItem }): React.ReactElemen
   );
 }
 
-function InvocationLink({ id }: { readonly id: string }): React.ReactElement {
+function InvocationLink({ id }: { readonly id: string }): ReactElement {
   const { t } = useTranslation();
   return (
     <AppLink to="/invocations/$invocationId" params={{ invocationId: id }}>
@@ -66,7 +66,7 @@ function InvocationLink({ id }: { readonly id: string }): React.ReactElement {
   );
 }
 
-function AlarmDetails({ row }: { readonly row: AlarmListItem }): React.ReactElement {
+function AlarmDetails({ row }: { readonly row: AlarmListItem }): ReactElement {
   const { t } = useTranslation();
   const createdBy = row.created_by_invocation_id;
   const fired = `${formatTime(row.fired_at)}${row.invocation_outcome === null ? '' : t('pages.alarms.outcomeSuffix', { outcome: row.invocation_outcome })}${row.completion_reason === null ? '' : t('pages.alarms.firedReasonSuffix', { reason: row.completion_reason })}`;
@@ -102,7 +102,7 @@ function AlarmDetails({ row }: { readonly row: AlarmListItem }): React.ReactElem
   );
 }
 
-export default function AlarmsPage(): React.ReactElement {
+export default function AlarmsPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const query = useListQuery(EMPTY_FILTERS);

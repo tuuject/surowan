@@ -7,7 +7,7 @@ import { Divider } from '@tuuject/koi-react/divider';
 import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { LanguageToggle } from '@/components/app-shell/LanguageToggle';
@@ -104,7 +104,7 @@ function AuthLayout({
   );
 }
 
-export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boolean }): React.ReactElement {
+export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boolean }): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [failure, setFailure] = useState<string | null>(null);
@@ -208,7 +208,7 @@ export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boole
   );
 }
 
-export function SetupForm(): React.ReactElement {
+export function SetupForm(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [failure, setFailure] = useState<string | null>(null);

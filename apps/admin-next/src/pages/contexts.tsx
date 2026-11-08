@@ -1,5 +1,5 @@
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useMemo } from 'react';
+import { type ReactElement, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ChatFilter,
@@ -17,7 +17,7 @@ import { conversationContextsQuery } from '@/lib/queries';
 
 const EMPTY_FILTERS = { chat: '' };
 
-export default function ContextsPage(): React.ReactElement {
+export default function ContextsPage(): ReactElement {
   const { t } = useTranslation();
   const query = useListQuery(EMPTY_FILTERS);
   const filters = useMemo(() => ({ chat: chatQuery(query.value.chat) }), [query.value.chat]);

@@ -1,5 +1,6 @@
 import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
+import type { ReactElement } from 'react';
 import {
   CartesianGrid,
   Line,
@@ -35,7 +36,7 @@ function compactNumber(value: number): string {
 const AXIS_TICK = { fontSize: 12, fill: 'var(--muted-foreground)' };
 
 /** Series color marks only the dot; labels and values stay neutral. */
-function SeriesDot({ color }: { readonly color: string }): React.ReactElement {
+function SeriesDot({ color }: { readonly color: string }): ReactElement {
   return (
     <span
       className={css({ width: '8px', height: '8px', flexShrink: '0', borderRadius: 'full' })}
@@ -107,7 +108,7 @@ export function TimeSeriesChart({
   readonly data: readonly ChartDatum[];
   readonly series: readonly ChartSeries[];
   readonly height?: number;
-}): React.ReactElement {
+}): ReactElement {
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
       <div style={{ height }} className={css({ width: '100%' })}>
@@ -174,7 +175,7 @@ export function ChartPanel({
   readonly title: string;
   readonly children: React.ReactNode;
   readonly className?: string;
-}): React.ReactElement {
+}): ReactElement {
   return (
     <div className={cx(css({ '& > :not(:last-child)': { marginBlockEnd: '2' } }), className)}>
       <h3 className={css({ textStyle: 'label', color: 'text-muted' })}>{title}</h3>

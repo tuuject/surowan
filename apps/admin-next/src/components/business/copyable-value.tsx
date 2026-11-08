@@ -1,6 +1,6 @@
 import { IconButton } from '@tuuject/koi-react/button';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CopyIcon } from '@/components/icons';
 import { toast } from '@/lib/toast.ts';
@@ -12,7 +12,7 @@ export function CopyableValue({
 }: {
   readonly label: string;
   readonly value: string | null;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const [copying, setCopying] = useState(false);
   const action = t('common.copyValue', { label, value: value ?? '' });

@@ -3,6 +3,7 @@ import { createRootRouteWithContext, type ErrorComponentProps, useNavigate } fro
 import { Button } from '@tuuject/koi-react/button';
 import { Spinner } from '@tuuject/koi-react/spinner';
 import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AppShell } from '@/components/app-shell/AppShell';
 import { logout } from '@/lib/api/auth.ts';
@@ -80,7 +81,7 @@ function isSessionQueryKey(queryKey: readonly unknown[]): boolean {
   return queryKey[0] === sessionQuery.queryKey[0];
 }
 
-function AdminShell({ username }: { readonly username: string }): React.ReactElement {
+function AdminShell({ username }: { readonly username: string }): ReactElement {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -121,7 +122,7 @@ function AdminShell({ username }: { readonly username: string }): React.ReactEle
  * per-page (useQuery error states) or by the global 401 handler in
  * lib/query-client.ts, so this only catches unexpected render/route errors.
  */
-function RouteErrorFallback({ error }: ErrorComponentProps): React.ReactElement {
+function RouteErrorFallback({ error }: ErrorComponentProps): ReactElement {
   const { t } = useTranslation();
   const message = error instanceof Error ? error.message : String(error);
   return (

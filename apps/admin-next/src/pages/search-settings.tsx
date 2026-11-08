@@ -3,6 +3,7 @@ import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListPageHeader } from '@/components/business';
 import { SearchSettingsForm } from '@/components/search-settings/settings-form.tsx';
@@ -14,7 +15,7 @@ const searchConfigQuery = {
   queryFn: getSearchConfig,
 };
 
-export default function SearchSettingsPage(): React.ReactElement {
+export default function SearchSettingsPage(): ReactElement {
   const { t } = useTranslation();
   const config = useQuery(searchConfigQuery);
   return (

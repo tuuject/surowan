@@ -1,7 +1,7 @@
 import { Card } from '@tuuject/koi-react/card';
 import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
-import { useId } from 'react';
+import { type ReactElement, useId } from 'react';
 
 /**
  * One named area of a dashboard, settings or detail page. Independent summaries
@@ -23,7 +23,7 @@ export function Panel({
   readonly children?: React.ReactNode;
   readonly className?: string;
   readonly variant?: 'card' | 'plain';
-}): React.ReactElement {
+}): ReactElement {
   const titleId = useId();
   const Root = variant === 'plain' ? 'section' : Card;
   return (
