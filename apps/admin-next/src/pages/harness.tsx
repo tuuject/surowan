@@ -191,7 +191,11 @@ function HarnessFieldRow({
   );
   const label = t(`harness.fields.${field.key}.label` as 'harness.fields.max_concurrency.label');
   const description = t(`harness.fields.${field.key}.description` as 'harness.fields.max_concurrency.description');
-  const showConfigKeys = useShowConfigKeys();
+  // Panda 2.1.2 tries to resolve this zero-arg hook at build time because it
+  // guards a styled branch, then warns (pure_helper_unevaluated) when it cannot
+  // evaluate useSyncExternalStore. Boolean() keeps the body opaque to the
+  // extractor and the value unchanged; drop it when koi allows @pandacss/dev 2.2.
+  const showConfigKeys = Boolean(useShowConfigKeys());
   const configPath = showConfigKeys ? (
     <code className={css({ display: 'block', fontFamily: 'mono' })}>
       {field.section ?? 'agent'}.{field.key}
