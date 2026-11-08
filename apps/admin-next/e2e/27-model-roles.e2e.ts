@@ -45,8 +45,9 @@ test.describe('model roles', () => {
     const picker = card.getByRole('combobox', { name: 'Model', exact: true });
     const effort = card.getByRole('combobox', { name: 'Thinking effort', exact: true });
 
-    // The fixture vision model does not reason: its only effort is `off`.
-    await expect(picker).toHaveText(/vision \/ vision-model/);
+    // The fixture vision model does not reason: its only effort is `off`. A named
+    // model shows only its display name in the trigger.
+    await expect(picker).toHaveText(/Vision Model/);
     await expect(effort).toHaveValue('off');
     await expect(effort).toBeDisabled();
     await expect(card.getByText('This model has no thinking effort to adjust', { exact: true })).toBeVisible();
@@ -60,7 +61,7 @@ test.describe('model roles', () => {
     await picker.click();
     await expect(page.getByRole('option', { name: new RegExp(E2E_MERGE_MODEL) })).toHaveCount(0);
     await page.getByRole('option', { name: /agent-model/ }).click();
-    await expect(picker).toHaveText(/agent \/ agent-model/);
+    await expect(picker).toHaveText(/Agent Model/);
     // After a model that does not reason, the new one starts at its default,
     // `low`, rather than keeping a meaningless `off`.
     await expect(effort).toBeEnabled();
@@ -153,9 +154,7 @@ test.describe('model roles', () => {
       .getByRole('link', { name: 'Models', exact: true })
       .click();
     const toolCard = page.getByRole('region', { name: 'Tool Model', exact: true });
-    await expect(toolCard.getByRole('combobox', { name: 'Model', exact: true })).toHaveText(
-      new RegExp(`${E2E_MERGE_ALIAS} / ${E2E_MERGE_MODEL}`),
-    );
+    await expect(toolCard.getByRole('combobox', { name: 'Model', exact: true })).toHaveText(/Merge Tool Model/);
     await expect(toolCard.getByRole('combobox', { name: 'Thinking effort', exact: true })).toHaveValue('low');
     const after = await providersView(page);
     expect(after.tool_model).toMatchObject({ provider: E2E_MERGE_ALIAS, model: E2E_MERGE_MODEL, inherited: false });

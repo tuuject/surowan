@@ -171,9 +171,8 @@ test.describe('providers page', () => {
       .getByRole('link', { name: 'Models', exact: true })
       .click();
     const agentCard = page.getByRole('region', { name: 'Agent model', exact: true });
-    await expect(agentCard.getByRole('combobox', { name: 'Model', exact: true })).toHaveText(
-      new RegExp(`${E2E_RELAY_ALIAS} / ${E2E_RELAY_COMPLETE_MODEL}`),
-    );
+    // The trigger shows the display name discovery took from models.dev, not alias / id.
+    await expect(agentCard.getByRole('combobox', { name: 'Model', exact: true })).toHaveText(/Relay Model A/);
     const effort = agentCard.getByRole('combobox', { name: 'Thinking effort', exact: true });
     await expect(effort).toHaveValue('off');
     // Only the levels the model declares are offered.

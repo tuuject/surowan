@@ -183,9 +183,10 @@ test.describe('routes and deep links', () => {
   test('/models shows one card per role with its model and thinking effort', async ({ page }) => {
     await page.goto(await adminUrl('/models'));
     await expect(page.getByRole('heading', { name: 'Models', exact: true, level: 1 })).toBeVisible();
+    // A named model shows only its display name in the trigger; the alias / id line is the menu's.
     for (const [role, model] of [
-      ['Agent model', 'agent / agent-model'],
-      ['Vision model', 'vision / vision-model'],
+      ['Agent model', 'Agent Model'],
+      ['Vision model', 'Vision Model'],
       ['Tool Model', 'Inherit Agent model'],
     ] as const) {
       const card = page.getByRole('region', { name: role, exact: true });

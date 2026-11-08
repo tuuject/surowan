@@ -67,7 +67,8 @@ test.describe('tool model', () => {
     // one is a reasoning model with declared levels, found through the search box.
     await page.getByPlaceholder('Search models').fill(E2E_MERGE_MODEL);
     await page.getByRole('option', { name: new RegExp(E2E_MERGE_MODEL) }).click();
-    await expect(toolPicker(page)).toHaveText(new RegExp(`${E2E_MERGE_ALIAS} / ${E2E_MERGE_MODEL}`));
+    // A named model shows only its display name in the trigger.
+    await expect(toolPicker(page)).toHaveText(/Merge Tool Model/);
 
     // The inherited `low` is one the merge model accepts, so the draft keeps it.
     const thinking = toolThinking(page);
