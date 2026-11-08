@@ -6,7 +6,7 @@ import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
-import { type ReactElement, useEffect, useState } from 'react';
+import { type ReactElement, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Panel } from '@/components/layout/panel';
 import { HeaderFields } from '@/components/models/header-fields';
@@ -43,6 +43,8 @@ export function ProviderConnectionSection({
   const [apiKey, setApiKey] = useState('');
   const [headers, setHeaders] = useState<readonly HeaderRow[]>(() => headerRowsFromNames(provider.header_names));
   const [localError, setLocalError] = useState<string | null>(null);
+  const [keyChecked, setKeyChecked] = useState(false);
+  const apiKeyInput = useRef<HTMLInputElement>(null);
 
   const base = baseline.provider;
   const custom = base.kind === 'custom';
@@ -53,6 +55,7 @@ export function ProviderConnectionSection({
   const payload = headerPayload(headers, removed);
   const dirty = baseUrlChanged || apiChanged || apiKey.length > 0 || payload.headers !== undefined;
   const stale = revision !== baseline.revision;
+  const apiKeyMissing = keyChecked && baseUrlChanged && apiKey.length === 0;
 
   const resetDrafts = (next: ProviderView, nextRevision: string): void => {
     setBaseline({ provider: next, revision: nextRevision });
@@ -61,6 +64,7 @@ export function ProviderConnectionSection({
     setApiKey('');
     setHeaders(headerRowsFromNames(next.header_names));
     setLocalError(null);
+    setKeyChecked(false);
   };
 
   // Untouched drafts simply follow the server. Edited ones wait for an explicit
@@ -106,7 +110,9 @@ export function ProviderConnectionSection({
       // Moving the address without re-entering the credentials would let a
       // stolen session point a stored key at another server.
       if (apiKey.length === 0) {
-        setLocalError(t('models.models.connection.needsApiKey'));
+        setLocalError(null);
+        setKeyChecked(true);
+        apiKeyInput.current?.focus();
         return;
       }
       const missing = base.header_names.filter((name) => !headers.some((row) => row.existing && row.name === name));
@@ -153,6 +159,20 @@ export function ProviderConnectionSection({
         {custom && api === 'openai-responses' ? (
           <Alert tone="warning">{t('models.models.connection.responsesWarning')}</Alert>
         ) : null}
+        {baseUrlChanged ? <Alert tone="warning">{t('models.models.connection.changedWarning')}</Alert> : null}
+        {stale && dirty ? (
+          <Alert
+            tone="warning"
+            action={
+              <Button size="sm" variant="ghost" color="secondary" onClick={() => resetDrafts(provider, revision)}>
+                {t('common.reload')}
+              </Button>
+            }
+          >
+            {t('models.models.connection.staleWarning')}
+          </Alert>
+        ) : null}
+        {error !== null ? <Alert tone="error">{error}</Alert> : null}
         <div
           className={css({
             display: 'grid',
@@ -189,8 +209,10 @@ export function ProviderConnectionSection({
                 ? `${t('models.models.connection.keepHint')}${t('common.separator')}${t('models.models.connection.keepHintChanged')}`
                 : t('models.models.connection.keepHint')
             }
+            error={apiKeyMissing ? t('models.models.connection.needsApiKey') : undefined}
           >
             <Input
+              ref={apiKeyInput}
               type="password"
               autoComplete="new-password"
               value={apiKey}
@@ -218,21 +240,6 @@ export function ProviderConnectionSection({
             />
           </div>
         ) : null}
-
-        {baseUrlChanged ? <Alert tone="warning">{t('models.models.connection.changedWarning')}</Alert> : null}
-        {stale && dirty ? (
-          <Alert
-            tone="warning"
-            action={
-              <Button size="sm" variant="ghost" color="secondary" onClick={() => resetDrafts(provider, revision)}>
-                {t('common.reload')}
-              </Button>
-            }
-          >
-            {t('models.models.connection.staleWarning')}
-          </Alert>
-        ) : null}
-        {error !== null ? <Alert tone="error">{error}</Alert> : null}
       </div>
     </Panel>
   );
