@@ -47,7 +47,7 @@ export const models = {
       deleteModelTitle: 'Delete this model?',
       deleteModelDescription: '{{model}} will be removed from the models of {{alias}}.',
       deleteModelConfirm: 'Delete model',
-      deleteSelected: 'Delete selected ({{count}})',
+      deleteSelected: 'Delete',
       deleteModelsTitle: 'Delete selected models?',
       deleteModelsDescription:
         '{{count}} models will be removed. If any model is in use or cannot be deleted, none will be removed.',
@@ -62,7 +62,7 @@ export const models = {
       checkHealth: 'Test',
       selectedCount: '{{count}} selected',
       checkHealthAria: 'Test whether {{model}} replies',
-      checkSelected: 'Test selected ({{count}})',
+      checkSelected: 'Test',
       checking: 'Testing…',
       healthOk: 'OK',
       healthUnexpected: 'Unexpected reply',

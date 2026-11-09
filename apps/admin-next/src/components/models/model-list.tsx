@@ -172,7 +172,7 @@ export function ModelList({
               onClick={() => void onRunHealthChecks(runnableSelected)}
               className={css({ fontVariantNumeric: 'tabular-nums' })}
             >
-              {t('models.models.page.checkSelected', { count: runnableSelected.length })}
+              {t('models.models.page.checkSelected')}
             </Button>
             <Button
               color="error"
@@ -181,7 +181,7 @@ export function ModelList({
               onClick={onDeleteSelected}
               className={css({ fontVariantNumeric: 'tabular-nums' })}
             >
-              {t('models.models.page.deleteSelected', { count: runnableSelected.length })}
+              {t('models.models.page.deleteSelected')}
             </Button>
           </div>
         </div>
