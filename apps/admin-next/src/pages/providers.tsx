@@ -20,12 +20,12 @@ import { ProviderDetailHeader } from '@/components/models/provider-detail-header
 import { ProviderRail } from '@/components/models/provider-list';
 import { ProvidersRestartBanner } from '@/components/models/restart-banner';
 import { ThinkingResetDialog } from '@/components/models/roles/thinking-reset-dialog';
-import { useModelRoleWrites } from '@/components/models/roles/writes';
+import { modelRoles, useModelRoleWrites } from '@/components/models/roles/writes';
 import { AppLink } from '@/components/router-links';
 import type { HealthCheckResult, ProviderModelConfig, ProviderView } from '@/lib/api/providers.ts';
 import {
   deleteProvider,
-  deleteProviderModel,
+  deleteProviderModels,
   healthCheckProviderModel,
   replaceProviderModel,
 } from '@/lib/api/providers.ts';
@@ -56,12 +56,12 @@ export default function ProvidersPage(): ReactElement {
   // can never pass the concurrency check with a form built from older data.
   const [editing, setEditing] = useState<EditingTarget | null>(null);
   // Each confirmation keeps `open` apart from its target, so closing never blanks the text mid-fade.
-  const [deletingModel, setDeletingModel] = useState<DeletingModelTarget | null>(null);
+  const [deletingModels, setDeletingModels] = useState<readonly DeletingModelTarget[]>([]);
   const [deleteModelOpen, setDeleteModelOpen] = useState(false);
   const [deletingProvider, setDeletingProvider] = useState<ProviderView | null>(null);
   const [deleteProviderOpen, setDeleteProviderOpen] = useState(false);
-  // Health-check probes: page-local state, never persisted. The key is the same
-  // `${alias}/${model.id}` row key, so a selection survives provider switches.
+  // Model selection is shared by testing and deletion and survives provider
+  // switches. Keys resolve against the live registry before either operation.
   const [healthSelected, setHealthSelected] = useState<ReadonlySet<string>>(new Set());
   const [health, setHealth] = useState<Record<string, HealthCheckResult | 'checking'>>({});
   const healthBatch = useRef<AbortController | null>(null);
@@ -179,10 +179,20 @@ export default function ProvidersPage(): ReactElement {
   });
 
   const removeModel = useMutation({
-    mutationFn: ({ alias, model }: { readonly alias: string; readonly model: string }) =>
-      deleteProviderModel(alias, model, revision),
-    onSuccess: (result) => {
+    mutationFn: (targets: readonly DeletingModelTarget[]) =>
+      deleteProviderModels(
+        targets.map((target) => ({ provider: target.alias, model: target.model })),
+        revision,
+      ),
+    onSuccess: (result, targets) => {
       setDeleteModelOpen(false);
+      setHealthSelected((previous) => {
+        const next = new Set(previous);
+        for (const target of targets) {
+          next.delete(`${target.alias}/${target.model}`);
+        }
+        return next;
+      });
       write.succeeded(result.apply);
     },
     onError: (error) => {
@@ -224,6 +234,20 @@ export default function ProvidersPage(): ReactElement {
     if (editing !== null) {
       saveModel.mutate({ alias: editing.alias, model, revision: editing.revision });
     }
+  };
+
+  const selectedModels = runnableSelected.flatMap((key) => {
+    const ref = healthRefs.get(key);
+    return ref === undefined ? [] : [{ alias: ref.provider, model: ref.model }];
+  });
+  const selectedModelsInUse = selectedModels.some((target) => {
+    const assigned = modelRoles(view, target.alias, target.model);
+    return assigned.agent || assigned.vision || assigned.tool;
+  });
+  const confirmModelDeletion = (targets: readonly DeletingModelTarget[]): void => {
+    removeModel.reset();
+    setDeletingModels(targets);
+    setDeleteModelOpen(true);
   };
 
   return (
@@ -328,17 +352,15 @@ export default function ProvidersPage(): ReactElement {
                 health={health}
                 healthSelected={healthSelected}
                 onHealthSelectedChange={setHealthSelected}
-                running={running}
+                running={running || removeModel.isPending}
                 onRunHealthChecks={runHealthChecks}
                 runnableSelected={runnableSelected}
                 rolePending={roles.pending}
                 onAssignRole={roles.assign}
                 onEdit={(alias, model) => setEditing({ alias, model, revision })}
-                onDeleteModel={(alias, model) => {
-                  removeModel.reset();
-                  setDeletingModel({ alias, model });
-                  setDeleteModelOpen(true);
-                }}
+                onDeleteModel={(alias, model) => confirmModelDeletion([{ alias, model }])}
+                onDeleteSelected={() => confirmModelDeletion(selectedModels)}
+                selectedModelsInUse={selectedModelsInUse}
                 onFetchModels={() => setPicker({ mode: 'discover', alias: selected.alias, nonce: Date.now() })}
                 onAddById={() => setPicker({ mode: 'manual', alias: selected.alias, nonce: Date.now() })}
               />
@@ -363,14 +385,14 @@ export default function ProvidersPage(): ReactElement {
           error: saveModel.isError ? writeErrorMessage(saveModel.error) : null,
           onSubmit: saveEdit,
         }}
-        deletingModel={deletingModel}
+        deletingModels={deletingModels}
         removeModel={{
           open: deleteModelOpen,
           pending: removeModel.isPending,
           error: removeModel.isError ? writeErrorMessage(removeModel.error) : null,
           onConfirm: () => {
-            if (deletingModel !== null) {
-              removeModel.mutate(deletingModel);
+            if (deletingModels.length > 0) {
+              removeModel.mutate(deletingModels);
             }
           },
           onClose: () => setDeleteModelOpen(false),

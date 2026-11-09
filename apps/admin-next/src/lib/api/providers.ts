@@ -286,10 +286,14 @@ export function replaceProviderModel(
   });
 }
 
-export function deleteProviderModel(alias: string, modelId: string, revision: string): Promise<ProviderWriteResponse> {
-  return call<ProviderWriteResponse>(`/providers/${encodeURIComponent(alias)}/models/${encodeURIComponent(modelId)}`, {
-    method: 'DELETE',
+export function deleteProviderModels(
+  models: readonly ProviderModelReference[],
+  revision: string,
+): Promise<ProviderWriteResponse> {
+  return call<ProviderWriteResponse>('/providers/models/delete', {
+    method: 'POST',
     headers: writeHeaders(revision),
+    body: JSON.stringify({ models }),
   });
 }
 

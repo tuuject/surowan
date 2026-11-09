@@ -19,6 +19,7 @@ export interface ConfirmDialogProps {
   readonly onOpenChange: (open: boolean) => void;
   readonly title: string;
   readonly description?: React.ReactNode;
+  readonly children?: React.ReactNode;
   readonly confirmText: string;
   readonly cancelText?: string;
   readonly destructive?: boolean;
@@ -32,6 +33,7 @@ export function ConfirmDialog({
   onOpenChange,
   title,
   description,
+  children,
   confirmText,
   cancelText,
   destructive = false,
@@ -86,6 +88,7 @@ export function ConfirmDialog({
         </>
       }
     >
+      {children}
       {error !== null ? (
         <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>{error}</p>
       ) : null}

@@ -68,6 +68,8 @@ export function ModelList({
   onAssignRole,
   onEdit,
   onDeleteModel,
+  onDeleteSelected,
+  selectedModelsInUse,
   onFetchModels,
   onAddById,
 }: {
@@ -83,6 +85,8 @@ export function ModelList({
   readonly onAssignRole: (role: ModelRole, alias: string, model: ProviderModelConfig) => void;
   readonly onEdit: (alias: string, model: ProviderModelConfig) => void;
   readonly onDeleteModel: (alias: string, model: string) => void;
+  readonly onDeleteSelected: () => void;
+  readonly selectedModelsInUse: boolean;
   readonly onFetchModels: () => void;
   readonly onAddById: () => void;
 }): ReactElement {
@@ -137,7 +141,7 @@ export function ModelList({
           })}
         >
           <Checkbox
-            label={t('models.models.page.selectAllForHealth')}
+            label={t('models.models.page.selectAllModels')}
             checked={allSelected}
             disabled={running || selectable.length === 0}
             onCheckedChange={(checked) =>
@@ -169,8 +173,22 @@ export function ModelList({
             >
               {t('models.models.page.checkSelected', { count: runnableSelected.length })}
             </Button>
+            <Button
+              color="error"
+              iconStart={<TrashIcon />}
+              disabled={runnableSelected.length === 0 || running || selectedModelsInUse}
+              onClick={onDeleteSelected}
+              className={css({ fontVariantNumeric: 'tabular-nums' })}
+            >
+              {t('models.models.page.deleteSelected', { count: runnableSelected.length })}
+            </Button>
           </div>
         </div>
+        {selectedModelsInUse ? (
+          <p className={css({ marginBlockStart: '3', marginBlockEnd: '0', color: 'text-muted' })}>
+            {t('models.models.page.selectedModelsInUse')}
+          </p>
+        ) : null}
 
         {rows.length === 0 ? (
           <div className={css({ paddingBlock: '4' })}>
@@ -201,7 +219,7 @@ export function ModelList({
                 >
                   <span className={css({ flexShrink: '0', paddingBlockStart: '1' })}>
                     <Checkbox
-                      aria-label={t('models.models.page.selectForHealthAria', { model: row.model.id })}
+                      aria-label={t('models.models.page.selectModelAria', { model: row.model.id })}
                       checked={healthSelected.has(key)}
                       disabled={running}
                       onCheckedChange={(checked) =>
@@ -353,7 +371,7 @@ export function ModelList({
                       variant="ghost"
                       color="error"
                       // The server refuses to delete a model a role or a Chat still uses.
-                      disabled={roles.agent || roles.vision || roles.tool}
+                      disabled={running || roles.agent || roles.vision || roles.tool}
                       onClick={() => onDeleteModel(row.alias, row.model.id)}
                       label={t('models.models.page.deleteModelAria', { model: row.model.id })}
                       icon={<TrashIcon />}

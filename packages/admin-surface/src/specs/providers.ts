@@ -83,6 +83,15 @@ export const PROVIDER_SPECS: readonly EndpointSpec[] = [
     summary: 'Replace one model definition',
   },
   {
+    command: 'model delete-many',
+    method: 'POST',
+    path: 'providers/models/delete',
+    body: true,
+    revision: 'config',
+    confirm: 'destructive',
+    summary: 'Delete selected models across providers in one configuration write',
+  },
+  {
     command: 'model delete',
     method: 'DELETE',
     path: 'providers/:alias/models/:id',

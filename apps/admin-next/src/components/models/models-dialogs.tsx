@@ -1,6 +1,7 @@
+import { css } from '@tuuject/koi-react/styled-system/css';
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ConfirmDialog } from '@/components/business';
+import { ConfirmDialog, MonoValue } from '@/components/business';
 import { ModelEditDialog } from '@/components/models/model-edit-dialog';
 import { ModelPickerDialog, type ModelPickerMode } from '@/components/models/model-picker-dialog';
 import { ProviderWizard } from '@/components/models/provider-wizard';
@@ -57,7 +58,7 @@ export function ModelsDialogs({
   editing,
   onEditingClose,
   save,
-  deletingModel,
+  deletingModels,
   removeModel,
   deletingProvider,
   removeProvider,
@@ -73,7 +74,7 @@ export function ModelsDialogs({
   readonly editing: EditingTarget | null;
   readonly onEditingClose: () => void;
   readonly save: ModelSaveState;
-  readonly deletingModel: DeletingModelTarget | null;
+  readonly deletingModels: readonly DeletingModelTarget[];
   readonly removeModel: ConfirmState;
   readonly deletingProvider: ProviderView | null;
   readonly removeProvider: ConfirmState;
@@ -125,18 +126,43 @@ export function ModelsDialogs({
             removeModel.onClose();
           }
         }}
-        title={t('models.models.page.deleteModelTitle')}
+        title={t(
+          deletingModels.length > 1 ? 'models.models.page.deleteModelsTitle' : 'models.models.page.deleteModelTitle',
+        )}
         description={
-          deletingModel === null
-            ? ''
-            : t('models.models.page.deleteModelDescription', { model: deletingModel.model, alias: deletingModel.alias })
+          deletingModels.length > 1
+            ? t('models.models.page.deleteModelsDescription', { count: deletingModels.length })
+            : deletingModels[0] === undefined
+              ? ''
+              : t('models.models.page.deleteModelDescription', { ...deletingModels[0] })
         }
-        confirmText={t('models.models.page.deleteModelConfirm')}
+        confirmText={t(
+          deletingModels.length > 1
+            ? 'models.models.page.deleteModelsConfirm'
+            : 'models.models.page.deleteModelConfirm',
+        )}
         destructive
         pending={removeModel.pending}
         error={removeModel.error}
         onConfirm={removeModel.onConfirm}
-      />
+      >
+        {deletingModels.length > 1 ? (
+          <ul
+            className={css({
+              maxHeight: '256px',
+              overflow: 'auto',
+              paddingInlineStart: '5',
+              overflowWrap: 'anywhere',
+            })}
+          >
+            {deletingModels.map((target) => (
+              <li key={`${target.alias}/${target.model}`}>
+                <MonoValue value={`${target.alias}/${target.model}`} />
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={removeProvider.open}

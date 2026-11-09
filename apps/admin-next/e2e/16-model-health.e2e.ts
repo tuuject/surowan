@@ -15,7 +15,7 @@
  * in `16-model-health-lifecycle.e2e.ts`.
  *
  * UI contract assumed (matches the Providers page health-check work):
- * - the row checkbox is labelled `Select {{model}} for testing`;
+ * - the row checkbox is labelled `Select {{model}}`;
  * - the per-row button is "Test" (aria `Test whether {{model}} replies`);
  * - the batch button reads `Test selected (N)`;
  * - the health row shows a status badge and first-response / total durations;
@@ -137,16 +137,16 @@ test.describe('model health checks', () => {
     await resetRelayStats();
     await page.goto(await adminUrl('/providers'));
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
-    await page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL} for testing`).check();
-    await page.getByLabel(`Select ${E2E_HEALTH_OK_2_MODEL} for testing`).check();
-    await page.getByLabel(`Select ${E2E_HEALTH_UNEXPECTED_MODEL} for testing`).check();
+    await page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL}`, { exact: true }).check();
+    await page.getByLabel(`Select ${E2E_HEALTH_OK_2_MODEL}`, { exact: true }).check();
+    await page.getByLabel(`Select ${E2E_HEALTH_UNEXPECTED_MODEL}`, { exact: true }).check();
 
     // Selection survives switching providers: check a model of the second
     // provider, then confirm the first provider's checks are still there.
     await selectProvider(page, E2E_HEALTH_ALIAS_B);
-    await page.getByLabel(`Select ${E2E_HEALTH_FAIL_MODEL} for testing`).check();
+    await page.getByLabel(`Select ${E2E_HEALTH_FAIL_MODEL}`, { exact: true }).check();
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
-    await expect(page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL} for testing`)).toBeChecked();
+    await expect(page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL}`, { exact: true })).toBeChecked();
 
     const before = await providersView(page);
     // Hold every model upstream so the first three checks stay in flight
@@ -208,8 +208,8 @@ test.describe('model health checks', () => {
     // slow request cannot settle until released.
     await holdHealthGate(E2E_HEALTH_UNEXPECTED_MODEL);
     try {
-      await page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL} for testing`).check();
-      await page.getByLabel(`Select ${E2E_HEALTH_UNEXPECTED_MODEL} for testing`).check();
+      await page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL}`, { exact: true }).check();
+      await page.getByLabel(`Select ${E2E_HEALTH_UNEXPECTED_MODEL}`, { exact: true }).check();
       await page.getByRole('button', { name: /^Test selected \(\d+\)$/ }).click();
 
       // The fast row already shows its status and timing while the slow row is

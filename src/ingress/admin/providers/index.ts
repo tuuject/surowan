@@ -53,6 +53,23 @@ const ModelsBodySchema = Type.Object(
   Strict,
 );
 
+const DeleteModelsBodySchema = Type.Object(
+  {
+    models: Type.Array(
+      Type.Object(
+        {
+          provider: Type.String({ pattern: PROVIDER_ALIAS_PATTERN.source }),
+          model: Type.String({ minLength: 1 }),
+        },
+        Strict,
+      ),
+      { minItems: 1, maxItems: MAX_MODELS_PER_REQUEST },
+    ),
+  },
+  Strict,
+);
+export type DeleteModelsBody = Static<typeof DeleteModelsBodySchema>;
+
 const DiscoverBodySchema = Type.Object(
   {
     alias: Type.Optional(Type.String({ minLength: 1 })),
@@ -184,6 +201,7 @@ const modelsBodyValidator = Compile(ModelsBodySchema);
 const modelValidator = Compile(ModelConfigSchema);
 const discoverValidator = Compile(DiscoverBodySchema);
 const lookupValidator = Compile(LookupMetadataBodySchema);
+const deleteModelsValidator = Compile(DeleteModelsBodySchema);
 const visionValidator = Compile(VisionBodySchema);
 const thinkingLevelValidator = Compile(ThinkingLevelBodySchema);
 
@@ -208,6 +226,10 @@ export function parseModelsBody(value: unknown): readonly ModelFileConfig[] {
 
 export function parseModelBody(value: unknown): ModelFileConfig {
   return parseWith(modelValidator, value);
+}
+
+export function parseDeleteModelsBody(value: unknown): DeleteModelsBody {
+  return parseWith(deleteModelsValidator, value);
 }
 
 export function parseDiscoverBody(value: unknown): DiscoverBody {

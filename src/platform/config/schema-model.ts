@@ -110,7 +110,7 @@ export const BuiltinProviderSchema = Type.Object(
     kind: Type.Literal('builtin'),
     provider: Type.String({ minLength: 1 }),
     api_key: SecretRefSchema,
-    models: Type.Array(ModelConfigSchema, { minItems: 1 }),
+    models: Type.Array(ModelConfigSchema),
   },
   Strict,
 );
@@ -129,7 +129,7 @@ export const CustomProviderSchema = Type.Object(
     api: CustomProviderApiSchema,
     api_key: SecretRefSchema,
     headers: Type.Optional(Type.Record(Type.String({ minLength: 1 }), SecretRefSchema)),
-    models: Type.Array(ModelConfigSchema, { minItems: 1 }),
+    models: Type.Array(ModelConfigSchema),
   },
   Strict,
 );

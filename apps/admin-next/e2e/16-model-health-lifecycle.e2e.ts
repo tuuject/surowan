@@ -46,12 +46,12 @@ test.describe('model health checks', () => {
       // Queue four checks so three run and one waits behind them: the three
       // slow models fill the concurrency slots and the fast one is picked up
       // last (and never reaches the upstream).
-      await page.getByLabel(`Select ${E2E_HEALTH_OK_2_MODEL} for testing`).check();
-      await page.getByLabel(`Select ${E2E_HEALTH_UNEXPECTED_MODEL} for testing`).check();
+      await page.getByLabel(`Select ${E2E_HEALTH_OK_2_MODEL}`, { exact: true }).check();
+      await page.getByLabel(`Select ${E2E_HEALTH_UNEXPECTED_MODEL}`, { exact: true }).check();
       await selectProvider(page, E2E_HEALTH_ALIAS_B);
-      await page.getByLabel(`Select ${E2E_HEALTH_FAIL_MODEL} for testing`).check();
+      await page.getByLabel(`Select ${E2E_HEALTH_FAIL_MODEL}`, { exact: true }).check();
       await selectProvider(page, E2E_HEALTH_ALIAS_A);
-      await page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL} for testing`).check();
+      await page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL}`, { exact: true }).check();
       await page.getByRole('button', { name: /^Test selected \(\d+\)$/ }).click();
 
       // All three concurrency slots are busy upstream (held) — including the
