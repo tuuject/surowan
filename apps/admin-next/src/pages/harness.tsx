@@ -23,7 +23,6 @@ import {
   parseDraft,
   sameHarnessValue,
 } from '@/lib/harness';
-import { useShowConfigKeys } from '@/lib/panel-preferences';
 import { harnessQuery } from '@/lib/queries';
 import { useProviderWrite } from '@/lib/use-provider-write';
 
@@ -191,27 +190,11 @@ function HarnessFieldRow({
   );
   const label = t(`harness.fields.${field.key}.label` as 'harness.fields.max_concurrency.label');
   const description = t(`harness.fields.${field.key}.description` as 'harness.fields.max_concurrency.description');
-  // Panda 2.1.2 tries to resolve this zero-arg hook at build time because it
-  // guards a styled branch, then warns (pure_helper_unevaluated) when it cannot
-  // evaluate useSyncExternalStore. Boolean() keeps the body opaque to the
-  // extractor and the value unchanged; drop it when koi allows @pandacss/dev 2.2.
-  const showConfigKeys = Boolean(useShowConfigKeys());
-  const configPath = showConfigKeys ? (
-    <code className={css({ display: 'block', fontFamily: 'mono' })}>
-      {field.section ?? 'agent'}.{field.key}
-    </code>
-  ) : null;
-  const help = (
-    <>
-      {description}
-      {configPath}
-    </>
-  );
 
   if (field.kind === 'boolean') {
     return (
       <div className={css({ display: 'flex', flexDirection: 'column', gap: '1' })}>
-        <SettingRow label={label} description={description} {...(configPath === null ? {} : { hint: configPath })}>
+        <SettingRow label={label} description={description}>
           {({ id, describedBy }) => (
             <Switch
               id={id}
@@ -253,7 +236,7 @@ function HarnessFieldRow({
     );
   return (
     <div className={css({ display: 'flex', flexDirection: 'column', gap: '1' })}>
-      <Field label={label} help={help} error={errorText}>
+      <Field label={label} help={description} error={errorText}>
         {control}
       </Field>
       {mismatch}

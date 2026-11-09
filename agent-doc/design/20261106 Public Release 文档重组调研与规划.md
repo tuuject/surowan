@@ -351,7 +351,7 @@ OpenAPI 暂缓作为前置条件。当前没有找到完整 OpenAPI/Swagger 生�
 | 时间 | 浏览器与后端时间用同一基准，不能只冻浏览器让后端清理预算仍走真实时间 |
 | 输出 | 优先任务卡片/对话框，少用长全页图；输出场景、提交、浏览器和尺寸 manifest |
 
-可在首次导航前设置 `admin-language`、`admin-theme`、`admin-show-config-keys`。现有 E2E 默认英文，截图采用独立中文项目配置，保留原测试语言。
+可在首次导航前设置 `admin-language`、`admin-theme`。现有 E2E 默认英文，截图采用独立中文项目配置，保留原测试语言。
 
 现有测试服务并非完整生产 `serve`，部分连接、重启和运行状态由 fixture 控制。截图证明真实 UI 在指定数据下的显示，不代表 Provider 连通或 Telegram 发送验收。
 

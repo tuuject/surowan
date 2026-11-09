@@ -242,7 +242,7 @@ test.describe('routes and deep links', () => {
 
   test('/preferences renders the browser-local display options', async ({ page }) => {
     await page.goto(await adminUrl('/preferences'));
-    await expect(page.getByRole('switch', { name: 'Show config.jsonc key names' })).not.toBeChecked();
+    await expect(page.getByLabel('Theme', { exact: true })).toBeVisible();
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 

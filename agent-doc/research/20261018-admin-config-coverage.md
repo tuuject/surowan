@@ -32,7 +32,7 @@ Admin Panel 已覆盖多数 Agent 日常调参，但还不能完整替代 `confi
 
 依据：[Agent 字段 Schema](../../src/platform/config/schema-sections.ts#L82)、[Harness 白名单](../../src/ingress/admin/harness.ts#L30)、[模型完整编辑表单](../../apps/admin-next/src/components/models/model-edit-dialog.tsx#L148)、[管理端写端点说明](../admin-panel.md#api)。
 
-Panel preferences 只控制当前浏览器的语言、主题、是否展示配置键名，不写 Bot 配置。Settings 中的账号、密码、Passkey 操作管理数据库中的认证状态，也不是 `admin.*` 配置编辑器。依据：[preferences.tsx](../../apps/admin-next/src/pages/preferences.tsx#L12)、[settings.tsx](../../apps/admin-next/src/pages/settings.tsx)。
+Panel preferences 只控制当前浏览器的语言、主题，不写 Bot 配置。Settings 中的账号、密码、Passkey 操作管理数据库中的认证状态，也不是 `admin.*` 配置编辑器。依据：[preferences.tsx](../../apps/admin-next/src/pages/preferences.tsx)、[settings.tsx](../../apps/admin-next/src/pages/settings.tsx)。
 
 ## 尚不能完整配置的字段
 

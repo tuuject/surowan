@@ -20,8 +20,6 @@ test('Harness tuning saves several fields at once and hot-applies them', async (
   await expect(ttl).toHaveValue('72');
   await expect(nudge).toBeChecked();
   await expect(page.getByLabel('Max text length')).toHaveValue('');
-  // Config key names are a per-browser display preference, off by default.
-  await expect(page.getByText('agent.context.ref_ttl_hours', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Models', exact: true }).last()).toBeVisible();
   await expect(save).toBeDisabled();
   await page.screenshot({ path: testInfo.outputPath('harness-desktop.png'), fullPage: true });
@@ -135,45 +133,4 @@ test('Harness tuning edits the global proactive reply defaults', async ({ page }
     'proactive_reply.hard_pity': 5,
   });
   expect(applied.active).toEqual(applied.saved);
-});
-
-test('Panel preferences toggle config key names for this browser only', async ({ page, browser }) => {
-  await page.goto(await adminUrl('/harness'));
-  await expect(page.getByLabel('Reference TTL (hours)')).toBeVisible();
-  await expect(page.getByText('agent.context.ref_ttl_hours', { exact: true })).toHaveCount(0);
-
-  await clickNav(page, 'System', 'Panel preferences');
-  const keys = page.getByRole('switch', { name: 'Show config.jsonc key names' });
-  await expect(keys).not.toBeChecked();
-  await keys.click();
-  await expect(keys).toBeChecked();
-  await page.reload();
-  await expect(keys).toBeChecked();
-  expect(await page.evaluate(() => localStorage.getItem('admin-show-config-keys'))).toBe('true');
-
-  await clickNav(page, 'Agent setup', 'Harness tuning');
-  await expect(page.getByText('agent.context.ref_ttl_hours', { exact: true })).toBeVisible();
-  await expect(page.getByText('agent.rate_limits.window_seconds', { exact: true })).toBeVisible();
-  await expect(page.getByText('telegram.proactive_reply.enabled', { exact: true })).toBeVisible();
-
-  // Nothing reached the server: a fresh browser context still hides the keys.
-  const other = await browser.newContext({
-    storageState: await page
-      .context()
-      .storageState({})
-      .then((state) => ({
-        ...state,
-        origins: [],
-      })),
-  });
-  const otherPage = await other.newPage();
-  await otherPage.goto(await adminUrl('/harness'));
-  await expect(otherPage.getByLabel('Reference TTL (hours)')).toBeVisible();
-  await expect(otherPage.getByText('agent.context.ref_ttl_hours', { exact: true })).toHaveCount(0);
-  await other.close();
-
-  await clickNav(page, 'System', 'Panel preferences');
-  await keys.click();
-  await expect(keys).not.toBeChecked();
-  expect(await page.evaluate(() => localStorage.getItem('admin-show-config-keys'))).toBeNull();
 });

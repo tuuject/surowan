@@ -7,10 +7,8 @@ import type { HarnessValue, HarnessValues } from './api/config.ts';
  * pair) only there, against the whole file.
  */
 export interface HarnessField {
-  /** Dotted path below `section`, the API key. */
+  /** Dotted path below the `agent` section, the API key. */
   readonly key: string;
-  /** The configuration section the field lives in; `agent` when absent. */
-  readonly section?: 'telegram';
   /** `lines` edits a string list one entry per line; `select` edits one enum string. */
   readonly kind: 'integer' | 'ratio' | 'boolean' | 'lines' | 'select';
   /** Choices for a `select`; each has a label below the field's locale key. */
@@ -74,10 +72,10 @@ export const HARNESS_GROUPS: readonly HarnessGroup[] = [
   {
     id: 'proactiveReply',
     fields: [
-      { key: 'proactive_reply.enabled', section: 'telegram', kind: 'boolean' },
-      { key: 'proactive_reply.base_probability', section: 'telegram', kind: 'ratio', min: 0, max: 1 },
-      { key: 'proactive_reply.increment', section: 'telegram', kind: 'ratio', min: 0, max: 1 },
-      { key: 'proactive_reply.hard_pity', section: 'telegram', kind: 'integer', min: 1, max: 100 },
+      { key: 'proactive_reply.enabled', kind: 'boolean' },
+      { key: 'proactive_reply.base_probability', kind: 'ratio', min: 0, max: 1 },
+      { key: 'proactive_reply.increment', kind: 'ratio', min: 0, max: 1 },
+      { key: 'proactive_reply.hard_pity', kind: 'integer', min: 1, max: 100 },
     ],
   },
 ];
