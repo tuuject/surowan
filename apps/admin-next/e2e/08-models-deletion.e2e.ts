@@ -7,14 +7,17 @@ import { E2E_RELAY_ALIAS, E2E_SECRETS } from './models-fixture.ts';
 test.use({ signedIn: true });
 
 const ALIAS = 'batch-delete';
-const MODELS: readonly ProviderModelConfig[] = Array.from({ length: 11 }, (_, index) => ({
-  id: `batch/model-${index}`,
+const batchModel = (id: string): ProviderModelConfig => ({
+  id,
   reasoning: false,
   input: ['text'],
   context_window: 4096,
   max_tokens: 128,
   cost: { input: 0, output: 0, cache_read: 0, cache_write: 0 },
-}));
+});
+const MODELS: readonly ProviderModelConfig[] = Array.from({ length: 11 }, (_, index) =>
+  batchModel(`batch/model-${index}`),
+);
 
 test.beforeEach(async ({ request }) => {
   const view = (await (await request.get(await adminUrl('/api/providers'))).json()) as ProvidersView;
@@ -93,6 +96,35 @@ test('blocks a batch containing a model assigned to a role', async ({ page }) =>
   await page.getByRole('button', { name: 'Provider agent', exact: true }).click();
   await page.getByLabel('Select agent-model', { exact: true }).uncheck();
   await expect(page.getByRole('button', { name: 'Delete selected (1)', exact: true })).toBeEnabled();
+});
+
+test('blocks a selection above the 200-model request limit instead of splitting it', async ({ page }, testInfo) => {
+  const view = (await (await page.request.get(await adminUrl('/api/providers'))).json()) as ProvidersView;
+  const extra = Array.from({ length: 190 }, (_, index) => batchModel(`batch/extra-${index}`));
+  const appended = await page.request.post(await adminUrl(`/api/providers/${ALIAS}/models`), {
+    headers: { 'if-match': view.revision },
+    data: { models: extra },
+  });
+  expect(appended.status()).toBe(200);
+  let batches = 0;
+  await page.route('**/api/providers/models/delete', async (route) => {
+    batches += 1;
+    await route.fallback();
+  });
+
+  await page.goto(await adminUrl('/providers'));
+  await page.getByRole('button', { name: `Provider ${ALIAS}`, exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Select all', exact: true }).check();
+  await expect(page.getByRole('button', { name: 'Delete selected (201)', exact: true })).toBeDisabled();
+  await expect(page.getByText('Up to 200 models can be deleted at once. Deselect some to continue.')).toBeVisible();
+  const screenshotPath = testInfo.outputPath('batch-deletion-limit.png');
+  await page.screenshot({ path: screenshotPath });
+  await testInfo.attach('batch-deletion-limit', { path: screenshotPath, contentType: 'image/png' });
+
+  await page.getByLabel('Select batch/model-0', { exact: true }).uncheck();
+  await expect(page.getByRole('button', { name: 'Delete selected (200)', exact: true })).toBeEnabled();
+  await expect(page.getByText('Up to 200 models can be deleted at once.', { exact: false })).toHaveCount(0);
+  expect(batches).toBe(0);
 });
 
 test('keeps the whole selection after a failed batch and retries with one request', async ({ page }) => {

@@ -69,7 +69,7 @@ export function ModelList({
   onEdit,
   onDeleteModel,
   onDeleteSelected,
-  selectedModelsInUse,
+  deleteSelectedBlocked,
   onFetchModels,
   onAddById,
 }: {
@@ -86,7 +86,8 @@ export function ModelList({
   readonly onEdit: (alias: string, model: ProviderModelConfig) => void;
   readonly onDeleteModel: (alias: string, model: string) => void;
   readonly onDeleteSelected: () => void;
-  readonly selectedModelsInUse: boolean;
+  /** Why the selection cannot be deleted as one batch, or `null` when it can. */
+  readonly deleteSelectedBlocked: string | null;
   readonly onFetchModels: () => void;
   readonly onAddById: () => void;
 }): ReactElement {
@@ -176,7 +177,7 @@ export function ModelList({
             <Button
               color="error"
               iconStart={<TrashIcon />}
-              disabled={runnableSelected.length === 0 || running || selectedModelsInUse}
+              disabled={runnableSelected.length === 0 || running || deleteSelectedBlocked !== null}
               onClick={onDeleteSelected}
               className={css({ fontVariantNumeric: 'tabular-nums' })}
             >
@@ -184,11 +185,11 @@ export function ModelList({
             </Button>
           </div>
         </div>
-        {selectedModelsInUse ? (
+        {deleteSelectedBlocked === null ? null : (
           <p className={css({ marginBlockStart: '3', marginBlockEnd: '0', color: 'text-muted' })}>
-            {t('models.models.page.selectedModelsInUse')}
+            {deleteSelectedBlocked}
           </p>
-        ) : null}
+        )}
 
         {rows.length === 0 ? (
           <div className={css({ paddingBlock: '4' })}>

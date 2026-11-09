@@ -50,6 +50,7 @@ export const models: typeof modelsEn = {
       deleteModelsDescription: '将删除 {{count}} 个模型。若有模型仍在使用或无法删除，整批都不会删除。',
       deleteModelsConfirm: '删除模型',
       selectedModelsInUse: '选中的模型仍在使用，请取消勾选，或先把它的工作交给其他模型。',
+      selectedModelsOverLimit: '一次最多删除 {{max}} 个模型，请减少勾选后再删除。',
       deleteProviderTitle: '删除该供应商？',
       deleteProviderDescription: '{{alias}} 和它的所有模型都会从配置中删除。',
       deleteProviderConfirm: '删除供应商',

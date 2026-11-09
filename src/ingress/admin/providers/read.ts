@@ -153,7 +153,9 @@ export function discoveryApi(provider: FileConfig['providers'][string]): Provide
 
 /**
  * The api shown for a configured builtin alias: the uniform catalog api, or —
- * on a mixed-catalog provider — the first configured model's catalog api.
+ * on a mixed-catalog provider — the first configured model's catalog api. An
+ * emptied mixed-catalog alias shows the OpenAI-compatible adapter that
+ * `builtinModelApi` gives gateway ids, so the alias stays listable and refillable.
  */
 function configuredBuiltinApi(
   alias: string,
@@ -166,7 +168,7 @@ function configuredBuiltinApi(
   }
   const first = provider.models[0];
   if (first === undefined) {
-    return null;
+    return 'openai-completions';
   }
   try {
     return resolveBuiltinModelApi(alias, provider, first.id);

@@ -100,6 +100,59 @@ test('keeps builtin and custom connections when their last models are deleted', 
   }
 });
 
+// A mixed-catalog builtin (OpenRouter) derives its listed api from its first
+// model; once emptied the view must still render, or the panel can neither
+// report the committed deletion nor add a model back.
+test('keeps an emptied mixed-catalog builtin listable and refillable', async () => {
+  const fixture = await adminFixture({
+    transform: (config) => {
+      config.providers.mixed = {
+        kind: 'builtin',
+        provider: 'openrouter',
+        api_key: { jar: 'builtin' },
+        models: [model('anthropic/claude-haiku-4.5')],
+      };
+    },
+  });
+  try {
+    const before = fixture.file();
+    const response = await write(
+      fixture,
+      PATH,
+      'POST',
+      { models: [{ provider: 'mixed', model: 'anthropic/claude-haiku-4.5' }] },
+      await revisionOf(fixture),
+    );
+    expect(response.status).toBe(200);
+    const deleted = await readJson(response);
+    const emptied = { alias: 'mixed', kind: 'builtin', provider: 'openrouter', models: [] };
+    expect(deleted.providers).toContainEqual(expect.objectContaining({ ...emptied, api: 'openai-completions' }));
+    expect(fixture.file().providers.mixed).toEqual({ ...before.providers.mixed, models: [] });
+    expect(fixture.configStore.current().models.getModels('mixed')).toEqual([]);
+
+    const listed = await call(fixture, '/api/providers');
+    expect(listed.status).toBe(200);
+    expect((await readJson(listed)).providers).toContainEqual(expect.objectContaining(emptied));
+
+    const refilled = await write(
+      fixture,
+      '/api/providers/mixed/models',
+      'POST',
+      { models: [model('anthropic/claude-haiku-4.5')] },
+      await revisionOf(fixture),
+    );
+    expect(refilled.status).toBe(200);
+    expect((await readJson(refilled)).providers).toContainEqual(
+      expect.objectContaining({ alias: 'mixed', api: 'anthropic-messages' }),
+    );
+    expect(fixture.configStore.current().models.getModel('mixed', 'anthropic/claude-haiku-4.5')?.api).toBe(
+      'anthropic-messages',
+    );
+  } finally {
+    fixture.store.close();
+  }
+});
+
 test.each([
   ['missing model', { provider: 'agent', model: 'missing' }, 404, 'model_not_found'],
   ['missing provider', { provider: 'missing', model: 'missing' }, 404, 'provider_not_found'],

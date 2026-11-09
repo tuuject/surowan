@@ -26,6 +26,7 @@ import type { HealthCheckResult, ProviderModelConfig, ProviderView } from '@/lib
 import {
   deleteProvider,
   deleteProviderModels,
+  MAX_MODELS_PER_DELETE,
   healthCheckProviderModel,
   replaceProviderModel,
 } from '@/lib/api/providers.ts';
@@ -244,6 +245,12 @@ export default function ProvidersPage(): ReactElement {
     const assigned = modelRoles(view, target.alias, target.model);
     return assigned.agent || assigned.vision || assigned.tool;
   });
+  let deleteSelectedBlocked: string | null = null;
+  if (selectedModelsInUse) {
+    deleteSelectedBlocked = t('models.models.page.selectedModelsInUse');
+  } else if (selectedModels.length > MAX_MODELS_PER_DELETE) {
+    deleteSelectedBlocked = t('models.models.page.selectedModelsOverLimit', { max: MAX_MODELS_PER_DELETE });
+  }
   const confirmModelDeletion = (targets: readonly DeletingModelTarget[]): void => {
     removeModel.reset();
     setDeletingModels(targets);
@@ -360,7 +367,7 @@ export default function ProvidersPage(): ReactElement {
                 onEdit={(alias, model) => setEditing({ alias, model, revision })}
                 onDeleteModel={(alias, model) => confirmModelDeletion([{ alias, model }])}
                 onDeleteSelected={() => confirmModelDeletion(selectedModels)}
-                selectedModelsInUse={selectedModelsInUse}
+                deleteSelectedBlocked={deleteSelectedBlocked}
                 onFetchModels={() => setPicker({ mode: 'discover', alias: selected.alias, nonce: Date.now() })}
                 onAddById={() => setPicker({ mode: 'manual', alias: selected.alias, nonce: Date.now() })}
               />

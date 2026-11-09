@@ -286,6 +286,9 @@ export function replaceProviderModel(
   });
 }
 
+/** The server refuses a larger delete batch whole; splitting it would give up atomicity. */
+export const MAX_MODELS_PER_DELETE = 200;
+
 export function deleteProviderModels(
   models: readonly ProviderModelReference[],
   revision: string,

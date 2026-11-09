@@ -53,6 +53,7 @@ export const models = {
         '{{count}} models will be removed. If any model is in use or cannot be deleted, none will be removed.',
       deleteModelsConfirm: 'Delete models',
       selectedModelsInUse: 'A selected model is in use. Deselect it or assign its role to another model first.',
+      selectedModelsOverLimit: 'Up to {{max}} models can be deleted at once. Deselect some to continue.',
       deleteProviderTitle: 'Delete this provider?',
       deleteProviderDescription: '{{alias}} and all its models will be removed from the configuration.',
       deleteProviderConfirm: 'Delete provider',
