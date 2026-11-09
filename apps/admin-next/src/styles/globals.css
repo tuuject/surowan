@@ -7,6 +7,11 @@ body,
   height: 100%;
 }
 
+/* Keep viewport scrolling on html: Base UI must not clip the fixed-height body when locking a modal. */
+html {
+  overflow-y: auto;
+}
+
 /*
  * Safe area and desktop-shell reservations, carried over from the Koi admin
  * template. The page paints edge to edge (viewport-fit=cover), but content

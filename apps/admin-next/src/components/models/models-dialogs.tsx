@@ -6,7 +6,7 @@ import { ModelEditDialog } from '@/components/models/model-edit-dialog';
 import { ModelPickerDialog, type ModelPickerMode } from '@/components/models/model-picker-dialog';
 import { ProviderWizard } from '@/components/models/provider-wizard';
 import type { ProviderModelConfig, ProvidersView, ProviderView } from '@/lib/api/providers.ts';
-import { modelFormFromConfig } from '@/lib/model-form.ts';
+import { emptyModelForm, modelFormFromConfig } from '@/lib/model-form.ts';
 
 export interface PickerTarget {
   readonly mode: ModelPickerMode;
@@ -19,6 +19,7 @@ export interface EditingTarget {
   readonly alias: string;
   readonly model: ProviderModelConfig;
   readonly revision: string;
+  readonly nonce: number;
 }
 
 export interface DeletingModelTarget {
@@ -56,6 +57,7 @@ export function ModelsDialogs({
   pickerProvider,
   onPickerClose,
   editing,
+  editingOpen,
   onEditingClose,
   save,
   deletingModels,
@@ -72,6 +74,7 @@ export function ModelsDialogs({
   readonly pickerProvider: ProviderView | null;
   readonly onPickerClose: () => void;
   readonly editing: EditingTarget | null;
+  readonly editingOpen: boolean;
   readonly onEditingClose: () => void;
   readonly save: ModelSaveState;
   readonly deletingModels: readonly DeletingModelTarget[];
@@ -80,6 +83,7 @@ export function ModelsDialogs({
   readonly removeProvider: ConfirmState;
 }): ReactElement {
   const { t } = useTranslation();
+  const editingApi = view.providers.find((provider) => provider.alias === editing?.alias)?.api ?? 'openai-completions';
   return (
     <>
       {wizardOpen ? <ProviderWizard revision={revision} onClose={onWizardClose} onCreated={onProviderCreated} /> : null}
@@ -94,29 +98,24 @@ export function ModelsDialogs({
         />
       )}
 
-      {editing === null ? null : (
-        <ModelEditDialog
-          key={`edit-${editing.alias}/${editing.model.id}`}
-          open
-          onOpenChange={(next) => {
-            if (!next) {
-              onEditingClose();
-            }
-          }}
-          api={view.providers.find((provider) => provider.alias === editing.alias)?.api ?? 'openai-completions'}
-          title={t('models.models.page.editTitle', { model: editing.model.id })}
-          description={t('models.models.page.editDescription')}
-          initial={modelFormFromConfig(
-            editing.model,
-            view.providers.find((provider) => provider.alias === editing.alias)?.api ?? 'openai-completions',
-          )}
-          lockId
-          draft={null}
-          pending={save.pending}
-          error={save.error}
-          onSubmit={save.onSubmit}
-        />
-      )}
+      <ModelEditDialog
+        open={editingOpen}
+        onOpenChange={(next) => {
+          if (!next) {
+            onEditingClose();
+          }
+        }}
+        api={editingApi}
+        title={editing === null ? '' : t('models.models.page.editTitle', { model: editing.model.id })}
+        description={t('models.models.page.editDescription')}
+        initial={editing === null ? emptyModelForm(editingApi) : modelFormFromConfig(editing.model, editingApi)}
+        formKey={editing?.nonce}
+        lockId
+        draft={null}
+        pending={save.pending}
+        error={save.error}
+        onSubmit={save.onSubmit}
+      />
 
       {/* `open` stays apart from the target so the text doesn't blank out while the exit fade plays. */}
       <ConfirmDialog

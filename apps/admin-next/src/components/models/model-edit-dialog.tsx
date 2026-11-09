@@ -6,7 +6,7 @@ import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { field } from '@tuuject/koi-react/styled-system/recipes';
-import { type ReactElement, useState } from 'react';
+import { type ReactElement, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LazyDetails } from '@/components/business';
 import type { ThinkingLevel } from '@/lib/api/models.ts';
@@ -92,6 +92,7 @@ export interface ModelEditDialogProps {
   readonly title: string;
   readonly description: string;
   readonly initial: ModelFormState;
+  readonly formKey?: number | undefined;
   /** A model already in the file keeps its id: changing it is delete + add. */
   readonly lockId: boolean;
   readonly draft: ModelMetadataDraft | null;
@@ -103,20 +104,57 @@ export interface ModelEditDialogProps {
 export function ModelEditDialog({
   open,
   onOpenChange,
-  api,
   title,
   description,
+  formKey,
+  pending,
+  ...formProps
+}: ModelEditDialogProps): ReactElement {
+  const { t } = useTranslation();
+  const formId = useId();
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      description={description}
+      size="lg"
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            color="secondary"
+            disabled={pending}
+            onClick={() => onOpenChange(false)}
+          >
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" form={formId} disabled={pending}>
+            {pending ? t('common.saving') : t('common.save')}
+          </Button>
+        </>
+      }
+    >
+      <ModelEditForm key={formKey} {...formProps} formId={formId} pending={pending} />
+    </Dialog>
+  );
+}
+
+function ModelEditForm({
+  formId,
+  api,
   initial,
   lockId,
   draft,
   pending,
   error,
   onSubmit,
-}: ModelEditDialogProps): ReactElement {
+}: Pick<ModelEditDialogProps, 'api' | 'initial' | 'lockId' | 'draft' | 'pending' | 'error' | 'onSubmit'> & {
+  readonly formId: string;
+}): ReactElement {
   const { t } = useTranslation();
-  // The form is initialized once, at mount: every caller renders this dialog
-  // only while it has a target and remounts it (a fresh `key`) for the next one,
-  // so there is no state to sync after the first render.
+  // Only the form remounts for a new edit; the dialog root stays mounted for its transitions.
   const [form, setForm] = useState<ModelFormState>(initial);
   const [touched, setTouched] = useState(false);
 
@@ -146,38 +184,19 @@ export function ModelEditDialog({
   };
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={title}
-      description={description}
-      size="lg"
-      footer={
-        <>
-          <Button
-            type="button"
-            variant="outline"
-            color="secondary"
-            disabled={pending}
-            onClick={() => onOpenChange(false)}
-          >
-            {t('common.cancel')}
-          </Button>
-          <Button
-            type="button"
-            disabled={pending}
-            onClick={() => {
-              setTouched(true);
-              if (errorCount > 0) {
-                return;
-              }
-              onSubmit(modelFormToConfig(form, api));
-            }}
-          >
-            {pending ? t('common.saving') : t('common.save')}
-          </Button>
-        </>
-      }
+    <form
+      id={formId}
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (pending) {
+          return;
+        }
+        setTouched(true);
+        if (errorCount === 0) {
+          onSubmit(modelFormToConfig(form, api));
+        }
+      }}
     >
       <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
         {confirmations.length > 0 ? (
@@ -392,6 +411,6 @@ export function ModelEditDialog({
           <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>{error}</p>
         ) : null}
       </div>
-    </Dialog>
+    </form>
   );
 }

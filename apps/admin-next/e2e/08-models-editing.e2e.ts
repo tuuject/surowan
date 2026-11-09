@@ -17,6 +17,96 @@ import {
 test.use({ signedIn: true });
 
 test.describe('providers page editing', () => {
+  for (const viewport of [
+    { width: 1280, height: 600 },
+    { width: 390, height: 844 },
+  ]) {
+    test(`preserves the scrolled page under edit and confirmation dialogs at ${viewport.width}px`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize(viewport);
+      await page.goto(await adminUrl('/providers'));
+      await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` }).click();
+      const positions: { action: string; before: number; opened: number; closed: number }[] = [];
+      for (const action of ['Edit', 'Delete']) {
+        const trigger = page.getByRole('button', { name: `${action} relay-existing-model`, exact: true });
+        await trigger.scrollIntoViewIfNeeded();
+        const before = await page.evaluate(() => window.scrollY);
+        expect(before).toBeGreaterThan(100);
+        const background = await modelListRow(page, 'relay-existing-model').boundingBox();
+        expect(background).not.toBeNull();
+        await trigger.click();
+        const dialog = page.getByRole(action === 'Edit' ? 'dialog' : 'alertdialog');
+        await expect(dialog).toBeVisible();
+        // Wait for the deferred scroll lock, not just the dialog's mount.
+        await page.waitForFunction(() =>
+          [document.documentElement, document.body].some((element) => getComputedStyle(element).overflowY === 'hidden'),
+        );
+        const opened = await page.evaluate(() => window.scrollY);
+        expect(opened).toBe(before);
+        expect((await modelListRow(page, 'relay-existing-model').boundingBox())?.y).toBe(background?.y);
+        await page.keyboard.press('Escape');
+        await expect(dialog).toHaveCount(0);
+        await page.waitForFunction(() =>
+          [document.documentElement, document.body].every(
+            (element) => getComputedStyle(element).overflowY !== 'hidden',
+          ),
+        );
+        const closed = await page.evaluate(() => window.scrollY);
+        expect(closed).toBe(before);
+        positions.push({ action, before, opened, closed });
+      }
+      await testInfo.attach('modal-scroll-positions', {
+        body: JSON.stringify({ viewport, positions }, null, 2),
+        contentType: 'application/json',
+      });
+    });
+  }
+
+  test('animates model editing in both directions and discards cancelled changes', async ({ page }, testInfo) => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.goto(await adminUrl('/providers'));
+    await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` }).click();
+    await page.evaluate(() => {
+      const transitions: { closing: boolean; name: string | undefined }[] = [];
+      Object.assign(window, { modelEditTransitions: transitions });
+      document.addEventListener('transitionrun', (event) => {
+        if (event.target instanceof HTMLElement && event.target.getAttribute('role') === 'dialog') {
+          transitions.push({
+            closing: event.target.hasAttribute('data-ending-style'),
+            name: event.target.querySelector<HTMLInputElement>('#model-name')?.value,
+          });
+        }
+      });
+    });
+    const transitions = () =>
+      page.evaluate(() => {
+        // The listener above owns this page-local observation buffer.
+        const state = window as typeof window & {
+          modelEditTransitions: { closing: boolean; name: string | undefined }[];
+        };
+        return state.modelEditTransitions;
+      });
+    const edit = page.getByRole('button', { name: 'Edit relay-existing-model' });
+    await edit.click();
+    await expect.poll(async () => (await transitions()).some((entry) => !entry.closing)).toBe(true);
+    const originalName = await page.locator('#model-name').inputValue();
+    await page.locator('#model-name').fill('Cancelled model name');
+    await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect
+      .poll(async () => (await transitions()).some((entry) => entry.closing && entry.name === 'Cancelled model name'))
+      .toBe(true);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await edit.click();
+    await expect(page.locator('#model-name')).toHaveValue(originalName);
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await testInfo.attach('model-edit-transitions', {
+      body: JSON.stringify(await transitions(), null, 2),
+      contentType: 'application/json',
+    });
+  });
+
   test('declares thinking levels in the edit dialog only for a reasoning model', async ({ page }) => {
     await page.goto(await adminUrl('/providers'));
     await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` }).click();

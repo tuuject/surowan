@@ -56,6 +56,7 @@ export default function ProvidersPage(): ReactElement {
   // The revision travels with the snapshot the edit form starts from, so a save
   // can never pass the concurrency check with a form built from older data.
   const [editing, setEditing] = useState<EditingTarget | null>(null);
+  const [editingOpen, setEditingOpen] = useState(false);
   // Each confirmation keeps `open` apart from its target, so closing never blanks the text mid-fade.
   const [deletingModels, setDeletingModels] = useState<readonly DeletingModelTarget[]>([]);
   const [deleteModelOpen, setDeleteModelOpen] = useState(false);
@@ -164,7 +165,7 @@ export default function ProvidersPage(): ReactElement {
       readonly revision: string;
     }) => replaceProviderModel(alias, model.id, model, formRevision),
     onSuccess: (result) => {
-      setEditing(null);
+      setEditingOpen(false);
       write.succeeded(result.apply);
     },
     onError: (error) => {
@@ -172,7 +173,7 @@ export default function ProvidersPage(): ReactElement {
       if (isConfigConflict(error)) {
         // Retrying this form would overwrite whatever changed on the server, so
         // it closes; reopening starts from the refreshed definition.
-        setEditing(null);
+        setEditingOpen(false);
         saveModel.reset();
         toast.error(t('models.models.page.editConflictToast'));
       }
@@ -364,7 +365,11 @@ export default function ProvidersPage(): ReactElement {
                 runnableSelected={runnableSelected}
                 rolePending={roles.pending}
                 onAssignRole={roles.assign}
-                onEdit={(alias, model) => setEditing({ alias, model, revision })}
+                onEdit={(alias, model) => {
+                  saveModel.reset();
+                  setEditing((previous) => ({ alias, model, revision, nonce: (previous?.nonce ?? 0) + 1 }));
+                  setEditingOpen(true);
+                }}
                 onDeleteModel={(alias, model) => confirmModelDeletion([{ alias, model }])}
                 onDeleteSelected={() => confirmModelDeletion(selectedModels)}
                 deleteSelectedBlocked={deleteSelectedBlocked}
@@ -386,7 +391,8 @@ export default function ProvidersPage(): ReactElement {
         pickerProvider={pickerProvider}
         onPickerClose={() => setPicker(null)}
         editing={editing}
-        onEditingClose={() => setEditing(null)}
+        editingOpen={editingOpen}
+        onEditingClose={() => setEditingOpen(false)}
         save={{
           pending: saveModel.isPending,
           error: saveModel.isError ? writeErrorMessage(saveModel.error) : null,
