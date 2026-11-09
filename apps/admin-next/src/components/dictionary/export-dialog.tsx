@@ -40,6 +40,19 @@ export function ExportDialog({
     },
   });
 
+  // Base UI keeps the popup mounted while it fades out, so this component and
+  // its mutation outlive a session. The state is replaced on the open edge —
+  // a render-phase adjustment, the app's substitute for a reset effect — and
+  // never on close, so the form stays on screen through the exit transition.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) {
+      download.reset();
+      setFormat('csv');
+    }
+  }
+
   return (
     <Dialog
       open={open}

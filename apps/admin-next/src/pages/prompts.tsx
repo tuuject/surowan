@@ -58,8 +58,11 @@ export default function PromptsPage(): ReactElement {
   const fileQuery = useQuery(promptDocumentQuery(scope));
   const versions = useQuery(promptVersionsQuery(scope));
   const [notice, setNotice] = useState<Notice | null>(null);
+  // Each confirmation keeps `open` apart from its target, so closing never blanks the text mid-fade.
   const [cancelTarget, setCancelTarget] = useState<number | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<PromptVersionItem | null>(null);
+  const [restoreOpen, setRestoreOpen] = useState(false);
   const [compare, setCompare] = useState<{ readonly from: string; readonly to: string } | null>(null);
   const [compareScope, setCompareScope] = useState(scopeValue);
   if (compareScope !== scopeValue) {
@@ -107,6 +110,7 @@ export default function PromptsPage(): ReactElement {
     invalidatePrompts();
     if (result.affected_running > 0) {
       setCancelTarget(result.affected_running);
+      setCancelOpen(true);
     }
   };
   const save = useMutation({
@@ -131,7 +135,7 @@ export default function PromptsPage(): ReactElement {
       setNotice(null);
     },
     onSuccess: (result) => {
-      setRestoreTarget(null);
+      setRestoreOpen(false);
       succeedWrite(result);
     },
     onError: (error) => {
@@ -139,14 +143,14 @@ export default function PromptsPage(): ReactElement {
       // Both failures mean the recorded history moved: close the dialog onto
       // the refreshed file view and the failure notice.
       if (error instanceof ApiError && (error.code === PROMPT_CONFLICT_CODE || failedPromptVersion(error) !== null)) {
-        setRestoreTarget(null);
+        setRestoreOpen(false);
       }
     },
   });
   const cancel = useMutation({
     mutationFn: () => cancelPromptRunning(scope),
     onSuccess: (result) => {
-      setCancelTarget(null);
+      setCancelOpen(false);
       toast.success(
         t('pages.prompts.cancelResult', { count: result.canceled_invocations, buckets: result.expired_buckets }),
       );
@@ -158,8 +162,8 @@ export default function PromptsPage(): ReactElement {
     // scopes keeps it so the next list is already narrowed.
     query.apply({ chat: next.chat, search: query.value.search });
     setNotice(null);
-    setCancelTarget(null);
-    setRestoreTarget(null);
+    setCancelOpen(false);
+    setRestoreOpen(false);
     setCompare(null);
   };
   const diffSelection = compare ?? { from: '', to: '' };
@@ -215,6 +219,7 @@ export default function PromptsPage(): ReactElement {
               onClick={() => {
                 restore.reset();
                 setRestoreTarget(row);
+                setRestoreOpen(true);
               }}
             >
               {t('pages.prompts.restore')}
@@ -425,10 +430,10 @@ export default function PromptsPage(): ReactElement {
         </div>
       </div>
       <ConfirmDialog
-        open={cancelTarget !== null}
+        open={cancelOpen}
         onOpenChange={(open) => {
           if (!open && !cancel.isPending) {
-            setCancelTarget(null);
+            setCancelOpen(false);
           }
         }}
         title={t('pages.prompts.affectedTitle')}
@@ -441,10 +446,10 @@ export default function PromptsPage(): ReactElement {
         onConfirm={() => cancel.mutate()}
       />
       <ConfirmDialog
-        open={restoreTarget !== null}
+        open={restoreOpen}
         onOpenChange={(open) => {
           if (!open && !restore.isPending) {
-            setRestoreTarget(null);
+            setRestoreOpen(false);
           }
         }}
         title={t('pages.prompts.restoreTitle', { seq: restoreTarget?.seq ?? '' })}

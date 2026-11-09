@@ -52,7 +52,7 @@ test.describe('model health checks', () => {
       await page.getByLabel(`Select ${E2E_HEALTH_FAIL_MODEL}`, { exact: true }).check();
       await selectProvider(page, E2E_HEALTH_ALIAS_A);
       await page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL}`, { exact: true }).check();
-      await page.getByRole('button', { name: /^Test selected \(\d+\)$/ }).click();
+      await page.getByRole('button', { name: 'Test', exact: true }).click();
 
       // All three concurrency slots are busy upstream (held) — including the
       // HTTP-500 model, which counts toward in-flight like any other request —

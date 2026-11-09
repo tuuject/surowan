@@ -52,7 +52,11 @@ export default function ProvidersPage(): ReactElement {
   const search = query.value.search;
   const [selectedAlias, setSelectedAlias] = useState<string | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
+  // Per-open counters, not remount keys: the dialogs stay mounted so Base UI can
+  // animate both directions and only their inner session restarts.
+  const [wizardKey, setWizardKey] = useState(0);
   const [picker, setPicker] = useState<PickerTarget | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   // The revision travels with the snapshot the edit form starts from, so a save
   // can never pass the concurrency check with a form built from older data.
   const [editing, setEditing] = useState<EditingTarget | null>(null);
@@ -230,8 +234,6 @@ export default function ProvidersPage(): ReactElement {
   const rows: readonly ModelRow[] =
     selected === null ? [] : selected.models.map((model) => ({ alias: selected.alias, api: selected.api, model }));
 
-  const pickerProvider = picker === null ? null : (view.providers.find((p) => p.alias === picker.alias) ?? null);
-
   const saveEdit = (model: ProviderModelConfig): void => {
     if (editing !== null) {
       saveModel.mutate({ alias: editing.alias, model, revision: editing.revision });
@@ -301,7 +303,10 @@ export default function ProvidersPage(): ReactElement {
             search={search}
             onSearch={(next) => query.apply({ search: next })}
             onSelect={setSelectedAlias}
-            onNewProvider={() => setWizardOpen(true)}
+            onNewProvider={() => {
+              setWizardKey((previous) => previous + 1);
+              setWizardOpen(true);
+            }}
             onRefresh={() => void providers.refetch()}
             refreshing={providers.isRefetching}
           />
@@ -367,14 +372,36 @@ export default function ProvidersPage(): ReactElement {
                 onAssignRole={roles.assign}
                 onEdit={(alias, model) => {
                   saveModel.reset();
-                  setEditing((previous) => ({ alias, model, revision, nonce: (previous?.nonce ?? 0) + 1 }));
+                  setEditing((previous) => ({
+                    alias,
+                    model,
+                    api: selected.api,
+                    revision,
+                    nonce: (previous?.nonce ?? 0) + 1,
+                  }));
                   setEditingOpen(true);
                 }}
                 onDeleteModel={(alias, model) => confirmModelDeletion([{ alias, model }])}
                 onDeleteSelected={() => confirmModelDeletion(selectedModels)}
                 deleteSelectedBlocked={deleteSelectedBlocked}
-                onFetchModels={() => setPicker({ mode: 'discover', alias: selected.alias, nonce: Date.now() })}
-                onAddById={() => setPicker({ mode: 'manual', alias: selected.alias, nonce: Date.now() })}
+                onFetchModels={() => {
+                  // The target is a snapshot: the picker keeps showing the provider
+                  // it was opened for even if the registry refetches underneath it.
+                  setPicker((previous) => ({
+                    mode: 'discover',
+                    provider: selected,
+                    nonce: (previous?.nonce ?? 0) + 1,
+                  }));
+                  setPickerOpen(true);
+                }}
+                onAddById={() => {
+                  setPicker((previous) => ({
+                    mode: 'manual',
+                    provider: selected,
+                    nonce: (previous?.nonce ?? 0) + 1,
+                  }));
+                  setPickerOpen(true);
+                }}
               />
             </>
           )}
@@ -382,14 +409,14 @@ export default function ProvidersPage(): ReactElement {
       </div>
 
       <ModelsDialogs
-        view={view}
         revision={revision}
         wizardOpen={wizardOpen}
+        wizardKey={wizardKey}
         onWizardClose={() => setWizardOpen(false)}
         onProviderCreated={(alias) => setSelectedAlias(alias)}
         picker={picker}
-        pickerProvider={pickerProvider}
-        onPickerClose={() => setPicker(null)}
+        pickerOpen={pickerOpen}
+        onPickerClose={() => setPickerOpen(false)}
         editing={editing}
         editingOpen={editingOpen}
         onEditingClose={() => setEditingOpen(false)}
@@ -423,7 +450,11 @@ export default function ProvidersPage(): ReactElement {
           onClose: () => setDeleteProviderOpen(false),
         }}
       />
-      <ThinkingResetDialog resets={roles.thinkingResets} onClose={roles.closeThinkingResets} />
+      <ThinkingResetDialog
+        resets={roles.thinkingResets}
+        open={roles.thinkingResetsOpen}
+        onClose={roles.closeThinkingResets}
+      />
     </div>
   );
 }

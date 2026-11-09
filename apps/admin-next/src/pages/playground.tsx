@@ -48,8 +48,6 @@ export default function PlaygroundPage(): ReactElement {
     onSuccess: (result) => {
       toast.success(t('playground.rooms.created'));
       setCreateOpen(false);
-      setNewTitle('');
-      setNewMembers('');
       roomKey.settle();
       void queryClient.invalidateQueries({ queryKey: ['playground-rooms'] });
       selectRoom(result.room.id);
@@ -80,7 +78,16 @@ export default function PlaygroundPage(): ReactElement {
     <div className={css({ display: 'flex', minWidth: '0', flexDirection: 'column', gap: '5' })}>
       <ListPageHeader title={t('playground.title')} description={t('playground.intro')} />
       <ListToolbar onRefresh={() => void rooms.refetch()} refreshing={rooms.isRefetching}>
-        <Button variant="outline" onClick={() => setCreateOpen(true)} iconStart={<PlusIcon />}>
+        <Button
+          variant="outline"
+          onClick={() => {
+            createRoom.reset();
+            setNewTitle('');
+            setNewMembers('');
+            setCreateOpen(true);
+          }}
+          iconStart={<PlusIcon />}
+        >
           {t('playground.rooms.create')}
         </Button>
       </ListToolbar>

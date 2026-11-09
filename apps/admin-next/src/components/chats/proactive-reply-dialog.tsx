@@ -5,7 +5,7 @@ import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
 import { RadioGroup } from '@tuuject/koi-react/radio-group';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { type ReactElement, useState } from 'react';
+import { type ReactElement, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ChatEntry, ChatsView, ProactiveReplyWrite } from '@/lib/api/chats.ts';
 import { updateChatProactiveReply } from '@/lib/api/chats.ts';
@@ -24,15 +24,85 @@ function initialMode(chat: ChatEntry): ProactiveMode {
   return override.enabled === false ? 'off' : 'custom';
 }
 
-/** The dialog captures the view when opened: a background refetch cannot upgrade a stale form's revision. */
+export interface ProactiveReplyDialogProps {
+  /** `open` stays apart from the chat so the title doesn't blank out while the exit fade plays. */
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly view: ChatsView;
+  readonly chat: ChatEntry | null;
+  /** Remounts the form for every open: saving never starts from the previous draft. */
+  readonly formKey: number;
+}
+
+/**
+ * Proactive reply settings for one Chat. The dialog root stays mounted for its
+ * transitions; only the form inside remounts per open.
+ */
 export function ProactiveReplyDialog({
+  open,
+  onOpenChange,
+  view,
+  chat,
+  formKey,
+}: ProactiveReplyDialogProps): ReactElement {
+  const { t } = useTranslation();
+  const formId = useId();
+  const [pending, setPending] = useState(false);
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && pending) {
+          return;
+        }
+        onOpenChange(next);
+      }}
+      title={t('pages.chats.proactiveTitle')}
+      description={t('pages.chats.proactiveDescription')}
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            color="secondary"
+            disabled={pending}
+            onClick={() => onOpenChange(false)}
+          >
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" form={formId} loading={pending} loadingLabel={t('common.saving')}>
+            {t('common.save')}
+          </Button>
+        </>
+      }
+    >
+      {chat === null ? null : (
+        <ProactiveReplyForm
+          key={formKey}
+          formId={formId}
+          view={view}
+          chat={chat}
+          onClose={() => onOpenChange(false)}
+          onPendingChange={setPending}
+        />
+      )}
+    </Dialog>
+  );
+}
+
+function ProactiveReplyForm({
+  formId,
   view,
   chat,
   onClose,
+  onPendingChange,
 }: {
+  readonly formId: string;
+  /** The whole view is captured when opened: background refetches cannot upgrade a stale form's revision. */
   readonly view: ChatsView;
   readonly chat: ChatEntry;
   readonly onClose: () => void;
+  readonly onPendingChange: (pending: boolean) => void;
 }): ReactElement {
   const { t } = useTranslation();
   const write = useProviderWrite();
@@ -46,6 +116,7 @@ export function ProactiveReplyDialog({
   const [validation, setValidation] = useState<string | null>(null);
   const save = useMutation({
     mutationFn: (body: ProactiveReplyWrite) => updateChatProactiveReply(chat.id, body, view.revision),
+    onMutate: () => onPendingChange(true),
     onSuccess: (result) => {
       write.succeeded(result.apply);
       onClose();
@@ -57,6 +128,7 @@ export function ProactiveReplyDialog({
         toast.error(t('pages.chats.configConflictEdit'));
       }
     },
+    onSettled: () => onPendingChange(false),
   });
   const submit = (): void => {
     if (mode !== 'custom') {
@@ -95,111 +167,89 @@ export function ProactiveReplyDialog({
     pity: globalSettings.hard_pity,
   });
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => !open && !save.isPending && onClose()}
-      title={t('pages.chats.proactiveTitle')}
-      description={t('pages.chats.proactiveDescription')}
-      footer={
-        <>
-          <Button type="button" variant="ghost" color="secondary" disabled={save.isPending} onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            type="submit"
-            form="proactive-reply-dialog-form"
-            loading={save.isPending}
-            loadingLabel={t('common.saving')}
-          >
-            {t('common.save')}
-          </Button>
-        </>
-      }
+    <form
+      id={formId}
+      noValidate
+      className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}
+      onSubmit={(event) => {
+        event.preventDefault();
+        submit();
+      }}
     >
-      <form
-        id="proactive-reply-dialog-form"
-        noValidate
-        className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}
-        onSubmit={(event) => {
-          event.preventDefault();
-          submit();
-        }}
-      >
-        <fieldset disabled={save.isPending} className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
-          <RadioGroup
-            label={t('pages.chats.colProactive')}
-            value={mode}
-            onChange={(next) => {
-              if (next === 'inherit' || next === 'off' || next === 'custom') {
-                setMode(next);
-                setValidation(null);
-              }
-            }}
-            options={[
-              {
-                value: 'inherit',
-                label: t('pages.chats.proactiveInherit'),
-                description: globalSettings.enabled
-                  ? t('pages.chats.proactiveInheritHint', { summary: globalSummary })
-                  : t('pages.chats.proactiveInheritOffHint'),
-              },
-              { value: 'off', label: t('pages.chats.proactiveOff'), description: t('pages.chats.proactiveOffHint') },
-              {
-                value: 'custom',
-                label: t('pages.chats.proactiveCustom'),
-                description: t('pages.chats.proactiveCustomHint'),
-              },
-            ]}
-          />
-          {mode === 'custom' ? (
-            <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
-              <Field label={t('pages.chats.proactiveBase')}>
-                <Input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={base}
-                  onChange={(event) => setBase(event.target.value)}
-                />
-              </Field>
-              <Field label={t('pages.chats.proactiveIncrement')}>
-                <Input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={increment}
-                  onChange={(event) => setIncrement(event.target.value)}
-                />
-              </Field>
-              <Field label={t('pages.chats.proactivePity')}>
-                <Input
-                  type="number"
-                  min={1}
-                  max={100}
-                  step={1}
-                  value={pity}
-                  onChange={(event) => setPity(event.target.value)}
-                />
-              </Field>
-              <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.proactiveMathHint')}</p>
-            </div>
-          ) : null}
-          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.proactiveDirectHint')}</p>
-        </fieldset>
-        {validation !== null ? (
-          <p role="alert" className={css({ textStyle: 'body', color: 'error-text' })}>
-            {validation}
-          </p>
+      <fieldset disabled={save.isPending} className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
+        <RadioGroup
+          label={t('pages.chats.colProactive')}
+          value={mode}
+          onChange={(next) => {
+            if (next === 'inherit' || next === 'off' || next === 'custom') {
+              setMode(next);
+              setValidation(null);
+            }
+          }}
+          options={[
+            {
+              value: 'inherit',
+              label: t('pages.chats.proactiveInherit'),
+              description: globalSettings.enabled
+                ? t('pages.chats.proactiveInheritHint', { summary: globalSummary })
+                : t('pages.chats.proactiveInheritOffHint'),
+            },
+            { value: 'off', label: t('pages.chats.proactiveOff'), description: t('pages.chats.proactiveOffHint') },
+            {
+              value: 'custom',
+              label: t('pages.chats.proactiveCustom'),
+              description: t('pages.chats.proactiveCustomHint'),
+            },
+          ]}
+        />
+        {mode === 'custom' ? (
+          <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+            <Field label={t('pages.chats.proactiveBase')}>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                value={base}
+                onChange={(event) => setBase(event.target.value)}
+              />
+            </Field>
+            <Field label={t('pages.chats.proactiveIncrement')}>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                value={increment}
+                onChange={(event) => setIncrement(event.target.value)}
+              />
+            </Field>
+            <Field label={t('pages.chats.proactivePity')}>
+              <Input
+                type="number"
+                min={1}
+                max={100}
+                step={1}
+                value={pity}
+                onChange={(event) => setPity(event.target.value)}
+              />
+            </Field>
+            <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.proactiveMathHint')}</p>
+          </div>
         ) : null}
-        {save.isError ? (
-          <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-            {errorMessage(save.error)}
-          </p>
-        ) : null}
-      </form>
-    </Dialog>
+        <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.proactiveDirectHint')}</p>
+      </fieldset>
+      {validation !== null ? (
+        <p role="alert" className={css({ textStyle: 'body', color: 'error-text' })}>
+          {validation}
+        </p>
+      ) : null}
+      {save.isError ? (
+        <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+          {errorMessage(save.error)}
+        </p>
+      ) : null}
+    </form>
   );
 }
 

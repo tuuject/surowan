@@ -5,7 +5,7 @@ import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Switch } from '@tuuject/koi-react/switch';
-import { type ReactElement, useState } from 'react';
+import { type ReactElement, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SettingRow } from '@/components/business';
 import type { ChatEntry, ChatsView } from '@/lib/api/chats.ts';
@@ -15,19 +15,81 @@ import { isConfigConflict } from '@/lib/model-manager';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
 
+export interface GroupMemoryDialogProps {
+  /** `open` stays apart from the chat so the title doesn't blank out while the exit fade plays. */
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly view: ChatsView;
+  readonly chat: ChatEntry | null;
+  /** Remounts the form for every open: saving never starts from the previous draft. */
+  readonly formKey: number;
+}
+
 /**
- * The dialog captures the view when opened: a background refetch cannot upgrade
- * a stale form's revision. Switching the feature aborts the Chat's running
- * Invocations and rebuilds its Context, so the warning is part of the form.
+ * Group memory for one Chat. The dialog root stays mounted for its transitions;
+ * only the form inside remounts per open. Switching the feature aborts the
+ * Chat's running Invocations and rebuilds its Context, so the warning is part
+ * of the form.
  */
-export function GroupMemoryDialog({
+export function GroupMemoryDialog({ open, onOpenChange, view, chat, formKey }: GroupMemoryDialogProps): ReactElement {
+  const { t } = useTranslation();
+  const formId = useId();
+  const [pending, setPending] = useState(false);
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && pending) {
+          return;
+        }
+        onOpenChange(next);
+      }}
+      title={t('pages.chats.groupMemoryTitle')}
+      description={t('pages.chats.groupMemoryDescription')}
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            color="secondary"
+            disabled={pending}
+            onClick={() => onOpenChange(false)}
+          >
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" form={formId} disabled={pending}>
+            {pending ? t('common.saving') : t('common.save')}
+          </Button>
+        </>
+      }
+    >
+      {chat === null ? null : (
+        <GroupMemoryForm
+          key={formKey}
+          formId={formId}
+          view={view}
+          chat={chat}
+          onClose={() => onOpenChange(false)}
+          onPendingChange={setPending}
+        />
+      )}
+    </Dialog>
+  );
+}
+
+function GroupMemoryForm({
+  formId,
   view,
   chat,
   onClose,
+  onPendingChange,
 }: {
+  readonly formId: string;
+  /** The whole view is captured when opened: background refetches cannot upgrade a stale form's revision. */
   readonly view: ChatsView;
   readonly chat: ChatEntry;
   readonly onClose: () => void;
+  readonly onPendingChange: (pending: boolean) => void;
 }): ReactElement {
   const { t } = useTranslation();
   const write = useProviderWrite();
@@ -42,6 +104,7 @@ export function GroupMemoryDialog({
         enabled ? { enabled: true, idle_minutes: idle } : { enabled: false },
         view.revision,
       ),
+    onMutate: () => onPendingChange(true),
     onSuccess: (result) => {
       write.succeeded(result.apply);
       onClose();
@@ -53,6 +116,7 @@ export function GroupMemoryDialog({
         toast.error(t('pages.chats.configConflictEdit'));
       }
     },
+    onSettled: () => onPendingChange(false),
   });
   const submit = (): void => {
     if (!enabled) {
@@ -69,68 +133,51 @@ export function GroupMemoryDialog({
     save.mutate(minutes);
   };
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => !open && !save.isPending && onClose()}
-      title={t('pages.chats.groupMemoryTitle')}
-      description={t('pages.chats.groupMemoryDescription')}
-      footer={
-        <>
-          <Button type="button" variant="ghost" color="secondary" disabled={save.isPending} onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button type="submit" form="group-memory-dialog-form" disabled={save.isPending}>
-            {save.isPending ? t('common.saving') : t('common.save')}
-          </Button>
-        </>
-      }
+    <form
+      id={formId}
+      noValidate
+      className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}
+      onSubmit={(event) => {
+        event.preventDefault();
+        submit();
+      }}
     >
-      <form
-        id="group-memory-dialog-form"
-        noValidate
-        className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}
-        onSubmit={(event) => {
-          event.preventDefault();
-          submit();
-        }}
-      >
-        <fieldset disabled={save.isPending} className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-          <SettingRow label={t('pages.chats.groupMemoryEnable')} description={t('pages.chats.groupMemoryEnableHint')}>
-            {({ id, describedBy }) => (
-              <Switch id={id} aria-describedby={describedBy} checked={enabled} onCheckedChange={setEnabled} />
-            )}
-          </SettingRow>
-          <Field
-            label={t('pages.chats.groupMemoryIdle')}
-            help={
-              <>
-                <span className={css({ display: 'block' })}>{t('pages.chats.groupMemoryIdleHint')}</span>
-                <span className={css({ display: 'block' })}>{t('pages.chats.groupMemoryCutover')}</span>
-              </>
-            }
-          >
-            <Input
-              type="number"
-              min={1}
-              max={1_440}
-              step={1}
-              disabled={!enabled}
-              value={idleMinutes}
-              onChange={(event) => setIdleMinutes(event.target.value)}
-            />
-          </Field>
-        </fieldset>
-        {validation !== null ? (
-          <p role="alert" className={css({ textStyle: 'body', color: 'error-text' })}>
-            {validation}
-          </p>
-        ) : null}
-        {save.isError ? (
-          <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-            {errorMessage(save.error)}
-          </p>
-        ) : null}
-      </form>
-    </Dialog>
+      <fieldset disabled={save.isPending} className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+        <SettingRow label={t('pages.chats.groupMemoryEnable')} description={t('pages.chats.groupMemoryEnableHint')}>
+          {({ id, describedBy }) => (
+            <Switch id={id} aria-describedby={describedBy} checked={enabled} onCheckedChange={setEnabled} />
+          )}
+        </SettingRow>
+        <Field
+          label={t('pages.chats.groupMemoryIdle')}
+          help={
+            <>
+              <span className={css({ display: 'block' })}>{t('pages.chats.groupMemoryIdleHint')}</span>
+              <span className={css({ display: 'block' })}>{t('pages.chats.groupMemoryCutover')}</span>
+            </>
+          }
+        >
+          <Input
+            type="number"
+            min={1}
+            max={1_440}
+            step={1}
+            disabled={!enabled}
+            value={idleMinutes}
+            onChange={(event) => setIdleMinutes(event.target.value)}
+          />
+        </Field>
+      </fieldset>
+      {validation !== null ? (
+        <p role="alert" className={css({ textStyle: 'body', color: 'error-text' })}>
+          {validation}
+        </p>
+      ) : null}
+      {save.isError ? (
+        <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+          {errorMessage(save.error)}
+        </p>
+      ) : null}
+    </form>
   );
 }

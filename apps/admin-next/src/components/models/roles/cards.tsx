@@ -43,6 +43,8 @@ export function RolesForm({ view }: { readonly view: ProvidersView }): ReactElem
   const write = useProviderWrite();
   const [edits, setEdits] = useState<RoleEdits>({});
   const [resets, setResets] = useState<readonly ChatThinkingReset[]>([]);
+  // Closing hides the dialog without emptying it, so the rows stay while it fades out.
+  const [resetsOpen, setResetsOpen] = useState(false);
   const draft = draftRoles(view, edits);
   const count = changeCount(view, draft);
   const changed = new Set(changedRoles(view, draft));
@@ -59,6 +61,7 @@ export function RolesForm({ view }: { readonly view: ProvidersView }): ReactElem
       return next;
     });
     setResets(result.resets);
+    setResetsOpen(result.resets.length > 0);
   };
 
   const save = useMutation({
@@ -232,7 +235,7 @@ export function RolesForm({ view }: { readonly view: ProvidersView }): ReactElem
           setEdits({});
         }}
       />
-      <ThinkingResetDialog resets={resets} onClose={() => setResets([])} />
+      <ThinkingResetDialog open={resetsOpen} resets={resets} onClose={() => setResetsOpen(false)} />
     </form>
   );
 }

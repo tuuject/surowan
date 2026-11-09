@@ -181,6 +181,9 @@ test.describe('providers page editing', () => {
     // and the new provider is selected in the list.
     await expect(appliedToast(page).first()).toBeVisible();
     await expect(page.getByRole('button', { name: 'Provider relay2' })).toBeVisible();
+    // The wizard fades out while staying in the DOM; wait for it to leave so its
+    // own "Fetch models" button cannot collide with the page's.
+    await expect(page.getByRole('dialog')).toHaveCount(0);
 
     // The running registry already knows the new connection, so saved-mode
     // discovery fetches the listing without asking for the key again.

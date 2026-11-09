@@ -1,5 +1,5 @@
 import { writeFile } from 'node:fs/promises';
-import { expect } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import type { ProviderModelConfig, ProvidersView } from '../src/lib/api/providers.ts';
 import { adminUrl, appliedToast, modelListRow, test } from './helpers.ts';
 import { E2E_RELAY_ALIAS, E2E_SECRETS } from './models-fixture.ts';
@@ -18,6 +18,12 @@ const batchModel = (id: string): ProviderModelConfig => ({
 const MODELS: readonly ProviderModelConfig[] = Array.from({ length: 11 }, (_, index) =>
   batchModel(`batch/model-${index}`),
 );
+
+/** The toolbar's batch delete action; the number of selected rows is a separate line. */
+const deleteSelectedButton = (page: Page): Locator => page.getByRole('button', { name: 'Delete', exact: true });
+
+/** The "N selected" line, present only while the shared selection has rows. */
+const selectedCount = (page: Page): Locator => page.getByText(/^\d+ selected$/);
 
 test.beforeEach(async ({ request }) => {
   const view = (await (await request.get(await adminUrl('/api/providers'))).json()) as ProvidersView;
@@ -47,13 +53,15 @@ test.afterEach(async ({ request }) => {
 test('deletes the selection across pages and providers only after confirmation', async ({ page }, testInfo) => {
   await page.goto(await adminUrl('/providers'));
   await page.getByRole('button', { name: `Provider ${ALIAS}`, exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Delete selected (0)', exact: true })).toBeDisabled();
+  await expect(deleteSelectedButton(page)).toBeDisabled();
+  await expect(selectedCount(page)).toHaveCount(0);
   await page.getByRole('checkbox', { name: 'Select all', exact: true }).check();
   await page.getByRole('button', { name: 'Next page', exact: true }).last().click();
   await expect(page.getByLabel('Select batch/model-10', { exact: true })).toBeChecked();
   await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}`, exact: true }).click();
   await page.getByLabel('Select relay-existing-model', { exact: true }).check();
-  await page.getByRole('button', { name: 'Delete selected (12)', exact: true }).click();
+  await expect(selectedCount(page)).toHaveText('12 selected');
+  await deleteSelectedButton(page).click();
 
   const dialog = page.getByRole('alertdialog', { name: 'Delete selected models?', exact: true });
   await expect(dialog.getByText(`${ALIAS}/batch/model-10`, { exact: true })).toBeVisible();
@@ -62,11 +70,12 @@ test('deletes the selection across pages and providers only after confirmation',
   const before = (await (await page.request.get(await adminUrl('/api/providers'))).json()) as ProvidersView;
   expect(before.providers.find((provider) => provider.alias === ALIAS)?.models).toEqual(MODELS);
 
-  await page.getByRole('button', { name: 'Delete selected (12)', exact: true }).click();
+  await deleteSelectedButton(page).click();
   await dialog.getByRole('button', { name: 'Delete models', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(appliedToast(page).first()).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Delete selected (0)', exact: true })).toBeDisabled();
+  await expect(deleteSelectedButton(page)).toBeDisabled();
+  await expect(selectedCount(page)).toHaveCount(0);
   const after = (await (await page.request.get(await adminUrl('/api/providers'))).json()) as ProvidersView;
   expect(after.providers.find((provider) => provider.alias === ALIAS)?.models).toEqual([]);
   expect(after.providers.find((provider) => provider.alias === E2E_RELAY_ALIAS)?.models).toEqual([]);
@@ -89,13 +98,15 @@ test('blocks a batch containing a model assigned to a role', async ({ page }) =>
   await page.getByLabel('Select agent-model', { exact: true }).check();
   await page.getByRole('button', { name: `Provider ${ALIAS}`, exact: true }).click();
   await page.getByLabel('Select batch/model-0', { exact: true }).check();
-  await expect(page.getByRole('button', { name: 'Delete selected (2)', exact: true })).toBeDisabled();
+  await expect(deleteSelectedButton(page)).toBeDisabled();
+  await expect(selectedCount(page)).toHaveText('2 selected');
   await expect(
     page.getByText('A selected model is in use. Deselect it or assign its role to another model first.'),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Provider agent', exact: true }).click();
   await page.getByLabel('Select agent-model', { exact: true }).uncheck();
-  await expect(page.getByRole('button', { name: 'Delete selected (1)', exact: true })).toBeEnabled();
+  await expect(deleteSelectedButton(page)).toBeEnabled();
+  await expect(selectedCount(page)).toHaveText('1 selected');
 });
 
 test('blocks a selection above the 200-model request limit instead of splitting it', async ({ page }, testInfo) => {
@@ -115,14 +126,16 @@ test('blocks a selection above the 200-model request limit instead of splitting 
   await page.goto(await adminUrl('/providers'));
   await page.getByRole('button', { name: `Provider ${ALIAS}`, exact: true }).click();
   await page.getByRole('checkbox', { name: 'Select all', exact: true }).check();
-  await expect(page.getByRole('button', { name: 'Delete selected (201)', exact: true })).toBeDisabled();
+  await expect(deleteSelectedButton(page)).toBeDisabled();
+  await expect(selectedCount(page)).toHaveText('201 selected');
   await expect(page.getByText('Up to 200 models can be deleted at once. Deselect some to continue.')).toBeVisible();
   const screenshotPath = testInfo.outputPath('batch-deletion-limit.png');
   await page.screenshot({ path: screenshotPath });
   await testInfo.attach('batch-deletion-limit', { path: screenshotPath, contentType: 'image/png' });
 
   await page.getByLabel('Select batch/model-0', { exact: true }).uncheck();
-  await expect(page.getByRole('button', { name: 'Delete selected (200)', exact: true })).toBeEnabled();
+  await expect(deleteSelectedButton(page)).toBeEnabled();
+  await expect(selectedCount(page)).toHaveText('200 selected');
   await expect(page.getByText('Up to 200 models can be deleted at once.', { exact: false })).toHaveCount(0);
   expect(batches).toBe(0);
 });
@@ -144,7 +157,8 @@ test('keeps the whole selection after a failed batch and retries with one reques
   for (const index of [0, 1, 2]) {
     await page.getByLabel(`Select batch/model-${index}`, { exact: true }).check();
   }
-  await page.getByRole('button', { name: 'Delete selected (3)', exact: true }).click();
+  await expect(selectedCount(page)).toHaveText('3 selected');
+  await deleteSelectedButton(page).click();
   const dialog = page.getByRole('alertdialog');
   await dialog.getByRole('button', { name: 'Delete models', exact: true }).click();
   await expect(dialog.getByText('Deletion interrupted', { exact: false })).toBeVisible();
@@ -153,7 +167,8 @@ test('keeps the whole selection after a failed batch and retries with one reques
   expect(unchanged.providers.find((provider) => provider.alias === ALIAS)?.models).toEqual(MODELS);
   await dialog.getByRole('button', { name: 'Delete models', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Delete selected (0)', exact: true })).toBeDisabled();
+  await expect(deleteSelectedButton(page)).toBeDisabled();
+  await expect(selectedCount(page)).toHaveCount(0);
   expect(batches).toBe(2);
   const after = (await (await page.request.get(await adminUrl('/api/providers'))).json()) as ProvidersView;
   expect(after.providers.find((provider) => provider.alias === ALIAS)?.models.map((model) => model.id)).toEqual(

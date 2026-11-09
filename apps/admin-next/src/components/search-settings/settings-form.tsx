@@ -42,7 +42,10 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
   const [filters, setFilters] = useState(initial.url_filters.join('\n'));
   const query = useListQuery(EMPTY_FILTERS);
   const engineSearch = query.value.search;
+  // The snapshot outlives `editorOpen` so the title and fields render through
+  // the dialog's exit transition; each open replaces it with a fresh draft.
   const [editing, setEditing] = useState<{ readonly draft: EngineDraft; readonly isNew: boolean } | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [editingErrors, setEditingErrors] = useState<readonly string[]>([]);
   const providers = initial.providers;
   const providerById = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers]);
@@ -79,12 +82,12 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
     if (provider !== undefined) {
       setEditingErrors([]);
       setEditing({ draft: emptyDraft(provider, engines), isNew: true });
+      setEditorOpen(true);
     }
   };
 
   const closeEditor = (): void => {
-    setEditing(null);
-    setEditingErrors([]);
+    setEditorOpen(false);
   };
 
   const saveEngine = (): void => {
@@ -151,6 +154,7 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
             onClick={() => {
               setEditingErrors([]);
               setEditing({ draft: engine, isNew: false });
+              setEditorOpen(true);
             }}
             label={`${t('common.edit')} ${engine.id}`}
             icon={<EditIcon />}
@@ -274,7 +278,7 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
       </div>
 
       <Dialog
-        open={editing !== null}
+        open={editorOpen}
         onOpenChange={(open) => {
           if (!open && !save.isPending) {
             closeEditor();

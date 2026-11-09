@@ -471,6 +471,7 @@ pnpm run admin:test:e2e  # Playwright 浏览器 E2E（真实 AdminServer + 临�
 - 详情页 loading/error 复用 `components/business/detail-state.tsx` 的
   `DetailSkeleton` / `DetailError`，错误行显示 `ApiError.code: message`。
 - 页面滚动由 `html` 的 `overflow-y: auto` 承担；`body` / `#root` 保留全高布局，但不作为页面滚动容器。Base UI 打开 modal 时锁定同一个 viewport scroller，避免锁住固定一屏高的 `body` 后裁短长页面、把滚动位置归零；不要在弹窗事件里用 `scrollTo` 补偿。
+- 所有弹层（`Dialog`、`ConfirmDialog`、`Drawer`）由页面常驻渲染，打开与否是独立于目标数据的 `open` 状态：关闭只把 `open` 置 false，标题与正文继续读保留的快照，退出过渡（Koi 300ms opacity/transform）期间不清空。需要每次打开重置的表单把 Dialog 外壳与内层表单分开，用每次打开递增的 `key` 重挂内层；重挂 Dialog 根会让 Base UI 直接跳过进出过渡。唯一例外是 API 密钥明文：关闭时必须立即清除，允许展示弹层在退出期间只剩外壳与标题。回归见 `apps/admin-next/e2e/29-modal-transitions.e2e.ts`。
 
 Overview 的 Bot status 卡片显示当前 `sleeping`/`awake`、`sleep_until`，睡眠时提供带确认的 `Wake now` 操作，并显示所有 `chat_pause` Chat 的名称或 Telegram ID 与暂停时间。
 

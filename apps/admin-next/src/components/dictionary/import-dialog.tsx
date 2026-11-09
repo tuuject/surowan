@@ -53,6 +53,9 @@ export function ImportDialog({
   const [readError, setReadError] = useState<string | null>(null);
 
   const reset = (): void => {
+    setFormat('csv');
+    setScope(defaultScope);
+    setChatId(defaultChatId);
     setContent('');
     setFileName(null);
     setPreview(null);
@@ -77,7 +80,6 @@ export function ImportDialog({
     onSuccess: (result) => {
       toast.success(t('dictionary.import.imported', { count: result.items.length }));
       void queryClient.invalidateQueries({ queryKey: ['dictionary'] });
-      reset();
       onImported();
       onOpenChange(false);
     },
@@ -86,6 +88,21 @@ export function ImportDialog({
       void queryClient.invalidateQueries({ queryKey: ['dictionary'] });
     },
   });
+
+  // Base UI keeps the popup mounted while it fades out, so this component and
+  // its mutations outlive a session: the previous file, parsed preview and scope
+  // must not show up again. They are replaced on the open edge — a render-phase
+  // adjustment, the app's substitute for a reset effect — and never on close,
+  // so the review the admin just read stays on screen through the exit fade.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) {
+      previewMutation.reset();
+      importMutation.reset();
+      reset();
+    }
+  }
 
   const targetChatId = scope === 'global' ? null : chatId;
   const draftEntries = (preview?.entries ?? []).map((entry) => ({
@@ -101,9 +118,6 @@ export function ImportDialog({
         if (!next && (importMutation.isPending || previewMutation.isPending)) {
           return;
         }
-        if (!next) {
-          reset();
-        }
         onOpenChange(next);
       }}
       title={t('dictionary.import.title')}
@@ -116,10 +130,7 @@ export function ImportDialog({
             variant="outline"
             color="secondary"
             disabled={importMutation.isPending || previewMutation.isPending}
-            onClick={() => {
-              reset();
-              onOpenChange(false);
-            }}
+            onClick={() => onOpenChange(false)}
           >
             {t('dictionary.import.cancel')}
           </Button>

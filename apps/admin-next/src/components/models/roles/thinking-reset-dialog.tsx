@@ -5,19 +5,25 @@ import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ChatThinkingReset } from '@/lib/api/models.ts';
 
-/** The per-Chat efforts an Agent model switch reset, shown once after the switch. */
+/**
+ * The per-Chat efforts an Agent model switch reset, shown once after the switch.
+ * The caller keeps the dialog mounted and hands it an `open` flag apart from the
+ * list, so the rows stay on screen while the exit transition plays.
+ */
 export function ThinkingResetDialog({
+  open,
   resets,
   onClose,
 }: {
+  readonly open: boolean;
   readonly resets: readonly ChatThinkingReset[];
   readonly onClose: () => void;
 }): ReactElement {
   const { t } = useTranslation();
   return (
     <Dialog
-      open={resets.length > 0}
-      onOpenChange={(open) => !open && onClose()}
+      open={open}
+      onOpenChange={(next) => !next && onClose()}
       title={t('models.models.page.chatThinkingResetTitle')}
       description={t('models.models.page.chatThinkingResetDescription')}
       footer={<Button onClick={onClose}>{t('models.models.page.chatThinkingResetClose')}</Button>}

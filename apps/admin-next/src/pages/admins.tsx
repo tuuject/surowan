@@ -48,8 +48,6 @@ export default function AdminsPage(): ReactElement {
     mutationFn: (userId: number) => addBotAdmin({ telegram_user_id: userId }, admins.data?.revision ?? ''),
     onSuccess: (view) => {
       setAddOpen(false);
-      setUserIdDraft('');
-      setUserIdError(null);
       toast.success(t('pages.admins.adminAdded'));
       // The response carries the fresh list and revision; skip a refetch.
       queryClient.setQueryData(adminsQuery.queryKey, view);

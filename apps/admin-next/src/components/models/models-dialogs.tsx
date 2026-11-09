@@ -5,19 +5,25 @@ import { ConfirmDialog, MonoValue } from '@/components/business';
 import { ModelEditDialog } from '@/components/models/model-edit-dialog';
 import { ModelPickerDialog, type ModelPickerMode } from '@/components/models/model-picker-dialog';
 import { ProviderWizard } from '@/components/models/provider-wizard';
-import type { ProviderModelConfig, ProvidersView, ProviderView } from '@/lib/api/providers.ts';
+import type { ProviderApi, ProviderModelConfig, ProviderView } from '@/lib/api/providers.ts';
 import { emptyModelForm, modelFormFromConfig } from '@/lib/model-form.ts';
 
 export interface PickerTarget {
   readonly mode: ModelPickerMode;
-  readonly alias: string;
-  /** Remounts the dialog so its credentials and selection start empty. */
+  /**
+   * The provider as it looked when the picker was opened: a background refetch
+   * must not blank or change the dialog while it is open or fading out.
+   */
+  readonly provider: ProviderView;
+  /** Starts a fresh picker session so its credentials and selection are empty. */
   readonly nonce: number;
 }
 
 export interface EditingTarget {
   readonly alias: string;
   readonly model: ProviderModelConfig;
+  /** Snapshot: a refetch must not swap the form's API dialect mid-edit. */
+  readonly api: ProviderApi;
   readonly revision: string;
   readonly nonce: number;
 }
@@ -44,17 +50,35 @@ export interface ConfirmState {
 }
 
 /**
+ * Stand-in for the picker's provider before the first open. The dialog root has
+ * to exist from the page's first render so its enter transition can play later;
+ * with `open` false Base UI mounts no portal, so nothing here is ever shown.
+ */
+const NO_PICKER_PROVIDER: ProviderView = {
+  alias: '',
+  kind: 'custom',
+  api: 'openai-completions',
+  base_url: '',
+  header_names: [],
+  models: [],
+};
+
+/**
  * Every overlay the Providers page can show: the provider wizard, the model
  * picker, the model edit form and the two delete confirmations.
+ *
+ * The wizard and the picker are mounted for the page's lifetime and driven by
+ * `open`: Base UI only plays the 300ms exit transition while the dialog root
+ * stays mounted, so nothing here may appear or disappear with the flag.
  */
 export function ModelsDialogs({
-  view,
   revision,
   wizardOpen,
+  wizardKey,
   onWizardClose,
   onProviderCreated,
   picker,
-  pickerProvider,
+  pickerOpen,
   onPickerClose,
   editing,
   editingOpen,
@@ -65,13 +89,13 @@ export function ModelsDialogs({
   deletingProvider,
   removeProvider,
 }: {
-  readonly view: ProvidersView;
   readonly revision: string;
   readonly wizardOpen: boolean;
+  readonly wizardKey: number;
   readonly onWizardClose: () => void;
   readonly onProviderCreated: (alias: string) => void;
   readonly picker: PickerTarget | null;
-  readonly pickerProvider: ProviderView | null;
+  readonly pickerOpen: boolean;
   readonly onPickerClose: () => void;
   readonly editing: EditingTarget | null;
   readonly editingOpen: boolean;
@@ -83,20 +107,33 @@ export function ModelsDialogs({
   readonly removeProvider: ConfirmState;
 }): ReactElement {
   const { t } = useTranslation();
-  const editingApi = view.providers.find((provider) => provider.alias === editing?.alias)?.api ?? 'openai-completions';
+  const editingApi = editing?.api ?? 'openai-completions';
   return (
     <>
-      {wizardOpen ? <ProviderWizard revision={revision} onClose={onWizardClose} onCreated={onProviderCreated} /> : null}
+      <ProviderWizard
+        open={wizardOpen}
+        formKey={wizardKey}
+        revision={revision}
+        onOpenChange={(next) => {
+          if (!next) {
+            onWizardClose();
+          }
+        }}
+        onCreated={onProviderCreated}
+      />
 
-      {picker === null || pickerProvider === null ? null : (
-        <ModelPickerDialog
-          key={`${picker.mode}-${picker.alias}-${String(picker.nonce)}`}
-          mode={picker.mode}
-          provider={pickerProvider}
-          revision={revision}
-          onClose={onPickerClose}
-        />
-      )}
+      <ModelPickerDialog
+        open={pickerOpen}
+        formKey={picker?.nonce ?? 0}
+        mode={picker?.mode ?? 'discover'}
+        provider={picker?.provider ?? NO_PICKER_PROVIDER}
+        revision={revision}
+        onOpenChange={(next) => {
+          if (!next) {
+            onPickerClose();
+          }
+        }}
+      />
 
       <ModelEditDialog
         open={editingOpen}

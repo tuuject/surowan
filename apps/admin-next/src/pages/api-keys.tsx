@@ -45,15 +45,24 @@ export default function ApiKeysPage(): ReactElement {
   const keys = useQuery(apiKeysQuery);
   const query = useListQuery(EMPTY_FILTERS);
   const search = query.value.search;
-  const [creating, setCreating] = useState(false);
+  // `open` stays apart from the values a dialog shows: closing flips only the boolean,
+  // so the title and body stay put while the 300 ms exit fade plays. The nonce remounts
+  // each dialog's inner form, so the next open starts from a clean draft.
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createNonce, setCreateNonce] = useState(0);
   const [editing, setEditing] = useState<AdminApiKeyItem | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editNonce, setEditNonce] = useState(0);
   const [rotating, setRotating] = useState<AdminApiKeyItem | null>(null);
+  const [rotateOpen, setRotateOpen] = useState(false);
+  const [rotateNonce, setRotateNonce] = useState(0);
   const [revoking, setRevoking] = useState<AdminApiKeyItem | null>(null);
+  const [revokeOpen, setRevokeOpen] = useState(false);
   const revoke = useMutation({
     mutationFn: revokeApiKey,
     retry: false,
     onSuccess: () => {
-      setRevoking(null);
+      setRevokeOpen(false);
       toast.success(t('pages.apiKeys.revokedMessage'));
     },
     onSettled: () => {
@@ -115,10 +124,28 @@ export default function ApiKeysPage(): ReactElement {
       render: (item) =>
         item.revoked_at === null ? (
           <RowActions>
-            <Button size="sm" variant="ghost" color="secondary" onClick={() => setEditing(item)}>
+            <Button
+              size="sm"
+              variant="ghost"
+              color="secondary"
+              onClick={() => {
+                setEditing(item);
+                setEditNonce((previous) => previous + 1);
+                setEditOpen(true);
+              }}
+            >
               {t('pages.apiKeys.editMode')}
             </Button>
-            <Button size="sm" variant="ghost" color="secondary" onClick={() => setRotating(item)}>
+            <Button
+              size="sm"
+              variant="ghost"
+              color="secondary"
+              onClick={() => {
+                setRotating(item);
+                setRotateNonce((previous) => previous + 1);
+                setRotateOpen(true);
+              }}
+            >
               {t('pages.apiKeys.rotate')}
             </Button>
             <Button
@@ -129,6 +156,7 @@ export default function ApiKeysPage(): ReactElement {
               onClick={() => {
                 revoke.reset();
                 setRevoking(item);
+                setRevokeOpen(true);
               }}
             >
               {t('pages.apiKeys.revoke')}
@@ -153,7 +181,14 @@ export default function ApiKeysPage(): ReactElement {
         )}
       </ListSearchForm>
       <ListToolbar onRefresh={() => void keys.refetch()} refreshing={keys.isRefetching}>
-        <Button variant="outline" iconStart={<PlusIcon />} onClick={() => setCreating(true)}>
+        <Button
+          variant="outline"
+          iconStart={<PlusIcon />}
+          onClick={() => {
+            setCreateNonce((previous) => previous + 1);
+            setCreateOpen(true);
+          }}
+        >
           {t('pages.apiKeys.create')}
         </Button>
       </ListToolbar>
@@ -195,14 +230,14 @@ export default function ApiKeysPage(): ReactElement {
           )}
         </div>
       ) : null}
-      {creating ? <CreateKeyDialog onClose={() => setCreating(false)} /> : null}
-      {editing !== null ? <EditModeDialog item={editing} onClose={() => setEditing(null)} /> : null}
-      {rotating !== null ? <RotateKeyDialog item={rotating} onClose={() => setRotating(null)} /> : null}
+      <CreateKeyDialog open={createOpen} formKey={createNonce} onOpenChange={setCreateOpen} />
+      <EditModeDialog open={editOpen} item={editing} formKey={editNonce} onOpenChange={setEditOpen} />
+      <RotateKeyDialog open={rotateOpen} item={rotating} formKey={rotateNonce} onOpenChange={setRotateOpen} />
       <ConfirmDialog
-        open={revoking !== null}
+        open={revokeOpen}
         onOpenChange={(open) => {
           if (!open && !revoke.isPending) {
-            setRevoking(null);
+            setRevokeOpen(false);
           }
         }}
         title={t('pages.apiKeys.revokeTitle')}

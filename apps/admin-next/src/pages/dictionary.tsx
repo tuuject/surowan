@@ -63,13 +63,24 @@ export default function DictionaryPage(): ReactElement {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 
   const [createOpen, setCreateOpen] = useState(false);
+  // Remounts the form per open, so a dialog reopened before its exit transition
+  // ends still starts from the fresh draft (the popup is only unmounted once
+  // the transition completes).
+  const [createFormKey, setCreateFormKey] = useState(0);
   const [createDraft, setCreateDraft] = useState<DictionaryDraft>(EMPTY_DRAFT);
   const [createErrors, setCreateErrors] = useState<DictionaryDraftErrors>({});
+  // Every dialog stays mounted and keeps its target snapshot after it closes:
+  // `open` is what the transition follows, and the snapshot is replaced on the
+  // next open so the title and fields do not blank out during the exit fade.
   const [editing, setEditing] = useState<{ readonly entry: DictionaryEntry; readonly draft: DictionaryDraft } | null>(
     null,
   );
+  const [editOpen, setEditOpen] = useState(false);
+  const [editFormKey, setEditFormKey] = useState(0);
   const [editErrors, setEditErrors] = useState<DictionaryDraftErrors>({});
   const [deleting, setDeleting] = useState<DictionaryEntry | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [mergeTargets, setMergeTargets] = useState<readonly DictionaryEntry[]>([]);
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
@@ -108,9 +119,9 @@ export default function DictionaryPage(): ReactElement {
   const create = useMutation({
     mutationFn: (draft: DictionaryDraft) => createDictionaryEntry(normalizeDraft(draft)),
     onSuccess: () => {
+      // The draft stays until the next open so the fields render through the
+      // exit transition; `openCreate` replaces it.
       setCreateOpen(false);
-      setCreateDraft(EMPTY_DRAFT);
-      setCreateErrors({});
       toast.success(t('dictionary.entry.created'));
       invalidate();
     },
@@ -123,8 +134,7 @@ export default function DictionaryPage(): ReactElement {
     mutationFn: (input: { readonly entry: DictionaryEntry; readonly draft: DictionaryDraft }) =>
       updateDictionaryEntry(input.entry.id, normalizeDraft(input.draft), input.entry.revision),
     onSuccess: () => {
-      setEditing(null);
-      setEditErrors({});
+      setEditOpen(false);
       toast.success(t('dictionary.entry.updated'));
       invalidate();
     },
@@ -133,7 +143,7 @@ export default function DictionaryPage(): ReactElement {
       // A revision conflict closes the form: retrying would overwrite whatever
       // changed on the server, so the admin reopens against fresh data.
       if (isDictionaryConflict(error)) {
-        setEditing(null);
+        setEditOpen(false);
         toast.error(t('dictionary.entry.staleTitle'), { description: t('dictionary.entry.staleDescription') });
       }
     },
@@ -142,7 +152,7 @@ export default function DictionaryPage(): ReactElement {
   const remove = useMutation({
     mutationFn: (entry: DictionaryEntry) => deleteDictionaryEntry(entry.id, entry.revision),
     onSuccess: () => {
-      setDeleting(null);
+      setDeleteOpen(false);
       toast.success(t('dictionary.delete.deleted'));
       invalidate();
     },
@@ -162,6 +172,14 @@ export default function DictionaryPage(): ReactElement {
     },
   });
 
+  const openCreate = (): void => {
+    create.reset();
+    setCreateDraft(EMPTY_DRAFT);
+    setCreateErrors({});
+    setCreateFormKey((key) => key + 1);
+    setCreateOpen(true);
+  };
+
   const columns = dictionaryColumns({
     t,
     chats: chatOptions,
@@ -169,10 +187,17 @@ export default function DictionaryPage(): ReactElement {
     toggleEnabledPending: toggleEnabled.isPending,
     onToggleEnabled: (entry) => toggleEnabled.mutate(entry),
     onEdit: (entry) => {
+      update.reset();
       setEditErrors({});
       setEditing({ entry, draft: draftFromEntry(entry) });
+      setEditFormKey((key) => key + 1);
+      setEditOpen(true);
     },
-    onDelete: (entry) => setDeleting(entry),
+    onDelete: (entry) => {
+      remove.reset();
+      setDeleting(entry);
+      setDeleteOpen(true);
+    },
   });
 
   return (
@@ -225,7 +250,7 @@ export default function DictionaryPage(): ReactElement {
           ) : null
         }
       >
-        <Button variant="outline" iconStart={<PlusIcon />} onClick={() => setCreateOpen(true)}>
+        <Button variant="outline" iconStart={<PlusIcon />} onClick={openCreate}>
           {t('dictionary.page.newEntry')}
         </Button>
         <Button
@@ -252,7 +277,10 @@ export default function DictionaryPage(): ReactElement {
           color="secondary"
           disabled={selectedEntries.length < 2}
           title={selectedEntries.length < 2 ? t('dictionary.page.mergeNeedsTwo') : undefined}
-          onClick={() => setMergeOpen(true)}
+          onClick={() => {
+            setMergeTargets(selectedEntries);
+            setMergeOpen(true);
+          }}
           iconStart={<MergeIcon />}
         >
           {t('dictionary.page.mergeSelected', { count: selectedEntries.length })}
@@ -349,6 +377,7 @@ export default function DictionaryPage(): ReactElement {
         }
       >
         <EntryFormFields
+          key={createFormKey}
           draft={createDraft}
           chats={chatOptions}
           errors={createErrors}
@@ -364,13 +393,13 @@ export default function DictionaryPage(): ReactElement {
       </Dialog>
 
       <Dialog
-        open={editing !== null}
+        open={editOpen}
         onOpenChange={(open) => {
           if (!open && update.isPending) {
             return;
           }
           if (!open) {
-            setEditing(null);
+            setEditOpen(false);
           }
         }}
         title={t('dictionary.entry.editTitle', { term: editing?.entry.term ?? '' })}
@@ -378,7 +407,7 @@ export default function DictionaryPage(): ReactElement {
         size="md"
         footer={
           <>
-            <Button variant="ghost" color="secondary" disabled={update.isPending} onClick={() => setEditing(null)}>
+            <Button variant="ghost" color="secondary" disabled={update.isPending} onClick={() => setEditOpen(false)}>
               {t('common.cancel')}
             </Button>
             <Button
@@ -402,6 +431,7 @@ export default function DictionaryPage(): ReactElement {
       >
         {editing !== null ? (
           <EntryFormFields
+            key={editFormKey}
             draft={editing.draft}
             chats={chatOptions}
             errors={editErrors}
@@ -421,10 +451,10 @@ export default function DictionaryPage(): ReactElement {
       </Dialog>
 
       <ConfirmDialog
-        open={deleting !== null}
+        open={deleteOpen}
         onOpenChange={(open) => {
           if (!open && !remove.isPending) {
-            setDeleting(null);
+            setDeleteOpen(false);
           }
         }}
         title={t('dictionary.delete.title', { term: deleting?.term ?? '' })}
@@ -440,32 +470,26 @@ export default function DictionaryPage(): ReactElement {
         }}
       />
 
-      {importOpen ? (
-        <ImportDialog
-          open={importOpen}
-          onOpenChange={setImportOpen}
-          chats={chatOptions}
-          defaultScope={scope}
-          defaultChatId={chatId}
-          onImported={invalidate}
-        />
-      ) : null}
+      <ImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        chats={chatOptions}
+        defaultScope={scope}
+        defaultChatId={chatId}
+        onImported={invalidate}
+      />
 
-      {exportOpen ? (
-        <ExportDialog open={exportOpen} onOpenChange={setExportOpen} scope={scope} chatId={chatId} />
-      ) : null}
+      <ExportDialog open={exportOpen} onOpenChange={setExportOpen} scope={scope} chatId={chatId} />
 
-      {mergeOpen ? (
-        <MergeDialog
-          open={mergeOpen}
-          onOpenChange={setMergeOpen}
-          entries={selectedEntries}
-          chats={chatOptions}
-          defaultScope={scope}
-          defaultChatId={chatId}
-          onMerged={() => setSelected(new Set())}
-        />
-      ) : null}
+      <MergeDialog
+        open={mergeOpen}
+        onOpenChange={setMergeOpen}
+        entries={mergeTargets}
+        chats={chatOptions}
+        defaultScope={scope}
+        defaultChatId={chatId}
+        onMerged={() => setSelected(new Set())}
+      />
     </div>
   );
 }

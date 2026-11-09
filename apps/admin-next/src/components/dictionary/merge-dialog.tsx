@@ -106,6 +106,27 @@ export function MergeDialog({
   const canSave = preview !== null && term.trim().length > 0 && definition.trim().length > 0;
   const scopeReady = scope === 'global' || (chatId !== null && chatId.length > 0);
 
+  // Base UI keeps the popup mounted while it fades out, so this component, its
+  // mutations and the last suggestion outlive a session. They are replaced on
+  // the open edge — a render-phase adjustment, the app's substitute for a reset
+  // effect — and never on close, so the sources and the edited suggestion stay
+  // on screen through the exit fade.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) {
+      suggestion.reset();
+      save.reset();
+      setStep({ kind: 'idle' });
+      setTerm('');
+      setDefinition('');
+      setAliases([]);
+      setScope(defaultScope);
+      setChatId(defaultChatId);
+      setDeleteSources(false);
+    }
+  }
+
   return (
     <Dialog
       open={open}

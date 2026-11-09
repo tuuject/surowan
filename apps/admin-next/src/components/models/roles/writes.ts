@@ -55,6 +55,9 @@ export function useModelRoleWrites(view: ProvidersView | undefined) {
   const write = useProviderWrite();
   const revision = view?.revision ?? '';
   const [thinkingResets, setThinkingResets] = useState<readonly ChatThinkingReset[]>([]);
+  // Opening is its own flag: closing only hides the dialog so the rows survive the
+  // exit transition, and the next switch replaces both.
+  const [thinkingResetsOpen, setThinkingResetsOpen] = useState(false);
 
   const failed = (error: unknown): void => {
     toast.error(writeErrorMessage(error));
@@ -67,6 +70,7 @@ export function useModelRoleWrites(view: ProvidersView | undefined) {
       // Models do not share one set of levels, so the switch always resets it.
       write.succeeded(result.apply, t('models.models.page.thinkingReset', { level: result.current.thinking_level }));
       setThinkingResets(result.chat_thinking_resets);
+      setThinkingResetsOpen(result.chat_thinking_resets.length > 0);
     },
     onError: failed,
   });
@@ -133,6 +137,7 @@ export function useModelRoleWrites(view: ProvidersView | undefined) {
     assign,
     pending,
     thinkingResets,
-    closeThinkingResets: () => setThinkingResets([]),
+    thinkingResetsOpen,
+    closeThinkingResets: () => setThinkingResetsOpen(false),
   };
 }

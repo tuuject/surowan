@@ -15,7 +15,7 @@ import { useDraftSelection } from '@/components/models/use-draft-selection';
 import type { DiscoveredModel, ProviderModelConfig, ProviderView } from '@/lib/api/providers.ts';
 import { appendProviderModels, discoverProviderModels, lookupModelMetadata } from '@/lib/api/providers.ts';
 import { type HeaderRow, headerRowsFromNames, headerValues } from '@/lib/header-rows.ts';
-import { modelFormFromDraft } from '@/lib/model-form.ts';
+import { emptyModelForm, modelFormFromDraft } from '@/lib/model-form.ts';
 import { parseModelIds, requestErrorMessage } from '@/lib/model-manager.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
 
@@ -26,27 +26,43 @@ export type ModelPickerMode = 'discover' | 'manual';
  * metadata, or look up ids the admin typed in. Neither path writes anything
  * until the selection is submitted, and a draft with unconfirmed fields cannot
  * be submitted before it went through the edit dialog.
+ *
+ * The page keeps this mounted and drives it with `open`, so Base UI can play
+ * both transitions; `formKey` starts a fresh session on every open and the
+ * provider is the snapshot the picker was opened for.
  */
 export function ModelPickerDialog({
+  open,
+  onOpenChange,
+  formKey,
   mode,
   provider,
   revision,
-  onClose,
 }: {
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  /** Incremented by the page for every open: a new session, not a new dialog. */
+  readonly formKey: number;
   readonly mode: ModelPickerMode;
   readonly provider: ProviderView;
   readonly revision: string;
-  readonly onClose: () => void;
 }): ReactElement {
   const { t } = useTranslation();
   const write = useProviderWrite();
   const selection = useDraftSelection();
+  const [sessionKey, setSessionKey] = useState(formKey);
   const [endpoint, setEndpoint] = useState<string | null>(null);
   const [tempMode, setTempMode] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [headers, setHeaders] = useState<readonly HeaderRow[]>(() => headerRowsFromNames(provider.header_names));
   const [ids, setIds] = useState('');
   const [editing, setEditing] = useState<DiscoveredModel | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmNonce, setConfirmNonce] = useState(0);
+  // The errors are kept apart from the mutation objects: a mutation from the
+  // previous session must not surface in this one.
+  const [fetchError, setFetchError] = useState<unknown>(null);
+  const [appendError, setAppendError] = useState<unknown>(null);
   // models.dev is one metadata source among several; when it is unreachable the
   // listing still works, and this is what the admin has to know about the rest.
   const [metadataError, setMetadataError] = useState<string | null>(null);
@@ -55,6 +71,13 @@ export function ModelPickerDialog({
     provider.kind === 'builtin'
       ? { kind: 'builtin' as const, provider: provider.provider ?? '' }
       : { kind: 'custom' as const, base_url: provider.base_url, api: provider.api };
+
+  /** Opens the per-model confirm with the draft as it stands now. */
+  const openConfirm = (draft: DiscoveredModel): void => {
+    setEditing(draft);
+    setConfirmNonce((previous) => previous + 1);
+    setConfirmOpen(true);
+  };
 
   const discover = useMutation({
     mutationFn: async () => {
@@ -77,7 +100,11 @@ export function ModelPickerDialog({
     onSuccess: (result) => {
       setEndpoint(result.endpoint);
       setMetadataError(result.metadata_source_error);
+      setFetchError(null);
       selection.replaceDrafts(result.models);
+    },
+    onError: (error) => {
+      setFetchError(error);
     },
   });
 
@@ -95,13 +122,17 @@ export function ModelPickerDialog({
     },
     onSuccess: ({ models, metadataSourceError }) => {
       setMetadataError(metadataSourceError);
+      setFetchError(null);
       selection.replaceDrafts(models);
       // A single id goes straight into the edit dialog, which is where its
       // metadata is confirmed; several ids are picked from the list first.
       const only = models.length === 1 ? models[0] : undefined;
       if (only !== undefined) {
-        setEditing(only);
+        openConfirm(only);
       }
+    },
+    onError: (error) => {
+      setFetchError(error);
     },
   });
 
@@ -109,24 +140,42 @@ export function ModelPickerDialog({
     mutationFn: (models: readonly ProviderModelConfig[]) => appendProviderModels(provider.alias, models, revision),
     onSuccess: (result) => {
       write.succeeded(result.apply);
-      onClose();
+      onOpenChange(false);
     },
     onError: (error) => {
       write.failed(error);
+      setAppendError(error);
     },
   });
 
-  const fetchError = mode === 'discover' ? discover.error : lookup.error;
+  // Every open starts a fresh session: the fields, the drafts and the errors
+  // belong to the open they were made in. Resetting here instead of on close is
+  // what keeps the body on screen while the exit transition plays.
+  if (sessionKey !== formKey) {
+    setSessionKey(formKey);
+    setEndpoint(null);
+    setTempMode(false);
+    setApiKey('');
+    setHeaders(headerRowsFromNames(provider.header_names));
+    setIds('');
+    setMetadataError(null);
+    setFetchError(null);
+    setAppendError(null);
+    setEditing(null);
+    setConfirmOpen(false);
+    selection.reset();
+  }
+
   const fetchPending = mode === 'discover' ? discover.isPending : lookup.isPending;
   const blocked = selection.selectedCount === 0 || selection.models === null;
 
   return (
     <>
       <Dialog
-        open
+        open={open}
         onOpenChange={(next) => {
           if (!next) {
-            onClose();
+            onOpenChange(false);
           }
         }}
         title={mode === 'discover' ? t('models.models.picker.discoverTitle') : t('models.models.picker.manualTitle')}
@@ -137,7 +186,13 @@ export function ModelPickerDialog({
         size="lg"
         footer={
           <>
-            <Button type="button" variant="ghost" color="secondary" disabled={append.isPending} onClick={onClose}>
+            <Button
+              type="button"
+              variant="ghost"
+              color="secondary"
+              disabled={append.isPending}
+              onClick={() => onOpenChange(false)}
+            >
               {t('common.cancel')}
             </Button>
             <Button
@@ -145,6 +200,7 @@ export function ModelPickerDialog({
               disabled={append.isPending || blocked}
               onClick={() => {
                 if (selection.models !== null) {
+                  setAppendError(null);
                   append.mutate(selection.models);
                 }
               }}
@@ -208,6 +264,7 @@ export function ModelPickerDialog({
                 color="secondary"
                 disabled={fetchPending}
                 onClick={() => {
+                  setFetchError(null);
                   discover.mutate();
                 }}
               >
@@ -235,6 +292,7 @@ export function ModelPickerDialog({
                 color="secondary"
                 disabled={fetchPending}
                 onClick={() => {
+                  setFetchError(null);
                   lookup.mutate();
                 }}
               >
@@ -262,7 +320,7 @@ export function ModelPickerDialog({
                 selected={selection.selected}
                 resolved={selection.resolved}
                 onToggle={selection.toggle}
-                onEdit={setEditing}
+                onEdit={openConfirm}
                 search={selection.search}
                 onSearchChange={selection.setSearch}
                 emptyText={t('models.models.shared.emptyList')}
@@ -292,36 +350,36 @@ export function ModelPickerDialog({
               </div>
             </>
           )}
-          {append.isError ? (
+          {appendError === null ? null : (
             <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-              {requestErrorMessage(append.error)}
+              {requestErrorMessage(appendError)}
             </p>
-          ) : null}
+          )}
         </div>
       </Dialog>
-      {editing === null ? null : (
-        <ModelEditDialog
-          key={`confirm-${editing.id}`}
-          open
-          onOpenChange={(next) => {
-            if (!next) {
-              setEditing(null);
-            }
-          }}
-          api={provider.api}
-          title={t('models.models.wizard.confirmTitle', { model: editing.id })}
-          description={t('models.models.wizard.confirmDescription')}
-          initial={modelFormFromDraft(editing, provider.api)}
-          lockId
-          draft={editing}
-          pending={false}
-          error={null}
-          onSubmit={(model) => {
+      <ModelEditDialog
+        open={confirmOpen}
+        onOpenChange={(next) => {
+          if (!next) {
+            setConfirmOpen(false);
+          }
+        }}
+        api={provider.api}
+        title={editing === null ? '' : t('models.models.wizard.confirmTitle', { model: editing.id })}
+        description={t('models.models.wizard.confirmDescription')}
+        initial={editing === null ? emptyModelForm(provider.api) : modelFormFromDraft(editing, provider.api)}
+        formKey={confirmNonce}
+        lockId
+        draft={editing}
+        pending={false}
+        error={null}
+        onSubmit={(model) => {
+          if (editing !== null) {
             selection.resolve(editing.id, model);
-            setEditing(null);
-          }}
-        />
-      )}
+          }
+          setConfirmOpen(false);
+        }}
+      />
     </>
   );
 }

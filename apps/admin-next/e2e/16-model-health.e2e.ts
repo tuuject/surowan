@@ -17,7 +17,7 @@
  * UI contract assumed (matches the Providers page health-check work):
  * - the row checkbox is labelled `Select {{model}}`;
  * - the per-row button is "Test" (aria `Test whether {{model}} replies`);
- * - the batch button reads `Test selected (N)`;
+ * - the batch button reads `Test`, with an `N selected` line beside it;
  * - the health row shows a status badge and first-response / total durations;
  * - response text and error text render in the row's expandable details
  *   (toggled by the row's "Toggle row details" button).
@@ -80,11 +80,12 @@ test.describe('model health checks', () => {
     await expect(page.locator('[data-model-list] > li')).toHaveCount(10);
     const selectAll = page.getByRole('checkbox', { name: 'Select all', exact: true });
     await selectAll.check();
-    await expect(page.getByRole('button', { name: 'Test selected (11)', exact: true })).toBeVisible();
+    await expect(page.getByText('11 selected', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Test', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Next page', exact: true }).last().click();
     await expect(selectAll).toBeChecked();
     await selectAll.uncheck();
-    await expect(page.getByRole('button', { name: 'Test selected (0)', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Test', exact: true })).toBeDisabled();
   });
 
   test('a single check reports ok with ttfb and response, and blocks repeats while in flight', async ({ page }) => {
@@ -153,7 +154,7 @@ test.describe('model health checks', () => {
     // together: the concurrency cap is observed, not inferred from timing.
     await holdHealthGate();
     try {
-      await page.getByRole('button', { name: /^Test selected \(\d+\)$/ }).click();
+      await page.getByRole('button', { name: 'Test', exact: true }).click();
       await expect.poll(async () => (await relayStats()).in_flight).toBe(3);
       expect((await relayStats()).total).toBe(3);
     } finally {
@@ -210,7 +211,7 @@ test.describe('model health checks', () => {
     try {
       await page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL}`, { exact: true }).check();
       await page.getByLabel(`Select ${E2E_HEALTH_UNEXPECTED_MODEL}`, { exact: true }).check();
-      await page.getByRole('button', { name: /^Test selected \(\d+\)$/ }).click();
+      await page.getByRole('button', { name: 'Test', exact: true }).click();
 
       // The fast row already shows its status and timing while the slow row is
       // still in flight — a finished and a running check coexist row by row.

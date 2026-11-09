@@ -352,8 +352,8 @@ Remove-Item Env:E2E_PASSKEYS
      Alarm 取消成功与 409 冲突路径（`alarm_not_pending` + 列表刷新到新状态）、
      Overview 的 Cancel ongoing 与睡眠态 Wake now；Models 页并发编辑（模型编辑输掉 revision 竞争后关闭而不覆盖、
      连接卡片的旧草稿不能删掉期间新增的 header、header 名可逐键输入不丢焦点）。
-     `08-models-editing.e2e.ts` 还记录编辑弹窗实际触发的双向 CSS 过渡，验证关闭期间保留草稿、取消后重开恢复模型快照，并附加 `model-edit-transitions` JSON 验收产物。
-     同一套件在桌面和窄屏分别打开编辑框与删除确认框，等待真实滚动锁生效和释放，断言页面 `scrollY` 与背景模型行位置不变，并附加 `modal-scroll-positions` JSON 产物。
+     `08-models-editing.e2e.ts` 还记录编辑弹窗实际触发的双向 CSS 过渡，验证关闭期间保留草稿、取消后重开恢复模型快照，并附加 `model-edit-transitions` JSON 验收产物；同一套件在桌面和窄屏分别打开编辑框与删除确认框，等待真实滚动锁生效和释放，断言页面 `scrollY` 与背景模型行位置不变，并附加 `modal-scroll-positions` JSON 产物。
+     `29-modal-transitions.e2e.ts` 逐个打开 Providers（含嵌套的元数据确认）、Chats、API keys、Dictionary、Web search、Bot admins、Playground 与 Prompt 恢复确认，监听真实 `transitionrun` 事件断言进入与退出过渡都存在，并在关闭瞬间读取标题断言它没有提前清空；只断言计算样式为 300ms 无法发现条件挂载导致的过渡缺失。
      `16-model-health.e2e.ts` 通过本地 SSE 上游验证单项和跨 Provider 批量健康检查、检查中禁用重复操作、三项并发上限、先完成项与在途项同时可见、SPA 离页取消在途与排队检查、刷新清空页内结果、配置和当前模型不变、密钥不进页面及窄屏布局。
      Developer 页默认关闭、开关持久化、应用失败与恢复、取消/确认清除、清除前后其它审计不变，以及移动端暗色布局。
   6. 只读保证：`01-routes.e2e.ts` 访问每条路由时记录网络请求，断言没有任何 POST/PUT/DELETE 打到
