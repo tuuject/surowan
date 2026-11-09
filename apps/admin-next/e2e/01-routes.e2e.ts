@@ -149,8 +149,8 @@ test.describe('routes and deep links', () => {
 
   test('/prompts shows the prompt editor and version history', async ({ page }) => {
     await page.goto(await adminUrl('/prompts'));
-    await expect(page.getByText('Prompt editor')).toBeVisible();
-    await expect(page.locator('#prompt-text')).toHaveValue('Participate safely.');
+    await expect(page.getByRole('heading', { name: 'Global prompt', exact: true })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Prompt', exact: true })).toHaveText('Participate safely.');
     await expect(page.getByText('Version history')).toBeVisible();
     await expect(page.locator('table tbody tr').first()).toBeVisible();
     await expect(page.getByText('Something went wrong')).toHaveCount(0);

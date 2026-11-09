@@ -27,8 +27,8 @@ test.describe('prompts page', () => {
   test('renders the editor, the starting external version and the scope rail', async ({ page }) => {
     const finish = watchPageIssues(page);
     await page.goto(await adminUrl('/prompts'));
-    await expect(page.getByText('Prompt editor')).toBeVisible();
-    await expect(page.locator('#prompt-text')).toHaveValue(GLOBAL_START);
+    await expect(page.getByRole('heading', { name: 'Global prompt', exact: true })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Prompt', exact: true })).toHaveText(GLOBAL_START);
     await expect(
       page.getByText('Applies from the next invocation; affected Conversation Contexts rebuild on their next run.'),
     ).toBeVisible();
@@ -52,7 +52,7 @@ test.describe('prompts page', () => {
     // The sidebar entry leads back to the page.
     await page.goto(await adminUrl('/'));
     await clickNav(page, 'Agent setup', 'Prompts');
-    await expect(page.getByText('Prompt editor')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Global prompt', exact: true })).toBeVisible();
     const issues = finish();
     expect(issues.pageErrors).toEqual([]);
     expect(issues.consoleErrors).toEqual([]);
@@ -115,7 +115,7 @@ test.describe('prompts page', () => {
     // Selecting only one new id leaves the other side empty; no old-scope pair
     // may survive invisibly in the draft and trigger a diff request.
     await page.getByRole('combobox', { name: 'From (older)' }).selectOption({ label: 'v1' });
-    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await page.getByRole('button', { name: 'Compare', exact: true }).click();
     const refreshed = page.waitForResponse(
       (response) =>
         new URL(response.url()).pathname === '/api/prompts/versions' &&
@@ -128,8 +128,8 @@ test.describe('prompts page', () => {
 
   test('saving a changed global prompt records a version, renders the diff and restores', async ({ page }) => {
     await page.goto(await adminUrl('/prompts'));
-    const editor = page.locator('#prompt-text');
-    await expect(editor).toHaveValue(GLOBAL_START);
+    const editor = page.getByRole('textbox', { name: 'Prompt', exact: true });
+    await expect(editor).toHaveText(GLOBAL_START);
     await editor.fill('Participate warmly and concisely.');
     await page.locator('#prompt-note').fill('e2e tune');
     await page.getByRole('button', { name: 'Save and apply' }).click();
@@ -143,7 +143,7 @@ test.describe('prompts page', () => {
     // Comparing is also an explicit query: choose previous → newest, then Search.
     await page.getByRole('combobox', { name: 'From (older)' }).selectOption({ label: 'v1' });
     await page.getByRole('combobox', { name: 'To (newer)' }).selectOption({ label: 'v2' });
-    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await page.getByRole('button', { name: 'Compare', exact: true }).click();
     await expect(page.getByText('v1 → v2')).toBeVisible();
     // A diff row renders both line-number gutters and the +/- marker around
     // the text, so assert containment instead of the exact text.
@@ -156,7 +156,7 @@ test.describe('prompts page', () => {
     await expect(confirm).toBeVisible();
     await expect(confirm).toContainText('Restore version 1?');
     await confirm.getByRole('button', { name: 'Restore version' }).click();
-    await expect(editor).toHaveValue(GLOBAL_START);
+    await expect(editor).toHaveText(GLOBAL_START);
     await expect(page.locator('table tbody tr')).toHaveCount(3);
     await expect(page.locator('table tbody tr').first()).toContainText('Rollback');
     await expect(page.locator('table tbody tr').first()).toContainText('Restored from version 1');
@@ -171,8 +171,8 @@ test.describe('prompts page', () => {
     await page.goto(await adminUrl('/prompts'));
     await rail(page).getByText(CHAT_TITLE, { exact: true }).click();
     await expect(page.getByRole('heading', { name: CHAT_TITLE, exact: true })).toBeVisible();
-    const editor = page.locator('#prompt-text');
-    await expect(editor).toHaveValue(before.prompt);
+    const editor = page.getByRole('textbox', { name: 'Prompt', exact: true });
+    await expect(editor).toHaveText(before.prompt || 'Write the prompt…');
 
     const rowsBefore = await page.locator('table tbody tr').count();
     await editor.fill('Group prompt from e2e');
@@ -186,7 +186,7 @@ test.describe('prompts page', () => {
 
     // Switching back to the global scope restores its own draft and history.
     await rail(page).getByText('Global prompt', { exact: true }).click();
-    await expect(editor).toHaveValue(GLOBAL_START);
+    await expect(editor).toHaveText(GLOBAL_START);
     await expect(page.locator('table tbody tr')).toHaveCount(3);
   });
 

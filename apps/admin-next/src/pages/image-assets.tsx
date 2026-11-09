@@ -3,7 +3,6 @@ import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { Textarea } from '@tuuject/koi-react/textarea';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -15,6 +14,7 @@ import {
   TableShell,
   useOffsetPagination,
 } from '@/components/business';
+import { MarkdownInput } from '@/components/prompts/markdown-input';
 import type { ImageAssetInfo, ImagePromptAsset } from '@/lib/api/images.ts';
 import {
   archiveImageAsset,
@@ -72,10 +72,10 @@ function PromptEditor({ onDone }: { readonly onDone: () => void }) {
           placeholder={t('image.assets.namePlaceholder')}
           aria-label={t('image.assets.namePlaceholder')}
         />
-        <Textarea
+        <MarkdownInput
           value={body}
-          onChange={(event) => setBody(event.target.value)}
-          rows={4}
+          onChange={setBody}
+          minHeight="112px"
           placeholder={t('image.assets.bodyPlaceholder')}
           aria-label={t('image.assets.bodyPlaceholder')}
         />

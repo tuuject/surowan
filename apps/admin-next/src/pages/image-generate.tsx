@@ -8,10 +8,10 @@ import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Tag } from '@tuuject/koi-react/tag';
-import { Textarea } from '@tuuject/koi-react/textarea';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListPageHeader } from '@/components/business';
+import { MarkdownInput } from '@/components/prompts/markdown-input';
 import { AppLink } from '@/components/router-links';
 import type { ImageGenerationRecord } from '@/lib/api/images.ts';
 import {
@@ -220,10 +220,9 @@ export default function ImageGeneratePage() {
         <Card>
           <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
             <Field label={t('image.generate.promptLabel')}>
-              <Textarea
+              <MarkdownInput
                 value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                rows={6}
+                onChange={setPrompt}
                 placeholder={t('image.generate.promptPlaceholder', {
                   promptRef: '{{prompt:…}}',
                   imageRef: '{{image:…}}',

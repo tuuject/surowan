@@ -4,13 +4,13 @@ import { Field } from '@tuuject/koi-react/field';
 import { SuccessIcon, WarningIcon } from '@tuuject/koi-react/icons';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import { Textarea } from '@tuuject/koi-react/textarea';
 import { sizes } from '@tuuject/koi-tokens/dimensions';
 import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MonoValue, ToneBadge } from '@/components/business';
 import type { PromptDocument, PromptVersionItem } from '@/lib/api/prompts.ts';
 import { formatTime } from '@/lib/format';
+import { MarkdownInput } from './markdown-input';
 import { type Notice, type PromptDraft, sourceLabelKey, sourceTone } from './prompt-draft';
 
 /** The same limit the API enforces on a version note. */
@@ -56,7 +56,7 @@ function WriteNotice({ notice }: { readonly notice: Notice | null }): ReactEleme
 }
 
 /**
- * The textarea is seeded from the file view and re-seeded whenever that view's
+ * The editor is seeded from the file view and re-seeded whenever that view's
  * content hash changes (scope switch, refetch after a conflict): the draft only
  * survives while it still describes the content its hash pins.
  */
@@ -83,12 +83,12 @@ export function PromptEditor({
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
       <Field id="prompt-text" label={t('pages.prompts.promptLabel')} help={t('pages.prompts.editorHint')}>
-        <Textarea
+        <MarkdownInput
+          id="prompt-text"
           value={current.text}
-          spellCheck={false}
           placeholder={t('pages.prompts.promptPlaceholder')}
-          className={css({ textStyle: 'small', minHeight: '384px', fontFamily: 'mono' })}
-          onChange={(event) => setDraft({ hash: file.content_hash, text: event.target.value, note: current.note })}
+          minHeight="384px"
+          onChange={(text) => setDraft({ hash: file.content_hash, text, note: current.note })}
         />
       </Field>
       <Field
