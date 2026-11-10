@@ -3,6 +3,7 @@
  * mirrors it key for key.
  */
 export const warnings = {
+  pageDescription: 'System health warnings that need attention, and the history of event warnings.',
   standingTitle: 'Standing warnings',
   eventsTitle: 'Event warnings',
   unreadCount: '{{count}} unread',
@@ -17,15 +18,14 @@ export const warnings = {
   clearConfirm: 'Clear warnings',
   cleared: 'Cleared {{count}} warnings',
   loadFailed: 'Failed to load warnings',
-  loadMore: 'Load more',
   noStanding: 'No standing warnings.',
   noEvents: 'No event warnings yet.',
   missingFields: 'Missing: {{fields}}',
   invalidApiKeys: 'Invalid keys: {{keys}}',
   lastFailedAt: 'Last failure: {{time}}',
   createdAt: 'Created {{time}}',
-  updatedAt: 'updated {{time}}',
-  readAt: 'read {{time}}',
+  updatedAt: 'Updated {{time}}',
+  readAt: 'Read {{time}}',
   severity: {
     warning: 'Warning',
     critical: 'Critical',

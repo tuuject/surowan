@@ -64,3 +64,12 @@ export function thinkingLevelMap(model: ThinkingLevelSource): ThinkingLevelMap |
   }
   return map;
 }
+
+/**
+ * The effort a vision analysis runs at when `vision.thinking_level` is unset:
+ * `low` where the model offers it, otherwise the weakest effort above `off`.
+ * A model that does not reason only offers `off`, so it is sent none.
+ */
+export function defaultVisionThinkingLevel(supported: readonly ModelThinkingLevel[]): ModelThinkingLevel {
+  return supported.includes('low') ? 'low' : (supported.find((level) => level !== 'off') ?? 'off');
+}

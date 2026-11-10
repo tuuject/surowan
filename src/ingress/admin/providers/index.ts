@@ -53,6 +53,23 @@ const ModelsBodySchema = Type.Object(
   Strict,
 );
 
+const DeleteModelsBodySchema = Type.Object(
+  {
+    models: Type.Array(
+      Type.Object(
+        {
+          provider: Type.String({ pattern: PROVIDER_ALIAS_PATTERN.source }),
+          model: Type.String({ minLength: 1 }),
+        },
+        Strict,
+      ),
+      { minItems: 1, maxItems: MAX_MODELS_PER_REQUEST },
+    ),
+  },
+  Strict,
+);
+export type DeleteModelsBody = Static<typeof DeleteModelsBodySchema>;
+
 const DiscoverBodySchema = Type.Object(
   {
     alias: Type.Optional(Type.String({ minLength: 1 })),
@@ -78,7 +95,11 @@ const LookupMetadataBodySchema = Type.Object(
 );
 
 const VisionBodySchema = Type.Object(
-  { provider: Type.String({ minLength: 1 }), model: Type.String({ minLength: 1 }) },
+  {
+    provider: Type.String({ minLength: 1 }),
+    model: Type.String({ minLength: 1 }),
+    thinking_level: Type.Optional(ThinkingLevelSchema),
+  },
   Strict,
 );
 const ThinkingLevelBodySchema = Type.Object({ thinking_level: ThinkingLevelSchema }, Strict);
@@ -108,8 +129,17 @@ export interface ProvidersView {
     readonly model: string | null;
     readonly thinking_level: ThinkingLevelConfig | null;
   };
-  /** Null fields mean no vision model is configured: read_image and sticker indexing are unavailable. */
-  readonly vision: { readonly provider: string | null; readonly model: string | null };
+  /**
+   * Null fields mean no vision model is configured: read_image and sticker
+   * indexing are unavailable. `thinking_level` is the effort analyses run at:
+   * the configured one, or the default derived from the model (`low` where
+   * offered, `off` for a model that does not reason).
+   */
+  readonly vision: {
+    readonly provider: string | null;
+    readonly model: string | null;
+    readonly thinking_level: ThinkingLevelConfig | null;
+  };
   /**
    * The system-wide auxiliary model. `inherited` means no dedicated config
    * exists and the three fields describe the global agent settings it follows;
@@ -171,6 +201,7 @@ const modelsBodyValidator = Compile(ModelsBodySchema);
 const modelValidator = Compile(ModelConfigSchema);
 const discoverValidator = Compile(DiscoverBodySchema);
 const lookupValidator = Compile(LookupMetadataBodySchema);
+const deleteModelsValidator = Compile(DeleteModelsBodySchema);
 const visionValidator = Compile(VisionBodySchema);
 const thinkingLevelValidator = Compile(ThinkingLevelBodySchema);
 
@@ -197,6 +228,10 @@ export function parseModelBody(value: unknown): ModelFileConfig {
   return parseWith(modelValidator, value);
 }
 
+export function parseDeleteModelsBody(value: unknown): DeleteModelsBody {
+  return parseWith(deleteModelsValidator, value);
+}
+
 export function parseDiscoverBody(value: unknown): DiscoverBody {
   return parseWith(discoverValidator, value);
 }
@@ -205,7 +240,9 @@ export function parseLookupMetadataBody(value: unknown): LookupMetadataBody {
   return parseWith(lookupValidator, value);
 }
 
-export function parseVisionBody(value: unknown): { readonly provider: string; readonly model: string } {
+export type VisionBody = Static<typeof VisionBodySchema>;
+
+export function parseVisionBody(value: unknown): VisionBody {
   return parseWith(visionValidator, value);
 }
 

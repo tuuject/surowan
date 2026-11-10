@@ -106,6 +106,11 @@ export interface VisionModelReference {
   /** Null when no vision model is configured: read_image and sticker indexing are unavailable. */
   readonly provider: string | null;
   readonly model: string | null;
+  /**
+   * The effort analyses run at: the configured one, or the default the server
+   * derives from the model (`low` where offered; `off` when it does not reason).
+   */
+  readonly thinking_level: ThinkingLevel | null;
 }
 
 export interface ProvidersView {
@@ -281,10 +286,17 @@ export function replaceProviderModel(
   });
 }
 
-export function deleteProviderModel(alias: string, modelId: string, revision: string): Promise<ProviderWriteResponse> {
-  return call<ProviderWriteResponse>(`/providers/${encodeURIComponent(alias)}/models/${encodeURIComponent(modelId)}`, {
-    method: 'DELETE',
+/** The server refuses a larger delete batch whole; splitting it would give up atomicity. */
+export const MAX_MODELS_PER_DELETE = 200;
+
+export function deleteProviderModels(
+  models: readonly ProviderModelReference[],
+  revision: string,
+): Promise<ProviderWriteResponse> {
+  return call<ProviderWriteResponse>('/providers/models/delete', {
+    method: 'POST',
     headers: writeHeaders(revision),
+    body: JSON.stringify({ models }),
   });
 }
 

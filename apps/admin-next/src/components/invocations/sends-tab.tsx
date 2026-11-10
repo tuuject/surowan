@@ -1,10 +1,10 @@
+import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import { type ColumnSpec, JsonViewer, MonoValue, StateBadge, TableShell, TextValue } from '@/components/business';
 import { isRoom, TabContent } from '@/components/invocations/shared';
-
-import { formatTime } from '@/lib/format';
 import type { InvocationDetail, TelegramSendEntry } from '@/lib/api/invocations.ts';
+import { formatTime } from '@/lib/format';
 
 export function SendsTab({ invocation }: { readonly invocation: InvocationDetail }): React.ReactNode {
   const { t } = useTranslation();
@@ -56,7 +56,9 @@ export function SendsTab({ invocation }: { readonly invocation: InvocationDetail
         rowKey={(row) => row.id}
         expandedRender={(row) => (
           <div>
-            <p className="text-muted-foreground mb-1 text-xs">{t('invocations.invocationDetail.requestPayload')}</p>
+            <p className={css({ textStyle: 'small', color: 'text-muted', marginBlockEnd: '1' })}>
+              {t('invocations.invocationDetail.requestPayload')}
+            </p>
             <JsonViewer value={row.request_json} />
           </div>
         )}

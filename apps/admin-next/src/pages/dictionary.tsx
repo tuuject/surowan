@@ -1,10 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
-import { Download, Info, Merge, Upload } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { PlusIcon, UploadIcon } from '@tuuject/koi-react/icons';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { type ReactElement, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
-import { ConfirmDialog, FilterToolbar, TableShell, TextFilter } from '@/components/business';
+import {
+  ConfirmDialog,
+  ListFooter,
+  ListPageHeader,
+  ListSearchForm,
+  ListToolbar,
+  QueryTextField,
+  TableShell,
+  useClientPagination,
+} from '@/components/business';
 import { DictionaryConflictAlert } from '@/components/dictionary/conflict-alert.tsx';
 import { dictionaryColumns } from '@/components/dictionary/entry-columns.tsx';
 import { EntryFormFields } from '@/components/dictionary/entry-form.tsx';
@@ -13,19 +24,9 @@ import { ImportDialog } from '@/components/dictionary/import-dialog.tsx';
 import { InjectionPanel } from '@/components/dictionary/injection-panel.tsx';
 import { MergeDialog } from '@/components/dictionary/merge-dialog.tsx';
 import { DictionaryScopePanel } from '@/components/dictionary/scope-panel.tsx';
-import { Panel } from '@/components/layout/panel';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Skeleton } from '@/components/ui/skeleton';
-
+import { DownloadIcon, MergeIcon } from '@/components/icons';
+import type { DictionaryDraft, DictionaryEntry, DictionaryScope } from '@/lib/api/dictionary.ts';
+import { createDictionaryEntry, deleteDictionaryEntry, updateDictionaryEntry } from '@/lib/api/dictionary.ts';
 import {
   conflictedEntryIds,
   type DictionaryDraftErrors,
@@ -35,11 +36,11 @@ import {
   normalizeDraft,
   validateDraft,
 } from '@/lib/dictionary.ts';
+import { chatQuery, useListQuery } from '@/lib/list-query';
 import { dictionaryChatsQuery, dictionaryQuery } from '@/lib/queries.ts';
-import { useChatScope, useChatScopeSetter } from '@/lib/search-params.ts';
-import { createDictionaryEntry, deleteDictionaryEntry, updateDictionaryEntry } from '@/lib/api/dictionary.ts';
-import type { DictionaryDraft, DictionaryEntry, DictionaryScope } from '@/lib/api/dictionary.ts';
+import { toast } from '@/lib/toast.ts';
 
+const EMPTY_FILTERS = { chat: '', search: '' };
 const EMPTY_DRAFT: DictionaryDraft = {
   term: '',
   definition: '',
@@ -49,38 +50,49 @@ const EMPTY_DRAFT: DictionaryDraft = {
   enabled: true,
 };
 
-export default function DictionaryPage(): React.ReactElement {
+export default function DictionaryPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const chats = useQuery(dictionaryChatsQuery);
 
-  const chat = useChatScope();
-  const navigate = useNavigate({ from: '/dictionary' });
-  const setChat = useChatScopeSetter(navigate);
+  const query = useListQuery(EMPTY_FILTERS);
+  const chat = chatQuery(query.value.chat);
   const scope: DictionaryScope = chat === undefined ? 'global' : 'group';
   const chatId: string | null = chat ?? null;
-  const [search, setSearch] = useState<string | undefined>(undefined);
+  const search = query.value.search;
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 
   const [createOpen, setCreateOpen] = useState(false);
+  // Remounts the form per open, so a dialog reopened before its exit transition
+  // ends still starts from the fresh draft (the popup is only unmounted once
+  // the transition completes).
+  const [createFormKey, setCreateFormKey] = useState(0);
   const [createDraft, setCreateDraft] = useState<DictionaryDraft>(EMPTY_DRAFT);
   const [createErrors, setCreateErrors] = useState<DictionaryDraftErrors>({});
+  // Every dialog stays mounted and keeps its target snapshot after it closes:
+  // `open` is what the transition follows, and the snapshot is replaced on the
+  // next open so the title and fields do not blank out during the exit fade.
   const [editing, setEditing] = useState<{ readonly entry: DictionaryEntry; readonly draft: DictionaryDraft } | null>(
     null,
   );
+  const [editOpen, setEditOpen] = useState(false);
+  const [editFormKey, setEditFormKey] = useState(0);
   const [editErrors, setEditErrors] = useState<DictionaryDraftErrors>({});
   const [deleting, setDeleting] = useState<DictionaryEntry | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [mergeTargets, setMergeTargets] = useState<readonly DictionaryEntry[]>([]);
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
 
   const target = { scope, chat: chatId };
-  const list = useQuery(dictionaryQuery(target, search ?? ''));
+  const list = useQuery(dictionaryQuery(target, search));
 
   const chatOptions = chats.data?.items ?? [];
   const conflicts = list.data?.conflicts ?? [];
   const conflicted = useMemo(() => conflictedEntryIds(conflicts), [conflicts]);
   const items = list.data?.items ?? [];
+  const pagination = useClientPagination(items, `${scope}:${chatId ?? ''}:${query.resetKey}`);
 
   // Selection only makes sense for entries that are actually listed; a search
   // or scope change drops ids no longer visible.
@@ -107,9 +119,9 @@ export default function DictionaryPage(): React.ReactElement {
   const create = useMutation({
     mutationFn: (draft: DictionaryDraft) => createDictionaryEntry(normalizeDraft(draft)),
     onSuccess: () => {
+      // The draft stays until the next open so the fields render through the
+      // exit transition; `openCreate` replaces it.
       setCreateOpen(false);
-      setCreateDraft(EMPTY_DRAFT);
-      setCreateErrors({});
       toast.success(t('dictionary.entry.created'));
       invalidate();
     },
@@ -122,8 +134,7 @@ export default function DictionaryPage(): React.ReactElement {
     mutationFn: (input: { readonly entry: DictionaryEntry; readonly draft: DictionaryDraft }) =>
       updateDictionaryEntry(input.entry.id, normalizeDraft(input.draft), input.entry.revision),
     onSuccess: () => {
-      setEditing(null);
-      setEditErrors({});
+      setEditOpen(false);
       toast.success(t('dictionary.entry.updated'));
       invalidate();
     },
@@ -132,7 +143,7 @@ export default function DictionaryPage(): React.ReactElement {
       // A revision conflict closes the form: retrying would overwrite whatever
       // changed on the server, so the admin reopens against fresh data.
       if (isDictionaryConflict(error)) {
-        setEditing(null);
+        setEditOpen(false);
         toast.error(t('dictionary.entry.staleTitle'), { description: t('dictionary.entry.staleDescription') });
       }
     },
@@ -141,7 +152,7 @@ export default function DictionaryPage(): React.ReactElement {
   const remove = useMutation({
     mutationFn: (entry: DictionaryEntry) => deleteDictionaryEntry(entry.id, entry.revision),
     onSuccess: () => {
-      setDeleting(null);
+      setDeleteOpen(false);
       toast.success(t('dictionary.delete.deleted'));
       invalidate();
     },
@@ -161,32 +172,44 @@ export default function DictionaryPage(): React.ReactElement {
     },
   });
 
-  const allVisibleSelected = items.length > 0 && items.every((entry) => selected.has(entry.id));
+  const openCreate = (): void => {
+    create.reset();
+    setCreateDraft(EMPTY_DRAFT);
+    setCreateErrors({});
+    setCreateFormKey((key) => key + 1);
+    setCreateOpen(true);
+  };
 
   const columns = dictionaryColumns({
     t,
     chats: chatOptions,
     conflicted,
-    selected,
     toggleEnabledPending: toggleEnabled.isPending,
-    onToggleSelected: toggleSelected,
     onToggleEnabled: (entry) => toggleEnabled.mutate(entry),
     onEdit: (entry) => {
+      update.reset();
       setEditErrors({});
       setEditing({ entry, draft: draftFromEntry(entry) });
+      setEditFormKey((key) => key + 1);
+      setEditOpen(true);
     },
-    onDelete: (entry) => setDeleting(entry),
+    onDelete: (entry) => {
+      remove.reset();
+      setDeleting(entry);
+      setDeleteOpen(true);
+    },
   });
 
   return (
-    <div className="space-y-4">
-      <Alert>
-        <Info className="text-foreground" />
-        <AlertTitle>{t('dictionary.page.title')}</AlertTitle>
-        <AlertDescription>{t('dictionary.page.description')}</AlertDescription>
-      </Alert>
-
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
+      <ListPageHeader title={t('dictionary.page.title')} description={t('dictionary.page.description')} />
+      <div
+        className={css({
+          display: 'grid',
+          gap: '4',
+          '@media (min-width: 1024px)': { gridTemplateColumns: 'minmax(0,20rem) minmax(0,1fr)' },
+        })}
+      >
         <DictionaryScopePanel
           chatId={chatId}
           chats={chatOptions}
@@ -194,7 +217,7 @@ export default function DictionaryPage(): React.ReactElement {
           chatsFailed={chats.isError}
           chatsError={chats.error}
           onSelect={(nextChatId) => {
-            setChat(nextChatId ?? undefined);
+            query.apply({ ...query.value, chat: nextChatId ?? '' });
             setSelected(new Set());
           }}
         />
@@ -202,40 +225,71 @@ export default function DictionaryPage(): React.ReactElement {
         <InjectionPanel chatId={chatId} />
       </div>
 
-      <FilterToolbar>
-        <Button type="button" onClick={() => setCreateOpen(true)}>
+      <ListSearchForm
+        value={query.value}
+        emptyValue={{ ...EMPTY_FILTERS, chat: query.value.chat }}
+        onSearch={query.apply}
+      >
+        {({ draft, change }) => (
+          <QueryTextField
+            label={t('dictionary.page.searchPlaceholder')}
+            value={draft.search}
+            onChange={(search) => change({ search })}
+          />
+        )}
+      </ListSearchForm>
+
+      <ListToolbar
+        onRefresh={() => void list.refetch()}
+        refreshing={list.isRefetching}
+        trailing={
+          selectedEntries.length > 0 ? (
+            <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+              {t('dictionary.page.selectedCount', { count: selectedEntries.length })}
+            </span>
+          ) : null
+        }
+      >
+        <Button variant="outline" iconStart={<PlusIcon />} onClick={openCreate}>
           {t('dictionary.page.newEntry')}
         </Button>
-        <Button type="button" variant="outline" onClick={() => setImportOpen(true)}>
-          <Upload />
+        <Button
+          type="button"
+          variant="outline"
+          color="secondary"
+          onClick={() => setImportOpen(true)}
+          iconStart={<UploadIcon />}
+        >
           {t('dictionary.page.import')}
         </Button>
-        <Button type="button" variant="outline" onClick={() => setExportOpen(true)}>
-          <Download />
+        <Button
+          type="button"
+          variant="outline"
+          color="secondary"
+          onClick={() => setExportOpen(true)}
+          iconStart={<DownloadIcon />}
+        >
           {t('dictionary.page.export')}
         </Button>
         <Button
           type="button"
           variant="outline"
+          color="secondary"
           disabled={selectedEntries.length < 2}
           title={selectedEntries.length < 2 ? t('dictionary.page.mergeNeedsTwo') : undefined}
-          onClick={() => setMergeOpen(true)}
+          onClick={() => {
+            setMergeTargets(selectedEntries);
+            setMergeOpen(true);
+          }}
+          iconStart={<MergeIcon />}
         >
-          <Merge />
           {t('dictionary.page.mergeSelected', { count: selectedEntries.length })}
         </Button>
-        <TextFilter
-          value={search}
-          placeholder={t('dictionary.page.searchPlaceholder')}
-          onCommit={(value) => setSearch(value.length === 0 ? undefined : value)}
-          onClear={() => setSearch(undefined)}
-        />
-      </FilterToolbar>
+      </ListToolbar>
 
       {list.isError ? (
-        <Alert variant="destructive">
-          <AlertTitle>{t('dictionary.page.loadFailed')}</AlertTitle>
-          <AlertDescription>{dictionaryErrorMessage(list.error)}</AlertDescription>
+        <Alert tone="error" title={t('dictionary.page.loadFailed')}>
+          {dictionaryErrorMessage(list.error)}
         </Alert>
       ) : null}
 
@@ -249,41 +303,46 @@ export default function DictionaryPage(): React.ReactElement {
         />
       ) : null}
 
-      <Panel
-        title={t('dictionary.page.title')}
-        flush
-        action={
-          <label className="text-muted-foreground flex items-center gap-2 text-xs">
-            <input
-              type="checkbox"
-              className="size-4 rounded border-input"
-              checked={allVisibleSelected}
-              disabled={items.length === 0}
-              onChange={() => {
-                setSelected(allVisibleSelected ? new Set() : new Set(items.map((entry) => entry.id)));
-              }}
-            />
-            {t('dictionary.page.selectAll')}
-          </label>
-        }
-      >
-        {list.isPending ? (
-          <div className="space-y-2 px-6 pb-4">
-            {['a', 'b', 'c', 'd'].map((key) => (
-              <Skeleton key={key} className="h-9 w-full rounded-md" />
-            ))}
-          </div>
-        ) : (
+      {list.isPending || list.data !== undefined ? (
+        <div>
           <TableShell
             columns={columns}
-            data={items}
+            data={pagination.items}
             rowKey={(entry) => entry.id}
-            className="max-w-full overflow-x-auto"
-            emptyText={search === undefined ? t('dictionary.page.emptyEntries') : t('dictionary.page.emptyFiltered')}
+            loading={list.isPending}
+            minWidth={1100}
+            selection={{
+              selected,
+              onToggle: (entry) => toggleSelected(entry.id),
+              onToggleAll: (checked) =>
+                setSelected((previous) => {
+                  const next = new Set(previous);
+                  for (const entry of pagination.items) {
+                    if (checked) {
+                      next.add(entry.id);
+                    } else {
+                      next.delete(entry.id);
+                    }
+                  }
+                  return next;
+                }),
+              allLabel: t('dictionary.page.selectAll'),
+              rowLabel: (entry) => t('dictionary.page.selectAria', { term: entry.term }),
+            }}
+            emptyText={search.length === 0 ? t('dictionary.page.emptyEntries') : t('dictionary.page.emptyFiltered')}
           />
-        )}
-        <p className="text-muted-foreground px-6 pt-3 pb-4 text-xs">{t('dictionary.page.retentionNote')}</p>
-      </Panel>
+          <ListFooter
+            count={pagination.total}
+            page={pagination.page}
+            pageCount={pagination.pageCount}
+            onPageChange={pagination.onPageChange}
+          >
+            <span className={css({ textStyle: 'small', color: 'text-muted', maxWidth: '42rem' })}>
+              {t('dictionary.page.retentionNote')}
+            </span>
+          </ListFooter>
+        </div>
+      ) : null}
 
       <Dialog
         open={createOpen}
@@ -293,30 +352,17 @@ export default function DictionaryPage(): React.ReactElement {
           }
           setCreateOpen(open);
         }}
-      >
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>{t('dictionary.entry.createTitle')}</DialogTitle>
-            <DialogDescription>{t('dictionary.entry.createDescription')}</DialogDescription>
-          </DialogHeader>
-          <EntryFormFields
-            draft={createDraft}
-            chats={chatOptions}
-            errors={createErrors}
-            disabled={create.isPending}
-            idPrefix="create-entry"
-            onChange={setCreateDraft}
-          />
-          {create.isError ? (
-            <p className="text-destructive text-sm break-words">{dictionaryErrorMessage(create.error)}</p>
-          ) : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={create.isPending} onClick={() => setCreateOpen(false)}>
+        title={t('dictionary.entry.createTitle')}
+        description={t('dictionary.entry.createDescription')}
+        size="md"
+        footer={
+          <>
+            <Button variant="ghost" color="secondary" disabled={create.isPending} onClick={() => setCreateOpen(false)}>
               {t('common.cancel')}
             </Button>
             <Button
-              type="button"
-              disabled={create.isPending}
+              loading={create.isPending}
+              loadingLabel={t('common.saving')}
               onClick={() => {
                 const errors = validateDraft(createDraft);
                 setCreateErrors(errors);
@@ -325,51 +371,48 @@ export default function DictionaryPage(): React.ReactElement {
                 }
               }}
             >
-              {create.isPending ? t('common.saving') : t('dictionary.entry.create')}
+              {t('dictionary.entry.create')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        <EntryFormFields
+          key={createFormKey}
+          draft={createDraft}
+          chats={chatOptions}
+          errors={createErrors}
+          disabled={create.isPending}
+          idPrefix="create-entry"
+          onChange={setCreateDraft}
+        />
+        {create.isError ? (
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+            {dictionaryErrorMessage(create.error)}
+          </p>
+        ) : null}
       </Dialog>
 
       <Dialog
-        open={editing !== null}
+        open={editOpen}
         onOpenChange={(open) => {
           if (!open && update.isPending) {
             return;
           }
           if (!open) {
-            setEditing(null);
+            setEditOpen(false);
           }
         }}
-      >
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>{t('dictionary.entry.editTitle', { term: editing?.entry.term ?? '' })}</DialogTitle>
-            <DialogDescription>{t('dictionary.entry.editDescription')}</DialogDescription>
-          </DialogHeader>
-          {editing !== null ? (
-            <EntryFormFields
-              draft={editing.draft}
-              chats={chatOptions}
-              errors={editErrors}
-              disabled={update.isPending}
-              idPrefix="edit-entry"
-              onChange={(draft) => setEditing({ entry: editing.entry, draft })}
-            />
-          ) : null}
-          {conflicted.has(editing?.entry.id ?? '') ? (
-            <p className="text-warning-foreground text-sm">{t('dictionary.entry.conflictWarning')}</p>
-          ) : null}
-          {update.isError ? (
-            <p className="text-destructive text-sm break-words">{dictionaryErrorMessage(update.error)}</p>
-          ) : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={update.isPending} onClick={() => setEditing(null)}>
+        title={t('dictionary.entry.editTitle', { term: editing?.entry.term ?? '' })}
+        description={t('dictionary.entry.editDescription')}
+        size="md"
+        footer={
+          <>
+            <Button variant="ghost" color="secondary" disabled={update.isPending} onClick={() => setEditOpen(false)}>
               {t('common.cancel')}
             </Button>
             <Button
-              type="button"
-              disabled={update.isPending}
+              loading={update.isPending}
+              loadingLabel={t('common.saving')}
               onClick={() => {
                 if (editing === null) {
                   return;
@@ -381,17 +424,37 @@ export default function DictionaryPage(): React.ReactElement {
                 }
               }}
             >
-              {update.isPending ? t('common.saving') : t('dictionary.entry.save')}
+              {t('dictionary.entry.save')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        {editing !== null ? (
+          <EntryFormFields
+            key={editFormKey}
+            draft={editing.draft}
+            chats={chatOptions}
+            errors={editErrors}
+            disabled={update.isPending}
+            idPrefix="edit-entry"
+            onChange={(draft) => setEditing({ entry: editing.entry, draft })}
+          />
+        ) : null}
+        {conflicted.has(editing?.entry.id ?? '') ? (
+          <p className={css({ textStyle: 'body', color: 'warning-text' })}>{t('dictionary.entry.conflictWarning')}</p>
+        ) : null}
+        {update.isError ? (
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+            {dictionaryErrorMessage(update.error)}
+          </p>
+        ) : null}
       </Dialog>
 
       <ConfirmDialog
-        open={deleting !== null}
+        open={deleteOpen}
         onOpenChange={(open) => {
           if (!open && !remove.isPending) {
-            setDeleting(null);
+            setDeleteOpen(false);
           }
         }}
         title={t('dictionary.delete.title', { term: deleting?.term ?? '' })}
@@ -407,32 +470,26 @@ export default function DictionaryPage(): React.ReactElement {
         }}
       />
 
-      {importOpen ? (
-        <ImportDialog
-          open={importOpen}
-          onOpenChange={setImportOpen}
-          chats={chatOptions}
-          defaultScope={scope}
-          defaultChatId={chatId}
-          onImported={invalidate}
-        />
-      ) : null}
+      <ImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        chats={chatOptions}
+        defaultScope={scope}
+        defaultChatId={chatId}
+        onImported={invalidate}
+      />
 
-      {exportOpen ? (
-        <ExportDialog open={exportOpen} onOpenChange={setExportOpen} scope={scope} chatId={chatId} />
-      ) : null}
+      <ExportDialog open={exportOpen} onOpenChange={setExportOpen} scope={scope} chatId={chatId} />
 
-      {mergeOpen ? (
-        <MergeDialog
-          open={mergeOpen}
-          onOpenChange={setMergeOpen}
-          entries={selectedEntries}
-          chats={chatOptions}
-          defaultScope={scope}
-          defaultChatId={chatId}
-          onMerged={() => setSelected(new Set())}
-        />
-      ) : null}
+      <MergeDialog
+        open={mergeOpen}
+        onOpenChange={setMergeOpen}
+        entries={mergeTargets}
+        chats={chatOptions}
+        defaultScope={scope}
+        defaultChatId={chatId}
+        onMerged={() => setSelected(new Set())}
+      />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test';
+import { createEntry, draft, listView, removeEntry, resetDictionaries } from './dictionary-fixture.ts';
 import { adminUrl, test } from './helpers.ts';
 import { E2E_MERGE_ALIAS, E2E_MERGE_MODEL, E2E_MERGE_SUGGESTION } from './models-fixture.ts';
-import { createEntry, draft, listView, removeEntry, resetDictionaries } from './dictionary-fixture.ts';
 
 /**
  * The two-step dictionary merge against the real AdminServer + real SQLite and
@@ -107,6 +107,79 @@ test.describe('dictionary merge', () => {
       const remaining = (await listView(page, { scope: 'global' })).items;
       for (const entry of remaining) {
         if (sourceIds.includes(entry.id) || entry.term === keep.term || entry.term === `e2e-merge-collapsed-${stamp}`) {
+          await removeEntry(page, entry);
+        }
+      }
+    }
+  });
+
+  test('a suggestion that outlives its session cannot reach the next one', async ({ page }, testInfo) => {
+    const stamp = Date.now();
+    const staleA = await createEntry(page, draft(`e2e-merge-stale-a-${stamp}`));
+    const staleB = await createEntry(page, draft(`e2e-merge-stale-b-${stamp}`));
+    const liveA = await createEntry(page, draft(`e2e-merge-live-a-${stamp}`));
+    const liveB = await createEntry(page, draft(`e2e-merge-live-b-${stamp}`));
+    const created = [staleA.id, staleB.id, liveA.id, liveB.id];
+    const mergedTerm = `e2e-merge-live-${stamp}`;
+    // The first preview stays unanswered until the spec lets it through.
+    const firstPreview = Promise.withResolvers<void>();
+    let previews = 0;
+    await page.route('**/api/dictionary/merge/preview', async (route) => {
+      previews += 1;
+      if (previews === 1) {
+        await firstPreview.promise;
+      }
+      await route.fallback();
+    });
+    try {
+      await page.goto(await adminUrl('/dictionary'));
+      await page.getByRole('checkbox', { name: `Select ${staleA.term}` }).check();
+      await page.getByRole('checkbox', { name: `Select ${staleB.term}` }).check();
+      await page.getByRole('button', { name: /Merge selected/ }).click();
+      const dialog = page.getByRole('dialog');
+      const stalePreview = page.waitForResponse((response) => response.url().endsWith('/api/dictionary/merge/preview'));
+      await dialog.getByRole('button', { name: 'Generate suggestion' }).click();
+      await expect(dialog.getByRole('button', { name: 'Generating a suggestion…' })).toBeVisible();
+      await dialog.getByRole('button', { name: 'Cancel' }).click();
+      await expect(dialog).toHaveCount(0);
+
+      await page.getByRole('checkbox', { name: `Select ${staleA.term}` }).uncheck();
+      await page.getByRole('checkbox', { name: `Select ${staleB.term}` }).uncheck();
+      await page.getByRole('checkbox', { name: `Select ${liveA.term}` }).check();
+      await page.getByRole('checkbox', { name: `Select ${liveB.term}` }).check();
+      await page.getByRole('button', { name: /Merge selected/ }).click();
+      await expect(dialog.getByText(liveA.term, { exact: true })).toBeVisible();
+
+      // The first session's answer arrives while the second session is idle.
+      firstPreview.resolve();
+      await (await stalePreview).finished();
+      await expect(dialog.getByRole('button', { name: 'Generate suggestion' })).toBeVisible();
+      await expect(dialog.locator('#merge-term')).toHaveCount(0);
+      await expect(dialog.getByRole('button', { name: 'Save merged entry' })).toBeDisabled();
+      const screenshotPath = testInfo.outputPath('merge-stale-suggestion-ignored.png');
+      await page.screenshot({ path: screenshotPath });
+      await testInfo.attach('merge-stale-suggestion-ignored', { path: screenshotPath, contentType: 'image/png' });
+
+      // A merge confirmed now deletes this session's sources, not the first one's.
+      await dialog.getByRole('button', { name: 'Generate suggestion' }).click();
+      await expect(dialog.locator('#merge-term')).toBeVisible();
+      await dialog.locator('#merge-term').fill(mergedTerm);
+      await dialog.getByRole('checkbox', { name: 'Delete the source entries' }).check();
+      await dialog.getByRole('button', { name: 'Save merged entry' }).click();
+      await expect(page.getByText('Merged entry saved')).toBeVisible();
+
+      const after = await listView(page, { scope: 'global' });
+      const remaining = after.items.map((entry) => entry.id);
+      expect(remaining).toContain(staleA.id);
+      expect(remaining).toContain(staleB.id);
+      expect(remaining).not.toContain(liveA.id);
+      expect(remaining).not.toContain(liveB.id);
+      expect(after.items.some((entry) => entry.term === mergedTerm)).toBe(true);
+    } finally {
+      firstPreview.resolve();
+      const remaining = (await listView(page, { scope: 'global' })).items;
+      for (const entry of remaining) {
+        if (created.includes(entry.id) || entry.term === mergedTerm) {
           await removeEntry(page, entry);
         }
       }

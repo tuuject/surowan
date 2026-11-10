@@ -1,22 +1,22 @@
-import { Link, useNavigate } from '@tanstack/react-router';
-import { useMemo, useState } from 'react';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { type ReactElement, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ChatFilter,
   type ColumnSpec,
   CursorList,
-  FilterToolbar,
-  LIST_TABLE_CLASS,
-  SelectFilter,
+  ListPageHeader,
+  ListSearchForm,
+  QuerySelectField,
+  QueryTextField,
   StateBadge,
   TableShell,
-  TextFilter,
 } from '@/components/business';
-
-import { formatCost, formatNumber, formatTime } from '@/lib/format';
-import { invocationsQuery } from '@/lib/queries';
-import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
+import { AppLink } from '@/components/router-links';
 import type { InvocationListItem } from '@/lib/api/invocations.ts';
+import { formatCost, formatNumber, formatTime } from '@/lib/format';
+import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
+import { invocationsQuery } from '@/lib/queries';
 
 const INVOCATION_STATES = [
   'queued',
@@ -29,46 +29,54 @@ const INVOCATION_STATES = [
 ] as const;
 
 const INVOCATION_HOSTS = ['telegram', 'playground'] as const;
+const EMPTY_FILTERS = { state: '', host: '', chat: '', model: '' };
 
-export default function InvocationsPage(): React.ReactElement {
+export default function InvocationsPage(): ReactElement {
   const { t } = useTranslation();
-  const [state, setState] = useState<string | undefined>(undefined);
-  const [host, setHost] = useState<string | undefined>(undefined);
-  const [model, setModel] = useState<string | undefined>(undefined);
-  const chat = useChatScope();
-  const navigate = useNavigate({ from: '/invocations' });
-  const setChat = useChatScopeSetter(navigate);
-  const filters = useMemo(() => ({ state, host, chat, model }), [state, host, chat, model]);
+  const query = useListQuery(EMPTY_FILTERS);
+  const { state, host, chat, model } = query.value;
+  const filters = useMemo(
+    () => ({
+      state: optionalQuery(state),
+      host: optionalQuery(host),
+      chat: chatQuery(chat),
+      model: optionalQuery(model),
+    }),
+    [state, host, chat, model],
+  );
 
   const COLUMNS: readonly ColumnSpec<InvocationListItem>[] = [
     {
       key: 'id',
       title: t('invocations.invocations.columns.id'),
+      width: 88,
+      skeleton: '4127',
       render: (row) => (
-        <Link
-          to="/invocations/$invocationId"
-          params={{ invocationId: row.id }}
-          className="decoration-border hover:decoration-foreground font-medium tabular-nums underline underline-offset-4 transition-colors"
-        >
+        <AppLink to="/invocations/$invocationId" params={{ invocationId: row.id }}>
           {row.id}
-        </Link>
+        </AppLink>
       ),
     },
     {
       key: 'state',
       title: t('invocations.invocations.columns.state'),
+      width: 140,
       render: (row) => <StateBadge state={row.state} />,
     },
     {
       key: 'chat',
       title: t('invocations.invocations.columns.chat'),
       render: (row) => (
-        <div className="min-w-0 space-y-0.5">
-          <div className="font-medium">{row.chat.title ?? row.chat.telegram_chat_id ?? row.chat.room_id}</div>
-          <div className="text-muted-foreground text-xs">
-            {row.chat.host_kind === 'playground' ? `${t('invocations.invocations.hosts.playground')} · ` : ''}
-            {row.chat.type}
-            {row.chat.message_thread_id === 0 ? '' : ` · topic ${row.chat.message_thread_id}`}
+        <div className={css({ minWidth: '0' })}>
+          <div className={css({ truncate: true })}>
+            {row.chat.title ?? row.chat.telegram_chat_id ?? row.chat.room_id}
+          </div>
+          <div className={css({ display: 'flex', gap: '2', textStyle: 'small', color: 'text-muted' })}>
+            {row.chat.host_kind === 'playground' ? <span>{t('invocations.invocations.hosts.playground')}</span> : null}
+            <span>{row.chat.type}</span>
+            {row.chat.message_thread_id === 0 ? null : (
+              <span>{t('invocations.invocations.topicLabel', { id: row.chat.message_thread_id })}</span>
+            )}
           </div>
         </div>
       ),
@@ -77,81 +85,89 @@ export default function InvocationsPage(): React.ReactElement {
       key: 'turns',
       title: t('invocations.invocations.columns.turns'),
       align: 'right',
-      className: 'tabular-nums',
+      width: 72,
       render: (row) => String(row.turns_used),
     },
     {
       key: 'tools',
       title: t('invocations.invocations.columns.tools'),
       align: 'right',
-      className: 'tabular-nums',
+      width: 96,
       render: (row) => String(row.tool_call_count),
     },
     {
       key: 'sends',
       title: t('invocations.invocations.columns.sends'),
       align: 'right',
-      className: 'tabular-nums',
+      width: 72,
       render: (row) => String(row.sends_used),
     },
     {
       key: 'tokens',
       title: t('invocations.invocations.columns.tokens'),
       align: 'right',
-      className: 'tabular-nums',
+      width: 96,
       render: (row) => formatNumber(row.total_tokens),
     },
     {
       key: 'cost',
       title: t('invocations.invocations.columns.cost'),
       align: 'right',
-      className: 'tabular-nums',
+      width: 88,
       render: (row) => formatCost(row.total_cost),
     },
     {
       key: 'side-effect',
       title: t('invocations.invocations.columns.sideEffect'),
-      className: 'ps-6',
-      render: (row) => (row.side_effect_started ? 'started' : <span className="text-muted-foreground">none</span>),
+      width: 96,
+      render: (row) =>
+        row.side_effect_started ? (
+          t('invocations.invocations.sideEffectStarted')
+        ) : (
+          <span className={css({ color: 'text-muted' })}>{t('invocations.invocations.sideEffectNone')}</span>
+        ),
     },
     {
       key: 'created',
       title: t('invocations.invocations.columns.created'),
-      className: 'text-muted-foreground',
+      width: 184,
+      skeleton: '2026-01-18 10:58:15',
       render: (row) => formatTime(row.created_at),
     },
   ];
 
   return (
-    <div className="space-y-4">
-      <FilterToolbar>
-        <SelectFilter
-          placeholder={t('invocations.invocations.statePlaceholder')}
-          value={state}
-          onChange={setState}
-          options={INVOCATION_STATES.map((value) => ({ value, label: value }))}
-        />
-        <SelectFilter
-          placeholder={t('invocations.invocations.hostPlaceholder')}
-          value={host}
-          onChange={setHost}
-          options={INVOCATION_HOSTS.map((value) => ({ value, label: t(`invocations.invocations.hosts.${value}`) }))}
-        />
-        <ChatFilter value={chat} onChange={setChat} />
-        <TextFilter
-          placeholder={t('invocations.invocations.modelPlaceholder')}
-          value={model}
-          onCommit={(value) => setModel(value.length > 0 ? value : undefined)}
-          onClear={() => setModel(undefined)}
-          widthClassName="w-56"
-        />
-      </FilterToolbar>
-      <p className="text-muted-foreground text-xs">{t('invocations.invocations.tokensNote')}</p>
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
+      <ListPageHeader title={t('layout.nav.toolSessions')} description={t('invocations.invocations.tokensNote')} />
+      <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
+        {({ draft, change }) => (
+          <>
+            <QuerySelectField
+              label={t('invocations.invocations.statePlaceholder')}
+              value={draft.state}
+              onChange={(state) => change({ state })}
+              options={INVOCATION_STATES.map((value) => ({ value, label: value }))}
+            />
+            <QuerySelectField
+              label={t('invocations.invocations.hostPlaceholder')}
+              value={draft.host}
+              onChange={(host) => change({ host })}
+              options={INVOCATION_HOSTS.map((value) => ({ value, label: t(`invocations.invocations.hosts.${value}`) }))}
+            />
+            <ChatFilter value={draft.chat} onChange={(chat) => change({ chat })} />
+            <QueryTextField
+              label={t('invocations.invocations.modelPlaceholder')}
+              value={draft.model}
+              onChange={(model) => change({ model })}
+            />
+          </>
+        )}
+      </ListSearchForm>
       <CursorList
         factory={invocationsQuery}
         filters={filters}
-        renderItems={(items) => (
-          <TableShell columns={COLUMNS} data={items} rowKey={(row) => row.id} className={LIST_TABLE_CLASS} />
+        renderItems={(items, { loading }) => (
+          <TableShell columns={COLUMNS} data={items} rowKey={(row) => row.id} loading={loading} minWidth={1120} />
         )}
       />
     </div>

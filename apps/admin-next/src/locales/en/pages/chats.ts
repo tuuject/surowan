@@ -4,6 +4,8 @@
  */
 export const chats = {
   allTopics: 'All topics',
+  moreActions: 'More actions',
+  settingsGroup: 'Chat settings',
   quickLinks: 'Open related pages',
   defaultModel: 'Default model',
   chatOverride: 'Chat override',
@@ -65,7 +67,7 @@ export const chats = {
   activeHoursUnrestricted: 'Unrestricted',
   activeHoursTriggerOnly: 'Trigger only',
   activeHoursFollowsGlobal: 'Global schedule',
-  activeHoursTimezoneNote: 'Times shown in {{timezone}} · now {{time}}',
+  activeHoursTimezoneNote: 'Times shown in {{timezone}}, now {{time}}',
   modeUnrestricted: 'No schedule restriction',
   modeUnrestrictedHint: "Remove this Chat's periods. Without a global schedule the bot stays active around the clock.",
   modeUnrestrictedHintGlobal: "Remove this Chat's periods; the global periods ({{windows}}) keep applying.",
@@ -87,7 +89,7 @@ export const chats = {
   weekdaysShort: 'Mon,Tue,Wed,Thu,Fri,Sat,Sun',
   colGroupMemory: 'Group memory',
   groupMemoryOffSummary: 'Off',
-  groupMemorySummary: 'On · idle {{minutes}} min',
+  groupMemorySummary: 'On, idle {{minutes}} min',
   editGroupMemory: 'Edit group memory',
   groupMemoryTitle: 'Group memory',
   groupMemoryDescription:
@@ -122,6 +124,6 @@ export const chats = {
   proactiveInvalid: 'Enter percentages between 0 and 100, and a whole number from 1 to 100 for the maximum tries.',
   proactiveGlobalSummary: '{{base}}% first, +{{increment}}% per miss, guaranteed by try {{pity}}',
   proactiveOffSummary: 'Off',
-  proactiveInheritSummary: 'Follows global · {{summary}}',
-  proactiveSummary: '{{base}}% first · +{{increment}}% per miss · guaranteed by try {{pity}}',
+  proactiveInheritSummary: 'Follows global ({{summary}})',
+  proactiveSummary: '{{base}}% first, +{{increment}}% per miss, guaranteed by try {{pity}}',
 };

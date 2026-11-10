@@ -1,33 +1,31 @@
+import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ConfirmDialog } from '@/components/business';
+import { ConfirmDialog, MonoValue } from '@/components/business';
 import { ModelEditDialog } from '@/components/models/model-edit-dialog';
 import { ModelPickerDialog, type ModelPickerMode } from '@/components/models/model-picker-dialog';
 import { ProviderWizard } from '@/components/models/provider-wizard';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-
-import { modelFormFromConfig } from '@/lib/model-manager.ts';
-import type { ChatThinkingReset } from '@/lib/api/models.ts';
-import type { ProviderModelConfig, ProviderView, ProvidersView } from '@/lib/api/providers.ts';
+import type { ProviderApi, ProviderModelConfig, ProviderView } from '@/lib/api/providers.ts';
+import { emptyModelForm, modelFormFromConfig } from '@/lib/model-form.ts';
 
 export interface PickerTarget {
   readonly mode: ModelPickerMode;
-  readonly alias: string;
-  /** Remounts the dialog so its credentials and selection start empty. */
+  /**
+   * The provider as it looked when the picker was opened: a background refetch
+   * must not blank or change the dialog while it is open or fading out.
+   */
+  readonly provider: ProviderView;
+  /** Starts a fresh picker session so its credentials and selection are empty. */
   readonly nonce: number;
 }
 
 export interface EditingTarget {
   readonly alias: string;
   readonly model: ProviderModelConfig;
+  /** Snapshot: a refetch must not swap the form's API dialect mid-edit. */
+  readonly api: ProviderApi;
   readonly revision: string;
+  readonly nonce: number;
 }
 
 export interface DeletingModelTarget {
@@ -42,141 +40,173 @@ export interface ModelSaveState {
   readonly onSubmit: (model: ProviderModelConfig) => void;
 }
 
-/** A write a confirmation dialog drives; the page owns the mutation. */
+/** A write a confirmation dialog drives; the page owns the mutation and whether the dialog shows. */
 export interface ConfirmState {
+  readonly open: boolean;
   readonly pending: boolean;
   readonly error: string | null;
   readonly onConfirm: () => void;
+  readonly onClose: () => void;
 }
 
 /**
- * Every overlay the page can show: the provider wizard, the model picker, the
- * model edit form and the two delete confirmations.
+ * Stand-in for the picker's provider before the first open. The dialog root has
+ * to exist from the page's first render so its enter transition can play later;
+ * with `open` false Base UI mounts no portal, so nothing here is ever shown.
+ */
+const NO_PICKER_PROVIDER: ProviderView = {
+  alias: '',
+  kind: 'custom',
+  api: 'openai-completions',
+  base_url: '',
+  header_names: [],
+  models: [],
+};
+
+/**
+ * Every overlay the Providers page can show: the provider wizard, the model
+ * picker, the model edit form and the two delete confirmations.
+ *
+ * The wizard and the picker are mounted for the page's lifetime and driven by
+ * `open`: Base UI only plays the 300ms exit transition while the dialog root
+ * stays mounted, so nothing here may appear or disappear with the flag.
  */
 export function ModelsDialogs({
-  view,
   revision,
-  thinkingResets,
-  onThinkingResetsClose,
   wizardOpen,
+  wizardKey,
   onWizardClose,
   onProviderCreated,
   picker,
-  pickerProvider,
+  pickerOpen,
   onPickerClose,
   editing,
+  editingOpen,
   onEditingClose,
   save,
-  deletingModel,
-  onDeletingModelClose,
+  deletingModels,
   removeModel,
   deletingProvider,
-  onDeletingProviderClose,
   removeProvider,
 }: {
-  readonly view: ProvidersView;
   readonly revision: string;
-  readonly thinkingResets: readonly ChatThinkingReset[];
-  readonly onThinkingResetsClose: () => void;
   readonly wizardOpen: boolean;
+  readonly wizardKey: number;
   readonly onWizardClose: () => void;
   readonly onProviderCreated: (alias: string) => void;
   readonly picker: PickerTarget | null;
-  readonly pickerProvider: ProviderView | null;
+  readonly pickerOpen: boolean;
   readonly onPickerClose: () => void;
   readonly editing: EditingTarget | null;
+  readonly editingOpen: boolean;
   readonly onEditingClose: () => void;
   readonly save: ModelSaveState;
-  readonly deletingModel: DeletingModelTarget | null;
-  readonly onDeletingModelClose: () => void;
+  readonly deletingModels: readonly DeletingModelTarget[];
   readonly removeModel: ConfirmState;
   readonly deletingProvider: ProviderView | null;
-  readonly onDeletingProviderClose: () => void;
   readonly removeProvider: ConfirmState;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
+  const editingApi = editing?.api ?? 'openai-completions';
+  const deleteModelsDescription = (): string => {
+    if (deletingModels.length > 1) {
+      return t('models.models.page.deleteModelsDescription', { count: deletingModels.length });
+    }
+    const only = deletingModels[0];
+    return only === undefined ? '' : t('models.models.page.deleteModelDescription', { ...only });
+  };
+
   return (
     <>
-      <Dialog open={thinkingResets.length > 0} onOpenChange={(open) => !open && onThinkingResetsClose()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('models.models.page.chatThinkingResetTitle')}</DialogTitle>
-            <DialogDescription>{t('models.models.page.chatThinkingResetDescription')}</DialogDescription>
-          </DialogHeader>
-          <ul className="max-h-64 space-y-2 overflow-y-auto text-sm">
-            {thinkingResets.map((reset) => (
-              <li key={reset.chat_id}>
-                <code>{reset.chat_id}</code>: {reset.previous} → {reset.current}
-              </li>
-            ))}
-          </ul>
-          <DialogFooter>
-            <Button onClick={onThinkingResetsClose}>{t('models.models.page.chatThinkingResetClose')}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {wizardOpen ? <ProviderWizard revision={revision} onClose={onWizardClose} onCreated={onProviderCreated} /> : null}
-
-      {picker === null || pickerProvider === null ? null : (
-        <ModelPickerDialog
-          key={`${picker.mode}-${picker.alias}-${String(picker.nonce)}`}
-          mode={picker.mode}
-          provider={pickerProvider}
-          revision={revision}
-          onClose={onPickerClose}
-        />
-      )}
-
-      {editing === null ? null : (
-        <ModelEditDialog
-          key={`edit-${editing.alias}/${editing.model.id}`}
-          open
-          onOpenChange={(next) => {
-            if (!next) {
-              onEditingClose();
-            }
-          }}
-          api={view.providers.find((provider) => provider.alias === editing.alias)?.api ?? 'openai-completions'}
-          title={t('models.models.page.editTitle', { model: editing.model.id })}
-          description={t('models.models.page.editDescription')}
-          initial={modelFormFromConfig(
-            editing.model,
-            view.providers.find((provider) => provider.alias === editing.alias)?.api ?? 'openai-completions',
-          )}
-          lockId
-          draft={null}
-          pending={save.pending}
-          error={save.error}
-          onSubmit={save.onSubmit}
-        />
-      )}
-
-      <ConfirmDialog
-        open={deletingModel !== null}
-        onOpenChange={(open) => {
-          if (!open && !removeModel.pending) {
-            onDeletingModelClose();
+      <ProviderWizard
+        open={wizardOpen}
+        formKey={wizardKey}
+        revision={revision}
+        onOpenChange={(next) => {
+          if (!next) {
+            onWizardClose();
           }
         }}
-        title={t('models.models.page.deleteModelTitle')}
-        description={
-          deletingModel === null
-            ? ''
-            : t('models.models.page.deleteModelDescription', { model: deletingModel.model, alias: deletingModel.alias })
-        }
-        confirmText={t('models.models.page.deleteModelConfirm')}
+        onCreated={onProviderCreated}
+      />
+
+      <ModelPickerDialog
+        open={pickerOpen}
+        formKey={picker?.nonce ?? 0}
+        mode={picker?.mode ?? 'discover'}
+        provider={picker?.provider ?? NO_PICKER_PROVIDER}
+        revision={revision}
+        onOpenChange={(next) => {
+          if (!next) {
+            onPickerClose();
+          }
+        }}
+      />
+
+      <ModelEditDialog
+        open={editingOpen}
+        onOpenChange={(next) => {
+          if (!next) {
+            onEditingClose();
+          }
+        }}
+        api={editingApi}
+        title={editing === null ? '' : t('models.models.page.editTitle', { model: editing.model.id })}
+        description={t('models.models.page.editDescription')}
+        initial={editing === null ? emptyModelForm(editingApi) : modelFormFromConfig(editing.model, editingApi)}
+        formKey={editing?.nonce}
+        lockId
+        draft={null}
+        pending={save.pending}
+        error={save.error}
+        onSubmit={save.onSubmit}
+      />
+
+      {/* `open` stays apart from the target so the text doesn't blank out while the exit fade plays. */}
+      <ConfirmDialog
+        open={removeModel.open}
+        onOpenChange={(open) => {
+          if (!open && !removeModel.pending) {
+            removeModel.onClose();
+          }
+        }}
+        title={t(
+          deletingModels.length > 1 ? 'models.models.page.deleteModelsTitle' : 'models.models.page.deleteModelTitle',
+        )}
+        description={deleteModelsDescription()}
+        confirmText={t(
+          deletingModels.length > 1
+            ? 'models.models.page.deleteModelsConfirm'
+            : 'models.models.page.deleteModelConfirm',
+        )}
         destructive
         pending={removeModel.pending}
         error={removeModel.error}
         onConfirm={removeModel.onConfirm}
-      />
+      >
+        {deletingModels.length > 1 ? (
+          <ul
+            className={css({
+              maxHeight: '256px',
+              overflow: 'auto',
+              paddingInlineStart: '5',
+              overflowWrap: 'anywhere',
+            })}
+          >
+            {deletingModels.map((target) => (
+              <li key={`${target.alias}/${target.model}`}>
+                <MonoValue value={`${target.alias}/${target.model}`} />
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </ConfirmDialog>
 
       <ConfirmDialog
-        open={deletingProvider !== null}
+        open={removeProvider.open}
         onOpenChange={(open) => {
           if (!open && !removeProvider.pending) {
-            onDeletingProviderClose();
+            removeProvider.onClose();
           }
         }}
         title={t('models.models.page.deleteProviderTitle')}

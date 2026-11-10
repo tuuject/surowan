@@ -1,210 +1,95 @@
-import {
-  IconAdjustmentsHorizontal,
-  IconAlertCircle,
-  IconAlertTriangle,
-  IconArrowRight,
-  IconBell,
-  IconBold,
-  IconBox,
-  IconBrandGithub,
-  IconBrandTwitter,
-  IconBrightness,
-  IconCalendar,
-  IconCheck,
-  IconChecks,
-  IconChevronDown,
-  IconChevronLeft,
-  IconChevronRight,
-  IconChevronsDown,
-  IconChevronsLeft,
-  IconChevronsRight,
-  IconChevronUp,
-  IconCircle,
-  IconCircleCheck,
-  IconCirclePlus,
-  IconCircleX,
-  IconClipboardText,
-  IconClock,
-  IconCode,
-  IconCommand,
-  IconCopy,
-  IconCreditCard,
-  IconCrown,
-  IconDeviceLaptop,
-  IconDots,
-  IconDotsVertical,
-  IconEdit,
-  IconExternalLink,
-  IconEyeOff,
-  IconFile,
-  IconFileText,
-  IconFileTypeDoc,
-  IconFileTypePdf,
-  IconFileTypeXls,
-  IconFileZip,
-  IconFolder,
-  IconGripVertical,
-  IconHelpCircle,
-  IconInfoCircle,
-  IconItalic,
-  IconLayoutDashboard,
-  IconLayoutKanban,
-  IconLayoutSidebar,
-  IconLoader2,
-  IconLock,
-  IconLogin,
-  IconLogout,
-  IconMessage,
-  IconMinus,
-  IconMoon,
-  IconMusic,
-  IconPalette,
-  IconPaperclip,
-  IconPhone,
-  IconPhoto,
-  IconPizza,
-  IconPlus,
-  type IconProps,
-  IconRosetteDiscountCheck,
-  IconSearch,
-  IconSelector,
-  IconSend,
-  IconSettings,
-  IconShare,
-  IconSlash,
-  IconSparkles,
-  IconStack2,
-  IconStar,
-  IconSun,
-  IconTrash,
-  IconTrendingDown,
-  IconTrendingUp,
-  IconTypography,
-  IconUnderline,
-  IconUpload,
-  IconUser,
-  IconUserCircle,
-  IconUserEdit,
-  IconUsers,
-  IconUserX,
-  IconVideo,
-  IconX,
-} from '@tabler/icons-react';
+import arrowsRotate from '@iconify-icons/fa7-solid/arrows-rotate';
+import ban from '@iconify-icons/fa7-solid/ban';
+import bars from '@iconify-icons/fa7-solid/bars';
+import bell from '@iconify-icons/fa7-solid/bell';
+import bookBookmark from '@iconify-icons/fa7-solid/book-bookmark';
+import bookOpen from '@iconify-icons/fa7-solid/book-open';
+import brain from '@iconify-icons/fa7-solid/brain';
+import clock from '@iconify-icons/fa7-solid/clock';
+import clockRotateLeft from '@iconify-icons/fa7-solid/clock-rotate-left';
+import codeMerge from '@iconify-icons/fa7-solid/code-merge';
+import commentDots from '@iconify-icons/fa7-solid/comment-dots';
+import comments from '@iconify-icons/fa7-solid/comments';
+import copy from '@iconify-icons/fa7-solid/copy';
+import database from '@iconify-icons/fa7-solid/database';
+import desktop from '@iconify-icons/fa7-solid/desktop';
+import download from '@iconify-icons/fa7-solid/download';
+import ellipsis from '@iconify-icons/fa7-solid/ellipsis';
+import eye from '@iconify-icons/fa7-solid/eye';
+import eyeSlash from '@iconify-icons/fa7-solid/eye-slash';
+import gear from '@iconify-icons/fa7-solid/gear';
+import gripLines from '@iconify-icons/fa7-solid/grip-lines';
+import heartPulse from '@iconify-icons/fa7-solid/heart-pulse';
+import images from '@iconify-icons/fa7-solid/images';
+import language from '@iconify-icons/fa7-solid/language';
+import lightbulb from '@iconify-icons/fa7-solid/lightbulb';
+import moon from '@iconify-icons/fa7-solid/moon';
+import paperPlane from '@iconify-icons/fa7-solid/paper-plane';
+import pen from '@iconify-icons/fa7-solid/pen';
+import rightFromBracket from '@iconify-icons/fa7-solid/right-from-bracket';
+import rotateLeft from '@iconify-icons/fa7-solid/rotate-left';
+import scroll from '@iconify-icons/fa7-solid/scroll';
+import sliders from '@iconify-icons/fa7-solid/sliders';
+import sun from '@iconify-icons/fa7-solid/sun';
+import tableColumns from '@iconify-icons/fa7-solid/table-columns';
+import wandMagicSparkles from '@iconify-icons/fa7-solid/wand-magic-sparkles';
+import waveSquare from '@iconify-icons/fa7-solid/wave-square';
+import wrench from '@iconify-icons/fa7-solid/wrench';
+import robot from '@iconify-icons/fa7-solid/robot';
+import { type BuiltinIconProps, Icon, type IconData } from '@tuuject/koi-react/icons';
 
-export type Icon = React.ComponentType<IconProps>;
+// Business icons from Font Awesome Free Solid, rendered by Koi's Icon in currentColor like Koi's own. Koi's
+// built-ins (close, check, chevrons, search, plus, trash, upload, external, info / warning / error) are imported
+// from `@tuuject/koi-react/icons` directly; only what Koi doesn't ship lives here.
+function icon(data: IconData) {
+  return (props: BuiltinIconProps) => <Icon icon={data} {...props} />;
+}
 
-export const Icons = {
-  alertCircle: IconAlertCircle,
-  warning: IconAlertTriangle,
-  arrowRight: IconArrowRight,
-  check: IconCheck,
-  checks: IconChecks,
-  circleCheck: IconCircleCheck,
-  close: IconX,
-  clock: IconClock,
-  code: IconCode,
-  copy: IconCopy,
-  dots: IconDots,
-  ellipsis: IconDotsVertical,
-  externalLink: IconExternalLink,
-  help: IconHelpCircle,
-  info: IconInfoCircle,
-  spinner: IconLoader2,
-  search: IconSearch,
-  settings: IconSettings,
-  trash: IconTrash,
+// Navigation groups.
+export const MonitorIcon = icon(desktop);
+export const ActivityIcon = icon(clockRotateLeft);
+export const DatabaseIcon = icon(database);
+export const MediaIcon = icon(images);
+export const SlidersIcon = icon(sliders);
+export const TelegramIcon = icon(paperPlane);
+export const SettingsIcon = icon(gear);
 
-  chevronDown: IconChevronDown,
-  chevronLeft: IconChevronLeft,
-  chevronRight: IconChevronRight,
-  chevronUp: IconChevronUp,
-  chevronsDown: IconChevronsDown,
-  chevronsLeft: IconChevronsLeft,
-  chevronsRight: IconChevronsRight,
-  chevronsUpDown: IconSelector,
+// Shell controls.
+export const MenuIcon = icon(bars);
+// Free Solid has no sidebar glyph; two columns reads closest (as in the Koi admin template).
+export const PanelLeftIcon = icon(tableColumns);
+// Horizontal bars: "put the navigation in a row".
+export const RowsIcon = icon(gripLines);
+export const SunIcon = icon(sun);
+export const MoonIcon = icon(moon);
+export const LanguageIcon = icon(language);
+export const LogoutIcon = icon(rightFromBracket);
 
-  dashboard: IconLayoutDashboard,
-  kanban: IconLayoutKanban,
-  panelLeft: IconLayoutSidebar,
+// Actions.
+export const EditIcon = icon(pen);
+export const CancelIcon = icon(ban);
+export const MoreIcon = icon(ellipsis);
+export const HealthIcon = icon(heartPulse);
+export const WrenchIcon = icon(wrench);
+export const RefreshIcon = icon(arrowsRotate);
+export const ResetIcon = icon(rotateLeft);
+export const DownloadIcon = icon(download);
+export const CopyIcon = icon(copy);
+export const EyeIcon = icon(eye);
+export const EyeOffIcon = icon(eyeSlash);
+export const MergeIcon = icon(codeMerge);
+export const SendIcon = icon(paperPlane);
 
-  user: IconUser,
-  user2: IconUserCircle,
-  account: IconUserCircle,
-  profile: IconUser,
-  employee: IconUserX,
-  userPen: IconUserEdit,
-  teams: IconUsers,
-
-  github: IconBrandGithub,
-  twitter: IconBrandTwitter,
-  logo: IconCommand,
-
-  chat: IconMessage,
-  notification: IconBell,
-  phone: IconPhone,
-  video: IconVideo,
-  send: IconSend,
-  paperclip: IconPaperclip,
-
-  page: IconFile,
-  post: IconFileText,
-  fileTypePdf: IconFileTypePdf,
-  fileTypeDoc: IconFileTypeDoc,
-  fileTypeXls: IconFileTypeXls,
-  fileZip: IconFileZip,
-  media: IconPhoto,
-  music: IconMusic,
-
-  add: IconPlus,
-  edit: IconEdit,
-  upload: IconUpload,
-  share: IconShare,
-  login: IconLogin,
-  logout: IconLogout,
-  gripVertical: IconGripVertical,
-
-  circle: IconCircle,
-  circleX: IconCircleX,
-  plusCircle: IconCirclePlus,
-  xCircle: IconCircleX,
-  minus: IconMinus,
-
-  sun: IconSun,
-  moon: IconMoon,
-  brightness: IconBrightness,
-  laptop: IconDeviceLaptop,
-  palette: IconPalette,
-
-  billing: IconCreditCard,
-  creditCard: IconCreditCard,
-  product: IconBox,
-  pro: IconCrown,
-  exclusive: IconStar,
-  sparkles: IconSparkles,
-  badgeCheck: IconRosetteDiscountCheck,
-  lock: IconLock,
-
-  trendingDown: IconTrendingDown,
-  trendingUp: IconTrendingUp,
-  eyeOff: IconEyeOff,
-  adjustments: IconAdjustmentsHorizontal,
-
-  bold: IconBold,
-  italic: IconItalic,
-  underline: IconUnderline,
-  text: IconTypography,
-
-  toastSuccess: IconCircleCheck,
-  toastInfo: IconInfoCircle,
-  toastWarning: IconAlertTriangle,
-  toastError: IconCircleX,
-  toastLoading: IconLoader2,
-
-  pizza: IconPizza,
-  workspace: IconFolder,
-  forms: IconClipboardText,
-  slash: IconSlash,
-  calendar: IconCalendar,
-  galleryVerticalEnd: IconStack2,
-  moreHorizontal: IconDots,
-};
+// Content markers.
+export const ClockIcon = icon(clock);
+export const AlarmIcon = icon(bell);
+export const BrainIcon = icon(brain);
+export const ScrollIcon = icon(scroll);
+export const BookOpenIcon = icon(bookOpen);
+export const LibraryIcon = icon(bookBookmark);
+export const ChatIcon = icon(comments);
+export const ChatTextIcon = icon(commentDots);
+export const PulseIcon = icon(waveSquare);
+export const SparklesIcon = icon(wandMagicSparkles);
+export const LightbulbIcon = icon(lightbulb);
+export const RobotIcon = icon(robot);

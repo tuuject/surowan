@@ -168,13 +168,23 @@ test('an attempt key names one retry of one release', async () => {
     expect(retried.status).toBe(201);
     const retriedBody = await readJson<{ invocation_id: string }>(retried);
     // Both attempts name the Release a retry is addressed by.
-    const attempts = await readJson<{ items: { id: string; release_id: string | null }[] }>(
+    const attempts = await readJson<{ items: { id: string; release_id: string | null }[]; total: number }>(
       await f.server.handle(get(`/api/playground/rooms/${room.id}/invocations`, f.cookie)),
     );
+    expect(attempts.total).toBe(2);
     expect(attempts.items.map((item) => [item.id, item.release_id])).toEqual([
       [retriedBody.invocation_id, first.release_id],
       [first.invocation_id, first.release_id],
     ]);
+    const secondPage = await readJson<{ items: { id: string }[]; total: number }>(
+      await f.server.handle(get(`/api/playground/rooms/${room.id}/invocations?limit=1&offset=1`, f.cookie)),
+    );
+    expect(secondPage).toMatchObject({ total: 2, items: [{ id: first.invocation_id }] });
+    const invalidOffset = await f.server.handle(
+      get(`/api/playground/rooms/${room.id}/invocations?limit=1&offset=-1`, f.cookie),
+    );
+    expect(invalidOffset.status).toBe(400);
+    expect(await readJson(invalidOffset)).toMatchObject({ error: 'invalid_offset' });
     const replay = await f.server.handle(post(retryPath(first.release_id), { attempt_key: 'try-1' }, f.cookie));
     expect(replay.status).toBe(200);
     expect(await readJson(replay)).toMatchObject({ replayed: true, invocation_id: retriedBody.invocation_id });

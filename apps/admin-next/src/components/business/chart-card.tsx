@@ -1,4 +1,6 @@
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
+import type { ReactElement } from 'react';
 import {
   CartesianGrid,
   Line,
@@ -10,7 +12,6 @@ import {
   YAxis,
 } from 'recharts';
 import { formatNumber } from '@/lib/format';
-import { cn } from '@/lib/utils';
 
 /**
  * Time-series chart panel for Overview / Usage. A thin recharts wrapper: one
@@ -35,8 +36,14 @@ function compactNumber(value: number): string {
 const AXIS_TICK = { fontSize: 12, fill: 'var(--muted-foreground)' };
 
 /** Series color marks only the dot; labels and values stay neutral. */
-function SeriesDot({ color }: { readonly color: string }): React.ReactElement {
-  return <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />;
+function SeriesDot({ color }: { readonly color: string }): ReactElement {
+  return (
+    <span
+      className={css({ width: '8px', height: '8px', flexShrink: '0', borderRadius: 'full' })}
+      style={{ backgroundColor: color }}
+      aria-hidden="true"
+    />
+  );
 }
 
 function ChartTooltip({
@@ -54,16 +61,35 @@ function ChartTooltip({
     return null;
   }
   return (
-    <div className="bg-popover text-popover-foreground space-y-2 rounded-lg border px-3 py-2 text-xs shadow-xs">
-      <p className="font-medium">{label}</p>
-      <ul className="space-y-1.5">
+    <div
+      className={css({
+        textStyle: 'small',
+        bg: 'surface',
+        color: 'text',
+        '& > :not(:last-child)': { marginBlockEnd: '2' },
+        borderRadius: 'xl',
+        borderWidth: '1px',
+        borderColor: 'border',
+        paddingInline: '3',
+        paddingBlock: '2',
+      })}
+    >
+      <p className={css({ textStyle: 'label' })}>{label}</p>
+      <ul className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
         {series.map((entry) => {
           const item = payload.find((candidate) => candidate.dataKey === entry.dataKey);
           return (
-            <li key={entry.dataKey} className="flex items-center gap-2">
+            <li key={entry.dataKey} className={css({ display: 'flex', alignItems: 'center', gap: '2' })}>
               <SeriesDot color={entry.color} />
-              <span className="text-muted-foreground">{entry.label}</span>
-              <span className="ms-auto ps-4 font-medium tabular-nums">
+              <span className={css({ color: 'text-muted' })}>{entry.label}</span>
+              <span
+                className={css({
+                  textStyle: 'label',
+                  marginInlineStart: 'auto',
+                  paddingInlineStart: '4',
+                  fontVariantNumeric: 'tabular-nums',
+                })}
+              >
                 {typeof item?.value === 'number' ? formatNumber(item.value) : '-'}
               </span>
             </li>
@@ -82,13 +108,13 @@ export function TimeSeriesChart({
   readonly data: readonly ChartDatum[];
   readonly series: readonly ChartSeries[];
   readonly height?: number;
-}): React.ReactElement {
+}): ReactElement {
   return (
-    <div className="space-y-3">
-      <div style={{ height }} className="w-full">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+      <div style={{ height }} className={css({ width: '100%' })}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={[...data]} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+            <CartesianGrid strokeDasharray="3 3" className={css({ stroke: 'divider' })} />
             <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={false} />
             <YAxis
               tick={AXIS_TICK}
@@ -117,9 +143,21 @@ export function TimeSeriesChart({
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs">
+      <ul
+        className={css({
+          textStyle: 'small',
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          columnGap: '4',
+          rowGap: '1',
+        })}
+      >
         {series.map((entry) => (
-          <li key={entry.dataKey} className="text-muted-foreground flex items-center gap-2">
+          <li
+            key={entry.dataKey}
+            className={css({ color: 'text-muted', display: 'flex', alignItems: 'center', gap: '2' })}
+          >
             <SeriesDot color={entry.color} />
             {entry.label}
           </li>
@@ -137,10 +175,10 @@ export function ChartPanel({
   readonly title: string;
   readonly children: React.ReactNode;
   readonly className?: string;
-}): React.ReactElement {
+}): ReactElement {
   return (
-    <div className={cn('space-y-2', className)}>
-      <h3 className="text-muted-foreground text-sm font-medium">{title}</h3>
+    <div className={cx(css({ '& > :not(:last-child)': { marginBlockEnd: '2' } }), className)}>
+      <h3 className={css({ textStyle: 'label', color: 'text-muted' })}>{title}</h3>
       {children}
     </div>
   );

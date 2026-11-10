@@ -1,5 +1,6 @@
-import { ToolResult } from './tool-result';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   CopyableValue,
@@ -10,8 +11,14 @@ import {
   ToneBadge,
 } from '@/components/business';
 import { isRoom, MessageRecordLink, RoleBadge, SectionBadge } from '@/components/invocations/shared';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-
+import type { ContextMessageEntry } from '@/lib/api/contexts.ts';
+import type {
+  AgentMessageEntry,
+  InvocationChatSummary,
+  ModelCallEntry,
+  TelegramSendEntry,
+  ToolCallEntry,
+} from '@/lib/api/invocations.ts';
 import { formatCost, formatDuration, formatNumber, formatTime } from '@/lib/format';
 import {
   objectField,
@@ -20,14 +27,7 @@ import {
   parseSendArguments,
   stringField,
 } from '@/lib/timeline';
-import type {
-  AgentMessageEntry,
-  InvocationChatSummary,
-  ModelCallEntry,
-  TelegramSendEntry,
-  ToolCallEntry,
-} from '@/lib/api/invocations.ts';
-import type { ContextMessageEntry } from '@/lib/api/contexts.ts';
+import { ToolResult } from './tool-result';
 
 export function TimelineCard({
   header,
@@ -37,15 +37,33 @@ export function TimelineCard({
   readonly header: React.ReactNode;
   readonly extra?: string;
   readonly children?: React.ReactNode;
-}): React.ReactElement {
+}): ReactElement {
   return (
-    <Card className="gap-2 py-3">
-      <CardHeader className="flex-row flex-wrap items-start justify-between gap-2 px-3 py-0">
-        <div className="flex flex-wrap items-center gap-1.5">{header}</div>
-        {extra !== undefined ? <span className="text-muted-foreground text-xs">{extra}</span> : null}
-      </CardHeader>
-      {children !== undefined ? <CardContent className="space-y-2 px-3 py-0">{children}</CardContent> : null}
-    </Card>
+    <article
+      className={css({
+        '& > :not(:last-child)': { marginBlockEnd: '2' },
+        borderTopWidth: '1px',
+        borderColor: 'divider',
+        paddingBlock: '3',
+      })}
+    >
+      <div
+        className={css({
+          display: 'flex',
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: '2',
+        })}
+      >
+        <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>{header}</div>
+        {extra !== undefined ? <span className={css({ textStyle: 'small', color: 'text-muted' })}>{extra}</span> : null}
+      </div>
+      {children !== undefined ? (
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>{children}</div>
+      ) : null}
+    </article>
   );
 }
 
@@ -57,7 +75,7 @@ function SendContent({
   readonly chat: InvocationChatSummary;
   readonly parsed: ParsedSendArguments;
   readonly send: TelegramSendEntry | null;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const room = isRoom(chat);
   const content =
@@ -67,13 +85,24 @@ function SendContent({
         ? t('invocations.invocationDetail.send.sticker', { ref: parsed.sticker_ref })
         : null;
   return (
-    <div className="space-y-1.5">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
       {content === null ? (
-        <p className="text-muted-foreground text-sm">{t('invocations.invocationDetail.send.noContent')}</p>
+        <p className={css({ textStyle: 'body', color: 'text-muted' })}>
+          {t('invocations.invocationDetail.send.noContent')}
+        </p>
       ) : (
-        <p className="text-sm break-words whitespace-pre-wrap">{content}</p>
+        <p className={css({ textStyle: 'body', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>{content}</p>
       )}
-      <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-xs">
+      <div
+        className={css({
+          textStyle: 'small',
+          color: 'text-muted',
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: '3',
+        })}
+      >
         {parsed.reply_to_message_id !== null ? (
           <span>
             {t(room ? 'invocations.invocationDetail.send.replyToRoom' : 'invocations.invocationDetail.send.replyTo', {
@@ -106,7 +135,7 @@ export function ToolCallCard({
   readonly chat: InvocationChatSummary;
   readonly tool: ToolCallEntry;
   readonly send: TelegramSendEntry | null;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const parsed = parseSendArguments(tool.arguments_json);
   return (
@@ -114,26 +143,42 @@ export function ToolCallCard({
       header={
         <>
           <ToneBadge tone={tool.tool_name === 'send' ? 'success' : 'neutral'}>{tool.tool_name}</ToneBadge>
-          <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{tool.tool_call_id}</code>
+          <code
+            className={css({
+              textStyle: 'small',
+              borderRadius: 'lg',
+              bg: 'surface-muted',
+              paddingInline: '1',
+              paddingBlock: '1',
+              fontFamily: 'mono',
+            })}
+          >
+            {tool.tool_call_id}
+          </code>
           <StateBadge state={tool.state} />
         </>
       }
       extra={formatTime(tool.created_at)}
     >
       {tool.tool_name === 'send' ? <SendContent chat={chat} parsed={parsed} send={send} /> : null}
-      <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-xs">
+      <div
+        className={css({
+          textStyle: 'small',
+          color: 'text-muted',
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: '3',
+        })}
+      >
         <span>{t('invocations.invocationDetail.toolCall.duration', { value: formatDuration(tool.duration_ms) })}</span>
         {tool.error_code !== null ? (
-          <span className="text-destructive">
+          <span className={css({ color: 'error-text' })}>
             {t('invocations.invocationDetail.toolCall.error', { code: tool.error_code })}
           </span>
         ) : null}
       </div>
-      <LazyDetails
-        summary={t('invocations.invocationDetail.toolCall.argumentsAndResult')}
-        summaryClassName="text-muted-foreground cursor-pointer text-xs"
-        contentClassName="mt-2 space-y-2"
-      >
+      <LazyDetails summary={t('invocations.invocationDetail.toolCall.argumentsAndResult')}>
         <JsonViewer value={tool.arguments_json} title={t('invocations.invocationDetail.toolCall.arguments')} />
         {tool.result_content ? (
           <ToolResult content={tool.result_content} />
@@ -151,7 +196,7 @@ export function ContextMessageCard({
 }: {
   readonly chat: InvocationChatSummary;
   readonly message: ContextMessageEntry;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const room = isRoom(chat);
   const snapshot = parseJsonObject(message.snapshot_json);
@@ -172,11 +217,11 @@ export function ContextMessageCard({
       header={
         <>
           <SectionBadge section={message.section} />
-          <span className="text-sm font-medium">{senderName}</span>
+          <span className={css({ textStyle: 'label' })}>{senderName}</span>
           {username !== null && senderName !== `@${username}` ? (
-            <span className="text-muted-foreground text-xs">@{username}</span>
+            <span className={css({ textStyle: 'small', color: 'text-muted' })}>@{username}</span>
           ) : null}
-          {sentByBot ? <span className="text-muted-foreground text-xs">bot</span> : null}
+          {sentByBot ? <span className={css({ textStyle: 'small', color: 'text-muted' })}>bot</span> : null}
           {room ? (
             <CopyableValue label={t('invocations.invocationDetail.roomMemberRef')} value={stringField(sender, 'ref')} />
           ) : (
@@ -187,14 +232,23 @@ export function ContextMessageCard({
       extra={formatTime(stringField(snapshot, room ? 'sent_at' : 'telegram_date'))}
     >
       {text === null ? (
-        <p className="text-muted-foreground text-sm">
+        <p className={css({ textStyle: 'body', color: 'text-muted' })}>
           {kind}
           {mediaCount === 0 ? '' : t('invocations.invocationDetail.contextMessage.mediaCount', { count: mediaCount })}
         </p>
       ) : (
-        <p className="text-sm break-words whitespace-pre-wrap">{text}</p>
+        <p className={css({ textStyle: 'body', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>{text}</p>
       )}
-      <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+      <div
+        className={css({
+          textStyle: 'small',
+          color: 'text-muted',
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: '2',
+        })}
+      >
         <span>
           {hostMessageId === null
             ? kind
@@ -208,7 +262,11 @@ export function ContextMessageCard({
         <MessageRecordLink
           chat={chat}
           messageId={message.message_id}
-          className="text-primary underline-offset-4 hover:underline"
+          className={css({
+            color: 'text-brand',
+            textUnderlineOffset: '4px',
+            _hover: { textDecorationLine: 'underline' },
+          })}
         >
           {t(
             room
@@ -221,7 +279,7 @@ export function ContextMessageCard({
   );
 }
 
-export function AgentMessageCard({ message }: { readonly message: AgentMessageEntry }): React.ReactElement {
+export function AgentMessageCard({ message }: { readonly message: AgentMessageEntry }): ReactElement {
   const { t } = useTranslation();
   const AGENT_ROLE_LABELS: Record<string, { readonly label: string; readonly note: string | null }> = {
     assistant: {
@@ -240,8 +298,10 @@ export function AgentMessageCard({ message }: { readonly message: AgentMessageEn
       header={
         <>
           <RoleBadge role={message.role} />
-          <span className="text-sm">{meta.label}</span>
-          {meta.note !== null ? <span className="text-muted-foreground text-xs">{meta.note}</span> : null}
+          <span className={css({ textStyle: 'body' })}>{meta.label}</span>
+          {meta.note !== null ? (
+            <span className={css({ textStyle: 'small', color: 'text-muted' })}>{meta.note}</span>
+          ) : null}
           {message.role === 'assistant' ? <PrivateReasoningTag /> : null}
         </>
       }
@@ -250,38 +310,38 @@ export function AgentMessageCard({ message }: { readonly message: AgentMessageEn
       {message.result_content ? (
         <ToolResult content={message.result_content} />
       ) : message.role === 'assistant' && message.thinking_text.length > 0 ? (
-        <div className="space-y-2">
-          <LazyDetails
-            summary={t('invocations.invocationDetail.agent.thinkingLabel')}
-            summaryClassName="text-muted-foreground cursor-pointer text-xs"
-            contentClassName="mt-1 text-sm break-words whitespace-pre-wrap"
-          >
-            {message.thinking_text}
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+          <LazyDetails summary={t('invocations.invocationDetail.agent.thinkingLabel')}>
+            <p className={css({ textStyle: 'body', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>
+              {message.thinking_text}
+            </p>
           </LazyDetails>
           {message.text.length === 0 ? (
-            <p className="text-muted-foreground text-sm">{t('invocations.invocationDetail.agent.noText')}</p>
+            <p className={css({ textStyle: 'body', color: 'text-muted' })}>
+              {t('invocations.invocationDetail.agent.noText')}
+            </p>
           ) : (
-            <p className="text-sm break-words whitespace-pre-wrap">{message.text}</p>
+            <p className={css({ textStyle: 'body', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>
+              {message.text}
+            </p>
           )}
         </div>
       ) : message.text.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{t('invocations.invocationDetail.agent.noText')}</p>
+        <p className={css({ textStyle: 'body', color: 'text-muted' })}>
+          {t('invocations.invocationDetail.agent.noText')}
+        </p>
       ) : message.role === 'tool_result' ? (
-        <LazyDetails
-          summary={t('invocations.invocationDetail.agent.viewToolResult')}
-          summaryClassName="text-muted-foreground cursor-pointer text-xs"
-          contentClassName="mt-1 text-sm break-words whitespace-pre-wrap"
-        >
-          {message.text}
+        <LazyDetails summary={t('invocations.invocationDetail.agent.viewToolResult')}>
+          <p className={css({ textStyle: 'body', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>{message.text}</p>
         </LazyDetails>
       ) : (
-        <p className="text-sm break-words whitespace-pre-wrap">{message.text}</p>
+        <p className={css({ textStyle: 'body', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>{message.text}</p>
       )}
     </TimelineCard>
   );
 }
 
-export function ModelCallCard({ model }: { readonly model: ModelCallEntry }): React.ReactElement {
+export function ModelCallCard({ model }: { readonly model: ModelCallEntry }): ReactElement {
   const { t } = useTranslation();
   const hasDetails = model.error_detail !== null || model.request_json !== null || model.response_json !== null;
   return (
@@ -289,7 +349,7 @@ export function ModelCallCard({ model }: { readonly model: ModelCallEntry }): Re
       header={
         <>
           <ToneBadge tone="info">{t('invocations.invocationDetail.modelCall.badge')}</ToneBadge>
-          <span className="text-sm font-medium">
+          <span className={css({ textStyle: 'label' })}>
             {model.provider}/{model.model}
           </span>
           <StateBadge state={model.state} />
@@ -297,7 +357,16 @@ export function ModelCallCard({ model }: { readonly model: ModelCallEntry }): Re
       }
       extra={formatTime(model.created_at)}
     >
-      <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-xs">
+      <div
+        className={css({
+          textStyle: 'small',
+          color: 'text-muted',
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: '3',
+        })}
+      >
         <span>{t('invocations.invocationDetail.modelCall.attempt', { value: model.attempt })}</span>
         <span>{t('invocations.invocationDetail.modelCall.tokens', { value: formatNumber(model.total_tokens) })}</span>
         <span>
@@ -311,23 +380,34 @@ export function ModelCallCard({ model }: { readonly model: ModelCallEntry }): Re
           {t('invocations.invocationDetail.modelCall.duration', { value: formatDuration(model.duration_ms) })}
         </span>
         {model.error_code !== null ? (
-          <span className="text-destructive">
+          <span className={css({ color: 'error-text' })}>
             {t('invocations.invocationDetail.modelCall.error', { code: model.error_code })}
           </span>
         ) : null}
       </div>
       {hasDetails ? (
-        <LazyDetails
-          summary={t('invocations.invocationDetail.modelCall.viewDetails')}
-          summaryClassName="text-muted-foreground cursor-pointer text-xs"
-          contentClassName="mt-2 space-y-2"
-        >
+        <LazyDetails summary={t('invocations.invocationDetail.modelCall.viewDetails')}>
           {model.error_detail !== null ? (
             <div>
-              <p className="text-muted-foreground text-xs">
+              <p className={css({ textStyle: 'small', color: 'text-muted' })}>
                 {t('invocations.invocationDetail.modelCall.fullErrorDetails')}
               </p>
-              <pre className="text-destructive mt-1 max-h-60 overflow-auto rounded border bg-muted/20 p-2 text-xs break-words whitespace-pre-wrap">
+              <pre
+                className={css({
+                  textStyle: 'small',
+                  color: 'error-text',
+                  marginBlockStart: '1',
+                  maxHeight: '240px',
+                  overflow: 'auto',
+                  borderRadius: 'lg',
+                  borderWidth: '1px',
+                  borderColor: 'border',
+                  bg: 'surface-muted',
+                  padding: '2',
+                  overflowWrap: 'anywhere',
+                  whiteSpace: 'pre-wrap',
+                })}
+              >
                 {model.error_detail}
               </pre>
             </div>
@@ -350,7 +430,9 @@ export function ModelCallCard({ model }: { readonly model: ModelCallEntry }): Re
         </LazyDetails>
       ) : null}
       {model.request_json === null && model.response_json === null ? (
-        <p className="text-muted-foreground text-xs">{t('invocations.invocationDetail.modelCall.rawUnavailable')}</p>
+        <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+          {t('invocations.invocationDetail.modelCall.rawUnavailable')}
+        </p>
       ) : null}
     </TimelineCard>
   );

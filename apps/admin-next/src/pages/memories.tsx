@@ -1,65 +1,49 @@
-import { useNavigate } from '@tanstack/react-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Info } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { PlusIcon } from '@tuuject/koi-react/icons';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { type ReactElement, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
-import { ChatFilter, ConfirmDialog, CursorList, FilterToolbar, SelectFilter, TableShell } from '@/components/business';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-
-import { errorMessage } from '@/lib/errors';
-import { formatTime } from '@/lib/format';
-import {
-  daysToTtlSeconds,
-  editTtlDays,
-  editTtlSeconds,
-  formatTtl,
-  MEMORY_DETAIL_MAX_LENGTH,
-  MEMORY_SUMMARY_MAX_LENGTH,
-  TTL_MAX_DAYS,
-  TTL_MIN_DAYS,
-} from '@/lib/memory-ttl';
-import { memoriesQuery, memoryChatsQuery } from '@/lib/queries';
-import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
-import { createMemory, deleteMemory, updateMemory } from '@/lib/api/memories.ts';
+  ChatFilter,
+  ConfirmDialog,
+  CursorList,
+  ListPageHeader,
+  ListSearchForm,
+  QuerySelectField,
+  TableShell,
+} from '@/components/business';
 import type { MemoryDraft, MemoryEntry, MemoryUpdate } from '@/lib/api/memories.ts';
+import { createMemory, deleteMemory, updateMemory } from '@/lib/api/memories.ts';
+import { errorMessage } from '@/lib/errors';
+import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
+import { daysToTtlSeconds, editTtlDays, editTtlSeconds } from '@/lib/memory-ttl';
+import { memoriesQuery } from '@/lib/queries';
+import { toast } from '@/lib/toast.ts';
 import { memoryColumns } from './memories-columns.tsx';
-import { MemoryDetail } from './memories-detail.tsx';
+import { MemoryFormDialog, MemoryViewDialog } from './memories-dialogs.tsx';
 import { EMPTY_FORM, type MemoryFormErrors, type MemoryFormValues, validateMemoryForm } from './memories-form.ts';
-import { MEMORY_STATES, MemoryStatus, STATE_LABEL_KEYS } from './memories-status.tsx';
+import { MEMORY_STATES, STATE_LABEL_KEYS } from './memories-status.tsx';
 
-export default function MemoriesPage(): React.ReactElement {
+const EMPTY_FILTERS = { state: '', chat: '' };
+
+export default function MemoriesPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [state, setState] = useState<string | undefined>(undefined);
-  const chat = useChatScope();
-  const navigate = useNavigate({ from: '/memories' });
-  const setChat = useChatScopeSetter(navigate);
-  const filters = useMemo(() => ({ state, chat }), [state, chat]);
+  const query = useListQuery(EMPTY_FILTERS);
+  const { state, chat } = query.value;
+  const filters = useMemo(() => ({ state: optionalQuery(state), chat: chatQuery(chat) }), [state, chat]);
 
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createValues, setCreateValues] = useState<MemoryFormValues>(EMPTY_FORM);
-  const [createErrors, setCreateErrors] = useState<MemoryFormErrors>({});
-  const [viewing, setViewing] = useState<MemoryEntry | null>(null);
+  // Each dialog keeps `open` apart from the data it shows, so closing never blanks it mid-fade.
+  const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<MemoryEntry | null>(null);
-  const [editValues, setEditValues] = useState<MemoryFormValues>(EMPTY_FORM);
-  const [editErrors, setEditErrors] = useState<MemoryFormErrors>({});
+  const [formValues, setFormValues] = useState<MemoryFormValues>(EMPTY_FORM);
+  const [formErrors, setFormErrors] = useState<MemoryFormErrors>({});
+  const [viewOpen, setViewOpen] = useState(false);
+  const [viewing, setViewing] = useState<MemoryEntry | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState<MemoryEntry | null>(null);
-
-  const chats = useQuery(memoryChatsQuery);
 
   const invalidateMemories = (): void => {
     void queryClient.invalidateQueries({ queryKey: ['memories'] });
@@ -77,9 +61,7 @@ export default function MemoriesPage(): React.ReactElement {
       return createMemory(draft);
     },
     onSuccess: () => {
-      setCreateOpen(false);
-      setCreateValues(EMPTY_FORM);
-      setCreateErrors({});
+      setFormOpen(false);
       toast.success(t('pages.memories.memoCreated'));
       invalidateMemories();
     },
@@ -102,9 +84,7 @@ export default function MemoriesPage(): React.ReactElement {
       return updateMemory(entry.id, body);
     },
     onSuccess: () => {
-      setEditing(null);
-      setEditValues(EMPTY_FORM);
-      setEditErrors({});
+      setFormOpen(false);
       toast.success(t('pages.memories.memoUpdated'));
       invalidateMemories();
     },
@@ -116,7 +96,7 @@ export default function MemoriesPage(): React.ReactElement {
   const remove = useMutation({
     mutationFn: deleteMemory,
     onSuccess: () => {
-      setDeleting(null);
+      setDeleteOpen(false);
       toast.success(t('pages.memories.memoDeleted'));
       invalidateMemories();
     },
@@ -127,291 +107,112 @@ export default function MemoriesPage(): React.ReactElement {
     },
   });
 
+  const openCreate = (): void => {
+    create.reset();
+    setEditing(null);
+    setFormValues(EMPTY_FORM);
+    setFormErrors({});
+    setFormOpen(true);
+  };
+
   const columns = memoryColumns(t, {
-    onView: setViewing,
+    onView: (row) => {
+      setViewing(row);
+      setViewOpen(true);
+    },
     onEdit: (row) => {
-      setEditValues({
+      update.reset();
+      setEditing(row);
+      setFormValues({
         chat_id: '',
         summary: row.summary,
         detail: row.detail,
         ttl_days: String(editTtlDays(row.ttl_seconds) ?? ''),
       });
-      setEditErrors({});
-      setEditing(row);
+      setFormErrors({});
+      setFormOpen(true);
     },
-    onDelete: setDeleting,
+    onDelete: (row) => {
+      remove.reset();
+      setDeleting(row);
+      setDeleteOpen(true);
+    },
   });
 
-  const chatOptions = (chats.data?.items ?? []).map((chatOption) => ({
-    value: chatOption.telegram_chat_id,
-    label: `${chatOption.title ?? chatOption.telegram_chat_id} (${chatOption.type}${chatOption.username === null ? '' : ` @${chatOption.username}`})`,
-  }));
-
   const stateOptions = MEMORY_STATES.map((value) => ({ value, label: t(STATE_LABEL_KEYS[value]) }));
+  const submitting = editing === null ? create : update;
 
   return (
-    <div className="space-y-4">
-      <Alert>
-        <Info className="text-foreground" />
-        <AlertTitle>{t('pages.memories.alertTitle')}</AlertTitle>
-        <AlertDescription>
-          <Trans i18nKey="pages.memories.alertDescription" components={{ code: <code /> }} />
-        </AlertDescription>
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
+      <ListPageHeader title={t('layout.nav.memories')} />
+      <Alert tone="info" title={t('pages.memories.alertTitle')}>
+        <Trans i18nKey="pages.memories.alertDescription" components={{ code: <code /> }} />
       </Alert>
 
-      <FilterToolbar>
-        <Button type="button" onClick={() => setCreateOpen(true)}>
-          {t('pages.memories.newMemo')}
-        </Button>
-        <ChatFilter value={chat} onChange={setChat} />
-        <SelectFilter
-          placeholder={t('pages.memories.filterState')}
-          value={state}
-          onChange={setState}
-          options={stateOptions}
-        />
-      </FilterToolbar>
+      <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
+        {({ draft, change }) => (
+          <>
+            <ChatFilter value={draft.chat} onChange={(chat) => change({ chat })} />
+            <QuerySelectField
+              label={t('pages.memories.filterState')}
+              value={draft.state}
+              onChange={(state) => change({ state })}
+              options={stateOptions}
+            />
+          </>
+        )}
+      </ListSearchForm>
 
       <CursorList
         factory={memoriesQuery}
         filters={filters}
-        empty={
-          <div className="text-muted-foreground py-8 text-center text-sm">{t('pages.memories.emptyMemories')}</div>
+        actions={
+          <Button variant="outline" iconStart={<PlusIcon />} onClick={openCreate}>
+            {t('pages.memories.newMemo')}
+          </Button>
         }
-        renderItems={(items) => (
-          <TableShell columns={columns} data={items} rowKey={(row) => row.id} className="max-w-full overflow-x-auto" />
+        renderItems={(items, { loading }) => (
+          <TableShell
+            columns={columns}
+            data={items}
+            rowKey={(row) => row.id}
+            loading={loading}
+            minWidth={960}
+            emptyText={t('pages.memories.emptyMemories')}
+          />
         )}
       />
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t('pages.memories.createTitle')}</DialogTitle>
-            <DialogDescription>{t('pages.memories.createDescription')}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="memory-chat">{t('pages.memories.chatLabel')}</Label>
-              <Select
-                {...(createValues.chat_id.length === 0 ? {} : { value: createValues.chat_id })}
-                onValueChange={(value) => setCreateValues((previous) => ({ ...previous, chat_id: value }))}
-              >
-                <SelectTrigger id="memory-chat" className="w-full" aria-label={t('pages.memories.selectChat')}>
-                  <SelectValue placeholder={t('pages.memories.selectChat')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {chatOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {chats.isPending ? (
-                <p className="text-muted-foreground text-xs">{t('pages.memories.loadingChatOptions')}</p>
-              ) : null}
-              {chats.isError ? (
-                <p className="text-destructive text-xs break-words">{errorMessage(chats.error)}</p>
-              ) : null}
-              {createErrors.chat_id !== undefined ? (
-                <p className="text-destructive text-sm">{createErrors.chat_id}</p>
-              ) : null}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="memory-summary">{t('pages.memories.summaryLabel')}</Label>
-              <Input
-                id="memory-summary"
-                maxLength={MEMORY_SUMMARY_MAX_LENGTH}
-                value={createValues.summary}
-                onChange={(event) => setCreateValues((previous) => ({ ...previous, summary: event.target.value }))}
-              />
-              <p className="text-muted-foreground text-xs">
-                {createValues.summary.length}/{MEMORY_SUMMARY_MAX_LENGTH}
-              </p>
-              {createErrors.summary !== undefined ? (
-                <p className="text-destructive text-sm">{createErrors.summary}</p>
-              ) : null}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="memory-detail">{t('pages.memories.detailLabel')}</Label>
-              <Textarea
-                id="memory-detail"
-                rows={6}
-                maxLength={MEMORY_DETAIL_MAX_LENGTH}
-                value={createValues.detail}
-                onChange={(event) => setCreateValues((previous) => ({ ...previous, detail: event.target.value }))}
-              />
-              <p className="text-muted-foreground text-xs">{t('pages.memories.detailHint')}</p>
-              {createErrors.detail !== undefined ? (
-                <p className="text-destructive text-sm">{createErrors.detail}</p>
-              ) : null}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="memory-ttl">{t('pages.memories.ttlLabel')}</Label>
-              <Input
-                id="memory-ttl"
-                type="number"
-                min={TTL_MIN_DAYS}
-                max={TTL_MAX_DAYS}
-                step={1}
-                value={createValues.ttl_days}
-                onChange={(event) => setCreateValues((previous) => ({ ...previous, ttl_days: event.target.value }))}
-              />
-              <p className="text-muted-foreground text-xs">{t('pages.memories.ttlHint')}</p>
-              {createErrors.ttl_days !== undefined ? (
-                <p className="text-destructive text-sm">{createErrors.ttl_days}</p>
-              ) : null}
-            </div>
-            {create.isError ? (
-              <p className="text-destructive text-sm break-words">{errorMessage(create.error)}</p>
-            ) : null}
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={create.isPending} onClick={() => setCreateOpen(false)}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              type="button"
-              disabled={create.isPending}
-              onClick={() => {
-                const errors = validateMemoryForm(createValues, false, t);
-                setCreateErrors(errors);
-                if (Object.keys(errors).length === 0) {
-                  create.mutate(createValues);
-                }
-              }}
-            >
-              {create.isPending ? t('pages.memories.creating') : t('common.create')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <MemoryFormDialog
+        open={formOpen}
+        editing={editing}
+        values={formValues}
+        errors={formErrors}
+        pending={submitting.isPending}
+        error={submitting.isError ? submitting.error : null}
+        onOpenChange={setFormOpen}
+        onChange={(patch) => setFormValues((previous) => ({ ...previous, ...patch }))}
+        onSubmit={() => {
+          const errors = validateMemoryForm(formValues, editing !== null, t);
+          setFormErrors(errors);
+          if (Object.keys(errors).length > 0 || submitting.isPending) {
+            return;
+          }
+          if (editing === null) {
+            create.mutate(formValues);
+          } else {
+            update.mutate({ entry: editing, values: formValues });
+          }
+        }}
+      />
 
-      <Dialog open={viewing !== null} onOpenChange={(open) => !open && setViewing(null)}>
-        <DialogContent showCloseButton={false} className="max-h-[calc(100dvh-2rem)] max-w-2xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t('pages.memories.viewTitle')}</DialogTitle>
-            <DialogDescription>{viewing?.id ?? ''}</DialogDescription>
-          </DialogHeader>
-          {viewing === null ? null : (
-            <div className="space-y-3">
-              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-                <dt className="text-muted-foreground">{t('pages.memories.colChat')}</dt>
-                <dd className="break-words">
-                  {viewing.chat.title ?? viewing.chat.telegram_chat_id} ({viewing.chat.telegram_chat_id})
-                </dd>
-                <dt className="text-muted-foreground">{t('pages.memories.colStatus')}</dt>
-                <dd>
-                  <MemoryStatus row={viewing} />
-                </dd>
-                <dt className="text-muted-foreground">{t('pages.memories.colCreated')}</dt>
-                <dd>{formatTime(viewing.created_at)}</dd>
-                <dt className="text-muted-foreground">{t('pages.memories.colExpires')}</dt>
-                <dd>{viewing.expires_at === null ? t('pages.memories.permanent') : formatTime(viewing.expires_at)}</dd>
-                <dt className="text-muted-foreground">{t('pages.memories.colTtl')}</dt>
-                <dd>{viewing.ttl_seconds === null ? t('pages.memories.permanent') : formatTtl(viewing.ttl_seconds)}</dd>
-              </dl>
-              <div className="space-y-1">
-                <div className="text-muted-foreground text-xs uppercase">{t('pages.memories.summaryLabel')}</div>
-                <p className="text-sm font-medium break-words">{viewing.summary}</p>
-              </div>
-              <div className="space-y-1">
-                <div className="text-muted-foreground text-xs uppercase">{t('pages.memories.detailLabel')}</div>
-                <MemoryDetail detail={viewing.detail} />
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setViewing(null)}>
-              {t('pages.memories.close')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t('pages.memories.editTitle', { id: editing?.id ?? '' })}</DialogTitle>
-            <DialogDescription>{t('pages.memories.editDescription')}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-summary">{t('pages.memories.summaryLabel')}</Label>
-              <Input
-                id="edit-summary"
-                maxLength={MEMORY_SUMMARY_MAX_LENGTH}
-                value={editValues.summary}
-                onChange={(event) => setEditValues((previous) => ({ ...previous, summary: event.target.value }))}
-              />
-              <p className="text-muted-foreground text-xs">
-                {editValues.summary.length}/{MEMORY_SUMMARY_MAX_LENGTH}
-              </p>
-              {editErrors.summary !== undefined ? (
-                <p className="text-destructive text-sm">{editErrors.summary}</p>
-              ) : null}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-detail">{t('pages.memories.detailLabel')}</Label>
-              <Textarea
-                id="edit-detail"
-                rows={6}
-                maxLength={MEMORY_DETAIL_MAX_LENGTH}
-                value={editValues.detail}
-                onChange={(event) => setEditValues((previous) => ({ ...previous, detail: event.target.value }))}
-              />
-              <p className="text-muted-foreground text-xs">{t('pages.memories.detailHint')}</p>
-              {editErrors.detail !== undefined ? <p className="text-destructive text-sm">{editErrors.detail}</p> : null}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-ttl">{t('pages.memories.ttlLabel')}</Label>
-              <Input
-                id="edit-ttl"
-                type="number"
-                min={TTL_MIN_DAYS}
-                max={TTL_MAX_DAYS}
-                step={1}
-                value={editValues.ttl_days}
-                onChange={(event) => setEditValues((previous) => ({ ...previous, ttl_days: event.target.value }))}
-              />
-              <p className="text-muted-foreground text-xs">{t('pages.memories.editTtlHint')}</p>
-              {editErrors.ttl_days !== undefined ? (
-                <p className="text-destructive text-sm">{editErrors.ttl_days}</p>
-              ) : null}
-            </div>
-            {update.isError ? (
-              <p className="text-destructive text-sm break-words">{errorMessage(update.error)}</p>
-            ) : null}
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={update.isPending} onClick={() => setEditing(null)}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              type="button"
-              disabled={update.isPending}
-              onClick={() => {
-                if (editing === null) {
-                  return;
-                }
-                const errors = validateMemoryForm(editValues, true, t);
-                setEditErrors(errors);
-                if (Object.keys(errors).length === 0) {
-                  update.mutate({ entry: editing, values: editValues });
-                }
-              }}
-            >
-              {update.isPending ? t('common.saving') : t('common.save')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <MemoryViewDialog open={viewOpen} entry={viewing} onOpenChange={setViewOpen} />
 
       <ConfirmDialog
-        open={deleting !== null}
+        open={deleteOpen}
         onOpenChange={(open) => {
           if (!open && !remove.isPending) {
-            setDeleting(null);
+            setDeleteOpen(false);
           }
         }}
         title={t('pages.memories.deleteTitle')}

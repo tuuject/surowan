@@ -1,7 +1,6 @@
 import { expect } from '@playwright/test';
-
-import { adminUrl, test } from './helpers.ts';
 import type { ImageConfigView } from '../src/lib/api/images.ts';
+import { adminUrl, test } from './helpers.ts';
 
 test.use({ signedIn: true });
 
@@ -67,8 +66,8 @@ test('selects an API model, fills capabilities, saves, and reloads existing conf
     }
   });
   await page.goto(await adminUrl('/image-settings'));
-  await expect(page.getByLabel('Enable image generation')).not.toBeChecked();
-  await page.getByLabel('Enable image generation').check();
+  await expect(page.getByRole('checkbox', { name: 'Enable image generation' })).not.toBeChecked();
+  await page.getByRole('checkbox', { name: 'Enable image generation' }).check();
   await page.getByLabel('API key', { exact: true }).fill('e2e-image-key');
   await page.getByLabel('Search models').fill('banana');
   const picker = page.getByLabel('OpenRouter image model');
@@ -379,9 +378,9 @@ test('missing credentials give a visible actionable error and do not send an inv
     'Credential openrouter has no API key configured',
   );
   await save.click();
-  await expect(page.locator('[data-sonner-toast]')).toContainText('has no API key configured');
+  await expect(page.locator('[data-koi-toast]')).toContainText('has no API key configured');
   expect(writes).toBe(0);
-  await page.getByLabel('Enable image generation').uncheck();
+  await page.getByRole('checkbox', { name: 'Enable image generation' }).uncheck();
   await save.click();
   await expect.poll(() => writes).toBe(1);
 });

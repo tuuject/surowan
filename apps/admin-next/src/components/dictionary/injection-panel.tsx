@@ -1,14 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type React from 'react';
+import { Select } from '@tuuject/koi-react/select';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { Panel } from '@/components/layout/panel';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
+import type { DictionaryInjectionMode } from '@/lib/api/dictionary.ts';
+import { DICTIONARY_INJECTION_MODES, getDictionarySettings, putDictionarySettings } from '@/lib/api/dictionary.ts';
 import { dictionaryErrorMessage, injectionModeHint, injectionModeLabel } from '@/lib/dictionary.ts';
 import { dictionarySettingsQuery } from '@/lib/queries.ts';
-import { DICTIONARY_INJECTION_MODES, getDictionarySettings, putDictionarySettings } from '@/lib/api/dictionary.ts';
-import type { DictionaryInjectionMode } from '@/lib/api/dictionary.ts';
+import { toast } from '@/lib/toast.ts';
 
 const INHERIT_VALUE = '__inherit__';
 
@@ -24,7 +24,7 @@ function isInjectionMode(value: string): value is DictionaryInjectionMode {
  * that every group read was holding — a revision captured at render time would
  * race the panel's own refresh and fail with `config_conflict`.
  */
-export function InjectionPanel({ chatId }: { readonly chatId: string | null }): React.ReactElement {
+export function InjectionPanel({ chatId }: { readonly chatId: string | null }): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const globalSettings = useQuery(dictionarySettingsQuery(null));
@@ -68,48 +68,51 @@ export function InjectionPanel({ chatId }: { readonly chatId: string | null }): 
 
   return (
     <Panel title={t('dictionary.injection.title')}>
-      <div className="space-y-4">
-        <p className="text-muted-foreground text-sm">{t('dictionary.injection.description')}</p>
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+        <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('dictionary.injection.description')}</p>
 
         {globalSettings.isError ? (
-          <p className="text-destructive text-sm break-words">
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
             {t('dictionary.injection.settingsFailed')}: {dictionaryErrorMessage(globalSettings.error)}
           </p>
         ) : null}
 
-        <div className="flex flex-wrap items-start gap-6">
-          <div className="space-y-1">
-            <p className="text-sm font-medium">{t('dictionary.injection.globalMode')}</p>
+        <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '6' })}>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+            <p className={css({ textStyle: 'label' })}>{t('dictionary.injection.globalMode')}</p>
             <Select
+              className={css({ width: '176px' })}
+              aria-label={t('dictionary.injection.globalMode')}
               value={globalMode}
               disabled={globalSettings.isPending || saveGlobal.isPending}
-              onValueChange={(value) => {
+              onChange={(event) => {
+                const value = event.target.value;
                 if (isInjectionMode(value) && value !== globalMode) {
                   saveGlobal.mutate(value);
                 }
               }}
             >
-              <SelectTrigger className="w-44" aria-label={t('dictionary.injection.globalMode')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DICTIONARY_INJECTION_MODES.map((mode) => (
-                  <SelectItem key={mode} value={mode}>
-                    {injectionModeLabel(mode)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+              {DICTIONARY_INJECTION_MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {injectionModeLabel(mode)}
+                </option>
+              ))}
             </Select>
-            <p className="text-muted-foreground max-w-80 text-xs">{injectionModeHint(globalMode)}</p>
+            <p className={css({ textStyle: 'small', color: 'text-muted', maxWidth: '320px' })}>
+              {injectionModeHint(globalMode)}
+            </p>
           </div>
 
           {chatId === null ? null : (
-            <div className="space-y-1">
-              <p className="text-sm font-medium">{t('dictionary.injection.groupOverride')}</p>
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+              <p className={css({ textStyle: 'label' })}>{t('dictionary.injection.groupOverride')}</p>
               <Select
+                className={css({ width: '224px' })}
+                aria-label={t('dictionary.injection.groupOverride')}
                 value={overrideMode ?? INHERIT_VALUE}
                 disabled={groupSettings.isPending || saveOverride.isPending}
-                onValueChange={(value) => {
+                onChange={(event) => {
+                  const value = event.target.value;
                   if (value === INHERIT_VALUE) {
                     if (overrideMode !== null) {
                       saveOverride.mutate(null);
@@ -121,39 +124,36 @@ export function InjectionPanel({ chatId }: { readonly chatId: string | null }): 
                   }
                 }}
               >
-                <SelectTrigger className="w-56" aria-label={t('dictionary.injection.groupOverride')}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={INHERIT_VALUE}>
-                    {t('dictionary.injection.inheritOption', { mode: injectionModeLabel(globalMode) })}
-                  </SelectItem>
-                  {DICTIONARY_INJECTION_MODES.map((mode) => (
-                    <SelectItem key={mode} value={mode}>
-                      {injectionModeLabel(mode)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+                <option value={INHERIT_VALUE}>
+                  {t('dictionary.injection.inheritOption', { mode: injectionModeLabel(globalMode) })}
+                </option>
+                {DICTIONARY_INJECTION_MODES.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {injectionModeLabel(mode)}
+                  </option>
+                ))}
               </Select>
-              <p className="text-muted-foreground max-w-80 text-xs">{t('dictionary.injection.overrideNote')}</p>
+              <p className={css({ textStyle: 'small', color: 'text-muted', maxWidth: '320px' })}>
+                {t('dictionary.injection.overrideNote')}
+              </p>
             </div>
           )}
 
-          <div className="space-y-1">
-            <p className="text-sm font-medium">{t('dictionary.injection.effective')}</p>
-            <p data-testid="effective-mode" className="text-sm">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+            <p className={css({ textStyle: 'label' })}>{t('dictionary.injection.effective')}</p>
+            <p data-testid="effective-mode" className={css({ textStyle: 'body' })}>
               {effective === undefined ? '—' : injectionModeLabel(effective)}
             </p>
           </div>
         </div>
 
         {saveGlobal.isError || saveOverride.isError ? (
-          <p className="text-destructive text-sm break-words">
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
             {dictionaryErrorMessage(saveGlobal.error ?? saveOverride.error)}
           </p>
         ) : null}
 
-        <p className="text-muted-foreground text-xs">{t('dictionary.injection.dedupeNote')}</p>
+        <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('dictionary.injection.dedupeNote')}</p>
       </div>
     </Panel>
   );

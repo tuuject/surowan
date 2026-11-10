@@ -1,14 +1,21 @@
 import i18n from './i18n.ts';
 
+/**
+ * Status colours, read by `StateBadge`. As in the Koi admin template, a state
+ * that ended normally stays neutral and only states that need a look get a
+ * colour: in progress (primary), waiting or budget-limited (warning), failed
+ * (error). A coloured "completed" would also blend with "failed" under the
+ * rose palette.
+ */
 const STATE_COLORS: Record<string, string> = {
-  completed: 'green',
-  success: 'green',
-  ready: 'green',
+  completed: 'default',
+  success: 'default',
+  ready: 'default',
   running: 'blue',
   queued: 'geekblue',
   pending: 'gold',
   collecting: 'cyan',
-  merged: 'purple',
+  merged: 'default',
   failed: 'red',
   error: 'red',
   aborted: 'volcano',
@@ -17,7 +24,7 @@ const STATE_COLORS: Record<string, string> = {
   blocked_budget: 'orange',
   expired: 'default',
   firing: 'blue',
-  fired: 'green',
+  fired: 'default',
   cancelled: 'default',
 };
 

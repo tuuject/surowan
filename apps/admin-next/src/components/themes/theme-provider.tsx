@@ -11,12 +11,11 @@ function resolveTheme(mode: ThemeMode): 'light' | 'dark' {
   return mode;
 }
 
-function applyThemeClass(resolved: 'light' | 'dark') {
-  if (resolved === 'dark') {
-    document.documentElement.classList.add('dark');
-  } else {
-    document.documentElement.classList.remove('dark');
-  }
+/** Koi's Panda conditions read `data-theme`; `color-scheme` keeps native controls in step. */
+function applyTheme(resolved: 'light' | 'dark') {
+  const root = document.documentElement;
+  root.setAttribute('data-theme', resolved);
+  root.style.colorScheme = resolved;
 }
 
 interface ThemeContextValue {
@@ -46,44 +45,61 @@ export function ThemeProvider({ children }: { readonly children: ReactNode }) {
     setModeState(next);
     try {
       localStorage.setItem(THEME_KEY, next);
+      // A desktop shell (Electron / installed PWA) may read the Koi-native
+      // preference key to keep its own chrome in sync. `system` clears the
+      // explicit choice, matching Koi's theme-init convention.
+      if (next === 'system') {
+        localStorage.removeItem('koi-theme');
+      } else {
+        localStorage.setItem('koi-theme', next);
+      }
     } catch {
       // localStorage unavailable
     }
     const nextResolved = resolveTheme(next);
     setResolved(nextResolved);
-    applyThemeClass(nextResolved);
+    applyTheme(nextResolved);
   }, []);
 
-  // Keep the class in sync with `resolved`: it changes with the mode and, in
-  // "system" mode, with the OS scheme.
+  // Keep the attributes in sync with `resolved`: it changes with the mode and,
+  // in "system" mode, with the OS scheme.
   useEffect(() => {
-    applyThemeClass(resolved);
+    applyTheme(resolved);
   }, [resolved]);
 
+  // Optional host bridge: a desktop shell can call the Koi-native setter, and
+  // the panel applies it through the same persisted mode as its own toggles.
+  useEffect(() => {
+    window.koiSetTheme = (theme) => setMode(theme ?? 'system');
+    return () => {
+      delete window.koiSetTheme;
+    };
+  }, [setMode]);
+
   // Listen for system theme changes when in "system" mode. The context value has
-  // to follow, not just the DOM class: consumers such as the JSON viewer and
-  // Sonner read `resolved` and would otherwise keep the previous scheme.
+  // to follow, not just the DOM attributes: consumers such as the JSON viewer
+  // read `resolved` and would otherwise keep the previous scheme.
   useEffect(() => {
     if (mode !== 'system') {
       return;
     }
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = () => {
-      const next = mq.matches ? 'dark' : 'light';
-      applyThemeClass(next);
+      const next = media.matches ? 'dark' : 'light';
+      applyTheme(next);
       setResolved(next);
     };
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
+    media.addEventListener('change', handler);
+    return () => media.removeEventListener('change', handler);
   }, [mode]);
 
   return <ThemeContext.Provider value={{ mode, resolved, setMode }}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme(): ThemeContextValue {
-  const ctx = useContext(ThemeContext);
-  if (ctx === undefined) {
+  const context = useContext(ThemeContext);
+  if (context === undefined) {
     throw new Error('useTheme must be used within ThemeProvider');
   }
-  return ctx;
+  return context;
 }

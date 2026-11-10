@@ -1,26 +1,19 @@
 import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Field } from '@tuuject/koi-react/field';
+import { Input } from '@tuuject/koi-react/input';
+import { Select } from '@tuuject/koi-react/select';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { type ReactElement, useId, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { ChatEntry, ChatSettings, ChatsView } from '@/lib/api/chats.ts';
+import { createChat, updateChat } from '@/lib/api/chats.ts';
+import type { ThinkingLevel } from '@/lib/api/models.ts';
 import { errorMessage } from '@/lib/errors';
 import { isConfigConflict, isThinkingLevel } from '@/lib/model-manager';
+import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
-import { useTranslation } from 'react-i18next';
-import { createChat, updateChat } from '@/lib/api/chats.ts';
-import type { ChatEntry, ChatSettings, ChatsView } from '@/lib/api/chats.ts';
-import type { ThinkingLevel } from '@/lib/api/models.ts';
 
 function modelKey(provider: string, model: string): string {
   return JSON.stringify([provider, model]);
@@ -34,16 +27,78 @@ function validId(value: string, positive = false): boolean {
   );
 }
 
-/** The whole view is captured when opened: background refetches cannot upgrade a stale form's revision. */
-export function ChatDialog({
+export interface ChatDialogProps {
+  /** `open` stays apart from the chat so the title doesn't blank out while the exit fade plays. */
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly view: ChatsView;
+  readonly chat: ChatEntry | null;
+  /** Remounts the form for every open: saving never starts from the previous draft. */
+  readonly formKey: number;
+}
+
+/**
+ * Add or edit one Chat. The dialog root stays mounted for its transitions; only
+ * the form inside remounts per open.
+ */
+export function ChatDialog({ open, onOpenChange, view, chat, formKey }: ChatDialogProps): ReactElement {
+  const { t } = useTranslation();
+  const formId = useId();
+  const [pending, setPending] = useState(false);
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && pending) {
+          return;
+        }
+        onOpenChange(next);
+      }}
+      title={chat === null ? t('pages.chats.addChat') : t('pages.chats.editChat')}
+      description={t('pages.chats.dialogDescription')}
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            color="secondary"
+            disabled={pending}
+            onClick={() => onOpenChange(false)}
+          >
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" form={formId} disabled={pending}>
+            {pending ? t('common.saving') : t('pages.chats.saveChat')}
+          </Button>
+        </>
+      }
+    >
+      <ChatForm
+        key={formKey}
+        formId={formId}
+        view={view}
+        chat={chat}
+        onClose={() => onOpenChange(false)}
+        onPendingChange={setPending}
+      />
+    </Dialog>
+  );
+}
+
+function ChatForm({
+  formId,
   view,
   chat,
   onClose,
+  onPendingChange,
 }: {
+  readonly formId: string;
+  /** The whole view is captured when opened: background refetches cannot upgrade a stale form's revision. */
   readonly view: ChatsView;
   readonly chat: ChatEntry | null;
   readonly onClose: () => void;
-}): React.ReactElement {
+  readonly onPendingChange: (pending: boolean) => void;
+}): ReactElement {
   const { t } = useTranslation();
   const write = useProviderWrite();
   const [id, setId] = useState(chat?.id ?? '');
@@ -67,6 +122,7 @@ export function ChatDialog({
       chat === null
         ? createChat({ id: id.trim(), ...settings }, view.revision)
         : updateChat(chat.id, settings, view.revision),
+    onMutate: () => onPendingChange(true),
     onSuccess: (result) => {
       write.succeeded(result.apply);
       onClose();
@@ -78,6 +134,7 @@ export function ChatDialog({
         toast.error(t('pages.chats.configConflictEdit'));
       }
     },
+    onSettled: () => onPendingChange(false),
   });
   const submit = (): void => {
     if (!validId(id.trim())) {
@@ -116,118 +173,86 @@ export function ChatDialog({
     });
   };
   return (
-    <Dialog open onOpenChange={(open) => !open && !save.isPending && onClose()}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{chat === null ? t('pages.chats.addChat') : t('pages.chats.editChat')}</DialogTitle>
-          <DialogDescription>{t('pages.chats.dialogDescription')}</DialogDescription>
-        </DialogHeader>
-        <form
-          className="space-y-5"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submit();
-          }}
-        >
-          <fieldset disabled={save.isPending} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="chat-id">{t('pages.chats.chatIdLabel')}</Label>
-              <Input
-                id="chat-id"
-                value={id}
-                readOnly={chat !== null}
-                placeholder={t('pages.chats.chatIdPlaceholder')}
-                onChange={(event) => setId(event.target.value)}
-              />
-              <p className="text-muted-foreground text-xs">{t('pages.chats.chatIdHint')}</p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="chat-topics">{t('pages.chats.topicIdsLabel')}</Label>
-              <Input
-                id="chat-topics"
-                value={topics}
-                placeholder={t('pages.chats.allTopics')}
-                onChange={(event) => setTopics(event.target.value)}
-              />
-              <p className="text-muted-foreground text-xs">{t('pages.chats.topicIdsHint')}</p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="chat-model">{t('pages.chats.agentModelLabel')}</Label>
-              <Select
-                value={model}
-                onValueChange={(value) => {
-                  setModel(value);
-                  const next = view.models.find((item) => modelKey(item.provider, item.model) === value);
-                  setThinking(value === 'inherit' ? 'inherit' : (next?.thinking_levels[0] ?? 'off'));
-                }}
-              >
-                <SelectTrigger id="chat-model" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="inherit">
-                    {t('pages.chats.globalDefaultModel', {
-                      model: `${view.defaults.provider} / ${view.defaults.model}`,
-                    })}
-                  </SelectItem>
-                  {view.models.map((item) => (
-                    <SelectItem key={modelKey(item.provider, item.model)} value={modelKey(item.provider, item.model)}>
-                      {item.provider} / {item.model}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-muted-foreground text-xs">{t('pages.chats.modelHint')}</p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="chat-thinking">{t('pages.chats.thinkingLabel')}</Label>
-              <Select
-                value={thinking}
-                onValueChange={(value) => {
-                  if (value === 'inherit' || isThinkingLevel(value)) {
-                    setThinking(value);
-                  }
-                }}
-              >
-                <SelectTrigger id="chat-thinking" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {inheritAllowed ? (
-                    <SelectItem value="inherit" disabled={!inheritSupported}>
-                      {t('pages.chats.globalDefaultLevel', { level: view.defaults.thinking_level })}
-                      {inheritSupported ? '' : t('pages.chats.unsupportedSuffix')}
-                    </SelectItem>
-                  ) : null}
-                  {levels.map((level) => (
-                    <SelectItem key={level} value={level}>
-                      {level}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </fieldset>
-          {validation !== null ? (
-            <p role="alert" className="text-destructive text-sm">
-              {validation}
-            </p>
-          ) : null}
-          {save.isError ? (
-            <p role="alert" className="text-destructive text-sm break-words">
-              {errorMessage(save.error)}
-            </p>
-          ) : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={save.isPending} onClick={onClose}>
-              {t('common.cancel')}
-            </Button>
-            <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? t('common.saving') : t('pages.chats.saveChat')}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <form
+      id={formId}
+      className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}
+      onSubmit={(event) => {
+        event.preventDefault();
+        submit();
+      }}
+    >
+      <fieldset disabled={save.isPending} className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
+        <Field label={t('pages.chats.chatIdLabel')} help={t('pages.chats.chatIdHint')}>
+          <Input
+            value={id}
+            readOnly={chat !== null}
+            placeholder={t('pages.chats.chatIdPlaceholder')}
+            onChange={(event) => setId(event.target.value)}
+          />
+        </Field>
+        <Field label={t('pages.chats.topicIdsLabel')} help={t('pages.chats.topicIdsHint')}>
+          <Input
+            value={topics}
+            placeholder={t('pages.chats.allTopics')}
+            onChange={(event) => setTopics(event.target.value)}
+          />
+        </Field>
+        <Field label={t('pages.chats.agentModelLabel')} help={t('pages.chats.modelHint')}>
+          <Select
+            value={model}
+            onChange={(event) => {
+              const value = event.target.value;
+              setModel(value);
+              const next = view.models.find((item) => modelKey(item.provider, item.model) === value);
+              setThinking(value === 'inherit' ? 'inherit' : (next?.thinking_levels[0] ?? 'off'));
+            }}
+          >
+            <option value="inherit">
+              {t('pages.chats.globalDefaultModel', {
+                model: `${view.defaults.provider} / ${view.defaults.model}`,
+              })}
+            </option>
+            {view.models.map((item) => (
+              <option key={modelKey(item.provider, item.model)} value={modelKey(item.provider, item.model)}>
+                {item.provider} / {item.model}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field id="chat-thinking" label={t('pages.chats.thinkingLabel')}>
+          <Select
+            value={thinking}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (value === 'inherit' || isThinkingLevel(value)) {
+                setThinking(value);
+              }
+            }}
+          >
+            {inheritAllowed ? (
+              <option value="inherit" disabled={!inheritSupported}>
+                {t('pages.chats.globalDefaultLevel', { level: view.defaults.thinking_level })}
+                {inheritSupported ? '' : t('pages.chats.unsupportedSuffix')}
+              </option>
+            ) : null}
+            {levels.map((level) => (
+              <option key={level} value={level}>
+                {level}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </fieldset>
+      {validation !== null ? (
+        <p role="alert" className={css({ textStyle: 'body', color: 'error-text' })}>
+          {validation}
+        </p>
+      ) : null}
+      {save.isError ? (
+        <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+          {errorMessage(save.error)}
+        </p>
+      ) : null}
+    </form>
   );
 }

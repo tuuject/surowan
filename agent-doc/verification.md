@@ -276,8 +276,8 @@ node src/cli.ts serve --config dev-data/config.jsonc
 9. Overview 的 Bot status 卡片显示 `sleeping`/`awake` 与 `sleep_until`，睡眠时 `Wake now` 带二次确认；同时列出所有 `chat_pause` Chat 与暂停时间。
 10. Alarms 页面按 state/Chat/Target 过滤，pending 优先置顶，展开显示完整诊断并链接到对应 Tool session；取消只对 pending 开放且需二次确认，对非 pending 给出 409 冲突提示。
 11. Bot admins 页面能添加/移除管理员：写回 `telegram.admins` 并热应用，命令权限无需重启即更新；列表在下次进入页面时反映文件值。
-12. Models 页面列出 Provider 与模型；切换 agent / vision 模型后 `config.jsonc` 的 `agent.provider` / `agent.model`（或 `vision.*`）被改写，页面立即反映新模型，后续 Invocation / vision 分析使用新模型，重启 `serve` 后仍然生效；Provider 增删、连接字段与模型列表的修改均热应用（在用引用仍受校验保护）。`PUT /api/model` 将全局 thinking 重置为最弱档，并将继承全局模型且不兼容的 Chat thinking 覆盖在同一次写入中重置为最弱档，弹窗列出受影响 Chat 与前后值；兼容档位和独立模型覆盖保持原值，最弱档按新模型的支持列表选择（不必是 off）。`PUT /api/thinking-level` 仍只写全局 thinking，保留 Chat 覆盖。未覆盖的 Chat 在 `/status` 中显示新的全局值，Chat 覆盖也可通过 Chats 页、配置文件或 Telegram `/model` 维护。Settings 页的 `Configuration file` 卡片显示 generation、active hash 与 file hash；改一个白名单字段后点 `Apply config file`，应用列表出现该路径，改一个 restart 字段则出现在待重启列表。
-13. Conversation Contexts 页面按 chat 过滤，列表按最近活跃倒序并可用 Load more 翻页；详情显示 head/next seq、保留消息数与 capability refs，展开消息看到 `payload_preview` 与截断标记，且不出现已 GC 的行。
+12. Providers 页面列出 Provider 与模型，Models 页面按 Agent / Vision / Tool 三张卡片显示当前模型与思考强度；在 Models 页或 Providers 页模型行的 “Use as” 切换 agent / vision 模型后 `config.jsonc` 的 `agent.provider` / `agent.model`（或 `vision.*`）被改写，页面立即反映新模型，后续 Invocation / vision 分析使用新模型，重启 `serve` 后仍然生效；Provider 增删、连接字段与模型列表的修改均热应用（在用引用仍受校验保护）。`PUT /api/model` 将全局 thinking 重置为最弱档，并将继承全局模型且不兼容的 Chat thinking 覆盖在同一次写入中重置为最弱档，弹窗列出受影响 Chat 与前后值；兼容档位和独立模型覆盖保持原值，最弱档按新模型的支持列表选择（不必是 off）。`PUT /api/thinking-level` 仍只写全局 thinking，保留 Chat 覆盖。未覆盖的 Chat 在 `/status` 中显示新的全局值，Chat 覆盖也可通过 Chats 页、配置文件或 Telegram `/model` 维护。Settings 页的 `Configuration file` 卡片显示 generation、active hash 与 file hash；改一个白名单字段后点 `Apply config file`，应用列表出现该路径，改一个 restart 字段则出现在待重启列表。
+13. Conversation Contexts 页面按 chat 过滤，列表按最近活跃倒序并用 Previous/Next 翻页；详情显示 head/next seq、保留消息数与 capability refs，展开消息看到 `payload_preview` 与截断标记，且不出现已 GC 的行。
 14. 登出后访问深链接回落登录页；重新登录恢复访问。
 15. `admin_users.password_hash` 使用 Argon2id 格式，`admin_sessions` 只有 64 位十六进制摘要。
 16. Manage → Chats 并排显示 Saved settings 与 Running settings：新增 Chat 后文件保存且运行态立即生效（状态为 Active，无待重启项）；删除 Chat 后文件保存且运行态立即移除、该 Chat 的运行与任务被停止，确认框明确提示 Memo Pad 与 Blobs 一并删除；修改 Topic 白名单后文件已保存但运行态不变；已有 active Chat 切换模型/thinking 后运行列同步，恢复 Global default 清除两种覆盖。删除需确认且保留其它 Chat 的历史，最后一个配置 Chat 禁止删除。并发编辑/删除冲突不能覆盖新文件；保存后应用失败要显示两种状态，Settings 应用成功后刷新 Chats。待重启横幅列出字段，只在有 supervisor 时提供 Restart now。
@@ -290,7 +290,7 @@ node src/cli.ts serve --config dev-data/config.jsonc
 pnpm run admin:build        # 前置：E2E 驱动已构建的 dist（真实静态托管）
 pnpm --filter surowan-admin-next exec playwright install chromium   # 首次运行前安装 Chromium（Linux CI 用 --with-deps）
 pnpm run admin:test:e2e     # Playwright 套件（apps/admin-next/e2e/**/*.e2e.ts）
-pnpm run admin:test:e2e 08-models 16-model-health  # 模型管理与健康检查回归
+pnpm run admin:test:e2e 08-models 16-model-health 18-tool-model 27-model-roles  # 模型分配、Provider 管理与健康检查回归
 pnpm run admin:test:e2e 17-dictionary 18-tool-model  # 辞典页与 Tool Model 回归
 pnpm run admin:test:e2e 20-playground  # Playground 房间 API 与页面回归
 pnpm run admin:test:e2e 22-search-settings  # 网络搜索设置页与保存流程
@@ -326,7 +326,7 @@ Remove-Item Env:E2E_PASSKEYS
 - 用例文件名以 `.e2e.ts` 结尾、目录独立，Playwright `testMatch` 单独声明，**不会**被
   vitest 与 `pnpm test` 发现；`workers` 取 `availableParallelism()`，文件间并行、文件内串行，
   端口随机，不与固定端口冲突。依赖 CPU 时序的断言在满核负载下会暴露竞态：在途状态用
-  `/__e2e/health-gate` 等显式钩子控制，toast 断言用 `toast()` 限定在 Sonner 容器内。
+  `/__e2e/health-gate` 等显式钩子控制，toast 断言用 `toast()` 限定在 `[data-koi-toast]` 容器内。
 - `01-routes.e2e.ts` 与多个套件按路由断言可见文案（英文 locale）：修改面板文案或
   locale 键值时必须同步这些断言，并运行受影响套件（如 `pnpm run admin:test:e2e 01-routes`，任一套件都可单独运行）——
   `pnpm test` 与 `pnpm run check` 都不覆盖浏览器层。
@@ -335,11 +335,13 @@ Remove-Item Env:E2E_PASSKEYS
   1. 认证：setup → shell；错误密码表单内显示 `invalid_credentials` 且 URL 不变；
      登出回登录页；会话撤销后受保护请求 401 → 登录页且无错误屏。
   2. `apps/admin-next/src/routes/**` 声明的全部路由与深链接直接访问渲染真实内容（非错误边界、非空白）。
-  3. 列表过滤与游标分页：Invocations、Messages、Contexts、Alarms、Memories、Group memory、Stickers
+  3. 列表过滤与分页：Invocations、Messages、Contexts、Alarms、Memories、Group memory、Stickers
      的过滤器真正改变结果集（Memories 的 Active / Expired / Short-term / Long-term 状态过滤；
-     各页可用过滤器以页面与 `02-lists-filters.e2e.ts` 为准）；
-     `seedAdminBulkRows`（`test/fixtures/admin-seed.ts`）让每张列表的种子行数都超过
-     默认每页 25 行，因此都会出现 `Load more` 并加载下一页；无跳页/总页数控件。
+     各页可用过滤器以页面与 `02-lists-filters-invocations.e2e.ts` / `02-lists-filters-resources.e2e.ts` 为准）。
+     查询条件先编辑 draft，只有 Search / Enter 才提交并回到第 1 页，Reset 与浏览器 Back/Forward 恢复已应用条件。
+     Keyset 列表只显示当前 cursor 页，Previous/Next 可往返且没有伪造 total；全量响应用真实数组切片分页，
+     offset API 使用真实 offset/total。`seedAdminBulkRows`（`test/fixtures/admin-seed.ts`）让种子行数超过
+     相应默认页大小，因此能实际跨页；不再使用 `Load more` 或无限拼接。
      `13-sender-ids.e2e.ts` 验证 Messages、Revision、Invocation Overview/Frozen context 的发送者 ID 与真实剪贴板内容，覆盖无 username、匿名频道、缺失/旧快照、复制失败与窄屏暗色布局，确认复制不发写请求。
   4. Invocation 详情六个 Tab（Overview / Tool calls / Model calls / Telegram sends /
      Agent transcript / Frozen context）切换并渲染期望字段；失败调用显示稳定错误码
@@ -350,6 +352,8 @@ Remove-Item Env:E2E_PASSKEYS
      Alarm 取消成功与 409 冲突路径（`alarm_not_pending` + 列表刷新到新状态）、
      Overview 的 Cancel ongoing 与睡眠态 Wake now；Models 页并发编辑（模型编辑输掉 revision 竞争后关闭而不覆盖、
      连接卡片的旧草稿不能删掉期间新增的 header、header 名可逐键输入不丢焦点）。
+     `08-models-editing.e2e.ts` 还记录编辑弹窗实际触发的双向 CSS 过渡，验证关闭期间保留草稿、取消后重开恢复模型快照，并附加 `model-edit-transitions` JSON 验收产物；同一套件在桌面和窄屏分别打开编辑框与删除确认框，等待真实滚动锁生效和释放，断言页面 `scrollY` 与背景模型行位置不变，并附加 `modal-scroll-positions` JSON 产物。
+     `29-modal-transitions.e2e.ts` 逐个打开 Providers（含嵌套的元数据确认）、Chats、API keys、Dictionary、Web search、Bot admins、Playground 与 Prompt 恢复确认，监听真实 `transitionrun` 事件断言进入与退出过渡都存在，并在关闭瞬间读取标题断言它没有提前清空；只断言计算样式为 300ms 无法发现条件挂载导致的过渡缺失。
      `16-model-health.e2e.ts` 通过本地 SSE 上游验证单项和跨 Provider 批量健康检查、检查中禁用重复操作、三项并发上限、先完成项与在途项同时可见、SPA 离页取消在途与排队检查、刷新清空页内结果、配置和当前模型不变、密钥不进页面及窄屏布局。
      Developer 页默认关闭、开关持久化、应用失败与恢复、取消/确认清除、清除前后其它审计不变，以及移动端暗色布局。
   6. 只读保证：`01-routes.e2e.ts` 访问每条路由时记录网络请求，断言没有任何 POST/PUT/DELETE 打到

@@ -1,16 +1,16 @@
 import { useMutation } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import type React from 'react';
+import { Button } from '@tuuject/koi-react/button';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { StateBadge, ToneBadge } from '@/components/business';
-import { Button } from '@/components/ui/button';
-
+import type { PlaygroundInvocation, PlaygroundTimelineItem } from '@/lib/api/playground.ts';
+import { playgroundAssetUrl, retryPlaygroundRelease } from '@/lib/api/playground.ts';
 import { errorMessage } from '@/lib/errors';
 import { formatNumber, formatTime } from '@/lib/format';
+import { toast } from '@/lib/toast.ts';
 import { StatusPill } from './shared.tsx';
-import { playgroundAssetUrl, retryPlaygroundRelease } from '@/lib/api/playground.ts';
-import type { PlaygroundInvocation, PlaygroundTimelineItem } from '@/lib/api/playground.ts';
 
 export function TimelineRow({
   roomId,
@@ -20,15 +20,26 @@ export function TimelineRow({
   readonly roomId: string;
   readonly item: PlaygroundTimelineItem;
   readonly onReply: (seq: string) => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const state = item.sent_by_bot ? item.send_state : item.input_state;
   const stateLabel = state === null ? null : (t(`playground.states.${state}`, { defaultValue: state }) as string);
   return (
-    <li className="flex min-w-0 flex-col gap-1 border-b py-2 last:border-b-0">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-muted-foreground font-mono text-xs">#{item.seq}</span>
-        <span className="text-sm font-medium">
+    <li
+      className={css({
+        display: 'flex',
+        minWidth: '0',
+        flexDirection: 'column',
+        gap: '1',
+        borderBottomWidth: '1px',
+        borderColor: 'divider',
+        paddingBlock: '2',
+        _last: { borderBottomWidth: '0' },
+      })}
+    >
+      <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
+        <span className={css({ textStyle: 'small', color: 'text-muted', fontFamily: 'mono' })}>#{item.seq}</span>
+        <span className={css({ textStyle: 'label' })}>
           {item.sender?.name ?? (item.sent_by_bot ? t('playground.identities.bot') : '—')}
         </span>
         {stateLabel === null ? null : (
@@ -44,22 +55,26 @@ export function TimelineRow({
             {stateLabel}
           </ToneBadge>
         )}
-        <span className="text-muted-foreground ml-auto text-xs">{formatTime(item.created_at)}</span>
+        <span className={css({ textStyle: 'small', color: 'text-muted', marginInlineStart: 'auto' })}>
+          {formatTime(item.created_at)}
+        </span>
       </div>
       {item.reply_to_seq === null ? null : (
-        <p className="text-muted-foreground text-xs">{t('playground.messages.replyTo', { seq: item.reply_to_seq })}</p>
+        <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+          {t('playground.messages.replyTo', { seq: item.reply_to_seq })}
+        </p>
       )}
       {item.text === null || item.text.length === 0 ? null : (
-        <p className="text-sm break-words whitespace-pre-wrap">{item.text}</p>
+        <p className={css({ textStyle: 'body', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>{item.text}</p>
       )}
       {item.caption === null || item.caption.length === 0 ? null : (
-        <p className="text-sm break-words whitespace-pre-wrap">{item.caption}</p>
+        <p className={css({ textStyle: 'body', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>{item.caption}</p>
       )}
       {item.media.length === 0 ? null : (
-        <div className="flex flex-wrap gap-2">
+        <div className={css({ display: 'flex', flexWrap: 'wrap', gap: '2' })}>
           {item.media.map((media) =>
             media.asset_id === null ? (
-              <span key={media.media_id} className="text-muted-foreground text-xs">
+              <span key={media.media_id} className={css({ textStyle: 'small', color: 'text-muted' })}>
                 {t('playground.messages.unsupportedMedia', { kind: media.kind })}
               </span>
             ) : (
@@ -67,7 +82,14 @@ export function TimelineRow({
                 key={media.media_id}
                 src={playgroundAssetUrl(roomId, media.asset_id)}
                 alt={media.kind}
-                className="border-border h-24 w-24 rounded-md border object-cover"
+                className={css({
+                  borderColor: 'border',
+                  height: '96px',
+                  width: '96px',
+                  borderRadius: 'lg',
+                  borderWidth: '1px',
+                  objectFit: 'cover',
+                })}
               />
             ),
           )}
@@ -75,7 +97,7 @@ export function TimelineRow({
       )}
       {item.sent_by_bot ? null : (
         <div>
-          <Button type="button" variant="ghost" size="sm" onClick={() => onReply(item.seq)}>
+          <Button type="button" variant="ghost" color="secondary" size="sm" onClick={() => onReply(item.seq)}>
             {t('playground.messages.reply')}
           </Button>
         </div>
@@ -92,7 +114,7 @@ export function AttemptRow({
   readonly roomId: string;
   readonly invocation: PlaygroundInvocation;
   readonly onRetried: (releaseId: string) => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const retry = useMutation({
     // A retry is addressed by the attempt's Release. The key names the attempt
@@ -109,33 +131,60 @@ export function AttemptRow({
   const releaseId = invocation.release_id;
   const canRetry = releaseId !== null && (invocation.state === 'failed' || invocation.state === 'aborted');
   return (
-    <li className="space-y-1 border-b py-2 text-sm last:border-b-0">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-xs">{invocation.id}</span>
+    <li
+      className={css({
+        textStyle: 'body',
+        '& > :not(:last-child)': { marginBlockEnd: '1' },
+        borderBottomWidth: '1px',
+        borderColor: 'divider',
+        paddingBlock: '2',
+        _last: { borderBottomWidth: '0' },
+      })}
+    >
+      <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
+        <span className={css({ textStyle: 'small', fontFamily: 'mono' })}>{invocation.id}</span>
         <StateBadge state={invocation.state} />
         <Link
           to="/invocations/$invocationId"
           params={{ invocationId: invocation.id }}
-          className="text-primary text-xs underline-offset-4 hover:underline"
+          className={css({
+            textStyle: 'small',
+            color: 'text-brand',
+            textUnderlineOffset: '4px',
+            _hover: { textDecorationLine: 'underline' },
+          })}
         >
           {t('playground.runs.openAudit')}
         </Link>
         {invocation.retry_of_invocation_id === null ? null : (
-          <span className="text-muted-foreground text-xs">
+          <span className={css({ textStyle: 'small', color: 'text-muted' })}>
             {t('playground.runs.retryOf', { id: invocation.retry_of_invocation_id })}
           </span>
         )}
         <StatusPill label="tokens" value={formatNumber(invocation.total_tokens)} />
-        <span className="text-muted-foreground ml-auto text-xs">{formatTime(invocation.finished_at)}</span>
+        <span className={css({ textStyle: 'small', color: 'text-muted', marginInlineStart: 'auto' })}>
+          {formatTime(invocation.finished_at)}
+        </span>
       </div>
-      <p className="text-muted-foreground text-xs">
-        {invocation.completion_reason ?? invocation.state}
-        {invocation.error_code === null ? '' : ` · ${invocation.error_code}`}
+      <p
+        className={css({
+          margin: '0',
+          display: 'flex',
+          flexWrap: 'wrap',
+          columnGap: '3',
+          rowGap: '1',
+          textStyle: 'small',
+          color: 'text-muted',
+        })}
+      >
+        <span>{invocation.completion_reason ?? invocation.state}</span>
+        {invocation.error_code === null ? null : <span>{invocation.error_code}</span>}
       </p>
       {canRetry ? (
         <Button
           type="button"
           variant="outline"
+          color="secondary"
           size="sm"
           onClick={() => retry.mutate(releaseId)}
           disabled={retry.isPending}

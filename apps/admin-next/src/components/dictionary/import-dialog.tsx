@@ -1,25 +1,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type React from 'react';
-import { useId, useState } from 'react';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { DropZone } from '@tuuject/koi-react/drop-zone';
+import { Field } from '@tuuject/koi-react/field';
+import { Select } from '@tuuject/koi-react/select';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { Textarea } from '@tuuject/koi-react/textarea';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { ScopePicker } from '@/components/dictionary/entry-form.tsx';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-
-import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
-import { importDictionaryEntries, previewDictionaryImport } from '@/lib/api/dictionary.ts';
+import { useOpenSession } from '@/hooks/use-open-session.ts';
 import type {
   DictionaryChatOption,
   DictionaryDraft,
@@ -27,6 +17,9 @@ import type {
   DictionaryImportPreview,
   DictionaryScope,
 } from '@/lib/api/dictionary.ts';
+import { importDictionaryEntries, previewDictionaryImport } from '@/lib/api/dictionary.ts';
+import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
+import { toast } from '@/lib/toast.ts';
 
 /**
  * Import flow: pick a CSV/JSONL file or paste content, ask the server for a
@@ -49,11 +42,9 @@ export function ImportDialog({
   readonly defaultScope: DictionaryScope;
   readonly defaultChatId: string | null;
   readonly onImported: () => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const fileId = useId();
-  const contentId = useId();
   const [format, setFormat] = useState<DictionaryExportFormat>('csv');
   const [scope, setScope] = useState<DictionaryScope>(defaultScope);
   const [chatId, setChatId] = useState<string | null>(defaultChatId);
@@ -61,12 +52,22 @@ export function ImportDialog({
   const [fileName, setFileName] = useState<string | null>(null);
   const [preview, setPreview] = useState<DictionaryImportPreview | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<unknown>(null);
+  const [importError, setImportError] = useState<unknown>(null);
+  // Closing is not blocked while a dropped file is still being read, so a read
+  // carries the session it started in and is dropped once that session is over.
+  const session = useOpenSession(open);
 
   const reset = (): void => {
+    setFormat('csv');
+    setScope(defaultScope);
+    setChatId(defaultChatId);
     setContent('');
     setFileName(null);
     setPreview(null);
     setReadError(null);
+    setPreviewError(null);
+    setImportError(null);
   };
 
   const previewMutation = useMutation({
@@ -80,6 +81,7 @@ export function ImportDialog({
     onSuccess: (result) => {
       setPreview(result);
     },
+    onError: setPreviewError,
   });
 
   const importMutation = useMutation({
@@ -87,15 +89,30 @@ export function ImportDialog({
     onSuccess: (result) => {
       toast.success(t('dictionary.import.imported', { count: result.items.length }));
       void queryClient.invalidateQueries({ queryKey: ['dictionary'] });
-      reset();
       onImported();
       onOpenChange(false);
     },
-    onError: () => {
+    onError: (error) => {
       // The dialog stays open so the parsed preview and the error are both visible.
+      setImportError(error);
       void queryClient.invalidateQueries({ queryKey: ['dictionary'] });
     },
   });
+
+  // Base UI keeps the popup mounted while it fades out, so this component
+  // outlives a session: the previous file, parsed preview and scope must not
+  // show up again. They are replaced on the open edge — a render-phase
+  // adjustment, the app's substitute for a reset effect — and never on close,
+  // so the review the admin just read stays on screen through the exit fade.
+  // Failures are local state for that reason: a mutation cannot be reset while
+  // rendering.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) {
+      reset();
+    }
+  }
 
   const targetChatId = scope === 'global' ? null : chatId;
   const draftEntries = (preview?.entries ?? []).map((entry) => ({
@@ -111,188 +128,31 @@ export function ImportDialog({
         if (!next && (importMutation.isPending || previewMutation.isPending)) {
           return;
         }
-        if (!next) {
-          reset();
-        }
         onOpenChange(next);
       }}
-    >
-      <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{t('dictionary.import.title')}</DialogTitle>
-          <DialogDescription>{t('dictionary.import.description')}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor={`${fileId}-format`}>{t('dictionary.import.formatLabel')}</Label>
-              <Select
-                value={format}
-                onValueChange={(value) => {
-                  if (value === 'csv' || value === 'jsonl') {
-                    setFormat(value);
-                    setPreview(null);
-                  }
-                }}
-              >
-                <SelectTrigger
-                  id={`${fileId}-format`}
-                  className="w-full"
-                  aria-label={t('dictionary.import.formatLabel')}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="csv">{t('dictionary.import.csv')}</SelectItem>
-                  <SelectItem value="jsonl">{t('dictionary.import.jsonl')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={fileId}>{t('dictionary.import.fileLabel')}</Label>
-              <Input
-                id={fileId}
-                type="file"
-                accept={format === 'csv' ? '.csv,text/csv' : '.jsonl,.json,application/jsonl'}
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file === undefined) {
-                    return;
-                  }
-                  setReadError(null);
-                  setPreview(null);
-                  void file
-                    .text()
-                    .then((text) => {
-                      setContent(text);
-                      setFileName(file.name);
-                    })
-                    .catch(() => {
-                      setReadError(t('dictionary.import.fileFailed'));
-                    });
-                }}
-              />
-              {fileName !== null ? (
-                <p className="text-muted-foreground text-xs">
-                  {t('dictionary.import.fileLoaded', { name: fileName, chars: String(content.length) })}
-                </p>
-              ) : null}
-              {readError !== null ? <p className="text-destructive text-sm">{readError}</p> : null}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>{t('dictionary.import.scopeLabel')}</Label>
-            <ScopePicker
-              scope={scope}
-              chatId={chatId}
-              chats={chats}
-              idPrefix={`${fileId}-scope`}
-              onChange={(nextScope, nextChatId) => {
-                setScope(nextScope);
-                setChatId(nextChatId);
-                setPreview(null);
-              }}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor={contentId}>{t('dictionary.import.pasteLabel')}</Label>
-            <Textarea
-              id={contentId}
-              rows={5}
-              className="font-mono text-xs"
-              value={content}
-              onChange={(event) => {
-                setContent(event.target.value);
-                setFileName(null);
-                setPreview(null);
-              }}
-            />
-          </div>
-
-          {content.trim().length === 0 ? (
-            <p className="text-muted-foreground text-sm">{t('dictionary.import.contentRequired')}</p>
-          ) : null}
-          {previewMutation.isError ? (
-            <p className="text-destructive text-sm break-words">
-              {t('dictionary.import.previewFailed')}: {dictionaryErrorMessage(previewMutation.error)}
-            </p>
-          ) : null}
-
-          {preview !== null ? (
-            <div className="space-y-3">
-              <p className="font-medium">{t('dictionary.import.previewTitle', { count: preview.entries.length })}</p>
-              {preview.entries.length === 0 ? (
-                <p className="text-muted-foreground text-sm">{t('dictionary.import.previewEmpty')}</p>
-              ) : (
-                <div className="max-h-64 overflow-auto rounded-md border">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/50 text-muted-foreground">
-                      <tr>
-                        <th className="px-2 py-1 text-left font-medium">{t('dictionary.page.colTerm')}</th>
-                        <th className="px-2 py-1 text-left font-medium">{t('dictionary.page.colDefinition')}</th>
-                        <th className="px-2 py-1 text-left font-medium">{t('dictionary.page.colAliases')}</th>
-                        <th className="px-2 py-1 text-left font-medium">{t('dictionary.page.colEnabled')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {preview.entries.map((entry, index) => (
-                        <tr key={`${entry.term}-${String(index)}`} className="border-t align-top">
-                          <td className="px-2 py-1 font-medium">{entry.term}</td>
-                          <td className="max-w-80 px-2 py-1 whitespace-normal">{entry.definition}</td>
-                          <td className="px-2 py-1">{entry.aliases.length === 0 ? '—' : entry.aliases.join(' | ')}</td>
-                          <td className="px-2 py-1">
-                            {entry.enabled ? t('dictionary.page.enabledOn') : t('dictionary.page.enabledOff')}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              <div className="space-y-1">
-                <p className="font-medium">
-                  {t('dictionary.import.conflictsTitle', { count: preview.conflicts.length })}
-                </p>
-                {preview.conflicts.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">{t('dictionary.import.conflictsNone')}</p>
-                ) : (
-                  <ul className="text-sm">
-                    {preview.conflicts.map((conflict) => (
-                      <li key={conflict.value} className="font-mono text-xs break-all">
-                        {conflict.value}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <p className="text-muted-foreground text-xs">{t('dictionary.import.conflictsNote')}</p>
-              </div>
-              <p className="text-muted-foreground text-xs">{t('dictionary.import.previewNote')}</p>
-            </div>
-          ) : null}
-
-          {importMutation.isError ? (
-            <p className="text-destructive text-sm break-words">{dictionaryErrorMessage(importMutation.error)}</p>
-          ) : null}
-        </div>
-        <DialogFooter>
+      title={t('dictionary.import.title')}
+      description={t('dictionary.import.description')}
+      size="lg"
+      footer={
+        <>
           <Button
             type="button"
             variant="outline"
+            color="secondary"
             disabled={importMutation.isPending || previewMutation.isPending}
-            onClick={() => {
-              reset();
-              onOpenChange(false);
-            }}
+            onClick={() => onOpenChange(false)}
           >
             {t('dictionary.import.cancel')}
           </Button>
           <Button
             type="button"
             variant="outline"
+            color="secondary"
             disabled={content.trim().length === 0 || previewMutation.isPending || importMutation.isPending}
-            onClick={() => previewMutation.mutate()}
+            onClick={() => {
+              setPreviewError(null);
+              previewMutation.mutate();
+            }}
           >
             {previewMutation.isPending ? t('dictionary.import.previewing') : t('dictionary.import.preview')}
           </Button>
@@ -301,14 +161,230 @@ export function ImportDialog({
             disabled={
               preview === null || draftEntries.length === 0 || importMutation.isPending || previewMutation.isPending
             }
-            onClick={() => importMutation.mutate(draftEntries)}
+            onClick={() => {
+              setImportError(null);
+              importMutation.mutate(draftEntries);
+            }}
           >
             {importMutation.isPending
               ? t('dictionary.import.importing')
               : t('dictionary.import.confirm', { count: draftEntries.length })}
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        </>
+      }
+    >
+      <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+        <Field label={t('dictionary.import.formatLabel')}>
+          <Select
+            value={format}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (value === 'csv' || value === 'jsonl') {
+                setFormat(value);
+                setPreview(null);
+              }
+            }}
+            options={[
+              { value: 'csv', label: t('dictionary.import.csv') },
+              { value: 'jsonl', label: t('dictionary.import.jsonl') },
+            ]}
+          />
+        </Field>
+        <Field
+          label={t('dictionary.import.fileLabel')}
+          error={readError ?? undefined}
+          {...(fileName === null
+            ? {}
+            : { help: t('dictionary.import.fileLoaded', { name: fileName, chars: String(content.length) }) })}
+        >
+          <DropZone
+            multiple={false}
+            accept={format === 'csv' ? '.csv,text/csv' : '.jsonl,.json,application/jsonl'}
+            description={format === 'csv' ? t('dictionary.import.csv') : t('dictionary.import.jsonl')}
+            onFiles={(files) => {
+              const file = files[0];
+              if (file === undefined) {
+                return;
+              }
+              const startedIn = session.current;
+              setReadError(null);
+              setPreview(null);
+              void file
+                .text()
+                .then((text) => {
+                  if (startedIn === session.current) {
+                    setContent(text);
+                    setFileName(file.name);
+                  }
+                })
+                .catch(() => {
+                  if (startedIn === session.current) {
+                    setReadError(t('dictionary.import.fileFailed'));
+                  }
+                });
+            }}
+          />
+        </Field>
+
+        <ScopePicker
+          label={t('dictionary.import.scopeLabel')}
+          scope={scope}
+          chatId={chatId}
+          chats={chats}
+          onChange={(nextScope, nextChatId) => {
+            setScope(nextScope);
+            setChatId(nextChatId);
+            setPreview(null);
+          }}
+        />
+
+        <Field label={t('dictionary.import.pasteLabel')}>
+          <Textarea
+            rows={5}
+            className={css({ fontFamily: 'mono' })}
+            value={content}
+            onChange={(event) => {
+              setContent(event.target.value);
+              setFileName(null);
+              setPreview(null);
+            }}
+          />
+        </Field>
+
+        {content.trim().length === 0 ? (
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('dictionary.import.contentRequired')}</p>
+        ) : null}
+        {previewError !== null ? (
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+            {t('dictionary.import.previewFailed')}：{dictionaryErrorMessage(previewError)}
+          </p>
+        ) : null}
+
+        {preview !== null ? (
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
+            <p className={css({ textStyle: 'label' })}>
+              {t('dictionary.import.previewTitle', { count: preview.entries.length })}
+            </p>
+            {preview.entries.length === 0 ? (
+              <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('dictionary.import.previewEmpty')}</p>
+            ) : (
+              <div
+                className={css({
+                  maxHeight: '256px',
+                  overflow: 'auto',
+                  borderRadius: 'lg',
+                  borderWidth: '1px',
+                  borderColor: 'border',
+                })}
+              >
+                <table className={css({ textStyle: 'body', width: '100%' })}>
+                  <thead className={css({ bg: 'surface-muted', color: 'text-muted' })}>
+                    <tr>
+                      <th
+                        className={css({
+                          textStyle: 'label',
+                          paddingInline: '2',
+                          paddingBlock: '1',
+                          textAlign: 'start',
+                        })}
+                      >
+                        {t('dictionary.page.colTerm')}
+                      </th>
+                      <th
+                        className={css({
+                          textStyle: 'label',
+                          paddingInline: '2',
+                          paddingBlock: '1',
+                          textAlign: 'start',
+                        })}
+                      >
+                        {t('dictionary.page.colDefinition')}
+                      </th>
+                      <th
+                        className={css({
+                          textStyle: 'label',
+                          paddingInline: '2',
+                          paddingBlock: '1',
+                          textAlign: 'start',
+                        })}
+                      >
+                        {t('dictionary.page.colAliases')}
+                      </th>
+                      <th
+                        className={css({
+                          textStyle: 'label',
+                          paddingInline: '2',
+                          paddingBlock: '1',
+                          textAlign: 'start',
+                        })}
+                      >
+                        {t('dictionary.page.colEnabled')}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.entries.map((entry, index) => (
+                      <tr
+                        key={`${entry.term}-${String(index)}`}
+                        className={css({ borderTopWidth: '1px', borderColor: 'divider', verticalAlign: 'top' })}
+                      >
+                        <td className={css({ textStyle: 'label', paddingInline: '2', paddingBlock: '1' })}>
+                          {entry.term}
+                        </td>
+                        <td
+                          className={css({
+                            maxWidth: '320px',
+                            paddingInline: '2',
+                            paddingBlock: '1',
+                            whiteSpace: 'normal',
+                          })}
+                        >
+                          {entry.definition}
+                        </td>
+                        <td className={css({ paddingInline: '2', paddingBlock: '1' })}>
+                          {entry.aliases.length === 0 ? '—' : entry.aliases.join(' | ')}
+                        </td>
+                        <td className={css({ paddingInline: '2', paddingBlock: '1' })}>
+                          {entry.enabled ? t('dictionary.page.enabledOn') : t('dictionary.page.enabledOff')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+              <p className={css({ textStyle: 'label' })}>
+                {t('dictionary.import.conflictsTitle', { count: preview.conflicts.length })}
+              </p>
+              {preview.conflicts.length === 0 ? (
+                <p className={css({ textStyle: 'body', color: 'text-muted' })}>
+                  {t('dictionary.import.conflictsNone')}
+                </p>
+              ) : (
+                <ul className={css({ textStyle: 'body' })}>
+                  {preview.conflicts.map((conflict) => (
+                    <li
+                      key={conflict.value}
+                      className={css({ textStyle: 'small', fontFamily: 'mono', wordBreak: 'break-all' })}
+                    >
+                      {conflict.value}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('dictionary.import.conflictsNote')}</p>
+            </div>
+            <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('dictionary.import.previewNote')}</p>
+          </div>
+        ) : null}
+
+        {importError !== null ? (
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+            {dictionaryErrorMessage(importError)}
+          </p>
+        ) : null}
+      </div>
     </Dialog>
   );
 }

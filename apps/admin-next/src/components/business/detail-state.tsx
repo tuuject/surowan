@@ -1,9 +1,11 @@
-import { Link } from '@tanstack/react-router';
-import type React from 'react';
-import { Skeleton } from '@/components/ui/skeleton';
-
-import { errorMessage } from '@/lib/errors';
+import { Empty } from '@tuuject/koi-react/empty';
+import { ErrorIcon, SearchIcon } from '@tuuject/koi-react/icons';
+import { Skeleton } from '@tuuject/koi-react/skeleton';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
+import { ButtonLink } from '@/components/router-links';
 import { ApiError } from '@/lib/api/core.ts';
+import { errorMessage } from '@/lib/errors';
 
 /**
  * Shared detail-page state contract. The three detail pages
@@ -19,11 +21,11 @@ import { ApiError } from '@/lib/api/core.ts';
  *   else       -> page content
  */
 
-export function DetailSkeleton(): React.ReactElement {
+export function DetailSkeleton(): ReactElement {
   return (
-    <div className="space-y-4">
-      <Skeleton className="h-40 w-full rounded-xl" />
-      <Skeleton className="h-80 w-full rounded-xl" />
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+      <Skeleton className={css({ height: '160px', width: '100%', borderRadius: 'xl' })} />
+      <Skeleton className={css({ height: '320px', width: '100%', borderRadius: 'xl' })} />
     </div>
   );
 }
@@ -36,22 +38,19 @@ export interface DetailErrorProps {
   readonly backLabel: string;
 }
 
-export function DetailError({
-  error,
-  notFoundTitle,
-  failedTitle,
-  backTo,
-  backLabel,
-}: DetailErrorProps): React.ReactElement {
+export function DetailError({ error, notFoundTitle, failedTitle, backTo, backLabel }: DetailErrorProps): ReactElement {
   const apiError = error instanceof ApiError ? error : null;
   const notFound = apiError?.status === 404;
   return (
-    <div className="space-y-2 p-6 text-center">
-      <p className="text-destructive font-medium">{notFound ? notFoundTitle : failedTitle}</p>
-      <p className="text-muted-foreground text-sm break-words">{errorMessage(error)}</p>
-      <Link to={backTo} className="text-primary inline-block text-sm underline-offset-4 hover:underline">
-        {backLabel}
-      </Link>
-    </div>
+    <Empty
+      icon={notFound ? <SearchIcon /> : <ErrorIcon />}
+      title={notFound ? notFoundTitle : failedTitle}
+      description={<span className={css({ overflowWrap: 'anywhere' })}>{errorMessage(error)}</span>}
+      action={
+        <ButtonLink to={backTo} variant="outline" color="secondary">
+          {backLabel}
+        </ButtonLink>
+      }
+    />
   );
 }

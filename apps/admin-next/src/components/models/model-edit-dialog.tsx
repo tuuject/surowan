@@ -1,31 +1,16 @@
-import { useState } from 'react';
+import { Button } from '@tuuject/koi-react/button';
+import { Checkbox } from '@tuuject/koi-react/checkbox';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Field } from '@tuuject/koi-react/field';
+import { Input } from '@tuuject/koi-react/input';
+import { Select } from '@tuuject/koi-react/select';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { field } from '@tuuject/koi-react/styled-system/recipes';
+import { type ReactElement, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LazyDetails } from '@/components/business';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
-import {
-  AUTO_COMPAT,
-  compatFieldsForApi,
-  fieldSourceLabel,
-  isDraftFieldUnconfirmed,
-  type ModelFormState,
-  matchLabel,
-  modelFormToConfig,
-  TOOL_SCHEMA_KEYWORDS_OPTIONS,
-  unconfirmedFields,
-  validateModelForm,
-} from '@/lib/model-manager.ts';
+import type { ThinkingLevel } from '@/lib/api/models.ts';
+import { THINKING_LEVELS } from '@/lib/api/models.ts';
 import type {
   DraftField,
   ModelInput,
@@ -33,11 +18,37 @@ import type {
   ProviderApi,
   ProviderModelConfig,
 } from '@/lib/api/providers.ts';
-import { THINKING_LEVELS } from '@/lib/api/models.ts';
-import type { ThinkingLevel } from '@/lib/api/models.ts';
+import i18n from '@/lib/i18n.ts';
+import { type ModelFormState, modelFormToConfig, validateModelForm } from '@/lib/model-form.ts';
+import {
+  AUTO_COMPAT,
+  compatFieldsForApi,
+  draftFieldLabel,
+  fieldSourceLabel,
+  isDraftFieldUnconfirmed,
+  matchLabel,
+  modalityLabel,
+  TOOL_SCHEMA_KEYWORDS_OPTIONS,
+  unconfirmedFields,
+} from '@/lib/model-manager.ts';
+
+/** Koi Field's label, for the few controls that share one label with a status line or a second control. */
+const fieldLabel = field().label;
 
 const INPUT_MODALITIES: readonly ModelInput[] = ['text', 'image'];
 const COST_FIELDS = ['input', 'output', 'cache_read', 'cache_write'] as const;
+function costFieldLabel(field: (typeof COST_FIELDS)[number]): string {
+  switch (field) {
+    case 'input':
+      return i18n.t('models.models.edit.costInput');
+    case 'output':
+      return i18n.t('models.models.edit.costOutput');
+    case 'cache_read':
+      return i18n.t('models.models.edit.costCacheRead');
+    case 'cache_write':
+      return i18n.t('models.models.edit.costCacheWrite');
+  }
+}
 
 /**
  * One field label with its provenance: the metadata source the value came from,
@@ -53,16 +64,20 @@ function FieldLabel({
   readonly label: string;
   readonly draft: ModelMetadataDraft | null;
   readonly field: DraftField;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   return (
-    <span className="flex flex-wrap items-center gap-2">
-      <Label htmlFor={htmlFor}>{label}</Label>
+    <span className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
+      <label htmlFor={htmlFor} className={fieldLabel}>
+        {label}
+      </label>
       {draft === null ? null : (
         <>
-          <span className="text-muted-foreground text-xs">{fieldSourceLabel(draft, field)}</span>
+          <span className={css({ textStyle: 'small', color: 'text-muted' })}>{fieldSourceLabel(draft, field)}</span>
           {isDraftFieldUnconfirmed(draft, field) ? (
-            <span className="text-warning text-xs font-medium">{t('models.models.edit.confirmMarker')}</span>
+            <span className={css({ textStyle: 'small', color: 'warning-text' })}>
+              {t('models.models.edit.confirmMarker')}
+            </span>
           ) : null}
         </>
       )}
@@ -77,6 +92,7 @@ export interface ModelEditDialogProps {
   readonly title: string;
   readonly description: string;
   readonly initial: ModelFormState;
+  readonly formKey?: number | undefined;
   /** A model already in the file keeps its id: changing it is delete + add. */
   readonly lockId: boolean;
   readonly draft: ModelMetadataDraft | null;
@@ -88,20 +104,57 @@ export interface ModelEditDialogProps {
 export function ModelEditDialog({
   open,
   onOpenChange,
-  api,
   title,
   description,
+  formKey,
+  pending,
+  ...formProps
+}: ModelEditDialogProps): ReactElement {
+  const { t } = useTranslation();
+  const formId = useId();
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      description={description}
+      size="lg"
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            color="secondary"
+            disabled={pending}
+            onClick={() => onOpenChange(false)}
+          >
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" form={formId} disabled={pending}>
+            {pending ? t('common.saving') : t('common.save')}
+          </Button>
+        </>
+      }
+    >
+      <ModelEditForm key={formKey} {...formProps} formId={formId} pending={pending} />
+    </Dialog>
+  );
+}
+
+function ModelEditForm({
+  formId,
+  api,
   initial,
   lockId,
   draft,
   pending,
   error,
   onSubmit,
-}: ModelEditDialogProps): React.ReactElement {
+}: Pick<ModelEditDialogProps, 'api' | 'initial' | 'lockId' | 'draft' | 'pending' | 'error' | 'onSubmit'> & {
+  readonly formId: string;
+}): ReactElement {
   const { t } = useTranslation();
-  // The form is initialized once, at mount: every caller renders this dialog
-  // only while it has a target and remounts it (a fresh `key`) for the next one,
-  // so there is no state to sync after the first render.
+  // Only the form remounts for a new edit; the dialog root stays mounted for its transitions.
   const [form, setForm] = useState<ModelFormState>(initial);
   const [touched, setTouched] = useState(false);
 
@@ -131,243 +184,233 @@ export function ModelEditDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          {confirmations.length > 0 ? (
-            <p className="text-warning text-xs">
-              {t('models.models.edit.confirmIntro', { fields: confirmations.join(', ') })}
-            </p>
-          ) : null}
-          {/* Naming the match makes "confirm" actionable: a cross-provider or
+    <form
+      id={formId}
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (pending) {
+          return;
+        }
+        setTouched(true);
+        if (errorCount === 0) {
+          onSubmit(modelFormToConfig(form, api));
+        }
+      }}
+    >
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+        {confirmations.length > 0 ? (
+          <p className={css({ textStyle: 'small', color: 'warning-text' })}>
+            {t('models.models.edit.confirmIntro', {
+              fields: confirmations.map(draftFieldLabel).join(t('common.separator')),
+            })}
+          </p>
+        ) : null}
+        {/* Naming the match makes "confirm" actionable: a cross-provider or
               normalized hit is a lead from another deployment, not an answer. */}
-          {matchNote === null ? null : <p className="text-muted-foreground text-xs">{matchNote}</p>}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <FieldLabel htmlFor="model-id" label={t('models.models.edit.id')} draft={null} field="name" />
-              <Input
-                id="model-id"
-                value={form.id}
-                disabled={lockId}
-                onChange={(event) => setForm((previous) => ({ ...previous, id: event.target.value }))}
-              />
-              {touched && errors.id !== undefined ? <p className="text-destructive text-sm">{errors.id}</p> : null}
-            </div>
-            <div className="space-y-2">
-              <FieldLabel htmlFor="model-name" label={t('models.models.edit.name')} draft={draft} field="name" />
-              <Input
-                id="model-name"
-                value={form.name}
-                onChange={(event) => setForm((previous) => ({ ...previous, name: event.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <FieldLabel
-                htmlFor="model-context"
-                label={t('models.models.edit.contextWindow')}
-                draft={draft}
-                field="context_window"
-              />
-              <Input
-                id="model-context"
-                type="number"
-                min={1}
-                step={1}
-                value={form.context_window}
-                onChange={(event) => setForm((previous) => ({ ...previous, context_window: event.target.value }))}
-              />
-              {touched && errors.context_window !== undefined ? (
-                <p className="text-destructive text-sm">{errors.context_window}</p>
-              ) : null}
-            </div>
-            <div className="space-y-2">
-              <FieldLabel
-                htmlFor="model-max-tokens"
-                label={t('models.models.edit.maxTokens')}
-                draft={draft}
-                field="max_tokens"
-              />
-              <Input
-                id="model-max-tokens"
-                type="number"
-                min={1}
-                step={1}
-                value={form.max_tokens}
-                onChange={(event) => setForm((previous) => ({ ...previous, max_tokens: event.target.value }))}
-              />
-              {touched && errors.max_tokens !== undefined ? (
-                <p className="text-destructive text-sm">{errors.max_tokens}</p>
-              ) : null}
-            </div>
+        {matchNote === null ? null : <p className={css({ textStyle: 'small', color: 'text-muted' })}>{matchNote}</p>}
+        <div className={css({ display: 'grid', gap: '4', md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } })}>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+            <FieldLabel htmlFor="model-id" label={t('models.models.edit.id')} draft={null} field="name" />
+            <Input
+              id="model-id"
+              value={form.id}
+              disabled={lockId}
+              onChange={(event) => setForm((previous) => ({ ...previous, id: event.target.value }))}
+            />
+            {touched && errors.id !== undefined ? (
+              <p className={css({ textStyle: 'body', color: 'error-text' })}>{errors.id}</p>
+            ) : null}
           </div>
-
-          <div className="space-y-2">
-            <FieldLabel htmlFor="model-input-text" label={t('models.models.edit.input')} draft={draft} field="input" />
-            <div className="flex flex-wrap items-center gap-4">
-              {INPUT_MODALITIES.map((modality) => (
-                <label key={modality} className="flex items-center gap-2 text-sm" htmlFor={`model-input-${modality}`}>
-                  <input
-                    id={`model-input-${modality}`}
-                    type="checkbox"
-                    className="size-4 rounded border-input"
-                    checked={form.input.includes(modality)}
-                    onChange={() => toggleInput(modality)}
-                  />
-                  {modality}
-                </label>
-              ))}
-              <label className="flex items-center gap-2 text-sm" htmlFor="model-reasoning">
-                <input
-                  id="model-reasoning"
-                  type="checkbox"
-                  className="size-4 rounded border-input"
-                  checked={form.reasoning}
-                  onChange={(event) => setForm((previous) => ({ ...previous, reasoning: event.target.checked }))}
-                />
-                {t('models.models.edit.reasoning')}
-              </label>
-              {draft === null ? null : (
-                <span className="text-muted-foreground text-xs">{fieldSourceLabel(draft, 'reasoning')}</span>
-              )}
-            </div>
-            {touched && errors.input !== undefined ? <p className="text-destructive text-sm">{errors.input}</p> : null}
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+            <FieldLabel htmlFor="model-name" label={t('models.models.edit.name')} draft={draft} field="name" />
+            <Input
+              id="model-name"
+              value={form.name}
+              onChange={(event) => setForm((previous) => ({ ...previous, name: event.target.value }))}
+            />
           </div>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+            <FieldLabel
+              htmlFor="model-context"
+              label={t('models.models.edit.contextWindow')}
+              draft={draft}
+              field="context_window"
+            />
+            <Input
+              id="model-context"
+              type="number"
+              min={1}
+              step={1}
+              value={form.context_window}
+              onChange={(event) => setForm((previous) => ({ ...previous, context_window: event.target.value }))}
+            />
+            {touched && errors.context_window !== undefined ? (
+              <p className={css({ textStyle: 'body', color: 'error-text' })}>{errors.context_window}</p>
+            ) : null}
+          </div>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+            <FieldLabel
+              htmlFor="model-max-tokens"
+              label={t('models.models.edit.maxTokens')}
+              draft={draft}
+              field="max_tokens"
+            />
+            <Input
+              id="model-max-tokens"
+              type="number"
+              min={1}
+              step={1}
+              value={form.max_tokens}
+              onChange={(event) => setForm((previous) => ({ ...previous, max_tokens: event.target.value }))}
+            />
+            {touched && errors.max_tokens !== undefined ? (
+              <p className={css({ textStyle: 'body', color: 'error-text' })}>{errors.max_tokens}</p>
+            ) : null}
+          </div>
+        </div>
 
-          {/* Levels only exist on a reasoning model; saving without reasoning
-              drops them, so the row goes away with the checkbox. */}
-          {form.reasoning ? (
-            <div className="space-y-2">
-              <FieldLabel
-                htmlFor="model-thinking-off"
-                label={t('models.models.edit.thinkingLevels')}
-                draft={draft}
-                field="thinking_levels"
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+          <FieldLabel htmlFor="model-input-text" label={t('models.models.edit.input')} draft={draft} field="input" />
+          <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4' })}>
+            {INPUT_MODALITIES.map((modality) => (
+              <Checkbox
+                key={modality}
+                {...(modality === 'text' ? { id: 'model-input-text' } : {})}
+                label={modalityLabel(modality)}
+                checked={form.input.includes(modality)}
+                onCheckedChange={() => toggleInput(modality)}
               />
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                {THINKING_LEVELS.map((level) => (
-                  <label key={level} className="flex items-center gap-2 text-sm" htmlFor={`model-thinking-${level}`}>
-                    <input
-                      id={`model-thinking-${level}`}
-                      type="checkbox"
-                      className="size-4 rounded border-input"
-                      checked={form.thinking_levels.includes(level)}
-                      onChange={() => toggleThinkingLevel(level)}
-                    />
-                    {level}
-                  </label>
-                ))}
-              </div>
-              <p className="text-muted-foreground text-xs">{t('models.models.edit.thinkingHint')}</p>
-            </div>
+            ))}
+            <Checkbox
+              label={t('models.models.edit.reasoning')}
+              checked={form.reasoning}
+              onCheckedChange={(checked) => setForm((previous) => ({ ...previous, reasoning: checked }))}
+            />
+            {draft === null ? null : (
+              <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+                {fieldSourceLabel(draft, 'reasoning')}
+              </span>
+            )}
+          </div>
+          {touched && errors.input !== undefined ? (
+            <p className={css({ textStyle: 'body', color: 'error-text' })}>{errors.input}</p>
           ) : null}
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="model-tool-schema" className="font-mono text-xs">
-              {t('models.models.edit.toolSchema')}
-            </Label>
-            <Select
-              value={form.tool_schema_keywords}
-              onValueChange={(value) => setForm((previous) => ({ ...previous, tool_schema_keywords: value }))}
+        {/* Levels only exist on a reasoning model; saving without reasoning
+              drops them, so the row goes away with the checkbox. */}
+        {form.reasoning ? (
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+            <FieldLabel
+              htmlFor="model-thinking-off"
+              label={t('models.models.edit.thinkingLevels')}
+              draft={draft}
+              field="thinking_levels"
+            />
+            <div
+              className={css({
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                columnGap: '4',
+                rowGap: '2',
+              })}
             >
-              <SelectTrigger id="model-tool-schema" className="w-full sm:w-64">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TOOL_SCHEMA_KEYWORDS_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.value === AUTO_COMPAT ? t('models.models.edit.automatic') : option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-muted-foreground text-xs">{t('models.models.edit.toolSchemaHint')}</p>
+              {THINKING_LEVELS.map((level) => (
+                <Checkbox
+                  key={level}
+                  {...(level === 'off' ? { id: 'model-thinking-off' } : {})}
+                  label={level}
+                  checked={form.thinking_levels.includes(level)}
+                  onCheckedChange={() => toggleThinkingLevel(level)}
+                />
+              ))}
+            </div>
+            <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('models.models.edit.thinkingHint')}</p>
           </div>
+        ) : null}
 
-          <div className="space-y-2">
-            <FieldLabel htmlFor="model-cost-input" label={t('models.models.edit.cost')} draft={draft} field="cost" />
-            <div className="grid gap-2 sm:grid-cols-4">
-              {COST_FIELDS.map((field) => (
-                <div key={field} className="space-y-1">
-                  <Label htmlFor={`model-cost-${field}`} className="text-muted-foreground text-xs">
-                    {field}
-                  </Label>
-                  <Input
-                    id={`model-cost-${field}`}
-                    type="number"
-                    min={0}
-                    step="any"
-                    value={form.cost[field]}
+        <Field label={t('models.models.edit.toolSchema')} help={t('models.models.edit.toolSchemaHint')}>
+          <Select
+            className={css({ width: '100%', md: { width: '256px' } })}
+            value={form.tool_schema_keywords}
+            onChange={(event) => setForm((previous) => ({ ...previous, tool_schema_keywords: event.target.value }))}
+          >
+            {TOOL_SCHEMA_KEYWORDS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label()}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+          <FieldLabel htmlFor="model-cost-input" label={t('models.models.edit.cost')} draft={draft} field="cost" />
+          <div className={css({ display: 'grid', gap: '2', md: { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' } })}>
+            {COST_FIELDS.map((field) => (
+              <div key={field} className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+                <label htmlFor={`model-cost-${field}`} className={fieldLabel}>
+                  {costFieldLabel(field)}
+                </label>
+                <Input
+                  id={`model-cost-${field}`}
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={form.cost[field]}
+                  onChange={(event) =>
+                    setForm((previous) => ({
+                      ...previous,
+                      cost: { ...previous.cost, [field]: event.target.value },
+                    }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
+          {touched && errors.cost !== undefined ? (
+            <p className={css({ textStyle: 'body', color: 'error-text' })}>{errors.cost}</p>
+          ) : null}
+        </div>
+
+        {showAdvanced ? (
+          <LazyDetails summary={t('models.models.edit.advanced')} className={css({ textStyle: 'body' })}>
+            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' }, paddingBlockStart: '3' })}>
+              <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('models.models.edit.advancedHint')}</p>
+              {compatFields.map((spec) => (
+                <div key={spec.field} className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+                  <label htmlFor={`compat-${spec.field}`} className={fieldLabel}>
+                    {spec.label()}
+                  </label>
+                  <Select
+                    id={`compat-${spec.field}`}
+                    className={css({ width: '100%', md: { width: '256px' } })}
+                    value={form.compat[spec.field] ?? AUTO_COMPAT}
                     onChange={(event) =>
                       setForm((previous) => ({
                         ...previous,
-                        cost: { ...previous.cost, [field]: event.target.value },
+                        compat: { ...previous.compat, [spec.field]: event.target.value },
                       }))
                     }
-                  />
+                  >
+                    <option value={AUTO_COMPAT}>{t('models.models.edit.auto')}</option>
+                    {spec.options.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label()}
+                      </option>
+                    ))}
+                  </Select>
                 </div>
               ))}
             </div>
-            {touched && errors.cost !== undefined ? <p className="text-destructive text-sm">{errors.cost}</p> : null}
-          </div>
+          </LazyDetails>
+        ) : null}
 
-          {showAdvanced ? (
-            <LazyDetails summary={t('models.models.edit.advanced')} className="text-sm">
-              <div className="space-y-3 pt-3">
-                <p className="text-muted-foreground text-xs">{t('models.models.edit.advancedHint', { api })}</p>
-                {compatFields.map((spec) => (
-                  <div key={spec.field} className="space-y-1">
-                    <Label htmlFor={`compat-${spec.field}`} className="font-mono text-xs">
-                      {spec.field}
-                    </Label>
-                    <Select
-                      value={form.compat[spec.field] ?? AUTO_COMPAT}
-                      onValueChange={(value) =>
-                        setForm((previous) => ({ ...previous, compat: { ...previous.compat, [spec.field]: value } }))
-                      }
-                    >
-                      <SelectTrigger id={`compat-${spec.field}`} className="w-full sm:w-64">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={AUTO_COMPAT}>{t('models.models.edit.auto')}</SelectItem>
-                        {spec.options.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ))}
-              </div>
-            </LazyDetails>
-          ) : null}
-
-          {error !== null ? <p className="text-destructive text-sm break-words">{error}</p> : null}
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            type="button"
-            disabled={pending}
-            onClick={() => {
-              setTouched(true);
-              if (errorCount > 0) {
-                return;
-              }
-              onSubmit(modelFormToConfig(form, api));
-            }}
-          >
-            {pending ? t('common.saving') : t('common.save')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        {error !== null ? (
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>{error}</p>
+        ) : null}
+      </div>
+    </form>
   );
 }

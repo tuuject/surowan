@@ -26,7 +26,7 @@ test('system color scheme change updates the theme context value', async ({ page
 
   await page.emulateMedia({ colorScheme: 'dark' });
 
-  await expect(page.locator('html')).toHaveClass(/dark/);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect.poll(() => tree.getAttribute('style')).not.toBe(lightStyle);
 });
 
@@ -34,22 +34,20 @@ test('Panel preferences set theme and language alongside the header toggles', as
   await page.emulateMedia({ colorScheme: 'light' });
   await page.goto(await adminUrl('/preferences'));
   const theme = page.getByRole('combobox', { name: 'Theme' });
-  await expect(theme).toHaveText('System');
-  await theme.click();
-  await page.getByRole('option', { name: 'Dark', exact: true }).click();
-  await expect(page.locator('html')).toHaveClass(/dark/);
+  await expect(theme).toHaveValue('system');
+  await theme.selectOption({ label: 'Dark' });
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   // The header toggle stays and reads the same mode.
   await expect(page.getByRole('button', { name: 'Toggle theme: Dark' })).toBeVisible();
 
-  await page.getByRole('combobox', { name: 'Language' }).click();
-  await page.getByRole('option', { name: '中文', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Language' }).selectOption({ label: '中文' });
   await expect(page.getByRole('link', { name: '面板偏好', exact: true }).first()).toBeVisible();
-  await expect(page.getByRole('combobox', { name: '主题' })).toHaveText('深色');
+  await expect(page.getByRole('combobox', { name: '主题' })).toHaveValue('dark');
   await page.reload();
-  await expect(page.locator('html')).toHaveClass(/dark/);
-  await expect(page.getByRole('combobox', { name: '语言' })).toHaveText('中文');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.getByRole('combobox', { name: '语言' })).toHaveValue('zh-CN');
 
   // The header language toggle still switches, and the page follows it.
   await page.getByRole('button', { name: '切换语言' }).click();
-  await expect(page.getByRole('combobox', { name: 'Language' })).toHaveText('English');
+  await expect(page.getByRole('combobox', { name: 'Language' })).toHaveValue('en');
 });

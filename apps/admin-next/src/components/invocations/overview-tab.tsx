@@ -1,4 +1,5 @@
-import type React from 'react';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TabEmpty } from '@/components/invocations/shared';
 import {
@@ -8,11 +9,9 @@ import {
   TimelineCard,
   ToolCallCard,
 } from '@/components/invocations/timeline-cards';
-
+import type { InvocationChatSummary, InvocationDetail } from '@/lib/api/invocations.ts';
 import { formatTime } from '@/lib/format';
 import { buildInvocationTimeline, type InvocationTimelineEvent, timelineEventKey } from '@/lib/timeline';
-import { cn } from '@/lib/utils';
-import type { InvocationChatSummary, InvocationDetail } from '@/lib/api/invocations.ts';
 
 export function TimelineItem({
   chat,
@@ -20,7 +19,7 @@ export function TimelineItem({
 }: {
   readonly chat: InvocationChatSummary;
   readonly event: InvocationTimelineEvent;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   switch (event.kind) {
     case 'queued':
@@ -28,8 +27,8 @@ export function TimelineItem({
         <TimelineCard
           header={
             <>
-              <span className="text-sm font-medium">{t('invocations.invocationDetail.timeline.queued')}</span>
-              <span className="text-muted-foreground text-xs">{formatTime(event.at)}</span>
+              <span className={css({ textStyle: 'label' })}>{t('invocations.invocationDetail.timeline.queued')}</span>
+              <span className={css({ textStyle: 'small', color: 'text-muted' })}>{formatTime(event.at)}</span>
             </>
           }
         />
@@ -39,8 +38,8 @@ export function TimelineItem({
         <TimelineCard
           header={
             <>
-              <span className="text-sm font-medium">{t('invocations.invocationDetail.timeline.started')}</span>
-              <span className="text-muted-foreground text-xs">{formatTime(event.at)}</span>
+              <span className={css({ textStyle: 'label' })}>{t('invocations.invocationDetail.timeline.started')}</span>
+              <span className={css({ textStyle: 'small', color: 'text-muted' })}>{formatTime(event.at)}</span>
             </>
           }
         />
@@ -50,8 +49,8 @@ export function TimelineItem({
         <TimelineCard
           header={
             <>
-              <span className="text-sm font-medium">{t('invocations.invocationDetail.timeline.finished')}</span>
-              <span className="text-muted-foreground text-xs">{formatTime(event.at)}</span>
+              <span className={css({ textStyle: 'label' })}>{t('invocations.invocationDetail.timeline.finished')}</span>
+              <span className={css({ textStyle: 'small', color: 'text-muted' })}>{formatTime(event.at)}</span>
             </>
           }
         />
@@ -67,20 +66,35 @@ export function TimelineItem({
   }
 }
 
-export function OverviewTab({ invocation }: { readonly invocation: InvocationDetail }): React.ReactElement {
+export function OverviewTab({ invocation }: { readonly invocation: InvocationDetail }): ReactElement {
   const { t } = useTranslation();
   const events = buildInvocationTimeline(invocation);
   if (events.length === 0) {
     return <TabEmpty message={t('invocations.invocationDetail.emptyTimeline')} />;
   }
   return (
-    <ol className="ml-1 space-y-4 border-l border-border pl-6">
+    <ol
+      className={css({
+        marginInlineStart: '1',
+        '& > :not(:last-child)': { marginBlockEnd: '4' },
+        borderInlineStartWidth: '1px',
+        borderColor: 'border',
+        paddingInlineStart: '6',
+      })}
+    >
       {events.map((event) => (
-        <li key={timelineEventKey(event)} className="relative">
+        <li key={timelineEventKey(event)} className={css({ position: 'relative' })}>
           <span
-            className={cn(
-              'absolute top-5 -left-[29px] size-2.5 rounded-full',
-              event.kind === 'finished' ? 'bg-destructive' : 'bg-primary',
+            className={cx(
+              css({
+                position: 'absolute',
+                top: '5',
+                insetInlineStart: '-29px',
+                width: '10px',
+                height: '10px',
+                borderRadius: 'full',
+              }),
+              event.kind === 'finished' ? css({ bg: 'error-solid' }) : css({ bg: 'action' }),
             )}
           />
           <TimelineItem chat={invocation.chat} event={event} />

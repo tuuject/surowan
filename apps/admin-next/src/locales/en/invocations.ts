@@ -23,6 +23,9 @@ export const invocations = {
       sideEffect: 'Side effect',
       created: 'Created',
     },
+    sideEffectStarted: 'Started',
+    sideEffectNone: 'None',
+    topicLabel: 'Topic {{id}}',
     statePlaceholder: 'State',
     hostPlaceholder: 'Host',
     modelPlaceholder: 'Model',
@@ -34,7 +37,7 @@ export const invocations = {
       'Tokens counts every token the model calls involved, cache reads and writes included — the same definition the daily budget meters. The per-call breakdown is on the invocation page.',
   },
   invocationDetail: {
-    backToList: 'Back to list',
+    summary: 'Summary',
     title: 'Invocation {{id}}',
     notFound: 'Invocation not found',
     loadFailed: 'Failed to load invocation',
@@ -113,8 +116,8 @@ export const invocations = {
     contextMessage: {
       unknownSender: 'Unknown sender',
       mediaCount: '{{count}} media',
-      telegramMessage: 'Telegram message {{id}} · {{kind}}',
-      roomMessage: 'Room message #{{id}} · {{kind}}',
+      telegramMessage: 'Telegram message {{id}}, {{kind}}',
+      roomMessage: 'Room message #{{id}}, {{kind}}',
       openRecord: 'Open message record',
       openRoom: 'Open room',
     },
@@ -224,7 +227,6 @@ export const invocations = {
     },
   },
   messageDetail: {
-    backToList: 'Back to list',
     title: 'Message {{id}}',
     notFound: 'Message not found',
     loadFailed: 'Failed to load message',
@@ -284,7 +286,6 @@ export const invocations = {
     },
   },
   contextDetail: {
-    backToList: 'Back to list',
     title: 'Conversation context {{id}}',
     notFound: 'Conversation context not found',
     loadFailed: 'Failed to load conversation context',
@@ -345,8 +346,6 @@ export const invocations = {
     },
     cursorList: {
       noRecordsDescription: 'No records match the current filters.',
-      loadMore: 'Load more',
-      loadingMore: 'Loading more…',
       adminRequestFailed: 'Admin request failed',
     },
   },

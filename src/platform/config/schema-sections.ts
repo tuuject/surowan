@@ -130,6 +130,12 @@ export const VisionSectionSchema = Type.Object(
   {
     provider: Type.Optional(Type.String({ minLength: 1 })),
     model: Type.Optional(Type.String({ minLength: 1 })),
+    /**
+     * The effort a reasoning vision model analyzes with. Absent means `low`, or
+     * the weakest effort above `off` for a model without `low`; a model that
+     * does not reason is sent none.
+     */
+    thinking_level: Type.Optional(ThinkingLevelSchema),
     max_output_tokens: Type.Optional(PositiveInteger),
     max_concurrency: Type.Optional(PositiveInteger),
     background_sticker_concurrency: Type.Optional(Type.Literal(1)),

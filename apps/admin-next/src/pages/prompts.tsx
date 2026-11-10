@@ -1,29 +1,45 @@
-import { useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button, IconButton } from '@tuuject/koi-react/button';
+import { SearchIcon } from '@tuuject/koi-react/icons';
+import { Skeleton } from '@tuuject/koi-react/skeleton';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
-import { type ColumnSpec, ConfirmDialog, MonoValue, TableShell, TextValue, ToneBadge } from '@/components/business';
+import {
+  type ColumnSpec,
+  ConfirmDialog,
+  ListFooter,
+  ListPageHeader,
+  ListSearchForm,
+  MonoValue,
+  QuerySelectField,
+  RowActions,
+  TableShell,
+  TextValue,
+  ToneBadge,
+  useClientPagination,
+} from '@/components/business';
+import { RefreshIcon } from '@/components/icons';
 import { Panel } from '@/components/layout/panel';
 import { DiffView } from '@/components/prompts/diff-view';
 import { type Notice, type PromptDraft, sourceLabelKey, sourceTone } from '@/components/prompts/prompt-draft';
 import { PromptEditor } from '@/components/prompts/prompt-editor';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
-
+import { PromptScopeRail } from '@/components/prompts/prompt-scope-rail';
+import { ApiError } from '@/lib/api/core.ts';
+import type { PromptSaveResponse, PromptScopeRef, PromptVersionItem } from '@/lib/api/prompts.ts';
+import { cancelPromptRunning, failedPromptVersion, restorePromptVersion, savePrompt } from '@/lib/api/prompts.ts';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
+import { chatQuery, useListQuery } from '@/lib/list-query';
 import { chatsQuery, promptDiffQuery, promptDocumentQuery, promptVersionsQuery } from '@/lib/queries';
-import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
-import { ApiError } from '@/lib/api/core.ts';
-import { cancelPromptRunning, failedPromptVersion, restorePromptVersion, savePrompt } from '@/lib/api/prompts.ts';
-import type { PromptSaveResponse, PromptScopeRef, PromptVersionItem } from '@/lib/api/prompts.ts';
+import { toast } from '@/lib/toast.ts';
 
 const GLOBAL_SCOPE_VALUE = 'global';
 const CHAT_SCOPE_PREFIX = 'chat:';
 const PROMPT_CONFLICT_CODE = 'prompt_conflict';
+const EMPTY_SCOPE = { chat: '', search: '' };
+const EMPTY_COMPARE = { from: '', to: '' };
 
 function scopeOfValue(value: string): PromptScopeRef {
   return value.startsWith(CHAT_SCOPE_PREFIX)
@@ -31,26 +47,44 @@ function scopeOfValue(value: string): PromptScopeRef {
     : { scope: 'global' };
 }
 
-export default function PromptsPage(): React.ReactElement {
+export default function PromptsPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const chats = useQuery(chatsQuery);
-  const chat = useChatScope();
-  const navigate = useNavigate({ from: '/prompts' });
-  const setChat = useChatScopeSetter(navigate);
+  const query = useListQuery(EMPTY_SCOPE);
+  const chat = chatQuery(query.value.chat);
   const scopeValue = chat === undefined ? GLOBAL_SCOPE_VALUE : `${CHAT_SCOPE_PREFIX}${chat}`;
   const scope = scopeOfValue(scopeValue);
   const fileQuery = useQuery(promptDocumentQuery(scope));
   const versions = useQuery(promptVersionsQuery(scope));
   const [notice, setNotice] = useState<Notice | null>(null);
+  // Each confirmation keeps `open` apart from its target, so closing never blanks the text mid-fade.
   const [cancelTarget, setCancelTarget] = useState<number | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<PromptVersionItem | null>(null);
+  const [restoreOpen, setRestoreOpen] = useState(false);
   const [compare, setCompare] = useState<{ readonly from: string; readonly to: string } | null>(null);
-  const [fromId, setFromId] = useState<string | null>(null);
-  const [toId, setToId] = useState<string | null>(null);
+  const [compareScope, setCompareScope] = useState(scopeValue);
+  if (compareScope !== scopeValue) {
+    // Browser navigation changes scope without calling changeScope. Neither an
+    // applied diff nor an unsubmitted draft may leak into the new scope, and a
+    // confirmation opened for the old scope must not act on the new one: its
+    // cancel would stop the runs of every Chat instead of the one it named.
+    setCompareScope(scopeValue);
+    setCompare(null);
+    setCancelOpen(false);
+    setRestoreOpen(false);
+  }
   const file = fileQuery.data;
   const applied = versions.data?.current ?? null;
   const items = versions.data?.items ?? [];
+  const pagination = useClientPagination(items, scopeValue);
+  const chatItems = chats.data?.items ?? [];
+  const selectedChat = chat === undefined ? null : (chatItems.find((item) => item.id === chat) ?? null);
+  const scopeTitle =
+    chat === undefined
+      ? t('pages.prompts.globalScope')
+      : (selectedChat?.title ?? t('pages.prompts.chatScope', { id: chat }));
 
   const invalidatePrompts = (): void => {
     void queryClient.invalidateQueries({ queryKey: ['prompt-document'] });
@@ -80,6 +114,7 @@ export default function PromptsPage(): React.ReactElement {
     invalidatePrompts();
     if (result.affected_running > 0) {
       setCancelTarget(result.affected_running);
+      setCancelOpen(true);
     }
   };
   const save = useMutation({
@@ -104,7 +139,7 @@ export default function PromptsPage(): React.ReactElement {
       setNotice(null);
     },
     onSuccess: (result) => {
-      setRestoreTarget(null);
+      setRestoreOpen(false);
       succeedWrite(result);
     },
     onError: (error) => {
@@ -112,41 +147,38 @@ export default function PromptsPage(): React.ReactElement {
       // Both failures mean the recorded history moved: close the dialog onto
       // the refreshed file view and the failure notice.
       if (error instanceof ApiError && (error.code === PROMPT_CONFLICT_CODE || failedPromptVersion(error) !== null)) {
-        setRestoreTarget(null);
+        setRestoreOpen(false);
       }
     },
   });
   const cancel = useMutation({
     mutationFn: () => cancelPromptRunning(scope),
     onSuccess: (result) => {
-      setCancelTarget(null);
+      setCancelOpen(false);
       toast.success(
         t('pages.prompts.cancelResult', { count: result.canceled_invocations, buckets: result.expired_buckets }),
       );
       void queryClient.invalidateQueries({ queryKey: ['prompt-versions'] });
     },
   });
-  const changeScope = (value: string): void => {
-    setChat(value === GLOBAL_SCOPE_VALUE ? undefined : value.slice(CHAT_SCOPE_PREFIX.length));
+  const changeScope = (next: { readonly chat: string }): void => {
+    // The rail's search is a view filter, not part of the scope; switching
+    // scopes keeps it so the next list is already narrowed.
+    query.apply({ chat: next.chat, search: query.value.search });
     setNotice(null);
-    setCancelTarget(null);
-    setRestoreTarget(null);
+    setCancelOpen(false);
+    setRestoreOpen(false);
     setCompare(null);
-    setFromId(null);
-    setToId(null);
   };
-  const selectable = (id: string | null, fallback: string | null): string | null =>
-    id !== null && items.some((item) => item.id === id) ? id : fallback;
-  const fromValue = selectable(fromId, items.at(1)?.id ?? null);
-  const toValue = selectable(toId, items.at(0)?.id ?? null);
   const diffSelection = compare ?? { from: '', to: '' };
   const diff = useQuery({ ...promptDiffQuery(diffSelection.from, diffSelection.to), enabled: compare !== null });
   const columns: readonly ColumnSpec<PromptVersionItem>[] = [
     {
       key: 'version',
       title: t('pages.prompts.colVersion'),
+      width: 136,
       render: (row) => (
-        <span className="inline-flex items-center gap-2">
+        <span className={css({ display: 'inline-flex', alignItems: 'center', gap: '2' })}>
           <MonoValue value={`v${row.seq}`} />
           {row.id === applied?.id ? <ToneBadge tone="success">{t('pages.prompts.currentBadge')}</ToneBadge> : null}
         </span>
@@ -155,11 +187,14 @@ export default function PromptsPage(): React.ReactElement {
     {
       key: 'created',
       title: t('pages.prompts.colCreated'),
-      render: (row) => <span className="tabular-nums">{formatTime(row.created_at)}</span>,
+      width: 184,
+      skeleton: '2026-01-18 10:58:15',
+      render: (row) => formatTime(row.created_at),
     },
     {
       key: 'source',
       title: t('pages.prompts.colSource'),
+      width: 112,
       render: (row) => <ToneBadge tone={sourceTone(row.source)}>{t(sourceLabelKey(row.source))}</ToneBadge>,
     },
     {
@@ -176,169 +211,233 @@ export default function PromptsPage(): React.ReactElement {
       key: 'actions',
       title: t('pages.prompts.colActions'),
       align: 'right',
+      width: 104,
       render: (row) =>
         row.id === applied?.id ? null : (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={file === undefined || restore.isPending}
-            onClick={() => {
-              restore.reset();
-              setRestoreTarget(row);
-            }}
-          >
-            {t('pages.prompts.restore')}
-          </Button>
+          <RowActions>
+            <Button
+              size="sm"
+              variant="ghost"
+              color="secondary"
+              disabled={file === undefined || restore.isPending}
+              onClick={() => {
+                restore.reset();
+                setRestoreTarget(row);
+                setRestoreOpen(true);
+              }}
+            >
+              {t('pages.prompts.restore')}
+            </Button>
+          </RowActions>
         ),
     },
   ];
   return (
-    <div className="space-y-6">
-      <Panel
-        title={t('pages.prompts.editorTitle')}
-        action={
-          <div className="flex items-center gap-2">
-            <Label htmlFor="prompt-scope" className="text-muted-foreground text-xs">
-              {t('pages.prompts.scopeLabel')}
-            </Label>
-            <Select value={scopeValue} onValueChange={changeScope}>
-              <SelectTrigger id="prompt-scope" size="sm" className="w-64">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={GLOBAL_SCOPE_VALUE}>{t('pages.prompts.globalScope')}</SelectItem>
-                {(chats.data?.items ?? []).map((chat) => (
-                  <SelectItem key={chat.id} value={`${CHAT_SCOPE_PREFIX}${chat.id}`}>
-                    {chat.title === null
-                      ? t('pages.prompts.chatScope', { id: chat.id })
-                      : t('pages.prompts.chatScopeTitled', { title: chat.title, id: chat.id })}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        }
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '6' } })}>
+      <ListPageHeader title={t('layout.nav.prompts')} />
+      {chats.isError ? (
+        <Alert
+          tone="error"
+          action={
+            <Button size="sm" variant="ghost" color="secondary" onClick={() => void chats.refetch()}>
+              {t('common.retry')}
+            </Button>
+          }
+        >
+          {errorMessage(chats.error)}
+        </Alert>
+      ) : null}
+
+      {/* Master and detail split by one hairline (above the detail when stacked, beside it when wide), as on the Providers page. */}
+      <div
+        className={css({
+          display: 'grid',
+          gap: '6',
+          alignItems: 'start',
+          // 332px = the rail's 308px plus its 24px gutter to the hairline.
+          '@media (min-width: 1200px)': { gridTemplateColumns: '332px minmax(0, 1fr)', columnGap: '0' },
+        })}
       >
-        {fileQuery.isPending ? (
-          <Skeleton className="h-64 w-full rounded-xl" />
-        ) : fileQuery.isError || file === undefined ? (
-          <div className="space-y-3">
-            <p role="alert" className="text-destructive text-sm break-words">
-              {errorMessage(fileQuery.error)}
-            </p>
-            <Button variant="outline" onClick={() => void fileQuery.refetch()}>
-              {t('common.retry')}
-            </Button>
-          </div>
-        ) : (
-          <PromptEditor
-            // Remount when the applied version moves (save, restore, an
-            // external apply picked up on refetch): a restore can return the
-            // file to the hash the draft was pinned to, and only a fresh
-            // editor reliably re-seeds from the file view.
-            key={applied?.id ?? 'no-applied-version'}
-            file={file}
-            applied={applied}
-            notice={notice}
-            saving={save.isPending}
-            onSave={(draft) => save.mutate(draft)}
+        <aside
+          className={css({
+            minWidth: '0',
+            alignSelf: 'start',
+            '@media (min-width: 1200px)': {
+              paddingInlineEnd: '6',
+              position: 'sticky',
+              // The same air under the header and above the window edge; past that the rail's list scrolls on its own.
+              top: 'calc(var(--app-header-offset) + token(spacing.6))',
+              maxHeight: 'calc(100dvh - var(--app-header-offset) - token(spacing.6) * 2)',
+              display: 'flex',
+              flexDirection: 'column',
+            },
+          })}
+        >
+          <PromptScopeRail
+            chats={chatItems}
+            selectedChat={chat ?? null}
+            search={query.value.search}
+            onSearch={(next) => query.apply({ chat: query.value.chat, search: next })}
+            onSelect={(chatId) => changeScope({ chat: chatId ?? '' })}
+            onRefresh={() => void chats.refetch()}
+            refreshing={chats.isRefetching}
+            loading={chats.isPending}
           />
-        )}
-      </Panel>
-      <Panel title={t('pages.prompts.historyTitle')}>
-        {versions.isPending ? (
-          <Skeleton className="h-40 w-full rounded-xl" />
-        ) : versions.isError ? (
-          <div className="space-y-3">
-            <p role="alert" className="text-destructive text-sm break-words">
-              {errorMessage(versions.error)}
-            </p>
-            <Button variant="outline" onClick={() => void versions.refetch()}>
-              {t('common.retry')}
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="prompt-compare-from" className="text-muted-foreground text-xs">
-                  {t('pages.prompts.compareFrom')}
-                </Label>
-                <Select value={fromValue ?? ''} onValueChange={(value) => setFromId(value)}>
-                  <SelectTrigger id="prompt-compare-from" size="sm" className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {items.map((item) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {`v${item.seq}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="prompt-compare-to" className="text-muted-foreground text-xs">
-                  {t('pages.prompts.compareTo')}
-                </Label>
-                <Select value={toValue ?? ''} onValueChange={(value) => setToId(value)}>
-                  <SelectTrigger id="prompt-compare-to" size="sm" className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {items.map((item) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {`v${item.seq}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={fromValue === null || toValue === null || fromValue === toValue}
-                onClick={() => {
-                  if (fromValue !== null && toValue !== null) {
-                    setCompare({ from: fromValue, to: toValue });
-                  }
-                }}
+        </aside>
+
+        <div
+          key={scopeValue}
+          className={css({
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6',
+            minWidth: '0',
+            paddingBlockStart: '6',
+            borderTopWidth: '1px',
+            borderColor: 'divider',
+            '@media (min-width: 1200px)': {
+              // Stretch so the hairline runs the full height even when the rail is the taller column.
+              alignSelf: 'stretch',
+              paddingBlockStart: '0',
+              paddingInlineStart: '6',
+              borderTopWidth: '0',
+              borderInlineStartWidth: '1px',
+            },
+          })}
+        >
+          <Panel variant="plain" title={scopeTitle}>
+            {fileQuery.isPending ? (
+              <Skeleton className={css({ height: '256px', width: '100%', borderRadius: 'xl' })} />
+            ) : fileQuery.isError || file === undefined ? (
+              <Alert
+                tone="error"
+                action={
+                  <Button size="sm" variant="ghost" color="secondary" onClick={() => void fileQuery.refetch()}>
+                    {t('common.retry')}
+                  </Button>
+                }
               >
-                {t('pages.prompts.compare')}
-              </Button>
-            </div>
-            <TableShell
-              columns={columns}
-              data={items}
-              rowKey={(row) => row.id}
-              emptyText={t('pages.prompts.emptyVersions')}
-            />
-            {versions.data === undefined ? null : (
-              <p className="text-muted-foreground text-xs">
-                {t('pages.prompts.retention', { count: versions.data.retained })}
-              </p>
-            )}
-            {compare === null ? null : diff.isPending ? (
-              <Skeleton className="h-40 w-full rounded-xl" />
-            ) : diff.isError || diff.data === undefined ? (
-              <p role="alert" className="text-destructive text-sm break-words">
-                {errorMessage(diff.error)}
-              </p>
-            ) : diff.data.hunks.length === 0 ? (
-              <p className="text-muted-foreground text-sm">{t('pages.prompts.noDifferences')}</p>
+                {errorMessage(fileQuery.error)}
+              </Alert>
             ) : (
-              <DiffView diff={diff.data} />
+              <PromptEditor
+                // Remount when the applied version moves (save, restore, an
+                // external apply picked up on refetch): a restore can return the
+                // file to the hash the draft was pinned to, and only a fresh
+                // editor reliably re-seeds from the file view.
+                key={applied?.id ?? 'no-applied-version'}
+                file={file}
+                applied={applied}
+                notice={notice}
+                saving={save.isPending}
+                onSave={(draft) => save.mutate(draft)}
+              />
             )}
-          </div>
-        )}
-      </Panel>
+          </Panel>
+          <Panel
+            variant="plain"
+            className={css({ borderTopWidth: '1px', borderColor: 'divider', paddingBlockStart: '6' })}
+            title={t('pages.prompts.historyTitle')}
+            action={
+              <IconButton
+                variant="ghost"
+                color="secondary"
+                label={t('layout.business.refreshList')}
+                icon={<RefreshIcon />}
+                disabled={versions.isRefetching}
+                onClick={() => void versions.refetch()}
+              />
+            }
+          >
+            <div className={css({ display: 'flex', flexDirection: 'column', gap: '6' })}>
+              <ListSearchForm
+                value={compare ?? EMPTY_COMPARE}
+                emptyValue={EMPTY_COMPARE}
+                activeCount={compare === null ? 0 : 2}
+                onSearch={(next) => {
+                  const valid =
+                    next.from !== next.to &&
+                    items.some((item) => item.id === next.from) &&
+                    items.some((item) => item.id === next.to);
+                  setCompare(valid ? next : null);
+                }}
+                renderSubmitAndResetButton={() => (
+                  <Button type="submit" iconStart={<SearchIcon />}>
+                    {t('pages.prompts.compare')}
+                  </Button>
+                )}
+              >
+                {({ draft, change }) => (
+                  <>
+                    <QuerySelectField
+                      label={t('pages.prompts.compareFrom')}
+                      value={draft.from}
+                      onChange={(from) => change({ from })}
+                      options={items.map((item) => ({ value: item.id, label: `v${item.seq}` }))}
+                    />
+                    <QuerySelectField
+                      label={t('pages.prompts.compareTo')}
+                      value={draft.to}
+                      onChange={(to) => change({ to })}
+                      options={items.map((item) => ({ value: item.id, label: `v${item.seq}` }))}
+                    />
+                  </>
+                )}
+              </ListSearchForm>
+              {versions.isError ? (
+                <Alert
+                  tone="error"
+                  action={
+                    <Button size="sm" variant="ghost" color="secondary" onClick={() => void versions.refetch()}>
+                      {t('common.retry')}
+                    </Button>
+                  }
+                >
+                  {errorMessage(versions.error)}
+                </Alert>
+              ) : null}
+              {versions.isPending || versions.data !== undefined ? (
+                <div>
+                  <TableShell
+                    columns={columns}
+                    data={pagination.items}
+                    rowKey={(row) => row.id}
+                    loading={versions.isPending}
+                    minWidth={880}
+                    emptyText={t('pages.prompts.emptyVersions')}
+                  />
+                  <ListFooter
+                    count={pagination.total}
+                    page={pagination.page}
+                    pageCount={pagination.pageCount}
+                    onPageChange={pagination.onPageChange}
+                  >
+                    {versions.data === undefined ? null : (
+                      <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+                        {t('pages.prompts.retention', { count: versions.data.retained })}
+                      </span>
+                    )}
+                  </ListFooter>
+                </div>
+              ) : null}
+              {compare === null ? null : diff.isPending ? (
+                <Skeleton className={css({ height: '160px', width: '100%', borderRadius: 'xl' })} />
+              ) : diff.isError || diff.data === undefined ? (
+                <Alert tone="error">{errorMessage(diff.error)}</Alert>
+              ) : diff.data.hunks.length === 0 ? (
+                <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('pages.prompts.noDifferences')}</p>
+              ) : (
+                <DiffView diff={diff.data} />
+              )}
+            </div>
+          </Panel>
+        </div>
+      </div>
       <ConfirmDialog
-        open={cancelTarget !== null}
+        open={cancelOpen}
         onOpenChange={(open) => {
           if (!open && !cancel.isPending) {
-            setCancelTarget(null);
+            setCancelOpen(false);
           }
         }}
         title={t('pages.prompts.affectedTitle')}
@@ -351,10 +450,10 @@ export default function PromptsPage(): React.ReactElement {
         onConfirm={() => cancel.mutate()}
       />
       <ConfirmDialog
-        open={restoreTarget !== null}
+        open={restoreOpen}
         onOpenChange={(open) => {
           if (!open && !restore.isPending) {
-            setRestoreTarget(null);
+            setRestoreOpen(false);
           }
         }}
         title={t('pages.prompts.restoreTitle', { seq: restoreTarget?.seq ?? '' })}

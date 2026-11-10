@@ -1,32 +1,25 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Info } from 'lucide-react';
-import type React from 'react';
-import { useState } from 'react';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { Checkbox } from '@tuuject/koi-react/checkbox';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Field } from '@tuuject/koi-react/field';
+import { Input } from '@tuuject/koi-react/input';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { Textarea } from '@tuuject/koi-react/textarea';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { AliasEditor, ScopePicker } from '@/components/dictionary/entry-form.tsx';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-
-import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
-import { mergeDictionaryEntries, previewDictionaryMerge } from '@/lib/api/dictionary.ts';
+import { useOpenSession } from '@/hooks/use-open-session.ts';
 import type {
   DictionaryChatOption,
   DictionaryEntry,
   DictionaryMergePreview,
   DictionaryScope,
 } from '@/lib/api/dictionary.ts';
+import { mergeDictionaryEntries, previewDictionaryMerge } from '@/lib/api/dictionary.ts';
+import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
+import { toast } from '@/lib/toast.ts';
 
 type MergeStep =
   | { readonly kind: 'idle' }
@@ -57,7 +50,7 @@ export function MergeDialog({
   readonly defaultScope: DictionaryScope;
   readonly defaultChatId: string | null;
   readonly onMerged: () => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [step, setStep] = useState<MergeStep>({ kind: 'idle' });
@@ -68,16 +61,30 @@ export function MergeDialog({
   const [chatId, setChatId] = useState<string | null>(defaultChatId);
   const [deleteSources, setDeleteSources] = useState(false);
 
+  const [saveError, setSaveError] = useState<unknown>(null);
+
+  // A suggestion can be abandoned by closing the dialog, and it still answers.
+  // Each request carries the session it was started in, so one that outlives
+  // its session cannot fill the next one with a suggestion (and source
+  // revisions) built from other entries.
+  const session = useOpenSession(open);
   const suggestion = useMutation({
-    mutationFn: () => previewDictionaryMerge(entries.map((entry) => entry.id)),
+    mutationFn: (_startedIn: number) => previewDictionaryMerge(entries.map((entry) => entry.id)),
     onMutate: () => setStep({ kind: 'loading' }),
-    onSuccess: (preview) => {
+    onSuccess: (preview, startedIn) => {
+      if (startedIn !== session.current) {
+        return;
+      }
       setTerm(preview.suggestion.term);
       setDefinition(preview.suggestion.definition);
       setAliases(preview.suggestion.aliases);
       setStep({ kind: 'ready', preview });
     },
-    onError: (error) => setStep({ kind: 'failed', error }),
+    onError: (error, startedIn) => {
+      if (startedIn === session.current) {
+        setStep({ kind: 'failed', error });
+      }
+    },
   });
 
   const save = useMutation({
@@ -97,15 +104,16 @@ export function MergeDialog({
     onSuccess: () => {
       toast.success(
         deleteSources
-          ? `${t('dictionary.merge.merged')} · ${t('dictionary.merge.sourcesDeleted')}`
+          ? `${t('dictionary.merge.merged')}${t('common.separator')}${t('dictionary.merge.sourcesDeleted')}`
           : t('dictionary.merge.merged'),
       );
       void queryClient.invalidateQueries({ queryKey: ['dictionary'] });
       onMerged();
       onOpenChange(false);
     },
-    onError: () => {
+    onError: (error) => {
       // The dialog stays open: a stale source is retryable after regenerating.
+      setSaveError(error);
       void queryClient.invalidateQueries({ queryKey: ['dictionary'] });
     },
   });
@@ -113,6 +121,27 @@ export function MergeDialog({
   const preview = step.kind === 'ready' ? step.preview : null;
   const canSave = preview !== null && term.trim().length > 0 && definition.trim().length > 0;
   const scopeReady = scope === 'global' || (chatId !== null && chatId.length > 0);
+
+  // Base UI keeps the popup mounted while it fades out, so this component and
+  // the last suggestion outlive a session. They are replaced on the open edge —
+  // a render-phase adjustment, the app's substitute for a reset effect — and
+  // never on close, so the sources and the edited suggestion stay on screen
+  // through the exit fade. Everything shown lives in local state for that
+  // reason: a mutation object cannot be reset while rendering.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) {
+      setSaveError(null);
+      setStep({ kind: 'idle' });
+      setTerm('');
+      setDefinition('');
+      setAliases([]);
+      setScope(defaultScope);
+      setChatId(defaultChatId);
+      setDeleteSources(false);
+    }
+  }
 
   return (
     <Dialog
@@ -123,114 +152,18 @@ export function MergeDialog({
         }
         onOpenChange(next);
       }}
-    >
-      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{t('dictionary.merge.title')}</DialogTitle>
-          <DialogDescription>{t('dictionary.merge.description')}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-1">
-            <p className="font-medium">{t('dictionary.merge.sources', { count: entries.length })}</p>
-            <ul className="max-h-40 space-y-1 overflow-auto text-sm">
-              {entries.map((entry) => (
-                <li key={entry.id} className="rounded-md border px-2 py-1">
-                  <span className="font-medium">{entry.term}</span>
-                  {entry.aliases.length === 0 ? null : (
-                    <span className="text-muted-foreground"> · {entry.aliases.join(', ')}</span>
-                  )}
-                  <span className="text-muted-foreground block text-xs">
-                    {entry.scope === 'global'
-                      ? t('dictionary.page.globalBadge')
-                      : `${t('dictionary.page.groupBadge')} ${entry.chat_id ?? ''}`}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {step.kind === 'idle' || step.kind === 'loading' ? (
-            <Button type="button" disabled={suggestion.isPending} onClick={() => suggestion.mutate()}>
-              {suggestion.isPending ? t('dictionary.merge.generating') : t('dictionary.merge.generate')}
-            </Button>
-          ) : null}
-
-          {step.kind === 'failed' ? (
-            <div className="space-y-2">
-              <Alert variant="destructive">
-                <AlertTitle>{t('dictionary.merge.generateFailed')}</AlertTitle>
-                <AlertDescription>{dictionaryErrorMessage(step.error)}</AlertDescription>
-              </Alert>
-              <Button type="button" variant="outline" onClick={() => suggestion.mutate()}>
-                {t('dictionary.merge.regenerate')}
-              </Button>
-            </div>
-          ) : null}
-
-          {preview !== null ? (
-            <div className="space-y-4">
-              <Alert>
-                <Info className="text-foreground" />
-                <AlertTitle>{t('dictionary.merge.suggestion')}</AlertTitle>
-                <AlertDescription>{t('dictionary.merge.suggestionHint')}</AlertDescription>
-              </Alert>
-              <div className="space-y-2">
-                <Label htmlFor="merge-term">{t('dictionary.merge.termLabel')}</Label>
-                <Input id="merge-term" value={term} onChange={(event) => setTerm(event.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="merge-definition">{t('dictionary.merge.definitionLabel')}</Label>
-                <Textarea
-                  id="merge-definition"
-                  rows={4}
-                  value={definition}
-                  onChange={(event) => setDefinition(event.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>{t('dictionary.merge.aliasesLabel')}</Label>
-                <AliasEditor aliases={aliases} onChange={setAliases} idPrefix="merge" />
-              </div>
-              <div className="space-y-2">
-                <Label>{t('dictionary.merge.targetScopeLabel')}</Label>
-                <ScopePicker
-                  scope={scope}
-                  chatId={chatId}
-                  chats={chats}
-                  idPrefix="merge-scope"
-                  onChange={(nextScope, nextChatId) => {
-                    setScope(nextScope);
-                    setChatId(nextChatId);
-                  }}
-                />
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <input
-                    id="merge-delete-sources"
-                    type="checkbox"
-                    className="size-4 rounded border-input"
-                    checked={deleteSources}
-                    onChange={(event) => setDeleteSources(event.target.checked)}
-                  />
-                  <Label htmlFor="merge-delete-sources" className="font-normal">
-                    {t('dictionary.merge.deleteSources')}
-                  </Label>
-                </div>
-                <p className="text-muted-foreground text-xs">{t('dictionary.merge.deleteSourcesHint')}</p>
-              </div>
-              <Button type="button" variant="outline" onClick={() => suggestion.mutate()}>
-                {t('dictionary.merge.regenerate')}
-              </Button>
-            </div>
-          ) : null}
-
-          {save.isError ? (
-            <p className="text-destructive text-sm break-words">{dictionaryErrorMessage(save.error)}</p>
-          ) : null}
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" disabled={save.isPending} onClick={() => onOpenChange(false)}>
+      title={t('dictionary.merge.title')}
+      description={t('dictionary.merge.description')}
+      size="lg"
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            color="secondary"
+            disabled={save.isPending}
+            onClick={() => onOpenChange(false)}
+          >
             {t('dictionary.merge.cancel')}
           </Button>
           <Button
@@ -238,14 +171,123 @@ export function MergeDialog({
             disabled={!canSave || !scopeReady || save.isPending || preview === null}
             onClick={() => {
               if (preview !== null) {
+                setSaveError(null);
                 save.mutate(preview);
               }
             }}
           >
             {save.isPending ? t('dictionary.merge.merging') : t('dictionary.merge.confirm')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        </>
+      }
+    >
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <p className={css({ textStyle: 'label' })}>{t('dictionary.merge.sources', { count: entries.length })}</p>
+          <ul
+            className={css({
+              textStyle: 'body',
+              maxHeight: '160px',
+              '& > :not(:last-child)': { marginBlockEnd: '1' },
+              overflow: 'auto',
+            })}
+          >
+            {entries.map((entry) => (
+              <li
+                key={entry.id}
+                className={css({
+                  borderRadius: 'lg',
+                  borderWidth: '1px',
+                  borderColor: 'border',
+                  paddingInline: '2',
+                  paddingBlock: '1',
+                })}
+              >
+                <span className={css({ textStyle: 'label' })}>{entry.term}</span>
+                {entry.aliases.length === 0 ? null : (
+                  <span className={css({ color: 'text-muted', marginInlineStart: '2' })}>
+                    {entry.aliases.join(', ')}
+                  </span>
+                )}
+                <span className={css({ textStyle: 'small', color: 'text-muted', display: 'block' })}>
+                  {entry.scope === 'global'
+                    ? t('dictionary.page.globalBadge')
+                    : `${t('dictionary.page.groupBadge')} ${entry.chat_id ?? ''}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {step.kind === 'idle' || step.kind === 'loading' ? (
+          <Button type="button" disabled={step.kind === 'loading'} onClick={() => suggestion.mutate(session.current)}>
+            {step.kind === 'loading' ? t('dictionary.merge.generating') : t('dictionary.merge.generate')}
+          </Button>
+        ) : null}
+
+        {step.kind === 'failed' ? (
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+            <Alert tone="error" title={t('dictionary.merge.generateFailed')}>
+              {dictionaryErrorMessage(step.error)}
+            </Alert>
+            <Button
+              type="button"
+              variant="outline"
+              color="secondary"
+              onClick={() => suggestion.mutate(session.current)}
+            >
+              {t('dictionary.merge.regenerate')}
+            </Button>
+          </div>
+        ) : null}
+
+        {preview !== null ? (
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+            <Alert tone="info" title={t('dictionary.merge.suggestion')}>
+              {t('dictionary.merge.suggestionHint')}
+            </Alert>
+            <Field id="merge-term" label={t('dictionary.merge.termLabel')}>
+              <Input value={term} onChange={(event) => setTerm(event.target.value)} />
+            </Field>
+            <Field id="merge-definition" label={t('dictionary.merge.definitionLabel')}>
+              <Textarea rows={4} value={definition} onChange={(event) => setDefinition(event.target.value)} />
+            </Field>
+            <Field label={t('dictionary.merge.aliasesLabel')}>
+              <AliasEditor aliases={aliases} onChange={setAliases} />
+            </Field>
+            <ScopePicker
+              label={t('dictionary.merge.targetScopeLabel')}
+              scope={scope}
+              chatId={chatId}
+              chats={chats}
+              onChange={(nextScope, nextChatId) => {
+                setScope(nextScope);
+                setChatId(nextChatId);
+              }}
+            />
+            <Checkbox
+              label={t('dictionary.merge.deleteSources')}
+              description={t('dictionary.merge.deleteSourcesHint')}
+              checked={deleteSources}
+              onCheckedChange={setDeleteSources}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              color="secondary"
+              onClick={() => suggestion.mutate(session.current)}
+            >
+              {t('dictionary.merge.regenerate')}
+            </Button>
+          </div>
+        ) : null}
+
+        {saveError !== null ? (
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+            {dictionaryErrorMessage(saveError)}
+          </p>
+        ) : null}
+      </div>
     </Dialog>
   );
 }

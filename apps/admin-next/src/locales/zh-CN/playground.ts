@@ -32,7 +32,7 @@ export const playgroundZh: typeof playground = {
     expiredInputs: '{{count}} 条输入已随保留期过期',
     queued: '排队 {{count}}',
     running: '运行中 {{count}}',
-    statusSummary: 'revision {{revision}} · 待处理 {{pending}}',
+    statusSummary: 'revision {{revision}}，待处理 {{pending}}',
   },
   identities: {
     heading: '身份',
@@ -95,7 +95,7 @@ export const playgroundZh: typeof playground = {
     attempt: '尝试 {{id}}',
     retryOf: '重试自 {{id}}',
     openAudit: '审计',
-    usage: '{{tokens}} tokens · {{cost}}',
+    usage: '{{tokens}} tokens，{{cost}}',
     receipt: '回执：{{state}}',
     sends: '发送',
     noSend: '本次运行结束但没有发布任何消息。',

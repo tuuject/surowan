@@ -1,5 +1,5 @@
 /**
- * Model health check lifetime: results are page-local. Unmounting the Models
+ * Model health check lifetime: results are page-local. Unmounting the Providers
  * page must abort the queued and in-flight batch (proven by a test-only
  * upstream gate: requests are held open until the spec releases them, so a drop
  * to zero in-flight while still held can only be a real abort) and a fresh
@@ -11,15 +11,15 @@
  * `16-model-health.e2e.ts`.
  */
 import { expect } from '@playwright/test';
-import { adminUrl, test } from './helpers.ts';
+import { adminUrl, clickNav, test } from './helpers.ts';
 import {
   holdHealthGate,
+  modelHealthFixture,
   modelRow,
-  releaseHealthGate,
   relayStats,
+  releaseHealthGate,
   resetRelayStats,
   selectProvider,
-  modelHealthFixture,
 } from './model-health-fixture.ts';
 import {
   E2E_HEALTH_ALIAS_A,
@@ -36,7 +36,7 @@ modelHealthFixture();
 test.describe('model health checks', () => {
   test('leaving the page aborts the queued and in-flight batch', async ({ page }) => {
     await resetRelayStats();
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
 
     // Hold every model upstream before the batch starts: no request can settle
@@ -46,13 +46,13 @@ test.describe('model health checks', () => {
       // Queue four checks so three run and one waits behind them: the three
       // slow models fill the concurrency slots and the fast one is picked up
       // last (and never reaches the upstream).
-      await page.getByLabel(`Select ${E2E_HEALTH_OK_2_MODEL} for a health check`).check();
-      await page.getByLabel(`Select ${E2E_HEALTH_UNEXPECTED_MODEL} for a health check`).check();
+      await page.getByLabel(`Select ${E2E_HEALTH_OK_2_MODEL}`, { exact: true }).check();
+      await page.getByLabel(`Select ${E2E_HEALTH_UNEXPECTED_MODEL}`, { exact: true }).check();
       await selectProvider(page, E2E_HEALTH_ALIAS_B);
-      await page.getByLabel(`Select ${E2E_HEALTH_FAIL_MODEL} for a health check`).check();
+      await page.getByLabel(`Select ${E2E_HEALTH_FAIL_MODEL}`, { exact: true }).check();
       await selectProvider(page, E2E_HEALTH_ALIAS_A);
-      await page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL} for a health check`).check();
-      await page.getByRole('button', { name: /^Check selected \(\d+\)$/ }).click();
+      await page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL}`, { exact: true }).check();
+      await page.getByRole('button', { name: 'Test', exact: true }).click();
 
       // All three concurrency slots are busy upstream (held) — including the
       // HTTP-500 model, which counts toward in-flight like any other request —
@@ -66,9 +66,9 @@ test.describe('model health checks', () => {
         [E2E_HEALTH_FAIL_MODEL]: 1,
       });
 
-      // SPA navigation unmounts the Models page; the cleanup must abort the
+      // SPA navigation unmounts the Providers page; the cleanup must abort the
       // batch instead of letting the queued check charge in the background.
-      await page.getByRole('link', { name: 'Overview' }).click();
+      await clickNav(page, 'Monitor', 'Overview');
       await page.waitForURL((url) => url.pathname === '/');
       await expect(page.getByText('Bot status')).toBeVisible();
 
@@ -88,16 +88,16 @@ test.describe('model health checks', () => {
       await releaseHealthGate();
     }
 
-    // Back on the Models page a fresh check lands in a freed backend slot and
+    // Back on the Providers page a fresh check lands in a freed backend slot and
     // completes normally: the queued fourth never sneaked in behind the page's
     // lifetime (health-ok was absent from the cancelled batch).
-    await page.getByRole('link', { name: 'Models' }).click();
-    await page.waitForURL((url) => url.pathname === '/models');
+    await clickNav(page, 'Agent setup', 'Providers');
+    await page.waitForURL((url) => url.pathname === '/providers');
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
     const row = modelRow(page, E2E_HEALTH_OK_MODEL);
-    await row.getByRole('button', { name: /check health/i }).click();
-    await expect(row.getByText(/^ok$/i)).toBeVisible();
-    await expect(row.getByText(/TTFB/)).toBeVisible();
+    await row.getByRole('button', { name: /test whether/i }).click();
+    await expect(row.getByText('OK', { exact: true })).toBeVisible();
+    await expect(row.getByText(/First response/)).toBeVisible();
     const after = await relayStats();
     expect(after.total).toBe(4);
     expect(after.by_model).toEqual({
@@ -114,19 +114,19 @@ test.describe('model health checks', () => {
 
   test('a reload clears the page-local health results', async ({ page }) => {
     await resetRelayStats();
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
 
     const row = modelRow(page, E2E_HEALTH_OK_MODEL);
-    await row.getByRole('button', { name: /check health/i }).click();
-    await expect(row.getByText(/^ok$/i)).toBeVisible();
+    await row.getByRole('button', { name: /test whether/i }).click();
+    await expect(row.getByText('OK', { exact: true })).toBeVisible();
 
     // Health state is page-local: after a full reload the row starts clean
     // again instead of replaying a stale result.
     await page.reload();
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
-    const check = modelRow(page, E2E_HEALTH_OK_MODEL).getByRole('button', { name: /check health/i });
+    const check = modelRow(page, E2E_HEALTH_OK_MODEL).getByRole('button', { name: /test whether/i });
     await expect(check).toBeVisible();
-    await expect(modelRow(page, E2E_HEALTH_OK_MODEL).getByText(/^ok$/i)).toHaveCount(0);
+    await expect(modelRow(page, E2E_HEALTH_OK_MODEL).getByText('OK', { exact: true })).toHaveCount(0);
   });
 });

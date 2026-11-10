@@ -1,3 +1,5 @@
+import type { Locator } from '@playwright/test';
+
 /**
  * Shared fixture data for the Models page E2E: the provider secrets that must
  * never reach the DOM, the relay model ids the local upstream serves, and the
@@ -90,3 +92,15 @@ export const E2E_MODELS_DEV_CATALOG = {
     },
   },
 } as const;
+
+/**
+ * One click on a model row's "Use as" toggle hands that role to the model; a
+ * pressed toggle is the role it already fills.
+ */
+export function roleToggle(row: Locator, role: 'Agent' | 'Vision' | 'Tool'): Locator {
+  return row.getByRole('group', { name: /^Use .+ as$/ }).getByRole('button', { name: role, exact: true });
+}
+
+export async function setAsAgent(row: Locator): Promise<void> {
+  await roleToggle(row, 'Agent').click();
+}

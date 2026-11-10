@@ -1,14 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { Card } from '@tuuject/koi-react/card';
+import { Field } from '@tuuject/koi-react/field';
+import { PlusIcon, UploadIcon } from '@tuuject/koi-react/icons';
+import { Input } from '@tuuject/koi-react/input';
+import { Select } from '@tuuject/koi-react/select';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { Tag } from '@tuuject/koi-react/tag';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-
-import { errorMessage } from '@/lib/errors';
+import { ListPageHeader } from '@/components/business';
+import { MarkdownInput } from '@/components/prompts/markdown-input';
+import { AppLink } from '@/components/router-links';
+import type { ImageGenerationRecord } from '@/lib/api/images.ts';
 import {
   getImageStatus,
   imageUrl,
@@ -18,7 +23,8 @@ import {
   submitImageGeneration,
   uploadImageAsset as uploadAsset,
 } from '@/lib/api/images.ts';
-import type { ImageGenerationRecord } from '@/lib/api/images.ts';
+import { errorMessage } from '@/lib/errors';
+import { toast } from '@/lib/toast.ts';
 
 /**
  * The image workspace: compose a generation from prompt and reference
@@ -42,18 +48,13 @@ function SelectedRefs({
     return null;
   }
   return (
-    <div className="space-y-1">
-      <div className="text-muted-foreground text-xs">{title}</div>
-      <div className="flex flex-wrap gap-1.5">
+    <div className={css({ display: 'flex', flexDirection: 'column', gap: '2' })}>
+      <h3 className={css({ margin: '0', textStyle: 'label' })}>{title}</h3>
+      <div className={css({ display: 'flex', flexWrap: 'wrap', gap: '2' })}>
         {refs.map((reference) => (
-          <button
-            key={reference.id}
-            type="button"
-            onClick={() => onRemove(reference.id)}
-            className="bg-secondary hover:bg-secondary/80 rounded px-2 py-0.5 text-xs"
-          >
-            {reference.label} ✕
-          </button>
+          <Tag key={reference.id} onRemove={() => onRemove(reference.id)}>
+            {reference.label}
+          </Tag>
         ))}
       </div>
     </div>
@@ -65,15 +66,36 @@ function OutputGrid({ generation }: { readonly generation: ImageGenerationRecord
     return null;
   }
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+    <div
+      className={css({
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+        gap: '2',
+        md: { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' },
+      })}
+    >
       {generation.outputs.map((output) => (
-        <a key={output.id} href={imageUrl(output.id)} target="_blank" rel="noreferrer" className="group block">
+        <a
+          key={output.id}
+          href={imageUrl(output.id)}
+          target="_blank"
+          rel="noreferrer"
+          className={css({ display: 'block' })}
+        >
           <img
             src={imageUrl(output.id)}
             alt={output.name}
-            className="bg-muted aspect-square w-full rounded object-cover"
+            className={css({
+              bg: 'surface-muted',
+              aspectRatio: 'square',
+              width: '100%',
+              borderRadius: 'xl',
+              objectFit: 'cover',
+            })}
           />
-          <div className="text-muted-foreground mt-1 truncate text-xs">{output.name}</div>
+          <div className={css({ textStyle: 'small', color: 'text-muted', marginBlockStart: '1', truncate: true })}>
+            {output.name}
+          </div>
         </a>
       ))}
     </div>
@@ -161,154 +183,172 @@ export default function ImageGeneratePage() {
 
   if (status.data !== undefined && !status.data.enabled) {
     return (
-      <div className="space-y-3">
-        <h1 className="text-xl font-semibold">{t('image.generate.title')}</h1>
-        <p className="text-muted-foreground text-sm">
+      <div>
+        <ListPageHeader title={t('image.generate.title')} />
+        <Alert tone="info">
           {t('image.generate.disabledIntro')}
-          <Link to="/image-settings" className="underline">
-            {t('image.generate.disabledLink')}
-          </Link>
-          .
-        </p>
+          <AppLink to="/image-settings">{t('image.generate.disabledLink')}</AppLink>
+        </Alert>
       </div>
     );
   }
 
+  const addPromptRef = (entry: { readonly id: string; readonly name: string }) =>
+    setPromptRefs((current) =>
+      current.some((reference) => reference.id === entry.id)
+        ? current
+        : [...current, { id: entry.id, label: entry.name }],
+    );
+  const addImageRef = (entry: { readonly id: string; readonly name: string }) =>
+    setImageRefs((current) =>
+      current.some((reference) => reference.id === entry.id)
+        ? current
+        : [...current, { id: entry.id, label: entry.name }],
+    );
+
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="image-prompt">{t('image.generate.promptLabel')}</Label>
-          <Textarea
-            id="image-prompt"
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            rows={6}
-            placeholder={t('image.generate.promptPlaceholder', {
-              promptRef: '{{prompt:…}}',
-              imageRef: '{{image:…}}',
-            })}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="space-y-1">
-            <Label>{t('image.generate.model')}</Label>
-            <select
-              className="border-input bg-background w-full rounded border px-2 py-1.5 text-sm"
-              value={modelId}
-              onChange={(event) => setModelId(event.target.value)}
-            >
-              <option value="">{t('image.generate.defaultModelOption')}</option>
-              {status.data?.models.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <Label>{t('image.generate.aspectRatio')}</Label>
-            <select
-              className="border-input bg-background w-full rounded border px-2 py-1.5 text-sm"
-              value={aspectRatio}
-              onChange={(event) => setAspectRatio(event.target.value)}
-            >
-              {ASPECT_RATIOS.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <Label>{t('image.generate.quality')}</Label>
-            <select
-              className="border-input bg-background w-full rounded border px-2 py-1.5 text-sm"
-              value={resolution}
-              onChange={(event) => setResolution(event.target.value)}
-            >
-              {RESOLUTIONS.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <Label>{t('image.generate.count')}</Label>
-            <Input
-              type="number"
-              min={1}
-              max={4}
-              value={outputCount}
-              onChange={(event) => setOutputCount(Math.min(4, Math.max(1, Number(event.target.value) || 1)))}
-            />
-          </div>
-        </div>
-        <div className="space-y-3 rounded border p-3">
-          <SelectedRefs
-            title={t('image.generate.selectedPromptRefs')}
-            refs={promptRefs}
-            onRemove={(id) => setPromptRefs((current) => current.filter((entry) => entry.id !== id))}
-          />
-          <SelectedRefs
-            title={t('image.generate.selectedImageRefs')}
-            refs={imageRefs}
-            onRemove={(id) => setImageRefs((current) => current.filter((entry) => entry.id !== id))}
-          />
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div className="space-y-1">
-              <div className="text-muted-foreground text-xs">{t('image.generate.promptAssets')}</div>
-              <div className="flex max-h-28 flex-wrap gap-1 overflow-y-auto">
-                {prompts.data?.items.map((entry) => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    className="bg-secondary hover:bg-secondary/80 rounded px-2 py-0.5 text-xs"
-                    onClick={() =>
-                      setPromptRefs((current) =>
-                        current.some((reference) => reference.id === entry.id)
-                          ? current
-                          : [...current, { id: entry.id, label: entry.name }],
-                      )
-                    }
-                  >
-                    {t('image.generate.addAssetRef', { name: entry.name })}
-                  </button>
-                ))}
+    <div>
+      <ListPageHeader title={t('image.generate.title')} />
+      <div
+        className={css({
+          display: 'grid',
+          gap: '6',
+          alignItems: 'start',
+          '@media (min-width: 1024px)': { gridTemplateColumns: 'minmax(0, 1fr) 360px' },
+        })}
+      >
+        <Card>
+          <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+            <Field label={t('image.generate.promptLabel')}>
+              <MarkdownInput
+                value={prompt}
+                onChange={setPrompt}
+                placeholder={t('image.generate.promptPlaceholder', {
+                  promptRef: '{{prompt:…}}',
+                  imageRef: '{{image:…}}',
+                })}
+              />
+            </Field>
+            {/* A container query measures an ancestor, never the element that declares it, so the grid needs a wrapper. */}
+            <div className={css({ containerType: 'inline-size' })}>
+              <div
+                className={css({
+                  display: 'grid',
+                  gap: '4',
+                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                  '@container (min-width: 640px)': { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' },
+                })}
+              >
+                <Field label={t('image.generate.model')}>
+                  <Select
+                    value={modelId}
+                    onChange={(event) => setModelId(event.target.value)}
+                    options={[
+                      { value: '', label: t('image.generate.defaultModelOption') },
+                      ...(status.data?.models ?? []).map((model) => ({ value: model.id, label: model.name })),
+                    ]}
+                  />
+                </Field>
+                <Field label={t('image.generate.aspectRatio')}>
+                  <Select
+                    value={aspectRatio}
+                    onChange={(event) => setAspectRatio(event.target.value)}
+                    options={ASPECT_RATIOS.map((value) => ({ value, label: value }))}
+                  />
+                </Field>
+                <Field label={t('image.generate.quality')}>
+                  <Select
+                    value={resolution}
+                    onChange={(event) => setResolution(event.target.value)}
+                    options={RESOLUTIONS.map((value) => ({ value, label: value }))}
+                  />
+                </Field>
+                <Field label={t('image.generate.count')}>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={4}
+                    value={outputCount}
+                    onChange={(event) => setOutputCount(Math.min(4, Math.max(1, Number(event.target.value) || 1)))}
+                  />
+                </Field>
               </div>
             </div>
-            <div className="space-y-1">
-              <div className="text-muted-foreground text-xs">{t('image.generate.referenceImages')}</div>
-              <div className="flex flex-wrap gap-2">
-                {assets.data?.items.slice(0, 8).map((entry) => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    title={t('image.generate.addAssetRef', { name: entry.name })}
-                    className="hover:ring-primary rounded ring-offset-2"
-                    onClick={() =>
-                      setImageRefs((current) =>
-                        current.some((reference) => reference.id === entry.id)
-                          ? current
-                          : [...current, { id: entry.id, label: entry.name }],
-                      )
-                    }
-                  >
-                    <img
-                      src={imageUrl(entry.id)}
-                      alt={entry.name}
-                      className="bg-muted h-10 w-10 rounded object-cover"
-                    />
-                  </button>
-                ))}
+            <SelectedRefs
+              title={t('image.generate.selectedPromptRefs')}
+              refs={promptRefs}
+              onRemove={(id) => setPromptRefs((current) => current.filter((entry) => entry.id !== id))}
+            />
+            <SelectedRefs
+              title={t('image.generate.selectedImageRefs')}
+              refs={imageRefs}
+              onRemove={(id) => setImageRefs((current) => current.filter((entry) => entry.id !== id))}
+            />
+            <div
+              className={css({ display: 'grid', gap: '4', md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } })}
+            >
+              <div className={css({ display: 'flex', flexDirection: 'column', gap: '2' })}>
+                <h3 className={css({ margin: '0', textStyle: 'label' })}>{t('image.generate.promptAssets')}</h3>
+                <div
+                  className={css({
+                    display: 'flex',
+                    maxHeight: '112px',
+                    flexWrap: 'wrap',
+                    gap: '2',
+                    overflowY: 'auto',
+                  })}
+                >
+                  {prompts.data?.items.map((entry) => (
+                    <Tag key={entry.id} icon={<PlusIcon />} onSelectedChange={() => addPromptRef(entry)}>
+                      {entry.name}
+                    </Tag>
+                  ))}
+                </div>
               </div>
-              <div>
+              <div className={css({ display: 'flex', flexDirection: 'column', gap: '2' })}>
+                <h3 className={css({ margin: '0', textStyle: 'label' })}>{t('image.generate.referenceImages')}</h3>
+                <div className={css({ display: 'flex', flexWrap: 'wrap', gap: '2' })}>
+                  {assets.data?.items.slice(0, 8).map((entry) => (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      title={t('image.generate.addAssetRef', { name: entry.name })}
+                      aria-label={t('image.generate.addAssetRef', { name: entry.name })}
+                      className={css({
+                        padding: '0',
+                        border: 'none',
+                        bg: 'transparent',
+                        borderRadius: 'lg',
+                        cursor: 'pointer',
+                        transitionProperty: 'outline-color',
+                        transitionDuration: 'fast',
+                        outline: '2px solid transparent',
+                        outlineOffset: '2px',
+                        _hover: { outlineColor: 'action' },
+                        _focusVisible: { outlineColor: 'focus-ring' },
+                      })}
+                      onClick={() => addImageRef(entry)}
+                    >
+                      <img
+                        src={imageUrl(entry.id)}
+                        alt={entry.name}
+                        className={css({
+                          display: 'block',
+                          bg: 'surface-muted',
+                          height: 'control-lg',
+                          width: 'control-lg',
+                          borderRadius: 'lg',
+                          objectFit: 'cover',
+                        })}
+                      />
+                    </button>
+                  ))}
+                </div>
                 <input
                   ref={fileInput}
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
-                  className="hidden"
+                  hidden
                   onChange={(event) => {
                     const file = event.target.files?.[0];
                     if (file !== undefined) {
@@ -318,56 +358,76 @@ export default function ImageGeneratePage() {
                   }}
                 />
                 <Button
-                  type="button"
                   variant="outline"
-                  size="sm"
+                  color="secondary"
+                  iconStart={<UploadIcon />}
+                  className={css({ alignSelf: 'flex-start' })}
+                  loading={upload.isPending}
+                  loadingLabel={t('common.uploading')}
                   onClick={() => fileInput.current?.click()}
-                  disabled={upload.isPending}
                 >
-                  {upload.isPending ? t('common.uploading') : t('image.generate.uploadReference')}
+                  {t('image.generate.uploadReference')}
                 </Button>
               </div>
             </div>
+            {resolved !== null && (
+              <div className={css({ display: 'flex', flexDirection: 'column', gap: '2' })}>
+                <h3 className={css({ margin: '0', textStyle: 'label' })}>{t('image.generate.resolvedPromptLabel')}</h3>
+                <pre
+                  className={css({
+                    margin: '0',
+                    padding: '4',
+                    borderRadius: 'xl',
+                    bg: 'surface-muted',
+                    fontFamily: 'mono',
+                    whiteSpace: 'pre-wrap',
+                    overflowWrap: 'anywhere',
+                  })}
+                >
+                  {resolved}
+                </pre>
+              </div>
+            )}
+            <div className={css({ display: 'flex', flexWrap: 'wrap', gap: '2' })}>
+              <Button
+                loading={submit.isPending}
+                loadingLabel={t('common.submitting')}
+                disabled={prompt.trim() === ''}
+                onClick={() => submit.mutate()}
+              >
+                {t('image.generate.generate')}
+              </Button>
+              <Button
+                variant="outline"
+                color="secondary"
+                loading={resolvePreview.isPending}
+                loadingLabel={t('image.generate.resolving')}
+                disabled={prompt.trim() === ''}
+                onClick={() => resolvePreview.mutate()}
+              >
+                {t('image.generate.resolvePreview')}
+              </Button>
+            </div>
           </div>
-        </div>
-        <div className="flex gap-2">
-          <Button type="button" onClick={() => submit.mutate()} disabled={submit.isPending || prompt.trim() === ''}>
-            {submit.isPending ? t('common.submitting') : t('image.generate.generate')}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => resolvePreview.mutate()}
-            disabled={resolvePreview.isPending || prompt.trim() === ''}
-          >
-            {resolvePreview.isPending ? t('image.generate.resolving') : t('image.generate.resolvePreview')}
-          </Button>
-        </div>
-        {resolved !== null && (
-          <div className="bg-muted space-y-1 rounded p-3">
-            <div className="text-muted-foreground text-xs">{t('image.generate.resolvedPromptLabel')}</div>
-            <pre className="text-xs whitespace-pre-wrap">{resolved}</pre>
-          </div>
-        )}
-      </div>
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium">{t('image.generate.outputsTitle')}</h2>
-          {pending !== null && (
-            <Link
-              to="/image-generations/$generationId"
-              params={{ generationId: pending.id }}
-              className="text-xs underline"
-            >
-              {t('image.generate.auditDetail')}
-            </Link>
+        </Card>
+        <Card
+          title={t('image.generate.outputsTitle')}
+          {...(pending === null
+            ? {}
+            : {
+                footer: (
+                  <AppLink to="/image-generations/$generationId" params={{ generationId: pending.id }}>
+                    {t('image.generate.auditDetail')}
+                  </AppLink>
+                ),
+              })}
+        >
+          {pending === null ? (
+            <p className={css({ margin: '0', color: 'text-muted' })}>{t('image.generate.outputsPlaceholder')}</p>
+          ) : (
+            <OutputGrid generation={pending} />
           )}
-        </div>
-        {pending === null ? (
-          <p className="text-muted-foreground text-sm">{t('image.generate.outputsPlaceholder')}</p>
-        ) : (
-          <OutputGrid generation={pending} />
-        )}
+        </Card>
       </div>
     </div>
   );

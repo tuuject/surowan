@@ -112,7 +112,7 @@ printf '%s' "$NEW_PROMPT" | surowan-utils prompt save global --file - --json
 
 - **账号与凭据管理**：管理员用户名/密码、Passkey、API key 的创建、权限修改、轮换与撤销只允许在浏览器面板完成；API key 自身永远不能管理这些。
 - **Passkey 注册与登录**需要浏览器 WebAuthn authenticator，CLI 无法完成。
-- **面板前端专属的本地偏好**（主题、语言、是否显示 config.jsonc 键名）只存在浏览器 `localStorage`，没有服务端接口。
+- **面板前端专属的本地偏好**（主题、语言）只存在浏览器 `localStorage`，没有服务端接口。
 - 除上述之外，面板的每个可授权 `/api` 路由都有对应命令；`surowan-utils commands` 的输出就是完整清单，两者不一致即为缺陷。
 
 ## 报告

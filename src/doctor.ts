@@ -171,7 +171,7 @@ async function runDoctorChecks(
             },
           ],
         },
-        doctorReasoning(visionModel, 'low'),
+        doctorReasoning(visionModel, config.vision.thinking_level ?? 'off'),
       );
     }
 

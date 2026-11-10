@@ -1,34 +1,69 @@
+import { Card } from '@tuuject/koi-react/card';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
-import { Card, CardContent, CardTitle } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
+import { type ReactElement, useId } from 'react';
 
 /**
- * A page area framed by one card: title and optional trailing action. The
- * header keeps a fixed minimum height so panels in the same row start their
- * content on the same line whether or not they carry an action. Content inside
- * must not add another frame — pass `flush` for a table so it runs edge to
- * edge under the header instead of nesting a border.
+ * One named area of a dashboard, settings or detail page. Independent summaries
+ * and settings groups use a Koi Card; sections of one continuous workspace use
+ * the plain variant and let spacing or dividers establish their hierarchy.
+ * Never nest Cards. The title names the region for assistive navigation.
  */
 export function Panel({
   title,
+  description,
   action,
-  flush = false,
   children,
   className,
+  variant = 'card',
 }: {
-  readonly title: string;
+  readonly title: React.ReactNode;
+  readonly description?: React.ReactNode;
   readonly action?: React.ReactNode;
-  readonly flush?: boolean;
-  readonly children: React.ReactNode;
+  readonly children?: React.ReactNode;
   readonly className?: string;
-}): React.ReactElement {
+  readonly variant?: 'card' | 'plain';
+}): ReactElement {
+  const titleId = useId();
+  const Root = variant === 'plain' ? 'section' : Card;
   return (
-    <Card className={cn('gap-4', flush && 'overflow-hidden pt-4 pb-0', className)}>
-      <div className="flex min-h-9 items-center justify-between gap-3 px-6">
-        <CardTitle>{title}</CardTitle>
-        {action}
+    <Root role="region" aria-labelledby={titleId} className={cx(css({ minWidth: '0' }), className)}>
+      <div className={css({ display: 'flex', flexDirection: 'column', gap: '5', minWidth: '0' })}>
+        <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '3' })}>
+          <div
+            className={css({ display: 'flex', flexDirection: 'column', gap: '1', flex: '1 1 240px', minWidth: '0' })}
+          >
+            <h2
+              id={titleId}
+              className={css({ margin: '0', textStyle: 'heading-3', color: 'text', overflowWrap: 'anywhere' })}
+            >
+              {title}
+            </h2>
+            {description === undefined ? null : (
+              <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted', overflowWrap: 'anywhere' })}>
+                {description}
+              </p>
+            )}
+          </div>
+          {action === undefined ? null : (
+            <div
+              className={css({
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                gap: '2',
+                flex: '0 1 auto',
+                minWidth: '0',
+              })}
+            >
+              {action}
+            </div>
+          )}
+        </div>
+        {children === null || children === undefined || children === false ? null : (
+          <div className={css({ minWidth: '0' })}>{children}</div>
+        )}
       </div>
-      <CardContent className={cn(flush && 'px-0')}>{children}</CardContent>
-    </Card>
+    </Root>
   );
 }

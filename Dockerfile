@@ -113,8 +113,6 @@ COPY --from=builder --chown=surowan:surowan /app/packages/admin-surface/package.
 COPY --from=builder --chown=surowan:surowan /app/packages/admin-surface/dist ./packages/admin-surface/dist
 COPY --from=builder --chown=surowan:surowan /app/skills ./skills
 COPY --from=builder --chown=surowan:surowan /app/apps/admin-next/dist ./apps/admin-next/dist
-COPY --from=builder --chown=surowan:surowan /app/apps/admin-next/LICENSE ./apps/admin-next/LICENSE
-COPY --from=builder --chown=surowan:surowan /app/apps/admin-next/NOTICE ./apps/admin-next/NOTICE
 COPY --from=builder --chown=surowan:surowan /app/package.json ./package.json
 
 # The release workflow passes the image's version as a build arg. The channel is

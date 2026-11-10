@@ -1,12 +1,13 @@
+import { Badge } from '@tuuject/koi-react/badge';
+import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
+import type { ReactElement } from 'react';
 import { stateColor } from '@/lib/format';
-import { cn } from '@/lib/utils';
 
 /**
  * State badge: maps the Ant Design color names emitted by `stateColor`
- * (`lib/format.ts`) onto semantic variants. The state → color table stays in
- * `lib/format.ts`; this component only translates colors to Tailwind classes.
- * Unknown states and unknown colors fall back to the neutral variant.
+ * (`lib/format.ts`) onto Koi badge tones. The state → colour table stays in
+ * `lib/format.ts`; unknown states and unknown colours fall back to neutral.
  */
 
 export type BadgeSemantic = 'success' | 'info' | 'warning' | 'danger' | 'neutral';
@@ -25,19 +26,20 @@ const LEGACY_COLOR_TO_SEMANTIC: Record<string, BadgeSemantic> = {
   default: 'neutral',
 };
 
-const SEMANTIC_CLASSES: Record<BadgeSemantic, string> = {
-  success: 'border-success/40 bg-success/10 text-success',
-  info: 'border-info/40 bg-info/10 text-info',
-  warning: 'border-warning/40 bg-warning/10 text-warning',
-  danger: 'border-danger/40 bg-danger/10 text-danger',
-  neutral: 'border-border bg-muted text-muted-foreground',
-};
+/** Koi has primary / warning / error / neutral; success and info are both informational here. */
+const KOI_TONE = {
+  success: 'primary',
+  info: 'primary',
+  warning: 'warning',
+  danger: 'error',
+  neutral: 'neutral',
+} as const;
 
 export function stateBadgeSemantic(state: string): BadgeSemantic {
   return LEGACY_COLOR_TO_SEMANTIC[stateColor(state)] ?? 'neutral';
 }
 
-/** Pill badge in one of the semantic tones; colors come from theme tokens only. */
+/** Pill badge in one of the semantic tones; colours come from Koi's token set only. */
 export function ToneBadge({
   tone,
   children,
@@ -46,17 +48,11 @@ export function ToneBadge({
   readonly tone: BadgeSemantic;
   readonly children: React.ReactNode;
   readonly className?: string;
-}): React.ReactElement {
+}): ReactElement {
   return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap',
-        SEMANTIC_CLASSES[tone],
-        className,
-      )}
-    >
+    <Badge tone={KOI_TONE[tone]} {...(className === undefined ? {} : { className })}>
       {children}
-    </span>
+    </Badge>
   );
 }
 
@@ -66,9 +62,9 @@ export function StateBadge({
 }: {
   readonly state: string | null;
   readonly className?: string;
-}): React.ReactElement {
+}): ReactElement {
   if (state === null || state.length === 0) {
-    return <span className="text-muted-foreground">—</span>;
+    return <span className={css({ color: 'text-muted' })}>—</span>;
   }
   return (
     <ToneBadge tone={stateBadgeSemantic(state)} {...(className !== undefined ? { className } : {})}>

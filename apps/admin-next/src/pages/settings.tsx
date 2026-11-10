@@ -1,21 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { Field } from '@tuuject/koi-react/field';
+import { Input } from '@tuuject/koi-react/input';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { type ReactElement, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
-import { KvList, MonoValue, PasskeysCard, ToneBadge } from '@/components/business';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-
+import { KvList, ListPageHeader, MonoValue, PasskeysCard, ToneBadge } from '@/components/business';
+import { Panel } from '@/components/layout/panel';
+import { updateCredentials } from '@/lib/api/auth.ts';
+import type { ConfigApplyResponse } from '@/lib/api/config.ts';
+import { applyConfigFile } from '@/lib/api/config.ts';
+import type { Credentials } from '@/lib/api/core.ts';
+import { ApiError } from '@/lib/api/core.ts';
 import { errorMessage } from '@/lib/errors';
 import { configStatusQuery, passkeysQuery, sessionQuery } from '@/lib/queries';
 import { useProviderWrite } from '@/lib/use-provider-write';
-import { ApiError } from '@/lib/api/core.ts';
-import type { Credentials } from '@/lib/api/core.ts';
-import { applyConfigFile } from '@/lib/api/config.ts';
-import type { ConfigApplyResponse } from '@/lib/api/config.ts';
-import { updateCredentials } from '@/lib/api/auth.ts';
 
 function shortHash(hash: string): string {
   return hash.slice(0, 12);
@@ -27,18 +28,17 @@ function PathList({
 }: {
   readonly paths: readonly string[];
   readonly noneLabel: string;
-}): React.ReactElement {
+}): ReactElement {
   if (paths.length === 0) {
-    return <span className="text-muted-foreground">{noneLabel}</span>;
+    return <span className={css({ color: 'text-muted' })}>{noneLabel}</span>;
   }
   return <MonoValue value={paths.join(', ')} />;
 }
 
-function AppliedResult({ result }: { readonly result: ConfigApplyResponse }): React.ReactElement {
+function AppliedResult({ result }: { readonly result: ConfigApplyResponse }): ReactElement {
   const { t } = useTranslation();
   return (
     <KvList
-      className="mt-3"
       items={[
         {
           label: t('models.settings.applied'),
@@ -57,7 +57,7 @@ function AppliedResult({ result }: { readonly result: ConfigApplyResponse }): Re
   );
 }
 
-export default function SettingsPage(): React.ReactElement {
+export default function SettingsPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const write = useProviderWrite();
@@ -121,116 +121,121 @@ export default function SettingsPage(): React.ReactElement {
   const current = status.data;
 
   return (
-    <div className="max-w-lg space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('models.settings.adminCredentials')}</CardTitle>
-          <CardDescription>{t('models.settings.adminCredentialsDescription')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">{t('models.settings.newUsername')}</Label>
-              <Input
-                id="username"
-                autoComplete="username"
-                {...register('username', {
-                  required: t('models.settings.usernameRequired'),
-                  pattern: {
-                    value: /^[A-Za-z0-9._-]{3,32}$/,
-                    message: t('models.settings.usernamePattern'),
-                  },
-                })}
-              />
-              {errors.username && <p className="text-destructive text-sm">{errors.username.message}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">{t('models.settings.newPassword')}</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="new-password"
-                {...register('password', {
-                  required: t('models.settings.passwordRequired'),
-                  minLength: { value: 12, message: t('models.settings.passwordMin') },
-                })}
-              />
-              {errors.password && <p className="text-destructive text-sm">{errors.password.message}</p>}
-            </div>
-            {success && <p className="text-success text-sm">{t('models.settings.credentialsUpdated')}</p>}
-            {failure && <p className="text-destructive text-sm">{failure}</p>}
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? t('models.settings.updating') : t('models.settings.updateCredentials')}
+    // A form page reads in one column, as the template's 个人设置: the header and every card share it.
+    <div className={css({ maxWidth: '768px', marginInline: 'auto', '& > * + *': { marginBlockStart: '6' } })}>
+      <ListPageHeader title={t('layout.nav.settings')} />
+      <Panel
+        title={t('models.settings.adminCredentials')}
+        description={t('models.settings.adminCredentialsDescription')}
+      >
+        <form
+          noValidate
+          onSubmit={handleSubmit(onSubmit)}
+          className={css({ display: 'flex', flexDirection: 'column', gap: '4', maxWidth: '480px' })}
+        >
+          <Field label={t('models.settings.newUsername')} error={errors.username?.message}>
+            <Input
+              autoComplete="username"
+              {...register('username', {
+                required: t('models.settings.usernameRequired'),
+                pattern: {
+                  value: /^[A-Za-z0-9._-]{3,32}$/,
+                  message: t('models.settings.usernamePattern'),
+                },
+              })}
+            />
+          </Field>
+          <Field label={t('models.settings.newPassword')} error={errors.password?.message}>
+            <Input
+              type="password"
+              autoComplete="new-password"
+              {...register('password', {
+                required: t('models.settings.passwordRequired'),
+                minLength: { value: 12, message: t('models.settings.passwordMin') },
+              })}
+            />
+          </Field>
+          {success ? (
+            <p role="status" className={css({ margin: '0', color: 'text-brand' })}>
+              {t('models.settings.credentialsUpdated')}
+            </p>
+          ) : null}
+          {failure === null ? null : <Alert tone="error">{failure}</Alert>}
+          <div className={css({ display: 'flex', gap: '2', marginBlockStart: '2' })}>
+            <Button
+              type="submit"
+              loading={isSubmitting || mutation.isPending}
+              loadingLabel={t('models.settings.updating')}
+            >
+              {t('models.settings.updateCredentials')}
             </Button>
-          </form>
-        </CardContent>
-      </Card>
+          </div>
+        </form>
+      </Panel>
 
       {session.data?.passkeys_enabled === true ? <PasskeysCard /> : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('models.settings.configFile')}</CardTitle>
-          <CardDescription>{t('models.settings.configFileDescription')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {status.isPending ? (
-            <p className="text-muted-foreground text-sm">{t('common.loading')}</p>
-          ) : status.isError || current === undefined ? (
-            <p className="text-destructive text-sm break-words">{errorMessage(status.error)}</p>
-          ) : (
-            <>
-              <KvList
-                items={[
-                  { label: t('models.settings.generation'), value: current.generation },
-                  {
-                    label: t('models.settings.activeHash'),
-                    value: <MonoValue value={shortHash(current.active_hash)} />,
-                  },
-                  { label: t('models.settings.fileHash'), value: <MonoValue value={shortHash(current.file_hash)} /> },
-                  {
-                    label: t('models.settings.activeConfig'),
-                    value:
-                      current.active_hash === current.file_hash ? (
-                        <ToneBadge tone="success">{t('models.settings.matchesFile')}</ToneBadge>
-                      ) : (
-                        <ToneBadge tone="warning">{t('models.settings.fileHasChanges')}</ToneBadge>
-                      ),
-                  },
-                  {
-                    label: t('models.settings.restartRequired'),
-                    value: <PathList paths={current.restart_required} noneLabel={t('models.settings.none')} />,
-                  },
-                  {
-                    label: t('models.settings.lastError'),
-                    value:
-                      current.last_error === null ? (
-                        <span className="text-muted-foreground">{t('models.settings.none')}</span>
-                      ) : (
-                        <span className="text-destructive">
-                          {current.last_error.code}: {current.last_error.message} ({current.last_error.at})
-                        </span>
-                      ),
-                  },
-                ]}
-              />
-              <div className="mt-4">
-                <Button
-                  type="button"
-                  disabled={applyMutation.isPending}
-                  onClick={() => {
-                    applyMutation.mutate();
-                  }}
-                >
-                  {applyMutation.isPending ? t('models.settings.applying') : t('models.settings.applyConfigFile')}
-                </Button>
-              </div>
-              {applyFailure !== null && <p className="text-destructive mt-3 text-sm break-words">{applyFailure}</p>}
-              {applyResult !== null && <AppliedResult result={applyResult} />}
-            </>
-          )}
-        </CardContent>
-      </Card>
+      <Panel
+        title={t('models.settings.configFile')}
+        description={t('models.settings.configFileDescription')}
+        action={
+          current === undefined ? undefined : (
+            <Button
+              variant="outline"
+              loading={applyMutation.isPending}
+              loadingLabel={t('models.settings.applying')}
+              onClick={() => applyMutation.mutate()}
+            >
+              {t('models.settings.applyConfigFile')}
+            </Button>
+          )
+        }
+      >
+        {status.isPending ? (
+          <p className={css({ margin: '0', color: 'text-muted' })}>{t('common.loading')}</p>
+        ) : status.isError || current === undefined ? (
+          <Alert tone="error">{errorMessage(status.error)}</Alert>
+        ) : (
+          <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+            <KvList
+              items={[
+                { label: t('models.settings.generation'), value: current.generation },
+                {
+                  label: t('models.settings.activeHash'),
+                  value: <MonoValue value={shortHash(current.active_hash)} />,
+                },
+                { label: t('models.settings.fileHash'), value: <MonoValue value={shortHash(current.file_hash)} /> },
+                {
+                  label: t('models.settings.activeConfig'),
+                  value:
+                    current.active_hash === current.file_hash ? (
+                      <ToneBadge tone="success">{t('models.settings.matchesFile')}</ToneBadge>
+                    ) : (
+                      <ToneBadge tone="warning">{t('models.settings.fileHasChanges')}</ToneBadge>
+                    ),
+                },
+                {
+                  label: t('models.settings.restartRequired'),
+                  value: <PathList paths={current.restart_required} noneLabel={t('models.settings.none')} />,
+                },
+                {
+                  label: t('models.settings.lastError'),
+                  value:
+                    current.last_error === null ? (
+                      <span className={css({ color: 'text-muted' })}>{t('models.settings.none')}</span>
+                    ) : (
+                      <span className={css({ color: 'error-text' })}>
+                        {current.last_error.code}: {current.last_error.message}（{current.last_error.at}）
+                      </span>
+                    ),
+                },
+              ]}
+            />
+            {applyFailure === null ? null : <Alert tone="error">{applyFailure}</Alert>}
+            {applyResult === null ? null : <AppliedResult result={applyResult} />}
+          </div>
+        )}
+      </Panel>
     </div>
   );
 }

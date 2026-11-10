@@ -1,6 +1,7 @@
 import type { warnings as warningsEn } from '../../en/pages/warnings.ts';
 
 export const warnings: typeof warningsEn = {
+  pageDescription: '需要处理的常态警告，以及事件警告的历史记录。',
   standingTitle: '常态警告',
   eventsTitle: '事件警告',
   unreadCount: '{{count}} 条未读',
@@ -14,7 +15,6 @@ export const warnings: typeof warningsEn = {
   clearConfirm: '清空警告',
   cleared: '已清空 {{count}} 条警告',
   loadFailed: '加载警告失败',
-  loadMore: '加载更多',
   noStanding: '当前没有常态警告。',
   noEvents: '还没有事件警告。',
   missingFields: '缺少：{{fields}}',

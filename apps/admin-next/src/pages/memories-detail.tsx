@@ -1,3 +1,5 @@
+import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { memoryBlobContentPath } from '@/lib/api/memories.ts';
 
 type DetailPart = { readonly key: string } & (
@@ -38,9 +40,16 @@ function splitDetail(detail: string): readonly DetailPart[] {
   return parts;
 }
 
-export function MemoryDetail({ detail }: { readonly detail: string }): React.ReactElement {
+export function MemoryDetail({ detail }: { readonly detail: string }): ReactElement {
   return (
-    <div className="space-y-2 text-sm leading-relaxed break-words whitespace-pre-wrap">
+    <div
+      className={css({
+        textStyle: 'body',
+        '& > :not(:last-child)': { marginBlockEnd: '2' },
+        overflowWrap: 'anywhere',
+        whiteSpace: 'pre-wrap',
+      })}
+    >
       {splitDetail(detail).map((part) => {
         if (part.kind === 'text') {
           return <span key={part.key}>{part.text}</span>;
@@ -52,7 +61,13 @@ export function MemoryDetail({ detail }: { readonly detail: string }): React.Rea
               src={memoryBlobContentPath(part.id)}
               alt={part.alt}
               loading="lazy"
-              className="max-h-80 max-w-full rounded-md border"
+              className={css({
+                maxHeight: '320px',
+                maxWidth: '100%',
+                borderRadius: 'lg',
+                borderWidth: '1px',
+                borderColor: 'border',
+              })}
             />
           );
         }
@@ -62,7 +77,7 @@ export function MemoryDetail({ detail }: { readonly detail: string }): React.Rea
             href={memoryBlobContentPath(part.id)}
             target="_blank"
             rel="noreferrer"
-            className="text-primary underline break-all"
+            className={css({ color: 'text-brand', textDecorationLine: 'underline', wordBreak: 'break-all' })}
           >
             {`pwblob://${part.id}`}
           </a>

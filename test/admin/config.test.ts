@@ -160,6 +160,10 @@ test('model API lists and switches the agent model through the config file', asy
       applied: ['agent.model', 'agent.provider', 'agent.thinking_level'],
       restart_required: [],
     });
+    // The response carries the revision this write produced, so a caller can
+    // chain its next write without reading the view in between.
+    expect(switched.revision).toBe(await readConfigRevision(configPath));
+    expect(switched.revision).not.toBe(revision);
 
     const malformed = await server.handle(switchModel({ provider: 'vision' }));
     expect(malformed.status).toBe(400);

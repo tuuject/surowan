@@ -2,6 +2,8 @@ import type { common as commonEn } from '../en/common.ts';
 
 /** Mirrors `en/common.ts` key for key; the annotation fails the build on drift. */
 export const common: typeof commonEn = {
+  /** Joins short phrases in running text; a layout gap separates inline meta instead. */
+  separator: '，',
   loading: '加载中…',
   noRecords: '暂无记录',
   cancel: '取消',
@@ -13,6 +15,7 @@ export const common: typeof commonEn = {
   delete: '删除',
   create: '创建',
   edit: '编辑',
+  view: '查看',
   submit: '提交',
   submitting: '提交中…',
   retry: '重试',

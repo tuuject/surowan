@@ -143,6 +143,11 @@ export function validateSemantics(config: FileConfig, options: ValidateSemantics
   const vision = activeVisionModel(config.vision);
   if (vision !== undefined) {
     validateModelReference(config, vision.provider, vision.model, 'vision', ['image']);
+    // Only an explicit level is checked; the default is derived from the model.
+    const visionLevel = config.vision?.thinking_level;
+    if (visionLevel !== undefined) {
+      validateAgentThinkingLevel(config, { ...vision, thinking_level: visionLevel }, 'vision');
+    }
   }
   if (
     (agent.provider !== undefined && !providerAliases.has(agent.provider)) ||

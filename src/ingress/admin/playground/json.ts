@@ -105,6 +105,16 @@ export function parseLimit(value: string | null): number {
   return limit;
 }
 
+export function parseOffset(value: string | null): number {
+  if (value === null || value.length === 0) {
+    return 0;
+  }
+  if (!/^(0|[1-9][0-9]{0,8})$/.test(value)) {
+    throw new PlaygroundAdminError('invalid_offset', 'offset must be a canonical non-negative decimal', 400);
+  }
+  return Number(value);
+}
+
 export function playgroundErrorResponse(error: unknown): PlaygroundAdminResponse {
   if (error instanceof PlaygroundAdminError) {
     return { kind: 'json', status: error.status, body: { error: error.code, message: error.message } };

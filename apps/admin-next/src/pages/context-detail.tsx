@@ -1,6 +1,7 @@
-import { ToolResult } from '@/components/invocations/tool-result';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { Empty } from '@tuuject/koi-react/empty';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
@@ -8,59 +9,55 @@ import {
   DetailSkeleton,
   JsonViewer,
   KvList,
+  ListPageHeader,
   MonoValue,
   TableShell,
   TextValue,
   ToneBadge,
 } from '@/components/business';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
-
-import { formatNumber, formatTime } from '@/lib/format';
-import { conversationContextQuery } from '@/lib/queries';
+import { ToolResult } from '@/components/invocations/tool-result';
+import { Panel } from '@/components/layout/panel';
+import { AppLink } from '@/components/router-links';
 import type {
   ConversationContextDetail,
   ConversationContextMessageEntry,
   ConversationContextRefEntry,
 } from '@/lib/api/contexts.ts';
+import { formatNumber, formatTime } from '@/lib/format';
+import { conversationContextQuery } from '@/lib/queries';
 
-function RoleBadge({ role }: { readonly role: string }): React.ReactElement {
+function RoleBadge({ role }: { readonly role: string }): ReactElement {
   return <ToneBadge tone="neutral">{role}</ToneBadge>;
 }
 
-function CheckpointBadge({ isCheckpoint }: { readonly isCheckpoint: boolean }): React.ReactElement {
+function CheckpointBadge({ isCheckpoint }: { readonly isCheckpoint: boolean }): ReactElement {
   const { t } = useTranslation();
   if (!isCheckpoint) {
-    return <span className="text-muted-foreground">—</span>;
+    return <span className={css({ color: 'text-muted' })}>—</span>;
   }
   return <ToneBadge tone="info">{t('invocations.contextDetail.checkpoint')}</ToneBadge>;
 }
 
-function InvocationLink({ id }: { readonly id: string | null }): React.ReactElement {
+function InvocationLink({ id }: { readonly id: string | null }): ReactElement {
   if (id === null) {
-    return <span className="text-muted-foreground">—</span>;
+    return <span className={css({ color: 'text-muted' })}>—</span>;
   }
   return (
-    <Link
-      to="/invocations/$invocationId"
-      params={{ invocationId: id }}
-      className="font-mono text-xs break-all underline-offset-4 hover:underline"
-    >
+    <AppLink to="/invocations/$invocationId" params={{ invocationId: id }}>
       {id}
-    </Link>
+    </AppLink>
   );
 }
 
-function RetainedMessages({ context }: { readonly context: ConversationContextDetail }): React.ReactElement {
+function RetainedMessages({ context }: { readonly context: ConversationContextDetail }): ReactElement {
   const { t } = useTranslation();
   if (context.messages.length === 0) {
     return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyTitle>{t('invocations.contextDetail.emptyMessages.title')}</EmptyTitle>
-          <EmptyDescription>{t('invocations.contextDetail.emptyMessages.description')}</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      <Empty
+        variant="plain"
+        title={t('invocations.contextDetail.emptyMessages.title')}
+        description={t('invocations.contextDetail.emptyMessages.description')}
+      />
     );
   }
   const MESSAGE_COLUMNS: readonly ColumnSpec<ConversationContextMessageEntry>[] = [
@@ -86,7 +83,7 @@ function RetainedMessages({ context }: { readonly context: ConversationContextDe
       title: t('invocations.contextDetail.messageColumns.sendSeq'),
       align: 'right',
       render: (row) =>
-        row.send_seq === null ? <span className="text-muted-foreground">—</span> : String(row.send_seq),
+        row.send_seq === null ? <span className={css({ color: 'text-muted' })}>—</span> : String(row.send_seq),
     },
     {
       key: 'est_tokens',
@@ -116,12 +113,16 @@ function RetainedMessages({ context }: { readonly context: ConversationContextDe
       data={context.messages}
       rowKey={(row) => String(row.seq)}
       expandedRender={(row) => (
-        <div className="space-y-2">
-          <p className="text-muted-foreground text-xs">{t('invocations.contextDetail.payloadPreview')}</p>
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+          <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+            {t('invocations.contextDetail.payloadPreview')}
+          </p>
           {row.result_content ? <ToolResult content={row.result_content} /> : null}
           <JsonViewer value={row.payload_preview} />
           {row.payload_truncated ? (
-            <p className="text-muted-foreground text-xs">{t('invocations.contextDetail.previewTruncated')}</p>
+            <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+              {t('invocations.contextDetail.previewTruncated')}
+            </p>
           ) : null}
         </div>
       )}
@@ -129,23 +130,22 @@ function RetainedMessages({ context }: { readonly context: ConversationContextDe
   );
 }
 
-function CapabilityRefs({ context }: { readonly context: ConversationContextDetail }): React.ReactElement {
+function CapabilityRefs({ context }: { readonly context: ConversationContextDetail }): ReactElement {
   const { t } = useTranslation();
   if (context.refs.length === 0) {
     return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyTitle>{t('invocations.contextDetail.emptyRefs.title')}</EmptyTitle>
-          <EmptyDescription>{t('invocations.contextDetail.emptyRefs.description')}</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      <Empty
+        variant="plain"
+        title={t('invocations.contextDetail.emptyRefs.title')}
+        description={t('invocations.contextDetail.emptyRefs.description')}
+      />
     );
   }
   const REF_COLUMNS: readonly ColumnSpec<ConversationContextRefEntry>[] = [
     {
       key: 'ref',
       title: t('invocations.contextDetail.refColumns.ref'),
-      render: (row) => <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs break-all">{row.ref}</code>,
+      render: (row) => <MonoValue value={row.ref} />,
     },
     {
       key: 'kind',
@@ -167,7 +167,7 @@ function CapabilityRefs({ context }: { readonly context: ConversationContextDeta
   return <TableShell columns={REF_COLUMNS} data={context.refs} rowKey={(row) => row.ref} />;
 }
 
-export function ContextDetailView({ id }: { readonly id: string }): React.ReactElement {
+export function ContextDetailView({ id }: { readonly id: string }): ReactElement {
   const { t } = useTranslation();
   const { data, isPending, isError, error } = useQuery(conversationContextQuery(id));
 
@@ -198,17 +198,10 @@ export function ContextDetailView({ id }: { readonly id: string }): React.ReactE
   }
 
   return (
-    <div className="space-y-4">
-      <Card className="gap-4 py-5">
-        <CardHeader className="flex-row items-start justify-between gap-4 px-5 py-0">
-          <CardTitle className="font-mono text-base break-all">
-            {t('invocations.contextDetail.title', { id: data.conversation_id })}
-          </CardTitle>
-          <Link to="/contexts" className="text-primary shrink-0 text-sm underline-offset-4 hover:underline">
-            {t('invocations.contextDetail.backToList')}
-          </Link>
-        </CardHeader>
-        <CardContent className="space-y-4 px-5 py-0">
+    <div className={css({ '& > * + *': { marginBlockStart: '6' } })}>
+      <ListPageHeader title={t('invocations.contextDetail.title', { id: data.conversation_id })} />
+      <Panel title={t('invocations.invocationDetail.summary')}>
+        <div>
           <KvList
             items={[
               {
@@ -240,24 +233,14 @@ export function ContextDetailView({ id }: { readonly id: string }): React.ReactE
               { label: t('invocations.contextDetail.kv.updated'), value: formatTime(data.updated_at) },
             ]}
           />
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('invocations.contextDetail.messagesTitle', { count: data.messages.length })}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RetainedMessages context={data} />
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('invocations.contextDetail.refsTitle', { count: data.refs.length })}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <CapabilityRefs context={data} />
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
+      <Panel title={t('invocations.contextDetail.messagesTitle', { count: data.messages.length })}>
+        <RetainedMessages context={data} />
+      </Panel>
+      <Panel title={t('invocations.contextDetail.refsTitle', { count: data.refs.length })}>
+        <CapabilityRefs context={data} />
+      </Panel>
     </div>
   );
 }

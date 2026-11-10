@@ -1,10 +1,13 @@
-import { Link } from '@tanstack/react-router';
-import { CircleAlert, TriangleAlert } from 'lucide-react';
+import { Button } from '@tuuject/koi-react/button';
+import { ErrorIcon, WarningIcon } from '@tuuject/koi-react/icons';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { sizes } from '@tuuject/koi-tokens/dimensions';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ToneBadge } from '@/components/business';
-import { Button } from '@/components/ui/button';
-import { formatTime } from '@/lib/format';
+import { ButtonLink } from '@/components/router-links';
 import type { EventWarning, WarningItem, WarningSeverity } from '@/lib/api/warnings.ts';
+import { formatTime } from '@/lib/format';
 
 function numberVariable(variables: Readonly<Record<string, unknown>>, key: string): number | null {
   const value = variables[key];
@@ -38,23 +41,27 @@ function severityTone(severity: WarningSeverity): 'warning' | 'danger' {
   return severity === 'critical' ? 'danger' : 'warning';
 }
 
-function WarningDetails({ warning }: { readonly warning: WarningItem }): React.ReactElement {
+function WarningDetails({ warning }: { readonly warning: WarningItem }): ReactElement {
   const { t } = useTranslation();
   const { variables } = warning;
   const lastFailedAt = stringVariable(variables, 'last_failed_at');
   switch (warning.code) {
     case 'developer_payload_recording':
       return (
-        <p className="text-muted-foreground text-sm">{t('pages.warnings.codes.developer_payload_recording.body')}</p>
+        <p className={css({ textStyle: 'body', color: 'text-muted' })}>
+          {t('pages.warnings.codes.developer_payload_recording.body')}
+        </p>
       );
     case 'agent_model_missing':
     case 'vision_model_missing': {
       const fields = stringListVariable(variables, 'missing_fields');
       return (
-        <div className="space-y-1">
-          <p className="text-muted-foreground text-sm">{t(`pages.warnings.codes.${warning.code}.body`)}</p>
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>
+            {t(`pages.warnings.codes.${warning.code}.body`)}
+          </p>
           {fields.length > 0 ? (
-            <p className="text-muted-foreground font-mono text-xs">
+            <p className={css({ textStyle: 'small', color: 'text-muted', fontFamily: 'mono' })}>
               {t('pages.warnings.missingFields', { fields: fields.join(', ') })}
             </p>
           ) : null}
@@ -67,8 +74,8 @@ function WarningDetails({ warning }: { readonly warning: WarningItem }): React.R
       const rate = numberVariable(variables, 'failure_rate');
       const threshold = numberVariable(variables, 'threshold');
       return (
-        <div className="space-y-1">
-          <p className="text-muted-foreground text-sm">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>
             {t('pages.warnings.codes.invocation_failure_rate.body', {
               failed: failed ?? '—',
               total: total ?? '—',
@@ -77,7 +84,7 @@ function WarningDetails({ warning }: { readonly warning: WarningItem }): React.R
             })}
           </p>
           {lastFailedAt !== null ? (
-            <p className="text-muted-foreground text-xs">
+            <p className={css({ textStyle: 'small', color: 'text-muted' })}>
               {t('pages.warnings.lastFailedAt', { time: formatTime(lastFailedAt) })}
             </p>
           ) : null}
@@ -87,12 +94,12 @@ function WarningDetails({ warning }: { readonly warning: WarningItem }): React.R
     case 'admin_login_failures': {
       const failures = numberVariable(variables, 'consecutive_failures');
       return (
-        <div className="space-y-1">
-          <p className="text-muted-foreground text-sm">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>
             {t('pages.warnings.codes.admin_login_failures.body', { count: failures ?? '—' })}
           </p>
           {lastFailedAt !== null ? (
-            <p className="text-muted-foreground text-xs">
+            <p className={css({ textStyle: 'small', color: 'text-muted' })}>
               {t('pages.warnings.lastFailedAt', { time: formatTime(lastFailedAt) })}
             </p>
           ) : null}
@@ -100,22 +107,28 @@ function WarningDetails({ warning }: { readonly warning: WarningItem }): React.R
       );
     }
     case 'telegram_network_error':
-      return <p className="text-muted-foreground text-sm">{t('pages.warnings.codes.telegram_network_error.body')}</p>;
+      return (
+        <p className={css({ textStyle: 'body', color: 'text-muted' })}>
+          {t('pages.warnings.codes.telegram_network_error.body')}
+        </p>
+      );
     case 'telegram_config_error': {
       const reason = stringVariable(variables, 'reason');
       const body =
         reason === 'unauthorized' || reason === 'conflict' || reason === 'token_unreadable'
           ? t(`pages.warnings.codes.telegram_config_error.body.${reason}`)
           : t('pages.warnings.codes.telegram_config_error.body.unknown');
-      return <p className="text-muted-foreground text-sm">{body}</p>;
+      return <p className={css({ textStyle: 'body', color: 'text-muted' })}>{body}</p>;
     }
     case 'api_key_invalid_permissions': {
       const names = invalidApiKeyLabels(variables);
       return (
-        <div className="space-y-1">
-          <p className="text-muted-foreground text-sm">{t('pages.warnings.codes.api_key_invalid_permissions.body')}</p>
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>
+            {t('pages.warnings.codes.api_key_invalid_permissions.body')}
+          </p>
           {names.length > 0 ? (
-            <p className="text-muted-foreground font-mono text-xs">
+            <p className={css({ textStyle: 'small', color: 'text-muted', fontFamily: 'mono' })}>
               {t('pages.warnings.invalidApiKeys', { keys: names.join(', ') })}
             </p>
           ) : null}
@@ -124,11 +137,21 @@ function WarningDetails({ warning }: { readonly warning: WarningItem }): React.R
     }
     default:
       return (
-        <div className="space-y-1">
-          <p className="text-muted-foreground text-sm">
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>
             {t('pages.warnings.codes.unknown.body', { code: warning.code })}
           </p>
-          <pre className="bg-muted max-h-40 overflow-auto rounded-md p-2 text-xs whitespace-pre-wrap">
+          <pre
+            className={css({
+              textStyle: 'small',
+              bg: 'surface-muted',
+              maxHeight: '160px',
+              overflow: 'auto',
+              borderRadius: 'lg',
+              padding: '2',
+              whiteSpace: 'pre-wrap',
+            })}
+          >
             {JSON.stringify(warning.variables, null, 2)}
           </pre>
         </div>
@@ -136,46 +159,46 @@ function WarningDetails({ warning }: { readonly warning: WarningItem }): React.R
   }
 }
 
-function WarningAction({ code }: { readonly code: string }): React.ReactElement | null {
+function WarningAction({ code }: { readonly code: string }): ReactElement | null {
   const { t } = useTranslation();
   switch (code) {
     case 'developer_payload_recording':
       return (
-        <Button asChild size="sm" variant="outline">
-          <Link to="/developer">{t('pages.warnings.actions.openDeveloper')}</Link>
-        </Button>
+        <ButtonLink to="/developer" variant="outline" color="secondary">
+          {t('pages.warnings.actions.openDeveloper')}
+        </ButtonLink>
       );
     case 'agent_model_missing':
     case 'vision_model_missing':
       return (
-        <Button asChild size="sm" variant="outline">
-          <Link to="/models">{t('pages.warnings.actions.openModels')}</Link>
-        </Button>
+        <ButtonLink to="/models" variant="outline" color="secondary">
+          {t('pages.warnings.actions.openModels')}
+        </ButtonLink>
       );
     case 'invocation_failure_rate':
       return (
-        <Button asChild size="sm" variant="outline">
-          <Link to="/invocations">{t('pages.warnings.actions.openInvocations')}</Link>
-        </Button>
+        <ButtonLink to="/invocations" variant="outline" color="secondary">
+          {t('pages.warnings.actions.openInvocations')}
+        </ButtonLink>
       );
     case 'admin_login_failures':
       return (
-        <Button asChild size="sm" variant="outline">
-          <Link to="/settings">{t('pages.warnings.actions.openSettings')}</Link>
-        </Button>
+        <ButtonLink to="/settings" variant="outline" color="secondary">
+          {t('pages.warnings.actions.openSettings')}
+        </ButtonLink>
       );
     case 'telegram_network_error':
     case 'telegram_config_error':
       return (
-        <Button asChild size="sm" variant="outline">
-          <Link to="/telegram">{t('pages.warnings.actions.openTelegram')}</Link>
-        </Button>
+        <ButtonLink to="/telegram" variant="outline" color="secondary">
+          {t('pages.warnings.actions.openTelegram')}
+        </ButtonLink>
       );
     case 'api_key_invalid_permissions':
       return (
-        <Button asChild size="sm" variant="outline">
-          <Link to="/api-keys">{t('pages.warnings.actions.openApiKeys')}</Link>
-        </Button>
+        <ButtonLink to="/api-keys" variant="outline" color="secondary">
+          {t('pages.warnings.actions.openApiKeys')}
+        </ButtonLink>
       );
     default:
       return null;
@@ -183,7 +206,7 @@ function WarningAction({ code }: { readonly code: string }): React.ReactElement 
 }
 
 /** Explicit cases keep the typed i18n catalog honest; unknown codes fall back to their raw variables. */
-function WarningTitle({ warning }: { readonly warning: WarningItem }): React.ReactElement {
+function WarningTitle({ warning }: { readonly warning: WarningItem }): ReactElement {
   const { t } = useTranslation();
   switch (warning.code) {
     case 'developer_payload_recording':
@@ -230,25 +253,34 @@ export function WarningCard({
   readonly warning: WarningItem;
   readonly onMarkRead?: (warning: EventWarning) => void;
   readonly pending?: boolean;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
-  const Icon = warning.severity === 'critical' ? CircleAlert : TriangleAlert;
+  const Icon = warning.severity === 'critical' ? ErrorIcon : WarningIcon;
   const event = warning.kind === 'event' ? warning : null;
   const unread = event !== null && event.read_at === null;
   return (
-    <div className="space-y-2 py-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' }, paddingBlock: '3' })}>
+      <div
+        className={css({
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: '3',
+        })}
+      >
+        <div className={css({ display: 'flex', minWidth: '0', alignItems: 'flex-start', gap: '3' })}>
           <Icon
-            className={
-              warning.severity === 'critical'
-                ? 'mt-0.5 size-5 shrink-0 text-danger'
-                : 'mt-0.5 size-5 shrink-0 text-warning'
-            }
+            size={sizes['icon-lg']}
+            className={css({
+              flexShrink: '0',
+              marginBlockStart: '1px',
+              color: warning.severity === 'critical' ? 'error-text' : 'warning-text',
+            })}
           />
-          <div className="min-w-0 space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-semibold">
+          <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+            <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
+              <h3 className={css({ textStyle: 'label' })}>
                 <WarningTitle warning={warning} />
               </h3>
               <ToneBadge tone={severityTone(warning.severity)}>
@@ -260,13 +292,13 @@ export function WarningCard({
             <WarningDetails warning={warning} />
           </div>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className={css({ display: 'flex', flexShrink: '0', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
           <WarningAction code={warning.code} />
           {unread ? (
             <Button
               type="button"
-              size="sm"
               variant="ghost"
+              color="secondary"
               disabled={pending}
               onClick={() => {
                 if (event !== null) {
@@ -280,11 +312,22 @@ export function WarningCard({
         </div>
       </div>
       {event !== null ? (
-        <p className="text-muted-foreground text-xs">
-          {t('pages.warnings.createdAt', { time: formatTime(event.created_at) })}
-          {' · '}
-          {t('pages.warnings.updatedAt', { time: formatTime(event.updated_at) })}
-          {event.read_at === null ? '' : ` · ${t('pages.warnings.readAt', { time: formatTime(event.read_at) })}`}
+        <p
+          className={css({
+            display: 'flex',
+            flexWrap: 'wrap',
+            columnGap: '4',
+            rowGap: '1',
+            margin: '0',
+            textStyle: 'small',
+            color: 'text-muted',
+          })}
+        >
+          <span>{t('pages.warnings.createdAt', { time: formatTime(event.created_at) })}</span>
+          <span>{t('pages.warnings.updatedAt', { time: formatTime(event.updated_at) })}</span>
+          {event.read_at === null ? null : (
+            <span>{t('pages.warnings.readAt', { time: formatTime(event.read_at) })}</span>
+          )}
         </p>
       ) : null}
     </div>

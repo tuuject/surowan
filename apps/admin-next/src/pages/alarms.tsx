@@ -1,69 +1,72 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
+import { Button, IconButton } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { type ReactElement, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ChatFilter,
   type ColumnSpec,
   ConfirmDialog,
   CursorList,
-  FilterToolbar,
   KvList,
+  ListPageHeader,
+  ListSearchForm,
   MonoValue,
-  SelectFilter,
+  QuerySelectField,
+  QueryTextField,
+  RowActions,
   StateBadge,
   TableShell,
-  TextFilter,
   TextValue,
 } from '@/components/business';
-import { Button } from '@/components/ui/button';
-
+import { CancelIcon, EyeIcon } from '@/components/icons';
+import { AppLink } from '@/components/router-links';
+import type { AlarmListItem } from '@/lib/api/alarms.ts';
+import { cancelAlarm } from '@/lib/api/alarms.ts';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
+import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { alarmsQuery } from '@/lib/queries';
-import { useChatScope, useChatScopeSetter } from '@/lib/search-params';
-import { useTranslation } from 'react-i18next';
-import { cancelAlarm } from '@/lib/api/alarms.ts';
-import type { AlarmListItem } from '@/lib/api/alarms.ts';
+import { toast } from '@/lib/toast.ts';
 
 const ALARM_STATES = ['pending', 'firing', 'fired', 'cancelled'] as const;
+const EMPTY_FILTERS = { state: '', chat: '', target: '' };
 
-function ChatCell({ row }: { readonly row: AlarmListItem }): React.ReactElement {
+function ChatCell({ row }: { readonly row: AlarmListItem }): ReactElement {
   const { t } = useTranslation();
   return (
-    <div className="min-w-0 space-y-0.5">
-      <div className="font-medium">{row.chat.title ?? row.chat.telegram_chat_id}</div>
-      <div className="text-muted-foreground text-xs">
-        {row.chat.telegram_chat_id}
-        {row.chat.message_thread_id === '0' ? '' : t('pages.alarms.topicSuffix', { topic: row.chat.message_thread_id })}
+    <div className={css({ minWidth: '0' })}>
+      <div className={css({ truncate: true })}>{row.chat.title ?? row.chat.telegram_chat_id}</div>
+      <div className={css({ display: 'flex', gap: '2', textStyle: 'small', color: 'text-muted' })}>
+        <span>{row.chat.telegram_chat_id}</span>
+        {row.chat.message_thread_id === '0' ? null : (
+          <span>{t('invocations.invocations.topicLabel', { id: row.chat.message_thread_id })}</span>
+        )}
       </div>
     </div>
   );
 }
 
-function TargetCell({ row }: { readonly row: AlarmListItem }): React.ReactElement {
+function TargetCell({ row }: { readonly row: AlarmListItem }): ReactElement {
   return (
-    <div className="min-w-0 space-y-0.5">
-      <div className="font-medium">{row.target_display_name}</div>
-      <div className="text-muted-foreground text-xs">{row.target_user_id}</div>
+    <div className={css({ minWidth: '0' })}>
+      <div className={css({ truncate: true })}>{row.target_display_name}</div>
+      <div className={css({ textStyle: 'small', color: 'text-muted' })}>{row.target_user_id}</div>
     </div>
   );
 }
 
-function InvocationLink({ id }: { readonly id: string }): React.ReactElement {
+function InvocationLink({ id }: { readonly id: string }): ReactElement {
   const { t } = useTranslation();
   return (
-    <Link
-      to="/invocations/$invocationId"
-      params={{ invocationId: id }}
-      className="font-mono text-xs break-all underline-offset-4 hover:underline"
-    >
+    <AppLink to="/invocations/$invocationId" params={{ invocationId: id }}>
       {t('pages.alarms.toolSession', { id })}
-    </Link>
+    </AppLink>
   );
 }
 
-function AlarmDetails({ row }: { readonly row: AlarmListItem }): React.ReactElement {
+function AlarmDetails({ row }: { readonly row: AlarmListItem }): ReactElement {
   const { t } = useTranslation();
   const createdBy = row.created_by_invocation_id;
   const fired = `${formatTime(row.fired_at)}${row.invocation_outcome === null ? '' : t('pages.alarms.outcomeSuffix', { outcome: row.invocation_outcome })}${row.completion_reason === null ? '' : t('pages.alarms.firedReasonSuffix', { reason: row.completion_reason })}`;
@@ -81,7 +84,7 @@ function AlarmDetails({ row }: { readonly row: AlarmListItem }): React.ReactElem
         { label: t('pages.alarms.labelTargetUserId'), value: <MonoValue value={row.target_user_id} /> },
         {
           label: t('pages.alarms.labelSummary'),
-          value: <span className="text-wrap whitespace-pre-wrap">{row.summary}</span>,
+          value: <span className={css({ textWrap: 'wrap', whiteSpace: 'pre-wrap' })}>{row.summary}</span>,
         },
         {
           label: t('pages.alarms.labelCreated'),
@@ -99,21 +102,24 @@ function AlarmDetails({ row }: { readonly row: AlarmListItem }): React.ReactElem
   );
 }
 
-export default function AlarmsPage(): React.ReactElement {
+export default function AlarmsPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [state, setState] = useState<string | undefined>(undefined);
-  const chat = useChatScope();
-  const navigate = useNavigate({ from: '/alarms' });
-  const setChat = useChatScopeSetter(navigate);
-  const [target, setTarget] = useState<string | undefined>(undefined);
+  const query = useListQuery(EMPTY_FILTERS);
+  const { state, chat, target } = query.value;
+  const [viewing, setViewing] = useState<AlarmListItem | null>(null);
+  const [viewOpen, setViewOpen] = useState(false);
   const [cancelling, setCancelling] = useState<AlarmListItem | null>(null);
-  const filters = useMemo(() => ({ state, chat, target }), [state, chat, target]);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const filters = useMemo(
+    () => ({ state: optionalQuery(state), chat: chatQuery(chat), target: optionalQuery(target) }),
+    [state, chat, target],
+  );
 
   const cancel = useMutation({
     mutationFn: cancelAlarm,
     onSuccess: () => {
-      setCancelling(null);
+      setCancelOpen(false);
       toast.success(t('pages.alarms.alarmCancelled'));
       void queryClient.invalidateQueries({ queryKey: ['alarms'] });
     },
@@ -126,74 +132,126 @@ export default function AlarmsPage(): React.ReactElement {
   });
 
   const columns: readonly ColumnSpec<AlarmListItem>[] = [
-    { key: 'state', title: t('pages.alarms.colStatus'), render: (row) => <StateBadge state={row.state} /> },
-    { key: 'scheduled_at', title: t('pages.alarms.colScheduled'), render: (row) => formatTime(row.scheduled_at) },
+    {
+      key: 'state',
+      title: t('pages.alarms.colStatus'),
+      width: 112,
+      render: (row) => <StateBadge state={row.state} />,
+    },
+    {
+      key: 'scheduled_at',
+      title: t('pages.alarms.colScheduled'),
+      width: 184,
+      skeleton: '2026-01-18 10:58:15',
+      render: (row) => formatTime(row.scheduled_at),
+    },
     { key: 'chat', title: t('pages.alarms.colChat'), render: (row) => <ChatCell row={row} /> },
-    { key: 'target', title: t('pages.alarms.colTargetUser'), render: (row) => <TargetCell row={row} /> },
+    { key: 'target', title: t('pages.alarms.colTargetUser'), width: 160, render: (row) => <TargetCell row={row} /> },
     {
       key: 'summary',
       title: t('pages.alarms.colSummary'),
-      className: 'max-w-72 min-w-40 whitespace-normal',
-      render: (row) => <div className="line-clamp-1">{row.summary}</div>,
+      render: (row) => <div className={css({ truncate: true })}>{row.summary}</div>,
     },
     {
       key: 'invocation',
       title: t('pages.alarms.colInvocation'),
+      width: 168,
       render: (row) => {
         const id = row.invocation_id ?? row.created_by_invocation_id;
-        return id === null ? <span className="text-muted-foreground">—</span> : <InvocationLink id={id} />;
+        return id === null ? <span className={css({ color: 'text-muted' })}>—</span> : <InvocationLink id={id} />;
       },
     },
     {
       key: 'action',
       title: t('pages.alarms.colAction'),
-      render: (row) =>
-        row.state === 'pending' ? (
-          <Button type="button" size="sm" variant="destructive" onClick={() => setCancelling(row)}>
-            {t('common.cancel')}
-          </Button>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        ),
+      align: 'right',
+      width: 104,
+      paddingBlock: 'none',
+      render: (row) => (
+        <RowActions>
+          <IconButton
+            variant="ghost"
+            color="secondary"
+            onClick={() => {
+              setViewing(row);
+              setViewOpen(true);
+            }}
+            label={t('common.view')}
+            icon={<EyeIcon />}
+          />
+          {row.state === 'pending' ? (
+            <IconButton
+              variant="ghost"
+              color="error"
+              label={t('common.cancel')}
+              icon={<CancelIcon />}
+              onClick={() => {
+                cancel.reset();
+                setCancelling(row);
+                setCancelOpen(true);
+              }}
+            />
+          ) : null}
+        </RowActions>
+      ),
     },
   ];
 
   return (
-    <div className="space-y-4">
-      <FilterToolbar>
-        <SelectFilter
-          placeholder={t('pages.alarms.filterState')}
-          value={state}
-          onChange={setState}
-          options={ALARM_STATES.map((value) => ({ value, label: value }))}
-        />
-        <ChatFilter value={chat} onChange={setChat} />
-        <TextFilter
-          placeholder={t('pages.alarms.filterTargetUserId')}
-          value={target}
-          onCommit={setTarget}
-          onClear={() => setTarget(undefined)}
-        />
-      </FilterToolbar>
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
+      <ListPageHeader title={t('layout.nav.alarms')} />
+      <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
+        {({ draft, change }) => (
+          <>
+            <QuerySelectField
+              label={t('pages.alarms.filterState')}
+              value={draft.state}
+              onChange={(state) => change({ state })}
+              options={ALARM_STATES.map((value) => ({ value, label: value }))}
+            />
+            <ChatFilter value={draft.chat} onChange={(chat) => change({ chat })} />
+            <QueryTextField
+              label={t('pages.alarms.filterTargetUserId')}
+              value={draft.target}
+              onChange={(target) => change({ target })}
+            />
+          </>
+        )}
+      </ListSearchForm>
       <CursorList
         factory={alarmsQuery}
         filters={filters}
-        empty={<div className="text-muted-foreground py-8 text-center text-sm">{t('pages.alarms.emptyAlarms')}</div>}
-        renderItems={(items) => (
+        renderItems={(items, { loading }) => (
           <TableShell
             columns={columns}
             data={items}
             rowKey={(row) => row.id}
-            expandedRender={(row) => <AlarmDetails row={row} />}
-            className="max-w-full overflow-x-auto"
+            loading={loading}
+            minWidth={1060}
+            emptyText={t('pages.alarms.emptyAlarms')}
           />
         )}
       />
+      <Dialog
+        open={viewOpen}
+        onOpenChange={setViewOpen}
+        title={t('pages.alarms.labelAlarmId')}
+        description={viewing === null ? undefined : <MonoValue value={viewing.id} />}
+        size="lg"
+        hideClose
+        footer={
+          <Button variant="ghost" color="secondary" onClick={() => setViewOpen(false)}>
+            {t('common.dismiss')}
+          </Button>
+        }
+      >
+        {viewing === null ? null : <AlarmDetails row={viewing} />}
+      </Dialog>
       <ConfirmDialog
-        open={cancelling !== null}
+        open={cancelOpen}
         onOpenChange={(open) => {
           if (!open && !cancel.isPending) {
-            setCancelling(null);
+            setCancelOpen(false);
           }
         }}
         title={t('pages.alarms.cancelTitle')}

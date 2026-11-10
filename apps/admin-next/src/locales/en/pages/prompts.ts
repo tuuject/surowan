@@ -3,15 +3,18 @@
  * mirrors it key for key.
  */
 export const prompts = {
-  scopeLabel: 'Scope',
   globalScope: 'Global prompt',
+  globalScopeSummary: 'All Chats',
   chatScope: 'Chat {{id}}',
-  chatScopeTitled: '{{title}} ({{id}})',
+  railLabel: 'Prompt scopes',
+  searchScopes: 'Search Chats',
+  refreshChats: 'Refresh Chats',
+  noMatchingChats: 'No matching Chats.',
   editorTitle: 'Prompt editor',
   editorHint: 'Applies from the next invocation; affected Conversation Contexts rebuild on their next run.',
   promptLabel: 'Prompt',
   promptPlaceholder: 'Write the prompt…',
-  noteLabel: 'Note (optional)',
+  noteLabel: 'Note',
   notePlaceholder: 'Why this change?',
   noteHint: 'At most {{count}} characters; stored with the version.',
   save: 'Save and apply',

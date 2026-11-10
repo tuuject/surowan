@@ -1,40 +1,46 @@
-import { Trash2 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import type React from 'react';
+import type { ReactElement } from 'react';
 import { ProviderBadges } from '@/components/models/provider-list';
-import { Button } from '@/components/ui/button';
+import type { ProvidersView, ProviderView } from '@/lib/api/providers.ts';
+import { providerKindLabel } from '@/lib/model-manager.ts';
 
-import { providerUsage } from '@/lib/model-manager.ts';
-import type { ProviderView, ProvidersView } from '@/lib/api/providers.ts';
-
-/** The selected provider's title row, with the delete action that removes it. */
+/**
+ * The selected provider's title bar. Actions on the whole provider sit here,
+ * apart from the sections' own Save and model actions, and the hairline below
+ * sets the provider above its sections.
+ */
 export function ProviderDetailHeader({
   view,
   provider,
-  onDelete,
+  action,
 }: {
   readonly view: ProvidersView;
   readonly provider: ProviderView;
-  readonly onDelete: () => void;
-}): React.ReactElement {
-  const { t } = useTranslation();
+  readonly action?: React.ReactNode;
+}): ReactElement {
   return (
-    <div className="flex min-h-9 flex-wrap items-center justify-between gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="font-mono text-base font-semibold">{provider.alias}</h2>
-        <span className="text-muted-foreground text-xs">{provider.kind}</span>
+    <div
+      className={css({
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '3',
+        minWidth: '0',
+        paddingBlockEnd: '6',
+        borderBottomWidth: '1px',
+        borderColor: 'divider',
+      })}
+    >
+      <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '3', minWidth: '0' })}>
+        <h2 className={css({ margin: '0', textStyle: 'heading-2', overflowWrap: 'anywhere' })}>{provider.alias}</h2>
+        <span className={css({ color: 'text-muted' })}>{providerKindLabel(provider.kind)}</span>
         <ProviderBadges view={view} provider={provider} />
       </div>
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        className="text-muted-foreground hover:text-destructive"
-        disabled={providerUsage(view, provider.alias).agent || providerUsage(view, provider.alias).vision}
-        onClick={onDelete}
-      >
-        <Trash2 />
-        {t('models.models.page.deleteProvider')}
-      </Button>
+      {action === undefined ? null : (
+        <div className={css({ display: 'flex', alignItems: 'center', gap: '2' })}>{action}</div>
+      )}
     </div>
   );
 }

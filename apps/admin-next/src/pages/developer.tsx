@@ -1,21 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { Switch } from '@tuuject/koi-react/switch';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ConfirmDialog } from '@/components/business';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-
+import { ConfirmDialog, ListPageHeader, SettingRow } from '@/components/business';
+import { Panel } from '@/components/layout/panel';
+import { clearModelPayloads, updateDeveloperSettings } from '@/lib/api/config.ts';
 import { errorMessage } from '@/lib/errors';
 import { developerQuery } from '@/lib/queries';
 import { useProviderWrite } from '@/lib/use-provider-write';
-import { clearModelPayloads, updateDeveloperSettings } from '@/lib/api/config.ts';
 
 /** The two independent switches the page mutates through the same PUT /developer endpoint. */
 type DeveloperSwitch = 'record_model_payloads' | 'record_agent_thinking';
 
-export default function DeveloperPage(): React.ReactElement {
+export default function DeveloperPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const settings = useQuery(developerQuery);
@@ -45,90 +45,73 @@ export default function DeveloperPage(): React.ReactElement {
   });
   const current = settings.data;
 
+  const mismatch = (active: boolean) => (
+    <Alert tone="warning">
+      {t('models.developer.stateMismatch', { status: active ? t('common.on') : t('common.off') })}
+    </Alert>
+  );
+
   return (
-    <div className="max-w-lg space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('models.developer.debugTitle')}</CardTitle>
-          <CardDescription>{t('models.developer.debugDescription')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {settings.isPending ? (
-            <p className="text-muted-foreground text-sm">{t('common.loading')}</p>
-          ) : settings.isError || current === undefined ? (
-            <p role="alert" className="text-destructive text-sm break-words">
-              {errorMessage(settings.error)}
-            </p>
-          ) : (
-            <>
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="record-model-payloads">{t('models.developer.recordLabel')}</Label>
-                  <p id="payload-description" className="text-muted-foreground text-sm">
-                    {t('models.developer.recordDescription')}
-                  </p>
-                </div>
+    <div className={css({ maxWidth: '768px', marginInline: 'auto', '& > * + *': { marginBlockStart: '6' } })}>
+      <ListPageHeader title={t('layout.nav.developer')} />
+      <Panel title={t('models.developer.debugTitle')} description={t('models.developer.debugDescription')}>
+        {settings.isPending ? (
+          <p className={css({ margin: '0', color: 'text-muted' })}>{t('common.loading')}</p>
+        ) : settings.isError || current === undefined ? (
+          <Alert tone="error">{errorMessage(settings.error)}</Alert>
+        ) : (
+          <div className={css({ display: 'flex', flexDirection: 'column', gap: '5' })}>
+            <SettingRow
+              label={t('models.developer.recordLabel')}
+              description={t('models.developer.recordDescription')}
+              hint={t('models.developer.recordHint')}
+            >
+              {({ id, describedBy }) => (
                 <Switch
-                  id="record-model-payloads"
-                  aria-describedby="payload-description"
+                  id={id}
+                  aria-describedby={describedBy}
                   checked={current.record_model_payloads}
                   disabled={update.isPending}
                   onCheckedChange={(enabled) =>
                     update.mutate({ field: 'record_model_payloads', enabled, revision: current.revision })
                   }
                 />
-              </div>
-              <p className="text-muted-foreground text-xs">{t('models.developer.recordHint')}</p>
-              {current.record_model_payloads !== current.active_record_model_payloads ? (
-                <p role="status" className="text-warning text-sm">
-                  {t('models.developer.stateMismatch', {
-                    status: current.active_record_model_payloads ? t('common.on') : t('common.off'),
-                  })}
-                </p>
-              ) : null}
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="record-agent-thinking">{t('models.developer.thinkingLabel')}</Label>
-                  <p id="thinking-description" className="text-muted-foreground text-sm">
-                    {t('models.developer.thinkingDescription')}
-                  </p>
-                </div>
+              )}
+            </SettingRow>
+            {current.record_model_payloads !== current.active_record_model_payloads
+              ? mismatch(current.active_record_model_payloads)
+              : null}
+            <SettingRow
+              label={t('models.developer.thinkingLabel')}
+              description={t('models.developer.thinkingDescription')}
+              hint={t('models.developer.thinkingHint')}
+            >
+              {({ id, describedBy }) => (
                 <Switch
-                  id="record-agent-thinking"
-                  aria-describedby="thinking-description"
+                  id={id}
+                  aria-describedby={describedBy}
                   checked={current.record_agent_thinking}
                   disabled={update.isPending}
                   onCheckedChange={(enabled) =>
                     update.mutate({ field: 'record_agent_thinking', enabled, revision: current.revision })
                   }
                 />
-              </div>
-              <p className="text-muted-foreground text-xs">{t('models.developer.thinkingHint')}</p>
-              {current.record_agent_thinking !== current.active_record_agent_thinking ? (
-                <p role="status" className="text-warning text-sm">
-                  {t('models.developer.stateMismatch', {
-                    status: current.active_record_agent_thinking ? t('common.on') : t('common.off'),
-                  })}
-                </p>
-              ) : null}
-              {update.isError ? (
-                <p role="alert" className="text-destructive text-sm break-words">
-                  {errorMessage(update.error)}
-                </p>
-              ) : null}
-            </>
-          )}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('models.developer.historyTitle')}</CardTitle>
-          <CardDescription>{t('models.developer.historyDescription')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+              )}
+            </SettingRow>
+            {current.record_agent_thinking !== current.active_record_agent_thinking
+              ? mismatch(current.active_record_agent_thinking)
+              : null}
+            {update.isError ? <Alert tone="error">{errorMessage(update.error)}</Alert> : null}
+          </div>
+        )}
+      </Panel>
+      <Panel
+        title={t('models.developer.historyTitle')}
+        description={t('models.developer.historyDescription')}
+        action={
           <Button
-            variant="destructive"
-            className="h-auto min-h-9 whitespace-normal text-left"
+            variant="outline"
+            color="error"
             disabled={clear.isPending}
             onClick={() => {
               clear.reset();
@@ -137,13 +120,14 @@ export default function DeveloperPage(): React.ReactElement {
           >
             {t('models.developer.clearButton')}
           </Button>
-          {clear.isSuccess ? (
-            <p role="status" className="text-success text-sm">
-              {t('models.developer.cleared', { count: clear.data.cleared_model_calls })}
-            </p>
-          ) : null}
-        </CardContent>
-      </Card>
+        }
+      >
+        {clear.isSuccess ? (
+          <p role="status" className={css({ margin: '0', color: 'text-brand' })}>
+            {t('models.developer.cleared', { count: clear.data.cleared_model_calls })}
+          </p>
+        ) : null}
+      </Panel>
       <ConfirmDialog
         open={confirmClear}
         onOpenChange={(open) => {

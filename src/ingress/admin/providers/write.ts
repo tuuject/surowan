@@ -12,7 +12,13 @@ import { type ConfigEdit, secretEdit } from '../../../platform/config/write.ts';
 import { newKeyJarName } from '../../../platform/key-jar.ts';
 import { supportedThinkingLevels } from '../../../platform/thinking-levels.ts';
 import { AdminQueryError } from '../audit/shared.ts';
-import type { CreateProviderBody, ProviderWriteContext, UpdateProviderBody } from './index.ts';
+import type {
+  CreateProviderBody,
+  DeleteModelsBody,
+  ProviderWriteContext,
+  UpdateProviderBody,
+  VisionBody,
+} from './index.ts';
 import { checkModel, modelApi, providerOf, registerSecrets } from './read.ts';
 import { resolveVisionSection } from '../../../platform/config/resolve.ts';
 
@@ -231,7 +237,7 @@ export function replaceModel(
   return [{ path: ['providers', alias, 'models', index], value: model }];
 }
 
-export function deleteModel(context: ProviderWriteContext, alias: string, modelId: string): ConfigEdit[] {
+function deletableModelIndex(context: ProviderWriteContext, alias: string, modelId: string): number {
   const provider = providerOf(context.file, alias);
   const index = provider.models.findIndex((candidate) => candidate.id === modelId);
   if (index < 0) {
@@ -240,22 +246,54 @@ export function deleteModel(context: ProviderWriteContext, alias: string, modelI
   if (
     (context.file.agent?.provider === alias && context.file.agent?.model === modelId) ||
     (context.file.vision?.provider === alias && context.file.vision?.model === modelId) ||
+    (context.file.tool_model?.provider === alias && context.file.tool_model?.model === modelId) ||
     referencingChats(context).some((chat) => chat.provider === alias && chat.model === modelId)
   ) {
-    throw new AdminQueryError('model_in_use', `Model ${modelId} is used by the default agent, a Chat, or vision`, 409);
+    throw new AdminQueryError(
+      'model_in_use',
+      `Model ${modelId} is used by the default agent, a Chat, vision, or tool model`,
+      409,
+    );
   }
-  return [{ path: ['providers', alias, 'models', index], value: undefined }];
+  return index;
+}
+
+export function deleteModel(context: ProviderWriteContext, alias: string, modelId: string): ConfigEdit[] {
+  return [{ path: ['providers', alias, 'models', deletableModelIndex(context, alias, modelId)], value: undefined }];
+}
+
+export function deleteModels(context: ProviderWriteContext, body: DeleteModelsBody): ConfigEdit[] {
+  const byProvider = new Map<string, Set<number>>();
+  for (const target of body.models) {
+    const index = deletableModelIndex(context, target.provider, target.model);
+    const indexes = byProvider.get(target.provider) ?? new Set<number>();
+    if (indexes.has(index)) {
+      throw new AdminQueryError('invalid_body', `Duplicate model ${target.provider}/${target.model}`);
+    }
+    indexes.add(index);
+    byProvider.set(target.provider, indexes);
+  }
+  const edits: ConfigEdit[] = [];
+  for (const [alias, indexes] of byProvider) {
+    // JSONC array removals shift later indexes, so remove from the end.
+    for (const index of [...indexes].sort((left, right) => right - left)) {
+      edits.push({ path: ['providers', alias, 'models', index], value: undefined });
+    }
+  }
+  return edits;
 }
 
 /**
  * `vision.*` is validated only when the model registry is built, so a bad choice
  * would stop the next startup. The precheck runs against the file configuration,
  * which is what that startup will read.
+ *
+ * A body with `thinking_level` sets the effort too. Without one the stored
+ * effort stays when the model accepts it; otherwise it is removed, so the
+ * switch falls back to the model's default instead of leaving an effort the
+ * new model rejects.
  */
-export function visionEdits(
-  context: ProviderWriteContext,
-  body: { readonly provider: string; readonly model: string },
-): ConfigEdit[] {
+export function visionEdits(context: ProviderWriteContext, body: VisionBody): ConfigEdit[] {
   const provider = context.file.providers[body.provider];
   if (provider === undefined) {
     throw new AdminQueryError('unknown_provider', `Provider ${body.provider} is not configured`);
@@ -274,10 +312,27 @@ export function visionEdits(
       `vision.max_output_tokens (${maxOutputTokens}) exceeds the model limit (${model.max_tokens})`,
     );
   }
-  return [
+  const supported = supportedThinkingLevels(model);
+  const edits: ConfigEdit[] = [
     { path: ['vision', 'provider'], value: body.provider },
     { path: ['vision', 'model'], value: body.model },
   ];
+  if (body.thinking_level !== undefined) {
+    if (!supported.includes(body.thinking_level)) {
+      throw new AdminQueryError(
+        'unsupported_thinking_level',
+        `${body.provider}/${body.model} does not accept thinking level ${body.thinking_level} (supported: ${supported.join(', ')})`,
+        422,
+      );
+    }
+    edits.push({ path: ['vision', 'thinking_level'], value: body.thinking_level });
+  } else {
+    const stored = context.file.vision?.thinking_level;
+    if (stored !== undefined && !supported.includes(stored)) {
+      edits.push({ path: ['vision', 'thinking_level'], value: undefined });
+    }
+  }
+  return edits;
 }
 
 /**

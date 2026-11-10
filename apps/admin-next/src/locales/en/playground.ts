@@ -34,7 +34,7 @@ export const playground = {
     expiredInputs: '{{count}} input(s) expired with retention',
     queued: '{{count}} queued',
     running: '{{count}} running',
-    statusSummary: 'Revision {{revision}} · {{pending}} pending',
+    statusSummary: 'Revision {{revision}}, {{pending}} pending',
   },
   identities: {
     heading: 'Identities',
@@ -97,7 +97,7 @@ export const playground = {
     attempt: 'Attempt {{id}}',
     retryOf: 'retry of {{id}}',
     openAudit: 'Audit',
-    usage: '{{tokens}} tokens · {{cost}}',
+    usage: '{{tokens}} tokens, {{cost}}',
     receipt: 'Receipt: {{state}}',
     sends: 'Sends',
     noSend: 'The run ended without publishing a message.',

@@ -8,6 +8,7 @@
       "!!**/dist",
       "!!**/*.tsbuildinfo",
       "!!**/routeTree.gen.ts",
+      "!!apps/admin-next/styled-system",
       "!!dev-data",
       "!!skills/**/examples",
       "!!apps/docs/content/public/examples",
@@ -41,41 +42,12 @@
       "trailingCommas": "all"
     }
   },
-  "css": {
-    "parser": {
-      "tailwindDirectives": true
-    }
-  },
   "overrides": [
     {
       "includes": ["apps/admin-next/**", "apps/docs/theme/**"],
       "linter": {
         "domains": {
           "react": "recommended"
-        }
-      }
-    },
-    {
-      "includes": ["apps/admin-next/src/components/ui/**"],
-      "linter": {
-        "rules": {
-          "a11y": {
-            "noLabelWithoutControl": "warn",
-            "useSemanticElements": "off",
-            "useFocusableInteractive": "off",
-            "useAriaPropsForRole": "off",
-            "useKeyWithClickEvents": "off"
-          },
-          "correctness": {
-            "useExhaustiveDependencies": "warn"
-          },
-          "suspicious": {
-            "noArrayIndexKey": "off",
-            "noDocumentCookie": "off"
-          },
-          "security": {
-            "noDangerouslySetInnerHtml": "off"
-          }
         }
       }
     },

@@ -1,5 +1,5 @@
-import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { expect } from '@playwright/test';
 import { adminUrl, test } from './helpers.ts';
 

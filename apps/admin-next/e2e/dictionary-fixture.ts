@@ -1,6 +1,4 @@
 import { expect, type Page } from '@playwright/test';
-
-import { adminUrl } from './helpers.ts';
 import type {
   DictionaryDraft,
   DictionaryEntry,
@@ -8,6 +6,7 @@ import type {
   DictionarySettings,
   DictionaryView,
 } from '../src/lib/api/dictionary.ts';
+import { adminUrl } from './helpers.ts';
 
 /**
  * API-level helpers shared by the `17-dictionary-*.e2e.ts` specs. Each spec

@@ -1,24 +1,16 @@
 import { useMutation } from '@tanstack/react-query';
-import type React from 'react';
-import { useState } from 'react';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Field } from '@tuuject/koi-react/field';
+import { Select } from '@tuuject/koi-react/select';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
+import type { DictionaryExportFormat, DictionaryScope } from '@/lib/api/dictionary.ts';
+import { fetchDictionaryExport } from '@/lib/api/dictionary.ts';
 import { dictionaryErrorMessage } from '@/lib/dictionary.ts';
 import { downloadTextFile } from '@/lib/download.ts';
-import { fetchDictionaryExport } from '@/lib/api/dictionary.ts';
-import type { DictionaryExportFormat, DictionaryScope } from '@/lib/api/dictionary.ts';
+import { toast } from '@/lib/toast.ts';
 
 /**
  * Export dialog for the scope the page is currently showing. The API answers
@@ -35,9 +27,10 @@ export function ExportDialog({
   readonly onOpenChange: (open: boolean) => void;
   readonly scope: DictionaryScope;
   readonly chatId: string | null;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const [format, setFormat] = useState<DictionaryExportFormat>('csv');
+  const [error, setError] = useState<unknown>(null);
 
   const download = useMutation({
     mutationFn: () => fetchDictionaryExport({ scope, chat: chatId, format }),
@@ -46,7 +39,22 @@ export function ExportDialog({
       toast.success(t('dictionary.export.downloaded', { name: file.filename }));
       onOpenChange(false);
     },
+    onError: setError,
   });
+
+  // Base UI keeps the popup mounted while it fades out, so this component
+  // outlives a session. The state is replaced on the open edge — a render-phase
+  // adjustment, the app's substitute for a reset effect — and never on close,
+  // so the form stays on screen through the exit transition. The failure is
+  // local state for that reason: a mutation cannot be reset while rendering.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) {
+      setError(null);
+      setFormat('csv');
+    }
+  }
 
   return (
     <Dialog
@@ -57,52 +65,54 @@ export function ExportDialog({
         }
         onOpenChange(next);
       }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('dictionary.export.title')}</DialogTitle>
-          <DialogDescription>{t('dictionary.export.description')}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="dictionary-export-format">{t('dictionary.export.formatLabel')}</Label>
-            <Select
-              value={format}
-              onValueChange={(value) => {
-                if (value === 'csv' || value === 'jsonl') {
-                  setFormat(value);
-                }
-              }}
-            >
-              <SelectTrigger
-                id="dictionary-export-format"
-                className="w-full"
-                aria-label={t('dictionary.export.formatLabel')}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="csv">{t('dictionary.import.csv')}</SelectItem>
-                <SelectItem value="jsonl">{t('dictionary.import.jsonl')}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <p className="text-muted-foreground text-xs">{t('dictionary.export.roundTripNote')}</p>
-          {download.isError ? (
-            <p className="text-destructive text-sm break-words">
-              {t('dictionary.export.failed')}: {dictionaryErrorMessage(download.error)}
-            </p>
-          ) : null}
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" disabled={download.isPending} onClick={() => onOpenChange(false)}>
+      title={t('dictionary.export.title')}
+      description={t('dictionary.export.description')}
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            color="secondary"
+            disabled={download.isPending}
+            onClick={() => onOpenChange(false)}
+          >
             {t('common.cancel')}
           </Button>
-          <Button type="button" disabled={download.isPending} onClick={() => download.mutate()}>
+          <Button
+            type="button"
+            disabled={download.isPending}
+            onClick={() => {
+              setError(null);
+              download.mutate();
+            }}
+          >
             {download.isPending ? t('common.working') : t('dictionary.export.download')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        </>
+      }
+    >
+      <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+        <Field label={t('dictionary.export.formatLabel')} help={t('dictionary.export.roundTripNote')}>
+          <Select
+            value={format}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (value === 'csv' || value === 'jsonl') {
+                setFormat(value);
+              }
+            }}
+            options={[
+              { value: 'csv', label: t('dictionary.import.csv') },
+              { value: 'jsonl', label: t('dictionary.import.jsonl') },
+            ]}
+          />
+        </Field>
+        {error !== null ? (
+          <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
+            {t('dictionary.export.failed')}：{dictionaryErrorMessage(error)}
+          </p>
+        ) : null}
+      </div>
     </Dialog>
   );
 }

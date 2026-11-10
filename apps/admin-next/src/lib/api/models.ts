@@ -36,6 +36,8 @@ export interface ChatThinkingReset {
 }
 
 export interface ModelSwitchResponse extends ModelState {
+  /** The file's revision after the switch; the next write in a chain carries it. */
+  readonly revision: string;
   readonly apply: ModelApplySummary;
   readonly chat_thinking_resets: readonly ChatThinkingReset[];
 }
@@ -62,7 +64,14 @@ export function setAgentThinkingLevel(thinkingLevel: ThinkingLevel, revision: st
   });
 }
 
-export function switchVisionModel(request: ModelSwitchRequest, revision: string): Promise<ProviderWriteResponse> {
+/**
+ * Without `thinking_level` the stored effort stays while the new model accepts
+ * it; otherwise the server drops it and the model's default applies.
+ */
+export function switchVisionModel(
+  request: ModelSwitchRequest & { readonly thinking_level?: ThinkingLevel },
+  revision: string,
+): Promise<ProviderWriteResponse> {
   return call<ProviderWriteResponse>('/vision', {
     method: 'PUT',
     headers: writeHeaders(revision),

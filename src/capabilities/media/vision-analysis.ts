@@ -1,15 +1,23 @@
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Api, AssistantMessage, Model, Models } from '@earendil-works/pi-ai';
+import {
+  type Api,
+  type AssistantMessage,
+  getSupportedThinkingLevels,
+  type Model,
+  type ModelThinkingLevel,
+  type Models,
+} from '@earendil-works/pi-ai';
 import { and, eq, sql } from 'drizzle-orm';
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
 import type { AsyncSemaphore, KeyedSemaphore } from '../../platform/concurrency.ts';
-import type { ToolSchemaKeywords } from '../../platform/config/index.ts';
+import type { ThinkingLevelConfig, ToolSchemaKeywords } from '../../platform/config/index.ts';
 import { hostExecutionProfile } from '../../platform/host-profile.ts';
 import type { HostKind } from '../../platform/im-host/identity.ts';
 import { invocationGateKey } from '../../platform/invocation-policy.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
+import { defaultVisionThinkingLevel } from '../../platform/thinking-levels.ts';
 import { applyToolSchemaKeywords } from '../../platform/tool-schema.ts';
 import { dailyUsage, mediaAnalyses, modelCalls } from '../../store/schema/index.ts';
 import { isDailyTokenBudgetReached, meteredTokens, readDailyTokenBudget } from '../../store/sleep.ts';
@@ -54,6 +62,8 @@ export interface VisionRun {
   readonly maxOutputTokens: number;
   /** The keyword profile the vision model declares for the one tool it is sent. */
   readonly toolSchemaKeywords: ToolSchemaKeywords | undefined;
+  /** `vision.thinking_level`; absent picks the model's default. */
+  readonly thinkingLevel: ThinkingLevelConfig | undefined;
 }
 
 /**
@@ -193,7 +203,7 @@ async function analyze(
               : {}),
           },
           {
-            ...(run.model.reasoning ? { reasoning: 'low' as const } : {}),
+            ...visionReasoning(run),
             signal,
             maxTokens: run.maxOutputTokens,
             maxRetries: 2,
@@ -265,6 +275,15 @@ async function analyze(
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
+}
+
+/** Pi's `reasoning` option for one analysis; it excludes `off`, and a model that does not reason gets none. */
+function visionReasoning(run: VisionRun): { reasoning?: Exclude<ModelThinkingLevel, 'off'> } {
+  if (!run.model.reasoning) {
+    return {};
+  }
+  const level = run.thinkingLevel ?? defaultVisionThinkingLevel(getSupportedThinkingLevels(run.model));
+  return level === 'off' ? {} : { reasoning: level };
 }
 
 function startVisionCall(deps: MediaVisionDeps, scope: AnalysisScope, analysisId: bigint, run: VisionRun): bigint {

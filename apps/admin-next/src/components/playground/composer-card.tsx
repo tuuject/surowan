@@ -1,18 +1,20 @@
-import { Send, Upload } from 'lucide-react';
-import type React from 'react';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { Divider } from '@tuuject/koi-react/divider';
+import { Field } from '@tuuject/koi-react/field';
+import { UploadIcon } from '@tuuject/koi-react/icons';
+import { Select } from '@tuuject/koi-react/select';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { Textarea } from '@tuuject/koi-react/textarea';
+import { type ReactElement, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { Textarea } from '@/components/ui/textarea';
-
+import { ListFooter } from '@/components/business';
+import { SendIcon } from '@/components/icons';
+import { Panel } from '@/components/layout/panel';
+import type { PlaygroundParticipant, PlaygroundTimelineItem } from '@/lib/api/playground.ts';
+import { toast } from '@/lib/toast.ts';
 import { TimelineRow } from './rows.tsx';
 import type { MessagePayload } from './shared.tsx';
-import type { PlaygroundParticipant, PlaygroundTimelineItem } from '@/lib/api/playground.ts';
 
 /** The server's room picture limit; a larger file is refused before it is read. */
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -29,9 +31,10 @@ interface ComposerCardProps {
   readonly uploading: boolean;
   readonly attachments: readonly string[];
   readonly messages: {
-    readonly hasNextPage: boolean;
+    readonly page: number;
+    readonly pageCount: number;
     readonly isFetchingNextPage: boolean;
-    readonly fetchNextPage: () => Promise<unknown>;
+    readonly onPageChange: (page: number) => Promise<void>;
   };
   readonly submit: {
     readonly isPending: boolean;
@@ -68,18 +71,16 @@ export function ComposerCard({
   setSenderId,
   setReplySeq,
   setUnresolved,
-}: ComposerCardProps): React.ReactElement {
+}: ComposerCardProps): ReactElement {
+  const fileInput = useRef<HTMLInputElement>(null);
   const { t } = useTranslation();
   return (
-    <Card className="min-w-0">
-      <CardHeader>
-        <CardTitle>{t('playground.messages.heading')}</CardTitle>
-      </CardHeader>
-      <CardContent className="min-w-0 space-y-3">
+    <Panel title={t('playground.messages.heading')} className={css({ minWidth: '0' })}>
+      <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
         {items.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t('playground.messages.empty')}</p>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('playground.messages.empty')}</p>
         ) : (
-          <ul className="min-w-0">
+          <ul className={css({ minWidth: '0' })}>
             {items.map((item) => (
               <TimelineRow
                 key={item.message_id}
@@ -94,43 +95,40 @@ export function ComposerCard({
             ))}
           </ul>
         )}
-        {messages.hasNextPage === true ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void messages.fetchNextPage()}
-            disabled={messages.isFetchingNextPage}
-          >
-            {t('playground.messages.loadOlder')}
-          </Button>
-        ) : null}
-        <Separator />
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="space-y-1">
-              <Label htmlFor="playground-sender">{t('playground.identities.select')}</Label>
-              <Select value={shown.sender_id} onValueChange={setSenderId} disabled={composerLocked}>
-                <SelectTrigger id="playground-sender" className="w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {participants.map((member) => (
-                    <SelectItem key={member.id} value={member.id}>
-                      {member.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+        <ListFooter
+          count={items.length}
+          cursor
+          page={messages.page}
+          pageCount={messages.pageCount}
+          busy={messages.isFetchingNextPage}
+          onPageChange={(next) => void messages.onPageChange(next)}
+        />
+        <Divider />
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+          <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '2' })}>
+            <Field label={t('playground.identities.select')}>
+              <Select
+                className={css({ minWidth: '192px' })}
+                value={shown.sender_id}
+                disabled={composerLocked}
+                onChange={(event) => setSenderId(event.target.value)}
+              >
+                {participants.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
+                  </option>
+                ))}
               </Select>
-            </div>
+            </Field>
             {shown.reply_to_seq === null ? null : (
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground text-xs">
+              <div className={css({ display: 'flex', alignItems: 'center', gap: '2' })}>
+                <span className={css({ textStyle: 'small', color: 'text-muted' })}>
                   {t('playground.messages.replyTo', { seq: shown.reply_to_seq })}
                 </span>
                 <Button
                   type="button"
                   variant="ghost"
+                  color="secondary"
                   size="sm"
                   onClick={() => setReplySeq(null)}
                   disabled={composerLocked}
@@ -140,28 +138,26 @@ export function ComposerCard({
               </div>
             )}
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="playground-text">{t('playground.messages.composer')}</Label>
+          <Field label={t('playground.messages.composer')}>
             <Textarea
-              id="playground-text"
               value={shown.text}
               onChange={(event) => setDraft(event.target.value)}
               placeholder={t('playground.messages.composerPlaceholder')}
               readOnly={composerLocked}
               rows={3}
             />
-          </div>
+          </Field>
           {unresolved === null ? null : (
-            <Alert>
-              <AlertTitle>{t('playground.messages.unresolved')}</AlertTitle>
-              <AlertDescription className="flex flex-wrap items-center gap-2">
-                {t('playground.messages.unresolvedHint')}
+            <Alert
+              tone="info"
+              title={t('playground.messages.unresolved')}
+              action={
                 <Button
-                  type="button"
-                  variant="outline"
                   size="sm"
+                  variant="ghost"
+                  color="secondary"
                   // While a replay is in flight its key must survive: if that
-                  // response is lost too, the next Send has to reuse it.
+                  // response is lost too, the next send has to reuse it.
                   disabled={submit.isPending}
                   onClick={() => {
                     // The user takes the risk explicitly: the earlier send
@@ -172,65 +168,71 @@ export function ComposerCard({
                 >
                   {t('playground.messages.unresolvedEdit')}
                 </Button>
-              </AlertDescription>
+              }
+            >
+              {t('playground.messages.unresolvedHint')}
             </Alert>
           )}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" asChild variant="outline" disabled={uploading || composerLocked}>
-              <label htmlFor="playground-attachment" className="cursor-pointer">
-                <Upload className="size-4" />
-                {t('playground.messages.attach')}
-                <input
-                  id="playground-attachment"
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  className="hidden"
-                  disabled={uploading || composerLocked}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    event.target.value = '';
-                    if (file === undefined) {
-                      return;
-                    }
-                    if (attachments.length >= 4) {
-                      toast.error(t('playground.errors.uploadLimit'));
-                      return;
-                    }
-                    if (file.size > MAX_UPLOAD_BYTES) {
-                      toast.error(t('playground.errors.uploadTooLarge'));
-                      return;
-                    }
-                    setUploading(true);
-                    upload.mutate(file, { onSettled: () => setUploading(false) });
-                  }}
-                />
-              </label>
+          <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
+            <Button
+              type="button"
+              variant="outline"
+              color="secondary"
+              iconStart={<UploadIcon />}
+              loading={uploading}
+              disabled={composerLocked}
+              onClick={() => fileInput.current?.click()}
+            >
+              {t('playground.messages.attach')}
             </Button>
+            <input
+              ref={fileInput}
+              id="playground-attachment"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = '';
+                if (file === undefined) {
+                  return;
+                }
+                if (attachments.length >= 4) {
+                  toast.error(t('playground.errors.uploadLimit'));
+                  return;
+                }
+                if (file.size > MAX_UPLOAD_BYTES) {
+                  toast.error(t('playground.errors.uploadTooLarge'));
+                  return;
+                }
+                setUploading(true);
+                upload.mutate(file, { onSettled: () => setUploading(false) });
+              }}
+            />
             {shown.asset_ids.length === 0 ? null : (
-              <span className="text-muted-foreground text-xs">
+              <span className={css({ textStyle: 'small', color: 'text-muted' })}>
                 {t('playground.messages.attached', { count: shown.asset_ids.length })}
               </span>
             )}
             <Button
               type="button"
-              className="ml-auto"
+              className={css({ marginInlineStart: 'auto' })}
               onClick={() => submit.mutate(shown)}
               // An upload still in flight would land after the send cleared
               // the composer, so sending waits for it.
               disabled={submit.isPending || uploading || sendBlocked || shown.sender_id.length === 0}
+              iconStart={<SendIcon />}
             >
-              <Send className="size-4" />
               {submit.isPending ? t('playground.messages.sending') : t('playground.messages.send')}
             </Button>
           </div>
           {effectiveSender.length === 0 ? (
-            <Alert>
-              <AlertTitle>{t('playground.errors.identityRequired')}</AlertTitle>
-              <AlertDescription>{t('playground.identities.addHint')}</AlertDescription>
+            <Alert tone="info" title={t('playground.errors.identityRequired')}>
+              {t('playground.identities.addHint')}
             </Alert>
           ) : null}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   );
 }

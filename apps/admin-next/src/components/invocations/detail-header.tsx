@@ -1,5 +1,5 @@
-import { Link } from '@tanstack/react-router';
-import type React from 'react';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
@@ -10,35 +10,40 @@ import {
   TableShell,
   TextValue,
 } from '@/components/business';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
-import { formatCost, formatNumber, formatTime } from '@/lib/format';
+import { Panel } from '@/components/layout/panel';
+import { AppLink } from '@/components/router-links';
 import type { InvocationDetail, ToolRegistryEntry } from '@/lib/api/invocations.ts';
+import { formatCost, formatNumber, formatTime } from '@/lib/format';
 
-function ToolRegistryTable({ registry }: { readonly registry: readonly ToolRegistryEntry[] }): React.ReactElement {
+function ToolRegistryTable({ registry }: { readonly registry: readonly ToolRegistryEntry[] }): ReactElement {
   const { t } = useTranslation();
   const columns: readonly ColumnSpec<ToolRegistryEntry>[] = [
     {
       key: 'name',
       title: t('invocations.invocationDetail.toolRegistry.name'),
-      render: (row) => <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{row.name}</code>,
+      width: 240,
+      render: (row) => <MonoValue value={row.name} />,
     },
-    { key: 'label', title: t('invocations.invocationDetail.toolRegistry.label'), render: (row) => row.label },
+    {
+      key: 'label',
+      title: t('invocations.invocationDetail.toolRegistry.label'),
+      width: 200,
+      render: (row) => row.label,
+    },
     {
       key: 'description',
       title: t('invocations.invocationDetail.toolRegistry.description'),
-      className: 'min-w-64 max-w-2xl',
-      render: (row) => <p className="max-w-2xl text-sm break-words">{row.description}</p>,
+      render: (row) => (
+        <p className={css({ margin: '0', whiteSpace: 'normal', overflowWrap: 'anywhere' })}>{row.description}</p>
+      ),
     },
   ];
   return (
     <LazyDetails
-      summaryClassName="text-muted-foreground flex cursor-pointer items-center gap-2 text-sm"
-      contentClassName="mt-2"
       summary={
         <>
           {t('invocations.invocationDetail.toolRegistry.title')}
-          <span className="text-xs">{t('invocations.invocationDetail.toolRegistry.subtitle')}</span>
+          <span className={css({ textStyle: 'small' })}>{t('invocations.invocationDetail.toolRegistry.subtitle')}</span>
         </>
       }
     >
@@ -47,19 +52,11 @@ function ToolRegistryTable({ registry }: { readonly registry: readonly ToolRegis
   );
 }
 
-export function DetailHeader({ invocation }: { readonly invocation: InvocationDetail }): React.ReactElement {
+export function DetailHeader({ invocation }: { readonly invocation: InvocationDetail }): ReactElement {
   const { t } = useTranslation();
   return (
-    <Card className="gap-4 py-5">
-      <CardHeader className="flex-row items-start justify-between gap-4 px-5 py-0">
-        <CardTitle className="font-mono text-base break-all">
-          {t('invocations.invocationDetail.title', { id: invocation.id })}
-        </CardTitle>
-        <Link to="/invocations" className="text-primary shrink-0 text-sm underline-offset-4 hover:underline">
-          {t('invocations.invocationDetail.backToList')}
-        </Link>
-      </CardHeader>
-      <CardContent className="space-y-4 px-5 py-0">
+    <Panel title={t('invocations.invocationDetail.summary')}>
+      <div className={css({ display: 'flex', flexDirection: 'column', gap: '5' })}>
         <KvList
           items={[
             { label: t('invocations.invocationDetail.kv.state'), value: <StateBadge state={invocation.state} /> },
@@ -87,13 +84,9 @@ export function DetailHeader({ invocation }: { readonly invocation: InvocationDe
               : {
                   label: t('invocations.invocationDetail.kv.room'),
                   value: (
-                    <Link
-                      to="/playground"
-                      search={{ room: invocation.chat.room_id }}
-                      className="text-primary font-mono text-xs underline-offset-4 hover:underline"
-                    >
+                    <AppLink to="/playground" search={{ room: invocation.chat.room_id }}>
                       {invocation.chat.room_id}
-                    </Link>
+                    </AppLink>
                   ),
                 },
             { label: t('invocations.invocationDetail.kv.topic'), value: String(invocation.chat.message_thread_id) },
@@ -125,7 +118,7 @@ export function DetailHeader({ invocation }: { readonly invocation: InvocationDe
         {invocation.tool_registry !== null && invocation.tool_registry.length > 0 ? (
           <ToolRegistryTable registry={invocation.tool_registry} />
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   );
 }

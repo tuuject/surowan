@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
-
-import { modelFormFromConfig, modelFormToConfig, modelFromDraft } from './model-manager.ts';
 import type { ModelMetadataDraft, ProviderModelConfig } from './api/providers.ts';
+import { modelFormFromConfig, modelFormToConfig } from './model-form.ts';
+import { modelFromDraft } from './model-manager.ts';
 
 function draft(overrides: Partial<ModelMetadataDraft> = {}): ModelMetadataDraft {
   return {

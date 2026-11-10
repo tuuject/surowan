@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { IconButton } from '@tuuject/koi-react/button';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
-import { Icons } from '@/components/icons';
-import { Button } from '@/components/ui/button';
+import { CopyIcon } from '@/components/icons';
+import { toast } from '@/lib/toast.ts';
 import { MonoValue } from './kv-list';
 
 export function CopyableValue({
@@ -11,22 +12,31 @@ export function CopyableValue({
 }: {
   readonly label: string;
   readonly value: string | null;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const [copying, setCopying] = useState(false);
   const action = t('common.copyValue', { label, value: value ?? '' });
   return (
-    <span className="text-muted-foreground inline-flex max-w-full flex-wrap items-center gap-1 text-xs">
+    <span
+      className={css({
+        textStyle: 'small',
+        color: 'text-muted',
+        display: 'inline-flex',
+        maxWidth: '100%',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: '1',
+      })}
+    >
       <span>{label}:</span>
       <MonoValue value={value} />
       {value === null ? null : (
-        <Button
-          type="button"
+        <IconButton
           variant="ghost"
-          size="icon-sm"
-          className="rounded-full pointer-coarse:size-12"
-          aria-label={action}
+          color="secondary"
+          label={action}
           title={action}
+          icon={<CopyIcon />}
           disabled={copying}
           onClick={async () => {
             setCopying(true);
@@ -39,9 +49,7 @@ export function CopyableValue({
               setCopying(false);
             }
           }}
-        >
-          <Icons.copy aria-hidden="true" />
-        </Button>
+        />
       )}
     </span>
   );

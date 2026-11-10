@@ -1,7 +1,6 @@
-import { expect, type Page } from '@playwright/test';
-
+import { expect, type Locator, type Page } from '@playwright/test';
+import type { ChatSettings, ChatsView } from '../src/lib/api/chats.ts';
 import { adminUrl } from './helpers.ts';
-import type { ChatsView, ChatSettings } from '../src/lib/api/chats.ts';
 
 export const ACTIVE_CHAT = '123456789';
 export const inherited: ChatSettings = { topic_ids: null, provider: null, model: null, thinking_level: null };
@@ -84,6 +83,33 @@ async function restoreBaseline(page: Page): Promise<void> {
 
 export function chatRow(page: Page, id = ACTIVE_CHAT) {
   return page.locator('table tbody tr').filter({ has: page.getByText(id, { exact: true }) });
+}
+
+/** Per-chat settings live in the row's "More actions" menu, next to the quick links. */
+export async function openChatAction(page: Page, row: Locator, name: string): Promise<void> {
+  await row.getByRole('button', { name: 'More actions', exact: true }).click();
+  const menu = page.getByRole('menu');
+  await expect(menu).toBeVisible();
+  // A separator that bleeds past the scrollable body adds a horizontal scroll container to the panel.
+  // Assert the invariant, not the CSS: neither an open menu nor anything inside it may scroll sideways.
+  expect(
+    await menu.evaluate((panel) =>
+      [panel, ...panel.querySelectorAll('*')].some((node) => {
+        const style = getComputedStyle(node);
+        return (style.overflowX === 'auto' || style.overflowX === 'scroll') && node.scrollWidth > node.clientWidth + 1;
+      }),
+    ),
+  ).toBe(false);
+  await page.getByRole('menuitem', { name, exact: true }).click();
+}
+
+/** Private chats never gate, so their menu has no settings entries. */
+export async function expectNoChatAction(page: Page, row: Locator, name: string): Promise<void> {
+  await row.getByRole('button', { name: 'More actions', exact: true }).click();
+  await expect(page.getByRole('menu')).toBeVisible();
+  await expect(page.getByRole('menuitem', { name, exact: true })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu')).toHaveCount(0);
 }
 
 export async function saveDialog(page: Page): Promise<void> {

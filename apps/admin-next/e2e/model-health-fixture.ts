@@ -12,7 +12,7 @@
  * The wire contract the specs assert is pinned here: one user message with the
  * fixed prompt, no system role, no tools, streaming, output capped at 128.
  */
-import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
+import { type APIRequestContext, expect, type Locator, type Page } from '@playwright/test';
 import { adminUrl, E2E_PASSWORD, E2E_USERNAME, e2eFetch, test } from './helpers.ts';
 import {
   E2E_HEALTH_ALIAS_A,
@@ -89,14 +89,14 @@ export async function selectProvider(page: Page, alias: string): Promise<void> {
   await expect(page.locator('h2', { hasText: alias })).toBeVisible();
 }
 
-/** The table row whose model id cell is exactly `modelId` (ids may prefix each other). */
+/** The model list row whose id is exactly `modelId` (ids may prefix each other). */
 export function modelRow(page: Page, modelId: string): Locator {
-  return page.locator('tr').filter({ has: page.getByText(modelId, { exact: true }) });
+  return page.locator('[data-model-list] li').filter({ has: page.getByText(modelId, { exact: true }) });
 }
 
-/** The expandable details row that TableShell renders right after the model row. */
+/** The expanded health details block inside the model's row. */
 export function expandedRow(page: Page, modelId: string): Locator {
-  return modelRow(page, modelId).locator('xpath=following-sibling::tr[1]');
+  return modelRow(page, modelId).locator('[data-health-details]');
 }
 
 export async function showHealthDetails(page: Page, modelId: string): Promise<void> {

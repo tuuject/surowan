@@ -1,36 +1,32 @@
-import { Link } from '@tanstack/react-router';
-import {
-  Activity,
-  AlarmClock,
-  BookOpen,
-  Brain,
-  Clock,
-  ExternalLink,
-  LibraryBig,
-  MessageSquareText,
-  Pencil,
-  Sparkles,
-  Speech,
-  Trash2,
-} from 'lucide-react';
-import { type ColumnSpec, FLUSH_TABLE_CLASS, MonoValue, TableShell, ToneBadge } from '@/components/business';
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-
-import { effectiveWindows, summarizeWindows } from '@/lib/participation';
+import { useNavigate } from '@tanstack/react-router';
+import { IconButton } from '@tuuject/koi-react/button';
+import { TrashIcon } from '@tuuject/koi-react/icons';
+import { Menu } from '@tuuject/koi-react/menu';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
+import { type ColumnSpec, MonoValue, RowActions, TableShell, ToneBadge } from '@/components/business';
+import {
+  AlarmIcon,
+  BookOpenIcon,
+  BrainIcon,
+  ChatTextIcon,
+  ClockIcon,
+  EditIcon,
+  LibraryIcon,
+  MoreIcon,
+  PulseIcon,
+  ScrollIcon,
+  SparklesIcon,
+} from '@/components/icons';
 import type { ChatEntry, ChatSettingsView, ChatsView, ParticipationWindow } from '@/lib/api/chats.ts';
+import { effectiveWindows, summarizeWindows } from '@/lib/participation';
 
 /** A field the file and the running process disagree on shows the running value underneath. */
-function RunningNote({ value }: { readonly value: string | null }): React.ReactElement | null {
+function RunningNote({ value }: { readonly value: string | null }): ReactElement | null {
   const { t } = useTranslation();
   return value === null ? null : (
-    <p className="text-muted-foreground text-xs">{t('pages.chats.runningNote', { value })}</p>
+    <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.runningNote', { value })}</p>
   );
 }
 
@@ -54,6 +50,8 @@ interface ActiveHoursLine {
 
 export function ChatTable({
   view,
+  items = view.items,
+  loading = false,
   onEdit,
   onSchedule,
   onProactive,
@@ -61,13 +59,16 @@ export function ChatTable({
   onRemove,
 }: {
   readonly view: ChatsView;
+  readonly items?: readonly ChatEntry[];
+  readonly loading?: boolean;
   readonly onEdit: (chat: ChatEntry) => void;
   readonly onSchedule: (chat: ChatEntry) => void;
   readonly onProactive: (chat: ChatEntry) => void;
   readonly onGroupMemory: (chat: ChatEntry) => void;
   readonly onRemove: (chat: ChatEntry) => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   // A Chat removed from the file is still running until restart: show what it runs.
   const shown = (row: ChatEntry): ChatSettingsView | null => row.saved ?? row.active;
   const topicsText = (settings: ChatSettingsView): string =>
@@ -75,13 +76,36 @@ export function ChatTable({
   const modelText = (settings: ChatSettingsView): string =>
     `${settings.effective.provider} / ${settings.effective.model}`;
   const modelSource = (settings: ChatSettingsView): string =>
-    `${settings.provider === null ? t('pages.chats.defaultModel') : t('pages.chats.chatOverride')} · ${t('pages.chats.thinkingShort', { level: settings.effective.thinking_level })}${
+    `${settings.provider === null ? t('pages.chats.defaultModel') : t('pages.chats.chatOverride')}${t('common.separator')}${t('pages.chats.thinkingShort', { level: settings.effective.thinking_level })}${
       settings.thinking_level === null ? t('pages.chats.inheritedSuffix') : ''
     }`;
+  /** A quick link keeps a real href for new-tab/middle-click/copy, and only plain left clicks become SPA navigation. */
+  const quickLink = (
+    value: string,
+    label: string,
+    icon: React.ReactNode,
+    to: string,
+    chatId: string,
+    activate: () => void,
+  ) => ({
+    value,
+    label,
+    icon,
+    href: `${to}?chat=${encodeURIComponent(chatId)}`,
+    onSelect: (_itemValue: string, _item: unknown, details: { readonly event: Event }) => {
+      const event = details.event as MouseEvent;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+        return;
+      }
+      event.preventDefault();
+      activate();
+    },
+  });
   const windowSummary = (window: ParticipationWindow): string =>
     summarizeWindows([window], {
       dayLabels: t('pages.chats.weekdaysShort').split(','),
       dailyLabel: t('pages.chats.daily'),
+      separator: t('common.separator'),
     });
   const groupMemoryText = (settings: ChatSettingsView): string => {
     const memory = settings.group_memory;
@@ -147,16 +171,18 @@ export function ChatTable({
       key: 'chat',
       title: t('pages.chats.colChat'),
       render: (row) => (
-        <div className="space-y-1">
-          <p className={row.title === null ? 'text-muted-foreground font-medium' : 'font-medium'}>
+        <div className={css({ minWidth: '0' })}>
+          <p className={css({ margin: '0', truncate: true }, row.title === null ? { color: 'text-muted' } : {})}>
             {row.title ?? t('pages.chats.unknownChat')}
           </p>
-          <p className="text-muted-foreground text-xs">
-            <span className="font-mono">{row.id}</span> ·{' '}
-            {row.type ?? (row.id.startsWith('-') ? t('pages.chats.group') : t('pages.chats.private'))}
+          <p className={css({ margin: '0', display: 'flex', gap: '2', textStyle: 'small', color: 'text-muted' })}>
+            <span className={css({ fontFamily: 'mono' })}>{row.id}</span>
+            <span>{row.type ?? (row.id.startsWith('-') ? t('pages.chats.group') : t('pages.chats.private'))}</span>
           </p>
           {row.runtime_chat_id !== row.id ? (
-            <p className="text-muted-foreground text-xs">{t('pages.chats.migratedTo', { id: row.runtime_chat_id })}</p>
+            <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+              {t('pages.chats.migratedTo', { id: row.runtime_chat_id })}
+            </p>
           ) : null}
         </div>
       ),
@@ -164,11 +190,12 @@ export function ChatTable({
     {
       key: 'topics',
       title: t('pages.chats.colTopics'),
+      width: 112,
       render: (row) => {
         const settings = shown(row);
         return settings === null ? null : (
-          <div className="space-y-1">
-            <p className={settings.topic_ids === null ? 'text-muted-foreground' : 'tabular-nums'}>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+            <p className={css({ margin: '0' }, settings.topic_ids === null ? { color: 'text-muted' } : {})}>
               {topicsText(settings)}
             </p>
             <RunningNote value={runningDiff(row, topicsText)} />
@@ -182,14 +209,14 @@ export function ChatTable({
       render: (row) => {
         const settings = shown(row);
         return settings === null ? null : (
-          <div className="space-y-1">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
             <MonoValue value={modelText(settings)} />
-            <p className="text-muted-foreground text-xs">{modelSource(settings)}</p>
+            <p className={css({ textStyle: 'small', color: 'text-muted' })}>{modelSource(settings)}</p>
             <RunningNote
               value={runningDiff(
                 row,
                 (item) =>
-                  `${modelText(item)} · ${t('pages.chats.thinkingShort', { level: item.effective.thinking_level })}`,
+                  `${modelText(item)}${t('common.separator')}${t('pages.chats.thinkingShort', { level: item.effective.thinking_level })}`,
               )}
             />
           </div>
@@ -199,13 +226,14 @@ export function ChatTable({
     {
       key: 'activeHours',
       title: t('pages.chats.colActiveHours'),
+      className: css({ whiteSpace: 'normal' }),
       // Private chats never gate, so they have no schedule to show or edit.
       render: (row) => {
         const settings = shown(row);
         return settings === null || !row.id.startsWith('-') ? null : (
-          <div className="space-y-1">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
             {activeHoursLines(settings).map((line) => (
-              <p key={line.key} className="text-sm">
+              <p key={line.key} className={css({ textStyle: 'body' })}>
                 {line.text}
               </p>
             ))}
@@ -213,7 +241,7 @@ export function ChatTable({
               value={runningDiff(row, (item) =>
                 activeHoursLines(item)
                   .map((line) => line.text)
-                  .join(' · '),
+                  .join(t('common.separator')),
               )}
             />
           </div>
@@ -223,12 +251,13 @@ export function ChatTable({
     {
       key: 'proactive',
       title: t('pages.chats.colProactive'),
+      className: css({ whiteSpace: 'normal' }),
       // Private chats have no proactive path: every message is already directed at the bot.
       render: (row) => {
         const settings = shown(row);
         return settings === null || !row.id.startsWith('-') ? null : (
-          <div className="space-y-1">
-            <p className="text-sm">{proactiveText(settings)}</p>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+            <p className={css({ textStyle: 'body' })}>{proactiveText(settings)}</p>
             <RunningNote value={runningDiff(row, proactiveText)} />
           </div>
         );
@@ -237,11 +266,13 @@ export function ChatTable({
     {
       key: 'groupMemory',
       title: t('pages.chats.colGroupMemory'),
+      width: 144,
+      className: css({ whiteSpace: 'normal' }),
       render: (row) => {
         const settings = shown(row);
         return settings === null || !row.id.startsWith('-') ? null : (
-          <div className="space-y-1">
-            <p className="text-sm">{groupMemoryText(settings)}</p>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+            <p className={css({ textStyle: 'body' })}>{groupMemoryText(settings)}</p>
             <RunningNote value={runningDiff(row, groupMemoryText)} />
           </div>
         );
@@ -250,6 +281,7 @@ export function ChatTable({
     {
       key: 'status',
       title: t('pages.chats.colStatus'),
+      width: 112,
       render: (row) =>
         row.saved === null ? (
           <ToneBadge tone="warning">{t('pages.chats.removalPending')}</ToneBadge>
@@ -265,132 +297,142 @@ export function ChatTable({
       key: 'actions',
       title: t('pages.chats.colActions'),
       align: 'right',
+      width: 140,
+      paddingBlock: 'none',
       render: (row) =>
         row.saved === null ? null : (
-          <div className="flex items-center justify-end gap-1">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label={t('pages.chats.quickLinks')}
-                  title={t('pages.chats.quickLinks')}
-                >
-                  <ExternalLink />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem asChild>
-                  <Link to="/prompts" search={{ chat: row.id }}>
-                    <Speech />
-                    {t('layout.nav.prompts')}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/dictionary" search={{ chat: row.runtime_chat_id }}>
-                    <BookOpen />
-                    {t('layout.nav.dictionary')}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/memories" search={{ chat: row.runtime_chat_id }}>
-                    <Brain />
-                    {t('layout.nav.memories')}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/group-memories" search={{ chat: row.runtime_chat_id }}>
-                    <LibraryBig />
-                    {t('layout.nav.groupMemories')}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/messages" search={{ chat: row.runtime_chat_id }}>
-                    <MessageSquareText />
-                    {t('layout.nav.messages')}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/invocations" search={{ chat: row.runtime_chat_id }}>
-                    <Activity />
-                    {t('layout.nav.toolSessions')}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/alarms" search={{ chat: row.runtime_chat_id }}>
-                    <AlarmClock />
-                    {t('layout.nav.alarms')}
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {row.id.startsWith('-') ? (
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                aria-label={t('pages.chats.editActiveHours')}
-                title={t('pages.chats.editActiveHours')}
-                onClick={() => onSchedule(row)}
-              >
-                <Clock />
-              </Button>
-            ) : null}
-            {row.id.startsWith('-') ? (
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                aria-label={t('pages.chats.editProactiveReply')}
-                title={t('pages.chats.editProactiveReply')}
-                onClick={() => onProactive(row)}
-              >
-                <Sparkles />
-              </Button>
-            ) : null}
-            {row.id.startsWith('-') ? (
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                aria-label={t('pages.chats.editGroupMemory')}
-                title={t('pages.chats.editGroupMemory')}
-                onClick={() => onGroupMemory(row)}
-              >
-                <LibraryBig />
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              size="icon-sm"
+          <RowActions>
+            <IconButton
               variant="ghost"
-              aria-label={t('common.edit')}
+              color="secondary"
               onClick={() => onEdit(row)}
-            >
-              <Pencil />
-            </Button>
-            <Button
-              type="button"
-              size="icon-sm"
+              label={t('common.edit')}
+              icon={<EditIcon />}
+            />
+            <Menu
+              placement="bottom-end"
+              // Koi's separator bleeds past the scrollable body with negative inline margins, which turns
+              // `overflow-y: auto` into `overflow-x: auto` and shows a horizontal scrollbar. Inset it instead.
+              classNames={{ separator: css({ marginInline: '0' }) }}
+              trigger={
+                <IconButton
+                  variant="ghost"
+                  color="secondary"
+                  label={t('pages.chats.moreActions')}
+                  icon={<MoreIcon />}
+                />
+              }
+              items={[
+                ...(row.id.startsWith('-')
+                  ? [
+                      {
+                        label: t('pages.chats.settingsGroup'),
+                        items: [
+                          {
+                            value: 'active-hours',
+                            label: t('pages.chats.editActiveHours'),
+                            icon: <ClockIcon />,
+                            onSelect: () => onSchedule(row),
+                          },
+                          {
+                            value: 'proactive',
+                            label: t('pages.chats.editProactiveReply'),
+                            icon: <SparklesIcon />,
+                            onSelect: () => onProactive(row),
+                          },
+                          {
+                            value: 'group-memory',
+                            label: t('pages.chats.editGroupMemory'),
+                            icon: <LibraryIcon />,
+                            onSelect: () => onGroupMemory(row),
+                          },
+                        ],
+                      },
+                      'separator' as const,
+                    ]
+                  : []),
+                {
+                  label: t('pages.chats.quickLinks'),
+                  items: [
+                    quickLink(
+                      'prompts',
+                      t('layout.nav.prompts'),
+                      <ScrollIcon />,
+                      '/prompts',
+                      row.id,
+                      () => void navigate({ to: '/prompts', search: { chat: row.id } }),
+                    ),
+                    quickLink(
+                      'dictionary',
+                      t('layout.nav.dictionary'),
+                      <BookOpenIcon />,
+                      '/dictionary',
+                      row.runtime_chat_id,
+                      () => void navigate({ to: '/dictionary', search: { chat: row.runtime_chat_id } }),
+                    ),
+                    quickLink(
+                      'memories',
+                      t('layout.nav.memories'),
+                      <BrainIcon />,
+                      '/memories',
+                      row.runtime_chat_id,
+                      () => void navigate({ to: '/memories', search: { chat: row.runtime_chat_id } }),
+                    ),
+                    quickLink(
+                      'group-memories',
+                      t('layout.nav.groupMemories'),
+                      <LibraryIcon />,
+                      '/group-memories',
+                      row.runtime_chat_id,
+                      () => void navigate({ to: '/group-memories', search: { chat: row.runtime_chat_id } }),
+                    ),
+                    quickLink(
+                      'messages',
+                      t('layout.nav.messages'),
+                      <ChatTextIcon />,
+                      '/messages',
+                      row.runtime_chat_id,
+                      () => void navigate({ to: '/messages', search: { chat: row.runtime_chat_id } }),
+                    ),
+                    quickLink(
+                      'invocations',
+                      t('layout.nav.toolSessions'),
+                      <PulseIcon />,
+                      '/invocations',
+                      row.runtime_chat_id,
+                      () => void navigate({ to: '/invocations', search: { chat: row.runtime_chat_id } }),
+                    ),
+                    quickLink(
+                      'alarms',
+                      t('layout.nav.alarms'),
+                      <AlarmIcon />,
+                      '/alarms',
+                      row.runtime_chat_id,
+                      () => void navigate({ to: '/alarms', search: { chat: row.runtime_chat_id } }),
+                    ),
+                  ],
+                },
+              ]}
+            />
+            <IconButton
               variant="ghost"
-              className="text-muted-foreground hover:text-destructive"
-              aria-label={t('pages.chats.remove')}
+              color="error"
               disabled={view.items.filter((item) => item.saved !== null).length <= 1}
               onClick={() => onRemove(row)}
-            >
-              <Trash2 />
-            </Button>
-          </div>
+              label={t('pages.chats.remove')}
+              icon={<TrashIcon />}
+            />
+          </RowActions>
         ),
     },
   ];
   return (
     <TableShell
       columns={columns}
-      data={view.items}
+      data={items}
       rowKey={(row) => row.id}
-      className={FLUSH_TABLE_CLASS}
+      loading={loading}
+      minWidth={1040}
       emptyText={t('pages.chats.emptyChats')}
     />
   );

@@ -1,11 +1,12 @@
-import { Trash2 } from 'lucide-react';
+import { Field } from '@tuuject/koi-react/field';
+import { Input } from '@tuuject/koi-react/input';
+import { Select } from '@tuuject/koi-react/select';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
+import { field } from '@tuuject/koi-react/styled-system/recipes';
+import { Switch } from '@tuuject/koi-react/switch';
+import { Textarea } from '@tuuject/koi-react/textarea';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
 import type { SearchProviderView } from '@/lib/api/search.ts';
 import { canKeepKey, type EngineDraft, type KeyMode, renameEngine, switchProvider } from './draft.ts';
 
@@ -20,8 +21,6 @@ export function EngineEditor({
   deepseekKeys,
   disabled,
   onChange,
-  onRemove,
-  index,
 }: {
   readonly draft: EngineDraft;
   readonly providers: readonly SearchProviderView[];
@@ -29,9 +28,7 @@ export function EngineEditor({
   readonly deepseekKeys: readonly string[];
   readonly disabled: boolean;
   readonly onChange: (change: Partial<EngineDraft>) => void;
-  readonly onRemove: () => void;
-  readonly index: number;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const idPrefix = `search-engine-${draft.key}`;
   const canReuseModelKey = provider?.id === 'deepseek' && deepseekKeys.length > 0;
@@ -43,78 +40,58 @@ export function EngineEditor({
   const keyMode: KeyMode = keyModes.includes(draft.keyMode) ? draft.keyMode : (keyModes[0] ?? 'new');
   // Only "new" available means no choice to make: show the paste field alone.
   const showKeyModeChoice = keyModes.length > 1;
+  const keyField = field();
   return (
-    <div className="space-y-3 rounded-md border p-3">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium">{t('search.engineHeading', { index: index + 1 })}</p>
-        <div className="flex items-center gap-3">
-          <Label htmlFor={`${idPrefix}-enabled`} className="text-muted-foreground text-xs">
-            {t('search.engineEnabled')}
-          </Label>
-          <Switch
-            id={`${idPrefix}-enabled`}
-            checked={draft.enabled}
-            onCheckedChange={(next) => onChange({ enabled: next })}
-            disabled={disabled}
-          />
-          <Button type="button" variant="ghost" size="sm" onClick={onRemove} disabled={disabled}>
-            <Trash2 aria-hidden /> {t('search.removeEngine')}
-          </Button>
-        </div>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Label htmlFor={`${idPrefix}-id`}>{t('search.fieldId')}</Label>
+    <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+      <Switch
+        label={t('search.engineEnabled')}
+        checked={draft.enabled}
+        onCheckedChange={(next) => onChange({ enabled: next })}
+        disabled={disabled}
+      />
+      <div className={css({ display: 'grid', gap: '4', md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } })}>
+        <Field label={t('search.fieldId')} help={t('search.fieldIdHint')}>
           <Input
-            id={`${idPrefix}-id`}
             value={draft.id}
             onChange={(event) => onChange(renameEngine(draft, event.target.value))}
             placeholder="tavily-main"
             disabled={disabled}
           />
-          <p className="text-muted-foreground text-xs">{t('search.fieldIdHint')}</p>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${idPrefix}-provider`}>{t('search.fieldProvider')}</Label>
+        </Field>
+        <Field label={t('search.fieldProvider')}>
           <Select
             value={draft.provider}
-            onValueChange={(value) => {
-              const next = providers.find((entry) => entry.id === value);
+            onChange={(event) => {
+              const next = providers.find((entry) => entry.id === event.target.value);
               if (next !== undefined && next.id !== draft.provider) {
                 onChange(switchProvider(next));
               }
             }}
             disabled={disabled}
           >
-            <SelectTrigger id={`${idPrefix}-provider`} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {providers.map((entry) => (
-                <SelectItem key={entry.id} value={entry.id}>
-                  {entry.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
+            {providers.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.label}
+              </option>
+            ))}
           </Select>
-        </div>
-        <div className="space-y-1 sm:col-span-2">
-          <Label htmlFor={`${idPrefix}-endpoint`}>{t('search.fieldEndpoint')}</Label>
+        </Field>
+        <Field
+          label={t('search.fieldEndpoint')}
+          help={provider?.default_endpoint === null ? t('search.endpointRequiredHint') : t('search.endpointHint')}
+        >
           <Input
-            id={`${idPrefix}-endpoint`}
             value={draft.endpoint}
             onChange={(event) => onChange({ endpoint: event.target.value })}
             placeholder={provider?.default_endpoint ?? t('search.endpointRequired')}
             disabled={disabled}
           />
-          <p className="text-muted-foreground text-xs">
-            {provider?.default_endpoint === null ? t('search.endpointRequiredHint') : t('search.endpointHint')}
-          </p>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${idPrefix}-results`}>{t('search.fieldResults')}</Label>
+        </Field>
+        <Field
+          label={t('search.fieldResults')}
+          help={provider?.supports_count === false ? t('search.resultsUnsupported') : t('search.resultsHint')}
+        >
           <Input
-            id={`${idPrefix}-results`}
             type="number"
             min={1}
             max={10}
@@ -122,14 +99,9 @@ export function EngineEditor({
             onChange={(event) => onChange({ results: event.target.value })}
             disabled={disabled || provider?.supports_count === false}
           />
-          <p className="text-muted-foreground text-xs">
-            {provider?.supports_count === false ? t('search.resultsUnsupported') : t('search.resultsHint')}
-          </p>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${idPrefix}-timeout`}>{t('search.fieldTimeout')}</Label>
+        </Field>
+        <Field label={t('search.fieldTimeout')}>
           <Input
-            id={`${idPrefix}-timeout`}
             type="number"
             min={5}
             max={30}
@@ -137,43 +109,41 @@ export function EngineEditor({
             onChange={(event) => onChange({ timeout: event.target.value })}
             disabled={disabled}
           />
-        </div>
-        <div className="space-y-1 sm:col-span-2">
-          <Label htmlFor={`${idPrefix}-note`}>{t('search.fieldNote')}</Label>
+        </Field>
+        <Field label={t('search.fieldNote')} help={t('search.noteHint')}>
           <Textarea
-            id={`${idPrefix}-note`}
             rows={2}
             value={draft.note}
             onChange={(event) => onChange({ note: event.target.value })}
             placeholder={t('search.notePlaceholder')}
             disabled={disabled}
           />
-          <p className="text-muted-foreground text-xs">{t('search.noteHint')}</p>
-        </div>
-        <div className="space-y-1 sm:col-span-2">
-          <Label htmlFor={showKeyModeChoice ? `${idPrefix}-key-mode` : `${idPrefix}-key`}>{t('search.fieldKey')}</Label>
+        </Field>
+        {/* A mode picker plus the field it unlocks under one label: borrows Field's parts instead of nesting Fields. */}
+        <div className={cx(keyField.root, css({ md: { gridColumn: '1 / -1' } }))}>
+          <label htmlFor={showKeyModeChoice ? `${idPrefix}-key-mode` : `${idPrefix}-key`} className={keyField.label}>
+            {t('search.fieldKey')}
+          </label>
           {showKeyModeChoice ? (
             <Select
+              id={`${idPrefix}-key-mode`}
+              className={css({ width: '100%', md: { width: '288px' } })}
               value={keyMode}
-              onValueChange={(value) =>
+              onChange={(event) => {
                 // Entering alias mode stores the alias the picker shows, so a
                 // single available alias needs no extra pick before saving.
+                const value = event.target.value;
                 onChange(
                   value === 'alias' && draft.keyAlias === ''
                     ? { keyMode: 'alias', keyAlias: deepseekKeys[0] ?? '' }
                     : { keyMode: value as KeyMode },
-                )
-              }
+                );
+              }}
               disabled={disabled}
             >
-              <SelectTrigger id={`${idPrefix}-key-mode`} className="w-full sm:w-72">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {keyModes.includes('keep') ? <SelectItem value="keep">{t('search.keyKeep')}</SelectItem> : null}
-                {keyModes.includes('new') ? <SelectItem value="new">{t('search.keyNew')}</SelectItem> : null}
-                {keyModes.includes('alias') ? <SelectItem value="alias">{t('search.keyReuse')}</SelectItem> : null}
-              </SelectContent>
+              {keyModes.includes('keep') ? <option value="keep">{t('search.keyKeep')}</option> : null}
+              {keyModes.includes('new') ? <option value="new">{t('search.keyNew')}</option> : null}
+              {keyModes.includes('alias') ? <option value="alias">{t('search.keyReuse')}</option> : null}
             </Select>
           ) : null}
           {keyMode === 'new' ? (
@@ -189,20 +159,20 @@ export function EngineEditor({
             />
           ) : null}
           {keyMode === 'alias' ? (
-            <Select value={draft.keyAlias} onValueChange={(value) => onChange({ keyAlias: value })} disabled={disabled}>
-              <SelectTrigger className="w-full sm:w-72">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {deepseekKeys.map((alias) => (
-                  <SelectItem key={alias} value={alias}>
-                    {alias}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+            <Select
+              className={css({ width: '100%', md: { width: '288px' } })}
+              value={draft.keyAlias}
+              onChange={(event) => onChange({ keyAlias: event.target.value })}
+              disabled={disabled}
+            >
+              {deepseekKeys.map((alias) => (
+                <option key={alias} value={alias}>
+                  {alias}
+                </option>
+              ))}
             </Select>
           ) : null}
-          <p className="text-muted-foreground text-xs">
+          <p className={keyField.help}>
             {provider?.key === 'forbidden'
               ? t('search.keyForbidden')
               : provider?.key === 'optional'

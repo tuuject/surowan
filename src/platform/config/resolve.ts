@@ -160,6 +160,7 @@ export function resolveVisionSection(section: VisionSectionConfig | null | undef
   return {
     ...(section?.provider === undefined ? {} : { provider: section.provider }),
     ...(section?.model === undefined ? {} : { model: section.model }),
+    ...(section?.thinking_level === undefined ? {} : { thinking_level: section.thinking_level }),
     max_output_tokens: section?.max_output_tokens ?? VISION_DEFAULTS.max_output_tokens,
     max_concurrency: section?.max_concurrency ?? VISION_DEFAULTS.max_concurrency,
     background_sticker_concurrency: VISION_DEFAULTS.background_sticker_concurrency,

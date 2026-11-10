@@ -1,9 +1,8 @@
-import { useMemo } from 'react';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
+import { type ReactElement, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-
-import { daySegments, formatZonedTime, summarizeWindows, zonedClock } from '@/lib/participation';
-import { cn } from '@/lib/utils';
 import type { ParticipationWindow } from '@/lib/api/chats.ts';
+import { daySegments, formatZonedTime, summarizeWindows, zonedClock } from '@/lib/participation';
 
 const HOUR_TICKS = [0, 6, 12, 18, 24];
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7];
@@ -19,21 +18,26 @@ export function WeekWindowsChart({
 }: {
   readonly windows: readonly ParticipationWindow[];
   readonly timezone: string;
-}): React.ReactElement {
+}): ReactElement {
   const { t, i18n } = useTranslation();
   const dayLabels = t('pages.chats.weekdaysShort').split(',');
   const now = useMemo(() => new Date(), []);
   const nowClock = useMemo(() => zonedClock(timezone, now), [timezone, now]);
   const nowPct = `${((nowClock.minutes / 1440) * 100).toFixed(3)}%`;
   return (
-    <div className="space-y-1.5">
-      <div className="flex" aria-hidden="true">
-        <div className="w-10 shrink-0" />
-        <div className="relative h-4 flex-1">
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+      <div className={css({ display: 'flex' })} aria-hidden="true">
+        <div className={css({ width: '40px', flexShrink: '0' })} />
+        <div className={css({ position: 'relative', height: 'icon', flex: '1 1 0%' })}>
           {HOUR_TICKS.map((hour) => (
             <span
               key={hour}
-              className="text-muted-foreground absolute text-xs tabular-nums"
+              className={css({
+                textStyle: 'small',
+                color: 'text-muted',
+                position: 'absolute',
+                fontVariantNumeric: 'tabular-nums',
+              })}
               style={{
                 left: `${(hour / 24) * 100}%`,
                 transform: hour === 0 ? 'none' : hour === 24 ? 'translateX(-100%)' : 'translateX(-50%)',
@@ -43,19 +47,31 @@ export function WeekWindowsChart({
             </span>
           ))}
           <span
-            className="absolute top-4 size-2 -translate-x-1/2 rotate-45 border border-background bg-foreground"
+            className={css({
+              position: 'absolute',
+              top: '4',
+              width: '8px',
+              height: '8px',
+              transform: 'rotate(45deg)',
+              borderWidth: '1px',
+              borderColor: 'surface',
+              bg: 'text-muted',
+            })}
             style={{ left: nowPct }}
           />
         </div>
       </div>
-      <div className="relative">
-        <div className="pointer-events-none absolute inset-0 flex" aria-hidden="true">
-          <div className="w-10 shrink-0" />
-          <div className="relative flex-1">
+      <div className={css({ position: 'relative' })}>
+        <div
+          className={css({ pointerEvents: 'none', position: 'absolute', inset: '0', display: 'flex' })}
+          aria-hidden="true"
+        >
+          <div className={css({ width: '40px', flexShrink: '0' })} />
+          <div className={css({ position: 'relative', flex: '1 1 0%' })}>
             {HOUR_TICKS.map((hour) => (
               <div
                 key={hour}
-                className="bg-border/40 absolute inset-y-0 w-px"
+                className={css({ bg: 'divider', position: 'absolute', insetBlock: '0', width: '1px' })}
                 style={{ left: `${(hour / 24) * 100}%` }}
               />
             ))}
@@ -64,17 +80,29 @@ export function WeekWindowsChart({
         {WEEKDAYS.map((day) => {
           const isToday = day === nowClock.weekday;
           return (
-            <div key={day} className="relative flex items-center">
+            <div key={day} className={css({ position: 'relative', display: 'flex', alignItems: 'center' })}>
               <div
-                className={cn('w-10 shrink-0 text-xs', isToday ? 'text-primary font-medium' : 'text-muted-foreground')}
+                className={cx(
+                  css({ textStyle: 'small', width: '40px', flexShrink: '0' }),
+                  isToday ? css({ textStyle: 'label', color: 'text-brand' }) : css({ color: 'text-muted' }),
+                )}
               >
                 {dayLabels[day - 1]}
               </div>
-              <div className="relative h-5 flex-1">
-                <div className="bg-muted/50 absolute inset-y-1.5 inset-x-0 rounded-full" aria-hidden="true" />
+              <div className={css({ position: 'relative', height: '20px', flex: '1 1 0%' })}>
+                <div
+                  className={css({
+                    bg: 'surface-muted',
+                    position: 'absolute',
+                    insetBlock: '2',
+                    insetInline: '0',
+                    borderRadius: 'full',
+                  })}
+                  aria-hidden="true"
+                />
                 {isToday ? (
                   <div
-                    className="bg-foreground/60 absolute inset-y-0 w-px"
+                    className={css({ bg: 'text-muted', position: 'absolute', insetBlock: '0', width: '1px' })}
                     style={{ left: nowPct }}
                     aria-hidden="true"
                   />
@@ -82,7 +110,7 @@ export function WeekWindowsChart({
                 {daySegments(windows, day).map((segment) => (
                   <div
                     key={`${segment.start}-${segment.end}`}
-                    className="bg-primary/60 absolute inset-y-1.5 rounded-full"
+                    className={css({ bg: 'action', position: 'absolute', insetBlock: '2', borderRadius: 'full' })}
                     style={{
                       left: `${((segment.start / 1440) * 100).toFixed(3)}%`,
                       width: `${(((segment.end - segment.start) / 1440) * 100).toFixed(3)}%`,
@@ -90,6 +118,7 @@ export function WeekWindowsChart({
                     title={summarizeWindows([segment.window], {
                       dayLabels,
                       dailyLabel: t('pages.chats.daily'),
+                      separator: t('common.separator'),
                     })}
                   />
                 ))}
@@ -98,7 +127,7 @@ export function WeekWindowsChart({
           );
         })}
       </div>
-      <p className="text-muted-foreground text-xs">
+      <p className={css({ textStyle: 'small', color: 'text-muted' })}>
         {t('pages.chats.activeHoursTimezoneNote', {
           timezone,
           time: formatZonedTime(timezone, now, i18n.language),

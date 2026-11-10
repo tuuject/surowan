@@ -60,6 +60,94 @@ test('checks the vision model before writing it', async () => {
   }
 });
 
+test('sets the vision thinking level with its model and drops a level the next model rejects', async () => {
+  const fixture = await adminFixture({
+    transform: (config) => {
+      const agent = config.providers.agent;
+      if (agent?.kind !== 'custom' || agent.models[0] === undefined) {
+        throw new Error('Expected a custom agent provider');
+      }
+      agent.models[0].thinking_levels = ['off', 'low', 'high', 'max'];
+      agent.models.push({
+        id: 'vision-medium',
+        name: 'Vision Medium',
+        reasoning: true,
+        thinking_levels: ['off', 'medium'],
+        input: ['text', 'image'],
+        context_window: 128_000,
+        max_tokens: 8_192,
+        cost: { input: 0, output: 0, cache_read: 0, cache_write: 0 },
+      });
+    },
+  });
+  try {
+    // The fixture vision model does not reason, so its analyses run at `off`.
+    expect(await readJson(await call(fixture, '/api/providers'))).toMatchObject({
+      vision: { provider: 'vision', model: 'vision-model', thinking_level: 'off' },
+    });
+    const before = await readFile(fixture.configPath, 'utf8');
+    const unsupported = await write(
+      fixture,
+      '/api/vision',
+      'PUT',
+      { provider: 'agent', model: 'agent-model', thinking_level: 'medium' },
+      await revisionOf(fixture),
+    );
+    expect(unsupported.status).toBe(422);
+    expect(await readJson(unsupported)).toMatchObject({
+      error: 'unsupported_thinking_level',
+      message: 'agent/agent-model does not accept thinking level medium (supported: off, low, high, max)',
+    });
+    expect(await readFile(fixture.configPath, 'utf8')).toBe(before);
+
+    const high = await write(
+      fixture,
+      '/api/vision',
+      'PUT',
+      { provider: 'agent', model: 'agent-model', thinking_level: 'high' },
+      await revisionOf(fixture),
+    );
+    expect(high.status).toBe(200);
+    expect(await readJson(high)).toMatchObject({
+      vision: { provider: 'agent', model: 'agent-model', thinking_level: 'high' },
+      apply: { applied: ['vision.model', 'vision.provider', 'vision.thinking_level'], restart_required: [] },
+    });
+    expect(fixture.file().vision?.thinking_level).toBe('high');
+    // Hot: the next analysis already runs at the new level.
+    expect(fixture.configStore.current().config.vision.thinking_level).toBe('high');
+
+    // A switch without a level keeps the stored one only while the model takes
+    // it; this model has no `high`, so the stored level goes and the view shows
+    // the default derived from the model (no `low`, so its weakest effort).
+    const switched = await write(
+      fixture,
+      '/api/vision',
+      'PUT',
+      { provider: 'agent', model: 'vision-medium' },
+      await revisionOf(fixture),
+    );
+    expect(switched.status).toBe(200);
+    expect(await readJson(switched)).toMatchObject({
+      vision: { provider: 'agent', model: 'vision-medium', thinking_level: 'medium' },
+      apply: { applied: ['vision.model', 'vision.thinking_level'], restart_required: [] },
+    });
+    expect(fixture.file().vision).not.toHaveProperty('thinking_level');
+    expect(fixture.configStore.current().config.vision).not.toHaveProperty('thinking_level');
+  } finally {
+    fixture.store.close();
+  }
+});
+
+test('refuses to load a vision thinking level its model does not accept', async () => {
+  await expect(
+    adminFixture({
+      transform: (config) => {
+        config.vision = { ...config.vision, thinking_level: 'high' };
+      },
+    }),
+  ).rejects.toThrow('vision.thinking_level high is not supported by vision/vision-model (supported: off)');
+});
+
 test('sets the agent thinking level only to a level the agent model accepts', async () => {
   const fixture = await adminFixture({
     transform: (config) => {

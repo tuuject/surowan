@@ -1,24 +1,27 @@
 import type { QueryClient } from '@tanstack/react-query';
-import type React from 'react';
+import { Button } from '@tuuject/koi-react/button';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StateBadge } from '@/components/business';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-
-import { AttemptRow } from './rows.tsx';
+import { ListFooter, type OffsetPagination, StateBadge, useClientPagination } from '@/components/business';
+import { Panel } from '@/components/layout/panel';
 import type {
   PlaygroundInvocation,
   PlaygroundReleaseDetail,
   PlaygroundRoomDetail,
   PlaygroundStatusSummary,
 } from '@/lib/api/playground.ts';
+import { AttemptRow } from './rows.tsx';
 
 interface RunsCardProps {
   readonly roomId: string;
   readonly status: PlaygroundStatusSummary | undefined;
   readonly revision: string;
   readonly pending: number;
-  readonly runs: { readonly data: { readonly items: readonly PlaygroundInvocation[] } | undefined };
+  readonly runs: {
+    readonly data: { readonly items: readonly PlaygroundInvocation[]; readonly total: number } | undefined;
+  };
+  readonly pagination: OffsetPagination;
   readonly detail: { readonly data: PlaygroundRoomDetail | undefined };
   readonly releaseDetail: { readonly data: PlaygroundReleaseDetail | undefined };
   readonly queryClient: QueryClient;
@@ -31,25 +34,25 @@ export function RunsCard({
   revision,
   pending,
   runs,
+  pagination: runPagination,
   detail,
   releaseDetail,
   queryClient,
   setOpenRelease,
-}: RunsCardProps): React.ReactElement {
+}: RunsCardProps): ReactElement {
   const { t } = useTranslation();
+  const releasePagination = useClientPagination(detail.data?.releases ?? [], `${roomId}:releases`);
   return (
-    <Card className="min-w-0">
-      <CardHeader>
-        <CardTitle>{t('playground.runs.heading')}</CardTitle>
-        <CardDescription>
-          {status === undefined ? '' : t('playground.room.statusSummary', { revision, pending })}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="min-w-0 space-y-3">
+    <Panel
+      title={t('playground.runs.heading')}
+      description={status === undefined ? undefined : t('playground.room.statusSummary', { revision, pending })}
+      className={css({ minWidth: '0' })}
+    >
+      <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
         {runs.data?.items.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t('playground.runs.empty')}</p>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('playground.runs.empty')}</p>
         ) : null}
-        <ul className="min-w-0">
+        <ul className={css({ minWidth: '0' })}>
           {(runs.data?.items ?? []).map((invocation) => (
             <AttemptRow
               key={invocation.id}
@@ -63,53 +66,94 @@ export function RunsCard({
             />
           ))}
         </ul>
+        {runs.data === undefined ? null : (
+          <ListFooter
+            count={runs.data.total}
+            page={runPagination.page}
+            pageCount={runPagination.pageCount(runs.data.total)}
+            onPageChange={runPagination.onPageChange}
+          />
+        )}
         {(detail.data?.releases ?? []).length === 0 ? null : (
-          <div className="flex flex-wrap gap-2">
-            {(detail.data?.releases ?? []).map((entry) => (
-              <Button
-                key={entry.id}
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setOpenRelease(entry.id);
-                  // Re-opening the same Release asks for its current state.
-                  void queryClient.invalidateQueries({ queryKey: ['playground-release', roomId, entry.id] });
-                }}
-              >
-                {t('playground.runs.detail')} #{entry.id}
-              </Button>
-            ))}
+          <div>
+            <div className={css({ display: 'flex', flexWrap: 'wrap', gap: '2' })}>
+              {releasePagination.items.map((entry) => (
+                <Button
+                  key={entry.id}
+                  type="button"
+                  variant="outline"
+                  color="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setOpenRelease(entry.id);
+                    // Re-opening the same Release asks for its current state.
+                    void queryClient.invalidateQueries({ queryKey: ['playground-release', roomId, entry.id] });
+                  }}
+                >
+                  {t('playground.runs.detail')} #{entry.id}
+                </Button>
+              ))}
+            </div>
+            <ListFooter
+              count={releasePagination.total}
+              page={releasePagination.page}
+              pageCount={releasePagination.pageCount}
+              onPageChange={releasePagination.onPageChange}
+            />
           </div>
         )}
         {releaseDetail.data === undefined ? null : <ReleaseDetails detail={releaseDetail.data} />}
         {runs.data?.items.some((entry) => entry.state === 'completed' && entry.sends_used === 0) === true ? (
-          <p className="text-muted-foreground text-xs">{t('playground.runs.noSend')}</p>
+          <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('playground.runs.noSend')}</p>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   );
 }
 
-function ReleaseDetails({ detail }: { readonly detail: PlaygroundReleaseDetail }): React.ReactElement {
+function ReleaseDetails({ detail }: { readonly detail: PlaygroundReleaseDetail }): ReactElement {
   const { t } = useTranslation();
   return (
-    <div className="bg-muted/40 space-y-2 rounded-md p-3">
-      <p className="text-xs">
-        {t('playground.runs.detail')} #{detail.release.id} ·{' '}
-        {t('playground.runs.throughSeq', { seq: detail.release.through_seq })}
-        {detail.release.bucket_id === null ? '' : ` · ${t('playground.runs.bucket', { id: detail.release.bucket_id })}`}
+    <div
+      className={css({
+        '& > :not(:last-child)': { marginBlockEnd: '2' },
+        borderInlineStartWidth: '1px',
+        borderColor: 'divider',
+        paddingBlock: '2',
+        paddingInlineStart: '3',
+      })}
+    >
+      <p
+        className={css({
+          margin: '0',
+          display: 'flex',
+          flexWrap: 'wrap',
+          columnGap: '3',
+          rowGap: '1',
+          textStyle: 'small',
+        })}
+      >
+        <span>
+          {t('playground.runs.detail')} #{detail.release.id}
+        </span>
+        <span>{t('playground.runs.throughSeq', { seq: detail.release.through_seq })}</span>
+        {detail.release.bucket_id === null ? null : (
+          <span>{t('playground.runs.bucket', { id: detail.release.bucket_id })}</span>
+        )}
       </p>
       <ul>
         {detail.attempts.map((attempt) => (
-          <li key={attempt.id} className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="font-mono">{attempt.id}</span>
+          <li
+            key={attempt.id}
+            className={css({ textStyle: 'small', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}
+          >
+            <span className={css({ fontFamily: 'mono' })}>{attempt.id}</span>
             <StateBadge state={attempt.state} />
-            <span className="text-muted-foreground">
+            <span className={css({ color: 'text-muted' })}>
               {t('playground.runs.usage', { tokens: attempt.total_tokens, cost: attempt.total_cost ?? 0 })}
             </span>
             {attempt.receipt_state === null ? null : (
-              <span className="text-muted-foreground">
+              <span className={css({ color: 'text-muted' })}>
                 {t('playground.runs.receipt', { state: attempt.receipt_state })}
               </span>
             )}
@@ -117,14 +161,25 @@ function ReleaseDetails({ detail }: { readonly detail: PlaygroundReleaseDetail }
         ))}
       </ul>
       {detail.sends.length === 0 ? null : (
-        <div className="space-y-1">
-          <p className="text-xs font-medium">{t('playground.runs.sends')}</p>
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <p className={css({ textStyle: 'small' })}>{t('playground.runs.sends')}</p>
           <ul>
             {detail.sends.map((send) => (
-              <li key={send.id} className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="font-mono">{send.kind}</span>
+              <li
+                key={send.id}
+                className={css({
+                  textStyle: 'small',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  gap: '2',
+                })}
+              >
+                <span className={css({ fontFamily: 'mono' })}>{send.kind}</span>
                 <StateBadge state={send.state} />
-                <span className="text-muted-foreground">{send.message_id === null ? '' : `#${send.message_id}`}</span>
+                <span className={css({ color: 'text-muted' })}>
+                  {send.message_id === null ? '' : `#${send.message_id}`}
+                </span>
               </li>
             ))}
           </ul>

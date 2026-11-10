@@ -1,30 +1,17 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MonoValue } from '@/components/business';
-import { HeaderFields } from '@/components/models/header-fields';
-import { ModelDraftList } from '@/components/models/model-draft-list';
 import { ModelEditDialog } from '@/components/models/model-edit-dialog';
-import { useDraftSelection } from '@/components/models/use-draft-selection';
-import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-
-import { type HeaderRow, headerRowsFromNames, headerValues } from '@/lib/header-rows.ts';
-import { modelFormFromDraft, parseModelIds, requestErrorMessage } from '@/lib/model-manager.ts';
-import { providerPresetsQuery } from '@/lib/queries.ts';
-import { useProviderWrite } from '@/lib/use-provider-write.ts';
-import { createProvider, discoverProviderModels, lookupModelMetadata, PROVIDER_APIS } from '@/lib/api/providers.ts';
+  WizardConnectionStep,
+  WizardCredentialsStep,
+  WizardModelsStep,
+} from '@/components/models/provider-wizard-steps';
+import { useDraftSelection } from '@/components/models/use-draft-selection';
+import { useOpenSession } from '@/hooks/use-open-session.ts';
 import type {
   CreateProviderRequest,
   DiscoveredModel,
@@ -32,6 +19,12 @@ import type {
   ProviderKind,
   ProviderModelConfig,
 } from '@/lib/api/providers.ts';
+import { createProvider, discoverProviderModels, lookupModelMetadata } from '@/lib/api/providers.ts';
+import { type HeaderRow, headerRowsFromNames, headerValues } from '@/lib/header-rows.ts';
+import { emptyModelForm, modelFormFromDraft } from '@/lib/model-form.ts';
+import { parseModelIds, requestErrorMessage } from '@/lib/model-manager.ts';
+import { providerPresetsQuery } from '@/lib/queries.ts';
+import { useProviderWrite } from '@/lib/use-provider-write.ts';
 
 const ALIAS_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 
@@ -41,22 +34,36 @@ type WizardStep = 'connection' | 'credentials' | 'models';
  * New-provider wizard: connection → credentials → models. The model
  * list is never prefilled (C8): it comes from the provider's own listing with
  * the key that was just typed, or from ids the admin enters by hand.
+ *
+ * The page keeps this mounted and drives it with `open`, so Base UI can play
+ * both transitions; `formKey` starts a fresh wizard — step one and empty
+ * fields — on every open.
  */
 export function ProviderWizard({
+  open,
+  onOpenChange,
+  formKey,
   revision,
-  onClose,
   onCreated,
 }: {
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  /** Incremented by the page for every open: a new wizard, not a new dialog. */
+  readonly formKey: number;
   readonly revision: string;
-  readonly onClose: () => void;
   /** Runs after a successful create, so the page can select the new provider. */
   readonly onCreated: (alias: string) => void;
-}): React.ReactElement {
+}): ReactElement {
   const { t } = useTranslation();
   const write = useProviderWrite();
-  const presets = useQuery(providerPresetsQuery);
+  const presets = useQuery({ ...providerPresetsQuery, enabled: open });
   const selection = useDraftSelection();
+  // Discovery and lookup can be abandoned by closing the wizard, and they still
+  // answer. Each request carries the session it started in, so a late answer
+  // cannot put one wizard's models or error into the next.
+  const session = useOpenSession(open);
 
+  const [sessionKey, setSessionKey] = useState(formKey);
   const [step, setStep] = useState<WizardStep>('connection');
   const [kind, setKind] = useState<ProviderKind>('builtin');
   const [alias, setAlias] = useState('');
@@ -67,14 +74,23 @@ export function ProviderWizard({
   const [headers, setHeaders] = useState<readonly HeaderRow[]>(() => headerRowsFromNames([]));
   const [ids, setIds] = useState('');
   const [editing, setEditing] = useState<DiscoveredModel | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmNonce, setConfirmNonce] = useState(0);
+  // The api the open confirm was started for: a background preset refetch must
+  // not change the fields the admin is looking at.
+  const [confirmApi, setConfirmApi] = useState<ProviderApi>('openai-completions');
   const [createError, setCreateError] = useState<string | null>(null);
+  // Kept apart from the mutation objects so a previous wizard's failure cannot
+  // surface in this one.
+  const [fetchError, setFetchError] = useState<unknown>(null);
   const stepTitles: Record<WizardStep, string> = {
     connection: t('models.models.wizard.stepConnection'),
     credentials: t('models.models.wizard.stepCredentials'),
     models: t('models.models.wizard.stepModels'),
   };
 
-  const preset = (presets.data?.presets ?? []).find((candidate) => candidate.id === presetId) ?? null;
+  const presetList = presets.data?.presets ?? [];
+  const preset = presetList.find((candidate) => candidate.id === presetId) ?? null;
   const aliasValid = ALIAS_PATTERN.test(alias);
 
   const connection: {
@@ -84,8 +100,16 @@ export function ProviderWizard({
     readonly api?: ProviderApi;
   } = kind === 'builtin' ? { kind, provider: presetId } : { kind, base_url: baseUrl.trim(), api };
 
+  /** Opens the per-model confirm for the api the wizard has right now. */
+  const openConfirm = (draft: DiscoveredModel): void => {
+    setEditing(draft);
+    setConfirmApi(kind === 'builtin' ? (preset?.api ?? api) : api);
+    setConfirmNonce((previous) => previous + 1);
+    setConfirmOpen(true);
+  };
+
   const discover = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (_startedIn: number) => {
       const payload = headerValues(headers);
       if (payload.error !== null) {
         throw new Error(payload.error);
@@ -99,13 +123,22 @@ export function ProviderWizard({
         ...(payload.values === undefined ? {} : { headers: payload.values }),
       });
     },
-    onSuccess: (result) => {
+    onSuccess: (result, startedIn) => {
+      if (startedIn !== session.current) {
+        return;
+      }
+      setFetchError(null);
       selection.replaceDrafts(result.models);
+    },
+    onError: (error, startedIn) => {
+      if (startedIn === session.current) {
+        setFetchError(error);
+      }
     },
   });
 
   const lookup = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (_startedIn: number) => {
       const parsed = parseModelIds(ids);
       if (parsed.length === 0) {
         throw new Error(t('models.models.wizard.enterModelId'));
@@ -113,8 +146,17 @@ export function ProviderWizard({
       const result = await lookupModelMetadata({ ...connection, ids: parsed });
       return result.models.map((draft) => ({ ...draft, configured: false }));
     },
-    onSuccess: (models) => {
+    onSuccess: (models, startedIn) => {
+      if (startedIn !== session.current) {
+        return;
+      }
+      setFetchError(null);
       selection.replaceDrafts(models);
+    },
+    onError: (error, startedIn) => {
+      if (startedIn === session.current) {
+        setFetchError(error);
+      }
     },
   });
 
@@ -125,7 +167,7 @@ export function ProviderWizard({
       // feedback shows and the wizard hands the new provider to the page.
       write.succeeded(result.apply);
       onCreated(alias);
-      onClose();
+      onOpenChange(false);
       // The body carries the plaintext key; resetting drops it from the
       // mutation cache once the request is over.
       create.reset();
@@ -159,252 +201,154 @@ export function ProviderWizard({
     });
   };
 
-  const fetchError = step === 'models' ? (discover.error ?? lookup.error) : null;
   const fetchPending = discover.isPending || lookup.isPending;
 
+  // Every open starts a fresh wizard: step one, empty fields, no drafts and no
+  // errors from the previous one. Resetting here instead of on close is what
+  // keeps the step on screen while the exit transition plays.
+  if (sessionKey !== formKey) {
+    setSessionKey(formKey);
+    setStep('connection');
+    setKind('builtin');
+    setAlias('');
+    setPresetId('');
+    setBaseUrl('');
+    setApi('openai-completions');
+    setApiKey('');
+    setHeaders(headerRowsFromNames([]));
+    setIds('');
+    setEditing(null);
+    setConfirmOpen(false);
+    setCreateError(null);
+    setFetchError(null);
+    selection.reset();
+  }
+
   return (
-    <Dialog
-      open
-      onOpenChange={(next) => {
-        if (!next) {
-          onClose();
-        }
-      }}
-    >
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{t('models.models.wizard.title', { step: stepTitles[step] })}</DialogTitle>
-          <DialogDescription>{t('models.models.wizard.description')}</DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          {step === 'connection' ? (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="wizard-kind">{t('models.models.wizard.kind')}</Label>
-                <Select value={kind} onValueChange={(value) => setKind(value as ProviderKind)}>
-                  <SelectTrigger id="wizard-kind" className="w-full sm:w-64">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="builtin">{t('models.models.wizard.builtinKind')}</SelectItem>
-                    <SelectItem value="custom">{t('models.models.wizard.customKind')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="wizard-alias">{t('models.models.wizard.alias')}</Label>
-                <Input
-                  id="wizard-alias"
-                  value={alias}
-                  placeholder="openrouter"
-                  onChange={(event) => setAlias(event.target.value)}
-                />
-                <p className="text-muted-foreground text-xs">{t('models.models.wizard.aliasHint')}</p>
-                {alias.length > 0 && !aliasValid ? (
-                  <p className="text-destructive text-sm">{t('models.models.wizard.aliasInvalid')}</p>
-                ) : null}
-              </div>
-              {kind === 'builtin' ? (
-                <div className="space-y-2">
-                  <Label htmlFor="wizard-preset">{t('models.models.wizard.piProvider')}</Label>
-                  {presets.isPending ? (
-                    <p className="text-muted-foreground text-sm">{t('models.models.wizard.loadingPresets')}</p>
-                  ) : presets.isError ? (
-                    <p className="text-destructive text-sm break-words">{requestErrorMessage(presets.error)}</p>
-                  ) : (
-                    <Select value={presetId} onValueChange={setPresetId}>
-                      <SelectTrigger id="wizard-preset" className="w-full">
-                        <SelectValue placeholder={t('models.models.wizard.pickPreset')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(presets.data?.presets ?? []).map((candidate) => (
-                          <SelectItem key={candidate.id} value={candidate.id}>
-                            {candidate.name} ({candidate.api})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  {preset === null ? null : (
-                    <p className="text-muted-foreground text-xs">
-                      {t('models.models.wizard.presetBaseUrl')}
-                      <MonoValue value={preset.base_url} />
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="wizard-base-url">{t('models.models.connection.baseUrl')}</Label>
-                    <Input
-                      id="wizard-base-url"
-                      value={baseUrl}
-                      placeholder="https://example.com/v1"
-                      onChange={(event) => setBaseUrl(event.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="wizard-api">{t('models.models.connection.api')}</Label>
-                    <Select value={api} onValueChange={(value) => setApi(value as ProviderApi)}>
-                      <SelectTrigger id="wizard-api" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PROVIDER_APIS.map((value) => (
-                          <SelectItem key={value} value={value}>
-                            {value}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {api === 'google-generative-ai' ? (
-                      <p className="text-muted-foreground text-xs">{t('models.models.wizard.googleNote')}</p>
-                    ) : null}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : null}
-
-          {step === 'credentials' ? (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="wizard-api-key">{t('models.models.connection.apiKey')}</Label>
-                <Input
-                  id="wizard-api-key"
-                  type="password"
-                  autoComplete="new-password"
-                  value={apiKey}
-                  onChange={(event) => setApiKey(event.target.value)}
-                />
-                <p className="text-muted-foreground text-xs">{t('models.models.wizard.apiKeyHint')}</p>
-              </div>
-              {kind === 'custom' ? (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">{t('models.models.wizard.headersOptional')}</p>
-                  <HeaderFields rows={headers} onChange={setHeaders} valuesRequired={false} idPrefix="wizard" />
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          {step === 'models' ? (
-            <div className="space-y-4">
-              <p className="text-muted-foreground text-xs">{t('models.models.wizard.tempModeNote')}</p>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={fetchPending}
-                  onClick={() => {
-                    discover.mutate();
-                  }}
-                >
-                  {fetchPending ? t('models.models.picker.fetching') : t('models.models.wizard.fetch')}
-                </Button>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="wizard-ids">{t('models.models.wizard.idsLabel')}</Label>
-                <Textarea id="wizard-ids" rows={2} value={ids} onChange={(event) => setIds(event.target.value)} />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={fetchPending}
-                  onClick={() => {
-                    lookup.mutate();
-                  }}
-                >
-                  {t('models.models.wizard.lookup')}
-                </Button>
-              </div>
-              {fetchError === null ? null : (
-                <p className="text-destructive text-sm break-words">{requestErrorMessage(fetchError)}</p>
-              )}
-              {selection.drafts.length === 0 ? null : (
-                <>
-                  <ModelDraftList
-                    drafts={selection.visibleDrafts}
-                    selected={selection.selected}
-                    resolved={selection.resolved}
-                    onToggle={selection.toggle}
-                    onEdit={setEditing}
-                    search={selection.search}
-                    onSearchChange={selection.setSearch}
-                    emptyText={t('models.models.shared.emptyList')}
-                  />
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-muted-foreground text-xs">
-                      {t('models.models.shared.selectedCount', { count: selection.selectedCount })}
-                      {selection.unresolved.length === 0
-                        ? ''
-                        : ` · ${t('models.models.shared.unresolvedSuffix', { ids: selection.unresolved.map((draft) => draft.id).join(', ') })}`}
-                    </p>
-                    {selection.confirmable === 0 ? null : (
-                      <Button type="button" variant="outline" size="sm" onClick={selection.confirmSelected}>
-                        {t('models.models.shared.acceptListed', { count: selection.confirmable })}
-                      </Button>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          ) : null}
-
-          {createError === null ? null : <p className="text-destructive text-sm break-words">{createError}</p>}
-        </div>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" disabled={create.isPending} onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          {step === 'connection' ? (
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          // A create in flight closes the wizard when it lands; it must land in
+          // the wizard that started it.
+          if (!next && !create.isPending) {
+            onOpenChange(false);
+          }
+        }}
+        title={t('models.models.wizard.title', { step: stepTitles[step] })}
+        description={t('models.models.wizard.description')}
+        size="lg"
+        footer={
+          <>
             <Button
               type="button"
-              disabled={!aliasValid || (kind === 'builtin' ? presetId.length === 0 : baseUrl.trim().length === 0)}
-              onClick={() => setStep('credentials')}
+              variant="ghost"
+              color="secondary"
+              disabled={create.isPending}
+              onClick={() => onOpenChange(false)}
             >
-              {t('models.models.wizard.next')}
+              {t('common.cancel')}
             </Button>
+            {step === 'connection' ? (
+              <Button
+                type="button"
+                disabled={!aliasValid || (kind === 'builtin' ? presetId.length === 0 : baseUrl.trim().length === 0)}
+                onClick={() => setStep('credentials')}
+              >
+                {t('models.models.wizard.next')}
+              </Button>
+            ) : null}
+            {step === 'credentials' ? (
+              <Button type="button" disabled={apiKey.length === 0} onClick={() => setStep('models')}>
+                {t('models.models.wizard.next')}
+              </Button>
+            ) : null}
+            {step === 'models' ? (
+              <Button type="button" disabled={create.isPending || selection.models === null} onClick={submit}>
+                {create.isPending ? t('common.saving') : t('models.models.wizard.createProvider')}
+              </Button>
+            ) : null}
+          </>
+        }
+      >
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
+          {step === 'connection' ? (
+            <WizardConnectionStep
+              kind={kind}
+              onKindChange={setKind}
+              alias={alias}
+              onAliasChange={setAlias}
+              aliasValid={aliasValid}
+              presets={presetList}
+              presetsPending={presets.isPending}
+              presetsError={presets.isError ? presets.error : null}
+              presetId={presetId}
+              onPresetIdChange={setPresetId}
+              preset={preset}
+              baseUrl={baseUrl}
+              onBaseUrlChange={setBaseUrl}
+              api={api}
+              onApiChange={setApi}
+            />
           ) : null}
-          {step === 'credentials' ? (
-            <Button type="button" disabled={apiKey.length === 0} onClick={() => setStep('models')}>
-              {t('models.models.wizard.next')}
-            </Button>
-          ) : null}
-          {step === 'models' ? (
-            <Button type="button" disabled={create.isPending || selection.models === null} onClick={submit}>
-              {create.isPending ? t('common.saving') : t('models.models.wizard.createProvider')}
-            </Button>
-          ) : null}
-        </DialogFooter>
-      </DialogContent>
 
-      {editing === null ? null : (
-        <ModelEditDialog
-          key={`confirm-${editing.id}`}
-          open
-          onOpenChange={(next) => {
-            if (!next) {
-              setEditing(null);
-            }
-          }}
-          api={kind === 'builtin' ? (preset?.api ?? api) : api}
-          title={t('models.models.wizard.confirmTitle', { model: editing.id })}
-          description={t('models.models.wizard.confirmDescription')}
-          initial={modelFormFromDraft(editing, kind === 'builtin' ? (preset?.api ?? api) : api)}
-          lockId
-          draft={editing}
-          pending={false}
-          error={null}
-          onSubmit={(model: ProviderModelConfig) => {
+          {step === 'credentials' ? (
+            <WizardCredentialsStep
+              apiKey={apiKey}
+              onApiKeyChange={setApiKey}
+              headers={headers}
+              onHeadersChange={setHeaders}
+              custom={kind === 'custom'}
+            />
+          ) : null}
+
+          {step === 'models' ? (
+            <WizardModelsStep
+              ids={ids}
+              onIdsChange={setIds}
+              fetchPending={fetchPending}
+              fetchError={fetchError}
+              onFetch={() => {
+                setFetchError(null);
+                discover.mutate(session.current);
+              }}
+              onLookup={() => {
+                setFetchError(null);
+                lookup.mutate(session.current);
+              }}
+              selection={selection}
+              onEdit={openConfirm}
+            />
+          ) : null}
+
+          {createError === null ? null : (
+            <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>{createError}</p>
+          )}
+        </div>
+      </Dialog>
+      <ModelEditDialog
+        open={confirmOpen}
+        onOpenChange={(next) => {
+          if (!next) {
+            setConfirmOpen(false);
+          }
+        }}
+        api={confirmApi}
+        title={editing === null ? '' : t('models.models.wizard.confirmTitle', { model: editing.id })}
+        description={t('models.models.wizard.confirmDescription')}
+        initial={editing === null ? emptyModelForm(confirmApi) : modelFormFromDraft(editing, confirmApi)}
+        formKey={confirmNonce}
+        lockId
+        draft={editing}
+        pending={false}
+        error={null}
+        onSubmit={(model: ProviderModelConfig) => {
+          if (editing !== null) {
             selection.resolve(editing.id, model);
-            setEditing(null);
-          }}
-        />
-      )}
-    </Dialog>
+          }
+          setConfirmOpen(false);
+        }}
+      />
+    </>
   );
 }

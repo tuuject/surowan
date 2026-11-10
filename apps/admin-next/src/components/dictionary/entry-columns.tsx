@@ -1,83 +1,51 @@
+import { Badge } from '@tuuject/koi-react/badge';
+import { IconButton } from '@tuuject/koi-react/button';
+import { TrashIcon } from '@tuuject/koi-react/icons';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { Switch } from '@tuuject/koi-react/switch';
+import { Tag } from '@tuuject/koi-react/tag';
 import type { TFunction } from 'i18next';
-import { AlertTriangle } from 'lucide-react';
-import { type ColumnSpec, ToneBadge } from '@/components/business';
-import { Button } from '@/components/ui/button';
-
+import { type ColumnSpec, RowActions } from '@/components/business';
+import { EditIcon } from '@/components/icons';
+import type { DictionaryChatOption, DictionaryEntry } from '@/lib/api/dictionary.ts';
 import { formatTime } from '@/lib/format';
-import type { DictionaryChatOption, DictionaryEntry, DictionaryScope } from '@/lib/api/dictionary.ts';
-
-function targetLabel(
-  entry: { readonly scope: DictionaryScope; readonly chat_id: string | null },
-  chats: readonly DictionaryChatOption[],
-  t: TFunction,
-): string {
-  if (entry.scope === 'global') {
-    return t('dictionary.page.globalBadge');
-  }
-  const chat = chats.find((candidate) => candidate.id === entry.chat_id);
-  return `${t('dictionary.page.groupBadge')} · ${chat?.title ?? entry.chat_id ?? ''}`;
-}
 
 export interface DictionaryColumnsOptions {
   readonly t: TFunction;
   readonly chats: readonly DictionaryChatOption[];
   readonly conflicted: ReadonlySet<string>;
-  readonly selected: ReadonlySet<string>;
   readonly toggleEnabledPending: boolean;
-  readonly onToggleSelected: (id: string) => void;
   readonly onToggleEnabled: (entry: DictionaryEntry) => void;
   readonly onEdit: (entry: DictionaryEntry) => void;
   readonly onDelete: (entry: DictionaryEntry) => void;
 }
 
-/** Column specs for the entry table; all handlers come from the page. */
+/** Column specs for the entry table; selection lives in TableShell, every handler comes from the page. */
 export function dictionaryColumns(options: DictionaryColumnsOptions): readonly ColumnSpec<DictionaryEntry>[] {
-  const { t, chats, conflicted, selected, toggleEnabledPending, onToggleSelected, onToggleEnabled, onEdit, onDelete } =
-    options;
+  const { t, chats, conflicted, toggleEnabledPending, onToggleEnabled, onEdit, onDelete } = options;
 
   return [
     {
-      key: 'select',
-      title: '',
-      render: (entry) => (
-        <input
-          type="checkbox"
-          className="size-4 rounded border-input"
-          aria-label={t('dictionary.page.selectAria', { term: entry.term })}
-          checked={selected.has(entry.id)}
-          onChange={() => onToggleSelected(entry.id)}
-        />
-      ),
-    },
-    {
       key: 'term',
       title: t('dictionary.page.colTerm'),
-      className: 'whitespace-normal',
+      width: 200,
       render: (entry) => (
-        <span className="flex flex-wrap items-center gap-1">
-          <span className="font-medium">{entry.term}</span>
-          {conflicted.has(entry.id) ? (
-            <ToneBadge tone="warning">
-              <AlertTriangle className="size-3" />
-              {t('dictionary.conflicts.title')}
-            </ToneBadge>
-          ) : null}
+        <span className={css({ display: 'flex', alignItems: 'center', gap: '2', minWidth: '0' })}>
+          <span className={css({ truncate: true })}>{entry.term}</span>
+          {conflicted.has(entry.id) ? <Badge tone="warning">{t('dictionary.conflicts.title')}</Badge> : null}
         </span>
       ),
     },
     {
       key: 'aliases',
       title: t('dictionary.page.colAliases'),
-      className: 'max-w-64 min-w-32 whitespace-normal',
       render: (entry) =>
         entry.aliases.length === 0 ? (
-          <span className="text-muted-foreground">{t('dictionary.page.noAliases')}</span>
+          <span className={css({ color: 'text-muted' })}>{t('dictionary.page.noAliases')}</span>
         ) : (
-          <span className="flex flex-wrap items-center gap-1">
+          <span className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1' })}>
             {entry.aliases.map((alias) => (
-              <span key={alias} className="bg-muted rounded px-1.5 py-0.5 text-xs">
-                {alias}
-              </span>
+              <Tag key={alias}>{alias}</Tag>
             ))}
           </span>
         ),
@@ -85,53 +53,74 @@ export function dictionaryColumns(options: DictionaryColumnsOptions): readonly C
     {
       key: 'definition',
       title: t('dictionary.page.colDefinition'),
-      className: 'max-w-80 min-w-48 whitespace-normal',
-      render: (entry) => <div className="line-clamp-2">{entry.definition}</div>,
+      render: (entry) => (
+        <div className={css({ lineClamp: '2', whiteSpace: 'normal', overflowWrap: 'anywhere' })}>
+          {entry.definition}
+        </div>
+      ),
     },
     {
       key: 'scope',
       title: t('dictionary.page.colScope'),
-      render: (entry) => <span className="text-sm">{targetLabel(entry, chats, t)}</span>,
+      width: 160,
+      render: (entry) => {
+        if (entry.scope === 'global') {
+          return t('dictionary.page.globalBadge');
+        }
+        const chat = chats.find((candidate) => candidate.id === entry.chat_id);
+        return (
+          <div className={css({ minWidth: '0' })}>
+            <div>{t('dictionary.page.groupBadge')}</div>
+            <div className={css({ textStyle: 'small', color: 'text-muted', truncate: true })}>
+              {chat?.title ?? entry.chat_id ?? ''}
+            </div>
+          </div>
+        );
+      },
     },
     {
       key: 'enabled',
       title: t('dictionary.page.colEnabled'),
+      width: 88,
       render: (entry) => (
-        <button
-          type="button"
-          className="text-sm underline-offset-4 hover:underline"
+        <Switch
+          aria-label={t('dictionary.page.enabledAria', { term: entry.term })}
+          checked={entry.enabled}
           disabled={toggleEnabledPending}
-          onClick={() => onToggleEnabled(entry)}
-        >
-          {entry.enabled ? t('dictionary.page.enabledOn') : t('dictionary.page.enabledOff')}
-        </button>
+          onCheckedChange={() => onToggleEnabled(entry)}
+        />
       ),
     },
-    { key: 'updated_at', title: t('dictionary.page.colUpdated'), render: (entry) => formatTime(entry.updated_at) },
+    {
+      key: 'updated_at',
+      title: t('dictionary.page.colUpdated'),
+      width: 184,
+      skeleton: '2026-01-18 10:58:15',
+      render: (entry) => formatTime(entry.updated_at),
+    },
     {
       key: 'actions',
       title: t('dictionary.page.colActions'),
+      align: 'right',
+      width: 104,
+      paddingBlock: 'none',
       render: (entry) => (
-        <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            aria-label={t('dictionary.page.editAria', { term: entry.term })}
+        <RowActions>
+          <IconButton
+            variant="ghost"
+            color="secondary"
+            label={t('dictionary.page.editAria', { term: entry.term })}
+            icon={<EditIcon />}
             onClick={() => onEdit(entry)}
-          >
-            {t('common.edit')}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="destructive"
-            aria-label={t('dictionary.page.deleteAria', { term: entry.term })}
+          />
+          <IconButton
+            variant="ghost"
+            color="error"
+            label={t('dictionary.page.deleteAria', { term: entry.term })}
+            icon={<TrashIcon />}
             onClick={() => onDelete(entry)}
-          >
-            {t('common.delete')}
-          </Button>
-        </div>
+          />
+        </RowActions>
       ),
     },
   ];

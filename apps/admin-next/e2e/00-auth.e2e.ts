@@ -35,17 +35,18 @@ test('first-run setup creates the administrator and enters the shell', async ({ 
   await expect(page.getByText('Cached media analyses')).toBeVisible();
   await expect(page.getByText('Bot status')).toBeVisible();
   await expect(page.getByText(E2E_USERNAME)).toBeVisible();
-  await expect(page.getByText('Something went wrong')).toHaveCount(0);
+  await expect(page.locator('[data-route-error]')).toHaveCount(0);
 });
 
 test('logout returns to the login form; bad password shows invalid_credentials and keeps the URL', async ({ page }) => {
   const base = await adminBase();
   await login(page, base, E2E_USERNAME, E2E_PASSWORD);
 
-  // Sign out from the shell footer → login form (not an error screen)
-  await page.getByText('Sign out').click();
+  // Sign out from the user menu → login form (not an error screen)
+  await page.getByRole('button', { name: 'User menu' }).click();
+  await page.getByRole('menuitem', { name: 'Sign out' }).click();
   await expect(page.getByText('Surowan admin sign-in')).toBeVisible();
-  await expect(page.getByText('Something went wrong')).toHaveCount(0);
+  await expect(page.locator('[data-route-error]')).toHaveCount(0);
 
   // wrong password: inline error with the stable code, URL unchanged
   const before = page.url();
@@ -70,14 +71,14 @@ test('a revoked session is bounced to the login form without an error screen', a
   // The next protected request 401s; the global handler returns to the gate.
   await page.goto(await baseURLPath('/invocations'));
   await expect(page.getByText('Surowan admin sign-in')).toBeVisible();
-  await expect(page.getByText('Something went wrong')).toHaveCount(0);
+  await expect(page.locator('[data-route-error]')).toHaveCount(0);
 
   // Signing in again works. The gate preserves the current route
   // (/invocations), so assert the shell, then the overview.
   await fillCredentials(page, E2E_USERNAME, E2E_PASSWORD);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await expect(page.getByText('Surowan', { exact: true }).first()).toBeVisible();
-  await expect(page.getByText('Something went wrong')).toHaveCount(0);
+  await expect(page.getByRole('main')).toBeVisible();
+  await expect(page.locator('[data-route-error]')).toHaveCount(0);
   await page.goto(await baseURLPath('/'));
   await expect(page.getByText('Stored messages')).toBeVisible();
 });

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
@@ -8,18 +9,18 @@ import {
   DetailSkeleton,
   JsonViewer,
   KvList,
+  ListPageHeader,
   MonoValue,
   TableShell,
   TextValue,
   ToneBadge,
 } from '@/components/business';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
+import { Panel } from '@/components/layout/panel';
+import type { MediaEntry, MessageDetail, RevisionEntry } from '@/lib/api/messages.ts';
 import { formatNumber, formatTime } from '@/lib/format';
 import { messageQuery } from '@/lib/queries';
-import type { MediaEntry, MessageDetail, RevisionEntry } from '@/lib/api/messages.ts';
 
-function YesNoBadge({ value }: { readonly value: boolean }): React.ReactElement {
+function YesNoBadge({ value }: { readonly value: boolean }): ReactElement {
   const { t } = useTranslation();
   return value ? (
     <ToneBadge tone="success">{t('invocations.messageDetail.yes')}</ToneBadge>
@@ -28,19 +29,11 @@ function YesNoBadge({ value }: { readonly value: boolean }): React.ReactElement 
   );
 }
 
-function DetailHeader({ message }: { readonly message: MessageDetail }): React.ReactElement {
+function DetailHeader({ message }: { readonly message: MessageDetail }): ReactElement {
   const { t } = useTranslation();
   return (
-    <Card className="gap-4 py-5">
-      <CardHeader className="flex-row items-start justify-between gap-4 px-5 py-0">
-        <CardTitle className="font-mono text-base break-all">
-          {t('invocations.messageDetail.title', { id: message.id })}
-        </CardTitle>
-        <Link to="/messages" className="text-primary shrink-0 text-sm underline-offset-4 hover:underline">
-          {t('invocations.messageDetail.backToList')}
-        </Link>
-      </CardHeader>
-      <CardContent className="space-y-4 px-5 py-0">
+    <Panel title={t('invocations.invocationDetail.summary')}>
+      <div className={css({ display: 'flex', flexDirection: 'column', gap: '5' })}>
         <KvList
           items={[
             {
@@ -63,12 +56,12 @@ function DetailHeader({ message }: { readonly message: MessageDetail }): React.R
             { label: t('invocations.messageDetail.kv.received'), value: formatTime(message.received_at) },
           ]}
         />
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   );
 }
 
-function RevisionsTable({ message }: { readonly message: MessageDetail }): React.ReactElement {
+function RevisionsTable({ message }: { readonly message: MessageDetail }): ReactElement {
   const { t } = useTranslation();
   const REVISION_COLUMNS: readonly ColumnSpec<RevisionEntry>[] = [
     {
@@ -83,7 +76,7 @@ function RevisionsTable({ message }: { readonly message: MessageDetail }): React
       key: 'sender',
       title: t('invocations.messageDetail.revisionColumns.sender'),
       render: (row) => (
-        <div className="min-w-0 space-y-0.5">
+        <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           <TextValue value={row.sender?.display_name ?? null} />
           {row.sender === null ? null : (
             <CopyableValue
@@ -97,9 +90,10 @@ function RevisionsTable({ message }: { readonly message: MessageDetail }): React
     {
       key: 'text',
       title: t('invocations.messageDetail.revisionColumns.text'),
-      className: 'min-w-72 max-w-2xl whitespace-normal',
       render: (row) => (
-        <p className="max-w-2xl text-sm break-words whitespace-pre-wrap">{row.text ?? row.caption ?? '—'}</p>
+        <p className={css({ textStyle: 'body', maxWidth: '42rem', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>
+          {row.text ?? row.caption ?? '—'}
+        </p>
       ),
     },
     {
@@ -120,17 +114,23 @@ function RevisionsTable({ message }: { readonly message: MessageDetail }): React
       rowKey={(row) => row.id}
       emptyText={t('invocations.messageDetail.noRevisions')}
       expandedRender={(row) => (
-        <div className="space-y-2">
+        <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
           <div>
-            <p className="text-muted-foreground mb-1 text-xs">{t('invocations.messageDetail.replySnapshot')}</p>
+            <p className={css({ margin: '0', marginBlockEnd: '1', textStyle: 'label' })}>
+              {t('invocations.messageDetail.replySnapshot')}
+            </p>
             <JsonViewer value={row.reply_snapshot_json} />
           </div>
           <div>
-            <p className="text-muted-foreground mb-1 text-xs">{t('invocations.messageDetail.forwardOrigin')}</p>
+            <p className={css({ margin: '0', marginBlockEnd: '1', textStyle: 'label' })}>
+              {t('invocations.messageDetail.forwardOrigin')}
+            </p>
             <JsonViewer value={row.forward_origin_json} />
           </div>
           <div>
-            <p className="text-muted-foreground mb-1 text-xs">{t('invocations.messageDetail.servicePayload')}</p>
+            <p className={css({ margin: '0', marginBlockEnd: '1', textStyle: 'label' })}>
+              {t('invocations.messageDetail.servicePayload')}
+            </p>
             <JsonViewer value={row.service_json} />
           </div>
         </div>
@@ -139,16 +139,14 @@ function RevisionsTable({ message }: { readonly message: MessageDetail }): React
   );
 }
 
-function MediaTable({ message }: { readonly message: MessageDetail }): React.ReactElement {
+function MediaTable({ message }: { readonly message: MessageDetail }): ReactElement {
   const { t } = useTranslation();
   const MEDIA_COLUMNS: readonly ColumnSpec<MediaEntry>[] = [
     { key: 'kind', title: t('invocations.messageDetail.mediaColumns.kind'), render: (row) => row.kind },
     {
       key: 'file_unique_id',
       title: t('invocations.messageDetail.mediaColumns.fileUniqueId'),
-      render: (row) => (
-        <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs break-all">{row.file_unique_id}</code>
-      ),
+      render: (row) => <MonoValue value={row.file_unique_id} />,
     },
     {
       key: 'mime_type',
@@ -166,7 +164,7 @@ function MediaTable({ message }: { readonly message: MessageDetail }): React.Rea
       title: t('invocations.messageDetail.mediaColumns.dimensions'),
       render: (row) =>
         row.width === null || row.height === null ? (
-          <span className="text-muted-foreground">—</span>
+          <span className={css({ color: 'text-muted' })}>—</span>
         ) : (
           `${row.width}×${row.height}`
         ),
@@ -174,7 +172,6 @@ function MediaTable({ message }: { readonly message: MessageDetail }): React.Rea
     {
       key: 'analysis',
       title: t('invocations.messageDetail.mediaColumns.analysis'),
-      className: 'min-w-56 max-w-md',
       render: (row) => <TextValue value={row.analysis_description ?? row.analysis_state} />,
     },
   ];
@@ -188,7 +185,7 @@ function MediaTable({ message }: { readonly message: MessageDetail }): React.Rea
   );
 }
 
-export function MessageDetailView({ id }: { readonly id: string }): React.ReactElement {
+export function MessageDetailView({ id }: { readonly id: string }): ReactElement {
   const { t } = useTranslation();
   const { data, isPending, isError, error } = useQuery(messageQuery(id));
 
@@ -219,24 +216,15 @@ export function MessageDetailView({ id }: { readonly id: string }): React.ReactE
   }
 
   return (
-    <div className="space-y-4">
+    <div className={css({ '& > * + *': { marginBlockStart: '6' } })}>
+      <ListPageHeader title={t('invocations.messageDetail.title', { id: data.id })} />
       <DetailHeader message={data} />
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('invocations.messageDetail.revisionsTitle', { count: data.revisions.length })}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RevisionsTable message={data} />
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('invocations.messageDetail.mediaTitle', { count: data.media.length })}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <MediaTable message={data} />
-        </CardContent>
-      </Card>
+      <Panel title={t('invocations.messageDetail.revisionsTitle', { count: data.revisions.length })}>
+        <RevisionsTable message={data} />
+      </Panel>
+      <Panel title={t('invocations.messageDetail.mediaTitle', { count: data.media.length })}>
+        <MediaTable message={data} />
+      </Panel>
     </div>
   );
 }

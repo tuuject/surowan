@@ -22,14 +22,14 @@ test('Developer persists recording preferences and confirms payload-only cleanup
   const before = await (await page.request.get(detailUrl)).json();
   expect(before.model_calls.some((call: { request_json: string | null }) => call.request_json !== null)).toBe(true);
 
-  await page.getByRole('button', { name: 'Clear previously recorded raw request payloads', exact: true }).click();
+  await page.getByRole('button', { name: 'Clear payloads', exact: true }).click();
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toContainText(replayWarning);
   await expect(dialog).toContainText('The database file is not compacted.');
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   expect(await (await page.request.get(detailUrl)).json()).toEqual(before);
 
-  await page.getByRole('button', { name: 'Clear previously recorded raw request payloads', exact: true }).click();
+  await page.getByRole('button', { name: 'Clear payloads', exact: true }).click();
   await dialog.getByRole('button', { name: 'Confirm clear', exact: true }).click();
   await expect(dialog).not.toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: 'Cleared debug payloads' })).toBeVisible();
@@ -54,9 +54,9 @@ test('Developer reports saved-but-not-applied settings and recovers through Sett
   await expect(recording).not.toBeChecked();
   await e2eFetch('/fail-next-config-apply', { method: 'POST' });
   await recording.click();
-  await expect(page.getByRole('alert')).toContainText('updated but not applied');
+  await expect(page.getByRole('alert').filter({ hasText: 'updated but not applied' })).toBeVisible();
   await expect(recording).toBeChecked();
-  await expect(page.getByRole('status').filter({ hasText: 'Current running state: Off' })).toBeVisible();
+  await expect(page.getByRole('alert').filter({ hasText: 'Current running state: Off' })).toBeVisible();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: 'Apply config file' }).click();
   await expect(page.getByText('developer.record_model_payloads', { exact: false })).toBeVisible();
@@ -91,7 +91,7 @@ test('Developer actions and confirmation fit a mobile dark viewport', async ({ p
   await page.reload();
   await expect(page.getByRole('switch', { name: 'Record raw request payloads for debugging' })).toBeInViewport();
   await page.screenshot({ path: testInfo.outputPath('developer-mobile-dark.png'), fullPage: true });
-  await page.getByRole('button', { name: 'Clear previously recorded raw request payloads', exact: true }).click();
+  await page.getByRole('button', { name: 'Clear payloads', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Confirm clear', exact: true })).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({

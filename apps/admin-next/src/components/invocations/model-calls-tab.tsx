@@ -1,10 +1,10 @@
+import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import { type ColumnSpec, JsonViewer, StateBadge, TableShell, TextValue } from '@/components/business';
 import { TabContent } from '@/components/invocations/shared';
-
-import { formatCost, formatDuration, formatNumber } from '@/lib/format';
 import type { InvocationDetail, ModelCallEntry } from '@/lib/api/invocations.ts';
+import { formatCost, formatDuration, formatNumber } from '@/lib/format';
 
 export function ModelCallsTab({ invocation }: { readonly invocation: InvocationDetail }): React.ReactNode {
   const { t } = useTranslation();
@@ -21,14 +21,23 @@ export function ModelCallsTab({ invocation }: { readonly invocation: InvocationD
     {
       key: 'tools',
       title: t('invocations.invocationDetail.modelColumns.toolsInRequest'),
-      className: 'min-w-40',
       render: (row) =>
         row.tools === null ? (
           <TextValue value={null} />
         ) : (
-          <div className="flex flex-wrap gap-1">
+          <div className={css({ display: 'flex', flexWrap: 'wrap', gap: '1' })}>
             {row.tools.map((name) => (
-              <code key={name} className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+              <code
+                key={name}
+                className={css({
+                  textStyle: 'small',
+                  borderRadius: 'lg',
+                  bg: 'surface-muted',
+                  paddingInline: '1',
+                  paddingBlock: '1',
+                  fontFamily: 'mono',
+                })}
+              >
                 {name}
               </code>
             ))}
@@ -90,17 +99,20 @@ export function ModelCallsTab({ invocation }: { readonly invocation: InvocationD
   ];
   return (
     <TabContent count={invocation.model_calls.length} message={t('invocations.invocationDetail.emptyModelCalls')}>
-      <p className="text-muted-foreground text-xs">
-        {t('invocations.invocationDetail.modelsTokensNote')} <code className="font-mono">provider_total_tokens</code>.
+      <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+        {t('invocations.invocationDetail.modelsTokensNote')}{' '}
+        <code className={css({ fontFamily: 'mono' })}>provider_total_tokens</code>.
       </p>
-      <p className="text-muted-foreground text-xs">{t('invocations.invocationDetail.modelsNote2')}</p>
+      <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+        {t('invocations.invocationDetail.modelsNote2')}
+      </p>
       <TableShell
         columns={MODEL_CALL_COLUMNS}
         data={invocation.model_calls}
         rowKey={(row) => row.id}
         isExpandable={(row) => row.error_detail !== null || row.request_json !== null || row.response_json !== null}
         expandedRender={(row) => (
-          <div className="space-y-3">
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
             {row.request_json !== null ? (
               <JsonViewer
                 value={row.request_json}
@@ -116,10 +128,23 @@ export function ModelCallsTab({ invocation }: { readonly invocation: InvocationD
             ) : null}
             {row.error_detail !== null ? (
               <div>
-                <p className="text-muted-foreground mb-1 text-xs">
+                <p className={css({ textStyle: 'small', color: 'text-muted', marginBlockEnd: '1' })}>
                   {t('invocations.invocationDetail.modelCall.fullErrorDetails')}
                 </p>
-                <pre className="max-h-60 overflow-auto rounded border bg-muted/20 p-2 text-xs break-words whitespace-pre-wrap">
+                <pre
+                  className={css({
+                    textStyle: 'small',
+                    maxHeight: '240px',
+                    overflow: 'auto',
+                    borderRadius: 'lg',
+                    borderWidth: '1px',
+                    borderColor: 'border',
+                    bg: 'surface-muted',
+                    padding: '2',
+                    overflowWrap: 'anywhere',
+                    whiteSpace: 'pre-wrap',
+                  })}
+                >
                   {row.error_detail}
                 </pre>
               </div>

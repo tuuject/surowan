@@ -1,14 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from '@tanstack/react-router';
+import { useParams } from '@tanstack/react-router';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { Empty } from '@tuuject/koi-react/empty';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { Tag } from '@tuuject/koi-react/tag';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
-import { KvList, MonoValue, StateBadge } from '@/components/business';
-import { Button } from '@/components/ui/button';
-
+import { KvList, ListPageHeader, MonoValue, StateBadge } from '@/components/business';
+import { RefreshIcon } from '@/components/icons';
+import { Panel } from '@/components/layout/panel';
+import { getImageGeneration, imageUrl, retryImageGeneration } from '@/lib/api/images.ts';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
-import { getImageGeneration, imageUrl, retryImageGeneration } from '@/lib/api/images.ts';
+import { toast } from '@/lib/toast.ts';
 
 /** One generation: intent snapshot, per-item attempts, outputs, and error. */
 
@@ -22,9 +27,22 @@ function ReferenceImage({
   const [failed, setFailed] = useState(false);
   const { t } = useTranslation();
   return (
-    <figure className="min-w-0 space-y-2">
+    <figure className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
       {failed ? (
-        <div className="bg-muted text-muted-foreground flex aspect-square items-center justify-center rounded-lg p-4 text-center text-sm">
+        <div
+          className={css({
+            textStyle: 'body',
+            bg: 'surface-muted',
+            color: 'text-muted',
+            display: 'flex',
+            aspectRatio: 'square',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 'xl',
+            padding: '4',
+            textAlign: 'center',
+          })}
+        >
           {t('image.detail.imageLoadFailed')}
         </div>
       ) : (
@@ -33,18 +51,33 @@ function ReferenceImage({
           target="_blank"
           rel="noopener noreferrer"
           aria-label={t('image.detail.viewOriginal', { name: asset.name })}
-          className="focus-visible:outline-ring block rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2"
+          className={css({
+            _focusVisible: {
+              outlineColor: 'focus-ring',
+              outlineWidth: '2px',
+              outlineStyle: 'solid',
+              outlineOffset: '2px',
+            },
+            display: 'block',
+            borderRadius: 'xl',
+          })}
         >
           <img
             src={imageUrl(asset.id)}
             alt={asset.name}
             onError={() => setFailed(true)}
-            className="bg-muted aspect-square w-full rounded-lg object-contain"
+            className={css({
+              bg: 'surface-muted',
+              aspectRatio: 'square',
+              width: '100%',
+              borderRadius: 'xl',
+              objectFit: 'contain',
+            })}
           />
         </a>
       )}
-      <figcaption className="text-muted-foreground text-xs break-words">
-        {index + 1} · {asset.name}
+      <figcaption className={css({ textStyle: 'small', color: 'text-muted', overflowWrap: 'anywhere' })}>
+        {index + 1}. {asset.name}
       </figcaption>
     </figure>
   );
@@ -74,144 +107,204 @@ function GenerationDetail({ id }: { readonly id: string }) {
   });
 
   if (query.isLoading) {
-    return <p className="text-muted-foreground text-sm">{t('common.loading')}</p>;
+    return <p className={css({ margin: '0', color: 'text-muted' })}>{t('common.loading')}</p>;
   }
   if (query.data === undefined) {
-    return <p className="text-muted-foreground text-sm">{t('image.detail.notFound')}</p>;
+    return <Empty title={t('image.detail.notFound')} />;
   }
   const record = query.data;
   const settled = record.status !== 'queued' && record.status !== 'running';
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="font-mono text-lg">{record.id.slice(0, 8)}…</h1>
-          <StateBadge state={record.status} />
-        </div>
-        {settled && (
-          <Button size="sm" variant="outline" onClick={() => retry.mutate()} disabled={retry.isPending}>
-            {retry.isPending ? t('common.submitting') : t('common.retry')}
-          </Button>
-        )}
-      </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <KvList
-          items={[
-            { label: t('image.detail.generationId'), value: <MonoValue value={record.id} /> },
-            { label: t('image.detail.model'), value: record.snapshot.authored.modelId },
-            {
-              label: t('image.detail.ratioQuality'),
-              value: `${record.snapshot.authored.aspectRatio} · ${record.snapshot.authored.resolution}`,
-            },
-            {
-              label: t('image.detail.outputCount'),
-              value: `${record.outputs.length}/${record.snapshot.authored.outputCount}`,
-            },
-            { label: t('image.detail.source'), value: `${record.source} · ${record.actorName}` },
-            { label: t('image.detail.submitted'), value: formatTime(record.createdAt) },
-            {
-              label: t('image.detail.finished'),
-              value: record.finishedAt === null ? '—' : formatTime(record.finishedAt),
-            },
-            {
-              label: t('image.detail.promptAssets'),
-              value:
-                record.snapshot.promptAssets.length === 0 ? (
-                  '—'
-                ) : (
-                  <span>
-                    {record.snapshot.promptAssets.map((asset) => (
-                      <span key={asset.id} className="mr-1 inline-block">
-                        {asset.name}
-                      </span>
-                    ))}
+    <div className={css({ '& > * + *': { marginBlockStart: '6' } })}>
+      <ListPageHeader
+        title={`${record.id.slice(0, 8)}…`}
+        description={<StateBadge state={record.status} />}
+        actions={
+          settled ? (
+            <Button
+              variant="outline"
+              color="secondary"
+              iconStart={<RefreshIcon />}
+              loading={retry.isPending}
+              loadingLabel={t('common.submitting')}
+              onClick={() => retry.mutate()}
+            >
+              {t('common.retry')}
+            </Button>
+          ) : null
+        }
+      />
+      <div
+        className={css({
+          display: 'grid',
+          gap: '6',
+          alignItems: 'start',
+          '@media (min-width: 1024px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
+        })}
+      >
+        <Panel title={t('invocations.invocationDetail.summary')}>
+          <KvList
+            items={[
+              { label: t('image.detail.generationId'), value: <MonoValue value={record.id} /> },
+              { label: t('image.detail.model'), value: record.snapshot.authored.modelId },
+              {
+                label: t('image.detail.ratioQuality'),
+                value: `${record.snapshot.authored.aspectRatio} / ${record.snapshot.authored.resolution}`,
+              },
+              {
+                label: t('image.detail.outputCount'),
+                value: `${record.outputs.length}/${record.snapshot.authored.outputCount}`,
+              },
+              {
+                label: t('image.detail.source'),
+                value: (
+                  <span className={css({ display: 'flex', flexWrap: 'wrap', columnGap: '2' })}>
+                    <span>{record.source}</span>
+                    {record.actorName === '' ? null : (
+                      <span className={css({ color: 'text-muted' })}>{record.actorName}</span>
+                    )}
                   </span>
                 ),
-            },
-          ]}
-        />
+              },
+              { label: t('image.detail.submitted'), value: formatTime(record.createdAt) },
+              {
+                label: t('image.detail.finished'),
+                value: record.finishedAt === null ? '—' : formatTime(record.finishedAt),
+              },
+              {
+                label: t('image.detail.promptAssets'),
+                value:
+                  record.snapshot.promptAssets.length === 0 ? (
+                    '—'
+                  ) : (
+                    <span className={css({ display: 'flex', flexWrap: 'wrap', gap: '2' })}>
+                      {record.snapshot.promptAssets.map((asset) => (
+                        <Tag key={asset.id}>{asset.name}</Tag>
+                      ))}
+                    </span>
+                  ),
+              },
+            ]}
+          />
+        </Panel>
         {record.error !== null ? (
-          <div className="bg-destructive/10 space-y-1 rounded p-3">
-            <div className="text-sm font-medium">{t('image.detail.errorPrefix', { code: record.error.code })}</div>
-            <p className="text-sm break-words">{record.error.message}</p>
-          </div>
+          <Alert tone="error" title={t('image.detail.errorPrefix', { code: record.error.code })}>
+            {record.error.message}
+          </Alert>
         ) : (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div
+            className={css({
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: '3',
+              md: { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' },
+            })}
+          >
             {record.outputs.map((output) => (
               <a key={output.id} href={imageUrl(output.id)} target="_blank" rel="noreferrer">
                 <img
                   src={imageUrl(output.id)}
                   alt={output.name}
-                  className="bg-muted aspect-square w-full rounded object-cover"
+                  className={css({
+                    display: 'block',
+                    bg: 'surface-muted',
+                    aspectRatio: 'square',
+                    width: '100%',
+                    borderRadius: 'xl',
+                    objectFit: 'cover',
+                  })}
                 />
               </a>
             ))}
           </div>
         )}
       </div>
-      <section aria-labelledby="reference-images-title" className="space-y-3">
-        <h2 id="reference-images-title" className="text-sm font-medium">
-          {t('image.detail.referenceImages')}
-        </h2>
-        {record.snapshot.imageAssets.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t('image.detail.noReferenceImages')}</p>
-        ) : (
-          <>
-            <p className="text-muted-foreground text-xs">{t('image.detail.orderingHint')}</p>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-              {record.snapshot.imageAssets.map((asset, index) => (
-                <ReferenceImage key={asset.id} asset={asset} index={index} />
-              ))}
-            </div>
-          </>
-        )}
-      </section>
-      <div className="space-y-2">
-        <div className="text-sm font-medium">{t('image.detail.attemptsTitle')}</div>
-        <div className="space-y-1">
-          {record.attempts.map((attempt) => (
-            <div key={attempt.id} className="bg-muted/50 flex flex-wrap items-center gap-2 rounded px-3 py-1.5 text-xs">
-              <StateBadge state={attempt.status} />
-              <span>
-                round {attempt.round} · item {attempt.itemIndex}
-              </span>
-              {attempt.providerRequestId !== null && <MonoValue value={attempt.providerRequestId} />}
-              {attempt.usage !== null && (
-                <span className="text-muted-foreground">
-                  {Object.entries(attempt.usage)
-                    .map(([key, value]) => `${key} ${value}`)
-                    .join(' · ')}
-                </span>
-              )}
-              {attempt.error !== null && <span className="text-destructive">{attempt.error.message}</span>}
-              {attempt.finishedAt !== null && (
-                <span className="text-muted-foreground">{formatTime(attempt.finishedAt)}</span>
-              )}
-            </div>
-          ))}
-          {record.attempts.length === 0 && (
-            <p className="text-muted-foreground text-xs">{t('image.detail.noAttempts')}</p>
+      <section
+        aria-labelledby="reference-images-title"
+        className={css({ display: 'flex', flexDirection: 'column', gap: '3' })}
+      >
+        <div className={css({ display: 'flex', flexDirection: 'column', gap: '1' })}>
+          <h2 id="reference-images-title" className={css({ margin: '0', textStyle: 'heading-2' })}>
+            {t('image.detail.referenceImages')}
+          </h2>
+          {record.snapshot.imageAssets.length === 0 ? null : (
+            <p className={css({ margin: '0', color: 'text-muted' })}>{t('image.detail.orderingHint')}</p>
           )}
         </div>
-      </div>
-      <div className="bg-muted/50 rounded p-3">
-        <div className="text-muted-foreground text-xs">{t('image.detail.finalPromptLabel')}</div>
-        <pre className="text-xs whitespace-pre-wrap">{record.snapshot.finalPrompt}</pre>
-      </div>
+        {record.snapshot.imageAssets.length === 0 ? (
+          <p className={css({ margin: '0', color: 'text-muted' })}>{t('image.detail.noReferenceImages')}</p>
+        ) : (
+          <div
+            className={css({
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: '3',
+              md: { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' },
+              '@media (min-width: 1280px)': { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' },
+            })}
+          >
+            {record.snapshot.imageAssets.map((asset, index) => (
+              <ReferenceImage key={asset.id} asset={asset} index={index} />
+            ))}
+          </div>
+        )}
+      </section>
+      <Panel title={t('image.detail.attemptsTitle')}>
+        {record.attempts.length === 0 ? (
+          <p className={css({ margin: '0', color: 'text-muted' })}>{t('image.detail.noAttempts')}</p>
+        ) : (
+          <ul className={css({ '& > :not(:last-child)': { borderBottomWidth: '1px', borderColor: 'divider' } })}>
+            {record.attempts.map((attempt) => (
+              <li
+                key={attempt.id}
+                className={css({
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  columnGap: '4',
+                  rowGap: '1',
+                  paddingBlock: '3',
+                })}
+              >
+                <StateBadge state={attempt.status} />
+                <span>{t('image.detail.attemptRound', { round: attempt.round, item: attempt.itemIndex })}</span>
+                {attempt.providerRequestId !== null && <MonoValue value={attempt.providerRequestId} />}
+                {attempt.usage !== null &&
+                  Object.entries(attempt.usage).map(([key, value]) => (
+                    <span key={key} className={css({ color: 'text-muted' })}>{`${key} ${value}`}</span>
+                  ))}
+                {attempt.error !== null && (
+                  <span className={css({ color: 'error-text' })}>{attempt.error.message}</span>
+                )}
+                {attempt.finishedAt !== null && (
+                  <span className={css({ color: 'text-muted' })}>{formatTime(attempt.finishedAt)}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+      <Panel title={t('image.detail.finalPromptLabel')}>
+        <pre
+          className={css({
+            margin: '0',
+            padding: '4',
+            borderRadius: 'xl',
+            bg: 'surface-muted',
+            fontFamily: 'mono',
+            whiteSpace: 'pre-wrap',
+            overflowWrap: 'anywhere',
+          })}
+        >
+          {record.snapshot.finalPrompt}
+        </pre>
+      </Panel>
     </div>
   );
 }
 
 export default function ImageGenerationDetailPage() {
   const { generationId } = useParams({ from: '/image-generations_/$generationId' });
-  const { t } = useTranslation();
-  return (
-    <div className="space-y-4">
-      <Link to="/image-generations" className="text-sm underline">
-        {t('image.detail.backToList')}
-      </Link>
-      <GenerationDetail id={generationId} />
-    </div>
-  );
+  return <GenerationDetail id={generationId} />;
 }

@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
-import { adminUrl, appliedToast, E2E_USERNAME, e2eFetch, test, toast } from './helpers.ts';
 import { ACTIVE_CHAT, editElsewhere, inherited, viewOf } from './chats-fixture.ts';
+import { adminUrl, appliedToast, E2E_USERNAME, e2eFetch, modelListRow, test, toast } from './helpers.ts';
+import { setAsAgent } from './models-fixture.ts';
 
 /**
  * Controlled admin operations against the real backend. Every write goes
@@ -23,12 +24,12 @@ test.describe('memo pad CRUD', () => {
   test('create, view, edit to permanent, and delete a memo through the dialogs', async ({ page }) => {
     await page.goto(await adminUrl('/memories'));
     await page.getByRole('button', { name: 'New memo' }).click();
-    await page.getByLabel('Select a chat').click();
-    await page.getByRole('option', { name: /Surowan Test Group/ }).click();
-    await page.getByLabel('Summary').fill('E2E memo created by test');
-    await page.getByLabel('Detail').fill('E2E memo detail with a [link](https://example.com).');
-    await page.getByLabel('TTL in days').fill('7');
-    await page.getByRole('button', { name: 'Create', exact: true }).click();
+    const createDialog = page.getByRole('dialog');
+    await createDialog.getByLabel('Chat', { exact: true }).selectOption('123456789');
+    await createDialog.getByLabel('Summary').fill('E2E memo created by test');
+    await createDialog.getByLabel('Detail').fill('E2E memo detail with a [link](https://example.com).');
+    await createDialog.getByLabel('TTL in days').fill('7');
+    await createDialog.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(toast(page, 'Memo created')).toBeVisible();
 
     // server state: summary/detail and a short-term expiry
@@ -43,12 +44,19 @@ test.describe('memo pad CRUD', () => {
     expect(created?.short_term).toBe(true);
     expect(created?.expires_at).not.toBeNull();
 
-    // UI state: load every page, then view the created memo
-    const loadMore = page.getByRole('button', { name: 'Load more' });
-    if (await loadMore.isVisible()) {
-      await loadMore.click();
-    }
+    // UI state: walk real cursor pages until the created memo is visible.
     const createdRow = page.locator('table tbody tr', { hasText: 'E2E memo created by test' });
+    for (let pageNumber = 1; !(await createdRow.isVisible()) && pageNumber <= 10; pageNumber += 1) {
+      const next = page.getByRole('button', { name: 'Next page', exact: true });
+      if (await next.isDisabled()) {
+        break;
+      }
+      await next.click();
+      await expect(page.getByRole('button', { name: `Page ${pageNumber + 1}`, exact: true })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+    }
     await expect(createdRow).toBeVisible();
     await createdRow.getByRole('button', { name: 'View' }).click();
     const viewDialog = page.getByRole('dialog');
@@ -95,7 +103,7 @@ test.describe('bot admins', () => {
     await expect(page.getByText('No bot admins configured.')).toBeVisible();
 
     await page.getByRole('button', { name: 'Add bot admin' }).click();
-    await page.getByLabel('Telegram user ID').fill('123456789');
+    await page.getByRole('dialog').getByLabel('Telegram user ID').fill('123456789');
     await page.getByRole('button', { name: 'Add', exact: true }).click();
     await expect(page.getByText('Bot admin added')).toBeVisible();
     const row = page.locator('table tbody tr', { hasText: '123456789' });
@@ -110,16 +118,35 @@ test.describe('bot admins', () => {
     const listBody = (await listResponse.json()) as { items: { telegram_user_id: string }[] };
     expect(listBody.items.some((item) => item.telegram_user_id === '123456789')).toBeFalsy();
   });
+
+  test('a failed admin read does not invent an empty inventory', async ({ page }) => {
+    let failed = false;
+    await page.route('**/api/admins', async (route) => {
+      if (!failed) {
+        failed = true;
+        await route.fulfill({ status: 502, json: { error: 'internal', message: 'Synthetic admin failure' } });
+        return;
+      }
+      await route.fallback();
+    });
+    await page.goto(await adminUrl('/admins'));
+    await expect(page.getByText('Synthetic admin failure', { exact: false })).toBeVisible();
+    await expect(page.locator('table')).toHaveCount(0);
+    await expect(page.getByText('No bot admins configured.')).toHaveCount(0);
+    await expect(page.getByText('0 records', { exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Refresh list', exact: true }).click();
+    await expect(page.getByText('No bot admins configured.')).toBeVisible();
+  });
 });
 
 test.describe('agent model hot-switch', () => {
   test('resets an incompatible Chat effort with a dialog when switching the global model', async ({ page }) => {
-    await page.goto(await adminUrl('/models'));
+    await page.goto(await adminUrl('/providers'));
     await editElsewhere(page, { ...inherited, thinking_level: 'high' });
     await page.reload();
 
     await page.getByRole('button', { name: 'Provider vision' }).click();
-    await page.locator('tr', { hasText: 'vision-model' }).getByRole('button', { name: 'Set as agent' }).click();
+    await setAsAgent(modelListRow(page, 'vision-model'));
     // The toast only appears once the write and the reload succeeded.
     await expect(appliedToast(page).first()).toBeVisible();
     // The vision model does not reason, so the switch leaves it only `off`.
@@ -141,7 +168,7 @@ test.describe('agent model hot-switch', () => {
     await expect(dialog).not.toBeVisible();
     // Wait for the refreshed view before the next write: a switch has to be
     // built on the revision the previous one produced.
-    await expect(page.getByRole('button', { name: 'Provider vision' }).getByText('Agent in use')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Provider vision' })).toHaveAccessibleDescription(/Agent in use/);
 
     // `GET /model` is gone with the old Model page; the live model is read back
     // from the provider view, which is what the page itself renders.
@@ -152,8 +179,8 @@ test.describe('agent model hot-switch', () => {
 
     // There is no default to restore: the way back is another switch.
     await page.getByRole('button', { name: 'Provider agent' }).click();
-    await page.locator('tr', { hasText: 'agent-model' }).getByRole('button', { name: 'Set as agent' }).click();
-    await expect(page.getByRole('button', { name: 'Provider agent' }).getByText('Agent in use')).toBeVisible();
+    await setAsAgent(modelListRow(page, 'agent-model'));
+    await expect(page.getByRole('button', { name: 'Provider agent' })).toHaveAccessibleDescription(/Agent in use/);
     await expect(dialog).not.toBeVisible();
     await editElsewhere(page, inherited);
 
@@ -207,8 +234,8 @@ test.describe('alarm cancel + conflict path', () => {
     expect(state.cancelled_by).toBe(E2E_USERNAME);
 
     // UI reflects the new state through the state filter
-    await page.getByRole('combobox', { name: 'State' }).click();
-    await page.getByRole('option', { name: 'cancelled' }).click();
+    await page.getByRole('combobox', { name: 'State' }).selectOption('cancelled');
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
     const cancelledRow = page.locator('table tbody tr', { hasText: 'Remind Alice about the fixture data' });
     await expect(cancelledRow).toBeVisible();
     await expect(cancelledRow.getByText('cancelled')).toBeVisible();
@@ -236,8 +263,8 @@ test.describe('alarm cancel + conflict path', () => {
     expect(state.state).toBe('fired');
 
     await page.getByRole('button', { name: 'Dismiss' }).click();
-    await page.getByRole('combobox', { name: 'State' }).click();
-    await page.getByRole('option', { name: 'fired' }).click();
+    await page.getByRole('combobox', { name: 'State' }).selectOption('fired');
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
     const firedRow = page.locator('table tbody tr', { hasText: /e2e alarm 1(?!\d)/ });
     await expect(firedRow).toBeVisible();
     await expect(firedRow.getByText('fired')).toBeVisible();
@@ -271,7 +298,7 @@ test.describe('overview operations', () => {
     await page.getByRole('button', { name: 'Cancel ongoing', exact: true }).click();
     await page.getByRole('button', { name: 'Cancel ongoing sessions' }).click();
     await expect(page.getByText(/Canceled 0 buckets \/ 0 invocations/)).toBeVisible();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('wake the sleeping bot and see the status flip to awake', async ({ page }) => {

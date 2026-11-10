@@ -8,7 +8,7 @@ import {
   storageHasApiKey,
   uniqueKeyName,
 } from './api-key-helpers.ts';
-import { adminBase, adminUrl } from './helpers.ts';
+import { adminBase, adminUrl, clickNav } from './helpers.ts';
 
 /**
  * `API key management UI`, creation and one-time display: sidebar entry,
@@ -46,9 +46,9 @@ test.describe('API key management UI', () => {
   test('creates a key from the sidebar, shows it once, and drops the plaintext afterwards', async ({ page }) => {
     await installClipboardRecorder(page);
     await page.goto(await adminUrl('/'));
-    const systemGroup = page.locator('[data-sidebar="group"]').filter({ hasText: 'System' });
-    await expect(systemGroup.getByRole('link', { name: 'API keys', exact: true })).toBeVisible();
-    await systemGroup.getByRole('link', { name: 'API keys', exact: true }).click();
+    const systemGroup = page.getByRole('button', { name: 'System', exact: true });
+    await expect(systemGroup).toBeVisible();
+    await clickNav(page, 'System', 'API keys');
     await expect(page).toHaveURL(/\/api-keys$/);
 
     const main = page.getByRole('main');
@@ -127,7 +127,7 @@ test.describe('API key management UI', () => {
   test('drops an open plaintext dialog on Escape, refresh and history navigation', async ({ page }) => {
     for (const dismissal of ['escape', 'refresh', 'navigation']) {
       await page.goto(await adminUrl('/'));
-      await page.getByRole('link', { name: 'API keys', exact: true }).click();
+      await clickNav(page, 'System', 'API keys');
       const name = uniqueKeyName(dismissal);
       await page.getByRole('main').getByRole('button', { name: 'Create API key' }).click();
       const dialog = page.getByRole('dialog');
@@ -144,7 +144,7 @@ test.describe('API key management UI', () => {
       } else {
         await page.goBack();
         await expect(page).toHaveURL(await adminUrl('/'));
-        await page.getByRole('link', { name: 'API keys', exact: true }).click();
+        await clickNav(page, 'System', 'API keys');
       }
       await expect(page.getByRole('dialog')).toHaveCount(0);
       await expect(page.getByRole('main').locator('table tbody tr', { hasText: name })).toBeVisible();

@@ -7,6 +7,7 @@ import type { AgentSettings, FileConfig, ModelFileConfig, ProviderApi } from '..
 import type { SecretStore } from '../../../platform/secrets.ts';
 import { AdminQueryError } from '../audit/shared.ts';
 import type { ProviderPresetView, ProvidersView } from './index.ts';
+import { defaultVisionThinkingLevel, supportedThinkingLevels } from '../../../platform/thinking-levels.ts';
 import { assertModelConfig, resolveBuiltinModelApi } from '../../../platform/config/semantics.ts';
 
 export function supervisedRestartEnabled(): boolean {
@@ -29,7 +30,7 @@ export function listProviders(
       model: file.agent?.model ?? null,
       thinking_level: file.agent?.thinking_level ?? null,
     },
-    vision: { provider: file.vision?.provider ?? null, model: file.vision?.model ?? null },
+    vision: visionView(file),
     tool_model:
       configuredToolModel === undefined
         ? {
@@ -72,6 +73,29 @@ export function listProviders(
         models: provider.models,
       };
     }),
+  };
+}
+
+/**
+ * The vision pair and the effort its analyses run at: the configured one, or
+ * the default the runtime derives from the model (`off` when it does not
+ * reason). A model missing from the file has no levels to derive from.
+ */
+function visionView(file: Pick<FileConfig, 'providers' | 'vision'>): ProvidersView['vision'] {
+  const provider = file.vision?.provider ?? null;
+  const model = file.vision?.model ?? null;
+  if (provider === null || model === null) {
+    return { provider, model, thinking_level: null };
+  }
+  const config = file.providers[provider]?.models.find((candidate) => candidate.id === model);
+  const configured = file.vision?.thinking_level;
+  return {
+    provider,
+    model,
+    thinking_level:
+      config === undefined
+        ? (configured ?? null)
+        : (configured ?? defaultVisionThinkingLevel(supportedThinkingLevels(config))),
   };
 }
 
@@ -129,7 +153,9 @@ export function discoveryApi(provider: FileConfig['providers'][string]): Provide
 
 /**
  * The api shown for a configured builtin alias: the uniform catalog api, or —
- * on a mixed-catalog provider — the first configured model's catalog api.
+ * on a mixed-catalog provider — the first configured model's catalog api. An
+ * emptied mixed-catalog alias shows the OpenAI-compatible adapter that
+ * `builtinModelApi` gives gateway ids, so the alias stays listable and refillable.
  */
 function configuredBuiltinApi(
   alias: string,
@@ -142,7 +168,7 @@ function configuredBuiltinApi(
   }
   const first = provider.models[0];
   if (first === undefined) {
-    return null;
+    return 'openai-completions';
   }
   try {
     return resolveBuiltinModelApi(alias, provider, first.id);

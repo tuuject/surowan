@@ -4,6 +4,8 @@
  * `typeof` annotation in `zh-CN/common.ts`).
  */
 export const common = {
+  /** Joins short phrases in running text; a layout gap separates inline meta instead. */
+  separator: ', ',
   loading: 'Loading…',
   noRecords: 'No records',
   cancel: 'Cancel',
@@ -15,6 +17,7 @@ export const common = {
   delete: 'Delete',
   create: 'Create',
   edit: 'Edit',
+  view: 'View',
   submit: 'Submit',
   submitting: 'Submitting…',
   retry: 'Retry',

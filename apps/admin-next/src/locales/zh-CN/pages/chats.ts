@@ -4,6 +4,8 @@ import { brand } from '../brand.ts';
 /** Mirrors `en/pages/chats.ts` key for key; the annotation fails the build on drift. */
 export const chats: typeof chatsEn = {
   allTopics: '所有话题',
+  moreActions: '更多操作',
+  settingsGroup: '会话设置',
   quickLinks: '打开相关页面',
   defaultModel: '默认模型',
   chatOverride: '会话覆盖',
@@ -64,7 +66,7 @@ export const chats: typeof chatsEn = {
   activeHoursUnrestricted: '不限制',
   activeHoursTriggerOnly: '仅触发可唤醒',
   activeHoursFollowsGlobal: '跟随全局时段',
-  activeHoursTimezoneNote: '按 {{timezone}} 显示 · 现在 {{time}}',
+  activeHoursTimezoneNote: '按 {{timezone}} 显示，现在 {{time}}',
   modeUnrestricted: '不限制活跃时间',
   modeUnrestrictedHint: '移除本群的时段设置。未配置全局时段时，Bot 全天保持活跃。',
   modeUnrestrictedHintGlobal: '移除本群的时段设置，继续沿用全局时段（{{windows}}）。',
@@ -86,7 +88,7 @@ export const chats: typeof chatsEn = {
   weekdaysShort: '一,二,三,四,五,六,日',
   colGroupMemory: '群聊记忆',
   groupMemoryOffSummary: '关闭',
-  groupMemorySummary: '开启 · 静默 {{minutes}} 分钟',
+  groupMemorySummary: '开启，静默 {{minutes}} 分钟',
   editGroupMemory: '编辑群聊记忆',
   groupMemoryTitle: '群聊记忆',
   groupMemoryDescription:
@@ -117,6 +119,6 @@ export const chats: typeof chatsEn = {
   proactiveInvalid: '请填写 0–100 的百分比，并把最多尝试次数设为 1–100 的整数。',
   proactiveGlobalSummary: '首次 {{base}}%，每次未命中 +{{increment}}%，最多 {{pity}} 次必定命中',
   proactiveOffSummary: '关闭',
-  proactiveInheritSummary: '跟随全局 · {{summary}}',
-  proactiveSummary: '首次 {{base}}% · 每次未命中 +{{increment}}% · 最多 {{pity}} 次必定命中',
+  proactiveInheritSummary: '跟随全局（{{summary}}）',
+  proactiveSummary: '首次 {{base}}%，每次未命中 +{{increment}}%，最多 {{pity}} 次必定命中',
 };

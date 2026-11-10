@@ -1,9 +1,9 @@
 import type { EndpointSpec } from '../types.ts';
 
 /**
- * Models page: the provider/model manager, its read-shaped discovery calls, the
- * billed health check, and the three single-field switches that share the same
- * write path (`model`, `vision`, `thinking-level`).
+ * Providers and Models pages: the provider/model manager, its read-shaped
+ * discovery calls, the billed health check, and the role switches that share
+ * the same write path (`model`, `vision`, `thinking-level`).
  */
 export const PROVIDER_SPECS: readonly EndpointSpec[] = [
   {
@@ -83,6 +83,15 @@ export const PROVIDER_SPECS: readonly EndpointSpec[] = [
     summary: 'Replace one model definition',
   },
   {
+    command: 'model delete-many',
+    method: 'POST',
+    path: 'providers/models/delete',
+    body: true,
+    revision: 'config',
+    confirm: 'destructive',
+    summary: 'Delete selected models across providers in one configuration write',
+  },
+  {
     command: 'model delete',
     method: 'DELETE',
     path: 'providers/:alias/models/:id',
@@ -100,7 +109,7 @@ export const PROVIDER_SPECS: readonly EndpointSpec[] = [
     path: 'vision',
     body: true,
     revision: 'config',
-    summary: 'Switch the vision model',
+    summary: 'Switch the vision model, optionally with its thinking level',
   },
   {
     command: 'thinking-level set',

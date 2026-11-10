@@ -1,5 +1,6 @@
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
-import { cn } from '@/lib/utils';
+import type { ReactElement } from 'react';
 
 /**
  * Key/value detail list for detail-page diagnostic fields. Null or empty
@@ -15,19 +16,41 @@ export interface KvItem {
 export function KvList({
   items,
   className,
+  columns = 'auto',
 }: {
   readonly items: readonly KvItem[];
   readonly className?: string;
-}): React.ReactElement {
+  /** `1` stacks every item, for a vertical settings form. */
+  readonly columns?: 1 | 'auto';
+}): ReactElement {
   return (
-    <dl className={cn('grid gap-x-6 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3', className)}>
-      {items.map((item) => (
-        <div key={item.label} className="min-w-0">
-          <dt className="text-muted-foreground text-xs">{item.label}</dt>
-          <dd className="mt-0.5 text-sm break-words">{item.value}</dd>
-        </div>
-      ))}
-    </dl>
+    <div className={css({ containerType: 'inline-size', minWidth: '0' })}>
+      <dl
+        className={cx(
+          css({
+            display: 'grid',
+            columnGap: '6',
+            rowGap: '4',
+            margin: '0',
+            // Columns follow the list's own width, so a half-width card doesn't squeeze three columns in.
+            ...(columns === 'auto'
+              ? {
+                  '@container (min-width: 480px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
+                  '@container (min-width: 720px)': { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' },
+                }
+              : {}),
+          }),
+          className,
+        )}
+      >
+        {items.map((item) => (
+          <div key={item.label} className={css({ minWidth: '0' })}>
+            <dt className={css({ textStyle: 'small', color: 'text-muted' })}>{item.label}</dt>
+            <dd className={css({ margin: '0', marginBlockStart: '1', overflowWrap: 'anywhere' })}>{item.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -38,11 +61,11 @@ export function TextValue({
 }: {
   readonly value: string | null;
   readonly className?: string;
-}): React.ReactElement {
+}): ReactElement {
   if (value === null || value.length === 0) {
-    return <span className="text-muted-foreground">—</span>;
+    return <span className={css({ color: 'text-muted' })}>—</span>;
   }
-  return <span className={cn('break-words', className)}>{value}</span>;
+  return <span className={cx(css({ overflowWrap: 'anywhere' }), className)}>{value}</span>;
 }
 
 /** Nullable monospace ID text (bigint-string fields stay strings). */
@@ -52,9 +75,20 @@ export function MonoValue({
 }: {
   readonly value: string | null;
   readonly className?: string;
-}): React.ReactElement {
+}): ReactElement {
   if (value === null || value.length === 0) {
-    return <span className="text-muted-foreground">—</span>;
+    return <span className={css({ color: 'text-muted' })}>—</span>;
   }
-  return <code className={cn('rounded bg-muted px-1 py-0.5 font-mono text-xs break-all', className)}>{value}</code>;
+  return (
+    <code
+      className={cx(
+        // Plain fixed-width text in the surrounding size and color: a filled chip on every ID turns a
+        // table into a field of pills.
+        css({ fontFamily: 'mono', overflowWrap: 'anywhere' }),
+        className,
+      )}
+    >
+      {value}
+    </code>
+  );
 }

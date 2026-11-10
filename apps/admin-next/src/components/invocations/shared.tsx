@@ -1,22 +1,22 @@
 import { Link } from '@tanstack/react-router';
+import { Empty } from '@tuuject/koi-react/empty';
 import type React from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { type BadgeSemantic, ToneBadge } from '@/components/business';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
-
-import { isNewContextSection } from '@/lib/timeline';
 import type { InvocationChatSummary } from '@/lib/api/invocations.ts';
+import { isNewContextSection } from '@/lib/timeline';
 
 const ROLE_BADGE_TONES: Record<string, BadgeSemantic> = {
   assistant: 'warning',
   tool_result: 'info',
 };
 
-export function RoleBadge({ role }: { readonly role: string }): React.ReactElement {
+export function RoleBadge({ role }: { readonly role: string }): ReactElement {
   return <ToneBadge tone={ROLE_BADGE_TONES[role] ?? 'neutral'}>{role}</ToneBadge>;
 }
 
-export function SectionBadge({ section }: { readonly section: string }): React.ReactElement {
+export function SectionBadge({ section }: { readonly section: string }): ReactElement {
   const { t } = useTranslation();
   const isNew = isNewContextSection(section);
   return (
@@ -44,7 +44,7 @@ export function MessageRecordLink({
   readonly messageId: string;
   readonly className: string;
   readonly children: React.ReactNode;
-}): React.ReactElement {
+}): ReactElement {
   if (chat.room_id !== null) {
     return (
       <Link to="/playground" search={{ room: chat.room_id }} className={className}>
@@ -59,7 +59,7 @@ export function MessageRecordLink({
   );
 }
 
-export function YesNoBadge({ value }: { readonly value: boolean }): React.ReactElement {
+export function YesNoBadge({ value }: { readonly value: boolean }): ReactElement {
   const { t } = useTranslation();
   return value ? (
     <ToneBadge tone="warning">{t('invocations.messageDetail.yes')}</ToneBadge>
@@ -68,16 +68,9 @@ export function YesNoBadge({ value }: { readonly value: boolean }): React.ReactE
   );
 }
 
-export function TabEmpty({ message }: { readonly message: string }): React.ReactElement {
+export function TabEmpty({ message }: { readonly message: string }): ReactElement {
   const { t } = useTranslation();
-  return (
-    <Empty>
-      <EmptyHeader>
-        <EmptyTitle>{t('invocations.invocationDetail.nothingHere')}</EmptyTitle>
-        <EmptyDescription>{message}</EmptyDescription>
-      </EmptyHeader>
-    </Empty>
-  );
+  return <Empty variant="plain" title={t('invocations.invocationDetail.nothingHere')} description={message} />;
 }
 
 export function TabContent({

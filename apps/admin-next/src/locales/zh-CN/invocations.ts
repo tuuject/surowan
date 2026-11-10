@@ -19,6 +19,9 @@ export const invocations: typeof invocationsEn = {
       sideEffect: '副作用',
       created: '创建时间',
     },
+    sideEffectStarted: '已产生',
+    sideEffectNone: '无',
+    topicLabel: '话题 {{id}}',
     statePlaceholder: '状态',
     hostPlaceholder: '宿主',
     modelPlaceholder: '模型',
@@ -30,7 +33,7 @@ export const invocations: typeof invocationsEn = {
       'Token 统计模型调用涉及的全部 Token，含缓存读取与写入 —— 与每日预算口径一致。单次调用的明细见 Invocation 详情页。',
   },
   invocationDetail: {
-    backToList: '返回列表',
+    summary: '概要',
     title: 'Invocation {{id}}',
     notFound: 'Invocation 不存在',
     loadFailed: 'Invocation 加载失败',
@@ -109,8 +112,8 @@ export const invocations: typeof invocationsEn = {
     contextMessage: {
       unknownSender: '未知发送者',
       mediaCount: '{{count}} 个媒体',
-      telegramMessage: 'Telegram 消息 {{id}} · {{kind}}',
-      roomMessage: '房间消息 #{{id}} · {{kind}}',
+      telegramMessage: 'Telegram 消息 {{id}}，{{kind}}',
+      roomMessage: '房间消息 #{{id}}，{{kind}}',
       openRecord: '打开消息记录',
       openRoom: '打开房间',
     },
@@ -219,7 +222,6 @@ export const invocations: typeof invocationsEn = {
     },
   },
   messageDetail: {
-    backToList: '返回列表',
     title: '消息 {{id}}',
     notFound: '消息不存在',
     loadFailed: '消息加载失败',
@@ -279,7 +281,6 @@ export const invocations: typeof invocationsEn = {
     },
   },
   contextDetail: {
-    backToList: '返回列表',
     title: '会话上下文 {{id}}',
     notFound: '会话上下文不存在',
     loadFailed: '会话上下文加载失败',
@@ -340,8 +341,6 @@ export const invocations: typeof invocationsEn = {
     },
     cursorList: {
       noRecordsDescription: '没有符合当前筛选条件的记录。',
-      loadMore: '加载更多',
-      loadingMore: '加载中…',
       adminRequestFailed: '管理端请求失败',
     },
   },

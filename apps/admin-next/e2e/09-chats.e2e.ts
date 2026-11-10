@@ -1,15 +1,16 @@
 import { expect } from '@playwright/test';
-import { adminUrl, e2eFetch, test, watchPageIssues } from './helpers.ts';
 import {
   ACTIVE_CHAT,
   chatRow,
   editElsewhere,
   inherited,
+  openChatAction,
   prepareChatsPage,
   refetchAfterReconnect,
   saveDialog,
   viewOf,
 } from './chats-fixture.ts';
+import { adminUrl, clickNav, e2eFetch, test, watchPageIssues } from './helpers.ts';
 
 test.use({ signedIn: true });
 
@@ -19,7 +20,7 @@ test.beforeEach(async ({ page }) => {
 
 test('navigation, exact string IDs and hot add work; removal is immediate', async ({ page }) => {
   const finish = watchPageIssues(page);
-  await page.getByLabel('Chats', { exact: true }).click();
+  await clickNav(page, 'Telegram', 'Chats');
   await page.getByRole('button', { name: 'Add Chat', exact: true }).click();
   await page.getByLabel('Telegram Chat ID').fill('9007199254740992');
   await page.getByRole('button', { name: 'Save Chat' }).click();
@@ -77,14 +78,12 @@ test('Chat models apply hot, thinking options match the model, and global defaul
   page,
 }) => {
   await chatRow(page).getByRole('button', { name: 'Edit', exact: true }).click();
-  await page.getByRole('combobox', { name: 'Agent model' }).click();
-  await page.getByRole('option', { name: 'vision / vision-model', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Agent model' }).selectOption({ label: 'vision / vision-model' });
   const thinking = page.getByRole('combobox', { name: 'Thinking effort' });
-  await expect(thinking).toHaveText('off');
-  await thinking.click();
-  await expect(page.getByRole('option', { name: 'high', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('option', { name: /^Global default/ })).toHaveCount(0);
-  await page.getByRole('option', { name: 'off', exact: true }).click();
+  await expect(thinking).toHaveValue('off');
+  await expect(page.locator('#chat-thinking option[value="high"]')).toHaveCount(0);
+  await expect(page.locator('#chat-thinking option[value="inherit"]')).toHaveCount(0);
+  await thinking.selectOption('off');
   await saveDialog(page);
   await expect(chatRow(page).getByRole('cell').nth(2)).toContainText('vision / vision-model');
   expect((await viewOf(page)).items.find((chat) => chat.id === ACTIVE_CHAT)?.active?.effective).toEqual({
@@ -94,17 +93,14 @@ test('Chat models apply hot, thinking options match the model, and global defaul
   });
 
   await chatRow(page).getByRole('button', { name: 'Edit', exact: true }).click();
-  await page.getByRole('combobox', { name: 'Agent model' }).click();
-  await page.getByRole('option', { name: 'agent / agent-model', exact: true }).click();
-  await thinking.click();
-  await page.getByRole('option', { name: 'high', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Agent model' }).selectOption({ label: 'agent / agent-model' });
+  await thinking.selectOption('high');
   await saveDialog(page);
   expect((await viewOf(page)).items.find((chat) => chat.id === ACTIVE_CHAT)?.active?.thinking_level).toBe('high');
 
   await chatRow(page).getByRole('button', { name: 'Edit', exact: true }).click();
-  await page.getByRole('combobox', { name: 'Agent model' }).click();
-  await page.getByRole('option', { name: /^Global default/ }).click();
-  await expect(thinking).toContainText('Global default');
+  await page.getByRole('combobox', { name: 'Agent model' }).selectOption({ index: 0 });
+  await expect(thinking).toHaveValue('inherit');
   await saveDialog(page);
   const reset = await viewOf(page);
   expect(reset.items.find((chat) => chat.id === ACTIVE_CHAT)).toMatchObject({
@@ -155,10 +151,8 @@ test('remove confirmation retains its original revision and removes Chats immedi
 test('saved-but-not-applied errors refresh both views and Settings can apply the saved model', async ({ page }) => {
   const before = await viewOf(page);
   await chatRow(page).getByRole('button', { name: 'Edit', exact: true }).click();
-  await page.getByRole('combobox', { name: 'Agent model' }).click();
-  await page.getByRole('option', { name: 'agent / agent-model', exact: true }).click();
-  await page.getByRole('combobox', { name: 'Thinking effort' }).click();
-  await page.getByRole('option', { name: 'high', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Agent model' }).selectOption({ label: 'agent / agent-model' });
+  await page.getByRole('combobox', { name: 'Thinking effort' }).selectOption('high');
   await e2eFetch('/fail-next-config-apply', { method: 'POST' });
   await page.getByRole('button', { name: 'Save Chat' }).click();
   await expect(page.getByRole('alert')).toContainText('config.jsonc was updated but not applied:');
@@ -169,10 +163,10 @@ test('saved-but-not-applied errors refresh both views and Settings can apply the
   expect(failed.items.find((chat) => chat.id === ACTIVE_CHAT)?.active).toEqual(
     before.items.find((chat) => chat.id === ACTIVE_CHAT)?.active,
   );
-  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await clickNav(page, 'System', 'Settings');
   await page.getByRole('button', { name: 'Apply config file' }).click();
   await expect(page.getByText(`telegram.chats[${ACTIVE_CHAT}].thinking_level`, { exact: false })).toBeVisible();
-  await page.getByRole('link', { name: 'Chats', exact: true }).click();
+  await clickNav(page, 'Telegram', 'Chats');
   await expect(chatRow(page).getByRole('cell').nth(2)).toContainText('high');
   await expect(chatRow(page).getByText('Active', { exact: true })).toBeVisible();
 });
@@ -193,13 +187,12 @@ test('mobile dark layout keeps the form and actions usable without page overflow
 
 test('quick links open chat-scoped pages', async ({ page }) => {
   await page.goto(await adminUrl('/chats'));
-  await chatRow(page).getByRole('button', { name: 'Open related pages' }).click();
-  await page.getByRole('menuitem', { name: 'Tool sessions' }).click();
+  await openChatAction(page, chatRow(page), 'Tool sessions');
   await expect(page).toHaveURL(/\/invocations\?chat=123456789$/);
   await expect(page.getByRole('combobox', { name: 'State' })).toBeVisible();
   await page.goto(await adminUrl('/chats'));
-  await chatRow(page).getByRole('button', { name: 'Open related pages' }).click();
-  await page.getByRole('menuitem', { name: 'Prompts' }).click();
+  await openChatAction(page, chatRow(page), 'Prompts');
   await expect(page).toHaveURL(/\/prompts\?chat=123456789$/);
-  await expect(page.getByRole('combobox', { name: 'Scope' })).toContainText('123456789');
+  const scopeRail = page.getByRole('navigation', { name: 'Prompt scopes', exact: true });
+  await expect(scopeRail.getByRole('button').filter({ hasText: '123456789' })).toHaveAttribute('aria-pressed', 'true');
 });

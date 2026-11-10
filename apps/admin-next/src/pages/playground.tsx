@@ -1,29 +1,34 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getRouteApi } from '@tanstack/react-router';
-import { MessagesSquare, Plus } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button } from '@tuuject/koi-react/button';
+import { Dialog } from '@tuuject/koi-react/dialog';
+import { Empty } from '@tuuject/koi-react/empty';
+import { Field } from '@tuuject/koi-react/field';
+import { PlusIcon } from '@tuuject/koi-react/icons';
+import { Input } from '@tuuject/koi-react/input';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { type ReactElement, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { ListFooter, ListPageHeader, ListToolbar, useClientPagination } from '@/components/business';
+import { ChatIcon } from '@/components/icons';
+import { Panel } from '@/components/layout/panel';
 import { RoomWorkspace } from '@/components/playground/room-workspace.tsx';
 import { outcomeUnknown, usePayloadKey } from '@/components/playground/shared.tsx';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-
+import { createPlaygroundRoom } from '@/lib/api/playground.ts';
 import { errorMessage } from '@/lib/errors';
 import { playgroundRoomsQuery } from '@/lib/queries';
-import { createPlaygroundRoom } from '@/lib/api/playground.ts';
+import { toast } from '@/lib/toast.ts';
 
 const route = getRouteApi('/playground');
 
-export default function PlaygroundPage(): React.ReactElement {
+export default function PlaygroundPage(): ReactElement {
   const { t } = useTranslation();
   const navigate = route.useNavigate();
   const { room: roomParam } = route.useSearch();
   const queryClient = useQueryClient();
   const rooms = useQuery(playgroundRoomsQuery);
+  const pagination = useClientPagination(rooms.data?.items ?? [], 'playground-rooms');
   const roomId = roomParam ?? '';
   const roomKey = usePayloadKey('room');
 
@@ -43,8 +48,6 @@ export default function PlaygroundPage(): React.ReactElement {
     onSuccess: (result) => {
       toast.success(t('playground.rooms.created'));
       setCreateOpen(false);
-      setNewTitle('');
-      setNewMembers('');
       roomKey.settle();
       void queryClient.invalidateQueries({ queryKey: ['playground-rooms'] });
       selectRoom(result.room.id);
@@ -72,66 +75,80 @@ export default function PlaygroundPage(): React.ReactElement {
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-4 p-4 md:p-6">
-      <div className="flex min-w-0 flex-col gap-1">
-        <h1 className="text-lg font-semibold">{t('playground.title')}</h1>
-        <p className="text-muted-foreground max-w-3xl text-sm">{t('playground.intro')}</p>
-      </div>
+    <div className={css({ display: 'flex', minWidth: '0', flexDirection: 'column', gap: '5' })}>
+      <ListPageHeader title={t('playground.title')} description={t('playground.intro')} />
+      <ListToolbar onRefresh={() => void rooms.refetch()} refreshing={rooms.isRefetching}>
+        <Button
+          variant="outline"
+          onClick={() => {
+            createRoom.reset();
+            setNewTitle('');
+            setNewMembers('');
+            setCreateOpen(true);
+          }}
+          iconStart={<PlusIcon />}
+        >
+          {t('playground.rooms.create')}
+        </Button>
+      </ListToolbar>
 
-      <div className="grid min-w-0 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <Card className="min-w-0">
-          <CardHeader className="flex-row items-center justify-between gap-2">
-            <div>
-              <CardTitle>{t('playground.rooms.heading')}</CardTitle>
-              <CardDescription>{t('playground.rooms.select')}</CardDescription>
-            </div>
-            <Button type="button" size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
-              <Plus className="size-4" />
-              {t('playground.rooms.create')}
-            </Button>
-          </CardHeader>
-          <CardContent className="min-w-0 space-y-2">
-            {rooms.isPending ? <p className="text-muted-foreground text-sm">{t('common.loading')}</p> : null}
-            {rooms.isError ? <p className="text-destructive text-sm">{t('playground.rooms.loadFailed')}</p> : null}
-            {rooms.data?.items.length === 0 ? (
-              <p className="text-muted-foreground text-sm">{t('playground.rooms.empty')}</p>
+      <div
+        className={css({
+          display: 'grid',
+          minWidth: '0',
+          gap: '4',
+          '@media (min-width: 1024px)': { gridTemplateColumns: '320px minmax(0,1fr)' },
+        })}
+      >
+        <Panel
+          title={t('playground.rooms.heading')}
+          description={t('playground.rooms.select')}
+          className={css({ minWidth: '0' })}
+        >
+          <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+            {rooms.isPending ? (
+              <p className={css({ margin: '0', color: 'text-muted' })}>{t('common.loading')}</p>
             ) : null}
-            <ul className="min-w-0 space-y-1">
-              {(rooms.data?.items ?? []).map((entry) => (
+            {rooms.isError ? <Alert tone="error">{t('playground.rooms.loadFailed')}</Alert> : null}
+            {rooms.data?.items.length === 0 ? (
+              <p className={css({ margin: '0', color: 'text-muted' })}>{t('playground.rooms.empty')}</p>
+            ) : null}
+            <ul className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+              {pagination.items.map((entry) => (
                 <li key={entry.id}>
                   <Button
                     type="button"
-                    variant={entry.id === roomId ? 'secondary' : 'ghost'}
-                    className="w-full justify-start"
+                    variant={entry.id === roomId ? 'soft' : 'ghost'}
+                    color="secondary"
+                    className={css({ width: '100%', justifyContent: 'flex-start' })}
                     onClick={() => selectRoom(entry.id)}
                     aria-current={entry.id === roomId ? 'true' : undefined}
                   >
-                    <span className="truncate">{entry.title}</span>
-                    <span className="text-muted-foreground ml-auto text-xs">
+                    <span className={css({ truncate: true })}>{entry.title}</span>
+                    <span className={css({ textStyle: 'small', color: 'text-muted', marginInlineStart: 'auto' })}>
                       {t('playground.room.pending', { count: entry.held_count ?? 0 })}
                     </span>
                   </Button>
                 </li>
               ))}
             </ul>
-          </CardContent>
-        </Card>
+            <ListFooter
+              count={pagination.total}
+              page={pagination.page}
+              pageCount={pagination.pageCount}
+              onPageChange={pagination.onPageChange}
+            />
+          </div>
+        </Panel>
 
-        <div className="flex min-w-0 flex-col gap-4">
+        <div className={css({ display: 'flex', minWidth: '0', flexDirection: 'column', gap: '4' })}>
           {roomId.length === 0 ? (
-            <Card>
-              <CardContent>
-                <Empty>
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <MessagesSquare />
-                    </EmptyMedia>
-                    <EmptyTitle>{t('playground.rooms.empty')}</EmptyTitle>
-                    <EmptyDescription>{t('playground.rooms.createHint')}</EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
-              </CardContent>
-            </Card>
+            // Nothing picked yet: point at the list when it has rooms, at the create button when it doesn't.
+            <Empty
+              icon={<ChatIcon />}
+              title={(rooms.data?.items.length ?? 0) > 0 ? t('playground.rooms.select') : t('playground.rooms.empty')}
+              description={(rooms.data?.items.length ?? 0) > 0 ? undefined : t('playground.rooms.createHint')}
+            />
           ) : (
             // Keyed by room: every draft, selection, pending upload and key
             // belongs to one room, however the URL changed (a click, Back or
@@ -142,41 +159,48 @@ export default function PlaygroundPage(): React.ReactElement {
         </div>
       </div>
 
-      {createOpen ? (
-        <Card className="min-w-0">
-          <CardHeader>
-            <CardTitle>{t('playground.rooms.create')}</CardTitle>
-            <CardDescription>{t('playground.rooms.createHint')}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="playground-room-title">{t('playground.rooms.createTitle')}</Label>
-              <Input
-                id="playground-room-title"
-                value={newTitle}
-                onChange={(event) => setNewTitle(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="playground-room-members">{t('playground.rooms.createMembers')}</Label>
-              <Input
-                id="playground-room-members"
-                value={newMembers}
-                onChange={(event) => setNewMembers(event.target.value)}
-                placeholder="Ada, Bo"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button type="button" onClick={submitCreate} disabled={createRoom.isPending}>
-                {t('common.create')}
-              </Button>
-              <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>
-                {t('common.cancel')}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          if (!open && !createRoom.isPending) {
+            setCreateOpen(false);
+          }
+        }}
+        title={t('playground.rooms.create')}
+        description={t('playground.rooms.createHint')}
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              color="secondary"
+              disabled={createRoom.isPending}
+              onClick={() => setCreateOpen(false)}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button loading={createRoom.isPending} loadingLabel={t('common.submitting')} onClick={submitCreate}>
+              {t('common.create')}
+            </Button>
+          </>
+        }
+      >
+        <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+          <Field id="playground-room-title" label={t('playground.rooms.createTitle')}>
+            <Input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} />
+          </Field>
+          <Field label={t('playground.rooms.createMembers')}>
+            <Input value={newMembers} onChange={(event) => setNewMembers(event.target.value)} placeholder="Ada, Bo" />
+          </Field>
+        </div>
+        {createRoom.isError ? (
+          <p
+            role="alert"
+            className={css({ margin: '0', marginBlockStart: '4', color: 'error-text', overflowWrap: 'anywhere' })}
+          >
+            {t('playground.errors.failed', { message: errorMessage(createRoom.error) })}
+          </p>
+        ) : null}
+      </Dialog>
     </div>
   );
 }

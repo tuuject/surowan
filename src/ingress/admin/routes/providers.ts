@@ -12,6 +12,7 @@ import {
   appendModels,
   createProvider,
   deleteModel,
+  deleteModels,
   deleteProvider,
   replaceModel,
   thinkingLevelEdits,
@@ -25,6 +26,7 @@ import {
   parseAlias,
   parseCreateProviderBody,
   parseDiscoverBody,
+  parseDeleteModelsBody,
   parseLookupMetadataBody,
   parseModelBody,
   parseModelsBody,
@@ -193,6 +195,10 @@ export function createProvidersAdminHandler(deps: ProvidersAdminDeps) {
     }
     if (parts.length === 1 && request.method === 'GET') {
       return json(await providersView(reloader));
+    }
+    if (parts.length === 3 && second === 'models' && third === 'delete' && request.method === 'POST') {
+      const body = parseDeleteModelsBody(await readJsonObject(request, PROVIDER_BODY_MAX_BYTES));
+      return await providerWrite(request, (context) => deleteModels(context, body));
     }
     if (parts.length === 1 && request.method === 'POST') {
       const body = parseCreateProviderBody(await readJsonObject(request, PROVIDER_BODY_MAX_BYTES));
