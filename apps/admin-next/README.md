@@ -5,7 +5,7 @@ Surowan 的 Admin Panel 前端。构建产物是**静态 SPA**（Vite + React + 
 `AdminServer`（`serve` 进程内的 `src/ingress/admin/index.ts`）**同源托管**，不依赖任何
 Node/Nitro 运行时。`dist/` 里的 `index.html` 由后端做深链接回退（未知路径回落到 SPA）。
 
-Koi 0.3.0 以 npm 发布版引入（不能用 `workspace:*` / `file:`）。应用壳、导航、登录、
+Koi 0.5.0 以 npm 发布版引入（不能用 `workspace:*` / `file:`）。应用壳、导航、登录、
 通用控件和全部页面按 Koi 的组件、recipes 与语义 token 实现，样式一律写 Panda `css()`；
 图标是 Font Awesome 7 Solid（`@iconify-icons/fa7-solid`，经 Koi `Icon` 渲染，集中在
 `src/components/icons.tsx`）。亮暗主题只由 `<html data-theme>` 切换。`styled-system/`
@@ -59,7 +59,7 @@ pnpm --filter surowan-admin-next run test:e2e # Playwright 浏览器 E2E（见�
 
 ## 许可与字体
 
-Koi 组件与 token 使用 `@tuuject/koi-react` / `@tuuject/koi-tokens` 0.3.0（MIT）。
+Koi 组件与 token 使用 `@tuuject/koi-react` / `@tuuject/koi-tokens` 0.5.0（MIT）。
 
 ## E2E 测试
 
