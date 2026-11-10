@@ -189,3 +189,46 @@ test('preserves the existing single-model delete flow', async ({ page }) => {
     MODELS.slice(1).map((model) => model.id),
   );
 });
+
+test('a confirmation opened on an old revision refuses to delete after a concurrent change', async ({
+  page,
+}, testInfo) => {
+  await page.goto(await adminUrl('/providers'));
+  await page.getByRole('button', { name: `Provider ${ALIAS}`, exact: true }).click();
+  await modelListRow(page, 'batch/model-0').getByRole('button', { name: 'Delete batch/model-0', exact: true }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'Delete this model?', exact: true });
+  await expect(dialog).toBeVisible();
+
+  // Another admin changes the provider while this confirmation is open.
+  await page.evaluate(async (alias) => {
+    const view = await (await fetch('/api/providers')).json();
+    const response = await fetch(`/api/providers/${alias}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'if-match': view.revision },
+      body: JSON.stringify({ headers: { 'x-added-elsewhere': 'value' } }),
+    });
+    if (!response.ok) {
+      throw new Error(`concurrent write failed: ${response.status}`);
+    }
+  }, ALIAS);
+  // The registry refetches behind the dialog, as it does after a reconnect, so
+  // the page now holds the newer revision.
+  const refetched = page.waitForResponse(
+    (response) => response.request().method() === 'GET' && new URL(response.url()).pathname === '/api/providers',
+  );
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('offline'));
+    window.dispatchEvent(new Event('online'));
+  });
+  await (await refetched).finished();
+
+  await dialog.getByRole('button', { name: 'Delete model', exact: true }).click();
+  await expect(dialog.getByText('The configuration changed while you were editing', { exact: false })).toBeVisible();
+  const screenshotPath = testInfo.outputPath('stale-deletion-refused.png');
+  await page.screenshot({ path: screenshotPath });
+  await testInfo.attach('stale-deletion-refused', { path: screenshotPath, contentType: 'image/png' });
+  const after = (await (await page.request.get(await adminUrl('/api/providers'))).json()) as ProvidersView;
+  const provider = after.providers.find((candidate) => candidate.alias === ALIAS);
+  expect(provider?.models.map((model) => model.id)).toEqual(MODELS.map((model) => model.id));
+  expect(provider?.header_names).toContain('x-added-elsewhere');
+});

@@ -66,6 +66,10 @@ export default function ProvidersPage(): ReactElement {
   const [deleteModelOpen, setDeleteModelOpen] = useState(false);
   const [deletingProvider, setDeletingProvider] = useState<ProviderView | null>(null);
   const [deleteProviderOpen, setDeleteProviderOpen] = useState(false);
+  // A confirmation names a snapshot of its targets, so it submits the revision
+  // that snapshot was read at. Following the live revision would let a registry
+  // refetch behind the open dialog approve deleting something changed meanwhile.
+  const [deleteRevision, setDeleteRevision] = useState('');
   // Model selection is shared by testing and deletion and survives provider
   // switches. Keys resolve against the live registry before either operation.
   const [healthSelected, setHealthSelected] = useState<ReadonlySet<string>>(new Set());
@@ -188,7 +192,7 @@ export default function ProvidersPage(): ReactElement {
     mutationFn: (targets: readonly DeletingModelTarget[]) =>
       deleteProviderModels(
         targets.map((target) => ({ provider: target.alias, model: target.model })),
-        revision,
+        deleteRevision,
       ),
     onSuccess: (result, targets) => {
       setDeleteModelOpen(false);
@@ -207,7 +211,7 @@ export default function ProvidersPage(): ReactElement {
   });
 
   const removeProvider = useMutation({
-    mutationFn: (alias: string) => deleteProvider(alias, revision),
+    mutationFn: (alias: string) => deleteProvider(alias, deleteRevision),
     onSuccess: (result) => {
       setDeleteProviderOpen(false);
       setSelectedAlias(null);
@@ -256,6 +260,7 @@ export default function ProvidersPage(): ReactElement {
   }
   const confirmModelDeletion = (targets: readonly DeletingModelTarget[]): void => {
     removeModel.reset();
+    setDeleteRevision(revision);
     setDeletingModels(targets);
     setDeleteModelOpen(true);
   };
@@ -348,6 +353,7 @@ export default function ProvidersPage(): ReactElement {
                     }
                     onClick={() => {
                       removeProvider.reset();
+                      setDeleteRevision(revision);
                       setDeletingProvider(selected);
                       setDeleteProviderOpen(true);
                     }}

@@ -7,7 +7,7 @@ import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
-import { type ReactElement, useState } from 'react';
+import { type ReactElement, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AliasEditor, ScopePicker } from '@/components/dictionary/entry-form.tsx';
 import type {
@@ -60,16 +60,28 @@ export function MergeDialog({
   const [chatId, setChatId] = useState<string | null>(defaultChatId);
   const [deleteSources, setDeleteSources] = useState(false);
 
+  // `reset()` detaches a pending suggestion without cancelling it, and its
+  // callbacks still run. Each request carries the session it was started in, so
+  // one that outlives its session cannot fill the next one with a suggestion
+  // (and source revisions) built from other entries.
+  const session = useRef(0);
   const suggestion = useMutation({
-    mutationFn: () => previewDictionaryMerge(entries.map((entry) => entry.id)),
+    mutationFn: (_startedIn: number) => previewDictionaryMerge(entries.map((entry) => entry.id)),
     onMutate: () => setStep({ kind: 'loading' }),
-    onSuccess: (preview) => {
+    onSuccess: (preview, startedIn) => {
+      if (startedIn !== session.current) {
+        return;
+      }
       setTerm(preview.suggestion.term);
       setDefinition(preview.suggestion.definition);
       setAliases(preview.suggestion.aliases);
       setStep({ kind: 'ready', preview });
     },
-    onError: (error) => setStep({ kind: 'failed', error }),
+    onError: (error, startedIn) => {
+      if (startedIn === session.current) {
+        setStep({ kind: 'failed', error });
+      }
+    },
   });
 
   const save = useMutation({
@@ -115,6 +127,9 @@ export function MergeDialog({
   if (wasOpen !== open) {
     setWasOpen(open);
     if (open) {
+      // Only ever counts up, so a repeated or abandoned render can at worst
+      // retire a request that no session is waiting for.
+      session.current += 1;
       suggestion.reset();
       save.reset();
       setStep({ kind: 'idle' });
@@ -203,7 +218,7 @@ export function MergeDialog({
         </div>
 
         {step.kind === 'idle' || step.kind === 'loading' ? (
-          <Button type="button" disabled={suggestion.isPending} onClick={() => suggestion.mutate()}>
+          <Button type="button" disabled={suggestion.isPending} onClick={() => suggestion.mutate(session.current)}>
             {suggestion.isPending ? t('dictionary.merge.generating') : t('dictionary.merge.generate')}
           </Button>
         ) : null}
@@ -213,7 +228,12 @@ export function MergeDialog({
             <Alert tone="error" title={t('dictionary.merge.generateFailed')}>
               {dictionaryErrorMessage(step.error)}
             </Alert>
-            <Button type="button" variant="outline" color="secondary" onClick={() => suggestion.mutate()}>
+            <Button
+              type="button"
+              variant="outline"
+              color="secondary"
+              onClick={() => suggestion.mutate(session.current)}
+            >
               {t('dictionary.merge.regenerate')}
             </Button>
           </div>
@@ -249,7 +269,12 @@ export function MergeDialog({
               checked={deleteSources}
               onCheckedChange={setDeleteSources}
             />
-            <Button type="button" variant="outline" color="secondary" onClick={() => suggestion.mutate()}>
+            <Button
+              type="button"
+              variant="outline"
+              color="secondary"
+              onClick={() => suggestion.mutate(session.current)}
+            >
               {t('dictionary.merge.regenerate')}
             </Button>
           </div>
