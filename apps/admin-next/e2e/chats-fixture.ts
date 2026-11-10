@@ -88,6 +88,18 @@ export function chatRow(page: Page, id = ACTIVE_CHAT) {
 /** Per-chat settings live in the row's "More actions" menu, next to the quick links. */
 export async function openChatAction(page: Page, row: Locator, name: string): Promise<void> {
   await row.getByRole('button', { name: 'More actions', exact: true }).click();
+  const menu = page.getByRole('menu');
+  await expect(menu).toBeVisible();
+  // A separator that bleeds past the scrollable body adds a horizontal scroll container to the panel.
+  // Assert the invariant, not the CSS: nothing inside an open menu may scroll sideways.
+  expect(
+    await menu.evaluate((panel) =>
+      [...panel.querySelectorAll('*')].some((node) => {
+        const style = getComputedStyle(node);
+        return (style.overflowX === 'auto' || style.overflowX === 'scroll') && node.scrollWidth > node.clientWidth + 1;
+      }),
+    ),
+  ).toBe(false);
   await page.getByRole('menuitem', { name, exact: true }).click();
 }
 

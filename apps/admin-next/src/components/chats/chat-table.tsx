@@ -311,6 +311,9 @@ export function ChatTable({
             />
             <Menu
               placement="bottom-end"
+              // Koi's separator bleeds past the scrollable body with negative inline margins, which turns
+              // `overflow-y: auto` into `overflow-x: auto` and shows a horizontal scrollbar. Inset it instead.
+              classNames={{ separator: css({ marginInline: '0' }) }}
               trigger={
                 <IconButton
                   variant="ghost"
