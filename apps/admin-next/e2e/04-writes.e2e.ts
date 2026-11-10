@@ -23,6 +23,10 @@ test.describe('memo pad CRUD', () => {
 
   test('create, view, edit to permanent, and delete a memo through the dialogs', async ({ page }) => {
     await page.goto(await adminUrl('/memories'));
+    // Write only after the first page has loaded: a read still in flight when
+    // the memo is created would swallow the post-write invalidation and leave
+    // the list stale.
+    await expect(page.getByText('Alice prefers short replies.')).toBeVisible();
     await page.getByRole('button', { name: 'New memo' }).click();
     const createDialog = page.getByRole('dialog');
     await createDialog.getByLabel('Chat', { exact: true }).selectOption('123456789');
@@ -44,19 +48,10 @@ test.describe('memo pad CRUD', () => {
     expect(created?.short_term).toBe(true);
     expect(created?.expires_at).not.toBeNull();
 
-    // UI state: walk real cursor pages until the created memo is visible.
+    // UI state: the write invalidates the loaded page and the memo sorts ahead
+    // of the seeded ids, so it appears on page 1. Never probe with isVisible():
+    // a miss there clicks Next before the refresh paints and pages away from it.
     const createdRow = page.locator('table tbody tr', { hasText: 'E2E memo created by test' });
-    for (let pageNumber = 1; !(await createdRow.isVisible()) && pageNumber <= 10; pageNumber += 1) {
-      const next = page.getByRole('button', { name: 'Next page', exact: true });
-      if (await next.isDisabled()) {
-        break;
-      }
-      await next.click();
-      await expect(page.getByRole('button', { name: `Page ${pageNumber + 1}`, exact: true })).toHaveAttribute(
-        'aria-current',
-        'page',
-      );
-    }
     await expect(createdRow).toBeVisible();
     await createdRow.getByRole('button', { name: 'View' }).click();
     const viewDialog = page.getByRole('dialog');
