@@ -42,7 +42,7 @@ test.describe('routes and deep links', () => {
     await expect(page.getByRole('main').getByText('Disabled', { exact: true })).toBeVisible();
     await expect(page.getByText('Invocation failure rate is above the threshold')).toBeVisible();
     await expect(page.getByTestId('app-version')).toContainText('v');
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/warnings lists standing and event warnings', async ({ page }) => {
@@ -52,7 +52,7 @@ test.describe('routes and deep links', () => {
     await expect(page.getByText('Invocation failure rate is above the threshold')).toBeVisible();
     await expect(page.getByText('Consecutive administrator sign-in failures')).toBeVisible();
     await expect(page.getByText('1 unread', { exact: true })).toBeVisible();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/invocations lists tool sessions with real pagination', async ({ page }) => {
@@ -60,7 +60,7 @@ test.describe('routes and deep links', () => {
     await expect(page.locator('table tbody tr').first()).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Pagination', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Load more', exact: true })).toHaveCount(0);
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/invocations/:id renders the six-tab detail', async ({ page }) => {
@@ -76,7 +76,7 @@ test.describe('routes and deep links', () => {
     ]) {
       await expect(page.getByRole('tab', { name: new RegExp(`^${tab}`) })).toBeVisible();
     }
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/contexts lists conversation contexts', async ({ page }) => {
@@ -84,7 +84,7 @@ test.describe('routes and deep links', () => {
     await expect(page.locator('table tbody tr').first()).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Pagination', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Load more', exact: true })).toHaveCount(0);
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/contexts/:conversationId shows retained messages, capability refs and the truncation marker', async ({
@@ -100,7 +100,7 @@ test.describe('routes and deep links', () => {
     const seq4Toggle = page.getByRole('button', { name: 'Toggle row details' }).nth(3);
     await seq4Toggle.click();
     await expect(page.getByText('Preview truncated; the stored payload is longer.')).toBeVisible();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/messages lists messages with search and pagination controls', async ({ page }) => {
@@ -108,7 +108,7 @@ test.describe('routes and deep links', () => {
     await expect(page.locator('table tbody tr').first()).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Pagination', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Load more', exact: true })).toHaveCount(0);
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/messages/:id shows every revision and the media row', async ({ page }) => {
@@ -117,13 +117,13 @@ test.describe('routes and deep links', () => {
     await expect(page.getByText('first caption')).toBeVisible();
     await expect(page.getByText('edited caption')).toBeVisible();
     await expect(page.getByText('unique_photo_seed_1')).toBeVisible();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/alarms lists pending alarms with the seeded summary first', async ({ page }) => {
     await page.goto(await adminUrl('/alarms'));
     await expect(page.getByText('Remind Alice about the fixture data')).toBeVisible();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/memories lists seeded memos', async ({ page }) => {
@@ -131,7 +131,7 @@ test.describe('routes and deep links', () => {
     await expect(page.getByText('Chat-scoped Memo Pad')).toBeVisible();
     await expect(page.getByText('Alice prefers short replies.')).toBeVisible();
     await expect(page.getByText('short-term').first()).toBeVisible();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/group-memories lists generated events and replays their source range', async ({ page }) => {
@@ -144,7 +144,7 @@ test.describe('routes and deep links', () => {
     await expect(dialog.getByText('Messages 900–901, capped for display.')).toBeVisible();
     await expect(dialog.getByText('edited caption')).toBeVisible();
     await expect(dialog.getByText('edited text with forward origin')).toBeVisible();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/prompts shows the prompt editor and version history', async ({ page }) => {
@@ -153,14 +153,14 @@ test.describe('routes and deep links', () => {
     await expect(page.getByRole('textbox', { name: 'Prompt', exact: true })).toHaveText('Participate safely.');
     await expect(page.getByText('Version history')).toBeVisible();
     await expect(page.locator('table tbody tr').first()).toBeVisible();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/admins renders the empty bot-admin list', async ({ page }) => {
     await page.goto(await adminUrl('/admins'));
     await expect(page.getByText('Telegram bot admins')).toBeVisible();
     await expect(page.getByText('No bot admins configured.')).toBeVisible();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/chats shows the allowlist with topics and agent models', async ({ page }) => {
@@ -177,7 +177,7 @@ test.describe('routes and deep links', () => {
     await expect(page.getByText('Disabled', { exact: true })).toBeVisible();
     await expect(page.getByText('A token is configured.', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Save token' })).toBeDisabled();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/models shows one card per role with its model and thinking effort', async ({ page }) => {
@@ -194,7 +194,7 @@ test.describe('routes and deep links', () => {
       await expect(card.getByRole('combobox', { name: 'Thinking effort', exact: true })).toBeVisible();
     }
     await expect(page.getByRole('link', { name: 'Manage providers' })).toHaveAttribute('href', '/providers');
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/providers lists providers, their models and the discovery actions', async ({ page }) => {
@@ -204,7 +204,7 @@ test.describe('routes and deep links', () => {
     await expect(page.getByRole('button', { name: 'Fetch models' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add manually' })).toBeVisible();
     await expect(page.locator('[data-model-list] li').first()).toBeVisible();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/stickers lists configured sets and the search index', async ({ page }) => {
@@ -212,7 +212,7 @@ test.describe('routes and deep links', () => {
     await expect(page.getByText('Configured sticker sets')).toBeVisible();
     await expect(page.locator('table tbody tr', { hasText: 'mascot' }).first()).toBeVisible();
     await expect(page.getByText('Bot search index')).toBeVisible();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/settings renders the credentials form and the config card', async ({ page }) => {
@@ -221,7 +221,7 @@ test.describe('routes and deep links', () => {
     await expect(page.getByRole('button', { name: 'Update credentials' })).toBeVisible();
     await expect(page.getByText('Configuration file')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Apply config file' })).toBeVisible();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/developer renders the recording switch and cleanup action', async ({ page }) => {
@@ -237,20 +237,20 @@ test.describe('routes and deep links', () => {
     }
     await expect(page.getByLabel('Daily token budget')).toHaveValue('300000');
     await expect(page.getByRole('button', { name: 'Save and apply' })).toBeDisabled();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/preferences renders the browser-local display options', async ({ page }) => {
     await page.goto(await adminUrl('/preferences'));
     await expect(page.getByLabel('Theme', { exact: true })).toBeVisible();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/playground lists rooms and reads without executing anything', async ({ page }) => {
     await page.goto(await adminUrl('/playground'));
     await expect(page.getByText('Virtual group chats for trying the bot without Telegram.')).toBeVisible();
     await expect(page.getByText('E2E Room').first()).toBeVisible();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/api-keys renders the key table and the create action', async ({ page }) => {
@@ -260,6 +260,6 @@ test.describe('routes and deep links', () => {
     for (const header of ['Name', 'Prefix', 'Mode', 'Created', 'Last used', 'Status', 'Actions']) {
       await expect(page.getByRole('columnheader', { name: header, exact: true })).toBeVisible();
     }
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 });

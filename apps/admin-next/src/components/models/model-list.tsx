@@ -40,6 +40,12 @@ const HEALTH_TONES: Record<HealthCheckStatus, BadgeSemantic> = {
   error: 'danger',
 };
 
+const HEALTH_LABELS = {
+  ok: 'models.models.page.healthOk',
+  unexpected_response: 'models.models.page.healthUnexpected',
+  error: 'models.models.page.healthError',
+} as const satisfies Record<HealthCheckStatus, string>;
+
 /** One value in the metadata line; the label stays muted, the value carries the contrast. */
 function Metric({ label, value }: { readonly label: string; readonly value: React.ReactNode }): ReactElement {
   return (
@@ -256,14 +262,9 @@ export function ModelList({
                       )}
                       {entry === 'checking' ? (
                         <ToneBadge tone="info">{t('models.models.page.checking')}</ToneBadge>
-                      ) : result === null ? null : (
-                        <ToneBadge tone={HEALTH_TONES[result.status]}>
-                          {result.status === 'ok'
-                            ? t('models.models.page.healthOk')
-                            : result.status === 'unexpected_response'
-                              ? t('models.models.page.healthUnexpected')
-                              : t('models.models.page.healthError')}
-                        </ToneBadge>
+                      ) : null}
+                      {result === null ? null : (
+                        <ToneBadge tone={HEALTH_TONES[result.status]}>{t(HEALTH_LABELS[result.status])}</ToneBadge>
                       )}
                       {expandable ? (
                         <IconButton

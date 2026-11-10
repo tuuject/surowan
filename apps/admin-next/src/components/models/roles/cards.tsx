@@ -103,17 +103,20 @@ export function RolesForm({ view }: { readonly view: ProvidersView }): ReactElem
       : t('models.models.roles.form.refreshFailed', { message: errorMessage(refreshError) });
   })();
 
-  const status =
-    count > 0 ? (
-      t('models.models.roles.form.pending', { count })
-    ) : save.isSuccess ? (
+  const status = ((): ReactNode => {
+    if (count > 0) {
+      return t('models.models.roles.form.pending', { count });
+    }
+    if (!save.isSuccess) {
+      return t('models.models.roles.form.unchanged');
+    }
+    return (
       <span className={css({ display: 'inline-flex', alignItems: 'center', gap: '2' })}>
         <SuccessIcon size={sizes['icon-sm']} className={css({ flex: 'none', color: 'text-brand' })} />
         {t('models.models.roles.form.saved')}
       </span>
-    ) : (
-      t('models.models.roles.form.unchanged')
     );
+  })();
 
   const pickModel = (role: ModelRole, model: string): void =>
     setEdits((previous) => editModel(view, previous, role, model));
@@ -226,13 +229,12 @@ export function RolesForm({ view }: { readonly view: ProvidersView }): ReactElem
               // An inherited level belongs to the Agent card; changing it here
               // would silently pin the Tool Model.
               locked={draft.tool.model === INHERIT}
-              help={(reasoning) =>
-                draft.tool.model === INHERIT
-                  ? t('models.models.roles.tool.levelInherited')
-                  : reasoning
-                    ? undefined
-                    : t('models.models.roles.notReasoning')
-              }
+              help={(reasoning) => {
+                if (draft.tool.model === INHERIT) {
+                  return t('models.models.roles.tool.levelInherited');
+                }
+                return reasoning ? undefined : t('models.models.roles.notReasoning');
+              }}
               onChange={(level) => pickLevel('tool', level)}
             />
           }

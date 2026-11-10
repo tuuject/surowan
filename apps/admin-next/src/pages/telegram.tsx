@@ -188,9 +188,8 @@ export default function TelegramPage(): ReactElement {
   return (
     <div className={css({ maxWidth: '768px', marginInline: 'auto', '& > * + *': { marginBlockStart: '6' } })}>
       <ListPageHeader title={t('pages.telegram.title')} description={t('pages.telegram.description')} />
-      {query.isPending ? (
-        <p className={css({ margin: '0', color: 'text-muted' })}>{t('common.loading')}</p>
-      ) : query.isLoadingError || query.data === undefined ? (
+      {query.isPending ? <p className={css({ margin: '0', color: 'text-muted' })}>{t('common.loading')}</p> : null}
+      {!query.isPending && query.data === undefined ? (
         <Alert
           tone="error"
           title={t('pages.telegram.readFailed')}
@@ -202,7 +201,8 @@ export default function TelegramPage(): ReactElement {
         >
           {errorMessage(query.error)}
         </Alert>
-      ) : (
+      ) : null}
+      {query.data === undefined ? null : (
         <>
           {/* A failed poll keeps the form mounted, so a token being typed survives it. */}
           {query.isError ? (

@@ -229,48 +229,50 @@ export default function ImageGeneratePage() {
                 })}
               />
             </Field>
-            <div
-              className={css({
-                containerType: 'inline-size',
-                display: 'grid',
-                gap: '4',
-                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                '@container (min-width: 640px)': { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' },
-              })}
-            >
-              <Field label={t('image.generate.model')}>
-                <Select
-                  value={modelId}
-                  onChange={(event) => setModelId(event.target.value)}
-                  options={[
-                    { value: '', label: t('image.generate.defaultModelOption') },
-                    ...(status.data?.models ?? []).map((model) => ({ value: model.id, label: model.name })),
-                  ]}
-                />
-              </Field>
-              <Field label={t('image.generate.aspectRatio')}>
-                <Select
-                  value={aspectRatio}
-                  onChange={(event) => setAspectRatio(event.target.value)}
-                  options={ASPECT_RATIOS.map((value) => ({ value, label: value }))}
-                />
-              </Field>
-              <Field label={t('image.generate.quality')}>
-                <Select
-                  value={resolution}
-                  onChange={(event) => setResolution(event.target.value)}
-                  options={RESOLUTIONS.map((value) => ({ value, label: value }))}
-                />
-              </Field>
-              <Field label={t('image.generate.count')}>
-                <Input
-                  type="number"
-                  min={1}
-                  max={4}
-                  value={outputCount}
-                  onChange={(event) => setOutputCount(Math.min(4, Math.max(1, Number(event.target.value) || 1)))}
-                />
-              </Field>
+            {/* A container query measures an ancestor, never the element that declares it, so the grid needs a wrapper. */}
+            <div className={css({ containerType: 'inline-size' })}>
+              <div
+                className={css({
+                  display: 'grid',
+                  gap: '4',
+                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                  '@container (min-width: 640px)': { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' },
+                })}
+              >
+                <Field label={t('image.generate.model')}>
+                  <Select
+                    value={modelId}
+                    onChange={(event) => setModelId(event.target.value)}
+                    options={[
+                      { value: '', label: t('image.generate.defaultModelOption') },
+                      ...(status.data?.models ?? []).map((model) => ({ value: model.id, label: model.name })),
+                    ]}
+                  />
+                </Field>
+                <Field label={t('image.generate.aspectRatio')}>
+                  <Select
+                    value={aspectRatio}
+                    onChange={(event) => setAspectRatio(event.target.value)}
+                    options={ASPECT_RATIOS.map((value) => ({ value, label: value }))}
+                  />
+                </Field>
+                <Field label={t('image.generate.quality')}>
+                  <Select
+                    value={resolution}
+                    onChange={(event) => setResolution(event.target.value)}
+                    options={RESOLUTIONS.map((value) => ({ value, label: value }))}
+                  />
+                </Field>
+                <Field label={t('image.generate.count')}>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={4}
+                    value={outputCount}
+                    onChange={(event) => setOutputCount(Math.min(4, Math.max(1, Number(event.target.value) || 1)))}
+                  />
+                </Field>
+              </div>
             </div>
             <SelectedRefs
               title={t('image.generate.selectedPromptRefs')}

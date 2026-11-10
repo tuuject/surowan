@@ -298,7 +298,7 @@ test.describe('overview operations', () => {
     await page.getByRole('button', { name: 'Cancel ongoing', exact: true }).click();
     await page.getByRole('button', { name: 'Cancel ongoing sessions' }).click();
     await expect(page.getByText(/Canceled 0 buckets \/ 0 invocations/)).toBeVisible();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('wake the sleeping bot and see the status flip to awake', async ({ page }) => {

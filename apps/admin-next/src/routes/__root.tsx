@@ -127,7 +127,8 @@ function RouteErrorFallback({ error }: ErrorComponentProps): ReactElement {
   const message = error instanceof Error ? error.message : String(error);
   return (
     <Centered>
-      <section className={css({ width: 'min(440px, 100%)' })}>
+      {/* The marker is what tests look for: the copy is translated and shared with ordinary request errors. */}
+      <section data-route-error className={css({ width: 'min(440px, 100%)' })}>
         <div className={css({ marginBlockEnd: '4' })}>
           <h2 className={css({ textStyle: 'heading-3' })}>{t('common.requestFailed')}</h2>
           <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('layout.routeError.description')}</p>

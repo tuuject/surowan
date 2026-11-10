@@ -207,7 +207,7 @@ for (const entry of pages) {
     await expect(page.getByRole('navigation', { name: 'Pagination', exact: true })).toHaveCount(1);
     await expectCardStructure(page, { filters: 1 });
     await expect(page.getByRole('alert').filter({ hasText: 'Request failed' })).toHaveCount(0);
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 }
 

@@ -38,7 +38,7 @@ test.describe('providers page', () => {
     await expect(page.getByText('Saved; leave empty to keep it')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Fetch models', exact: true })).toBeVisible();
     await expect(page.locator('[data-model-list] li').first()).toBeVisible();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('never renders a configured secret, and the API never returns one', async ({ page }) => {

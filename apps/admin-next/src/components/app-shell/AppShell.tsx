@@ -33,6 +33,7 @@ import { TopNav } from './TopNav';
 export function AppShell({ username, onSignOut }: { readonly username: string; readonly onSignOut: () => void }) {
   const navLayout = useUiStore((state) => state.navLayout);
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed);
+  const sidebarMode = sidebarCollapsed ? 'rail' : 'full';
   const open = useUiStore((state) => state.mobileNavOpen);
   // Below md the drawer is the only navigation; mounting it only there keeps a closed dialog out of the DOM.
   const desktop = useMediaQuery('(min-width: 768px)');
@@ -80,7 +81,7 @@ export function AppShell({ username, onSignOut }: { readonly username: string; r
               },
             },
           })}
-          data-sidebar={navLayout === 'sidebar' ? (sidebarCollapsed ? 'rail' : 'full') : undefined}
+          data-sidebar={navLayout === 'sidebar' ? sidebarMode : undefined}
         >
           <Topbar username={username} onSignOut={onSignOut} />
           {navLayout === 'horizontal' ? <TopNav /> : null}

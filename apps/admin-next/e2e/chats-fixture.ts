@@ -91,10 +91,10 @@ export async function openChatAction(page: Page, row: Locator, name: string): Pr
   const menu = page.getByRole('menu');
   await expect(menu).toBeVisible();
   // A separator that bleeds past the scrollable body adds a horizontal scroll container to the panel.
-  // Assert the invariant, not the CSS: nothing inside an open menu may scroll sideways.
+  // Assert the invariant, not the CSS: neither an open menu nor anything inside it may scroll sideways.
   expect(
     await menu.evaluate((panel) =>
-      [...panel.querySelectorAll('*')].some((node) => {
+      [panel, ...panel.querySelectorAll('*')].some((node) => {
         const style = getComputedStyle(node);
         return (style.overflowX === 'auto' || style.overflowX === 'scroll') && node.scrollWidth > node.clientWidth + 1;
       }),

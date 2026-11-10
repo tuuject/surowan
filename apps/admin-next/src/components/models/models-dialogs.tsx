@@ -108,6 +108,14 @@ export function ModelsDialogs({
 }): ReactElement {
   const { t } = useTranslation();
   const editingApi = editing?.api ?? 'openai-completions';
+  const deleteModelsDescription = (): string => {
+    if (deletingModels.length > 1) {
+      return t('models.models.page.deleteModelsDescription', { count: deletingModels.length });
+    }
+    const only = deletingModels[0];
+    return only === undefined ? '' : t('models.models.page.deleteModelDescription', { ...only });
+  };
+
   return (
     <>
       <ProviderWizard
@@ -165,13 +173,7 @@ export function ModelsDialogs({
         title={t(
           deletingModels.length > 1 ? 'models.models.page.deleteModelsTitle' : 'models.models.page.deleteModelTitle',
         )}
-        description={
-          deletingModels.length > 1
-            ? t('models.models.page.deleteModelsDescription', { count: deletingModels.length })
-            : deletingModels[0] === undefined
-              ? ''
-              : t('models.models.page.deleteModelDescription', { ...deletingModels[0] })
-        }
+        description={deleteModelsDescription()}
         confirmText={t(
           deletingModels.length > 1
             ? 'models.models.page.deleteModelsConfirm'

@@ -1,15 +1,27 @@
 import { useSyncExternalStore } from 'react';
 
-// One MediaQueryList per query: useSyncExternalStore resubscribes whenever `subscribe` changes identity, and a
-// fresh matchMedia per render would do that on every render.
-const lists = new Map<string, MediaQueryList>();
-function list(query: string) {
-  let mql = lists.get(query);
-  if (!mql) {
-    mql = window.matchMedia(query);
-    lists.set(query, mql);
+interface MediaQueryStore {
+  readonly subscribe: (onChange: () => void) => () => void;
+  readonly matches: () => boolean;
+}
+
+// One store per query: useSyncExternalStore resubscribes whenever `subscribe` changes identity, so both the
+// MediaQueryList and the functions reading it are created once and reused by every render.
+const stores = new Map<string, MediaQueryStore>();
+function store(query: string): MediaQueryStore {
+  let entry = stores.get(query);
+  if (!entry) {
+    const mql = window.matchMedia(query);
+    entry = {
+      subscribe: (onChange) => {
+        mql.addEventListener('change', onChange);
+        return () => mql.removeEventListener('change', onChange);
+      },
+      matches: () => mql.matches,
+    };
+    stores.set(query, entry);
   }
-  return mql;
+  return entry;
 }
 
 /**
@@ -18,12 +30,6 @@ function list(query: string) {
  * them in place.
  */
 export function useMediaQuery(query: string) {
-  const mql = list(query);
-  return useSyncExternalStore(
-    (onChange) => {
-      mql.addEventListener('change', onChange);
-      return () => mql.removeEventListener('change', onChange);
-    },
-    () => mql.matches,
-  );
+  const { subscribe, matches } = store(query);
+  return useSyncExternalStore(subscribe, matches);
 }

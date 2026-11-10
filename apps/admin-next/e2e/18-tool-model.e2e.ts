@@ -86,6 +86,7 @@ test.describe('tool model', () => {
     expect(after.tool_model.provider).toBe(E2E_MERGE_ALIAS);
     expect(after.tool_model.model).toBe(E2E_MERGE_MODEL);
     expect(after.tool_model.inherited).toBe(false);
+    expect(after.tool_model.thinking_level).toBe('high');
 
     // Restore the fixture baseline for the rest of the suite.
     const restore = await page.request.put(await adminUrl('/api/tool-model'), {

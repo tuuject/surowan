@@ -32,7 +32,7 @@ if (!PASSKEYS_ENABLED) {
       await expect(page.getByText('Admin credentials', { exact: true })).toBeVisible();
       await expect(page.getByText('Passkeys', { exact: true })).toHaveCount(0);
       await expect(page.getByRole('button', { name: 'Add passkey' })).toHaveCount(0);
-      await expect(page.getByText('Something went wrong')).toHaveCount(0);
+      await expect(page.locator('[data-route-error]')).toHaveCount(0);
     });
 
     test('the passkey API answers 404 passkeys_disabled', async ({ page }) => {

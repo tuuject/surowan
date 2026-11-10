@@ -86,24 +86,27 @@ export function useModelRoleWrites(view: ProvidersView | undefined) {
     onError: failed,
   });
 
+  /** What a Tool Model write changed beyond the model itself; nothing when the same model was kept. */
+  const toolSavedNote = (target: ToolTarget): string | undefined => {
+    if ('inherit' in target) {
+      return t('models.models.toolModel.savedInherited');
+    }
+    const current = view?.tool_model;
+    const unchanged =
+      current !== undefined &&
+      !current.inherited &&
+      target.alias === current.provider &&
+      target.model === current.model;
+    return unchanged ? undefined : t('models.models.toolModel.saved', { level: target.level });
+  };
+
   const tool = useMutation({
     mutationFn: (target: ToolTarget) =>
       'inherit' in target
         ? putToolModel({ inherit: true }, revision)
         : putToolModel({ provider: target.alias, model: target.model, thinking_level: target.level }, revision),
     onSuccess: (result, target) => {
-      const current = view?.tool_model;
-      write.succeeded(
-        result.apply,
-        'inherit' in target
-          ? t('models.models.toolModel.savedInherited')
-          : current !== undefined &&
-              target.alias === current.provider &&
-              target.model === current.model &&
-              !current.inherited
-            ? undefined
-            : t('models.models.toolModel.saved', { level: target.level }),
-      );
+      write.succeeded(result.apply, toolSavedNote(target));
     },
     onError: (error) => {
       write.failed(error);

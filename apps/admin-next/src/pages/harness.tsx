@@ -102,6 +102,12 @@ function HarnessForm({
   const parsed = parseDraft(draft, saved);
   const changed = Object.keys(parsed.changes).length;
   const invalid = Object.keys(parsed.errors).length > 0;
+  const harnessStatus = (): string => {
+    if (invalid) {
+      return t('harness.invalid');
+    }
+    return changed === 0 ? t('harness.unchanged') : t('harness.pending', { count: changed });
+  };
   return (
     <form
       noValidate
@@ -136,13 +142,7 @@ function HarnessForm({
         ))}
       </fieldset>
       <FormActionBar
-        status={
-          invalid
-            ? t('harness.invalid')
-            : changed === 0
-              ? t('harness.unchanged')
-              : t('harness.pending', { count: changed })
-        }
+        status={harnessStatus()}
         error={save.isError ? errorMessage(save.error) : null}
         submitLabel={t('harness.save')}
         submittingLabel={t('harness.saving')}

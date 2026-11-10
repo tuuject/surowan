@@ -55,6 +55,7 @@ export function WizardConnectionStep({
   readonly onApiChange: (api: ProviderApi) => void;
 }): ReactElement {
   const { t } = useTranslation();
+  const presetsFailed = presetsError !== null && presetsError !== undefined;
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
       <Field id="wizard-kind" label={t('models.models.wizard.kind')}>
@@ -91,7 +92,8 @@ export function WizardConnectionStep({
             <p className={css({ textStyle: 'body', color: 'text-muted' })}>
               {t('models.models.wizard.loadingPresets')}
             </p>
-          ) : presetsError === null || presetsError === undefined ? (
+          ) : null}
+          {!presetsPending && !presetsFailed ? (
             <Select
               id="wizard-preset"
               className={css({ width: '100%' })}
@@ -105,11 +107,12 @@ export function WizardConnectionStep({
                 </option>
               ))}
             </Select>
-          ) : (
+          ) : null}
+          {!presetsPending && presetsFailed ? (
             <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
               {requestErrorMessage(presetsError)}
             </p>
-          )}
+          ) : null}
           {preset === null ? null : (
             <p className={css({ textStyle: 'small', color: 'text-muted' })}>
               {t('models.models.wizard.presetBaseUrl')}

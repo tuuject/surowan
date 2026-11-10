@@ -311,26 +311,25 @@ export default function ImageAssetsPage() {
         </p>
       ) : null}
       <div>
-        {tab === 'prompts' ? (
-          prompts.isPending || prompts.data !== undefined ? (
-            <>
-              <TableShell
-                columns={promptColumns}
-                data={prompts.data?.items ?? []}
-                rowKey={(row) => row.id}
-                loading={prompts.isPending || prompts.isPlaceholderData}
-                emptyText={t('image.assets.emptyPrompts')}
-              />
-              <ListFooter
-                count={prompts.data?.total ?? 0}
-                page={promptPagination.page}
-                pageCount={promptPageCount}
-                busy={prompts.isPlaceholderData}
-                onPageChange={promptPagination.onPageChange}
-              />
-            </>
-          ) : null
-        ) : assets.isPending || assets.data !== undefined ? (
+        {tab === 'prompts' && (prompts.isPending || prompts.data !== undefined) ? (
+          <>
+            <TableShell
+              columns={promptColumns}
+              data={prompts.data?.items ?? []}
+              rowKey={(row) => row.id}
+              loading={prompts.isPending || prompts.isPlaceholderData}
+              emptyText={t('image.assets.emptyPrompts')}
+            />
+            <ListFooter
+              count={prompts.data?.total ?? 0}
+              page={promptPagination.page}
+              pageCount={promptPageCount}
+              busy={prompts.isPlaceholderData}
+              onPageChange={promptPagination.onPageChange}
+            />
+          </>
+        ) : null}
+        {tab === 'images' && (assets.isPending || assets.data !== undefined) ? (
           <>
             <TableShell
               columns={assetColumns}
