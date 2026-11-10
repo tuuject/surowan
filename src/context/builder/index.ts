@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { CAPABILITIES_PROMPT, CORE_AGENT_PROTOCOL } from '../../platform/agent-protocol.ts';
 import { type AgentPromptLayers, composeAgentPrompt } from '../../platform/agent-prompt.ts';
-import type { RawConfig } from '../../platform/config/index.ts';
+import { configuredModel, type RawConfig } from '../../platform/config/index.ts';
 import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { CompletionContext, DirectImage, VisibleSender } from '../../platform/invocation-context.ts';
 import { resolveInvocationPolicy, type InvocationPolicy } from '../../platform/invocation-policy.ts';
@@ -205,8 +205,9 @@ export class ContextBuilder {
     },
   ): StablePrompt {
     const vision = activeVisionModel(config.vision);
+    const nickname = configuredModel(config, agentModel.provider, agentModel.model)?.nickname;
     const templateValues: PromptTemplateValues = {
-      agent: agentModel,
+      agent: { ...agentModel, ...(nickname === undefined ? {} : { nickname }) },
       vision: { provider: vision?.provider ?? '', model: vision?.model ?? '' },
       timezone: identity.timezone,
     };

@@ -173,7 +173,7 @@ export function assembleRawConfig(
  * The configured entry for one provider alias and model id, or `undefined` when
  * the configuration no longer carries it.
  */
-function configuredModel(
+export function configuredModel(
   config: { readonly providers: FileConfig['providers'] },
   providerAlias: string,
   modelId: string,

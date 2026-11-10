@@ -128,6 +128,23 @@ test.describe('providers page editing', () => {
     expect(edited).toMatchObject({ reasoning: true, thinking_levels: ['low', 'xhigh'] });
   });
 
+  test('saves a model nickname and exposes it through the providers API', async ({ page }) => {
+    await page.goto(await adminUrl('/providers'));
+    await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` }).click();
+    await page.getByRole('button', { name: 'Edit relay-existing-model' }).click();
+
+    const nickname = '常用聊天模型 A';
+    await expect(page.getByRole('dialog').getByText('Nickname', { exact: true })).toBeVisible();
+    await page.locator('#model-nickname').fill(nickname);
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(appliedToast(page).first()).toBeVisible();
+
+    const view = await (await page.request.get(await adminUrl('/api/providers'))).json();
+    const relay = view.providers.find((provider: { alias: string }) => provider.alias === E2E_RELAY_ALIAS);
+    const edited = relay.models.find((model: { id: string }) => model.id === 'relay-existing-model');
+    expect(edited.nickname).toBe(nickname);
+  });
+
   test('adds a model by id through lookup-metadata', async ({ page }) => {
     await page.goto(await adminUrl('/providers'));
     await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` }).click();

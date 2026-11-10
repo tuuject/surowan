@@ -27,6 +27,8 @@ export interface ModelCostForm {
 export interface ModelFormState {
   readonly id: string;
   readonly name: string;
+  /** Empty means "leave the field out": commands fall back to `provider / model`. */
+  readonly nickname: string;
   readonly reasoning: boolean;
   /** Declared levels; none checked means "leave it out" and use Pi's default. */
   readonly thinking_levels: readonly ThinkingLevel[];
@@ -54,6 +56,7 @@ export function emptyModelForm(api: ProviderApi): ModelFormState {
   return {
     id: '',
     name: '',
+    nickname: '',
     reasoning: false,
     thinking_levels: [],
     input: [],
@@ -69,6 +72,7 @@ export function modelFormFromConfig(model: ProviderModelConfig, api: ProviderApi
   return {
     id: model.id,
     name: model.name ?? '',
+    nickname: model.nickname ?? '',
     reasoning: model.reasoning,
     thinking_levels: model.thinking_levels ?? [],
     input: model.input,
@@ -90,6 +94,7 @@ export function modelFormFromDraft(draft: ModelMetadataDraft, api: ProviderApi):
   return {
     id: draft.id,
     name: draft.name ?? '',
+    nickname: '',
     reasoning: draft.reasoning ?? false,
     thinking_levels: draft.thinking_levels ?? [],
     input: draft.input ?? [],
@@ -169,6 +174,7 @@ export function modelFormToConfig(form: ModelFormState, api: ProviderApi): Provi
   return {
     id: form.id.trim(),
     ...(form.name.trim().length === 0 ? {} : { name: form.name.trim() }),
+    ...(form.nickname.trim().length === 0 ? {} : { nickname: form.nickname.trim() }),
     reasoning: form.reasoning,
     ...(thinkingLevels.length === 0 ? {} : { thinking_levels: thinkingLevels }),
     ...(compat === undefined ? {} : { compat }),

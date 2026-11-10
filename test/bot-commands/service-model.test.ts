@@ -98,6 +98,42 @@ describe('bot command service', () => {
       store.close();
     });
 
+    test('a nickname replaces the real provider and model names in the menu and receipts', async () => {
+      const { store, commands, reloader } = await commandSetup((config) => {
+        config.telegram.admins = [42];
+        const model = config.providers.agent?.models[0];
+        if (model !== undefined) {
+          model.nickname = '常用聊天模型 A';
+        }
+      });
+      try {
+        const menu = (await commands.run({ name: 'model' }, 123456789n, ALICE, FIXED_NOW)).split('\n');
+        expect(menu).toContain('本群模型: 常用聊天模型 A（继承全局）');
+        expect(menu).toContain('1. 常用聊天模型 A');
+        // A model without a nickname keeps the original row format.
+        expect(menu).toContain('2. vision / vision-model（Vision Model）');
+        expect(menu.join('\n')).not.toContain('agent / agent-model');
+        expect(menu.join('\n')).not.toContain('Agent Model');
+
+        // The nickname does not move the model in the list: index 1 still switches to it.
+        const switched = await commands.run({ name: 'model', argument: '1' }, 123456789n, ALICE, FIXED_NOW);
+        expect(switched).toContain('已为本群切换: 常用聊天模型 A');
+        expect(switched).not.toContain('agent / agent-model');
+        const loaded = await loadConfig(reloader.configPath);
+        expect(loaded.fileConfig.telegram?.chats[0]).toMatchObject({ provider: 'agent', model: 'agent-model' });
+
+        const overridden = await commands.run({ name: 'model' }, 123456789n, ALICE, FIXED_NOW);
+        expect(overridden).toContain('本群模型: 常用聊天模型 A\n');
+        expect(overridden).not.toContain('（继承全局）');
+
+        const reset = await commands.run({ name: 'model', argument: 'default' }, 123456789n, ALICE, FIXED_NOW);
+        expect(reset).toContain('跟随全局 常用聊天模型 A');
+        expect(reset).not.toContain('agent / agent-model');
+      } finally {
+        store.close();
+      }
+    });
+
     test('numeric argument writes only the current Chat and resets its thinking level', async () => {
       const { store, commands, switcher, reloader, configStore } = await commandSetup((config) => {
         manyModelTransform(40)(config);

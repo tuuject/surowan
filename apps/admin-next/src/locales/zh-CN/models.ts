@@ -245,6 +245,7 @@ export const models: typeof modelsEn = {
       confirmIntro: '请核对或填写：{{fields}}。这里不会自动填入默认值。',
       id: '模型 ID',
       name: '显示名称',
+      nickname: '昵称',
       contextWindow: '上下文长度（Token）',
       maxTokens: '最长输出（Token）',
       input: '支持的输入',

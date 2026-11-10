@@ -86,6 +86,8 @@ export const ModelConfigSchema = Type.Object(
   {
     id: Type.String({ minLength: 1 }),
     name: Type.Optional(Type.String({ minLength: 1 })),
+    /** Operator-facing label; when present, commands show it instead of `provider / model`. */
+    nickname: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
     reasoning: Type.Boolean(),
     /**
      * The thinking levels this model accepts. Only a reasoning model may declare

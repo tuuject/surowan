@@ -262,6 +262,7 @@ export const models = {
       confirmIntro: 'Confirm or fill in: {{fields}}. Nothing is filled in by default.',
       id: 'Model ID',
       name: 'Display name',
+      nickname: 'Nickname',
       contextWindow: 'Context length (tokens)',
       maxTokens: 'Max output (tokens)',
       input: 'Accepted input',

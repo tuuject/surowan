@@ -1,6 +1,8 @@
 export interface PromptTemplateModel {
   readonly provider: string;
   readonly model: string;
+  /** Display nickname; absent means "not configured". */
+  readonly nickname?: string;
 }
 
 export interface PromptTemplateValues {
@@ -12,6 +14,7 @@ export interface PromptTemplateValues {
 const TEMPLATE_VALUES: Readonly<Record<string, (values: PromptTemplateValues) => string>> = {
   'agent.provider': (values) => values.agent.provider,
   'agent.model': (values) => values.agent.model,
+  'agent.nickname': (values) => values.agent.nickname ?? `${values.agent.provider} / ${values.agent.model}`,
   'vision.provider': (values) => values.vision.provider,
   'vision.model': (values) => values.vision.model,
   timezone: (values) => values.timezone,

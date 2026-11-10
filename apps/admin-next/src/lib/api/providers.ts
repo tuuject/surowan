@@ -63,6 +63,8 @@ export interface ModelCompatConfig {
 export interface ProviderModelConfig {
   readonly id: string;
   readonly name?: string;
+  /** Operator-facing label used by Telegram commands instead of `provider / model`. */
+  readonly nickname?: string;
   readonly reasoning: boolean;
   /** Reasoning models only; absent means Pi's default (`off` through `high`). */
   readonly thinking_levels?: readonly ThinkingLevel[];

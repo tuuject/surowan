@@ -3,6 +3,7 @@ import type { ConversationContextStore } from '../../context/store/index.ts';
 import { listConversationContexts } from '../../context/store/queries.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
 import { resolveAgentSettings } from '../../platform/config/resolve.ts';
+import { modelDisplayLabel } from '../../platform/models/label.ts';
 import { isWithinActiveWindows } from '../../platform/participation.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { chatAttentionUntil, type ParticipationRegistry } from '../../store/participation.ts';
@@ -76,7 +77,7 @@ export function chatStatus(deps: BotCommandStatusDeps, telegramChatId: bigint, n
   const modelLabel =
     effective.provider === undefined || effective.model === undefined
       ? '未配置'
-      : `${effective.provider} / ${effective.model}${hasProviderOverride || hasModelOverride ? '' : '（继承全局）'}`;
+      : `${modelDisplayLabel(config, effective.provider, effective.model)}${hasProviderOverride || hasModelOverride ? '' : '（继承全局）'}`;
   const lines = [
     `本群模型: ${modelLabel}`,
     `思考强度: ${effective.thinking_level ?? '未配置'}${hasThinkingOverride ? '' : '（继承全局）'}`,

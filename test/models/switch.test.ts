@@ -32,6 +32,18 @@ async function switcherWith(transform?: (config: FixtureConfig) => void): Promis
   return { switcher: new AgentModelSwitcher(configStore), configStore, loaded };
 }
 
+function addNickname(config: FixtureConfig): void {
+  const provider = config.providers.agent;
+  if (provider?.kind !== 'custom') {
+    throw new Error('Expected custom agent provider fixture');
+  }
+  const model = provider.models[0];
+  if (model === undefined) {
+    throw new Error('Expected an agent model fixture');
+  }
+  model.nickname = '常用聊天模型 A';
+}
+
 function addImageOnlyModel(config: FixtureConfig): void {
   const provider = config.providers.agent;
   if (provider?.kind !== 'custom') {
@@ -56,6 +68,14 @@ test('lists text-capable models of configured providers', async () => {
     'vision/vision-model',
   ]);
   expect(options[0]).toMatchObject({ name: 'Agent Model', contextWindow: 200_000, maxTokens: 32_768 });
+});
+
+test('carries the configured nickname through list and option', async () => {
+  const { switcher } = await switcherWith(addNickname);
+  expect(switcher.list().find((option) => option.provider === 'agent')?.nickname).toBe('常用聊天模型 A');
+  expect(switcher.list().find((option) => option.provider === 'vision')?.nickname).toBeUndefined();
+  expect(switcher.option('agent', 'agent-model').nickname).toBe('常用聊天模型 A');
+  expect(switcher.current()?.nickname).toBe('常用聊天模型 A');
 });
 
 test('option validates a target without applying it', async () => {

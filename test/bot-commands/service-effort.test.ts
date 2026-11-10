@@ -62,6 +62,24 @@ describe('bot command service', () => {
       store.close();
     });
 
+    test('a nickname replaces the model name in the menu and the unsupported-level error', async () => {
+      const { store, commands } = await commandSetup((config) => {
+        config.telegram.admins = [42];
+        const model = config.providers.agent?.models[0];
+        if (model !== undefined) {
+          model.nickname = '常用聊天模型 A';
+        }
+      });
+      const menu = (await commands.run({ name: 'effort' }, CHAT_ID, ALICE, FIXED_NOW)).split('\n');
+      expect(menu[0]).toBe('本群模型: 常用聊天模型 A');
+      expect(menu).toContain(`可选: ${SUPPORTED}`);
+      expect(menu.join('\n')).not.toContain('agent / agent-model');
+
+      const unsupported = await commands.run({ name: 'effort', argument: 'xhigh' }, CHAT_ID, ALICE, FIXED_NOW);
+      expect(unsupported).toBe(`常用聊天模型 A 不支持思考强度 xhigh。可选: ${SUPPORTED}`);
+      store.close();
+    });
+
     test('labels a reasoning model with a single declared level as configurable', async () => {
       const { store, commands } = await commandSetup((config) => {
         config.telegram.admins = [42];

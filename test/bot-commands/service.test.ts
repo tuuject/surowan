@@ -95,6 +95,33 @@ describe('bot command service', () => {
     store.close();
   });
 
+  test('status shows a configured nickname in inherited and overridden modes', async () => {
+    for (const override of [false, true]) {
+      const { store, commands } = await setup((config) => {
+        config.telegram.admins = [42];
+        const model = config.providers.agent?.models[0];
+        if (model !== undefined) {
+          model.nickname = '常用聊天模型 A';
+        }
+        if (override) {
+          const chat = config.telegram.chats[0];
+          if (chat === undefined) {
+            throw new Error('Expected a chat fixture');
+          }
+          chat.provider = 'agent';
+          chat.model = 'agent-model';
+        }
+      });
+      try {
+        const status = await commands.run({ name: 'status' }, 123456789n, ALICE, FIXED_NOW);
+        expect(status).toContain(override ? '本群模型: 常用聊天模型 A\n' : '本群模型: 常用聊天模型 A（继承全局）');
+        expect(status).not.toContain('agent / agent-model');
+      } finally {
+        store.close();
+      }
+    }
+  });
+
   test('status reports the retained Conversation Context', async () => {
     const { store, ingestion, scheduler, commands } = await setup();
     ingestion.ingest(textUpdate(1, 10, 'hello'), FIXED_NOW);
