@@ -152,6 +152,33 @@ export function editModel(view: ProvidersView, edits: RoleEdits, role: ModelRole
   return next;
 }
 
+/**
+ * The edits left after a save. The roles that went through give way to the
+ * file. The ones that did not are pinned to exactly what the save was sending:
+ * an effort derived from the old file (a Tool Model keeping the Agent's level,
+ * say) would otherwise be derived again from the half-saved one and change
+ * under the admin before the retry.
+ */
+export function editsAfterSave(
+  edits: RoleEdits,
+  snapshot: ProvidersView,
+  target: RolesDraft,
+  saved: ReadonlySet<ModelRole>,
+): RoleEdits {
+  const next = { ...edits };
+  for (const role of saved) {
+    delete next[role];
+  }
+  for (const role of changedRoles(snapshot, target)) {
+    const { model, level } = target[role];
+    if (saved.has(role) || model === null) {
+      continue;
+    }
+    next[role] = model === INHERIT || level === null ? { model } : { model, level };
+  }
+  return next;
+}
+
 export function editLevel(edits: RoleEdits, role: ModelRole, level: ThinkingLevel): RoleEdits {
   return { ...edits, [role]: { ...edits[role], level } };
 }

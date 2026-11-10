@@ -185,8 +185,8 @@ export default function PlaygroundPage(): ReactElement {
         }
       >
         <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
-          <Field label={t('playground.rooms.createTitle')}>
-            <Input id="playground-room-title" value={newTitle} onChange={(event) => setNewTitle(event.target.value)} />
+          <Field id="playground-room-title" label={t('playground.rooms.createTitle')}>
+            <Input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} />
           </Field>
           <Field label={t('playground.rooms.createMembers')}>
             <Input value={newMembers} onChange={(event) => setNewMembers(event.target.value)} placeholder="Ada, Bo" />

@@ -89,6 +89,16 @@ function ViewAllLink({ to, label }: { readonly to: '/invocations' | '/warnings';
   );
 }
 
+/** Stands in for the status fields: a skeleton while loading, a plain line once the load has failed. */
+function BotStatusPlaceholder({ pending }: { readonly pending: boolean }): ReactElement {
+  const { t } = useTranslation();
+  return pending ? (
+    <Skeleton className={css({ height: '96px' })} />
+  ) : (
+    <p className={css({ margin: '0', color: 'text-muted' })}>{t('pages.overview.loadFailed')}</p>
+  );
+}
+
 export default function OverviewPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -197,15 +207,20 @@ export default function OverviewPage(): ReactElement {
     },
   ];
 
+  // The first load is not retried and the page does not poll, so a failed one
+  // leaves no data for good: "loading" is only true while it is pending.
+  const overviewDescription = (): string => {
+    if (data !== undefined) {
+      return t('pages.overview.generatedAt', { time: formatTime(data.generated_at) });
+    }
+    return overview.isPending ? t('common.loading') : t('pages.overview.loadFailed');
+  };
+
   return (
     <div>
       <ListPageHeader
         title={t('layout.nav.overview')}
-        description={
-          data === undefined
-            ? t('common.loading')
-            : t('pages.overview.generatedAt', { time: formatTime(data.generated_at) })
-        }
+        description={overviewDescription()}
         actions={
           <>
             {data?.runtime_status.sleeping === true ? (
@@ -340,7 +355,7 @@ export default function OverviewPage(): ReactElement {
 
         <Card title={t('pages.overview.botStatus')}>
           {data === undefined ? (
-            <Skeleton className={css({ height: '96px' })} />
+            <BotStatusPlaceholder pending={overview.isPending} />
           ) : (
             <dl
               className={css({

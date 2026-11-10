@@ -1,6 +1,7 @@
 import type { ChatThinkingReset, ModelApplySummary } from '@/lib/api/models.ts';
 import { setAgentThinkingLevel, switchAgentModel, switchVisionModel } from '@/lib/api/models.ts';
-import { getProviders, type ProvidersView } from '@/lib/api/providers.ts';
+import type { ProvidersView } from '@/lib/api/providers.ts';
+import i18n from '@/lib/i18n.ts';
 import { putToolModel } from '@/lib/api/tools.ts';
 import { changedRoles, INHERIT, modelForKey, type RolesDraft, savedRoles } from './draft.ts';
 import type { ModelRole } from './writes.ts';
@@ -27,13 +28,17 @@ export class RolesSaveError extends Error {
 /**
  * Writes the changed roles one endpoint after another, Agent first so an
  * inherited Tool Model already follows it. Every write must carry the revision
- * the previous one produced; `PUT /model` is the only one that does not return
- * it, so the view is read once after it.
+ * the previous one produced, never one read back from the view: a read could
+ * return another admin's write and let the rest of this save run over it.
  *
  * A new Agent model is written first and its effort after: the switch resets
  * the effort on the server, and the second write puts back the one the draft
  * shows when it differs. Vision always sends its level with a new model, so
  * the file ends up holding exactly what the page showed.
+ *
+ * A drafted model that is no longer in the view (removed elsewhere, then a
+ * refetch) stops the save before anything is written: skipping it would report
+ * a role as saved that was never sent.
  */
 export async function saveRoles(view: ProvidersView, draft: RolesDraft): Promise<RolesSaveResult> {
   const saved = savedRoles(view);
@@ -57,6 +62,13 @@ export async function saveRoles(view: ProvidersView, draft: RolesDraft): Promise
     resets,
   });
 
+  for (const role of changed) {
+    const key = draft[role].model;
+    if (key !== null && key !== INHERIT && modelForKey(view, key) === null) {
+      throw new RolesSaveError(new Error(i18n.t('models.models.roles.form.missingModel', { model: key })), result());
+    }
+  }
+
   try {
     if (changed.has('agent')) {
       let level = saved.agent.level;
@@ -66,7 +78,7 @@ export async function saveRoles(view: ProvidersView, draft: RolesDraft): Promise
         record(switched.apply);
         resets = switched.chat_thinking_resets;
         level = switched.current.thinking_level;
-        revision = (await getProviders()).revision;
+        revision = switched.revision;
       }
       if (draft.agent.level !== null && draft.agent.level !== level) {
         const leveled = await setAgentThinkingLevel(draft.agent.level, revision);

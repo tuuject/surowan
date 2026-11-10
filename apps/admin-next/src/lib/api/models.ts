@@ -36,6 +36,8 @@ export interface ChatThinkingReset {
 }
 
 export interface ModelSwitchResponse extends ModelState {
+  /** The file's revision after the switch; the next write in a chain carries it. */
+  readonly revision: string;
   readonly apply: ModelApplySummary;
   readonly chat_thinking_resets: readonly ChatThinkingReset[];
 }

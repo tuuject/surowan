@@ -46,7 +46,9 @@ export function AgentTranscriptTab({ invocation }: { readonly invocation: Invoca
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
           {row.thinking_text.length > 0 && row.role === 'assistant' ? (
             <LazyDetails summary={t('invocations.invocationDetail.agent.thinkingLabel')}>
-              {row.thinking_text}
+              <p className={css({ textStyle: 'body', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>
+                {row.thinking_text}
+              </p>
             </LazyDetails>
           ) : null}
           {row.result_content ? (

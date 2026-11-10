@@ -20,6 +20,7 @@ interface RoleView {
 }
 
 interface ProvidersView {
+  readonly revision: string;
   readonly agent: RoleView;
   readonly vision: RoleView;
   readonly tool_model: RoleView & { readonly inherited: boolean };
@@ -110,10 +111,17 @@ test.describe('model roles', () => {
   });
 
   test('a model row hands out each role in one click', async ({ page }) => {
+    // Vision starts away from the fixture model, at an effort that model
+    // rejects. Written here so the test also runs alone or in a fresh worker.
+    const prepared = await page.request.put(await adminUrl('/api/vision'), {
+      headers: { 'if-match': (await providersView(page)).revision },
+      data: { provider: 'agent', model: 'agent-model', thinking_level: 'high' },
+    });
+    expect(prepared.ok(), 'fixture Vision write failed').toBe(true);
     await page.goto(await adminUrl('/providers'));
 
-    // Vision back to the fixture model from the row: the stored `high` from the
-    // previous test is one this model rejects, so the switch drops it.
+    // Vision back to the fixture model from the row: the stored `high` is one
+    // this model rejects, so the switch drops it.
     await page.getByRole('button', { name: 'Provider vision', exact: true }).click();
     const visionRow = modelListRow(page, 'vision-model');
     await expect(roleToggle(visionRow, 'Vision')).toHaveAttribute('aria-pressed', 'false');

@@ -86,6 +86,8 @@ export const models: typeof modelsEn = {
         saving: '保存中…',
         discard: '放弃更改',
         partial: '只保存了一部分：{{message}} 其余更改仍保留在页面上。',
+        refreshFailed: '更改已提交，但页面未能重新读取配置：{{message}} 请刷新页面后再保存。',
+        missingModel: '{{model}} 已不在配置中。请另选一个模型后再保存。',
         cardChanged: '有未保存的更改',
       },
       manageProviders: '管理供应商',

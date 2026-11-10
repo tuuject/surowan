@@ -67,9 +67,13 @@ export default function PromptsPage(): ReactElement {
   const [compareScope, setCompareScope] = useState(scopeValue);
   if (compareScope !== scopeValue) {
     // Browser navigation changes scope without calling changeScope. Neither an
-    // applied diff nor an unsubmitted draft may leak into the new scope.
+    // applied diff nor an unsubmitted draft may leak into the new scope, and a
+    // confirmation opened for the old scope must not act on the new one: its
+    // cancel would stop the runs of every Chat instead of the one it named.
     setCompareScope(scopeValue);
     setCompare(null);
+    setCancelOpen(false);
+    setRestoreOpen(false);
   }
   const file = fileQuery.data;
   const applied = versions.data?.current ?? null;

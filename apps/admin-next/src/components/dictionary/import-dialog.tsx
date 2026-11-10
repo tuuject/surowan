@@ -9,6 +9,7 @@ import { Textarea } from '@tuuject/koi-react/textarea';
 import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScopePicker } from '@/components/dictionary/entry-form.tsx';
+import { useOpenSession } from '@/hooks/use-open-session.ts';
 import type {
   DictionaryChatOption,
   DictionaryDraft,
@@ -51,6 +52,11 @@ export function ImportDialog({
   const [fileName, setFileName] = useState<string | null>(null);
   const [preview, setPreview] = useState<DictionaryImportPreview | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<unknown>(null);
+  const [importError, setImportError] = useState<unknown>(null);
+  // Closing is not blocked while a dropped file is still being read, so a read
+  // carries the session it started in and is dropped once that session is over.
+  const session = useOpenSession(open);
 
   const reset = (): void => {
     setFormat('csv');
@@ -60,6 +66,8 @@ export function ImportDialog({
     setFileName(null);
     setPreview(null);
     setReadError(null);
+    setPreviewError(null);
+    setImportError(null);
   };
 
   const previewMutation = useMutation({
@@ -73,6 +81,7 @@ export function ImportDialog({
     onSuccess: (result) => {
       setPreview(result);
     },
+    onError: setPreviewError,
   });
 
   const importMutation = useMutation({
@@ -83,23 +92,24 @@ export function ImportDialog({
       onImported();
       onOpenChange(false);
     },
-    onError: () => {
+    onError: (error) => {
       // The dialog stays open so the parsed preview and the error are both visible.
+      setImportError(error);
       void queryClient.invalidateQueries({ queryKey: ['dictionary'] });
     },
   });
 
-  // Base UI keeps the popup mounted while it fades out, so this component and
-  // its mutations outlive a session: the previous file, parsed preview and scope
-  // must not show up again. They are replaced on the open edge — a render-phase
+  // Base UI keeps the popup mounted while it fades out, so this component
+  // outlives a session: the previous file, parsed preview and scope must not
+  // show up again. They are replaced on the open edge — a render-phase
   // adjustment, the app's substitute for a reset effect — and never on close,
   // so the review the admin just read stays on screen through the exit fade.
+  // Failures are local state for that reason: a mutation cannot be reset while
+  // rendering.
   const [wasOpen, setWasOpen] = useState(open);
   if (wasOpen !== open) {
     setWasOpen(open);
     if (open) {
-      previewMutation.reset();
-      importMutation.reset();
       reset();
     }
   }
@@ -139,7 +149,10 @@ export function ImportDialog({
             variant="outline"
             color="secondary"
             disabled={content.trim().length === 0 || previewMutation.isPending || importMutation.isPending}
-            onClick={() => previewMutation.mutate()}
+            onClick={() => {
+              setPreviewError(null);
+              previewMutation.mutate();
+            }}
           >
             {previewMutation.isPending ? t('dictionary.import.previewing') : t('dictionary.import.preview')}
           </Button>
@@ -148,7 +161,10 @@ export function ImportDialog({
             disabled={
               preview === null || draftEntries.length === 0 || importMutation.isPending || previewMutation.isPending
             }
-            onClick={() => importMutation.mutate(draftEntries)}
+            onClick={() => {
+              setImportError(null);
+              importMutation.mutate(draftEntries);
+            }}
           >
             {importMutation.isPending
               ? t('dictionary.import.importing')
@@ -190,16 +206,21 @@ export function ImportDialog({
               if (file === undefined) {
                 return;
               }
+              const startedIn = session.current;
               setReadError(null);
               setPreview(null);
               void file
                 .text()
                 .then((text) => {
-                  setContent(text);
-                  setFileName(file.name);
+                  if (startedIn === session.current) {
+                    setContent(text);
+                    setFileName(file.name);
+                  }
                 })
                 .catch(() => {
-                  setReadError(t('dictionary.import.fileFailed'));
+                  if (startedIn === session.current) {
+                    setReadError(t('dictionary.import.fileFailed'));
+                  }
                 });
             }}
           />
@@ -233,9 +254,9 @@ export function ImportDialog({
         {content.trim().length === 0 ? (
           <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('dictionary.import.contentRequired')}</p>
         ) : null}
-        {previewMutation.isError ? (
+        {previewError !== null ? (
           <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-            {t('dictionary.import.previewFailed')}：{dictionaryErrorMessage(previewMutation.error)}
+            {t('dictionary.import.previewFailed')}：{dictionaryErrorMessage(previewError)}
           </p>
         ) : null}
 
@@ -358,9 +379,9 @@ export function ImportDialog({
           </div>
         ) : null}
 
-        {importMutation.isError ? (
+        {importError !== null ? (
           <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-            {dictionaryErrorMessage(importMutation.error)}
+            {dictionaryErrorMessage(importError)}
           </p>
         ) : null}
       </div>

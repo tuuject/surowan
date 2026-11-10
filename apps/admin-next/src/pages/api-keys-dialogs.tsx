@@ -18,6 +18,23 @@ export const MODES: readonly ApiKeyMode[] = ['read', 'read_write', 'read_paid', 
 
 type CopyState = 'idle' | 'pending' | 'copied' | 'failed';
 
+/**
+ * Copy feedback for one open of a reveal dialog. A clipboard write can still be
+ * pending when the dialog closes, so its outcome is filed under the open that
+ * started it: a later open reads as idle, and a late outcome never replaces
+ * the feedback of a newer open.
+ */
+function useCopyState(formKey: number): readonly [CopyState, (state: CopyState) => void] {
+  const [copy, setCopy] = useState<{ readonly generation: number; readonly state: CopyState }>({
+    generation: formKey,
+    state: 'idle',
+  });
+  return [
+    copy.generation === formKey ? copy.state : 'idle',
+    (state) => setCopy((previous) => (previous.generation > formKey ? previous : { generation: formKey, state })),
+  ];
+}
+
 const CREATE_FORM_ID = 'api-key-create-form';
 const EDIT_MODE_FORM_ID = 'api-key-edit-mode-form';
 
@@ -201,7 +218,7 @@ export function CreateKeyDialog({
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [reveal, setReveal] = useState<KeyReveal | null>(null);
-  const [copyState, setCopyState] = useState<CopyState>('idle');
+  const [copyState, setCopyState] = useCopyState(formKey);
   const create = useMutation({
     // Return nothing: mutation/query caches must never retain the one-time key.
     mutationFn: async (input: CreateKeyInput): Promise<void> => {
@@ -413,7 +430,7 @@ export function RotateKeyDialog({
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [reveal, setReveal] = useState<KeyReveal | null>(null);
-  const [copyState, setCopyState] = useState<CopyState>('idle');
+  const [copyState, setCopyState] = useCopyState(formKey);
   const rotate = useMutation({
     mutationFn: async (input: RotateInput): Promise<void> => {
       const result = await rotateApiKey(input.id);

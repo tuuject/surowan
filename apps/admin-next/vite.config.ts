@@ -24,6 +24,8 @@ export default defineConfig({
   },
   server: {
     port: 5273,
+    // The API only accepts this origin; on another port every write is refused.
+    strictPort: true,
     host: '127.0.0.1',
     proxy: {
       // `/api/` with the slash: a bare `/api` prefix also swallows the

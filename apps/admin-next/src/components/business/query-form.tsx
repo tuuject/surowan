@@ -14,6 +14,9 @@ import { memoryChatsQuery } from '@/lib/queries';
 
 export type QueryFormValues = Record<string, string>;
 
+/** What `chatQuery` accepts, as an HTML `pattern` (implicitly anchored). */
+const CHAT_ID_PATTERN = '\\s*-?\\d{1,19}\\s*';
+
 export interface QueryFormRender<T extends QueryFormValues> {
   readonly draft: T;
   readonly change: (patch: Partial<T>) => void;
@@ -233,6 +236,11 @@ export function ChatFilter({
         aria-controls={listId}
         list={listId}
         placeholder={t('layout.business.chatNameOrId')}
+        // The lists filter by numeric Chat ID only. Anything else would stay in
+        // the URL and the form as a condition the request silently drops, so
+        // the browser refuses to submit it instead.
+        pattern={CHAT_ID_PATTERN}
+        title={t('layout.business.chatIdRequired')}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />

@@ -100,6 +100,9 @@ export function createControlAdminHandler(deps: ControlAdminDeps) {
       }
       return json({
         ...modelState(switcher, currentOption),
+        // The file's revision after this write, so a caller can chain its next
+        // write without reading the view (and adopting someone else's change).
+        revision: await reloader.revision(),
         apply: { applied: result.applied, restart_required: result.restartRequired },
         chat_thinking_resets: (result.chatThinkingResets ?? []).map(({ chatId, previous, current }) => ({
           chat_id: chatId,

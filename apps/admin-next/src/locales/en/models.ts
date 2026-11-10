@@ -90,6 +90,9 @@ export const models = {
         saving: 'Saving…',
         discard: 'Discard changes',
         partial: 'Saved in part. {{message}} The rest of your changes are still here.',
+        refreshFailed:
+          'Your changes were sent, but the page could not reload the configuration: {{message}} Reload the page before saving again.',
+        missingModel: '{{model}} is no longer configured. Choose another model and save again.',
         cardChanged: 'Unsaved changes',
       },
       manageProviders: 'Manage providers',

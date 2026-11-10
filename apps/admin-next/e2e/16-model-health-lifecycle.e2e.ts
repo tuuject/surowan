@@ -91,10 +91,7 @@ test.describe('model health checks', () => {
     // Back on the Providers page a fresh check lands in a freed backend slot and
     // completes normally: the queued fourth never sneaked in behind the page's
     // lifetime (health-ok was absent from the cancelled batch).
-    await page
-      .getByRole('navigation', { name: 'Main navigation' })
-      .getByRole('link', { name: 'Providers', exact: true })
-      .click();
+    await clickNav(page, 'Agent setup', 'Providers');
     await page.waitForURL((url) => url.pathname === '/providers');
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
     const row = modelRow(page, E2E_HEALTH_OK_MODEL);

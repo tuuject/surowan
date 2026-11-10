@@ -1,4 +1,4 @@
-import { useMutation } from '@tanstack/react-query';
+import { useIsFetching, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ChatThinkingReset, ThinkingLevel } from '@/lib/api/models.ts';
@@ -6,6 +6,7 @@ import { switchAgentModel, switchVisionModel } from '@/lib/api/models.ts';
 import type { ProviderModelConfig, ProvidersView } from '@/lib/api/providers.ts';
 import { putToolModel } from '@/lib/api/tools.ts';
 import { isConfigConflict, supportedThinkingLevels, writeErrorMessage } from '@/lib/model-manager.ts';
+import { providersQuery } from '@/lib/queries.ts';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
 
@@ -127,11 +128,12 @@ export function useModelRoleWrites(view: ProvidersView | undefined) {
     }
   };
 
-  const pending: Readonly<Record<ModelRole, boolean>> = {
-    agent: agent.isPending,
-    vision: vision.isPending,
-    tool: tool.isPending,
-  };
+  // Every role write carries the one config revision, so they run one at a
+  // time: a second one sent before the first has landed and the view has come
+  // back with the new revision would only be refused as a conflict.
+  const refreshing = useIsFetching({ queryKey: providersQuery.queryKey }) > 0;
+  const busy = agent.isPending || vision.isPending || tool.isPending || refreshing;
+  const pending: Readonly<Record<ModelRole, boolean>> = { agent: busy, vision: busy, tool: busy };
 
   return {
     assign,

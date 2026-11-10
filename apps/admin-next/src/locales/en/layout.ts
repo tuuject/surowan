@@ -117,6 +117,7 @@ export const layout = {
     all: 'All',
     chat: 'Chat',
     chatNameOrId: 'Chat name or ID',
+    chatIdRequired: 'Pick a chat from the list or enter its numeric ID',
     clearChatFilter: 'Clear chat filter',
     tree: 'Tree',
     text: 'Text',

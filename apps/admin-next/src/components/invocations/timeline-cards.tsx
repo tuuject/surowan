@@ -312,7 +312,9 @@ export function AgentMessageCard({ message }: { readonly message: AgentMessageEn
       ) : message.role === 'assistant' && message.thinking_text.length > 0 ? (
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
           <LazyDetails summary={t('invocations.invocationDetail.agent.thinkingLabel')}>
-            {message.thinking_text}
+            <p className={css({ textStyle: 'body', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>
+              {message.thinking_text}
+            </p>
           </LazyDetails>
           {message.text.length === 0 ? (
             <p className={css({ textStyle: 'body', color: 'text-muted' })}>
@@ -329,7 +331,9 @@ export function AgentMessageCard({ message }: { readonly message: AgentMessageEn
           {t('invocations.invocationDetail.agent.noText')}
         </p>
       ) : message.role === 'tool_result' ? (
-        <LazyDetails summary={t('invocations.invocationDetail.agent.viewToolResult')}>{message.text}</LazyDetails>
+        <LazyDetails summary={t('invocations.invocationDetail.agent.viewToolResult')}>
+          <p className={css({ textStyle: 'body', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>{message.text}</p>
+        </LazyDetails>
       ) : (
         <p className={css({ textStyle: 'body', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' })}>{message.text}</p>
       )}

@@ -12,6 +12,7 @@ import { HeaderFields } from '@/components/models/header-fields';
 import { ModelDraftList } from '@/components/models/model-draft-list';
 import { ModelEditDialog } from '@/components/models/model-edit-dialog';
 import { useDraftSelection } from '@/components/models/use-draft-selection';
+import { useOpenSession } from '@/hooks/use-open-session.ts';
 import type { DiscoveredModel, ProviderModelConfig, ProviderView } from '@/lib/api/providers.ts';
 import { appendProviderModels, discoverProviderModels, lookupModelMetadata } from '@/lib/api/providers.ts';
 import { type HeaderRow, headerRowsFromNames, headerValues } from '@/lib/header-rows.ts';
@@ -50,6 +51,11 @@ export function ModelPickerDialog({
   const { t } = useTranslation();
   const write = useProviderWrite();
   const selection = useDraftSelection();
+  // Discovery and lookup can be abandoned by closing the picker, and they still
+  // answer. Each request carries the session it started in, so a late answer
+  // can neither open a confirm over a closed picker nor hand one provider's
+  // models to the session opened for another.
+  const session = useOpenSession(open);
   const [sessionKey, setSessionKey] = useState(formKey);
   const [endpoint, setEndpoint] = useState<string | null>(null);
   const [tempMode, setTempMode] = useState(false);
@@ -80,7 +86,7 @@ export function ModelPickerDialog({
   };
 
   const discover = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (_startedIn: number) => {
       if (!tempMode) {
         return await discoverProviderModels({ alias: provider.alias });
       }
@@ -97,19 +103,24 @@ export function ModelPickerDialog({
         ...(payload.values === undefined ? {} : { headers: payload.values }),
       });
     },
-    onSuccess: (result) => {
+    onSuccess: (result, startedIn) => {
+      if (startedIn !== session.current) {
+        return;
+      }
       setEndpoint(result.endpoint);
       setMetadataError(result.metadata_source_error);
       setFetchError(null);
       selection.replaceDrafts(result.models);
     },
-    onError: (error) => {
-      setFetchError(error);
+    onError: (error, startedIn) => {
+      if (startedIn === session.current) {
+        setFetchError(error);
+      }
     },
   });
 
   const lookup = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (_startedIn: number) => {
       const parsed = parseModelIds(ids);
       if (parsed.length === 0) {
         throw new Error(t('models.models.wizard.enterModelId'));
@@ -120,7 +131,10 @@ export function ModelPickerDialog({
         models: result.models.map((draft) => ({ ...draft, configured: false })),
       };
     },
-    onSuccess: ({ models, metadataSourceError }) => {
+    onSuccess: ({ models, metadataSourceError }, startedIn) => {
+      if (startedIn !== session.current) {
+        return;
+      }
       setMetadataError(metadataSourceError);
       setFetchError(null);
       selection.replaceDrafts(models);
@@ -131,8 +145,10 @@ export function ModelPickerDialog({
         openConfirm(only);
       }
     },
-    onError: (error) => {
-      setFetchError(error);
+    onError: (error, startedIn) => {
+      if (startedIn === session.current) {
+        setFetchError(error);
+      }
     },
   });
 
@@ -174,7 +190,9 @@ export function ModelPickerDialog({
       <Dialog
         open={open}
         onOpenChange={(next) => {
-          if (!next) {
+          // An append in flight closes the picker when it lands; it must land
+          // in the session that started it.
+          if (!next && !append.isPending) {
             onOpenChange(false);
           }
         }}
@@ -265,7 +283,7 @@ export function ModelPickerDialog({
                 disabled={fetchPending}
                 onClick={() => {
                   setFetchError(null);
-                  discover.mutate();
+                  discover.mutate(session.current);
                 }}
               >
                 {fetchPending
@@ -293,7 +311,7 @@ export function ModelPickerDialog({
                 disabled={fetchPending}
                 onClick={() => {
                   setFetchError(null);
-                  lookup.mutate();
+                  lookup.mutate(session.current);
                 }}
               >
                 {fetchPending ? t('models.models.picker.lookingUp') : t('models.models.wizard.lookup')}

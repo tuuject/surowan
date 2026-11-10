@@ -112,6 +112,7 @@ export const layout: typeof layoutEn = {
     all: '全部',
     chat: '会话',
     chatNameOrId: '会话名称或 ID',
+    chatIdRequired: '请从列表中选择会话，或输入数字会话 ID',
     clearChatFilter: '清除会话筛选',
     tree: '树形',
     text: '文本',

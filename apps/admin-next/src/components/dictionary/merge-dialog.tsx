@@ -7,9 +7,10 @@ import { Field } from '@tuuject/koi-react/field';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
-import { type ReactElement, useRef, useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AliasEditor, ScopePicker } from '@/components/dictionary/entry-form.tsx';
+import { useOpenSession } from '@/hooks/use-open-session.ts';
 import type {
   DictionaryChatOption,
   DictionaryEntry,
@@ -60,11 +61,13 @@ export function MergeDialog({
   const [chatId, setChatId] = useState<string | null>(defaultChatId);
   const [deleteSources, setDeleteSources] = useState(false);
 
-  // `reset()` detaches a pending suggestion without cancelling it, and its
-  // callbacks still run. Each request carries the session it was started in, so
-  // one that outlives its session cannot fill the next one with a suggestion
-  // (and source revisions) built from other entries.
-  const session = useRef(0);
+  const [saveError, setSaveError] = useState<unknown>(null);
+
+  // A suggestion can be abandoned by closing the dialog, and it still answers.
+  // Each request carries the session it was started in, so one that outlives
+  // its session cannot fill the next one with a suggestion (and source
+  // revisions) built from other entries.
+  const session = useOpenSession(open);
   const suggestion = useMutation({
     mutationFn: (_startedIn: number) => previewDictionaryMerge(entries.map((entry) => entry.id)),
     onMutate: () => setStep({ kind: 'loading' }),
@@ -108,8 +111,9 @@ export function MergeDialog({
       onMerged();
       onOpenChange(false);
     },
-    onError: () => {
+    onError: (error) => {
       // The dialog stays open: a stale source is retryable after regenerating.
+      setSaveError(error);
       void queryClient.invalidateQueries({ queryKey: ['dictionary'] });
     },
   });
@@ -118,20 +122,17 @@ export function MergeDialog({
   const canSave = preview !== null && term.trim().length > 0 && definition.trim().length > 0;
   const scopeReady = scope === 'global' || (chatId !== null && chatId.length > 0);
 
-  // Base UI keeps the popup mounted while it fades out, so this component, its
-  // mutations and the last suggestion outlive a session. They are replaced on
-  // the open edge — a render-phase adjustment, the app's substitute for a reset
-  // effect — and never on close, so the sources and the edited suggestion stay
-  // on screen through the exit fade.
+  // Base UI keeps the popup mounted while it fades out, so this component and
+  // the last suggestion outlive a session. They are replaced on the open edge —
+  // a render-phase adjustment, the app's substitute for a reset effect — and
+  // never on close, so the sources and the edited suggestion stay on screen
+  // through the exit fade. Everything shown lives in local state for that
+  // reason: a mutation object cannot be reset while rendering.
   const [wasOpen, setWasOpen] = useState(open);
   if (wasOpen !== open) {
     setWasOpen(open);
     if (open) {
-      // Only ever counts up, so a repeated or abandoned render can at worst
-      // retire a request that no session is waiting for.
-      session.current += 1;
-      suggestion.reset();
-      save.reset();
+      setSaveError(null);
       setStep({ kind: 'idle' });
       setTerm('');
       setDefinition('');
@@ -170,6 +171,7 @@ export function MergeDialog({
             disabled={!canSave || !scopeReady || save.isPending || preview === null}
             onClick={() => {
               if (preview !== null) {
+                setSaveError(null);
                 save.mutate(preview);
               }
             }}
@@ -218,8 +220,8 @@ export function MergeDialog({
         </div>
 
         {step.kind === 'idle' || step.kind === 'loading' ? (
-          <Button type="button" disabled={suggestion.isPending} onClick={() => suggestion.mutate(session.current)}>
-            {suggestion.isPending ? t('dictionary.merge.generating') : t('dictionary.merge.generate')}
+          <Button type="button" disabled={step.kind === 'loading'} onClick={() => suggestion.mutate(session.current)}>
+            {step.kind === 'loading' ? t('dictionary.merge.generating') : t('dictionary.merge.generate')}
           </Button>
         ) : null}
 
@@ -280,9 +282,9 @@ export function MergeDialog({
           </div>
         ) : null}
 
-        {save.isError ? (
+        {saveError !== null ? (
           <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-            {dictionaryErrorMessage(save.error)}
+            {dictionaryErrorMessage(saveError)}
           </p>
         ) : null}
       </div>

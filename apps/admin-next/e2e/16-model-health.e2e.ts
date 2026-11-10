@@ -83,7 +83,22 @@ test.describe('model health checks', () => {
     await expect(page.getByText('11 selected', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Test', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Next page', exact: true }).last().click();
+    // The second page really is another page, and its one row was selected too.
+    await expect(page.locator('[data-model-list] > li')).toHaveCount(1);
+    await expect(modelRow(page, 'health-paged-10')).toBeVisible();
+    const offPage = page.getByLabel('Select health-paged-10', { exact: true });
+    await expect(offPage).toBeChecked();
     await expect(selectAll).toBeChecked();
+
+    // A provider selected in part is not "all selected" on any page, so the
+    // checkbox completes the selection instead of clearing it.
+    await offPage.uncheck();
+    await expect(page.getByText('10 selected', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Previous page', exact: true }).last().click();
+    await expect(page.locator('[data-model-list] > li')).toHaveCount(10);
+    await expect(selectAll).not.toBeChecked();
+    await selectAll.check();
+    await expect(page.getByText('11 selected', { exact: true })).toBeVisible();
     await selectAll.uncheck();
     await expect(page.getByRole('button', { name: 'Test', exact: true })).toBeDisabled();
   });

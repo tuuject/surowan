@@ -108,7 +108,9 @@ export function ModelList({
     });
   };
 
-  const selectable = pagination.items;
+  // "Select all" selects and clears the whole provider, so its checked state is
+  // read from the whole provider too, not from the page on screen.
+  const selectable = rows;
   const allSelected = selectable.length > 0 && selectable.every((row) => healthSelected.has(rowKey(row)));
 
   return (

@@ -121,6 +121,17 @@ async function expectTransition(
   // Base UI skips the exit phase when the close starts before the entry phase has
   // finished, so wait for the animation itself rather than the starting flag.
   await expectDialogsSettled(page, name);
+  // What the admin is looking at when the close starts. "Still has some text"
+  // would pass a title that lost its target ("Restore version ?") and a body
+  // reduced to its footer buttons, so the exit snapshot must equal this.
+  const shown = await dialog.evaluate((element) => {
+    const labelledBy = element.getAttribute('aria-labelledby');
+    return {
+      label: labelledBy === null ? '' : (document.getElementById(labelledBy)?.textContent ?? '').trim(),
+      text: (element.textContent ?? '').trim(),
+    };
+  });
+  expect(shown.label, `${name}: has a title`).not.toBe('');
   if (close === 'Escape') {
     await page.keyboard.press('Escape');
   } else {
@@ -129,8 +140,8 @@ async function expectTransition(
   await expect(dialog, `${name}: closes`).toHaveCount(0);
   const audit = await readAudit(page);
   expect(audit?.exit ?? 0, `${name}: exit transition`).toBeGreaterThan(0);
-  expect(audit?.exitLabel ?? '', `${name}: title kept through the exit`).not.toBe('');
-  expect(audit?.exitText ?? '', `${name}: body kept through the exit`).not.toBe('');
+  expect(audit?.exitLabel ?? '', `${name}: title kept through the exit`).toBe(shown.label);
+  expect(audit?.exitText ?? '', `${name}: body kept through the exit`).toBe(shown.text);
 }
 
 test('providers dialogs keep their transitions', async ({ page }) => {
@@ -178,9 +189,11 @@ test('providers dialogs keep their transitions', async ({ page }) => {
   const nestedClosed = await readAudit(page);
   expect(nestedClosed?.exit ?? 0, 'nested model confirm: exit transition').toBeGreaterThan(0);
   expect(nestedClosed?.exitLabel ?? '', 'nested model confirm: title kept').not.toBe('');
+  // The counter already holds the confirm's exit, so the picker has to add its own.
+  const exitsBeforePicker = nestedClosed?.exit ?? 0;
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
-  expect((await readAudit(page))?.exit ?? 0, 'picker exits after the confirm').toBeGreaterThan(0);
+  expect((await readAudit(page))?.exit ?? 0, 'picker exits after the confirm').toBeGreaterThan(exitsBeforePicker);
 });
 
 const GROUP_CHAT = '-100555000333';

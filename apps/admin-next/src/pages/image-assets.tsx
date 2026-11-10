@@ -31,10 +31,23 @@ import { toast } from '@/lib/toast.ts';
 
 /** Asset management: prompt templates and reference images, with upload and archive. */
 
-function PromptEditor({ onDone }: { readonly onDone: () => void }) {
+/**
+ * Stays mounted and is driven by `open`, so Base UI can play both transitions.
+ * The draft is replaced on the open edge, never on close: what was typed stays
+ * on screen through the exit fade.
+ */
+function PromptEditor({ open, onDone }: { readonly open: boolean; readonly onDone: () => void }) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [body, setBody] = useState('');
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) {
+      setName('');
+      setBody('');
+    }
+  }
   const create = useMutation({
     mutationFn: () => createImagePrompt({ name, body }),
     onSuccess: () => {
@@ -47,8 +60,8 @@ function PromptEditor({ onDone }: { readonly onDone: () => void }) {
   });
   return (
     <Dialog
-      open
-      onOpenChange={(open) => !open && !create.isPending && onDone()}
+      open={open}
+      onOpenChange={(next) => !next && !create.isPending && onDone()}
       title={t('image.assets.newAsset')}
       description={t('image.assets.bodyPlaceholder')}
       footer={
@@ -279,14 +292,13 @@ export default function ImageAssetsPage() {
         )}
       </ListToolbar>
 
-      {creating && tab === 'prompts' ? (
-        <PromptEditor
-          onDone={() => {
-            setCreating(false);
-            queryClient.invalidateQueries({ queryKey: ['image-assets'] });
-          }}
-        />
-      ) : null}
+      <PromptEditor
+        open={creating && tab === 'prompts'}
+        onDone={() => {
+          setCreating(false);
+          queryClient.invalidateQueries({ queryKey: ['image-assets'] });
+        }}
+      />
 
       {tab === 'prompts' && prompts.isError ? (
         <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>

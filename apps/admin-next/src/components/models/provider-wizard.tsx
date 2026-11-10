@@ -11,6 +11,7 @@ import {
   WizardModelsStep,
 } from '@/components/models/provider-wizard-steps';
 import { useDraftSelection } from '@/components/models/use-draft-selection';
+import { useOpenSession } from '@/hooks/use-open-session.ts';
 import type {
   CreateProviderRequest,
   DiscoveredModel,
@@ -57,6 +58,10 @@ export function ProviderWizard({
   const write = useProviderWrite();
   const presets = useQuery({ ...providerPresetsQuery, enabled: open });
   const selection = useDraftSelection();
+  // Discovery and lookup can be abandoned by closing the wizard, and they still
+  // answer. Each request carries the session it started in, so a late answer
+  // cannot put one wizard's models or error into the next.
+  const session = useOpenSession(open);
 
   const [sessionKey, setSessionKey] = useState(formKey);
   const [step, setStep] = useState<WizardStep>('connection');
@@ -104,7 +109,7 @@ export function ProviderWizard({
   };
 
   const discover = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (_startedIn: number) => {
       const payload = headerValues(headers);
       if (payload.error !== null) {
         throw new Error(payload.error);
@@ -118,17 +123,22 @@ export function ProviderWizard({
         ...(payload.values === undefined ? {} : { headers: payload.values }),
       });
     },
-    onSuccess: (result) => {
+    onSuccess: (result, startedIn) => {
+      if (startedIn !== session.current) {
+        return;
+      }
       setFetchError(null);
       selection.replaceDrafts(result.models);
     },
-    onError: (error) => {
-      setFetchError(error);
+    onError: (error, startedIn) => {
+      if (startedIn === session.current) {
+        setFetchError(error);
+      }
     },
   });
 
   const lookup = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (_startedIn: number) => {
       const parsed = parseModelIds(ids);
       if (parsed.length === 0) {
         throw new Error(t('models.models.wizard.enterModelId'));
@@ -136,12 +146,17 @@ export function ProviderWizard({
       const result = await lookupModelMetadata({ ...connection, ids: parsed });
       return result.models.map((draft) => ({ ...draft, configured: false }));
     },
-    onSuccess: (models) => {
+    onSuccess: (models, startedIn) => {
+      if (startedIn !== session.current) {
+        return;
+      }
       setFetchError(null);
       selection.replaceDrafts(models);
     },
-    onError: (error) => {
-      setFetchError(error);
+    onError: (error, startedIn) => {
+      if (startedIn === session.current) {
+        setFetchError(error);
+      }
     },
   });
 
@@ -214,7 +229,9 @@ export function ProviderWizard({
       <Dialog
         open={open}
         onOpenChange={(next) => {
-          if (!next) {
+          // A create in flight closes the wizard when it lands; it must land in
+          // the wizard that started it.
+          if (!next && !create.isPending) {
             onOpenChange(false);
           }
         }}
@@ -293,11 +310,11 @@ export function ProviderWizard({
               fetchError={fetchError}
               onFetch={() => {
                 setFetchError(null);
-                discover.mutate();
+                discover.mutate(session.current);
               }}
               onLookup={() => {
                 setFetchError(null);
-                lookup.mutate();
+                lookup.mutate(session.current);
               }}
               selection={selection}
               onEdit={openConfirm}

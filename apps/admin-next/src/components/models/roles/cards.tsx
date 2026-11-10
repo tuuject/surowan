@@ -10,6 +10,7 @@ import { FormActionBar } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import type { ChatThinkingReset, ThinkingLevel } from '@/lib/api/models.ts';
 import type { ProvidersView } from '@/lib/api/providers.ts';
+import { errorMessage } from '@/lib/errors.ts';
 import { applyFeedback, isThinkingLevel, supportedThinkingLevels, writeErrorMessage } from '@/lib/model-manager.ts';
 import { providersQuery } from '@/lib/queries.ts';
 import { toast } from '@/lib/toast.ts';
@@ -20,6 +21,7 @@ import {
   draftRoles,
   editLevel,
   editModel,
+  editsAfterSave,
   INHERIT,
   modelForKey,
   type RoleEdits,
@@ -29,6 +31,11 @@ import { configuredPlaceholder, ModelSelect } from './model-select.tsx';
 import { RolesSaveError, type RolesSaveResult, saveRoles } from './save.ts';
 import { ThinkingResetDialog } from './thinking-reset-dialog.tsx';
 import type { ModelRole } from './writes.ts';
+
+interface RolesSave {
+  readonly snapshot: ProvidersView;
+  readonly target: RolesDraft;
+}
 
 /**
  * The Models page form, laid out like the Koi admin template's settings pages:
@@ -49,43 +56,52 @@ export function RolesForm({ view }: { readonly view: ProvidersView }): ReactElem
   const count = changeCount(view, draft);
   const changed = new Set(changedRoles(view, draft));
 
+  const [refreshError, setRefreshError] = useState<unknown>(null);
+
   // The edits of the roles that went through give way to the file only once
-  // the refreshed view is in, so the controls never flash the old values.
-  const settle = async (result: RolesSaveResult): Promise<void> => {
-    await queryClient.refetchQueries({ queryKey: providersQuery.queryKey }, { cancelRefetch: false });
-    setEdits((previous) => {
-      const next = { ...previous };
-      for (const role of result.saved) {
-        delete next[role];
-      }
-      return next;
-    });
+  // the refreshed view is in, so the controls never flash the old values. If
+  // that read fails the view is still the old file: dropping the edits then
+  // would show the old values as saved, so they stay and the failure is shown.
+  const settle = async (result: RolesSaveResult, sent: RolesSave): Promise<void> => {
     setResets(result.resets);
     setResetsOpen(result.resets.length > 0);
+    try {
+      await queryClient.fetchQuery({ ...providersQuery, staleTime: 0 });
+    } catch (error) {
+      setRefreshError(error);
+      return;
+    }
+    setEdits((previous) => editsAfterSave(previous, sent.snapshot, sent.target, result.saved));
   };
 
   const save = useMutation({
-    mutationFn: ({ snapshot, target }: { readonly snapshot: ProvidersView; readonly target: RolesDraft }) =>
-      saveRoles(snapshot, target),
-    onSuccess: async (result) => {
+    mutationFn: ({ snapshot, target }: RolesSave) => saveRoles(snapshot, target),
+    onSuccess: async (result, sent) => {
       const feedback = applyFeedback(result.apply);
       toast.success(feedback.title, { description: feedback.description });
       write.refresh();
-      await settle(result);
+      await settle(result, sent);
     },
-    onError: async (error) => {
+    onError: async (error, sent) => {
       write.failed(error);
       if (error instanceof RolesSaveError) {
-        await settle(error.result);
+        await settle(error.result, sent);
       }
     },
   });
 
-  const saveError = !save.isError
-    ? null
-    : save.error instanceof RolesSaveError && save.error.result.saved.size > 0
-      ? t('models.models.roles.form.partial', { message: writeErrorMessage(save.error.cause) })
-      : writeErrorMessage(save.error instanceof RolesSaveError ? save.error.cause : save.error);
+  const saveError = ((): string | null => {
+    if (save.isError) {
+      const cause = save.error instanceof RolesSaveError ? save.error.cause : save.error;
+      const partial = save.error instanceof RolesSaveError && save.error.result.saved.size > 0;
+      return partial
+        ? t('models.models.roles.form.partial', { message: writeErrorMessage(cause) })
+        : writeErrorMessage(cause);
+    }
+    return refreshError === null
+      ? null
+      : t('models.models.roles.form.refreshFailed', { message: errorMessage(refreshError) });
+  })();
 
   const status =
     count > 0 ? (
@@ -110,6 +126,7 @@ export function RolesForm({ view }: { readonly view: ProvidersView }): ReactElem
       onSubmit={(event) => {
         event.preventDefault();
         if (count > 0 && !save.isPending) {
+          setRefreshError(null);
           save.mutate({ snapshot: view, target: draft });
         }
       }}
@@ -232,6 +249,7 @@ export function RolesForm({ view }: { readonly view: ProvidersView }): ReactElem
         discardDisabled={count === 0}
         onDiscard={() => {
           save.reset();
+          setRefreshError(null);
           setEdits({});
         }}
       />
