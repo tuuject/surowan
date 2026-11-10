@@ -72,7 +72,8 @@ node src/cli.ts doctor --config dev-data/config.jsonc
 - `configure`：`src/tui/` 的交互式配置向导，编辑既有配置的 Provider 与 thinking level，可从 Provider `/models` 拉取可路由模型 ID 后写回原文件。要求已存在可加载的配置且 stdin 是 TTY，非交互环境直接报错退出——agent 不要调用它。
 - `admin:build`：构建 `apps/admin-next` 生产 bundle（`apps/admin-next/dist`），供 `serve` 静态托管。
 - `admin:test:e2e`：Playwright 浏览器 E2E（`apps/admin-next/e2e`），驱动 `admin:build` 产物与真实 AdminServer 子进程，首次运行前需安装 Chromium；CI 的 Docker workflow 构建后会运行同一套件。命令细节与单套件过滤见 [verification.md](verification.md#admin-panel-浏览器-e2e)。
-- `admin:dev`：启动 Vite dev server（监听 127.0.0.1:5273），`/api` 代理到运行中的 Admin Panel。
+- `admin:dev`：启动 Vite dev server（监听 127.0.0.1:5273），`/api/` 默认代理到 127.0.0.1:8787，也可用 `ADMIN_API_TARGET` 指向已运行的 Admin Panel。
+- `admin:dev:mock`：一键启动 E2E 测试后端与 Vite 热更新，打开 http://127.0.0.1:5273 即可调试前端；无需 `serve`、真实配置、Provider/Telegram 凭据或预先 `admin:build`。后端复用 `apps/admin-next/e2e/server.ts`，使用回环随机端口与预置测试数据，临时 SQLite/配置不接触 `dev-data/`；首次访问按页面设置临时管理员，不绕过认证。`Ctrl+C` 同时关闭两端并清理临时数据，下次启动重新初始化；5273 被占用则报错退出，不终止已有进程。仅用于本机调试，不对外暴露测试钩子；模型等外部能力仍是测试替身，不代表真实服务验收。
 - `docs:*`：独立静态文档站；`dev`/`preview` 监听 127.0.0.1:5274，`build` 输出 `apps/docs/dist`，`verify` 检查生产 HTML/Markdown/llms 与 HTTP。维护及部署边界见 [apps/docs/README.md](../apps/docs/README.md)。用户可见行为、配置或运维改变时，同步更新相关指南、示例与测试，不把 `agent-doc/` 自动发布到站点。
 
 ## Coding Agent Skills

@@ -119,6 +119,7 @@ node src/cli.ts configure --config dev-data/config.jsonc
 pnpm run admin:build
 pnpm run admin:test:e2e
 pnpm run admin:dev
+pnpm run admin:dev:mock
 pnpm run docs:dev
 pnpm run docs:build
 pnpm run docs:verify

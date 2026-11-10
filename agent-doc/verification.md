@@ -294,7 +294,10 @@ pnpm run admin:test:e2e 08-models 16-model-health 18-tool-model 27-model-roles  
 pnpm run admin:test:e2e 17-dictionary 18-tool-model  # 辞典页与 Tool Model 回归
 pnpm run admin:test:e2e 20-playground  # Playground 房间 API 与页面回归
 pnpm run admin:test:e2e 22-search-settings  # 网络搜索设置页与保存流程
+pnpm run admin:test:e2e 30-dev-mock --workers=1  # 一键 mock 调试命令、Vite 代理认证与退出清理
 ```
+
+`30-dev-mock.e2e.ts` 使用固定的 127.0.0.1:5273，运行前须停止占用该端口的开发服务器；不终止其它进程。它通过真实 Vite 页面验证首次设置管理员、测试数据列表、Vite 热更新客户端与 Origin 保护，并验证 stdin EOF、端口冲突、后端意外退出时的两端收尾；生成消息页截图与 `mock-dev-lifecycle` JSON 验收产物，保存在 `playwright.config.ts` 的 `outputDir`（系统临时目录下 `surowan-admin-e2e-results`）中。
 
 `20-playground.e2e.ts` 用真实 `AdminServer` + 房间写入路径驱动：匿名与无效 key 401、只读 API key 能列房间但建房得 403、请求 key 幂等建房、房间之间的 ID 隔离、上传校验与内容读取（页面部分随 Playground 页面一并断言）。夹具 `e2e/server.ts` 在仿真数据里额外建两个房间并放入一条 held 消息，规格通过 `GET /__e2e/playground-seed` 取用它们的 ID，不依赖自增主键。
 

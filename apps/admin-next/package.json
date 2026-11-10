@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:mock": "node dev-mock.ts",
     "build": "vite build",
     "preview": "vite preview",
     "check": "tsc --noEmit",

@@ -18,6 +18,7 @@
     "start": "node src/cli.ts serve",
     "dev:seed": "node scripts/seed-dev-data.ts",
     "admin:dev": "pnpm --filter surowan-admin-next run dev",
+    "admin:dev:mock": "pnpm --filter surowan-admin-next run dev:mock",
     "admin:build": "pnpm --filter surowan-admin-next run build",
     "admin:test:e2e": "pnpm --filter surowan-admin-next run test:e2e",
     "docs:dev": "pnpm --filter surowan-docs run dev",
