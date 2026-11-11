@@ -1,4 +1,4 @@
-import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
+import type { RuntimeConfiguration, RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import type { MemoBlobStore } from '../../../context/memo-pad/blobs.ts';
 import type { BucketScheduler } from '../../../orchestration/scheduler/index.ts';
 import type { ConfigController, ConfigEdit } from '../../../platform/config/write.ts';
@@ -7,6 +7,12 @@ import type { BusinessStore } from '../../../store/store.ts';
 import { telegramChatIdentity } from '../../../store/chat-identity.ts';
 import { json, readJsonObject, requiredRevision, revisionRequired } from '../http.ts';
 import { CONFIG_WRITE_STATUS, readConfigFile } from '../config-file.ts';
+import {
+  abortInvocationsLeavingModel,
+  invocationsLeavingModel,
+  withChatModel,
+} from '../../../orchestration/model-switch.ts';
+import { modelInUseBody } from '../model-switch.ts';
 import {
   createChat,
   deleteChat,
@@ -49,7 +55,7 @@ export function createChatsAdminHandler(deps: ChatsAdminDeps) {
     );
   };
 
-  const chats = async (request: Request, segments: readonly string[]): Promise<Response> => {
+  const writeChats = async (request: Request, segments: readonly string[]): Promise<Response> => {
     const reloader = configReloader;
     if (reloader === undefined) {
       return json({ error: 'chats_unavailable', message: 'Chat management is not wired' }, 503);
@@ -78,28 +84,62 @@ export function createChatsAdminHandler(deps: ChatsAdminDeps) {
     }
     const deletingChatId = request.method === 'DELETE' ? BigInt(parseChatId(segments[1] ?? '')) : undefined;
     let edits: readonly ConfigEdit[];
+    // Set when the admin agreed to stop the runs this write leaves on the
+    // Chat's old model.
+    let switchedFrom: { readonly before: RuntimeConfiguration; readonly chatId: number } | undefined;
     if (request.method === 'POST') {
       edits = createChat(loaded.fileConfig, parseCreateChat(await readJsonObject(request)));
     } else {
       const id = parseChatId(segments[1] ?? '');
-      edits =
-        request.method === 'DELETE'
-          ? deleteChat(loaded.fileConfig, id)
-          : segments[2] === 'participation'
-            ? updateChatParticipation(loaded.fileConfig, id, parseParticipation(await readJsonObject(request)))
-            : segments[2] === 'group-memory'
-              ? updateChatGroupMemory(loaded.fileConfig, id, parseGroupMemory(await readJsonObject(request)))
-              : segments[2] === 'proactive-reply'
-                ? updateChatProactiveReply(loaded.fileConfig, id, parseProactiveReply(await readJsonObject(request)))
-                : updateChat(loaded.fileConfig, id, parseChatSettings(await readJsonObject(request)));
+      if (request.method === 'DELETE') {
+        edits = deleteChat(loaded.fileConfig, id);
+      } else if (segments[2] === 'participation') {
+        edits = updateChatParticipation(loaded.fileConfig, id, parseParticipation(await readJsonObject(request)));
+      } else if (segments[2] === 'group-memory') {
+        edits = updateChatGroupMemory(loaded.fileConfig, id, parseGroupMemory(await readJsonObject(request)));
+      } else if (segments[2] === 'proactive-reply') {
+        edits = updateChatProactiveReply(loaded.fileConfig, id, parseProactiveReply(await readJsonObject(request)));
+      } else {
+        const body = parseChatSettings(await readJsonObject(request));
+        edits = updateChat(loaded.fileConfig, id, body);
+        const before = configStore.current();
+        // The write applies the whole file, so a pending edit to the global
+        // model already decides what inheriting this Chat runs on. Resolve the
+        // candidate that will be published, not the active configuration.
+        const using = invocationsLeavingModel(
+          store.orm,
+          before.config,
+          withChatModel(loaded.config, id, body.provider, body.model),
+          scheduler,
+          { configuredChatId: id },
+        );
+        if (using.length > 0 && body.abort_running !== true) {
+          return json(modelInUseBody(using.length), 409);
+        }
+        if (body.abort_running === true) {
+          switchedFrom = { before, chatId: id };
+        }
+      }
     }
     // The revision pins the ID-to-array-index mapping even if another writer reorders the file.
     const result = await reloader.writeAndApply(edits, revision);
+    // `publish_incomplete` means the hook after publication failed: the new
+    // configuration is already active, so a confirmed stop still has to run.
+    const published = switchedFrom !== undefined && configStore.current().hash !== switchedFrom.before.hash;
+    const aborted =
+      switchedFrom === undefined || (!result.ok && !published)
+        ? 0
+        : abortInvocationsLeavingModel(store.orm, configStore, scheduler, switchedFrom.before.config, {
+            configuredChatId: switchedFrom.chatId,
+          });
     if (!result.ok) {
       const message = result.fileWritten
         ? `config.jsonc was updated but not applied: ${result.message}`
         : result.message;
-      return json({ error: result.code, message }, CONFIG_WRITE_STATUS[result.code] ?? 409);
+      return json(
+        { error: result.code, message, aborted_invocations: aborted },
+        CONFIG_WRITE_STATUS[result.code] ?? 409,
+      );
     }
     if (deletingChatId !== undefined) {
       const stillAuthorized = () => {
@@ -145,8 +185,25 @@ export function createChatsAdminHandler(deps: ChatsAdminDeps) {
     }
     return json({
       ...(await chatsView(reloader)),
+      aborted_invocations: aborted,
       apply: { applied: result.applied, restart_required: result.restartRequired, outside_serve: result.outsideServe },
     });
+  };
+
+  /**
+   * A Chat settings write publishes a model change inside `writeAndApply`. The
+   * fence is held from before its preflight until the confirmed cancellation
+   * ran, so a queued run cannot start on the old model in that interval and
+   * escape both the refusal and the stop.
+   */
+  const chats = async (request: Request, segments: readonly string[]): Promise<Response> => {
+    const modelWrite = request.method === 'PUT' && segments.length === 2;
+    const releaseLaunches = modelWrite ? scheduler?.fenceLaunches() : undefined;
+    try {
+      return await writeChats(request, segments);
+    } finally {
+      releaseLaunches?.();
+    }
   };
 
   return {

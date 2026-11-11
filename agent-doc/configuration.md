@@ -31,8 +31,9 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 
 | 路径 | 说明 |
 | --- | --- |
-| `agent.provider`、`agent.model` | 永远热更新：目标 Provider 可以是同一次修改里新增的，reload 会重建模型注册表并随配置一起发布 |
+| `agent.provider`、`agent.model` | 永远热更新：目标 Provider 可以是同一次修改里新增的，reload 会重建模型注册表并随配置一起发布。手改文件后应用时，运行中的 Invocation 用完自己的快照；Admin Panel 切换（全局与按 Chat，经确认）与 Telegram `/model`（直接）立即中止仍在旧模型上的 Invocation，见 [admin-panel.md](admin-panel.md#模型切换立即生效) |
 | `agent.system_prompt_file` | 路径或文件内容变化都算；内容变化会重建每个 Conversation 的 Context；可在面板编辑并保留版本历史 |
+| `models_dev`、`models_dev.api_url` | 面板添加模型时查询元数据的目录地址；每次查询都读当前发布的配置，缓存按地址分开，改动后下一次查询即生效 |
 | `developer`、`developer.record_model_payloads`、`developer.record_agent_thinking` | 可选节/字段的增删都热应用，缺省为 `false`；每次模型调用读取当前开关，关闭时后续快照回调停止写入。`record_model_payloads` 开启时会在看板与警告页持续产生常态警告 |
 | 其余全部 agent 字段（逐项列在 `HOT_PATHS`，`agent.context.*` 与 `agent.rate_limits.*` 按前缀）：`thinking_level`、`context_stop_ratio`、`send_max_text_length`、`send_disallow_blank_lines`、`send_nudge_enabled`、`send_barrier_enabled`、`allow_reply_message_multiple_times`、`send_duplicate_guard_enabled`、`send_empty_text_strategy`、`send_empty_text_fallback_enabled`（仅为兼容旧配置保留）、`send_empty_text_fallback_texts`、`daily_budget.max_tokens`、`max_concurrency`、`history_messages`、`memory_ttl_warning_days`、`context.*`、`rate_limits.*`。除模型选择、Prompt 与仅为兼容保留的 `memory_ttl_warning_days` 外都可在 Admin「Harness tuning」页编辑 | 下一次 Invocation 使用新值；运行中的 Invocation 继续用它启动时的快照。例外都在运行期读取当前发布的配置：`daily_budget.max_tokens`（调低后下一次模型调用立即被拦截）；`context.ref_ttl_hours`（发布之后签发或续期的引用使用新 TTL，已签发引用保留原到期时间）；`context.agent_cache_size`（下一次缓存 agent 时按新上限逐出，调小不丢历史） |
 | `telegram.chats`（**新增或删除** Chat，整项 `{ id, … }`） | 立即生效：ingestion 白名单、参与策略注册表与 `resolveChatConfig` 都读发布后的配置并按代数重建/直读，无需重启。删除还会在发布时停止该 Chat 的 running Invocation 与长任务（`chat_removed`）并强制其 Memo 列表刷新，但**不删除**已存数据（面板的 Admin 删除才删）。已有 Chat 的其它字段修改与 Topic 范围仍是 restart |
@@ -133,6 +134,7 @@ command SecretRef：
 | `mcp` | 可选的 stdio/Streamable HTTP Server |
 | `admin` | 必填的 Admin Panel（审计只读 + 受控管理写端点）；`enabled` 可省略，缺省为 `true` |
 | `developer` | 可选的开发者调试配置；`record_model_payloads` 与 `record_agent_thinking` 均缺省为 `false` |
+| `models_dev` | 可选；`api_url` 是面板添加模型时读取模型元数据（上下文、输出上限、多模态、价格）的目录地址，缺省 `https://models.dev/api.json`，必须是不带凭据与 fragment 的 HTTP(S) 地址，镜像须返回相同格式；可在 Admin「Developer」页修改 |
 | `image` | 可选的图片生成，见 [Image 生成](#image-生成) |
 | `web_fetch` | 可选的 `web_fetch` 设置，见 [web_fetch](#web_fetch) |
 | `retention` | 审计/调度数据的在线保留天数、备份份数与已读警告保留天数（可选 `warning_read_days`，缺省 30 天；改动后需重启生效）。聊天消息、Revision、Media、Conversation Context 与原始 Update 不参与该清理 |

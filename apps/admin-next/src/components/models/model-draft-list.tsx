@@ -8,7 +8,13 @@ import { MonoValue, ToneBadge } from '@/components/business';
 import { EditIcon } from '@/components/icons';
 import type { DiscoveredModel, ProviderModelConfig } from '@/lib/api/providers.ts';
 import { formatNumber } from '@/lib/format.ts';
-import { draftNeedsConfirmation, matchLabel, modalityLabel, unconfirmedFields } from '@/lib/model-manager.ts';
+import {
+  draftNeedsConfirmation,
+  matchLabel,
+  modalityLabel,
+  reasoningDefaulted,
+  unconfirmedFields,
+} from '@/lib/model-manager.ts';
 
 /**
  * One drafted value; a field nobody could fill reads `—`. The label stays
@@ -149,6 +155,14 @@ export function ModelDraftList({
                       />
                     ) : null}
                   </p>
+                  {/* Saving such a model never waits for a confirmation, so the
+                      row says what it will be saved as. A confirmed draft
+                      carries the admin's own choice instead. */}
+                  {reasoningDefaulted(draft) && !confirmed ? (
+                    <p className={css({ textStyle: 'small', color: 'warning-text' })}>
+                      {t('models.models.drafts.reasoningDefaulted')}
+                    </p>
+                  ) : null}
                   {/* Where the row came from, once — instead of repeating the
                       same source after every value. It wraps rather than
                       truncates: a dialog's grid track sizes to max-content, so

@@ -1,5 +1,5 @@
 import { call, writeHeaders } from './core.ts';
-import type { ModelApplySummary, ThinkingLevel } from './models.ts';
+import type { AbortRunningOption, ModelApplySummary, ThinkingLevel } from './models.ts';
 import type { AgentModelReference, ProviderModelReference } from './providers.ts';
 
 export interface ParticipationWindow {
@@ -89,6 +89,8 @@ export interface ChatsView {
 
 export interface ChatWriteResponse extends ChatsView {
   readonly apply: ModelApplySummary;
+  /** Invocations an update stopped because they still ran on the replaced model. */
+  readonly aborted_invocations?: number;
 }
 
 export function getChats(): Promise<ChatsView> {
@@ -103,7 +105,11 @@ export function createChat(body: ChatSettings & { readonly id: string }, revisio
   });
 }
 
-export function updateChat(id: string, body: ChatSettings, revision: string): Promise<ChatWriteResponse> {
+export function updateChat(
+  id: string,
+  body: ChatSettings & AbortRunningOption,
+  revision: string,
+): Promise<ChatWriteResponse> {
   return call<ChatWriteResponse>(`/chats/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: writeHeaders(revision),

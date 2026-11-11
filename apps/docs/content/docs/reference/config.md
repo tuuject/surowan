@@ -21,6 +21,7 @@ description: 按配置节理解 Surowan 的必填项、覆盖关系与运行风�
 | `web_search` | 可选节：内置网络搜索。总开关、多个搜索引擎（服务商、地址、密钥、条数、超时、备注）与 URL 正则过滤；整段省略即不启用，所有字段热更新。模型只用它发现来源，正文由 `web_fetch` 读取。 |
 | `admin` | 必填的本地管理面板；`enabled` 可省略，默认 `true`，修改后重启。显式关闭面板且 Telegram 停用时服务拒绝启动。 |
 | `developer` | 可选调试设置；`record_model_payloads` 与 `record_agent_thinking` 均可省略，默认 `false`，可热应用。详见[Developer 页面](../configure/admin-developer.md#developer-调试开关)。 |
+| `models_dev` | 可选：`api_url` 是在管理面板添加模型时查询模型参数的目录地址，默认 `https://models.dev/api.json`，镜像须返回相同格式；可热应用，也可在 [Developer 页面](../configure/admin-developer.md#模型参数来源)修改。 |
 | `mcp` | 受限 stdio 或 Streamable HTTP Tool；修改后重启。 |
 | `retention` | 在线保留天数与备份份数，仅下次备份使用。 |
 

@@ -9,7 +9,7 @@ export const TUNING_SPECS: readonly EndpointSpec[] = [
     command: 'developer show',
     method: 'GET',
     path: 'developer',
-    summary: 'Show the file and active values of the two debug recording switches',
+    summary: 'Show the file and active values of the debug recording switches and the model metadata catalog address',
   },
   {
     command: 'developer update',
@@ -17,7 +17,7 @@ export const TUNING_SPECS: readonly EndpointSpec[] = [
     path: 'developer',
     body: true,
     revision: 'config',
-    summary: 'Save and hot-apply the debug recording switches',
+    summary: 'Save and hot-apply the debug recording switches and the model metadata catalog address (models_dev_url)',
   },
   {
     command: 'developer clear-payloads',

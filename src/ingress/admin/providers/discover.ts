@@ -4,9 +4,10 @@
  */
 import { findBuiltinProvider, supportedBuiltinApi } from '../../../platform/builtin-providers.ts';
 import { resolveModelDrafts } from '../../../platform/models/metadata.ts';
-import { loadModelsDevCatalog, type ModelsDevCatalog } from '../../../platform/models-dev.ts';
+import { loadModelsDevCatalog, MODELS_DEV_URL, type ModelsDevCatalog } from '../../../platform/models-dev.ts';
 import { type DiscoveredProviderModel, fetchProviderModels } from '../../../platform/provider-models.ts';
 import { sameConnection } from '../../../platform/providers.ts';
+import type { RuntimeConfiguration } from '../../../platform/runtime-config.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
 import { AdminQueryError } from '../audit/shared.ts';
 import type {
@@ -21,7 +22,7 @@ import { discoveryApi, providerOf, registerSecrets } from './read.ts';
 export async function discover(context: ProviderWriteContext, body: DiscoverBody): Promise<DiscoverResponse> {
   const request = await discoveryRequest(context, body);
   const listing = await fetchProviderModels(request.request);
-  const catalog = await loadCatalog(context.secrets);
+  const catalog = await loadCatalog(context.snapshot, context.secrets);
   const drafts = resolveModelDrafts(request.descriptor, listing.models, catalog.catalog);
   const configured = new Set(
     (request.alias === undefined ? [] : (context.file.providers[request.alias]?.models ?? [])).map((model) => model.id),
@@ -43,10 +44,16 @@ interface CatalogLoad {
  * to "every field models.dev would have filled is missing" instead of failing
  * the request: the admin still sees the provider's own listing and can confirm
  * or type the rest.
+ *
+ * The address is read from the active snapshot on every lookup, so a hot
+ * `models_dev.api_url` change takes effect on the next one.
  */
-async function loadCatalog(secrets: SecretStore): Promise<CatalogLoad> {
+async function loadCatalog(snapshot: RuntimeConfiguration, secrets: SecretStore): Promise<CatalogLoad> {
   try {
-    return { catalog: await loadModelsDevCatalog(), error: null };
+    return {
+      catalog: await loadModelsDevCatalog({ url: modelsDevUrl(snapshot) }),
+      error: null,
+    };
   } catch (error) {
     return { catalog: {}, error: secrets.redact(error instanceof Error ? error.message : String(error)) };
   }
@@ -174,15 +181,24 @@ async function discoveryRequest(context: ProviderWriteContext, body: DiscoverBod
   };
 }
 
+/** The catalog address the running process uses: the configured one, else models.dev. */
+export function modelsDevUrl(snapshot: RuntimeConfiguration): string {
+  return snapshot.config.models_dev?.api_url ?? MODELS_DEV_URL;
+}
+
 /** Metadata for ids the admin typed in, for endpoints with no listing to read. */
-export async function lookupMetadata(body: LookupMetadataBody, secrets: SecretStore): Promise<LookupMetadataResponse> {
+export async function lookupMetadata(
+  body: LookupMetadataBody,
+  snapshot: RuntimeConfiguration,
+  secrets: SecretStore,
+): Promise<LookupMetadataResponse> {
   const descriptor = await lookupDescriptor(body);
   const models: DiscoveredProviderModel[] = body.ids.map((id) => ({
     id,
     name: null,
     extension: { format: 'openai' },
   }));
-  const catalog = await loadCatalog(secrets);
+  const catalog = await loadCatalog(snapshot, secrets);
   return { models: resolveModelDrafts(descriptor, models, catalog.catalog), metadata_source_error: catalog.error };
 }
 

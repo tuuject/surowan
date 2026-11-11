@@ -13,8 +13,9 @@ import {
 /**
  * The Providers page against the real `AdminServer`: provider list and detail,
  * write-only credentials, applying a builtin key without a restart, and the
- * discovery dialog (saved mode against a loopback upstream started by
- * `e2e/server.ts`) plus the thinking effort it enables on the Models page.
+ * discovery dialog (which fetches with the saved key as soon as it opens,
+ * against a loopback upstream started by `e2e/server.ts`) plus the thinking
+ * effort it enables on the Models page.
  * Every write goes through the UI and is verified against the API afterwards.
  */
 test.use({ signedIn: true });
@@ -82,23 +83,18 @@ test.describe('providers page', () => {
     // such as `admin.port` may still be pending from earlier tests.)
     expect(view.restart_required.filter((path: string) => path.startsWith('providers.'))).toEqual([]);
     expect(JSON.stringify(view)).not.toContain('e2e-rotated-builtin-key');
-
-    // The applied connection is live in the running registry, so the discovery
-    // dialog opens in saved mode instead of demanding the key again.
-    await page.getByRole('button', { name: 'Fetch models' }).click();
-    await expect(page.getByRole('button', { name: 'Use a different API key' })).toBeVisible();
-    await expect(page.locator('#picker-api-key')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Cancel' }).click();
   });
 
-  test('discovery resolves metadata from the local upstream and blocks unconfirmed drafts', async ({ page }) => {
+  test('discovery fetches on open, fills matched details and asks only for missing key fields', async ({ page }) => {
     await page.goto(await adminUrl('/providers'));
     await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` }).click();
     await page.getByRole('button', { name: 'Fetch models' }).click();
 
-    // Saved mode: the running registry's connection, which points at the loopback upstream.
-    await page.getByRole('button', { name: 'Fetch', exact: true }).click();
+    // The listing comes in on its own, with the saved connection and key, which
+    // point at the loopback upstream. There is no key to type.
     await expect(page.getByText('Requested from:')).toBeVisible();
+    await expect(page.locator('#picker-api-key')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Use a different API key' })).toHaveCount(0);
 
     const completeRow = page.locator('li').filter({ hasText: E2E_RELAY_COMPLETE_MODEL });
     const incompleteRow = page.locator('li').filter({ hasText: E2E_RELAY_INCOMPLETE_MODEL });
@@ -106,21 +102,21 @@ test.describe('providers page', () => {
     await expect(incompleteRow).toBeVisible();
     // models.dev lists a toggle plus three efforts for the known model.
     await expect(completeRow.getByText('off / low / high / max')).toBeVisible();
-    // The relay's own host is unknown to models.dev, so even the model it does
-    // know was matched under another provider and has to be confirmed.
-    await expect(completeRow.getByText('to confirm', { exact: false })).toBeVisible();
-    // Every field of the second model is missing, so it cannot be taken as it is.
-    await expect(incompleteRow.getByText('to confirm', { exact: false })).toBeVisible();
+    // The relay's host is unknown to models.dev, but the model id is exact: its
+    // details are taken as they are, with nothing to confirm.
+    await expect(completeRow.getByText('to confirm', { exact: false })).toHaveCount(0);
+    // The second model is unknown: its three key fields are missing, and its
+    // thinking support is assumed off, which the row says.
+    await expect(incompleteRow.getByText('3 to confirm', { exact: true })).toBeVisible();
+    await expect(incompleteRow.getByText("Couldn't find whether this model thinks", { exact: false })).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath('discovery-drafts.png'), animations: 'disabled' });
 
     await page.getByLabel(`Select ${E2E_RELAY_COMPLETE_MODEL}`).check();
+    await expect(page.getByRole('button', { name: 'Add 1 model' })).toBeEnabled();
     await page.getByLabel(`Select ${E2E_RELAY_INCOMPLETE_MODEL}`).check();
     await expect(page.getByRole('button', { name: /Add \d+ models/ })).toBeDisabled();
-
-    // Accepting the listed values covers the draft that has them all; the one
-    // with empty fields still has to go through the dialog.
-    await page.getByRole('button', { name: 'Accept these values (1)' }).click();
-    await expect(completeRow.getByText('Confirmed')).toBeVisible();
-    await expect(page.getByRole('button', { name: /Add \d+ models/ })).toBeDisabled();
+    // A missing limit cannot be accepted as listed: it has to be typed in.
+    await expect(page.getByRole('button', { name: /Accept these values/ })).toHaveCount(0);
 
     await incompleteRow.getByRole('button', { name: 'Edit' }).click();
     await expect(page.getByText('Confirm or fill in:', { exact: false })).toBeVisible();
@@ -130,10 +126,8 @@ test.describe('providers page', () => {
       .getByRole('dialog', { name: `Confirm ${E2E_RELAY_INCOMPLETE_MODEL}` })
       .getByRole('checkbox', { name: 'Text', exact: true })
       .check();
-    await page.locator('#model-cost-input').fill('0.1');
-    await page.locator('#model-cost-output').fill('0.2');
-    await page.locator('#model-cost-cache_read').fill('0');
-    await page.locator('#model-cost-cache_write').fill('0');
+    // No price anywhere: 0, already filled in.
+    await expect(page.locator('#model-cost-input')).toHaveValue('0');
     await page.getByRole('button', { name: 'Save' }).click();
 
     await expect(incompleteRow.getByText('Confirmed')).toBeVisible();
@@ -147,7 +141,21 @@ test.describe('providers page', () => {
       expect.arrayContaining([E2E_RELAY_COMPLETE_MODEL, E2E_RELAY_INCOMPLETE_MODEL]),
     );
     const complete = relay.models.find((model: { id: string }) => model.id === E2E_RELAY_COMPLETE_MODEL);
-    expect(complete.thinking_levels).toEqual(['off', 'low', 'high', 'max']);
+    expect(complete).toMatchObject({
+      thinking_levels: ['off', 'low', 'high', 'max'],
+      context_window: 200_000,
+      max_tokens: 32_768,
+      input: ['text', 'image'],
+      // The relay's own price is unknown: the highest one models.dev lists.
+      cost: { input: 0.5, output: 1.5, cache_read: 0.05, cache_write: 0.5 },
+    });
+    const incomplete = relay.models.find((model: { id: string }) => model.id === E2E_RELAY_INCOMPLETE_MODEL);
+    expect(incomplete).toMatchObject({
+      reasoning: false,
+      context_window: 64_000,
+      max_tokens: 8_192,
+      cost: { input: 0, output: 0, cache_read: 0, cache_write: 0 },
+    });
     await expect(modelListRow(page, E2E_RELAY_COMPLETE_MODEL)).toBeVisible();
   });
 

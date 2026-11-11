@@ -44,11 +44,17 @@ export interface DeveloperSettings {
   readonly active_record_model_payloads: boolean;
   readonly record_agent_thinking: boolean;
   readonly active_record_agent_thinking: boolean;
+  /** The catalog address the file names; `null` means `default_models_dev_url`. */
+  readonly models_dev_url: string | null;
+  readonly active_models_dev_url: string | null;
+  readonly default_models_dev_url: string;
 }
 
 export interface DeveloperUpdate {
   readonly record_model_payloads?: boolean;
   readonly record_agent_thinking?: boolean;
+  /** `null` removes the address so lookups use models.dev again. */
+  readonly models_dev_url?: string | null;
 }
 
 export function getDeveloperSettings(): Promise<DeveloperSettings> {

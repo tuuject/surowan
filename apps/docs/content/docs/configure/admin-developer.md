@@ -1,6 +1,6 @@
 ---
 title: Developer 调试开关
-description: 记录模型请求报文与 Agent 思考过程的调试开关。
+description: 记录模型请求报文与 Agent 思考过程的调试开关，以及添加模型时查询参数的目录地址。
 ---
 
 # Developer 调试开关
@@ -26,3 +26,17 @@ Developer 页提供两个调试开关，都写回 `config.jsonc`，保存成功�
 「清除此前记录的原始请求报文」需要二次确认，只清除模型调用的请求/响应调试快照，不影响基于公开消息的场景重放。调用记录、关联关系和统计保留；详情页会显示报文未记录或已清除。记录开关仍开启时，新报文会继续保存。清除按批执行；若中途失败，已完成的批次不会恢复，可重试清除。清除不会删除 `thinking_text`：CoT 属于 Agent transcript 审计，随在线保留窗口一起清理。
 
 SQLite 释放的页可供后续写入复用，但数据库文件不一定立即缩小。此操作不会执行 `VACUUM`，也不清理已有备份；备份与恢复仍遵循[原有维护流程](../operations/backup-restore.md)。
+
+## 模型参数来源
+
+Developer 页底部的 **模型参数来源 / Model details source** 设置在供应商页添加模型时，从哪里查询上下文长度、最长输出、输入类型和价格。输入框留空就使用默认的 `https://models.dev/api.json`；填写镜像地址后点 **保存 / Save**，下一次获取模型列表或手动添加模型就会使用新地址，不需要重启。点 **恢复默认 / Use the default** 会删除这项设置。
+
+```jsonc
+{
+  "models_dev": {
+    "api_url": "https://models.dev/api.json"
+  }
+}
+```
+
+地址必须是不带用户名、密码和 `#` 片段的 HTTP(S) 地址，镜像必须返回与 models.dev 相同的 JSON 格式。查询失败时模型列表仍然可以获取，只是上下文长度、最长输出和输入类型需要手动填写。

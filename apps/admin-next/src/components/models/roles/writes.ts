@@ -5,7 +5,7 @@ import type { ChatThinkingReset, ThinkingLevel } from '@/lib/api/models.ts';
 import { switchAgentModel, switchVisionModel } from '@/lib/api/models.ts';
 import type { ProviderModelConfig, ProvidersView } from '@/lib/api/providers.ts';
 import { putToolModel } from '@/lib/api/tools.ts';
-import { isConfigConflict, supportedThinkingLevels, writeErrorMessage } from '@/lib/model-manager.ts';
+import { isConfigConflict, modelInUseCount, supportedThinkingLevels, writeErrorMessage } from '@/lib/model-manager.ts';
 import { providersQuery } from '@/lib/queries.ts';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
@@ -17,6 +17,9 @@ export interface ModelTarget {
   readonly alias: string;
   readonly model: string;
 }
+
+/** An Agent switch, once the admin agreed to stop the Invocations still on the old model. */
+type AgentTarget = ModelTarget & { readonly abortRunning?: boolean; readonly revision?: string };
 
 export type ToolTarget = { readonly inherit: true } | (ModelTarget & { readonly level: ThinkingLevel });
 
@@ -48,8 +51,11 @@ export function toolLevelFor(view: ProvidersView, config: ProviderModelConfig): 
 /**
  * The one-click role writes behind the Providers page's "Use as" toggles: each
  * saves at once. An Agent switch resets its effort and may reset per-Chat
- * efforts, which the caller lists in `ThinkingResetDialog`. The Models page
- * edits a draft instead and saves it through `saveRoles`.
+ * efforts, which the caller lists in `ThinkingResetDialog`. An Agent switch that
+ * Invocations are still running on is refused until the admin agrees to stop
+ * them, which the caller asks through `ModelSwitchConfirmDialog` with
+ * `agentInUse`. The Models page edits a draft instead and saves it through
+ * `saveRoles`.
  */
 export function useModelRoleWrites(view: ProvidersView | undefined) {
   const { t } = useTranslation();
@@ -59,6 +65,11 @@ export function useModelRoleWrites(view: ProvidersView | undefined) {
   // Opening is its own flag: closing only hides the dialog so the rows survive the
   // exit transition, and the next switch replaces both.
   const [thinkingResetsOpen, setThinkingResetsOpen] = useState(false);
+  const [agentInUse, setAgentInUse] = useState<{
+    readonly count: number;
+    readonly target: AgentTarget;
+  } | null>(null);
+  const [agentInUseOpen, setAgentInUseOpen] = useState(false);
 
   const failed = (error: unknown): void => {
     toast.error(writeErrorMessage(error));
@@ -66,14 +77,39 @@ export function useModelRoleWrites(view: ProvidersView | undefined) {
   };
 
   const agent = useMutation({
-    mutationFn: ({ alias, model }: ModelTarget) => switchAgentModel({ provider: alias, model }, revision),
+    mutationFn: ({ alias, model, abortRunning, revision: requestRevision }: AgentTarget) =>
+      switchAgentModel(
+        { provider: alias, model, ...(abortRunning === true ? { abort_running: true } : {}) },
+        requestRevision ?? revision,
+      ),
     onSuccess: (result) => {
+      setAgentInUseOpen(false);
       // Models do not share one set of levels, so the switch always resets it.
-      write.succeeded(result.apply, t('models.models.page.thinkingReset', { level: result.current.thinking_level }));
+      const reset = t('models.models.page.thinkingReset', { level: result.current.thinking_level });
+      write.succeeded(
+        result.apply,
+        result.aborted_invocations > 0
+          ? `${reset} ${t('models.models.switchConfirm.stopped', { count: result.aborted_invocations })}`
+          : reset,
+      );
       setThinkingResets(result.chat_thinking_resets);
       setThinkingResetsOpen(result.chat_thinking_resets.length > 0);
     },
-    onError: failed,
+    onError: (error, target) => {
+      const running = modelInUseCount(error);
+      if (running !== null) {
+        // The refusal is answered against the revision it was sent with: a view
+        // refreshed since then must produce a conflict, not stop another model.
+        setAgentInUse({
+          count: running,
+          target: { alias: target.alias, model: target.model, revision: target.revision ?? revision },
+        });
+        setAgentInUseOpen(true);
+        return;
+      }
+      setAgentInUseOpen(false);
+      failed(error);
+    },
   });
 
   const vision = useMutation({
@@ -118,7 +154,7 @@ export function useModelRoleWrites(view: ProvidersView | undefined) {
   const assign = (role: ModelRole, alias: string, config: ProviderModelConfig): void => {
     switch (role) {
       case 'agent':
-        agent.mutate({ alias, model: config.id });
+        agent.mutate({ alias, model: config.id, revision });
         return;
       case 'vision':
         vision.mutate({ alias, model: config.id });
@@ -144,5 +180,16 @@ export function useModelRoleWrites(view: ProvidersView | undefined) {
     thinkingResets,
     thinkingResetsOpen,
     closeThinkingResets: () => setThinkingResetsOpen(false),
+    agentInUse: {
+      open: agentInUseOpen,
+      count: agentInUse?.count ?? 0,
+      pending: agent.isPending,
+      confirm: () => {
+        if (agentInUse !== null) {
+          agent.mutate({ ...agentInUse.target, abortRunning: true });
+        }
+      },
+      cancel: () => setAgentInUseOpen(false),
+    },
   };
 }

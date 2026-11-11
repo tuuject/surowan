@@ -225,19 +225,15 @@ export const models = {
       discoverTitle: 'Fetch models',
       manualTitle: 'Add models manually',
       discoverDescription:
-        'Fetch the models {{alias}} offers and add the ones you pick. Model details are filled in automatically.',
+        'The models {{alias}} offers, fetched with its saved API key. Pick the ones to add; model details are filled in automatically.',
       manualDescription:
         'Add models to {{alias}} by hand: enter model IDs and their details are looked up automatically.',
-      useSaved: 'Use the saved API key',
-      useTemp: 'Use a different API key',
       endpointLabel: 'Requested from: ',
-      fetch: 'Fetch',
       fetchAgain: 'Fetch again',
       fetching: 'Fetching…',
       idsLabel: 'Model IDs (one per line, or separated by commas)',
-      tempModeKeyNeeded: 'Enter an API key',
       metadataUnavailable:
-        "Model details couldn't be looked up ({{error}}). You can still add the models, but every item has to be confirmed by hand.",
+        "Model details couldn't be looked up ({{error}}). You can still add the models, but context length, max output and accepted input have to be filled in by hand.",
       lookingUp: 'Looking up…',
       adding: 'Adding…',
       addOne: 'Add {{count}} model',
@@ -256,6 +252,7 @@ export const models = {
       piDefault: 'default levels',
       yes: 'yes',
       no: 'no',
+      reasoningDefaulted: "Couldn't find whether this model thinks; it will be added as a model that doesn't.",
     },
     edit: {
       confirmMarker: 'to confirm',
@@ -323,14 +320,25 @@ export const models = {
     },
     match: {
       matched: 'Details based on {{model}} from {{provider}} on models.dev',
-      crossProviderNote: " (another provider's data; check its prices and limits)",
+      crossProviderNote: ' (listed under another provider)',
       fuzzyNote: ' (similar but not identical name; check every item)',
     },
     source: {
       missing: 'not found',
       from: 'from {{source}}',
-      crossProvider: "models.dev (another provider's data)",
+      crossProvider: 'models.dev (listed under another provider)',
       fuzzy: 'models.dev (similar model name)',
+      highestPrice: 'models.dev (highest listed price)',
+      reasoningDefault: 'not found; added as not thinking',
+      costDefault: 'not found; added as 0',
+    },
+    switchConfirm: {
+      title: 'Stop running sessions and switch?',
+      description:
+        "Sessions still running on the current model: {{count}}. Switching stops them now, and the messages they are answering won't get a reply. Delegated tasks are not affected, and new messages go to the new model.",
+      confirm: 'Stop and switch',
+      stopped_one: 'Stopped {{count}} running session.',
+      stopped_other: 'Stopped {{count}} running sessions.',
     },
     validation: {
       idRequired: 'Model ID is required',
@@ -391,5 +399,13 @@ export const models = {
     confirmDescription:
       'This cannot be undone. Model request and response snapshots are cleared; other audit data is kept. Replay inputs are also deleted; affected historical Invocations can no longer be replayed. While recording is enabled, new payloads continue to be saved. The database file is not compacted.',
     confirmClear: 'Confirm clear',
+    modelsDevTitle: 'Model details source',
+    modelsDevDescription:
+      'Where context length, max output, accepted input and prices are looked up when models are added on the Providers page.',
+    modelsDevLabel: 'Catalog address',
+    modelsDevHint: 'Leave empty to use {{url}}. A mirror must serve the same format. Applies to the next lookup.',
+    modelsDevReset: 'Use the default',
+    modelsDevMismatch:
+      'The file setting differs from the running state, which still looks up {{url}}. Apply the configuration file in Settings.',
   },
 };

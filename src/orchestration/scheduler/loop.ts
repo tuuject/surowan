@@ -29,6 +29,7 @@ export type SchedulerLoopDeps = {
    * nor counted as due until the fence is released.
    */
   readonly fencedConversations: () => readonly bigint[];
+  readonly launchesBlocked: () => boolean;
   /** The loop's own flag: it stops launching as soon as `stop` clears it. */
   readonly isRunning: () => boolean;
   /** Starts one invocation; resolves after its terminal state is persisted. */
@@ -67,6 +68,11 @@ function unfenced(deps: SchedulerLoopDeps, column: SQL): SQL {
  * the loop spin, and that is asserted directly instead of by timing.
  */
 export function nextDelayMilliseconds(deps: SchedulerLoopDeps): number {
+  // A model switch holds launches while it publishes; nothing can start until
+  // it releases, and spinning on the overdue deadlines would only burn CPU.
+  if (deps.launchesBlocked()) {
+    return 60_000;
+  }
   const deadlines: number[] = [];
   // Buckets of a Conversation whose invocation is already running still need
   // a wake-up: the run attaches them as soon as their window closes, so the
@@ -154,6 +160,9 @@ export function nextDelayMilliseconds(deps: SchedulerLoopDeps): number {
 }
 
 export function launchQueued(deps: SchedulerLoopDeps): void {
+  if (deps.launchesBlocked()) {
+    return;
+  }
   // Room invocations that queued too long are expired visibly; Telegram
   // collecting/debounce buckets keep their own lifecycle. A scheduler that
   // does not serve rooms leaves their queue to the process that does.
@@ -237,6 +246,6 @@ export function launchQueued(deps: SchedulerLoopDeps): void {
     }
     const controller = new AbortController();
     const promise = deps.execute(launched.invocation, launched.snapshot, controller);
-    deps.active.set(launched.invocation.id.toString(), { controller, promise });
+    deps.active.set(launched.invocation.id.toString(), { controller, promise, snapshot: launched.snapshot });
   }
 }

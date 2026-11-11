@@ -4,6 +4,7 @@ import Type from 'typebox';
 import Compile from 'typebox/compile';
 import { modelCalls } from '../../store/schema/index.ts';
 import type { Orm } from '../../store/store.ts';
+import type { ConfigEdit } from '../../platform/config/write.ts';
 import { AdminQueryError } from './audit/shared.ts';
 
 const settingsValidator = Compile(
@@ -11,6 +12,7 @@ const settingsValidator = Compile(
     {
       record_model_payloads: Type.Optional(Type.Boolean()),
       record_agent_thinking: Type.Optional(Type.Boolean()),
+      models_dev_url: Type.Optional(Type.Union([Type.String({ minLength: 1, maxLength: 2048 }), Type.Null()])),
     },
     { additionalProperties: false },
   ),
@@ -19,16 +21,35 @@ const settingsValidator = Compile(
 export interface DeveloperBody {
   readonly record_model_payloads?: boolean;
   readonly record_agent_thinking?: boolean;
+  /** `null` removes the setting, so lookups fall back to models.dev. */
+  readonly models_dev_url?: string | null;
 }
 
 export function parseDeveloperSettings(value: unknown): DeveloperBody {
   if (!settingsValidator.Check(value)) {
-    throw new AdminQueryError('invalid_body', 'record_model_payloads and record_agent_thinking must be booleans');
+    throw new AdminQueryError(
+      'invalid_body',
+      'record_model_payloads and record_agent_thinking must be booleans; models_dev_url a URL string or null',
+    );
   }
-  if (value.record_model_payloads === undefined && value.record_agent_thinking === undefined) {
-    throw new AdminQueryError('invalid_body', 'Provide record_model_payloads or record_agent_thinking');
+  if (
+    value.record_model_payloads === undefined &&
+    value.record_agent_thinking === undefined &&
+    value.models_dev_url === undefined
+  ) {
+    throw new AdminQueryError('invalid_body', 'Provide record_model_payloads, record_agent_thinking or models_dev_url');
   }
   return value;
+}
+
+/**
+ * The edit for the catalog address. The section has no other field, so
+ * clearing the address removes the section instead of leaving `{}` behind.
+ */
+export function modelsDevUrlEdit(url: string | null): ConfigEdit {
+  return url === null
+    ? { path: ['models_dev'], value: undefined }
+    : { path: ['models_dev', 'api_url'], value: url.trim() };
 }
 
 export async function clearModelPayloads(orm: Orm): Promise<number> {

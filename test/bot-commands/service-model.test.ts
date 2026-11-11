@@ -1,3 +1,4 @@
+import { readFile, writeFile } from 'node:fs/promises';
 import { afterAll, describe, expect, test } from 'vitest';
 import { BotCommandService, type CommandSender } from '../../src/orchestration/bot-commands/index.ts';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
@@ -7,7 +8,7 @@ import type { RuntimeConfigurationStore } from '../../src/platform/runtime-confi
 import type { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
-import { ALICE, type ConfigTransform, FIXED_NOW, cleanupDirectories, setup } from './fixtures.ts';
+import { ALICE, type ConfigTransform, FIXED_NOW, cleanupDirectories, setup, textUpdate } from './fixtures.ts';
 
 afterAll(cleanupDirectories);
 
@@ -180,7 +181,7 @@ describe('bot command service', () => {
         const reply = await commands.run({ name: 'model', argument: 'default' }, 123456789n, ALICE, FIXED_NOW);
         expect(reply).toContain('已清除本群模型覆盖');
         expect(reply).toContain('跟随全局 agent / agent-model');
-        expect(reply).toContain('将在下一次 agent session 生效');
+        expect(reply).toContain('已立即生效');
         const loaded = await loadConfig(reloader.configPath);
         for (const key of ['provider', 'model', 'thinking_level']) {
           expect(loaded.fileConfig.telegram?.chats[0]).not.toHaveProperty(key);
@@ -239,6 +240,79 @@ describe('bot command service', () => {
         expect(configStore.current()).toBe(before);
       }
       store.close();
+    });
+
+    test('a switch stops the run of this Chat still on the old model at once, and only this Chat', async () => {
+      const OTHER_CHAT = 987654321;
+      const release = Promise.withResolvers<void>();
+      const aborted: bigint[] = [];
+      const { store, loaded, scheduler, configStore, ingestion } = await setup(
+        (config) => {
+          config.telegram.admins = [42];
+          config.telegram.chats.push({ id: OTHER_CHAT });
+        },
+        async (id, _snapshot, signal) => {
+          signal.addEventListener('abort', () => aborted.push(id), { once: true });
+          await release.promise;
+          return signal.aborted
+            ? { state: 'aborted', reason: 'model_switched' }
+            : { state: 'completed', reason: 'done' };
+        },
+      );
+      const switcher = new AgentModelSwitcher(configStore);
+      const reloader = new ConfigReloader({
+        loaded,
+        store: configStore,
+        modelSwitcher: switcher,
+        secrets: new SecretStore(),
+        validateAgentModel: () => undefined,
+        onPublished: () => undefined,
+      });
+      const commands = new BotCommandService(store, configStore, scheduler, switcher, undefined, reloader);
+      const start = new Date();
+      ingestion.ingest(textUpdate(1, 10, 'hello'), start);
+      ingestion.ingest(textUpdate(2, 11, 'hello', OTHER_CHAT), start);
+      store.db.prepare('UPDATE buckets SET deadline_at = ?').run(new Date(start.getTime() - 1_000).toISOString());
+      const runOf = (telegramChatId: number) =>
+        store.db
+          .prepare<[number], { id: bigint; state: string; completion_reason: string | null }>(
+            `SELECT i.id, i.state, i.completion_reason FROM invocations i
+             JOIN conversations v ON v.id = i.conversation_id JOIN chats c ON c.id = v.chat_id
+             WHERE c.telegram_chat_id = ? ORDER BY i.id LIMIT 1`,
+          )
+          .get(telegramChatId);
+      try {
+        scheduler.start();
+        await expect.poll(() => [runOf(123456789)?.state, runOf(OTHER_CHAT)?.state]).toEqual(['running', 'running']);
+        const mine = runOf(123456789)?.id ?? 0n;
+        const other = runOf(OTHER_CHAT)?.id ?? 0n;
+
+        // A pending hand edit moves the global model too; the command applies the
+        // whole file, but it only speaks for this Chat.
+        const file = JSON.parse(await readFile(reloader.configPath, 'utf8'));
+        file.agent = { ...file.agent, provider: 'vision', model: 'vision-model', thinking_level: 'off' };
+        await writeFile(reloader.configPath, JSON.stringify(file, null, 2));
+
+        const reply = await commands.run({ name: 'model', argument: '2' }, 123456789n, ALICE, FIXED_NOW);
+        expect(reply).toContain('已为本群切换: vision / vision-model，已写入 config.jsonc 并立即生效。');
+        expect(reply).toContain('已终止 1 个仍在使用旧模型的会话，它们正在处理的消息不会再得到回复。');
+        expect(aborted).toEqual([mine]);
+        expect(configStore.current().config.agent.model).toBe('vision-model');
+
+        release.resolve();
+        expect(await scheduler.waitForInvocations([mine, other])).toBe(true);
+        expect(runOf(123456789)).toMatchObject({ state: 'aborted', completion_reason: 'model_switched' });
+        expect(runOf(OTHER_CHAT)).toMatchObject({ state: 'completed' });
+
+        // Back to the global model, which nothing runs on now: nothing to stop.
+        const reset = await commands.run({ name: 'model', argument: 'default' }, 123456789n, ALICE, FIXED_NOW);
+        expect(reset).toContain('已立即生效');
+        expect(reset).not.toContain('已终止');
+      } finally {
+        release.resolve();
+        await scheduler.stop();
+        store.close();
+      }
     });
   });
 });

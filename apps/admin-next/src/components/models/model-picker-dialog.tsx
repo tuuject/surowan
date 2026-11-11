@@ -1,21 +1,18 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Field } from '@tuuject/koi-react/field';
-import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MonoValue } from '@/components/business';
-import { HeaderFields } from '@/components/models/header-fields';
 import { ModelDraftList } from '@/components/models/model-draft-list';
 import { ModelEditDialog } from '@/components/models/model-edit-dialog';
 import { useDraftSelection } from '@/components/models/use-draft-selection';
 import { useOpenSession } from '@/hooks/use-open-session.ts';
 import type { DiscoveredModel, ProviderModelConfig, ProviderView } from '@/lib/api/providers.ts';
 import { appendProviderModels, discoverProviderModels, lookupModelMetadata } from '@/lib/api/providers.ts';
-import { type HeaderRow, headerRowsFromNames, headerValues } from '@/lib/header-rows.ts';
 import { modelFormForDraft } from '@/lib/model-form.ts';
 import { parseModelIds, requestErrorMessage } from '@/lib/model-manager.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
@@ -27,6 +24,11 @@ export type ModelPickerMode = 'discover' | 'manual';
  * metadata, or look up ids the admin typed in. Neither path writes anything
  * until the selection is submitted, and a draft with unconfirmed fields cannot
  * be submitted before it went through the edit dialog.
+ *
+ * The list is fetched as soon as the picker opens, with the provider's saved
+ * connection and key: there is nothing to fill in first. A connection the
+ * running process has not applied yet is reported as an error rather than
+ * asked for again.
  *
  * The page keeps this mounted and drives it with `open`, so Base UI can play
  * both transitions; `formKey` starts a fresh session on every open and the
@@ -51,16 +53,16 @@ export function ModelPickerDialog({
   const { t } = useTranslation();
   const write = useProviderWrite();
   const selection = useDraftSelection();
-  // Discovery and lookup can be abandoned by closing the picker, and they still
-  // answer. Each request carries the session it started in, so a late answer
-  // can neither open a confirm over a closed picker nor hand one provider's
-  // models to the session opened for another.
+  // A lookup can be abandoned by closing the picker, and it still answers. Each
+  // request carries the session it started in, so a late answer can neither
+  // open a confirm over a closed picker nor hand one provider's models to the
+  // session opened for another. Discovery gets the same guarantee from its
+  // per-session query key.
   const session = useOpenSession(open);
   const [sessionKey, setSessionKey] = useState(formKey);
   const [endpoint, setEndpoint] = useState<string | null>(null);
-  const [tempMode, setTempMode] = useState(false);
-  const [apiKey, setApiKey] = useState('');
-  const [headers, setHeaders] = useState<readonly HeaderRow[]>(() => headerRowsFromNames(provider.header_names));
+  // The listing the drafts were last taken from, so a fetch replaces them once.
+  const [loadedAt, setLoadedAt] = useState(0);
   const [ids, setIds] = useState('');
   const [editing, setEditing] = useState<DiscoveredModel | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -78,46 +80,22 @@ export function ModelPickerDialog({
       ? { kind: 'builtin' as const, provider: provider.provider ?? '' }
       : { kind: 'custom' as const, base_url: provider.base_url, api: provider.api };
 
+  // One query per open: the key carries the session, so an answer that lands
+  // after the picker was closed and reopened belongs to a query nobody reads.
+  const discovery = useQuery({
+    queryKey: ['provider-discover', provider.alias, formKey],
+    queryFn: () => discoverProviderModels({ alias: provider.alias }),
+    enabled: open && mode === 'discover',
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: 0,
+  });
+
   /** Opens the per-model confirm with the draft as it stands now. */
   const openConfirm = (draft: DiscoveredModel): void => {
     setEditing(draft);
     setConfirmNonce((previous) => previous + 1);
     setConfirmOpen(true);
   };
-
-  const discover = useMutation({
-    mutationFn: async (_startedIn: number) => {
-      if (!tempMode) {
-        return await discoverProviderModels({ alias: provider.alias });
-      }
-      const payload = headerValues(headers);
-      if (payload.error !== null) {
-        throw new Error(payload.error);
-      }
-      if (apiKey.length === 0) {
-        throw new Error(t('models.models.picker.tempModeKeyNeeded'));
-      }
-      return await discoverProviderModels({
-        ...connection,
-        api_key: apiKey,
-        ...(payload.values === undefined ? {} : { headers: payload.values }),
-      });
-    },
-    onSuccess: (result, startedIn) => {
-      if (startedIn !== session.current) {
-        return;
-      }
-      setEndpoint(result.endpoint);
-      setMetadataError(result.metadata_source_error);
-      setFetchError(null);
-      selection.replaceDrafts(result.models);
-    },
-    onError: (error, startedIn) => {
-      if (startedIn === session.current) {
-        setFetchError(error);
-      }
-    },
-  });
 
   const lookup = useMutation({
     mutationFn: async (_startedIn: number) => {
@@ -170,9 +148,7 @@ export function ModelPickerDialog({
   if (sessionKey !== formKey) {
     setSessionKey(formKey);
     setEndpoint(null);
-    setTempMode(false);
-    setApiKey('');
-    setHeaders(headerRowsFromNames(provider.header_names));
+    setLoadedAt(0);
     setIds('');
     setMetadataError(null);
     setFetchError(null);
@@ -182,7 +158,17 @@ export function ModelPickerDialog({
     selection.reset();
   }
 
-  const fetchPending = mode === 'discover' ? discover.isPending : lookup.isPending;
+  // Each listing that arrives — the first one and every "Fetch again" — starts
+  // the selection over from its drafts.
+  if (mode === 'discover' && discovery.data !== undefined && discovery.dataUpdatedAt !== loadedAt) {
+    setLoadedAt(discovery.dataUpdatedAt);
+    setEndpoint(discovery.data.endpoint);
+    setMetadataError(discovery.data.metadata_source_error);
+    selection.replaceDrafts(discovery.data.models);
+  }
+
+  const fetchPending = mode === 'discover' ? discovery.isFetching : lookup.isPending;
+  const shownFetchError = mode === 'discover' ? (discovery.isError ? discovery.error : null) : fetchError;
   const blocked = selection.selectedCount === 0 || selection.models === null;
 
   return (
@@ -234,47 +220,7 @@ export function ModelPickerDialog({
       >
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
           {mode === 'discover' ? (
-            <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
-              <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  color="secondary"
-                  size="sm"
-                  onClick={() => setTempMode((previous) => !previous)}
-                >
-                  {tempMode ? t('models.models.picker.useSaved') : t('models.models.picker.useTemp')}
-                </Button>
-                {endpoint === null ? null : (
-                  <span className={css({ textStyle: 'small', color: 'text-muted' })}>
-                    {t('models.models.picker.endpointLabel')}
-                    <MonoValue value={endpoint} />
-                  </span>
-                )}
-              </div>
-              {tempMode ? (
-                <div
-                  className={css({
-                    '& > :not(:last-child)': { marginBlockEnd: '3' },
-                    borderRadius: 'lg',
-                    borderWidth: '1px',
-                    borderColor: 'border',
-                    padding: '3',
-                  })}
-                >
-                  <Field id="picker-api-key" label={t('models.models.connection.apiKey')}>
-                    <Input
-                      type="password"
-                      autoComplete="new-password"
-                      value={apiKey}
-                      onChange={(event) => setApiKey(event.target.value)}
-                    />
-                  </Field>
-                  {provider.kind === 'custom' && provider.header_names.length > 0 ? (
-                    <HeaderFields rows={headers} onChange={setHeaders} valuesRequired={false} />
-                  ) : null}
-                </div>
-              ) : null}
+            <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
               <Button
                 type="button"
                 size="sm"
@@ -282,16 +228,17 @@ export function ModelPickerDialog({
                 color="secondary"
                 disabled={fetchPending}
                 onClick={() => {
-                  setFetchError(null);
-                  discover.mutate(session.current);
+                  void discovery.refetch();
                 }}
               >
-                {fetchPending
-                  ? t('models.models.picker.fetching')
-                  : selection.drafts.length === 0
-                    ? t('models.models.picker.fetch')
-                    : t('models.models.picker.fetchAgain')}
+                {fetchPending ? t('models.models.picker.fetching') : t('models.models.picker.fetchAgain')}
               </Button>
+              {endpoint === null ? null : (
+                <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+                  {t('models.models.picker.endpointLabel')}
+                  <MonoValue value={endpoint} />
+                </span>
+              )}
             </div>
           ) : (
             <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
@@ -319,9 +266,9 @@ export function ModelPickerDialog({
             </div>
           )}
 
-          {fetchError === null ? null : (
+          {shownFetchError === null ? null : (
             <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-              {requestErrorMessage(fetchError)}
+              {requestErrorMessage(shownFetchError)}
             </p>
           )}
 

@@ -210,7 +210,7 @@ export function createProvidersAdminHandler(deps: ProvidersAdminDeps) {
     }
     if (parts.length === 2 && second === 'lookup-metadata' && request.method === 'POST') {
       const body = parseLookupMetadataBody(await readJsonObject(request, PROVIDER_BODY_MAX_BYTES));
-      return await providerResponse((context) => lookupMetadata(body, context.secrets));
+      return await providerResponse((context) => lookupMetadata(body, context.snapshot, context.secrets));
     }
     if (parts.length === 2 && second !== undefined && request.method === 'PUT') {
       const alias = parseAlias(second);

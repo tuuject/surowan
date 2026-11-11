@@ -91,6 +91,7 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
     auth: createAdminAuthHandler({ auth, passkeys, orm: options.store.orm, secrets }),
     control: createControlAdminHandler({
       store: options.store,
+      configStore: options.configStore,
       configReloader: reloader,
       secrets,
       scheduler,

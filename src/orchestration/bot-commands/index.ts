@@ -308,6 +308,7 @@ export class BotCommandService {
       configStore: this.#configStore,
       modelSwitcher: this.#modelSwitcher,
       configReloader: this.#configReloader,
+      scheduler: this.#scheduler,
     };
   }
 

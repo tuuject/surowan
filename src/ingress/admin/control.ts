@@ -1,13 +1,21 @@
 import type { ModelThinkingLevel } from '@earendil-works/pi-ai';
 import type { SecretStore } from '../../platform/secrets.ts';
 import type { ConfigController, ConfigErrorCode } from '../../platform/config/write.ts';
+import type { RawConfig } from '../../platform/config/index.ts';
 import type { AgentModelOption, AgentModelSwitcher } from '../../platform/models/switch.ts';
+import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { BucketScheduler } from '../../orchestration/scheduler/index.ts';
 import type { LongTaskService } from '../../store/long-tasks/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { wakeFromSleep } from '../../store/sleep.ts';
 import { cancelAlarm, parseAlarmId } from '../../plugins/alarm/admin.ts';
 import { json, readJsonObject, redact, requiredRevision, revisionRequired } from './http.ts';
+import {
+  abortInvocationsLeavingModel,
+  invocationsLeavingModel,
+  withAgentModel,
+} from '../../orchestration/model-switch.ts';
+import { modelInUseBody } from './model-switch.ts';
 import { cancelOngoingSessions } from './operations.ts';
 import { listProviderPresets, supervisedRestartEnabled } from './providers/read.ts';
 
@@ -22,6 +30,7 @@ const MODEL_ERROR_STATUS: Partial<Record<ConfigErrorCode, number>> = {
 
 export interface ControlAdminDeps {
   readonly store: BusinessStore;
+  readonly configStore: RuntimeConfigurationStore;
   readonly configReloader: ConfigController | undefined;
   readonly secrets: SecretStore | undefined;
   readonly scheduler: BucketScheduler | undefined;
@@ -36,7 +45,7 @@ export interface ControlAdminDeps {
  * configuration reload endpoints.
  */
 export function createControlAdminHandler(deps: ControlAdminDeps) {
-  const { store, configReloader, secrets, scheduler, tasks, modelSwitcher, requestRestart } = deps;
+  const { store, configStore, configReloader, secrets, scheduler, tasks, modelSwitcher, requestRestart } = deps;
 
   const modelState = (
     switcher: AgentModelSwitcher,
@@ -86,30 +95,79 @@ export function createControlAdminHandler(deps: ControlAdminDeps) {
       if (typeof body.provider !== 'string' || typeof body.model !== 'string') {
         return json({ error: 'invalid_model_reference', message: 'provider and model must be strings' }, 400);
       }
-      const result = await reloader.setAgentModel(body.provider, body.model, revision);
-      if (!result.ok) {
-        const status = MODEL_ERROR_STATUS[result.code] ?? 409;
-        const message = result.fileWritten
-          ? `config.jsonc was updated but not applied: ${result.message}`
-          : result.message;
-        return json({ error: result.code, message }, status);
+      if (body.abort_running !== undefined && typeof body.abort_running !== 'boolean') {
+        return json({ error: 'invalid_body', message: 'abort_running must be a boolean' }, 400);
       }
-      const currentOption = switcher.current();
-      if (currentOption === undefined) {
-        return json({ error: 'model_switch_unavailable', message: 'No agent model is configured' }, 409);
+      const abortRunning = body.abort_running === true;
+      // Runs still on the replaced model are only stopped with consent: the
+      // batch each one is answering gets no reply. The launch fence holds
+      // queued work from starting between this check and the publish; without
+      // it such a run would escape both the refusal and the cancellation.
+      const releaseLaunches = scheduler?.fenceLaunches();
+      try {
+        const before = configStore.current();
+        let persisted: RawConfig;
+        try {
+          // The write applies the whole file, including edits the panel has not
+          // applied yet, so the check has to resolve the model this write will
+          // actually publish.
+          persisted = (await reloader.readPersisted()).config;
+        } catch (error) {
+          return json({ error: 'config_invalid', message: redact(secrets, error) }, 422);
+        }
+        const using = invocationsLeavingModel(
+          store.orm,
+          before.config,
+          withAgentModel(persisted, body.provider, body.model),
+          scheduler,
+        );
+        if (using.length > 0 && !abortRunning) {
+          // A stale form is refused as a conflict first: confirming the stop
+          // would only run into it afterwards.
+          if ((await reloader.revision()) !== revision) {
+            return json(
+              { error: 'config_conflict', message: 'The configuration file changed; reload before editing' },
+              409,
+            );
+          }
+          return json(modelInUseBody(using.length), 409);
+        }
+        const result = await reloader.setAgentModel(body.provider, body.model, revision);
+        // `publish_incomplete` means the hook after publication failed, not that
+        // the switch stayed unwritten: the new model is already active, so a
+        // confirmed stop still has to run or those batches never stop.
+        const published = configStore.current().hash !== before.hash;
+        const aborted =
+          abortRunning && (result.ok || published)
+            ? abortInvocationsLeavingModel(store.orm, configStore, scheduler, before.config)
+            : 0;
+        if (!result.ok) {
+          const status = MODEL_ERROR_STATUS[result.code] ?? 409;
+          const message = result.fileWritten
+            ? `config.jsonc was updated but not applied: ${result.message}`
+            : result.message;
+          return json({ error: result.code, message, aborted_invocations: aborted }, status);
+        }
+        const currentOption = switcher.current();
+        if (currentOption === undefined) {
+          return json({ error: 'model_switch_unavailable', message: 'No agent model is configured' }, 409);
+        }
+        return json({
+          ...modelState(switcher, currentOption),
+          aborted_invocations: aborted,
+          // The file's revision after this write, so a caller can chain its next
+          // write without reading the view (and adopting someone else's change).
+          revision: await reloader.revision(),
+          apply: { applied: result.applied, restart_required: result.restartRequired },
+          chat_thinking_resets: (result.chatThinkingResets ?? []).map(({ chatId, previous, current }) => ({
+            chat_id: chatId,
+            previous,
+            current,
+          })),
+        });
+      } finally {
+        releaseLaunches?.();
       }
-      return json({
-        ...modelState(switcher, currentOption),
-        // The file's revision after this write, so a caller can chain its next
-        // write without reading the view (and adopting someone else's change).
-        revision: await reloader.revision(),
-        apply: { applied: result.applied, restart_required: result.restartRequired },
-        chat_thinking_resets: (result.chatThinkingResets ?? []).map(({ chatId, previous, current }) => ({
-          chat_id: chatId,
-          previous,
-          current,
-        })),
-      });
     }
     return undefined;
   };

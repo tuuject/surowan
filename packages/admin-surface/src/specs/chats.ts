@@ -27,7 +27,8 @@ export const CHAT_SPECS: readonly EndpointSpec[] = [
     positional: [{ name: 'id', kind: 'decimal' }],
     body: true,
     revision: 'config',
-    summary: 'Replace the topics, model override and thinking level of one Chat',
+    summary:
+      'Replace the topics, model override and thinking level of one Chat; a model change refused with model_in_use needs abort_running: true to stop the runs still on the old model',
   },
   {
     command: 'chat delete',

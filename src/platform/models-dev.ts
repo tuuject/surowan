@@ -77,10 +77,7 @@ type RawModel = Static<typeof ModelSchema>;
 type RawProvider = Static<typeof ProviderSchema>;
 type RawCatalog = Static<typeof CatalogSchema>;
 
-export type ModelsDevModel = Omit<RawModel, 'reasoning' | 'modalities'> & {
-  reasoning: boolean;
-  modalities: { input: string[]; output: string[] };
-};
+export type ModelsDevModel = Omit<RawModel, 'reasoning'> & { reasoning: boolean };
 export type ModelsDevProvider = Omit<RawProvider, 'models'> & { models: Record<string, ModelsDevModel> };
 export type ModelsDevCatalog = Record<string, ModelsDevProvider>;
 
@@ -133,53 +130,65 @@ export async function fetchModelsDevCatalog(
   return applyDefaults(parseCatalog(raw));
 }
 
-let cachedCatalog: { readonly catalog: ModelsDevCatalog; readonly expiresAt: number } | undefined;
-let pendingCatalog: Promise<ModelsDevCatalog> | undefined;
+const cachedCatalogs = new Map<string, { readonly catalog: ModelsDevCatalog; readonly expiresAt: number }>();
+const pendingCatalogs = new Map<string, Promise<ModelsDevCatalog>>();
 
 /**
  * Cached catalog accessor. A failure is not cached, and concurrent callers share
  * one request instead of downloading the whole catalog several times.
+ *
+ * Each address has its own cache entry: `models_dev.api_url` is hot, so a new
+ * address has to be read on the very next lookup rather than after the old
+ * catalog's TTL runs out, and switching back finds the earlier one still cached.
+ * Expired entries are dropped whenever a catalog is stored, which keeps the map
+ * as small as the addresses used within one TTL.
  */
 export async function loadModelsDevCatalog(options: ModelsDevCatalogOptions = {}): Promise<ModelsDevCatalog> {
-  const now = Date.now();
-  if (cachedCatalog !== undefined && cachedCatalog.expiresAt > now) {
-    return cachedCatalog.catalog;
+  const url = options.url ?? MODELS_DEV_URL;
+  const cached = cachedCatalogs.get(url);
+  if (cached !== undefined && cached.expiresAt > Date.now()) {
+    return cached.catalog;
   }
-  if (pendingCatalog !== undefined) {
-    return await pendingCatalog;
+  const inFlight = pendingCatalogs.get(url);
+  if (inFlight !== undefined) {
+    return await inFlight;
   }
   const ttlMs = options.ttlMs ?? CATALOG_TTL_MS;
-  const pending = fetchModelsDevCatalog(options.url ?? MODELS_DEV_URL, options.fetchImpl ?? fetch).then((catalog) => {
-    cachedCatalog = { catalog, expiresAt: Date.now() + ttlMs };
+  const pending = fetchModelsDevCatalog(url, options.fetchImpl ?? fetch).then((catalog) => {
+    const now = Date.now();
+    for (const [key, entry] of cachedCatalogs) {
+      if (entry.expiresAt <= now) {
+        cachedCatalogs.delete(key);
+      }
+    }
+    cachedCatalogs.set(url, { catalog, expiresAt: now + ttlMs });
     return catalog;
   });
-  pendingCatalog = pending;
+  pendingCatalogs.set(url, pending);
   try {
     return await pending;
   } finally {
-    pendingCatalog = undefined;
+    pendingCatalogs.delete(url);
   }
 }
 
-/** Drops the cached catalog; tests use it to isolate cases. */
+/** Drops every cached catalog; tests use it to isolate cases. */
 export function resetModelsDevCatalogCache(): void {
-  cachedCatalog = undefined;
+  cachedCatalogs.clear();
 }
 
-/** Fills the `reasoning` and `modalities` fields models.dev may omit. */
+/**
+ * Fills the `reasoning` field models.dev may omit. Modalities stay exactly as
+ * listed: an omitted input list means the catalog does not say which inputs the
+ * model accepts, which metadata resolution reports as missing instead of
+ * inventing a text-only model.
+ */
 function applyDefaults(catalog: RawCatalog): ModelsDevCatalog {
   const normalized: ModelsDevCatalog = {};
   for (const [providerId, provider] of Object.entries(catalog)) {
     const models: Record<string, ModelsDevModel> = {};
     for (const [modelId, model] of Object.entries(provider.models)) {
-      models[modelId] = {
-        ...model,
-        reasoning: model.reasoning ?? false,
-        modalities: {
-          input: model.modalities?.input ?? ['text'],
-          output: model.modalities?.output ?? ['text'],
-        },
-      };
+      models[modelId] = { ...model, reasoning: model.reasoning ?? false };
     }
     normalized[providerId] = { ...provider, models };
   }
@@ -198,9 +207,17 @@ export function listModels(provider: ModelsDevProvider): ModelsDevModel[] {
   return Object.values(provider.models).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function extractInputCapabilities(model: ModelsDevModel): Array<'text' | 'image'> {
+/**
+ * The input capabilities the catalog lists, or `null` when it lists none. A
+ * list without any recognized capability still means text only, as before.
+ */
+export function extractInputCapabilities(model: ModelsDevModel): Array<'text' | 'image'> | null {
+  const declared = model.modalities?.input;
+  if (declared === undefined) {
+    return null;
+  }
   const capabilities: Array<'text' | 'image'> = [];
-  const inputs = new Set(model.modalities.input);
+  const inputs = new Set(declared);
   if (inputs.has('text')) {
     capabilities.push('text');
   }
@@ -275,7 +292,7 @@ export function toModelDefaults(model: ModelsDevModel): {
   return {
     name: model.name,
     reasoning: model.reasoning,
-    input: extractInputCapabilities(model),
+    input: extractInputCapabilities(model) ?? ['text'],
     context_window: contextWindow > 0 ? contextWindow : 128000,
     max_tokens: maxTokens > 0 ? maxTokens : 4096,
     cost: {

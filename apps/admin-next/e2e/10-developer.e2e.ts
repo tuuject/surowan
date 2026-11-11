@@ -101,3 +101,46 @@ test('Developer actions and confirmation fit a mobile dark viewport', async ({ p
   });
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
 });
+
+test('Developer saves the model details source address, and clearing it falls back to models.dev', async ({ page }) => {
+  const settings = async () => (await page.request.get(await adminUrl('/api/developer'))).json();
+  await page.goto(await adminUrl('/developer'));
+  const panel = page.getByRole('region', { name: 'Model details source', exact: true });
+  const address = panel.getByLabel('Catalog address', { exact: true });
+  await expect(address).toHaveValue('');
+  await expect(address).toHaveAttribute('placeholder', 'https://models.dev/api.json');
+  await expect(panel.getByRole('button', { name: 'Use the default', exact: true })).toBeDisabled();
+
+  // An unrelated settings write must not discard an address that was typed but
+  // not saved yet; only the address's own save resets the field.
+  await address.fill('https://draft.example.test/api.json');
+  const thinking = page.getByRole('switch', { name: 'Record agent thinking (CoT)' });
+  await thinking.click();
+  await expect(thinking).toBeChecked();
+  await expect(address).toHaveValue('https://draft.example.test/api.json');
+  await thinking.click();
+  await expect(thinking).not.toBeChecked();
+  await expect(address).toHaveValue('https://draft.example.test/api.json');
+
+  await address.fill('https://mirror.example.test/api.json');
+  await panel.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'Use the default', exact: true })).toBeEnabled();
+  expect(await settings()).toMatchObject({
+    models_dev_url: 'https://mirror.example.test/api.json',
+    active_models_dev_url: 'https://mirror.example.test/api.json',
+  });
+  await page.reload();
+  await expect(address).toHaveValue('https://mirror.example.test/api.json');
+
+  // Only an HTTP(S) address is accepted; the saved one stays.
+  await address.fill('ftp://mirror.example.test/api.json');
+  await panel.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(panel.getByRole('alert')).toContainText('models_dev.api_url');
+  expect((await settings()).models_dev_url).toBe('https://mirror.example.test/api.json');
+
+  await panel.getByRole('button', { name: 'Use the default', exact: true }).click();
+  await expect(address).toHaveValue('');
+  // The button is disabled while the write is in flight too; the view settles it.
+  await expect.poll(settings).toMatchObject({ models_dev_url: null, active_models_dev_url: null });
+  await expect(panel.getByRole('button', { name: 'Use the default', exact: true })).toBeDisabled();
+});
