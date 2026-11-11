@@ -16,7 +16,7 @@ import { useOpenSession } from '@/hooks/use-open-session.ts';
 import type { DiscoveredModel, ProviderModelConfig, ProviderView } from '@/lib/api/providers.ts';
 import { appendProviderModels, discoverProviderModels, lookupModelMetadata } from '@/lib/api/providers.ts';
 import { type HeaderRow, headerRowsFromNames, headerValues } from '@/lib/header-rows.ts';
-import { emptyModelForm, modelFormFromDraft } from '@/lib/model-form.ts';
+import { modelFormForDraft } from '@/lib/model-form.ts';
 import { parseModelIds, requestErrorMessage } from '@/lib/model-manager.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
 
@@ -385,7 +385,11 @@ export function ModelPickerDialog({
         api={provider.api}
         title={editing === null ? '' : t('models.models.wizard.confirmTitle', { model: editing.id })}
         description={t('models.models.wizard.confirmDescription')}
-        initial={editing === null ? emptyModelForm(provider.api) : modelFormFromDraft(editing, provider.api)}
+        initial={modelFormForDraft(
+          editing,
+          editing === null ? undefined : selection.resolved[editing.id],
+          provider.api,
+        )}
         formKey={confirmNonce}
         lockId
         draft={editing}

@@ -89,7 +89,7 @@ export function modelFormFromConfig(model: ProviderModelConfig, api: ProviderApi
   };
 }
 
-export function modelFormFromDraft(draft: ModelMetadataDraft, api: ProviderApi): ModelFormState {
+function modelFormFromDraft(draft: ModelMetadataDraft, api: ProviderApi): ModelFormState {
   const cost = draft.cost;
   return {
     id: draft.id,
@@ -117,6 +117,22 @@ export function modelFormFromDraft(draft: ModelMetadataDraft, api: ProviderApi):
     ),
     tool_schema_keywords: AUTO_COMPAT,
   };
+}
+
+/**
+ * The edit form for a discovered draft. Once the admin confirmed it, reopening
+ * starts from what they saved: rebuilding from the metadata again would drop
+ * every edit — a nickname, which metadata never carries, most visibly.
+ */
+export function modelFormForDraft(
+  draft: ModelMetadataDraft | null,
+  confirmed: ProviderModelConfig | undefined,
+  api: ProviderApi,
+): ModelFormState {
+  if (draft === null) {
+    return emptyModelForm(api);
+  }
+  return confirmed === undefined ? modelFormFromDraft(draft, api) : modelFormFromConfig(confirmed, api);
 }
 
 function parsePositiveInteger(value: string): number | null {
