@@ -18,7 +18,7 @@ import {
   activeVisionModel,
   resolveAgentSection,
   resolveAgentSettings,
-  resolveBucketWindowSeconds,
+  resolveBucketTiming,
   resolveTelegramSection,
 } from './resolve.ts';
 import { HOST_KINDS } from '../im-host/identity.ts';
@@ -91,6 +91,12 @@ export function validateSemantics(config: FileConfig, options: ValidateSemantics
   const telegram = resolveTelegramSection(config.telegram);
   validateTimezone(config.timezone, 'timezone');
   validateParticipation(telegram.participation, 'telegram.participation');
+  // The ceiling is counted from the batch's first message, so one below the
+  // window would contradict it instead of capping anything.
+  const bucketTiming = resolveBucketTiming({ telegram }, 'telegram');
+  if (bucketTiming.maxSeconds < bucketTiming.windowSeconds) {
+    throw new Error('telegram.bucket_max_seconds must be at least telegram.bucket_window_seconds');
+  }
   const agent = resolveAgentSection(config.agent);
   validateContextConfig({ telegram }, agent);
   const chatIds = new Set<number>();
@@ -339,15 +345,14 @@ function validateParticipation(participation: ParticipationConfig | undefined, l
 
 /**
  * Conversation Context invariants. `idle_grace_seconds = 0` is the supported way
- * to turn long-lived invocations off, but a grace shorter than one bucket
- * window would look enabled while every run ends before the next bucket is due:
- * a silent degradation, rejected here instead of at 3 a.m. in production. The
- * grace is shared by every host, so it has to cover each host's window.
+ * to turn long-lived invocations off, but a grace shorter than the longest a
+ * bucket may collect would look enabled while a run can end before the next
+ * bucket is due: a silent degradation, rejected here instead of at 3 a.m. in
+ * production. The longest is `bucket_max_seconds`, not the window: a batch that
+ * is open when a round ends keeps being extended by new messages up to that
+ * ceiling. The grace is shared by every host, so it has to cover each host's.
  */
-function validateContextConfig(
-  windows: Parameters<typeof resolveBucketWindowSeconds>[0],
-  agent: AgentRuntimeConfig,
-): void {
+function validateContextConfig(timings: Parameters<typeof resolveBucketTiming>[0], agent: AgentRuntimeConfig): void {
   const context = agent.context;
   if (context.retained_sends_target >= context.retained_sends_max) {
     throw new Error('agent.context.retained_sends_target must be smaller than retained_sends_max');
@@ -356,9 +361,12 @@ function validateContextConfig(
     throw new Error('agent.context.hard_token_ratio must not exceed agent.context_stop_ratio');
   }
   for (const hostKind of HOST_KINDS) {
-    if (context.idle_grace_seconds > 0 && context.idle_grace_seconds < resolveBucketWindowSeconds(windows, hostKind)) {
+    if (
+      context.idle_grace_seconds > 0 &&
+      context.idle_grace_seconds < resolveBucketTiming(timings, hostKind).maxSeconds
+    ) {
       throw new Error(
-        `agent.context.idle_grace_seconds must be 0 (long-lived invocations off) or at least ${hostKind}.bucket_window_seconds`,
+        `agent.context.idle_grace_seconds must be 0 (long-lived invocations off) or at least ${hostKind}.bucket_max_seconds (which defaults to ${hostKind}.bucket_window_seconds)`,
       );
     }
   }

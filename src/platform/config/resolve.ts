@@ -45,7 +45,7 @@ export function resolveAgentSettings(
 /**
  * Values a configuration gets when it leaves a field out. `idle_grace_seconds`
  * defaults to 0 — not 60 like the documented example — because it is the only
- * value that stays valid for every `telegram.bucket_window_seconds` an empty
+ * value that stays valid for every `telegram.bucket_max_seconds` an empty
  * `agent` section may sit next to.
  */
 export const AGENT_DEFAULTS = {
@@ -126,23 +126,50 @@ export function resolveTelegramSection(
   };
 }
 
+/** How long a host's batches collect, in seconds. */
+export interface BucketTiming {
+  /**
+   * The shortest collection: a batch settles no earlier than one window after
+   * its anchor, and a round's end restarts this window for a batch still open.
+   */
+  readonly windowSeconds: number;
+  /** Ceiling for message-driven extension, counted from the batch's first message. */
+  readonly maxSeconds: number;
+  /** Each triggering message pushes the deadline to at least its arrival plus this. */
+  readonly bumpSeconds: number;
+}
+
 /**
- * The debounce window a host collects its batches with.
+ * The batch timing a host collects with.
  *
- * Telegram keeps the configured window; a room is sealed when its input is
- * released, so it collects nothing. There is no default case: a new host kind
- * does not compile until it names its window, because config validation checks
- * `agent.context.idle_grace_seconds` against every host's window.
+ * Telegram keeps the configured timing. `bucket_max_seconds` defaults to the
+ * window rather than to a constant, so a configuration written before the
+ * adaptive fields existed keeps its fixed window whatever length it chose. A
+ * room is sealed when its input is released, so it collects nothing. There is
+ * no default case: a new host kind does not compile until it names its timing,
+ * because config validation checks `agent.context.idle_grace_seconds` against
+ * every host's.
  */
-export function resolveBucketWindowSeconds(
-  config: { readonly telegram: Pick<TelegramRuntimeConfig, 'bucket_window_seconds'> },
+export function resolveBucketTiming(
+  config: {
+    readonly telegram: Pick<
+      TelegramRuntimeConfig,
+      'bucket_window_seconds' | 'bucket_max_seconds' | 'bucket_bump_seconds'
+    >;
+  },
   hostKind: HostKind,
-): number {
+): BucketTiming {
   switch (hostKind) {
-    case 'telegram':
-      return config.telegram.bucket_window_seconds;
+    case 'telegram': {
+      const windowSeconds = config.telegram.bucket_window_seconds;
+      return {
+        windowSeconds,
+        maxSeconds: config.telegram.bucket_max_seconds ?? windowSeconds,
+        bumpSeconds: config.telegram.bucket_bump_seconds ?? 0,
+      };
+    }
     case 'playground':
-      return 0;
+      return { windowSeconds: 0, maxSeconds: 0, bumpSeconds: 0 };
   }
 }
 

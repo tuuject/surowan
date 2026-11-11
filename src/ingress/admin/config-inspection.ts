@@ -81,6 +81,8 @@ export function configurationView(config: RawConfig) {
       process_bot_messages: config.telegram.process_bot_messages,
       sticker_trigger_enabled: config.telegram.sticker_trigger_enabled,
       bucket_window_seconds: config.telegram.bucket_window_seconds,
+      bucket_max_seconds: config.telegram.bucket_max_seconds,
+      bucket_bump_seconds: config.telegram.bucket_bump_seconds,
       participation: config.telegram.participation,
       proactive_reply: config.telegram.proactive_reply,
       chats: config.telegram.chats.map((chat) => ({

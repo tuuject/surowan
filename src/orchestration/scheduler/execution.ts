@@ -1,6 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import type { HostKind } from '../../platform/im-host/identity.ts';
-import { resolveBucketWindowSeconds } from '../../platform/config/resolve.ts';
+import { resolveBucketTiming } from '../../platform/config/resolve.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { chats, conversations, invocations, taskReceipts } from '../../store/schema/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
@@ -123,7 +123,7 @@ export async function executeInvocation(
       // chat reads the live window, as ingestion does for the buckets it is
       // pushing back, so a reloaded window applies to both alike. Resolving
       // it from the host kind does not require the chat entry to still exist.
-      const windowSeconds = resolveBucketWindowSeconds(deps.configStore.current().config, chat.hostKind as HostKind);
+      const { windowSeconds } = resolveBucketTiming(deps.configStore.current().config, chat.hostKind as HostKind);
       const nextDeadline = new Date(
         Math.max(finishedAt.getTime(), Date.parse(started.started_at) + windowSeconds * 1_000),
       ).toISOString();

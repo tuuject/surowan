@@ -149,6 +149,8 @@ command SecretRef：
     "process_bot_messages": false,
     "sticker_trigger_enabled": false,
     "bucket_window_seconds": 15,
+    "bucket_max_seconds": 15,
+    "bucket_bump_seconds": 0,
     "chats": [
       {
         "id": -1001234567890,
@@ -169,7 +171,8 @@ command SecretRef：
 规则：
 
 - 整段 `telegram` 可以省略；段存在时 `token` 也可省略。没有 token 即「Telegram 停用」：服务照常启动，Panel 与虚拟房间可用，但没有 grammy 实例、不处理任何 Telegram Chat。SecretRef 解析为空串（如环境变量设为空）同样是停用（`EmptySecretError`）。token 的 SecretRef 取不到（环境变量未设、jar 无此项、命令失败）是配置异常，不是停用。`chats` 可以是空数组；Chat 通常等 Bot 进群后由 `/allowlist` 或面板补上。
-- `bucket_window_seconds` 是全局 Agent 会话节拍，单位秒，示例值为 15。`0` 表示有新消息时不额外延迟，但不会创建空会话。deadline 锚点、按 Chat 串行、轮中途不交出批次与 attach 到运行中 Invocation 的规则统一见 [Telegram 与 Agent 流程：会话节拍与 Bucket](telegram-agent-flow.md#会话节拍与-bucket)；运行结束后是否继续等待下一个 Bucket 由 `agent.context.idle_grace_seconds` 决定，见「Conversation Context」。
+- `bucket_window_seconds` 是全局 Agent 会话节拍，单位秒，示例值为 15，也是一个 Bucket 的**最短**收集时间。`0` 表示有新消息时不额外延迟，但不会创建空会话。deadline 锚点、按 Chat 串行、轮中途不交出批次与 attach 到运行中 Invocation 的规则统一见 [Telegram 与 Agent 流程：会话节拍与 Bucket](telegram-agent-flow.md#会话节拍与-bucket)；运行结束后是否继续等待下一个 Bucket 由 `agent.context.idle_grace_seconds` 决定，见「Conversation Context」。
+- `bucket_bump_seconds`（可选，缺省 `0`）与 `bucket_max_seconds`（可选，缺省等于 `bucket_window_seconds`）把固定窗口变成自适应窗口：每条能开 Bucket 的消息加入 collecting Bucket 时，把 deadline 推迟到「该消息到达 + bump」，但不超过「首条消息 + max」；只往后推。三者都是 0–300 的整数秒，`check-config` 要求 `bucket_max_seconds >= bucket_window_seconds`。两项都省略时等价于旧的固定窗口，旧配置无需改动；`max` 缺省跟随 window 而不是常量 15，所以写了 `bucket_window_seconds: 30` 的旧配置仍是固定 30 秒。三项与 `bucket_window_seconds` 一样不在热更新白名单中，修改后需要重启。解析入口是 `resolveBucketTiming`（`src/platform/config/resolve.ts`），细则见 [会话节拍与 Bucket](telegram-agent-flow.md#会话节拍与-bucket)。
 - `process_bot_messages` 控制是否处理其他 Bot 的消息。`false` 时其他 Bot 的新消息与编辑只保留 Update 审计，完全不入库。`true` 时它们会入库，但永远不能创建 Bucket、命中 participation 触发或刷新注意力窗口：已有 collecting Bucket 时直接加入；否则暂存，等下一条真人消息创建 Bucket 时，按 Telegram 时间顺序排在该真人消息之前一并收入（仅收未进过任何 Bucket、晚于该 Conversation 上一个 Bucket 起点、且在 `/cut_topic` 截断之后的最新 `agent.history_messages` 条）。这样两个 Bot 无法互相唤醒形成死循环。自己发送的 Update 始终忽略。带 `sender_chat` 的消息（匿名管理员、以频道身份发言、关联频道自动转发）不算 Bot 消息：Telegram 为兼容会在 `from` 里放一个占位 Bot（如 GroupAnonymousBot），实际作者是 `sender_chat`，按真人消息处理。
 - `sticker_trigger_enabled` 可选，默认 `false`。关闭时，单独收到的人类 Sticker 仍会持久化，但不会创建 Bucket 或触发 Invocation；已有 collecting Bucket 时仍会加入。设为 `true` 后，单独的 Sticker 可以创建 Bucket。
 - `mention_typing_enabled` 可选，默认 `true`。真人在群里 @ Bot 且消息进入 Bucket 时，runtime 立即显示“正在输入”，不等待 `bucket_window_seconds` 和模型决策；设为 `false` 后只剩模型自己调用的 `typing`。仅 `@` 触发，Reply Bot 与关键词不触发；暂停、休眠、participation 闸门未放行时不显示。不在热更新白名单中，修改后需要重启。
@@ -559,7 +562,8 @@ Agent 侧使用（`image_generate` 工具、图片技能、发送与审计链路
 
 - `retained_sends_target < retained_sends_max`。
 - `hard_token_ratio <= agent.context_stop_ratio`。
-- `idle_grace_seconds` 为 `0`（关闭长生命周期运行）或不小于每个 host 的 Bucket 窗口（`resolveBucketWindowSeconds`，当前即 `telegram.bucket_window_seconds`，Playground 房间为 0）；比一个 Bucket 窗口还短的等待会在下一个 Bucket 到期前就结束运行，看似启用实则无效，因此在配置期直接拒绝。
+- `idle_grace_seconds` 为 `0`（关闭长生命周期运行）或不小于每个 host 的 Bucket 最长收集时间（`resolveBucketTiming(...).maxSeconds`，当前即 `telegram.bucket_max_seconds`，缺省等于 `telegram.bucket_window_seconds`；Playground 房间为 0）；比它还短的等待会让一轮结束时仍在收集、又被新消息延长的 Bucket 在运行结束后才到期，看似启用实则失效，因此在配置期直接拒绝。只配置了固定窗口的旧配置，判定与以前完全相同。
+- `telegram.bucket_max_seconds >= telegram.bucket_window_seconds`。
 - `max_wall_clock_seconds > idle_grace_seconds`。
 
 稳定系统提示与重建：稳定段与每批注入段各含什么，见 [Telegram 与 Agent 流程：Context 生命周期](telegram-agent-flow.md#context-生命周期)。配置侧只需记住：人格提示、Chat `instructions` 及其模板变量渲染结果都属于稳定段，其 SHA-256 记在 `conversation_contexts.system_prompt_hash`。稳定段内容一变（改 Prompt 文件或 `instructions_file`、运行时切换模型导致模板或图片说明变化等——仅当实际变化时才重建，切模型本身不必然清空历史），该 Conversation 的整份 Context 会重建：已保留的 transcript 与能力引用全部丢弃，`head_seq`/`next_seq` 复位为 1。时间、Memo Pad 列表/增量、睡眠状态等运行期状态随批次注入，改变它们不会触发重建。

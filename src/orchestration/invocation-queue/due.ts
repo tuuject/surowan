@@ -1,7 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
 import type { HostKind } from '../../platform/im-host/identity.ts';
-import { resolveBucketWindowSeconds } from '../../platform/config/resolve.ts';
+import { resolveBucketTiming } from '../../platform/config/resolve.ts';
 import { buckets } from '../../store/schema/index.ts';
 import { resolveChatConfig } from '../../store/store.ts';
 import {
@@ -187,7 +187,7 @@ export function attachDueBucket(
  */
 export function deferBucket(deps: InvocationQueueDeps, bucket: BucketRow, now: Date): void {
   const deferMilliseconds = Math.max(
-    resolveBucketWindowSeconds(deps.configStore.current().config, bucket.host_kind) * 1_000,
+    resolveBucketTiming(deps.configStore.current().config, bucket.host_kind).windowSeconds * 1_000,
     deps.minimumDeferMs,
   );
   const atLeast = new Date(now.getTime() + deferMilliseconds).toISOString();

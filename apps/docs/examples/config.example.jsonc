@@ -10,6 +10,10 @@
     "token": { "env": "TELEGRAM_BOT_TOKEN" },
     "process_bot_messages": false,
     "bucket_window_seconds": 15,
+    // Optional: each new message pushes the batch to at least its arrival plus
+    // this (0 = fixed window), but never past the first message plus the max.
+    "bucket_bump_seconds": 0,
+    "bucket_max_seconds": 15,
     "chats": [
       {
         "id": 123456789,

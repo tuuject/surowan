@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { resolveBucketTiming } from '../../src/platform/config/resolve.ts';
 import { CHAT_ID, setup } from './reload-fixtures.ts';
 
 test('removing a chat and its instructions file together still reloads', async () => {
@@ -29,6 +30,31 @@ test('removing a chat and its instructions file together still reloads', async (
     // The removal is hot and leaves the running configuration immediately; its
     // stored data stays until an Admin deletes the Chat.
     expect(fixture.configStore.current().config.telegram.chats.map((chat) => chat.id)).toEqual([CHAT_ID]);
+  } finally {
+    fixture.store.close();
+  }
+});
+
+test('the adaptive bucket fields wait for a restart like the window they extend', async () => {
+  const fixture = await setup();
+  try {
+    await fixture.patch((config) => {
+      config.telegram.bucket_max_seconds = 60;
+      config.telegram.bucket_bump_seconds = 10;
+    });
+    const result = await fixture.reloader.reloadFromFile();
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.message);
+    }
+    expect(result.applied).toEqual([]);
+    expect(result.restartRequired).toEqual(['telegram.bucket_bump_seconds', 'telegram.bucket_max_seconds']);
+    // Ingestion keeps the fixed window it started with until the restart.
+    expect(resolveBucketTiming(fixture.configStore.current().config, 'telegram')).toEqual({
+      windowSeconds: 15,
+      maxSeconds: 15,
+      bumpSeconds: 0,
+    });
   } finally {
     fixture.store.close();
   }

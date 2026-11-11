@@ -64,7 +64,7 @@ Text/Caption 原样保存 Telegram 给出的纯文本，格式 entity 只留在 
 
 ## 会话节拍与 Bucket
 
-Chat（群）空闲时，第一条可触发消息创建该 Conversation 的 `collecting` Bucket，并先等待一个完整节拍：
+Chat（群）空闲时，第一条可触发消息创建该 Conversation 的 `collecting` Bucket，并先等待一个完整节拍（之后的消息可按[自适应延长](#自适应延长)再推迟）：
 
 ```text
 anchor   = max(first_received_at, 该 Conversation 上一轮结束时刻)
@@ -89,6 +89,23 @@ deadline 不看「前一次运行是否仍在 queued/running」，但**运行中
 代价是明确接受的：一轮很长（例如 40 秒）时，该轮期间到达的**所有**消息会被并成一批，在该轮结束后满一个窗口才注入——活跃对话因此可能多等一个窗口，换来的是「一轮期间的消息不会把上下文切成若干碎片批次」。唯一的例外是开启 `agent.send_barrier_enabled` 时的 [send 屏障](#send-屏障)：它只在该轮第一次真正发送之前、由 `send` 自己把这批提前取走。
 
 配置了 `participation` 时，「可触发消息」还要先通过下一节的闸门。
+
+### 自适应延长
+
+`telegram.bucket_window_seconds` 是最短收集时间。`telegram.bucket_bump_seconds > 0` 时，collecting Bucket 每加入一条**能开 Bucket 的**消息（`eligibleHuman`：真人、非单独 Sticker，除非开了 `sticker_trigger_enabled`），deadline 改写为：
+
+```text
+deadline = max(deadline, min(first_received_at + bucket_max_seconds, 到达时刻 + bucket_bump_seconds))
+```
+
+- **只往后推**：现有 deadline（窗口，或上面轮结束推迟后的值）比候选更晚时不动。所以 `bucket_max_seconds` 只截断「消息带来的延长」，不会把轮结束锚点拉回来；一轮比 max 还长时，这批在该轮结束后满一个 window 结算，期间的消息不再延长它。
+- **上限从 `first_received_at` 起算**：持续不断的消息流也在 `first + max` 结算，之后的消息开下一个 Bucket，不存在无限延长。
+- **其他 Bot、服务消息与单独 Sticker 只加入、不延长**，与它们不能开 Bucket 同理：两个 Bot 不能互相把批次撑开。
+- **竞争**：延长写在入库事务里（`bumpDeadline`，`src/ingress/telegram-ingestion/buckets.ts`），结算（collecting → queued）也是事务，二者经同一 SQLite 写者串行。消息要么在结算前加入并延长当前 Bucket，要么在结算后开下一个，不丢失也不重复；deadline 已过而 Scheduler 尚未处理时到达的消息照常加入并按公式延长。
+- **定时器**：不新增定时器。serve 每次入库后 `wake()`，Scheduler 循环按最早的 `buckets.deadline_at` 重排唯一的 `setTimeout`；即使没有 wake，旧定时器到点只会发现没有到期 Bucket 并重算下一次延迟。
+- `bucket_bump_seconds = 0`（缺省）时不发生写入，`bucket_max_seconds` 缺省等于 window：与固定窗口完全一致。
+
+窗口与上限的取值统一由 `resolveBucketTiming`（`src/platform/config/resolve.ts`）给出；Playground 房间三项都是 0。轮结束、Scheduler 中途推迟与运行结束时的 deadline 推迟都只用 window，不用 max。
 
 ## 长活 Invocation 与热注入
 
