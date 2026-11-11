@@ -21,8 +21,12 @@
 
 1. 目标是让 bot 少插话，决策模型作为最后一道阀门，人格 prompt 不动。
 2. 范本是 `deepseek/deepseek-v4-flash-0731` 发到群里的 `send` 行为。
-3. 有人 @ bot 时不走模型判断，直接送入。
-4. 用户可以配置提问文本、传入的历史条数和批内条数。
+3. 下列四种情况不走决策模型，直接按现有流程处理（2026-11-12 确认）：
+   - 有人 @ bot；
+   - 命中配置的触发关键词；
+   - 回复 bot 之前发的消息；
+   - 长程任务的完成回执注入。
+4. 用户可以覆盖默认的提问文本（2026-11-12 确认），并配置传入的历史条数和批内条数。
 
 ## 行为契约
 
@@ -33,8 +37,10 @@
 - 所在 Chat 解析后的 `decision_gate.enabled` 为 `true`。
 - Chat 的 `host_kind` 是 `telegram`，且不是私聊。Playground 房间不经过闸门。
 - Bucket 的 `kind` 是 `realtime`。`startup_catch_up` 批次不经过闸门，`src/orchestration/invocation-queue/catch-up.ts` 不改。
-- 批内没有直接触发：@ bot、回复 bot 的消息、命中触发关键词。判定复用 `ProactiveReplyGate` 现有的批内直接触发检查（`src/orchestration/proactive-reply.ts` 的 `#directTriggerKind` 与 `sqlDirectMessages`），抽成两处共用的函数，不写第二份。
+- 批内没有直接触发：@ bot、回复 bot 的消息、命中触发关键词，三者任一出现在批内任意一条消息上，整批直接送入。判定复用 `ProactiveReplyGate` 现有的批内直接触发检查（`src/orchestration/proactive-reply.ts` 的 `#directTriggerKind` 与 `sqlDirectMessages`），抽成两处共用的函数，不写第二份。
 - 现有闸门全部通过：Chat 未暂停、仍在配置里、Agent 三元组完整、未在睡眠。这些闸门拦下的批次不发决策请求。
+
+长程任务的完成回执不经过闸门。它走的是另一条路径：`src/orchestration/invocation-queue/receipts.ts` 自己建 Bucket 并直接入队或排队注入，不经过 `processDueBuckets`。这个文件不改；注意它建的 Bucket 的 `kind` 也是 `realtime`，所以不能只靠 `kind` 来判断是否经过闸门，要靠接入点只在 `due.ts`。测试要有一条断言：闸门处于 `enforce` 且决策服务会返回「抛弃」时，回执照常产生 Invocation 或注入，且没有发出决策请求。
 
 闸门同时作用于「新开 Invocation」（`queueCollectingBucket`）与「attach 到运行中的 Invocation」（`attachDueBucket`）两条路径，与 `proactiveAllows` 的覆盖面相同。send 屏障（`holdForNewMessages`）自己取走 `collecting` Bucket 的路径不经过闸门，保持现状。
 
@@ -85,7 +91,7 @@
 
   > A group chat has an AI member named {{ bot.name }} (@{{ bot.username }}), described in `bot` and shown as `{{ bot.name }} [bot]`. `pending` holds the new messages since the bot last looked; `history` holds earlier messages. Would the bot, behaving like a friendly regular member, send a reply after reading `pending`?
 
-  配置里的 `instructions` 整段替换它，支持同样的两个占位符。占位符替换看一下 `src/platform/prompt-template.ts` 能否复用。
+  配置里的 `instructions` 整段替换它，支持同样的两个占位符，全局与单个 Chat 都可以覆盖。覆盖后的文本必须仍是一个是非题，且「是」表示应当送入，因为判定固定为 `P(yes) >= threshold`；这一点写进字段说明。换了提问以后 0.57 这个阈值不再有依据，文档里要提醒先用 `shadow` 重新观察。占位符替换看一下 `src/platform/prompt-template.ts` 能否复用。
 
 消息内容是不可信数据，只放在 `state` 里，不拼进 `instructions`。
 
@@ -204,6 +210,8 @@
 | 决策期间进程退出 | 重启后 Bucket 仍是 `collecting`，被重新处理；残留 `pending` 行被标记 |
 | 已放行的 Bucket 因轮次进行中被推迟 | 不重新决策，轮次结束后送入 |
 | 批内有 @、回复 bot 或关键词 | 不发请求，直接送入 |
+| 长程任务完成回执到期 | 不发请求，回执路径行为不变 |
+| 配置了自定义 `instructions` | 请求里用的是覆盖后的文本，占位符已替换；Chat 级覆盖优先于全局 |
 | `shadow` 模式 | Bucket 的状态转换与时序同未开启时一致，只多出决策行 |
 | 闸门关闭 | 不发请求，不写决策行，现有测试全部不变 |
 | 在途请求达到上限 | 送入，记录 `concurrency_limit` |
@@ -241,10 +249,9 @@
 ## 待用户确认
 
 1. `enforce` 模式下该 Chat 停用主动回复抽样，而不是两者叠加。
-2. 回复 bot 的消息和触发关键词也直接放行。用户只明确说了 @；本文按现有「直接触发」的统一口径处理。
-3. 默认模型用 `typesafe/jev-1.14`。`perplexity/pplx-decider-flash-v1.2` 在评估里略好且便宜约 6 倍，但早先在 4 路并发下出现过 429。
-4. 决策的 token 与花费不计入 `daily_budget`。
-5. Admin Panel 页面留到下一期。
+2. 默认模型用 `typesafe/jev-1.14`。`perplexity/pplx-decider-flash-v1.2` 在评估里略好且便宜约 6 倍，但早先在 4 路并发下出现过 429。
+3. 决策的 token 与花费不计入 `daily_budget`。
+4. Admin Panel 页面留到下一期。
 
 ## 工作方式
 
