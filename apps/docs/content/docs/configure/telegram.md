@@ -93,6 +93,8 @@ Telegram 官方 FAQ 指引开发者通过 [@BotFather](https://t.me/BotFather) �
 
 `/allowlist` 把 Bot 当前所在的 Chat（通常是刚把它拉进的新群）追加进 `telegram.chats` 并立即生效，无需重启。它是唯一能在未列入 allowlist 的 Chat 里使用的命令，且仅限 `telegram.admins` 中的用户：非管理员的 `/allowlist` 会被静默忽略。
 
+`/model` 查看或切换本群模型：`/model 序号` 写入本群的模型覆盖，`/model default` 恢复跟随全局。切换立即生效：本群仍在用旧模型的会话会被直接终止（它们正在处理的消息不会再得到回复，之前委派的任务不受影响），之后的消息由新模型处理；回执会说明终止了几个会话。
+
 `/effort` 查看或设置本群模型的思考强度（thinking effort）：不带参数时列出当前生效模型接受的级别与当前级别，未覆盖的级别会标注“继承全局”；`/effort 级别` 只写该群 `telegram.chats[].thinking_level` 这一项覆盖并热应用，不动该群的模型覆盖，级别必须是当前模型接受的取值之一；`/effort default` 只删除这项覆盖，思考强度回到继承全局。非推理模型只接受 `off`。改动只对之后启动的 Invocation 生效，正在运行的会话继续使用旧值。
 
 服务启动时会先处理停机期间 Telegram 积压的消息：其中 `/pause`、`/resume` 按消息顺序执行，仍需通过同样的管理员、Chat/Topic 与发送者校验，不补发旧命令回复。其他已识别命令（包括 `/allowlist`、`/model` 和自助忽略命令）只保留审计，不重放操作，也不会作为聊天内容交给模型；启动后需要重新发送这些命令。

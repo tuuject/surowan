@@ -7,6 +7,8 @@ import type { AgentModelOption, AgentModelSwitcher } from '../../platform/models
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { isThinkingLevel } from '../../platform/thinking-levels.ts';
 import { type BusinessStore, resolveChatConfig } from '../../store/store.ts';
+import { abortInvocationsLeavingModel } from '../model-switch.ts';
+import type { BucketScheduler } from '../scheduler/index.ts';
 import type { CommandSender } from './index.ts';
 
 export interface BotCommandConfigDeps {
@@ -14,6 +16,8 @@ export interface BotCommandConfigDeps {
   readonly configStore: RuntimeConfigurationStore;
   readonly modelSwitcher: AgentModelSwitcher | undefined;
   readonly configReloader: BotCommandConfigWriter | undefined;
+  /** `/model` stops the runs of the Chat still on the model it replaces. */
+  readonly scheduler: Pick<BucketScheduler, 'abortInvocations' | 'wake'>;
 }
 
 const MODEL_PAGE_SIZE = 20;
@@ -94,6 +98,13 @@ export async function setSelfIgnored(
   return lines.join('\n');
 }
 
+/**
+ * `/model`: list the text models, or switch this Chat's override (`default`
+ * removes it). A switch takes effect at once: once the file is applied, runs of
+ * this Chat still on the replaced model are stopped, without asking — the
+ * command is the admin's decision. The batch they were answering gets no reply;
+ * later messages go to the new model.
+ */
 export async function switchChatModel(
   deps: BotCommandConfigDeps,
   argument: string | undefined,
@@ -141,17 +152,23 @@ export async function switchChatModel(
       ? `已写入 config.jsonc，但应用失败: ${result.message}`
       : `${reset ? '恢复' : '切换'}失败: ${result.message}`;
   }
+  const aborted = abortInvocationsLeavingModel(deps.store.orm, deps.configStore, deps.scheduler, config, {
+    configuredChatId,
+  });
   const current = deps.configStore.current().config;
   const settings = resolveAgentSettings(current, resolveChatConfig(current, deps.store.orm, telegramChatId));
   const active = completeAgentSettings(settings);
   const target = active === undefined ? '未配置' : modelDisplayLabel(current, active.provider, active.model);
   const paths = switchPaths(configuredChatId);
   const lines = reset
-    ? [`已清除本群模型覆盖，跟随全局 ${target}，将在下一次 agent session 生效。`]
+    ? [`已清除本群模型覆盖，跟随全局 ${target}，已立即生效。`]
     : [
-        `已为本群切换: ${target}，已写入 config.jsonc，将在下一次 agent session 生效。`,
+        `已为本群切换: ${target}，已写入 config.jsonc 并立即生效。`,
         `思考强度已重置为该模型最弱的一档: ${settings.thinking_level ?? '未配置'}`,
       ];
+  if (aborted > 0) {
+    lines.push(`已终止 ${aborted} 个仍在使用旧模型的会话，它们正在处理的消息不会再得到回复。`);
+  }
   lines.push(...applyReport(result.applied, paths, result.restartRequired));
   return lines.join('\n');
 }

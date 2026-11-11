@@ -31,7 +31,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 
 | 路径 | 说明 |
 | --- | --- |
-| `agent.provider`、`agent.model` | 永远热更新：目标 Provider 可以是同一次修改里新增的，reload 会重建模型注册表并随配置一起发布。手改文件或 `/model` 切换时，运行中的 Invocation 用完自己的快照；Admin Panel 切换（全局与按 Chat）经确认后立即中止仍在旧模型上的 Invocation，见 [admin-panel.md](admin-panel.md#模型切换立即生效) |
+| `agent.provider`、`agent.model` | 永远热更新：目标 Provider 可以是同一次修改里新增的，reload 会重建模型注册表并随配置一起发布。手改文件后应用时，运行中的 Invocation 用完自己的快照；Admin Panel 切换（全局与按 Chat，经确认）与 Telegram `/model`（直接）立即中止仍在旧模型上的 Invocation，见 [admin-panel.md](admin-panel.md#模型切换立即生效) |
 | `agent.system_prompt_file` | 路径或文件内容变化都算；内容变化会重建每个 Conversation 的 Context；可在面板编辑并保留版本历史 |
 | `models_dev`、`models_dev.api_url` | 面板添加模型时查询元数据的目录地址；每次查询都读当前发布的配置，缓存按地址分开，改动后下一次查询即生效 |
 | `developer`、`developer.record_model_payloads`、`developer.record_agent_thinking` | 可选节/字段的增删都热应用，缺省为 `false`；每次模型调用读取当前开关，关闭时后续快照回调停止写入。`record_model_payloads` 开启时会在看板与警告页持续产生常态警告 |

@@ -12,9 +12,9 @@ import { json, readJsonObject, redact, requiredRevision, revisionRequired } from
 import {
   abortInvocationsLeavingModel,
   invocationsLeavingModel,
-  modelInUseBody,
   withAgentModel,
-} from './model-switch.ts';
+} from '../../orchestration/model-switch.ts';
+import { modelInUseBody } from './model-switch.ts';
 import { cancelOngoingSessions } from './operations.ts';
 import { listProviderPresets, supervisedRestartEnabled } from './providers/read.ts';
 

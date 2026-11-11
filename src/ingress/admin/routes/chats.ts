@@ -10,9 +10,9 @@ import { CONFIG_WRITE_STATUS, readConfigFile } from '../config-file.ts';
 import {
   abortInvocationsLeavingModel,
   invocationsLeavingModel,
-  modelInUseBody,
   withChatModel,
-} from '../model-switch.ts';
+} from '../../../orchestration/model-switch.ts';
+import { modelInUseBody } from '../model-switch.ts';
 import {
   createChat,
   deleteChat,
@@ -86,7 +86,7 @@ export function createChatsAdminHandler(deps: ChatsAdminDeps) {
     let edits: readonly ConfigEdit[];
     // Set when the admin agreed to stop the runs this write leaves on the
     // Chat's old model.
-    let switchedFrom: RuntimeConfiguration | undefined;
+    let switchedFrom: { readonly before: RuntimeConfiguration; readonly chatId: number } | undefined;
     if (request.method === 'POST') {
       edits = createChat(loaded.fileConfig, parseCreateChat(await readJsonObject(request)));
     } else {
@@ -107,12 +107,13 @@ export function createChatsAdminHandler(deps: ChatsAdminDeps) {
           store.orm,
           before.config,
           withChatModel(before.config, id, body.provider, body.model),
+          { configuredChatId: id },
         );
         if (using.length > 0 && body.abort_running !== true) {
           return json(modelInUseBody(using.length), 409);
         }
         if (body.abort_running === true) {
-          switchedFrom = before;
+          switchedFrom = { before, chatId: id };
         }
       }
     }
@@ -127,7 +128,9 @@ export function createChatsAdminHandler(deps: ChatsAdminDeps) {
     const aborted =
       switchedFrom === undefined
         ? 0
-        : abortInvocationsLeavingModel(store.orm, configStore, scheduler, switchedFrom.config);
+        : abortInvocationsLeavingModel(store.orm, configStore, scheduler, switchedFrom.before.config, {
+            configuredChatId: switchedFrom.chatId,
+          });
     if (deletingChatId !== undefined) {
       const stillAuthorized = () => {
         const identity = new Set(telegramChatIdentity(store, [deletingChatId]));

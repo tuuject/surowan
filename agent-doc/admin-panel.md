@@ -375,13 +375,13 @@ SQLite `bigint` ID 在 JSON 中字符串化，Token/计数等小整数转 `numbe
 
 ### 模型切换立即生效
 
-全局模型（`PUT /model`）与 Chat 自己的模型（`PUT /chats/:id`）切换后立即生效，规则在 `src/ingress/admin/model-switch.ts`：
+全局模型（`PUT /model`）与 Chat 自己的模型（`PUT /chats/:id`，以及 Telegram `/model`）切换后立即生效，规则在 `src/orchestration/model-switch.ts`（`model_in_use` 拒绝体在 `src/ingress/admin/model-switch.ts`）：
 
 - 「正在用这个模型」按 `resolveInvocationPolicy` 判断：对每个 `state = 'running'` 的 Invocation，用切换前与切换后的配置各解析一次它所在 Chat/房间的生效模型，不同才算受影响。所以全局切换不影响有独立模型覆盖的 Chat，只改 thinking 也从不触发。
 - 有受影响的 Invocation 时先拒绝（409 `model_in_use` + `running_invocations`），面板弹 `ModelSwitchConfirmDialog`（Models 页保存、Providers 页 “Use as Agent”、Chats 页编辑弹窗三处共用），确认后带 `abort_running: true` 重发。
-- 确认后先写入并发布配置，再重新计算一次（排除 `config_hash` 等于新快照的 run——它们已经在新模型上），用 `scheduler.abortInvocations(ids, 'model_switched')` 中止。已消费的批次随 run 以 `aborted` 关闭、不再回复也不重试；已附着但尚未注入的批次照常释放回队列，由新模型处理；委派的长期任务不受影响。
+- 确认后先写入并发布配置，再重新计算一次（排除 `config_hash` 等于新快照的 run——它们已经在新模型上），用 `scheduler.abortInvocations(ids, 'model_switched')` 中止。Chat 切换带 `configuredChatId` 范围（含迁移 ID），写入顺带应用的其它文件改动不会中止别的 Chat 的 run。已消费的批次随 run 以 `aborted` 关闭、不再回复也不重试；已附着但尚未注入的批次照常释放回队列，由新模型处理；委派的长期任务不受影响。
 - 新模型直接沿用 Conversation 现有 Context，不做迁移；超出新模型预算时由下一次 `ConversationContextStore.open` 按 `context_window` 原因重建（见 [telegram-agent-flow.md](telegram-agent-flow.md#context-生命周期)）。
-- Telegram 的 `/model` 命令不走这条路径，仍只影响之后开始的 Invocation。
+- Telegram `/model`（含 `/model default`）用同一套计算，但不询问：命令本身就是管理员的决定，应用后直接中止该 Chat 的受影响 run，并在回执里报告数量。
 
 ## Developer 页
 
