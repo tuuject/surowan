@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { composeAgentPrompt, preparePromptOverride, PromptOverrideError } from '../../src/platform/agent-prompt.ts';
-import { validatePromptTemplate } from '../../src/platform/prompt-template.ts';
+import { renderPromptTemplate, validatePromptTemplate } from '../../src/platform/prompt-template.ts';
 
 test('rejects unsupported and malformed expressions', () => {
   expect(() => validatePromptTemplate('{{agent.api_key}}', 'system prompt')).toThrow('unsupported template variable');
@@ -17,6 +17,14 @@ const VALUES = {
   vision: { provider: 'vision-gateway', model: 'vision-model' },
   timezone: 'Asia/Shanghai',
 };
+
+test('renders agent.nickname and falls back to provider / model', () => {
+  expect(() => validatePromptTemplate('{{agent.nickname}}', 'system prompt')).not.toThrow();
+  expect(
+    renderPromptTemplate('{{agent.nickname}}', { ...VALUES, agent: { ...VALUES.agent, nickname: '常用聊天模型 A' } }),
+  ).toBe('常用聊天模型 A');
+  expect(renderPromptTemplate('{{agent.nickname}}', VALUES)).toBe('gateway / chat-model');
+});
 
 test('renders only operator templates and keeps the global and group precedence', () => {
   const prompt = composeAgentPrompt({ ...LAYERS, prefix: '{{agent.model}}' }, VALUES);

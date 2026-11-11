@@ -63,7 +63,7 @@ function FieldLabel({
   readonly htmlFor: string;
   readonly label: string;
   readonly draft: ModelMetadataDraft | null;
-  readonly field: DraftField;
+  readonly field?: DraftField;
 }): ReactElement {
   const { t } = useTranslation();
   return (
@@ -71,7 +71,7 @@ function FieldLabel({
       <label htmlFor={htmlFor} className={fieldLabel}>
         {label}
       </label>
-      {draft === null ? null : (
+      {draft === null || field === undefined ? null : (
         <>
           <span className={css({ textStyle: 'small', color: 'text-muted' })}>{fieldSourceLabel(draft, field)}</span>
           {isDraftFieldUnconfirmed(draft, field) ? (
@@ -228,6 +228,16 @@ function ModelEditForm({
               id="model-name"
               value={form.name}
               onChange={(event) => setForm((previous) => ({ ...previous, name: event.target.value }))}
+            />
+          </div>
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+            {/* No provenance: a nickname is operator-authored, never metadata. */}
+            <FieldLabel htmlFor="model-nickname" label={t('models.models.edit.nickname')} draft={null} />
+            <Input
+              id="model-nickname"
+              maxLength={64}
+              value={form.nickname}
+              onChange={(event) => setForm((previous) => ({ ...previous, nickname: event.target.value }))}
             />
           </div>
           <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>

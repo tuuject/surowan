@@ -81,6 +81,7 @@
 | [20261010 辞典系统](design/archived/20261010%20辞典系统.md) | 辞典产品需求（PRD）：全局/群组词条、精确匹配与自动注入、冲突检测与 AI 辅助融合、导入导出、Tool Model | 已实现，见 [dictionary.md](dictionary.md) |
 | [20261014 宿主解耦与 Local Monolith Adapter 设计](design/archived/20261014%20宿主解耦与%20Local%20Monolith%20Adapter%20设计.md) | 先分离共享业务与部署宿主，落地保持现有单机行为的 Local Monolith Adapter；以进程内 WebAssembly 取代 FFmpeg/python-lottie/Sharp；记录后续 Workers/DO/Containers/Media Worker 分工、全局媒体状态归属与验收边界 | 部分已实现：M1/M2 宿主解耦与 Local Monolith Adapter 已落地，见 [architecture.md](architecture.md#runtime-与宿主边界)；媒体去原生化（须先完成 Lottie/VP9 wasm spike）、Cloudflare 原型与分布式恢复机制未实施 |
 | [20261014 辞典插件化设计计划](design/archived/20261014%20辞典插件化设计计划.md) | 辞典迁入内置插件，新增通用按批 Context 注入钩子；对模型、Admin API、配置与数据库的外部可见行为不变 | 已实现，见 [dictionary.md](dictionary.md) |
+| [20261025 Model Nickname 实施计划](design/archived/20261025%20Model%20Nickname%20实施计划.md) | 模型条目的可选 `nickname`、`/status` `/model` `/effort` 展示收敛与 `{{agent.nickname}}` 模板变量 | 已实现，见 [configuration.md](configuration.md)、[telegram-agent-flow.md](telegram-agent-flow.md#bot-commands) |
 
 ## 文档边界
 

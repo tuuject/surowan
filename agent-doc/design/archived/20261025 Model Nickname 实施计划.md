@@ -1,6 +1,6 @@
 # 20261025 Model Nickname 实施计划
 
-产品意图以 [`doc/design/20261025-model-nickname.md`](../../doc/design/20261025-model-nickname.md)（用户已审核的 PRD）为准。本文是 AI 直出的实施文档，把 PRD 落到具体文件、函数与验收上；与 PRD 冲突时以 PRD 为准，判断当前行为仍以源码为最终事实。
+产品意图以 [`doc/design/20261025-model-nickname.md`](../../../doc/design/20261025-model-nickname.md)（用户已审核的 PRD）为准。本文是 AI 直出的实施文档，把 PRD 落到具体文件、函数与验收上；与 PRD 冲突时以 PRD 为准，判断当前行为仍以源码为最终事实。
 
 ## 1. 目标与不变量
 

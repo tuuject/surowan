@@ -23,7 +23,9 @@ description: 为 Surowan 设置全局人格、每群附加指令和模板变量�
 
 系统提示词按固定顺序拼装：核心规则、私聊/群聊模式、产品知识索引、能力说明与人格分区说明都由当前版本内置，运行时内容不会出现在人格之后；全局人格和 Chat 指令只填充人格部分。内置分区随版本发布，不能替换或覆盖。
 
-支持的模板变量只有：`{{ agent.provider }}`、`{{ agent.model }}`、`{{ vision.provider }}`、`{{ vision.model }}`、`{{ timezone }}`。它们会在每次 Invocation 按实际生效配置替换；未知变量会使配置校验失败。
+支持的模板变量只有：`{{ agent.nickname }}`、`{{ agent.provider }}`、`{{ agent.model }}`、`{{ vision.provider }}`、`{{ vision.model }}`、`{{ timezone }}`。它们会在每次 Invocation 按实际生效配置替换；未知变量会使配置校验失败。
+
+`{{ agent.nickname }}` 读取当前生效模型条目的 `nickname`；该模型没有设置昵称时渲染为 `provider / model`，与 `/status`、`/model`、`/effort` 的显示规则一致。可以用它约束模型自述身份，例如「被问到你是谁时，只回答 `{{ agent.nickname }}`」。厂商级系统提示词与模型自带的身份认知不受这里控制。
 
 ## 为单个 Chat 添加指令
 

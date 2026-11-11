@@ -21,7 +21,7 @@ import type {
 } from '@/lib/api/providers.ts';
 import { createProvider, discoverProviderModels, lookupModelMetadata } from '@/lib/api/providers.ts';
 import { type HeaderRow, headerRowsFromNames, headerValues } from '@/lib/header-rows.ts';
-import { emptyModelForm, modelFormFromDraft } from '@/lib/model-form.ts';
+import { modelFormForDraft } from '@/lib/model-form.ts';
 import { parseModelIds, requestErrorMessage } from '@/lib/model-manager.ts';
 import { providerPresetsQuery } from '@/lib/queries.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
@@ -336,7 +336,7 @@ export function ProviderWizard({
         api={confirmApi}
         title={editing === null ? '' : t('models.models.wizard.confirmTitle', { model: editing.id })}
         description={t('models.models.wizard.confirmDescription')}
-        initial={editing === null ? emptyModelForm(confirmApi) : modelFormFromDraft(editing, confirmApi)}
+        initial={modelFormForDraft(editing, editing === null ? undefined : selection.resolved[editing.id], confirmApi)}
         formKey={confirmNonce}
         lockId
         draft={editing}

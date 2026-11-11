@@ -22,7 +22,7 @@ import { createLottieCommand } from './capabilities/media/image.ts';
 
 import { AgentRuntime } from './orchestration/agent-runtime/index.ts';
 import { KeyedSemaphore } from './platform/concurrency.ts';
-import type { McpServerConfig, ProviderConfig, RawConfig } from './platform/config/index.ts';
+import { configuredModel, type McpServerConfig, type ProviderConfig, type RawConfig } from './platform/config/index.ts';
 import { assertConfigPermissions, loadConfig } from './adapters/local-monolith/config/index.ts';
 
 import { createTelegramHost, grammyTelegramTransport } from './adapters/local-monolith/telegram/host.ts';
@@ -54,8 +54,11 @@ export async function runDoctor(configPath: string, outputAgentPrompt = false): 
   }
 }
 export function renderDoctorAgentPrompt(config: RawConfig): string {
+  const provider = config.agent.provider ?? 'unconfigured';
+  const model = config.agent.model ?? 'unconfigured';
+  const nickname = configuredModel(config, provider, model)?.nickname;
   const values: PromptTemplateValues = {
-    agent: { provider: config.agent.provider ?? 'unconfigured', model: config.agent.model ?? 'unconfigured' },
+    agent: { provider, model, ...(nickname === undefined ? {} : { nickname }) },
     vision: { provider: config.vision.provider ?? 'unconfigured', model: config.vision.model ?? 'unconfigured' },
     timezone: config.timezone,
   };

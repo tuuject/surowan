@@ -353,6 +353,8 @@ Provider alias 必须匹配 `^[A-Za-z][A-Za-z0-9_-]{0,63}$`：它出现在 Admin
 
 配置了 `agent.provider`/`agent.model` 时模型必须支持 text；若同时支持 image，用户 Photo/图片 Document 直接作为多模态输入，否则保留为 `read_image` capability 并由独立 `vision` 模型按需解析。配置了 `vision.provider`/`vision.model` 时模型必须支持 image，也负责 Sticker 的按需理解与后台索引；配置输出上限不能超过注册模型上限。未配置时的降级见下文「`vision` 约束」。
 
+模型条目的可选字段 `nickname`（1–64 字符）只影响 Telegram 命令展示：设置后 `/status`、`/model`、`/effort` 用昵称替代 `provider / model`，`/model` 列表行只显示 `序号. 昵称`，不显示 Provider、模型 ID 或上游 `name`；未设置时保持原样。定位、切换与校验始终使用真实 `provider`/`model`，昵称不要求唯一，Admin Panel 继续显示真实名称。
+
 ### 模型 thinking 级别
 
 `thinking_levels`（可选）列出这个模型接受的 thinking 级别，取值是 Pi 的 `off`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`，按这个顺序从弱到强；列表至少一项、不能重复，写入顺序无所谓。只有 `reasoning: true` 的模型可以写，非推理模型写了直接拒绝。
@@ -416,7 +418,7 @@ tool "read" parameter schema: parameter "uri": unsupported schema keyword "minLe
 只有 `provider`/`model`/`thinking_level` 三元组决定会不会发起 Invocation：三者缺一即「agent 未配置」，加载时产生 warning 但照常启动；之后到期 Bucket 直接以 `skipped_budget`/`agent_unconfigured` 关闭而不创建 Invocation，attach 到运行中 Invocation、完成回执投递与启动补偿走同一闸门。热更新把三元组改成不完整后下一次到期同样跳过，补全即恢复；Chat 覆盖可逐项补齐三元组（`resolveAgentSettings`），全局未配、某 Chat 配齐时该 Chat 照常发起 Invocation。Admin 各模型视图此时以 `null` 字段表示未配置。
 
 - `daily_budget.max_tokens`: 主 Agent 与聊天触发的 `read_image` 共享的全局每日 Token 上限；各 Chat 用量仍分别写入 `daily_usage`。它是防止循环、失控 Invocation 与 Tool loop 的安全熔断，不是成本预算，因此计的是一次模型调用涉及的全部 token：非缓存输入、缓存读取、缓存写入与生成（`meteredTokens`，`src/store/sleep.ts`）。模型是否收费、缓存是否便宜都不影响计量，免费模型同样受限。pi-ai 规范化后的 `input` 已扣除缓存读写，四项互不重叠，直接相加不会重复计数；Provider 原始 `total_tokens` 不参与计量。缓存读写仍在 `model_calls` 与 Admin Panel 的 Model call 明细里单列，`vision.daily_budget` 的 `vision_tokens` 同口径。
-- `system_prompt_file`（可选）: 指向运维侧人格提示的 Markdown 文件，缺省为空 Prompt，路径相对配置文件目录，内容必须非空（剔除 HTML 注释后仍需有正文）。消息分区、安全边界、Tool 选择原则和副作用成功判定由代码内 Core Agent Protocol 固化；具体 Tool 的触发条件、禁用情形、调用顺序与收尾规则由 Tool description 固化，不应重复塞入人格文件。人格提示和 Chat 的 `instructions_file` 支持 `{{ agent.provider }}`、`{{ agent.model }}`、`{{ vision.provider }}`、`{{ vision.model }}`、`{{ timezone }}` 模板变量；模板只执行严格白名单替换，未知或格式错误的表达式会拒绝配置。
+- `system_prompt_file`（可选）: 指向运维侧人格提示的 Markdown 文件，缺省为空 Prompt，路径相对配置文件目录，内容必须非空（剔除 HTML 注释后仍需有正文）。消息分区、安全边界、Tool 选择原则和副作用成功判定由代码内 Core Agent Protocol 固化；具体 Tool 的触发条件、禁用情形、调用顺序与收尾规则由 Tool description 固化，不应重复塞入人格文件。人格提示和 Chat 的 `instructions_file` 支持 `{{ agent.nickname }}`、`{{ agent.provider }}`、`{{ agent.model }}`、`{{ vision.provider }}`、`{{ vision.model }}`、`{{ timezone }}` 模板变量；`agent.nickname` 读取当前生效模型条目的昵称，未设置时渲染为 `provider / model`；模板只执行严格白名单替换，未知或格式错误的表达式会拒绝配置。
 - Prompt 注释：`system_prompt_file` 与 `instructions_file` 中的 `<!-- ... -->` HTML 注释在加载时被剔除，可以写给人看的说明而不占模型上下文；注释可跨行，整行只有注释时该行一并消失。未闭合的 `<!--` 不构成注释，按原文保留；模板校验在剔除之后进行，因此注释里可以出现任意 `{{ ... }}` 文本。提示文件含 NUL 字符时拒绝加载。
 - 模板中的 `agent.provider` 与 `agent.model` 是当前 Invocation 实际使用的模型（按 Chat 解析后的生效值，未覆盖时即全局默认），因此 Admin Panel 或 `/model` 的运行时切换会反映到下一次会话；`vision.*` 始终来自配置。模板值只注入 Prompt，不会注入 Memo Pad；Memo 内容按原文保留。
 - `max_concurrency`: 全局并行 running Invocation 上限；`history_messages` 是每个新开 Invocation 冻结 history 快照的条数上限（attach 进运行中 Invocation 的批次不带 history）。渲染时会跳过保留 transcript 里已经有的消息，所以真正注入的只是 transcript 从没见过的那部分，例如被参与闸门挡住、从未注入过的消息；并不是只在冷启动时才生效。单次运行不再有 `max_turns`/`max_sends`/`timeout_seconds`（字段已删除，写进配置会被拒绝），运行边界见「Conversation Context」。

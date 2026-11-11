@@ -2,6 +2,7 @@ import { getSupportedThinkingLevels, type ModelThinkingLevel } from '@earendil-w
 import type { AgentSettings, RawConfig } from '../../platform/config/index.ts';
 import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
 import type { BotCommandConfigWriter } from '../../platform/config/write.ts';
+import { modelDisplayLabel } from '../../platform/models/label.ts';
 import type { AgentModelOption, AgentModelSwitcher } from '../../platform/models/switch.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { isThinkingLevel } from '../../platform/thinking-levels.ts';
@@ -113,7 +114,7 @@ export async function switchChatModel(
   const options = switcher.list();
 
   if (argument === undefined) {
-    return modelMenu(1, options, effective, chatConfig);
+    return modelMenu(config, 1, options, effective, chatConfig);
   }
 
   const pageMatch = /^page\s+(\d+)$/.exec(argument);
@@ -121,15 +122,15 @@ export async function switchChatModel(
     const page = Number.parseInt(pageMatch[1] ?? '', 10);
     const pageCount = Math.max(1, Math.ceil(options.length / MODEL_PAGE_SIZE));
     if (!Number.isSafeInteger(page) || page < 1 || page > pageCount) {
-      return `无效页码。${modelMenu(1, options, effective, chatConfig)}`;
+      return `无效页码。${modelMenu(config, 1, options, effective, chatConfig)}`;
     }
-    return modelMenu(page, options, effective, chatConfig);
+    return modelMenu(config, page, options, effective, chatConfig);
   }
   const reset = argument === 'default';
   const index = /^\d+$/.test(argument) ? Number.parseInt(argument, 10) : NaN;
   const option = options[index - 1];
   if (!reset && option === undefined) {
-    return `无效序号。${modelMenu(1, options, effective, chatConfig)}`;
+    return `无效序号。${modelMenu(config, 1, options, effective, chatConfig)}`;
   }
   const result =
     option === undefined
@@ -143,7 +144,7 @@ export async function switchChatModel(
   const current = deps.configStore.current().config;
   const settings = resolveAgentSettings(current, resolveChatConfig(current, deps.store.orm, telegramChatId));
   const active = completeAgentSettings(settings);
-  const target = active === undefined ? '未配置' : `${active.provider} / ${active.model}`;
+  const target = active === undefined ? '未配置' : modelDisplayLabel(current, active.provider, active.model);
   const paths = switchPaths(configuredChatId);
   const lines = reset
     ? [`已清除本群模型覆盖，跟随全局 ${target}，将在下一次 agent session 生效。`]
@@ -192,19 +193,19 @@ export async function switchChatEffort(
   // actually runs with.
   const model = deps.configStore.current().models.getModel(provider, modelId);
   if (model === undefined) {
-    return `模型 ${provider} / ${modelId} 未注册，无法查看或设置思考强度。`;
+    return `模型 ${modelDisplayLabel(config, provider, modelId)} 未注册，无法查看或设置思考强度。`;
   }
   const supported = getSupportedThinkingLevels(model);
 
   if (requested === undefined) {
-    return effortMenu(provider, modelId, level, chatConfig, supported);
+    return effortMenu(config, provider, modelId, level, chatConfig, supported);
   }
 
   if (!isThinkingLevel(requested)) {
-    return `无效的思考强度: ${argument}。\n${effortMenu(provider, modelId, level, chatConfig, supported)}`;
+    return `无效的思考强度: ${argument}。\n${effortMenu(config, provider, modelId, level, chatConfig, supported)}`;
   }
   if (!supported.includes(requested)) {
-    return `${provider} / ${modelId} 不支持思考强度 ${requested}。可选: ${supported.join(', ')}`;
+    return `${modelDisplayLabel(config, provider, modelId)} 不支持思考强度 ${requested}。可选: ${supported.join(', ')}`;
   }
   const result = await reloader.setChatThinkingLevel(configuredChatId, requested);
   if (!result.ok) {
@@ -252,6 +253,7 @@ async function resetChatEffort(
 
 /** The current level, what the model accepts, and how to change either. */
 function effortMenu(
+  config: RawConfig,
   provider: string,
   modelId: string,
   level: ModelThinkingLevel | undefined,
@@ -262,7 +264,7 @@ function effortMenu(
   // `off`-only list means the model cannot think.
   const thinks = supported.some((entry) => entry !== 'off');
   return [
-    `本群模型: ${provider} / ${modelId}`,
+    `本群模型: ${modelDisplayLabel(config, provider, modelId)}`,
     `思考强度: ${level ?? '未配置'}${chatConfig.thinking_level === undefined ? '（继承全局）' : ''}`,
     `可选: ${supported.join(', ')}${thinks ? '' : '（该模型不支持思考）'}`,
     thinks ? '使用 /effort 级别 设置本群强度，/effort default 恢复继承全局' : '使用 /effort default 恢复继承全局',
@@ -287,6 +289,7 @@ function applyReport(
 }
 
 function modelMenu(
+  config: RawConfig,
   page: number,
   options: readonly AgentModelOption[],
   effective: AgentSettings,
@@ -301,7 +304,7 @@ function modelMenu(
   const modelLabel =
     effective.provider === undefined || effective.model === undefined
       ? '未配置'
-      : `${effective.provider} / ${effective.model}${hasProviderOverride || hasModelOverride ? '' : '（继承全局）'}`;
+      : `${modelDisplayLabel(config, effective.provider, effective.model)}${hasProviderOverride || hasModelOverride ? '' : '（继承全局）'}`;
   const lines = [
     `本群模型: ${modelLabel}`,
     `思考强度: ${effective.thinking_level ?? '未配置'}${hasThinkingOverride ? '' : '（继承全局）'}`,
@@ -312,7 +315,11 @@ function modelMenu(
     if (option === undefined) {
       break;
     }
-    lines.push(`${index + 1}. ${option.provider} / ${option.model}（${option.name}）`);
+    lines.push(
+      option.nickname === undefined
+        ? `${index + 1}. ${option.provider} / ${option.model}（${option.name}）`
+        : `${index + 1}. ${option.nickname}`,
+    );
   }
   lines.push('使用 /model 序号 切换，/model page 页码 翻页，/model default 清除本群覆盖');
   return lines.join('\n');

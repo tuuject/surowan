@@ -1,4 +1,5 @@
 import { type Api, getSupportedThinkingLevels, type Model, type ModelThinkingLevel } from '@earendil-works/pi-ai';
+import { configuredModel } from '../config/index.ts';
 import type { RuntimeConfigurationStore } from '../runtime-config.ts';
 
 export class ModelSwitchError extends Error {
@@ -15,6 +16,8 @@ export interface AgentModelOption {
   readonly provider: string;
   readonly model: string;
   readonly name: string;
+  /** Configured display nickname; absent means "show `provider / model`". */
+  readonly nickname?: string;
   readonly contextWindow: number;
   readonly maxTokens: number;
 }
@@ -24,6 +27,8 @@ export interface AgentModelCatalogEntry {
   readonly provider: string;
   readonly model: string;
   readonly name: string;
+  /** Configured display nickname; absent means "show `provider / model`". */
+  readonly nickname?: string;
   readonly context_window: number;
   readonly max_tokens: number;
   readonly input: readonly ('text' | 'image')[];
@@ -45,10 +50,12 @@ export function listActiveTextModels(configStore: RuntimeConfigurationStore): re
       if (!candidate.input.includes('text')) {
         continue;
       }
+      const nickname = configuredModel(snapshot.config, alias, candidate.id)?.nickname;
       entries.push({
         provider: alias,
         model: candidate.id,
         name: candidate.name,
+        ...(nickname === undefined ? {} : { nickname }),
         context_window: candidate.contextWindow,
         max_tokens: candidate.maxTokens,
         input: [...candidate.input],
@@ -109,6 +116,7 @@ export class AgentModelSwitcher {
       provider: entry.provider,
       model: entry.model,
       name: entry.name,
+      ...(entry.nickname === undefined ? {} : { nickname: entry.nickname }),
       contextWindow: entry.context_window,
       maxTokens: entry.max_tokens,
     }));
@@ -127,10 +135,12 @@ export class AgentModelSwitcher {
     if (!found.input.includes('text')) {
       throw new ModelSwitchError('not_text_capable', `Model ${provider}/${modelId} does not accept text input`);
     }
+    const nickname = configuredModel(snapshot.config, provider, modelId)?.nickname;
     return {
       provider,
       model: modelId,
       name: found.name,
+      ...(nickname === undefined ? {} : { nickname }),
       contextWindow: found.contextWindow,
       maxTokens: found.maxTokens,
     };

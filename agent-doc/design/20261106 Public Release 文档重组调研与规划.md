@@ -92,7 +92,7 @@ Telegram 接入页同时承载首次接入、发送去重、空文本策略和�
 | 接入 Telegram | BotFather 建 Bot，在 Telegram 页设置 Token，Chats 添加允许的 Chat | 连接正常，允许的消息入库并产生预期运行 |
 | 调优 | 按费用、参与频率和回复表现调整 | 用审计和用量比较，不只看保存成功 |
 
-依据：[Provider 新建与模型选择 E2E](../../apps/admin-next/e2e/08-models-editing.e2e.ts)、[Telegram Token 处理](../../src/ingress/admin/telegram.ts)、[Prompt 文件创建](../../src/ingress/admin/prompts.ts)。
+依据：[Provider 新建与模型选择 E2E](../../apps/admin-next/e2e/08-models-adding.e2e.ts)、[Telegram Token 处理](../../src/ingress/admin/telegram.ts)、[Prompt 文件创建](../../src/ingress/admin/prompts.ts)。
 
 实施阶段应增加完整的新手流程验收，验证空部署配置到第一次 Playground 输出能够连贯完成。本轮没有执行该验收。
 

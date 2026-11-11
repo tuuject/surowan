@@ -18,6 +18,31 @@ Surowan 只使用配置 `providers.<alias>.models` 中显式列出的模型；Pr
 
 推理模型可声明 `reasoning: true` 和可接受的 `thinking_levels`；否则选择 `off`。模型的 `max_tokens` 不能大于 `context_window`，视觉的 `max_output_tokens` 不能超过所选模型上限。
 
+模型条目可以加可选的 `nickname`（1–64 字符），用于在 Telegram 命令里隐藏真实的 Provider 与模型名：
+
+```jsonc
+{
+  "providers": {
+    "gateway": {
+      "models": [
+        {
+          "id": "replace-with-your-text-and-image-model",
+          "name": "Replace with an available model",
+          "nickname": "常用聊天模型 A",
+          "reasoning": false,
+          "input": ["text", "image"],
+          "context_window": 128000,
+          "max_tokens": 8192,
+          "cost": { "input": 0, "output": 0, "cache_read": 0, "cache_write": 0 }
+        }
+      ]
+    }
+  }
+}
+```
+
+设置后，`/status`、`/model`、`/effort` 中该模型只显示昵称，不显示 Provider、模型 ID 或括号里的上游 `name`；`/model` 列表行变成 `3. 常用聊天模型 A`。没有设置昵称的模型保持 `provider / model` 的原有显示；昵称不要求唯一，也不影响 `/model 序号` 的切换位置。`nickname` 只改展示，定位、切换与校验仍使用真实 `id`。Admin Panel 是运维界面，继续显示真实 Provider 与模型名，模型编辑对话框可以填写昵称。
+
 ## 在管理面板中分配模型
 
 Admin **模型 / Models** 页有三张卡片：Agent 模型、图片识别模型（Vision）与工具模型（Tool Model）。每张卡片先选模型，再在下方选思考强度；模型列表只列出能做这项工作的模型（图片识别要求 image 输入），思考强度只列该模型接受的级别，不推理的模型不能调节。改动不会立即写入：有改动的卡片标题旁会出现小圆点，底部保存栏显示未保存的数量，点 **保存 / Save** 后一并写入并热应用，点 **放弃更改 / Discard changes** 则恢复成已保存的设置。
