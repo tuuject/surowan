@@ -1,13 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
+import { Field } from '@tuuject/koi-react/field';
+import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Switch } from '@tuuject/koi-react/switch';
 import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ConfirmDialog, ListPageHeader, SettingRow } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
-import { clearModelPayloads, updateDeveloperSettings } from '@/lib/api/config.ts';
+import { clearModelPayloads, type DeveloperSettings, updateDeveloperSettings } from '@/lib/api/config.ts';
 import { errorMessage } from '@/lib/errors';
 import { developerQuery } from '@/lib/queries';
 import { useProviderWrite } from '@/lib/use-provider-write';
@@ -105,6 +107,7 @@ export default function DeveloperPage(): ReactElement {
           </div>
         )}
       </Panel>
+      {current === undefined ? null : <ModelsDevSource key={current.revision} settings={current} />}
       <Panel
         title={t('models.developer.historyTitle')}
         description={t('models.developer.historyDescription')}
@@ -145,5 +148,82 @@ export default function DeveloperPage(): ReactElement {
         onConfirm={() => clear.mutate()}
       />
     </div>
+  );
+}
+
+/**
+ * Where the Providers page looks model details up when models are added. The
+ * field is empty while the file names no address, and saving it empty removes
+ * the setting again. Keyed by the file revision, so a save starts the field over
+ * from what the file now holds.
+ */
+function ModelsDevSource({ settings }: { readonly settings: DeveloperSettings }): ReactElement {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const write = useProviderWrite();
+  const [value, setValue] = useState(settings.models_dev_url ?? '');
+  const save = useMutation({
+    mutationFn: (url: string | null) => updateDeveloperSettings({ models_dev_url: url }, settings.revision),
+    onSuccess: (result) => {
+      queryClient.setQueryData(developerQuery.queryKey, result);
+      write.succeeded(result.apply);
+    },
+    onError: write.failed,
+  });
+  const trimmed = value.trim();
+  const target = trimmed.length === 0 ? null : trimmed;
+  return (
+    <Panel title={t('models.developer.modelsDevTitle')} description={t('models.developer.modelsDevDescription')}>
+      <form
+        noValidate
+        className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}
+        onSubmit={(event) => {
+          event.preventDefault();
+          save.mutate(target);
+        }}
+      >
+        <Field
+          id="models-dev-url"
+          label={t('models.developer.modelsDevLabel')}
+          help={t('models.developer.modelsDevHint', { url: settings.default_models_dev_url })}
+        >
+          <Input
+            type="url"
+            inputMode="url"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={settings.default_models_dev_url}
+            value={value}
+            disabled={save.isPending}
+            onChange={(event) => setValue(event.target.value)}
+          />
+        </Field>
+        {settings.models_dev_url !== settings.active_models_dev_url ? (
+          <Alert tone="warning">
+            {t('models.developer.modelsDevMismatch', {
+              url: settings.active_models_dev_url ?? settings.default_models_dev_url,
+            })}
+          </Alert>
+        ) : null}
+        {save.isError ? <Alert tone="error">{errorMessage(save.error)}</Alert> : null}
+        <div className={css({ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '2' })}>
+          <Button
+            type="button"
+            variant="ghost"
+            color="secondary"
+            disabled={save.isPending || settings.models_dev_url === null}
+            onClick={() => {
+              setValue('');
+              save.mutate(null);
+            }}
+          >
+            {t('models.developer.modelsDevReset')}
+          </Button>
+          <Button type="submit" disabled={save.isPending || target === settings.models_dev_url}>
+            {save.isPending ? t('common.saving') : t('common.save')}
+          </Button>
+        </div>
+      </form>
+    </Panel>
   );
 }

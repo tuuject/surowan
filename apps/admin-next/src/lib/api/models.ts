@@ -24,6 +24,14 @@ export interface ModelSwitchRequest {
   readonly model: string;
 }
 
+/**
+ * Confirms stopping the Invocations still running on the model being replaced.
+ * Without it, a switch they would outlive is refused with `model_in_use`.
+ */
+export interface AbortRunningOption {
+  readonly abort_running?: boolean;
+}
+
 export interface ModelApplySummary {
   readonly applied: readonly string[];
   readonly restart_required: readonly string[];
@@ -38,6 +46,8 @@ export interface ChatThinkingReset {
 export interface ModelSwitchResponse extends ModelState {
   /** The file's revision after the switch; the next write in a chain carries it. */
   readonly revision: string;
+  /** Invocations stopped because they still ran on the replaced model. */
+  readonly aborted_invocations: number;
   readonly apply: ModelApplySummary;
   readonly chat_thinking_resets: readonly ChatThinkingReset[];
 }
@@ -47,7 +57,10 @@ export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhig
 
 export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
 
-export function switchAgentModel(request: ModelSwitchRequest, revision: string): Promise<ModelSwitchResponse> {
+export function switchAgentModel(
+  request: ModelSwitchRequest & AbortRunningOption,
+  revision: string,
+): Promise<ModelSwitchResponse> {
   return call<ModelSwitchResponse>('/model', {
     method: 'PUT',
     headers: writeHeaders(revision),

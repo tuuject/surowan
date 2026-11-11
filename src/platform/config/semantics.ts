@@ -84,6 +84,9 @@ export function validateSemantics(config: FileConfig, options: ValidateSemantics
   if (config.admin.public_url !== undefined) {
     adminPublicOrigin(config.admin.public_url);
   }
+  if (config.models_dev?.api_url !== undefined) {
+    validateEndpoint(config.models_dev.api_url, 'models_dev.api_url', { allowQuery: true });
+  }
   validateWebSearchSection(config.web_search, options.searchProviders);
   const telegram = resolveTelegramSection(config.telegram);
   validateTimezone(config.timezone, 'timezone');

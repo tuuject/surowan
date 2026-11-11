@@ -198,6 +198,12 @@ export const ConfigSchema = Type.Object(
         Strict,
       ),
     ),
+    // Where the panel reads model metadata (limits, modalities, prices) from
+    // when models are added. Absent means https://models.dev/api.json; a mirror
+    // must serve the same catalog format. Hot: the next lookup uses it.
+    models_dev: Type.Optional(
+      Type.Object({ api_url: Type.Optional(Type.String({ minLength: 1, maxLength: 2048 })) }, Strict),
+    ),
     web_fetch: Type.Optional(
       Type.Object(
         {

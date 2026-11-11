@@ -33,7 +33,8 @@ export const CONTROL_SPECS: readonly EndpointSpec[] = [
     path: 'model',
     body: true,
     revision: 'config',
-    summary: 'Switch the global agent model and reset its thinking level',
+    summary:
+      'Switch the global agent model and reset its thinking level; refused with model_in_use while runs use the old model unless abort_running: true stops them',
   },
   {
     command: 'provider-preset list',

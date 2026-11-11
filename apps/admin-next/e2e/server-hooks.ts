@@ -7,6 +7,10 @@ import { and, eq, sql } from 'drizzle-orm';
 import {
   adminPasskeys,
   adminSessions,
+  buckets,
+  chats,
+  conversations,
+  invocations,
   longTasks,
   memoPadEntries,
   taskReceipts,
@@ -223,6 +227,72 @@ export async function handleHook(request: Request, url: URL): Promise<Response> 
             ? 'fired'
             : 'pending';
     return json({ state, cancelled_by: row.cancelledBy });
+  }
+  if (request.method === 'POST' && route === '/running-invocation') {
+    // An Invocation the database calls running, in a Conversation of the
+    // configured Chat that follows the global model. Nothing executes it: the
+    // model switch confirmation only reads the row, and `/finish` ends it.
+    if (store === null) {
+      return json({ error: 'store_closed' }, 500);
+    }
+    const conversation = store.orm
+      .select({ id: conversations.id })
+      .from(conversations)
+      .innerJoin(chats, eq(chats.id, conversations.chatId))
+      .where(eq(chats.telegramChatId, 123_456_789n))
+      .orderBy(conversations.id)
+      .get();
+    if (conversation === undefined) {
+      return json({ error: 'conversation_missing' }, 500);
+    }
+    const now = new Date().toISOString();
+    const bucket = store.orm
+      .insert(buckets)
+      .values({
+        conversationId: conversation.id,
+        state: 'running',
+        firstReceivedAt: now,
+        deadlineAt: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning({ id: buckets.id })
+      .get();
+    if (bucket === undefined) {
+      return json({ error: 'bucket_insert_failed' }, 500);
+    }
+    const invocation = store.orm
+      .insert(invocations)
+      .values({
+        bucketId: bucket.id,
+        conversationId: conversation.id,
+        state: 'running',
+        configHash: 'e2e-running',
+        promptVersion: 1n,
+        startedAt: now,
+        createdAt: now,
+      })
+      .returning({ id: invocations.id })
+      .get();
+    return json({ id: invocation?.id.toString() ?? null });
+  }
+  if (request.method === 'POST' && route === '/running-invocation/finish') {
+    const id = url.searchParams.get('id');
+    if (id === null || !/^\d{1,19}$/.test(id)) {
+      return json({ error: 'invalid_id' }, 400);
+    }
+    if (store === null) {
+      return json({ error: 'store_closed' }, 500);
+    }
+    const now = new Date().toISOString();
+    const result = asRunResult(
+      store.orm
+        .update(invocations)
+        .set({ state: 'completed', completionReason: 'e2e_finished', finishedAt: now })
+        .where(and(eq(invocations.id, BigInt(id)), eq(invocations.state, 'running')))
+        .run(),
+    );
+    return json({ updated: Number(result.changes) });
   }
   if (request.method === 'GET' && route === '/session-count') {
     const row = store?.orm.select({ count: sql`COUNT(*)` }).from(adminSessions).get();

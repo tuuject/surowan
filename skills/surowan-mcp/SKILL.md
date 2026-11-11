@@ -31,6 +31,7 @@ description: 通过 Surowan MCP Server 操作塑料碗 Admin Panel：先读取�
 - Prompt：`surowan_prompt_save` 的 `if_match` 必须来自刚读到的 prompt `content_hash`；`surowan_prompt_restore` 先读版本拿 scope/chat 与当前 hash。冲突时重新读取并重新确认，不要强行覆盖。
 - 配置写工具的 `if_match` 可省略：服务端会读取当前 `config.jsonc` revision。条目写工具（辞典、Memo、群聊记忆）的 `if_match` 必须来自该条目自己的 `revision`。
 - 破坏性工具（删除 Chat/模型/词条/Memo/群聊记忆、取消 Alarm、清空告警、重启、清空报文、`prompt cancel-running`）带 `confirm` 参数；只有用户明确确认对象与后果后才传 `confirm: true`。
+- `surowan_model_set` 与改模型的 `surowan_chat_update` 在还有运行中的会话用旧模型时返回 409 `model_in_use`（附 `running_invocations`）：告诉用户终止后这些会话正在处理的消息不再回复、委派任务不受影响，得到明确同意后才带 `abort_running: true` 重试。
 - 写成功只代表接口返回；仍需读回受影响对象确认状态。
 
 ## 计费操作

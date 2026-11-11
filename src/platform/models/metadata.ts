@@ -10,10 +10,19 @@ import {
 import type { DiscoveredProviderModel, GeminiModel, OpenRouterModel, VercelModel } from '../provider-models.ts';
 
 /**
- * Where one metadata field came from. The two qualified models.dev sources are
- * guesses the admin has to confirm: `models.dev-cross-provider` is the model id
- * found under a provider the descriptor never named, and `models.dev-fuzzy` is a
- * normalized id rather than an exact one.
+ * Where one metadata field came from.
+ *
+ * - `models.dev-cross-provider`: the exact model id, listed under a provider
+ *   the descriptor never named. The model is identified, so its limits and
+ *   capabilities are taken as they are.
+ * - `models.dev-fuzzy`: a normalized id rather than an exact one, so the
+ *   model itself is a guess.
+ * - `models.dev-highest-price`: no deployment of the provider being configured
+ *   carries a price, so the cost is the highest one any deployment of the
+ *   model lists.
+ * - `default`: no source knew the value and a fixed rule filled it in — a
+ *   model nobody describes as reasoning runs as a non-reasoning one, and a
+ *   model nobody prices costs 0.
  */
 export type MetadataSource =
   | 'openrouter'
@@ -22,13 +31,14 @@ export type MetadataSource =
   | 'models.dev'
   | 'models.dev-cross-provider'
   | 'models.dev-fuzzy'
+  | 'models.dev-highest-price'
+  | 'default'
   | 'missing';
 
 /**
- * How far the models.dev lookup had to reach. Only `exact` — the provider the
- * descriptor names, with the model id as listed — is trusted without
- * confirmation: the same id under another provider is a different deployment,
- * with its own prices and limits.
+ * How far the models.dev lookup had to reach. `exact` is the provider the
+ * descriptor names with the model id as listed; `cross-provider` is the same id
+ * under another provider; `fuzzy` is a normalized id.
  */
 export type ModelsDevConfidence = 'exact' | 'cross-provider' | 'fuzzy';
 
@@ -38,12 +48,15 @@ const CATALOG_SOURCE: Readonly<Record<ModelsDevConfidence, MetadataSource>> = {
   fuzzy: 'models.dev-fuzzy',
 };
 
-/** Whether a source is a guess, which is what `needs_confirmation` reports. */
-function isGuessedSource(source: MetadataSource): boolean {
-  return source === 'models.dev-cross-provider' || source === 'models.dev-fuzzy';
-}
-
 export type DraftField = 'name' | 'reasoning' | 'thinking_levels' | 'input' | 'context_window' | 'max_tokens' | 'cost';
+
+/**
+ * The fields a model cannot be configured without guessing at: the window the
+ * runtime budgets the Context against, the output it reserves, and whether
+ * images may be attached. Only these ever need the admin's confirmation —
+ * everything else either has a safe rule (`cost`, `reasoning`) or is optional.
+ */
+export const KEY_FIELDS: readonly DraftField[] = ['input', 'context_window', 'max_tokens'];
 
 export const DRAFT_FIELDS: readonly DraftField[] = [
   'name',
@@ -88,6 +101,7 @@ export interface ModelMetadataDraft {
   readonly requires_reasoning_content_source: MetadataSource;
   readonly match: ModelsDevMatch | null;
   readonly candidates: readonly ModelsDevMatch[];
+  /** Key fields (`KEY_FIELDS`) that are missing, only fuzzily matched, or inconsistent. */
   readonly needs_confirmation: readonly DraftField[];
 }
 
@@ -144,10 +158,17 @@ export function modelsDevProviderId(descriptor: ProviderDescriptor): string | nu
 }
 
 /**
- * Turns a provider listing into one metadata draft per model. Nothing is
- * defaulted: a field no source can fill stays `null` and is reported in
- * `needs_confirmation`, and a value that only a fuzzy models.dev match backs is
- * reported the same way.
+ * Turns a provider listing into one metadata draft per model.
+ *
+ * Only the key fields (`KEY_FIELDS`) can stop a draft: one no source can fill
+ * stays `null`, and one only a fuzzy models.dev match backs keeps the guessed
+ * value; both are reported in `needs_confirmation`. The rest never ask:
+ *
+ * - `cost` is the configured provider's own price, else the highest price any
+ *   deployment of the model lists, else 0.
+ * - `reasoning` nobody describes is `false` (`source: 'default'`), which the
+ *   panel points out without blocking the save.
+ * - `name` and `thinking_levels` are optional in the configuration.
  */
 export function resolveModelDrafts(
   descriptor: ProviderDescriptor,
@@ -162,7 +183,15 @@ interface ModelsDevLookup {
   readonly match: ModelsDevMatch | null;
   readonly model: ModelsDevModel | null;
   readonly candidates: readonly ModelsDevMatch[];
+  /**
+   * Every catalog entry for the same model: the exact id under each provider
+   * that lists it, or — for a fuzzy match — every normalized-id match. The
+   * price fallback reads the highest price among them.
+   */
+  readonly deployments: readonly ModelsDevModel[];
 }
+
+const ZERO_COST: ModelCostDraft = { input: 0, output: 0, cache_read: 0, cache_write: 0 };
 
 function resolveModelDraft(model: DiscoveredProviderModel, lookup: ModelsDevLookup): ModelMetadataDraft {
   const primary = readExtension(model.extension);
@@ -177,6 +206,12 @@ function resolveModelDraft(model: DiscoveredProviderModel, lookup: ModelsDevLook
       sources[field] = primary.source;
       continue;
     }
+    if (field === 'cost') {
+      const cost = resolveCatalogCost(lookup);
+      values.cost = cost.value;
+      sources.cost = cost.source;
+      continue;
+    }
     const fallback = fromCatalog?.[field];
     if (fallback !== null && fallback !== undefined) {
       values[field] = fallback;
@@ -185,6 +220,10 @@ function resolveModelDraft(model: DiscoveredProviderModel, lookup: ModelsDevLook
     }
     values[field] = null;
     sources[field] = 'missing';
+  }
+  if (values.reasoning === null) {
+    values.reasoning = false;
+    sources.reasoning = 'default';
   }
   if (values.reasoning !== true) {
     // Levels belong to reasoning models only; the configuration rejects them on
@@ -195,10 +234,8 @@ function resolveModelDraft(model: DiscoveredProviderModel, lookup: ModelsDevLook
   const contextWindow = values.context_window as number | null;
   const maxTokens = values.max_tokens as number | null;
   const inconsistent = contextWindow !== null && maxTokens !== null && maxTokens > contextWindow;
-  // Missing thinking levels are not a gap: the configuration leaves them out and
-  // the model runs on Pi's default. Guessed ones are, like any guessed value.
-  const needsConfirmation = DRAFT_FIELDS.filter((field) =>
-    values[field] === null ? field !== 'thinking_levels' : isGuessedSource(sources[field]) && field !== 'name',
+  const needsConfirmation = KEY_FIELDS.filter(
+    (field) => values[field] === null || sources[field] === 'models.dev-fuzzy',
   );
   if (inconsistent && !needsConfirmation.includes('max_tokens')) {
     needsConfirmation.push('max_tokens');
@@ -283,6 +320,7 @@ function readGemini(model: GeminiModel): DraftFields {
   };
 }
 
+/** Everything but the price, which `resolveCatalogCost` reads across deployments. */
 function readModelsDev(model: ModelsDevModel): DraftFields {
   return {
     name: model.name,
@@ -291,16 +329,62 @@ function readModelsDev(model: ModelsDevModel): DraftFields {
     input: extractInputCapabilities(model),
     context_window: model.limit?.context ?? model.limit?.input ?? null,
     max_tokens: model.limit?.output ?? null,
-    cost:
-      model.cost === undefined
-        ? null
-        : {
-            input: model.cost.input ?? 0,
-            output: model.cost.output ?? 0,
-            cache_read: model.cost.cache_read ?? 0,
-            cache_write: model.cost.cache_write ?? 0,
-          },
   };
+}
+
+function catalogCost(model: ModelsDevModel): ModelCostDraft | null {
+  if (model.cost === undefined) {
+    return null;
+  }
+  return {
+    input: model.cost.input ?? 0,
+    output: model.cost.output ?? 0,
+    cache_read: model.cost.cache_read ?? 0,
+    cache_write: model.cost.cache_write ?? 0,
+  };
+}
+
+/**
+ * The price when the provider's own listing has none. The configured provider's
+ * catalog entry wins; without one, the highest price any deployment of the model
+ * lists — taken per field, so the budget never underestimates whichever part of
+ * a call turns out to dominate; without any, 0.
+ */
+function resolveCatalogCost(lookup: ModelsDevLookup): {
+  readonly value: ModelCostDraft;
+  readonly source: MetadataSource;
+} {
+  if (lookup.match?.confidence === 'exact' && lookup.model !== null) {
+    const own = catalogCost(lookup.model);
+    if (own !== null) {
+      return { value: own, source: 'models.dev' };
+    }
+  }
+  const highest = highestCost(lookup.deployments);
+  if (highest !== null) {
+    return { value: highest, source: 'models.dev-highest-price' };
+  }
+  return { value: ZERO_COST, source: 'default' };
+}
+
+function highestCost(models: readonly ModelsDevModel[]): ModelCostDraft | null {
+  let highest: ModelCostDraft | null = null;
+  for (const model of models) {
+    const cost = catalogCost(model);
+    if (cost === null) {
+      continue;
+    }
+    highest =
+      highest === null
+        ? cost
+        : {
+            input: Math.max(highest.input, cost.input),
+            output: Math.max(highest.output, cost.output),
+            cache_read: Math.max(highest.cache_read, cost.cache_read),
+            cache_write: Math.max(highest.cache_write, cost.cache_write),
+          };
+  }
+  return highest;
 }
 
 function readModalities(modalities: readonly string[] | undefined): readonly ('text' | 'image')[] | null {
@@ -348,49 +432,57 @@ function perMillion(value: string | number | undefined): number | null {
 }
 
 function matchModelsDev(catalog: ModelsDevCatalog, hint: string | null, modelId: string): ModelsDevLookup {
-  if (hint !== null) {
-    const hinted = findModel(catalog, hint, modelId);
-    if (hinted !== undefined) {
-      return { match: { provider: hint, model: modelId, confidence: 'exact' }, model: hinted, candidates: [] };
-    }
-  }
   const providerIds = Object.keys(catalog).sort();
+  const exact: Array<{ readonly provider: string; readonly model: ModelsDevModel }> = [];
   for (const providerId of providerIds) {
     const found = findModel(catalog, providerId, modelId);
     if (found !== undefined) {
-      // The id is exact but the provider is not the one being configured, which
-      // is the normal case for an unknown relay. Prices, limits and capabilities
-      // belong to that other provider's deployment, so the draft is a lead for
-      // the admin to confirm rather than an answer.
-      return {
-        match: { provider: providerId, model: modelId, confidence: 'cross-provider' },
-        model: found,
-        candidates: [],
-      };
+      exact.push({ provider: providerId, model: found });
     }
+  }
+  const deployments = exact.map((entry) => entry.model);
+  const hinted = hint === null ? undefined : exact.find((entry) => entry.provider === hint);
+  if (hinted !== undefined) {
+    return {
+      match: { provider: hinted.provider, model: modelId, confidence: 'exact' },
+      model: hinted.model,
+      candidates: [],
+      deployments,
+    };
+  }
+  const first = exact[0];
+  if (first !== undefined) {
+    // The id is exact but the provider is not the one being configured, which
+    // is the normal case for an unknown relay. The model is identified, so its
+    // limits and capabilities are used as they are; only the price is a
+    // deployment's own, and `resolveCatalogCost` handles that.
+    return {
+      match: { provider: first.provider, model: modelId, confidence: 'cross-provider' },
+      model: first.model,
+      candidates: [],
+      deployments,
+    };
   }
   const normalized = normalizeModelId(modelId);
   const candidates: ModelsDevMatch[] = [];
+  const fuzzyDeployments: ModelsDevModel[] = [];
   for (const providerId of providerIds) {
-    for (const candidateId of Object.keys(catalog[providerId]?.models ?? {})) {
+    for (const [candidateId, candidate] of Object.entries(catalog[providerId]?.models ?? {})) {
       if (normalizeModelId(candidateId) !== normalized) {
         continue;
       }
-      candidates.push({ provider: providerId, model: candidateId, confidence: 'fuzzy' });
-      if (candidates.length >= MAX_FUZZY_CANDIDATES) {
-        break;
+      fuzzyDeployments.push(candidate);
+      if (candidates.length < MAX_FUZZY_CANDIDATES) {
+        candidates.push({ provider: providerId, model: candidateId, confidence: 'fuzzy' });
       }
-    }
-    if (candidates.length >= MAX_FUZZY_CANDIDATES) {
-      break;
     }
   }
   const preferred = candidates.find((candidate) => candidate.provider === hint) ?? candidates[0];
   const preferredModel = preferred === undefined ? undefined : findModel(catalog, preferred.provider, preferred.model);
   if (preferred === undefined || preferredModel === undefined) {
-    return { match: null, model: null, candidates: [] };
+    return { match: null, model: null, candidates: [], deployments: [] };
   }
-  return { match: preferred, model: preferredModel, candidates };
+  return { match: preferred, model: preferredModel, candidates, deployments: fuzzyDeployments };
 }
 
 /**

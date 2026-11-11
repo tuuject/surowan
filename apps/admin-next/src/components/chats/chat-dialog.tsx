@@ -9,9 +9,10 @@ import { type ReactElement, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ChatEntry, ChatSettings, ChatsView } from '@/lib/api/chats.ts';
 import { createChat, updateChat } from '@/lib/api/chats.ts';
+import { ModelSwitchConfirmDialog } from '@/components/models/model-switch-confirm-dialog';
 import type { ThinkingLevel } from '@/lib/api/models.ts';
 import { errorMessage } from '@/lib/errors';
-import { isConfigConflict, isThinkingLevel } from '@/lib/model-manager';
+import { isConfigConflict, isThinkingLevel, modelInUseCount } from '@/lib/model-manager';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
 
@@ -117,18 +118,34 @@ function ChatForm({
   const levels = selected?.thinking_levels ?? [];
   const inheritAllowed = model === 'inherit';
   const inheritSupported = view.defaults.thinking_level !== null && levels.includes(view.defaults.thinking_level);
+  // An update that would leave Invocations on the Chat's old model is refused
+  // until the admin agrees to stop them; the settings wait here to be sent again.
+  const [inUse, setInUse] = useState<{ readonly count: number; readonly settings: ChatSettings } | null>(null);
+  const [inUseOpen, setInUseOpen] = useState(false);
   const save = useMutation({
-    mutationFn: (settings: ChatSettings) =>
+    mutationFn: ({ settings, abortRunning }: { settings: ChatSettings; abortRunning?: boolean }) =>
       chat === null
         ? createChat({ id: id.trim(), ...settings }, view.revision)
-        : updateChat(chat.id, settings, view.revision),
+        : updateChat(chat.id, abortRunning === true ? { ...settings, abort_running: true } : settings, view.revision),
     onMutate: () => onPendingChange(true),
     onSuccess: (result) => {
-      write.succeeded(result.apply);
+      setInUseOpen(false);
+      const aborted = result.aborted_invocations ?? 0;
+      write.succeeded(
+        result.apply,
+        aborted > 0 ? t('models.models.switchConfirm.stopped', { count: aborted }) : undefined,
+      );
       onClose();
     },
-    onError: (error) => {
+    onError: (error, { settings }) => {
       write.failed(error);
+      const running = modelInUseCount(error);
+      if (running !== null) {
+        setInUse({ count: running, settings });
+        setInUseOpen(true);
+        return;
+      }
+      setInUseOpen(false);
       if (isConfigConflict(error)) {
         onClose();
         toast.error(t('pages.chats.configConflictEdit'));
@@ -166,10 +183,12 @@ function ChatForm({
     }
     setValidation(null);
     save.mutate({
-      topic_ids: topicIds,
-      provider: override?.provider ?? null,
-      model: override?.model ?? null,
-      thinking_level: thinking === 'inherit' ? null : thinking,
+      settings: {
+        topic_ids: topicIds,
+        provider: override?.provider ?? null,
+        model: override?.model ?? null,
+        thinking_level: thinking === 'inherit' ? null : thinking,
+      },
     });
   };
   return (
@@ -248,11 +267,23 @@ function ChatForm({
           {validation}
         </p>
       ) : null}
-      {save.isError ? (
+      {save.isError && modelInUseCount(save.error) === null ? (
         <p role="alert" className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
           {errorMessage(save.error)}
         </p>
       ) : null}
+      <ModelSwitchConfirmDialog
+        open={inUseOpen}
+        count={inUse?.count ?? 0}
+        pending={save.isPending}
+        error={null}
+        onConfirm={() => {
+          if (inUse !== null) {
+            save.mutate({ settings: inUse.settings, abortRunning: true });
+          }
+        }}
+        onCancel={() => setInUseOpen(false)}
+      />
     </form>
   );
 }

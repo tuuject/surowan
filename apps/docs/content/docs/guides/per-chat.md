@@ -51,7 +51,7 @@ description: 配置 Chat 或 Topic allowlist、每群模型覆盖，以及恢复
 
 ## 何时生效
 
-已有 Chat 的 `provider`、`model`、`thinking_level` 覆盖属于热更新，下一次 Invocation 使用新值，正在运行的 Invocation 继续使用启动时快照。新增 Chat 同样热应用、立即生效；删除 Chat 与 Topic 范围修改后必须重启。配置文件没有 watcher，手改后要在 Settings 点击 **Apply config file**，再按面板提示重启。
+已有 Chat 的 `provider`、`model`、`thinking_level` 覆盖属于热更新，下一次 Invocation 使用新值。在 Admin **Chats** 里给某个 Chat 换模型时，如果该 Chat 有正在用旧模型的会话，面板会先弹窗确认：确认后这些会话立即终止，它们正在处理的那批消息不再回复、也不会重新处理，之前委派的任务不受影响，群友之后的消息马上由新模型处理；取消则什么都不保存。新模型直接沿用现有上下文，超出新模型能保留的范围时，下一次会话开始时自动重建。只改 thinking 不会终止任何会话。手改配置文件或用 `/model` 命令切换时，正在运行的 Invocation 继续使用启动时快照。新增 Chat 同样热应用、立即生效；删除 Chat 与 Topic 范围修改后必须重启。配置文件没有 watcher，手改后要在 Settings 点击 **Apply config file**，再按面板提示重启。
 
 ## 如何确认
 

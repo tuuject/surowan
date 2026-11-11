@@ -11,7 +11,13 @@ import { Panel } from '@/components/layout/panel';
 import type { ChatThinkingReset, ThinkingLevel } from '@/lib/api/models.ts';
 import type { ProvidersView } from '@/lib/api/providers.ts';
 import { errorMessage } from '@/lib/errors.ts';
-import { applyFeedback, isThinkingLevel, supportedThinkingLevels, writeErrorMessage } from '@/lib/model-manager.ts';
+import {
+  applyFeedback,
+  isThinkingLevel,
+  modelInUseCount,
+  supportedThinkingLevels,
+  writeErrorMessage,
+} from '@/lib/model-manager.ts';
 import { providersQuery } from '@/lib/queries.ts';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
@@ -27,6 +33,7 @@ import {
   type RoleEdits,
   type RolesDraft,
 } from './draft.ts';
+import { ModelSwitchConfirmDialog } from '../model-switch-confirm-dialog.tsx';
 import { configuredPlaceholder, ModelSelect } from './model-select.tsx';
 import { RolesSaveError, type RolesSaveResult, saveRoles } from './save.ts';
 import { ThinkingResetDialog } from './thinking-reset-dialog.tsx';
@@ -35,6 +42,13 @@ import type { ModelRole } from './writes.ts';
 interface RolesSave {
   readonly snapshot: ProvidersView;
   readonly target: RolesDraft;
+  /** Set once the admin agreed to stop the Invocations still on the old Agent model. */
+  readonly abortRunning?: boolean;
+}
+
+/** The running Invocations a refused save would stop, when nothing of it was written yet. */
+function refusedForRunning(error: unknown): number | null {
+  return error instanceof RolesSaveError && error.result.saved.size === 0 ? modelInUseCount(error.cause) : null;
 }
 
 /**
@@ -57,6 +71,10 @@ export function RolesForm({ view }: { readonly view: ProvidersView }): ReactElem
   const changed = new Set(changedRoles(view, draft));
 
   const [refreshError, setRefreshError] = useState<unknown>(null);
+  // A save the server refused because Invocations still run on the old Agent
+  // model: kept to be sent again once the admin agrees to stop them.
+  const [inUse, setInUse] = useState<{ readonly count: number; readonly sent: RolesSave } | null>(null);
+  const [inUseOpen, setInUseOpen] = useState(false);
 
   // The edits of the roles that went through give way to the file only once
   // the refreshed view is in, so the controls never flash the old values. If
@@ -75,15 +93,29 @@ export function RolesForm({ view }: { readonly view: ProvidersView }): ReactElem
   };
 
   const save = useMutation({
-    mutationFn: ({ snapshot, target }: RolesSave) => saveRoles(snapshot, target),
+    mutationFn: ({ snapshot, target, abortRunning }: RolesSave) =>
+      saveRoles(snapshot, target, abortRunning === true ? { abortRunning } : {}),
     onSuccess: async (result, sent) => {
+      setInUseOpen(false);
       const feedback = applyFeedback(result.apply);
-      toast.success(feedback.title, { description: feedback.description });
+      toast.success(feedback.title, {
+        description:
+          result.aborted > 0
+            ? `${feedback.description}. ${t('models.models.switchConfirm.stopped', { count: result.aborted })}`
+            : feedback.description,
+      });
       write.refresh();
       await settle(result, sent);
     },
     onError: async (error, sent) => {
       write.failed(error);
+      const running = refusedForRunning(error);
+      if (running !== null) {
+        setInUse({ count: running, sent });
+        setInUseOpen(true);
+        return;
+      }
+      setInUseOpen(false);
       if (error instanceof RolesSaveError) {
         await settle(error.result, sent);
       }
@@ -91,6 +123,10 @@ export function RolesForm({ view }: { readonly view: ProvidersView }): ReactElem
   });
 
   const saveError = ((): string | null => {
+    // The confirmation asks instead; cancelling it leaves the changes unsaved.
+    if (save.isError && refusedForRunning(save.error) !== null) {
+      return null;
+    }
     if (save.isError) {
       const cause = save.error instanceof RolesSaveError ? save.error.cause : save.error;
       const partial = save.error instanceof RolesSaveError && save.error.result.saved.size > 0;
@@ -256,6 +292,18 @@ export function RolesForm({ view }: { readonly view: ProvidersView }): ReactElem
         }}
       />
       <ThinkingResetDialog open={resetsOpen} resets={resets} onClose={() => setResetsOpen(false)} />
+      <ModelSwitchConfirmDialog
+        open={inUseOpen}
+        count={inUse?.count ?? 0}
+        pending={save.isPending}
+        error={null}
+        onConfirm={() => {
+          if (inUse !== null) {
+            save.mutate({ ...inUse.sent, abortRunning: true });
+          }
+        }}
+        onCancel={() => setInUseOpen(false)}
+      />
     </form>
   );
 }

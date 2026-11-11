@@ -4,7 +4,8 @@ import type { ConfigController } from '../../../platform/config/write.ts';
 import type { BusinessStore } from '../../../store/store.ts';
 import { json, readJsonObject, requiredRevision, revisionRequired } from '../http.ts';
 import { CONFIG_WRITE_STATUS, readConfigFile } from '../config-file.ts';
-import { clearModelPayloads, parseDeveloperSettings } from '../developer.ts';
+import { clearModelPayloads, modelsDevUrlEdit, parseDeveloperSettings } from '../developer.ts';
+import { MODELS_DEV_URL } from '../../../platform/models-dev.ts';
 import { harnessEdits, harnessView, parseHarnessBody } from '../harness.ts';
 
 export interface TuningAdminDeps {
@@ -31,6 +32,10 @@ export function createTuningAdminHandler(deps: TuningAdminDeps) {
       active_record_model_payloads: configStore.current().config.developer.record_model_payloads,
       record_agent_thinking: loaded.config.developer.record_agent_thinking,
       active_record_agent_thinking: configStore.current().config.developer.record_agent_thinking,
+      /** `null` means the file names no address and lookups use `default_models_dev_url`. */
+      models_dev_url: loaded.config.models_dev?.api_url ?? null,
+      active_models_dev_url: configStore.current().config.models_dev?.api_url ?? null,
+      default_models_dev_url: MODELS_DEV_URL,
     };
   };
 
@@ -59,6 +64,7 @@ export function createTuningAdminHandler(deps: TuningAdminDeps) {
       ...(body.record_agent_thinking === undefined
         ? []
         : [{ path: ['developer', 'record_agent_thinking'], value: body.record_agent_thinking }]),
+      ...(body.models_dev_url === undefined ? [] : [modelsDevUrlEdit(body.models_dev_url)]),
     ];
     const result = await reloader.writeAndApply(edits, revision);
     if (!result.ok) {

@@ -33,12 +33,6 @@ const DRAFT_FIELDS: readonly DraftField[] = [
   'cost',
 ];
 
-/**
- * Fields the configuration may leave out. A missing name shows the id; missing
- * thinking levels leave the model on Pi's default.
- */
-const OPTIONAL_FIELDS: readonly DraftField[] = ['name', 'thinking_levels'];
-
 const SOURCE_LABELS: Record<MetadataSource, string | null> = {
   openrouter: 'OpenRouter',
   vercel: 'Vercel',
@@ -46,11 +40,10 @@ const SOURCE_LABELS: Record<MetadataSource, string | null> = {
   'models.dev': 'models.dev',
   'models.dev-cross-provider': null,
   'models.dev-fuzzy': null,
+  'models.dev-highest-price': null,
+  default: null,
   missing: null,
 };
-
-/** Sources that are a lead rather than an answer, so the field needs confirming. */
-const GUESSED_SOURCES: readonly MetadataSource[] = ['models.dev-cross-provider', 'models.dev-fuzzy'];
 
 export function providerApiLabel(api: ProviderApi): string {
   switch (api) {
@@ -97,12 +90,16 @@ export function metadataSourceLabel(source: MetadataSource): string {
   if (fixed !== null) {
     return fixed;
   }
-  if (source === 'missing') {
-    return i18n.t('models.models.source.missing');
+  switch (source) {
+    case 'models.dev-cross-provider':
+      return i18n.t('models.models.source.crossProvider');
+    case 'models.dev-fuzzy':
+      return i18n.t('models.models.source.fuzzy');
+    case 'models.dev-highest-price':
+      return i18n.t('models.models.source.highestPrice');
+    default:
+      return i18n.t('models.models.source.missing');
   }
-  return source === 'models.dev-cross-provider'
-    ? i18n.t('models.models.source.crossProvider')
-    : i18n.t('models.models.source.fuzzy');
 }
 
 export function fieldSourceLabel(draft: ModelMetadataDraft, field: DraftField): string {
@@ -110,23 +107,30 @@ export function fieldSourceLabel(draft: ModelMetadataDraft, field: DraftField): 
   if (source === 'missing') {
     return i18n.t('models.models.source.missing');
   }
+  if (source === 'default') {
+    return field === 'reasoning'
+      ? i18n.t('models.models.source.reasoningDefault')
+      : i18n.t('models.models.source.costDefault');
+  }
   return i18n.t('models.models.source.from', { source: metadataSourceLabel(source) });
 }
 
 /**
- * A field the admin has to look at before saving: the value is missing, only a
- * guessed models.dev match backs it, or the server flagged it (for example a
- * `max_tokens` above `context_window`). A missing optional field is not a
- * reason to block the model, and a guessed name is cosmetic.
+ * A field the admin has to look at before saving. The server decides: only
+ * context length, max output and accepted input ever block a model, when they
+ * are missing, only fuzzily matched, or inconsistent with each other. Prices and
+ * thinking always come with a value, and the rest is optional.
  */
 export function isDraftFieldUnconfirmed(draft: ModelMetadataDraft, field: DraftField): boolean {
-  if (draft.needs_confirmation.includes(field)) {
-    return true;
-  }
-  if (GUESSED_SOURCES.includes(draft.sources[field]) && field !== 'name') {
-    return true;
-  }
-  return !OPTIONAL_FIELDS.includes(field) && draft[field] === null;
+  return draft.needs_confirmation.includes(field);
+}
+
+/**
+ * No source said whether the model thinks, so it is saved as a model that does
+ * not. That never blocks the save, but the admin is told.
+ */
+export function reasoningDefaulted(draft: ModelMetadataDraft): boolean {
+  return draft.sources.reasoning === 'default';
 }
 
 /** Where a draft's metadata was matched, so "needs confirming" is explainable. */
@@ -153,8 +157,8 @@ export function unconfirmedFields(draft: ModelMetadataDraft): readonly DraftFiel
 
 /**
  * A draft only becomes a configuration entry when every required field has a
- * value. Nothing is defaulted: a missing limit stays missing and forces the
- * admin through the edit dialog.
+ * value. The panel defaults nothing itself: a missing limit stays missing and
+ * forces the admin through the edit dialog.
  */
 export function modelFromDraft(draft: ModelMetadataDraft): ProviderModelConfig | undefined {
   if (
@@ -443,6 +447,21 @@ export function applyFeedback(apply: ModelApplySummary): { readonly title: strin
 
 export function isConfigConflict(error: unknown): boolean {
   return error instanceof ApiError && error.code === CONFIG_CONFLICT_CODE;
+}
+
+export const MODEL_IN_USE_CODE = 'model_in_use';
+
+/**
+ * How many running Invocations a refused model switch would stop, or `null`
+ * when the error is not that refusal. The switch is retried with
+ * `abort_running: true` once the admin agrees.
+ */
+export function modelInUseCount(error: unknown): number | null {
+  if (!(error instanceof ApiError) || error.code !== MODEL_IN_USE_CODE) {
+    return null;
+  }
+  const payload = error.payload as { readonly running_invocations?: unknown } | null;
+  return typeof payload?.running_invocations === 'number' ? payload.running_invocations : 0;
 }
 
 /** Error text for the page and its dialogs; conflicts get a readable message. */

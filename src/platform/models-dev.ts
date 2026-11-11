@@ -133,37 +133,51 @@ export async function fetchModelsDevCatalog(
   return applyDefaults(parseCatalog(raw));
 }
 
-let cachedCatalog: { readonly catalog: ModelsDevCatalog; readonly expiresAt: number } | undefined;
-let pendingCatalog: Promise<ModelsDevCatalog> | undefined;
+const cachedCatalogs = new Map<string, { readonly catalog: ModelsDevCatalog; readonly expiresAt: number }>();
+const pendingCatalogs = new Map<string, Promise<ModelsDevCatalog>>();
 
 /**
  * Cached catalog accessor. A failure is not cached, and concurrent callers share
  * one request instead of downloading the whole catalog several times.
+ *
+ * Each address has its own cache entry: `models_dev.api_url` is hot, so a new
+ * address has to be read on the very next lookup rather than after the old
+ * catalog's TTL runs out, and switching back finds the earlier one still cached.
+ * Expired entries are dropped whenever a catalog is stored, which keeps the map
+ * as small as the addresses used within one TTL.
  */
 export async function loadModelsDevCatalog(options: ModelsDevCatalogOptions = {}): Promise<ModelsDevCatalog> {
-  const now = Date.now();
-  if (cachedCatalog !== undefined && cachedCatalog.expiresAt > now) {
-    return cachedCatalog.catalog;
+  const url = options.url ?? MODELS_DEV_URL;
+  const cached = cachedCatalogs.get(url);
+  if (cached !== undefined && cached.expiresAt > Date.now()) {
+    return cached.catalog;
   }
-  if (pendingCatalog !== undefined) {
-    return await pendingCatalog;
+  const inFlight = pendingCatalogs.get(url);
+  if (inFlight !== undefined) {
+    return await inFlight;
   }
   const ttlMs = options.ttlMs ?? CATALOG_TTL_MS;
-  const pending = fetchModelsDevCatalog(options.url ?? MODELS_DEV_URL, options.fetchImpl ?? fetch).then((catalog) => {
-    cachedCatalog = { catalog, expiresAt: Date.now() + ttlMs };
+  const pending = fetchModelsDevCatalog(url, options.fetchImpl ?? fetch).then((catalog) => {
+    const now = Date.now();
+    for (const [key, entry] of cachedCatalogs) {
+      if (entry.expiresAt <= now) {
+        cachedCatalogs.delete(key);
+      }
+    }
+    cachedCatalogs.set(url, { catalog, expiresAt: now + ttlMs });
     return catalog;
   });
-  pendingCatalog = pending;
+  pendingCatalogs.set(url, pending);
   try {
     return await pending;
   } finally {
-    pendingCatalog = undefined;
+    pendingCatalogs.delete(url);
   }
 }
 
-/** Drops the cached catalog; tests use it to isolate cases. */
+/** Drops every cached catalog; tests use it to isolate cases. */
 export function resetModelsDevCatalogCache(): void {
-  cachedCatalog = undefined;
+  cachedCatalogs.clear();
 }
 
 /** Fills the `reasoning` and `modalities` fields models.dev may omit. */

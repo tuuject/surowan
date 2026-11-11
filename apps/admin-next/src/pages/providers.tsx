@@ -19,6 +19,7 @@ import { ProviderConnectionSection } from '@/components/models/provider-connecti
 import { ProviderDetailHeader } from '@/components/models/provider-detail-header';
 import { ProviderRail } from '@/components/models/provider-list';
 import { ProvidersRestartBanner } from '@/components/models/restart-banner';
+import { ModelSwitchConfirmDialog } from '@/components/models/model-switch-confirm-dialog';
 import { ThinkingResetDialog } from '@/components/models/roles/thinking-reset-dialog';
 import { modelRoles, useModelRoleWrites } from '@/components/models/roles/writes';
 import { AppLink } from '@/components/router-links';
@@ -460,6 +461,14 @@ export default function ProvidersPage(): ReactElement {
         resets={roles.thinkingResets}
         open={roles.thinkingResetsOpen}
         onClose={roles.closeThinkingResets}
+      />
+      <ModelSwitchConfirmDialog
+        open={roles.agentInUse.open}
+        count={roles.agentInUse.count}
+        pending={roles.agentInUse.pending}
+        error={null}
+        onConfirm={roles.agentInUse.confirm}
+        onCancel={roles.agentInUse.cancel}
       />
     </div>
   );

@@ -72,7 +72,12 @@ const SettingsProperties = {
   model: Type.Union([Type.String({ minLength: 1 }), Type.Null()]),
   thinking_level: Type.Union([ThinkingLevelSchema, Type.Null()]),
 };
-const SettingsSchema = Type.Object(SettingsProperties, { additionalProperties: false });
+// An update may also confirm stopping the runs still on the model it replaces
+// (see `model-switch.ts`); a new Chat has none.
+const SettingsSchema = Type.Object(
+  { ...SettingsProperties, abort_running: Type.Optional(Type.Boolean()) },
+  { additionalProperties: false },
+);
 const CreateSchema = Type.Object({ id: ChatIdSchema, ...SettingsProperties }, { additionalProperties: false });
 const settingsValidator = Compile(SettingsSchema);
 const createValidator = Compile(CreateSchema);
@@ -92,7 +97,7 @@ export function parseChatSettings(value: unknown): ChatSettingsBody {
   if (!settingsValidator.Check(value)) {
     throw new AdminQueryError(
       'invalid_body',
-      'Expected topic_ids, provider, model and thinking_level; use null to inherit or allow all topics',
+      'Expected topic_ids, provider, model and thinking_level (and optionally abort_running); use null to inherit or allow all topics',
     );
   }
   return value;
@@ -141,7 +146,7 @@ export function parseProactiveReply(value: unknown): ProactiveReplyBody {
   return value;
 }
 
-function managedSettings(body: ChatSettingsBody): Omit<FileChat, 'id'> {
+function managedSettings(body: Omit<ChatSettingsBody, 'abort_running'>): Omit<FileChat, 'id'> {
   if ((body.provider === null) !== (body.model === null)) {
     throw new AdminQueryError('invalid_model_reference', 'provider and model must both be set or both be null');
   }

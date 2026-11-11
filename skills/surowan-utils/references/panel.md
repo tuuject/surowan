@@ -38,7 +38,7 @@ surowan-utils room list --json
 
 1. **目标**：哪个 Chat / Provider / 模型 / Prompt scope / 词条 / 房间，用精确 ID 或 alias 表示。
 2. **字段与值**：`harness update --set-json values.history_messages=40` 这种确切形状，而不是“调大一点”。可选字段用 `null` 表示删除该字段（回到默认），不是“设成空”。
-3. **影响范围**：是否热应用（大多数配置写入立即生效）、是否进入待重启列表、是否影响运行中的 Invocation（Prompt 写入只影响下一次 Invocation，`prompt cancel-running` 才会中断当前的；`chat group-memory` 会中止该 Chat 的运行并重建 Context；`chat delete` 会删除全部存储数据）。
+3. **影响范围**：是否热应用（大多数配置写入立即生效）、是否进入待重启列表、是否影响运行中的 Invocation（Prompt 写入只影响下一次 Invocation，`prompt cancel-running` 才会中断当前的；`chat group-memory` 会中止该 Chat 的运行并重建 Context；`chat delete` 会删除全部存储数据；`model set` 与改模型的 `chat update` 在还有会话用旧模型时返回 409 `model_in_use`，只有用户同意终止这些会话后才加 `--set-json abort_running=true` 重试——终止后它们正在处理的消息不再回复）。
 4. **可撤销性**：删除类操作不可撤销；Prompt 写入会追加版本，可用 `prompt versions` + `prompt restore` 回退。
 
 推荐的核对顺序：

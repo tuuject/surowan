@@ -75,7 +75,8 @@ test.describe('providers page adding', () => {
     const row = page.locator('li').filter({ hasText: E2E_RELAY_COMPLETE_MODEL });
     await expect(row).toBeVisible();
     await page.getByLabel(`Select ${E2E_RELAY_COMPLETE_MODEL}`).check();
-    await page.getByRole('button', { name: 'Accept these values (1)' }).click();
+    // The model id is exact, so its details need no confirming.
+    await expect(page.getByRole('button', { name: /Accept these values/ })).toHaveCount(0);
     await page.getByRole('button', { name: 'Create provider' }).click();
 
     // A create is applied immediately like every other write: the wizard closes
@@ -86,10 +87,9 @@ test.describe('providers page adding', () => {
     // own "Fetch models" button cannot collide with the page's.
     await expect(page.getByRole('dialog')).toHaveCount(0);
 
-    // The running registry already knows the new connection, so saved-mode
-    // discovery fetches the listing without asking for the key again.
+    // The running registry already knows the new connection, so the picker
+    // fetches the listing with the saved key as soon as it opens.
     await page.getByRole('button', { name: 'Fetch models' }).click();
-    await page.getByRole('button', { name: 'Fetch', exact: true }).click();
     await expect(page.getByText('Requested from:')).toBeVisible();
     await page.getByRole('button', { name: 'Cancel' }).click();
 
@@ -131,7 +131,6 @@ test.describe('providers page adding', () => {
       .fill(E2E_RELAY_MANUAL_MODEL);
     await page.getByRole('button', { name: 'Look up model details' }).click();
     await page.getByLabel(`Select ${E2E_RELAY_MANUAL_MODEL}`).check();
-    await page.getByRole('button', { name: 'Accept these values (1)' }).click();
     await page.getByRole('button', { name: 'Create provider' }).click();
 
     await expect(page.getByText('Header x-extra needs a value')).toBeVisible();

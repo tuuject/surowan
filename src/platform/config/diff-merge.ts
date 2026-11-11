@@ -17,6 +17,9 @@ const HOT_PATHS: ReadonlySet<string> = new Set([
   'developer',
   'developer.record_model_payloads',
   'developer.record_agent_thinking',
+  // Read from the active snapshot by every metadata lookup of the panel.
+  'models_dev',
+  'models_dev.api_url',
   'agent.provider',
   'agent.model',
   'agent.system_prompt_file',

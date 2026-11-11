@@ -12,6 +12,8 @@ export interface RolesSaveResult {
   readonly apply: ModelApplySummary;
   /** Per-Chat efforts an Agent model switch reset. */
   readonly resets: readonly ChatThinkingReset[];
+  /** Invocations the Agent model switch stopped because they still ran on the old model. */
+  readonly aborted: number;
 }
 
 /** A save that stopped part way: what went through is kept, the rest stays in the draft. */
@@ -39,14 +41,23 @@ export class RolesSaveError extends Error {
  * A drafted model that is no longer in the view (removed elsewhere, then a
  * refetch) stops the save before anything is written: skipping it would report
  * a role as saved that was never sent.
+ *
+ * A new Agent model that Invocations are still running on is refused with
+ * `model_in_use` before anything is written, since Agent goes first; the caller
+ * asks the admin and saves again with `abortRunning`.
  */
-export async function saveRoles(view: ProvidersView, draft: RolesDraft): Promise<RolesSaveResult> {
+export async function saveRoles(
+  view: ProvidersView,
+  draft: RolesDraft,
+  options: { readonly abortRunning?: boolean } = {},
+): Promise<RolesSaveResult> {
   const saved = savedRoles(view);
   const changed = new Set(changedRoles(view, draft));
   const done = new Set<ModelRole>();
   const applied = new Set<string>();
   const restart = new Set<string>();
   let resets: readonly ChatThinkingReset[] = [];
+  let aborted = 0;
   let revision = view.revision;
   const record = (apply: ModelApplySummary): void => {
     for (const path of apply.applied) {
@@ -60,6 +71,7 @@ export async function saveRoles(view: ProvidersView, draft: RolesDraft): Promise
     saved: done,
     apply: { applied: [...applied], restart_required: [...restart] },
     resets,
+    aborted,
   });
 
   for (const role of changed) {
@@ -74,9 +86,17 @@ export async function saveRoles(view: ProvidersView, draft: RolesDraft): Promise
       let level = saved.agent.level;
       const target = modelForKey(view, draft.agent.model);
       if (draft.agent.model !== saved.agent.model && target !== null) {
-        const switched = await switchAgentModel({ provider: target.alias, model: target.config.id }, revision);
+        const switched = await switchAgentModel(
+          {
+            provider: target.alias,
+            model: target.config.id,
+            ...(options.abortRunning === true ? { abort_running: true } : {}),
+          },
+          revision,
+        );
         record(switched.apply);
         resets = switched.chat_thinking_resets;
+        aborted = switched.aborted_invocations;
         level = switched.current.thinking_level;
         revision = switched.revision;
       }

@@ -210,17 +210,14 @@ export const models: typeof modelsEn = {
     picker: {
       discoverTitle: '获取模型列表',
       manualTitle: '手动添加模型',
-      discoverDescription: '从 {{alias}} 获取可用的模型，勾选后添加。模型参数会自动补全。',
+      discoverDescription: '已用 {{alias}} 保存的 API 密钥获取可用模型，勾选后添加。模型参数会自动补全。',
       manualDescription: '为 {{alias}} 手动添加模型：填写模型 ID 后，会自动查询它的参数。',
-      useSaved: '改回已保存的 API 密钥',
-      useTemp: '改用其他 API 密钥',
       endpointLabel: '请求地址：',
-      fetch: '获取',
       fetchAgain: '重新获取',
       fetching: '获取中…',
       idsLabel: '模型 ID（每行一个，或用逗号分隔）',
-      tempModeKeyNeeded: '请填写 API 密钥',
-      metadataUnavailable: '暂时查不到模型参数（{{error}}）。模型仍然可以添加，但每一项都需要你手动确认。',
+      metadataUnavailable:
+        '暂时查不到模型参数（{{error}}）。模型仍然可以添加，但上下文长度、最长输出和输入类型需要手动填写。',
       lookingUp: '查询中…',
       adding: '添加中…',
       addOne: '添加 {{count}} 个模型',
@@ -239,6 +236,7 @@ export const models: typeof modelsEn = {
       piDefault: '默认档位',
       yes: '是',
       no: '否',
+      reasoningDefaulted: '没查到它是否支持思考，将按不支持思考的模型添加。',
     },
     edit: {
       confirmMarker: '待确认',
@@ -303,14 +301,25 @@ export const models: typeof modelsEn = {
     },
     match: {
       matched: '参数参考了 models.dev 上 {{provider}} 的 {{model}}',
-      crossProviderNote: '（这是其他供应商的数据，请核对价格和上限）',
+      crossProviderNote: '（列在其他供应商名下）',
       fuzzyNote: '（名称相近但不完全一致，请逐项核对）',
     },
     source: {
       missing: '未查到',
       from: '来自 {{source}}',
-      crossProvider: 'models.dev（其他供应商的数据）',
+      crossProvider: 'models.dev（列在其他供应商名下）',
       fuzzy: 'models.dev（名称相近的模型）',
+      highestPrice: 'models.dev（取所列最高价格）',
+      reasoningDefault: '未查到，按不支持思考添加',
+      costDefault: '未查到，按 0 添加',
+    },
+    switchConfirm: {
+      title: '终止进行中的会话并切换？',
+      description:
+        '正在使用当前模型的会话：{{count}} 个。切换会立即终止它们，它们正在处理的消息不会再得到回复。之前委派的任务不受影响，之后的消息由新模型处理。',
+      confirm: '终止并切换',
+      stopped_one: '已终止 {{count}} 个进行中的会话。',
+      stopped_other: '已终止 {{count}} 个进行中的会话。',
     },
     validation: {
       idRequired: '模型 ID 不能为空',
@@ -369,5 +378,11 @@ export const models: typeof modelsEn = {
     confirmDescription:
       '此操作不可撤销，将清除模型请求与响应快照，保留其他审计数据。重放输入也会一并删除，受影响的历史 Invocation 将无法再重放。开启记录时，新报文仍会继续保存。不会压缩数据库文件。',
     confirmClear: '确认清除',
+    modelsDevTitle: '模型参数来源',
+    modelsDevDescription: '在供应商页添加模型时，从这里查询上下文长度、最长输出、输入类型和价格。',
+    modelsDevLabel: '目录地址',
+    modelsDevHint: '留空则使用 {{url}}。镜像必须提供相同的格式。保存后下一次查询即生效。',
+    modelsDevReset: '恢复默认',
+    modelsDevMismatch: '文件设置与运行状态不同，当前仍从 {{url}} 查询。请在 Settings 中应用配置文件。',
   },
 };

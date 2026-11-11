@@ -28,6 +28,10 @@ export type MetadataSource =
   | 'models.dev'
   | 'models.dev-cross-provider'
   | 'models.dev-fuzzy'
+  /** No price for this provider: the highest one any deployment of the model lists. */
+  | 'models.dev-highest-price'
+  /** Nobody knew the value and a fixed rule filled it in (non-thinking, or a price of 0). */
+  | 'default'
   | 'missing';
 
 /** How far the models.dev lookup had to reach for a draft. */
@@ -156,7 +160,11 @@ export interface ModelMetadataDraft {
   readonly requires_reasoning_content_source: MetadataSource;
   readonly match: ModelsDevMatch | null;
   readonly candidates: readonly ModelsDevMatch[];
-  /** Fields the admin has to fill or confirm before the model may be saved. */
+  /**
+   * Fields the admin has to fill or confirm before the model may be saved:
+   * only context length, max output and accepted input, when no source matched
+   * them exactly.
+   */
   readonly needs_confirmation: readonly DraftField[];
 }
 
