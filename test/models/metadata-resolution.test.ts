@@ -270,6 +270,30 @@ describe('metadata resolution', () => {
     expect(draftOf(exact, 'deepseek/deepseek-v4-flash').needs_confirmation).toEqual([]);
   });
 
+  test('asks to confirm the input capability when the catalog lists no modalities', () => {
+    const noModalities = catalog();
+    const entry = noModalities.togetherai?.models['deepseek-ai/DeepSeek-V3'];
+    if (entry === undefined) {
+      throw new Error('Fixture model is missing');
+    }
+    delete entry.modalities;
+    const drafts = resolveModelDrafts(
+      // The exact id is found under another provider, but that listing says
+      // nothing about accepted inputs: text-only must not be invented.
+      { kind: 'custom', baseUrl: 'https://relay.example.test/v1', api: 'openai-completions' },
+      [{ id: 'deepseek-ai/DeepSeek-V3', name: null, extension: { format: 'openai' } }],
+      noModalities,
+    );
+    const draft = draftOf(drafts, 'deepseek-ai/DeepSeek-V3');
+    expect(draft.match?.confidence).toBe('cross-provider');
+    expect(draft.input).toBeNull();
+    expect(draft.sources.input).toBe('missing');
+    // The limits are still trusted; only the unknown capability has to be confirmed.
+    expect(draft.context_window).toBe(128000);
+    expect(draft.sources.context_window).toBe('models.dev-cross-provider');
+    expect(draft.needs_confirmation).toEqual(['input']);
+  });
+
   test('asks only for the key fields when no source matches, and defaults the rest', () => {
     const drafts = resolveModelDrafts(
       { kind: 'custom', baseUrl: 'https://relay.example.test/v1', api: 'openai-completions' },

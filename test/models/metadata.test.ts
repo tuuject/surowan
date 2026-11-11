@@ -215,7 +215,8 @@ describe('models.dev catalog cache', () => {
     const second = await loadModelsDevCatalog({ fetchImpl, ttlMs: 60_000 });
     expect(calls).toBe(1);
     expect(second).toBe(first);
-    expect(first.openrouter?.models['a/b']?.modalities.input).toEqual(['text']);
+    // An omitted input list is not invented as text-only: resolution reports it missing.
+    expect(first.openrouter?.models['a/b']?.modalities).toBeUndefined();
 
     resetModelsDevCatalogCache();
     const failing = (async () => {

@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { RawConfig } from '../platform/config/index.ts';
 import type { HostKind } from '../platform/im-host/identity.ts';
-import { resolveInvocationPolicy } from '../platform/invocation-policy.ts';
+import { type InvocationAgentSettings, resolveInvocationPolicy } from '../platform/invocation-policy.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import { type Orm, resolveChatConfig } from '../store/store.ts';
 import type { BucketScheduler } from './scheduler/index.ts';
@@ -28,7 +28,6 @@ export interface ModelSwitchScope {
 
 interface RunningInvocationRow {
   readonly id: bigint;
-  readonly config_hash: string;
   readonly host_kind: string;
   readonly telegram_chat_id: bigint | null;
   readonly chat_id: bigint;
@@ -42,7 +41,7 @@ interface RunningInvocationRow {
  */
 function agentModelKey(orm: Orm, config: RawConfig, row: RunningInvocationRow): string | null {
   const hostKind = row.host_kind as HostKind;
-  let agent: ReturnType<typeof resolveInvocationPolicy>['agent'];
+  let agent: InvocationAgentSettings;
   try {
     agent = resolveInvocationPolicy(config, orm, {
       hostKind,
@@ -69,21 +68,25 @@ function inScope(orm: Orm, config: RawConfig, row: RunningInvocationRow, scope: 
 }
 
 /**
- * Running Invocations whose agent model is not the same under `before` and
- * `after`: the ones a switch from one configuration to the other leaves on the
- * replaced model. Thinking-level changes alone never count.
+ * Running Invocations whose own model is not the model `after` gives their
+ * Chat: the ones a switch leaves on the replaced model. Thinking-level changes
+ * alone never count.
  *
- * `excludeConfigHash` leaves out runs that started under that configuration.
- * After the switch is published, it is the new hash: a run that started since
- * then already uses the new model, even though `before` resolves it to the old.
+ * A run's model is read from the snapshot it actually started with, not from
+ * the configuration active now: another apply may have moved the configuration
+ * on while this run kept its own. A switch back to a model a run already uses
+ * therefore stops nothing, even when the active configuration named something
+ * else in between. A run with no live snapshot (started before this process,
+ * or a scheduler-less caller) falls back to the active configuration.
  */
 export function invocationsLeavingModel(
   orm: Orm,
   before: RawConfig,
   after: RawConfig,
-  options: ModelSwitchScope & { readonly excludeConfigHash?: string } = {},
+  scheduler: Pick<BucketScheduler, 'invocationSnapshot' | 'invocationStopping'> | undefined,
+  options: ModelSwitchScope = {},
 ): bigint[] {
-  const rows = orm.all<RunningInvocationRow>(sql`SELECT i.id AS id, i.config_hash AS config_hash,
+  const rows = orm.all<RunningInvocationRow>(sql`SELECT i.id AS id,
       c.host_kind AS host_kind, c.telegram_chat_id AS telegram_chat_id, c.id AS chat_id, c.type AS chat_type
     FROM invocations i
     JOIN conversations v ON v.id = i.conversation_id
@@ -91,11 +94,14 @@ export function invocationsLeavingModel(
     WHERE i.state = 'running'
     ORDER BY i.id`);
   return rows
-    .filter((row) => options.excludeConfigHash === undefined || row.config_hash !== options.excludeConfigHash)
-    .filter((row) => inScope(orm, before, row, options))
+    .filter((row) => inScope(orm, after, row, options))
+    .filter((row) => !(scheduler?.invocationStopping(row.id) ?? false))
     .filter((row) => {
-      const previous = agentModelKey(orm, before, row);
-      return previous !== null && previous !== agentModelKey(orm, after, row);
+      const target = agentModelKey(orm, after, row);
+      const snapshot = scheduler?.invocationSnapshot(row.id);
+      const running =
+        snapshot === undefined ? agentModelKey(orm, before, row) : agentModelKey(orm, snapshot.config, row);
+      return running !== null && running !== target;
     })
     .map((row) => row.id);
 }
@@ -113,12 +119,14 @@ export function invocationsLeavingModel(
 export function abortInvocationsLeavingModel(
   orm: Orm,
   configStore: RuntimeConfigurationStore,
-  scheduler: Pick<BucketScheduler, 'abortInvocations' | 'wake'> | undefined,
+  scheduler:
+    | Pick<BucketScheduler, 'abortInvocations' | 'wake' | 'invocationSnapshot' | 'invocationStopping'>
+    | undefined,
   before: RawConfig,
   scope: ModelSwitchScope = {},
 ): number {
   const after = configStore.current();
-  const ids = invocationsLeavingModel(orm, before, after.config, { ...scope, excludeConfigHash: after.hash });
+  const ids = invocationsLeavingModel(orm, before, after.config, scheduler, scope);
   const aborted = ids.length === 0 ? 0 : (scheduler?.abortInvocations(ids, MODEL_SWITCH_ABORT_REASON) ?? 0);
   scheduler?.wake();
   return aborted;

@@ -40,6 +40,7 @@ export class BucketScheduler {
   readonly #active = new Map<string, ActiveInvocation>();
   /** Conversation id → number of live fences holding it closed. */
   readonly #fenced = new Map<string, number>();
+  #launchFences = 0;
   readonly #executionState: InvocationExecutionState = { lastForcedGcAt: 0 };
   readonly #executionDeps: InvocationExecutionDeps;
   readonly #loopDeps: SchedulerLoopDeps;
@@ -92,6 +93,7 @@ export class BucketScheduler {
       isHostReady,
       active: this.#active,
       fencedConversations: () => [...this.#fenced.keys()].map((id) => BigInt(id)),
+      launchesBlocked: () => this.#launchFences > 0,
       isRunning: () => this.#running,
       execute: (invocation, snapshot, controller) =>
         executeInvocation(this.#executionDeps, invocation, snapshot, controller),
@@ -166,6 +168,29 @@ export class BucketScheduler {
       }
     }
     return signaled;
+  }
+
+  /** The immutable configuration the running handler actually started with. */
+  invocationSnapshot(id: bigint): InvocationConfigSnapshot | undefined {
+    return this.#active.get(id.toString())?.snapshot;
+  }
+
+  /** Whether the run is already stopping; it needs no second abort. */
+  invocationStopping(id: bigint): boolean {
+    return this.#active.get(id.toString())?.controller.signal.aborted ?? false;
+  }
+
+  /** Blocks launches, including Conversations first created during a config write. */
+  fenceLaunches(): () => void {
+    this.#launchFences += 1;
+    let released = false;
+    return () => {
+      if (!released) {
+        released = true;
+        this.#launchFences -= 1;
+        this.wake();
+      }
+    };
   }
 
   /**

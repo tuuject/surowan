@@ -77,10 +77,7 @@ type RawModel = Static<typeof ModelSchema>;
 type RawProvider = Static<typeof ProviderSchema>;
 type RawCatalog = Static<typeof CatalogSchema>;
 
-export type ModelsDevModel = Omit<RawModel, 'reasoning' | 'modalities'> & {
-  reasoning: boolean;
-  modalities: { input: string[]; output: string[] };
-};
+export type ModelsDevModel = Omit<RawModel, 'reasoning'> & { reasoning: boolean };
 export type ModelsDevProvider = Omit<RawProvider, 'models'> & { models: Record<string, ModelsDevModel> };
 export type ModelsDevCatalog = Record<string, ModelsDevProvider>;
 
@@ -180,20 +177,18 @@ export function resetModelsDevCatalogCache(): void {
   cachedCatalogs.clear();
 }
 
-/** Fills the `reasoning` and `modalities` fields models.dev may omit. */
+/**
+ * Fills the `reasoning` field models.dev may omit. Modalities stay exactly as
+ * listed: an omitted input list means the catalog does not say which inputs the
+ * model accepts, which metadata resolution reports as missing instead of
+ * inventing a text-only model.
+ */
 function applyDefaults(catalog: RawCatalog): ModelsDevCatalog {
   const normalized: ModelsDevCatalog = {};
   for (const [providerId, provider] of Object.entries(catalog)) {
     const models: Record<string, ModelsDevModel> = {};
     for (const [modelId, model] of Object.entries(provider.models)) {
-      models[modelId] = {
-        ...model,
-        reasoning: model.reasoning ?? false,
-        modalities: {
-          input: model.modalities?.input ?? ['text'],
-          output: model.modalities?.output ?? ['text'],
-        },
-      };
+      models[modelId] = { ...model, reasoning: model.reasoning ?? false };
     }
     normalized[providerId] = { ...provider, models };
   }
@@ -212,9 +207,17 @@ export function listModels(provider: ModelsDevProvider): ModelsDevModel[] {
   return Object.values(provider.models).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function extractInputCapabilities(model: ModelsDevModel): Array<'text' | 'image'> {
+/**
+ * The input capabilities the catalog lists, or `null` when it lists none. A
+ * list without any recognized capability still means text only, as before.
+ */
+export function extractInputCapabilities(model: ModelsDevModel): Array<'text' | 'image'> | null {
+  const declared = model.modalities?.input;
+  if (declared === undefined) {
+    return null;
+  }
   const capabilities: Array<'text' | 'image'> = [];
-  const inputs = new Set(model.modalities.input);
+  const inputs = new Set(declared);
   if (inputs.has('text')) {
     capabilities.push('text');
   }
@@ -289,7 +292,7 @@ export function toModelDefaults(model: ModelsDevModel): {
   return {
     name: model.name,
     reasoning: model.reasoning,
-    input: extractInputCapabilities(model),
+    input: extractInputCapabilities(model) ?? ['text'],
     context_window: contextWindow > 0 ? contextWindow : 128000,
     max_tokens: maxTokens > 0 ? maxTokens : 4096,
     cost: {

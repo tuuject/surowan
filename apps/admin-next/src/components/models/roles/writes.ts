@@ -19,7 +19,7 @@ export interface ModelTarget {
 }
 
 /** An Agent switch, once the admin agreed to stop the Invocations still on the old model. */
-type AgentTarget = ModelTarget & { readonly abortRunning?: boolean };
+type AgentTarget = ModelTarget & { readonly abortRunning?: boolean; readonly revision?: string };
 
 export type ToolTarget = { readonly inherit: true } | (ModelTarget & { readonly level: ThinkingLevel });
 
@@ -65,7 +65,10 @@ export function useModelRoleWrites(view: ProvidersView | undefined) {
   // Opening is its own flag: closing only hides the dialog so the rows survive the
   // exit transition, and the next switch replaces both.
   const [thinkingResetsOpen, setThinkingResetsOpen] = useState(false);
-  const [agentInUse, setAgentInUse] = useState<{ readonly count: number; readonly target: ModelTarget } | null>(null);
+  const [agentInUse, setAgentInUse] = useState<{
+    readonly count: number;
+    readonly target: AgentTarget;
+  } | null>(null);
   const [agentInUseOpen, setAgentInUseOpen] = useState(false);
 
   const failed = (error: unknown): void => {
@@ -74,8 +77,11 @@ export function useModelRoleWrites(view: ProvidersView | undefined) {
   };
 
   const agent = useMutation({
-    mutationFn: ({ alias, model, abortRunning }: AgentTarget) =>
-      switchAgentModel({ provider: alias, model, ...(abortRunning === true ? { abort_running: true } : {}) }, revision),
+    mutationFn: ({ alias, model, abortRunning, revision: requestRevision }: AgentTarget) =>
+      switchAgentModel(
+        { provider: alias, model, ...(abortRunning === true ? { abort_running: true } : {}) },
+        requestRevision ?? revision,
+      ),
     onSuccess: (result) => {
       setAgentInUseOpen(false);
       // Models do not share one set of levels, so the switch always resets it.
@@ -92,7 +98,12 @@ export function useModelRoleWrites(view: ProvidersView | undefined) {
     onError: (error, target) => {
       const running = modelInUseCount(error);
       if (running !== null) {
-        setAgentInUse({ count: running, target: { alias: target.alias, model: target.model } });
+        // The refusal is answered against the revision it was sent with: a view
+        // refreshed since then must produce a conflict, not stop another model.
+        setAgentInUse({
+          count: running,
+          target: { alias: target.alias, model: target.model, revision: target.revision ?? revision },
+        });
         setAgentInUseOpen(true);
         return;
       }
@@ -143,7 +154,7 @@ export function useModelRoleWrites(view: ProvidersView | undefined) {
   const assign = (role: ModelRole, alias: string, config: ProviderModelConfig): void => {
     switch (role) {
       case 'agent':
-        agent.mutate({ alias, model: config.id });
+        agent.mutate({ alias, model: config.id, revision });
         return;
       case 'vision':
         vision.mutate({ alias, model: config.id });

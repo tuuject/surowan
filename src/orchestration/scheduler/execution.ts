@@ -11,6 +11,7 @@ import type { InvocationHandler, InvocationOutcome } from './index.ts';
 export interface ActiveInvocation {
   readonly controller: AbortController;
   readonly promise: Promise<void>;
+  readonly snapshot: InvocationConfigSnapshot;
 }
 
 export interface InvocationRow {

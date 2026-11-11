@@ -17,7 +17,7 @@ export interface BotCommandConfigDeps {
   readonly modelSwitcher: AgentModelSwitcher | undefined;
   readonly configReloader: BotCommandConfigWriter | undefined;
   /** `/model` stops the runs of the Chat still on the model it replaces. */
-  readonly scheduler: Pick<BucketScheduler, 'abortInvocations' | 'wake'>;
+  readonly scheduler: Pick<BucketScheduler, 'abortInvocations' | 'wake' | 'invocationSnapshot' | 'invocationStopping'>;
 }
 
 const MODEL_PAGE_SIZE = 20;
@@ -115,7 +115,8 @@ export async function switchChatModel(
   if (switcher === undefined || reloader === undefined) {
     return '运行时模型切换不可用。';
   }
-  const config = deps.configStore.current().config;
+  const before = deps.configStore.current();
+  const config = before.config;
   const chatConfig = resolveChatConfig(config, deps.store.orm, telegramChatId);
   if (chatConfig === undefined) {
     return '本 Chat 未在配置中找到。';
@@ -147,14 +148,19 @@ export async function switchChatModel(
     option === undefined
       ? await reloader.resetChatModel(configuredChatId)
       : await reloader.setChatModel(configuredChatId, option.provider, option.model);
+  // `publish_incomplete` means the hook after publication failed: the Chat's
+  // new model is already active, so the runs on the old one still stop.
+  const published = deps.configStore.current().hash !== before.hash;
+  const aborted = published
+    ? abortInvocationsLeavingModel(deps.store.orm, deps.configStore, deps.scheduler, config, { configuredChatId })
+    : 0;
+  const stopped = aborted > 0 ? `已终止 ${aborted} 个仍在使用旧模型的会话，它们正在处理的消息不会再得到回复。` : null;
   if (!result.ok) {
-    return result.fileWritten
+    const failure = result.fileWritten
       ? `已写入 config.jsonc，但应用失败: ${result.message}`
       : `${reset ? '恢复' : '切换'}失败: ${result.message}`;
+    return stopped === null ? failure : `${failure}\n${stopped}`;
   }
-  const aborted = abortInvocationsLeavingModel(deps.store.orm, deps.configStore, deps.scheduler, config, {
-    configuredChatId,
-  });
   const current = deps.configStore.current().config;
   const settings = resolveAgentSettings(current, resolveChatConfig(current, deps.store.orm, telegramChatId));
   const active = completeAgentSettings(settings);
@@ -166,8 +172,8 @@ export async function switchChatModel(
         `已为本群切换: ${target}，已写入 config.jsonc 并立即生效。`,
         `思考强度已重置为该模型最弱的一档: ${settings.thinking_level ?? '未配置'}`,
       ];
-  if (aborted > 0) {
-    lines.push(`已终止 ${aborted} 个仍在使用旧模型的会话，它们正在处理的消息不会再得到回复。`);
+  if (stopped !== null) {
+    lines.push(stopped);
   }
   lines.push(...applyReport(result.applied, paths, result.restartRequired));
   return lines.join('\n');

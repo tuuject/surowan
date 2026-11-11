@@ -107,7 +107,7 @@ export default function DeveloperPage(): ReactElement {
           </div>
         )}
       </Panel>
-      {current === undefined ? null : <ModelsDevSource key={current.revision} settings={current} />}
+      {current === undefined ? null : <ModelsDevSource settings={current} />}
       <Panel
         title={t('models.developer.historyTitle')}
         description={t('models.developer.historyDescription')}
@@ -154,8 +154,8 @@ export default function DeveloperPage(): ReactElement {
 /**
  * Where the Providers page looks model details up when models are added. The
  * field is empty while the file names no address, and saving it empty removes
- * the setting again. Keyed by the file revision, so a save starts the field over
- * from what the file now holds.
+ * the setting again. Only its own successful save resets the field, so an
+ * unrelated settings write does not discard a typed but unsaved address.
  */
 function ModelsDevSource({ settings }: { readonly settings: DeveloperSettings }): ReactElement {
   const { t } = useTranslation();
@@ -166,6 +166,7 @@ function ModelsDevSource({ settings }: { readonly settings: DeveloperSettings })
     mutationFn: (url: string | null) => updateDeveloperSettings({ models_dev_url: url }, settings.revision),
     onSuccess: (result) => {
       queryClient.setQueryData(developerQuery.queryKey, result);
+      setValue(result.models_dev_url ?? '');
       write.succeeded(result.apply);
     },
     onError: write.failed,

@@ -1,12 +1,15 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { and, eq, ne } from 'drizzle-orm';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
+import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.ts';
+import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { createControlAdminHandler } from '../../src/ingress/admin/control.ts';
 import { createChatsAdminHandler } from '../../src/ingress/admin/routes/chats.ts';
 import type { InvocationHandler } from '../../src/orchestration/scheduler/index.ts';
 import type { FileConfig } from '../../src/platform/config/index.ts';
 import { resolveAgentSettings } from '../../src/platform/config/resolve.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
+import { SecretStore } from '../../src/platform/secrets.ts';
 import { buckets, invocationBuckets, invocations } from '../../src/store/schema/index.ts';
 import type { FixtureConfig } from '../helpers.ts';
 import { type MemoFixture, seedChat } from '../memo/fixtures.ts';
@@ -246,4 +249,130 @@ test('a global switch only stops runs that follow the global model', async () =>
   expect(await f.scheduler.waitForInvocations([following, own])).toBe(true);
   expect(f.state(following)).toMatchObject({ state: 'aborted', completionReason: 'model_switched' });
   expect(f.state(own)).toMatchObject({ state: 'completed' });
+});
+
+test('switching back preserves a run already using the target model after another configuration was applied', async () => {
+  const runs = gatedRuns();
+  const f = await switchFixture(runs);
+  const chat = f.seed(PRIVATE_CHAT);
+  const id = queue(f, chat.conversationId);
+  f.scheduler.start();
+  await runs.started(id);
+  const applied = await f.reloader.writeAndApply(
+    [
+      { path: ['agent', 'provider'], value: 'vision' },
+      { path: ['agent', 'model'], value: 'vision-model' },
+      { path: ['agent', 'thinking_level'], value: 'off' },
+      { path: ['agent', 'max_concurrency'], value: f.configStore.current().config.agent.max_concurrency + 1 },
+    ],
+    await f.reloader.revision(),
+  );
+  expect(applied.ok).toBe(true);
+  expect(runs.models.get(id)).toBe('agent/agent-model');
+
+  const switched = await f.put('model', { provider: 'agent', model: 'agent-model', abort_running: true });
+  expect(switched.status).toBe(200);
+  expect(switched.body.aborted_invocations).toBe(0);
+  runs.release.resolve();
+  expect(await f.scheduler.waitForInvocations([id])).toBe(true);
+  expect(f.state(id)).toMatchObject({ state: 'completed', completionReason: 'done' });
+});
+
+test('a model switch fences queued launches until the published model is ready', async () => {
+  const runs = gatedRuns();
+  const f = await switchFixture(runs);
+  const chat = f.seed(PRIVATE_CHAT);
+  const entered = Promise.withResolvers<void>();
+  const resume = Promise.withResolvers<void>();
+  cleanup.unshift(async () => resume.resolve());
+  const read = f.reloader.readPersisted.bind(f.reloader);
+  vi.spyOn(f.reloader, 'readPersisted').mockImplementation(async (options) => {
+    const loaded = await read(options);
+    entered.resolve();
+    await resume.promise;
+    return loaded;
+  });
+  const switching = f.put('model', { provider: 'vision', model: 'vision-model' });
+  await entered.promise;
+  const id = queue(f, chat.conversationId);
+  f.scheduler.start();
+  resume.resolve();
+  const result = await switching;
+  if (result.status === 409) {
+    expect(result.body).toMatchObject({ error: 'model_in_use', running_invocations: 1 });
+    expect(f.configStore.current().config.agent.model).toBe('agent-model');
+  } else {
+    expect(result.status).toBe(200);
+    await runs.started(id);
+    expect(runs.models.get(id)).toBe('vision/vision-model');
+  }
+});
+
+test('removing a Chat override checks the pending global model before writing anything', async () => {
+  const runs = gatedRuns();
+  const f = await switchFixture(runs);
+  const chat = f.seed(GROUP_WITH_OVERRIDE);
+  const id = queue(f, chat.conversationId);
+  f.scheduler.start();
+  await runs.started(id);
+  const file = await f.file();
+  file.agent = { ...file.agent, provider: 'agent', model: 'agent-model', thinking_level: 'off' };
+  await writeFile(f.loaded.configPath, JSON.stringify(file, null, 2));
+  const revision = await f.reloader.revision();
+  const result = await f.put(`chats/${GROUP_WITH_OVERRIDE}`, {
+    topic_ids: null,
+    provider: null,
+    model: null,
+    thinking_level: 'off',
+  });
+  expect(result.status).toBe(409);
+  expect(result.body).toMatchObject({ error: 'model_in_use', running_invocations: 1 });
+  expect(await f.reloader.revision()).toBe(revision);
+  expect(
+    (await loadConfig(f.loaded.configPath)).config.telegram.chats.find((c) => c.id === GROUP_WITH_OVERRIDE)?.model,
+  ).toBe('vision-model');
+});
+
+test('a published switch aborts old runs even when the publication hook fails', async () => {
+  const runs = gatedRuns();
+  const f = await switchFixture(runs);
+  const chat = f.seed(PRIVATE_CHAT);
+  const id = queue(f, chat.conversationId);
+  f.scheduler.start();
+  await runs.started(id);
+  const reloader = new ConfigReloader({
+    loaded: f.loaded,
+    store: f.configStore,
+    modelSwitcher: new AgentModelSwitcher(f.configStore),
+    secrets: new SecretStore(),
+    validateAgentModel: () => undefined,
+    onPublished: () => {
+      throw new Error('publication hook failed');
+    },
+  });
+  const control = createControlAdminHandler({
+    store: f.store,
+    configStore: f.configStore,
+    configReloader: reloader,
+    secrets: undefined,
+    scheduler: f.scheduler,
+    tasks: f.tasks,
+    modelSwitcher: new AgentModelSwitcher(f.configStore),
+    requestRestart: undefined,
+  });
+  const response = await control.handle(
+    new Request('http://localhost/api/model', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'if-match': await reloader.revision() },
+      body: JSON.stringify({ provider: 'vision', model: 'vision-model', abort_running: true }),
+    }),
+    ['model'],
+    'owner',
+  );
+  expect(response?.status).toBe(409);
+  expect(await response?.json()).toMatchObject({ error: 'publish_incomplete' });
+  expect(f.configStore.current().config.agent.model).toBe('vision-model');
+  runs.release.resolve();
+  expect(await f.scheduler.waitForInvocations([id])).toBe(true);
+  expect(f.state(id)).toMatchObject({ state: 'aborted', completionReason: 'model_switched' });
 });

@@ -111,6 +111,17 @@ test('Developer saves the model details source address, and clearing it falls ba
   await expect(address).toHaveAttribute('placeholder', 'https://models.dev/api.json');
   await expect(panel.getByRole('button', { name: 'Use the default', exact: true })).toBeDisabled();
 
+  // An unrelated settings write must not discard an address that was typed but
+  // not saved yet; only the address's own save resets the field.
+  await address.fill('https://draft.example.test/api.json');
+  const thinking = page.getByRole('switch', { name: 'Record agent thinking (CoT)' });
+  await thinking.click();
+  await expect(thinking).toBeChecked();
+  await expect(address).toHaveValue('https://draft.example.test/api.json');
+  await thinking.click();
+  await expect(thinking).not.toBeChecked();
+  await expect(address).toHaveValue('https://draft.example.test/api.json');
+
   await address.fill('https://mirror.example.test/api.json');
   await panel.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(panel.getByRole('button', { name: 'Use the default', exact: true })).toBeEnabled();
