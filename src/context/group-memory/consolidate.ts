@@ -165,6 +165,8 @@ export interface ConsolidateOptions {
   readonly now?: Date;
   /** Rechecked immediately before every request, including a repair. */
   readonly canCall?: () => boolean;
+  /** Persisted in the request audit transaction before the provider is called. */
+  readonly onCall?: (progress: ConsolidationRead) => void;
 }
 
 interface ConsolidationRead {
@@ -219,7 +221,7 @@ function repairPrompt(problem: string): string {
  * Calls the tool model for one batch and returns validated events. A reply that
  * fails validation is sent back once with the reason; a provider error is not
  * retried here, because the lane backoff is the right answer to an outage.
- * Nothing but `model_calls` audit rows is persisted.
+ * Only request audit and run progress are persisted; memories stay with the caller.
  */
 export async function consolidateDay(
   dependencies: ConsolidationDependencies,
@@ -306,22 +308,26 @@ async function callOnce(
   attempt: number,
   now: Date,
 ): Promise<CallOutcome> {
-  const created = dependencies.orm
-    .insert(modelCalls)
-    .values({
-      role: 'tool',
-      provider: options.selection.provider,
-      model: options.selection.model,
-      attempt: BigInt(attempt),
-      state: 'pending',
-      toolsJson: '[]',
-      createdAt: new Date(now.getTime() + (attempt - 1)).toISOString(),
-    })
-    .returning({ id: modelCalls.id })
-    .get();
-  if (created === undefined) {
-    throw new Error('model_calls insert returned no row');
-  }
+  const created = dependencies.orm.transaction(() => {
+    const row = dependencies.orm
+      .insert(modelCalls)
+      .values({
+        role: 'tool',
+        provider: options.selection.provider,
+        model: options.selection.model,
+        attempt: BigInt(attempt),
+        state: 'pending',
+        toolsJson: '[]',
+        createdAt: new Date(now.getTime() + (attempt - 1)).toISOString(),
+      })
+      .returning({ id: modelCalls.id })
+      .get();
+    if (row === undefined) {
+      throw new Error('model_calls insert returned no row');
+    }
+    options.onCall?.({ through: rows.at(-1)?.telegramMessageId ?? 0n, messages: rows.length, modelCalls: attempt });
+    return row;
+  });
   const controller = new AbortController();
   const timer = setTimeout(
     () => controller.abort(new Error('Group memory consolidation timed out')),

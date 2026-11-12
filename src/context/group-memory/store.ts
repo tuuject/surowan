@@ -389,6 +389,27 @@ export class GroupMemoryStore {
     return row.id;
   }
 
+  /** Count requests before dispatch, so an interrupted process cannot erase them. */
+  recordRunCall(
+    id: bigint,
+    progress: { readonly through: bigint; readonly messages: number; readonly modelCalls: number },
+  ): void {
+    const updated = asRunResult(
+      this.#orm
+        .update(groupMemoryRuns)
+        .set({
+          throughMessageId: progress.through,
+          messages: BigInt(progress.messages),
+          modelCalls: BigInt(progress.modelCalls),
+        })
+        .where(and(eq(groupMemoryRuns.id, id), eq(groupMemoryRuns.state, 'running')))
+        .run(),
+    );
+    if (updated.changes !== 1) {
+      throw new Error('Group memory run is no longer active');
+    }
+  }
+
   /** Closes a batch's audit row with what it actually read and how it ended. */
   finishRun(
     id: bigint,

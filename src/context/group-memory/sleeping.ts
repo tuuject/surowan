@@ -276,7 +276,7 @@ export class SleepingService {
       log('group_memory_failed', { ...fields, error_code: code });
     };
     try {
-      runId = this.#groupMemory.startRun(
+      const id = this.#groupMemory.startRun(
         {
           chatId: batch.chatId,
           lane: batch.lane,
@@ -287,9 +287,19 @@ export class SleepingService {
         },
         clock(),
       );
+      runId = id;
       const result = await consolidateDay(
         { orm: this.#store.orm, secrets: this.#secrets },
-        { day: batch.day, rows: batch.rows, models, selection, signal: controller.signal, now: clock(), canCall },
+        {
+          day: batch.day,
+          rows: batch.rows,
+          models,
+          selection,
+          signal: controller.signal,
+          now: clock(),
+          canCall,
+          onCall: (progress) => this.#groupMemory.recordRunCall(id, progress),
+        },
       );
       if (!result.ok) {
         // A shutdown-aborted batch must be retried as soon as the next process

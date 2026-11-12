@@ -154,7 +154,7 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 - `day` 是 Chat `timezone` 下的 `YYYY-MM-DD`，`CHECK` 只校验形态；合法日历日由 [src/context/group-memory/day.ts](../src/context/group-memory/day.ts) 计算。一天可以有多条事件，批次上限是 120 条消息或 40000 字符（再按工具模型窗口收窄），超出部分在下一个批次继续。
 - `group_memory_lanes` 主键是 `(chat_id, lane)`：`live` 的 `through_message_id` 是已提交批次的最大 Telegram message id；`backfill` 另有 `until_message_id`（闭区间终点，`CHECK` 要求不小于游标，live 必须为 NULL），读完随提交删除。lane 行只在 Chat 的群聊记忆开启期间存在：开启时建 live lane，起点是当时最新的已存消息（不回填历史），关闭或 Chat 离开配置时删除全部 lane，所以重新开启会跳过关闭期间的消息。摘要与游标在同一个 IMMEDIATE transaction 提交，失败时都不推进；提交还要求 `claimed_at` 仍等于认领时的值，lane 被删或重建后迟到的批次什么都不写。`state = 'running'` + `claimed_at` 是数据库认领；超过 30 分钟的认领由 `recoverStale()` 释放，失败写入 `next_attempt_at` 退避并累加 `consecutive_failures`，不会对同一批无限调用模型。两条 lane 的认领与退避互不影响。
 - 摘要范围可能不覆盖批次里的每一条消息（模型可以跳过寒暄与命令），但游标仍推进到批次末尾，避免噪声让同一批永久重试。区间允许重叠。
-- `group_memory_runs` 每个批次一行：lane、日期、读到的首尾 message id 与条数、`running`/`success`/`error`、事件数、模型调用数（含一次修复调用）、`error_code` 与不含消息正文的 `error_detail`。它是审计行，`purgeExpiredData` 按 `retention.online_days` 删除已结束的行；进程启动时把上个进程留下的 `running` 行标为 `interrupted`。Admin 的整理进度面板与 `group-memory runs` 读它。
+- `group_memory_runs` 每个批次一行：lane、日期、读到的首尾 message id 与条数、`running`/`success`/`error`、事件数、模型调用数（含一次修复调用；每次请求前与 `model_calls` 准备行在同一事务写入，进程中断后仍保留）、`error_code` 与不含消息正文的 `error_detail`。它是审计行，`purgeExpiredData` 按 `retention.online_days` 删除已结束的行；进程启动时把上个进程留下的 `running` 行标为 `interrupted`。Admin 的整理进度面板与 `group-memory runs` 读它。
 - 原始消息的保留：`purgeExpiredData` 不再删除或匿名化 Message、Revision 与 Media；它们只在删除 Chat 时随 `chats` 级联清理。记忆行本身也没有 TTL。
 
 ### 注意力窗口
