@@ -83,6 +83,7 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
       orm.run(
         sql`DELETE FROM model_calls WHERE invocation_id IS NULL AND state <> 'pending' AND created_at < ${cutoff}`,
       );
+      orm.run(sql`DELETE FROM group_memory_runs WHERE state <> 'running' AND started_at < ${cutoff}`);
       orm.run(sql`
         DELETE FROM long_tasks
         WHERE id IN (

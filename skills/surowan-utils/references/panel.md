@@ -26,6 +26,8 @@ surowan-utils telegram show --json                 # 只报告是否已配置 to
 surowan-utils warning list --json
 surowan-utils memo list --chat <telegram chat id> --json
 surowan-utils group-memory list --chat <telegram chat id> --json
+surowan-utils group-memory progress --json          # 每个开启群聊记忆的 Chat：lane 游标、待整理条数、退避与最近失败
+surowan-utils group-memory runs --chat <telegram chat id> --state error --json  # 整理批次与失败原因
 surowan-utils dictionary list --scope global --json
 surowan-utils room list --json
 ```

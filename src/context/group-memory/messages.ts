@@ -94,33 +94,89 @@ function withMedia(orm: Orm, rows: readonly RawRow[]): GroupMemoryMessageRow[] {
   }));
 }
 
-/** Messages newer than the watermark, oldest first, bounded by one batch. */
+/**
+ * A lane's unconsolidated messages: Telegram ids after `after` and, for a
+ * backfill lane, at most `until` (inclusive). `until = null` is open-ended.
+ */
+export interface PendingRange {
+  readonly after: bigint;
+  readonly until: bigint | null;
+}
+
+function pendingCondition(chatId: bigint, range: PendingRange) {
+  return range.until === null
+    ? sql`m.chat_id = ${chatId} AND m.visible = 1 AND m.telegram_message_id > ${range.after}`
+    : sql`m.chat_id = ${chatId} AND m.visible = 1 AND m.telegram_message_id > ${range.after}
+          AND m.telegram_message_id <= ${range.until}`;
+}
+
+/** Pending messages of a lane, oldest first, bounded by one batch. */
 export function loadPendingMessages(
   orm: Orm,
   chatId: bigint,
-  watermark: bigint,
+  range: PendingRange,
   limit = GROUP_MEMORY_BATCH_MAX_MESSAGES,
 ): GroupMemoryMessageRow[] {
   const rows = orm.all<RawRow>(
     sql`${SELECT_ROWS}
-        WHERE m.chat_id = ${chatId} AND m.visible = 1 AND m.telegram_message_id > ${watermark}
+        WHERE ${pendingCondition(chatId, range)}
         ORDER BY m.telegram_message_id
         LIMIT ${BigInt(limit)}`,
   );
   return withMedia(orm, rows);
 }
 
-/** The newest pending message, used for the idle check. */
-export function newestPendingMessage(orm: Orm, chatId: bigint, watermark: bigint): GroupMemoryMessageRow | undefined {
+/** The newest pending message of a lane, used for the idle check. */
+export function newestPendingMessage(orm: Orm, chatId: bigint, range: PendingRange): GroupMemoryMessageRow | undefined {
   const row = orm
     .all<RawRow>(
       sql`${SELECT_ROWS}
-          WHERE m.chat_id = ${chatId} AND m.visible = 1 AND m.telegram_message_id > ${watermark}
+          WHERE ${pendingCondition(chatId, range)}
           ORDER BY m.telegram_message_id DESC
           LIMIT 1`,
     )
     .at(0);
   return row === undefined ? undefined : withMedia(orm, [row])[0];
+}
+
+/** How many messages a lane still has to consolidate (the panel's backlog). */
+export function countPendingMessages(orm: Orm, chatId: bigint, range: PendingRange): number {
+  return Number(
+    orm
+      .all<{ count: bigint }>(sql`SELECT count(*) AS count FROM messages m WHERE ${pendingCondition(chatId, range)}`)
+      .at(0)?.count ?? 0n,
+  );
+}
+
+/** The newest stored Telegram message id of a Chat, visible or not; 0 when it has none. */
+export function newestMessageId(orm: Orm, chatId: bigint): bigint {
+  return (
+    orm
+      .all<{ id: bigint | null }>(sql`SELECT max(telegram_message_id) AS id FROM messages WHERE chat_id = ${chatId}`)
+      .at(0)?.id ?? 0n
+  );
+}
+
+/** The newest stored Telegram message id sent before `before`, or undefined. */
+export function lastMessageIdBefore(orm: Orm, chatId: bigint, before: string): bigint | undefined {
+  return (
+    orm
+      .all<{ id: bigint | null }>(
+        sql`SELECT max(telegram_message_id) AS id FROM messages WHERE chat_id = ${chatId} AND telegram_date < ${before}`,
+      )
+      .at(0)?.id ?? undefined
+  );
+}
+
+/** When a stored message was sent, for showing a cursor as a date. */
+export function messageDate(orm: Orm, chatId: bigint, telegramMessageId: bigint): string | null {
+  return (
+    orm
+      .all<{ telegram_date: string }>(
+        sql`SELECT telegram_date FROM messages WHERE chat_id = ${chatId} AND telegram_message_id = ${telegramMessageId}`,
+      )
+      .at(0)?.telegram_date ?? null
+  );
 }
 
 /** Raw messages whose Telegram ids fall in the inclusive range. */

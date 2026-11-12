@@ -123,6 +123,8 @@ const pages = [
     label: 'Group memory',
     heading: 'Group memory',
     action: 'Refresh list',
+    // Consolidation progress is a short per-Chat table in its own Card above the event list.
+    cardTables: 1,
   },
   {
     path: '/dictionary',
@@ -198,7 +200,7 @@ for (const entry of pages) {
     await expect(page.locator('table').first()).not.toHaveAttribute('aria-busy', 'true');
     await expect(page.getByText(/^\d+ records?$/).first()).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Pagination', exact: true })).toHaveCount(1);
-    await expectCardStructure(page, { filters: 1 });
+    await expectCardStructure(page, { filters: 1, cardTables: 'cardTables' in entry ? entry.cardTables : 0 });
     await expect(page.getByRole('alert').filter({ hasText: 'Request failed' })).toHaveCount(0);
     await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });

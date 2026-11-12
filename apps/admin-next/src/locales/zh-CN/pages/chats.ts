@@ -94,7 +94,8 @@ export const chats: typeof chatsEn = {
   groupMemoryDescription:
     'sleeping 群聊记忆会在群聊安静后把消息整理成带 Telegram message-id 区间的日期事件；模型通过 search_group_memory 与 read_group_messages 按需回忆。',
   groupMemoryEnable: '为此 Chat 开启群聊记忆',
-  groupMemoryEnableHint: '开启后，后台 worker 在 Chat 静默达到配置时长、或本地日期结束时整理尚未处理的消息。',
+  groupMemoryEnableHint:
+    '开启后，后台 worker 只整理从现在起收到的消息：Chat 静默达到配置时长、或本地日期结束时开始整理。开启前的历史（包括关闭期间的消息）不会被整理。',
   groupMemoryIdle: '整理当天消息前的静默分钟数',
   groupMemoryIdleHint: '已经结束的本地日期不会等待。允许 1–1440。',
   groupMemoryCutover:

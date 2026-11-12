@@ -12,7 +12,13 @@ import Type from 'typebox';
  */
 
 export const GROUP_MEMORY_ID_PATTERN = '^gmem_[a-f0-9]{32}$';
-export const GROUP_MEMORY_SUMMARY_MAX_LENGTH = 150;
+/** What storage and validation accept. */
+export const GROUP_MEMORY_SUMMARY_MAX_LENGTH = 200;
+/**
+ * What the consolidation prompt asks for. It stays below the hard limit so a
+ * model that overshoots a little does not fail the whole batch.
+ */
+export const GROUP_MEMORY_SUMMARY_PROMPT_LENGTH = 150;
 export const GROUP_MEMORY_SEARCH_DEFAULT_LIMIT = 20;
 export const GROUP_MEMORY_SEARCH_MAX_LIMIT = 50;
 export const GROUP_MEMORY_SEARCH_MAX_KEYWORDS = 10;
@@ -25,8 +31,16 @@ export const GROUP_MEMORY_READ_MAX_MESSAGES = 200;
 /** The raw replay is a tool result inside Context; keep it well below the window. */
 export const GROUP_MEMORY_READ_MAX_CHARACTERS = 20_000;
 export const GROUP_MEMORY_READ_MAX_SPAN = 2_000;
+/** Per model call; a batch makes at most two (one repair after invalid output). */
 export const GROUP_MEMORY_CONSOLIDATION_TIMEOUT_MS = 120_000;
 export const GROUP_MEMORY_CONSOLIDATION_MAX_OUTPUT_TOKENS = 4_096;
+/** Model calls in parallel across lanes; each lane still runs one batch at a time. */
+export const GROUP_MEMORY_MAX_IN_FLIGHT = 4;
+/**
+ * Batches one tick may start. A batch is one or two model calls, and a failure
+ * costs as much as a success, so this bounds spend during a provider outage.
+ */
+export const GROUP_MEMORY_MAX_BATCHES_PER_TICK = 8;
 /** A claimed batch older than this is recovered as idle after a crash. */
 export const GROUP_MEMORY_CLAIM_STALE_MS = 30 * 60 * 1_000;
 export const GROUP_MEMORY_RETRY_DELAY_MS = 30 * 60 * 1_000;
@@ -48,15 +62,25 @@ export interface GroupMemoryEntry {
   readonly createdAt: string;
 }
 
-export interface GroupMemoryStateRow {
+/**
+ * `live` follows new messages; `backfill` works through an old backlog up to
+ * `untilMessageId`, after which the live lane starts.
+ */
+export type GroupMemoryLaneKind = 'live' | 'backfill';
+
+export interface GroupMemoryLaneRow {
   readonly chatId: bigint;
-  readonly consolidatedThroughMessageId: bigint;
+  readonly lane: GroupMemoryLaneKind;
+  readonly throughMessageId: bigint;
+  readonly untilMessageId: bigint | null;
   readonly state: 'idle' | 'running';
   readonly claimedAt: string | null;
   readonly lastAttemptAt: string | null;
   readonly lastSuccessAt: string | null;
   readonly nextAttemptAt: string | null;
   readonly errorCode: string | null;
+  readonly consecutiveFailures: bigint;
+  readonly createdAt: string;
   readonly updatedAt: string;
 }
 

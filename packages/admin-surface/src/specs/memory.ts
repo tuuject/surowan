@@ -57,6 +57,19 @@ export const MEMORY_SPECS: readonly EndpointSpec[] = [
     summary: 'List generated group-memory event summaries',
   },
   {
+    command: 'group-memory progress',
+    method: 'GET',
+    path: 'group-memories/progress',
+    summary: 'Show consolidation progress per Chat: lanes, backlog, backoff and recent failures',
+  },
+  {
+    command: 'group-memory runs',
+    method: 'GET',
+    path: 'group-memories/runs',
+    params: ['chat', 'state', 'limit', 'offset', 'as-of=as_of'],
+    summary: 'List consolidation batches with their outcome and failure reason',
+  },
+  {
     command: 'group-memory messages',
     method: 'GET',
     path: 'group-memories/:id/messages',

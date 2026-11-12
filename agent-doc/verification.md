@@ -143,6 +143,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `media/member-profile.test.ts` | `read_member_profile` 的两端：Telegram 侧读本 Conversation 里出现过的成员（`standing`/`custom_title`、私聊 `bio`、最大尺寸头像转成工具图片并提供标记），未出现过的 uid 在任何 Bot API 调用前被拒绝；隐藏资料/`getChatMember` 无权限只降级字段不失败；头像无法规范化时报告 `unavailable (...)` 而不是整体失败；房间侧只给显示名、角色、加入时间与裸 `member_<n>` 形式，跨房间 id 与不存在的 id 都返回未找到 |
 | `agent/runtime-member-profile.test.ts` | 真实 Invocation 里原语进入模型注册表、头像在 provider 请求中成为 image block、canonical history 只留 `toolImages` 引用不留 base64；没有资料读取器的宿主仍保留该原语，调用时返回 `profile_unavailable` |
 | `schema/migrations-tool-images.test.ts` | `051` 把 050 写下的 `details.mcpImages` 与 `[MCP image …]` 就地改写成 `toolImages`/`[image …]`，升级后旧工具结果仍可解码、审计行同步改写 |
+| `schema/migrations-group-memory-lanes.test.ts` | `054` 把旧水位行迁成空闲 live lane（运行中的认领清掉、退避保留）、摘要原样保留且上限变为 200、backfill 必须有终点、外键完整 |
 | `media/original-file.test.ts` | `readOriginalFile`：下载字节原样交出（不归一化）、保留 document 文件名、拒绝 Sticker、下载临时目录不留残留 |
 | `stickers.test.ts` | Set 同步、结构化视觉 Tool Call、索引、搜索、发送 |
 | `media/image.test.ts` | 视频 Sticker 只按 WebM 解码（其他容器冒充时拒绝）、真实 WebM 仍能取帧、解压超过 8 MiB 的 TGS 在转换前拒绝；预取消或下载后立即取消均不启动 ffprobe/ffmpeg/Lottie；本机没有 ffmpeg/ffprobe 时仅视频取帧组跳过，TGS 与取消回归仍运行 |
@@ -167,10 +168,10 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `dictionary/dictionary.test.ts` | 辞典词条与别名归一化、pangu 空格折叠匹配、revision 乐观锁且不改作用域、Agent 工具只写当前群、私聊只读全局、CSV 导入导出转义 |
 | `dictionary/runtime.test.ts` | 辞典注入生命周期：命中持久化、下一批去重、缓存遗忘后从数据库重新播种、GC 后刷新；禁用词条不注入；`on_demand` 双向 pangu 空格匹配 |
 | `group-memory/day.test.ts` | Chat 时区日期、UTC/Asia-Shanghai 边界、DST 23/25 小时日、日期与下一天校验 |
-| `group-memory/store.test.ts` | 摘要与水位原子提交、日期/关键词半数阈值/排序、Chat 隔离、认领互斥、失败退避与 stale claim 恢复 |
-| `group-memory/consolidate.test.ts` | 模型 JSON 事件范围校验（批次外/倒退/重叠拒绝）、成功与非法输出的 `model_calls` 审计 |
-| `group-memory/sleeping.test.ts` | 已完成日期立即整理、当天 idle 窗口、queued/running 与 collecting 跳过、禁用与全局睡眠不发模型调用 |
-| `admin/group-memory.test.ts` | 群聊记忆列表鉴权、Chat/Day/摘要/keyset 过滤、summary 修改、删除、原文区间读取与非法 id/摘要拒绝 |
+| `group-memory/store.test.ts` | 摘要与 lane 游标原子提交、认领失效时不写、日期/关键词半数阈值/排序、Chat 隔离、认领互斥、失败退避与 stale claim 恢复、live/backfill 分流与各自退避、开启/关闭的 lane 生命周期、批次审计与重启中断 |
+| `group-memory/consolidate.test.ts` | 模型 JSON 事件范围校验（批次外/倒退拒绝，重叠与乱序接受并排序）、summary 200 字符上限、带原因的一次修复调用、供应商错误不修复、`model_calls` 审计与 `attempt` |
+| `group-memory/sleeping.test.ts` | 已完成日期立即整理与批次审计、开启时跳过历史、关闭再开启跳过关闭期间、旧积压切给 backfill 且两条 lane 恰好覆盖每条消息一次、backfill 失败不挡 live、忙碌只挡 live、跨 Chat 并行、每次扫描批次上限（含修复调用）、当天 idle 窗口、queued/running 与 collecting 跳过、禁用与全局睡眠不发模型调用、等待期间被暂停的 Chat 不再调用 |
+| `admin/group-memory.test.ts` | 群聊记忆列表鉴权、Chat/Day/摘要/keyset 过滤、summary 修改、删除、原文区间读取与非法 id/摘要拒绝；整理进度的 lane 游标、待整理计数、backfill 终点、24 小时批次统计与最近失败原因，批次列表过滤与非法 state 拒绝，关闭后从进度中消失 |
 | `group-memory/tools.test.ts` | `search_group_memory` 日期/范围展示、`read_group_messages` 回放与越界/过宽拒绝、审计行、未启用时工具缺失 |
 | `group-memory/retention.test.ts` | 在线保留完全不删除 Message/Revision/Media，含未被任何记忆覆盖的旧消息 |
 | `memo/store.test.ts` | Chat 隔离、短期 TTL 与永久条目、搜索（关键词与半数阈值、大小写、日期范围、排序与 limit）、更新（`ttl_seconds` 与 `null` 提升为永久）、删除幂等、过期清理 |

@@ -6,6 +6,8 @@ import {
   conversationContexts,
   dailyUsage,
   groupMemories,
+  groupMemoryLanes,
+  groupMemoryRuns,
   memoPadEntries,
   warnings,
 } from '../../src/store/schema/index.ts';
@@ -120,6 +122,56 @@ export function seedAdminGroupMemories(orm: Orm): string {
       lastMessageId: 901n,
       createdAt: '2026-09-10T08:05:00.000Z',
     })
+    .run();
+  // The live lane read message 900, then failed twice on the next batch; the
+  // progress panel shows it as failing with the later messages still pending.
+  orm
+    .insert(groupMemoryLanes)
+    .values({
+      chatId: T.chat,
+      lane: 'live',
+      throughMessageId: 900n,
+      state: 'idle',
+      lastAttemptAt: '2026-09-10T08:40:00.000Z',
+      lastSuccessAt: '2026-09-10T08:05:00.000Z',
+      nextAttemptAt: '2026-09-10T09:10:00.000Z',
+      errorCode: 'group_memory_invalid_output',
+      consecutiveFailures: 2n,
+      createdAt: '2026-09-10T08:00:00.000Z',
+      updatedAt: '2026-09-10T08:40:00.000Z',
+    })
+    .run();
+  orm
+    .insert(groupMemoryRuns)
+    .values([
+      {
+        chatId: T.chat,
+        lane: 'live',
+        day: '2026-09-10',
+        firstMessageId: 900n,
+        throughMessageId: 900n,
+        messages: 1n,
+        state: 'success',
+        events: 1n,
+        modelCalls: 1n,
+        startedAt: '2026-09-10T08:04:00.000Z',
+        finishedAt: '2026-09-10T08:05:00.000Z',
+      },
+      {
+        chatId: T.chat,
+        lane: 'live',
+        day: '2026-09-10',
+        firstMessageId: 901n,
+        throughMessageId: 902n,
+        messages: 2n,
+        state: 'error',
+        modelCalls: 2n,
+        errorCode: 'group_memory_invalid_output',
+        errorDetail: 'The tool model returned invalid JSON',
+        startedAt: '2026-09-10T08:39:00.000Z',
+        finishedAt: '2026-09-10T08:40:00.000Z',
+      },
+    ])
     .run();
   return ADMIN_GROUP_MEMORY_ID;
 }

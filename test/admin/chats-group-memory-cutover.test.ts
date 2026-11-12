@@ -1,6 +1,9 @@
 import { eq } from 'drizzle-orm';
 import { expect, test, vi } from 'vitest';
-import { applyGroupMemoryToggles } from '../../src/adapters/local-monolith/runtime/chat-lifecycle.ts';
+import {
+  applyGroupMemoryToggles,
+  publishGroupMemory,
+} from '../../src/adapters/local-monolith/runtime/chat-lifecycle.ts';
 import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { contextMessages, invocations } from '../../src/store/schema/index.ts';
 import { seedChat } from '../memo/fixtures.ts';
@@ -130,4 +133,41 @@ test('a handler that outlives the toggle wait keeps its Context until it settles
   } finally {
     release.resolve();
   }
+});
+
+test('a configuration publish reconciles the sleeping lanes even when the cutover fails', async () => {
+  const f = await fixture(() => async () => ({ state: 'completed', reason: 'done' }));
+  seedChat(f.store, 123456789n);
+  const previous = f.configStore.current().config;
+  const next = {
+    ...previous,
+    telegram: {
+      ...previous.telegram,
+      chats: previous.telegram.chats.map((chat) => ({ ...chat, group_memory: { enabled: true } })),
+    },
+  };
+  const reconcileLanes = vi.fn();
+  const result = await publishGroupMemory(
+    {
+      store: f.store,
+      stopper: {
+        abortInvocations: () => 0,
+        fenceConversations: () => {
+          throw new Error('fence failed');
+        },
+        waitForInvocations: async () => true,
+        settleInvocations: async () => undefined,
+      },
+      forgetConversation: () => undefined,
+      reconcileLanes,
+      redactError: (error) => String(error),
+    },
+    previous,
+    next,
+  );
+  // The failed cutover is retried by the next apply; the lane boundary is not
+  // allowed to wait for it.
+  expect(result.cutover).toBe(false);
+  expect(result.failure).toEqual(new Error('fence failed'));
+  expect(reconcileLanes).toHaveBeenCalledWith(next);
 });

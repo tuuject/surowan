@@ -24,7 +24,7 @@ Surowan 使用单个 SQLite 数据库保存消息、调度状态、能力索引�
 
 迁移 `038` 把发送台账切成宿主中立：`telegram_sends` 改名为 `host_sends`，主键、外键、`state` 取值与 Telegram 响应元数据原样保留，去重索引改名为 `host_sends_reply_delivery_idx` / `host_sends_image_delivery_idx`，并新增可空的 `message_id` 指向虚拟宿主为该次发送落下的消息（`ON DELETE SET NULL`，保留期删掉消息时审计行仍在）。改名在开启外键约束的情况下直接 ALTER 完成，不需要重建表。
 
-迁移 `048` 建立群聊记忆：`group_memories` 保存 Chat 级、按本地日期组织的事件摘要与闭区间 Telegram message-id 范围；`group_memory_state` 每个 Chat 至多一行，保存已整理的 message-id 水位、`idle`/`running` 认领状态与失败退避。两张表都随 `chats` 级联删除，不参与在线保留窗口。原文本身也不再被在线保留清理，见「保留清理」。
+迁移 `048` 建立群聊记忆：`group_memories` 保存 Chat 级、按本地日期组织的事件摘要与闭区间 Telegram message-id 范围；`group_memory_state` 每个 Chat 至多一行，保存已整理的 message-id 水位、`idle`/`running` 认领状态与失败退避。两张表都随 `chats` 级联删除，不参与在线保留窗口。原文本身也不再被在线保留清理，见「保留清理」。迁移 `054` 把 summary 上限放宽到 200 字符（重建 `group_memories`），把 `group_memory_state` 换成按 Chat 与通道（`live` / `backfill`）的 `group_memory_lanes`（原水位行迁成空闲的 live lane），并新增按批次的审计表 `group_memory_runs`；详见「群聊记忆」。
 
 迁移 `049` 给 `host_sends.kind` 的 CHECK 增加 `file`（图片以文件发送，见 [send Tool](telegram-agent-flow.md#send-tool)）。SQLite 改不了 CHECK，所以原位重建表：没有表引用 `host_sends`，外键全程保持强制，行 1:1 搬运，三个索引原样重建。文件发送单独成 kind，是为了让 `kind = 'image'` 的图片交付索引与去重永远不把它算作照片交付。
 
@@ -146,14 +146,15 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 
 `conversation_contexts` 的三个 Memo 列（`memo_refresh_seq`、`memo_state_json`、`memo_refresh_pending`）记录短期记忆注入状态：完整列表所在 checkpoint 的实际 `seq`、已告知模型的状态快照，以及强制刷新标记。Context 重建会把三者复位；消息、序号与 Memo 状态在同一个事务中提交，失败时数据库和活 header 都不推进。刷新判据与预算见 [telegram-agent-flow.md](telegram-agent-flow.md#context)。迁移 `052` 另给该表加了 `generation`（重置代数）、`context_window` 与 `max_output_tokens`（构建预算），见上一节。
 
-### 群聊记忆（迁移 048）
+### 群聊记忆（迁移 048、054）
 
 `group_memories` 是 **Chat** 级（`chats.id`）的只读事件索引，同一个 Chat 的所有 Forum Topic 共用；写入只由 sleeping worker 完成，模型只能通过两个读原语查询。
 
-- `summary` 1–150 字符，是给模型看的检索索引；`first_message_id` / `last_message_id` 是事件对应的闭区间 Telegram message id，`CHECK(last >= first)` 兜底。没有 detail：第二层披露直接回放原始消息，不复制一份摘要正文。
+- `summary` 1–200 字符（迁移 `054` 前为 150；整理 prompt 仍要求 150，留出余量），是给模型看的检索索引；`first_message_id` / `last_message_id` 是事件对应的闭区间 Telegram message id，`CHECK(last >= first)` 兜底。没有 detail：第二层披露直接回放原始消息，不复制一份摘要正文。
 - `day` 是 Chat `timezone` 下的 `YYYY-MM-DD`，`CHECK` 只校验形态；合法日历日由 [src/context/group-memory/day.ts](../src/context/group-memory/day.ts) 计算。一天可以有多条事件，批次上限是 120 条消息或 40000 字符（再按工具模型窗口收窄），超出部分在下一个批次继续。
-- `group_memory_state.consolidated_through_message_id` 是已提交批次的最大 Telegram message id；摘要与水位在同一个 IMMEDIATE transaction 提交，失败时两者都不推进。`state = 'running'` + `claimed_at` 是数据库认领；超过 30 分钟的认领由 `recoverStale()` 释放，失败写入 `next_attempt_at` 退避，不会对同一批无限调用模型。
-- 摘要范围可能不覆盖批次里的每一条消息（模型可以跳过寒暄与命令），但水位仍推进到批次末尾，避免噪声让同一批永久重试。
+- `group_memory_lanes` 主键是 `(chat_id, lane)`：`live` 的 `through_message_id` 是已提交批次的最大 Telegram message id；`backfill` 另有 `until_message_id`（闭区间终点，`CHECK` 要求不小于游标，live 必须为 NULL），读完随提交删除。lane 行只在 Chat 的群聊记忆开启期间存在：开启时建 live lane，起点是当时最新的已存消息（不回填历史），关闭或 Chat 离开配置时删除全部 lane，所以重新开启会跳过关闭期间的消息。摘要与游标在同一个 IMMEDIATE transaction 提交，失败时都不推进；提交还要求 `claimed_at` 仍等于认领时的值，lane 被删或重建后迟到的批次什么都不写。`state = 'running'` + `claimed_at` 是数据库认领；超过 30 分钟的认领由 `recoverStale()` 释放，失败写入 `next_attempt_at` 退避并累加 `consecutive_failures`，不会对同一批无限调用模型。两条 lane 的认领与退避互不影响。
+- 摘要范围可能不覆盖批次里的每一条消息（模型可以跳过寒暄与命令），但游标仍推进到批次末尾，避免噪声让同一批永久重试。区间允许重叠。
+- `group_memory_runs` 每个批次一行：lane、日期、读到的首尾 message id 与条数、`running`/`success`/`error`、事件数、模型调用数（含一次修复调用）、`error_code` 与不含消息正文的 `error_detail`。它是审计行，`purgeExpiredData` 按 `retention.online_days` 删除已结束的行；进程启动时把上个进程留下的 `running` 行标为 `interrupted`。Admin 的整理进度面板与 `group-memory runs` 读它。
 - 原始消息的保留：`purgeExpiredData` 不再删除或匿名化 Message、Revision 与 Media；它们只在删除 Chat 时随 `chats` 级联清理。记忆行本身也没有 TTL。
 
 ### 注意力窗口

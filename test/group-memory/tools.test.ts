@@ -56,12 +56,9 @@ test('search_group_memory returns summaries with ranges, then read_group_message
         senderTelegramId: 13,
       },
     );
-    f.groupMemory.commit(
-      f.chatId,
-      '2026-10-01',
-      [{ summary: 'Natu and tcdw discussed eSIM prices', firstMessageId: 4005n, lastMessageId: 4114n }],
-      4120n,
-    );
+    f.groupMemory.record(f.chatId, '2026-10-01', [
+      { summary: 'Natu and tcdw discussed eSIM prices', firstMessageId: 4005n, lastMessageId: 4114n },
+    ]);
     const invocationId = seedInvocation(f.store, f.conversationId);
     const tools = createGroupMemoryReadTools({
       store: f.store,
