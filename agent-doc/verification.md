@@ -171,6 +171,11 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `group-memory/store.test.ts` | 摘要与 lane 游标原子提交、认领失效时不写、日期/关键词半数阈值/排序、Chat 隔离、认领互斥、失败退避与 stale claim 恢复、live/backfill 分流与各自退避、开启/关闭的 lane 生命周期、批次审计与重启中断 |
 | `group-memory/consolidate.test.ts` | 模型 JSON 事件范围校验（批次外/倒退拒绝，重叠与乱序接受并排序）、summary 200 字符上限、带原因的一次修复调用、供应商错误不修复、`model_calls` 审计与 `attempt` |
 | `group-memory/sleeping.test.ts` | 已完成日期立即整理与批次审计、开启时跳过历史、关闭再开启跳过关闭期间、旧积压切给 backfill 且两条 lane 恰好覆盖每条消息一次、backfill 失败不挡 live、忙碌只挡 live、跨 Chat 并行、每次扫描批次上限（含修复调用）、当天 idle 窗口、queued/running 与 collecting 跳过、禁用与全局睡眠不发模型调用、等待期间被暂停的 Chat 不再调用 |
+| `group-memory/activation.test.ts` | 启用边界先于 Invocation 等待；激活失败保留首次游标并使发布重试；首次入库的 Chat 在实时与 catch-up 路径保留新消息 |
+| `group-memory/eligibility.test.ts` | 修复请求前重查暂停、预算睡眠、关闭、Telegram 断连与认领失效；拒绝新增请求并立即释放认领 |
+| `group-memory/scheduling.test.ts` / `group-memory/failures.test.ts` | live 满额时 backfill 公平推进；审计初始化或释放异常仍等待全部 worker；手动扫描与停机共用完成屏障，保持并发上限 |
+| `group-memory/recovery.test.ts` | 子进程在首次或修复请求中退出，重开数据库后批次审计保留实际调用数与消息范围 |
+| `group-memory/persistence-failures.test.ts` | 提交与成功/失败审计异常不重置调用数；摘要、游标与成功批次审计原子提交，失败不留下已提交却标错的摘要 |
 | `admin/group-memory.test.ts` | 群聊记忆列表鉴权、Chat/Day/摘要/keyset 过滤、summary 修改、删除、原文区间读取与非法 id/摘要拒绝；整理进度的 lane 游标、待整理计数、backfill 终点、24 小时批次统计与最近失败原因，批次列表过滤与非法 state 拒绝，关闭后从进度中消失 |
 | `group-memory/tools.test.ts` | `search_group_memory` 日期/范围展示、`read_group_messages` 回放与越界/过宽拒绝、审计行、未启用时工具缺失 |
 | `group-memory/retention.test.ts` | 在线保留完全不删除 Message/Revision/Media，含未被任何记忆覆盖的旧消息 |

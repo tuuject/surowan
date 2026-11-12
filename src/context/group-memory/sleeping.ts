@@ -1,5 +1,4 @@
 import type { Models } from '@earendil-works/pi-ai';
-import { sql } from 'drizzle-orm';
 import type { RawConfig } from '../../platform/config/index.ts';
 import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
@@ -8,7 +7,7 @@ import { resolveToolModel, type ToolModelSelection } from '../../platform/tool-m
 import type { BusinessStore } from '../../store/store.ts';
 import { isChatPaused, resolveChatConfig } from '../../store/store.ts';
 import { activeSleepUntil } from '../../store/sleep.ts';
-import { candidateChats, type GroupMemoryChatRow } from './chats.ts';
+import { candidateChats, isChatBusy, type GroupMemoryChatRow } from './chats.ts';
 import { chatLocalDay, localDayWindow, previousDay } from './day.ts';
 import { consolidateDay } from './consolidate.ts';
 import {
@@ -243,12 +242,13 @@ export class SleepingService {
       this.#isHostReady('telegram') &&
       activeSleepUntil(this.#store.orm, clock()) === null &&
       !isChatPaused(this.#store.orm, batch.chatId) &&
-      (batch.lane !== 'live' || !this.#chatBusy(batch.chatId)) &&
+      (batch.lane !== 'live' || !isChatBusy(this.#store, batch.chatId)) &&
       resolveChatConfig(this.#configStore.current().config, this.#store.orm, batch.telegramChatId)?.group_memory
         ?.enabled === true &&
       this.#groupMemory.lane(batch.chatId, batch.lane)?.claimedAt === claimedAt;
     const fields = { chat_id: batch.chatId.toString(), lane: batch.lane, day: batch.day };
     const first = batch.rows[0]?.telegramMessageId ?? 0n;
+    let read = { through: batch.rows.at(-1)?.telegramMessageId ?? first, messages: batch.rows.length, modelCalls: 0 };
     let runId: bigint | undefined;
     const failRun = (
       code: string,
@@ -298,9 +298,13 @@ export class SleepingService {
           signal: controller.signal,
           now: clock(),
           canCall,
-          onCall: (progress) => this.#groupMemory.recordRunCall(id, progress),
+          onCall: (progress) => {
+            this.#groupMemory.recordRunCall(id, progress);
+            read = progress;
+          },
         },
       );
+      read = result;
       if (!result.ok) {
         // A shutdown-aborted batch must be retried as soon as the next process
         // starts, not after the normal failure backoff.
@@ -322,25 +326,34 @@ export class SleepingService {
         return false;
       }
       const at = clock();
-      if (
-        !this.#groupMemory.commit(batch.chatId, batch.lane, claimedAt, batch.day, result.events, result.through, at)
-      ) {
+      const committed = this.#store.orm.transaction(
+        () => {
+          if (
+            !this.#groupMemory.commit(batch.chatId, batch.lane, claimedAt, batch.day, result.events, result.through, at)
+          ) {
+            return false;
+          }
+          this.#groupMemory.finishRun(
+            id,
+            {
+              state: 'success',
+              throughMessageId: result.through,
+              messages: result.messages,
+              events: result.events.length,
+              modelCalls: result.modelCalls,
+              errorCode: null,
+              errorDetail: null,
+            },
+            at,
+          );
+          return true;
+        },
+        { behavior: 'immediate' },
+      );
+      if (!committed) {
         failRun('group_memory_claim_lost', null, result, 0);
         return false;
       }
-      this.#groupMemory.finishRun(
-        runId,
-        {
-          state: 'success',
-          throughMessageId: result.through,
-          messages: result.messages,
-          events: result.events.length,
-          modelCalls: result.modelCalls,
-          errorCode: null,
-          errorDetail: null,
-        },
-        at,
-      );
       log('group_memory_consolidated', {
         ...fields,
         messages: result.messages,
@@ -350,11 +363,7 @@ export class SleepingService {
       });
       return true;
     } catch (error) {
-      failRun('group_memory_error', this.#secrets.redact(error instanceof Error ? error.message : String(error)), {
-        through: batch.rows.at(-1)?.telegramMessageId ?? first,
-        messages: batch.rows.length,
-        modelCalls: 0,
-      });
+      failRun('group_memory_error', this.#secrets.redact(error instanceof Error ? error.message : String(error)), read);
       return false;
     } finally {
       this.#controllers.delete(controller);
@@ -425,7 +434,7 @@ export class SleepingService {
     }
     // `/pause` is an operator stop, not just a reply gate: it also stops
     // background model calls until the Chat resumes.
-    if (isChatPaused(this.#store.orm, row.id) || (candidate.lane === 'live' && this.#chatBusy(row.id))) {
+    if (isChatPaused(this.#store.orm, row.id) || (candidate.lane === 'live' && isChatBusy(this.#store, row.id))) {
       return undefined;
     }
     const lane = this.#groupMemory.lane(row.id, candidate.lane);
@@ -467,24 +476,6 @@ export class SleepingService {
       }
     }
     return { chatId: row.id, telegramChatId: row.telegram_chat_id, lane: candidate.lane, day, rows };
-  }
-
-  #chatBusy(chatId: bigint): boolean {
-    return (
-      this.#store.orm
-        .all<{ busy: bigint }>(
-          sql`SELECT EXISTS (
-              SELECT 1 FROM invocations i
-              JOIN conversations v ON v.id = i.conversation_id
-              WHERE v.chat_id = ${chatId} AND i.state IN ('queued', 'running')
-            ) OR EXISTS (
-              SELECT 1 FROM buckets b
-              JOIN conversations v ON v.id = b.conversation_id
-              WHERE v.chat_id = ${chatId} AND b.state = 'collecting'
-            ) AS busy`,
-        )
-        .at(0)?.busy === 1n
-    );
   }
 
   #schedule(delay: number): void {

@@ -33,3 +33,22 @@ export function candidateChats(store: BusinessStore, config: RawConfig): GroupMe
   }
   return candidates;
 }
+
+/** Foreground Telegram work that must finish before the live lane proceeds. */
+export function isChatBusy(store: BusinessStore, chatId: bigint): boolean {
+  return (
+    store.orm
+      .all<{ busy: bigint }>(
+        sql`SELECT EXISTS (
+            SELECT 1 FROM invocations i
+            JOIN conversations v ON v.id = i.conversation_id
+            WHERE v.chat_id = ${chatId} AND i.state IN ('queued', 'running')
+          ) OR EXISTS (
+            SELECT 1 FROM buckets b
+            JOIN conversations v ON v.id = b.conversation_id
+            WHERE v.chat_id = ${chatId} AND b.state = 'collecting'
+          ) AS busy`,
+      )
+      .at(0)?.busy === 1n
+  );
+}
