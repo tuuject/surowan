@@ -40,12 +40,9 @@ test('online retention never deletes chat messages, revisions or media', async (
         })
         .run();
     }
-    f.groupMemory.commit(
-      f.chatId,
-      '2026-01-01',
-      [{ summary: 'a remembered event', firstMessageId: 4005n, lastMessageId: 4005n }],
-      4005n,
-    );
+    f.groupMemory.record(f.chatId, '2026-01-01', [
+      { summary: 'a remembered event', firstMessageId: 4005n, lastMessageId: 4005n },
+    ]);
     purgeExpiredData(f.store.orm, f.configStore.current().config, new Date('2026-10-01T00:00:00.000Z'));
 
     const remaining = f.store.orm.select().from(messages).all();

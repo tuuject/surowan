@@ -1,4 +1,4 @@
-import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, sql, type SQL } from 'drizzle-orm';
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
 import {
@@ -7,13 +7,19 @@ import {
   GROUP_MEMORY_SUMMARY_MAX_LENGTH,
 } from '../../context/group-memory/index.ts';
 import { parseDay } from '../../context/group-memory/day.ts';
-import { loadMessagesInRange, renderGroupTranscript } from '../../context/group-memory/messages.ts';
+import {
+  countPendingMessages,
+  loadMessagesInRange,
+  messageDate,
+  renderGroupTranscript,
+} from '../../context/group-memory/messages.ts';
 import type { Orm } from '../../store/store.ts';
-import { chats, groupMemories } from '../../store/schema/index.ts';
+import { chats, groupMemories, groupMemoryLanes, groupMemoryRuns, messages } from '../../store/schema/index.ts';
 import { telegramHostScope, telegramIdentity } from '../../store/host-scope.ts';
 import {
   AdminQueryError,
   escapeLike,
+  idSnapshot,
   type Page,
   parseId,
   parseWindow,
@@ -26,8 +32,9 @@ import {
  * Admin audit surface for group memory. It is deliberately separate from the
  * Memo Pad route: group memories are generated event indexes with a Telegram
  * message-id range, not free-form notes, and the only editable field is the
- * summary. Deleting a row does not rewind the sleeping watermark, so a deleted
- * event is not regenerated from the same messages.
+ * summary. Deleting a row does not rewind a sleeping lane, so a deleted event is
+ * not regenerated from the same messages. Consolidation progress (lanes and the
+ * per-batch run audit) is read-only here.
  */
 
 export interface GroupMemoryAdminItem {
@@ -215,4 +222,235 @@ function toItem(row: GroupMemoryRow): GroupMemoryAdminItem {
     last_message_id: row.last_message_id.toString(),
     created_at: row.created_at,
   };
+}
+
+export interface GroupMemoryLaneProgress {
+  readonly lane: 'live' | 'backfill';
+  readonly through_message_id: string;
+  /** When the message at the cursor was sent; null before the first one. */
+  readonly through_at: string | null;
+  readonly until_message_id: string | null;
+  readonly until_at: string | null;
+  /** Visible messages the lane still has to read. */
+  readonly pending: number;
+  readonly state: 'idle' | 'running';
+  readonly last_attempt_at: string | null;
+  readonly last_success_at: string | null;
+  readonly next_attempt_at: string | null;
+  readonly error_code: string | null;
+  readonly consecutive_failures: number;
+}
+
+export interface GroupMemoryProgressItem {
+  readonly chat: GroupMemoryAdminItem['chat'];
+  readonly lanes: readonly GroupMemoryLaneProgress[];
+  readonly memories: { readonly count: number; readonly latest_day: string | null };
+  readonly newest_message_at: string | null;
+  /** Batches of the last 24 hours, by outcome. */
+  readonly runs_24h: { readonly success: number; readonly error: number; readonly model_calls: number };
+  readonly last_error: {
+    readonly code: string;
+    readonly detail: string | null;
+    readonly lane: 'live' | 'backfill';
+    readonly day: string;
+    readonly at: string;
+  } | null;
+}
+
+/**
+ * One row per Chat that group memory is consolidating (it has a lane). A Chat
+ * switched off has no lanes and drops out; its summaries stay in the list.
+ */
+export function groupMemoryProgress(orm: Orm, now = new Date()): { readonly items: GroupMemoryProgressItem[] } {
+  const laneRows = orm
+    .select({
+      lane: groupMemoryLanes,
+      telegram_chat_id: chats.telegramChatId,
+      chat_type: chats.type,
+      chat_title: chats.title,
+    })
+    .from(groupMemoryLanes)
+    .innerJoin(chats, eq(chats.id, groupMemoryLanes.chatId))
+    .where(telegramHostScope())
+    .orderBy(groupMemoryLanes.chatId, groupMemoryLanes.lane)
+    .all();
+  const byChat = new Map<bigint, typeof laneRows>();
+  for (const row of laneRows) {
+    byChat.set(row.lane.chatId, [...(byChat.get(row.lane.chatId) ?? []), row]);
+  }
+  const since = new Date(now.getTime() - 86_400_000).toISOString();
+  const items = [...byChat.entries()].map(([chatId, rows]): GroupMemoryProgressItem => {
+    const head = rows[0];
+    if (head === undefined) {
+      throw new Error('progress group without lanes');
+    }
+    const lanes = rows
+      .map((row) => row.lane)
+      .sort((left, right) => (left.lane === right.lane ? 0 : left.lane === 'live' ? -1 : 1))
+      .map(
+        (lane): GroupMemoryLaneProgress => ({
+          lane: lane.lane,
+          through_message_id: lane.throughMessageId.toString(),
+          through_at: lane.throughMessageId === 0n ? null : messageDate(orm, chatId, lane.throughMessageId),
+          until_message_id: lane.untilMessageId?.toString() ?? null,
+          until_at: lane.untilMessageId === null ? null : messageDate(orm, chatId, lane.untilMessageId),
+          pending: countPendingMessages(orm, chatId, { after: lane.throughMessageId, until: lane.untilMessageId }),
+          state: lane.state,
+          last_attempt_at: lane.lastAttemptAt,
+          last_success_at: lane.lastSuccessAt,
+          next_attempt_at: lane.nextAttemptAt,
+          error_code: lane.errorCode,
+          consecutive_failures: Number(lane.consecutiveFailures),
+        }),
+      );
+    const memories = orm
+      .select({ count: sql<bigint>`count(*)`, latest: sql<string | null>`max(${groupMemories.day})` })
+      .from(groupMemories)
+      .where(eq(groupMemories.chatId, chatId))
+      .get();
+    const newest = orm
+      .select({ at: sql<string | null>`max(${messages.telegramDate})` })
+      .from(messages)
+      .where(eq(messages.chatId, chatId))
+      .get();
+    const runs = orm
+      .select({
+        success: sql<bigint>`count(*) FILTER (WHERE ${groupMemoryRuns.state} = 'success')`,
+        error: sql<bigint>`count(*) FILTER (WHERE ${groupMemoryRuns.state} = 'error')`,
+        calls: sql<bigint>`coalesce(sum(${groupMemoryRuns.modelCalls}), 0)`,
+      })
+      .from(groupMemoryRuns)
+      .where(and(eq(groupMemoryRuns.chatId, chatId), gte(groupMemoryRuns.startedAt, since)))
+      .get();
+    const lastError = orm
+      .select({
+        code: groupMemoryRuns.errorCode,
+        detail: groupMemoryRuns.errorDetail,
+        lane: groupMemoryRuns.lane,
+        day: groupMemoryRuns.day,
+        at: sql<string>`coalesce(${groupMemoryRuns.finishedAt}, ${groupMemoryRuns.startedAt})`,
+      })
+      .from(groupMemoryRuns)
+      .where(and(eq(groupMemoryRuns.chatId, chatId), eq(groupMemoryRuns.state, 'error')))
+      .orderBy(desc(groupMemoryRuns.id))
+      .limit(1)
+      .get();
+    return {
+      chat: {
+        telegram_chat_id: telegramIdentity(head.telegram_chat_id, 'chats.telegram_chat_id').toString(),
+        type: head.chat_type,
+        title: head.chat_title,
+      },
+      lanes,
+      memories: { count: Number(memories?.count ?? 0n), latest_day: memories?.latest ?? null },
+      newest_message_at: newest?.at ?? null,
+      runs_24h: {
+        success: Number(runs?.success ?? 0n),
+        error: Number(runs?.error ?? 0n),
+        model_calls: Number(runs?.calls ?? 0n),
+      },
+      last_error:
+        lastError === undefined
+          ? null
+          : {
+              code: lastError.code ?? 'group_memory_error',
+              detail: lastError.detail,
+              lane: lastError.lane,
+              day: lastError.day,
+              at: lastError.at,
+            },
+    };
+  });
+  return { items };
+}
+
+export interface GroupMemoryRunItem {
+  readonly id: string;
+  readonly chat: GroupMemoryAdminItem['chat'];
+  readonly lane: 'live' | 'backfill';
+  readonly day: string;
+  readonly first_message_id: string;
+  readonly through_message_id: string;
+  readonly messages: number;
+  readonly state: 'running' | 'success' | 'error';
+  readonly events: number | null;
+  readonly model_calls: number;
+  readonly error_code: string | null;
+  readonly error_detail: string | null;
+  readonly started_at: string;
+  readonly finished_at: string | null;
+}
+
+const RUN_STATES = new Set(['running', 'success', 'error']);
+
+/** Consolidation batches, newest first; `state` narrows to one outcome. */
+export function listGroupMemoryRuns(
+  orm: Orm,
+  query: {
+    readonly chat?: string | null;
+    readonly state?: string | null;
+    readonly limit?: string | null;
+    readonly offset?: string | null;
+    readonly as_of?: string | null;
+  },
+): Page<GroupMemoryRunItem> {
+  const window = parseWindow(query);
+  const snapshot = idSnapshot(orm, groupMemoryRuns.id, groupMemoryRuns.id, query.as_of);
+  const conditions: SQL[] = [telegramHostScope()];
+  if (query.chat !== undefined && query.chat !== null && query.chat.length > 0) {
+    conditions.push(eq(chats.telegramChatId, parseId(query.chat, 'chat')));
+  }
+  if (query.state !== undefined && query.state !== null && query.state.length > 0) {
+    if (!RUN_STATES.has(query.state)) {
+      throw new AdminQueryError('invalid_state', 'state must be running, success or error');
+    }
+    conditions.push(eq(groupMemoryRuns.state, query.state as GroupMemoryRunItem['state']));
+  }
+  const count = orm
+    .select(snapshotCounts(snapshot))
+    .from(groupMemoryRuns)
+    .innerJoin(chats, eq(chats.id, groupMemoryRuns.chatId))
+    .where(and(...conditions))
+    .get();
+  const rows = orm
+    .select({
+      run: groupMemoryRuns,
+      telegram_chat_id: chats.telegramChatId,
+      chat_type: chats.type,
+      chat_title: chats.title,
+    })
+    .from(groupMemoryRuns)
+    .innerJoin(chats, eq(chats.id, groupMemoryRuns.chatId))
+    .where(and(...conditions, snapshot.within))
+    .orderBy(desc(groupMemoryRuns.id))
+    .limit(window.limit)
+    .offset(window.offset)
+    .all();
+  return snapshotPage(
+    rows.map(
+      ({ run, telegram_chat_id, chat_type, chat_title }): GroupMemoryRunItem => ({
+        id: run.id.toString(),
+        chat: {
+          telegram_chat_id: telegramIdentity(telegram_chat_id, 'chats.telegram_chat_id').toString(),
+          type: chat_type,
+          title: chat_title,
+        },
+        lane: run.lane,
+        day: run.day,
+        first_message_id: run.firstMessageId.toString(),
+        through_message_id: run.throughMessageId.toString(),
+        messages: Number(run.messages),
+        state: run.state,
+        events: run.events === null ? null : Number(run.events),
+        model_calls: Number(run.modelCalls),
+        error_code: run.errorCode,
+        error_detail: run.errorDetail,
+        started_at: run.startedAt,
+        finished_at: run.finishedAt,
+      }),
+    ),
+    count,
+    window,
+    snapshot,
+  );
 }

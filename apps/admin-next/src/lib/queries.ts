@@ -8,7 +8,7 @@ import { getConversationContext, listConversationContexts } from './api/contexts
 import type { ListFilters, Page } from './api/core.ts';
 import type { DictionaryScope } from './api/dictionary.ts';
 import { getDictionarySettings, listDictionary, listDictionaryChats } from './api/dictionary.ts';
-import { listGroupMemories } from './api/group-memories.ts';
+import { getGroupMemoryProgress, listGroupMemories, listGroupMemoryRuns } from './api/group-memories.ts';
 import { getInvocation, listInvocations } from './api/invocations.ts';
 import { listMemories, listMemoryChats } from './api/memories.ts';
 import { getMessage, listMessages } from './api/messages.ts';
@@ -163,6 +163,17 @@ export function memoriesQuery(filters: ListFilters, position: SnapshotPosition) 
 
 export function groupMemoriesQuery(filters: ListFilters, position: SnapshotPosition) {
   return snapshotList('group-memories', listGroupMemories, filters, position);
+}
+
+/** Consolidation progress per Chat; polled like a list so a stalled lane shows up without a reload. */
+export const groupMemoryProgressQuery = queryOptions({
+  queryKey: ['group-memory-progress'],
+  queryFn: getGroupMemoryProgress,
+  refetchInterval: LIST_POLL_MS,
+});
+
+export function groupMemoryRunsQuery(filters: ListFilters, position: SnapshotPosition) {
+  return snapshotList('group-memory-runs', listGroupMemoryRuns, filters, position);
 }
 
 export function alarmsQuery(filters: ListFilters, position: SnapshotPosition) {

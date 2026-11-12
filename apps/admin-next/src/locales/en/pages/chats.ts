@@ -96,7 +96,7 @@ export const chats = {
     'Sleeping group memory summarizes quiet group chats into dated events with Telegram message-id ranges. Recalling an event is on demand through the search_group_memory and read_group_messages tools.',
   groupMemoryEnable: 'Enable group memory for this Chat',
   groupMemoryEnableHint:
-    'When enabled, the background worker summarizes unprocessed messages after the Chat stays quiet for the configured idle time, or when a local day ends.',
+    'When enabled, the background worker summarizes the messages that arrive from now on, once the Chat stays quiet for the configured idle time or a local day ends. Earlier history, including messages sent while it was off, is not summarized.',
   groupMemoryIdle: 'Idle minutes before consolidating the current day',
   groupMemoryIdleHint: 'A finished local day is consolidated without waiting. Values outside 1–1440 are rejected.',
   groupMemoryCutover:

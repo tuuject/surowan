@@ -19,6 +19,7 @@ import {
   SnapshotList,
   TableShell,
 } from '@/components/business';
+import { GroupMemoryProgressPanel } from '@/components/group-memories/progress-panel';
 import { EditIcon, EyeIcon } from '@/components/icons';
 import type { GroupMemoryEntry } from '@/lib/api/group-memories.ts';
 import { deleteGroupMemory, groupMemorySource, updateGroupMemory } from '@/lib/api/group-memories.ts';
@@ -28,7 +29,7 @@ import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { groupMemoriesQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
 
-const SUMMARY_MAX_LENGTH = 150;
+const SUMMARY_MAX_LENGTH = 200;
 const EMPTY_FILTERS = { chat: '', day: '', search: '' };
 
 export default function GroupMemoriesPage(): ReactElement {
@@ -169,6 +170,7 @@ export default function GroupMemoriesPage(): ReactElement {
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader title={t('layout.nav.groupMemories')} />
+      <GroupMemoryProgressPanel />
       <Alert tone="info" title={t('pages.groupMemories.alertTitle')}>
         <Trans i18nKey="pages.groupMemories.alertDescription" components={{ code: <code /> }} />
       </Alert>

@@ -68,6 +68,16 @@ export function nextDay(day: string): string {
   return next.toISOString().slice(0, 10);
 }
 
+/** The previous calendar day, independent of time zones. */
+export function previousDay(day: string): string {
+  const match = DAY_PATTERN.exec(parseDay(day));
+  if (match === null) {
+    throw new Error(`Invalid day: ${day}`);
+  }
+  const previous = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]) - 1));
+  return previous.toISOString().slice(0, 10);
+}
+
 /**
  * First instant whose Chat-local date is `day` or later, found by binary search.
  * The local date is monotonic, so this always converges even across a DST gap at

@@ -2,8 +2,10 @@ import type { BusinessStore } from '../../../store/store.ts';
 import { json, listQuery, readJsonObject } from '../http.ts';
 import {
   deleteGroupMemory,
+  groupMemoryProgress,
   groupMemorySource,
   listGroupMemories,
+  listGroupMemoryRuns,
   parseGroupMemoryId,
   parseUpdateGroupMemory,
   updateGroupMemory,
@@ -27,6 +29,12 @@ export function createGroupMemoryAdminHandler(deps: GroupMemoryAdminDeps) {
       }
       if (segments.length === 2 && request.method === 'GET' && segments[1] === 'chats') {
         return json({ error: 'method_not_allowed', message: 'Group memory chat options reuse /memories/chats' }, 405);
+      }
+      if (segments.length === 2 && request.method === 'GET' && segments[1] === 'progress') {
+        return json(groupMemoryProgress(store.orm));
+      }
+      if (segments.length === 2 && request.method === 'GET' && segments[1] === 'runs') {
+        return json(listGroupMemoryRuns(store.orm, listQuery(url)));
       }
       if (segments.length === 3 && segments[2] === 'messages' && request.method === 'GET') {
         return json(groupMemorySource(store.orm, parseGroupMemoryId(segments[1] ?? '')));

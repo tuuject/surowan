@@ -1,8 +1,9 @@
 import { eq } from 'drizzle-orm';
 import type { Message } from 'grammy/types';
+import { GroupMemoryStore } from '../../context/group-memory/store.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { chatMigrations, chats } from '../../store/schema/index.ts';
-import type { BusinessStore } from '../../store/store.ts';
+import { type BusinessStore, resolveChatConfig } from '../../store/store.ts';
 
 /**
  * The allowlist cache `TelegramIngestion` owns and this module rebuilds and
@@ -86,9 +87,10 @@ export function recordMigration(deps: TelegramChatDeps, message: Message | undef
 }
 
 export function upsertChat(deps: TelegramChatDeps, chat: Message['chat'], chatId: bigint, receivedAt: Date): bigint {
+  const existing = deps.store.orm.select({ id: chats.id }).from(chats).where(eq(chats.telegramChatId, chatId)).get();
   const title = 'title' in chat ? (chat.title ?? null) : null;
   const username = 'username' in chat ? (chat.username ?? null) : null;
-  deps.store.orm
+  const row = deps.store.orm
     .insert(chats)
     .values({
       telegramChatId: chatId,
@@ -102,10 +104,17 @@ export function upsertChat(deps: TelegramChatDeps, chat: Message['chat'], chatId
       target: chats.telegramChatId,
       set: { type: chat.type, title, username, updatedAt: receivedAt.toISOString() },
     })
-    .run();
-  const row = deps.store.orm.select({ id: chats.id }).from(chats).where(eq(chats.telegramChatId, chatId)).get();
+    .returning({ id: chats.id })
+    .get();
   if (row === undefined) {
     throw new Error('Chat upsert did not return a row');
+  }
+  if (
+    existing === undefined &&
+    resolveChatConfig(deps.configStore.current().config, deps.store.orm, chatId)?.group_memory?.enabled === true
+  ) {
+    // Ingestion owns the first stored message, so establish its lane before it arrives.
+    new GroupMemoryStore(deps.store.orm).activate(row.id, 0n, receivedAt);
   }
   return row.id;
 }

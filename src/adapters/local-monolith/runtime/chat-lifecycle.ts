@@ -5,6 +5,7 @@ import { telegramChatIdentity } from '../../../store/chat-identity.ts';
 import type { LongTaskService } from '../../../store/long-tasks/index.ts';
 import { buckets, chats, conversations, invocations, taskReceipts } from '../../../store/schema/index.ts';
 import { type BusinessStore, resolveChatConfig } from '../../../store/store.ts';
+import { logEvent } from './support.ts';
 
 /**
  * Telegram Chat ids that the published configuration no longer contains. The
@@ -144,6 +145,75 @@ export async function applyGroupMemoryToggles(
       release();
     }
   }
+}
+
+export interface GroupMemoryPublishDependencies {
+  readonly store: BusinessStore;
+  readonly stopper: InvocationStopper | undefined;
+  readonly forgetConversation: (conversationId: bigint) => void;
+  /** The sleeping worker's lane reconcile for the published configuration. */
+  readonly reconcileLanes: (config: RawConfig) => void;
+  readonly redactError: (error: unknown) => string;
+}
+
+/**
+ * The group-memory side of one configuration publish.
+ *
+ * A switch change aborts every running Invocation of the Chat and rebuilds its
+ * Conversations. It must complete before the apply returns, so the panel's next
+ * read and the next run both see the new capability set with a clean Context.
+ * `cutover` is false when that failed; the caller keeps its previous baseline so
+ * the next apply retries, finishes its remaining steps and then rethrows
+ * `failure`.
+ *
+ * The sleeping lanes are reconciled before the cutover can await handlers:
+ * switching group memory on starts its live lane after the newest message stored
+ * now, and waiting for the next sleeping tick would let that boundary drift past
+ * messages sent after the switch. A reconcile failure keeps publication pending
+ * so a retry can finish activation using the worker's original boundary.
+ */
+export async function publishGroupMemory(
+  dependencies: GroupMemoryPublishDependencies,
+  previous: RawConfig,
+  next: RawConfig,
+): Promise<{ readonly cutover: boolean; readonly failure: unknown }> {
+  let failure: unknown;
+  try {
+    dependencies.reconcileLanes(next);
+  } catch (error) {
+    failure = error;
+    logEvent('group_memory_reconcile_failed', { error: dependencies.redactError(error) });
+  }
+  try {
+    const groupMemory = await applyGroupMemoryToggles(
+      dependencies.store,
+      dependencies.stopper,
+      dependencies.forgetConversation,
+      previous,
+      next,
+    );
+    if (groupMemory.chats > 0) {
+      logEvent('group_memory_toggled', {
+        chats: String(groupMemory.chats),
+        conversations: String(groupMemory.conversations),
+        stopped_invocations: groupMemory.invocations,
+        rebuilt_contexts: groupMemory.rebuilt,
+        settled: groupMemory.settled,
+      });
+    }
+    if (!groupMemory.settled) {
+      // The Conversations stay fenced until their stale handlers settle; the
+      // rebuild then finishes here instead of racing those writers.
+      void groupMemory.completion.then(
+        (rebuilt) => logEvent('group_memory_cutover_completed', { rebuilt_contexts: rebuilt }),
+        (error: unknown) => logEvent('group_memory_cutover_failed', { error: dependencies.redactError(error) }),
+      );
+    }
+  } catch (error) {
+    failure ??= error;
+    logEvent('group_memory_cutover_failed', { error: dependencies.redactError(error) });
+  }
+  return { cutover: failure === undefined, failure };
 }
 
 export function conversationIdsForTelegramChats(

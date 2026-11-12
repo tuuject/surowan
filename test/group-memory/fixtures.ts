@@ -205,13 +205,20 @@ export async function groupMemoryFixture(
       conversationId: ensureConversation(store, chatId, 0n),
     };
   });
+  const groupMemory = new GroupMemoryStore(store.orm);
+  // The switch was on before any message arrived, so every seeded message is
+  // new to the live lane. Activation-boundary tests seed history first and let
+  // the worker reconcile instead.
+  for (const chat of [...(options.enabled === false ? [] : [seeded]), ...extraChats]) {
+    groupMemory.activate(chat.chatId, 0n, new Date('2026-01-01T00:00:00.000Z'));
+  }
   return {
     directory,
     loaded,
     store,
     configStore,
     secrets: new SecretStore(keyJarPath(loaded.configPath)),
-    groupMemory: new GroupMemoryStore(store.orm),
+    groupMemory,
     chatId: seeded.chatId,
     telegramChatId: seeded.telegramChatId,
     conversationId: conversation.id,
