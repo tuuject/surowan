@@ -4,7 +4,8 @@ import { publishGroupMemory } from '../../src/adapters/local-monolith/runtime/ch
 import { SleepingService } from '../../src/context/group-memory/sleeping.ts';
 import { GroupMemoryStore } from '../../src/context/group-memory/store.ts';
 import { countPendingMessages } from '../../src/context/group-memory/messages.ts';
-import { invocations } from '../../src/store/schema/index.ts';
+import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
+import { chats, groupMemoryRuns, invocations, telegramUpdates } from '../../src/store/schema/index.ts';
 import { seedInvocation } from '../memo/fixtures.ts';
 import { groupMemoryFixture, seedMessage } from './fixtures.ts';
 
@@ -61,6 +62,60 @@ test('enabling fixes the lane boundary before waiting for a running Invocation',
     await f.close();
   }
 });
+
+test.each(['ingest', 'ingestCatchUp'] as const)(
+  '%s retains the first messages of a newly stored enabled Chat',
+  async (method) => {
+    const f = await groupMemoryFixture({ faux: true });
+    try {
+      f.store.orm.delete(chats).run();
+      const now = new Date();
+      const service = new SleepingService({
+        store: f.store,
+        configStore: f.configStore,
+        secrets: f.secrets,
+        isHostReady: () => true,
+      });
+      service.reconcile();
+      const ingestion = new TelegramIngestion(f.store, f.configStore, { id: 999 });
+      const stored = ingestion[method](
+        {
+          update_id: 1,
+          message: {
+            message_id: 101,
+            date: Math.floor(now.getTime() / 1000) - 86_400,
+            chat: { id: Number(f.telegramChatId), type: 'supergroup', title: 'New Chat' },
+            from: { id: 42, is_bot: false, first_name: 'Alice' },
+            text: 'first message after enable',
+          },
+        },
+        now,
+      );
+      expect(stored.messageId).toBeDefined();
+      const chatId = f.store.orm.select({ id: chats.id }).from(chats).get()?.id;
+      if (chatId === undefined) {
+        throw new Error('Missing stored Chat');
+      }
+      service.reconcile();
+      expect(f.groupMemory.lane(chatId, 'live')?.throughMessageId).toBe(0n);
+      expect(countPendingMessages(f.store.orm, chatId, { after: 0n, until: null })).toBe(1);
+      expect(f.store.orm.select().from(telegramUpdates).get()?.allowed).toBe(true);
+      if (method === 'ingestCatchUp') {
+        const { fauxAssistantMessage } = await import('@earendil-works/pi-ai');
+        f.faux?.setResponses([fauxAssistantMessage('{"events":[]}')]);
+        expect(await service.tick(now)).toBe(1);
+        expect(f.store.orm.select().from(groupMemoryRuns).get()).toMatchObject({
+          state: 'success',
+          firstMessageId: 101n,
+          throughMessageId: 101n,
+          modelCalls: 1n,
+        });
+      }
+    } finally {
+      await f.close();
+    }
+  },
+);
 
 test('a failed activation retains its first cursor and reports a publish failure', async () => {
   const f = await groupMemoryFixture({ enabled: false });
