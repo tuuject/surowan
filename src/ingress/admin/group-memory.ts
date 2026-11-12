@@ -11,7 +11,16 @@ import { loadMessagesInRange, renderGroupTranscript } from '../../context/group-
 import type { Orm } from '../../store/store.ts';
 import { chats, groupMemories } from '../../store/schema/index.ts';
 import { telegramHostScope, telegramIdentity } from '../../store/host-scope.ts';
-import { AdminQueryError, escapeLike, parseId, parseLimit, type Page } from './audit/shared.ts';
+import {
+  AdminQueryError,
+  escapeLike,
+  type Page,
+  parseId,
+  parseWindow,
+  snapshotCounts,
+  snapshotPage,
+  timeSnapshot,
+} from './audit/shared.ts';
 
 /**
  * Admin audit surface for group memory. It is deliberately separate from the
@@ -69,44 +78,25 @@ const ITEM_FIELDS = {
   chat_title: chats.title,
 };
 
-const CURSOR_PATTERN = /^(\d{4}-\d{2}-\d{2}):(\d{1,19}):(gmem_[a-f0-9]{32})$/;
-const CURSOR_FORMAT = 'cursor must be <YYYY-MM-DD>:<message_id>:<id>';
-
 /**
- * A `day:first_message_id:id` keyset cursor, ordered newest day/range first.
- * Telegram message ids are per Chat, so two Chats can share a day and a first
- * id; the row id breaks that tie, otherwise a page boundary inside the tie would
- * skip the remaining rows.
+ * Newest day and range first; the row id breaks ties because Telegram message
+ * ids are per Chat, so two Chats can share a day and a first id. Sleeping can
+ * write an event for an older day, so the snapshot is taken on `created_at`
+ * rather than on the sort key.
  */
-function cursorCondition(cursor: string): SQL {
-  const match = CURSOR_PATTERN.exec(cursor);
-  if (match === null) {
-    throw new AdminQueryError('invalid_cursor', CURSOR_FORMAT);
-  }
-  const day = match[1] ?? '';
-  try {
-    parseDay(day);
-  } catch {
-    throw new AdminQueryError('invalid_cursor', CURSOR_FORMAT);
-  }
-  const first = parseId(match[2] ?? '', 'cursor');
-  const id = match[3] ?? '';
-  return sql`(${groupMemories.day} < ${day}
-    OR (${groupMemories.day} = ${day} AND ${groupMemories.firstMessageId} < ${first})
-    OR (${groupMemories.day} = ${day} AND ${groupMemories.firstMessageId} = ${first} AND ${groupMemories.id} < ${id}))`;
-}
-
 export function listGroupMemories(
   orm: Orm,
   query: {
     readonly chat?: string | null;
     readonly day?: string | null;
     readonly search?: string | null;
-    readonly cursor?: string | null;
     readonly limit?: string | null;
+    readonly offset?: string | null;
+    readonly as_of?: string | null;
   },
 ): Page<GroupMemoryAdminItem> {
-  const limit = parseLimit(query.limit);
+  const window = parseWindow(query);
+  const snapshot = timeSnapshot(orm, groupMemories.createdAt, groupMemories.createdAt, query.as_of);
   const conditions: SQL[] = [telegramHostScope()];
   if (query.chat !== undefined && query.chat !== null && query.chat.length > 0) {
     conditions.push(eq(chats.telegramChatId, parseId(query.chat, 'chat')));
@@ -121,23 +111,22 @@ export function listGroupMemories(
   if (query.search !== undefined && query.search !== null && query.search.length > 0) {
     conditions.push(sql`lower(${groupMemories.summary}) LIKE ${escapeLike(query.search.toLowerCase())} ESCAPE '\\'`);
   }
-  if (query.cursor !== undefined && query.cursor !== null && query.cursor.length > 0) {
-    conditions.push(cursorCondition(query.cursor));
-  }
+  const count = orm
+    .select(snapshotCounts(snapshot))
+    .from(groupMemories)
+    .innerJoin(chats, eq(chats.id, groupMemories.chatId))
+    .where(and(...conditions))
+    .get();
   const rows = orm
     .select(ITEM_FIELDS)
     .from(groupMemories)
     .innerJoin(chats, eq(chats.id, groupMemories.chatId))
-    .where(and(...conditions))
+    .where(and(...conditions, snapshot.within))
     .orderBy(desc(groupMemories.day), desc(groupMemories.firstMessageId), desc(groupMemories.id))
-    .limit(limit + 1)
+    .limit(window.limit)
+    .offset(window.offset)
     .all();
-  const visible = rows.slice(0, limit);
-  const last = visible.at(-1);
-  return {
-    items: visible.map(toItem),
-    next_cursor: rows.length > limit && last !== undefined ? `${last.day}:${last.first_message_id}:${last.id}` : null,
-  };
+  return snapshotPage(rows.map(toItem), count, window, snapshot);
 }
 
 export function updateGroupMemory(orm: Orm, id: string, body: UpdateGroupMemoryBody): GroupMemoryAdminItem {

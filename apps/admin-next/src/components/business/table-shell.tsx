@@ -180,7 +180,7 @@ export function TableShell<T>({
             {...(emptyDescription === undefined ? {} : { description: emptyDescription })}
             {...(emptyAction === undefined ? {} : { action: emptyAction })}
           >
-            {emptyText ?? t('invocations.business.cursorList.noRecordsDescription')}
+            {emptyText ?? t('invocations.business.list.noRecordsDescription')}
           </TableEmpty>
         ) : (
           data.map((row) => {

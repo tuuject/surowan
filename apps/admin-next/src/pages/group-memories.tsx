@@ -12,11 +12,11 @@ import {
   ChatFilter,
   type ColumnSpec,
   ConfirmDialog,
-  CursorList,
   ListPageHeader,
   ListSearchForm,
   QueryTextField,
   RowActions,
+  SnapshotList,
   TableShell,
 } from '@/components/business';
 import { EditIcon, EyeIcon } from '@/components/icons';
@@ -192,7 +192,7 @@ export default function GroupMemoriesPage(): ReactElement {
         )}
       </ListSearchForm>
 
-      <CursorList
+      <SnapshotList
         factory={groupMemoriesQuery}
         filters={filters}
         renderItems={(items, { loading }) => (

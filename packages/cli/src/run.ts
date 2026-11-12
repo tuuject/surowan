@@ -2,7 +2,7 @@ import process from 'node:process';
 import { parseCli, parseTimeout, resolveCli } from './args/index.ts';
 import type { Command, FirstClassCommand, ParsedCli } from './args/types.ts';
 import { AdminClient, isRecord, parseEndpoint } from './client.ts';
-import { type CliIo, executeCommand } from './commands.ts';
+import { type CliIo, executeCommand, listWindow } from './commands.ts';
 import { credentialsPath, readCredentials, writeCredentials } from './credentials.ts';
 import { CliError, usageError } from './errors.ts';
 import { readLoginKey } from './login.ts';
@@ -58,11 +58,7 @@ export async function runCli(argv: readonly string[], options: RunOptions = {}):
         throw new CliError('invalid_response', 'doctor expected an API key permission response');
       }
       const raw = await client.get('api/invocations', new URLSearchParams({ limit: '1' }));
-      if (
-        !isRecord(raw) ||
-        !Array.isArray(raw.items) ||
-        (raw.next_cursor !== null && typeof raw.next_cursor !== 'string')
-      ) {
+      if (!isRecord(raw) || !Array.isArray(raw.items) || listWindow(raw) === null) {
         throw new CliError('invalid_response', 'doctor expected an invocation list response from the Admin API');
       }
       const result = {

@@ -1,18 +1,19 @@
 import { and, eq, type SQL, sql } from 'drizzle-orm';
-import { media, mediaAnalyses, messageRevisions, senders } from '../../../store/schema/index.ts';
+import { media, mediaAnalyses, messageRevisions, messages, senders } from '../../../store/schema/index.ts';
 import type { Orm } from '../../../store/store.ts';
 import {
   AdminQueryError,
-  appendCursor,
   bit,
   escapeLike,
+  idSnapshot,
   type ListQuery,
   MAX_SEARCH_LENGTH,
   num,
   type Page,
-  page,
   parseId,
-  parseLimit,
+  parseWindow,
+  snapshotCounts,
+  snapshotPage,
   whereSql,
 } from './shared.ts';
 
@@ -51,6 +52,12 @@ interface MessageListRow {
  */
 const TELEGRAM_HOST = sql`ch.host_kind = 'telegram'`;
 
+const MESSAGE_FROM = sql`FROM messages m
+       JOIN conversations c ON c.id = m.conversation_id
+       JOIN chats ch ON ch.id = m.chat_id
+       LEFT JOIN message_revisions r ON r.id = m.current_revision_id
+       LEFT JOIN senders sd ON sd.id = r.sender_id`;
+
 const MESSAGE_SELECT = sql`SELECT m.id, m.telegram_message_id, m.telegram_date, m.received_at, m.visible, m.sent_by_bot,
               ch.telegram_chat_id, ch.type AS chat_type, ch.title AS chat_title, c.message_thread_id,
               r.revision_no, r.kind, r.text, r.caption, r.reply_to_message_id, r.media_group_id,
@@ -58,16 +65,12 @@ const MESSAGE_SELECT = sql`SELECT m.id, m.telegram_message_id, m.telegram_date, 
               sd.telegram_type AS sender_telegram_type, sd.username AS sender_username, sd.is_bot AS sender_is_bot,
               (SELECT COUNT(*) FROM message_revisions mr WHERE mr.message_id = m.id) AS revision_count,
               (SELECT COUNT(*) FROM media md WHERE md.revision_id = m.current_revision_id) AS media_count
-       FROM messages m
-       JOIN conversations c ON c.id = m.conversation_id
-       JOIN chats ch ON ch.id = m.chat_id
-       LEFT JOIN message_revisions r ON r.id = m.current_revision_id
-       LEFT JOIN senders sd ON sd.id = r.sender_id`;
+       ${MESSAGE_FROM}`;
 
 export function listMessages(orm: Orm, query: ListQuery): Page<Record<string, unknown>> {
-  const limit = parseLimit(query.limit);
+  const window = parseWindow(query);
+  const snapshot = idSnapshot(orm, messages.id, sql`m.id`, query.as_of);
   const conditions: SQL[] = [TELEGRAM_HOST];
-  appendCursor(conditions, sql`m.id`, query.cursor);
   if (query.chat !== undefined && query.chat !== null && query.chat.length > 0) {
     conditions.push(sql`ch.telegram_chat_id = ${parseId(query.chat, 'chat')}`);
   }
@@ -78,10 +81,14 @@ export function listMessages(orm: Orm, query: ListQuery): Page<Record<string, un
     const like = escapeLike(query.search);
     conditions.push(sql`(r.text LIKE ${like} ESCAPE '\\' OR r.caption LIKE ${like} ESCAPE '\\')`);
   }
-  const rows = orm.all<MessageListRow>(
-    sql`${MESSAGE_SELECT} ${whereSql(conditions)} ORDER BY m.id DESC LIMIT ${BigInt(limit + 1)}`,
+  const counts = snapshotCounts(snapshot);
+  const [count] = orm.all<{ readonly total: unknown; readonly fresh: unknown }>(
+    sql`SELECT ${counts.total} AS total, ${counts.fresh} AS fresh ${MESSAGE_FROM} ${whereSql(conditions)}`,
   );
-  return page(rows, limit, (row) => ({
+  const rows = orm.all<MessageListRow>(
+    sql`${MESSAGE_SELECT} ${whereSql([...conditions, snapshot.within])} ORDER BY m.id DESC LIMIT ${BigInt(window.limit)} OFFSET ${BigInt(window.offset)}`,
+  );
+  const items = rows.map((row) => ({
     id: row.id.toString(),
     telegram_message_id: row.telegram_message_id.toString(),
     telegram_date: row.telegram_date,
@@ -113,6 +120,7 @@ export function listMessages(orm: Orm, query: ListQuery): Page<Record<string, un
     revision_count: Number(row.revision_count),
     media_count: Number(row.media_count),
   }));
+  return snapshotPage(items, count, window, snapshot);
 }
 
 export function getMessage(orm: Orm, id: bigint): Record<string, unknown> | null {

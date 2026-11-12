@@ -8,13 +8,7 @@
 export { type ChartDatum, ChartPanel, type ChartSeries, TimeSeriesChart } from './chart-card';
 export { ConfirmDialog, type ConfirmDialogProps } from './confirm-dialog';
 export { CopyableValue } from './copyable-value';
-export {
-  CursorList,
-  type CursorListProps,
-  type CursorQueryFactory,
-  type CursorQueryOptions,
-  useCursorPages,
-} from './cursor-list';
+export { useCursorPages } from './cursor-pages';
 export { DetailError, type DetailErrorProps, DetailSkeleton } from './detail-state';
 export { FormActionBar } from './form-action-bar';
 export { JsonViewer, type JsonViewerProps } from './json-viewer';
@@ -40,5 +34,14 @@ export {
   QueryTextField,
 } from './query-form';
 export { SettingRow } from './setting-row';
+export {
+  SnapshotList,
+  type SnapshotListProps,
+  SnapshotNotice,
+  type SnapshotPosition,
+  type SnapshotQueryFactory,
+  type SnapshotQueryOptions,
+  useSnapshotPages,
+} from './snapshot-list';
 export { type BadgeSemantic, StateBadge, stateBadgeSemantic, ToneBadge } from './state-badge';
 export { type ColumnSpec, type TableSelection, TableShell, type TableShellProps } from './table-shell';

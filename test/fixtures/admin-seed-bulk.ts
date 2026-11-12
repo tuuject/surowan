@@ -239,6 +239,9 @@ export function seedAdminBulkRows(store: SqliteStore): AdminBulkSeedIds {
   // as `memoryActiveId` in `admin-seed-context.ts`: a fixed date silently aged
   // into "expired" and broke the state=expired filter E2E.
   const bulkMemoryExpiresAt = new Date(Date.now() + 30 * 86_400_000).toISOString();
+  // Memos list newest first; the padding predates the named seed memos so
+  // those stay on page 1 next to 23 padding rows.
+  const memoryCreatedAt = (index: number): string => iso(index - 31 * 24 * 60);
   for (let index = 0; index < EXTRA_MEMORIES; index += 1) {
     const id = `mem_${String(index + 1).padStart(32, '0')}`;
     orm
@@ -248,9 +251,9 @@ export function seedAdminBulkRows(store: SqliteStore): AdminBulkSeedIds {
         chatId: T.chat,
         summary: `e2e memory ${index + 1}`,
         detail: `e2e memory ${index + 1}`,
-        createdAt: iso(index),
+        createdAt: memoryCreatedAt(index),
         expiresAt: bulkMemoryExpiresAt,
-        updatedAt: iso(index),
+        updatedAt: memoryCreatedAt(index),
       })
       .run();
   }

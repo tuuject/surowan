@@ -39,7 +39,8 @@ test('group memory admin list is authenticated, filterable and paginated', async
   expect(list.status).toBe(200);
   const body = (await list.json()) as {
     items: { summary: string; first_message_id: string; last_message_id: string; chat: { telegram_chat_id: string } }[];
-    next_cursor: string | null;
+    total: number;
+    new_count: number;
   };
   expect(body.items).toEqual([
     expect.objectContaining({
@@ -49,25 +50,32 @@ test('group memory admin list is authenticated, filterable and paginated', async
       chat: expect.objectContaining({ telegram_chat_id: '123456789' }),
     }),
   ]);
-  expect(body.next_cursor).toBeNull();
+  expect(body).toMatchObject({ total: 1, new_count: 0 });
 
   const search = await f.call('/group-memories?search=later');
   expect(((await search.json()) as { items: { summary: string }[] }).items.map((item) => item.summary)).toEqual([
     'A later event.',
   ]);
   const firstPage = await f.call('/group-memories?limit=1');
-  const firstBody = (await firstPage.json()) as { items: unknown[]; next_cursor: string | null };
+  const firstBody = (await firstPage.json()) as { items: unknown[]; total: number; as_of: string };
   expect(firstBody.items).toHaveLength(1);
-  expect(firstBody.next_cursor).toMatch(/^2026-09-11:902:gmem_[a-f0-9]{32}$/);
-  const secondPage = await f.call(`/group-memories?limit=1&cursor=${firstBody.next_cursor}`);
+  expect(firstBody.total).toBe(2);
+  expect(firstBody.as_of).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  const secondPage = await f.call(`/group-memories?limit=1&offset=1&as_of=${firstBody.as_of}`);
   expect(((await secondPage.json()) as { items: unknown[] }).items).toHaveLength(1);
-  expect((await f.call('/group-memories?cursor=bad')).status).toBe(400);
-  expect((await f.call('/group-memories?cursor=2026-09-11:902')).status).toBe(400);
+  for (const bad of ['as_of=bad', 'as_of=2026-09-11', 'as_of=2026-02-30T00:00:00.000Z', 'offset=-1', 'offset=01']) {
+    const response = await f.call(`/group-memories?${bad}`);
+    expect(response.status).toBe(400);
+    expect(((await response.json()) as { error: string }).error).toBe(
+      bad.startsWith('as_of') ? 'invalid_as_of' : 'invalid_offset',
+    );
+  }
 });
 
-test('group memory admin pagination does not skip Chats that share a day and first message id', async () => {
+test('group memory admin pages one snapshot while sleeping writes an event that sorts in between', async () => {
   const f = await fixture();
   const memories = new GroupMemoryStore(f.store.orm);
+  const written = new Date(Date.now() - 60_000);
   // Telegram numbers messages per Chat, so two groups easily share a range start.
   for (const telegramChatId of [111_111_111n, 222_222_222n, 333_333_333n]) {
     const chat = seedChat(f.store, telegramChatId);
@@ -76,20 +84,32 @@ test('group memory admin pagination does not skip Chats that share a day and fir
       '2026-09-10',
       [{ summary: `Event in ${telegramChatId}`, firstMessageId: 500n, lastMessageId: 510n }],
       510n,
+      written,
     );
   }
-  const seen: string[] = [];
-  let cursor: string | null = null;
-  do {
-    const query: string = cursor === null ? '' : `&cursor=${encodeURIComponent(cursor)}`;
-    const page = (await (await f.call(`/group-memories?limit=1${query}`)).json()) as {
-      items: { chat: { telegram_chat_id: string } }[];
-      next_cursor: string | null;
-    };
+  type Body = { items: { chat: { telegram_chat_id: string } }[]; total: number; as_of: string; new_count: number };
+  const first = (await (await f.call('/group-memories?limit=1')).json()) as Body;
+  expect(first).toMatchObject({ total: 3, as_of: written.toISOString(), new_count: 0 });
+  // An older day's event can be written later; it would sort before the
+  // remaining rows of 2026-09-10, so a live listing would repeat one of them.
+  const late = seedChat(f.store, 444_444_444n);
+  memories.commit(
+    late.chatId,
+    '2026-09-10',
+    [{ summary: 'Late event', firstMessageId: 900n, lastMessageId: 901n }],
+    901n,
+    new Date(written.getTime() + 1_000),
+  );
+  const seen = first.items.map((item) => item.chat.telegram_chat_id);
+  for (const offset of [1, 2, 3]) {
+    const page = (await (await f.call(`/group-memories?limit=1&offset=${offset}&as_of=${first.as_of}`)).json()) as Body;
+    expect(page).toMatchObject({ total: 3, as_of: first.as_of, new_count: 1 });
     seen.push(...page.items.map((item) => item.chat.telegram_chat_id));
-    cursor = page.next_cursor;
-  } while (cursor !== null);
+  }
   expect(seen.toSorted()).toEqual(['111111111', '222222222', '333333333']);
+  const fresh = (await (await f.call('/group-memories?limit=1')).json()) as Body;
+  expect(fresh.items.map((item) => item.chat.telegram_chat_id)).toEqual(['444444444']);
+  expect(fresh).toMatchObject({ total: 4, new_count: 0 });
 });
 
 test('group memory admin update and delete change only the summary/row', async () => {

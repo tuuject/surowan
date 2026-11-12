@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lt, or, type SQL, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, type SQL, sql } from 'drizzle-orm';
 import { telegramHostScope, telegramIdentity } from '../../../store/host-scope.ts';
 import {
   chats,
@@ -10,13 +10,15 @@ import {
 import type { Orm } from '../../../store/store.ts';
 import { toolContentView } from '../tool-images.ts';
 import {
-  AdminQueryError,
   type ListQuery,
   MAX_PAYLOAD_PREVIEW_LENGTH,
   optionalFilter,
   type Page,
   parseId,
-  parseLimit,
+  parseWindow,
+  snapshotCounts,
+  snapshotPage,
+  timeSnapshot,
 } from './shared.ts';
 
 interface ConversationContextRow {
@@ -39,11 +41,6 @@ interface ConversationContextRow {
   readonly message_count: bigint;
 }
 
-interface ConversationContextCursor {
-  readonly lastActiveAt: string;
-  readonly id: bigint;
-}
-
 const CONTEXT_FIELDS = {
   id: conversationContexts.id,
   conversation_id: conversationContexts.conversationId,
@@ -63,41 +60,38 @@ const CONTEXT_FIELDS = {
   message_count: sql<bigint>`(SELECT COUNT(*) FROM context_messages cm WHERE cm.context_id = ${conversationContexts.id} AND cm.seq >= ${conversationContexts.headSeq})`,
 };
 
-/** Recently active first; the cursor carries the same pair so paging stays stable. */
+/**
+ * Recently active first. The snapshot is taken on `last_active_at`: a context
+ * that becomes active after it leaves its old position and counts towards
+ * `new_count`, so it reappears at the top once the client takes a new snapshot.
+ */
 export function listConversationContexts(orm: Orm, query: ListQuery): Page<Record<string, unknown>> {
-  const limit = parseLimit(query.limit);
+  const window = parseWindow(query);
+  const snapshot = timeSnapshot(orm, conversationContexts.lastActiveAt, conversationContexts.lastActiveAt, query.as_of);
   // Admin surfaces speak Telegram identity, so virtual rows are out of scope here.
   const conditions: SQL[] = [telegramHostScope()];
   const chatId = optionalFilter(query.chat);
   if (chatId !== undefined) {
     conditions.push(eq(chats.telegramChatId, parseId(chatId, 'chat')));
   }
-  const cursor = optionalFilter(query.cursor);
-  if (cursor !== undefined) {
-    const parsed = parseContextCursor(cursor);
-    const before = or(
-      lt(conversationContexts.lastActiveAt, parsed.lastActiveAt),
-      and(eq(conversationContexts.lastActiveAt, parsed.lastActiveAt), lt(conversationContexts.id, parsed.id)),
-    );
-    if (before !== undefined) {
-      conditions.push(before);
-    }
-  }
+  const count = orm
+    .select(snapshotCounts(snapshot))
+    .from(conversationContexts)
+    .innerJoin(conversations, eq(conversations.id, conversationContexts.conversationId))
+    .innerJoin(chats, eq(chats.id, conversations.chatId))
+    .where(and(...conditions))
+    .get();
   const rows = orm
     .select(CONTEXT_FIELDS)
     .from(conversationContexts)
     .innerJoin(conversations, eq(conversations.id, conversationContexts.conversationId))
     .innerJoin(chats, eq(chats.id, conversations.chatId))
-    .where(and(...conditions))
+    .where(and(...conditions, snapshot.within))
     .orderBy(desc(conversationContexts.lastActiveAt), desc(conversationContexts.id))
-    .limit(limit + 1)
+    .limit(window.limit)
+    .offset(window.offset)
     .all();
-  const visible = rows.slice(0, limit);
-  const last = visible.at(-1);
-  return {
-    items: visible.map(contextListItem),
-    next_cursor: rows.length > limit && last !== undefined ? encodeContextCursor(last) : null,
-  };
+  return snapshotPage(rows.map(contextListItem), count, window, snapshot);
 }
 
 export function getConversationContext(orm: Orm, conversationId: bigint): Record<string, unknown> | null {
@@ -184,18 +178,4 @@ function contextListItem(row: ConversationContextRow): Record<string, unknown> {
     last_gc_at: row.last_gc_at,
     active_invocation_id: row.active_invocation_id === null ? null : row.active_invocation_id.toString(),
   };
-}
-
-function encodeContextCursor(row: ConversationContextRow): string {
-  return `${row.last_active_at}|${row.id.toString()}`;
-}
-
-function parseContextCursor(value: string): ConversationContextCursor {
-  const separator = value.lastIndexOf('|');
-  const lastActiveAt = value.slice(0, separator);
-  const idText = value.slice(separator + 1);
-  if (separator <= 0 || !/^[0-9A-Za-z:+.-]{10,40}$/.test(lastActiveAt) || !/^\d{1,19}$/.test(idText)) {
-    throw new AdminQueryError('invalid_cursor', 'cursor is invalid');
-  }
-  return { lastActiveAt, id: BigInt(idText) };
 }

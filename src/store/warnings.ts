@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, lte, sql } from 'drizzle-orm';
 import {
   type EventWarningCode,
   INVOCATION_FAILURE_MIN_SAMPLE,
@@ -35,14 +35,23 @@ export interface EventWarning {
   readonly read_at: string | null;
 }
 
+/**
+ * One page of a snapshot: the warnings with an id up to `asOf`. A warning
+ * recorded later only counts towards `newCount` until the caller takes a new
+ * snapshot; repeats of an unread code update that row in place instead.
+ */
 export interface WarningPage {
   readonly items: readonly EventWarning[];
-  readonly next_cursor: string | null;
+  readonly total: number;
+  readonly asOf: bigint;
+  readonly newCount: number;
 }
 
 export interface ListWarningsOptions {
   readonly limit: number;
-  readonly cursor?: bigint | undefined;
+  readonly offset?: number;
+  /** Omitted takes a new snapshot at the newest warning. */
+  readonly asOf?: bigint | undefined;
   readonly unreadOnly?: boolean;
 }
 
@@ -134,24 +143,36 @@ export class WarningService implements LoginWarningSink {
   }
 
   list(options: ListWarningsOptions): WarningPage {
-    // One extra row decides whether a next page exists without a COUNT.
+    const asOf =
+      options.asOf ??
+      BigInt(
+        this.#orm
+          .select({ id: sql<bigint | number | null>`max(${warnings.id})` })
+          .from(warnings)
+          .get()?.id ?? 0n,
+      );
+    const filter = options.unreadOnly === true ? isNull(warnings.readAt) : undefined;
+    const counts = this.#orm
+      .select({
+        total: sql<bigint>`count(*) FILTER (WHERE ${lte(warnings.id, asOf)})`,
+        fresh: sql<bigint>`count(*) FILTER (WHERE ${gt(warnings.id, asOf)})`,
+      })
+      .from(warnings)
+      .where(filter)
+      .get();
     const rows = this.#orm
       .select()
       .from(warnings)
-      .where(
-        and(
-          options.cursor === undefined ? undefined : lt(warnings.id, options.cursor),
-          options.unreadOnly === true ? isNull(warnings.readAt) : undefined,
-        ),
-      )
+      .where(and(lte(warnings.id, asOf), filter))
       .orderBy(desc(warnings.id))
-      .limit(options.limit + 1)
+      .limit(options.limit)
+      .offset(options.offset ?? 0)
       .all();
-    const visible = rows.slice(0, options.limit);
-    const last = visible.at(-1);
     return {
-      items: visible.map(toEventWarning),
-      next_cursor: rows.length > options.limit && last !== undefined ? last.id.toString() : null,
+      items: rows.map(toEventWarning),
+      total: Number(counts?.total ?? 0),
+      asOf,
+      newCount: Number(counts?.fresh ?? 0),
     };
   }
 

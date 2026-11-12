@@ -35,14 +35,18 @@ export interface WarningsPage extends Page<EventWarning> {
 
 export interface WarningsListOptions {
   readonly limit: number;
-  readonly cursor?: string | null;
+  readonly offset?: number;
+  readonly as_of?: string | undefined;
   readonly unread?: boolean;
 }
 
 export function listWarnings(options: WarningsListOptions): Promise<WarningsPage> {
   const params = new URLSearchParams({ limit: String(options.limit) });
-  if (options.cursor !== undefined && options.cursor !== null) {
-    params.set('cursor', options.cursor);
+  if (options.offset !== undefined) {
+    params.set('offset', String(options.offset));
+  }
+  if (options.as_of !== undefined) {
+    params.set('as_of', options.as_of);
   }
   if (options.unread === true) {
     params.set('unread', '1');

@@ -5,7 +5,7 @@ import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ConfirmDialog, ListFooter, ListPageHeader, useCursorPages } from '@/components/business';
+import { ConfirmDialog, ListFooter, ListPageHeader, SnapshotNotice, useSnapshotPages } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { WarningCard } from '@/components/warnings/warning-card';
 import { useForegroundRefresh } from '@/hooks/use-foreground-refresh';
@@ -20,7 +20,10 @@ export default function WarningsPage(): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [clearOpen, setClearOpen] = useState(false);
-  const { query, pages, items, page, pageCount, onPageChange } = useCursorPages(warningsQuery());
+  const { query, data, items, page, pageCount, total, newCount, onPageChange, renew } = useSnapshotPages(
+    warningsQuery,
+    'warnings',
+  );
   useForegroundRefresh(() => {
     void query.refetch();
   });
@@ -48,9 +51,8 @@ export default function WarningsPage(): ReactElement {
     },
   });
 
-  const first = pages[0];
-  const standing = first?.standing ?? [];
-  const unreadCount = first?.unread_count ?? 0;
+  const standing = data?.standing ?? [];
+  const unreadCount = data?.unread_count ?? 0;
 
   return (
     <div className={css({ '& > * + *': { marginBlockStart: '6' } })}>
@@ -71,7 +73,7 @@ export default function WarningsPage(): ReactElement {
           </Button>
         }
       />
-      {/* A failed poll or next page keeps the loaded cards and reports above them. */}
+      {/* A failed poll or page change keeps the loaded cards and reports above them. */}
       {query.isError && !query.isLoadingError ? (
         <Alert tone="error" title={t('pages.warnings.loadFailed')}>
           {errorMessage(query.error)}
@@ -102,6 +104,7 @@ export default function WarningsPage(): ReactElement {
         title={t('pages.warnings.eventsTitle')}
         description={t('pages.warnings.unreadCount', { count: formatNumber(unreadCount) })}
       >
+        <SnapshotNotice count={newCount} onRenew={renew} className={css({ marginBlockEnd: '4' })} />
         {query.isPending ? (
           <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
             <Skeleton className={css({ height: '64px', width: '100%' })} />
@@ -129,12 +132,11 @@ export default function WarningsPage(): ReactElement {
         {!query.isPending && !query.isLoadingError ? (
           <ListFooter
             inset={false}
-            count={items.length}
-            cursor
+            count={total}
             page={page}
             pageCount={pageCount}
-            busy={query.isFetchingNextPage}
-            onPageChange={(next) => void onPageChange(next)}
+            busy={query.isPlaceholderData}
+            onPageChange={onPageChange}
           />
         ) : null}
       </Panel>

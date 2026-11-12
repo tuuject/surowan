@@ -3,7 +3,7 @@
  * the health gate and shutdown. `e2e/server.ts` routes every request under that
  * prefix here before `AdminServer` sees it.
  */
-import { and, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import {
   adminPasskeys,
   adminSessions,
@@ -127,6 +127,30 @@ export async function handleHook(request: Request, url: URL): Promise<Response> 
       store.orm.update(memoPadEntries).set({ createdAt, expiresAt }).where(eq(memoPadEntries.id, id)).run(),
     );
     return json({ updated: Number(result.changes), expires_at: expiresAt });
+  }
+  if (request.method === 'POST' && route === '/insert-invocation') {
+    // A copy of the newest completed invocation, created now: the arrival a
+    // list snapshot must keep out until the reader asks for new records.
+    if (store === null) {
+      return json({ error: 'store_closed' }, 500);
+    }
+    const source = store.orm
+      .select()
+      .from(invocations)
+      .where(eq(invocations.state, 'completed'))
+      .orderBy(desc(invocations.id))
+      .limit(1)
+      .get();
+    if (source === undefined) {
+      return json({ error: 'no_source_invocation' }, 500);
+    }
+    const { id: _sourceId, ...columns } = source;
+    const inserted = store.orm
+      .insert(invocations)
+      .values({ ...columns, createdAt: new Date().toISOString() })
+      .returning({ id: invocations.id })
+      .get();
+    return json({ id: inserted?.id.toString() ?? null });
   }
   if (request.method === 'POST' && route === '/revoke-sessions') {
     const result = store === null ? null : asRunResult(store.orm.delete(adminSessions).run());

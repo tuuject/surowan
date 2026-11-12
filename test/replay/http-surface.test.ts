@@ -51,7 +51,7 @@ test('keyword and precise public-message time search work through key and sessio
   });
   const noMatch = await runCli(['invocation', 'list', '--search', 'private reasoning', '--json'], env);
   expect(noMatch.code).toBe(0);
-  expect(JSON.parse(noMatch.stdout)).toEqual({ items: [], next_cursor: null });
+  expect(JSON.parse(noMatch.stdout)).toMatchObject({ items: [], total: 0, offset: 0, new_count: 0 });
   const key = await fetch(`${f.baseUrl}/api/invocations?search=plain&at=2026-09-10T07%3A59Z`, {
     headers: { authorization: `Bearer ${admin.key}` },
   });

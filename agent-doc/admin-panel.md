@@ -206,18 +206,18 @@ CLI 的 `doctor` 用 `GET /api/key` + `GET /api/invocations?limit=1` 验证鉴�
 | `PUT /tool-model` | 设置系统级辅助模型 `tool_model`（辞典融合等）。body 是 `{ provider, model, thinking_level }` 或 `{ inherit: true }`（删除该段，回到继承全局 Agent 设置）。写入前用注册表校验模型存在、支持 text 且接受该 thinking 级别；`If-Match` 规则同其它配置写端点。模型调用失败或未配置不影响辞典的其它功能 |
 | `/playground/...` | Playground 虚拟房间的全部端点（建房、身份、消息、Hold/Release、重试、图片上传与读取、能力开关、房间审计）。面板 Session 或按模式授权的 API key（读端点 `read`、写端点 `write`、Release/Retry 需 `write+paid`），不用 `If-Match` 而用房间自己的 `revision`/请求 key，见「Playground 页端点」。房间的 Invocation 同时出现在宿主中立的全局 `/invocations[/:id]` 审计里（Session 与 API key 都可读），这不是进入房间的入口 |
 
-列表过滤同样只在少数端点上有效：`/alarms` 按 `state`(`pending`/`firing`/`fired`/`cancelled`)/`chat`/`target`，`/memories` 按 `chat`/`state`(`active`/`expired`/`short`/`long`)，`/group-memories` 按 `chat`/`day`/`search`，`/stickers` 按 `set`/`state`，`/contexts` 只按 `chat`。Memories 列表按 `id` 降序 keyset 分页，`cursor` 必须是 `mem_<32hex>`。Alarm 列表把 `pending` 按 `scheduled_at, id` 升序置顶，非 pending 历史按最近状态时间/id 倒序。
+列表过滤同样只在少数端点上有效：`/alarms` 按 `state`(`pending`/`firing`/`fired`/`cancelled`)/`chat`/`target`，`/memories` 按 `chat`/`state`(`active`/`expired`/`short`/`long`)，`/group-memories` 按 `chat`/`day`/`search`，`/stickers` 按 `set`/`state`，`/contexts` 只按 `chat`。Memories 列表按 `created_at, id` 倒序（`id` 是随机的 `mem_<32hex>`，不承担时间排序）。Alarm 列表把 `pending` 按 `scheduled_at, id` 升序置顶，非 pending 历史按最近状态时间/id 倒序。分页方式见「列表快照分页」。
 
 ## Warnings 页端点
 
-`GET /api/warnings?limit=&cursor=&unread=1|true|0|false` 返回 `{ generated_at, standing, items, next_cursor, unread_count }`（面板 Session 或带 `read` 权限的 API key）：
+`GET /api/warnings?limit=&offset=&as_of=&unread=1|true|0|false` 返回 `{ generated_at, standing, items, total, limit, offset, as_of, new_count, unread_count }`（面板 Session 或带 `read` 权限的 API key）；除这四个参数外的任何查询参数（包括旧的 `cursor`）返回 400 `invalid_query`：
 
 - `standing` 是**按当前 active 配置与连接状态即时推导**的常态警告，不落库、没有 `id`，因此不能被标为已读；条件解除后下一次读取就消失，不保留开启/解除历史。包括 `developer_payload_recording`（`developer.record_model_payloads` 开启）、`agent_model_missing`（全局 agent 的 `provider`/`model`/`thinking_level` 未齐全）、`vision_model_missing`（`vision.provider`/`model` 未齐全）、`telegram_network_error`（连接状态 `network_error`）与 `telegram_config_error`（连接状态 `config_error`，`variables.reason` 为 `unauthorized`/`conflict`/`token_unreadable`）。Telegram 停用（`disabled`）不产生警告；连接态只在内存中，进程重启后重新推导。
-- `items` 是 `warnings` 表中的事件警告，`read_at IS NULL` 为未读；`unread=1` 只返回未读，同样受 `limit`（1–100，默认 25）与 `cursor`（`id` 降序键集）约束。`unread_count` 只数未读事件警告，不含常态警告。
+- `items` 是 `warnings` 表中的事件警告，`read_at IS NULL` 为未读；`unread=1` 只返回未读，按 `id` 倒序并按「列表快照分页」以 `id` 为快照锚点；同一未读 code 重复记录时原地更新那一行，不算新行。`unread_count` 只数未读事件警告，不含常态警告。
 - 每条警告返回 `kind`、`code`、`category`、`severity`、`variables`（从 `variables_json` 解析出的对象），事件行另有 `id`、`created_at`、`updated_at`、`read_at`。前端按 `code` 选模板；未知 code 显示通用模板与原始变量。变量只作文本插值，禁止 HTML/代码执行。
 - `POST /api/warnings/:id/read` 幂等设置 `read_at`，不存在返回 404 `warning_not_found`；不存在的写方法返回 405。
 - `DELETE /api/warnings` 删除全部事件警告（已读与未读都删），返回 `{ cleared }`；常态警告不受影响。
-- 看板与列表页在前台每 10 秒刷新，浏览器标签从后台恢复时额外刷新一次；看板固定先展示常态警告，再展示未读事件总数与最近 5 条未读事件，事件标为已读后从看板消失。
+- 看板在前台每 10 秒刷新、列表页随快照每 15 秒轮询，浏览器标签从后台恢复时额外刷新一次；看板固定先展示常态警告，再展示未读事件总数与最近 5 条未读事件，事件标为已读后从看板消失。
 
 Invocation 列表与详情是宿主中立的：Telegram Chat 与 Playground 房间的 Invocation 一起列出，`chat` 摘要带 `host_kind`（`telegram`/`playground`），各宿主只填自己的身份列——Telegram 行给 `telegram_chat_id`、`room_id` 为 `null`，房间行给 `room_id`（即房间的 `chats.id`）、`telegram_chat_id` 为 `null`。列表另接受 `host=telegram|playground`（其它值 400 `invalid_host`），`chat` 过滤仍只按 Telegram Chat ID。`model` 按该 Invocation 的 **agent** `model_calls.model` 精确匹配（区分大小写、不做前缀或模糊匹配，视觉与 Tool Model 调用不算；空值等于不过滤，1–256 字符且不含控制字符，否则 400 `invalid_model`），面板列表的 Model 输入框走同一参数。详情的 `telegram_sends[]` 字段名沿用历史契约，内容是 `host_sends` 台账，每行加 `room_seq`（房间投递落下的消息序号，Telegram 行为 `null`）；`context_messages[].snapshot_json` 按 `snapshot_format` 区分，房间快照的 `message_id` 是房间序号、时间在 `sent_at`、发送者是房间成员 `ref`。重放目前只支持 Telegram 宿主：房间 Invocation 的重放返回 409 `replay_host_unsupported`，预检以 `available: false` 报同一 `reason`。Messages 页与 Conversation Context 页仍只列 Telegram 行。
 
@@ -231,13 +231,13 @@ Invocation 列表与详情的统计按 `invocation_id` 查询 `model_calls` / `t
 
 ## Group memory 页
 
-`/group-memories` 展示 sleeping worker 生成的事件摘要，与 Memo Pad 分开。列表按 `day DESC, first_message_id DESC, id DESC` keyset 分页，`cursor` 是 `<YYYY-MM-DD>:<message_id>:<id>`（Telegram message id 按 Chat 各自编号，不同 Chat 可能同日同起点，`id` 打破平局）；可按 Chat、日期与 summary 搜索。每行显示闭区间 Telegram message-id；`View source` 调用 `GET /api/group-memories/:id/messages` 回放仍保留的原始消息（响应文本按 20000 字符截断）。`Edit` 只改 summary；`Delete` 删除事件行但不回退 `group_memory_state` 水位，因此不会被 worker 重新生成。该页读端点允许持有 `read` 权限的 API key；写端点需要 `write`。
+`/group-memories` 展示 sleeping worker 生成的事件摘要，与 Memo Pad 分开。列表按 `day DESC, first_message_id DESC, id DESC` 排序（Telegram message id 按 Chat 各自编号，不同 Chat 可能同日同起点，`id` 打破平局）；sleeping 可能稍后写入更早一天的事件，所以快照锚点是 `created_at` 而不是排序键；可按 Chat、日期与 summary 搜索。每行显示闭区间 Telegram message-id；`View source` 调用 `GET /api/group-memories/:id/messages` 回放仍保留的原始消息（响应文本按 20000 字符截断）。`Edit` 只改 summary；`Delete` 删除事件行但不回退 `group_memory_state` 水位，因此不会被 worker 重新生成。该页读端点允许持有 `read` 权限的 API key；写端点需要 `write`。
 
 Memories 页管理 Chat 级 Memo Pad，不是按 Conversation 隔离的短期记忆。读端点允许 `read`，写端点需要 `write`；Bearer key 的权限模式决定可执行的操作。
 
-`GET /api/memories?chat=<telegram_chat_id>&state=&limit=&cursor=` 返回 `{ items, next_cursor }`，按 `id` 降序做 keyset 分页（`id` 是 `mem_<32hex>`，不承担时间排序）：
+`GET /api/memories?chat=<telegram_chat_id>&state=&limit=&offset=&as_of=` 返回快照分页结构，按 `created_at, id` 倒序、以 `created_at` 为快照锚点（`id` 是随机的 `mem_<32hex>`，不承担时间排序）。面板里管理员自己新建的 memo 不进提示条：创建成功后页面直接换新快照并回到第 1 页：
 
-- `chat` 是十进制 Telegram Chat ID（不是内部 `chats.id`），`state` 取 `active`（永久或尚未过期）、`expired`（已到期）、`short`（短期且未到期）或 `long`（永久）；其它值 400 `invalid_state`。`limit` 1–100，默认 25；`cursor` 必须是 `mem_<32hex>`。
+- `chat` 是十进制 Telegram Chat ID（不是内部 `chats.id`），`state` 取 `active`（永久或尚未过期）、`expired`（已到期）、`short`（短期且未到期）或 `long`（永久）；其它值 400 `invalid_state`。`limit`/`offset`/`as_of` 见「列表快照分页」。
 - 每项：`id`、`chat: { telegram_chat_id, type, title }`、`summary`、`detail`、`created_at`、`expires_at`（永久为 `null`）、`updated_at`、`ttl_seconds`（永久为 `null`，否则按 `created_at → expires_at` 计算）、`remaining_seconds`（永久为 `null`，已过期为 0 或负数）、`expired`、`short_term`。这里没有 `long_ttl` 警告标记，也不再读取 `agent.memory_ttl_warning_days`。
 - `GET /api/memories/chats` 返回 `{ items: [{ telegram_chat_id, type, title, username }] }`，只列 `host_kind = 'telegram'` 的已入库 Chat，供筛选下拉使用；该路径只读，其它方法返回 405。
 - `POST` / `PUT` / `DELETE` 的 body 与语义见 [API](#api) 的写端点表；`PUT` 与 `DELETE` 在 detail 变化后清理不再被同 Chat 任何 detail 引用的 Blob。
@@ -359,17 +359,26 @@ Discovery、metadata lookup 与 health check 都不修改配置，因此无需 r
 
 **SecretRef 只写不读**：面板只接受明文 `api_key` / header 值，并把它存进配置文件同目录的 `key.json`，`config.jsonc` 里只写 `{ "jar": "<name>" }`（每次提交都生成新条目名，被替换或随 Provider 删除的旧条目随后清掉，见 [configuration.md](configuration.md#secretref)）。面板不能写 `{ env }` 或 `{ command }`（`command` 等于让面板在宿主机上执行命令；`env` 配合可编辑的 `base_url` 等于能外泄进程里任意环境变量）。输入框固定提示 “Saved; leave empty to keep it”：留空表示保持，非空表示替换成 key jar 条目。代价是：原来用 `env` 的 Provider 在面板里被替换后，环境变量不再生效，页面上也看不出这一点——要继续用 `env` 管理 key 的人只能手改配置文件；又因为 `base_url` 改动强制重填凭据，改地址会把 `env` / `command` 引用一并换成 key jar 条目。服务端收到明文后先 `secrets.remember(value)` 注册进 `SecretStore`，再写文件或发请求，这样日志、reload 错误与上游报错都能脱敏。请求提交的明文走单独一条有上限的队列（最旧的会被挤掉），不会像配置里解析出来的 Secret 那样永久累积；面板路径也从不调用 `secrets.resolve`，因此请求体里的字符串不会进入进程级的永久集合。
 
-`/contexts` 按 `last_active_at` 倒序，游标是 `last_active_at|id` 复合值（`invalid_cursor` 由解析失败给出）。`GET /contexts/:conversation_id` 返回 Context Header 加上保留窗口（`seq >= head_seq`）内的 `context_messages` 与存活 `context_refs`；`payload_preview` 截断到 2000 字符并附 `payload_truncated`，被 GC 软删的行不出现在响应里。两个端点都是 `GET`，前端页面不发任何写请求。
+`/contexts` 按 `last_active_at, id` 倒序，快照锚点就是 `last_active_at`：快照后变活跃的 Context 离开原位置、计入 `new_count`，换新快照后回到顶部；提示条文案因此是「N 个会话出现新活动」。`GET /contexts/:conversation_id` 返回 Context Header 加上保留窗口（`seq >= head_seq`）内的 `context_messages` 与存活 `context_refs`；`payload_preview` 截断到 2000 字符并附 `payload_truncated`，被 GC 软删的行不出现在响应里。两个端点都是 `GET`，前端页面不发任何写请求。
 
 `GET /stickers` 不列出群聊中收到的任意 Sticker。只有 `telegram.sticker_sets` 中配置的 Set 才会同步到该索引并获准供 Bot 搜索和发送；聊天媒体的按需视觉分析属于 `media_analyses`，在消息详情中展示。
 
-列表参数：`limit`（1–100，默认 25）、`cursor`（上一页 `next_cursor`）、`state`、`chat`、`set`、`search`；Invocation 列表另支持 `at` / `from` / `to`。分页为 ID 倒序 keyset：请求 `limit + 1` 行，多出一行则返回 `next_cursor`。
+列表参数：`limit`、`offset`、`as_of`（见「列表快照分页」）、`state`、`chat`、`set`、`search`；Invocation 列表另支持 `at` / `from` / `to`。
+
+### 列表快照分页
+
+Invocations、Messages、Stickers、Contexts、Memories、Group memory、Alarms 与 Warnings 八个列表共用一种分页契约（`src/ingress/admin/audit/shared.ts`）：请求 `limit`（1–100，默认 25）、`offset`（规范非负十进制，< 1000000000，默认 0）与可选 `as_of`，响应 `{ items, total, limit, offset, as_of, new_count }`（Warnings 另带 `generated_at`/`standing`/`unread_count`）。
+
+- 不带 `as_of` 就新开一个快照：服务端取锚点列的当前最大值作为 `as_of` 返回；带上它的请求只看「锚点 ≤ as_of」的行，所以快照打开后新插入的行既不出现在任何一页、也不计入 `total`，翻页不会因新行而重复或漏行。`new_count` 是同样过滤条件下锚点 > as_of 的行数；`total` 与 `new_count` 由一次 `count(*) FILTER` 聚合算出。
+- 锚点：自增整数主键的表用 id（invocations、messages、stickers、warnings、alarms 的 `long_tasks.id`），空表为 `"0"`；id 随机的表用 ISO 时间（memories、group memory 的 `created_at`，contexts 的 `last_active_at`），空表为 `1970-01-01T00:00:00.000Z`。`as_of` 对客户端是不透明串，原样回传；格式不对返回 400 `invalid_as_of`，`offset` 不合法返回 `invalid_offset`。
+- 快照只挡插入：行内容（状态、token、已读）、删除、以及状态变化导致的过滤命中变化都是实时的，后面的行会补位；Alarm 从 pending 变为已触发会立即移到历史段。时间锚点下，与快照同一毫秒写入的行会落进快照，可以忽略。
+- 前端 `useSnapshotPages`（`src/components/business/snapshot-list.tsx`）：打开页面、改过滤条件或点提示条都会开新快照并回到第 1 页；翻页、工具栏刷新与 15 秒轮询都带同一个 `as_of`，只刷新当前页内容和 `new_count`。`new_count > 0` 时列表上方出现 info 提示条（「打开列表后新增了 N 条记录 / 显示新记录」），点击才换新快照。Query key 用快照编号而不是 `as_of`，pin 住 token 不会多发一次请求；同一快照内翻页保留上一页占位，换过滤条件或换快照则显示加载态，不把旧条件下的行冒充新结果。
 
 Invocation 的关键词与时间只匹配冻结 `section=new` 的公开 text/caption（含追加批次）与同 Invocation 的成功 Bot 发送，不匹配私有 Assistant 文本、工具结果或失败发送；关键词与时间必须命中同一条消息，其余过滤条件继续取交集。Bot 文本优先使用出站消息当前修订的 text/caption，缺失时回退已接受的 send 参数；时间优先出站消息 `telegram_date`，缺失时回退发送 `finished_at`。带关键词或时间过滤时列表项追加 `matched_messages`（最新 5 条、时间倒序，同时间按精确 Telegram message ID、内部发送 ID 与来源稳定排序；预览截断 2000 字符），不带过滤维持原响应形状。Bot 条目的 `telegram_send_id` 是切片重放的候选内部发送 ID，必须再用同一 ID 预检：搜索保留该 Invocation 向其他 Conversation 的真实发送，但跨 Conversation 的发送不能作为该 Invocation 的切片目标。
 
 时间格式为 `YYYY-MM-DD[空格或T]HH:mm[:ss[.1-3位]][Z|±HH:mm]`；`at` 命中所写精度窗口（分钟、秒、小数 1/2/3 位对应 100/10/1 毫秒），不可与 `from` / `to` 同用；区间为 `[from, to)`。显式 offset 优先，无 offset 时仅使用指定 Chat 的配置时区或全局时区，不回退主机时区；DST 不存在或重复的本地时间拒绝，需明确 offset。非法时间或区间返回 400 `invalid_at` / `invalid_from` / `invalid_to` / `invalid_time_range`。
 
-输入校验在 `src/ingress/admin/audit/shared.ts`：`state`/`set` 必须匹配 `^[A-Za-z0-9._-]{1,64}$`，`chat`/`cursor` 必须是整数，`search` 最长 100 字符且 `LIKE` 通配符经过转义。非法输入返回 400 与稳定错误码（`invalid_limit`、`invalid_state`、`invalid_cursor`…）。所有查询使用绑定参数。
+输入校验在 `src/ingress/admin/audit/shared.ts`：`state`/`set` 必须匹配 `^[A-Za-z0-9._-]{1,64}$`，`chat` 必须是整数，`offset`/`as_of` 见上，`search` 最长 100 字符且 `LIKE` 通配符经过转义。非法输入返回 400 与稳定错误码（`invalid_limit`、`invalid_offset`、`invalid_as_of`、`invalid_state`…）。所有查询使用绑定参数。
 
 SQLite `bigint` ID 在 JSON 中字符串化，Token/计数等小整数转 `number`。Alarm 列表是 `plugin_id = "alarm"` 对 `long_tasks`/`task_receipts` 的兼容投影：waiting 或 completed+pending 为 `pending`，claimed 为 `firing`，handled 为 `fired`，取消任务或 suppressed 投递为 `cancelled`。列表项把 `message_thread_id`、目标 User ID、conversation ID 与关联 Invocation ID 全部字符串化，展开详情展示完整 summary、原始 UTC 计划时间、conversation ID、Telegram Chat ID、thread ID、目标 User ID、创建/触发/取消时间、取消者、取消原因、Invocation 结果、`admin_cancelled` 标记与 `updated_at`。
 
@@ -462,13 +471,13 @@ pnpm run admin:test:e2e  # Playwright 浏览器 E2E（真实 AdminServer + 临�
 | --- | --- |
 | `src/routes/**` | 文件路由（TanStack Router 官方 Vite 插件）：`__root.tsx` 是认证门（setup/login gate）与 Koi AppShell，其余文件对应一级页面与详情页；新增页面在这里加文件，`src/routeTree.gen.ts` 由构建自动生成 |
 | `src/lib/api/` | 类型化 fetch 封装（`core.ts` 含 `ApiError`），按 API 领域分模块 |
-| `src/lib/queries.ts` | TanStack Query option 工厂（列表用 infinite query，keyset cursor 透传） |
+| `src/lib/queries.ts` | TanStack Query option 工厂（八个审计/记忆列表是快照分页 `snapshotList`，Playground 时间线是 infinite query） |
 | `src/lib/format.ts` | 格式化与状态色映射 |
 | `src/lib/errors.ts` | `errorMessage()`：统一错误文本（`ApiError.code: message`） |
 | `src/lib/memory-ttl.ts` | Memo Pad 表单边界与 TTL 天/秒换算纯函数（summary/detail 长度、永久与短期判断） |
 | `src/lib/timeline.ts` | Invocation 时间线纯模型（同时间排序、send 参数解析） |
 | `src/lib/search-params.ts` | 列表页共享的 `chat` 查询参数：`validateSearch` 校验器、读写 hook 与结构化 navigate 类型 |
-| `src/components/business/**` | 共享业务组件（列表页骨架 ListPageHeader / ListFilterCard / ListToolbar / ListFooter、CursorList、TableShell、FormActionBar / SettingRow、StateBadge、JsonViewer、KvList、ConfirmDialog、ChartCard、PrivateReasoning、DetailState 等），契约见 `apps/admin-next/README.md` |
+| `src/components/business/**` | 共享业务组件（列表页骨架 ListPageHeader / ListFilterCard / ListToolbar / ListFooter、SnapshotList / SnapshotNotice、TableShell、FormActionBar / SettingRow、StateBadge、JsonViewer、KvList、ConfirmDialog、ChartCard、PrivateReasoning、DetailState 等），契约见 `apps/admin-next/README.md` |
 | `src/pages/*.tsx` | 各页面组件，一文件一页（路由挂载见 `src/routes/**`）；页面清单以目录为准，各页语义见本文对应小节 |
 
 前端约定：

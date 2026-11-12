@@ -1,4 +1,4 @@
-import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
+import { infiniteQueryOptions, type Query, queryOptions } from '@tanstack/react-query';
 import { listApiKeys, listBotAdmins } from './api/admin.ts';
 import { listAlarms } from './api/alarms.ts';
 import { getSession, listPasskeys } from './api/auth.ts';
@@ -29,6 +29,21 @@ import { getVersion } from './api/version.ts';
 import { listWarnings } from './api/warnings.ts';
 
 export const PAGE_SIZE = 25;
+/** How often an open list asks whether rows arrived after its snapshot. */
+export const LIST_POLL_MS = 15_000;
+
+/**
+ * Which rows a list page shows. Opening a list takes a snapshot on the server
+ * (the response names it in `as_of`); every later page and poll of that
+ * snapshot sends the token back, so arrivals never shift its pages. A new
+ * `snapshot` id always starts from a fresh request, never from a cached one.
+ */
+export interface SnapshotPosition {
+  readonly snapshot: number;
+  /** The token of the snapshot's first response; `null` until it arrives. */
+  readonly asOf: string | null;
+  readonly page: number;
+}
 
 export const sessionQuery = queryOptions({
   queryKey: ['session'],
@@ -71,13 +86,12 @@ export const telegramQuery = queryOptions({
   refetchInterval: 10_000,
 });
 
-export function warningsQuery() {
-  return infiniteQueryOptions({
-    queryKey: ['warnings', 'list'],
-    queryFn: ({ pageParam }) => listWarnings({ limit: PAGE_SIZE, cursor: pageParam }),
-    initialPageParam: null as string | null,
-    getNextPageParam: (last) => last.next_cursor,
-    refetchInterval: 10_000,
+export function warningsQuery(position: SnapshotPosition) {
+  return queryOptions({
+    queryKey: ['warnings', 'list', position.snapshot, position.page],
+    queryFn: () => listWarnings({ limit: PAGE_SIZE, ...snapshotWindow(position) }),
+    placeholderData: withinSnapshot(position.snapshot),
+    refetchInterval: LIST_POLL_MS,
   });
 }
 
@@ -93,41 +107,70 @@ export const stickerSetsQuery = queryOptions({
   queryFn: listStickerSets,
 });
 
-function infiniteList<T>(key: string, list: (filters: ListFilters) => Promise<Page<T>>, filters: ListFilters) {
-  return infiniteQueryOptions({
-    queryKey: [key, filters],
-    queryFn: ({ pageParam }) => list({ ...filters, limit: PAGE_SIZE, cursor: pageParam }),
-    initialPageParam: null as string | null,
-    getNextPageParam: (last) => last.next_cursor,
+/**
+ * Keeps the previous page on screen only while moving inside one snapshot.
+ * New filters or a new snapshot show the loading state instead: rows read
+ * under other conditions must not pass for the answer being fetched.
+ */
+function withinSnapshot<T>(snapshot: number) {
+  return (previous: T | undefined, previousQuery: Query<T, Error, T, readonly unknown[]> | undefined): T | undefined =>
+    previousQuery?.queryKey[2] === snapshot ? previous : undefined;
+}
+
+/** The page's window inside its snapshot; no `as_of` asks for a new snapshot. */
+function snapshotWindow(position: SnapshotPosition): { readonly offset: number; readonly as_of?: string } {
+  return {
+    offset: (position.page - 1) * PAGE_SIZE,
+    ...(position.asOf === null ? {} : { as_of: position.asOf }),
+  };
+}
+
+/**
+ * One page of a snapshot listing. The key names the snapshot by its id rather
+ * than by `as_of`: the token only exists after the snapshot's first response,
+ * and pinning it must not turn that response into a second request. Polling
+ * refreshes the page's rows and `new_count` without leaving the snapshot.
+ */
+function snapshotList<T>(
+  key: string,
+  list: (filters: ListFilters) => Promise<Page<T>>,
+  filters: ListFilters,
+  position: SnapshotPosition,
+) {
+  return queryOptions({
+    queryKey: [key, filters, position.snapshot, position.page],
+    queryFn: () => list({ ...filters, limit: PAGE_SIZE, ...snapshotWindow(position) }),
+    placeholderData: withinSnapshot(position.snapshot),
+    refetchInterval: LIST_POLL_MS,
   });
 }
 
-export function invocationsQuery(filters: ListFilters) {
-  return infiniteList('invocations', listInvocations, filters);
+export function invocationsQuery(filters: ListFilters, position: SnapshotPosition) {
+  return snapshotList('invocations', listInvocations, filters, position);
 }
 
-export function messagesQuery(filters: ListFilters) {
-  return infiniteList('messages', listMessages, filters);
+export function messagesQuery(filters: ListFilters, position: SnapshotPosition) {
+  return snapshotList('messages', listMessages, filters, position);
 }
 
-export function stickersQuery(filters: ListFilters) {
-  return infiniteList('stickers', listStickers, filters);
+export function stickersQuery(filters: ListFilters, position: SnapshotPosition) {
+  return snapshotList('stickers', listStickers, filters, position);
 }
 
-export function memoriesQuery(filters: ListFilters) {
-  return infiniteList('memories', listMemories, filters);
+export function memoriesQuery(filters: ListFilters, position: SnapshotPosition) {
+  return snapshotList('memories', listMemories, filters, position);
 }
 
-export function groupMemoriesQuery(filters: ListFilters) {
-  return infiniteList('group-memories', listGroupMemories, filters);
+export function groupMemoriesQuery(filters: ListFilters, position: SnapshotPosition) {
+  return snapshotList('group-memories', listGroupMemories, filters, position);
 }
 
-export function alarmsQuery(filters: ListFilters) {
-  return infiniteList('alarms', listAlarms, filters);
+export function alarmsQuery(filters: ListFilters, position: SnapshotPosition) {
+  return snapshotList('alarms', listAlarms, filters, position);
 }
 
-export function conversationContextsQuery(filters: ListFilters) {
-  return infiniteList('contexts', listConversationContexts, filters);
+export function conversationContextsQuery(filters: ListFilters, position: SnapshotPosition) {
+  return snapshotList('contexts', listConversationContexts, filters, position);
 }
 
 export function conversationContextQuery(conversationId: string) {
@@ -243,7 +286,7 @@ export interface DictionaryQueryScope {
 
 /**
  * The dictionary list is a whole-scope read (entries + conflicts), not a
- * keyset-cursor page: conflicts are computed over the entire effective
+ * snapshot page: conflicts are computed over the entire effective
  * dictionary, so pagination would make them meaningless.
  */
 export function dictionaryQuery(target: DictionaryQueryScope, search: string) {

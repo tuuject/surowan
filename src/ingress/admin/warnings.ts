@@ -9,10 +9,10 @@ import {
 import type { WarningService } from '../../store/warnings.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { invalidApiKeys } from './api-keys.ts';
-import { AdminQueryError, parseId, parseLimit } from './audit/shared.ts';
+import { AdminQueryError, optionalFilter, parseAsOfId, parseId, parseWindow } from './audit/shared.ts';
 import { json } from './http.ts';
 
-const LIST_PARAMS = new Set(['limit', 'cursor', 'unread']);
+const LIST_PARAMS = new Set(['limit', 'offset', 'as_of', 'unread']);
 
 export interface WarningsAdminDeps {
   readonly warnings: WarningService;
@@ -37,12 +37,11 @@ export function createWarningsAdminHandler(deps: WarningsAdminDeps) {
   const list = (url: URL): Response => {
     for (const key of url.searchParams.keys()) {
       if (!LIST_PARAMS.has(key)) {
-        throw new AdminQueryError('invalid_query', 'Warnings listing accepts only limit, cursor and unread');
+        throw new AdminQueryError('invalid_query', 'Warnings listing accepts only limit, offset, as_of and unread');
       }
     }
-    const limit = parseLimit(url.searchParams.get('limit'));
-    const cursorParam = url.searchParams.get('cursor');
-    const cursor = cursorParam === null || cursorParam.length === 0 ? undefined : parseId(cursorParam, 'cursor');
+    const window = parseWindow({ limit: url.searchParams.get('limit'), offset: url.searchParams.get('offset') });
+    const asOfParam = optionalFilter(url.searchParams.get('as_of'));
     const unreadParam = url.searchParams.get('unread');
     if (
       unreadParam !== null &&
@@ -54,8 +53,8 @@ export function createWarningsAdminHandler(deps: WarningsAdminDeps) {
       throw new AdminQueryError('invalid_query', 'unread must be 1, true, 0 or false');
     }
     const page = warnings.list({
-      limit,
-      cursor,
+      ...window,
+      asOf: asOfParam === undefined ? undefined : parseAsOfId(asOfParam),
       unreadOnly: unreadParam === '1' || unreadParam === 'true',
     });
     const now = new Date();
@@ -90,7 +89,11 @@ export function createWarningsAdminHandler(deps: WarningsAdminDeps) {
         updated_at: item.updated_at,
         read_at: item.read_at,
       })),
-      next_cursor: page.next_cursor,
+      total: page.total,
+      limit: window.limit,
+      offset: window.offset,
+      as_of: page.asOf.toString(),
+      new_count: page.newCount,
       unread_count: warnings.unreadCount(),
     });
   };

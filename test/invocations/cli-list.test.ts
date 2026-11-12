@@ -21,16 +21,37 @@ afterAll(async () => {
 describe('surowan-utils invocation CLI', () => {
   it('list sends filters and auth, and prints one stable JSON document', async () => {
     const server = await startServer((_request, response) => {
-      jsonResponse(response, 200, { items: [ITEM], next_cursor: '7' });
+      jsonResponse(response, 200, { items: [ITEM], total: 40, limit: 5, offset: 25, as_of: '9', new_count: 2 });
     });
     try {
       const result = await runCli(
-        ['invocation', 'list', '--limit', '5', '--cursor', '9', '--state', 'completed', '--chat', '-100123', '--json'],
+        [
+          'invocation',
+          'list',
+          '--limit',
+          '5',
+          '--offset',
+          '25',
+          '--as-of',
+          '9',
+          '--state',
+          'completed',
+          '--chat',
+          '-100123',
+          '--json',
+        ],
         { env: { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY } },
       );
       expect(result.code).toBe(0);
       expect(result.stderr).toBe('');
-      expect(JSON.parse(result.stdout)).toEqual({ items: [ITEM], next_cursor: '7' });
+      expect(JSON.parse(result.stdout)).toEqual({
+        items: [ITEM],
+        total: 40,
+        limit: 5,
+        offset: 25,
+        as_of: '9',
+        new_count: 2,
+      });
       expect(server.requests).toHaveLength(1);
       const request = onlyRequest(server);
       expect(request.method).toBe('GET');
@@ -38,7 +59,8 @@ describe('surowan-utils invocation CLI', () => {
       expect(url.pathname).toBe('/api/invocations');
       expect(Object.fromEntries(url.searchParams)).toEqual({
         limit: '5',
-        cursor: '9',
+        offset: '25',
+        as_of: '9',
         state: 'completed',
         chat: '-100123',
       });
@@ -51,7 +73,7 @@ describe('surowan-utils invocation CLI', () => {
 
   it('list without filters sends no query string and keeps human output concise', async () => {
     const server = await startServer((_request, response) => {
-      jsonResponse(response, 200, { items: [ITEM], next_cursor: null });
+      jsonResponse(response, 200, { items: [ITEM], total: 26, limit: 25, offset: 0, as_of: '7', new_count: 1 });
     });
     try {
       const result = await runCli(['invocation', 'list'], {
@@ -66,6 +88,10 @@ describe('surowan-utils invocation CLI', () => {
       expect(result.stdout).toContain('completed');
       expect(result.stdout).toContain('Test Group');
       expect(result.stdout).toContain('(-1001234567890)');
+      // The footer says how to continue on the same snapshot, and what it hides.
+      expect(result.stdout).toContain('showing 1-1 of 26 (as_of 7)');
+      expect(result.stdout).toContain('next page: --offset 1 --as-of 7');
+      expect(result.stdout).toContain('1 newer invocation(s) since as_of; omit --as-of to include them');
     } finally {
       await server.close();
     }
@@ -95,7 +121,7 @@ describe('surowan-utils invocation CLI', () => {
       ],
     };
     const server = await startServer((_request, response) => {
-      jsonResponse(response, 200, { items: [room], next_cursor: null });
+      jsonResponse(response, 200, { items: [room], total: 1, limit: 25, offset: 0, as_of: '0', new_count: 0 });
     });
     try {
       const result = await runCli(['invocation', 'list'], {

@@ -32,7 +32,16 @@ describe('surowan-utils login and doctor', () => {
           });
           return;
         }
-        json(response, 200, { id: '7', error: null, items: [{ id: 42, echo: `key ${apiKey}` }], next_cursor: null });
+        json(response, 200, {
+          id: '7',
+          error: null,
+          items: [{ id: 42, echo: `key ${apiKey}` }],
+          total: 0,
+          limit: 25,
+          offset: 0,
+          as_of: '0',
+          new_count: 0,
+        });
       });
       await writeCredentials(credentialsPath(homeDir), { endpoint: http.endpoint, apiKey });
       for (const args of [
@@ -49,7 +58,11 @@ describe('surowan-utils login and doctor', () => {
           id: '7',
           error: null,
           items: [{ id: 42, echo: 'key [redacted]' }],
-          next_cursor: null,
+          total: 0,
+          limit: 25,
+          offset: 0,
+          as_of: '0',
+          new_count: 0,
         });
       }
       const doctor = await cli(['doctor', '--json'], homeDir);

@@ -265,6 +265,9 @@ export const invocations: typeof invocationsEn = {
     noMedia: '暂无媒体。',
   },
   contexts: {
+    newActivity_one: '打开列表后有 {{count}} 个会话出现新活动',
+    newActivity_other: '打开列表后有 {{count}} 个会话出现新活动',
+    showNewActivity: '查看最新活动',
     columns: {
       id: 'ID',
       chat: '会话',
@@ -339,7 +342,7 @@ export const invocations: typeof invocationsEn = {
       note: 'Assistant 文本属于私有推理，不会直接发送到 Telegram —— 只有一次成功的',
       noteTail: '工具调用会发布消息。',
     },
-    cursorList: {
+    list: {
       noRecordsDescription: '没有符合当前筛选条件的记录。',
       adminRequestFailed: '管理端请求失败',
     },

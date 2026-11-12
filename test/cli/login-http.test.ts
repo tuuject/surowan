@@ -295,7 +295,7 @@ test('login, doctor and reads over the real Admin API leave production state alo
   const list = await cli(['invocation', 'list', '--limit', '10', '--json'], f.home);
   expect(list.code).toBe(0);
   expect(list.stderr).toBe('');
-  const listing = JSON.parse(list.stdout) as { items: { id: string }[]; next_cursor: string | null };
+  const listing = JSON.parse(list.stdout) as { items: { id: string }[]; total: number; as_of: string };
   expect(listing.items.map((item) => item.id)).toContain(f.seed.invocationA.toString());
   expect(list.stdout).not.toContain(admin.key);
 

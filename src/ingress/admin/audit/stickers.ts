@@ -1,17 +1,19 @@
 import { type SQL, sql } from 'drizzle-orm';
+import { stickers } from '../../../store/schema/index.ts';
 import type { Orm } from '../../../store/store.ts';
 import {
   AdminQueryError,
-  appendCursor,
   assertToken,
   bit,
   escapeLike,
+  idSnapshot,
   type ListQuery,
   MAX_SEARCH_LENGTH,
   num,
   type Page,
-  page,
-  parseLimit,
+  parseWindow,
+  snapshotCounts,
+  snapshotPage,
   whereSql,
 } from './shared.ts';
 
@@ -81,9 +83,9 @@ export function listStickerSets(orm: Orm): readonly Record<string, unknown>[] {
 }
 
 export function listStickers(orm: Orm, query: ListQuery): Page<Record<string, unknown>> {
-  const limit = parseLimit(query.limit);
+  const window = parseWindow(query);
+  const snapshot = idSnapshot(orm, stickers.id, sql`s.id`, query.as_of);
   const conditions: SQL[] = [];
-  appendCursor(conditions, sql`s.id`, query.cursor);
   if (query.set !== undefined && query.set !== null && query.set.length > 0) {
     conditions.push(sql`ss.alias = ${assertToken(query.set, 'set')}`);
   }
@@ -97,18 +99,23 @@ export function listStickers(orm: Orm, query: ListQuery): Page<Record<string, un
     const like = escapeLike(query.search);
     conditions.push(sql`(ma.description LIKE ${like} ESCAPE '\\' OR s.emoji LIKE ${like} ESCAPE '\\')`);
   }
+  const from = sql`FROM stickers s
+       JOIN sticker_sets ss ON ss.id = s.sticker_set_id
+       LEFT JOIN media_analyses ma ON ma.id = s.current_analysis_id`;
+  const counts = snapshotCounts(snapshot);
+  const [count] = orm.all<{ readonly total: unknown; readonly fresh: unknown }>(
+    sql`SELECT ${counts.total} AS total, ${counts.fresh} AS fresh ${from} ${whereSql(conditions)}`,
+  );
   const rows =
     orm.all<StickerRow>(sql`SELECT s.id, ss.alias AS set_alias, s.file_unique_id, s.emoji, s.format, s.active, s.index_state,
               s.failure_count, s.next_retry_at, s.updated_at,
               ma.id AS analysis_id, ma.state AS analysis_state, ma.analysis_version, ma.provider, ma.model,
               ma.prompt_version, ma.description, ma.metadata_json, ma.updated_at AS analysis_updated_at
-       FROM stickers s
-       JOIN sticker_sets ss ON ss.id = s.sticker_set_id
-       LEFT JOIN media_analyses ma ON ma.id = s.current_analysis_id
-       ${whereSql(conditions)}
+       ${from}
+       ${whereSql([...conditions, snapshot.within])}
        ORDER BY s.id DESC
-       LIMIT ${BigInt(limit + 1)}`);
-  return page(rows, limit, (row) => ({
+       LIMIT ${BigInt(window.limit)} OFFSET ${BigInt(window.offset)}`);
+  const items = rows.map((row) => ({
     id: row.id.toString(),
     set_alias: row.set_alias,
     file_unique_id: row.file_unique_id,
@@ -134,4 +141,5 @@ export function listStickers(orm: Orm, query: ListQuery): Page<Record<string, un
             updated_at: row.analysis_updated_at,
           },
   }));
+  return snapshotPage(items, count, window, snapshot);
 }

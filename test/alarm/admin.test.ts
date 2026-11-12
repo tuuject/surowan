@@ -36,7 +36,7 @@ async function readJson(response: Response): Promise<any> {
 }
 
 describe('alarm admin', () => {
-  test('lists alarms with pending-first ordering and stable cursor pagination', async () => {
+  test('lists alarms pending first and pages one snapshot while new alarms arrive', async () => {
     const { store } = await setup();
     const conversation = ensureConversation(store);
     const pending1 = insertAlarm(store, conversation, '2026-08-15T02:00:00.000Z', { summary: 'pending 1' });
@@ -48,10 +48,19 @@ describe('alarm admin', () => {
 
     const first = listAlarms(store.orm, { limit: '2' });
     expect(first.items.map((item) => item.id)).toEqual([pending2.toString(), pending1.toString()]);
-    expect(first.next_cursor).not.toBe(null);
-    const second = listAlarms(store.orm, { limit: '2', cursor: first.next_cursor });
+    expect(first).toMatchObject({ total: 3, offset: 0, limit: 2, as_of: fired.toString(), new_count: 0 });
+
+    // A pending alarm created after the snapshot would sort first; the second
+    // page must still be exactly the snapshot's remainder.
+    const later = insertAlarm(store, conversation, '2026-08-15T00:00:00.000Z', { summary: 'later' });
+    const second = listAlarms(store.orm, { limit: '2', offset: '2', as_of: first.as_of });
     expect(second.items.map((item) => item.id)).toEqual([fired.toString()]);
-    expect(second.next_cursor).toBe(null);
+    expect(second).toMatchObject({ total: 3, as_of: first.as_of, new_count: 1 });
+    expect(listAlarms(store.orm, { limit: '2', as_of: first.as_of, state: 'fired' }).new_count).toBe(0);
+
+    const fresh = listAlarms(store.orm, { limit: '2' });
+    expect(fresh.items.map((item) => item.id)).toEqual([later.toString(), pending2.toString()]);
+    expect(fresh).toMatchObject({ total: 4, as_of: later.toString(), new_count: 0 });
     store.close();
   });
 

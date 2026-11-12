@@ -48,8 +48,8 @@ test.describe('memo pad CRUD', () => {
     expect(created?.short_term).toBe(true);
     expect(created?.expires_at).not.toBeNull();
 
-    // UI state: the write invalidates the loaded page and the memo sorts ahead
-    // of the seeded ids, so it appears on page 1. Never probe with isVisible():
+    // UI state: the reader's own insert opens a new snapshot and the newest
+    // memo sorts first, so it appears on page 1. Never probe with isVisible():
     // a miss there clicks Next before the refresh paints and pages away from it.
     const createdRow = page.locator('table tbody tr', { hasText: 'E2E memo created by test' });
     await expect(createdRow).toBeVisible();

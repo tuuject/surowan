@@ -103,15 +103,29 @@ test('context API exposes conversation contexts read-only', async () => {
     const firstPage = await readJson(await server.handle(request('/api/contexts?limit=1', { headers })));
     expect(firstPage.items).toHaveLength(1);
     expect(firstPage.items[0].conversation_id).toBe(conversation.id.toString());
-    expect(typeof firstPage.next_cursor).toBe('string');
+    expect(firstPage).toMatchObject({ total: 2, offset: 0, as_of: iso, new_count: 0 });
     const secondPage = await readJson(
-      await server.handle(
-        request(`/api/contexts?limit=1&cursor=${encodeURIComponent(firstPage.next_cursor)}`, { headers }),
-      ),
+      await server.handle(request(`/api/contexts?limit=1&offset=1&as_of=${encodeURIComponent(iso)}`, { headers })),
     );
     expect(secondPage.items).toHaveLength(1);
     expect(secondPage.items[0].conversation_id).toBe(second.id.toString());
-    expect(secondPage.next_cursor).toBeNull();
+    expect(secondPage).toMatchObject({ total: 2, offset: 1, as_of: iso });
+    // Activity after the snapshot moves a context out of its old position and
+    // into `new_count` until a new snapshot puts it back on top.
+    const activeLater = new Date(Date.parse(iso) + 60_000).toISOString();
+    store.db
+      .prepare('UPDATE conversation_contexts SET last_active_at = ? WHERE conversation_id = ?')
+      .run(activeLater, second.id);
+    const pinned = await readJson(
+      await server.handle(request(`/api/contexts?limit=1&offset=1&as_of=${encodeURIComponent(iso)}`, { headers })),
+    );
+    expect(pinned).toMatchObject({ items: [], total: 1, new_count: 1 });
+    const renewed = await readJson(await server.handle(request('/api/contexts?limit=1', { headers })));
+    expect(renewed.items[0].conversation_id).toBe(second.id.toString());
+    expect(renewed).toMatchObject({ total: 2, as_of: activeLater, new_count: 0 });
+    store.db
+      .prepare('UPDATE conversation_contexts SET last_active_at = ? WHERE conversation_id = ?')
+      .run(olderIso, second.id);
 
     const byChat = await readJson(await server.handle(request('/api/contexts?chat=123456789', { headers })));
     expect(byChat.items).toHaveLength(2);
@@ -124,9 +138,9 @@ test('context API exposes conversation contexts read-only', async () => {
     const badChat = await server.handle(request('/api/contexts?chat=abc', { headers }));
     expect(badChat.status).toBe(400);
     expect(await readJson(badChat)).toMatchObject({ error: 'invalid_chat' });
-    const badCursor = await server.handle(request('/api/contexts?cursor=bad', { headers }));
-    expect(badCursor.status).toBe(400);
-    expect(await readJson(badCursor)).toMatchObject({ error: 'invalid_cursor' });
+    const badAsOf = await server.handle(request('/api/contexts?as_of=bad', { headers }));
+    expect(badAsOf.status).toBe(400);
+    expect(await readJson(badAsOf)).toMatchObject({ error: 'invalid_as_of' });
     const badLimit = await server.handle(request('/api/contexts?limit=0', { headers }));
     expect(badLimit.status).toBe(400);
     expect(await readJson(badLimit)).toMatchObject({ error: 'invalid_limit' });

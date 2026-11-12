@@ -26,7 +26,8 @@ surowan-utils chat delete -1009876543210 --yes --json          # 用户确认后
 查询、导出与重放示例：
 
 ```bash
-surowan-utils invocation list --cursor 12345 --json
+surowan-utils invocation list --limit 20 --json
+surowan-utils invocation list --limit 20 --offset 20 --as-of 12345 --json   # 第 2 页，停在首页的快照
 surowan-utils invocation list --search '关键词' --at '2026-09-10 07:59' --json
 surowan-utils invocation list --search '关键词' --from '2026-09-10 07:00' --to '2026-09-10 08:00' --json
 # 按 agent 模型 ID 精确过滤：给某个模型在一段时间内的表现建立基线
@@ -60,7 +61,7 @@ surowan-utils invocation replay 12345 --provider openrouter --model deepseek/dee
 | `--output <path>` | 面板命令：把二进制或文本响应写入文件并输出 `{status, path, bytes}`；JSON 响应的命令带该选项时在发请求前以 `unexpected_option` 拒绝 |
 | `--timeout-ms <ms>` | 请求/输入超时；默认除 replay（300 秒）外都是 30 秒。stdin 读取单独使用同一上限，超时返回 `timeout`（退出码 1）且不发请求；HTTP 超时中止请求，均不自动重试 |
 | `--json` | stdout 恰好一个 JSON 文档；人类模式输出列表摘要或缩进 JSON |
-| `--limit`（1–100）/ `--cursor` / `--state` | `invocation list` 的过滤参数，发出前先做形状校验（cursor 为非负十进制） |
+| `--limit`（1–100）/ `--offset` / `--as-of` / `--state` | `invocation list` 的分页与过滤参数，发出前先做形状校验。响应是 `{ items, total, limit, offset, as_of, new_count }`：翻页时带回首页的 `as_of`，列表停在同一快照，期间新产生的 Invocation 只计入 `new_count`；去掉 `--as-of` 即取最新快照 |
 | `--chat <id>` | `invocation list` 的 Chat 过滤，或 `prompt get group` 必填的群 ID；必须是可带负号的有符号 64 位十进制 |
 | `--search <keyword>` | 仅 `invocation list`：按字面关键词（1–100 字符，`%`、`_` 按字面处理）匹配公开消息——冻结新消息批次（含追加批次）的群友消息，或同一 Invocation 成功发出的 Bot 消息。与时间过滤同用时，关键词与时间必须命中同一条消息；带搜索或时间过滤时列表项追加 `matched_messages`（最新 5 条，按时间从新到旧，预览最多 2000 字符），不带时维持原形状 |
 | `--at <time>` / `--from <time>` / `--to <time>` | 仅 `invocation list`：按公开消息时间过滤。`--at` 命中写出的整个精度窗口（`HH:mm` 为整分钟、`HH:mm:ss` 为整秒、小数 1/2/3 位分别对应 100/10/1 毫秒窗口），`--from`/`--to` 组成半开区间 `[from, to)`；`--at` 不能与 `--from`/`--to` 同用。格式为 `YYYY-MM-DD[空格或T]HH:mm[:ss[.1-3位]][Z\|±HH:mm]`；不带 offset 的时间由服务端按 `--chat` 对应 Chat 的时区解析、没有 `--chat` 时用全局时区；非法日历与夏令时跳变造成的不存在/重复时间会被拒绝 |

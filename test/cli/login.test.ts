@@ -12,7 +12,11 @@ describe('surowan-utils login and doctor', () => {
         ? json(response, 200, KEY_INFO)
         : json(response, 200, {
             items: [{ id: '42', private_message: 'not for the diagnostic output', echoed_key: KEY }],
-            next_cursor: null,
+            total: 0,
+            limit: 25,
+            offset: 0,
+            as_of: '0',
+            new_count: 0,
           }),
     );
     const login = await cli(['login', '--endpoint', http.endpoint, '--json'], homeDir, { SUROWAN_API_KEY: KEY });
@@ -61,7 +65,7 @@ describe('surowan-utils login and doctor', () => {
     const http = await server((response, request) =>
       request.url === '/api/key'
         ? json(response, 200, KEY_INFO)
-        : json(response, 200, { items: [], next_cursor: null }),
+        : json(response, 200, { items: [], total: 0, limit: 25, offset: 0, as_of: '0', new_count: 0 }),
     );
     await writeCredentials(credentialsPath(homeDir), { endpoint: http.endpoint, apiKey: KEY });
     const before = await readFile(credentialsPath(homeDir), 'utf8');
@@ -91,7 +95,7 @@ describe('surowan-utils login and doctor', () => {
     const http = await server((response, request) =>
       request.url === '/api/key'
         ? json(response, 200, KEY_INFO)
-        : json(response, 200, { items: [], next_cursor: null }),
+        : json(response, 200, { items: [], total: 0, limit: 25, offset: 0, as_of: '0', new_count: 0 }),
     );
     const path = credentialsPath(homeDir);
     await mkdir(dirname(path), { recursive: true, mode: 0o700 });
@@ -130,7 +134,7 @@ describe('surowan-utils login and doctor', () => {
     const http = await server((response, request) =>
       request.url === '/api/key'
         ? json(response, 200, KEY_INFO)
-        : json(response, 200, { items: [], next_cursor: null }),
+        : json(response, 200, { items: [], total: 0, limit: 25, offset: 0, as_of: '0', new_count: 0 }),
     );
     await writeCredentials(credentialsPath(homeDir), { endpoint: http.endpoint, apiKey: KEY });
     for (const env of [{ SUROWAN_API_KEY: '' }, { SUROWAN_ENDPOINT: '' }]) {

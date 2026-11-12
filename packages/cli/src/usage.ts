@@ -8,7 +8,7 @@ export const USAGE = `surowan-utils - Surowan Admin Panel 与 Admin API 工具�
   surowan-utils config show [--source active|file] [--json]
   surowan-utils prompt get global [--source active|file] [--json]
   surowan-utils prompt get group --chat <id> [--source active|file] [--json]
-  surowan-utils invocation list [--limit N] [--cursor ID] [--state STATE] [--chat ID] [--model ID] [--search <keyword>] [--at <time>] [--from <time>] [--to <time>] [--json]
+  surowan-utils invocation list [--limit N] [--offset N] [--as-of TOKEN] [--state STATE] [--chat ID] [--model ID] [--search <keyword>] [--at <time>] [--from <time>] [--to <time>] [--json]
   surowan-utils invocation get <id> [--json]
   surowan-utils invocation prompts <id> [--json]
   surowan-utils invocation preflight <id> [--before-send <send-id>] [--provider <alias> --model <id>] [--thinking-level <level>] [--json]

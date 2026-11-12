@@ -4,20 +4,20 @@
 
 ## 定位并读取 Invocation
 
-用户给出精确 ID 时直接 `get`；否则先按 Chat、关键词与公开消息时间查小页，再按返回的游标查下一页。以下 ID 仅为示例，执行前替换为实际目标：
+用户给出精确 ID 时直接 `get`；否则先按 Chat、关键词与公开消息时间查小页，再带回同一个 `as_of` 用 `--offset` 查下一页。以下 ID 仅为示例，执行前替换为实际目标：
 
 ```bash
 surowan-utils invocation list --limit 20 --chat -1001234567890 --json
-surowan-utils invocation list --limit 20 --chat -1001234567890 --cursor 12345 --json
+surowan-utils invocation list --limit 20 --chat -1001234567890 --offset 20 --as-of 12345 --json
 surowan-utils invocation list --search '关键词' --at '2026-09-10 07:59' --json
 surowan-utils invocation list --search '关键词' --from '2026-09-10 07:00' --to '2026-09-10 08:00' --json
 surowan-utils invocation list --model deepseek/deepseek-v4-flash --from '2026-09-10 07:00' --to '2026-09-11 07:00' --json
 surowan-utils invocation get 12345 --json
 ```
 
-- list 返回 `{ items, next_cursor }`，按 ID 倒序；仅在 `next_cursor` 非 null 且确有需要时继续，保留原过滤条件。可加 `--state failed`；不要为排查未回复只筛 `completed`。
+- list 返回 `{ items, total, limit, offset, as_of, new_count }`，按 ID 倒序；仅在 `offset + items.length < total` 且确有需要时继续，保留原过滤条件并带回首页的 `as_of`（这样新到的 Invocation 不会挤动页面）。`new_count > 0` 表示首页之后又有匹配的新 Invocation，需要时去掉 `--as-of` 重新从第一页查。可加 `--state failed`；不要为排查未回复只筛 `completed`。
 - `--model` 按该 Invocation 的 **agent** `model_calls.model` 精确过滤（区分大小写，不做前缀或模糊匹配；视觉与 Tool Model 调用不算），1–256 字符、不含控制字符，空值或纯空白以 `invalid_model`（退出码 2）拒绝；与 replay 的 `--provider`/`--model` 覆盖无关，`--provider`/`--thinking-level` 在 list 上仍是 `unexpected_option`。给某模型在一段时间内的表现建立基线时，把它与 `--from`/`--to`（按公开消息时间）或 `--chat` 组合使用，再逐项 `get` 读 `model_calls[]` 的用量与错误。
-- Chat ID 是 Telegram Chat ID，不是内部数据库 ID。把 Invocation、Chat、游标等十进制 ID 当精确字符串处理，不经过 JavaScript `Number` 转换。
+- Chat ID 是 Telegram Chat ID，不是内部数据库 ID。把 Invocation、Chat、`as_of` 等十进制 ID 当精确字符串处理，不经过 JavaScript `Number` 转换。
 - 关键词与时间过滤只匹配公开消息：`--search`（1–100 字符，字面匹配，`%`/`_` 不是通配符）命中冻结新消息批次（含追加批次）的群友消息或同一 Invocation 成功发出的 Bot 消息；`--at` 命中写出的整个精度窗口（`HH:mm` 为整分钟、`HH:mm:ss` 为整秒、小数 1/2/3 位分别对应 100/10/1 毫秒窗口），`--from`/`--to` 是半开区间 `[from, to)`，且 `--at` 不能与 `--from`/`--to` 同用。关键词与时间过滤一起给出时必须命中同一条消息。时间格式为 `YYYY-MM-DD[空格或T]HH:mm[:ss[.1-3位]][Z|±HH:mm]`；不带 offset 时由服务端按 `--chat` 对应 Chat 的时区（没有 `--chat` 则用全局时区）解析，非法日历与夏令时跳变造成的不存在/重复时间会被拒绝。`--at` 不是按 Invocation `created_at` 过滤。
 - 带搜索或时间过滤时每个 item 追加 `matched_messages`（最新 5 条命中，按时间从新到旧）：`source` 为 `incoming`（群友消息）或 `bot`（成功发送），`telegram_send_id` 只有 bot 条目非空，`text` 是截断预览。bot 条目的 `telegram_send_id` 可直接作为切片重放的 `--before-send`；不带过滤时响应维持原形状。
 - 列表同时包含 Telegram 与 Playground 虚拟房间的 Invocation：`chat.host_kind` 为 `telegram` 或 `playground`，房间行的 `chat.telegram_chat_id` 为 `null`、以 `chat.room_id` 标识（人读输出显示为 `room:<id>`）；房间的 `matched_messages` 用 `room_seq` 代替 `telegram_message_id`。房间 Invocation 不支持重放。

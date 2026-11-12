@@ -4,11 +4,11 @@ import { useTranslation } from 'react-i18next';
 import {
   ChatFilter,
   type ColumnSpec,
-  CursorList,
   ListPageHeader,
   ListSearchForm,
   QuerySelectField,
   QueryTextField,
+  SnapshotList,
   StateBadge,
   TableShell,
 } from '@/components/business';
@@ -163,7 +163,7 @@ export default function InvocationsPage(): ReactElement {
           </>
         )}
       </ListSearchForm>
-      <CursorList
+      <SnapshotList
         factory={invocationsQuery}
         filters={filters}
         renderItems={(items, { loading }) => (
