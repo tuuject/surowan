@@ -68,14 +68,18 @@ describe('surowan-utils invocation CLI', () => {
               ],
             },
           ],
-          next_cursor: echo,
+          total: 1,
+          limit: 25,
+          offset: 0,
+          as_of: echo,
+          new_count: 0,
         });
       }),
     );
     try {
       const env = { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY };
       const runs: readonly (readonly [readonly string[], string])[] = [
-        [['invocation', 'list', '--json'], 'next_cursor'],
+        [['invocation', 'list', '--json'], 'as_of'],
         [['invocation', 'get', '42', '--json'], 'echo'],
         [['invocation', 'replay', '42', '--json'], 'echo'],
       ];

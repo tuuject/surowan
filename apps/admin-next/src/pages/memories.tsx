@@ -8,10 +8,10 @@ import { Trans, useTranslation } from 'react-i18next';
 import {
   ChatFilter,
   ConfirmDialog,
-  CursorList,
   ListPageHeader,
   ListSearchForm,
   QuerySelectField,
+  SnapshotList,
   TableShell,
 } from '@/components/business';
 import type { MemoryDraft, MemoryEntry, MemoryUpdate } from '@/lib/api/memories.ts';
@@ -44,6 +44,7 @@ export default function MemoriesPage(): ReactElement {
   const [viewing, setViewing] = useState<MemoryEntry | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState<MemoryEntry | null>(null);
+  const [created, setCreated] = useState(0);
 
   const invalidateMemories = (): void => {
     void queryClient.invalidateQueries({ queryKey: ['memories'] });
@@ -64,6 +65,7 @@ export default function MemoriesPage(): ReactElement {
       setFormOpen(false);
       toast.success(t('pages.memories.memoCreated'));
       invalidateMemories();
+      setCreated((count) => count + 1);
     },
     onError: () => {
       // Dialog stays open; the inline error shows why and the input is kept.
@@ -163,9 +165,10 @@ export default function MemoriesPage(): ReactElement {
         )}
       </ListSearchForm>
 
-      <CursorList
+      <SnapshotList
         factory={memoriesQuery}
         filters={filters}
+        snapshotKey={created}
         actions={
           <Button variant="outline" iconStart={<PlusIcon />} onClick={openCreate}>
             {t('pages.memories.newMemo')}

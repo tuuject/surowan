@@ -27,9 +27,18 @@ export interface SessionState {
   readonly has_password: boolean | null;
 }
 
+/**
+ * One page of a snapshot listing. `as_of` names the snapshot: sending it back
+ * keeps paging the same rows, and `new_count` counts the rows that arrived
+ * after it. See `useSnapshotPages`.
+ */
 export interface Page<T> {
   readonly items: readonly T[];
-  readonly next_cursor: string | null;
+  readonly total: number;
+  readonly limit: number;
+  readonly offset: number;
+  readonly as_of: string;
+  readonly new_count: number;
 }
 
 export interface ChatSummary {
@@ -42,7 +51,9 @@ export interface ChatSummary {
 
 export interface ListFilters {
   readonly limit?: number;
-  readonly cursor?: string | null;
+  readonly offset?: number;
+  /** Omitted takes a new snapshot. */
+  readonly as_of?: string | undefined;
   readonly state?: string | undefined;
   readonly chat?: string | undefined;
   readonly host?: string | undefined;
@@ -87,8 +98,11 @@ export function listPath(path: string, filters: ListFilters): string {
   if (filters.limit !== undefined) {
     params.set('limit', String(filters.limit));
   }
-  if (filters.cursor !== undefined && filters.cursor !== null) {
-    params.set('cursor', filters.cursor);
+  if (filters.offset !== undefined) {
+    params.set('offset', String(filters.offset));
+  }
+  if (filters.as_of !== undefined) {
+    params.set('as_of', filters.as_of);
   }
   for (const key of ['state', 'chat', 'host', 'set', 'search', 'model', 'day', 'target'] as const) {
     const value = filters[key];

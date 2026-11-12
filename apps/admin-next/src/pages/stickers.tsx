@@ -5,13 +5,13 @@ import { type ReactElement, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
-  CursorList,
   JsonViewer,
   ListFooter,
   ListPageHeader,
   ListSearchForm,
   QuerySelectField,
   QueryTextField,
+  SnapshotList,
   StateBadge,
   TableShell,
   TextValue,
@@ -268,7 +268,7 @@ export default function StickersPage(): ReactElement {
           </>
         )}
       </ListSearchForm>
-      <CursorList
+      <SnapshotList
         factory={stickersQuery}
         filters={filters}
         renderItems={(items, { loading }) => (

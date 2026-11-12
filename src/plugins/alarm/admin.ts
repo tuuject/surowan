@@ -1,5 +1,15 @@
 import { and, eq, type SQL, sql } from 'drizzle-orm';
-import { AdminQueryError, type ListQuery, type Page, parseId, parseLimit } from '../../ingress/admin/audit/shared.ts';
+import {
+  AdminQueryError,
+  idSnapshot,
+  type ListQuery,
+  type Page,
+  parseId,
+  parseWindow,
+  snapshotCounts,
+  snapshotPage,
+  whereSql,
+} from '../../ingress/admin/audit/shared.ts';
 import type { Orm } from '../../store/store.ts';
 import type { LongTaskService } from '../../store/long-tasks/index.ts';
 import { longTasks } from '../../store/schema/index.ts';
@@ -58,12 +68,6 @@ interface AlarmRow {
   readonly message_thread_id: bigint;
 }
 
-interface AlarmCursor {
-  readonly segment: 'p' | 't';
-  readonly key: string;
-  readonly id: bigint;
-}
-
 const ALARM_SELECT = `SELECT lt.id, lt.conversation_id,
   CASE
     WHEN lt.state = 'cancelled' OR tr.state = 'suppressed' THEN 'cancelled'
@@ -84,26 +88,41 @@ JOIN conversations c ON c.id = lt.conversation_id
 JOIN chats ch ON ch.id = c.chat_id
 WHERE lt.plugin_id = 'alarm'`;
 
+/**
+ * Pending alarms first in firing order, then the history newest first. The
+ * snapshot is the `long_tasks` id, so an alarm created later stays out until
+ * the client takes a new snapshot; a pending alarm that fires moves to the
+ * history part immediately, because its state is live.
+ */
+const ALARM_ORDER = sql`CASE WHEN state = 'pending' THEN 0 ELSE 1 END,
+  CASE WHEN state = 'pending' THEN scheduled_at END,
+  CASE WHEN state = 'pending' THEN id END,
+  COALESCE(fired_at, cancelled_at, updated_at) DESC,
+  id DESC`;
+
 export function listAlarms(orm: Orm, query: ListQuery): Page<AlarmAdminItem> {
-  const limit = parseLimit(query.limit);
+  const window = parseWindow(query);
+  const snapshot = idSnapshot(orm, longTasks.id, sql`id`, query.as_of);
   const state = parseState(query.state);
-  const chatId = query.chat ? parseId(query.chat, 'chat') : undefined;
-  const targetId = query.target ? parsePositiveId(query.target, 'target') : undefined;
-  const cursor = query.cursor ? parseCursor(query.cursor) : null;
-  const pending = state === undefined || state === 'pending';
-  const terminal = state === undefined || state !== 'pending';
-  const segment = pending ? (cursor?.segment ?? 'p') : 't';
-  if (segment === 'p') {
-    const rows = fetchRows(orm, limit + 1, cursor?.segment === 'p' ? cursor : null, chatId, targetId, 'pending');
-    if (rows.length > limit || !terminal) {
-      return pageFromRows(rows, limit);
-    }
-    return pageFromRows([...rows, ...fetchRows(orm, limit - rows.length + 1, null, chatId, targetId, state)], limit);
+  const conditions: SQL[] = [];
+  if (state !== undefined) {
+    conditions.push(sql`state = ${state}`);
   }
-  return pageFromRows(
-    fetchRows(orm, limit + 1, cursor?.segment === 't' ? cursor : null, chatId, targetId, state),
-    limit,
+  if (query.chat) {
+    conditions.push(sql`telegram_chat_id = ${parseId(query.chat, 'chat')}`);
+  }
+  if (query.target) {
+    conditions.push(sql`target_user_id = ${parsePositiveId(query.target, 'target').toString()}`);
+  }
+  const alarms = sql`(${sql.raw(ALARM_SELECT)})`;
+  const counts = snapshotCounts(snapshot);
+  const [count] = orm.all<{ readonly total: unknown; readonly fresh: unknown }>(
+    sql`SELECT ${counts.total} AS total, ${counts.fresh} AS fresh FROM ${alarms} ${whereSql(conditions)}`,
   );
+  const rows = orm.all<AlarmRow>(
+    sql`SELECT * FROM ${alarms} ${whereSql([...conditions, snapshot.within])} ORDER BY ${ALARM_ORDER} LIMIT ${BigInt(window.limit)} OFFSET ${BigInt(window.offset)}`,
+  );
+  return snapshotPage(rows.map(toItem), count, window, snapshot);
 }
 
 export function cancelAlarm(
@@ -138,51 +157,6 @@ export function parseAlarmId(value: string): bigint {
   return BigInt(value);
 }
 
-function fetchRows(
-  orm: Orm,
-  count: number,
-  cursor: AlarmCursor | null,
-  chatId: bigint | undefined,
-  targetId: bigint | undefined,
-  state: string | undefined,
-): AlarmRow[] {
-  const conditions: SQL[] = [];
-  if (state === 'pending') {
-    conditions.push(sql`state = 'pending'`);
-  } else if (state !== undefined) {
-    conditions.push(sql`state = ${state}`);
-  } else {
-    conditions.push(sql`state IN ('firing', 'fired', 'cancelled')`);
-  }
-  if (cursor) {
-    conditions.push(
-      cursor.segment === 'p'
-        ? sql`(scheduled_at > ${cursor.key} OR (scheduled_at = ${cursor.key} AND id > ${cursor.id}))`
-        : sql`(COALESCE(fired_at, cancelled_at, updated_at) < ${cursor.key} OR (COALESCE(fired_at, cancelled_at, updated_at) = ${cursor.key} AND id < ${cursor.id}))`,
-    );
-  }
-  if (chatId !== undefined) {
-    conditions.push(sql`telegram_chat_id = ${chatId}`);
-  }
-  if (targetId !== undefined) {
-    conditions.push(sql`target_user_id = ${targetId.toString()}`);
-  }
-  const order =
-    state === 'pending' ? sql`scheduled_at, id` : sql`COALESCE(fired_at, cancelled_at, updated_at) DESC, id DESC`;
-  return orm.all<AlarmRow>(
-    sql`SELECT * FROM (${sql.raw(ALARM_SELECT)}) ${conditions.length ? sql`WHERE ${sql.join(conditions, sql` AND `)}` : sql``} ORDER BY ${order} LIMIT ${BigInt(count)}`,
-  );
-}
-
-function pageFromRows(rows: AlarmRow[], limit: number): Page<AlarmAdminItem> {
-  const visible = rows.slice(0, limit);
-  const last = visible.at(-1);
-  return { items: visible.map(toItem), next_cursor: rows.length > limit && last ? cursorForRow(last) : null };
-}
-function cursorForRow(row: AlarmRow): string {
-  const segment = row.state === 'pending' ? 'p' : 't';
-  return `${segment}|${segment === 'p' ? row.scheduled_at : (row.fired_at ?? row.cancelled_at ?? row.updated_at)}|${row.id}`;
-}
 function parseState(value: string | null | undefined): string | undefined {
   if (!value) {
     return undefined;
@@ -197,27 +171,6 @@ function parsePositiveId(value: string, label: string): bigint {
     throw new AdminQueryError(`invalid_${label}`, `${label} must be a positive integer`);
   }
   return BigInt(value);
-}
-function parseCursor(value: string): AlarmCursor {
-  const parts = value.split('|');
-  if (parts.length !== 3) {
-    throw new AdminQueryError('invalid_cursor', 'cursor is invalid');
-  }
-  const [segment, key, id] = parts;
-  if (
-    (segment !== 'p' && segment !== 't') ||
-    key === undefined ||
-    key.length === 0 ||
-    id === undefined ||
-    !/^[1-9][0-9]{0,18}$/.test(id)
-  ) {
-    throw new AdminQueryError('invalid_cursor', 'cursor is invalid');
-  }
-  const parsed = BigInt(id);
-  if (parsed > 0x7fff_ffff_ffff_ffffn) {
-    throw new AdminQueryError('invalid_cursor', 'cursor is invalid');
-  }
-  return { segment, key, id: parsed };
 }
 function toItem(row: AlarmRow): AlarmAdminItem {
   return {

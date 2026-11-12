@@ -7,7 +7,8 @@ export type MediaVariant = 'original' | 'preview';
 export interface ListCommand {
   readonly kind: 'list';
   readonly limit: number | undefined;
-  readonly cursor: string | undefined;
+  readonly offset: number | undefined;
+  readonly asOf: string | undefined;
   readonly state: string | undefined;
   readonly chat: string | undefined;
   readonly search: string | undefined;
@@ -145,7 +146,7 @@ export interface StringFlags {
   readonly 'global-prompt': string | undefined;
   readonly 'group-prompt': string | undefined;
   readonly limit: string | undefined;
-  readonly cursor: string | undefined;
+  readonly 'as-of': string | undefined;
   readonly state: string | undefined;
   readonly chat: string | undefined;
   readonly search: string | undefined;

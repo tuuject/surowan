@@ -74,7 +74,7 @@ Playwright 套件位于 `e2e/**/*.e2e.ts`（文件名不以 `.test.ts` 结尾，
 `e2e/server.ts`：临时目录 + 临时 SQLite + `test/fixtures/admin-seed.ts` 合成数据 +
 真实 `AdminServer`（`static_dir` 指向本包 `dist`），回环随机端口，用完即关并清理；
 文件间互不共享状态，按全部 CPU 核心并行，任一套件都可单独运行。
-用例覆盖认证状态机、路由深链接、列表过滤与 Previous/Next 游标分页、Invocation
+用例覆盖认证状态机、路由深链接、列表过滤与快照分页（新数据提示条）、Invocation
 六 Tab、记忆/管理员/模型/Chats/Developer/告警/Overview 写操作与冲突路径、只读保证与 CSP 同源
 安全断言。真实命令与契约清单见
 [agent-doc/verification.md](../../agent-doc/verification.md#admin-panel-浏览器-e2e)。
@@ -143,10 +143,11 @@ models.dev 目录缓存——`GET /providers/discover` 与 `lookup-metadata` 因
 
 ```ts
 import {
-  ChartPanel, ConfirmDialog, CopyableValue, CursorList, DetailError, DetailSkeleton,
+  ChartPanel, ConfirmDialog, CopyableValue, DetailError, DetailSkeleton,
   FormActionBar, JsonViewer, KvList, LazyDetails, ListFilterCard, ListFooter,
   ListPageHeader, ListSearchForm, ListToolbar, MonoValue, RowActions, SettingRow,
-  StateBadge, TableShell, TextValue, ToneBadge, useClientPagination, useOffsetPagination,
+  SnapshotList, SnapshotNotice, StateBadge, TableShell, TextValue, ToneBadge,
+  useClientPagination, useOffsetPagination, useSnapshotPages,
   type ColumnSpec, type TableSelection,
 } from '@/components/business';
 ```
@@ -168,11 +169,14 @@ Models 页只给 Current models 摘要保留 Card，Provider 导航、Connection
 - `RowActions` 是表格行操作：`sm ghost` 按钮或 `md` IconButton，无间距、靠右并向外
   拉 8px，危险操作用 `color="error"`。
 
-### 分页 `cursor-list.tsx` 与 `pagination.ts`
+### 分页 `snapshot-list.tsx`、`cursor-pages.ts` 与 `pagination.ts`
 
-- `CursorList` / `useCursorPages`：基于 keyset API 的真实 Previous/Next，只渲染当前
-  页；过滤（query key）变化立即回到第一页。`ListFooter` 的 `cursor` 模式只显示当前
-  页条数和「已知页 + 可能的下一页」，从不编造总数。
+- `SnapshotList` / `useSnapshotPages`：服务端快照分页（`limit`/`offset`/`as_of` →
+  `total`/`new_count`，契约见 agent-doc/admin-panel.md「列表快照分页」）。打开页面、改过滤
+  条件或点 `SnapshotNotice` 才开新快照并回到第 1 页；翻页、刷新与 15 秒轮询停在同一快照，
+  新行只体现为提示条。页面自己插入行后递增 `snapshotKey`，让读者直接看到自己写入的行。
+- `useCursorPages`：只给 Playground 房间时间线这种往回翻的 keyset 流；`ListFooter` 的
+  `cursor` 模式只显示当前页条数和「已知页 + 可能的下一页」，从不编造总数。
 - `useOffsetPagination` 给返回 `total` 的 offset API，`useClientPagination` 给一次性
   返回的整个数组（每页 10 条）。
 - **禁止**：对已加载数据做客户端排序、把 error 当空态。

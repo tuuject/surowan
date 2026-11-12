@@ -51,7 +51,7 @@ export function parseCli(argv: readonly string[]): ParsedCli {
       'global-prompt': parsed.values['global-prompt'],
       'group-prompt': parsed.values['group-prompt'],
       limit: parsed.values.limit,
-      cursor: parsed.values.cursor,
+      'as-of': parsed.values['as-of'],
       state: parsed.values.state,
       chat: parsed.values.chat,
       search: parsed.values.search,

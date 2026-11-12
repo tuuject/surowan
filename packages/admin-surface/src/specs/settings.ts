@@ -37,7 +37,7 @@ export const WARNING_SPECS: readonly EndpointSpec[] = [
     command: 'warning list',
     method: 'GET',
     path: 'warnings',
-    params: ['limit', 'cursor', 'unread'],
+    params: ['limit', 'offset', 'as-of=as_of', 'unread'],
     summary: 'List standing and event warnings with the unread count',
   },
   {

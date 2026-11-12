@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, lt, lte, or, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, lte, or, type SQL } from 'drizzle-orm';
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
 import { MemoPadStore } from '../../context/memo-pad/store.ts';
@@ -13,7 +13,16 @@ import {
 import type { Orm } from '../../store/store.ts';
 import { chats, memoPadEntries } from '../../store/schema/index.ts';
 import { telegramHostScope, telegramIdentity } from '../../store/host-scope.ts';
-import { AdminQueryError, type ListQuery, type Page, page, parseId, parseLimit } from './audit/shared.ts';
+import {
+  AdminQueryError,
+  type ListQuery,
+  type Page,
+  parseId,
+  parseWindow,
+  snapshotCounts,
+  snapshotPage,
+  timeSnapshot,
+} from './audit/shared.ts';
 
 export interface MemoryAdminItem {
   readonly id: string;
@@ -94,16 +103,15 @@ const MEMORY_LIST_FIELDS = {
   chat_title: chats.title,
 };
 
+/**
+ * Newest first. Memo ids are random, so both the order and the snapshot use
+ * `created_at`; the id only breaks ties between rows written in one millisecond.
+ */
 export function listMemories(orm: Orm, query: ListQuery, now = new Date()): Page<MemoryAdminItem> {
-  const limit = parseLimit(query.limit);
+  const window = parseWindow(query);
+  const snapshot = timeSnapshot(orm, memoPadEntries.createdAt, memoPadEntries.createdAt, query.as_of);
   const conditions: SQL[] = [telegramHostScope()];
   const nowIso = now.toISOString();
-  if (query.cursor !== undefined && query.cursor !== null && query.cursor.length > 0) {
-    if (!new RegExp(MEMO_ID_PATTERN).test(query.cursor)) {
-      throw new AdminQueryError('invalid_cursor', 'cursor must be a memory id');
-    }
-    conditions.push(lt(memoPadEntries.id, query.cursor));
-  }
   if (query.chat !== undefined && query.chat !== null && query.chat.length > 0) {
     conditions.push(eq(chats.telegramChatId, parseId(query.chat, 'chat')));
   }
@@ -120,15 +128,27 @@ export function listMemories(orm: Orm, query: ListQuery, now = new Date()): Page
       throw new AdminQueryError('invalid_state', 'state must be active, expired, short, or long');
     }
   }
+  const count = orm
+    .select(snapshotCounts(snapshot))
+    .from(memoPadEntries)
+    .innerJoin(chats, eq(chats.id, memoPadEntries.chatId))
+    .where(and(...conditions))
+    .get();
   const rows = orm
     .select(MEMORY_LIST_FIELDS)
     .from(memoPadEntries)
     .innerJoin(chats, eq(chats.id, memoPadEntries.chatId))
-    .where(and(...conditions))
-    .orderBy(desc(memoPadEntries.id))
-    .limit(limit + 1)
+    .where(and(...conditions, snapshot.within))
+    .orderBy(desc(memoPadEntries.createdAt), desc(memoPadEntries.id))
+    .limit(window.limit)
+    .offset(window.offset)
     .all();
-  return page(rows, limit, (row) => toItem(row, nowIso));
+  return snapshotPage(
+    rows.map((row) => toItem(row, nowIso)),
+    count,
+    window,
+    snapshot,
+  );
 }
 
 export function listMemoryChats(orm: Orm): readonly MemoryChatOption[] {

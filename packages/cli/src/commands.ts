@@ -68,8 +68,11 @@ async function runList(command: ListCommand, context: CommandContext, client: Ad
   if (command.limit !== undefined) {
     query.set('limit', String(command.limit));
   }
-  if (command.cursor !== undefined) {
-    query.set('cursor', command.cursor);
+  if (command.offset !== undefined) {
+    query.set('offset', String(command.offset));
+  }
+  if (command.asOf !== undefined) {
+    query.set('as_of', command.asOf);
   }
   if (command.state !== undefined) {
     query.set('state', command.state);
@@ -96,11 +99,11 @@ async function runList(command: ListCommand, context: CommandContext, client: Ad
   if (!isRecord(raw) || !Array.isArray(raw.items)) {
     throw new CliError('invalid_response', 'invocation list response has an unexpected shape');
   }
-  const nextCursor = raw.next_cursor;
-  if (nextCursor !== null && typeof nextCursor !== 'string') {
-    throw new CliError('invalid_response', 'invocation list next_cursor must be a string or null');
+  const window = listWindow(raw);
+  if (window === null) {
+    throw new CliError('invalid_response', 'invocation list total, offset, as_of and new_count are malformed');
   }
-  context.io.stdout(context.json ? `${JSON.stringify(raw)}\n` : humanList(raw.items, nextCursor));
+  context.io.stdout(context.json ? `${JSON.stringify(raw)}\n` : humanList(raw.items, window));
   return 0;
 }
 
@@ -315,13 +318,40 @@ function preflightQuery(command: PreflightCommand | ReplayCommand): URLSearchPar
   return query;
 }
 
-function humanList(items: readonly unknown[], nextCursor: string | null): string {
-  if (items.length === 0) {
-    return 'no invocations\n';
+interface ListWindow {
+  readonly total: number;
+  readonly offset: number;
+  readonly asOf: string;
+  readonly newCount: number;
+}
+
+/** The snapshot paging fields of a list response, or `null` when one is malformed. */
+export function listWindow(raw: Record<string, unknown>): ListWindow | null {
+  const { total, offset, as_of: asOf, new_count: newCount } = raw;
+  if (
+    typeof total !== 'number' ||
+    typeof offset !== 'number' ||
+    typeof asOf !== 'string' ||
+    typeof newCount !== 'number'
+  ) {
+    return null;
   }
-  const lines = items.flatMap((item) => humanListLines(item));
-  if (nextCursor !== null) {
-    lines.push(`next_cursor: ${nextCursor}`);
+  return { total, offset, asOf, newCount };
+}
+
+/**
+ * The page plus how to continue it: the next page reuses `as_of`, so it stays
+ * on the same snapshot even while new invocations arrive.
+ */
+function humanList(items: readonly unknown[], window: ListWindow): string {
+  const lines = items.length === 0 ? ['no invocations'] : items.flatMap((item) => humanListLines(item));
+  const end = window.offset + items.length;
+  lines.push(`showing ${items.length === 0 ? 0 : window.offset + 1}-${end} of ${window.total} (as_of ${window.asOf})`);
+  if (end < window.total) {
+    lines.push(`next page: --offset ${end} --as-of ${window.asOf}`);
+  }
+  if (window.newCount > 0) {
+    lines.push(`${window.newCount} newer invocation(s) since as_of; omit --as-of to include them`);
   }
   return `${lines.join('\n')}\n`;
 }

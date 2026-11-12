@@ -8,7 +8,6 @@ import {
   ChatFilter,
   type ColumnSpec,
   ConfirmDialog,
-  CursorList,
   KvList,
   ListPageHeader,
   ListSearchForm,
@@ -16,6 +15,7 @@ import {
   QuerySelectField,
   QueryTextField,
   RowActions,
+  SnapshotList,
   StateBadge,
   TableShell,
   TextValue,
@@ -218,7 +218,7 @@ export default function AlarmsPage(): ReactElement {
           </>
         )}
       </ListSearchForm>
-      <CursorList
+      <SnapshotList
         factory={alarmsQuery}
         filters={filters}
         renderItems={(items, { loading }) => (

@@ -30,6 +30,7 @@ import {
   parseDecimalId,
   parseLimit,
   parseModelFilter,
+  parseOffset,
   parseSearch,
   parseSource,
   parseState,
@@ -157,7 +158,6 @@ export const PANEL_ONLY_FLAGS: readonly FlagName[] = [
   'set-json',
   'output',
   'format',
-  'offset',
   'days',
   'q',
   'unread',
@@ -190,7 +190,8 @@ function parseConfigShow(
   rejectUnsupportedFlags(flags, [
     ...MODEL_FLAGS,
     'limit',
-    'cursor',
+    'offset',
+    'as-of',
     'state',
     'chat',
     'variant',
@@ -219,7 +220,8 @@ function parsePromptGet(subcommand: string | undefined, rest: readonly string[],
   rejectUnsupportedFlags(flags, [
     ...MODEL_FLAGS,
     'limit',
-    'cursor',
+    'offset',
+    'as-of',
     'state',
     'variant',
     ...PROMPT_PART_FLAGS,
@@ -293,7 +295,8 @@ function parseList(rest: readonly string[], flags: StringFlags): ListCommand {
   return {
     kind: 'list',
     limit: flags.limit === undefined ? undefined : parseLimit(flags.limit),
-    cursor: flags.cursor === undefined ? undefined : parseDecimalId(flags.cursor, 'cursor', false),
+    offset: flags.offset === undefined ? undefined : parseOffset(flags.offset),
+    asOf: flags['as-of'] === undefined ? undefined : parseDecimalId(flags['as-of'], 'as-of', false),
     state: flags.state === undefined ? undefined : parseState(flags.state),
     chat: flags.chat === undefined ? undefined : parseDecimalId(flags.chat, 'chat', true),
     search: parseSearch(flags.search),
@@ -352,7 +355,8 @@ function parseMedia(rest: readonly string[], flags: StringFlags): MediaCommand {
   rejectUnsupportedFlags(flags, [
     ...MODEL_FLAGS,
     'limit',
-    'cursor',
+    'offset',
+    'as-of',
     'state',
     'chat',
     'source',
@@ -376,7 +380,16 @@ function parseReplay(rest: readonly string[], flags: StringFlags): ReplayCommand
   if (extra.length > 0) {
     throw usageError('unexpected_argument', 'invocation replay takes exactly one id');
   }
-  rejectUnsupportedFlags(flags, ['limit', 'cursor', 'state', 'chat', 'source', 'variant', ...TIME_FILTER_FLAGS]);
+  rejectUnsupportedFlags(flags, [
+    'limit',
+    'offset',
+    'as-of',
+    'state',
+    'chat',
+    'source',
+    'variant',
+    ...TIME_FILTER_FLAGS,
+  ]);
   if (flags['global-prompt'] === '-' && flags['group-prompt'] === '-') {
     throw usageError('conflicting_prompt_input', 'only one of --global-prompt and --group-prompt can read from stdin');
   }

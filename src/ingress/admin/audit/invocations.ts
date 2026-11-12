@@ -2,18 +2,20 @@ import { type SQL, sql } from 'drizzle-orm';
 import type { RawConfig } from '../../../platform/config/index.ts';
 import { HOST_KINDS, type HostKind } from '../../../platform/im-host/identity.ts';
 import { telegramIdentity } from '../../../store/host-scope.ts';
+import { invocations } from '../../../store/schema/index.ts';
 import type { Orm } from '../../../store/store.ts';
 import {
   AdminQueryError,
-  appendCursor,
   assertToken,
   bit,
+  idSnapshot,
   type ListQuery,
   optionalFilter,
   type Page,
-  page,
   parseId,
-  parseLimit,
+  parseWindow,
+  snapshotCounts,
+  snapshotPage,
   whereSql,
 } from './shared.ts';
 import { loadMatchedMessages, matchedMessagesExists, parseInvocationMessageFilter } from './invocation-search.ts';
@@ -59,9 +61,9 @@ export const INVOCATION_CHAT_COLUMNS = sql`ch.host_kind, ch.id AS chat_id, ch.te
               ch.title AS chat_title, ch.username AS chat_username, c.message_thread_id`;
 
 export function listInvocations(orm: Orm, query: ListQuery, config?: RawConfig): Page<Record<string, unknown>> {
-  const limit = parseLimit(query.limit);
+  const window = parseWindow(query);
+  const snapshot = idSnapshot(orm, invocations.id, sql`i.id`, query.as_of);
   const conditions: SQL[] = [];
-  appendCursor(conditions, sql`i.id`, query.cursor);
   if (query.state !== undefined && query.state !== null && query.state.length > 0) {
     conditions.push(sql`i.state = ${assertToken(query.state, 'state')}`);
   }
@@ -93,6 +95,13 @@ export function listInvocations(orm: Orm, query: ListQuery, config?: RawConfig):
   if (filter !== null) {
     conditions.push(matchedMessagesExists(filter));
   }
+  const from = sql`FROM invocations i
+       JOIN conversations c ON c.id = i.conversation_id
+       JOIN chats ch ON ch.id = c.chat_id`;
+  const counts = snapshotCounts(snapshot);
+  const [count] = orm.all<{ readonly total: unknown; readonly fresh: unknown }>(
+    sql`SELECT ${counts.total} AS total, ${counts.fresh} AS fresh ${from} ${whereSql(conditions)}`,
+  );
   const rows =
     orm.all<InvocationListRow>(sql`SELECT i.id, i.state, i.created_at, i.started_at, i.finished_at, i.completion_reason, i.error_code,
               i.sends_used, i.tool_calls_used, i.turns_used, i.side_effect_started, i.config_hash,
@@ -102,12 +111,10 @@ export function listInvocations(orm: Orm, query: ListQuery, config?: RawConfig):
               (SELECT COALESCE(SUM(mc.cache_read_tokens), 0) FROM model_calls mc WHERE mc.invocation_id = i.id) AS cache_read_tokens,
               (SELECT COALESCE(SUM(mc.cache_write_tokens), 0) FROM model_calls mc WHERE mc.invocation_id = i.id) AS cache_write_tokens,
               (SELECT SUM(mc.cost) FROM model_calls mc WHERE mc.invocation_id = i.id) AS total_cost
-       FROM invocations i
-       JOIN conversations c ON c.id = i.conversation_id
-       JOIN chats ch ON ch.id = c.chat_id
-       ${whereSql(conditions)}
+       ${from}
+       ${whereSql([...conditions, snapshot.within])}
        ORDER BY i.id DESC
-       LIMIT ${BigInt(limit + 1)}`);
+       LIMIT ${BigInt(window.limit)} OFFSET ${BigInt(window.offset)}`);
   const matchedByInvocation =
     filter === null
       ? null
@@ -116,7 +123,7 @@ export function listInvocations(orm: Orm, query: ListQuery, config?: RawConfig):
           rows.map((row) => row.id),
           filter,
         );
-  return page(rows, limit, (row) => {
+  const items = rows.map((row) => {
     const item = {
       id: row.id.toString(),
       state: row.state,
@@ -142,6 +149,7 @@ export function listInvocations(orm: Orm, query: ListQuery, config?: RawConfig):
     }
     return { ...item, matched_messages: matchedByInvocation.get(row.id.toString()) ?? [] };
   });
+  return snapshotPage(items, count, window, snapshot);
 }
 
 /**

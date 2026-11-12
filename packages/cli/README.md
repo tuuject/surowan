@@ -151,7 +151,7 @@ printf '%s' "$SECRET_KEY" | surowan-utils login --endpoint "$SUROWAN_ENDPOINT" -
 | `--variant <original\|preview>` | 仅 `invocation media`：下载原始文件（默认）或服务端规范化预览；preview 只对 photo/sticker 可用，单文件与总量上限见下文 |
 | `--timeout-ms <ms>` | 请求/输入超时；默认除 replay（300s）外都是 30s。stdin 读取单独使用同一上限，超时返回 `timeout`（退出码 1）且不发请求；HTTP 超时会中止请求，均**不自动重试** |
 | `--json` | 稳定 JSON 输出；成功时 stdout 恰好一个 JSON 文档 |
-| `--limit` / `--cursor` / `--state` | 透传给 `GET /api/invocations` 的过滤参数，本地先做形状校验（limit 1–100；Invocation ID/cursor 为非负十进制，限制在有符号 64 位范围） |
+| `--limit` / `--offset` / `--as-of` / `--state` | 透传给 `GET /api/invocations` 的分页与过滤参数，本地先做形状校验（limit 1–100；offset 为规范非负十进制且小于 1000000000；`--as-of` 是上一页响应的 `as_of`，非负十进制，限制在有符号 64 位范围）。翻页时带回同一个 `--as-of`，就停在同一快照里，期间新产生的 Invocation 不会挤动页面，只计入 `new_count`；不带 `--as-of` 即取最新快照 |
 | `--chat <id>` | `invocation list` 的 Chat 过滤，或 `prompt get group` 必填的群 ID；必须是可带负号的有符号 64 位十进制，缺失时 `prompt get group` 报 `missing_argument` |
 | `--search <keyword>` | 仅 `invocation list`：按字面关键词匹配公开消息（1–100 字符；`%`、`_` 按字面处理）。候选是冻结 `invocation_messages`（`section=new`）的群友消息 text/caption，或同 Invocation 成功 `telegram_sends` 的 text/caption；与时间过滤同用时关键词与时间必须命中同一条消息。带搜索或时间过滤时每个 item 追加 `matched_messages`，不带时维持原形状 |
 | `--at <time>` / `--from <time>` / `--to <time>` | 仅 `invocation list`：公开消息时间过滤。`--at` 命中写出的整个精度窗口（`HH:mm` 为整分钟、`HH:mm:ss` 为整秒、小数 1/2/3 位分别对应 100/10/1 毫秒窗口），`--from`/`--to` 组成半开区间 `[from, to)`；`--at` 不能与 `--from`/`--to` 同用。格式 `YYYY-MM-DD[空格或T]HH:mm[:ss[.1-3位]][Z\|±HH:mm]`；不带 offset 的时间在服务端按 `--chat` 对应 Chat 的时区解析、否则用全局时区，非法日历与 DST 不存在/重复时间被拒绝 |

@@ -44,6 +44,14 @@ export function parseLimit(text: string): number {
   return limit;
 }
 
+/** The server's bound: a canonical non-negative decimal below one billion. */
+export function parseOffset(text: string): number {
+  if (!/^(0|[1-9][0-9]{0,8})$/.test(text)) {
+    throw usageError('invalid_offset', 'offset must be a canonical non-negative decimal below 1000000000');
+  }
+  return Number(text);
+}
+
 export function parseSearch(text: string | undefined): string | undefined {
   if (text === undefined) {
     return undefined;
@@ -193,7 +201,7 @@ export function parseBeforeSend(text: string | undefined): string | undefined {
   return value.toString();
 }
 
-export function parseDecimalId(text: string, label: 'id' | 'cursor' | 'chat', allowNegative: boolean): string {
+export function parseDecimalId(text: string, label: 'id' | 'as-of' | 'chat', allowNegative: boolean): string {
   const pattern = allowNegative ? SIGNED_DECIMAL_PATTERN : DECIMAL_PATTERN;
   if (!pattern.test(text)) {
     throw usageError(`invalid_${label}`, `${label} must be a decimal integer`);

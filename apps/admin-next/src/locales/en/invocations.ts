@@ -270,6 +270,9 @@ export const invocations = {
     noMedia: 'No media.',
   },
   contexts: {
+    newActivity_one: '{{count}} conversation became active since this list was opened',
+    newActivity_other: '{{count}} conversations became active since this list was opened',
+    showNewActivity: 'Show latest activity',
     columns: {
       id: 'ID',
       chat: 'Chat',
@@ -344,7 +347,7 @@ export const invocations = {
       note: 'Assistant text is private reasoning and is never sent to Telegram directly — only a successful',
       noteTail: 'tool call publishes a message.',
     },
-    cursorList: {
+    list: {
       noRecordsDescription: 'No records match the current filters.',
       adminRequestFailed: 'Admin request failed',
     },

@@ -7,8 +7,12 @@ import { KEY, child, cli, home, json, server } from './login-fixtures.ts';
 describe('surowan-utils login and doctor', () => {
   it('never sends a saved key to a different endpoint override', async () => {
     const homeDir = await home();
-    const first = await server((response) => json(response, 200, { items: [], next_cursor: null }));
-    const other = await server((response) => json(response, 200, { items: [], next_cursor: null }));
+    const first = await server((response) =>
+      json(response, 200, { items: [], total: 0, limit: 25, offset: 0, as_of: '0', new_count: 0 }),
+    );
+    const other = await server((response) =>
+      json(response, 200, { items: [], total: 0, limit: 25, offset: 0, as_of: '0', new_count: 0 }),
+    );
     await writeCredentials(credentialsPath(homeDir), { endpoint: first.endpoint, apiKey: KEY });
     for (const options of [
       { args: ['doctor', '--endpoint', other.endpoint, '--json'], env: {} },
@@ -79,7 +83,9 @@ describe('surowan-utils login and doctor', () => {
 
   it('times out on unfinished key input without saving or sending HTTP', async () => {
     const homeDir = await home();
-    const http = await server((response) => json(response, 200, { items: [], next_cursor: null }));
+    const http = await server((response) =>
+      json(response, 200, { items: [], total: 0, limit: 25, offset: 0, as_of: '0', new_count: 0 }),
+    );
     const result = await child(
       ['login', '--endpoint', http.endpoint, '--api-key-stdin', '--timeout-ms', '100', '--json'],
       homeDir,

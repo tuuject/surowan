@@ -12,7 +12,7 @@ export const AUDIT_SPECS: readonly EndpointSpec[] = [
     method: 'GET',
     path: 'invocations',
     cli: false,
-    params: ['chat', 'state', 'host', 'model', 'search', 'at', 'from', 'to', 'limit', 'cursor'],
+    params: ['chat', 'state', 'host', 'model', 'search', 'at', 'from', 'to', 'limit', 'offset', 'as-of=as_of'],
     summary: 'List invocations, optionally filtered by chat, state, host, model, message search or time',
   },
   {
@@ -159,7 +159,7 @@ export const AUDIT_SPECS: readonly EndpointSpec[] = [
     command: 'context list',
     method: 'GET',
     path: 'contexts',
-    params: ['chat', 'limit', 'cursor'],
+    params: ['chat', 'limit', 'offset', 'as-of=as_of'],
     summary: 'List Conversation Contexts',
   },
   {
@@ -173,7 +173,7 @@ export const AUDIT_SPECS: readonly EndpointSpec[] = [
     command: 'message list',
     method: 'GET',
     path: 'messages',
-    params: ['chat', 'search', 'limit', 'cursor'],
+    params: ['chat', 'search', 'limit', 'offset', 'as-of=as_of'],
     summary: 'List stored Telegram messages',
   },
   {
@@ -193,14 +193,14 @@ export const AUDIT_SPECS: readonly EndpointSpec[] = [
     command: 'sticker list',
     method: 'GET',
     path: 'stickers',
-    params: ['sticker-set=set', 'state', 'search', 'limit', 'cursor'],
+    params: ['sticker-set=set', 'state', 'search', 'limit', 'offset', 'as-of=as_of'],
     summary: 'List indexed stickers',
   },
   {
     command: 'alarm list',
     method: 'GET',
     path: 'alarms',
-    params: ['state', 'chat', 'target', 'limit', 'cursor'],
+    params: ['state', 'chat', 'target', 'limit', 'offset', 'as-of=as_of'],
     summary: 'List Alarm projections of long-running tasks',
   },
 ];

@@ -33,7 +33,7 @@ afterAll(async () => {
 describe('surowan-utils invocation CLI', () => {
   it('rejects unknown arguments and subcommands instead of ignoring them', async () => {
     const server = await startServer((_request, response) => {
-      jsonResponse(response, 200, { items: [], next_cursor: null });
+      jsonResponse(response, 200, { items: [], total: 0, limit: 25, offset: 0, as_of: '0', new_count: 0 });
     });
     try {
       const env = { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY };
@@ -94,7 +94,7 @@ describe('surowan-utils invocation CLI', () => {
 
   it('validates ids, limits and filters before any request', async () => {
     const server = await startServer((_request, response) => {
-      jsonResponse(response, 200, { items: [], next_cursor: null });
+      jsonResponse(response, 200, { items: [], total: 0, limit: 25, offset: 0, as_of: '0', new_count: 0 });
     });
     try {
       const env = { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY };
@@ -142,7 +142,7 @@ describe('surowan-utils invocation CLI', () => {
       preflightOr((request, response) => {
         const path = request.url ?? '';
         if (path.startsWith('/api/invocations?')) {
-          jsonResponse(response, 200, { items: [], next_cursor: null });
+          jsonResponse(response, 200, { items: [], total: 0, limit: 25, offset: 0, as_of: '0', new_count: 0 });
           return;
         }
         if (path.startsWith('/api/prompts/')) {
@@ -167,9 +167,9 @@ describe('surowan-utils invocation CLI', () => {
     try {
       const env = { SUROWAN_ENDPOINT: server.baseUrl, SUROWAN_API_KEY: API_KEY };
       expect((await runCli(['invocation', 'get', '0042', '--json'], { env })).code).toBe(0);
-      expect(
-        (await runCli(['invocation', 'list', '--cursor', '007', '--chat', '-00100', '--json'], { env })).code,
-      ).toBe(0);
+      expect((await runCli(['invocation', 'list', '--as-of', '007', '--chat', '-00100', '--json'], { env })).code).toBe(
+        0,
+      );
       expect((await runCli(['invocation', 'replay', '0007', '--json'], { env })).code).toBe(0);
       expect((await runCli(['prompt', 'get', 'group', '--chat', '-0042', '--json'], { env })).code).toBe(0);
       expect((await runCli(['invocation', 'preflight', '0007', '--before-send', '0042', '--json'], { env })).code).toBe(
@@ -177,7 +177,7 @@ describe('surowan-utils invocation CLI', () => {
       );
       expect(server.requests.map((request) => `${request.method} ${request.url}`)).toEqual([
         'GET /api/invocations/42',
-        'GET /api/invocations?cursor=7&chat=-100',
+        'GET /api/invocations?as_of=7&chat=-100',
         'GET /api/invocations/7/replay-preflight',
         'POST /api/invocations/7/replay',
         'GET /api/prompts/group?source=active&chat=-42',

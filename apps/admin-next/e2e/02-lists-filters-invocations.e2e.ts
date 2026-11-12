@@ -1,27 +1,43 @@
-import { expect } from '@playwright/test';
-import { adminUrl, clickSearch, expectRealPagination, nextPage, previousPage, tableBodyRows, test } from './helpers.ts';
+import { writeFile } from 'node:fs/promises';
+import { expect, type Page } from '@playwright/test';
+import {
+  adminUrl,
+  clickSearch,
+  e2eFetch,
+  expectRealPagination,
+  nextPage,
+  previousPage,
+  tableBodyRows,
+  test,
+} from './helpers.ts';
 
-/** Real list filters and Previous/Next pagination against the fixture APIs. */
+/** Real list filters and snapshot pagination against the fixture APIs. */
 test.use({ signedIn: true });
 
+function pageButton(page: Page, number: number) {
+  return page.getByRole('button', { name: `Page ${number}`, exact: true });
+}
+
 test.describe('invocations list', () => {
-  test('cursor Next shows different rows, Previous restores them, and filters reset to page 1', async ({ page }) => {
+  test('Next shows different rows, Previous restores them, and filters reset to page 1', async ({ page }) => {
     await page.goto(await adminUrl('/invocations'));
     const rows = tableBodyRows(page);
     await expect(rows).toHaveCount(25);
     await expectRealPagination(page);
+    await expect(page.getByText('30 records', { exact: true })).toBeVisible();
     const firstPageIds = await rows.locator('td:first-child').allTextContents();
 
     await nextPage(page).click();
     await expect(rows).toHaveCount(5);
     const secondPageIds = await rows.locator('td:first-child').allTextContents();
     expect(secondPageIds).not.toEqual(firstPageIds);
-    await expect(page.getByText('Page 2, 5 records', { exact: true })).toBeVisible();
+    await expect(pageButton(page, 2)).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByText('30 records', { exact: true })).toBeVisible();
 
     await previousPage(page).click();
     await expect(rows).toHaveCount(25);
     expect(await rows.locator('td:first-child').allTextContents()).toEqual(firstPageIds);
-    await expect(page.getByText('Page 1, 25 records', { exact: true })).toBeVisible();
+    await expect(pageButton(page, 1)).toHaveAttribute('aria-current', 'page');
 
     await nextPage(page).click();
     await expect(rows).toHaveCount(5);
@@ -29,98 +45,105 @@ test.describe('invocations list', () => {
     await model.fill('gpt-4.1-mini');
     await model.press('Enter');
     await expect(rows).toHaveCount(2);
-    await expect(page.getByText('Page 1, 2 records', { exact: true })).toBeVisible();
+    await expect(page.getByText('2 records', { exact: true })).toBeVisible();
     await expect(previousPage(page)).toBeDisabled();
 
     // Returning to the unfiltered query must not resurrect its old second page.
     await page.getByRole('button', { name: 'Reset', exact: true }).click();
     await expect(rows).toHaveCount(25);
-    await expect(page.getByText('Page 1, 25 records', { exact: true })).toBeVisible();
+    await expect(page.getByText('30 records', { exact: true })).toBeVisible();
     await expect(previousPage(page)).toBeDisabled();
   });
 
-  test('refresh and cursor pagination cannot cancel each other', async ({ page }) => {
-    const refreshGate = Promise.withResolvers<void>();
-    const nextPageGate = Promise.withResolvers<void>();
-    let holdRefresh = false;
-    let refreshCalls = 0;
-    let nextPageCalls = 0;
-    await page.route('**/api/invocations?*', async (route) => {
-      const url = new URL(route.request().url());
-      if (url.pathname !== '/api/invocations') {
-        await route.fallback();
-        return;
+  test('an invocation that arrives after opening stays out of every page until the notice is used', async ({
+    page,
+  }, testInfo) => {
+    const requests: { offset: string | null; as_of: string | null }[] = [];
+    page.on('request', (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === '/api/invocations') {
+        requests.push({ offset: url.searchParams.get('offset'), as_of: url.searchParams.get('as_of') });
       }
-      if (url.searchParams.has('cursor')) {
-        nextPageCalls += 1;
-        await nextPageGate.promise;
-      } else if (holdRefresh) {
-        refreshCalls += 1;
-        await refreshGate.promise;
-      }
-      await route.fallback();
     });
     await page.goto(await adminUrl('/invocations'));
     const rows = tableBodyRows(page);
     await expect(rows).toHaveCount(25);
-    const refresh = page.getByRole('button', { name: 'Refresh list', exact: true });
+    const firstPageIds = await rows.locator('td:first-child').allTextContents();
+    expect(requests[0]).toEqual({ offset: '0', as_of: null });
 
-    holdRefresh = true;
-    await refresh.click();
-    await expect.poll(() => refreshCalls).toBe(1);
-    await nextPage(page).click();
-    expect(nextPageCalls).toBe(0);
-    holdRefresh = false;
-    refreshGate.resolve();
-    await expect(refresh).toBeEnabled();
+    const { id: arrival } = await e2eFetch<{ id: string }>('/insert-invocation', { method: 'POST' });
+    expect(Number(arrival)).toBeGreaterThan(Number(firstPageIds[0]));
 
+    // A refresh re-reads the snapshot: the same rows, plus the arrival count.
+    const notice = page.getByRole('status').filter({ hasText: '1 new record since this list was opened' });
+    await page.getByRole('button', { name: 'Refresh list', exact: true }).click();
+    await expect(notice).toBeVisible();
+    expect(await rows.locator('td:first-child').allTextContents()).toEqual(firstPageIds);
+    await expect(page.getByText('30 records', { exact: true })).toBeVisible();
+
+    // Page 2 is the snapshot's remainder: five rows, none of them repeated
+    // from page 1 even though a newer row now sorts before all of them.
     await nextPage(page).click();
-    await expect.poll(() => nextPageCalls).toBe(1);
-    await expect(refresh).toBeDisabled();
-    nextPageGate.resolve();
+    await expect(pageButton(page, 2)).toHaveAttribute('aria-current', 'page');
     await expect(rows).toHaveCount(5);
+    const secondPageIds = await rows.locator('td:first-child').allTextContents();
+    expect(secondPageIds.filter((id) => firstPageIds.includes(id))).toEqual([]);
+    await expect(page.getByText('30 records', { exact: true })).toBeVisible();
+    await expect(notice).toBeVisible();
+    const pinned = requests.filter((request) => request.as_of !== null);
+    expect(pinned.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(pinned.map((request) => request.as_of)).size).toBe(1);
+    expect(pinned.map((request) => request.offset)).toContain('25');
+    expect(Number(pinned[0]?.as_of)).toBe(Number(firstPageIds[0]));
+
+    const screenshot = testInfo.outputPath('snapshot-notice.png');
+    await page.screenshot({ path: screenshot, fullPage: true });
+    await testInfo.attach('snapshot-notice', { path: screenshot, contentType: 'image/png' });
+
+    const beforeRenew = requests.length;
+    await notice.getByRole('button', { name: 'Show new records', exact: true }).click();
+    await expect(pageButton(page, 1)).toHaveAttribute('aria-current', 'page');
+    await expect(rows).toHaveCount(25);
+    await expect(rows.first().locator('td:first-child')).toHaveText(arrival);
+    await expect(page.getByText('31 records', { exact: true })).toBeVisible();
+    await expect(notice).toHaveCount(0);
+    expect(requests[beforeRenew]).toEqual({ offset: '0', as_of: null });
+
+    const report = testInfo.outputPath('snapshot-requests.json');
+    await writeFile(report, JSON.stringify({ arrival, firstPageIds, secondPageIds, requests }, null, 2));
+    await testInfo.attach('snapshot-requests', { path: report, contentType: 'application/json' });
   });
 
   test('Previous wins over a slower pending Next response', async ({ page }) => {
-    const thirdPageGate = Promise.withResolvers<void>();
-    const firstPageIds: string[] = [];
-    let cursorCalls = 0;
+    const secondPageGate = Promise.withResolvers<void>();
+    let secondPageCalls = 0;
     await page.route('**/api/invocations?*', async (route) => {
       const url = new URL(route.request().url());
-      if (!url.searchParams.has('cursor')) {
+      if (url.pathname !== '/api/invocations' || url.searchParams.get('offset') !== '25') {
         await route.fallback();
         return;
       }
-      cursorCalls += 1;
-      if (cursorCalls === 1) {
-        const response = await route.fetch();
-        const body = (await response.json()) as { items: { id: string }[]; next_cursor: string | null };
-        // Advertise one more page so Next is available while standing on page 2.
-        body.next_cursor = body.items.at(-1)?.id ?? null;
-        await route.fulfill({ response, json: body });
-        return;
-      }
-      await thirdPageGate.promise;
-      await route.fulfill({ json: { items: [], next_cursor: null } });
+      secondPageCalls += 1;
+      await secondPageGate.promise;
+      await route.fallback();
     });
 
     await page.goto(await adminUrl('/invocations'));
     const rows = tableBodyRows(page);
     await expect(rows).toHaveCount(25);
-    firstPageIds.push(...(await rows.locator('td:first-child').allTextContents()));
-    await nextPage(page).click();
-    await expect(rows).toHaveCount(5);
-    const thirdResponse = page.waitForResponse(
-      (response) => new URL(response.url()).pathname === '/api/invocations' && cursorCalls === 2,
+    const firstPageIds = await rows.locator('td:first-child').allTextContents();
+    const secondResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/invocations' &&
+        new URL(response.url()).searchParams.get('offset') === '25',
     );
     await nextPage(page).click();
-    await expect.poll(() => cursorCalls).toBe(2);
-    await previousPage(page).click();
+    await expect.poll(() => secondPageCalls).toBe(1);
+    await pageButton(page, 1).click();
+    secondPageGate.resolve();
+    await secondResponse;
+    await expect(pageButton(page, 1)).toHaveAttribute('aria-current', 'page');
     await expect(rows).toHaveCount(25);
-    thirdPageGate.resolve();
-    await thirdResponse;
-    await expect(page.getByRole('button', { name: 'Refresh list', exact: true })).toBeEnabled();
-    await expect(page.getByText('Page 1, 25 records', { exact: true })).toBeVisible();
     expect(await rows.locator('td:first-child').allTextContents()).toEqual(firstPageIds);
   });
 
@@ -129,15 +152,15 @@ test.describe('invocations list', () => {
     await page.route('**/api/invocations?*', async (route) => {
       if (!failed && new URL(route.request().url()).pathname === '/api/invocations') {
         failed = true;
-        await route.fulfill({ status: 502, json: { error: 'internal', message: 'Synthetic cursor failure' } });
+        await route.fulfill({ status: 502, json: { error: 'internal', message: 'Synthetic list failure' } });
         return;
       }
       await route.fallback();
     });
     await page.goto(await adminUrl('/invocations'));
-    await expect(page.getByRole('alert').filter({ hasText: 'Synthetic cursor failure' })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: 'Synthetic list failure' })).toBeVisible();
     await expect(page.locator('table')).toHaveCount(0);
-    await expect(page.getByText('Page 1, 0 records', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('0 records', { exact: true })).toHaveCount(0);
     await expect(page.getByText('No records match the current filters.')).toHaveCount(0);
     await page.getByRole('button', { name: 'Refresh list', exact: true }).click();
     await expect(tableBodyRows(page)).toHaveCount(25);

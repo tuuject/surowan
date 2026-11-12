@@ -204,10 +204,14 @@ test('previews are truncated to 2000 characters', () => {
 test('pagination, chat and state filters keep intersecting with the search', () => {
   const first = listInvocations(current().store.orm, { search: '苹果', limit: '1' }, current().config);
   expect(first.items.map((item) => (item as unknown as Item).id)).toEqual(['403']);
-  expect(first.next_cursor).toBe('403');
-  const second = listInvocations(current().store.orm, { search: '苹果', limit: '1', cursor: '403' }, current().config);
+  expect(first).toMatchObject({ total: 2, offset: 0, new_count: 0 });
+  const second = listInvocations(
+    current().store.orm,
+    { search: '苹果', limit: '1', offset: '1', as_of: first.as_of },
+    current().config,
+  );
   expect(second.items.map((item) => (item as unknown as Item).id)).toEqual(['401']);
-  expect(second.next_cursor).toBeNull();
+  expect(second).toMatchObject({ total: 2, offset: 1, as_of: first.as_of });
 
   expect(ids({ search: '苹果', chat: '-100222' })).toEqual(['403']);
   expect(ids({ search: '苹果', chat: '-100111' })).toEqual(['401']);

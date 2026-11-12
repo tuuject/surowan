@@ -153,9 +153,10 @@ export function ListToolbar({
 }
 
 /**
- * A truthful count and Koi page navigation. Cursor lists pass their current
- * page size and a pageCount of known pages plus one possible next page; they
- * never invent a total. Offset and whole-array lists pass their real total.
+ * A truthful count and Koi page navigation. Snapshot, offset and whole-array
+ * lists pass their real total. The Playground timeline is a keyset over a
+ * room that keeps growing: it passes `cursor`, its current page size and a
+ * pageCount of known pages plus one possible next page, and never a total.
  */
 export function ListFooter({
   count,

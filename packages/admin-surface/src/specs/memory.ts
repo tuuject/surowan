@@ -9,7 +9,7 @@ export const MEMORY_SPECS: readonly EndpointSpec[] = [
     command: 'memo list',
     method: 'GET',
     path: 'memories',
-    params: ['chat', 'state', 'limit', 'cursor'],
+    params: ['chat', 'state', 'limit', 'offset', 'as-of=as_of'],
     summary: 'List Memo Pad entries by Chat and state',
   },
   {
@@ -53,7 +53,7 @@ export const MEMORY_SPECS: readonly EndpointSpec[] = [
     command: 'group-memory list',
     method: 'GET',
     path: 'group-memories',
-    params: ['chat', 'day', 'search', 'limit', 'cursor'],
+    params: ['chat', 'day', 'search', 'limit', 'offset', 'as-of=as_of'],
     summary: 'List generated group-memory event summaries',
   },
   {

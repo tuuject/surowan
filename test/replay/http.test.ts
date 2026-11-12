@@ -112,7 +112,7 @@ test('CLI replay over real HTTP runs ReplayRunner with synthetic side effects an
   const list = await runCli(['invocation', 'list', '--limit', '10', '--json'], env);
   expect(list.code).toBe(0);
   expect(list.stderr).toBe('');
-  const listing = JSON.parse(list.stdout) as { items: { id: string }[]; next_cursor: string | null };
+  const listing = JSON.parse(list.stdout) as { items: { id: string }[]; total: number; as_of: string };
   expect(listing.items.map((item) => item.id)).toContain('4001');
 
   const get = await runCli(['invocation', 'get', '4001', '--json'], env);

@@ -76,7 +76,11 @@ test('a failed warning poll keeps cached warnings and their actions visible', as
             read_at: null,
           },
         ],
-        next_cursor: null,
+        total: 1,
+        limit: 5,
+        offset: 0,
+        as_of: '1',
+        new_count: 0,
         unread_count: 1,
       },
     });
@@ -111,7 +115,6 @@ const pages = [
     label: 'Memories',
     heading: 'Memories',
     action: 'New memo',
-    count: 'cursor',
   },
   {
     path: '/group-memories',
@@ -120,7 +123,6 @@ const pages = [
     label: 'Group memory',
     heading: 'Group memory',
     action: 'Refresh list',
-    count: 'cursor',
   },
   {
     path: '/dictionary',
@@ -129,7 +131,6 @@ const pages = [
     label: 'Dictionary',
     heading: 'Dictionary',
     action: 'New entry',
-    count: 'records',
   },
   {
     path: '/alarms',
@@ -138,7 +139,6 @@ const pages = [
     label: 'Alarms',
     heading: 'Alarms',
     action: 'Refresh list',
-    count: 'cursor',
   },
   {
     path: '/admins',
@@ -147,7 +147,6 @@ const pages = [
     label: 'Bot admins',
     heading: 'Bot admins',
     action: 'Add bot admin',
-    count: 'records',
   },
   {
     path: '/chats',
@@ -156,7 +155,6 @@ const pages = [
     label: 'Chats',
     heading: 'Chat allowlist',
     action: 'Add Chat',
-    count: 'records',
   },
   {
     path: '/prompts',
@@ -165,7 +163,6 @@ const pages = [
     label: 'Prompts',
     heading: 'Prompts',
     action: 'Refresh list',
-    count: 'records',
   },
   {
     path: '/api-keys',
@@ -174,7 +171,6 @@ const pages = [
     label: 'API keys',
     heading: 'API keys',
     action: 'Create API key',
-    count: 'records',
   },
   {
     path: '/search-settings',
@@ -183,7 +179,6 @@ const pages = [
     label: 'Web search',
     heading: 'Web search',
     action: 'Add engine',
-    count: 'records',
   },
 ] as const;
 
@@ -201,9 +196,7 @@ for (const entry of pages) {
     await expect(page.getByRole('button', { name: entry.action, exact: true }).first()).toBeVisible();
     await expect(page.locator('table').first()).toBeVisible();
     await expect(page.locator('table').first()).not.toHaveAttribute('aria-busy', 'true');
-    await expect(
-      page.getByText(entry.count === 'cursor' ? /Page 1, \d+ records?/ : /\d+ records?/).first(),
-    ).toBeVisible();
+    await expect(page.getByText(/^\d+ records?$/).first()).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Pagination', exact: true })).toHaveCount(1);
     await expectCardStructure(page, { filters: 1 });
     await expect(page.getByRole('alert').filter({ hasText: 'Request failed' })).toHaveCount(0);

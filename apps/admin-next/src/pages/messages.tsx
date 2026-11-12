@@ -5,10 +5,10 @@ import {
   ChatFilter,
   type ColumnSpec,
   CopyableValue,
-  CursorList,
   ListPageHeader,
   ListSearchForm,
   QueryTextField,
+  SnapshotList,
   TableShell,
   ToneBadge,
 } from '@/components/business';
@@ -142,7 +142,7 @@ export default function MessagesPage(): ReactElement {
           </>
         )}
       </ListSearchForm>
-      <CursorList
+      <SnapshotList
         factory={messagesQuery}
         filters={filters}
         renderItems={(items, { loading }) => (

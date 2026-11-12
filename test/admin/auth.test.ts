@@ -43,7 +43,7 @@ test('admin panel demands first-run setup, then authenticates and revokes sessio
 
     const authorized = await server.handle(request('/api/invocations', { headers: { cookie } }));
     expect(authorized.status).toBe(200);
-    expect(await readJson(authorized)).toEqual({ items: [], next_cursor: null });
+    expect(await readJson(authorized)).toEqual({ items: [], total: 0, limit: 25, offset: 0, as_of: '0', new_count: 0 });
 
     expect((await server.handle(post('/api/auth/logout', {}, cookie))).status).toBe(200);
     const afterLogout = await server.handle(request('/api/invocations', { headers: { cookie } }));

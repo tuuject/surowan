@@ -343,8 +343,10 @@ Remove-Item Env:E2E_PASSKEYS
      的过滤器真正改变结果集（Memories 的 Active / Expired / Short-term / Long-term 状态过滤；
      各页可用过滤器以页面与 `02-lists-filters-invocations.e2e.ts` / `02-lists-filters-resources.e2e.ts` 为准）。
      查询条件先编辑 draft，只有 Search / Enter 才提交并回到第 1 页，Reset 与浏览器 Back/Forward 恢复已应用条件。
-     Keyset 列表只显示当前 cursor 页，Previous/Next 可往返且没有伪造 total；全量响应用真实数组切片分页，
-     offset API 使用真实 offset/total。`seedAdminBulkRows`（`test/fixtures/admin-seed.ts`）让种子行数超过
+     八个审计/记忆列表是快照分页：显示真实 total，Previous/Next 可往返；打开后插入的新 Invocation
+     （`/__e2e/insert-invocation`）不进入任何一页、只让「1 new record」提示条出现，点击后才换新快照，
+     请求记录与截图作为附件写到 Playwright 输出目录（`snapshot-requests.json`、`snapshot-notice.png`）。
+     全量响应用真实数组切片分页，其余 offset API 使用真实 offset/total。`seedAdminBulkRows`（`test/fixtures/admin-seed.ts`）让种子行数超过
      相应默认页大小，因此能实际跨页；不再使用 `Load more` 或无限拼接。
      `13-sender-ids.e2e.ts` 验证 Messages、Revision、Invocation Overview/Frozen context 的发送者 ID 与真实剪贴板内容，覆盖无 username、匿名频道、缺失/旧快照、复制失败与窄屏暗色布局，确认复制不发写请求。
   4. Invocation 详情六个 Tab（Overview / Tool calls / Model calls / Telegram sends /
@@ -384,7 +386,7 @@ Remove-Item Env:E2E_PASSKEYS
 2. 用该 key 与 `surowan-utils invocation list/get` 能读到 Invocation；read key 访问 `/api/overview`、`/api/memories` 返回 200，访问 `/api/api-keys`/`/api/auth/*` 返回 403；同时带有效 Session Cookie 也不会越过 key 的模式。
 3. 先免费 preflight/prompts 核对公开场景与 `source: active` 当前模板；取得目标/次数/覆盖的明确授权后，对仍保留开场公开消息的已完成 Invocation 执行 replay（真实调用模型、按 Provider 计费）：返回 `version: 2`、`scene`、当前模型与 `fidelity`；合成 send 只在 `outputs`，生产业务表、Context/refs、审计与预算不变。关闭调试录制、无源 model call 或清除调试报文都应仍可重建。
 4. 开场缺失/损坏、未完成、当前 Chat/Topic 不允许时，预检与 CLI 分别给出 `replay_scene_unavailable`/`replay_scene_invalid`/`replay_source_unfinished`/allowlist 错误且不发模型请求；不读私有 Context、`request_json` 或旧 replay payload。检查冻结历史/开场优先、后续 edit/attach 排除、保留媒体场景内按需读取与 reply 校验，图片失败或文本模型明确降级。
-5. 用 `invocation list --search '<关键词>' --at '<公开消息时间>'` 定位目标：命中项带 `matched_messages`（incoming/bot 与 bot 条目的 `telegram_send_id`），非法日历、`--at` 与 `--from/--to` 同用被拒绝，无搜索或时间过滤时响应保持 `{ items, next_cursor }` 原形状。用 bot 条目的 `telegram_send_id` 执行 `invocation preflight <id> --before-send <send id>`：`scene.slice` 与 `history_count: 0`，输入只含该发言之前的公开消息；再执行 `invocation replay <id> --before-send <send id> --confirm-paid`（真实计费），确认输入不含原 Bot 回答、更早历史与窗口外的热注入，生产业务表不变；窗口为空或目标非法分别得到 `replay_slice_empty`/`replay_slice_target_invalid` 且不发模型请求。
+5. 用 `invocation list --search '<关键词>' --at '<公开消息时间>'` 定位目标：命中项带 `matched_messages`（incoming/bot 与 bot 条目的 `telegram_send_id`），非法日历、`--at` 与 `--from/--to` 同用被拒绝，无搜索或时间过滤时 item 不带 `matched_messages`。用 bot 条目的 `telegram_send_id` 执行 `invocation preflight <id> --before-send <send id>`：`scene.slice` 与 `history_count: 0`，输入只含该发言之前的公开消息；再执行 `invocation replay <id> --before-send <send id> --confirm-paid`（真实计费），确认输入不含原 Bot 回答、更早历史与窗口外的热注入，生产业务表不变；窗口为空或目标非法分别得到 `replay_slice_empty`/`replay_slice_target_invalid` 且不发模型请求。
 6. 重放运行期间再次发起重放得到 429 `replay_busy`；模型请求失败或超限时响应仍带完整结构，`error` 非空。
 
 这些检查替代不了真实 Telegram 验收：重放不会发送消息，也不覆盖调度、引用与配额路径。

@@ -45,10 +45,11 @@ test.each(['fresh', 'upgraded'])('invocation audit uses indexed calls in %s data
     expect(first.items).toMatchObject([
       { id: seed.invocationB.toString(), state: 'failed', tool_call_count: 1, total_tokens: 0, total_cost: null },
     ]);
-    expect(first.next_cursor).toBe(seed.invocationB.toString());
+    expect(first).toMatchObject({ total: 2, as_of: seed.invocationB.toString(), new_count: 0 });
     const second = listInvocations(orm, {
       limit: '25',
-      cursor: first.next_cursor,
+      offset: '0',
+      as_of: first.as_of,
       chat: '123456789',
       state: 'completed',
     });
@@ -63,7 +64,7 @@ test.each(['fresh', 'upgraded'])('invocation audit uses indexed calls in %s data
       },
     ]);
     expect(second.items[0]?.total_cost).toBeCloseTo(0.0048);
-    expect(second.next_cursor).toBeNull();
+    expect(second).toMatchObject({ total: 1, offset: 0 });
     expect(listInvocations(orm, { chat: '-999' }).items).toEqual([]);
     // The model filter must ride the same correlation index; a full scan of the
     // audit table on every list request is the regression this guards.

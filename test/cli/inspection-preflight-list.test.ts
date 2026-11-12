@@ -26,7 +26,7 @@ describe('surowan-utils inspection commands', () => {
 
   it('invocation list forwards search and time filters verbatim and passes matched_messages through', async () => {
     const server = await startServer((_request, response) => {
-      jsonResponse(response, 200, { items: [LIST_ITEM], next_cursor: null });
+      jsonResponse(response, 200, { items: [LIST_ITEM], total: 0, limit: 25, offset: 0, as_of: '0', new_count: 0 });
     });
     try {
       const env = ENV(server.baseUrl);
@@ -52,7 +52,14 @@ describe('surowan-utils inspection commands', () => {
         to: '2026-10-06T12:00:30.5+08:00',
       });
       // The JSON document is exactly what the server returned: matched_messages included.
-      expect(JSON.parse(filtered.stdout)).toEqual({ items: [LIST_ITEM], next_cursor: null });
+      expect(JSON.parse(filtered.stdout)).toEqual({
+        items: [LIST_ITEM],
+        total: 0,
+        limit: 25,
+        offset: 0,
+        as_of: '0',
+        new_count: 0,
+      });
 
       const at = await runCli(['invocation', 'list', '--at', '2024-02-29T12:00:30', '--json'], { env });
       expect(at.code).toBe(0);
@@ -81,7 +88,7 @@ describe('surowan-utils inspection commands', () => {
 
   it('invocation list forwards the model filter verbatim alongside the other filters', async () => {
     const server = await startServer((_request, response) => {
-      jsonResponse(response, 200, { items: [], next_cursor: null });
+      jsonResponse(response, 200, { items: [], total: 0, limit: 25, offset: 0, as_of: '0', new_count: 0 });
     });
     try {
       const env = ENV(server.baseUrl);
@@ -104,7 +111,7 @@ describe('surowan-utils inspection commands', () => {
 
   it('invocation list leaves timezone-less ranges to the server instead of guessing an order', async () => {
     const server = await startServer((_request, response) => {
-      jsonResponse(response, 200, { items: [], next_cursor: null });
+      jsonResponse(response, 200, { items: [], total: 0, limit: 25, offset: 0, as_of: '0', new_count: 0 });
     });
     try {
       const result = await runCli(
@@ -123,7 +130,7 @@ describe('surowan-utils inspection commands', () => {
 
   it('invocation list human output appends matched summaries without replacing the invocation time', async () => {
     const server = await startServer((_request, response) => {
-      jsonResponse(response, 200, { items: [LIST_ITEM], next_cursor: null });
+      jsonResponse(response, 200, { items: [LIST_ITEM], total: 0, limit: 25, offset: 0, as_of: '0', new_count: 0 });
     });
     try {
       const result = await runCli(['invocation', 'list', '--search', 'keyword'], { env: ENV(server.baseUrl) });

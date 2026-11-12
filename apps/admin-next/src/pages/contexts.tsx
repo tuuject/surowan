@@ -4,9 +4,9 @@ import { useTranslation } from 'react-i18next';
 import {
   ChatFilter,
   type ColumnSpec,
-  CursorList,
   ListPageHeader,
   ListSearchForm,
+  SnapshotList,
   TableShell,
 } from '@/components/business';
 import { AppLink } from '@/components/router-links';
@@ -104,9 +104,11 @@ export default function ContextsPage(): ReactElement {
       <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
         {({ draft, change }) => <ChatFilter value={draft.chat} onChange={(chat) => change({ chat })} />}
       </ListSearchForm>
-      <CursorList
+      <SnapshotList
         factory={conversationContextsQuery}
         filters={filters}
+        noticeTitle={(count) => t('invocations.contexts.newActivity', { count })}
+        noticeAction={t('invocations.contexts.showNewActivity')}
         renderItems={(items, { loading }) => (
           <TableShell
             columns={COLUMNS}

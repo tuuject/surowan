@@ -28,7 +28,7 @@ export const OPTIONS = {
   json: { type: 'boolean' },
   'timeout-ms': { type: 'string' },
   limit: { type: 'string' },
-  cursor: { type: 'string' },
+  'as-of': { type: 'string' },
   state: { type: 'string' },
   chat: { type: 'string' },
   search: { type: 'string' },
@@ -69,13 +69,14 @@ export const OPTIONS = {
 // Telegram chat ids are negative; parseArgs would read a separate `-123` token
 // as a dangling option, so a negative numeric value is folded into `--opt=-123`.
 export const NEGATIVE_NUMBER_PATTERN = /^-\d+$/;
-export const NEGATIVE_VALUE_OPTIONS = new Set(['--chat', '--cursor', '--limit', '--timeout-ms', '--before-send']);
+export const NEGATIVE_VALUE_OPTIONS = new Set(['--chat', '--limit', '--timeout-ms', '--before-send']);
 
 export const MODEL_FLAGS: readonly FlagName[] = ['provider', 'model', 'thinking-level'];
 export const INSPECTION_FLAGS: readonly FlagName[] = [
   ...MODEL_FLAGS,
   'limit',
-  'cursor',
+  'offset',
+  'as-of',
   'state',
   'chat',
   'source',

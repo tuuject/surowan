@@ -146,7 +146,8 @@ export function parseOriginHost(origin: string): string | null {
 export function listQuery(url: URL): ListQuery {
   return {
     limit: url.searchParams.get('limit'),
-    cursor: url.searchParams.get('cursor'),
+    offset: url.searchParams.get('offset'),
+    as_of: url.searchParams.get('as_of'),
     state: url.searchParams.get('state'),
     chat: url.searchParams.get('chat'),
     host: url.searchParams.get('host'),
