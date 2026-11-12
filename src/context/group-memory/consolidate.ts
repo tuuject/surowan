@@ -163,6 +163,8 @@ export interface ConsolidateOptions {
   readonly signal?: AbortSignal | undefined;
   /** The first audit row's creation time; tests pass a fixed clock. */
   readonly now?: Date;
+  /** Rechecked immediately before every request, including a repair. */
+  readonly canCall?: () => boolean;
 }
 
 interface ConsolidationRead {
@@ -259,6 +261,15 @@ export async function consolidateDay(
   ];
   let calls = 0;
   for (;;) {
+    if (options.canCall?.() === false) {
+      return {
+        ok: false,
+        errorCode: 'group_memory_aborted',
+        errorDetail: 'Group memory model calls are no longer allowed',
+        ...read,
+        modelCalls: calls,
+      };
+    }
     calls += 1;
     const outcome = await callOnce(dependencies, model, rows, conversation, options, calls, now);
     if (outcome.kind === 'events') {

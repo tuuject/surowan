@@ -8,7 +8,7 @@ import { resolveToolModel, type ToolModelSelection } from '../../platform/tool-m
 import type { BusinessStore } from '../../store/store.ts';
 import { isChatPaused, resolveChatConfig } from '../../store/store.ts';
 import { activeSleepUntil } from '../../store/sleep.ts';
-import { telegramChatIdentity } from '../../store/chat-identity.ts';
+import { candidateChats, type GroupMemoryChatRow } from './chats.ts';
 import { chatLocalDay, localDayWindow, previousDay } from './day.ts';
 import { consolidateDay } from './consolidate.ts';
 import {
@@ -37,13 +37,8 @@ export interface SleepingDependencies {
   readonly isHostReady: (host: HostKind) => boolean;
 }
 
-interface ChatRow {
-  readonly id: bigint;
-  readonly telegram_chat_id: bigint;
-}
-
 interface LaneCandidate {
-  readonly chat: ChatRow;
+  readonly chat: GroupMemoryChatRow;
   readonly lane: GroupMemoryLaneKind;
   readonly lastAttemptAt: string | null;
 }
@@ -126,7 +121,7 @@ export class SleepingService {
    * boundary is the moment of the switch, not the next tick.
    */
   reconcile(config: RawConfig = this.#configStore.current().config, now = new Date()): void {
-    const active = this.#candidateChats(config);
+    const active = candidateChats(this.#store, config);
     const activeIds = active.map((chat) => chat.id);
     for (const id of this.#activationBoundaries.keys()) {
       if (!activeIds.includes(id)) {
@@ -236,6 +231,15 @@ export class SleepingService {
   ): Promise<boolean> {
     const controller = new AbortController();
     this.#controllers.add(controller);
+    const canCall = (): boolean =>
+      !this.#stopping &&
+      this.#isHostReady('telegram') &&
+      activeSleepUntil(this.#store.orm, clock()) === null &&
+      !isChatPaused(this.#store.orm, batch.chatId) &&
+      (batch.lane !== 'live' || !this.#chatBusy(batch.chatId)) &&
+      resolveChatConfig(this.#configStore.current().config, this.#store.orm, batch.telegramChatId)?.group_memory
+        ?.enabled === true &&
+      this.#groupMemory.lane(batch.chatId, batch.lane)?.claimedAt === claimedAt;
     const fields = { chat_id: batch.chatId.toString(), lane: batch.lane, day: batch.day };
     const first = batch.rows[0]?.telegramMessageId ?? 0n;
     const runId = this.#groupMemory.startRun(
@@ -275,7 +279,7 @@ export class SleepingService {
     try {
       const result = await consolidateDay(
         { orm: this.#store.orm, secrets: this.#secrets },
-        { day: batch.day, rows: batch.rows, models, selection, signal: controller.signal, now: clock() },
+        { day: batch.day, rows: batch.rows, models, selection, signal: controller.signal, now: clock(), canCall },
       );
       if (!result.ok) {
         // A shutdown-aborted batch must be retried as soon as the next process
@@ -284,7 +288,7 @@ export class SleepingService {
           this.#stopping ? 'shutdown' : result.errorCode,
           result.errorDetail,
           result,
-          this.#stopping ? 0 : undefined,
+          this.#stopping || !canCall() ? 0 : undefined,
         );
         return false;
       }
@@ -337,33 +341,6 @@ export class SleepingService {
     }
   }
 
-  /** Stored Chats of every configured Chat with group memory on, each once. */
-  #candidateChats(config: RawConfig): ChatRow[] {
-    const candidates: ChatRow[] = [];
-    const seen = new Set<string>();
-    for (const configured of config.telegram.chats) {
-      if (configured.group_memory?.enabled !== true) {
-        continue;
-      }
-      const identities = telegramChatIdentity(this.#store, [BigInt(configured.id)]);
-      const rows = this.#store.orm.all<ChatRow>(
-        sql`SELECT id, telegram_chat_id FROM chats
-            WHERE host_kind = 'telegram' AND telegram_chat_id IN (${sql.join(
-              identities.map((id) => sql`${id}`),
-              sql`, `,
-            )})`,
-      );
-      for (const row of rows) {
-        const key = row.id.toString();
-        if (!seen.has(key)) {
-          seen.add(key);
-          candidates.push(row);
-        }
-      }
-    }
-    return candidates;
-  }
-
   /**
    * Every lane worth a look this tick: live lanes first, then backfill, each
    * group least recently attempted first, so no Chat or lane holds the per-tick
@@ -372,7 +349,7 @@ export class SleepingService {
    */
   #laneCandidates(config: RawConfig, now: Date): LaneCandidate[] {
     const candidates: LaneCandidate[] = [];
-    for (const chat of this.#candidateChats(config)) {
+    for (const chat of candidateChats(this.#store, config)) {
       this.#splitBacklog(config, chat, now);
       for (const lane of this.#groupMemory.lanes(chat.id)) {
         candidates.push({ chat, lane: lane.lane, lastAttemptAt: lane.lastAttemptAt });
@@ -391,7 +368,7 @@ export class SleepingService {
    * summarized without waiting for the backlog. One backfill lane at a time: a
    * live lane that falls behind again while one runs catches up in order.
    */
-  #splitBacklog(config: RawConfig, chat: ChatRow, now: Date): void {
+  #splitBacklog(config: RawConfig, chat: GroupMemoryChatRow, now: Date): void {
     const live = this.#groupMemory.lane(chat.id, 'live');
     if (live === undefined || live.state !== 'idle' || this.#groupMemory.lane(chat.id, 'backfill') !== undefined) {
       return;
