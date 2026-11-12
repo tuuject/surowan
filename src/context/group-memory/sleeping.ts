@@ -342,10 +342,9 @@ export class SleepingService {
   }
 
   /**
-   * Every lane worth a look this tick: live lanes first, then backfill, each
-   * group least recently attempted first, so no Chat or lane holds the per-tick
-   * budget for long. A live lane that fell more than a day behind is split
-   * first.
+   * Least recently attempted lanes go first; live wins a tie. Aging across lane
+   * kinds keeps a full live queue from consuming every tick's batch budget.
+   * A live lane that fell more than a day behind is split first.
    */
   #laneCandidates(config: RawConfig, now: Date): LaneCandidate[] {
     const candidates: LaneCandidate[] = [];
@@ -357,8 +356,8 @@ export class SleepingService {
     }
     return candidates.sort(
       (left, right) =>
-        (left.lane === right.lane ? 0 : left.lane === 'live' ? -1 : 1) ||
-        (left.lastAttemptAt ?? '').localeCompare(right.lastAttemptAt ?? ''),
+        (left.lastAttemptAt ?? '').localeCompare(right.lastAttemptAt ?? '') ||
+        (left.lane === right.lane ? 0 : left.lane === 'live' ? -1 : 1),
     );
   }
 
