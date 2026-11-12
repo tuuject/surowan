@@ -9,7 +9,7 @@ import { McpManager } from '../../../capabilities/mcp/index.ts';
 import { PlaygroundAssetStore } from '../../../capabilities/media/local-assets.ts';
 import { MediaService } from '../../../capabilities/media/index.ts';
 import type { MediaDownloader } from '../../../capabilities/media/download.ts';
-import { StickerService } from '../../../capabilities/stickers.ts';
+import { StickerService } from '../../../capabilities/stickers/index.ts';
 import { MemoBlobStore } from '../../../context/memo-pad/blobs.ts';
 import { MemoPadStore } from '../../../context/memo-pad/store.ts';
 import { SleepingService } from '../../../context/group-memory/sleeping.ts';
@@ -205,7 +205,7 @@ export async function startServeServices(session: ServeContext, environment: Ser
     readiness: telegramReadiness,
     holder: telegram,
     createIngestion: (me) => new TelegramIngestion(openedStore, configStore, me),
-    createStickers: (api) => new StickerService({ store, config: configStore.current().config, api, media }),
+    createStickers: (api) => new StickerService({ store, config: () => configStore.current().config, api, media }),
     stopActivity: () => state.host?.activity.stopAll(),
     abortInvocations: (ids, reason) => state.scheduler?.abortInvocations(ids, reason) ?? 0,
     // A backlog pass commits queued work while the Scheduler is gated; the

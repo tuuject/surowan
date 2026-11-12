@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { serve } from '@hono/node-server';
 import { ConfigReloader } from '../../../src/adapters/local-monolith/config/reload.ts';
+import { publishStickerSets } from '../../../src/adapters/local-monolith/runtime/sticker-sets.ts';
 import { AdminServer } from '../../../src/ingress/admin/index.ts';
 import { ImConnectionRegistry } from '../../../src/platform/im-connection.ts';
 import { keyJarPath } from '../../../src/platform/key-jar.ts';
@@ -90,6 +91,7 @@ export async function main(): Promise<void> {
 
   const configStore = new RuntimeConfigurationStore({ config: loaded.config, hash: loaded.hash, ...registry });
   const modelSwitcher = new AgentModelSwitcher(configStore);
+  let publishedConfig = configStore.current().config;
   const configReloader = new ConfigReloader({
     loaded,
     store: configStore,
@@ -103,7 +105,17 @@ export async function main(): Promise<void> {
         throw new Error('Synthetic apply failure');
       }
     },
-    onPublished: () => undefined,
+    // The sticker-set publish path is the product's: the store follows the
+    // file at once. No runtime runs here, so nothing is aborted or fetched.
+    onPublished: () => {
+      const next = configStore.current().config;
+      publishStickerSets(
+        { store, abortInvocations: () => 0, stickers: () => undefined, onRefreshFailed: () => undefined },
+        publishedConfig,
+        next,
+      );
+      publishedConfig = next;
+    },
   });
   state.admin = new AdminServer({
     store,

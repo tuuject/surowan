@@ -5,6 +5,7 @@
 
 import type { Context } from 'grammy';
 import { ingestToolImage } from '../../../capabilities/media/tool-image-store.ts';
+import { reconcileStickerSets } from '../../../capabilities/stickers/sets.ts';
 import { ConversationContextStore } from '../../../context/store/index.ts';
 import type { ImageService } from '../../../image/service.ts';
 import { AdminQueryError } from '../../../ingress/admin/audit/shared.ts';
@@ -39,6 +40,7 @@ import {
 } from './chat-lifecycle.ts';
 import type { ServeAssembly, ServeHosts, ServeServices } from './serve.ts';
 import { ALLOWED_UPDATES, logEvent, replyToCommand, resolveConversation, type ServeContext } from './support.ts';
+import { publishStickerSets } from './sticker-sets.ts';
 import { abortRunningInvocationsOnSearchDisable } from './web-search-availability.ts';
 
 /** The wired runtime, its scheduler and the command path the panel shares. */
@@ -179,6 +181,9 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
   // the next invocation will not see.
   let webSearchWasAvailable = webSearchAvailable(configStore.current().config, searchProviders);
   let publishedConfig = configStore.current().config;
+  // The panel lists sticker sets from the store; mirror the started
+  // configuration now instead of waiting for a Telegram connection to sync.
+  reconcileStickerSets(store, publishedConfig.telegram.sticker_sets ?? []);
   // The configuration the group-memory cutover last completed against. It only
   // advances when a cutover succeeds, so a failed one is retried by the next
   // apply (the reloader reruns this hook while its publication is pending).
@@ -239,6 +244,23 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
       );
       if (groupMemory.cutover) {
         groupMemoryConfig = nextConfig;
+      }
+      const stickerSets = publishStickerSets(
+        {
+          store,
+          abortInvocations: (ids, reason) => startedScheduler.abortInvocations(ids, reason),
+          stickers: () => telegramConnection.stickers,
+          onRefreshFailed: (error) =>
+            logEvent('telegram_stickers_refresh_failed', { error: secrets.redactError(error) }),
+        },
+        publishedConfig,
+        nextConfig,
+      );
+      if (stickerSets.changed) {
+        logEvent('sticker_sets_published', {
+          membership_changed: stickerSets.membershipChanged,
+          stopped_invocations: stickerSets.abortedInvocations,
+        });
       }
       publishedConfig = nextConfig;
       if (addedChats.length > 0) {

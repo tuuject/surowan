@@ -22,6 +22,7 @@ interface StickerSetRow {
   readonly alias: string;
   readonly telegram_name: string;
   readonly title: string | null;
+  readonly note: string | null;
   readonly configured: bigint;
   readonly sync_state: string;
   readonly last_synced_at: string | null;
@@ -57,19 +58,20 @@ interface StickerRow {
 
 export function listStickerSets(orm: Orm): readonly Record<string, unknown>[] {
   const rows =
-    orm.all<StickerSetRow>(sql`SELECT ss.id, ss.alias, ss.telegram_name, ss.title, ss.configured, ss.sync_state, ss.last_synced_at,
+    orm.all<StickerSetRow>(sql`SELECT ss.id, ss.alias, ss.telegram_name, ss.title, ss.note, ss.configured, ss.sync_state, ss.last_synced_at,
               ss.error_code, ss.updated_at,
               (SELECT COUNT(*) FROM stickers s WHERE s.sticker_set_id = ss.id AND s.active = 1) AS sticker_count,
               (SELECT COUNT(*) FROM stickers s WHERE s.sticker_set_id = ss.id AND s.active = 1 AND s.index_state = 'success') AS indexed_count,
               (SELECT COUNT(*) FROM stickers s WHERE s.sticker_set_id = ss.id AND s.active = 1 AND s.index_state IN ('pending', 'running')) AS pending_count,
               (SELECT COUNT(*) FROM stickers s WHERE s.sticker_set_id = ss.id AND s.active = 1 AND s.index_state = 'error') AS error_count
        FROM sticker_sets ss
-       ORDER BY ss.configured DESC, ss.alias`);
+       ORDER BY ss.configured DESC, ss.id`);
   return rows.map((row) => ({
     id: row.id.toString(),
     alias: row.alias,
     telegram_name: row.telegram_name,
     title: row.title,
+    note: row.note,
     configured: bit(row.configured),
     sync_state: row.sync_state,
     last_synced_at: row.last_synced_at,

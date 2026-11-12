@@ -19,7 +19,7 @@ import { MediaService } from '../src/capabilities/media/index.ts';
 import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
 import { loadPlugins } from '../src/plugins/plugin.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
-import { StickerService } from '../src/capabilities/stickers.ts';
+import { StickerService } from '../src/capabilities/stickers/index.ts';
 import { bundledSystemResources, fauxRegistry, testTelegramRuntime } from './helpers.ts';
 import {
   cleanupSkillDirectories,
@@ -70,7 +70,7 @@ async function indexOneSticker(
   });
   const stickers = new StickerService({
     store,
-    config: loaded.config,
+    config: () => loaded.config,
     media,
     api: {
       getStickerSet: async () => ({

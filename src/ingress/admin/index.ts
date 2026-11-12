@@ -297,6 +297,7 @@ export class AdminServer {
     response ??= await routes.groupMemory.handle(request, url, segments);
     response ??= await routes.memory.handle(request, url, segments);
     response ??= await routes.admins.handle(request, segments);
+    response ??= await routes.stickerSets.handle(request, segments);
     response ??= await routes.providers.handle(request, segments);
     response ??= await routes.chats.handle(request, segments);
     // `GET prompts/global` / `prompts/group` stay on the shared inspection

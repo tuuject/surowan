@@ -184,12 +184,6 @@ export const AUDIT_SPECS: readonly EndpointSpec[] = [
     summary: 'Show one message with all of its revisions and media',
   },
   {
-    command: 'sticker-set list',
-    method: 'GET',
-    path: 'sticker-sets',
-    summary: 'List configured sticker sets and their index progress',
-  },
-  {
     command: 'sticker list',
     method: 'GET',
     path: 'stickers',

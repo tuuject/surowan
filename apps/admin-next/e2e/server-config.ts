@@ -102,6 +102,9 @@ export async function prepareConfig(options: {
           },
         ],
       };
+      // The seeded `mascot` set is configured; the seeded `legacy` row stands
+      // for a set removed earlier, whose index the store keeps.
+      config.telegram.sticker_sets = [{ alias: 'mascot', name: 'surowan_mascot' }];
     }),
   );
   await writeTestKeyJar(directory, {

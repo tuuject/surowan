@@ -94,7 +94,6 @@ export const NAV_GROUPS: readonly NavGroupDefinition[] = [
     labelKey: 'media',
     icon: MediaIcon,
     items: [
-      { titleKey: 'botStickerSets', to: '/stickers' },
       { titleKey: 'imageGenerate', to: '/image-generate' },
       { titleKey: 'imageGenerations', to: '/image-generations' },
       { titleKey: 'imageSettings', to: '/image-settings' },
@@ -118,6 +117,7 @@ export const NAV_GROUPS: readonly NavGroupDefinition[] = [
       { titleKey: 'telegram', to: '/telegram' },
       { titleKey: 'chats', to: '/chats' },
       { titleKey: 'botAdmins', to: '/admins' },
+      { titleKey: 'botStickerSets', to: '/stickers' },
     ],
   },
   {

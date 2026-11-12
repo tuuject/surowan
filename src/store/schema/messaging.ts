@@ -142,16 +142,21 @@ export const stickerSets = sqliteTable(
   'sticker_sets',
   {
     id: sqliteBigIntId('id').primaryKey(),
-    alias: text('alias').notNull().unique(),
+    // A nickname: unique among configured sets only (migration 055).
+    alias: text('alias').notNull(),
     telegramName: text('telegram_name').notNull().unique(),
     title: text('title'),
+    note: text('note'),
     configured: integer('configured', { mode: 'boolean' }).notNull().default(true),
     syncState: text('sync_state').notNull().default('pending'),
     lastSyncedAt: text('last_synced_at'),
     errorCode: text('error_code'),
     updatedAt: text('updated_at').notNull(),
   },
-  () => [check('sticker_sets_sync_state_check', sql`sync_state IN ('pending', 'running', 'success', 'error')`)],
+  (t) => [
+    check('sticker_sets_sync_state_check', sql`sync_state IN ('pending', 'running', 'success', 'error')`),
+    uniqueIndex('sticker_sets_configured_alias_idx').on(t.alias).where(sql`configured = 1`),
+  ],
 );
 
 export const stickers = sqliteTable(

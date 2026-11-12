@@ -27,7 +27,7 @@ import { ImConnectionRegistry, type ImConnectionState } from '../../src/platform
 import { keyJarPath } from '../../src/platform/key-jar.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import type { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
-import type { StickerService } from '../../src/capabilities/stickers.ts';
+import type { StickerService } from '../../src/capabilities/stickers/index.ts';
 import {
   buckets,
   chats,

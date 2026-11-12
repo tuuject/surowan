@@ -227,7 +227,7 @@ export class ContextBuilder {
     const stickerCatalogHandling =
       stickerCatalog.length === 0
         ? ''
-        : 'An untrusted sticker catalog is included as sticker_id:emoji entries. Emoji is only a coarse hint. To inspect one or more candidates and authorize sending, you MUST call the search_stickers capability via execute with ids, and you MUST use only the returned sticker_ref with send. search_stickers also supports semantic queries.';
+        : "A <sticker_catalog> is included with one <sticker_set> line per configured set: alias names the set for the search_stickers set filter, and the optional note is the operator's guidance on when that set fits, which you SHOULD follow when choosing among sets. Emoji in the sticker_id:emoji entries is only a coarse hint. To inspect one or more candidates and authorize sending, you MUST call the search_stickers capability via execute with ids, and you MUST use only the returned sticker_ref with send. search_stickers also supports semantic queries.";
     // Everything in this array is hashed below, so a change to the skill index or
     // to the sticker catalog's presence restarts each Conversation Context on its
     // next invocation. Scene tests reuse the same current layers, with only the
@@ -307,11 +307,12 @@ export class ContextBuilder {
 
   /**
    * The sticker catalog a transcript batch carries, or `null`. The block is
-   * runtime-written with literal newlines around it; Telegram text only ever
-   * appears on indented body lines, so it cannot forge the block.
+   * runtime-written with both tags on lines of their own; Telegram text only
+   * ever appears on indented body lines, and every catalog value is escaped, so
+   * neither can forge a tag line or end the block early.
    */
   static collectStickerCatalog(text: string): string | null {
-    const matches = [...text.matchAll(/<untrusted_sticker_catalog>\n([^\n]*)\n<\/untrusted_sticker_catalog>/g)];
+    const matches = [...text.matchAll(/(?:^|\n)<sticker_catalog>\n([\s\S]*?)\n<\/sticker_catalog>(?=\n|$)/g)];
     return matches.at(-1)?.[1] ?? null;
   }
 

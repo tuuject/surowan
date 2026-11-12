@@ -29,6 +29,7 @@ import { createTelegramAdminHandler } from '../telegram.ts';
 import { createTuningAdminHandler } from './tuning.ts';
 import { createWarningsAdminHandler } from '../warnings.ts';
 import { createSearchAdminRoutes } from './search.ts';
+import { createStickerSetsAdminHandler } from './sticker-sets.ts';
 import { BUILTIN_SEARCH_PROVIDERS } from '../../../platform/web-search.ts';
 import type { AdminServerOptions } from '../index.ts';
 
@@ -119,6 +120,7 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
     }),
     groupMemory: createGroupMemoryAdminHandler({ store: options.store }),
     admins: createAdminsAdminHandler({ configReloader: reloader, secrets }),
+    stickerSets: createStickerSetsAdminHandler({ orm: options.store.orm, configReloader: reloader, secrets }),
     providers: createProvidersAdminHandler({
       store: options.store,
       configStore: options.configStore,

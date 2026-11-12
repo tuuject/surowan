@@ -21,7 +21,7 @@ import { MEMO_WRITE_INPUT_MAX_BYTES } from '../../context/memo-pad/index.ts';
 import type { MemoPadStore } from '../../context/memo-pad/store.ts';
 import type { MediaService } from '../../capabilities/media/index.ts';
 import type { McpManager } from '../../capabilities/mcp/index.ts';
-import type { StickerService } from '../../capabilities/stickers.ts';
+import type { StickerService } from '../../capabilities/stickers/index.ts';
 import type { ImageBridge } from '../../image/bridge.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 

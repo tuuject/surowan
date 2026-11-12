@@ -23,10 +23,15 @@ import {
  * parsed file shape.
  */
 
+// `name` identifies the Telegram set; `alias` is only its nickname, so renaming
+// it keeps the synchronized stickers and their index. `note` is operator
+// guidance on when to use the set and is shown to the model with the catalog.
+export const STICKER_SET_NOTE_MAX_LENGTH = 500;
 const StickerSetSchema = Type.Object(
   {
     alias: Type.String({ pattern: '^[A-Za-z][A-Za-z0-9_-]{0,63}$' }),
     name: Type.String({ minLength: 1 }),
+    note: Type.Optional(Type.String({ minLength: 1, maxLength: STICKER_SET_NOTE_MAX_LENGTH })),
   },
   Strict,
 );

@@ -9,7 +9,7 @@ import { PLAYGROUND_SPECS } from './playground.ts';
 import { PROMPT_SPECS } from './prompts.ts';
 import { PROVIDER_SPECS } from './providers.ts';
 import { SEARCH_SPECS } from './search.ts';
-import { ADMIN_SPECS, TELEGRAM_SPECS, WARNING_SPECS } from './settings.ts';
+import { ADMIN_SPECS, STICKER_SET_SPECS, TELEGRAM_SPECS, WARNING_SPECS } from './settings.ts';
 import { TUNING_SPECS } from './tuning.ts';
 import type { AdminAccess, EndpointSpec } from '../types.ts';
 
@@ -31,6 +31,7 @@ export const ADMIN_SURFACE_SPECS: readonly EndpointSpec[] = [
   ...IMAGE_SPECS,
   ...MEMORY_SPECS,
   ...TELEGRAM_SPECS,
+  ...STICKER_SET_SPECS,
   ...WARNING_SPECS,
   ...ADMIN_SPECS,
   ...PLAYGROUND_SPECS,

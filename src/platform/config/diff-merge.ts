@@ -53,6 +53,10 @@ const HOT_PATHS: ReadonlySet<string> = new Set([
   'web_search',
   'tool_model',
   'telegram.admins',
+  // Reconciled into the store when published; the live sticker worker fetches
+  // added sets, and adding or removing a set aborts running Telegram
+  // invocations from the composition root.
+  'telegram.sticker_sets',
   // The connection manager owns the grammY instance and follows the resolved
   // token, so rotating or clearing it never needs a process restart.
   'telegram.token',

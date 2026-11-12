@@ -146,6 +146,8 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `schema/migrations-group-memory-lanes.test.ts` | `054` 把旧水位行迁成空闲 live lane（运行中的认领清掉、退避保留）、摘要原样保留且上限变为 200、backfill 必须有终点、外键完整 |
 | `media/original-file.test.ts` | `readOriginalFile`：下载字节原样交出（不归一化）、保留 document 文件名、拒绝 Sticker、下载临时目录不留残留 |
 | `stickers.test.ts` | Set 同步、结构化视觉 Tool Call、索引、搜索、发送 |
+| `sticker-sets.test.ts` | 对账：改名保留同一行与索引、昵称互换与复用已删除 Set 的昵称、名称大小写不敏感、删除后贴纸退出目录与搜索但保留分析、重新添加时缺搜索行的贴纸回到 `pending`、拉取期间被删除的 Set 丢弃结果；目录按 Set 分行带转义备注、备注无法伪造标签、改备注后目录变化 |
+| `admin/sticker-sets.test.ts` | Sticker sets 写端点：revision、昵称/名称/备注校验、链接解析、重复名称（大小写不敏感）与昵称、`name` 不可改、热应用与文件落盘、改名保留同一行；增删只中止 Telegram 运行（`sticker_sets_changed`），改名/改备注不中止，Playground 房间不受影响 |
 | `media/image.test.ts` | 视频 Sticker 只按 WebM 解码（其他容器冒充时拒绝）、真实 WebM 仍能取帧、解压超过 8 MiB 的 TGS 在转换前拒绝；预取消或下载后立即取消均不启动 ffprobe/ffmpeg/Lottie；本机没有 ffmpeg/ffprobe 时仅视频取帧组跳过，TGS 与取消回归仍运行 |
 | `mcp.test.ts` | stdio/HTTP transport、策略、Header、重定向和审计、发现 Tool 失败时关闭 stdio 子进程、连接中 `stop()` 后保持 stopped 且关闭子进程 |
 | `web-fetch.test.ts` | 有界不可信文本结果与审计、公网 IPv4 放行与 IPv4 映射字面量拒绝、私网/合成地址拒绝（含跳转目标）、fake-ip 网段默认拒绝且需 `allow_proxy_synthetic_addresses` 开启、6to4/Teredo 过渡地址拒绝、`dangerously_allow_all_ip_addresses` 从配置到插件生效并放行私网/环回/跳转目标但仍拒绝非默认端口、默认 `Accept` 优先 `text/markdown` 且站点 Markdown 原样返回、`raw` 与 `accept_markdown: false` 不声明 Markdown、HTML 默认转 Markdown（正文在 32 KiB 之后仍保留、去导航/脚本/图片）、`raw` 返回原始 HTML、Markdown 按 UTF-8 边界截断、转换不发任何网络请求 |
@@ -277,7 +279,7 @@ node src/cli.ts serve --config dev-data/config.jsonc
 3. 创建账号后 Overview 显示 Invocations / Stored messages / Cached media analyses 统计卡，以及 Invocation states、Configured sticker index states、Top tools 表和 7d/30d Usage 图表。
 4. Tool session 详情六个 Tab（Overview / Tool calls / Model calls / Telegram sends / Agent transcript / Frozen context）各自渲染；默认落在 Overview 时间线。
 5. 消息搜索命中当前 Chat 的文本，详情展示全部 Revision；列表与 Revision 显示并复制发送者的 Telegram User ID（频道身份明确标为 Chat ID）。Invocation Overview 与 Frozen context 复制冻结快照的 sender ID，缺失 ID 不提供复制按钮；剪贴板失败明确提示手动复制。
-6. Bot sticker sets 页面明确说明只包含 `telegram.sticker_sets` 中配置的 Set，并按 Set 与 `index_state` 过滤后行数变化。
+6. Bot sticker sets 页面（Telegram 分组下）说明列表保存在 `telegram.sticker_sets` 并立即生效；可添加（名称或 t.me 链接）、改昵称与备注、删除 Set，索引列表按 Set 与 `index_state` 过滤后行数变化。
 7. Group memory 页按 Chat、日期与摘要过滤；查看原文区间、修改 summary、删除事件；在 Chats 页切换群聊记忆开关后 running Invocation 被中止、Context 重建且无需重启。
 8. Memories 页面按 Chat 与状态（Active / Expired / Short-term / Long-term）过滤；新建/编辑/删除条目后列表刷新；列表只显示 summary，打开详情显示 Markdown 全文，`pwblob://` 图片经 `/api/memories/blobs/:id/content` 渲染；不再出现 `long_ttl` 警告标记。
 9. Overview 的 Bot status 卡片显示 `sleeping`/`awake` 与 `sleep_until`，睡眠时 `Wake now` 带二次确认；同时列出所有 `chat_pause` Chat 与暂停时间。
@@ -380,6 +382,7 @@ Remove-Item Env:E2E_PASSKEYS
      后台 refetch 不升级编辑和删除确认的原始 revision、保存后应用失败的双视图刷新与 Settings 恢复、移动端暗色布局。
   10. API key（`14-api-keys.e2e.ts` 的 API 用例，API-only、自带登录，可单独运行）：Session 创建只返回一次明文与 `prefix`，列表不回显明文；Bearer read key 覆盖全部 GET 审计读（含 overview、providers、playground 房间），写与账号管理路由 403；撤销/rotate 立即 401 且列表保留 `revoked_at`；`Authorization` 存在时不回退 Cookie；未接线的 replay 返回 503 `replay_unavailable`。
   11. API keys 页面：`01-routes.e2e.ts` 断言 `/api-keys` 深链接渲染标题、`Create API key` 与 Name/Prefix/Mode/Created/Last used/Status/Actions 列头；`14-api-keys.e2e.ts` 的 `API key management UI`（注入上方 API 登录的 Session Cookie）断言：侧栏 Manage → API keys 进入页面；创建弹窗 Name `maxlength=80` 与四种模式下拉，成功后一次性 **Save your API key** 弹窗显示可复制的明文，`Copy API key` 的复制值正确（拦截 clipboard，不写系统剪贴板），Web Storage 无 `pwk_` 明文；Done/Escape、刷新、历史导航与会话过期后 DOM 和表单 value 均无明文，刷新后行内只保留元数据（前缀、Active、Never used）；Revoke 确认框取消不发 DELETE、确认后同一 key 立即 401 且状态 Revoked、按钮消失；列表失败显示错误与 Retry 且不伪造行，空白名称不发请求，创建失败在弹窗内联显示并禁止进行中重复提交，撤销失败留在确认框（Working… 禁用两端按钮）；窄屏暗色无整页横向溢出。该套件关闭 trace、截图、视频与失败时的 ARIA 页面快照，所有密钥值断言只输出布尔结果，避免失败产物泄漏明文。
+  12. Sticker sets：`31-sticker-sets.e2e.ts` 断言页面位于 Telegram 导航分组、已删除的种子 Set 不在管理表里；从 `t.me/addstickers` 链接添加带备注的 Set（非法昵称在前端拦下、不发写请求），改昵称与备注时名称只读且 API 里仍是同一行，删除后行转为未配置，再用另一种大小写重新添加时复用同一行；名称重复在弹窗内联报错。生成 `sticker-sets` 截图与 API 列表 JSON 验收产物。
 
 - 首次运行 E2E 前需要 `pnpm --filter surowan-admin-next exec playwright install chromium`；浏览器安装失败时套件无法
   执行，属于环境前置问题而非代码缺陷。
