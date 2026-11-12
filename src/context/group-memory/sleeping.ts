@@ -79,6 +79,7 @@ export class SleepingService {
   readonly #isHostReady: SleepingDependencies['isHostReady'];
   readonly #groupMemory: GroupMemoryStore;
   readonly #controllers = new Set<AbortController>();
+  readonly #activationBoundaries = new Map<bigint, bigint>();
   #timer: NodeJS.Timeout | undefined;
   #started = false;
   #stopping = false;
@@ -126,15 +127,31 @@ export class SleepingService {
    */
   reconcile(config: RawConfig = this.#configStore.current().config, now = new Date()): void {
     const active = this.#candidateChats(config);
-    const dropped = this.#groupMemory.deactivateAllExcept(active.map((chat) => chat.id));
+    const activeIds = active.map((chat) => chat.id);
+    for (const id of this.#activationBoundaries.keys()) {
+      if (!activeIds.includes(id)) {
+        this.#activationBoundaries.delete(id);
+      }
+    }
+    // Capture every boundary before the first write can fail or partially apply.
+    for (const chat of active) {
+      if (!this.#activationBoundaries.has(chat.id) && this.#groupMemory.lane(chat.id, 'live') === undefined) {
+        this.#activationBoundaries.set(chat.id, newestMessageId(this.#store.orm, chat.id));
+      }
+    }
+    const dropped = this.#groupMemory.deactivateAllExcept(activeIds);
     if (dropped > 0) {
       log('group_memory_lanes_dropped', { lanes: dropped });
     }
     for (const chat of active) {
-      const through = newestMessageId(this.#store.orm, chat.id);
+      const through = this.#activationBoundaries.get(chat.id);
+      if (through === undefined) {
+        continue;
+      }
       if (this.#groupMemory.activate(chat.id, through, now)) {
         log('group_memory_activated', { chat_id: chat.id.toString(), through: through.toString() });
       }
+      this.#activationBoundaries.delete(chat.id);
     }
   }
 

@@ -169,8 +169,8 @@ export interface GroupMemoryPublishDependencies {
  * The sleeping lanes are reconciled before the cutover can await handlers:
  * switching group memory on starts its live lane after the newest message stored
  * now, and waiting for the next sleeping tick would let that boundary drift past
- * messages sent after the switch. A reconcile failure is only logged; the next
- * tick retries it.
+ * messages sent after the switch. A reconcile failure keeps publication pending
+ * so a retry can finish activation using the worker's original boundary.
  */
 export async function publishGroupMemory(
   dependencies: GroupMemoryPublishDependencies,
@@ -181,6 +181,7 @@ export async function publishGroupMemory(
   try {
     dependencies.reconcileLanes(next);
   } catch (error) {
+    failure = error;
     logEvent('group_memory_reconcile_failed', { error: dependencies.redactError(error) });
   }
   try {
@@ -209,7 +210,7 @@ export async function publishGroupMemory(
       );
     }
   } catch (error) {
-    failure = error;
+    failure ??= error;
     logEvent('group_memory_cutover_failed', { error: dependencies.redactError(error) });
   }
   return { cutover: failure === undefined, failure };
