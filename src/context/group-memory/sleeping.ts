@@ -156,6 +156,8 @@ export class SleepingService {
       return 0;
     }
     this.#busy = true;
+    const completion = Promise.withResolvers<void>();
+    this.#current = completion.promise;
     try {
       const config = this.#configStore.current().config;
       this.reconcile(config, now);
@@ -214,10 +216,15 @@ export class SleepingService {
           }
         }
       };
-      await Promise.all(Array.from({ length: GROUP_MEMORY_MAX_IN_FLIGHT }, runLanes));
+      for (const result of await Promise.allSettled(Array.from({ length: GROUP_MEMORY_MAX_IN_FLIGHT }, runLanes))) {
+        if (result.status === 'rejected') {
+          throw result.reason;
+        }
+      }
       return consolidated;
     } finally {
       this.#busy = false;
+      completion.resolve();
     }
   }
 
@@ -242,17 +249,7 @@ export class SleepingService {
       this.#groupMemory.lane(batch.chatId, batch.lane)?.claimedAt === claimedAt;
     const fields = { chat_id: batch.chatId.toString(), lane: batch.lane, day: batch.day };
     const first = batch.rows[0]?.telegramMessageId ?? 0n;
-    const runId = this.#groupMemory.startRun(
-      {
-        chatId: batch.chatId,
-        lane: batch.lane,
-        day: batch.day,
-        firstMessageId: first,
-        throughMessageId: batch.rows.at(-1)?.telegramMessageId ?? first,
-        messages: batch.rows.length,
-      },
-      clock(),
-    );
+    let runId: bigint | undefined;
     const failRun = (
       code: string,
       detail: string | null,
@@ -261,22 +258,35 @@ export class SleepingService {
     ): void => {
       const at = clock();
       this.#groupMemory.fail(batch.chatId, batch.lane, claimedAt, code, at, retryDelay);
-      this.#groupMemory.finishRun(
-        runId,
-        {
-          state: 'error',
-          throughMessageId: read.through,
-          messages: read.messages,
-          events: null,
-          modelCalls: read.modelCalls,
-          errorCode: code,
-          errorDetail: detail,
-        },
-        at,
-      );
+      if (runId !== undefined) {
+        this.#groupMemory.finishRun(
+          runId,
+          {
+            state: 'error',
+            throughMessageId: read.through,
+            messages: read.messages,
+            events: null,
+            modelCalls: read.modelCalls,
+            errorCode: code,
+            errorDetail: detail,
+          },
+          at,
+        );
+      }
       log('group_memory_failed', { ...fields, error_code: code });
     };
     try {
+      runId = this.#groupMemory.startRun(
+        {
+          chatId: batch.chatId,
+          lane: batch.lane,
+          day: batch.day,
+          firstMessageId: first,
+          throughMessageId: batch.rows.at(-1)?.telegramMessageId ?? first,
+          messages: batch.rows.length,
+        },
+        clock(),
+      );
       const result = await consolidateDay(
         { orm: this.#store.orm, secrets: this.#secrets },
         { day: batch.day, rows: batch.rows, models, selection, signal: controller.signal, now: clock(), canCall },
