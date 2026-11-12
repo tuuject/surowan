@@ -20,7 +20,7 @@ import { createMemoReadTools } from '../../context/memo-pad/tools/index.ts';
 import { createCapabilityResolver } from '../../context/refs.ts';
 import type { ContextHeader } from '../../context/store/types.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
-import { resolveBucketWindowSeconds } from '../../platform/config/resolve.ts';
+import { resolveBucketTiming } from '../../platform/config/resolve.ts';
 import { hostExecutionProfile } from '../../platform/host-profile.ts';
 import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { ImHost } from '../../platform/im-host/index.ts';
@@ -249,7 +249,7 @@ export function deferCollectingBucket(
   conversationId: bigint,
   freeSince: number,
 ): void {
-  const atLeast = new Date(freeSince + resolveBucketWindowSeconds(config, hostKind) * 1_000).toISOString();
+  const atLeast = new Date(freeSince + resolveBucketTiming(config, hostKind).windowSeconds * 1_000).toISOString();
   services.store.orm.run(
     sql`UPDATE buckets SET deadline_at = ${atLeast}, updated_at = ${new Date(freeSince).toISOString()}
        WHERE conversation_id = ${conversationId} AND state = 'collecting' AND deadline_at < ${atLeast}`,

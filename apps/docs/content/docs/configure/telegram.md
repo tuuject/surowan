@@ -39,6 +39,34 @@ Telegram 官方 FAQ 指引开发者通过 [@BotFather](https://t.me/BotFather) �
 
 修改 allowlist 后运行 `check-config`。新增与删除 Chat 都热应用：删除会停止该 Chat 的运行并拒绝其新消息（面板删除还会立即清除数据）；修改 Topic 范围后需要重启服务，变更未重启前仍可能出现 `chat_not_allowed`。
 
+## 等多久再处理一批消息
+
+Bot 不会逐条回复：一个 Chat（或 Topic）的第一条新消息到达后，Bot 先收集一小段时间，再把这一批交给模型。三个全局字段控制这段时间，单位都是秒，取值 0–300：
+
+| 字段 | 缺省 | 作用 |
+| --- | --- | --- |
+| `bucket_window_seconds` | `15` | 最短等待：一批至少收集这么久。 |
+| `bucket_bump_seconds` | `0` | 每来一条新消息，把结算时刻推迟到「这条消息到达后」这么久；`0` 不延长。 |
+| `bucket_max_seconds` | 同 `bucket_window_seconds` | 最长等待：从这一批第一条消息算起，延长不会超过这个时间。 |
+
+```jsonc
+{
+  "telegram": {
+    "bucket_window_seconds": 5,
+    "bucket_bump_seconds": 8,
+    "bucket_max_seconds": 30
+  }
+}
+```
+
+上例中，一条孤零零的消息 5 秒后就交给模型；有人连续说话时，每句话都让 Bot 多等到这句之后 8 秒，但从第一句算起最多等 30 秒，之后的消息归入下一批。不写这两个新字段时就是原来的固定窗口，已有配置不用改。
+
+- `bucket_max_seconds` 不能小于 `bucket_window_seconds`，否则 `check-config` 报错。
+- 只有能触发 Bot 的消息会延长等待；其他 Bot 的消息、入群退群这类服务消息和单独的 Sticker（未开启 `sticker_trigger_enabled` 时）会被收进这一批，但不推迟它。
+- Bot 正在处理上一批时，这一批会等它说完再按 `bucket_window_seconds` 起算，可能超过 `bucket_max_seconds`。
+- 开启长生命周期运行时，`agent.context.idle_grace_seconds` 不能小于 `bucket_max_seconds`。
+- 三个字段修改后都需要重启服务。
+
 ## 同一条消息只回复一次
 
 默认情况下，Bot 显式引用一条消息回复后，不会再引用同一条消息追加回复，即使更换内容或改发贴纸、图片也不行；一组图片作为一次相册发送。新消息仍可正常回复，不同 Chat/Topic 互不影响。

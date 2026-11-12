@@ -142,7 +142,12 @@ export const ConfigSchema = Type.Object(
           process_bot_messages: Type.Boolean(),
           sticker_trigger_enabled: Type.Optional(Type.Boolean()),
           mention_typing_enabled: Type.Optional(Type.Boolean()),
+          // The shortest a batch collects. The two optional fields below turn the
+          // fixed window into an adaptive one; left out, a batch settles exactly
+          // one window after its first message, as before they existed.
           bucket_window_seconds: Type.Integer({ minimum: 0, maximum: 300 }),
+          bucket_max_seconds: Type.Optional(Type.Integer({ minimum: 0, maximum: 300 })),
+          bucket_bump_seconds: Type.Optional(Type.Integer({ minimum: 0, maximum: 300 })),
           participation: Type.Optional(ParticipationSchema),
           proactive_reply: Type.Optional(ProactiveReplySchema),
           chats: Type.Array(ChatSchema),

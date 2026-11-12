@@ -144,7 +144,7 @@ export const harness = {
     'context.idle_grace_seconds': {
       label: 'Idle grace (seconds)',
       description:
-        'How long a finished run stays open for the next batch. 0 turns long-lived runs off; otherwise at least the bucket window.',
+        'How long a finished run stays open for the next batch. 0 turns long-lived runs off; otherwise at least the longest bucket wait (bucket_max_seconds).',
     },
     'context.max_wall_clock_seconds': {
       label: 'Max wall clock (seconds)',

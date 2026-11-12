@@ -1,4 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm';
+import { resolveBucketTiming } from '../../platform/config/resolve.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { bucketMessages, buckets, conversations } from '../../store/schema/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
@@ -31,12 +32,15 @@ export function appendToBucket(
     throw new Error('Conversation missing while assigning bucket');
   }
   const collecting = deps.store.orm
-    .select({ id: buckets.id })
+    .select({ id: buckets.id, firstReceivedAt: buckets.firstReceivedAt })
     .from(buckets)
     .where(and(eq(buckets.conversationId, conversation.id), eq(buckets.state, 'collecting')))
     .get();
   if (message.companionOnly && collecting === undefined) {
     return undefined;
+  }
+  if (collecting !== undefined && message.eligibleHuman) {
+    bumpDeadline(deps, collecting.id, collecting.firstReceivedAt, receivedAt);
   }
   let bucketId = collecting?.id;
   if (bucketId === undefined) {
@@ -60,7 +64,8 @@ export function appendToBucket(
     // barely-collected batch the moment a long round ends —
     // `AgentRuntime#deferCollectingBucket` therefore only ever pushes this
     // deadline later, to `round end + window`.
-    const deadline = receivedAt.getTime() + deps.configStore.current().config.telegram.bucket_window_seconds * 1_000;
+    const { windowSeconds } = resolveBucketTiming(deps.configStore.current().config, 'telegram');
+    const deadline = receivedAt.getTime() + windowSeconds * 1_000;
     const created = deps.store.orm
       .insert(buckets)
       .values({
@@ -97,6 +102,37 @@ export function appendToBucket(
     })
     .run();
   return bucketId;
+}
+
+/**
+ * Holds a batch open while its conversation is still talking: a message joining
+ * it pushes the deadline to the message's own arrival plus
+ * `bucket_bump_seconds`, but never past the first message plus
+ * `bucket_max_seconds`, so a steady stream still settles.
+ *
+ * Extension-only, like every other deadline write: the window a round end
+ * granted, or a deadline already further out, is never pulled in. Only messages
+ * that could have opened the batch extend it; other bots, service notices and
+ * untriggering stickers still join, but must not keep a batch open any more
+ * than they may open one. The batch is still `collecting` inside this
+ * transaction, and settling it is a transaction too, so a message either lands
+ * here and extends the batch or arrives after it settled and opens the next.
+ */
+function bumpDeadline(deps: TelegramBucketDeps, bucketId: bigint, firstReceivedAt: string, receivedAt: Date): void {
+  const timing = resolveBucketTiming(deps.configStore.current().config, 'telegram');
+  if (timing.bumpSeconds === 0) {
+    return;
+  }
+  const bumped = new Date(
+    Math.min(
+      Date.parse(firstReceivedAt) + timing.maxSeconds * 1_000,
+      receivedAt.getTime() + timing.bumpSeconds * 1_000,
+    ),
+  ).toISOString();
+  deps.store.orm.run(
+    sql`UPDATE buckets SET deadline_at = ${bumped}, updated_at = ${receivedAt.toISOString()}
+       WHERE id = ${bucketId} AND state = 'collecting' AND deadline_at < ${bumped}`,
+  );
 }
 
 /**

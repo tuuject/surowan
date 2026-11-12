@@ -17,7 +17,7 @@
 import type { RawConfig } from './config/index.ts';
 import type { HostKind } from './im-host/identity.ts';
 import { resolveChatConfig, type Orm } from '../store/store.ts';
-import { resolveAgentSettings, resolveBucketWindowSeconds } from './config/resolve.ts';
+import { resolveAgentSettings } from './config/resolve.ts';
 
 /** The resolved agent settings for one scope. */
 export type InvocationAgentSettings = ReturnType<typeof resolveAgentSettings>;
@@ -39,11 +39,6 @@ export interface InvocationPolicy {
   readonly chatType: string;
   readonly agent: InvocationAgentSettings;
   readonly timezone: string;
-  /**
-   * The debounce window this host's batches collect. Rooms are sealed when
-   * their input is released, so they collect nothing.
-   */
-  readonly bucketWindowSeconds: number;
   /** Instructions the chat entry contributes, empty when it has none. */
   readonly instructions: string;
   /** The model gate key: host first, so equal ids never share a gate. */
@@ -92,7 +87,6 @@ export function resolveInvocationPolicy(config: RawConfig, orm: Orm, scope: Invo
     chatType: scope.chatType,
     agent: resolveAgentSettings(config, chat),
     timezone: chat?.timezone ?? config.timezone,
-    bucketWindowSeconds: resolveBucketWindowSeconds(config, scope.hostKind),
     instructions: chat?.instructions ?? '',
     gateKey: invocationGateKey(scope.hostKind, scope.chatId),
   };

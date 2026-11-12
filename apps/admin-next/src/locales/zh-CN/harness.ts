@@ -136,7 +136,8 @@ export const harness: typeof harnessEn = {
     },
     'context.idle_grace_seconds': {
       label: '空闲等待（秒）',
-      description: '运行自然结束后继续等待下一批消息的时长。0 关闭长生命周期运行；否则不能小于 Bucket 窗口。',
+      description:
+        '运行自然结束后继续等待下一批消息的时长。0 关闭长生命周期运行；否则不能小于 Bucket 最长等待（bucket_max_seconds）。',
     },
     'context.max_wall_clock_seconds': {
       label: '最长运行时间（秒）',

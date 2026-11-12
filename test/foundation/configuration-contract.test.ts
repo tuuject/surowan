@@ -75,15 +75,16 @@ describe('configuration', () => {
         config.agent!.context!.hard_token_ratio = 0.9;
       }),
     ).rejects.toThrow('hard_token_ratio');
-    // A grace shorter than one bucket window would look enabled while every run
-    // ends before the next bucket is due.
+    // A grace shorter than the longest a bucket collects would look enabled
+    // while a run ends before the next bucket is due. Without
+    // `bucket_max_seconds` that longest wait is the window itself.
     await expect(
       reload((config) => {
         config.telegram.bucket_window_seconds = 15;
         config.agent!.context!.idle_grace_seconds = 5;
       }),
     ).rejects.toThrow(
-      'idle_grace_seconds must be 0 (long-lived invocations off) or at least telegram.bucket_window_seconds',
+      'idle_grace_seconds must be 0 (long-lived invocations off) or at least telegram.bucket_max_seconds (which defaults to telegram.bucket_window_seconds)',
     );
     // 0 is the supported way to turn long-lived invocations off.
     await expect(
