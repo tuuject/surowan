@@ -95,6 +95,18 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
             AND COALESCE(tr.claimed_at, tr.cancelled_at, tr.updated_at, lt.finished_at, lt.updated_at) < ${cutoff}
         )
       `);
+      // Recurring alarm firings are scheduling audit; the definitions stay. A
+      // firing whose occurrence is still undelivered is what keeps the next one
+      // from piling up behind it, so it outlives the window until delivery.
+      orm.run(sql`
+        DELETE FROM recurring_alarm_firings
+        WHERE created_at < ${cutoff}
+          AND NOT EXISTS (
+            SELECT 1 FROM long_tasks t LEFT JOIN task_receipts r ON r.task_id = t.id
+            WHERE t.id = recurring_alarm_firings.task_id
+              AND (t.state = 'waiting' OR r.state IN ('pending', 'claimed'))
+          )
+      `);
       orm.run(sql`DELETE FROM daily_usage WHERE utc_date < ${cutoff.slice(0, 10)}`);
       // Capability references expire by their own TTL. Conversation Context rows
       // are chat records too: they are not deleted by the online-retention window.

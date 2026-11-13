@@ -1,16 +1,16 @@
 import { eq, type SQL, sql } from 'drizzle-orm';
 import { AGENT_PROMPT_VERSION } from '../../platform/agent-protocol.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
-import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
 import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
+import { deliveryBlockReason } from '../../store/delivery-target.ts';
 import { enqueueInvocation } from '../../store/invocation-enqueue.ts';
 import { snapshotInvocation } from '../../store/invocation-snapshot.ts';
 import type { LongTaskService } from '../../store/long-tasks/index.ts';
 import type { ParticipationRegistry } from '../../store/participation.ts';
-import { buckets, rooms } from '../../store/schema/index.ts';
+import { buckets } from '../../store/schema/index.ts';
 import { activeSleepUntil } from '../../store/sleep.ts';
-import { type BusinessStore, isChatPaused, resolveChatConfig } from '../../store/store.ts';
+import type { BusinessStore } from '../../store/store.ts';
 import { activeHosts, conversationsOfHosts, everyHostReady, type HostReadiness } from '../host-scope.ts';
 import type { BucketAttachmentTarget } from './index.ts';
 import type { ProactiveReplyGate } from '../proactive-reply.ts';
@@ -184,37 +184,11 @@ export function logSleepingSkip(
 }
 
 export function receiptCancelReason(deps: InvocationQueueDeps, receipt: ReceiptRow): string | undefined {
-  // A room has no Telegram chat entry, pause or topic list; it is a valid
-  // destination for as long as the room itself exists.
-  if (receipt.host_kind === 'playground') {
-    const room = deps.store.orm
-      .select({ chatId: rooms.chatId })
-      .from(rooms)
-      .where(eq(rooms.chatId, receipt.chat_id))
-      .get();
-    return room === undefined ? 'chat_removed' : undefined;
-  }
-  if (receipt.telegram_chat_id === null) {
-    return 'chat_removed';
-  }
-  const current = deps.configStore.current().config;
-  const chatConfig = resolveChatConfig(current, deps.store.orm, receipt.telegram_chat_id);
-  if (chatConfig === undefined) {
-    return 'chat_removed';
-  }
-  // A completion receipt is delivered by an invocation, so it waits for the
-  // same complete identity triple as a message bucket.
-  if (completeAgentSettings(resolveAgentSettings(current, chatConfig)) === undefined) {
-    return 'agent_unconfigured';
-  }
-  if (isChatPaused(deps.store.orm, receipt.chat_id)) {
-    return 'chat_paused';
-  }
-  if (
-    chatConfig.topic_ids !== undefined &&
-    !chatConfig.topic_ids.some((topicId) => BigInt(topicId) === receipt.message_thread_id)
-  ) {
-    return 'topic_removed';
-  }
-  return undefined;
+  return deliveryBlockReason(deps.store.orm, deps.configStore.current().config, {
+    conversationId: receipt.conversation_id,
+    chatId: receipt.chat_id,
+    hostKind: receipt.host_kind,
+    telegramChatId: receipt.telegram_chat_id,
+    messageThreadId: receipt.message_thread_id,
+  });
 }
