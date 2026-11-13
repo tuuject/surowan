@@ -132,6 +132,7 @@ export interface StringFlags {
   readonly days: string | undefined;
   readonly q: string | undefined;
   readonly unread: string | undefined;
+  readonly enabled: string | undefined;
   readonly host: string | undefined;
   readonly target: string | undefined;
   readonly day: string | undefined;

@@ -21,7 +21,7 @@ description: 通过 Surowan MCP Server 操作塑料碗 Admin Panel：先读取�
 - 配置与模型：`surowan_config_view`、`surowan_models_list`、`surowan_provider_list`、`surowan_harness_show`、`surowan_image_config_show`、`surowan_search_show`。
 - Prompt：`surowan_prompt_global_view`、`surowan_prompt_group_view`、`surowan_prompt_versions`、`surowan_prompt_version_show`、`surowan_prompt_diff`。
 - Invocation：`surowan_invocation_list`（支持 `chat`/`state`/`host`/`model`/`search`/`at`/`from`/`to`）、`surowan_invocation_show`、`surowan_invocation_prompts`、`surowan_invocation_replay_preflight`、`surowan_invocation_media`、`surowan_invocation_media_content`。
-- 审计与管理页：`surowan_overview`、`surowan_usage`、`surowan_context_*`、`surowan_message_*`、`surowan_sticker_*`、`surowan_alarm_*`、`surowan_memo_*`、`surowan_group_memory_*`、`surowan_warning_*`、`surowan_room_*`。
+- 审计与管理页：`surowan_overview`、`surowan_usage`、`surowan_context_*`、`surowan_message_*`、`surowan_sticker_*`、`surowan_alarm_*`、`surowan_recurring_alarm_list/get/targets/preview`、`surowan_memo_*`、`surowan_group_memory_*`、`surowan_warning_*`、`surowan_room_*`。
 
 ## 写操作
 
@@ -30,7 +30,8 @@ description: 通过 Surowan MCP Server 操作塑料碗 Admin Panel：先读取�
 - 配置：`surowan_harness_update`、`surowan_model_set`、`surowan_vision_set`、`surowan_thinking_level_set`、`surowan_provider_*`、`surowan_model_add/update/delete`、`surowan_chat_*`、`surowan_search_update`、`surowan_image_config_update`、`surowan_telegram_token`、`surowan_bot_admin_*`。`surowan_telegram_token` 只能写入新 token；删除 token 用带 `confirm` 的 `surowan_telegram_token_clear`。
 - Prompt：`surowan_prompt_save` 的 `if_match` 必须来自刚读到的 prompt `content_hash`；`surowan_prompt_restore` 先读版本拿 scope/chat 与当前 hash。冲突时重新读取并重新确认，不要强行覆盖。
 - 配置写工具的 `if_match` 可省略：服务端会读取当前 `config.jsonc` revision。条目写工具（辞典、Memo、群聊记忆）的 `if_match` 必须来自该条目自己的 `revision`。
-- 破坏性工具（删除 Chat/模型/词条/Memo/群聊记忆、取消 Alarm、清空告警、重启、清空报文、`prompt cancel-running`）带 `confirm` 参数；只有用户明确确认对象与后果后才传 `confirm: true`。
+- 循环闹钟的新建、编辑与立即执行（`surowan_recurring_alarm_create/update/run`）同时需要 `write_all` 与 `execute_paid_operations`：保存后它会在无人值守时绕过每日预算调用模型，提示词以管理员身份注入。调用前向用户复述目标会话、规则、时区与提示词，得到明确同意才传 `confirm: true`；`update` 的 `if_match` 必须来自刚读到的该循环闹钟 `revision`。
+- 破坏性工具（删除 Chat/模型/词条/Memo/群聊记忆、取消 Alarm、删除循环闹钟、清空告警、重启、清空报文、`prompt cancel-running`）带 `confirm` 参数；只有用户明确确认对象与后果后才传 `confirm: true`。
 - `surowan_model_set` 与改模型的 `surowan_chat_update` 在还有运行中的会话用旧模型时返回 409 `model_in_use`（附 `running_invocations`）：告诉用户终止后这些会话正在处理的消息不再回复、委派任务不受影响，得到明确同意后才带 `abort_running: true` 重试。
 - 写成功只代表接口返回；仍需读回受影响对象确认状态。
 

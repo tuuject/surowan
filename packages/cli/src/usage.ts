@@ -32,6 +32,7 @@ export const USAGE = `surowan-utils - Surowan Admin Panel 与 Admin API 工具�
   developer show|update|clear-payloads, harness show|update
   room list|create|show|messages|send|participant|hold|release|asset|capabilities|invocations
   overview, usage, version show, context list|show, message list|show, sticker-set list, sticker list, alarm list|cancel
+  recurring-alarm list|targets|preview|create|get|update|delete|run
 
 全局选项:
   --endpoint <url>    Admin Panel 基地址（覆盖环境变量与登录文件）；明文 http 仅允许 loopback

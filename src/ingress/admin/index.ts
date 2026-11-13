@@ -12,6 +12,7 @@ import type { ConfigController } from '../../platform/config/write.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import type { LongTaskService } from '../../store/long-tasks/index.ts';
+import type { RecurringAlarmService } from '../../store/recurring-alarms/index.ts';
 import type { MemoBlobStore } from '../../context/memo-pad/blobs.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { WarningService } from '../../store/warnings.ts';
@@ -51,6 +52,8 @@ export interface AdminServerOptions {
   readonly connections?: ImConnectionRegistry;
   readonly scheduler?: BucketScheduler;
   readonly tasks?: LongTaskService;
+  /** Admin-defined recurring alarms; absent in panels without a Scheduler, whose routes answer 503. */
+  readonly recurringAlarms?: RecurringAlarmService;
   readonly modelSwitcher?: AgentModelSwitcher;
   readonly configReloader?: ConfigController;
   /** Memo Pad blob storage; absent uses the configured `data_dir`. */
@@ -295,6 +298,7 @@ export class AdminServer {
     response ??= await routes.dictionary.handle(request, url, segments);
     response ??= await routes.search.handle(request, url, segments);
     response ??= await routes.groupMemory.handle(request, url, segments);
+    response ??= await routes.recurringAlarms.handle(request, url, segments, username);
     response ??= await routes.memory.handle(request, url, segments);
     response ??= await routes.admins.handle(request, segments);
     response ??= await routes.stickerSets.handle(request, segments);

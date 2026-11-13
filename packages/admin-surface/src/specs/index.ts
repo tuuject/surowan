@@ -8,6 +8,7 @@ import { MEMORY_SPECS } from './memory.ts';
 import { PLAYGROUND_SPECS } from './playground.ts';
 import { PROMPT_SPECS } from './prompts.ts';
 import { PROVIDER_SPECS } from './providers.ts';
+import { RECURRING_ALARM_SPECS } from './recurring-alarms.ts';
 import { SEARCH_SPECS } from './search.ts';
 import { ADMIN_SPECS, STICKER_SET_SPECS, TELEGRAM_SPECS, WARNING_SPECS } from './settings.ts';
 import { TUNING_SPECS } from './tuning.ts';
@@ -22,6 +23,7 @@ export const ADMIN_SURFACE_SPECS: readonly EndpointSpec[] = [
   ...AUDIT_SPECS,
   ...AUTH_SPECS,
   ...CONTROL_SPECS,
+  ...RECURRING_ALARM_SPECS,
   ...TUNING_SPECS,
   ...DICTIONARY_SPECS,
   ...PROVIDER_SPECS,

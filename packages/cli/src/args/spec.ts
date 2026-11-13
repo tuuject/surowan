@@ -57,6 +57,7 @@ export const OPTIONS = {
   days: { type: 'string' },
   q: { type: 'string' },
   unread: { type: 'string' },
+  enabled: { type: 'string' },
   host: { type: 'string' },
   target: { type: 'string' },
   day: { type: 'string' },
