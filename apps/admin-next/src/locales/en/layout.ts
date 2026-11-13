@@ -77,6 +77,7 @@ export const layout = {
     imageGenerations: 'Image generations',
     playground: 'Playground',
     alarms: 'Alarms',
+    recurringAlarms: 'Recurring alarms',
     memories: 'Memories',
     groupMemories: 'Group memory',
     dictionary: 'Dictionary',

@@ -108,6 +108,7 @@ describe('recurring alarm admin API', () => {
     const auth = { cookie };
 
     const targets = await readJson(await server.handle(request('/api/recurring-alarms/targets', { headers: auth })));
+    expect(targets.default_time_zone).toBe('UTC');
     expect(targets.items).toEqual([
       expect.objectContaining({ chat_id: '1', message_thread_id: '0', conversation_id: '1', available: true }),
       expect.objectContaining({ chat_id: '2', message_thread_id: '7', conversation_id: null, available: true }),

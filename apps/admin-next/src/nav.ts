@@ -22,6 +22,7 @@ export type NavTo =
   | '/group-memories'
   | '/dictionary'
   | '/alarms'
+  | '/recurring-alarms'
   | '/stickers'
   | '/image-generate'
   | '/image-generations'
@@ -88,6 +89,7 @@ export const NAV_GROUPS: readonly NavGroupDefinition[] = [
       { titleKey: 'groupMemories', to: '/group-memories' },
       { titleKey: 'dictionary', to: '/dictionary' },
       { titleKey: 'alarms', to: '/alarms' },
+      { titleKey: 'recurringAlarms', to: '/recurring-alarms' },
     ],
   },
   {

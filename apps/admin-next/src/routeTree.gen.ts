@@ -30,6 +30,7 @@ import { Route as PlaygroundRouteImport } from './routes/playground'
 import { Route as PreferencesRouteImport } from './routes/preferences'
 import { Route as PromptsRouteImport } from './routes/prompts'
 import { Route as ProvidersRouteImport } from './routes/providers'
+import { Route as RecurringAlarmsRouteImport } from './routes/recurring-alarms'
 import { Route as SearchSettingsRouteImport } from './routes/search-settings'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StickersRouteImport } from './routes/stickers'
@@ -145,6 +146,11 @@ const ProvidersRoute = ProvidersRouteImport.update({
   path: '/providers',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RecurringAlarmsRoute = RecurringAlarmsRouteImport.update({
+  id: '/recurring-alarms',
+  path: '/recurring-alarms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SearchSettingsRoute = SearchSettingsRouteImport.update({
   id: '/search-settings',
   path: '/search-settings',
@@ -214,6 +220,7 @@ export interface FileRoutesByFullPath {
   '/preferences': typeof PreferencesRoute
   '/prompts': typeof PromptsRoute
   '/providers': typeof ProvidersRoute
+  '/recurring-alarms': typeof RecurringAlarmsRoute
   '/search-settings': typeof SearchSettingsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
@@ -246,6 +253,7 @@ export interface FileRoutesByTo {
   '/preferences': typeof PreferencesRoute
   '/prompts': typeof PromptsRoute
   '/providers': typeof ProvidersRoute
+  '/recurring-alarms': typeof RecurringAlarmsRoute
   '/search-settings': typeof SearchSettingsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
@@ -279,6 +287,7 @@ export interface FileRoutesById {
   '/preferences': typeof PreferencesRoute
   '/prompts': typeof PromptsRoute
   '/providers': typeof ProvidersRoute
+  '/recurring-alarms': typeof RecurringAlarmsRoute
   '/search-settings': typeof SearchSettingsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
@@ -313,6 +322,7 @@ export interface FileRouteTypes {
     | '/preferences'
     | '/prompts'
     | '/providers'
+    | '/recurring-alarms'
     | '/search-settings'
     | '/settings'
     | '/stickers'
@@ -345,6 +355,7 @@ export interface FileRouteTypes {
     | '/preferences'
     | '/prompts'
     | '/providers'
+    | '/recurring-alarms'
     | '/search-settings'
     | '/settings'
     | '/stickers'
@@ -377,6 +388,7 @@ export interface FileRouteTypes {
     | '/preferences'
     | '/prompts'
     | '/providers'
+    | '/recurring-alarms'
     | '/search-settings'
     | '/settings'
     | '/stickers'
@@ -410,6 +422,7 @@ export interface RootRouteChildren {
   PreferencesRoute: typeof PreferencesRoute
   PromptsRoute: typeof PromptsRoute
   ProvidersRoute: typeof ProvidersRoute
+  RecurringAlarmsRoute: typeof RecurringAlarmsRoute
   SearchSettingsRoute: typeof SearchSettingsRoute
   SettingsRoute: typeof SettingsRoute
   StickersRoute: typeof StickersRoute
@@ -570,6 +583,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProvidersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/recurring-alarms': {
+      id: '/recurring-alarms'
+      path: '/recurring-alarms'
+      fullPath: '/recurring-alarms'
+      preLoaderRoute: typeof RecurringAlarmsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/search-settings': {
       id: '/search-settings'
       path: '/search-settings'
@@ -658,6 +678,7 @@ const rootRouteChildren: RootRouteChildren = {
   PreferencesRoute: PreferencesRoute,
   PromptsRoute: PromptsRoute,
   ProvidersRoute: ProvidersRoute,
+  RecurringAlarmsRoute: RecurringAlarmsRoute,
   SearchSettingsRoute: SearchSettingsRoute,
   SettingsRoute: SettingsRoute,
   StickersRoute: StickersRoute,

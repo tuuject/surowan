@@ -72,6 +72,7 @@ export const layout: typeof layoutEn = {
     imageGenerations: '生图记录',
     playground: '虚拟群聊',
     alarms: '告警',
+    recurringAlarms: '循环闹钟',
     memories: '记忆',
     groupMemories: '群聊记忆',
     dictionary: '辞典',

@@ -81,7 +81,9 @@ export function createRecurringAlarmsAdminHandler(deps: RecurringAlarmsAdminDeps
       );
     }
     if (segments.length === 2 && first === 'targets' && request.method === 'GET') {
-      return json({ items: listRecurringTargets(orm, configStore.current().config) });
+      const config = configStore.current().config;
+      // The global zone is what a new alarm defaults to; each alarm keeps its own afterwards.
+      return json({ items: listRecurringTargets(orm, config), default_time_zone: config.timezone });
     }
     if (segments.length === 2 && first === 'preview' && request.method === 'POST') {
       return json(previewSchedule(recurring.engine, await readJsonObject(request, RECURRING_BODY_MAX_BYTES)));

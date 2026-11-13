@@ -46,6 +46,36 @@ export function formatTime(value: string | null): string {
   return Number.isNaN(date.getTime()) ? value : TIME_FORMAT.format(date);
 }
 
+/**
+ * A time as the wall clock of `timeZone` reads it, with the weekday, the way a
+ * schedule is planned (`Thu 2026-11-19 08:00`). Falls back to the panel's
+ * local time when the zone is unknown.
+ */
+export function formatTimeInZone(value: string | null, timeZone: string): string {
+  if (value === null || value.length === 0) {
+    return '—';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  try {
+    const weekday = new Intl.DateTimeFormat(i18n.language, { timeZone, weekday: 'short' }).format(date);
+    const stamp = new Intl.DateTimeFormat('sv-SE', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(date);
+    return `${weekday} ${stamp}`;
+  } catch {
+    return formatTime(value);
+  }
+}
+
 export function formatNumber(value: number | null): string {
   return value === null ? '—' : value.toLocaleString(i18n.language);
 }
