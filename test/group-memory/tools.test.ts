@@ -1,7 +1,8 @@
-import { sql } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { expect, test } from 'vitest';
 import { InvocationContextState } from '../../src/platform/invocation-context.ts';
 import { createGroupMemoryReadTools } from '../../src/context/group-memory/tools/read.ts';
+import { toolCalls } from '../../src/store/schema/index.ts';
 import { auditRows, runTool, seedInvocation, toolNamed } from '../memo/fixtures.ts';
 import { groupMemoryFixture, seedMessage } from './fixtures.ts';
 
@@ -94,6 +95,61 @@ test('search_group_memory returns summaries with ranges, then read_group_message
       { toolCallId: 'call-search', toolName: 'search_group_memory', state: 'success', errorCode: null },
       { toolCallId: 'call-range', toolName: 'read_group_messages', state: 'success', errorCode: null },
       { toolCallId: 'call-limited', toolName: 'read_group_messages', state: 'success', errorCode: null },
+    ]);
+  } finally {
+    await f.close();
+  }
+});
+
+// Ways the zero-match nudge can fail: missing when keywords filtered a dated
+// search to nothing; naming a date the model never gave; firing on a hit;
+// telling a filterless search to "retry" the same query; or leaking into the
+// audit summary / details count that other tooling reads.
+test('search_group_memory nudges a broader search only when keywords filtered everything out', async () => {
+  const f = await groupMemoryFixture();
+  try {
+    f.groupMemory.record(f.chatId, '2026-11-11', [
+      { summary: 'Natu and tcdw had lunch together', firstMessageId: 5001n, lastMessageId: 5040n },
+    ]);
+    const invocationId = seedInvocation(f.store, f.conversationId);
+    const search = toolNamed(
+      createGroupMemoryReadTools({ store: f.store, configStore: f.configStore, context: context(f, invocationId) }),
+      'search_group_memory',
+    );
+    const datePattern = /\d{4}-\d{2}-\d{2}/;
+
+    const dated = await runTool(search, 'call-dated', { date: '2026-11-11', keywords: ['吃', '饭', '麻辣香锅'] });
+    expect(dated.details).toEqual({ count: 0 });
+    expect(dated.text).toContain('No group memories matched in this Chat.');
+    expect(dated.text).toContain('does not mean nothing relevant was recorded');
+    expect(dated.text).toContain('earlier conversation are not required');
+    expect(dated.text).toContain('consider searching 2026-11-11 alone, without keywords');
+
+    const undated = await runTool(search, 'call-undated', { keywords: ['麻辣香锅'] });
+    expect(undated.details).toEqual({ count: 0 });
+    expect(undated.text).toContain('does not mean nothing relevant was recorded');
+    expect(undated.text).toContain('fewer or broader keywords');
+    expect(undated.text).not.toMatch(datePattern);
+
+    const hit = await runTool(search, 'call-hit', { date: '2026-11-11', keywords: ['lunch'] });
+    expect(hit.details).toEqual({ count: 1 });
+    expect(hit.text).toContain('Natu and tcdw had lunch together');
+    expect(hit.text).not.toContain('does not mean nothing relevant');
+
+    const emptyDay = await runTool(search, 'call-empty-day', { date: '2026-11-12' });
+    expect(emptyDay).toEqual({ text: 'No group memories matched in this Chat.', details: { count: 0 } });
+
+    const summaries = f.store.orm
+      .select({ toolCallId: toolCalls.toolCallId, resultText: toolCalls.resultText, state: toolCalls.state })
+      .from(toolCalls)
+      .where(eq(toolCalls.invocationId, invocationId))
+      .orderBy(asc(toolCalls.id))
+      .all();
+    expect(summaries).toEqual([
+      { toolCallId: 'call-dated', resultText: 'matches=0', state: 'success' },
+      { toolCallId: 'call-undated', resultText: 'matches=0', state: 'success' },
+      { toolCallId: 'call-hit', resultText: 'matches=1', state: 'success' },
+      { toolCallId: 'call-empty-day', resultText: 'matches=0', state: 'success' },
     ]);
   } finally {
     await f.close();
