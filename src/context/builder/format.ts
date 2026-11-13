@@ -243,3 +243,13 @@ export function parseSnapshotLines(text: string): RenderedHeader[] {
   }
   return headers;
 }
+
+/** The runtime block's clock line: the full local date and time plus the zone name. */
+export function renderCurrentTime(timezone: string, now: Date): string {
+  return `${new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    dateStyle: 'full',
+    timeStyle: 'long',
+    hourCycle: 'h23',
+  }).format(now)} (${timezone})`;
+}
