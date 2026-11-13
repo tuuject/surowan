@@ -141,7 +141,9 @@ export function validateSemantics(config: FileConfig, options: ValidateSemantics
     }
   }
   assertUnique(telegram.sticker_sets ?? [], (item) => item.alias, 'sticker set alias');
-  assertUnique(telegram.sticker_sets ?? [], (item) => item.name, 'sticker set name');
+  // Telegram resolves set names case-insensitively, and the store identifies a
+  // set by its name, so two spellings of one name would be the same set.
+  assertUnique(telegram.sticker_sets ?? [], (item) => item.name.toLowerCase(), 'sticker set name');
   const providerAliases = new Set(Object.keys(config.providers));
   // The agent model reference is validated only when both fields are written:
   // a missing provider/model pair never reaches a model lookup at runtime.

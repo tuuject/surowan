@@ -31,6 +31,46 @@ export const TELEGRAM_SPECS: readonly EndpointSpec[] = [
   },
 ];
 
+/**
+ * Telegram → Sticker sets: the `telegram.sticker_sets` list, hot-applied. A
+ * set's Telegram name is fixed once added; only its alias and note change.
+ * Adding or removing a set stops running Telegram invocations.
+ */
+export const STICKER_SET_SPECS: readonly EndpointSpec[] = [
+  {
+    command: 'sticker-set list',
+    method: 'GET',
+    path: 'sticker-sets',
+    summary: 'List sticker sets with their notes and index progress',
+  },
+  {
+    command: 'sticker-set add',
+    method: 'POST',
+    path: 'sticker-sets',
+    body: true,
+    revision: 'config',
+    summary: 'Add a Telegram sticker set by name or link, with an alias and an optional note',
+  },
+  {
+    command: 'sticker-set update',
+    method: 'PUT',
+    path: 'sticker-sets/:alias',
+    positional: [{ name: 'alias', kind: 'text' }],
+    body: true,
+    revision: 'config',
+    summary: 'Rename a sticker set alias or edit its note; the Telegram set stays the same',
+  },
+  {
+    command: 'sticker-set remove',
+    method: 'DELETE',
+    path: 'sticker-sets/:alias',
+    positional: [{ name: 'alias', kind: 'text' }],
+    revision: 'config',
+    confirm: 'destructive',
+    summary: 'Remove a sticker set; its index is kept for a later re-add',
+  },
+];
+
 /** Warnings page: standing warnings are derived, event warnings are stored. */
 export const WARNING_SPECS: readonly EndpointSpec[] = [
   {

@@ -102,9 +102,21 @@ export function usageQuery(days: number) {
   });
 }
 
+/**
+ * Synchronization and indexing run in the background after a set is added, so
+ * the list polls quickly while any configured set is still catching up and
+ * slowly otherwise, to pick up changes made from the CLI or the file.
+ */
 export const stickerSetsQuery = queryOptions({
   queryKey: ['sticker-sets'],
   queryFn: listStickerSets,
+  refetchInterval: (query) =>
+    (query.state.data?.items ?? []).some(
+      (set) =>
+        set.configured && (set.sync_state === 'pending' || set.sync_state === 'running' || set.pending_count > 0),
+    )
+      ? 3_000
+      : 15_000,
 });
 
 /**

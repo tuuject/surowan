@@ -19,7 +19,7 @@
 | `surowan_usage` | read | 用量序列 |
 | `surowan_context_list` / `surowan_context_show` | read | Conversation Context |
 | `surowan_message_list` / `surowan_message_show` | read | Telegram 消息与 Revision |
-| `surowan_sticker_set_list` / `surowan_sticker_list` | read | Sticker 索引 |
+| `surowan_sticker_list` | read | Sticker 索引 |
 | `surowan_alarm_list` / `surowan_alarm_cancel` | read / write | Alarm 查询与取消 |
 | `surowan_config_view` | read | 脱敏配置 |
 | `surowan_models_list` | read | active 文本模型 |
@@ -42,6 +42,7 @@
 | `surowan_search_show` / `surowan_search_update` | read / write | 网络搜索配置 |
 | `surowan_telegram_show` / `surowan_telegram_token` / `surowan_telegram_token_clear` | read / write | Telegram token |
 | `surowan_bot_admin_list` / `surowan_bot_admin_add` / `surowan_bot_admin_remove` | read / write | Bot 管理员 |
+| `surowan_sticker_set_list` / `surowan_sticker_set_add` / `surowan_sticker_set_update` / `surowan_sticker_set_remove` | read / write | Sticker Set 与备注（`telegram.sticker_sets`，热应用）；`update` 只改 `alias`/`note`，Telegram 名称不可改；增删会中止运行中的 Telegram Invocation；`remove` 需 `confirm: true` |
 | `surowan_restart` / `surowan_wake` / `surowan_session_cancel` | write | 进程与会话控制 |
 
 ## Chat、Prompt 与知识

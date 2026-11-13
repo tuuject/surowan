@@ -28,8 +28,8 @@ const EN_GROUPS: readonly NavGroup[] = [
   },
   {
     label: 'Media',
-    routes: ['/stickers', '/image-generate', '/image-generations', '/image-settings'],
-    labels: ['Bot sticker sets', 'Image generation', 'Image generations', 'Image settings'],
+    routes: ['/image-generate', '/image-generations', '/image-settings'],
+    labels: ['Image generation', 'Image generations', 'Image settings'],
   },
   {
     label: 'Agent setup',
@@ -38,8 +38,8 @@ const EN_GROUPS: readonly NavGroup[] = [
   },
   {
     label: 'Telegram',
-    routes: ['/telegram', '/chats', '/admins'],
-    labels: ['Telegram', 'Chats', 'Bot admins'],
+    routes: ['/telegram', '/chats', '/admins', '/stickers'],
+    labels: ['Telegram', 'Chats', 'Bot admins', 'Bot sticker sets'],
   },
   {
     label: 'System',
@@ -60,7 +60,6 @@ const ZH_LABELS = [
   '群聊记忆',
   '辞典',
   '告警',
-  'Bot 贴纸包',
   '图片生成',
   '生图记录',
   '图片设置',
@@ -72,6 +71,7 @@ const ZH_LABELS = [
   'Telegram',
   '会话',
   'Bot 管理员',
+  'Bot 贴纸包',
   'API 密钥',
   '开发者',
   '设置',

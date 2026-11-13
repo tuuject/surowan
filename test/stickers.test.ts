@@ -14,7 +14,7 @@ import { MediaService } from '../src/capabilities/media/index.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler/index.ts';
 import { createSendTool } from '../src/capabilities/send/index.ts';
-import { StickerService } from '../src/capabilities/stickers.ts';
+import { StickerService } from '../src/capabilities/stickers/index.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion/index.ts';
 import {
   fauxRegistry,
@@ -84,7 +84,7 @@ test('sync, representative-frame indexing, search, and sticker send share scoped
   });
   const stickers = new StickerService({
     store,
-    config: loaded.config,
+    config: () => loaded.config,
     media,
     api: {
       getStickerSet: async () => ({
@@ -143,19 +143,17 @@ test('sync, representative-frame indexing, search, and sticker send share scoped
     contextWindow: 200_000,
     maxOutputTokens: 32768,
   });
-  expect(context.userPrompt).toContain(
-    `<untrusted_sticker_catalog>\n${stickerRow.id}:😭\n</untrusted_sticker_catalog>`,
-  );
+  const catalog = `<sticker_set alias="cats">${stickerRow.id}:😭</sticker_set>`;
+  expect(context.userPrompt).toContain(`<sticker_catalog>\n${catalog}\n</sticker_catalog>`);
   // A transcript that already carries this exact catalog does not get another copy:
   // each copy lands in the canonical history, so a long-lived run used to keep one
   // per injected batch. A different (stale) catalog is rendered again.
-  const catalog = `${stickerRow.id}:😭`;
   expect(
     renderInvocationContext(store, loaded.config, invocationId, { carriedStickerCatalog: catalog }).userPrompt,
-  ).not.toContain('<untrusted_sticker_catalog>');
+  ).not.toContain('<sticker_catalog>');
   expect(
     renderInvocationContext(store, loaded.config, invocationId, { carriedStickerCatalog: '1:🙂' }).userPrompt,
-  ).toContain(`<untrusted_sticker_catalog>\n${catalog}\n</untrusted_sticker_catalog>`);
+  ).toContain(`<sticker_catalog>\n${catalog}\n</sticker_catalog>`);
   const capabilities = invocationCapabilities(store, loaded.config, context.header);
   const search = stickers.createSearchTool(context, capabilities);
   const semanticResult = await search.execute('search-1', { query: '委屈猫', set: 'cats', limit: 5 });

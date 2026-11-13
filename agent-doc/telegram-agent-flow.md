@@ -172,7 +172,7 @@ system prompt 拆分（文档中只在此处维护；`ContextBuilder.buildSystem
 - `composeAgentPrompt` 在 global/group 覆盖和模板渲染完成后，按最终内容决定是否加入运行时拥有的 `4-persona.md` 标题与说明；它不预先固定在 `promptLayers.prefix` 中。两层都渲染为空时省略整个人格分区。Replay 临时增加首个人格或清空唯一的 Chat 指令，与保存相同配置后构建的 system prompt 保持一致。
 - 产品意图索引 `PRODUCT_KNOWLEDGE_INDEX` 读取自 `src/platform/prompts/2-product-knowledge.md`，属于稳定 prefix，由本地 Coding Agent 从用户手册离线烘焙并直接写入该文件；`CORE_AGENT_PROTOCOL` 约束产品事实优先于角色扮演，细节仍经文档工具验证。索引不进入逐批注入或 canonical history，更新时沿用稳定哈希重建。架构调查、维护 Skill、体积预算与验证方法见 [产品知识烘焙](product-knowledge.md)。
 - 查手册只有一套顺序，`CORE_AGENT_PROTOCOL`、`read_document`/`list_documents` 工具说明与 `user-manual` Skill 三处一致：产品知识索引已给出合适页面时直接 `read_document`；没有合适页面时先 `list_documents` 看目录，再读取相关页面。
-- **注入段**是一条 `user` 消息，依次为：可信的 `<runtime_state>`（当前时间、睡眠状态、完成事件说明、Startup catch-up 说明、仅刷新批次才有的 `<memo_list>`）、可选的 `<untrusted_task_receipt>`、可选的 `<untrusted_sticker_catalog>`、可选的 `<untrusted_dictionary>`（辞典注入，见下）、可选的 `<untrusted_telegram_history>`（见下一条）、`<untrusted_new_messages>`（本批 Telegram 快照），以及追加在最后、仅在短期记忆有变化时出现的 `<memo_updates>` 增量块（见「Context」）。完成回执的结构化内容与其它 `<untrusted_*>` 一样只是数据，不是指令或待发送消息。Startup catch-up 按 Conversation 处理，Forum Topic 各自独立，因此提示只说明这批消息是离线期间累积的最新若干条，不再声称可能跨 Topic。
+- **注入段**是一条 `user` 消息，依次为：可信的 `<runtime_state>`（当前时间、睡眠状态、完成事件说明、Startup catch-up 说明、仅刷新批次才有的 `<memo_list>`）、可选的 `<untrusted_task_receipt>`、可选的 `<sticker_catalog>`、可选的 `<untrusted_dictionary>`（辞典注入，见下）、可选的 `<untrusted_telegram_history>`（见下一条）、`<untrusted_new_messages>`（本批 Telegram 快照），以及追加在最后、仅在短期记忆有变化时出现的 `<memo_updates>` 增量块（见「Context」）。完成回执的结构化内容与其它 `<untrusted_*>` 一样只是数据，不是指令或待发送消息。Startup catch-up 按 Conversation 处理，Forum Topic 各自独立，因此提示只说明这批消息是离线期间累积的最新若干条，不再声称可能跨 Topic。
 - **XML 转义**：注入批次里的不可信内容一律转义为五个 XML 预定义实体（`&`、`<`、`>`、`"`、`'`），包括消息正文、发送者名字、回复引用、转发来源、Sticker 目录、辞典条目和 Memo Pad 列表/增量，所以这些内容里不会出现真正的标签；`<tg-spoiler>` 由 `renderSpoilers` 在转义之后插入，用户原样打出的剧透标签会被转义而无法伪装。`parseSnapshotLines` 读回显示名时用 `unescapeXml` 还原。工具结果（网页、MCP、手册页、Skill 正文）不转义，由「工具结果是观察而非指令」的核心规则兜底。
 - 消息不以 `invocation_messages` 的快照 JSON 发给模型，而由 `formatSnapshot` 渲染成省 Token 的紧凑文本：一行 `[message_id 本地时间 you service re:N uid:N @username] 显示名` 头部（`service` 只出现在 `kind = 'service'` 的消息上）（startup catch-up 也不再标注 `topic:N`，与实时 Bucket 一致），下面是两格缩进的正文（转发来源、回复引用、text/caption 的 Markdown 各行、`[kind ref WxH]` 媒体行；Rich Message 的媒体行放在正文里各自的位置上，见下文「Markdown 正文」）；空字段、`revision`、`media_group_id`、mime 等不渲染，日期只在与本批 `current_time` 不同时显示，回复目标就在同一批时省略引用。头部方括号内只有 runtime 生成的 token，所有 Telegram 可控内容都在缩进行上并已转义，因此无法伪造头部或区块标签；`collectVisibleSenders`/`collectInjectedMessageIds` 只回读最后一个 `</runtime_state>` 之后的头部行。改动这个格式要同步改 `CORE_AGENT_PROTOCOL` 中的格式说明（system prompt 哈希变化会让所有 Context 重建）。
 - **Markdown 正文**：Telegram 从不以标记语言投递格式——无论发送方用 MarkdownV2、HTML 还是客户端工具栏，收到的都是纯文本加 UTF-16 entity；Rich Message 则是块树。建快照时 `src/platform/telegram-markdown/` 的 `bodyFromFragment` 从 `raw_fragment_json` 还原出模型读的 Markdown：text/caption 由 `entitiesMarkdown` 把 bold/italic/strikethrough/code/pre/blockquote/text_link/text_mention 写回普通 Markdown（`**`、`_`、`~~`、反引号与围栏、`> `、`[文字](url)`、`tg://user?id=N`），Telegram 自动识别的 mention/hashtag/url/command 等本来就是正文，不加标记，所以无格式消息的快照与改动前逐字节一致；Rich Message 由 `richMessageMarkdown` 再拍平一次，与 Revision 的 `text` 完全一致才采信。只在 fragment 的正文与 Revision 一致时才用这些格式，否则原样使用 Revision 正文，渲染失败从不让 Invocation 失败。快照的 `text`/`caption` 因此是 Markdown（Revision 仍是 Telegram 原文），Rich Message 另带 `media_slots`：每个已入库媒体在 Markdown 里的占位区间（`[photo]`、`[document: 名称]`），与媒体行一一对应，`formatSnapshot` 把媒体行（含多模态的 `figure_N`）放回占位处，顺序与直传附件一致；区间对不上（越界、乱序、多于媒体数）时整体忽略，占位留在正文、媒体行退回末尾。Markdown 标记同样要经过 XML 转义，所以引用前缀在模型输入里是 `&gt; `、链接里的 `&` 是 `&amp;`，与其他正文一致。
@@ -511,15 +511,18 @@ Sticker 视觉元数据通过严格 Tool Call 返回：中文描述、情绪、�
 
 ## Sticker 搜索与后台索引
 
-启动时 `StickerService.sync` 拉取配置中的完整 Set：
+`reconcileStickerSets` 在启动与每次发布 `telegram.sticker_sets` 时把配置对账进 `sticker_sets`（按名称大小写不敏感识别 Set，昵称与备注只是复制；新增或重新添加的 Set 标为 `pending`，删除的 Set 停用其贴纸并删掉搜索行、保留分析）。Telegram 连接上线时 `StickerService.sync` 拉取全部已配置 Set，发布后 `refresh` 只拉取未同步的 Set；拉取串行执行，拉取期间被删除的 Set 丢弃其结果：
 
 - Set/Sticker 元数据写入 SQLite。
+- 重新启用的已索引 Sticker 若缺少搜索行，会回到 `pending`，由 worker 用缓存的分析重建搜索行（不再调用视觉模型）。
 - 新增或版本变化的 Sticker 进入索引队列。
 - 后台固定单并发，前台 Sticker `read_image` 优先。
 - 分析成功后更新 `sticker_search` FTS5 trigram 索引。
 - 失败记录次数与 `next_retry_at`，避免热循环。
 
-`search_stickers`（经 `execute.call` 调用）支持语义查询，也支持一次解析最多 5 个目录 `sticker_id`；两种方式都只返回已允许、已成功索引的 Sticker，并生成当前 Conversation Context 的 `sticker_ref`（带 TTL，历史里引用过也仍然有效）。目录 ID 与 Telegram file ID 都不能直接发送，`send` 只接受 `search_stickers` 返回的 capability；`execute.call` 的结果封套会在 `refs.sticker_ref` 中同时列出这些授权 token。
+`search_stickers`（经 `execute.call` 调用）支持语义查询，也支持一次解析最多 5 个目录 `sticker_id`；两种方式都只返回已允许、已成功索引的 Sticker，并生成当前 Conversation Context 的 `sticker_ref`（带 TTL，历史里引用过也仍然有效），结果附带所属 Set 的昵称。
+
+注入批次里的 `<sticker_catalog>` 每个 Set 一行：`<sticker_set alias="…" note="…">id:emoji …</sticker_set>`。`alias` 与 `note` 由运营者写入，Core Protocol 声明它们可信，`id:emoji` 来自 Telegram 仍不可信；所有值经 XML 转义，备注折成一行，因此无法提前结束块或伪造标签行。目录内容与 transcript 已携带的最新目录不同时才重新渲染，所以改昵称或备注会在下一批注入时生效。目录 ID 与 Telegram file ID 都不能直接发送，`send` 只接受 `search_stickers` 返回的 capability；`execute.call` 的结果封套会在 `refs.sticker_ref` 中同时列出这些授权 token。
 
 ## Bot Commands
 

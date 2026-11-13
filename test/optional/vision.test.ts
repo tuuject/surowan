@@ -7,7 +7,7 @@ import { writeConfigEdits } from '../../src/adapters/local-monolith/config/file.
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import type { MediaDownloader } from '../../src/capabilities/media/download.ts';
 import { MediaService } from '../../src/capabilities/media/index.ts';
-import { StickerService } from '../../src/capabilities/stickers.ts';
+import { StickerService } from '../../src/capabilities/stickers/index.ts';
 import { visionEdits } from '../../src/ingress/admin/providers/write.ts';
 import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
 import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
@@ -138,7 +138,7 @@ describe('optional vision section', () => {
       });
       const stickers = new StickerService({
         store,
-        config: loaded.config,
+        config: () => loaded.config,
         media,
         api: {
           getStickerSet: async () => ({

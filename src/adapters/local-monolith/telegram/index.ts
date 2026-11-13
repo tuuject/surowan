@@ -15,7 +15,7 @@
  */
 
 import { type Api, Bot } from 'grammy';
-import type { StickerService } from '../../../capabilities/stickers.ts';
+import type { StickerService } from '../../../capabilities/stickers/index.ts';
 import type { TelegramIngestion } from '../../../ingress/telegram-ingestion/index.ts';
 import type { ImConnectionRegistry, ImConnectionState } from '../../../platform/im-connection.ts';
 import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';

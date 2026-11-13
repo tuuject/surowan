@@ -11,7 +11,7 @@ Surowan 使用严格 JSONC 配置。Schema 位于 `src/platform/config/schema.ts
 - CLI 必须显式传入 `--config <path>`。
 - 配置在 `serve` 启动时读取一次；只有[运行时配置热更新](#运行时配置热更新)列出的白名单字段可以在运行中应用，其余字段修改后必须重启。
 - 配置哈希是原始 JSONC 文本与所有 Prompt 文件内容的 SHA-256，写入 Invocation 并打印在 `serve_started` 日志中。
-- 修改 Bucket 窗口、Sticker Set 或 MCP 后必须重启；Prompt、Provider（含连接字段与模型列表）、agent 模型与 vision 模型、`agent` 段的全部字段、已有 Chat 的 `provider`/`model`/`thinking_level` 覆盖、**新增或删除 Chat** 等白名单字段可用 Admin「Apply config file」或 `/model` 热应用（删除会停掉该 Chat 的运行，但保留数据）；修改 Topic 范围仍需重启。
+- 修改 Bucket 窗口或 MCP 后必须重启；Sticker Set 与Prompt、Provider（含连接字段与模型列表）、agent 模型与 vision 模型、`agent` 段的全部字段、已有 Chat 的 `provider`/`model`/`thinking_level` 覆盖、**新增或删除 Chat** 等白名单字段可用 Admin「Apply config file」或 `/model` 热应用（删除会停掉该 Chat 的运行，但保留数据）；修改 Topic 范围仍需重启。
 - 相对 `data_dir`/`paths` 按服务当前工作目录解释；Docker 镜像的工作目录是 `/app`。
 - Prompt 文件路径（`system_prompt_file`、`instructions_file`）相对于配置文件所在目录解释；修改文件内容同样会改变 `config_hash`。
 - Prompt 文件按原始字节参与哈希：剔除 HTML 注释只影响进入模型上下文的文本，纯注释改动仍然改变 `config_hash`。
@@ -44,6 +44,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 | `telegram.participation` 与 `telegram.chats[<id>].participation`（含全部子字段） | 参与策略时段；`ParticipationRegistry` 按发布代数即时重编译，下一次消息判定就用新时段（时段按该 Chat 的 `timezone` 解析，时区本身是 restart 字段）。可经 Admin Chats 页编辑 |
 | `telegram.proactive_reply` 与 `telegram.chats[<id>].proactive_reply`（含全部子字段） | 群聊主动回复概率；每次 Bucket 到期时读取当前发布值，下一次抽样即生效；`base_probability` / `increment` / `hard_pity` 任一变化会在下一次抽样时把该群的连续未命中计数清零（仅开关 `enabled` 或重启不清零）。全局值可经 Admin Harness tuning 页编辑，Chat 覆盖经 Chats 页编辑 |
 | `telegram.chats[<id>].group_memory`（含 `enabled`、`idle_minutes`） | 该 Chat 的群聊记忆开关与空闲阈值；增删字段或改值都热应用，下一次 sleeping 扫描使用新值。开关状态变化时先 fence 该 Chat 的全部 Conversation（期间排队的 Invocation 不启动），中止 running Invocation，等它们真正落定后才驱逐 Agent 缓存并重建全部 Conversation Context；关闭只停止后续整理并让新 Invocation 不再拿到回忆工具，已写入的记忆与原文保留 |
+| `telegram.sticker_sets`（整个列表，含 `alias`、`note`） | 发布时先把 Set 对账进 `sticker_sets` 表（按 Telegram 名称大小写不敏感地识别，`alias`/`note` 只是复制，改名保留同一行与索引），再由运行中的 Sticker worker 在后台拉取未同步的 Set；没有 Telegram 连接时只对账存储。Set 的增删（按名称）立即中止所有运行中的 Telegram Invocation（原因 `sticker_sets_changed`，Playground 房间不受影响），只改昵称或备注不中止，下一次注入的贴纸目录即用新值。Admin「Bot sticker sets」页编辑，见 [admin-panel.md](admin-panel.md#sticker-sets-页端点) |
 | `telegram.admins` | Bot 管理员白名单（`/pause`、`/resume`、`/model`、`/cut_topic`、`/rebuild_context`、`/allowlist` 的唯一事实源）；运行期判定直接读运行中的配置，下一次命令执行就用新列表 |
 | `dictionary`（整段，含 `injection_mode`） | 全局辞典注入模式；下一次 Invocation 生效 |
 | `tool_model` | 系统级辅助模型（辞典融合等）。下一次辅助调用使用新选择；运行中的调用继续用它开始时从快照取出的模型。删除该段表示继承全局 Agent 设置 |
@@ -54,7 +55,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 
 `outside_serve` 字段（`serve` 从不读取，下一次 `backup` 生效，既不算已应用也不算待重启）：`paths.backups`、`retention.online_days`、`retention.backup_copies`。`retention.warning_read_days` 由 `serve` 的警告清理读取，因此和 `retention` 的其它字段不同：它按普通 restart 字段处理，改动后需要重启才生效。
 
-其它所有路径都是 restart：改动会写进文件，但要重启才生效，包括 `telegram.token`、`data_dir`、`paths.database`、`admin.*`、`mcp.servers`、`telegram.sticker_sets`、Chat allowlist 中已有 Chat 的修改（新增与删除 Chat、参与策略 `participation`、主动回复 `proactive_reply` 是热变更），以及 `instructions_file`、`provider`、`model`、`thinking_level`、`ignored_user_ids`、`dictionary_injection_mode`、`group_memory`、`participation`、`proactive_reply` 以外的 Chat 字段，以及 `vision` 的 `max_concurrency`、`background_sticker_concurrency`、`prompt_version`、`daily_budget`。
+其它所有路径都是 restart：改动会写进文件，但要重启才生效，包括 `telegram.token`、`data_dir`、`paths.database`、`admin.*`、`mcp.servers`、Chat allowlist 中已有 Chat 的修改（新增与删除 Chat、参与策略 `participation`、主动回复 `proactive_reply` 是热变更），以及 `instructions_file`、`provider`、`model`、`thinking_level`、`ignored_user_ids`、`dictionary_injection_mode`、`group_memory`、`participation`、`proactive_reply` 以外的 Chat 字段，以及 `vision` 的 `max_concurrency`、`background_sticker_concurrency`、`prompt_version`、`daily_budget`。
 
 应用流程与语义：
 
@@ -283,15 +284,15 @@ participation 放行 = 未配置 participation || 处于活跃时段 || 更新�
 ```jsonc
 {
   "telegram": {
-    "sticker_sets": [{ "alias": "cats", "name": "TelegramStickerSetName" }],
+    "sticker_sets": [{ "alias": "cats", "name": "TelegramStickerSetName", "note": "调侃朋友时使用" }],
   },
 }
 ```
 
-- `alias` 是模型搜索/发送使用的稳定名称。
-- `name` 是 Telegram Sticker Set 名称。
-- 只允许发送配置中的 Set。
-- Set 在启动时同步，后台以单并发建立视觉索引。
+- `name` 是 Telegram Sticker Set 名称，也是 Set 的身份：按大小写不敏感比较且必须唯一，同步后存储里换成 Telegram 返回的规范写法。面板添加后不能改指向，要换 Set 只能删除后重新添加。
+- `alias` 是昵称，仅在已配置的 Set 之间唯一；模型在贴纸目录里看到它，并可作为 `search_stickers` 的 `set` 过滤。改名保留同一存储行、贴纸与索引。
+- `note`（可选，1–500 字符）是运营者写的使用说明，随贴纸目录给模型看，说明这个 Set 什么时候合适。
+- 只允许发送配置中的 Set。整个列表热更新（见「运行时配置热更新」）；Set 在启动与新增时同步，后台以单并发建立视觉索引。删除的 Set 保留存储行与分析结果，重新添加同名 Set 时复用。
 
 ## Provider
 

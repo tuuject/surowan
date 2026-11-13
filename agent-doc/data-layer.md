@@ -203,6 +203,8 @@ Reply 去重也复用 `host_sends`：以 `conversation_id` + `request_json.reply
 
 ### 媒体与 Sticker 缓存
 
+迁移 `055` 重建 `sticker_sets`：Set 以 `telegram_name` 为身份（唯一），`alias` 只在 `configured = 1` 的行之间唯一（部分唯一索引 `sticker_sets_configured_alias_idx`），新增可空的 `note`。对账先把全部行置为未配置再逐个启用，所以昵称互换或改用已删除 Set 的旧昵称不会撞索引。
+
 `media_analyses` 按 `file_unique_id + analysis_version` 缓存视觉结果。Sticker 分析在 Set 仍受配置允许时可长期保留；普通图片分析按在线保留窗口清理。`vision.prompt_version`、Provider 和 Model 都参与分析版本，避免不同规则错误复用缓存。FTS5 虚拟表 `sticker_search` 不进 Drizzle schema，只能走 `sql` 模板。
 
 ### 每日用量

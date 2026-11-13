@@ -16,7 +16,7 @@ import { getInvocation } from './audit/invocation-detail.ts';
 import { listInvocations } from './audit/invocations.ts';
 import { getMessage, listMessages } from './audit/messages.ts';
 import { overview, usage } from './audit/overview.ts';
-import { listStickerSets, listStickers } from './audit/stickers.ts';
+import { listStickers } from './audit/stickers.ts';
 import {
   configurationView,
   configuredPromptView,
@@ -307,9 +307,6 @@ export function createInspectionAdminHandler(deps: InspectionAdminDeps) {
     if (segments[0] === 'messages' && segments.length === 2) {
       const found = getMessage(store.orm, parseId(segments[1] ?? '', 'id'));
       return found === null ? json({ error: 'not_found', message: 'Message does not exist' }, 404) : json(found);
-    }
-    if (route === 'sticker-sets') {
-      return json({ items: listStickerSets(store.orm) });
     }
     if (route === 'stickers') {
       return json(listStickers(store.orm, query));

@@ -27,6 +27,9 @@ interface InvocationMessageRow {
 }
 
 interface StickerCatalogRow {
+  readonly set_id: bigint;
+  readonly alias: string;
+  readonly note: string | null;
   readonly id: bigint;
   readonly emoji: string | null;
 }
@@ -278,7 +281,7 @@ export function renderInjection(deps: RenderDependencies, config: RawConfig, inp
           completionReceipt(deps.orm, completion, identity.conversationId),
           '</untrusted_task_receipt>',
         ]),
-    ...(!renderStickerCatalog ? [] : ['<untrusted_sticker_catalog>', stickerCatalog, '</untrusted_sticker_catalog>']),
+    ...(!renderStickerCatalog ? [] : ['<sticker_catalog>', stickerCatalog, '</sticker_catalog>']),
     ...injections.filter((injection) => injection.text.length > 0).map((injection) => injection.text),
     ...(historyText.length === 0 ? [] : [`<${historyTag}>`, historyText, `</${historyTag}>`]),
     '<untrusted_new_messages>',
@@ -373,17 +376,33 @@ function completionReceipt(orm: Orm, completion: CompletionContext, conversation
     .replaceAll('>', '\\u003e');
 }
 
-/** Empty for a host without stickers, so neither prompt nor batch offers them. */
+/**
+ * The catalog body: one `<sticker_set>` line per configured set with indexed
+ * stickers. The alias and note come from the operator; the `id:emoji` entries
+ * come from Telegram. Every value is escaped and a note is folded onto one
+ * line, so no part of it can close the block or start a new line of its own.
+ * Empty for a host without stickers, so neither prompt nor batch offers them.
+ */
 export function stickerCatalogFor(orm: Orm, hostKind: HostKind): string {
   if (!hostExecutionProfile(hostKind).stickers) {
     return '';
   }
-  return orm
-    .all<StickerCatalogRow>(sql`SELECT s.id, s.emoji
+  const sets = new Map<bigint, { header: string; entries: string[] }>();
+  for (const sticker of orm.all<StickerCatalogRow>(sql`SELECT ss.id AS set_id, ss.alias, ss.note, s.id, s.emoji
          FROM stickers s
          JOIN sticker_sets ss ON ss.id = s.sticker_set_id
          WHERE s.active = 1 AND s.index_state = 'success' AND ss.configured = 1
-         ORDER BY s.id`)
-    .map((sticker) => `${sticker.id}:${escapeXml(sticker.emoji ?? '∅')}`)
-    .join(' ');
+         ORDER BY ss.id, s.id`)) {
+    let set = sets.get(sticker.set_id);
+    if (set === undefined) {
+      const note = sticker.note?.replace(/\s+/g, ' ').trim() ?? '';
+      set = {
+        header: `<sticker_set alias="${escapeXml(sticker.alias)}"${note.length === 0 ? '' : ` note="${escapeXml(note)}"`}>`,
+        entries: [],
+      };
+      sets.set(sticker.set_id, set);
+    }
+    set.entries.push(`${sticker.id}:${escapeXml(sticker.emoji?.replace(/\s+/g, '') || '∅')}`);
+  }
+  return [...sets.values()].map((set) => `${set.header}${set.entries.join(' ')}</sticker_set>`).join('\n');
 }
