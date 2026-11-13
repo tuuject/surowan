@@ -261,6 +261,31 @@ describe('recurring alarm occurrences', () => {
     );
   });
 
+  test('a host that is down neither fires nor wakes, and the missed-run rule applies once it is back', async () => {
+    let telegramReady = false;
+    const { recurring, tasks, store } = await setup({
+      isHostReady: (host) => host === 'playground' || telegramReady,
+    });
+    const created = recurring.create(1n, draft(), 'admin', minuteNow());
+    const due = created.nextFireAt ?? '';
+    expect(tasks.nextDeadline()).toBeUndefined();
+    tasks.processDue(plus(due, 1000));
+    expect(firings(store, created.id)).toEqual([]);
+    expect(recurring.get(created.id)?.nextFireAt).toBe(due);
+    expect(() => recurring.runNow(created.id, 'admin', plus(due, 1000))).toThrow(
+      expect.objectContaining({ code: 'target_unavailable' }),
+    );
+
+    // Back 31 minutes later: the stale occurrence is dropped instead of delivered late.
+    telegramReady = true;
+    expect(tasks.nextDeadline()).toBe(due);
+    tasks.processDue(plus(due, 31 * MINUTE));
+    expect(firings(store, created.id)).toEqual([
+      expect.objectContaining({ outcome: 'skipped', skip_reason: 'missed', coalesced: 6n }),
+    ]);
+    expect(taskRows(store)).toEqual([]);
+  });
+
   test('a definition that cannot produce its task rolls back as a whole and is parked', async () => {
     const { recurring, tasks, store } = await setup();
     const created = recurring.create(1n, draft(), 'admin', minuteNow());

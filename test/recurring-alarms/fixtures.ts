@@ -45,7 +45,13 @@ export function draft(overrides: Partial<RecurringAlarmDraft> = {}): RecurringAl
   };
 }
 
-export async function setup(options: { transform?: (config: FixtureConfig) => void; hosts?: HostKind[] } = {}) {
+export async function setup(
+  options: {
+    transform?: (config: FixtureConfig) => void;
+    hosts?: HostKind[];
+    isHostReady?: (host: HostKind) => boolean;
+  } = {},
+) {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-recurring-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
@@ -68,6 +74,7 @@ export async function setup(options: { transform?: (config: FixtureConfig) => vo
     engine: new CronerScheduleEngine(),
     tasks,
     config: () => loaded.config,
+    ...(options.isHostReady === undefined ? {} : { isHostReady: options.isHostReady }),
   });
   tasks.addTimerSource(recurring);
   return { directory, store, config: loaded.config, tasks, recurring, playground: new PlaygroundStore(store.orm) };

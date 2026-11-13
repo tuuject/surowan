@@ -1,5 +1,6 @@
 import { and, asc, eq, sql, type SQL } from 'drizzle-orm';
 import type { RawConfig } from '../../platform/config/index.ts';
+import { HOST_KINDS, type HostKind } from '../../platform/im-host/identity.ts';
 import {
   countOccurrences,
   RECURRING_MISSED_GRACE_MS,
@@ -19,6 +20,14 @@ export interface OccurrenceDeps {
   /** The Scheduler's task service; its host scope is the alarms' scope too. */
   readonly tasks: LongTaskService;
   readonly config: () => RawConfig;
+  /**
+   * Whether a host can run work right now; every host when absent. A host
+   * that is down (Telegram disabled or disconnected) neither fires nor wakes
+   * the Scheduler: its occurrences wait, and once it is back the missed-run
+   * rule decides whether they still go out, instead of a stale receipt
+   * arriving hours late.
+   */
+  readonly isHostReady?: (host: HostKind) => boolean;
 }
 
 /** A write raced another one inside the same occurrence; the next pass recomputes it. */
@@ -38,11 +47,17 @@ export function nextOccurrence(
   return deps.engine.nextAfter(rules, timeZone, now)?.toISOString() ?? null;
 }
 
-/** The same host filter the task service applies to its timers (`c` is the chat). */
+/** The task service's host scope narrowed to the hosts that are ready now. */
+function readyHosts(deps: OccurrenceDeps): readonly HostKind[] {
+  const scope = deps.tasks.hosts ?? HOST_KINDS;
+  return scope.filter((host) => deps.isHostReady?.(host) ?? true);
+}
+
+/** The host filter of due and deadline queries (`c` is the chat). */
 export function hostScope(deps: OccurrenceDeps): SQL {
-  const hosts = deps.tasks.hosts;
-  if (hosts === undefined) {
-    return sql`1 = 1`;
+  const hosts = readyHosts(deps);
+  if (hosts.length === 0) {
+    return sql`1 = 0`;
   }
   return sql`c.host_kind IN (${sql.join(
     hosts.map((host) => sql`${host}`),
@@ -50,9 +65,9 @@ export function hostScope(deps: OccurrenceDeps): SQL {
   )})`;
 }
 
+/** Whether this process can run an occurrence for that host right now. */
 export function servesHost(deps: OccurrenceDeps, hostKind: string): boolean {
-  const hosts = deps.tasks.hosts;
-  return hosts === undefined || hosts.some((host) => host === hostKind);
+  return readyHosts(deps).some((host) => host === hostKind);
 }
 
 /** True while an earlier occurrence's task waits or its receipt is not handled yet. */

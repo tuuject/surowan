@@ -238,6 +238,7 @@ export async function startServeServices(session: ServeContext, environment: Ser
     engine: new CronerScheduleEngine(),
     tasks,
     config: () => configStore.current().config,
+    isHostReady,
   });
   tasks.addTimerSource(recurringAlarms);
   // Group memory is a background reader of stored messages: it only needs the
