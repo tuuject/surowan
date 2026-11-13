@@ -14,6 +14,12 @@ export const harness: typeof harnessEn = {
   noLimitPlaceholder: '留空表示不限制',
   on: '开',
   off: '关',
+  sections: {
+    navigation: '表单分区',
+    jump: '跳转到分区',
+    invalid: '，有待修正项',
+    changed: '，有未保存修改',
+  },
   errors: {
     integer: '请输入整数',
     number: '请输入数字',

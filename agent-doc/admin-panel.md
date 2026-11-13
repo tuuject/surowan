@@ -441,7 +441,7 @@ Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_
 
 `PUT /harness` 接受严格的 `{ values: { <key>: value } }`，至少一项；未知键返回 400 `invalid_body`，类型或单字段范围不符返回 400 `invalid_harness_value`，`null` 只允许用于可选字段并表示从文件删除该字段。必须带 revision 的 `If-Match`，不符返回 409 `config_conflict`。端点只把值与文件不同的字段写成编辑（可选字段缺省时，等于缺省值的写入也跳过，保持文件干净；字符串列表按内容逐项比较）；值只有数字、布尔、枚举字符串、`null` 与字符串列表五种，枚举在页面上是下拉框，字符串列表在页面上是「一行一条」的文本框，前端逐行去首尾空白、丢弃空行，全空时本地报错而不是写 `null`。没有任何编辑时不写文件，返回当前视图与空的 `apply`。跨字段规则（`retained_sends_target < retained_sends_max`、`hard_token_ratio <= context_stop_ratio`、`idle_grace_seconds` 与 Bucket 窗口、`max_wall_clock_seconds > idle_grace_seconds`）由整文件 `loadConfig` 校验，失败时 422 `config_invalid` 且文件不变。写入与热应用经 `ConfigReloader.writeAndApply`，失败后文件/运行态分离等契约与其它配置端点一致；成功返回更新后的视图与 `apply`。
 
-页面把字段分为预算与并发、发送行为、限流、上下文、主动回复五组，草稿在本地按同一边界预校验，「Save and apply」一次提交全部改动；文件值与运行值不同时在字段下显示运行值。保存 mutation 挂在表单之上：写入成功但应用失败会改变 revision 并重建表单，错误提示仍需保留。
+页面把字段分为预算与并发、发送行为、限流、上下文、主动回复五组，旁边是分区导航（`components/section-navigation/`）：表单容器宽于 720px 时为吸顶侧栏，随滚动高亮当前分组（只有滚到容器底部才让较短的末组成为当前项），点击跳转并聚焦组标题；更窄时改为吸顶下拉框，不移动焦点；各项按 `parseDraft` 结果标出待修正与未保存。草稿在本地按同一边界预校验，「Save and apply」一次提交全部改动；文件值与运行值不同时在字段下显示运行值。保存 mutation 挂在表单之上：写入成功但应用失败会改变 revision 并重建表单，错误提示仍需保留。
 
 ## Inspection 只读视图
 

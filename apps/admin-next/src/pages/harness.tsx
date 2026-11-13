@@ -10,6 +10,7 @@ import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FormActionBar, ListPageHeader, SettingRow } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
+import { SectionNavigation } from '@/components/section-navigation';
 import type { HarnessValue, HarnessValues } from '@/lib/api/config.ts';
 import { updateHarnessSettings } from '@/lib/api/config.ts';
 import { errorMessage } from '@/lib/errors';
@@ -52,7 +53,7 @@ export default function HarnessPage(): ReactElement {
   const current = settings.data;
 
   return (
-    <div className={css({ maxWidth: '768px', marginInline: 'auto', '& > * + *': { marginBlockStart: '6' } })}>
+    <div className={css({ maxWidth: '960px', marginInline: 'auto', '& > * + *': { marginBlockStart: '6' } })}>
       <ListPageHeader title={t('layout.nav.harness')} />
       {settings.isPending ? (
         <p className={css({ margin: '0', color: 'text-muted' })}>{t('common.loading')}</p>
@@ -97,49 +98,66 @@ function HarnessForm({
     return changed === 0 ? t('harness.unchanged') : t('harness.pending', { count: changed });
   };
   return (
-    <form
-      noValidate
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (changed > 0 && !invalid) {
-          save.mutate({ changes: parsed.changes, revision });
-        }
+    <SectionNavigation
+      sections={HARNESS_GROUPS.map((group) => ({
+        id: group.id,
+        title: t(`harness.groups.${group.id}.title`),
+        invalid: group.fields.some((field) => parsed.errors[field.key] !== undefined),
+        changed: group.fields.some((field) => Object.hasOwn(parsed.changes, field.key)),
+      }))}
+      labels={{
+        navigation: t('harness.sections.navigation'),
+        jump: t('harness.sections.jump'),
+        invalid: t('harness.sections.invalid'),
+        changed: t('harness.sections.changed'),
       }}
     >
-      <fieldset disabled={save.isPending} className={css({ '& > * + *': { marginBlockStart: '6' } })}>
-        {HARNESS_GROUPS.map((group) => (
-          <Panel key={group.id} title={t(`harness.groups.${group.id}.title`)}>
-            <div className={css({ display: 'flex', flexDirection: 'column', gap: '5' })}>
-              {group.fields.map((field) => (
-                <HarnessFieldRow
-                  key={field.key}
-                  field={field}
-                  value={draft[field.key] ?? ''}
-                  error={parsed.errors[field.key]}
-                  active={active[field.key] ?? null}
-                  saved={saved[field.key] ?? null}
-                  onChange={(value) => setDraft((previous) => ({ ...previous, [field.key]: value }))}
-                />
-              ))}
-            </div>
-          </Panel>
-        ))}
-      </fieldset>
-      <FormActionBar
-        status={harnessStatus()}
-        error={save.isError ? errorMessage(save.error) : null}
-        submitLabel={t('harness.save')}
-        submittingLabel={t('harness.saving')}
-        submitting={save.isPending}
-        submitDisabled={changed === 0 || invalid}
-        discardLabel={t('harness.discard')}
-        discardDisabled={changed === 0}
-        onDiscard={() => {
-          save.reset();
-          setDraft(draftOf(saved));
+      <form
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (changed > 0 && !invalid) {
+            save.mutate({ changes: parsed.changes, revision });
+          }
         }}
-      />
-    </form>
+      >
+        <fieldset disabled={save.isPending} className={css({ '& > * + *': { marginBlockStart: '6' } })}>
+          {HARNESS_GROUPS.map((group) => (
+            <div key={group.id} data-form-section={group.id}>
+              <Panel title={t(`harness.groups.${group.id}.title`)} headingTabIndex={-1}>
+                <div className={css({ display: 'flex', flexDirection: 'column', gap: '5' })}>
+                  {group.fields.map((field) => (
+                    <HarnessFieldRow
+                      key={field.key}
+                      field={field}
+                      value={draft[field.key] ?? ''}
+                      error={parsed.errors[field.key]}
+                      active={active[field.key] ?? null}
+                      saved={saved[field.key] ?? null}
+                      onChange={(value) => setDraft((previous) => ({ ...previous, [field.key]: value }))}
+                    />
+                  ))}
+                </div>
+              </Panel>
+            </div>
+          ))}
+        </fieldset>
+        <FormActionBar
+          status={harnessStatus()}
+          error={save.isError ? errorMessage(save.error) : null}
+          submitLabel={t('harness.save')}
+          submittingLabel={t('harness.saving')}
+          submitting={save.isPending}
+          submitDisabled={changed === 0 || invalid}
+          discardLabel={t('harness.discard')}
+          discardDisabled={changed === 0}
+          onDiscard={() => {
+            save.reset();
+            setDraft(draftOf(saved));
+          }}
+        />
+      </form>
+    </SectionNavigation>
   );
 }
 
