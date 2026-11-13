@@ -13,8 +13,7 @@ import { adminUrl, clickNav, test, watchPageIssues } from './helpers.ts';
 test.use({ signedIn: true });
 
 const GLOBAL_START = 'Participate safely.';
-const SAVED_MESSAGE =
-  'The prompt applies from the next invocation; affected Conversation Contexts rebuild on their next run.';
+const SAVED_MESSAGE = 'Prompt saved. It applies from the next invocation.';
 
 const CHAT_ID = '123456789';
 const CHAT_TITLE = 'Surowan Test Group';
@@ -29,11 +28,7 @@ test.describe('prompts page', () => {
     await page.goto(await adminUrl('/prompts'));
     await expect(page.getByRole('heading', { name: 'Global prompt', exact: true })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Prompt', exact: true })).toHaveText(GLOBAL_START);
-    await expect(
-      page.getByText('Applies from the next invocation; affected Conversation Contexts rebuild on their next run.'),
-    ).toBeVisible();
     await expect(page.getByText('Version history')).toBeVisible();
-    await expect(page.getByText('The latest 100 versions per scope are kept.')).toBeVisible();
     await expect(page.getByText('Applied').first()).toBeVisible();
     const row = page.locator('table tbody tr').first();
     await expect(row).toContainText('v1');

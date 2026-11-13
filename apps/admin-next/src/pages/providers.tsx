@@ -5,7 +5,7 @@ import { Empty } from '@tuuject/koi-react/empty';
 import { TrashIcon } from '@tuuject/koi-react/icons';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react';
-import { Trans, useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import { ListPageHeader } from '@/components/business';
 import { ModelList, type ModelRow } from '@/components/models/model-list';
 import {
@@ -22,7 +22,6 @@ import { ProvidersRestartBanner } from '@/components/models/restart-banner';
 import { ModelSwitchConfirmDialog } from '@/components/models/model-switch-confirm-dialog';
 import { ThinkingResetDialog } from '@/components/models/roles/thinking-reset-dialog';
 import { modelRoles, useModelRoleWrites } from '@/components/models/roles/writes';
-import { AppLink } from '@/components/router-links';
 import type { HealthCheckResult, ProviderModelConfig, ProviderView } from '@/lib/api/providers.ts';
 import {
   deleteProvider,
@@ -268,12 +267,7 @@ export default function ProvidersPage(): ReactElement {
 
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '8' } })}>
-      <ListPageHeader
-        title={t('layout.nav.providers')}
-        description={
-          <Trans i18nKey="models.models.providers.description" components={{ models: <AppLink to="/models" /> }} />
-        }
-      />
+      <ListPageHeader title={t('layout.nav.providers')} />
       {providers.isError ? <Alert tone="error">{errorMessage(providers.error)}</Alert> : null}
       <ProvidersRestartBanner view={view} />
 

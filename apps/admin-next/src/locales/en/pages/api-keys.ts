@@ -4,8 +4,6 @@
  */
 export const apiKeys = {
   title: 'API keys',
-  description:
-    'Keys authorize the surowan-utils CLI and the Surowan MCP Server. Choose a mode: read-only, read+write, read+paid, or all. Read is always granted; write changes configuration and state; paid covers replay, health checks, image generation, dictionary merge preview and Playground releases. Account and API-key management always stay in the browser panel.',
   create: 'Create API key',
   name: 'Name',
   prefix: 'Prefix',
@@ -19,14 +17,13 @@ export const apiKeys = {
   modeHints: {
     read: 'Read every audit, configuration and prompt view. No changes, no billed calls.',
     read_write:
-      'Read and change configuration, chats, prompts, Memo Pad, dictionary, group memory, warnings and Playground inputs. No billed calls.',
+      'Read and change configuration, chats, prompts, memos, dictionary, group memory, warnings and Playground inputs. No billed calls.',
     read_paid:
       'Read and run billed operations such as replay, health checks, image generation and dictionary merge preview. No configuration or state changes.',
     all: 'Read, write and run billed operations. Playground releases need both write and paid.',
   },
   invalidPermissions: 'Invalid permissions',
-  invalidPermissionsHint:
-    'This key has an illegal permission combination in the database. Saving a mode repairs it; until then the key cannot authenticate.',
+  invalidPermissionsHint: 'This key has invalid permissions and cannot sign in. Save a mode to fix it.',
   created: 'Created',
   lastUsed: 'Last used',
   status: 'Status',

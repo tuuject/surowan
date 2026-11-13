@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { MonoValue, ToneBadge } from '@/components/business';
 import { EditIcon } from '@/components/icons';
 import type { DiscoveredModel, ProviderModelConfig } from '@/lib/api/providers.ts';
-import { formatNumber } from '@/lib/format.ts';
+import { formatNumber, thinkingLevelLabel } from '@/lib/format.ts';
 import {
   draftNeedsConfirmation,
   matchLabel,
@@ -150,7 +150,7 @@ export function ModelDraftList({
                         value={
                           draft.thinking_levels === null
                             ? t('models.models.drafts.piDefault')
-                            : draft.thinking_levels.join(' / ')
+                            : draft.thinking_levels.map(thinkingLevelLabel).join(t('common.separator'))
                         }
                       />
                     ) : null}

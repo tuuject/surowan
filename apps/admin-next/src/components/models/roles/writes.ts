@@ -1,6 +1,7 @@
 import { useIsFetching, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { thinkingLevelLabel } from '@/lib/format';
 import type { ChatThinkingReset, ThinkingLevel } from '@/lib/api/models.ts';
 import { switchAgentModel, switchVisionModel } from '@/lib/api/models.ts';
 import type { ProviderModelConfig, ProvidersView } from '@/lib/api/providers.ts';
@@ -85,7 +86,7 @@ export function useModelRoleWrites(view: ProvidersView | undefined) {
     onSuccess: (result) => {
       setAgentInUseOpen(false);
       // Models do not share one set of levels, so the switch always resets it.
-      const reset = t('models.models.page.thinkingReset', { level: result.current.thinking_level });
+      const reset = t('models.models.page.thinkingReset', { level: thinkingLevelLabel(result.current.thinking_level) });
       write.succeeded(
         result.apply,
         result.aborted_invocations > 0
@@ -133,7 +134,7 @@ export function useModelRoleWrites(view: ProvidersView | undefined) {
       !current.inherited &&
       target.alias === current.provider &&
       target.model === current.model;
-    return unchanged ? undefined : t('models.models.toolModel.saved', { level: target.level });
+    return unchanged ? undefined : t('models.models.toolModel.saved', { level: thinkingLevelLabel(target.level) });
   };
 
   const tool = useMutation({

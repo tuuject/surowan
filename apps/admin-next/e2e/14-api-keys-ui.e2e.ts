@@ -53,11 +53,6 @@ test.describe('API key management UI', () => {
 
     const main = page.getByRole('main');
     await expect(main.getByText('API keys', { exact: true }).first()).toBeVisible();
-    // The permission note names the four modes and keeps account management out of keys.
-    const permissionNote = main.getByText(/surowan-utils CLI/);
-    await expect(permissionNote).toBeVisible();
-    await expect(permissionNote).toContainText('read-only, read+write, read+paid, or all');
-    await expect(permissionNote).toContainText('Account and API-key management always stay in the browser panel');
     await expect(main.getByRole('button', { name: 'Create API key' })).toBeVisible();
 
     const name = uniqueKeyName('once');

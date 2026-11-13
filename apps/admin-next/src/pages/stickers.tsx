@@ -32,7 +32,7 @@ import {
   updateStickerSet,
 } from '@/lib/api/stickers.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatNumber, formatTime } from '@/lib/format';
+import { formatNumber, formatTime, stateLabel } from '@/lib/format';
 import { optionalQuery, useListQuery } from '@/lib/list-query';
 import { stickerSetsQuery, stickersQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
@@ -48,23 +48,11 @@ import {
 const INDEX_STATES = ['pending', 'running', 'success', 'error'] as const;
 const EMPTY_FILTERS = { set: '', state: '', search: '' };
 
-const CODE = css({ fontFamily: 'mono' });
 const MUTED = css({ color: 'text-muted' });
 
 /** A page section heading for the list that follows it; the list itself stays on the page, not in a card. */
-function SectionHeading({
-  title,
-  description,
-}: {
-  readonly title: string;
-  readonly description: React.ReactNode;
-}): ReactElement {
-  return (
-    <div className={css({ display: 'flex', flexDirection: 'column', gap: '1' })}>
-      <h2 className={css({ margin: '0', textStyle: 'heading-2' })}>{title}</h2>
-      <p className={css({ margin: '0', color: 'text-muted', maxWidth: 'content-max' })}>{description}</p>
-    </div>
-  );
+function SectionHeading({ title }: { readonly title: string }): ReactElement {
+  return <h2 className={css({ margin: '0', textStyle: 'heading-2' })}>{title}</h2>;
 }
 
 export default function StickersPage(): ReactElement {
@@ -193,13 +181,20 @@ export default function StickersPage(): ReactElement {
         <div>
           <div>{`${formatNumber(row.indexed_count)} / ${formatNumber(row.sticker_count)}`}</div>
           {row.pending_count === 0 && row.error_count === 0 ? null : (
-            <div className={css({ textStyle: 'small', color: 'text-muted' })}>
-              {[
-                row.pending_count === 0 ? null : t('pages.stickers.pendingCount', { count: row.pending_count }),
-                row.error_count === 0 ? null : t('pages.stickers.errorCount', { count: row.error_count }),
-              ]
-                .filter((part) => part !== null)
-                .join(' · ')}
+            <div
+              className={css({
+                textStyle: 'small',
+                color: 'text-muted',
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'flex-end',
+                columnGap: '3',
+              })}
+            >
+              {row.pending_count === 0 ? null : (
+                <span>{t('pages.stickers.pendingCount', { count: row.pending_count })}</span>
+              )}
+              {row.error_count === 0 ? null : <span>{t('pages.stickers.errorCount', { count: row.error_count })}</span>}
             </div>
           )}
         </div>
@@ -305,12 +300,6 @@ export default function StickersPage(): ReactElement {
       ) : null}
       <Panel
         title={t('pages.stickers.setsTitle')}
-        description={
-          <>
-            {t('pages.stickers.setsDescPre')} <code className={CODE}>telegram.sticker_sets</code>{' '}
-            {t('pages.stickers.setsDescPost')}
-          </>
-        }
         action={
           <Button variant="outline" iconStart={<PlusIcon />} disabled={!editable} onClick={() => openDialog(null)}>
             {t('pages.stickers.addSet')}
@@ -348,16 +337,7 @@ export default function StickersPage(): ReactElement {
         )}
       </Panel>
       <div className={css({ paddingBlockStart: '6' })}>
-        <SectionHeading
-          title={t('pages.stickers.indexTitle')}
-          description={
-            <>
-              {t('pages.stickers.indexDescPre')} <code className={CODE}>search_stickers</code>{' '}
-              {t('pages.stickers.indexDescMid')} <code className={CODE}>execute</code>
-              {t('pages.stickers.indexDescPost')}
-            </>
-          }
-        />
+        <SectionHeading title={t('pages.stickers.indexTitle')} />
       </div>
       <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
         {({ draft, change }) => (
@@ -372,7 +352,7 @@ export default function StickersPage(): ReactElement {
               label={t('pages.stickers.filterState')}
               value={draft.state}
               onChange={(state) => change({ state })}
-              options={INDEX_STATES.map((value) => ({ value, label: value }))}
+              options={INDEX_STATES.map((value) => ({ value, label: stateLabel(value) }))}
             />
             <QueryTextField
               label={t('pages.stickers.filterSearch')}

@@ -3,10 +3,6 @@
  * mirrors this structure key for key.
  */
 export const harness = {
-  description:
-    'Runtime limits and send behavior of the agent harness. Saving writes config.jsonc and applies it: Invocations that start afterwards use the new values; running ones keep the values they started with.',
-  elsewhere:
-    'The agent model and thinking effort are on <models>Models</models>; the system prompt is on <prompts>Prompts</prompts>.',
   loadFailed: 'Failed to load Harness settings',
   save: 'Save and apply',
   saving: 'Saving…',
@@ -32,76 +28,66 @@ export const harness = {
   groups: {
     budget: {
       title: 'Budget and concurrency',
-      description: 'Global safety limits shared by every Chat.',
     },
     send: {
       title: 'Send behavior',
-      description: 'Rules the send tool enforces before anything reaches Telegram.',
     },
     rateLimits: {
       title: 'Rate limits',
-      description: 'Throttles that keep long-lived runs from flooding a chat.',
     },
     context: {
-      title: 'Conversation Context',
-      description: 'How the persistent transcript is retained, trimmed and kept open.',
+      title: 'Context',
     },
     proactiveReply: {
       title: 'Proactive replies',
-      description:
-        'Global defaults for how often the bot gets a chance to join ordinary group messages. Mentions, replies to the bot and trigger keywords always get through; per-Chat overrides are on the Chats page. Changing any of the three numbers resets the miss count of every group that uses them.',
     },
   },
   fields: {
     'daily_budget.max_tokens': {
       label: 'Daily token budget',
-      description:
-        'Global daily token cap for the agent and chat-triggered image reads; a circuit breaker against runaway loops. Read live: lowering it stops the next model call.',
+      description: 'Daily token cap shared by replies and image reading. Lowering it applies from the next model call.',
     },
     max_concurrency: {
-      label: 'Max concurrent Invocations',
-      description: 'Upper bound of Invocations running at the same time.',
+      label: 'Max concurrent invocations',
+      description: 'How many invocations may run at the same time.',
     },
     history_messages: {
       label: 'History messages',
-      description: 'Messages frozen into the history snapshot of each new Invocation.',
+      description: 'How many earlier messages each new invocation brings along.',
     },
     context_stop_ratio: {
       label: 'Context stop ratio',
       description:
-        'Share of the model context window at which the run gets one final turn with only send available, then ends.',
+        'Once the input fills this share of the model context length, the run replies one last time and ends.',
     },
     send_max_text_length: {
       label: 'Max text length',
-      description: 'Longest text a single send may carry, in characters (1–4096).',
+      description: 'Longest text of a single message, in characters (1–4096).',
     },
     send_disallow_blank_lines: {
       label: 'Disallow blank lines',
       description: 'Reject texts with blank lines; paragraphs may only be separated by a single line break.',
     },
     send_nudge_enabled: {
-      label: 'Send nudge',
-      description:
-        'Remind the model to use send when it is about to stop with plain text but never sent anything in this batch.',
+      label: 'Send reminder',
+      description: 'Remind the model to send its reply when it is about to stop without sending anything.',
     },
     send_barrier_enabled: {
-      label: 'Send barrier',
-      description:
-        'Hold the first send of a round when new messages are collecting, so the model reads them before replying.',
+      label: 'Wait for new messages',
+      description: 'When new messages arrive before a send, let the model read them before replying.',
     },
     allow_reply_message_multiple_times: {
       label: 'Allow multiple replies to one message',
-      description: 'Disable per-message reply deduplication. Authorization, budgets and rate limits still apply.',
+      description: 'Allow replying to the same message more than once. Budgets and rate limits still apply.',
     },
     send_duplicate_guard_enabled: {
       label: 'Duplicate send guard',
       description:
-        'Reject a text or sticker identical to one already sent in the same invocation, or the previous message re-aimed at another reply target; stop the run after more than 3 rejections.',
+        'Reject a text or sticker already sent in the same invocation; stop the run after more than 3 rejections.',
     },
     send_empty_text_strategy: {
       label: 'Empty-text sends',
-      description:
-        'What send and send_reply do when a text message carries no text. Reject returns an error; silent success reports success without publishing anything; random text publishes one configured fallback text.',
+      description: 'What happens when the model sends a text message without any text.',
       options: {
         reject: 'Reject the call',
         silent_success: 'Succeed silently (send nothing)',
@@ -110,55 +96,53 @@ export const harness = {
     },
     send_empty_text_fallback_texts: {
       label: 'Fallback texts',
-      description: 'One per line; each random-text fallback picks one at random. Sent as plain text.',
+      description: 'One per line; one is picked at random each time.',
     },
     'rate_limits.sends_per_window': {
       label: 'Sends per window',
-      description: 'Telegram sends allowed per chat inside the sliding window; failed attempts count too.',
+      description: 'Messages each chat may send within one window; failed sends count too.',
     },
     'rate_limits.window_seconds': {
       label: 'Window length (seconds)',
-      description: 'Length of the sliding send window.',
+      description: 'The time window the send count covers.',
     },
     'rate_limits.turns_per_injection': {
-      label: 'Turns per injection',
-      description: 'Turns allowed since the last injected batch before the run ends.',
+      label: 'Turns per message batch',
+      description: 'Turns allowed after each new batch of messages before the run ends.',
     },
     'context.retained_sends_target': {
       label: 'Retained sends target',
-      description: 'Sends GC keeps when it trims; must be smaller than the maximum.',
+      description: 'Sends kept after the context is cleaned up; must be smaller than the maximum.',
     },
     'context.retained_sends_max': {
       label: 'Retained sends maximum',
-      description: 'GC trims once the retained window holds more sends than this.',
+      description: 'The context is cleaned up once it holds more sends than this.',
     },
     'context.hard_token_ratio': {
-      label: 'Hard token ratio',
-      description: 'Share of the context window that forces GC; must not exceed the context stop ratio.',
+      label: 'Forced cleanup ratio',
+      description: 'Share of the model context length that forces a cleanup; must not exceed the context stop ratio.',
     },
     'context.ref_ttl_hours': {
-      label: 'Reference TTL (hours)',
-      description:
-        'Lifetime of image, sticker and reply references. Applies to references issued or renewed after saving; existing ones keep their expiry.',
+      label: 'Reference lifetime (hours)',
+      description: 'How long image, sticker and reply references stay valid. Applies to references issued from now on.',
     },
     'context.idle_grace_seconds': {
       label: 'Idle grace (seconds)',
       description:
-        'How long a finished run stays open for the next batch. 0 turns long-lived runs off; otherwise at least the longest bucket wait (bucket_max_seconds).',
+        'How long a finished run waits for the next batch of messages. 0 means no waiting; otherwise at least the longest message batch wait.',
     },
     'context.max_wall_clock_seconds': {
-      label: 'Max wall clock (seconds)',
-      description: 'Hard time limit of one run; must exceed the idle grace.',
+      label: 'Max run time (seconds)',
+      description: 'Longest time a single run may take; must exceed the idle grace.',
     },
     'context.agent_cache_size': {
-      label: 'Agent cache size',
-      description:
-        'Conversations whose agent stays cached in memory (LRU). A smaller value evicts on the next cached agent; history is never lost.',
+      label: 'Memory cache size',
+      description: 'How many contexts stay cached in memory. A smaller value never loses history.',
     },
     'proactive_reply.enabled': {
       label: 'Schedule proactive replies',
       description:
-        'When on, a group batch without a direct mention only starts an Invocation if a draw hits. When off, every batch gets a chance. Private chats are never affected.',
+        'When on, group messages that do not address the bot only get a reply chance if a draw hits. When off, every batch gets a chance. Private chats are never affected.',
     },
     'proactive_reply.base_probability': {
       label: 'First-try chance',

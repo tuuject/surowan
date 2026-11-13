@@ -45,7 +45,6 @@ export function GroupMemoryDialog({ open, onOpenChange, view, chat, formKey }: G
         onOpenChange(next);
       }}
       title={t('pages.chats.groupMemoryTitle')}
-      description={t('pages.chats.groupMemoryDescription')}
       footer={
         <>
           <Button

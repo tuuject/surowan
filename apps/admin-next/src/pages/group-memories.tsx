@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert } from '@tuuject/koi-react/alert';
 import { Button, IconButton } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Field } from '@tuuject/koi-react/field';
@@ -7,7 +6,7 @@ import { TrashIcon } from '@tuuject/koi-react/icons';
 import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { type ReactElement, useMemo, useState } from 'react';
-import { Trans, useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import {
   ChatFilter,
   type ColumnSpec,
@@ -171,9 +170,6 @@ export default function GroupMemoriesPage(): ReactElement {
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader title={t('layout.nav.groupMemories')} />
       <GroupMemoryProgressPanel />
-      <Alert tone="info" title={t('pages.groupMemories.alertTitle')}>
-        <Trans i18nKey="pages.groupMemories.alertDescription" components={{ code: <code /> }} />
-      </Alert>
 
       <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
         {({ draft, change }) => (
@@ -217,7 +213,6 @@ export default function GroupMemoriesPage(): ReactElement {
           }
         }}
         title={t('pages.groupMemories.editTitle')}
-        description={t('pages.groupMemories.editDescription')}
         footer={
           <>
             <Button variant="ghost" color="secondary" disabled={update.isPending} onClick={() => setEditOpen(false)}>

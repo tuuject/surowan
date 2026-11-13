@@ -91,6 +91,29 @@ export function formatDuration(value: number | null): string {
   return value < 1_000 ? `${value} ms` : `${(value / 1_000).toFixed(2)} s`;
 }
 
+/** A state in the current language; a state the catalog doesn't know shows as itself. */
+export function stateLabel(state: string): string {
+  return i18n.t(`common.states.${state}` as 'common.states.queued', { defaultValue: state });
+}
+
+/** A message, media, send or reference kind in the current language, or the raw kind. */
+export function kindLabel(kind: string): string {
+  return i18n.t(`common.kinds.${kind}` as 'common.kinds.text', { defaultValue: kind });
+}
+
+/** A thinking effort level in the current language; `null` (no level) shows as a dash. */
+export function thinkingLevelLabel(level: string | null): string {
+  if (level === null) {
+    return '—';
+  }
+  return i18n.t(`common.thinkingLevels.${level}` as 'common.thinkingLevels.off', { defaultValue: level });
+}
+
+/** The author of a model call, transcript entry or context message in the current language, or the raw role. */
+export function roleLabel(role: string): string {
+  return i18n.t(`common.roles.${role}` as 'common.roles.agent', { defaultValue: role });
+}
+
 export function stateColor(state: string): string {
   return STATE_COLORS[state] ?? 'default';
 }

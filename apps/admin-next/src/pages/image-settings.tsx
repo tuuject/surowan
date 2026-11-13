@@ -240,7 +240,6 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
       {enabled && (
         <Panel
           title={t('image.settings.modelsPanelTitle')}
-          description={t('image.settings.modelsHint')}
           action={
             <Button
               variant="outline"

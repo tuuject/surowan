@@ -37,7 +37,7 @@ export function UrlFilterEditor({
     matchedBy: compiled.filter((entry) => entry.pattern?.test(url) === true).map((entry) => entry.rule),
   }));
   return (
-    <Panel title={t('search.filtersTitle')} description={t('search.filtersDescription')}>
+    <Panel title={t('search.filtersTitle')}>
       <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
         <Field
           label={t('search.filtersLabel')}

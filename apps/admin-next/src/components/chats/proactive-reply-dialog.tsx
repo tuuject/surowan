@@ -58,7 +58,6 @@ export function ProactiveReplyDialog({
         onOpenChange(next);
       }}
       title={t('pages.chats.proactiveTitle')}
-      description={t('pages.chats.proactiveDescription')}
       footer={
         <>
           <Button
@@ -234,10 +233,8 @@ function ProactiveReplyForm({
                 onChange={(event) => setPity(event.target.value)}
               />
             </Field>
-            <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.proactiveMathHint')}</p>
           </div>
         ) : null}
-        <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.chats.proactiveDirectHint')}</p>
       </fieldset>
       {validation !== null ? (
         <p role="alert" className={css({ textStyle: 'body', color: 'error-text' })}>

@@ -361,7 +361,7 @@ Discovery、metadata lookup 与 health check 都不修改配置，因此无需 r
 
 **SecretRef 只写不读**：面板只接受明文 `api_key` / header 值，并把它存进配置文件同目录的 `key.json`，`config.jsonc` 里只写 `{ "jar": "<name>" }`（每次提交都生成新条目名，被替换或随 Provider 删除的旧条目随后清掉，见 [configuration.md](configuration.md#secretref)）。面板不能写 `{ env }` 或 `{ command }`（`command` 等于让面板在宿主机上执行命令；`env` 配合可编辑的 `base_url` 等于能外泄进程里任意环境变量）。输入框固定提示 “Saved; leave empty to keep it”：留空表示保持，非空表示替换成 key jar 条目。代价是：原来用 `env` 的 Provider 在面板里被替换后，环境变量不再生效，页面上也看不出这一点——要继续用 `env` 管理 key 的人只能手改配置文件；又因为 `base_url` 改动强制重填凭据，改地址会把 `env` / `command` 引用一并换成 key jar 条目。服务端收到明文后先 `secrets.remember(value)` 注册进 `SecretStore`，再写文件或发请求，这样日志、reload 错误与上游报错都能脱敏。请求提交的明文走单独一条有上限的队列（最旧的会被挤掉），不会像配置里解析出来的 Secret 那样永久累积；面板路径也从不调用 `secrets.resolve`，因此请求体里的字符串不会进入进程级的永久集合。
 
-`/contexts` 按 `last_active_at, id` 倒序，快照锚点就是 `last_active_at`：快照后变活跃的 Context 离开原位置、计入 `new_count`，换新快照后回到顶部；提示条文案因此是「N 个会话出现新活动」。`GET /contexts/:conversation_id` 返回 Context Header 加上保留窗口（`seq >= head_seq`）内的 `context_messages` 与存活 `context_refs`；`payload_preview` 截断到 2000 字符并附 `payload_truncated`，被 GC 软删的行不出现在响应里。两个端点都是 `GET`，前端页面不发任何写请求。
+`/contexts` 按 `last_active_at, id` 倒序，快照锚点就是 `last_active_at`：快照后变活跃的 Context 离开原位置、计入 `new_count`，换新快照后回到顶部；提示条文案因此是「N 个上下文出现新活动」。`GET /contexts/:conversation_id` 返回 Context Header 加上保留窗口（`seq >= head_seq`）内的 `context_messages` 与存活 `context_refs`；`payload_preview` 截断到 2000 字符并附 `payload_truncated`，被 GC 软删的行不出现在响应里。两个端点都是 `GET`，前端页面不发任何写请求。
 
 ## Recurring alarms 页端点
 
@@ -441,7 +441,7 @@ Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_
 
 `PUT /harness` 接受严格的 `{ values: { <key>: value } }`，至少一项；未知键返回 400 `invalid_body`，类型或单字段范围不符返回 400 `invalid_harness_value`，`null` 只允许用于可选字段并表示从文件删除该字段。必须带 revision 的 `If-Match`，不符返回 409 `config_conflict`。端点只把值与文件不同的字段写成编辑（可选字段缺省时，等于缺省值的写入也跳过，保持文件干净；字符串列表按内容逐项比较）；值只有数字、布尔、枚举字符串、`null` 与字符串列表五种，枚举在页面上是下拉框，字符串列表在页面上是「一行一条」的文本框，前端逐行去首尾空白、丢弃空行，全空时本地报错而不是写 `null`。没有任何编辑时不写文件，返回当前视图与空的 `apply`。跨字段规则（`retained_sends_target < retained_sends_max`、`hard_token_ratio <= context_stop_ratio`、`idle_grace_seconds` 与 Bucket 窗口、`max_wall_clock_seconds > idle_grace_seconds`）由整文件 `loadConfig` 校验，失败时 422 `config_invalid` 且文件不变。写入与热应用经 `ConfigReloader.writeAndApply`，失败后文件/运行态分离等契约与其它配置端点一致；成功返回更新后的视图与 `apply`。
 
-页面把字段分为预算与并发、发送行为、限流、Conversation Context 四组，草稿在本地按同一边界预校验，「Save and apply」一次提交全部改动；文件值与运行值不同时在字段下显示运行值。保存 mutation 挂在表单之上：写入成功但应用失败会改变 revision 并重建表单，错误提示仍需保留。
+页面把字段分为预算与并发、发送行为、限流、上下文、主动回复五组，草稿在本地按同一边界预校验，「Save and apply」一次提交全部改动；文件值与运行值不同时在字段下显示运行值。保存 mutation 挂在表单之上：写入成功但应用失败会改变 revision 并重建表单，错误提示仍需保留。
 
 ## Inspection 只读视图
 
@@ -537,9 +537,17 @@ Providers 页的模型复选框由批量测试与批量删除共用，跨分页�
 
 删除最后一个模型时保留供应商连接、密钥与 header 配置，模型列表可为空；空供应商不向运行时注册任何模型，仍可再次获取或手动添加模型。
 
-Tool session 详情默认打开 Overview 时间线：按时间合并冻结消息、Invocation 生命周期、Model Call、Tool Call 与 Agent transcript；消息正文和 `send` 参数中的发送内容直接展示，Tool 结果与完整参数按需展开。失败的 Model Call 同时展示稳定错误码，并可展开查看经密钥脱敏的完整 Provider 错误详情。Assistant 文本显式标注为私有推理，只有 `send` Tool 会发往 Telegram；assistant 行的思考过程（CoT）与作为本轮 response 的文本分开展示（折叠的 “Thinking (CoT)” 区块），Agent transcript 表格与时间线卡都适用。
+Tool session 详情默认打开 Overview 时间线：按时间合并冻结消息、Invocation 生命周期、Model Call、Tool Call 与 Agent transcript；消息正文和 `send` 参数中的发送内容直接展示，Tool 结果与完整参数按需展开。失败的 Model Call 同时展示稳定错误码，并可展开查看经密钥脱敏的完整 Provider 错误详情。Assistant 文本显式标注为私有推理，只有 `send` Tool 会发往 Telegram；assistant 行的思考过程（CoT）与作为本轮 response 的文本分开展示（折叠的 “Thinking” 区块），Agent transcript 表格与时间线卡都适用。
 
 Messages 列表与消息详情的 Revision 在发送者姓名旁显示可复制的 Telegram ID；个人账号标为 `Telegram user ID`，匿名/频道身份标为 `Telegram chat ID`。消息自己的那列明确标为 `Telegram message ID`。Invocation 的 Overview 消息卡与 Frozen context 的 Sender 列从冻结快照 `sender.id` 显示 `Telegram sender ID`，不拿当前用户资料替换历史快照；旧快照缺少 ID 时显示 `—` 并隐藏复制按钮。`CopyableValue` 共用剪贴板交互：复制成功/失败显示 toast；浏览器拒绝或不提供剪贴板时提示选中 ID 手动复制，复制不产生 Admin API 写请求。中英文文案保持同步。
+
+### 界面文案
+
+- `src/locales/en/` 是源目录，`zh-CN` 用 `typeof` 注解逐键镜像，键名漂移在构建期报错。
+- 中文界面用中文术语：Invocation 称「运行」（列表页「运行记录」），Chat 称「会话」，Topic 称「话题」，Conversation Context 称「上下文」，Prompt 称「提示词」，Bucket 称「消息批次」，Sticker 称「贴纸」，Bot 称「机器人」，agent 角色的模型称「主模型」，Hold/Release 称「暂存/放行」，Passkey 称「通行密钥」；登录状态不叫「会话」。
+- 状态、消息与媒体类型、模型调用角色、思考强度经 `src/lib/format.ts` 的 `stateLabel` / `kindLabel` / `roleLabel` / `thinkingLevelLabel` 从 `common.*` 目录取文案，不直接渲染枚举原值；目录里没有的值回退为原值。
+- 页面只写帮助当前操作的文字：核心内容、单位、空状态、缺失数据提示与操作后果。功能原理、用法和限制不写在页面上，也不出现配置键、文件名、工具名或内部代号。
+- 行内元信息用布局间距分隔，不用中间点。
 
 ## 数据表
 

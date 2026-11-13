@@ -43,7 +43,7 @@ export function targetLabel(
   const chat = option.chat_title ?? option.telegram_chat_id ?? option.chat_id;
   return option.message_thread_id === '0'
     ? chat
-    : `${chat} · ${t('pages.recurringAlarms.topicLabel', { id: option.message_thread_id })}`;
+    : [chat, t('pages.recurringAlarms.topicLabel', { id: option.message_thread_id })].join(t('common.separator'));
 }
 
 /**

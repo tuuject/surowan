@@ -411,13 +411,7 @@ export default function PromptsPage(): ReactElement {
                     page={pagination.page}
                     pageCount={pagination.pageCount}
                     onPageChange={pagination.onPageChange}
-                  >
-                    {versions.data === undefined ? null : (
-                      <span className={css({ textStyle: 'small', color: 'text-muted' })}>
-                        {t('pages.prompts.retention', { count: versions.data.retained })}
-                      </span>
-                    )}
-                  </ListFooter>
+                  />
                 </div>
               ) : null}
               {compare === null ? null : diff.isPending ? (

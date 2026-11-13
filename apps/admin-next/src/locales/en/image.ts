@@ -58,8 +58,6 @@ export const image = {
     modelsPanelTitle: 'Image models',
     refreshModels: 'Refresh model list',
     fetchingModels: 'Fetching…',
-    modelsHint:
-      'Choose from the live OpenRouter catalog; the name, provider, and supported parameters fill in automatically.',
     catalogError: 'Failed to fetch the model list: {{error}}. Click refresh to retry.',
     searchModels: 'Search models',
     searchPlaceholder: 'Enter a model name or ID',
@@ -81,7 +79,7 @@ export const image = {
     modelDescriptionLabel: 'Usage & prompt notes',
     modelDescriptionPlaceholder: 'When to prefer this model and how to style prompts',
     modelDescriptionHint:
-      'Shown to the agent when choosing a model and writing prompts (up to 1000 characters). Never put API keys or secrets here.',
+      'The bot reads this when choosing a model and writing prompts (up to 1000 characters). Never put keys or secrets here.',
     credentialRef: 'credential {{name}}',
     removeModel: 'Remove {{name}}',
     remove: 'Remove',

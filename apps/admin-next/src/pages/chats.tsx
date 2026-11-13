@@ -135,7 +135,7 @@ export default function ChatsPage(): ReactElement {
   const view = query.data;
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
-      <ListPageHeader title={t('pages.chats.allowlistTitle')} description={t('pages.chats.dialogDescription')} />
+      <ListPageHeader title={t('pages.chats.allowlistTitle')} />
       <RestartBanner
         paths={view.restart_required}
         supervised={view.supervised}

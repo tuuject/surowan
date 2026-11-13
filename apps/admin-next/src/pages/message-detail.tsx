@@ -17,7 +17,7 @@ import {
 } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import type { MediaEntry, MessageDetail, RevisionEntry } from '@/lib/api/messages.ts';
-import { formatNumber, formatTime } from '@/lib/format';
+import { formatNumber, formatTime, kindLabel } from '@/lib/format';
 import { messageQuery } from '@/lib/queries';
 
 function YesNoBadge({ value }: { readonly value: boolean }): ReactElement {
@@ -71,7 +71,7 @@ function RevisionsTable({ message }: { readonly message: MessageDetail }): React
       width: 60,
       render: (row) => String(row.revision_no),
     },
-    { key: 'kind', title: t('invocations.messageDetail.revisionColumns.kind'), render: (row) => row.kind },
+    { key: 'kind', title: t('invocations.messageDetail.revisionColumns.kind'), render: (row) => kindLabel(row.kind) },
     {
       key: 'sender',
       title: t('invocations.messageDetail.revisionColumns.sender'),
@@ -142,7 +142,7 @@ function RevisionsTable({ message }: { readonly message: MessageDetail }): React
 function MediaTable({ message }: { readonly message: MessageDetail }): ReactElement {
   const { t } = useTranslation();
   const MEDIA_COLUMNS: readonly ColumnSpec<MediaEntry>[] = [
-    { key: 'kind', title: t('invocations.messageDetail.mediaColumns.kind'), render: (row) => row.kind },
+    { key: 'kind', title: t('invocations.messageDetail.mediaColumns.kind'), render: (row) => kindLabel(row.kind) },
     {
       key: 'file_unique_id',
       title: t('invocations.messageDetail.mediaColumns.fileUniqueId'),

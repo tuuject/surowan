@@ -82,7 +82,7 @@ test('deep link and reload show generation audit details without the history lis
   await expect(page.getByText('Generation ID', { exact: true })).toBeVisible();
   await expect(page.getByText(generation.id, { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Generation history', exact: true })).toHaveCount(0);
-  await expect(page.getByText('failed', { exact: true })).toHaveCount(2);
+  await expect(page.getByText('Failed', { exact: true })).toHaveCount(2);
   await expect(page.getByText('Error: provider_timeout', { exact: true })).toBeVisible();
   await expect(page.getByText('Fixture generation failed', { exact: true })).toBeVisible();
   await expect(page.getByText('Attempt log', { exact: true })).toBeVisible();

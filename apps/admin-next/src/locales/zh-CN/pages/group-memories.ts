@@ -1,9 +1,9 @@
-export const groupMemories = {
-  alertTitle: '自动生成的群聊记忆',
-  alertDescription:
-    '这些按日期组织的事件由 sleeping 整理生成，不属于 Memo Pad。每行带有闭区间 Telegram message-id；<code>查看原文</code> 会回放仍然保留的消息。修改只影响 summary；删除不会回退整理水位，因此同一区间不会重新生成。',
+import type { groupMemories as groupMemoriesEn } from '../../en/pages/group-memories.ts';
+
+/** Mirrors `en/pages/group-memories.ts` key for key; the annotation fails the build on drift. */
+export const groupMemories: typeof groupMemoriesEn = {
   colDay: '日期',
-  colChat: 'Chat',
+  colChat: '会话',
   colSummary: '摘要',
   colRange: '消息区间',
   colCreated: '创建时间',
@@ -13,21 +13,18 @@ export const groupMemories = {
   empty: '没有匹配的群聊记忆。',
   viewSource: '查看原文',
   editTitle: '修改群聊记忆',
-  editDescription: 'summary 是第一层检索索引；保持简短、准确。消息 ID 区间作为原始讨论的引用保留。',
   summaryLabel: '摘要',
   updated: '群聊记忆已更新',
   deleted: '群聊记忆已删除',
   deleteTitle: '删除这条群聊记忆？',
-  deleteDescription: '事件会从模型的回忆结果中消失；原始消息与整理水位不变，因此该区间不会再次被总结。',
+  deleteDescription: '这个事件不会再出现在模型的回忆结果里，该区间也不会被重新整理。',
   deleteConfirm: '删除群聊记忆',
   sourceTitle: '原始消息',
   sourceDescription: '消息 {{first}}–{{last}}，展示内容已截断。',
   close: '关闭',
   progressTitle: '整理进度',
-  progressDescription:
-    '每个开启群聊记忆的 Chat 一行。实时通道跟进新消息；回填通道单独处理较早的积压，不会拖住最近几天的整理。',
   progressFailed: '整理进度加载失败',
-  progressEmpty: '还没有开启群聊记忆的 Chat。',
+  progressEmpty: '还没有开启群聊记忆的会话。',
   colStatus: '状态',
   colThrough: '已整理到',
   colPending: '待整理',
@@ -45,7 +42,7 @@ export const groupMemories = {
   recentRuns: '成功 {{success}}，失败 {{error}}',
   viewRuns: '查看批次',
   runsTitle: '整理批次',
-  runsDescription: '{{chat}} 最近的整理批次，最新的在前，失败的批次附带原因。',
+  runsDescription: '{{chat}} 最近的整理批次，最新的在前。',
   runsEmpty: '还没有整理批次。',
   colStarted: '开始时间',
   laneLive: '实时',
@@ -67,7 +64,7 @@ export const groupMemories = {
     claimLost: '批次已作废',
     shutdown: '进程停止',
     interrupted: '被重启中断',
-    staleClaim: '认领超时',
+    staleClaim: '处理超时',
     other: '其他错误',
   },
 };

@@ -280,7 +280,6 @@ export default function RecurringAlarmsPage(): ReactElement {
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader
         title={t('layout.nav.recurringAlarms')}
-        description={t('pages.recurringAlarms.description')}
         actions={
           <Button iconStart={<PlusIcon />} disabled={targets.data === undefined} onClick={openCreate}>
             {t('pages.recurringAlarms.newAlarm')}

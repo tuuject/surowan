@@ -30,7 +30,7 @@ export const warnings: typeof warningsEn = {
   actions: {
     openDeveloper: '打开开发者页',
     openModels: '打开模型页',
-    openInvocations: '打开调用记录',
+    openInvocations: '打开运行记录',
     openSettings: '打开设置',
     openTelegram: '打开 Telegram 设置',
     openApiKeys: '打开 API 密钥',
@@ -38,27 +38,27 @@ export const warnings: typeof warningsEn = {
   codes: {
     developer_payload_recording: {
       title: '正在记录原始请求报文',
-      body: '开发者录制已开启，模型的请求与响应快照会写入 SQLite。不再需要时请到开发者页关闭。',
+      body: '开发者录制已开启，模型的请求与响应快照会写入数据库。不再需要时请到开发者页关闭。',
     },
     agent_model_missing: {
-      title: '未配置 agent 模型',
-      body: 'Bot 仍会接收消息，但在全局 agent 的 Provider、模型与 thinking level 全部配置之前不会启动任何 Invocation。',
+      title: '未配置主模型',
+      body: '机器人仍会接收消息，但在模型页设置主模型和思考强度之前不会开始任何运行。',
     },
     vision_model_missing: {
-      title: '未配置 vision 模型',
-      body: '在 vision 的 Provider 与模型都配置之前，图片理解与后台 Sticker 索引不可用。',
+      title: '未配置图片识别模型',
+      body: '在模型页设置图片识别模型之前，看图与贴纸索引都不可用。',
     },
     invocation_failure_rate: {
-      title: 'Invocation 失败率超过阈值',
-      body: '最近 {{total}} 次完成的 Invocation 中有 {{failed}} 次失败（{{rate}}%），超过 {{threshold}}% 的阈值。',
+      title: '运行失败率超过阈值',
+      body: '最近 {{total}} 次完成的运行中有 {{failed}} 次失败（{{rate}}%），超过 {{threshold}}% 的阈值。',
     },
     admin_login_failures: {
       title: '连续管理员登录失败',
-      body: '面板已连续发生 {{count}} 次用户名/密码错误。',
+      body: '面板已连续 {{count}} 次登录失败，用户名或密码错误。',
     },
     telegram_network_error: {
       title: '未能成功连接 Telegram 服务器',
-      body: 'Bot 会持续重试；Telegram 恢复可达后会自动重连。',
+      body: '机器人会持续重试，Telegram 恢复后会自动重连。',
     },
     telegram_config_error: {
       title: 'Telegram 配置异常',
@@ -67,18 +67,18 @@ export const warnings: typeof warningsEn = {
       token_unreadable: '无法读取 Telegram Token',
       body: {
         unknown: '当前 Token 配置无法启动 Telegram。',
-        unauthorized: '请到 Telegram 页换一个 @BotFather 提供的有效 Bot Token。',
+        unauthorized: '请到 Telegram 页换一个 @BotFather 提供的有效机器人 Token。',
         conflict: '另一个进程正在用这个 Token 收消息。请停掉它，或换一个 Token。',
-        token_unreadable: '配置的 Token 来源无法解析。请检查 key.json、环境变量或命令。',
+        token_unreadable: '无法读取配置的 Token 来源，请检查保存的 Token、环境变量或命令。',
       },
     },
     api_key_invalid_permissions: {
-      title: 'API 密钥权限组合非法',
-      body: '数据库中有一把或多把 API 密钥的权限组合非法，它们无法通过鉴权；请到 API 密钥页保存一个合法模式修复。',
+      title: 'API 密钥权限无效',
+      body: '有 API 密钥的权限无效，暂时无法使用。请到 API 密钥页为它们保存一个权限模式。',
     },
     unknown: {
       title: '未知警告：{{code}}',
-      body: '当前面板版本没有该警告代码的模板；以下是原始变量。',
+      body: '当前面板版本没有这个警告的模板，下面是原始数据。',
     },
   },
 };

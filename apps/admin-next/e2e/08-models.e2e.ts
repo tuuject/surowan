@@ -101,7 +101,7 @@ test.describe('providers page', () => {
     await expect(completeRow).toBeVisible();
     await expect(incompleteRow).toBeVisible();
     // models.dev lists a toggle plus three efforts for the known model.
-    await expect(completeRow.getByText('off / low / high / max')).toBeVisible();
+    await expect(completeRow.getByText('Off, Low, High, Max')).toBeVisible();
     // The relay's host is unknown to models.dev, but the model id is exact: its
     // details are taken as they are, with nothing to confirm.
     await expect(completeRow.getByText('to confirm', { exact: false })).toHaveCount(0);
@@ -169,7 +169,7 @@ test.describe('providers page', () => {
     const row = modelListRow(page, E2E_RELAY_COMPLETE_MODEL);
     await expect(roleToggle(row, 'Agent')).toHaveAttribute('aria-pressed', 'false');
     await setAsAgent(row);
-    await expect(page.getByText('Thinking effort reset to off', { exact: false }).first()).toBeVisible();
+    await expect(page.getByText('Thinking effort reset to Off', { exact: false }).first()).toBeVisible();
     await expect(roleToggle(row, 'Agent')).toHaveAttribute('aria-pressed', 'true');
     expect(await agentOf()).toMatchObject({ model: E2E_RELAY_COMPLETE_MODEL, thinking_level: 'off' });
 
@@ -184,7 +184,7 @@ test.describe('providers page', () => {
     const effort = agentCard.getByRole('combobox', { name: 'Thinking effort', exact: true });
     await expect(effort).toHaveValue('off');
     // Only the levels the model declares are offered.
-    await expect(effort.locator('option')).toHaveText(['Not set', 'off', 'low', 'high', 'max']);
+    await expect(effort.locator('option')).toHaveText(['Not set', 'Off', 'Low', 'High', 'Max']);
     // A draft until saved: the file keeps `off` until the action bar's Save.
     await effort.selectOption('max');
     await expect(effort).toHaveValue('max');

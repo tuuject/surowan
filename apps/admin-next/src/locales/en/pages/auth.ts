@@ -7,18 +7,17 @@ export const auth = {
   username: 'Username',
   password: 'Password',
   usernameRequired: 'Username is required',
-  usernamePattern: '3-32 letters, digits, dot, underscore, or hyphen',
+  usernamePattern: '3–32 letters, digits, dots, underscores or hyphens',
   passwordRequired: 'Password is required',
   signIn: 'Sign in',
   signingIn: 'Signing in…',
   setupTitle: 'Create the administrator account',
-  setupDescription:
-    'First run. Choose a username and a password of at least 12 characters. Only an Argon2id hash is stored.',
+  setupDescription: 'First run. Choose a username and a password of at least 12 characters.',
   passwordMinLength: 'At least 12 characters',
   createAccount: 'Create account',
   creating: 'Creating…',
   passkeySignIn: 'Sign in with a passkey',
   passkeySigningIn: 'Waiting for passkey…',
   passkeyUnavailable:
-    'Passkey sign-in is unavailable here. Use a WebAuthn-capable browser over HTTPS (or loopback), or sign in with your password.',
+    'Passkey sign-in is unavailable here. Open the panel over HTTPS in a browser that supports passkeys, or sign in with your password.',
 };

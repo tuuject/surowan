@@ -1,10 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { PlusIcon } from '@tuuject/koi-react/icons';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { type ReactElement, useMemo, useState } from 'react';
-import { Trans, useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import {
   ChatFilter,
   ConfirmDialog,
@@ -147,10 +146,6 @@ export default function MemoriesPage(): ReactElement {
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader title={t('layout.nav.memories')} />
-      <Alert tone="info" title={t('pages.memories.alertTitle')}>
-        <Trans i18nKey="pages.memories.alertDescription" components={{ code: <code /> }} />
-      </Alert>
-
       <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
         {({ draft, change }) => (
           <>

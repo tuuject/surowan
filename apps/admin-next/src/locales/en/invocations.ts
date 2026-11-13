@@ -33,8 +33,6 @@ export const invocations = {
       telegram: 'Telegram',
       playground: 'Playground',
     },
-    tokensNote:
-      'Tokens counts every token the model calls involved, cache reads and writes included — the same definition the daily budget meters. The per-call breakdown is on the invocation page.',
   },
   invocationDetail: {
     summary: 'Summary',
@@ -94,8 +92,8 @@ export const invocations = {
     },
     timeline: {
       queued: 'Invocation queued',
-      started: 'Agent session started',
-      finished: 'Agent session finished',
+      started: 'Invocation started',
+      finished: 'Invocation finished',
     },
     send: {
       sticker: 'Sticker {{ref}}',
@@ -125,12 +123,12 @@ export const invocations = {
       assistantLabel: 'Assistant private text',
       assistantNote: 'Not published to Telegram',
       toolResultLabel: 'Tool result',
-      harnessNudgeLabel: 'Harness nudge',
+      harnessNudgeLabel: 'Send reminder',
       harnessNudgeNote: 'Reminder to use send',
     },
     agent: {
       noText: 'No text content',
-      thinkingLabel: 'Thinking (CoT)',
+      thinkingLabel: 'Thinking',
       viewToolResult: 'View tool result passed to the agent',
     },
     modelCall: {
@@ -180,9 +178,6 @@ export const invocations = {
       duration: 'Duration',
       error: 'Error',
     },
-    modelsTokensNote:
-      "Total is Input + Output + Cache read + Cache write — the same definition the daily budget meters. The provider's raw total is exposed by the API as",
-    modelsNote2: 'Raw payloads may be unavailable because recording was disabled or they were cleared.',
     sendColumns: {
       kind: 'Kind',
       state: 'State',
@@ -279,9 +274,9 @@ export const invocations = {
       seqWindow: 'Seq window',
       messages: 'Messages',
       sends: 'Sends',
-      activeSession: 'Active session',
+      activeSession: 'Running invocation',
       lastActive: 'Last active',
-      lastGc: 'Last GC',
+      lastGc: 'Last cleanup',
     },
     empty: {
       title: 'No conversation contexts',
@@ -306,21 +301,21 @@ export const invocations = {
       nextSeq: 'Next seq',
       retainedMessages: 'Retained messages',
       lastActive: 'Last active',
-      lastGc: 'Last GC',
-      activeSession: 'Active session',
+      lastGc: 'Last cleanup',
+      activeSession: 'Running invocation',
       systemPromptHash: 'System prompt hash',
       created: 'Created',
       updated: 'Updated',
     },
     messagesTitle: 'Retained messages ({{count}})',
-    refsTitle: 'Capability refs ({{count}})',
+    refsTitle: 'Authorized references ({{count}})',
     messageColumns: {
       seq: 'Seq',
       role: 'Role',
       checkpoint: 'Checkpoint',
       sendSeq: 'Send seq',
       estTokens: 'Est. tokens',
-      session: 'Session',
+      session: 'Invocation',
       evicted: 'Evicted',
       created: 'Created',
     },
@@ -337,15 +332,13 @@ export const invocations = {
       expires: 'Expires',
     },
     emptyRefs: {
-      title: 'No live capability refs',
-      description: 'No media or reply capabilities are currently authorized for this conversation.',
+      title: 'No live references',
+      description: 'No media or reply references are authorized for this context right now.',
     },
   },
   business: {
     privateReasoning: {
       tag: 'Private reasoning',
-      note: 'Assistant text is private reasoning and is never sent to Telegram directly — only a successful',
-      noteTail: 'tool call publishes a message.',
     },
     list: {
       noRecordsDescription: 'No records match the current filters.',

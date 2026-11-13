@@ -7,6 +7,7 @@ import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { type ReactElement, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { thinkingLevelLabel } from '@/lib/format';
 import type { ChatEntry, ChatSettings, ChatsView } from '@/lib/api/chats.ts';
 import { createChat, updateChat } from '@/lib/api/chats.ts';
 import { ModelSwitchConfirmDialog } from '@/components/models/model-switch-confirm-dialog';
@@ -56,7 +57,6 @@ export function ChatDialog({ open, onOpenChange, view, chat, formKey }: ChatDial
         onOpenChange(next);
       }}
       title={chat === null ? t('pages.chats.addChat') : t('pages.chats.editChat')}
-      description={t('pages.chats.dialogDescription')}
       footer={
         <>
           <Button
@@ -250,13 +250,13 @@ function ChatForm({
           >
             {inheritAllowed ? (
               <option value="inherit" disabled={!inheritSupported}>
-                {t('pages.chats.globalDefaultLevel', { level: view.defaults.thinking_level })}
+                {t('pages.chats.globalDefaultLevel', { level: thinkingLevelLabel(view.defaults.thinking_level) })}
                 {inheritSupported ? '' : t('pages.chats.unsupportedSuffix')}
               </option>
             ) : null}
             {levels.map((level) => (
               <option key={level} value={level}>
-                {level}
+                {thinkingLevelLabel(level)}
               </option>
             ))}
           </Select>

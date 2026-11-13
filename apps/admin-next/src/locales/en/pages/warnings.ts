@@ -41,7 +41,7 @@ export const warnings = {
   codes: {
     developer_payload_recording: {
       title: 'Raw request payloads are being recorded',
-      body: 'Developer recording is enabled, so model request and response snapshots are stored in SQLite. Turn it off on the Developer page when you no longer need them.',
+      body: 'Developer recording is enabled, so model request and response snapshots are stored in the database. Turn it off on the Developer page when you no longer need them.',
     },
     agent_model_missing: {
       title: 'No agent model is configured',
@@ -73,12 +73,12 @@ export const warnings = {
         unauthorized: 'Replace the Bot Token on the Telegram page with a valid one from @BotFather.',
         conflict: 'Another process is polling with this token. Stop it or configure a different token.',
         token_unreadable:
-          'The configured token source could not be resolved. Check the key jar, environment variable or command.',
+          'The configured token source could not be read. Check the saved token, environment variable or command it points to.',
       },
     },
     api_key_invalid_permissions: {
       title: 'API keys with invalid permissions',
-      body: 'One or more API keys have an illegal permission combination in the database. They cannot authenticate until a valid mode is saved on the API keys page.',
+      body: 'One or more API keys have invalid permissions and cannot sign in. Save a mode for each on the API keys page.',
     },
     unknown: {
       title: 'Unknown warning: {{code}}',

@@ -69,8 +69,6 @@ export function InjectionPanel({ chatId }: { readonly chatId: string | null }): 
   return (
     <Panel title={t('dictionary.injection.title')}>
       <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-        <p className={css({ textStyle: 'body', color: 'text-muted' })}>{t('dictionary.injection.description')}</p>
-
         {globalSettings.isError ? (
           <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
             {t('dictionary.injection.settingsFailed')}: {dictionaryErrorMessage(globalSettings.error)}
@@ -133,9 +131,6 @@ export function InjectionPanel({ chatId }: { readonly chatId: string | null }): 
                   </option>
                 ))}
               </Select>
-              <p className={css({ textStyle: 'small', color: 'text-muted', maxWidth: '320px' })}>
-                {t('dictionary.injection.overrideNote')}
-              </p>
             </div>
           )}
 
@@ -152,8 +147,6 @@ export function InjectionPanel({ chatId }: { readonly chatId: string | null }): 
             {dictionaryErrorMessage(saveGlobal.error ?? saveOverride.error)}
           </p>
         ) : null}
-
-        <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('dictionary.injection.dedupeNote')}</p>
       </div>
     </Panel>
   );

@@ -23,11 +23,17 @@ import type {
   ConversationContextMessageEntry,
   ConversationContextRefEntry,
 } from '@/lib/api/contexts.ts';
-import { formatNumber, formatTime } from '@/lib/format';
+import { formatNumber, formatTime, kindLabel, roleLabel } from '@/lib/format';
 import { conversationContextQuery } from '@/lib/queries';
 
 function RoleBadge({ role }: { readonly role: string }): ReactElement {
-  return <ToneBadge tone="neutral">{role}</ToneBadge>;
+  useTranslation();
+  return <ToneBadge tone="neutral">{roleLabel(role)}</ToneBadge>;
+}
+
+function KindBadge({ kind }: { readonly kind: string }): ReactElement {
+  useTranslation();
+  return <ToneBadge tone="neutral">{kindLabel(kind)}</ToneBadge>;
 }
 
 function CheckpointBadge({ isCheckpoint }: { readonly isCheckpoint: boolean }): ReactElement {
@@ -150,7 +156,7 @@ function CapabilityRefs({ context }: { readonly context: ConversationContextDeta
     {
       key: 'kind',
       title: t('invocations.contextDetail.refColumns.kind'),
-      render: (row) => <RoleBadge role={row.kind} />,
+      render: (row) => <KindBadge kind={row.kind} />,
     },
     {
       key: 'source_seq',

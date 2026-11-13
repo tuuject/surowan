@@ -68,7 +68,7 @@ test('a room is created, held, released and answered from the page alone', async
 
   await page.getByRole('button', { name: /Release 1/ }).click();
   await expect(page.getByText('the room answers')).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText('Delivered').first()).toBeVisible();
+  await expect(page.getByText('Succeeded').first()).toBeVisible();
   await expect(page.getByText('Completed').first()).toBeVisible();
 
   // The run is audited on the shared invocation pages, under the room's identity.

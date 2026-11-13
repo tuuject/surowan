@@ -25,7 +25,7 @@ import { AppLink } from '@/components/router-links';
 import type { AlarmListItem } from '@/lib/api/alarms.ts';
 import { cancelAlarm } from '@/lib/api/alarms.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatTime } from '@/lib/format';
+import { formatTime, stateLabel } from '@/lib/format';
 import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { alarmsQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
@@ -69,7 +69,7 @@ function InvocationLink({ id }: { readonly id: string }): ReactElement {
 function AlarmDetails({ row }: { readonly row: AlarmListItem }): ReactElement {
   const { t } = useTranslation();
   const createdBy = row.created_by_invocation_id;
-  const fired = `${formatTime(row.fired_at)}${row.invocation_outcome === null ? '' : t('pages.alarms.outcomeSuffix', { outcome: row.invocation_outcome })}${row.completion_reason === null ? '' : t('pages.alarms.firedReasonSuffix', { reason: row.completion_reason })}`;
+  const fired = `${formatTime(row.fired_at)}${row.invocation_outcome === null ? '' : t('pages.alarms.outcomeSuffix', { outcome: stateLabel(row.invocation_outcome) })}${row.completion_reason === null ? '' : t('pages.alarms.firedReasonSuffix', { reason: row.completion_reason })}`;
   const cancelled = `${formatTime(row.cancelled_at)}${row.cancelled_by === null ? '' : t('pages.alarms.bySuffix', { by: row.cancelled_by })}${row.cancel_reason === null ? '' : t('pages.alarms.reasonSuffix', { reason: row.cancel_reason })}${row.admin_cancelled ? t('pages.alarms.adminCancelledSuffix') : ''}`;
   return (
     <KvList
@@ -207,7 +207,7 @@ export default function AlarmsPage(): ReactElement {
               label={t('pages.alarms.filterState')}
               value={draft.state}
               onChange={(state) => change({ state })}
-              options={ALARM_STATES.map((value) => ({ value, label: value }))}
+              options={ALARM_STATES.map((value) => ({ value, label: stateLabel(value) }))}
             />
             <ChatFilter value={draft.chat} onChange={(chat) => change({ chat })} />
             <QueryTextField

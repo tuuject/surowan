@@ -13,7 +13,7 @@ import {
 } from '@/components/business';
 import { TabContent, YesNoBadge } from '@/components/invocations/shared';
 import type { InvocationDetail, ToolCallEntry } from '@/lib/api/invocations.ts';
-import { formatDuration, formatTime } from '@/lib/format';
+import { formatDuration, formatTime, kindLabel } from '@/lib/format';
 import { parseSendArguments } from '@/lib/timeline';
 import { ToolResult } from './tool-result';
 
@@ -31,7 +31,10 @@ function SendArgumentsSummary({ argumentsJson }: { readonly argumentsJson: strin
           '@media (min-width: 1024px)': { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' },
         })}
         items={[
-          { label: t('invocations.invocationDetail.sendArguments.kind'), value: <TextValue value={parsed.kind} /> },
+          {
+            label: t('invocations.invocationDetail.sendArguments.kind'),
+            value: <TextValue value={parsed.kind === null ? null : kindLabel(parsed.kind)} />,
+          },
           { label: t('invocations.invocationDetail.sendArguments.text'), value: <TextValue value={parsed.text} /> },
           {
             label: t('invocations.invocationDetail.sendArguments.stickerRef'),

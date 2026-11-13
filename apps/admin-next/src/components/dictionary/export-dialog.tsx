@@ -92,7 +92,7 @@ export function ExportDialog({
       }
     >
       <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
-        <Field label={t('dictionary.export.formatLabel')} help={t('dictionary.export.roundTripNote')}>
+        <Field label={t('dictionary.export.formatLabel')}>
           <Select
             value={format}
             onChange={(event) => {

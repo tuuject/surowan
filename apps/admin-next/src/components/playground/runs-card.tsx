@@ -5,6 +5,7 @@ import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListFooter, type OffsetPagination, StateBadge, useClientPagination } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
+import { stateLabel } from '@/lib/format';
 import type {
   PlaygroundInvocation,
   PlaygroundReleaseDetail,
@@ -154,7 +155,7 @@ function ReleaseDetails({ detail }: { readonly detail: PlaygroundReleaseDetail }
             </span>
             {attempt.receipt_state === null ? null : (
               <span className={css({ color: 'text-muted' })}>
-                {t('playground.runs.receipt', { state: attempt.receipt_state })}
+                {t('playground.runs.receipt', { state: stateLabel(attempt.receipt_state) })}
               </span>
             )}
           </li>

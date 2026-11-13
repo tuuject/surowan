@@ -4,8 +4,6 @@
  */
 export const playground = {
   title: 'Playground',
-  intro:
-    'Virtual group chats for trying the bot without Telegram. Messages are held until you release them; a release starts one real run.',
   rooms: {
     heading: 'Rooms',
     create: 'New room',
@@ -26,8 +24,6 @@ export const playground = {
     openHold: 'Hold new messages',
     release: 'Release {{count}}',
     releaseEmpty: 'Release (nothing pending)',
-    releaseHint:
-      'Release seals everything pending and queues one run. It does not cancel a queued or running run, and it does not cancel an image generation that was already authorized.',
     released: 'Released {{count}} input(s)',
     releasedEmpty: 'Hold closed; nothing was queued',
     contributing: 'Room revision changed; review the pending count and release again.',
@@ -70,27 +66,6 @@ export const playground = {
     unresolvedEdit: 'Edit as a new message',
     unsupportedMedia: 'This message carries {{kind}}, which the room cannot show yet.',
   },
-  states: {
-    held: 'Held',
-    released: 'Released',
-    expired: 'Expired',
-    sent: 'Sent',
-    notSent: 'Not sent',
-    pending: 'Pending',
-    unknown: 'Outcome unknown',
-    error: 'Failed',
-    queued: 'Queued',
-    running: 'Running',
-    completed: 'Completed',
-    failed: 'Failed',
-    aborted: 'Aborted',
-    outcome_unknown: 'Outcome unknown',
-    skipped_budget: 'Skipped (sleeping)',
-    success: 'Delivered',
-    suppressed: 'Suppressed',
-    handled: 'Handled',
-    waiting: 'Waiting',
-  },
   runs: {
     heading: 'Runs',
     empty: 'No runs yet.',
@@ -106,8 +81,8 @@ export const playground = {
     retryRefused: 'This run cannot be retried: {{reason}}',
     retried: 'Retry queued as run {{id}}',
     detail: 'Release details',
-    throughSeq: 'through seq {{seq}}',
-    bucket: 'bucket {{id}}',
+    throughSeq: 'through message {{seq}}',
+    bucket: 'message batch {{id}}',
   },
   capabilities: {
     heading: 'Capabilities',

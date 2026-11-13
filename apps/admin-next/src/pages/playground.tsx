@@ -76,7 +76,7 @@ export default function PlaygroundPage(): ReactElement {
 
   return (
     <div className={css({ display: 'flex', minWidth: '0', flexDirection: 'column', gap: '5' })}>
-      <ListPageHeader title={t('playground.title')} description={t('playground.intro')} />
+      <ListPageHeader title={t('playground.title')} />
       <ListToolbar onRefresh={() => void rooms.refetch()} refreshing={rooms.isRefetching}>
         <Button
           variant="outline"

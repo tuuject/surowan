@@ -2,7 +2,8 @@ import { Badge } from '@tuuject/koi-react/badge';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import type { ReactElement } from 'react';
-import { stateColor } from '@/lib/format';
+import { useTranslation } from 'react-i18next';
+import { stateColor, stateLabel } from '@/lib/format';
 
 /**
  * State badge: maps the Ant Design color names emitted by `stateColor`
@@ -63,12 +64,14 @@ export function StateBadge({
   readonly state: string | null;
   readonly className?: string;
 }): ReactElement {
+  // Subscribes the badge to language changes; the label itself comes from `stateLabel`.
+  useTranslation();
   if (state === null || state.length === 0) {
     return <span className={css({ color: 'text-muted' })}>—</span>;
   }
   return (
     <ToneBadge tone={stateBadgeSemantic(state)} {...(className !== undefined ? { className } : {})}>
-      {state}
+      {stateLabel(state)}
     </ToneBadge>
   );
 }

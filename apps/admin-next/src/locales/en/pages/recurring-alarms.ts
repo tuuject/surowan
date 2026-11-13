@@ -3,8 +3,6 @@
  * `zh-CN/pages/recurring-alarms.ts` mirrors it key for key.
  */
 export const recurringAlarms = {
-  description:
-    'Send the bot a trusted prompt on a schedule. Each run joins the running session or starts a new one, and skips the daily budget and the sleep window.',
   newAlarm: 'New recurring alarm',
   filterStatus: 'Status',
   statusEnabled: 'Enabled',
@@ -17,7 +15,7 @@ export const recurringAlarms = {
   colEnabled: 'Enabled',
   colLast: 'Last run',
   colAction: 'Actions',
-  roomLabel: 'Room · {{title}}',
+  roomLabel: 'Room: {{title}}',
   topicLabel: 'Topic {{id}}',
   edit: 'Edit',
   runNow: 'Run now',
@@ -30,14 +28,14 @@ export const recurringAlarms = {
   resultRunning: 'Running',
   resultDelivered: 'Delivered',
   resultSuppressed: 'Cancelled',
-  resultSkipped: 'Skipped',
+  resultSkippedBecause: 'Skipped: {{reason}}',
   skipReason: {
     missed: 'Missed while offline',
     previous_pending: 'Previous run not delivered yet',
     chat_removed: 'Chat removed',
     chat_paused: 'Chat paused',
     topic_removed: 'Topic not allowed',
-    agent_unconfigured: 'Agent not configured',
+    agent_unconfigured: 'Agent model not configured',
   },
   coalesced: '{{count}} missed runs folded in',
   createTitle: 'New recurring alarm',
@@ -48,7 +46,7 @@ export const recurringAlarms = {
   fieldTargetHelp: 'The target of a saved alarm cannot change; create a new one instead.',
   targetUnavailable: '{{label}} (unavailable: {{reason}})',
   fieldTimeZone: 'Time zone',
-  fieldTimeZoneHelp: 'An IANA name such as Asia/Shanghai. New alarms start from the global time zone.',
+  fieldTimeZoneHelp: 'For example Asia/Shanghai. New alarms start from the global time zone.',
   fieldPrompt: 'Prompt',
   fieldPromptHelp: 'A trusted instruction from you. The bot carries it out as if you asked in the chat.',
   promptCount: '{{count}} / 4000',
@@ -113,7 +111,7 @@ export const recurringAlarms = {
   errors: {
     previous_pending: 'The previous run has not been delivered yet.',
     target_unavailable: 'The target cannot receive messages right now.',
-    too_many_recurring_alarms: 'This conversation already has 20 recurring alarms.',
+    too_many_recurring_alarms: 'This chat already has 20 recurring alarms.',
   },
   labelId: 'Recurring alarm ID',
   labelRevision: 'Revision',
@@ -128,5 +126,5 @@ export const recurringAlarms = {
   colResult: 'Result',
   colBy: 'By',
   colInvocation: 'Invocation',
-  invocationLink: 'Tool session {{id}}',
+  invocationLink: 'Invocation {{id}}',
 };

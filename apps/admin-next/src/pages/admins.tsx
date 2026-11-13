@@ -119,17 +119,6 @@ export default function AdminsPage(): ReactElement {
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader title={t('layout.nav.botAdmins')} />
-      <Alert tone="info" title={t('pages.admins.alertTitle')}>
-        {t('pages.admins.alertDesc1')}
-        <code>/pause</code>
-        {t('pages.admins.alertDesc2')}
-        <code>/resume</code> {t('pages.admins.alertDesc3')}
-        <code>@userinfobot</code>
-        {t('pages.admins.alertDesc4')}
-        <code>telegram.admins</code>
-        {t('pages.admins.alertDesc5')}
-      </Alert>
-
       <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
         {({ draft, change }) => (
           <QueryTextField
