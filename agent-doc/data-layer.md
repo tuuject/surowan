@@ -123,6 +123,14 @@ SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是
 - `delivery_json` 只在创建时由可信插件代码写入；默认普通预算且不 mention。可信 `bypassDailyBudget` 会令该 receipt 投递跳过 sleep 与每日 token gate，但不绕过 Chat/Topic 配置、pause、串行、并发、wall-clock、发送限流或失败处理。外部完成默认仍走普通预算。
 - retention 不删除 waiting 任务或 pending/claimed receipt。无 timer 的任务依赖插件显式完成、失败或取消；创建 Invocation 结束或删除不表示任务已失效，不能据此清理。只有任务已终态且 receipt 已 handled/suppressed 才按在线窗口一起删除；不单独删 receipt，以免留下孤立任务。删除 Conversation 级联两表。
 
+### 循环闹钟（迁移 056）
+
+`recurring_alarms` 是管理员定义的执行周期，随 Conversation 级联删除：标题（1–80 字符，只在面板显示）、提示词（1–4000 字符且 ≤12 KiB）、`rules_json`（1–10 条已规范化的 5 段 cron 字符串）、`input_mode`（`builder`/`cron`，只决定面板默认打开哪个编辑器）、IANA `time_zone`、`enabled`、`next_fire_at`、乐观锁 `revision` 与创建/更新人和时间。`next_fire_at` 是唤醒的唯一依据：启用且有未来触发时非空，CHECK 保证停用行一定为空；部分索引 `(next_fire_at, id) WHERE enabled = 1 AND next_fire_at IS NOT NULL` 服务到期查询与 `nextDeadline`。
+
+`recurring_alarm_firings` 每处理一次周期或立即执行就落一行：`source`（`schedule`/`manual`）、`occurrence_at`（计划时间，手动为点击时刻）、`outcome`（`scheduled`/`skipped`）与 `skip_reason`、合并的错过次数 `coalesced`（0–1000）、`task_id`（`long_tasks` 删除后置 `NULL`）、手动执行的 `triggered_by`。部分唯一索引 `(recurring_alarm_id, occurrence_at) WHERE source = 'schedule'` 让同一次计划时间只落一行；手动执行不进这条约束。每次到点创建的是普通 `plugin_id = 'recurring-alarm'` timer 任务，payload 冻结当时的提示词。
+
+retention 按 `retention.online_days` 删除早于窗口的触发记录，但保留任务仍在等待或回执仍 `pending`/`claimed` 的那一行，因为下一次触发靠它判断 `previous_pending`；定义本身不随窗口清理。
+
 ### Alarm owner
 
 Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id` 是可信 owner：新建时由当前 Invocation 的可靠 caller 写入；迁移历史行允许为 `NULL`，这些旧行不会被用户 list/delete，也不会把 target 冒充 creator 回填。

@@ -26,6 +26,7 @@ import lightbulb from '@iconify-icons/fa7-solid/lightbulb';
 import moon from '@iconify-icons/fa7-solid/moon';
 import paperPlane from '@iconify-icons/fa7-solid/paper-plane';
 import pen from '@iconify-icons/fa7-solid/pen';
+import play from '@iconify-icons/fa7-solid/play';
 import rightFromBracket from '@iconify-icons/fa7-solid/right-from-bracket';
 import rotateLeft from '@iconify-icons/fa7-solid/rotate-left';
 import scroll from '@iconify-icons/fa7-solid/scroll';
@@ -83,6 +84,7 @@ export const SendIcon = icon(paperPlane);
 // Content markers.
 export const ClockIcon = icon(clock);
 export const AlarmIcon = icon(bell);
+export const PlayIcon = icon(play);
 export const BrainIcon = icon(brain);
 export const ScrollIcon = icon(scroll);
 export const BookOpenIcon = icon(bookOpen);

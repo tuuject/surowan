@@ -161,6 +161,7 @@ export const PANEL_ONLY_FLAGS: readonly FlagName[] = [
   'days',
   'q',
   'unread',
+  'enabled',
   'host',
   'target',
   'day',

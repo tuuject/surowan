@@ -1,6 +1,7 @@
 import { infiniteQueryOptions, type Query, queryOptions } from '@tanstack/react-query';
 import { listApiKeys, listBotAdmins } from './api/admin.ts';
 import { listAlarms } from './api/alarms.ts';
+import { listRecurringAlarms } from './api/recurring-alarms.ts';
 import { getSession, listPasskeys } from './api/auth.ts';
 import { getChats } from './api/chats.ts';
 import { getConfigStatus, getDeveloperSettings, getHarnessSettings } from './api/config.ts';
@@ -190,6 +191,10 @@ export function groupMemoryRunsQuery(filters: ListFilters, position: SnapshotPos
 
 export function alarmsQuery(filters: ListFilters, position: SnapshotPosition) {
   return snapshotList('alarms', listAlarms, filters, position);
+}
+
+export function recurringAlarmsQuery(filters: ListFilters, position: SnapshotPosition) {
+  return snapshotList('recurring-alarms', listRecurringAlarms, filters, position);
 }
 
 export function conversationContextsQuery(filters: ListFilters, position: SnapshotPosition) {

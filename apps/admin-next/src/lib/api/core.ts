@@ -63,6 +63,8 @@ export interface ListFilters {
   readonly model?: string | undefined;
   readonly day?: string | undefined;
   readonly target?: string | undefined;
+  /** Recurring alarms: `true` or `false`. */
+  readonly enabled?: string | undefined;
 }
 
 export interface Credentials {
@@ -104,7 +106,7 @@ export function listPath(path: string, filters: ListFilters): string {
   if (filters.as_of !== undefined) {
     params.set('as_of', filters.as_of);
   }
-  for (const key of ['state', 'chat', 'host', 'set', 'search', 'model', 'day', 'target'] as const) {
+  for (const key of ['state', 'chat', 'host', 'set', 'search', 'model', 'day', 'target', 'enabled'] as const) {
     const value = filters[key];
     if (value !== undefined && value.length > 0) {
       params.set(key, value);

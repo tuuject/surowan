@@ -24,6 +24,7 @@ import { createInspectionAdminHandler } from '../inspection.ts';
 import { createMemoryAdminHandler } from './memory.ts';
 import { createPlaygroundAdminRoutes } from './playground.ts';
 import { createPromptsAdminHandler } from './prompts.ts';
+import { createRecurringAlarmsAdminHandler } from './recurring-alarms.ts';
 import { createProvidersAdminHandler } from './providers.ts';
 import { createTelegramAdminHandler } from '../telegram.ts';
 import { createTuningAdminHandler } from './tuning.ts';
@@ -119,6 +120,11 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       memoBlobs,
     }),
     groupMemory: createGroupMemoryAdminHandler({ store: options.store }),
+    recurringAlarms: createRecurringAlarmsAdminHandler({
+      store: options.store,
+      configStore: options.configStore,
+      recurring: options.recurringAlarms,
+    }),
     admins: createAdminsAdminHandler({ configReloader: reloader, secrets }),
     stickerSets: createStickerSetsAdminHandler({ orm: options.store.orm, configReloader: reloader, secrets }),
     providers: createProvidersAdminHandler({

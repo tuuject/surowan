@@ -7,10 +7,17 @@ import type { HostKind } from '../platform/im-host/identity.ts';
 import type { InvocationContext } from '../platform/invocation-context.ts';
 import type { BusinessStore, Orm } from '../store/store.ts';
 import { LongTaskService, type PluginTaskScope } from '../store/long-tasks/index.ts';
+import { RECURRING_ALARM_PLUGIN_ID } from '../store/recurring-alarms/payload.ts';
 import { createToolAudit, type ToolAudit } from '../store/tool-audit.ts';
 import type { SecretStore } from '../platform/secrets.ts';
 
 const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
+/**
+ * Task owner ids the runtime itself writes. The context builder trusts a
+ * recurring alarm's task because only the runtime can own that id; a plugin
+ * taking it would get its own task data rendered as an operator instruction.
+ */
+const RESERVED_PLUGIN_IDS: ReadonlySet<string> = new Set([RECURRING_ALARM_PLUGIN_ID]);
 /** Dotted, lowercase: `<owner>.<contract>`, e.g. `web-search.providers`. */
 const EXTENSION_POINT_PATTERN = /^[a-z][a-z0-9-]{0,63}(\.[a-z][a-z0-9-]{0,63}){1,3}$/;
 
@@ -223,6 +230,9 @@ export function loadPlugins(plugins: readonly AgentPlugin[], options: LoadPlugin
     }
     if (ids.has(plugin.id)) {
       throw new Error(`Duplicate plugin id: ${plugin.id}`);
+    }
+    if (RESERVED_PLUGIN_IDS.has(plugin.id)) {
+      throw new Error(`Plugin id is reserved by the runtime: ${plugin.id}`);
     }
     pluginHosts(plugin);
     for (const point of plugin.extensionPoints ?? []) {

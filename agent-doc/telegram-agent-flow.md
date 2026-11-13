@@ -365,6 +365,18 @@ Alarm 是第一个 `plugin_id = "alarm"` 的 consumer，通过 `execute.call` �
 3. Alarm 创建一个带 timer 的任务，冻结目标 mention 及预算豁免；到期结果是结构化 reminder 数据，不是预生成聊天文本。`list_alarm` 保留 waiting 或 completed+pending 的本人项目；`delete_alarm` 可取消 waiting Alarm 或尚未投递的 pending receipt。不存在、他人、已 claimed/已结算项目统一为 `alarm_not_found`。
 4. Admin 继续以四态 Alarm 投影展示：waiting 或 completed+pending 为 pending、claimed 为 firing、handled 为 fired、取消任务或 suppressed 投递为 cancelled。completed+pending 仍可 list/cancel；claimed 不可单独取消。
 
+### 循环闹钟
+
+循环闹钟是管理员在 Admin Panel 定义的执行周期加提示词，目标是一个 Conversation（Telegram Chat/Topic 或 Playground 房间）。它不是插件，模型侧没有任何工具能创建、查看或删除它；`recurring-alarm` 是 runtime 保留的 `plugin_id`，`loadPlugins` 拒绝同名插件。
+
+1. **周期**：1–10 条 5 段 cron 规则取并集，日与星期都受限时取「或」。方言在 `platform/recurring-schedule.ts` 逐字段白名单固定（`L`/`W`/`#`/`?`、星期 `7`、秒段与年段一律拒绝），换一个计算引擎也给出同样的时间。计算由 `RecurringScheduleEngine` 契约完成，本地实现是 `adapters/local-monolith/recurring-schedule.ts`（全仓唯一引用 `croner` 的文件，只算时间，不让 croner 自己调度）。每个循环闹钟单独存 IANA 时区，新建时默认取全局 `timezone`。
+2. **唤醒**：唤醒只看持久化的 `recurring_alarms.next_fire_at`。`RecurringAlarmService` 注册为 `LongTaskService` 的 timer source：`processDue` 先让它把到期的周期物化成任务，`nextDeadline` 把它的最早 `next_fire_at` 算进 Scheduler 的截止时间；宿主范围与任务服务相同，并且只算**当前就绪**的宿主：Telegram 停用或断线时它的循环闹钟既不物化也不唤醒 Scheduler，恢复后（连接管理器会唤醒 Scheduler）再按下面的错过规则决定补发还是跳过，不会在几小时后投递一条过时的回执；立即执行也因此对未就绪的宿主返回 `target_unavailable`。
+3. **到点**：每个到期周期在一个 IMMEDIATE 事务里写一行 `recurring_alarm_firings`，不跳过时创建一个已经到期的 timer 任务（payload 是提示词快照，`delivery.bypassDailyBudget = true`），再把 `next_fire_at` 推进到 `now` 之后的下一次。同一轮 Scheduler 随即完成任务、领取回执，之后与 Alarm 回执完全同一条管线：并入运行中的 Invocation 或新开一个，Telegram 上绕过睡眠与每日 Token gate；Playground 房间的宿主画像不绕过预算。
+4. **跳过**：离线期间错过的多次合并为一次投递（`coalesced` 记合并的次数，上限 1000）；最早那次已经晚了 30 分钟以上就整次记为 `missed`。目标不可投递时按回执同一判定记 `chat_removed`/`chat_paused`/`topic_removed`/`agent_unconfigured`（`store/delivery-target.ts`，回执与循环闹钟共用），定义保持不变；上一次触发（定时或手动）的任务仍在等待、回执仍是 `pending`/`claimed` 时记 `previous_pending`，不堆积。物化失败（例如引擎无法计算旧定义）会整体回滚并把 `next_fire_at` 置空，记 `recurring_alarm_failed` 日志，避免 Scheduler 空转。
+5. **可信注入**：回执的 `plugin_id` 是 `recurring-alarm` 且 payload 通过 TypeBox 校验时，`context/builder/admin-task.ts` 把 `<runtime_state>` 的完成说明换成「管理员定时任务」的可信说明，并输出 `<admin_scheduled_task>` 块（JSON：`scheduled_for` 按该闹钟时区格式化、`missed_occurrences`、`prompt`，`<`/`>` 转义为 `<`/`>`）。校验失败则退回原本的 `<untrusted_task_receipt>`，不提升信任。可信与否由 `<runtime_state>` 那句话声明，核心协议的 system prompt 没有改动（改它会重建所有 Context）。
+6. **立即执行**：`runNow` 用已保存的定义额外触发一次（`source = 'manual'`，记录操作者），不看是否启用，不改 `next_fire_at` 与 `revision`；目标不可投递或本进程不服务该宿主返回 `target_unavailable`，上一次未投递完返回 `previous_pending`，都不落行。注入块与到点触发完全相同，模型看不出是手动的。
+7. **生命周期**：编辑按 revision 乐观锁；改规则、时区或重新启用时从当前时间重算 `next_fire_at`，只改提示词不影响已物化的那次。停用或删除会取消尚未领取的投递（`recurring_alarm_disabled`/`recurring_alarm_deleted`，`admin_cancelled`），已 claim 的不受影响。删除 Chat/Conversation 级联删除循环闹钟；每个 Conversation 最多 20 个。
+
 ## send Tool
 
 `send` 是模型驱动的 Telegram 输出的唯一边界（[`send_reply`](#send_reply) 只是把一次回复拆成几次 `send` 依次发出），支持以下形式；确定性的 Bot 命令回复不经过模型，见 [Bot Commands](#bot-commands)：

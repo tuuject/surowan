@@ -21,6 +21,9 @@
 | `surowan_message_list` / `surowan_message_show` | read | Telegram 消息与 Revision |
 | `surowan_sticker_list` | read | Sticker 索引 |
 | `surowan_alarm_list` / `surowan_alarm_cancel` | read / write | Alarm 查询与取消 |
+| `surowan_recurring_alarm_list` / `surowan_recurring_alarm_get` / `surowan_recurring_alarm_targets` / `surowan_recurring_alarm_preview` | read | 循环闹钟列表、详情（最近 50 条触发记录）、可选目标与周期预览；preview 只计算不保存 |
+| `surowan_recurring_alarm_create` / `surowan_recurring_alarm_update` / `surowan_recurring_alarm_run` | write+paid | 新建、编辑（含启停）与立即执行一次；需 `confirm: true`，update 的 `if_match` 是该循环闹钟的 `revision` |
+| `surowan_recurring_alarm_delete` | write | 删除循环闹钟并抑制未投递的那次；需 `confirm: true` |
 | `surowan_config_view` | read | 脱敏配置 |
 | `surowan_models_list` | read | active 文本模型 |
 | `surowan_key_show` | read | 当前 key 的权限 |

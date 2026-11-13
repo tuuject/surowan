@@ -31,11 +31,13 @@ import { BUILTIN_PLUGINS } from '../../../plugins/builtin.ts';
 import { type LoadedPlugins, loadPlugins } from '../../../plugins/plugin.ts';
 import { LongTaskService } from '../../../store/long-tasks/index.ts';
 import { PlaygroundStore } from '../../../store/playground/index.ts';
+import { RecurringAlarmService } from '../../../store/recurring-alarms/index.ts';
 import { recordPromptVersionsFromConfig } from '../../../store/prompt-versions.ts';
 import { WarningService } from '../../../store/warnings.ts';
 import { ServeLock, SqliteStore, stopRunningInstance, watchStopRequests } from '../database.ts';
 import { BUNDLED_MANUAL_DIR, bundledManualSpace, FileSystemDocSpaces } from '../doc-spaces.ts';
 import { createHostTooling, type HostTooling } from '../host-tooling.ts';
+import { CronerScheduleEngine } from '../recurring-schedule.ts';
 import { logEvent, type ServeContext } from './support.ts';
 import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from '../system-resources.ts';
 import { TelegramConnectionManager } from '../telegram/index.ts';
@@ -73,6 +75,8 @@ export interface ServeServices {
   readonly mediaClient: MediaDownloader;
   readonly mcpManager: McpManager;
   readonly tasks: LongTaskService;
+  /** Admin-defined schedules; a timer source of `tasks`. */
+  readonly recurringAlarms: RecurringAlarmService;
   readonly warnings: WarningService;
   /** Background group-memory consolidation; inert unless a Chat enables it. */
   readonly sleeping: SleepingService;
@@ -226,6 +230,17 @@ export async function startServeServices(session: ServeContext, environment: Ser
   await memoBlobs.sweep();
   await playgroundAssets.sweep();
   const tasks = new LongTaskService(openedStore.orm, () => state.scheduler?.wake(), servedHosts);
+  // Recurring alarms feed the same timers: the Scheduler wakes for their next
+  // occurrence and completes what they create. The occurrence math is this
+  // host's engine; another host would plug in its own behind the same contract.
+  const recurringAlarms = new RecurringAlarmService({
+    store: openedStore,
+    engine: new CronerScheduleEngine(),
+    tasks,
+    config: () => configStore.current().config,
+    isHostReady,
+  });
+  tasks.addTimerSource(recurringAlarms);
   // Group memory is a background reader of stored messages: it only needs the
   // published configuration and the same readiness gate the scheduler uses, so
   // a disabled or reconnecting Telegram never starts a model call here.
@@ -304,6 +319,7 @@ export async function startServeServices(session: ServeContext, environment: Ser
     mediaClient,
     mcpManager,
     tasks,
+    recurringAlarms,
     warnings,
     sleeping,
     playgroundStore,

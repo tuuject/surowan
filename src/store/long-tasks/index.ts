@@ -54,6 +54,17 @@ export interface PluginTaskScope {
   cancel(taskId: bigint, options?: CancelOptions, now?: Date): boolean;
 }
 
+/**
+ * A schedule that produces timer tasks of its own, such as recurring alarms.
+ * The service lets every source create the tasks that are due before it
+ * completes due timers, and wakes for the earliest instant any source names.
+ */
+export interface TimerSource {
+  materializeDue(now: Date): void;
+  /** The earliest instant this source has work, as canonical UTC ISO-8601. */
+  nextDeadline(): string | undefined;
+}
+
 function canonicalIso(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.valueOf()) || date.toISOString() !== value) {
@@ -73,11 +84,22 @@ export class LongTaskService {
    * Telegram.
    */
   readonly #hosts: readonly HostKind[] | undefined;
+  readonly #sources: TimerSource[] = [];
 
   constructor(orm: Orm, wake?: () => void, hosts?: readonly HostKind[]) {
     this.#orm = orm;
     this.#wake = wake;
     this.#hosts = hosts === undefined || hosts.length === 0 ? undefined : hosts;
+  }
+
+  /** Registers a schedule whose due occurrences become timer tasks of this service. */
+  addTimerSource(source: TimerSource): void {
+    this.#sources.push(source);
+  }
+
+  /** Asks the host to run the Scheduler loop now, as task writes do. */
+  wake(): void {
+    this.#wake?.();
   }
 
   /** The hosts whose timers this instance completes; undefined means every host. */
@@ -425,6 +447,9 @@ export class LongTaskService {
   }
 
   processDue(now: Date): void {
+    for (const source of this.#sources) {
+      source.materializeDue(now);
+    }
     const at = now.toISOString();
     const changed = this.#orm.transaction(
       () => {
@@ -480,6 +505,17 @@ export class LongTaskService {
   }
 
   nextDeadline(): string | undefined {
+    let earliest = this.#timerDeadline();
+    for (const source of this.#sources) {
+      const deadline = source.nextDeadline();
+      if (deadline !== undefined && (earliest === undefined || deadline < earliest)) {
+        earliest = deadline;
+      }
+    }
+    return earliest;
+  }
+
+  #timerDeadline(): string | undefined {
     const scope = this.#hostScope();
     if (scope === undefined) {
       return (

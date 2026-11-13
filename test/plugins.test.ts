@@ -11,10 +11,14 @@ import { contribute, defineExtensionPoint, definePlugin, loadPlugins } from '../
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { renderInvocationContext, testConfigStore, writeTestConfig } from './helpers.ts';
 
-test('loadPlugins rejects invalid and duplicate plugin ids', () => {
+test('loadPlugins rejects invalid, duplicate and runtime-reserved plugin ids', () => {
   expect(() => loadPlugins([definePlugin({ id: 'Web_Fetch' })])).toThrow('Plugin id is invalid: Web_Fetch');
   expect(() => loadPlugins([definePlugin({ id: 'twin' }), definePlugin({ id: 'twin' })])).toThrow(
     'Duplicate plugin id: twin',
+  );
+  // A plugin owning this id would have its task payloads rendered as an operator instruction.
+  expect(() => loadPlugins([definePlugin({ id: 'recurring-alarm' })])).toThrow(
+    'Plugin id is reserved by the runtime: recurring-alarm',
   );
 });
 

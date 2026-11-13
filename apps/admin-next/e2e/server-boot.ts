@@ -11,6 +11,7 @@ import { join, resolve } from 'node:path';
 import { serve } from '@hono/node-server';
 import { ConfigReloader } from '../../../src/adapters/local-monolith/config/reload.ts';
 import { publishStickerSets } from '../../../src/adapters/local-monolith/runtime/sticker-sets.ts';
+import { CronerScheduleEngine } from '../../../src/adapters/local-monolith/recurring-schedule.ts';
 import { AdminServer } from '../../../src/ingress/admin/index.ts';
 import { ImConnectionRegistry } from '../../../src/platform/im-connection.ts';
 import { keyJarPath } from '../../../src/platform/key-jar.ts';
@@ -18,6 +19,8 @@ import { AgentModelSwitcher } from '../../../src/platform/models/switch.ts';
 import { buildModelRegistry } from '../../../src/platform/providers.ts';
 import { RuntimeConfigurationStore } from '../../../src/platform/runtime-config.ts';
 import { SecretStore } from '../../../src/platform/secrets.ts';
+import { LongTaskService } from '../../../src/store/long-tasks/index.ts';
+import { RecurringAlarmService } from '../../../src/store/recurring-alarms/index.ts';
 import { prepareConfig } from './server-config.ts';
 import { openFixtures } from './server-fixtures.ts';
 import { handleHook, json } from './server-hooks.ts';
@@ -117,10 +120,21 @@ export async function main(): Promise<void> {
       publishedConfig = next;
     },
   });
+  // No Scheduler runs here: Run now records its firing and task, and the
+  // occurrence simply stays undelivered, which is all the panel can observe.
+  const tasks = new LongTaskService(store.orm);
+  const recurringAlarms = new RecurringAlarmService({
+    store,
+    engine: new CronerScheduleEngine(),
+    tasks,
+    config: () => configStore.current().config,
+  });
   state.admin = new AdminServer({
     store,
     configStore,
     connections,
+    tasks,
+    recurringAlarms,
     modelSwitcher,
     configReloader,
     secrets,

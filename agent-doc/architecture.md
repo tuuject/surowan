@@ -33,6 +33,7 @@ Config + SecretStore
 - `src/store/store.ts` 的 `BusinessStore` 只暴露 ORM 与 IMMEDIATE transaction；业务查询与审计 helper 留在共享层。SQLite 打开、PRAGMA、迁移、备份、checkpoint/close 与 ServeLock 位于 `adapters/local-monolith/database.ts`。
 - `platform/config/index.ts` 保留配置类型，Schema、默认值解析与纯校验在 `platform/config-schema*.ts`、`platform/config/resolve.ts`、`platform/config/semantics.ts`、`platform/config/validate.ts`；`platform/runtime-config.ts` 管理源无关的快照发布。JSONC、权限、相对路径、Prompt 文件读取和配置写回/热重载归 `adapters/local-monolith/config*.ts`。Bot 命令与 Admin Panel 只依赖 `platform/config/write.ts` 的契约（`BotCommandConfigWriter`、`ConfigController`、`ConfigEdit`/`secretEdit`），由 adapter 的 `ConfigReloader` 实现并在装配时注入；业务模块不导入 `adapters/local-monolith`，例外仅限宿主侧入口（`cli.ts`、`doctor.ts`、`tui/`、离线 `admin-account` 的 `ingress/admin/account.ts`）。
 - `platform/system-resources.ts` 定义只读资源契约和 URI 解析；目录扫描、Skill frontmatter 校验和文件读取由 `adapters/local-monolith/system-resources.ts` 的 FileSystemResources 承担。AgentRuntime 和 ReplayRunner 必须显式接收资源，不再隐式扫描目录。
+- `platform/recurring-schedule.ts` 定义循环闹钟的 cron 方言白名单、上限与 `RecurringScheduleEngine` 契约（纯函数，无 IO）；`adapters/local-monolith/recurring-schedule.ts` 用 croner 实现它，是全仓唯一引用 `croner` 的文件（`test/recurring-alarms/schedule.test.ts` 断言这一点），在 `runtime/serve.ts` 装配时注入 `RecurringAlarmService`。唤醒只依赖持久化的 `recurring_alarms.next_fire_at`，不依赖引擎：本地由 Scheduler 循环读它，换成别的宿主（例如 Cloudflare Durable Object alarm）时可以直接用同一列定时，只需另写一个引擎实现。方言在 platform 层固定，换引擎算出的时间不变。
 
 本阶段只建立 M1/M2 的宿主解耦基础；Admin/CLI 仍是本地文件型入口，ORM 仍使用同步 SQLite，媒体、SecretStore、MCP 与图片执行尚未全面替换成远端端口。不提供多实例协调、远端 gateway 或租户隔离。
 

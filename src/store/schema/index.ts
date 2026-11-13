@@ -27,5 +27,6 @@ export * from './memo.ts';
 export * from './messaging.ts';
 export * from './operations.ts';
 export * from './playground.ts';
+export * from './recurring.ts';
 export * from './shared.ts';
 export * from './tasks.ts';

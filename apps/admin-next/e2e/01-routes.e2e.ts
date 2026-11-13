@@ -126,6 +126,14 @@ test.describe('routes and deep links', () => {
     await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
+  test('/recurring-alarms renders the list and its create action', async ({ page }) => {
+    await page.goto(await adminUrl('/recurring-alarms'));
+    await expect(page.getByRole('heading', { name: 'Recurring alarms', level: 1 })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'New recurring alarm' })).toBeEnabled();
+    await expect(page.getByText('No recurring alarms match the filters.')).toBeVisible();
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
+  });
+
   test('/memories lists seeded memos', async ({ page }) => {
     await page.goto(await adminUrl('/memories'));
     await expect(page.getByText('Chat-scoped Memo Pad')).toBeVisible();

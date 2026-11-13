@@ -196,6 +196,7 @@ CLI 的 `doctor` 用 `GET /api/key` + `GET /api/invocations?limit=1` 验证鉴�
 | `POST /restart` | 界面上的 “Restart now”。部署方未声明 `PLASTICWAN_SUPERVISED=1` 时返回 409 `restart_unsupported`；磁盘配置权限或内容校验失败时返回 422 `config_invalid` 且不退出；成功返回 202 `{ status: 'restarting' }`，随后走优雅关闭并以退出码 75（`EX_TEMPFAIL`）退出，由外部监督重新拉起 |
 | `POST /config/apply` | 重新读取 `config.jsonc` 并把热更新白名单字段应用到运行中的进程。成功返回 200 `{ status: 'applied', applied, restart_required, outside_serve, generation, active_hash, file_hash }`；失败返回 422 `{ error, message }`，此时 active 配置不变，错误记录在 `GET /config/status` 的 `last_error` |
 | `DELETE /alarms/:id` | 只取消 Alarm 投影为 `pending` 的项目：waiting 任务变为 cancelled；completed+pending receipt 则只 suppress 投递、保留完成结果。`firing`（claimed）与其它终态返回 409 `alarm_not_pending`，不存在返回 404 `not_found`。取消记录当前面板管理员与 `admin_cancelled` 原因并唤醒 Scheduler |
+| `POST /recurring-alarms` / `PUT` / `DELETE /recurring-alarms/:id` / `POST /recurring-alarms/:id/run` | 循环闹钟的增改删与「立即执行一次」，见「Recurring alarms 页端点」。新建、编辑与立即执行要求 API key 同时持有 `write` 与 `execute_paid_operations`（保存后会在无人值守时绕过每日预算调用模型），删除只要 `write`；`PUT` 的 `If-Match` 是**循环闹钟自己的 `revision`**，过期返回 409 `revision_conflict`。`POST /recurring-alarms/preview` 虽是 `POST` 但只读（`read`），不写库 |
 | `POST /invocations/:id/replay` | 用当前配置重放一次已结束的 Invocation；body 只接受 `global_prompt` / `group_prompt` 两个可替换层（每层 65536 字符上限，global 不能清空）、切片边界 `before_send_id`（正整数十进制字符串，指向本 Invocation 的成功 `telegram_sends`；body 上限 1 MiB）与可选临时模型选择 `provider` / `model` / `thinking_level`（`provider` 与 `model` 必须成对；`thinking_level` 取 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max` 之一，可单独给出），不接受 `system_prompt` 覆盖，见「Invocation 重放」。仅 Bearer API key 可调用（Session 请求返回 405），且 key 必须持有 `execute_paid_operations` |
 | `PUT /prompts/global` / `PUT /prompts/group?chat=` | 编辑全局人格 / 按群指令：写 Prompt 文件（去 HTML 注释后的正文，原子临时文件 + rename，`0600`）、记录一个版本，再经既有热应用发布给**下一次**开始的 Invocation。`If-Match` 是 Prompt 内容（去注释后）的 SHA-256，**不是** `config.jsonc` revision——config revision 按设计不含 Prompt 文件：缺失返回 400 `revision_required`，文件被并发修改返回 409 `prompt_conflict`。群级在 Chat 尚无 `instructions_file` 时写 `prompts/chat-<id>.md` 并经配置写入器补上该字段，目标路径已有未被引用的文件返回 409 `prompt_file_exists`。面板 Session 或带 `write` 权限的 API key，见「Prompts 页端点」 |
 | `POST /prompts/versions/:id/restore` | 把该版本内容写回为新版本（`source: 'rollback'`，默认 note `Restored from version N`，历史不删除），`If-Match` 与并发规则同 Prompt 写端点 |
@@ -362,6 +363,21 @@ Discovery、metadata lookup 与 health check 都不修改配置，因此无需 r
 
 `/contexts` 按 `last_active_at, id` 倒序，快照锚点就是 `last_active_at`：快照后变活跃的 Context 离开原位置、计入 `new_count`，换新快照后回到顶部；提示条文案因此是「N 个会话出现新活动」。`GET /contexts/:conversation_id` 返回 Context Header 加上保留窗口（`seq >= head_seq`）内的 `context_messages` 与存活 `context_refs`；`payload_preview` 截断到 2000 字符并附 `payload_truncated`，被 GC 软删的行不出现在响应里。两个端点都是 `GET`，前端页面不发任何写请求。
 
+## Recurring alarms 页端点
+
+页面在导航的 Agent data 分组下，路由 `/recurring-alarms`，支持 `?chat=`（Telegram Chat ID）与 `?enabled=true|false` 深链。行为语义见 [telegram-agent-flow.md](telegram-agent-flow.md#循环闹钟)，表结构见 [data-layer.md](data-layer.md#循环闹钟迁移-056)。服务未接线（独立面板、没有 Scheduler）时整组返回 503 `recurring_alarms_unavailable`。
+
+- `GET /recurring-alarms`：快照分页（锚点是定义 id），启用的按 `next_fire_at` 升序在前，停用的按 id 倒序在后。每项带 `revision`（循环闹钟自己的乐观锁）、规范化后的 `rules`、`input_mode`、`time_zone`、`next_fire_at`、`target`（`conversation_id`、`chat_id`、`host_kind`、`telegram_chat_id`、`chat_type`、`chat_title`、`message_thread_id`）与 `last_firing`。
+- `GET /recurring-alarms/targets`：`{ items, default_time_zone }`。`items` 是已配置且 Bot 见过的 Telegram Chat 的 Conversation（配了 `topic_ids` 的 Chat 只列白名单 Topic，没有 Conversation 的 Topic `conversation_id` 为 `null`）加全部 Playground 房间，每项带 `available` 与不可投递的 `reason`；`default_time_zone` 是全局 `timezone`。
+- `GET /recurring-alarms/:id`：定义加最近 50 条触发记录，每条联到回执状态与投递它的 Invocation。
+- `POST /recurring-alarms/preview`：body `{ rules, time_zone }`，返回 `{ next, issues, time_zone, short_interval }`，不写库。规则不合法时 `next` 为空、`issues` 逐条列出 `{ index, code, message }`；时区不合法时 `time_zone` 为 `null`；相邻两次间隔小于 5 分钟时 `short_interval` 为 `true`（只警告，不阻止保存）。
+- `POST /recurring-alarms`：body `{ chat_id, message_thread_id, title, prompt, rules, input_mode, time_zone, enabled }`，ID 都是十进制字符串。目标必须出现在 targets 里且当前可投递，否则 409 `target_unavailable`；白名单 Topic 还没有 Conversation 时在同一事务里补建（草稿被拒时不留下这行）。
+- `PUT /recurring-alarms/:id`：body 同上但不含目标（目标保存后不可改），`If-Match` 是 `revision`，过期 409 `revision_conflict`。不检查目标是否可投递，暂停的 Chat 也能改或停用。
+- `DELETE /recurring-alarms/:id`：删除定义与触发记录，取消尚未领取的投递。
+- `POST /recurring-alarms/:id/run`：立即执行一次，返回 `{ firing_id, task_id, occurrence_at }`；上一次未投递完 409 `previous_pending`。
+
+错误码：`invalid_rules`（附 `issues`）、`invalid_time_zone`、`invalid_title`、`invalid_prompt` 与 `invalid_body` 为 400，`target_unavailable`、`too_many_recurring_alarms`、`revision_conflict`、`previous_pending` 为 409，`not_found` 为 404。面板的新建/编辑对话框可在「规则」与「Cron」之间切换，两者编辑同一份 cron 列表；只有每个字段都是 `*`、`*/N` 或数字列表的规则才能回到规则控件。预览在规则或时区停止改动 300ms 后刷新。
+
 ## Sticker sets 页端点
 
 页面在导航的 Telegram 分组下（路由仍是 `/stickers`）。`GET /api/sticker-sets` 返回 `{ items, revision }`：`items` 读 `sticker_sets` 表（含已删除、`configured: false` 的行，面板只展示已配置的），每项带 `alias`、`telegram_name`、`title`、`note`、`configured`、`sync_state`、`error_code`、`last_synced_at` 与贴纸/已索引/待处理/错误计数；`revision` 是 `config.jsonc` revision，文件读不出或 reloader 未接线时为 `null`（面板据此禁用编辑，列表照常显示）。面板在有 Set 仍 `pending`/`running` 或有待索引贴纸时 3 秒轮询，否则 15 秒。
@@ -495,7 +511,7 @@ pnpm run admin:test:e2e  # Playwright 浏览器 E2E（真实 AdminServer + 临�
 
 前端约定：
 
-- Prompts、Dictionary、Memories、Group memory、Messages、Invocations、Alarms 七个页面通过 URL `chat` 查询参数管理 Chat 范围：路由的 `validateSearch`（`chatSearch`）校验十进制 chat ID，非法值退回「无筛选」；页面内的 Chat 筛选改动会以 `replace` 写回 URL，可直接收藏或分享深链（如 `/messages?chat=123456789`）。Chats 页每行的「打开相关页面」菜单按目标语义携带 Chat ID：Prompts 用配置 ID（`/prompts?chat=<配置 ID>`），其余六个页面用运行时 Chat ID（`runtime_chat_id`），二者仅在 Chat 迁移后不同。Router 在 `src/main.tsx` 覆盖 `parseSearch`/`stringifySearch` 为纯字符串查询串（默认 JSON 序列化会把纯数字值解析成 number 并把字符串重写成 `%22…%22`），面板所有查询参数都是扁平字符串。
+- Prompts、Dictionary、Memories、Group memory、Messages、Invocations、Alarms 七个页面（以及 Recurring alarms 页，它不在 Chats 页的跳转菜单里）通过 URL `chat` 查询参数管理 Chat 范围：路由的 `validateSearch`（`chatSearch`）校验十进制 chat ID，非法值退回「无筛选」；页面内的 Chat 筛选改动会以 `replace` 写回 URL，可直接收藏或分享深链（如 `/messages?chat=123456789`）。Chats 页每行的「打开相关页面」菜单按目标语义携带 Chat ID：Prompts 用配置 ID（`/prompts?chat=<配置 ID>`），其余六个页面用运行时 Chat ID（`runtime_chat_id`），二者仅在 Chat 迁移后不同。Router 在 `src/main.tsx` 覆盖 `parseSearch`/`stringifySearch` 为纯字符串查询串（默认 JSON 序列化会把纯数字值解析成 number 并把字符串重写成 `%22…%22`），面板所有查询参数都是扁平字符串。
 - 替换列表内容的详情页使用非嵌套路由文件（如 `image-generations_.$generationId.tsx`），与列表并列挂到根布局；URL 仍是 `/image-generations/:generationId`。只有需要在父页 `Outlet` 中显示的内容才使用嵌套文件，避免详情匹配成功却只渲染列表。
 - 业务页面一律 `useQuery` / `useInfiniteQuery` 并显式渲染 loading / error / data
   三态，**禁止 `useSuspenseQuery`**（401 会在渲染期抛出并落进路由错误边界，
