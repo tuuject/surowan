@@ -31,6 +31,10 @@ export const buckets = sqliteTable(
     errorCode: text('error_code'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
+    /** The collection timing the batch was opened with (migration 057); 0 for batches that never collect. */
+    windowSeconds: sqliteBigInt('window_seconds').notNull().default(0n),
+    maxSeconds: sqliteBigInt('max_seconds').notNull().default(0n),
+    bumpSeconds: sqliteBigInt('bump_seconds').notNull().default(0n),
   },
   (t) => [
     check(

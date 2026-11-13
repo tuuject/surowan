@@ -8,7 +8,7 @@ import {
   type Model,
   type Usage,
 } from '@earendil-works/pi-ai';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { capability, createExecuteTool, type ExecutableCapability } from '../../capabilities/execute-tool.ts';
 import { createMemberProfileTool } from '../../capabilities/member-profile.ts';
 import { createReadTool } from '../../capabilities/read-tool.ts';
@@ -20,7 +20,6 @@ import { createMemoReadTools } from '../../context/memo-pad/tools/index.ts';
 import { createCapabilityResolver } from '../../context/refs.ts';
 import type { ContextHeader } from '../../context/store/types.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
-import { resolveBucketTiming } from '../../platform/config/resolve.ts';
 import { hostExecutionProfile } from '../../platform/host-profile.ts';
 import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { ImHost } from '../../platform/im-host/index.ts';
@@ -30,7 +29,7 @@ import {
   unavailableCapabilities,
 } from '../../platform/invocation-context.ts';
 import { scopedSystemResources } from '../../platform/system-resources.ts';
-import { agentMessages, invocations } from '../../store/schema/index.ts';
+import { agentMessages, buckets, invocations } from '../../store/schema/index.ts';
 import { createZzzTool, isLowDailyTokenBudget, readDailyTokenBudget } from '../../store/sleep.ts';
 import { createToolAudit } from '../../store/tool-audit.ts';
 import { duplicateSendGuard, emptyTextHandling } from '../../capabilities/send/support.ts';
@@ -236,23 +235,29 @@ export function staticCapabilities(): CapabilityRefResolver {
  * Anchors the next batch's collection window at the moment the agent becomes
  * free. A batch that collected while the model was working (its messages
  * arrived mid-round) would otherwise be handed over the instant the round ends,
- * having collected far less than its host's bucket window.
+ * having collected far less than its bucket window.
+ *
+ * The window is the batch's own, recorded when it opened, not this run's
+ * configuration snapshot: a reload after the run started still reaches a batch
+ * opened since, and never one opened before.
  *
  * Extension-only: a batch whose own deadline is already later — one whose first
  * message arrived after this round ended — keeps it. The write is what also
  * re-schedules the scheduler, which recomputes its next wake from deadlines.
  */
-export function deferCollectingBucket(
-  services: RuntimeServices,
-  config: RawConfig,
-  hostKind: HostKind,
-  conversationId: bigint,
-  freeSince: number,
-): void {
-  const atLeast = new Date(freeSince + resolveBucketTiming(config, hostKind).windowSeconds * 1_000).toISOString();
+export function deferCollectingBucket(services: RuntimeServices, conversationId: bigint, freeSince: number): void {
+  const bucket = services.store.orm
+    .select({ id: buckets.id, windowSeconds: buckets.windowSeconds })
+    .from(buckets)
+    .where(and(eq(buckets.conversationId, conversationId), eq(buckets.state, 'collecting')))
+    .get();
+  if (bucket === undefined) {
+    return;
+  }
+  const atLeast = new Date(freeSince + Number(bucket.windowSeconds) * 1_000).toISOString();
   services.store.orm.run(
     sql`UPDATE buckets SET deadline_at = ${atLeast}, updated_at = ${new Date(freeSince).toISOString()}
-       WHERE conversation_id = ${conversationId} AND state = 'collecting' AND deadline_at < ${atLeast}`,
+       WHERE id = ${bucket.id} AND state = 'collecting' AND deadline_at < ${atLeast}`,
   );
 }
 

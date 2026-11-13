@@ -35,4 +35,33 @@ export const telegram: typeof telegramEn = {
   clearConfirm: '清空 Token',
   cleared: 'Telegram Token 已清空',
   readFailed: '读取 Telegram 设置失败',
+  bucketTitle: '消息批次',
+  bucketDescription: '保存后从下一个批次开始生效，正在收集的批次保持原来的时间。',
+  bucketFields: {
+    window: {
+      label: '最短等待（秒）',
+      help: '一个批次至少收集这么久。',
+    },
+    max: {
+      label: '最长等待（秒）',
+      help: '从批次的第一条消息算起，延长不会超过这个时间。',
+    },
+    bump: {
+      label: '每条消息延长（秒）',
+      help: '每条新消息让批次在它到达后至少再收集这么久。填 0 表示不延长。',
+    },
+  },
+  bucketMaxFollowsWindow: '与最短等待相同',
+  bucketErrors: {
+    integer: '请输入整数秒数',
+    range: '不能大于 {{max}}',
+    belowWindow: '不能小于最短等待',
+  },
+  bucketRunning: '运行中：{{value}}',
+  bucketUnchanged: '没有未保存的修改',
+  bucketPending_one: '{{count}} 项未保存修改',
+  bucketPending_other: '{{count}} 项未保存修改',
+  bucketInvalid: '请先修正标出的字段再保存。',
+  bucketSave: '保存并应用',
+  bucketDiscard: '放弃修改',
 };

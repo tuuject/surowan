@@ -8,6 +8,7 @@ import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ConfirmDialog, KvList, ListPageHeader, MonoValue } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
+import { BucketTimingPanel } from '@/components/telegram/bucket-timing.tsx';
 import { TelegramStatusBadge, TelegramStatusReason, telegramBotLabel } from '@/components/telegram/telegram-status.tsx';
 import type { TelegramConnectionState, TelegramView } from '@/lib/api/telegram.ts';
 import { putTelegram } from '@/lib/api/telegram.ts';
@@ -211,6 +212,7 @@ export default function TelegramPage(): ReactElement {
             </Alert>
           ) : null}
           <TelegramSettings view={query.data} />
+          <BucketTimingPanel view={query.data} />
         </>
       )}
     </div>

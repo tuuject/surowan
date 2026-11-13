@@ -74,11 +74,14 @@ test('discovers models in saved mode from the registry connection', async () => 
     expect(changed.status).toBe(200);
     expect(requests).toEqual(['/v1/models']);
 
-    // The file now describes another address and a pending restart-only field
-    // the running process cannot adopt, so nothing of the file is applied.
+    // The file now describes another address and a credential the running
+    // process cannot resolve, so nothing of the file is applied.
     await rewriteFile(fixture, (config) => {
-      config.telegram.bucket_window_seconds = 5;
-      config.agent!.context!.idle_grace_seconds = 10;
+      const vision = config.providers.vision;
+      if (vision?.kind !== 'custom') {
+        throw new Error('Expected a custom vision provider');
+      }
+      vision.api_key = { jar: 'missing-entry' };
       const agent = config.providers.agent;
       if (agent?.kind !== 'custom') {
         throw new Error('Expected a custom agent provider');
@@ -87,7 +90,7 @@ test('discovers models in saved mode from the registry connection', async () => 
     });
     const refused = await write(fixture, '/api/config/apply', 'POST', {}, null);
     expect(refused.status).toBe(422);
-    expect(await readJson(refused)).toMatchObject({ error: 'candidate_invalid' });
+    expect(await readJson(refused)).toMatchObject({ error: 'secret_unresolved' });
 
     const pending = await write(fixture, '/api/providers/discover', 'POST', { alias: 'agent' });
     expect(pending.status).toBe(409);

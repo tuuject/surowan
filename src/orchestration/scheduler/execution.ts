@@ -1,8 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
-import type { HostKind } from '../../platform/im-host/identity.ts';
-import { resolveBucketTiming } from '../../platform/config/resolve.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
-import { chats, conversations, invocations, taskReceipts } from '../../store/schema/index.ts';
+import { buckets, conversations, invocations, taskReceipts } from '../../store/schema/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import type { WarningService } from '../../store/warnings.ts';
 import type { InvocationQueueService } from '../invocation-queue/index.ts';
@@ -107,31 +105,33 @@ export async function executeInvocation(
       // This only ever moves a deadline later; a batch still inside its own
       // window keeps that window, which is what makes every batch collect a
       // full `bucket_window_seconds` (see the ingestion comments).
+      //
+      // Each batch uses the window it was opened with, never the live one: a
+      // reload reaches the batches opened after it, not those already
+      // collecting. A room's batches never collect, so none are found here.
       const chat = deps.store.orm
-        .select({
-          hostKind: chats.hostKind,
-          chatId: conversations.chatId,
-        })
+        .select({ chatId: conversations.chatId })
         .from(conversations)
-        .innerJoin(chats, eq(chats.id, conversations.chatId))
         .where(eq(conversations.id, invocation.conversation_id))
         .get();
       if (chat === undefined) {
         throw new Error(`Invocation ${invocation.id} has no chat`);
       }
-      // The window follows the host: a room collects nothing. A Telegram
-      // chat reads the live window, as ingestion does for the buckets it is
-      // pushing back, so a reloaded window applies to both alike. Resolving
-      // it from the host kind does not require the chat entry to still exist.
-      const { windowSeconds } = resolveBucketTiming(deps.configStore.current().config, chat.hostKind as HostKind);
-      const nextDeadline = new Date(
-        Math.max(finishedAt.getTime(), Date.parse(started.started_at) + windowSeconds * 1_000),
-      ).toISOString();
-      deps.store.orm.run(
-        sql`UPDATE buckets SET deadline_at = ${nextDeadline}, updated_at = ${nowIso}
-             WHERE conversation_id IN (SELECT id FROM conversations WHERE chat_id = ${chat.chatId})
-               AND state = 'collecting' AND deadline_at < ${nextDeadline}`,
-      );
+      const collecting = deps.store.orm
+        .select({ id: buckets.id, windowSeconds: buckets.windowSeconds })
+        .from(buckets)
+        .innerJoin(conversations, eq(conversations.id, buckets.conversationId))
+        .where(and(eq(conversations.chatId, chat.chatId), eq(buckets.state, 'collecting')))
+        .all();
+      for (const bucket of collecting) {
+        const nextDeadline = new Date(
+          Math.max(finishedAt.getTime(), Date.parse(started.started_at) + Number(bucket.windowSeconds) * 1_000),
+        ).toISOString();
+        deps.store.orm.run(
+          sql`UPDATE buckets SET deadline_at = ${nextDeadline}, updated_at = ${nowIso}
+               WHERE id = ${bucket.id} AND state = 'collecting' AND deadline_at < ${nextDeadline}`,
+        );
+      }
       deps.store.orm
         .update(taskReceipts)
         .set({

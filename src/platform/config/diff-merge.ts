@@ -60,6 +60,12 @@ const HOT_PATHS: ReadonlySet<string> = new Set([
   // The connection manager owns the grammY instance and follows the resolved
   // token, so rotating or clearing it never needs a process restart.
   'telegram.token',
+  // Read once when ingestion opens a batch and stored on its row; every later
+  // bump and deferral reads the row. A reload therefore reaches the next
+  // batch and never one already collecting.
+  'telegram.bucket_window_seconds',
+  'telegram.bucket_max_seconds',
+  'telegram.bucket_bump_seconds',
 ]);
 
 /**

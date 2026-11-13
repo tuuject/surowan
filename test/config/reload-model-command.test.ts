@@ -140,16 +140,11 @@ test('/model reports a read-only configuration directory', async () => {
 });
 
 test('/model reports a written file that could not be applied', async () => {
-  const fixture = await setup({
-    transform: (config) => {
-      config.telegram.bucket_window_seconds = 30;
-      config.agent!.context!.idle_grace_seconds = 30;
-    },
-  });
+  const fixture = await setup();
   try {
+    // A valid file whose changed credential the running process cannot resolve.
     await fixture.patch((config) => {
-      config.telegram.bucket_window_seconds = 5;
-      config.agent!.context!.idle_grace_seconds = 10;
+      customProvider(config.providers, 'vision').api_key = { jar: 'missing-entry' };
     });
     const reply = await fixture.commands.run({ name: 'model', argument: '1' }, BigInt(CHAT_ID), ADMIN);
     expect(reply.startsWith('已写入 config.jsonc，但应用失败: ')).toBe(true);

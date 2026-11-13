@@ -35,10 +35,11 @@ test('removing a chat and its instructions file together still reloads', async (
   }
 });
 
-test('the adaptive bucket fields wait for a restart like the window they extend', async () => {
+test('the bucket timing fields apply without a restart', async () => {
   const fixture = await setup();
   try {
     await fixture.patch((config) => {
+      config.telegram.bucket_window_seconds = 20;
       config.telegram.bucket_max_seconds = 60;
       config.telegram.bucket_bump_seconds = 10;
     });
@@ -47,12 +48,34 @@ test('the adaptive bucket fields wait for a restart like the window they extend'
     if (!result.ok) {
       throw new Error(result.message);
     }
-    expect(result.applied).toEqual([]);
-    expect(result.restartRequired).toEqual(['telegram.bucket_bump_seconds', 'telegram.bucket_max_seconds']);
-    // Ingestion keeps the fixed window it started with until the restart.
+    expect(result.applied).toEqual([
+      'telegram.bucket_bump_seconds',
+      'telegram.bucket_max_seconds',
+      'telegram.bucket_window_seconds',
+    ]);
+    expect(result.restartRequired).toEqual([]);
+    expect(result.status.activeHash).toBe(result.status.fileHash);
+    // Ingestion opens the next batch with these; open batches keep their own.
     expect(resolveBucketTiming(fixture.configStore.current().config, 'telegram')).toEqual({
-      windowSeconds: 15,
-      maxSeconds: 15,
+      windowSeconds: 20,
+      maxSeconds: 60,
+      bumpSeconds: 10,
+    });
+
+    // Removing the optional fields is hot too: the ceiling follows the window again.
+    await fixture.patch((config) => {
+      delete config.telegram.bucket_max_seconds;
+      delete config.telegram.bucket_bump_seconds;
+    });
+    const removed = await fixture.reloader.reloadFromFile();
+    expect(removed.ok).toBe(true);
+    if (!removed.ok) {
+      throw new Error(removed.message);
+    }
+    expect(removed.applied).toEqual(['telegram.bucket_bump_seconds', 'telegram.bucket_max_seconds']);
+    expect(resolveBucketTiming(fixture.configStore.current().config, 'telegram')).toEqual({
+      windowSeconds: 20,
+      maxSeconds: 20,
       bumpSeconds: 0,
     });
   } finally {
@@ -65,7 +88,7 @@ test('applies hot fields while restart-only fields wait, and keeps waiting after
   try {
     await fixture.patch((config) => {
       config.agent!.thinking_level = 'high';
-      config.telegram.bucket_window_seconds = 30;
+      config.telegram.process_bot_messages = true;
     });
     const first = await fixture.reloader.reloadFromFile();
     expect(first.ok).toBe(true);
@@ -73,9 +96,9 @@ test('applies hot fields while restart-only fields wait, and keeps waiting after
       throw new Error(first.message);
     }
     expect(first.applied).toEqual(['agent.thinking_level']);
-    expect(first.restartRequired).toEqual(['telegram.bucket_window_seconds']);
+    expect(first.restartRequired).toEqual(['telegram.process_bot_messages']);
     expect(first.status.generation).toBe(2);
-    expect(fixture.configStore.current().config.telegram.bucket_window_seconds).toBe(15);
+    expect(fixture.configStore.current().config.telegram.process_bot_messages).toBe(false);
     expect(fixture.configStore.current().hash).not.toBe(first.status.fileHash);
 
     await fixture.patch((config) => {
@@ -87,7 +110,7 @@ test('applies hot fields while restart-only fields wait, and keeps waiting after
       throw new Error(second.message);
     }
     expect(second.applied).toEqual(['agent.thinking_level']);
-    expect(second.restartRequired).toEqual(['telegram.bucket_window_seconds']);
+    expect(second.restartRequired).toEqual(['telegram.process_bot_messages']);
     expect(second.status.generation).toBe(3);
     expect(fixture.configStore.current().config.agent!.thinking_level).toBe('medium');
   } finally {
@@ -100,7 +123,7 @@ test('reverting a pending restart field brings the active hash back to the file 
   try {
     await fixture.patch((config) => {
       config.agent!.thinking_level = 'high';
-      config.telegram.bucket_window_seconds = 30;
+      config.telegram.process_bot_messages = true;
     });
     const pending = await fixture.reloader.reloadFromFile();
     expect(pending.ok).toBe(true);
@@ -111,7 +134,7 @@ test('reverting a pending restart field brings the active hash back to the file 
 
     // The active configuration already equals this file: only its identity moves.
     await fixture.patch((config) => {
-      config.telegram.bucket_window_seconds = 15;
+      config.telegram.process_bot_messages = false;
     });
     const reverted = await fixture.reloader.reloadFromFile();
     expect(reverted.ok).toBe(true);

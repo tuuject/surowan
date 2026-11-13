@@ -32,7 +32,12 @@ export function appendToBucket(
     throw new Error('Conversation missing while assigning bucket');
   }
   const collecting = deps.store.orm
-    .select({ id: buckets.id, firstReceivedAt: buckets.firstReceivedAt })
+    .select({
+      id: buckets.id,
+      firstReceivedAt: buckets.firstReceivedAt,
+      maxSeconds: buckets.maxSeconds,
+      bumpSeconds: buckets.bumpSeconds,
+    })
     .from(buckets)
     .where(and(eq(buckets.conversationId, conversation.id), eq(buckets.state, 'collecting')))
     .get();
@@ -40,7 +45,7 @@ export function appendToBucket(
     return undefined;
   }
   if (collecting !== undefined && message.eligibleHuman) {
-    bumpDeadline(deps, collecting.id, collecting.firstReceivedAt, receivedAt);
+    bumpDeadline(deps, collecting, receivedAt);
   }
   let bucketId = collecting?.id;
   if (bucketId === undefined) {
@@ -64,8 +69,12 @@ export function appendToBucket(
     // barely-collected batch the moment a long round ends —
     // `AgentRuntime#deferCollectingBucket` therefore only ever pushes this
     // deadline later, to `round end + window`.
-    const { windowSeconds } = resolveBucketTiming(deps.configStore.current().config, 'telegram');
-    const deadline = receivedAt.getTime() + windowSeconds * 1_000;
+    //
+    // The timing is read once, here, and stored with the batch: a reload of
+    // the `telegram.bucket_*` fields reaches the next batch, while this one
+    // keeps extending and deferring by the timing it opened with.
+    const timing = resolveBucketTiming(deps.configStore.current().config, 'telegram');
+    const deadline = receivedAt.getTime() + timing.windowSeconds * 1_000;
     const created = deps.store.orm
       .insert(buckets)
       .values({
@@ -73,6 +82,9 @@ export function appendToBucket(
         state: 'collecting',
         firstReceivedAt: now,
         deadlineAt: new Date(deadline).toISOString(),
+        windowSeconds: BigInt(timing.windowSeconds),
+        maxSeconds: BigInt(timing.maxSeconds),
+        bumpSeconds: BigInt(timing.bumpSeconds),
         createdAt: now,
         updatedAt: now,
       })
@@ -106,9 +118,10 @@ export function appendToBucket(
 
 /**
  * Holds a batch open while its conversation is still talking: a message joining
- * it pushes the deadline to the message's own arrival plus
- * `bucket_bump_seconds`, but never past the first message plus
- * `bucket_max_seconds`, so a steady stream still settles.
+ * it pushes the deadline to the message's own arrival plus the batch's
+ * `bucket_bump_seconds`, but never past the first message plus its
+ * `bucket_max_seconds`, so a steady stream still settles. Both come from the
+ * batch row, as it was opened, never from the live configuration.
  *
  * Extension-only, like every other deadline write: the window a round end
  * granted, or a deadline already further out, is never pulled in. Only messages
@@ -118,20 +131,28 @@ export function appendToBucket(
  * transaction, and settling it is a transaction too, so a message either lands
  * here and extends the batch or arrives after it settled and opens the next.
  */
-function bumpDeadline(deps: TelegramBucketDeps, bucketId: bigint, firstReceivedAt: string, receivedAt: Date): void {
-  const timing = resolveBucketTiming(deps.configStore.current().config, 'telegram');
-  if (timing.bumpSeconds === 0) {
+function bumpDeadline(
+  deps: TelegramBucketDeps,
+  bucket: {
+    readonly id: bigint;
+    readonly firstReceivedAt: string;
+    readonly maxSeconds: bigint;
+    readonly bumpSeconds: bigint;
+  },
+  receivedAt: Date,
+): void {
+  if (bucket.bumpSeconds === 0n) {
     return;
   }
   const bumped = new Date(
     Math.min(
-      Date.parse(firstReceivedAt) + timing.maxSeconds * 1_000,
-      receivedAt.getTime() + timing.bumpSeconds * 1_000,
+      Date.parse(bucket.firstReceivedAt) + Number(bucket.maxSeconds) * 1_000,
+      receivedAt.getTime() + Number(bucket.bumpSeconds) * 1_000,
     ),
   ).toISOString();
   deps.store.orm.run(
     sql`UPDATE buckets SET deadline_at = ${bumped}, updated_at = ${receivedAt.toISOString()}
-       WHERE id = ${bucketId} AND state = 'collecting' AND deadline_at < ${bumped}`,
+       WHERE id = ${bucket.id} AND state = 'collecting' AND deadline_at < ${bumped}`,
   );
 }
 

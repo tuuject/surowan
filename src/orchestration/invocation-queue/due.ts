@@ -1,7 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
-import type { HostKind } from '../../platform/im-host/identity.ts';
-import { resolveBucketTiming } from '../../platform/config/resolve.ts';
 import { buckets } from '../../store/schema/index.ts';
 import { resolveChatConfig } from '../../store/store.ts';
 import {
@@ -20,7 +18,8 @@ export interface BucketRow {
   readonly conversation_id: bigint;
   readonly first_received_at: string;
   readonly deadline_at: string;
-  readonly host_kind: HostKind;
+  /** The batch's own window, recorded when it opened. */
+  readonly window_seconds: bigint;
 }
 
 /**
@@ -49,7 +48,7 @@ export function processDueBuckets(deps: InvocationQueueDeps, now = new Date()): 
     // rule is a *startup* rule: `recover()` expires that work before this
     // method is ever called, so nothing stale can reach the queue from here.
     const due = store.orm.all<BucketRow>(
-      sql`SELECT b.id, b.conversation_id, b.first_received_at, b.deadline_at, c.host_kind
+      sql`SELECT b.id, b.conversation_id, b.first_received_at, b.deadline_at, b.window_seconds
        FROM buckets b
        JOIN conversations v ON v.id = b.conversation_id
        JOIN chats c ON c.id = v.chat_id
@@ -181,15 +180,13 @@ export function attachDueBucket(
 
 /**
  * Keeps a due batch collecting because its conversation is mid-round. The
- * window restarts from now, which is only an approximation — the exact anchor
- * is the round end, which the runtime writes when it gets there — but it also
- * keeps the scheduler from waking on an already-passed deadline over and over.
+ * batch's own window restarts from now, which is only an approximation — the
+ * exact anchor is the round end, which the runtime writes when it gets there —
+ * but it also keeps the scheduler from waking on an already-passed deadline
+ * over and over.
  */
 export function deferBucket(deps: InvocationQueueDeps, bucket: BucketRow, now: Date): void {
-  const deferMilliseconds = Math.max(
-    resolveBucketTiming(deps.configStore.current().config, bucket.host_kind).windowSeconds * 1_000,
-    deps.minimumDeferMs,
-  );
+  const deferMilliseconds = Math.max(Number(bucket.window_seconds) * 1_000, deps.minimumDeferMs);
   const atLeast = new Date(now.getTime() + deferMilliseconds).toISOString();
   deps.store.orm.run(
     sql`UPDATE buckets SET deadline_at = ${atLeast}, updated_at = ${now.toISOString()}

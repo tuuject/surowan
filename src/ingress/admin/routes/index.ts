@@ -152,7 +152,12 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
     }),
     playground: createPlaygroundAdminRoutes({ playground, scheduler }),
     image: createImageAdminRoutes({ image, bridge: imageBridge, configReloader: reloader, secrets }),
-    telegram: createTelegramAdminHandler({ connections, configReloader: reloader, secrets }),
+    telegram: createTelegramAdminHandler({
+      connections,
+      configStore: options.configStore,
+      configReloader: reloader,
+      secrets,
+    }),
     inspection: createInspectionAdminHandler({
       store: options.store,
       configStore: options.configStore,
