@@ -51,11 +51,7 @@ export function RoomHeaderCard({
 }: RoomHeaderCardProps): ReactElement {
   const { t } = useTranslation();
   return (
-    <Panel
-      title={room?.title ?? t('common.loading')}
-      description={t('playground.room.releaseHint')}
-      className={css({ minWidth: '0' })}
-    >
+    <Panel title={room?.title ?? t('common.loading')} className={css({ minWidth: '0' })}>
       <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
         <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
           <span className={css({ textStyle: 'small', color: 'text-muted' })}>

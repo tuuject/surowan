@@ -14,7 +14,7 @@ import {
 } from '@/components/business';
 import { AppLink } from '@/components/router-links';
 import type { MessageListItem } from '@/lib/api/messages.ts';
-import { formatNumber, formatTime } from '@/lib/format';
+import { formatNumber, formatTime, kindLabel } from '@/lib/format';
 import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { messagesQuery } from '@/lib/queries';
 
@@ -29,7 +29,7 @@ function MessageCell({ row }: { readonly row: MessageListItem }): ReactElement {
   }
   return (
     <div className={css({ display: 'flex', minWidth: '0', alignItems: 'flex-start', gap: '2' })}>
-      {showKind ? <ToneBadge tone="neutral">{row.kind}</ToneBadge> : null}
+      {showKind && row.kind !== null ? <ToneBadge tone="neutral">{kindLabel(row.kind)}</ToneBadge> : null}
       {body === null ? null : (
         <p className={css({ margin: '0', lineClamp: '2', whiteSpace: 'normal', overflowWrap: 'anywhere' })}>{body}</p>
       )}

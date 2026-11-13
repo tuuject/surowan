@@ -15,8 +15,8 @@ test.describe('completed invocation (4001)', () => {
   });
 
   test('overview timeline renders queued/started/finished and tool events', async ({ page }) => {
-    await expect(page.getByText('Agent session started')).toBeVisible();
-    await expect(page.getByText('Agent session finished')).toBeVisible();
+    await expect(page.getByText('Invocation started')).toBeVisible();
+    await expect(page.getByText('Invocation finished')).toBeVisible();
     await expect(page.getByText('Hello from the seeded invocation').first()).toBeVisible();
     await expect(page.getByText('call_send_001')).toBeVisible();
   });
@@ -83,7 +83,7 @@ test.describe('completed invocation (4001)', () => {
     const tabpanel = page.getByRole('tabpanel', { name: /Telegram sends/ });
     await expect(tabpanel.getByText('902')).toBeVisible();
     await expect(tabpanel.getByText('call_send_001')).toBeVisible();
-    await expect(tabpanel.getByText('success').first()).toBeVisible();
+    await expect(tabpanel.getByText('Succeeded').first()).toBeVisible();
   });
 
   test('agent transcript tab marks assistant text as private reasoning', async ({ page }) => {
@@ -92,9 +92,6 @@ test.describe('completed invocation (4001)', () => {
     await expect(tabpanel.getByText('Private reasoning', { exact: true }).first()).toBeVisible();
     await expect(tabpanel.getByText('private reasoning before calling read')).toBeVisible();
     await expect(tabpanel.getByText('I will send the reply via the send tool.')).toBeVisible();
-    await expect(
-      tabpanel.getByText(/Assistant text is private reasoning and is never sent to Telegram directly/),
-    ).toBeVisible();
   });
 
   test('frozen context tab shows history and incoming sections', async ({ page }) => {
@@ -140,8 +137,8 @@ test.describe('failed invocation (4002)', () => {
     const tabpanel = page.getByRole('tabpanel', { name: /Agent transcript/ });
     await expect(tabpanel.getByText('Private reasoning', { exact: true }).first()).toBeVisible();
     await expect(tabpanel.getByText('trying to answer but the model call failed')).toBeVisible();
-    // The thinking (CoT) text is listed separately from the response text.
-    const summary = tabpanel.getByText('Thinking (CoT)', { exact: true }).first();
+    // The thinking text is listed separately from the response text.
+    const summary = tabpanel.getByText('Thinking', { exact: true }).first();
     await expect(summary).toBeVisible();
     await expect(tabpanel.getByText('cot that never reached an answer')).toHaveCount(0);
     await summary.click();

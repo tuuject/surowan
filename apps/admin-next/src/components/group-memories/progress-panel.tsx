@@ -210,7 +210,7 @@ export function GroupMemoryProgressPanel(): ReactElement {
   ];
 
   return (
-    <Panel title={t('pages.groupMemories.progressTitle')} description={t('pages.groupMemories.progressDescription')}>
+    <Panel title={t('pages.groupMemories.progressTitle')}>
       {progress.isError ? (
         <Alert tone="error" title={t('pages.groupMemories.progressFailed')}>
           {errorMessage(progress.error)}

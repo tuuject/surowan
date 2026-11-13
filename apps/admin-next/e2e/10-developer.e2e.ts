@@ -8,7 +8,7 @@ test('Developer persists recording preferences and confirms payload-only cleanup
   await page.getByRole('link', { name: 'Developer', exact: true }).click();
   const recording = page.getByRole('switch', { name: 'Record raw request payloads for debugging' });
   await expect(recording).not.toBeChecked();
-  const replayWarning = 'Replay inputs are also deleted; affected historical Invocations can no longer be replayed.';
+  const replayWarning = 'affected invocations can no longer be replayed.';
   await expect(page.getByText(replayWarning, { exact: false })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('developer-desktop.png'), fullPage: true });
   await recording.click();
@@ -25,7 +25,7 @@ test('Developer persists recording preferences and confirms payload-only cleanup
   await page.getByRole('button', { name: 'Clear payloads', exact: true }).click();
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toContainText(replayWarning);
-  await expect(dialog).toContainText('The database file is not compacted.');
+  await expect(dialog).toContainText('other audit records are kept');
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   expect(await (await page.request.get(detailUrl)).json()).toEqual(before);
 
@@ -44,8 +44,6 @@ test('Developer persists recording preferences and confirms payload-only cleanup
   });
   await page.goto(await adminUrl('/invocations/4001'));
   await expect(page.getByText('Raw payloads unavailable (not recorded or cleared).').first()).toBeVisible();
-  await page.getByRole('tab', { name: /^Model calls/ }).click();
-  await expect(page.getByText('Raw payloads may be unavailable', { exact: false })).toBeVisible();
 });
 
 test('Developer reports saved-but-not-applied settings and recovers through Settings', async ({ page }) => {
@@ -56,7 +54,7 @@ test('Developer reports saved-but-not-applied settings and recovers through Sett
   await recording.click();
   await expect(page.getByRole('alert').filter({ hasText: 'updated but not applied' })).toBeVisible();
   await expect(recording).toBeChecked();
-  await expect(page.getByRole('alert').filter({ hasText: 'Current running state: Off' })).toBeVisible();
+  await expect(page.getByRole('alert').filter({ hasText: 'differs from the running state (Off)' })).toBeVisible();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: 'Apply config file' }).click();
   await expect(page.getByText('developer.record_model_payloads', { exact: false })).toBeVisible();
@@ -69,11 +67,11 @@ test('Developer reports saved-but-not-applied settings and recovers through Sett
 
 test('Developer records agent thinking separately from payload recording', async ({ page }) => {
   await page.goto(await adminUrl('/developer'));
-  const thinking = page.getByRole('switch', { name: 'Record agent thinking (CoT)' });
+  const thinking = page.getByRole('switch', { name: 'Record model thinking' });
   await expect(thinking).not.toBeChecked();
   await thinking.click();
   await expect(thinking).toBeChecked();
-  // Payload recording stays untouched by a CoT-only update.
+  // Payload recording stays untouched by a thinking-only update.
   await expect(page.getByRole('switch', { name: 'Record raw request payloads for debugging' })).not.toBeChecked();
   await page.reload();
   await expect(thinking).toBeChecked();
@@ -114,7 +112,7 @@ test('Developer saves the model details source address, and clearing it falls ba
   // An unrelated settings write must not discard an address that was typed but
   // not saved yet; only the address's own save resets the field.
   await address.fill('https://draft.example.test/api.json');
-  const thinking = page.getByRole('switch', { name: 'Record agent thinking (CoT)' });
+  const thinking = page.getByRole('switch', { name: 'Record model thinking' });
   await thinking.click();
   await expect(thinking).toBeChecked();
   await expect(address).toHaveValue('https://draft.example.test/api.json');

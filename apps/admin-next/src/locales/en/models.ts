@@ -131,10 +131,6 @@ export const models = {
         levelInherited: 'Follows the Agent model',
       },
     },
-    providers: {
-      description:
-        'A provider is a service that offers AI models, such as OpenRouter or DeepSeek. Connect providers here, pick the models you want, and give a model a job in one click; thinking effort is set on the <models>Models</models> page.',
-    },
     kind: {
       builtin: 'Built-in',
       custom: 'Custom',
@@ -152,7 +148,7 @@ export const models = {
     toolModel: {
       savedInherited: 'Tool Model now inherits the Agent model',
       saved: 'Tool Model switched; thinking effort is {{level}}',
-      conflict: 'config.jsonc changed while you were editing. The page has refreshed; choose again.',
+      conflict: 'The settings changed elsewhere while you were editing. The page has refreshed; choose again.',
     },
     headers: {
       header: 'Header name',
@@ -191,7 +187,7 @@ export const models = {
       stepConnection: 'Connection',
       stepCredentials: 'API key',
       stepModels: 'Models',
-      title: 'New provider - {{step}}',
+      title: 'New provider: {{step}}',
       description: 'The provider takes effect as soon as it is created.',
       kind: 'Type',
       builtinKind: 'Built-in provider (pick from a list)',
@@ -205,8 +201,7 @@ export const models = {
       pickPreset: 'Pick a built-in provider',
       presetBaseUrl: 'API address: ',
       googleNote: 'Include the version in the address, for example ending in /v1beta.',
-      apiKeyHint:
-        "Create it in the provider's console. It is used to list and call models, and is kept in a separate key file, never in the configuration file.",
+      apiKeyHint: "Create it in the provider's console. It is used to list and call models.",
       headersOptional: 'Custom headers (optional)',
       tempModeNote:
         "The provider isn't created yet, so the list is fetched with the API key you just entered. Only the models you select are added.",
@@ -265,8 +260,7 @@ export const models = {
       input: 'Accepted input',
       reasoning: 'Supports thinking',
       thinkingLevels: 'Thinking levels',
-      thinkingHint:
-        'Check the thinking levels this model supports. Leave all unchecked for the default set: off, minimal, low, medium, high.',
+      thinkingHint: 'Check the thinking levels this model supports. Leave all unchecked to use the default levels.',
       toolSchema: 'Tool compatibility',
       toolSchemaHint:
         'Leave this on Automatic for most models. If tool calls fail with “unsupported schema keyword”, switch to Simplified.',
@@ -310,10 +304,13 @@ export const models = {
     },
     feedback: {
       savedRestartRequired: 'Saved, restart required',
-      restartWaiting: 'Waiting for a restart: {{paths}}',
-      appliedAndWaiting: 'Applied: {{applied}}. Waiting for a restart: {{restart}}',
+      restartWaiting_one: '{{count}} setting takes effect after a restart.',
+      restartWaiting_other: '{{count}} settings take effect after a restart.',
+      appliedAndWaiting_one: '{{applied}} applied; {{count}} takes effect after a restart.',
+      appliedAndWaiting_other: '{{applied}} applied; {{count}} take effect after a restart.',
       applied: 'Applied',
-      appliedDetail: 'Applied: {{paths}}',
+      appliedDetail_one: '{{count}} setting applied.',
+      appliedDetail_other: '{{count}} settings applied.',
       saved: 'Saved',
       savedDescription: 'Saved to the configuration file',
       writeConflict: 'The configuration changed while you were editing. It has been reloaded; try once more.',
@@ -333,12 +330,12 @@ export const models = {
       costDefault: 'not found; added as 0',
     },
     switchConfirm: {
-      title: 'Stop running sessions and switch?',
+      title: 'Stop running invocations and switch?',
       description:
-        "Sessions still running on the current model: {{count}}. Switching stops them now, and the messages they are answering won't get a reply. Delegated tasks are not affected, and new messages go to the new model.",
+        "Invocations still running on the current model: {{count}}. Switching stops them now, and the messages they are answering won't get a reply. Delegated tasks are not affected, and new messages go to the new model.",
       confirm: 'Stop and switch',
-      stopped_one: 'Stopped {{count}} running session.',
-      stopped_other: 'Stopped {{count}} running sessions.',
+      stopped_one: 'Stopped {{count}} running invocation.',
+      stopped_other: 'Stopped {{count}} running invocations.',
     },
     validation: {
       idRequired: 'Model ID is required',
@@ -352,12 +349,12 @@ export const models = {
     none: 'none',
     applied: 'Applied',
     restartRequired: 'Restart required',
-    outsideServe: 'Outside serve',
+    outsideServe: 'Not used by the running service',
     adminCredentials: 'Admin credentials',
     adminCredentialsDescription: 'Change the username and password. The current session remains signed in.',
     newUsername: 'New username',
     usernameRequired: 'Username is required',
-    usernamePattern: '3-32 letters, digits, dot, underscore, or hyphen',
+    usernamePattern: '3–32 letters, digits, dots, underscores or hyphens',
     newPassword: 'New password',
     passwordRequired: 'Password is required',
     passwordMin: 'At least 12 characters',
@@ -365,8 +362,7 @@ export const models = {
     updating: 'Updating…',
     updateCredentials: 'Update credentials',
     configFile: 'Configuration file',
-    configFileDescription:
-      'Apply config.jsonc to the running process. Fields outside the hot-update list are reported as waiting for a restart instead.',
+    configFileDescription: 'Apply changes in the configuration file to the running service.',
     generation: 'Generation',
     activeHash: 'Active hash',
     fileHash: 'File hash',
@@ -382,22 +378,22 @@ export const models = {
     debugDescription: 'Enable only when investigating model calls.',
     recordLabel: 'Record raw request payloads for debugging',
     recordDescription:
-      'When enabled, saves raw request and response snapshots of model calls for the Invocation detail, plus a best-effort text-only input from the first request for replay. May significantly increase database usage.',
+      'Saves the raw requests and responses of model calls, for troubleshooting and replay on the invocation page. Can use a lot of database space.',
     recordHint: 'Off by default. Changes apply to new model calls; turning it off does not clear existing payloads.',
-    thinkingLabel: 'Record agent thinking (CoT)',
+    thinkingLabel: 'Record model thinking',
     thinkingDescription:
-      'When enabled, saves the assistant thinking text separately from the response text in the Agent transcript and the timeline. May increase database usage.',
-    thinkingHint: 'Off by default. Changes apply to new assistant messages; earlier invocations keep empty thinking.',
+      'Saves the model thinking separately, so it can be expanded in the transcript and the timeline. Uses more database space.',
+    thinkingHint: 'Off by default. Applies to model replies from now on.',
     stateMismatch:
-      'The file setting differs from the running state. Current running state: {{status}}. Apply the configuration file in Settings.',
+      'The file setting differs from the running state ({{status}}). Apply the configuration file on the Settings page.',
     historyTitle: 'Payload history',
     historyDescription:
-      'Clear saved model request and response snapshots while keeping Invocation, call records, Token, cost, status, and error audit. Replay inputs are also deleted; affected historical Invocations can no longer be replayed. SQLite reuses the freed space; the database file does not necessarily shrink immediately.',
+      'Clear saved model requests and responses. Other audit records are kept; affected invocations can no longer be replayed.',
     clearButton: 'Clear payloads',
     cleared: 'Cleared debug payloads for {{count}} model calls.',
     confirmTitle: 'Clear previously recorded raw request payloads?',
     confirmDescription:
-      'This cannot be undone. Model request and response snapshots are cleared; other audit data is kept. Replay inputs are also deleted; affected historical Invocations can no longer be replayed. While recording is enabled, new payloads continue to be saved. The database file is not compacted.',
+      'This cannot be undone. Model requests and responses are cleared and other audit records are kept; affected invocations can no longer be replayed.',
     confirmClear: 'Confirm clear',
     modelsDevTitle: 'Model details source',
     modelsDevDescription:
@@ -406,6 +402,6 @@ export const models = {
     modelsDevHint: 'Leave empty to use {{url}}. A mirror must serve the same format. Applies to the next lookup.',
     modelsDevReset: 'Use the default',
     modelsDevMismatch:
-      'The file setting differs from the running state, which still looks up {{url}}. Apply the configuration file in Settings.',
+      'The file setting differs from the running state, which still looks up {{url}}. Apply the configuration file on the Settings page.',
   },
 };

@@ -202,7 +202,7 @@ export default function DictionaryPage(): ReactElement {
 
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
-      <ListPageHeader title={t('dictionary.page.title')} description={t('dictionary.page.description')} />
+      <ListPageHeader title={t('dictionary.page.title')} />
       <div
         className={css({
           display: 'grid',
@@ -336,11 +336,7 @@ export default function DictionaryPage(): ReactElement {
             page={pagination.page}
             pageCount={pagination.pageCount}
             onPageChange={pagination.onPageChange}
-          >
-            <span className={css({ textStyle: 'small', color: 'text-muted', maxWidth: '42rem' })}>
-              {t('dictionary.page.retentionNote')}
-            </span>
-          </ListFooter>
+          />
         </div>
       ) : null}
 

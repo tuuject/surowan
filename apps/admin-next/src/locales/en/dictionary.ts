@@ -8,8 +8,6 @@ import { brand } from './brand.ts';
 export const dictionary = {
   page: {
     title: 'Dictionary',
-    description:
-      'Terms, aliases and definitions the agent can look up and receive automatically. A group dictionary belongs to one Chat and is shared by its Forum Topics.',
     loadFailed: 'Failed to load the dictionary',
     searchPlaceholder: 'Search term or alias',
     newEntry: 'New entry',
@@ -37,7 +35,6 @@ export const dictionary = {
     deleteAria: 'Delete {{term}}',
     mergeSelected: 'Merge selected ({{count}})',
     mergeNeedsTwo: 'Select at least two entries to merge them',
-    retentionNote: 'Entries stay until you delete them; disabling only stops new lookups and injection.',
   },
   scope: {
     label: 'Dictionary scope',
@@ -50,21 +47,16 @@ export const dictionary = {
   },
   injection: {
     title: 'Automatic injection',
-    description:
-      'Off injects nothing, On Demand injects entries that match the incoming messages, Aggressive preloads the effective dictionary.',
     globalMode: 'Global mode',
     effective: 'Effective for this scope',
     groupOverride: 'Override for this Chat',
     inheritOption: 'Inherit global ({{mode}})',
-    overrideNote: 'A group override applies to this Chat only; clearing it falls back to the global mode.',
     save: 'Apply mode',
     saving: 'Applying…',
     saved: 'Injection mode applied',
     cleared: 'Group override cleared; the global mode applies again',
     settingsFailed: 'Failed to load the injection settings',
     requiresSelection: 'Select a Chat to override its mode.',
-    dedupeNote:
-      'Entries already present in the live context are not injected twice; after context trimming they can be injected again.',
     modeOff: 'Off',
     modeOnDemand: 'On Demand',
     modeAggressive: 'Aggressive',
@@ -113,8 +105,7 @@ export const dictionary = {
   },
   conflicts: {
     title: 'Conflicts',
-    description:
-      'Two entries use matching terms or aliases in the effective dictionary (global + this group), including spacing variants such as AB钙 and AB 钙. Conflicts do not block saving, lookup or injection.',
+    description: 'These entries share a term or alias. You can merge them.',
     none: 'No conflicts in this dictionary.',
     entries: '{{count}} entries',
     value: 'Shared value',
@@ -122,8 +113,7 @@ export const dictionary = {
   },
   import: {
     title: 'Import entries',
-    description:
-      'Upload a CSV or JSONL file. Nothing is written until you confirm the parsed preview; existing entries are never overwritten by name.',
+    description: 'Upload a CSV or JSONL file. Nothing is written until you confirm the preview.',
     formatLabel: 'Format',
     csv: 'CSV',
     jsonl: 'JSONL',
@@ -142,7 +132,6 @@ export const dictionary = {
     previewNote: 'Confirming creates new entries; nothing is updated or deleted.',
     conflictsTitle: 'Potential conflicts ({{count}})',
     conflictsNone: 'No conflict with the current dictionary.',
-    conflictsNote: 'Conflicts are allowed; they are shown so you can decide whether to import anyway.',
     confirm: 'Import {{count}} entries',
     importing: 'Importing…',
     imported: 'Imported {{count}} entries',
@@ -155,19 +144,17 @@ export const dictionary = {
     download: 'Download',
     downloaded: 'Downloaded {{name}}',
     failed: 'Export failed',
-    roundTripNote: 'Re-importing an export creates new entries, so duplicates are possible — check the preview.',
   },
   merge: {
     title: 'Merge with AI',
-    description:
-      'The Tool Model combines the selected entries into one suggestion. Nothing is written before you confirm, and the source entries are untouched until then.',
+    description: 'The tool model merges the selected entries into one suggestion. Nothing is saved until you confirm.',
     sources: 'Sources ({{count}})',
     generating: 'Generating a suggestion…',
     generate: 'Generate suggestion',
     regenerate: 'Generate again',
     generateFailed: 'The Tool Model could not produce a suggestion',
     suggestion: 'Suggestion',
-    suggestionHint: 'Edit anything the model got wrong. The suggestion is never saved as it arrives.',
+    suggestionHint: 'Edit anything the model got wrong.',
     termLabel: 'Term',
     definitionLabel: 'Definition',
     aliasesLabel: 'Aliases',
@@ -188,11 +175,5 @@ export const dictionary = {
     cancel: 'Cancel',
     conflictsWarning:
       'The suggested term or aliases already exist elsewhere; the result is still saved as a separate entry.',
-  },
-  toolModel: {
-    missing:
-      'No Tool Model is available yet: configure one on the Models page or make sure a global agent model is set.',
-    unavailableNote:
-      'Merge is unavailable until a Tool Model can be resolved; every other dictionary feature keeps working.',
   },
 };

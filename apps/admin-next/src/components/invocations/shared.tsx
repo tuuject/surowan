@@ -5,6 +5,7 @@ import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { type BadgeSemantic, ToneBadge } from '@/components/business';
 import type { InvocationChatSummary } from '@/lib/api/invocations.ts';
+import { roleLabel } from '@/lib/format';
 import { isNewContextSection } from '@/lib/timeline';
 
 const ROLE_BADGE_TONES: Record<string, BadgeSemantic> = {
@@ -13,7 +14,8 @@ const ROLE_BADGE_TONES: Record<string, BadgeSemantic> = {
 };
 
 export function RoleBadge({ role }: { readonly role: string }): ReactElement {
-  return <ToneBadge tone={ROLE_BADGE_TONES[role] ?? 'neutral'}>{role}</ToneBadge>;
+  useTranslation();
+  return <ToneBadge tone={ROLE_BADGE_TONES[role] ?? 'neutral'}>{roleLabel(role)}</ToneBadge>;
 }
 
 export function SectionBadge({ section }: { readonly section: string }): ReactElement {

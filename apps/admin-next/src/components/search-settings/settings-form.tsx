@@ -192,10 +192,7 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
       </Panel>
 
       <section className={css({ paddingBlockStart: '6', '& > * + *': { marginBlockStart: '5' } })}>
-        <div className={css({ display: 'flex', flexDirection: 'column', gap: '1' })}>
-          <h2 className={css({ margin: '0', textStyle: 'heading-2' })}>{t('search.enginesTitle')}</h2>
-          <p className={css({ margin: '0', color: 'text-muted' })}>{t('search.enginesDescription')}</p>
-        </div>
+        <h2 className={css({ margin: '0', textStyle: 'heading-2' })}>{t('search.enginesTitle')}</h2>
         <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
           {({ draft, change }) => (
             <QueryTextField
@@ -285,7 +282,6 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
           }
         }}
         title={editing?.isNew === true ? t('search.addEngine') : t('search.editEngine')}
-        description={t('search.enginesDescription')}
         size="lg"
         footer={
           <>

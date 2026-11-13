@@ -7,14 +7,7 @@ export const admins = {
   adminRemoved: 'Bot admin removed',
   colTelegramUserId: 'Telegram user ID',
   colActions: 'Actions',
-  invalidUserId: 'Numeric Telegram user ID (1-15 digits)',
-  alertTitle: 'Telegram bot admins',
-  alertDesc1: 'These Telegram users may run',
-  alertDesc2: 'and',
-  alertDesc3:
-    'in allowed chats. They are bot administrators, unrelated to the admin panel login account. The user ID is the numeric Telegram account ID (see',
-  alertDesc4: '). The whitelist is the',
-  alertDesc5: 'field in config.jsonc; adding or removing here writes the file and hot-applies without a restart.',
+  invalidUserId: 'Enter a Telegram user ID of 1–15 digits.',
   addAdmin: 'Add bot admin',
   loadingAdmins: 'Loading bot admins…',
   emptyAdmins: 'No bot admins configured.',
@@ -26,7 +19,6 @@ export const admins = {
   add: 'Add',
   remove: 'Remove',
   removeTitle: 'Remove admin {{id}}?',
-  removeDescription:
-    'The user will no longer be able to run bot commands; the change is written to config.jsonc and applies immediately.',
+  removeDescription: 'They can no longer run bot commands. This applies immediately.',
   removeConfirm: 'Remove admin',
 };

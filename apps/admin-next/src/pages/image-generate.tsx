@@ -33,7 +33,13 @@ import { toast } from '@/lib/toast.ts';
  */
 
 const ASPECT_RATIOS = ['auto', '1:1', '2:3', '3:2', '4:3', '3:4', '16:9', '9:16'];
-const RESOLUTIONS = ['auto', 'low', 'medium', 'high'];
+const RESOLUTIONS = ['auto', 'low', 'medium', 'high'] as const;
+const QUALITY_LABEL_KEYS = {
+  auto: 'image.settings.enumAuto',
+  low: 'image.settings.enumLow',
+  medium: 'image.settings.enumMedium',
+  high: 'image.settings.enumHigh',
+} as const;
 
 function SelectedRefs({
   title,
@@ -253,14 +259,17 @@ export default function ImageGeneratePage() {
                   <Select
                     value={aspectRatio}
                     onChange={(event) => setAspectRatio(event.target.value)}
-                    options={ASPECT_RATIOS.map((value) => ({ value, label: value }))}
+                    options={ASPECT_RATIOS.map((value) => ({
+                      value,
+                      label: value === 'auto' ? t('image.settings.enumAuto') : value,
+                    }))}
                   />
                 </Field>
                 <Field label={t('image.generate.quality')}>
                   <Select
                     value={resolution}
                     onChange={(event) => setResolution(event.target.value)}
-                    options={RESOLUTIONS.map((value) => ({ value, label: value }))}
+                    options={RESOLUTIONS.map((value) => ({ value, label: t(QUALITY_LABEL_KEYS[value]) }))}
                   />
                 </Field>
                 <Field label={t('image.generate.count')}>

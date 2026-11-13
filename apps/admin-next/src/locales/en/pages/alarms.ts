@@ -3,7 +3,7 @@
  * mirrors it key for key.
  */
 export const alarms = {
-  toolSession: 'Tool session {{id}}',
+  toolSession: 'Invocation {{id}}',
   topicSuffix: ', topic {{topic}}',
   threadSuffix: ', thread {{thread}}',
   labelAlarmId: 'Alarm ID',
@@ -22,7 +22,7 @@ export const alarms = {
   bySuffix: ', by {{by}}',
   reasonSuffix: ', reason {{reason}}',
   adminCancelledSuffix: ', admin-cancelled',
-  createdBySuffix: ', created by Tool session {{id}}',
+  createdBySuffix: ', created by invocation {{id}}',
   alarmCancelled: 'Alarm cancelled',
   colStatus: 'Status',
   colScheduled: 'Scheduled',

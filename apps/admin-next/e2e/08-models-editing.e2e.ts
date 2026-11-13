@@ -109,10 +109,10 @@ test.describe('providers page editing', () => {
 
     // Not a reasoning model: there are no levels to declare.
     const dialog = page.getByRole('dialog');
-    await expect(dialog.getByRole('checkbox', { name: 'off', exact: true })).toHaveCount(0);
+    await expect(dialog.getByRole('checkbox', { name: 'Off', exact: true })).toHaveCount(0);
     await dialog.getByRole('checkbox', { name: 'Supports thinking', exact: true }).check();
-    await dialog.getByRole('checkbox', { name: 'low', exact: true }).check();
-    await dialog.getByRole('checkbox', { name: 'xhigh', exact: true }).check();
+    await dialog.getByRole('checkbox', { name: 'Low', exact: true }).check();
+    await dialog.getByRole('checkbox', { name: 'Extra high', exact: true }).check();
     await page.getByRole('button', { name: 'Save' }).click();
     // The toast only appears once the write and the reload succeeded.
     await expect(appliedToast(page).first()).toBeVisible();

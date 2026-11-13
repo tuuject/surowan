@@ -373,7 +373,6 @@ export function ImportDialog({
                   ))}
                 </ul>
               )}
-              <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('dictionary.import.conflictsNote')}</p>
             </div>
             <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('dictionary.import.previewNote')}</p>
           </div>

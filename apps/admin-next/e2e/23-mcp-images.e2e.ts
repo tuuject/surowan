@@ -50,7 +50,7 @@ test('native tool images load, enlarge and survive refresh in audit, Transcript 
     )
     .toBe(480);
   await page.goto(await adminUrl('/contexts/2001'));
-  const contextRow = page.getByRole('row').filter({ hasText: 'toolResult' });
+  const contextRow = page.getByRole('row').filter({ hasText: 'Tool result' });
   await contextRow.getByRole('button', { name: 'Toggle row details' }).click();
   await expect(page.locator('[data-tool-result] img')).toHaveCount(2);
   await expect

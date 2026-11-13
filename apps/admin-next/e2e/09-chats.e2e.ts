@@ -24,11 +24,11 @@ test('navigation, exact string IDs and hot add work; removal is immediate', asyn
   await page.getByRole('button', { name: 'Add Chat', exact: true }).click();
   await page.getByLabel('Telegram Chat ID').fill('9007199254740992');
   await page.getByRole('button', { name: 'Save Chat' }).click();
-  await expect(page.getByRole('alert')).toContainText('safe integer');
+  await expect(page.getByRole('alert')).toContainText('a whole number other than 0');
   await page.getByLabel('Telegram Chat ID').fill('9007199254740991');
   await page.getByLabel('Topic IDs').fill('12, 12');
   await page.getByRole('button', { name: 'Save Chat' }).click();
-  await expect(page.getByRole('alert')).toContainText('unique positive');
+  await expect(page.getByRole('alert')).toContainText('positive whole numbers without repeats');
   await page.getByLabel('Topic IDs').fill('');
   await saveDialog(page);
   const added = chatRow(page, '9007199254740991');
@@ -45,7 +45,7 @@ test('navigation, exact string IDs and hot add work; removal is immediate', asyn
   expect(view.restart_required).not.toContain('telegram.chats[9007199254740991]');
 
   await added.getByRole('button', { name: 'Remove', exact: true }).click();
-  await expect(page.getByRole('alertdialog')).toContainText('Memo Pad entries and Blob files');
+  await expect(page.getByRole('alertdialog')).toContainText('along with its memos, images and stored messages');
   await page.getByRole('button', { name: 'Remove Chat', exact: true }).click();
   // Removal is hot: the Chat leaves both the saved and the running view at once.
   await expect(chatRow(page, '9007199254740991')).toHaveCount(0);
@@ -116,7 +116,7 @@ test('a background refetch cannot upgrade the revision of an open Chat edit', as
   await refetchAfterReconnect(page);
   await expect(page.getByLabel('Topic IDs')).toHaveValue('99');
   await page.getByRole('button', { name: 'Save Chat' }).click();
-  await expect(page.getByText('Nothing was saved - reopen the Chat', { exact: false })).toBeVisible();
+  await expect(page.getByText('Nothing was saved; reopen the Chat', { exact: false })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(chatRow(page).getByRole('cell').nth(1)).toContainText('45');
   expect((await viewOf(page)).items.find((chat) => chat.id === ACTIVE_CHAT)?.saved?.topic_ids).toEqual(['45']);
@@ -158,7 +158,7 @@ test('saved-but-not-applied errors refresh both views and Settings can apply the
   await expect(page.getByRole('alert')).toContainText('config.jsonc was updated but not applied:');
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(chatRow(page)).toContainText('Changes pending');
-  await expect(chatRow(page).getByRole('cell').nth(2)).toContainText('high');
+  await expect(chatRow(page).getByRole('cell').nth(2)).toContainText('High');
   const failed = await viewOf(page);
   expect(failed.items.find((chat) => chat.id === ACTIVE_CHAT)?.active).toEqual(
     before.items.find((chat) => chat.id === ACTIVE_CHAT)?.active,
@@ -167,7 +167,7 @@ test('saved-but-not-applied errors refresh both views and Settings can apply the
   await page.getByRole('button', { name: 'Apply config file' }).click();
   await expect(page.getByText(`telegram.chats[${ACTIVE_CHAT}].thinking_level`, { exact: false })).toBeVisible();
   await clickNav(page, 'Telegram', 'Chats');
-  await expect(chatRow(page).getByRole('cell').nth(2)).toContainText('high');
+  await expect(chatRow(page).getByRole('cell').nth(2)).toContainText('High');
   await expect(chatRow(page).getByText('Active', { exact: true })).toBeVisible();
 });
 

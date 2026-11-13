@@ -18,6 +18,7 @@ import type {
   ProviderApi,
   ProviderModelConfig,
 } from '@/lib/api/providers.ts';
+import { thinkingLevelLabel } from '@/lib/format';
 import i18n from '@/lib/i18n.ts';
 import { type ModelFormState, modelFormToConfig, validateModelForm } from '@/lib/model-form.ts';
 import {
@@ -331,7 +332,7 @@ function ModelEditForm({
                 <Checkbox
                   key={level}
                   {...(level === 'off' ? { id: 'model-thinking-off' } : {})}
-                  label={level}
+                  label={thinkingLevelLabel(level)}
                   checked={form.thinking_levels.includes(level)}
                   onCheckedChange={() => toggleThinkingLevel(level)}
                 />

@@ -14,7 +14,7 @@ import {
 } from '@/components/business';
 import { AppLink } from '@/components/router-links';
 import type { InvocationListItem } from '@/lib/api/invocations.ts';
-import { formatCost, formatNumber, formatTime } from '@/lib/format';
+import { formatCost, formatNumber, formatTime, stateLabel } from '@/lib/format';
 import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { invocationsQuery } from '@/lib/queries';
 
@@ -138,7 +138,7 @@ export default function InvocationsPage(): ReactElement {
 
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
-      <ListPageHeader title={t('layout.nav.toolSessions')} description={t('invocations.invocations.tokensNote')} />
+      <ListPageHeader title={t('layout.nav.toolSessions')} />
       <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
         {({ draft, change }) => (
           <>
@@ -146,7 +146,7 @@ export default function InvocationsPage(): ReactElement {
               label={t('invocations.invocations.statePlaceholder')}
               value={draft.state}
               onChange={(state) => change({ state })}
-              options={INVOCATION_STATES.map((value) => ({ value, label: value }))}
+              options={INVOCATION_STATES.map((value) => ({ value, label: stateLabel(value) }))}
             />
             <QuerySelectField
               label={t('invocations.invocations.hostPlaceholder')}

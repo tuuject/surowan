@@ -7,7 +7,6 @@ import {
   JsonViewer,
   LazyDetails,
   MonoValue,
-  PrivateReasoningNote,
   PrivateReasoningTag,
   TableShell,
   TextValue,
@@ -71,7 +70,6 @@ export function AgentTranscriptTab({ invocation }: { readonly invocation: Invoca
   ];
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
-      <PrivateReasoningNote />
       <TabContent
         count={invocation.agent_messages.length}
         message={t('invocations.invocationDetail.emptyAgentMessages')}

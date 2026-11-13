@@ -13,14 +13,13 @@ async function harnessApi(page: import('@playwright/test').Page) {
 test('Harness tuning saves several fields at once and hot-applies them', async ({ page }, testInfo) => {
   await page.goto(await adminUrl('/'));
   await clickNav(page, 'Agent setup', 'Harness tuning');
-  const ttl = page.getByLabel('Reference TTL (hours)');
-  const cache = page.getByLabel('Agent cache size');
-  const nudge = page.getByRole('switch', { name: 'Send nudge' });
+  const ttl = page.getByLabel('Reference lifetime (hours)');
+  const cache = page.getByLabel('Memory cache size');
+  const nudge = page.getByRole('switch', { name: 'Send reminder' });
   const save = page.getByRole('button', { name: 'Save and apply' });
   await expect(ttl).toHaveValue('72');
   await expect(nudge).toBeChecked();
   await expect(page.getByLabel('Max text length')).toHaveValue('');
-  await expect(page.getByRole('link', { name: 'Models', exact: true }).last()).toBeVisible();
   await expect(save).toBeDisabled();
   await page.screenshot({ path: testInfo.outputPath('harness-desktop.png'), fullPage: true });
 
@@ -50,7 +49,7 @@ test('Harness tuning saves several fields at once and hot-applies them', async (
 
 test('Harness tuning flags invalid input locally and reports cross-field errors from the server', async ({ page }) => {
   await page.goto(await adminUrl('/harness'));
-  const ttl = page.getByLabel('Reference TTL (hours)');
+  const ttl = page.getByLabel('Reference lifetime (hours)');
   await ttl.fill('721');
   await expect(page.getByText('Must be at most 720')).toBeVisible();
   await expect(page.getByText('Fix the highlighted fields before saving.')).toBeVisible();

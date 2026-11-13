@@ -4,13 +4,13 @@ import { useTranslation } from 'react-i18next';
 import { type ColumnSpec, JsonViewer, MonoValue, StateBadge, TableShell, TextValue } from '@/components/business';
 import { isRoom, TabContent } from '@/components/invocations/shared';
 import type { InvocationDetail, TelegramSendEntry } from '@/lib/api/invocations.ts';
-import { formatTime } from '@/lib/format';
+import { formatTime, kindLabel } from '@/lib/format';
 
 export function SendsTab({ invocation }: { readonly invocation: InvocationDetail }): React.ReactNode {
   const { t } = useTranslation();
   const room = isRoom(invocation.chat);
   const SEND_COLUMNS: readonly ColumnSpec<TelegramSendEntry>[] = [
-    { key: 'kind', title: t('invocations.invocationDetail.sendColumns.kind'), render: (row) => row.kind },
+    { key: 'kind', title: t('invocations.invocationDetail.sendColumns.kind'), render: (row) => kindLabel(row.kind) },
     {
       key: 'state',
       title: t('invocations.invocationDetail.sendColumns.state'),

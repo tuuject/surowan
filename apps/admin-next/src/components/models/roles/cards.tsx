@@ -6,6 +6,7 @@ import { css } from '@tuuject/koi-react/styled-system/css';
 import { sizes } from '@tuuject/koi-tokens/dimensions';
 import { type ReactElement, type ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { thinkingLevelLabel } from '@/lib/format';
 import { FormActionBar } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import type { ChatThinkingReset, ThinkingLevel } from '@/lib/api/models.ts';
@@ -393,7 +394,7 @@ function ThinkingField({
       >
         {options.map((level) => (
           <option key={level} value={level}>
-            {level}
+            {thinkingLevelLabel(level)}
           </option>
         ))}
       </Select>

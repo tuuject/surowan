@@ -82,7 +82,7 @@ export function PromptEditor({
   const matches = applied !== null && applied.content_hash === file.content_hash;
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-      <Field id="prompt-text" label={t('pages.prompts.promptLabel')} help={t('pages.prompts.editorHint')}>
+      <Field id="prompt-text" label={t('pages.prompts.promptLabel')}>
         <MarkdownInput
           id="prompt-text"
           value={current.text}

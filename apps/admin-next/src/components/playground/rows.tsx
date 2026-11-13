@@ -8,7 +8,7 @@ import { StateBadge, ToneBadge } from '@/components/business';
 import type { PlaygroundInvocation, PlaygroundTimelineItem } from '@/lib/api/playground.ts';
 import { playgroundAssetUrl, retryPlaygroundRelease } from '@/lib/api/playground.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatNumber, formatTime } from '@/lib/format';
+import { formatNumber, formatTime, stateLabel } from '@/lib/format';
 import { toast } from '@/lib/toast.ts';
 import { StatusPill } from './shared.tsx';
 
@@ -23,7 +23,7 @@ export function TimelineRow({
 }): ReactElement {
   const { t } = useTranslation();
   const state = item.sent_by_bot ? item.send_state : item.input_state;
-  const stateLabel = state === null ? null : (t(`playground.states.${state}`, { defaultValue: state }) as string);
+  const label = state === null ? null : stateLabel(state);
   return (
     <li
       className={css({
@@ -42,7 +42,7 @@ export function TimelineRow({
         <span className={css({ textStyle: 'label' })}>
           {item.sender?.name ?? (item.sent_by_bot ? t('playground.identities.bot') : '—')}
         </span>
-        {stateLabel === null ? null : (
+        {label === null ? null : (
           <ToneBadge
             tone={
               state === 'success' || state === 'released'
@@ -52,7 +52,7 @@ export function TimelineRow({
                   : 'neutral'
             }
           >
-            {stateLabel}
+            {label}
           </ToneBadge>
         )}
         <span className={css({ textStyle: 'small', color: 'text-muted', marginInlineStart: 'auto' })}>
@@ -161,7 +161,7 @@ export function AttemptRow({
             {t('playground.runs.retryOf', { id: invocation.retry_of_invocation_id })}
           </span>
         )}
-        <StatusPill label="tokens" value={formatNumber(invocation.total_tokens)} />
+        <StatusPill label={t('invocations.invocations.columns.tokens')} value={formatNumber(invocation.total_tokens)} />
         <span className={css({ textStyle: 'small', color: 'text-muted', marginInlineStart: 'auto' })}>
           {formatTime(invocation.finished_at)}
         </span>

@@ -93,7 +93,7 @@ test.describe('routes and deep links', () => {
     await page.goto(await adminUrl(`/contexts/${CONVERSATION_ID}`));
     await expect(page.getByText(`Conversation context ${CONVERSATION_ID}`).first()).toBeVisible();
     await expect(page.getByText('Retained messages (4)')).toBeVisible();
-    await expect(page.getByText('Capability refs (1)')).toBeVisible();
+    await expect(page.getByText('Authorized references (1)')).toBeVisible();
     // seq 4 carries a payload above the preview cap; expanding it shows the marker
     const seq4Row = page.locator('table tbody tr', { hasText: 'img:unique_photo_seed_1' }).first();
     await expect(seq4Row).toBeVisible();
@@ -136,15 +136,13 @@ test.describe('routes and deep links', () => {
 
   test('/memories lists seeded memos', async ({ page }) => {
     await page.goto(await adminUrl('/memories'));
-    await expect(page.getByText('Chat-scoped Memo Pad')).toBeVisible();
     await expect(page.getByText('Alice prefers short replies.')).toBeVisible();
-    await expect(page.getByText('short-term').first()).toBeVisible();
+    await expect(page.locator('table tbody').getByText('short-term').first()).toBeVisible();
     await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
   test('/group-memories lists generated events and replays their source range', async ({ page }) => {
     await page.goto(await adminUrl('/group-memories'));
-    await expect(page.getByText('Generated group memory')).toBeVisible();
     await expect(page.getByText('Alice discussed the fixture data.')).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Messages' })).toBeVisible();
     await page.getByRole('button', { name: 'View source', exact: true }).click();
@@ -166,7 +164,6 @@ test.describe('routes and deep links', () => {
 
   test('/admins renders the empty bot-admin list', async ({ page }) => {
     await page.goto(await adminUrl('/admins'));
-    await expect(page.getByText('Telegram bot admins')).toBeVisible();
     await expect(page.getByText('No bot admins configured.')).toBeVisible();
     await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
@@ -219,7 +216,7 @@ test.describe('routes and deep links', () => {
     await page.goto(await adminUrl('/stickers'));
     await expect(page.getByText('Configured sticker sets')).toBeVisible();
     await expect(page.locator('table tbody tr', { hasText: 'mascot' }).first()).toBeVisible();
-    await expect(page.getByText('Bot search index')).toBeVisible();
+    await expect(page.getByText('Sticker search index')).toBeVisible();
     await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
@@ -227,7 +224,7 @@ test.describe('routes and deep links', () => {
     await page.goto(await adminUrl('/settings'));
     await expect(page.getByText('Admin credentials')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Update credentials' })).toBeVisible();
-    await expect(page.getByText('Configuration file')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Configuration file' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Apply config file' })).toBeVisible();
     await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
@@ -240,7 +237,7 @@ test.describe('routes and deep links', () => {
 
   test('/harness renders the grouped agent settings', async ({ page }) => {
     await page.goto(await adminUrl('/harness'));
-    for (const title of ['Budget and concurrency', 'Send behavior', 'Rate limits', 'Conversation Context']) {
+    for (const title of ['Budget and concurrency', 'Send behavior', 'Rate limits', 'Context']) {
       await expect(page.getByText(title, { exact: true })).toBeVisible();
     }
     await expect(page.getByLabel('Daily token budget')).toHaveValue('300000');
@@ -256,7 +253,6 @@ test.describe('routes and deep links', () => {
 
   test('/playground lists rooms and reads without executing anything', async ({ page }) => {
     await page.goto(await adminUrl('/playground'));
-    await expect(page.getByText('Virtual group chats for trying the bot without Telegram.')).toBeVisible();
     await expect(page.getByText('E2E Room').first()).toBeVisible();
     await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });

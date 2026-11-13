@@ -20,10 +20,7 @@ export default function SearchSettingsPage(): ReactElement {
   const config = useQuery(searchConfigQuery);
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
-      <ListPageHeader title={t('search.title')} description={t('search.description')} />
-      <Alert tone="info" title={t('search.warningTitle')}>
-        {t('search.warningBody')}
-      </Alert>
+      <ListPageHeader title={t('search.title')} />
       {config.isPending ? (
         <Skeleton className={css({ height: '256px', width: '100%' })} />
       ) : config.isError ? (

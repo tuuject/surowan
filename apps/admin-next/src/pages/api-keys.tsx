@@ -170,7 +170,7 @@ export default function ApiKeysPage(): ReactElement {
 
   return (
     <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
-      <ListPageHeader title={t('pages.apiKeys.title')} description={t('pages.apiKeys.description')} />
+      <ListPageHeader title={t('pages.apiKeys.title')} />
       <ListSearchForm value={query.value} emptyValue={EMPTY_FILTERS} onSearch={query.apply}>
         {({ draft, change }) => (
           <QueryTextField

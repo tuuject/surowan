@@ -104,7 +104,6 @@ test('shows a configured engine without its key and saves the switch', async ({ 
   });
   await page.goto(await adminUrl('/search-settings'));
   await expect(page.getByRole('heading', { name: 'Web search' })).toBeVisible();
-  await expect(page.getByText('Turning search off changes the capability set')).toBeVisible();
   await expect(page.getByLabel('Enable web search')).toBeChecked();
   await page.getByRole('button', { name: 'Edit main', exact: true }).click();
   await expect(page.getByLabel('Engine id')).toHaveValue('main');

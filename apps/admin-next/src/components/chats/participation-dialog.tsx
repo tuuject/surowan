@@ -90,7 +90,6 @@ export function ParticipationDialog({
         onOpenChange(next);
       }}
       title={t('pages.chats.activeHoursTitle')}
-      description={t('pages.chats.activeHoursDescription')}
       footer={
         <>
           <Button

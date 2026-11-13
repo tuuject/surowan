@@ -6,5 +6,4 @@ export const preferences = {
   themeLabel: 'Theme',
   languageLabel: 'Language',
   displayTitle: 'Display',
-  displayDescription: 'Saved in this browser only; other browsers and administrators keep their own choice.',
 };

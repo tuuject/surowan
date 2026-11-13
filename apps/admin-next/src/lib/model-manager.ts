@@ -422,21 +422,21 @@ export const CONFIG_CONFLICT_CODE = 'config_conflict';
  * restart path is waiting, the message says so even if other paths went live.
  */
 export function applyFeedback(apply: ModelApplySummary): { readonly title: string; readonly description: string } {
-  const applied = apply.applied.join(', ');
-  const restart = apply.restart_required.join(', ');
-  if (apply.restart_required.length > 0) {
+  const applied = apply.applied.length;
+  const restart = apply.restart_required.length;
+  if (restart > 0) {
     return {
       title: i18n.t('models.models.feedback.savedRestartRequired'),
       description:
-        applied.length === 0
-          ? i18n.t('models.models.feedback.restartWaiting', { paths: restart })
-          : i18n.t('models.models.feedback.appliedAndWaiting', { applied, restart }),
+        applied === 0
+          ? i18n.t('models.models.feedback.restartWaiting', { count: restart })
+          : i18n.t('models.models.feedback.appliedAndWaiting', { count: restart, applied }),
     };
   }
-  if (apply.applied.length > 0) {
+  if (applied > 0) {
     return {
       title: i18n.t('models.models.feedback.applied'),
-      description: i18n.t('models.models.feedback.appliedDetail', { paths: applied }),
+      description: i18n.t('models.models.feedback.appliedDetail', { count: applied }),
     };
   }
   return {

@@ -5,6 +5,7 @@ import { Menu } from '@tuuject/koi-react/menu';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
+import { thinkingLevelLabel } from '@/lib/format';
 import { type ColumnSpec, MonoValue, RowActions, TableShell, ToneBadge } from '@/components/business';
 import {
   AlarmIcon,
@@ -76,7 +77,7 @@ export function ChatTable({
   const modelText = (settings: ChatSettingsView): string =>
     `${settings.effective.provider} / ${settings.effective.model}`;
   const modelSource = (settings: ChatSettingsView): string =>
-    `${settings.provider === null ? t('pages.chats.defaultModel') : t('pages.chats.chatOverride')}${t('common.separator')}${t('pages.chats.thinkingShort', { level: settings.effective.thinking_level })}${
+    `${settings.provider === null ? t('pages.chats.defaultModel') : t('pages.chats.chatOverride')}${t('common.separator')}${t('pages.chats.thinkingShort', { level: thinkingLevelLabel(settings.effective.thinking_level) })}${
       settings.thinking_level === null ? t('pages.chats.inheritedSuffix') : ''
     }`;
   /** A quick link keeps a real href for new-tab/middle-click/copy, and only plain left clicks become SPA navigation. */
@@ -216,7 +217,7 @@ export function ChatTable({
               value={runningDiff(
                 row,
                 (item) =>
-                  `${modelText(item)}${t('common.separator')}${t('pages.chats.thinkingShort', { level: item.effective.thinking_level })}`,
+                  `${modelText(item)}${t('common.separator')}${t('pages.chats.thinkingShort', { level: thinkingLevelLabel(item.effective.thinking_level) })}`,
               )}
             />
           </div>

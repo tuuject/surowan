@@ -19,7 +19,7 @@ export default function PreferencesPage(): ReactElement {
   return (
     <div className={css({ maxWidth: '768px', marginInline: 'auto', '& > * + *': { marginBlockStart: '6' } })}>
       <ListPageHeader title={t('layout.nav.preferences')} />
-      <Panel title={t('pages.preferences.displayTitle')} description={t('pages.preferences.displayDescription')}>
+      <Panel title={t('pages.preferences.displayTitle')}>
         <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
           <div className={css({ display: 'flex', flexDirection: 'column', gap: '4', maxWidth: '480px' })}>
             <Field label={t('pages.preferences.themeLabel')}>

@@ -4,9 +4,6 @@
  */
 export const stickers = {
   setsTitle: 'Configured sticker sets',
-  setsDescPre: 'Saved to',
-  setsDescPost:
-    'and applied right away. The bot only offers indexed stickers from these sets, each set with its alias and note. Adding or removing a set stops replies in progress so the next one sees the new catalog.',
   loadSetsFailed: 'Failed to load sticker sets',
   adminRequestFailed: 'Admin request failed',
   emptySets: 'No sticker sets configured.',
@@ -15,18 +12,16 @@ export const stickers = {
     'The configuration file could not be read, so this list is read-only. Check the configuration file on the Settings page.',
   addSet: 'Add sticker set',
   addTitle: 'Add sticker set',
-  addDescription:
-    'The bot downloads the set from Telegram and indexes its stickers in the background. Adding a set stops replies in progress.',
+  addDescription: 'Stickers are downloaded and indexed in the background. Adding a set stops replies in progress.',
   editTitle: 'Edit {{alias}}',
-  editDescription:
-    'The Telegram set stays the same; only its alias and note change. Replies in progress keep running and pick up the change with their next batch.',
+  editDescription: 'Only the alias and note can change. Replies in progress keep running.',
   add: 'Add',
   adding: 'Adding…',
   edit: 'Edit',
   remove: 'Remove',
   removeTitle: 'Remove {{alias}}?',
   removeDescription:
-    'The bot stops offering its stickers right away and replies in progress are stopped. The index is kept, so adding the same set again restores it without new analysis.',
+    'The bot stops using its stickers right away, and replies in progress stop. Adding the same set again later needs no new analysis.',
   removeConfirm: 'Remove set',
   setAdded: 'Sticker set added',
   setUpdated: 'Sticker set updated',
@@ -43,10 +38,7 @@ export const stickers = {
   invalidName: 'Enter a set name (letters, digits and underscores) or its t.me/addstickers link.',
   invalidAlias: 'Use 1–64 letters, digits, "_" or "-", starting with a letter.',
   noteTooLong: 'Keep the note within {{max}} characters.',
-  indexTitle: 'Bot search index',
-  indexDescPre: 'Only successfully analyzed stickers from configured sets appear here and are available to the',
-  indexDescMid: 'capability (called through',
-  indexDescPost: '). On-demand analyses of chat media are stored separately and appear in message details.',
+  indexTitle: 'Sticker search index',
   filterSet: 'Sticker set',
   filterState: 'Index state',
   filterSearch: 'Search description or emoji',

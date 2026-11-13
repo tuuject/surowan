@@ -32,7 +32,7 @@ test.describe('memo pad CRUD', () => {
     await createDialog.getByLabel('Chat', { exact: true }).selectOption('123456789');
     await createDialog.getByLabel('Summary').fill('E2E memo created by test');
     await createDialog.getByLabel('Detail').fill('E2E memo detail with a [link](https://example.com).');
-    await createDialog.getByLabel('TTL in days').fill('7');
+    await createDialog.getByLabel('Lifetime in days').fill('7');
     await createDialog.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(toast(page, 'Memo created')).toBeVisible();
 
@@ -64,7 +64,7 @@ test.describe('memo pad CRUD', () => {
     await createdRow.getByRole('button', { name: 'Edit' }).click();
     const editDialog = page.getByRole('dialog');
     await editDialog.getByLabel('Summary').fill('E2E memo updated by test');
-    await editDialog.getByLabel('TTL in days').fill('');
+    await editDialog.getByLabel('Lifetime in days').fill('');
     await editDialog.getByRole('button', { name: 'Save' }).click();
     await expect(toast(page, 'Memo updated')).toBeVisible();
 
@@ -145,7 +145,7 @@ test.describe('agent model hot-switch', () => {
     // The toast only appears once the write and the reload succeeded.
     await expect(appliedToast(page).first()).toBeVisible();
     // The vision model does not reason, so the switch leaves it only `off`.
-    await expect(page.getByText('Thinking effort reset to off', { exact: false }).first()).toBeVisible();
+    await expect(page.getByText('Thinking effort reset to Off', { exact: false }).first()).toBeVisible();
     const dialog = page.getByRole('dialog', { name: 'Chat thinking effort reset' });
     await expect(dialog).toBeVisible();
     await expect(
@@ -190,7 +190,7 @@ test.describe('agent model hot-switch', () => {
 test.describe('configuration file', () => {
   test('applies the config file from the settings page', async ({ page }) => {
     await page.goto(await adminUrl('/settings'));
-    await expect(page.getByText('Configuration file')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Configuration file' })).toBeVisible();
 
     const before = (await (await page.request.get(await adminUrl('/api/config/status'))).json()) as {
       generation: number;
@@ -200,7 +200,7 @@ test.describe('configuration file', () => {
     // Only the apply result has all three lists; the status summary also names restart requirements.
     const result = page.locator('dl').filter({ has: page.getByText('Applied', { exact: true }) });
     await expect(result.getByText('Restart required', { exact: true })).toBeVisible();
-    await expect(result.getByText('Outside serve', { exact: true })).toBeVisible();
+    await expect(result.getByText('Not used by the running service', { exact: true })).toBeVisible();
 
     const after = (await (await page.request.get(await adminUrl('/api/config/status'))).json()) as {
       generation: number;
@@ -233,7 +233,7 @@ test.describe('alarm cancel + conflict path', () => {
     await page.getByRole('button', { name: 'Search', exact: true }).click();
     const cancelledRow = page.locator('table tbody tr', { hasText: 'Remind Alice about the fixture data' });
     await expect(cancelledRow).toBeVisible();
-    await expect(cancelledRow.getByText('cancelled')).toBeVisible();
+    await expect(cancelledRow.getByText('Cancelled')).toBeVisible();
   });
 
   test('cancelling an alarm that became terminal shows alarm_not_pending and refreshes', async ({ page }) => {
@@ -262,7 +262,7 @@ test.describe('alarm cancel + conflict path', () => {
     await page.getByRole('button', { name: 'Search', exact: true }).click();
     const firedRow = page.locator('table tbody tr', { hasText: /e2e alarm 1(?!\d)/ });
     await expect(firedRow).toBeVisible();
-    await expect(firedRow.getByText('fired')).toBeVisible();
+    await expect(firedRow.getByText('Fired')).toBeVisible();
   });
 });
 
@@ -288,11 +288,11 @@ test.describe('warnings', () => {
 });
 
 test.describe('overview operations', () => {
-  test('cancel ongoing sessions reports the audit result', async ({ page }) => {
+  test('cancel ongoing invocations reports the audit result', async ({ page }) => {
     await page.goto(await adminUrl('/'));
     await page.getByRole('button', { name: 'Cancel ongoing', exact: true }).click();
-    await page.getByRole('button', { name: 'Cancel ongoing sessions' }).click();
-    await expect(page.getByText(/Canceled 0 buckets \/ 0 invocations/)).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel ongoing invocations' }).click();
+    await expect(page.getByText('Canceled 0 invocations and 0 message batches')).toBeVisible();
     await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 

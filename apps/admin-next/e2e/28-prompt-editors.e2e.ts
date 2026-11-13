@@ -24,9 +24,6 @@ test('Markdown highlighting follows system and manual themes without losing the 
   const frame = page.locator('.cm-editor');
   await expect(editor).toHaveAttribute('id', 'prompt-text');
   await expect(editor).toHaveAttribute('aria-multiline', 'true');
-  await expect(editor).toHaveAccessibleDescription(
-    'Applies from the next invocation; affected Conversation Contexts rebuild on their next run.',
-  );
   await page
     .locator('label')
     .filter({ hasText: /^Prompt$/ })

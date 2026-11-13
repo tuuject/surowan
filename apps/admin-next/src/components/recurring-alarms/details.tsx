@@ -22,9 +22,9 @@ const SKIP_REASONS = [
 export function firingResult(t: TFunction, firing: RecurringFiring): string {
   if (firing.outcome === 'skipped') {
     const reason = SKIP_REASONS.find((known) => known === firing.skip_reason);
-    return `${t('pages.recurringAlarms.resultSkipped')} · ${
-      reason === undefined ? (firing.skip_reason ?? '') : t(`pages.recurringAlarms.skipReason.${reason}`)
-    }`;
+    return t('pages.recurringAlarms.resultSkippedBecause', {
+      reason: reason === undefined ? (firing.skip_reason ?? '') : t(`pages.recurringAlarms.skipReason.${reason}`),
+    });
   }
   switch (firing.receipt_state) {
     case 'claimed':
@@ -48,11 +48,23 @@ export function FiringSummary({ firing }: { readonly firing: RecurringFiring | n
       <div className={css({ display: 'flex', gap: '2', alignItems: 'center' })}>
         <ToneBadge tone={firing.outcome === 'skipped' ? 'warning' : 'neutral'}>{firingResult(t, firing)}</ToneBadge>
       </div>
-      <div className={css({ textStyle: 'small', color: 'text-muted' })}>
-        {formatTime(firing.occurrence_at)}
-        {firing.source === 'manual' ? ` · ${t('pages.recurringAlarms.sourceManual')}` : ''}
+      <div
+        className={css({ textStyle: 'small', color: 'text-muted', display: 'flex', flexWrap: 'wrap', columnGap: '3' })}
+      >
+        <span>{formatTime(firing.occurrence_at)}</span>
+        {firing.source === 'manual' ? <span>{t('pages.recurringAlarms.sourceManual')}</span> : null}
       </div>
     </div>
+  );
+}
+
+/** When and by whom, kept apart by a layout gap rather than a separator glyph. */
+function ActorStamp({ at, by }: { readonly at: string; readonly by: string }): ReactElement {
+  return (
+    <span className={css({ display: 'flex', flexWrap: 'wrap', columnGap: '3', rowGap: '1' })}>
+      <span>{formatTime(at)}</span>
+      <span>{by}</span>
+    </span>
   );
 }
 
@@ -134,11 +146,11 @@ export function RecurringAlarmDetails({ id }: { readonly id: string }): ReactEle
           },
           {
             label: t('pages.recurringAlarms.labelCreated'),
-            value: alarm === undefined ? '—' : `${formatTime(alarm.created_at)} · ${alarm.created_by}`,
+            value: alarm === undefined ? '—' : <ActorStamp at={alarm.created_at} by={alarm.created_by} />,
           },
           {
             label: t('pages.recurringAlarms.labelUpdated'),
-            value: alarm === undefined ? '—' : `${formatTime(alarm.updated_at)} · ${alarm.updated_by}`,
+            value: alarm === undefined ? '—' : <ActorStamp at={alarm.updated_at} by={alarm.updated_by} />,
           },
         ]}
       />

@@ -36,8 +36,8 @@ test('a "Use as Agent" switch asks before stopping the running session, and canc
 
   await withRunningSession(async () => {
     await setAsAgent(row);
-    await expect(dialog).toContainText('Stop running sessions and switch?');
-    await expect(dialog).toContainText('Sessions still running on the current model: 1');
+    await expect(dialog).toContainText('Stop running invocations and switch?');
+    await expect(dialog).toContainText('Invocations still running on the current model: 1');
     await page.screenshot({ path: test.info().outputPath('model-switch-confirm.png'), animations: 'disabled' });
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(dialog).toHaveCount(0);
@@ -69,7 +69,7 @@ test('the Models page asks before its save stops the running session', async ({ 
     await picker.click();
     await page.getByRole('option', { name: /vision-model/ }).click();
     await page.getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(dialog).toContainText('Sessions still running on the current model: 1');
+    await expect(dialog).toContainText('Invocations still running on the current model: 1');
     // Cancelling keeps the draft: the change is still waiting to be saved.
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(dialog).toHaveCount(0);
@@ -98,7 +98,7 @@ test("a Chat's own model switch asks before stopping the session running in that
     await chatRow(page).getByRole('button', { name: 'Edit', exact: true }).click();
     await page.getByRole('combobox', { name: 'Agent model' }).selectOption({ label: 'vision / vision-model' });
     await page.getByRole('button', { name: 'Save Chat', exact: true }).click();
-    await expect(dialog).toContainText('Sessions still running on the current model: 1');
+    await expect(dialog).toContainText('Invocations still running on the current model: 1');
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(dialog).toHaveCount(0);
     // The Chat dialog stays open with the choice, and nothing was written.

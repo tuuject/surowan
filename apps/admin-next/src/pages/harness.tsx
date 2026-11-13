@@ -7,10 +7,9 @@ import { css } from '@tuuject/koi-react/styled-system/css';
 import { Switch } from '@tuuject/koi-react/switch';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import { type ReactElement, useState } from 'react';
-import { Trans, useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import { FormActionBar, ListPageHeader, SettingRow } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
-import { AppLink } from '@/components/router-links';
 import type { HarnessValue, HarnessValues } from '@/lib/api/config.ts';
 import { updateHarnessSettings } from '@/lib/api/config.ts';
 import { errorMessage } from '@/lib/errors';
@@ -54,18 +53,7 @@ export default function HarnessPage(): ReactElement {
 
   return (
     <div className={css({ maxWidth: '768px', marginInline: 'auto', '& > * + *': { marginBlockStart: '6' } })}>
-      <ListPageHeader
-        title={t('layout.nav.harness')}
-        description={
-          <>
-            {t('harness.description')}{' '}
-            <Trans
-              i18nKey="harness.elsewhere"
-              components={{ models: <AppLink to="/models" />, prompts: <AppLink to="/prompts" /> }}
-            />
-          </>
-        }
-      />
+      <ListPageHeader title={t('layout.nav.harness')} />
       {settings.isPending ? (
         <p className={css({ margin: '0', color: 'text-muted' })}>{t('common.loading')}</p>
       ) : settings.isError || current === undefined ? (
@@ -120,11 +108,7 @@ function HarnessForm({
     >
       <fieldset disabled={save.isPending} className={css({ '& > * + *': { marginBlockStart: '6' } })}>
         {HARNESS_GROUPS.map((group) => (
-          <Panel
-            key={group.id}
-            title={t(`harness.groups.${group.id}.title`)}
-            description={t(`harness.groups.${group.id}.description`)}
-          >
+          <Panel key={group.id} title={t(`harness.groups.${group.id}.title`)}>
             <div className={css({ display: 'flex', flexDirection: 'column', gap: '5' })}>
               {group.fields.map((field) => (
                 <HarnessFieldRow

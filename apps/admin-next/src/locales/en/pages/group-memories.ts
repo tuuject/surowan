@@ -1,7 +1,4 @@
 export const groupMemories = {
-  alertTitle: 'Generated group memory',
-  alertDescription:
-    'These dated events are produced by the sleeping worker, not the Memo Pad. Each row cites an inclusive Telegram message-id range; <code>View source</code> replays the stored messages. Editing changes only the summary. Deleting a row does not rewind the consolidation watermark, so the same range is not regenerated.',
   colDay: 'Day',
   colChat: 'Chat',
   colSummary: 'Summary',
@@ -13,21 +10,16 @@ export const groupMemories = {
   empty: 'No group memories matched.',
   viewSource: 'View source',
   editTitle: 'Edit group memory',
-  editDescription:
-    'The summary is the first disclosure layer. Keep it short and factual; the message-id range stays as the citation for the original discussion.',
   summaryLabel: 'Summary',
   updated: 'Group memory updated',
   deleted: 'Group memory deleted',
   deleteTitle: 'Delete this group memory?',
-  deleteDescription:
-    "The event disappears from the model's recall results. The source messages and the consolidation watermark are unchanged, so this range will not be summarized again.",
+  deleteDescription: "The event disappears from the model's recall. This range will not be summarized again.",
   deleteConfirm: 'Delete group memory',
   sourceTitle: 'Original messages',
   sourceDescription: 'Messages {{first}}–{{last}}, capped for display.',
   close: 'Close',
   progressTitle: 'Consolidation progress',
-  progressDescription:
-    'One row per Chat with group memory on. The live lane follows new messages; the backfill lane works through an older backlog without holding up recent days.',
   progressFailed: 'Could not load progress',
   progressEmpty: 'No Chat has group memory on.',
   colStatus: 'Status',
@@ -47,7 +39,7 @@ export const groupMemories = {
   recentRuns: '{{success}} done, {{error}} failed',
   viewRuns: 'View batches',
   runsTitle: 'Consolidation batches',
-  runsDescription: 'Recent batches of {{chat}}, newest first, with the reason of each failure.',
+  runsDescription: 'Recent batches of {{chat}}, newest first.',
   runsEmpty: 'No batches yet.',
   colStarted: 'Started',
   laneLive: 'Live',

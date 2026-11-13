@@ -14,7 +14,7 @@ export const layout = {
   useHorizontalNav: 'Switch to horizontal navigation',
   userMenu: 'User menu',
   routeError: {
-    description: 'The admin panel could not render this screen.',
+    description: 'This page could not be shown. Reload to try again.',
   },
   /** Koi's built-in component copy: close buttons, table placeholders, pagination and the toast region. */
   koi: {

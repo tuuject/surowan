@@ -24,7 +24,7 @@ export {
   useOffsetPagination,
 } from './pagination';
 export { PasskeysCard } from './passkeys-card';
-export { PrivateReasoningNote, PrivateReasoningTag } from './private-reasoning';
+export { PrivateReasoningTag } from './private-reasoning';
 export {
   ChatFilter,
   ListSearchForm,

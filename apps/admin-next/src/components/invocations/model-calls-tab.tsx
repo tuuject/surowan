@@ -4,12 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { type ColumnSpec, JsonViewer, StateBadge, TableShell, TextValue } from '@/components/business';
 import { TabContent } from '@/components/invocations/shared';
 import type { InvocationDetail, ModelCallEntry } from '@/lib/api/invocations.ts';
-import { formatCost, formatDuration, formatNumber } from '@/lib/format';
+import { formatCost, formatDuration, formatNumber, roleLabel } from '@/lib/format';
 
 export function ModelCallsTab({ invocation }: { readonly invocation: InvocationDetail }): React.ReactNode {
   const { t } = useTranslation();
   const MODEL_CALL_COLUMNS: readonly ColumnSpec<ModelCallEntry>[] = [
-    { key: 'role', title: t('invocations.invocationDetail.modelColumns.role'), render: (row) => row.role },
+    { key: 'role', title: t('invocations.invocationDetail.modelColumns.role'), render: (row) => roleLabel(row.role) },
     { key: 'provider', title: t('invocations.invocationDetail.modelColumns.provider'), render: (row) => row.provider },
     { key: 'model', title: t('invocations.invocationDetail.modelColumns.model'), render: (row) => row.model },
     {
@@ -99,13 +99,6 @@ export function ModelCallsTab({ invocation }: { readonly invocation: InvocationD
   ];
   return (
     <TabContent count={invocation.model_calls.length} message={t('invocations.invocationDetail.emptyModelCalls')}>
-      <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-        {t('invocations.invocationDetail.modelsTokensNote')}{' '}
-        <code className={css({ fontFamily: 'mono' })}>provider_total_tokens</code>.
-      </p>
-      <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-        {t('invocations.invocationDetail.modelsNote2')}
-      </p>
       <TableShell
         columns={MODEL_CALL_COLUMNS}
         data={invocation.model_calls}

@@ -4,7 +4,7 @@
  */
 export const passkeys = {
   title: 'Passkeys',
-  description: 'Sign in with a device passkey instead of a password. Passkeys are tied to this panel public URL.',
+  description: 'Sign in with a device passkey instead of a password.',
   add: 'Add passkey',
   name: 'Name',
   created: 'Created',
@@ -32,16 +32,16 @@ export const passkeys = {
   passwordDeleteConfirm: 'Delete password',
   passwordDeleted: 'Password deleted',
   unsupported:
-    'Passkeys are unavailable in this browser or context. Use a WebAuthn-capable browser over HTTPS (or loopback) to register and use passkeys. Existing passkeys can still be managed below.',
+    'Passkeys are unavailable here. Open the panel over HTTPS in a browser that supports passkeys to add one. Existing passkeys can still be managed below.',
   cancelled: 'Passkey request cancelled',
-  discoverableRequired: 'This browser does not support discoverable (passkey) credentials.',
+  discoverableRequired: 'This browser cannot store passkeys. Try another browser or device.',
   webauthnFailed: 'The passkey request failed. Try again.',
   registerTitle: 'Add a passkey',
   registerDescription:
     'Name this passkey, then confirm with your device screen lock, fingerprint, or other verification.',
   nameLabel: 'Passkey name',
   namePlaceholder: 'e.g. Work laptop',
-  invalidName: 'Enter a name of 1-80 characters.',
+  invalidName: 'Enter a name of 1–80 characters.',
   registerConfirm: 'Register passkey',
   registering: 'Registering…',
   registered: 'Passkey registered',

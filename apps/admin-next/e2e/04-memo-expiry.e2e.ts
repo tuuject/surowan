@@ -53,7 +53,7 @@ for (const scenario of ['sub-day', 'expired', 'same-days', 'permanent'] as const
       await dialog.getByLabel('Summary').fill(`${summary} edited`);
       await dialog.getByLabel('Detail').fill('Edited detail');
       if (scenario === 'same-days') {
-        await dialog.getByLabel('TTL in days').fill('07');
+        await dialog.getByLabel('Lifetime in days').fill('07');
       }
       const updateRequest = page.waitForRequest(
         (request) => request.method() === 'PUT' && request.url().endsWith(`/memories/${entry.id}`),

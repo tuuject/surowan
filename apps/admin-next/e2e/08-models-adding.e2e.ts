@@ -95,7 +95,7 @@ test.describe('providers page adding', () => {
 
     // The fetched model can be set as the agent model right away.
     await setAsAgent(modelListRow(page, E2E_RELAY_COMPLETE_MODEL));
-    await expect(page.getByText('Thinking effort reset to off', { exact: false }).first()).toBeVisible();
+    await expect(page.getByText('Thinking effort reset to Off', { exact: false }).first()).toBeVisible();
 
     const after = await (await page.request.get(await adminUrl('/api/providers'))).json();
     const created = after.providers.find((provider: { alias: string }) => provider.alias === 'relay2');
