@@ -8,6 +8,22 @@
       "skillPath": "skills/open-code-review/SKILL.md",
       "computedHash": "d3a3a06ec51a1b1d8c4ff4cb5fbc963269446b1627178c1106c606868f5a4d29",
       "via": "."
+    },
+    "tuu-create-feature": {
+      "source": "tuuject/skills",
+      "ref": "v0.2.0",
+      "sourceType": "github",
+      "skillPath": "skills/tuu-create-feature/SKILL.md",
+      "computedHash": "cee2dd781dfd421d63c525f44ac633f7455c496ceef911ce339d970d43ec5750",
+      "via": "."
+    },
+    "tuu-review-design-prd": {
+      "source": "tuuject/skills",
+      "ref": "v0.2.0",
+      "sourceType": "github",
+      "skillPath": "skills/tuu-review-design-prd/SKILL.md",
+      "computedHash": "bfd693c9212bfd2c736741648edc472ab67b5f5c71b05479d3b4244de8dece11",
+      "via": "."
     }
   }
 }

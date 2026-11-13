@@ -77,6 +77,14 @@
       "skills": [
         "open-code-review"
       ]
+    },
+    {
+      "source": "tuuject/skills",
+      "ref": "v0.2.0",
+      "skills": [
+        "tuu-create-feature",
+        "tuu-review-design-prd"
+      ]
     }
   ]
 }

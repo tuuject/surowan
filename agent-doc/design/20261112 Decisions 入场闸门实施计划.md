@@ -255,7 +255,7 @@
 
 ## 工作方式
 
-- 开发流程按 `surowan-dev-create-feature` skill：从最新的 `origin/develop` 建 worktree，分支建议 `feature/decision-gate`，完成后验证、提交、写 devlog、push、开 PR。
+- 开发流程按 `tuu-create-feature` skill：从最新的 `origin/develop` 建 worktree，分支建议 `feature/decision-gate`，完成后验证、提交、写 devlog、push、开 PR。
 - 提交信息用简短英文祈使句。PR 说明列出行为变化、数据库与配置影响、验证证据，以及真实环境里还没做的检查。
 - 实现中发现本文与源码不符时以源码为准，并在 PR 说明里写出偏离的地方和原因。遇到[待用户确认](#待用户确认)之外的产品决策，停下来问用户，不要自行决定。
 - 不读取 `key.json`，不在任何输出里打印密钥。
