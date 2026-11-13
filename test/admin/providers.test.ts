@@ -48,6 +48,66 @@ test('offers the builtin presets the configuration may reference', async () => {
     expect(ids).not.toContain('openrouter');
     expect(ids).not.toContain('mistral');
     expect(ids).not.toContain('google-vertex');
+
+    // Coding / agent subscription plans are never offered: their terms cover
+    // interactive coding tools, not a bot that runs all day on group traffic.
+    // Pi's `zai` points at the GLM Coding Plan endpoint, so it is one of them.
+    for (const plan of [
+      'kimi-coding',
+      'zai',
+      'zai-coding-cn',
+      'qwen-token-plan',
+      'qwen-token-plan-cn',
+      'qwen-token-plan-individual',
+      'xiaomi-token-plan-ams',
+      'xiaomi-token-plan-cn',
+      'xiaomi-token-plan-sgp',
+    ]) {
+      expect(ids).not.toContain(plan);
+    }
+    // The pay-as-you-go APIs of the same vendors stay.
+    expect(ids).toEqual(expect.arrayContaining(['moonshotai', 'moonshotai-cn', 'minimax', 'xiaomi']));
+    // A Pi upgrade that adds another plan preset fails here instead of quietly
+    // reaching the menu.
+    const planLike = view.presets.filter((preset: any) =>
+      /coding|token[- ]?plan|copilot|codex/i.test(`${preset.id} ${preset.name} ${preset.base_url}`),
+    );
+    expect(planLike).toEqual([]);
+  } finally {
+    fixture.store.close();
+  }
+});
+
+test('keeps an already configured plan provider working', async () => {
+  const fixture = await adminFixture({
+    transform: (config) => {
+      config.providers.builtin = {
+        kind: 'builtin',
+        provider: 'kimi-coding',
+        api_key: { jar: 'builtin' },
+        models: [model('kimi-for-coding')],
+      };
+    },
+  });
+  try {
+    const view = await readJson(await call(fixture, '/api/providers'));
+    expect(view.providers.find((entry: any) => entry.alias === 'builtin')).toMatchObject({
+      kind: 'builtin',
+      provider: 'kimi-coding',
+      api: 'anthropic-messages',
+      base_url: 'https://api.kimi.com/coding',
+    });
+
+    const key = await write(
+      fixture,
+      '/api/providers/builtin',
+      'PUT',
+      { api_key: 'rotated' },
+      await revisionOf(fixture),
+    );
+    expect(key.status).toBe(200);
+    expect(fixture.file().providers.builtin).toMatchObject({ kind: 'builtin', provider: 'kimi-coding' });
+    expect(fixture.secret(fixture.file().providers.builtin?.api_key)).toBe('rotated');
   } finally {
     fixture.store.close();
   }

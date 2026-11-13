@@ -94,10 +94,35 @@ export function isSupportedBuiltinPreset(source: Provider): boolean {
   return source.auth.apiKey !== undefined;
 }
 
-/** Presets the panel may offer, sorted by display name. A preset must speak one API: pi 1.x mixed-catalog providers (OpenRouter, …) stay configurable through an existing alias but are not offered as presets. */
+/**
+ * Coding / agent subscription plans. Their terms cover interactive use inside
+ * coding or agent tools, and some forbid backend or scripted calls outright; a
+ * bot answering group traffic all day is neither, so offering them as presets
+ * would invite account bans. They are only kept out of the add-provider menu:
+ * an alias already in the configuration still loads, edits and runs.
+ * Pi's `zai` is listed because its base URL is the GLM Coding Plan endpoint.
+ */
+const SUBSCRIPTION_PLAN_PROVIDERS: ReadonlySet<string> = new Set([
+  'kimi-coding',
+  'zai',
+  'zai-coding-cn',
+  'qwen-token-plan',
+  'qwen-token-plan-cn',
+  'qwen-token-plan-individual',
+  'xiaomi-token-plan-ams',
+  'xiaomi-token-plan-cn',
+  'xiaomi-token-plan-sgp',
+]);
+
+/** Presets the panel may offer, sorted by display name. A preset must speak one API: pi 1.x mixed-catalog providers (OpenRouter, …) stay configurable through an existing alias but are not offered as presets. Subscription plans are never offered. */
 export function listBuiltinPresets(): readonly Provider[] {
   return listBuiltinProviders()
-    .filter((source) => isSupportedBuiltinPreset(source) && supportedBuiltinApi(source) !== null)
+    .filter(
+      (source) =>
+        !SUBSCRIPTION_PLAN_PROVIDERS.has(source.id) &&
+        isSupportedBuiltinPreset(source) &&
+        supportedBuiltinApi(source) !== null,
+    )
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 
