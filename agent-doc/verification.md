@@ -181,7 +181,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `group-memory/recovery.test.ts` | 子进程在首次或修复请求中退出，重开数据库后批次审计保留实际调用数与消息范围 |
 | `group-memory/persistence-failures.test.ts` | 提交与成功/失败审计异常不重置调用数；摘要、游标与成功批次审计原子提交，失败不留下已提交却标错的摘要 |
 | `admin/group-memory.test.ts` | 群聊记忆列表鉴权、Chat/Day/摘要/keyset 过滤、summary 修改、删除、原文区间读取与非法 id/摘要拒绝；整理进度的 lane 游标、待整理计数、backfill 终点、24 小时批次统计与最近失败原因，批次列表过滤与非法 state 拒绝，关闭后从进度中消失 |
-| `group-memory/tools.test.ts` | `search_group_memory` 日期/范围展示、`read_group_messages` 回放与越界/过宽拒绝、审计行、未启用时工具缺失 |
+| `group-memory/tools.test.ts` | `search_group_memory` 日期/范围展示、关键词零命中的放宽检索提示（有/无日期、命中与无关键词时不出现）、`read_group_messages` 回放与越界/过宽拒绝、审计行、未启用时工具缺失 |
 | `group-memory/retention.test.ts` | 在线保留完全不删除 Message/Revision/Media，含未被任何记忆覆盖的旧消息 |
 | `memo/store.test.ts` | Chat 隔离、短期 TTL 与永久条目、搜索（关键词与半数阈值、大小写、日期范围、排序与 limit）、更新（`ttl_seconds` 与 `null` 提升为永久）、删除幂等、过期清理 |
 | `memo/injection.test.ts` | 只列短期未过期条目、10% 预算隐藏最早条目并给出隐藏数、增量新增/更新/删除与空增量、`null`/落后 `head_seq`/`pending` 触发完整刷新、列表仍在保留窗口时不刷新 |

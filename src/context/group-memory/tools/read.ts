@@ -81,7 +81,7 @@ function createSearchTool(
         });
         finishToolCall(env.store.orm, toolId, 'success', `matches=${entries.length}`, null);
         return {
-          content: [{ type: 'text', text: renderSearchResult(entries) }],
+          content: [{ type: 'text', text: renderSearchResult(entries, input) }],
           details: { count: entries.length },
         };
       } catch (error) {
@@ -152,9 +152,25 @@ function createReadMessagesTool(
   };
 }
 
-function renderSearchResult(entries: readonly GroupMemoryEntry[]): string {
+function renderSearchResult(
+  entries: readonly GroupMemoryEntry[],
+  input: { readonly date?: string | undefined; readonly keywords?: readonly string[] | undefined },
+): string {
   if (entries.length === 0) {
-    return 'No group memories matched in this Chat.';
+    // Models tend to read a keyword miss as "nothing happened" when the
+    // summary simply worded it differently. Only keywords can over-filter, so
+    // a search without them gets no retry advice that would repeat itself.
+    if (input.keywords === undefined) {
+      return 'No group memories matched in this Chat.';
+    }
+    const broader =
+      input.date === undefined
+        ? 'consider retrying with fewer or broader keywords, or none'
+        : `consider searching ${input.date} alone, without keywords`;
+    return [
+      'No group memories matched in this Chat.',
+      `Zero keyword matches does not mean nothing relevant was recorded: summaries may word it differently, and keywords carried over from earlier conversation are not required conditions. Before concluding there is no record, ${broader}.`,
+    ].join('\n');
   }
   return [
     `Found ${entries.length} ${entries.length === 1 ? 'group memory' : 'group memories'}:`,
