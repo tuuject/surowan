@@ -16,6 +16,12 @@ export const harness = {
   noLimitPlaceholder: 'Empty means no limit',
   on: 'On',
   off: 'Off',
+  sections: {
+    navigation: 'Form sections',
+    jump: 'Jump to section',
+    invalid: ', needs correction',
+    changed: ', unsaved changes',
+  },
   errors: {
     integer: 'Enter a whole number',
     number: 'Enter a number',

@@ -15,6 +15,7 @@ export function Panel({
   action,
   children,
   className,
+  headingTabIndex,
   variant = 'card',
 }: {
   readonly title: React.ReactNode;
@@ -22,6 +23,7 @@ export function Panel({
   readonly action?: React.ReactNode;
   readonly children?: React.ReactNode;
   readonly className?: string;
+  readonly headingTabIndex?: number;
   readonly variant?: 'card' | 'plain';
 }): ReactElement {
   const titleId = useId();
@@ -35,6 +37,7 @@ export function Panel({
           >
             <h2
               id={titleId}
+              tabIndex={headingTabIndex}
               className={css({ margin: '0', textStyle: 'heading-3', color: 'text', overflowWrap: 'anywhere' })}
             >
               {title}

@@ -10,6 +10,220 @@ async function harnessApi(page: import('@playwright/test').Page) {
   };
 }
 
+const SECTION_TITLES = [
+  'Budget and concurrency',
+  'Send behavior',
+  'Rate limits',
+  'Context',
+  'Proactive replies',
+] as const;
+
+test('Harness scrollspy follows downward scrolling until the real scroll limit', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(await adminUrl('/harness'));
+  const nav = page.getByRole('navigation', { name: 'Form sections' });
+  await expect(nav).toBeVisible();
+  await page.mouse.move(1100, 450);
+  for (const id of ['budget', 'send', 'rateLimits', 'context']) {
+    const delta = await page
+      .locator(`[data-form-section="${id}"]`)
+      .evaluate((el) => el.getBoundingClientRect().top - Number.parseFloat(getComputedStyle(el).scrollMarginTop) + 1);
+    if (delta > 0) {
+      await page.mouse.wheel(0, delta);
+    }
+    await expect(nav.locator('[aria-current="location"]')).toHaveText(
+      SECTION_TITLES[['budget', 'send', 'rateLimits', 'context'].indexOf(id)] ?? '',
+    );
+  }
+  // Put the final section fully on screen while Context still crosses the header line.
+  const delta = await page
+    .locator('[data-form-section="proactiveReply"]')
+    .evaluate((el) => el.getBoundingClientRect().bottom - window.innerHeight + 1);
+  await page.mouse.wheel(0, delta);
+  await expect
+    .poll(() =>
+      page
+        .locator('[data-form-section="proactiveReply"]')
+        .evaluate((el) => el.getBoundingClientRect().bottom <= window.innerHeight),
+    )
+    .toBe(true);
+  expect(
+    await page.locator('[data-form-section="context"]').evaluate((el) => {
+      const rect = el.getBoundingClientRect();
+      const line = Number.parseFloat(getComputedStyle(el).scrollMarginTop);
+      const scroller = document.scrollingElement;
+      return (
+        rect.top < line &&
+        rect.bottom > line &&
+        scroller !== null &&
+        scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop > 1
+      );
+    }),
+  ).toBe(true);
+  await expect(nav.locator('[aria-current="location"]')).toHaveText('Context');
+  await page.screenshot({ path: testInfo.outputPath('harness-context-before-scroll-limit.png') });
+  await page.mouse.wheel(0, await page.evaluate(() => document.documentElement.scrollHeight));
+  await expect(nav.locator('[aria-current="location"]')).toHaveText('Proactive replies');
+});
+
+for (const { scrollend, reducedMotion } of [
+  { scrollend: true, reducedMotion: 'reduce' },
+  { scrollend: false, reducedMotion: 'reduce' },
+  { scrollend: false, reducedMotion: 'no-preference' },
+] as const) {
+  test(`Harness releases an aligned jump before scrollbar scrolling (scrollend=${scrollend}, motion=${reducedMotion})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.emulateMedia({ reducedMotion });
+    if (!scrollend) {
+      await page.addInitScript(() => {
+        window.addEventListener('scrollend', (event) => event.stopImmediatePropagation(), true);
+      });
+    }
+    await page.goto(await adminUrl('/harness'));
+    const nav = page.getByRole('navigation', { name: 'Form sections' });
+    const send = nav.getByRole('button', { name: 'Send behavior', exact: true });
+    await send.click();
+    await expect
+      .poll(() =>
+        page
+          .locator('[data-form-section="send"]')
+          .evaluate((el) =>
+            Math.abs(el.getBoundingClientRect().top - Number.parseFloat(getComputedStyle(el).scrollMarginTop)),
+          ),
+      )
+      .toBeLessThanOrEqual(1);
+    // Wait for the first jump to settle, then click the already aligned target.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        }),
+    );
+    const aligned = await page.evaluate(() => document.scrollingElement?.scrollTop);
+    await send.click();
+    expect(await page.evaluate(() => document.scrollingElement?.scrollTop)).toBe(aligned);
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        }),
+    );
+    await page.locator('[data-form-section="rateLimits"]').evaluate((el) => {
+      const scroller = document.scrollingElement;
+      if (scroller) {
+        scroller.scrollTop +=
+          el.getBoundingClientRect().top - Number.parseFloat(getComputedStyle(el).scrollMarginTop) + 1;
+      }
+    });
+    await expect(nav.locator('[aria-current="location"]')).toHaveText('Rate limits');
+  });
+}
+
+test('Harness section navigation jumps, focuses headings and follows scrolling', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto(await adminUrl('/harness'));
+  const nav = page.getByRole('navigation', { name: 'Form sections' });
+  await expect(nav.getByRole('button')).toHaveText(SECTION_TITLES);
+  await expect(page.getByRole('combobox', { name: 'Jump to section' })).toBeHidden();
+  for (const title of SECTION_TITLES) {
+    const entry = nav.getByRole('button', { name: title, exact: true });
+    await entry.click();
+    await expect(entry).toHaveAttribute('aria-current', 'location');
+    const heading = page.getByRole('heading', { name: title, exact: true });
+    await expect(heading).toBeFocused();
+    await expect(heading).toBeInViewport();
+    expect(
+      await heading.evaluate((el) => {
+        const header = document.querySelector('header');
+        return el.getBoundingClientRect().top >= (header?.getBoundingClientRect().bottom ?? 0);
+      }),
+    ).toBe(true);
+  }
+  // User scrolling releases the last jump's selection, including at the short final section.
+  await page.mouse.move(1100, 450);
+  await page.mouse.wheel(0, -20000);
+  await expect(nav.getByRole('button', { name: SECTION_TITLES[0], exact: true })).toHaveAttribute(
+    'aria-current',
+    'location',
+  );
+
+  await page.getByLabel('Reference lifetime (hours)').fill('721');
+  const context = nav.getByRole('button', { name: /^Context/ });
+  await expect(context).toHaveAccessibleName(/Context\s*, needs correction/);
+  await page.getByLabel('Reference lifetime (hours)').fill('24');
+  await expect(context).toHaveAccessibleName(/Context\s*, unsaved changes/);
+  await page.getByRole('button', { name: 'Discard changes' }).click();
+  await expect(context).toHaveAccessibleName('Context');
+  await page.screenshot({ path: testInfo.outputPath('harness-section-navigation-wide.png'), fullPage: true });
+});
+
+test('Harness section dropdown responds to container width and shows validation marks', async ({ page }, testInfo) => {
+  // The viewport is wider than 720px, but the expanded sidebar leaves a narrow form container.
+  await page.setViewportSize({ width: 1000, height: 900 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto(await adminUrl('/harness'));
+  const nav = page.getByRole('navigation', { name: 'Form sections' });
+  const menu = page.getByRole('combobox', { name: 'Jump to section' });
+  await expect(nav).toBeHidden();
+  await expect(menu).toContainText('Budget and concurrency');
+  await menu.click();
+  await expect(page.getByRole('listbox').getByRole('option')).toHaveText(SECTION_TITLES);
+  await page.getByRole('option', { name: 'Context', exact: true }).click();
+  await expect(menu).toContainText('Context');
+  await expect(page.getByRole('heading', { name: 'Context', exact: true })).toBeInViewport();
+  await page.getByLabel('Reference lifetime (hours)').fill('721');
+  await expect(menu).toContainText('needs correction');
+  await menu.click();
+  await expect(page.getByRole('option', { name: /Context\s*, needs correction/ })).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('button', { name: 'Collapse sidebar', exact: true }).click();
+  await expect(nav).toBeVisible();
+  await expect(menu).toBeHidden();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(nav).toBeHidden();
+  await expect(menu).toBeVisible();
+  await menu.click();
+  await page.getByRole('option', { name: 'Proactive replies', exact: true }).click();
+  await expect(menu).toContainText('Proactive replies');
+  await expect(page.getByRole('heading', { name: 'Proactive replies', exact: true })).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath('harness-section-navigation-mobile.png'), fullPage: true });
+});
+
+test('Harness navigation fits both languages and themes at desktop and phone widths', async ({ page }, testInfo) => {
+  await page.goto(await adminUrl('/harness'));
+  await expect(page.getByLabel('Daily token budget')).toBeVisible();
+  for (const language of ['en', 'zh-CN']) {
+    if (language === 'zh-CN') {
+      await page.getByRole('button', { name: 'Switch language' }).click();
+    }
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate((value) => {
+        document.documentElement.dataset.theme = value;
+        document.documentElement.dataset.palette = 'rose';
+      }, theme);
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        const title = language === 'en' ? 'Budget and concurrency' : '预算与并发';
+        const nav = page.getByRole('navigation', { name: language === 'en' ? 'Form sections' : '表单分区' });
+        const menu = page.getByRole('combobox', { name: language === 'en' ? 'Jump to section' : '跳转到分区' });
+        const control = width === 1440 ? nav.getByRole('button').first() : menu;
+        await expect(control).toBeVisible();
+        await expect(width === 1440 ? menu : nav).toBeHidden();
+        await expect(control).toContainText(title);
+        // Portal tooltips can retain their old coordinates until resize positioning finishes.
+        await expect
+          .poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth))
+          .toBeLessThanOrEqual(0);
+        await page.screenshot({ path: testInfo.outputPath(`harness-nav-${language}-${theme}-${width}.png`) });
+      }
+    }
+  }
+});
+
 test('Harness tuning saves several fields at once and hot-applies them', async ({ page }, testInfo) => {
   await page.goto(await adminUrl('/'));
   await clickNav(page, 'Agent setup', 'Harness tuning');

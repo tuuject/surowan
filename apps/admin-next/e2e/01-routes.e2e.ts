@@ -238,7 +238,7 @@ test.describe('routes and deep links', () => {
   test('/harness renders the grouped agent settings', async ({ page }) => {
     await page.goto(await adminUrl('/harness'));
     for (const title of ['Budget and concurrency', 'Send behavior', 'Rate limits', 'Context']) {
-      await expect(page.getByText(title, { exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
     }
     await expect(page.getByLabel('Daily token budget')).toHaveValue('300000');
     await expect(page.getByRole('button', { name: 'Save and apply' })).toBeDisabled();
