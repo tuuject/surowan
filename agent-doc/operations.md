@@ -84,7 +84,7 @@ node src/cli.ts doctor --config dev-data/config.jsonc
 
 - 仓库 Skill：`skills/` 下每个含 `SKILL.md` 的目录以相对软链接挂到 `.agents/skills/<name>`（Codex 等读取的通用目录）与 `.claude/skills/<name>`，修改 Skill 内容即时生效；Skill 删除或改名后脚本清理旧链接。目标不是 `skills/` 的既有条目一律不碰，只报告冲突。
 - 外部 Skill：在 `package.json` 的 `skills` 字段声明（语法见 [skills 字段规范](https://github.com/antfu/skills-npm/blob/main/SPEC.md)），必须用 `ref` 锁定 tag（CLI 以 `git clone --branch` 拉取，不认 commit hash）。精确锁版本的 devDependency `skills`（[vercel-labs/skills](https://github.com/vercel-labs/skills) CLI）以 `experimental_sync --include .` 把它们装进 `.agents/skills/`，再链接到 `.claude/skills/`，内容哈希写入 `skills-lock.json`。它只同步该字段声明的 Skill，不链接 npm 依赖自带的 Skill，并关闭 CLI 遥测。已安装且 `ref` 未变时不联网；改 `ref` 会重新安装，删掉条目会清理对应 Skill。
-- tuuject 各项目共用的开发流程 Skill（`tuuject-dev-create-feature` 的 worktree 开发、交付与 PR review，`tuuject-dev-review-design-prd` 的 PRD 审阅）来自 [tuuject/skills](https://github.com/tuuject/skills)，按外部 Skill 声明。它们只定流程，本仓库的验证命令、提交与 PR 约定仍以 AGENTS.md 为准；要改流程本身去那个仓库改，发新 tag 后在这里更新 `ref`。
+- tuuject 各项目共用的开发流程 Skill（`tuu-create-feature` 的 worktree 开发、交付与 PR review，`tuu-review-design-prd` 的 PRD 审阅）来自 [tuuject/skills](https://github.com/tuuject/skills)，按外部 Skill 声明。它们只定流程，本仓库的验证命令、提交与 PR 约定仍以 AGENTS.md 为准；要改流程本身去那个仓库改，发新 tag 后在这里更新 `ref`。
 - `.agents/skills/` 与 `.claude/skills/` 是生成目录，已 gitignore；`skills-lock.json` 随 `skills` 字段一起提交。`ref` 没变而哈希变了，说明上游改写了 tag，先审查再提交。
 - 作为 `postinstall` 运行时，CI 环境（`CI` 非空且不为 `0`/`false`）或没有 `.git` 的目录（Docker 构建上下文、源码包）直接跳过；GitHub 不可达、条目被占用等问题只打印警告，不让 `pnpm install` 失败。手动的 `pnpm run skills:sync` 总会执行，有问题时以非零码退出。
 - pnpm 在依赖已是最新时不运行 `postinstall`。只改了 `skills` 字段、新增了仓库 Skill，或在设置了 `CI` 的 Agent 环境里装依赖后，都要手动运行 `pnpm run skills:sync`。

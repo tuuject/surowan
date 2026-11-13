@@ -80,10 +80,10 @@
     },
     {
       "source": "tuuject/skills",
-      "ref": "v0.1.0",
+      "ref": "v0.2.0",
       "skills": [
-        "tuuject-dev-create-feature",
-        "tuuject-dev-review-design-prd"
+        "tuu-create-feature",
+        "tuu-review-design-prd"
       ]
     }
   ]
