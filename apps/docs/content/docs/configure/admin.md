@@ -39,6 +39,7 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 - **Memories**：查看、编辑或删除按 Chat 共享的 Memo Pad。条目有 summary 与 Markdown 详情；带期限的短期条目会自动列进 Context，无期限的长期条目不会自动注入，只能由 Agent 搜索后读取详情。需要长期稳定的事实仍应人工审核后写进 `agents.md`。
 - **Group memory**：顶部的整理进度显示每个开启群聊记忆的 Chat 整理到哪、还剩多少、是否在连续失败，并能查看每一批的结果与失败原因；下方审计 sleeping worker 生成的日期事件，查看原始消息区间、修改 summary 或删除事件。Chats 页的群聊行可以开关该 Chat 的群聊记忆。
 - **Dictionary**：维护全局与群组术语、别名和解释，查看冲突，审阅 AI 融合建议，批量导入导出并设置自动注入模式，见[辞典指南](../guides/dictionary.md)。
+- **Recurring alarms**：管理员设定执行周期和提示词，让 Bot 定时主动执行任务（例如每天早上问候），也可以立即执行一次；不占每日预算、不受睡眠时段影响，见[循环闹钟](../guides/recurring-alarms.md)。
 - **图片生成 / 生图记录 / 图片资产**：图片生成工作台（提交、解析预览、实时查看输出）、全部生成的审计与重试、提示词素材与参考图库管理，见[图片生成](../guides/images.md)。
 - **图片设置**：图片功能的启用开关、生图凭据与模型配置。保存后立即应用，不需要重启；禁用会删除整个 `image` 段并清理不再引用的 key jar 条目。
 - **Settings**：对手改配置使用 **Apply config file**，并查看 Saved 与 Running 状态及 `restart_required`。
