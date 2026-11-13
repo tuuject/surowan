@@ -74,7 +74,7 @@ SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是
 
 ### 冻结与重放边界
 
-`invocation_messages` 是可重放边界，保存 `history`/`new` 两个区段的 Message Revision 快照；长生命周期 Invocation 的多个批次按 `source_bucket_id` 追加进同一个 Invocation（`sequence_no` 在 Invocation 内保持单调）。消息在 Invocation 创建后被编辑只影响未来 Context，不改写已经冻结的快照。`buckets` 区分 `realtime`（配置长度窗口）与 `startup_catch_up`（启动追赶）两种来源，状态机相同。`agent_messages` 是**按 Invocation 展开的扁平审计轨迹**（人类可读的 `assistant`/`tool_result`/`harness_nudge` 文本行；assistant 行的 `text` 是本轮 response 的普通文本，模型的 thinking（CoT）单独放在 `thinking_text` 供 Admin 展示，且仅在 `developer.record_agent_thinking = true` 时记录，缺省关闭，不直接进 Telegram），完整可重放的 transcript 属于 Conversation，见下一节——**Assistant 文本不等于对外发送**，真正发出去的只有 `host_sends` 里的行（迁移 `038` 之前叫 `telegram_sends`）。
+`invocation_messages` 是可重放边界，保存 `history`/`new` 两个区段的 Message Revision 快照；长生命周期 Invocation 的多个批次按 `source_bucket_id` 追加进同一个 Invocation（`sequence_no` 在 Invocation 内保持单调）。消息在 Invocation 创建后被编辑只影响未来 Context，不改写已经冻结的快照。`buckets` 区分 `realtime`（配置长度窗口）与 `startup_catch_up`（启动追赶）两种来源，状态机相同。迁移 `057` 给 `buckets` 加 `window_seconds` / `max_seconds` / `bump_seconds`：ingestion 开 collecting Bucket 时写入当时的节拍，之后的延长与推迟只读这三列，`telegram.bucket_*` 因此可以热更新而不影响正在收集的批次（见 [telegram-agent-flow.md](telegram-agent-flow.md#节拍快照与热更新)）。创建即到期的 Bucket（启动追赶、任务回执、Playground 放行）与迁移前的行都是 0/0/0；CHECK 约束 `window >= 0`、`max >= window`、`bump >= 0`。`agent_messages` 是**按 Invocation 展开的扁平审计轨迹**（人类可读的 `assistant`/`tool_result`/`harness_nudge` 文本行；assistant 行的 `text` 是本轮 response 的普通文本，模型的 thinking（CoT）单独放在 `thinking_text` 供 Admin 展示，且仅在 `developer.record_agent_thinking = true` 时记录，缺省关闭，不直接进 Telegram），完整可重放的 transcript 属于 Conversation，见下一节——**Assistant 文本不等于对外发送**，真正发出去的只有 `host_sends` 里的行（迁移 `038` 之前叫 `telegram_sends`）。
 
 ### Conversation Context（长期会话 transcript）
 

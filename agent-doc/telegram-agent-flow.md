@@ -107,6 +107,19 @@ deadline = max(deadline, min(first_received_at + bucket_max_seconds, 到达时�
 
 窗口与上限的取值统一由 `resolveBucketTiming`（`src/platform/config/resolve.ts`）给出；Playground 房间三项都是 0。轮结束、Scheduler 中途推迟与运行结束时的 deadline 推迟都只用 window，不用 max。
 
+### 节拍快照与热更新
+
+三项是热字段。ingestion 开 Bucket 时调用一次 `resolveBucketTiming`，把结果写进该行的 `window_seconds` / `max_seconds` / `bump_seconds`（迁移 `057`）。此后这个 Bucket 的一切时间计算只读自己这一行，从不读当前发布的配置：
+
+| 位置 | 读取 |
+| --- | --- |
+| 消息延长（`bumpDeadline`，`src/ingress/telegram-ingestion/buckets.ts`） | 行内 `bump_seconds` 与 `max_seconds` |
+| 轮结束推迟（`deferCollectingBucket`，`src/orchestration/agent-runtime/support.ts`） | 行内 `window_seconds`；不用运行中 Invocation 的配置快照 |
+| Scheduler 轮中途推迟（`deferBucket`，`src/orchestration/invocation-queue/due.ts`） | 行内 `window_seconds` |
+| 运行结束推迟（`executeInvocation`，`src/orchestration/scheduler/execution.ts`） | 同 Chat 每个 collecting Bucket 各自的 `window_seconds` |
+
+所以 Admin「Telegram」页或手改文件后应用的新节拍只作用于之后新开的 Bucket：调大不会拖长正在收集的批次，调小也不会把它提前截断；反过来，运行开始之后才开的 Bucket 用新节拍，即使那次运行的配置快照还是旧的。不直接收集的 Bucket（启动追赶、任务回执、Playground 放行）创建即到期，记为 0/0/0；迁移前已存在的行（包括升级时仍在收集的）同样记为 0/0/0：保持已有 deadline，不再被延长或按窗口推迟。
+
 ## 长活 Invocation 与热注入
 
 `typing` 是 `execute` 注册表中的可选能力（`execute.call`，`tool: "typing"`，`input: {}`）。模型只有在决定接话且接下来需要耗时处理时才调用；快速回复直接 `send`，静默不调用。runtime 每 4 秒刷新，Telegram 适配器按 Chat + Topic 节流且不重叠请求，单次平台请求最多等 3.5 秒。重复调用不重置本轮上限，55 秒后停止刷新并取消在途请求，为 Telegram 最多 5 秒的状态尾部留余量；`freeAgent` 与运行清理停止状态，空闲后下一轮可以再次调用。模型请求的 typing 在本轮 `send` 之后继续刷新（后续工作可能仍在进行）；入库时因 @ 自动显示的 typing 则在 Bot 向该 Chat + Topic 发布后结束，模型此时再调用 typing 会接管为新的一轮。typing 仅为临时状态，不发布 assistant 文本，不计入 send 配额，也不把 Telegram 状态请求失败传给模型。

@@ -2,14 +2,24 @@ import type { EndpointSpec } from '../types.ts';
 
 /**
  * Telegram settings page. The token is write-only: the response only reports
- * whether one is configured.
+ * whether one is configured. The bucket timing is hot-applied, and a batch
+ * already collecting keeps the timing it opened with.
  */
 export const TELEGRAM_SPECS: readonly EndpointSpec[] = [
   {
     command: 'telegram show',
     method: 'GET',
     path: 'telegram',
-    summary: 'Show the live connection status and whether a token is configured',
+    summary: 'Show the live connection status, whether a token is configured, and the saved and running bucket timing',
+  },
+  {
+    command: 'telegram bucket-timing',
+    method: 'PUT',
+    path: 'telegram/bucket-timing',
+    body: true,
+    revision: 'config',
+    summary:
+      'Save and hot-apply bucket_window_seconds, bucket_max_seconds and bucket_bump_seconds; null removes an optional field',
   },
   {
     command: 'telegram token',

@@ -22,7 +22,7 @@ surowan-utils provider list --json                 # 磁盘上的 Provider、模
 surowan-utils prompt versions --scope global --json
 surowan-utils search show --json
 surowan-utils image config show --json
-surowan-utils telegram show --json                 # 只报告是否已配置 token，不回显值
+surowan-utils telegram show --json                 # 是否已配置 token（不回显值）与消息批次节拍的 saved/active
 surowan-utils warning list --json
 surowan-utils memo list --chat <telegram chat id> --json
 surowan-utils group-memory list --chat <telegram chat id> --json
@@ -54,6 +54,9 @@ surowan-utils harness update --set-json values.history_messages=40 --dry-run --j
 surowan-utils harness update --set-json values.history_messages=40 --json
 # 4. 用同一命令族复查落盘结果与 apply 结果
 surowan-utils harness show --json
+
+# 消息批次节拍：热应用，只影响之后新开的批次；null 删除可选字段
+surowan-utils telegram bucket-timing --set-json bucket_bump_seconds=5 --set-json bucket_max_seconds=60 --dry-run --json
 
 # Prompt 编辑：--file 读原始 Markdown，- 表示 stdin；可同时写 note
 surowan-utils prompt save global --file prompt.md --set note='更简短' --json

@@ -5,7 +5,9 @@ import type { Update } from 'grammy/types';
 
 import { type LoadedConfig, loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
+import type { BucketAttachmentTarget } from '../../src/orchestration/invocation-queue/index.ts';
 import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
+import type { RuntimeConfigurationStore } from '../../src/platform/runtime-config.ts';
 import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
 import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
 
@@ -21,8 +23,10 @@ export async function cleanupSchedulerDirectories(): Promise<void> {
 export async function setup(
   transform?: (config: FixtureConfig) => void,
   handler: ConstructorParameters<typeof BucketScheduler>[2] = async () => ({ state: 'completed', reason: 'done' }),
+  attachment?: BucketAttachmentTarget,
 ): Promise<{
   loaded: LoadedConfig;
+  configStore: RuntimeConfigurationStore;
   store: SqliteStore;
   ingestion: TelegramIngestion;
   scheduler: BucketScheduler;
@@ -37,9 +41,10 @@ export async function setup(
   const store = await SqliteStore.open(loaded.config);
   return {
     loaded,
+    configStore,
     store,
     ingestion: new TelegramIngestion(store, configStore, { id: 999 }),
-    scheduler: new BucketScheduler(store, configStore, handler),
+    scheduler: new BucketScheduler(store, configStore, handler, attachment),
   };
 }
 

@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import type { CommandSender } from '../../src/orchestration/bot-commands/index.ts';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
-import { CHAT_ID, ADMIN, logEvents, textUpdate, groupUpdate, setup } from './reload-fixtures.ts';
+import { CHAT_ID, ADMIN, customProvider, logEvents, textUpdate, groupUpdate, setup } from './reload-fixtures.ts';
 
 test('non-admin members can persist self-ignore, stay audited, and opt back in without a restart', async () => {
   const fixture = await setup({
@@ -225,30 +225,25 @@ test('self-ignore rejects unknown senders, unsafe IDs and missing Chats without 
 });
 
 test('self-ignore reports apply failures after persisting and repeated commands recover the saved change', async () => {
-  const fixture = await setup({
-    transform: (config) => {
-      config.telegram.bucket_window_seconds = 30;
-      config.agent!.context!.idle_grace_seconds = 30;
-    },
-  });
+  const fixture = await setup();
   try {
     const before = fixture.configStore.current();
+    // A valid file whose changed credential the running process cannot resolve.
     await fixture.patch((config) => {
-      config.telegram.bucket_window_seconds = 5;
-      config.agent!.context!.idle_grace_seconds = 10;
+      customProvider(config.providers, 'vision').api_key = { jar: 'missing-entry' };
     });
     const reply = await fixture.commands.run({ name: 'ignoreme' }, BigInt(CHAT_ID), ADMIN);
     expect(reply).toContain('已写入 config.jsonc，但应用失败');
     expect((await loadConfig(fixture.configPath)).config.telegram.chats[0]?.ignored_user_ids).toEqual([42]);
     expect(fixture.configStore.current()).toBe(before);
-    expect(logEvents('config_reload_failed').at(-1)?.code).toBe('candidate_invalid');
+    expect(logEvents('config_reload_failed').at(-1)?.code).toBe('secret_unresolved');
     const corrected = (await loadConfig(fixture.configPath)).fileConfig;
-    corrected.agent!.context!.idle_grace_seconds = 30;
+    customProvider(corrected.providers, 'vision').api_key = { jar: 'vision' };
     await fixture.writeText(`${JSON.stringify(corrected, null, 2)}\n`);
     const saved = await fixture.readText();
     const retried = await fixture.commands.run({ name: 'ignoreme' }, BigInt(CHAT_ID), ADMIN);
     expect(retried).toContain('已忽略');
-    expect(retried).toContain('需要重启');
+    expect(retried).toContain('立即生效');
     expect(await fixture.readText()).toBe(saved);
     expect(fixture.configStore.current().config.telegram.chats[0]?.ignored_user_ids).toEqual([42]);
   } finally {

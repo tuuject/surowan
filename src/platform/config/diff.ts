@@ -91,9 +91,9 @@ function mergeFileConfig(active: ConfigSource, file: ConfigSource, recorder: Cha
 
 function mergeTelegram(active: ConfigSource, file: ConfigSource, recorder: ChangeRecorder): FileConfig['telegram'] {
   // The section itself is optional. Both sides merge as empty records, so each
-  // field keeps its own classification: the token is hot, everything else stays
-  // restart-only, and a section that disappears entirely keeps its restart-only
-  // fields until the next start while the token drops immediately.
+  // field keeps its own classification (`classify`), and a section that
+  // disappears entirely keeps its restart-only fields until the next start
+  // while its hot fields, such as the token, drop immediately.
   const activeRecord = (active.file.telegram ?? {}) as Record<string, unknown>;
   const fileRecord = (file.file.telegram ?? {}) as Record<string, unknown>;
   const result = structuredClone(activeRecord);

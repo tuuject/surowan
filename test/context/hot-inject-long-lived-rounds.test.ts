@@ -197,6 +197,102 @@ describe('long-lived invocation', () => {
     }
   }, 30_000);
 
+  test('a batch opened after a reload waits out its own window at the end of a round of an older run', async () => {
+    // The run took its configuration snapshot before the reload, with a
+    // one-second window. The batch that opens mid-round was opened under the
+    // reloaded three-second window and must keep it: the round end re-anchors
+    // it at `round end + 3 s`, not at the run's stale `round end + 1 s`.
+    const fixtureSetup = await fixture((config) => {
+      config.telegram.bucket_window_seconds = 1;
+      config.agent!.context!.idle_grace_seconds = 5;
+    });
+    const faux = fauxAgent();
+    let roundEnd = 0;
+    let injectedAt = 0;
+    let openedWith = 0n;
+    faux.setResponses([
+      async (context, options) => {
+        options?.onPayload?.({ model: 'agent-model', messages: context.messages }, faux.getModel());
+        const { generation: _generation, ...current } = fixtureSetup.configStore.current();
+        fixtureSetup.configStore.publish({
+          ...current,
+          config: {
+            ...current.config,
+            telegram: { ...current.config.telegram, bucket_window_seconds: 3, bucket_max_seconds: 3 },
+          },
+        });
+        fixtureSetup.ingestion.ingest(update(2, 11, 'second message'), new Date());
+        scheduler.wake();
+        openedWith =
+          fixtureSetup.store.db
+            .prepare<[], { window_seconds: bigint }>(
+              "SELECT window_seconds FROM buckets WHERE state = 'collecting' ORDER BY id DESC LIMIT 1",
+            )
+            .get()?.window_seconds ?? 0n;
+        await sleep(1_500);
+        return fauxAssistantMessage(fauxToolCall('send', { kind: 'text', text: 'first answer' }), {
+          stopReason: 'toolUse',
+        });
+      },
+      (context, options) => {
+        options?.onPayload?.({ model: 'agent-model', messages: context.messages }, faux.getModel());
+        roundEnd = Date.now();
+        return fauxAssistantMessage('');
+      },
+      (context, options) => {
+        options?.onPayload?.({ model: 'agent-model', messages: context.messages }, faux.getModel());
+        return fauxAssistantMessage('');
+      },
+    ]);
+    const runtime = await fixtureSetup.runtimeWith(faux);
+    let finished!: () => void;
+    const finishedSignal = new Promise<void>((resolve) => {
+      finished = resolve;
+    });
+    const scheduler = new BucketScheduler(
+      fixtureSetup.store,
+      fixtureSetup.configStore,
+      async (invocationId, snapshot, signal) => {
+        const poll = setInterval(recordInjection, 25);
+        try {
+          const outcome = await runtime.run(invocationId, snapshot, signal);
+          finished();
+          return outcome;
+        } finally {
+          clearInterval(poll);
+        }
+      },
+      fixtureSetup.conversationRuntime,
+    );
+    function recordInjection(): void {
+      const row = fixtureSetup.store.db
+        .prepare<[], { injected_at: string | null }>(
+          'SELECT injected_at FROM invocation_buckets ORDER BY bucket_id DESC LIMIT 1',
+        )
+        .get();
+      if (row?.injected_at !== null && row?.injected_at !== undefined) {
+        injectedAt = Date.parse(row.injected_at);
+      }
+    }
+    try {
+      scheduler.start();
+      fixtureSetup.ingestion.ingest(update(1, 10, 'hello'), new Date());
+      scheduler.wake();
+      await finishedSignal;
+      await sleep(50);
+
+      expect(openedWith).toBe(3n);
+      expect(roundEnd).toBeGreaterThan(0);
+      expect(injectedAt - roundEnd).toBeGreaterThanOrEqual(2_900);
+      expect(
+        fixtureSetup.store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM invocations').get()?.count,
+      ).toBe(1n);
+    } finally {
+      await scheduler.stop();
+      fixtureSetup.store.close();
+    }
+  }, 30_000);
+
   test('does not pay the idle grace between the steps of one round', async () => {
     // Regression: the grace used to be awaited after *every* turn, so a round
     // that called send twice waited out the grace twice (and a batch injected

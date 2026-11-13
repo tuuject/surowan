@@ -126,7 +126,7 @@ test('refuses a builtin model the file does not list', async () => {
   }
 });
 
-test('rejects a candidate that is only invalid together with a pending restart field', async () => {
+test('adopts a bucket window and an idle grace that are only valid together', async () => {
   const fixture = await setup({
     transform: (config) => {
       config.telegram.bucket_window_seconds = 30;
@@ -134,22 +134,35 @@ test('rejects a candidate that is only invalid together with a pending restart f
     },
   });
   try {
-    // Both values are valid in the file (10 >= 5), but the running process keeps
-    // bucket_window_seconds = 30 until it restarts, so 10 < 30 is invalid here.
+    // 10 < 30 would be invalid against the running window, but both fields are
+    // hot: the candidate takes them from the file together and is valid.
     await fixture.patch((config) => {
       config.telegram.bucket_window_seconds = 5;
       config.agent!.context!.idle_grace_seconds = 10;
     });
     const result = await fixture.reloader.reloadFromFile();
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      throw new Error('Expected the candidate to be rejected');
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.message);
     }
-    expect(result.code).toBe('candidate_invalid');
-    expect(result.message).toContain('after a restart');
-    expect(result.message).toContain('telegram.bucket_window_seconds');
-    expect(fixture.configStore.current().config.telegram.bucket_window_seconds).toBe(30);
-    expect(fixture.configStore.current().config.agent!.context!.idle_grace_seconds).toBe(30);
+    expect(result.applied).toEqual(['agent.context.idle_grace_seconds', 'telegram.bucket_window_seconds']);
+    expect(result.restartRequired).toEqual([]);
+    expect(fixture.configStore.current().config.telegram.bucket_window_seconds).toBe(5);
+    expect(fixture.configStore.current().config.agent!.context!.idle_grace_seconds).toBe(10);
+
+    // A window the running idle grace no longer covers is a broken file, and
+    // the process keeps the pair it has.
+    await fixture.patch((config) => {
+      config.telegram.bucket_window_seconds = 20;
+    });
+    const broken = await fixture.reloader.reloadFromFile();
+    expect(broken.ok).toBe(false);
+    if (broken.ok) {
+      throw new Error('Expected the file to be rejected');
+    }
+    expect(broken.code).toBe('config_invalid');
+    expect(broken.message).toContain('idle_grace_seconds');
+    expect(fixture.configStore.current().config.telegram.bucket_window_seconds).toBe(5);
   } finally {
     fixture.store.close();
   }

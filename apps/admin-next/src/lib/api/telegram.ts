@@ -21,11 +21,23 @@ export type TelegramConnectionState =
       readonly bot?: TelegramBot;
     };
 
+/** Seconds; `bucket_max_seconds: null` follows the window. */
+export interface BucketTiming {
+  readonly bucket_window_seconds: number;
+  readonly bucket_max_seconds: number | null;
+  readonly bucket_bump_seconds: number;
+}
+
+/** A write sends only the changed fields; `null` removes an optional one. */
+export type BucketTimingUpdate = Partial<BucketTiming>;
+
 export interface TelegramView {
   readonly revision: string;
   readonly status: TelegramConnectionState;
   readonly telegram_section_present: boolean;
   readonly token_configured: boolean;
+  /** `saved` is the file on disk; `active` is what the running process collects new batches with. */
+  readonly bucket_timing: { readonly saved: BucketTiming; readonly active: BucketTiming };
 }
 
 export interface TelegramApplySummary {
@@ -46,5 +58,14 @@ export function putTelegram(token: string | null, revision: string): Promise<Tel
     method: 'PUT',
     headers: writeHeaders(revision),
     body: JSON.stringify({ token }),
+  });
+}
+
+/** Hot-applied: the next batch opens with the new timing; batches already collecting keep theirs. */
+export function putTelegramBucketTiming(update: BucketTimingUpdate, revision: string): Promise<TelegramUpdateResponse> {
+  return call<TelegramUpdateResponse>('/telegram/bucket-timing', {
+    method: 'PUT',
+    headers: writeHeaders(revision),
+    body: JSON.stringify(update),
   });
 }

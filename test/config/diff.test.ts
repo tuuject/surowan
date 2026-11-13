@@ -22,6 +22,7 @@ test('classifies hot, restart and outside-serve fields', async () => {
     config.retention.online_days = 7;
     config.paths.backups = config.paths.backups.replace('backups', 'backups2');
     config.telegram.bucket_window_seconds = 30;
+    config.telegram.process_bot_messages = true;
     config.vision!.max_output_tokens = 4096;
   });
   const diff = diffConfig({ file: active.fileConfig, raw: active.config }, { file: file.fileConfig, raw: file.config });
@@ -38,15 +39,17 @@ test('classifies hot, restart and outside-serve fields', async () => {
     'agent.rate_limits.turns_per_injection',
     'agent.send_max_text_length',
     'agent.thinking_level',
+    'telegram.bucket_window_seconds',
     'vision.max_output_tokens',
   ]);
   expect(paths(diff.changes, 'outside_serve')).toEqual(['paths.backups', 'retention.online_days']);
-  expect(paths(diff.changes, 'restart')).toEqual(['telegram.bucket_window_seconds']);
+  expect(paths(diff.changes, 'restart')).toEqual(['telegram.process_bot_messages']);
   // Hot and outside-serve values come from the file; restart-only values stay.
   expect(diff.candidate.file.agent!.thinking_level).toBe('high');
   expect(diff.candidate.file.agent!.history_messages).toBe(5);
   expect(diff.candidate.file.retention.online_days).toBe(7);
-  expect(diff.candidate.file.telegram?.bucket_window_seconds).toBe(15);
+  expect(diff.candidate.file.telegram?.bucket_window_seconds).toBe(30);
+  expect(diff.candidate.file.telegram?.process_bot_messages).toBe(false);
   expect(diff.candidate.file.vision?.max_output_tokens).toBe(4096);
   expect(diff.candidate.raw.agent.thinking_level).toBe('high');
 });

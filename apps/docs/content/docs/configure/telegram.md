@@ -65,7 +65,8 @@ Bot 不会逐条回复：一个 Chat（或 Topic）的第一条新消息到达�
 - 只有能触发 Bot 的消息会延长等待；其他 Bot 的消息、入群退群这类服务消息和单独的 Sticker（未开启 `sticker_trigger_enabled` 时）会被收进这一批，但不推迟它。
 - Bot 正在处理上一批时，这一批会等它说完再按 `bucket_window_seconds` 起算，可能超过 `bucket_max_seconds`。
 - 开启长生命周期运行时，`agent.context.idle_grace_seconds` 不能小于 `bucket_max_seconds`。
-- 三个字段修改后都需要重启服务。
+- 三个字段可以在管理面板 Telegram 设置页的「消息批次」里修改，保存后立即生效，不用重启；手改配置文件后点击 **Apply config file** 同样立即生效。
+- 新的时间只用于之后开始收集的批次：正在收集的那一批仍按它开始时的时间结算，不会因为改大而多等，也不会因为改小被提前截断。
 
 ## 同一条消息只回复一次
 

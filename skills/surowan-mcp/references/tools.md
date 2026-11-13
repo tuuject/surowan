@@ -43,7 +43,8 @@
 | `surowan_provider_preset_list` | read | 内置 Provider 预设 |
 | `surowan_developer_show` / `surowan_developer_update` / `surowan_developer_clear_payloads` | read / write | Developer 页 |
 | `surowan_search_show` / `surowan_search_update` | read / write | 网络搜索配置 |
-| `surowan_telegram_show` / `surowan_telegram_token` / `surowan_telegram_token_clear` | read / write | Telegram token |
+| `surowan_telegram_show` / `surowan_telegram_token` / `surowan_telegram_token_clear` | read / write | Telegram token；`show` 还返回消息批次节拍的 `bucket_timing.saved` / `active` |
+| `surowan_telegram_bucket_timing` | write | 消息批次节拍（`bucket_window_seconds` / `bucket_max_seconds` / `bucket_bump_seconds`，0–300 整数秒，后两项 `null` 删除）；热应用，只影响之后新开的批次，正在收集的批次保持原节拍；`max < window` 或超过非零 idle grace 时 422 |
 | `surowan_bot_admin_list` / `surowan_bot_admin_add` / `surowan_bot_admin_remove` | read / write | Bot 管理员 |
 | `surowan_sticker_set_list` / `surowan_sticker_set_add` / `surowan_sticker_set_update` / `surowan_sticker_set_remove` | read / write | Sticker Set 与备注（`telegram.sticker_sets`，热应用）；`update` 只改 `alias`/`note`，Telegram 名称不可改；增删会中止运行中的 Telegram Invocation；`remove` 需 `confirm: true` |
 | `surowan_restart` / `surowan_wake` / `surowan_session_cancel` | write | 进程与会话控制 |

@@ -37,4 +37,33 @@ export const telegram = {
   clearConfirm: 'Clear token',
   cleared: 'Telegram token cleared',
   readFailed: 'Failed to read the Telegram settings',
+  bucketTitle: 'Message batches',
+  bucketDescription: 'Saving applies from the next batch. A batch that is already collecting keeps its timing.',
+  bucketFields: {
+    window: {
+      label: 'Minimum wait (seconds)',
+      help: 'A batch collects for at least this long.',
+    },
+    max: {
+      label: 'Maximum wait (seconds)',
+      help: 'Counted from the first message of the batch. Extensions never go past it.',
+    },
+    bump: {
+      label: 'Extension per message (seconds)',
+      help: 'Each new message keeps the batch collecting at least this long after it arrives. 0 means no extension.',
+    },
+  },
+  bucketMaxFollowsWindow: 'Same as the minimum wait',
+  bucketErrors: {
+    integer: 'Enter a whole number of seconds',
+    range: 'Must be at most {{max}}',
+    belowWindow: 'Must be at least the minimum wait',
+  },
+  bucketRunning: 'Running: {{value}}',
+  bucketUnchanged: 'No unsaved changes',
+  bucketPending_one: '{{count}} unsaved change',
+  bucketPending_other: '{{count}} unsaved changes',
+  bucketInvalid: 'Fix the highlighted fields before saving.',
+  bucketSave: 'Save and apply',
+  bucketDiscard: 'Discard changes',
 };

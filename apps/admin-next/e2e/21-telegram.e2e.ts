@@ -1,5 +1,5 @@
-import { expect } from '@playwright/test';
-import { adminUrl, e2eFetch, test, toast } from './helpers.ts';
+import { type APIRequestContext, expect } from '@playwright/test';
+import { adminUrl, appliedToast, e2eFetch, test, toast } from './helpers.ts';
 
 /**
  * The Telegram page owns one field, the Bot Token. The fixture config already
@@ -110,6 +110,88 @@ test.describe('Telegram settings', () => {
     await expect(main.getByText('Telegram', { exact: true })).toBeVisible();
     await expect(main.getByText('Connected', { exact: true })).toBeVisible();
     await expect(main.getByText('@surowan_bot', { exact: true })).toBeVisible();
+  });
+});
+
+interface BucketTimingView {
+  readonly bucket_window_seconds: number;
+  readonly bucket_max_seconds: number | null;
+  readonly bucket_bump_seconds: number;
+}
+
+async function bucketTiming(
+  request: APIRequestContext,
+): Promise<{ readonly saved: BucketTimingView; readonly active: BucketTimingView }> {
+  const view = (await (await request.get(await adminUrl('/api/telegram'))).json()) as {
+    readonly bucket_timing: { readonly saved: BucketTimingView; readonly active: BucketTimingView };
+  };
+  return view.bucket_timing;
+}
+
+test.describe('Telegram message batches', () => {
+  test('saves the batch timing and the running process adopts it without a restart', async ({ page }) => {
+    await page.goto(await adminUrl('/telegram'));
+    const minimum = page.getByLabel('Minimum wait (seconds)');
+    const maximum = page.getByLabel('Maximum wait (seconds)');
+    const extension = page.getByLabel('Extension per message (seconds)');
+    const save = page.getByRole('button', { name: 'Save and apply' });
+
+    await expect(page.getByText('Message batches', { exact: true })).toBeVisible();
+    await expect(minimum).toHaveValue('15');
+    await expect(maximum).toHaveValue('');
+    await expect(maximum).toHaveAttribute('placeholder', 'Same as the minimum wait');
+    await expect(extension).toHaveValue('0');
+    await expect(save).toBeDisabled();
+
+    // A ceiling below the minimum is caught before the round trip.
+    await maximum.fill('10');
+    await expect(page.getByText('Must be at least the minimum wait')).toBeVisible();
+    await expect(save).toBeDisabled();
+    await maximum.fill('301');
+    await expect(page.getByText('Must be at most 300')).toBeVisible();
+
+    await maximum.fill('60');
+    await extension.fill('5');
+    await expect(page.getByText('2 unsaved changes')).toBeVisible();
+    await save.click();
+    await expect(appliedToast(page)).toBeVisible();
+    await expect(page.getByText('No unsaved changes')).toBeVisible();
+    await expect(maximum).toHaveValue('60');
+    const applied = { bucket_window_seconds: 15, bucket_max_seconds: 60, bucket_bump_seconds: 5 };
+    expect(await bucketTiming(page.request)).toEqual({ saved: applied, active: applied });
+
+    // Emptying the ceiling removes it, so it follows the minimum again.
+    await maximum.fill('');
+    await save.click();
+    await expect.poll(async () => (await bucketTiming(page.request)).active.bucket_max_seconds).toBeNull();
+    await expect(maximum).toHaveValue('');
+    await expect(extension).toHaveValue('5');
+  });
+
+  test('a refused save keeps the edits and says why; discarding restores the saved timing', async ({ page }) => {
+    await page.goto(await adminUrl('/telegram'));
+    const extension = page.getByLabel('Extension per message (seconds)');
+    // Tests of one file share a server, so start from whatever is saved now.
+    const saved = String((await bucketTiming(page.request)).saved.bucket_bump_seconds);
+    await expect(extension).toHaveValue(saved);
+    await page.route('**/api/telegram/bucket-timing', (route) =>
+      route.fulfill({
+        status: 422,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'config_invalid', message: 'The idle grace is shorter than the maximum wait' }),
+      }),
+    );
+    await extension.fill(saved === '7' ? '8' : '7');
+    await page.getByRole('button', { name: 'Save and apply' }).click();
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'The idle grace is shorter than the maximum wait' }),
+    ).toBeVisible();
+    await expect(extension).not.toHaveValue(saved);
+
+    await page.getByRole('button', { name: 'Discard changes' }).click();
+    await expect(extension).toHaveValue(saved);
+    await expect(page.getByText('The idle grace is shorter than the maximum wait')).toHaveCount(0);
+    await page.unroute('**/api/telegram/bucket-timing');
   });
 });
 
