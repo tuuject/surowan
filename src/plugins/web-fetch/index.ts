@@ -8,7 +8,7 @@ export default definePlugin({
   // Read-only network access is part of the Playground's fixed capability set.
   hosts: ['telegram', 'playground'],
   skills: [join(import.meta.dirname, 'skills', 'web-fetch')],
-  capabilities: ({ audit, config, deadline }) => [
+  capabilities: ({ audit, config, deadline, storeToolImage }) => [
     capability(
       createWebFetchTool({
         audit,
@@ -16,6 +16,7 @@ export default definePlugin({
         allowProxySyntheticAddresses: config.web_fetch?.allow_proxy_synthetic_addresses === true,
         allowAllAddresses: config.web_fetch?.dangerously_allow_all_ip_addresses === true,
         acceptMarkdown: config.web_fetch?.accept_markdown !== false,
+        ...(storeToolImage === undefined ? {} : { storeImage: storeToolImage }),
       }),
       false,
     ),

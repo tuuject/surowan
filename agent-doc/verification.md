@@ -46,7 +46,7 @@ pnpm test test/docs/spaces.test.ts test/manual-pack.test.ts
 pnpm test test/replay/replay.test.ts test/scene/context.test.ts test/scene/slice.test.ts test/scene/retention.test.ts test/replay/tools.test.ts test/replay/http.test.ts
 pnpm test test/skills.test.ts test/system-resources.test.ts test/plugins.test.ts
 pnpm test test/media/media.test.ts test/stickers.test.ts
-pnpm test test/mcp.test.ts test/web-fetch.test.ts test/web-search
+pnpm test test/mcp.test.ts test/web-fetch test/web-search
 pnpm test test/plugins.test.ts   # 插件依赖、扩展点与贡献冲突
 pnpm test test/operations.test.ts test/foundation/foundation.test.ts test/schema/schema.test.ts test/load-env.test.ts
 pnpm test packages/image-service/test test/image/service-store.test.ts test/image/models.test.ts test/image/admin.test.ts test/image/admin-server.test.ts
@@ -144,6 +144,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `media/media.test.ts` | 图片标准化、缓存和 Vision reasoning、换 vision 模型后按新 `analysis_version` 重新分析；下载客户端把 content-length 与流式超限统一类型化为 `MediaTooLargeError`，并在 `getFile` 挂起时立即中止而迟到响应不写文件 |
 | `media/member-profile.test.ts` | `read_member_profile` 的两端：Telegram 侧读本 Conversation 里出现过的成员（`standing`/`custom_title`、私聊 `bio`、最大尺寸头像转成工具图片并提供标记），未出现过的 uid 在任何 Bot API 调用前被拒绝；隐藏资料/`getChatMember` 无权限只降级字段不失败；头像无法规范化时报告 `unavailable (...)` 而不是整体失败；房间侧只给显示名、角色、加入时间与裸 `member_<n>` 形式，跨房间 id 与不存在的 id 都返回未找到 |
 | `agent/runtime-member-profile.test.ts` | 真实 Invocation 里原语进入模型注册表、头像在 provider 请求中成为 image block、canonical history 只留 `toolImages` 引用不留 base64；没有资料读取器的宿主仍保留该原语，调用时返回 `profile_unavailable` |
+| `agent/runtime-web-fetch-image.test.ts` | 真实 Invocation 里模型经 `execute` 读网页、按 Markdown 图片链接带 `referer` 取图：provider 请求里该结果是「封套 + 标签 + image block」，canonical history 的 execute `details.toolImages` 只留引用、封套文本不含标记，外层与内层 `tool_calls` 都写 `result_content_json`，资产归属本 Chat |
 | `schema/migrations-tool-images.test.ts` | `051` 把 050 写下的 `details.mcpImages` 与 `[MCP image …]` 就地改写成 `toolImages`/`[image …]`，升级后旧工具结果仍可解码、审计行同步改写 |
 | `schema/migrations-group-memory-lanes.test.ts` | `054` 把旧水位行迁成空闲 live lane（运行中的认领清掉、退避保留）、摘要原样保留且上限变为 200、backfill 必须有终点、外键完整 |
 | `media/original-file.test.ts` | `readOriginalFile`：下载字节原样交出（不归一化）、保留 document 文件名、拒绝 Sticker、下载临时目录不留残留 |
@@ -152,7 +153,9 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `admin/sticker-sets.test.ts` | Sticker sets 写端点：revision、昵称/名称/备注校验、链接解析、重复名称（大小写不敏感）与昵称、`name` 不可改、热应用与文件落盘、改名保留同一行；增删只中止 Telegram 运行（`sticker_sets_changed`），改名/改备注不中止，Playground 房间不受影响 |
 | `media/image.test.ts` | 视频 Sticker 只按 WebM 解码（其他容器冒充时拒绝）、真实 WebM 仍能取帧、解压超过 8 MiB 的 TGS 在转换前拒绝；预取消或下载后立即取消均不启动 ffprobe/ffmpeg/Lottie；本机没有 ffmpeg/ffprobe 时仅视频取帧组跳过，TGS 与取消回归仍运行 |
 | `mcp.test.ts` | stdio/HTTP transport、策略、Header、重定向和审计、发现 Tool 失败时关闭 stdio 子进程、连接中 `stop()` 后保持 stopped 且关闭子进程 |
-| `web-fetch.test.ts` | 有界不可信文本结果与审计、公网 IPv4 放行与 IPv4 映射字面量拒绝、私网/合成地址拒绝（含跳转目标）、fake-ip 网段默认拒绝且需 `allow_proxy_synthetic_addresses` 开启、6to4/Teredo 过渡地址拒绝、`dangerously_allow_all_ip_addresses` 从配置到插件生效并放行私网/环回/跳转目标但仍拒绝非默认端口、默认 `Accept` 优先 `text/markdown` 且站点 Markdown 原样返回、`raw` 与 `accept_markdown: false` 不声明 Markdown、HTML 默认转 Markdown（正文在 32 KiB 之后仍保留、去导航/脚本/图片）、`raw` 返回原始 HTML、Markdown 按 UTF-8 边界截断、转换不发任何网络请求 |
+| `web-fetch/address.test.ts` | 有界不可信文本结果与审计、公网 IPv4 放行与 IPv4 映射字面量拒绝、私网/合成地址拒绝（含跳转目标）、fake-ip 网段默认拒绝且需 `allow_proxy_synthetic_addresses` 开启、6to4/Teredo 过渡地址拒绝、`dangerously_allow_all_ip_addresses` 从配置到插件生效并放行私网/环回/跳转目标但仍拒绝非默认端口 |
+| `web-fetch/content.test.ts` | 默认 `Accept` 优先 `text/markdown` 且站点 Markdown 原样返回、`raw` 与 `accept_markdown: false` 不声明 Markdown、HTML 默认转 Markdown（正文在 32 KiB 之后仍保留、去导航/脚本，图片保留为绝对链接）、`raw` 返回原始 HTML、Markdown 按 UTF-8 边界截断、转换不发任何网络请求 |
+| `web-fetch/images.test.ts` | 能看图时 Markdown 带 `Images:` 提示且内联 `data:` 图片剔除；图片响应存成本 Chat 工具图片（标记 + `toolImages` + 审计 `result_content_json`，不含字节）、`referer` 去 fragment 后随每一跳发送、无存储时图片按二进制拒绝、GIF/伪装 HTML/超 20 MiB（声明或实际）/非法 referer 各自的失败码且不留资产、插件 scope 只把图片存进本 Invocation 的 Chat |
 | `operations.test.ts` | 审计行 Retention、聊天记录保留、备份轮换、Scheduler 关闭 |
 | `admin/admin.test.ts` | Admin 首次设置、登录、登录锁定（不受 `X-Forwarded-For` 与用户名轮换影响、并发失败计数、过期后重新计数）、请求体按字节流式限长、HTTPS 下 Cookie 带 `Secure`、Session、只读审计 API（含 Conversation Context 列表/详情与写入尝试被拒）、静态托管 |
 | `admin/passkeys.test.ts` | 显式 public origin 开关、真实 P-256/CBOR WebAuthn 注册/登录、Origin/RP/UV/用户句柄与挑战绑定、过期/复用/伪造拒绝、多 key 与密码守卫、异步撤权与计数器竞态、恢复清理、旧 RP 安全、迁移保留用户/Session/外键 |

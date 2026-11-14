@@ -1,6 +1,7 @@
 import type { AgentTool, AgentToolResult } from '@earendil-works/pi-agent-core';
 import Type from 'typebox';
 import Compile from 'typebox/compile';
+import { type ToolImageReference, toolImageMarker, toolImageReferences } from '../platform/tool-images.ts';
 import { safeJson, truncateUtf8 } from '../platform/truncate.ts';
 import type { ToolAudit } from '../store/tool-audit.ts';
 
@@ -59,6 +60,7 @@ export interface ExecuteToolDetails {
   readonly tool?: string;
   readonly matches?: number;
   readonly refs?: Readonly<Record<string, readonly string[]>>;
+  readonly toolImages?: { readonly version: 1; readonly items: readonly ToolImageReference[] };
 }
 
 export interface ExecutableCapability {
@@ -109,7 +111,7 @@ export function createExecuteTool(
     name: 'execute',
     label: 'Call a runtime capability',
     description:
-      'Controlled gateway to runtime-internal capabilities (web fetching, sticker search, image analysis, memory notes, alarms). Actions: search finds capabilities for a need, e.g. query "fetch a web page", and returns [{name, summary}]; help returns one capability\'s full description and parameters; call invokes one capability with a JSON object input. After deciding to reply, you MAY call typing with input:{} before slow work such as search; quick replies SHOULD go directly to send, and silence needs no typing. The runtime refreshes and clears typing automatically. You SHOULD prefer the system skill index and skill documents for how to use a capability; use search only when no skill covers the need, and check help when unsure about the input contract. call returns an envelope {text, refs}: text is bounded evidence or structured data, refs holds conversation-scoped reference tokens (such as sticker_ref) that only their named consumer tool accepts after validation. A ref stays valid in this conversation for a limited time, so one returned earlier in the retained history MAY be reused while it still resolves instead of repeating the call — you MUST NOT guess or fabricate them. The directly exposed tools (read, send, send_reply, execute, zzz) and MCP tools MUST NOT be called through execute. On failure, you MUST NOT invent results and MUST NOT blindly retry side effects.',
+      'Controlled gateway to runtime-internal capabilities (web fetching, sticker search, image analysis, memory notes, alarms). Actions: search finds capabilities for a need, e.g. query "fetch a web page", and returns [{name, summary}]; help returns one capability\'s full description and parameters; call invokes one capability with a JSON object input. After deciding to reply, you MAY call typing with input:{} before slow work such as search; quick replies SHOULD go directly to send, and silence needs no typing. The runtime refreshes and clears typing automatically. You SHOULD prefer the system skill index and skill documents for how to use a capability; use search only when no skill covers the need, and check help when unsure about the input contract. call returns an envelope {text, refs}: text is bounded evidence or structured data, refs holds conversation-scoped reference tokens (such as sticker_ref) that only their named consumer tool accepts after validation; a capability that returns a picture (such as web_fetch on an image URL) attaches it after the envelope. A ref stays valid in this conversation for a limited time, so one returned earlier in the retained history MAY be reused while it still resolves instead of repeating the call — you MUST NOT guess or fabricate them. The directly exposed tools (read, send, send_reply, execute, zzz) and MCP tools MUST NOT be called through execute. On failure, you MUST NOT invent results and MUST NOT blindly retry side effects.',
     parameters: ExecuteInputSchema,
     executionMode: 'sequential',
     execute: async (toolCallId, input, signal) => {
@@ -232,11 +234,14 @@ async function executeCall(
     // effect, and be audited as aborted.
     signal?.throwIfAborted();
     const result = await target.entry.tool.execute(`${toolCallId}:${toolName}`, callInput, signal);
-    // Text payload: bounded and truncated. Reference payload: non-text
-    // artifacts only ever leave as conversation-scoped tokens from details.refs.
+    // Text payload: bounded and truncated. Reference payload: conversation-scoped
+    // tokens from details.refs. Pictures: the runtime-minted tool images the
+    // capability attached, carried as markers after the envelope so the
+    // request-time projection attaches their pixels; bytes never enter history.
+    const images = capabilityImages(result.content, result.details);
+    const imagePositions = new Set(images.map((image) => image.contentIndex));
     const innerText = result.content
-      .filter((entry) => entry.type === 'text')
-      .map((entry) => entry.text)
+      .flatMap((entry, index) => (entry.type === 'text' && !imagePositions.has(index) ? [entry.text] : []))
       .join('\n');
     const refs = readCapabilityRefs(result.details);
     const envelope = JSON.stringify({
@@ -244,11 +249,20 @@ async function executeCall(
       ...(Object.keys(refs).length === 0 ? {} : { refs }),
     });
     const text = truncateUtf8(envelope, RESULT_MAX_BYTES);
-    audit.succeed(text);
-    return {
-      content: [{ type: 'text' as const, text }],
-      details: { action: 'call', tool: toolName, ...(Object.keys(refs).length === 0 ? {} : { refs }) },
+    const content = [
+      { type: 'text' as const, text },
+      ...images.map((image) => ({ type: 'text' as const, text: toolImageMarker(image.assetId) })),
+    ];
+    const details: ExecuteToolDetails = {
+      action: 'call',
+      tool: toolName,
+      ...(Object.keys(refs).length === 0 ? {} : { refs }),
+      ...(images.length === 0
+        ? {}
+        : { toolImages: { version: 1, items: images.map((image, index) => ({ ...image, contentIndex: index + 1 })) } }),
     };
+    audit.succeed(text, images.length === 0 ? undefined : { resultContentJson: JSON.stringify({ content, details }) });
+    return { content, details };
   } catch (error) {
     const code = signal?.aborted === true ? 'aborted' : 'capability_error';
     audit.fail(code);
@@ -294,6 +308,21 @@ function readCapabilityRefs(details: unknown): Record<string, readonly string[]>
     }
   }
   return result;
+}
+
+/** The capability's tool images, each checked against the marker it left in its content. */
+function capabilityImages(
+  content: AgentToolResult<unknown>['content'],
+  details: unknown,
+): readonly ToolImageReference[] {
+  const images = toolImageReferences(details);
+  for (const image of images) {
+    const block = content[image.contentIndex];
+    if (block?.type !== 'text' || block.text !== toolImageMarker(image.assetId)) {
+      throw new Error('Capability tool image does not match its content position');
+    }
+  }
+  return images;
 }
 
 function searchCapabilities(

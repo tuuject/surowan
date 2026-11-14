@@ -5,6 +5,7 @@ import type { ContextInjector } from '../context/injector.ts';
 import type { RawConfig } from '../platform/config/index.ts';
 import type { HostKind } from '../platform/im-host/identity.ts';
 import type { InvocationContext } from '../platform/invocation-context.ts';
+import type { ToolImageReference } from '../platform/tool-images.ts';
 import type { BusinessStore, Orm } from '../store/store.ts';
 import { LongTaskService, type PluginTaskScope } from '../store/long-tasks/index.ts';
 import { RECURRING_ALARM_PLUGIN_ID } from '../store/recurring-alarms/payload.ts';
@@ -133,6 +134,13 @@ export interface InvocationScope {
   readonly resolveMedia?: (ref: string) => bigint | undefined;
   /** Image-generation bridge; `undefined` = the host runs without one. */
   readonly image?: ImagePluginBridge;
+  /**
+   * Normalizes and stores one picture as a tool image of this invocation's
+   * Chat, the only Chat it can write to. Put the returned reference in the
+   * result's `details.toolImages` with its marker in the content. Absent when
+   * the process has no local asset store.
+   */
+  readonly storeToolImage?: (bytes: Uint8Array, signal: AbortSignal) => Promise<ToolImageReference>;
   /** Resolves SecretRefs for capabilities that need a credential at call time. */
   readonly secrets?: SecretStore;
   /**
@@ -213,6 +221,7 @@ export interface LoadedPlugins {
       readonly readConfig?: () => RawConfig;
       readonly secrets?: SecretStore;
       readonly steer?: (text: string) => void;
+      readonly storeToolImage?: (chatId: bigint, bytes: Uint8Array, signal: AbortSignal) => Promise<ToolImageReference>;
     },
   ): readonly ExecutableCapability[];
 }
@@ -303,6 +312,11 @@ export function loadPlugins(plugins: readonly AgentPlugin[], options: LoadPlugin
       const audit = createToolAudit(store, context.invocationId);
       const service = suppliedTasks ?? new LongTaskService(store.orm);
       const readConfig = live?.readConfig ?? (() => config);
+      const storeImage = live?.storeToolImage;
+      const storeToolImage =
+        storeImage === undefined
+          ? undefined
+          : (bytes: Uint8Array, signal: AbortSignal) => storeImage(context.internalChatId, bytes, signal);
       return plugins.flatMap((plugin) => {
         const hosts = pluginHosts(plugin);
         if (!hosts.includes(context.hostKind)) {
@@ -322,6 +336,7 @@ export function loadPlugins(plugins: readonly AgentPlugin[], options: LoadPlugin
           extensions: readExtensions,
           ...(resolveMedia === undefined ? {} : { resolveMedia }),
           ...(options.image === undefined ? {} : { image: options.image }),
+          ...(storeToolImage === undefined ? {} : { storeToolImage }),
           ...(live?.secrets === undefined ? {} : { secrets: live.secrets }),
           ...(live?.steer === undefined ? {} : { steer: live.steer }),
         };

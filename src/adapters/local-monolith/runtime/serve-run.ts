@@ -4,7 +4,6 @@
  */
 
 import type { Context } from 'grammy';
-import { ingestToolImage } from '../../../capabilities/media/tool-image-store.ts';
 import { reconcileStickerSets } from '../../../capabilities/stickers/sets.ts';
 import { ConversationContextStore } from '../../../context/store/index.ts';
 import type { ImageService } from '../../../image/service.ts';
@@ -133,7 +132,7 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
     isHostReady,
     modelSwitcher,
     mcpManager,
-    playgroundAssets,
+    toolImageStore,
     warnings,
   } = assembly;
   const {
@@ -157,9 +156,7 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
     systemResources,
     contextInjectors: plugins.contextInjectors,
     directImageLoader: (context, signal) => media.loadDirectImages(context.directImages, signal),
-    // One storage path for every tool-obtained picture: MCP results and member
-    // avatars both land as Chat-owned local assets.
-    toolImageStore: (chatId, bytes, signal) => ingestToolImage(playgroundAssets, chatId, bytes, signal),
+    toolImageStore,
     mediaFiles: { read: (mediaId, signal) => media.readOriginalFile(mediaId, signal) },
     capabilityTools,
     additionalTools,
