@@ -1,5 +1,6 @@
 import type { CompleteCatalog } from '../catalog.ts';
 import type { invocations as invocationsEn } from '../en/invocations.ts';
+import { review } from './invocations/review.ts';
 
 /** Mirrors `en/invocations.ts` key for key; plural keys add the CLDR Arabic categories. */
 export const invocations: CompleteCatalog<typeof invocationsEn> = {
@@ -413,4 +414,5 @@ export const invocations: CompleteCatalog<typeof invocationsEn> = {
       adminRequestFailed: 'فشل طلب الإدارة',
     },
   },
+  review,
 };

@@ -34,10 +34,12 @@ export function TimelineCard({
   header,
   extra,
   children,
+  footer,
 }: {
   readonly header: React.ReactNode;
   readonly extra?: React.ReactNode;
   readonly children?: React.ReactNode;
+  readonly footer?: React.ReactNode;
 }): ReactElement {
   return (
     <article
@@ -64,6 +66,7 @@ export function TimelineCard({
       {children !== undefined ? (
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>{children}</div>
       ) : null}
+      {footer !== undefined ? <div className={css({ paddingBlockStart: '1' })}>{footer}</div> : null}
     </article>
   );
 }
@@ -132,15 +135,18 @@ export function ToolCallCard({
   chat,
   tool,
   send,
+  footer,
 }: {
   readonly chat: InvocationChatSummary;
   readonly tool: ToolCallEntry;
   readonly send: TelegramSendEntry | null;
+  readonly footer?: React.ReactNode;
 }): ReactElement {
   const { t } = useTranslation();
   const parsed = parseSendArguments(tool.arguments_json);
   return (
     <TimelineCard
+      footer={footer}
       header={
         <>
           <ToneBadge tone={tool.tool_name === 'send' ? 'success' : 'neutral'}>{tool.tool_name}</ToneBadge>
@@ -194,9 +200,11 @@ export function ToolCallCard({
 export function ContextMessageCard({
   chat,
   message,
+  footer,
 }: {
   readonly chat: InvocationChatSummary;
   readonly message: ContextMessageEntry;
+  readonly footer?: React.ReactNode;
 }): ReactElement {
   const { t } = useTranslation();
   const room = isRoom(chat);
@@ -215,6 +223,7 @@ export function ContextMessageCard({
   const sentByBot = snapshot?.sent_by_bot === true;
   return (
     <TimelineCard
+      footer={footer}
       header={
         <>
           <SectionBadge section={message.section} />
@@ -280,7 +289,13 @@ export function ContextMessageCard({
   );
 }
 
-export function AgentMessageCard({ message }: { readonly message: AgentMessageEntry }): ReactElement {
+export function AgentMessageCard({
+  message,
+  footer,
+}: {
+  readonly message: AgentMessageEntry;
+  readonly footer?: React.ReactNode;
+}): ReactElement {
   const { t } = useTranslation();
   const AGENT_ROLE_LABELS: Record<string, { readonly label: string; readonly note: string | null }> = {
     assistant: {
@@ -296,6 +311,7 @@ export function AgentMessageCard({ message }: { readonly message: AgentMessageEn
   const meta = AGENT_ROLE_LABELS[message.role] ?? { label: message.role, note: null };
   return (
     <TimelineCard
+      footer={footer}
       header={
         <>
           <RoleBadge role={message.role} />
@@ -342,11 +358,18 @@ export function AgentMessageCard({ message }: { readonly message: AgentMessageEn
   );
 }
 
-export function ModelCallCard({ model }: { readonly model: ModelCallEntry }): ReactElement {
+export function ModelCallCard({
+  model,
+  footer,
+}: {
+  readonly model: ModelCallEntry;
+  readonly footer?: React.ReactNode;
+}): ReactElement {
   const { t } = useTranslation();
   const hasDetails = model.error_detail !== null || model.request_json !== null || model.response_json !== null;
   return (
     <TimelineCard
+      footer={footer}
       header={
         <>
           <ToneBadge tone="info">{t('invocations.invocationDetail.modelCall.badge')}</ToneBadge>

@@ -1,4 +1,5 @@
 import type { invocations as invocationsEn } from '../en/invocations.ts';
+import { review } from './invocations/review.ts';
 
 export const invocations: typeof invocationsEn = {
   toolImage: {
@@ -341,4 +342,5 @@ export const invocations: typeof invocationsEn = {
       adminRequestFailed: '管理端请求失败',
     },
   },
+  review,
 };

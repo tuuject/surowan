@@ -9,16 +9,19 @@ import {
   TimelineCard,
   ToolCallCard,
 } from '@/components/invocations/timeline-cards';
-import type { InvocationChatSummary, InvocationDetail } from '@/lib/api/invocations.ts';
+import { EventReviewAffordance } from '@/components/review/comment-note.tsx';
+import type { InvocationDetail } from '@/lib/api/invocations.ts';
 import { buildInvocationTimeline, type InvocationTimelineEvent, timelineEventKey } from '@/lib/timeline';
 import { TimeText } from '@/components/business/time-text';
 
 export function TimelineItem({
-  chat,
+  invocation,
   event,
+  position,
 }: {
-  readonly chat: InvocationChatSummary;
+  readonly invocation: InvocationDetail;
   readonly event: InvocationTimelineEvent;
+  readonly position: number;
 }): ReactElement {
   const { t } = useTranslation();
   switch (event.kind) {
@@ -62,13 +65,36 @@ export function TimelineItem({
         />
       );
     case 'context_message':
-      return <ContextMessageCard chat={chat} message={event.message} />;
+      return (
+        <ContextMessageCard
+          chat={invocation.chat}
+          message={event.message}
+          footer={<EventReviewAffordance invocation={invocation} event={event} position={position} />}
+        />
+      );
     case 'model_call':
-      return <ModelCallCard model={event.model} />;
+      return (
+        <ModelCallCard
+          model={event.model}
+          footer={<EventReviewAffordance invocation={invocation} event={event} position={position} />}
+        />
+      );
     case 'tool_call':
-      return <ToolCallCard chat={chat} tool={event.tool} send={event.linkedSend} />;
+      return (
+        <ToolCallCard
+          chat={invocation.chat}
+          tool={event.tool}
+          send={event.linkedSend}
+          footer={<EventReviewAffordance invocation={invocation} event={event} position={position} />}
+        />
+      );
     case 'agent_message':
-      return <AgentMessageCard message={event.message} />;
+      return (
+        <AgentMessageCard
+          message={event.message}
+          footer={<EventReviewAffordance invocation={invocation} event={event} position={position} />}
+        />
+      );
   }
 }
 
@@ -88,7 +114,7 @@ export function OverviewTab({ invocation }: { readonly invocation: InvocationDet
         paddingInlineStart: '6',
       })}
     >
-      {events.map((event) => (
+      {events.map((event, index) => (
         <li key={timelineEventKey(event)} className={css({ position: 'relative' })}>
           <span
             className={cx(
@@ -103,7 +129,7 @@ export function OverviewTab({ invocation }: { readonly invocation: InvocationDet
               event.kind === 'finished' ? css({ bg: 'error-solid' }) : css({ bg: 'action' }),
             )}
           />
-          <TimelineItem chat={invocation.chat} event={event} />
+          <TimelineItem invocation={invocation} event={event} position={index} />
         </li>
       ))}
     </ol>

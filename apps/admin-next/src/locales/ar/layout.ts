@@ -68,6 +68,7 @@ export const layout: CompleteCatalog<typeof layoutEn> = {
     overview: 'نظرة عامة',
     warnings: 'التحذيرات',
     toolSessions: 'جلسات الأدوات',
+    reviews: 'المراجعات',
     contexts: 'السياقات',
     messages: 'الرسائل',
     botStickerSets: 'مجموعات ملصقات البوت',

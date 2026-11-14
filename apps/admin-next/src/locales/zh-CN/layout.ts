@@ -65,6 +65,7 @@ export const layout: typeof layoutEn = {
     overview: '概览',
     warnings: '警告',
     toolSessions: '运行记录',
+    reviews: '批改',
     contexts: '上下文',
     messages: '消息',
     botStickerSets: '贴纸集',

@@ -4,6 +4,8 @@
  * mirror this structure key for key (enforced by the `typeof` annotation in
  * `zh-CN/invocations.ts`).
  */
+import { review } from './invocations/review.ts';
+
 export const invocations = {
   toolImage: {
     label: 'Tool image {{index}}',
@@ -345,4 +347,5 @@ export const invocations = {
       adminRequestFailed: 'Admin request failed',
     },
   },
+  review,
 };

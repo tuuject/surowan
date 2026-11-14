@@ -31,6 +31,7 @@ import { Route as PreferencesRouteImport } from './routes/preferences'
 import { Route as PromptsRouteImport } from './routes/prompts'
 import { Route as ProvidersRouteImport } from './routes/providers'
 import { Route as RecurringAlarmsRouteImport } from './routes/recurring-alarms'
+import { Route as ReviewsRouteImport } from './routes/reviews'
 import { Route as SearchSettingsRouteImport } from './routes/search-settings'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StickersRouteImport } from './routes/stickers'
@@ -151,6 +152,11 @@ const RecurringAlarmsRoute = RecurringAlarmsRouteImport.update({
   path: '/recurring-alarms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReviewsRoute = ReviewsRouteImport.update({
+  id: '/reviews',
+  path: '/reviews',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SearchSettingsRoute = SearchSettingsRouteImport.update({
   id: '/search-settings',
   path: '/search-settings',
@@ -221,6 +227,7 @@ export interface FileRoutesByFullPath {
   '/prompts': typeof PromptsRoute
   '/providers': typeof ProvidersRoute
   '/recurring-alarms': typeof RecurringAlarmsRoute
+  '/reviews': typeof ReviewsRoute
   '/search-settings': typeof SearchSettingsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
@@ -254,6 +261,7 @@ export interface FileRoutesByTo {
   '/prompts': typeof PromptsRoute
   '/providers': typeof ProvidersRoute
   '/recurring-alarms': typeof RecurringAlarmsRoute
+  '/reviews': typeof ReviewsRoute
   '/search-settings': typeof SearchSettingsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
@@ -288,6 +296,7 @@ export interface FileRoutesById {
   '/prompts': typeof PromptsRoute
   '/providers': typeof ProvidersRoute
   '/recurring-alarms': typeof RecurringAlarmsRoute
+  '/reviews': typeof ReviewsRoute
   '/search-settings': typeof SearchSettingsRoute
   '/settings': typeof SettingsRoute
   '/stickers': typeof StickersRoute
@@ -323,6 +332,7 @@ export interface FileRouteTypes {
     | '/prompts'
     | '/providers'
     | '/recurring-alarms'
+    | '/reviews'
     | '/search-settings'
     | '/settings'
     | '/stickers'
@@ -356,6 +366,7 @@ export interface FileRouteTypes {
     | '/prompts'
     | '/providers'
     | '/recurring-alarms'
+    | '/reviews'
     | '/search-settings'
     | '/settings'
     | '/stickers'
@@ -389,6 +400,7 @@ export interface FileRouteTypes {
     | '/prompts'
     | '/providers'
     | '/recurring-alarms'
+    | '/reviews'
     | '/search-settings'
     | '/settings'
     | '/stickers'
@@ -423,6 +435,7 @@ export interface RootRouteChildren {
   PromptsRoute: typeof PromptsRoute
   ProvidersRoute: typeof ProvidersRoute
   RecurringAlarmsRoute: typeof RecurringAlarmsRoute
+  ReviewsRoute: typeof ReviewsRoute
   SearchSettingsRoute: typeof SearchSettingsRoute
   SettingsRoute: typeof SettingsRoute
   StickersRoute: typeof StickersRoute
@@ -590,6 +603,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RecurringAlarmsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reviews': {
+      id: '/reviews'
+      path: '/reviews'
+      fullPath: '/reviews'
+      preLoaderRoute: typeof ReviewsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/search-settings': {
       id: '/search-settings'
       path: '/search-settings'
@@ -679,6 +699,7 @@ const rootRouteChildren: RootRouteChildren = {
   PromptsRoute: PromptsRoute,
   ProvidersRoute: ProvidersRoute,
   RecurringAlarmsRoute: RecurringAlarmsRoute,
+  ReviewsRoute: ReviewsRoute,
   SearchSettingsRoute: SearchSettingsRoute,
   SettingsRoute: SettingsRoute,
   StickersRoute: StickersRoute,

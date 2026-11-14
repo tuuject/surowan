@@ -1,5 +1,6 @@
 import type { Catalog } from '../catalog.ts';
 import type { invocations as invocationsEn } from '../en/invocations.ts';
+import { review } from './invocations/review.ts';
 
 /** Mirrors `en/invocations.ts` key for key; the annotation fails the build on drift. */
 export const invocations: Catalog<typeof invocationsEn> = {
@@ -343,4 +344,5 @@ export const invocations: Catalog<typeof invocationsEn> = {
       adminRequestFailed: 'Admin-Anfrage fehlgeschlagen',
     },
   },
+  review,
 };

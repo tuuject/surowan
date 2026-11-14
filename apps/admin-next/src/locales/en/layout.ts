@@ -70,6 +70,7 @@ export const layout = {
     overview: 'Overview',
     warnings: 'Warnings',
     toolSessions: 'Tool sessions',
+    reviews: 'Reviews',
     contexts: 'Contexts',
     messages: 'Messages',
     botStickerSets: 'Bot sticker sets',

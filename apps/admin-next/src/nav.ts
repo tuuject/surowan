@@ -15,6 +15,7 @@ export type NavTo =
   | '/'
   | '/warnings'
   | '/invocations'
+  | '/reviews'
   | '/contexts'
   | '/messages'
   | '/playground'
@@ -76,6 +77,7 @@ export const NAV_GROUPS: readonly NavGroupDefinition[] = [
     icon: ActivityIcon,
     items: [
       { titleKey: 'toolSessions', to: '/invocations' },
+      { titleKey: 'reviews', to: '/reviews' },
       { titleKey: 'contexts', to: '/contexts' },
       { titleKey: 'messages', to: '/messages' },
       { titleKey: 'playground', to: '/playground' },
