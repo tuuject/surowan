@@ -92,7 +92,7 @@ Admin 的 Invocation 重放是新的内存 Agent 循环，不是生产 Conversat
 | 宿主入口（`src/` 根文件与 `tui/`） | CLI、诊断、启动追赶、配置向导 |
 | `ingress/` | 外部输入边界：Telegram Update 入库、Admin Panel HTTP、认证与审计查询 |
 | `orchestration/` | Bucket → Invocation 状态转换、调度与并发、Agent 运行循环、Bot 命令 |
-| `plugins/` | 内置 Agent 插件：`definePlugin` 定义、`loadPlugins` 校验与装配、`builtin.ts` 清单；包含 `web-search`（核心）与七个服务商插件、`web-fetch`、`image`、`alarm` 与 `dictionary`。插件只获得 invocation scope、审计、宿主 `orm`、绑定任务服务和按需读取的 `secrets`，不直接持有 Store 或 Runtime；还可声明 `contextInjectors` 为每批注入渲染 `<untrusted_…>` 块（首个使用者是辞典）。插件可声明 `dependencies`（必须先于依赖方加载）、`extensionPoints`（对其他插件发布的带类型契约）与 `extensions`（向直接依赖的扩展点贡献值）；`available(config)` 决定它与它的 Skills 是否出现，`scope.readConfig()` 读取热更新后的当前配置，`scope.steer()` 在不重建 Invocation 的前提下提醒运行中的模型 |
+| `plugins/` | 内置 Agent 插件：`definePlugin` 定义、`loadPlugins` 校验与装配、`builtin.ts` 清单；包含 `web-search`（核心）与七个服务商插件、`web-fetch`、`image`、`alarm` 与 `dictionary`。插件只获得 invocation scope、审计、宿主 `orm`、绑定任务服务、按需读取的 `secrets` 和绑定本 Chat 的工具图片存储，不直接持有 Store 或 Runtime；还可声明 `contextInjectors` 为每批注入渲染 `<untrusted_…>` 块（首个使用者是辞典）。插件可声明 `dependencies`（必须先于依赖方加载）、`extensionPoints`（对其他插件发布的带类型契约）与 `extensions`（向直接依赖的扩展点贡献值）；`available(config)` 决定它与它的 Skills 是否出现，`scope.readConfig()` 读取热更新后的当前配置，`scope.steer()` 在不重建 Invocation 的前提下提醒运行中的模型 |
 | `capabilities/` | 模型可调用的 Tool 与外部能力（原语、媒体、Sticker、MCP） |
 | `context/` | Conversation Context：canonical history 存储、GC、引用、编解码、模型输入组装、记忆与完成回执注入 |
 | `store/` | `BusinessStore` 契约（ORM + IMMEDIATE transaction）、schema 与迁移 SQL、通用 `long-tasks` 服务及跨层共享的持久化状态；连接生命周期在 adapter |
@@ -157,10 +157,10 @@ Conversation Context 是运行时自己写下的历史，但它由模型输出�
 - Reply Message ID、媒体引用（`img_`）、Sticker 引用（`stk_`）必须来自**当前 Conversation Context** 的 capability 且未过期：引用按 context 隔离，永不跨 Conversation 解析，被 GC 淘汰的消息携带的引用立即失效。
 - 普通 Assistant 文本不会发往 Telegram；模型驱动的 Telegram 输出只能经过 `send`（`send_reply` 把一次回复的每一条都交给同一条 `send` 管线依次发出）。确定性的 Bot 命令回复直接调用 Bot API，不经过模型，见 [Bot Commands](telegram-agent-flow.md#bot-commands)。
 - `read` 只能读取 `system:///` 树内的 Markdown 文档：URI 段校验拒绝 `..`、反斜杠、百分号转义与非 Markdown 资源；Skill 内容是 runtime 文档，不是授权来源。
-- `execute` 只 dispatch 组合根注册的内部能力；`read`/`send`/`send_reply`/`execute`/`zzz` 原语与 MCP Tool 不在注册表内，无法被间接调用。`execute.call` 返回 `{text, refs}` 封套：文本截断到 32 KiB，引用只能是以 Context 级 token 形式返回的 capability 引用（如 `sticker_ref`），由 `send` 在边界处校验后消费。
+- `execute` 只 dispatch 组合根注册的内部能力；`read`/`send`/`send_reply`/`execute`/`zzz` 原语与 MCP Tool 不在注册表内，无法被间接调用。`execute.call` 返回 `{text, refs}` 封套：文本截断到 32 KiB，引用只能是以 Context 级 token 形式返回的 capability 引用（如 `sticker_ref`），由 `send` 在边界处校验后消费；能力在 `details.toolImages` 里带的工具图片以 `[image <asset_id>]` 标记跟在封套之后，像素只在请求前按当前 Chat 与 retained 历史授权加载。
 - MCP Tool 必须通过配置 allowlist、策略、超时和大小限制。
 - 外部 Agent 反向操作塑料碗只能经 AdminServer 的 `/mcp`：Bearer API key 的 `read_all`/`write_all`/`execute_paid_operations` 决定每个工具能否执行；MCP Tool 只是 Admin API 的类型化封装，账号与凭据管理不在工具面内。`/mcp` 同时支持现代（`2026-07-28`，per-request `_meta`）与 legacy initialize 会话，并通过 `io.modelcontextprotocol/skills` 扩展发布 `surowan-mcp` Skill。
-- `web_fetch` 只允许默认端口的公网 HTTP(S) GET；每次 DNS 与跳转目标都重新校验，连接固定到已校验地址，且不发送 Cookie 或认证信息。
+- `web_fetch` 只允许默认端口的公网 HTTP(S) GET；每次 DNS 与跳转目标都重新校验，连接固定到已校验地址，且不发送 Cookie 或认证信息（模型可选的 `referer` 只是一个 Header）。图片响应经共享的工具图片通道嗅探、规范化并存为本 Chat 资产，不进入 canonical history。
 - 模型不能取得 Bash、任意进程、任意文件或原始 Telegram file ID 能力；模型也永远不能创建、修改或删除 Skill。
 
 ## 外部依赖

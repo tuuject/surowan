@@ -12,7 +12,11 @@ export interface ToolAudit {
 }
 
 export interface ToolAuditRecord {
-  succeed(resultText: string): void;
+  /**
+   * `resultContentJson` is the `{ content, details }` result of a call that
+   * carries tool images, so the panel can show them and asset retention keeps them.
+   */
+  succeed(resultText: string, options?: { readonly resultContentJson?: string }): void;
   fail(errorCode: string): void;
 }
 
@@ -22,8 +26,12 @@ export function createToolAudit(store: BusinessStore, invocationId: bigint): Too
       const startedAt = performance.now();
       const auditId = startToolCall(store.orm, invocationId, toolCallId, toolName, argumentsJson, sideEffect);
       return {
-        succeed: (resultText) =>
-          finishToolCall(store.orm, auditId, 'success', resultText, null, { startedAt, pendingOnly: true }),
+        succeed: (resultText, options) =>
+          finishToolCall(store.orm, auditId, 'success', resultText, null, {
+            startedAt,
+            pendingOnly: true,
+            ...(options?.resultContentJson === undefined ? {} : { resultContentJson: options.resultContentJson }),
+          }),
         fail: (errorCode) =>
           finishToolCall(store.orm, auditId, 'error', null, errorCode, { startedAt, pendingOnly: true }),
       };

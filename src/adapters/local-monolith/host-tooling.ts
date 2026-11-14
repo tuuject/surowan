@@ -36,6 +36,7 @@ import type {
   AgentRuntimeOptions,
   CapabilityToolFactory,
   ToolFactory,
+  ToolImageStore,
 } from '../../orchestration/agent-runtime/types.ts';
 
 export interface HostToolingOptions {
@@ -60,6 +61,8 @@ export interface HostToolingOptions {
   readonly imageBridge?: ImageBridge;
   /** Resolves capability credentials (web search) at call time. */
   readonly secrets?: SecretStore;
+  /** Stores pictures a plugin capability obtained (web_fetch images); absent without a local asset store. */
+  readonly toolImageStore?: ToolImageStore;
 }
 
 export interface HostTooling {
@@ -85,6 +88,7 @@ export function createHostTooling(options: HostToolingOptions): HostTooling {
     docSpaces,
     imageBridge,
     secrets,
+    toolImageStore,
   } = options;
   const skillVisible = (skill: SystemSkill, target: SkillVisibilityTarget): boolean => {
     if (hostExecutionProfile(target.hostKind).hiddenSkills.includes(skill.name)) {
@@ -141,6 +145,7 @@ export function createHostTooling(options: HostToolingOptions): HostTooling {
           readConfig: () => configStore.current().config,
           ...(secrets === undefined ? {} : { secrets }),
           ...(live?.steer === undefined ? {} : { steer: live.steer }),
+          ...(toolImageStore === undefined ? {} : { storeToolImage: toolImageStore }),
         },
       ),
     );

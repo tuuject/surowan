@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { McpManager } from '../../../capabilities/mcp/index.ts';
 import { PlaygroundAssetStore } from '../../../capabilities/media/local-assets.ts';
 import { MediaService } from '../../../capabilities/media/index.ts';
+import { ingestToolImage } from '../../../capabilities/media/tool-image-store.ts';
 import type { MediaDownloader } from '../../../capabilities/media/download.ts';
 import { StickerService } from '../../../capabilities/stickers/index.ts';
 import { MemoBlobStore } from '../../../context/memo-pad/blobs.ts';
@@ -18,6 +19,7 @@ import { generationEligibilityForHosts } from '../../../image/host-eligibility.t
 import { createImageService, type ImageService } from '../../../image/service.ts';
 import { PlaygroundIngress } from '../../../ingress/playground.ts';
 import { TelegramIngestion } from '../../../ingress/telegram-ingestion/index.ts';
+import type { ToolImageStore } from '../../../orchestration/agent-runtime/types.ts';
 import type { HostReadiness } from '../../../orchestration/host-scope.ts';
 import { KeyedSemaphore } from '../../../platform/concurrency.ts';
 import { ImConnectionRegistry } from '../../../platform/im-connection.ts';
@@ -71,6 +73,11 @@ export interface ServeServices {
   readonly isHostReady: HostReadiness;
   readonly modelGate: KeyedSemaphore;
   readonly playgroundAssets: PlaygroundAssetStore;
+  /**
+   * One storage path for every tool-obtained picture: MCP results, member
+   * avatars and web_fetch images all land as Chat-owned local assets.
+   */
+  readonly toolImageStore: ToolImageStore;
   readonly media: MediaService;
   readonly mediaClient: MediaDownloader;
   readonly mcpManager: McpManager;
@@ -190,6 +197,8 @@ export async function startServeServices(session: ServeContext, environment: Ser
     orm: openedStore.orm,
     root: join(configStore.current().config.data_dir, 'images', 'playground'),
   });
+  const toolImageStore: ToolImageStore = (chatId, bytes, signal) =>
+    ingestToolImage(playgroundAssets, chatId, bytes, signal);
   const media = new MediaService({
     store,
     configStore,
@@ -294,6 +303,7 @@ export async function startServeServices(session: ServeContext, environment: Ser
     mcp: mcpManager,
     tasks,
     docSpaces,
+    toolImageStore,
     ...(bridge === undefined ? {} : { imageBridge: bridge }),
   });
   const skillVisibleForHost = tooling.skillVisible;
@@ -315,6 +325,7 @@ export async function startServeServices(session: ServeContext, environment: Ser
     isHostReady,
     modelGate,
     playgroundAssets,
+    toolImageStore,
     media,
     mediaClient,
     mcpManager,

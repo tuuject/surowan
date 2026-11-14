@@ -25,7 +25,7 @@ Skill 是说明书，不是权限文件：不能绕过 Tool Schema、Conversatio
 
 Plugin 是运行时随发行版装配的 Agent 扩展。模型通过 `execute` 的 search/help/call 发现和调用它们。
 
-- `web_fetch` 执行无 Cookie、无认证 Header 的 HTTP(S) GET，并限制目标地址、重定向、响应类型、大小和超时；请求会优先声明接受 Markdown，支持内容协商的站点直接返回自己的 Markdown（可用 `web_fetch.accept_markdown: false` 关闭）；其他 HTML 页面默认抽取正文并转成 Markdown，Agent 需要原始 HTML 时才会显式请求。它只做简单网页读取，需要 JS 渲染、登录或复杂解析时请接入 MCP。网页返回内容仍是不可信数据。
+- `web_fetch` 执行无 Cookie、无认证 Header 的 HTTP(S) GET，并限制目标地址、重定向、响应类型、大小和超时；请求会优先声明接受 Markdown，支持内容协商的站点直接返回自己的 Markdown（可用 `web_fetch.accept_markdown: false` 关闭）；其他 HTML 页面默认抽取正文并转成 Markdown，Agent 需要原始 HTML 时才会显式请求。正文里的图片保留为带完整地址的 Markdown 图片链接，Agent 觉得画面内容确实重要时，可以再用 `web_fetch` 打开那张图片的链接：JPEG、PNG、WebP 会作为图片交给模型查看（单张最大 20 MiB，GIF、AVIF 等格式不支持），遇到防盗链时可以带上 `referer`（通常填所在网页的地址）。只有支持图片输入的模型才看得到画面，否则只会收到一段说明。它只做简单网页读取，需要 JS 渲染、登录或复杂解析时请接入 MCP。网页返回内容仍是不可信数据。
 - `web_search` 提供内置网络搜索：在面板或 `web_search` 配置节里选择服务商、填地址与密钥，并给每个引擎写一条模型可见的备注。它只返回标题、URL 与摘要，正文仍由 `web_fetch` 读取；未启用时能力与 Skill 都不出现。配置方式、URL 正则过滤与热更新行为见 [网络搜索](./web-search.md)。
 - Alarm 提供“稍后提醒”的 `alarm`、`list_alarm`、`delete_alarm` 能力。它创建持久任务，到期后生成完成回执：若同一会话已有可接收注入的运行，回执会在当前工具链结束后独立注入；否则等待可启动时开启新的运行。Agent 决定是否通过 `send` 跟进，而不是预先保存并自动发送一段话。它不是通用后台 worker，也不会执行任意外部任务。
 
