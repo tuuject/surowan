@@ -23,8 +23,15 @@ import { AdminAuth, AdminAuthError } from './auth.ts';
 import { AdminPasskeys } from './passkeys.ts';
 import type { PlaygroundAdminDeps } from './playground/index.ts';
 import type { SearchProviderRule } from '../../platform/web-search.ts';
-import { findSurfaceSpec, specAccess } from '@surowan/admin-surface';
-import { accessAllowed, authenticateApiKey, invalidApiKeys } from './api-keys.ts';
+import { authenticateApiKey, invalidApiKeys } from './api-keys.ts';
+import {
+  type ProgrammaticCredential,
+  credentialLabel,
+  gateProgrammaticCredential,
+  isSignatureAuthorization,
+} from './credential-gate.ts';
+import { authenticateClientRequest } from './clients/signature.ts';
+import { claimPairing } from './clients/pairing.ts';
 import { McpEndpoint } from './mcp/index.ts';
 
 export type AdminConfig = NonNullable<RawConfig['admin']>;
@@ -264,11 +271,36 @@ export class AdminServer {
       }
     }
     const routes = this.#routes;
-    // Authorization never falls back to a panel cookie. A key authenticates,
-    // then the route's declared access decides whether it may proceed; the
-    // same route groups serve both credentials.
+    // The pairing claim is the one unauthenticated Admin API write: obtaining
+    // the credential is the point, so it runs before both gates.
+    if (request.method === 'POST' && segments.length === 2 && segments[0] === 'pairing' && segments[1] === 'claim') {
+      return await claimPairing(this.#options.store.orm, request);
+    }
+    // Authorization never falls back to a panel cookie. A key or a signed
+    // client authenticates, then the route's declared access decides whether
+    // it may proceed; the same route groups serve both credentials.
     const authorization = request.headers.get('authorization');
     if (authorization !== null) {
+      if (isSignatureAuthorization(authorization)) {
+        const verified = await authenticateClientRequest(
+          this.#options.store.orm,
+          request,
+          `${url.pathname}${url.search}`,
+        );
+        if (verified.kind === 'response') {
+          return verified.response;
+        }
+        const client = verified.client;
+        return await this.#authorizedRequest(verified.request, url, segments, {
+          kind: 'client',
+          id: client.id,
+          name: client.name,
+          mode: client.mode,
+          permissions: client.permissions,
+          fingerprint: client.fingerprint,
+          secret: null,
+        });
+      }
       return await this.#apiKeyRequest(request, url, segments, authorization);
     }
     const authenticated = await routes.auth.handle(request, url, segments, clientAddress);
@@ -323,9 +355,9 @@ export class AdminServer {
   }
 
   /**
-   * Bearer key authentication and the permission gate. Account, credential and
-   * API-key management are outside every key's reach. Unknown paths answer 403
-   * rather than 404 so a key cannot enumerate the panel.
+   * Bearer key authentication, then the shared gate. Account, credential and
+   * API-key management are outside every programmatic credential's reach.
+   * Unknown paths answer 403 rather than 404 so a key cannot enumerate the panel.
    */
   async #apiKeyRequest(
     request: Request,
@@ -342,31 +374,35 @@ export class AdminServer {
     if (key === null) {
       return json({ error: 'unauthenticated', message: 'A valid API key is required' }, 401);
     }
-    this.#secrets?.remember(token);
-    if (segments.length === 1 && segments[0] === 'key' && request.method === 'GET') {
-      return json({
-        id: key.id.toString(),
-        name: key.name,
-        mode: key.mode,
-        permissions: key.permissions,
-      });
+    return await this.#authorizedRequest(request, url, segments, {
+      kind: 'api_key',
+      id: key.id,
+      name: key.name,
+      mode: key.mode,
+      permissions: key.permissions,
+      fingerprint: null,
+      secret: token,
+    });
+  }
+
+  /**
+   * The `AdminServer` half of the shared gate: secret registration needs this
+   * instance, and the replay route plus the authenticated dispatch are here.
+   * Everything else — identity document, exclusions, permission messages — is
+   * decided by `gateProgrammaticCredential`.
+   */
+  async #authorizedRequest(
+    request: Request,
+    url: URL,
+    segments: readonly string[],
+    credential: ProgrammaticCredential,
+  ): Promise<Response> {
+    if (credential.secret !== null) {
+      this.#secrets?.remember(credential.secret);
     }
-    if (segments[0] === 'auth' || segments[0] === 'api-keys') {
-      return json({ error: 'forbidden', message: 'API keys cannot manage accounts, credentials or API keys' }, 403);
-    }
-    const found = findSurfaceSpec(request.method, segments);
-    if (found === undefined) {
-      return json({ error: 'forbidden', message: 'API keys cannot access this route' }, 403);
-    }
-    const access = specAccess(found.spec);
-    if (!accessAllowed(key.permissions, access)) {
-      return json(
-        {
-          error: 'forbidden',
-          message: `This API key lacks ${access} permission; enable it in Admin Panel → API keys`,
-        },
-        403,
-      );
+    const gate = gateProgrammaticCredential(request, segments, credential);
+    if (gate !== 'allowed') {
+      return gate;
     }
     // Replay is a paid write that has no session route; it lives on the
     // inspection handler and is reachable only after the permission gate.
@@ -378,9 +414,15 @@ export class AdminServer {
     ) {
       return await this.#routes.inspection.replay(request, parseId(segments[1] ?? '', 'id'));
     }
+    const actor = credential.kind === 'client' ? 'client' : 'api-key';
     return (
-      (await this.#dispatchAuthenticated(request, url, segments, `api-key:${key.id.toString()}`, token)) ??
-      json({ error: 'forbidden', message: 'API keys cannot access this route' }, 403)
+      (await this.#dispatchAuthenticated(
+        request,
+        url,
+        segments,
+        `${actor}:${credential.id.toString()}`,
+        credential.secret ?? undefined,
+      )) ?? json({ error: 'forbidden', message: `${credentialLabel(credential)} cannot access this route` }, 403)
     );
   }
 }

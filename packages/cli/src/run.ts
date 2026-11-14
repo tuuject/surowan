@@ -1,13 +1,15 @@
 import process from 'node:process';
 import { parseCli, parseTimeout, resolveCli } from './args/index.ts';
 import type { Command, FirstClassCommand, ParsedCli } from './args/types.ts';
-import { AdminClient, isRecord, parseEndpoint } from './client.ts';
+import { createCredentialClient, runAuthCommand } from './auth.ts';
+import { isRecord, parseEndpoint } from './client.ts';
 import { type CliIo, executeCommand, listWindow } from './commands.ts';
-import { credentialsPath, readCredentials, writeCredentials } from './credentials.ts';
+import { credentialsPath, hasApiKey, readCredentials, writeCredentials } from './credentials.ts';
 import { CliError, usageError } from './errors.ts';
 import { readLoginKey } from './login.ts';
 import { runPanelCommand } from './panel/run.ts';
 import { PANEL_SPECS } from './panel/specs/index.ts';
+import { redactingIo, redactSecrets } from './redact.ts';
 import { USAGE } from './usage.ts';
 
 export interface RunOptions {
@@ -34,20 +36,34 @@ export async function runCli(argv: readonly string[], options: RunOptions = {}):
       io.stdout(renderCommands(parsed.json));
       return 0;
     }
+    if (parsed.command?.kind === 'auth') {
+      return await runAuthCommand({
+        command: parsed.command,
+        parsed,
+        homeDir: options.homeDir,
+        env,
+        json: parsed.json,
+        io,
+        secrets,
+      });
+    }
     const explicitEndpoint = parsed.endpointRaw ?? env.SUROWAN_ENDPOINT;
     const explicitCredential = parsed.apiKeyRaw ?? env.SUROWAN_API_KEY;
     // With both an endpoint and a credential supplied, the file is never
     // consulted, so a damaged or foreign file cannot block the command.
     const saved =
       explicitEndpoint !== undefined && explicitCredential !== undefined ? undefined : await readCredentials(path);
-    secrets.push(saved?.apiKey);
+    if (saved !== undefined && hasApiKey(saved)) {
+      secrets.push(saved.apiKey);
+    }
     const resolved = resolveCli(parsed, env, saved);
-    secrets.push(resolved.apiKey);
-    const client = new AdminClient({
-      baseUrl: resolved.endpoint,
-      ...(resolved.apiKey === undefined ? {} : { apiKey: resolved.apiKey }),
-      defaultTimeoutMs: resolved.timeoutMs,
+    const wired = await createCredentialClient({
+      connection: resolved,
+      timeoutMs: resolved.timeoutMs,
+      homeDir: options.homeDir,
+      secrets,
     });
+    const client = wired.client;
     // JSON-aware redaction decodes each string token, so it only fits a body
     // that is JSON: a panel text export (CSV/JSONL) is raw bytes, and rewriting
     // its quoted cells as JSON fails on any cell holding a backslash.
@@ -175,14 +191,16 @@ function renderCommands(json: boolean): string {
 }
 
 /**
- * `runCli` handles `login`, `commands` and every panel route before reaching
- * this point; the assertion keeps the compiler honest about the remainder.
+ * `runCli` handles `login`, `auth`, `commands` and every panel route before
+ * reaching this point; the assertion keeps the compiler honest about the
+ * remainder.
  */
 function assertFirstClass(command: Command): FirstClassCommand {
   if (
     command.kind === 'panel' ||
     command.kind === 'commands-list' ||
     command.kind === 'login' ||
+    command.kind === 'auth' ||
     command.kind === 'doctor'
   ) {
     throw usageError('invalid_command', `${command.kind} is not an Admin API command`);
@@ -204,21 +222,6 @@ function argumentKeys(argv: readonly string[]): string[] {
   return keys;
 }
 
-/** Redact JSON string tokens without touching structural quotes, braces or numbers. */
-function redactingIo(io: CliIo, secrets: readonly (string | undefined)[], jsonOutput: boolean): CliIo {
-  return {
-    stdout: (text) =>
-      io.stdout(
-        jsonOutput
-          ? text.replace(/"(?:\\.|[^"\\])*"/g, (token) =>
-              JSON.stringify(redactSecrets(JSON.parse(token) as string, secrets)),
-            )
-          : redactSecrets(text, secrets),
-      ),
-    stderr: (text) => io.stderr(redactSecrets(text, secrets)),
-  };
-}
-
 function reportError(error: unknown, io: CliIo, secrets: readonly (string | undefined)[]): number {
   const cli = error instanceof CliError ? error : undefined;
   // A server-provided error string becomes the CliError code; it is just as
@@ -227,29 +230,6 @@ function reportError(error: unknown, io: CliIo, secrets: readonly (string | unde
   const rawMessage = cli?.message ?? (error instanceof Error ? error.message : 'unexpected failure');
   io.stderr(`${JSON.stringify({ error: code, message: redactSecrets(rawMessage, secrets) })}\n`);
   return cli?.exitCode ?? 1;
-}
-
-/**
- * The API key must never appear in output, even if a server echoes it back.
- * Also used for files the CLI persists (the media manifest), so both stdout and
- * on-disk metadata share one redaction contract.
- */
-export function redactSecrets(text: string, secrets: readonly (string | undefined)[]): string {
-  let redacted = text;
-  for (const secret of secrets) {
-    if (secret === undefined || secret.length === 0) {
-      continue;
-    }
-    // Replace the JSON-escaped form first: inside a JSON document that is the
-    // form actually written, and an escaped match cannot cut through a
-    // structural quote (a raw match on a key ending in `\` can).
-    const escaped = JSON.stringify(secret).slice(1, -1);
-    if (escaped !== secret) {
-      redacted = redacted.split(escaped).join('[redacted]');
-    }
-    redacted = redacted.split(secret).join('[redacted]');
-  }
-  return redacted;
 }
 
 function defaultIo(): CliIo {

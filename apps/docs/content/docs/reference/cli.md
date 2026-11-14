@@ -34,6 +34,18 @@ node src/cli.ts configure --config /path/to/config.jsonc
 
 `configure` 只能在 TTY 中编辑已有、可加载的配置；它不是无人值守初始化器，也不适合让部署 Agent 自动调用。
 
+## 已配对 Agent 客户端
+
+```bash
+node src/cli.ts pairing create --config /path/to/config.jsonc --name coding-agent --mode read_write
+node src/cli.ts pairing list --config /path/to/config.jsonc
+node src/cli.ts pairing cancel <pairing-id> --config /path/to/config.jsonc
+node src/cli.ts clients list --config /path/to/config.jsonc
+node src/cli.ts clients revoke <client-id> --config /path/to/config.jsonc
+```
+
+与 `admin-account` 相反，这些命令**必须**与运行中的 `serve` 共存，不取 `ServeLock`、不做迁移；数据目录还没有迁移 `058` 的表时会提示先在本版本启动一次 `serve`。`pairing create` 打印的 `pwp_` 码一次性、默认 300 秒有效，数据库只存摘要。流程、SSH 隧道与撤销见[让 Agent 通过 SSH 配对](../configure/admin-agent-pairing.md)。
+
 ## Docker 等价命令
 
 ```bash

@@ -1,4 +1,6 @@
 import { Buffer } from 'node:buffer';
+import { type KeyObject, createHash, randomBytes, sign } from 'node:crypto';
+import { canonicalSignatureString, formatSignatureAuthorization } from '@surowan/admin-surface';
 import { CliError, usageError } from './errors.ts';
 
 /**
@@ -44,7 +46,20 @@ export interface AdminClientOptions {
    * allowlist and Invocation replay.
    */
   readonly apiKey?: string;
+  /**
+   * Paired-client identity. Each request is signed with the Ed25519 key; the
+   * key itself never leaves this process and appears in no header.
+   */
+  readonly signer?: RequestSigner;
   readonly defaultTimeoutMs: number;
+}
+
+/** What signing needs: who the client is, which instance, and the private key. */
+export interface RequestSigner {
+  /** `admin_clients.id` as decimal text. */
+  readonly clientId: string;
+  readonly instanceId: string;
+  readonly privateKey: KeyObject;
 }
 
 /** A successfully downloaded media body plus the headers the CLI validates. */
@@ -80,16 +95,23 @@ export interface RequestOptions {
  * are never retried; the timeout aborts the in-flight request and the response
  * body read that follows it.
  *
- * Every request authenticates with a Bearer API key.
+ * Every request authenticates with either a Bearer API key or a detached
+ * Ed25519 signature over the method, target, body digest, timestamp and a
+ * fresh nonce.
  */
 export class AdminClient {
   readonly #baseUrl: URL;
   readonly #apiKey: string | undefined;
+  readonly #signer: RequestSigner | undefined;
   readonly #defaultTimeoutMs: number;
 
   constructor(options: AdminClientOptions) {
+    if (options.apiKey !== undefined && options.signer !== undefined) {
+      throw new Error('AdminClient takes either an API key or a request signer, not both');
+    }
     this.#baseUrl = options.baseUrl;
     this.#apiKey = options.apiKey;
+    this.#signer = options.signer;
     this.#defaultTimeoutMs = options.defaultTimeoutMs;
   }
 
@@ -102,6 +124,27 @@ export class AdminClient {
   }
 
   /**
+   * One credential-free POST. The pairing claim is the only Admin API write
+   * that runs before a credential exists, so it must never carry a stale
+   * `Authorization` header left over from a previous login.
+   */
+  async postUnauthenticated(path: string, body: unknown): Promise<unknown> {
+    const url = this.#resolve(path);
+    const init: RequestInit = {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify(body),
+      redirect: 'error',
+      signal: AbortSignal.timeout(this.#defaultTimeoutMs),
+    };
+    try {
+      return await readJsonResponse(await fetch(url, init));
+    } catch (error) {
+      throw translateFetchError(error, this.#defaultTimeoutMs);
+    }
+  }
+
+  /**
    * Downloads a media body. The same redirect/timeout rules as JSON requests
    * apply; the body is bounded by `maxBytes` so an oversized or stalled stream
    * fails fast instead of filling memory or disk.
@@ -110,7 +153,7 @@ export class AdminClient {
     const url = this.#resolve(path, query);
     const init: RequestInit = {
       method: 'GET',
-      headers: { ...this.#authHeaders(), accept: 'application/octet-stream' },
+      headers: { ...this.#authHeaders('GET', url, EMPTY_BODY), accept: 'application/octet-stream' },
       redirect: 'error',
       signal: AbortSignal.timeout(this.#defaultTimeoutMs),
     };
@@ -133,9 +176,9 @@ export class AdminClient {
     }
   }
 
-  /** Always `api_key`; the CLI has no other credential kind. */
-  get credentialKind(): 'api_key' {
-    return 'api_key';
+  /** Which credential this client carries; `doctor` reports it verbatim. */
+  get credentialKind(): 'api_key' | 'client_signature' {
+    return this.#signer === undefined ? 'api_key' : 'client_signature';
   }
 
   /**
@@ -148,7 +191,7 @@ export class AdminClient {
     options: RequestOptions & { readonly maxBytes: number },
   ): Promise<RawContent> {
     const url = this.#resolve(path, query);
-    const headers: Record<string, string> = { ...this.#authHeaders(), accept: '*/*' };
+    const headers: Record<string, string> = { ...this.#authHeaders('GET', url, EMPTY_BODY), accept: '*/*' };
     if (options.ifMatch !== undefined) {
       headers['if-match'] = options.ifMatch;
     }
@@ -179,11 +222,34 @@ export class AdminClient {
     }
   }
 
-  #authHeaders(): Record<string, string> {
+  /**
+   * Credential headers for one request. A signer covers the exact bytes that
+   * will be sent, so a JSON body, an upload or an empty GET body all sign what
+   * the server will digest.
+   */
+  #authHeaders(method: string, url: URL, body: Buffer): Record<string, string> {
     if (this.#apiKey !== undefined) {
       return { authorization: `Bearer ${this.#apiKey}` };
     }
-    return {};
+    const signer = this.#signer;
+    if (signer === undefined) {
+      return {};
+    }
+    const timestamp = Math.floor(Date.now() / 1_000).toString();
+    const nonce = randomBytes(16).toString('base64url');
+    const canonical = canonicalSignatureString({
+      instanceId: signer.instanceId,
+      clientId: signer.clientId,
+      method,
+      target: signingTarget(url, this.#baseUrl),
+      timestamp,
+      nonce,
+      bodyDigest: createHash('sha256').update(body).digest('base64url'),
+    });
+    const signature = sign(null, Buffer.from(canonical, 'utf8'), signer.privateKey).toString('base64url');
+    return {
+      authorization: formatSignatureAuthorization({ clientId: signer.clientId, timestamp, nonce, signature }),
+    };
   }
 
   #resolve(path: string, query?: URLSearchParams): URL {
@@ -208,8 +274,15 @@ export class AdminClient {
     options: RequestOptions,
   ): Promise<unknown> {
     const url = this.#resolve(path, query);
-    const headers: Record<string, string> = { ...this.#authHeaders(), accept: 'application/json' };
-    if (body !== undefined) {
+    const bodyText = body === undefined ? undefined : JSON.stringify(body);
+    // A body-bearing write signs the exact JSON text; `undefined` signs the
+    // empty body, which is what the server digests for a bodyless request.
+    const bodyBytes = bodyText === undefined ? EMPTY_BODY : Buffer.from(bodyText, 'utf8');
+    const headers: Record<string, string> = {
+      ...this.#authHeaders(method, url, bodyBytes),
+      accept: 'application/json',
+    };
+    if (bodyText !== undefined) {
       headers['content-type'] = 'application/json';
     }
     if (options.ifMatch !== undefined) {
@@ -225,8 +298,8 @@ export class AdminClient {
       redirect: 'error',
       signal: options.signal === undefined ? timeout : AbortSignal.any([timeout, options.signal]),
     };
-    if (body !== undefined) {
-      init.body = JSON.stringify(body);
+    if (bodyText !== undefined) {
+      init.body = bodyText;
     }
     try {
       const response = await fetch(url, init);
@@ -241,6 +314,20 @@ export class AdminClient {
 
 function mediaTooLarge(maxBytes: number): CliError {
   return new CliError('media_file_too_large', `media content exceeded ${maxBytes} bytes`);
+}
+
+/** The digest of a bodyless request; the server digests the same zero bytes. */
+const EMPTY_BODY = Buffer.alloc(0);
+
+/**
+ * The path the server will see. The endpoint may carry a base path (a reverse
+ * proxy strips it), so the signature names the request from `/api/…` and stays
+ * valid behind that prefix.
+ */
+function signingTarget(url: URL, baseUrl: URL): string {
+  const base = baseUrl.pathname;
+  const path = url.pathname.startsWith(base) ? `/${url.pathname.slice(base.length)}` : url.pathname;
+  return `${path}${url.search}`;
 }
 
 function translateFetchError(error: unknown, timeoutMs: number): CliError {

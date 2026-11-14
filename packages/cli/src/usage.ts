@@ -2,6 +2,11 @@ export const USAGE = `surowan-utils - Surowan Admin Panel 与 Admin API 工具�
 
 用法:
   surowan-utils login --endpoint <url> (--api-key <key> | --api-key-stdin) [--json]
+  surowan-utils auth init [--json]
+  surowan-utils auth pair --endpoint <url> --code <pairing-code> [--force] [--json]
+  surowan-utils auth status [--json]
+  surowan-utils auth permissions [--json]
+  surowan-utils auth logout [--json]
   surowan-utils doctor [--json]
   surowan-utils commands [--json]
   surowan-utils models list [--json]
@@ -38,6 +43,8 @@ export const USAGE = `surowan-utils - Surowan Admin Panel 与 Admin API 工具�
   --endpoint <url>    Admin Panel 基地址（覆盖环境变量与登录文件）；明文 http 仅允许 loopback
   --api-key <key>     API key（覆盖 SUROWAN_API_KEY 与登录文件）；权限由该 key 的模式决定
   --api-key-stdin     仅 login：读取标准输入至 EOF，接受单行 API key，不回显
+  --code <pairing-code>  仅 auth pair：服务端 surowan pairing create 打印的一次性 pwp_ 配对码
+  --force             仅 auth pair：覆盖已保存的凭据（默认拒绝）
   --source <active|file>  config show / prompt get：读取运行时生效配置或配置文件（默认 active）
   --variant <original|preview>  仅 invocation media：下载原始文件或预览（默认 original）
   --provider <alias> --model <id>  仅 invocation preflight/replay：临时选用已启用模型，两项必须成对
@@ -66,8 +73,15 @@ export const USAGE = `surowan-utils - Surowan Admin Panel 与 Admin API 工具�
   --timeout-ms <ms>      请求/每次输入超时；默认 30000，replay 300000，不自动重试
 
 凭据与授权:
-  登录文件 ~/.config/surowan-utils/credentials.json（未加密）保存 endpoint 与 API key。
-  只读、读+改、读+耗、全部四种模式由 Admin Panel 创建/修改；账号与密钥管理不经过 CLI。
+  登录文件 ~/.config/surowan-utils/credentials.json（未加密）保存 endpoint 与一种凭据：
+  API key（{endpoint, apiKey}，由 login 写入）或已配对客户端（{endpoint, client_id, instance_id}，由 auth pair 写入）。
+  两种形式只保存一种，后写入者覆盖前者；login 不会删除客户端私钥 client-key.pem。
+  已配对客户端用 ~/.config/surowan-utils/client-key.pem 中的 Ed25519 私钥为每个请求签名，
+  私钥永不出现在输出、参数、环境变量或服务端，也没有导出命令；auth logout 只删除本地文件，
+  服务端记录仍需在服务器上执行 surowan clients revoke <id> 撤销。
+  配对码由服务器上的 surowan pairing create 生成，短期有效、只能使用一次。
+  只读、读+改、读+耗、全部四种模式由 Admin Panel 或服务端 surowan pairing create --mode 决定；
+  账号、凭据与 API key 管理不经过 CLI。
   doctor 用一次只读请求验证连接与鉴权，不调用模型。
 
 其他:

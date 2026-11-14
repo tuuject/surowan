@@ -83,6 +83,33 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 - **账号与凭据整类排除**：无论 key 拥有什么权限，`/api/auth/*` 与 `/api/api-keys*` 对 Bearer 请求一律 403；管理员密码、Passkey、管理员账号与 API key 只能由浏览器面板或服务端 `surowan` CLI 管理。
 - 未知路径对 Bearer 请求返回 403 而不是 404，避免枚举面板。
 
+## 已配对 Agent 客户端
+
+已配对客户端让 Agent 用一个 **Ed25519 身份**访问 Admin API，而不需要把长期凭据放进上下文。实现位于 `src/ingress/admin/clients/`：客户端在 `~/.config/surowan-utils/client-key.pem` 持有私钥（`surowan-utils` 自己生成，永不上传、不出现在输出/参数/环境变量/服务端，也没有导出命令），服务端只保存公钥、指纹与和 API key 相同的三个权限布尔。
+
+- **配对码**：服务端 `surowan pairing create --config … --name … --mode …` 打印一次性的 `pwp_` 码（`pwp_` + 24 随机字节的 base64url），默认 300 秒有效、上限 3600 秒；`--public-key` 可预绑定唯一能领取它的公钥（`surowan-utils auth init` 先打印公钥，再由操作员在服务器上创建）。数据库只存 `hashToken(code)`，明文码只存在于该次输出；`pairing list` 永不回显码。**没有客户端发起的 pending 请求队列，也没有 `approve` 命令**：在 SSH 上运行 `pairing create` 本身就是批准动作，`--public-key` 是「直接按公钥配对」的变体。
+- **领取**：`POST /api/pairing/claim` 是 Admin API 唯一 **无需任何凭据** 的写端点，也不是 `@surowan/admin-surface` 的 spec（不会变成 CLI 面板命令或 MCP 工具）。body 为 `{ code, public_key, proof }`，`proof` 是领取私钥对
+
+  ```
+  SUROWAN-PAIRING-CLAIM-V1
+  <base64url(sha256(code))>
+  <public_key>
+  ```
+
+  的 Ed25519 签名（base64url）。这保证只有持有对应私钥的一方才能把自己的公钥绑到这个实例，光偷到配对码不够。检查顺序：码存在且未取消 → 未使用 → 未过期 → 预绑公钥匹配 → proof 通过；全部在**一个 immediate 事务**里消费，并有 `UPDATE … WHERE consumed_at IS NULL AND canceled_at IS NULL` 兜底，因此并发领取只会产生一个 client。错误码固定为 `invalid_body`、`pairing_code_invalid`、`pairing_code_expired`、`pairing_code_used`、`pairing_public_key_mismatch`（错公钥**不会**烧掉预绑码）、`pairing_proof_invalid`、`client_already_paired`；响应与日志都不回显码或签名。成功返回 201 `{ client: { id, name, fingerprint, mode, permissions, created_at }, instance_id }`。
+- **签名请求**：
+
+  ```
+  Authorization: Surowan-Signature v=1,client=<client_id>,ts=<unix seconds>,nonce=<base64url,16–64>,sig=<base64url Ed25519>
+  ```
+
+  签名的规范字符串（UTF-8，`\n` 分隔，无尾随换行）由 `@surowan/admin-surface` 的 `canonicalSignatureString` 统一生成：`SUROWAN-SIGNATURE-V1`、`instance_id`、`client_id`、大写 method、`/api/…` 路径加原样 query（反向代理剥掉前缀后服务端看到的 target）、`ts`、`nonce`、`base64url(sha256(raw body))`（空 body 也要算）。验证顺序：严格解析 header → client 存在且未撤销 → `|now - ts| ≤ 300s` → 读取（上限 32 MiB）并摘要 body → 校验签名 → **用读取 body 之后的新时钟再次检查时间窗口**并**重新读取 client**（body 可能流式传输数分钟：时间戳过期或被撤销的 client 都不得派发）→ **之后**才写入 nonce（主键冲突即重放）→ 更新 `last_used_at`。未通过签名的请求不写任何 nonce。nonce 的到期时间由请求自己的 `ts` 推导（`ts + 300 + 1` 秒），而不是接收时间，因此时间戳靠近窗口边缘的请求不会在窗口末尾留下可重放的亚秒空隙；过期 nonce 由 `purgeExpiredData` 与插入时的同 client 清扫删除。
+- **错误码**（401 的 `{ error, message }`）：`unauthenticated`（header 畸形、client 未知/撤销、权限列非法、签名错误）、`signature_clock_skew`（时间戳超出 ±300 秒，便于 Agent 诊断时钟漂移）、`signature_replayed`（nonce 复用）。消息永不包含 header、签名或 body 文本。
+- **权限面**：验证通过后走与 Bearer key **同一套** gate（`#authorizedRequest`）：`GET /api/key` 返回身份，`/api/auth/*`、`/api/api-keys*` 一律 403，未知路径 403，其余按 `findSurfaceSpec` + `specAccess` + `accessAllowed` 判定，actor 为 `client:<id>`。`GET /api/key` 对客户端返回 `{ id, name, mode, permissions, kind: 'client', fingerprint }`；对 API key 在原字段上新增 `kind: 'api_key'`。
+- **实例标识**：`app_state` 的 `admin_instance_id`（`ins_` + base64url(16 随机字节)）由 `serve` 或服务端 CLI 惰性创建（`INSERT … ON CONFLICT DO NOTHING` 后再读），签名绑定它，因此从一个部署抓到的签名对另一个部署无效。
+- **撤销与审计**：`surowan clients list` 列出全部（含已撤销），`surowan clients revoke <id>` 置 `revoked_at` 并保留行；鉴权每次请求都读数据库，撤销对下一次请求立即生效。`admin_client_nonces` 持久化，重启后重放仍被拒绝。
+- **`/mcp` 仍只接受 Bearer key**：通用 MCP 客户端不会签请求，已配对客户端不使用 `/mcp`。
+
 ## MCP Server
 
 AdminServer 在同一监听端口提供 `/mcp`（Streamable HTTP），使用 `Authorization: Bearer <pwk_…>` 鉴权；不配置 Telegram 时它仍随 Admin Panel 可用。实现位于 `src/ingress/admin/mcp/`：
@@ -102,13 +129,14 @@ AdminServer 在同一监听端口提供 `/mcp`（Streamable HTTP），使用 `Au
 
 对齐是契约，不是现状陈述：除浏览器专属硬限制外，`surowan-utils` 与 MCP Server 的能力面必须与 Web 面板等价——面板能做的每一件事，客户端都必须有对应入口。账号与凭据是**有意排除**：管理员密码、Passkey 注册/登录、管理员账号与 API key 的创建、权限修改、轮换与撤销只允许浏览器面板（及服务端 `surowan` CLI），因为 API key 自身不能管理凭据，否则一把泄漏的 key 可以自我提权。
 
-`packages/cli`（`surowan-utils`）只接受一种凭据：
+`packages/cli`（`surowan-utils`）接受两种凭据，`credentials.json` 同时只保存一种：
 
 | 凭据 | 来源 | 服务端权限面 |
 | --- | --- | --- |
-| API key（`pwk_…`） | 面板 **Manage → API keys**；`surowan-utils login --api-key` 保存 | 由 key 的模式决定：`read`、`read_write`、`read_paid` 或 `all`；账号与 key 管理永远 403 |
+| API key（`pwk_…`） | 面板 **Manage → API keys**；`surowan-utils login --api-key` 保存 `{endpoint, apiKey}` | 由 key 的模式决定：`read`、`read_write`、`read_paid` 或 `all`；账号与 key 管理永远 403 |
+| 已配对客户端 | 服务器 `surowan pairing create` → `surowan-utils auth pair`，保存 `{endpoint, client_id, instance_id}`，私钥另存 `client-key.pem` | 与同模式 API key 完全相同；每个请求用 Ed25519 签名，见「已配对 Agent 客户端」 |
 
-用户名/密码登录与 `setup` 已删除；凭据文件 `~/.config/surowan-utils/credentials.json` 只保存 `{endpoint, apiKey}`。`doctor --json` 额外返回 `mode` 与 `permissions`，Skill 用它决定是否拒绝写/计费命令。带 `Authorization` 的请求固定走 API key 分支且**不回退**到面板 Cookie。
+用户名/密码登录与 `setup` 已删除。`doctor --json` 的 `credential` 为 `api_key` 或 `client_signature`（客户端签名时 `credential_sources` 多一个 `client_key: file`），并返回 `mode` 与 `permissions`，Skill 用它决定是否拒绝写/计费命令。带 `Authorization` 的请求固定走 API key 或签名分支且**不回退**到面板 Cookie。
 
 面板路由与客户端命令是一一对应的数据表：`packages/admin-surface/` 里的每个 `EndpointSpec` 就是一条 `/api` 路由（method、path、位置参数、query 参数、是否需要 `If-Match` 及哪种 revision、是否属于破坏性/计费、响应类型、权限 `access`）。CLI 与 MCP 都消费这张表；`surowan-utils commands` 输出 CLI 可见的行。**新增面板端点时必须同时加一行 spec**，否则该能力在 CLI 与 MCP 里都不存在。`EndpointSpec.cli === false` 用于已有 first-class CLI 命令的 Invocation/配置视图路由；`mcp === false` 与 `auth/`/`api-keys` 前缀用于账号凭据排除。
 
@@ -172,6 +200,7 @@ CLI 的 `doctor` 用 `GET /api/key` + `GET /api/invocations?limit=1` 验证鉴�
 | `PUT /harness` | 保存并热应用 `agent` 段除模型选择与 Prompt 外的字段及全局 `telegram.proactive_reply`，只写与文件不同的字段，沿用配置 revision、校验与原子写入机制，见「Harness tuning 页」 |
 | `DELETE /developer/model-payloads` | 分批置空历史 `model_calls.request_json` / `response_json`，保留所有审计行与关联；不执行 `VACUUM`，见「Developer 页」 |
 | `POST /api-keys` / `PUT /api-keys/:id` / `POST /api-keys/:id/rotate` / `DELETE /api-keys/:id` | 仅面板 Session 可创建、修改权限、轮换或撤销程序化密钥，见「程序化 API 密钥」 |
+| `POST /pairing/claim` | 唯一无需任何凭据的写端点：用一次性 `pwp_` 配对码与公钥持有证明换取一个已配对客户端身份；不是 admin-surface spec，见「已配对 Agent 客户端」 |
 | `POST /wake` | 删除持久化睡眠状态并唤醒 Scheduler；幂等，重复调用保持 `awake` |
 | `POST /cancel-ongoing-sessions` | 中断所有 running Invocation（经 Scheduler abort），同时 abort queued Invocation、过期 `collecting`/`queued` Bucket 与已 attach 未注入的 Bucket，被中断的运行不会把批次重新排队；已发出的 Telegram 消息不撤回 |
 | `POST` / `PUT` / `DELETE /memories[/:id]` | Memo Pad 增改删，按 **Chat** 隔离（同群 Topic 共用，跨 Chat 不可见）。`POST` body `{ chat_id, summary, detail, ttl_seconds? }`：`chat_id` 是十进制 Telegram Chat ID，且该 Chat 必须已有 `chats` 行（否则 404 `chat_not_found`）；`ttl_seconds` 省略或 `null` 表示永久。`PUT` body `{ summary?, detail?, ttl_seconds? }` 至少要提供一项，`ttl_seconds: null` 把短期条目提升为永久，省略则保持原到期时间；detail 变化后，不再被同 Chat 任何 detail 引用的 Blob 行与文件随即清理。`DELETE` 删除条目并清理其孤立 Blob，不存在返回 404 `not_found`。id 必须是 `mem_<32hex>`，非法格式返回 400 `invalid_id` |

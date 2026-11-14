@@ -4,7 +4,7 @@
 
 源码仓库根目录的 [`skills/surowan-utils/SKILL.md`](../../skills/surowan-utils/SKILL.md) 给外部 Agent 使用：每次任务先运行 `surowan-utils doctor --json` 验证凭据与连通，再按任务加载子文档。它覆盖两类工作：定位 Invocation、关联模型/工具/真实发送证据并在明确授权后重放；以及在用户逐项确认后执行与 Admin Panel 等价的写操作（改配置、管 Chat/模型/Prompt、Memo Pad、辞典、群聊记忆、告警）。它不是 Bot 的 `system:///` Skill，不需要服务器源码或数据库。
 
-Skill 采用渐进披露：`SKILL.md` 是轻量入口，主题细节按当前任务加载子文档——审计流程在 `references/invocations.md`，重放的保真限制、授权要求与错误处理在 `references/replay.md`，面板写操作的确认边界、乐观锁与破坏性/计费清单在 `references/panel.md`——不要一次加载全部内容。入口的「写操作的授权边界」要求写命令先给出目标、字段与值、影响范围和可撤销性并取得同意；`--yes` 只是机械闸门，不是授权本身。入口要求只有 `doctor` 以退出码 `0` 返回 `status: "ok"` 时才继续；失败即停止并请操作员用 `login` 修复（Agent 不代为执行、不重试、不读取或索取密钥），`--help` 只用于诊断 CLI 缺失或命令不匹配。
+Skill 采用渐进披露：`SKILL.md` 是轻量入口，主题细节按当前任务加载子文档——首次配对与凭据修复在 `references/pairing.md`，审计流程在 `references/invocations.md`，重放的保真限制、授权要求与错误处理在 `references/replay.md`，面板写操作的确认边界、乐观锁与破坏性/计费清单在 `references/panel.md`——不要一次加载全部内容。入口的「写操作的授权边界」要求写命令先给出目标、字段与值、影响范围和可撤销性并取得同意；`--yes` 只是机械闸门，不是授权本身。入口要求只有 `doctor` 以退出码 `0` 返回 `status: "ok"` 时才继续；失败即停止并报告，尚未配置凭据时按 `references/pairing.md` 走一次性配对（Agent 可以执行 `auth init`/`auth pair`/`auth status`/`auth permissions`），但从不代为执行 `login`、不重试、不读取或索取长期密钥，`--help` 只用于诊断 CLI 缺失或命令不匹配。
 
 npm 包 **不再内置这个 Skill**；它随源码仓库根目录的 `skills/surowan-utils/` 分发。在目标项目根目录用 [skills CLI](https://github.com/vercel-labs/skills) 直接从 GitHub 安装：
 
@@ -12,10 +12,10 @@ npm 包 **不再内置这个 Skill**；它随源码仓库根目录的 `skills/su
 npx skills add tuuject/surowan --skill surowan-utils
 ```
 
-CLI 会询问装到哪些 Agent（也可用 `-a codex` 等直接指定），Codex 等读取的通用位置是 `.agents/skills/surowan-utils/SKILL.md`。不用 CLI 时，从源码仓库把整个目录复制到目标项目的根目录（以 [Codex 的项目级 Skill 目录](https://developers.openai.com/codex/build-skills) 为例）；如果目标已存在，先比较版本，不直接覆盖。未克隆仓库时，可从 GitHub 下载该目录（`SKILL.md`、`references/invocations.md`、`references/replay.md`、`references/panel.md` 与 `agents/openai.yaml` 都要保留）。最终布局应为 `.agents/skills/surowan-utils/SKILL.md`，不要多嵌套一层目录。skills CLI 未覆盖的 Agent 按其自身 Skill 导入机制注册，不假定兼容 Codex 的目录。
+CLI 会询问装到哪些 Agent（也可用 `-a codex` 等直接指定），Codex 等读取的通用位置是 `.agents/skills/surowan-utils/SKILL.md`。不用 CLI 时，从源码仓库把整个目录复制到目标项目的根目录（以 [Codex 的项目级 Skill 目录](https://developers.openai.com/codex/build-skills) 为例）；如果目标已存在，先比较版本，不直接覆盖。未克隆仓库时，可从 GitHub 下载该目录（`SKILL.md`、`references/pairing.md`、`references/invocations.md`、`references/replay.md`、`references/panel.md` 与 `agents/openai.yaml` 都要保留）。最终布局应为 `.agents/skills/surowan-utils/SKILL.md`，不要多嵌套一层目录。skills CLI 未覆盖的 Agent 按其自身 Skill 导入机制注册，不假定兼容 Codex 的目录。
 
 重新打开 Agent 会话，确认发现 `surowan-utils` 后可请求：
 
 > 使用 $surowan-utils 审计 Invocation 12345，说明为什么没有回复；先只查询，不执行重放。
 
-由操作员准备凭据：注入 `SUROWAN_ENDPOINT` 与 `SUROWAN_API_KEY`，或由操作员在本机运行 `surowan-utils login --endpoint <url> --api-key-stdin` 保存 API key。key 的 `read`/`read_write`/`read_paid`/`all` 模式决定可执行的命令；权限不足时服务端返回 `403 forbidden`，请操作员到面板修改模式。Agent 不自己读取、打印或修改凭据，也不要把 key、密码或 token 放入 Skill 或聊天。Skill 不随 CLI 升级自动更新：用 skills CLI 安装的运行 `npx skills update surowan-utils`，手工复制的在同步仓库更新时一并检查版本。是否允许注册、执行命令及访问网络，仍取决于宿主权限。
+由操作员准备长期凭据：注入 `SUROWAN_ENDPOINT` 与 `SUROWAN_API_KEY`，或由操作员在本机运行 `surowan-utils login --endpoint <url> --api-key-stdin` 保存 API key。也可以让 Agent 自己完成一次性配对（服务器 `surowan pairing create` → 本机 `surowan-utils auth pair`，见 Skill 的 `references/pairing.md`），这样长期凭据一个也不进入上下文。key / 已配对客户端的 `read`/`read_write`/`read_paid`/`all` 模式决定可执行的命令；权限不足时服务端返回 `403 forbidden`，请操作员调整模式。Agent 不自己读取、打印或修改长期凭据，也不要把 key、密码、token、`client-key.pem` 或 `credentials.json` 放入 Skill 或聊天。Skill 不随 CLI 升级自动更新：用 skills CLI 安装的运行 `npx skills update surowan-utils`，手工复制的在同步仓库更新时一并检查版本。是否允许注册、执行命令及访问网络，仍取决于宿主权限。

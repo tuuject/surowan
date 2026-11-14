@@ -6,7 +6,12 @@ description: 安装 Admin API 工具客户端、保存凭据并完成首次连�
 # surowan-utils 客户端
 
 
-`packages/cli` 提供工具客户端 `surowan-utils`（npm 包 `@tuuject/surowan-utils`）。它只接受一种凭据：在面板 **Manage → API keys** 创建并选择权限模式的 **API key**。模式四选一，决定 CLI 能做什么：
+`packages/cli` 提供工具客户端 `surowan-utils`（npm 包 `@tuuject/surowan-utils`）。它接受两种凭据，`credentials.json` 同一时间只保存一种：
+
+- **API key**（`pwk_…`）：在面板 **Manage → API keys** 创建，用 `surowan-utils login` 保存。
+- **已配对客户端**：服务器 `surowan pairing create` 打印一次性 `pwp_` 配对码，本机 `surowan-utils auth pair` 领取；客户端自己持有 Ed25519 私钥并为每个请求签名，长期凭据无需进入上下文。完整流程见[让 Agent 通过 SSH 配对](../configure/admin-agent-pairing.md)。
+
+两种凭据共用同一套模式，四选一：
 
 | 模式 | 能力 |
 | --- | --- |
@@ -15,7 +20,7 @@ description: 安装 Admin API 工具客户端、保存凭据并完成首次连�
 | 读 + 耗（`read_paid`） | 只读能力 + Invocation 重放、Provider 健康检查、生图、辞典合并预览、Playground Release/Retry 等计费操作 |
 | 全部（`all`） | 以上全部；Playground Release 等同时改变状态又计费的操作需要这一档 |
 
-第一类子命令为 `invocation list` / `get` / `prompts` / `preflight` / `media` / `replay`、`models list`、`config show` 与 `prompt get global|group`；另有 `doctor`（验证连通并读取当前 key 权限）与 `commands`（列出面板命令表）。`login` 只保存本机 API key，不提供服务端密钥管理；密钥的创建、权限修改、rotate 与撤销仍只在面板进行。账号、密码与 Passkey 管理不在 CLI 内。
+第一类子命令为 `invocation list` / `get` / `prompts` / `preflight` / `media` / `replay`、`models list`、`config show`、`prompt get global|group` 与 `auth init|pair|status|permissions|logout`；另有 `doctor`（验证连通并读取当前凭据的权限）与 `commands`（列出面板命令表）。`login` 只保存本机 API key，不提供服务端密钥管理；密钥的创建、权限修改、rotate 与撤销仍只在面板进行。`auth` 只管理本机 `client-key.pem` 与客户端形式的凭据；私钥永不上传、不打印、无导出命令。账号、密码与 Passkey 管理不在 CLI 内。
 
 它与服务端入口 `surowan`（`node src/cli.ts`）不同：本客户端直接访问 Admin API，不包含 `serve`、`check-config`、`backup`、`configure` 等服务命令；客户端自己的 `doctor` 也不执行服务端 Doctor 的 SQLite、媒体、Telegram、Provider 与 MCP 探针，只检查 Admin API 连通与鉴权。
 
@@ -39,7 +44,11 @@ npm install -g ./dist/npm/tuuject-surowan-utils-0.1.0.tgz   # 文件名以实际
 
 API key 在面板的 **Manage → API keys**（`/api-keys`）页面创建、修改模式、rotate 或撤销，明文只在创建/rotate 弹窗出现一次，关闭后不可再取回，见[使用管理面板](../configure/admin-api-keys.md#api-密钥)。权限不足时命令返回 `forbidden`，请操作员在面板调整 key 模式；不要把真实 key 写进命令参数、聊天或 Skill 文件，也不要手动 `export` 明文 key（会进入 shell 历史）。
 
-凭据文件只保存 `{endpoint, apiKey}`；旧的 `session` 凭据不再被读取，需操作员改用 API key 重新 `login`。
+凭据文件保存 `{endpoint, apiKey}`（`login` 写入）或 `{endpoint, client_id, instance_id}`（`auth pair` 写入），后写入者覆盖前者；旧的 `session` 凭据不再被读取。
+
+## 由 Agent 自己配对
+
+如果希望长期凭据完全不进入 Agent 上下文，让 Agent 自己完成一次性配对：服务器上 `surowan pairing create --name … --mode …`（可与运行中的 `serve` 共存）→ 本机 `surowan-utils auth pair --endpoint … --code …` → `surowan-utils doctor --json`。私钥保存在 `~/.config/surowan-utils/client-key.pem`，可用 `auth status`/`auth permissions` 查看状态与权限，`auth logout` 只删本地文件。完整步骤、SSH 隧道与错误码见[让 Agent 通过 SSH 配对](../configure/admin-agent-pairing.md)。
 
 ## 首次使用
 
@@ -58,7 +67,7 @@ API key 在面板的 **Manage → API keys**（`/api-keys`）页面创建、修�
    surowan-utils doctor --json
    ```
 
-   `doctor` 先 `GET /api/key` 读取当前模式，再发起一次 `GET /api/invocations?limit=1`；没有 replay、没有模型/Provider 调用，也不发送 Telegram 消息。成功时 stdout 为 `{"status":"ok","endpoint":…,"credential":"api_key","mode":…,"permissions":{…},"credential_sources":{…}}`，不输出 Invocation 正文，失败不自动重试；鉴权会在服务端更新密钥的 `last_used_at`。失败时 stderr 为 `{"error","message"}`：参数/环境变量给出的凭据缺失或不合法（`missing_endpoint`、`missing_credential`、`invalid_api_key` 等）退出码 `2`，保存文件无效（`invalid_credentials`）或请求失败退出码 `1`。
+   `doctor` 先 `GET /api/key` 读取当前模式，再发起一次 `GET /api/invocations?limit=1`；没有 replay、没有模型/Provider 调用，也不发送 Telegram 消息。成功时 stdout 为 `{"status":"ok","endpoint":…,"credential":"api_key|client_signature","mode":…,"permissions":{…},"credential_sources":{…}}`（签名凭据另带 `client_key: "file"`），不输出 Invocation 正文，失败不自动重试；鉴权会在服务端更新该凭据的 `last_used_at`。失败时 stderr 为 `{"error","message"}`：参数/环境变量给出的凭据缺失或不合法（`missing_endpoint`、`missing_credential`、`invalid_api_key` 等）退出码 `2`，保存文件无效（`invalid_credentials`、`invalid_client_key`）或请求失败退出码 `1`。
 4. 只读检查与查询 Invocation：
 
    ```bash
@@ -85,4 +94,4 @@ surowan-utils login --endpoint "$SUROWAN_ENDPOINT" --json
 printf '%s' "$SECRET_KEY" | surowan-utils login --endpoint "$SUROWAN_ENDPOINT" --api-key-stdin --json
 ```
 
-凭据解析顺序为命令行参数 > 环境变量 > 保存文件。参数或环境变量显式给出的空串按缺失/非法处理，不会回退到下一来源或改为提示（`missing_endpoint`/`missing_credential`/`invalid_api_key`）。endpoint 与 key 都由参数或环境变量明确给出时完全不读取凭据文件（文件损坏、是符号链接或权限不安全也不影响）；只给其一才读文件，文件问题以 `invalid_credentials` 失败（退出码 1）。保存的 key 只属于其保存时的规范化 endpoint：当前 endpoint 与文件 endpoint 经 `parseEndpoint` 规范化后不一致就不会使用该 key（缺少显式 key 报 `missing_credential`，退出码 2），规范化后一致则仍可使用。参数与环境变量不会被写回文件（只有 `login` 写文件）。`login --json` 输出 `{"status":"saved","endpoint":…,"credentials_file":…}`，不含 key。
+凭据解析顺序为命令行参数 > 环境变量 > 保存文件（保存的客户端凭据同样按 endpoint 绑定，并需要同目录可读的 `client-key.pem`）。参数或环境变量显式给出的空串按缺失/非法处理，不会回退到下一来源或改为提示（`missing_endpoint`/`missing_credential`/`invalid_api_key`）。endpoint 与 key 都由参数或环境变量明确给出时完全不读取凭据文件（文件损坏、是符号链接或权限不安全也不影响）；只给其一才读文件，文件问题以 `invalid_credentials` 失败（退出码 1）。保存的 key 只属于其保存时的规范化 endpoint：当前 endpoint 与文件 endpoint 经 `parseEndpoint` 规范化后不一致就不会使用该 key（缺少显式 key 报 `missing_credential`，退出码 2），规范化后一致则仍可使用。参数与环境变量不会被写回文件（只有 `login` 写文件）。`login --json` 输出 `{"status":"saved","endpoint":…,"credentials_file":…}`，不含 key。

@@ -263,7 +263,7 @@ describe('readCredentials', () => {
     expect(Buffer.byteLength(atLimit)).toBe(MAX_CREDENTIALS_BYTES);
     writeFixture(path, atLimit);
     const stored = await readCredentials(path);
-    expect(stored?.apiKey).toBe(apiKey);
+    expect(stored !== undefined && 'apiKey' in stored ? stored.apiKey : undefined).toBe(apiKey);
     expect(stored?.endpoint.startsWith('https://example.com/')).toBe(true);
 
     writeFixture(path, `${prefix}${'a'.repeat(padding + 1)}${suffix}`);

@@ -9,9 +9,16 @@ import {
   OPTIONS,
   TIMEOUT_PATTERN,
 } from './spec.ts';
-import type { ParsedCli, ResolvedCli, StringFlags } from './types.ts';
+import type {
+  CredentialSource,
+  CredentialSources,
+  ParsedCli,
+  ResolvedCli,
+  ResolvedCredential,
+  StringFlags,
+} from './types.ts';
 import { parseEndpoint } from '../client.ts';
-import { type Credentials, validateApiKey } from '../credentials.ts';
+import { type Credentials, hasApiKey, validateApiKey } from '../credentials.ts';
 import { usageError } from '../errors.ts';
 
 export function parseCli(argv: readonly string[]): ParsedCli {
@@ -61,6 +68,8 @@ export function parseCli(argv: readonly string[]): ParsedCli {
       to: parsed.values.to,
       'before-send': parsed.values['before-send'],
       'confirm-paid': parsed.values['confirm-paid'],
+      code: parsed.values.code,
+      force: parsed.values.force,
     } satisfies StringFlags,
   };
   return {
@@ -73,6 +82,61 @@ export function parseCli(argv: readonly string[]): ParsedCli {
   };
 }
 
+export interface ResolvedConnection {
+  readonly endpoint: URL;
+  readonly credential: ResolvedCredential;
+  readonly credentialSources: CredentialSources;
+}
+
+/**
+ * Endpoint and credential resolution without a command, so `auth status` and
+ * `auth permissions` apply exactly the same precedence and endpoint binding as
+ * every other command.
+ */
+export function resolveConnection(
+  parsed: ParsedCli,
+  env: Record<string, string | undefined>,
+  saved?: Credentials,
+): ResolvedConnection {
+  const endpointRaw = parsed.endpointRaw ?? env.SUROWAN_ENDPOINT ?? saved?.endpoint;
+  if (endpointRaw === undefined || endpointRaw.trim().length === 0) {
+    throw usageError('missing_endpoint', 'run surowan-utils login or auth pair, or set --endpoint / SUROWAN_ENDPOINT');
+  }
+  const endpoint = parseEndpoint(endpointRaw);
+  const explicitKey = parsed.apiKeyRaw ?? env.SUROWAN_API_KEY;
+  const endpointSource: CredentialSource =
+    parsed.endpointRaw !== undefined ? 'argument' : env.SUROWAN_ENDPOINT !== undefined ? 'environment' : 'file';
+  // A saved credential belongs to its saved endpoint. An endpoint override
+  // alone must never send it to another service, even if both URLs use HTTPS.
+  const savedMatches =
+    saved !== undefined && explicitKey === undefined && parseEndpoint(saved.endpoint).href === endpoint.href;
+  if (explicitKey !== undefined && explicitKey.length > 0) {
+    return {
+      endpoint,
+      credential: { kind: 'api_key', apiKey: validateApiKey(explicitKey) },
+      credentialSources: {
+        endpoint: endpointSource,
+        credential: parsed.apiKeyRaw !== undefined ? 'argument' : 'environment',
+      },
+    };
+  }
+  if (savedMatches && saved !== undefined) {
+    return {
+      endpoint,
+      credential: hasApiKey(saved)
+        ? { kind: 'api_key', apiKey: validateApiKey(saved.apiKey) }
+        : { kind: 'client_signature', clientId: saved.client_id, instanceId: saved.instance_id },
+      credentialSources: hasApiKey(saved)
+        ? { endpoint: endpointSource, credential: 'file' }
+        : { endpoint: endpointSource, credential: 'file', client_key: 'file' },
+    };
+  }
+  throw usageError(
+    'missing_credential',
+    'run surowan-utils login or auth pair to store a credential, or set --api-key / SUROWAN_API_KEY',
+  );
+}
+
 export function resolveCli(
   parsed: ParsedCli,
   env: Record<string, string | undefined>,
@@ -80,36 +144,22 @@ export function resolveCli(
 ): ResolvedCli {
   const command = parsed.command;
   if (command === undefined) {
-    throw usageError('missing_command', 'usage: surowan-utils login|doctor|commands|models|config|prompt|invocation');
-  }
-  const endpointRaw = parsed.endpointRaw ?? env.SUROWAN_ENDPOINT ?? saved?.endpoint;
-  if (endpointRaw === undefined || endpointRaw.trim().length === 0) {
-    throw usageError('missing_endpoint', 'run surowan-utils login or set --endpoint / SUROWAN_ENDPOINT');
-  }
-  const endpoint = parseEndpoint(endpointRaw);
-  const explicitKey = parsed.apiKeyRaw ?? env.SUROWAN_API_KEY;
-  // A saved key belongs to its saved endpoint. An endpoint override alone must
-  // never send it to another service, even if both URLs use HTTPS.
-  const savedMatches = saved !== undefined && parseEndpoint(saved.endpoint).href === endpoint.href;
-  const apiKey = explicitKey ?? (savedMatches ? saved.apiKey : undefined);
-  if (apiKey === undefined || apiKey.length === 0) {
     throw usageError(
-      'missing_credential',
-      'run surowan-utils login to store an API key, or set --api-key / SUROWAN_API_KEY',
+      'missing_command',
+      'usage: surowan-utils login|auth|doctor|commands|models|config|prompt|invocation',
     );
   }
+  if (command.kind === 'auth') {
+    throw usageError('invalid_command', 'auth commands resolve their own credentials');
+  }
+  const connection = resolveConnection(parsed, env, saved);
   return {
     command,
-    endpoint,
-    apiKey: validateApiKey(apiKey),
+    endpoint: connection.endpoint,
+    credential: connection.credential,
     json: parsed.json,
     timeoutMs: parseTimeout(parsed.timeoutRaw, command.kind === 'replay'),
-    credentialSources: {
-      endpoint:
-        parsed.endpointRaw !== undefined ? 'argument' : env.SUROWAN_ENDPOINT !== undefined ? 'environment' : 'file',
-      credential:
-        parsed.apiKeyRaw !== undefined ? 'argument' : env.SUROWAN_API_KEY !== undefined ? 'environment' : 'file',
-    },
+    credentialSources: connection.credentialSources,
   };
 }
 
