@@ -3,10 +3,10 @@ import { builtinProviders } from '@earendil-works/pi-ai/providers/all';
 import type { ProviderApi } from './config/index.ts';
 
 /**
- * The API adapters the configuration supports. Pi ships more (Bedrock, Mistral,
- * Azure, Vertex, …), but the panel and the TUI only ever write these four, and a
- * builtin provider that mixes several of them has no single `api` to record on
- * its configured models.
+ * The API adapters the configuration supports, in mixed-catalog priority order:
+ * a provider whose catalog speaks several of them records the first one it
+ * lists (`preferredBuiltinApi`). Pi ships more (Bedrock, Mistral, Azure,
+ * Vertex, …), but the panel and the TUI only ever write these four.
  */
 export const SUPPORTED_PROVIDER_APIS: readonly Api[] = [
   'openai-completions',
@@ -73,6 +73,22 @@ export function supportedBuiltinApi(source: Provider): ProviderApi | null {
 }
 
 /**
+ * The API a preset records for a provider whose catalog mixes adapters: the
+ * first supported API — in `SUPPORTED_PROVIDER_APIS` order, `openai-completions`
+ * first — the catalog contains. `null` when no supported adapter appears at all
+ * (`isSupportedBuiltinPreset` already rejects those). Each configured model is
+ * still dispatched with the api of its own catalog entry, not this one.
+ */
+export function preferredBuiltinApi(source: Provider): ProviderApi | null {
+  for (const candidate of SUPPORTED_PROVIDER_APIS) {
+    if (isSupportedProviderApi(candidate) && source.getModels().some((model) => model.api === candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+/**
  * Whether a builtin provider may be referenced from the configuration at all:
  * a non-empty catalog, one supported API, a concrete base URL, and API-key auth.
  * OAuth-only providers and placeholder base URLs (`{account}`) cannot be driven
@@ -100,9 +116,12 @@ export function isSupportedBuiltinPreset(source: Provider): boolean {
  * bot answering group traffic all day is neither, so offering them as presets
  * would invite account bans. They are only kept out of the add-provider menu:
  * an alias already in the configuration still loads, edits and runs.
- * Pi's `zai` is listed because its base URL is the GLM Coding Plan endpoint.
+ * Pi's `zai` is listed because its base URL is the GLM Coding Plan endpoint,
+ * and `github-copilot` because its catalog mixes supported adapters, so the
+ * preferred-api rule would otherwise put a Copilot plan on the preset menu.
  */
 const SUBSCRIPTION_PLAN_PROVIDERS: ReadonlySet<string> = new Set([
+  'github-copilot',
   'kimi-coding',
   'zai',
   'zai-coding-cn',
@@ -114,14 +133,14 @@ const SUBSCRIPTION_PLAN_PROVIDERS: ReadonlySet<string> = new Set([
   'xiaomi-token-plan-sgp',
 ]);
 
-/** Presets the panel may offer, sorted by display name. A preset must speak one API: pi 1.x mixed-catalog providers (OpenRouter, …) stay configurable through an existing alias but are not offered as presets. Subscription plans are never offered. */
+/** Presets the panel may offer, sorted by display name. A preset records the first supported API the catalog contains (`preferredBuiltinApi`), so pi 1.x mixed-catalog providers like OpenRouter are offered too, while every configured model still dispatches with its own catalog api. Subscription plans are never offered. */
 export function listBuiltinPresets(): readonly Provider[] {
   return listBuiltinProviders()
     .filter(
       (source) =>
         !SUBSCRIPTION_PLAN_PROVIDERS.has(source.id) &&
         isSupportedBuiltinPreset(source) &&
-        supportedBuiltinApi(source) !== null,
+        preferredBuiltinApi(source) !== null,
     )
     .sort((left, right) => left.name.localeCompare(right.name));
 }

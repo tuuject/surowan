@@ -2,7 +2,7 @@
  * Provider model discovery: the fetch against a configured or temporary
  * connection, and the models.dev metadata that decorates its listing.
  */
-import { findBuiltinProvider, supportedBuiltinApi } from '../../../platform/builtin-providers.ts';
+import { findBuiltinProvider, preferredBuiltinApi } from '../../../platform/builtin-providers.ts';
 import { resolveModelDrafts } from '../../../platform/models/metadata.ts';
 import { loadModelsDevCatalog, MODELS_DEV_URL, type ModelsDevCatalog } from '../../../platform/models-dev.ts';
 import { type DiscoveredProviderModel, fetchProviderModels } from '../../../platform/provider-models.ts';
@@ -142,11 +142,11 @@ async function discoveryRequest(context: ProviderWriteContext, body: DiscoverBod
     if (source === undefined) {
       throw new AdminQueryError('unknown_builtin_provider', `Unknown built-in provider: ${body.provider}`);
     }
-    const api = supportedBuiltinApi(source);
+    const api = preferredBuiltinApi(source);
     if (api === null || source.baseUrl === undefined) {
       throw new AdminQueryError(
         'unsupported_builtin_provider',
-        `Built-in provider ${body.provider} has no single supported API adapter`,
+        `Built-in provider ${body.provider} has no supported API adapter`,
       );
     }
     registerSecrets(context.secrets, [body.api_key, ...Object.values(body.headers ?? {})]);
@@ -211,11 +211,11 @@ async function lookupDescriptor(body: LookupMetadataBody): Promise<Parameters<ty
     if (source === undefined) {
       throw new AdminQueryError('unknown_builtin_provider', `Unknown built-in provider: ${body.provider}`);
     }
-    const api = supportedBuiltinApi(source);
+    const api = preferredBuiltinApi(source);
     if (api === null || source.baseUrl === undefined) {
       throw new AdminQueryError(
         'unsupported_builtin_provider',
-        `Built-in provider ${body.provider} has no single supported API adapter`,
+        `Built-in provider ${body.provider} has no supported API adapter`,
       );
     }
     return { kind: 'builtin', builtinProvider: body.provider, baseUrl: source.baseUrl, api };

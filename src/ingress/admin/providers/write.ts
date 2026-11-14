@@ -3,9 +3,11 @@
  * panel applies them, with the connection and model prechecks they run first.
  */
 import {
+  builtinModelApi,
   findBuiltinProvider,
   isSupportedBuiltinPreset,
-  supportedBuiltinApi,
+  isSupportedProviderApi,
+  SUPPORTED_PROVIDER_APIS,
 } from '../../../platform/builtin-providers.ts';
 import type { FileChat, ModelFileConfig, ProviderApi, ThinkingLevelConfig } from '../../../platform/config/index.ts';
 import { type ConfigEdit, secretEdit } from '../../../platform/config/write.ts';
@@ -26,9 +28,9 @@ export async function createProvider(context: ProviderWriteContext, body: Create
   if (context.file.providers[body.alias] !== undefined) {
     throw new AdminQueryError('provider_exists', `Provider ${body.alias} already exists`, 409);
   }
-  const api = await resolveNewProviderApi(body);
+  const apiOf = await resolveNewProviderApi(body);
   for (const model of body.models) {
-    checkModel(api, model, `model ${model.id}`);
+    checkModel(apiOf(model.id), model, `model ${model.id}`);
   }
   registerSecrets(context.secrets, [body.api_key, ...Object.values(body.headers ?? {})]);
   const keys: Record<string, string> = {};
@@ -60,7 +62,14 @@ export async function createProvider(context: ProviderWriteContext, body: Create
   return [{ path: ['providers', body.alias], value: provider, keys }];
 }
 
-async function resolveNewProviderApi(body: CreateProviderBody): Promise<ProviderApi> {
+/**
+ * The api each created model is prechecked against, as a function of the model
+ * id: a custom provider checks every model against its declared adapter, while a
+ * builtin one checks against the api of the model's own catalog entry — pi 1.x
+ * mixed catalogs like OpenRouter dispatch per model. Builtins that no configured
+ * API key can drive are rejected here, before the file is rewritten.
+ */
+async function resolveNewProviderApi(body: CreateProviderBody): Promise<(modelId: string) => ProviderApi> {
   if (body.kind === 'builtin') {
     if (body.provider === undefined) {
       throw new AdminQueryError('invalid_body', 'provider is required for a builtin provider');
@@ -75,19 +84,22 @@ async function resolveNewProviderApi(body: CreateProviderBody): Promise<Provider
         `Built-in provider ${body.provider} cannot be driven from a configured API key`,
       );
     }
-    const api = supportedBuiltinApi(source);
-    if (api === null) {
-      throw new AdminQueryError(
-        'unsupported_builtin_provider',
-        `Built-in provider ${body.provider} has no single supported API adapter`,
-      );
-    }
-    return api;
+    return (modelId) => {
+      const api = builtinModelApi(source, modelId);
+      if (api === null || !isSupportedProviderApi(api)) {
+        throw new AdminQueryError(
+          'invalid_model',
+          `Provider ${body.alias} model ${modelId} has no supported API (${SUPPORTED_PROVIDER_APIS.join(', ')}) in Pi's ${source.id} catalog`,
+        );
+      }
+      return api;
+    };
   }
   if (body.base_url === undefined || body.api === undefined) {
     throw new AdminQueryError('invalid_body', 'base_url and api are required for a custom provider');
   }
-  return body.api;
+  const api = body.api as ProviderApi;
+  return () => api;
 }
 
 export async function updateProvider(

@@ -328,7 +328,9 @@ participation 放行 = 未配置 participation || 处于活跃时段 || 更新�
 
 `provider` 是 Pi 的供应商 id，必须同时满足：目录非空、目录内至少有一个模型的 API 属于受支持的四类（混合目录可用）、`baseUrl` 有具体取值、带 `auth.apiKey`。不满足时 `check-config` 直接拒绝（`mistral`、`google-vertex`、`cloudflare-workers-ai` 等都不满足）。builtin 的 `api` 由 Pi 目录推导，`base_url` 取自 Pi，两者都不写进配置。
 
-新增 Provider 的预设菜单（面板 `GET /provider-presets` 与 `configure` 向导，共用 `listBuiltinPresets()`）另外排除 Coding / Agent 订阅套餐：`kimi-coding`、`zai`（Pi 的 base URL 是 GLM Coding Plan 端点）、`zai-coding-cn`、`qwen-token-plan*`、`xiaomi-token-plan-*`，名单在 `src/platform/builtin-providers.ts` 的 `SUBSCRIPTION_PLAN_PROVIDERS`。这类套餐的条款面向交互式编程/Agent 工具，部分明确禁止后端或脚本调用，全天跑群聊有封号风险，所以不放进菜单防止误用。这只是菜单过滤：配置里已有的这类 alias 照常通过 `check-config`、列表、改 key 与运行；`POST /providers` 直接指定这些 id 也不拒绝。Pi 升级引入新的套餐预设时，`test/admin/providers.test.ts` 的特征匹配会失败，需要把新 id 补进名单。
+预设菜单对混合目录的供应商照常开放，记录的 `api` 是目录里第一个受支持的 adapter，优先级为 `openai-completions` → `openai-responses` → `anthropic-messages` → `google-generative-ai`（如 OpenRouter 记录 `openai-completions`）；运行时每个配置模型仍按自己目录条目的 api 派发（`builtinModelApi`），预设的 `api` 只用于模型发现的列表端点选择。
+
+新增 Provider 的预设菜单（面板 `GET /provider-presets` 与 `configure` 向导，共用 `listBuiltinPresets()`）另外排除 Coding / Agent 订阅套餐：`github-copilot`（目录混合了受支持的 API，不排除会凭优先级 fallback 进入菜单）、`kimi-coding`、`zai`（Pi 的 base URL 是 GLM Coding Plan 端点）、`zai-coding-cn`、`qwen-token-plan*`、`xiaomi-token-plan-*`，名单在 `src/platform/builtin-providers.ts` 的 `SUBSCRIPTION_PLAN_PROVIDERS`。这类套餐的条款面向交互式编程/Agent 工具，部分明确禁止后端或脚本调用，全天跑群聊有封号风险，所以不放进菜单防止误用。这只是菜单过滤：配置里已有的这类 alias 照常通过 `check-config`、列表、改 key 与运行；`POST /providers` 直接指定这些 id 也不拒绝。Pi 升级引入新的套餐预设时，`test/admin/providers.test.ts` 的特征匹配会失败，需要把新 id 补进名单。
 
 自定义 Provider 必须显式声明 API 兼容层和模型元数据：
 
