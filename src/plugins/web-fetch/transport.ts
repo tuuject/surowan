@@ -38,7 +38,7 @@ export async function fetchWithRedirects(
     if (![301, 302, 303, 307, 308].includes(response.status) || location === null) {
       return { url: url.href, response, kind: responseKind(response, accepted.images) };
     }
-    await response.body?.cancel();
+    await response.body?.cancel().catch(() => undefined);
     if (redirects >= MAX_REDIRECTS) {
       throw new WebFetchError('too_many_redirects', `More than ${MAX_REDIRECTS} redirects`);
     }
@@ -197,7 +197,7 @@ export async function readBody(response: Response, maxBytes: number): Promise<{ 
         chunks.push(next.value.subarray(0, available));
       }
       truncated = true;
-      await reader.cancel();
+      await reader.cancel().catch(() => undefined);
       break;
     }
     chunks.push(next.value);

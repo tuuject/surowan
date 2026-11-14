@@ -136,10 +136,17 @@ test('web_fetch refuses images it cannot view and invalid referers, and audits e
       '/plain.png': () => new Response(gif, { headers: { 'content-type': 'image/png' } }),
       '/anim.gif': () => new Response(gif, { headers: { 'content-type': 'image/gif' } }),
       '/fake.jpg': () => new Response('<html>not an image</html>', { headers: { 'content-type': 'image/jpeg' } }),
+      // Errored from the start: reading it fails, and cancelling it rejects, so the
+      // refusal must neither read the body nor let the discarded body's error win.
       '/huge.png': () =>
-        new Response(new ReadableStream({ pull: () => Promise.reject(new Error('body must not be read')) }), {
-          headers: { 'content-type': 'image/png', 'content-length': String(64 * 1024 * 1024) },
-        }),
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.error(new Error('body must not be read'));
+            },
+          }),
+          { headers: { 'content-type': 'image/png', 'content-length': String(64 * 1024 * 1024) } },
+        ),
       '/stream.png': () =>
         new Response(
           new ReadableStream({
