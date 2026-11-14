@@ -173,6 +173,7 @@ export function QueryTextField({
         {...(inputMode === undefined ? {} : { inputMode })}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        dir="auto"
       />
     </Field>
   );
@@ -243,6 +244,7 @@ export function ChatFilter({
         title={t('layout.business.chatIdRequired')}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        dir="auto"
       />
       <datalist id={listId}>
         {(chats.data?.items ?? []).map((chat) => (

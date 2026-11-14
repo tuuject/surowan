@@ -63,6 +63,7 @@ function ValuesInput({
         setEchoed(parsed);
         onChange(parsed);
       }}
+      dir="ltr"
     />
   );
 }
@@ -151,6 +152,7 @@ function FieldEditor({
             inputMode="numeric"
             placeholder={t('pages.recurringAlarms.stepPlaceholder')}
             onChange={(event) => onChange({ ...field, step: event.target.value.trim() })}
+            dir="ltr"
           />
         ) : fieldKey === 'weekday' ? (
           <WeekdayPicker

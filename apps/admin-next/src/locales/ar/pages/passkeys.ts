@@ -1,0 +1,45 @@
+import type { CompleteCatalog } from '../../catalog.ts';
+import type { passkeys as passkeysEn } from '../../en/pages/passkeys.ts';
+
+/** Mirrors `en/pages/passkeys.ts` key for key. */
+export const passkeys: CompleteCatalog<typeof passkeysEn> = {
+  title: 'مفاتيح المرور',
+  description: 'سجّل الدخول بمفتاح مرور على جهاز بدل كلمة المرور.',
+  add: 'إضافة مفتاح مرور',
+  name: 'الاسم',
+  created: 'أُنشئ',
+  lastUsed: 'آخر استخدام',
+  neverUsed: 'لم يُستخدم',
+  unusable: 'مُسجَّل لعنوان لوحة مختلف؛ لم يبقَ صالحًا لتسجيل الدخول هنا.',
+  actions: 'الإجراءات',
+  delete: 'حذف',
+  empty: 'لم تُسجَّل أي مفاتيح مرور بعد.',
+  deleteTitle: 'حذف مفتاح المرور «{{name}}»؟',
+  deleteDescription: 'سيتوقف مفتاح المرور هذا فورًا ولا يمكن استرجاعه. يمكنك تسجيل مفتاح جديد في أي وقت.',
+  deleteConfirm: 'حذف مفتاح المرور',
+  deleted: 'حُذف مفتاح المرور',
+  deleteLastDisabled: 'هذه آخر طريقة لتسجيل الدخول. عيّن كلمة مرور أعلاه قبل حذفه.',
+  noPasswordHint: 'لا توجد كلمة مرور معيّنة. أضف واحدة من بطاقة بيانات اعتماد المشرف أعلاه قبل حذف آخر مفتاح مرور.',
+  passwordStatus: 'كلمة المرور',
+  passwordSet: 'معيّنة',
+  passwordNotSet: 'غير معيّنة',
+  passwordDelete: 'حذف كلمة المرور',
+  passwordDeleteTitle: 'حذف كلمة المرور؟',
+  passwordDeleteDescription:
+    'بعد ذلك تصبح مفاتيح المرور الطريقة الوحيدة لتسجيل الدخول. تبقى جلستك الحالية نشطة حتى تسجيل الخروج.',
+  passwordDeleteConfirm: 'حذف كلمة المرور',
+  passwordDeleted: 'حُذفت كلمة المرور',
+  unsupported:
+    'مفاتيح المرور غير متاحة هنا. افتح اللوحة عبر HTTPS في متصفح يدعم مفاتيح المرور لإضافة واحد. يمكن إدارة مفاتيح المرور الحالية أدناه.',
+  cancelled: 'أُلغي طلب مفتاح المرور',
+  discoverableRequired: 'هذا المتصفح لا يمكنه تخزين مفاتيح المرور. جرّب متصفحًا أو جهازًا آخر.',
+  webauthnFailed: 'فشل طلب مفتاح المرور. أعد المحاولة.',
+  registerTitle: 'إضافة مفتاح مرور',
+  registerDescription: 'سمّ مفتاح المرور هذا، ثم أكّده بقفل شاشة الجهاز أو بصمة الإصبع أو أي تحقق آخر.',
+  nameLabel: 'اسم مفتاح المرور',
+  namePlaceholder: 'مثال: حاسوب العمل',
+  invalidName: 'أدخل اسمًا من 1 إلى 80 حرفًا.',
+  registerConfirm: 'تسجيل مفتاح المرور',
+  registering: 'جارٍ التسجيل…',
+  registered: 'سُجّل مفتاح المرور',
+};

@@ -61,6 +61,7 @@ export function AliasEditor({
         setEchoed(parsed);
         onChange(parsed);
       }}
+      dir="auto"
     />
   );
 }
@@ -147,6 +148,7 @@ export function EntryFormFields({
           disabled={disabled}
           placeholder={t('dictionary.entry.termPlaceholder')}
           onChange={(event) => onChange({ ...draft, term: event.target.value })}
+          dir="auto"
         />
       </Field>
       <Field label={t('dictionary.entry.definitionLabel')} error={errors.definition}>
@@ -156,6 +158,7 @@ export function EntryFormFields({
           disabled={disabled}
           placeholder={t('dictionary.entry.definitionPlaceholder')}
           onChange={(event) => onChange({ ...draft, definition: event.target.value })}
+          dir="auto"
         />
       </Field>
       <Field label={t('dictionary.entry.aliasesLabel')} help={t('dictionary.entry.aliasesHint')}>

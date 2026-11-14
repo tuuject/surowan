@@ -12,6 +12,7 @@ import {
   YAxis,
 } from 'recharts';
 import { formatNumber } from '@/lib/format';
+import { currentLanguage } from '@/lib/i18n';
 
 /**
  * Time-series chart panel for Overview / Usage. A thin recharts wrapper: one
@@ -27,10 +28,17 @@ export interface ChartSeries {
 
 export type ChartDatum = Readonly<Record<string, string | number>>;
 
-const COMPACT_FORMATTER = new Intl.NumberFormat('en-US', { notation: 'compact' });
+const compactFormatters = new Map<string, Intl.NumberFormat>();
 
+/** Compact axis ticks in the panel's language ("1.2 Tsd.", "1.2 ألف"), built once per language. */
 function compactNumber(value: number): string {
-  return COMPACT_FORMATTER.format(value);
+  const language = currentLanguage();
+  let formatter = compactFormatters.get(language);
+  if (formatter === undefined) {
+    formatter = new Intl.NumberFormat(language, { notation: 'compact' });
+    compactFormatters.set(language, formatter);
+  }
+  return formatter.format(value);
 }
 
 const AXIS_TICK = { fontSize: 12, fill: 'var(--muted-foreground)' };
@@ -111,7 +119,8 @@ export function TimeSeriesChart({
 }): ReactElement {
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
-      <div style={{ height }} className={css({ width: '100%' })}>
+      {/* A time axis stays LTR in Arabic UIs too: isolate the whole plot instead of half-mirroring it. */}
+      <div style={{ height }} dir="ltr" className={css({ width: '100%' })}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={[...data]} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" className={css({ stroke: 'divider' })} />

@@ -90,7 +90,7 @@ export function SectionNavigation({
                     borderRadius: 'xl',
                     color: 'nav-item-text',
                     textStyle: 'body',
-                    textAlign: 'left',
+                    textAlign: 'start',
                     cursor: 'pointer',
                     transitionProperty: 'background-color, color',
                     transitionDuration: 'fast',

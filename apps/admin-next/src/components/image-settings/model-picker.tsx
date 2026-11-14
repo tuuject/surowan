@@ -70,6 +70,7 @@ export function ModelPicker({
           placeholder={t('image.settings.searchPlaceholder')}
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
+          dir="auto"
         />
       </Field>
       <Field label={t('image.settings.modelSelectLabel')}>

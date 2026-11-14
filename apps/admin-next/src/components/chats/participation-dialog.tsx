@@ -270,6 +270,7 @@ function ParticipationForm({
                     aria-label={`${t('pages.chats.startLabel')} ${index + 1}`}
                     onChange={(event) => setDraft(draft.key, (current) => ({ ...current, start: event.target.value }))}
                     className={css({ width: '108px' })}
+                    dir="ltr"
                   />
                   <span className={css({ color: 'text-muted' })} aria-hidden="true">
                     –
@@ -281,6 +282,7 @@ function ParticipationForm({
                     aria-label={`${t('pages.chats.endLabel')} ${index + 1}`}
                     onChange={(event) => setDraft(draft.key, (current) => ({ ...current, end: event.target.value }))}
                     className={css({ width: '108px' })}
+                    dir="ltr"
                   />
                   <Button
                     type="button"

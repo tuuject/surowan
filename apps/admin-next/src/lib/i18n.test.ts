@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { LANGUAGE_KEY, resolveInitialLanguage } from './i18n.ts';
+import { directionFor, LANGUAGE_KEY, resolveInitialLanguage } from './i18n.ts';
 
 /**
  * Initial language detection. The Playwright suite pins `en-US`, so a Chinese
@@ -35,6 +35,38 @@ describe('resolveInitialLanguage', () => {
     setBrowserLanguage('zh-CN');
     stubStorage({ [LANGUAGE_KEY]: 'en' });
     expect(resolveInitialLanguage()).toBe('en');
+  });
+
+  test('a stored German or Arabic preference wins and keeps its own tag', () => {
+    stubStorage({ [LANGUAGE_KEY]: 'de-DE' });
+    expect(resolveInitialLanguage()).toBe('de-DE');
+
+    stubStorage({ [LANGUAGE_KEY]: 'ar' });
+    expect(resolveInitialLanguage()).toBe('ar');
+
+    setBrowserLanguage('en-US');
+    expect(resolveInitialLanguage()).toBe('ar');
+  });
+
+  test('a German or Arabic browser language selects that language', () => {
+    stubStorage();
+
+    setBrowserLanguage('de-DE');
+    expect(resolveInitialLanguage()).toBe('de-DE');
+    setBrowserLanguage('de-AT');
+    expect(resolveInitialLanguage()).toBe('de-DE');
+
+    setBrowserLanguage('ar-EG');
+    expect(resolveInitialLanguage()).toBe('ar');
+    setBrowserLanguage('ar');
+    expect(resolveInitialLanguage()).toBe('ar');
+  });
+
+  test('only Arabic reads right to left', () => {
+    expect(directionFor('ar')).toBe('rtl');
+    expect(directionFor('en')).toBe('ltr');
+    expect(directionFor('zh-CN')).toBe('ltr');
+    expect(directionFor('de-DE')).toBe('ltr');
   });
 
   test('a Chinese browser language selects zh-CN', () => {

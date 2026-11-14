@@ -16,13 +16,13 @@ import {
   QueryTextField,
   RowActions,
   TableShell,
+  TimeText,
   ToneBadge,
   useClientPagination,
 } from '@/components/business';
 import type { AdminApiKeyItem } from '@/lib/api/admin.ts';
 import { revokeApiKey } from '@/lib/api/admin.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatTime } from '@/lib/format';
 import { useListQuery } from '@/lib/list-query';
 import { apiKeysQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
@@ -78,7 +78,9 @@ export default function ApiKeysPage(): ReactElement {
   });
   const pagination = useClientPagination(filteredKeys, query.resetKey);
   const columns: readonly ColumnSpec<AdminApiKeyItem>[] = [
-    { key: 'name', title: t('pages.apiKeys.name'), render: (item) => item.name },
+    // Without a width the auto column collapses to ~12px at the table's 1040px floor
+    // ("N…" on develop, four lines once headers wrap); 116 is its desktop share.
+    { key: 'name', title: t('pages.apiKeys.name'), width: 116, render: (item) => item.name },
     {
       key: 'prefix',
       title: t('pages.apiKeys.prefix'),
@@ -97,14 +99,15 @@ export default function ApiKeysPage(): ReactElement {
       title: t('pages.apiKeys.created'),
       width: 184,
       skeleton: '2026-01-18 10:58:15',
-      render: (item) => formatTime(item.created_at),
+      render: (item) => <TimeText value={item.created_at} />,
     },
     {
       key: 'last-used',
       title: t('pages.apiKeys.lastUsed'),
       width: 184,
       skeleton: '2026-01-18 10:58:15',
-      render: (item) => (item.last_used_at === null ? t('pages.apiKeys.neverUsed') : formatTime(item.last_used_at)),
+      render: (item) =>
+        item.last_used_at === null ? t('pages.apiKeys.neverUsed') : <TimeText value={item.last_used_at} />,
     },
     {
       key: 'status',
@@ -163,7 +166,9 @@ export default function ApiKeysPage(): ReactElement {
             </Button>
           </RowActions>
         ) : (
-          <span className={css({ color: 'text-muted' })}>{formatTime(item.revoked_at)}</span>
+          <span className={css({ color: 'text-muted' })}>
+            <TimeText value={item.revoked_at} />
+          </span>
         ),
     },
   ];

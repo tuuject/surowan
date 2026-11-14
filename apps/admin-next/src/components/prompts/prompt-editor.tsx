@@ -7,9 +7,8 @@ import { css } from '@tuuject/koi-react/styled-system/css';
 import { sizes } from '@tuuject/koi-tokens/dimensions';
 import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MonoValue, ToneBadge } from '@/components/business';
+import { MonoValue, TimeText, ToneBadge } from '@/components/business';
 import type { PromptDocument, PromptVersionItem } from '@/lib/api/prompts.ts';
-import { formatTime } from '@/lib/format';
 import { MarkdownInput } from './markdown-input';
 import { type Notice, type PromptDraft, sourceLabelKey, sourceTone } from './prompt-draft';
 
@@ -102,6 +101,7 @@ export function PromptEditor({
           maxLength={MAX_NOTE_CHARS}
           placeholder={t('pages.prompts.notePlaceholder')}
           onChange={(event) => setDraft({ hash: file.content_hash, text: current.text, note: event.target.value })}
+          dir="auto"
         />
       </Field>
       {/* Plain status lines: the editor already sits in a card, so no second frame around them. */}
@@ -114,7 +114,9 @@ export function PromptEditor({
             <>
               <MonoValue value={`v${applied.seq}`} />
               <ToneBadge tone={sourceTone(applied.source)}>{t(sourceLabelKey(applied.source))}</ToneBadge>
-              <span className={css({ textStyle: 'small', color: 'text-muted' })}>{formatTime(applied.created_at)}</span>
+              <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+                <TimeText value={applied.created_at} />
+              </span>
               {applied.created_by === null ? null : (
                 <span className={css({ textStyle: 'small', color: 'text-muted' })}>{applied.created_by}</span>
               )}

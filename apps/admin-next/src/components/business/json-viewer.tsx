@@ -38,6 +38,9 @@ function isTree(value: unknown): value is object {
 }
 
 const BOX = css({
+  // Payloads are code: keys, ids and punctuation keep their LTR order in Arabic.
+  direction: 'ltr',
+  textAlign: 'start',
   maxHeight: '384px',
   overflow: 'auto',
   borderRadius: 'xl',

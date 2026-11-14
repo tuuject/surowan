@@ -9,11 +9,12 @@ import {
   StateBadge,
   TableShell,
   TextValue,
+  TimeText,
 } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { AppLink } from '@/components/router-links';
 import type { InvocationDetail, ToolRegistryEntry } from '@/lib/api/invocations.ts';
-import { formatCost, formatNumber, formatTime } from '@/lib/format';
+import { formatCost, formatNumber } from '@/lib/format';
 
 function ToolRegistryTable({ registry }: { readonly registry: readonly ToolRegistryEntry[] }): ReactElement {
   const { t } = useTranslation();
@@ -91,9 +92,12 @@ export function DetailHeader({ invocation }: { readonly invocation: InvocationDe
                 },
             { label: t('invocations.invocationDetail.kv.topic'), value: String(invocation.chat.message_thread_id) },
             { label: t('invocations.invocationDetail.kv.bucket'), value: <MonoValue value={invocation.bucket_id} /> },
-            { label: t('invocations.invocationDetail.kv.created'), value: formatTime(invocation.created_at) },
-            { label: t('invocations.invocationDetail.kv.started'), value: formatTime(invocation.started_at) },
-            { label: t('invocations.invocationDetail.kv.finished'), value: formatTime(invocation.finished_at) },
+            { label: t('invocations.invocationDetail.kv.created'), value: <TimeText value={invocation.created_at} /> },
+            { label: t('invocations.invocationDetail.kv.started'), value: <TimeText value={invocation.started_at} /> },
+            {
+              label: t('invocations.invocationDetail.kv.finished'),
+              value: <TimeText value={invocation.finished_at} />,
+            },
             { label: t('invocations.invocationDetail.kv.tokens'), value: formatNumber(invocation.total_tokens) },
             {
               label: t('invocations.invocationDetail.kv.cacheRead'),

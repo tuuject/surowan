@@ -2,12 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { Card } from '@tuuject/koi-react/card';
-import { ArrowRightIcon } from '@tuuject/koi-react/icons';
 import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { sizes } from '@tuuject/koi-tokens/dimensions';
-import { type ReactElement, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { type ReactElement, type ReactNode, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   type ColumnSpec,
   ConfirmDialog,
@@ -15,8 +14,11 @@ import {
   MonoValue,
   StateBadge,
   TableShell,
+  TechText,
+  TimeText,
   ToneBadge,
 } from '@/components/business';
+import { ForwardIcon } from '@/components/icons';
 import { AppLink } from '@/components/router-links';
 import { TelegramStatusBadge, TelegramStatusReason, telegramBotLabel } from '@/components/telegram/telegram-status.tsx';
 import { WarningCard } from '@/components/warnings/warning-card';
@@ -81,7 +83,7 @@ function ViewAllLink({ to, label }: { readonly to: '/invocations' | '/warnings';
   return (
     <AppLink to={to}>
       {label}
-      <ArrowRightIcon
+      <ForwardIcon
         size={sizes['icon-sm']}
         className={css({ display: 'inline-block', verticalAlign: 'middle', marginInlineStart: '1' })}
       />
@@ -177,10 +179,12 @@ export default function OverviewPage(): ReactElement {
       title: t('invocations.invocations.columns.chat'),
       render: (row) => (
         <div className={css({ minWidth: '0' })}>
-          <div className={css({ truncate: true })}>
-            {row.chat.title ?? row.chat.telegram_chat_id ?? row.chat.room_id}
+          <div dir="auto" className={css({ truncate: true })}>
+            {row.chat.title ?? <TechText>{row.chat.telegram_chat_id ?? row.chat.room_id}</TechText>}
           </div>
-          <div className={css({ textStyle: 'small', color: 'text-muted' })}>{row.chat.type}</div>
+          {/* The type line is one word ("supergroup"): truncate it like the title above instead of
+              letting the narrow card push it into the next column. */}
+          <div className={css({ textStyle: 'small', color: 'text-muted', truncate: true })}>{row.chat.type}</div>
         </div>
       ),
     },
@@ -203,15 +207,21 @@ export default function OverviewPage(): ReactElement {
       title: t('invocations.invocations.columns.created'),
       width: 184,
       skeleton: '2026-01-18 10:58:15',
-      render: (row) => formatTime(row.created_at),
+      render: (row) => <TimeText value={row.created_at} />,
     },
   ];
 
   // The first load is not retried and the page does not poll, so a failed one
   // leaves no data for good: "loading" is only true while it is pending.
-  const overviewDescription = (): string => {
+  const overviewDescription = (): ReactNode => {
     if (data !== undefined) {
-      return t('pages.overview.generatedAt', { time: formatTime(data.generated_at) });
+      return (
+        <Trans
+          i18nKey="pages.overview.generatedAt"
+          values={{ time: formatTime(data.generated_at) }}
+          components={{ time: <TechText /> }}
+        />
+      );
     }
     return overview.isPending ? t('common.loading') : t('pages.overview.loadFailed');
   };
@@ -277,7 +287,7 @@ export default function OverviewPage(): ReactElement {
         <StatCard
           label={t('pages.overview.warnings')}
           value={warnings.data?.unread_count}
-          hint={t('pages.overview.warningsUnread', { count: formatNumber(warnings.data?.unread_count ?? 0) })}
+          hint={t('pages.overview.warningsUnread', { count: warnings.data?.unread_count ?? 0 })}
           loading={warnings.isPending}
         />
       </div>
@@ -298,6 +308,7 @@ export default function OverviewPage(): ReactElement {
             rowKey={(row) => row.id}
             loading={recent.isPending}
             skeletonRows={5}
+            // Wide enough for the longest translated state badge next to a readable chat column.
             minWidth={680}
             emptyText={t('common.noRecords')}
           />
@@ -371,7 +382,11 @@ export default function OverviewPage(): ReactElement {
                 <SleepBadge sleeping={data.runtime_status.sleeping} />
                 {data.runtime_status.sleep_until === null ? null : (
                   <span className={css({ color: 'text-muted' })}>
-                    {t('pages.overview.sleepUntil', { time: formatTime(data.runtime_status.sleep_until) })}
+                    <Trans
+                      i18nKey="pages.overview.sleepUntil"
+                      values={{ time: formatTime(data.runtime_status.sleep_until) }}
+                      components={{ time: <TechText /> }}
+                    />
                   </span>
                 )}
               </dd>
@@ -407,7 +422,11 @@ export default function OverviewPage(): ReactElement {
                           {chat.title ?? (chat.username === null ? chat.telegram_chat_id : `@${chat.username}`)}
                         </div>
                         <div className={css({ textStyle: 'small', color: 'text-muted' })}>
-                          {t('pages.overview.pausedSince', { time: formatTime(chat.paused_at) })}
+                          <Trans
+                            i18nKey="pages.overview.pausedSince"
+                            values={{ time: formatTime(chat.paused_at) }}
+                            components={{ time: <TechText /> }}
+                          />
                         </div>
                       </li>
                     ))}

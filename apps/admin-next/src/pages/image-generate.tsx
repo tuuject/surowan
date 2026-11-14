@@ -279,6 +279,7 @@ export default function ImageGeneratePage() {
                     max={4}
                     value={outputCount}
                     onChange={(event) => setOutputCount(Math.min(4, Math.max(1, Number(event.target.value) || 1)))}
+                    dir="ltr"
                   />
                 </Field>
               </div>

@@ -17,6 +17,7 @@ import {
   RowActions,
   TableShell,
   TextValue,
+  TimeText,
   ToneBadge,
   useClientPagination,
 } from '@/components/business';
@@ -30,7 +31,6 @@ import { ApiError } from '@/lib/api/core.ts';
 import type { PromptSaveResponse, PromptScopeRef, PromptVersionItem } from '@/lib/api/prompts.ts';
 import { cancelPromptRunning, failedPromptVersion, restorePromptVersion, savePrompt } from '@/lib/api/prompts.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatTime } from '@/lib/format';
 import { chatQuery, useListQuery } from '@/lib/list-query';
 import { chatsQuery, promptDiffQuery, promptDocumentQuery, promptVersionsQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
@@ -176,9 +176,11 @@ export default function PromptsPage(): ReactElement {
     {
       key: 'version',
       title: t('pages.prompts.colVersion'),
+      // The "applied" badge is translated, so the pair wraps instead of pushing the version out of its cell.
+      className: css({ whiteSpace: 'normal' }),
       width: 136,
       render: (row) => (
-        <span className={css({ display: 'inline-flex', alignItems: 'center', gap: '2' })}>
+        <span className={css({ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
           <MonoValue value={`v${row.seq}`} />
           {row.id === applied?.id ? <ToneBadge tone="success">{t('pages.prompts.currentBadge')}</ToneBadge> : null}
         </span>
@@ -189,7 +191,7 @@ export default function PromptsPage(): ReactElement {
       title: t('pages.prompts.colCreated'),
       width: 184,
       skeleton: '2026-01-18 10:58:15',
-      render: (row) => formatTime(row.created_at),
+      render: (row) => <TimeText value={row.created_at} />,
     },
     {
       key: 'source',

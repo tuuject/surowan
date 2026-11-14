@@ -143,6 +143,7 @@ export default function SettingsPage(): ReactElement {
                   message: t('models.settings.usernamePattern'),
                 },
               })}
+              dir="ltr"
             />
           </Field>
           <Field label={t('models.settings.newPassword')} error={errors.password?.message}>
@@ -153,6 +154,7 @@ export default function SettingsPage(): ReactElement {
                 required: t('models.settings.passwordRequired'),
                 minLength: { value: 12, message: t('models.settings.passwordMin') },
               })}
+              dir="ltr"
             />
           </Field>
           {success ? (

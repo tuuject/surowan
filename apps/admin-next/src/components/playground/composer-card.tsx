@@ -145,6 +145,7 @@ export function ComposerCard({
               placeholder={t('playground.messages.composerPlaceholder')}
               readOnly={composerLocked}
               rows={3}
+              dir="auto"
             />
           </Field>
           {unresolved === null ? null : (

@@ -178,6 +178,7 @@ function BucketTimingForm({
                     const text = event.target.value;
                     setDraft((previous) => ({ ...previous, [key]: text }));
                   }}
+                  dir="ltr"
                 />
               </Field>
               {saved[key] === active[key] ? null : (

@@ -77,6 +77,7 @@ export function WizardConnectionStep({
           value={alias}
           placeholder="openrouter"
           onChange={(event) => onAliasChange(event.target.value)}
+          dir="ltr"
         />
         <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('models.models.wizard.aliasHint')}</p>
         {alias.length > 0 && !aliasValid ? (
@@ -137,6 +138,7 @@ export function WizardConnectionStep({
               value={baseUrl}
               placeholder="https://example.com/v1"
               onChange={(event) => onBaseUrlChange(event.target.value)}
+              dir="ltr"
             />
           </Field>
           <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
@@ -203,6 +205,7 @@ export function WizardCredentialsStep({
           autoComplete="new-password"
           value={apiKey}
           onChange={(event) => onApiKeyChange(event.target.value)}
+          dir="ltr"
         />
       </Field>
       {custom ? (
@@ -251,7 +254,13 @@ export function WizardModelsStep({
         <label htmlFor="wizard-ids" className={fieldLabel}>
           {t('models.models.wizard.idsLabel')}
         </label>
-        <Textarea id="wizard-ids" rows={2} value={ids} onChange={(event) => onIdsChange(event.target.value)} />
+        <Textarea
+          id="wizard-ids"
+          rows={2}
+          value={ids}
+          onChange={(event) => onIdsChange(event.target.value)}
+          dir="ltr"
+        />
         <Button type="button" variant="outline" color="secondary" size="sm" disabled={fetchPending} onClick={onLookup}>
           {t('models.models.wizard.lookup')}
         </Button>

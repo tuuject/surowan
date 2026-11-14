@@ -124,6 +124,7 @@ function HeaderNameInput({
         invalid={invalid}
         placeholder="x-api-key"
         onChange={(event) => onChange(event.target.value)}
+        dir="ltr"
       />
     </div>
   );
@@ -157,6 +158,7 @@ function HeaderValueInput({
         disabled={disabled}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
+        dir="ltr"
       />
     </div>
   );

@@ -56,6 +56,7 @@ export function EngineEditor({
             onChange={(event) => onChange(renameEngine(draft, event.target.value))}
             placeholder="tavily-main"
             disabled={disabled}
+            dir="ltr"
           />
         </Field>
         <Field label={t('search.fieldProvider')}>
@@ -85,6 +86,7 @@ export function EngineEditor({
             onChange={(event) => onChange({ endpoint: event.target.value })}
             placeholder={provider?.default_endpoint ?? t('search.endpointRequired')}
             disabled={disabled}
+            dir="ltr"
           />
         </Field>
         <Field
@@ -98,6 +100,7 @@ export function EngineEditor({
             value={draft.results}
             onChange={(event) => onChange({ results: event.target.value })}
             disabled={disabled || provider?.supports_count === false}
+            dir="ltr"
           />
         </Field>
         <Field label={t('search.fieldTimeout')}>
@@ -108,6 +111,7 @@ export function EngineEditor({
             value={draft.timeout}
             onChange={(event) => onChange({ timeout: event.target.value })}
             disabled={disabled}
+            dir="ltr"
           />
         </Field>
         <Field label={t('search.fieldNote')} help={t('search.noteHint')}>
@@ -117,6 +121,7 @@ export function EngineEditor({
             onChange={(event) => onChange({ note: event.target.value })}
             placeholder={t('search.notePlaceholder')}
             disabled={disabled}
+            dir="auto"
           />
         </Field>
         {/* A mode picker plus the field it unlocks under one label: borrows Field's parts instead of nesting Fields. */}
@@ -156,6 +161,7 @@ export function EngineEditor({
               onChange={(event) => onChange({ apiKey: event.target.value })}
               placeholder={t('search.keyPlaceholder')}
               disabled={disabled}
+              dir="ltr"
             />
           ) : null}
           {keyMode === 'alias' ? (

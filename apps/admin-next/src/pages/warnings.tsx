@@ -12,7 +12,6 @@ import { useForegroundRefresh } from '@/hooks/use-foreground-refresh';
 import type { EventWarning } from '@/lib/api/warnings.ts';
 import { clearWarnings, markWarningRead } from '@/lib/api/warnings.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatNumber } from '@/lib/format';
 import { warningsQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
 
@@ -43,7 +42,8 @@ export default function WarningsPage(): ReactElement {
     mutationFn: clearWarnings,
     onSuccess: (result) => {
       setClearOpen(false);
-      toast.success(t('pages.warnings.cleared', { count: formatNumber(result.cleared) }));
+      // `count` must be numeric for i18next to pick a plural form; `{{count, number}}` keeps localized digits.
+      toast.success(t('pages.warnings.cleared', { count: result.cleared }));
       void queryClient.invalidateQueries({ queryKey: ['warnings'] });
     },
     onError: (error) => {
@@ -102,7 +102,7 @@ export default function WarningsPage(): ReactElement {
 
       <Panel
         title={t('pages.warnings.eventsTitle')}
-        description={t('pages.warnings.unreadCount', { count: formatNumber(unreadCount) })}
+        description={t('pages.warnings.unreadCount', { count: unreadCount })}
       >
         <SnapshotNotice count={newCount} onRenew={renew} className={css({ marginBlockEnd: '4' })} />
         {query.isPending ? (

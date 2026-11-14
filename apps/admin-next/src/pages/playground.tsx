@@ -124,7 +124,9 @@ export default function PlaygroundPage(): ReactElement {
                     onClick={() => selectRoom(entry.id)}
                     aria-current={entry.id === roomId ? 'true' : undefined}
                   >
-                    <span className={css({ truncate: true })}>{entry.title}</span>
+                    <span dir="auto" className={css({ truncate: true })}>
+                      {entry.title}
+                    </span>
                     <span className={css({ textStyle: 'small', color: 'text-muted', marginInlineStart: 'auto' })}>
                       {t('playground.room.pending', { count: entry.held_count ?? 0 })}
                     </span>
@@ -186,10 +188,15 @@ export default function PlaygroundPage(): ReactElement {
       >
         <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
           <Field id="playground-room-title" label={t('playground.rooms.createTitle')}>
-            <Input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} />
+            <Input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} dir="auto" />
           </Field>
           <Field label={t('playground.rooms.createMembers')}>
-            <Input value={newMembers} onChange={(event) => setNewMembers(event.target.value)} placeholder="Ada, Bo" />
+            <Input
+              value={newMembers}
+              onChange={(event) => setNewMembers(event.target.value)}
+              placeholder="Ada, Bo"
+              dir="auto"
+            />
           </Field>
         </div>
         {createRoom.isError ? (

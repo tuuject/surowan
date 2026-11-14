@@ -1,8 +1,8 @@
 import { IconButton } from '@tuuject/koi-react/button';
 import { Checkbox } from '@tuuject/koi-react/checkbox';
-import { ChevronDownIcon, ChevronRightIcon } from '@tuuject/koi-react/icons';
+import { ChevronDownIcon } from '@tuuject/koi-react/icons';
 import { Skeleton } from '@tuuject/koi-react/skeleton';
-import { css } from '@tuuject/koi-react/styled-system/css';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import {
   Table,
   TableBody,
@@ -16,6 +16,7 @@ import {
 import type React from 'react';
 import { Fragment, type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { NextIcon } from '@/components/icons';
 
 export interface ColumnSpec<T> {
   readonly key: string;
@@ -74,6 +75,24 @@ export interface TableShellProps<T> {
 const ALIGN = { left: 'start', center: 'center', right: 'end' } as const;
 
 const skeletonClass = css({ display: 'inline-block', maxWidth: '100%', verticalAlign: 'middle', borderRadius: 'sm' });
+
+/**
+ * A translated column label wraps inside its column rather than painting over the
+ * next one: "عمليات الإرسال" needs more room than "Sends" in the same width.
+ */
+/**
+ * Body cells hyphenate before they break a word: a badge label or an ID that does
+ * not fit wraps as "Suc-ceeded" rather than "Succeede / d".
+ */
+const cellClass = css({ hyphens: 'auto' });
+
+const headerClass = css({
+  // A translated label wraps at spaces first, then hyphenates (the document `lang`
+  // picks the dictionary), and only breaks a syllable as the very last resort.
+  whiteSpace: 'normal',
+  hyphens: 'auto',
+  overflowWrap: 'break-word',
+});
 
 /**
  * Koi's composed table, as on the template's order list: fixed layout sized by
@@ -151,6 +170,7 @@ export function TableShell<T>({
             <TableHeaderCell
               key={column.key}
               {...align(column)}
+              className={headerClass}
               {...(column.width === undefined ? {} : { style: { width: column.width } })}
             >
               {column.title}
@@ -213,7 +233,7 @@ export function TableShell<T>({
                           color="secondary"
                           aria-expanded={open}
                           label={t('layout.business.toggleRowDetails')}
-                          icon={open ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                          icon={open ? <ChevronDownIcon /> : <NextIcon />}
                           onClick={() => toggleRow(key)}
                         />
                       ) : null}
@@ -223,8 +243,8 @@ export function TableShell<T>({
                     <TableCell
                       key={column.key}
                       {...align(column)}
+                      className={cx(cellClass, column.className)}
                       {...(column.paddingBlock === undefined ? {} : { paddingBlock: column.paddingBlock })}
-                      {...(column.className === undefined ? {} : { className: column.className })}
                     >
                       {column.render(row)}
                     </TableCell>

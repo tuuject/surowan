@@ -63,6 +63,7 @@ export function ModelDraftList({
         placeholder={t('models.models.drafts.search')}
         value={search}
         onChange={(event) => onSearchChange(event.target.value)}
+        dir="auto"
       />
       {drafts.length === 0 ? (
         <p className={css({ textStyle: 'body', color: 'text-muted', paddingBlock: '6', textAlign: 'center' })}>

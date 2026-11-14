@@ -153,7 +153,7 @@ function PromptScopeRow({
           borderRadius: 'xl',
           bg: 'transparent',
           color: 'nav-item-text',
-          textAlign: 'left',
+          textAlign: 'start',
           cursor: 'pointer',
           transitionProperty: 'background-color, color',
           transitionDuration: 'fast',
@@ -216,6 +216,7 @@ function PromptScopeSearch({
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
         iconStart={<SearchIcon />}
+        dir="auto"
       />
       {search.length === 0 ? null : (
         <IconButton

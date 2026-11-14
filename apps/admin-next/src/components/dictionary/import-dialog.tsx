@@ -248,6 +248,7 @@ export function ImportDialog({
               setFileName(null);
               setPreview(null);
             }}
+            dir="ltr"
           />
         </Field>
 

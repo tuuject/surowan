@@ -14,9 +14,9 @@ allowBuilds:
 
 minimumReleaseAgeExclude:
   - react-hook-form@7.90.0
-  - '@tuuject/koi-core@0.3.0 || 0.4.0 || 0.5.0'
-  - '@tuuject/koi-react@0.3.0 || 0.4.0 || 0.5.0'
-  - '@tuuject/koi-tokens@0.3.0 || 0.4.0 || 0.5.0'
+  - '@tuuject/koi-core@0.3.0 || 0.4.0 || 0.5.0 || 0.6.0'
+  - '@tuuject/koi-react@0.3.0 || 0.4.0 || 0.5.0 || 0.6.0'
+  - '@tuuject/koi-tokens@0.3.0 || 0.4.0 || 0.5.0 || 0.6.0'
 
 patchedDependencies:
   '@rspress/core@2.0.22': patches/@rspress__core@2.0.22.patch

@@ -2,10 +2,9 @@ import { IconButton } from '@tuuject/koi-react/button';
 import { TrashIcon } from '@tuuject/koi-react/icons';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type { TFunction } from 'i18next';
-import { type ColumnSpec, MonoValue, RowActions } from '@/components/business';
+import { type ColumnSpec, MonoValue, RowActions, TechText, TimeText } from '@/components/business';
 import { EditIcon, EyeIcon } from '@/components/icons';
 import type { MemoryEntry } from '@/lib/api/memories.ts';
-import { formatTime } from '@/lib/format';
 import { MemoryStatus } from './memories-status.tsx';
 
 export interface MemoryColumnActions {
@@ -27,7 +26,7 @@ export function memoryColumns(t: TFunction, actions: MemoryColumnActions): reado
       title: t('pages.memories.colSummary'),
       render: (row) => (
         <div className={css({ minWidth: '0' })}>
-          <div className={css({ truncate: true })} title={row.summary}>
+          <div dir="auto" className={css({ truncate: true })} title={row.summary}>
             {row.summary}
           </div>
           <div className={secondaryLine}>
@@ -41,7 +40,9 @@ export function memoryColumns(t: TFunction, actions: MemoryColumnActions): reado
       title: t('pages.memories.colChat'),
       render: (row) => (
         <div className={css({ minWidth: '0' })}>
-          <div className={css({ truncate: true })}>{row.chat.title ?? row.chat.telegram_chat_id}</div>
+          <div dir="auto" className={css({ truncate: true })}>
+            {row.chat.title ?? <TechText>{row.chat.telegram_chat_id}</TechText>}
+          </div>
           <div className={secondaryLine}>{row.chat.telegram_chat_id}</div>
         </div>
       ),
@@ -49,7 +50,9 @@ export function memoryColumns(t: TFunction, actions: MemoryColumnActions): reado
     {
       key: 'status',
       title: t('pages.memories.colStatus'),
-      width: 104,
+      // The English "short-term" badge is wider than 104px leaves it: it was clipped there, and now that badges wrap
+      // it would become a two-line pill.
+      width: 120,
       render: (row) => <MemoryStatus row={row} />,
     },
     {
@@ -57,14 +60,14 @@ export function memoryColumns(t: TFunction, actions: MemoryColumnActions): reado
       title: t('pages.memories.colExpires'),
       width: 184,
       skeleton: '2026-01-18 10:58:15',
-      render: (row) => (row.expires_at === null ? t('pages.memories.permanent') : formatTime(row.expires_at)),
+      render: (row) => (row.expires_at === null ? t('pages.memories.permanent') : <TimeText value={row.expires_at} />),
     },
     {
       key: 'created_at',
       title: t('pages.memories.colCreated'),
       width: 184,
       skeleton: '2026-01-18 10:58:15',
-      render: (row) => formatTime(row.created_at),
+      render: (row) => <TimeText value={row.created_at} />,
     },
     {
       key: 'actions',

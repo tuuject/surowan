@@ -13,11 +13,12 @@ import {
   MonoValue,
   TableShell,
   TextValue,
+  TimeText,
   ToneBadge,
 } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import type { MediaEntry, MessageDetail, RevisionEntry } from '@/lib/api/messages.ts';
-import { formatNumber, formatTime, kindLabel } from '@/lib/format';
+import { formatNumber, kindLabel } from '@/lib/format';
 import { messageQuery } from '@/lib/queries';
 
 function YesNoBadge({ value }: { readonly value: boolean }): ReactElement {
@@ -52,8 +53,11 @@ function DetailHeader({ message }: { readonly message: MessageDetail }): ReactEl
             { label: t('invocations.messageDetail.kv.topic'), value: String(message.chat.message_thread_id) },
             { label: t('invocations.messageDetail.kv.visible'), value: <YesNoBadge value={message.visible} /> },
             { label: t('invocations.messageDetail.kv.sentByBot'), value: <YesNoBadge value={message.sent_by_bot} /> },
-            { label: t('invocations.messageDetail.kv.telegramDate'), value: formatTime(message.telegram_date) },
-            { label: t('invocations.messageDetail.kv.received'), value: formatTime(message.received_at) },
+            {
+              label: t('invocations.messageDetail.kv.telegramDate'),
+              value: <TimeText value={message.telegram_date} />,
+            },
+            { label: t('invocations.messageDetail.kv.received'), value: <TimeText value={message.received_at} /> },
           ]}
         />
       </div>
@@ -104,7 +108,7 @@ function RevisionsTable({ message }: { readonly message: MessageDetail }): React
     {
       key: 'created_at',
       title: t('invocations.messageDetail.revisionColumns.created'),
-      render: (row) => formatTime(row.created_at),
+      render: (row) => <TimeText value={row.created_at} />,
     },
   ];
   return (

@@ -1,0 +1,61 @@
+import type { Catalog } from '../catalog.ts';
+import type { search as searchEn } from '../en/search.ts';
+
+/** Mirrors `en/search.ts` key for key; the annotation fails the build on drift. */
+export const search: Catalog<typeof searchEn> = {
+  title: 'Websuche',
+  switchTitle: 'Verfügbarkeit',
+  switchDescription: 'Ausschalten der Suche stoppt laufende Aufrufe.',
+  switchLabel: 'Websuche aktivieren',
+  switchActive: 'Die Suche steht neuen Aufrufen zur Verfügung.',
+  switchInactive: 'Die Suche ist nicht verfügbar: Der Schalter ist aus oder keine Suchmaschine aktiviert.',
+  enginesTitle: 'Suchmaschinen',
+  addEngine: 'Suchmaschine hinzufügen',
+  editEngine: 'Suchmaschine bearbeiten',
+  noEngines: 'Keine Suchmaschine konfiguriert. Eine hinzufügen, um die Suche verfügbar zu machen.',
+  engineHeading: 'Suchmaschine {{index}}',
+  engineEnabled: 'Aktiviert',
+  removeEngine: 'Entfernen',
+  fieldId: 'ID der Suchmaschine',
+  fieldIdHint: 'Kleinbuchstaben, Ziffern und Bindestriche. Das Modell wählt eine Suchmaschine über diese ID.',
+  fieldProvider: 'Anbieter',
+  fieldEndpoint: 'Endpunkt',
+  endpointRequired: 'Erforderlich',
+  endpointRequiredHint:
+    'Dieser Anbieter hat keinen öffentlichen Standard; die Adresse der Instanz eingeben (zum Beispiel https://searx.example.com).',
+  endpointHint: 'Leer lassen, um den Standard des Anbieters zu nutzen. Keine Zugangsdaten, Query oder Fragment.',
+  fieldResults: 'Ergebnisse',
+  resultsUnsupported: 'Dieser Anbieter bestimmt seine Seitengröße selbst; es wird keine Anzahl gesendet.',
+  resultsHint: 'Standardanzahl der Ergebnisse pro Suche, 1–10.',
+  fieldTimeout: 'Zeitlimit (s)',
+  fieldNote: 'Notiz für das Modell',
+  notePlaceholder: 'Für chinesische Entwicklerblogs und Release Notes verwenden.',
+  noteHint:
+    'Welche Seiten oder Inhalte diese Suchmaschine eignet; das Modell nutzt das zur Auswahl einer Suchmaschine.',
+  fieldKey: 'Zugangsdaten',
+  keyKeep: 'Konfigurierten Schlüssel behalten',
+  keyNew: 'Neuen Schlüssel eingeben',
+  keyReuse: 'Ein DeepSeek-Modellschlüssel wiederverwenden',
+  keyPlaceholder: 'API-Schlüssel einfügen',
+  keyForbidden: 'Dieser Anbieter benötigt keine Zugangsdaten.',
+  keyOptional: 'Der Schlüssel ist optional; ohne ihn wird der kostenlose Endpunkt genutzt.',
+  keyRequired: 'Dieser Anbieter erfordert einen Schlüssel.',
+  filtersTitle: 'URL-Filter',
+  filtersLabel: 'Regeln',
+  filtersHint:
+    'Ein regulärer Ausdruck pro Zeile; Ergebnisse, deren URL passt, werden verworfen. Zum Beispiel verwirft csdn jedes Ergebnis von blog.csdn.net.',
+  filtersInvalid: 'Kein gültiger regulärer Ausdruck: {{rules}}',
+  filterTestLabel: 'URLs testen',
+  filterTestHint:
+    'Eine URL pro Zeile einfügen, um eine Vorschau der passenden Regeln zu sehen. Es wird nie eine Anfrage gesendet.',
+  filterMatched: 'gefiltert durch {{rules}}',
+  filterKept: 'behalten',
+  invalidTitle: 'Vor dem Speichern korrigieren',
+  save: 'Einstellungen speichern',
+  saving: 'Wird gespeichert…',
+  saved: 'Einstellungen der Websuche gespeichert',
+  saveHint: 'Wirkt sofort; kein Neustart nötig.',
+  conflictTitle: 'Die Konfiguration wurde an anderer Stelle geändert',
+  conflictBody:
+    'Die Einstellungen wurden nach dem Laden dieser Seite an anderer Stelle geändert, daher wurde nichts gespeichert. Neu laden, um die aktuellen Einstellungen zu bearbeiten; ungespeicherte Änderungen hier gehen verloren.',
+};

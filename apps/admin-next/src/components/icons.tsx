@@ -37,13 +37,20 @@ import wandMagicSparkles from '@iconify-icons/fa7-solid/wand-magic-sparkles';
 import waveSquare from '@iconify-icons/fa7-solid/wave-square';
 import wrench from '@iconify-icons/fa7-solid/wrench';
 import robot from '@iconify-icons/fa7-solid/robot';
-import { type BuiltinIconProps, Icon, type IconData } from '@tuuject/koi-react/icons';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import { ArrowRightIcon, type BuiltinIconProps, ChevronRightIcon, Icon, type IconData } from '@tuuject/koi-react/icons';
 
 // Business icons from Font Awesome Free Solid, rendered by Koi's Icon in currentColor like Koi's own. Koi's
 // built-ins (close, check, chevrons, search, plus, trash, upload, external, info / warning / error) are imported
 // from `@tuuject/koi-react/icons` directly; only what Koi doesn't ship lives here.
-function icon(data: IconData) {
-  return (props: BuiltinIconProps) => <Icon icon={data} {...props} />;
+/**
+ * `mirrored` marks a glyph that points along the reading direction; Koi flips it
+ * under `:dir(rtl)` (`.koi-mirror`), which is a `transform`. A control that also
+ * turns the glyph (a disclosure chevron opening downward) therefore rotates with
+ * the independent `rotate` property, which composes with that transform.
+ */
+function icon(data: IconData, mirrored = false) {
+  return (props: BuiltinIconProps) => <Icon icon={data} mirrored={mirrored} {...props} />;
 }
 
 // Navigation groups.
@@ -55,6 +62,24 @@ export const SlidersIcon = icon(sliders);
 export const TelegramIcon = icon(paperPlane);
 export const SettingsIcon = icon(gear);
 
+/**
+ * A disclosure chevron: closed it points along the reading direction (right, mirrored to left under RTL),
+ * open it points down in both. `rotate` (not `transform`) composes with the RTL mirror, which is a
+ * transform; its sign flips too, because a mirrored chevron rotated +90° would point up.
+ */
+export const disclosureChevronClass = css({
+  flexShrink: '0',
+  transitionProperty: 'rotate',
+  transitionDuration: 'token(durations.check)',
+  transitionTimingFunction: 'token(easings.spring)',
+  '[open] > summary > &': { rotate: '90deg' },
+  '[dir="rtl"] [open] > summary > &': { rotate: '-90deg' },
+});
+
+// Directional glyphs: Koi's own icons are already marked `mirrored`.
+export const NextIcon = ChevronRightIcon;
+export const ForwardIcon = ArrowRightIcon;
+
 // Shell controls.
 export const MenuIcon = icon(bars);
 // Free Solid has no sidebar glyph; two columns reads closest (as in the Koi admin template).
@@ -64,7 +89,8 @@ export const RowsIcon = icon(gripLines);
 export const SunIcon = icon(sun);
 export const MoonIcon = icon(moon);
 export const LanguageIcon = icon(language);
-export const LogoutIcon = icon(rightFromBracket);
+// The bracket opens toward the door: it points the other way in RTL.
+export const LogoutIcon = icon(rightFromBracket, true);
 
 // Actions.
 export const EditIcon = icon(pen);

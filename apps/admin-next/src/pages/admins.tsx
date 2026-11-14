@@ -201,6 +201,7 @@ export default function AdminsPage(): ReactElement {
                 setUserIdDraft(event.target.value);
                 setUserIdError(null);
               }}
+              dir="ltr"
             />
           </Field>
           {add.isError ? (

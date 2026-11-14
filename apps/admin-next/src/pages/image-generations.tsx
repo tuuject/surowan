@@ -11,13 +11,13 @@ import {
   ListToolbar,
   StateBadge,
   TableShell,
+  TimeText,
   useOffsetPagination,
 } from '@/components/business';
 import { AppLink, ButtonLink } from '@/components/router-links';
 import type { ImageGenerationRecord } from '@/lib/api/images.ts';
 import { listImageGenerations } from '@/lib/api/images.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatTime } from '@/lib/format';
 
 /** Generation audit list: every generation submitted from the panel or the agent. */
 
@@ -63,14 +63,20 @@ function GenerationList() {
       title: t('image.generations.columnModel'),
       width: 200,
       render: (row) => (
-        <span className={css({ truncate: true, display: 'block' })}>{row.snapshot.authored.modelId}</span>
+        <span dir="ltr" className={css({ truncate: true, display: 'block', textAlign: 'start' })}>
+          {row.snapshot.authored.modelId}
+        </span>
       ),
     },
     {
       key: 'prompt',
       title: t('image.generations.columnPrompt'),
       render: (row) => (
-        <span className={css({ truncate: true, display: 'block' })} title={row.snapshot.authored.authoredPrompt}>
+        <span
+          dir="auto"
+          className={css({ truncate: true, display: 'block' })}
+          title={row.snapshot.authored.authoredPrompt}
+        >
           {row.snapshot.authored.authoredPrompt}
         </span>
       ),
@@ -89,7 +95,9 @@ function GenerationList() {
         <div className={css({ minWidth: '0' })}>
           <div>{row.source}</div>
           {row.actorName === '' ? null : (
-            <div className={css({ textStyle: 'small', color: 'text-muted', truncate: true })}>{row.actorName}</div>
+            <div dir="auto" className={css({ textStyle: 'small', color: 'text-muted', truncate: true })}>
+              {row.actorName}
+            </div>
           )}
         </div>
       ),
@@ -99,7 +107,7 @@ function GenerationList() {
       title: t('image.generations.columnSubmitted'),
       width: 184,
       skeleton: '2026-01-18 10:58:15',
-      render: (row) => formatTime(row.createdAt),
+      render: (row) => <TimeText value={row.createdAt} />,
     },
   ];
 

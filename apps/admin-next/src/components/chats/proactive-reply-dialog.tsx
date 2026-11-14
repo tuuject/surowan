@@ -211,6 +211,7 @@ function ProactiveReplyForm({
                 step={1}
                 value={base}
                 onChange={(event) => setBase(event.target.value)}
+                dir="ltr"
               />
             </Field>
             <Field label={t('pages.chats.proactiveIncrement')}>
@@ -221,6 +222,7 @@ function ProactiveReplyForm({
                 step={1}
                 value={increment}
                 onChange={(event) => setIncrement(event.target.value)}
+                dir="ltr"
               />
             </Field>
             <Field label={t('pages.chats.proactivePity')}>
@@ -231,6 +233,7 @@ function ProactiveReplyForm({
                 step={1}
                 value={pity}
                 onChange={(event) => setPity(event.target.value)}
+                dir="ltr"
               />
             </Field>
           </div>

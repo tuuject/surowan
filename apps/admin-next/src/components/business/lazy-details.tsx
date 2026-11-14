@@ -1,8 +1,8 @@
-import { ChevronRightIcon } from '@tuuject/koi-react/icons';
 import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import { sizes } from '@tuuject/koi-tokens/dimensions';
 import type React from 'react';
 import { type ReactElement, useState } from 'react';
+import { disclosureChevronClass, NextIcon } from '@/components/icons';
 
 /**
  * Native `<details>` disclosure whose children are mounted only after the first
@@ -50,14 +50,7 @@ export function LazyDetails({ summary, children, className }: LazyDetailsProps):
           _focusVisible: { outline: '2px solid', outlineColor: 'focus-ring', outlineOffset: '2px' },
         })}
       >
-        <ChevronRightIcon
-          size={sizes['icon-sm']}
-          className={css({
-            flexShrink: '0',
-            transition: 'transform token(durations.check) token(easings.spring)',
-            '[open] > summary > &': { transform: 'rotate(90deg)' },
-          })}
-        />
+        <NextIcon size={sizes['icon-sm']} className={disclosureChevronClass} />
         {summary}
       </summary>
       {opened ? (

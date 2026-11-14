@@ -117,6 +117,7 @@ export function StickerSetDialog({
             readOnly={!adding}
             {...(adding ? { placeholder: t('pages.stickers.namePlaceholder') } : {})}
             onChange={(event) => onChange({ name: event.target.value })}
+            dir="ltr"
           />
         </Field>
         <Field
@@ -124,7 +125,12 @@ export function StickerSetDialog({
           help={t('pages.stickers.aliasHelp')}
           error={errors.alias === undefined ? undefined : t('pages.stickers.invalidAlias')}
         >
-          <Input value={values.alias} maxLength={64} onChange={(event) => onChange({ alias: event.target.value })} />
+          <Input
+            value={values.alias}
+            maxLength={64}
+            onChange={(event) => onChange({ alias: event.target.value })}
+            dir="ltr"
+          />
         </Field>
         <Field
           label={t('pages.stickers.noteLabel')}
@@ -141,6 +147,7 @@ export function StickerSetDialog({
             placeholder={t('pages.stickers.notePlaceholder')}
             value={values.note}
             onChange={(event) => onChange({ note: event.target.value })}
+            dir="auto"
           />
         </Field>
         {error === null ? null : (

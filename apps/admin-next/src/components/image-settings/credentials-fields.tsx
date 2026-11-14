@@ -59,6 +59,7 @@ export function CredentialsFields({
                       current.map((item) => (item.key === entry.key ? { ...item, name: event.target.value } : item)),
                     )
                   }
+                  dir="ltr"
                 />
               </Field>
               <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
@@ -101,6 +102,7 @@ export function CredentialsFields({
                           ),
                         )
                       }
+                      dir="ltr"
                     />
                   </Field>
                 )}

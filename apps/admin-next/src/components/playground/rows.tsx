@@ -4,11 +4,11 @@ import { Button } from '@tuuject/koi-react/button';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StateBadge, ToneBadge } from '@/components/business';
+import { StateBadge, TimeText, ToneBadge } from '@/components/business';
 import type { PlaygroundInvocation, PlaygroundTimelineItem } from '@/lib/api/playground.ts';
 import { playgroundAssetUrl, retryPlaygroundRelease } from '@/lib/api/playground.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatNumber, formatTime, stateLabel } from '@/lib/format';
+import { formatNumber, stateLabel } from '@/lib/format';
 import { toast } from '@/lib/toast.ts';
 import { StatusPill } from './shared.tsx';
 
@@ -56,7 +56,7 @@ export function TimelineRow({
           </ToneBadge>
         )}
         <span className={css({ textStyle: 'small', color: 'text-muted', marginInlineStart: 'auto' })}>
-          {formatTime(item.created_at)}
+          <TimeText value={item.created_at} />
         </span>
       </div>
       {item.reply_to_seq === null ? null : (
@@ -163,7 +163,7 @@ export function AttemptRow({
         )}
         <StatusPill label={t('invocations.invocations.columns.tokens')} value={formatNumber(invocation.total_tokens)} />
         <span className={css({ textStyle: 'small', color: 'text-muted', marginInlineStart: 'auto' })}>
-          {formatTime(invocation.finished_at)}
+          <TimeText value={invocation.finished_at} />
         </span>
       </div>
       <p

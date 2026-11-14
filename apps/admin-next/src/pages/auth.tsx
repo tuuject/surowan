@@ -78,6 +78,8 @@ function AuthLayout({
         className={css({
           position: 'fixed',
           top: `max(token(spacing.4), ${SAFE_TOP})`,
+          // physical: the clearance below is `TOP_ROW_CLEAR_RIGHT`, a physical window-controls/safe-area inset,
+          // so the control sits on the same physical side it clears (and a macOS-style title bar keeps it visible).
           right: `max(token(spacing.4), ${TOP_ROW_CLEAR_RIGHT})`,
           display: 'flex',
           gap: '1',
@@ -161,6 +163,7 @@ export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boole
                 message: t('pages.auth.usernamePattern'),
               },
             })}
+            dir="ltr"
           />
         </Field>
         <Field id="password" label={t('pages.auth.password')} error={errors.password?.message}>
@@ -168,6 +171,7 @@ export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boole
             type="password"
             autoComplete="current-password"
             {...register('password', { required: t('pages.auth.passwordRequired') })}
+            dir="ltr"
           />
         </Field>
         {loginMutation.isError && failure !== null ? <Alert tone="error">{failure}</Alert> : null}
@@ -248,6 +252,7 @@ export function SetupForm(): ReactElement {
                 message: t('pages.auth.usernamePattern'),
               },
             })}
+            dir="ltr"
           />
         </Field>
         <Field id="password" label={t('pages.auth.password')} error={errors.password?.message}>
@@ -258,6 +263,7 @@ export function SetupForm(): ReactElement {
               required: t('pages.auth.passwordRequired'),
               minLength: { value: 12, message: t('pages.auth.passwordMinLength') },
             })}
+            dir="ltr"
           />
         </Field>
         {failure ? <Alert tone="error">{failure}</Alert> : null}

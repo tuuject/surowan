@@ -18,14 +18,16 @@ import {
   SnapshotList,
   StateBadge,
   TableShell,
+  TechText,
   TextValue,
+  TimeText,
 } from '@/components/business';
 import { CancelIcon, EyeIcon } from '@/components/icons';
 import { AppLink } from '@/components/router-links';
 import type { AlarmListItem } from '@/lib/api/alarms.ts';
 import { cancelAlarm } from '@/lib/api/alarms.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatTime, stateLabel } from '@/lib/format';
+import { stateLabel } from '@/lib/format';
 import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { alarmsQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
@@ -37,7 +39,9 @@ function ChatCell({ row }: { readonly row: AlarmListItem }): ReactElement {
   const { t } = useTranslation();
   return (
     <div className={css({ minWidth: '0' })}>
-      <div className={css({ truncate: true })}>{row.chat.title ?? row.chat.telegram_chat_id}</div>
+      <div dir="auto" className={css({ truncate: true })}>
+        {row.chat.title ?? <TechText>{row.chat.telegram_chat_id}</TechText>}
+      </div>
       <div className={css({ display: 'flex', gap: '2', textStyle: 'small', color: 'text-muted' })}>
         <span>{row.chat.telegram_chat_id}</span>
         {row.chat.message_thread_id === '0' ? null : (
@@ -51,7 +55,9 @@ function ChatCell({ row }: { readonly row: AlarmListItem }): ReactElement {
 function TargetCell({ row }: { readonly row: AlarmListItem }): ReactElement {
   return (
     <div className={css({ minWidth: '0' })}>
-      <div className={css({ truncate: true })}>{row.target_display_name}</div>
+      <div dir="auto" className={css({ truncate: true })}>
+        {row.target_display_name}
+      </div>
       <div className={css({ textStyle: 'small', color: 'text-muted' })}>{row.target_user_id}</div>
     </div>
   );
@@ -69,8 +75,23 @@ function InvocationLink({ id }: { readonly id: string }): ReactElement {
 function AlarmDetails({ row }: { readonly row: AlarmListItem }): ReactElement {
   const { t } = useTranslation();
   const createdBy = row.created_by_invocation_id;
-  const fired = `${formatTime(row.fired_at)}${row.invocation_outcome === null ? '' : t('pages.alarms.outcomeSuffix', { outcome: stateLabel(row.invocation_outcome) })}${row.completion_reason === null ? '' : t('pages.alarms.firedReasonSuffix', { reason: row.completion_reason })}`;
-  const cancelled = `${formatTime(row.cancelled_at)}${row.cancelled_by === null ? '' : t('pages.alarms.bySuffix', { by: row.cancelled_by })}${row.cancel_reason === null ? '' : t('pages.alarms.reasonSuffix', { reason: row.cancel_reason })}${row.admin_cancelled ? t('pages.alarms.adminCancelledSuffix') : ''}`;
+  const fired = (
+    <>
+      <TimeText value={row.fired_at} />
+      {row.invocation_outcome === null
+        ? null
+        : t('pages.alarms.outcomeSuffix', { outcome: stateLabel(row.invocation_outcome) })}
+      {row.completion_reason === null ? null : t('pages.alarms.firedReasonSuffix', { reason: row.completion_reason })}
+    </>
+  );
+  const cancelled = (
+    <>
+      <TimeText value={row.cancelled_at} />
+      {row.cancelled_by === null ? null : t('pages.alarms.bySuffix', { by: row.cancelled_by })}
+      {row.cancel_reason === null ? null : t('pages.alarms.reasonSuffix', { reason: row.cancel_reason })}
+      {row.admin_cancelled ? t('pages.alarms.adminCancelledSuffix') : null}
+    </>
+  );
   return (
     <KvList
       items={[
@@ -88,11 +109,16 @@ function AlarmDetails({ row }: { readonly row: AlarmListItem }): ReactElement {
         },
         {
           label: t('pages.alarms.labelCreated'),
-          value: `${formatTime(row.created_at)}${createdBy === null ? '' : t('pages.alarms.createdBySuffix', { id: createdBy })}`,
+          value: (
+            <>
+              <TimeText value={row.created_at} />
+              {createdBy === null ? null : t('pages.alarms.createdBySuffix', { id: createdBy })}
+            </>
+          ),
         },
         { label: t('pages.alarms.labelFired'), value: fired },
         { label: t('pages.alarms.labelCancelled'), value: cancelled },
-        { label: t('pages.alarms.labelUpdated'), value: formatTime(row.updated_at) },
+        { label: t('pages.alarms.labelUpdated'), value: <TimeText value={row.updated_at} /> },
         {
           label: t('pages.alarms.labelInvocation'),
           value: row.invocation_id === null ? <TextValue value={null} /> : <InvocationLink id={row.invocation_id} />,
@@ -135,6 +161,7 @@ export default function AlarmsPage(): ReactElement {
     {
       key: 'state',
       title: t('pages.alarms.colStatus'),
+      // A translated state badge is as wide as its label, not its English original.
       width: 112,
       render: (row) => <StateBadge state={row.state} />,
     },
@@ -143,14 +170,18 @@ export default function AlarmsPage(): ReactElement {
       title: t('pages.alarms.colScheduled'),
       width: 184,
       skeleton: '2026-01-18 10:58:15',
-      render: (row) => formatTime(row.scheduled_at),
+      render: (row) => <TimeText value={row.scheduled_at} />,
     },
     { key: 'chat', title: t('pages.alarms.colChat'), render: (row) => <ChatCell row={row} /> },
     { key: 'target', title: t('pages.alarms.colTargetUser'), width: 160, render: (row) => <TargetCell row={row} /> },
     {
       key: 'summary',
       title: t('pages.alarms.colSummary'),
-      render: (row) => <div className={css({ truncate: true })}>{row.summary}</div>,
+      render: (row) => (
+        <div dir="auto" className={css({ truncate: true })}>
+          {row.summary}
+        </div>
+      ),
     },
     {
       key: 'invocation',

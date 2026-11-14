@@ -218,6 +218,7 @@ function ModelEditForm({
               value={form.id}
               disabled={lockId}
               onChange={(event) => setForm((previous) => ({ ...previous, id: event.target.value }))}
+              dir="ltr"
             />
             {touched && errors.id !== undefined ? (
               <p className={css({ textStyle: 'body', color: 'error-text' })}>{errors.id}</p>
@@ -229,6 +230,7 @@ function ModelEditForm({
               id="model-name"
               value={form.name}
               onChange={(event) => setForm((previous) => ({ ...previous, name: event.target.value }))}
+              dir="auto"
             />
           </div>
           <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
@@ -239,6 +241,7 @@ function ModelEditForm({
               maxLength={64}
               value={form.nickname}
               onChange={(event) => setForm((previous) => ({ ...previous, nickname: event.target.value }))}
+              dir="auto"
             />
           </div>
           <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
@@ -255,6 +258,7 @@ function ModelEditForm({
               step={1}
               value={form.context_window}
               onChange={(event) => setForm((previous) => ({ ...previous, context_window: event.target.value }))}
+              dir="ltr"
             />
             {touched && errors.context_window !== undefined ? (
               <p className={css({ textStyle: 'body', color: 'error-text' })}>{errors.context_window}</p>
@@ -274,6 +278,7 @@ function ModelEditForm({
               step={1}
               value={form.max_tokens}
               onChange={(event) => setForm((previous) => ({ ...previous, max_tokens: event.target.value }))}
+              dir="ltr"
             />
             {touched && errors.max_tokens !== undefined ? (
               <p className={css({ textStyle: 'body', color: 'error-text' })}>{errors.max_tokens}</p>
@@ -376,6 +381,7 @@ function ModelEditForm({
                       cost: { ...previous.cost, [field]: event.target.value },
                     }))
                   }
+                  dir="ltr"
                 />
               </div>
             ))}

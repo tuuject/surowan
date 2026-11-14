@@ -24,7 +24,7 @@ const toggleClass = css({
   bg: 'transparent',
   color: 'text',
   textStyle: 'heading-3',
-  textAlign: 'left',
+  textAlign: 'start',
   cursor: 'pointer',
   transitionProperty: 'background-color',
   transitionDuration: 'fast',

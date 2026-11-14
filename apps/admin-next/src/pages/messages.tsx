@@ -10,11 +10,13 @@ import {
   QueryTextField,
   SnapshotList,
   TableShell,
+  TechText,
+  TimeText,
   ToneBadge,
 } from '@/components/business';
 import { AppLink } from '@/components/router-links';
 import type { MessageListItem } from '@/lib/api/messages.ts';
-import { formatNumber, formatTime, kindLabel } from '@/lib/format';
+import { formatNumber, kindLabel } from '@/lib/format';
 import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { messagesQuery } from '@/lib/queries';
 
@@ -60,8 +62,19 @@ export default function MessagesPage(): ReactElement {
       title: t('invocations.messages.columns.chat'),
       render: (row) => (
         <div className={css({ minWidth: '0' })}>
-          <div className={css({ truncate: true })}>{row.chat.title ?? row.chat.telegram_chat_id}</div>
-          <div className={css({ display: 'flex', gap: '2', textStyle: 'small', color: 'text-muted' })}>
+          <div dir="auto" className={css({ truncate: true })}>
+            {row.chat.title ?? <TechText>{row.chat.telegram_chat_id}</TechText>}
+          </div>
+          <div
+            className={css({
+              display: 'flex',
+              gap: '2',
+              minWidth: '0',
+              overflow: 'hidden',
+              textStyle: 'small',
+              color: 'text-muted',
+            })}
+          >
             <span>{row.chat.type}</span>
             {row.chat.message_thread_id === 0 ? null : (
               <span>{t('invocations.invocations.topicLabel', { id: row.chat.message_thread_id })}</span>
@@ -82,7 +95,9 @@ export default function MessagesPage(): ReactElement {
           )
         ) : (
           <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
-            <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
+            <div
+              className={css({ display: 'flex', minWidth: '0', overflow: 'hidden', alignItems: 'center', gap: '2' })}
+            >
               <span className={css({ overflowWrap: 'anywhere' })}>{row.sender.display_name}</span>
               {row.sender.is_bot === true ? <ToneBadge tone="neutral">bot</ToneBadge> : null}
             </div>
@@ -123,7 +138,7 @@ export default function MessagesPage(): ReactElement {
       title: t('invocations.messages.columns.received'),
       width: 184,
       skeleton: '2026-01-18 10:58:15',
-      render: (row) => formatTime(row.received_at),
+      render: (row) => <TimeText value={row.received_at} />,
     },
   ];
 
@@ -151,6 +166,7 @@ export default function MessagesPage(): ReactElement {
             data={items}
             rowKey={(row) => row.id}
             loading={loading}
+            // The sender cell pairs a translated ID label with a monospace id; the floor keeps both on their line.
             minWidth={1040}
             emptyText={t('invocations.messages.empty.title')}
             emptyDescription={t('invocations.messages.empty.description')}

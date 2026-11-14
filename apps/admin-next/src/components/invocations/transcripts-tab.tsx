@@ -10,11 +10,11 @@ import {
   PrivateReasoningTag,
   TableShell,
   TextValue,
+  TimeText,
 } from '@/components/business';
 import { isRoom, MessageRecordLink, RoleBadge, SectionBadge, TabContent } from '@/components/invocations/shared';
 import type { ContextMessageEntry } from '@/lib/api/contexts.ts';
 import type { AgentMessageEntry, InvocationDetail } from '@/lib/api/invocations.ts';
-import { formatTime } from '@/lib/format';
 import { objectField, parseJsonObject, stringField } from '@/lib/timeline';
 import { ToolResult } from './tool-result';
 
@@ -65,7 +65,7 @@ export function AgentTranscriptTab({ invocation }: { readonly invocation: Invoca
     {
       key: 'created',
       title: t('invocations.invocationDetail.agentColumns.created'),
-      render: (row) => formatTime(row.created_at),
+      render: (row) => <TimeText value={row.created_at} />,
     },
   ];
   return (

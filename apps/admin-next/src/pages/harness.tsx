@@ -226,7 +226,11 @@ function HarnessFieldRow({
         }))}
       />
     ) : field.kind === 'lines' ? (
-      <Textarea value={typeof value === 'string' ? value : ''} onChange={(event) => onChange(event.target.value)} />
+      <Textarea
+        value={typeof value === 'string' ? value : ''}
+        onChange={(event) => onChange(event.target.value)}
+        dir="auto"
+      />
     ) : (
       <Input
         className={css({ maxWidth: '240px' })}
@@ -234,6 +238,7 @@ function HarnessFieldRow({
         placeholder={field.nullable === true ? t('harness.noLimitPlaceholder') : undefined}
         value={typeof value === 'string' ? value : ''}
         onChange={(event) => onChange(event.target.value)}
+        dir="ltr"
       />
     );
   return (

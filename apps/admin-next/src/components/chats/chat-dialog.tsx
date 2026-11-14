@@ -207,6 +207,7 @@ function ChatForm({
             readOnly={chat !== null}
             placeholder={t('pages.chats.chatIdPlaceholder')}
             onChange={(event) => setId(event.target.value)}
+            dir="ltr"
           />
         </Field>
         <Field label={t('pages.chats.topicIdsLabel')} help={t('pages.chats.topicIdsHint')}>
@@ -214,6 +215,7 @@ function ChatForm({
             value={topics}
             placeholder={t('pages.chats.allTopics')}
             onChange={(event) => setTopics(event.target.value)}
+            dir="ltr"
           />
         </Field>
         <Field label={t('pages.chats.agentModelLabel')} help={t('pages.chats.modelHint')}>

@@ -1,0 +1,73 @@
+import type { CompleteCatalog } from '../../catalog.ts';
+import type { telegram as telegramEn } from '../../en/pages/telegram.ts';
+
+/** Mirrors `en/pages/telegram.ts` key for key; plural keys add the CLDR Arabic categories. */
+export const telegram: CompleteCatalog<typeof telegramEn> = {
+  title: 'إعدادات Telegram',
+  description: 'اربط Surowan بـ Telegram.',
+  connectionTitle: 'الاتصال',
+  fieldStatus: 'الحالة',
+  fieldSince: 'منذ',
+  fieldBot: 'البوت',
+  noBot: 'لا هوية بعد',
+  status: {
+    disabled: 'معطّل',
+    connected: 'متصل',
+    network_error: 'خطأ في الشبكة',
+    config_error: 'خطأ في الإعدادات',
+  },
+  reason: {
+    unauthorized: 'رُفض الرمز.',
+    conflict: 'الرمز قيد الاستخدام من عملية أخرى.',
+    token_unreadable: 'تعذّرت قراءة مصدر الرمز.',
+  },
+  tokenTitle: 'رمز البوت',
+  tokenConfigured: 'يوجد رمز مُعدّ.',
+  tokenMissing: 'لا يوجد رمز مُعدّ.',
+  sectionMissing: 'لا إعدادات Telegram بعد. حفظ رمز ينشئها.',
+  tokenLabel: 'رمز بوت جديد',
+  tokenPlaceholder: '123456:ABC-DEF…',
+  tokenHint: 'الصق الرمز من @BotFather. لا يُعرض مرة أخرى بعد الحفظ.',
+  save: 'حفظ الرمز',
+  saving: 'جارٍ الحفظ…',
+  saved: 'حُفظ رمز Telegram',
+  clear: 'مسح الرمز',
+  clearTitle: 'مسح رمز بوت Telegram؟',
+  clearDescription: 'يتوقف Telegram وينقطع الاتصال. تُحتفظ بإعدادات Telegram الأخرى. لا يمكن التراجع عن هذا.',
+  clearConfirm: 'مسح الرمز',
+  cleared: 'مُسح رمز Telegram',
+  readFailed: 'تعذّرت قراءة إعدادات Telegram',
+  bucketTitle: 'دفعات الرسائل',
+  bucketDescription: 'الحفظ يسري من الدفعة التالية. الدفعة التي بدأت بالتجميع تحتفظ بتوقيتها.',
+  bucketFields: {
+    window: {
+      label: 'أدنى مدة انتظار (ثانية)',
+      help: 'تستمر الدفعة في التجميع هذه المدة على الأقل.',
+    },
+    max: {
+      label: 'أقصى مدة انتظار (ثانية)',
+      help: 'تُحتسب من أول رسالة في الدفعة. لا تتجاوزها التمديدات أبدًا.',
+    },
+    bump: {
+      label: 'تمديد لكل رسالة (ثانية)',
+      help: 'كل رسالة جديدة تُبقي الدفعة في التجميع هذه المدة على الأقل بعد وصولها. 0 يعني بلا تمديد.',
+    },
+  },
+  bucketMaxFollowsWindow: 'مثل أدنى مدة الانتظار',
+  bucketErrors: {
+    integer: 'أدخل عددًا صحيحًا من الثواني',
+    range: 'يجب ألا يتجاوز {{max}}',
+    belowWindow: 'يجب ألا يقل عن أدنى مدة انتظار',
+  },
+  bucketRunning: 'قيد التشغيل: {{value}}',
+  bucketUnchanged: 'لا تغييرات غير محفوظة',
+  bucketPending_zero: 'لا تغييرات غير محفوظة',
+  bucketPending_one: 'تغيير واحد غير محفوظ',
+  bucketPending_two: 'تغييران غير محفوظين',
+  bucketPending_few: '{{count}} تغييرات غير محفوظة',
+  bucketPending_many: '{{count}} تغييرًا غير محفوظ',
+  bucketPending_other: '{{count}} تغيير غير محفوظ',
+  bucketInvalid: 'أصلح الحقول المميّزة قبل الحفظ.',
+  bucketSave: 'حفظ وتطبيق',
+  bucketDiscard: 'تجاهل التغييرات',
+};

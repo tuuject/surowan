@@ -173,11 +173,24 @@ export function ChatTable({
       title: t('pages.chats.colChat'),
       render: (row) => (
         <div className={css({ minWidth: '0' })}>
-          <p className={css({ margin: '0', truncate: true }, row.title === null ? { color: 'text-muted' } : {})}>
+          <p
+            dir="auto"
+            className={css({ margin: '0', truncate: true }, row.title === null ? { color: 'text-muted' } : {})}
+          >
             {row.title ?? t('pages.chats.unknownChat')}
           </p>
-          <p className={css({ margin: '0', display: 'flex', gap: '2', textStyle: 'small', color: 'text-muted' })}>
-            <span className={css({ fontFamily: 'mono' })}>{row.id}</span>
+          <p
+            className={css({
+              margin: '0',
+              display: 'flex',
+              minWidth: '0',
+              overflow: 'hidden',
+              gap: '2',
+              textStyle: 'small',
+              color: 'text-muted',
+            })}
+          >
+            <MonoValue value={row.id} />
             <span>{row.type ?? (row.id.startsWith('-') ? t('pages.chats.group') : t('pages.chats.private'))}</span>
           </p>
           {row.runtime_chat_id !== row.id ? (
@@ -207,6 +220,8 @@ export function ChatTable({
     {
       key: 'model',
       title: t('pages.chats.colAgentModel'),
+      // A provider / model pair is long and unbreakable: wrap it instead of clipping the id.
+      className: css({ whiteSpace: 'normal' }),
       render: (row) => {
         const settings = shown(row);
         return settings === null ? null : (

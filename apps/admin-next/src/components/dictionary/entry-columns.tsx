@@ -5,10 +5,9 @@ import { css } from '@tuuject/koi-react/styled-system/css';
 import { Switch } from '@tuuject/koi-react/switch';
 import { Tag } from '@tuuject/koi-react/tag';
 import type { TFunction } from 'i18next';
-import { type ColumnSpec, RowActions } from '@/components/business';
+import { type ColumnSpec, RowActions, TimeText } from '@/components/business';
 import { EditIcon } from '@/components/icons';
 import type { DictionaryChatOption, DictionaryEntry } from '@/lib/api/dictionary.ts';
-import { formatTime } from '@/lib/format';
 
 export interface DictionaryColumnsOptions {
   readonly t: TFunction;
@@ -31,7 +30,9 @@ export function dictionaryColumns(options: DictionaryColumnsOptions): readonly C
       width: 200,
       render: (entry) => (
         <span className={css({ display: 'flex', alignItems: 'center', gap: '2', minWidth: '0' })}>
-          <span className={css({ truncate: true })}>{entry.term}</span>
+          <span dir="auto" className={css({ truncate: true })}>
+            {entry.term}
+          </span>
           {conflicted.has(entry.id) ? <Badge tone="warning">{t('dictionary.conflicts.title')}</Badge> : null}
         </span>
       ),
@@ -96,7 +97,7 @@ export function dictionaryColumns(options: DictionaryColumnsOptions): readonly C
       title: t('dictionary.page.colUpdated'),
       width: 184,
       skeleton: '2026-01-18 10:58:15',
-      render: (entry) => formatTime(entry.updated_at),
+      render: (entry) => <TimeText value={entry.updated_at} />,
     },
     {
       key: 'actions',

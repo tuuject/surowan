@@ -19,6 +19,7 @@ import {
   StateBadge,
   TableShell,
   TextValue,
+  TimeText,
   useClientPagination,
 } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
@@ -32,7 +33,7 @@ import {
   updateStickerSet,
 } from '@/lib/api/stickers.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatNumber, formatTime, stateLabel } from '@/lib/format';
+import { formatNumber, stateLabel } from '@/lib/format';
 import { optionalQuery, useListQuery } from '@/lib/list-query';
 import { stickerSetsQuery, stickersQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
@@ -135,9 +136,13 @@ export default function StickersPage(): ReactElement {
       title: t('pages.stickers.colSet'),
       render: (row) => (
         <div className={css({ minWidth: '0' })}>
-          <div className={css({ truncate: true, fontWeight: 'semibold' })}>{row.alias}</div>
+          <div dir="ltr" className={css({ truncate: true, fontWeight: 'semibold', textAlign: 'start' })}>
+            {row.alias}
+          </div>
           {row.title === null ? null : (
-            <div className={css({ truncate: true, textStyle: 'small', color: 'text-muted' })}>{row.title}</div>
+            <div dir="auto" className={css({ truncate: true, textStyle: 'small', color: 'text-muted' })}>
+              {row.title}
+            </div>
           )}
           <div className={css({ truncate: true, textStyle: 'small', color: 'text-muted', fontFamily: 'mono' })}>
             {row.telegram_name}
@@ -205,7 +210,7 @@ export default function StickersPage(): ReactElement {
       title: t('pages.stickers.colLastSynced'),
       width: 184,
       skeleton: '2026-01-18 10:58:15',
-      render: (row) => formatTime(row.last_synced_at),
+      render: (row) => <TimeText value={row.last_synced_at} />,
     },
     {
       key: 'actions',
@@ -252,7 +257,8 @@ export default function StickersPage(): ReactElement {
     {
       key: 'index_state',
       title: t('pages.stickers.colIndexState'),
-      width: 112,
+      // 120 is the English "Succeeded" badge on one line; below that it breaks mid-word.
+      width: 120,
       render: (row) => <StateBadge state={row.index_state} />,
     },
     {
@@ -286,7 +292,7 @@ export default function StickersPage(): ReactElement {
       title: t('pages.stickers.colUpdated'),
       width: 184,
       skeleton: '2026-01-18 10:58:15',
-      render: (row) => formatTime(row.updated_at),
+      render: (row) => <TimeText value={row.updated_at} />,
     },
   ];
 
@@ -376,7 +382,9 @@ export default function StickersPage(): ReactElement {
               <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
                 <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
                   <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.stickers.nextRetry')}</p>
-                  <p>{formatTime(row.next_retry_at)}</p>
+                  <p>
+                    <TimeText value={row.next_retry_at} />
+                  </p>
                 </div>
                 <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
                   <p className={css({ textStyle: 'small', color: 'text-muted' })}>
