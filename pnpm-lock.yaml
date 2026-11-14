@@ -307,11 +307,11 @@ importers:
         specifier: ^1.170.42
         version: 1.170.42(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@tuuject/koi-react':
-        specifier: 0.5.0
-        version: 0.5.0(@pandacss/dev@2.1.2(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(postcss@8.5.32))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        specifier: 0.6.0
+        version: 0.6.0(@pandacss/dev@2.1.2(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(postcss@8.5.32))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@tuuject/koi-tokens':
-        specifier: 0.5.0
-        version: 0.5.0
+        specifier: 0.6.0
+        version: 0.6.0
       '@uiw/react-codemirror':
         specifier: ^4.25.12
         version: 4.25.12(@babel/runtime@7.29.7)(@codemirror/autocomplete@6.20.4)(@codemirror/language@6.13.1)(@codemirror/lint@6.9.7)(@codemirror/search@6.7.2)(@codemirror/state@6.7.6)(@codemirror/theme-one-dark@6.1.3)(@codemirror/view@6.43.15)(codemirror@6.0.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -2329,13 +2329,13 @@ packages:
     resolution: {integrity: sha512-uhOeFyxLcU41HzvrxsGpiWdcMbScY1EDgbZ5K7DVRMYInbLYWAC0EA/kx9wXAoSM8q82bUG2hRl8+EAjE6XAbA==}
     engines: {node: '>=20.19'}
 
-  '@tuuject/koi-core@0.5.0':
-    resolution: {integrity: sha512-W7hsCJ/9lNe0m9aGeiI8qhFsWlSRjad+uqAfOSPHhSvrPszGg/5AQYF3s5aEGBGMzdjXDWbFLDbvlXgFckdSbw==}
+  '@tuuject/koi-core@0.6.0':
+    resolution: {integrity: sha512-sFIF9syyVcyhHNAybKwVC3h0x5zzcrw+k2m62HI2MdHBMJqn6iNJIroxaRoQON9plSlTnH0GZ/ImJZTNl833BA==}
     peerDependencies:
       react: ^19.0.0
 
-  '@tuuject/koi-react@0.5.0':
-    resolution: {integrity: sha512-7hsY1hfMzEjyNPwJqgTKdh0qs3LJ2Ub6cJkfST+swROxcFDuDQxgJ0fA37xbgMiGGmC6cXLrVsa0OdURtZrOAQ==}
+  '@tuuject/koi-react@0.6.0':
+    resolution: {integrity: sha512-7r7+PyGhRQ9uH471SrhyFr/bLDtRPl3KUr0KBGRIrNtTicwisRYCJkRop3+LnrDApWTVANxZRn2V+oT4DT28LQ==}
     peerDependencies:
       '@pandacss/dev': ~2.1.2
       react: ^19.0.0
@@ -2344,8 +2344,8 @@ packages:
       '@pandacss/dev':
         optional: true
 
-  '@tuuject/koi-tokens@0.5.0':
-    resolution: {integrity: sha512-ZUhoNU239CcKhTfdaXQkWnqrj1B5LikVd4EGaGPrBaIv1LyXz+ogrPiw3jJTMPGlTVphO9ywQB2Q4LQvxOv9lg==}
+  '@tuuject/koi-tokens@0.6.0':
+    resolution: {integrity: sha512-E5PF+jNaKEqP3UP/JY0BGBCwRTRdt4g6ibxxnsXRziBfkdXFfHrlLjG3jB4g0rRSqfHJLRT9lPdYJjvNcljKfQ==}
 
   '@tybys/wasm-util@0.10.4':
     resolution: {integrity: sha512-W3c4gRigFS0T/Ma4qIYF3GDAc5AQdHb1yL5znJT1Zv1YaD9Kitx656wBjvr19qbiosmZT8lWDM5BEMynUqX65A==}
@@ -6532,11 +6532,11 @@ snapshots:
 
   '@tanstack/virtual-file-routes@1.162.0': {}
 
-  '@tuuject/koi-core@0.5.0(react@19.3.0)':
+  '@tuuject/koi-core@0.6.0(react@19.3.0)':
     dependencies:
       react: 19.3.0
 
-  '@tuuject/koi-react@0.5.0(@pandacss/dev@2.1.2(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(postcss@8.5.32))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
+  '@tuuject/koi-react@0.6.0(@pandacss/dev@2.1.2(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(postcss@8.5.32))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:
       '@base-ui/react': 1.9.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@dnd-kit/core': 6.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -6544,8 +6544,8 @@ snapshots:
       '@dnd-kit/sortable': 10.0.0(@dnd-kit/core@6.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)
       '@dnd-kit/utilities': 3.2.2(react@19.3.0)
       '@iconify-icons/fa7-solid': 2.0.0
-      '@tuuject/koi-core': 0.5.0(react@19.3.0)
-      '@tuuject/koi-tokens': 0.5.0
+      '@tuuject/koi-core': 0.6.0(react@19.3.0)
+      '@tuuject/koi-tokens': 0.6.0
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
     optionalDependencies:
@@ -6555,7 +6555,7 @@ snapshots:
       - '@types/react'
       - date-fns
 
-  '@tuuject/koi-tokens@0.5.0': {}
+  '@tuuject/koi-tokens@0.6.0': {}
 
   '@tybys/wasm-util@0.10.4':
     dependencies:
