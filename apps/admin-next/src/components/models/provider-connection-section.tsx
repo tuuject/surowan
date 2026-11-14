@@ -181,6 +181,7 @@ export function ProviderConnectionSection({
                 setBaseUrl(event.target.value);
                 setLocalError(null);
               }}
+              dir="ltr"
             />
           </Field>
           <Field label={t('models.models.connection.api')}>
@@ -209,6 +210,7 @@ export function ProviderConnectionSection({
                 setApiKey(event.target.value);
                 setLocalError(null);
               }}
+              dir="ltr"
             />
           </Field>
         </div>

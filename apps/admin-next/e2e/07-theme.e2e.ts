@@ -47,7 +47,8 @@ test('Panel preferences set theme and language alongside the header toggles', as
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.getByRole('combobox', { name: '语言' })).toHaveValue('zh-CN');
 
-  // The header language toggle still switches, and the page follows it.
-  await page.getByRole('button', { name: '切换语言' }).click();
+  // The header language menu still switches, and the page follows it.
+  await page.getByRole('button', { name: '切换语言', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'English', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'Language' })).toHaveValue('en');
 });

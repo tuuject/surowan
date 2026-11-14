@@ -8,10 +8,9 @@ import { css } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MonoValue } from '@/components/business';
+import { MonoValue, TimeText } from '@/components/business';
 import type { MemoryEntry } from '@/lib/api/memories.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatTime } from '@/lib/format';
 import {
   formatTtl,
   MEMORY_DETAIL_MAX_LENGTH,
@@ -125,6 +124,7 @@ export function MemoryFormDialog({
             maxLength={MEMORY_SUMMARY_MAX_LENGTH}
             value={values.summary}
             onChange={(event) => onChange({ summary: event.target.value })}
+            dir="auto"
           />
         </Field>
         <Field label={t('pages.memories.detailLabel')} help={t('pages.memories.detailHint')} error={errors.detail}>
@@ -133,6 +133,7 @@ export function MemoryFormDialog({
             maxLength={MEMORY_DETAIL_MAX_LENGTH}
             value={values.detail}
             onChange={(event) => onChange({ detail: event.target.value })}
+            dir="auto"
           />
         </Field>
         <Field
@@ -148,6 +149,7 @@ export function MemoryFormDialog({
             step={1}
             value={values.ttl_days}
             onChange={(event) => onChange({ ttl_days: event.target.value })}
+            dir="ltr"
           />
         </Field>
         {error === null ? null : (
@@ -204,10 +206,12 @@ export function MemoryViewDialog({
               <MemoryStatus row={entry} />
             </dd>
             <dt className={s.detailLabel}>{t('pages.memories.colCreated')}</dt>
-            <dd className={s.detailValue}>{formatTime(entry.created_at)}</dd>
+            <dd className={s.detailValue}>
+              <TimeText value={entry.created_at} />
+            </dd>
             <dt className={s.detailLabel}>{t('pages.memories.colExpires')}</dt>
             <dd className={s.detailValue}>
-              {entry.expires_at === null ? t('pages.memories.permanent') : formatTime(entry.expires_at)}
+              {entry.expires_at === null ? t('pages.memories.permanent') : <TimeText value={entry.expires_at} />}
             </dd>
             <dt className={s.detailLabel}>{t('pages.memories.colTtl')}</dt>
             <dd className={s.detailValue}>

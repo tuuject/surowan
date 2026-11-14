@@ -10,10 +10,11 @@ import {
   StateBadge,
   TableShell,
   TextValue,
+  TimeText,
 } from '@/components/business';
 import { TabContent, YesNoBadge } from '@/components/invocations/shared';
 import type { InvocationDetail, ToolCallEntry } from '@/lib/api/invocations.ts';
-import { formatDuration, formatTime, kindLabel } from '@/lib/format';
+import { formatDuration, kindLabel } from '@/lib/format';
 import { parseSendArguments } from '@/lib/timeline';
 import { ToolResult } from './tool-result';
 
@@ -100,7 +101,7 @@ export function ToolCallsTab({ invocation }: { readonly invocation: InvocationDe
     {
       key: 'created',
       title: t('invocations.invocationDetail.toolColumns.created'),
-      render: (row) => formatTime(row.created_at),
+      render: (row) => <TimeText value={row.created_at} />,
     },
   ];
   return (

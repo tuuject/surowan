@@ -182,7 +182,7 @@ export function IdentitiesCard({
         />
         <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '2' })}>
           <Field label={t('playground.identities.name')} className={css({ flex: '1 1 192px', maxWidth: '320px' })}>
-            <Input value={participantName} onChange={(event) => setParticipantName(event.target.value)} />
+            <Input value={participantName} onChange={(event) => setParticipantName(event.target.value)} dir="auto" />
           </Field>
           <Button
             type="button"

@@ -60,7 +60,7 @@ export const chats: typeof chatsEn = {
   activeHoursUnrestricted: '不限制',
   activeHoursTriggerOnly: '仅触发可唤醒',
   activeHoursFollowsGlobal: '跟随全局时段',
-  activeHoursTimezoneNote: '按 {{timezone}} 显示，现在 {{time}}',
+  activeHoursTimezoneNote: '按 {{timezone}} 显示，现在 <time>{{time}}</time>',
   modeUnrestricted: '不限制活跃时间',
   modeUnrestrictedHint: '移除本群的时段设置。没有全局时段时，机器人全天保持活跃。',
   modeUnrestrictedHintGlobal: '移除本群的时段设置，继续沿用全局时段（{{windows}}）。',

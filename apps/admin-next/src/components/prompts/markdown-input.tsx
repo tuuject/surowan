@@ -16,7 +16,9 @@ type MarkdownInputProps = Pick<
   readonly minHeight?: string;
 };
 
-const markdownExtensions = [markdown(), EditorView.lineWrapping];
+// `perLineTextDirection`: each line's first strong character decides its direction, so an Arabic
+// prompt and an English URL inside it both read the right way round.
+const markdownExtensions = [markdown(), EditorView.lineWrapping, EditorView.perLineTextDirection.of(true)];
 const basicSetup = {
   autocompletion: false,
   highlightActiveLine: false,
@@ -101,6 +103,9 @@ function MarkdownControl({
         '& .cm-editor.cm-focused': { outline: 'none' },
         '& .cm-scroller': { fontFamily: 'mono', textStyle: 'small' },
         '& .cm-content': { paddingBlock: '3', caretColor: 'text' },
+        // Each line takes its own direction from its first strong character, so an Arabic paragraph and an
+        // English URL inside it both read the right way round (the extension above keeps selection in step).
+        '& .cm-line': { unicodeBidi: 'plaintext' },
         '& .cm-cursor': { borderLeftColor: 'text' },
         '& .cm-gutters': { bg: 'surface-muted', color: 'text-muted', borderColor: 'border' },
         '& .cm-placeholder': { color: 'text-muted' },

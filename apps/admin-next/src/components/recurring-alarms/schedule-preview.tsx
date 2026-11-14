@@ -4,7 +4,7 @@ import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { previewRecurringSchedule } from '@/lib/api/recurring-alarms.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatTimeInZone } from '@/lib/format';
+import { TimeText } from '@/components/business/time-text';
 
 /**
  * The next five runs of the schedule being edited, computed by the server so
@@ -56,7 +56,9 @@ export function SchedulePreview({
             className={css({ textStyle: 'small', fontFamily: 'mono', paddingInlineStart: '4', listStyle: 'decimal' })}
           >
             {data.next.map((occurrence) => (
-              <li key={occurrence}>{formatTimeInZone(occurrence, data.time_zone ?? timeZone)}</li>
+              <li key={occurrence}>
+                <TimeText value={occurrence} timeZone={data.time_zone ?? timeZone} />
+              </li>
             ))}
           </ol>
           {data.short_interval ? (

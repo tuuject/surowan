@@ -60,6 +60,7 @@ export function UrlFilterEditor({
             placeholder={'csdn\nspam\\.example'}
             disabled={disabled}
             className={css({ fontFamily: 'mono' })}
+            dir="ltr"
           />
         </Field>
         <Field label={t('search.filterTestLabel')} help={t('search.filterTestHint')}>
@@ -68,6 +69,7 @@ export function UrlFilterEditor({
             value={testText}
             onChange={(event) => setTestText(event.target.value)}
             placeholder={'https://blog.csdn.net/article/1\nhttps://example.com/page'}
+            dir="ltr"
           />
         </Field>
         {results.length > 0 ? (

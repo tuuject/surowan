@@ -3,8 +3,8 @@ import { ErrorIcon, WarningIcon } from '@tuuject/koi-react/icons';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { sizes } from '@tuuject/koi-tokens/dimensions';
 import type { ReactElement } from 'react';
-import { useTranslation } from 'react-i18next';
-import { ToneBadge } from '@/components/business';
+import { Trans, useTranslation } from 'react-i18next';
+import { TechText, ToneBadge } from '@/components/business';
 import { ButtonLink } from '@/components/router-links';
 import type { EventWarning, WarningItem, WarningSeverity } from '@/lib/api/warnings.ts';
 import { formatTime } from '@/lib/format';
@@ -85,7 +85,11 @@ function WarningDetails({ warning }: { readonly warning: WarningItem }): ReactEl
           </p>
           {lastFailedAt !== null ? (
             <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-              {t('pages.warnings.lastFailedAt', { time: formatTime(lastFailedAt) })}
+              <Trans
+                i18nKey="pages.warnings.lastFailedAt"
+                values={{ time: formatTime(lastFailedAt) }}
+                components={{ time: <TechText /> }}
+              />
             </p>
           ) : null}
         </div>
@@ -100,7 +104,11 @@ function WarningDetails({ warning }: { readonly warning: WarningItem }): ReactEl
           </p>
           {lastFailedAt !== null ? (
             <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-              {t('pages.warnings.lastFailedAt', { time: formatTime(lastFailedAt) })}
+              <Trans
+                i18nKey="pages.warnings.lastFailedAt"
+                values={{ time: formatTime(lastFailedAt) }}
+                components={{ time: <TechText /> }}
+              />
             </p>
           ) : null}
         </div>
@@ -323,10 +331,28 @@ export function WarningCard({
             color: 'text-muted',
           })}
         >
-          <span>{t('pages.warnings.createdAt', { time: formatTime(event.created_at) })}</span>
-          <span>{t('pages.warnings.updatedAt', { time: formatTime(event.updated_at) })}</span>
+          <span>
+            <Trans
+              i18nKey="pages.warnings.createdAt"
+              values={{ time: formatTime(event.created_at) }}
+              components={{ time: <TechText /> }}
+            />
+          </span>
+          <span>
+            <Trans
+              i18nKey="pages.warnings.updatedAt"
+              values={{ time: formatTime(event.updated_at) }}
+              components={{ time: <TechText /> }}
+            />
+          </span>
           {event.read_at === null ? null : (
-            <span>{t('pages.warnings.readAt', { time: formatTime(event.read_at) })}</span>
+            <span>
+              <Trans
+                i18nKey="pages.warnings.readAt"
+                values={{ time: formatTime(event.read_at) }}
+                components={{ time: <TechText /> }}
+              />
+            </span>
           )}
         </p>
       ) : null}

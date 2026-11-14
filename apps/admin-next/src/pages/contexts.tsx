@@ -8,10 +8,12 @@ import {
   ListSearchForm,
   SnapshotList,
   TableShell,
+  TechText,
+  TimeText,
 } from '@/components/business';
 import { AppLink } from '@/components/router-links';
 import type { ConversationContextListItem } from '@/lib/api/contexts.ts';
-import { formatNumber, formatTime } from '@/lib/format';
+import { formatNumber } from '@/lib/format';
 import { chatQuery, useListQuery } from '@/lib/list-query';
 import { conversationContextsQuery } from '@/lib/queries';
 
@@ -39,8 +41,21 @@ export default function ContextsPage(): ReactElement {
       title: t('invocations.contexts.columns.chat'),
       render: (row) => (
         <div className={css({ minWidth: '0' })}>
-          <div className={css({ truncate: true })}>{row.chat_title ?? row.telegram_chat_id}</div>
-          <div className={css({ display: 'flex', gap: '2', textStyle: 'small', color: 'text-muted' })}>
+          {/* Free-text title: its own direction, and it truncates at the end of the string, not the line. */}
+          <div dir="auto" className={css({ truncate: true })}>
+            {row.chat_title ?? <TechText>{row.telegram_chat_id}</TechText>}
+          </div>
+          <div
+            // One clipped meta line, like develop: wrapping here made every row taller at phone width.
+            className={css({
+              display: 'flex',
+              gap: '2',
+              minWidth: '0',
+              overflow: 'hidden',
+              textStyle: 'small',
+              color: 'text-muted',
+            })}
+          >
             <span>{row.chat_type}</span>
             {row.message_thread_id === 0 ? null : (
               <span>{t('invocations.invocations.topicLabel', { id: row.message_thread_id })}</span>
@@ -87,14 +102,14 @@ export default function ContextsPage(): ReactElement {
       title: t('invocations.contexts.columns.lastActive'),
       width: 184,
       skeleton: '2026-01-18 10:58:15',
-      render: (row) => formatTime(row.last_active_at),
+      render: (row) => <TimeText value={row.last_active_at} />,
     },
     {
       key: 'last_gc_at',
       title: t('invocations.contexts.columns.lastGc'),
       width: 184,
       skeleton: '2026-01-18 10:58:15',
-      render: (row) => formatTime(row.last_gc_at),
+      render: (row) => <TimeText value={row.last_gc_at} />,
     },
   ];
 

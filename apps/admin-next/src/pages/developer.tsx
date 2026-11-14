@@ -197,6 +197,7 @@ function ModelsDevSource({ settings }: { readonly settings: DeveloperSettings })
             value={value}
             disabled={save.isPending}
             onChange={(event) => setValue(event.target.value)}
+            dir="ltr"
           />
         </Field>
         {settings.models_dev_url !== settings.active_models_dev_url ? (

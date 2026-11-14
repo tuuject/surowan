@@ -164,6 +164,7 @@ function GroupMemoryForm({
             disabled={!enabled}
             value={idleMinutes}
             onChange={(event) => setIdleMinutes(event.target.value)}
+            dir="ltr"
           />
         </Field>
       </fieldset>

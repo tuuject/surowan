@@ -7,12 +7,11 @@ import { css } from '@tuuject/koi-react/styled-system/css';
 import { Tag } from '@tuuject/koi-react/tag';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { KvList, ListPageHeader, MonoValue, StateBadge } from '@/components/business';
+import { KvList, ListPageHeader, MonoValue, StateBadge, TimeText } from '@/components/business';
 import { RefreshIcon } from '@/components/icons';
 import { Panel } from '@/components/layout/panel';
 import { getImageGeneration, imageUrl, retryImageGeneration } from '@/lib/api/images.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatTime } from '@/lib/format';
 import { toast } from '@/lib/toast.ts';
 
 /** One generation: intent snapshot, per-item attempts, outputs, and error. */
@@ -167,10 +166,10 @@ function GenerationDetail({ id }: { readonly id: string }) {
                   </span>
                 ),
               },
-              { label: t('image.detail.submitted'), value: formatTime(record.createdAt) },
+              { label: t('image.detail.submitted'), value: <TimeText value={record.createdAt} /> },
               {
                 label: t('image.detail.finished'),
-                value: record.finishedAt === null ? '—' : formatTime(record.finishedAt),
+                value: record.finishedAt === null ? '—' : <TimeText value={record.finishedAt} />,
               },
               {
                 label: t('image.detail.promptAssets'),
@@ -278,7 +277,9 @@ function GenerationDetail({ id }: { readonly id: string }) {
                   <span className={css({ color: 'error-text' })}>{attempt.error.message}</span>
                 )}
                 {attempt.finishedAt !== null && (
-                  <span className={css({ color: 'text-muted' })}>{formatTime(attempt.finishedAt)}</span>
+                  <span className={css({ color: 'text-muted' })}>
+                    <TimeText value={attempt.finishedAt} />
+                  </span>
                 )}
               </li>
             ))}

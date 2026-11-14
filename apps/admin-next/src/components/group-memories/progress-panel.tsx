@@ -4,8 +4,16 @@ import { Button, IconButton } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import { type ReactElement, useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { type ColumnSpec, RowActions, SnapshotList, TableShell, ToneBadge } from '@/components/business';
+import { Trans, useTranslation } from 'react-i18next';
+import {
+  type ColumnSpec,
+  RowActions,
+  SnapshotList,
+  TableShell,
+  TechText,
+  TimeText,
+  ToneBadge,
+} from '@/components/business';
 import { ActivityIcon } from '@/components/icons';
 import { Panel } from '@/components/layout/panel';
 import type {
@@ -72,7 +80,9 @@ function latest(values: readonly (string | null)[]): string | null {
 function ChatCell({ chat }: { readonly chat: GroupMemoryChat }): ReactElement {
   return (
     <div className={css({ minWidth: '0' })}>
-      <div className={css({ overflowWrap: 'anywhere' })}>{chat.title ?? chat.telegram_chat_id}</div>
+      <div className={css({ overflowWrap: 'anywhere' })}>
+        {chat.title ?? <TechText>{chat.telegram_chat_id}</TechText>}
+      </div>
       <div className={SECONDARY}>{chat.telegram_chat_id}</div>
     </div>
   );
@@ -97,7 +107,13 @@ function StatusCell({ item }: { readonly item: GroupMemoryProgressItem }): React
     <div className={css({ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1' })}>
       <ToneBadge tone="warning">{t('pages.groupMemories.statusFailing', { count: failures })}</ToneBadge>
       {retry === undefined ? null : (
-        <span className={SECONDARY}>{t('pages.groupMemories.retryAt', { time: formatTime(retry) })}</span>
+        <span className={SECONDARY}>
+          <Trans
+            i18nKey="pages.groupMemories.retryAt"
+            values={{ time: formatTime(retry) }}
+            components={{ time: <TechText /> }}
+          />
+        </span>
       )}
     </div>
   );
@@ -123,12 +139,14 @@ export function GroupMemoryProgressPanel(): ReactElement {
     },
     {
       key: 'status',
+      className: css({ whiteSpace: 'normal' }),
       title: t('pages.groupMemories.colStatus'),
       width: 168,
       render: (row) => <StatusCell item={row} />,
     },
     {
       key: 'through',
+      className: css({ whiteSpace: 'normal' }),
       title: t('pages.groupMemories.colThrough'),
       width: 176,
       render: (row) => {
@@ -137,7 +155,9 @@ export function GroupMemoryProgressPanel(): ReactElement {
           <span className={css({ color: 'text-muted' })}>{t('pages.groupMemories.notStarted')}</span>
         ) : (
           <div>
-            <div>{formatTime(live.through_at)}</div>
+            <div>
+              <TimeText value={live.through_at} />
+            </div>
             <div className={SECONDARY}>{t('pages.groupMemories.messageId', { id: live.through_message_id })}</div>
           </div>
         );
@@ -152,6 +172,7 @@ export function GroupMemoryProgressPanel(): ReactElement {
     },
     {
       key: 'backfill',
+      className: css({ whiteSpace: 'normal' }),
       title: t('pages.groupMemories.colBackfill'),
       width: 176,
       render: (row) => {
@@ -163,7 +184,11 @@ export function GroupMemoryProgressPanel(): ReactElement {
           <div>
             <div className={NUMERIC}>{t('pages.groupMemories.backfillPending', { count: backfill.pending })}</div>
             <div className={SECONDARY}>
-              {t('pages.groupMemories.backfillUntil', { time: formatTime(backfill.until_at) })}
+              <Trans
+                i18nKey="pages.groupMemories.backfillUntil"
+                values={{ time: formatTime(backfill.until_at) }}
+                components={{ time: <TechText /> }}
+              />
             </div>
           </div>
         );
@@ -171,6 +196,7 @@ export function GroupMemoryProgressPanel(): ReactElement {
     },
     {
       key: 'recent',
+      className: css({ whiteSpace: 'normal' }),
       title: t('pages.groupMemories.colRecent'),
       width: 176,
       render: (row) => (
@@ -179,9 +205,11 @@ export function GroupMemoryProgressPanel(): ReactElement {
             {t('pages.groupMemories.recentRuns', { success: row.runs_24h.success, error: row.runs_24h.error })}
           </div>
           <div className={SECONDARY}>
-            {t('pages.groupMemories.lastSuccess', {
-              time: formatTime(latest(row.lanes.map((entry) => entry.last_success_at))),
-            })}
+            <Trans
+              i18nKey="pages.groupMemories.lastSuccess"
+              values={{ time: formatTime(latest(row.lanes.map((entry) => entry.last_success_at))) }}
+              components={{ time: <TechText /> }}
+            />
           </div>
         </div>
       ),
@@ -257,7 +285,7 @@ function RunsList({ chat }: { readonly chat: string }): ReactElement {
       title: t('pages.groupMemories.colStarted'),
       width: 192,
       skeleton: '2026-01-18 10:58:15',
-      render: (row) => formatTime(row.started_at),
+      render: (row) => <TimeText value={row.started_at} />,
     },
     {
       key: 'batch',

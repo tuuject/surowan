@@ -248,6 +248,7 @@ export function ModelPickerDialog({
                   value={ids}
                   onChange={(event) => setIds(event.target.value)}
                   placeholder={'deepseek/deepseek-v4-flash\nqwen/qwen3-max'}
+                  dir="ltr"
                 />
               </Field>
               <Button

@@ -61,7 +61,7 @@ export const chats = {
   activeHoursUnrestricted: 'Unrestricted',
   activeHoursTriggerOnly: 'Trigger only',
   activeHoursFollowsGlobal: 'Global schedule',
-  activeHoursTimezoneNote: 'Times shown in {{timezone}}, now {{time}}',
+  activeHoursTimezoneNote: 'Times shown in {{timezone}}, now <time>{{time}}</time>',
   modeUnrestricted: 'No schedule restriction',
   modeUnrestrictedHint: "Remove this Chat's periods. Without a global schedule the bot stays active around the clock.",
   modeUnrestrictedHintGlobal: "Remove this Chat's periods; the global periods ({{windows}}) keep applying.",

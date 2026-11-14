@@ -1,11 +1,27 @@
 import { css, cx } from '@tuuject/koi-react/styled-system/css';
-import { type ReactElement, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Fragment, type ReactElement, useMemo } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import type { ParticipationWindow } from '@/lib/api/chats.ts';
 import { daySegments, formatZonedTime, summarizeWindows, zonedClock } from '@/lib/participation';
+import { TechText } from '@/components/business/bidi-text';
 
 const HOUR_TICKS = [0, 6, 12, 18, 24];
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7];
+
+/**
+ * The label column follows its content instead of a fixed 40px: Arabic has no
+ * standard short weekday names (CLDR's "short" form is the full name), so a fixed
+ * box would run `الأربعاء` into the track. One grid, so the axis row and every day
+ * row share the same first-column width in every language.
+ */
+const GRID = css({ display: 'grid', gridTemplateColumns: 'max-content minmax(0, 1fr)', columnGap: '2' });
+
+/** Hour lines at every quarter of the track, painted under the bars. */
+const TRACK = css({
+  position: 'relative',
+  backgroundImage: 'linear-gradient(to right, var(--colors-divider) 0 1px, transparent 1px)',
+  backgroundSize: '25% 100%',
+});
 
 /**
  * Weekly bar chart of participation windows: one track per weekday, bars for
@@ -26,9 +42,11 @@ export function WeekWindowsChart({
   const nowPct = `${((nowClock.minutes / 1440) * 100).toFixed(3)}%`;
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-      <div className={css({ display: 'flex' })} aria-hidden="true">
-        <div className={css({ width: '40px', flexShrink: '0' })} />
-        <div className={css({ position: 'relative', height: 'icon', flex: '1 1 0%' })}>
+      <div className={GRID}>
+        {/* Axis row: an empty label cell keeps the tick row aligned with the day labels. */}
+        <span aria-hidden="true" />
+        {/* A clock axis reads left-to-right in every language: only the tracks are an LTR island. */}
+        <div dir="ltr" className={css({ position: 'relative', height: 'icon' })}>
           {HOUR_TICKS.map((hour) => (
             <span
               key={hour}
@@ -58,38 +76,23 @@ export function WeekWindowsChart({
               bg: 'text-muted',
             })}
             style={{ left: nowPct }}
+            aria-hidden="true"
           />
-        </div>
-      </div>
-      <div className={css({ position: 'relative' })}>
-        <div
-          className={css({ pointerEvents: 'none', position: 'absolute', inset: '0', display: 'flex' })}
-          aria-hidden="true"
-        >
-          <div className={css({ width: '40px', flexShrink: '0' })} />
-          <div className={css({ position: 'relative', flex: '1 1 0%' })}>
-            {HOUR_TICKS.map((hour) => (
-              <div
-                key={hour}
-                className={css({ bg: 'divider', position: 'absolute', insetBlock: '0', width: '1px' })}
-                style={{ left: `${(hour / 24) * 100}%` }}
-              />
-            ))}
-          </div>
         </div>
         {WEEKDAYS.map((day) => {
           const isToday = day === nowClock.weekday;
           return (
-            <div key={day} className={css({ position: 'relative', display: 'flex', alignItems: 'center' })}>
+            <Fragment key={day}>
               <div
-                className={cx(
-                  css({ textStyle: 'small', width: '40px', flexShrink: '0' }),
-                  isToday ? css({ textStyle: 'label', color: 'text-brand' }) : css({ color: 'text-muted' }),
-                )}
+                className={css({
+                  textStyle: isToday ? 'label' : 'small',
+                  color: isToday ? 'text-brand' : 'text-muted',
+                  whiteSpace: 'nowrap',
+                })}
               >
                 {dayLabels[day - 1]}
               </div>
-              <div className={css({ position: 'relative', height: '20px', flex: '1 1 0%' })}>
+              <div dir="ltr" className={cx(TRACK, css({ height: '20px' }))}>
                 <div
                   className={css({
                     bg: 'surface-muted',
@@ -97,12 +100,19 @@ export function WeekWindowsChart({
                     insetBlock: '2',
                     insetInline: '0',
                     borderRadius: 'full',
+                    zIndex: 0,
                   })}
                   aria-hidden="true"
                 />
                 {isToday ? (
                   <div
-                    className={css({ bg: 'text-muted', position: 'absolute', insetBlock: '0', width: '1px' })}
+                    className={css({
+                      bg: 'text-muted',
+                      position: 'absolute',
+                      insetBlock: '0',
+                      width: '1px',
+                      zIndex: 1,
+                    })}
                     style={{ left: nowPct }}
                     aria-hidden="true"
                   />
@@ -110,7 +120,13 @@ export function WeekWindowsChart({
                 {daySegments(windows, day).map((segment) => (
                   <div
                     key={`${segment.start}-${segment.end}`}
-                    className={css({ bg: 'action', position: 'absolute', insetBlock: '2', borderRadius: 'full' })}
+                    className={css({
+                      bg: 'action',
+                      position: 'absolute',
+                      insetBlock: '2',
+                      borderRadius: 'full',
+                      zIndex: 1,
+                    })}
                     style={{
                       left: `${((segment.start / 1440) * 100).toFixed(3)}%`,
                       width: `${(((segment.end - segment.start) / 1440) * 100).toFixed(3)}%`,
@@ -123,15 +139,16 @@ export function WeekWindowsChart({
                   />
                 ))}
               </div>
-            </div>
+            </Fragment>
           );
         })}
       </div>
       <p className={css({ textStyle: 'small', color: 'text-muted' })}>
-        {t('pages.chats.activeHoursTimezoneNote', {
-          timezone,
-          time: formatZonedTime(timezone, now, i18n.language),
-        })}
+        <Trans
+          i18nKey="pages.chats.activeHoursTimezoneNote"
+          values={{ timezone, time: formatZonedTime(timezone, now, i18n.language) }}
+          components={{ time: <TechText /> }}
+        />
       </p>
     </div>
   );

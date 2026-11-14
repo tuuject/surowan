@@ -70,6 +70,7 @@ export function ModelList({
                 current.map((item) => (item.key === model.key ? { ...item, description: event.target.value } : item)),
               )
             }
+            dir="auto"
           />
           <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('image.settings.modelDescriptionHint')}</p>
         </div>

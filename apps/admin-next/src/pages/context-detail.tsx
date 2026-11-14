@@ -13,6 +13,7 @@ import {
   MonoValue,
   TableShell,
   TextValue,
+  TimeText,
   ToneBadge,
 } from '@/components/business';
 import { ToolResult } from '@/components/invocations/tool-result';
@@ -23,7 +24,7 @@ import type {
   ConversationContextMessageEntry,
   ConversationContextRefEntry,
 } from '@/lib/api/contexts.ts';
-import { formatNumber, formatTime, kindLabel, roleLabel } from '@/lib/format';
+import { formatNumber, kindLabel, roleLabel } from '@/lib/format';
 import { conversationContextQuery } from '@/lib/queries';
 
 function RoleBadge({ role }: { readonly role: string }): ReactElement {
@@ -105,12 +106,12 @@ function RetainedMessages({ context }: { readonly context: ConversationContextDe
     {
       key: 'evicted_at',
       title: t('invocations.contextDetail.messageColumns.evicted'),
-      render: (row) => formatTime(row.evicted_at),
+      render: (row) => <TimeText value={row.evicted_at} />,
     },
     {
       key: 'created_at',
       title: t('invocations.contextDetail.messageColumns.created'),
-      render: (row) => formatTime(row.created_at),
+      render: (row) => <TimeText value={row.created_at} />,
     },
   ];
   return (
@@ -167,7 +168,7 @@ function CapabilityRefs({ context }: { readonly context: ConversationContextDeta
     {
       key: 'expires_at',
       title: t('invocations.contextDetail.refColumns.expires'),
-      render: (row) => formatTime(row.expires_at),
+      render: (row) => <TimeText value={row.expires_at} />,
     },
   ];
   return <TableShell columns={REF_COLUMNS} data={context.refs} rowKey={(row) => row.ref} />;
@@ -225,8 +226,8 @@ export function ContextDetailView({ id }: { readonly id: string }): ReactElement
               { label: t('invocations.contextDetail.kv.headSeq'), value: formatNumber(data.head_seq) },
               { label: t('invocations.contextDetail.kv.nextSeq'), value: formatNumber(data.next_seq) },
               { label: t('invocations.contextDetail.kv.retainedMessages'), value: formatNumber(data.message_count) },
-              { label: t('invocations.contextDetail.kv.lastActive'), value: formatTime(data.last_active_at) },
-              { label: t('invocations.contextDetail.kv.lastGc'), value: formatTime(data.last_gc_at) },
+              { label: t('invocations.contextDetail.kv.lastActive'), value: <TimeText value={data.last_active_at} /> },
+              { label: t('invocations.contextDetail.kv.lastGc'), value: <TimeText value={data.last_gc_at} /> },
               {
                 label: t('invocations.contextDetail.kv.activeSession'),
                 value: <InvocationLink id={data.active_invocation_id} />,
@@ -235,8 +236,8 @@ export function ContextDetailView({ id }: { readonly id: string }): ReactElement
                 label: t('invocations.contextDetail.kv.systemPromptHash'),
                 value: <MonoValue value={data.system_prompt_hash} />,
               },
-              { label: t('invocations.contextDetail.kv.created'), value: formatTime(data.created_at) },
-              { label: t('invocations.contextDetail.kv.updated'), value: formatTime(data.updated_at) },
+              { label: t('invocations.contextDetail.kv.created'), value: <TimeText value={data.created_at} /> },
+              { label: t('invocations.contextDetail.kv.updated'), value: <TimeText value={data.updated_at} /> },
             ]}
           />
         </div>

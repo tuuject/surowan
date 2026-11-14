@@ -12,6 +12,7 @@ import {
   ListPageHeader,
   ListToolbar,
   TableShell,
+  TimeText,
   useOffsetPagination,
 } from '@/components/business';
 import { MarkdownInput } from '@/components/prompts/markdown-input';
@@ -26,7 +27,6 @@ import {
   uploadImageAsset as uploadAsset,
 } from '@/lib/api/images.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatTime } from '@/lib/format';
 import { toast } from '@/lib/toast.ts';
 
 /** Asset management: prompt templates and reference images, with upload and archive. */
@@ -84,6 +84,7 @@ function PromptEditor({ open, onDone }: { readonly open: boolean; readonly onDon
           onChange={(event) => setName(event.target.value)}
           placeholder={t('image.assets.namePlaceholder')}
           aria-label={t('image.assets.namePlaceholder')}
+          dir="auto"
         />
         <MarkdownInput
           value={body}
@@ -175,7 +176,7 @@ export default function ImageAssetsPage() {
       render: (row) => <span className={css({ textStyle: 'label' })}>{row.name}</span>,
     },
     { key: 'category', title: t('image.assets.columnCategory'), render: (row) => row.category },
-    { key: 'updated', title: t('image.assets.columnUpdated'), render: (row) => formatTime(row.updated_at) },
+    { key: 'updated', title: t('image.assets.columnUpdated'), render: (row) => <TimeText value={row.updated_at} /> },
     {
       key: 'actions',
       title: t('pages.apiKeys.actions'),
@@ -216,7 +217,7 @@ export default function ImageAssetsPage() {
       render: (row) => <span className={css({ textStyle: 'label' })}>{row.name}</span>,
     },
     { key: 'source', title: t('image.assets.columnSource'), render: (row) => row.source },
-    { key: 'created', title: t('image.assets.columnCreated'), render: (row) => formatTime(row.created_at) },
+    { key: 'created', title: t('image.assets.columnCreated'), render: (row) => <TimeText value={row.created_at} /> },
     {
       key: 'actions',
       title: t('pages.apiKeys.actions'),

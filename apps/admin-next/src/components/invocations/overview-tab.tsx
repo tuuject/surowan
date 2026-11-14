@@ -10,8 +10,8 @@ import {
   ToolCallCard,
 } from '@/components/invocations/timeline-cards';
 import type { InvocationChatSummary, InvocationDetail } from '@/lib/api/invocations.ts';
-import { formatTime } from '@/lib/format';
 import { buildInvocationTimeline, type InvocationTimelineEvent, timelineEventKey } from '@/lib/timeline';
+import { TimeText } from '@/components/business/time-text';
 
 export function TimelineItem({
   chat,
@@ -28,7 +28,9 @@ export function TimelineItem({
           header={
             <>
               <span className={css({ textStyle: 'label' })}>{t('invocations.invocationDetail.timeline.queued')}</span>
-              <span className={css({ textStyle: 'small', color: 'text-muted' })}>{formatTime(event.at)}</span>
+              <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+                <TimeText value={event.at} />
+              </span>
             </>
           }
         />
@@ -39,7 +41,9 @@ export function TimelineItem({
           header={
             <>
               <span className={css({ textStyle: 'label' })}>{t('invocations.invocationDetail.timeline.started')}</span>
-              <span className={css({ textStyle: 'small', color: 'text-muted' })}>{formatTime(event.at)}</span>
+              <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+                <TimeText value={event.at} />
+              </span>
             </>
           }
         />
@@ -50,7 +54,9 @@ export function TimelineItem({
           header={
             <>
               <span className={css({ textStyle: 'label' })}>{t('invocations.invocationDetail.timeline.finished')}</span>
-              <span className={css({ textStyle: 'small', color: 'text-muted' })}>{formatTime(event.at)}</span>
+              <span className={css({ textStyle: 'small', color: 'text-muted' })}>
+                <TimeText value={event.at} />
+              </span>
             </>
           }
         />

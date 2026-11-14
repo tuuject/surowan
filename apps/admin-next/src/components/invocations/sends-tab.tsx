@@ -1,10 +1,18 @@
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { type ColumnSpec, JsonViewer, MonoValue, StateBadge, TableShell, TextValue } from '@/components/business';
+import {
+  type ColumnSpec,
+  JsonViewer,
+  MonoValue,
+  StateBadge,
+  TableShell,
+  TextValue,
+  TimeText,
+} from '@/components/business';
 import { isRoom, TabContent } from '@/components/invocations/shared';
 import type { InvocationDetail, TelegramSendEntry } from '@/lib/api/invocations.ts';
-import { formatTime, kindLabel } from '@/lib/format';
+import { kindLabel } from '@/lib/format';
 
 export function SendsTab({ invocation }: { readonly invocation: InvocationDetail }): React.ReactNode {
   const { t } = useTranslation();
@@ -40,7 +48,7 @@ export function SendsTab({ invocation }: { readonly invocation: InvocationDetail
     {
       key: 'created',
       title: t('invocations.invocationDetail.sendColumns.created'),
-      render: (row) => formatTime(row.created_at),
+      render: (row) => <TimeText value={row.created_at} />,
     },
   ];
   return (

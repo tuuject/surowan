@@ -83,6 +83,12 @@ function mainNav(page: Page, label = 'Main navigation') {
   return page.getByRole('navigation', { name: label, exact: true });
 }
 
+/** The header language control is a menu of the supported languages, each named in itself. */
+async function switchLanguage(page: Page, controlLabel: string, language: string) {
+  await page.getByRole('button', { name: controlLabel, exact: true }).click();
+  await page.getByRole('menuitem', { name: language, exact: true }).click();
+}
+
 async function setGroup(page: Page, label: string, open: boolean, navLabel = 'Main navigation') {
   const trigger = mainNav(page, navLabel).getByRole('button', { name: label, exact: true });
   if ((await trigger.getAttribute('aria-expanded')) !== String(open)) {
@@ -148,7 +154,7 @@ test('language switch re-labels parents and children immediately and persists', 
   }
   const nav = mainNav(page);
   await expect(nav.getByRole('link')).toHaveText(EN_GROUPS.flatMap((group) => [...group.labels]));
-  await page.getByRole('button', { name: 'Switch language' }).click();
+  await switchLanguage(page, 'Switch language', '中文');
 
   const zhNav = mainNav(page, '主导航');
   for (const [index, label] of ZH_GROUP_LABELS.entries()) {
@@ -196,7 +202,7 @@ test('language switch re-labels parents and children immediately and persists', 
     );
   }
   await expect(mainNav(page, '主导航').getByRole('link')).toHaveText(ZH_LABELS);
-  await page.getByRole('button', { name: '切换语言' }).click();
+  await switchLanguage(page, '切换语言', 'English');
   await expect(mainNav(page).getByRole('button', { name: 'Monitor', exact: true })).toBeVisible();
   for (const group of EN_GROUPS) {
     await setGroup(page, group.label, true);
@@ -233,7 +239,7 @@ test('collapsed rail keeps parent flyouts and localized children', async ({ page
   await dictionary.click();
   await expect(page).toHaveURL(/\/dictionary$/);
 
-  await page.getByRole('button', { name: 'Switch language' }).click();
+  await switchLanguage(page, 'Switch language', '中文');
   await mainNav(page, '主导航').getByRole('button', { name: '数据', exact: true }).click();
   await expect(page.getByRole('menuitem', { name: '辞典', exact: true })).toBeVisible();
 });

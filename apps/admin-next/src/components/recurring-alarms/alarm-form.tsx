@@ -97,6 +97,7 @@ export function AlarmFormFields({
           disabled={disabled}
           maxLength={TITLE_MAX_CHARACTERS}
           onChange={(event) => change({ ...state, title: event.target.value })}
+          dir="auto"
         />
       </Field>
       <Field
@@ -128,6 +129,7 @@ export function AlarmFormFields({
           spellCheck={false}
           className={css({ fontFamily: 'mono' })}
           onChange={(event) => change({ ...state, timeZone: event.target.value })}
+          dir="ltr"
         />
       </Field>
       {/* Not a Koi Field: it would label every nested control "Schedule". */}
@@ -174,6 +176,7 @@ export function AlarmFormFields({
                 className={css({ fontFamily: 'mono' })}
                 placeholder="0 8 * * *"
                 onChange={(event) => change({ ...state, cronText: event.target.value })}
+                dir="ltr"
               />
               <p className={css({ textStyle: 'small', color: 'text-muted' })}>{t('pages.recurringAlarms.cronHelp')}</p>
             </>
@@ -193,6 +196,7 @@ export function AlarmFormFields({
           value={state.prompt}
           disabled={disabled}
           onChange={(event) => change({ ...state, prompt: event.target.value })}
+          dir="auto"
         />
       </Field>
       <Checkbox

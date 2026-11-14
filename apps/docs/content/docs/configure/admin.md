@@ -43,7 +43,7 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 - **图片生成 / 生图记录 / 图片资产**：图片生成工作台（提交、解析预览、实时查看输出）、全部生成的审计与重试、提示词素材与参考图库管理，见[图片生成](../guides/images.md)。
 - **图片设置**：图片功能的启用开关、生图凭据与模型配置。保存后立即应用，不需要重启；禁用会删除整个 `image` 段并清理不再引用的 key jar 条目。
 - **Settings**：对手改配置使用 **Apply config file**，并查看 Saved 与 Running 状态及 `restart_required`。
-- **Panel preferences**（Account 组）：只对当前浏览器生效的显示选项：主题、界面语言（右上角按钮也能切换）。选项保存在浏览器本地，不写入配置文件，其他浏览器与管理员互不影响。
+- **Panel preferences**（Account 组）：只对当前浏览器生效的显示选项：主题、界面语言（顶栏的语言菜单也能切换）。选项保存在浏览器本地，不写入配置文件，其他浏览器与管理员互不影响。
 - **Harness tuning**：调整 Agent 的运行上限与发送行为（预算、并发、发送规则、限流与 Context 保留）以及全局主动回复默认值，保存后由下一次 Invocation 生效，见 [Harness tuning](admin-harness-tuning.md)。
 - **Developer**：按需记录模型调用的调试报文，或在确认后清除已有报文，见 [Developer 调试开关](admin-developer.md)。
 - **API keys**（Manage 组）：创建、查看与撤销供 CLI 与评估工具使用的密钥，明文只在创建弹窗中出现一次，见 [API 密钥](admin-api-keys.md)。
@@ -59,7 +59,9 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 
 ## 界面语言
 
-界面支持英文与简体中文。顶栏右侧的语言切换按钮在两种语言间切换，也可以在 **Panel preferences** 页直接选择，立即生效并写入浏览器 `localStorage`（`admin-language`）；未手动选择时跟随浏览器语言（`zh` 开头解析为中文，否则英文）。技术名词（Invocation、Context、Prompt、Token 等）在中文界面中保留英文原文；后端返回的错误消息始终按服务端原文显示（错误码 + 消息）。
+界面支持四种语言：English、简体中文、Deutsch、العربية。顶栏的语言菜单列出四种语言（各自以本语言命名），当前语言带勾选标记；也可以在 **Panel preferences** 页直接选择。切换立即生效，无需刷新，并写入浏览器 `localStorage`（`admin-language`）；未手动选择时跟随浏览器语言（`zh` 开头解析为中文、`de` 开头为德语、`ar` 开头为阿拉伯语，其余为英文）。
+
+阿拉伯语界面是真正的从右到左布局：整页方向翻转、导航位于右侧，技术字符串（模型 ID、API 密钥、URL、时间戳等）单独按从左到右隔离显示，所以复制出来的内容与存储值一致。技术输入框（URL、密钥、ID、JSON、cron）按从左到右排版，名称、备注、提示词等自由文本按内容自动判定方向。技术名词（Invocation、Context、Prompt、Token 等）在中文界面中保留英文原文，德语与阿拉伯语界面按各自术语翻译，模型 ID、配置键、命令与 URL 始终不翻译；后端返回的错误消息始终按服务端原文显示（错误码 + 消息）。
 
 ## Passkey 登录与恢复
 

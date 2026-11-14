@@ -1,7 +1,7 @@
 import { Button, IconButton } from '@tuuject/koi-react/button';
 import { Checkbox } from '@tuuject/koi-react/checkbox';
 import { Empty } from '@tuuject/koi-react/empty';
-import { ChevronDownIcon, ChevronRightIcon, TrashIcon } from '@tuuject/koi-react/icons';
+import { ChevronDownIcon, TrashIcon } from '@tuuject/koi-react/icons';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type { Dispatch, ReactElement, SetStateAction } from 'react';
 import { useState } from 'react';
@@ -14,7 +14,7 @@ import {
   ToneBadge,
   useClientPagination,
 } from '@/components/business';
-import { EditIcon, EyeIcon, HealthIcon, LightbulbIcon } from '@/components/icons';
+import { EditIcon, EyeIcon, HealthIcon, LightbulbIcon, NextIcon } from '@/components/icons';
 import { Panel } from '@/components/layout/panel';
 import { RoleButtons } from '@/components/models/roles/buttons';
 import { type ModelRole, modelRoles } from '@/components/models/roles/writes';
@@ -272,7 +272,7 @@ export function ModelList({
                           color="secondary"
                           aria-expanded={open}
                           label={t('layout.business.toggleRowDetails')}
-                          icon={open ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                          icon={open ? <ChevronDownIcon /> : <NextIcon />}
                           onClick={() => toggleExpanded(key)}
                         />
                       ) : null}

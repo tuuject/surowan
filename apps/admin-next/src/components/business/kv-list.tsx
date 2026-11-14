@@ -1,6 +1,7 @@
 import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import type { ReactElement } from 'react';
+import { TechText } from './bidi-text';
 
 /**
  * Key/value detail list for detail-page diagnostic fields. Null or empty
@@ -80,7 +81,7 @@ export function MonoValue({
     return <span className={css({ color: 'text-muted' })}>—</span>;
   }
   return (
-    <code
+    <TechText
       className={cx(
         // Plain fixed-width text in the surrounding size and color: a filled chip on every ID turns a
         // table into a field of pills.
@@ -89,6 +90,6 @@ export function MonoValue({
       )}
     >
       {value}
-    </code>
+    </TechText>
   );
 }

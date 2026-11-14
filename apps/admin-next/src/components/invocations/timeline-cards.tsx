@@ -8,6 +8,7 @@ import {
   LazyDetails,
   PrivateReasoningTag,
   StateBadge,
+  TimeText,
   ToneBadge,
 } from '@/components/business';
 import { isRoom, MessageRecordLink, RoleBadge, SectionBadge } from '@/components/invocations/shared';
@@ -19,7 +20,7 @@ import type {
   TelegramSendEntry,
   ToolCallEntry,
 } from '@/lib/api/invocations.ts';
-import { formatCost, formatDuration, formatNumber, formatTime } from '@/lib/format';
+import { formatCost, formatDuration, formatNumber } from '@/lib/format';
 import {
   objectField,
   type ParsedSendArguments,
@@ -35,7 +36,7 @@ export function TimelineCard({
   children,
 }: {
   readonly header: React.ReactNode;
-  readonly extra?: string;
+  readonly extra?: React.ReactNode;
   readonly children?: React.ReactNode;
 }): ReactElement {
   return (
@@ -158,7 +159,7 @@ export function ToolCallCard({
           <StateBadge state={tool.state} />
         </>
       }
-      extra={formatTime(tool.created_at)}
+      extra=<TimeText value={tool.created_at} />
     >
       {tool.tool_name === 'send' ? <SendContent chat={chat} parsed={parsed} send={send} /> : null}
       <div
@@ -229,7 +230,7 @@ export function ContextMessageCard({
           )}
         </>
       }
-      extra={formatTime(stringField(snapshot, room ? 'sent_at' : 'telegram_date'))}
+      extra=<TimeText value={stringField(snapshot, room ? 'sent_at' : 'telegram_date')} />
     >
       {text === null ? (
         <p className={css({ textStyle: 'body', color: 'text-muted' })}>
@@ -305,7 +306,7 @@ export function AgentMessageCard({ message }: { readonly message: AgentMessageEn
           {message.role === 'assistant' ? <PrivateReasoningTag /> : null}
         </>
       }
-      extra={formatTime(message.created_at)}
+      extra=<TimeText value={message.created_at} />
     >
       {message.result_content ? (
         <ToolResult content={message.result_content} />
@@ -355,7 +356,7 @@ export function ModelCallCard({ model }: { readonly model: ModelCallEntry }): Re
           <StateBadge state={model.state} />
         </>
       }
-      extra={formatTime(model.created_at)}
+      extra=<TimeText value={model.created_at} />
     >
       <div
         className={css({

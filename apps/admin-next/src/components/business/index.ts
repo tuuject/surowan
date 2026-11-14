@@ -5,6 +5,7 @@
  * functions.
  */
 
+export { TechText } from './bidi-text';
 export { type ChartDatum, ChartPanel, type ChartSeries, TimeSeriesChart } from './chart-card';
 export { ConfirmDialog, type ConfirmDialogProps } from './confirm-dialog';
 export { CopyableValue } from './copyable-value';
@@ -45,3 +46,4 @@ export {
 } from './snapshot-list';
 export { type BadgeSemantic, StateBadge, stateBadgeSemantic, ToneBadge } from './state-badge';
 export { type ColumnSpec, type TableSelection, TableShell, type TableShellProps } from './table-shell';
+export { TimeText } from './time-text';

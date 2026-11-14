@@ -198,7 +198,8 @@ test('Harness navigation fits both languages and themes at desktop and phone wid
   await expect(page.getByLabel('Daily token budget')).toBeVisible();
   for (const language of ['en', 'zh-CN']) {
     if (language === 'zh-CN') {
-      await page.getByRole('button', { name: 'Switch language' }).click();
+      await page.getByRole('button', { name: 'Switch language', exact: true }).click();
+      await page.getByRole('menuitem', { name: '中文', exact: true }).click();
     }
     for (const theme of ['light', 'dark']) {
       await page.evaluate((value) => {

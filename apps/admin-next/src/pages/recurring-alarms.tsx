@@ -16,6 +16,7 @@ import {
   RowActions,
   SnapshotList,
   TableShell,
+  TimeText,
 } from '@/components/business';
 import { EditIcon, EyeIcon, PlayIcon } from '@/components/icons';
 import {
@@ -36,7 +37,6 @@ import {
   updateRecurringAlarm,
 } from '@/lib/api/recurring-alarms.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatTimeInZone } from '@/lib/format';
 import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { recurringAlarmsQuery } from '@/lib/queries';
 import {
@@ -174,7 +174,11 @@ export default function RecurringAlarmsPage(): ReactElement {
     {
       key: 'title',
       title: t('pages.recurringAlarms.colTitle'),
-      render: (row) => <div className={css({ truncate: true, fontWeight: 'medium' })}>{row.title}</div>,
+      render: (row) => (
+        <div dir="auto" className={css({ truncate: true, fontWeight: 'medium' })}>
+          {row.title}
+        </div>
+      ),
     },
     {
       key: 'target',
@@ -198,7 +202,9 @@ export default function RecurringAlarmsPage(): ReactElement {
       skeleton: 'Thu 2026-11-19 08:00',
       render: (row) => (
         <div>
-          <div>{formatTimeInZone(row.next_fire_at, row.time_zone)}</div>
+          <div>
+            <TimeText value={row.next_fire_at} timeZone={row.time_zone} />
+          </div>
           <div className={css({ textStyle: 'small', color: 'text-muted' })}>{row.time_zone}</div>
         </div>
       ),

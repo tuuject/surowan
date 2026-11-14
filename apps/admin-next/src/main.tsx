@@ -4,6 +4,7 @@ import { StringsProvider } from '@tuuject/koi-react';
 import { type ReactNode, StrictMode, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useTranslation } from 'react-i18next';
+import { AppDirectionProvider } from '@/components/app-direction';
 import { ThemeProvider } from '@/components/themes/theme-provider';
 import { Toaster } from '@/components/toaster';
 import { getQueryClient } from '@/lib/query-client';
@@ -121,13 +122,15 @@ if (!container) {
 
 createRoot(container).render(
   <StrictMode>
-    <LocalizedKoi>
-      <ThemeProvider>
-        <QueryClientProvider client={queryClient}>
-          <RouterProvider router={router} />
-          <Toaster />
-        </QueryClientProvider>
-      </ThemeProvider>
-    </LocalizedKoi>
+    <AppDirectionProvider>
+      <LocalizedKoi>
+        <ThemeProvider>
+          <QueryClientProvider client={queryClient}>
+            <RouterProvider router={router} />
+            <Toaster />
+          </QueryClientProvider>
+        </ThemeProvider>
+      </LocalizedKoi>
+    </AppDirectionProvider>
   </StrictMode>,
 );

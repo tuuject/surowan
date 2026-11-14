@@ -247,10 +247,15 @@ export function MergeDialog({
               {t('dictionary.merge.suggestionHint')}
             </Alert>
             <Field id="merge-term" label={t('dictionary.merge.termLabel')}>
-              <Input value={term} onChange={(event) => setTerm(event.target.value)} />
+              <Input value={term} onChange={(event) => setTerm(event.target.value)} dir="auto" />
             </Field>
             <Field id="merge-definition" label={t('dictionary.merge.definitionLabel')}>
-              <Textarea rows={4} value={definition} onChange={(event) => setDefinition(event.target.value)} />
+              <Textarea
+                rows={4}
+                value={definition}
+                onChange={(event) => setDefinition(event.target.value)}
+                dir="auto"
+              />
             </Field>
             <Field label={t('dictionary.merge.aliasesLabel')}>
               <AliasEditor aliases={aliases} onChange={setAliases} />

@@ -11,10 +11,12 @@ import {
   SnapshotList,
   StateBadge,
   TableShell,
+  TechText,
+  TimeText,
 } from '@/components/business';
 import { AppLink } from '@/components/router-links';
 import type { InvocationListItem } from '@/lib/api/invocations.ts';
-import { formatCost, formatNumber, formatTime, stateLabel } from '@/lib/format';
+import { formatCost, formatNumber, stateLabel } from '@/lib/format';
 import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { invocationsQuery } from '@/lib/queries';
 
@@ -68,8 +70,8 @@ export default function InvocationsPage(): ReactElement {
       title: t('invocations.invocations.columns.chat'),
       render: (row) => (
         <div className={css({ minWidth: '0' })}>
-          <div className={css({ truncate: true })}>
-            {row.chat.title ?? row.chat.telegram_chat_id ?? row.chat.room_id}
+          <div dir="auto" className={css({ truncate: true })}>
+            {row.chat.title ?? <TechText>{row.chat.telegram_chat_id ?? row.chat.room_id}</TechText>}
           </div>
           <div className={css({ display: 'flex', gap: '2', textStyle: 'small', color: 'text-muted' })}>
             {row.chat.host_kind === 'playground' ? <span>{t('invocations.invocations.hosts.playground')}</span> : null}
@@ -85,6 +87,7 @@ export default function InvocationsPage(): ReactElement {
       key: 'turns',
       title: t('invocations.invocations.columns.turns'),
       align: 'right',
+      // Wide enough for the longest translated label ("الجولات" is 47px at 14px bold).
       width: 72,
       render: (row) => String(row.turns_used),
     },
@@ -99,7 +102,8 @@ export default function InvocationsPage(): ReactElement {
       key: 'sends',
       title: t('invocations.invocations.columns.sends'),
       align: 'right',
-      width: 72,
+      // English "Sends" has no hyphenation point and is a hair wider than 72px leaves it, so it would split "Send/s".
+      width: 80,
       render: (row) => String(row.sends_used),
     },
     {
@@ -132,7 +136,7 @@ export default function InvocationsPage(): ReactElement {
       title: t('invocations.invocations.columns.created'),
       width: 184,
       skeleton: '2026-01-18 10:58:15',
-      render: (row) => formatTime(row.created_at),
+      render: (row) => <TimeText value={row.created_at} />,
     },
   ];
 

@@ -203,6 +203,7 @@ function ProviderSearch({
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
         iconStart={<SearchIcon />}
+        dir="auto"
       />
       {search.length === 0 ? null : (
         <IconButton
@@ -306,7 +307,7 @@ function ProviderRow({
           borderRadius: 'xl',
           bg: 'transparent',
           color: 'nav-item-text',
-          textAlign: 'left',
+          textAlign: 'start',
           cursor: 'pointer',
           transitionProperty: 'background-color, color',
           transitionDuration: 'fast',

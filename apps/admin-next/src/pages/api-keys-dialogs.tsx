@@ -96,6 +96,7 @@ function KeyReveal({ plaintext, copyState }: { readonly plaintext: string; reado
         spellCheck={false}
         className={css({ resize: 'none', wordBreak: 'break-all', fontFamily: 'mono' })}
         onFocus={(event) => event.target.select()}
+        dir="ltr"
       />
     </Field>
   );
@@ -195,6 +196,7 @@ function CreateKeyForm({
             setName(event.target.value);
             setNameError(false);
           }}
+          dir="auto"
         />
       </Field>
       <Field label={t('pages.apiKeys.mode')} help={t(`pages.apiKeys.modeHints.${mode}`)}>

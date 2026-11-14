@@ -6,14 +6,13 @@ import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ConfirmDialog, KvList, ListPageHeader, MonoValue } from '@/components/business';
+import { ConfirmDialog, KvList, ListPageHeader, MonoValue, TimeText } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
 import { BucketTimingPanel } from '@/components/telegram/bucket-timing.tsx';
 import { TelegramStatusBadge, TelegramStatusReason, telegramBotLabel } from '@/components/telegram/telegram-status.tsx';
 import type { TelegramConnectionState, TelegramView } from '@/lib/api/telegram.ts';
 import { putTelegram } from '@/lib/api/telegram.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatTime } from '@/lib/format';
 import { telegramQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
 
@@ -94,7 +93,7 @@ function TelegramSettings({ view }: { readonly view: TelegramView }): ReactEleme
             },
             {
               label: t('pages.telegram.fieldSince'),
-              value: formatTime(view.status.since),
+              value: <TimeText value={view.status.since} />,
             },
             { label: t('pages.telegram.fieldBot'), value: <BotIdentity state={view.status} /> },
           ]}
@@ -128,6 +127,7 @@ function TelegramSettings({ view }: { readonly view: TelegramView }): ReactEleme
               onChange={(event) => {
                 setToken(event.target.value);
               }}
+              dir="ltr"
             />
           </Field>
           <div

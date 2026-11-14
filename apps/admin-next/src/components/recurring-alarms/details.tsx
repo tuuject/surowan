@@ -3,11 +3,10 @@ import { css } from '@tuuject/koi-react/styled-system/css';
 import type { TFunction } from 'i18next';
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { type ColumnSpec, KvList, MonoValue, TableShell, ToneBadge } from '@/components/business';
+import { type ColumnSpec, KvList, MonoValue, TableShell, TimeText, ToneBadge } from '@/components/business';
 import { AppLink } from '@/components/router-links';
 import { getRecurringAlarm, type RecurringFiring } from '@/lib/api/recurring-alarms.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatTime, formatTimeInZone } from '@/lib/format';
 
 const SKIP_REASONS = [
   'missed',
@@ -51,7 +50,9 @@ export function FiringSummary({ firing }: { readonly firing: RecurringFiring | n
       <div
         className={css({ textStyle: 'small', color: 'text-muted', display: 'flex', flexWrap: 'wrap', columnGap: '3' })}
       >
-        <span>{formatTime(firing.occurrence_at)}</span>
+        <span>
+          <TimeText value={firing.occurrence_at} />
+        </span>
         {firing.source === 'manual' ? <span>{t('pages.recurringAlarms.sourceManual')}</span> : null}
       </div>
     </div>
@@ -62,7 +63,9 @@ export function FiringSummary({ firing }: { readonly firing: RecurringFiring | n
 function ActorStamp({ at, by }: { readonly at: string; readonly by: string }): ReactElement {
   return (
     <span className={css({ display: 'flex', flexWrap: 'wrap', columnGap: '3', rowGap: '1' })}>
-      <span>{formatTime(at)}</span>
+      <span>
+        <TimeText value={at} />
+      </span>
       <span>{by}</span>
     </span>
   );
@@ -94,7 +97,7 @@ export function RecurringAlarmDetails({ id }: { readonly id: string }): ReactEle
       key: 'occurrence_at',
       title: t('pages.recurringAlarms.colWhen'),
       width: 200,
-      render: (row) => formatTimeInZone(row.occurrence_at, alarm?.time_zone ?? 'UTC'),
+      render: (row) => <TimeText value={row.occurrence_at} timeZone={alarm?.time_zone ?? 'UTC'} />,
     },
     {
       key: 'source',

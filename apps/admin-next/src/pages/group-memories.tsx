@@ -17,13 +17,14 @@ import {
   RowActions,
   SnapshotList,
   TableShell,
+  TechText,
+  TimeText,
 } from '@/components/business';
 import { GroupMemoryProgressPanel } from '@/components/group-memories/progress-panel';
 import { EditIcon, EyeIcon } from '@/components/icons';
 import type { GroupMemoryEntry } from '@/lib/api/group-memories.ts';
 import { deleteGroupMemory, groupMemorySource, updateGroupMemory } from '@/lib/api/group-memories.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatTime } from '@/lib/format';
 import { chatQuery, optionalQuery, useListQuery } from '@/lib/list-query';
 import { groupMemoriesQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
@@ -89,7 +90,9 @@ export default function GroupMemoriesPage(): ReactElement {
       width: 200,
       render: (row) => (
         <div className={css({ minWidth: '0' })}>
-          <div className={css({ truncate: true })}>{row.chat.title ?? row.chat.telegram_chat_id}</div>
+          <div dir="auto" className={css({ truncate: true })}>
+            {row.chat.title ?? <TechText>{row.chat.telegram_chat_id}</TechText>}
+          </div>
           <div className={css({ textStyle: 'small', color: 'text-muted' })}>{row.chat.telegram_chat_id}</div>
         </div>
       ),
@@ -118,7 +121,7 @@ export default function GroupMemoriesPage(): ReactElement {
       title: t('pages.groupMemories.colCreated'),
       width: 184,
       skeleton: '2026-01-18 10:58:15',
-      render: (row) => formatTime(row.created_at),
+      render: (row) => <TimeText value={row.created_at} />,
     },
     {
       key: 'actions',
@@ -235,6 +238,7 @@ export default function GroupMemoriesPage(): ReactElement {
               maxLength={SUMMARY_MAX_LENGTH}
               value={summary}
               onChange={(event) => setSummary(event.target.value)}
+              dir="auto"
             />
           </Field>
           {update.isError ? (

@@ -14,7 +14,7 @@ import {
 } from './shared';
 
 /**
- * The navigation below md, as a drawer from the left edge: the same brand and
+ * The navigation below md, as a drawer from the inline-start edge (right in RTL): the same brand and
  * list as the desktop sidebar. Koi's Drawer brings the backdrop, focus trap,
  * Esc, scroll lock and focus return; route changes close it through the
  * router subscription in main.tsx (back and forward count too).
@@ -29,7 +29,7 @@ export function MobileNav() {
     <Drawer
       open={open}
       onOpenChange={setMobileNavOpen}
-      side="left"
+      side="start"
       title={t('layout.mainNavigation')}
       hideTitle
       className={css({

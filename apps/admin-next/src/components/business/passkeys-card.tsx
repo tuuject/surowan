@@ -13,6 +13,7 @@ import {
   ListFooter,
   ListToolbar,
   TableShell,
+  TimeText,
   ToneBadge,
   useClientPagination,
 } from '@/components/business';
@@ -20,7 +21,6 @@ import { Panel } from '@/components/layout/panel';
 import type { PasskeyItem } from '@/lib/api/auth.ts';
 import { deletePasskey, deletePassword, passkeyRegisterOptions, passkeyRegisterVerify } from '@/lib/api/auth.ts';
 import { errorMessage } from '@/lib/errors';
-import { formatTime } from '@/lib/format';
 import { isWebAuthnAvailable, passkeyErrorMessage } from '@/lib/passkeys';
 import { passkeysQuery, sessionQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
@@ -102,11 +102,12 @@ export function PasskeysCard(): ReactElement {
         </div>
       ),
     },
-    { key: 'created', title: t('pages.passkeys.created'), render: (item) => formatTime(item.created_at) },
+    { key: 'created', title: t('pages.passkeys.created'), render: (item) => <TimeText value={item.created_at} /> },
     {
       key: 'last-used',
       title: t('pages.passkeys.lastUsed'),
-      render: (item) => (item.last_used_at === null ? t('pages.passkeys.neverUsed') : formatTime(item.last_used_at)),
+      render: (item) =>
+        item.last_used_at === null ? t('pages.passkeys.neverUsed') : <TimeText value={item.last_used_at} />,
     },
     {
       key: 'actions',
@@ -316,6 +317,7 @@ function RegisterPasskeyForm({
             setName(event.target.value);
             setNameError(false);
           }}
+          dir="auto"
         />
         {nameError ? (
           <p id="passkey-name-error" role="alert" className={css({ textStyle: 'body', color: 'error-text' })}>
