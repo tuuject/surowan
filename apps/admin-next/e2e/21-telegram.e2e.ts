@@ -122,7 +122,9 @@ interface BucketTimingView {
 async function bucketTiming(
   request: APIRequestContext,
 ): Promise<{ readonly saved: BucketTimingView; readonly active: BucketTimingView }> {
-  const view = (await (await request.get(await adminUrl('/api/telegram'))).json()) as {
+  const response = await request.get(await adminUrl('/api/telegram'));
+  expect(response.ok(), await response.text()).toBe(true);
+  const view = (await response.json()) as {
     readonly bucket_timing: { readonly saved: BucketTimingView; readonly active: BucketTimingView };
   };
   return view.bucket_timing;
@@ -160,10 +162,16 @@ test.describe('Telegram message batches', () => {
     const applied = { bucket_window_seconds: 15, bucket_max_seconds: 60, bucket_bump_seconds: 5 };
     expect(await bucketTiming(page.request)).toEqual({ saved: applied, active: applied });
 
-    // Emptying the ceiling removes it, so it follows the minimum again.
+    // Emptying the ceiling removes it, so it follows the minimum again. Read only
+    // after the write answers: a read racing the file rename gets 409 config_conflict.
+    const cleared = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PUT' && new URL(response.url()).pathname === '/api/telegram/bucket-timing',
+    );
     await maximum.fill('');
     await save.click();
-    await expect.poll(async () => (await bucketTiming(page.request)).active.bucket_max_seconds).toBeNull();
+    expect((await cleared).ok()).toBe(true);
+    expect((await bucketTiming(page.request)).active.bucket_max_seconds).toBeNull();
     await expect(maximum).toHaveValue('');
     await expect(extension).toHaveValue('5');
   });
