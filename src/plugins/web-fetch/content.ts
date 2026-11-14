@@ -22,7 +22,8 @@ export async function storeFetchedImage(
 ): Promise<ToolImageReference> {
   const declaredLength = Number(response.headers.get('content-length') ?? Number.NaN);
   if (declaredLength > MAX_DOWNLOAD_BYTES) {
-    await response.body?.cancel();
+    // Discarding is best effort: a body that already failed must not mask the refusal.
+    await response.body?.cancel().catch(() => undefined);
     throw new WebFetchError('image_too_large', `Image exceeds ${MAX_DOWNLOAD_BYTES / 1024 / 1024} MiB`);
   }
   const body = await readBody(response, MAX_DOWNLOAD_BYTES);
