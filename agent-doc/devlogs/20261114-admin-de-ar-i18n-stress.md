@@ -74,9 +74,22 @@ LTR 回归比对：同一个临时 Playwright spec，分别在 `origin/develop`�
 
 截图都看过：阿语 overview、invocations、chats，德语手机 harness。
 
+Koi 0.6.0 发布后（design PR #3 合并，`v0.6.0` 与审过的 head 相比只多了版本号），把 `pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude` 加上 0.6.0（与以往升 Koi 的做法一致），重新生成 lockfile，用 npm 上的真包重跑：
+
+```bash
+pnpm install --frozen-lockfile     # lockfile up to date
+pnpm run lint                      # 0
+pnpm run check                     # 0
+pnpm run admin:build               # 0
+pnpm test                          # 第一次 1 failed：test/playground/only.test.ts 在全量负载下读到 attempt 仍是 running
+                                   # 单独跑 3 次都过，再跑全量 387 files / 1915 tests passed；本分支没有改后端
+pnpm run admin:test:e2e            # 321 passed
+pnpm --filter surowan-admin-next exec playwright test 33-i18n-stress --repeat-each 5 --workers=4
+                                   # 80 passed
+```
+
 未执行：
 
-- `pnpm-lock.yaml` 仍是 develop 的版本。Koi 0.6.0 发布前 `pnpm install --frozen-lockfile` 会失败，发布后需要重新生成 lockfile 并重跑上面的验证。
 - 只在 Chromium 跑过，没有测 Safari/Firefox（`:dir()`、德语断字词典）。
 - CodeMirror 里实际输入阿拉伯文没有自动化覆盖。
 - Invocation/消息/Memo 等详情页没有逐页截图。
@@ -86,4 +99,5 @@ LTR 回归比对：同一个临时 Playwright spec，分别在 `origin/develop`�
 
 ```txt
 9858f952 Add German and Arabic to the admin panel with RTL and bidi support
+38440bf8 Install Koi 0.6.0 from npm
 ```
