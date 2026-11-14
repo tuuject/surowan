@@ -39,20 +39,27 @@ test('offers the builtin presets the configuration may reference', async () => {
     const view = await readJson(await call(fixture, '/api/provider-presets'));
     const ids = view.presets.map((preset: any) => preset.id);
     expect(ids).toContain('google');
-    // Rejected by the preset predicate: a mixed catalog (pi 1.x ships OpenRouter
-    // with openai-completions and anthropic-messages chat models, so it stays
-    // configurable through an existing alias but is not offered as a preset), an
-    // unsupported adapter, or no concrete base URL. xai now ships one uniform
-    // supported adapter, so it qualifies.
+    // Rejected by the preset predicate: an unsupported adapter or no concrete
+    // base URL. xai now ships one uniform supported adapter, so it qualifies.
+    // OpenRouter's catalog mixes openai-completions and anthropic-messages chat
+    // models; the preset records the first supported API the catalog lists
+    // (`preferredBuiltinApi`), while each configured model still dispatches with
+    // its own catalog api. fireworks mixes adapters the same way and stays.
     expect(ids).toContain('xai');
-    expect(ids).not.toContain('openrouter');
+    expect(view.presets.find((preset: any) => preset.id === 'openrouter')).toMatchObject({
+      api: 'openai-completions',
+      base_url: 'https://openrouter.ai/api/v1',
+    });
+    expect(ids).toContain('fireworks');
     expect(ids).not.toContain('mistral');
     expect(ids).not.toContain('google-vertex');
 
     // Coding / agent subscription plans are never offered: their terms cover
     // interactive coding tools, not a bot that runs all day on group traffic.
-    // Pi's `zai` points at the GLM Coding Plan endpoint, so it is one of them.
+    // Pi's `zai` points at the GLM Coding Plan endpoint, and `github-copilot`
+    // mixes supported adapters, so both are listed here by name.
     for (const plan of [
+      'github-copilot',
       'kimi-coding',
       'zai',
       'zai-coding-cn',
@@ -268,6 +275,37 @@ test('creates, updates, and deletes a provider through the configuration file', 
     expect(fixture.file().providers.relay).toBeUndefined();
     // Only the entries the fixture configuration itself references are left.
     expect(fixture.jarNames()).toEqual(['agent', 'builtin', 'header', 'telegram', 'vision']);
+  } finally {
+    fixture.store.close();
+  }
+});
+
+test('creates a builtin provider from a mixed-catalog preset', async () => {
+  const fixture = await adminFixture();
+  try {
+    const created = await write(
+      fixture,
+      '/api/providers',
+      'POST',
+      {
+        alias: 'openrouter',
+        kind: 'builtin',
+        provider: 'openrouter',
+        api_key: 'openrouter-secret',
+        models: [model('deepseek/deepseek-v4-flash-0731')],
+      },
+      await revisionOf(fixture),
+    );
+    expect(created.status).toBe(200);
+    const createdView = await readJson(created);
+    expect(createdView.providers.find((entry: any) => entry.alias === 'openrouter')).toMatchObject({
+      kind: 'builtin',
+      provider: 'openrouter',
+      api: 'openai-completions',
+      base_url: 'https://openrouter.ai/api/v1',
+    });
+    expect(fixture.file().providers.openrouter).toMatchObject({ kind: 'builtin', provider: 'openrouter' });
+    expect(fixture.secret(fixture.file().providers.openrouter?.api_key)).toBe('openrouter-secret');
   } finally {
     fixture.store.close();
   }

@@ -1,5 +1,5 @@
 import { input, select } from '@inquirer/prompts';
-import { findBuiltinProvider, listBuiltinPresets, supportedBuiltinApi } from '../../platform/builtin-providers.ts';
+import { findBuiltinProvider, listBuiltinPresets, preferredBuiltinApi } from '../../platform/builtin-providers.ts';
 import type { SecretRef } from '../../platform/config/index.ts';
 import { type DiscoveredProviderModel, planModelsEndpoint } from '../../platform/provider-models.ts';
 import { type ApiAdapter, promptApiAdapter, promptSecretRef, promptString } from '../prompts.ts';
@@ -80,7 +80,7 @@ async function configureBuiltinProvider(keyJar: string): Promise<ProviderConfig 
   let discoveredModels: DiscoveredProviderModel[] = [];
   while (true) {
     const source = providerId === undefined ? undefined : findBuiltinProvider(providerId);
-    const api = source === undefined ? null : supportedBuiltinApi(source);
+    const api = source === undefined ? null : preferredBuiltinApi(source);
     const readyToDiscover =
       source !== undefined && api !== null && source.baseUrl !== undefined && apiKey !== undefined;
     const readyToSave = providerId !== undefined && apiKey !== undefined && models.length > 0;
@@ -286,7 +286,7 @@ async function editBuiltinProvider(
       return { ...provider, api_key: await promptSecretRef('API key', keyJar) };
     case 'models': {
       const source = findBuiltinProvider(provider.provider);
-      const api = source === undefined ? null : supportedBuiltinApi(source);
+      const api = source === undefined ? null : preferredBuiltinApi(source);
       const discovered =
         source !== undefined && api !== null && source.baseUrl !== undefined
           ? await discoverProviderModels(

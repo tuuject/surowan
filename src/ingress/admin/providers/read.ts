@@ -2,7 +2,12 @@
  * Provider reads and the shared lookups the write and discovery paths reuse:
  * the panel's provider list, presets, and the per-model API resolution.
  */
-import { findBuiltinProvider, listBuiltinPresets, supportedBuiltinApi } from '../../../platform/builtin-providers.ts';
+import {
+  findBuiltinProvider,
+  listBuiltinPresets,
+  preferredBuiltinApi,
+  supportedBuiltinApi,
+} from '../../../platform/builtin-providers.ts';
 import type { AgentSettings, FileConfig, ModelFileConfig, ProviderApi } from '../../../platform/config/index.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
 import { AdminQueryError } from '../audit/shared.ts';
@@ -102,7 +107,7 @@ function visionView(file: Pick<FileConfig, 'providers' | 'vision'>): ProvidersVi
 export function listProviderPresets(): readonly ProviderPresetView[] {
   const presets: ProviderPresetView[] = [];
   for (const source of listBuiltinPresets()) {
-    const api = supportedBuiltinApi(source);
+    const api = preferredBuiltinApi(source);
     if (api === null || source.baseUrl === undefined) {
       continue;
     }
