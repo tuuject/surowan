@@ -1,28 +1,42 @@
 import { Buffer } from 'node:buffer';
-import { randomBytes } from 'node:crypto';
-import type { Stats } from 'node:fs';
-import { lstat, mkdir, open, readFile, rename, unlink } from 'node:fs/promises';
+import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { CLIENT_ID_PATTERN, INSTANCE_ID_PATTERN } from '@surowan/admin-surface';
 import { isRecord, parseEndpoint } from './client.ts';
 import { CliError, usageError } from './errors.ts';
+import { type PrivateFileKind, readPrivateFile, writePrivateFile } from './private-file.ts';
 
 /**
  * Credentials for the Admin API, stored as one 0600 file under
- * `~/.config/surowan-utils/`. Reading and writing share the same posture:
- * the file must be a regular file that group/other cannot read or write, its
- * bytes never reach an error message, and a replacement is renamed into place
- * so a failure cannot damage the previous key.
+ * `~/.config/surowan-utils/`.
  *
- * The CLI authenticates with a programmatic `pwk_…` API key only. Panel
- * username/password login was removed: account and credential management stay
- * in the browser panel, and a key's mode decides what the CLI may do.
+ * Two forms coexist in the same file, each with an exact key set and exactly
+ * one saved at a time (last writer wins):
+ *
+ * - `{ endpoint, apiKey }`: a programmatic `pwk_…` key, saved by `login`.
+ * - `{ endpoint, client_id, instance_id }`: a paired client, saved by
+ *   `auth pair`. The matching private key lives in `client-key.pem`; this file
+ *   is not a secret, the key is.
+ *
+ * Panel username/password login was removed: account and credential management
+ * stay in the browser panel or the server CLI, and a credential's mode decides
+ * what the CLI may do.
  */
-export interface Credentials {
+export interface ApiKeyCredentials {
   /** Normalized base URL, in the form `parseEndpoint` produces. */
   readonly endpoint: string;
   readonly apiKey: string;
 }
+
+export interface ClientCredentials {
+  readonly endpoint: string;
+  /** `admin_clients.id` as decimal text; ids never travel as numbers. */
+  readonly client_id: string;
+  /** The instance the client paired with; a signature is bound to it. */
+  readonly instance_id: string;
+}
+
+export type Credentials = ApiKeyCredentials | ClientCredentials;
 
 /** A credentials file is tiny; anything larger is not one this tool wrote. */
 export const MAX_CREDENTIALS_BYTES = 16 * 1024;
@@ -32,6 +46,12 @@ const MAX_API_KEY_LENGTH = 4096;
 const FORBIDDEN_API_KEY_CHARACTERS = /[\p{White_Space}\p{Cc}]/u;
 const INVALID_CREDENTIALS = 'invalid_credentials';
 
+const CREDENTIALS_FILE: PrivateFileKind = {
+  invalidCode: INVALID_CREDENTIALS,
+  writeErrorCode: 'credentials_write_failed',
+  label: 'credentials file',
+};
+
 /**
  * `~/.config/surowan-utils/credentials.json` on every platform, Windows
  * included: one documented location beats an XDG/AppData guess that would hide
@@ -39,6 +59,14 @@ const INVALID_CREDENTIALS = 'invalid_credentials';
  */
 export function credentialsPath(homeDir: string = homedir()): string {
   return join(homeDir, '.config', 'surowan-utils', 'credentials.json');
+}
+
+export function hasApiKey(credentials: Credentials): credentials is ApiKeyCredentials {
+  return 'apiKey' in credentials;
+}
+
+export function hasClientSignature(credentials: Credentials): credentials is ClientCredentials {
+  return 'client_id' in credentials;
 }
 
 /**
@@ -62,101 +90,32 @@ export function validateApiKey(value: string): string {
  * quotes the surrounding text, and that text is the key.
  */
 export async function readCredentials(path: string): Promise<Credentials | undefined> {
-  const info = await inspectCredentialsFile(path);
-  if (info === undefined) {
+  const text = await readPrivateFile(path, CREDENTIALS_FILE, MAX_CREDENTIALS_BYTES);
+  if (text === undefined) {
     return undefined;
-  }
-  if (info.size > MAX_CREDENTIALS_BYTES) {
-    throw invalidCredentials(path, `credentials file must not exceed ${MAX_CREDENTIALS_BYTES} bytes`);
-  }
-  await assertCredentialsDirectory(dirname(path), path);
-  let text: string;
-  try {
-    text = await readFile(path, 'utf8');
-  } catch {
-    throw invalidCredentials(path, 'credentials file could not be read');
   }
   return parseStoredCredentials(text, path);
 }
 
 /**
- * Writes the complete pair over whatever was stored before. The bytes land in
- * a freshly created 0600 file that is renamed into place, so a failed write
- * leaves the old file byte-for-byte intact. An existing symlink or an
- * over-permissive file or directory is refused rather than replaced. No lock
- * is taken: two concurrent logins are last-writer-wins.
+ * Writes the complete credential over whatever was stored before. The bytes
+ * land in a freshly created 0600 file that is renamed into place, so a failed
+ * write leaves the old file byte-for-byte intact.
  */
 export async function writeCredentials(path: string, credentials: Credentials): Promise<void> {
   const endpoint = parseEndpoint(credentials.endpoint).href;
-  const text = `${JSON.stringify({ endpoint, apiKey: validateApiKey(credentials.apiKey) })}\n`;
+  const document = hasApiKey(credentials)
+    ? { endpoint, apiKey: validateApiKey(credentials.apiKey) }
+    : {
+        endpoint,
+        client_id: validateClientId(credentials.client_id),
+        instance_id: validateInstanceId(credentials.instance_id),
+      };
+  const text = `${JSON.stringify(document)}\n`;
   if (Buffer.byteLength(text) > MAX_CREDENTIALS_BYTES) {
     throw usageError('credentials_too_large', `credentials must not exceed ${MAX_CREDENTIALS_BYTES} bytes`);
   }
-  const directory = dirname(path);
-  try {
-    await mkdir(directory, { recursive: true, mode: 0o700 });
-    await assertCredentialsDirectory(directory, path);
-    await inspectCredentialsFile(path);
-    const temporary = join(directory, `.${basename(path)}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`);
-    try {
-      const handle = await open(temporary, 'wx', 0o600);
-      try {
-        await handle.writeFile(text, 'utf8');
-        await handle.sync();
-      } finally {
-        await handle.close();
-      }
-      await rename(temporary, path);
-    } catch (error) {
-      await unlink(temporary).catch(() => undefined);
-      throw error;
-    }
-  } catch (error) {
-    if (error instanceof CliError) {
-      throw error;
-    }
-    // The filesystem message is dropped: it can name the temporary file, and
-    // the caller only ever needs to know that the write did not happen.
-    throw new CliError('credentials_write_failed', `credentials file could not be written: ${path}`);
-  }
-}
-
-/**
- * In-place inspection shared by both directions. `undefined` means nothing is
- * stored; anything that is present must be a regular file that group and other
- * cannot read or write (POSIX modes; on Windows the home ACL is inherited).
- */
-async function inspectCredentialsFile(path: string): Promise<Stats | undefined> {
-  const info = await lstat(path).catch((error: unknown) => {
-    if (isErrno(error, 'ENOENT')) {
-      return undefined;
-    }
-    throw invalidCredentials(path, 'credentials file could not be inspected');
-  });
-  if (info === undefined) {
-    return undefined;
-  }
-  if (info.isSymbolicLink()) {
-    throw invalidCredentials(path, 'credentials file must not be a symbolic link');
-  }
-  if (!info.isFile()) {
-    throw invalidCredentials(path, 'credentials file must be a regular file');
-  }
-  if (process.platform !== 'win32' && (info.mode & 0o077) !== 0) {
-    throw invalidCredentials(path, 'credentials file permissions must be 0600 or narrower');
-  }
-  return info;
-}
-
-/** The containing directory must be real (not a symlink) and not group/other accessible. */
-async function assertCredentialsDirectory(directory: string, path: string): Promise<void> {
-  const info = await lstat(directory).catch(() => undefined);
-  if (info === undefined || !info.isDirectory()) {
-    throw invalidCredentials(path, 'credentials directory must be a real directory');
-  }
-  if (process.platform !== 'win32' && (info.mode & 0o077) !== 0) {
-    throw invalidCredentials(path, 'credentials directory permissions must be 0700 or narrower');
-  }
+  await writePrivateFile(path, text, CREDENTIALS_FILE);
 }
 
 function parseStoredCredentials(text: string, path: string): Credentials {
@@ -169,28 +128,71 @@ function parseStoredCredentials(text: string, path: string): Credentials {
   if (!isRecord(parsed)) {
     throw invalidCredentials(path, 'credentials file must contain exactly "endpoint" and "apiKey"');
   }
-  const { endpoint: rawEndpoint, apiKey: rawApiKey } = parsed;
   const keys = Object.keys(parsed).sort().join(',');
-  if (keys !== 'apiKey,endpoint' || typeof rawApiKey !== 'string' || typeof rawEndpoint !== 'string') {
-    throw invalidCredentials(path, 'credentials file must contain exactly "endpoint" and "apiKey"');
+  const { endpoint: rawEndpoint, apiKey: rawApiKey, client_id: rawClientId, instance_id: rawInstanceId } = parsed;
+  if (keys === 'apiKey,endpoint') {
+    if (typeof rawApiKey !== 'string' || typeof rawEndpoint !== 'string') {
+      throw invalidCredentials(path, 'credentials file must contain exactly "endpoint" and "apiKey"');
+    }
+    const endpoint = parseStoredEndpoint(rawEndpoint, path);
+    try {
+      return { endpoint, apiKey: validateApiKey(rawApiKey) };
+    } catch {
+      throw invalidCredentials(path, 'credentials file API key is invalid');
+    }
   }
-  let endpoint: string;
+  if (keys === 'client_id,endpoint,instance_id') {
+    if (typeof rawClientId !== 'string' || typeof rawInstanceId !== 'string' || typeof rawEndpoint !== 'string') {
+      throw invalidCredentials(path, 'credentials file must contain exactly "endpoint", "client_id" and "instance_id"');
+    }
+    return {
+      endpoint: parseStoredEndpoint(rawEndpoint, path),
+      client_id: storedClientId(rawClientId, path),
+      instance_id: storedInstanceId(rawInstanceId, path),
+    };
+  }
+  throw invalidCredentials(
+    path,
+    'credentials file must contain exactly "endpoint"/"apiKey" or "endpoint"/"client_id"/"instance_id"',
+  );
+}
+
+function parseStoredEndpoint(raw: string, path: string): string {
   try {
-    endpoint = parseEndpoint(rawEndpoint).href;
+    return parseEndpoint(raw).href;
   } catch {
     throw invalidCredentials(path, 'credentials file endpoint is invalid');
   }
-  try {
-    return { endpoint, apiKey: validateApiKey(rawApiKey) };
-  } catch {
-    throw invalidCredentials(path, 'credentials file API key is invalid');
+}
+
+function storedClientId(value: string, path: string): string {
+  if (!CLIENT_ID_PATTERN.test(value)) {
+    throw invalidCredentials(path, 'credentials file client_id is invalid');
   }
+  return value;
+}
+
+function storedInstanceId(value: string, path: string): string {
+  if (!INSTANCE_ID_PATTERN.test(value)) {
+    throw invalidCredentials(path, 'credentials file instance_id is invalid');
+  }
+  return value;
+}
+
+function validateClientId(value: string): string {
+  if (!CLIENT_ID_PATTERN.test(value)) {
+    throw usageError('invalid_client_id', 'client_id must be a positive decimal id');
+  }
+  return value;
+}
+
+function validateInstanceId(value: string): string {
+  if (!INSTANCE_ID_PATTERN.test(value)) {
+    throw usageError('invalid_instance_id', 'instance_id must be an "ins_" instance id');
+  }
+  return value;
 }
 
 function invalidCredentials(path: string, reason: string): CliError {
   return new CliError(INVALID_CREDENTIALS, `${reason}: ${path}`);
-}
-
-function isErrno(error: unknown, code: string): boolean {
-  return error instanceof Error && (error as NodeJS.ErrnoException).code === code;
 }

@@ -64,6 +64,8 @@ export const OPTIONS = {
   before: { type: 'string' },
   scope: { type: 'string' },
   'sticker-set': { type: 'string' },
+  code: { type: 'string' },
+  force: { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },
 } as const;
 

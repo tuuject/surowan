@@ -2,7 +2,12 @@
 
 Surowan Admin Panel 与 Admin API 的工具客户端，包内命令为 `surowan-utils`。它是 monorepo 工作区包（仓库根与其它 workspace 仍为 private），已配置为可公开发布到 npm。
 
-只接受一种凭据：在面板 **Manage → API keys** 创建并选择权限模式的 API key（`pwk_…`）。模式四选一：
+接受两种凭据，`credentials.json` 同一时间只保存一种：
+
+- **API key**（`pwk_…`）：在面板 **Manage → API keys** 创建并选择权限模式，用 `surowan-utils login` 保存；由 key 的模式决定权限。
+- **已配对客户端**：服务器上 `surowan pairing create` 打印一次性 `pwp_` 配对码，本机 `surowan-utils auth pair` 领取；客户端自己持有 Ed25519 私钥，每个请求签名，服务端只保存公钥。Agent 可以自己完成配对（配对码短期有效、一次性，不是长期凭据），操作员永远不需要把管理员密码或长期 API key 粘贴给 Agent。
+
+模式四选一：
 
 | 模式 | 权限 |
 | --- | --- |
@@ -11,7 +16,7 @@ Surowan Admin Panel 与 Admin API 的工具客户端，包内命令为 `surowan-
 | 读 + 耗 | 只读 + 重放、Provider 健康检查、生图、辞典合并预览、Playground Release/Retry 等计费操作 |
 | 全部 | 以上全部；`write+paid` 操作需要这一档 |
 
-“面板里能做的事，`surowan-utils` 里也能做”（账号与 API key 管理除外）：`surowan-utils commands` 列出全部面板命令，`--help` 给出分组概览。第一类命令（Invocation 查询/媒体导出/重放、`config show`、`prompt get`、`models list`、`login`、`doctor`）保持原有行为不变。
+“面板里能做的事，`surowan-utils` 里也能做”（账号与 API key 管理除外）：`surowan-utils commands` 列出全部面板命令，`--help` 给出分组概览。第一类命令（Invocation 查询/媒体导出/重放、`config show`、`prompt get`、`models list`、`login`、`auth …`、`doctor`）保持原有行为不变。
 
 它与服务端入口 `surowan`（`node src/cli.ts`）不是同一个程序：本客户端只通过 Admin API 访问运行中的面板，不包含 `serve`、`check-config`、`backup`、`configure` 等服务命令；客户端自己的 `doctor` 也不执行服务端 Doctor 的 SQLite、媒体、Telegram、Provider 与 MCP 探针，只检查连通、鉴权与当前 key 权限。
 
@@ -58,7 +63,7 @@ surowan-utils doctor --json          # 退出码 0 且 status=ok 才继续；输
 surowan-utils commands               # 列出全部面板命令
 ```
 
-`doctor` 的 `--json` 输出里 `credential` 恒为 `api_key`，`mode`/`permissions` 是当前密钥权限，`credential_sources.credential` 说明它来自参数、环境变量还是文件。凭据文件只保存 `{endpoint, apiKey}`；旧的 `session` 字段不再被读取。
+`doctor` 的 `--json` 输出里 `credential` 为 `api_key`（Bearer key）或 `client_signature`（已配对客户端），`mode`/`permissions` 是当前凭据权限，`credential_sources.credential` 说明它来自参数、环境变量还是文件（客户端签名时另有 `client_key: file`）。凭据文件保存 `{endpoint, apiKey}` 或 `{endpoint, client_id, instance_id}`；旧的 `session` 字段不再被读取。
 
 面板命令的通用形态：
 
@@ -128,11 +133,36 @@ printf '%s' "$SECRET_KEY" | surowan-utils login --endpoint "$SUROWAN_ENDPOINT" -
 
 不要手动 `export` 明文 key：含明文 key 的 `export` 会进入 shell 历史。
 
-`login` 把 endpoint 与 key 成对保存到固定路径 `~/.config/surowan-utils/credentials.json`（所有平台一致；与 Bot 的 `config.jsonc`、`key.json` 无关，同一时间只保留最近一次 `login` 的一对）。文件是 JSON 对象，字段为 `endpoint` 与 `apiKey`，**未加密**；POSIX 上目录 `0700`、文件 `0600`（更窄的权限同样接受），Windows 不做 POSIX mode 检查、权限由用户目录 ACL 继承（工具不承诺 `chmod` 级别的保护）。既有文件是符号链接、不是普通文件或权限不安全时，读写都拒绝且**不自动修复或替换**，需人工处理。`login` 不访问服务器，也不读取旧凭据内容；保存成功不代表在线鉴权通过，请接着运行 `doctor`。序列化后的凭据超过 16384 字节会被拒绝（`credentials_too_large`，退出码 2）且不触碰旧文件；写入经同目录临时文件 `rename` 落地，任何失败都不会覆盖旧文件。
+`login` 把 endpoint 与 key 成对保存到固定路径 `~/.config/surowan-utils/credentials.json`（所有平台一致；与 Bot 的 `config.jsonc`、`key.json` 无关，同一时间只保留最近一次 `login` 或 `auth pair` 的一对）。文件是 JSON 对象，字段为 `endpoint` 与 `apiKey`（或 `client_id` 与 `instance_id`），**未加密**；POSIX 上目录 `0700`、文件 `0600`（更窄的权限同样接受），Windows 不做 POSIX mode 检查、权限由用户目录 ACL 继承（工具不承诺 `chmod` 级别的保护）。既有文件是符号链接、不是普通文件或权限不安全时，读写都拒绝且**不自动修复或替换**，需人工处理。`login` 不访问服务器，也不读取旧凭据内容；保存成功不代表在线鉴权通过，请接着运行 `doctor`。序列化后的凭据超过 16384 字节会被拒绝（`credentials_too_large`，退出码 2）且不触碰旧文件；写入经同目录临时文件 `rename` 落地，任何失败都不会覆盖旧文件。
 
 凭据解析顺序（`doctor`、`config show`、`prompt get`、`models list` 与 `invocation list/get/prompts/preflight/media/replay` 相同）：命令行参数 > 环境变量 > 保存文件。参数或环境变量显式给出的空串（含只含空白的 endpoint）按缺失/非法处理，**不会回退**到下一来源或改为提示（解析命令报 `missing_endpoint`/`missing_credential`，`login` 报 `invalid_endpoint`/`invalid_api_key`）。endpoint 与 key 都由参数或环境变量明确给出时完全不读取凭据文件，文件损坏、是符号链接或权限不安全都不影响这次调用；只给其一才读文件，此时文件本身的问题以 `invalid_credentials` 失败（退出码 1）。保存的 key 只属于它保存时的规范化 endpoint：当前 endpoint 与文件中的 endpoint 在 `parseEndpoint` 规范化后不一致（例如换了主机）就不会使用该 key，缺少显式 key 会以 `missing_credential` 失败（退出码 2），更换服务必须同时显式提供 key 或重新 `login`；规范化后相同（如仅尾斜杠差异）则仍可使用。参数与环境变量不会被写回文件（只有 `login` 写文件）。`login --json` 输出 `{"status":"saved","endpoint":…,"credentials_file":…}`，不含 key；`endpoint` 是规范化后的基地址。
 
-`doctor` 按同一顺序解析凭据后先 `GET /api/key` 读取权限，再发起一次 `GET /api/invocations?limit=1`——没有 replay、没有模型/Provider 调用，也不发送 Telegram 消息；`--json` 成功时 stdout 为 `{"status":"ok","endpoint":…,"credential":"api_key","mode":…,"permissions":{…},"credential_sources":{"endpoint":"argument|environment|file","credential":…}}`，不输出 Invocation 正文，失败不自动重试；鉴权仍会在服务端更新该密钥的 `last_used_at`。失败时 stderr 为 `{"error","message"}`：参数/环境变量给出的凭据缺失或不合法（`missing_endpoint`、`missing_credential`、`invalid_api_key` 等）退出码 `2`，保存文件无效（`invalid_credentials`）或请求失败退出码 `1`。
+`doctor` 按同一顺序解析凭据后先 `GET /api/key` 读取权限，再发起一次 `GET /api/invocations?limit=1`——没有 replay、没有模型/Provider 调用，也不发送 Telegram 消息；`--json` 成功时 stdout 为 `{"status":"ok","endpoint":…,"credential":"api_key|client_signature","mode":…,"permissions":{…},"credential_sources":{"endpoint":"argument|environment|file","credential":…}}`，不输出 Invocation 正文，失败不自动重试；鉴权仍会在服务端更新该凭据的 `last_used_at`。失败时 stderr 为 `{"error","message"}`：参数/环境变量给出的凭据缺失或不合法（`missing_endpoint`、`missing_credential`、`invalid_api_key` 等）退出码 `2`，保存文件无效（`invalid_credentials`、`invalid_client_key`）或请求失败退出码 `1`。
+
+### 使用已配对客户端（`auth`）
+
+用于“Agent 管理自己的 Bot”这类场景：长期凭据一个也不进入 Agent 上下文。
+
+```bash
+# 1. 服务器（可与运行中的 serve 共存；Docker 用 docker compose exec）
+surowan pairing create --config /config/config.jsonc --name coding-agent --mode read_write
+#    → 打印一次性 pwp_ 码（默认 300 秒有效）
+
+# 2. 本机领取配对码；client-key.pem 不存在时自动创建
+surowan-utils auth pair --endpoint https://panel.example.com/ --code pwp_… --json
+
+# 3. 后续每个命令都自动签名
+surowan-utils doctor --json
+surowan-utils auth status --json
+surowan-utils auth permissions --json
+```
+
+- `auth init` 只创建/复用 `~/.config/surowan-utils/client-key.pem`（幂等）并打印公钥与指纹；用于预绑定流程：先 `auth init`，再在服务器上 `pairing create --public-key <公钥>`，然后 `auth pair`。
+- 私钥以 PKCS#8 PEM 存储，与凭据文件相同的文件安全规则（普通文件、非符号链接、POSIX `0600`、目录 `0700`、原子写入）；**永不打印、不接受参数/环境变量输入、没有导出命令**，也不会出现在任何命令行输出的脱敏列表之外。轮流换 key 只需重新 `auth logout` + `auth pair`。
+- 已保存凭据时 `auth pair` 以 `already_configured`（退出码 2）拒绝，加 `--force` 才覆盖；`login` 与 `auth pair` 后写入者生效，`login` 不会删除 `client-key.pem`。
+- `auth logout` 只删除本机 `credentials.json` 与 `client-key.pem`，**不撤销服务端身份**；需要时在服务器执行 `surowan clients revoke <client-id>`。撤销对下一次请求立即生效。
+- `auth status` 在什么都没有时退出码 0 并输出 `{"status":"not_configured","key_file_present":…,"fingerprint":…}`；已有凭据时发一次 `GET api/key` 并输出 `{status:"ok",credential,endpoint,client_id?,instance_id?,fingerprint?,mode,permissions}`，服务端拒绝时按普通错误（退出码 1）。
+- 签名绑定 instance、method、target（含 query）、body 摘要、时间戳（±300 秒）与一次性 nonce；请求仍不重试、不跟随重定向。
 
 ### 选项
 
@@ -141,6 +171,8 @@ printf '%s' "$SECRET_KEY" | surowan-utils login --endpoint "$SUROWAN_ENDPOINT" -
 | `--endpoint <url>` / `SUROWAN_ENDPOINT` | Admin Panel 基地址；解析顺序为参数 > 环境变量 > `login` 保存的凭据文件，三处都没有时按缺失报错，显式空串或纯空白按缺失报错（`missing_endpoint`）、不回退。明文 `http` 仅允许 loopback（`127.0.0.0/8`、`::1`、`localhost`）；远端必须 `https`；禁止 URL 内凭据、query 与 fragment；保存与比较都用 `parseEndpoint` 规范化后的 URL（trim、补尾斜杠、去默认端口） |
 | `--api-key <key>` / `SUROWAN_API_KEY` | API key：1–4096 字符，不得含空白或控制字符（参数/环境变量报 `invalid_api_key`，保存文件内的非法值报 `invalid_credentials`）；与 endpoint 同一解析顺序，命令行参数优先于环境变量，显式空串不回退。仅当解析出的 endpoint 与文件 endpoint 规范化后相同才使用文件中的 key，否则缺少显式 key 报 `missing_credential` |
 | `--api-key-stdin` | 仅 `login`：把标准输入读到 EOF（不是读完一行就停），累计不超过 4098 字节，读取结束后只去掉一个尾部 LF/CRLF，剩余换行、空白或控制字符整体非法（`invalid_api_key`，退出码 2）；TTY 上拒绝；整次读取受 `--timeout-ms` 约束，超时 `timeout`（退出码 1）且不保存；不能与 `--api-key` 或 `SUROWAN_API_KEY` 同时给出；不是 `--api-key -`，其它子命令不从标准输入读取 key |
+| `--code <pairing-code>` | 仅 `auth pair`：服务器 `surowan pairing create` 打印的一次性 `pwp_` 码（`pwp_` 加 32 个 base64url 字符）；缺失或格式不符报 `invalid_pairing_code`（退出码 2）。它短期有效且只能使用一次，因此不是长期凭据 |
+| `--force` | 仅 `auth pair`：已保存凭据时也覆盖；省略时以 `already_configured`（退出码 2）拒绝，不动现有凭据 |
 | `--source <active\|file>` | 仅 `config show` 与 `prompt get`：`active`（默认）读运行中的配置快照，`file` 读磁盘上的配置文件并可与 active 对比；其它子命令带 `--source` 报 `unexpected_option`。两者不会互相替代，`file` 需要服务端已接线配置加载 |
 | `--set key=value` / `--set-json key=<json>` | 面板命令：设置 body 字段；`--set` 只收字符串，`--set-json` 收任意 JSON（`null`、数组、对象、数字、布尔）。键支持 `a.b` 嵌套；同一键重复设置报 `invalid_set` |
 | `--body <json>` / `--file <path>` | 面板命令：整份 body 文档；与 `--set`/`--set-json` 互斥（`conflicting_body`）。`prompt save` 是例外：`--file` 按**原始文档**读取并填入 `prompt` 字段，可同时用 `--set note=…`。`--file -` 从标准输入读到 EOF（TTY 上拒绝），用来传密码、token 或 prompt 而不进 shell 历史；上限 1 MiB，读取失败报 `body_file_unreadable` |

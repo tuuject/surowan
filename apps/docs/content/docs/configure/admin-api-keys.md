@@ -21,6 +21,10 @@ description: 创建、修改权限、轮换与撤销 CLI、MCP Server 与评估�
 
 账号与凭据整类排除：无论密钥拥有什么模式，都不能修改管理员密码、管理 Passkey、新增/删除管理员账号，也不能颁发、吊销、修改或查看 API key。这些操作只留给浏览器面板与服务端 `surowan` 命令行。
 
+如果希望编码 Agent 完全不需要接触长期 API key，可用服务端 `surowan pairing create` 生成一次性配对码，让 Agent 自己的 `surowan-utils` 持有 Ed25519 身份并签名请求，模式与权限规则完全相同，见[让 Agent 通过 SSH 配对](admin-agent-pairing.md)。
+
+如果希望编码 Agent 完全不需要接触长期 API key，可用服务端 `surowan pairing create` 生成一次性配对码，让 Agent 自己的 `surowan-utils` 持有 Ed25519 身份并签名请求，模式与权限规则完全相同，见[让 Agent 通过 SSH 配对](admin-agent-pairing.md)。
+
 ## 页面操作
 
 - 列表显示 **Name**、**Prefix**、**Mode**、**Created**、**Last used**、**Status**（**Active** / **Revoked**）与 **Actions**，任何时刻都不回显明文；从未使用过的密钥在 **Last used** 显示 **Never used**。

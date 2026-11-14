@@ -108,6 +108,15 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
           )
       `);
       orm.run(sql`DELETE FROM daily_usage WHERE utc_date < ${cutoff.slice(0, 10)}`);
+      // Paired clients are identities like API keys: the rows stay until revoked.
+      // Their replay window and the spent pairing tickets are audit/scheduling
+      // rows, so `retention.online_days` bounds those instead.
+      orm.run(sql`DELETE FROM admin_client_nonces WHERE expires_at <= ${now.toISOString()}`);
+      orm.run(sql`
+        DELETE FROM admin_pairings
+        WHERE created_at < ${cutoff}
+          AND (consumed_at IS NOT NULL OR canceled_at IS NOT NULL OR expires_at <= ${now.toISOString()})
+      `);
       // Capability references expire by their own TTL. Conversation Context rows
       // are chat records too: they are not deleted by the online-retention window.
       orm.run(sql`DELETE FROM context_refs WHERE expires_at <= ${now.toISOString()}`);

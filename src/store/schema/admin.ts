@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { sqliteBigInt, sqliteBigIntId } from './shared.ts';
 
 export const adminUsers = sqliteTable('admin_users', {
@@ -71,6 +71,69 @@ export const adminApiKeys = sqliteTable('admin_api_keys', {
    */
   executePaidOperations: integer('execute_paid_operations', { mode: 'boolean' }).notNull().default(true),
 });
+
+/**
+ * Paired Admin clients. A client authenticates by signing each request with an
+ * Ed25519 key whose private half never leaves the client machine, so no
+ * long-term bearer token has to be copied into the agent's context.
+ * `fingerprint` is display metadata; the grant columns mirror API keys exactly.
+ */
+export const adminClients = sqliteTable(
+  'admin_clients',
+  {
+    id: sqliteBigIntId('id').primaryKey(),
+    name: text('name').notNull(),
+    publicKey: text('public_key').notNull(),
+    fingerprint: text('fingerprint').notNull(),
+    createdAt: text('created_at').notNull(),
+    lastUsedAt: text('last_used_at'),
+    revokedAt: text('revoked_at'),
+    readAll: integer('read_all', { mode: 'boolean' }).notNull(),
+    writeAll: integer('write_all', { mode: 'boolean' }).notNull(),
+    executePaidOperations: integer('execute_paid_operations', { mode: 'boolean' }).notNull(),
+  },
+  (t) => [uniqueIndex('admin_clients_public_key_active_key').on(t.publicKey).where(sql`revoked_at IS NULL`)],
+);
+
+/**
+ * One-time pairing tickets. `code_hash` is the SHA-256 digest of the `pwp_`
+ * code, which is printed once by `surowan pairing create` and never stored;
+ * `public_key` pre-binds the ticket to the only key allowed to claim it.
+ */
+export const adminPairings = sqliteTable(
+  'admin_pairings',
+  {
+    id: sqliteBigIntId('id').primaryKey(),
+    name: text('name').notNull(),
+    codeHash: text('code_hash').notNull().unique(),
+    publicKey: text('public_key'),
+    createdAt: text('created_at').notNull(),
+    expiresAt: text('expires_at').notNull(),
+    consumedAt: text('consumed_at'),
+    canceledAt: text('canceled_at'),
+    clientId: sqliteBigInt('client_id').references(() => adminClients.id),
+    readAll: integer('read_all', { mode: 'boolean' }).notNull(),
+    writeAll: integer('write_all', { mode: 'boolean' }).notNull(),
+    executePaidOperations: integer('execute_paid_operations', { mode: 'boolean' }).notNull(),
+  },
+  (t) => [index('admin_pairings_expiry_idx').on(t.expiresAt)],
+);
+
+/**
+ * Consumed request nonces. Persisted rather than kept in memory so a replayed
+ * request is still refused after the process restarts.
+ */
+export const adminClientNonces = sqliteTable(
+  'admin_client_nonces',
+  {
+    clientId: sqliteBigInt('client_id')
+      .notNull()
+      .references(() => adminClients.id, { onDelete: 'cascade' }),
+    nonce: text('nonce').notNull(),
+    expiresAt: text('expires_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.clientId, t.nonce] }), index('admin_client_nonces_expiry_idx').on(t.expiresAt)],
+);
 
 /**
  * Dictionary entries. `chat_id` is the Telegram chat ID (not `chats.id`), so a

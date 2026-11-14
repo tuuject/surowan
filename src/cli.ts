@@ -3,6 +3,7 @@ import { serve } from './adapters/local-monolith/runtime/index.ts';
 import { parseCli } from './cli-options.ts';
 import { runDoctor } from './doctor.ts';
 import { runAdminAccount } from './ingress/admin/account.ts';
+import { runAdminCredentialCommand } from './ingress/admin/clients/cli.ts';
 import { loadConfig } from './adapters/local-monolith/config/index.ts';
 import { loadEnvFiles } from './platform/load-env.ts';
 import { backupDatabase } from './adapters/local-monolith/database.ts';
@@ -49,6 +50,14 @@ try {
         passwordStdin: options.passwordStdin,
         revokePasskeys: options.revokePasskeys,
       });
+      break;
+    }
+    case 'pairing':
+    case 'clients': {
+      if (options.adminCredentials === undefined) {
+        throw new Error('pairing and clients require a subcommand');
+      }
+      await runAdminCredentialCommand({ configPath: options.configPath, command: options.adminCredentials });
       break;
     }
   }

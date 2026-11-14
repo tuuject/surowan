@@ -75,6 +75,20 @@ export interface LoginCommand {
   readonly apiKeyStdin: boolean;
 }
 
+export type AuthAction = 'init' | 'pair' | 'status' | 'permissions' | 'logout';
+
+/**
+ * `auth …` manages the local paired-client identity. `init` and `pair` can be
+ * run by an agent (a short-lived pairing code is not a long-term secret);
+ * `logout` only deletes local files.
+ */
+export interface AuthCommand {
+  readonly kind: 'auth';
+  readonly action: AuthAction;
+  readonly code: string | undefined;
+  readonly force: boolean;
+}
+
 export interface DoctorCommand {
   readonly kind: 'doctor';
 }
@@ -96,8 +110,24 @@ export type InvocationCommand =
  */
 export type FirstClassCommand = InvocationCommand | ModelsListCommand | ConfigShowCommand | PromptGetCommand;
 export type CliCommand = FirstClassCommand | CommandsListCommand | PanelCommand;
-export type Command = CliCommand | LoginCommand | DoctorCommand;
+export type Command = CliCommand | LoginCommand | DoctorCommand | AuthCommand;
 export type CredentialSource = 'argument' | 'environment' | 'file';
+
+/**
+ * How a command authenticated. `client_signature` carries the identity the
+ * signer needs; the private key itself is loaded separately and never becomes
+ * part of the resolved CLI state.
+ */
+export type ResolvedCredential =
+  | { readonly kind: 'api_key'; readonly apiKey: string }
+  | { readonly kind: 'client_signature'; readonly clientId: string; readonly instanceId: string };
+
+export interface CredentialSources {
+  readonly endpoint: CredentialSource;
+  readonly credential: CredentialSource;
+  /** Present only when the request is signed by a saved client key. */
+  readonly client_key?: CredentialSource;
+}
 
 export interface ParsedCli {
   readonly help: boolean;
@@ -111,10 +141,10 @@ export interface ParsedCli {
 export interface ResolvedCli {
   readonly command: Command;
   readonly endpoint: URL;
-  readonly apiKey: string | undefined;
+  readonly credential: ResolvedCredential;
   readonly json: boolean;
   readonly timeoutMs: number;
-  readonly credentialSources: { readonly endpoint: CredentialSource; readonly credential: CredentialSource };
+  readonly credentialSources: CredentialSources;
 }
 
 export interface StringFlags {
@@ -156,6 +186,8 @@ export interface StringFlags {
   readonly to: string | undefined;
   readonly 'before-send': string | undefined;
   readonly 'confirm-paid': boolean | undefined;
+  readonly code: string | undefined;
+  readonly force: boolean | undefined;
 }
 
 export type FlagName = keyof StringFlags;

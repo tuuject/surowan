@@ -231,6 +231,8 @@ MCP 只有 `mcp_server_state` 一张自己的表（Server 状态、Tool registry
 
 Admin 侧的 `admin_users`/`admin_sessions` 语义见 [admin-panel.md](admin-panel.md#数据表)。密码明文和 Session Token 原文都不入库；`admin_users` 与 `admin_sessions` 不参与在线保留清理（管理员账号不是会话数据），过期 Session 由 `AdminAuth` 在认证、新建 Session 和服务启动时删除。`admin_api_keys`（迁移 `028`，`053` 增加权限）保存程序化 API key 的 SHA-256 摘要、生命周期（`prefix`/`created_at`/`last_used_at`/`revoked_at`）与三个权限列（`read_all` 必须为 1，`write_all` 与 `execute_paid_operations` 独立）；既有行由 `053` 迁移为 read+paid，省略权限列的新插入同样得到 read+paid（迁移列默认值，Drizzle schema 取同值，否则 ORM 插入会显式写 0），明文只在创建/rotate 响应中出现一次；该表同样不参与在线保留清理。`admin_passkeys`（迁移 `032`，并给 `admin_users` 补 `webauthn_user_id`）保存 WebAuthn 凭据：`credential_id` 全局唯一，`public_key`/`counter` 用于验证与防重放（登录以乐观锁更新 `counter`），`rp_id` 记录注册时的依赖方——key 只对注册它的 `rpId` 生效，换域名后旧 key 不可用；`name` 1–80 字符（CHECK 约束），随 `admin_users` 级联删除。`createOrResetAccount`（`admin-account` CLI 的落点）在空表建号、已有唯一管理员时替换用户名与密码 hash，并总是注销该账号全部 Session，只有 `--revoke-passkeys` 才删除全部 passkey；不触碰 `admin_api_keys`，也不会重开 setup；该表不参与在线保留清理，语义见 [admin-panel.md](admin-panel.md#passkey-登录与凭据)。`chat_pause` 记录 `/pause` 暂停的 Chat，`conversation_context_cutoffs` 记录 `/cut_topic` 的每 Conversation 上下文切点（Telegram message ID，迁移 `019` 前为按 Chat 的 `chat_context_cutoffs`，迁移时复制到该 Chat 的每个 Conversation）：切点同时决定新批次 history 的下界，并在同一步中断该 Conversation 正在运行的 Invocation、清空被切 Topic 的 Conversation Context（保留行打上 `evicted_at`、删除其 `context_refs`、`head_seq` 推到 `next_seq`），否则切点只会裁掉渲染用的 history，模型仍然能从 transcript 里看到全部旧消息。`evicted_at` 是保留窗口的权威条件之一：读取一律附带 `evicted_at IS NULL`，这样运行中的 Invocation 持有的陈旧 `head_seq` 也无法把淘汰行读回来。
 
+迁移 `058` 新增已配对客户端的三张表，语义见 [admin-panel.md](admin-panel.md#已配对-agent-客户端)：`admin_clients` 每个身份一行（`public_key` 为 raw 32 字节的 base64url，`fingerprint` 是展示用的 `SHA256:…`，`revoked_at` 保留行；部分唯一索引 `WHERE revoked_at IS NULL` 保证一个活跃公钥只对应一个 client）；`admin_pairings` 是一次性配对票据（只存 `hashToken(code)` 的 SHA-256 十六进制摘要，`public_key` 可预绑定，`consumed_at`/`canceled_at`/`client_id` 记录生命周期）；`admin_client_nonces`（`WITHOUT ROWID`，主键 `(client_id, nonce)`）持久化已消费的请求 nonce，使重启后的重放仍被拒绝，行随 client 级联删除；`expires_at` 由请求时间戳推导（`ts + 300 + 1` 秒），与请求时间戳仍可通过的窗口等长。实例标识存在既有的 `app_state` 表，键为 `admin_instance_id`，值形如 `ins_` + base64url(16 字节)，由 `serve` 或服务端 `pairing`/`clients` 命令惰性创建。三张表都不参与在线保留清理：`admin_clients` 是身份（同 `admin_api_keys`），只由 `clients revoke` 置 `revoked_at`。
+
 ## ID 与 JSON 规则
 
 - SQLite 整数 ID 在 TypeScript 中使用 `bigint`。
@@ -258,6 +260,7 @@ Admin 侧的 `admin_users`/`admin_sessions` 语义见 [admin-panel.md](admin-pan
 - Sticker 长期视觉索引不按普通图片策略删除。
 - `long_tasks` 的 waiting 行及 pending/claimed `task_receipts` 永不因 online cutoff 删除；任务终态且 receipt 已 handled/suppressed 后才随在线窗口一起清理。
 - `context_refs` 中 `expires_at <= now` 的行（TTL 到期即删，与在线保留窗口无关）。
+- 已过期的 `admin_client_nonces`（签名 nonce 只需活过 ±300 秒的时钟窗口，与其无关的在线窗口不参与）；已消费、已取消或已过期且 `created_at` 早于在线窗口的 `admin_pairings`。`admin_clients` 与 `admin_api_keys` 一样不清理。插入 nonce 时还会顺手删该 client 的过期 nonce（`client_id` 限定，不会全表扫描）。
 - Conversation Context（`conversation_contexts` / `context_messages`）也是聊天记录：软删除的 `evicted_at` 行与空闲 Context 都不随在线窗口清理，只有 Conversation/Chat 删除或显式截断才移除。GC 仍按 token 预算推进 `head_seq`，但不再做 30 天删除。
 - `invocation_buckets` 没有独立清理规则，随 `invocations`/`buckets` 的删除级联消失。
 

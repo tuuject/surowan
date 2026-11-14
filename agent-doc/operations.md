@@ -271,6 +271,41 @@ node src/cli.ts admin-account --config <path> --username <name> [--password-stdi
 - `admin_api_keys` 不受影响，`setup` 不会重开。成功后 stdout 输出 `{ "status": "ok", "username": ..., "created": true|false }`。
 - **使用场景**：首次部署还没有管理员、遗失密码、或遗失全部 Passkey 后恢复密码登录。删除或更换公开 URL 之前，应先恢复或设置密码。
 
+## 已配对 Agent 客户端（pairing / clients）
+
+`pairing` 与 `clients` 也是服务端 CLI 命令，但它们管理的是已配对客户端的**一次性配对码**与身份，不是面板会话：
+
+```bash
+node src/cli.ts pairing create --config <path> --name <name> --mode <read|read_write|read_paid|all> [--ttl-seconds 60..3600] [--public-key <base64url>]
+node src/cli.ts pairing list   --config <path>
+node src/cli.ts pairing cancel <pairing-id> --config <path>
+node src/cli.ts clients list   --config <path>
+node src/cli.ts clients revoke <client-id> --config <path>
+```
+
+- **不取 `ServeLock`**：与 `admin-account` 相反，这些命令必须能在 `serve` 运行时执行（这本来就是正常场景）。它们用 `SqliteStore.open(config, false)` 打开数据库、不做迁移；数据目录里还没有迁移 `058` 的表时直接报错，提示先在本版本启动（或重启）一次 `serve`。
+- **`pairing create`** 打印一个 JSON 文档：`{ status, code, instance_id, pairing, admin, next }`。`code` 是 `pwp_` 开头的短期一次性码（默认 300 秒，`--ttl-seconds` 限制 60–3600）；`--mode` **必须显式给出**，没有默认授权。`admin` 给出 `host`/`port`/`public_url` 作为连接提示。码的明文只出现在这一次输出里，数据库只存摘要，`pairing list` 不会回显。
+- **预绑定公钥**：`surowan-utils auth init` 先在本机生成/复用 `client-key.pem` 并打印公钥，然后在这里用 `--public-key` 创建票据；这样只有那个 key 能领取配对码，同时 agent 不需要把私钥交出去。
+- **`pairing list`** 只列仍可用的票据（未消费、未取消、未过期）；**`pairing cancel`** 立即作废，重复取消或未知 id 报错。**`clients list`** 列出全部身份（含已撤销），项为 `{ id, name, fingerprint, mode, permissions, created_at, last_used_at, revoked_at }`；**`clients revoke`** 置 `revoked_at`，对下一次签名请求立即生效，重复撤销报错。
+- **失败约定**：同其它服务端命令，stdout 只有一个 JSON 文档，失败时 stderr 为 `{ "status": "error", "error": … }` 并退出 1；`assertConfigPermissions` 与 `loadConfig` 校验照常执行。
+
+典型的远程配对（面板只监听 loopback、没有公网 HTTPS）：
+
+```bash
+# 本机：建立只转发面板端口的 SSH 隧道
+ssh -N -L 8787:127.0.0.1:8787 user@vps
+
+# VPS：创建一次性码（可以与运行中的 serve 共存）
+ssh user@vps 'docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create --config /config/config.jsonc --name coding-agent --mode read_write'
+
+# 本机：领取配对码并签名后续请求
+surowan-utils auth init --json
+surowan-utils auth pair --endpoint http://127.0.0.1:8787 --code pwp_…
+surowan-utils doctor --json
+```
+
+明文 HTTP 仍只能指向 loopback（`parseEndpoint` 的既有规则）；远程访问需要 HTTPS 或这条隧道。撤销时在服务器上运行 `surowan clients revoke <id>`，客户端本地的 `surowan-utils auth logout` 只删除本机文件。
+
 ## 日志
 
 用户可见日志写 stdout，格式为单行 JSON；框架 trace 可能写 stderr。至少监控：
@@ -407,7 +442,7 @@ docker compose run --rm plasticwan doctor --config /config/config.jsonc
 docker compose run --rm plasticwan backup --config /config/config.jsonc
 ```
 
-注意：`serve` 是长期进程且受 `ServeLock` 约束，同一 `data_dir` 只能有一个实例。上面的一次性命令（`check-config`/`doctor`/`backup`）都不启动 `serve`，可以与运行中的容器共存；但**不要**用 `docker compose run` 再起一个 `serve`。例外是 `admin-account`：它要独占数据库，运行前必须先停止同 `data_dir` 的 Bot 容器（`docker compose stop surowan`），否则 `ServeLock` 会拒绝执行，见「[管理员账号与 Passkey](#管理员账号与-passkeyadmin-account)」。
+注意：`serve` 是长期进程且受 `ServeLock` 约束，同一 `data_dir` 只能有一个实例。上面的一次性命令（`check-config`/`doctor`/`backup`）都不启动 `serve`，可以与运行中的容器共存；但**不要**用 `docker compose run` 再起一个 `serve`。例外是 `admin-account`：它要独占数据库，运行前必须先停止同 `data_dir` 的 Bot 容器（`docker compose stop surowan`），否则 `ServeLock` 会拒绝执行，见「[管理员账号与 Passkey](#管理员账号与-passkeyadmin-account)」。`pairing` 与 `clients` 相反，**必须**用 `docker compose exec -u surowan plasticwan node /app/src/cli.ts …` 对运行中的容器执行，不要用 `run --rm`，它们本来就要与 `serve` 共享同一个数据目录。`exec` 不经过 `docker-entrypoint.sh`：镜像里没有 `surowan` 可执行文件，要直接写 `node /app/src/cli.ts`；而且 `exec` 默认是 root，必须用 `-u surowan` 降权，否则 root 打开数据库可能留下 root 所有的 SQLite `-wal`/`-shm` 文件，之后以 `surowan` 用户运行的 `serve` 无法写库。
 
 镜像不自带定时备份。需要定期备份时，用宿主机 cron 等调度器定期执行上面的 `backup` 命令，例如每天一次。
 

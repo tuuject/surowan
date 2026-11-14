@@ -11,6 +11,7 @@ import {
   TIME_FILTER_FLAGS,
 } from './spec.ts';
 import type {
+  AuthCommand,
   Command,
   ConfigShowCommand,
   FlagName,
@@ -51,6 +52,12 @@ export function parseCommand(positionals: readonly string[], flags: StringFlags)
   if (group === undefined) {
     throw usageError('missing_command', 'usage: surowan-utils login|doctor|models|config|prompt|invocation');
   }
+  // `--code` and `--force` exist for `auth pair` only. Ignoring them elsewhere
+  // (a `doctor --code x`, a panel write with `--force`) would look like the
+  // flag took effect, so every other command refuses them up front.
+  if (!(group === 'auth' && subcommand === 'pair')) {
+    rejectUnsupportedFlags(flags, AUTH_PAIR_ONLY_FLAGS);
+  }
   if (group === 'login' || group === 'doctor') {
     if (positionals.length !== 1) {
       throw usageError('unexpected_argument', `${group} takes no positional arguments`);
@@ -70,6 +77,13 @@ export function parseCommand(positionals: readonly string[], flags: StringFlags)
     rejectPanelFlags(flags);
     rejectUnsupportedFlags(flags, [...INSPECTION_FLAGS, ...CONFIRM_PAID_FLAGS, ...LOGIN_ONLY_FLAGS]);
     return { kind: 'commands-list' };
+  }
+  // `auth …` is local identity management, not an Admin Panel route; it wins
+  // over the panel table so `auth logout` can never be mistaken for `logout`.
+  if (group === 'auth') {
+    rejectPanelFlags(flags);
+    rejectUnsupportedFlags(flags, [...INSPECTION_FLAGS, ...CONFIRM_PAID_FLAGS, ...LOGIN_ONLY_FLAGS]);
+    return parseAuth(subcommand, rest, flags);
   }
   // Login input on any other command would be ignored while the request runs
   // with whatever credential resolves, so it is refused instead.
@@ -143,6 +157,31 @@ function toPanelFlags(flags: StringFlags): Parameters<typeof parsePanelCommand>[
 
 /** Inputs to `login` itself; every other command refuses them. */
 const LOGIN_ONLY_FLAGS: readonly FlagName[] = ['api-key-stdin'];
+
+const AUTH_ACTIONS = ['init', 'pair', 'status', 'permissions', 'logout'] as const;
+
+/** Flags that only `auth pair` understands; every other command rejects them. */
+const AUTH_PAIR_ONLY_FLAGS: readonly FlagName[] = ['code', 'force'];
+
+/** `auth pair` needs a code; `--force` replaces an already saved credential. */
+function parseAuth(subcommand: string | undefined, rest: readonly string[], flags: StringFlags): AuthCommand {
+  if (subcommand === undefined) {
+    throw usageError('missing_subcommand', 'usage: surowan-utils auth init|pair|status|permissions|logout');
+  }
+  if (!(AUTH_ACTIONS as readonly string[]).includes(subcommand)) {
+    throw usageError('unknown_subcommand', 'auth subcommand must be init, pair, status, permissions or logout');
+  }
+  if (rest.length > 0) {
+    throw usageError('unexpected_argument', `auth ${subcommand} takes no positional arguments`);
+  }
+  if (subcommand === 'pair') {
+    if (flags.code === undefined) {
+      throw usageError('missing_argument', 'auth pair requires --code <pairing-code>');
+    }
+    return { kind: 'auth', action: 'pair', code: flags.code, force: flags.force === true };
+  }
+  return { kind: 'auth', action: subcommand as AuthCommand['action'], code: undefined, force: false };
+}
 
 /** Groups the `switch` below parses itself rather than through the panel table. */
 const FIRST_CLASS_GROUPS: ReadonlySet<string> = new Set(['models', 'config', 'prompt', 'invocation']);

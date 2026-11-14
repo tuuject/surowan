@@ -70,13 +70,22 @@ export async function readJsonObject(request: Request, maxBytes = MAX_BODY_BYTES
  * allocate without bound, and the check counted UTF-16 units, not bytes.
  */
 export async function readBoundedText(request: Request, maxBytes: number): Promise<string> {
+  return new TextDecoder().decode(await readBoundedBytes(request, maxBytes));
+}
+
+/**
+ * The byte-exact variant: signature verification digests the raw body, so the
+ * text decoder's replacement characters must not stand between the caller and
+ * the bytes that were actually sent.
+ */
+export async function readBoundedBytes(request: Request, maxBytes: number): Promise<Buffer> {
   const tooLarge = (): AdminAuthError => new AdminAuthError(413, 'body_too_large', 'Request body is too large');
   const declared = request.headers.get('content-length');
   if (declared !== null && Number(declared) > maxBytes) {
     throw tooLarge();
   }
   if (request.body === null) {
-    return '';
+    return Buffer.alloc(0);
   }
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -97,7 +106,7 @@ export async function readBoundedText(request: Request, maxBytes: number): Promi
     await reader.cancel().catch(() => undefined);
     throw error;
   }
-  return new TextDecoder().decode(Buffer.concat(chunks));
+  return Buffer.concat(chunks);
 }
 
 /**
