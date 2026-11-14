@@ -506,6 +506,9 @@ pnpm run admin:test:e2e  # Playwright 浏览器 E2E（真实 AdminServer + 临�
 | `src/lib/errors.ts` | `errorMessage()`：统一错误文本（`ApiError.code: message`） |
 | `src/lib/memory-ttl.ts` | Memo Pad 表单边界与 TTL 天/秒换算纯函数（summary/detail 长度、永久与短期判断） |
 | `src/lib/timeline.ts` | Invocation 时间线纯模型（同时间排序、send 参数解析） |
+| `src/lib/review-export.ts` / `src/lib/review-prompt.ts` | Invocation 批改（Review）快照截断、Markdown 渲染与末尾结构化 JSON 序列化纯模块（固定英文 Agent 提示词模板在 `review-prompt.ts`） |
+| `src/stores/review.ts` | 浏览器本地批改草稿 Zustand store（`localStorage` 持久化、格式清洗与跨标签页同步） |
+| `src/components/review/**` | Overview 时间线事件批改框与 Invocation 详情页批改摘要面板 |
 | `src/lib/search-params.ts` | 列表页共享的 `chat` 查询参数：`validateSearch` 校验器、读写 hook 与结构化 navigate 类型 |
 | `src/components/business/**` | 共享业务组件（列表页骨架 ListPageHeader / ListFilterCard / ListToolbar / ListFooter、SnapshotList / SnapshotNotice、TableShell、FormActionBar / SettingRow、StateBadge、JsonViewer、KvList、ConfirmDialog、ChartCard、PrivateReasoning、DetailState 等），契约见 `apps/admin-next/README.md` |
 | `src/pages/*.tsx` | 各页面组件，一文件一页（路由挂载见 `src/routes/**`）；页面清单以目录为准，各页语义见本文对应小节 |
@@ -539,6 +542,15 @@ Providers 页的模型复选框由批量测试与批量删除共用，跨分页�
 删除最后一个模型时保留供应商连接、密钥与 header 配置，模型列表可为空；空供应商不向运行时注册任何模型，仍可再次获取或手动添加模型。
 
 Tool session 详情默认打开 Overview 时间线：按时间合并冻结消息、Invocation 生命周期、Model Call、Tool Call 与 Agent transcript；消息正文和 `send` 参数中的发送内容直接展示，Tool 结果与完整参数按需展开。失败的 Model Call 同时展示稳定错误码，并可展开查看经密钥脱敏的完整 Provider 错误详情。Assistant 文本显式标注为私有推理，只有 `send` Tool 会发往 Telegram；assistant 行的思考过程（CoT）与作为本轮 response 的文本分开展示（折叠的 “Thinking” 区块），Agent transcript 表格与时间线卡都适用。
+
+### Invocation 批改（`/reviews`）
+
+纯前端能力，不新增 Admin API 端点、数据库表或服务端状态：
+
+- **本地持久化与跨标签页同步**：Zustand store（`src/stores/review.ts`）通过 `persist` 写入浏览器 `localStorage`（key `surowan-admin-review`，`version: 1`），退出登录不会清空。读取与 rehydrate 时对未知版本、损坏 JSON 或字段不匹配的条目做静默清洗与丢弃（保留同批合法条目），绝不触发路由错误边界。模块级监听 `window` 的 `storage` 事件并调用 `persist.rehydrate()`，且正常写操作前同步重读，确保多开标签页批改同一批或不同 Invocation 时互不覆盖。若 `localStorage.setItem` 因配额或浏览器策略抛错，模块标记未落盘内存态、跳过后续写前 `rehydrate()`（且 `getItem` 抛错时保留当前内存态），避免新评论把上一条仅存于内存的评论冲掉，并在连续失败周期内首次弹出错误 toast 告知仅在关闭当前标签页前保留。
+- **事件快照与字数上限**：Overview 时间线上的 `tool_call`、`agent_message`、`model_call` 与 `context_message` 卡片（不含 `queued`/`started`/`finished`）以及详情页摘要下方的 `InvocationReviewPanel`（`src/components/review/`，详情视图按 `invocation.id` 设 `key` 以在客户端切换不同运行记录时重置未保存输入框）均可添加、编辑或删除批改意见（支持 `Ctrl/Cmd+Enter` 保存，保存空白即删除；当某次 Invocation 既无事件意见也无整体评价时自动移出草稿）。单条意见、整体评价与全局 Goal 上限均为 4,000 字符；每条事件意见存储与语言无关的结构化字段（`subject` 为工具名 / Agent 角色 / `provider/model` / 发送者名称，以及模型调用的 `attempt`），保存时截取最多 280 字符（超出加 `…`）的短摘录（`send` 取发送文本或 `sticker <ref>`，其余工具调用取 `arguments_json`；Agent 消息取 `text`；Model Call 取 `provider/model · state (error_code)`；Context 消息取发送者与正文/说明），并记录 `timelineEventKey` 锚点与时间线序号 `position`。
+- **批改汇总与导出（`/reviews`）**：位于导航 **Activity** 组 `Tool sessions` 之后（`src/routes/reviews.tsx`、`src/pages/reviews.tsx`）。按 Invocation `createdAt` 升序列出草稿中的每次运行及其按 `position` 排序的事件意见（根据结构化字段渲染当前界面语言的事件标题），支持选择导出用途（`tune` 调优此机器人 / `develop` 开发者反馈）、填写改进目标（Goal）、折叠预览生成的 Markdown、单条编辑/删除或整次运行移出草稿，以及独立确认的「清空草稿」。
+- **导出即清空与结构化 JSON 尾块**：`src/lib/review-export.ts` 的 `buildReviewMarkdown(draft, generatedAt)` 生成固定英文提示词模板（引导挂载 `surowan-utils` CLI 或 `surowan-mcp` 的本地 Coding Agent 先做只读鉴权检查、拉取审计与当前 Prompt，再按操作员批改语言的原始语种回复；`chatLabel`、`chatRef`、发送者名称、工具名、`provider/model`、`ref` 与时间戳均压平为单行并包裹在反引号数量严格长于内部反引号串的 CommonMark 行内代码跨度中，摘录与 JSON 代码块同样动态加长围栏以防注入），并在文档末尾追加 `## Review data (JSON)` 代码块（`format: "surowan.invocation-review"`、`version: 1`，含英文 `label` 及结构化 `subject`/`attempt`，保留供未来面板重新导入及给 Agent 作结构化输入，当前尚不支持重新导入 UI）。点击「Copy Markdown」或「Download Markdown」（文件名 `surowan-review-YYYYMMDD-HHmmss.md`）均先弹出 `ConfirmDialog`，明确告知导出后将清空本浏览器中的批改草稿且暂不支持重新导入；仅在确认且导出动作完成后才清空草稿并弹出成功 toast——复制模式下若 `navigator.clipboard.writeText` 失败则保留草稿并提示错误，若写入期间其他标签页修改了草稿则保留新草稿并弹出提示 toast。
 
 Messages 列表与消息详情的 Revision 在发送者姓名旁显示可复制的 Telegram ID；个人账号标为 `Telegram user ID`，匿名/频道身份标为 `Telegram chat ID`。消息自己的那列明确标为 `Telegram message ID`。Invocation 的 Overview 消息卡与 Frozen context 的 Sender 列从冻结快照 `sender.id` 显示 `Telegram sender ID`，不拿当前用户资料替换历史快照；旧快照缺少 ID 时显示 `—` 并隐藏复制按钮。`CopyableValue` 共用剪贴板交互：复制成功/失败显示 toast；浏览器拒绝或不提供剪贴板时提示选中 ID 手动复制，复制不产生 Admin API 写请求。四种语言的文案保持同步。
 

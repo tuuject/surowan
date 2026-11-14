@@ -44,6 +44,7 @@ export const ROUTES = [
   { path: '/', slug: 'overview' },
   { path: '/warnings', slug: 'warnings' },
   { path: '/invocations', slug: 'invocations' },
+  { path: '/reviews', slug: 'reviews' },
   { path: '/contexts', slug: 'contexts' },
   { path: '/messages', slug: 'messages' },
   { path: '/playground', slug: 'playground' },

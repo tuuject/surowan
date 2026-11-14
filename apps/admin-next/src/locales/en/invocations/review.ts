@@ -1,0 +1,61 @@
+/**
+ * Invocation review strings. English is the source catalog;
+ * `zh-CN/invocations/review.ts` mirrors it key for key.
+ */
+export const review = {
+  addComment: 'Add review comment',
+  commentLabel: 'Review comment',
+  commentPlaceholder: 'Write a review comment on this event…',
+  overallComment: 'Overall comment',
+  addOverallComment: 'Add overall comment',
+  overallPlaceholder: 'Write an overall comment on this invocation…',
+  panelTitle: 'Review notes',
+  thisInvocationCount_one: '{{count}} comment on this invocation',
+  thisInvocationCount_other: '{{count}} comments on this invocation',
+  draftInvocationsCount_one: '{{count}} invocation in your review draft',
+  draftInvocationsCount_other: '{{count}} invocations in your review draft',
+  openDraft: 'Open review draft',
+  browserOnlyNote: 'Review drafts are stored only in this browser and are never uploaded to the server.',
+  emptyTitle: 'No review comments yet',
+  emptyDescription:
+    'Open an invocation and leave comments on events in its Overview timeline, or add an overall comment.',
+  browseInvocations: 'Browse tool sessions',
+  exportPanelTitle: 'Export & prompt settings',
+  purposeLabel: 'Purpose',
+  purposeTune: 'Tune this bot',
+  purposeDevelop: 'Developer feedback',
+  goalLabel: 'Goal',
+  goalHelp: 'Optional overall goal included in the exported prompt (up to 4,000 characters).',
+  goalPlaceholder: 'Describe what you want to improve overall…',
+  copyMarkdown: 'Copy Markdown',
+  downloadMarkdown: 'Download Markdown',
+  previewMarkdown: 'Preview Markdown',
+  clearDraft: 'Clear draft',
+  removeInvocation: 'Remove from draft',
+  commentCount_one: '{{count}} comment',
+  commentCount_other: '{{count}} comments',
+  kinds: {
+    tool_call: 'Tool call',
+    agent_message: 'Agent message',
+    model_call: 'Model call',
+    context_message: 'Incoming message',
+  },
+  eventLabels: {
+    toolCall: 'Tool call {{name}}',
+    modelCall: 'Model call {{model}} (attempt {{attempt}})',
+    contextMessage: 'Incoming message from {{sender}}',
+  },
+  exportConfirmTitle: 'Export and clear review draft',
+  exportConfirmDescription:
+    'The review draft will be removed from this browser after export. Keep the exported Markdown, because importing it back into the Admin Panel is not supported yet.',
+  exportConfirmButton: 'Export and clear',
+  exportedAndCleared: 'Exported; review draft cleared',
+  copiedDraftChanged: 'Copied, but the draft changed during export, so it was not cleared',
+  copyFailed: 'Failed to copy Markdown to clipboard',
+  storageSaveFailed: "Couldn't save the review draft in this browser; it is kept only until you close this tab",
+  clearConfirmTitle: 'Clear review draft',
+  clearConfirmDescription:
+    'Remove all review comments, overall comments and the goal from this browser? This cannot be undone.',
+  clearConfirmButton: 'Clear draft',
+  draftCleared: 'Review draft cleared',
+};

@@ -8,5 +8,6 @@
   "admin-prompts",
   "admin-api-keys",
   "admin-invocation-replay",
+  "admin-invocation-review",
   "mcp-server"
 ]

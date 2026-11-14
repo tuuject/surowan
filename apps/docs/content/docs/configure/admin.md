@@ -47,6 +47,7 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 - **Harness tuning**：调整 Agent 的运行上限与发送行为（预算、并发、发送规则、限流与 Context 保留）以及全局主动回复默认值，保存后由下一次 Invocation 生效，见 [Harness tuning](admin-harness-tuning.md)。
 - **Developer**：按需记录模型调用的调试报文，或在确认后清除已有报文，见 [Developer 调试开关](admin-developer.md)。
 - **API keys**（Manage 组）：创建、查看与撤销供 CLI 与评估工具使用的密钥，明文只在创建弹窗中出现一次，见 [API 密钥](admin-api-keys.md)。
+- **批改 / Reviews**（Activity 组）：在 Invocation 详情的概览时间线上对具体事件（发言、工具调用、模型调用、上下文消息）或整次运行写下批改意见，保存在浏览器本地并可导出为可直接交给外部 Coding Agent 的 Markdown 提示词，见 [Invocation 批改与导出](admin-invocation-review.md)。
 - **Invocation 重放**：仍只有携带 API 密钥的 CLI/API 入口，没有页面入口；只读的配置/prompt 检查、可用模型列表、场景 prompt、Invocation 搜索、重放预检与媒体导出同样在 CLI/API 层提供，见 [Invocation 重放](admin-invocation-replay.md)。
 
 ## 查看和复制 Telegram ID
@@ -114,3 +115,4 @@ Passkey 遗失，或因更换域名、关闭 Passkey 功能而无法登录时，
 - [编辑 Prompt 与版本历史](admin-prompts.md)
 - [API 密钥](admin-api-keys.md)
 - [Invocation 重放](admin-invocation-replay.md)
+- [Invocation 批改与导出](admin-invocation-review.md)

@@ -68,6 +68,7 @@ export const layout: Catalog<typeof layoutEn> = {
     overview: 'Übersicht',
     warnings: 'Warnungen',
     toolSessions: 'Tool-Sitzungen',
+    reviews: 'Bewertungen',
     contexts: 'Kontexte',
     messages: 'Nachrichten',
     botStickerSets: 'Bot-Sticker-Sets',

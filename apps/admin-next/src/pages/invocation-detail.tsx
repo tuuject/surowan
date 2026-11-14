@@ -5,6 +5,7 @@ import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DetailError, DetailSkeleton, ListPageHeader } from '@/components/business';
 import { DetailHeader } from '@/components/invocations/detail-header';
+import { InvocationReviewPanel } from '@/components/review/invocation-review-panel.tsx';
 import { ModelCallsTab } from '@/components/invocations/model-calls-tab';
 import { OverviewTab } from '@/components/invocations/overview-tab';
 import { SendsTab } from '@/components/invocations/sends-tab';
@@ -44,9 +45,10 @@ export function InvocationDetailView({ id }: { readonly id: string }): ReactElem
   }
 
   return (
-    <div className={css({ '& > * + *': { marginBlockStart: '6' } })}>
+    <div key={data.id} className={css({ '& > * + *': { marginBlockStart: '6' } })}>
       <ListPageHeader title={t('invocations.invocationDetail.title', { id: data.id })} />
       <DetailHeader invocation={data} />
+      <InvocationReviewPanel invocation={data} />
       <section>
         <Tabs
           defaultValue="overview"
