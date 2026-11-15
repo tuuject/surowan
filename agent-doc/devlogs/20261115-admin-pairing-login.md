@@ -238,7 +238,7 @@ npx vitest run test/playground/only.test.ts test/playground/only-serve.test.ts
 ## 提交
 
 ```txt
-0a2d2a51 Sign in to the Admin Panel with one-time pairing codes
-6655de87 Show the docker compose sign-in command on the official image
-70dced2a Make the first Admin Panel sign-in a one-time code from the server
+b10f356d Sign in to the Admin Panel with one-time pairing codes
+580fe8ac Show the docker compose sign-in command on the official image
+b0630424 Make the first Admin Panel sign-in a one-time code from the server
 ```
