@@ -181,7 +181,7 @@ T+94   若期间再没有新 Bucket 到期，空闲等待耗尽，I 结束
 
 system prompt 拆分（文档中只在此处维护；`ContextBuilder.buildSystemPrompt` 产出稳定段，`renderInjection` 产出注入段）：
 
-- **稳定段**由按固定顺序拼接的分区组成，分区正文是随版本发布的 Markdown 文件（`src/platform/prompts/`），启动时读取，不支持热编辑：`1-core-protocol.md`（Core Agent Protocol，含开场的 BCP 14 关键词声明、消息分区、可信边界、Tool 选择原则与副作用成功判定）、私聊/群聊模式一行、`2-product-knowledge.md`（产品意图索引）、`3-capabilities.md`（Memo Pad 与群聊记忆的用途与检索规则）、System Skill 索引、图片/Sticker 说明、`4-persona.md`（人格分区标题，仅在存在全局人格或 Chat 指令时出现）。人格排在整个运行时内容之后：`4-persona.md` 标题后接全局 `system_prompt`，再接 Chat `instructions_file`（Forum Topic 共用所在 Chat 的指令）；运行时内容不再出现在人格之后。Core Protocol 规定消息分区、Tool 选择原则与副作用成功判定；人格只负责身份和表达风格；稳定段不写「什么时候该参与」——是否发言由模型按当前批次判断；群聊的消息准入由运行期 participation 闸门决定（配置了才生效）。它对一个 Conversation Context 保持逐字节稳定，这样每次请求的前缀能被 provider prefix cache 命中。Sticker 目录（`sticker_id:emoji`）是**不可信数据**，因此随批次注入，不进入稳定段；它只在与保留 transcript 里最新一份不同时才重新附带（被 GC 淘汰后也会重新附带），不是每批都带一份。分区文件由运行时拥有，运营者只能通过全局人格和 Chat 指令定制人格；`AGENT_PROMPT_VERSION` 随分区语义推进。
+- **稳定段**由按固定顺序拼接的分区组成，分区正文是随版本发布的 Markdown 文件（`src/platform/prompts/`），启动时读取，不支持热编辑：`1-core-protocol.md`（Core Agent Protocol，含开场的 BCP 14 关键词声明、消息分区、可信边界、Tool 选择原则与副作用成功判定）、私聊/群聊模式一行、`2-product-knowledge.md`（产品意图索引）、`3-capabilities.md`（Memo Pad 与群聊记忆的用途与检索规则、成员资料读取，以及网络搜索可用时的时效默认）、System Skill 索引、图片/Sticker 说明、`4-persona.md`（人格分区标题，仅在存在全局人格或 Chat 指令时出现）。人格排在整个运行时内容之后：`4-persona.md` 标题后接全局 `system_prompt`，再接 Chat `instructions_file`（Forum Topic 共用所在 Chat 的指令）；运行时内容不再出现在人格之后。Core Protocol 规定消息分区、Tool 选择原则与副作用成功判定；人格只负责身份和表达风格；稳定段不写「什么时候该参与」——是否发言由模型按当前批次判断；群聊的消息准入由运行期 participation 闸门决定（配置了才生效）。它对一个 Conversation Context 保持逐字节稳定，这样每次请求的前缀能被 provider prefix cache 命中。Sticker 目录（`sticker_id:emoji`）是**不可信数据**，因此随批次注入，不进入稳定段；它只在与保留 transcript 里最新一份不同时才重新附带（被 GC 淘汰后也会重新附带），不是每批都带一份。分区文件由运行时拥有，运营者只能通过全局人格和 Chat 指令定制人格；`AGENT_PROMPT_VERSION` 随分区语义推进。
 - `composeAgentPrompt` 在 global/group 覆盖和模板渲染完成后，按最终内容决定是否加入运行时拥有的 `4-persona.md` 标题与说明；它不预先固定在 `promptLayers.prefix` 中。两层都渲染为空时省略整个人格分区。Replay 临时增加首个人格或清空唯一的 Chat 指令，与保存相同配置后构建的 system prompt 保持一致。
 - 产品意图索引 `PRODUCT_KNOWLEDGE_INDEX` 读取自 `src/platform/prompts/2-product-knowledge.md`，属于稳定 prefix，由本地 Coding Agent 从用户手册离线烘焙并直接写入该文件；`CORE_AGENT_PROTOCOL` 约束产品事实优先于角色扮演，细节仍经文档工具验证。索引不进入逐批注入或 canonical history，更新时沿用稳定哈希重建。架构调查、维护 Skill、体积预算与验证方法见 [产品知识烘焙](product-knowledge.md)。
 - 查手册只有一套顺序，`CORE_AGENT_PROTOCOL`、`read_document`/`list_documents` 工具说明与 `user-manual` Skill 三处一致：产品知识索引已给出合适页面时直接 `read_document`；没有合适页面时先 `list_documents` 看目录，再读取相关页面。
@@ -483,7 +483,7 @@ Tool 返回文本、JSON、XML（含 SVG）或 JavaScript 响应；宿主接了�
 
 ## `web_search`
 
-`web_search` 是经 `execute.call` 调用的内部能力，只在 `web_search` 可用（总开关打开且至少一个引擎启用）时注册；同一状态还决定 `web-search` Skill 是否出现在索引里。它只负责发现：返回标题、URL 与摘要，不读取正文；需要正文时由模型对选中的 URL 调用 `web_fetch`。
+`web_search` 是经 `execute.call` 调用的内部能力，只在 `web_search` 可用（总开关打开且至少一个引擎启用）时注册；同一状态还决定 `web-search` Skill 是否出现在索引里。它只负责发现：返回标题、URL 与摘要，不读取正文；需要正文时由模型对选中的 URL 调用 `web_fetch`。`3-capabilities.md` 要求模型在 `web-search` Skill 出现在索引里时默认把事实类问题当作有时效性：优先搜索而不是凭训练知识回答，并把 `current_time` 里的当前年份写进查询（用户点名其他时段时用那个时段）；闲聊与定义、数学、定论历史这类稳定知识不必搜索。Skill 正文在「How to call」里重复年份规则，因为模型写查询时读的是它。
 
 - **输入**：`{ action?, query?, engine?, count? }`。`action: "list"` 返回当前启用的引擎与备注（可用于配置在运行中被修改后刷新列表）；默认 `search` 需要非空 `query`（最长 500 字符）。`engine` 省略时用第一个启用的引擎；`count` 覆盖该引擎的默认条数（1–10，服务商可能自行限制）。
 - **引擎可见性**：每个引擎的 `note` 同时出现在 Tool 描述（最多 8 个、每条截断到 160 字符）与 `action: "list"` 的结果里，模型据此选择引擎。描述不写死某家服务商的上限或默认条数，避免同一个 Invocation 内配置变化后描述失真。
