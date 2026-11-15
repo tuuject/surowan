@@ -164,6 +164,37 @@ test('a one-time code from the server CLI signs the browser in exactly once', as
   });
 });
 
+const OFFICIAL_DOCKER_COMMAND =
+  'docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create --config /config/config.jsonc --web';
+
+test('only the official Docker image is shown its docker compose command', async ({ page }, testInfo) => {
+  const base = await adminBase();
+  await page.goto(base);
+  await page.getByRole('button', { name: 'Sign in with a one-time code' }).click();
+  // A server without the image marker (a source checkout or a self-built image)
+  // gets the generic hint and nothing it could paste blindly.
+  await expect(page.getByText('pairing create --web', { exact: true })).toBeVisible();
+  await expect(page.getByText(OFFICIAL_DOCKER_COMMAND)).toHaveCount(0);
+
+  await e2eFetch('/official-image?enabled=1', { method: 'POST' });
+  try {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.reload();
+    await page.getByRole('button', { name: 'Sign in with a one-time code' }).click();
+    await expect(page.getByText(OFFICIAL_DOCKER_COMMAND)).toBeVisible();
+    await page.getByRole('button', { name: 'Copy command' }).click();
+    await expect(page.getByText('Copied to clipboard')).toBeVisible();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(OFFICIAL_DOCKER_COMMAND);
+    await page.screenshot({ path: testInfo.outputPath('official-docker-hint.png') });
+    await testInfo.attach('official-docker-hint', {
+      path: testInfo.outputPath('official-docker-hint.png'),
+      contentType: 'image/png',
+    });
+  } finally {
+    await e2eFetch('/official-image?enabled=0', { method: 'POST' });
+  }
+});
+
 async function baseURLPath(path: string): Promise<string> {
   return `${await adminBase()}${path}`;
 }

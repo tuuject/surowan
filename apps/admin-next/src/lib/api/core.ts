@@ -25,6 +25,8 @@ export interface SessionState {
   readonly passkeys_enabled: boolean;
   /** Only a real boolean when authenticated; null before setup / while signed out. */
   readonly has_password: boolean | null;
+  /** Running the official Docker image, whose sign-in code command the login page can show verbatim. */
+  readonly official_docker_image: boolean;
 }
 
 /**

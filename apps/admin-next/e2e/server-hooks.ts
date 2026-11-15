@@ -176,6 +176,15 @@ export async function handleHook(request: Request, url: URL): Promise<Response> 
       .get();
     return json({ id: inserted?.id.toString() ?? null });
   }
+  if (request.method === 'POST' && route === '/official-image') {
+    // The marker the official Dockerfile sets; the session reads it per request.
+    if (url.searchParams.get('enabled') === '1') {
+      process.env.SUROWAN_OFFICIAL_IMAGE = '1';
+    } else {
+      delete process.env.SUROWAN_OFFICIAL_IMAGE;
+    }
+    return json({ ok: true });
+  }
   if (request.method === 'POST' && route === '/pairing-create') {
     const purpose = url.searchParams.get('purpose');
     if (purpose !== 'web' && purpose !== 'client') {

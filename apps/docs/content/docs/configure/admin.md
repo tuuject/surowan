@@ -80,6 +80,8 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
    输出是一个 JSON 文档，其中 `code` 是 `pwp_` 开头的码，`pairing.expires_at` 是过期时间（默认 5 分钟，可用 `--ttl-seconds` 设为 60–3600 秒），`next` 提示面板地址。
 2. 在浏览器打开面板，登录页点 **使用一次性码登录**，粘贴 `code`，点 **登录**。
 
+使用官方 Docker 镜像和 `docker-compose.yml` 模板时，这个表单会直接显示上面的 Docker 命令，并带复制按钮。自己构建的镜像只会看到通用提示，请按自己的镜像结构改写命令。
+
 每个码只能用一次，用过、过期或被 `pairing cancel` 取消后都会失效；没用的码可以用 `pairing list` 查看。它不会修改密码，也不会注销已有的登录 Session。还没有管理员账号时命令会报错，请先在面板完成首次设置，或用下文的 `admin-account` 建号。
 
 这个码只能登录面板。给编码 Agent 用的配对码（不带 `--web`、带 `--mode`）在登录页会被拒绝；反过来，登录码也不能被 `surowan-utils auth pair` 领取。Agent 配对见[让 Agent 通过 SSH 配对](admin-agent-pairing.md)。

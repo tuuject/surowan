@@ -17,6 +17,7 @@ test('admin panel demands first-run setup, then authenticates and revokes sessio
       expires_at: null,
       passkeys_enabled: false,
       has_password: null,
+      official_docker_image: false,
     });
 
     const unauthenticated = await server.handle(request('/api/invocations'));

@@ -148,6 +148,13 @@ RUN mkdir -p /data /config && chown surowan:surowan /data /config
 # volume the entrypoint chowns to the runtime user on every boot.
 RUN npm config set --global cache /data/.npm-cache
 
+# Marks the official image. The Admin Panel login page then shows the exact
+# `docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create
+# --config /config/config.jsonc --web` command, whose user, paths and service
+# name are this image's and the shipped docker-compose.yml's. A self-built image
+# does not set it and gets only the generic hint: we do not guess its layout.
+ENV SUROWAN_OFFICIAL_IMAGE=1
+
 # PLASTICWAN_SUPERVISED is deliberately NOT set here: the image cannot know
 # whether it will be run with a restart policy, and declaring supervision
 # without one would offer a "restart now" button that stops the bot for good.

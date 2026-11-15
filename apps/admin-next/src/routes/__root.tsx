@@ -19,6 +19,7 @@ const UNAUTHENTICATED_SESSION: SessionState = {
   expires_at: null,
   passkeys_enabled: false,
   has_password: null,
+  official_docker_image: false,
 };
 
 interface RouterContext {
@@ -71,7 +72,7 @@ function AuthGate(): React.ReactNode {
   if (!data.authenticated) {
     // The session is the single source for whether passkeys are configured:
     // a server built without `admin.public_url` never shows the passkey entry.
-    return <LoginForm passkeysEnabled={data.passkeys_enabled} />;
+    return <LoginForm passkeysEnabled={data.passkeys_enabled} officialDockerImage={data.official_docker_image} />;
   }
 
   return <AdminShell username={data.username ?? 'admin'} />;

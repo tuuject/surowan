@@ -176,6 +176,7 @@ test.describe('API key management UI', () => {
             expires_at: null,
             passkeys_enabled: process.env.E2E_PASSKEYS === '1',
             has_password: null,
+            official_docker_image: false,
           },
         });
         return;

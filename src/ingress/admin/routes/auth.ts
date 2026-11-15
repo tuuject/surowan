@@ -140,6 +140,10 @@ export function createAdminAuthHandler(deps: AdminAuthHandlerDeps) {
           expires_at: session?.expiresAt ?? null,
           passkeys_enabled: passkeys !== undefined,
           has_password: session === null ? null : auth.hasPassword(session.userId),
+          // Set only by the official Dockerfile. The login page then shows the
+          // exact `docker compose exec` command for a sign-in code; any other
+          // deployment gets the generic hint, since its layout is unknown.
+          official_docker_image: process.env.SUROWAN_OFFICIAL_IMAGE === '1',
         }),
       };
     }

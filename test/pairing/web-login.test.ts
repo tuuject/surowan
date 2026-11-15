@@ -28,6 +28,9 @@ import {
  *    SameSite=Strict.
  * 7. A ticket is minted with no administrator to sign in as, or mixed with the
  *    client-only flags (`--mode`, `--public-key`).
+ * 8. The login page shows the official image's `docker compose` command to a
+ *    deployment that is not the official image, whose service name, paths and
+ *    user may differ.
  */
 installPairingHooks();
 
@@ -239,6 +242,29 @@ test('pairing create --web needs the administrator account and refuses client-on
     }
     expect(countRows(fixture.store, 'admin_pairings')).toBe(0);
   } finally {
+    await fixture.close();
+  }
+}, 60_000);
+
+test('the session reports the official Docker image only when the image marks itself', async () => {
+  const fixture = await pairingFixture();
+  const saved = process.env.SUROWAN_OFFICIAL_IMAGE;
+  const official = async (): Promise<unknown> =>
+    (await json(await fetch(`${fixture.baseUrl}/api/auth/session`))).official_docker_image;
+  try {
+    delete process.env.SUROWAN_OFFICIAL_IMAGE;
+    expect(await official()).toBe(false);
+    // Anything but the exact marker is a self-built image.
+    process.env.SUROWAN_OFFICIAL_IMAGE = 'true';
+    expect(await official()).toBe(false);
+    process.env.SUROWAN_OFFICIAL_IMAGE = '1';
+    expect(await official()).toBe(true);
+  } finally {
+    if (saved === undefined) {
+      delete process.env.SUROWAN_OFFICIAL_IMAGE;
+    } else {
+      process.env.SUROWAN_OFFICIAL_IMAGE = saved;
+    }
     await fixture.close();
   }
 }, 60_000);

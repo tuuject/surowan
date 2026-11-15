@@ -1,7 +1,7 @@
 import { startAuthentication } from '@simplewebauthn/browser';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert } from '@tuuject/koi-react/alert';
-import { Button } from '@tuuject/koi-react/button';
+import { Button, IconButton } from '@tuuject/koi-react/button';
 import { Card } from '@tuuject/koi-react/card';
 import { Divider } from '@tuuject/koi-react/divider';
 import { Field } from '@tuuject/koi-react/field';
@@ -21,6 +21,7 @@ import {
 } from '@/components/app-shell/shared';
 import { ThemeToggle } from '@/components/app-shell/ThemeToggle';
 import { TechText } from '@/components/business/bidi-text';
+import { CopyIcon } from '@/components/icons';
 import {
   createFirstAdmin,
   login,
@@ -32,6 +33,7 @@ import type { Credentials } from '@/lib/api/core.ts';
 import { ApiError } from '@/lib/api/core.ts';
 import { isWebAuthnAvailable, passkeyErrorMessage } from '@/lib/passkeys';
 import { sessionQuery } from '@/lib/queries';
+import { toast } from '@/lib/toast.ts';
 
 const pageClass = css({
   minHeight: '100%',
@@ -116,13 +118,19 @@ function AuthLayout({
 const formClass = css({ display: 'flex', flexDirection: 'column', gap: '4' });
 const alternativesClass = css({ marginBlockStart: '4', display: 'flex', flexDirection: 'column', gap: '3' });
 
-export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boolean }): ReactElement {
+export function LoginForm({
+  passkeysEnabled,
+  officialDockerImage,
+}: {
+  readonly passkeysEnabled: boolean;
+  readonly officialDockerImage: boolean;
+}): ReactElement {
   const { t } = useTranslation();
   const [method, setMethod] = useState<'password' | 'code'>('password');
   if (method === 'code') {
     return (
       <AuthLayout title={t('brand.loginTitle')} description={t('pages.auth.codeDescription')}>
-        <PairingCodeForm onBack={() => setMethod('password')} />
+        <PairingCodeForm officialDockerImage={officialDockerImage} onBack={() => setMethod('password')} />
       </AuthLayout>
     );
   }
@@ -247,11 +255,59 @@ function PasswordLoginForm({
 const PAIRING_CODE_PATTERN = /^\s*pwp_[A-Za-z0-9_-]{32}\s*$/;
 
 /**
+ * The command for the official image with the shipped docker-compose.yml. Shown
+ * only when the server reports `official_docker_image`: a self-built image may
+ * use another user, path or service name, so it only gets the generic hint.
+ */
+const OFFICIAL_DOCKER_COMMAND =
+  'docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create --config /config/config.jsonc --web';
+
+const techMono = css({ fontFamily: 'mono', whiteSpace: 'nowrap' });
+
+function CommandLine({ command }: { readonly command: string }): ReactElement {
+  const { t } = useTranslation();
+  const [copying, setCopying] = useState(false);
+  const label = t('pages.auth.copyCommand');
+  return (
+    <span className={css({ display: 'flex', alignItems: 'center', gap: '1' })}>
+      <TechText className={css({ fontFamily: 'mono', overflowWrap: 'anywhere', flex: '1', minWidth: '0' })}>
+        {command}
+      </TechText>
+      <IconButton
+        variant="ghost"
+        color="secondary"
+        label={label}
+        title={label}
+        icon={<CopyIcon />}
+        disabled={copying}
+        onClick={async () => {
+          setCopying(true);
+          try {
+            await navigator.clipboard.writeText(command);
+            toast.success(t('common.copied'));
+          } catch {
+            toast.error(t('pages.auth.copyCommandFailed'));
+          } finally {
+            setCopying(false);
+          }
+        }}
+      />
+    </span>
+  );
+}
+
+/**
  * The one-time code sign-in: the operator mints the code on the server with
  * `surowan pairing create --web` and pastes it here. Surrounding whitespace from
  * a terminal copy is tolerated and trimmed before the request.
  */
-function PairingCodeForm({ onBack }: { readonly onBack: () => void }): ReactElement {
+function PairingCodeForm({
+  officialDockerImage,
+  onBack,
+}: {
+  readonly officialDockerImage: boolean;
+  readonly onBack: () => void;
+}): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [failure, setFailure] = useState<string | null>(null);
@@ -285,10 +341,16 @@ function PairingCodeForm({ onBack }: { readonly onBack: () => void }): ReactElem
           label={t('pages.auth.code')}
           error={errors.code?.message}
           help={
-            <Trans
-              i18nKey="pages.auth.codeHelp"
-              components={{ command: <TechText className={css({ fontFamily: 'mono' })} /> }}
-            />
+            officialDockerImage ? (
+              <span className={css({ display: 'flex', flexDirection: 'column', gap: '1' })}>
+                <span>
+                  <Trans i18nKey="pages.auth.codeHelpDocker" components={{ file: <TechText className={techMono} /> }} />
+                </span>
+                <CommandLine command={OFFICIAL_DOCKER_COMMAND} />
+              </span>
+            ) : (
+              <Trans i18nKey="pages.auth.codeHelp" components={{ command: <TechText className={techMono} /> }} />
+            )
           }
         >
           <Input
