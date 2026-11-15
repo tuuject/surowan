@@ -144,8 +144,42 @@ pnpm test
 - 配置了 `admin.public_url` 时，Passkey 按钮与一次性码按钮并列的截图（`16-passkeys` 套件通过，但没有专门截图）。
 - POSIX 下 CLI 的 0600/0700 权限路径（Windows 跳过，留给 Linux CI）。
 
+## 后续：只对官方镜像显示 Docker 命令
+
+PR 审阅时，用户提出：Docker 部署的用户需要知道该敲哪条 `docker compose` 命令，但这条提示只在官方 Docker 实例里给；用户自己构建的塑料碗镜像，我们不为它的用法负责。
+
+- `Dockerfile` 的 runtime 阶段设置 `ENV SUROWAN_OFFICIAL_IMAGE=1`。凡是基于官方镜像（包括 `FROM` 它再扩展）或用本仓库 `Dockerfile` 构建的镜像都带这个标记，它们的用户、路径都与提示里的命令一致。
+- `GET /api/auth/session` 新增 `official_docker_image`，取值是 `process.env.SUROWAN_OFFICIAL_IMAGE === '1'`，每次请求现读。只有恰好为 `'1'` 时才算官方镜像。
+- 一次性码表单（`apps/admin-next/src/pages/auth.tsx`）在官方镜像下的帮助行显示：
+  - 「在服务器上 `docker-compose.yml` 所在的目录运行：」
+  - 完整命令 `docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create --config /config/config.jsonc --web`，等宽显示，可在任意位置换行，带复制按钮。
+- 其他部署保持通用的 `pairing create --web` 提示。service 名 `plasticwan` 来自 `docker-compose.yml` 模板，自建镜像或改过 compose 的部署不一定一致，所以不替它们猜。
+- 这个字段对未登录访客可见，只透露「是官方镜像」，不含路径或配置。
+
+测试同样先写：`test/pairing/web-login.test.ts` 补了第 8 条失败模式（非官方部署被显示官方命令），新用例断言变量缺失或取值为 `'true'` 时都是 `false`，只有 `'1'` 是 `true`。`test/admin/auth.test.ts` 的 session 全量断言补上这个字段。E2E 新增「only the official Docker image is shown its docker compose command」：
+
+- 默认状态下只有通用提示，页面上没有 Docker 命令。
+- 用 `/__e2e/official-image` 钩子打开标记后，页面显示完整命令；点复制，通过剪贴板权限读回的内容与命令一字不差；同时截图作为产物。
+- e2e 服务器启动时删掉这个变量，开发机或 CI 环境里的值不会影响结果。
+
+```bash
+pnpm run lint && pnpm run check && git diff --check
+# 全部 exit 0
+npx vitest run test/admin test/pairing
+# 57 files passed, 257 passed / 1 skipped
+pnpm run admin:build && pnpm run admin:test:e2e 00-auth 01-routes 14-api-keys 16-passkeys 24-i18n 30-dev-mock
+# 53 passed
+DOCS_BASE_PATH=/ 与 /surowan/ 各跑 docs:build + docs:verify
+# 两次都 Verified 53 HTML/Markdown pages ... 173 HTTP resources
+```
+
+视觉检查：临时截图看了 zh-CN 深色桌面、zh-CN 浅色手机、ar 浅色手机、de-DE 深色手机，四种情况的 `scrollWidth` 都不超过视口。截图后把 `docker-compose.yml` 这类短技术片段设成不换行，以免在连字符处断开。
+
+未执行：没有在本机 `docker build` 镜像去确认 `SUROWAN_OFFICIAL_IMAGE` 在容器里生效，留给 `docs.yml` 的 image-smoke 和真实部署验收。
+
 ## 提交
 
 ```txt
 0a2d2a51 Sign in to the Admin Panel with one-time pairing codes
+6655de87 Show the docker compose sign-in command on the official image
 ```
