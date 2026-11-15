@@ -72,7 +72,7 @@ export const page = {
   checkSelected: 'اختبار',
   checking: 'جارٍ الاختبار…',
   healthOk: 'سليم',
-  healthUnexpected: 'رد غير متوقع',
+  healthReplyLabel: 'رد النموذج',
   healthError: 'فشل',
   ttfbUnavailable: 'غير متاح',
   healthTiming: 'أول رد {{ttfb}}، والإجمالي {{duration}}',

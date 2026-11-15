@@ -57,7 +57,7 @@ export const page = {
   checkSelected: '测试',
   checking: '测试中…',
   healthOk: '正常',
-  healthUnexpected: '回复不符预期',
+  healthReplyLabel: '模型回复',
   healthError: '失败',
   ttfbUnavailable: '无法测量',
   healthTiming: '首次响应 {{ttfb}}，总耗时 {{duration}}',

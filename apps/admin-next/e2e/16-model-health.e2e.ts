@@ -1,8 +1,9 @@
 /**
  * Model health checks against the real `AdminServer`, per row and per batch:
  * the page must trigger exactly one upstream call per click, keep every check
- * control disabled while a check runs, report ok / unexpected / error
- * separately (also in a mixed batch that never stops at a failure), keep its
+ * control disabled while a check runs, report ok (with the model's own reply,
+ * whatever it says) and error separately (also in a mixed batch that never
+ * stops at a failure), keep its
  * selection across providers, cap the batch at three concurrent calls, settle
  * fast checks visibly before slow ones, fit a narrow phone screen, and never
  * render the provider key.
@@ -19,8 +20,10 @@
  * - the per-row button is "Test" (aria `Test whether {{model}} replies`);
  * - the batch button reads `Test`, with an `N selected` line beside it;
  * - the health row shows a status badge and first-response / total durations;
- * - response text and error text render in the row's expandable details
- *   (toggled by the row's "Toggle row details" button).
+ * - a passing check shows the model's reply inline (`Model reply …`), with no
+ *   details toggle;
+ * - a failure's error text renders in the row's expandable details (toggled
+ *   by the row's "Toggle row details" button).
  */
 import { expect } from '@playwright/test';
 import type { ProvidersView } from '../src/lib/api/providers.ts';
@@ -28,6 +31,7 @@ import { adminUrl, test } from './helpers.ts';
 import {
   assertHealthRequestShape,
   expandedRow,
+  healthReply,
   holdHealthGate,
   modelHealthFixture,
   modelRow,
@@ -41,10 +45,10 @@ import {
 import {
   E2E_HEALTH_ALIAS_A,
   E2E_HEALTH_ALIAS_B,
+  E2E_HEALTH_CHATTY_MODEL,
   E2E_HEALTH_FAIL_MODEL,
   E2E_HEALTH_OK_2_MODEL,
   E2E_HEALTH_OK_MODEL,
-  E2E_HEALTH_UNEXPECTED_MODEL,
   E2E_SECRETS,
 } from './models-fixture.ts';
 
@@ -124,9 +128,9 @@ test.describe('model health checks', () => {
     await expect(row.getByText('OK', { exact: true })).toBeVisible();
     await expect(check).toBeEnabled();
 
-    // The response text lands in the expandable details.
-    await showHealthDetails(page, E2E_HEALTH_OK_MODEL);
-    await expect(expandedRow(page, E2E_HEALTH_OK_MODEL).getByText('ok', { exact: true })).toBeVisible();
+    // The reply is readable right in the row; nothing is folded away.
+    await expect(healthReply(page, E2E_HEALTH_OK_MODEL)).toHaveText('Model reply ok');
+    await expect(row.getByRole('button', { name: 'Toggle row details' })).toHaveCount(0);
 
     // The upstream saw exactly the pinned prompt, nothing else.
     const stats = await relayStats();
@@ -155,7 +159,7 @@ test.describe('model health checks', () => {
     await selectProvider(page, E2E_HEALTH_ALIAS_A);
     await page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL}`, { exact: true }).check();
     await page.getByLabel(`Select ${E2E_HEALTH_OK_2_MODEL}`, { exact: true }).check();
-    await page.getByLabel(`Select ${E2E_HEALTH_UNEXPECTED_MODEL}`, { exact: true }).check();
+    await page.getByLabel(`Select ${E2E_HEALTH_CHATTY_MODEL}`, { exact: true }).check();
 
     // Selection survives switching providers: check a model of the second
     // provider, then confirm the first provider's checks are still there.
@@ -185,23 +189,24 @@ test.describe('model health checks', () => {
     expect(stats.by_model).toEqual({
       [E2E_HEALTH_OK_MODEL]: 1,
       [E2E_HEALTH_OK_2_MODEL]: 1,
-      [E2E_HEALTH_UNEXPECTED_MODEL]: 1,
+      [E2E_HEALTH_CHATTY_MODEL]: 1,
       [E2E_HEALTH_FAIL_MODEL]: 1,
     });
     for (const body of stats.bodies) {
       assertHealthRequestShape(body, String(body.model));
     }
 
-    // Each outcome is displayed on its own row; the unexpected reply and the
-    // upstream error are readable in the expandable details.
+    // Each outcome is displayed on its own row. A model that answers something
+    // other than the prompt's literal "ok" still passes, and shows what it said;
+    // the upstream error is readable in the expandable details.
     await expect(modelRow(page, E2E_HEALTH_OK_MODEL).getByText('OK', { exact: true })).toBeVisible();
     await expect(modelRow(page, E2E_HEALTH_OK_2_MODEL).getByText('OK', { exact: true })).toBeVisible();
-    await expect(modelRow(page, E2E_HEALTH_UNEXPECTED_MODEL).getByText('Unexpected reply')).toBeVisible();
-    await showHealthDetails(page, E2E_HEALTH_UNEXPECTED_MODEL);
-    await expect(expandedRow(page, E2E_HEALTH_UNEXPECTED_MODEL).getByText('hello')).toBeVisible();
+    await expect(modelRow(page, E2E_HEALTH_CHATTY_MODEL).getByText('OK', { exact: true })).toBeVisible();
+    await expect(healthReply(page, E2E_HEALTH_CHATTY_MODEL)).toHaveText('Model reply hello');
 
     await selectProvider(page, E2E_HEALTH_ALIAS_B);
     await expect(modelRow(page, E2E_HEALTH_FAIL_MODEL).getByText('Failed', { exact: true })).toBeVisible();
+    await expect(healthReply(page, E2E_HEALTH_FAIL_MODEL)).toHaveCount(0);
     await showHealthDetails(page, E2E_HEALTH_FAIL_MODEL);
     await expect(expandedRow(page, E2E_HEALTH_FAIL_MODEL).getByText(/fixture upstream failure/)).toBeVisible();
 
@@ -222,26 +227,26 @@ test.describe('model health checks', () => {
     // Hold the slow model upstream before the batch starts, so the fast result
     // settling next to a still-"Checking…" row does not depend on timing: the
     // slow request cannot settle until released.
-    await holdHealthGate(E2E_HEALTH_UNEXPECTED_MODEL);
+    await holdHealthGate(E2E_HEALTH_CHATTY_MODEL);
     try {
       await page.getByLabel(`Select ${E2E_HEALTH_OK_MODEL}`, { exact: true }).check();
-      await page.getByLabel(`Select ${E2E_HEALTH_UNEXPECTED_MODEL}`, { exact: true }).check();
+      await page.getByLabel(`Select ${E2E_HEALTH_CHATTY_MODEL}`, { exact: true }).check();
       await page.getByRole('button', { name: 'Test', exact: true }).click();
 
       // The fast row already shows its status and timing while the slow row is
       // still in flight — a finished and a running check coexist row by row.
       const fast = modelRow(page, E2E_HEALTH_OK_MODEL);
-      const slow = modelRow(page, E2E_HEALTH_UNEXPECTED_MODEL);
+      const slow = modelRow(page, E2E_HEALTH_CHATTY_MODEL);
       await expect(fast.getByText('OK', { exact: true })).toBeVisible();
       await expect(fast.getByText(/First response/)).toBeVisible();
       await expect(slow.getByText('Testing…')).toBeVisible();
 
       // The slow check settles once released.
-      await releaseHealthGate(E2E_HEALTH_UNEXPECTED_MODEL);
-      await expect(slow.getByText('Unexpected reply')).toBeVisible({ timeout: 15_000 });
+      await releaseHealthGate(E2E_HEALTH_CHATTY_MODEL);
+      await expect(slow.getByText('OK', { exact: true })).toBeVisible({ timeout: 15_000 });
       expect((await relayStats()).total).toBe(2);
     } finally {
-      await releaseHealthGate(E2E_HEALTH_UNEXPECTED_MODEL);
+      await releaseHealthGate(E2E_HEALTH_CHATTY_MODEL);
     }
   });
 

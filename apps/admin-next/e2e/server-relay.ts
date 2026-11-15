@@ -10,11 +10,11 @@ import type { ServerType } from '@hono/node-server';
 import { startFixtureServer } from '../../../test/helpers.ts';
 import {
   E2E_ACCEPTED_RELAY_KEYS,
+  E2E_HEALTH_CHATTY_MODEL,
   E2E_HEALTH_FAIL_MODEL,
   E2E_HEALTH_OK_2_MODEL,
   E2E_HEALTH_OK_MODEL,
   E2E_HEALTH_PROMPT,
-  E2E_HEALTH_UNEXPECTED_MODEL,
   E2E_MERGE_MODEL,
   E2E_MERGE_SUGGESTION,
   E2E_RELAY_DISCOVERED_MODELS,
@@ -62,18 +62,18 @@ function sleep(ms: number): Promise<void> {
 
 /**
  * The upstream answers per requested model id: `health-ok*` streams the
- * expected reply, `health-unexpected` streams a different one, `health-fail`
+ * literal `ok`, `health-chatty` streams a different reply, `health-fail`
  * answers HTTP 500, and everything else is unknown.
  */
-function healthBehavior(model: string): 'ok' | 'merge' | 'unexpected' | 'http-error' | 'unknown' {
+function healthBehavior(model: string): 'ok' | 'merge' | 'chatty' | 'http-error' | 'unknown' {
   if (model === E2E_HEALTH_OK_MODEL || model === E2E_HEALTH_OK_2_MODEL) {
     return 'ok';
   }
   if (model === E2E_MERGE_MODEL) {
     return 'merge';
   }
-  if (model === E2E_HEALTH_UNEXPECTED_MODEL) {
-    return 'unexpected';
+  if (model === E2E_HEALTH_CHATTY_MODEL) {
+    return 'chatty';
   }
   if (model === E2E_HEALTH_FAIL_MODEL) {
     return 'http-error';

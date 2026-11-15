@@ -327,7 +327,8 @@ export function lookupModelMetadata(body: LookupMetadataRequest): Promise<Lookup
   });
 }
 
-export type HealthCheckStatus = 'ok' | 'unexpected_response' | 'error';
+/** `ok` means the model finished a non-empty reply; what it said is in `response_text`. */
+export type HealthCheckStatus = 'ok' | 'error';
 
 export interface HealthCheckResult {
   readonly provider: string;

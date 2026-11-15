@@ -54,14 +54,14 @@ export const E2E_MERGE_SUGGESTION = {
 /**
  * Health-check fixture: providers 16-model-health creates through the API and
  * the model ids whose upstream behavior is canned by id — `health-ok` and
- * `health-ok-2` stream the expected reply, `health-unexpected` streams a
- * different one, and `health-fail` answers HTTP 500.
+ * `health-ok-2` stream the literal `ok`, `health-chatty` streams a different
+ * reply that is just as healthy, and `health-fail` answers HTTP 500.
  */
 export const E2E_HEALTH_ALIAS_A = 'health-a';
 export const E2E_HEALTH_ALIAS_B = 'health-b';
 export const E2E_HEALTH_OK_MODEL = 'health-ok';
 export const E2E_HEALTH_OK_2_MODEL = 'health-ok-2';
-export const E2E_HEALTH_UNEXPECTED_MODEL = 'health-unexpected';
+export const E2E_HEALTH_CHATTY_MODEL = 'health-chatty';
 export const E2E_HEALTH_FAIL_MODEL = 'health-fail';
 /** The fixed prompt the health check must send, verbatim, as its only message. */
 export const E2E_HEALTH_PROMPT = 'reply with extract content: ok';

@@ -59,7 +59,7 @@ export const page = {
   checkSelected: 'Test',
   checking: 'Testing…',
   healthOk: 'OK',
-  healthUnexpected: 'Unexpected reply',
+  healthReplyLabel: 'Model reply',
   healthError: 'Failed',
   ttfbUnavailable: 'unavailable',
   healthTiming: 'First response {{ttfb}}, total {{duration}}',
