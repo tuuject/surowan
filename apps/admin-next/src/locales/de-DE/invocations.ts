@@ -81,6 +81,13 @@ export const invocations: Catalog<typeof invocationsEn> = {
       configHash: 'Konfigurations-Hash',
       promptVersion: 'Prompt-Version',
       toolRegistryHash: 'Hash der Tool-Registry',
+      resumedFrom: 'Fortgesetzt von',
+      resumedBy: 'Fortgesetzt als',
+    },
+    resume: {
+      action: 'Fortsetzen',
+      hint: 'Führt diese Unterhaltung mit der aktuellen Konfiguration echt weiter. Der Bot kann Nachrichten senden und Kosten verursachen.',
+      queued: 'Als Aufruf {{id}} fortgesetzt',
     },
     toolRegistry: {
       title: 'Tool-Registry',

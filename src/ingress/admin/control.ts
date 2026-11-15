@@ -16,8 +16,25 @@ import {
   withAgentModel,
 } from '../../orchestration/model-switch.ts';
 import { modelInUseBody } from './model-switch.ts';
+import type { HostReadiness } from '../../orchestration/host-scope.ts';
+import { type ResumeBlockReason, resumeInvocation } from '../../orchestration/invocation-queue/resume.ts';
+import { parseId } from './audit/shared.ts';
 import { cancelOngoingSessions } from './operations.ts';
 import { listProviderPresets, supervisedRestartEnabled } from './providers/read.ts';
+
+/** Why a resume was refused, worded for the operator who clicked it. */
+const RESUME_REFUSALS: Readonly<Record<Exclude<ResumeBlockReason, 'not_found'>, string>> = {
+  not_failed: 'Only a failed, aborted or outcome-unknown invocation can be resumed',
+  not_latest: 'A later invocation exists in this conversation; only the latest one can be resumed',
+  conversation_busy: 'This conversation already has a queued or running invocation',
+  unsupported_host: 'Playground invocations retry through their Release instead',
+  host_unavailable: 'Telegram is disabled or not connected, so the run could not start',
+  sleeping: 'The bot is sleeping until its daily token budget resets; wake it first',
+  chat_removed: 'The chat is no longer configured',
+  agent_unconfigured: 'The chat has no complete agent model configuration',
+  chat_paused: 'The chat is paused',
+  topic_removed: 'The topic is no longer allowed for this chat',
+};
 
 /** Model reference problems are user errors; everything else is a conflict. */
 const MODEL_ERROR_STATUS: Partial<Record<ConfigErrorCode, number>> = {
@@ -37,15 +54,18 @@ export interface ControlAdminDeps {
   readonly tasks: LongTaskService;
   readonly modelSwitcher: AgentModelSwitcher | undefined;
   readonly requestRestart: (() => void) | undefined;
+  /** Live host readiness, the same question the Scheduler asks before launching. */
+  readonly isHostReady: HostReadiness;
 }
 
 /**
- * The runtime controls of `/api`: session cancellation and wake, alarm
- * cancellation, the live model switch, provider presets, restart, and the
- * configuration reload endpoints.
+ * The runtime controls of `/api`: session cancellation and wake, resuming a
+ * failed invocation, alarm cancellation, the live model switch, provider
+ * presets, restart, and the configuration reload endpoints.
  */
 export function createControlAdminHandler(deps: ControlAdminDeps) {
-  const { store, configStore, configReloader, secrets, scheduler, tasks, modelSwitcher, requestRestart } = deps;
+  const { store, configStore, configReloader, secrets, scheduler, tasks, modelSwitcher, requestRestart, isHostReady } =
+    deps;
 
   const modelState = (
     switcher: AgentModelSwitcher,
@@ -212,6 +232,38 @@ export function createControlAdminHandler(deps: ControlAdminDeps) {
         const running = scheduler?.abortAll() ?? 0;
         scheduler?.wake();
         return json({ ...result, canceled_invocations: result.canceled_invocations + running });
+      }
+      if (
+        segments[0] === 'invocations' &&
+        segments.length === 3 &&
+        segments[2] === 'resume' &&
+        request.method === 'POST'
+      ) {
+        const source = parseId(segments[1] ?? '', 'id');
+        const result = resumeInvocation(store, configStore, source, isHostReady);
+        if (!result.ok) {
+          return result.reason === 'not_found'
+            ? json({ error: 'not_found', message: 'Invocation does not exist' }, 404)
+            : json({ error: `resume_${result.reason}`, message: RESUME_REFUSALS[result.reason] }, 409);
+        }
+        console.log(
+          JSON.stringify({
+            event: 'admin_invocation_resumed',
+            resumed_from_invocation_id: source.toString(),
+            invocation_id: result.invocationId.toString(),
+            username,
+            at: new Date().toISOString(),
+          }),
+        );
+        scheduler?.wake();
+        return json(
+          {
+            invocation_id: result.invocationId.toString(),
+            bucket_id: result.bucketId.toString(),
+            resumed_from_invocation_id: source.toString(),
+          },
+          202,
+        );
       }
       if (route === 'wake' && request.method === 'POST') {
         const wasSleeping = wakeFromSleep(store.orm);

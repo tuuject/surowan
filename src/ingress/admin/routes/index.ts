@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import type { HostReadiness } from '../../../orchestration/host-scope.ts';
 import type { BucketScheduler } from '../../../orchestration/scheduler/index.ts';
 import { LongTaskService } from '../../../store/long-tasks/index.ts';
 import { MemoBlobStore } from '../../../context/memo-pad/blobs.ts';
@@ -68,6 +69,8 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
   // Tests and standalone panels may have no connection manager; a fresh registry
   // reports every namespace as disabled, which is the truthful default.
   const connections = options.connections ?? new ImConnectionRegistry();
+  // A room is always ready; Telegram only while its connection can run work.
+  const isHostReady: HostReadiness = (host) => host === 'playground' || connections.isReady(host);
   const tasks = options.tasks ?? new LongTaskService(options.store.orm, () => scheduler?.wake());
   const image =
     imageService === undefined || imageBridge === undefined
@@ -100,6 +103,7 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       tasks,
       modelSwitcher: options.modelSwitcher,
       requestRestart: options.requestRestart,
+      isHostReady,
     }),
     tuning: createTuningAdminHandler({
       store: options.store,
@@ -167,6 +171,7 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       replayPreflight: options.replayPreflight,
       invocationPrompts: options.invocationPrompts,
       readInvocationMedia,
+      isHostReady,
     }),
     warnings: createWarningsAdminHandler({
       warnings,

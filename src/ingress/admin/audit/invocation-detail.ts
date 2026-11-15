@@ -18,6 +18,8 @@ interface InvocationDetailRow extends InvocationListRow {
   readonly tool_registry_hash: string | null;
   readonly tool_registry_json: string | null;
   readonly bucket_id: bigint;
+  readonly resumed_from_invocation_id: bigint | null;
+  readonly resumed_by_invocation_id: bigint | null;
 }
 
 export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | null {
@@ -25,6 +27,8 @@ export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | n
     .all<InvocationDetailRow>(sql`SELECT i.id, i.state, i.created_at, i.started_at, i.finished_at, i.completion_reason, i.error_code,
               i.sends_used, i.tool_calls_used, i.turns_used, i.side_effect_started, i.config_hash,
               i.prompt_version, i.tool_registry_hash, i.tool_registry_json, i.bucket_id,
+              i.resumed_from_invocation_id,
+              (SELECT MAX(r.id) FROM invocations r WHERE r.resumed_from_invocation_id = i.id) AS resumed_by_invocation_id,
               ${INVOCATION_CHAT_COLUMNS},
               (SELECT COUNT(*) FROM tool_calls tc WHERE tc.invocation_id = i.id) AS tool_call_count,
               (SELECT COALESCE(SUM(COALESCE(mc.input_tokens, 0) + COALESCE(mc.output_tokens, 0) + COALESCE(mc.cache_read_tokens, 0) + COALESCE(mc.cache_write_tokens, 0)), 0) FROM model_calls mc WHERE mc.invocation_id = i.id) AS total_tokens,
@@ -149,6 +153,8 @@ export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | n
     prompt_version: Number(invocation.prompt_version),
     tool_registry_hash: invocation.tool_registry_hash,
     tool_registry: parseToolRegistry(invocation.tool_registry_json),
+    resumed_from_invocation_id: invocation.resumed_from_invocation_id?.toString() ?? null,
+    resumed_by_invocation_id: invocation.resumed_by_invocation_id?.toString() ?? null,
     chat: invocationChat(invocation),
     total_tokens: Number(invocation.total_tokens),
     cache_read_tokens: Number(invocation.cache_read_tokens),

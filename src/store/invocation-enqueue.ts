@@ -15,6 +15,8 @@ export interface QueuedInvocationInput {
   readonly configHash: string;
   readonly promptVersion: bigint;
   readonly createdAt: string;
+  /** Set only by an administrator's resume of a failed run. */
+  readonly resumedFromInvocationId?: bigint;
 }
 
 /** Insert a queued invocation and attach its bucket. */
@@ -28,6 +30,9 @@ export function enqueueInvocation(orm: Orm, input: QueuedInvocationInput): bigin
       configHash: input.configHash,
       promptVersion: input.promptVersion,
       createdAt: input.createdAt,
+      ...(input.resumedFromInvocationId === undefined
+        ? {}
+        : { resumedFromInvocationId: input.resumedFromInvocationId }),
     })
     .returning({ id: invocations.id })
     .get();

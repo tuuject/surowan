@@ -1,3 +1,6 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
+import { Button } from '@tuuject/koi-react/button';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,10 +14,58 @@ import {
   TextValue,
   TimeText,
 } from '@/components/business';
+import { PlayIcon } from '@/components/icons';
 import { Panel } from '@/components/layout/panel';
 import { AppLink } from '@/components/router-links';
-import type { InvocationDetail, ToolRegistryEntry } from '@/lib/api/invocations.ts';
+import { type InvocationDetail, resumeInvocation, type ToolRegistryEntry } from '@/lib/api/invocations.ts';
+import { errorMessage } from '@/lib/errors';
 import { formatCost, formatNumber } from '@/lib/format';
+import { toast } from '@/lib/toast.ts';
+
+/**
+ * One click queues a real run that continues this failed invocation with the
+ * current configuration. The server offers it only for the latest run of its
+ * conversation, so the button appears exactly when the click would be accepted.
+ */
+function ResumeButton({ invocationId }: { readonly invocationId: string }): ReactElement {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const resume = useMutation({
+    mutationFn: () => resumeInvocation(invocationId),
+    onSuccess: (result) => {
+      toast.success(t('invocations.invocationDetail.resume.queued', { id: result.invocation_id }));
+      void navigate({ to: '/invocations/$invocationId', params: { invocationId: result.invocation_id } });
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+    // A refusal usually means the page is stale (another operator resumed it,
+    // or the chat changed); refetching hides a button that can no longer work.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['invocation', invocationId] });
+      void queryClient.invalidateQueries({ queryKey: ['invocations'] });
+    },
+  });
+  return (
+    <Button
+      type="button"
+      size="sm"
+      title={t('invocations.invocationDetail.resume.hint')}
+      disabled={resume.isPending}
+      onClick={() => resume.mutate()}
+    >
+      <PlayIcon size={14} />
+      {t('invocations.invocationDetail.resume.action')}
+    </Button>
+  );
+}
+
+function InvocationLink({ id }: { readonly id: string }): ReactElement {
+  return (
+    <AppLink to="/invocations/$invocationId" params={{ invocationId: id }}>
+      {id}
+    </AppLink>
+  );
+}
 
 function ToolRegistryTable({ registry }: { readonly registry: readonly ToolRegistryEntry[] }): ReactElement {
   const { t } = useTranslation();
@@ -56,11 +107,30 @@ function ToolRegistryTable({ registry }: { readonly registry: readonly ToolRegis
 export function DetailHeader({ invocation }: { readonly invocation: InvocationDetail }): ReactElement {
   const { t } = useTranslation();
   return (
-    <Panel title={t('invocations.invocationDetail.summary')}>
+    <Panel
+      title={t('invocations.invocationDetail.summary')}
+      {...(invocation.resume.available ? { action: <ResumeButton invocationId={invocation.id} /> } : {})}
+    >
       <div className={css({ display: 'flex', flexDirection: 'column', gap: '5' })}>
         <KvList
           items={[
             { label: t('invocations.invocationDetail.kv.state'), value: <StateBadge state={invocation.state} /> },
+            ...(invocation.resumed_from_invocation_id === null
+              ? []
+              : [
+                  {
+                    label: t('invocations.invocationDetail.kv.resumedFrom'),
+                    value: <InvocationLink id={invocation.resumed_from_invocation_id} />,
+                  },
+                ]),
+            ...(invocation.resumed_by_invocation_id === null
+              ? []
+              : [
+                  {
+                    label: t('invocations.invocationDetail.kv.resumedBy'),
+                    value: <InvocationLink id={invocation.resumed_by_invocation_id} />,
+                  },
+                ]),
             {
               label: t('invocations.invocationDetail.kv.completionReason'),
               value: <TextValue value={invocation.completion_reason} />,

@@ -2,9 +2,10 @@ import type { EndpointSpec } from '../types.ts';
 
 /**
  * The panel's read-only audit pages and the invocation inspection/replay
- * surface. The invocation rows are `cli: false` because the CLI already has
- * first-class handlers for them; they still belong here so MCP and API-key
- * authorization use the same table.
+ * surface. The inspection and replay rows are `cli: false` because the CLI
+ * already has first-class handlers for them; they still belong here so MCP and
+ * API-key authorization use the same table. `invocation resume` is a plain
+ * panel row: a panel route wins over the first-class group of the same name.
  */
 export const AUDIT_SPECS: readonly EndpointSpec[] = [
   {
@@ -71,6 +72,16 @@ export const AUDIT_SPECS: readonly EndpointSpec[] = [
     access: 'paid',
     confirm: 'paid',
     summary: 'Replay an invocation with the current configuration; calls a model and may incur charges',
+  },
+  {
+    command: 'invocation resume',
+    method: 'POST',
+    path: 'invocations/:id/resume',
+    positional: [{ name: 'id', kind: 'decimal' }],
+    access: 'write+paid',
+    confirm: 'paid',
+    summary:
+      'Resume the latest failed invocation of its conversation for real with the current configuration; the bot may send messages and incur charges',
   },
   {
     command: 'config view',

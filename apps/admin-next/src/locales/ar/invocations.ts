@@ -117,6 +117,13 @@ export const invocations: CompleteCatalog<typeof invocationsEn> = {
       configHash: 'بصمة الإعدادات',
       promptVersion: 'إصدار التوجيه',
       toolRegistryHash: 'بصمة سجل الأدوات',
+      resumedFrom: 'استُؤنف من',
+      resumedBy: 'استُؤنف بوصفه',
+    },
+    resume: {
+      action: 'استئناف',
+      hint: 'يعيد تشغيل هذه المحادثة فعليًا بالإعدادات الحالية، وقد يرسل البوت رسائل وتترتب على ذلك تكاليف.',
+      queued: 'استُؤنف بوصفه الاستدعاء {{id}}',
     },
     toolRegistry: {
       title: 'سجل الأدوات',

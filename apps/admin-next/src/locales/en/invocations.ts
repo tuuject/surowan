@@ -84,6 +84,13 @@ export const invocations = {
       configHash: 'Config hash',
       promptVersion: 'Prompt version',
       toolRegistryHash: 'Tool registry hash',
+      resumedFrom: 'Resumed from',
+      resumedBy: 'Resumed by',
+    },
+    resume: {
+      action: 'Resume',
+      hint: 'Runs this conversation again for real with the current configuration. The bot may send messages and incur charges.',
+      queued: 'Resumed as invocation {{id}}',
     },
     toolRegistry: {
       title: 'Tool registry',
