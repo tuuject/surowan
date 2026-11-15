@@ -116,6 +116,9 @@ function invocation(overrides: Partial<InvocationDetail> = {}): InvocationDetail
     agent_messages: [],
     telegram_sends: [],
     context_messages: [],
+    resumed_from_invocation_id: null,
+    resumed_by_invocation_id: null,
+    resume: { available: false, reason: 'resume_not_failed' },
     ...overrides,
   };
 }

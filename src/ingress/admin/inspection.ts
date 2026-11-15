@@ -9,6 +9,7 @@ import type { BusinessStore } from '../../store/store.ts';
 import { listActiveTextModels } from '../../platform/models/switch.ts';
 import { ThinkingLevelSchema } from '../../platform/config/schema-model.ts';
 import { listAlarms } from '../../plugins/alarm/admin.ts';
+import { resumeBlockReason } from '../../orchestration/invocation-queue/resume.ts';
 import { REPLAY_BODY_MAX_BYTES, SECURITY_HEADERS, json, listQuery, readJsonObject } from './http.ts';
 import { AdminQueryError, parseId } from './audit/shared.ts';
 import { getConversationContext, listConversationContexts } from './audit/conversations.ts';
@@ -289,8 +290,18 @@ export function createInspectionAdminHandler(deps: InspectionAdminDeps) {
       return json(redactInspection(listInvocations(store.orm, query, configStore.current().config), secrets, token));
     }
     if (segments[0] === 'invocations' && segments.length === 2) {
-      const found = getInvocation(store.orm, parseId(segments[1] ?? '', 'id'));
-      return found === null ? json({ error: 'not_found', message: 'Invocation does not exist' }, 404) : json(found);
+      const id = parseId(segments[1] ?? '', 'id');
+      const found = getInvocation(store.orm, id);
+      if (found === null) {
+        return json({ error: 'not_found', message: 'Invocation does not exist' }, 404);
+      }
+      // The same rule `POST invocations/:id/resume` enforces, so the panel only
+      // offers the button when the click would be accepted right now.
+      const blocked = resumeBlockReason(store.orm, configStore.current().config, id, new Date());
+      return json({
+        ...found,
+        resume: { available: blocked === undefined, reason: blocked === undefined ? null : `resume_${blocked}` },
+      });
     }
     if (route === 'contexts') {
       return json(listConversationContexts(store.orm, query));

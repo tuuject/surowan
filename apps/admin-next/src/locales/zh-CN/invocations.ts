@@ -79,6 +79,13 @@ export const invocations: typeof invocationsEn = {
       configHash: '配置哈希',
       promptVersion: '提示词版本',
       toolRegistryHash: '工具注册表哈希',
+      resumedFrom: '续跑自',
+      resumedBy: '已续跑为',
+    },
+    resume: {
+      action: '续跑',
+      hint: '用当前配置真实地重新运行这个会话，Bot 可能会发消息并产生费用。',
+      queued: '已续跑为运行 {{id}}',
     },
     toolRegistry: {
       title: '工具注册表',

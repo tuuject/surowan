@@ -131,6 +131,17 @@ export interface InvocationDetail extends InvocationListItem {
   readonly agent_messages: readonly AgentMessageEntry[];
   readonly telegram_sends: readonly TelegramSendEntry[];
   readonly context_messages: readonly ContextMessageEntry[];
+  /** The failed run this one resumed, and the latest run that resumed this one. */
+  readonly resumed_from_invocation_id: string | null;
+  readonly resumed_by_invocation_id: string | null;
+  /** Whether `POST /invocations/:id/resume` would be accepted right now; `reason` is its refusal code. */
+  readonly resume: { readonly available: boolean; readonly reason: string | null };
+}
+
+export interface ResumeInvocationResult {
+  readonly invocation_id: string;
+  readonly bucket_id: string;
+  readonly resumed_from_invocation_id: string;
 }
 
 export function listInvocations(filters: ListFilters): Promise<Page<InvocationListItem>> {
@@ -139,4 +150,9 @@ export function listInvocations(filters: ListFilters): Promise<Page<InvocationLi
 
 export function getInvocation(id: string): Promise<InvocationDetail> {
   return call<InvocationDetail>(`/invocations/${encodeURIComponent(id)}`);
+}
+
+/** Queues a real run that continues the latest failed invocation of its conversation. */
+export function resumeInvocation(id: string): Promise<ResumeInvocationResult> {
+  return call<ResumeInvocationResult>(`/invocations/${encodeURIComponent(id)}/resume`, { method: 'POST' });
 }

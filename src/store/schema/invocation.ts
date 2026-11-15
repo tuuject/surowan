@@ -89,6 +89,11 @@ export const invocations = sqliteTable(
     turnsUsed: sqliteBigInt('turns_used').notNull().default(0n),
     sideEffectStarted: integer('side_effect_started', { mode: 'boolean' }).notNull().default(false),
     createdAt: text('created_at').notNull(),
+    /** The failed run an administrator resumed with this one; cleared when that run is purged. */
+    resumedFromInvocationId: sqliteBigInt('resumed_from_invocation_id').references(
+      (): AnySQLiteColumn => invocations.id,
+      { onDelete: 'set null' },
+    ),
   },
   (t) => [
     check(
@@ -97,6 +102,7 @@ export const invocations = sqliteTable(
     ),
     uniqueIndex('one_running_invocation_per_conversation').on(t.conversationId).where(sql`state = 'running'`),
     index('invocations_queue_idx').on(t.state, t.id),
+    index('invocations_resumed_from_idx').on(t.resumedFromInvocationId),
   ],
 );
 

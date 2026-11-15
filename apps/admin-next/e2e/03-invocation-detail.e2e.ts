@@ -3,8 +3,9 @@ import { adminUrl, test } from './helpers.ts';
 
 /**
  * Invocation detail contract: the six tabs render their real fields, failed
- * calls expose a stable error code with expandable redacted details, and
- * assistant text carries the "Private reasoning" marker.
+ * calls expose a stable error code with expandable redacted details,
+ * assistant text carries the "Private reasoning" marker, and only the latest
+ * failed run of a conversation offers a one-click Resume.
  */
 test.use({ signedIn: true });
 
@@ -143,5 +144,37 @@ test.describe('failed invocation (4002)', () => {
     await expect(tabpanel.getByText('cot that never reached an answer')).toHaveCount(0);
     await summary.click();
     await expect(tabpanel.getByText('cot that never reached an answer')).toBeVisible();
+  });
+});
+
+test.describe('resuming the latest failed invocation', () => {
+  test('only the newest failed run of a conversation offers Resume, and one click queues a linked run', async ({
+    page,
+  }) => {
+    // 4002 failed, but the seeded conversation moved on to 4100..4127 since.
+    await page.goto(await adminUrl('/invocations/4002'));
+    await expect(page.getByText('Invocation 4002').first()).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Resume' })).toHaveCount(0);
+
+    await page.goto(await adminUrl('/invocations/4127'));
+    await expect(page.getByText('Invocation 4127').first()).toBeVisible();
+    await page.getByRole('button', { name: 'Resume' }).click();
+
+    await expect(page).not.toHaveURL(/\/invocations\/4127$/);
+    const resumedId = /\/invocations\/(\d+)$/.exec(page.url())?.[1];
+    expect(Number(resumedId)).toBeGreaterThan(4127);
+    await expect(page.getByText(`Resumed as invocation ${resumedId}`)).toBeVisible();
+    await expect(page.getByText(`Invocation ${resumedId}`).first()).toBeVisible();
+    // The queued run links back and is not resumable itself.
+    await expect(page.getByText('Resumed from')).toBeVisible();
+    await expect(page.getByRole('link', { name: '4127', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Resume' })).toHaveCount(0);
+
+    // The failed run links forward and no longer offers a second resume.
+    await page.getByRole('link', { name: '4127', exact: true }).click();
+    await expect(page.getByText('Invocation 4127').first()).toBeVisible();
+    await expect(page.getByText('Resumed by')).toBeVisible();
+    await expect(page.getByRole('link', { name: resumedId ?? '', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Resume' })).toHaveCount(0);
   });
 });

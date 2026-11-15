@@ -103,6 +103,7 @@ printf '%s' "$NEW_PROMPT" | surowan-utils prompt save global --file - --json
 | `dictionary merge preview` | 用 tool model 生成融合建议（不写库） |
 | `image generation create` / `image generation retry` | 真实生图；同 `idempotency_key` 同内容重放不重复计费 |
 | `room release` / `room release retry` | 封住房间输入并运行真实 Agent |
+| `invocation resume <id>` | 续跑所在 Conversation 最新一次失败的 Telegram Invocation：用当前配置真实运行，Bot 可能重复发送已发过的消息；同时需要写与计费权限，非最新、仍有排队/运行或 Bot 睡眠时返回 409 `resume_*` |
 
 授权必须覆盖目标、次数与可选覆盖（模型/thinking/图片参数）。授权一次不代表可以批量或自动重试。
 

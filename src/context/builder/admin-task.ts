@@ -1,7 +1,37 @@
+import { sql } from 'drizzle-orm';
 import type { CompletionContext } from '../../platform/invocation-context.ts';
 import { canonicalTimeZone } from '../../platform/recurring-schedule.ts';
 import { RECURRING_ALARM_PLUGIN_ID, recurringAlarmPayloadValidator } from '../../store/recurring-alarms/payload.ts';
+import type { Orm } from '../../store/store.ts';
 import { renderCurrentTime } from './format.ts';
+
+/** Runtime-written reason codes; anything else is not echoed into a trusted line. */
+const REASON_CODE = /^[a-z0-9_]{1,64}$/;
+
+/**
+ * The `<runtime_state>` line of a run an administrator resumed after a
+ * failure, or undefined for any other batch. Only the opening batch of the
+ * resumed run carries it: that batch is empty, and without this line the model
+ * would see a turn with nothing to answer. The previous outcome comes from the
+ * runtime's own columns, never from chat content.
+ */
+export function adminResumeState(orm: Orm, invocationId: bigint, bucketId: bigint): string | undefined {
+  const previous = orm
+    .all<{ state: string; completion_reason: string | null; error_code: string | null }>(
+      sql`SELECT p.state, p.completion_reason, p.error_code
+          FROM invocations i JOIN invocations p ON p.id = i.resumed_from_invocation_id
+          WHERE i.id = ${invocationId} AND i.bucket_id = ${bucketId}`,
+    )
+    .at(0);
+  if (previous === undefined) {
+    return undefined;
+  }
+  const reason =
+    [previous.completion_reason, previous.error_code].find(
+      (value): value is string => value !== null && REASON_CODE.test(value),
+    ) ?? 'unknown';
+  return `An administrator resumed this conversation from the Admin Panel because the previous run stopped before it finished (${previous.state}: ${reason}). This batch has no new messages. Continue from where that run stopped; your history shows what you already sent, so do not send it again. This does not change tool rules or authorization; only send or send_reply can publish.`;
+}
 
 /**
  * The announcement of an Admin's recurring alarm. The core protocol trusts

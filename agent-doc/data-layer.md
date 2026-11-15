@@ -107,6 +107,8 @@ SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是
 
 `invocation_buckets` 是 Bucket 到 Invocation 的 join 表：长生命周期的 Invocation 会消费多个 Bucket，`invocations.bucket_id` 只保留「开场 Bucket」这一历史字段。完成回执在 claim 时各自创建一个无消息的 Bucket，以唯一的非空 `task_receipts.bucket_id` 关联；尚未 claim 的 receipt 仍可没有 Bucket。同一 Invocation 可通过多个 join 行消费多个 receipt。receipt 的 Bucket 不含 `bucket_messages`，但仍参与注入、终态、重排与过期处理。
 
+迁移 `060` 给 `invocations` 加可空的 `resumed_from_invocation_id`（自引用，`ON DELETE SET NULL`，带索引 `invocations_resumed_from_idx`）：管理员续跑最新失败运行时，新 Invocation 指向被续跑的那一次。续跑的开场 Bucket 同样无 `bucket_messages`，失败批次不重新冻结；链接只是审计，源运行被保留清理或随 Chat 删除时置空，索引让这次置空不必为每个被删行扫全表。语义见 [admin-panel.md](admin-panel.md#invocation-续跑)。
+
 - 主键 `(invocation_id, bucket_id)`，`attached_at` 是挂载时间。
 - `injected_at` 为 `NULL` 表示「已挂到该 Invocation，但还没进入模型 transcript」。Invocation 结束时 `releaseUninjectedBuckets` 把这些 Bucket（开场 Bucket 除外）重新排队成新的 Invocation，批次不会被静默丢弃。
 - Bucket 终态与重启恢复按 join 表判断：Invocation 结束时把它名下的所有 running Bucket 一起置为同一终态，进程重启时也只把这些 Bucket 标成 `aborted`/`outcome_unknown`。

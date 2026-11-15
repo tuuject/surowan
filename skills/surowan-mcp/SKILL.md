@@ -37,9 +37,10 @@ description: 通过 Surowan MCP Server 操作塑料碗 Admin Panel：先读取�
 
 ## 计费操作
 
-需要 `execute_paid_operations`；若同时改变状态（生图、Playground Release/Retry）还需要 `write_all`。每个计费工具都带 `confirm` 参数：调用前说明目标、次数、模型/覆盖与可能费用，取得明确授权后才传 `confirm: true`，且不要自动重试或批量尝试。
+需要 `execute_paid_operations`；若同时改变状态（生图、Playground Release/Retry、Invocation 续跑）还需要 `write_all`。每个计费工具都带 `confirm` 参数：调用前说明目标、次数、模型/覆盖与可能费用，取得明确授权后才传 `confirm: true`，且不要自动重试或批量尝试。
 
 - `surowan_invocation_replay`：先 `surowan_invocation_replay_preflight`，确认 `available` 与场景；重放不发送 Telegram、不改生产 Context，但真实调用模型并计费。可带 `global_prompt`/`group_prompt`/`before_send_id`/临时 `provider`+`model`/`thinking_level`；切片重放仍由服务端校验。
+- `surowan_invocation_resume`（需 `write_all` 与 `execute_paid_operations`）：续跑所在 Conversation 最新一次失败的 Telegram Invocation，是**真实**运行，会发 Telegram 消息、写生产 Context，可能重复已发内容。先 `surowan_invocation_show` 看 `resume.available`；为 false 时 `resume.reason` 就是会返回的 409 码，不要重试。
 - `surowan_provider_health_check`、`surowan_dictionary_merge_preview`、`surowan_image_generation_create`、`surowan_image_generation_retry`、`surowan_room_release`、`surowan_room_release_retry`。
 - `surowan_image_generation_resolve`、`surowan_dictionary_import_preview`、`surowan_invocation_replay_preflight` 是免费只读预检。
 

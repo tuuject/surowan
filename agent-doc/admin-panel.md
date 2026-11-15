@@ -206,6 +206,7 @@ CLI 的 `doctor` 用 `GET /api/key` + `GET /api/invocations?limit=1` 验证鉴�
 | `POST /pairing/claim` | 唯一无需任何凭据的写端点：用一次性 `pwp_` 配对码与公钥持有证明换取一个已配对客户端身份；不是 admin-surface spec，见「已配对 Agent 客户端」 |
 | `POST /wake` | 删除持久化睡眠状态并唤醒 Scheduler；幂等，重复调用保持 `awake` |
 | `POST /cancel-ongoing-sessions` | 中断所有 running Invocation（经 Scheduler abort），同时 abort queued Invocation、过期 `collecting`/`queued` Bucket 与已 attach 未注入的 Bucket，被中断的运行不会把批次重新排队；已发出的 Telegram 消息不撤回 |
+| `POST /invocations/:id/resume` | 续跑所在 Conversation 最新一次失败的 Telegram Invocation：排一个空批次的真实新运行，不带 body，成功 202 `{ invocation_id, bucket_id, resumed_from_invocation_id }`；Session 与 API key 都可调用，key 需同时持有 `write_all` 与 `execute_paid_operations`，见「Invocation 续跑」 |
 | `POST` / `PUT` / `DELETE /memories[/:id]` | Memo Pad 增改删，按 **Chat** 隔离（同群 Topic 共用，跨 Chat 不可见）。`POST` body `{ chat_id, summary, detail, ttl_seconds? }`：`chat_id` 是十进制 Telegram Chat ID，且该 Chat 必须已有 `chats` 行（否则 404 `chat_not_found`）；`ttl_seconds` 省略或 `null` 表示永久。`PUT` body `{ summary?, detail?, ttl_seconds? }` 至少要提供一项，`ttl_seconds: null` 把短期条目提升为永久，省略则保持原到期时间；detail 变化后，不再被同 Chat 任何 detail 引用的 Blob 行与文件随即清理。`DELETE` 删除条目并清理其孤立 Blob，不存在返回 404 `not_found`。id 必须是 `mem_<32hex>`，非法格式返回 400 `invalid_id` |
 | `POST /sticker-sets` / `PUT` / `DELETE /sticker-sets/:alias` | 编辑 `telegram.sticker_sets` 并热应用，见「Sticker sets 页端点」 |
 | `POST` / `DELETE /admins[/:id]` | 增删 `telegram.admins` 白名单并热应用；`:id` 是 Telegram 用户 ID 不是行 ID；添加幂等，删除不存在的 ID 返回 404 `not_found`；If-Match revision 规则同其它配置写端点 |
@@ -505,6 +506,16 @@ Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_
 
 响应（`version: 2`）包含 `replay_id`、来源 ID（invocation/conversation/chat/thread）、`scene`（cutoff、开场 Bucket、消息/历史/省略数量，切片时另含 `slice` 三元组与 `history_count: 0`）、实际使用的模型（`model: { provider, id, thinking_level }`，按临时覆盖或当前 Chat 配置解析）、`overrides`（两层各自是否被替换，以及临时覆盖的 `provider`/`model`/`thinking_level` 布尔）、`fidelity.model_selection`（`current_chat_config`/`temporary_override`）、`started_at`/`finished_at`/`latency_ms`、`completion_reason`、`responded`/`send_count`/`outputs`、`tool_calls`（含结果与 `is_error`）、`usage`（`model_calls` 是实际模型请求次数）、`trace`、`error` 与 `fidelity`。`fidelity.dispatches[].mode`（`synthetic`/`live_read`/`blocked`）是**调用走的分派路线，不是执行结果**：`blocked` 在拒绝抛出之前记录、`live_read` 在读取尝试之前记录，成功与否看 `tool_calls`。`trace` 是循环内每条消息的脱敏 JSON 投影（同一内容可能重复出现），1 MiB 上限约束的是投影总量，不代表完整 Provider 响应被完整封顶保留。模型决定不发言（0 个 `send`）是正常成功结果。
 
+## Invocation 续跑
+
+重放是隔离的沙箱；续跑相反，是**真实**的生产运行，用来替代「模型失败后先换模型、再随便发一条消息把会话戳起来」的人工流程。`POST /api/invocations/:id/resume` 由 `src/orchestration/invocation-queue/resume.ts` 在一个事务里判定并入队，`control.ts` 只做转发、记 `admin_invocation_resumed` 日志并唤醒 Scheduler。不接受 body，副作用不设条件：已发过的消息可能再发，`outcome_unknown` 也允许续跑。
+
+- **守卫**（`resumeBlockReason`，按序检查，409 错误码为 `resume_<reason>`）：源 Invocation 必须存在（否则 404 `not_found`）、状态是 `failed`/`aborted`/`outcome_unknown`（`not_failed`）、是所在 Conversation id 最大的一次（`not_latest`）、该 Conversation 没有 queued/running 的 Invocation（`conversation_busy`；回执投递会插队，id 更小的 queued 运行也算）、宿主是 Telegram（`unsupported_host`；Playground 房间走自己的 Release 重试账本）、通过与任务回执相同的 `deliveryBlockReason`（`chat_removed`/`agent_unconfigured`/`chat_paused`/`topic_removed`），且 Bot 不在睡眠（`sleeping`；否则 Scheduler 会把它静默跳过为 `skipped_budget`）。睡眠判断只读 `storedSleepUntil`，不清理过期行。
+- **入队**：新建一个空的 `queued` Bucket（`kind = 'realtime'`，计时列为 0），经 `enqueueInvocation` 建 queued Invocation 并写 `resumed_from_invocation_id`，再像任务回执一样带历史快照（`includeHistory = true`，canonical Context 已有的消息在渲染时去重）。运行时用的是启动那一刻的 active 配置，所以先切模型再点续跑，就是换模型重试。
+- **不重复注入**：失败运行的开场批次在模型调用前已经落进 canonical Context，报错的 assistant 消息被 codec 丢弃。续跑不拷贝源快照，只注入一个空批次，模型看到的历史与人工补一条消息时一致。
+- **可信说明**：`context/builder/admin-task.ts` 的 `adminResumeState` 只在「带 `resumed_from_invocation_id` 的 Invocation 的开场 Bucket」上，往 `<runtime_state>` 写一行：管理员从面板续跑、上次运行的状态与原因、本批无新消息、从中断处继续、别重复已发内容。原因取 `completion_reason`，其次 `error_code`，只回显 `^[a-z0-9_]{1,64}$` 的运行时代码，其余写 `unknown`。
+- **幂等与关联**：连点第二下时新运行已是最新，返回 409 `resume_not_latest`。`GET /invocations/:id` 额外返回 `resumed_from_invocation_id`、`resumed_by_invocation_id`（最新一次续跑它的运行）与 `resume: { available, reason }`，`reason` 是 POST 会返回的同一个错误码；面板只在 `available` 时显示按钮。源运行被保留清理或删 Chat 删除时，链接经 `ON DELETE SET NULL` 清空，不阻塞删除。
+
 ## 静态资源
 
 非 `/api` 路径由 `AdminServer` 从 `static_dir` 提供：
@@ -574,6 +585,8 @@ Providers 页的模型复选框由批量测试与批量删除共用，跨分页�
 删除最后一个模型时保留供应商连接、密钥与 header 配置，模型列表可为空；空供应商不向运行时注册任何模型，仍可再次获取或手动添加模型。
 
 Tool session 详情默认打开 Overview 时间线：按时间合并冻结消息、Invocation 生命周期、Model Call、Tool Call 与 Agent transcript；消息正文和 `send` 参数中的发送内容直接展示，Tool 结果与完整参数按需展开。失败的 Model Call 同时展示稳定错误码，并可展开查看经密钥脱敏的完整 Provider 错误详情。Assistant 文本显式标注为私有推理，只有 `send` Tool 会发往 Telegram；assistant 行的思考过程（CoT）与作为本轮 response 的文本分开展示（折叠的 “Thinking” 区块），Agent transcript 表格与时间线卡都适用。
+
+详情页 Summary 面板在 `resume.available` 为真时显示「Resume」按钮（`components/invocations/detail-header.tsx`）：一次点击即 `POST /invocations/:id/resume`，不弹确认，成功后提示并跳到新 Invocation；失败用服务端 `message` 提示。存在续跑关系时，Summary 多出「Resumed from」/「Resumed by」两行链接。
 
 ### Invocation 批改（`/reviews`）
 

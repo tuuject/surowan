@@ -80,7 +80,7 @@ send Tool → Telegram API → 审计
 
 ## 隔离的历史场景重建
 
-Admin 的 Invocation 重放是新的内存 Agent 循环，不是生产 Conversation Context 的续跑。默认重建源开场 Bucket 的公开消息与当时可证明存在的历史；切片模式只取目标 Bot 发送前的公开窗口，拍平可证明在发送前已注入的批次。两者都使用当前配置的 prompt、模型、只读 System Skills 和工具定义，不恢复私有推理或旧工具结果，默认模式不加入后续热注入。生产执行器与 Context 写者不接入；媒体/reply 引用仅在本次场景有效，发送及记忆等副作用合成，模型调用仍真实计费并共享并发闸门。它不依赖开发报文录制，不新增跨 Invocation 的 Context 副本；契约与保真限制见 [Admin Panel：Invocation 重放](admin-panel.md#invocation-重放)。
+Admin 的 Invocation 重放是新的内存 Agent 循环，不是生产 Conversation Context 的续跑。默认重建源开场 Bucket 的公开消息与当时可证明存在的历史；切片模式只取目标 Bot 发送前的公开窗口，拍平可证明在发送前已注入的批次。两者都使用当前配置的 prompt、模型、只读 System Skills 和工具定义，不恢复私有推理或旧工具结果，默认模式不加入后续热注入。生产执行器与 Context 写者不接入；媒体/reply 引用仅在本次场景有效，发送及记忆等副作用合成，模型调用仍真实计费并共享并发闸门。它不依赖开发报文录制，不新增跨 Invocation 的 Context 副本；契约与保真限制见 [Admin Panel：Invocation 重放](admin-panel.md#invocation-重放)。与之相对，Admin 的 Invocation 续跑是真实生产运行：只对所在 Conversation 最新一次失败的 Telegram 运行开放，排一个空批次的新 Invocation，从 canonical Context 接着跑，副作用照常发生，见 [Admin Panel：Invocation 续跑](admin-panel.md#invocation-续跑)。
 
 ## 模块职责
 
