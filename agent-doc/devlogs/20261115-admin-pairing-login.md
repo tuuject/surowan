@@ -235,10 +235,60 @@ npx vitest run test/playground/only.test.ts test/playground/only-serve.test.ts
 - 真实全新部署（官方 Docker 镜像）上「打开页面 → SSH 生成码 → 首次登录 → 设置凭据」的人工验收。
 - 拆分 `only.test.ts` 之后没有再跑一遍全量 `pnpm test`，只复跑了 playground-only 的两个文件。
 
+## 后续：新实例与已用实例看起来一样
+
+用户提出：把「首次登录只有一次性码输入框」这个状态也去掉，新实例和已部署好的实例一样，显示用户名、密码和一次性码入口。这样别人看不出这是个刚部署的实例，也就少了些吸引黑客的理由。
+
+只改前端是不够的：`GET /api/auth/session` 里的 `setup_required` 本身就会告诉匿名访客「这是新实例」。所以这次一起改了：
+
+- 删除 `setup_required` 字段和 `AdminAuth.setupRequired()`。删掉字段之后，这个方法在生产代码里已经没有调用方。
+- 前端去掉 `LoginForm` 的 `firstSignIn` 分支和四种语言里的 `firstSignInDescription`；`PairingCodeForm` 的「使用密码登录」返回按钮恢复为始终显示。
+- admin-surface 中 `session show` 的 summary 改为不再提建号状态。
+- e2e 的 `/__e2e/ensure-admin` 钩子改为直接查 `admin_users` 是否有行；测试里断言「已有账号」的地方改为查表。
+- 其他未登录访客能看到的信号，这次也核对了一遍：
+  - 未知用户名的密码登录照样会做一次 Argon2，响应同样是 `invalid_credentials`；
+  - 未知的码同样是 `pairing_code_invalid`；
+  - `official_docker_image` 只透露是不是官方镜像，看不出有没有账号。
+
+### 测试
+
+测试同样先写：
+
+- `test/pairing/web-login.test.ts` 补了第 9 条失败模式：匿名访客能分辨新实例。用例断言匿名 session 不带 `setup_required`，并且建号前后的匿名 session 文档完全相同。
+- `test/admin/auth.test.ts` 首个用例改为断言新实例的匿名 session 精确等于不含 `setup_required` 的文档，登录后另发的匿名请求也得到同一份。
+- E2E `00-auth` 首个用例改为：
+  1. 匿名 session 不带 `setup_required`；
+  2. 页面上有用户名、密码输入框和 “Enter your credentials to continue.”，并截图 `fresh-sign-in.png` 作为产物；
+  3. 从「Sign in with a one-time code」入口粘贴真实 CLI 生成的码。
+- `14-api-keys-ui` 模拟的 session 文档、replay/cli 测试 fixture 里的 `setup_required` 断言都已去掉。
+
+### 验证
+
+```bash
+pnpm run lint && pnpm run check && git diff --check
+# 全部 exit 0
+npx vitest run test/admin test/pairing test/cli test/replay
+# 92 files / 409 passed / 7 skipped
+pnpm run admin:build && pnpm run admin:test:e2e
+# 327 passed
+DOCS_BASE_PATH=/ 与 /surowan/ 各跑 docs:build + docs:verify
+# 两次都 Verified 53 HTML/Markdown pages ... 173 HTTP resources
+pnpm test
+# 394 files passed / 2 failed / 1 skipped；1948 passed / 2 failed / 9 skipped
+```
+
+这次全量运行覆盖了上一节拆分文件和 rebase 之后的代码。两个失败与上一节相同，都和本次改动无关：
+
+- croner 导入路径的 Windows 断言。
+- `group-memory/store.test.ts` 的关键词搜索用例：它要写 6,000 条事件，用的是默认 5 秒超时，满负载下连续两次超时。单独跑可以通过；本分支在 store 层只动了 059 迁移和 admin schema。
+
+未执行：真实全新部署上「打开页面 → SSH 生成码 → 点一次性码入口登录 → 设置凭据」的人工验收。
+
 ## 提交
 
 ```txt
 b10f356d Sign in to the Admin Panel with one-time pairing codes
 580fe8ac Show the docker compose sign-in command on the official image
 b0630424 Make the first Admin Panel sign-in a one-time code from the server
+1387a546 Show a fresh instance the same sign-in page as one in use
 ```
