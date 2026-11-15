@@ -1,9 +1,12 @@
 import { Button } from '@tuuject/koi-react/button';
+import { Field } from '@tuuject/koi-react/field';
+import { TrashIcon } from '@tuuject/koi-react/icons';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
+import { sizes } from '@tuuject/koi-tokens/dimensions';
 import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChatTextIcon } from '@/components/icons.tsx';
+import { ChatTextIcon, EditIcon } from '@/components/icons.tsx';
 import type { InvocationDetail } from '@/lib/api/invocations.ts';
 import {
   type CommentableTimelineEvent,
@@ -31,39 +34,31 @@ export function ReviewCommentEditor({
   const [draft, setDraft] = useState(initialValue);
 
   return (
-    <div
-      className={css({
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '2',
-        borderRadius: 'lg',
-        borderWidth: '1px',
-        borderColor: 'border',
-        bg: 'surface-muted',
-        padding: '3',
-      })}
-    >
-      <Textarea
-        aria-label={label}
-        placeholder={placeholder}
-        rows={3}
-        maxLength={REVIEW_TEXT_MAX_CHARS}
-        value={draft}
-        dir="auto"
-        onChange={(event) => setDraft(event.target.value.slice(0, REVIEW_TEXT_MAX_CHARS))}
-        onKeyDown={(event) => {
-          if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-            event.preventDefault();
-            onSave(draft);
-          }
-        }}
-      />
-      <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
-        <Button type="button" size="sm" color="primary" onClick={() => onSave(draft)}>
-          {t('common.save')}
-        </Button>
-        <Button type="button" size="sm" variant="ghost" color="secondary" onClick={onCancel}>
+    <div className={css({ display: 'flex', flexDirection: 'column', gap: '3' })}>
+      <Field label={label}>
+        <Textarea
+          // The editor only mounts from an Add or Edit click, which unmounts that button: keep focus in the flow.
+          autoFocus
+          placeholder={placeholder}
+          rows={3}
+          maxLength={REVIEW_TEXT_MAX_CHARS}
+          value={draft}
+          dir="auto"
+          onChange={(event) => setDraft(event.target.value.slice(0, REVIEW_TEXT_MAX_CHARS))}
+          onKeyDown={(event) => {
+            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+              event.preventDefault();
+              onSave(draft);
+            }
+          }}
+        />
+      </Field>
+      <div className={css({ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '2' })}>
+        <Button type="button" variant="ghost" color="secondary" onClick={onCancel}>
           {t('common.cancel')}
+        </Button>
+        <Button type="button" color="primary" onClick={() => onSave(draft)}>
+          {t('common.save')}
         </Button>
       </div>
     </div>
@@ -108,12 +103,8 @@ export function ReviewCommentNote({
       className={css({
         display: 'flex',
         flexDirection: 'column',
-        gap: '2',
-        borderRadius: 'lg',
-        borderWidth: '1px',
-        borderColor: 'border',
-        borderInlineStartWidth: '3px',
-        borderInlineStartColor: 'action',
+        gap: '1',
+        borderRadius: 'xl',
         bg: 'surface-muted',
         padding: '3',
       })}
@@ -124,15 +115,34 @@ export function ReviewCommentNote({
           flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '2',
+          columnGap: '2',
         })}
       >
-        <span className={css({ textStyle: 'small', color: 'text-muted', fontWeight: 'medium' })}>{badgeLabel}</span>
-        <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1' })}>
-          <Button type="button" size="sm" variant="ghost" color="secondary" onClick={() => setEditing(true)}>
+        <span
+          className={css({
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '1',
+            textStyle: 'small',
+            color: 'text-muted',
+          })}
+        >
+          <ChatTextIcon size={sizes['icon-xs']} className={css({ flexShrink: '0' })} />
+          {badgeLabel}
+        </span>
+        {/* Row actions: no gap, pulled outward by the sm ghost padding so the last label lines up with the text. */}
+        <div className={css({ display: 'flex', alignItems: 'center', marginInlineEnd: '-2', marginBlock: '-1' })}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            color="secondary"
+            iconStart={<EditIcon />}
+            onClick={() => setEditing(true)}
+          >
             {t('common.edit')}
           </Button>
-          <Button type="button" size="sm" variant="ghost" color="error" onClick={onDelete}>
+          <Button type="button" size="sm" variant="ghost" color="error" iconStart={<TrashIcon />} onClick={onDelete}>
             {t('common.delete')}
           </Button>
         </div>
@@ -201,8 +211,15 @@ export function EventReviewAffordance({
 
   return (
     <div>
-      <Button type="button" size="sm" variant="ghost" color="secondary" onClick={() => setAdding(true)}>
-        <ChatTextIcon size={14} />
+      {/* Pulled outward by the ghost padding so the icon lines up with the event text above. */}
+      <Button
+        type="button"
+        variant="ghost"
+        color="secondary"
+        iconStart={<ChatTextIcon />}
+        className={css({ marginInlineStart: '-4' })}
+        onClick={() => setAdding(true)}
+      >
         {t('invocations.review.addComment')}
       </Button>
     </div>
