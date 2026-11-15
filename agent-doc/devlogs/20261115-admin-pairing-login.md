@@ -177,9 +177,68 @@ DOCS_BASE_PATH=/ 与 /surowan/ 各跑 docs:build + docs:verify
 
 未执行：没有在本机 `docker build` 镜像去确认 `SUROWAN_OFFICIAL_IMAGE` 在容器里生效，留给 `docs.yml` 的 image-smoke 和真实部署验收。
 
+## 后续：移除网页建号，首次登录改用一次性码
+
+用户提出：彻底移除全新实例在网页上设置用户名和密码的流程，以防有人扫描到刚部署好的塑料碗实例，抢先完成安装；第一次部署就用一次性码登录，默认用户名是 `admin`，之后要不要改用户名、设密码或加 Passkey，由用户自己决定。
+
+### 实现
+
+- **删除网页建号**：`POST /api/auth/setup`、`AdminAuth.createFirstUser`、admin-surface 的 `setup` spec 和前端的 `SetupForm` / `createFirstAdmin` 全部删除，没有保留兼容路径。匿名 POST 到这个地址，会和其他未登录请求一样得到 401。
+- **首次登录建号**：`createWebPairing`（`src/ingress/admin/clients/index.ts`）在 immediate 事务里先查账号。没有账号时建一个 `admin`（`password_hash` 为 NULL，没有 Passkey），再签发 `web` 票据；已有唯一账号时直接复用；有多个账号时报错。CLI 输出新增 `account: { username, created }`。
+- **`setup_required` 保留**：语义仍是「还没有管理员」。登录页据此进入首次登录模式，只显示一次性码表单，说明以「First sign-in.」开头，也没有「使用密码登录」按钮。如果先运行了命令再打开页面，`admin` 已经存在，会看到普通登录页，点「Sign in with a one-time code」即可。
+- **后续设置**：登录后在 Settings 的「管理员凭据」设置用户名和密码（`POST /auth/credentials` 不要求旧密码），配置了 `public_url` 时还可以加 Passkey。`admin-account` 仍是离线建号和恢复的路径。
+- **`admin:dev:mock`**：启动时通过测试钩子跑真实的 `pairing create --web --ttl-seconds 3600`，并打印 `ADMIN_DEV_MOCK_CODE pwp_…`。
+- **AGENTS.md**：在 Security 不变量里写明「没有匿名建号端点」和「一次性码分两种用途、互不串用」。
+
+### 测试迁移
+
+先写新行为的测试，再改实现：
+
+- `test/admin/auth.test.ts` 第一个用例：全新实例上匿名请求 `auth/setup` 返回 401，`admin_users` 仍为空；`createWebPairing` 建出 `admin`，用码登录后 session 为 `username: 'admin'`、`has_password: false`。
+- `test/pairing/web-login.test.ts`：
+  - 第一个码建出 `admin`，第二个码复用它；
+  - 无密码的 `admin` 用密码登录返回 401；
+  - 用码登录成功；
+  - 往数据库多插一个账号后，CLI 拒绝签发。
+- 约 30 个测试文件原来用 `/api/auth/setup` 建管理员。现在改用新的 `test/fixtures/admin-account.ts`（`createAdminAccount`，走 `admin-account` 那条路径）建号，再走真实的 `POST /api/auth/login`。`setupAdmin`、`login`、`setupAdminSession` 这几个 helper 多了 `store` 参数，调用方一并修改。原来调 `createFirstUser` 的测试改为 `createOrResetAccount` 加 `login`，原本建出的那个 Session 照样保留。
+- `test/playground/only.test.ts` 跑的是真实 `serve`，改为用真实 CLI 生成的码登录。文件因此超过 5,000 token 的提交上限，于是把模型 fixture、端口探测和登录 helper 拆到 `test/playground/only-fixtures.ts`。另外，这个用例原来在 Bot 回复可见之后就立刻断言 Invocation 已 `completed`；高负载下回复和完成之间有时间差，第一次跑受影响套件时因此失败，现在改成轮询。
+- E2E：
+  - `00-auth` 第一个用例改为：匿名 setup 返回 401 → 只显示首次登录表单 → 真实 CLI 生成码，`account.created` 为 true → 进入 shell，身份是无密码的 `admin` → 在 Settings 改成测试用户名和密码 → 后续用例照常用密码登录。
+  - 其他套件的 helper 改为先调 `/__e2e/ensure-admin`。这个钩子用 `admin-account` 的方式建号，已有账号时什么也不做。
+  - `30-dev-mock` 从命令输出里读出码，再从普通登录页的一次性码入口登录。
+
+### 验证
+
+```bash
+pnpm run lint && pnpm run check
+# exit 0
+npx vitest run test/admin test/pairing test/playground/only.test.ts test/replay test/cli test/prompts test/alarm test/recurring-alarms test/dictionary test/image/admin-server.test.ts test/web-search test/mcp
+# 129 files passed / 2 failed：croner 路径（已知），以及 playground/only 的完成状态竞态（已改为轮询，单独复跑通过）
+pnpm run admin:build && pnpm run admin:test:e2e
+# 第一轮 321 passed / 3 failed，失败中有 Windows ERR_NO_BUFFER_SPACE 套接字耗尽和 30-dev-mock（流程顺序问题，已修）
+# 修复后 00-auth + 30-dev-mock 9 passed；完整套件 327 passed
+DOCS_BASE_PATH=/ 与 /surowan/ 各跑 docs:build + docs:verify
+# 两次都 Verified 53 HTML/Markdown pages ... 173 HTTP resources
+pnpm test
+# 394 files passed / 2 failed / 1 skipped；1948 passed / 2 failed / 9 skipped
+npx vitest run test/playground/only.test.ts test/playground/only-serve.test.ts
+# 拆分文件后 2 files / 5 passed
+```
+
+全量 `pnpm test` 的两个失败都与本次改动无关：
+
+- croner 导入路径的 Windows 反斜杠断言，已知问题；
+- `test/group-memory/store.test.ts` 的关键词搜索用例。本分支没有改动 group-memory，单独复跑 9 个用例全部通过，判断是满负载下的时序问题。
+
+未执行：
+
+- 真实全新部署（官方 Docker 镜像）上「打开页面 → SSH 生成码 → 首次登录 → 设置凭据」的人工验收。
+- 拆分 `only.test.ts` 之后没有再跑一遍全量 `pnpm test`，只复跑了 playground-only 的两个文件。
+
 ## 提交
 
 ```txt
 0a2d2a51 Sign in to the Admin Panel with one-time pairing codes
 6655de87 Show the docker compose sign-in command on the official image
+70dced2a Make the first Admin Panel sign-in a one-time code from the server
 ```
