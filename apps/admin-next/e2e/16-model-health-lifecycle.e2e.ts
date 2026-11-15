@@ -24,10 +24,10 @@ import {
 import {
   E2E_HEALTH_ALIAS_A,
   E2E_HEALTH_ALIAS_B,
+  E2E_HEALTH_CHATTY_MODEL,
   E2E_HEALTH_FAIL_MODEL,
   E2E_HEALTH_OK_2_MODEL,
   E2E_HEALTH_OK_MODEL,
-  E2E_HEALTH_UNEXPECTED_MODEL,
 } from './models-fixture.ts';
 
 test.use({ signedIn: true });
@@ -47,7 +47,7 @@ test.describe('model health checks', () => {
       // slow models fill the concurrency slots and the fast one is picked up
       // last (and never reaches the upstream).
       await page.getByLabel(`Select ${E2E_HEALTH_OK_2_MODEL}`, { exact: true }).check();
-      await page.getByLabel(`Select ${E2E_HEALTH_UNEXPECTED_MODEL}`, { exact: true }).check();
+      await page.getByLabel(`Select ${E2E_HEALTH_CHATTY_MODEL}`, { exact: true }).check();
       await selectProvider(page, E2E_HEALTH_ALIAS_B);
       await page.getByLabel(`Select ${E2E_HEALTH_FAIL_MODEL}`, { exact: true }).check();
       await selectProvider(page, E2E_HEALTH_ALIAS_A);
@@ -62,7 +62,7 @@ test.describe('model health checks', () => {
       const held = await relayStats();
       expect(held.by_model).toEqual({
         [E2E_HEALTH_OK_2_MODEL]: 1,
-        [E2E_HEALTH_UNEXPECTED_MODEL]: 1,
+        [E2E_HEALTH_CHATTY_MODEL]: 1,
         [E2E_HEALTH_FAIL_MODEL]: 1,
       });
 
@@ -102,7 +102,7 @@ test.describe('model health checks', () => {
     expect(after.total).toBe(4);
     expect(after.by_model).toEqual({
       [E2E_HEALTH_OK_2_MODEL]: 1,
-      [E2E_HEALTH_UNEXPECTED_MODEL]: 1,
+      [E2E_HEALTH_CHATTY_MODEL]: 1,
       [E2E_HEALTH_FAIL_MODEL]: 1,
       [E2E_HEALTH_OK_MODEL]: 1,
     });

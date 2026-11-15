@@ -5,7 +5,7 @@
  *
  * Each spec file boots its own freshly seeded server, so the provider setup and
  * teardown is registered per file by `modelHealthFixture` rather than once
- * for the suite. The fixture creates `health-a` (ok / unexpected models) and
+ * for the suite. The fixture creates `health-a` (models replying `ok` or chattier text) and
  * `health-b` (upstream failure) on top of the relay connection the E2E fixture
  * already serves, and deletes exactly those aliases again.
  *
@@ -17,11 +17,11 @@ import { adminUrl, E2E_PASSWORD, E2E_USERNAME, e2eFetch, test } from './helpers.
 import {
   E2E_HEALTH_ALIAS_A,
   E2E_HEALTH_ALIAS_B,
+  E2E_HEALTH_CHATTY_MODEL,
   E2E_HEALTH_FAIL_MODEL,
   E2E_HEALTH_OK_2_MODEL,
   E2E_HEALTH_OK_MODEL,
   E2E_HEALTH_PROMPT,
-  E2E_HEALTH_UNEXPECTED_MODEL,
   E2E_RELAY_ALIAS,
   E2E_SECRETS,
 } from './models-fixture.ts';
@@ -99,6 +99,11 @@ export function expandedRow(page: Page, modelId: string): Locator {
   return modelRow(page, modelId).locator('[data-health-details]');
 }
 
+/** The inline "Model reply …" line a passing check shows in place of folded details. */
+export function healthReply(page: Page, modelId: string): Locator {
+  return modelRow(page, modelId).locator('[data-health-reply]');
+}
+
 export async function showHealthDetails(page: Page, modelId: string): Promise<void> {
   await modelRow(page, modelId).getByRole('button', { name: 'Toggle row details' }).click();
 }
@@ -166,7 +171,7 @@ async function createHealthProviders(request: APIRequestContext): Promise<void> 
       [
         healthModel(E2E_HEALTH_OK_MODEL, 'Health OK'),
         healthModel(E2E_HEALTH_OK_2_MODEL, 'Health OK 2'),
-        healthModel(E2E_HEALTH_UNEXPECTED_MODEL, 'Health unexpected'),
+        healthModel(E2E_HEALTH_CHATTY_MODEL, 'Health chatty'),
       ],
     ],
     [E2E_HEALTH_ALIAS_B, [healthModel(E2E_HEALTH_FAIL_MODEL, 'Health fail')]],

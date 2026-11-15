@@ -119,7 +119,7 @@ test('checks a real streaming provider with one fixed prompt and audits usage wi
   }
 });
 
-test('reports mismatched, empty, truncated and redacted failures independently, and leaves absent TTFB null', async () => {
+test('passes any normal reply verbatim, fails empty and truncated ones, redacts, and leaves absent TTFB null', async () => {
   let requests = 0;
   const upstream = await startFixtureServer(() => {
     requests += 1;
@@ -143,24 +143,45 @@ test('reports mismatched, empty, truncated and redacted failures independently, 
     expect(requests).toBe(1);
     const probe = vi.spyOn(registry, 'completeSimple');
     try {
-      for (const [text, stopReason, status] of [
-        [' OK ', 'stop', 'unexpected_response'],
-        ['  ', 'stop', 'error'],
-        ['ok', 'length', 'error'],
-        ['agent-secret', 'stop', 'unexpected_response'],
-        [' ok\n', 'stop', 'ok'],
+      // A reply other than the prompt's literal "ok" is still a healthy model:
+      // the status says it answered, and the text shows what it said.
+      for (const [text, stopReason, status, responseText] of [
+        [' OK ', 'stop', 'ok', ' OK '],
+        ['Hello! How can I help?', 'stop', 'ok', 'Hello! How can I help?'],
+        ['  ', 'stop', 'error', '  '],
+        ['ok', 'length', 'error', 'ok'],
+        ['agent-secret', 'stop', 'ok', '[REDACTED]'],
+        [' ok\n', 'stop', 'ok', ' ok\n'],
       ] as const) {
         probe.mockResolvedValueOnce(healthMessage(text, stopReason));
         const result = await readJson(await write(fixture, HEALTH_PATH, 'POST', HEALTH_TARGET));
         expect(result.status).toBe(status);
+        expect(result.error === null).toBe(status === 'ok');
         expect(result.ttfb_ms).toBeNull();
-        expect(result.response_text).not.toContain('agent-secret');
+        expect(result.response_text).toBe(responseText);
       }
     } finally {
       probe.mockRestore();
     }
     const audit = fixture.store.orm.select().from(modelCalls).all();
-    expect(audit.map((row) => row.state)).toEqual(['error', 'error', 'error', 'error', 'error', 'success']);
+    expect(audit.map((row) => row.state)).toEqual([
+      'error',
+      'success',
+      'success',
+      'error',
+      'error',
+      'success',
+      'success',
+    ]);
+    expect(audit.map((row) => row.errorCode)).toEqual([
+      'model_health_error',
+      null,
+      null,
+      'model_health_error',
+      'model_health_error',
+      null,
+      null,
+    ]);
     expect(audit.every((row) => row.finishedAt !== null)).toBe(true);
     expect(JSON.stringify(audit, (_key, value) => (typeof value === 'bigint' ? String(value) : value))).not.toMatch(
       /agent-secret|header-secret-value/,

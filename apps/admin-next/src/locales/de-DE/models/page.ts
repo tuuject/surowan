@@ -60,7 +60,7 @@ export const page = {
   checkSelected: 'Testen',
   checking: 'Wird getestet…',
   healthOk: 'OK',
-  healthUnexpected: 'Unerwartete Antwort',
+  healthReplyLabel: 'Modellantwort',
   healthError: 'Fehlgeschlagen',
   ttfbUnavailable: 'nicht verfügbar',
   healthTiming: 'Erste Antwort {{ttfb}}, insgesamt {{duration}}',

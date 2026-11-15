@@ -28,7 +28,7 @@ type HealthCheckBody = Static<typeof HealthCheckBodySchema>;
 export interface ModelHealthResult {
   readonly provider: string;
   readonly model: string;
-  readonly status: 'ok' | 'unexpected_response' | 'error';
+  readonly status: 'ok' | 'error';
   /** HTTP response headers, not the first generated token; null when the adapter has no hook. */
   readonly ttfb_ms: number | null;
   readonly duration_ms: number;
@@ -139,7 +139,10 @@ export async function checkModelHealth(
     } else if (text.trim().length === 0) {
       error = 'Model returned an empty response';
     } else {
-      status = text.trim() === 'ok' ? 'ok' : 'unexpected_response';
+      // Any normal reply passes: the operator never sees the fixed prompt, so a
+      // model answering "OK!" instead of "ok" is healthy, not a failure. The
+      // reply itself is returned for the operator to read.
+      status = 'ok';
     }
   } catch (cause) {
     error = redact(cause instanceof Error ? cause.message : String(cause));

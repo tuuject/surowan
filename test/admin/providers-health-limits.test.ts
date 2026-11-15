@@ -113,6 +113,7 @@ test('health checks cancel on request abort, release their slot, and bound redac
     expect(adapterSignal?.aborted).toBe(true);
     probe.mockResolvedValueOnce(healthMessage(`header-secret-value${'a'.repeat(5000)}`));
     const long = await readJson(await write(fixture, HEALTH_PATH, 'POST', HEALTH_TARGET));
+    expect(long.status).toBe('ok');
     expect(long.response_text).toHaveLength(4096);
     expect(long.response_text).toMatch(/^\[REDACTED\]/);
     probe.mockResolvedValueOnce({
@@ -121,13 +122,10 @@ test('health checks cancel on request abort, release their slot, and bound redac
       stopReason: 'toolUse',
     });
     expect(await readJson(await write(fixture, HEALTH_PATH, 'POST', HEALTH_TARGET))).toMatchObject({ status: 'error' });
-    expect(
-      fixture.store.orm
-        .select()
-        .from(modelCalls)
-        .all()
-        .every((row) => row.state === 'error' && row.finishedAt !== null),
-    ).toBe(true);
+    const audit = fixture.store.orm.select().from(modelCalls).all();
+    // Abort, a long but normal reply, then a tool call instead of text.
+    expect(audit.map((row) => row.state)).toEqual(['error', 'success', 'error']);
+    expect(audit.every((row) => row.finishedAt !== null)).toBe(true);
   } finally {
     await fixture.server.stop();
     probe.mockRestore();

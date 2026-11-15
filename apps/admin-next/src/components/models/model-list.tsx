@@ -36,13 +36,11 @@ export interface ModelRow {
 
 const HEALTH_TONES: Record<HealthCheckStatus, BadgeSemantic> = {
   ok: 'success',
-  unexpected_response: 'warning',
   error: 'danger',
 };
 
 const HEALTH_LABELS = {
   ok: 'models.models.page.healthOk',
-  unexpected_response: 'models.models.page.healthUnexpected',
   error: 'models.models.page.healthError',
 } as const satisfies Record<HealthCheckStatus, string>;
 
@@ -218,8 +216,12 @@ export function ModelList({
               const entry = health[key];
               const result = entry === undefined || entry === 'checking' ? null : entry;
               const open = expanded.has(key);
+              // A passing check shows the reply inline; only a failure, whose
+              // provider error can run long, folds its details behind a toggle.
+              const reply = result?.status === 'ok' ? result.response_text.trim() : null;
               const expandable =
                 result !== null &&
+                result.status === 'error' &&
                 ((result.error !== null && result.error.length > 0) || result.response_text.length > 0);
               return (
                 <li
@@ -327,6 +329,24 @@ export function ModelList({
                               : formatDuration(result.ttfb_ms),
                           duration: formatDuration(result.duration_ms),
                         })}
+                      </p>
+                    )}
+                    {reply === null ? null : (
+                      <p
+                        data-health-reply
+                        className={css({
+                          margin: '0',
+                          textStyle: 'small',
+                          color: 'text-muted',
+                          whiteSpace: 'pre-wrap',
+                          overflowWrap: 'anywhere',
+                        })}
+                      >
+                        {t('models.models.page.healthReplyLabel')}{' '}
+                        {/* Model output is untrusted text in any script: a plain child, never markup, isolated by direction. */}
+                        <span dir="auto" className={css({ color: 'text' })}>
+                          {reply}
+                        </span>
                       </p>
                     )}
                     {expandable ? (
