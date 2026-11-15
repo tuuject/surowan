@@ -20,4 +20,11 @@ export const auth: CompleteCatalog<typeof authEn> = {
   passkeySigningIn: 'بانتظار مفتاح المرور…',
   passkeyUnavailable:
     'تسجيل الدخول بمفتاح المرور غير متاح هنا. افتح اللوحة عبر HTTPS في متصفح يدعم مفاتيح المرور، أو سجّل الدخول بكلمة المرور.',
+  codeSignIn: 'تسجيل الدخول برمز لمرة واحدة',
+  codeDescription: 'الصق الرمز لمرة واحدة الذي أُنشئ على الخادم.',
+  code: 'رمز لمرة واحدة',
+  codeHelp: 'شغّل الأمر <command>pairing create --web</command> على الخادم للحصول عليه.',
+  codeRequired: 'الصق الرمز لمرة واحدة',
+  codePattern: 'انسخ الرمز كاملًا كما طبعه الخادم',
+  passwordSignIn: 'تسجيل الدخول بكلمة المرور',
 };

@@ -9,7 +9,7 @@ import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { type ReactElement, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { LanguageToggle } from '@/components/app-shell/LanguageToggle';
 import {
   SAFE_BOTTOM,
@@ -20,7 +20,14 @@ import {
   TOP_ROW_CLEAR_RIGHT,
 } from '@/components/app-shell/shared';
 import { ThemeToggle } from '@/components/app-shell/ThemeToggle';
-import { createFirstAdmin, login, passkeyLoginOptions, passkeyLoginVerify } from '@/lib/api/auth.ts';
+import { TechText } from '@/components/business/bidi-text';
+import {
+  createFirstAdmin,
+  login,
+  loginWithPairingCode,
+  passkeyLoginOptions,
+  passkeyLoginVerify,
+} from '@/lib/api/auth.ts';
 import type { Credentials } from '@/lib/api/core.ts';
 import { ApiError } from '@/lib/api/core.ts';
 import { isWebAuthnAvailable, passkeyErrorMessage } from '@/lib/passkeys';
@@ -106,7 +113,29 @@ function AuthLayout({
   );
 }
 
+const formClass = css({ display: 'flex', flexDirection: 'column', gap: '4' });
+const alternativesClass = css({ marginBlockStart: '4', display: 'flex', flexDirection: 'column', gap: '3' });
+
 export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boolean }): ReactElement {
+  const { t } = useTranslation();
+  const [method, setMethod] = useState<'password' | 'code'>('password');
+  if (method === 'code') {
+    return (
+      <AuthLayout title={t('brand.loginTitle')} description={t('pages.auth.codeDescription')}>
+        <PairingCodeForm onBack={() => setMethod('password')} />
+      </AuthLayout>
+    );
+  }
+  return <PasswordLoginForm passkeysEnabled={passkeysEnabled} onUseCode={() => setMethod('code')} />;
+}
+
+function PasswordLoginForm({
+  passkeysEnabled,
+  onUseCode,
+}: {
+  readonly passkeysEnabled: boolean;
+  readonly onUseCode: () => void;
+}): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [failure, setFailure] = useState<string | null>(null);
@@ -151,7 +180,7 @@ export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boole
 
   return (
     <AuthLayout title={t('brand.loginTitle')} description={t('pages.auth.loginDescription')}>
-      <form onSubmit={handleSubmit(onSubmit)} className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+      <form onSubmit={handleSubmit(onSubmit)} className={formClass}>
         <Field id="username" label={t('pages.auth.username')} error={errors.username?.message}>
           <Input
             autoComplete="username"
@@ -179,10 +208,10 @@ export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boole
           {t('pages.auth.signIn')}
         </Button>
       </form>
-      {passkeysEnabled ? (
-        <div className={css({ marginBlockStart: '4', display: 'flex', flexDirection: 'column', gap: '3' })}>
-          <Divider />
-          {webAuthnAvailable ? (
+      <div className={alternativesClass}>
+        <Divider />
+        {passkeysEnabled ? (
+          webAuthnAvailable ? (
             <>
               <Button
                 type="button"
@@ -205,10 +234,95 @@ export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boole
             <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>
               {t('pages.auth.passkeyUnavailable')}
             </p>
-          )}
-        </div>
-      ) : null}
+          )
+        ) : null}
+        <Button type="button" variant="outline" color="secondary" size="lg" fullWidth onClick={onUseCode}>
+          {t('pages.auth.codeSignIn')}
+        </Button>
+      </div>
     </AuthLayout>
+  );
+}
+
+const PAIRING_CODE_PATTERN = /^\s*pwp_[A-Za-z0-9_-]{32}\s*$/;
+
+/**
+ * The one-time code sign-in: the operator mints the code on the server with
+ * `surowan pairing create --web` and pastes it here. Surrounding whitespace from
+ * a terminal copy is tolerated and trimmed before the request.
+ */
+function PairingCodeForm({ onBack }: { readonly onBack: () => void }): ReactElement {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [failure, setFailure] = useState<string | null>(null);
+
+  const codeMutation = useMutation({
+    mutationFn: loginWithPairingCode,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: sessionQuery.queryKey });
+    },
+    onError: (error) => {
+      setFailure(error instanceof ApiError ? `${error.code}: ${error.message}` : t('common.requestFailed'));
+    },
+  });
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<{ code: string }>();
+
+  const onSubmit = (data: { code: string }) => {
+    setFailure(null);
+    codeMutation.mutate(data.code.trim());
+  };
+
+  return (
+    <>
+      <form onSubmit={handleSubmit(onSubmit)} className={formClass}>
+        <Field
+          id="pairing-code"
+          label={t('pages.auth.code')}
+          error={errors.code?.message}
+          help={
+            <Trans
+              i18nKey="pages.auth.codeHelp"
+              components={{ command: <TechText className={css({ fontFamily: 'mono' })} /> }}
+            />
+          }
+        >
+          <Input
+            autoComplete="one-time-code"
+            autoCapitalize="off"
+            spellCheck={false}
+            autoFocus
+            placeholder="pwp_…"
+            className={css({ fontFamily: 'mono' })}
+            {...register('code', {
+              required: t('pages.auth.codeRequired'),
+              pattern: { value: PAIRING_CODE_PATTERN, message: t('pages.auth.codePattern') },
+            })}
+            dir="ltr"
+          />
+        </Field>
+        {failure !== null ? <Alert tone="error">{failure}</Alert> : null}
+        <Button
+          type="submit"
+          size="lg"
+          fullWidth
+          loading={codeMutation.isPending}
+          loadingLabel={t('pages.auth.signingIn')}
+        >
+          {t('pages.auth.signIn')}
+        </Button>
+      </form>
+      <div className={alternativesClass}>
+        <Divider />
+        <Button type="button" variant="outline" color="secondary" size="lg" fullWidth onClick={onBack}>
+          {t('pages.auth.passwordSignIn')}
+        </Button>
+      </div>
+    </>
   );
 }
 
@@ -240,7 +354,7 @@ export function SetupForm(): ReactElement {
 
   return (
     <AuthLayout title={t('pages.auth.setupTitle')} description={t('pages.auth.setupDescription')}>
-      <form onSubmit={handleSubmit(onSubmit)} className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+      <form onSubmit={handleSubmit(onSubmit)} className={formClass}>
         <Field id="username" label={t('pages.auth.username')} error={errors.username?.message}>
           <Input
             autoComplete="username"

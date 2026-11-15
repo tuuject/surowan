@@ -297,7 +297,7 @@ export class AdminPasskeys {
         if (update.changes !== 1) {
           throw invalidPasskey();
         }
-        return this.#auth.createPasskeySession(user.id);
+        return this.#auth.createVerifiedSession(user.id);
       },
       { behavior: 'immediate' },
     );

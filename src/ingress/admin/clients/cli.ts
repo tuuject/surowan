@@ -8,6 +8,7 @@ import { parseId } from '../audit/shared.ts';
 import {
   cancelPairing,
   createPairing,
+  createWebPairing,
   ensureInstanceId,
   listClients,
   listPendingPairings,
@@ -21,9 +22,9 @@ import {
  * keeps running. The schema therefore has to already be there — a fresh data
  * directory is created by `serve` on this version.
  */
-const REQUIRED_MIGRATION_VERSION = 58;
+const REQUIRED_MIGRATION_VERSION = 59;
 const SERVE_FIRST_HINT =
-  'start (or restart) `serve` on this version once so migration 058 creates the paired-client tables';
+  'start (or restart) `serve` on this version once so migration 059 brings the pairing tables up to date';
 
 export interface AdminCredentialCliOptions {
   readonly configPath: string;
@@ -50,19 +51,19 @@ export async function runAdminCredentialCommand(options: AdminCredentialCliOptio
     const instanceId = ensureInstanceId(orm);
     const command = options.command;
     switch (command.kind) {
-      case 'pairing-create': {
-        const created = await createPairing(orm, {
-          name: command.name,
-          mode: command.mode,
-          ttlSeconds: command.ttlSeconds,
-          publicKey: command.publicKey,
-        });
+      case 'pairing-create':
+      case 'pairing-create-web': {
+        const created =
+          command.kind === 'pairing-create'
+            ? await createPairing(orm, {
+                name: command.name,
+                mode: command.mode,
+                ttlSeconds: command.ttlSeconds,
+                publicKey: command.publicKey,
+              })
+            : await createWebPairing(orm, { name: command.name, ttlSeconds: command.ttlSeconds });
         const admin = loaded.config.admin;
-        // Without a public URL the client reaches the panel through an SSH
-        // tunnel, so the hint names the local end of `ssh -L <port>:<host>:<port>`.
-        // The bind address itself (often 0.0.0.0 or a LAN IP) is not a URL the
-        // client accepts for plaintext HTTP.
-        const endpoint = admin.public_url ?? `http://127.0.0.1:${admin.port}/`;
+        const endpoint = panelEndpoint(admin);
         console.log(
           JSON.stringify({
             status: 'ok',
@@ -70,7 +71,10 @@ export async function runAdminCredentialCommand(options: AdminCredentialCliOptio
             instance_id: instanceId,
             pairing: created.item,
             admin: { host: admin.host, port: admin.port, public_url: admin.public_url ?? null },
-            next: `surowan-utils auth pair --endpoint ${endpoint} --code ${created.code}`,
+            next:
+              command.kind === 'pairing-create'
+                ? `surowan-utils auth pair --endpoint ${endpoint} --code ${created.code}`
+                : `Open ${endpoint} in a browser, choose "Sign in with a one-time code" and paste the code before ${created.item.expires_at}`,
           }),
         );
         return;
@@ -97,6 +101,16 @@ export async function runAdminCredentialCommand(options: AdminCredentialCliOptio
   } finally {
     store.close();
   }
+}
+
+/**
+ * Without a public URL the operator reaches the panel through an SSH tunnel, so
+ * the hint names the local end of `ssh -L <port>:<host>:<port>`. The bind
+ * address itself (often 0.0.0.0 or a LAN IP) is not a URL a browser or the
+ * client accepts for plaintext HTTP.
+ */
+function panelEndpoint(admin: { readonly port: number; readonly public_url?: string | undefined }): string {
+  return admin.public_url ?? `http://127.0.0.1:${admin.port}/`;
 }
 
 /**

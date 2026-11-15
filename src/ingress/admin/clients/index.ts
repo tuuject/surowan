@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 import { INSTANCE_ID_PATTERN, nonceExpiresAtSeconds } from '@surowan/admin-surface';
 import { asRunResult, type Orm } from '../../../store/store.ts';
-import { adminClientNonces, adminClients, adminPairings, appState } from '../../../store/schema/index.ts';
+import { adminClientNonces, adminClients, adminPairings, adminUsers, appState } from '../../../store/schema/index.ts';
 import { type ApiKeyMode, type ApiKeyPermissions, modeFromPermissions, permissionsFromMode } from '../api-keys.ts';
 import { AdminQueryError } from '../audit/shared.ts';
 import { hashToken } from '../auth.ts';
@@ -21,6 +21,8 @@ import { generatePairingCode, publicKeyFingerprint } from './keys.ts';
 export const DEFAULT_PAIRING_TTL_SECONDS = 300;
 export const MIN_PAIRING_TTL_SECONDS = 60;
 export const MAX_PAIRING_TTL_SECONDS = 3_600;
+/** The label a web sign-in ticket gets when the operator does not name it. */
+export const DEFAULT_WEB_PAIRING_NAME = 'Admin Panel sign-in';
 const INSTANCE_ID_KEY = 'admin_instance_id';
 const INSTANCE_ID_BYTES = 16;
 
@@ -44,8 +46,12 @@ export interface AuthenticatedClient {
   readonly mode: ApiKeyMode;
 }
 
+/** `client` becomes a signed client; `web` becomes a panel session (migration 059). */
+export type PairingPurpose = 'client' | 'web';
+
 export interface PairingItem {
   readonly id: string;
+  readonly purpose: PairingPurpose;
   readonly name: string;
   readonly mode: ApiKeyMode | null;
   readonly permissions: ApiKeyPermissions;
@@ -83,6 +89,7 @@ const CLIENT_FIELDS = {
 
 const PAIRING_FIELDS = {
   id: adminPairings.id,
+  purpose: adminPairings.purpose,
   name: adminPairings.name,
   publicKey: adminPairings.publicKey,
   createdAt: adminPairings.createdAt,
@@ -94,6 +101,7 @@ const PAIRING_FIELDS = {
 
 interface PairingRow {
   readonly id: bigint;
+  readonly purpose: PairingPurpose;
   readonly name: string;
   readonly publicKey: string | null;
   readonly createdAt: string;
@@ -143,21 +151,82 @@ export function ensureInstanceId(orm: Orm, now = new Date()): string {
 }
 
 export async function createPairing(orm: Orm, input: CreatePairingInput, now = new Date()): Promise<CreatedPairing> {
+  return await insertPairing(
+    orm,
+    {
+      purpose: 'client',
+      name: input.name,
+      publicKey: input.publicKey,
+      userId: null,
+      permissions: permissionsFromMode(input.mode),
+    },
+    input.ttlSeconds,
+    now,
+  );
+}
+
+/**
+ * A ticket the Admin Panel login page exchanges for a session. It is bound to
+ * the sole administrator at creation, the same single-account rule as
+ * `admin-account`: with no account there is nobody to sign in as, and with
+ * several the operator's intent is ambiguous. A panel session is the panel's
+ * whole authority, so the ticket records every permission bit.
+ */
+export async function createWebPairing(
+  orm: Orm,
+  input: { readonly name: string; readonly ttlSeconds: number },
+  now = new Date(),
+): Promise<CreatedPairing> {
+  const accounts = orm.select({ id: adminUsers.id }).from(adminUsers).limit(2).all();
+  const account = accounts[0];
+  if (account === undefined) {
+    throw new Error(
+      'No administrator account exists yet; finish setup in the Admin Panel or create one with `admin-account` first',
+    );
+  }
+  if (accounts.length > 1) {
+    throw new Error('admin_users contains more than one account; web sign-in codes only serve a single administrator');
+  }
+  return await insertPairing(
+    orm,
+    {
+      purpose: 'web',
+      name: input.name,
+      publicKey: null,
+      userId: account.id,
+      permissions: { read_all: true, write_all: true, execute_paid_operations: true },
+    },
+    input.ttlSeconds,
+    now,
+  );
+}
+
+async function insertPairing(
+  orm: Orm,
+  input: {
+    readonly purpose: PairingPurpose;
+    readonly name: string;
+    readonly publicKey: string | null;
+    readonly userId: bigint | null;
+    readonly permissions: ApiKeyPermissions;
+  },
+  ttlSeconds: number,
+  now: Date,
+): Promise<CreatedPairing> {
   const code = generatePairingCode();
-  const permissions = permissionsFromMode(input.mode);
-  const createdAt = now.toISOString();
-  const expiresAt = new Date(now.getTime() + input.ttlSeconds * 1_000).toISOString();
   const row = orm
     .insert(adminPairings)
     .values({
+      purpose: input.purpose,
       name: input.name,
       codeHash: hashToken(code),
       publicKey: input.publicKey,
-      createdAt,
-      expiresAt,
-      readAll: permissions.read_all,
-      writeAll: permissions.write_all,
-      executePaidOperations: permissions.execute_paid_operations,
+      userId: input.userId,
+      createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + ttlSeconds * 1_000).toISOString(),
+      readAll: input.permissions.read_all,
+      writeAll: input.permissions.write_all,
+      executePaidOperations: input.permissions.execute_paid_operations,
     })
     .returning(PAIRING_FIELDS)
     .get();
@@ -349,6 +418,7 @@ async function toPairingItem(row: PairingRow): Promise<PairingItem> {
   };
   return {
     id: row.id.toString(),
+    purpose: row.purpose,
     name: row.name,
     mode: modeFromPermissions(permissions),
     permissions,

@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises';
 import { expect, type Page, test } from '@playwright/test';
 import { adminBase, E2E_PASSWORD, E2E_USERNAME, e2eFetch } from './helpers.ts';
 
@@ -81,6 +82,86 @@ test('a revoked session is bounced to the login form without an error screen', a
   await expect(page.locator('[data-route-error]')).toHaveCount(0);
   await page.goto(await baseURLPath('/'));
   await expect(page.getByText('Stored messages')).toBeVisible();
+});
+
+interface CliPairing {
+  readonly code: string;
+  readonly next: string;
+  readonly pairing: { readonly id: string; readonly purpose: string };
+}
+
+interface PairingRows {
+  readonly sessions: number;
+  readonly rows: readonly { id: string; purpose: string; consumed: boolean; client_id: string | null }[];
+}
+
+async function submitCode(page: Page, code: string): Promise<void> {
+  await page.getByRole('button', { name: 'Sign in with a one-time code' }).click();
+  await page.getByLabel('One-time code').fill(code);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+}
+
+test('a one-time code from the server CLI signs the browser in exactly once', async ({ page }, testInfo) => {
+  const base = await adminBase();
+  // The real `surowan pairing create --web`, run against this server's live database.
+  const web = await e2eFetch<CliPairing>('/pairing-create?purpose=web', { method: 'POST' });
+  expect(web.pairing.purpose).toBe('web');
+  expect(web.next).toContain('Sign in with a one-time code');
+  const before = await e2eFetch<PairingRows>('/pairing-rows');
+
+  await page.goto(base);
+  await expect(page.getByText('Surowan admin sign-in')).toBeVisible();
+  await page.getByRole('button', { name: 'Sign in with a one-time code' }).click();
+  await expect(page.getByText('Paste the one-time code generated on the server.')).toBeVisible();
+  await expect(page.getByText('pairing create --web')).toBeVisible();
+  // Client-side shape check before any request.
+  await page.getByLabel('One-time code').fill('pwp_not-a-whole-code');
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByText('Copy the whole code exactly as the server printed it')).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('one-time-code-form.png') });
+
+  // A terminal copy with stray spaces still signs in.
+  await page.getByLabel('One-time code').fill(`  ${web.code}  `);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByText('Stored messages')).toBeVisible();
+  await expect(page.getByText(E2E_USERNAME)).toBeVisible();
+  const signedIn = await e2eFetch<PairingRows>('/pairing-rows');
+  expect(signedIn.sessions).toBe(before.sessions + 1);
+
+  // Signed out, the same code is spent.
+  await page.getByRole('button', { name: 'User menu' }).click();
+  await page.getByRole('menuitem', { name: 'Sign out' }).click();
+  await expect(page.getByText('Surowan admin sign-in')).toBeVisible();
+  await submitCode(page, web.code);
+  await expect(page.getByText('pairing_code_used', { exact: false })).toBeVisible();
+
+  // An agent pairing code is not a sign-in code, and trying it does not spend it.
+  await page.getByRole('button', { name: 'Sign in with a password' }).click();
+  const client = await e2eFetch<CliPairing>('/pairing-create?purpose=client', { method: 'POST' });
+  await submitCode(page, client.code);
+  await expect(page.getByText('pairing_code_invalid', { exact: false })).toBeVisible();
+  await expect(page.locator('[data-route-error]')).toHaveCount(0);
+
+  // Back to the password form.
+  await page.getByRole('button', { name: 'Sign in with a password' }).click();
+  await expect(page.getByLabel('Username')).toBeVisible();
+
+  const after = await e2eFetch<PairingRows>('/pairing-rows');
+  // Sign-out removed the one session the code opened; the refused codes opened none.
+  expect(after.sessions).toBe(before.sessions);
+  expect(after.rows).toEqual(
+    expect.arrayContaining([
+      { id: web.pairing.id, purpose: 'web', consumed: true, client_id: null },
+      { id: client.pairing.id, purpose: 'client', consumed: false, client_id: null },
+    ]),
+  );
+  const resultPath = testInfo.outputPath('one-time-code-result.json');
+  await writeFile(resultPath, JSON.stringify({ before, signedIn, after }, null, 2));
+  await testInfo.attach('one-time-code-result', { path: resultPath, contentType: 'application/json' });
+  await testInfo.attach('one-time-code-form', {
+    path: testInfo.outputPath('one-time-code-form.png'),
+    contentType: 'image/png',
+  });
 });
 
 async function baseURLPath(path: string): Promise<string> {

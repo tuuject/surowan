@@ -273,18 +273,20 @@ node src/cli.ts admin-account --config <path> --username <name> [--password-stdi
 
 ## 已配对 Agent 客户端（pairing / clients）
 
-`pairing` 与 `clients` 也是服务端 CLI 命令，但它们管理的是已配对客户端的**一次性配对码**与身份，不是面板会话：
+`pairing` 与 `clients` 也是服务端 CLI 命令，管理已配对客户端的**一次性配对码**与身份；`pairing create --web` 另外签发面板登录用的一次性码：
 
 ```bash
 node src/cli.ts pairing create --config <path> --name <name> --mode <read|read_write|read_paid|all> [--ttl-seconds 60..3600] [--public-key <base64url>]
+node src/cli.ts pairing create --config <path> --web [--name <name>] [--ttl-seconds 60..3600]
 node src/cli.ts pairing list   --config <path>
 node src/cli.ts pairing cancel <pairing-id> --config <path>
 node src/cli.ts clients list   --config <path>
 node src/cli.ts clients revoke <client-id> --config <path>
 ```
 
-- **不取 `ServeLock`**：与 `admin-account` 相反，这些命令必须能在 `serve` 运行时执行（这本来就是正常场景）。它们用 `SqliteStore.open(config, false)` 打开数据库、不做迁移；数据目录里还没有迁移 `058` 的表时直接报错，提示先在本版本启动（或重启）一次 `serve`。
+- **不取 `ServeLock`**：与 `admin-account` 相反，这些命令必须能在 `serve` 运行时执行（这本来就是正常场景）。它们用 `SqliteStore.open(config, false)` 打开数据库、不做迁移；数据目录里还没有应用迁移 `059` 时直接报错，提示先在本版本启动（或重启）一次 `serve`。
 - **`pairing create`** 打印一个 JSON 文档：`{ status, code, instance_id, pairing, admin, next }`。`code` 是 `pwp_` 开头的短期一次性码（默认 300 秒，`--ttl-seconds` 限制 60–3600）；`--mode` **必须显式给出**，没有默认授权。`admin` 给出 `host`/`port`/`public_url` 作为连接提示。码的明文只出现在这一次输出里，数据库只存摘要，`pairing list` 不会回显。
+- **`pairing create --web`**：签发浏览器登录用的 `web` 票据，输出结构相同，`next` 改为「在浏览器打开面板地址，选 Sign in with a one-time code，在 `expires_at` 前粘贴」。`--name` 可省略（默认 `Admin Panel sign-in`），`--mode` 与 `--public-key` 会被拒绝；没有管理员账号（或多于一个）时报错，不建票据。码在登录页换成一个 Session，用一次即失效；`pairing list`/`cancel` 同样适用，列表项的 `purpose` 区分 `client` 与 `web`。用于忘记密码又没有 Passkey、或在新设备上不想输入密码时，从 SSH 直接签一个登录码；它不改密码，也不注销已有 Session（要重置账号用 `admin-account`）。
 - **预绑定公钥**：`surowan-utils auth init` 先在本机生成/复用 `client-key.pem` 并打印公钥，然后在这里用 `--public-key` 创建票据；这样只有那个 key 能领取配对码，同时 agent 不需要把私钥交出去。
 - **`pairing list`** 只列仍可用的票据（未消费、未取消、未过期）；**`pairing cancel`** 立即作废，重复取消或未知 id 报错。**`clients list`** 列出全部身份（含已撤销），项为 `{ id, name, fingerprint, mode, permissions, created_at, last_used_at, revoked_at }`；**`clients revoke`** 置 `revoked_at`，对下一次签名请求立即生效，重复撤销报错。
 - **失败约定**：同其它服务端命令，stdout 只有一个 JSON 文档，失败时 stderr 为 `{ "status": "error", "error": … }` 并退出 1；`assertConfigPermissions` 与 `loadConfig` 校验照常执行。

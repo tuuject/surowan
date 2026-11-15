@@ -428,7 +428,7 @@ test('the server CLI asks for serve before using a data directory without the sc
     await writeTestConfig(directory, configPath, testConfigJsonc(directory));
     const result = await runServerCli(configPath, ['pairing', 'list']);
     expect(result.code).toBe(1);
-    expect(JSON.parse(result.stderr).error).toContain('migration 058');
+    expect(JSON.parse(result.stderr).error).toContain('migration 059');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

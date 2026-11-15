@@ -64,6 +64,26 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 
 阿拉伯语界面是真正的从右到左布局：整页方向翻转、导航位于右侧，技术字符串（模型 ID、API 密钥、URL、时间戳等）单独按从左到右隔离显示，所以复制出来的内容与存储值一致。技术输入框（URL、密钥、ID、JSON、cron）按从左到右排版，名称、备注、提示词等自由文本按内容自动判定方向。技术名词（Invocation、Context、Prompt、Token 等）在中文界面中保留英文原文，德语与阿拉伯语界面按各自术语翻译，模型 ID、配置键、命令与 URL 始终不翻译；后端返回的错误消息始终按服务端原文显示（错误码 + 消息）。
 
+## 用一次性码登录
+
+能 SSH 到服务器时，可以不输入密码，直接用服务端生成的一次性码登录面板。适合在新设备上临时登录，或忘了密码、手边又没有 Passkey 的时候。这条命令与运行中的 Bot 共存，**不需要停服务**。
+
+1. 在服务器上生成登录码：
+
+   ```bash
+   node src/cli.ts pairing create --config /path/to/config.jsonc --web
+
+   # Docker 部署：对运行中的容器执行
+   docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create --config /config/config.jsonc --web
+   ```
+
+   输出是一个 JSON 文档，其中 `code` 是 `pwp_` 开头的码，`pairing.expires_at` 是过期时间（默认 5 分钟，可用 `--ttl-seconds` 设为 60–3600 秒），`next` 提示面板地址。
+2. 在浏览器打开面板，登录页点 **使用一次性码登录**，粘贴 `code`，点 **登录**。
+
+每个码只能用一次，用过、过期或被 `pairing cancel` 取消后都会失效；没用的码可以用 `pairing list` 查看。它不会修改密码，也不会注销已有的登录 Session。还没有管理员账号时命令会报错，请先在面板完成首次设置，或用下文的 `admin-account` 建号。
+
+这个码只能登录面板。给编码 Agent 用的配对码（不带 `--web`、带 `--mode`）在登录页会被拒绝；反过来，登录码也不能被 `surowan-utils auth pair` 领取。Agent 配对见[让 Agent 通过 SSH 配对](admin-agent-pairing.md)。
+
 ## Passkey 登录与恢复
 
 配置 `admin.public_url` 并重启后，Passkey 可用：登录页出现「使用 Passkey 登录」按钮，Settings 页出现 Passkeys 卡片。Passkey 绑定的是 `public_url` 的域名（WebAuthn RP = 主机名），只在访问这个来源时有效。注册与使用需要支持 WebAuthn 的浏览器，并且页面处于安全上下文（HTTPS 域名，或 `localhost` 的 HTTP）。安全上下文只是前提，不能让 IP 地址成为有效的 WebAuthn RP。
@@ -83,6 +103,8 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 - **删除密码**（转为仅 Passkey 登录）：前提是当前网站已注册至少一个 Passkey。删除后撤销全部旧会话，并为当前浏览器签发新会话（仍受会话过期时间限制）；下次登录只能通过 Passkey。想恢复密码，在「管理员凭据」卡片重新设置即可。
 
 ### 恢复（忘记密码或遗失 Passkey）
+
+只是需要登录一次、不打算改密码时，用上文的[一次性码](#用一次性码登录)更快，也不用停 Bot。
 
 Passkey 遗失，或因更换域名、关闭 Passkey 功能而无法登录时，使用**服务端内置 CLI** 的 `admin-account` 本地建号或重置——不是 `surowan-utils`（它只通过 Admin API 做只读检查与 Invocation 重放，不能恢复凭据）：
 

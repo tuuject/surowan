@@ -233,6 +233,8 @@ Admin 侧的 `admin_users`/`admin_sessions` 语义见 [admin-panel.md](admin-pan
 
 迁移 `058` 新增已配对客户端的三张表，语义见 [admin-panel.md](admin-panel.md#已配对-agent-客户端)：`admin_clients` 每个身份一行（`public_key` 为 raw 32 字节的 base64url，`fingerprint` 是展示用的 `SHA256:…`，`revoked_at` 保留行；部分唯一索引 `WHERE revoked_at IS NULL` 保证一个活跃公钥只对应一个 client）；`admin_pairings` 是一次性配对票据（只存 `hashToken(code)` 的 SHA-256 十六进制摘要，`public_key` 可预绑定，`consumed_at`/`canceled_at`/`client_id` 记录生命周期）；`admin_client_nonces`（`WITHOUT ROWID`，主键 `(client_id, nonce)`）持久化已消费的请求 nonce，使重启后的重放仍被拒绝，行随 client 级联删除；`expires_at` 由请求时间戳推导（`ts + 300 + 1` 秒），与请求时间戳仍可通过的窗口等长。实例标识存在既有的 `app_state` 表，键为 `admin_instance_id`，值形如 `ins_` + base64url(16 字节)，由 `serve` 或服务端 `pairing`/`clients` 命令惰性创建。三张表都不参与在线保留清理：`admin_clients` 是身份（同 `admin_api_keys`），只由 `clients revoke` 置 `revoked_at`。
 
+迁移 `059`（`@rebuild-tables`）重建 `admin_pairings`，增加 `purpose`（`client` / `web`）与 `user_id`（引用 `admin_users`，级联删除）。058 留下的票据全部成为 `client`，保留原 id 与生命周期列，`sqlite_sequence` 的高水位一并带过去，所以已清理票据的 id 不会被重新分配。CHECK 把两种用途隔开：`client` 不带 `user_id`，且 `consumed_at` 与 `client_id` 同时为空或同时非空；`web` 必须带 `user_id`，不带 `public_key` 与 `client_id`，三个权限位都为 1。`web` 票据被 `POST /api/auth/pairing` 消费后只记 `consumed_at`，换出的是 `admin_sessions` 行，语义见 [admin-panel.md](admin-panel.md#认证)。
+
 ## ID 与 JSON 规则
 
 - SQLite 整数 ID 在 TypeScript 中使用 `bigint`。

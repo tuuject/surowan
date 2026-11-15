@@ -18,4 +18,11 @@ export const auth: typeof authEn = {
   passkeySignIn: '使用通行密钥登录',
   passkeySigningIn: '正在等待通行密钥…',
   passkeyUnavailable: '这里无法使用通行密钥登录。请在支持通行密钥的浏览器中通过 HTTPS 打开面板，或改用密码登录。',
+  codeSignIn: '使用一次性码登录',
+  codeDescription: '粘贴在服务器上生成的一次性码。',
+  code: '一次性码',
+  codeHelp: '在服务器上运行 <command>pairing create --web</command> 命令获取。',
+  codeRequired: '请粘贴一次性码',
+  codePattern: '请完整复制服务器输出的码',
+  passwordSignIn: '使用密码登录',
 };

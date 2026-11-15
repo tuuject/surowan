@@ -20,4 +20,11 @@ export const auth: Catalog<typeof authEn> = {
   passkeySigningIn: 'Warten auf Passkey…',
   passkeyUnavailable:
     'Passkey-Anmeldung ist hier nicht verfügbar. Das Panel über HTTPS in einem Browser mit Passkey-Unterstützung öffnen oder sich mit dem Passwort anmelden.',
+  codeSignIn: 'Mit einem Einmalcode anmelden',
+  codeDescription: 'Den auf dem Server erzeugten Einmalcode einfügen.',
+  code: 'Einmalcode',
+  codeHelp: 'Auf dem Server mit dem Befehl <command>pairing create --web</command> erzeugen.',
+  codeRequired: 'Einmalcode einfügen',
+  codePattern: 'Den Code vollständig so kopieren, wie der Server ihn ausgegeben hat',
+  passwordSignIn: 'Mit Passwort anmelden',
 };

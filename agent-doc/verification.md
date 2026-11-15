@@ -354,7 +354,10 @@ Remove-Item Env:E2E_PASSKEYS
 - **种子时间基准**：`test/fixtures/admin-seed.ts` 的时间要么全部从当前时钟推导，要么全部是无关运行时刻的固定值。承担「仍然有效/未过期」语义的字段必须用运行时的 `Date.now() ± 偏移`（如批量 Memo 行的 `expiresAt`）；固定时间戳只用于「已过期/历史」这类永远成立的行。写死的未来时间会随时间穿过真实时钟：到那天整批种子变成 expired，`state=expired` 过滤断言就会拿到默认分页的 25 行而不是 1 行。
 - 覆盖契约（全部断言真实 UI 状态，非仅文案）：
   1. 认证：setup → shell；错误密码表单内显示 `invalid_credentials` 且 URL 不变；
-     登出回登录页；会话撤销后受保护请求 401 → 登录页且无错误屏。
+     登出回登录页；会话撤销后受保护请求 401 → 登录页且无错误屏；`/__e2e/pairing-create` 钩子
+     对本服务器的配置与数据库运行**真实的** `pairing create --web` CLI，登录页粘贴其码进入 shell，
+     同一码第二次显示 `pairing_code_used`，Agent 配对码显示 `pairing_code_invalid` 且未被消费
+     （`/__e2e/pairing-rows` 断言票据与 Session 行数，产物为 JSON 与码表单截图）。
   2. `apps/admin-next/src/routes/**` 声明的全部路由与深链接直接访问渲染真实内容（非错误边界、非空白）。
   3. 列表过滤与分页：Invocations、Messages、Contexts、Alarms、Memories、Group memory、Stickers
      的过滤器真正改变结果集（Memories 的 Active / Expired / Short-term / Long-term 状态过滤；

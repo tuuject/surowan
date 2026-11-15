@@ -59,7 +59,9 @@ export async function claimPairing(
       executePaidOperations: adminPairings.executePaidOperations,
     })
     .from(adminPairings)
-    .where(eq(adminPairings.codeHash, hashToken(body.code)))
+    // A web sign-in ticket is unknown here: it must never become a client, and
+    // naming it must not burn it.
+    .where(and(eq(adminPairings.codeHash, hashToken(body.code)), eq(adminPairings.purpose, 'client')))
     .get();
   if (pairing === undefined || pairing.canceledAt !== null) {
     throw new AdminAuthError(400, 'pairing_code_invalid', 'Pairing code is unknown or was canceled');

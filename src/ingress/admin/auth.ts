@@ -329,8 +329,12 @@ export class AdminAuth {
     return rows[0]?.id;
   }
 
-  /** Called only inside the passkey verification transaction. */
-  createPasskeySession(userId: bigint, now = new Date()): string {
+  /**
+   * Opens a session for a user another factor already proved: a passkey
+   * assertion or a one-time web pairing code. Called only inside that
+   * verification's transaction.
+   */
+  createVerifiedSession(userId: bigint, now = new Date()): string {
     this.#orm.update(adminUsers).set({ lastLoginAt: now.toISOString() }).where(eq(adminUsers.id, userId)).run();
     this.#warnings?.loginSucceeded();
     return this.#createSession(userId, now);

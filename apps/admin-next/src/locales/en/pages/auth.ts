@@ -20,4 +20,11 @@ export const auth = {
   passkeySigningIn: 'Waiting for passkey…',
   passkeyUnavailable:
     'Passkey sign-in is unavailable here. Open the panel over HTTPS in a browser that supports passkeys, or sign in with your password.',
+  codeSignIn: 'Sign in with a one-time code',
+  codeDescription: 'Paste the one-time code generated on the server.',
+  code: 'One-time code',
+  codeHelp: 'Run the <command>pairing create --web</command> command on the server to get one.',
+  codeRequired: 'Paste the one-time code',
+  codePattern: 'Copy the whole code exactly as the server printed it',
+  passwordSignIn: 'Sign in with a password',
 };
