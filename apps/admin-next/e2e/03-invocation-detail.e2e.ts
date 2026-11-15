@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { adminUrl, test } from './helpers.ts';
+import { adminUrl, e2eFetch, test } from './helpers.ts';
 
 /**
  * Invocation detail contract: the six tabs render their real fields, failed
@@ -148,9 +148,16 @@ test.describe('failed invocation (4002)', () => {
 });
 
 test.describe('resuming the latest failed invocation', () => {
-  test('only the newest failed run of a conversation offers Resume, and one click queues a linked run', async ({
+  test('only the newest failed run of a conversation offers Resume while Telegram can run it, and one click queues a linked run', async ({
     page,
   }) => {
+    // This process starts with Telegram disabled: a resumed run could not
+    // start, so the newest failure offers nothing yet.
+    await page.goto(await adminUrl('/invocations/4127'));
+    await expect(page.getByText('Invocation 4127').first()).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Resume' })).toHaveCount(0);
+    await connectTelegram();
+
     // 4002 failed, but the seeded conversation moved on to 4100..4127 since.
     await page.goto(await adminUrl('/invocations/4002'));
     await expect(page.getByText('Invocation 4002').first()).toBeVisible();
@@ -178,3 +185,11 @@ test.describe('resuming the latest failed invocation', () => {
     await expect(page.getByRole('button', { name: 'Resume' })).toHaveCount(0);
   });
 });
+
+async function connectTelegram(): Promise<void> {
+  await e2eFetch('/telegram-connection', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ status: 'connected' }),
+  });
+}

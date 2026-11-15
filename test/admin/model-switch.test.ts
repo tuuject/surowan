@@ -100,6 +100,7 @@ async function switchFixture(runs: ReturnType<typeof gatedRuns>) {
     tasks: f.tasks,
     modelSwitcher: new AgentModelSwitcher(f.configStore),
     requestRestart: undefined,
+    isHostReady: () => true,
   });
   const put = async (path: string, body: unknown): Promise<{ readonly status: number; readonly body: any }> => {
     const segments = path.split('/').filter((segment) => segment.length > 0);
@@ -359,6 +360,7 @@ test('a published switch aborts old runs even when the publication hook fails', 
     tasks: f.tasks,
     modelSwitcher: new AgentModelSwitcher(f.configStore),
     requestRestart: undefined,
+    isHostReady: () => true,
   });
   const response = await control.handle(
     new Request('http://localhost/api/model', {

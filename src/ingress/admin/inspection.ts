@@ -9,6 +9,7 @@ import type { BusinessStore } from '../../store/store.ts';
 import { listActiveTextModels } from '../../platform/models/switch.ts';
 import { ThinkingLevelSchema } from '../../platform/config/schema-model.ts';
 import { listAlarms } from '../../plugins/alarm/admin.ts';
+import type { HostReadiness } from '../../orchestration/host-scope.ts';
 import { resumeBlockReason } from '../../orchestration/invocation-queue/resume.ts';
 import { REPLAY_BODY_MAX_BYTES, SECURITY_HEADERS, json, listQuery, readJsonObject } from './http.ts';
 import { AdminQueryError, parseId } from './audit/shared.ts';
@@ -115,6 +116,8 @@ export interface InspectionAdminDeps {
   readonly replayPreflight: ((id: bigint, selection?: ReplayPreflightSelection) => unknown) | undefined;
   readonly invocationPrompts: ((id: bigint) => unknown) | undefined;
   readonly readInvocationMedia: InvocationMediaReader | undefined;
+  /** Live host readiness; the detail view's resume availability depends on it. */
+  readonly isHostReady: HostReadiness;
 }
 
 /**
@@ -131,6 +134,7 @@ export function createInspectionAdminHandler(deps: InspectionAdminDeps) {
     replayPreflight,
     invocationPrompts,
     readInvocationMedia,
+    isHostReady,
   } = deps;
 
   /**
@@ -297,7 +301,7 @@ export function createInspectionAdminHandler(deps: InspectionAdminDeps) {
       }
       // The same rule `POST invocations/:id/resume` enforces, so the panel only
       // offers the button when the click would be accepted right now.
-      const blocked = resumeBlockReason(store.orm, configStore.current().config, id, new Date());
+      const blocked = resumeBlockReason(store.orm, configStore.current().config, id, new Date(), isHostReady);
       return json({
         ...found,
         resume: { available: blocked === undefined, reason: blocked === undefined ? null : `resume_${blocked}` },

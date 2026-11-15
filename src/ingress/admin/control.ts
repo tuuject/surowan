@@ -16,6 +16,7 @@ import {
   withAgentModel,
 } from '../../orchestration/model-switch.ts';
 import { modelInUseBody } from './model-switch.ts';
+import type { HostReadiness } from '../../orchestration/host-scope.ts';
 import { type ResumeBlockReason, resumeInvocation } from '../../orchestration/invocation-queue/resume.ts';
 import { parseId } from './audit/shared.ts';
 import { cancelOngoingSessions } from './operations.ts';
@@ -27,6 +28,7 @@ const RESUME_REFUSALS: Readonly<Record<Exclude<ResumeBlockReason, 'not_found'>, 
   not_latest: 'A later invocation exists in this conversation; only the latest one can be resumed',
   conversation_busy: 'This conversation already has a queued or running invocation',
   unsupported_host: 'Playground invocations retry through their Release instead',
+  host_unavailable: 'Telegram is disabled or not connected, so the run could not start',
   sleeping: 'The bot is sleeping until its daily token budget resets; wake it first',
   chat_removed: 'The chat is no longer configured',
   agent_unconfigured: 'The chat has no complete agent model configuration',
@@ -52,6 +54,8 @@ export interface ControlAdminDeps {
   readonly tasks: LongTaskService;
   readonly modelSwitcher: AgentModelSwitcher | undefined;
   readonly requestRestart: (() => void) | undefined;
+  /** Live host readiness, the same question the Scheduler asks before launching. */
+  readonly isHostReady: HostReadiness;
 }
 
 /**
@@ -60,7 +64,8 @@ export interface ControlAdminDeps {
  * presets, restart, and the configuration reload endpoints.
  */
 export function createControlAdminHandler(deps: ControlAdminDeps) {
-  const { store, configStore, configReloader, secrets, scheduler, tasks, modelSwitcher, requestRestart } = deps;
+  const { store, configStore, configReloader, secrets, scheduler, tasks, modelSwitcher, requestRestart, isHostReady } =
+    deps;
 
   const modelState = (
     switcher: AgentModelSwitcher,
@@ -235,7 +240,7 @@ export function createControlAdminHandler(deps: ControlAdminDeps) {
         request.method === 'POST'
       ) {
         const source = parseId(segments[1] ?? '', 'id');
-        const result = resumeInvocation(store, configStore, source);
+        const result = resumeInvocation(store, configStore, source, isHostReady);
         if (!result.ok) {
           return result.reason === 'not_found'
             ? json({ error: 'not_found', message: 'Invocation does not exist' }, 404)

@@ -35,11 +35,15 @@ function ResumeButton({ invocationId }: { readonly invocationId: string }): Reac
     mutationFn: () => resumeInvocation(invocationId),
     onSuccess: (result) => {
       toast.success(t('invocations.invocationDetail.resume.queued', { id: result.invocation_id }));
-      void queryClient.invalidateQueries({ queryKey: ['invocation', invocationId] });
-      void queryClient.invalidateQueries({ queryKey: ['invocations'] });
       void navigate({ to: '/invocations/$invocationId', params: { invocationId: result.invocation_id } });
     },
     onError: (error) => toast.error(errorMessage(error)),
+    // A refusal usually means the page is stale (another operator resumed it,
+    // or the chat changed); refetching hides a button that can no longer work.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['invocation', invocationId] });
+      void queryClient.invalidateQueries({ queryKey: ['invocations'] });
+    },
   });
   return (
     <Button

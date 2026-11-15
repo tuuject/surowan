@@ -254,7 +254,8 @@ export function renderInjection(deps: RenderDependencies, config: RawConfig, inp
     now,
   });
   const adminTask = completion === null ? undefined : adminScheduledTask(completion);
-  const resume = adminResumeState(deps.orm, identity.invocationId, input.bucketId);
+  // A resume that copied a never-injected batch is an ordinary rerun of it.
+  const resume = current.length === 0 ? adminResumeState(deps.orm, identity.invocationId, input.bucketId) : undefined;
   const runtimeState = [
     `current_time: ${renderCurrentTime(identity.timezone, now)}`,
     ...(input.sleepy && completion?.delivery.bypassDailyBudget !== true ? [SLEEP_STATE_PROMPT] : []),

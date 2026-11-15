@@ -41,12 +41,18 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
         JOIN invocations i ON i.id = tc.invocation_id
         WHERE i.state IN ('completed', 'failed', 'aborted', 'outcome_unknown', 'skipped_budget')
           AND COALESCE(i.finished_at, i.created_at) < ${cutoff}
+          AND NOT EXISTS (
+            SELECT 1 FROM invocations r WHERE r.resumed_from_invocation_id = i.id AND r.state IN ('queued', 'running'))
       )
     `);
       orm.run(sql`
       DELETE FROM invocations
       WHERE state IN ('completed', 'failed', 'aborted', 'outcome_unknown', 'skipped_budget')
         AND COALESCE(finished_at, created_at) < ${cutoff}
+        -- A queued or running resume renders its trusted line from this row.
+        AND NOT EXISTS (
+          SELECT 1 FROM invocations r
+          WHERE r.resumed_from_invocation_id = invocations.id AND r.state IN ('queued', 'running'))
     `);
       orm.run(sql`
       UPDATE buckets

@@ -16,11 +16,20 @@
  *    cross-origin page does.
  * 8. The audit link is missing, or the link blocks the retention purge.
  * 9. A hostile error code is echoed into the trusted runtime line.
+ * 10. A batch that never reached the Context (a crash or a failure before the
+ *     opening injection) is lost instead of rerun.
+ * 11. A message still collecting in another batch is snapshotted as history
+ *     and later injected again as new.
+ * 12. Telegram is disabled or disconnected, so the accepted run sits queued
+ *     forever and blocks every later resume.
+ * 13. Retention purges the resumed run while its resume is still queued, and
+ *     the trusted line disappears with it.
  */
 import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai';
 import { expect, test } from 'vitest';
 import { adminResumeState } from '../../src/context/builder/admin-task.ts';
 import { AdminServer } from '../../src/ingress/admin/index.ts';
+import { ImConnectionRegistry } from '../../src/platform/im-connection.ts';
 import { PlaygroundStore } from '../../src/store/playground/index.ts';
 import { enterSleep } from '../../src/store/sleep.ts';
 import { purgeExpiredData } from '../../src/store/store.ts';
@@ -39,7 +48,13 @@ async function harness() {
   const f = await fixture((config) => {
     config.agent!.context!.idle_grace_seconds = 0;
   });
-  const server = new AdminServer({ store: f.store, configStore: f.configStore, scheduler: f.scheduler });
+  const connections = new ImConnectionRegistry();
+  connections.set('telegram', {
+    status: 'connected',
+    since: new Date().toISOString(),
+    bot: { id: '999', username: 'surowan' },
+  });
+  const server = new AdminServer({ store: f.store, configStore: f.configStore, scheduler: f.scheduler, connections });
   await createAdminAccount(f.store.orm, { username: 'owner', password: PASSWORD });
   const login = await server.handle(
     request('/api/auth/login', {
@@ -55,10 +70,24 @@ async function harness() {
     server.handle(request(`/api/invocations/${id}/resume`, { method: 'POST', headers }));
   const detail = async (id: bigint | string): Promise<any> =>
     await (await server.handle(request(`/api/invocations/${id}`, { headers: { cookie } }))).json();
-  return { ...f, server, cookie, resume, detail };
+  return { ...f, server, connections, cookie, resume, detail };
 }
 
 type Harness = Awaited<ReturnType<typeof harness>>;
+
+function snapshotRows(f: Harness, invocationId: bigint) {
+  return f.store.db
+    .prepare<[bigint], { section: string; message_id: bigint; source_bucket_id: bigint | null }>(
+      'SELECT section, message_id, source_bucket_id FROM invocation_messages WHERE invocation_id = ? ORDER BY sequence_no',
+    )
+    .all(invocationId);
+}
+
+function messageId(f: Harness, telegramMessageId: number): bigint {
+  return f.store.db
+    .prepare<[number], { id: bigint }>('SELECT id FROM messages WHERE telegram_message_id = ?')
+    .get(telegramMessageId)!.id;
+}
 
 function invocationRows(f: Harness) {
   return f.store.db
@@ -169,7 +198,7 @@ test('a resumed run continues the canonical Context without re-injecting the fai
   ]);
 });
 
-test('a resume is refused unless it is the newest terminal failure of a Telegram chat that can run (3, 5, 6)', async () => {
+test('a resume is refused unless it is the newest terminal failure of a Telegram chat that can run (3, 5, 6, 12)', async () => {
   const f = await harness();
   const failed = await failOnce(f);
   await f.scheduler.stop(0);
@@ -184,6 +213,15 @@ test('a resume is refused unless it is the newest terminal failure of a Telegram
   expect(await refusal(failed)).toEqual({ status: 409, error: 'resume_sleeping' });
   expect((await f.detail(failed)).resume).toEqual({ available: false, reason: 'resume_sleeping' });
   f.store.db.prepare("DELETE FROM app_state WHERE key = 'bot_sleep_until'").run();
+
+  f.connections.set('telegram', { status: 'disabled', since: new Date().toISOString() });
+  expect(await refusal(failed)).toEqual({ status: 409, error: 'resume_host_unavailable' });
+  expect((await f.detail(failed)).resume).toEqual({ available: false, reason: 'resume_host_unavailable' });
+  f.connections.set('telegram', {
+    status: 'connected',
+    since: new Date().toISOString(),
+    bot: { id: '999', username: 'surowan' },
+  });
 
   f.store.db.prepare('INSERT INTO chat_pause(chat_id, paused_at) VALUES (1, ?)').run(new Date().toISOString());
   expect(await refusal(failed)).toEqual({ status: 409, error: 'resume_chat_paused' });
@@ -285,4 +323,99 @@ test('the trusted resume line never echoes a reason code the runtime did not wri
   // Only the resumed run's own opening batch carries the line.
   expect(adminResumeState(f.store.orm, resumed.id, bucket + 1n)).toBeUndefined();
   expect(adminResumeState(f.store.orm, failed, bucket)).toBeUndefined();
+});
+
+test('a batch that never reached the Context is rerun from its frozen snapshot, without the resume line (10)', async () => {
+  const f = await harness();
+  // Queue the batch without launching it, then close it the way crash
+  // recovery closes work a dead process left behind.
+  await f.ingestion.ingest(update(1, 'hello there'));
+  f.scheduler.processDue();
+  const aborted = invocationRows(f)[0]!;
+  expect(aborted.state).toBe('queued');
+  f.store.db
+    .prepare(
+      "UPDATE invocations SET state = 'aborted', completion_reason = 'recovery_failed', finished_at = ? WHERE id = ?",
+    )
+    .run(new Date().toISOString(), aborted.id);
+  expect(
+    f.store.db
+      .prepare<[bigint], { injected_at: string | null }>(
+        'SELECT injected_at FROM invocation_buckets WHERE invocation_id = ?',
+      )
+      .all(aborted.id),
+  ).toEqual([{ injected_at: null }]);
+
+  const accepted = await f.resume(aborted.id);
+  expect(accepted.status).toBe(202);
+  const { invocation_id: resumedId, bucket_id: bucketId } = (await accepted.json()) as {
+    invocation_id: string;
+    bucket_id: string;
+  };
+  const resumed = BigInt(resumedId);
+  // The frozen batch is copied onto the new opening bucket.
+  expect(snapshotRows(f, resumed)).toEqual([
+    { section: 'new', message_id: messageId(f, 1), source_bucket_id: BigInt(bucketId) },
+  ]);
+
+  f.faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('send', { kind: 'text', text: 'hi!' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done'),
+  ]);
+  f.scheduler.start();
+  f.scheduler.wake();
+  await expect.poll(() => invocationRows(f).at(-1)?.state, { timeout: 5_000 }).toBe('completed');
+  expect(f.sends).toEqual(['hi!']);
+  const checkpoints = checkpointTexts(f.store);
+  expect(checkpoints.filter(({ text }) => text.includes('hello there'))).toHaveLength(1);
+  expect(checkpoints.filter(({ text }) => text.includes(RESUME_LINE))).toEqual([]);
+});
+
+test('a message still collecting in another batch is left to that batch, not snapshotted as history (11)', async () => {
+  const f = await harness();
+  const failed = await failOnce(f);
+  await f.scheduler.stop(0);
+  await f.ingestion.ingest(update(2, 'one more thing'));
+  expect(
+    f.store.db
+      .prepare<[bigint], { state: string }>(
+        'SELECT b.state FROM bucket_messages bm JOIN buckets b ON b.id = bm.bucket_id WHERE bm.message_id = ?',
+      )
+      .get(messageId(f, 2)),
+  ).toEqual({ state: 'collecting' });
+
+  expect((await f.resume(failed)).status).toBe(202);
+  const resumed = invocationRows(f).at(-1)!.id;
+  expect(snapshotRows(f, resumed)).toEqual([
+    { section: 'history', message_id: messageId(f, 1), source_bucket_id: null },
+  ]);
+});
+
+test('retention keeps a resumed run while its resume is still waiting to run (13)', async () => {
+  const f = await harness();
+  const failed = await failOnce(f);
+  await f.scheduler.stop(0);
+  expect((await f.resume(failed)).status).toBe(202);
+  const resumed = invocationRows(f)[1]!;
+  const bucket = f.store.db
+    .prepare<[bigint], { bucket_id: bigint }>('SELECT bucket_id FROM invocations WHERE id = ?')
+    .get(resumed.id)!.bucket_id;
+  f.store.db
+    .prepare('UPDATE invocations SET finished_at = ? WHERE id = ?')
+    .run(new Date(Date.now() - 40 * 86_400_000).toISOString(), failed);
+
+  purgeExpiredData(f.store.orm, f.configStore.current().config);
+  expect(invocationRows(f).map((row) => [row.id, row.resumed_from])).toEqual([
+    [failed, null],
+    [resumed.id, failed],
+  ]);
+  expect(adminResumeState(f.store.orm, resumed.id, bucket)).toContain('(failed: model_error)');
+
+  // Once the resume has run, its line lives in the canonical Context and the
+  // source may go.
+  f.store.db
+    .prepare("UPDATE invocations SET state = 'completed', finished_at = ? WHERE id = ?")
+    .run(new Date().toISOString(), resumed.id);
+  purgeExpiredData(f.store.orm, f.configStore.current().config);
+  expect(invocationRows(f).map((row) => [row.id, row.resumed_from])).toEqual([[resumed.id, null]]);
 });

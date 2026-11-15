@@ -510,11 +510,13 @@ Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_
 
 重放是隔离的沙箱；续跑相反，是**真实**的生产运行，用来替代「模型失败后先换模型、再随便发一条消息把会话戳起来」的人工流程。`POST /api/invocations/:id/resume` 由 `src/orchestration/invocation-queue/resume.ts` 在一个事务里判定并入队，`control.ts` 只做转发、记 `admin_invocation_resumed` 日志并唤醒 Scheduler。不接受 body，副作用不设条件：已发过的消息可能再发，`outcome_unknown` 也允许续跑。
 
-- **守卫**（`resumeBlockReason`，按序检查，409 错误码为 `resume_<reason>`）：源 Invocation 必须存在（否则 404 `not_found`）、状态是 `failed`/`aborted`/`outcome_unknown`（`not_failed`）、是所在 Conversation id 最大的一次（`not_latest`）、该 Conversation 没有 queued/running 的 Invocation（`conversation_busy`；回执投递会插队，id 更小的 queued 运行也算）、宿主是 Telegram（`unsupported_host`；Playground 房间走自己的 Release 重试账本）、通过与任务回执相同的 `deliveryBlockReason`（`chat_removed`/`agent_unconfigured`/`chat_paused`/`topic_removed`），且 Bot 不在睡眠（`sleeping`；否则 Scheduler 会把它静默跳过为 `skipped_budget`）。睡眠判断只读 `storedSleepUntil`，不清理过期行。
-- **入队**：新建一个空的 `queued` Bucket（`kind = 'realtime'`，计时列为 0），经 `enqueueInvocation` 建 queued Invocation 并写 `resumed_from_invocation_id`，再像任务回执一样带历史快照（`includeHistory = true`，canonical Context 已有的消息在渲染时去重）。运行时用的是启动那一刻的 active 配置，所以先切模型再点续跑，就是换模型重试。
-- **不重复注入**：失败运行的开场批次在模型调用前已经落进 canonical Context，报错的 assistant 消息被 codec 丢弃。续跑不拷贝源快照，只注入一个空批次，模型看到的历史与人工补一条消息时一致。
-- **可信说明**：`context/builder/admin-task.ts` 的 `adminResumeState` 只在「带 `resumed_from_invocation_id` 的 Invocation 的开场 Bucket」上，往 `<runtime_state>` 写一行：管理员从面板续跑、上次运行的状态与原因、本批无新消息、从中断处继续、别重复已发内容。原因取 `completion_reason`，其次 `error_code`，只回显 `^[a-z0-9_]{1,64}$` 的运行时代码，其余写 `unknown`。
-- **幂等与关联**：连点第二下时新运行已是最新，返回 409 `resume_not_latest`。`GET /invocations/:id` 额外返回 `resumed_from_invocation_id`、`resumed_by_invocation_id`（最新一次续跑它的运行）与 `resume: { available, reason }`，`reason` 是 POST 会返回的同一个错误码；面板只在 `available` 时显示按钮。源运行被保留清理或删 Chat 删除时，链接经 `ON DELETE SET NULL` 清空，不阻塞删除。
+- **守卫**（`resumeBlockReason`，按序检查，409 错误码为 `resume_<reason>`）：源 Invocation 必须存在（否则 404 `not_found`）、状态是 `failed`/`aborted`/`outcome_unknown`（`not_failed`）、是所在 Conversation id 最大的一次（`not_latest`）、该 Conversation 没有 queued/running 的 Invocation（`conversation_busy`；回执投递会插队，id 更小的 queued 运行也算）、宿主是 Telegram（`unsupported_host`；Playground 房间走自己的 Release 重试账本）、Telegram 此刻能执行工作（`host_unavailable`；与 Scheduler 同一个就绪判断，面板经 `ImConnectionRegistry.isReady` 取得，停用或未连接时排进去的运行永远不会启动）、通过与任务回执相同的 `deliveryBlockReason`（`chat_removed`/`agent_unconfigured`/`chat_paused`/`topic_removed`），且 Bot 不在睡眠（`sleeping`；否则 Scheduler 会把它静默跳过为 `skipped_budget`）。睡眠判断只读 `storedSleepUntil`，不清理过期行。
+- **入队**：新建一个 `queued` Bucket（`kind = 'realtime'`，计时列为 0），经 `enqueueInvocation` 建 queued Invocation 并写 `resumed_from_invocation_id`。运行时用的是启动那一刻的 active 配置，所以先切模型再点续跑，就是换模型重试。
+- **批次已进 Context 时续跑**（常见情况）：失败运行的开场批次在第一次模型调用前就落进了 canonical Context（`invocation_buckets.injected_at` 非空），报错的 assistant 消息被 codec 丢弃。新 Bucket 不含消息，只像任务回执一样带历史快照（`includeHistory = true`，canonical Context 已有的消息在渲染时去重），模型看到的历史与人工补一条消息时一致。
+- **批次没进 Context 时重跑**：进程崩溃或在开场注入前就失败时 `injected_at` 为空，失败批次不在 Context 里。此时把源运行开场批次的冻结快照（`history` 行与 `source_bucket_id` 为开场 Bucket 的 `new` 行）拷到新 Invocation，`new` 行改挂新 Bucket，新运行看到的正是原运行本该看到的输入。只拷开场批次：其后的批次只能在开场注入之后 attach，原运行已把它们作为独立工作释放。
+- **可信说明**：`context/builder/admin-task.ts` 的 `adminResumeState` 只在「带 `resumed_from_invocation_id` 的 Invocation 的开场 Bucket，且该批没有 new 消息」时，往 `<runtime_state>` 写一行：管理员从面板续跑、上次运行的状态与原因、本批无新消息、从历史或聊天记录接着做未完成的事、别重复已发内容。重跑未注入批次时不写这一行，它就是一次普通运行。原因取 `completion_reason`，其次 `error_code`，只回显 `^[a-z0-9_]{1,64}$` 的运行时代码，其余写 `unknown`。
+- **换模型后的 Context 重建**：新模型让稳定 prompt 哈希变化、或窗口装不下旧 Context 时，`contexts.open` 会重建 Context。这时历史快照里的聊天消息（含失败批次与 Bot 已发出的消息）会完整渲染，但工具结果、任务回执正文等非聊天内容不再可见，与人工补消息流程相同；说明行因此同时指向聊天记录。
+- **保留与关联**：连点第二下时新运行已是最新，返回 409 `resume_not_latest`。`GET /invocations/:id` 额外返回 `resumed_from_invocation_id`、`resumed_by_invocation_id`（最新一次续跑它的运行）与 `resume: { available, reason }`，`reason` 是 POST 会返回的同一个错误码；面板只在 `available` 时显示按钮。`purgeExpiredData` 不删除仍被 queued/running 续跑引用的源运行（说明行在开场注入时从它读取）；续跑结束后，源运行照常随保留清理或删 Chat 删除，链接经 `ON DELETE SET NULL` 清空。
 
 ## 静态资源
 
@@ -586,7 +588,7 @@ Providers 页的模型复选框由批量测试与批量删除共用，跨分页�
 
 Tool session 详情默认打开 Overview 时间线：按时间合并冻结消息、Invocation 生命周期、Model Call、Tool Call 与 Agent transcript；消息正文和 `send` 参数中的发送内容直接展示，Tool 结果与完整参数按需展开。失败的 Model Call 同时展示稳定错误码，并可展开查看经密钥脱敏的完整 Provider 错误详情。Assistant 文本显式标注为私有推理，只有 `send` Tool 会发往 Telegram；assistant 行的思考过程（CoT）与作为本轮 response 的文本分开展示（折叠的 “Thinking” 区块），Agent transcript 表格与时间线卡都适用。
 
-详情页 Summary 面板在 `resume.available` 为真时显示「Resume」按钮（`components/invocations/detail-header.tsx`）：一次点击即 `POST /invocations/:id/resume`，不弹确认，成功后提示并跳到新 Invocation；失败用服务端 `message` 提示。存在续跑关系时，Summary 多出「Resumed from」/「Resumed by」两行链接。
+详情页 Summary 面板在 `resume.available` 为真时显示「Resume」按钮（`components/invocations/detail-header.tsx`）：一次点击即 `POST /invocations/:id/resume`，不弹确认，成功后提示并跳到新 Invocation；失败用服务端 `message` 提示。无论成败都刷新详情与列表查询，被拒（例如另一位管理员已先续跑）时过期的按钮随即消失。存在续跑关系时，Summary 多出「Resumed from」/「Resumed by」两行链接。
 
 ### Invocation 批改（`/reviews`）
 

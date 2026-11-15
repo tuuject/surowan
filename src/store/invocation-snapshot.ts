@@ -46,7 +46,10 @@ export function snapshotInvocation(
 ): void {
   // History stops at the Conversation's context cutoff (`/cut_topic`), if one
   // exists: messages at or below the cutoff Telegram message ID never enter
-  // a new invocation snapshot. Live bucket messages are unaffected.
+  // a new invocation snapshot. Live bucket messages are unaffected. Messages
+  // still collecting in another batch stay out too: that batch delivers them as
+  // new later, and a run opened beside it (a receipt, a resume) would otherwise
+  // show them twice, once as history and once as new.
   const history = includeHistory
     ? store.orm
         .all<MessageSnapshotRow>(
@@ -63,6 +66,10 @@ export function snapshotInvocation(
            AND m.telegram_message_id > COALESCE(
              (SELECT telegram_message_id FROM conversation_context_cutoffs WHERE conversation_id = m.conversation_id), -1)
            AND NOT EXISTS (SELECT 1 FROM bucket_messages bm WHERE bm.bucket_id = ${bucketId} AND bm.message_id = m.id)
+           AND m.id NOT IN (
+             SELECT pending.message_id FROM bucket_messages pending
+             JOIN buckets pb ON pb.id = pending.bucket_id
+             WHERE pb.conversation_id = ${conversationId} AND pb.state = 'collecting')
          ORDER BY m.telegram_date DESC, m.telegram_message_id DESC
          LIMIT ${BigInt(historyMessages)}`,
         )
