@@ -88,7 +88,7 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 
 已配对客户端让 Agent 用一个 **Ed25519 身份**访问 Admin API，而不需要把长期凭据放进上下文。实现位于 `src/ingress/admin/clients/`：客户端在 `~/.config/surowan-utils/client-key.pem` 持有私钥（`surowan-utils` 自己生成，永不上传、不出现在输出/参数/环境变量/服务端，也没有导出命令），服务端只保存公钥、指纹与和 API key 相同的三个权限布尔。
 
-- **用途隔离**：迁移 `059` 给 `admin_pairings` 加了 `purpose`（`client` / `web`）与 `user_id`。`client` 票据只能由 `POST /api/pairing/claim` 变成客户端；`web` 票据（`pairing create --web`）只能由 `POST /api/auth/pairing` 变成面板 Session，见「认证」。两个端点都按 `purpose` 过滤查询，对方用途的码一律当作 `pairing_code_invalid`，且不消费它。`web` 票据创建时绑定唯一的管理员（没有账号或多于一个账号时 CLI 拒绝），不带公钥与 client，三个权限位固定为 1（面板 Session 就是整个面板）；这些约束由表的 CHECK 保证。
+- **用途隔离**：迁移 `059` 给 `admin_pairings` 加了 `purpose`（`client` / `web`）与 `user_id`。`client` 票据只能由 `POST /api/pairing/claim` 变成客户端；`web` 票据（`pairing create --web`）只能由 `POST /api/auth/pairing` 变成面板 Session，见「认证」。两个端点都按 `purpose` 过滤查询，对方用途的码一律当作 `pairing_code_invalid`，且不消费它。`web` 票据创建时绑定唯一的管理员（还没有账号时先建一个无密码的 `admin`，即首次登录的建号方式；多于一个账号时 CLI 拒绝），不带公钥与 client，三个权限位固定为 1（面板 Session 就是整个面板）；这些约束由表的 CHECK 保证。
 - **配对码**：服务端 `surowan pairing create --config … --name … --mode …` 打印一次性的 `pwp_` 码（`pwp_` + 24 随机字节的 base64url），默认 300 秒有效、上限 3600 秒；`--public-key` 可预绑定唯一能领取它的公钥（`surowan-utils auth init` 先打印公钥，再由操作员在服务器上创建）。数据库只存 `hashToken(code)`，明文码只存在于该次输出；`pairing list` 永不回显码。**没有客户端发起的 pending 请求队列，也没有 `approve` 命令**：在 SSH 上运行 `pairing create` 本身就是批准动作，`--public-key` 是「直接按公钥配对」的变体。
 - **领取**：`POST /api/pairing/claim` 是 Admin API 唯一 **无需任何凭据** 的写端点，也不是 `@surowan/admin-surface` 的 spec（不会变成 CLI 面板命令或 MCP 工具）。body 为 `{ code, public_key, proof }`，`proof` 是领取私钥对
 
