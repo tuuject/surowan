@@ -9,13 +9,15 @@ Capability: `web_search`, invoked through `execute` with action `call`.
 
 ## When to use
 
-You SHOULD use this skill when the task needs up-to-date or page-specific information and you do not already know a URL. It returns titles, URLs and short snippets: enough to choose a source. It does not read page bodies. You SHOULD follow up with `web_fetch` on the URLs that matter.
+You SHOULD use this skill when the task needs up-to-date or page-specific information and you do not already know a URL. Unless a question is about stable knowledge, you SHOULD assume it needs up-to-date information rather than answering from memory. It returns titles, URLs and short snippets: enough to choose a source. It does not read page bodies. You SHOULD follow up with `web_fetch` on the URLs that matter.
 
 You MUST NOT use it to search for private or local resources, and MUST NOT put secrets in the query.
 
 ## How to call
 
 `execute.call` with tool `web_search` and input `{ "query": "…" }`.
+
+- For a time-sensitive question, you SHOULD put the current year from `current_time` in the query, or the period the user names, for example `laptop recommendations YYYY` with YYYY replaced by that year. Without it, engines often rank older pages first.
 
 - `engine` chooses one of the configured engines. The tool description lists the engines and a note for each saying which sites or material it suits; you SHOULD read those notes before choosing. You MAY omit `engine` to use the first enabled engine.
 - `count` overrides that engine's default number of results. The provider MAY cap it.
