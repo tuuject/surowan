@@ -33,6 +33,8 @@ import {
  * 8. The login page shows the official image's `docker compose` command to a
  *    deployment that is not the official image, whose service name, paths and
  *    user may differ.
+ * 9. An anonymous visitor can tell a fresh instance from one in use, which makes
+ *    a fresh one worth a scanner's attention.
  */
 installPairingHooks();
 
@@ -228,7 +230,9 @@ test('a fresh instance gets its administrator only from the server CLI', async (
   try {
     const session = async (cookie = ''): Promise<Record<string, unknown>> =>
       await json(await fetch(`${fixture.baseUrl}/api/auth/session`, { headers: cookie === '' ? {} : { cookie } }));
-    expect(await session()).toMatchObject({ setup_required: true, authenticated: false });
+    const anonymous = await session();
+    expect(anonymous).toMatchObject({ authenticated: false });
+    expect(anonymous).not.toHaveProperty('setup_required');
 
     // The web setup route is gone: on a fresh instance an anonymous POST
     // creates nothing and opens no session.
@@ -259,8 +263,9 @@ test('a fresh instance gets its administrator only from the server CLI', async (
     const signedIn = await signIn(fixture, { code: first.code });
     expect(signedIn.status).toBe(200);
     const cookie = (signedIn.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    // Fresh or not, the anonymous view is the same document.
+    expect(await session()).toEqual(anonymous);
     expect(await session(cookie)).toMatchObject({
-      setup_required: false,
       authenticated: true,
       username: 'admin',
       has_password: false,

@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import {
   adminPairings,
+  adminUsers,
   adminPasskeys,
   adminSessions,
   buckets,
@@ -191,11 +192,14 @@ export async function handleHook(request: Request, url: URL): Promise<Response> 
     if (serverState.store === null) {
       return json({ error: 'store_closed' }, 500);
     }
-    const auth = new AdminAuth(serverState.store.orm, 12);
-    if (!auth.setupRequired()) {
+    const orm = serverState.store.orm;
+    if (orm.select({ id: adminUsers.id }).from(adminUsers).limit(1).get() !== undefined) {
       return json({ created: false });
     }
-    await auth.createOrResetAccount({ username: body.username, password: body.password }, { revokePasskeys: false });
+    await new AdminAuth(orm, 12).createOrResetAccount(
+      { username: body.username, password: body.password },
+      { revokePasskeys: false },
+    );
     return json({ created: true });
   }
   if (request.method === 'POST' && route === '/official-image') {

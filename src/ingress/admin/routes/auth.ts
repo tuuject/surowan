@@ -134,7 +134,6 @@ export function createAdminAuthHandler(deps: AdminAuthHandlerDeps) {
       return {
         kind: 'response',
         response: json({
-          setup_required: auth.setupRequired(),
           authenticated: session !== null,
           username: session?.username ?? null,
           expires_at: session?.expiresAt ?? null,

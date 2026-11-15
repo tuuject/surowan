@@ -294,7 +294,7 @@ export interface AdminSessionFixture {
 export async function setupAdminSession(store: { readonly orm: Orm }, baseUrl: string): Promise<AdminSessionFixture> {
   const session = await fetch(`${baseUrl}/api/auth/session`);
   expect(session.status).toBe(200);
-  expect(await asObject(session)).toMatchObject({ setup_required: true, authenticated: false, username: null });
+  expect(await asObject(session)).toMatchObject({ authenticated: false, username: null });
 
   await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
   const setup = await fetch(`${baseUrl}/api/auth/login`, {
@@ -310,7 +310,7 @@ export async function setupAdminSession(store: { readonly orm: Orm }, baseUrl: s
   const cookie = setCookie.slice(0, setCookie.indexOf(';'));
 
   const confirmed = await fetch(`${baseUrl}/api/auth/session`, { headers: { cookie } });
-  expect(await asObject(confirmed)).toMatchObject({ setup_required: false, authenticated: true, username: 'owner' });
+  expect(await asObject(confirmed)).toMatchObject({ authenticated: true, username: 'owner' });
 
   const createdResponse = await fetch(`${baseUrl}/api/api-keys`, {
     method: 'POST',

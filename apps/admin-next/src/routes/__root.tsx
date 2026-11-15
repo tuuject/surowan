@@ -13,7 +13,6 @@ import { sessionQuery } from '@/lib/queries';
 import { LoginForm } from '@/pages/auth';
 
 const UNAUTHENTICATED_SESSION: SessionState = {
-  setup_required: false,
   authenticated: false,
   username: null,
   expires_at: null,
@@ -69,15 +68,9 @@ function AuthGate(): React.ReactNode {
   if (!data.authenticated) {
     // The session is the single source for whether passkeys are configured:
     // a server built without `admin.public_url` never shows the passkey entry.
-    // A fresh instance (`setup_required`) has no web setup form: its first
-    // sign-in is a one-time code from the server shell.
-    return (
-      <LoginForm
-        firstSignIn={data.setup_required}
-        passkeysEnabled={data.passkeys_enabled}
-        officialDockerImage={data.official_docker_image}
-      />
-    );
+    // There is no setup state: a fresh instance shows the same page as one in
+    // use, and its first sign-in is a one-time code from the server shell.
+    return <LoginForm passkeysEnabled={data.passkeys_enabled} officialDockerImage={data.official_docker_image} />;
   }
 
   return <AdminShell username={data.username ?? 'admin'} />;

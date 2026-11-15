@@ -113,28 +113,19 @@ const formClass = css({ display: 'flex', flexDirection: 'column', gap: '4' });
 const alternativesClass = css({ marginBlockStart: '4', display: 'flex', flexDirection: 'column', gap: '3' });
 
 /**
- * `firstSignIn` is a fresh instance with no administrator yet. It has no setup
- * form, so whoever reaches it first cannot claim it: the code form is the only
- * way in, and the code creates a password-less `admin`.
+ * The same page whether or not an administrator exists yet, so a visitor
+ * cannot tell a freshly deployed instance from one in use. A fresh instance's
+ * first sign-in is a one-time code: minting it creates a password-less `admin`.
  */
 export function LoginForm({
-  firstSignIn,
   passkeysEnabled,
   officialDockerImage,
 }: {
-  readonly firstSignIn: boolean;
   readonly passkeysEnabled: boolean;
   readonly officialDockerImage: boolean;
 }): ReactElement {
   const { t } = useTranslation();
   const [method, setMethod] = useState<'password' | 'code'>('password');
-  if (firstSignIn) {
-    return (
-      <AuthLayout title={t('brand.loginTitle')} description={t('pages.auth.firstSignInDescription')}>
-        <PairingCodeForm officialDockerImage={officialDockerImage} onBack={null} />
-      </AuthLayout>
-    );
-  }
   if (method === 'code') {
     return (
       <AuthLayout title={t('brand.loginTitle')} description={t('pages.auth.codeDescription')}>
@@ -314,8 +305,7 @@ function PairingCodeForm({
   onBack,
 }: {
   readonly officialDockerImage: boolean;
-  /** `null` on a fresh instance, where there is no password to go back to. */
-  readonly onBack: (() => void) | null;
+  readonly onBack: () => void;
 }): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -387,14 +377,12 @@ function PairingCodeForm({
           {t('pages.auth.signIn')}
         </Button>
       </form>
-      {onBack === null ? null : (
-        <div className={alternativesClass}>
-          <Divider />
-          <Button type="button" variant="outline" color="secondary" size="lg" fullWidth onClick={onBack}>
-            {t('pages.auth.passwordSignIn')}
-          </Button>
-        </div>
-      )}
+      <div className={alternativesClass}>
+        <Divider />
+        <Button type="button" variant="outline" color="secondary" size="lg" fullWidth onClick={onBack}>
+          {t('pages.auth.passwordSignIn')}
+        </Button>
+      </div>
     </>
   );
 }

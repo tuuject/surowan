@@ -17,7 +17,7 @@ export const AUTH_SPECS: readonly EndpointSpec[] = [
     command: 'session show',
     method: 'GET',
     path: 'auth/session',
-    summary: 'Show setup state, the signed-in account and passkey availability',
+    summary: 'Show the signed-in account and passkey availability',
   },
   {
     command: 'account update',

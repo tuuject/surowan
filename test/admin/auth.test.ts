@@ -8,12 +8,13 @@ import { createWebPairing } from '../../src/ingress/admin/clients/index.ts';
 import { createAdminAccount } from '../fixtures/admin-account.ts';
 import { fixture, PASSWORD, post, readJson, request, sessionCookie } from './fixtures.ts';
 
-test('a fresh panel has no web setup: a one-time code from the server signs the first administrator in', async () => {
+test('a fresh panel looks established and has no web setup: a one-time code signs the first administrator in', async () => {
   const { store, server } = await fixture();
   try {
+    // An anonymous visitor cannot tell a fresh instance from one in use: the
+    // session document carries no setup state at all.
     const initial = await readJson(await server.handle(request('/api/auth/session')));
     expect(initial).toEqual({
-      setup_required: true,
       authenticated: false,
       username: null,
       expires_at: null,
@@ -40,9 +41,9 @@ test('a fresh panel has no web setup: a one-time code from the server signs the 
     expect(created.headers.get('set-cookie')).toContain('HttpOnly');
     expect(created.headers.get('set-cookie')).toContain('SameSite=Strict');
 
+    expect(await readJson(await server.handle(request('/api/auth/session')))).toEqual(initial);
     const session = await readJson(await server.handle(request('/api/auth/session', { headers: { cookie } })));
     expect(session).toMatchObject({
-      setup_required: false,
       authenticated: true,
       username: 'admin',
       has_password: false,

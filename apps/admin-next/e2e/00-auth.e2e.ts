@@ -23,7 +23,7 @@ async function login(page: Page, base: string, username: string, password: strin
   await expect(page.getByText('Stored messages')).toBeVisible();
 }
 
-test('a fresh instance only takes a one-time code; the first code creates admin, who then sets credentials', async ({
+test('a fresh instance shows the ordinary sign-in; the first code creates admin, who then sets credentials', async ({
   page,
 }, testInfo) => {
   const base = await adminBase();
@@ -35,14 +35,18 @@ test('a fresh instance only takes a one-time code; the first code creates admin,
   });
   expect(scanner.status).toBe(401);
 
+  // Nor can it tell the instance is fresh: no setup state, and the same
+  // sign-in page an instance in use shows.
+  const anonymous = (await (await fetch(`${base}/api/auth/session`)).json()) as Record<string, unknown>;
+  expect(anonymous).not.toHaveProperty('setup_required');
   await page.goto(base);
   await expect(page.getByText('Surowan admin sign-in')).toBeVisible();
-  await expect(page.getByText(/^First sign-in\./)).toBeVisible();
-  await expect(page.getByLabel('One-time code')).toBeVisible();
-  await expect(page.getByLabel('Username')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Sign in with a password' })).toHaveCount(0);
-  await page.screenshot({ path: testInfo.outputPath('first-sign-in.png') });
-  await testInfo.attach('first-sign-in', { path: testInfo.outputPath('first-sign-in.png'), contentType: 'image/png' });
+  await expect(page.getByText('Enter your credentials to continue.')).toBeVisible();
+  await expect(page.getByLabel('Username')).toBeVisible();
+  await expect(page.getByLabel('Password')).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('fresh-sign-in.png') });
+  await testInfo.attach('fresh-sign-in', { path: testInfo.outputPath('fresh-sign-in.png'), contentType: 'image/png' });
+  await page.getByRole('button', { name: 'Sign in with a one-time code' }).click();
 
   // The real `pairing create --web` creates the password-less `admin`.
   const web = await e2eFetch<CliPairing & { account: { username: string; created: boolean } }>(
@@ -57,7 +61,7 @@ test('a fresh instance only takes a one-time code; the first code creates admin,
   await expect(page.getByText('Bot status')).toBeVisible();
   await expect(page.locator('[data-route-error]')).toHaveCount(0);
   const session = (await (await page.request.get(`${base}/api/auth/session`)).json()) as Record<string, unknown>;
-  expect(session).toMatchObject({ setup_required: false, username: 'admin', has_password: false });
+  expect(session).toMatchObject({ authenticated: true, username: 'admin', has_password: false });
 
   // Choosing a username and password afterwards is the owner's call.
   await page.goto(await baseURLPath('/settings'));

@@ -17,7 +17,6 @@ export class ApiError extends Error {
 }
 
 export interface SessionState {
-  readonly setup_required: boolean;
   readonly authenticated: boolean;
   readonly username: string | null;
   readonly expires_at: string | null;

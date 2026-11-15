@@ -170,7 +170,6 @@ test.describe('API key management UI', () => {
       if (expired) {
         await route.fulfill({
           json: {
-            setup_required: false,
             authenticated: false,
             username: null,
             expires_at: null,

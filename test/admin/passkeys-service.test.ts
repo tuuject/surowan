@@ -83,5 +83,5 @@ test('in-flight assertions cannot revive deleted keys or bypass recovery; concur
   );
   expect(f.store.orm.select().from(adminPasskeys).all()).toHaveLength(0);
   expect(f.auth.authenticate(f.token)).toBeNull();
-  expect(f.auth.setupRequired()).toBe(false);
+  expect(f.store.db.prepare('SELECT username FROM admin_users').all()).toEqual([{ username: 'owner' }]);
 });

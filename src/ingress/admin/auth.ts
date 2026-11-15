@@ -85,17 +85,6 @@ export class AdminAuth {
     this.#warnings = warnings;
   }
 
-  /**
-   * No administrator yet. The panel has no web setup form: the first account
-   * comes from `pairing create --web` (a password-less `admin`) or from the
-   * offline `admin-account` CLI, so a scanner that reaches a fresh instance
-   * first cannot claim it.
-   */
-  setupRequired(): boolean {
-    const row = this.#orm.select({ count: sql<bigint>`count(*)` }).from(adminUsers).get();
-    return (row?.count ?? 0n) === 0n;
-  }
-
   async changeCredentials(userId: bigint, credentials: AdminCredentials, now = new Date()): Promise<string> {
     assertCredentials(credentials);
     const passwordHash = await this.#withHashSlot(() => hash(credentials.password, HASH_OPTIONS));

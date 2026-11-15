@@ -15,8 +15,6 @@ export const auth = {
   passkeySigningIn: 'Waiting for passkey…',
   passkeyUnavailable:
     'Passkey sign-in is unavailable here. Open the panel over HTTPS in a browser that supports passkeys, or sign in with your password.',
-  firstSignInDescription:
-    'First sign-in. Generate a one-time code on the server and paste it here. Afterwards you can set a username, password or passkey in Settings.',
   codeSignIn: 'Sign in with a one-time code',
   codeDescription: 'Paste the one-time code generated on the server.',
   code: 'One-time code',

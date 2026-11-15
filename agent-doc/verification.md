@@ -283,7 +283,7 @@ node src/cli.ts serve --config dev-data/config.jsonc
 验证：
 
 1. 出现一次 `admin_started`，host/port 与配置一致。
-2. 首次打开 `http://127.0.0.1:<port>/` 只渲染一次性码表单（说明以 “First sign-in.” 开头，没有用户名/密码输入框），`GET /api/auth/session` 返回 `setup_required = true`。在另一个终端运行 `node src/cli.ts pairing create --web --config dev-data/config.jsonc`，输出 `account: { username: "admin", created: true }`，粘贴 `code` 后进入面板。
+2. 首次打开 `http://127.0.0.1:<port>/` 渲染的是普通登录页（用户名/密码表单与 “Sign in with a one-time code”），`GET /api/auth/session` 不带任何建号状态，与已有账号的实例返回同一份文档。在另一个终端运行 `node src/cli.ts pairing create --web --config dev-data/config.jsonc`，输出 `account: { username: "admin", created: true }`，点 “Sign in with a one-time code” 粘贴 `code` 后进入面板。
 3. 登录后 Overview 显示 Invocations / Stored messages / Cached media analyses 统计卡，以及 Invocation states、Configured sticker index states、Top tools 表和 7d/30d Usage 图表。
 4. Tool session 详情六个 Tab（Overview / Tool calls / Model calls / Telegram sends / Agent transcript / Frozen context）各自渲染；默认落在 Overview 时间线。
 5. 消息搜索命中当前 Chat 的文本，详情展示全部 Revision；列表与 Revision 显示并复制发送者的 Telegram User ID（频道身份明确标为 Chat ID）。Invocation Overview 与 Frozen context 复制冻结快照的 sender ID，缺失 ID 不提供复制按钮；剪贴板失败明确提示手动复制。
@@ -341,7 +341,7 @@ Remove-Item Env:E2E_PASSKEYS
   夹具自行优雅关闭并清理临时目录。**不读 `dev-data/`、不启动 `serve`、
   不触碰 8787 或任何用户进程。**
 - 每个 spec 文件都是全新数据库，文件之间不共享任何状态，与执行顺序无关；`globalSetup`
-  只检查 `dist` 已构建。`00-auth` 从全新实例开始走 UI：只有一次性码表单，真实 `pairing create --web` 建出 `admin` 并登录，再在 Settings 里改成测试用户名与密码。其余套件以
+  只检查 `dist` 已构建。`00-auth` 从全新实例开始走 UI：匿名 session 不带 `setup_required`，页面是普通登录页，从一次性码入口用真实 `pairing create --web` 的码建出 `admin` 并登录，再在 Settings 里改成测试用户名与密码。其余套件以
   `test.use({ signedIn: true })` 让 helper 先调 `/__e2e/ensure-admin` 钩子（按 `admin-account` 的方式建号，已有账号时什么也不做），再通过真实密码登录生成本文件的 storageState。
   会话撤销用例直接删除 `admin_sessions` 行后断言 401 回落登录页并重新登录。
 - 用例文件名以 `.e2e.ts` 结尾、目录独立，Playwright `testMatch` 单独声明，**不会**被
@@ -353,7 +353,7 @@ Remove-Item Env:E2E_PASSKEYS
   `pnpm test` 与 `pnpm run check` 都不覆盖浏览器层。
 - **种子时间基准**：`test/fixtures/admin-seed.ts` 的时间要么全部从当前时钟推导，要么全部是无关运行时刻的固定值。承担「仍然有效/未过期」语义的字段必须用运行时的 `Date.now() ± 偏移`（如批量 Memo 行的 `expiresAt`）；固定时间戳只用于「已过期/历史」这类永远成立的行。写死的未来时间会随时间穿过真实时钟：到那天整批种子变成 expired，`state=expired` 过滤断言就会拿到默认分页的 25 行而不是 1 行。
 - 覆盖契约（全部断言真实 UI 状态，非仅文案）：
-  1. 认证：全新实例只有一次性码表单，匿名 `POST /api/auth/setup` 401；真实 CLI 的码 → shell（`admin`、无密码）→ Settings 设置用户名与密码；错误密码表单内显示 `invalid_credentials` 且 URL 不变；
+  1. 认证：全新实例与已用实例的登录页和匿名 session 文档相同，匿名 `POST /api/auth/setup` 401；真实 CLI 的码 → shell（`admin`、无密码）→ Settings 设置用户名与密码；错误密码表单内显示 `invalid_credentials` 且 URL 不变；
      登出回登录页；会话撤销后受保护请求 401 → 登录页且无错误屏；`/__e2e/pairing-create` 钩子
      对本服务器的配置与数据库运行**真实的** `pairing create --web` CLI，登录页粘贴其码进入 shell，
      同一码第二次显示 `pairing_code_used`，Agent 配对码显示 `pairing_code_invalid` 且未被消费

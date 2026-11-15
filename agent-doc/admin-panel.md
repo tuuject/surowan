@@ -20,7 +20,7 @@ Admin Panel 是随 `serve` 启动的本地审计与管理界面，覆盖 Tool Se
 
 `src/ingress/admin/auth.ts`：
 
-- **没有网页建号**：面板不提供 `POST /api/auth/setup`，也没有任何匿名端点会建账号。原因是刚部署好的实例可能先被扫描器访问到，抢先完成网页设置的人就拿到了面板。首次部署时 `GET /api/auth/session` 返回 `setup_required = true`，登录页只显示一次性码表单，说明「首次登录」。操作员在服务器上运行 `pairing create --web`：如果还没有账号，它会建一个无密码、无 Passkey 的 `admin`，并把码绑定到这个账号。用码登录之后，用户名、密码和 Passkey 都在 Settings 里自行设置。另一条建号路径是离线的 `admin-account` CLI，需要先停掉 `serve`。对一个不存在的 `auth/setup` 发匿名 POST，会和其他未登录请求一样得到 401。
+- **没有网页建号**：面板不提供 `POST /api/auth/setup`，也没有任何匿名端点会建账号。原因是刚部署好的实例可能先被扫描器访问到，抢先完成网页设置的人就拿到了面板。**全新实例也不向匿名访客暴露自己是新的**：`GET /api/auth/session` 不带任何建号状态（旧的 `setup_required` 字段已删除，`AdminAuth.setupRequired()` 也一并删掉），登录页和已投入使用的实例完全一样，都是用户名/密码表单加「Sign in with a one-time code」入口。这样新部署的实例看起来和已经在用的没有区别，不会额外引来扫描者的兴趣。对未知用户名的密码登录照样会做一次 Argon2，响应时间也不会泄露有没有账号。操作员在服务器上运行 `pairing create --web`：如果还没有账号，它会建一个无密码、无 Passkey 的 `admin`，并把码绑定到这个账号。用码登录之后，用户名、密码和 Passkey 都在 Settings 里自行设置。另一条建号路径是离线的 `admin-account` CLI，需要先停掉 `serve`。对一个不存在的 `auth/setup` 发匿名 POST，会和其他未登录请求一样得到 401。
 - 密码 12–200 字符，用户名 `^[A-Za-z0-9._-]{3,32}$`。
 - 密码只以 `argon2id` hash（`@node-rs/argon2`）存储，明文不落库、不进日志。
 - Session Token 为 32 字节随机值，返回给 Cookie，数据库只存 SHA-256 摘要。

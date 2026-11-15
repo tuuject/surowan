@@ -160,7 +160,7 @@ interface AdminSessionFixture {
 async function setupAdminSession(store: { readonly orm: Orm }, baseUrl: string): Promise<AdminSessionFixture> {
   const session = await fetch(`${baseUrl}/api/auth/session`);
   expect(session.status).toBe(200);
-  expect(await asObject(session)).toMatchObject({ setup_required: true, authenticated: false, username: null });
+  expect(await asObject(session)).toMatchObject({ authenticated: false, username: null });
 
   await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
   const setup = await fetch(`${baseUrl}/api/auth/login`, {
