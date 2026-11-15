@@ -45,7 +45,7 @@ function modern(
 test('modern MCP advertises tools, permissions and skills', async () => {
   const { store, server } = await fixture();
   try {
-    const cookie = await setupAdmin(server);
+    const cookie = await setupAdmin(store, server);
     const created = await createModeKey(server, cookie, 'read');
     const auth = bearer(created.key);
 
@@ -124,7 +124,7 @@ test('modern MCP advertises tools, permissions and skills', async () => {
 test('mode updates and rotation change the effective permissions', async () => {
   const { store, server } = await fixture();
   try {
-    const cookie = await setupAdmin(server);
+    const cookie = await setupAdmin(store, server);
     const created = await createModeKey(server, cookie, 'read');
 
     const listed = await readJson(await server.handle(request('/api/api-keys', { headers: { cookie } })));
@@ -162,7 +162,7 @@ test('mode updates and rotation change the effective permissions', async () => {
 test('invalid permission rows fail authentication and raise a standing warning', async () => {
   const { store, server } = await fixture();
   try {
-    const cookie = await setupAdmin(server);
+    const cookie = await setupAdmin(store, server);
     const created = await createModeKey(server, cookie, 'read');
     store.db.prepare('UPDATE admin_api_keys SET read_all = 0 WHERE id = ?').run(BigInt(created.item.id));
 
@@ -189,7 +189,7 @@ test('invalid permission rows fail authentication and raise a standing warning',
 test('legacy initialize still works and shares the tool catalog', async () => {
   const { store, server } = await fixture();
   try {
-    const cookie = await setupAdmin(server);
+    const cookie = await setupAdmin(store, server);
     const created = await createModeKey(server, cookie, 'read');
     const initialized = await server.handle(
       post(
@@ -256,7 +256,7 @@ test('every billed MCP tool needs confirm, and replay follows the caller cancell
     return { status: 'replayed' };
   });
   try {
-    const cookie = await setupAdmin(server);
+    const cookie = await setupAdmin(store, server);
     const auth = bearer((await createModeKey(server, cookie, 'read_paid')).key);
 
     const unconfirmed = await server.handle(
@@ -294,7 +294,7 @@ test('a generic body cannot null a field that only the confirmed clear tool may 
   // Telegram writes need the config reloader, which only the prompts fixture wires.
   const { store, server } = await reloadableFixture();
   try {
-    const cookie = await login(server);
+    const cookie = await login(store, server);
     const auth = bearer((await createModeKey(server, cookie, 'all')).key);
     const before = await readJson(await server.handle(request('/api/telegram', { headers: auth })));
     expect(before).toMatchObject({ token_configured: true });
@@ -358,7 +358,7 @@ test('binary downloads keep their exact bytes and stay bounded', async () => {
 test('the MCP envelope is refused past its byte limit before it is parsed', async () => {
   const { store, server } = await fixture();
   try {
-    const cookie = await setupAdmin(server);
+    const cookie = await setupAdmin(store, server);
     const auth = bearer((await createModeKey(server, cookie, 'read')).key);
     const oversized = await server.handle(
       post(
@@ -377,7 +377,7 @@ test('the MCP envelope is refused past its byte limit before it is parsed', asyn
 test('skill directory reads accept the published trailing-slash URI', async () => {
   const { store, server } = await fixture();
   try {
-    const cookie = await setupAdmin(server);
+    const cookie = await setupAdmin(store, server);
     const auth = bearer((await createModeKey(server, cookie, 'read')).key);
     const names = async (uri: string, id: number) => {
       const body = await readJson(await server.handle(modern('resources/directory/read', { uri }, id, auth)));

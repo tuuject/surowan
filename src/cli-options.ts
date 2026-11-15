@@ -1,6 +1,7 @@
 import type { ApiKeyMode } from './ingress/admin/api-keys.ts';
 import {
   DEFAULT_PAIRING_TTL_SECONDS,
+  DEFAULT_WEB_PAIRING_NAME,
   MAX_PAIRING_TTL_SECONDS,
   MIN_PAIRING_TTL_SECONDS,
 } from './ingress/admin/clients/index.ts';
@@ -22,6 +23,8 @@ export type AdminCredentialCommand =
       /** Pre-bound key: only this exact key may claim the ticket. */
       readonly publicKey: string | null;
     }
+  /** A ticket the Admin Panel login page exchanges for a session. */
+  | { readonly kind: 'pairing-create-web'; readonly name: string; readonly ttlSeconds: number }
   | { readonly kind: 'pairing-list' }
   | { readonly kind: 'pairing-cancel'; readonly pairingId: string }
   | { readonly kind: 'clients-list' }
@@ -69,6 +72,7 @@ export function parseCli(argv: readonly string[]): CliOptions {
   let mode: string | undefined;
   let ttlSeconds: string | undefined;
   let publicKey: string | undefined;
+  let web = false;
   for (let index = 0; index < argumentsList.length; index += 1) {
     const argument = argumentsList[index];
     if (argument === undefined) {
@@ -124,6 +128,10 @@ export function parseCli(argv: readonly string[]): CliOptions {
       publicKey = takeValue();
       continue;
     }
+    if (argument === '--web' && commandValue === 'pairing' && !web) {
+      web = true;
+      continue;
+    }
     if (argument !== '--config' || configPath !== undefined) {
       throw new Error(usage());
     }
@@ -138,6 +146,7 @@ export function parseCli(argv: readonly string[]): CliOptions {
       mode,
       ttlSeconds,
       publicKey,
+      web,
     });
     return {
       command: commandValue,
@@ -173,12 +182,14 @@ interface PairingFlagValues {
   readonly mode: string | undefined;
   readonly ttlSeconds: string | undefined;
   readonly publicKey: string | undefined;
+  readonly web: boolean;
 }
 
 /**
  * `--mode` is required so a missing flag can never silently grant the widest
  * default, and a pre-bound `--public-key` must be a well-formed key before the
- * ticket is created.
+ * ticket is created. `--web` mints a panel sign-in ticket instead, which has no
+ * mode or key of its own: a panel session is always the whole panel.
  */
 function parseAdminCredentials(
   command: 'pairing' | 'clients',
@@ -192,6 +203,16 @@ function parseAdminCredentials(
   if (command === 'pairing' && action === 'create') {
     if (target !== undefined) {
       throw new Error(usage());
+    }
+    if (values.web) {
+      if (values.mode !== undefined || values.publicKey !== undefined) {
+        throw new Error('pairing create --web takes no --mode or --public-key: a panel session is the whole panel');
+      }
+      const name = values.name ?? DEFAULT_WEB_PAIRING_NAME;
+      if (name.length < 1 || name.length > MAX_NAME_LENGTH) {
+        throw new Error(`--name must be 1-${MAX_NAME_LENGTH} characters`);
+      }
+      return { kind: 'pairing-create-web', name, ttlSeconds: parseTtl(values.ttlSeconds) };
     }
     const name = values.name;
     if (name === undefined || name.length < 1 || name.length > MAX_NAME_LENGTH) {
@@ -230,7 +251,8 @@ function rejectPairingFlags(values: PairingFlagValues): void {
     values.name !== undefined ||
     values.mode !== undefined ||
     values.ttlSeconds !== undefined ||
-    values.publicKey !== undefined
+    values.publicKey !== undefined ||
+    values.web
   ) {
     throw new Error(usage());
   }
@@ -279,6 +301,7 @@ function usage(): string {
   return [
     'Usage: surowan <serve|check-config|doctor|backup|configure|admin-account> --config <path> [--output-agent-prompt] [--takeover] [--username <name>] [--password-stdin] [--revoke-passkeys]',
     '       surowan pairing create --config <path> --name <name> --mode <read|read_write|read_paid|all> [--ttl-seconds <60..3600>] [--public-key <base64url>]',
+    '       surowan pairing create --config <path> --web [--name <name>] [--ttl-seconds <60..3600>]',
     '       surowan pairing list --config <path>',
     '       surowan pairing cancel <pairing-id> --config <path>',
     '       surowan clients list --config <path>',

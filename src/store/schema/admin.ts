@@ -97,16 +97,20 @@ export const adminClients = sqliteTable(
 
 /**
  * One-time pairing tickets. `code_hash` is the SHA-256 digest of the `pwp_`
- * code, which is printed once by `surowan pairing create` and never stored;
- * `public_key` pre-binds the ticket to the only key allowed to claim it.
+ * code, which is printed once by `surowan pairing create` and never stored.
+ * A `client` ticket becomes a signed client (`public_key` pre-binds it to the
+ * only key allowed to claim it); a `web` ticket becomes a panel session for
+ * `user_id` and records every permission bit (migration 059).
  */
 export const adminPairings = sqliteTable(
   'admin_pairings',
   {
     id: sqliteBigIntId('id').primaryKey(),
+    purpose: text('purpose', { enum: ['client', 'web'] }).notNull(),
     name: text('name').notNull(),
     codeHash: text('code_hash').notNull().unique(),
     publicKey: text('public_key'),
+    userId: sqliteBigInt('user_id').references(() => adminUsers.id, { onDelete: 'cascade' }),
     createdAt: text('created_at').notNull(),
     expiresAt: text('expires_at').notNull(),
     consumedAt: text('consumed_at'),

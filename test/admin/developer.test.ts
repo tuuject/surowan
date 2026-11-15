@@ -19,6 +19,7 @@ import { testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts
 import { getInvocation } from '../../src/ingress/admin/audit/invocation-detail.ts';
 import { listInvocations } from '../../src/ingress/admin/audit/invocations.ts';
 import type { DeveloperSettings } from '../../apps/admin-next/src/lib/api/config.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -62,7 +63,8 @@ async function fixture(developer?: FileConfig['developer']) {
   });
   const request = (route: string, init: RequestInit = {}) =>
     server.handle(new Request(`http://127.0.0.1:8899/api${route}`, init));
-  const setup = await request('/auth/setup', {
+  await createAdminAccount(store.orm, { username: 'owner', password: 'test-correct-horse-battery' });
+  const setup = await request('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ username: 'owner', password: 'test-correct-horse-battery' }),
   });

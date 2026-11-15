@@ -16,6 +16,7 @@ import {
   runClientCli,
   runServerCli,
 } from './fixtures.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 installPairingHooks();
 
@@ -43,7 +44,8 @@ test('auth status and permissions honour explicit credentials over the file', as
   const fixture = await pairingFixture();
   try {
     // Panel session + API key, so a credential exists that is not a paired client.
-    const setup = await fetch(`${fixture.baseUrl}/api/auth/setup`, {
+    await createAdminAccount(fixture.store.orm, { username: 'owner', password: 'regression-panel-password' });
+    const setup = await fetch(`${fixture.baseUrl}/api/auth/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username: 'owner', password: 'regression-panel-password' }),

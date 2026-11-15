@@ -90,7 +90,7 @@ async function adminFixture(options: { wired?: boolean } = {}) {
     tasks,
     ...(options.wired === false ? {} : { recurringAlarms: recurring }),
   });
-  const cookie = await setupAdmin(server);
+  const cookie = await setupAdmin(store, server);
   return { store, server, cookie };
 }
 

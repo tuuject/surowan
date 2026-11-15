@@ -103,6 +103,19 @@ export async function adminUrl(path: string): Promise<string> {
   return `${await adminBase()}${path}`;
 }
 
+/** Creates the E2E administrator unless the spec's server already has an account. */
+export async function ensureAdmin(baseURL?: string): Promise<void> {
+  const base = baseURL ?? (await adminBase());
+  const response = await fetch(`${base}/__e2e/ensure-admin`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: E2E_USERNAME, password: E2E_PASSWORD }),
+  });
+  if (!response.ok) {
+    throw new Error(`E2E hook /ensure-admin failed with HTTP ${response.status}`);
+  }
+}
+
 /** Calls a test-only hook on the E2E server (`/__e2e/**`). */
 export async function e2eFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const base = await adminBase();
@@ -115,8 +128,9 @@ export async function e2eFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
 /**
  * A Playwright storageState file holding a live admin session for this spec
- * file's server. The first call creates the administrator (or signs in, when a
- * spec already did) through the real auth API; specs that change the session
+ * file's server. The first call makes sure the administrator exists (the
+ * `/__e2e/ensure-admin` hook: the panel has no web setup) and signs in through
+ * the real password login; specs that change the session
  * may overwrite the file and later contexts in the same file pick that up.
  */
 export async function authStoragePath(mcpImages = false): Promise<string> {
@@ -124,9 +138,8 @@ export async function authStoragePath(mcpImages = false): Promise<string> {
   if (server.signedIn) {
     return server.authFile;
   }
-  const session = await fetch(`${server.baseURL}/api/auth/session`);
-  const { setup_required: setupRequired } = (await session.json()) as { setup_required: boolean };
-  const response = await fetch(`${server.baseURL}/api/auth/${setupRequired ? 'setup' : 'login'}`, {
+  await ensureAdmin(server.baseURL);
+  const response = await fetch(`${server.baseURL}/api/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ username: E2E_USERNAME, password: E2E_PASSWORD }),

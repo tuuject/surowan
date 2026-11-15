@@ -3,8 +3,13 @@
  * the health gate and shutdown. `e2e/server.ts` routes every request under that
  * prefix here before `AdminServer` sees it.
  */
+import { execFile } from 'node:child_process';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import {
+  adminPairings,
+  adminUsers,
   adminPasskeys,
   adminSessions,
   buckets,
@@ -15,6 +20,7 @@ import {
   memoPadEntries,
   taskReceipts,
 } from '../../../src/store/schema/index.ts';
+import { AdminAuth } from '../../../src/ingress/admin/auth.ts';
 import { enterSleep, wakeFromSleep } from '../../../src/store/sleep.ts';
 import { asRunResult } from '../../../src/store/store.ts';
 import { shutdown } from './server-lifecycle.ts';
@@ -27,6 +33,29 @@ export function json(body: unknown, status = 200): Response {
     status,
     headers: { 'content-type': 'application/json; charset=utf-8' },
   });
+}
+
+const SERVER_CLI = join(import.meta.dirname, '..', '..', '..', 'src', 'cli.ts');
+const execFileAsync = promisify(execFile);
+
+/**
+ * Mints a pairing ticket with the real server CLI against this server's live
+ * config and database, the way an operator does over SSH while `serve` runs.
+ */
+async function createPairingWithCli(purpose: 'web' | 'client', ttlSeconds: string | null): Promise<unknown> {
+  const flags = [
+    ...(purpose === 'web' ? ['--web'] : ['--name', 'e2e-agent', '--mode', 'read']),
+    ...(ttlSeconds === null ? [] : ['--ttl-seconds', ttlSeconds]),
+  ];
+  const { stdout } = await execFileAsync(process.execPath, [
+    SERVER_CLI,
+    'pairing',
+    'create',
+    ...flags,
+    '--config',
+    join(serverState.directory, 'config.jsonc'),
+  ]);
+  return JSON.parse(stdout);
 }
 
 export async function handleHook(request: Request, url: URL): Promise<Response> {
@@ -151,6 +180,73 @@ export async function handleHook(request: Request, url: URL): Promise<Response> 
       .returning({ id: invocations.id })
       .get();
     return json({ id: inserted?.id.toString() ?? null });
+  }
+  if (request.method === 'POST' && route === '/ensure-admin') {
+    // The panel has no web setup: specs that only need a signed-in session get
+    // the account the way `admin-account` makes one. A no-op once any account
+    // exists, so it never resets a spec's credentials or sessions.
+    const body = (await request.json().catch(() => null)) as { username?: unknown; password?: unknown } | null;
+    if (body === null || typeof body.username !== 'string' || typeof body.password !== 'string') {
+      return json({ error: 'invalid_body' }, 400);
+    }
+    if (serverState.store === null) {
+      return json({ error: 'store_closed' }, 500);
+    }
+    const orm = serverState.store.orm;
+    if (orm.select({ id: adminUsers.id }).from(adminUsers).limit(1).get() !== undefined) {
+      return json({ created: false });
+    }
+    await new AdminAuth(orm, 12).createOrResetAccount(
+      { username: body.username, password: body.password },
+      { revokePasskeys: false },
+    );
+    return json({ created: true });
+  }
+  if (request.method === 'POST' && route === '/official-image') {
+    // The marker the official Dockerfile sets; the session reads it per request.
+    if (url.searchParams.get('enabled') === '1') {
+      process.env.SUROWAN_OFFICIAL_IMAGE = '1';
+    } else {
+      delete process.env.SUROWAN_OFFICIAL_IMAGE;
+    }
+    return json({ ok: true });
+  }
+  if (request.method === 'POST' && route === '/pairing-create') {
+    const purpose = url.searchParams.get('purpose');
+    if (purpose !== 'web' && purpose !== 'client') {
+      return json({ error: 'invalid_purpose' }, 400);
+    }
+    const ttl = url.searchParams.get('ttl');
+    if (ttl !== null && !/^\d{1,4}$/.test(ttl)) {
+      return json({ error: 'invalid_ttl' }, 400);
+    }
+    return json(await createPairingWithCli(purpose, ttl));
+  }
+  if (request.method === 'GET' && route === '/pairing-rows') {
+    const rows =
+      store === null
+        ? []
+        : store.orm
+            .select({
+              id: adminPairings.id,
+              purpose: adminPairings.purpose,
+              consumedAt: adminPairings.consumedAt,
+              clientId: adminPairings.clientId,
+            })
+            .from(adminPairings)
+            .orderBy(adminPairings.id)
+            .all();
+    const sessions =
+      store === null ? 0 : (store.orm.select({ count: sql<number>`count(*)` }).from(adminSessions).get()?.count ?? 0);
+    return json({
+      sessions: Number(sessions),
+      rows: rows.map((row) => ({
+        id: row.id.toString(),
+        purpose: row.purpose,
+        consumed: row.consumedAt !== null,
+        client_id: row.clientId?.toString() ?? null,
+      })),
+    });
   }
   if (request.method === 'POST' && route === '/revoke-sessions') {
     const result = store === null ? null : asRunResult(store.orm.delete(adminSessions).run());

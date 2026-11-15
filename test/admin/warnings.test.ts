@@ -1,11 +1,13 @@
 import { expect, test } from 'vitest';
 import { WarningService } from '../../src/store/warnings.ts';
 import { fixture, PASSWORD, post, readJson, request, sessionCookie } from './fixtures.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 test('warnings API lists standing and event warnings, marks read and clears history', async () => {
   const f = await fixture();
   try {
-    const setup = await f.server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD }));
+    await createAdminAccount(f.store.orm, { username: 'owner', password: PASSWORD });
+    const setup = await f.server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD }));
     const cookie = sessionCookie(setup);
     const call = (path: string, init: RequestInit = {}) =>
       f.server.handle(
@@ -95,7 +97,8 @@ test('warnings API lists standing and event warnings, marks read and clears hist
 test('warnings API pages one snapshot while new warnings arrive', async () => {
   const f = await fixture();
   try {
-    const setup = await f.server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD }));
+    await createAdminAccount(f.store.orm, { username: 'owner', password: PASSWORD });
+    const setup = await f.server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD }));
     const cookie = sessionCookie(setup);
     const call = (path: string) =>
       f.server.handle(request(`/api${path}`, { headers: { cookie, origin: 'http://127.0.0.1:8899' } }));

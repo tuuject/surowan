@@ -20,8 +20,7 @@ Admin Panel 是随 `serve` 启动的本地审计与管理界面，覆盖 Tool Se
 
 `src/ingress/admin/auth.ts`：
 
-- 首次访问时 `GET /api/auth/session` 返回 `setup_required = true`，前端渲染创建管理员表单。
-- `POST /api/auth/setup` 在 hash 之前先检查是否已有用户（已完成时直接 409 `setup_complete`，不消耗 Argon2），再在事务内确认一次后写入 `admin_users`。
+- **没有网页建号**：面板不提供 `POST /api/auth/setup`，也没有任何匿名端点会建账号。原因是刚部署好的实例可能先被扫描器访问到，抢先完成网页设置的人就拿到了面板。**全新实例也不向匿名访客暴露自己是新的**：`GET /api/auth/session` 不带任何建号状态（旧的 `setup_required` 字段已删除，`AdminAuth.setupRequired()` 也一并删掉），登录页和已投入使用的实例完全一样，都是用户名/密码表单加「Sign in with a one-time code」入口。这样新部署的实例看起来和已经在用的没有区别，不会额外引来扫描者的兴趣。对未知用户名的密码登录照样会做一次 Argon2，响应时间也不会泄露有没有账号。操作员在服务器上运行 `pairing create --web`：如果还没有账号，它会建一个无密码、无 Passkey 的 `admin`，并把码绑定到这个账号。用码登录之后，用户名、密码和 Passkey 都在 Settings 里自行设置。另一条建号路径是离线的 `admin-account` CLI，需要先停掉 `serve`。对一个不存在的 `auth/setup` 发匿名 POST，会和其他未登录请求一样得到 401。
 - 密码 12–200 字符，用户名 `^[A-Za-z0-9._-]{3,32}$`。
 - 密码只以 `argon2id` hash（`@node-rs/argon2`）存储，明文不落库、不进日志。
 - Session Token 为 32 字节随机值，返回给 Cookie，数据库只存 SHA-256 摘要。
@@ -35,6 +34,8 @@ Admin Panel 是随 `serve` 启动的本地审计与管理界面，覆盖 Tool Se
 - 过期 Session 在认证时删除，并在新建 Session 与服务启动时批量清理。
 - `POST /api/auth/logout` 按 Token 摘要删除 Session。
 - `POST /api/auth/credentials` 修改当前管理员用户名和密码，撤销该用户全部 Session（含当前）并签发新的 Cookie。
+- **一次性码登录**：能 SSH 到服务器的操作员运行 `surowan pairing create --web` 打印一个 `web` 用途的 `pwp_` 码，登录页「Sign in with a one-time code」把它交给 `POST /api/auth/pairing`（body 只有 `{ code }`，上限 1 KiB），换来与密码登录同属性的 Session Cookie。实现位于 `src/ingress/admin/clients/web-login.ts`，与 Agent 配对共用 `admin_pairings` 表、码格式、TTL 与 `pairing list|cancel`，区别见「已配对 Agent 客户端」的用途隔离。全新实例的首个管理员也走这条路，见本节第一条。码有 192 位随机量、最多活一小时且只能用一次，所以不走密码的失败计数与锁定，也不计入登录失败告警；查码、状态检查、消费与建 Session 在一个 immediate 事务里完成，并发领取只会得到一个 Session。错误码与 `/api/pairing/claim` 相同：`invalid_body`（形状不符，不查库）、`pairing_code_invalid`（未知、已取消，或是 `client` 用途的码）、`pairing_code_expired`、`pairing_code_used`（409）。被拒的尝试不会烧掉码。Session 通过 `AdminAuth.createVerifiedSession` 签发（Passkey 登录用同一个入口），会更新 `last_login_at`。
+- **官方镜像的命令提示**：`GET /api/auth/session` 带 `official_docker_image`，取值为 `process.env.SUROWAN_OFFICIAL_IMAGE === '1'`，每次请求现读。只有官方 `Dockerfile` 设置这个变量，这时一次性码表单直接显示 `docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create --config /config/config.jsonc --web`，并带复制按钮。其他部署（源码运行、自建镜像）只显示通用的 `pairing create --web` 提示：命令里的用户、路径和 compose service 名都是官方镜像与 `docker-compose.yml` 模板的，自建镜像不一定一致，所以不替它猜。这个字段对未登录访客可见，只透露「是官方镜像」，不含路径或配置。
 
 跨站防护：所有写方法（`POST`/`PUT`/`DELETE`）校验 `Origin`——缺失（CLI、非浏览器客户端）放行，解析失败返回 400 `bad_origin`，主机不匹配返回 403 `bad_origin`；`Origin` 不参与读方法校验，`GET` 携带任意 `Origin` 仍正常处理。审计路由只接受 `GET`，其它方法返回 405。配置了 `admin.public_url`（启用 Passkey）后，写端点的 Origin 校验从「与请求 Host 匹配」收紧为「与配置的 public origin **全等**」，见下一节。
 
@@ -87,6 +88,7 @@ Passkey 是可选登录方式，**显式配置 `admin.public_url` 才启用**（
 
 已配对客户端让 Agent 用一个 **Ed25519 身份**访问 Admin API，而不需要把长期凭据放进上下文。实现位于 `src/ingress/admin/clients/`：客户端在 `~/.config/surowan-utils/client-key.pem` 持有私钥（`surowan-utils` 自己生成，永不上传、不出现在输出/参数/环境变量/服务端，也没有导出命令），服务端只保存公钥、指纹与和 API key 相同的三个权限布尔。
 
+- **用途隔离**：迁移 `059` 给 `admin_pairings` 加了 `purpose`（`client` / `web`）与 `user_id`。`client` 票据只能由 `POST /api/pairing/claim` 变成客户端；`web` 票据（`pairing create --web`）只能由 `POST /api/auth/pairing` 变成面板 Session，见「认证」。两个端点都按 `purpose` 过滤查询，对方用途的码一律当作 `pairing_code_invalid`，且不消费它。`web` 票据创建时绑定唯一的管理员（还没有账号时先建一个无密码的 `admin`，即首次登录的建号方式；多于一个账号时 CLI 拒绝），不带公钥与 client，三个权限位固定为 1（面板 Session 就是整个面板）；这些约束由表的 CHECK 保证。
 - **配对码**：服务端 `surowan pairing create --config … --name … --mode …` 打印一次性的 `pwp_` 码（`pwp_` + 24 随机字节的 base64url），默认 300 秒有效、上限 3600 秒；`--public-key` 可预绑定唯一能领取它的公钥（`surowan-utils auth init` 先打印公钥，再由操作员在服务器上创建）。数据库只存 `hashToken(code)`，明文码只存在于该次输出；`pairing list` 永不回显码。**没有客户端发起的 pending 请求队列，也没有 `approve` 命令**：在 SSH 上运行 `pairing create` 本身就是批准动作，`--public-key` 是「直接按公钥配对」的变体。
 - **领取**：`POST /api/pairing/claim` 是 Admin API 唯一 **无需任何凭据** 的写端点，也不是 `@surowan/admin-surface` 的 spec（不会变成 CLI 面板命令或 MCP 工具）。body 为 `{ code, public_key, proof }`，`proof` 是领取私钥对
 
@@ -189,7 +191,8 @@ CLI 的 `doctor` 用 `GET /api/key` + `GET /api/invocations?limit=1` 验证鉴�
 
 | 路由 | 非显然的语义 |
 | --- | --- |
-| `POST /auth/setup` / `POST /auth/login` | 首次建号与登录，约束见「认证」 |
+| `POST /auth/login` | 密码登录，约束见「认证」；没有网页建号端点，首个账号来自 `pairing create --web` 或 `admin-account` |
+| `POST /auth/pairing` | 无 Session：用 `surowan pairing create --web` 打印的一次性 `pwp_` 码换取面板 Session Cookie；只认 `web` 用途的码，见「认证」 |
 | `POST /auth/logout` / `POST /auth/credentials` | 改凭据会撤销该用户**全部** Session（含当前）并签发新 Cookie |
 | `POST /auth/passkeys/login/options` / `POST /auth/passkeys/login/verify` | 浏览器 WebAuthn 登录（可发现 + UV，无 Session）；options 返回一次性 challenge token（`plasticwan_passkey` Cookie），verify 消费并签发 Session Cookie；challenge 一次性、5 分钟、仅内存；验证失败统一 401 `invalid_passkey`；未配置 `admin.public_url` 时整组 404 `passkeys_disabled`，见「Passkey 登录与凭据」 |
 | `POST /auth/passkeys/register/options` / `POST /auth/passkeys/register/verify` | 面板 Session 注册新 key；options 排除同一 `rpId` 已有 credential，verify 校验后写 `admin_passkeys`，重复注册 409 `passkey_exists` |

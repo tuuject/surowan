@@ -12,6 +12,7 @@ import {
 } from '../api-keys.ts';
 import { type AdminAuth, AdminAuthError, type AdminCredentials, type AdminSession } from '../auth.ts';
 import { parseId } from '../audit/shared.ts';
+import { claimWebPairing } from '../clients/web-login.ts';
 import type { AdminPasskeys } from '../passkeys.ts';
 
 const SESSION_COOKIE = 'plasticwan_admin';
@@ -54,9 +55,9 @@ export type AdminAuthOutcome =
   | { readonly kind: 'response'; readonly response: Response };
 
 /**
- * Session, passkey, credential and API-key routes. These run before every other
- * `/api` route: the session they establish is what authorizes the rest, and API
- * key management is session-only.
+ * Session, passkey, one-time pairing code, credential and API-key routes. These
+ * run before every other `/api` route: the session they establish is what
+ * authorizes the rest, and API key management is session-only.
  */
 export function createAdminAuthHandler(deps: AdminAuthHandlerDeps) {
   const { auth, passkeys, orm, secrets } = deps;
@@ -133,24 +134,27 @@ export function createAdminAuthHandler(deps: AdminAuthHandlerDeps) {
       return {
         kind: 'response',
         response: json({
-          setup_required: auth.setupRequired(),
           authenticated: session !== null,
           username: session?.username ?? null,
           expires_at: session?.expiresAt ?? null,
           passkeys_enabled: passkeys !== undefined,
           has_password: session === null ? null : auth.hasPassword(session.userId),
+          // Set only by the official Dockerfile. The login page then shows the
+          // exact `docker compose exec` command for a sign-in code; any other
+          // deployment gets the generic hint, since its layout is unknown.
+          official_docker_image: process.env.SUROWAN_OFFICIAL_IMAGE === '1',
         }),
       };
     }
     if (segments[0] === 'auth' && (segments[1] === 'passkeys' || segments[1] === 'password')) {
       return { kind: 'response', response: await passkeyRequest(request, url, segments, clientAddress) };
     }
-    if (route === 'auth/setup' && request.method === 'POST') {
-      const token = await auth.createFirstUser(await readCredentials(request));
-      return { kind: 'response', response: json({ status: 'ok' }, 200, sessionCookie(request, url, token)) };
-    }
     if (route === 'auth/login' && request.method === 'POST') {
       const token = await auth.login(await readCredentials(request), new Date(), clientAddress);
+      return { kind: 'response', response: json({ status: 'ok' }, 200, sessionCookie(request, url, token)) };
+    }
+    if (route === 'auth/pairing' && request.method === 'POST') {
+      const token = await claimWebPairing(orm, auth, request);
       return { kind: 'response', response: json({ status: 'ok' }, 200, sessionCookie(request, url, token)) };
     }
     if (route === 'auth/logout' && request.method === 'POST') {

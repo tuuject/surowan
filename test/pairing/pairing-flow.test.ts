@@ -22,6 +22,7 @@ import {
   runServerCli,
   sendSigned,
 } from './fixtures.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 installPairingHooks();
 
@@ -299,7 +300,8 @@ test('auth status, permissions and logout follow the saved credential', async ()
 test('an API key identity response keeps its shape and gains kind', async () => {
   const fixture = await pairingFixture();
   try {
-    const setup = await fetch(`${fixture.baseUrl}/api/auth/setup`, {
+    await createAdminAccount(fixture.store.orm, { username: 'owner', password: 'correct-horse-battery' });
+    const setup = await fetch(`${fixture.baseUrl}/api/auth/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username: 'owner', password: 'correct-horse-battery' }),
@@ -428,7 +430,7 @@ test('the server CLI asks for serve before using a data directory without the sc
     await writeTestConfig(directory, configPath, testConfigJsonc(directory));
     const result = await runServerCli(configPath, ['pairing', 'list']);
     expect(result.code).toBe(1);
-    expect(JSON.parse(result.stderr).error).toContain('migration 058');
+    expect(JSON.parse(result.stderr).error).toContain('migration 059');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

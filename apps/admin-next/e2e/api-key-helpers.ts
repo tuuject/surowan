@@ -1,5 +1,5 @@
 import { type APIRequestContext, expect, type Page } from '@playwright/test';
-import { adminUrl, E2E_PASSWORD, E2E_USERNAME } from './helpers.ts';
+import { adminUrl, E2E_PASSWORD, E2E_USERNAME, ensureAdmin } from './helpers.ts';
 
 /** The administrator session an API-key spec acts as. */
 export interface ApiKeySession {
@@ -14,15 +14,10 @@ export interface ApiKeySession {
  * (`pnpm run admin:test:e2e 14-api-keys`).
  */
 export async function signIn(request: APIRequestContext): Promise<ApiKeySession> {
-  const session = await request.get(await adminUrl('/api/auth/session'));
-  const state = (await session.json()) as { setup_required: boolean };
-  const response = state.setup_required
-    ? await request.post(await adminUrl('/api/auth/setup'), {
-        data: { username: E2E_USERNAME, password: E2E_PASSWORD },
-      })
-    : await request.post(await adminUrl('/api/auth/login'), {
-        data: { username: E2E_USERNAME, password: E2E_PASSWORD },
-      });
+  await ensureAdmin();
+  const response = await request.post(await adminUrl('/api/auth/login'), {
+    data: { username: E2E_USERNAME, password: E2E_PASSWORD },
+  });
   expect(response.status()).toBe(200);
   const header = response.headers()['set-cookie'] ?? '';
   const cookie = header.slice(0, header.indexOf(';'));

@@ -10,6 +10,8 @@ import { SecretStore } from '../../src/platform/secrets.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { seedAdminFixture } from '../fixtures/admin-seed.ts';
 import { testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
+import type { Orm } from '../../src/store/store.ts';
 
 /**
  * End-to-end `surowan-utils login` / `doctor` against a real loopback
@@ -155,12 +157,13 @@ interface AdminSessionFixture {
 }
 
 /** Real HTTP: unauthenticated session check, first-user setup, then key creation. */
-async function setupAdminSession(baseUrl: string): Promise<AdminSessionFixture> {
+async function setupAdminSession(store: { readonly orm: Orm }, baseUrl: string): Promise<AdminSessionFixture> {
   const session = await fetch(`${baseUrl}/api/auth/session`);
   expect(session.status).toBe(200);
-  expect(await asObject(session)).toMatchObject({ setup_required: true, authenticated: false, username: null });
+  expect(await asObject(session)).toMatchObject({ authenticated: false, username: null });
 
-  const setup = await fetch(`${baseUrl}/api/auth/setup`, {
+  await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
+  const setup = await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ username: 'owner', password: PASSWORD }),
@@ -229,7 +232,7 @@ test('login, doctor and reads over the real Admin API leave production state alo
     fetchSpy.mockRestore();
   });
 
-  const admin = await setupAdminSession(f.baseUrl);
+  const admin = await setupAdminSession(f.store, f.baseUrl);
   expect(handleSpy.mock.calls.length).toBeGreaterThanOrEqual(3);
   handleSpy.mockClear();
 

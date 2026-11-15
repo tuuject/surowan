@@ -11,7 +11,7 @@ afterEach(cleanupFixtures);
 
 test('replay model selection over HTTP validates strictly and discloses the temporary override', async () => {
   const f = await fixture();
-  const admin = await setupAdminSession(f.baseUrl);
+  const admin = await setupAdminSession(f.store, f.baseUrl);
   const headers = { authorization: `Bearer ${admin.key}` };
   const before = productionTables(f.rows());
 

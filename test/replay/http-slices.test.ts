@@ -20,7 +20,7 @@ afterEach(cleanupFixtures);
 
 test('bot-sliced CLI replay injects its window immediately and validates selection before model work', async () => {
   const f = await fixture();
-  const admin = await setupAdminSession(f.baseUrl);
+  const admin = await setupAdminSession(f.store, f.baseUrl);
   const env = { SUROWAN_ENDPOINT: f.baseUrl, SUROWAN_API_KEY: admin.key };
   const send = f.store.orm.select().from(hostSends).get()!;
   f.store.orm.update(messages).set({ sentByBot: true }).where(eq(messages.id, f.seed.messageIds[0]!)).run();
@@ -139,7 +139,7 @@ test('bot-sliced CLI replay injects its window immediately and validates selecti
 
 test('a sliced replay without --confirm-paid is refused before any request', async () => {
   const f = await fixture();
-  const admin = await setupAdminSession(f.baseUrl);
+  const admin = await setupAdminSession(f.store, f.baseUrl);
   const env = { SUROWAN_ENDPOINT: f.baseUrl, SUROWAN_API_KEY: admin.key };
   const send = f.store.orm.select().from(hostSends).get()!;
   const before = f.rows();

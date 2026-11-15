@@ -16,6 +16,7 @@ import { ImConnectionRegistry } from '../../src/platform/im-connection.ts';
 import { readKeyJar } from '../../src/platform/key-jar.ts';
 import { PASSWORD, post, readJson, request, sessionCookie } from './fixtures.ts';
 import { logLines, setup } from '../config/reload-fixtures.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 interface Panel {
   readonly fixture: Awaited<ReturnType<typeof setup>>;
@@ -44,7 +45,8 @@ async function panel(options: Parameters<typeof setup>[0] = {}): Promise<Panel> 
     secrets: fixture.secrets,
     connections: new ImConnectionRegistry(),
   });
-  const setupResponse = await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD }));
+  await createAdminAccount(fixture.store.orm, { username: 'owner', password: PASSWORD });
+  const setupResponse = await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD }));
   const cookie = sessionCookie(setupResponse);
   return {
     fixture,

@@ -38,6 +38,8 @@ import { shutdown } from './server-lifecycle.ts';
  * supervisor; nothing here actually exits the process (see `requestRestart`).
  */
 process.env.PLASTICWAN_SUPERVISED = '1';
+// The official-image hint is off unless a spec turns it on (`/__e2e/official-image`).
+delete process.env.SUROWAN_OFFICIAL_IMAGE;
 
 process.on('SIGTERM', () => void shutdown());
 process.on('SIGINT', () => void shutdown());

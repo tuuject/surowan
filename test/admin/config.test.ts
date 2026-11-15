@@ -11,6 +11,7 @@ import { AdminServer } from '../../src/ingress/admin/index.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { fixture, PASSWORD, post, readJson, request, sessionCookie } from './fixtures.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 test('admins API manages the config whitelist and hot-applies it', async () => {
   const { store, loaded, configStore, directory } = await fixture();
@@ -28,7 +29,8 @@ test('admins API manages the config whitelist and hot-applies it', async () => {
     const unauthenticated = await server.handle(request('/api/admins'));
     expect(unauthenticated.status).toBe(401);
 
-    const created = await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD }));
+    await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
+    const created = await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD }));
     const cookie = sessionCookie(created);
     let revision = await readConfigRevision(configPath);
     const write = (path: string, method: string, body?: unknown): Request => {
@@ -119,7 +121,8 @@ test('model API lists and switches the agent model through the config file', asy
     );
     expect(unauthenticated.status).toBe(401);
 
-    const created = await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD }));
+    await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
+    const created = await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD }));
     const cookie = sessionCookie(created);
     // The panel takes the revision from `GET /providers`; this test reads it the
     // same way the server computes it.

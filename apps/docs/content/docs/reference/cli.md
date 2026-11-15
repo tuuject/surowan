@@ -38,13 +38,16 @@ node src/cli.ts configure --config /path/to/config.jsonc
 
 ```bash
 node src/cli.ts pairing create --config /path/to/config.jsonc --name coding-agent --mode read_write
+node src/cli.ts pairing create --config /path/to/config.jsonc --web
 node src/cli.ts pairing list --config /path/to/config.jsonc
 node src/cli.ts pairing cancel <pairing-id> --config /path/to/config.jsonc
 node src/cli.ts clients list --config /path/to/config.jsonc
 node src/cli.ts clients revoke <client-id> --config /path/to/config.jsonc
 ```
 
-与 `admin-account` 相反，这些命令**必须**与运行中的 `serve` 共存，不取 `ServeLock`、不做迁移；数据目录还没有迁移 `058` 的表时会提示先在本版本启动一次 `serve`。`pairing create` 打印的 `pwp_` 码一次性、默认 300 秒有效，数据库只存摘要。流程、SSH 隧道与撤销见[让 Agent 通过 SSH 配对](../configure/admin-agent-pairing.md)。
+与 `admin-account` 相反，这些命令**必须**与运行中的 `serve` 共存，不取 `ServeLock`、不做迁移；数据目录还没有应用迁移 `059` 时会提示先在本版本启动一次 `serve`。`pairing create` 打印的 `pwp_` 码一次性、默认 300 秒有效，数据库只存摘要。流程、SSH 隧道与撤销见[让 Agent 通过 SSH 配对](../configure/admin-agent-pairing.md)。
+
+`pairing create --web` 生成的是面板登录码：在登录页点「使用一次性码登录」粘贴即可登录，不接受 `--mode` 与 `--public-key`，`--name` 可省略。见[用一次性码登录](../configure/admin.md#用一次性码登录)。
 
 ## Docker 等价命令
 

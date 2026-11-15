@@ -15,7 +15,7 @@ installAdminApiKeyHooks();
 test('read keys reach every read surface but no write or paid route', async () => {
   const { store, server } = await fixture();
   try {
-    const cookie = await setupAdmin(server);
+    const cookie = await setupAdmin(store, server);
     const created = await createKey(server, cookie, 'read-only', 'read');
     const auth = bearer(created.key);
 
@@ -90,7 +90,7 @@ test('read keys reach every read surface but no write or paid route', async () =
 test('paid and write grants are independent and both apply at once', async () => {
   const { store, server } = await fixture();
   try {
-    const cookie = await setupAdmin(server);
+    const cookie = await setupAdmin(store, server);
     const paid = await createKey(server, cookie, 'paid', 'read_paid');
     const write = await createKey(server, cookie, 'write', 'read_write');
 
@@ -120,7 +120,7 @@ test('paid and write grants are independent and both apply at once', async () =>
 test('an Authorization header never falls back to the cookie and cannot be upgraded by one', async () => {
   const { store, server } = await fixture();
   try {
-    const cookie = await setupAdmin(server);
+    const cookie = await setupAdmin(store, server);
     const created = await createKey(server, cookie, 'read-only', 'read');
 
     const both = await server.handle(

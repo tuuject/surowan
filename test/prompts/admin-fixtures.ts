@@ -24,6 +24,8 @@ import type { RuntimeConfigurationStore } from '../../src/platform/runtime-confi
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { recordPromptVersionsFromConfig } from '../../src/store/prompt-versions.ts';
 import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
+import type { Orm } from '../../src/store/store.ts';
 
 const PASSWORD = 'correct-horse-battery';
 const directories: string[] = [];
@@ -100,8 +102,9 @@ function promptHeaders(cookie: string | undefined, ifMatch: string | undefined):
   return headers;
 }
 
-export async function login(server: AdminServer): Promise<string> {
-  const created = await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD }));
+export async function login(store: { readonly orm: Orm }, server: AdminServer): Promise<string> {
+  await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
+  const created = await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD }));
   const cookie = created.headers.get('set-cookie');
   if (cookie === null) {
     throw new Error('Expected a session cookie');

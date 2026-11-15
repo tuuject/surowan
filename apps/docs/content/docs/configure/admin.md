@@ -25,7 +25,16 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 
 `admin` 段必填，`enabled` 可省略并默认为 `true`；`admin.*` 改动需要重启。Docker 中要从宿主机访问，容器应绑定 `0.0.0.0`，但端口发布必须限制为 `127.0.0.1:8787:8787`，再由你管理的 TLS 反向代理进行认证和访问控制。首次访问时创建管理员账号；密码长度为 12–200 字符，浏览器 Session 采用 HttpOnly 且 SameSite=Strict Cookie。
 
-`admin.public_url` 可选，**显式配置后才会启用 Passkey 登录**（登录页出现「使用 Passkey 登录」，Settings 页出现 Passkeys 卡片）。它必须是规范 HTTPS origin：不带用户名/密码、路径、查询参数或片段，可以带一个尾部 `/`；本地开发可以用 `http://localhost`；IP 地址（包括 `127.0.0.1` 和 IPv6）不能作为 WebAuthn RP，因此不接受 IP 形式的 `public_url`，即使使用 HTTPS 也不行。启用后请始终从配置的来源访问：包括首次设置、密码登录在内的全部写操作都会校验该来源，直接访问另一个回环地址或端口会返回 `bad_origin`。Passkey 的域名绑定详见下文。
+`admin.public_url` 可选，**显式配置后才会启用 Passkey 登录**（登录页出现「使用 Passkey 登录」，Settings 页出现 Passkeys 卡片）。它必须是规范 HTTPS origin：不带用户名/密码、路径、查询参数或片段，可以带一个尾部 `/`；本地开发可以用 `http://localhost`；IP 地址（包括 `127.0.0.1` 和 IPv6）不能作为 WebAuthn RP，因此不接受 IP 形式的 `public_url`，即使使用 HTTPS 也不行。启用后请始终从配置的来源访问：包括一次性码登录、密码登录在内的全部写操作都会校验该来源，直接访问另一个回环地址或端口会返回 `bad_origin`。Passkey 的域名绑定详见下文。
+
+## 首次登录
+
+面板没有网页上的「创建管理员」表单。刚部署好的实例可能先被别人扫描到，所以第一次登录必须用服务器上生成的一次性码。为了不让人看出这是一个刚部署的实例，新实例的登录页和已经在用的实例完全一样，同样显示用户名、密码和 **使用一次性码登录**。
+
+1. 在服务器上运行 `pairing create --web`（命令见[用一次性码登录](#用一次性码登录)）。还没有管理员时，它会自动创建用户名为 `admin` 的账号，这个账号没有密码，也没有 Passkey。
+2. 打开面板，在登录页点 **使用一次性码登录**，粘贴输出里的 `code`，点 **登录**。
+
+登录后，到 **Settings → 管理员凭据** 设置自己的用户名和密码；配置了 `public_url` 时，也可以添加 Passkey。在设置之前，只能用一次性码登录。
 
 ## 常用任务
 
@@ -64,6 +73,28 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 
 阿拉伯语界面是真正的从右到左布局：整页方向翻转、导航位于右侧，技术字符串（模型 ID、API 密钥、URL、时间戳等）单独按从左到右隔离显示，所以复制出来的内容与存储值一致。技术输入框（URL、密钥、ID、JSON、cron）按从左到右排版，名称、备注、提示词等自由文本按内容自动判定方向。技术名词（Invocation、Context、Prompt、Token 等）在中文界面中保留英文原文，德语与阿拉伯语界面按各自术语翻译，模型 ID、配置键、命令与 URL 始终不翻译；后端返回的错误消息始终按服务端原文显示（错误码 + 消息）。
 
+## 用一次性码登录
+
+能 SSH 到服务器时，可以不输入密码，直接用服务端生成的一次性码登录面板。适合在新设备上临时登录，或忘了密码、手边又没有 Passkey 的时候。这条命令与运行中的 Bot 共存，**不需要停服务**。
+
+1. 在服务器上生成登录码：
+
+   ```bash
+   node src/cli.ts pairing create --config /path/to/config.jsonc --web
+
+   # Docker 部署：对运行中的容器执行
+   docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create --config /config/config.jsonc --web
+   ```
+
+   输出是一个 JSON 文档，其中 `code` 是 `pwp_` 开头的码，`pairing.expires_at` 是过期时间（默认 5 分钟，可用 `--ttl-seconds` 设为 60–3600 秒），`next` 提示面板地址。
+2. 在浏览器打开面板，登录页点 **使用一次性码登录**，粘贴 `code`，点 **登录**。
+
+使用官方 Docker 镜像和 `docker-compose.yml` 模板时，这个表单会直接显示上面的 Docker 命令，并带复制按钮。自己构建的镜像只会看到通用提示，请按自己的镜像结构改写命令。
+
+每个码只能用一次，用过、过期或被 `pairing cancel` 取消后都会失效；没用的码可以用 `pairing list` 查看。它不会修改密码，也不会注销已有的登录 Session。还没有管理员账号时，命令会先创建 `admin`（见[首次登录](#首次登录)），输出里的 `account` 会写明 `"created": true`。
+
+这个码只能登录面板。给编码 Agent 用的配对码（不带 `--web`、带 `--mode`）在登录页会被拒绝；反过来，登录码也不能被 `surowan-utils auth pair` 领取。Agent 配对见[让 Agent 通过 SSH 配对](admin-agent-pairing.md)。
+
 ## Passkey 登录与恢复
 
 配置 `admin.public_url` 并重启后，Passkey 可用：登录页出现「使用 Passkey 登录」按钮，Settings 页出现 Passkeys 卡片。Passkey 绑定的是 `public_url` 的域名（WebAuthn RP = 主机名），只在访问这个来源时有效。注册与使用需要支持 WebAuthn 的浏览器，并且页面处于安全上下文（HTTPS 域名，或 `localhost` 的 HTTP）。安全上下文只是前提，不能让 IP 地址成为有效的 WebAuthn RP。
@@ -84,6 +115,8 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 
 ### 恢复（忘记密码或遗失 Passkey）
 
+只是需要登录一次、不打算改密码时，用上文的[一次性码](#用一次性码登录)更快，也不用停 Bot。
+
 Passkey 遗失，或因更换域名、关闭 Passkey 功能而无法登录时，使用**服务端内置 CLI** 的 `admin-account` 本地建号或重置——不是 `surowan-utils`（它只通过 Admin API 做只读检查与 Invocation 重放，不能恢复凭据）：
 
 1. **先停止 Bot**。命令通过 `ServeLock` 拒绝在运行中的实例上执行，不会强抢；同一 `data_dir` 的 Bot 停止后才能运行。
@@ -100,7 +133,7 @@ Passkey 遗失，或因更换域名、关闭 Passkey 功能而无法登录时，
    Get-Content .\admin-password.txt | node src/cli.ts admin-account --config .\config.jsonc --username <name> --password-stdin
    ```
 
-还没有管理员账号时，命令会创建该账号（不创建登录 Session）；已有唯一管理员时，把用户名和密码改成新值；表里出现多个管理员时会直接报错退出。每次执行都会注销该账号的全部登录 Session。Passkey 默认保留，需要一并撤销全部 Passkey 时加 `--revoke-passkeys`。API 密钥不受影响，首次设置流程不会重新打开。恢复或设置好密码后，再删除或更换 `public_url`/域名——改动之前请先确认至少保留一个可用登录方式。
+还没有管理员账号时，命令会创建该账号（不创建登录 Session），这是首次登录之外的另一条建号方式；已有唯一管理员时，把用户名和密码改成新值；表里出现多个管理员时会直接报错退出。每次执行都会注销该账号的全部登录 Session。Passkey 默认保留，需要一并撤销全部 Passkey 时加 `--revoke-passkeys`。API 密钥不受影响。恢复或设置好密码后，再删除或更换 `public_url`/域名——改动之前请先确认至少保留一个可用登录方式。
 
 ## 验证与风险
 

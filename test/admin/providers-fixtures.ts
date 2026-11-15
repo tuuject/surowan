@@ -16,6 +16,7 @@ import type { RuntimeConfigurationStore } from '../../src/platform/runtime-confi
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from '../helpers.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 const PASSWORD = 'correct-horse-battery';
 const directories: string[] = [];
@@ -135,8 +136,9 @@ export async function adminFixture(options: FixtureOptions = {}): Promise<Fixtur
       options.onRestart?.();
     },
   });
+  await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
   const setup = await server.handle(
-    request('/api/auth/setup', {
+    request('/api/auth/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username: 'owner', password: PASSWORD }),

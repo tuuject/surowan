@@ -9,6 +9,7 @@ import { attachBucketToInvocation } from '../../src/orchestration/invocation-que
 import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
 import { sleep } from '../helpers.ts';
 import { fixture, PASSWORD, post, readJson, request, sessionCookie, textUpdate } from './fixtures.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 test('admin can cancel all ongoing sessions', async () => {
   const { store, server, configStore } = await fixture();
@@ -25,8 +26,9 @@ test('admin can cancel all ongoing sessions', async () => {
       throw new Error('Expected an invocation');
     }
 
+    await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
     const cookie = sessionCookie(
-      await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD })),
+      await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD })),
     );
     const headers = { cookie };
 
@@ -94,8 +96,9 @@ test('cancel ongoing aborts a running invocation without re-queuing its attached
       .get()!.id;
     attachBucketToInvocation(store, 20, running.id, attached, running.conversation_id, new Date());
 
+    await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
     const cookie = sessionCookie(
-      await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD })),
+      await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD })),
     );
     const canceled = await server.handle(post('/api/cancel-ongoing-sessions', {}, cookie));
     expect(canceled.status).toBe(200);

@@ -1,45 +1,53 @@
 /**
- * Admin authentication: first-run setup, login, lockout, body limits and
- * session cookie hardening.
+ * Admin authentication: first sign-in from the server shell, login, lockout,
+ * body limits and session cookie hardening.
  */
 import { expect, test } from 'vitest';
 import { AdminAuth } from '../../src/ingress/admin/auth.ts';
+import { createWebPairing } from '../../src/ingress/admin/clients/index.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 import { fixture, PASSWORD, post, readJson, request, sessionCookie } from './fixtures.ts';
 
-test('admin panel demands first-run setup, then authenticates and revokes sessions', async () => {
+test('a fresh panel looks established and has no web setup: a one-time code signs the first administrator in', async () => {
   const { store, server } = await fixture();
   try {
+    // An anonymous visitor cannot tell a fresh instance from one in use: the
+    // session document carries no setup state at all.
     const initial = await readJson(await server.handle(request('/api/auth/session')));
     expect(initial).toEqual({
-      setup_required: true,
       authenticated: false,
       username: null,
       expires_at: null,
       passkeys_enabled: false,
       has_password: null,
+      official_docker_image: false,
     });
 
     const unauthenticated = await server.handle(request('/api/invocations'));
     expect(unauthenticated.status).toBe(401);
     expect(await readJson(unauthenticated)).toMatchObject({ error: 'unauthenticated' });
 
-    const weak = await server.handle(post('/api/auth/setup', { username: 'owner', password: 'short' }));
-    expect(weak.status).toBe(400);
-    expect(await readJson(weak)).toMatchObject({ error: 'invalid_password' });
+    // Whoever reaches a fresh instance first can no longer claim it: there is
+    // no anonymous route that creates an account.
+    const setup = await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD }));
+    expect(setup.status).toBe(401);
     expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM admin_users').get()?.count).toBe(0n);
 
-    const created = await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD }));
+    const ticket = await createWebPairing(store.orm, { name: 'first sign-in', ttlSeconds: 300 });
+    expect(ticket.account).toEqual({ username: 'admin', created: true });
+    const created = await server.handle(post('/api/auth/pairing', { code: ticket.code }));
     expect(created.status).toBe(200);
     const cookie = sessionCookie(created);
     expect(created.headers.get('set-cookie')).toContain('HttpOnly');
     expect(created.headers.get('set-cookie')).toContain('SameSite=Strict');
 
-    const repeat = await server.handle(post('/api/auth/setup', { username: 'other', password: PASSWORD }));
-    expect(repeat.status).toBe(409);
-    expect(await readJson(repeat)).toMatchObject({ error: 'setup_complete' });
-
+    expect(await readJson(await server.handle(request('/api/auth/session')))).toEqual(initial);
     const session = await readJson(await server.handle(request('/api/auth/session', { headers: { cookie } })));
-    expect(session).toMatchObject({ setup_required: false, authenticated: true, username: 'owner' });
+    expect(session).toMatchObject({
+      authenticated: true,
+      username: 'admin',
+      has_password: false,
+    });
 
     const authorized = await server.handle(request('/api/invocations', { headers: { cookie } }));
     expect(authorized.status).toBe(200);
@@ -59,7 +67,8 @@ test('admin panel demands first-run setup, then authenticates and revokes sessio
 test('five consecutive username/password failures raise one warning that resets on success', async () => {
   const { store, server } = await fixture();
   try {
-    const created = await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD }));
+    await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
+    const created = await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD }));
     const cookie = sessionCookie(created);
     const call = (path: string, init: RequestInit = {}) =>
       server.handle(
@@ -107,7 +116,8 @@ test('five consecutive username/password failures raise one warning that resets 
 test('admin login persists only hashes and rejects invalid credentials', async () => {
   const { store, server } = await fixture();
   try {
-    const created = await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD }));
+    await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
+    const created = await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD }));
     const cookie = sessionCookie(created);
     const token = cookie.slice(cookie.indexOf('=') + 1);
 
@@ -154,7 +164,8 @@ test('admin login persists only hashes and rejects invalid credentials', async (
 test('the login lockout cannot be dodged by rotating X-Forwarded-For or usernames', async () => {
   const { store, server } = await fixture();
   try {
-    await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD }));
+    await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
+    await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD }));
     for (let attempt = 0; attempt < 10; attempt += 1) {
       const failed = await server.handle(
         request('/api/auth/login', {
@@ -182,7 +193,7 @@ test('concurrent failures all count, and an expired lockout starts a fresh count
   try {
     const auth = new AdminAuth(store.orm, 12);
     const start = new Date('2026-09-26T00:00:00.000Z');
-    await auth.createFirstUser({ username: 'owner', password: PASSWORD }, start);
+    await auth.createOrResetAccount({ username: 'owner', password: PASSWORD }, { revokePasskeys: false }, start);
     const wrong = (at: Date) => auth.login({ username: 'owner', password: 'wrong-password-value' }, at, 'peer');
     // Two at once used to compute the same next count from one snapshot.
     await Promise.allSettled([wrong(start), wrong(start)]);
@@ -236,7 +247,8 @@ test('request bodies are limited by bytes as they stream in', async () => {
 test('session cookies are Secure when the browser is on HTTPS', async () => {
   const { store, server } = await fixture();
   try {
-    const plain = await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD }));
+    await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
+    const plain = await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD }));
     expect(plain.headers.get('set-cookie')).not.toContain('Secure');
 
     // Behind a TLS-terminating proxy only the Origin shows the page is on HTTPS.
@@ -291,7 +303,8 @@ test('login verifies a legacy Bun.password hash with the argon2 runtime', async 
 test('admin can change username and password from an authenticated session', async () => {
   const { store, server } = await fixture();
   try {
-    const created = await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD }));
+    await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
+    const created = await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD }));
     const cookie = sessionCookie(created);
     const otherLogin = await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD }));
     const otherCookie = sessionCookie(otherLogin);

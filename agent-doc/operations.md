@@ -73,7 +73,7 @@ node src/cli.ts doctor --config dev-data/config.jsonc
 - `admin:build`：构建 `apps/admin-next` 生产 bundle（`apps/admin-next/dist`），供 `serve` 静态托管。
 - `admin:test:e2e`：Playwright 浏览器 E2E（`apps/admin-next/e2e`），驱动 `admin:build` 产物与真实 AdminServer 子进程，首次运行前需安装 Chromium；CI 的 Docker workflow 构建后会运行同一套件。命令细节与单套件过滤见 [verification.md](verification.md#admin-panel-浏览器-e2e)。
 - `admin:dev`：启动 Vite dev server（监听 127.0.0.1:5273），`/api/` 默认代理到 127.0.0.1:8787，也可用 `ADMIN_API_TARGET` 指向已运行的 Admin Panel。
-- `admin:dev:mock`：一键启动 E2E 测试后端与 Vite 热更新，打开 http://127.0.0.1:5273 即可调试前端；无需 `serve`、真实配置、Provider/Telegram 凭据或预先 `admin:build`。后端复用 `apps/admin-next/e2e/server.ts`，使用回环随机端口与预置测试数据，临时 SQLite/配置不接触 `dev-data/`；首次访问按页面设置临时管理员，不绕过认证。`Ctrl+C` 同时关闭两端并清理临时数据，下次启动重新初始化；5273 被占用则报错退出，不终止已有进程。仅用于本机调试，不对外暴露测试钩子；模型等外部能力仍是测试替身，不代表真实服务验收。
+- `admin:dev:mock`：一键启动 E2E 测试后端与 Vite 热更新，打开 http://127.0.0.1:5273 即可调试前端；无需 `serve`、真实配置、Provider/Telegram 凭据或预先 `admin:build`。后端复用 `apps/admin-next/e2e/server.ts`，使用回环随机端口与预置测试数据，临时 SQLite/配置不接触 `dev-data/`；启动后终端打印一行 `ADMIN_DEV_MOCK_CODE pwp_…`，这是测试后端用真实 `pairing create --web` 生成的一次性码，有效一小时、只能用一次。在登录页点「Sign in with a one-time code」粘贴它，就会以 `admin` 登录，不绕过认证。`Ctrl+C` 同时关闭两端并清理临时数据，下次启动重新初始化；5273 被占用则报错退出，不终止已有进程。仅用于本机调试，不对外暴露测试钩子；模型等外部能力仍是测试替身，不代表真实服务验收。
 - `docs:*`：独立静态文档站；`dev`/`preview` 监听 127.0.0.1:5274，`build` 输出 `apps/docs/dist`，`verify` 检查生产 HTML/Markdown/llms 与 HTTP。维护及部署边界见 [apps/docs/README.md](../apps/docs/README.md)。用户可见行为、配置或运维改变时，同步更新相关指南、示例与测试，不把 `agent-doc/` 自动发布到站点。
 
 ## Coding Agent Skills
@@ -266,25 +266,27 @@ node src/cli.ts admin-account --config <path> --username <name> [--password-stdi
 - **前置条件**：先停止**同一 `data_dir`** 的 `serve`。命令经 `ServeLock` 拒绝在运行中的实例上执行（锁被活动进程持有时报错退出，没有 `--takeover`），保证恢复期间的数据库不与运行中的 Bot 竞争。
 - **交互模式**：stdin 是 TTY 时隐藏输入新密码并要求重复确认，两遍不一致则报错退出；密码不 echo。
 - **非交互模式**：stdin 不是 TTY 时必须显式给 `--password-stdin`，密码从 stdin 管道读取（最多 800 字节、10 秒超时、只去掉一个尾部换行）。**不要把明文密码写进命令行参数**——会进 shell history 与进程列表；请从密码管理器或受限权限文件等安全来源经管道传入。
-- **建号与重置**：`admin_users` 为空时创建该用户（等同面板首次设置，但不创建登录 Session）；已有唯一管理员时把用户名与密码改成新值。表里出现多个管理员时直接报错退出，不猜改哪一个。
+- **建号与重置**：`admin_users` 为空时创建该用户（不创建登录 Session；面板没有网页建号，另一条首次登录路径是 `pairing create --web`）；已有唯一管理员时把用户名与密码改成新值。表里出现多个管理员时直接报错退出，不猜改哪一个。
 - **会话与 Passkey**：每次都注销该账号**全部登录 Session**；Passkey 默认保留，只有显式传 `--revoke-passkeys` 才删除全部 Passkey。
-- `admin_api_keys` 不受影响，`setup` 不会重开。成功后 stdout 输出 `{ "status": "ok", "username": ..., "created": true|false }`。
+- `admin_api_keys` 不受影响。成功后 stdout 输出 `{ "status": "ok", "username": ..., "created": true|false }`。
 - **使用场景**：首次部署还没有管理员、遗失密码、或遗失全部 Passkey 后恢复密码登录。删除或更换公开 URL 之前，应先恢复或设置密码。
 
 ## 已配对 Agent 客户端（pairing / clients）
 
-`pairing` 与 `clients` 也是服务端 CLI 命令，但它们管理的是已配对客户端的**一次性配对码**与身份，不是面板会话：
+`pairing` 与 `clients` 也是服务端 CLI 命令，管理已配对客户端的**一次性配对码**与身份；`pairing create --web` 另外签发面板登录用的一次性码：
 
 ```bash
 node src/cli.ts pairing create --config <path> --name <name> --mode <read|read_write|read_paid|all> [--ttl-seconds 60..3600] [--public-key <base64url>]
+node src/cli.ts pairing create --config <path> --web [--name <name>] [--ttl-seconds 60..3600]
 node src/cli.ts pairing list   --config <path>
 node src/cli.ts pairing cancel <pairing-id> --config <path>
 node src/cli.ts clients list   --config <path>
 node src/cli.ts clients revoke <client-id> --config <path>
 ```
 
-- **不取 `ServeLock`**：与 `admin-account` 相反，这些命令必须能在 `serve` 运行时执行（这本来就是正常场景）。它们用 `SqliteStore.open(config, false)` 打开数据库、不做迁移；数据目录里还没有迁移 `058` 的表时直接报错，提示先在本版本启动（或重启）一次 `serve`。
+- **不取 `ServeLock`**：与 `admin-account` 相反，这些命令必须能在 `serve` 运行时执行（这本来就是正常场景）。它们用 `SqliteStore.open(config, false)` 打开数据库、不做迁移；数据目录里还没有应用迁移 `059` 时直接报错，提示先在本版本启动（或重启）一次 `serve`。
 - **`pairing create`** 打印一个 JSON 文档：`{ status, code, instance_id, pairing, admin, next }`。`code` 是 `pwp_` 开头的短期一次性码（默认 300 秒，`--ttl-seconds` 限制 60–3600）；`--mode` **必须显式给出**，没有默认授权。`admin` 给出 `host`/`port`/`public_url` 作为连接提示。码的明文只出现在这一次输出里，数据库只存摘要，`pairing list` 不会回显。
+- **`pairing create --web`**：签发浏览器登录用的 `web` 票据，输出结构相同，`next` 改为「在浏览器打开面板地址，选 Sign in with a one-time code，在 `expires_at` 前粘贴」。`--name` 可省略（默认 `Admin Panel sign-in`），`--mode` 与 `--public-key` 会被拒绝。没有管理员账号时，会先建一个无密码的 `admin` 再绑定票据，这就是全新部署的首次登录方式；输出里的 `account` 是 `{ username, created }`。有多个账号时报错，不建票据。码在登录页换成一个 Session，用一次即失效；`pairing list`/`cancel` 同样适用，列表项的 `purpose` 区分 `client` 与 `web`。用于忘记密码又没有 Passkey、或在新设备上不想输入密码时，从 SSH 直接签一个登录码；它不改密码，也不注销已有 Session（要重置账号用 `admin-account`）。
 - **预绑定公钥**：`surowan-utils auth init` 先在本机生成/复用 `client-key.pem` 并打印公钥，然后在这里用 `--public-key` 创建票据；这样只有那个 key 能领取配对码，同时 agent 不需要把私钥交出去。
 - **`pairing list`** 只列仍可用的票据（未消费、未取消、未过期）；**`pairing cancel`** 立即作废，重复取消或未知 id 报错。**`clients list`** 列出全部身份（含已撤销），项为 `{ id, name, fingerprint, mode, permissions, created_at, last_used_at, revoked_at }`；**`clients revoke`** 置 `revoked_at`，对下一次签名请求立即生效，重复撤销报错。
 - **失败约定**：同其它服务端命令，stdout 只有一个 JSON 文档，失败时 stderr 为 `{ "status": "error", "error": … }` 并退出 1；`assertConfigPermissions` 与 `loadConfig` 校验照常执行。
@@ -390,6 +392,7 @@ node src/cli.ts backup --config dev-data/config.jsonc
 - assets 阶段以 `--platform=$BUILDPLATFORM` 在构建机自身架构上运行：先只复制 manifest、lockfile、patches 与 `scripts/skills-sync.ts`、`scripts/git-hooks.ts`（root `postinstall` 要用；构建上下文没有 `.git`，它们直接跳过），再 `pnpm install --frozen-lockfile` → `pnpm run admin:build` 与 `pnpm --filter @surowan/image-service build` → `node scripts/manual-prepare.ts` 把用户手册 Markdown 打包到 `src/manual/`。这三份产物都是与架构无关的 JS/Markdown；放在目标架构下跑时，arm64 要在 QEMU 里重做一遍，admin 构建比 amd64 慢约十倍。
 - builder 阶段按目标架构执行与 assets 逐条相同的依赖安装（原生模块必须匹配目标架构；目标与构建机同架构时 BuildKit 视作相同步骤只跑一次），复制源码并从 assets 取回 `apps/admin-next/dist/`、`packages/image-service/dist/` 与 `src/manual/`，删掉 `apps/docs` 后以 `pnpm install --prod --frozen-lockfile --ignore-scripts` 剪掉 devDependencies（`--ignore-scripts` 跳过 image-service 依赖 tsc 的 prepare，所以它的 `dist/` 必须先在 assets 构建）。
 - runtime 阶段用 apt 装 `ffmpeg`（含 `ffprobe`）、`python3` 与 `gosu`，再 pip 装 `lottie`；因此**不需要**在宿主机准备任何媒体依赖。
+- runtime 阶段设置 `ENV SUROWAN_OFFICIAL_IMAGE=1`，用来标记官方镜像。Admin Panel 登录页据此显示 `docker compose exec … pairing create --web` 的完整命令；自建镜像没有这个标记，只显示通用提示，见 [admin-panel.md](admin-panel.md#认证)。
 - runtime 阶段接受 `SUROWAN_VERSION` build arg，用运行时自己的 `parseVersion` 推出 Channel，在 `/app/version` 写入 `Version: …` / `Channel: …`；版本号解析失败时构建直接失败，而不是让镜像静默回退到 Develop。Channel 不单独传参，所以不会出现「声明的 Channel 与版本格式不符、运行时拒绝整个文件」的情况（例如手动推送的 `v0.0.0-next-*` tag 会正确写成 Staging）。`docker.yml` 的 `main` 构建传 `v0.0.0-next-<UTC 时间戳>`，`v*` tag 构建传 tag 本身；没有 build arg 的本地 `docker build` 不生成该文件，运行时按 Git tag/commit 回退，最终回退到 `v0.0.0-develop`。Admin Panel 左下角显示这个版本号与 Channel。
 - 只复制 `src/`、`node_modules/`、`packages/image-service/` 的 `package.json`、`dist/` 与 `node_modules/`（经 workspace 符号链接解析）、`apps/admin-next/dist/` 和 `package.json`。`test/`、`agent-doc/`、`dev-data/` 被 `.dockerignore` 排除，镜像里没有这些目录。`apps/docs` 只保留 `content/docs` 与 `examples/` 作为手册源参与构建：`.dockerignore` 排除文档站配置、主题与生成产物，assets 生成的 `src/manual/` 经 builder 随 `src/` 进入 runtime；builder 在剪枝前删除 `apps/docs`——残留的目录没有 `package.json`，`pnpm install --prod --frozen-lockfile` 会把它判为 lockfile 过期而失败；镜像不含 Rspress 或文档站目录，该隔离由 `.github/workflows/docs.yml` 的 image-smoke 断言。
 - Admin 前端已经构建进 `/app/apps/admin-next/dist`，与 `static_dir` 默认值一致，无需额外配置。

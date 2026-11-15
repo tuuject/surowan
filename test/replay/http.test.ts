@@ -67,7 +67,7 @@ test('CLI replay over real HTTP runs ReplayRunner with synthetic side effects an
   const f = await fixture();
   expect(f.listening.hostname).toBe('127.0.0.1');
   expect(f.listening.port).toBeGreaterThan(0);
-  const admin = await setupAdminSession(f.baseUrl);
+  const admin = await setupAdminSession(f.store, f.baseUrl);
   const promptFile = join(f.directory, 'override-prompt.txt');
   await writeFile(promptFile, OVERRIDE_PROMPT);
 

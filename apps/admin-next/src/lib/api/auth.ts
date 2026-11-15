@@ -19,11 +19,14 @@ function postCredentials(path: string): (credentials: Credentials) => Promise<{ 
     });
 }
 
-export const createFirstAdmin = postCredentials('/auth/setup');
-
 export const login = postCredentials('/auth/login');
 
 export const updateCredentials = postCredentials('/auth/credentials');
+
+/** Exchanges a one-time code from `surowan pairing create --web` for a panel session. */
+export function loginWithPairingCode(code: string): Promise<{ status: string }> {
+  return postJson<{ status: string }>('/auth/pairing', { code });
+}
 
 export function logout(): Promise<{ status: string }> {
   return call('/auth/logout', { method: 'POST' });

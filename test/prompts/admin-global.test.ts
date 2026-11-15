@@ -9,7 +9,7 @@ test('prompt save applies the next invocation, records versions, diffs and resto
     const unauthenticated = await server.handle(request('/api/prompts/versions?scope=global'));
     expect(unauthenticated.status).toBe(401);
 
-    const cookie = await login(server);
+    const cookie = await login(store, server);
     const startHash = configStore.current().hash;
 
     // Read keys reach the prompt views; writes stay behind write_all.
@@ -128,7 +128,7 @@ test('prompt save applies the next invocation, records versions, diffs and resto
 test('prompt routes only answer under the prompts namespace', async () => {
   const { store, server, directory } = await fixture();
   try {
-    const cookie = await login(server);
+    const cookie = await login(store, server);
     const view = await readJson(
       await server.handle(request('/api/prompts/global?source=file', { headers: { cookie } })),
     );
@@ -145,7 +145,7 @@ test('prompt routes only answer under the prompts namespace', async () => {
 test('a hand-edited prompt file becomes a version on the next apply, comment-only edits do not', async () => {
   const { store, server, directory } = await fixture();
   try {
-    const cookie = await login(server);
+    const cookie = await login(store, server);
     await writeFile(join(directory, 'agent-system-prompt.md'), 'Hand edited.');
     expect((await server.handle(post('/api/config/apply', {}, cookie))).status).toBe(200);
     let versions = await readJson(
@@ -170,7 +170,7 @@ test('API key reads redact the calling key even without a secret store', async (
   // This fixture's AdminServer has no SecretStore, so remember(token) cannot help.
   const { store, server, directory } = await fixture();
   try {
-    const cookie = await login(server);
+    const cookie = await login(store, server);
     const key = await readJson(await server.handle(post('/api/api-keys', { name: 'probe' }, cookie)));
     await writeFile(join(directory, 'agent-system-prompt.md'), `Never print ${key.key as string}.`);
     const view = await server.handle(

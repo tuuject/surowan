@@ -16,6 +16,7 @@ import { seedAdminFixture } from '../fixtures/admin-seed.ts';
 import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
 import { AGENT_DEFAULTS } from '../../src/platform/config/resolve.ts';
 import type { HarnessSettings } from '../../apps/admin-next/src/lib/api/config.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -57,7 +58,8 @@ async function fixture(transform?: (config: FixtureConfig) => void) {
   });
   const request = (route: string, init: RequestInit = {}) =>
     server.handle(new Request(`http://127.0.0.1:8899/api${route}`, init));
-  const setup = await request('/auth/setup', {
+  await createAdminAccount(store.orm, { username: 'owner', password: 'test-correct-horse-battery' });
+  const setup = await request('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ username: 'owner', password: 'test-correct-horse-battery' }),
   });

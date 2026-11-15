@@ -8,6 +8,8 @@ import type { RuntimeConfigurationStore } from '../../src/platform/runtime-confi
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
+import type { Orm } from '../../src/store/store.ts';
 
 const PASSWORD = 'correct-horse-battery';
 const directories: string[] = [];
@@ -67,8 +69,9 @@ export async function fixture(replay?: ReplayFn): Promise<Fixture> {
   return { store, server, secrets, calls: [] };
 }
 
-export async function setupAdmin(server: AdminServer): Promise<string> {
-  const created = await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD }));
+export async function setupAdmin(store: { readonly orm: Orm }, server: AdminServer): Promise<string> {
+  await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
+  const created = await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD }));
   expect(created.status).toBe(200);
   return sessionCookie(created);
 }

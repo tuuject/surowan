@@ -6,6 +6,7 @@ import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
 import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
 import { enterSleep } from '../../src/store/sleep.ts';
 import { fixture, PASSWORD, post, readJson, request, sessionCookie, textUpdate } from './fixtures.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 test('audit routes expose tool sessions, messages and sticker cache', async () => {
   const { store, server, configStore } = await fixture();
@@ -83,8 +84,9 @@ test('audit routes expose tool sessions, messages and sticker cache', async () =
       )
       .run(analysis.id, iso);
 
+    await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
     const cookie = sessionCookie(
-      await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD })),
+      await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD })),
     );
     const headers = { cookie };
 

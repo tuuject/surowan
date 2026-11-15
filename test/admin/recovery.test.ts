@@ -181,7 +181,7 @@ describe('admin-account flow', () => {
       expect(reopened.db.prepare('SELECT * FROM admin_api_keys').all()).toEqual(apiKeysBefore);
       expect(await verify(await passwordHash(reopened), NEW_PASSWORD)).toBe(true);
       const auth = new AdminAuth(reopened.orm, 168);
-      expect(auth.setupRequired()).toBe(false);
+      expect(reopened.db.prepare('SELECT COUNT(*) AS count FROM admin_users').get()).toEqual({ count: 1n });
       const token = await auth.login({ username: 'founder', password: NEW_PASSWORD });
       expect(token.length).toBeGreaterThan(0);
       expect(sessionCount(reopened, userId)).toBe(1n);
@@ -195,7 +195,8 @@ describe('admin-account flow', () => {
     const loaded = await loadConfig(configPath);
     const store = await SqliteStore.open(loaded.config);
     const auth = new AdminAuth(store.orm, 168);
-    await auth.createFirstUser({ username: 'admin', password: OLD_PASSWORD });
+    await auth.createOrResetAccount({ username: 'admin', password: OLD_PASSWORD }, { revokePasskeys: false });
+    await auth.login({ username: 'admin', password: OLD_PASSWORD });
     await auth.login({ username: 'admin', password: OLD_PASSWORD });
     const userId = soleUserId(store);
     expect(sessionCount(store, userId)).toBe(2n);
@@ -226,7 +227,7 @@ describe('admin-account flow', () => {
       expect(await verify(hash, OLD_PASSWORD)).toBe(false);
       expect(await verify(hash, NEW_PASSWORD)).toBe(true);
       const reopenedAuth = new AdminAuth(reopened.orm, 168);
-      expect(reopenedAuth.setupRequired()).toBe(false);
+      expect(reopened.db.prepare('SELECT COUNT(*) AS count FROM admin_users').get()).toEqual({ count: 1n });
       expect((await reopenedAuth.login({ username: NEW_USERNAME, password: NEW_PASSWORD })).length).toBeGreaterThan(0);
     } finally {
       reopened.close();
@@ -238,7 +239,8 @@ describe('admin-account flow', () => {
     const loaded = await loadConfig(configPath);
     const store = await SqliteStore.open(loaded.config);
     const auth = new AdminAuth(store.orm, 168);
-    await auth.createFirstUser({ username: 'admin', password: OLD_PASSWORD });
+    await auth.createOrResetAccount({ username: 'admin', password: OLD_PASSWORD }, { revokePasskeys: false });
+    await auth.login({ username: 'admin', password: OLD_PASSWORD });
     await auth.login({ username: 'admin', password: OLD_PASSWORD });
     const userId = soleUserId(store);
     addPasskeys(store, userId);
@@ -269,7 +271,8 @@ describe('admin-account flow', () => {
     const loaded = await loadConfig(configPath);
     const store = await SqliteStore.open(loaded.config);
     const auth = new AdminAuth(store.orm, 168);
-    await auth.createFirstUser({ username: 'admin', password: OLD_PASSWORD });
+    await auth.createOrResetAccount({ username: 'admin', password: OLD_PASSWORD }, { revokePasskeys: false });
+    await auth.login({ username: 'admin', password: OLD_PASSWORD });
     await auth.login({ username: 'admin', password: OLD_PASSWORD });
     const userId = soleUserId(store);
     addPasskeys(store, userId);
@@ -308,7 +311,8 @@ describe('admin-account flow', () => {
     const loaded = await loadConfig(configPath);
     const store = await SqliteStore.open(loaded.config);
     const auth = new AdminAuth(store.orm, 168);
-    await auth.createFirstUser({ username: 'admin', password: OLD_PASSWORD });
+    await auth.createOrResetAccount({ username: 'admin', password: OLD_PASSWORD }, { revokePasskeys: false });
+    await auth.login({ username: 'admin', password: OLD_PASSWORD });
     const userId = soleUserId(store);
     addPasskeys(store, userId);
     const now = new Date().toISOString();

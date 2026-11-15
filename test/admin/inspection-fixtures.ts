@@ -22,6 +22,7 @@ import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { invocationMessages, media } from '../../src/store/schema/index.ts';
 import { seedAdminFixture } from '../fixtures/admin-seed.ts';
 import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -162,8 +163,9 @@ export async function fixture() {
       },
     },
   });
+  await createAdminAccount(store.orm, { username: 'owner', password: 'inspection-panel-password' });
   const setup = await server.handle(
-    request('/api/auth/setup', {
+    request('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username: 'owner', password: 'inspection-panel-password' }),
       headers: { 'content-type': 'application/json' },

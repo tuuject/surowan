@@ -13,6 +13,7 @@ import { keyJarPath } from '../../src/platform/key-jar.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from '../helpers.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -74,7 +75,8 @@ async function fixture(options: { readonly search?: FileConfig['web_search']; re
   });
   const request = (route: string, init: RequestInit = {}) =>
     server.handle(new Request(`http://127.0.0.1:8899/api${route}`, init));
-  const setup = await request('/auth/setup', {
+  await createAdminAccount(store.orm, { username: 'owner', password: 'test-correct-horse-battery' });
+  const setup = await request('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ username: 'owner', password: 'test-correct-horse-battery' }),
   });

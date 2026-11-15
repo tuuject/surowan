@@ -19,7 +19,7 @@ description: 在服务器上创建一次性配对码，在本机用 surowan-util
 
 - 已安装 `surowan-utils`（见 [CLI 参考](../reference/cli-surowan-utils.md)）。
 - 能通过 SSH 在服务器上运行服务端 `surowan`（`node src/cli.ts`；Docker 部署见下文的 `docker compose exec` 写法）。配对命令与运行中的 `serve` 共存，**不需要停服务**。
-- 服务端已经以当前版本启动过一次，迁移 `058` 已应用；否则命令会提示先启动（或重启）一次 `serve`。
+- 服务端已经以当前版本启动过一次，迁移 `059` 已应用；否则命令会提示先启动（或重启）一次 `serve`。
 
 ## 步骤
 

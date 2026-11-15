@@ -12,6 +12,7 @@ import { SecretStore } from '../../src/platform/secrets.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
 import type { ChatsView } from '../../apps/admin-next/src/lib/api/chats.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 const cleanup: Array<() => Promise<void>> = [];
 export const inherited = { topic_ids: null, provider: null, model: null, thinking_level: null };
@@ -62,7 +63,8 @@ export async function fixture(transform?: (config: FixtureConfig) => void) {
   const server = new AdminServer({ store, configStore, configReloader: reloader, modelSwitcher: switcher, secrets });
   const request = (route: string, init: RequestInit = {}) =>
     server.handle(new Request(`http://127.0.0.1:8899/api${route}`, init));
-  const setup = await request('/auth/setup', {
+  await createAdminAccount(store.orm, { username: 'owner', password: 'test-correct-horse-battery' });
+  const setup = await request('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ username: 'owner', password: 'test-correct-horse-battery' }),
   });

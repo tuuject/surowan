@@ -157,7 +157,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `web-fetch/content.test.ts` | 默认 `Accept` 优先 `text/markdown` 且站点 Markdown 原样返回、`raw` 与 `accept_markdown: false` 不声明 Markdown、HTML 默认转 Markdown（正文在 32 KiB 之后仍保留、去导航/脚本，图片保留为绝对链接）、`raw` 返回原始 HTML、Markdown 按 UTF-8 边界截断、转换不发任何网络请求 |
 | `web-fetch/images.test.ts` | 能看图时 Markdown 带 `Images:` 提示且内联 `data:` 图片剔除；图片响应存成本 Chat 工具图片（标记 + `toolImages` + 审计 `result_content_json`，不含字节）、`referer` 去 fragment 后随每一跳发送、无存储时图片按二进制拒绝、GIF/伪装 HTML/超 20 MiB（声明或实际）/非法 referer 各自的失败码且不留资产、插件 scope 只把图片存进本 Invocation 的 Chat |
 | `operations.test.ts` | 审计行 Retention、聊天记录保留、备份轮换、Scheduler 关闭 |
-| `admin/admin.test.ts` | Admin 首次设置、登录、登录锁定（不受 `X-Forwarded-For` 与用户名轮换影响、并发失败计数、过期后重新计数）、请求体按字节流式限长、HTTPS 下 Cookie 带 `Secure`、Session、只读审计 API（含 Conversation Context 列表/详情与写入尝试被拒）、静态托管 |
+| `admin/admin.test.ts` | 无网页建号（匿名 `auth/setup` 401、不建账号）、首个管理员由一次性码登录、登录、登录锁定（不受 `X-Forwarded-For` 与用户名轮换影响、并发失败计数、过期后重新计数）、请求体按字节流式限长、HTTPS 下 Cookie 带 `Secure`、Session、只读审计 API（含 Conversation Context 列表/详情与写入尝试被拒）、静态托管 |
 | `admin/passkeys.test.ts` | 显式 public origin 开关、真实 P-256/CBOR WebAuthn 注册/登录、Origin/RP/UV/用户句柄与挑战绑定、过期/复用/伪造拒绝、多 key 与密码守卫、异步撤权与计数器竞态、恢复清理、旧 RP 安全、迁移保留用户/Session/外键 |
 | `admin/recovery.test.ts` | 内置 `admin-account` 参数边界（含 `--revoke-passkeys` 命令边界与重复 flag）、非 TTY 拒绝、stdin 字节/超时/不泄露、运行中锁拒绝、空表建号、唯一管理员改名改密、会话必注销、passkey 默认保留/显式撤销、多管理员报错不改写、保留 API key、不重开 setup、锁释放；真实 CLI 子进程与临时数据库 |
 | `doctor-telegram.test.ts` | Doctor 的 Telegram 三态：无 `telegram` 段、段内无 token、token 解析为空串都是 `disabled`；可解析 token 交给 `getMe` 探针；SecretRef 缺失是 `Telegram token cannot be read` 配置错误，不静默当成停用 |
@@ -283,8 +283,8 @@ node src/cli.ts serve --config dev-data/config.jsonc
 验证：
 
 1. 出现一次 `admin_started`，host/port 与配置一致。
-2. 首次打开 `http://127.0.0.1:<port>/` 渲染 “Create the administrator account” 表单（按钮 “Create account”），`GET /api/auth/session` 返回 `setup_required = true`。
-3. 创建账号后 Overview 显示 Invocations / Stored messages / Cached media analyses 统计卡，以及 Invocation states、Configured sticker index states、Top tools 表和 7d/30d Usage 图表。
+2. 首次打开 `http://127.0.0.1:<port>/` 渲染的是普通登录页（用户名/密码表单与 “Sign in with a one-time code”），`GET /api/auth/session` 不带任何建号状态，与已有账号的实例返回同一份文档。在另一个终端运行 `node src/cli.ts pairing create --web --config dev-data/config.jsonc`，输出 `account: { username: "admin", created: true }`，点 “Sign in with a one-time code” 粘贴 `code` 后进入面板。
+3. 登录后 Overview 显示 Invocations / Stored messages / Cached media analyses 统计卡，以及 Invocation states、Configured sticker index states、Top tools 表和 7d/30d Usage 图表。
 4. Tool session 详情六个 Tab（Overview / Tool calls / Model calls / Telegram sends / Agent transcript / Frozen context）各自渲染；默认落在 Overview 时间线。
 5. 消息搜索命中当前 Chat 的文本，详情展示全部 Revision；列表与 Revision 显示并复制发送者的 Telegram User ID（频道身份明确标为 Chat ID）。Invocation Overview 与 Frozen context 复制冻结快照的 sender ID，缺失 ID 不提供复制按钮；剪贴板失败明确提示手动复制。
 6. Bot sticker sets 页面（Telegram 分组下）说明列表保存在 `telegram.sticker_sets` 并立即生效；可添加（名称或 t.me 链接）、改昵称与备注、删除 Set，索引列表按 Set 与 `index_state` 过滤后行数变化。
@@ -315,7 +315,7 @@ pnpm run admin:test:e2e 32-recurring-alarms  # 循环闹钟：规则控件与 Cr
 pnpm run admin:test:e2e 30-dev-mock --workers=1  # 一键 mock 调试命令、Vite 代理认证与退出清理
 ```
 
-`30-dev-mock.e2e.ts` 使用固定的 127.0.0.1:5273，运行前须停止占用该端口的开发服务器；不终止其它进程。它通过真实 Vite 页面验证首次设置管理员、测试数据列表、Vite 热更新客户端与 Origin 保护，并验证 stdin EOF、端口冲突、后端意外退出时的两端收尾；生成消息页截图与 `mock-dev-lifecycle` JSON 验收产物，保存在 `playwright.config.ts` 的 `outputDir`（系统临时目录下 `surowan-admin-e2e-results`）中。
+`30-dev-mock.e2e.ts` 使用固定的 127.0.0.1:5273，运行前须停止占用该端口的开发服务器；不终止其它进程。它通过真实 Vite 页面验证用命令打印的 `ADMIN_DEV_MOCK_CODE` 完成首次登录、测试数据列表、Vite 热更新客户端与 Origin 保护，并验证 stdin EOF、端口冲突、后端意外退出时的两端收尾；生成消息页截图与 `mock-dev-lifecycle` JSON 验收产物，保存在 `playwright.config.ts` 的 `outputDir`（系统临时目录下 `surowan-admin-e2e-results`）中。
 
 `20-playground.e2e.ts` 用真实 `AdminServer` + 房间写入路径驱动：匿名与无效 key 401、只读 API key 能列房间但建房得 403、请求 key 幂等建房、房间之间的 ID 隔离、上传校验与内容读取（页面部分随 Playground 页面一并断言）。夹具 `e2e/server.ts` 在仿真数据里额外建两个房间并放入一条 held 消息，规格通过 `GET /__e2e/playground-seed` 取用它们的 ID，不依赖自增主键。
 
@@ -341,8 +341,8 @@ Remove-Item Env:E2E_PASSKEYS
   夹具自行优雅关闭并清理临时目录。**不读 `dev-data/`、不启动 `serve`、
   不触碰 8787 或任何用户进程。**
 - 每个 spec 文件都是全新数据库，文件之间不共享任何状态，与执行顺序无关；`globalSetup`
-  只检查 `dist` 已构建。`00-auth` 从真实 `setup_required` 首次创建管理员开始走 UI；其余套件以
-  `test.use({ signedIn: true })` 让 helper 通过真实认证 API 建号/登录并生成本文件的 storageState。
+  只检查 `dist` 已构建。`00-auth` 从全新实例开始走 UI：匿名 session 不带 `setup_required`，页面是普通登录页，从一次性码入口用真实 `pairing create --web` 的码建出 `admin` 并登录，再在 Settings 里改成测试用户名与密码。其余套件以
+  `test.use({ signedIn: true })` 让 helper 先调 `/__e2e/ensure-admin` 钩子（按 `admin-account` 的方式建号，已有账号时什么也不做），再通过真实密码登录生成本文件的 storageState。
   会话撤销用例直接删除 `admin_sessions` 行后断言 401 回落登录页并重新登录。
 - 用例文件名以 `.e2e.ts` 结尾、目录独立，Playwright `testMatch` 单独声明，**不会**被
   vitest 与 `pnpm test` 发现；`workers` 取 `availableParallelism()`，文件间并行、文件内串行，
@@ -353,8 +353,11 @@ Remove-Item Env:E2E_PASSKEYS
   `pnpm test` 与 `pnpm run check` 都不覆盖浏览器层。
 - **种子时间基准**：`test/fixtures/admin-seed.ts` 的时间要么全部从当前时钟推导，要么全部是无关运行时刻的固定值。承担「仍然有效/未过期」语义的字段必须用运行时的 `Date.now() ± 偏移`（如批量 Memo 行的 `expiresAt`）；固定时间戳只用于「已过期/历史」这类永远成立的行。写死的未来时间会随时间穿过真实时钟：到那天整批种子变成 expired，`state=expired` 过滤断言就会拿到默认分页的 25 行而不是 1 行。
 - 覆盖契约（全部断言真实 UI 状态，非仅文案）：
-  1. 认证：setup → shell；错误密码表单内显示 `invalid_credentials` 且 URL 不变；
-     登出回登录页；会话撤销后受保护请求 401 → 登录页且无错误屏。
+  1. 认证：全新实例与已用实例的登录页和匿名 session 文档相同，匿名 `POST /api/auth/setup` 401；真实 CLI 的码 → shell（`admin`、无密码）→ Settings 设置用户名与密码；错误密码表单内显示 `invalid_credentials` 且 URL 不变；
+     登出回登录页；会话撤销后受保护请求 401 → 登录页且无错误屏；`/__e2e/pairing-create` 钩子
+     对本服务器的配置与数据库运行**真实的** `pairing create --web` CLI，登录页粘贴其码进入 shell，
+     同一码第二次显示 `pairing_code_used`，Agent 配对码显示 `pairing_code_invalid` 且未被消费
+     （`/__e2e/pairing-rows` 断言票据与 Session 行数，产物为 JSON 与码表单截图）。
   2. `apps/admin-next/src/routes/**` 声明的全部路由与深链接直接访问渲染真实内容（非错误边界、非空白）。
   3. 列表过滤与分页：Invocations、Messages、Contexts、Alarms、Memories、Group memory、Stickers
      的过滤器真正改变结果集（Memories 的 Active / Expired / Short-term / Long-term 状态过滤；

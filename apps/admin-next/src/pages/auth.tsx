@@ -1,7 +1,7 @@
 import { startAuthentication } from '@simplewebauthn/browser';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert } from '@tuuject/koi-react/alert';
-import { Button } from '@tuuject/koi-react/button';
+import { Button, IconButton } from '@tuuject/koi-react/button';
 import { Card } from '@tuuject/koi-react/card';
 import { Divider } from '@tuuject/koi-react/divider';
 import { Field } from '@tuuject/koi-react/field';
@@ -9,7 +9,7 @@ import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { type ReactElement, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { LanguageToggle } from '@/components/app-shell/LanguageToggle';
 import {
   SAFE_BOTTOM,
@@ -20,11 +20,14 @@ import {
   TOP_ROW_CLEAR_RIGHT,
 } from '@/components/app-shell/shared';
 import { ThemeToggle } from '@/components/app-shell/ThemeToggle';
-import { createFirstAdmin, login, passkeyLoginOptions, passkeyLoginVerify } from '@/lib/api/auth.ts';
+import { TechText } from '@/components/business/bidi-text';
+import { CopyIcon } from '@/components/icons';
+import { login, loginWithPairingCode, passkeyLoginOptions, passkeyLoginVerify } from '@/lib/api/auth.ts';
 import type { Credentials } from '@/lib/api/core.ts';
 import { ApiError } from '@/lib/api/core.ts';
 import { isWebAuthnAvailable, passkeyErrorMessage } from '@/lib/passkeys';
 import { sessionQuery } from '@/lib/queries';
+import { toast } from '@/lib/toast.ts';
 
 const pageClass = css({
   minHeight: '100%',
@@ -54,7 +57,7 @@ const logoClass = css({
 });
 
 /**
- * The login/setup frame: the same safe-area and desktop-title-bar reservations
+ * The sign-in frame: the same safe-area and desktop-title-bar reservations
  * as the shell, with the language and theme switches available before sign-in.
  */
 function AuthLayout({
@@ -106,7 +109,40 @@ function AuthLayout({
   );
 }
 
-export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boolean }): ReactElement {
+const formClass = css({ display: 'flex', flexDirection: 'column', gap: '4' });
+const alternativesClass = css({ marginBlockStart: '4', display: 'flex', flexDirection: 'column', gap: '3' });
+
+/**
+ * The same page whether or not an administrator exists yet, so a visitor
+ * cannot tell a freshly deployed instance from one in use. A fresh instance's
+ * first sign-in is a one-time code: minting it creates a password-less `admin`.
+ */
+export function LoginForm({
+  passkeysEnabled,
+  officialDockerImage,
+}: {
+  readonly passkeysEnabled: boolean;
+  readonly officialDockerImage: boolean;
+}): ReactElement {
+  const { t } = useTranslation();
+  const [method, setMethod] = useState<'password' | 'code'>('password');
+  if (method === 'code') {
+    return (
+      <AuthLayout title={t('brand.loginTitle')} description={t('pages.auth.codeDescription')}>
+        <PairingCodeForm officialDockerImage={officialDockerImage} onBack={() => setMethod('password')} />
+      </AuthLayout>
+    );
+  }
+  return <PasswordLoginForm passkeysEnabled={passkeysEnabled} onUseCode={() => setMethod('code')} />;
+}
+
+function PasswordLoginForm({
+  passkeysEnabled,
+  onUseCode,
+}: {
+  readonly passkeysEnabled: boolean;
+  readonly onUseCode: () => void;
+}): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [failure, setFailure] = useState<string | null>(null);
@@ -151,7 +187,7 @@ export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boole
 
   return (
     <AuthLayout title={t('brand.loginTitle')} description={t('pages.auth.loginDescription')}>
-      <form onSubmit={handleSubmit(onSubmit)} className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
+      <form onSubmit={handleSubmit(onSubmit)} className={formClass}>
         <Field id="username" label={t('pages.auth.username')} error={errors.username?.message}>
           <Input
             autoComplete="username"
@@ -179,10 +215,10 @@ export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boole
           {t('pages.auth.signIn')}
         </Button>
       </form>
-      {passkeysEnabled ? (
-        <div className={css({ marginBlockStart: '4', display: 'flex', flexDirection: 'column', gap: '3' })}>
-          <Divider />
-          {webAuthnAvailable ? (
+      <div className={alternativesClass}>
+        <Divider />
+        {passkeysEnabled ? (
+          webAuthnAvailable ? (
             <>
               <Button
                 type="button"
@@ -205,20 +241,78 @@ export function LoginForm({ passkeysEnabled }: { readonly passkeysEnabled: boole
             <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>
               {t('pages.auth.passkeyUnavailable')}
             </p>
-          )}
-        </div>
-      ) : null}
+          )
+        ) : null}
+        <Button type="button" variant="outline" color="secondary" size="lg" fullWidth onClick={onUseCode}>
+          {t('pages.auth.codeSignIn')}
+        </Button>
+      </div>
     </AuthLayout>
   );
 }
 
-export function SetupForm(): ReactElement {
+const PAIRING_CODE_PATTERN = /^\s*pwp_[A-Za-z0-9_-]{32}\s*$/;
+
+/**
+ * The command for the official image with the shipped docker-compose.yml. Shown
+ * only when the server reports `official_docker_image`: a self-built image may
+ * use another user, path or service name, so it only gets the generic hint.
+ */
+const OFFICIAL_DOCKER_COMMAND =
+  'docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create --config /config/config.jsonc --web';
+
+const techMono = css({ fontFamily: 'mono', whiteSpace: 'nowrap' });
+
+function CommandLine({ command }: { readonly command: string }): ReactElement {
+  const { t } = useTranslation();
+  const [copying, setCopying] = useState(false);
+  const label = t('pages.auth.copyCommand');
+  return (
+    <span className={css({ display: 'flex', alignItems: 'center', gap: '1' })}>
+      <TechText className={css({ fontFamily: 'mono', overflowWrap: 'anywhere', flex: '1', minWidth: '0' })}>
+        {command}
+      </TechText>
+      <IconButton
+        variant="ghost"
+        color="secondary"
+        label={label}
+        title={label}
+        icon={<CopyIcon />}
+        disabled={copying}
+        onClick={async () => {
+          setCopying(true);
+          try {
+            await navigator.clipboard.writeText(command);
+            toast.success(t('common.copied'));
+          } catch {
+            toast.error(t('pages.auth.copyCommandFailed'));
+          } finally {
+            setCopying(false);
+          }
+        }}
+      />
+    </span>
+  );
+}
+
+/**
+ * The one-time code sign-in: the operator mints the code on the server with
+ * `surowan pairing create --web` and pastes it here. Surrounding whitespace from
+ * a terminal copy is tolerated and trimmed before the request.
+ */
+function PairingCodeForm({
+  officialDockerImage,
+  onBack,
+}: {
+  readonly officialDockerImage: boolean;
+  readonly onBack: () => void;
+}): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [failure, setFailure] = useState<string | null>(null);
 
-  const setupMutation = useMutation({
-    mutationFn: createFirstAdmin,
+  const codeMutation = useMutation({
+    mutationFn: loginWithPairingCode,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: sessionQuery.queryKey });
     },
@@ -230,47 +324,65 @@ export function SetupForm(): ReactElement {
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<Credentials>();
+    formState: { errors },
+  } = useForm<{ code: string }>();
 
-  const onSubmit = (data: Credentials) => {
+  const onSubmit = (data: { code: string }) => {
     setFailure(null);
-    setupMutation.mutate(data);
+    codeMutation.mutate(data.code.trim());
   };
 
   return (
-    <AuthLayout title={t('pages.auth.setupTitle')} description={t('pages.auth.setupDescription')}>
-      <form onSubmit={handleSubmit(onSubmit)} className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
-        <Field id="username" label={t('pages.auth.username')} error={errors.username?.message}>
+    <>
+      <form onSubmit={handleSubmit(onSubmit)} className={formClass}>
+        <Field
+          id="pairing-code"
+          label={t('pages.auth.code')}
+          error={errors.code?.message}
+          help={
+            officialDockerImage ? (
+              <span className={css({ display: 'flex', flexDirection: 'column', gap: '1' })}>
+                <span>
+                  <Trans i18nKey="pages.auth.codeHelpDocker" components={{ file: <TechText className={techMono} /> }} />
+                </span>
+                <CommandLine command={OFFICIAL_DOCKER_COMMAND} />
+              </span>
+            ) : (
+              <Trans i18nKey="pages.auth.codeHelp" components={{ command: <TechText className={techMono} /> }} />
+            )
+          }
+        >
           <Input
-            autoComplete="username"
+            autoComplete="one-time-code"
+            autoCapitalize="off"
+            spellCheck={false}
             autoFocus
-            {...register('username', {
-              required: t('pages.auth.usernameRequired'),
-              pattern: {
-                value: /^[A-Za-z0-9._-]{3,32}$/,
-                message: t('pages.auth.usernamePattern'),
-              },
+            placeholder="pwp_…"
+            className={css({ fontFamily: 'mono' })}
+            {...register('code', {
+              required: t('pages.auth.codeRequired'),
+              pattern: { value: PAIRING_CODE_PATTERN, message: t('pages.auth.codePattern') },
             })}
             dir="ltr"
           />
         </Field>
-        <Field id="password" label={t('pages.auth.password')} error={errors.password?.message}>
-          <Input
-            type="password"
-            autoComplete="new-password"
-            {...register('password', {
-              required: t('pages.auth.passwordRequired'),
-              minLength: { value: 12, message: t('pages.auth.passwordMinLength') },
-            })}
-            dir="ltr"
-          />
-        </Field>
-        {failure ? <Alert tone="error">{failure}</Alert> : null}
-        <Button type="submit" size="lg" fullWidth loading={isSubmitting} loadingLabel={t('pages.auth.creating')}>
-          {t('pages.auth.createAccount')}
+        {failure !== null ? <Alert tone="error">{failure}</Alert> : null}
+        <Button
+          type="submit"
+          size="lg"
+          fullWidth
+          loading={codeMutation.isPending}
+          loadingLabel={t('pages.auth.signingIn')}
+        >
+          {t('pages.auth.signIn')}
         </Button>
       </form>
-    </AuthLayout>
+      <div className={alternativesClass}>
+        <Divider />
+        <Button type="button" variant="outline" color="secondary" size="lg" fullWidth onClick={onBack}>
+          {t('pages.auth.passwordSignIn')}
+        </Button>
+      </div>
+    </>
   );
 }
