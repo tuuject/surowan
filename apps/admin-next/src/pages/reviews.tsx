@@ -103,15 +103,19 @@ function ReviewedInvocationSection({ invocation }: { readonly invocation: Review
         </span>
       }
       description={
-        <span>
+        <span className={css({ display: 'inline-flex', flexWrap: 'wrap', columnGap: '3' })}>
           <TimeText value={invocation.createdAt} />
-          {' · '}
-          {t('invocations.review.commentCount', { count: commentCount })}
+          <span>{t('invocations.review.commentCount', { count: commentCount })}</span>
         </span>
       }
       action={
-        <Button type="button" size="sm" variant="ghost" color="error" onClick={() => removeInvocation(invocation.id)}>
-          <TrashIcon size={14} />
+        <Button
+          type="button"
+          variant="ghost"
+          color="error"
+          iconStart={<TrashIcon />}
+          onClick={() => removeInvocation(invocation.id)}
+        >
           {t('invocations.review.removeInvocation')}
         </Button>
       }
@@ -136,8 +140,13 @@ function ReviewedInvocationSection({ invocation }: { readonly invocation: Review
           />
         ) : (
           <div>
-            <Button type="button" size="sm" variant="soft" color="secondary" onClick={() => setAddingOverall(true)}>
-              <ChatTextIcon size={14} />
+            <Button
+              type="button"
+              variant="soft"
+              color="secondary"
+              iconStart={<ChatTextIcon />}
+              onClick={() => setAddingOverall(true)}
+            >
               {t('invocations.review.addOverallComment')}
             </Button>
           </div>
@@ -316,23 +325,31 @@ export default function ReviewsPage(): ReactElement {
             title={t('invocations.review.exportPanelTitle')}
             action={
               <>
-                <Button type="button" size="sm" color="primary" onClick={() => setPendingExportAction('download')}>
-                  <DownloadIcon size={14} />
-                  {t('invocations.review.downloadMarkdown')}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  color="error"
+                  iconStart={<TrashIcon />}
+                  onClick={() => setConfirmClearOpen(true)}
+                >
+                  {t('invocations.review.clearDraft')}
                 </Button>
                 <Button
                   type="button"
-                  size="sm"
                   variant="soft"
                   color="secondary"
+                  iconStart={<CopyIcon />}
                   onClick={() => setPendingExportAction('copy')}
                 >
-                  <CopyIcon size={14} />
                   {t('invocations.review.copyMarkdown')}
                 </Button>
-                <Button type="button" size="sm" variant="ghost" color="error" onClick={() => setConfirmClearOpen(true)}>
-                  <TrashIcon size={14} />
-                  {t('invocations.review.clearDraft')}
+                <Button
+                  type="button"
+                  color="primary"
+                  iconStart={<DownloadIcon />}
+                  onClick={() => setPendingExportAction('download')}
+                >
+                  {t('invocations.review.downloadMarkdown')}
                 </Button>
               </>
             }

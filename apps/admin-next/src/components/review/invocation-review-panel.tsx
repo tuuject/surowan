@@ -29,10 +29,9 @@ export function InvocationReviewPanel({ invocation }: { readonly invocation: Inv
     <Panel
       title={t('invocations.review.panelTitle')}
       description={
-        <span>
-          {t('invocations.review.thisInvocationCount', { count: thisCommentCount })}
-          {' · '}
-          {t('invocations.review.draftInvocationsCount', { count: draftInvocationCount })}
+        <span className={css({ display: 'inline-flex', flexWrap: 'wrap', columnGap: '3' })}>
+          <span>{t('invocations.review.thisInvocationCount', { count: thisCommentCount })}</span>
+          <span>{t('invocations.review.draftInvocationsCount', { count: draftInvocationCount })}</span>
         </span>
       }
       action={<AppLink to="/reviews">{t('invocations.review.openDraft')}</AppLink>}
@@ -57,8 +56,13 @@ export function InvocationReviewPanel({ invocation }: { readonly invocation: Inv
           />
         ) : (
           <div>
-            <Button type="button" size="sm" variant="soft" color="secondary" onClick={() => setAddingOverall(true)}>
-              <ChatTextIcon size={14} />
+            <Button
+              type="button"
+              variant="soft"
+              color="secondary"
+              iconStart={<ChatTextIcon />}
+              onClick={() => setAddingOverall(true)}
+            >
               {t('invocations.review.addOverallComment')}
             </Button>
           </div>
