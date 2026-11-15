@@ -21,7 +21,7 @@ test('replay accepts only editable templates, caps the body, and forwards the ab
     return { status: 'replayed' };
   });
   try {
-    const cookie = await setupAdmin(server);
+    const cookie = await setupAdmin(store, server);
     const created = await createKey(server, cookie);
     const auth = bearer(created.key);
 
@@ -125,7 +125,7 @@ test('replay renders engine errors as AdminQueryError and redacts known failures
     throw failure;
   });
   try {
-    const cookie = await setupAdmin(server);
+    const cookie = await setupAdmin(store, server);
     const created = await createKey(server, cookie);
     const response = await server.handle(post('/api/invocations/1/replay', {}, bearer(created.key)));
     expect(response.status).toBe(404);
@@ -151,7 +151,7 @@ test('engine failures are logged without the key and answered with a fixed error
   });
   const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   try {
-    const cookie = await setupAdmin(server);
+    const cookie = await setupAdmin(store, server);
     const created = await createKey(server, cookie);
     leaked = created.key;
     const response = await server.handle(post('/api/invocations/1/replay', {}, bearer(created.key)));

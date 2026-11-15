@@ -25,6 +25,8 @@ import { snapshotInvocation } from '../../src/store/invocation-snapshot.ts';
 import { bucketMessages, invocationMessages, messageRevisions, messages } from '../../src/store/schema/index.ts';
 import { seedAdminFixture } from '../fixtures/admin-seed.ts';
 import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
+import type { Orm } from '../../src/store/store.ts';
 
 /**
  * End-to-end CLI -> real HTTP AdminServer -> ReplayRunner integration.
@@ -289,12 +291,13 @@ export interface AdminSessionFixture {
 }
 
 /** Real HTTP: unauthenticated session check, first-user setup, then key creation. */
-export async function setupAdminSession(baseUrl: string): Promise<AdminSessionFixture> {
+export async function setupAdminSession(store: { readonly orm: Orm }, baseUrl: string): Promise<AdminSessionFixture> {
   const session = await fetch(`${baseUrl}/api/auth/session`);
   expect(session.status).toBe(200);
   expect(await asObject(session)).toMatchObject({ setup_required: true, authenticated: false, username: null });
 
-  const setup = await fetch(`${baseUrl}/api/auth/setup`, {
+  await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
+  const setup = await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ username: 'owner', password: PASSWORD }),

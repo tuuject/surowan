@@ -4,6 +4,7 @@ import { AdminServer } from '../../src/ingress/admin/index.ts';
 import { LongTaskService } from '../../src/store/long-tasks/index.ts';
 import type { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
 import { cleanupTestDirectories, ensureConversation, insertAlarm, setup, setupAdmin } from './fixtures.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 afterAll(async () => {
   await cleanupTestDirectories();
@@ -109,8 +110,9 @@ describe('alarm admin HTTP', () => {
     try {
       expect((await server.handle(adminRequest('/api/alarms'))).status).toBe(401);
 
+      await createAdminAccount(store.orm, { username: 'owner', password: ADMIN_PASSWORD });
       const created = await server.handle(
-        adminPost('/api/auth/setup', { username: 'owner', password: ADMIN_PASSWORD }),
+        adminPost('/api/auth/login', { username: 'owner', password: ADMIN_PASSWORD }),
       );
       const cookie = adminSessionCookie(created);
 

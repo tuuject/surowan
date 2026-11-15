@@ -150,10 +150,6 @@ export function createAdminAuthHandler(deps: AdminAuthHandlerDeps) {
     if (segments[0] === 'auth' && (segments[1] === 'passkeys' || segments[1] === 'password')) {
       return { kind: 'response', response: await passkeyRequest(request, url, segments, clientAddress) };
     }
-    if (route === 'auth/setup' && request.method === 'POST') {
-      const token = await auth.createFirstUser(await readCredentials(request));
-      return { kind: 'response', response: json({ status: 'ok' }, 200, sessionCookie(request, url, token)) };
-    }
     if (route === 'auth/login' && request.method === 'POST') {
       const token = await auth.login(await readCredentials(request), new Date(), clientAddress);
       return { kind: 'response', response: json({ status: 'ok' }, 200, sessionCookie(request, url, token)) };

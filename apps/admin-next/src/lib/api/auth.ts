@@ -19,8 +19,6 @@ function postCredentials(path: string): (credentials: Credentials) => Promise<{ 
     });
 }
 
-export const createFirstAdmin = postCredentials('/auth/setup');
-
 export const login = postCredentials('/auth/login');
 
 export const updateCredentials = postCredentials('/auth/credentials');

@@ -6,7 +6,6 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { pathToFileURL } from 'node:url';
 import { expect, test } from '@playwright/test';
-import { E2E_PASSWORD, E2E_USERNAME } from './helpers.ts';
 
 /**
  * Launcher failure contracts, exercised through real processes and the browser:
@@ -98,11 +97,15 @@ test('one command serves the hot-reloading SPA with an isolated backend and clos
     expect(html).toContain('/@vite/client');
     expect((await page.request.get(`${DEV_BASE}/@vite/client`)).status()).toBe(200);
 
+    // The mock has no web setup either: the way in is the one-time code the
+    // command printed. Minting it already created `admin`, so the page is the
+    // ordinary sign-in with its one-time code entry.
+    const code = /^ADMIN_DEV_MOCK_CODE (pwp_\S+)$/m.exec(server.output())?.[1];
+    expect(code).toBeDefined();
     await page.goto(DEV_BASE);
-    await expect(page.getByText('Create the administrator account')).toBeVisible();
-    await page.getByLabel('Username').fill(E2E_USERNAME);
-    await page.getByLabel('Password').fill(E2E_PASSWORD);
-    await page.getByRole('button', { name: 'Create account' }).click();
+    await page.getByRole('button', { name: 'Sign in with a one-time code' }).click();
+    await page.getByLabel('One-time code').fill(code ?? '');
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     await expect(page.getByText('Stored messages')).toBeVisible();
     expect((await page.request.get(`${DEV_BASE}/api/overview`)).status()).toBe(200);
     const denied = await page.request.post(`${DEV_BASE}/api/auth/logout`, {

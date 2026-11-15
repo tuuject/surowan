@@ -6,7 +6,7 @@ import { fixture, login, put, readJson, request } from './admin-fixtures.ts';
 test('group prompt save edits the configured file, validates chat scope and rejects unknown chats', async () => {
   const { store, server, directory } = await fixture();
   try {
-    const cookie = await login(server);
+    const cookie = await login(store, server);
 
     const unconfigured = await server.handle(
       put('/api/prompts/group?chat=-100333', { prompt: 'nope' }, cookie, 'deadbeef'),
@@ -50,7 +50,7 @@ test('group prompt creation writes a conventional file, references it and refuse
     }
   });
   try {
-    const cookie = await login(server);
+    const cookie = await login(store, server);
     const view = await readJson(
       await server.handle(request('/api/prompts/group?chat=123456789&source=file', { headers: { cookie } })),
     );
@@ -93,7 +93,7 @@ test('a group prompt keeps its configured file when no global prompt file is con
     delete (config.agent as { system_prompt_file?: string }).system_prompt_file;
   });
   try {
-    const cookie = await login(server);
+    const cookie = await login(store, server);
     const view = await readJson(
       await server.handle(request('/api/prompts/group?chat=123456789&source=file', { headers: { cookie } })),
     );

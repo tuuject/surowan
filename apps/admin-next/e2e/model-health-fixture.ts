@@ -13,7 +13,7 @@
  * fixed prompt, no system role, no tools, streaming, output capped at 128.
  */
 import { type APIRequestContext, expect, type Locator, type Page } from '@playwright/test';
-import { adminUrl, E2E_PASSWORD, E2E_USERNAME, e2eFetch, test } from './helpers.ts';
+import { adminUrl, E2E_PASSWORD, E2E_USERNAME, e2eFetch, ensureAdmin, test } from './helpers.ts';
 import {
   E2E_HEALTH_ALIAS_A,
   E2E_HEALTH_ALIAS_B,
@@ -147,11 +147,10 @@ function healthModel(id: string, name: string): Record<string, unknown> {
 async function createHealthProviders(request: APIRequestContext): Promise<void> {
   // Sign in through the API like 14-api-keys does, so the spec also works on
   // its own; the browser tests reuse the shared storage state from 00-auth.
-  const session = await request.get(await adminUrl('/api/auth/session'));
-  const state = (await session.json()) as { setup_required: boolean };
-  const response = state.setup_required
-    ? await request.post(await adminUrl('/api/auth/setup'), { data: { username: USERNAME, password: PASSWORD } })
-    : await request.post(await adminUrl('/api/auth/login'), { data: { username: USERNAME, password: PASSWORD } });
+  await ensureAdmin();
+  const response = await request.post(await adminUrl('/api/auth/login'), {
+    data: { username: USERNAME, password: PASSWORD },
+  });
   expect(response.status()).toBe(200);
   const header = response.headers()['set-cookie'] ?? '';
   cookie = header.slice(0, header.indexOf(';'));

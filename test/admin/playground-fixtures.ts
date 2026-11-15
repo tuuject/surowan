@@ -26,6 +26,7 @@ import { keyJarPath } from '../../src/platform/key-jar.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { PlaygroundStore } from '../../src/store/playground/index.ts';
 import { testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 const PASSWORD = 'correct-horse-battery';
 const directories: string[] = [];
@@ -81,8 +82,9 @@ export async function fixture() {
     secrets,
     playground: { store, rooms, ingress, assets },
   });
+  await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
   const setup = await server.handle(
-    request('/api/auth/setup', {
+    request('/api/auth/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username: 'owner', password: PASSWORD }),

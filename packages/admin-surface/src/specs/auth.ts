@@ -7,14 +7,6 @@ import type { EndpointSpec } from '../types.ts';
  */
 export const AUTH_SPECS: readonly EndpointSpec[] = [
   {
-    command: 'setup',
-    method: 'POST',
-    path: 'auth/setup',
-    body: true,
-    session: 'save',
-    summary: 'Create the first administrator account and store its session',
-  },
-  {
     command: 'logout',
     method: 'POST',
     path: 'auth/logout',

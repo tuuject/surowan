@@ -25,7 +25,17 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 
 `admin` 段必填，`enabled` 可省略并默认为 `true`；`admin.*` 改动需要重启。Docker 中要从宿主机访问，容器应绑定 `0.0.0.0`，但端口发布必须限制为 `127.0.0.1:8787:8787`，再由你管理的 TLS 反向代理进行认证和访问控制。首次访问时创建管理员账号；密码长度为 12–200 字符，浏览器 Session 采用 HttpOnly 且 SameSite=Strict Cookie。
 
-`admin.public_url` 可选，**显式配置后才会启用 Passkey 登录**（登录页出现「使用 Passkey 登录」，Settings 页出现 Passkeys 卡片）。它必须是规范 HTTPS origin：不带用户名/密码、路径、查询参数或片段，可以带一个尾部 `/`；本地开发可以用 `http://localhost`；IP 地址（包括 `127.0.0.1` 和 IPv6）不能作为 WebAuthn RP，因此不接受 IP 形式的 `public_url`，即使使用 HTTPS 也不行。启用后请始终从配置的来源访问：包括首次设置、密码登录在内的全部写操作都会校验该来源，直接访问另一个回环地址或端口会返回 `bad_origin`。Passkey 的域名绑定详见下文。
+`admin.public_url` 可选，**显式配置后才会启用 Passkey 登录**（登录页出现「使用 Passkey 登录」，Settings 页出现 Passkeys 卡片）。它必须是规范 HTTPS origin：不带用户名/密码、路径、查询参数或片段，可以带一个尾部 `/`；本地开发可以用 `http://localhost`；IP 地址（包括 `127.0.0.1` 和 IPv6）不能作为 WebAuthn RP，因此不接受 IP 形式的 `public_url`，即使使用 HTTPS 也不行。启用后请始终从配置的来源访问：包括一次性码登录、密码登录在内的全部写操作都会校验该来源，直接访问另一个回环地址或端口会返回 `bad_origin`。Passkey 的域名绑定详见下文。
+
+## 首次登录
+
+面板没有网页上的「创建管理员」表单。刚部署好的实例可能先被别人扫描到，所以第一次登录必须用服务器上生成的一次性码：
+
+1. 打开面板，登录页显示「首次登录」，只有一个一次性码输入框。
+2. 在服务器上运行 `pairing create --web`（命令见[用一次性码登录](#用一次性码登录)）。还没有管理员时，它会自动创建用户名为 `admin` 的账号，这个账号没有密码，也没有 Passkey。
+3. 粘贴输出里的 `code` 登录。如果是先运行命令再打开页面，因为 `admin` 已经建好，登录页会显示普通的用户名密码表单，点 **使用一次性码登录** 再粘贴即可。
+
+登录后，到 **Settings → 管理员凭据** 设置自己的用户名和密码；配置了 `public_url` 时，也可以添加 Passkey。在设置之前，只能用一次性码登录。
 
 ## 常用任务
 
@@ -82,7 +92,7 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 
 使用官方 Docker 镜像和 `docker-compose.yml` 模板时，这个表单会直接显示上面的 Docker 命令，并带复制按钮。自己构建的镜像只会看到通用提示，请按自己的镜像结构改写命令。
 
-每个码只能用一次，用过、过期或被 `pairing cancel` 取消后都会失效；没用的码可以用 `pairing list` 查看。它不会修改密码，也不会注销已有的登录 Session。还没有管理员账号时命令会报错，请先在面板完成首次设置，或用下文的 `admin-account` 建号。
+每个码只能用一次，用过、过期或被 `pairing cancel` 取消后都会失效；没用的码可以用 `pairing list` 查看。它不会修改密码，也不会注销已有的登录 Session。还没有管理员账号时，命令会先创建 `admin`（见[首次登录](#首次登录)），输出里的 `account` 会写明 `"created": true`。
 
 这个码只能登录面板。给编码 Agent 用的配对码（不带 `--web`、带 `--mode`）在登录页会被拒绝；反过来，登录码也不能被 `surowan-utils auth pair` 领取。Agent 配对见[让 Agent 通过 SSH 配对](admin-agent-pairing.md)。
 
@@ -124,7 +134,7 @@ Passkey 遗失，或因更换域名、关闭 Passkey 功能而无法登录时，
    Get-Content .\admin-password.txt | node src/cli.ts admin-account --config .\config.jsonc --username <name> --password-stdin
    ```
 
-还没有管理员账号时，命令会创建该账号（不创建登录 Session）；已有唯一管理员时，把用户名和密码改成新值；表里出现多个管理员时会直接报错退出。每次执行都会注销该账号的全部登录 Session。Passkey 默认保留，需要一并撤销全部 Passkey 时加 `--revoke-passkeys`。API 密钥不受影响，首次设置流程不会重新打开。恢复或设置好密码后，再删除或更换 `public_url`/域名——改动之前请先确认至少保留一个可用登录方式。
+还没有管理员账号时，命令会创建该账号（不创建登录 Session），这是首次登录之外的另一条建号方式；已有唯一管理员时，把用户名和密码改成新值；表里出现多个管理员时会直接报错退出。每次执行都会注销该账号的全部登录 Session。Passkey 默认保留，需要一并撤销全部 Passkey 时加 `--revoke-passkeys`。API 密钥不受影响。恢复或设置好密码后，再删除或更换 `public_url`/域名——改动之前请先确认至少保留一个可用登录方式。
 
 ## 验证与风险
 

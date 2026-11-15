@@ -49,7 +49,8 @@ export async function fixture(enabled = true) {
   });
   const server = new AdminServer({ store, configStore: await testConfigStore(loaded) });
   const auth = new AdminAuth(store.orm, 12);
-  const token = await auth.createFirstUser({ username: 'owner', password });
+  await auth.createOrResetAccount({ username: 'owner', password }, { revokePasskeys: false });
+  const token = await auth.login({ username: 'owner', password });
   const session = auth.authenticate(token)!;
   const cookie = `plasticwan_admin=${token}`;
   return { store, server, auth, token, session, cookie };

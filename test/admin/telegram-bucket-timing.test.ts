@@ -11,6 +11,7 @@ import { resolveBucketTiming } from '../../src/platform/config/resolve.ts';
 import { ImConnectionRegistry } from '../../src/platform/im-connection.ts';
 import { setup } from '../config/reload-fixtures.ts';
 import { PASSWORD, post, readJson, request, sessionCookie } from './fixtures.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 interface Panel {
   readonly fixture: Awaited<ReturnType<typeof setup>>;
@@ -28,7 +29,8 @@ async function panel(options: Parameters<typeof setup>[0] = {}): Promise<Panel> 
     secrets: fixture.secrets,
     connections: new ImConnectionRegistry(),
   });
-  const cookie = sessionCookie(await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD })));
+  await createAdminAccount(fixture.store.orm, { username: 'owner', password: PASSWORD });
+  const cookie = sessionCookie(await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD })));
   return {
     fixture,
     call: (path, init = {}) =>

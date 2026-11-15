@@ -165,29 +165,54 @@ export async function createPairing(orm: Orm, input: CreatePairingInput, now = n
   );
 }
 
+/** The account the first web sign-in code of a fresh instance creates. */
+export const BOOTSTRAP_ADMIN_USERNAME = 'admin';
+
+export interface CreatedWebPairing extends CreatedPairing {
+  /** The administrator the code signs in as; `created` on a fresh instance. */
+  readonly account: { readonly username: string; readonly created: boolean };
+}
+
 /**
- * A ticket the Admin Panel login page exchanges for a session. It is bound to
- * the sole administrator at creation, the same single-account rule as
- * `admin-account`: with no account there is nobody to sign in as, and with
- * several the operator's intent is ambiguous. A panel session is the panel's
- * whole authority, so the ticket records every permission bit.
+ * A ticket the Admin Panel login page exchanges for a session, bound to the
+ * sole administrator. This is also how a fresh instance gets its first
+ * account: with none, it creates a password-less `admin`, so the only way in is
+ * a code minted from the server shell, and the owner sets a username, password
+ * or passkey afterwards in Settings. More than one account is the same
+ * ambiguity `admin-account` refuses. A panel session is the panel's whole
+ * authority, so the ticket records every permission bit.
  */
 export async function createWebPairing(
   orm: Orm,
   input: { readonly name: string; readonly ttlSeconds: number },
   now = new Date(),
-): Promise<CreatedPairing> {
-  const accounts = orm.select({ id: adminUsers.id }).from(adminUsers).limit(2).all();
-  const account = accounts[0];
-  if (account === undefined) {
-    throw new Error(
-      'No administrator account exists yet; finish setup in the Admin Panel or create one with `admin-account` first',
-    );
-  }
-  if (accounts.length > 1) {
-    throw new Error('admin_users contains more than one account; web sign-in codes only serve a single administrator');
-  }
-  return await insertPairing(
+): Promise<CreatedWebPairing> {
+  const account = orm.transaction(
+    () => {
+      const accounts = orm.select({ id: adminUsers.id, username: adminUsers.username }).from(adminUsers).limit(2).all();
+      if (accounts.length > 1) {
+        throw new Error(
+          'admin_users contains more than one account; web sign-in codes only serve a single administrator',
+        );
+      }
+      const existing = accounts[0];
+      if (existing !== undefined) {
+        return { ...existing, created: false };
+      }
+      const iso = now.toISOString();
+      const inserted = orm
+        .insert(adminUsers)
+        .values({ username: BOOTSTRAP_ADMIN_USERNAME, passwordHash: null, createdAt: iso, updatedAt: iso })
+        .returning({ id: adminUsers.id, username: adminUsers.username })
+        .get();
+      if (inserted === undefined) {
+        throw new Error('admin_users insert returned no row');
+      }
+      return { ...inserted, created: true };
+    },
+    { behavior: 'immediate' },
+  );
+  const ticket = await insertPairing(
     orm,
     {
       purpose: 'web',
@@ -199,6 +224,7 @@ export async function createWebPairing(
     input.ttlSeconds,
     now,
   );
+  return { ...ticket, account: { username: account.username, created: account.created } };
 }
 
 async function insertPairing(

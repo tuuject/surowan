@@ -73,7 +73,7 @@ node src/cli.ts doctor --config dev-data/config.jsonc
 - `admin:build`：构建 `apps/admin-next` 生产 bundle（`apps/admin-next/dist`），供 `serve` 静态托管。
 - `admin:test:e2e`：Playwright 浏览器 E2E（`apps/admin-next/e2e`），驱动 `admin:build` 产物与真实 AdminServer 子进程，首次运行前需安装 Chromium；CI 的 Docker workflow 构建后会运行同一套件。命令细节与单套件过滤见 [verification.md](verification.md#admin-panel-浏览器-e2e)。
 - `admin:dev`：启动 Vite dev server（监听 127.0.0.1:5273），`/api/` 默认代理到 127.0.0.1:8787，也可用 `ADMIN_API_TARGET` 指向已运行的 Admin Panel。
-- `admin:dev:mock`：一键启动 E2E 测试后端与 Vite 热更新，打开 http://127.0.0.1:5273 即可调试前端；无需 `serve`、真实配置、Provider/Telegram 凭据或预先 `admin:build`。后端复用 `apps/admin-next/e2e/server.ts`，使用回环随机端口与预置测试数据，临时 SQLite/配置不接触 `dev-data/`；首次访问按页面设置临时管理员，不绕过认证。`Ctrl+C` 同时关闭两端并清理临时数据，下次启动重新初始化；5273 被占用则报错退出，不终止已有进程。仅用于本机调试，不对外暴露测试钩子；模型等外部能力仍是测试替身，不代表真实服务验收。
+- `admin:dev:mock`：一键启动 E2E 测试后端与 Vite 热更新，打开 http://127.0.0.1:5273 即可调试前端；无需 `serve`、真实配置、Provider/Telegram 凭据或预先 `admin:build`。后端复用 `apps/admin-next/e2e/server.ts`，使用回环随机端口与预置测试数据，临时 SQLite/配置不接触 `dev-data/`；启动后终端打印一行 `ADMIN_DEV_MOCK_CODE pwp_…`，这是测试后端用真实 `pairing create --web` 生成的一次性码，有效一小时、只能用一次。生成这个码时已经建好了 `admin`，所以打开页面看到的是普通登录页。点「Sign in with a one-time code」粘贴它，就会以 `admin` 登录，不绕过认证。`Ctrl+C` 同时关闭两端并清理临时数据，下次启动重新初始化；5273 被占用则报错退出，不终止已有进程。仅用于本机调试，不对外暴露测试钩子；模型等外部能力仍是测试替身，不代表真实服务验收。
 - `docs:*`：独立静态文档站；`dev`/`preview` 监听 127.0.0.1:5274，`build` 输出 `apps/docs/dist`，`verify` 检查生产 HTML/Markdown/llms 与 HTTP。维护及部署边界见 [apps/docs/README.md](../apps/docs/README.md)。用户可见行为、配置或运维改变时，同步更新相关指南、示例与测试，不把 `agent-doc/` 自动发布到站点。
 
 ## Coding Agent Skills
@@ -266,9 +266,9 @@ node src/cli.ts admin-account --config <path> --username <name> [--password-stdi
 - **前置条件**：先停止**同一 `data_dir`** 的 `serve`。命令经 `ServeLock` 拒绝在运行中的实例上执行（锁被活动进程持有时报错退出，没有 `--takeover`），保证恢复期间的数据库不与运行中的 Bot 竞争。
 - **交互模式**：stdin 是 TTY 时隐藏输入新密码并要求重复确认，两遍不一致则报错退出；密码不 echo。
 - **非交互模式**：stdin 不是 TTY 时必须显式给 `--password-stdin`，密码从 stdin 管道读取（最多 800 字节、10 秒超时、只去掉一个尾部换行）。**不要把明文密码写进命令行参数**——会进 shell history 与进程列表；请从密码管理器或受限权限文件等安全来源经管道传入。
-- **建号与重置**：`admin_users` 为空时创建该用户（等同面板首次设置，但不创建登录 Session）；已有唯一管理员时把用户名与密码改成新值。表里出现多个管理员时直接报错退出，不猜改哪一个。
+- **建号与重置**：`admin_users` 为空时创建该用户（不创建登录 Session；面板没有网页建号，另一条首次登录路径是 `pairing create --web`）；已有唯一管理员时把用户名与密码改成新值。表里出现多个管理员时直接报错退出，不猜改哪一个。
 - **会话与 Passkey**：每次都注销该账号**全部登录 Session**；Passkey 默认保留，只有显式传 `--revoke-passkeys` 才删除全部 Passkey。
-- `admin_api_keys` 不受影响，`setup` 不会重开。成功后 stdout 输出 `{ "status": "ok", "username": ..., "created": true|false }`。
+- `admin_api_keys` 不受影响。成功后 stdout 输出 `{ "status": "ok", "username": ..., "created": true|false }`。
 - **使用场景**：首次部署还没有管理员、遗失密码、或遗失全部 Passkey 后恢复密码登录。删除或更换公开 URL 之前，应先恢复或设置密码。
 
 ## 已配对 Agent 客户端（pairing / clients）
@@ -286,7 +286,7 @@ node src/cli.ts clients revoke <client-id> --config <path>
 
 - **不取 `ServeLock`**：与 `admin-account` 相反，这些命令必须能在 `serve` 运行时执行（这本来就是正常场景）。它们用 `SqliteStore.open(config, false)` 打开数据库、不做迁移；数据目录里还没有应用迁移 `059` 时直接报错，提示先在本版本启动（或重启）一次 `serve`。
 - **`pairing create`** 打印一个 JSON 文档：`{ status, code, instance_id, pairing, admin, next }`。`code` 是 `pwp_` 开头的短期一次性码（默认 300 秒，`--ttl-seconds` 限制 60–3600）；`--mode` **必须显式给出**，没有默认授权。`admin` 给出 `host`/`port`/`public_url` 作为连接提示。码的明文只出现在这一次输出里，数据库只存摘要，`pairing list` 不会回显。
-- **`pairing create --web`**：签发浏览器登录用的 `web` 票据，输出结构相同，`next` 改为「在浏览器打开面板地址，选 Sign in with a one-time code，在 `expires_at` 前粘贴」。`--name` 可省略（默认 `Admin Panel sign-in`），`--mode` 与 `--public-key` 会被拒绝；没有管理员账号（或多于一个）时报错，不建票据。码在登录页换成一个 Session，用一次即失效；`pairing list`/`cancel` 同样适用，列表项的 `purpose` 区分 `client` 与 `web`。用于忘记密码又没有 Passkey、或在新设备上不想输入密码时，从 SSH 直接签一个登录码；它不改密码，也不注销已有 Session（要重置账号用 `admin-account`）。
+- **`pairing create --web`**：签发浏览器登录用的 `web` 票据，输出结构相同，`next` 改为「在浏览器打开面板地址，选 Sign in with a one-time code，在 `expires_at` 前粘贴」。`--name` 可省略（默认 `Admin Panel sign-in`），`--mode` 与 `--public-key` 会被拒绝。没有管理员账号时，会先建一个无密码的 `admin` 再绑定票据，这就是全新部署的首次登录方式；输出里的 `account` 是 `{ username, created }`。有多个账号时报错，不建票据。码在登录页换成一个 Session，用一次即失效；`pairing list`/`cancel` 同样适用，列表项的 `purpose` 区分 `client` 与 `web`。用于忘记密码又没有 Passkey、或在新设备上不想输入密码时，从 SSH 直接签一个登录码；它不改密码，也不注销已有 Session（要重置账号用 `admin-account`）。
 - **预绑定公钥**：`surowan-utils auth init` 先在本机生成/复用 `client-key.pem` 并打印公钥，然后在这里用 `--public-key` 创建票据；这样只有那个 key 能领取配对码，同时 agent 不需要把私钥交出去。
 - **`pairing list`** 只列仍可用的票据（未消费、未取消、未过期）；**`pairing cancel`** 立即作废，重复取消或未知 id 报错。**`clients list`** 列出全部身份（含已撤销），项为 `{ id, name, fingerprint, mode, permissions, created_at, last_used_at, revoked_at }`；**`clients revoke`** 置 `revoked_at`，对下一次签名请求立即生效，重复撤销报错。
 - **失败约定**：同其它服务端命令，stdout 只有一个 JSON 文档，失败时 stderr 为 `{ "status": "error", "error": … }` 并退出 1；`assertConfigPermissions` 与 `loadConfig` 校验照常执行。

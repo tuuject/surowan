@@ -11,15 +11,12 @@ export const auth: CompleteCatalog<typeof authEn> = {
   passwordRequired: 'كلمة المرور مطلوبة',
   signIn: 'تسجيل الدخول',
   signingIn: 'جارٍ تسجيل الدخول…',
-  setupTitle: 'إنشاء حساب المشرف',
-  setupDescription: 'أول تشغيل. اختر اسم مستخدم وكلمة مرور من 12 حرفًا على الأقل.',
-  passwordMinLength: '12 حرفًا على الأقل',
-  createAccount: 'إنشاء الحساب',
-  creating: 'جارٍ الإنشاء…',
   passkeySignIn: 'تسجيل الدخول بمفتاح مرور',
   passkeySigningIn: 'بانتظار مفتاح المرور…',
   passkeyUnavailable:
     'تسجيل الدخول بمفتاح المرور غير متاح هنا. افتح اللوحة عبر HTTPS في متصفح يدعم مفاتيح المرور، أو سجّل الدخول بكلمة المرور.',
+  firstSignInDescription:
+    'أول تسجيل دخول. أنشئ رمزًا لمرة واحدة على الخادم والصقه هنا. بعد ذلك يمكنك تعيين اسم مستخدم أو كلمة مرور أو مفتاح مرور من الإعدادات.',
   codeSignIn: 'تسجيل الدخول برمز لمرة واحدة',
   codeDescription: 'الصق الرمز لمرة واحدة الذي أُنشئ على الخادم.',
   code: 'رمز لمرة واحدة',

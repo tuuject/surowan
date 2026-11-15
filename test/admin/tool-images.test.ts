@@ -7,13 +7,15 @@ import { toolImageReferences } from '../../src/platform/tool-images.ts';
 import { toolCalls } from '../../src/store/schema/index.ts';
 import { appendImageResult, imageFixture } from '../mcp/image-fixtures.ts';
 import { request, post, sessionCookie } from './fixtures.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 test('Admin serves real tool images only for the authenticated owning result and links Transcript/Context', async () => {
   const f = await imageFixture();
   const result = await f.tool.execute('call_images', {});
   appendImageResult(f, result);
+  await createAdminAccount(f.store.orm, { username: 'owner', password: 'correct-horse-battery' });
   const setup = await f.server.handle(
-    post('/api/auth/setup', { username: 'owner', password: 'correct-horse-battery' }),
+    post('/api/auth/login', { username: 'owner', password: 'correct-horse-battery' }),
   );
   const cookie = sessionCookie(setup);
   const assetId = toolImageReferences(result.details)[0]!.assetId;

@@ -15,6 +15,7 @@ import { SecretStore } from '../../src/platform/secrets.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../../src/store/long-tasks/index.ts';
 import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from '../helpers.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 // ---------------------------------------------------------------------------
 // Regression: the image dispatch used `'bytes' in response` to detect the
@@ -128,8 +129,9 @@ async function fixture(transform?: (config: FixtureConfig) => void): Promise<Fix
     imageService: service,
     imageBridge: bridge,
   });
+  await createAdminAccount(store.orm, { username: 'ops', password: PASSWORD });
   const setup = await server.handle(
-    new Request('http://admin.test/api/auth/setup', {
+    new Request('http://admin.test/api/auth/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username: 'ops', password: PASSWORD }),

@@ -17,7 +17,7 @@ installAdminApiKeyHooks();
 test('API keys are shown once in plaintext and stored only as a SHA-256 digest', async () => {
   const { store, server, secrets } = await fixture();
   try {
-    const cookie = await setupAdmin(server);
+    const cookie = await setupAdmin(store, server);
     const created = await createKey(server, cookie, 'evaluation tool');
     expect(created.key).toMatch(/^pwk_[A-Za-z0-9_-]{43}$/);
     expect(created.item).toEqual({
@@ -71,7 +71,7 @@ test('API keys are shown once in plaintext and stored only as a SHA-256 digest',
 test('API key creation validates the TypeBox boundary and stays session-only', async () => {
   const { store, server } = await fixture();
   try {
-    const cookie = await setupAdmin(server);
+    const cookie = await setupAdmin(store, server);
     const cases: readonly [unknown, string][] = [
       [{}, 'invalid_body'],
       [{ name: '' }, 'invalid_body'],
@@ -100,7 +100,7 @@ test('API key creation validates the TypeBox boundary and stays session-only', a
 test('revocation disables a key immediately and keeps its metadata', async () => {
   const { store, server } = await fixture();
   try {
-    const cookie = await setupAdmin(server);
+    const cookie = await setupAdmin(store, server);
     const created = await createKey(server, cookie);
 
     const before = await server.handle(request('/api/invocations', { headers: bearer(created.key) }));
@@ -143,7 +143,7 @@ test('revocation disables a key immediately and keeps its metadata', async () =>
 test('malformed Origin headers are a clean 4xx and Origin still guards only writes', async () => {
   const { store, server } = await fixture();
   try {
-    const cookie = await setupAdmin(server);
+    const cookie = await setupAdmin(store, server);
     const malformed = await server.handle(
       post('/api/api-keys', { name: 'origin' }, { cookie, origin: 'not a real origin' }),
     );

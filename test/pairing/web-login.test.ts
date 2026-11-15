@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 import {
   allRowsText,
   countRows,
@@ -26,8 +27,9 @@ import {
  * 5. A malformed body reaches the lookup, or leaks whether a code exists.
  * 6. The plaintext code is stored, or the session cookie loses HttpOnly /
  *    SameSite=Strict.
- * 7. A ticket is minted with no administrator to sign in as, or mixed with the
- *    client-only flags (`--mode`, `--public-key`).
+ * 7. A ticket is mixed with the client-only flags (`--mode`, `--public-key`),
+ *    or a fresh instance gets its administrator any other way than from the
+ *    server shell: the web setup form was the race a scanner could win.
  * 8. The login page shows the official image's `docker compose` command to a
  *    deployment that is not the official image, whose service name, paths and
  *    user may differ.
@@ -40,12 +42,15 @@ const USERNAME = 'web-admin';
 const PASSWORD = 'correct-horse-battery';
 
 async function createAdministrator(fixture: Fixture): Promise<void> {
-  const setup = await fetch(`${fixture.baseUrl}/api/auth/setup`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
-  });
-  expect(setup.status).toBe(200);
+  await createAdminAccount(fixture.store.orm, { username: USERNAME, password: PASSWORD });
+}
+
+function adminUsers(fixture: Fixture): Array<{ username: string; password_hash: string | null }> {
+  return fixture.store.db
+    .prepare<[], { username: string; password_hash: string | null }>(
+      'SELECT username, password_hash FROM admin_users ORDER BY id',
+    )
+    .all();
 }
 
 async function createWebCode(fixture: Fixture, extra: readonly string[] = []): Promise<Record<string, unknown>> {
@@ -218,15 +223,64 @@ test('expired, cancelled and malformed web codes open no session', async () => {
   }
 }, 60_000);
 
-test('pairing create --web needs the administrator account and refuses client-only flags', async () => {
+test('a fresh instance gets its administrator only from the server CLI', async () => {
   const fixture = await pairingFixture();
   try {
-    const noAccount = await runServerCli(fixture.configPath, ['pairing', 'create', '--web']);
-    expect(noAccount.code).toBe(1);
-    expect(JSON.parse(noAccount.stderr).error).toContain('administrator account');
-    expect(countRows(fixture.store, 'admin_pairings')).toBe(0);
+    const session = async (cookie = ''): Promise<Record<string, unknown>> =>
+      await json(await fetch(`${fixture.baseUrl}/api/auth/session`, { headers: cookie === '' ? {} : { cookie } }));
+    expect(await session()).toMatchObject({ setup_required: true, authenticated: false });
 
-    await createAdministrator(fixture);
+    // The web setup route is gone: on a fresh instance an anonymous POST
+    // creates nothing and opens no session.
+    const setup = await fetch(`${fixture.baseUrl}/api/auth/setup`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'scanner', password: 'scanner-password-1' }),
+    });
+    expect(setup.status).toBe(401);
+    expect(setup.headers.get('set-cookie')).toBeNull();
+    expect(adminUsers(fixture)).toEqual([]);
+
+    // The first web code creates a password-less `admin`; the next one reuses it.
+    const first = await createWebCode(fixture);
+    expect(first.account).toEqual({ username: 'admin', created: true });
+    expect(adminUsers(fixture)).toEqual([{ username: 'admin', password_hash: null }]);
+    const second = await createWebCode(fixture);
+    expect(second.account).toEqual({ username: 'admin', created: false });
+    expect(adminUsers(fixture)).toHaveLength(1);
+
+    // Neither a password nor a passkey exists, so the code is the only way in.
+    const password = await fetch(`${fixture.baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'admin', password: 'anything-at-all-1' }),
+    });
+    expect(password.status).toBe(401);
+    const signedIn = await signIn(fixture, { code: first.code });
+    expect(signedIn.status).toBe(200);
+    const cookie = (signedIn.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    expect(await session(cookie)).toMatchObject({
+      setup_required: false,
+      authenticated: true,
+      username: 'admin',
+      has_password: false,
+    });
+
+    // A second account (only possible by editing the database) is ambiguous.
+    fixture.store.db
+      .prepare('INSERT INTO admin_users (username, password_hash, created_at, updated_at) VALUES (?, NULL, ?, ?)')
+      .run('second', new Date().toISOString(), new Date().toISOString());
+    const ambiguous = await runServerCli(fixture.configPath, ['pairing', 'create', '--web']);
+    expect(ambiguous.code).toBe(1);
+    expect(JSON.parse(ambiguous.stderr).error).toContain('more than one account');
+  } finally {
+    await fixture.close();
+  }
+}, 60_000);
+
+test('pairing create --web refuses the client-only flags', async () => {
+  const fixture = await pairingFixture();
+  try {
     const { publicKey } = newIdentity();
     for (const args of [
       ['pairing', 'create', '--web', '--mode', 'all'],
@@ -241,6 +295,7 @@ test('pairing create --web needs the administrator account and refuses client-on
       expect(JSON.parse(result.stderr), args.join(' ')).toMatchObject({ status: 'error' });
     }
     expect(countRows(fixture.store, 'admin_pairings')).toBe(0);
+    expect(adminUsers(fixture)).toEqual([]);
   } finally {
     await fixture.close();
   }

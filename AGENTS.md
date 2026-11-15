@@ -185,6 +185,7 @@ pnpm run skills:sync
 - MCP HTTP 禁止重定向和 URL 凭据；stdio 仅执行配置中的固定 argv。
 - 非 Windows 系统上，`serve` 与 `doctor` 都要求配置文件 `0600`、其父目录 `0700`；`data_dir` 不得授予 group/other 权限只由 `doctor` 检查（`serve` 仅在目录缺失时以 `0700` 创建）。
 - Admin Panel 密码只以 Argon2id hash 存储；Session Token 只存 SHA-256 摘要，Cookie 为 `HttpOnly` + `SameSite=Strict`。
+- Admin Panel 没有匿名建号端点：首个管理员只能来自服务器 shell，即 `pairing create --web` 建出的无密码 `admin`，或离线的 `admin-account`。不要恢复网页 setup，否则先扫到新实例的人就能抢先占用它。一次性码分 `client` / `web` 两种用途，两个领取端点都只认自己那种码，不得互相串用。
 - 已配对 Agent 客户端的私钥只存在客户端 CLI（`client-key.pem`，0600），永不进入服务端、输出、参数或环境变量，也没有导出命令；每个请求用 Ed25519 签名，绑定 instance、method、target、body 摘要、时间戳与一次性 nonce，服务端用 WebCrypto 验证并持久化已用 nonce（重启后重放仍被拒）。配对码 `pwp_` 一次性、短期、默认 300 秒，数据库只存摘要；`POST /api/pairing/claim` 是唯一无需凭据的写端点，且 `/mcp` 仍只接受 Bearer key。
 - 群聊记忆的读取工具只能按当前 `internalChatId` 返回本 Chat 的摘要与原文；`read_group_messages` 只接受合法 message-id 闭区间并限制宽度与条数，不跨 Chat、不按任意 chat id 解析。整理用的模型输出必须通过事件 Schema 与批次内 message-id 校验后才能落库。
 - Admin 审计 API 全部只读；写入只允许 [admin-panel.md](agent-doc/admin-panel.md#api) 白名单中的控制端点，且都校验 `Origin`。过滤参数经白名单校验并使用绑定参数，禁止拼接 SQL。

@@ -55,12 +55,15 @@ export async function runAdminCredentialCommand(options: AdminCredentialCliOptio
       case 'pairing-create-web': {
         const created =
           command.kind === 'pairing-create'
-            ? await createPairing(orm, {
-                name: command.name,
-                mode: command.mode,
-                ttlSeconds: command.ttlSeconds,
-                publicKey: command.publicKey,
-              })
+            ? {
+                ...(await createPairing(orm, {
+                  name: command.name,
+                  mode: command.mode,
+                  ttlSeconds: command.ttlSeconds,
+                  publicKey: command.publicKey,
+                })),
+                account: undefined,
+              }
             : await createWebPairing(orm, { name: command.name, ttlSeconds: command.ttlSeconds });
         const admin = loaded.config.admin;
         const endpoint = panelEndpoint(admin);
@@ -70,6 +73,9 @@ export async function runAdminCredentialCommand(options: AdminCredentialCliOptio
             code: created.code,
             instance_id: instanceId,
             pairing: created.item,
+            // Web codes only: the administrator the code signs in as, and
+            // whether this call created it on a fresh instance.
+            ...(created.account === undefined ? {} : { account: created.account }),
             admin: { host: admin.host, port: admin.port, public_url: admin.public_url ?? null },
             next:
               command.kind === 'pairing-create'

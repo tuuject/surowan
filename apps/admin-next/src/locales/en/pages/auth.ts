@@ -11,15 +11,12 @@ export const auth = {
   passwordRequired: 'Password is required',
   signIn: 'Sign in',
   signingIn: 'Signing in…',
-  setupTitle: 'Create the administrator account',
-  setupDescription: 'First run. Choose a username and a password of at least 12 characters.',
-  passwordMinLength: 'At least 12 characters',
-  createAccount: 'Create account',
-  creating: 'Creating…',
   passkeySignIn: 'Sign in with a passkey',
   passkeySigningIn: 'Waiting for passkey…',
   passkeyUnavailable:
     'Passkey sign-in is unavailable here. Open the panel over HTTPS in a browser that supports passkeys, or sign in with your password.',
+  firstSignInDescription:
+    'First sign-in. Generate a one-time code on the server and paste it here. Afterwards you can set a username, password or passkey in Settings.',
   codeSignIn: 'Sign in with a one-time code',
   codeDescription: 'Paste the one-time code generated on the server.',
   code: 'One-time code',

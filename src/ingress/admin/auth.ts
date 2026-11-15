@@ -11,9 +11,9 @@ const LOCKOUT_MS = 15 * 60_000;
 const MIN_PASSWORD_LENGTH = 12;
 const MAX_PASSWORD_LENGTH = 200;
 const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,32}$/;
-// Bounds for the unauthenticated paths. Failures are tracked per client, the
+// Bounds for the unauthenticated path. Failures are tracked per client, the
 // map is swept and capped, and at most this many 64 MiB Argon2 jobs run for
-// login and setup at once; the rest are turned away instead of queued.
+// login at once; the rest are turned away instead of queued.
 const MAX_TRACKED_CLIENTS = 1_000;
 const MAX_CONCURRENT_HASHES = 2;
 // The runtime defaults to Argon2id; the explicit cost parameters keep the
@@ -85,45 +85,17 @@ export class AdminAuth {
     this.#warnings = warnings;
   }
 
+  /**
+   * No administrator yet. The panel has no web setup form: the first account
+   * comes from `pairing create --web` (a password-less `admin`) or from the
+   * offline `admin-account` CLI, so a scanner that reaches a fresh instance
+   * first cannot claim it.
+   */
   setupRequired(): boolean {
     const row = this.#orm.select({ count: sql<bigint>`count(*)` }).from(adminUsers).get();
     return (row?.count ?? 0n) === 0n;
   }
 
-  async createFirstUser(credentials: AdminCredentials, now = new Date()): Promise<string> {
-    assertCredentials(credentials);
-    // Checked before hashing so a finished setup endpoint cannot be used to burn
-    // Argon2 work; the transaction below still settles a race between two setups.
-    if (!this.setupRequired()) {
-      throw new AdminAuthError(409, 'setup_complete', 'Administrator account already exists');
-    }
-    const passwordHash = await this.#withHashSlot(() => hash(credentials.password, HASH_OPTIONS));
-    const iso = now.toISOString();
-    const userId = this.#orm.transaction(
-      () => {
-        if (!this.setupRequired()) {
-          throw new AdminAuthError(409, 'setup_complete', 'Administrator account already exists');
-        }
-        const created = this.#orm
-          .insert(adminUsers)
-          .values({
-            username: credentials.username,
-            passwordHash,
-            createdAt: iso,
-            updatedAt: iso,
-            lastLoginAt: iso,
-          })
-          .returning({ id: adminUsers.id })
-          .get();
-        if (created === undefined) {
-          throw new Error('admin_users insert returned no row');
-        }
-        return created.id;
-      },
-      { behavior: 'immediate' },
-    );
-    return this.#createSession(userId, now);
-  }
   async changeCredentials(userId: bigint, credentials: AdminCredentials, now = new Date()): Promise<string> {
     assertCredentials(credentials);
     const passwordHash = await this.#withHashSlot(() => hash(credentials.password, HASH_OPTIONS));
@@ -264,7 +236,7 @@ export class AdminAuth {
    * sole administrator. More than one row means the operator's intent is
    * ambiguous, so it fails instead of picking one. Every call revokes the
    * account's sessions, deletes its passkeys only when asked, never creates a
-   * session (so setup stays closed), and never touches `admin_api_keys`.
+   * session, and never touches `admin_api_keys`.
    */
   async createOrResetAccount(
     credentials: AdminCredentials,

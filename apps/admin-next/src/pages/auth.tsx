@@ -22,13 +22,7 @@ import {
 import { ThemeToggle } from '@/components/app-shell/ThemeToggle';
 import { TechText } from '@/components/business/bidi-text';
 import { CopyIcon } from '@/components/icons';
-import {
-  createFirstAdmin,
-  login,
-  loginWithPairingCode,
-  passkeyLoginOptions,
-  passkeyLoginVerify,
-} from '@/lib/api/auth.ts';
+import { login, loginWithPairingCode, passkeyLoginOptions, passkeyLoginVerify } from '@/lib/api/auth.ts';
 import type { Credentials } from '@/lib/api/core.ts';
 import { ApiError } from '@/lib/api/core.ts';
 import { isWebAuthnAvailable, passkeyErrorMessage } from '@/lib/passkeys';
@@ -63,7 +57,7 @@ const logoClass = css({
 });
 
 /**
- * The login/setup frame: the same safe-area and desktop-title-bar reservations
+ * The sign-in frame: the same safe-area and desktop-title-bar reservations
  * as the shell, with the language and theme switches available before sign-in.
  */
 function AuthLayout({
@@ -118,15 +112,29 @@ function AuthLayout({
 const formClass = css({ display: 'flex', flexDirection: 'column', gap: '4' });
 const alternativesClass = css({ marginBlockStart: '4', display: 'flex', flexDirection: 'column', gap: '3' });
 
+/**
+ * `firstSignIn` is a fresh instance with no administrator yet. It has no setup
+ * form, so whoever reaches it first cannot claim it: the code form is the only
+ * way in, and the code creates a password-less `admin`.
+ */
 export function LoginForm({
+  firstSignIn,
   passkeysEnabled,
   officialDockerImage,
 }: {
+  readonly firstSignIn: boolean;
   readonly passkeysEnabled: boolean;
   readonly officialDockerImage: boolean;
 }): ReactElement {
   const { t } = useTranslation();
   const [method, setMethod] = useState<'password' | 'code'>('password');
+  if (firstSignIn) {
+    return (
+      <AuthLayout title={t('brand.loginTitle')} description={t('pages.auth.firstSignInDescription')}>
+        <PairingCodeForm officialDockerImage={officialDockerImage} onBack={null} />
+      </AuthLayout>
+    );
+  }
   if (method === 'code') {
     return (
       <AuthLayout title={t('brand.loginTitle')} description={t('pages.auth.codeDescription')}>
@@ -306,7 +314,8 @@ function PairingCodeForm({
   onBack,
 }: {
   readonly officialDockerImage: boolean;
-  readonly onBack: () => void;
+  /** `null` on a fresh instance, where there is no password to go back to. */
+  readonly onBack: (() => void) | null;
 }): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -378,75 +387,14 @@ function PairingCodeForm({
           {t('pages.auth.signIn')}
         </Button>
       </form>
-      <div className={alternativesClass}>
-        <Divider />
-        <Button type="button" variant="outline" color="secondary" size="lg" fullWidth onClick={onBack}>
-          {t('pages.auth.passwordSignIn')}
-        </Button>
-      </div>
+      {onBack === null ? null : (
+        <div className={alternativesClass}>
+          <Divider />
+          <Button type="button" variant="outline" color="secondary" size="lg" fullWidth onClick={onBack}>
+            {t('pages.auth.passwordSignIn')}
+          </Button>
+        </div>
+      )}
     </>
-  );
-}
-
-export function SetupForm(): ReactElement {
-  const { t } = useTranslation();
-  const queryClient = useQueryClient();
-  const [failure, setFailure] = useState<string | null>(null);
-
-  const setupMutation = useMutation({
-    mutationFn: createFirstAdmin,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: sessionQuery.queryKey });
-    },
-    onError: (error) => {
-      setFailure(error instanceof ApiError ? `${error.code}: ${error.message}` : t('common.requestFailed'));
-    },
-  });
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<Credentials>();
-
-  const onSubmit = (data: Credentials) => {
-    setFailure(null);
-    setupMutation.mutate(data);
-  };
-
-  return (
-    <AuthLayout title={t('pages.auth.setupTitle')} description={t('pages.auth.setupDescription')}>
-      <form onSubmit={handleSubmit(onSubmit)} className={formClass}>
-        <Field id="username" label={t('pages.auth.username')} error={errors.username?.message}>
-          <Input
-            autoComplete="username"
-            autoFocus
-            {...register('username', {
-              required: t('pages.auth.usernameRequired'),
-              pattern: {
-                value: /^[A-Za-z0-9._-]{3,32}$/,
-                message: t('pages.auth.usernamePattern'),
-              },
-            })}
-            dir="ltr"
-          />
-        </Field>
-        <Field id="password" label={t('pages.auth.password')} error={errors.password?.message}>
-          <Input
-            type="password"
-            autoComplete="new-password"
-            {...register('password', {
-              required: t('pages.auth.passwordRequired'),
-              minLength: { value: 12, message: t('pages.auth.passwordMinLength') },
-            })}
-            dir="ltr"
-          />
-        </Field>
-        {failure ? <Alert tone="error">{failure}</Alert> : null}
-        <Button type="submit" size="lg" fullWidth loading={isSubmitting} loadingLabel={t('pages.auth.creating')}>
-          {t('pages.auth.createAccount')}
-        </Button>
-      </form>
-    </AuthLayout>
   );
 }

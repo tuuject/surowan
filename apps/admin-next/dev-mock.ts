@@ -77,8 +77,18 @@ try {
       await vite.listen();
       if (!stopping) {
         vite.printUrls();
+        // The panel has no web setup form; the mock signs in like a real first
+        // deployment, with a one-time code from the real server CLI.
+        const pairing = await fetch(`${base}/__e2e/pairing-create?purpose=web&ttl=3600`, { method: 'POST' });
+        if (!pairing.ok) {
+          throw new Error(`Could not create a sign-in code (HTTP ${pairing.status})`);
+        }
+        const { code } = (await pairing.json()) as { code: string };
         console.log(`ADMIN_DEV_MOCK_READY frontend=http://127.0.0.1:5273 backend=${base}`);
-        console.log('Temporary mock data. Create an administrator in the browser. Ctrl+C stops both servers.');
+        console.log(`ADMIN_DEV_MOCK_CODE ${code}`);
+        console.log(
+          'Temporary mock data. Choose "Sign in with a one-time code" and paste the code above (valid for an hour, once). Ctrl+C stops both servers.',
+        );
       }
     }
   }

@@ -3,7 +3,8 @@ import { expect, type Page, test } from '@playwright/test';
 import { adminBase, E2E_PASSWORD, E2E_USERNAME, e2eFetch } from './helpers.ts';
 
 /**
- * Auth state machine against the real AdminServer: first-run setup, logout,
+ * Auth state machine against the real AdminServer: the first sign-in with a
+ * one-time code from the real server CLI (there is no web setup form), logout,
  * bad-password handling, and session revocation. Every flow asserts real UI
  * state (shell content / login form), not just response codes.
  */
@@ -22,21 +23,49 @@ async function login(page: Page, base: string, username: string, password: strin
   await expect(page.getByText('Stored messages')).toBeVisible();
 }
 
-test('first-run setup creates the administrator and enters the shell', async ({ page }) => {
+test('a fresh instance only takes a one-time code; the first code creates admin, who then sets credentials', async ({
+  page,
+}, testInfo) => {
   const base = await adminBase();
+  // Whoever reaches a fresh instance first cannot claim it: there is no setup route.
+  const scanner = await fetch(`${base}/api/auth/setup`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'scanner', password: 'scanner-password-1' }),
+  });
+  expect(scanner.status).toBe(401);
+
   await page.goto(base);
+  await expect(page.getByText('Surowan admin sign-in')).toBeVisible();
+  await expect(page.getByText(/^First sign-in\./)).toBeVisible();
+  await expect(page.getByLabel('One-time code')).toBeVisible();
+  await expect(page.getByLabel('Username')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Sign in with a password' })).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('first-sign-in.png') });
+  await testInfo.attach('first-sign-in', { path: testInfo.outputPath('first-sign-in.png'), contentType: 'image/png' });
 
-  // setup_required gate renders the real setup form
-  await expect(page.getByText('Create the administrator account')).toBeVisible();
-  await fillCredentials(page, E2E_USERNAME, E2E_PASSWORD);
-  await page.getByRole('button', { name: 'Create account' }).click();
-
-  // shell with the real Overview payload
+  // The real `pairing create --web` creates the password-less `admin`.
+  const web = await e2eFetch<CliPairing & { account: { username: string; created: boolean } }>(
+    '/pairing-create?purpose=web',
+    { method: 'POST' },
+  );
+  expect(web.account).toEqual({ username: 'admin', created: true });
+  await page.getByLabel('One-time code').fill(web.code);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByText('Stored messages')).toBeVisible();
   await expect(page.getByText('Cached media analyses')).toBeVisible();
   await expect(page.getByText('Bot status')).toBeVisible();
-  await expect(page.getByText(E2E_USERNAME)).toBeVisible();
   await expect(page.locator('[data-route-error]')).toHaveCount(0);
+  const session = (await (await page.request.get(`${base}/api/auth/session`)).json()) as Record<string, unknown>;
+  expect(session).toMatchObject({ setup_required: false, username: 'admin', has_password: false });
+
+  // Choosing a username and password afterwards is the owner's call.
+  await page.goto(await baseURLPath('/settings'));
+  await page.getByLabel('New username').fill(E2E_USERNAME);
+  await page.getByLabel('New password').fill(E2E_PASSWORD);
+  await page.getByRole('button', { name: 'Update credentials' }).click();
+  await expect(page.getByText('Credentials updated; all other sessions were signed out.')).toBeVisible();
+  await expect(page.getByText(E2E_USERNAME)).toBeVisible();
 });
 
 test('logout returns to the login form; bad password shows invalid_credentials and keeps the URL', async ({ page }) => {

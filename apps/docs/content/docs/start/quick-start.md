@@ -66,7 +66,7 @@ docker compose logs -f plasticwan
 
 日志出现 `serve_started` 表示服务已启动；接入 Telegram 时 `mode` 为 `connected` 并开始轮询，没有 Telegram 时 `mode` 为 `disabled`、`bot_id` 为 `null`。接入后向允许的 Chat 发送一条消息，等待配置的 `bucket_window_seconds`。模型可以选择沉默；要区分未触发与主动不发言，请看 [排查问题](../operations/troubleshooting.md)。
 
-要从浏览器访问管理面板，取消 `docker-compose.yml` 中 `ports` 段的注释后重新 `docker compose up -d`；配置示例的 `admin.host` 已是容器所需的 `0.0.0.0`，端口只发布到 `127.0.0.1:8787`。首次访问创建本地管理员账号。不要把该端口直接公开到互联网，见 [管理面板](../configure/admin.md)。
+要从浏览器访问管理面板，取消 `docker-compose.yml` 中 `ports` 段的注释后重新 `docker compose up -d`；配置示例的 `admin.host` 已是容器所需的 `0.0.0.0`，端口只发布到 `127.0.0.1:8787`。首次登录要用服务器上生成的一次性码：运行 `docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create --config /config/config.jsonc --web`，把输出里的 `code` 粘贴到登录页，会以 `admin` 登录，之后再在 Settings 里设置用户名、密码或 Passkey，见[首次登录](../configure/admin.md#首次登录)。不要把该端口直接公开到互联网，见 [管理面板](../configure/admin.md)。
 
 ## 下一步
 

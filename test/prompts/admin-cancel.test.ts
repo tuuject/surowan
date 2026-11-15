@@ -83,7 +83,7 @@ test('saving a prompt reports affected runs and the scoped cancel stops only tho
       .get()!.id;
     attachBucketToInvocation(store, 20, chatA.id, attached, chatA.conversation_id, new Date());
 
-    const cookie = await login(baseServer);
+    const cookie = await login(store, baseServer);
     const view = await readJson(
       await server.handle(request('/api/prompts/group?chat=123456789&source=file', { headers: { cookie } })),
     );

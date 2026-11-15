@@ -197,7 +197,13 @@ docker compose logs -f plasticwan
 
 日志出现 **`serve_started`** 后，向允许的 Chat 发消息，等待消息聚合窗口（示例配置为 15 秒）。没有回复时，排查方法见 [故障处理](apps/docs/content/docs/operations/troubleshooting.md)。
 
-启用端口发布后，访问 [http://127.0.0.1:8787](http://127.0.0.1:8787)，首次访问时创建管理员账号。
+启用端口发布后，访问 [http://127.0.0.1:8787](http://127.0.0.1:8787)。面板没有网页建号，首次登录用服务器上生成的一次性码：
+
+```bash
+docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create --config /config/config.jsonc --web
+```
+
+把输出里的 `code` 粘贴到登录页，会以 `admin` 登录，之后再在 Settings 里设置用户名、密码或 Passkey。
 
 > [!CAUTION]
 > **强烈不建议把管理面板的 HTTP 端口原样暴露到公网。** 面板本身只提供明文 HTTP，登录密码和 Session Cookie 在公网上传输会被窃听或劫持，而拿到它的人就能控制 Bot、读到全部聊天记录。需要远程访问时，请保持端口只发布到 `127.0.0.1`，再用 Nginx、Caddy 等反向代理对外提供 HTTPS，并配好访问控制；临时访问也可以直接用 SSH 隧道。

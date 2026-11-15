@@ -18,7 +18,7 @@ afterEach(cleanupFixtures);
 
 test('keyword and precise public-message time search work through key and session HTTP without model work', async () => {
   const f = await fixture();
-  const admin = await setupAdminSession(f.baseUrl);
+  const admin = await setupAdminSession(f.store, f.baseUrl);
   const env = { SUROWAN_ENDPOINT: f.baseUrl, SUROWAN_API_KEY: admin.key };
   const before = productionTables(f.rows());
   const incoming = await runCli(
@@ -70,7 +70,7 @@ test('keyword and precise public-message time search work through key and sessio
 
 test('missing opening scene fails the CLI and a revoked key fails unauthenticated', async () => {
   const f = await fixture();
-  const admin = await setupAdminSession(f.baseUrl);
+  const admin = await setupAdminSession(f.store, f.baseUrl);
   f.clearScene();
   const env = { SUROWAN_ENDPOINT: f.baseUrl, SUROWAN_API_KEY: admin.key };
 
@@ -111,7 +111,7 @@ test('missing opening scene fails the CLI and a revoked key fails unauthenticate
 
 test('preflight and active prompts are read-only HTTP reads that never call the model', async () => {
   const f = await fixture();
-  const admin = await setupAdminSession(f.baseUrl);
+  const admin = await setupAdminSession(f.store, f.baseUrl);
   const headers = { authorization: `Bearer ${admin.key}` };
   const before = productionTables(f.rows());
 

@@ -22,6 +22,7 @@ import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { ServeLock, SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { serve } from '../../src/adapters/local-monolith/runtime/index.ts';
 import { startFixtureServer, stopFixtureServer } from '../helpers.ts';
+import { freePort, jsonBody, sendTurn, signInWithCliCode, textTurn } from './only-fixtures.ts';
 
 const { botConstructed } = vi.hoisted(() => ({ botConstructed: vi.fn() }));
 vi.mock('grammy', () => ({
@@ -50,85 +51,6 @@ afterEach(async () => {
     await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }
 });
-
-function sse(events: readonly unknown[]): Response {
-  const body = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('');
-  return new Response(body, { headers: { 'content-type': 'text/event-stream' } });
-}
-
-/** One Responses-API turn that calls `send` with the given text. */
-function sendTurn(text: string): Response {
-  const args = JSON.stringify({ kind: 'text', text });
-  return sse([
-    { type: 'response.created', response: { id: 'resp_1', status: 'in_progress', output: [] } },
-    {
-      type: 'response.output_item.added',
-      output_index: 0,
-      item: { type: 'function_call', id: 'fc_1', call_id: 'call_1', name: 'send', arguments: '' },
-    },
-    { type: 'response.function_call_arguments.delta', output_index: 0, item_id: 'fc_1', delta: args },
-    {
-      type: 'response.output_item.done',
-      output_index: 0,
-      item: { type: 'function_call', id: 'fc_1', call_id: 'call_1', name: 'send', arguments: args },
-    },
-    {
-      type: 'response.completed',
-      response: {
-        id: 'resp_1',
-        status: 'completed',
-        output: [],
-        usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
-      },
-    },
-  ]);
-}
-
-/** One Responses-API turn with private text only: the round ends without sending. */
-function textTurn(text: string): Response {
-  return sse([
-    { type: 'response.created', response: { id: 'resp_2', status: 'in_progress', output: [] } },
-    {
-      type: 'response.output_item.added',
-      output_index: 0,
-      item: { type: 'message', id: 'msg_1', role: 'assistant', status: 'in_progress', content: [] },
-    },
-    { type: 'response.output_text.delta', output_index: 0, item_id: 'msg_1', content_index: 0, delta: text },
-    {
-      type: 'response.output_item.done',
-      output_index: 0,
-      item: {
-        type: 'message',
-        id: 'msg_1',
-        role: 'assistant',
-        status: 'completed',
-        content: [{ type: 'output_text', text, annotations: [] }],
-      },
-    },
-    {
-      type: 'response.completed',
-      response: {
-        id: 'resp_2',
-        status: 'completed',
-        output: [],
-        usage: { input_tokens: 12, output_tokens: 4, total_tokens: 16 },
-      },
-    },
-  ]);
-}
-
-/** A port the OS just had free; the configuration requires a real one. */
-async function freePort(): Promise<number> {
-  const probe = await startFixtureServer(() => new Response('ok'));
-  const address = probe.server.address();
-  const port = typeof address === 'object' && address !== null ? address.port : 0;
-  await stopFixtureServer(probe.server);
-  return port;
-}
-
-function jsonBody(value: unknown): RequestInit {
-  return { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(value) };
-}
 
 test('a process with Telegram disabled runs the room round and only recovers what a dead process left', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-playground-only-'));
@@ -296,12 +218,7 @@ test('a process with Telegram disabled runs the room round and only recovers wha
 
     // The panel is the only entry point, and the room round runs for real.
     const base = `http://127.0.0.1:${port}`;
-    const setup = await fetch(
-      `${base}/api/auth/setup`,
-      jsonBody({ username: 'owner', password: 'correct-horse-battery' }),
-    );
-    expect(setup.status).toBe(200);
-    const cookie = (setup.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    const cookie = await signInWithCliCode(configPath, base);
     const call = async (path: string, init: RequestInit = {}) => {
       const response = await fetch(`${base}${path}`, {
         ...init,
@@ -348,9 +265,14 @@ test('a process with Telegram disabled runs the room round and only recovers wha
       )
       .toBe('the room answers');
 
-    const releaseDetail = await call(`/api/playground/rooms/${roomId}/releases/${String(released.body.release_id)}`);
+    // The reply is visible as soon as it is sent; the invocation records its
+    // completion a moment later, which a loaded machine can stretch.
+    const releasePath = `/api/playground/rooms/${roomId}/releases/${String(released.body.release_id)}`;
+    await expect
+      .poll(async () => (await call(releasePath)).body.attempts, { timeout: 20_000 })
+      .toMatchObject([{ state: 'completed' }]);
+    const releaseDetail = await call(releasePath);
     expect(releaseDetail.body.attempts).toHaveLength(1);
-    expect(releaseDetail.body.attempts).toMatchObject([{ state: 'completed' }]);
     expect(releaseDetail.body.sends).toMatchObject([{ state: 'success', kind: 'text' }]);
     expect(agentCalls).toBeGreaterThan(0);
 

@@ -10,7 +10,7 @@ import { logout } from '@/lib/api/auth.ts';
 import type { SessionState } from '@/lib/api/core.ts';
 import { ApiError } from '@/lib/api/core.ts';
 import { sessionQuery } from '@/lib/queries';
-import { LoginForm, SetupForm } from '@/pages/auth';
+import { LoginForm } from '@/pages/auth';
 
 const UNAUTHENTICATED_SESSION: SessionState = {
   setup_required: false,
@@ -66,13 +66,18 @@ function AuthGate(): React.ReactNode {
     );
   }
 
-  if (data.setup_required) {
-    return <SetupForm />;
-  }
   if (!data.authenticated) {
     // The session is the single source for whether passkeys are configured:
     // a server built without `admin.public_url` never shows the passkey entry.
-    return <LoginForm passkeysEnabled={data.passkeys_enabled} officialDockerImage={data.official_docker_image} />;
+    // A fresh instance (`setup_required`) has no web setup form: its first
+    // sign-in is a one-time code from the server shell.
+    return (
+      <LoginForm
+        firstSignIn={data.setup_required}
+        passkeysEnabled={data.passkeys_enabled}
+        officialDockerImage={data.official_docker_image}
+      />
+    );
   }
 
   return <AdminShell username={data.username ?? 'admin'} />;

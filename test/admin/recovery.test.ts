@@ -195,7 +195,8 @@ describe('admin-account flow', () => {
     const loaded = await loadConfig(configPath);
     const store = await SqliteStore.open(loaded.config);
     const auth = new AdminAuth(store.orm, 168);
-    await auth.createFirstUser({ username: 'admin', password: OLD_PASSWORD });
+    await auth.createOrResetAccount({ username: 'admin', password: OLD_PASSWORD }, { revokePasskeys: false });
+    await auth.login({ username: 'admin', password: OLD_PASSWORD });
     await auth.login({ username: 'admin', password: OLD_PASSWORD });
     const userId = soleUserId(store);
     expect(sessionCount(store, userId)).toBe(2n);
@@ -238,7 +239,8 @@ describe('admin-account flow', () => {
     const loaded = await loadConfig(configPath);
     const store = await SqliteStore.open(loaded.config);
     const auth = new AdminAuth(store.orm, 168);
-    await auth.createFirstUser({ username: 'admin', password: OLD_PASSWORD });
+    await auth.createOrResetAccount({ username: 'admin', password: OLD_PASSWORD }, { revokePasskeys: false });
+    await auth.login({ username: 'admin', password: OLD_PASSWORD });
     await auth.login({ username: 'admin', password: OLD_PASSWORD });
     const userId = soleUserId(store);
     addPasskeys(store, userId);
@@ -269,7 +271,8 @@ describe('admin-account flow', () => {
     const loaded = await loadConfig(configPath);
     const store = await SqliteStore.open(loaded.config);
     const auth = new AdminAuth(store.orm, 168);
-    await auth.createFirstUser({ username: 'admin', password: OLD_PASSWORD });
+    await auth.createOrResetAccount({ username: 'admin', password: OLD_PASSWORD }, { revokePasskeys: false });
+    await auth.login({ username: 'admin', password: OLD_PASSWORD });
     await auth.login({ username: 'admin', password: OLD_PASSWORD });
     const userId = soleUserId(store);
     addPasskeys(store, userId);
@@ -308,7 +311,8 @@ describe('admin-account flow', () => {
     const loaded = await loadConfig(configPath);
     const store = await SqliteStore.open(loaded.config);
     const auth = new AdminAuth(store.orm, 168);
-    await auth.createFirstUser({ username: 'admin', password: OLD_PASSWORD });
+    await auth.createOrResetAccount({ username: 'admin', password: OLD_PASSWORD }, { revokePasskeys: false });
+    await auth.login({ username: 'admin', password: OLD_PASSWORD });
     const userId = soleUserId(store);
     addPasskeys(store, userId);
     const now = new Date().toISOString();

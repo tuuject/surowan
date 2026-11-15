@@ -28,6 +28,7 @@ import { seedAdminConversation } from '../fixtures/admin-seed-conversation.ts';
 import { T } from '../fixtures/admin-seed-data.ts';
 import { seedPlaygroundRoom } from '../fixtures/playground-room.ts';
 import { fixture, PASSWORD, post, readJson, request, sessionCookie } from './fixtures.ts';
+import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 function runningTelegramInvocation(store: Awaited<ReturnType<typeof fixture>>['store']): bigint {
   const now = new Date().toISOString();
@@ -98,8 +99,9 @@ test('sticker set API adds, renames, notes and removes sets with hot apply', asy
   const server = new AdminServer({ store, configStore, configReloader });
   try {
     expect((await server.handle(request('/api/sticker-sets'))).status).toBe(401);
+    await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
     const cookie = sessionCookie(
-      await server.handle(post('/api/auth/setup', { username: 'owner', password: PASSWORD })),
+      await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD })),
     );
     let revision = await readConfigRevision(configPath);
     const write = (path: string, method: string, body?: unknown, ifMatch: string | null = revision): Request =>
