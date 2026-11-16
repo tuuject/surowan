@@ -29,6 +29,15 @@ export async function addOverviewComment(
   return card;
 }
 
+export async function expectReviewCounts(
+  page: Page,
+  thisInvocationCount: string,
+  draftInvocationCount: string,
+): Promise<void> {
+  await expect(page.getByText(thisInvocationCount, { exact: true })).toBeVisible();
+  await expect(page.getByText(draftInvocationCount, { exact: true })).toBeVisible();
+}
+
 export async function addOverallCommentOnDetail(page: Page, comment: string): Promise<void> {
   await page.getByRole('button', { name: 'Add overall comment', exact: true }).click();
   await page.getByRole('textbox', { name: 'Overall comment', exact: true }).fill(comment);
