@@ -8,6 +8,7 @@ import type { Update } from 'grammy/types';
 import { z } from 'zod';
 import { loadConfig } from '../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
+import { awaitServerAttempts } from '../src/capabilities/mcp/availability.ts';
 import { McpManager } from '../src/capabilities/mcp/index.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler/index.ts';
 import { previewContext } from '../src/platform/invocation-context.ts';
@@ -45,7 +46,6 @@ test('stdio MCP discovery, result bounds, audit, and unmetered repeat calls', as
           alias: 'local',
           transport: 'stdio',
           command: [process.execPath, fixturePath],
-          required: true,
           tools: ['echo'],
           payload_max_bytes: 1048576,
           result_max_bytes: 128,
@@ -71,6 +71,7 @@ test('stdio MCP discovery, result bounds, audit, and unmetered repeat calls', as
       validatedNames = tools.map((tool) => tool.name);
     });
     await manager.start();
+    await awaitServerAttempts(manager);
     expect(validatedNames).toEqual(['local__echo']);
     expect(
       store.db.prepare<[], { state: string }>("SELECT state FROM mcp_server_state WHERE alias = 'local'").get()?.state,
@@ -176,7 +177,6 @@ test('Streamable HTTP MCP preserves query parameters, static headers and the Use
           transport: 'streamable_http',
           url: `http://127.0.0.1:${http.port}/mcp?api_key=public-key`,
           follow_redirects: false,
-          required: true,
           tools: ['lookup'],
           payload_max_bytes: 1048576,
           result_max_bytes: 32768,
@@ -200,6 +200,7 @@ test('Streamable HTTP MCP preserves query parameters, static headers and the Use
   const manager = new McpManager(store, loaded.config, new SecretStore(keyJarPath(loaded.configPath)));
   try {
     await manager.start();
+    await awaitServerAttempts(manager);
     const ingestion = new TelegramIngestion(store, configStore, { id: 999 });
     const received = new Date('2026-08-15T00:00:00.000Z');
     ingestion.ingest(
@@ -263,7 +264,6 @@ test('Streamable HTTP MCP preserves query parameters, static headers and the Use
             transport: 'streamable_http',
             url: `http://127.0.0.1:${redirect.port}/mcp?api_key=public-key`,
             follow_redirects: false,
-            required: true,
             tools: ['lookup'],
             payload_max_bytes: 1048576,
             result_max_bytes: 32768,
@@ -294,7 +294,9 @@ test('Streamable HTTP MCP preserves query parameters, static headers and the Use
       new SecretStore(keyJarPath(redirectLoaded.configPath)),
     );
     try {
-      await expect(redirectManager.start()).rejects.toThrow('Required MCP server');
+      // A rejected redirect degrades the server instead of failing startup.
+      await redirectManager.start();
+      expect((await awaitServerAttempts(redirectManager))[0]?.state).toBe('degraded');
       // Without a configured User-Agent the request carries the version default.
       expect(redirectUserAgents.length).toBeGreaterThan(0);
       for (const userAgent of redirectUserAgents) {
@@ -309,7 +311,7 @@ test('Streamable HTTP MCP preserves query parameters, static headers and the Use
   }
 });
 
-test('required stdio server failure reports the full underlying error', async () => {
+test('an unreachable stdio server degrades with its error logged instead of failing start', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-mcp-secret-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
@@ -321,7 +323,6 @@ test('required stdio server failure reports the full underlying error', async ()
           alias: 'missing-secret',
           transport: 'stdio',
           command: [process.execPath, fixturePath],
-          required: true,
           tools: ['echo'],
           payload_max_bytes: 1048576,
           result_max_bytes: 128,
@@ -340,19 +341,34 @@ test('required stdio server failure reports the full underlying error', async ()
   await writeTestConfig(directory, configPath, jsonc);
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
-  const manager = new McpManager(store, loaded.config, new SecretStore(keyJarPath(loaded.configPath)));
+  const events: { event: string; fields: Record<string, unknown> }[] = [];
+  const manager = new McpManager(
+    store,
+    loaded.config,
+    new SecretStore(keyJarPath(loaded.configPath)),
+    (event, fields) => {
+      events.push({ event, fields: { ...fields } });
+    },
+  );
   try {
-    // Regression: this used to collapse to "failed to initialize: Error"
-    // (safeErrorName returned only the class name) and hid which variable
-    // was missing.
-    await expect(manager.start()).rejects.toThrow(
-      /Required MCP server missing-secret failed to initialize:[\s\S]*Secret environment variable is not set: SUROWAN_MCP_UNSET_SECRET/,
+    await manager.start();
+    const states = await awaitServerAttempts(manager);
+    expect(states).toEqual([
+      expect.objectContaining({ alias: 'missing-secret', state: 'degraded', error_code: 'initialization_failed' }),
+    ]);
+    // The degraded transition log keeps the full underlying error (redacted):
+    // which variable was missing must not collapse to an error-code enum.
+    const degraded = events.filter((entry) => entry.event === 'mcp_server_degraded');
+    expect(degraded).toHaveLength(1);
+    expect(String(degraded[0]?.fields.error)).toContain(
+      'Secret environment variable is not set: SUROWAN_MCP_UNSET_SECRET',
     );
     expect(
       store.db.prepare<[], { state: string }>("SELECT state FROM mcp_server_state WHERE alias = 'missing-secret'").get()
         ?.state,
-    ).toBe('stopped');
+    ).toBe('degraded');
   } finally {
+    await manager.stop();
     store.close();
   }
 });
@@ -370,7 +386,6 @@ test('a server whose tool discovery fails is closed instead of left running', as
           alias: 'local',
           transport: 'stdio',
           command: [process.execPath, fixturePath, pidFile],
-          required: true,
           // The fixture only offers `echo`, so selecting tools fails after the
           // process has started and the client has connected.
           tools: ['echo', 'absent'],
@@ -390,7 +405,8 @@ test('a server whose tool discovery fails is closed instead of left running', as
   const manager = new McpManager(store, loaded.config, new SecretStore(keyJarPath(loaded.configPath)));
   let pid: number | undefined;
   try {
-    await expect(manager.start()).rejects.toThrow(/Required MCP server local failed to initialize/);
+    await manager.start();
+    expect((await awaitServerAttempts(manager))[0]?.state).toBe('degraded');
     pid = Number(await readFile(pidFile, 'utf8'));
     const alive = (): boolean => {
       try {
@@ -406,6 +422,9 @@ test('a server whose tool discovery fails is closed instead of left running', as
     }
     expect(alive()).toBe(false);
   } finally {
+    // The degraded server keeps retrying; without stop() its reconnect timer
+    // would hold the test process open.
+    await manager.stop();
     if (pid !== undefined) {
       try {
         process.kill(pid);
@@ -428,7 +447,6 @@ test('stop() during a pending connect leaves the server stopped and closed', asy
           alias: 'local',
           transport: 'stdio',
           command: [process.execPath, fixturePath, pidFile],
-          required: false,
           tools: ['echo'],
           payload_max_bytes: 1048576,
           result_max_bytes: 128,
@@ -443,14 +461,28 @@ test('stop() during a pending connect leaves the server stopped and closed', asy
   const manager = new McpManager(store, loaded.config, new SecretStore(keyJarPath(loaded.configPath)));
   let pid: number | undefined;
   try {
-    const starting = manager.start();
+    // start() returns before the connect finishes; stop() must still leave the
+    // half-connected instance stopped and its process closed.
+    await manager.start();
     await manager.stop();
-    await starting;
     expect(
       store.db.prepare<[], { state: string }>("SELECT state FROM mcp_server_state WHERE alias = 'local'").get()?.state,
     ).toBe('stopped');
     expect(manager.createTools(previewContext(), Number.MAX_SAFE_INTEGER, loaded.config)).toEqual([]);
-    pid = Number(await readFile(pidFile, 'utf8'));
+    // The abandoned connect still spawns the process before noticing the
+    // generation bump, then closes it in its finally block.
+    const fileDeadline = Date.now() + 15_000;
+    for (;;) {
+      try {
+        pid = Number(await readFile(pidFile, 'utf8'));
+        break;
+      } catch {
+        if (Date.now() >= fileDeadline) {
+          throw new Error('fixture server never wrote its pid file');
+        }
+        await sleep(50);
+      }
+    }
     const alive = (): boolean => {
       try {
         process.kill(pid ?? 0, 0);

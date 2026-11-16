@@ -6,6 +6,7 @@ import type { McpServerConfig, RawConfig } from '../../src/platform/config/index
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { McpManager } from '../../src/capabilities/mcp/index.ts';
+import { awaitServerAttempts } from '../../src/capabilities/mcp/availability.ts';
 import { type InvocationContext, previewContext } from '../../src/platform/invocation-context.ts';
 import { keyJarPath } from '../../src/platform/key-jar.ts';
 import { buildModelRegistry, configuredAgentModels, modelsForTelegramChats } from '../../src/platform/providers.ts';
@@ -32,7 +33,6 @@ function fixtureServer(alias: string): McpServerConfig {
     alias,
     transport: 'stdio',
     command: [process.execPath, FIXTURE],
-    required: false,
     tools: ['echo', 'wait'],
     payload_max_bytes: 32768,
     result_max_bytes: 32768,
@@ -49,8 +49,6 @@ function bulkServer(alias: string): McpServerConfig {
     alias,
     transport: 'stdio',
     command: [process.execPath, BULK, '40'],
-    // Required so a registry failure is reported by `start` instead of degrading.
-    required: true,
     tools: '*',
     payload_max_bytes: 32768,
     result_max_bytes: 32768,
@@ -121,6 +119,7 @@ test('a Chat sees only its bound servers, tools and policies; no binding means e
   });
   try {
     await f.manager.start();
+    await awaitServerAttempts(f.manager);
     const bound = f.manager.createTools(contextFor(BigInt(CHAT_BOUND)), Date.now() + 30_000, f.config);
     expect(bound.map((tool) => tool.name)).toEqual(['alpha__wait']);
     // The Chat's override wins over the server's `read_only: false`.
@@ -159,6 +158,7 @@ test('registry validation runs over each distinct per-Chat set, not the union', 
       seen.push({ names: tools.map((tool) => tool.name), chatIds: [...chatIds] });
     });
     await f.manager.start();
+    await awaitServerAttempts(f.manager);
     expect(seen).toEqual(
       expect.arrayContaining([
         { names: ['alpha__echo'], chatIds: [CHAT_BOUND] },
@@ -180,6 +180,7 @@ test('the 61-tool cap is per resolved set: two 40-tool servers are fine when no 
   });
   try {
     await bound.manager.start();
+    await awaitServerAttempts(bound.manager);
     expect(bound.manager.createTools(contextFor(BigInt(CHAT_BOUND)), Date.now() + 30_000, bound.config)).toHaveLength(
       40,
     );
@@ -196,9 +197,20 @@ test('the 61-tool cap is per resolved set: two 40-tool servers are fine when no 
     ];
   });
   try {
-    await expect(unbound.manager.start()).rejects.toThrow(
-      `chat ${CHAT_ALL} has 80 tools; maximum alongside built-ins is 61`,
-    );
+    // The 80-tool union fails validation on whichever server discovers second;
+    // with no `required` left that failure degrades the server instead of
+    // failing `start`.
+    await unbound.manager.start();
+    const states = await awaitServerAttempts(unbound.manager);
+    expect(states.some((server) => server.state === 'degraded')).toBe(true);
+    expect(
+      unbound.store.db
+        .prepare<[], { state: string; error_code: string }>(
+          "SELECT state, error_code FROM mcp_server_state WHERE state = 'degraded'",
+        )
+        .all()
+        .map((row) => row.error_code),
+    ).toEqual(['initialization_failed']);
   } finally {
     await unbound.close();
   }
@@ -212,8 +224,6 @@ test('a binding that names tools on a wildcard server is checked against discove
           alias: 'alpha',
           transport: 'stdio',
           command: [process.execPath, FIXTURE],
-          // Startup-only guarantee: a required server that fails stops `start`.
-          required: true,
           tools: '*',
           payload_max_bytes: 32768,
           result_max_bytes: 32768,
@@ -230,13 +240,12 @@ test('a binding that names tools on a wildcard server is checked against discove
     ];
   });
   try {
-    await expect(f.manager.start()).rejects.toThrow(
-      'MCP server alpha is missing tool absent, which chat 111111111 binds',
-    );
+    await f.manager.start();
+    expect((await awaitServerAttempts(f.manager))[0]?.state).toBe('degraded');
     expect(
       f.store.db.prepare<[], { state: string }>("SELECT state FROM mcp_server_state WHERE alias = 'alpha'").get()
         ?.state,
-    ).toBe('stopped');
+    ).toBe('degraded');
   } finally {
     await f.close();
   }
@@ -250,7 +259,6 @@ test('a reload that only changes a binding rejects a tool the connected wildcard
           alias: 'alpha',
           transport: 'stdio',
           command: [process.execPath, FIXTURE],
-          required: false,
           tools: '*',
           payload_max_bytes: 32768,
           result_max_bytes: 32768,
@@ -264,6 +272,7 @@ test('a reload that only changes a binding rejects a tool the connected wildcard
   });
   try {
     await f.manager.start();
+    await awaitServerAttempts(f.manager);
     // The server is unchanged, so `reconcile` will not reconnect it; the
     // binding is checked against what it discovered instead of never.
     const next = structuredClone(f.config);
@@ -286,7 +295,6 @@ test('a wildcard binding whose override names an undiscovered tool fails the con
           alias: 'alpha',
           transport: 'stdio',
           command: [process.execPath, FIXTURE],
-          required: true,
           tools: '*',
           payload_max_bytes: 32768,
           result_max_bytes: 32768,
@@ -309,9 +317,13 @@ test('a wildcard binding whose override names an undiscovered tool fails the con
     ];
   });
   try {
-    await expect(f.manager.start()).rejects.toThrow(
-      `MCP server alpha is missing tool qurey, which chat ${CHAT_BOUND} overrides`,
-    );
+    await f.manager.start();
+    expect((await awaitServerAttempts(f.manager))[0]?.state).toBe('degraded');
+    expect(
+      f.store.db
+        .prepare<[], { error_code: string }>("SELECT error_code FROM mcp_server_state WHERE alias = 'alpha'")
+        .get()?.error_code,
+    ).toBe('initialization_failed');
   } finally {
     await f.close();
   }
@@ -360,7 +372,6 @@ test('a reload that only changes a binding rejects an override the connected wil
           alias: 'alpha',
           transport: 'stdio',
           command: [process.execPath, FIXTURE],
-          required: false,
           tools: '*',
           payload_max_bytes: 32768,
           result_max_bytes: 32768,
@@ -374,6 +385,7 @@ test('a reload that only changes a binding rejects an override the connected wil
   });
   try {
     await f.manager.start();
+    await awaitServerAttempts(f.manager);
     const next = structuredClone(f.config);
     next.telegram.chats[0]!.mcp = [
       {

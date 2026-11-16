@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { McpServerConfig, RawConfig } from '../../src/platform/config/index.ts';
 import { type LoadedConfig, loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
+import { awaitServerAttempts } from '../../src/capabilities/mcp/availability.ts';
 import { McpManager } from '../../src/capabilities/mcp/index.ts';
 import type { McpServerReconcileResult } from '../../src/capabilities/mcp/shared.ts';
 import { type InvocationContext, previewContext } from '../../src/platform/invocation-context.ts';
@@ -34,7 +35,6 @@ function server(alias: string, pidFile: string): McpServerConfig {
     alias,
     transport: 'stdio',
     command: [process.execPath, FIXTURE, pidFile],
-    required: false,
     tools: ['echo'],
     payload_max_bytes: 32768,
     result_max_bytes: 32768,
@@ -104,6 +104,7 @@ test('a changed alias alone is replaced; the others keep their process', async (
   const f = await fixture();
   try {
     await f.manager.start();
+    await awaitServerAttempts(f.manager);
     const alphaPid = await f.pidOf('alpha');
     const betaPid = await f.pidOf('beta');
     const next = await f.next('changed.jsonc', (config) => {
@@ -131,6 +132,7 @@ test('a removed server is stopped on its own and disappears from the Chat that b
   const f = await fixture();
   try {
     await f.manager.start();
+    await awaitServerAttempts(f.manager);
     const next = await f.next('removed.jsonc', (config) => {
       config.mcp = { servers: [server('alpha', join(f.directory, 'alpha.pid'))] };
       config.telegram.chats = [
@@ -152,6 +154,7 @@ test('an added server connects and reaches the Chats that resolve to it', async 
   const f = await fixture();
   try {
     await f.manager.start();
+    await awaitServerAttempts(f.manager);
     const next = await f.next('added.jsonc', (config) => {
       config.mcp = {
         servers: [
@@ -190,15 +193,13 @@ test('a hot-changed server that cannot start is degraded and retried, not fatal'
   const f = await fixture();
   try {
     await f.manager.start();
+    await awaitServerAttempts(f.manager);
     const next = await f.next('broken.jsonc', (config) => {
       config.mcp = {
         servers: [
           {
             alias: 'alpha',
             transport: 'stdio',
-            // `required` is a startup guarantee; a published change must not
-            // take the whole process down when it cannot connect.
-            required: true,
             command: [process.execPath, join(f.directory, 'missing-server.ts')],
             tools: ['echo'],
             payload_max_bytes: 32768,
@@ -230,6 +231,7 @@ test('a reconcile that belongs to an older published generation changes nothing'
   const f = await fixture();
   try {
     await f.manager.start();
+    await awaitServerAttempts(f.manager);
     const next = await f.next('newer.jsonc', (config) => {
       config.mcp = { servers: [server('alpha', join(f.directory, 'alpha.pid'))] };
       config.telegram.chats = [
@@ -246,6 +248,36 @@ test('a reconcile that belongs to an older published generation changes nothing'
     expect(stale).toEqual({ added: [], replaced: [], removed: [], failed: [], stale: true });
     expect(f.stateOf('beta')?.state).toBe('stopped');
     expect(f.stateOf('alpha')?.state).toBe('ready');
+  } finally {
+    await f.close();
+  }
+}, 30_000);
+
+test('flipping the deprecated required key alone is a no-op: same process, same tools', async () => {
+  const f = await fixture();
+  try {
+    await f.manager.start();
+    await awaitServerAttempts(f.manager);
+    const alphaPid = await f.pidOf('alpha');
+    const next = await f.next('required.jsonc', (config) => {
+      config.mcp = {
+        servers: [
+          { ...server('alpha', join(f.directory, 'alpha.pid')), required: true },
+          { ...server('beta', join(f.directory, 'beta.pid')), required: false },
+        ],
+      };
+      config.telegram.chats = [
+        { id: CHAT_A, instructions_file: 'chat-instructions.md', mcp: [{ server: 'alpha' }] },
+        { id: CHAT_B, instructions_file: 'chat-instructions.md', mcp: [{ server: 'beta' }] },
+      ];
+    });
+    // The config loads with the deprecated key and still warns about it.
+    const result = await f.reconcile(next.config);
+    expect(result).toEqual({ added: [], replaced: [], removed: [], failed: [], stale: false });
+    expect(await f.pidOf('alpha')).toBe(alphaPid);
+    expect(f.stateOf('alpha')?.state).toBe('ready');
+    expect(f.manager.toolNamesForChat(BigInt(CHAT_A), next.config)).toEqual(['alpha__echo']);
+    expect(f.manager.createTools(contextFor(BigInt(CHAT_A)), Date.now() + 30_000, next.config)).toHaveLength(1);
   } finally {
     await f.close();
   }

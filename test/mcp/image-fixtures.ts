@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { afterEach } from 'vitest';
 import type { ToolResultMessage } from '@earendil-works/pi-ai';
+import { awaitServerAttempts } from '../../src/capabilities/mcp/availability.ts';
 import { McpManager } from '../../src/capabilities/mcp/index.ts';
 import type { McpToolResult } from '../../src/capabilities/mcp/content.ts';
 import { localImageAssets } from '../../src/capabilities/media/local-assets.ts';
@@ -29,7 +30,6 @@ export async function imageFixture(payloadMaxBytes = 1_048_576) {
           alias: 'local',
           transport: 'stdio' as const,
           command: [process.execPath, join(import.meta.dirname, '..', 'fixtures', 'mcp-server.ts')],
-          required: true,
           tools: ['images', 'echo'],
           payload_max_bytes: payloadMaxBytes,
           result_max_bytes: 32_768,
@@ -47,6 +47,7 @@ export async function imageFixture(payloadMaxBytes = 1_048_576) {
     }
   });
   await manager.start();
+  await awaitServerAttempts(manager);
   const contexts = new ConversationContextStore(f.store);
   const { header } = contexts.open(seed.conversationId, 'mcp-test');
   const context = {

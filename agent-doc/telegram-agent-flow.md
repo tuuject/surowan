@@ -332,7 +332,7 @@ Invocation 结束时 Agent 实例可以留在 `ConversationRuntime` 缓存里供
 
 ### MCP Tool 与按 Chat 绑定
 
-一个 Chat 拿到哪些 MCP Tool 由它自己的 `mcp` 绑定决定，规则与配置写法见 [configuration.md](configuration.md#按-chat-绑定)：不写 `mcp` 是全部 Server 加 Server 自己的设置，`mcp: []` 是一个都没有，写了绑定只保留被绑定的 Server 与被选中的 Tool（可以按 Tool 覆盖 `read_only`/`timeout_seconds`）。解析在 Invocation 开始时用发布的配置做一次（[capabilities/mcp/bindings.ts](../src/capabilities/mcp/bindings.ts)），暴露名保持 `<alias>__<tool>`，`mcp_server_state` 仍按 alias 记录连接状态；Playground 房间没有 MCP。运行中的 Invocation 用启动时的集合，所以「集合变窄」必须换掉正在跑的运行，否则它会继续调用已经不该存在的 Tool。
+一个 Chat 拿到哪些 MCP Tool 由它自己的 `mcp` 绑定决定，规则与配置写法见 [configuration.md](configuration.md#按-chat-绑定)：不写 `mcp` 是全部 Server 加 Server 自己的设置，`mcp: []` 是一个都没有，写了绑定只保留被绑定的 Server 与被选中的 Tool（可以按 Tool 覆盖 `read_only`/`timeout_seconds`）。解析在 Invocation 开始时用发布的配置做一次（[capabilities/mcp/bindings.ts](../src/capabilities/mcp/bindings.ts)），且**只有状态为 `ready` 的 Server 贡献 Tool**：`serve` 启动不等待 MCP，每个 Server 在后台连接并按退避重连；一个 Server `starting`/`degraded` 期间，下一次 Invocation 的注册表里就没有它的 Tool，重连 `ready` 后再回来。调用路径另有保险：拿到 Tool 之后 Server 掉线（或等信号量期间掉线）时，该次调用以 `server_unavailable` 记 `error` 审计直接拒绝——没有请求发出，不算 `outcome_unknown`，也不会因此多安排一次重连；真正的传输失败与调用自身超时仍按原路径记 `outcome_unknown` 并触发 degraded+重连。暴露名保持 `<alias>__<tool>`，`mcp_server_state` 仍按 alias 记录连接状态与下次重连时间；Playground 房间没有 MCP。运行中的 Invocation 用启动时的集合，所以「集合变窄」必须换掉正在跑的运行，否则它会继续调用已经不该存在的 Tool。
 
 `mcp.*` 与每个 Chat 的 `mcp` 都属于热更新：`McpManager.reconcile` 按 alias 对账——新增 alias 连接它、删除 alias 关闭它、任意字段变化替换该实例，未变化的 alias 保留客户端与进行中的调用；配置发布后由组合根执行切替（[runtime/mcp-cutover/index.ts](../src/adapters/local-monolith/runtime/mcp-cutover/index.ts)：`index.ts` 发布一条变更并按序跑，`stop.ts` fence/停机，`continuation.ts` 重建与续跑，`shared.ts` 共享的值），顺序固定：
 
@@ -346,7 +346,7 @@ Invocation 结束时 Agent 实例可以留在 `ConversationRuntime` 缓存里供
    - `resumeBlockReason` 拒绝时跳过并记录原因（`not_latest`/`conversation_busy`/`sleeping`/`chat_removed` 等）；运行已经结束自己的轮次、只是在 `idle_grace` 里等新消息时也跳过（`ConversationRuntime.isRoundInProgress` 为假，说明它注入的内容都已答完）。
    - 其余入队一个空批次的续跑，沿用管理员续跑的每日预算与睡眠规则；它的历史快照至少回到被停运行消费的第一条消息（超过 `agent.history_messages` 也照做，硬上限 500 条），因为重建后的 Context 是空的，这批请求只能从历史里看到。
 
-续跑的开场 `<runtime_state>` 因此有两种措辞，靠 `invocations.abort_cause` 区分：管理员续跑是「Admin Panel 续跑」，且只出现在空批次上；MCP 切替是「运营者更改了本 Chat 的 MCP 配置、Context 已重建、历史里可能有还没回答的消息、不要重复已发内容」，并列出被停运行中 `outcome_unknown` 的 MCP Tool 名（运行时自己的工具名，从不含参数或结果）。切替续跑也可能就是那个被归还的批次本身，此时这句话改成「本批新消息是在上一个运行被停期间到达的」。两者都不会声称对方。一次发布只写一条 `mcp_config_published` 事件：受影响 Chat、停止的 Invocation、重建的 Context、续跑与跳过原因、各 alias 的增删换与失败；`required` 只在启动期保证，热更新失败的新实例记 `degraded` 并按退避重试。
+续跑的开场 `<runtime_state>` 因此有两种措辞，靠 `invocations.abort_cause` 区分：管理员续跑是「Admin Panel 续跑」，且只出现在空批次上；MCP 切替是「运营者更改了本 Chat 的 MCP 配置、Context 已重建、历史里可能有还没回答的消息、不要重复已发内容」，并列出被停运行中 `outcome_unknown` 的 MCP Tool 名（运行时自己的工具名，从不含参数或结果）。切替续跑也可能就是那个被归还的批次本身，此时这句话改成「本批新消息是在上一个运行被停期间到达的」。两者都不会声称对方。一次发布只写一条 `mcp_config_published` 事件：受影响 Chat、停止的 Invocation、重建的 Context、续跑与跳过原因、各 alias 的增删换与失败；`required` 已废弃无效，热更新失败的新实例记 `degraded` 并按退避重试。
 
 浏览器面板不提供绑定的编辑界面；绑定写在 `config.jsonc` 里，经「Apply config file」或任何一次写入触发的重新加载生效。
 

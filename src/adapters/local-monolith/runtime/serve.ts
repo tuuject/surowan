@@ -228,7 +228,7 @@ export async function startServeServices(session: ServeContext, environment: Ser
   state.telegramConnection = telegramConnection;
   // MCP does not belong to Telegram: it is always constructed and started,
   // whether or not this process holds a Telegram instance.
-  const mcpManager = new McpManager(store, loaded.config, secrets);
+  const mcpManager = new McpManager(store, loaded.config, secrets, logEvent);
   state.mcp = mcpManager;
   const memoPad = new MemoPadStore(openedStore.orm);
   const memoBlobs = new MemoBlobStore({

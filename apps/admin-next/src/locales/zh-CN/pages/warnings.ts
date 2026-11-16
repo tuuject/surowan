@@ -19,6 +19,8 @@ export const warnings: typeof warningsEn = {
   noEvents: '还没有事件警告。',
   missingFields: '缺少：{{fields}}',
   invalidApiKeys: '非法密钥：{{keys}}',
+  mcpDeprecatedAliases: '仍设置于：{{aliases}}',
+  mcpNextReconnect: '下次重试 <time>{{time}}</time>',
   lastFailedAt: '最近失败：<time>{{time}}</time>',
   createdAt: '创建于 <time>{{time}}</time>',
   updatedAt: '更新于 <time>{{time}}</time>',
@@ -75,6 +77,14 @@ export const warnings: typeof warningsEn = {
     api_key_invalid_permissions: {
       title: 'API 密钥权限无效',
       body: '有 API 密钥的权限无效，暂时无法使用。请到 API 密钥页为它们保存一个权限模式。',
+    },
+    mcp_required_deprecated: {
+      title: '配置里仍有已废弃的 MCP 选项',
+      body: 'required 字段已经不再生效：启动不再等待 MCP 服务器，所有服务器都在后台自行重试。请从以下别名中删除它。',
+    },
+    mcp_server_unavailable: {
+      title: 'MCP 服务器不可达',
+      body: '以下配置中的服务器暂时连不上，正在后台自动重试。恢复之前它们的 Tool 不会提供给模型。',
     },
     unknown: {
       title: '未知警告：{{code}}',

@@ -2,13 +2,13 @@
  * Reconcile: adopting one published server list by alias.
  *
  * A server is added, replaced or stopped only when its own entry changed, so an
- * untouched alias keeps its client and any call running on it. `required` is a
- * startup guarantee only: a hot-added or hot-changed server that fails to
+ * untouched alias keeps its client and any call running on it. `required` is
+ * deprecated and ignored: a hot-added or hot-changed server that fails to
  * connect is published as `degraded` with the normal reconnect backoff and
  * reported back so the reload log can say which one it was.
  */
 import type { RawConfig } from '../../platform/config/index.ts';
-import { deepEqual } from '../../platform/config/diff-merge.ts';
+import { sameMcpServerConfig } from './bindings.ts';
 import { connect, managedServer, type Revalidate, scheduleReconnect, setState, stopServer } from './connection.ts';
 import type { McpServerChange, McpServerReconcileResult, McpState } from './shared.ts';
 
@@ -40,7 +40,7 @@ export async function reconcile(
   }
   for (const [alias, serverConfig] of wanted) {
     const current = state.servers.get(alias);
-    if (current !== undefined && deepEqual(current.config, serverConfig)) {
+    if (current !== undefined && sameMcpServerConfig(current.config, serverConfig)) {
       continue;
     }
     if (current === undefined) {
@@ -55,7 +55,7 @@ export async function reconcile(
     try {
       await connect(state, server, false, revalidate);
     } catch (error) {
-      setState(state, server, 'degraded', 'initialization_failed');
+      setState(state, server, 'degraded', 'initialization_failed', error);
       scheduleReconnect(state, server, revalidate);
       failed.push({ alias, error: state.secrets.redactError(error) });
     }

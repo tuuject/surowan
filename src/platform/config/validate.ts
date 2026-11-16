@@ -62,6 +62,14 @@ export function validateFileConfig(
       'vision.provider and vision.model are not both set: read_image and background sticker indexing are unavailable',
     );
   }
+  const deprecatedRequired = (parsed.mcp?.servers ?? [])
+    .filter((server) => server.required !== undefined)
+    .map((server) => server.alias);
+  if (deprecatedRequired.length > 0) {
+    warnings.push(
+      `mcp.servers[].required is deprecated and has no effect; remove it from: ${deprecatedRequired.join(', ')}`,
+    );
+  }
   return { fileConfig: parsed, warnings };
 }
 

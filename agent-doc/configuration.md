@@ -46,7 +46,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 | `telegram.chats[<id>].group_memory`（含 `enabled`、`idle_minutes`） | 该 Chat 的群聊记忆开关与空闲阈值；增删字段或改值都热应用，下一次 sleeping 扫描使用新值。开关状态变化时先 fence 该 Chat 的全部 Conversation（期间排队的 Invocation 不启动），中止 running Invocation，等它们真正落定后才驱逐 Agent 缓存并重建全部 Conversation Context；关闭只停止后续整理并让新 Invocation 不再拿到回忆工具，已写入的记忆与原文保留 |
 | `telegram.sticker_sets`（整个列表，含 `alias`、`note`） | 发布时先把 Set 对账进 `sticker_sets` 表（按 Telegram 名称大小写不敏感地识别，`alias`/`note` 只是复制，改名保留同一行与索引），再由运行中的 Sticker worker 在后台拉取未同步的 Set；没有 Telegram 连接时只对账存储。Set 的增删（按名称）立即中止所有运行中的 Telegram Invocation（原因 `sticker_sets_changed`，Playground 房间不受影响），只改昵称或备注不中止，下一次注入的贴纸目录即用新值。Admin「Bot sticker sets」页编辑，见 [admin-panel.md](admin-panel.md#sticker-sets-页端点) |
 | `telegram.bucket_window_seconds`、`telegram.bucket_max_seconds`、`telegram.bucket_bump_seconds` | Bucket 节拍。ingestion 开新 Bucket 时读一次当前发布值，写进该 Bucket 行的 `window_seconds` / `max_seconds` / `bump_seconds`（迁移 `057`）；之后的消息延长与三处推迟（轮结束、Scheduler 轮中途、运行结束）都只读这一行。因此修改只作用于之后新开的 Bucket，正在收集的 Bucket 按开桶时的节拍走完，运行中 Invocation 的配置快照也不会替它决定窗口。与 `agent.context.idle_grace_seconds` 同为热字段，两者在 candidate 里一起校验。Admin「Telegram」页编辑，见 [admin-panel.md](admin-panel.md#api) |
-| `mcp`、`mcp.servers`（整段；增删 alias、任意字段变化） | MCP 客户端按 alias 对账发布后的配置：新增 alias 连接它，删除 alias 关闭它，字段变化替换该实例，未变化的 alias 不重连（运行中的调用不受影响）。受影响 Chat 的 Conversation 会经历一次切替（fence → abort → 等落定 → 重建 Context → 换实例 → 续跑），规则见 [telegram-agent-flow.md](telegram-agent-flow.md#mcp-tool-与按-chat-绑定)。`required = true` 只是启动期保证：热更新里连不上或校验失败的新实例发布为 `degraded` 并按退避重试，不阻断本次应用 |
+| `mcp`、`mcp.servers`（整段；增删 alias、任意字段变化） | MCP 客户端按 alias 对账发布后的配置：新增 alias 连接它，删除 alias 关闭它，字段变化替换该实例，未变化的 alias 不重连（运行中的调用不受影响）。受影响 Chat 的 Conversation 会经历一次切替（fence → abort → 等落定 → 重建 Context → 换实例 → 续跑），规则见 [telegram-agent-flow.md](telegram-agent-flow.md#mcp-tool-与按-chat-绑定)。连不上或校验失败的新实例发布为 `degraded` 并按退避重试，不阻断本次应用 |
 | `telegram.chats[<id>].mcp`（整个绑定列表及其子字段） | 该 Chat 的 MCP 绑定；增删字段都热应用。绑定收窄（少了一个 Tool、被绑定的服务器消失或变化）会停掉该 Chat 的 running Invocation、重建其 Conversation Context 并续跑；纯增宽（新增服务器、新增绑定、更长的 `tools` 列表、只给新暴露的 Tool 加策略）不打断运行，下一次 Invocation 直接拿到更大的集合。绑定写出的 Tool 名必须存在于对应 Server：显式列表在配置校验时检查，`"*"` Server 在发现阶段检查；只改绑定的热应用会拿已连接且未变化的 Server 的发现结果再查一次，写错名字直接拒绝本次应用 |
 | `telegram.admins` | Bot 管理员白名单（`/pause`、`/resume`、`/model`、`/cut_topic`、`/rebuild_context`、`/allowlist` 的唯一事实源）；运行期判定直接读运行中的配置，下一次命令执行就用新列表 |
 | `dictionary`（整段，含 `injection_mode`） | 全局辞典注入模式；下一次 Invocation 生效 |
@@ -588,7 +588,6 @@ Agent 侧使用（`image_generate` 工具、图片技能、发送与审计链路
         "alias": "search",
         "transport": "stdio",
         "command": ["node", "server.js"],
-        "required": false,
         "tools": "*",
         "payload_max_bytes": 32768,
         "result_max_bytes": 32768,
@@ -602,7 +601,9 @@ Agent 侧使用（`image_generate` 工具、图片技能、发送与审计链路
 }
 ```
 
-Streamable HTTP 使用 `url` 与可选 SecretRef `headers`，且 `follow_redirects` 必须为 `false`。`url` 可以包含服务协议要求的查询参数，但禁止 URL userinfo 与 fragment；机密值应使用 SecretRef `headers`，不应写入查询参数。`tools` 为 `"*"` 时全部 Tool 共享 `default_tool_policy`；`tools` 为显式数组时，每个列出的 Tool 必须在 `tool_policies` 中提供对应策略，`default_tool_policy` 只服务于 `"*"`。策略只包含 `read_only` 与 `timeout_seconds`，没有每日调用次数上限。没有策略的 Tool 不会暴露给模型。`required = true` 的 Server 启动失败会阻止 `serve`/`doctor` 成功；它只是**启动期**保证，热更新新增或修改的 Server 失败时发布为 `degraded` 并按退避重连。
+Streamable HTTP 使用 `url` 与可选 SecretRef `headers`，且 `follow_redirects` 必须为 `false`。`url` 可以包含服务协议要求的查询参数，但禁止 URL userinfo 与 fragment；机密值应使用 SecretRef `headers`，不应写入查询参数。`tools` 为 `"*"` 时全部 Tool 共享 `default_tool_policy`；`tools` 为显式数组时，每个列出的 Tool 必须在 `tool_policies` 中提供对应策略，`default_tool_policy` 只服务于 `"*"`。策略只包含 `read_only` 与 `timeout_seconds`，没有每日调用次数上限。没有策略的 Tool 不会暴露给模型。
+
+**可用性是运行时状态，不是配置保证**：`serve` 启动不等待也不失败于 MCP——每个 Server 在后台连接，连不上或校验失败发布为 `degraded` 并按退避重连；只有 `ready` 的 Server 向模型暴露 Tool，`degraded` 期间该 Server 的 Tool 从下一次 Invocation 的注册表中消失，重连成功后恢复。`mcp_server_state` 表记录每个 alias 的状态与下次重连时间，Admin Panel 的 Warnings 页在 `degraded` 期间显示 `mcp_server_unavailable` 常驻警告。`required` 字段已**废弃且无效**（启动、热更新、doctor 都不再看它）：仍写着它的配置能正常加载，`check-config` 与 `serve` 的 `config_warnings` 会给出一个列出相关 alias 的告警，Warnings 页显示 `mcp_required_deprecated`，建议删掉。
 
 ### 按 Chat 绑定
 

@@ -13,6 +13,7 @@ import { type Api, fauxAssistantMessage, fauxToolCall, type Model, normalizeCont
 import Type from 'typebox';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
+import { awaitServerAttempts } from '../../src/capabilities/mcp/availability.ts';
 import { McpManager } from '../../src/capabilities/mcp/index.ts';
 import { loadToolImages, projectCompletionsToolImages } from '../../src/capabilities/media/tool-images.ts';
 import { encodeContextMessage } from '../../src/context/codec.ts';
@@ -213,7 +214,6 @@ async function main(): Promise<void> {
                 join(import.meta.dirname, '..', 'fixtures', 'mcp-vision-server.ts'),
                 join(directory, 'expected.txt'),
               ],
-              required: true,
               tools: ['capture'],
               payload_max_bytes: 1_048_576,
               result_max_bytes: 32_768,
@@ -231,6 +231,7 @@ async function main(): Promise<void> {
       const contexts = new ConversationContextStore(store);
       const { header } = contexts.open(seed.conversationId, 'live-image-verification');
       await manager.start();
+      await awaitServerAttempts(manager);
       const context = {
         ...previewContext(),
         invocationId: seed.invocationA,

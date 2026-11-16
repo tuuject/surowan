@@ -20,9 +20,17 @@ export interface McpCallDeps {
   readonly assets: PlaygroundAssetStore;
   /** Whether one instance is still the one its alias publishes. */
   isCurrent(server: ManagedServer): boolean;
-  setState(server: ManagedServer, state: ManagedServer['state'], errorCode: string | null): void;
+  setState(server: ManagedServer, state: ManagedServer['state'], errorCode: string | null, detail?: unknown): void;
   scheduleReconnect(server: ManagedServer): void;
 }
+
+/**
+ * The instance had no live client when a call tried to send, so no request
+ * left this process. The executor maps it to an audited `server_unavailable`
+ * refusal rather than the transport-failure path, whose `outcome_unknown`
+ * audit assumes a request may already have been sent.
+ */
+class McpTransportUnavailableError extends Error {}
 
 export async function executeMcpTool(
   deps: McpCallDeps,
@@ -54,6 +62,13 @@ export async function executeMcpTool(
   if (!deps.isCurrent(server)) {
     recordRejectedCall(deps.store, context.invocationId, toolCallId, definition, input, 'server_replaced');
     throw new Error(`MCP server ${definition.serverAlias} was replaced; call ${definition.originalName} again`);
+  }
+  if (server.state !== 'ready' || server.client === undefined) {
+    // A definite refusal like `server_replaced`: nothing was sent, so the
+    // audit is `error`, not `outcome_unknown`, and the refusal itself must
+    // not degrade or re-arm a server that is already retrying.
+    recordRejectedCall(deps.store, context.invocationId, toolCallId, definition, input, 'server_unavailable');
+    throw new Error(`MCP server ${definition.serverAlias} is unavailable; call ${definition.originalName} again later`);
   }
   const auditId = startToolCall(
     deps.store.orm,
@@ -91,7 +106,14 @@ export async function executeMcpTool(
         throw error;
       }
       await delay(100, undefined, { signal });
-      result = await callMcpTool(server, definition, input, signal, timeoutMs);
+      try {
+        result = await callMcpTool(server, definition, input, signal, timeoutMs);
+      } catch (retryError) {
+        // The first attempt already put a request on the wire: a retry that
+        // finds no client must not rewrite the audit into the definite
+        // `server_unavailable` refusal, so it keeps the sent attempt's class.
+        throw retryError instanceof McpTransportUnavailableError ? error : retryError;
+      }
     }
     received = true;
     const converted = await convertMcpResult(result, definition, context, deps.assets, signal);
@@ -120,6 +142,18 @@ export async function executeMcpTool(
       });
       throw new Error('MCP tool executed, but its result could not be processed; do not repeat side effects');
     }
+    if (error instanceof McpTransportUnavailableError) {
+      // The server dropped while this call waited on the semaphore (or lost
+      // its client between the pre-check and the send): the same definite
+      // refusal as the pre-check, not a transport failure.
+      finishToolCall(deps.store.orm, auditId, 'error', null, 'server_unavailable', {
+        startedAt,
+        pendingOnly: true,
+      });
+      throw new Error(
+        `MCP server ${definition.serverAlias} is unavailable; call ${definition.originalName} again later`,
+      );
+    }
     const known =
       error instanceof McpError && error.code !== ErrorCode.ConnectionClosed && error.code !== ErrorCode.RequestTimeout;
     const state = known ? 'error' : 'outcome_unknown';
@@ -137,7 +171,7 @@ export async function executeMcpTool(
     // transport failure or this call's own timeout tears it down.
     const callerAborted = outerSignal?.aborted === true;
     if (!known && !callerAborted) {
-      deps.setState(server, 'degraded', errorCode);
+      deps.setState(server, 'degraded', errorCode, error);
       deps.scheduleReconnect(server);
     }
     throw new Error(`MCP tool ${definition.exposedName} failed: ${errorCode}`);
@@ -155,7 +189,7 @@ export async function callMcpTool(
 ): Promise<McpCallResult> {
   const client = server.client;
   if (client === undefined || server.state !== 'ready') {
-    throw new Error('MCP transport is unavailable');
+    throw new McpTransportUnavailableError('MCP transport is unavailable');
   }
   return client.callTool({ name: definition.originalName, arguments: input }, undefined, {
     signal,

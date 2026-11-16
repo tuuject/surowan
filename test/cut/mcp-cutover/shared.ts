@@ -17,6 +17,7 @@ import { join } from 'node:path';
 import { loadConfig } from '../../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../../src/adapters/local-monolith/database.ts';
 import { createMcpCutover } from '../../../src/adapters/local-monolith/runtime/mcp-cutover/index.ts';
+import { awaitServerAttempts } from '../../../src/capabilities/mcp/availability.ts';
 import type { McpConfigPublishResult } from '../../../src/adapters/local-monolith/runtime/mcp-cutover/shared.ts';
 import { McpManager } from '../../../src/capabilities/mcp/index.ts';
 import { ConversationContextStore } from '../../../src/context/store/index.ts';
@@ -53,7 +54,6 @@ export function server(alias: string, pidFile: string): McpServerConfig {
     alias,
     transport: 'stdio',
     command: [process.execPath, FIXTURE, pidFile],
-    required: false,
     tools: ['echo'],
     payload_max_bytes: 32768,
     result_max_bytes: 32768,
@@ -142,6 +142,7 @@ export async function fixture(): Promise<Fixture> {
     store.close();
   });
   await manager.start();
+  await awaitServerAttempts(manager);
   const forgotten: bigint[] = [];
   const cutover = createMcpCutover({
     store,

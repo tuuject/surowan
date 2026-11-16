@@ -21,6 +21,7 @@ import {
   CompatibleTransport,
   limitResponseBody,
   type ManagedServer,
+  newPendingAttempt,
   RECONNECT_MAX_MS,
   resolveSecretRecord,
 } from './support.ts';
@@ -35,12 +36,16 @@ export function managedServer(config: McpServerConfig): ManagedServer {
     semaphore: new AsyncSemaphore(1),
     definitions: [],
     client: undefined,
+    attempt: undefined,
     generation: 0,
     reconnectAttempt: 0,
     reconnectTimer: undefined,
     stderrBytes: 0,
     payloadLimited: false,
     state: 'stopped',
+    errorCode: null,
+    nextReconnectAt: null,
+    degradedNotified: false,
   };
 }
 
@@ -60,10 +65,23 @@ export async function stopServer(state: McpState, server: ManagedServer): Promis
   // Cleared before the close is awaited: a caller building a tool set during
   // the close must not see the old definitions under a stopped alias.
   server.definitions = [];
+  const attempt = server.attempt;
+  if (attempt !== undefined) {
+    // An in-flight connect has no published client yet: cancel its handshake
+    // and close whatever transport it already opened — otherwise a hung
+    // attempt keeps its stdio child or HTTP request alive past stop().
+    attempt.abort.abort(new Error('MCP server stopped'));
+    if (attempt.client !== undefined) {
+      await attempt.client.close().catch(() => undefined);
+    }
+  }
   if (client !== undefined) {
     await client.close().catch(() => undefined);
   }
   setState(state, server, 'stopped', null);
+  // The attempt unwinds its own cleanup in connect's finally; stop() is done
+  // only once that has run, so nothing the attempt owned outlives it.
+  await attempt?.settled;
 }
 
 export async function connect(
@@ -82,94 +100,133 @@ export async function connect(
   server.client = undefined;
   server.generation += 1;
   const generation = server.generation;
-  if (oldClient !== undefined) {
-    await oldClient.close().catch(() => undefined);
-  }
-  const client = new Client(
-    { name: 'surowan', version: '0.1.0' },
-    {
-      capabilities: {},
-      enforceStrictCapabilities: true,
-      listChanged: {
-        tools: {
-          onChanged: () => {
-            // A notification from a replaced or stopped client must not touch
-            // the registry the current client owns.
-            if (state.stopping || generation !== server.generation) {
-              return;
-            }
-            void refreshTools(state, server, revalidate).catch(() => {
-              setState(state, server, 'degraded', 'registry_update_failed');
-            });
+  // Until this attempt publishes, `server.client` stays empty — `stopServer`
+  // cancels and waits on the attempt itself instead. Registered before the
+  // old client's close is awaited, so a stop() landing during that close
+  // still finds the attempt and waits for it.
+  const attempt = newPendingAttempt();
+  server.attempt = attempt;
+  try {
+    if (oldClient !== undefined) {
+      await oldClient.close().catch(() => undefined);
+    }
+    const client = new Client(
+      { name: 'surowan', version: '0.1.0' },
+      {
+        capabilities: {},
+        enforceStrictCapabilities: true,
+        listChanged: {
+          tools: {
+            onChanged: () => {
+              // A notification from a replaced or stopped client must not touch
+              // the registry the current client owns.
+              if (state.stopping || generation !== server.generation) {
+                return;
+              }
+              void refreshTools(state, server, revalidate).catch(() => {
+                setState(state, server, 'degraded', 'registry_update_failed');
+                scheduleReconnect(state, server, revalidate);
+              });
+            },
           },
         },
       },
-    },
-  );
-  const transport = new CompatibleTransport(await createTransport(state, server));
-  client.onclose = () => {
-    if (state.stopping || generation !== server.generation) {
-      return;
-    }
-    server.client = undefined;
-    const detail =
-      server.config.transport === 'stdio' ? `transport_closed_stderr_${server.stderrBytes}` : 'transport_closed';
-    setState(state, server, 'degraded', detail);
-    scheduleReconnect(state, server, revalidate);
-  };
-  client.onerror = (error) => {
-    if (state.stopping || generation !== server.generation) {
-      return;
-    }
-    if (error.message.startsWith('ReadBuffer exceeded maximum size of ')) {
-      server.payloadLimited = true;
-    }
-    setState(state, server, 'degraded', server.payloadLimited ? 'payload_limit' : 'transport_error');
-  };
-  // Every exit that does not publish this client closes it: a failed
-  // discovery or validation used to leave its stdio process or HTTP session
-  // running with nothing left that could find and close it.
-  let published = false;
-  try {
-    await client.connect(transport, {
-      signal: AbortSignal.timeout(30_000),
-      timeout: 30_000,
-      maxTotalTimeout: 30_000,
-    });
-    const listed = await client.listTools(undefined, {
-      signal: AbortSignal.timeout(30_000),
-      timeout: 30_000,
-      maxTotalTimeout: 30_000,
-    });
-    // stop() or a newer connect may have run while this one awaited; publishing
-    // now would mark a stopped server ready with a client nobody closes.
-    if (state.stopping || generation !== server.generation) {
-      return;
-    }
-    const definitions = selectTools(server, listed.tools);
-    assertBindingsSatisfied(state, server.config, definitions);
-    const previousDefinitions = server.definitions;
-    server.definitions = definitions;
+    );
+    attempt.client = client;
+    const transport = new CompatibleTransport(await createTransport(state, server));
+    client.onclose = () => {
+      if (state.stopping || generation !== server.generation) {
+        return;
+      }
+      server.client = undefined;
+      const detail =
+        server.config.transport === 'stdio' ? `transport_closed_stderr_${server.stderrBytes}` : 'transport_closed';
+      setState(state, server, 'degraded', detail);
+      scheduleReconnect(state, server, revalidate);
+    };
+    client.onerror = (error) => {
+      if (state.stopping || generation !== server.generation) {
+        return;
+      }
+      if (error.message.startsWith('ReadBuffer exceeded maximum size of ')) {
+        server.payloadLimited = true;
+      }
+      setState(state, server, 'degraded', server.payloadLimited ? 'payload_limit' : 'transport_error');
+      // A transport error that does not close the transport would otherwise
+      // hide the tools forever: only `ready` servers expose any, and nothing
+      // else would ever reconnect this instance.
+      scheduleReconnect(state, server, revalidate);
+    };
+    // Every exit that does not publish this client closes it: a failed
+    // discovery or validation used to leave its stdio process or HTTP session
+    // running with nothing left that could find and close it.
+    let published = false;
+    const attemptSignal = AbortSignal.any([AbortSignal.timeout(30_000), attempt.abort.signal]);
     try {
+      await client.connect(transport, {
+        signal: attemptSignal,
+        timeout: 30_000,
+        maxTotalTimeout: 30_000,
+      });
+      const listed = await client.listTools(undefined, {
+        signal: attemptSignal,
+        timeout: 30_000,
+        maxTotalTimeout: 30_000,
+      });
+      // stop() or a newer connect may have run while this one awaited;
+      // publishing now would mark a stopped server ready with a client
+      // nobody closes.
+      if (state.stopping || generation !== server.generation) {
+        return;
+      }
+      const definitions = selectTools(server, listed.tools);
+      assertBindingsSatisfied(state, server.config, definitions);
+      publishCandidate(server, definitions, revalidate);
+      server.client = client;
+      published = true;
+    } finally {
+      if (!published) {
+        // Its failure is reported by the caller, not as a transport close.
+        client.onclose = () => undefined;
+        client.onerror = () => undefined;
+        await client.close().catch(() => undefined);
+      }
+    }
+    server.reconnectAttempt = 0;
+    setState(state, server, 'ready', null);
+    if (!startup) {
       revalidate();
-    } catch (error) {
-      server.definitions = previousDefinitions;
-      throw error;
     }
-    server.client = client;
-    published = true;
   } finally {
-    if (!published) {
-      // Its failure is reported by the caller, not as a transport close.
-      client.onclose = () => undefined;
-      client.onerror = () => undefined;
-      await client.close().catch(() => undefined);
+    if (server.attempt === attempt) {
+      server.attempt = undefined;
     }
+    attempt.settle();
   }
-  server.reconnectAttempt = 0;
-  setState(state, server, 'ready', null);
-  if (!startup) {
+}
+
+/**
+ * Publishes a candidate definition set in memory as `ready` so the registry
+ * check — which only counts ready servers — sees it, then rolls both fields
+ * back when the check fails. `setState` persists `ready` only after the check
+ * has passed, so a `starting` or `degraded` server cannot slip an invalid set
+ * through by being left out of its own validation.
+ */
+function publishCandidate(
+  server: ManagedServer,
+  candidate: ManagedServer['definitions'],
+  revalidate: Revalidate,
+): void {
+  const previousDefinitions = server.definitions;
+  const previousState = server.state;
+  server.definitions = candidate;
+  server.state = 'ready';
+  try {
     revalidate();
+  } catch (error) {
+    server.definitions = previousDefinitions;
+    server.state = previousState;
+    throw error;
   }
 }
 
@@ -191,14 +248,14 @@ async function refreshTools(state: McpState, server: ManagedServer, revalidate: 
     }
     const candidate = selectTools(server, listed.tools);
     assertBindingsSatisfied(state, server.config, candidate);
-    const previous = server.definitions;
-    server.definitions = candidate;
-    try {
-      revalidate();
-    } catch (error) {
-      server.definitions = previous;
-      throw error;
+    publishCandidate(server, candidate, revalidate);
+    // The refresh itself proved the connection healthy; an armed retry from
+    // an earlier failure must not fire now and replace this client mid-call.
+    if (server.reconnectTimer !== undefined) {
+      clearTimeout(server.reconnectTimer);
+      server.reconnectTimer = undefined;
     }
+    server.reconnectAttempt = 0;
     setState(state, server, 'ready', null);
   } finally {
     release();
@@ -279,6 +336,7 @@ export function scheduleReconnect(state: McpState, server: ManagedServer, revali
   const waitMs = Math.min(RECONNECT_MAX_MS, 1_000 * 2 ** Math.min(attempt, 6));
   server.reconnectAttempt += 1;
   const next = new Date(Date.now() + waitMs).toISOString();
+  server.nextReconnectAt = next;
   state.store.orm
     .update(mcpServerState)
     .set({
@@ -295,15 +353,21 @@ export function scheduleReconnect(state: McpState, server: ManagedServer, revali
       const release = await server.semaphore.acquire(reconnectSignal);
       try {
         await connect(state, server, false, revalidate);
-      } catch {
-        setState(state, server, 'degraded', 'reconnect_failed');
-        scheduleReconnect(state, server, revalidate);
+      } catch (error) {
+        // A stop() racing the attempt persisted `stopped` already; the retry
+        // outcome must not overwrite it or touch a closed store.
+        if (!state.stopping) {
+          setState(state, server, 'degraded', 'reconnect_failed', error);
+          scheduleReconnect(state, server, revalidate);
+        }
       } finally {
         release();
       }
     })().catch(() => {
-      setState(state, server, 'degraded', 'reconnect_failed');
-      scheduleReconnect(state, server, revalidate);
+      if (!state.stopping) {
+        setState(state, server, 'degraded', 'reconnect_failed');
+        scheduleReconnect(state, server, revalidate);
+      }
     });
   }, waitMs);
 }
@@ -313,14 +377,43 @@ export function setState(
   server: ManagedServer,
   next: ManagedServer['state'],
   errorCode: string | null,
+  detail?: unknown,
 ): void {
   // A stopped or replaced instance reports into the alias row only while it is
   // the published one; a late callback from an old client must not overwrite
-  // the state of its replacement.
-  if (!state.stopping && !isCurrent(state, server)) {
+  // the state of its replacement. During stop the only legitimate write is
+  // `stopped` itself — a straggler fetch or transport callback landing after
+  // `stop()` must not resurrect a row, let alone write to a closed store.
+  if (state.stopping ? next !== 'stopped' : !isCurrent(state, server)) {
     return;
   }
   server.state = next;
+  // A retry's `starting` keeps the failure code it is recovering from so the
+  // warning stays armed and informative mid-attempt; every other state
+  // records the code it was given.
+  if (!(next === 'starting' && server.degradedNotified)) {
+    server.errorCode = errorCode;
+  }
+  // `degraded` keeps the armed timer's target — an `onerror` bumping a
+  // retrying server must not blank the backoff the warning page shows.
+  // Anything else has no pending reconnect, so the published target clears.
+  if (next !== 'degraded') {
+    server.nextReconnectAt = null;
+  }
+  if (next === 'degraded' && !server.degradedNotified) {
+    server.degradedNotified = true;
+    state.log?.('mcp_server_degraded', {
+      alias: server.config.alias,
+      error_code: errorCode ?? 'unknown',
+      // The detail helps operators fix the cause; it is redacted, and the
+      // warning surface still only ever shows the code.
+      ...(detail === undefined ? {} : { error: state.secrets.redactError(detail) }),
+    });
+  }
+  if (next === 'ready' && server.degradedNotified) {
+    server.degradedNotified = false;
+    state.log?.('mcp_server_recovered', { alias: server.config.alias });
+  }
   const now = new Date().toISOString();
   const hash =
     next === 'ready'
@@ -338,7 +431,7 @@ export function setState(
       : null;
   state.store.orm.run(sql`
     INSERT INTO mcp_server_state(alias, state, registry_hash, reconnect_attempt, next_reconnect_at, error_code, updated_at)
-    VALUES (${server.config.alias}, ${next}, ${hash}, ${BigInt(server.reconnectAttempt)}, NULL, ${errorCode}, ${now})
+    VALUES (${server.config.alias}, ${next}, ${hash}, ${BigInt(server.reconnectAttempt)}, ${server.nextReconnectAt}, ${server.errorCode}, ${now})
     ON CONFLICT(alias) DO UPDATE SET
       state = excluded.state,
       registry_hash = COALESCE(excluded.registry_hash, mcp_server_state.registry_hash),

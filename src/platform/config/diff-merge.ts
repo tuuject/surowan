@@ -111,8 +111,8 @@ const HOT_PROACTIVE_REPLY_PATHS = [
  * The MCP section and every per-Chat binding below it. The MCP manager diffs
  * the server list by alias and the composition root runs the cutover that
  * stops the affected Chats before those instances move, so neither needs a
- * restart. `required` stays a startup guarantee: a hot-added server that fails
- * is published as `degraded` and retried on its own backoff.
+ * restart. A hot-added server that fails is published as `degraded` and
+ * retried on its own backoff; `required` is deprecated and changes nothing.
  */
 const HOT_MCP_PATHS = [/^mcp(\.|$)/, /^telegram\.chats\[-?\d+\]\.mcp(\.|$)/];
 

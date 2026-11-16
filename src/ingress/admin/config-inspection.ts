@@ -138,7 +138,6 @@ export function configurationView(config: RawConfig) {
             servers: config.mcp.servers.map((server) => ({
               alias: server.alias,
               transport: server.transport,
-              required: server.required,
               tools: server.tools,
               payload_max_bytes: server.payload_max_bytes,
               result_max_bytes: server.result_max_bytes,
